@@ -4384,6 +4384,8 @@ void QCC_PrecacheSound (const char *n, int ch)
 				precache_sound[i].block = ch;
 			return;
 		}
+	if (strchr(n, '\\'))
+		QCC_PR_ParseWarning(WARN_NONPORTABLEFILENAME, "backslashes in path names are non-portable - %s", n);
 	if (numsounds == QCC_MAX_SOUNDS)
 		return;
 //		QCC_Error ("PrecacheSound: numsounds == MAX_SOUNDS");
@@ -4412,6 +4414,8 @@ void QCC_PrecacheModel (const char *n, int ch)
 			}
 			return;
 		}
+	if (strchr(n, '\\'))
+		QCC_PR_ParseWarning(WARN_NONPORTABLEFILENAME, "backslashes in path names are non-portable - %s", n);
 	if (nummodels == QCC_MAX_MODELS)
 		return;
 //		QCC_Error ("PrecacheModels: nummodels == MAX_MODELS");
@@ -4437,6 +4441,8 @@ void QCC_SetModel (const char *n)
 			precache_model[i].used++;
 			return;
 		}
+	if (strchr(n, '\\'))
+		QCC_PR_ParseWarning(WARN_NONPORTABLEFILENAME, "backslashes in path names are non-portable - %s", n);
 	if (nummodels == QCC_MAX_MODELS)
 		return;
 	strcpy (precache_model[i].name, n);
@@ -4459,6 +4465,8 @@ void QCC_SoundUsed (const char *n)
 			precache_sound[i].used++;
 			return;
 		}
+	if (strchr(n, '\\'))
+		QCC_PR_ParseWarning(WARN_NONPORTABLEFILENAME, "backslashes in path names are non-portable - %s", n);
 	if (numsounds == QCC_MAX_SOUNDS)
 		return;
 	strcpy (precache_sound[i].name, n);
@@ -4479,6 +4487,8 @@ void QCC_PrecacheTexture (const char *n, int ch)
 	for (i=0 ; i<numtextures ; i++)
 		if (!STRCMP(n, precache_texture[i].name))
 			return;
+	if (strchr(n, '\\'))
+		QCC_PR_ParseWarning(WARN_NONPORTABLEFILENAME, "backslashes in path names are non-portable - %s", n);
 	if (nummodels == QCC_MAX_MODELS)
 		return;
 //		QCC_Error ("PrecacheTextures: numtextures == MAX_TEXTURES");
@@ -4499,6 +4509,8 @@ void QCC_PrecacheFile (const char *n, int ch)
 	for (i=0 ; i<numfiles ; i++)
 		if (!STRCMP(n, precache_file[i].name))
 			return;
+	if (strchr(n, '\\'))
+		QCC_PR_ParseWarning(WARN_NONPORTABLEFILENAME, "backslashes in path names are non-portable - %s", n);
 	if (numfiles == QCC_MAX_FILES)
 		return;
 //		QCC_Error ("PrecacheFile: numfiles == MAX_FILES");

@@ -1525,6 +1525,30 @@ void GLBE_Shutdown(void)
 	BZ_Free(shaderstate.wbatches);
 	shaderstate.wbatches = NULL;
 	shaderstate.maxwbatches = 0;
+
+	//on vid_reload, the gl drivers might have various things bound that have since been destroyed/etc
+	//so reset that state to avoid any issues with state
+	/*shaderstate.sourcevbo = &shaderstate.dummyvbo;
+	memset(shaderstate.sourcevbo, 0, sizeof(*shaderstate.sourcevbo));
+	shaderstate.pendingcolourvbo = 0;
+	shaderstate.pendingcolourpointer = NULL;
+	shaderstate.pendingvertexvbo = 0;
+	shaderstate.pendingvertexpointer = NULL;
+	for (u = 0; u < SHADER_TMU_MAX; u++)
+	{
+		shaderstate.pendingtexcoordparts[u] = 0;
+		shaderstate.pendingtexcoordvbo[u] = 0;
+		shaderstate.pendingtexcoordpointer[u] = NULL;
+	}*/
+	if (sh_config.progs_supported)
+		BE_ApplyAttributes(0, (1u<<VATTR_LEG_FIRST)-1u);
+	if (!sh_config.progs_required)
+		BE_ApplyAttributes(0,	(1u<<VATTR_LEG_VERTEX)|
+								(1u<<VATTR_LEG_COLOUR)|
+								(1u<<VATTR_LEG_ELEMENTS)|
+								((1u<<(VATTR_LEG_TMU0+be_maxpasses))-1));
+	GL_SelectVBO(0);
+	GL_SelectEBO(0);
 }
 
 void GLBE_Init(void)
@@ -1538,6 +1562,7 @@ void GLBE_Init(void)
 
 	shaderstate.curentity = &r_worldentity;
 	be_maxpasses = gl_config_nofixedfunc?1:gl_mtexarbable;
+	be_maxpasses = min(SHADER_TMU_MAX, min(be_maxpasses, 32-VATTR_LEG_TMU0));
 	gl_stencilbits = 0;
 #ifndef GLESONLY
 	if (!gl_config_gles && gl_config.glversion >= 3.0 && gl_config_nofixedfunc)

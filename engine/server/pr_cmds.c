@@ -786,6 +786,8 @@ void PR_LoadGlabalStruct(qboolean muted)
 	int i;
 	int *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
+	memset(pr_global_ptrs, 0, sizeof(*pr_global_ptrs));
+
 #define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
 #define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
 #define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}

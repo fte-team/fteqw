@@ -1986,7 +1986,7 @@ void CL_Record_f (void)
 static int QDECL CompleteDemoList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
-	ctx->cb(name, ctx);
+	ctx->cb(name, NULL, NULL, ctx);
 	return true;
 }
 void CL_DemoList_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)

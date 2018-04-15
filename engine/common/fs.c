@@ -3524,6 +3524,79 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 	}
 }
 
+qboolean FS_PureOkay(void)
+{
+	//returns true if all pure packages that we're meant to need could load.
+	//if they couldn't then they won't override things, or the game will just be completely screwed due to having absolutely no game data
+	if (fs_puremode == 1 && fs_purenames && *fs_purenames && fs_purecrcs && *fs_purecrcs)
+	{
+		char crctok[64];
+		char nametok[MAX_QPATH];
+		char nametok2[MAX_QPATH];
+		searchpath_t *sp = com_purepaths;
+		char *names = fs_purenames, *pname;
+		char *crcs = fs_purecrcs;
+		int crc;
+		qboolean required;
+
+		while(names && crcs)
+		{
+			crcs = COM_ParseOut(crcs, crctok, sizeof(crctok));
+			names = COM_ParseOut(names, nametok, sizeof(nametok));
+
+			crc = strtoul(crctok, NULL, 0);
+			if (!crc)
+				continue;
+
+			pname = nametok;
+
+			if (fs_refnames && fs_refcrcs)
+			{	//q3 is annoying as hell
+				int crc2;
+				char *rc = fs_refcrcs;
+				char *rn = fs_refnames;
+				pname = "";
+				for (; rc && rn; )
+				{
+					rc = COM_ParseOut(rc, crctok, sizeof(crctok));
+					rn = COM_ParseOut(rn, nametok2, sizeof(nametok2));
+					crc2 = strtoul(crctok, NULL, 0);
+					if (crc2 == crc)
+					{
+						COM_DefaultExtension(nametok2, ".pk3", sizeof(nametok2));
+						pname = nametok2;
+						break;
+					}
+				}
+			}
+			required = *pname == '*';
+			if (*pname == '*')	// * means that its 'referenced' (read: actually useful) thus should be downloaded, which is not relevent here.
+			{
+				required = true;
+				pname++;
+			}
+			else
+				required = false;
+
+			if (sp && sp->crc_check == crc)
+			{
+				sp = sp->nextpure;
+				continue;
+			}
+			else if (!required)	//if its not referenced, then its not needed, and we probably didn't bother to download it. this might be an issue with sv_pure 1, but that has its own issues.
+				continue;
+			else //if (!sp)
+			{
+				Con_Printf("Pure package %s:%i missing\n", pname, crc);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	return true;
+}
+
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 {	//this is for q3 compatibility.
 
@@ -3854,7 +3927,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				}
 
 				if (!sp)
-					Con_DPrintf("Pure crc %i wasn't found\n", crc);
+					Con_DPrintf("Pure package %s:%i wasn't found\n", pname, crc);
 			}
 		}
 	}

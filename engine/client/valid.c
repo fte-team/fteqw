@@ -391,11 +391,13 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_in", "0"},
 	{"r_projection", "0"},
 	{"gl_shadeq1_name", "*"},
+	{"cl_iDrive", "0"},
 	{NULL}
 };
 
 rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_larger_models", "0"},
+	{"ruleset_allow_watervis", "0"}, /*block seeing through turbs, as well as all our cool graphics stuff. apparently we're not allowed.*/
 	{"ruleset_allow_overlong_sounds", "0"},
 	{"ruleset_allow_particle_lightning", "0"},
 	{"ruleset_allow_packet", "0"},
@@ -411,6 +413,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_in", "0"},
 	{"r_projection", "0"},
 	{"gl_shadeq1_name", "*"},
+	{"cl_iDrive", "0"},
 	{NULL}
 };
 

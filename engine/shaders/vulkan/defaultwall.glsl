@@ -200,6 +200,7 @@ void main ()
 			if (gl_FragColor.a >= arg_mask)
 				discard;
 		}
+		gl_FragColor.a = 1.0;
 	}
 
 //and finally hide it all if we're fogged.

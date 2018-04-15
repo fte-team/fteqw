@@ -818,7 +818,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	{
 	default:
 	case T_GEN_DIFFUSE:
-		if (shaderstate.curtexnums->base)
+		if (TEXLOADED(shaderstate.curtexnums->base))
 			BindTexture(tu, shaderstate.curtexnums->base);
 		else
 			BindTexture(tu, missing_texture);
@@ -2049,6 +2049,13 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, mvp, 4);
 			}
 			break;
+		case SP_M_MODELVIEW:
+			{
+				float mv[16];
+				Matrix4_Multiply(r_refdef.m_view, shaderstate.m_model, mv);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, mv, 4);
+			}
+			break;
 
 		case SP_LIGHTPOSITION:
 			{
@@ -2130,7 +2137,6 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 			break;
 
 		case SP_M_ENTBONES:
-		case SP_M_MODELVIEW:
 		case SP_E_VLSCALE:
 		case SP_E_ORIGIN:
 		case SP_E_GLOWMOD:
@@ -2177,9 +2183,9 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 			return;
 	}
 #endif
-	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
 		perm |= PERMUTATION_FULLBRIGHT;
 	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;

@@ -132,7 +132,7 @@ cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezq
 cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug		= CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname	= CVAR("sv_csqc_progname", "csprogs.dat");
-cvar_t pausable				= CVAR("pausable", "1");
+cvar_t pausable				= CVAR("pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
 

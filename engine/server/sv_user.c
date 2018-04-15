@@ -4007,7 +4007,12 @@ SV_Pause_f
 */
 void SV_Pause_f (void)
 {
-	if (!pausable.value)
+	int maypause;
+	if (!*pausable.string)
+		maypause = !deathmatch.ival;
+	else
+		maypause = pausable.ival;
+	if (!maypause)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "Can't pause. Not allowed\n");
 		return;

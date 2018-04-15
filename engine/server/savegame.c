@@ -1413,7 +1413,7 @@ static int QDECL CompleteSaveList (const char *name, qofs_t flags, time_t mtime,
 	if (l >= 9 && !Q_strcasecmp(trimmed+l-9, "/info.fsv"))
 	{
 		trimmed[l-9] = 0;
-		ctx->cb(trimmed, ctx);
+		ctx->cb(trimmed, NULL, NULL, ctx);
 	}
 	return true;
 }
@@ -1422,7 +1422,7 @@ static int QDECL CompleteSaveListLegacy (const char *name, qofs_t flags, time_t 
 	struct xcommandargcompletioncb_s *ctx = parm;
 	char stripped[64];
 	COM_StripExtension(name, stripped, sizeof(stripped));
-	ctx->cb(stripped, ctx);
+	ctx->cb(stripped, NULL, NULL, ctx);
 	return true;
 }
 void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)

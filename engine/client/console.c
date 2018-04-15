@@ -65,6 +65,7 @@ cvar_t		con_notify_y = CVAR("con_notify_y","0");
 cvar_t		con_notify_w = CVAR("con_notify_w","1");
 cvar_t		con_centernotify = CVAR("con_centernotify", "0");
 cvar_t		con_displaypossibilities = CVAR("con_displaypossibilities", "1");
+cvar_t		con_showcompletion = CVAR("con_showcompletion", "1");
 cvar_t		con_maxlines = CVAR("con_maxlines", "1024");
 cvar_t		cl_chatmode = CVARD("cl_chatmode", "2", "0(nq) - everything is assumed to be a console command. prefix with 'say', or just use a messagemode bind\n1(q3) - everything is assumed to be chat, unless its prefixed with a /\n2(qw) - anything explicitly recognised as a command will be used as a command, anything unrecognised will be a chat message.\n/ prefix is supported in all cases.\nctrl held when pressing enter always makes any implicit chat into team chat instead.");
 cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
@@ -1293,7 +1294,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	i = 0;
 	x = left;
 
-	if (con->commandcompletion)
+	if (con->commandcompletion && con_)
 	{
 		if (cl_chatmode.ival && (text[0] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text))))
 		{	//color the first token yellow, it's a valid command
@@ -1310,7 +1311,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch, NULL);
 			if (fname && strlen(fname) < 256)	//we can compleate it to:
 			{
-				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>' '; p++)
+				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>0; p++)
 					textstart[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
 				if (p < key_linepos-cmdstart)
 					p = key_linepos-cmdstart;
@@ -1389,9 +1390,10 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	if (con_commandmatch && con_displaypossibilities.value)
 	{
 		conchar_t *end, *s;
-		char *cmd;//, *desc;
+		const char *cmd;//, *desc;
 		int cmdstart;
 		size_t newlen;
+		cmd_completion_t *c;
 		cmdstart = text[0] == '/'?1:0;
 		end = maskedtext;
 
@@ -1405,29 +1407,24 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		}
 		con->completionline->length = 0;
 
-		for (i = 1; ; i++)
+		c = Cmd_Complete(text+cmdstart, true);
+
+		for (i = 0; i < c->num; i++)
 		{
-			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i, NULL);//&desc);
-			if (!cmd)
-			{
-				if (i <= 2)
-					con_commandmatch = 0;
-				break;
-			}
-
-			if (i == 50)
-			{
-				s = (conchar_t*)(con->completionline+1);
-				end = COM_ParseFunString((COLOR_WHITE<<CON_FGSHIFT), va("MORE"), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
-				con->completionline->length = end - s;
-				break;
-			}
-
 			s = (conchar_t*)(con->completionline+1);
+
+			cmd = c->completions[i].text;
+//			desc = c->completions[i].desc;
 //			if (desc)
 //				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s\\tip\\%s^]\t", cmd, desc), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
 //			else
 				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s^]\t", cmd), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
+			con->completionline->length = end - s;
+		}
+		if (c->extra)
+		{
+			s = (conchar_t*)(con->completionline+1);
+			end = COM_ParseFunString((COLOR_WHITE<<CON_FGSHIFT), va("%u MORE", (unsigned)c->extra), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
 			con->completionline->length = end - s;
 		}
 

@@ -1494,6 +1494,28 @@ void Sys_Register_File_Associations_f(void)
 {
 	Sys_DoFileAssociations(0);
 }
+
+static void QDECL Sys_Priority_Changed(cvar_t *var, char *oldval)
+{
+	HANDLE h = GetCurrentProcess();
+	DWORD pc;
+
+	if (var->ival >= 3)
+		pc = REALTIME_PRIORITY_CLASS;
+	else if (var->ival >= 2)
+		pc = HIGH_PRIORITY_CLASS;
+	else if (var->ival >= 1)
+		pc = ABOVE_NORMAL_PRIORITY_CLASS;
+	else if (var->ival >= 0)
+		pc = NORMAL_PRIORITY_CLASS;
+	else if (var->ival >= -1)
+		pc = BELOW_NORMAL_PRIORITY_CLASS;
+	else
+		pc = IDLE_PRIORITY_CLASS;
+
+	SetPriorityClass(h, pc);
+}
+static cvar_t sys_priority = CVARFCD("sys_highpriority", "0", CVAR_NOTFROMSERVER, Sys_Priority_Changed, "Controls the process priority");
 /*
 ================
 Sys_Init
@@ -1506,6 +1528,8 @@ void Sys_Init (void)
 	OSVERSIONINFO	vinfo;
 
 	Sys_QueryDesktopParameters();
+
+	Cvar_Register(&sys_priority, "System vars");
 
 #ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");

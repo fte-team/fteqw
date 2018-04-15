@@ -611,6 +611,7 @@ void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 void FS_PureMode(int mode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int seed);	//implies an fs_restart. ref package names are optional, for q3 where pure names don't contain usable paths
+qboolean FS_PureOkay(void);
 
 //recursively tries to open files until it can get a zip.
 vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name);

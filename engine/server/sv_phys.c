@@ -2225,7 +2225,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		else
 			gravitydir = w->g.defaultgravitydir;
 
-		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
+		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) ) //Vanilla Bug: the QC checks waterlevel inside PlayerPreThink, with waterlevel from a different position from the origin.
 			WPhys_AddGravity (w, ent, gravitydir);
 		WPhys_CheckStuck (w, ent);
 

@@ -1014,6 +1014,22 @@ static void Shader_SurfaceParm ( shader_t *shader, shaderpass_t *pass, char **pt
 		shader->flags |= SHADER_NOMARKS;	//wrong, but whatever.
 	else if ( !Q_stricmp( token, "nomarks" ) )
 		shader->flags |= SHADER_NOMARKS;
+
+	//forceshader type things inherit certain textures from the original material
+	//however, that original material might not need those textures and thus won't have them loaded, which breaks replacement.
+	//these provide a way to override that.
+	else if (!Q_stricmp( token, "hasdiffuse"))
+		shader->flags |= SHADER_HASDIFFUSE;
+	else if (!Q_stricmp( token, "hasnormalmap"))
+		shader->flags |= SHADER_HASNORMALMAP;
+	else if (!Q_stricmp( token, "hasgloss"))
+		shader->flags |= SHADER_HASGLOSS;
+	else if (!Q_stricmp( token, "hasfullbright"))
+		shader->flags |= SHADER_HASFULLBRIGHT;
+	else if (!Q_stricmp( token, "haspaletted"))
+		shader->flags |= SHADER_HASPALETTED;
+	else if (!Q_stricmp(token, "hastop") || !Q_stricmp(token, "hasbottom") || !Q_stricmp(token, "hastopbottom"))
+		shader->flags |= SHADER_HASTOPBOTTOM;
 }
 
 static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -5918,7 +5934,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 			"}\n"
 		);
 	}
-	if (!builtin && ((sh_config.progs_supported && qrenderer == QR_OPENGL) || sh_config.progs_required))
+	if (!builtin && ((sh_config.progs_supported && (qrenderer == QR_OPENGL||qrenderer == QR_DIRECT3D9)) || sh_config.progs_required))
 	{
 			builtin = (
 					"{\n"
@@ -6111,38 +6127,43 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 				"surfaceparm nodraw\n"
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	case -2:	//regular with r_wateralpha forced off.
 		return (
 			"{\n"
-				"program defaultwarp\n"
 				"{\n"
+					"program defaultwarp\n"
 					"map $diffuse\n"
 					"tcmod turb 0.02 0.1 0.5 0.1\n"
 				"}\n"
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	case 0:	//fastturb
 		return (
 			"{\n"
-//				"program defaultfill\n"
 				"{\n"
+//					"program defaultfill\n"
 					"map $whiteimage\n"
 					"rgbgen srgb $r_fastturbcolour\n"
 				"}\n"
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	default:
 	case 1:	//vanilla style
 		Q_snprintfz(buffer, buffersize, 
 				"{\n"
-					"program defaultwarp%s\n"
+					"surfaceparm nodlight\n"
+					"surfaceparm nomarks\n"
 					"{\n"
+						"program defaultwarp%s\n"
 						"map $diffuse\n"
 						"tcmod turb 0.02 0.1 0.5 0.1\n"
 						"if %g < 1\n"
@@ -6150,8 +6171,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 						"endif\n"
 					"}\n"
-					"surfaceparm nodlight\n"
-					"surfaceparm nomarks\n"
+					"surfaceparm hasdiffuse\n"
 				"}\n"
 				, explicitalpha?"":va("#ALPHA=%g",alpha), alpha, alpha);
 		return buffer;
@@ -6161,18 +6181,13 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
 				"{\n"
+					"program altwater#FRESNEL=4\n"
 					"map $refraction\n"
-				"}\n"
-				"{\n"
 					"map $null\n"//$reflection
-				"}\n"
-				"{\n"
 					"map $null\n"//$ripplemap
-				"}\n"
-				"{\n"
 					"map $null\n"//$refractiondepth
 				"}\n"
-				"program altwater#FRESNEL=4\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	case 3:	//reflections
@@ -6181,18 +6196,13 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
 				"{\n"
+					"program altwater#REFLECT#FRESNEL=4\n"
 					"map $refraction\n"
-				"}\n"
-				"{\n"
 					"map $reflection\n"
-				"}\n"
-				"{\n"
 					"map $null\n"//$ripplemap
-				"}\n"
-				"{\n"
 					"map $null\n"//$refractiondepth
 				"}\n"
-				"program altwater#REFLECT#FRESNEL=4\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	case 4:	//ripples
@@ -6201,18 +6211,13 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
 				"{\n"
+					"program altwater#RIPPLEMAP#FRESNEL=4\n"
 					"map $refraction\n"
-				"}\n"
-				"{\n"
 					"map $null\n"//$reflection
-				"}\n"
-				"{\n"
 					"map $ripplemap\n"
-				"}\n"
-				"{\n"
 					"map $null\n"//$refractiondepth
 				"}\n"
-				"program altwater#RIPPLEMAP#FRESNEL=4\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	case 5:	//ripples+reflections
@@ -6221,18 +6226,13 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
 				"{\n"
+					"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
 					"map $refraction\n"
-				"}\n"
-				"{\n"
 					"map $reflection\n"
-				"}\n"
-				"{\n"
 					"map $ripplemap\n"
-				"}\n"
-				"{\n"
 					"map $null\n"//$refractiondepth
 				"}\n"
-				"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
+				"surfaceparm hasdiffuse\n"
 			"}\n"
 		);
 	}
@@ -6377,42 +6377,48 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 	if (!builtin && *shortname == '{')
 	{
 		/*alpha test*/
-		/*FIXME: use defaultwall#ALPHA=0.666 or so*/
-		builtin = (
-			"{\n"
-		/*		"if $deluxmap\n"
-					"{\n"
-						"map $normalmap\n"
-						"tcgen base\n"
-					"}\n"
-					"{\n"
-						"map $deluxmap\n"
-						"tcgen lightmap\n"
-					"}\n"
-				"endif\n"*/
+		if (sh_config.progs_supported)
+			builtin = (
 				"{\n"
-					"map $diffuse\n"
-					"tcgen base\n"
-					"alphafunc ge128\n"
+					"fte_program defaultwall#MASK=0.666#MASKLT\n"
 				"}\n"
-//				"if $lightmap\n"
+			);
+		else
+			builtin = (
+				"{\n"
+			/*		"if $deluxmap\n"
+						"{\n"
+							"map $normalmap\n"
+							"tcgen base\n"
+						"}\n"
+						"{\n"
+							"map $deluxmap\n"
+							"tcgen lightmap\n"
+						"}\n"
+					"endif\n"*/
 					"{\n"
-						"map $lightmap\n"
-						"if gl_overbright > 1\n"
-						"blendfunc gl_dst_color gl_src_color\n"	//scale it up twice. will probably still get clamped, but what can you do
-						"else\n"
-						"blendfunc gl_dst_color gl_zero\n"
-						"endif\n"
+						"map $diffuse\n"
+						"tcgen base\n"
+						"alphafunc ge128\n"
+					"}\n"
+	//				"if $lightmap\n"
+						"{\n"
+							"map $lightmap\n"
+							"if gl_overbright > 1\n"
+							"blendfunc gl_dst_color gl_src_color\n"	//scale it up twice. will probably still get clamped, but what can you do
+							"else\n"
+							"blendfunc gl_dst_color gl_zero\n"
+							"endif\n"
+							"depthfunc equal\n"
+						"}\n"
+	//				"endif\n"
+					"{\n"
+						"map $fullbright\n"
+						"blendfunc add\n"
 						"depthfunc equal\n"
 					"}\n"
-//				"endif\n"
-				"{\n"
-					"map $fullbright\n"
-					"blendfunc add\n"
-					"depthfunc equal\n"
 				"}\n"
-			"}\n"
-		);
+			);
 	}
 
 	/*Hack: note that halflife would normally expect you to use rendermode/renderampt*/
@@ -6610,7 +6616,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 				"nomipmaps\n"
 				"program default2d#PREMUL\n"
 				"{\n"
-				"map $diffuse\n"
+				"clampmap $diffuse\n"
 				"blendfunc gl_one gl_one_minus_src_alpha\n"
 				"}\n"
 				"sort additive\n"

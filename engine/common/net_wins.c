@@ -1168,7 +1168,6 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	if (!strncmp (s, "tcp://", 6))
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
-
 		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
@@ -1182,7 +1181,6 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	if (!strncmp (s, "ws://", 5))
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
-
 		if (!NET_StringToSockaddr (s+5, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
@@ -1195,8 +1193,10 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	}
 	if (!strncmp (s, "wss://", 6))
 	{
+#ifndef HAVE_SSL
+		return false;
+#else
 		//make sure that the rest of the address is a valid ip address (4 or 6)
-
 		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
@@ -1206,29 +1206,14 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		SockadrToNetadr (&sadr[0], a);
 		a->prot = NP_WSS;
 		return true;
-	}
-	if (!strncmp (s, "dtls://", 7))
-	{
-#ifdef HAVE_DTLS
-		//make sure that the rest of the address is a valid ip address (4 or 6)
-
-		if (!NET_StringToSockaddr (s+7, defaultport, &sadr[0], NULL, NULL))
-		{
-			a->type = NA_INVALID;
-			return false;
-		}
-
-		SockadrToNetadr (&sadr[0], a);
-		a->prot = NP_DTLS;
-		return true;
-#else
-		return false;
 #endif
 	}
 	if (!strncmp (s, "tls://", 6))
 	{
+#ifndef HAVE_SSL
+		return false;
+#else
 		//make sure that the rest of the address is a valid ip address (4 or 6)
-
 		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
@@ -1238,8 +1223,26 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		SockadrToNetadr (&sadr[0], a);
 		a->prot = NP_TLS;
 		return true;
+#endif
 	}
 #endif
+	if (!strncmp (s, "dtls://", 7))
+	{
+#ifndef HAVE_DTLS
+		return false;
+#else
+		//make sure that the rest of the address is a valid ip address (4 or 6)
+		if (!NET_StringToSockaddr (s+7, defaultport, &sadr[0], NULL, NULL))
+		{
+			a->type = NA_INVALID;
+			return false;
+		}
+
+		SockadrToNetadr (&sadr[0], a);
+		a->prot = NP_DTLS;
+		return true;
+#endif
+	}
 #ifdef IRCCONNECT
 	if (!strncmp (s, "irc://", 6))
 	{

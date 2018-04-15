@@ -811,7 +811,7 @@ void Cmd_Exec_f (void)
 static int QDECL CompleteExecList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
-	ctx->cb(name, ctx);
+	ctx->cb(name, NULL, NULL, ctx);
 	return true;
 }
 void Cmd_Exec_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
@@ -868,7 +868,7 @@ static void Key_Alias_c(int argn, const char *partial, struct xcommandargcomplet
 	for (a = cmd_alias ; a ; a=a->next)
 	{
 		if (!Q_strncasecmp(partial,a->name, len))
-			ctx->cb(a->name, ctx);
+			ctx->cb(a->name, a->value, NULL, ctx);
 	}
 }
 static void Cmd_ShowAlias_f (void)
@@ -2183,107 +2183,193 @@ const char *Cmd_Describe (const char *cmd_name)
 Cmd_CompleteCommand
 ============
 */
-typedef struct {
-	int matchnum;
-	qboolean allowcutdown;
-	qboolean cutdown;
-	char result[256];
-	const char *desc;
-} match_t;
-void Cmd_CompleteCheck(const char *check, match_t *match, const char *desc)	//compare cumulative strings and join the result
-{
-	if (*match->result)
-	{
-		char *r;
-		if (match->allowcutdown)
-		{
-			for(r = match->result; *r == *check && *r; r++, check++)
-				;
-			*r = '\0';
-			match->cutdown = true;
-			if (match->matchnum > 0)
-				match->matchnum--;
-		}
-		else if (match->matchnum > 0)
-		{
-			strcpy(match->result, check);
-			match->desc = desc;
-			match->matchnum--;
-		}
-	}
-	else
-	{
-		if (match->matchnum > 0)
-			match->matchnum--;
-		strcpy(match->result, check);
-		match->desc = desc;
-	}
-}
-struct cmdargcompletionctx_s
+
+
+struct cmdargcompletion_ctx_s
 {
 	struct xcommandargcompletioncb_s cb;
 	cmd_function_t *cmd;
 	const char *prefix;
 	size_t prefixlen;
-	match_t *match;
+	qboolean quoted;
+	cmd_completion_t *res;
 	const char *desc;
 };
-void Cmd_CompleteCheckArg(const char *value, struct xcommandargcompletioncb_s *vctx)	//compare cumulative strings and join the result
+static fte_inline int Q_tolower(char c)
 {
-	struct cmdargcompletionctx_s *ctx = (struct cmdargcompletionctx_s*)vctx;
-	match_t *match = ctx->match;
-	const char *desc = ctx->desc;
+	if (c >= 'a' && c <= 'z')
+		c -= ('a' - 'A');
+	return c;
+}
+void Cmd_Complete_CheckArg(const char *value, const char *desc, const char *repl, struct xcommandargcompletioncb_s *vctx)	//compare cumulative strings and join the result
+{
+	struct cmdargcompletion_ctx_s *ctx = (struct cmdargcompletion_ctx_s*)vctx;
+	cmd_completion_t *res = ctx->res;
+	char *text;
 
-	if (ctx->prefixlen >= countof(match->result)-1)
-		return;	//don't allow overflows.
+	const char *c;
+	char *p;
+	char quoted[8192];
 
-	if (*match->result)
+	if (!desc)	//if no arg desc, use the command's.
+		desc = ctx->desc;
+
+	if (strchr(value, ' ') || strchr(value, '\t') || strchr(value, '\"') || strchr(value, '\r') || strchr(value, '\n'))
 	{
-		char *r;
-		const char *check;
-		if (match->allowcutdown)
-		{
-			for(r = match->result, check=ctx->prefix; check < ctx->prefix+ctx->prefixlen && *r == *check && *r; r++, check++)
-				;
-			if (check == ctx->prefix+ctx->prefixlen)
-			{
-				for(check=value; *r == *check && *r; r++, check++)
-					;
-			}
-			*r = '\0';
-			match->cutdown = true;
-			if (match->matchnum > 0)
-				match->matchnum--;
-		}
-		else if (match->matchnum > 0)
-		{
-			memcpy(match->result, ctx->prefix, ctx->prefixlen);
-			Q_strncpyz(match->result+ctx->prefixlen, value, sizeof(match->result)-ctx->prefixlen);
-			match->desc = desc;
-			match->matchnum--;
-		}
+		if (/*ctx->prefix[ctx->prefixlen] &&*/ !ctx->quoted)	//FIXME... Figure out some way to insert quotes earlier in the completion without it bugging out
+			return;
+	}
+
+	if (ctx->quoted)
+	{
+		value = COM_QuotedString(value, quoted, sizeof(quoted), false);
+		value++;
+	}
+
+	if (!res->guessed)
+	{
+		text = BZ_Malloc(ctx->prefixlen + strlen(value) + 1);
+		memcpy(text, ctx->prefix, ctx->prefixlen);
+		strcpy(text+ctx->prefixlen, value);
+		res->guessed = text;
 	}
 	else
 	{
-		if (match->matchnum > 0)
-			match->matchnum--;
-		memcpy(match->result, ctx->prefix, ctx->prefixlen);
-		Q_strncpyz(match->result+ctx->prefixlen, value, sizeof(match->result)-ctx->prefixlen);
-		match->desc = desc;
+		for (p = res->guessed, c = ctx->prefix; *p && c < ctx->prefix+ctx->prefixlen; p++, c++)
+		{
+			if (Q_tolower(*p) != Q_tolower(*c))
+			{
+				*p = 0;
+				break;
+			}
+		}
+		if (c == ctx->prefix+ctx->prefixlen)
+			for (c = value; *p; p++, c++)
+			{
+				if (Q_tolower(*p) != Q_tolower(*c))
+				{
+					*p = 0;
+					break;
+				}
+				if (!*c)
+					break;
+			}
 	}
+	
+
+	if (res->num == countof(res->completions))
+	{
+		res->extra++;
+		return;	//no more space for more options
+	}
+
+	text = BZ_Malloc(ctx->prefixlen + strlen(value) + 1);
+	memcpy(text, ctx->prefix, ctx->prefixlen);
+	strcpy(text+ctx->prefixlen, value);
+
+	if (repl)
+	{
+		p = BZ_Malloc(ctx->prefixlen + strlen(repl) + 2);
+		memcpy(p, ctx->prefix, ctx->prefixlen);
+		strcpy(p+ctx->prefixlen, repl);
+		if (value == quoted+1)
+			Q_strcat(p, "\"");
+		repl = p;
+	}
+
+	res->completions[res->num].text_alloced = true;
+	res->completions[res->num].text = text;
+	res->completions[res->num].desc_alloced = true;
+	res->completions[res->num].desc = Z_StrDup(desc);
+	res->completions[res->num].repl = repl;
+	res->num++;
 }
-char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr)
+
+void Cmd_Complete_Check(const char *check, cmd_completion_t *res, const char *desc)	//compare cumulative strings and join the result
+{
+	const char *c;
+	char *p;
+	if (!res->guessed)
+		res->guessed = Z_StrDup(check);
+	else for (p = res->guessed, c = check; *p; p++, c++)
+	{	//we need to do this stuff here because we're not always tracking all of them.
+		if (Q_tolower(*p) != Q_tolower(*c))
+		{
+			*p = 0;
+			break;
+		}
+		
+		if (!*c)
+			break;
+	}
+
+	if (res->num == countof(res->completions))
+	{
+		res->extra++;
+		return;	//no more space for more options
+	}
+
+	res->completions[res->num].text_alloced = false;
+	res->completions[res->num].text = check;
+	res->completions[res->num].desc_alloced = false;
+	res->completions[res->num].desc = desc;
+	res->completions[res->num].repl = NULL;
+	res->num++;
+}
+void Cmd_Complete_End(cmd_completion_t *c)
+{
+	size_t u;
+	for (u = 0; u < c->num; u++)
+	{
+		if (c->completions[u].text_alloced)
+			Z_Free((char*)c->completions[u].text);
+		c->completions[u].text_alloced = false;
+		c->completions[u].text = NULL;
+
+		if (c->completions[u].desc_alloced)
+			Z_Free((char*)c->completions[u].desc);
+		c->completions[u].desc_alloced = false;
+		c->completions[u].desc = NULL;
+
+		c->completions[u].repl = NULL;
+	}
+	c->num = 0;
+	c->extra = 0;
+	Z_Free(c->guessed);
+	c->guessed = NULL;
+	Z_Free(c->partial);
+	c->partial = NULL;
+}
+int QDECL Cmd_Complete_Sort(const void *a, const void *b)
+{	//FIXME: its possible that they're equal (eg: filesystem searches). we should strip one in that case, but gah.
+	const struct cmd_completion_opt_s *c1 = a, *c2 = b;
+	return strcmp(c1->text, c2->text);
+}
+cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 {
 	extern cvar_group_t *cvar_groups;
 	cmd_function_t	*cmd;
 	int				len;
 	cmdalias_t		*a;
 
-	static match_t match;
-
 	cvar_group_t	*grp;
 	cvar_t		*cvar;
 	const char *sp;
+	qboolean quoted = false;
+
+	static cmd_completion_t c;
+	
+	if (!partial)
+	{
+		Cmd_Complete_End(&c);
+		return NULL;
+	}
+
+	if ((c.partial && !strcmp(partial, c.partial)) && c.caseinsens == caseinsens)
+		return &c;	//still valid.
+	Cmd_Complete_End(&c);
+	c.partial = Z_StrDup(partial);
+	c.caseinsens = caseinsens;
 
 	for (sp = partial; *sp; sp++)
 	{
@@ -2295,88 +2381,117 @@ char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean case
 	{
 		while (*sp == ' ' || *sp == '\t')
 			sp++;
+		//try to handle quotes
+		if (*sp == '\\' && sp[1] == '\"')
+		{
+			sp+=2;
+			quoted = true;
+		}
+		else if (*sp == '\"')
+		{
+			sp++;
+			quoted = true;
+		}
 	}
 	else
 		sp = NULL;
 
-	if (descptr)
-		*descptr = NULL;
-
-	if (!len)
-		return NULL;
-
-	if (matchnum == -1)
-		len++;
-
-	match.allowcutdown = !fullonly?true:false;
-	match.cutdown = false;
-	match.desc = NULL;
-	if (matchnum)
-		match.matchnum = matchnum;
-	else
-		match.matchnum = 0;
-
-	strcpy(match.result, "");
-
-	// check for partial match
-	if (caseinsens)
+	if (len)
 	{
-		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
-			if (!Q_strncasecmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
-			{
-				if (sp && cmd->argcompletion)
+		if (caseinsens)
+		{
+			for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
+				if (!Q_strncasecmp (partial,cmd->name, len) && (!partial[len] || strlen(cmd->name) == len))
 				{
-					struct cmdargcompletionctx_s ctx;
-					ctx.cb.cb = Cmd_CompleteCheckArg;
-					ctx.cmd = cmd;
-					ctx.prefix = partial;
-					ctx.prefixlen = sp-partial;
-					ctx.match = &match;
-					ctx.desc = cmd->description;
-					cmd->argcompletion(1, sp, &ctx.cb);
+					if (sp && cmd->argcompletion)
+					{
+						struct cmdargcompletion_ctx_s ctx;
+						ctx.cb.cb = Cmd_Complete_CheckArg;
+						ctx.cmd = cmd;
+						ctx.prefix = partial;
+						ctx.prefixlen = sp-partial;
+						ctx.res = &c;
+						ctx.desc = cmd->description;
+						ctx.quoted = quoted;
+						cmd->argcompletion(1, sp, &ctx.cb);
+					}
+					else
+						Cmd_Complete_Check(cmd->name, &c, cmd->description);
 				}
-				else
-					Cmd_CompleteCheck(cmd->name, &match, cmd->description);
+			for (a=cmd_alias ; a ; a=a->next)
+				if (!Q_strncasecmp (partial, a->name, len) && (!partial[len] || strlen(a->name) == len))
+					Cmd_Complete_Check(a->name, &c, a->value);
+			for (grp=cvar_groups ; grp ; grp=grp->next)
+			for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+			{
+				if (!Q_strncasecmp (partial,cvar->name, len) && (!partial[len] || strlen(cvar->name) == len))
+					Cmd_Complete_Check(cvar->name, &c, cvar->description);
+				if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len) && (!partial[len] || strlen(cvar->name2) == len))
+					Cmd_Complete_Check(cvar->name2, &c, cvar->description);
 			}
-		for (a=cmd_alias ; a ; a=a->next)
-			if (!Q_strncasecmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
-				Cmd_CompleteCheck(a->name, &match, a->value);
-		for (grp=cvar_groups ; grp ; grp=grp->next)
-		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
-		{
-			if (!Q_strncasecmp (partial,cvar->name, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name) == len))
-				Cmd_CompleteCheck(cvar->name, &match, cvar->description);
-			if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name2) == len))
-				Cmd_CompleteCheck(cvar->name2, &match, cvar->description);
-		}
 
+		}
+		else
+		{
+			for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
+				if (!Q_strncmp (partial,cmd->name, len) && (!partial[len] || strlen(cmd->name) == len))
+					Cmd_Complete_Check(cmd->name, &c, cmd->description);
+			for (a=cmd_alias ; a ; a=a->next)
+				if (!Q_strncmp (partial, a->name, len) && (!partial[len] || strlen(a->name) == len))
+					Cmd_Complete_Check(a->name, &c, "");
+			for (grp=cvar_groups ; grp ; grp=grp->next)
+			for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+			{
+				if (!Q_strncmp (partial,cvar->name, len) && (!partial[len] || strlen(cvar->name) == len))
+					Cmd_Complete_Check(cvar->name, &c, cvar->description);
+				if (cvar->name2 && !Q_strncmp (partial,cvar->name2, len) && (!partial[len] || strlen(cvar->name2) == len))
+					Cmd_Complete_Check(cvar->name2, &c, cvar->description);
+			}
+		}
+	}
+
+	//quickly sort the completions. this is primarily so that the first item is the shortest, but whatever.
+	qsort(c.completions, c.num, sizeof(c.completions[0]), Cmd_Complete_Sort);
+	return &c;
+}
+
+char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr)
+{
+	cmd_completion_t *c = Cmd_Complete(partial, caseinsens);
+	const char *text = NULL, *desc = NULL;
+
+	if (matchnum < 0)
+	{	//completes only if there's an EXACT match.
+		for (matchnum = 0; matchnum < c->num; matchnum++)
+		{
+			if (!strcmp(partial, c->completions[matchnum].text))
+			{
+				text = c->completions[matchnum].text;
+				desc = c->completions[matchnum].desc;
+				break;
+			}
+		}
+	}
+	else if (!matchnum)
+	{	//returns the longest-common-denominator of all the matches
+		text = c->guessed;
+		desc = ((c->num==1)?c->completions[matchnum].desc:NULL);
 	}
 	else
 	{
-		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
-			if (!Q_strncmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
-				Cmd_CompleteCheck(cmd->name, &match, cmd->description);
-		for (a=cmd_alias ; a ; a=a->next)
-			if (!Q_strncmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
-				Cmd_CompleteCheck(a->name, &match, "");
-		for (grp=cvar_groups ; grp ; grp=grp->next)
-		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+		matchnum--;
+		if (matchnum < c->num)
 		{
-			if (!Q_strncmp (partial,cvar->name, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name) == len))
-				Cmd_CompleteCheck(cvar->name, &match, cvar->description);
-			if (cvar->name2 && !Q_strncmp (partial,cvar->name2, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name2) == len))
-				Cmd_CompleteCheck(cvar->name2, &match, cvar->description);
+			text = c->completions[matchnum].text;
+			desc = c->completions[matchnum].desc;
 		}
 	}
-	if (match.matchnum>0)
-		return NULL;
-	if (!*match.result)
-		return NULL;
 
 	if (descptr)
-		*descptr = match.desc;
-	return match.result;
+		*descptr = desc;
+	return (char*)text;
 }
+
 
 //lists commands, also prints restriction level
 void Cmd_List_f (void)

@@ -411,7 +411,7 @@ static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, 
 		return true;
 	
 	COM_StripExtension(name+5, stripped, sizeof(stripped));
-	ctx->cb(stripped, ctx);
+	ctx->cb(stripped, NULL, NULL, ctx);
 	return true;
 }
 static int QDECL CompleteMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -420,7 +420,7 @@ static int QDECL CompleteMapListExt (const char *name, qofs_t flags, time_t mtim
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
 
-	ctx->cb(name+5, ctx);
+	ctx->cb(name+5, NULL, NULL, ctx);
 	return true;
 }
 static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)

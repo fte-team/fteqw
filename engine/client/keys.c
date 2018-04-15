@@ -337,12 +337,11 @@ int PaddedPrint (char *s, int x)
 }
 
 int con_commandmatch;
-void CompleteCommand (qboolean force)
+void Key_UpdateCompletionDesc(void)
 {
-	char	*cmd, *s;
 	const char *desc;
-
-	s = key_lines[edit_line];
+	cmd_completion_t *c;
+	const char *s = key_lines[edit_line];
 	if (*s == ' ' || *s == '\t')
 		s++;
 	if (*s == '\\' || *s == '/')
@@ -350,68 +349,20 @@ void CompleteCommand (qboolean force)
 	if (*s == ' ' || *s == '\t')
 		s++;
 
-	//check for singular matches and complete if found
-	cmd = force?NULL:Cmd_CompleteCommand (s, true, true, 2, NULL);
-	if (!cmd)
-	{
-		if (!force)
-			cmd = Cmd_CompleteCommand (s, false, true, 1, &desc);
-		else
-			cmd = Cmd_CompleteCommand (s, true, true, con_commandmatch, &desc);
-		if (cmd)
-		{
-			if (strlen(cmd) < strlen(s))
-				return;
-
-			//complete to that (maybe partial) cmd.
-			Key_ClearTyping();
-			Key_ConsoleInsert("/");
-			Key_ConsoleInsert(cmd);
-			s = key_lines[edit_line]+1;
-
-			//if its the only match, add a space ready for arguments.
-			cmd = Cmd_CompleteCommand (s, true, true, 0, NULL);
-			if (cmd && !strcmp(s, cmd))
-			{
-				Key_ConsoleInsert(" ");
-			}
-
-			if (!con_commandmatch)
-				con_commandmatch = 1;
-
-			if (desc)
-				Con_Footerf(NULL, false, "%s: %s", cmd, desc);
-			else
-				Con_Footerf(NULL, false, "");
-			return;
-		}
-	}
-	//complete to a partial match.
-	cmd = Cmd_CompleteCommand (s, false, true, 0, &desc);
-	if (cmd)
-	{
-		int i = key_lines[edit_line][0] == '/'?1:0;
-		if (i != 1 || strcmp(key_lines[edit_line]+i, cmd))
-		{	//if successful, use that instead.
-			Key_ClearTyping();
-			Key_ConsoleInsert("/");
-			Key_ConsoleInsert(cmd);
-
-			s = key_lines[edit_line];	//readjust to cope with the insertion of a /
-			if (*s == '\\' || *s == '/')
-				s++;
-		}
-	}
-	con_commandmatch++;
-	cmd = Cmd_CompleteCommand(s, true, true, con_commandmatch, &desc);
-	if (!cmd)
-	{
+	c = Cmd_Complete(s, true);
+	if (!con_commandmatch || con_commandmatch > c->num)
 		con_commandmatch = 1;
-		cmd = Cmd_CompleteCommand(s, true, true, con_commandmatch, &desc);
-	}
-	if (cmd)
+
+	if (con_commandmatch <= c->num)
 	{
-		cvar_t *var = Cvar_FindVar(cmd);
+		const char *cmd;
+		cvar_t *var;
+		if (c->completions[con_commandmatch-1].repl)
+			cmd = c->completions[con_commandmatch-1].repl;
+		else
+			cmd = c->completions[con_commandmatch-1].text;
+		desc = c->completions[con_commandmatch-1].desc;
+		var = Cvar_FindVar(cmd);
 		if (var)
 		{
 			if (desc)
@@ -432,6 +383,88 @@ void CompleteCommand (qboolean force)
 		Con_Footerf(NULL, false, "");
 		con_commandmatch = 1;
 	}
+}
+
+void CompleteCommand (qboolean force)
+{
+	const char	*cmd, *s;
+	const char *desc;
+	cmd_completion_t *c;
+
+	s = key_lines[edit_line];
+	if (*s == ' ' || *s == '\t')
+		s++;
+	if (*s == '\\' || *s == '/')
+		s++;
+	if (*s == ' ' || *s == '\t')
+		s++;
+
+	//check for singular matches and complete if found
+	c = Cmd_Complete(s, true);
+	if (c->num == 1 || force)
+	{
+		desc = NULL;
+		if (!force && c->num != 1)
+			cmd = c->guessed;
+		else if (c->num)
+		{
+			int idx = max(0, con_commandmatch-1);
+			if (c->completions[idx].repl)
+				cmd = c->completions[idx].repl;
+			else
+				cmd = c->completions[idx].text;
+		}
+		else
+			cmd = NULL;
+		if (cmd)
+		{
+			if (strlen(cmd) < strlen(s))
+				return;
+
+			//complete to that (maybe partial) cmd.
+			Key_ClearTyping();
+			Key_ConsoleInsert("/");
+			Key_ConsoleInsert(cmd);
+			s = key_lines[edit_line];
+			if (*s == '/')
+				s++;
+
+			//if its the only match, add a space ready for arguments.
+			c = Cmd_Complete(s, true);
+			cmd = ((c->num >= 1)?(c->completions[0].repl?c->completions[0].repl:c->completions[0].text):NULL);
+			desc = ((c->num >= 1)?c->completions[0].desc:NULL);
+			if (c->num == 1)
+				Key_ConsoleInsert(" ");
+
+			if (!con_commandmatch)
+				con_commandmatch = 1;
+
+			if (desc)
+				Con_Footerf(NULL, false, "%s: %s", cmd, desc);
+			else
+				Con_Footerf(NULL, false, "");
+			return;
+		}
+	}
+	//complete to a partial match.
+	cmd = c->guessed;
+	if (cmd)
+	{
+		int i = key_lines[edit_line][0] == '/'?1:0;
+		if (i != 1 || strcmp(key_lines[edit_line]+i, cmd))
+		{	//if successful, use that instead.
+			Key_ClearTyping();
+			Key_ConsoleInsert("/");
+			Key_ConsoleInsert(cmd);
+
+			s = key_lines[edit_line];	//readjust to cope with the insertion of a /
+			if (*s == '\\' || *s == '/')
+				s++;
+		}
+	}
+
+	con_commandmatch++;
+	Key_UpdateCompletionDesc();
 }
 
 int Con_Navigate(console_t *con, char *line)
@@ -1266,8 +1299,12 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 			memmove((*line)+*linepos-charlen, (*line)+*linepos, strlen((*line)+*linepos)+1);
 			*linepos -= charlen;
 		}
-		if (!(*line)[lineoffset])	//oops?
-			con_commandmatch = 0;
+
+		if (con_commandmatch)
+		{
+			Con_Footerf(NULL, false, "");
+			con_commandmatch = 1;
+		}
 		return true;
 	}
 
@@ -1579,14 +1616,16 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 
 		if (con_commandmatch)
 		{	//if that isn't actually a command, and we can actually complete it to something, then lets try to complete it.
-			char *txt = key_lines[edit_line]+1;
+			char *txt = key_lines[edit_line];
 			if (*txt == '/')
 				txt++;
-			if (!Cmd_IsCommand(txt) && !Cmd_CompleteCommand(txt, true, true, con_commandmatch, NULL))
+			if (!Cmd_IsCommand(txt) && Cmd_CompleteCommand(txt, true, true, con_commandmatch, NULL))
 			{
 				CompleteCommand (true);
 				return true;
 			}
+			Con_Footerf(con, false, "");
+			con_commandmatch = 0;
 		}
 
 
@@ -1598,7 +1637,6 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 				history_line = edit_line;
 			}
 		}
-		con_commandmatch = 0;
 
 		Z_Free(key_lines[edit_line]);
 		key_lines[edit_line] = BZ_Malloc(1);
@@ -1609,7 +1647,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 
 	if (key == K_SPACE && ctrl && con->commandcompletion)
 	{
-		char *txt = key_lines[edit_line]+1;
+		char *txt = key_lines[edit_line];
 		if (*txt == '/')
 			txt++;
 		if (Cmd_CompleteCommand(txt, true, true, con->commandcompletion, NULL))
@@ -2003,7 +2041,7 @@ void Key_Bind_c(int argn, const char *partial, struct xcommandargcompletioncb_s 
 	for (kn=keynames ; kn->name ; kn++)
 	{
 		if (!Q_strncasecmp(partial,kn->name, len))
-			ctx->cb(kn->name, ctx);
+			ctx->cb(kn->name, NULL, NULL, ctx);
 	}
 }
 /*

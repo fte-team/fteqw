@@ -73,7 +73,8 @@ then searches for a command or variable that matches the first token.
 typedef void (*xcommand_t) (void);
 struct xcommandargcompletioncb_s
 {
-	void(*cb)(const char *arg, struct xcommandargcompletioncb_s *ctx);
+	//if repl is specified, then that is the text that will be used if this is the sole autocomplete, to complete using strings that are not actually valid.
+	void(*cb)(const char *arg, const char *desc, const char *repl, struct xcommandargcompletioncb_s *ctx);
 	//private stuff follows.
 };
 typedef void (*xcommandargcompletion_t)(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
@@ -102,6 +103,23 @@ char *Cmd_AliasExist(const char *name, int restrictionlevel);
 
 const char *Cmd_Describe (const char *cmd_name);
 
+typedef struct
+{
+	char *guessed;	//this is the COMPLETED partial.
+	char *partial;	//the requested string that we completed
+	qboolean caseinsens;
+	size_t num, extra;	//valid count, and ommitted count (if we were too lazy to find more)
+	struct cmd_completion_opt_s {
+		qboolean text_alloced:1;
+		qboolean desc_alloced:1;
+		const char *text;
+		const char *repl;	//used for sole matches
+		const char *desc;
+	} completions[50];
+} cmd_completion_t;
+cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens);	//calculates and caches info.
+
+//these should probably be removed some time
 char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr);
 qboolean Cmd_IsCommand (const char *line);
 // attempts to match a partial command for automatic command line completion

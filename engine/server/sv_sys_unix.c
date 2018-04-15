@@ -728,7 +728,7 @@ static int Sys_CheckChRoot(void)
 	const char *newhome;
 
 	getresuid(&ruid, &euid, &suid);
-	printf("ruid %u, euid %u, suid %u\n", ruid, euid, suid);
+//	printf("ruid %u, euid %u, suid %u\n", ruid, euid, suid);
 	if (!euid && ruid != euid)
 	{	//if we're running SUID-root then assume the admin set it up that way in order to use chroot without making any libraries available inside the jail.
 		//however, chroot needs a certain level of sandboxing to prevent somehow running suid programs with eg a custom /etc/passwd, etc.
@@ -775,7 +775,7 @@ static int Sys_CheckChRoot(void)
 		//SSL_InitGlobal(true);	//make sure we load our public cert from outside the sandbox. an exploit might still be able to find it in memory though. FIXME: disabled in case this reads from somewhere bad - we're still root.
 #endif
 
-		printf("Changing to root: \"%s\"\n", newroot);
+		printf("Changing root dir to \"%s\"\n", newroot);
 		if (chroot(newroot))
 		{
 			printf("chroot call failed\n");

@@ -5643,7 +5643,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				default:
 					Sys_Error("Bad lightmap_fmt\n");
 					break;
-				case TF_BGRA32:
+				case PTI_BGRA8:
+				case PTI_BGRX8:
 					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
 						for (s = 0; s < br->faces[j].lmextents[0]; s++)
@@ -5657,7 +5658,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						out += (lm->width - br->faces[j].lmextents[0]) * 4;
 					}
 					break;
-				/*case TF_RGBA32:
+				case PTI_RGBA8:
+				case PTI_RGBX8:
 					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
 						for (s = 0; s < br->faces[j].lmextents[0]; s++)
@@ -5670,8 +5672,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						}
 						out += (lm->width - br->faces[j].lmextents[0]) * 4;
 					}
-					break;*/
-				/*case TF_BGR24:
+					break;
+				case PTI_BGR8:
 					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
 						for (s = 0; s < br->faces[j].lmextents[0]; s++)
@@ -5683,8 +5685,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						}
 						out += (lm->width - br->faces[j].lmextents[0]) * 3;
 					}
-					break;*/
-				case TF_RGB24:
+					break;
+				case PTI_RGB8:
 					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
 						for (s = 0; s < br->faces[j].lmextents[0]; s++)
@@ -5696,6 +5698,51 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						}
 						out += (lm->width - br->faces[j].lmextents[0]) * 3;
 					}
+					break;
+
+
+				case PTI_A2BGR10:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
+					{
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
+						{
+							*(unsigned int*)out = (0x3<<30) | (in[2]<<22) | (in[1]<<12) | (in[0]<<2);
+							out+=4;
+							in+=3;
+						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 4;
+					}
+					break;
+				/*case PTI_E5BGR9:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
+					{
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
+						{
+							*(unsigned int*)out = Surf_PackE5BRG9(in[0], in[1], in[2], 8);
+							out+=4;
+							in+=3;
+						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 4;
+					}
+					break;*/
+				case PTI_L8:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
+					{
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
+						{
+							*out++ = max(max(in[0], in[1]), in[2]);
+							in+=3;
+						}
+						out += (lm->width - br->faces[j].lmextents[0]);
+					}
+					break;
+				case PTI_RGBA16F:
+				case PTI_RGBA32F:
+				case PTI_RGB565:
+				case PTI_RGBA4444:
+				case PTI_RGBA5551:
+				case PTI_ARGB4444:
+				case PTI_ARGB1555:
 					break;
 				}
 			}
@@ -5966,6 +6013,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	out->selected = false;
 	out->contents = brush->contents;
 	out->axialplanes = 0;
+	out->patch = NULL;
 
 	out->planes = BZ_Malloc((sizeof(*out->planes)+sizeof(*out->faces)) * brush->numplanes);
 	out->faces = (void*)(out->planes+brush->numplanes);

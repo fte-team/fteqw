@@ -890,8 +890,8 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 //	qboolean enabled;
 
 	//always filter out dead unresponsive servers.
-//	if (!(a->status & 1))
-//		return false;
+	if (!(a->status & 1))
+		return false;
 
 /*	switch(a->special & SS_PROTOCOLMASK)
 	{
@@ -1309,7 +1309,7 @@ static void Master_FloodRoute(serverinfo_t *node)
 	struct peers_s *peer = node->peers;
 	for (i = 0; i < node->numpeers; i++, peer++)
 	{
-		if (peer->ping)
+		if (peer->ping && peer->ping != PING_DEAD)
 		if ((unsigned int)(peer->peer->cost) > (unsigned int)(node->cost + peer->ping))
 		{	//we found a shorter route. flood into it.
 			peer->peer->prevpeer = node;
@@ -2305,7 +2305,7 @@ void MasterInfo_ProcessHTTP(struct dl_download *dl)
 #endif
 
 			info->refreshtime = 0;
-			info->ping = 0xffff;
+			info->ping = PING_DEAD;
 
 			snprintf(info->name, sizeof(info->name), "%s h", NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr));
 
@@ -2406,7 +2406,7 @@ char *jsonnode(int level, char *node)
 		else
 		{
 			info = Z_Malloc(sizeof(serverinfo_t));
-			info->ping = 0xffff;
+			info->ping = PING_DEAD;
 			info->adr = adr;
 			info->sends = 1;
 			info->special = flags;
@@ -2644,7 +2644,7 @@ void MasterInfo_Refresh(void)
 #endif
 #ifdef NQPROT
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NETQUAKE, "gameaholic's NQ master");
-		Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NETQUAKE, "quakeone's server listing");
+//		Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NETQUAKE, "quakeone's server listing");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_NETQUAKE, "Nearby Quake1 servers");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_DPMASTER, "Nearby DarkPlaces servers");
 #endif
@@ -2980,7 +2980,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 		//server replied from a broadcast message, make sure we ping it to retrieve its actual ping
 		info->sends = 1;
-		info->ping = 0xffff;	//not known
+		info->ping = PING_DEAD;	//not known
 		info->special |= SS_LOCAL;
 	}
 	else
@@ -2989,8 +2989,8 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		if (info->refreshtime)
 		{
 			ping = (Sys_DoubleTime() - info->refreshtime)*1000;
-			if (ping > 0xfffe)
-				info->ping = 0xfffe;	//highest (that is known)
+			if (ping > PING_MAX)
+				info->ping = PING_MAX;	//highest (that is known)
 			else
 				info->ping = ping;
 		}
@@ -3048,7 +3048,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 						peer->peer->sends = 1;
 						peer->peer->special = SS_QUAKEWORLD;
 						peer->peer->refreshtime = 0;
-						peer->peer->ping = 0xffff;
+						peer->peer->ping = PING_DEAD;
 						peer->peer->next = firstserver;
 						snprintf(peer->peer->name, sizeof(peer->peer->name), "%s p", NET_AdrToString(adr, sizeof(adr), &pa));
 						firstserver = peer->peer;
@@ -3427,7 +3427,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 		default:
 			break;
 		}
-		info->ping = 0xffff;
+		info->ping = PING_DEAD;
 
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();
@@ -3463,5 +3463,41 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 	firstserver = last;
 }
 
+
+
+void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	serverinfo_t *info;
+	char buf[512];
+	int len;
+	if (argn == 1)
+	{
+		len = strlen(partial);
+		if (len > 1 && partial[len-1] == '\"')
+			len--;
+		for (info = firstserver; info; info = info->next)
+		{
+			if (info->ping != PING_DEAD)
+			{
+				if (len && !Q_strncasecmp(partial, info->name, len))
+				{
+					ctx->cb(info->name, va("^[%s^], %i players, %i ping", info->name, info->players, info->ping), NET_AdrToString(buf, sizeof(buf), &info->adr), ctx);
+					continue;
+				}
+
+				NET_AdrToString(buf, sizeof(buf), &info->adr);
+				//there are too many meaningless servers out there, so only suggest IP addresses if those servers are actually significant (ie: active, or favourite)
+				if (!strncmp(partial, buf, len))
+				{
+					if (info->players || (info->special & SS_FAVORITE) || NET_ClassifyAddress(&info->adr, NULL)<=ASCOPE_LAN || len == strlen(buf))
+					{
+						ctx->cb(buf, va("^[%s^], %i players, %i ping", info->name, info->players, info->ping), NULL, ctx);
+						continue;
+					}
+				}
+			}
+		}
+	}
+}
 #endif
 

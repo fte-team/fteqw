@@ -1233,6 +1233,7 @@ CL_Connect_f
 
 ================
 */
+void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void CL_Connect_f (void)
 {
 	char	*server;
@@ -1492,9 +1493,9 @@ void CL_ResetFog(int ftype)
 	memset(&cl.fog[ftype], 0, sizeof(cl.fog[ftype]));
 	cl.fog[ftype].time = realtime;
 	cl.fog[ftype].density = 0;
-	cl.fog[ftype].colour[0] = 0.3;
-	cl.fog[ftype].colour[1] = 0.3;
-	cl.fog[ftype].colour[2] = 0.3;
+	cl.fog[ftype].colour[0] = //SRGBf(0.3);
+	cl.fog[ftype].colour[1] = //SRGBf(0.3);
+	cl.fog[ftype].colour[2] = SRGBf(0.3);
 	cl.fog[ftype].alpha = 1;
 	cl.fog[ftype].depthbias = 0;
 	/*
@@ -3962,20 +3963,20 @@ void CL_Fog_f(void)
 			break;
 		case 3:
 			cl.fog[ftype].density = atof(Cmd_Argv(1));
-			cl.fog[ftype].colour[0] = cl.fog[ftype].colour[1] = cl.fog[ftype].colour[2] = atof(Cmd_Argv(2));
+			cl.fog[ftype].colour[0] = cl.fog[ftype].colour[1] = cl.fog[ftype].colour[2] = SRGBf(atof(Cmd_Argv(2)));
 			break;
 		case 4:
 			cl.fog[ftype].density = 0.05;	//make something up for vauge compat with fitzquake, so it doesn't get the default of 0
-			cl.fog[ftype].colour[0] = atof(Cmd_Argv(1));
-			cl.fog[ftype].colour[1] = atof(Cmd_Argv(2));
-			cl.fog[ftype].colour[2] = atof(Cmd_Argv(3));
+			cl.fog[ftype].colour[0] = SRGBf(atof(Cmd_Argv(1)));
+			cl.fog[ftype].colour[1] = SRGBf(atof(Cmd_Argv(2)));
+			cl.fog[ftype].colour[2] = SRGBf(atof(Cmd_Argv(3)));
 			break;
 		case 5:
 		default:
 			cl.fog[ftype].density = atof(Cmd_Argv(1));
-			cl.fog[ftype].colour[0] = atof(Cmd_Argv(2));
-			cl.fog[ftype].colour[1] = atof(Cmd_Argv(3));
-			cl.fog[ftype].colour[2] = atof(Cmd_Argv(4));
+			cl.fog[ftype].colour[0] = SRGBf(atof(Cmd_Argv(2)));
+			cl.fog[ftype].colour[1] = SRGBf(atof(Cmd_Argv(3)));
+			cl.fog[ftype].colour[2] = SRGBf(atof(Cmd_Argv(4)));
 			break;
 		}
 
@@ -4357,13 +4358,22 @@ void CL_Init (void)
 	Cmd_AddCommandD ("quit", CL_Quit_f, "Use this command when you get angry. Does not save any cvars. Use cfg_save to save settings, or use the menu for a prompt.");
 
 #if defined(CL_MASTER)
-	Cmd_AddCommandD ("connectbr", CL_ConnectBestRoute_f, "connect address:port\nConnect to a qw server using the best route we can detect.");
+	Cmd_AddCommandAD ("connectbr", CL_ConnectBestRoute_f, CL_Connect_c, "connect address:port\nConnect to a qw server using the best route we can detect.");
 #endif
-	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. "
+	Cmd_AddCommandAD("connect", CL_Connect_f, CL_Connect_c, "connect scheme://address:port\nConnect to a server. "
+
 #if defined(FTE_TARGET_WEB)
-		"Use a scheme of ws:// or wss:// to connect via using websockets."
-#else
+		"Use a scheme of rtc[s]://broker/gamename to connect via a webrtc broker."
+		"Use a scheme of ws[s]://server to connect via websockets."
+#elif defined(TCPCONNECT)
 		"Use a scheme of tcp:// or tls:// to connect via non-udp protocols."
+//		"Use a scheme of ws[s]://server to connect via websockets."
+#endif
+#ifdef HAVE_DTLS
+		"Use a scheme of dtls://server to connect securely."
+#endif
+#if defined(IRCCONNECT)
+		"Use irc://network:6667/user[@channel] to connect via an irc server. Not recommended."
 #endif
 #if defined(NQPROT) || defined(Q2CLIENT) || defined(Q3CLIENT)
 		"\nDefault port is port "STRINGIFY(PORT_DEFAULTSERVER)"."
@@ -4383,17 +4393,17 @@ void CL_Init (void)
 		);
 	Cmd_AddCommandD ("cl_transfer", CL_Transfer_f, "Connect to a different server, disconnecting from the current server only when the new server replies.");
 #ifdef TCPCONNECT
-	Cmd_AddCommandD ("tcpconnect", CL_TCPConnect_f, "Connect to a server using the tcp:// prefix");
+	Cmd_AddCommandAD ("tcpconnect", CL_TCPConnect_f, CL_Connect_c, "Connect to a server using the tcp:// prefix");
 #endif
 #ifdef IRCCONNECT
 	Cmd_AddCommand ("ircconnect", CL_IRCConnect_f);
 #endif
 #ifdef NQPROT
-	Cmd_AddCommandD ("nqconnect", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)".");
+	Cmd_AddCommandD ("nqconnect", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Otherwise identical to the connect command.");
 #endif
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
-	Cmd_AddCommand ("join", CL_Join_f);
-	Cmd_AddCommand ("observe", CL_Observe_f);
+	Cmd_AddCommandAD ("join", CL_Join_f, CL_Connect_c, "Switches away from spectator mode, optionally connecting to a different server.");
+	Cmd_AddCommandAD ("observe", CL_Observe_f, CL_Connect_c, "Switches to spectator mode, optionally connecting to a different server.");
 
 	Cmd_AddCommand ("rcon", CL_Rcon_f);
 	Cmd_AddCommand ("packet", CL_Packet_f);
@@ -4405,10 +4415,9 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("color", CL_Color_f);
 	Cmd_AddCommand ("download", CL_Download_f);
-	Cmd_AddCommand ("dlsize", CL_DownloadSize_f);
-
-	Cmd_AddCommand ("nextul", CL_NextUpload);
-	Cmd_AddCommand ("stopul", CL_StopUpload);
+	Cmd_AddCommandD ("dlsize", CL_DownloadSize_f, "For internal use");
+	Cmd_AddCommandD ("nextul", CL_NextUpload, "For internal use");
+	Cmd_AddCommandD ("stopul", CL_StopUpload, "For internal use");
 
 	Cmd_AddCommand ("skipdl", CL_SkipDownload_f);
 	Cmd_AddCommand ("finishdl", CL_FinishDownload_f);
@@ -4427,8 +4436,6 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("topten", NULL);
 
-	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
-	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);
@@ -4441,6 +4448,8 @@ void CL_Init (void)
 	Cmd_AddCommand ("serverinfo", CL_ServerInfo_f);
 #endif
 
+	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
+	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommand ("skygroup", CL_Skygroup_f);
 //
 //  Windows commands

@@ -1610,6 +1610,21 @@ void CL_RequestNextDownload (void)
 			stage = CL_LoadSounds(stage, true);
 			total_loading_size = stage;
 			cl.contentstage = 0;
+
+			//might be safer to do it later, but kinder to do it before wasting time.
+			if (!FS_PureOkay())
+			{
+	#ifdef HAVE_MEDIA_ENCODER
+				if (cls.demoplayback && Media_Capturing())
+				{
+					Con_Printf(CON_ERROR "Aborting capture\n");
+					CL_StopPlayback();
+				}
+	#endif
+				SCR_SetLoadingStage(LS_NONE);
+				CL_Disconnect();
+				return;
+			}
 		}
 
 		stage = 0;
@@ -8038,9 +8053,9 @@ void CLNQ_ParseServerMessage (void)
 		case svcfitz_fog:
 			CL_ResetFog(0);
 			cl.fog[0].density = MSG_ReadByte()/255.0f;
-			cl.fog[0].colour[0] = MSG_ReadByte()/255.0f;
-			cl.fog[0].colour[1] = MSG_ReadByte()/255.0f;
-			cl.fog[0].colour[2] = MSG_ReadByte()/255.0f;
+			cl.fog[0].colour[0] = SRGBf(MSG_ReadByte()/255.0f);
+			cl.fog[0].colour[1] = SRGBf(MSG_ReadByte()/255.0f);
+			cl.fog[0].colour[2] = SRGBf(MSG_ReadByte()/255.0f);
 			cl.fog[0].time += ((unsigned short)MSG_ReadShort()) / 100.0;
 			cl.fog_locked = !!cl.fog[0].density;
 			break;

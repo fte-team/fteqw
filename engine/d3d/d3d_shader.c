@@ -180,7 +180,7 @@ static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Open(myID3DXInclude *cls, D3
 
 					"float3 fog3(float3 regularcolour, float distance)"
 					"{"
-						"float z = w_fogdensity * -distance;\n"
+						"float z = w_fogdensity * distance;\n"
 						"z = max(0.0,z-w_fogdepthbias);\n"
 						"if (r_fog_exp2)\n"
 							"z *= z;\n"
@@ -190,7 +190,7 @@ static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Open(myID3DXInclude *cls, D3
 					"}\n"
 					"float3 fog3additive(float3 regularcolour, float distance)"
 					"{"
-						"float z = w_fogdensity * -distance;\n"
+						"float z = w_fogdensity * distance;\n"
 						"z = max(0.0,z-w_fogdepthbias);\n"
 						"if (r_fog_exp2)\n"
 							"z *= z;\n"
@@ -204,7 +204,7 @@ static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Open(myID3DXInclude *cls, D3
 					"}\n"
 					"float4 fog4additive(float4 regularcolour, float distance)"
 					"{"
-						"float z = w_fogdensity * -distance;\n"
+						"float z = w_fogdensity * distance;\n"
 						"z = max(0.0,z-w_fogdepthbias);\n"
 						"if (r_fog_exp2)\n"
 							"z *= z;\n"
@@ -214,7 +214,7 @@ static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Open(myID3DXInclude *cls, D3
 					"}\n"
 					"float4 fog4blend(float4 regularcolour, float distance)"
 					"{"
-						"float z = w_fogdensity * -distance;\n"
+						"float z = w_fogdensity * distance;\n"
 						"z = max(0.0,z-w_fogdepthbias);\n"
 						"if (r_fog_exp2)\n"
 							"z *= z;\n"
@@ -223,12 +223,11 @@ static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Open(myID3DXInclude *cls, D3
 						"return regularcolour * float4(1.0, 1.0, 1.0, fac);\n"
 					"}\n"
 				"#else\n"
-					/*don't use macros for this - mesa bugs out*/
-					"float3 fog3(float3 regularcolour, float4 fragcoord) { return regularcolour; }\n"
-					"float3 fog3additive(float3 regularcolour, float4 fragcoord) { return regularcolour; }\n"
-					"float4 fog4(float4 regularcolour, float4 fragcoord) { return regularcolour; }\n"
-					"float4 fog4additive(float4 regularcolour, float4 fragcoord) { return regularcolour; }\n"
-					"float4 fog4blend(float4 regularcolour, float4 fragcoord) { return regularcolour; }\n"
+					"float3 fog3(float3 regularcolour, float distance) { return regularcolour; }\n"
+					"float3 fog3additive(float3 regularcolour, float distance) { return regularcolour; }\n"
+					"float4 fog4(float4 regularcolour, float distance) { return regularcolour; }\n"
+					"float4 fog4additive(float4 regularcolour, float distance) { return regularcolour; }\n"
+					"float4 fog4blend(float4 regularcolour, float distance) { return regularcolour; }\n"
 				"#endif\n"
 			"#endif\n"
 			;
@@ -580,7 +579,7 @@ void D3D9Shader_Init(void)
 	sh_config.progpath = shaderlib?"hlsl/%s.hlsl":NULL;
 	sh_config.shadernamefmt = "%s_hlsl9";
 
-	sh_config.progs_supported	= !!shaderlib;
+	sh_config.progs_supported	= !!shaderlib && d3d9_hlsl.ival;
 	sh_config.progs_required	= false;
 
 	sh_config.pDeleteProg		= D3D9Shader_DeleteProg;

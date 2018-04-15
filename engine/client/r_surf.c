@@ -3683,6 +3683,9 @@ void Surf_LightmapMode(void)
 			}
 			if (cl.worldmodel->deluxdata)
 				rgb = true;
+
+			if (cl.worldmodel->terrain)	//the terrain code can't deal with extended lightmap formats.
+				hdr = false;
 		}
 
 		if (sh_config.texfmt[PTI_E5BGR9] && hdr)

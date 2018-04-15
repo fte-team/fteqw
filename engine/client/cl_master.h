@@ -31,6 +31,9 @@ enum masterprotocol_e
 #define SS_KEEPINFO		(1<<6u)
 #define SS_PROXY		(1<<7u)
 
+#define PING_DEAD		0xffff	//default ping value to denote servers that are not responding.
+#define PING_MAX		0xfffe	//default ping value to denote servers that are not responding.
+
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
 enum mastertype_e

@@ -352,6 +352,7 @@ void main ()
 	if (gl_FragColor.a >= MASK)
 		discard;
 #endif
+	gl_FragColor.a = 1.0;	//alpha blending AND alpha testing usually looks stupid, plus it screws up our fog.
 #endif
 
 //and finally hide it all if we're fogged.

@@ -851,26 +851,26 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		{
 			cvar_t *var = Cvar_FindVar(key+5);
 			if (var && !(var->flags & CVAR_NOTFROMSERVER))
-				Cvar_LockFromServer(var, com_token);
+				Cvar_LockFromServer(var, token);
 		}
 		else if (!strcmp("wateralpha", key)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
 		{
-			Cvar_LockFromServer(&r_wateralpha, com_token);
+			Cvar_LockFromServer(&r_wateralpha, token);
 			Cvar_LockFromServer(&r_waterstyle, "1");	//force vanilla-style water too.
 		}
 		else if (!strcmp("slimealpha", key))
 		{
-			Cvar_LockFromServer(&r_slimealpha, com_token);
+			Cvar_LockFromServer(&r_slimealpha, token);
 			Cvar_LockFromServer(&r_slimestyle, "1");
 		}
 		else if (!strcmp("lavaalpha", key))
 		{
-			Cvar_LockFromServer(&r_lavaalpha, com_token);
+			Cvar_LockFromServer(&r_lavaalpha, token);
 			Cvar_LockFromServer(&r_lavastyle, "1");
 		}
 		else if (!strcmp("telealpha", key))
 		{
-			Cvar_LockFromServer(&r_telealpha, com_token);
+			Cvar_LockFromServer(&r_telealpha, token);
 			Cvar_LockFromServer(&r_telestyle, "1");
 		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps

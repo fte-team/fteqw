@@ -480,6 +480,12 @@ char *Q_strlwr(char *s)
 	return ret;
 }
 
+static char fte_inline Q_tolower(char c)
+{
+	if (c >= 'A' && c <= 'Z')
+		return c-'A'+'a';
+	return c;
+}
 int wildcmp(const char *wild, const char *string)
 {
 /*
@@ -507,7 +513,7 @@ int wildcmp(const char *wild, const char *string)
 				return true;
 			string++;
 		}
-		else if ((*wild == *string) || (*wild == '?'))
+		else if ((Q_tolower(*wild) == Q_tolower(*string)) || (*wild == '?'))
 		{
 			//this char matches
 			wild++;

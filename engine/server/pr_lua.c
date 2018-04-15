@@ -5,6 +5,8 @@
 #include "pr_common.h"
 #include "hash.h"
 
+#define LUA_MALLOC_TAG 0x55780128
+
 #define luagloballist	\
 	globalentity	(true, self)	\
 	globalentity	(true, other)	\
@@ -83,7 +85,7 @@ luaextragloballist
 typedef struct
 {
 	int type;
-	quintptr_t offset;
+	qintptr_t offset;
 	char *name;
 	bucket_t buck;
 } luafld_t;
@@ -2218,7 +2220,7 @@ static int bi_lua_pairs (lua_State *L) {
 
 static int bi_lua_objerror (lua_State *L)
 {
-	SV_Error("objerror: %s\n", lua_tostring(L, 1));
+	Con_Printf("\n");
 	lua_pushedict(L, lua.edicttable[lua.globals.self]);
 
 	lua_pushnil(L);
@@ -2230,11 +2232,11 @@ static int bi_lua_objerror (lua_State *L)
 		{
 			int i;
 			const void *ud = lua_topointer(L, -2);
-			for (i = 0; i < countof(lua.entflds); i++)
-				if (lua.entflds[i].offset == (quintptr_t)ud)
+			for (i = 0; i < lua.numflds; i++)
+				if (lua.entflds[i].offset == (qintptr_t)ud)
 					break;
 
-			if (i == countof(lua.entflds))
+			if (i == lua.numflds)
 				Con_Printf("%21s:", lua_typename(L, lua_type(L, -2)));
 			else
 				Con_Printf("%21s:", lua.entflds[i].name);
@@ -2260,6 +2262,8 @@ static int bi_lua_objerror (lua_State *L)
 	}
 
 	lua_pop(L, 1);
+
+	Con_Printf("objerror: %s\n", lua_tostring(L, 1));
 	return 0;
 }
 static int bi_lua_error (lua_State *L)
@@ -2788,7 +2792,6 @@ static const char *Lua_ParseEdict (pubprogfuncs_t *progfuncs, const char *data, 
 		}
 */
 cont:
-
 		fld = Hash_GetInsensitive(&lua.entityfields, keyname);
 		if (fld && fld->type == ev_float)
 			lua_pushnumber(L, atof(token));
@@ -2808,6 +2811,13 @@ cont:
 			if (*e == ' ')
 				e++;
 			lua_pushvector(L, x, y, z);
+		}
+		else if (fld && fld->type == ev_function)
+			lua_getglobal(L, token);	//functions are nameless, except for how they're invoked. so this is only for evil mods...
+		else if (fld && fld->type == ev_entity)
+		{
+			int num = atoi(token);
+			lua_pushedict(L, EDICT_NUM_UB((&lua.progfuncs), num));
 		}
 		else
 			lua_pushstring(L, token);
@@ -2942,7 +2952,7 @@ char *QDECL Lua_AddString(pubprogfuncs_t *prinst, const char *val, int minlength
 	int len = strlen(val)+1;
 	if (len < minlength)
 		len = minlength;
-	ptr = Z_TagMalloc(len, 0x55780128);
+	ptr = Z_TagMalloc(len, LUA_MALLOC_TAG);
 	strcpy(ptr, val);
 	return ptr;
 }
@@ -3215,6 +3225,8 @@ void PDECL Lua_CloseProgs(pubprogfuncs_t *inst)
 	lua.maxedicts = 0;
 
 	memset(&lua, 0, sizeof(lua));
+
+	Z_FreeTags(LUA_MALLOC_TAG);
 }
 
 static void QDECL Lua_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *fstate)

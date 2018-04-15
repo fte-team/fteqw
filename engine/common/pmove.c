@@ -1132,9 +1132,11 @@ PM_CheckWaterJump
 */
 void PM_CheckWaterJump (void)
 {
-	vec3_t	spot;
-	int		cont;
+	vec3_t	spot, spot2;
+//	int		cont;
 	vec3_t	flatforward;
+	trace_t tr;
+	vec3_t oldmin, oldmax;
 
 	if (pmove.waterjumptime>0)
 		return;
@@ -1151,6 +1153,37 @@ void PM_CheckWaterJump (void)
 	flatforward[2] = 0;
 	VectorNormalize (flatforward);
 
+#if 1	//NQ does a traceline, which gives more permissive results. This is required for various maps that have awkward water jumps.
+	VectorCopy(pmove.player_mins, oldmin);
+	VectorCopy(pmove.player_maxs, oldmax);
+	VectorCopy(pmove.origin, spot);
+	spot[2] += 8 + 24+pmove.player_mins[2];	//hexen2 fix. calculated from the normal bottom of bbox
+	VectorMA (spot, 24, flatforward, spot2);
+	tr = PM_TraceLine(spot, spot2);
+	VectorCopy(oldmin, pmove.player_mins);
+	VectorCopy(oldmax, pmove.player_maxs);
+	if (tr.fraction == 1)	//(possibly) give up if open at waist
+	{	//NQ bug workaround: NQ does waterjump checks inside prethink, and THEN sets waterlevel after.
+		//The player then moves to where waterlevel SHOULD be 3, except you're still allowed to waterjump because of last frame.
+		//Which is horrible buggy framerate-dependant behaviour...
+		//so lets just try again 2qu up.
+		//This'll cause slight prediction issues with other qw engines, and maybe some newly bugged maps, but those maps were probably already buggy with a low enough nq framerate.
+		spot[2] += 2;
+		spot2[2] += 2;
+		tr = PM_TraceLine(spot, spot2);
+		VectorCopy(oldmin, pmove.player_mins);
+		VectorCopy(oldmax, pmove.player_maxs);
+		if (tr.fraction == 1)	//give up if open at waist
+			return;
+	}
+	spot[2] += 24;
+	spot2[2] += 24;
+	tr = PM_TraceLine(spot, spot2);
+	VectorCopy(oldmin, pmove.player_mins);
+	VectorCopy(oldmax, pmove.player_maxs);
+	if (tr.fraction < 1)	//give up if blocked at eye
+		return;
+#else
 	VectorMA (pmove.origin, 24, flatforward, spot);
 	spot[2] += 8 + 24+pmove.player_mins[2];	//hexen2 fix. calculated from the normal bottom of bbox
 	cont = PM_PointContents (spot);
@@ -1160,6 +1193,7 @@ void PM_CheckWaterJump (void)
 	cont = PM_PointContents (spot);
 	if (cont != FTECONTENTS_EMPTY)
 		return;
+#endif
 	// jump out of water
 	VectorScale (flatforward, 50, pmove.velocity);
 	pmove.velocity[2] = 310;

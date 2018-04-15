@@ -146,16 +146,29 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	else if (mips->type == PTI_2D)
 	{
 		IDirect3DTexture9 *dt;
-		if (FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, mips->mip[0].width, mips->mip[0].height, mips->mipcount, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
+		int mipcount = mips->mipcount;
+		for (i = 1; i < mipcount; i++)
+		{	//OpenGL and Direct3D have different interpretations of mipmap sizes.
+			//OpenGL rounds up, direct3D rounds down. (d3d:3->1, gl:3->2)
+			//so if the mips are incompatible, just drop the smaller ones.
+			if (mips->mip[i].width != max(1,(mips->mip[i-1].width)>>1) ||
+				mips->mip[i].height != max(1,(mips->mip[i-1].height)>>1))
+			{
+				mipcount = i;
+				break;
+			}
+		}
+
+		if (FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, mips->mip[0].width, mips->mip[0].height, mipcount, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
 			return false;
 		dbt = (IDirect3DBaseTexture9*)dt;
 	
-		for (i = 0; i < mips->mipcount; i++)
+		for (i = 0; i < mipcount; i++)
 		{
 			IDirect3DTexture9_GetLevelDesc(dt, i, &desc);
 
 			if (mips->mip[i].height != desc.Height || mips->mip[i].width != desc.Width)
-			{
+			{	//we got the above mipcount clamping wrong!
 				IDirect3DTexture9_Release(dt);
 				return false;
 			}

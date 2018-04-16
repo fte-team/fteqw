@@ -443,7 +443,7 @@ void GUI_LoadConfig(void)
 
 
 //this function takes the windows specified commandline and strips out all the options menu items.
-int GUI_ParseCommandLine(char *args)
+int GUI_ParseCommandLine(char *args, pbool keepsrcanddir)
 {
 	int paramlen=0;
 	int l, p;
@@ -494,24 +494,30 @@ int GUI_ParseCommandLine(char *args)
 				args++;
 				break;
 			}
-			progssrcname[l++] = *args++;
+			if (!keepsrcanddir)
+				progssrcname[l++] = *args;
+			args++;
 		}
-		progssrcname[l] = 0;
+		if (!keepsrcanddir)
+			progssrcname[l] = 0;
 
 		next = args;
 
-		args = strrchr(progssrcname, '\\');
-		while(args && strchr(args, '/'))
-			args = strchr(args, '/');
-		if (args)
+		if (!keepsrcanddir)
 		{
-			memcpy(progssrcdir, progssrcname, args-progssrcname);
-			progssrcdir[args-progssrcname] = 0;
-			args++;
-			memmove(progssrcname, args, strlen(args)+1);
+			args = strrchr(progssrcname, '\\');
+			while(args && strchr(args, '/'))
+				args = strchr(args, '/');
+			if (args)
+			{
+				memcpy(progssrcdir, progssrcname, args-progssrcname);
+				progssrcdir[args-progssrcname] = 0;
+				args++;
+				memmove(progssrcname, args, strlen(args)+1);
 
-			SetCurrentDirectoryA(progssrcdir);
-			*progssrcdir = 0;
+				SetCurrentDirectoryA(progssrcdir);
+				*progssrcdir = 0;
+			}
 		}
 		args = next;
 	}
@@ -687,20 +693,36 @@ int GUI_ParseCommandLine(char *args)
 			while (*next == ' ')
 				next++;
 			
-			l = 0;
-			while (*next != ' ' && *next)
-				progssrcname[l++] = *next++;
-			progssrcname[l] = 0;
+			if (keepsrcanddir)
+			{	//ignore it
+				while (*next != ' ' && *next)
+					next++;
+			}
+			else
+			{
+				l = 0;
+				while (*next != ' ' && *next)
+					progssrcname[l++] = *next++;
+				progssrcname[l] = 0;
+			}
 		}
 		else if (!strnicmp(parameters+paramlen, "-src ", 5) || !strnicmp(parameters+paramlen, "/src ", 5))
 		{
 			while (*next == ' ')
 				next++;
-			
-			l = 0;
-			while (*next != ' ' && *next)
-				progssrcdir[l++] = *next++;
-			progssrcdir[l] = 0;
+
+			if (keepsrcanddir)
+			{	//ignore it
+				while (*next != ' ' && *next)
+					next++;
+			}
+			else
+			{
+				l = 0;
+				while (*next != ' ' && *next)
+					progssrcdir[l++] = *next++;
+				progssrcdir[l] = 0;
+			}
 		}
 		else if (!strnicmp(parameters+paramlen, "-T", 2) || !strnicmp(parameters+paramlen, "/T", 2))	//the target
 		{

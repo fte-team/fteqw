@@ -13,7 +13,7 @@ void GUI_DialogPrint(char *title, char *text);
 void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size);
 int GUIFileSize(const char *fname);
 
-int GUI_ParseCommandLine(char *args); //0=gui, 1=commandline
+int GUI_ParseCommandLine(char *args, pbool keepsrcanddir); //0=gui, 1=commandline
 void GUI_SaveConfig(void);
 void GUI_RevealOptions(void);
 int GUIprintf(const char *msg, ...);

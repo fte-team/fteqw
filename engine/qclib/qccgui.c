@@ -6994,7 +6994,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	strcpy(enginecommandline, "");
 
 	GUI_SetDefaultOpts();
-	mode = GUI_ParseCommandLine(lpCmdLine);
+	mode = GUI_ParseCommandLine(lpCmdLine, false);
 
 	if(mode == 1)
 	{
@@ -7140,15 +7140,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				{
 					*s = '\0';
 					strcpy(progssrcname, s+1);
+					SetCurrentDirectory(progssrcdir);
 				}
-
-				SetCurrentDirectory(progssrcdir);
 				*progssrcdir = '\0';
 			}
 
 			//reset project/directory options
 			GUI_SetDefaultOpts();
-			GUI_ParseCommandLine(lpCmdLine);
+			GUI_ParseCommandLine(lpCmdLine, true);
 			GUI_RevealOptions();
 
 			//if the project is a .dat or .zip then decompile it now (so we can access the 'source')

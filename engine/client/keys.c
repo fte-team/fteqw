@@ -381,7 +381,8 @@ void Key_UpdateCompletionDesc(void)
 	else
 	{
 		Con_Footerf(NULL, false, "");
-		con_commandmatch = 1;
+		if (con_commandmatch)
+			con_commandmatch = 1;
 	}
 }
 
@@ -423,7 +424,8 @@ void CompleteCommand (qboolean force)
 
 			//complete to that (maybe partial) cmd.
 			Key_ClearTyping();
-			Key_ConsoleInsert("/");
+			if (cl_chatmode.ival)
+				Key_ConsoleInsert("/");
 			Key_ConsoleInsert(cmd);
 			s = key_lines[edit_line];
 			if (*s == '/')
@@ -454,7 +456,8 @@ void CompleteCommand (qboolean force)
 		if (i != 1 || strcmp(key_lines[edit_line]+i, cmd))
 		{	//if successful, use that instead.
 			Key_ClearTyping();
-			Key_ConsoleInsert("/");
+			if (cl_chatmode.ival)
+				Key_ConsoleInsert("/");
 			Key_ConsoleInsert(cmd);
 
 			s = key_lines[edit_line];	//readjust to cope with the insertion of a /
@@ -504,7 +507,8 @@ int Con_ExecuteLine(console_t *con, char *line)
 		line = deutf8;
 	}
 
-	con_commandmatch=1;
+	if (con_commandmatch)
+		con_commandmatch=1;
 	Con_Footerf(con, false, "");
 
 	if (cls.state >= ca_connected && cl_chatmode.value == 2)
@@ -981,12 +985,17 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		text+=2;
 	if (*text == '/')
 	{
-		int tlen = info - text;
+		int tlen;
+		if (!cl_chatmode.ival)
+			text++;	//NQ should generally not bother with the / in commands.
+		tlen = info - text;
 		Z_Free(key_lines[edit_line]);
 		key_lines[edit_line] = BZ_Malloc(tlen + 1);
 		memcpy(key_lines[edit_line], text, tlen);
 		key_lines[edit_line][tlen] = 0;
 		key_linepos = strlen(key_lines[edit_line]);
+
+		Key_UpdateCompletionDesc();
 		return;
 	}
 }
@@ -1129,7 +1138,7 @@ static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
 	return count&1;
 }
 //move the cursor one char to the left. cursor must be within the 'start' string.
-static unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
+static unsigned char *utf_left(unsigned char *start, unsigned char *cursor, qboolean skiplink)
 {
 	if (cursor == start)
 		return cursor;
@@ -1143,7 +1152,7 @@ static unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
 		cursor--;
 
 	//FIXME: should verify that the ^ isn't doubled.
-	if (*cursor == ']' && cursor > start && utf_specialchevron(start, cursor-1))
+	if (*cursor == ']' && cursor > start && skiplink && utf_specialchevron(start, cursor-1))
 	{
 		//just stepped onto a link
 		unsigned char *linkstart;
@@ -1161,10 +1170,10 @@ static unsigned char *utf_left(unsigned char *start, unsigned char *cursor)
 }
 
 //move the cursor one char to the right.
-static unsigned char *utf_right(unsigned char *start, unsigned char *cursor)
+static unsigned char *utf_right(unsigned char *start, unsigned char *cursor, qboolean skiplink)
 {
 	//FIXME: should make sure this is not doubled.
-	if (utf_specialchevron(start, cursor) && cursor[1] == '[')
+	if (utf_specialchevron(start, cursor) && cursor[1] == '[' && skiplink)
 	{
 		//just stepped over a link
 		char *linkend;
@@ -1240,6 +1249,7 @@ void Key_EntryInsert(unsigned char **line, int *linepos, char *instext)
 
 qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int key, unsigned int unicode)
 {
+	qboolean alt = keydown[K_LALT] || keydown[K_RALT];
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
 	char utf8[8];
@@ -1250,28 +1260,28 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 		{
 			//ignore whitespace if we're at the end of the word
 			while (*linepos > 0 && (*line)[*linepos-1] == ' ')
-				*linepos = utf_left((*line)+lineoffset, (*line) + *linepos) - (*line);
+				*linepos = utf_left((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 			//keep skipping until we find the start of that word
 			while (ctrl && *linepos > lineoffset && (*line)[*linepos-1] != ' ')
-				*linepos = utf_left((*line)+lineoffset, (*line) + *linepos) - (*line);
+				*linepos = utf_left((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 		}
 		else
-			*linepos = utf_left((*line)+lineoffset, (*line) + *linepos) - (*line);
+			*linepos = utf_left((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 		return true;
 	}
 	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW)
 	{
 		if ((*line)[*linepos])
 		{
-			*linepos = utf_right((*line)+lineoffset, (*line) + *linepos) - (*line);
+			*linepos = utf_right((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 			if (ctrl)
 			{
 				//skip over the word
 				while ((*line)[*linepos] && (*line)[*linepos] != ' ')
-					*linepos = utf_right((*line)+lineoffset, (*line) + *linepos) - (*line);
+					*linepos = utf_right((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 				//as well as any trailing whitespace
 				while ((*line)[*linepos] == ' ')
-					*linepos = utf_right((*line)+lineoffset, (*line) + *linepos) - (*line);
+					*linepos = utf_right((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 			}
 			return true;
 		}
@@ -1283,7 +1293,7 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 	{
 		if ((*line)[*linepos])
 		{
-			int charlen = utf_right((*line)+lineoffset, (*line) + *linepos) - ((*line) + *linepos);
+			int charlen = utf_right((*line)+lineoffset, (*line) + *linepos, !alt) - ((*line) + *linepos);
 			memmove((*line)+*linepos, (*line)+*linepos+charlen, strlen((*line)+*linepos+charlen)+1);
 			return true;
 		}
@@ -1295,7 +1305,7 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 	{
 		if (*linepos > lineoffset)
 		{
-			int charlen = ((*line)+*linepos) - utf_left((*line)+lineoffset, (*line) + *linepos);
+			int charlen = ((*line)+*linepos) - utf_left((*line)+lineoffset, (*line) + *linepos, !alt);
 			memmove((*line)+*linepos-charlen, (*line)+*linepos, strlen((*line)+*linepos)+1);
 			*linepos -= charlen;
 		}
@@ -1303,7 +1313,7 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 		if (con_commandmatch)
 		{
 			Con_Footerf(NULL, false, "");
-			con_commandmatch = 1;
+			con_commandmatch = (**line?1:0);
 		}
 		return true;
 	}
@@ -1669,8 +1679,6 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 			CompleteCommand (ctrl);
 		return true;
 	}
-	if (key != K_CTRL && key != K_SHIFT && con_commandmatch)
-		con_commandmatch=1;
 	
 	if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
 	{
@@ -1685,8 +1693,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		Q_strcpy(key_lines[edit_line], key_lines[history_line]);
 		key_linepos = Q_strlen(key_lines[edit_line]);
 
-		if (!key_lines[edit_line][0])
-			con_commandmatch = 0;
+		con_commandmatch = 0;
 		return true;
 	}
 
@@ -1724,6 +1731,8 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		if (rkey != '`' || key_linepos==0)
 			return false;
 	}
+	if (con_commandmatch)
+		con_commandmatch = 1;
 	Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
 	return true;
 }
@@ -2035,13 +2044,67 @@ void Key_Unbindall_f (void)
 
 void Key_Bind_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
+	int key, mf;
 	keyname_t *kn;
-	size_t len = strlen(partial);
-	//FIXME: shift, ctrl, alt prefixes (+combos)
-	for (kn=keynames ; kn->name ; kn++)
+	const char *n, *m;
+	size_t len = strlen(partial), l;
+	struct
 	{
-		if (!Q_strncasecmp(partial,kn->name, len))
-			ctx->cb(kn->name, NULL, NULL, ctx);
+		const char *prefix;
+		int mods;
+	} mtab[] = 
+	{
+		{"",0},
+
+		{"CTRL+ALT+SHIFT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"ALT+CTRL+SHIFT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"SHIFT+CTRL+ALT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"SHIFT+ALT+CTRL+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"CTRL+SHIFT+ALT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"ALT+SHIFT+CTRL+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+
+		{"CTRL+ALT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"ALT+CTRL+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"SHIFT+ALT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"ALT+SHIFT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"CTRL+SHIFT+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+		{"SHIFT+CTRL+",KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT},
+
+		{"CTRL+",KEY_MODIFIER_CTRL},
+		{"ALT+",KEY_MODIFIER_ALT},
+		{"SHIFT+",KEY_MODIFIER_SHIFT},
+	};
+	for (l = 0; l < countof(mtab); l++)
+	{
+		m = mtab[l].prefix;
+		mf = strlen(m);
+		mf = min(mf, len);
+		if (Q_strncasecmp(partial, m, mf))
+			continue;
+		mf = mtab[l].mods;
+
+		for (kn=keynames ; kn->name ; kn++)
+		{
+			//don't suggest shift+shift, because that would be weird.
+			if ((mf & KEY_MODIFIER_CTRL) && (kn->keynum == K_LCTRL || kn->keynum == K_RCTRL))
+				continue;
+			if ((mf & KEY_MODIFIER_ALT) && (kn->keynum == K_LALT || kn->keynum == K_RALT))
+				continue;
+			if ((mf & KEY_MODIFIER_SHIFT) && (kn->keynum == K_LSHIFT || kn->keynum == K_RSHIFT))
+				continue;
+
+			n = va("%s%s", m, kn->name);
+			if (!Q_strncasecmp(partial,n, len))
+				ctx->cb(n, NULL, NULL, ctx);
+		}
+		for (key = 32+1; key < 127; key++)
+		{
+			if (key >= 'a' && key <= 'z')
+				continue;
+			n = va("%s%c", m, key);
+			if (!Q_strncasecmp(partial,n, len))
+				ctx->cb(n, NULL, NULL, ctx);
+		}
 	}
 }
 /*

@@ -2280,7 +2280,7 @@ void Cmd_Complete_CheckArg(const char *value, const char *desc, const char *repl
 	res->completions[res->num].text_alloced = true;
 	res->completions[res->num].text = text;
 	res->completions[res->num].desc_alloced = true;
-	res->completions[res->num].desc = Z_StrDup(desc);
+	res->completions[res->num].desc = desc?Z_StrDup(desc):NULL;
 	res->completions[res->num].repl = repl;
 	res->num++;
 }
@@ -2396,7 +2396,7 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 	else
 		sp = NULL;
 
-	if (len)
+//	if (len)
 	{
 		if (caseinsens)
 		{

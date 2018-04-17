@@ -1292,6 +1292,34 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		endmtext[-1] = CON_WHITEMASK | '+' | CON_NONCLEARBG;
 	endmtext[1] = 0;
 
+	if ((*cursor & CON_HIDDEN) && cursor[0] != (CON_HIDDEN|'^') && cursor[1] != CON_LINKSTART)
+	{	//if we're in the middle of a link (but not at the very first char - to make life prettier) then reveal the hidden text so that you can actually see what you're editing.
+		for (i = cursor-textstart; textstart[i]; i++)
+		{
+			if (textstart[i] == CON_LINKSTART)
+				break;
+			if (textstart[i] == CON_LINKEND)
+			{
+				textstart[i] &= ~CON_HIDDEN;
+				break;
+			}
+			textstart[i] &= ~CON_HIDDEN;
+		}
+		for (i = cursor-textstart; i>=0; i--)
+		{
+			if (textstart[i] == CON_LINKEND)
+				break;
+			if (textstart[i] == CON_LINKSTART)
+			{
+				textstart[i] &= ~CON_HIDDEN;
+				if (--i >= 0)	//make the ^ of the ^[ shown too.
+					textstart[i] &= ~CON_HIDDEN;
+				break;
+			}
+			textstart[i] &= ~CON_HIDDEN;
+		}
+	}
+
 	i = 0;
 	x = left;
 
@@ -1414,6 +1442,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		{
 			s = (conchar_t*)(con->completionline+1);
 
+			//note: if cl_chatmode is 0, then we shouldn't show the leading /, however that is how the console link stuff recognises it as command text, so we always display it.
 			cmd = c->completions[i].text;
 //			desc = c->completions[i].desc;
 //			if (desc)

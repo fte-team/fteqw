@@ -3499,5 +3499,9 @@ void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_
 		}
 	}
 }
+#else
+void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+}
 #endif
 

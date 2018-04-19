@@ -2748,7 +2748,7 @@ static void QCC_MergeGlobalDefs16(ddef16_t *in, size_t num, void *values, size_t
 	QCC_FreeDef(root);
 }
 
-static unsigned char *QCC_LoadFileHunkAlloc(void *ctx, size_t size)
+static unsigned char *PDECL QCC_LoadFileHunkAlloc(void *ctx, size_t size)
 {
 	return (unsigned char*)qccHunkAlloc(size+1);
 }

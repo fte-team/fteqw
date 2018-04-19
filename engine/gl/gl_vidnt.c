@@ -1203,7 +1203,7 @@ static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 		if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
 		{
-			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%ibpp@%ihz\n":"Windows rejected mode %i*%i*%ibpp\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
+			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i, %ibpp @%ihz\n":"Windows rejected mode %i*%i, %ibpp\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
 			return false;
 		}
 	}
@@ -3422,9 +3422,10 @@ static qboolean NVVKVID_Init (rendererstate_t *info, unsigned char *palette)
 }
 rendererinfo_t nvvkrendererinfo =
 {
-	"GL_NV_draw_vulkan_image",
+	"Vulkan via OpenGL (GL_NV_draw_vulkan_image)",
 	{
 		"nvvk",
+		"GL_NV_draw_vulkan_image",
 	},
 	QR_VULKAN,
 

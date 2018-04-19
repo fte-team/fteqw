@@ -36,7 +36,7 @@ typedef enum
 	QR_VULKAN,		//
 	QR_DIRECT3D12,	//no implementation
 	QR_METAL,		//no implementation
-	QR_DIRECT3D8	//
+	QR_DIRECT3D8	//liimted. available for win95 where d3d8.1+ does not. also only renderer supported on the original xbox, if that's ever relevant.
 } r_qrenderer_t;
 
 typedef struct {

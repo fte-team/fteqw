@@ -2593,7 +2593,12 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			MP_Keydown (key, unicode, devid);
 #endif
 		else if (Key_Dest_Has(kdm_message))
+		{
 			Key_Dest_Remove(kdm_message);
+			if (chat_buffer)
+				chat_buffer[0] = 0;
+			chat_bufferpos = 0;
+		}
 		else
 		{
 			if (Media_PlayingFullScreen())

@@ -451,7 +451,7 @@ typedef struct rendererinfo_s {
 	char *alignment;	//just to make sure that added functions cause compile warnings.
 
 //FIXME: keep this...
-	int		(*VID_GetPriority)	(void);	//so that eg x11 or wayland can be prioritised depending on environment settings
+	int		(*VID_GetPriority)	(void);	//so that eg x11 or wayland can be prioritised depending on environment settings. assumed to be 1.
 
 //FIXME: add getdestopres
 //FIXME: add clipboard handling

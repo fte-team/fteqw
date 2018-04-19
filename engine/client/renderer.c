@@ -466,8 +466,9 @@ cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting unt
 cvar_t vk_waitfence							= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
 cvar_t vk_nv_glsl_shader					= CVARD	("vk_loadglsl",					"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
 cvar_t vk_nv_dedicated_allocation			= CVARD	("vk_nv_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
-cvar_t vk_khr_dedicated_allocation		= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
+cvar_t vk_khr_dedicated_allocation			= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
 cvar_t vk_khr_push_descriptor				= CVARD	("vk_khr_push_descriptor",		"", "Enables better descriptor streaming.");
+cvar_t vk_amd_rasterization_order			= CVARD ("vk_amd_rasterization_order",	"",	"Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
 #endif
 
 #ifdef D3D9QUAKE
@@ -1007,6 +1008,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vk_nv_dedicated_allocation,	VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
+	Cvar_Register (&vk_amd_rasterization_order,	VKRENDEREROPTIONS);
 #endif
 
 // misc
@@ -1300,10 +1302,12 @@ void R_ShutdownRenderer(qboolean devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
 		R_DeInit();
+		R_DeInit = NULL;
 	}
 
 	if (Draw_Shutdown)
 		Draw_Shutdown();
+	Draw_Shutdown = NULL;
 
 	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
 	SCR_DeInit();
@@ -1312,6 +1316,7 @@ void R_ShutdownRenderer(qboolean devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
+		VID_DeInit = NULL;
 	}
 
 	COM_FlushTempoaryPacks();
@@ -1423,7 +1428,14 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 #endif
 		if (newr)
 			if (!r_forceheadless || newr->renderer->rtype != QR_HEADLESS)
-				Con_TPrintf("Setting mode %i*%i %ibpp %ihz %s%s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->srgb?"SRGB ":"", newr->renderer->description);
+			{
+				if (newr->fullscreen == 2)
+					Con_TPrintf("Setting fullscreen windowed %s%s\n", newr->srgb?"SRGB ":"", newr->renderer->description);
+				else if (newr->fullscreen)
+					Con_TPrintf("Setting mode %i*%i %ibpp %ihz %s%s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->srgb?"SRGB ":"", newr->renderer->description);
+				else
+					Con_TPrintf("Setting windowed mode %i*%i %s%s\n", newr->width, newr->height, newr->srgb?"SRGB ":"", newr->renderer->description);
+			}
 
 		vid.fullbright=0;
 
@@ -1796,6 +1808,25 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->stereo = (r_stereo_method.ival == 1);
 	newr->srgb = vid_srgb.ival;
 
+#ifdef _WIN32
+	if (newr->bpp && newr->bpp < 24)
+	{
+		extern int qwinvermaj;
+		extern int qwinvermin;
+		if ((qwinvermaj == 6 && qwinvermin >= 2) || qwinvermaj>6)
+		{
+			/*
+			Note  Apps that you design to target Windows 8 and later can no longer query or set display modes that are less than 32 bits per pixel (bpp);
+				these operations will fail. These apps have a compatibility manifest that targets Windows 8.
+			Windows 8 still supports 8-bit and 16-bit color modes for desktop apps that were built without a Windows 8 manifest;
+				Windows 8 emulates these modes but still runs in 32-bit color mode.
+			*/
+			Con_Printf("Starting with windows 8, windows no longer supports 16-bit video modes\n");
+			newr->bpp = 24;	//we don't count alpha as part of colour depth. windows does, so this'll end up as 32bit regardless.
+		}
+	}
+#endif
+
 	if (com_installer)
 	{
 		newr->fullscreen = false;
@@ -1813,9 +1844,9 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	rendererstring = COM_Parse(rendererstring);
 	if (r_forceheadless)
 	{	//special hack so that android doesn't weird out when not focused.
-		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			if (rendererinfo[i] && rendererinfo[i]->name[0] && !stricmp(rendererinfo[i]->name[0], "headless"))
+			if (rendererinfo[i] && rendererinfo[i]->name[0] && rendererinfo[i]->rtype == QR_HEADLESS)
 			{
 				newr->renderer = rendererinfo[i];
 				break;
@@ -1824,12 +1855,30 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	}
 	else if (!*com_token)
 	{
-		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		int bestpri = -2;
+		int pri;
+		newr->renderer = NULL;
+		//I'd like to just qsort the renderers, but that isn't stable and might reorder gl+d3d etc.
+		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			if (rendererinfo[i] && rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
+			if (rendererinfo[i] && rendererinfo[i]->name[0])
 			{
+				if (rendererinfo[i]->VID_GetPriority)
+					pri = rendererinfo[i]->VID_GetPriority();
+				else if (rendererinfo[i]->rtype == QR_HEADLESS)
+					pri = -1;	//headless renderers are a really poor choice, and will make the user think it buggy.
+				else if (rendererinfo[i]->rtype == QR_NONE)
+					pri = 0;	//dedicated servers are possible, but we really don't want to use them unless we have no other choice.
+				else
+					pri = 1;	//assume 1 for most renderers.
+			}
+			else
+				pri = -2;
+
+			if (pri > bestpri)
+			{
+				bestpri = pri;
 				newr->renderer = rendererinfo[i];
-				break;
 			}
 		}
 	}
@@ -1965,18 +2014,31 @@ void R_RestartRenderer (rendererstate_t *newr)
 			qboolean failed = true;
 			rendererinfo_t *skip = newr->renderer;
 
-			if (newr->rate != 0)
+			if (failed && newr->fullscreen == 1)
+			{
+				Con_Printf(CON_NOTICE "Trying fullscreen windowed\n");
+				newr->fullscreen = 2;
+				failed = !R_ApplyRenderer(newr);
+			}
+			if (failed && newr->rate != 0)
 			{
 				Con_Printf(CON_NOTICE "Trying default refresh rate\n");
 				newr->rate = 0;
 				failed = !R_ApplyRenderer(newr);
 			}
-
 			if (failed && newr->width != DEFAULT_WIDTH && newr->height != DEFAULT_HEIGHT)
 			{
 				Con_Printf(CON_NOTICE "Trying %i*%i\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
+				if (newr->fullscreen == 2)
+					newr->fullscreen = 1;
 				newr->width = DEFAULT_WIDTH;
 				newr->height = DEFAULT_HEIGHT;
+				failed = !R_ApplyRenderer(newr);
+			}
+			if (failed && newr->fullscreen)
+			{
+				Con_Printf(CON_NOTICE "Trying windowed\n");
+				newr->fullscreen = 0;
 				failed = !R_ApplyRenderer(newr);
 			}
 

@@ -158,6 +158,10 @@ static qboolean Headless_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsig
 static void	Headless_VID_SetWindowCaption		(const char *msg)
 {
 }
+static int Headless_VID_GetPrioriy				(void)
+{	//headless renderers are the lowest priority possible, due to how broken they'd be perceived to be.
+	return -1;
+}
 static char	*Headless_VID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	*fmt = TF_INVALID;
@@ -280,7 +284,8 @@ rendererinfo_t headlessrenderer =
 	Headless_BE_VBO_Finish,
 	Headless_BE_VBO_Destroy,
 	Headless_BE_RenderToTextureUpdate2d,
-	""
+	"",
+	Headless_VID_GetPrioriy
 };
 
 
@@ -375,9 +380,9 @@ rendererinfo_t headlessvkrendererinfo =
 	GLVID_DeInit,
 	GLVID_SwapBuffers,
 	GLVID_ApplyGammaRamps,
-	WIN_CreateCursor,
-	WIN_SetCursor,
-	WIN_DestroyCursor,
+	NULL,
+	NULL,
+	NULL,
 	GLVID_SetCaption,
 	VKVID_GetRGBInfo,
 
@@ -405,7 +410,9 @@ rendererinfo_t headlessvkrendererinfo =
 
 	VKBE_RenderToTextureUpdate2d,
 
-	"no more"
+	"no more",
+
+	Headless_VID_GetPrioriy
 };
 #endif
 #endif

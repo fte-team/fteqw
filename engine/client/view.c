@@ -1998,10 +1998,11 @@ void R_DrawNameTags(void)
 		if (surf)
 		{
 			shader_t *shader = surf->texinfo->texture->shader;
-			char *body = shader?Shader_GetShaderBody(shader, NULL, 0):NULL;
+			char fname[MAX_QPATH];
+			char *body = shader?Shader_GetShaderBody(shader, fname, countof(fname)):NULL;
 			if (body)
 			{
-				str = va("%s\n{%s\n", surf->texinfo->texture->name, body);
+				str = va("%s:\n%s\n{%s\n", fname, surf->texinfo->texture->name, body);
 				Z_Free(body);
 			}
 			else

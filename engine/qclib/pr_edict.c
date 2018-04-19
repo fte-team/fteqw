@@ -2499,7 +2499,7 @@ void PR_CleanUpStatements32(progfuncs_t *progfuncs, dstatement32_t *st, pbool he
 }
 
 char *decode(int complen, int len, int method, char *info, char *buffer);
-unsigned char *PR_GetHeapBuffer (void *ctx, size_t bufsize)
+unsigned char *PDECL PR_GetHeapBuffer (void *ctx, size_t bufsize)
 {
 	return PRHunkAlloc(ctx, bufsize+1, "proginfo");
 }

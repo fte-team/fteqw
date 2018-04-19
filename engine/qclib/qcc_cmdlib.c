@@ -1208,7 +1208,7 @@ char *QCC_SanitizeCharSet(char *mem, size_t *len, pbool *freeresult, int *origfm
 	return mem;
 }
 
-static unsigned char *QCC_LoadFileHunk(void *ctx, size_t size)
+static unsigned char *PDECL QCC_LoadFileHunk(void *ctx, size_t size)
 {	//2 ensures we can always put a \n in there.
 	return (unsigned char*)qccHunkAlloc(sizeof(qcc_cachedsourcefile_t)+size+2) + sizeof(qcc_cachedsourcefile_t);
 }
@@ -1288,7 +1288,7 @@ void	QCC_AddFile (char *filename)
 	qcc_sourcefile = sfile;
 
 }
-static unsigned char *FS_ReadToMem_Alloc(void *ctx, size_t size)
+static unsigned char *PDECL FS_ReadToMem_Alloc(void *ctx, size_t size)
 {
 	unsigned char *mem;
 	progfuncs_t *progfuncs = qccprogfuncs;

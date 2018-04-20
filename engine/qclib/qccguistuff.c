@@ -32,7 +32,7 @@ int Grep(char *filename, char *string)
 	if (!filename)
 		return foundcount;
 
-	raw = GUIReadFile(filename, NULL, NULL, &sz);
+	raw = GUIReadFile(filename, NULL, NULL, &sz, false);
 	if (!raw)
 		return foundcount;
 	if (raw[sz] != 0)

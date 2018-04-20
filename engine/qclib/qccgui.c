@@ -3350,7 +3350,7 @@ static unsigned char *buf_get_malloc(void *ctx, size_t len)
 {
 	return malloc(len);
 }
-void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
+void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile)
 {
 	editor_t *e;
 	size_t blen;
@@ -3409,6 +3409,9 @@ void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t
 			return buffer;
 		}
 	}
+
+	if (issourcefile)
+		AddSourceFile(compilingrootfile,	fname);
 
 	return QCC_ReadFile(fname, buf_get, buf_ctx, out_size);
 }

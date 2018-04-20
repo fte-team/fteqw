@@ -431,6 +431,7 @@ Runs qbsp and light on all of the models with a .bsp extension
 =================
 */
 int QCC_CheckParm (char *check);
+const char *QCC_ReadParm (char *check);
 
 void QCC_BspModels (void)
 {
@@ -1364,10 +1365,10 @@ pbool QCC_WriteData (int crc)
 	progs.blockscompressed=0;
 
 	if (numstatements > MAX_STATEMENTS)
-		QCC_Error(ERR_TOOMANYSTATEMENTS, "Too many statements - %i\nAdd \"MAX_STATEMENTS\" \"%i\" to qcc.cfg", numstatements, (numstatements+32768)&~32767);
+		QCC_Error(ERR_TOOMANYSTATEMENTS, "Too many statements - %i\nAdd '-max_statements %i' to the commandline", numstatements, (numstatements+32768)&~32767);
 
 	if (strofs > MAX_STRINGS)
-		QCC_Error(ERR_TOOMANYSTRINGS, "Too many strings - %i\nAdd \"MAX_STRINGS\" \"%i\" to qcc.cfg", strofs, (strofs+32768)&~32767);
+		QCC_Error(ERR_TOOMANYSTRINGS, "Too many strings - %i\nAdd '-max_strings %i' to the commandline", strofs, (strofs+32768)&~32767);
 
 	//part of how compilation works. This def is always present, and never used.
 	def = QCC_PR_GetDef(NULL, "end_sys_globals", NULL, false, 0, false);
@@ -1909,7 +1910,7 @@ pbool QCC_WriteData (int crc)
 	}
 
 	if (numglobaldefs > MAX_GLOBALS)
-		QCC_Error(ERR_TOOMANYGLOBALS, "Too many globals - %i\nAdd \"MAX_GLOBALS\" \"%i\" to qcc.cfg", numglobaldefs, (numglobaldefs+32768)&~32767);
+		QCC_Error(ERR_TOOMANYGLOBALS, "Too many globals - %i\nAdd '-max_globals %i' to the commandline", numglobaldefs, (numglobaldefs+32768)&~32767);
 
 
 	dupewarncount = 0;
@@ -2781,7 +2782,7 @@ void QCC_ImportProgs(const char *filename)
 	//FIXME: find temps. strip them. you get the idea.
 	//FIXME: find immediates. set up hash tables for them for reuse. HAH!
 
-	prog = externs->ReadFile(filename, QCC_LoadFileHunkAlloc, NULL, &flen);
+	prog = externs->ReadFile(filename, QCC_LoadFileHunkAlloc, NULL, &flen, false);
 	if (!prog)
 	{
 		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
@@ -4615,6 +4616,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	size_t		p;
 	extern int qccpersisthunk;
+	const char *arg;
 
 	char *s;
 
@@ -4667,7 +4669,27 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	strcpy(destfile, "");
 	compressoutput = 0;
 
-	s = externs->ReadFile("qcc.cfg", QCC_LoadFileHunkAlloc, NULL, &p);
+	if ((arg = QCC_ReadParm("-max_regs")))
+		MAX_REGS = max(100, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_strings")))
+		MAX_STRINGS = max(100, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_globals")))
+		MAX_GLOBALS = max(64, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_fields")))
+		MAX_FIELDS = max(0, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_statements")))
+		MAX_STATEMENTS = max(1, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_functions")))
+		MAX_FUNCTIONS = max(1, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_types")))
+		maxtypeinfos = max(100, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_temps")))
+		max_temps = max(100, atoi(arg));
+	if ((arg = QCC_ReadParm("-max_macros")))
+		MAX_CONSTANTS = max(100, atoi(arg));
+
+	//FIXME: strip this.
+	s = externs->ReadFile("qcc.cfg", QCC_LoadFileHunkAlloc, NULL, &p, false);
 	if (s)
 	{
 		while(1)

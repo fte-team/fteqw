@@ -592,12 +592,25 @@ Returns the argument number (1 to argc-1) or 0 if not present
 */
 int QCC_CheckParm (char *check)
 {
-	int             i;
+	int i;
 
 	for (i = 1;i<myargc;i++)
 	{
 		if ( !QC_strcasecmp(check, myargv[i]) )
 			return i;
+	}
+
+	return 0;
+}
+
+const char *QCC_ReadParm (char *check)
+{
+	int i;
+
+	for (i = 1;i+1<myargc;i++)
+	{
+		if ( !QC_strcasecmp(check, myargv[i]) )
+			return myargv[i+1];
 	}
 
 	return 0;
@@ -1224,7 +1237,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	int orig;
 	pbool warned = false;
 
-	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len);
+	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len, true);
 	if (!mem)
 	{
 		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
@@ -1274,7 +1287,7 @@ void	QCC_AddFile (char *filename)
 	char *mem;
 	size_t len;
 
-	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len);
+	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len, false);
 	if (!mem)
 		externs->Abort("failed to find file %s", filename);
 	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t));
@@ -1299,7 +1312,7 @@ static unsigned char *PDECL FS_ReadToMem_Alloc(void *ctx, size_t size)
 void *FS_ReadToMem(char *filename, size_t *len)
 {
 	progfuncs_t *progfuncs = qccprogfuncs;
-	return externs->ReadFile(filename, FS_ReadToMem_Alloc, NULL, len);
+	return externs->ReadFile(filename, FS_ReadToMem_Alloc, NULL, len, false);
 }
 
 void FS_CloseFromMem(void *mem)

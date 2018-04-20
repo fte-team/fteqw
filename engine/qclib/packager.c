@@ -1625,7 +1625,7 @@ void Packager_ParseText(struct pkgctx_s *ctx, char *scripttext)
 void Packager_ParseFile(struct pkgctx_s *ctx, char *scriptname)
 {
 	size_t remaining = 0;
-	char *file = qccprogfuncs->funcs.parms->ReadFile(scriptname, NULL, NULL, &remaining);
+	char *file = qccprogfuncs->funcs.parms->ReadFile(scriptname, NULL, NULL, &remaining, true);
 	strcpy(ctx->gamepath, scriptname);
 	strcpy(ctx->sourcepath, scriptname);
 	Packager_ParseText(ctx, file);

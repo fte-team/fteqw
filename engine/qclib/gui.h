@@ -10,7 +10,7 @@ int QCC_RawFileSize (const char *fname);
 pbool QCC_WriteFile (const char *name, void *data, int len);
 void GUI_DialogPrint(char *title, char *text);
 
-void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size);
+void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile);
 int GUIFileSize(const char *fname);
 
 int GUI_ParseCommandLine(char *args, pbool keepsrcanddir); //0=gui, 1=commandline

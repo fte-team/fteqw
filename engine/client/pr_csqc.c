@@ -94,7 +94,7 @@ extern sfx_t			*cl_sfx_ric2;
 extern sfx_t			*cl_sfx_ric3;
 extern sfx_t			*cl_sfx_r_exp3;
 
-#define ENDLIST
+#define ENDLIST	//clarifies \ in list macros.
 #ifdef NOLEGACY
 #define legacycsqcglobals
 #else
@@ -6887,7 +6887,7 @@ void CSQC_Shutdown(void)
 }
 
 //when the qclib needs a file, it calls out to this function.
-void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *sz)
+void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *sz, pbool issource)
 {
 	extern cvar_t sv_demo_write_csqc;
 	qbyte *file = NULL;

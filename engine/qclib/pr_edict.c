@@ -2564,7 +2564,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 
 retry:
 	hmark = PRHunkMark(progfuncs);
-	pr_progs = externs->ReadFile(filename, PR_GetHeapBuffer, progfuncs, &fsz);
+	pr_progs = externs->ReadFile(filename, PR_GetHeapBuffer, progfuncs, &fsz, false);
 	if (!pr_progs)
 	{
 		if (externs->autocompile == PR_COMPILENEXIST || externs->autocompile == PR_COMPILECHANGED)	//compile if file is not found (if 2, we have already tried, so don't bother)
@@ -2574,7 +2574,7 @@ retry:
 				printf("couldn't open progs %s. Attempting to compile.\n", filename);
 				CompileFile(progfuncs, filename);
 			}
-			pr_progs = externs->ReadFile(filename, PR_GetHeapBuffer, progfuncs, &fsz);
+			pr_progs = externs->ReadFile(filename, PR_GetHeapBuffer, progfuncs, &fsz, false);
 			if (!pr_progs)
 			{
 				printf("Couldn't find or compile file %s\n", filename);
@@ -2824,7 +2824,7 @@ retry:
 		strcpy(lnoname, filename);
 		StripExtension(lnoname);
 		strcat(lnoname, ".lno");
-		file = externs->ReadFile(lnoname, PR_GetHeapBuffer, progfuncs, &fsz);
+		file = externs->ReadFile(lnoname, PR_GetHeapBuffer, progfuncs, &fsz, false);
 		if (file)
 		{
 			if (	file[0] != lnotype

@@ -2485,7 +2485,7 @@ pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
 	return false;
 }
 
-static void *PDECL MP_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size)
+static void *PDECL MP_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size, pbool issource)
 {
 	flocation_t loc;
 	if (FS_FLocateFile(path, FSLF_IFFOUND|FSLF_SECUREONLY, &loc))

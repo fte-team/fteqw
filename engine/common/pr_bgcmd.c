@@ -15,7 +15,7 @@
 static char *cvargroup_progs = "Progs variables";
 
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
-cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
+cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods. It is better for mods to use FL_FINDABLE_NONSOLID instead.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 #ifndef NOLEGACY
 cvar_t dpcompat_strcat_limit = CVARD("dpcompat_strcat_limit", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");

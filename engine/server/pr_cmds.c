@@ -622,7 +622,7 @@ pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc
 		return false;
 	return true;
 }
-static void *PDECL SSQC_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size)
+static void *PDECL SSQC_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size, pbool issource)
 {
 	flocation_t loc;
 	if (FS_FLocateFile(path, FSLF_IFFOUND, &loc))

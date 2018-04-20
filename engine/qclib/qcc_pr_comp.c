@@ -12132,7 +12132,7 @@ QCC_function_t *QCC_PR_GenerateBuiltinFunction (QCC_def_t *def, int builtinnum, 
 {
 	QCC_function_t *func;
 	if (numfunctions >= MAX_FUNCTIONS)
-		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd \"MAX_FUNCTIONS\" \"%i\" to qcc.cfg", numfunctions, (numfunctions+4096)&~4095);
+		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd '-max_functions %i' to the commandline", numfunctions, (numfunctions+4096)&~4095);
 	func = &functions[numfunctions++];
 	func->filen = s_filen;
 	func->s_filed = s_filed;
@@ -12155,7 +12155,7 @@ static QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *ty
 {
 	QCC_function_t *func = NULL;
 	if (numfunctions >= MAX_FUNCTIONS)
-		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd \"MAX_FUNCTIONS\" \"%i\" to qcc.cfg", numfunctions, (numfunctions+4096)&~4095);
+		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd '-max_functions %i' to the commandline", numfunctions, (numfunctions+4096)&~4095);
 
 	if (!pif_flags)
 		;
@@ -15344,6 +15344,7 @@ void QCC_Cleanup(void)
 	pr_cases = NULL;
 	pr_casesref = NULL;
 	pr_casesref2 = NULL;
+	*compilingrootfile = 0;
 
 #ifdef _DEBUG
 	OpAssignsTo_Debug();

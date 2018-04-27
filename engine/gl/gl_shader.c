@@ -3976,7 +3976,7 @@ static void Shader_MakeCache(const char *path, unsigned int parseflags)
 						Q_strncpyz(cachefile->forcedshadername, token, sizeof(cachefile->forcedshadername));
 				}
 				else
-					Con_DPrintf("unknown shader meta term \"%s\" in %s\n", token, name);
+					Con_DPrintf("unknown shader meta term \"%s\" in %s\n", token, path);
 
 				while (*ptr == ' ' || *ptr == '\t')
 					ptr++;
@@ -3984,7 +3984,7 @@ static void Shader_MakeCache(const char *path, unsigned int parseflags)
 				{
 					while (*ptr && (*ptr != '\r' && *ptr != '\n'))
 						ptr++;
-					Con_DPrintf("junk after shader meta in %s\n", name);
+					Con_DPrintf("junk after shader meta in %s\n", path);
 				}
 			}
 			ptr = e;
@@ -6729,7 +6729,7 @@ static qboolean Shader_ReadShaderTerms(parsestate_t *ps, struct scondinfo_s *con
 			{
 #define SHADER_MACRO_ARGS 6
 				int argn = 0;
-				char *body;
+				char *oldptr;
 				char arg[SHADER_MACRO_ARGS][256];
 				//parse args until the end of the line
 				while (ps->ptr)
@@ -6745,8 +6745,10 @@ static qboolean Shader_ReadShaderTerms(parsestate_t *ps, struct scondinfo_s *con
 						argn++;
 					}
 				}
-				body = shadermacros[i].body;
+				oldptr = ps->ptr;
+				ps->ptr = shadermacros[i].body;
 				Shader_ReadShaderTerms(ps, cond);
+				ps->ptr = oldptr;
 				return true;
 			}
 		}

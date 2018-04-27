@@ -464,19 +464,22 @@ static void BE_ApplyShaderBits(unsigned int bits)
 			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZENABLE, TRUE);
 	}
 
-	if (delta & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+	if (delta & SBITS_DEPTHFUNC_BITS)
 	{
-		switch(bits & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+		switch(bits & SBITS_DEPTHFUNC_BITS)
 		{
 		default:
-		case 0:
+		case SBITS_DEPTHFUNC_CLOSEREQUAL:
 			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
 			break;
-		case SBITS_MISC_DEPTHEQUALONLY:
+		case SBITS_DEPTHFUNC_EQUAL:
 			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZFUNC, D3DCMP_EQUAL);
 			break;
-		case SBITS_MISC_DEPTHCLOSERONLY:
+		case SBITS_DEPTHFUNC_CLOSER:
 			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZFUNC, D3DCMP_LESS);
+			break;
+		case SBITS_DEPTHFUNC_FURTHER:
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZFUNC, D3DCMP_GREATER);
 			break;
 		}
 	}
@@ -2679,7 +2682,7 @@ static void BE_DrawMeshChain_Internal(void)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-		BE_ApplyShaderBits(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (useshader->numpasses?SBITS_MISC_DEPTHEQUALONLY:0));
+		BE_ApplyShaderBits(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (useshader->numpasses?SBITS_DEPTHFUNC_EQUAL:0));
 
 		allocvertexbuffer(shaderstate.dynst_buff[passno], shaderstate.dynst_size, &shaderstate.dynst_offs[passno], &map, vertcount*sizeof(vec2_t));
 		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
@@ -2754,7 +2757,7 @@ static void BE_DrawMeshChain_Internal(void)
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-			BE_ApplyShaderBits(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (useshader->numpasses?SBITS_MISC_DEPTHEQUALONLY:0));
+			BE_ApplyShaderBits(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (useshader->numpasses?SBITS_DEPTHFUNC_EQUAL:0));
 
 			allocvertexbuffer(shaderstate.dynst_buff[passno], shaderstate.dynst_size, &shaderstate.dynst_offs[passno], &map, vertcount*sizeof(vec2_t));
 			for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
@@ -3542,7 +3545,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 				if (R_DrawSkyChain (batch))
 					continue;
 			}
-			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
+			else if (/*shaderstate.mode != BEM_FOG &&*/ shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
 				continue;
 		}
 

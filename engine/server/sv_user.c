@@ -6898,6 +6898,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
+		movevars.coordsize = host_client->netchan.netprim.coordsize;
 
 		for (i=0 ; i<3 ; i++)
 		{
@@ -7144,6 +7145,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
+	movevars.coordsize = host_client->netchan.netprim.coordsize;
 
 // should already be folded into host_client->maxspeed
 //	if (sv_player->xv->hasted)

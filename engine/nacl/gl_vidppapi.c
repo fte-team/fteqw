@@ -269,9 +269,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 //	vid.pixelwidth = info->width;
 //	vid.pixelheight = info->height;
 
-	GL_Init(PPAPI_GetGLSymbol);
-
-	return true;
+	return GL_Init(PPAPI_GetGLSymbol);
 }
 
 void	GLVID_Shutdown (void)
@@ -282,6 +280,8 @@ void	GLVID_Shutdown (void)
 
 	ppb_core->ReleaseResource(glcontext);
 //	glTerminatePPAPI();
+
+	GL_ForgetPointers();
 }
 void GLVID_DeInit (void)
 {

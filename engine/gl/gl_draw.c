@@ -386,22 +386,17 @@ void GLDraw_Init (void)
 	if ((vid.flags & VID_SRGB_CAPABLE) && gl_config.arb_framebuffer_srgb)
 	{	//srgb-capable
 		if (!vid_srgb.ival)
-		{	//srgb not wanted...
+		{	//srgb framebuffer not wanted...
 			qglDisable(GL_FRAMEBUFFER_SRGB);
 			vid.flags &= ~VID_SRGB_FB_LINEAR;
 		}
-		else if (vid_srgb.ival > 1)
-		{	//full srgb wanted
-			qglEnable(GL_FRAMEBUFFER_SRGB);
-			vid.flags |= VID_SRGB_FB_LINEAR;
-		}
 		else
-		{	//srgb wanted only for the framebuffer, for gamma tricks.
+		{
 			vid.flags |= VID_SRGB_FB_LINEAR;
 			qglEnable(GL_FRAMEBUFFER_SRGB);
 		}
 	}
-	if ((vid.flags & VID_SRGB_FB) && vid_srgb.ival != 1)
+	if ((vid.flags & VID_SRGB_FB) && vid_srgb.ival >= 0)
 		vid.flags |= VID_SRGBAWARE;
 	else
 		vid.flags &= ~VID_SRGBAWARE;

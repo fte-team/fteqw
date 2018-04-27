@@ -372,9 +372,11 @@ void PM_ValidatePackage(package_t *p)
 						char buf[8];
 						searchpathfuncs_t *archive;
 
+#ifdef PACKAGE_Q1PAK
 						if (!Q_strcasecmp(COM_FileExtension(n, buf, sizeof(buf)), "pak"))
 							archive = FSPAK_LoadArchive(pf, NULL, n, n, NULL);
 						else
+#endif
 						{
 #ifdef AVAIL_ZLIB					//assume zip/pk3/pk4/apk/etc
 							archive = FSZIP_LoadArchive(pf, NULL, n, n, NULL);

@@ -672,18 +672,9 @@ static void D3D11BE_ApplyShaderBits(unsigned int bits, void **blendstatecache)
 */
 	}
 
-	if (delta & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHWRITE))
+	if (delta & (SBITS_DEPTHFUNC_BITS|SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHWRITE))
 	{
-		unsigned int key = 0;
-		if (bits & SBITS_MISC_DEPTHEQUALONLY)
-			key |= 1u<<0;
-		if (bits & SBITS_MISC_DEPTHCLOSERONLY)
-			key |= 1u<<1;
-		if (bits & SBITS_MISC_NODEPTHTEST)
-			key |= 1u<<2;
-		if (bits & SBITS_MISC_DEPTHWRITE)
-			key |= 1u<<3;
-
+		unsigned int key = (bits&(SBITS_DEPTHFUNC_BITS|SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHWRITE))>>16;
 		if (shaderstate.depthstates[key])
 			ID3D11DeviceContext_OMSetDepthStencilState(d3ddevctx, shaderstate.depthstates[key], 0);
 		else
@@ -698,17 +689,20 @@ static void D3D11BE_ApplyShaderBits(unsigned int bits, void **blendstatecache)
 			else
 				depthdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
 
-			switch(bits & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+			switch(bits & SBITS_DEPTHFUNC_BITS)
 			{
 			default:
-			case 0:
+			case SBITS_DEPTHFUNC_CLOSEREQUAL:
 				depthdesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 				break;
-			case SBITS_MISC_DEPTHEQUALONLY:
+			case SBITS_DEPTHFUNC_EQUAL:
 				depthdesc.DepthFunc = D3D11_COMPARISON_EQUAL;
 				break;
-			case SBITS_MISC_DEPTHCLOSERONLY:
+			case SBITS_DEPTHFUNC_CLOSER:
 				depthdesc.DepthFunc = D3D11_COMPARISON_LESS;
+				break;
+			case SBITS_DEPTHFUNC_FURTHER:
+				depthdesc.DepthFunc = D3D11_COMPARISON_GREATER;
 				break;
 			}
 

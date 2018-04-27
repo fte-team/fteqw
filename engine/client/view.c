@@ -95,6 +95,7 @@ cvar_t	v_ringcshift			= CVAR("v_ringcshift", "1");
 cvar_t	v_pentcshift			= CVAR("v_pentcshift", "1");
 cvar_t	v_gunkick				= CVAR("v_gunkick", "0");
 cvar_t	v_gunkick_q2			= CVAR("v_gunkick_q2", "1");
+cvar_t	v_viewmodel_quake		= CVARD("r_viewmodel_quake", "0", "Controls whether to use weird viewmodel movements from vanilla quake.");	//name comes from MarkV.
 
 cvar_t	v_viewheight			= CVAR("v_viewheight", "0");
 cvar_t	v_projectionmode		= CVAR("v_projectionmode", "0");
@@ -1002,7 +1003,7 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 // fudge position around to keep amount of weapon visible
 // roughly equal with different FOV
 //FIXME: should use y fov, not viewsize.
-	if (r_refdef.drawsbar)	//no sbar = no viewsize cvar.
+	if (r_refdef.drawsbar && v_viewmodel_quake.ival)	//no sbar = no viewsize cvar.
 	{
 		if (scr_viewsize.value == 110)
 			pv->vw_origin[2] += 1;

@@ -210,7 +210,10 @@ static void R_Clutter_Insert_Mesh(clutter_build_ctx_t *ctx, model_t *mod, float 
 		while(inf)
 		{
 			galiasskin_t *skins = inf->ofsskins;
-			re.framestate.g[FS_REG].frame[0] = randanim%inf->numanimations;
+			if (inf->numanimations >= 1)
+				re.framestate.g[FS_REG].frame[0] = randanim%inf->numanimations;
+			else
+				re.framestate.g[FS_REG].frame[0] = 0;
 			if (skins->numframes)
 			{
 				unsigned int frame = randskin%skins->numframes;

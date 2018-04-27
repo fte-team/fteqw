@@ -784,6 +784,7 @@ const char *presetexec[] =
 	"seta cl_nolerp 1;"
 	"seta r_lerpmuzzlehack 0;"
 	"seta v_gunkick 0;"
+	"seta v_viewmodel_quake 0;"
 	"seta cl_rollangle 0;"
 	"seta cl_bob 0;"
 	"seta cl_sbar 0;"
@@ -843,6 +844,7 @@ const char *presetexec[] =
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_nolerp 1;"
 	"cl_sbar 1;"
+	"v_viewmodel_quake 1;"
 	"gl_affinemodels 1;"
 	"r_softwarebanding 1;"		//ugly software banding.
 	"r_part_classic_square 1;"	//blocky baby!
@@ -868,6 +870,7 @@ const char *presetexec[] =
 	"gl_texturemode ln;"
 	"gl_texturemode2d l;"
 	"cl_sbar 0;"
+	"v_viewmodel_quake 0;"	//don't move the gun around weirdly.
 	"sv_nqplayerphysics 0;"
 	"cl_demoreel 0;"
 	"r_loadlit 1;"
@@ -2591,7 +2594,7 @@ void M_Menu_Video_f (void)
 	extern cvar_t v_contrast, vid_conwidth, vid_conheight;
 //	extern cvar_t vid_width, vid_height, vid_preservegamma, vid_hardwaregamma, vid_desktopgamma;
 	extern cvar_t vid_desktopsettings, vid_conautoscale;
-	extern cvar_t vid_bpp, vid_refreshrate, vid_multisample;
+	extern cvar_t vid_bpp, vid_refreshrate, vid_multisample, vid_srgb;
 
 	static const char *gammamodeopts[] = {
 		"Off",
@@ -2609,6 +2612,16 @@ void M_Menu_Video_f (void)
 		"4",
 		NULL
 	};
+
+	static const char *srgbopts[] = {
+		"Non-Linear",
+		"sRGB-Aware (PBR)",
+		"Linear (HDR)",
+		"Linearised", //-1
+		NULL
+	};
+	static const char *srgbvalues[] = { "0", "1", "2", "-1", NULL};
+
 
 #ifdef ANDROID
 	extern cvar_t sys_orientation;
@@ -2719,10 +2732,17 @@ void M_Menu_Video_f (void)
 	static const char *bppopts[] =
 	{
 		"16-bit",
-		"32-bit",
+		"24-bit",
 		NULL
 	};
-	static const char *bppvalues[] = {"16", "32", NULL};
+	static const char *bppvalues[] = {"16", "24", NULL};
+#ifdef _WIN32
+	extern int qwinvermaj, qwinvermin;
+	//on win8+, hide the 16bpp option - windows would just reject it.
+	int bppbias = ((qwinvermaj == 6 && qwinvermin >= 2) || qwinvermaj>6)?1:0;
+#else
+	const int bppbias = 0;
+#endif
 
 	static const char *refreshopts[] =
 	{
@@ -2821,7 +2841,7 @@ void M_Menu_Video_f (void)
 			MB_COMBORETURN("Size", resaspects[2], reschoices[2], info->ressize[2], "Select resolution for display."),
 			MB_SPACING(-8),
 			MB_COMBORETURN("Size", resaspects[3], reschoices[3], info->ressize[3], "Select resolution for display."),
-			MB_COMBOCVARRETURN("Color Depth", vid_bpp, bppopts, bppvalues, info->bppfixed, vid_bpp.description),
+			MB_COMBOCVARRETURN("Color Depth", vid_bpp, bppopts+bppbias, bppvalues+bppbias, info->bppfixed, vid_bpp.description),
 			MB_COMBOCVARRETURN("Refresh Rate", vid_refreshrate, refreshopts, refreshvalues, info->hzfixed, vid_refreshrate.description),
 			MB_SPACING(-24), // really hacky...
 			// custom entries
@@ -2852,6 +2872,7 @@ void M_Menu_Video_f (void)
 			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
 			MB_COMBOCVAR("Gamma Mode", v_gamma, gammamodeopts, gammamodevalues, "Controls how gamma is applied"),
 			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
+			MB_COMBOCVAR("Gamma Mode", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
 			MB_END()
 		};

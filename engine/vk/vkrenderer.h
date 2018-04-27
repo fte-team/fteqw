@@ -257,6 +257,7 @@ extern struct vulkaninfo_s
 	qboolean		nv_dedicated_allocation;	//nvidia-specific extension that provides hints that there's no memory aliasing going on.
 	qboolean		khr_dedicated_allocation;	//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
 	qboolean		khr_push_descriptor;		//more efficient descriptor streaming
+	qboolean		amd_rasterization_order;	//allows primitives to draw in any order
 
 	VkInstance instance;
 	VkDevice device;

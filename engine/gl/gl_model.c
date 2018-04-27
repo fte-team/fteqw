@@ -2301,13 +2301,24 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	float	*out;
 	int			i, count;
 
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(vec3_t))
+	if (l)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
-		return false;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(vec3_t))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(vec3_t);
 	}
-	count = l->filelen / sizeof(vec3_t);
+	else
+	{
+		in = Q1BSPX_FindLump("VERTEXNORMALS", &count); 
+		if (in)
+			count /= sizeof(vec3_t);
+		else
+			count = 0;
+	}
 
 	if (count != loadmodel->numvertexes)
 		return false;	//invalid number of verts there, can't use this.

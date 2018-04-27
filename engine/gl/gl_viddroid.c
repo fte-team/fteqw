@@ -90,6 +90,8 @@ void GLVID_DeInit(void)
 	sys_context = EGL_NO_CONTEXT;
 	sys_surface = EGL_NO_SURFACE;
 
+	GL_ForgetPointers();
+
 Sys_Printf("GLVID_DeInited\n");
 }
 

@@ -129,7 +129,7 @@ keyname_t keynames[] =
 	{"RCTRL",	K_RCTRL},
 	{"LSHIFT",	K_LSHIFT},
 	{"RSHIFT",	K_RSHIFT},
-	{"ALT",		K_ALT},	//depricated name
+	{"ALT",		K_ALT},		//depricated name
 	{"CTRL",	K_CTRL},	//depricated name
 	{"SHIFT",	K_SHIFT},	//depricated name
 	
@@ -184,22 +184,34 @@ keyname_t keynames[] =
 	{"KP_7",		K_KP_HOME},
 	{"KP_8",		K_KP_UPARROW},
 	{"KP_9",		K_KP_PGUP},
+	//dp compat
+	{"KP_PERIOD",	K_KP_DEL},
+	{"KP_DIVIDE",	K_KP_SLASH},
+	{"NUMLOCK",		K_KP_NUMLOCK},
 
-	{"MOUSE1",	K_MOUSE1},
-	{"MOUSE2",	K_MOUSE2},
-	{"MOUSE3",	K_MOUSE3},
-	{"MOUSE4",	K_MOUSE4},
-	{"MOUSE5",	K_MOUSE5},
-	{"MOUSE6",	K_MOUSE6},
-	{"MOUSE7",	K_MOUSE7},
-	{"MOUSE8",	K_MOUSE8},
-	{"MOUSE9",	K_MOUSE9},
-	{"MOUSE10",	K_MOUSE10},
+
+
+	{"MOUSE1",		K_MOUSE1},
+	{"MOUSE2",		K_MOUSE2},
+	{"MOUSE3",		K_MOUSE3},
+	{"MOUSE4",		K_MOUSE4},
+	{"MOUSE5",		K_MOUSE5},
+	{"MOUSE6",		K_MOUSE6},
+	{"MOUSE7",		K_MOUSE7},
+	{"MOUSE8",		K_MOUSE8},
+	{"MOUSE9",		K_MOUSE9},
+	{"MOUSE10",		K_MOUSE10},
 	{"MWHEELUP",	K_MWHEELUP},
 	{"MWHEELDOWN",	K_MWHEELDOWN},
 
-	{"LWIN",	K_LWIN},
-	{"RWIN",	K_RWIN},
+	{"LWIN",	K_LWIN},	//windows name
+	{"RWIN",	K_RWIN},	//windows name
+	{"WIN",		K_WIN},		//depricated
+	{"RCOMMAND",K_RWIN},	//mac name
+	{"LCOMMAND",K_LWIN},	//mac name
+	{"COMMAND",	K_WIN},		//quakespasm(mac) compat
+	{"LMETA",	K_LWIN},	//linux name
+	{"RMETA",	K_RWIN},	//linux name
 	{"APP",		K_APP},
 	{"MENU",	K_APP},
 	{"SEARCH",	K_SEARCH},
@@ -253,6 +265,7 @@ keyname_t keynames[] =
 
 	{"SEMICOLON",	';'},	// because a raw semicolon seperates commands
 	{"PLUS",		'+'},	// because "shift++" is inferior to shift+plus
+	{"MINUS",		'-'},	// because "shift+-" is inferior to shift+minus
 
 	{"TILDE",		'~'},
 	{"BACKQUOTE",	'`'},
@@ -276,6 +289,62 @@ keyname_t keynames[] =
 	{"GP_DPAD_RIGHT",	K_GP_DPAD_RIGHT},
 	{"GP_GUIDE",		K_GP_GUIDE},
 	{"GP_UNKNOWN",		K_GP_UNKNOWN},
+
+	//names for playstation controllers
+	{"GP_CROSS",		K_GP_A},
+	{"GP_CIRCLE",		K_GP_B},
+	{"GP_SQUARE",		K_GP_X},
+	{"GP_TRIANGLE",		K_GP_Y},
+
+	//axis->button emulation
+	{"GP_LTHUMB_UP",	K_GP_LEFT_THUMB_UP},
+	{"GP_LTHUMB_DOWN",	K_GP_LEFT_THUMB_DOWN},
+	{"GP_LTHUMB_LEFT",	K_GP_LEFT_THUMB_LEFT},
+	{"GP_LTHUMB_RIGHT",	K_GP_LEFT_THUMB_RIGHT},
+	{"GP_RTHUMB_UP",	K_GP_RIGHT_THUMB_UP},
+	{"GP_RTHUMB_DOWN",	K_GP_RIGHT_THUMB_DOWN},
+	{"GP_RTHUMB_LEFT",	K_GP_RIGHT_THUMB_LEFT},
+	{"GP_RTHUMB_RIGHT",	K_GP_RIGHT_THUMB_RIGHT},
+
+#ifndef QUAKETC
+	//dp compat
+	{"X360_DPAD_UP",			K_GP_DPAD_UP},
+	{"X360_DPAD_DOWN",			K_GP_DPAD_DOWN},
+	{"X360_DPAD_LEFT",			K_GP_DPAD_LEFT},
+	{"X360_DPAD_RIGHT",			K_GP_DPAD_RIGHT},
+	{"X360_START",				K_GP_START},
+	{"X360_BACK",				K_GP_BACK},
+	{"X360_LEFT_THUMB",			K_GP_LEFT_THUMB},
+	{"X360_RIGHT_THUMB",		K_GP_RIGHT_THUMB},
+	{"X360_LEFT_SHOULDER",		K_GP_LEFT_SHOULDER},
+	{"X360_RIGHT_SHOULDER",		K_GP_RIGHT_SHOULDER},
+	{"X360_A",					K_GP_A},
+	{"X360_B",					K_GP_B},
+	{"X360_X",					K_GP_X},
+	{"X360_Y",					K_GP_Y},
+	{"X360_LEFT_TRIGGER",		K_GP_LEFT_TRIGGER},
+	{"X360_RIGHT_TRIGGER",		K_GP_RIGHT_TRIGGER},
+	{"X360_LEFT_THUMB_UP",		K_GP_LEFT_THUMB_UP},
+	{"X360_LEFT_THUMB_DOWN",	K_GP_LEFT_THUMB_DOWN},
+	{"X360_LEFT_THUMB_LEFT",	K_GP_LEFT_THUMB_LEFT},
+	{"X360_LEFT_THUMB_RIGHT",	K_GP_LEFT_THUMB_RIGHT},
+	{"X360_RIGHT_THUMB_UP",		K_GP_RIGHT_THUMB_UP},
+	{"X360_RIGHT_THUMB_DOWN",	K_GP_RIGHT_THUMB_DOWN},
+	{"X360_RIGHT_THUMB_LEFT",	K_GP_RIGHT_THUMB_LEFT},
+	{"X360_RIGHT_THUMB_RIGHT",	K_GP_RIGHT_THUMB_RIGHT},
+
+	//quakespasm compat
+	{"LTHUMB",					K_GP_LEFT_THUMB},
+	{"RTHUMB",					K_GP_RIGHT_THUMB},
+	{"LSHOULDER",				K_GP_LEFT_SHOULDER},
+	{"RSHOULDER",				K_GP_RIGHT_SHOULDER},
+	{"ABUTTON",					K_GP_A},
+	{"BBUTTON",					K_GP_B},
+	{"XBUTTON",					K_GP_X},
+	{"YBUTTON",					K_GP_Y},
+	{"LTRIGGER",				K_GP_LEFT_TRIGGER},
+	{"RTRIGGER",				K_GP_RIGHT_TRIGGER},
+#endif
 
 	{NULL,			0}
 };
@@ -1000,9 +1069,11 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	}
 }
 
-void Key_ConsoleRelease(console_t *con, int key, int unicode)
+void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 {
 	char *buffer;	
+	if (key < 0)
+		key = 0;
 
 	if (key == K_MOUSE1 && con->buttonsdown == CB_SELECT)
 	{
@@ -1438,14 +1509,14 @@ Key_Console
 Interactive line editing and console scrollback
 ====================
 */
-qboolean Key_Console (console_t *con, unsigned int unicode, int key)
+qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 {
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
 	int rkey = key;
 
 	//weirdness for the keypad.
-	if ((unicode >= '0' && unicode <= '9') || unicode == '.')
+	if ((unicode >= '0' && unicode <= '9') || unicode == '.' || key < 0)
 		key = 0;
 
 	if (con->redirect)
@@ -1906,7 +1977,7 @@ static char *Key_KeynumToStringRaw (int keynum)
 	keyname_t	*kn;	
 	static	char	tinystr[2];
 	
-	if (keynum == -1)
+	if (keynum < 0)
 		return "<KEY NOT FOUND>";
 	if (keynum > 32 && keynum < 127 && keynum != '\'' && keynum != '\"')
 	{	// printable ascii
@@ -2694,7 +2765,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		{
 			con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x+8:0);
 			con->mousecursor[1] = mousecursor_y - ((con->flags & CONF_ISWINDOW)?con->wnd_y:0);
-			if (Key_Console (con, unicode, key))
+			if (Key_Console (con, key, unicode))
 				return;
 		}
 		else
@@ -2792,7 +2863,8 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		//csqc key codes may even have no standard keycode so cannot easily be bound from qc.
 		switch(key)
 		{
-		//left+right alts got split
+		//left+right alts/etc got split
+		//the generic name maps to the left key, so the right key needs to try the left
 		case K_RALT:
 			bkey = K_LALT;
 			break;
@@ -2801,6 +2873,9 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			break;
 		case K_RSHIFT:
 			bkey = K_LSHIFT;
+			break;
+		case K_RWIN:
+			bkey = K_LWIN;
 			break;
 
 		//gamepad buttons should get fallbacks out of the box, even if they're not initially listed on the binds menu.

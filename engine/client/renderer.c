@@ -132,8 +132,8 @@ cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
 													CVAR_ARCHIVE);
 cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 													CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
-cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
-													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_fb_bmodels							= CVARAFD("r_fb_bmodels", "1",
+													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH, "Enables loading lumas on the map, as well as any external bsp models.");
 cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT, "Enables the use of lumas on models. Note that if ruleset_allow_fbmodels is enabled, then all models are unconditionally fullbright in deathmatch, because cheaters would set up their models like that anyway, hurrah for beating them at their own game. QuakeWorld players suck.");
 cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
@@ -278,10 +278,10 @@ cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH);
 cvar_t vid_srgb								= CVARFD ("vid_srgb", "0",
-													  CVAR_ARCHIVE, "0: Off. Colour blending will be wrong.\n1: Only the framebuffer should use sRGB colourspace, textures and colours will be assumed to be linear. This has the effect of brightening the screen.\n2: Use sRGB extensions/support to ensure that the sh");
+													  CVAR_ARCHIVE, "-1: Only the framebuffer should use sRGB colourspace, textures and colours will be assumed to be linear. This has the effect of just brightening the screen according to a gamma ramp of about 2.2 (or .45 in quake's backwards gamma terms).\n0: Off. Colour blending will be wrong, you're likely to see obvious banding.\n1: Use sRGB extensions/support to ensure that the lighting aproximately matches real-world lighting (required for PBR).\n2: Attempt to use a linear floating-point framebuffer, which should enable monitor support for HDR.\nNote that driver behaviour varies by a disturbing amount, and much of the documentation conflicts with itself (the term 'linear' is awkward when the eye's perception of linear is non-linear).");
 cvar_t vid_wndalpha							= CVARD ("vid_wndalpha", "1", "When running windowed, specifies the window's transparency level.");
 #if defined(_WIN32) && defined(MULTITHREAD)
-cvar_t vid_winthread						= CVARFD ("vid_winthread", "", CVAR_ARCHIVE|CVAR_VIDEOLATCH, "When enabled, window messages will be handled by a separate thread. This allows the game to continue rendering when Microsoft Windows blocks while resizing etc.");
+cvar_t vid_winthread						= CVARFD ("vid_winthread", "", CVAR_ARCHIVE|CVAR_VIDEOLATCH, "When enabled, window messages will be handled by a separate thread. This allows the game to continue rendering when Microsoft Windows blocks while resizing, etc.");
 #endif
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",
@@ -333,6 +333,9 @@ cvar_t	vid_gl_context_es					= CVARD  ("vid_gl_context_es", "0", "Requests an Op
 cvar_t	vid_gl_context_robustness			= CVARD	("vid_gl_context_robustness", "1", "Attempt to enforce extra buffer protection in the gl driver, but can be slower with pre-gl3 hardware.");
 cvar_t	vid_gl_context_selfreset			= CVARD	("vid_gl_context_selfreset", "1", "Upon hardware failure, have the engine create a new context instead of depending on the drivers to restore everything. This can help to avoid graphics drivers randomly killing your game, and can help reduce memory requirements.");
 cvar_t	vid_gl_context_noerror				= CVARD	("vid_gl_context_noerror", "", "Disables OpenGL's error checks for a small performance speedup. May cause segfaults if stuff wasn't properly implemented/tested.");
+
+cvar_t	gl_immutable_textures				= CVARD	("gl_immutable_textures", "1", "Controls whether to use immutable GPU memory allocations for OpenGL textures. This potentially means less work for the drivers and thus higher framerates.");
+cvar_t	gl_immutable_buffers				= CVARD	("gl_immutable_buffers", "1", "Controls whether to use immutable GPU memory allocations for static OpenGL vertex buffers. This potentially means less work for the drivers and thus higher framerates.");
 #endif
 
 #if 1
@@ -497,6 +500,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_robustness, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_selfreset, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_noerror, GLRENDEREROPTIONS);
+
+	Cvar_Register (&gl_immutable_textures, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_immutable_buffers, GLRENDEREROPTIONS);
 
 //renderer
 
@@ -974,6 +980,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
+//	Cvar_Register (&r_fullbrights, GRAPHICALNICETIES);	//dpcompat: 1 if r_fb_bmodels&&r_fb_models
 	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
 	Cvar_Register (&r_globalskin_first, GRAPHICALNICETIES);
 	Cvar_Register (&r_globalskin_count, GRAPHICALNICETIES);
@@ -1298,16 +1305,16 @@ void R_ShutdownRenderer(qboolean devicetoo)
 
 	Media_VideoRestarting();
 
+	//these functions need to be able to cope with vid_reload, so don't clear them.
+	//they also need to be able to cope with being re-execed in the case of failed startup.
 	if (R_DeInit)
 	{
 		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
 		R_DeInit();
-		R_DeInit = NULL;
 	}
 
 	if (Draw_Shutdown)
 		Draw_Shutdown();
-	Draw_Shutdown = NULL;
 
 	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
 	SCR_DeInit();
@@ -1316,7 +1323,6 @@ void R_ShutdownRenderer(qboolean devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
-		VID_DeInit = NULL;
 	}
 
 	COM_FlushTempoaryPacks();

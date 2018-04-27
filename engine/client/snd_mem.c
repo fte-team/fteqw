@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct
 {
+	int		format;
 	int		rate;
 	int		width;
 	int		numchannels;
@@ -717,6 +718,19 @@ static qboolean QDECL S_LoadDoomSound (sfx_t *s, qbyte *data, size_t datalen, in
 }
 #endif
 
+void S_ShortedLittleFloats(void *p, size_t samples)
+{
+	short *out = p;
+	float *in = p;
+	int t;
+	while(samples --> 0)
+	{
+		t = LittleFloat(*in++) * 32767;
+		t = bound(-32768, t, 32767);
+		*out++ = t;
+	}
+}
+
 static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	wavinfo_t	info;
@@ -732,10 +746,28 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		return false;
 	}
 
-	if (info.width == 1)
+	if (info.format == 1 && info.width == 1)
 		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
-	else if (info.width == 2)
+	else if (info.format == 1 && info.width == 2)
 		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
+	else if (info.format == 3 && info.width == 4)
+	{
+		S_ShortedLittleFloats(data + info.dataofs, info.samples*info.numchannels);
+		info.width = 2;
+	}
+	else
+	{
+		s->loadstate = SLS_FAILED;
+		switch(info.format)
+		{
+		case 1:
+		case 3:		Con_Printf ("%s has an unsupported width (%i bits).\n", s->name, info.width*8); break;
+		case 6:		Con_Printf ("%s uses unsupported a-law format.\n", s->name); break;
+		case 7:		Con_Printf ("%s uses unsupported mu-law format.\n", s->name); break;
+		default:	Con_Printf ("%s has an unsupported format.\n", s->name); break;
+		}
+		return false;
+	}
 
 	return ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
 }
@@ -1050,7 +1082,6 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 {
 	wavinfo_t	info;
 	int		i;
-	int		format;
 	int		samples;
 	int		chunklen;
 	wavctx_t ctx;
@@ -1087,12 +1118,7 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 		return info;
 	}
 	ctx.data_p += 8;
-	format = GetLittleShort(&ctx);
-	if (format != 1)
-	{
-		Con_Printf("Microsoft PCM format only\n");
-		return info;
-	}
+	info.format = GetLittleShort(&ctx);
 
 	info.numchannels = GetLittleShort(&ctx);
 	info.rate = GetLittleLong(&ctx);

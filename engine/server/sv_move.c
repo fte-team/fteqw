@@ -626,4 +626,645 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 	return true;
 }
 
+
+
+#ifdef ENGINE_ROUTING
+cvar_t route_shownodes = CVAR("route_shownodes", "0");
+
+#define LF_EDGE			0x00000001
+#define LF_JUMP			0x00000002
+#define LF_CROUCH		0x00000004
+#define LF_TELEPORT		0x00000008
+#define LF_USER			0x7fffff00
+#define LF_DESTINATION	0x80000000	//You have reached your destination...
+struct waypointnetwork_s
+{
+	size_t refs;
+	size_t numwaypoints;
+	model_t *worldmodel;
+
+	struct resultnodes_s
+	{
+		vec3_t pos;
+		int linkflags;
+	} *displaynode;
+	int displaynodes;
+
+	struct waypoint_s
+	{
+		vec3_t org;
+		float radius;	//used for picking the closest waypoint. aka proximity weight. also relaxes routes inside the area.
+		struct wpneighbour_s
+		{
+			int node;
+			float linkcost;//might be much lower in the case of teleports, or expensive if someone wanted it to be a lower priority link.
+			int linkflags; //LF_*
+		} *neighbour;
+		int neighbours;
+	} waypoints[1];
+};
+void WayNet_Done(struct waypointnetwork_s *net)
+{
+	if (net)
+	if (0 == --net->refs)
+	{
+		Z_Free(net);
+	}
+}
+static qboolean WayNet_TokenizeLine(char **linestart)
+{
+	char *end = *linestart;
+	if (!*end)
+	{	//clear it out...
+		Cmd_TokenizeString("", false, false);
+		return false;
+	}
+	for (; *end; end++)
+	{
+		if (*end == '\n')
+		{
+			*end++ = 0;
+			break;
+		}
+	}
+	Cmd_TokenizeString(*linestart, false, false);
+	*linestart = end;
+	return true;
+}
+static struct waypointnetwork_s *WayNet_Begin(void **ctxptr, model_t *worldmodel)
+{
+	struct waypointnetwork_s *net = *ctxptr;
+	if (!net)
+	{
+		char *wf = NULL, *l, *e;
+		int numwaypoints, maxlinks, numlinks;
+		struct wpneighbour_s *nextlink;
+		if (!worldmodel)
+			return NULL;
+		if (!wf && !strncmp(worldmodel->name, "maps/", 5))
+		{
+			char n[MAX_QPATH];
+			COM_StripExtension(worldmodel->name+5, n, sizeof(n));
+			wf = FS_MallocFile(va("data/%s.way", n), FS_GAME, NULL);
+		}
+		if (!wf)
+			wf = FS_MallocFile(va("%s.way", worldmodel->name), FS_GAME, NULL);
+
+		l = wf;
+		//read the number of waypoints
+		WayNet_TokenizeLine(&l);
+		numwaypoints = atoi(Cmd_Argv(0));
+		//count lines and guess the link count.
+		for (e = l, maxlinks=0; *e; e++)
+			if (*e == '\n')
+				maxlinks++;
+		maxlinks -= numwaypoints;
+		
+		net = Z_Malloc(sizeof(*net)-sizeof(net->waypoints) + (numwaypoints*sizeof(struct waypoint_s)) + (maxlinks*sizeof(struct wpneighbour_s)));
+		net->refs = 1;
+		net->worldmodel = worldmodel;
+		*ctxptr = net;
+
+		nextlink = (struct wpneighbour_s*)(net->waypoints+numwaypoints);
+
+		while (WayNet_TokenizeLine(&l) && net->numwaypoints < numwaypoints)
+		{
+			if (!Cmd_Argc())
+				continue;	//a comment line?
+			net->waypoints[net->numwaypoints].org[0] = atof(Cmd_Argv(0));
+			net->waypoints[net->numwaypoints].org[1] = atof(Cmd_Argv(1));
+			net->waypoints[net->numwaypoints].org[2] = atof(Cmd_Argv(2));
+			net->waypoints[net->numwaypoints].radius = 64;//atof(Cmd_Argv(3));
+			numlinks = bound(0, atoi(Cmd_Argv(4)), maxlinks);
+
+			//make sure the links are valid, and clamp to avoid problems (even if we're then going to mis-parse.
+			net->waypoints[net->numwaypoints].neighbour = nextlink;
+			while (numlinks-- > 0 && WayNet_TokenizeLine(&l))
+			{
+				if (!Cmd_Argc())
+					continue;	//a comment line?
+				nextlink[net->waypoints[net->numwaypoints].neighbours].node = atoi(Cmd_Argv(0));
+				nextlink[net->waypoints[net->numwaypoints].neighbours].linkcost = atof(Cmd_Argv(1));
+				nextlink[net->waypoints[net->numwaypoints].neighbours++].linkflags = atoi(Cmd_Argv(2));
+			}
+			maxlinks -= net->waypoints[net->numwaypoints].neighbours;
+			nextlink += net->waypoints[net->numwaypoints++].neighbours;
+		}
+		BZ_Free(wf);
+	}
+
+	net->refs++;
+	return net;
+}
+
+struct waydist_s
+{
+	int node;
+	float sdist;
+};
+int QDECL WayNet_Prioritise(const void *a, const void *b)
+{
+	const struct waydist_s *w1 = a, *w2 = b;
+	if (w1->sdist < w2->sdist)
+		return -1;
+	if (w1->sdist == w2->sdist)
+		return 0;
+	return 1;
+}
+int WayNet_FindNearestNode(struct waypointnetwork_s *net, vec3_t pos)
+{
+	if (net && net->numwaypoints)
+	{
+		//we qsort the possible nodes, in an attempt to reduce traces.
+		struct waydist_s *sortedways = alloca(sizeof(*sortedways) * net->numwaypoints);
+		size_t u;
+		vec3_t disp;
+		float sradius;
+		trace_t tr;
+		for (u = 0; u < net->numwaypoints; u++)
+		{
+			sortedways[u].node = u;
+			VectorSubtract(net->waypoints[u].org, pos, disp);
+			sortedways[u].sdist = DotProduct(disp, disp);
+			sradius = net->waypoints[u].radius*net->waypoints[u].radius;
+			if (sortedways[u].sdist < sradius)
+				sortedways[u].sdist -= sradius;	//if we're inside the waypoint's radius, push inwards resulting in negatives, so these are always highly prioritised
+		}
+		qsort(sortedways, net->numwaypoints, sizeof(struct waydist_s), WayNet_Prioritise);
+
+		//can't trace yet...
+		if (net->worldmodel->loadstate != MLS_LOADED)
+			return sortedways[0].node;
+		for (u = 0; u < net->numwaypoints; u++)
+		{
+			if (sortedways[u].sdist > 0)
+			{	//if we're outside the node, we need to do a trace to make sure we can actually reach it.
+				net->worldmodel->funcs.NativeTrace(net->worldmodel, 0, NULL, NULL, pos, net->waypoints[sortedways[u].node].org, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr);
+				if (tr.fraction < 1)
+					continue;	//this node is blocked. just move on to the next.
+			}
+			return sortedways[u].node;
+		}
+	}
+	return -1;
+}
+
+struct routecalc_s
+{
+	world_t *world;
+	int spawncount;	//so we don't confuse stuff if the map gets restarted.
+	wedict_t *ed;
+//	float spawnid;	//so the route fails if the ent is removed.
+	func_t callback;
+
+	vec3_t start;
+	vec3_t end;
+	int denylinkflags;
+
+	int startn;
+	int endn;
+
+	int numresultnodes;
+	struct resultnodes_s *resultnodes;
+
+	struct waypointnetwork_s *waynet;
+};
+//main thread
+void Route_Calculated(void *ctx, void *data, size_t a, size_t b)
+{
+	struct routecalc_s *route = data;
+	pubprogfuncs_t *prinst = route->world->progs;
+	//let the gamecode know the results
+
+	if (!route->callback)
+	{
+		BZ_Free(route->waynet->displaynode);
+		route->waynet->displaynode = BZ_Malloc(sizeof(struct resultnodes_s) * route->numresultnodes);
+		route->waynet->displaynodes = route->numresultnodes;
+		memcpy(route->waynet->displaynode, route->resultnodes, sizeof(struct resultnodes_s) * route->numresultnodes);
+	}
+	else if (route->callback && route->world->spawncount == route->spawncount/* && route->spawnid == route->ed->xv->uniquespawnid*/)
+	{
+		struct globalvars_s * pr_globals = PR_globals(prinst, PR_CURRENT);
+		struct resultnodes_s *ptr = prinst->AddressableAlloc(prinst, sizeof(struct resultnodes_s) * route->numresultnodes);
+		memcpy(ptr, route->resultnodes, sizeof(struct resultnodes_s) * route->numresultnodes);
+
+		G_INT(OFS_PARM0) = EDICT_TO_PROG(prinst, route->ed);
+		VectorCopy(route->end, G_VECTOR(OFS_PARM1));
+		G_INT(OFS_PARM2) = route->numresultnodes;
+		G_INT(OFS_PARM3) = (char*)ptr-prinst->stringtable;
+		PR_ExecuteProgram(prinst, route->callback);
+	}
+
+	//and we're done. destroy everything.
+	WayNet_Done(route->waynet);
+	Z_Free(route->resultnodes);
+	Z_Free(route);
+}
+
+//#define FLOODALL
+#define COST_INFINITE FLT_MAX
+
+static qboolean Route_Completed(struct routecalc_s *r, int *nodecamefrom)
+{
+	size_t u;
+	struct waypointnetwork_s *n = r->waynet;
+	r->resultnodes = Z_Malloc(sizeof(*r->resultnodes)*(n->numwaypoints+1)*3);
+
+	r->numresultnodes = 0;
+
+	//target point is first. yay.
+	VectorCopy(r->end, r->resultnodes[0].pos);
+	r->resultnodes[0].linkflags = LF_DESTINATION;
+	r->numresultnodes++;
+
+	u = r->endn;
+	for (;;)
+	{
+		VectorCopy(n->waypoints[u].org, r->resultnodes[r->numresultnodes].pos);
+		r->resultnodes[r->numresultnodes].linkflags = 0;
+		r->numresultnodes++;
+		if (u == r->startn)
+			break;
+		u = nodecamefrom[u];
+	}
+
+	//and include the start point, because we can
+	VectorCopy(r->start, r->resultnodes[r->numresultnodes].pos);
+	r->resultnodes[r->numresultnodes].linkflags = 0;
+	r->numresultnodes++;
+	return true;
+}
+
+#if 1
+static float Route_GuessCost(struct routecalc_s *r, float *fromorg)
+{	//if we want to guarentee the shortest route, then we MUST always return a value <= to the actual cost here.
+	//unfortunately we don't know how many teleporters are between the two points.
+	//on the plus side, a little randomness here means we'll find alternative (longer) routes some times, which will reduce flash points and help flag carriers...
+	vec3_t disp;
+	VectorSubtract(r->end, fromorg, disp);
+	return sqrt(DotProduct(disp,disp));
+}
+static qboolean Route_Process(struct routecalc_s *r)
+{
+	struct waypointnetwork_s *n = r->waynet;
+	int opennodes = 0;
+	int u, j;
+	float guesscost;
+	struct opennode_s {
+		int node;
+		float cost;
+	} *open = alloca(sizeof(*open)*n->numwaypoints);
+	float *nodecost = alloca(sizeof(*nodecost)*n->numwaypoints);
+	int *nodecamefrom = alloca(sizeof(*nodecamefrom)*n->numwaypoints);
+
+	for(u = 0; u < n->numwaypoints; u++)
+		nodecost[u] = COST_INFINITE;
+
+	if (r->startn >= 0)
+	{
+		nodecost[r->startn] = 0;
+		open[0].node = r->startn;
+		open[0].cost = 0;
+		opennodes++;
+	}
+
+	while(opennodes)
+	{
+		int nodeidx = open[--opennodes].node;
+		struct waypoint_s *wp = &n->waypoints[nodeidx];
+#ifdef _DEBUG
+		if (nodeidx < 0 || nodeidx >= n->numwaypoints)
+		{
+			Con_Printf("Bad node index in open list\n");
+			return false;
+		}
+#endif
+		if (nodeidx == r->endn)
+		{	//we found the end!
+			return Route_Completed(r, nodecamefrom);
+		}
+		for (u = 0; u < wp->neighbours; u++)
+		{
+			struct wpneighbour_s *l = &wp->neighbour[u];
+			int linkidx = l->node;
+
+			float realcost = nodecost[nodeidx] + l->linkcost;
+#ifdef _DEBUG
+			if (linkidx < 0 || linkidx >= n->numwaypoints)
+			{
+				Con_Printf("Bad node link index in routing table\n");
+				return false;
+			}
+#endif
+			if (realcost >= nodecost[linkidx])
+				continue;
+
+			nodecamefrom[linkidx] = nodeidx;
+			nodecost[linkidx] = realcost;
+
+			for (j = opennodes-1; j >= 0; j--)
+			{
+				if (open[j].node == linkidx)
+					break;
+			}
+			guesscost = realcost + Route_GuessCost(r, n->waypoints[linkidx].org);
+
+			if (j < 0)
+			{	//not already in the list
+				//tbh, we should probably just directly bubble in this loop instead of doing the memcpy (with its internal second loop).
+				for (j = opennodes-1; j >= 0; j--)
+					if (guesscost <= open[j].cost)
+						break;
+				j++;
+				//move them up
+				memmove(&open[j+1], &open[j], sizeof(*open)*(opennodes-j));
+				open[j].node = linkidx;
+				open[j].cost = guesscost;
+				opennodes++;
+			}
+			else if (guesscost < open[j].cost)
+			{	//if it got cheaper, be prepared to move the node towards the higher addresses (these will be checked first).
+				for (; j+1 < opennodes && open[j+1].cost > guesscost; j++)
+					open[j] = open[j+1];
+				//okay, so we can't keep going... this is our new slot!
+				open[j].node = linkidx;
+				open[j].cost = guesscost;
+			}
+			//otherwise it got more expensive, and we don't care about that
+		}
+	}
+
+	return false;
+}
+#else
+static qboolean Route_Process(struct routecalc_s *r)
+{
+	struct waypointnetwork_s *n = r->waynet;
+	int opennodes = 0;
+	int u, j;
+
+	//we use an open list in a desperate attempt to avoid recursing the entire network
+	int *open = alloca(sizeof(*open)*n->numwaypoints);
+	float *nodecost = alloca(sizeof(*nodecost)*n->numwaypoints);
+	int *nodecamefrom = alloca(sizeof(*nodecamefrom)*n->numwaypoints);
+
+	for(u = 0; u < n->numwaypoints; u++)
+		nodecost[u] = COST_INFINITE;
+
+	nodecost[r->startn] = 0;
+	open[opennodes++] = r->startn;
+
+	while(opennodes)
+	{
+		int nodeidx = open[--opennodes];
+		struct waypoint_s *wp = &n->waypoints[nodeidx];
+//		if (nodeidx < 0 || nodeidx >= n->numwaypoints)
+//			return false;
+
+		for (u = 0; u < wp->neighbours; u++)
+		{
+			struct wpneighbour_s *l = &wp->neighbour[u];
+			int linkidx = l->node;
+
+			float realcost = nodecost[nodeidx] + l->linkcost;
+//			if (linkidx < 0 || linkidx >= n->numwaypoints)
+//				return false;
+			if (realcost >= nodecost[linkidx])
+				continue;
+
+			nodecamefrom[linkidx] = nodeidx;
+			nodecost[linkidx] = realcost;
+
+			for (j = 0; j < opennodes; j++)
+			{
+				if (open[j] == linkidx)
+					break;
+			}
+
+			if (j == opennodes)	//not already queued
+				open[opennodes++] = linkidx;
+		}
+	}
+	
+	if (r->endn >= 0 && nodecost[r->endn] < COST_INFINITE)
+	{	//we found the end! we can build the route from end to start.
+		return Route_Completed(r, nodecamefrom);
+	}
+	return false;
+}
+#endif
+
+//worker thread
+void Route_Calculate(void *ctx, void *data, size_t a, size_t b)
+{
+	struct routecalc_s *route = data;
+
+	//first thing is to find the start+end nodes.
+
+	if (route->waynet && route->startn >= 0 && route->endn >= 0 && Route_Process(route))
+		;
+	else
+	{
+		route->numresultnodes = 0;
+		route->resultnodes = Z_Malloc(sizeof(*route->resultnodes)*2);
+		VectorCopy(route->end, route->resultnodes[0].pos);
+		route->resultnodes[0].linkflags = LF_DESTINATION;
+		route->numresultnodes++;
+
+		VectorCopy(route->start, route->resultnodes[route->numresultnodes].pos);
+		route->resultnodes[route->numresultnodes].linkflags = 0;
+		route->numresultnodes++;
+	}
+
+	COM_AddWork(WG_MAIN, Route_Calculated, NULL, route, 0, 0);
+}
+
+/*
+=============
+PF_route_calculate
+
+engine reads+caches the nodes from a file.
+the route's nodes must be memfreed on completion.
+the first node in the nodelist is the destination.
+
+typedef struct {
+	vector dest;
+	int linkflags;
+} nodeslist_t;
+void(entity ent, vector dest, int denylinkflags, void(entity ent, vector dest, int numnodes, nodeslist_t *nodelist) callback) route_calculate = #0;
+=============
+*/
+void QCBUILTIN PF_route_calculate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	struct routecalc_s *route = Z_Malloc(sizeof(*route));
+	float *end;
+	route->world = prinst->parms->user;
+	route->spawncount = route->world->spawncount;
+	route->ed = G_WEDICT(prinst, OFS_PARM0);
+//	route->spawnid = route->ed->xv->uniquespawnid;
+	end = G_VECTOR(OFS_PARM1);
+	route->denylinkflags = G_INT(OFS_PARM2);
+	route->callback = G_INT(OFS_PARM3);
+
+	VectorCopy(route->ed->v->origin, route->start);
+	VectorCopy(end, route->end);
+
+	route->waynet = WayNet_Begin(&route->world->waypoints, route->world->worldmodel);
+
+	//tracelines use some sequence info to avoid retracing the same brush multiple times.
+	//	this means that we can't reliably trace on worker threads (would break the main thread occasionally).
+	//	so we have to do this here.
+	//FIXME: find a safe way to NOT do this here.
+	route->startn = WayNet_FindNearestNode(route->waynet, route->start);
+	route->endn = WayNet_FindNearestNode(route->waynet, route->end);
+
+	COM_AddWork(WG_LOADER, Route_Calculate, NULL, route, 0, 0);
+}
+#ifndef SERVERONLY
+static void Route_Visualise_f(void)
+{
+	extern world_t csqc_world;
+	vec3_t targ = {atof(Cmd_Argv(1)),atof(Cmd_Argv(2)),atof(Cmd_Argv(3))};
+	struct routecalc_s *route = Z_Malloc(sizeof(*route));
+	route->world = &csqc_world;
+	route->spawncount = route->world->spawncount;
+	route->ed = route->world->edicts;
+//	route->spawnid = route->ed->xv->uniquespawnid;
+	VectorCopy(r_refdef.vieworg, route->start);
+	VectorCopy(targ, route->end);
+
+	route->waynet = WayNet_Begin(&route->world->waypoints, route->world->worldmodel);
+
+	//tracelines use some sequence info to avoid retracing the same brush multiple times.
+	//	this means that we can't reliably trace on worker threads (would break the main thread occasionally).
+	//	so we have to do this here.
+	//FIXME: find a safe way to NOT do this here.
+	route->startn = WayNet_FindNearestNode(route->waynet, route->start);
+	route->endn = WayNet_FindNearestNode(route->waynet, route->end);
+
+	COM_AddWork(WG_LOADER, Route_Calculate, NULL, route, 0, 0);
+}
+
+#include "shader.h"
+void PR_Route_Visualise (void)
+{
+	extern world_t csqc_world;
+	world_t *w = &csqc_world;
+	struct waypointnetwork_s *wn;
+	size_t u;
+
+	wn = (w && (w->waypoints || route_shownodes.ival))?WayNet_Begin(&w->waypoints, w->worldmodel):NULL;
+	if (wn)
+	{
+		if (route_shownodes.ival)
+		{
+			float mat[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+			shader_t *shader_out = R_RegisterShader("waypointvolume_out", SUF_NONE,
+					"{\n"
+						"polygonoffset\n"
+						"nodepth\n"
+						"{\n"
+							"map $whiteimage\n"
+							"blendfunc add\n"
+							"rgbgen vertex\n"
+							"alphagen vertex\n"
+						"}\n"
+					"}\n");
+			shader_t *shader_in = R_RegisterShader("waypointvolume_in", SUF_NONE,
+					"{\n"
+						"polygonoffset\n"
+						"cull disable\n"
+						"nodepth\n"
+						"{\n"
+							"map $whiteimage\n"
+							"blendfunc add\n"
+							"rgbgen vertex\n"
+							"alphagen vertex\n"
+						"}\n"
+					"}\n");
+			float radius;
+			vec3_t dir;
+			//should probably use a different colour for the node you're inside.
+			for (u = 0; u < wn->numwaypoints; u++)
+			{
+				mat[3] = wn->waypoints[u].org[0];
+				mat[7] = wn->waypoints[u].org[1];
+				mat[11] = wn->waypoints[u].org[2];
+				radius = wn->waypoints[u].radius;
+				if (radius <= 0)
+					radius = 1; //waypoints shouldn't really have a radius of 0, but if they do we'll still want to draw something.
+
+				VectorSubtract(wn->waypoints[u].org, r_refdef.vieworg, dir);
+				if (DotProduct(dir,dir) < radius*radius)
+					CLQ1_AddOrientedSphere(shader_in, radius, mat, 0.0, 0.1, 0, 1);
+				else
+					CLQ1_AddOrientedSphere(shader_out, radius, mat, 0.2, 0.0, 0, 1);
+			}
+			for (u = 0; u < wn->numwaypoints; u++)
+			{
+				size_t n;
+				for (n = 0; n < wn->waypoints[u].neighbours; n++)
+				{
+					struct waypoint_s *r = wn->waypoints + wn->waypoints[u].neighbour[n].node;
+					CLQ1_DrawLine(shader_out, wn->waypoints[u].org, r->org, 0, 0, 1, 1);
+				}
+			}
+		}
+		if (wn->displaynodes)
+		{	//FIXME: we should probably use beams here
+			shader_t *shader_route = R_RegisterShader("waypointroute", SUF_NONE,
+					"{\n"
+						"polygonoffset\n"
+						"nodepth\n"
+						"{\n"
+							"map $whiteimage\n"
+							"blendfunc add\n"
+							"rgbgen vertex\n"
+							"alphagen vertex\n"
+						"}\n"
+					"}\n");
+
+			for (u = wn->displaynodes-1; u > 0; u--)
+			{
+				vec_t *start = wn->displaynode[u].pos;
+				vec_t *end = wn->displaynode[u-1].pos;
+				CLQ1_DrawLine(shader_route, start, end, 0.5, 0.5, 0.5, 1);
+			}
+		}
+	}
+	WayNet_Done(wn);
+}
+#endif
+
+//destroys the routing waypoint cache.
+void PR_Route_Shutdown (world_t *world)
+{
+	WayNet_Done(world->waypoints);
+	world->waypoints = NULL;
+}
+
+static void Route_Reload_f(void)
+{
+#if !defined(SERVERONLY) && defined(CSQC_DAT)
+	extern world_t csqc_world;
+	PR_Route_Shutdown(&csqc_world);
+#endif
+#ifndef CLIENTONLY
+	PR_Route_Shutdown(&sv.world);
+#endif
+}
+void PR_Route_Init (void)
+{
+#if !defined(SERVERONLY) && defined(CSQC_DAT)
+	Cvar_Register(&route_shownodes, NULL);
+	Cmd_AddCommand("route_visualise", Route_Visualise_f);
+#endif
+	Cmd_AddCommand("route_reload", Route_Reload_f);
+}
+
+//route_force
+//COM_WorkerPartialSync
+#endif
+
 #endif

@@ -9466,6 +9466,10 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	if (ent->xv->hasted)
 		movevars.maxspeed *= ent->xv->hasted;
 #endif
+	if (client)
+		movevars.coordsize = client->netchan.netprim.coordsize;
+	else
+		movevars.coordsize = svs.netprim.coordsize;
 
 	pmove.numtouch = 0;
 	pmove.world = &sv.world;
@@ -10423,6 +10427,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"brush_transformselected",PF_brush_transformselected,0,0,0,	0,		D("int(float modelid, int brushid, float *matrix)", "Transforms selected brushes by the given transform")},
 #endif
 
+#ifdef ENGINE_ROUTING
+#define qcnodeslist			\
+	"typedef struct\n{\n"	\
+		"\tvector dest;\n"	\
+		"\tint linkflags;\n"\
+	"} nodeslist_t;\n"
+	{"route_calculate",	PF_route_calculate,0,		0,		0,		0,		D(qcnodeslist "void(entity ent, vector dest, int denylinkflags, void(entity ent, vector dest, int numnodes, nodeslist_t *nodelist) callback)", "Begin calculating a route. The callback function will be called once the route has finished being calculated. The route must be memfreed once it is no longer needed. The route must be followed in reverse order (ie: the first node that must be reached is at index numnodes-1). If no route is available then the callback will be called with no nodes.")},
+#endif
 
 	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void(optional entity ent, optional vector neworigin)", "Triggers a touch events between self and every SOLID_TRIGGER entity that it is in contact with. This should typically just be the triggers touch functions. Also optionally updates the origin of the moved entity.")},//
 	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
@@ -10541,7 +10553,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
 	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
 	//358
-	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	D("void(string evname, string evargs, ...)", "Invoke Cmd_evname_evargs in ssqc. evargs must be a string of initials refering to the types of the arguments to pass. v=vector, e=entity(.entnum field is sent), f=float, i=int. 6 arguments max - you can get more if you pack your floats into vectors.")},// (EXT_CSQC_1)
+	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	D("void(string evname, string evargs, ...)", "Invoke CSEv_evname_evargs in ssqc. evargs must be a string of initials refering to the types of the arguments to pass. v=vector, e=entity(.entnum field is sent), f=float, i=int. 6 arguments max - you can get more if you pack your floats into vectors.")},// (EXT_CSQC_1)
 
 	{"readbyte",		PF_Fixme,	0,		0,		0,		360,	"float()"},// (EXT_CSQC)
 	{"readchar",		PF_Fixme,	0,		0,		0,		361,	"float()"},// (EXT_CSQC)

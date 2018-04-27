@@ -722,6 +722,7 @@ static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const 
 }
 #undef has
 
+#ifdef QUAKEHUD
 static qintptr_t VARGS Plug_GetTrackerOwnFrags(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int ret;
@@ -734,6 +735,7 @@ static qintptr_t VARGS Plug_GetTrackerOwnFrags(void *offset, quintptr_t mask, co
 		VM_FLOAT(ret) = Stats_GetLastOwnFrag(seat, outptr, outlen);
 	return ret;
 }
+#endif
 
 static qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1297,6 +1299,7 @@ void Plug_Client_Init(void)
 #ifdef QUAKEHUD
 	Plug_RegisterBuiltin("GetTeamInfo",				Plug_GetTeamInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetWeaponStats",			Plug_GetWeaponStats, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("GetTrackerOwnFrags",		Plug_GetTrackerOwnFrags, PLUG_BIF_NEEDSRENDERER);
 #endif
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
@@ -1305,7 +1308,6 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetNetworkInfo",			Plug_GetNetworkInfo, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetTrackerOwnFrags",		Plug_GetTrackerOwnFrags, PLUG_BIF_NEEDSRENDERER);
 	
 	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
 	

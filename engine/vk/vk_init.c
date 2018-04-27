@@ -15,6 +15,7 @@ extern cvar_t vk_nv_glsl_shader;
 extern cvar_t vk_nv_dedicated_allocation;
 extern cvar_t vk_khr_dedicated_allocation;
 extern cvar_t vk_khr_push_descriptor;
+extern cvar_t vk_amd_rasterization_order;
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
 void R2D_Console_Resize(void);
 
@@ -414,8 +415,8 @@ static qboolean VK_CreateSwapChain(void)
 			if (vk.khr_dedicated_allocation)
 			{
 				khr_mdai.pNext = memAllocInfo.pNext;
-                                khr_mdai.image = images[i];
-                                memAllocInfo.pNext = &khr_mdai;
+				khr_mdai.image = images[i];
+				memAllocInfo.pNext = &khr_mdai;
 			}
 
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &memories[i]));
@@ -426,7 +427,7 @@ static qboolean VK_CreateSwapChain(void)
 	{	//using vulkan's presentation engine.
 		int BOOST_UNORM, BOOST_SNORM, BOOST_SRGB, BOOST_UFLOAT, BOOST_SFLOAT;
 
-		if (vid_srgb.ival > 2)
+		if (vid_srgb.ival > 1)
 		{	//favour float formats, then srgb, then unorms
 			BOOST_UNORM		= 0;
 			BOOST_SNORM		= 0;
@@ -602,7 +603,7 @@ static qboolean VK_CreateSwapChain(void)
 
 		if (swapinfo.imageFormat == VK_FORMAT_UNDEFINED)
 		{	//if we found this format then it means the drivers don't really give a damn. pick a real format.
-			if (vid_srgb.ival > 2 && swapinfo.imageColorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)
+			if (vid_srgb.ival > 1 && swapinfo.imageColorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)
 				swapinfo.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 			else if (vid_srgb.ival)
 				swapinfo.imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
@@ -3802,16 +3803,17 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		const char *name;
 		cvar_t *var;
 		qboolean def;
-		qboolean *superseeded;	//if this is set then the extension will not be enabled after all
-		const char *neededfor;
+		qboolean *superseeded;		//if this is set then the extension will not be enabled after all
+		const char *warningtext;	//printed if the extension is requested but not supported by the device
 		qboolean supported;
 	} knowndevexts[] =
 	{
 		{&vk.khr_swapchain,				VK_KHR_SWAPCHAIN_EXTENSION_NAME,			NULL,							true, NULL, " Nothing will be drawn!"},
 		{&vk.nv_glsl_shader,			VK_NV_GLSL_SHADER_EXTENSION_NAME,			&vk_nv_glsl_shader,				false, NULL, " Direct use of glsl is not supported."},
-		{&vk.nv_dedicated_allocation,	VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_nv_dedicated_allocation,	true, &vk.khr_dedicated_allocation, ""},
-		{&vk.khr_dedicated_allocation,	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_khr_dedicated_allocation,	true, NULL, ""},
-		{&vk.khr_push_descriptor,		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,		&vk_khr_push_descriptor,		true, NULL, ""},
+		{&vk.nv_dedicated_allocation,	VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_nv_dedicated_allocation,	true, &vk.khr_dedicated_allocation, NULL},
+		{&vk.khr_dedicated_allocation,	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_khr_dedicated_allocation,	true, NULL, NULL},
+		{&vk.khr_push_descriptor,		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,		&vk_khr_push_descriptor,		true, NULL, NULL},
+		{&vk.amd_rasterization_order,	VK_AMD_RASTERIZATION_ORDER_EXTENSION_NAME,	&vk_amd_rasterization_order,	false, NULL, NULL},
 	};
 	size_t e;
 
@@ -4200,7 +4202,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				devextensions[numdevextensions++] = knowndevexts[e].name;
 			}
 			else if (knowndevexts[e].var->ival)
-				Con_Printf("unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].neededfor);
+				Con_Printf("unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].warningtext?knowndevexts[e].warningtext:"");
 			else if (knowndevexts[e].supported)
 				Con_DPrintf("Ignoring %s.\n", knowndevexts[e].name);
 			else

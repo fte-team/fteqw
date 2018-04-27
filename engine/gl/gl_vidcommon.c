@@ -4,6 +4,10 @@
 #include "gl_draw.h"
 #include "shader.h"
 
+
+extern cvar_t	gl_immutable_textures;
+extern cvar_t	gl_immutable_buffers;
+
 #ifndef GL_STATIC
 //standard gles2 opengl calls.
 void (APIENTRY *qglBlendFunc) (GLenum sfactor, GLenum dfactor);
@@ -913,7 +917,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 #endif
 	{
 		if ((!gl_config.gles && gl_config.glversion >= 4.4) || GL_CheckExtension("GL_ARB_buffer_storage"))
-			qglBufferStorage = (void *)getglext("glBufferStorage");	//no arb postfix even with the extension form of it.
+			if (gl_immutable_buffers.ival)
+				qglBufferStorage = (void *)getglext("glBufferStorage");	//no arb postfix even with the extension form of it.
 	}
 
 #ifdef GL_STATIC
@@ -1129,16 +1134,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	else
 		gl_config.geometryshaders = false;
 
+	qglTexStorage2D = NULL;
+	qglTexStorage3D = NULL;
 	if ((!gl_config.gles && gl_config.glversion >= 4.2) ||
 		( gl_config.gles && gl_config.glversion >= 3.0))
 	{	//from gles3.0 or gl4.2 onwards
-		qglTexStorage2D = getglext("glTexStorage2D");
-		qglTexStorage3D = getglext("glTexStorage3D");
-	}
-	else
-	{
-		qglTexStorage2D = NULL;
-		qglTexStorage3D = NULL;
+		if (gl_immutable_textures.ival)
+		{
+			qglTexStorage2D = getglext("glTexStorage2D");
+			qglTexStorage3D = getglext("glTexStorage3D");
+		}
 	}
 
 #ifdef GL_STATIC
@@ -2741,6 +2746,293 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 			}
 		}
 	}
+}
+
+void GL_ForgetPointers(void)
+{	//its at times like this that I wish I had put all of these into a struct.
+	//but GL_STATIC and webgl makes that sub-optimal. *sigh*
+#ifndef GL_STATIC
+	qglBindTexture		= NULL;
+	qglBlendFunc		= NULL;
+	qglClear			= NULL;
+	qglClearColor		= NULL;
+	qglClearStencil		= NULL;
+	qglColorMask		= NULL;
+	qglCopyTexImage2D	= NULL;
+	qglCopyTexSubImage2D= NULL;
+	qglCullFace			= NULL;
+	qglDepthFunc		= NULL;
+	qglDepthMask		= NULL;
+//	qglDepthRangef		= NULL;
+	qglDisable			= NULL;
+	qglEnable			= NULL;
+	qglFinish			= NULL;
+	qglFlush			= NULL;
+	qglGenTextures		= NULL;
+	qglGetFloatv		= NULL;
+	qglGetIntegerv		= NULL;
+	qglGetString		= NULL;
+	qglHint				= NULL;
+	qglIsEnabled		= NULL;
+	qglReadPixels		= NULL;
+	qglTexImage2D		= NULL;
+	qglTexSubImage2D	= NULL;
+	qglTexParameteri	= NULL;
+	qglTexParameterf	= NULL;
+	qglTexParameteriv	= NULL;
+	qglTexParameterfv	= NULL;
+	qglViewport			= NULL;
+	qglGetBooleanv		= NULL;
+	qglGetError			= NULL;
+	qglDeleteTextures	= NULL;
+	qglDrawElements		= NULL;
+	qglDrawArrays		= NULL;
+	qglStencilOp		= NULL;
+	qglStencilFunc		= NULL;
+	qglScissor			= NULL;
+	qglPolygonOffset	= NULL;
+#endif
+#ifndef FTE_TARGET_WEB
+	qglAlphaFunc		= NULL;
+	qglBegin			= NULL;
+	qglClearDepth		= NULL;
+	qglClipPlane 		= NULL;
+//	qglColor3f			= NULL;
+//	qglColor3ub			= NULL;
+	qglColor4f			= NULL;
+	qglColor4fv			= NULL;
+//	qglColor4ub			= NULL;
+//	qglColor4ubv		= NULL;
+//	qglDepthRange		= NULL;
+	qglDrawBuffer		= NULL;
+	qglDrawPixels		= NULL;
+	qglEnd				= NULL;
+	qglFrustum			= NULL;
+	qglGetTexLevelParameteriv	= NULL;
+	qglLoadIdentity		= NULL;
+	qglLoadMatrixf		= NULL;
+	qglNormal3f			= NULL;
+	qglNormal3fv		= NULL;
+	qglMatrixMode		= NULL;
+	qglMultMatrixf		= NULL;
+//	qglOrtho			= NULL;
+	qglPolygonMode		= NULL;
+	qglPopMatrix		= NULL;
+	qglPushMatrix		= NULL;
+	qglReadBuffer		= NULL;
+	qglRotatef			= NULL;
+	qglScalef			= NULL;
+	qglShadeModel		= NULL;
+	qglTexCoord1f		= NULL;
+	qglTexCoord2f		= NULL;
+	qglTexCoord2fv		= NULL;
+	qglTexEnvf			= NULL;
+	qglTexEnvfv			= NULL;
+	qglTexEnvi			= NULL;
+	qglTexGeni			= NULL;
+	qglTexGenfv			= NULL;
+	qglTexImage3D		= NULL;
+	qglTexSubImage3D	= NULL;
+	qglTranslatef		= NULL;
+	qglVertex2f			= NULL;
+	qglVertex3f			= NULL;
+	qglVertex3fv		= NULL;
+#endif
+
+	//various vertex array stuff.
+	qglArrayElement			= NULL;
+	qglVertexPointer		= NULL;
+	qglNormalPointer		= NULL;
+	qglTexCoordPointer		= NULL;
+	qglColorPointer			= NULL;
+	qglEnableClientState	= NULL;
+	qglDisableClientState	= NULL;
+
+	qglDrawRangeElements	= NULL;
+
+	//fixme: definatly make non-core
+	qglPushAttrib		= NULL;
+	qglPopAttrib		= NULL;
+
+	//does this need to be non-core as well?
+	qglFogi				= NULL;
+	qglFogf				= NULL;
+	qglFogfv			= NULL;
+
+
+	qglGetTexEnviv		= NULL;
+	qglGetPointerv		= NULL;
+
+	qglGetStringi		= NULL;
+
+	//used by heightmaps
+	qglGenLists		= NULL;
+	qglNewList		= NULL;
+	qglEndList		= NULL;
+	qglCallList		= NULL;
+
+#ifndef GL_STATIC
+	qglBindBufferARB		= NULL;
+#endif
+
+	gl_vendor = NULL;
+	gl_renderer = NULL;
+	gl_version = NULL;
+	gl_extensions = NULL;
+	gl_num_extensions = 0;
+
+#ifndef qglActiveTextureARB
+	qglActiveTextureARB = NULL;
+#endif
+	qglClientActiveTextureARB = NULL;
+	qglSelectTextureSGIS = NULL;
+	qglMTexCoord2fSGIS = NULL;
+	qglMultiTexCoord2fARB = NULL;
+	qglMultiTexCoord3fARB = NULL;
+	qglMTexCoord2fSGIS = NULL;
+	qglSelectTextureSGIS = NULL;
+	mtexid0 = 0;
+
+#ifndef GL_STATIC
+	qglGenFramebuffersEXT		= NULL;
+	qglDeleteFramebuffersEXT	= NULL;
+	qglBindFramebufferEXT		= NULL;
+	qglGenRenderbuffersEXT		= NULL;
+	qglDeleteRenderbuffersEXT	= NULL;
+	qglBindRenderbufferEXT		= NULL;
+	qglRenderbufferStorageEXT	= NULL;
+	qglFramebufferTexture2DEXT	= NULL;
+#endif
+
+	//no GL_EXT_stencil_two_side
+	qglActiveStencilFaceEXT = NULL;
+
+	//no truform. sorry.
+	qglPNTrianglesfATI = NULL;
+	qglPNTrianglesiATI = NULL;
+
+	//fragment programs
+//	qglProgramStringARB = NULL;
+//	qglGetProgramivARB = NULL;
+//	qglBindProgramARB = NULL;
+//	qglGenProgramsARB = NULL;
+
+
+#ifndef GL_STATIC
+	qglStencilOpSeparateATI = NULL;
+#endif
+	qglActiveStencilFaceEXT = NULL;
+
+#ifndef GL_STATIC
+	qglCompressedTexImage2D = NULL;
+	qglCompressedTexImage3D = NULL;
+	qglCompressedTexSubImage2D = NULL;
+	qglCompressedTexSubImage3D = NULL;
+	qglGetCompressedTexImage = NULL;
+#endif
+	qglDepthBoundsEXT = NULL;
+	qglPNTrianglesfATI = NULL;
+	qglPNTrianglesiATI = NULL;
+	qglPatchParameteriARB = NULL;
+#ifndef GL_STATIC
+	qglBindTexture			= NULL;
+#endif
+	qglLockArraysEXT = NULL;
+	qglUnlockArraysEXT = NULL;
+	qglBufferStorage	= NULL;
+#if !defined(GL_STATIC)
+	qglGenBuffersARB	= NULL;
+	qglDeleteBuffersARB	= NULL;
+	qglBindBufferARB	= NULL;
+	qglBufferDataARB	= NULL;
+	qglBufferSubDataARB	= NULL;
+	qglMapBufferARB		= NULL;
+	qglUnmapBufferARB	= NULL;
+	qglMapBufferRange	= NULL;
+
+	qglCreateProgramObjectARB	= NULL;
+	qglDeleteProgramObject_		= NULL;
+	qglDeleteShaderObject_		= NULL;
+	qglUseProgramObjectARB		= NULL;
+	qglCreateShaderObjectARB	= NULL;
+	qglGetProgramParameteriv_	= NULL;
+	qglGetShaderParameteriv_	= NULL;
+	qglAttachObjectARB			= NULL;
+	qglGetProgramInfoLog_		= NULL;
+	qglGetShaderInfoLog_		= NULL;
+	qglShaderSourceARB			= NULL;
+	qglCompileShaderARB			= NULL;
+	qglLinkProgramARB			= NULL;
+	qglBindAttribLocationARB	= NULL;
+	qglGetAttribLocationARB		= NULL;
+	qglVertexAttribPointer		= NULL;
+	qglGetVertexAttribiv		= NULL;
+	qglGetVertexAttribPointerv	= NULL;
+	qglEnableVertexAttribArray	= NULL;
+	qglDisableVertexAttribArray	= NULL;
+	qglGetUniformLocationARB	= NULL;
+	qglUniformMatrix4fvARB		= NULL;
+	qglUniformMatrix3x4fv		= NULL;
+	qglUniformMatrix4x3fv		= NULL;
+	qglUniform4fARB				= NULL;
+	qglUniform4fvARB			= NULL;
+	qglUniform3fARB				= NULL;
+	qglUniform3fvARB			= NULL;
+	qglUniform2fvARB			= NULL;
+	qglUniform1iARB				= NULL;
+	qglUniform1fARB				= NULL;
+	qglGetShaderSource			= NULL;
+#endif
+
+	qglGetProgramBinary = NULL;
+	qglProgramBinary = NULL;
+
+	qglGetGraphicsResetStatus = NULL;				//its not allowed to crash us. probably will. grr. oh well.
+
+
+	qglGenVertexArrays	= NULL;
+	qglBindVertexArray	= NULL;
+	qglTexStorage2D = NULL;
+	qglTexStorage3D = NULL;
+
+#ifndef GL_STATIC
+	qglGenFramebuffersEXT			= NULL;
+	qglDeleteFramebuffersEXT		= NULL;
+	qglBindFramebufferEXT			= NULL;
+	qglGenRenderbuffersEXT			= NULL;
+	qglDeleteRenderbuffersEXT		= NULL;
+	qglBindRenderbufferEXT			= NULL;
+	qglRenderbufferStorageEXT		= NULL;
+	qglFramebufferTexture2DEXT		= NULL;
+	qglFramebufferRenderbufferEXT	= NULL;
+	qglCheckFramebufferStatusEXT	= NULL;
+	qglGetFramebufferAttachmentParameteriv	= NULL;
+#endif
+#ifdef DEBUG
+	qglDebugMessageControlARB = NULL;
+	qglDebugMessageInsertARB = NULL;
+	qglDebugMessageCallbackARB = NULL;
+	qglGetDebugMessageLogARB = NULL;
+#endif
+
+	qglGenQueriesARB		= NULL;
+	qglDeleteQueriesARB		= NULL;
+	qglBeginQueryARB		= NULL;
+	qglEndQueryARB			= NULL;
+	qglGetQueryObjectuivARB	= NULL;
+
+	qglGenVertexArrays = NULL;
+	qglBindVertexArray = NULL;
+
+	qglDrawBuffers = NULL;
+
+	qglLoadMatrixf = NULL;
+	qglPolygonMode = NULL;
+	qglShadeModel = NULL;
+	qglDrawBuffer = NULL;
+
+	memset(&sh_config, 0, sizeof(sh_config));
+	memset(&gl_config, 0, sizeof(gl_config));
 }
 
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.

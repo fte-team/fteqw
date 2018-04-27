@@ -2169,6 +2169,7 @@ void CL_CheckServerInfo(void)
 		s = Info_ValueForKey(cl.serverinfo, "pm_flyfriction");
 		movevars.flyfriction = *s?Q_atof(s):4;
 	}
+	movevars.coordsize = cls.netchan.netprim.coordsize; 
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)

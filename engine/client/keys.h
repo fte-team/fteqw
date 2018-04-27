@@ -202,6 +202,20 @@ K_GP_DPAD_LEFT = 253,
 K_GP_DPAD_RIGHT = 254,
 K_GP_UNKNOWN = 255,
 
+//axis->button emulation. for weird people.
+K_GP_LEFT_THUMB_UP,
+K_GP_LEFT_THUMB_DOWN,
+K_GP_LEFT_THUMB_LEFT,
+K_GP_LEFT_THUMB_RIGHT,
+K_GP_RIGHT_THUMB_UP,
+K_GP_RIGHT_THUMB_DOWN,
+K_GP_RIGHT_THUMB_LEFT,
+K_GP_RIGHT_THUMB_RIGHT,
+K_JOY_UP,
+K_JOY_DOWN,
+K_JOY_LEFT,
+K_JOY_RIGHT,
+
 K_MM_BROWSER_BACK,
 K_MM_BROWSER_FAVORITES,
 K_MM_BROWSER_FORWARD,
@@ -220,6 +234,7 @@ K_MAX
 #define KEY_MODIFIER_SHIFT		(1<<0)
 #define KEY_MODIFIER_ALT		(1<<1)
 #define KEY_MODIFIER_CTRL		(1<<2)
+//#define KEY_MODIFIER_META		(1<<?) do we want?
 #define KEY_MODIFIER_ALTBINDMAP	(1<<3)
 #define	KEY_MODIFIERSTATES		(1<<4)
 
@@ -227,6 +242,7 @@ K_MAX
 #define K_SHIFT K_LSHIFT
 #define K_CTRL K_LCTRL
 #define K_ALT K_LALT
+#define K_WIN K_LWIN
 
 typedef enum	//highest has priority
 {
@@ -283,6 +299,9 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown
 void Key_ConsoleReplace(const char *instext);
 void Key_DefaultLinkClicked(console_t *con, char *text, char *info);
+
+qboolean Key_Console (console_t *con, int key, unsigned int unicode);
+void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode);
 
 struct console_s;
 qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int *ex, int *ey);

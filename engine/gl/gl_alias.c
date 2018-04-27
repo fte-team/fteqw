@@ -2737,6 +2737,7 @@ static void BE_GenPolyBatches(batch_t **batches)
 	}
 }
 void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches);
+void PR_Route_Visualise(void);
 void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemode)
 {
 	int		i;
@@ -2765,6 +2766,9 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	{
 #ifndef CLIENTONLY
 		SV_AddDebugPolygons();
+#endif
+#ifdef ENGINE_ROUTING
+		PR_Route_Visualise();
 #endif
 
 		//the alias cache is a backend thing that provides support for multiple entities using the same skeleton.

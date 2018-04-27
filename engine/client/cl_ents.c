@@ -2169,8 +2169,8 @@ void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float
 {
 	//use simple algo
 	//a series of cylinders that gets progressively narrower
-	int latsteps = 16;
-	int lngsteps = 16;
+	const int latsteps = 16;
+	const int lngsteps = 8;//16;
 	float cradius;
 	int v, i, j;
 	scenetris_t *t;
@@ -2182,7 +2182,7 @@ void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float
 		return;
 
 	/*reuse the previous trigroup if its the same shader*/
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags && cl_stris[cl_numstris-1].numvert < MAX_INDICIES-(latsteps-1)*(lngsteps-1))
 		t = &cl_stris[cl_numstris-1];
 	else
 	{
@@ -2244,19 +2244,19 @@ void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float
 			v = latsteps-1;
 			for (v = 0; v < latsteps-1; v++)
 			{
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0			+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps+1	+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+lngsteps+1	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1			+ v*lngsteps + i;
 			}
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0				+ v*lngsteps + i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1				+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1				+ v*lngsteps + i;
 		}
 	}
 	else
@@ -2266,25 +2266,31 @@ void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float
 			v = latsteps-1;
 			for (v = 0; v < latsteps-1; v++)
 			{
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0			+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps	+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+lngsteps+1	+ v*lngsteps + i;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1			+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+lngsteps	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+lngsteps+1	+ v*lngsteps + i;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1			+ v*lngsteps + i;
 			}
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0				+ v*lngsteps + i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert					+ i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ i;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1				+ v*lngsteps + i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert					+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1				+ i;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1				+ v*lngsteps + i;
 		}
 	}
 
 	t->numvert += lngsteps*latsteps;
 	t->numidx = cl_numstrisidx - t->firstidx;
 	cl_numstrisvert += lngsteps*latsteps;
+}
+
+void CLQ1_AddOrientedSphere(shader_t *shader, float radius, float *matrix, float r, float g, float b, float a)
+{
+	CLQ1_AddOrientedHalfSphere(shader, radius, 0, matrix, r, g, b, a);
+	CLQ1_AddOrientedHalfSphere(shader, -radius, 0, matrix, r, g, b, a);
 }
 
 void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a)
@@ -2357,31 +2363,31 @@ void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboo
 		}
 		for (v = 0; v < sides-1; v++)
 		{
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 + v*2;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 + v*2;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3 + v*2;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
-			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+2 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+3 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1 + v*2;
+			cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+2 + v*2;
 		}
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0 + v*2;
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1 + v*2;
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1 + v*2;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0 + v*2;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1 + v*2;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0;
 
 		if (!capsule)
 		{
 			for (v = 4; v < sides*2; v+=2)
 			{
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+(v-2);
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+v;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+(v-2);
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+0;
 
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+(v-2)+1;
-				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v+1;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+1;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+(v-2)+1;
+				cl_strisidx[cl_numstrisidx++] = cl_numstrisvert-t->firstvert+v+1;
 			}
 		}
 

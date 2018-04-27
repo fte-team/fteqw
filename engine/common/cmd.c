@@ -773,7 +773,9 @@ void Cmd_Exec_f (void)
 	}
 #ifndef QUAKETC
 	//hack to try to work around nquake's b0rkedness
-	if (!strncmp(s, "// ", 3))
+	if (!strncmp(s, "// This is nQuake's Frogbot config", 33))
+		s = "echo Refusing to exec nQuake's Frogbot config";	//otherwise many people with nquake installed will be fucked over whenever they try playing singleplayer
+	else if (!strncmp(s, "// ", 3))
 	{
 		char *eol = strstr(s, "\n");
 		if (eol)
@@ -4051,6 +4053,8 @@ void Cmd_Shutdown(void)
 			cmd_text[level].buf.maxsize = 0;
 		}
 	}
+
+	Cmd_Complete(NULL, false);	//NULL frees any cached results without generating new ones.
 
 	while(cmd_functions)
 	{

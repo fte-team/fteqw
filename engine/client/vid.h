@@ -45,7 +45,7 @@ typedef struct {
 	int height;
 	int fullscreen;	//0 = windowed. 1 = fullscreen (mode changes). 2 = borderless+maximized
 	qboolean stereo;
-	qboolean srgb;
+	int srgb;	//<0 = gamma-only. 0 = no srgb at all, >0 full srgb, including textures and stuff
 	int bpp;	//16, 24(aka 32), 30, and 48 are meaningful
 	int rate;
 	int wait;	//-1 = default, 0 = off, 1 = on, 2 = every other
@@ -124,9 +124,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);
 // Called at startup to set up translation tables, takes 256 8 bit RGB values
 // the palette data will go away after the call, so it must be copied off if
 // the video driver will need it again
-
-void	GLVID_Shutdown (void);
-// Called at shutdown
 
 void GLVID_Crashed(void);
 

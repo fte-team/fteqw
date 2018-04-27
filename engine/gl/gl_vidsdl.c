@@ -379,6 +379,7 @@ void GLVID_DeInit (void)
 #endif
 
 	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	GL_ForgetPointers();
 }
 
 

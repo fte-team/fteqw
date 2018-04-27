@@ -1703,6 +1703,10 @@ void VID_UnSetMode (void)
 	}
 	*opengldllname = 0;
 #endif
+
+#ifdef GLQUAKE
+	GL_ForgetPointers();
+#endif
 }
 
 

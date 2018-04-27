@@ -2413,6 +2413,7 @@ void GLVID_Shutdown(void)
 #ifdef USE_EGL
 	case PSL_EGL:
 		EGL_Shutdown();
+		GL_ForgetPointers();
 		break;
 #endif
 	case PSL_GLX:
@@ -2421,6 +2422,7 @@ void GLVID_Shutdown(void)
 			glx.DestroyContext(vid_dpy, ctx);
 			ctx = NULL;
 		}
+		GL_ForgetPointers();
 		break;
 #endif
 #ifdef VKQUAKE

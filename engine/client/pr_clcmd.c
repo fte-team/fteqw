@@ -140,29 +140,53 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_AUX31:			return 814;
 	case K_AUX32:			return 815;
 
-	case K_GP_DPAD_UP:		return 816;
-	case K_GP_DPAD_DOWN:	return 817;
-	case K_GP_DPAD_LEFT:	return 818;
-	case K_GP_DPAD_RIGHT:	return 819;
-	case K_GP_START:		return 820;
-	case K_GP_BACK:			return 821;
-	case K_GP_LEFT_THUMB:	return 822;
-	case K_GP_RIGHT_THUMB:	return 823;
-	case K_GP_LEFT_SHOULDER:return 824;
-	case K_GP_RIGHT_SHOULDER:return 825;
-	case K_GP_A:			return 826;
-	case K_GP_B:			return 827;
-	case K_GP_X:			return 828;
-	case K_GP_Y:			return 829;
-	case K_GP_LEFT_TRIGGER:	return 830;
-	case K_GP_RIGHT_TRIGGER:return 831;
+	case K_GP_DPAD_UP:			return 816;
+	case K_GP_DPAD_DOWN:		return 817;
+	case K_GP_DPAD_LEFT:		return 818;
+	case K_GP_DPAD_RIGHT:		return 819;
+	case K_GP_START:			return 820;
+	case K_GP_BACK:				return 821;
+	case K_GP_LEFT_THUMB:		return 822;
+	case K_GP_RIGHT_THUMB:		return 823;
+	case K_GP_LEFT_SHOULDER:	return 824;
+	case K_GP_RIGHT_SHOULDER:	return 825;
+	case K_GP_A:				return 826;
+	case K_GP_B:				return 827;
+	case K_GP_X:				return 828;
+	case K_GP_Y:				return 829;
+	case K_GP_LEFT_TRIGGER:		return 830;
+	case K_GP_RIGHT_TRIGGER:	return 831;
+	case K_GP_LEFT_THUMB_UP:	return 832;
+	case K_GP_LEFT_THUMB_DOWN:	return 833;
+	case K_GP_LEFT_THUMB_LEFT:	return 834;
+	case K_GP_LEFT_THUMB_RIGHT:	return 835;
+	case K_GP_RIGHT_THUMB_UP:	return 836;
+	case K_GP_RIGHT_THUMB_DOWN:	return 837;
+	case K_GP_RIGHT_THUMB_LEFT:	return 838;
+	case K_GP_RIGHT_THUMB_RIGHT:return 839;
+	case K_JOY_UP:				return 840;
+	case K_JOY_DOWN:			return 841;
+	case K_JOY_LEFT:			return 842;
+	case K_JOY_RIGHT:			return 843;
 
-	case K_VOLUP:			return -code;
-	case K_VOLDOWN:			return -code;
-	case K_APP:				return -code;
+
+	case K_F13:
+	case K_F14:
+	case K_F15:
+	case K_POWER:
+	case K_LWIN:
+	case K_RWIN:
+	case K_VOLUP:
+	case K_VOLDOWN:
+	case K_APP:
 	case K_SEARCH:			return -code;
 
-	default:				return code;
+	default:
+		if (code < 0)	//negative values are 'qc-native' keys, for stuff that the api lacks.
+			return -code;
+		if (code >= 0 && code < 128)	//ascii codes identical
+			return code;
+		return -code;	//unknown key.
 	}
 }
 
@@ -308,18 +332,24 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 829:		return K_GP_Y;
 	case 830:		return K_GP_LEFT_TRIGGER;
 	case 831:		return K_GP_RIGHT_TRIGGER;
-//	case 832:		return K_GP_LEFT_THUMB_UP;
-//	case 833:		return K_GP_LEFT_THUMB_DOWN;
-//	case 834:		return K_GP_LEFT_THUMB_LEFT;
-//	case 835:		return K_GP_LEFT_THUMB_RIGHT;
-//	case 836:		return K_GP_RIGHT_THUMB_UP;
-//	case 837:		return K_GP_RIGHT_THUMB_DOWN;
-//	case 838:		return K_GP_RIGHT_THUMB_LEFT;
-//	case 839:		return K_GP_RIGHT_THUMB_RIGHT;
+	case 832:		return K_GP_LEFT_THUMB_UP;
+	case 833:		return K_GP_LEFT_THUMB_DOWN;
+	case 834:		return K_GP_LEFT_THUMB_LEFT;
+	case 835:		return K_GP_LEFT_THUMB_RIGHT;
+	case 836:		return K_GP_RIGHT_THUMB_UP;
+	case 837:		return K_GP_RIGHT_THUMB_DOWN;
+	case 838:		return K_GP_RIGHT_THUMB_LEFT;
+	case 839:		return K_GP_RIGHT_THUMB_RIGHT;
+	case 840:		return K_JOY_UP;
+	case 841:		return K_JOY_DOWN;
+	case 842:		return K_JOY_LEFT;
+	case 843:		return K_JOY_RIGHT;
 	default:		
 		if (code < 0)	//negative values are 'fte-native' keys, for stuff that the api lacks.
 			return -code;
-		return code;
+		if (code >= 0 && code < 128)
+			return code;
+		return -code;	//these keys are not supported in fte. use negatives so that they can be correctly mapped back to qc codes if the need arises. no part of the engine will recognise them.
 	}
 }
 
@@ -328,15 +358,21 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int bindmap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
-	int keynums[2];
+	int keynums[16];
 	char keyname[512];
+	size_t u;
 
 	M_FindKeysForCommand(bindmap, 0, cmdname, keynums, NULL, countof(keynums));
 
 	keyname[0] = '\0';
-
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoQCCodes(keynums[0])), sizeof(keyname));
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoQCCodes(keynums[1])), sizeof(keyname));
+	for (u = 0; u < countof(keynums); u++)
+	{
+		if (keynums[u] >= 0)
+			keynums[u] = MP_TranslateFTEtoQCCodes(keynums[u]);
+		else if (u >= 2)	//would ideally be 0, but nexuiz would bug out then.
+			break;
+		Q_strncatz (keyname, va(" \'%i\'", keynums[u]), sizeof(keyname));
+	}
 
 	RETURN_TSTRING(keyname);
 }

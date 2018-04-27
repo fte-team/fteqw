@@ -1097,8 +1097,6 @@ void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	Con_DrawOneConsole(con, con->flags & CONF_KEYFOCUSED, PR_CL_ChooseFont(world->g.drawfont, fontsize, fontsize), pos[0], pos[1], size[0], size[1], 0);
 }
-qboolean Key_Console (console_t *con, unsigned int unicode, int key);
-void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
 void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *conname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -1117,7 +1115,7 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		if ((pa && qcinput_scan != pa) || (pb && pb != qcinput_unicode))
 			G_FLOAT(OFS_RETURN) = 0;
 		else
-			G_FLOAT(OFS_RETURN) = Key_Console(con, pb, MP_TranslateQCtoFTECodes(pa));
+			G_FLOAT(OFS_RETURN) = Key_Console(con, MP_TranslateQCtoFTECodes(pa), pb);
 		break;
 	case CSIE_KEYUP:
 		//scan, char

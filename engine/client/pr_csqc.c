@@ -6192,6 +6192,10 @@ static struct {
 	{"brush_findinvolume",		PF_brush_findinvolume,	0},
 #endif
 
+#ifdef ENGINE_ROUTING
+	{"route_calculate",		PF_route_calculate,		0},
+#endif
+
 	{"touchtriggers",			PF_touchtriggers,		279},//void() touchtriggers = #279;
 	{"skel_ragupdate",			PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
 	{"skel_mmap",				PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
@@ -7168,6 +7172,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		movevars.watersinkspeed = 60;//*pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = 4;//*pm_flyfriction.string?pm_flyfriction.value:4;
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
+		movevars.coordsize = 4;
 	}
 
 	for (i = 0; i < sizeof(csqc_builtin)/sizeof(csqc_builtin[0]); i++)

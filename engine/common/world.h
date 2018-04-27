@@ -264,6 +264,10 @@ struct world_s
 	qboolean rbe_hasphysicsents;
 	rigidbodyengine_t *rbe;
 #endif
+
+#ifdef ENGINE_ROUTING
+	void *waypoints;
+#endif
 };
 typedef struct world_s world_t;
 

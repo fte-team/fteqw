@@ -80,6 +80,14 @@ int MP_TranslateFTEtoQCCodes(int code);
 int MP_TranslateQCtoFTECodes(int code);
 qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove);
 
+#ifdef ENGINE_ROUTING
+//sv_move.c routing
+void QCBUILTIN PF_route_calculate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PR_Route_Shutdown (world_t *world);
+void PR_Route_Visualise (void);
+void PR_Route_Init (void);
+#endif
+
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
 void QCBUILTIN PF_print (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

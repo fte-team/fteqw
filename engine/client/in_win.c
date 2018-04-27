@@ -1879,9 +1879,18 @@ void INS_Commands (void)
 		K_GP_X,
 		K_GP_Y,
 
-		//not part of xinput specs, but appended by us from analog triggers
+		//not part of xinput specs, but used to treat the various axis as buttons.
+		K_GP_LEFT_THUMB_UP,
+		K_GP_LEFT_THUMB_DOWN,
+		K_GP_LEFT_THUMB_LEFT,
+		K_GP_LEFT_THUMB_RIGHT,
+		K_GP_RIGHT_THUMB_UP,
+		K_GP_RIGHT_THUMB_DOWN,
+		K_GP_RIGHT_THUMB_LEFT,
+		K_GP_RIGHT_THUMB_RIGHT,
+
 		K_GP_LEFT_TRIGGER,
-		K_GP_RIGHT_TRIGGER
+		K_GP_RIGHT_TRIGGER,
 	};
 	static const int mmjbuttons[32] =
 	{
@@ -2061,10 +2070,28 @@ static qboolean INS_ReadJoystick (struct wjoy_s *joy)
 				joy->devstate = DS_PRESENT;
 				joy->buttonstate = xistate.Gamepad.wButtons & 0xffff;
 
+				if (xistate.Gamepad.sThumbLY < -16364)
+					joy->buttonstate |= 0x00010000;
+				if (xistate.Gamepad.sThumbLY > 16364)
+					joy->buttonstate |= 0x00020000;
+				if (xistate.Gamepad.sThumbLX < -16364)
+					joy->buttonstate |= 0x00040000;
+				if (xistate.Gamepad.sThumbLX > 16364)
+					joy->buttonstate |= 0x00080000;
+
+				if (xistate.Gamepad.sThumbRY < -16364)
+					joy->buttonstate |= 0x00100000;
+				if (xistate.Gamepad.sThumbRY > 16364)
+					joy->buttonstate |= 0x00200000;
+				if (xistate.Gamepad.sThumbRX < -16364)
+					joy->buttonstate |= 0x00400000;
+				if (xistate.Gamepad.sThumbRX > 16364)
+					joy->buttonstate |= 0x00800000;
+
 				if (xistate.Gamepad.bLeftTrigger >= 128)
-					joy->buttonstate |= 0x10000;
+					joy->buttonstate |= 0x01000000;
 				if (xistate.Gamepad.bRightTrigger >= 128)
-					joy->buttonstate |= 0x20000;
+					joy->buttonstate |= 0x02000000;
 
 				if (joy->devid != DEVID_UNSET)
 				{

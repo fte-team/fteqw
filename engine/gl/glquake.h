@@ -1112,6 +1112,7 @@ void GL_SelectProgram(int program);
 
 
 qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name));
+void GL_ForgetPointers(void);
 
 #endif
 

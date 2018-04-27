@@ -111,6 +111,7 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 void GLVID_DeInit(void)
 {
 	killCocoa();
+	GL_ForgetPointers();
 }
 
 void GLVID_SetPalette (unsigned char *palette)

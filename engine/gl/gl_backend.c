@@ -1036,7 +1036,7 @@ static void RevertToKnownState(void)
 	}
 #endif
 
-	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MASK_BITS|SBITS_AFFINE);
+	shaderstate.shaderbits &= ~(SBITS_DEPTHFUNC_BITS|SBITS_MASK_BITS|SBITS_AFFINE);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 
 	shaderstate.shaderbits &= ~(SBITS_BLEND_BITS);
@@ -1528,27 +1528,13 @@ void GLBE_Shutdown(void)
 
 	//on vid_reload, the gl drivers might have various things bound that have since been destroyed/etc
 	//so reset that state to avoid any issues with state
-	/*shaderstate.sourcevbo = &shaderstate.dummyvbo;
-	memset(shaderstate.sourcevbo, 0, sizeof(*shaderstate.sourcevbo));
-	shaderstate.pendingcolourvbo = 0;
-	shaderstate.pendingcolourpointer = NULL;
-	shaderstate.pendingvertexvbo = 0;
-	shaderstate.pendingvertexpointer = NULL;
-	for (u = 0; u < SHADER_TMU_MAX; u++)
-	{
-		shaderstate.pendingtexcoordparts[u] = 0;
-		shaderstate.pendingtexcoordvbo[u] = 0;
-		shaderstate.pendingtexcoordpointer[u] = NULL;
-	}*/
-	if (sh_config.progs_supported)
-		BE_ApplyAttributes(0, (1u<<VATTR_LEG_FIRST)-1u);
-	if (!sh_config.progs_required)
-		BE_ApplyAttributes(0,	(1u<<VATTR_LEG_VERTEX)|
-								(1u<<VATTR_LEG_COLOUR)|
-								(1u<<VATTR_LEG_ELEMENTS)|
-								((1u<<(VATTR_LEG_TMU0+be_maxpasses))-1));
+	BE_EnableShaderAttributes(0, 0);
 	GL_SelectVBO(0);
 	GL_SelectEBO(0);
+
+	for (u = 0; u < countof(shaderstate.currenttextures); u++)
+		GL_LazyBind(u, 0, r_nulltex);
+	GL_SelectTexture(0);
 }
 
 void GLBE_Init(void)
@@ -2883,7 +2869,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 #ifdef warningmsg
 #pragma warningmsg("fixme: q3 doesn't seem to have this, why do we need it?")
 #endif
-		sbits &= ~(SBITS_MISC_DEPTHWRITE|SBITS_MISC_DEPTHEQUALONLY);
+		sbits &= ~(SBITS_MISC_DEPTHWRITE|SBITS_DEPTHFUNC_BITS);
 		sbits |= SBITS_MISC_NODEPTHTEST;
 	}
 	if (shaderstate.flags & (BEF_FORCEADDITIVE|BEF_FORCETRANSPARENT|BEF_FORCENODEPTH|BEF_FORCEDEPTHTEST|BEF_FORCEDEPTHWRITE))
@@ -2994,27 +2980,28 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 		else
 			qglDepthMask(GL_FALSE);
 	}
-	if (delta & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+	if (delta & (SBITS_DEPTHFUNC_BITS))
 	{
 		extern int gldepthfunc;
-		switch (sbits & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+		switch (sbits & SBITS_DEPTHFUNC_BITS)
 		{
-		case SBITS_MISC_DEPTHEQUALONLY:
+		case SBITS_DEPTHFUNC_EQUAL:
 			qglDepthFunc(GL_EQUAL);
 			break;
-		case SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY:
+		case SBITS_DEPTHFUNC_FURTHER:
 			if (gldepthfunc == GL_LEQUAL)
 				qglDepthFunc(GL_GREATER);
 			else
 				qglDepthFunc(GL_LESS);
 			break;
-		case SBITS_MISC_DEPTHCLOSERONLY:
+		case SBITS_DEPTHFUNC_CLOSER:
 			if (gldepthfunc == GL_LEQUAL)
 				qglDepthFunc(GL_LESS);
 			else
 				qglDepthFunc(GL_GREATER);
 			break;
 		default:
+		case SBITS_DEPTHFUNC_CLOSEREQUAL:
 			qglDepthFunc(gldepthfunc);
 			break;
 		}
@@ -3959,7 +3946,7 @@ void GLBE_SelectMode(backendmode_t mode)
 #endif
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
-			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHCLOSERONLY | SBITS_MASK_BITS);
+			BE_SendPassBlendDepthMask(SBITS_DEPTHFUNC_CLOSER | SBITS_MASK_BITS);
 			GL_CullFace(0);
 
 			//don't change cull stuff, and
@@ -4006,7 +3993,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			if (!gl_config_nofixedfunc)
 				BE_SetPassBlendMode(0, PBM_MODULATE);
 #endif
-			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
+			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_DEPTHFUNC_EQUAL);
 			break;
 		}
 	}
@@ -4708,7 +4695,7 @@ static void DrawMeshes(void)
 			shaderstate.pendingcolourvbo = 0;
 			shaderstate.pendingcolourpointer = NULL;
 			BE_SetPassBlendMode(0, PBM_MODULATE);
-			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (shaderstate.curshader->numpasses?SBITS_MISC_DEPTHEQUALONLY:0));
+			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (shaderstate.curshader->numpasses?SBITS_DEPTHFUNC_EQUAL:0));
 
 			GenerateTCFog(0, shaderstate.curbatch->fog);
 			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0), 0);
@@ -5126,7 +5113,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				if (R_DrawSkyChain(batch))
 					continue;
 			}
-			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
+			else if (/*shaderstate.mode != BEM_FOG &&*/ shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
 				continue;
 		}
 

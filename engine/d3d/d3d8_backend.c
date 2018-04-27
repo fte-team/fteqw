@@ -394,19 +394,22 @@ static void BE_ApplyShaderBits(unsigned int bits)
 			IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_ZENABLE, TRUE);
 	}
 
-	if (delta & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+	if (delta & SBITS_DEPTHFUNC_BITS)
 	{
-		switch(bits & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
+		switch(bits & SBITS_DEPTHFUNC_BITS)
 		{
 		default:
-		case 0:
+		case SBITS_DEPTHFUNC_CLOSEREQUAL:
 			IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
 			break;
-		case SBITS_MISC_DEPTHEQUALONLY:
+		case SBITS_DEPTHFUNC_EQUAL:
 			IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_ZFUNC, D3DCMP_EQUAL);
 			break;
-		case SBITS_MISC_DEPTHCLOSERONLY:
+		case SBITS_DEPTHFUNC_CLOSER:
 			IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_ZFUNC, D3DCMP_LESS);
+			break;
+		case SBITS_DEPTHFUNC_FURTHER:
+			IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_ZFUNC, D3DCMP_GREATER);
 			break;
 		}
 	}

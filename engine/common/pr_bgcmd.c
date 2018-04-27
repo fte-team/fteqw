@@ -92,6 +92,10 @@ void PF_Common_RegisterCvars(void)
 #endif
 
 	WPhys_Init();
+
+#ifdef ENGINE_ROUTING
+	PR_Route_Init();
+#endif
 }
 
 qofs_t PR_ReadBytesString(char *str)
@@ -6227,6 +6231,9 @@ void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 #endif
 	PR_fclose_progs(progs);
 	search_close_progs(progs, !errored);
+#ifdef ENGINE_ROUTING
+	PR_Route_Shutdown (progs->parms->user);
+#endif
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(progs);
 #endif

@@ -158,10 +158,13 @@ enum
 #define SBITS_ATEST_SHIFT				  12
 
 	SBITS_MISC_DEPTHWRITE				= 0x00010000,
-	SBITS_MISC_NODEPTHTEST				= 0x00020000,
-	SBITS_MISC_DEPTHEQUALONLY			= 0x00040000,
-	SBITS_MISC_DEPTHCLOSERONLY			= 0x00080000,
-//#define SBITS_MISC_BITS				  0x000f0000
+	SBITS_MISC_NODEPTHTEST				= 0x00020000,	//strictly speaking, this is NOT the same as 'depthfunc always', which is unfortunate.
+
+	SBITS_DEPTHFUNC_CLOSEREQUAL			= 0x00000000,
+	SBITS_DEPTHFUNC_EQUAL				= 0x00040000,
+	SBITS_DEPTHFUNC_CLOSER				= 0x00080000,
+	SBITS_DEPTHFUNC_FURTHER				= 0x000c0000,
+#define SBITS_DEPTHFUNC_BITS			  0x000c0000
 
 	SBITS_TESSELLATION					= 0x00100000,
 	SBITS_AFFINE						= 0x00200000,
@@ -974,5 +977,6 @@ void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, flo
 void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a);
 void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
 void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a);
+void CLQ1_AddOrientedSphere(shader_t *shader, float radius, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a);
 #endif

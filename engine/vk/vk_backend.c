@@ -2672,6 +2672,7 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	VkPipelineColorBlendAttachmentState att_state[1];
 	VkGraphicsPipelineCreateInfo pipeCreateInfo = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
 	VkPipelineShaderStageCreateInfo shaderStages[2] = {{0}};
+	VkPipelineRasterizationStateRasterizationOrderAMD ro = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_RASTERIZATION_ORDER_AMD};	//long enough names for you?
 	struct specdata_s
 	{
 		int alphamode;
@@ -2802,18 +2803,39 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	else
 		rs.depthBiasEnable = VK_FALSE;
 
+	if (vk.amd_rasterization_order)
+	{
+		unsigned int b = blendflags & SBITS_BLEND_BITS;
+		//we potentially allow a little z-fighting if they're equal. a single batch shouldn't really have such primitives.
+		//must be no blending, or additive blending.
+		switch(blendflags & SBITS_DEPTHFUNC_BITS)
+		{
+		case SBITS_DEPTHFUNC_EQUAL:
+			break;
+		default:
+			if ((blendflags&(SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHWRITE)) == SBITS_MISC_DEPTHWRITE &&
+				(!b || b == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO) || b == SBITS_DSTBLEND_ONE))
+			{
+				rs.pNext = &ro;
+				ro.rasterizationOrder = VK_RASTERIZATION_ORDER_RELAXED_AMD;
+			}
+		}
+	}
+
 	ms.pSampleMask = NULL;
 	ms.rasterizationSamples = vk.multisamplebits;
 //	ms.sampleShadingEnable = VK_TRUE;	//call the fragment shader multiple times, instead of just once per final pixel
 //	ms.minSampleShading = 0.25;
 	ds.depthTestEnable = (blendflags&SBITS_MISC_NODEPTHTEST)?VK_FALSE:VK_TRUE;
 	ds.depthWriteEnable = (blendflags&SBITS_MISC_DEPTHWRITE)?VK_TRUE:VK_FALSE;
-	if (blendflags & SBITS_MISC_DEPTHEQUALONLY)
-		ds.depthCompareOp = VK_COMPARE_OP_EQUAL;
-	else if (blendflags & SBITS_MISC_DEPTHCLOSERONLY)
-		ds.depthCompareOp = VK_COMPARE_OP_LESS;
-	else
-		ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	switch(blendflags & SBITS_DEPTHFUNC_BITS)
+	{
+	default:
+	case SBITS_DEPTHFUNC_CLOSEREQUAL:	ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;	break;
+	case SBITS_DEPTHFUNC_EQUAL:			ds.depthCompareOp = VK_COMPARE_OP_EQUAL;			break;
+	case SBITS_DEPTHFUNC_CLOSER:		ds.depthCompareOp = VK_COMPARE_OP_LESS;				break;
+	case SBITS_DEPTHFUNC_FURTHER:		ds.depthCompareOp = VK_COMPARE_OP_GREATER;			break;
+	}
 	ds.depthBoundsTestEnable = VK_FALSE;
 	ds.back.failOp = VK_STENCIL_OP_KEEP;
 	ds.back.passOp = VK_STENCIL_OP_KEEP;
@@ -3016,7 +3038,7 @@ static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int
 	struct pipeline_s *pipe;
 	blendflags &=	0
 					| SBITS_SRCBLEND_BITS | SBITS_DSTBLEND_BITS | SBITS_MASK_BITS | SBITS_ATEST_BITS
-					| SBITS_MISC_DEPTHWRITE | SBITS_MISC_NODEPTHTEST | SBITS_MISC_DEPTHEQUALONLY | SBITS_MISC_DEPTHCLOSERONLY
+					| SBITS_MISC_DEPTHWRITE | SBITS_MISC_NODEPTHTEST | SBITS_DEPTHFUNC_BITS
 					| SBITS_LINES
 					;
 	shaderflags &= 0

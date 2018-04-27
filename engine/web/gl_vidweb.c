@@ -304,6 +304,8 @@ void GLVID_DeInit (void)
 	vid.activeapp = false;
 
 	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+	GL_ForgetPointers();
 }
 
 

@@ -120,6 +120,8 @@ typedef struct {
 	qboolean slidyslopes;
 	int stepheight;
 
+	qbyte coordsize;
+
 	unsigned int	flags;
 } movevars_t;
 

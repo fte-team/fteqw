@@ -6831,6 +6831,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //!!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3
 "!!samps diffuse fullbright lightmap\n"
 
+"#undef SPECULAR\n"
+
 //#include "sys/defs.h"
 "#define vec4 float4\n"
 "#define vec3 float3\n"
@@ -6842,7 +6844,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec4 v_position : POSITION;\n"
 "vec2 v_texcoord : TEXCOORD0;\n"
+
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"vec3 v_normal : NORMAL;\n"
+"vec3 v_svector : TANGENT;\n"
+"vec3 v_tvector : BINORMAL;\n"
+"#endif\n"
+"#ifdef VERTEXLIT\n"
+"vec4 v_colour : COLOR0;\n"
+"#else\n"
 "vec2 v_lmcoord  : TEXCOORD1;\n"
+"#endif\n"
 "};\n"
 "struct v2f\n"
 "{\n"
@@ -6858,7 +6870,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "mat3 invsurface : TEXCOORD5;\n"
 "#endif\n"
 
+"#ifdef VERTEXLIT\n"
+"vec2 tclm : TEXCOORD0;\n"
+"#else\n"
 "vec4 tclm : TEXCOORD0;\n"
+"#endif\n"
 "vec4 vc : COLOR0;\n"
 "#ifndef VERTEXLIT\n"
 "#ifdef LIGHTSTYLED\n"
@@ -6994,11 +7010,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 //modulate that by the lightmap(s) including deluxemap(s)
 "#ifdef VERTEXLIT\n"
-"#error foobar\n"
 "#ifdef LIGHTSTYLED\n"
-"vec3 lightmaps = vc.rgb;\n"
+"vec3 lightmaps = inp.vc.rgb;\n"
 "#else\n"
-"vec3 lightmaps = vc.rgb;\n"
+"vec3 lightmaps = inp.vc.rgb;\n"
 "#endif\n"
 "#define delux vec3(0.0,0.0,1.0)\n"
 "#else\n"

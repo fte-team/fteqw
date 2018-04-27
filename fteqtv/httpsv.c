@@ -891,7 +891,7 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 
 	"function playdemo(d)\n"
 	"{\n"
-		"getplug().mapsrc = \"http://bigfoot.morphos-team.net/misc/quakemaps/\";\n"
+//		"getplug().mapsrc = \"http://bigfoot.morphos-team.net/misc/quakemaps/\";\n"
 		"getplug().stream = \"file:\"+d+\"@"
 						;
 				Net_ProxySend(cluster, dest, html, strlen(html));

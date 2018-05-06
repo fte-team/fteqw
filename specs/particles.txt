@@ -265,6 +265,7 @@ ramp <red> <green> <blue> [alpha] [scale]
 	Specifies a ramp index in rgb terms, regardless of palette.
 
 stains <value>
+	(Not supported in QSS)
 	How much the effect discolours the wall upon impact.
 	The stained colour is based upon the colour of the particle upon impact.
 
@@ -359,6 +360,7 @@ spawnvel <horiz> [vert]
 	obsolete
 
 viewspace [frac]
+	(Not supported in QSS)
 	Specifies that this particle type should move relative to the camera.
 	Not compatible with splitscreen.
 	Should not normally be used in combination with clipping/bouncing.
@@ -412,6 +414,7 @@ lightshadows <castshadows>
 lightcorona <intensity> <scale>
 
 model <name> [options]
+	(Not supported in QSS)
 	options are:
 		frame=
 		framestart=
@@ -442,6 +445,8 @@ sound <name> [options]
 	Plays a sound when the effect is spawned. Only ONE sound will be used, picked randomly from the included sounds according to their weights.
 
 spawnstain <radius> <r> <g> <b>
+	(Not supported in QSS)
+	Controls whether a stain will be created at the same time as any particles (instead of depending upon impacts).
 
 rainfrequency <multiplier>
 	Specifies the interval between spawning new particle puffs on surfaces.

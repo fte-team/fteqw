@@ -378,6 +378,10 @@ void CL_ProgressDemoTime(void)
 		return;
 	}
 
+	if (cl.demopausedtilltime >= realtime)
+		return;
+	cl.demopausedtilltime = 0;
+	cl.demonudge = 0;
 	if (cl_demospeed.value >= 0 && cls.state == ca_active)
 		demtime += host_frametime*cl_demospeed.value;
 	else
@@ -446,6 +450,51 @@ void CL_DemoJump_f(void)
 		cls.demoseektime = newtime;
 	}
 	cls.demoseeking = true;
+}
+
+void CL_DemoNudge_f(void)
+{
+	extern cvar_t cl_demospeed;
+	int move = atoi(Cmd_Argv(1));
+	int newnudge;
+
+	if (!cls.demoplayback)
+	{
+		Con_Printf("not playing a demo, cannot nudge.\n");
+		return;
+	}
+
+	if (!move)
+		move = 1;
+
+	newnudge = cl.demonudge + move;
+	if (newnudge <= -(int)countof(cl.inframes))
+		newnudge = 1-(int)countof(cl.inframes);
+
+	if (newnudge < 0)
+	{	//if we're nudging to a past frame, make sure that its actually valid.
+		for(;-(int)countof(cl.inframes) < newnudge && newnudge < 0;)
+		{
+			int i = cls.netchan.incoming_sequence+newnudge;
+			if (i < 0)
+				break;
+			if (cl.inframes[i&UPDATE_MASK].frameid == i && !cl.inframes[i&UPDATE_MASK].invalid)
+			{
+				cl.demonudge = newnudge;
+				break;
+			}
+			if (move < 0)
+				newnudge--;
+			else
+				newnudge++;
+		}
+		if (!newnudge)
+			cl.demonudge = newnudge;
+	}
+	else
+		cl.demonudge = newnudge;
+
+	cl.demopausedtilltime = realtime + 3;
 }
 
 /*
@@ -537,13 +586,13 @@ qboolean CL_GetDemoMessage (void)
 #endif
 			if (cls.demoplayback == DPB_NETQUAKE && cls.signon == 4/*SIGNONS*/)
 		{
-			if (!demtime)
+			/*if (!demtime)
 			{
 				cl.gametime = 0;
 				cl.gametimemark = demtime;
 				olddemotime = 0;
 				return 0;
-			}
+			}*/
 			cls.netchan.last_received = realtime;
 			if (cls.demoseeking)
 			{
@@ -553,6 +602,8 @@ qboolean CL_GetDemoMessage (void)
 					return 0;
 				}
 			}
+			else if (cl.demonudge > 0)
+				cl.demonudge--;
 			else if ((cls.timedemo && host_framecount == demoframe) || (!cls.timedemo && demtime < cl.gametime && cl.gametime))// > dem_lasttime+demtime)
 			{
 				if (demtime <= cl.gametime-1)
@@ -686,6 +737,11 @@ readnext:
 		}
 		if (cls.td_startframe == host_framecount+1)
 			cls.td_starttime = Sys_DoubleTime();
+		demtime = demotime; // warp
+	}
+	else if (cl.demonudge > 0)
+	{
+		cl.demonudge--;
 		demtime = demotime; // warp
 	}
 	else if (!(cl.paused&~4) && cls.state >= ca_onserver)

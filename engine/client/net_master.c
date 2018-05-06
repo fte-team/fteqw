@@ -2618,10 +2618,17 @@ void MasterInfo_WriteServers(void)
 }
 
 //poll master servers for server lists.
-void MasterInfo_Refresh(void)
+void MasterInfo_Refresh(qboolean doreset)
 {
 	master_t *mast;
+	serverinfo_t *info;
 	qboolean loadedone;
+
+	if (doreset)
+	{
+		for (info = firstserver; info; info = info->next)
+			info->status &= ~1;	//hide until we get a new response from it.
+	}
 
 	loadedone = false;
 	loadedone |= Master_LoadMasterList("masters.txt", false, MT_MASTERUDP, MP_QUAKEWORLD, 5);	//fte listing

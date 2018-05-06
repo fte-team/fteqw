@@ -651,7 +651,7 @@ void CL_CalcClientTime(void)
 			if (max)
 			{
 				extern cvar_t cl_demospeed;
-				if (cls.demoplayback && cl_demospeed.value >= 0 && cls.state == ca_active)
+				if (cls.demoplayback && cl_demospeed.value > 0 && cls.state == ca_active)
 					cl.servertime += host_frametime*cl_demospeed.value;
 				else
 					cl.servertime += host_frametime;

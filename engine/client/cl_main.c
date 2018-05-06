@@ -4340,6 +4340,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("qtvlist", CL_QTVList_f);
 	Cmd_AddCommand ("qtvdemos", CL_QTVDemos_f);
 	Cmd_AddCommandD ("demo_jump", CL_DemoJump_f, "Jump to a specified time in a demo. Prefix with a + or - for a relative offset. Seeking backwards will restart the demo and the fast forward, which can take some time in long demos.");
+	Cmd_AddCommandD ("demo_nudge", CL_DemoNudge_f, "Nudge the demo by one frame. Argument should be +1 or -1. Nudging backwards is limited.");
 	Cmd_AddCommandAD ("timedemo", CL_TimeDemo_f, CL_DemoList_c, NULL);
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 

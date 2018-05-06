@@ -318,6 +318,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfitz_spawnstatic2		43
 #define svcfitz_spawnstaticsound2	44
 
+//nehahra svcs
+#define svcneh_skyboxsize			50  // [coord] size (default is 4096)
+#define svcneh_fog					51	// [byte] enable <optional past this point, only included if enable is true> [float] density [byte] red [byte] green [byte] blue
+
 //DP extended svcs
 #define svcdp_downloaddata			50
 #define svcdp_updatestatbyte		51

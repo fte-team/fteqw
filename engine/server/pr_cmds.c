@@ -10849,7 +10849,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sethostcachemasknumber",PF_Fixme,		0,		0,		0,		617,	"void(float mask, float fld, float num, float op)"},
 	{"resorthostcache",	PF_Fixme,			0,		0,		0,		618,	"void()"},
 	{"sethostcachesort",PF_Fixme,			0,		0,		0,		619,	"void(float fld, float descending)"},
-	{"refreshhostcache",PF_Fixme,			0,		0,		0,		620,	"void()"},
+	{"refreshhostcache",PF_Fixme,			0,		0,		0,		620,	"void(optional float dopurge)"},
 	{"gethostcachenumber",PF_Fixme,			0,		0,		0,		621,	"float(float fld, float hostnr)"},
 	{"gethostcacheindexforkey",PF_Fixme,	0,		0,		0,		622,	"float(string key)"},
 	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	"void(string key)"},

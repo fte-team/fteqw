@@ -351,7 +351,10 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	static char *ext[] =
 	{
 		"",
-#ifdef AVAIL_OGGVORBIS
+#if defined(AVAIL_OGGOPUS) || defined(FTE_TARGET_WEB)
+		".opus",
+#endif
+#if defined(AVAIL_OGGVORBIS) || defined(FTE_TARGET_WEB)
 		".ogg",
 #endif
 #if defined(AVAIL_MP3_ACM) || defined(FTE_TARGET_WEB)

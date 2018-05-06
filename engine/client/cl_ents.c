@@ -3680,7 +3680,12 @@ void CL_TransitionEntities (void)
 	}
 
 	//force our emulated time to as late as we can, if we're not using interpolation, which has the effect of disabling all interpolation
-	if (nolerp)
+	if (cl.demonudge < 0)
+	{
+		servertime = cl.inframes[(cls.netchan.incoming_sequence+cl.demonudge)&UPDATE_MASK].packet_entities.servertime;
+		nolerp = true;
+	}
+	else if (nolerp)
 		servertime = cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
 	else
 		servertime = cl.servertime;
@@ -4969,6 +4974,7 @@ void CL_LinkPlayers (void)
 	float			predictmsmult = 1000*cl_predict_players_frac.value;
 	int				modelindex2;
 	extern cvar_t	cl_demospeed;
+	int displayseq;
 
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
@@ -4982,7 +4988,11 @@ void CL_LinkPlayers (void)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	frame = &cl.inframes[cl.validsequence&UPDATE_MASK];
+	if (cl.demonudge < 0)
+		displayseq = cl.lerpentssequence;
+	else
+		displayseq = cl.validsequence;
+	frame = &cl.inframes[displayseq&UPDATE_MASK];
 
 	predictplayers = cl_predict_players.ival;
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -4993,7 +5003,7 @@ void CL_LinkPlayers (void)
 	{
 		nametagseen[j] = false;
 
-		if (state->messagenum != cl.validsequence)
+		if (state->messagenum != displayseq)
 		{
 #ifdef CSQC_DAT
 			CSQC_DeltaPlayer(j, NULL);

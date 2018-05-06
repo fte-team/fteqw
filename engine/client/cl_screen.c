@@ -419,9 +419,12 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 		cvar_t *var;
 		var = Cvar_FindVar ("scr_centerprinttext");
 		if (!var)
-			Cvar_Get("scr_centerprinttext", "", 0, "Script Notifications");
-		Cvar_Set(var, str);
-		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
+			var = Cvar_Get("scr_centerprinttext", "", 0, "Script Notifications");
+		if (var)
+		{
+			Cvar_Set(var, str);
+			Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
+		}
 	}
 
 	p = &scr_centerprint[pnum];
@@ -550,7 +553,10 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 		for (i = 0; i < p->charcount; i++)
 		{
 			if (p->string[i] == CON_LINKSTART)
+			{
 				p->flags |= CPRINT_CURSOR;
+				break;
+			}
 		}
 	}
 

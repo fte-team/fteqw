@@ -772,7 +772,7 @@ void V_CalcBlend (float *hw_blend)
 				a2 = pv->cshifts[j].percent / 255.0;	//don't allow modification of this one.
 			}
 
-			if (!a2)
+			if (a2 <= 0)
 				continue;
 
 			if (j == CSHIFT_SERVER)

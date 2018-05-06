@@ -1110,9 +1110,13 @@ static void SL_Remove	(menu_t *menu)
 
 static qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
 {
-	MasterInfo_Refresh();
-	isrefreshing = true;
-	return true;
+	if (key == K_MOUSE1 || key == K_MOUSE1 || key == K_ENTER || key == K_KP_ENTER)
+	{
+		MasterInfo_Refresh(false);
+		isrefreshing = true;
+		return true;
+	}
+	return false;
 }
 
 void M_Menu_ServerList2_f(void)
@@ -1249,7 +1253,7 @@ void M_Menu_ServerList2_f(void)
 
 	if (!Master_TotalCount())
 	{
-		MasterInfo_Refresh();
+		MasterInfo_Refresh(true);
 		isrefreshing = true;
 	}
 
@@ -1309,7 +1313,7 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 		}
 
 		//retry
-		MasterInfo_Refresh();
+		MasterInfo_Refresh(false);
 		isrefreshing = true;
 	}
 }
@@ -1340,7 +1344,7 @@ void M_QuickConnect_f(void)
 
 	Key_Dest_Add(kdm_emenu);
 
-	MasterInfo_Refresh();
+	MasterInfo_Refresh(false);
 	isrefreshing = true;
 
 	quickconnecttimeout = Sys_DoubleTime() + 5;

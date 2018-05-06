@@ -856,6 +856,7 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	memset(&sh_config, 0, sizeof(sh_config));
 	sh_config.texture_non_power_of_two = flevel>=D3D_FEATURE_LEVEL_10_0;	//npot MUST be supported on all d3d10+ cards.
 	sh_config.texture_non_power_of_two_pic = true;	//always supported in d3d11, supposedly, even with d3d9 devices.
+	sh_config.texture_allow_block_padding = false;	//microsoft blocks this.
 	sh_config.npot_rounddown = false;
 	if (flevel>=D3D_FEATURE_LEVEL_11_0)
 		sh_config.texture2d_maxsize = 16384;

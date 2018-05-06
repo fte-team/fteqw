@@ -222,7 +222,7 @@ unsigned int Master_TotalCount(void);
 unsigned int Master_NumPolled(void);	//progress indicator
 unsigned int Master_NumAlive(void);
 void Master_SetupSockets(void);
-void MasterInfo_Refresh(void);
+void MasterInfo_Refresh(qboolean doreset);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);
 

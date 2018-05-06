@@ -1206,6 +1206,8 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 		break;
 
 	case ev_entity:
+		if (!strncmp(s, "entity ", 7))	//cope with etos weirdness.
+			s += 7;
 		eval->edict = atoi (s);
 		break;
 

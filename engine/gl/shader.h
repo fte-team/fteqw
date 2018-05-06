@@ -767,6 +767,7 @@ typedef struct
 	unsigned int texturecube_maxsize;
 	qboolean texture_non_power_of_two;		//full support for npot
 	qboolean texture_non_power_of_two_pic;	//npot only works with clamp-to-edge mipless images.
+	qboolean texture_allow_block_padding;	//mip 0 of compressed formats can be any size, with implicit padding.
 	qboolean npot_rounddown;				//memory limited systems can say that they want to use less ram.
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;

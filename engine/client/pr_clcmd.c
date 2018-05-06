@@ -376,7 +376,6 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 
 	RETURN_TSTRING(keyname);
 }
-
 void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -384,9 +383,7 @@ void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct global
 	int keynums[256];
 	int keymods[countof(keynums)];
 	char keyname[512];
-	int i, count;
-
-	count = M_FindKeysForBind(bindmap, cmdname, keynums, keymods, countof(keynums));
+	int i, count = M_FindKeysForBind(bindmap, cmdname, keynums, keymods, countof(keynums));
 
 	keyname[0] = '\0';
 
@@ -797,7 +794,8 @@ void QCBUILTIN PF_cl_sethostcachesort(pubprogfuncs_t *prinst, struct globalvars_
 //void	refreshhostcache(void) = #620;
 void QCBUILTIN PF_cl_refreshhostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	MasterInfo_Refresh();
+	qboolean doreset = (prinst->callargc>=1)?G_FLOAT(OFS_PARM0):false;
+	MasterInfo_Refresh(doreset);
 }
 //float	gethostcachenumber(float fld, float hostnr) = #621;
 void QCBUILTIN PF_cl_gethostcachenumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

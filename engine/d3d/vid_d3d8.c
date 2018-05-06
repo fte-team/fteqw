@@ -504,6 +504,7 @@ void D3D8Shader_Init(void)
 
 	IDirect3DDevice8_GetDeviceCaps(pD3DDev8, &caps);
 
+	sh_config.texture_allow_block_padding = false;	//microsoft blocks this.
 	if (caps.TextureCaps & D3DPTEXTURECAPS_POW2)
 	{	//this flag is a LIMITATION, not a capability.
 		sh_config.texture_non_power_of_two = false;

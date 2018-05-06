@@ -1461,8 +1461,9 @@ static int CL_LoadSounds(int stage, qboolean dontactuallyload)
 
 void Sound_CheckDownload(const char *s)
 {
+#ifndef QUAKETC
 	char mangled[512];
-
+#endif
 	if (*s == '*')	//q2 sexed sound
 		return;
 
@@ -1473,11 +1474,13 @@ void Sound_CheckDownload(const char *s)
 	if (CL_CheckFile(s))
 		return;	//we have it already
 
+#if !defined(QUAKETC) && defined(AVAIL_OGGVORBIS)
 	//the things I do for nexuiz... *sigh*
 	COM_StripExtension(s, mangled, sizeof(mangled));
 	COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
 	if (CL_CheckFile(mangled))
 		return;
+#endif
 
 	//check with the sound/ prefix
 	s = va("sound/%s",s);
@@ -1485,12 +1488,13 @@ void Sound_CheckDownload(const char *s)
 	if (CL_CheckFile(s))
 		return;	//we have it already
 
+#if !defined(QUAKETC) && defined(AVAIL_OGGVORBIS)
 	//the things I do for nexuiz... *sigh*
 	COM_StripExtension(s, mangled, sizeof(mangled));
 	COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
 	if (CL_CheckFile(mangled))
 		return;
-
+#endif
 	//download the one the server said.
 	CL_CheckOrEnqueDownloadFile(s, NULL, 0);
 }
@@ -7932,9 +7936,26 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatNumeric (0, i, j, j);
 			break;
 		case svcdp_updatestatbyte:
-			i = MSG_ReadByte ();
-			j = MSG_ReadByte ();
-			CL_SetStatNumeric (0, i, j, j);
+		//case svcneh_fog:
+			if (CPNQ_IS_BJP || cls.protocol_nq == PROTOCOL_VERSION_NEHD)
+			{
+				CL_ResetFog(0);
+				if (MSG_ReadByte())
+				{
+					cl.fog[0].density = MSG_ReadFloat();
+					cl.fog[0].colour[0] = SRGBf(MSG_ReadByte()/255.0f);
+					cl.fog[0].colour[1] = SRGBf(MSG_ReadByte()/255.0f);
+					cl.fog[0].colour[2] = SRGBf(MSG_ReadByte()/255.0f);
+					cl.fog[0].time += 0.25;	//change fairly fast, but not instantly
+				}
+				cl.fog_locked = !!cl.fog[0].density;
+			}
+			else
+			{
+				i = MSG_ReadByte ();
+				j = MSG_ReadByte ();
+				CL_SetStatNumeric (0, i, j, j);
+			}
 			break;
 		case svcfte_updatestatstring:
 			i = MSG_ReadByte();
@@ -8086,7 +8107,7 @@ void CLNQ_ParseServerMessage (void)
 				cls.signon = 4;
 				CLNQ_SignonReply ();
 			}
-			//well, it's really any protocol, but we're only going to support version 5.
+			//well, it's really any protocol, but we're only going to support version 5 (through 7).
 			CLDP_ParseDarkPlaces5Entities();
 			break;
 		case svcdp_spawnbaseline2:

@@ -4304,6 +4304,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	sh_config.minver = -1;
 	sh_config.maxver = -1;
 
+	sh_config.texture_allow_block_padding = true;
 	sh_config.texture_non_power_of_two = true;	//is this always true?
 	sh_config.texture_non_power_of_two_pic = true;	//probably true...
 	sh_config.npot_rounddown = false;

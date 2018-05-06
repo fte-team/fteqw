@@ -873,7 +873,15 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	//Con_Printf ("S_LoadSound: %x\n", (int)stackbuf);
 	// load it in
 		const char *prefixes[] = {"sound/", ""};
-		const char *extensions[] = {".wav", ".ogg"};
+		const char *extensions[] = {
+			".wav", 
+#ifdef AVAIL_OGGOPUS
+			".opus",
+#endif
+#ifdef AVAIL_OGGVORBIS
+			".ogg",
+#endif
+		};
 		char altname[sizeof(namebuffer)];
 		char orig[16];
 		size_t pre, ex;

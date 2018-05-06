@@ -10156,12 +10156,12 @@ void QCC_PR_ParseStatement (void)
 
 	if (QCC_PR_CheckKeyword(keyword_return, "return"))
 	{
-		/*if (pr_classtype)
-		{
-			e = QCC_PR_GetDef(NULL, "__oself", pr_scope, false, 0);
-			e2 = QCC_PR_GetDef(NULL, "self", NULL, false, 0);
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], e, QCC_PR_DummyDef(pr_classtype, "self", pr_scope, 0, e2->ofs, false), NULL));
-		}*/
+		/*
+		accumulate behaviour requires the ability to just run code without explicit returns.
+		return = foo; sets the value that will be returned when the function finally exits, without returning now.
+		return; returns that value now, without execing later accumulations.
+		return 5; also returns now.
+		*/
 
 		if (QCC_PR_CheckToken (";"))
 		{
@@ -10186,6 +10186,9 @@ void QCC_PR_ParseStatement (void)
 //			if (opt_return_only)
 //				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_DONE], nullsref, nullsref, NULL));
 //			else
+			if (pr_scope->type->aux_type->type == ev_vector)	//make sure bad returns don't return junk in the y+z members.
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], QCC_MakeVectorConst(0,0,0), nullsref, NULL));
+			else
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], nullsref, nullsref, NULL));
 			return;
 		}
@@ -12252,6 +12255,7 @@ void QCC_PR_FinaliseFunction(QCC_function_t *f)
 	QCC_PR_ResumeFunction(f);
 
 	pr_token_line_last = f->line_end;
+	s_filen = f->filen;
 	
 	if (f->returndef.cast)
 	{

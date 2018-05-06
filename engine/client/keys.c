@@ -2745,7 +2745,8 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		default:
 			dc = keybindings[key][modifierstate];
 			//toggleconsole or +showFOO keys should do their regular bind action
-			if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5)))
+			//demo_jump/demo_setspeed/demo_nudge should be allowed too.
+			if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5) && strncmp(dc, "demo_", 5)))
 			{
 				M_ToggleMenu_f ();
 				return;

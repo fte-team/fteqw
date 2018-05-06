@@ -35,12 +35,12 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 		fmt = D3DFMT_R5G6B5;
 		break;
 	case PTI_RGBA4444://not supported on d3d9
-		return false;
+		break;
 	case PTI_ARGB4444:
 		fmt = D3DFMT_A4R4G4B4;
 		break;
 	case PTI_RGBA5551://not supported on d3d9
-		return false;
+		break;
 	case PTI_ARGB1555:
 		fmt = D3DFMT_A1R5G5B5;
 		break;
@@ -158,6 +158,8 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 				break;
 			}
 		}
+
+		//Microsoft's code will reject any dxt texture with a mip[0] width/height that is not a multiple of 4.
 
 		if (FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, mips->mip[0].width, mips->mip[0].height, mipcount, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
 			return false;

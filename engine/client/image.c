@@ -4433,6 +4433,7 @@ typedef union
 	byte_vec4_t v;
 	unsigned int u;
 } pixel32_t;
+#define etc_expandv(p,x,y,z) p.v[0]|=p.v[0]>>x,p.v[1]|=p.v[1]>>y,p.v[2]|=p.v[2]>>z
 #ifdef DECOMPRESS_ETC2
 //FIXME: this is littleendian only...
 static void Image_Decode_ETC2_Block_TH_Internal(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, pixel32_t base1, pixel32_t base2, int d, qboolean tmode)
@@ -4506,8 +4507,6 @@ static void Image_Decode_ETC2_Block_Internal(qbyte *fte_restrict in, pixel32_t *
 	const char *cw1, *cw2;
 	unsigned char R1,G1,B1;
 	pixel32_t *out1, *out2, *out3;
-
-#define etc_expandv(p,x,y,z) p.v[0]|=p.v[0]>>x,p.v[1]|=p.v[1]>>y,p.v[2]|=p.v[2]>>z
 
 	qboolean opaque;
 
@@ -4757,15 +4756,15 @@ static void Image_Decode_S3TC_Block_Internal(qbyte *fte_restrict in, pixel32_t *
 }
 static void Image_Decode_BC1_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
 {
-	Image_S3TC_Decode_Block_Internal(in, out, w, 0xff);
+	Image_Decode_S3TC_Block_Internal(in, out, w, 0xff);
 }
 static void Image_Decode_BC1A_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
 {
-	Image_S3TC_Decode_Block_Internal(in, out, w, 0);
+	Image_Decode_S3TC_Block_Internal(in, out, w, 0);
 }
 static void Image_Decode_BC2_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
 {
-	Image_S3TC_Decode_Block_Internal(in+8, out, w, 0xff);
+	Image_Decode_S3TC_Block_Internal(in+8, out, w, 0xff);
 
 	//BC2 has straight 4-bit alpha.
 #define BC2_AlphaRow()	\
@@ -4849,8 +4848,8 @@ static void Image_Decode_RGTC_Block_Internal(qbyte *fte_restrict in, qbyte *fte_
 //s3tc rgb channel, with an rgtc alpha channel that depends upon both encodings (really the origin of rgtc, but mneh).
 static void Image_Decode_BC3_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
 {
-	Image_S3TC_Decode_Block_Internal(in+8, out, w, 0xff);
-	Image_RGTC_Decode_Block_Internal(in, out->v+3, w*4, false);
+	Image_Decode_S3TC_Block_Internal(in+8, out, w, 0xff);
+	Image_Decode_RGTC_Block_Internal(in, out->v+3, w*4, false);
 }
 #endif
 static void Image_Decode_BC4U_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
@@ -5241,7 +5240,20 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 
 	//if that format isn't supported/desired, try converting it.
 	if (sh_config.texfmt[mips->encoding])
-		return;
+	{
+		if (sh_config.texture_allow_block_padding && mips->mipcount)
+		{	//direct3d is annoying, and will reject any block-compressed format with a base mip size that is not a multiple of the block size.
+			//its fine with weirdly sized mips though. I have no idea why there's this restriction, but whatever.
+			//we need to de
+			int blockbytes, blockwidth, blockheight;
+			Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
+			if (!(mips->mip[0].width % blockwidth) && !(mips->mip[0].height % blockheight))
+				return;
+			//else encoding isn't supported for this size. fall through.
+		}
+		else
+			return;
+	}
 
 	{	//various compressed formats might not be supported.
 		void *decodefunc = NULL;

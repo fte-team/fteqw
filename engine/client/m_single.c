@@ -1106,8 +1106,13 @@ void M_Menu_MediaFiles_f (void)
 	info->ext[info->numext] = ".wav";
 	info->command[info->numext] = "media_add";
 	info->numext++;
+#if defined(AVAIL_OGGOPUS) || defined(FTE_TARGET_WEB)
+	info->ext[info->numext] = ".opus";
+	info->command[info->numext] = "media_add";
+	info->numext++;
+#endif
 #if defined(AVAIL_OGGVORBIS) || defined(FTE_TARGET_WEB)
-	info->ext[info->numext] = ".ogg";	//will this ever be added properly?
+	info->ext[info->numext] = ".ogg";
 	info->command[info->numext] = "media_add";
 	info->numext++;
 #endif

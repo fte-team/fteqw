@@ -818,6 +818,8 @@ typedef struct
 	float oldgametime;		//used as the old time to lerp cl.time from.
 	float oldgametimemark;	//if it's 0, cl.time will casually increase.
 	float demogametimebias;	//mvd timings are weird.
+	int	  demonudge;		//
+	float demopausedtilltime;//demo is paused until realtime>this
 
 	float minpitch;
 	float maxpitch;
@@ -1229,6 +1231,7 @@ void CL_QTVPoll (void);
 void CL_QTVList_f (void);
 void CL_QTVDemos_f (void);
 void CL_DemoJump_f(void);
+void CL_DemoNudge_f(void);
 void CL_ProgressDemoTime(void);
 void CL_TimeDemo_f (void);
 typedef struct 

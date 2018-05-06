@@ -1468,7 +1468,7 @@ void M_Keydown (int key, int unicode)
 		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 			menu_mousedown = true;
 		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
-			;
+			;	//modifiers are sent on up events instead.
 		else
 			M_Complex_Key (key, unicode);
 		return;

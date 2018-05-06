@@ -668,6 +668,11 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_DPrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
+	if ((!gl_config.gles && gl_config.glversion >= 2) || GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
+		sh_config.texture_allow_block_padding = true;	//gl2/npot explicitly relaxes this restriction
+	else
+		sh_config.texture_allow_block_padding = false;	//gles does not support padded sizes, even with gles3. This is especially true if we're running atop d3d-via-webgl.
+
 	if (!gl_config.gles && gl_config.glversion >= 3)
 	{	//GL_ARB_texture_non_power_of_two is supposed to be mandatory in gl2+ and thus checking for it is redundant and not forwards-compatible
 		//geforcefx apparently software emulates it, so only activate it unconditionally on gl3+ hardware.

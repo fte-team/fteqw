@@ -3612,6 +3612,24 @@ void Cmd_toggle_f(void)
 		Cvar_Set(v, "1");
 }
 
+static void Cmd_Set_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	extern cvar_group_t *cvar_groups;
+	size_t len = strlen(partial);
+	cvar_group_t	*grp;
+	cvar_t	*var;
+	if (argn != 1)
+		return;
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+		for (var=grp->cvars ; var ; var=var->next)
+		{
+			if (!Q_strncasecmp (partial, var->name, len))
+				ctx->cb(var->name, var->description, NULL, ctx);
+			else if (var->name2 && !Q_strncasecmp (partial, var->name2, len))
+				ctx->cb(var->name2, var->description, NULL, ctx);
+		}
+}
+
 void Cmd_set_f(void)
 {
 	void *mark;
@@ -4185,14 +4203,16 @@ void Cmd_Init (void)
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
 	Cmd_AddCommand ("toggle", Cmd_toggle_f);
-	Cmd_AddCommand ("set", Cmd_set_f);
-	Cmd_AddCommand ("setfl", Cmd_set_f);
-	Cmd_AddCommand ("set_calc", Cmd_set_f);
-	Cmd_AddCommand ("set_tp", Cmd_set_f);
-	Cmd_AddCommand ("seta", Cmd_set_f);
-	Cmd_AddCommand ("seta_calc", Cmd_set_f);
+	Cmd_AddCommandAD ("set", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist.");
+	Cmd_AddCommandAD ("setfl", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist. The third arg allows setting cvar flags and should be u, s, or a. This command should normally be used only inside default.cfg.");
+	Cmd_AddCommandAD ("set_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression.");
+#ifndef QUAKETC
+	Cmd_AddCommandAD ("set_tp", Cmd_set_f, Cmd_Set_c, "Identical to set. Included for compatibility with ezquake where ruleset restrictions on macros are on commands rather than cvars.");
+#endif
+	Cmd_AddCommandAD ("seta", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist. Also forces the archive flag so that the cvar will always be written into any saved configs.");
+	Cmd_AddCommandAD ("seta_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression. Also forces the archive flag so that the cvar will always be written into any saved configs.");
 	Cmd_AddCommand ("vstr", Cmd_Vstr_f);
-	Cmd_AddCommand ("inc", Cvar_Inc_f);
+	Cmd_AddCommandAD ("inc", Cvar_Inc_f, Cmd_Set_c, "Adds a value to the named cvar. Use a negative value if you wish to decrease the cvar's value.");
 	//FIXME: Add seta some time.
 	Cmd_AddCommand ("if", Cmd_if_f);
 

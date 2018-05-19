@@ -141,13 +141,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <time.h>
 
 #ifdef USE_MSVCRT_DEBUG
-#define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
+	#define _CRTDBG_MAP_ALLOC
+	#include <crtdbg.h>
 #endif
 #if defined(_WIN32) || defined(__DJGPP__)
-#include <malloc.h>
-#else
-#include <alloca.h>
+	#include <malloc.h>
+#elif !defined(alloca)	//alloca.h isn't present on bsd (stdlib.h should define it to __builtin_alloca, and we can check for that here).
+	#include <alloca.h>
 #endif
 
 #ifdef __cplusplus

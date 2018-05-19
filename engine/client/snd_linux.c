@@ -6,7 +6,11 @@
 #include <sys/mman.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
-#include <sys/soundcard.h>
+#if defined(__OpenBSD__)
+	#include <soundcard.h>	//OpenBSD emulates this, so its no longer sys/.
+#else
+	#include <sys/soundcard.h>
+#endif
 #include <stdio.h>
 #include "quakedef.h"
 

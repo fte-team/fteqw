@@ -1,12 +1,10 @@
 //#include "glquake.h"
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define VK_USE_PLATFORM_WIN32_KHR
-#define VKInstWin32Funcs VKFunc(CreateWin32SurfaceKHR)
-#endif
-
-#ifdef ANDROID
+#if defined(_WIN32)
+	#define WIN32_LEAN_AND_MEAN
+	#define VK_USE_PLATFORM_WIN32_KHR
+	#define VKInstWin32Funcs VKFunc(CreateWin32SurfaceKHR)
+#elif defined(ANDROID)
 	#define VK_USE_PLATFORM_ANDROID_KHR
 	#define VKInstXLibFuncs VKFunc(CreateAndroidSurfaceKHR)
 #elif defined(__linux__)
@@ -18,6 +16,12 @@
 	
 	#define VK_USE_PLATFORM_WAYLAND_KHR
 	#define VKInstWaylandFuncs VKFunc(CreateWaylandSurfaceKHR)
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+	#define VK_USE_PLATFORM_XLIB_KHR
+	#define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
+
+	#define VK_USE_PLATFORM_XCB_KHR
+	#define VKInstXCBFuncs VKFunc(CreateXcbSurfaceKHR)
 #endif
 
 #define VK_NO_PROTOTYPES

@@ -826,7 +826,7 @@ qboolean LibPNG_Init(void)
 			char *libnames[] =
 			{
 			#ifdef _WIN32
-				va("libpng%i", PNG_LIBPNG_VER_DLLNUM);
+				va("libpng%i", PNG_LIBPNG_VER_DLLNUM)
 			#else
 				//linux...
 				//lsb uses 'libpng12.so' specifically, so make sure that works.

@@ -394,23 +394,23 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 		FTE_TARGET=win32
 	endif
 	ifeq ($(FTE_TARGET),) 	#still not set
-
-		ifeq ($(shell uname),Linux)
+		UNAME_SYSTEM:=$(shell uname)
+		ifeq ($(UNAME_SYSTEM),Linux)
 			FTE_TARGET=linux
 		endif
-		ifeq ($(shell uname),Darwin)
+		ifeq ($(UNAME_SYSTEM),Darwin)
 			FTE_TARGET=macosx
 		endif
-		ifeq ($(shell uname),FreeBSD)
+		ifeq ($(UNAME_SYSTEM),FreeBSD)
 			FTE_TARGET=bsd
 		endif
-		ifeq ($(shell uname),NetBSD)
+		ifeq ($(UNAME_SYSTEM),NetBSD)
 			FTE_TARGET=bsd
 		endif
-		ifeq ($(shell uname),OpenBSD)
+		ifeq ($(UNAME_SYSTEM),OpenBSD)
 			FTE_TARGET=bsd
 		endif
-		ifeq ($(shell uname),MorphOS)
+		ifeq ($(UNAME_SYSTEM),MorphOS)
 			FTE_TARGET=morphos
 		endif
 		#else I've no idea what it is you're running
@@ -1247,9 +1247,10 @@ ifeq ($(FTE_TARGET),bsd)
 	#mostly uses the linux stuff.
 	#oss, X, etc.
 
-	SV_DIR=sv_linux
-	SV_LDFLAGS=-lz -ldl
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+	SV_DIR=sv_bsd
+	SV_EXE_NAME=../$(EXE_NAME)-sv$(BITS)
+	SV_LDFLAGS=
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-gl
@@ -1263,12 +1264,25 @@ ifeq ($(FTE_TARGET),bsd)
 	M_EXE_NAME=../$(EXE_NAME)
 	MCL_EXE_NAME=../$(EXE_NAME)-cl
 	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include -DMULTITHREAD
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 
 	MINGL_EXE_NAME=../$(EXE_NAME)-mingl
 	MINGL_DIR=mingl_bsd
+
+	ifeq ($(shell uname -s),OpenBSD)
+		GL_LDFLAGS+= -lossaudio
+		VK_LDFLAGS+= -lossaudio
+		M_LDFLAGS+= -lossaudio
+	endif
+
+	ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
+		SV_LDFLAGS+= -lz
+		GL_LDFLAGS+= -lz
+		VK_LDFLAGS+= -lz
+		M_LDFLAGS+= -lz
+	endif
 endif
 ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_DIR=sv_linux$(BITS)

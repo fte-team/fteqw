@@ -1249,7 +1249,7 @@ ifeq ($(FTE_TARGET),bsd)
 
 	SV_DIR=sv_bsd
 	SV_EXE_NAME=../$(EXE_NAME)-sv$(BITS)
-	SV_LDFLAGS=
+	SV_LDFLAGS=-lpthread
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
@@ -1271,6 +1271,7 @@ ifeq ($(FTE_TARGET),bsd)
 	MINGL_EXE_NAME=../$(EXE_NAME)-mingl
 	MINGL_DIR=mingl_bsd
 
+	#openbsd has a special library for oss emulation.
 	ifeq ($(shell uname -s),OpenBSD)
 		GL_LDFLAGS+= -lossaudio
 		VK_LDFLAGS+= -lossaudio

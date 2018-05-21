@@ -47,7 +47,7 @@ enum mastertype_e
 };
 
 
-typedef enum
+typedef enum hostcachekey_e
 {
 	SLKEY_PING,
 	SLKEY_MAP,
@@ -81,7 +81,7 @@ typedef enum
 	SLKEY_CUSTOM = SLKEY_PLAYER0+MAX_CLIENTS
 } hostcachekey_t;
 
-typedef enum
+typedef enum slist_test_e
 {
 	SLIST_TEST_CONTAINS,
 	SLIST_TEST_NOTCONTAIN,
@@ -226,11 +226,11 @@ void MasterInfo_Refresh(qboolean doreset);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);
 
-int Master_KeyForName(const char *keyname);
-float Master_ReadKeyFloat(serverinfo_t *server, int keynum);
-char *Master_ReadKeyString(serverinfo_t *server, int keynum);
+hostcachekey_t Master_KeyForName(const char *keyname);
+float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum);
+char *Master_ReadKeyString(serverinfo_t *server, hostcachekey_t keynum);
 
-void Master_SortServers(void);
+int Master_SortServers(void);
 void Master_SetSortField(hostcachekey_t field, qboolean descending);
 hostcachekey_t Master_GetSortField(void);
 qboolean Master_GetSortDescending(void);

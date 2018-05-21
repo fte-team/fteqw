@@ -5213,7 +5213,10 @@ void SV_InitLocal (void)
 	Cvar_Register(&sv_autosave, cvargroup_servercontrol);
 #endif
 #endif
-	Cmd_AddCommandAD ("savegame_legacy", SV_LegacySavegame_f, SV_Savegame_c, "Saves the game in a format compatible with vanilla Quake. Anything not supported by that format will be lost.");
+	Cvar_Register(&sv_savefmt, cvargroup_servercontrol);
+#ifndef QUAKETC
+	Cmd_AddCommandAD ("savegame_legacy", SV_Savegame_f, SV_Savegame_c, "Saves the game in a format compatible with vanilla Quake. Anything not supported by that format will be lost.");
+#endif
 	Cmd_AddCommandAD ("savegame", SV_Savegame_f, SV_Savegame_c, "Saves the game to the named location.");
 	Cmd_AddCommandAD ("loadgame", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
 	Cmd_AddCommandAD ("save", SV_Savegame_f, SV_Savegame_c, "Saves the game to the named location.");

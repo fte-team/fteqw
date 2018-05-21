@@ -2727,6 +2727,8 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 			{
 				CHARRANGE chrg;
 
+				if (!editor->modified)
+					editor->oldline=~0;
 				editor->modified = true;
 				if (EditorModified(editor))
 					if (MessageBox(NULL, "warning: file was modified externally. reload?", "Modified!", MB_YESNO) == IDYES)
@@ -2835,9 +2837,11 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					Scin_HandleCharAdded(editor, not, pos);
 					break;
 				case SCN_SAVEPOINTREACHED:
+					editor->oldline=~0;
 					editor->modified = false;
 					break;
 				case SCN_SAVEPOINTLEFT:
+					editor->oldline=~0;
 					editor->modified = true;
 
 					if (EditorModified(editor))
@@ -3338,6 +3342,7 @@ int EditorSave(editor_t *edit)
 	edit->filemodifiedtime = sbuf.st_mtime;
 
 	//remove the * in a silly way.
+	edit->oldline=~0;
 	UpdateEditorTitle(edit);
 
 	return true;
@@ -5833,8 +5838,23 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 	int i;
 	RECT rect;
 	PAINTSTRUCT ps;
+	editor_t *editor;
 	switch (message)
 	{
+	case WM_CLOSE:
+		//if any child editors are still open, send close requests to them first.
+		//this allows them to display prompts, instead of silently losing changes.
+		for (editor = editors; editor;)
+		{
+			editor_t *n = editor->next;
+			if (editor->window)
+				SendMessage(editor->window, WM_CLOSE, 0, 0);
+			editor = n;
+		}
+		//okay, they're all dead. we can kill ourselves now.
+		if (!editors)
+			DestroyWindow(hWnd);
+		return 0;
 	case WM_CREATE:
 		{
 			CLIENTCREATESTRUCT ccs;

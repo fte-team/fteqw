@@ -2542,6 +2542,33 @@ static void SV_Gamedir (void)
 	Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
 }
 
+static int QDECL CompleteGamedirPath (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	char dirname[MAX_QPATH];
+	if (*name)
+	{
+		size_t l = strlen(name)-1;
+		if (l < countof(dirname) && name[l] == '/')
+		{	//directories are marked with an explicit trailing slash. because we're weird.
+			memcpy(dirname, name, l);
+			dirname[l] = 0;
+			ctx->cb(dirname, NULL, NULL, ctx);
+		}
+	}
+	return true;
+}
+static void SV_Gamedir_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	extern qboolean	com_homepathenabled;
+	if (argn == 1)
+	{
+		if (com_homepathenabled)
+			Sys_EnumerateFiles(com_homepath, va("%s*", partial), CompleteGamedirPath, ctx, NULL);
+		Sys_EnumerateFiles(com_gamepath, va("%s*", partial), CompleteGamedirPath, ctx, NULL);
+	}
+}
+
 /*
 ================
 SV_Gamedir_f
@@ -3045,8 +3072,8 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 
 	Cmd_AddCommand ("localinfo", SV_Localinfo_f);
-	Cmd_AddCommandD ("gamedir", SV_Gamedir_f, "Change the current gamedir.");
-	Cmd_AddCommand ("sv_gamedir", SV_Gamedir);
+	Cmd_AddCommandAD ("gamedir", SV_Gamedir_f, SV_Gamedir_c, "Change the current gamedir.");
+	Cmd_AddCommandAD ("sv_gamedir", SV_Gamedir, SV_Gamedir_c, "Change the gamedir reported to clients, without changing any actual paths on the server.");
 	Cmd_AddCommand ("sv_settimer", SV_SetTimer_f);
 	Cmd_AddCommand ("stuffcmd", SV_StuffToClient_f);
 

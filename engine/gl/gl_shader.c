@@ -5425,6 +5425,8 @@ done:;
 		for (i = 0; i < s->numpasses; i++)
 		{
 			pass = &s->passes[i];
+			if (pass->prog)
+				continue;
 			if (pass->numtcmods || (s->passes[i].tcgen != TC_GEN_BASE && s->passes[i].tcgen != TC_GEN_LIGHTMAP) || !(s->passes[i].flags & SHADER_PASS_NOCOLORARRAY))
 			{
 				s->flags |= SHADER_NEEDSARRAYS;

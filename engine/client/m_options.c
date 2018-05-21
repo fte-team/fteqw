@@ -3638,8 +3638,12 @@ void M_Menu_ModelViewer_f(void)
 
 typedef struct
 {
-	ftemanifest_t **manifests;
-	size_t nummanifests;
+	struct
+	{
+		ftemanifest_t *manifest;
+		char *gamedir;
+	} *mod;
+	size_t nummods;
 	int y;
 } modmenu_t;
 
@@ -3652,7 +3656,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 
 	mods->y = y;
 
-	if (!mods->nummanifests)
+	if (!mods->nummods)
 	{
 		Draw_FunString(x, y+0, "No games or mods known");
 #if defined(FTE_TARGET_WEB) || defined(NACL)
@@ -3665,12 +3669,22 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 		return;
 	}
 
-	for (i = 0; y+8 <= ym && i < mods->nummanifests; y+=8, i++)
+	for (i = 0; y+8 <= ym && i < mods->nummods; y+=8, i++)
 	{
-		if (mousecursor_y >= y && mousecursor_y < y+8)
-			Draw_AltFunString(x, y, mods->manifests[i]->formalname);
+		if (mods->mod[i].manifest)
+		{
+			if (mousecursor_y >= y && mousecursor_y < y+8)
+				Draw_AltFunString(x, y, mods->mod[i].manifest->formalname);
+			else
+				Draw_FunString(x, y, mods->mod[i].manifest->formalname);
+		}
 		else
-			Draw_FunString(x, y, mods->manifests[i]->formalname);
+		{
+			if (mousecursor_y >= y && mousecursor_y < y+8)
+				Draw_AltFunString(x, y, mods->mod[i].gamedir);
+			else
+				Draw_FunString(x, y, mods->mod[i].gamedir);
+		}
 	}
 }
 static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
@@ -3678,14 +3692,14 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsi
 	modmenu_t *mods = c->dptr;
 	int i;
 	ftemanifest_t *man;
-	if (key == K_MOUSE1)
+	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
 		i = (mousecursor_y - mods->y)/8;
-		if (i < 0 || i > mods->nummanifests)
+		if (i < 0 || i > mods->nummods)
 			return false;
-		man = mods->manifests[i];
-		mods->manifests[i] = NULL;	//make sure the manifest survives the menu being closed.
+		man = mods->mod[i].manifest;
+		mods->mod[i].manifest = NULL;	//make sure the manifest survives the menu being closed.
 		M_RemoveMenu(m);
 		FS_ChangeGame(man, true, true);
 
@@ -3711,22 +3725,60 @@ static void Mods_Remove	(struct menu_s *m)
 	modmenu_t *mods = m->data;
 	int i;
 
-	for (i = 0; i < mods->nummanifests; i++)
+	for (i = 0; i < mods->nummods; i++)
 	{
-		if (mods->manifests[i])
-			FS_Manifest_Free(mods->manifests[i]);
+		if (mods->mod[i].manifest)
+			FS_Manifest_Free(mods->mod[i].manifest);
+		Z_Free(mods->mod[i].gamedir);
 	}
-	Z_Free(mods->manifests);
-	mods->manifests = NULL;
+	Z_Free(mods->mod);
+	mods->mod = NULL;
 }
 
-static qboolean Mods_AddMod(void *usr, ftemanifest_t *man)
+static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
 {
 	modmenu_t *mods = usr;
-	int i = mods->nummanifests;
-	mods->manifests = BZ_Realloc(mods->manifests, (i+1) * sizeof(*mods->manifests));
-	mods->manifests[i] = man;
-	mods->nummanifests = i+1;
+	int i = mods->nummods;
+	mods->mod = BZ_Realloc(mods->mod, (i+1) * sizeof(*mods->mod));
+	mods->mod[i].manifest = man;
+	mods->mod[i].gamedir = NULL;
+	mods->nummods = i+1;
+	return true;
+}
+static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, void *usr, searchpathfuncs_t *spath)
+{
+	modmenu_t *mods = usr;
+	size_t l = strlen(fname);
+	int i, p;
+	char gamedir[MAX_QPATH];
+	if (l && fname[l-1] == '/' && l < countof(gamedir))
+	{
+		l--;
+		memcpy(gamedir, fname, l);
+		gamedir[l] = 0;
+		for (i = 0; i < mods->nummods; i++)
+		{
+			//don't add dupes (can happen from gamedir+homedir)
+			//if the gamedir was already included in one of the manifests, don't bother including it again.
+			//this generally removes id1.
+			if (mods->mod[i].manifest)
+			{
+				for (p = 0; p < countof(fs_manifest->gamepath); p++)
+					if (mods->mod[i].manifest->gamepath[p].path)
+						if (!Q_strcasecmp(mods->mod[i].manifest->gamepath[p].path, gamedir))
+							return true;
+			}
+			else if (mods->mod[i].gamedir)
+			{
+				if (!Q_strcasecmp(mods->mod[i].gamedir, gamedir))
+					return true;
+			}
+		}
+		mods->mod = BZ_Realloc(mods->mod, (i+1) * sizeof(*mods->mod));
+		mods->mod[i].manifest = NULL;
+		mods->mod[i].gamedir = Z_StrDup(gamedir);
+		mods->nummods = i+1;
+	}
 	return true;
 }
 
@@ -3737,9 +3789,16 @@ void M_Menu_Mods_f (void)
 	modmenu_t mods;
 	menucustom_t *c;
 	menu_t *menu;
+	extern qboolean com_homepathenabled;
 
 	memset(&mods, 0, sizeof(mods));
-	FS_EnumerateKnownGames(Mods_AddMod, &mods);
+	FS_EnumerateKnownGames(Mods_AddManifest, &mods);
+
+	if (com_homepathenabled)
+		Sys_EnumerateFiles(com_homepath, "*", Mods_AddGamedir, &mods, NULL);
+	Sys_EnumerateFiles(com_gamepath, "*", Mods_AddGamedir, &mods, NULL);
+
+	//FIXME: sort by mtime?
 
 	Key_Dest_Add(kdm_emenu);
 

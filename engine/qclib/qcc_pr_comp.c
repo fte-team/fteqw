@@ -6935,6 +6935,41 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 	return lhs;
 }
 
+//this is more complex than it needs to be, in order to ensure that anon unions/structs can be handled.
+struct QCC_typeparam_s *QCC_PR_FindStructMember(QCC_type_t *t, const char *membername, unsigned int *out_ofs)
+{
+	unsigned int nofs;
+	int i;
+	struct QCC_typeparam_s *r = NULL, *n;
+	for (i = 0; i < t->num_parms; i++)
+	{
+		if ((!t->params[i].paramname || !*t->params[i].paramname) && (t->params[i].type->type == ev_struct || t->params[i].type->type == ev_union))
+		{	//anonymous structs/unions can nest
+			n = QCC_PR_FindStructMember(t->params[i].type, membername, &nofs);
+			if (n)
+			{
+				if (r)
+					break;
+				r = n;
+				*out_ofs = t->params[i].ofs + nofs;
+			}
+		}
+		else if (flag_caseinsensitive?!stricmp (t->params[i].paramname, membername):!STRCMP(t->params[i].paramname, membername))
+		{
+			if (r)
+				break;
+			r = t->params+i;
+			*out_ofs = r->ofs;
+		}
+	}
+	if (i < t->num_parms)
+	{
+		QCC_PR_ParseError(0, "multiple members found matching %s.%s", t->name, membername);
+		return NULL;
+	}
+	return r;
+}
+
 /*checks for:
 <d>[X]
 <d>[X].foo
@@ -7177,8 +7212,9 @@ vectorarrayindex:
 		else if (((t->type == ev_pointer && !arraysize) || (t->type == ev_field && (t->aux_type->type == ev_struct || t->aux_type->type == ev_union)) || t->type == ev_struct || t->type == ev_union) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 		{
 			char *tname;
-			unsigned int i;
+			unsigned int ofs;
 			pbool fld = t->type == ev_field;
+			struct QCC_typeparam_s *p;
 			if (!idx.cast && t->type == ev_pointer && !arraysize)
 			{
 				t = t->aux_type;
@@ -7200,18 +7236,14 @@ vectorarrayindex:
 			else
 				QCC_PR_ParseError(0, "indirection in something that is not a struct or union", tname);
 
-			for (i = 0; i < t->num_parms; i++)
-			{
-				if (QCC_PR_CheckName(t->params[i].paramname))
-					break;
-			}
-			if (i == t->num_parms)
+			p = QCC_PR_FindStructMember(t, QCC_PR_ParseName(), &ofs);
+			if (!p)
 				QCC_PR_ParseError(0, "%s is not a member of %s", pr_token, tname);
-			if (!t->params[i].ofs && idx.cast)
+			if (!ofs && idx.cast)
 				;
 			else if (QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
 			{
-				tmp = QCC_MakeIntConst(t->params[i].ofs);
+				tmp = QCC_MakeIntConst(ofs);
 				if (idx.cast)
 					idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], QCC_SupplyConversion(idx, ev_integer, true), QCC_SupplyConversion(tmp, ev_integer, true), NULL);
 				else
@@ -7219,14 +7251,14 @@ vectorarrayindex:
 			}
 			else
 			{
-				tmp = QCC_MakeFloatConst(t->params[i].ofs);
+				tmp = QCC_MakeFloatConst(ofs);
 				if (idx.cast)
 					idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], QCC_SupplyConversion(idx, ev_float, true), QCC_SupplyConversion(tmp, ev_float, true), NULL);
 				else
 					idx = tmp;
 			}
-			arraysize = t->params[i].arraysize;
-			t = t->params[i].type;
+			arraysize = p->arraysize;
+			t = p->type;
 
 			if (fld)
 				t = QCC_PR_FieldType(t);

@@ -599,6 +599,7 @@ CLIENT_OBJS = \
 	m_options.o	\
 	m_single.o	\
 	m_script.o	\
+	m_native.o	\
 	m_mp3.o	\
 	roq_read.o	\
 	clq2_cin.o	\

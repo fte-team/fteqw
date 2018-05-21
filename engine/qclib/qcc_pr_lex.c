@@ -3657,7 +3657,10 @@ void QCC_PR_Lex (void)
 
 	QCC_PR_LexWhitespace (false);
 
-	pr_token_line_last = pr_token_line;
+	if (currentchunk)
+		pr_token_line_last = currentchunk->currentlinenumber-1 + pr_token_line;
+	else
+		pr_token_line_last = pr_token_line;
 	pr_token_line = pr_source_line;
 
 	if (!pr_file_p)

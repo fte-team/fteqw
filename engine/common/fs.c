@@ -114,14 +114,14 @@ void FS_UnRegisterFileSystemModule(void *module)
 	}
 }
 
-char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
+char *VFS_GETS(vfsfile_t *vf, char *buffer, size_t buflen)
 {
 	char in;
 	char *out = buffer;
-	int len;
-	len = buflen-1;
-	if (len == 0)
+	size_t len;
+	if (buflen <= 1)
 		return NULL;
+	len = buflen-1;
 	while (len > 0)
 	{
 		if (VFS_READ(vf, &in, 1) != 1)
@@ -146,7 +146,7 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
 	return buffer;
 }
 
-void VARGS VFS_PRINTF(vfsfile_t *vf, char *format, ...)
+void VARGS VFS_PRINTF(vfsfile_t *vf, const char *format, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -4462,8 +4462,8 @@ static int FS_IdentifyDefaultGameFromDir(const char *basedir)
 
 //attempt to work out which game we're meant to be trying to run based upon a few things
 //1: fs_changegame console command override. fixme: needs to cope with manifests too.
-//2: -quake3 argument implies that the user wants to run quake3.
-//3: if we are ftequake3.exe then we always try to run quake3.
+//2: -quake3 (etc) argument implies that the user wants to run quake3.
+//3: otherwise if we are ftequake3.exe then we try to run quake3.
 //4: identify characteristic files within the working directory (like id1/pak0.pak implies we're running quake)
 //5: check where the exe actually is instead of simply where we're being run from.
 //6: try the homedir, just in case.

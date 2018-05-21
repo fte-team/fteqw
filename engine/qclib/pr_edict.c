@@ -1477,7 +1477,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 	ddef32_t		*def32;
 	ddef16_t		*def16;
 	unsigned int			i;
-	unsigned int j;
+//	unsigned int j;
 	const char	*name;
 	int			type;
 	int curprogs = prinst.pr_typecurrent;
@@ -1538,13 +1538,13 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 
 			v = (int *)&current_progstate->globals[def16->ofs];
 
-			// make sure the value is not null, where there's no point in saving
+/*			// make sure the value is not null, where there's no point in saving
 			for (j=0 ; j<type_size[type] ; j++)
 				if (v[j])
 					break;
 			if (j == type_size[type])
 				continue;
-
+*/
  add16:
 			AddS("\""); AddS(name); AddS("\" \""); AddS(PR_UglyValueString(&progfuncs->funcs, def16->type&~DEF_SAVEGLOBAL, (eval_t *)v)); AddS("\"\n");
 		}
@@ -1594,12 +1594,12 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 
 			v = (int *)&current_progstate->globals[def32->ofs];
 
-			// make sure the value is not null, where there's no point in saving
+/*			// make sure the value is not null, where there's no point in saving
 			for (j=0 ; j<type_size[type] ; j++)
 				if (v[j])
 					break;
 			if (j == type_size[type])
-				continue;
+				continue;*/
 add32:
 			AddS("\""); AddS(name); AddS("\" \""); AddS(PR_UglyValueString(&progfuncs->funcs, def32->type&~DEF_SAVEGLOBAL, (eval_t *)v)); AddS("\"\n");
 		}
@@ -1748,6 +1748,9 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_
 //there are two ways of saving everything.
 //0 is to save just the entities.
 //1 is to save the entites, and all the progs info so that all the variables are saved off, and it can be reloaded to exactly how it was (provided no files or data has been changed outside, like the progs.dat for example)
+//2 is for vanilla-compatible saved games
+//3 is a (human-readable) coredump
+//4 is binary saved games.
 char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t bufmax, int alldata)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -1764,8 +1767,12 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 	}
 	*bufofs = 0;
 
-	if (alldata == 2)
-	{	//special Q1 savegame compatability mode.
+	switch(alldata)
+	{
+	default:
+		return NULL;
+	case 2:
+		//special Q1 savegame compatability mode.
 		//engine will need to store references to progs type and will need to preload the progs and inti the ents itself before loading.
 
 		//Make sure there is only 1 progs loaded.
@@ -1785,9 +1792,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 
 		oldprogs = prinst.pr_typecurrent;
 		PR_SwitchProgs(progfuncs, 0);
-
 		ED_WriteGlobals(progfuncs, buf, bufofs, bufmax);
-
 		PR_SwitchProgs(progfuncs, oldprogs);
 
 		AddS ("}\n");
@@ -1807,10 +1812,11 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 		}
 
 		return buf;
-	}
 
-	if (alldata)
-	{
+	case 0:	//Writes entities only
+		break;
+	case 1:
+	case 3:
 		AddS("general {\n");
 		AddS(qcva("\"maxprogs\" \"%i\"\n", prinst.maxprogs));
 //		AddS(qcva("\"maxentities\" \"%i\"\n", maxedicts));
@@ -1856,6 +1862,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 		}
 		PR_SwitchProgs(progfuncs, oldprogs);
 	}
+
 	for (a = 0; a < sv_num_edicts; a++)
 	{
 		edictrun_t *ed = (edictrun_t *)EDICT_NUM(progfuncs, a);

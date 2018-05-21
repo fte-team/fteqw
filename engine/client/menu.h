@@ -110,7 +110,6 @@ void M_Shutdown(qboolean total);
 void M_Keydown (int key, int unicode);
 void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
-void M_ToggleMenu_f (void);
 void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 void M_Menu_Installer (void);	//given an embedded manifest, this displays an install menu for said game.
 mpic_t	*M_CachePic (char *path);
@@ -454,7 +453,6 @@ void M_UnbindCommand (const char *command);
 //no builtin menu code.
 //stubs
 #define M_Menu_Prompt(cb,ctx,messages,optionyes,optionno,optioncancel) (cb)(ctx,-1)
-#define M_ToggleMenu_f() Cbuf_AddText("togglemenu\n",RESTRICT_LOCAL)
 //#define M_Shutdown(t) MP_Shutdown()
 
 void M_Init (void);
@@ -466,6 +464,7 @@ void M_Draw (int uimenu);
 #endif
 int M_FindKeysForCommand (int bindmap, int pnum, const char *command, int *keylist, int *keymods, int keycount);
 int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount);
+void M_ToggleMenu_f (void);
 
 #ifdef MENU_DAT
 void MP_CvarChanged(cvar_t *var);
@@ -482,6 +481,13 @@ qboolean MP_MousePosition(float x, float y, unsigned int devid);
 qboolean MP_JoystickAxis(int axis, float value, unsigned int devid);
 int MP_BuiltinValid(const char *name, int num);
 qboolean MP_ConsoleCommand(const char *cmdtext);
+#endif
+
+#ifdef MENU_NATIVECODE
+#include "../native/api_menu.h"
+extern menu_export_t *mn_entry;
+void MN_Shutdown(void);
+qboolean MN_Init(void);
 #endif
 
 #define MGT_BAD    ~0

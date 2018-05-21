@@ -397,6 +397,7 @@ struct {
 } targets[] = {
 	{QCF_STANDARD,	"standard"},
 	{QCF_STANDARD,	"q1"},
+	{QCF_STANDARD,	"id"},
 	{QCF_STANDARD,	"quakec"},
 	{QCF_HEXEN2,	"hexen2"},
 	{QCF_HEXEN2,	"h2"},
@@ -4141,6 +4142,8 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			{
 				flag_acc = true;
 			}
+			else if (!strcmp(myargv[i]+5, "frikqcc"))
+				keyword_state = true;
 			else if (!strcmp(myargv[i]+5, "fteqcc"))
 				;	//as above, its the default.
 			else if (!strcmp(myargv[i]+5, "id"))

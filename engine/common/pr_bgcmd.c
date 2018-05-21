@@ -3932,11 +3932,31 @@ struct strbuf {
 	char **strings;
 	size_t used;
 	size_t allocated;
+	int flags;
 };
 
+#define BUFFLAG_SAVED 1
 #define BUFSTRBASE 1
 struct strbuf	*strbuflist;
 size_t			strbufmax;
+
+static void PR_buf_savegame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary)
+{
+	size_t i, bufno;
+
+	for (bufno = 0; bufno < strbufmax; bufno++)
+	{
+		if (strbuflist[bufno].prinst == prinst && (strbuflist[bufno].flags & BUFFLAG_SAVED))
+		{
+			VFS_PRINTF (f, "buffer %i %i %i %i\n", bufno, 1, ev_string, strbuflist[bufno].used);
+			VFS_PRINTF (f, "{\n");
+			for (i = 0; i < strbuflist[bufno].used; i++)
+				if (strbuflist[bufno].strings[i])
+					VFS_PRINTF (f, "%i %s\n", i, strbuflist[bufno].strings[i]);		
+			VFS_PRINTF (f, "}\n");
+		}
+	}
+}
 
 void PF_buf_shutdown(pubprogfuncs_t *prinst)
 {
@@ -3972,7 +3992,8 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	size_t i;
 
 	const char *type = ((prinst->callargc>0)?PR_GetStringOfs(prinst, OFS_PARM0):"string");
-//	unsigned int flags = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):1);
+	unsigned int flags = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):BUFFLAG_SAVED);
+	flags &= BUFFLAG_SAVED;
 
 	if (!Q_strcasecmp(type, "string"))
 		;
@@ -4001,6 +4022,7 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	strbuflist[i].used = 0;
 	strbuflist[i].allocated = 0;
 	strbuflist[i].strings = NULL;
+	strbuflist[i].flags = flags;
 	G_FLOAT(OFS_RETURN) = i+BUFSTRBASE;
 }
 // #441 void(float bufhandle) buf_del (DP_QC_STRINGBUFFERS)
@@ -6238,6 +6260,10 @@ void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 	Editor_ProgsKilled(progs);
 #endif
 	tokenize_flush();
+}
+void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary)
+{
+	PR_buf_savegame(f, prinst, binary);
 }
 
 

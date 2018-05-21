@@ -650,6 +650,15 @@ char *Cvar_VariableString (const char *var_name)
 	return var->string;
 }
 
+void Cvar_SetNamed (const char *var_name, const char *newvalue)
+{
+	cvar_t *var;
+
+	var = Cvar_FindVar (var_name);
+	if (!var)
+		return;
+	Cvar_Set(var, newvalue);
+}
 
 /*
 ============

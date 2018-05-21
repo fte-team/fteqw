@@ -499,6 +499,7 @@ void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal);
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored);
+void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary);
 
 //FIXME
 pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...);

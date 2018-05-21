@@ -324,6 +324,7 @@ ADD_EXECUTABLE(fteqw WIN32
 	engine/client/m_multi.c
 	engine/client/m_options.c
 	engine/client/m_script.c
+	engine/client/m_native.c
 	engine/client/m_single.c
 	engine/client/menu.c
 	engine/client/p_classic.c

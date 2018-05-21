@@ -1734,7 +1734,12 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 	else
 	{
 	// set to full bright if no light data
-		if (!surf->samples || !wmodel->lightdata)
+		if (r_fullbright.ival)
+		{
+			for (i=0 ; i<size ; i++)
+				blocklights[i] = 255*256;
+		}
+		else if (!wmodel->lightdata)
 		{
 			for (i=0 ; i<size*3 ; i++)
 			{
@@ -1743,10 +1748,10 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 			surf->cached_light[0] = d_lightstylevalue[0];
 			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
 		}
-		else if (r_fullbright.ival)
+		else if (!surf->samples)
 		{
 			for (i=0 ; i<size ; i++)
-				blocklights[i] = 255*256;
+				blocklights[i] = 0;
 		}
 		else
 		{
@@ -2980,14 +2985,18 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 struct webostate_s
 {
 	char dbgid[12];
+	struct webostate_s *next;
 	model_t *wmodel;
 	int cluster[2];
+	qboolean generating;
 	pvsbuffer_t pvs;
 	vboarray_t ebo;
 	void *ebomem;
 	size_t idxcount;
 	int numbatches;
 	int lightstylevalues[MAX_LIGHTSTYLES];	//when using workers that only reprocessing lighting at 10fps, things get too ugly when things go out of sync
+
+	vec3_t lastpos;
 
 	batch_t *rbatches[SHADER_SORT_COUNT];
 
@@ -3002,7 +3011,7 @@ struct webostate_s
 		vbo_t vbo;
 	} batches[1];
 };
-static struct webostate_s *webostate;
+static struct webostate_s *webostates;
 static struct webostate_s *webogenerating;
 static int webogeneratingstate;	//1 if generating, 0 if not, for waiting for sync.
 static void R_DestroyWorldEBO(struct webostate_s *es)
@@ -3028,8 +3037,9 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 	batch_t *b, *batch;
 	mesh_t *m;
 	int sortid;
-	R_DestroyWorldEBO(webostate);
-	webostate = ctx;
+	struct webostate_s *webostate = ctx;
+	webostate->next = webostates;
+	webostates = webostate;
 	webogenerating = NULL;
 	webogeneratingstate = 0;
 	mod = webostate->wmodel;
@@ -3097,7 +3107,9 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			memset(m, 0, sizeof(*m));
 
 			if (b->shader->flags & SHADER_NEEDSARRAYS)
-			{
+			{	//this ebo cache stuff tracks only indexes, we don't know the actual surfs any more.
+				//if NEEDSARRAYS is flagged then the cpu will need access to the mesh data - which it doesn't have.
+				//while we could figure out this info, there would be a lot of vertexes that are not referenced, which would be horrendously slow.
 				if (b->shader->flags & SHADER_SKY)
 					continue;
 				b->shader = R_RegisterShader_Vertex("unsupported");
@@ -3286,10 +3298,29 @@ void Surf_DrawWorld (void)
 #ifdef THREADEDWORLD
 		if ((r_dynamic.ival < 0 || currentmodel->numbatches) && !r_refdef.recurse && currentmodel->type == mod_brush)
 		{
-			if (webostate && webostate->wmodel != currentmodel)
+			struct webostate_s *webostate, *best = NULL, *generating = NULL;
+			vec_t bestdist = FLT_MAX;
+			for (webostate = webostates; webostate; webostate = webostate->next)
 			{
-				R_DestroyWorldEBO(webostate);
-				webostate = NULL;
+				if (webostate->wmodel != currentmodel)
+					continue;
+				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
+				{
+					best = webostate;
+					break;
+				}
+				else
+				{
+					vec3_t m;
+					float d;
+					VectorSubtract(webostate->lastpos, r_refdef.vieworg, m);
+					d = DotProduct(m,m);
+					if (bestdist > d)
+					{
+						bestdist = d;
+						best = webostate;
+					}
+				}
 			}
 
 			if (qrenderer != QR_OPENGL && qrenderer != QR_VULKAN)
@@ -3304,7 +3335,7 @@ void Surf_DrawWorld (void)
 						if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
 							break;
 					}
-				if (webostate && webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2 && i == MAX_LIGHTSTYLES)
+				if (webostate && i == MAX_LIGHTSTYLES)
 				{
 				}
 				else
@@ -3542,8 +3573,12 @@ void Surf_DeInit(void)
 #ifdef THREADEDWORLD
 	while(webogenerating)
 		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
-	R_DestroyWorldEBO(webostate);
-	webostate = NULL;
+	while (webostates)
+	{
+		void *webostate = webostates;
+		webostates = webostates->next;
+		R_DestroyWorldEBO(webostate);
+	}
 #endif
 
 	for (i = 0; i < numlightmaps; i++)
@@ -3578,13 +3613,19 @@ void Surf_Clear(model_t *mod)
 //		return;/*they're on the hunk*/
 
 #ifdef THREADEDWORLD
+	struct webostate_s **link, *t;
 	while(webogenerating)
 		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 
-	if (webostate && webostate->wmodel == mod)
+	for (link = &webostates; (t=*link); )
 	{
-		R_DestroyWorldEBO(webostate);
-		webostate = NULL;
+		if (t->wmodel == mod)
+		{
+			*link = t->next;
+			R_DestroyWorldEBO(t);
+		}
+		else
+			link = &(*link)->next;
 	}
 #endif
 
@@ -4076,8 +4117,12 @@ void Surf_ClearLightmaps(void)
 #ifdef THREADEDWORLD
 	while(webogenerating)
 		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
-	R_DestroyWorldEBO(webostate);
-	webostate = NULL;
+	while (webostates)
+	{
+		void *webostate = webostates;
+		webostates = webostates->next;
+		R_DestroyWorldEBO(webostate);
+	}
 #endif
 }
 
@@ -4215,6 +4260,10 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 	{
 		vec3_t mins, maxs;
 		//fixme: no rotation
+		if (!cl_static_entities[i].ent.model && cl_static_entities[i].mdlidx > 0 && cl_static_entities[i].mdlidx < countof(cl.model_precache))
+			cl_static_entities[i].ent.model = cl.model_precache[cl_static_entities[i].mdlidx];
+		else if (!cl_static_entities[i].ent.model && cl_static_entities[i].mdlidx < 0 && (-cl_static_entities[i].mdlidx) < countof(cl.model_csqcprecache))
+			cl_static_entities[i].ent.model = cl.model_csqcprecache[-cl_static_entities[i].mdlidx];
 		if (cl_static_entities[i].ent.model)
 		{
 			//unfortunately, we need to know the actual size so that we can get this right. bum.

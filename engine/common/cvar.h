@@ -202,6 +202,8 @@ float	Cvar_VariableValue (const char *var_name);
 char	*Cvar_VariableString (const char *var_name);
 // returns an empty string if not defined
 
+void Cvar_SetNamed (const char *var_name, const char *newvalue);
+
 char 	*Cvar_CompleteVariable (const char *partial);
 // attempts to match a partial variable name for command line completion
 // returns NULL if nothing fits

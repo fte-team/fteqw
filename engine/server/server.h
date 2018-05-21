@@ -1581,6 +1581,7 @@ void SV_Loadgame_f (void);
 void SV_AutoSave(void);
 void SV_FlushLevelCache(void);
 extern cvar_t sv_autosave;
+extern cvar_t sv_savefmt;
 
 
 int SV_RateForClient(client_t *cl);

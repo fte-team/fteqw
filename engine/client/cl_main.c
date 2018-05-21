@@ -4475,7 +4475,7 @@ Host_EndGame
 Call this to drop to a console without exiting the qwcl
 ================
 */
-NORETURN void VARGS Host_EndGame (char *message, ...)
+NORETURN void VARGS Host_EndGame (const char *message, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -4510,7 +4510,7 @@ Host_Error
 This shuts down the client and exits qwcl
 ================
 */
-void VARGS Host_Error (char *error, ...)
+void VARGS Host_Error (const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -5581,6 +5581,7 @@ double Host_Frame (double time)
 #endif
 
 	cls.framecount++;
+	cl.lasttime = cl.time;
 
 	RSpeedRemark();
 
@@ -5799,9 +5800,7 @@ void CL_StartCinematicOrMenu(void)
 	UI_Start();
 #endif
 
-#ifdef MENU_DAT
 	Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
-#endif
 
 	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s %sInitialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing", com_installer?"Installer ":"");
 

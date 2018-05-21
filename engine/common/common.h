@@ -558,8 +558,8 @@ typedef struct vfsfile_s
 #define VFS_WRITE(vf,buffer,buflen) ((vf)->WriteBytes(vf,buffer,buflen))
 #define VFS_FLUSH(vf) do{if((vf)->Flush)(vf)->Flush(vf);}while(0)
 #define VFS_PUTS(vf,s) do{const char *t=s;(vf)->WriteBytes(vf,t,strlen(t));}while(0)
-char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
-void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...) LIKEPRINTF(2);
+char *VFS_GETS(vfsfile_t *vf, char *buffer, size_t buflen);
+void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_BINARYPATH,	//for dlls and stuff

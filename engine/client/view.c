@@ -1166,15 +1166,67 @@ float CalcFov (float fov_x, float width, float height)
 
 	return a;
 }
+static void V_CalcAFov(float afov, float *x, float *y, float w, float h)
+{
+	extern cvar_t scr_fov_mode;
+	extern cvar_t r_stereo_separation;
+	int mode = scr_fov_mode.ival;
+#ifdef FTE_TARGET_WEB
+	if (r_refdef.stereomethod == STEREO_WEBVR)
+		w *= 0.5;
+#endif
+	if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
+		w *= 0.5;
+
+	afov = bound(0.001, afov, 170);
+
+restart:
+	switch(mode)
+	{
+	default:
+	case 0:	//maj-
+		if (h > w)
+		{	//fov specified is interpreted as the horizontal fov at quake's original res: 640*432 (ie: with the sbar removed)...
+		//	afov = CalcFov(afov, 640, 432);
+			mode = 3;	//vertical 
+		}
+		else
+			mode = 2;	//horizontal
+		goto restart;
+	case 1:	//min+
+		if (h < w)
+			mode = 3;	//vertical 
+		else
+			mode = 2;	//horizontal
+		goto restart;
+	case 2:	//horizontal
+		*x = afov;
+		*y = CalcFov(afov, w, h);
+
+		if (*y > 170)
+		{
+			*y = 170;
+			*x = CalcFov(170, h, w);
+		}
+		break;
+	case 3:	//vertical
+		*y = afov;
+		*x = CalcFov(afov, h, w);
+
+		if (*x > 170)
+		{	//don't allow screwed fovs.
+			*x = 170;
+			*y = CalcFov(afov, w, h);
+		}
+		break;
+	}
+}
 void V_ApplyAFov(playerview_t *pv)
 {
 	//explicit fov overrides aproximate fov.
 	//aproximate fov is our regular fov value. explicit is settable by gamecode for weird aspect ratios
 	if (!r_refdef.fov_x || !r_refdef.fov_y)
 	{
-		extern cvar_t r_stereo_separation;
-		float ws;
-
 		float afov = r_refdef.afov;
 		if (!afov)	//make sure its sensible.
 		{
@@ -1184,59 +1236,15 @@ void V_ApplyAFov(playerview_t *pv)
 				afov *= pv->statsf[STAT_VIEWZOOM]/STAT_VIEWZOOM_SCALE;
 #endif
 		}
-		afov = bound(0.001, afov, 170);
 
-		ws = 1;
-#ifdef FTE_TARGET_WEB
-		if (r_refdef.stereomethod == STEREO_WEBVR)
-			ws = 0.5;
-#endif
-		if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
-			ws = 0.5;
-
-		//attempt to retain a classic fov
-		if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
-		{
-			r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*r_refdef.pxrect.width)/vid.fbvwidth, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.fbvheight);
-			r_refdef.fov_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
-		}
-		else
-		{
-			r_refdef.fov_y = CalcFov(afov, 640, 432);
-			r_refdef.fov_x = CalcFov(r_refdef.fov_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
-		}
+		V_CalcAFov(afov, &r_refdef.fov_x, &r_refdef.fov_y, (r_refdef.vrect.width*r_refdef.pxrect.width)/vid.fbvwidth, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.fbvheight);
 	}
 
 	if (!r_refdef.fovv_x || !r_refdef.fovv_y)
 	{
-		extern cvar_t r_stereo_separation;
-		float ws;
-
 		float afov = scr_fov_viewmodel.value;
 		if (afov)
-		{
-			afov = bound(0.001, afov, 170);
-
-			ws = 1;
-#ifdef FTE_TARGET_WEB
-			if (r_refdef.stereomethod == STEREO_WEBVR)
-				ws = 0.5;
-#endif
-			if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
-				ws = 0.5;
-
-			//attempt to retain a classic fov
-			if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
-			{
-				r_refdef.fovv_y = CalcFov(afov, (ws*r_refdef.vrect.width*r_refdef.pxrect.width)/vid.fbvwidth, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.fbvheight);
-				r_refdef.fovv_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
-			}
-			else
-			{
-				r_refdef.fovv_y = CalcFov(afov, 640, 432);
-				r_refdef.fovv_x = CalcFov(r_refdef.fovv_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
-			}
-		}
+			V_CalcAFov(afov, &r_refdef.fovv_x, &r_refdef.fovv_y, (r_refdef.vrect.width*r_refdef.pxrect.width)/vid.fbvwidth, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.fbvheight);
 		else
 		{
 			r_refdef.fovv_x = r_refdef.fov_x;

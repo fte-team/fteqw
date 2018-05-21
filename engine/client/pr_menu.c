@@ -2700,19 +2700,6 @@ void MP_CoreDump_f(void)
 	}
 }
 
-void MP_Reload_f(void)
-{
-	M_Shutdown(false);
-
-	if (!strcmp(Cmd_Argv(1), "off"))
-	{	//explicitly restart the engine's menu. not the menuqc crap
-		//don't even start csqc menus.
-		M_Init_Internal();
-	}
-	else
-		M_Reinit();
-}
-
 static void MP_Poke_f(void)
 {
 	/*if (!SV_MayCheat())
@@ -2751,7 +2738,6 @@ void MP_Breakpoint_f(void)
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
-	Cmd_AddCommand("menu_restart", MP_Reload_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);

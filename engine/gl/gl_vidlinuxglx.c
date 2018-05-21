@@ -60,8 +60,12 @@ none of these issues will be fixed by a compositing window manager, because ther
 
 #ifdef VKQUAKE
 #include "vk/vkrenderer.h"
+#ifdef VK_USE_PLATFORM_XLIB_KHR
 static qboolean XVK_SetupSurface_XLib(void);
+#endif
+#ifdef VK_USE_PLATFORM_XCB_KHR
 static qboolean XVK_SetupSurface_XCB(void);
+#endif
 #endif
 #ifdef GLQUAKE
 #include <GL/glx.h>

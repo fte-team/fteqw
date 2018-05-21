@@ -838,7 +838,7 @@ long ParseNum (char *str)
 
 #define MAXQCCFILES 3
 struct {
-	char name[64];
+	char *name;
 	FILE *stdio;
 	char *buff;
 	int buffsize;
@@ -848,16 +848,11 @@ struct {
 int SafeOpenWrite (char *filename, int maxsize)
 {
 	int i;
-	if (strlen(filename) >= sizeof(qccfile[0].name))
-	{
-		QCC_Error(ERR_TOOMANYOPENFILES, "Filename %s too long", filename);
-		return -1;
-	}
 	for (i = 0; i < MAXQCCFILES; i++)
 	{
 		if (!qccfile[i].stdio && !qccfile[i].buff)
 		{
-			strcpy(qccfile[i].name, filename);
+			qccfile[i].name = strdup(filename);
 			qccfile[i].buffsize = maxsize;
 			qccfile[i].maxofs = 0;
 			qccfile[i].ofs = 0;
@@ -926,6 +921,8 @@ pbool SafeClose(int hand)
 		ret = externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
 		free(qccfile[hand].buff);
 	}
+	free(qccfile[hand].name);
+	qccfile[hand].name = NULL;
 	qccfile[hand].buff = NULL;
 	qccfile[hand].stdio = NULL;
 	return ret;

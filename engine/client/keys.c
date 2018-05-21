@@ -2637,6 +2637,15 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_editor|kdm_console|kdm_cwindows))
 				MP_Keyup (key, unicode, devid);
 #endif
+#ifdef MENU_NATIVECODE
+			if (mn_entry)
+			{
+				struct menu_inputevent_args_s ev = {MIE_KEYUP, devid};
+				ev.key.scancode = key;
+				ev.key.charcode = unicode;
+				mn_entry->InputEvent(ev);
+			}
+#endif
 			return;
 		}
 
@@ -2659,6 +2668,18 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 #endif
 		else if (Key_Dest_Has(kdm_emenu))
 			M_Keydown (key, unicode);
+#ifdef MENU_NATIVECODE
+		else if (Key_Dest_Has(kdm_nmenu))
+		{
+			if (mn_entry)
+			{
+				struct menu_inputevent_args_s ev = {MIE_KEYDOWN, devid};
+				ev.key.scancode = key;
+				ev.key.charcode = unicode;
+				mn_entry->InputEvent(ev);
+			}
+		}
+#endif
 #ifdef MENU_DAT
 		else if (Key_Dest_Has(kdm_gmenu))
 			MP_Keydown (key, unicode, devid);
@@ -2709,6 +2730,15 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		}
 		if (Key_Dest_Has(kdm_emenu))
 			M_Keyup (key, unicode);
+#ifdef MENU_NATIVECODE
+		if (Key_Dest_Has(kdm_nmenu) && mn_entry)
+		{
+			struct menu_inputevent_args_s ev = {MIE_KEYUP, devid};
+			ev.key.scancode = key;
+			ev.key.charcode = unicode;
+			mn_entry->InputEvent(ev);
+		}
+#endif
 #ifdef MENU_DAT
 		if (Key_Dest_Has(kdm_gmenu))
 			MP_Keyup (key, unicode, devid);
@@ -2803,6 +2833,19 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			return;
 		}
 	}
+#ifdef MENU_NATIVECODE
+	if (Key_Dest_Has(kdm_nmenu))
+	{
+		if (mn_entry)
+		{
+			struct menu_inputevent_args_s ev = {MIE_KEYDOWN, devid};
+			ev.key.scancode = key;
+			ev.key.charcode = unicode;
+			if (mn_entry->InputEvent(ev))
+				return;
+		}
+	}
+#endif
 #ifdef MENU_DAT
 	if (Key_Dest_Has(kdm_gmenu))
 	{

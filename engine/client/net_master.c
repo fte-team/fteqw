@@ -1067,7 +1067,7 @@ void Master_ResortServer(serverinfo_t *server)
 	}
 }
 
-void Master_SortServers(void)
+int Master_SortServers(void)
 {
 	serverinfo_t *server;
 
@@ -1088,6 +1088,8 @@ void Master_SortServers(void)
 	{
 		Master_ResortServer(server);
 	}
+
+	return numvisibleservers;
 }
 
 serverinfo_t *Master_SortedServer(int idx)
@@ -1104,7 +1106,7 @@ int Master_NumSorted(void)
 }
 
 
-float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
+float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum)
 {
 	if (!server)
 		return -1;
@@ -1164,7 +1166,7 @@ void Master_DecodeColour(vec3_t ret, int col)
 		VectorSet(ret, ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
 }
 
-char *Master_ReadKeyString(serverinfo_t *server, int keynum)
+char *Master_ReadKeyString(serverinfo_t *server, hostcachekey_t keynum)
 {
 	static char adr[MAX_ADR_SIZE];
 
@@ -1237,7 +1239,7 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 	return "";
 }
 
-int Master_KeyForName(const char *keyname)
+hostcachekey_t Master_KeyForName(const char *keyname)
 {
 	int i;
 	if (!strcmp(keyname, "map"))

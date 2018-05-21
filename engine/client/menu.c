@@ -196,6 +196,74 @@ int M_FindKeysForCommand (int bindmap, int pnum, const char *command, int *keyli
 	return M_FindKeysForBind(bindmap, va("%s%s", prefix, command), keylist, keymods, keycount);
 }
 
+/*
+================
+M_ToggleMenu_f
+================
+*/
+void M_ToggleMenu_f (void)
+{	
+#ifndef NOBUILTINMENUS
+	if (topmenu)
+	{
+		Key_Dest_Add(kdm_emenu);
+		return;
+	}
+#endif
+
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(-1, "togglemenu"))
+	{
+		Key_Dest_Remove(kdm_console|kdm_cwindows);
+		return;
+	}
+#endif
+#ifdef MENU_DAT
+	if (MP_Toggle(1))
+	{
+		Key_Dest_Remove(kdm_console|kdm_cwindows);
+		return;
+	}
+#endif
+#ifdef MENU_NATIVECODE
+	if (mn_entry)
+	{
+		mn_entry->Toggle(1);
+		Key_Dest_Remove(kdm_console|kdm_cwindows);
+		return;
+	}
+#endif
+#ifdef VM_UI
+	if (UI_OpenMenu())
+		return;
+#endif
+
+#ifndef NOBUILTINMENUS
+	M_Menu_Main_f ();
+	Key_Dest_Remove(kdm_console|kdm_cwindows);
+#endif
+}
+
+/*
+================
+M_Restart_f
+================
+*/
+void M_Init_Internal (void);
+void M_Restart_f(void)
+{
+	M_Shutdown(false);
+
+	if (!strcmp(Cmd_Argv(1), "off"))
+	{	//explicitly restart the engine's menu. not the menuqc crap
+		//don't even start csqc menus.
+		M_Init_Internal();
+	}
+	else
+		M_Reinit();
+}
+
+
 #ifndef NOBUILTINMENUS
 
 void M_Menu_Audio_f (void);
@@ -317,61 +385,6 @@ void M_CloseMenu_f (void)
 		return;
 	M_RemoveAllMenus(false);
 	Key_Dest_Remove(kdm_emenu);
-}
-/*
-================
-M_ToggleMenu_f
-================
-*/
-void M_ToggleMenu_f (void)
-{
-	if (topmenu)
-	{
-		Key_Dest_Add(kdm_emenu);
-		return;
-	}
-
-#ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(-1, "togglemenu"))
-	{
-		Key_Dest_Remove(kdm_console|kdm_cwindows);
-		return;
-	}
-#endif
-#ifdef MENU_DAT
-	if (MP_Toggle(1))
-	{
-		Key_Dest_Remove(kdm_console|kdm_cwindows);
-		return;
-	}
-#endif
-#ifdef VM_UI
-	if (UI_OpenMenu())
-		return;
-#endif
-
-	//it IS a toggle, so close the menu if its already active
-	if (Key_Dest_Has(kdm_emenu))
-	{
-		Key_Dest_Remove(kdm_emenu);
-		return;
-	}
-	if (Key_Dest_Has(kdm_console|kdm_cwindows))
-		Key_Dest_Remove(kdm_console|kdm_cwindows);
-/*
-	{
-		if (cls.state != ca_active)
-		{
-			Key_Dest_Remove(kdm_console);
-			M_Menu_Main_f();
-		}
-		else
-			Con_ToggleConsole_Force ();
-	}
-	else*/
-	{
-		M_Menu_Main_f ();
-	}
 }
 
 //=============================================================================
@@ -1316,6 +1329,9 @@ void M_DeInit_Internal (void)
 
 void M_Shutdown(qboolean total)
 {
+#ifdef MENU_NATIVECODE
+	MN_Shutdown();
+#endif
 #ifdef MENU_DAT
 	MP_Shutdown();
 #endif
@@ -1325,6 +1341,9 @@ void M_Shutdown(qboolean total)
 
 void M_Reinit(void)
 {
+#ifdef MENU_NATIVECODE
+	if (!MN_Init())
+#endif
 #ifdef MENU_DAT
 	if (!MP_Init())
 #endif
@@ -1341,7 +1360,7 @@ void M_MenuPop_f(void);
 //menu.dat is loaded later... after the video and everything is up.
 void M_Init (void)
 {
-
+	Cmd_AddCommand("menu_restart", M_Restart_f);
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
 	Cmd_AddCommand("fps_preset", FPS_Preset_f);
@@ -1380,12 +1399,18 @@ void M_Init_Internal (void){}
 void M_DeInit_Internal (void){}
 void M_Shutdown(qboolean total)
 {
+#ifdef MENU_NATIVECODE
+	MN_Shutdown();
+#endif
 #ifdef MENU_DAT
 	MP_Shutdown();
 #endif
 }
 void M_Reinit(void)
 {
+#ifdef MENU_NATIVECODE
+	if (!MN_Init())
+#endif
 #ifdef MENU_DAT
 	if (!MP_Init())
 #endif
@@ -1395,6 +1420,9 @@ void M_Reinit(void)
 }
 void M_Init (void)
 {
+	Cmd_AddCommand("menu_restart", M_Restart_f);
+	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
+
 	Media_Init();
 	M_Reinit();
 }

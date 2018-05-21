@@ -9,6 +9,9 @@ extern cvar_t coop;
 extern cvar_t teamplay;
 extern cvar_t pr_enable_profiling;
 
+cvar_t sv_savefmt = CVARFD("sv_savefmt", "1", CVAR_SAVE, "Specifies the format used for the saved game.\n0=legacy.\n1=fte\n2=binary");
+cvar_t sv_autosave = CVARFD("sv_autosave", "5", CVAR_SAVE, "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
+
 void SV_Savegame_f (void);
 
 //Writes a SAVEGAME_COMMENT_LENGTH character comment describing the current
@@ -73,6 +76,7 @@ void SV_SavegameComment (char *text, size_t textsize)
 	text[textsize-1] = '\0';
 }
 
+#ifndef QUAKETC
 //expects the version to have already been parsed
 void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 {
@@ -282,7 +286,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 // the rest of the file is sent directly to the progs engine.
 
 	if (version == 5 || version == 6)
-		Q_InitProgs();	//reinitialize progs entirly.
+		;//Q_InitProgs();	//reinitialize progs entirly.
 	else
 	{
 		Q_SetProgsParms(false);
@@ -360,7 +364,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	}
 }
 
-void SV_LegacySavegame_f (void)
+static void SV_LegacySavegame (const char *savename)
 {
 	size_t len;
 	char *s = NULL;
@@ -374,18 +378,6 @@ void SV_LegacySavegame_f (void)
 	vfsfile_t	*f;
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
-
-	if (Cmd_Argc() != 2)
-	{
-		Con_TPrintf ("save <savename> : save a game\n");
-		return;
-	}
-
-	if (strstr(Cmd_Argv(1), ".."))
-	{
-		Con_TPrintf ("Relative pathnames are not allowed\n");
-		return;
-	}
 
 	if (sv.state != ss_active)
 	{
@@ -401,12 +393,12 @@ void SV_LegacySavegame_f (void)
 		return;
 	}
 
-	sprintf (name, "%s", Cmd_Argv(1));
+	sprintf (name, "%s", savename);
 	COM_RequireExtension (name, ".sav", sizeof(name));
 	if (!FS_NativePath(name, FS_GAMEONLY, native, sizeof(native)))
 		return;
 	Con_TPrintf (U8("Saving game to %s...\n"), native);
-	f = FS_OpenVFS(name, "wb", FS_GAMEONLY);
+	f = FS_OpenVFS(name, "wbp", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_TPrintf ("ERROR: couldn't open %s.\n", name);
@@ -486,13 +478,16 @@ void SV_LegacySavegame_f (void)
 	svprogfuncs->parms->memfree(s);
 
 	VFS_CLOSE(f);
-}
 
+	FS_FlushFSHashWritten(name);
+}
+#endif
 
 
 
 #define CACHEGAME_VERSION_OLD 513
 #define CACHEGAME_VERSION_VERBOSE 514
+#define CACHEGAME_VERSION_BINARY 515
 
 
 
@@ -1065,7 +1060,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		}
 	}
 
-	if (version == CACHEGAME_VERSION_VERBOSE)
+	if (version >= CACHEGAME_VERSION_VERBOSE)
 	{
 		char buf[8192];
 		char *mode = "?";
@@ -1102,6 +1097,8 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
 			VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
 
+		PR_Common_SaveGame(f, svprogfuncs, version >= CACHEGAME_VERSION_BINARY);
+
 		//FIXME: string buffers
 		//FIXME: hash tables
 		//FIXME: skeletal objects?
@@ -1109,9 +1106,10 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		//FIXME: midi track
 		//FIXME: custom temp-ents?
 		//FIXME: pending uri_gets? (if only just to report fails)
+		//FIXME: routing calls?
 		//FIXME: sql queries?
 		//FIXME: frik files?
-		//FIXME: threads?
+		//FIXME: qc threads?
 
 		VFS_PRINTF (f, "entities\n");
 	}
@@ -1150,10 +1148,18 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f,"\n");
 	}
 
-	s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
-	VFS_PUTS(f, s);
-	VFS_PUTS(f, "\n");
-	svprogfuncs->parms->memfree(s);
+	if (version >= CACHEGAME_VERSION_BINARY)
+	{
+		VFS_PUTS(f, va("%i\n", svprogfuncs->stringtablesize));
+		VFS_WRITE(f, svprogfuncs->stringtable, svprogfuncs->stringtablesize);
+	}
+	else
+	{
+		s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
+		VFS_PUTS(f, s);
+		VFS_PUTS(f, "\n");
+		svprogfuncs->parms->memfree(s);
+	}
 
 	VFS_CLOSE (f);
 
@@ -1167,11 +1173,12 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		}
 	}
 
-	FS_FlushFSHashFull();
+	FS_FlushFSHashWritten(name);
 }
 
 #define FTESAVEGAME_VERSION 25000
 
+//mapchange is true for Q2's map-change autosaves.
 void SV_Savegame (const char *savename, qboolean mapchange)
 {
 	extern cvar_t	nomonsters;
@@ -1198,6 +1205,14 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	levelcache_t *cache;
 	char str[MAX_LOCALINFO_STRING+1];
 	char *savefilename;
+
+#ifndef QUAKETC
+	if (!sv_savefmt.ival && !mapchange)
+	{
+		SV_LegacySavegame(savename);
+		return;
+	}
+#endif
 
 	if (!sv.state || sv.state == ss_clustermode)
 	{
@@ -1240,7 +1255,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 
 	savefilename = va("saves/%s/info.fsv", savename);
 	FS_CreatePath(savefilename, FS_GAMEONLY);
-	f = FS_OpenVFS(savefilename, "wb", FS_GAMEONLY);
+	f = FS_OpenVFS(savefilename, "wbp", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_Printf("Couldn't open file saves/%s/info.fsv\n", savename);
@@ -1417,6 +1432,7 @@ static int QDECL CompleteSaveList (const char *name, qofs_t flags, time_t mtime,
 	}
 	return true;
 }
+#ifndef QUAKETC
 static int QDECL CompleteSaveListLegacy (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
@@ -1425,24 +1441,39 @@ static int QDECL CompleteSaveListLegacy (const char *name, qofs_t flags, time_t 
 	ctx->cb(stripped, NULL, NULL, ctx);
 	return true;
 }
+#endif
 void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
 	{
 		COM_EnumerateFiles(va("saves/%s*/info.fsv", partial), CompleteSaveList, ctx);
+#ifndef QUAKETC
 		COM_EnumerateFiles(va("%s*.sav", partial), CompleteSaveListLegacy, ctx);
+#endif
 	}
 }
 
 void SV_Savegame_f (void)
 {
 	if (Cmd_Argc() <= 2)
-		SV_Savegame(Cmd_Argv(1), false);
+	{
+		const char *savename = Cmd_Argv(1);
+		if (strstr(savename, ".."))
+		{
+			Con_TPrintf ("Relative pathnames are not allowed\n");
+			return;
+		}
+#ifndef QUAKETC
+		if (!Q_strcasecmp(Cmd_Argv(0), "savegame_legacy"))
+			SV_LegacySavegame(savename);
+		else
+#endif
+			SV_Savegame(savename, false);
+	}
 	else
 		Con_Printf("%s: invalid number of arguments\n", Cmd_Argv(0));
 }
 
-cvar_t sv_autosave = CVARFD("sv_autosave", "5", CVAR_SAVE, "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
 void SV_AutoSave(void)
 {
 #ifndef NOBUILTINMENUS
@@ -1512,21 +1543,44 @@ void SV_Loadgame_f (void)
 	gametype_e gametype;
 
 	int len;
+	struct
+	{
+		char *pattern;
+		flocation_t loc;
+	} savefiles[] =
+	{
+		{"saves/%s/info.fsv"},
+#ifndef QUAKETC
+		{"%s.sav"},
+#endif
+	};
+	int bd,best;
+
+#ifndef SERVERONLY
+	if (!Renderer_Started() && !isDedicated)
+	{
+		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
+		return;
+	}
+#endif
 
 	Q_strncpyz(savename, Cmd_Argv(1), sizeof(savename));
 
 	if (!*savename || strstr(savename, ".."))
 		strcpy(savename, "quick");
 
-	Q_snprintfz (filename, sizeof(filename), "saves/%s/info.fsv", savename);
-	f = FS_OpenVFS (filename, "rb", FS_GAME);
-	if (!f)
+	for (len = 0, bd=0x7fffffff,best=0; len < countof(savefiles); len++)
 	{
-		f = FS_OpenVFS (va("%s.sav", savename), "rb", FS_GAME);
-		if (f)
-			Q_snprintfz (filename, sizeof(filename), "%s.sav", savename);
+		int d = FS_FLocateFile(va(savefiles[len].pattern, savename), FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE, &savefiles[len].loc);
+		if (bd > d)
+		{
+			bd = d;
+			best = len;
+		}
 	}
-
+	
+	Q_snprintfz (filename, sizeof(filename), savefiles[best].pattern, savename);
+	f = FS_OpenReadLocation(&savefiles[best].loc);
 	if (!f)
 	{
 		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);
@@ -1541,7 +1595,12 @@ void SV_Loadgame_f (void)
 	version = atoi(str);
 	if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
 	{
+#ifdef QUAKETC
+		VFS_CLOSE (f);
+		Con_TPrintf ("Unable to load savegame of version %i\n", version);
+#else
 		SV_Loadgame_Legacy(filename, f, version);
+#endif
 		return;
 	}
 

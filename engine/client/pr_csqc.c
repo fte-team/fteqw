@@ -7804,14 +7804,12 @@ qboolean CSQC_DrawView(void)
 
 	if (csqcg.frametime)
 	{
-		if (csqc_isdarkplaces)
+		if (1)//csqc_isdarkplaces)
 		{
-			static double oldtime;
 			if (cl.paused)
 				*csqcg.frametime = 0;	//apparently people can't cope with microstutter when they're using this as a test to see if the game is paused.
 			else
-				*csqcg.frametime = bound(0, cl.time - oldtime, 0.1);
-			oldtime = cl.time;
+				*csqcg.frametime = bound(0, cl.time - cl.lasttime, 0.1);
 		}
 		else
 			*csqcg.frametime = host_frametime;

@@ -704,24 +704,57 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 		{	//many mods assume only a single mouse device.
 			//when we have multiple active abs devices, we need to avoid sending all of them, because that just confuses everyone. such mods will see only devices that are actually moving, so uni-cursor mods will see only the one that moved most recently.
 			mouse->updated = false;
-#ifdef MENU_DAT
-			if (!runningindepphys && MP_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+			if (!runningindepphys)
 			{
-				mx = 0;
-				my = 0;
-			}
+#ifdef MENU_NATIVECODE
+				if (mn_entry)
+				{
+					struct menu_inputevent_args_s ev = {MIE_MOUSEABS, mouse->qdeviceid};
+					ev.mouse.delta[0] = mx;
+					ev.mouse.delta[1] = my;
+					ev.mouse.screen[0] = (mouse->oldpos[0] * vid.width) / vid.pixelwidth;
+					ev.mouse.screen[1] = (mouse->oldpos[1] * vid.width) / vid.pixelwidth;
+					if (mn_entry->InputEvent(ev))
+					{
+						mx = 0;
+						my = 0;
+					}
+				}
+#endif
+#ifdef MENU_DAT
+				if (MP_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+				{
+					mx = 0;
+					my = 0;
+				}
 #endif
 #ifdef CSQC_DAT
-			if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
-			{
-				mx = 0;
-				my = 0;
-			}
+				if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+				{
+					mx = 0;
+					my = 0;
+				}
 #endif
+			}
 		}
 	}
 	else
 	{
+#ifdef MENU_NATIVECODE
+		if (mn_entry && Key_Dest_Has(kdm_nmenu) && (mx || my))
+		{
+			struct menu_inputevent_args_s ev = {MIE_MOUSEABS, mouse->qdeviceid};
+			ev.mouse.delta[0] = mx;
+			ev.mouse.delta[1] = my;
+			ev.mouse.screen[0] = (mouse->oldpos[0] * vid.width) / vid.pixelwidth;
+			ev.mouse.screen[1] = (mouse->oldpos[1] * vid.width) / vid.pixelwidth;
+			if (mn_entry->InputEvent(ev))
+			{
+				mx = 0;
+				my = 0;
+			}
+		}
+#endif
 #ifdef MENU_DAT
 		if (Key_Dest_Has(kdm_gmenu))
 		if (mx || my)

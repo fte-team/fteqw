@@ -955,6 +955,10 @@ void SCR_DrawCursor(void)
 		cmod = kc_console;
 	else if ((key_dest_mask & key_dest_absolutemouse & kdm_gmenu))
 		cmod = kc_menu;
+#ifdef MENU_NATIVECODE
+	else if ((key_dest_mask & key_dest_absolutemouse & kdm_nmenu))
+		cmod = kc_nmenu;
+#endif
 	else// if (key_dest_mask & key_dest_absolutemouse)
 		cmod = prydoncursornum?kc_console:kc_game;
 
@@ -1890,6 +1894,13 @@ void SCR_DrawLoading (qboolean opaque)
 		if (opaque)
 			MP_Draw();
 		return;	//menuqc should have just drawn whatever overlays it wanted.
+	}
+#endif
+#ifdef MENU_NATIVECODE
+	if (mn_entry && mn_entry->DrawLoading)
+	{
+		mn_entry->DrawLoading(vid.width, vid.height, host_frametime);
+		return;
 	}
 #endif
 
@@ -3383,6 +3394,10 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 #ifdef MENU_DAT
 	MP_Draw();
+#endif
+#ifdef MENU_NATIVECODE
+	if (mn_entry)
+		mn_entry->Draw(vid.width, vid.height, host_frametime);
 #endif
 	M_Draw (uimenu);
 

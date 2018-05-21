@@ -250,16 +250,22 @@ typedef enum	//highest has priority
 	kdm_centerprint	= 1u<<1,	//enabled when there's a centerprint menu with clickable things.
 	kdm_message		= 1u<<2,
 	kdm_gmenu		= 1u<<3,	//menu.dat
-	kdm_emenu		= 1u<<4,	//engine's menus
-	kdm_editor		= 1u<<5,
-	kdm_console		= 1u<<6,
-	kdm_cwindows	= 1u<<7,
+#ifdef MENU_NATIVECODE
+	kdm_nmenu		= 1u<<4,
+#else
+	kdm_nmenu		= 0,
+#endif
+	kdm_emenu		= 1u<<5,	//engine's menus
+	kdm_editor		= 1u<<6,
+	kdm_console		= 1u<<7,
+	kdm_cwindows	= 1u<<8,
 } keydestmask_t;
 
 //unsigned int Key_Dest_Get(void);	//returns highest priority destination
 #define Key_Dest_Add(kdm) (key_dest_mask |= (kdm))
 #define Key_Dest_Remove(kdm) (key_dest_mask &= ~(kdm))
 #define Key_Dest_Has(kdm) (key_dest_mask & (kdm))
+#define Key_Dest_Has_Higher(kdm) (key_dest_mask & (~0&~((kdm)|((kdm)-1))))	//must be a single bit
 #define Key_Dest_Toggle(kdm) do {if (key_dest_mask & kdm) Key_Dest_Remove(kdm); else Key_Dest_Add(kdm);}while(0)
 
 extern unsigned int key_dest_absolutemouse;	//if the active key dest bit is set, the mouse is absolute.
@@ -271,9 +277,12 @@ extern	int		key_lastpress;
 
 enum
 {
-	kc_game,
-	kc_menu,
-	kc_console,
+	kc_game,	//csprogs.dat
+	kc_menu,	//menu.dat
+#ifdef MENU_NATIVECODE
+	kc_nmenu,
+#endif
+	kc_console,	//generic engine-defined cursor
 	kc_max
 };
 extern struct key_cursor_s

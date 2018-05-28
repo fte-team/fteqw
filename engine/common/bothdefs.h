@@ -98,7 +98,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef CONFIG_FILE_NAME
 	#undef MULTITHREAD
-	#undef BOTLIB_STATIC
 	#define HEADLESSQUAKE	//usable renderers are normally specified via the makefile, but HEADLESS is considered a feature rather than an actual renderer, so usually gets forgotten about...
 
 	//yup, C89 allows this (doesn't like C's token concat though).

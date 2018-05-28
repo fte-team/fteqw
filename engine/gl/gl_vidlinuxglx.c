@@ -2763,7 +2763,8 @@ void GLVID_SwapBuffers (void)
 	}
 }
 
-#include "bymorphed.h"
+#include "fte_eukara64.h"
+//#include "bymorphed.h"
 void X_StoreIcon(Window wnd)
 {
 	int i;

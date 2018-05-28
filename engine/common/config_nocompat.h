@@ -103,7 +103,7 @@
 //#define Q2CLIENT				//q2 client. file formats enabled separately.
 //#define Q3CLIENT				//q3 client stuff.
 //#define Q3SERVER				//q3 server stuff.
-//#define BOTLIB_STATIC			//q3 botlib
+//#define AVAIL_BOTLIB			//q3 botlib
 //#define HEXEN2				//runs hexen2 gamecode, supports hexen2 file formats.
 //#define HUFFNETWORK			//crappy network compression. probably needs reseeding.
 //#define NETPREPARSE			//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
@@ -171,7 +171,7 @@
 
 //-DNO_OPUS
 //-DNO_SPEEX	//disable static speex
-#ifndef BOTLIB_STATIC
+#ifndef AVAIL_BOTLIB
 -DNO_BOTLIB	//disable static botlib
 #endif
 //-DNO_VORBISFILE	//disable static vorbisfile

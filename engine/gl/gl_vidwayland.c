@@ -13,13 +13,13 @@
 
 #include "bothdefs.h"
 #ifdef WAYLANDQUAKE
+#include "gl_videgl.h"	//define this BEFORE the wayland stuff. This means the EGL types will have their (x11) defaults instead of getting mixed up with wayland. we expect to be able to use the void* verions instead for wayland anyway.
 #include <wayland-client.h>
 #include <wayland-egl.h>
 #include <linux/input.h>	//this is shite.
 #include "quakedef.h"
 #if defined(GLQUAKE) && defined(USE_EGL)
 #include "gl_draw.h"
-#include "gl_videgl.h"
 #endif
 #if defined(VKQUAKE)
 #include "vk/vkrenderer.h"

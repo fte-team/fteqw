@@ -476,7 +476,7 @@ typedef struct stringtab_s
 } stringtab_t;
 stringtab_t *stringtablist[256];
 // CopyString returns an offset from the string heap
-int	QCC_CopyString (char *str)
+int	QCC_CopyString (const char *str)
 {
 	int		old;
 	size_t len;
@@ -528,7 +528,7 @@ int	QCC_CopyString (char *str)
 	return old;
 }
 
-int	QCC_CopyStringLength (char *str, size_t length)
+int	QCC_CopyStringLength (const char *str, size_t length)
 {
 	int		old;
 
@@ -541,11 +541,12 @@ int	QCC_CopyStringLength (char *str, size_t length)
 	if ( (strofs + length) > MAX_STRINGS)
 		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
 	memcpy (strings+strofs, str, length);
-	strofs += length;
+	strings[strofs+length] = 0;
+	strofs += length+1;
 	return old;
 }
 
-int	QCC_CopyDupBackString (char *str)
+int	QCC_CopyDupBackString (const char *str)
 {
 	size_t length;
 	int		old;

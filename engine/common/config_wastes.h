@@ -91,7 +91,7 @@
 #undef AVAIL_FREETYPE	//for truetype font rendering
 #undef AVAIL_WASAPI	//windows advanced sound api
 #undef AVAIL_DSOUND
-#undef BOTLIB_STATIC	//q3 botlib
+#undef AVAIL_BOTLIB	//q3 botlib
 #undef AVAIL_XZDEC	//.xz decompression
 #undef AVAIL_GZDEC	//.gz decompression
 #undef AVAIL_DZIP	//.dzip special-case archive support
@@ -161,7 +161,7 @@
 
 
 -DNO_SPEEX	//disable static speex
-#ifndef BOTLIB_STATIC
+#ifndef AVAIL_BOTLIB
 -DNO_BOTLIB	//disable static botlib
 #endif
 -DNO_VORBISFILE	//disable static vorbisfile

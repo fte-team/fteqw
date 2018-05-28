@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //well, linux or cygwin (windows with posix emulation layer), anyway...
 
+#define _GNU_SOURCE
 #include "quakedef.h"
 	
 #ifdef MULTITHREAD
@@ -104,6 +105,10 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 	}
 	pthread_attr_destroy(&attr);
 
+#ifdef __USE_GNU
+	pthread_setname_np(*thread, name);
+#endif
+
 	return (void *)thread;
 }
 #else
@@ -127,6 +132,10 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 		thread = NULL;
 	}
 	pthread_attr_destroy(&attr);
+
+#ifdef __USE_GNU
+	pthread_setname_np(*thread, name);
+#endif
 
 	return (void *)thread;
 }

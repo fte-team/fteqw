@@ -5581,7 +5581,6 @@ double Host_Frame (double time)
 #endif
 
 	cls.framecount++;
-	cl.lasttime = cl.time;
 
 	RSpeedRemark();
 
@@ -5727,6 +5726,7 @@ double Host_Frame (double time)
 	TP_UpdateAutoStatus();
 
 	host_framecount++;
+	cl.lasttime = cl.time;
 	return 0;
 }
 

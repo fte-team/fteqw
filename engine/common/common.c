@@ -5003,9 +5003,17 @@ void COM_Version_f (void)
 
 	Con_Printf("Games:");
 #if defined(Q3SERVER) && defined(Q3CLIENT)
-	Con_Printf(" Quake3");
+	#ifdef BOTLIB_STATIC
+		Con_Printf(" Quake3");
+	#else
+		Con_Printf(" Quake3^h(no-botlib)^h");
+	#endif
 #elif defined(Q3SERVER)
-	Con_Printf(" Quake3(server)");
+	#ifdef BOTLIB_STATIC
+		Con_Printf(" Quake3(server)");
+	#else
+		Con_Printf(" Quake3(server,no-botlib)");
+	#endif
 #elif defined(Q3CLIENT)
 	Con_Printf(" Quake3(client)");
 #elif defined(Q3BSPS)

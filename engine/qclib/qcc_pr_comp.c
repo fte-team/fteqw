@@ -4276,32 +4276,20 @@ QCC_sref_t	QCC_PR_ParseImmediate (void)
 
 	case ev_string:
 		{
-			int t,l;
+			int t=0,l;
 			char tmp[8192];
-			t=l = pr_immediate_strlen;
-			if (l+1 > sizeof(tmp))
-				QCC_PR_ParseError (ERR_NAMETOOLONG, "string immediate is too long");
-			memcpy(tmp, pr_immediate_string, l);
-			tmp[l] = 0;
-			
-			//extra logic to amalgamate any "additional " "string" " immediates", like in C
-			for(;;)
+			do
 			{
+				l = pr_immediate_strlen;
+				if (t+l+1 > sizeof(tmp))
+					QCC_PR_ParseError (ERR_NAMETOOLONG, "string immediate is too long");
+				memcpy(tmp+t, pr_immediate_string, l);
+				t+=l;
+				
 				QCC_PR_Lex ();
-				if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
-				{
-					l = pr_immediate_strlen;
-					if (t+l+1 > sizeof(tmp))
-						QCC_PR_ParseError (ERR_NAMETOOLONG, "string immediate is too long");
-					memcpy(tmp+t, pr_immediate_string, l);
-					tmp[t+l] = 0;
-					t+=l;
-				}
-				else
-					break;
-			} 
-
-			cn = QCC_MakeStringConstLength(tmp, t+1);
+			} while(pr_token_type == tt_immediate && pr_immediate_type == type_string);
+			tmp[t++] = 0;
+			cn = QCC_MakeStringConstLength(tmp, t);
 		}
 		return cn;
 	default:
@@ -6415,7 +6403,7 @@ QCC_sref_t QCC_MakeFloatConst(float value)
 
 extern hashtable_t stringconstdefstable, stringconstdefstable_trans;
 int dotranslate_count;
-static QCC_sref_t QCC_MakeStringConstInternal(char *value, size_t length, pbool translate)
+static QCC_sref_t QCC_MakeStringConstInternal(const char *value, size_t length, pbool translate)
 {
 	QCC_def_t	*cn;
 	int string;
@@ -10618,8 +10606,13 @@ void QCC_PR_ParseStatement (void)
 				if (patch2)
 					patch2->a.ofs = &statements[numstatements] - patch2;
 
-				if (QCC_PR_StatementBlocksMatch(patch1+1, patch2-patch1, patch2+1, &statements[numstatements] - patch2))
-					QCC_PR_ParseWarning(0, "Two identical blocks each side of an else");
+/*FIXME: this doesn't work right
+				if (patch1 && patch2)
+				{
+					if (QCC_PR_StatementBlocksMatch(patch1+1, patch2-(patch1+1), patch2+1, &statements[numstatements] - (patch2+1)))
+						QCC_PR_ParseWarning(0, "Two identical blocks each side of an else");
+				}
+*/
 			}
 		}
 		else if (patch1)

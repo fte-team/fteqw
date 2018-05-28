@@ -8,7 +8,7 @@
 LoadFile
 ==============
 */
-void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
+void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile)
 //unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
 	size_t len;
@@ -126,16 +126,21 @@ int main (int argc, char **argv)
 	funcs.funcs.parms->WriteFile = QCC_WriteFile;
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
-	logfile = fopen("fteqcc.log", "at");
-	fputs("Args:", logfile);
-	for (i = 0; i < argc; i++)
+#ifdef _WIN32
+	logfile = fopen("fteqcc.log", "wt");
+#endif
+	if (logfile)
 	{
-		if (strchr(argv[i], ' '))
-			fprintf(logfile, " \"%s\"", argv[i]);
-		else
-			fprintf(logfile, " %s", argv[i]);
+		fputs("Args:", logfile);
+		for (i = 0; i < argc; i++)
+		{
+			if (strchr(argv[i], ' '))
+				fprintf(logfile, " \"%s\"", argv[i]);
+			else
+				fprintf(logfile, " %s", argv[i]);
+		}
+		fprintf(logfile, "\n");
 	}
-	fprintf(logfile, "\n");
 	sucess = CompileParams(&funcs, NULL, argc, argv);
 	qccClearHunk();
 	if (logfile)

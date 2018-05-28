@@ -357,7 +357,7 @@ void VARGS SV_Error (char *error, ...)
 }
 
 #ifdef SERVERONLY
-void VARGS Host_Error (char *error, ...)
+void VARGS Host_Error (const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -371,7 +371,7 @@ void VARGS Host_Error (char *error, ...)
 #endif
 
 #ifdef SERVERONLY
-void VARGS Host_EndGame (char *error, ...)
+void VARGS Host_EndGame (const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];

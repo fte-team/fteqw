@@ -7814,6 +7814,7 @@ qboolean CSQC_DrawView(void)
 		else
 			*csqcg.frametime = host_frametime;
 	}
+
 	if (csqcg.clframetime)
 		*csqcg.clframetime = host_frametime;
 

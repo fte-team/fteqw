@@ -213,7 +213,7 @@ void Draw_BigFontString(int x, int y, const char *text)
 	p = QBigFontWorks();
 	if (!p)
 	{
-		Draw_FunString(x, y, text);
+		Draw_AltFunString(x, y, text);
 		return;
 	}
 
@@ -1935,6 +1935,22 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 	return false;
 }
 
+static int M_Main_AddExtraOptions(menu_t *mainm, int y)
+{
+	if (Cmd_AliasExist("mod_menu", RESTRICT_LOCAL))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-14s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;}
+	if (Cmd_Exists("xmpp"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Social        ", "xmpp\n");			y += 20;}
+	if (Cmd_Exists("irc"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC           ", "irc\n");				y += 20;}
+	if (Cmd_Exists("qi"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "qi\n");				y += 20;}
+	if (Cmd_Exists("menu_download"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;}
+
+	return y;
+}
+
 void M_Menu_Main_f (void)
 {
 	extern cvar_t m_helpismedia;
@@ -2114,16 +2130,7 @@ void M_Menu_Main_f (void)
 			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media         ", "menu_media\n");		y += 20;}
 		else
 			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help          ", "help\n");			y += 20;}
-		if (Cmd_AliasExist("mod_menu", RESTRICT_LOCAL))
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-14s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;}
-		if (Cmd_Exists("xmpp"))
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Social        ", "xmpp\n");			y += 20;}
-		if (Cmd_Exists("irc"))
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC           ", "irc\n");				y += 20;}
-		if (Cmd_Exists("qi"))
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "qi\n");				y += 20;}
-		if (Cmd_Exists("menu_download"))
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;}
+		y = M_Main_AddExtraOptions(mainm, y);
 #ifdef FTE_TARGET_WEB
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings ", "menu_quit\n");		y += 20;
 #else
@@ -2134,7 +2141,7 @@ void M_Menu_Main_f (void)
 	}
 	else
 	{
-		int width;
+		int width, y;
 		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 
@@ -2189,6 +2196,8 @@ void M_Menu_Main_f (void)
 #endif
 		b->common.width = width;
 		b->common.height = 20;
+
+		M_Main_AddExtraOptions(mainm, 112+20);
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
 	}

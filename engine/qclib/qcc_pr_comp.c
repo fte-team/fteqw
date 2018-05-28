@@ -21,8 +21,8 @@ void QCC_PR_ParseAsm(void);
 
 #define MEMBERFIELDNAME "__m%s"
 
-#define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1+1,s2+1))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
-#define STRNCMP(s1,s2,l) (((*s1)!=(*s2)) || strncmp(s1+1,s2+1,l))	//pathetic saving here.
+#define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1,s2))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
+#define STRNCMP(s1,s2,l) (((*s1)!=(*s2)) || strncmp(s1,s2,l))	//pathetic saving here.
 
 extern char *compilingfile;
 

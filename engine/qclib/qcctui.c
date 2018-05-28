@@ -8,7 +8,7 @@
 LoadFile
 ==============
 */
-void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile)
+static void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile)
 //unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
 	size_t len;
@@ -43,7 +43,7 @@ void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_
 		*out_size = len;
 	return buffer;
 }
-int PDECL QCC_FileSize (const char *fname)
+static int PDECL QCC_FileSize (const char *fname)
 {
 	long    length;
 	FILE *f;
@@ -57,7 +57,7 @@ int PDECL QCC_FileSize (const char *fname)
 	return length;
 }
 
-pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
+static pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 {
 	long    length;
 	FILE *f;
@@ -76,7 +76,7 @@ pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 #undef printf
 #undef Sys_Error
 
-void PDECL Sys_Error(const char *text, ...)
+static void PDECL Sys_Error(const char *text, ...)
 {
 	va_list argptr;
 	static char msg[2048];	
@@ -89,8 +89,8 @@ void PDECL Sys_Error(const char *text, ...)
 }
 
 
-FILE *logfile;
-int logprintf(const char *format, ...)
+static FILE *logfile;
+static int logprintf(const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];

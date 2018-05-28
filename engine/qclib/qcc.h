@@ -1173,4 +1173,4 @@ vfile_t *QCC_AddVFile(const char *name, void *data, size_t size);
 void QCC_CatVFile(vfile_t *, const char *fmt, ...);
 void QCC_InsertVFile(vfile_t *, size_t pos, const char *fmt, ...);
 
-void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile);
+//void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile);

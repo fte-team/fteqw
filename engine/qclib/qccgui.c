@@ -450,7 +450,7 @@ void QCC_EnumerateFilesResult(const char *name, const void *compdata, size_t com
 LoadFile
 ==============
 */
-void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
+static void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
 //unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
 	size_t len;
@@ -3374,8 +3374,8 @@ void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t
 				free(deflist);
 
 				blen = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
-				buffer = buf_get(buf_ctx, blen);
-				blen = SendMessage(e->editpane, SCI_GETTEXT, blen, (LPARAM)buffer);
+				buffer = buf_get(buf_ctx, blen+1);
+				blen = SendMessage(e->editpane, SCI_GETTEXT, blen+1, (LPARAM)buffer);
 			}
 			else if (e->savefmt == UTF_ANSI)
 			{

@@ -8,7 +8,7 @@
 
 #define MEMBERFIELDNAME "__m%s"
 
-#define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1+1,s2+1))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
+#define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1,s2))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
 
 void QCC_PR_PreProcessor_Define(pbool append);
 pbool QCC_PR_UndefineName(char *name);
@@ -2291,7 +2291,7 @@ void QCC_PR_LexName (void)
 		}
 		c = *pr_file_p;
 	} while ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
-	|| (c >= '0' && c <= '9') || c & 0x80);
+	|| (c >= '0' && c <= '9') || (c & 0x80));
 
 	pr_token[len] = 0;
 	pr_token_type = tt_name;

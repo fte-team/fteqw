@@ -3298,7 +3298,7 @@ void Surf_DrawWorld (void)
 #ifdef THREADEDWORLD
 		if ((r_dynamic.ival < 0 || currentmodel->numbatches) && !r_refdef.recurse && currentmodel->type == mod_brush)
 		{
-			struct webostate_s *webostate, *best = NULL, *generating = NULL;
+			struct webostate_s *webostate, *best = NULL;
 			vec_t bestdist = FLT_MAX;
 			for (webostate = webostates; webostate; webostate = webostate->next)
 			{
@@ -3322,6 +3322,7 @@ void Surf_DrawWorld (void)
 					}
 				}
 			}
+			webostate = best;
 
 			if (qrenderer != QR_OPENGL && qrenderer != QR_VULKAN)
 				;

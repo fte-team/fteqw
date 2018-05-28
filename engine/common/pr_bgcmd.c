@@ -3942,17 +3942,17 @@ size_t			strbufmax;
 
 static void PR_buf_savegame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary)
 {
-	size_t i, bufno;
+	unsigned int i, bufno;
 
 	for (bufno = 0; bufno < strbufmax; bufno++)
 	{
 		if (strbuflist[bufno].prinst == prinst && (strbuflist[bufno].flags & BUFFLAG_SAVED))
 		{
-			VFS_PRINTF (f, "buffer %i %i %i %i\n", bufno, 1, ev_string, strbuflist[bufno].used);
+			VFS_PRINTF (f, "buffer %u %i %i %u\n", bufno, 1, ev_string, (unsigned int)strbuflist[bufno].used);
 			VFS_PRINTF (f, "{\n");
 			for (i = 0; i < strbuflist[bufno].used; i++)
 				if (strbuflist[bufno].strings[i])
-					VFS_PRINTF (f, "%i %s\n", i, strbuflist[bufno].strings[i]);		
+					VFS_PRINTF (f, "%u %s\n", i, strbuflist[bufno].strings[i]);
 			VFS_PRINTF (f, "}\n");
 		}
 	}

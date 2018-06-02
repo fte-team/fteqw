@@ -34,6 +34,17 @@ edict_t	*sv_player;
 
 usercmd_t	cmd;
 
+void QDECL SV_NQPhysicsUpdate(cvar_t *var, char *oldvalue)
+{
+	if (!strcmp(var->string, "auto"))
+	{	//prediction requires nq physics, so use it by default in multiplayer.
+		if (progstype == PROG_QW || (!isDedicated &&  sv.allocated_client_slots > 1))
+			var->ival = 1;
+		else
+			var->ival = 0;
+	}
+}
+
 extern cvar_t dpcompat_nopreparse;
 #ifdef SERVERONLY
 cvar_t	cl_rollspeed = CVAR("cl_rollspeed", "200");
@@ -65,7 +76,7 @@ cvar_t cmd_allowaccess	= CVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd t
 cvar_t cmd_gamecodelevel	= CVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
-cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
+cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "0", "sv_nomsec", 0, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
 

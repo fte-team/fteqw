@@ -1151,25 +1151,16 @@ static void Cmd_AliasEdit_f (void)
 }
 #endif
 
-void Cmd_DeleteAlias(char *name)
+void Cmd_DeleteAlias(const char *name)
 {
-	cmdalias_t	*a, *b;
-	if (!strcmp(cmd_alias->name, name))
+	cmdalias_t	*a, **link;
+	for (link = &cmd_alias; (a = *link); link = &(*link)->next)
 	{
-		a = cmd_alias;
-		cmd_alias = cmd_alias->next;
-		Z_Free(a->value);
-		Z_Free(a);
-		return;
-	}
-	for (a = cmd_alias ; a ; a=a->next)
-	{
-		if (!strcmp(a->next->name, name))
+		if (!strcmp(a->name, name))
 		{
-			b = a->next;
-			a->next = b->next;
-			Z_Free(b->value);
-			Z_Free(b);
+			*link = a->next;
+			Z_Free(a->value);
+			Z_Free(a);
 			return;
 		}
 	}
@@ -2733,6 +2724,10 @@ void	Cmd_ExecuteString (const char *text, int level)
 				if (MP_ConsoleCommand(text))
 					return;	//let the csqc handle it if it wants.
 #endif
+#if defined(MENU_NATIVECODE)
+				if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, cmd_argv))
+					return;
+#endif
 				Cmd_ForwardToServer ();
 			}
 			else
@@ -2893,6 +2888,10 @@ void	Cmd_ExecuteString (const char *text, int level)
 #if defined(MENU_DAT) && !defined(SERVERONLY)
 	if (MP_ConsoleCommand(text))
 		return;	//let the csqc handle it if it wants.
+#endif
+#if defined(MENU_NATIVECODE)
+	if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, cmd_argv))
+		return;
 #endif
 
 #ifdef PLUGINS
@@ -3975,6 +3974,11 @@ void Cmd_WriteConfig_f(void)
 		Key_WriteBindings (f);
 	if (cfg_save_buttons.ival)
 		IN_WriteButtons(f, all);
+	
+	#ifdef HAVE_CDPLAYER
+//		if (cfg_save_cdtracks.ival)
+			Media_SaveTracks(f);
+	#endif
 	if (cfg_save_infos.ival)
 		CL_SaveInfo(f);
 #else

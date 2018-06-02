@@ -2027,7 +2027,12 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 			continue;
 #else
 		if (!mod->numanimations)
-			continue;
+		{
+			if (mod->ofs_skel_xyz)
+				posedata = mod->ofs_skel_xyz;
+			else
+				continue;
+		}
 		else
 		{
 			galiaspose_t *pose;

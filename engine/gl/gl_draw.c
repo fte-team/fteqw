@@ -450,14 +450,10 @@ void GLDraw_Init (void)
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	GL_InitSceneProcessingShaders();
-
-//	Cmd_AddCommandD ("r_imagelist", GLDraw_ImageList_f, "Debug command. Reveals current list of loaded images.");
 }
 
 void GLDraw_DeInit (void)
 {
-	Cmd_RemoveCommand ("r_imagelist");
-
 	R2D_Shutdown();
 
 	R_GAliasFlushSkinCache(true);

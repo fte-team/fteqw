@@ -5355,6 +5355,8 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 #if 0//def DECOMPRESS_BPTC
 		case PTI_BC6_RGBFU:
 		case PTI_BC6_RGBFS:
+			rcoding = PTI_RGBA16F;
+			break;
 		case PTI_BC7_RGBA:
 		case PTI_BC7_RGBA_SRGB:
 			rcoding = PTI_ZOMGWTF;
@@ -5411,6 +5413,10 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 		if (sh_config.texfmt[mips->encoding])
 			return;
 	}
+
+	//Fixme: PTI_E5BGR9 -> PTI_RGBA32F
+	//Fixme: PTI_RGBA16F -> PTI_RGBA32F
+	//FIXME: PTI_RGBA32F -> PTI_RGBA8
 
 	if ((mips->encoding == PTI_RGBX8 && sh_config.texfmt[PTI_BGRX8]) ||
 		(mips->encoding == PTI_BGRX8 && sh_config.texfmt[PTI_RGBX8]) ||
@@ -6598,7 +6604,8 @@ static qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, c
 	int firstex = (tex->flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0;
 
 	flocation_t loc;
-
+	
+	if (strncmp(tex->ident, "http:", 5) && strncmp(tex->ident, "https:", 6))
 	for(altname = tex->ident;altname;altname = nextalt)
 	{
 		nextalt = strchr(altname, ':');
@@ -6978,7 +6985,14 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 
 	if (tex->fallbackdata)
 	{
-		if (Image_LoadRawTexture(tex, tex->flags, tex->fallbackdata, (char*)tex->fallbackdata+(tex->fallbackwidth*tex->fallbackheight), tex->fallbackwidth, tex->fallbackheight, tex->fallbackfmt))
+		if (tex->fallbackfmt == TF_INVALID)
+		{
+			void *data = tex->fallbackdata;
+			tex->fallbackdata = NULL;
+			if (Image_LoadTextureFromMemory(tex, tex->flags, tex->ident, fname, data, tex->fallbackwidth))
+				return;
+		}
+		else if (Image_LoadRawTexture(tex, tex->flags, tex->fallbackdata, (char*)tex->fallbackdata+(tex->fallbackwidth*tex->fallbackheight), tex->fallbackwidth, tex->fallbackheight, tex->fallbackfmt))
 		{
 			tex->fallbackdata = NULL;
 			return;
@@ -7098,7 +7112,7 @@ static void Image_Downloaded(struct dl_download *dl)
 #endif
 
 //find a texture. will try to load it from disk, using the fallback if it would fail.
-image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
+image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 {
 	image_t *tex;
 
@@ -7135,6 +7149,10 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		int b = fallbackwidth*fallbackheight, pb = 0;
 		switch(fallbackfmt)
 		{
+		case TF_INVALID:
+			b = fallbackwidth;
+			pb = fallbackheight;
+			break;
 		case TF_8PAL24:
 			pb = 3*256;
 			b *= 1;
@@ -7414,7 +7432,7 @@ void Image_List_f(void)
 			Q_strncpyz(defuck, loc.search->logicalpath, sizeof(defuck));
 			while((bullshit=strchr(defuck, '\\')))
 				*bullshit = '/';
-			Con_Printf("^[%s\\desc\\%s/%s^]: ", tex->ident, defuck, fname);
+			Con_Printf("^[%s\\tip\\%s/%s^]: ", tex->ident, defuck, fname);
 		}
 		else
 			Con_Printf("%s: ", tex->ident);

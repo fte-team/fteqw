@@ -1665,6 +1665,7 @@ const char *Media_Send_GetProperty(cin_t *cin, const char *key);
 #define Media_StopFilm(a) (void)true
 #endif
 
+void Media_SaveTracks(vfsfile_t *outcfg);
 void Media_Init(void);
 qboolean Media_NamedTrack(const char *initialtrack, const char *looptrack);	//new background music interface
 void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack);				//legacy cd interface for protocols that only support numbered tracks.

@@ -1935,7 +1935,7 @@ void GLR_RenderView (void)
 	}
 	if (dofbo)
 		forcedfb = false;
-	else if (r_renderscale.value != 1)
+	else if (renderscale != 1)
 		forcedfb = true;
 
 	BE_Scissor(NULL);

@@ -1461,7 +1461,7 @@ static int CL_LoadSounds(int stage, qboolean dontactuallyload)
 
 void Sound_CheckDownload(const char *s)
 {
-#ifndef QUAKETC
+#if !defined(QUAKETC) && defined(AVAIL_OGGVORBIS)
 	char mangled[512];
 #endif
 	if (*s == '*')	//q2 sexed sound

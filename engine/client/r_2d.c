@@ -662,7 +662,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	draw_mesh.numvertexes += 4;
 	draw_mesh.numindexes += 6;
 }
-void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
+void R2D_Image2dQuad(vec2_t const*points, vec2_t const*texcoords, mpic_t *pic)
 {
 	int i;
 	if (!pic)
@@ -1061,9 +1061,9 @@ void R2D_Font_Changed(void)
 		LOGFONTW lf = {0};
 		CHOOSEFONTW cf = {sizeof(cf)};
 		extern HWND	mainwindow;
-		font_default = Font_LoadFont(8, "");
+		font_default = Font_LoadFont("", 8);
 		if (tsize != 8)
-			font_console = Font_LoadFont(tsize, "");
+			font_console = Font_LoadFont("", tsize);
 		if (!font_console)
 			font_console = font_default;
 
@@ -1102,18 +1102,27 @@ void R2D_Font_Changed(void)
 	}
 #endif
 
-	font_default = Font_LoadFont(8, gl_font.string);
+	font_default = Font_LoadFont(gl_font.string, 8);
 	if (!font_default && *gl_font.string)
-		font_default = Font_LoadFont(8, "");
+		font_default = Font_LoadFont("", 8);
 
 	if (tsize != 8)
 	{
-		font_console = Font_LoadFont(tsize, gl_font.string);
+		font_console = Font_LoadFont(gl_font.string, tsize);
 		if (!font_console)
-			font_console = Font_LoadFont(tsize, "");
+			font_console = Font_LoadFont("", tsize);
 	}
 	if (!font_console)
 		font_console = font_default;
+
+	//these are here instead of R2D_Console_Resize because this is guarenteed to happen in a sane place, while R2D_Console_Resize can happen during waits.
+#ifdef MENU_NATIVECODE
+	if (mn_entry)
+		mn_entry->Init(MI_RESOLUTION, vid.width, vid.height, vid.rotpixelwidth, vid.rotpixelheight);
+#endif
+#ifdef PLUGINS
+	Plug_ResChanged();
+#endif
 }
 
 static void QDECL R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
@@ -1210,10 +1219,6 @@ void R2D_Console_Resize(void)
 	vid.height = cheight;
 
 	Cvar_ForceCallback(&gl_font);
-
-#ifdef PLUGINS
-	Plug_ResChanged();
-#endif
 }
 
 static void QDECL R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue)

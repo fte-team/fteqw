@@ -1346,12 +1346,22 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			magic = 0;
 		else
 			magic = LittleLong(*(unsigned *)buf);
-		for(i = 0; i < sizeof(modelloaders) / sizeof(modelloaders[0]); i++)
+		//look for known extensions first, to try to avoid issues with specific formats
+		for(i = 0; i < countof(modelloaders); i++)
 		{
-			if (modelloaders[i].load && modelloaders[i].magic == magic && !modelloaders[i].ident)
+			if (modelloaders[i].load && modelloaders[i].ident && *modelloaders[i].ident == '.' && !Q_strcasecmp(modelloaders[i].ident+1, ext))
 				break;
 		}
-		if (i < sizeof(modelloaders) / sizeof(modelloaders[0]))
+		//now look to see if we can find one with the right magic header
+		if (i == countof(modelloaders))
+		{
+			for(i = 0; i < countof(modelloaders); i++)
+			{
+				if (modelloaders[i].load && modelloaders[i].magic == magic && !modelloaders[i].ident)
+					break;
+			}
+		}
+		if (i < countof(modelloaders))
 		{
 			if (!modelloaders[i].load(mod, buf, filesize))
 			{
@@ -5037,7 +5047,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 {
 	struct vispatch_s vispatch;
 	int			i, j;
-	dheader_t	*header;
+	dheader_t	header;
 	mmodel_t 	*bm;
 	model_t *submod;
 	unsigned int chksum;
@@ -5048,11 +5058,22 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	qboolean hexen2map = false;
 	qboolean isnotmap;
 	qboolean using_rbe = true;
+	qboolean misaligned = false;
 
 	COM_FileBase (mod->name, loadname, sizeof(loadname));
 	mod->type = mod_brush;
 	
-	header = (dheader_t *)buffer;
+	if (fsize < sizeof(header))
+		return false;
+
+	mod_base = (qbyte *)buffer;
+	memcpy(&header, mod_base, sizeof(header));
+	header.version = LittleLong(header.version);
+	for (i=0 ; i<countof(header.lumps)/4 ; i++)
+	{
+		header.lumps[i].filelen = LittleLong(header.lumps[i].filelen);
+		header.lumps[i].fileofs = LittleLong(header.lumps[i].fileofs);
+	}
 
 #ifdef SERVERONLY
 	isnotmap = !!sv.world.worldmodel;
@@ -5067,29 +5088,27 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		isnotmap = true;
 #endif
 
-	i = LittleLong (header->version);
-
-	if (i == BSPVERSION || i == BSPVERSIONPREREL)
+	switch(header.version)
 	{
+	case BSPVERSION:
+	case BSPVERSIONPREREL:
 		mod->fromgame = fg_quake;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-	}
-	else if (i == BSPVERSION_LONG1)
-	{
+		break;
+	case BSPVERSION_LONG1:
 		longm = true;
 		mod->fromgame = fg_quake;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-	}
-	else if (i == BSPVERSION_LONG2)
-	{
+		break;
+	case BSPVERSION_LONG2:
 		longm = 2;
 		mod->fromgame = fg_quake;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-	}
-	else if (i == BSPVERSIONHL)	//halflife support
+		break;
+	case BSPVERSIONHL:	//halflife support
 		mod->fromgame = fg_halflife;
-	else
-	{
+		break;
+	default:
 		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
 		return false;
 	}
@@ -5097,28 +5116,23 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	mod->lightmaps.width = 128;//LMBLOCK_WIDTH;
 	mod->lightmaps.height = 128;//LMBLOCK_HEIGHT; 
 
-// swap all the lumps
-	mod_base = (qbyte *)header;
-
-	for (i=0 ; i<sizeof(dheader_t)/4 ; i++)
-		((int *)header)[i] = LittleLong ( ((int *)header)[i]);
-
-	Q1BSPX_Setup(mod, mod_base, fsize, header->lumps, HEADER_LUMPS);
-
 // checksum all of the map, except for entities
 	mod->checksum = 0;
 	mod->checksum2 = 0;
 
 	for (i = 0; i < HEADER_LUMPS; i++)
 	{
-		if ((unsigned)header->lumps[i].fileofs + (unsigned)header->lumps[i].filelen > fsize)
+		if ((header.lumps[i].fileofs & 3) && header.lumps[i].filelen)
+			misaligned = true;
+
+		if ((unsigned)header.lumps[i].fileofs + (unsigned)header.lumps[i].filelen > fsize)
 		{
 			Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
 			return false;
 		}
 		if (i == LUMP_ENTITIES)
 			continue;
-		chksum = Com_BlockChecksum(mod_base + header->lumps[i].fileofs, header->lumps[i].filelen);
+		chksum = Com_BlockChecksum(mod_base + header.lumps[i].fileofs, header.lumps[i].filelen);
 		mod->checksum ^= chksum;
 
 		if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)
@@ -5126,13 +5140,39 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		mod->checksum2 ^= chksum;
 	}
 
-	if (1)//mod_ebfs.value)
+	if (misaligned)
+	{	//pre-phong versions of tyrutils wrote misaligned lumps. These crash on arm/etc.
+		char *tmp;
+		int ofs = 0;
+		Con_Printf(CON_WARNING"%s: Misaligned lumps detected\n", mod->name);
+		tmp = BZ_Malloc(fsize);
+		memcpy(tmp, mod_base, fsize);
+		for (i = 0; i < HEADER_LUMPS; i++)
+		{
+			if (ofs + header.lumps[i].filelen > fsize)
+			{	//can happen if two lumps overlap... otherwise impossible.
+				Con_Printf(CON_ERROR"%s: Realignment failed\n", mod->name);
+				BZ_Free(tmp);
+				return false;
+			}
+			memcpy(mod_base + ofs, tmp+header.lumps[i].fileofs, header.lumps[i].filelen);
+			header.lumps[i].fileofs = ofs;
+			ofs += header.lumps[i].filelen;
+		}
+		BZ_Free(tmp);
+	}
+	else
 	{
-		char *id;
-		id = (char *)(header + 1);
-		if (id[0]=='P' && id[1]=='A' && id[2]=='C' && id[3]=='K')
-		{	//EBFS detected.
-			COM_LoadMapPackFile(mod->name, sizeof(dheader_t));
+		Q1BSPX_Setup(mod, mod_base, fsize, header.lumps, HEADER_LUMPS);
+
+		if (1)//mod_ebfs.value)
+		{
+			char *id;
+			id = (char *)mod_base + sizeof(dheader_t);
+			if (id[0]=='P' && id[1]=='A' && id[2]=='C' && id[3]=='K')
+			{	//EBFS detected.
+				COM_LoadMapPackFile(mod->name, sizeof(dheader_t));
+			}
 		}
 	}
 		
@@ -5140,56 +5180,56 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 
 	crouchhullfile = NULL;
 
-	Mod_FindVisPatch(&vispatch, mod, header->lumps[LUMP_LEAFS].filelen);
+	Mod_FindVisPatch(&vispatch, mod, header.lumps[LUMP_LEAFS].filelen);
 
 // load into heap
 	if (!isDedicated || using_rbe)
 	{
 		TRACE(("Loading verts\n"));
-		noerrors = noerrors && Mod_LoadVertexes (mod, mod_base, &header->lumps[LUMP_VERTEXES]);
+		noerrors = noerrors && Mod_LoadVertexes (mod, mod_base, &header.lumps[LUMP_VERTEXES]);
 		TRACE(("Loading edges\n"));
-		noerrors = noerrors && Mod_LoadEdges (mod, mod_base, &header->lumps[LUMP_EDGES], longm);
+		noerrors = noerrors && Mod_LoadEdges (mod, mod_base, &header.lumps[LUMP_EDGES], longm);
 		TRACE(("Loading Surfedges\n"));
-		noerrors = noerrors && Mod_LoadSurfedges (mod, mod_base, &header->lumps[LUMP_SURFEDGES]);
+		noerrors = noerrors && Mod_LoadSurfedges (mod, mod_base, &header.lumps[LUMP_SURFEDGES]);
 	}
 	if (!isDedicated)
 	{
 		TRACE(("Loading Textures\n"));
-		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header->lumps[LUMP_TEXTURES]);
+		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header.lumps[LUMP_TEXTURES]);
 	}
 	TRACE(("Loading Submodels\n"));
-	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header->lumps[LUMP_MODELS], &hexen2map);
+	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header.lumps[LUMP_MODELS], &hexen2map);
 	if (noerrors)
 	{
 		TRACE(("Loading CH\n"));
 		Mod_LoadCrouchHull(mod);
 	}
 	TRACE(("Loading Planes\n"));
-	noerrors = noerrors && Mod_LoadPlanes (mod, mod_base, &header->lumps[LUMP_PLANES]);
+	noerrors = noerrors && Mod_LoadPlanes (mod, mod_base, &header.lumps[LUMP_PLANES]);
 	TRACE(("Loading Entities\n"));
-	Mod_LoadEntities (mod, mod_base, &header->lumps[LUMP_ENTITIES]);
+	Mod_LoadEntities (mod, mod_base, &header.lumps[LUMP_ENTITIES]);
 	if (!isDedicated || using_rbe)
 	{
 		TRACE(("Loading Texinfo\n"));
-		noerrors = noerrors && Mod_LoadTexinfo (mod, mod_base, &header->lumps[LUMP_TEXINFO]);
+		noerrors = noerrors && Mod_LoadTexinfo (mod, mod_base, &header.lumps[LUMP_TEXINFO]);
 		TRACE(("Loading Faces\n"));
-		noerrors = noerrors && Mod_LoadFaces (mod, mod_base, &header->lumps[LUMP_FACES], &header->lumps[LUMP_LIGHTING], longm);
+		noerrors = noerrors && Mod_LoadFaces (mod, mod_base, &header.lumps[LUMP_FACES], &header.lumps[LUMP_LIGHTING], longm);
 	}
 	if (!isDedicated)
 	{
 		TRACE(("Loading MarkSurfaces\n"));
-		noerrors = noerrors && Mod_LoadMarksurfaces (mod, mod_base, &header->lumps[LUMP_MARKSURFACES], longm);	
+		noerrors = noerrors && Mod_LoadMarksurfaces (mod, mod_base, &header.lumps[LUMP_MARKSURFACES], longm);	
 	}
 	if (noerrors)
 	{
 		TRACE(("Loading Vis\n"));
-		Mod_LoadVisibility (mod, mod_base, &header->lumps[LUMP_VISIBILITY], vispatch.visptr, vispatch.vislen);
+		Mod_LoadVisibility (mod, mod_base, &header.lumps[LUMP_VISIBILITY], vispatch.visptr, vispatch.vislen);
 	}
-	noerrors = noerrors && Mod_LoadLeafs (mod, mod_base, &header->lumps[LUMP_LEAFS], longm, isnotmap, vispatch.leafptr, vispatch.leaflen);
+	noerrors = noerrors && Mod_LoadLeafs (mod, mod_base, &header.lumps[LUMP_LEAFS], longm, isnotmap, vispatch.leafptr, vispatch.leaflen);
 	TRACE(("Loading Nodes\n"));
-	noerrors = noerrors && Mod_LoadNodes (mod, mod_base, &header->lumps[LUMP_NODES], longm);
+	noerrors = noerrors && Mod_LoadNodes (mod, mod_base, &header.lumps[LUMP_NODES], longm);
 	TRACE(("Loading Clipnodes\n"));
-	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header->lumps[LUMP_CLIPNODES], longm, hexen2map);
+	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header.lumps[LUMP_CLIPNODES], longm, hexen2map);
 	if (noerrors)
 	{
 		TRACE(("Loading hull 0\n"));

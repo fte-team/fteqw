@@ -8,7 +8,7 @@ extern unsigned int r2d_be_flags;
 #include "shader.h"
 #include "cl_master.h"
 
-static int MN_checkextension(const char *extname)
+static int MN_CheckExtension(const char *extname)
 {
 	unsigned int i;
 	for (i = 0; i < QSG_Extensions_count; i++)
@@ -18,15 +18,41 @@ static int MN_checkextension(const char *extname)
 	}
 	return false;
 }
-static void MN_localcmd(const char *text)
+static void MN_LocalCmd(const char *text)
 {
 	Cbuf_AddText(text, RESTRICT_LOCAL);	//menus are implicitly trusted. latching and other stuff would be a nightmare otherwise.
 }
-static void MN_registercvar(const char *cvarname, const char *defaulttext, unsigned int flags, const char *description)
+static const char *MN_Cvar_String(const char *cvarname, qboolean effective)
+{
+	cvar_t *cv = Cvar_FindVar(cvarname);
+	if (cv)
+	{	//some cvars don't change instantly, giving them (temporary) effective values that are different from their intended values.
+		if (cv->latched_string && !effective)
+			return cv->latched_string;
+		return cv->string;
+	}
+	else
+		return NULL;
+}
+static const char *MN_Cvar_GetDefault(const char *cvarname)
+{
+	cvar_t *cv = Cvar_FindVar(cvarname);
+	if (cv)
+		return cv->defaultstr?cv->defaultstr:"";
+	else
+		return NULL;
+}
+static void MN_RegisterCvar(const char *cvarname, const char *defaulttext, unsigned int flags, const char *description)
 {
 	Cvar_Get2(cvarname, defaulttext, flags, description, NULL);
 }
-static int MN_getserverstate(void)
+void Cmd_DeleteAlias(const char *name);
+static void MN_RegisterCommand(const char *commandname, const char *description)
+{
+	Cmd_DeleteAlias(commandname);	//menuqc has no real way to register commands, so it has a nasty habit of creating loads of weird awkward aliases.
+	Cmd_AddCommandD(commandname, NULL, description);
+}
+static int MN_GetServerState(void)
 {
 	if (!sv.active)
 		return 0;
@@ -34,7 +60,7 @@ static int MN_getserverstate(void)
 		return 1;
 	return 2;
 }
-static int MN_getclientstate(void)
+static int MN_GetClientState(void)
 {
 	if (cls.state >= ca_active)
 		return 2;
@@ -46,50 +72,60 @@ static void MN_fclose(vfsfile_t *f)
 {
 	VFS_CLOSE(f);
 }
-static void *MN_precache_pic(const char *picname)
+static shader_t *MN_CachePic(const char *picname)
 {
 	return R2D_SafeCachePic(picname);
 }
-static int MN_drawgetimagesize(void *pic, int *w, int *h)
+static qboolean MN_DrawGetImageSize(void *pic, int *w, int *h)
 {
-	return R_GetShaderSizes(pic, w, h, true);
+	return R_GetShaderSizes(pic, w, h, true)>0;
 }
-static void MN_drawquad(vec2_t position[4], vec2_t texcoords[4], void *pic, vec4_t rgba, unsigned int be_flags)
+static void MN_DrawQuad(const vec2_t position[4], const vec2_t texcoords[4], shader_t *pic, const vec4_t rgba, unsigned int be_flags)
 {
+	extern shader_t *shader_draw_fill, *shader_draw_fill_trans;
 	r2d_be_flags = be_flags;
+	if (!pic)
+		pic = rgba[3]==1?shader_draw_fill:shader_draw_fill_trans;
 	R2D_ImageColours(rgba[0], rgba[1], rgba[2], rgba[3]);
 	R2D_Image2dQuad(position, texcoords, pic);
 	r2d_be_flags = 0;
 }
-static float MN_drawstring(vec2_t position, const char *text, float height, vec4_t rgba, unsigned int be_flags)
+static float MN_DrawString(const vec2_t position, const char *text, struct font_s *font, float height, const vec4_t rgba, unsigned int be_flags)
 {
 	float px, py, ix;
 	unsigned int codeflags, codepoint;
 	conchar_t buffer[2048], *str = buffer;
+	if (!font)
+		font = font_default;
+
 	COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
 
-	Font_BeginScaledString(font_default, position[0], position[1], height, height, &px, &py);
+	R2D_ImageColours(rgba[0], rgba[1], rgba[2], rgba[3]);
+	Font_BeginScaledString(font, position[0], position[1], height, height, &px, &py);
 	ix=px;
 	while(*str)
 	{
 		str = Font_Decode(str, &codeflags, &codepoint);
 		px = Font_DrawScaleChar(px, py, codeflags, codepoint);
 	}
-	Font_EndString(font_default);
+	Font_EndString(font);
 	return ((px-ix)*(float)vid.width)/(float)vid.rotpixelwidth;
 }
-static float MN_stringwidth(const char *text, float height)
+static float MN_StringWidth(const char *text, struct font_s *font, float height)
 {
 	float px, py;
 	conchar_t buffer[2048], *end;
+	if (!font)
+		font = font_default;
+
 	end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
 
-	Font_BeginScaledString(font_default, 0, 0, height, height, &px, &py);
+	Font_BeginScaledString(font, 0, 0, height, height, &px, &py);
 	px = Font_LineScaleWidth(buffer, end);
-	Font_EndString(font_default);
+	Font_EndString(font);
 	return (px * (float)vid.width) / (float)vid.rotpixelwidth;
 }
-static void MN_drawsetcliparea(float x, float y, float width, float height)
+static void MN_DrawSetClipArea(float x, float y, float width, float height)
 {
 	srect_t srect;
 	if (R2D_Flush)
@@ -104,13 +140,13 @@ static void MN_drawsetcliparea(float x, float y, float width, float height)
 	srect.y = (1-srect.y) - srect.height;
 	BE_Scissor(&srect);
 }
-static void MN_drawresetcliparea(void)
+static void MN_DrawResetClipArea(void)
 {
 	if (R2D_Flush)
 		R2D_Flush();
 	BE_Scissor(NULL);
 }
-static qboolean MN_setkeydest(qboolean focused)
+static qboolean MN_SetKeyDest(qboolean focused)
 {
 	qboolean ret = Key_Dest_Has(kdm_nmenu);
 	if (ret == focused)
@@ -119,9 +155,10 @@ static qboolean MN_setkeydest(qboolean focused)
 	{
 		if (key_dest_absolutemouse & kdm_nmenu)
 		{	//we're activating the mouse cursor now... make sure the position is actually current.
+			//FIXME: we should probably get the input code to do this for us when switching cursor modes.
 			struct menu_inputevent_args_s ev = {MIE_MOUSEABS, -1};
-			ev.mouse.screen[0] = mousecursor_x;
-			ev.mouse.screen[1] = mousecursor_y;
+			ev.mouse.screen[0] = (mousecursor_x * vid.width) / vid.pixelwidth;
+			ev.mouse.screen[1] = (mousecursor_y * vid.height) / vid.pixelheight;
 			mn_entry->InputEvent(ev);
 		}
 		Key_Dest_Add(kdm_nmenu);
@@ -130,7 +167,7 @@ static qboolean MN_setkeydest(qboolean focused)
 		Key_Dest_Remove(kdm_nmenu);
 	return true;
 }
-static int MN_getkeydest(void)
+static int MN_GetKeyDest(void)
 {
 	if (Key_Dest_Has(kdm_nmenu))
 	{
@@ -140,7 +177,7 @@ static int MN_getkeydest(void)
 	}
 	return 0;
 }
-static int MN_setmousetarget(const char *cursorname, float hot_x, float hot_y, float scale)
+static int MN_SetMouseTarget(const char *cursorname, float hot_x, float hot_y, float scale)
 {
 	if (cursorname)
 	{
@@ -162,12 +199,108 @@ static int MN_setmousetarget(const char *cursorname, float hot_x, float hot_y, f
 	return true;
 }
 
+static model_t *MN_CacheModel(const char *name)
+{
+	return Mod_ForName(name, MLV_SILENT);
+}
+static qboolean MN_GetModelSize(model_t *model, vec3_t out_mins, vec3_t out_maxs)
+{
+	if (model)
+	{
+		while(model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+
+		VectorCopy(model->mins, out_mins);
+		VectorCopy(model->maxs, out_maxs);
+		return model->loadstate == MLS_LOADED;
+	}
+	VectorClear(out_mins);
+	VectorClear(out_maxs);
+	return false;
+}
+static void MN_RenderScene(menuscene_t *scene)
+{
+	int i;
+	entity_t ent;
+	menuentity_t *e;
+	if (R2D_Flush)
+		R2D_Flush();
+
+	CL_ClearEntityLists();
+	memset(&ent, 0, sizeof(ent));
+	for (i = 0; i < scene->numentities; i++)
+	{
+		e = &scene->entlist[i];
+		ent.keynum = i;
+		ent.model = scene->entlist[i].model;
+		VectorCopy(e->matrix[0], ent.axis[0]); ent.origin[0] = e->matrix[0][3];
+		VectorCopy(e->matrix[1], ent.axis[1]); ent.origin[1] = e->matrix[0][7];
+		VectorCopy(e->matrix[2], ent.axis[2]); ent.origin[2] = e->matrix[0][11];
+
+		ent.scale = 1;
+		ent.framestate.g[FS_REG].frame[0] = e->frame[0];
+		ent.framestate.g[FS_REG].frame[1] = e->frame[1];
+		ent.framestate.g[FS_REG].lerpweight[1] = e->frameweight[0];
+		ent.framestate.g[FS_REG].lerpweight[0] = e->frameweight[1];
+		ent.framestate.g[FS_REG].frametime[0] = e->frametime[0];
+		ent.framestate.g[FS_REG].frametime[1] = e->frametime[1];
+
+		ent.playerindex = -1;
+		ent.topcolour = TOP_DEFAULT;
+		ent.bottomcolour = BOTTOM_DEFAULT;
+		Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+		VectorSet(ent.glowmod, 1, 1, 1);
+#ifdef HEXEN2
+		ent.drawflags = SCALE_ORIGIN_ORIGIN;
+		ent.abslight = 0;
+#endif
+		ent.skinnum = 0;
+		ent.fatness = 0;
+		ent.forcedshader = NULL;
+		ent.customskin = 0;
+
+		V_AddAxisEntity(&ent);
+	}
+
+	VectorCopy(scene->viewmatrix[0], r_refdef.viewaxis[0]); r_refdef.vieworg[0] = scene->viewmatrix[0][3];
+	VectorCopy(scene->viewmatrix[1], r_refdef.viewaxis[1]); r_refdef.vieworg[1] = scene->viewmatrix[0][7];
+	VectorCopy(scene->viewmatrix[2], r_refdef.viewaxis[2]); r_refdef.vieworg[2] = scene->viewmatrix[0][11];
+	
+	r_refdef.viewangles[0] = -(atan2(r_refdef.viewaxis[0][2], sqrt(r_refdef.viewaxis[0][1]*r_refdef.viewaxis[0][1]+r_refdef.viewaxis[0][0]*r_refdef.viewaxis[0][0])) * 180 / M_PI);
+	r_refdef.viewangles[1] = (atan2(r_refdef.viewaxis[0][1], r_refdef.viewaxis[0][0]) * 180 / M_PI);
+	r_refdef.viewangles[2] = 0;
+
+	r_refdef.flags = 0;
+	if (scene->worldmodel && scene->worldmodel == cl.worldmodel)
+		r_refdef.flags &= ~RDF_NOWORLDMODEL;
+	else
+		r_refdef.flags |= RDF_NOWORLDMODEL;
+	r_refdef.fovv_x = r_refdef.fov_x = scene->fov[0];
+	r_refdef.fovv_y = r_refdef.fov_y = scene->fov[1];
+	r_refdef.vrect.x = scene->pos[0];
+	r_refdef.vrect.y = scene->pos[1];
+	r_refdef.vrect.width = scene->size[0];
+	r_refdef.vrect.height = scene->size[1];
+	r_refdef.time = scene->time;
+	r_refdef.useperspective = true;
+	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
+	r_refdef.maxdist = gl_maxdist.value;
+	r_refdef.playerview = &cl.playerview[0];
+
+	memset(&r_refdef.globalfog, 0, sizeof(r_refdef.globalfog));
+	r_refdef.areabitsknown = false;
+
+	R_RenderView();
+	r_refdef.playerview = NULL;
+	r_refdef.time = 0;
+}
+
 void MN_Shutdown(void)
 {
 	Key_Dest_Remove(kdm_nmenu);
 	if (mn_entry)
 	{
-		mn_entry->Shutdown();
+		mn_entry->Shutdown(MI_INIT);
 		mn_entry = NULL;
 	}
 	if (libmenu)
@@ -182,19 +315,24 @@ qboolean MN_Init(void)
 	static menu_import_t imports =
 	{
 		NATIVEMENU_API_VERSION_MAX,
+		NULL,
 
-		MN_checkextension,
+		MN_CheckExtension,
 		Host_Error,
 		Con_Printf,
 		Con_DPrintf,
-		MN_localcmd,
+		MN_LocalCmd,
 		Cvar_VariableValue,
-		Cvar_VariableString,
+		MN_Cvar_String,
+		MN_Cvar_GetDefault,
 		Cvar_SetNamed,
-		MN_registercvar,
+		MN_RegisterCvar,
+		MN_RegisterCommand,
 
-		MN_getserverstate,
-		MN_getclientstate,
+		COM_ParseType,
+
+		MN_GetServerState,
+		MN_GetClientState,
 		S_LocalSound2,
 	
 		// file input / search crap
@@ -204,25 +342,37 @@ qboolean MN_Init(void)
 		VFS_PRINTF,
 		COM_EnumerateFiles,
 
-	// Drawing stuff
-		MN_precache_pic,
-		MN_drawgetimagesize,
-		MN_drawquad,
-		MN_drawstring,
-		MN_stringwidth,
-		MN_drawsetcliparea,
-		MN_drawresetcliparea,
+		// Drawing stuff
+		MN_DrawSetClipArea,
+		MN_DrawResetClipArea,
+
+		//pics
+		MN_CachePic,
+		MN_DrawGetImageSize,
+		MN_DrawQuad,
+
+		//strings
+		MN_DrawString,
+		MN_StringWidth,
+		Font_LoadFont,
+		Font_Free,
+
+		//3d stuff
+		MN_CacheModel,
+		MN_GetModelSize,
+		MN_RenderScene,
 
 		// Menu specific stuff
-		MN_setkeydest,
-		MN_getkeydest,
-		MN_setmousetarget,
+		MN_SetKeyDest,
+		MN_GetKeyDest,
+		MN_SetMouseTarget,
 		Key_KeynumToString,
 		Key_StringToKeynum,
 		M_FindKeysForBind,
 
 		// Server browser stuff
-		NULL,//MN_gethostcachevalue,
+		Master_KeyForName,
+		Master_SortedServer,
 		Master_ReadKeyString,
 		Master_ReadKeyFloat,
 
@@ -231,10 +381,8 @@ qboolean MN_Init(void)
 		Master_SetMaskInteger,
 		Master_SetSortField,
 		Master_SortServers,
-		Master_SortedServer,
 		MasterInfo_Refresh,
-
-		Master_KeyForName,
+		CL_QueryServers,
 	};
 	dllfunction_t funcs[] =
 	{
@@ -266,12 +414,14 @@ qboolean MN_Init(void)
 
 	if (libmenu)
 	{
+		imports.engine_version = version_string();
+
 		key_dest_absolutemouse |= kdm_nmenu;
 
 		mn_entry = pGetMenuAPI (&imports); 
 		if (mn_entry && mn_entry->api_version >= NATIVEMENU_API_VERSION_MIN && mn_entry->api_version <= NATIVEMENU_API_VERSION_MAX)
 		{
-			mn_entry->Init();
+			mn_entry->Init(0, vid.width, vid.height, vid.pixelwidth, vid.pixelheight);
 			return true;
 		}
 		else

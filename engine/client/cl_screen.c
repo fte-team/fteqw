@@ -1899,7 +1899,7 @@ void SCR_DrawLoading (qboolean opaque)
 #ifdef MENU_NATIVECODE
 	if (mn_entry && mn_entry->DrawLoading)
 	{
-		mn_entry->DrawLoading(vid.width, vid.height, host_frametime);
+		mn_entry->DrawLoading(host_frametime);
 		return;
 	}
 #endif
@@ -3397,7 +3397,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 #endif
 #ifdef MENU_NATIVECODE
 	if (mn_entry)
-		mn_entry->Draw(vid.width, vid.height, host_frametime);
+		mn_entry->Draw(host_frametime);
 #endif
 	M_Draw (uimenu);
 

@@ -352,7 +352,7 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	{
 		"",
 #if defined(AVAIL_OGGOPUS) || defined(FTE_TARGET_WEB)
-		".opus",
+		".opus",	//opus might be the future, but ogg is the present
 #endif
 #if defined(AVAIL_OGGVORBIS) || defined(FTE_TARGET_WEB)
 		".ogg",
@@ -364,8 +364,9 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 		NULL
 	};
 	char trackname[MAX_QPATH];
+	char tryname[MAX_QPATH];
+	int bestdepth = 0x7fffffff, d;
 	int ie, ip;
-	qboolean found = false;
 	char *trackend;
 
 	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
@@ -394,11 +395,11 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	if (!tracknum)	//might as well require exact file
 	{
 		Q_snprintfz(trackname, sizeof(trackname), "%s", track);
-		found = COM_FCheckExists(trackname);
+		d = COM_FCheckExists(trackname);
 	}
 	else
 #endif
-	for(ip = 0; path[ip] && !found; ip++)
+	for(ip = 0; path[ip]; ip++)
 	{
 		if (tracknum)
 		{
@@ -406,33 +407,49 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 			{
 				if (tracknum <= 999)
 				{
-					for(ie = 0; ext[ie] && !found; ie++)
+					for(ie = 0; ext[ie]; ie++)
 					{
-						Q_snprintfz(trackname, sizeof(trackname), "%strack%03u%s", path[ip], tracknum, ext[ie]);
-						found = COM_FCheckExists(trackname);
+						Q_snprintfz(tryname, sizeof(tryname), "%strack%03u%s", path[ip], tracknum, ext[ie]);
+						d = COM_FDepthFile(tryname, false);
+						if (d < bestdepth)
+						{
+							bestdepth = d;
+							Q_strncpy(trackname, tryname, sizeof(trackname));
+						}
 					}
 				}
 				if (tracknum <= 99)
 				{
-					for(ie = 0; ext[ie] && !found; ie++)
+					for(ie = 0; ext[ie]; ie++)
 					{
-						Q_snprintfz(trackname, sizeof(trackname), "%strack%02u%s", path[ip], tracknum, ext[ie]);
-						found = COM_FCheckExists(trackname);
+						Q_snprintfz(tryname, sizeof(tryname), "%strack%02u%s", path[ip], tracknum, ext[ie]);
+						d = COM_FDepthFile(tryname, false);
+						if (d < bestdepth)
+						{
+							bestdepth = d;
+							Q_strncpy(trackname, tryname, sizeof(trackname));
+						}
 					}
 				}
 			}
 		}
 		else
 		{
-			for(ie = 0; ext[ie] && !found; ie++)
+			for(ie = 0; ext[ie]; ie++)
 			{
-				Q_snprintfz(trackname, sizeof(trackname), "%s%s%s", path[ip], track, ext[ie]);
-				found = COM_FCheckExists(trackname);
+				Q_snprintfz(tryname, sizeof(tryname), "%s%s%s", path[ip], track, ext[ie]);
+				d = COM_FDepthFile(tryname, false);
+				if (d < bestdepth)
+				{
+					bestdepth = d;
+					Q_strncpy(trackname, tryname, sizeof(trackname));
+				}
 			}
 		}
 	}
 
-	if (found)
+	//okay, do that faketrack thing if we got one.
+	if (bestdepth < 0x7fffffff)
 	{
 #ifdef HAVE_CDPLAYER
 		cdplaytracknum = 0;
@@ -444,11 +461,11 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	}
 
 #ifdef HAVE_CDPLAYER
+	//couldn't do a faketrack, resort to actual cd tracks, if we're allowed
 	if (tracknum && cdenabled)
 	{
 		Q_strncpyz(media_loopingtrack, looptrack, sizeof(media_loopingtrack));
 
-		//couldn't do a faketrack, resort to actual cd tracks, if we're allowed
 		if (!CDAudio_Startup())
 			return false;
 		if (cdnumtracks <= 0)
@@ -526,6 +543,14 @@ void Media_SetPauseTrack(qboolean paused)
 }
 
 #ifdef HAVE_CDPLAYER
+void Media_SaveTracks(vfsfile_t *outcfg)
+{
+	unsigned int n;
+	char buf[MAX_QPATH*4];
+	for (n = 1; n < REMAPPED_TRACKS; n++)
+		if (*cdremap[n].fname)
+			Con_Printf("cd remap %u %s\n", n, COM_QuotedString(cdremap[n].fname, buf, sizeof(buf), false));
+}
 void CD_f (void)
 {
 	char	*command;

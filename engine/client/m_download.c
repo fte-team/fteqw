@@ -2700,7 +2700,7 @@ void PM_Command_f(void)
 		Con_Printf("Applying package changes\n");
 		if (qrenderer != QR_NONE)
 			PM_PromptApplyChanges();
-		else
+		else if (Cmd_ExecLevel == RESTRICT_LOCAL)
 			PM_ApplyChanges();
 	}
 	else if (!strcmp(act, "changes"))

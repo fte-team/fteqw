@@ -1922,10 +1922,7 @@ static void QDECL S_EnumeratedOutDevice(const char *driver, const char *deviceco
 	char nbuf[1024];
 	char dbuf[1024];
 	
-	if (devicecode && (	strchr(devicecode, ' ') ||
-						strchr(devicecode, '\"')))
-		fullintname = va("\"%s:%s\"", driver, devicecode);	//it'll all get escaped anyway. but yeah, needs to be a single token or our multi-device stuff won't work properly. yes, this is a bit of a hack.
-	else if (devicecode)
+	if (devicecode)
 		fullintname = va("%s:%s", driver, devicecode);
 	else
 		fullintname = driver;

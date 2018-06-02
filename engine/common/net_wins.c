@@ -98,9 +98,9 @@ cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network
 cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables compatibility with qizmo's tcp connections serverside. Frankly, using sv_port_tcp without this is a bit pointless.");
 cvar_t	net_enable_qtv			= CVARD("net_enable_qtv",			"1", "Listens for qtv proxies, or clients using the qtvplay command.");
 cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary data sent to a non-tls tcp port will be interpretted as a tls handshake (enabling https or wss over the same tcp port.");
-cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
+cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
-cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"1", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
+cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"0", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
 #endif
 #if defined(HAVE_DTLS) && !defined(CLIENTONLY)
 static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)

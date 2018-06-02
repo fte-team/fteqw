@@ -507,6 +507,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 
 		rad = cl_dlights[lnum].radius;
 		VectorSubtract(cl_dlights[lnum].origin, currententity->origin, lightofs);
+		//FIXME: transform by forward/right/up
 		dist = DotProduct (lightofs, surf->plane->normal) - surf->plane->dist;
 		rad -= fabs(dist);
 		minlight = cl_dlights[lnum].minlight;

@@ -2838,7 +2838,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	{
 		if (mn_entry)
 		{
-			struct menu_inputevent_args_s ev = {MIE_KEYDOWN, devid};
+			struct menu_inputevent_args_s ev = {down?MIE_KEYDOWN:MIE_KEYUP, devid};
 			ev.key.scancode = key;
 			ev.key.charcode = unicode;
 			if (mn_entry->InputEvent(ev))

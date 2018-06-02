@@ -1251,6 +1251,9 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 #else
 		NULL,
 #endif
+		NULL,
+		Image_GetTexture,
+		FS_OpenVFS
 	};
 	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;

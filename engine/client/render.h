@@ -361,6 +361,7 @@ typedef struct {
 	qboolean	modified;
 	qboolean	external;
 	qboolean	hasdeluxe;
+	uploadfmt_t	fmt;
 	int			width;
 	int			height;
 	glRect_t	rectchange;
@@ -443,7 +444,7 @@ enum imageflags
 
 image_t *Image_FindTexture	(const char *identifier, const char *subpath, unsigned int flags);
 image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsigned int flags);
-image_t *Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
+image_t *QDECL Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
 qboolean Image_UnloadTexture(image_t *tex);	//true if it did something.
 void Image_DestroyTexture	(image_t *tex);
 qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, char *fname, qbyte *filedata, int filesize);	//intended really for worker threads, but should be fine from the main thread too

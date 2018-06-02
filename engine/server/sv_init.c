@@ -45,6 +45,7 @@ extern cvar_t	sv_csqcdebug;
 extern cvar_t	sv_csqc_progname;
 extern cvar_t	sv_calcphs;
 extern cvar_t	sv_playerslots, maxclients, maxspectators;
+extern cvar_t	sv_nqplayerphysics; //auto setting needs updating on map changes
 
 /*
 ================
@@ -1155,6 +1156,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		SV_UpdateMaxPlayers(0);
 	}
 	svs.gametype = newgametype;
+	Cvar_ForceCallback(&sv_nqplayerphysics);
 
 	sv.models[1] = sv.world.worldmodel;
 #ifdef VM_Q1

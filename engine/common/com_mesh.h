@@ -158,6 +158,7 @@ typedef struct galiasinfo_s
 
 //#ifndef SERVERONLY
 	vec2_t *ofs_st_array;
+	vec2_t *ofs_lmst_array;
 	vec4_t *ofs_rgbaf;
 	byte_vec4_t *ofs_rgbaub;
 //#endif
@@ -227,9 +228,16 @@ typedef struct modplugfuncs_s
 
 	struct terrainfuncs_s *(QDECL *GetTerrainFuncs)(void);
 	void *reserved2;
+	image_t *(QDECL *GetTexture)(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
+	vfsfile_t *(QDECL *OpenVFS)(const char *filename, const char *mode, enum fs_relative relativeto);
 	void *unused3;
 	void *unused4;
 	void *unused5;
+	void *unused6;
+	void *unused7;
+	void *unused8;
+	void *unused9;
+	void *unused10;
 } modplugfuncs_t;
 #define MODPLUGFUNCS_VERSION 2
 

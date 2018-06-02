@@ -122,7 +122,7 @@ static cvar_t joy_exponent = CVARD("joyexponent", "3", "Scales joystick/controll
 static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat controller dead zones as a pair, rather than per-axis.");
 
 
-#define EVENTQUEUELENGTH 512
+#define EVENTQUEUELENGTH 1024
 struct eventlist_s
 {
 	enum
@@ -747,7 +747,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			ev.mouse.delta[0] = mx;
 			ev.mouse.delta[1] = my;
 			ev.mouse.screen[0] = (mouse->oldpos[0] * vid.width) / vid.pixelwidth;
-			ev.mouse.screen[1] = (mouse->oldpos[1] * vid.width) / vid.pixelwidth;
+			ev.mouse.screen[1] = (mouse->oldpos[1] * vid.height) / vid.pixelheight;
 			if (mn_entry->InputEvent(ev))
 			{
 				mx = 0;
@@ -1048,7 +1048,10 @@ z is height... generally its used as a mousewheel instead, but there are some '3
 */
 void IN_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
 {
-	struct eventlist_s *ev = in_newevent();
+	struct eventlist_s *ev;
+	if (!abs && !x && !y && !z)
+		return;	//ignore non-movements
+	ev = in_newevent();
 	if (!ev)
 		return;
 	ev->devid = devid;

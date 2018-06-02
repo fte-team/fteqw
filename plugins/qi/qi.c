@@ -148,7 +148,7 @@ void QI_DeHTML(const char *in, char *out, size_t outsize)
 			{	//italics
 				*out++ = '^';
 				outsize--;
-				*out++ = 'b';
+				*out++ = close?'7':'3';
 				outsize--;
 			}
 		}

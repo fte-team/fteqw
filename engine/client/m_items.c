@@ -1945,6 +1945,8 @@ static int M_Main_AddExtraOptions(menu_t *mainm, int y)
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC           ", "irc\n");				y += 20;}
 	if (Cmd_Exists("qi"))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "qi\n");				y += 20;}
+//	else if (PM_CanInstall("qi"))
+//		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "pkg reset; pkg add qi; pkg apply\n");	y += 20;}
 	if (Cmd_Exists("menu_download"))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;}
 
@@ -2141,7 +2143,7 @@ void M_Menu_Main_f (void)
 	}
 	else
 	{
-		int width, y;
+		int width;
 		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 

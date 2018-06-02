@@ -218,7 +218,7 @@ void PR_ReloadFonts(qboolean reload)
 		{	//otherwise load it.
 			for (j = 0; j < fontslot[i].sizes; j++)
 			{
-				fontslot[i].font[j] = Font_LoadFont(fontslot[i].size[j], fontslot[i].facename);
+				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j]);
 			}
 		}
 	}
@@ -285,7 +285,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			if (qrenderer == QR_NONE)
 				fontslot[slotnum].font[i] = NULL;
 			else
-				fontslot[slotnum].font[i] = Font_LoadFont(fontslot[slotnum].size[i], facename);
+				fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i]);
 			fontslot[slotnum].sizes++;
 		}
 	}
@@ -395,7 +395,7 @@ void CL_LoadFont_f(void)
 				if (qrenderer == QR_NONE)
 					fontslot[slotnum].font[i] = NULL;
 				else
-					fontslot[slotnum].font[i] = Font_LoadFont(fontslot[slotnum].size[i], facename);
+					fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i]);
 				fontslot[slotnum].sizes++;
 			}
 		}

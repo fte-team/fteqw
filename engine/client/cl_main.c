@@ -4716,6 +4716,8 @@ unsigned int Host_GuessFileType(const char *mimetype, const char *filename)
 			{HRF_MODEL, "psk"},
 			{HRF_MODEL, "zym"},
 			{HRF_MODEL, "dpm"},
+			{HRF_MODEL, "gltf"},
+			{HRF_MODEL, "glb"},
 			//sprites
 			{HRF_MODEL, "spr"},
 			{HRF_MODEL, "spr2"},

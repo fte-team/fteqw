@@ -1323,7 +1323,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	i = 0;
 	x = left;
 
-	if (con->commandcompletion && con_showcompletion.ival)
+	if (con->commandcompletion && con_showcompletion.ival && text[0] && !(text[0] == '/' && !text[1]))
 	{
 		if (cl_chatmode.ival && (text[0] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text))))
 		{	//color the first token yellow, it's a valid command
@@ -1337,7 +1337,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		{
 			int cmdstart;
 			cmdstart = text[0] == '/'?1:0;
-			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch, NULL);
+			fname = Cmd_CompleteCommand(text+cmdstart, true, true, max(1, con_commandmatch), NULL);
 			if (fname && strlen(fname) < 256)	//we can compleate it to:
 			{
 				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>0; p++)

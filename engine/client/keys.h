@@ -244,6 +244,7 @@ K_MAX
 #define K_ALT K_LALT
 #define K_WIN K_LWIN
 
+#ifdef __QUAKEDEF_H__
 typedef enum	//highest has priority
 {
 	kdm_game		= 1u<<0,	//should always be set
@@ -251,7 +252,7 @@ typedef enum	//highest has priority
 	kdm_message		= 1u<<2,
 	kdm_gmenu		= 1u<<3,	//menu.dat
 #ifdef MENU_NATIVECODE
-	kdm_nmenu		= 1u<<4,
+	kdm_nmenu		= 1u<<4,	//should probably reuse gmenu...
 #else
 	kdm_nmenu		= 0,
 #endif
@@ -315,6 +316,6 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode);
 struct console_s;
 qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int *ex, int *ey);
 qboolean Key_MouseShouldBeFree(void);
-
+#endif
 #endif
 

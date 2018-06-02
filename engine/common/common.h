@@ -365,8 +365,6 @@ extern	char		com_token[65536];
 typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING, TTP_RAWTOKEN, TTP_EOF, TTP_PUNCTUATION} com_tokentype_t;
 extern com_tokentype_t com_tokentype;
 
-extern	qboolean	com_eof;
-
 //these cast away the const for the return value.
 //char *COM_Parse (const char *data);
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
@@ -587,7 +585,7 @@ qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relative
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
 void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *filesize);
-vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
+vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
 vfsfile_t *FS_OpenTemp(void);
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 

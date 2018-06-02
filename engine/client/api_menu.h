@@ -25,9 +25,13 @@
 struct vfsfile_s;
 struct serverinfo_s;
 struct searchpathfuncs_s;
+struct model_s;
+struct font_s;
+struct shader_s;
 enum slist_test_e;
 enum hostcachekey_e;	//obtained via calls to gethostcacheindexforkey
 enum fs_relative;
+enum com_tokentype_e;
 #ifndef __QUAKEDEF_H__
 	#ifdef __cplusplus
 		typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
@@ -72,8 +76,39 @@ struct menu_inputevent_args_s
 	};
 };
 
+typedef enum
+{
+	MI_INIT,		//initial startup
+	MI_RENDERER,	//renderer restarted, any models/shaders/textures handles are no longer valid
+	MI_RESOLUTION,	//video mode changed (scale or physical size) but without any gpu resources getting destroyed. you'll want to reload fonts.
+} mintreason_t;
+
+typedef struct
+{
+	struct model_s *model;
+	int frame[2];
+	float frametime[2];
+	float frameweight[2];
+	vec4_t matrix[3]; //axis/angles+origin
+} menuentity_t;
+typedef struct
+{
+	//these are in virtual coords, thus they need to be floats so that they can be rounded to ints more cleanly... yeah, scaling sucks.
+	vec2_t pos;
+	vec2_t size;
+
+	float time;	//affects shader effects
+	vec_t fov[2];
+	vec4_t viewmatrix[3];
+
+	struct model_s *worldmodel;
+	int numentities;
+	menuentity_t *entlist;
+} menuscene_t;
+
 typedef struct {
 	int							api_version;	//this may be higher than you expect.
+	const char					*engine_version;
 
 	int (*checkextension)		(const char *ext);
 	void (*error)				(const char *err);
@@ -81,9 +116,13 @@ typedef struct {
 	void (*dprintf)				(const char *text, ...);
 	void (*localcmd)			(const char *cmd);
 	float (*cvar_float)			(const char *name);
-	const char *(*cvar_string)	(const char *name);	//return value lasts until cvar_set is called, etc, so don't cache.
+	const char *(*cvar_string)	(const char *name, qboolean effective);	//NULL if it doesn't exist. return value lasts until cvar_set is called, etc, so don't cache. effective=true reports its active value, not the value that the user wanted.
+	const char *(*cvar_default)	(const char *name);
 	void (*cvar_set)			(const char *name, const char *value);
 	void (*registercvar)		(const char *name, const char *defaultvalue, unsigned int flags, const char *description);
+	void (*registercommand)		(const char *name, const char *description);
+
+	char *(*parsetoken)			(const char *data, char *out, int outlen, enum com_tokentype_e *toktype);
 
 	int (*isserver)				(void);
 	int (*getclientstate)		(void);
@@ -94,21 +133,24 @@ typedef struct {
 	void (*fclose)				(struct vfsfile_s *fhandle);
 	char *(*fgets)				(struct vfsfile_s *fhandle, char *out, size_t outsize);	//returns output buffer, or NULL
 	void (*fprintf)				(struct vfsfile_s *fhandle, const char *s, ...);
-	void (*EnumerateFiles)		(const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx);
+	void (*enumeratefiles)		(const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx);
 
 	// Drawing stuff
-//	int (*iscachedpic)			(const char *name);
-	void *(*precache_pic)		(const char *name);
-	int (*drawgetimagesize)		(void *pic, int *x, int *y);
-	void (*drawquad)			(vec2_t position[4], vec2_t texcoords[4], void *pic, vec4_t rgba, unsigned int be_flags);
-//	void (*drawsubpic)			(vec2_t pos, vec2_t sz, const char *pic, vec2_t srcpos, vec2_t srcsz, vec4_t rgba, unsigned int be_flags);
-//	void (*drawfill)			(vec2_t position, vec2_t size, vec4_t rgba, unsigned int be_flags);
-//	float (*drawcharacter)		(vec2_t position, int character, vec2_t scale, vec4_t rgba, unsigned int be_flags);
-//	float (*drawrawstring)		(vec3_t position, char *text, vec3_t scale, vec4_t rgba, unsigned int be_flags);
-	float (*drawstring)			(vec2_t position, const char *text, float height, vec4_t rgba, unsigned int be_flags);
-	float (*stringwidth)		(const char *text, float height);
 	void (*drawsetcliparea)		(float x, float y, float width, float height);
 	void (*drawresetcliparea)	(void);
+	struct shader_s *(*cachepic)(const char *name);
+	qboolean (*drawgetimagesize)(struct shader_s *pic, int *x, int *y);
+	void (*drawquad)			(const vec2_t position[4], const vec2_t texcoords[4], struct shader_s *pic, const vec4_t rgba, unsigned int be_flags);
+
+	float (*drawstring)			(vec2_t position, const char *text, struct font_s *font, float height, const vec4_t rgba, unsigned int be_flags);
+	float (*stringwidth)		(const char *text, struct font_s *font, float height);
+	struct font_s *(*loadfont)	(const char *facename, float intendedheight);	//with ttf fonts, you'll probably want one for each size.
+	void (*destroyfont)			(struct font_s *font);
+
+	// 3D scene stuff
+	struct model_s *(*cachemodel)(const char *name);
+	void (*getmodelsize)		(struct model_s *model, vec3_t out_mins, vec3_t out_maxs);
+	void (*renderscene)			(menuscene_t *scene);
 
 	// Menu specific stuff
 	qboolean (*setkeydest)			(qboolean focused);	//returns whether it changed.
@@ -119,39 +161,39 @@ typedef struct {
 	int (*findkeysforcommand)		(int bindmap, const char *command, int *out_scancodes, int *out_modifiers, int keycount);
 
 	// Server browser stuff
-	int (*gethostcachevalue)						(int type);
+	enum hostcachekey_e (*gethostcacheindexforkey)	(const char *key);
+	struct serverinfo_s *(*getsortedhost)			(int idx);
 	char *(*gethostcachestring)						(struct serverinfo_s *host, enum hostcachekey_e fld);
 	float (*gethostcachenumber)						(struct serverinfo_s *host, enum hostcachekey_e fld);
 	void (*resethostcachemasks)						(void);
-	void (*sethostcachemaskstring)					(qboolean or, enum hostcachekey_e fld, char *str, enum slist_test_e op);
+	void (*sethostcachemaskstring)					(qboolean or, enum hostcachekey_e fld, const char *str, enum slist_test_e op);
 	void (*sethostcachemasknumber)					(qboolean or, enum hostcachekey_e fld, int num, enum slist_test_e op);
 	void (*sethostcachesort)						(enum hostcachekey_e fld, qboolean descending);
-	void (*resorthostcache)							(void);
-	struct serverinfo_s *(*getsortedhost)			(int idx);
+	int (*resorthostcache)							(void);
 	void (*refreshhostcache)						(qboolean fullreset);
-	enum hostcachekey_e (*gethostcacheindexforkey)	(const char *key);
+	qboolean (*sendhostcachequeries)				(void);	//returns true while there are still waiting for servers. should be called each frame while you still care about the servers.
 } menu_import_t;
 
 typedef struct {
 	int		api_version;
 
-	void	(*Init)				(void);
-	void	(*Shutdown)			(void);
-	void	(*Draw)				(int width, int height, float frametime);
-	void	(*DrawLoading)		(int width, int height, float frametime);
+	void	(*Init)				(mintreason_t reason, float vwidth, float vheight, int pwidth, int pheight);
+	void	(*Shutdown)			(mintreason_t reason);
+	void	(*Draw)				(double frametime);
+	void	(*DrawLoading)		(double frametime);
 	void	(*Toggle)			(int wantmode);
 	int		(*InputEvent)		(struct menu_inputevent_args_s ev);
-	void	(*ConsoleCommand)	(const char *cmd);
+	qboolean(*ConsoleCommand)	(const char *cmdline, int argc, char const*const*argv);
 } menu_export_t;
 
 #ifndef NATIVEEXPORT
 	#ifdef _WIN32
-		#define NATIVEEXPORTPROTO QDECL
-		#define NATIVEEXPORT __declspec(dllexport) NATIVEEXPORTPROTO
+		#define NATIVEEXPORTPROTO __declspec(dllexport)
+		#define NATIVEEXPORT NATIVEEXPORTPROTO
 	#else
 		#define NATIVEEXPORTPROTO
 		#define NATIVEEXPORT __attribute__((visibility("default")))
 	#endif
 #endif
 
-menu_export_t *NATIVEEXPORTPROTO GetMenuAPI	(menu_import_t *import); 
+NATIVEEXPORTPROTO menu_export_t *QDECL GetMenuAPI	(menu_import_t *import); 

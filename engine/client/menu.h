@@ -484,7 +484,7 @@ qboolean MP_ConsoleCommand(const char *cmdtext);
 #endif
 
 #ifdef MENU_NATIVECODE
-#include "../native/api_menu.h"
+#include "api_menu.h"
 extern menu_export_t *mn_entry;
 void MN_Shutdown(void);
 qboolean MN_Init(void);

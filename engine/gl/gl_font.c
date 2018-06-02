@@ -15,7 +15,7 @@
 
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(float height, const char *fontfilename);
+struct font_s *Font_LoadFont(const char *fontfilename, float height);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -1769,7 +1769,7 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
+struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 {
 	struct font_s *f;
 	int i = 0;
@@ -1779,6 +1779,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
 	char facename[MAX_QPATH];
 	struct charcache_s *c;
+	float aspect = 1;
 	enum
 	{
 		FMT_AUTO,		//freetype, or quake
@@ -1844,6 +1845,12 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 					fmt = FMT_KOI8U;
 				else if (*t == 'h')
 					fmt = FMT_HORIZONTAL;
+			}
+			if (!strncmp(parms, "aspect=", 7))
+			{
+				char *t = parms+7;
+				aspect = strtod(t, &t);
+				parms = t;
 			}
 
 			while(*parms && *parms != '&')
@@ -2011,7 +2018,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		}
 		else
 		{
-			f->alt = Font_LoadFont(vheight, aname);
+			f->alt = Font_LoadFont(aname, vheight);
 			if (f->alt)
 			{
 				VectorCopy(f->alt->tint, f->alttint);
@@ -2158,7 +2165,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 				else
 					c = Font_GetCharStore(f, i);
 
-				c->advance = f->charheight;
+				c->advance = f->charheight * aspect;
 				c->bmh = PLANEWIDTH/16;
 				c->bmw = PLANEWIDTH/16;
 				c->bmx = (i&15)*(PLANEWIDTH/16);
@@ -2176,7 +2183,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 			for (i = 0xe000; i <= 0xe0ff; i++)
 			{
 				c = Font_GetCharStore(f, i);
-				c->advance = f->charheight;
+				c->advance = f->charheight * aspect;
 				c->bmh = PLANEWIDTH/16;
 				c->bmw = PLANEWIDTH/16;
 				c->bmx = ((i&15))*(PLANEWIDTH/16);
@@ -2196,6 +2203,9 @@ void Font_Free(struct font_s *f)
 {
 	size_t i;
 	struct charcache_s **link, *c, *valid;
+
+	if (!f)
+		return;
 
 	//kill the alt font first.
 	if (f->alt)
@@ -2744,14 +2754,14 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 	case DEFAULTPLANE:
 		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
-		sw = ((font->charheight)*vid.width) / (float)vid.rotpixelwidth;
+		sw = ((c->advance)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(fontplanes.defaultfont);
 		break;
 	case BITMAPPLANE:
 		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
-		sw = ((font->charheight)*vid.width) / (float)vid.rotpixelwidth;
+		sw = ((c->advance)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(font->singletexture);
 		break;

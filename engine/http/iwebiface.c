@@ -68,7 +68,7 @@ vfsfile_t *IWebGenerateFile(const char *name, const char *content, int contentle
 	return NULL;
 }
 vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush);
-vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto)
+vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto)
 {
 	return VFSSTDIO_Open(filename, mode, NULL);
 }

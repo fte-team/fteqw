@@ -245,7 +245,7 @@ void Font_Init(void);
 void Font_Shutdown(void);
 int Font_RegisterTrackerImage(const char *image);	//returns a unicode char value that can be used to embed the char within a line of text.
 qboolean Font_TrackerValid(unsigned int imid);
-struct font_s *Font_LoadFont(float height, const char *fontfilename);
+struct font_s *Font_LoadFont(const char *fontfilename, float height);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/

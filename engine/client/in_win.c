@@ -554,6 +554,7 @@ static void INS_DeactivateMouse (void)
 
 			ClipCursor (NULL);
 			ReleaseCapture ();
+			SetCursorPos(window_rect.left+mousecursor_x, window_rect.top+mousecursor_y);
 		}
 
 		mouseactive = false;

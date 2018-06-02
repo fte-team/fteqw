@@ -1290,6 +1290,11 @@ void D3DSucks(void)
 
 void R_ShutdownRenderer(qboolean devicetoo)
 {
+#ifdef MENU_NATIVECODE
+	if (mn_entry)
+		mn_entry->Shutdown(MI_RENDERER);
+#endif
+
 	//make sure the worker isn't still loading stuff
 	COM_WorkerFullSync();
 

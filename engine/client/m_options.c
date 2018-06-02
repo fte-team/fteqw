@@ -3041,6 +3041,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	shader_t *shader;
 	vec2_t fs = {8,8};
 //	float bones[12*MAX_BONES];
+	vec3_t lightpos = {0, 1, 0};
 
 	modelview_t *mods = c->dptr;
 
@@ -3077,6 +3078,12 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.scale = 1;
 //	ent.angles[1] = realtime*45;//mods->yaw;
 //	ent.angles[0] = realtime*23.4;//mods->pitch;
+
+	ent.angles[0]*=r_meshpitch.value;
+	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	ent.angles[0]*=r_meshpitch.value;
+	VectorInverse(ent.axis[1]);
+
 	ent.model = Mod_ForName(mods->modelname, MLV_WARN);
 	if (!ent.model)
 		return;	//panic!
@@ -3104,14 +3111,34 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 
 	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
 	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
-	ent.light_dir[0] = 0; ent.light_dir[1] = 1; ent.light_dir[2] = 0;
+
+	V_ApplyRefdef();
+/*
+	{
+		trace_t tr;
+		vec3_t worldmouse;
+		vec3_t mouse = {mousecursor_x/vid.width, 1-mousecursor_y/vid.height, 0.5};
+		float d;
+		Matrix4x4_CM_UnProject(mouse, worldmouse, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
+
+		d = DotProduct(worldmouse, fwd);
+		VectorMA(worldmouse, -d, fwd, worldmouse);
+
+		if (ent.model->funcs.NativeTrace && ent.model->funcs.NativeTrace(ent.model, 0, &ent.framestate, ent.axis, r_refdef.vieworg, worldmouse, vec3_origin, vec3_origin, false, ~0, &tr))
+			;
+		else
+			VectorCopy(worldmouse, tr.endpos);
+
+		VectorCopy(tr.endpos, lightpos);
+	}
+*/
+
+	VectorNormalize(lightpos);
+	ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);
+	ent.light_dir[1] = DotProduct(lightpos, ent.axis[1]);
+	ent.light_dir[2] = DotProduct(lightpos, ent.axis[2]);
+
 	ent.light_known = 2;
-
-
-	ent.angles[0]*=r_meshpitch.value;
-	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-	ent.angles[0]*=r_meshpitch.value;
-	VectorInverse(ent.axis[1]);
 
 	if (ent.model->type == mod_dummy)
 	{
@@ -3296,7 +3323,6 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 
 	V_AddEntity(&ent);
 
-	V_ApplyRefdef();
 	R_RenderView();
 
 	y = 0;
@@ -3477,8 +3503,8 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	if (key == 'w')
 	{
 		mods->dist *= 0.9;
-		if (mods->dist < 5)
-			mods->dist = 5;
+		if (mods->dist < 1)
+			mods->dist = 1;
 	}
 	else if (key == 's')
 		mods->dist /= 0.9;

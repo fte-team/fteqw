@@ -1609,6 +1609,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		if (meshcache.coords)
 			BZ_Free(meshcache.coords);
 		meshcache.coords = BZ_Malloc(sizeof(*meshcache.coords)*inf->numverts);
+		memset(meshcache.coords, 0, sizeof(*meshcache.coords)*inf->numverts);	//vecV_t is often uninitialised.
 		meshcache.numcoords = inf->numverts;
 	}
 

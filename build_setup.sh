@@ -205,7 +205,7 @@ function debianpackages {
 			apt-get install --no-install-recommends $@
 			ret=$true
 		else
-			echo "Packages not installed. Run as root to easily install dependancies."
+			echo "Packages not installed. Rerun script as root to easily install dependancies, or manually install."
 		fi
 	fi
 	return $ret
@@ -238,11 +238,11 @@ if [ $UID -eq 0 ] && [ ! -z `which apt-get` ]; then
 fi
 
 #generic crap. much of this is needed to set up and decompress dependancies and stuff.
-debianpackages subversion make automake libtool p7zip-full zip || otherpackages z7 make svn || exit
+debianpackages subversion make automake libtool p7zip-full zip ca-certificates || otherpackages z7 make svn || exit
 
 if [ "$BUILD_LINUXx86" == "y" ]; then
 	#for building linux targets
-	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
+	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev libxcursor-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 	if [[ "$PLUGINS_LINUXx86" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
@@ -250,7 +250,7 @@ if [ "$BUILD_LINUXx86" == "y" ]; then
 fi
 if [ "$BUILD_LINUXx64" == "y" ]; then
 	#for building linux targets
-	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
+	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev libxcursor-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 	if [[ "$PLUGINS_LINUXx64" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
@@ -258,12 +258,12 @@ if [ "$BUILD_LINUXx64" == "y" ]; then
 fi
 if [ "$BUILD_LINUXx32" == "y" ]; then
 	#for building linux targets
-	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
+	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev libxcursor-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 fi
 if [ "$BUILD_LINUXarmhf" == "y" ]; then
 	#for building linux targets
-	debianpackages gcc-multilib-arm-linux-gnueabihf g++-multilib-arm-linux-gnueabihf mesa-common-dev libasound2-dev || otherpackages gcc || exit
+	debianpackages gcc-multilib-arm-linux-gnueabihf g++-multilib-arm-linux-gnueabihf mesa-common-dev libasound2-dev libxcursor-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 fi
 if [ "$BUILD_SDL" == "y" ]; then

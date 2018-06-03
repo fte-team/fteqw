@@ -3385,6 +3385,7 @@ static void cs_get_input_state (usercmd_t *cmd)
 static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	usercmd_t *cmd;
+	usercmd_t tmp;
 	extern usercmd_t cl_pendingcmd[MAX_SPLITS];
 	int f = G_FLOAT(OFS_PARM0);
 	int seat = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):csqc_playerseat);
@@ -3406,7 +3407,6 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 	if (f == cl.movesequence)
 	{
 		int i;
-		usercmd_t tmp;
 		cmd = &cl_pendingcmd[seat];
 
 		tmp = *cmd;

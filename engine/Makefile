@@ -1292,7 +1292,18 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_LDFLAGS=
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 
-	CL_CFLAGS=-DMULTITHREAD -DDYNAMIC_SDL -DUSE_EGL -DWAYLANDQUAKE -DX11QUAKE
+	ifneq ("$(wildcard $(/usr/include/wayland-client.h))","")
+		HAVE_WAYLAND=-DWAYLANDQUAKE
+	else
+		HAVE_WAYLAND=
+	endif
+	ifneq ("$(wildcard $(/usr/include/EGL/egl.h))","")
+		HAVE_EGL=-DUSE_EGL
+	else
+		HAVE_EGL=
+	endif
+
+	CL_CFLAGS=-DMULTITHREAD -DDYNAMIC_SDL $(HAVE_EGL) $(HAVE_WAYLAND) -DX11QUAKE
 	
 	QCC_DIR=linqcc$(BITS)
 	

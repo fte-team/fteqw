@@ -20,6 +20,8 @@
 //#define GAME_DOWNLOADSURL	NULL	//url for the package manger to update from
 //#define GAME_DEFAULTCMDS	NULL	//a string containing the things you want to 
 
+// All my fault -eukara
+#define MENU_NATIVECODE
 
 // What do we use
 //#define D3D9QUAKE
@@ -91,7 +93,7 @@
 #undef AVAIL_FREETYPE	//for truetype font rendering
 #undef AVAIL_WASAPI	//windows advanced sound api
 #undef AVAIL_DSOUND
-#undef AVAIL_BOTLIB	//q3 botlib
+#undef BOTLIB_STATIC	//q3 botlib
 #undef AVAIL_XZDEC	//.xz decompression
 #undef AVAIL_GZDEC	//.gz decompression
 #undef AVAIL_DZIP	//.dzip special-case archive support
@@ -161,7 +163,7 @@
 
 
 -DNO_SPEEX	//disable static speex
-#ifndef AVAIL_BOTLIB
+#ifndef BOTLIB_STATIC
 -DNO_BOTLIB	//disable static botlib
 #endif
 -DNO_VORBISFILE	//disable static vorbisfile

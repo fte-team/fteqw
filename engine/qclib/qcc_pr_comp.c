@@ -4510,6 +4510,297 @@ void QCC_PrecacheFile (const char *n, int ch)
 	numfiles++;
 }
 
+
+void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, unsigned int argcount)
+{
+	const char *s = "%s";
+	int firstarg = 1;
+	const char *s0;
+	char *err;
+	int width, thisarg, arg;
+	char formatbuf[16];
+	int argpos = firstarg;
+	int isfloat;
+	const QCC_eval_t *formatstring = QCC_SRef_EvalConst(arglist[0]->base);
+	if (!formatstring)	//can't check variables.
+		return;
+	if (!qccwarningaction[WARN_FORMATSTRING])
+		return;	//don't bother if its not relevant anyway.
+	s = strings + formatstring->string;
+
+#define ARGTYPE(a) (((a)>=firstarg && (a)<argcount) ? (arglist[a]->cast->type) : ev_void)
+
+	for(;;)
+	{
+		s0 = s;
+		switch(*s)
+		{
+		case 0:
+			if (argpos < argcount)
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing arguments", funcname);
+			return;
+		case '%':
+			if(*++s == '%')
+			{
+				s++;
+				break;
+			}
+
+			// complete directive format:
+			// %3$*1$.*2$ld
+			
+			width = -1;
+			thisarg = -1;
+			isfloat = -1;
+
+			// is number following?
+			if(*s >= '0' && *s <= '9')
+			{
+				width = strtol(s, &err, 10);
+				if(!err)
+				{
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: bad format string: %s", funcname, s0);
+					return;
+				}
+				if(*err == '$')
+				{
+					thisarg = width + (firstarg-1);
+					width = -1;
+					s = err + 1;
+				}
+				else
+				{
+					if(*s == '0')
+					{
+						if(width == 0)
+							width = -1; // it was just a flag
+					}
+					s = err;
+				}
+			}
+
+			if(width < 0)
+			{
+				for(;;)
+				{
+					switch(*s)
+					{
+						case '#': //alternate
+						case '0': //zero-pad
+						case '-': //left-align
+						case ' ': //space-positive
+						case '+': //sign-positive
+							break;
+						default:
+							goto noflags;
+					}
+					++s;
+				}
+noflags:
+				if(*s == '*')
+				{
+					++s;
+					if(*s >= '0' && *s <= '9')
+					{
+						arg = strtol(s, &err, 10);
+						if(!err || *err != '$')
+						{
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+							return;
+						}
+						s = err + 1;
+					}
+					else
+						arg = argpos++;
+					if (ARGTYPE(arg) != ev_float)
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: width modifier requires float at arg %i", funcname, arg+1);
+				}
+				else if(*s >= '0' && *s <= '9')
+				{
+					strtol(s, &err, 10);
+					if(!err)
+					{
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+						return;
+					}
+					s = err;
+				}
+				// otherwise width stays -1
+			}
+
+			//precision modifiers
+			if(*s == '.')
+			{
+				++s;
+				if(*s == '*')
+				{
+					++s;
+					if(*s >= '0' && *s <= '9')
+					{
+						arg = strtol(s, &err, 10);
+						if(!err || *err != '$')
+						{
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+							return;
+						}
+						s = err + 1;
+					}
+					else
+						arg = argpos++;
+
+					if (ARGTYPE(arg) != ev_float)
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: precision modifier requires float at arg %i", funcname, arg+1);
+				}
+				else if(*s >= '0' && *s <= '9')
+				{
+					strtol(s, &err, 10);
+					if(!err)
+					{
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+						return;
+					}
+					s = err;
+				}
+				else
+				{
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+					return;
+				}
+			}
+
+			//length modifiers
+			for(;;)
+			{
+				switch(*s)
+				{
+					//case 'hh':	//char
+					case 'h': isfloat = 1; break;	//short
+					//case 'll':	//long long
+					case 'l': isfloat = 0; break;	//long
+					case 'L': isfloat = 0; break;	//long double
+					case 'j': break;	//[u]intmax_t
+					case 'z': break;	//size_t
+					case 't': break;	//ptrdiff_t
+					default:
+						goto nolength;
+				}
+				++s;
+			}
+nolength:
+
+			// now s points to the final directive char and is no longer changed
+			if (*s == 'p' || *s == 'P')
+			{
+				//%p is slightly different from %x.
+				//always 8-bytes wide with 0 padding, always ints.
+				if (isfloat < 0) isfloat = 0;
+			}
+			else if (*s == 'i')
+			{
+				//%i defaults to ints, not floats.
+				if(isfloat < 0) isfloat = 0;
+			}
+
+			//assume floats, not ints.
+			if(isfloat < 0)
+				isfloat = 1;
+
+			if(thisarg < 0)
+				thisarg = argpos++;
+
+			memcpy(formatbuf, s0, s+1-s0);
+			formatbuf[s+1-s0] = 0;
+
+			switch(*s)
+			{
+			//fixme: should we validate char ranges?
+			case 'd': case 'i': case 'c':
+			case 'o': case 'u': case 'x': case 'X': case 'p': case 'P':
+			case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
+				if (isfloat)
+				{
+					switch(ARGTYPE(thisarg))
+					{
+					case ev_float:
+					case ev_variant:
+						break;
+					default:
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires float at arg %i", funcname, formatbuf, thisarg+1);
+						break;
+					}
+				}
+				else
+				{
+					if (*s == 'p' || *s == 'P')
+					{
+						switch(ARGTYPE(thisarg))
+						{
+						case ev_pointer:
+						case ev_variant:
+							break;
+						default:
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires pointer at arg %i", funcname, formatbuf, thisarg+1);
+							break;
+						}
+					}
+					else
+					{
+						switch(ARGTYPE(thisarg))
+						{
+						case ev_integer:
+						case ev_variant:
+							break;
+						case ev_entity:	//accept ents ONLY for %i
+							if (*s == 'i')
+								break;
+							//fallthrough
+						default:
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires int at arg %i", funcname, formatbuf, thisarg+1);
+							break;
+						}
+					}
+				}
+				break;
+			case 'v': case 'V':
+				if (isfloat)
+				{
+					switch(ARGTYPE(thisarg))
+					{
+					case ev_vector:
+					case ev_variant:
+						break;
+					default:
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires vector at arg %i", funcname, formatbuf, thisarg+1);
+						break;
+					}
+				}
+				else
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires intvector at arg %i", funcname, formatbuf, thisarg+1);
+				break;
+			case 's':
+				switch(ARGTYPE(thisarg))
+				{
+				case ev_string:
+				case ev_variant:
+					break;
+				default:
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires string at arg %i", funcname, formatbuf, thisarg+1);
+					break;
+				}
+				break;
+			default:
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+				return;
+			}
+			s++;
+			break;
+		default:
+			s++;
+			break;
+		}
+	}
+}
+
 #ifdef SUPPORTINLINE
 struct inlinectx_s
 {
@@ -4717,7 +5008,7 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 			if (eval)
 			{
 				if (eval->_int < (int)st->c.ofs || eval->_int >= (int)st->b.ofs)
-					QCC_PR_ParseWarning(0, "constant value exceeds bounds failed bounds check while inlining\n");
+					QCC_PR_ParseWarning(0, "constant value exceeds bounds failed bounds check while inlining");
 			}
 			else
 				QCC_PR_SimpleStatement(&pr_opcodes[OP_BOUNDCHECK], a, st->b, st->c, false);
@@ -5013,6 +5304,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 		}
 	}
 
+	if (!strcmp(funcname, "sprintf"))
+		QCC_VerifyFormatString(funcname, arglist, argcount);
 
 	func.sym->timescalled++;
 

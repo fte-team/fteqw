@@ -1,7 +1,7 @@
 #Note: this file was made primarily to support msvc and its project file incompatibilities nightmare.
 
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.9)
 PROJECT(fteqw)
 
 INCLUDE_DIRECTORIES(
@@ -14,7 +14,7 @@ INCLUDE_DIRECTORIES(
 )
 
 EXECUTE_PROCESS(COMMAND
-	"echo" hello world
+	"svnversion"
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 	OUTPUT_VARIABLE FTE_REVISON
 	ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -31,7 +31,11 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 
 #use LTO where possible. reportedly requires cmake 3.9 to actually work
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+INCLUDE(CheckIPOSupported)
+check_ipo_supported(RESULT result)
+IF(result)
+	SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+ENDIF()
 
 IF(${WIN32})
 	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)
@@ -79,12 +83,13 @@ IF(${WIN32})
 		engine/server/sv_sys_win.c
 	)
 ELSEIF(${UNIX})	#linux(ish)
+				#openbsd will have issues with snd_linux.c
 	FIND_PACKAGE(Freetype REQUIRED)
 
 	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
 
 	SET(FTE_DEFINES GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS z m dl pthread ${SDL2_LIBRARIES})
+	SET(FTE_LIBS z m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
@@ -103,13 +108,34 @@ ELSEIF(${UNIX})	#linux(ish)
 #		engine/gl/gl_vidwayland.c
 	)
 
+	#openbsd uses a libossaudio library for all the oss stuff, use that to ensure that we still get sound
+	FIND_LIBRARY(
+		OSSAUDIO_LIBRARY
+	NAMES ossaudio
+	)
+	IF(OSSAUDIO_LIBRARY)
+	SET(FTE_LIBS ${FTE_LIBS} ${OSSAUDIO_LIBRARY})
+	ENDIF()
+
+	#on linux, use wayland.
+	FIND_LIBRARY(
+		WAYLAND_CLIENT_LIBRARY
+		NAMES wayland-client libwayland-client
+	)
+	IF(WAYLAND_CLIENT_LIBRARY)
+		SET(FTE_DEFINES ${FTE_DEFINES};WAYLANDQUAKE;USE_EGL)
+		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
+			engine/gl/gl_vidwayland.c
+		)
+	ENDIF()
+
 	SET(FTESV_DEFINES stricmp=strcasecmp;strnicmp=strncasecmp)
 	SET(FTESV_ARCH_FILES 
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
 	)
-	SET(FTESV_LIBS z m dl)
+	SET(FTESV_LIBS z m ${CMAKE_DL_LIBS})
 ELSEIF(1)	#SDL
 	FIND_PACKAGE(Freetype REQUIRED)
 #	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)
@@ -123,7 +149,7 @@ ELSEIF(1)	#SDL
 	
 	#SDL2.0.7 supports vulkan, so lets use it.
 	SET(FTE_DEFINES GLQUAKE;VKQUAKE;FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS z m dl ${SDL2_LIBRARIES})
+	SET(FTE_LIBS z m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_sdl.c
 		engine/client/snd_al.c
@@ -134,7 +160,7 @@ ELSEIF(1)	#SDL
 	)
 
 	SET(FTESV_DEFINES FTE_SDL;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTESV_LIBS z m dl ${SDL2_LIBRARIES})
+	SET(FTESV_LIBS z m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
 		SET(FTE_LIBS ${FTE_LIBS} wsock32 gdi32 ole32)

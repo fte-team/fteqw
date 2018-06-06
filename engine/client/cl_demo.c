@@ -1575,7 +1575,7 @@ void CL_Record_f (void)
 		return;
 	}
 
-#ifdef Q2SERVER
+#ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 		defaultext = ".dm2";
 	else

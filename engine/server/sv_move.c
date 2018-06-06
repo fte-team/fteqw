@@ -709,6 +709,8 @@ static struct waypointnetwork_s *WayNet_Begin(void **ctxptr, model_t *worldmodel
 		}
 		if (!wf)
 			wf = FS_MallocFile(va("%s.way", worldmodel->name), FS_GAME, NULL);
+		if (!wf)
+			return NULL;
 
 		l = wf;
 		//read the number of waypoints

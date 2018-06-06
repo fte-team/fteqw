@@ -681,6 +681,7 @@ void FS_Manifest_Free(ftemanifest_t *man);
 ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
 void PM_Shutdown(void);
 void PM_Command_f(void);
+qboolean PM_CanInstall(const char *packagename);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);

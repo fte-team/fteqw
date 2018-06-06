@@ -574,7 +574,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_lightmap_nearest, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lightmap_average, GLRENDEREROPTIONS);
-	Cvar_Register (&r_lightmap_format, GLRENDEREROPTIONS);
 }
 #endif
 
@@ -848,6 +847,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_lightstylespeed, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylescale, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightmap_scale, GRAPHICALNICETIES);
+	Cvar_Register(&r_lightmap_format, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_hdr_framebuffer, GRAPHICALNICETIES);
 	Cvar_Register(&r_hdr_irisadaptation, GRAPHICALNICETIES);
@@ -1790,9 +1790,19 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 void R_ReloadRenderer_f (void)
 {
+	void *portalblob = NULL;
+	size_t portalsize = 0;
 	float time = Sys_DoubleTime();
 	if (qrenderer == QR_NONE || qrenderer == QR_HEADLESS)
 		return;	//don't bother reloading the renderer if its not actually rendering anything anyway.
+
+	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
+	{
+		void *t;
+		portalsize = CM_WritePortalState(sv.world.worldmodel, &t);
+		if (portalsize && (portalblob = BZ_Malloc(portalsize)))
+			memcpy(portalblob, t, portalsize);
+	}
 
 	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 	R_ShutdownRenderer(false);
@@ -1800,6 +1810,14 @@ void R_ReloadRenderer_f (void)
 	//reloads textures without destroying video context.
 	R_ApplyRenderer_Load(NULL);
 	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);
+
+	
+	if (portalblob)
+	{
+		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
+			CM_ReadPortalState(sv.world.worldmodel, portalblob, portalsize);
+		BZ_Free(portalblob);
+	}
 }
 
 //use Cvar_ApplyLatches(CVAR_RENDERERLATCH) beforehand.
@@ -2002,11 +2020,21 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 
 void R_RestartRenderer (rendererstate_t *newr)
 {
+	void *portalblob = NULL;
+	size_t portalsize = 0;
 	rendererstate_t oldr;
 	if (r_blockvidrestart)
 	{
 		Con_Printf("Ignoring vid_restart from config\n");
 		return;
+	}
+
+	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
+	{
+		void *t;
+		portalsize = CM_WritePortalState(sv.world.worldmodel, &t);
+		if (portalsize && (portalblob = BZ_Malloc(portalsize)))
+			memcpy(portalblob, t, portalsize);
 	}
 
 	TRACE(("dbg: R_RestartRenderer_f renderer %p\n", newr->renderer));
@@ -2081,6 +2109,13 @@ void R_RestartRenderer (rendererstate_t *newr)
 			if (failed)
 				Sys_Error("Unable to initialise any video mode\n");
 		}
+	}
+
+	if (portalblob)
+	{
+		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
+			CM_ReadPortalState(sv.world.worldmodel, portalblob, portalsize);
+		BZ_Free(portalblob);
 	}
 
 	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);

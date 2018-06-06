@@ -972,6 +972,8 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		f = FS_OpenVFS (name, "wbp", FS_GAMEONLY);
 		if (f)
 		{
+			size_t portalblobsize;
+			void *portalblob = NULL;
 			for (i = 0; i < countof(sv.strings.configstring); i++)
 			{
 				if (sv.strings.configstring[i])
@@ -996,7 +998,9 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 			}
 			VFS_WRITE(f, "", 1);
 
-			CM_WritePortalState(sv.world.worldmodel, f);
+			portalblobsize = CM_WritePortalState(sv.world.worldmodel, &portalblob);
+			VFS_WRITE(f, portalblob, portalblobsize);
+
 			VFS_CLOSE(f);
 		}
 

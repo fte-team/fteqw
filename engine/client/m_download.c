@@ -2552,6 +2552,19 @@ void PM_ManifestPackage(const char *metaname, int security)
 		manifestpackages = NULL;
 }
 
+qboolean PM_CanInstall(const char *packagename)
+{
+	int i;
+	package_t *p = PM_FindPackage(packagename);
+	if (p && !(p->flags&(DPF_ENABLED|DPF_CORRUPT|DPF_HIDDEN)))
+	{
+		for (i = 0; i < countof(p->mirror); i++)
+			if (p->mirror[i])
+				return true;
+	}
+	return false;
+}
+
 void PM_Command_f(void)
 {
 	size_t i;

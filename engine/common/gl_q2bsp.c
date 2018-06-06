@@ -5972,6 +5972,13 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		trace_extents[2] = ((-trace_mins[2] > trace_maxs[2]) ? -trace_mins[2] : trace_maxs[2])+1;
 	}
 
+	trace_absmins[0] -= 1.0;
+	trace_absmins[1] -= 1.0;
+	trace_absmins[2] -= 1.0;
+	trace_absmaxs[0] += 1.0;
+	trace_absmaxs[1] += 1.0;
+	trace_absmaxs[2] += 1.0;
+
 #if 0
 	if (0)
 	{	//treat *ALL* tests against the actual geometry instead of using any brushes.
@@ -6003,18 +6010,9 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	{
 		int		leafs[1024];
 		int		i, numleafs;
-		vec3_t	c1, c2;
 		int		topnode;
 
-		VectorAdd (trace_start, mins, c1);
-		VectorAdd (trace_start, maxs, c2);
-		for (i=0 ; i<3 ; i++)
-		{
-			c1[i] -= 1;
-			c2[i] += 1;
-		}
-
-		numleafs = CM_BoxLeafnums_headnode (mod, c1, c2, leafs, sizeof(leafs)/sizeof(leafs[0]), mod->hulls[0].firstclipnode, &topnode);
+		numleafs = CM_BoxLeafnums_headnode (mod, trace_absmins, trace_absmaxs, leafs, sizeof(leafs)/sizeof(leafs[0]), mod->hulls[0].firstclipnode, &topnode);
 		for (i=0 ; i<numleafs ; i++)
 		{
 			CM_TestInLeaf (mod->meshinfo, &mod->leafs[leafs[i]]);
@@ -6620,13 +6618,30 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 ===================
 CM_WritePortalState
 
-Writes the portal state to a savegame file
+Returns a size+pointer to the data that needs to be written into a saved game. 
 ===================
 */
-void	CM_WritePortalState (model_t *mod, vfsfile_t *f)
+size_t CM_WritePortalState (model_t *mod, void **data)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	VFS_WRITE(f, prv->portalopen, sizeof(prv->portalopen));
+
+	if (mod->type == mod_brush && (mod->fromgame == fg_quake2 || mod->fromgame == fg_quake3))
+	{
+#ifdef Q3BSPS
+		if (prv->mapisq3)
+		{	//endian issues. oh well.
+			*data = prv->q3areas;
+			return sizeof(prv->q3areas);
+		}
+		else
+#endif
+		{
+			*data = prv->portalopen;
+			return sizeof(prv->portalopen);
+		}
+	}
+	*data = NULL;
+	return 0;
 }
 
 /*
@@ -6641,14 +6656,34 @@ qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 
-	if (ptrsize < sizeof(prv->portalopen))
-		Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->portalopen),(unsigned int)ptrsize);
-	else
+	if (mod->type == mod_brush && (mod->fromgame == fg_quake2 || mod->fromgame == fg_quake3))
 	{
-		memcpy(prv->portalopen, ptr, sizeof(prv->portalopen));
+#ifdef Q3BSPS
+		if (prv->mapisq3)
+		{
+			if (ptrsize < sizeof(prv->q3areas))
+				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q3areas),(unsigned int)ptrsize);
+			else
+			{
+				memcpy(prv->q3areas, ptr, sizeof(prv->q3areas));
 
-		FloodAreaConnections (prv);
-		return sizeof(prv->portalopen);
+				FloodAreaConnections (prv);
+				return sizeof(prv->portalopen);
+			}
+		}
+		else
+#endif
+		{
+			if (ptrsize < sizeof(prv->portalopen))
+				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->portalopen),(unsigned int)ptrsize);
+			else
+			{
+				memcpy(prv->portalopen, ptr, sizeof(prv->portalopen));
+
+				FloodAreaConnections (prv);
+				return sizeof(prv->portalopen);
+			}
+		}
 	}
 	return 0;
 }

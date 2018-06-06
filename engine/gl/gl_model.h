@@ -1108,7 +1108,7 @@ void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean ope
 void	CMQ3_SetAreaPortalState (model_t *mod, unsigned int area1, unsigned int area2, qboolean open);
 
 //for saved games to write the raw state.
-void	CM_WritePortalState (model_t *mod, vfsfile_t *f);
+size_t	CM_WritePortalState (model_t *mod, void **data);
 qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize);
 
 #endif

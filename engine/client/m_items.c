@@ -1945,8 +1945,8 @@ static int M_Main_AddExtraOptions(menu_t *mainm, int y)
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC           ", "irc\n");				y += 20;}
 	if (Cmd_Exists("qi"))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "qi\n");				y += 20;}
-//	else if (PM_CanInstall("qi"))
-//		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "pkg reset; pkg add qi; pkg apply\n");	y += 20;}
+	else if (PM_CanInstall("qi"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Get Quake Injector", "pkg reset; pkg add qi; pkg apply\n");	y += 20;}
 	if (Cmd_Exists("menu_download"))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;}
 
@@ -1957,9 +1957,10 @@ void M_Menu_Main_f (void)
 {
 	extern cvar_t m_helpismedia;
 	menubutton_t *b;
-	menu_t *mainm;
+	menu_t *mainm = NULL;
 	mpic_t *p;
 	static menuresel_t resel;
+	int y;
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(-1, va("%s %s", Cmd_Argv(0), Cmd_Args())))
@@ -2012,9 +2013,6 @@ void M_Menu_Main_f (void)
 			mainm->key = MC_Main_Key;
 
 			MC_AddPicture(mainm, 0, 4, 38, 166, "pics/m_main_plaque");
-			p = R2D_SafeCachePic("pics/m_main_logo");
-			if (!p)
-				return;
 			MC_AddPicture(mainm, 0, 173, 36, 42, "pics/m_main_logo");
 #ifndef CLIENTONLY
 			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
@@ -2060,148 +2058,147 @@ void M_Menu_Main_f (void)
 		if (M_GameType() == MGT_HEXEN2)
 	{
 		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
-		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
-			return;
+		if (R_GetShaderSizes(p, NULL, NULL, true) > 0)
+		{
+			Key_Dest_Add(kdm_emenu);
+			mainm = M_CreateMenu(0);
+			mainm->key = MC_Main_Key;
 
-		Key_Dest_Add(kdm_emenu);
-		mainm = M_CreateMenu(0);
-		mainm->key = MC_Main_Key;
-
-		MC_AddPicture(mainm, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
+			MC_AddPicture(mainm, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+			MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
 
 #ifndef CLIENTONLY
-		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64,	"Single Player", "menu_single\n");
-		mainm->selecteditem = (menuoption_t *)b;
-		b->common.width = 12*20;
-		b->common.height = 20;
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64,	"Single Player", "menu_single\n");
+			mainm->selecteditem = (menuoption_t *)b;
+			b->common.width = 12*20;
+			b->common.height = 20;
 #endif
-		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+20,	"MultiPlayer", "menu_multi\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+20,	"MultiPlayer", "menu_multi\n");
 #ifdef CLIENTONLY
-		mainm->selecteditem = (menuoption_t *)b;
+			mainm->selecteditem = (menuoption_t *)b;
 #endif
-		b->common.width = 12*20;
-		b->common.height = 20;
-		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+40,	"Options", "menu_options\n");
-		b->common.width = 12*20;
-		b->common.height = 20;
-		if (m_helpismedia.value)
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+60,	"Media", "menu_media\n");
-		else
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+60,	"Help", "help\n");
-		b->common.width = 12*20;
-		b->common.height = 20;
-		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+80,	"Quit", "menu_quit\n");
-		b->common.width = 12*20;
-		b->common.height = 20;
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+40,	"Options", "menu_options\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			if (m_helpismedia.value)
+				b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+60,	"Media", "menu_media\n");
+			else
+				b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+60,	"Help", "help\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+80,	"Quit", "menu_quit\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 56, mainm->selecteditem->common.posy);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 56, mainm->selecteditem->common.posy);
+		}
 	}
 	else
 #endif
 		if (QBigFontWorks())
 	{
-		int y;
-		Key_Dest_Add(kdm_emenu);
-		mainm = M_CreateMenu(0);
-
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
-		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
+		if (R_GetShaderSizes(p, NULL, NULL, true) > 0)
 		{
-			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
+			Key_Dest_Add(kdm_emenu);
+			mainm = M_CreateMenu(0);
+			mainm->key = MC_Main_Key;
+			MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
 
+			MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
+
+			y = 32;
 			mainm->selecteditem = (menuoption_t *)
-			MC_AddConsoleCommand	(mainm, 64, 170, 32,	"Join server", "menu_servers\n");
-			MC_AddConsoleCommand	(mainm, 64, 170, 40,	"Options", "menu_options\n");
-			MC_AddConsoleCommand	(mainm, 64, 170, 48,	"Quit", "menu_quit\n");
-			return;
-		}
-		mainm->key = MC_Main_Key;
-		MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
-
-		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
-
-		y = 32;
-		mainm->selecteditem = (menuoption_t *)
 #ifndef CLIENTONLY
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single        ", "menu_single\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single        ", "menu_single\n");		y += 20;
 #endif
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer   ", "menu_multi\n");		y += 20;
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options       ", "menu_options\n");	y += 20;
-		if (m_helpismedia.value)
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media         ", "menu_media\n");		y += 20;}
-		else
-			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help          ", "help\n");			y += 20;}
-		y = M_Main_AddExtraOptions(mainm, y);
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer   ", "menu_multi\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options       ", "menu_options\n");	y += 20;
+			if (m_helpismedia.value)
+				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media         ", "menu_media\n");		y += 20;}
+			else
+				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help          ", "help\n");			y += 20;}
+			y = M_Main_AddExtraOptions(mainm, y);
 #ifdef FTE_TARGET_WEB
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings ", "menu_quit\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings ", "menu_quit\n");		y += 20;
 #else
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit          ", "menu_quit\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit          ", "menu_quit\n");		y += 20;
 #endif
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
+		}
 	}
 	else
 	{
 		int width;
-		Key_Dest_Add(kdm_emenu);
-		mainm = M_CreateMenu(0);
-
 		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
 		R2D_SafeCachePic("gfx/ttl_main.lmp");
-		if (R_GetShaderSizes(p, &width, NULL, true) <= 0)
+		if (R_GetShaderSizes(p, &width, NULL, true) > 0)
 		{
-			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
+			Key_Dest_Add(kdm_emenu);
+			mainm = M_CreateMenu(0);
 
-			mainm->selecteditem = (menuoption_t *)
-			MC_AddConsoleCommand	(mainm, 64, 170, 32,	"Join server", "menu_servers\n");
-			MC_AddConsoleCommand	(mainm, 64, 170, 40,	"Options", "menu_options\n");
-			MC_AddConsoleCommand	(mainm, 64, 170, 48,	"Quit", "menu_quit\n");
-			return;
-		}
-		mainm->key = MC_Main_Key;
-		MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
+			mainm->key = MC_Main_Key;
+			MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
 
-		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
-		MC_AddPicture(mainm, 72, 32, 240, 112, "gfx/mainmenu.lmp");
+			MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
+			MC_AddPicture(mainm, 72, 32, 240, 112, "gfx/mainmenu.lmp");
 
-		b=MC_AddConsoleCommand	(mainm, 72, 312, 32,	"", "menu_single\n");
-		b->common.tooltip = "Start singleplayer Quake game.";
-		mainm->selecteditem = (menuoption_t *)b;
-		b->common.width = width;
-		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 72, 312, 52,	"", "menu_multi\n");
-		b->common.tooltip = "Multiplayer menu.";
-		b->common.width = width;
-		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 72, 312, 72,	"", "menu_options\n");
-		b->common.tooltip = "Options menu.";
-		b->common.width = width;
-		b->common.height = 20;
-		if (m_helpismedia.value)
-		{
-			b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "menu_media\n");
-			b->common.tooltip = "Media menu.";
-		}
-		else
-		{
-			b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "help\n");
-			b->common.tooltip = "Help menu.";
-		}
-		b->common.width = width;
-		b->common.height = 20;
-		b=MC_AddConsoleCommand	(mainm, 72, 312, 112,	"", "menu_quit\n");
+			b=MC_AddConsoleCommand	(mainm, 72, 312, 32,	"", "menu_single\n");
+			b->common.tooltip = "Start singleplayer Quake game.";
+			mainm->selecteditem = (menuoption_t *)b;
+			b->common.width = width;
+			b->common.height = 20;
+			b=MC_AddConsoleCommand	(mainm, 72, 312, 52,	"", "menu_multi\n");
+			b->common.tooltip = "Multiplayer menu.";
+			b->common.width = width;
+			b->common.height = 20;
+			b=MC_AddConsoleCommand	(mainm, 72, 312, 72,	"", "menu_options\n");
+			b->common.tooltip = "Options menu.";
+			b->common.width = width;
+			b->common.height = 20;
+			if (m_helpismedia.value)
+			{
+				b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "menu_media\n");
+				b->common.tooltip = "Media menu.";
+			}
+			else
+			{
+				b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "help\n");
+				b->common.tooltip = "Help menu.";
+			}
+			b->common.width = width;
+			b->common.height = 20;
+			b=MC_AddConsoleCommand	(mainm, 72, 312, 112,	"", "menu_quit\n");
 #ifdef FTE_TARGET_WEB
-		b->common.tooltip = "Save settings to local storage.";
+			b->common.tooltip = "Save settings to local storage.";
 #else
-		b->common.tooltip = "Exit to DOS.";
+			b->common.tooltip = "Exit to DOS.";
 #endif
-		b->common.width = width;
-		b->common.height = 20;
+			b->common.width = width;
+			b->common.height = 20;
 
-		M_Main_AddExtraOptions(mainm, 112+20);
+			M_Main_AddExtraOptions(mainm, 112+20);
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
+		}
+	}
+
+	if (!mainm)
+	{
+		Key_Dest_Add(kdm_emenu);
+		mainm = M_CreateMenu(0);
+		MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
+
+		y = 36;
+		mainm->selecteditem = (menuoption_t *)
+		//skip menu_single if we don't seem to have any content.
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Join server",	"menu_servers\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options",		"menu_options\n");	y += 20;
+		y = M_Main_AddExtraOptions(mainm, y);
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit",			"menu_quit\n");		y += 20;
 	}
 
 	if (!m_preset_chosen.ival)

@@ -15,7 +15,7 @@ extern qboolean mouse_active;
 static cvar_t m_filter = CVARF("m_filter", "0", CVAR_ARCHIVE);
 static cvar_t m_forcewheel = CVARD("m_forcewheel", "1", "0: ignore mousewheels in apis where it is abiguous.\n1: Use mousewheel when it is treated as a third axis. Motion above a threshold is ignored, to avoid issues with an unknown threshold.\n2: Like 1, but excess motion is retained. The threshold specifies exact z-axis distance per notice.");
 static cvar_t m_forcewheel_threshold = CVARD("m_forcewheel_threshold", "32", "Mousewheel graduations smaller than this will not trigger mousewheel deltas.");
-static cvar_t m_strafeonright = CVARFD("m_strafeonright", "1", CVAR_ARCHIVE, "If 1, touching the right half of the touchscreen will strafe/move, while the left side will turn.");
+static cvar_t m_touchstrafe = CVARAFD("m_touchstrafe", "1", "m_strafeonright", CVAR_ARCHIVE, "0: entire screen changes angles only.\n1: right hand side controls strafing.\n2:left hand side strafes.");
 static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
@@ -322,7 +322,7 @@ void IN_Init(void)
 	Cvar_Register (&m_filter, "input controls");
 	Cvar_Register (&m_forcewheel, "Input Controls");
 	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
-	Cvar_Register (&m_strafeonright, "input controls");
+	Cvar_Register (&m_touchstrafe, "input controls");
 	Cvar_Register (&m_fatpressthreshold, "input controls");
 	Cvar_Register (&m_slidethreshold, "input controls");
 	Cvar_Register (&m_touchmajoraxis, "input controls");
@@ -381,8 +381,20 @@ int IN_TranslateMButtonPress(unsigned int devid)
 	}
 	else
 	{
-		//this is the key binding that the press should use
-		ret = (m_strafeonright.ival && ptr[devid].heldpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+		//translate touch to mouse2 if its on the strafing side of the screen.
+		switch(m_touchstrafe.ival)
+		{
+		case 2:
+			ret = ptr[devid].heldpos[0] < vid.pixelwidth/2;
+			break;
+		default:
+			ret = ptr[devid].heldpos[0] > vid.pixelwidth/2;
+			break;
+		case 0:
+			ret = false;
+			break;
+		}
+		ret = ret?K_MOUSE2:K_MOUSE1;
 	}
 
 	return ret;
@@ -653,12 +665,28 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 
 	if (mouse->type == M_TOUCH)
 	{
-		if (m_strafeonright.ival && mouse->heldpos[0] > vid.pixelwidth/2 && movements != NULL && !Key_Dest_Has(~kdm_game))
+		qboolean strafing = false;
+		switch(m_touchstrafe.ival)
+		{
+		case 2:
+			strafing = mouse->heldpos[0] < vid.pixelwidth/2;
+			break;
+		default:
+			strafing = mouse->heldpos[0] > vid.pixelwidth/2;
+			break;
+		case 0:
+			strafing = true;
+			break;
+		}
+		if (strafing && movements != NULL && !Key_Dest_Has(~kdm_game))
 		{
 			//if they're strafing, calculate the speed to move at based upon their displacement
 			if (mouse->held)
 			{
-				mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4.0;
+				if (m_touchstrafe.ival)	//left side
+					mx = mouse->oldpos[0] - (vid.pixelwidth*1)/4.0;
+				else	//right side
+					mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4.0;
 				my = mouse->oldpos[1] - (vid.pixelheight*3)/4.0;
 
 				//mx = (mouse->oldpos[0] - mouse->heldpos[0])*0.1;

@@ -6702,7 +6702,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QUAKE3_SERVER",				0,	NULL, {NULL}, "This engine is able to act as a quake3 server"},
 #endif
 	{"FTE_SOLID_LADDER",				NOBI			"Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS"},
-	{"FTE_SPLITSCREEN",					NOBI			"Client supports splitscreen, controlled via cl_splitclients. Servers require allow_splitscreen 1 if splitscreen is to be used over the internet. Mods that use csqc will need to be aware for this to work properly. per-client networking may be problematic."},
+	{"FTE_SPLITSCREEN",					NOBI			"Client supports splitscreen, controlled via cl_splitscreen. Servers require allow_splitscreen 1 if splitscreen is to be used over the internet. Mods that use csqc will need to be aware for this to work properly. per-client networking may be problematic."},
 
 #ifdef SQL
 	// serverside SQL functions for managing an SQL database connection

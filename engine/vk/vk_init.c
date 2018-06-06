@@ -311,6 +311,9 @@ static qboolean VK_CreateSwapChain(void)
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 	VkSampleCountFlagBits oldms;
 
+	VkFormat oldformat = vk.backbufformat;
+	VkFormat olddepthformat = vk.depthformat;
+
 	vk.dopresent(NULL);	//make sure they're all pushed through.
 
 
@@ -695,7 +698,8 @@ static qboolean VK_CreateSwapChain(void)
 	}
 #endif
 
-	if (oldms != vk.multisamplebits)
+	//destroy+recreate the renderpass if something changed that prevents them being compatible (this also requires rebuilding all the pipelines too, which sucks).
+	if (oldms != vk.multisamplebits || oldformat != vk.backbufformat || olddepthformat != vk.depthformat)
 	{
 		VK_DestroyRenderPass();
 		reloadshaders = true;

@@ -22,6 +22,7 @@
 
 // All my fault -eukara
 #define MENU_NATIVECODE
+#define ENGINE_ROUTING
 
 // What do we use
 //#define D3D9QUAKE
@@ -60,22 +61,22 @@
 #endif
 
 
-//various package formats
+// Various package formats
 #define PACKAGE_PK3
-#undef PACKAGE_Q1PAK	//also q2
-#undef PACKAGE_DOOMWAD	//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
-#undef PACKAGE_TEXWAD	//quake's image wad support
+#undef PACKAGE_Q1PAK
+#undef PACKAGE_DOOMWAD
+#define PACKAGE_TEXWAD	// We need this for WAD3 support
 
-//map formats
+// Map formats
 #define Q3BSPS
-#undef Q1BSPS
+#define Q1BSPS // Half-Life Support
 #undef Q2BSPS
-#undef RFBSPS	//qfusion's bsp format / jk2o etc.
+#undef RFBSPS
 #undef TERRAIN
 #undef DOOMWADS
 #undef MAP_PROC
 
-//model formats
+// Model formats
 #define INTERQUAKEMODELS
 #undef SPRMODELS
 #undef SP2MODELS

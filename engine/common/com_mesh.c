@@ -6052,9 +6052,9 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 				group[j].boneofs = animmatrix + 12*num_boneinfo*frameinfo[j].firstpose;
 				group[j].numposes = frameinfo[j].posecount;
 				if (*frameinfo[j].name)
-					snprintf(group[j].name, sizeof(group[j].name), "%s", frameinfo[j].name);
+					Q_snprintfz(group[j].name, sizeof(group[j].name), "%s", frameinfo[j].name);
 				else
-					snprintf(group[j].name, sizeof(group[j].name), "frame_%i", j);
+					Q_snprintfz(group[j].name, sizeof(group[j].name), "frame_%i", j);
 				group[j].loop = frameinfo[j].loop;
 				group[j].rate = frameinfo[j].fps;
 				group[j].skeltype = SKEL_RELATIVE;
@@ -6077,7 +6077,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 				{
 					group[iframe].boneofs = animmatrix + 12*num_boneinfo*(animinfo[j].firstframe+i);
 					group[iframe].numposes = 1;
-					snprintf(group[iframe].name, sizeof(group[iframe].name), "%s_%i", animinfo[j].name, i);
+					Q_snprintfz(group[iframe].name, sizeof(group[iframe].name), "%s_%i", animinfo[j].name, i);
 					group[iframe].loop = true;
 					group[iframe].rate = animinfo[j].fps;
 					group[iframe].skeltype = SKEL_RELATIVE;

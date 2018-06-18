@@ -4,8 +4,8 @@
 
 //panoramic view rendering, for promo map shots or whatever.
 
+layout(location=0) varying vec2 texcoord;
 #ifdef VERTEX_SHADER
-varying vec2 texcoord;
 void main()
 {
 	texcoord = v_texcoord.xy;
@@ -13,7 +13,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-varying vec2 texcoord;
 void main()
 {
 	vec3 tc;	

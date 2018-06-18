@@ -351,7 +351,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_accumulate,	nondefaultkeyword,"accumulate",	"Keyword: accumulate",	"Disables the 'accumulate' keyword."},
 
 	//options
-	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
+	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows | for linebreaks. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
 	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
 	{&output_parms,			0,				"parms",		"Define offset parms",	"if PARM0 PARM1 etc should be defined by the compiler. These are useful if you make use of the asm keyword for function calls, or you wish to create your own variable arguments. This is an easy way to break decompilers."},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
@@ -2050,18 +2050,9 @@ strofs = (strofs+3)&~3;
 
 				qtst[i].line = statements[i].linenum;
 				qtst[i].op = PRLittleShort((unsigned short)statements[i].op);
-				if (a < 0)
-					qtst[i].a = PRLittleShort((short)a);
-				else
-					qtst[i].a = (unsigned short)PRLittleShort((unsigned short)a);
-				if (b < 0)
-					qtst[i].b = PRLittleShort((short)b);
-				else
-					qtst[i].b = (unsigned short)PRLittleShort((unsigned short)b);
-				if (c < 0)
-					qtst[i].c = PRLittleShort((short)c);
-				else
-					qtst[i].c = (unsigned short)PRLittleShort((unsigned short)c);
+				qtst[i].a = (unsigned short)PRLittleShort((unsigned short)a);
+				qtst[i].b = (unsigned short)PRLittleShort((unsigned short)b);
+				qtst[i].c = (unsigned short)PRLittleShort((unsigned short)c);
 			}
 
 			// no compression
@@ -2106,18 +2097,10 @@ strofs = (strofs+3)&~3;
 				if (((signed)a >= (signed)numpr_globals && statements[i].a.sym) || ((signed)b >= (signed)numpr_globals && statements[i].b.sym) || ((signed)c >= (signed)numpr_globals && statements[i].c.sym))
 					printf("invalid offset on %s instruction\n", pr_opcodes[statements[i].op].opname);
 #endif
-				if (a < 0)
-					statements16[i].a = PRLittleShort(a);
-				else
-					statements16[i].a = (unsigned short)PRLittleShort(a);
-				if (b < 0)
-					statements16[i].b = PRLittleShort((short)b);
-				else
-					statements16[i].b = (unsigned short)PRLittleShort((unsigned short)b);
-				if (c < 0)
-					statements16[i].c = PRLittleShort((short)c);
-				else
-					statements16[i].c = (unsigned short)PRLittleShort((unsigned short)c);
+				//truncate to 16bit. should probably warn if the high bits are not 0x0000 or 0xffff
+				statements16[i].a = (unsigned short)PRLittleShort((unsigned short)a);
+				statements16[i].b = (unsigned short)PRLittleShort((unsigned short)b);
+				statements16[i].c = (unsigned short)PRLittleShort((unsigned short)c);
 			}
 
 			if (progs.blockscompressed&1)

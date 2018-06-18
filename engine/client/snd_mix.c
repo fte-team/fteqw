@@ -236,7 +236,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				{	//hit eof, loop it or stop it
 					if (s->loopstart != -1)	/*some wavs contain a loop offset directly in the sound file, such samples loop even if a non-looping builtin was used*/
 					{
-						ch->pos &= ~((-1)<<PITCHSHIFT);	/*clear out all but the subsample offset*/
+						ch->pos &= ~((~0u)<<PITCHSHIFT);	/*clear out all but the subsample offset*/
 						ch->pos += s->loopstart<<PITCHSHIFT;	//ignore the offset if its off the end of the file
 					}
 					else if (ch->flags & CF_FORCELOOP)	/*(static)channels which are explicitly looping always loop from the start*/

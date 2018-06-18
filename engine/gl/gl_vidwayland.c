@@ -700,7 +700,20 @@ static void WL_SetCaption(const char *text)
 
 static int WL_GetPriority(void)
 {
-	char *dpyname = getenv("WAYLAND_DISPLAY");
+	//2 = above x11, 0 = below x11.
+	char *stype = getenv("XDG_SESSION_TYPE");
+	char *dpyname;
+	if (!strcmp(stype, "wayland"))
+		return 2;
+	if (!strcmp(stype, "x11"))
+		return 0;
+	if (!strcmp(stype, "tty"))	//FIXME: support this!
+		return 0;
+
+	//otherwise if both WAYLAND_DISPLAY and DISPLAY are defined, then we assume that we were started from xwayland wrapper thing, and that the native/preferred windowing system is wayland.
+	//(lets just hope our wayland support is comparable)
+
+	dpyname = getenv("WAYLAND_DISPLAY");
 	if (dpyname && *dpyname)
 		return 2;	//something above X11.
 	return 0;	//default.

@@ -1208,7 +1208,7 @@ void SQL_ServerCycle (void)
 				qreq->results = qres;
 
 				if (developer.ival)
-					if (qres->error)
+					if (*qres->error)
 						Con_Printf("%s\n", qres->error);
 				if (qreq->state == SR_ABORTED)
 				{

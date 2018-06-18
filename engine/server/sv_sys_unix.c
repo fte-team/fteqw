@@ -775,6 +775,22 @@ static int Sys_CheckChRoot(void)
 		//SSL_InitGlobal(true);	//make sure we load our public cert from outside the sandbox. an exploit might still be able to find it in memory though. FIXME: disabled in case this reads from somewhere bad - we're still root.
 #endif
 
+		{	//this protects against stray setuid programs like su reading passwords from /etc/passwd et al
+			//there shouldn't be anyway so really this is pure paranoia.
+			//(the length thing is to avoid overflows inside va giving false negatives.)
+			struct stat s;
+			if (strlen(newroot) > 4096 || lstat(va("%s/etc/", newroot), &s) != -1)
+			{
+				printf("refusing to chroot to %s - contains an /etc directory\n", newroot);
+				return -1;
+			}
+			if (strlen(newroot) > 4096 || lstat(va("%s/proc/", newroot), &s) != -1)
+			{
+				printf("refusing to chroot to %s - contains a /proc directory\n", newroot);
+				return -1;
+			}
+		}
+
 		printf("Changing root dir to \"%s\"\n", newroot);
 		if (chroot(newroot))
 		{
@@ -783,10 +799,16 @@ static int Sys_CheckChRoot(void)
 		}
 		chdir("/");	//chroot does NOT change the working directory, so we need to make sure that happens otherwise still a way out.
 
+		//signal to the fs.c code to use an explicit base home dir.
 		if (newhome)
-			setenv("HOME", va("/user/%s", newhome), true);
+			setenv("FTEHOME", va("/user/%s", newhome), true);
 		else
-			setenv("HOME", va("/user/%i", ruid), true);
+			setenv("FTEHOME", va("/user/%i", ruid), true);
+
+		//these paths are no longer valid.
+		setenv("HOME", "", true);
+		setenv("XDG_DATA_HOME", "", true);
+
 		setenv("PWD", "/", true);
 	
 		ret = true;

@@ -4242,7 +4242,7 @@ static void CLQ2_ParseConfigString (void)
 		return;
 	}
 
-	if (i < 0 || i >= Q2MAX_CONFIGSTRINGS)
+	if ((unsigned int)i >= Q2MAX_CONFIGSTRINGS)
 		Host_EndGame ("configstring > Q2MAX_CONFIGSTRINGS");
 
 //	strncpy (olds, cl.configstrings[i], sizeof(olds));
@@ -7937,7 +7937,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svcdp_updatestatbyte:
 		//case svcneh_fog:
-			if (CPNQ_IS_BJP || cls.protocol_nq == PROTOCOL_VERSION_NEHD)
+			if (CPNQ_IS_BJP || cls.protocol_nq == CPNQ_NEHAHRA)
 			{
 				CL_ResetFog(0);
 				if (MSG_ReadByte())

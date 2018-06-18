@@ -100,14 +100,15 @@ void PF_Common_RegisterCvars(void)
 
 qofs_t PR_ReadBytesString(char *str)
 {
-	size_t u = strtoul(str, &str, 0);
+	//use doubles, so we can cope with eg "5.3mb" or much larger values
+	double d = strtod(str, &str);
 	if (*str == 'g')
-		u *= 1024*1024*1024;
+		d *= 1024*1024*1024;
 	if (*str == 'm')
-		u *= 1024*1024;
+		d *= 1024*1024;
 	if (*str == 'k')
-		u *= 1024;
-	return u;
+		d *= 1024;
+	return d;
 }
 
 //just prints out a warning with stack trace. so I can throttle spammy stack traces.

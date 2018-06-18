@@ -76,8 +76,8 @@ typedef unsigned int FT_Pixel_Mode; //for consistency even without freetype supp
 #ifndef FT_PIXEL_MODE_BGRA
 #define FT_PIXEL_MODE_BGRA 7	//added in FT 2.5
 #endif
-#define FT_PIXEL_MODE_RGBA_SA (~(FT_Pixel_Mode)0)	//RGBA, straight alpha. not in freetype.
-#define FT_PIXEL_MODE_RGBA (~(FT_Pixel_Mode)1)	//RGBA, premultiplied alpha. not in freetype.
+#define FT_PIXEL_MODE_RGBA_SA (100)	//RGBA, straight alpha. not in freetype.
+#define FT_PIXEL_MODE_RGBA (101)	//RGBA, premultiplied alpha. not in freetype.
 
 static const char *imgs[] =
 {
@@ -672,7 +672,7 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 			out += PLANEWIDTH*4;
 		}
 	}
-	else if (pixelmode == FT_PIXEL_MODE_RGBA_SA)
+	else if ((unsigned int)pixelmode == FT_PIXEL_MODE_RGBA_SA)
 	{	//rgba font
 		for (y = -pad; y < 0; y++)
 		{
@@ -739,7 +739,7 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 			out += PLANEWIDTH*4;
 		}
 	}
-	else if (pixelmode == FT_PIXEL_MODE_RGBA)
+	else if ((unsigned int)pixelmode == FT_PIXEL_MODE_RGBA)
 	{	//bgra srgb font, already premultiplied
 		for (y = -pad; y < 0; y++)
 		{

@@ -4,8 +4,8 @@
 //This shader implements super-sampled anti-aliasing.
 //
 
-varying vec2 texcoord;
-varying vec2 e_sourcesize;
+layout(location=0) varying vec2 texcoord;
+layout(location=1) varying vec2 e_sourcesize;
 
 #ifdef VERTEX_SHADER
 void main()

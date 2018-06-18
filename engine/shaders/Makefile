@@ -1,4 +1,8 @@
-CC=i686-pc-mingw32-gcc
+
+#NOTE: if you're on windows, you might want to use CC=i686-pc-mingw32-gcc
+
+CC ?= gcc
+VKSDKPATH ?= ~/VulkanSDK/1.1.73.0/x86_64/bin/
 
 all:
 
@@ -22,12 +26,12 @@ makevulkanblob: makevulkanblob.c
 	$(CC) $< -o $@
 
 vulkanblobs/%.fvb: vulkan/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
-	./makevulkanblob $< $@
+	@echo Making $<
+	@PATH=$(PATH):$(VKSDKPATH) ./makevulkanblob $< $@
 
 #vulkanblobs/%.fvb: glsl/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
 #	./makevulkanblob $< $@
 
 
 all: generatebuiltinsl $(ALLNAMES)
-	which glslangValidator
 	./generatebuiltinsl

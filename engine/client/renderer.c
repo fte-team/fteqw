@@ -463,15 +463,16 @@ cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #ifdef VKQUAKE
 cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers",			"", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
 cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
-cvar_t vk_debug								= CVARD	("vk_debug",					"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
-cvar_t vk_dualqueue							= CVARD ("vk_dualqueue",				"", "Attempt to use a separate queue for presentation. Blank for default.");
+cvar_t vk_debug								= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
+cvar_t vk_dualqueue							= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
 cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
 cvar_t vk_waitfence							= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
-cvar_t vk_nv_glsl_shader					= CVARD	("vk_loadglsl",					"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
-cvar_t vk_nv_dedicated_allocation			= CVARD	("vk_nv_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
-cvar_t vk_khr_dedicated_allocation			= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
-cvar_t vk_khr_push_descriptor				= CVARD	("vk_khr_push_descriptor",		"", "Enables better descriptor streaming.");
-cvar_t vk_amd_rasterization_order			= CVARD ("vk_amd_rasterization_order",	"",	"Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
+cvar_t vk_usememorypools					= CVARFD("vk_usememorypools",			"",	CVAR_VIDEOLATCH, "Allocates memory pools for sub allocations. Vulkan has a limit to the number of memory allocations allowed so this should always be enabled, however at this time FTE is unable to reclaim pool memory, and would require periodic vid_restarts to flush them.");
+cvar_t vk_nv_glsl_shader					= CVARFD("vk_loadglsl",					"", CVAR_VIDEOLATCH, "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
+cvar_t vk_khr_get_memory_requirements2		= CVARFD("vk_khr_get_memory_requirements2", "", CVAR_VIDEOLATCH, "Enable extended memory info querires");
+cvar_t vk_khr_dedicated_allocation			= CVARFD("vk_khr_dedicated_allocation",	"", CVAR_VIDEOLATCH, "Flag vulkan memory allocations as dedicated, where applicable.");
+cvar_t vk_khr_push_descriptor				= CVARFD("vk_khr_push_descriptor",		"", CVAR_VIDEOLATCH, "Enables better descriptor streaming.");
+cvar_t vk_amd_rasterization_order			= CVARFD("vk_amd_rasterization_order",	"",	CVAR_VIDEOLATCH, "Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
 #endif
 
 #ifdef D3D9QUAKE
@@ -1011,9 +1012,10 @@ void Renderer_Init(void)
 	Cvar_Register (&vk_dualqueue,				VKRENDEREROPTIONS);
 	Cvar_Register (&vk_busywait,				VKRENDEREROPTIONS);
 	Cvar_Register (&vk_waitfence,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_usememorypools,			VKRENDEREROPTIONS);
 
 	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
-	Cvar_Register (&vk_nv_dedicated_allocation,	VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_get_memory_requirements2,VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
 	Cvar_Register (&vk_amd_rasterization_order,	VKRENDEREROPTIONS);
@@ -1944,6 +1946,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	}
 	else
 	{
+		int bestpri = -2, pri;
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
 			if (!rendererinfo[i] || !rendererinfo[i]->description)
@@ -1954,8 +1957,21 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 					continue;
 				if (!stricmp(rendererinfo[i]->name[j], com_token))
 				{
-					newr->renderer = rendererinfo[i];
-					break;
+					if (rendererinfo[i]->VID_GetPriority)
+						pri = rendererinfo[i]->VID_GetPriority();
+					else if (rendererinfo[i]->rtype == QR_HEADLESS)
+						pri = -1;	//headless renderers are a really poor choice, and will make the user think it buggy.
+					else if (rendererinfo[i]->rtype == QR_NONE)
+						pri = 0;	//dedicated servers are possible, but we really don't want to use them unless we have no other choice.
+					else
+						pri = 1;
+
+					if (pri > bestpri)
+					{
+						bestpri = pri;
+						newr->renderer = rendererinfo[i];
+					}
+					break; //try the next renderer now.
 				}
 			}
 		}

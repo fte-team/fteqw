@@ -1448,7 +1448,7 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 
 	dl->threadenable = true;
 #if defined(LOADERTHREAD) && !defined(NPFTE)
-	if (dlthreads < 0)
+	if (dlthreads < 4)
 #endif
 	{
 		dl->threadctx = Sys_CreateThread("download", DL_Thread_Work, dl, THREADP_NORMAL, 0);

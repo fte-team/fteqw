@@ -3119,8 +3119,8 @@ const gamemode_info_t gamemode_info[] = {
 #ifndef NOLEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//two quakes - one without extra game dirs which should avoid fuckups from nquake's configs (which screw over cvars that every nq progs.dat depends upon but which the ezquake id1-only less-compatible gamecode ignores).
-	{"-quake",		"qw",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
-	{"-netquake",	"q1",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1"},										"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1"},										"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
 	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
@@ -6177,14 +6177,54 @@ void COM_InitFilesystem (void)
 #endif
 	}
 #else
-	//yay for unix!.
-	ev = getenv("HOME");
+	//on unix, we use environment settings.
+	//if $HOME/.fte/ exists then we use that because of legacy reasons.
+	//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
+	//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
+	//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
+
+	ev = getenv("FTEHOME");
 	if (ev && *ev)
 	{
 		if (ev[strlen(ev)-1] == '/')
-			Q_snprintfz(com_homepath, sizeof(com_homepath), "%s.fte/", ev);
+			Q_strncpyz(com_homepath, ev, sizeof(com_homepath));
 		else
-			Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/.fte/", ev);
+			Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/", ev);
+		usehome = true; // always use home on unix unless told not to
+		ev = NULL;
+	}
+	else
+		ev = getenv("HOME");
+	if (ev && *ev)
+	{
+		const char *xdghome;
+		char oldhome[MAX_OSPATH];
+		char newhome[MAX_OSPATH];
+		struct stat s;
+
+#ifdef GAME_SHORTNAME
+#define HOMESUBDIR GAME_SHORTNAME
+#else
+#define HOMESUBDIR "fte"	//FIXME: this should come from the manifest, as fte_GAME or something
+#endif
+
+		if (ev[strlen(ev)-1] == '/')
+			Q_snprintfz(oldhome, sizeof(oldhome), "%s."HOMESUBDIR"/", ev);
+		else
+			Q_snprintfz(oldhome, sizeof(oldhome), "%s/."HOMESUBDIR"/", ev);
+
+		xdghome = getenv("XDG_DATA_HOME");
+		if (!xdghome || !*xdghome)
+			xdghome = va("%s/.local/share", ev);
+		if (xdghome[strlen(xdghome)-1] == '/')
+			Q_snprintfz(newhome, sizeof(newhome), "%s"HOMESUBDIR"/", xdghome);
+		else
+			Q_snprintfz(newhome, sizeof(newhome), "%s/"HOMESUBDIR"/", xdghome);
+
+		if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
+			Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
+		else
+			Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
 		usehome = true; // always use home on unix unless told not to
 	}
 #endif

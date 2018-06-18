@@ -104,6 +104,7 @@ cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond
 #ifdef QWOVERQ3
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
+cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connection within the specified length of time .");
 extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
@@ -2782,6 +2783,12 @@ client_t *SVC_DirectConnect(void)
 		if (NET_CompareBaseAdr (&adr, &cl->netchan.remote_address)
 			&& ((protocol == SCP_QUAKEWORLD && cl->netchan.qport == qport) || adr.port == cl->netchan.remote_address.port ))
 		{
+			if (realtime - cl->connection_started < sv_reconnectlimit.value)
+			{
+				Con_Printf ("%s:reconnect rejected: too soon\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				return NULL;
+			}
+
 			if (cl->state == cs_connected)
 			{
 				if (cl->protocol != protocol)
@@ -5141,6 +5148,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_listen_q3,	cvargroup_servercontrol);
 #endif
 	sv_listen_qw.restriction = RESTRICT_MAX;	//no disabling this over rcon.
+	Cvar_Register (&sv_reconnectlimit,	cvargroup_servercontrol);
 	Cvar_Register (&fraglog_public,	cvargroup_servercontrol);
 
 	SVNET_RegisterCvars();

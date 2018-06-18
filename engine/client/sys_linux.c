@@ -452,7 +452,7 @@ int	Sys_FileTime (char *path)
 
 void Sys_mkdir (const char *path)
 {
-	mkdir (path, 0777);
+	mkdir (path, 0760);
 }
 qboolean Sys_rmdir (const char *path)
 {
@@ -464,7 +464,10 @@ qboolean Sys_rmdir (const char *path)
 }
 qboolean Sys_remove (const char *path)
 {
-	return system(va("rm \"%s\"", path));
+	//remove is part of c89.
+	if (remove(path) == -1)
+		return false;
+	return true;
 }
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
@@ -1003,7 +1006,8 @@ int main (int c, const char **v)
 		sleeptime = Host_Frame(time);
 		oldtime = newtime;
 
-		Sys_Sleep(sleeptime);
+		if (sleeptime)
+			Sys_Sleep(sleeptime);
 	}
 }
 

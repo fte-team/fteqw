@@ -58,6 +58,7 @@
 //funcs specific to an instance
 #define VKInst2Funcs \
 	VKFunc(EnumeratePhysicalDevices)				\
+	VKFunc(EnumeratePhysicalDeviceGroupsKHX)		\
 	VKFunc(EnumerateDeviceExtensionProperties)		\
 	VKFunc(GetPhysicalDeviceProperties)				\
 	VKFunc(GetPhysicalDeviceQueueFamilyProperties)	\
@@ -126,6 +127,7 @@
 	VKFunc(GetDeviceQueue)				\
 	VKFunc(GetBufferMemoryRequirements)	\
 	VKFunc(GetImageMemoryRequirements)	\
+	VKFunc(GetImageMemoryRequirements2KHR)	\
 	VKFunc(GetImageSubresourceLayout)	\
 	VKFunc(CreateFramebuffer)			\
 	VKFunc(DestroyFramebuffer)			\
@@ -193,10 +195,18 @@
 #define VkWarnAssert(f) f
 #endif
 
+typedef struct
+{
+	struct vk_mempool_s *pool;
+	VkDeviceMemory memory;
+	size_t size;
+	size_t offset;
+} vk_poolmem_t;
+
 typedef struct vk_image_s
 {
 	VkImage image;
-	VkDeviceMemory memory;
+	vk_poolmem_t mem;
 	VkImageView view;
 	VkSampler sampler;
 	VkImageLayout layout;
@@ -256,12 +266,12 @@ extern struct vulkaninfo_s
 	qboolean		vsync;
 	qboolean		allowsubmissionthread;
 
-	qboolean		khr_swapchain;				//aka: not headless. we're actually rendering stuff!
-	qboolean		nv_glsl_shader;				//we can load glsl shaders. probably missing lots of reflection info though, so this is probably too limited.
-	qboolean		nv_dedicated_allocation;	//nvidia-specific extension that provides hints that there's no memory aliasing going on.
-	qboolean		khr_dedicated_allocation;	//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
-	qboolean		khr_push_descriptor;		//more efficient descriptor streaming
-	qboolean		amd_rasterization_order;	//allows primitives to draw in any order
+	qboolean		khr_swapchain;					//aka: not headless. we're actually rendering stuff!
+	qboolean		nv_glsl_shader;					//we can load glsl shaders. probably missing lots of reflection info though, so this is probably too limited.
+	qboolean		khr_get_memory_requirements2;	//slightly richer info
+	qboolean		khr_dedicated_allocation;		//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
+	qboolean		khr_push_descriptor;			//more efficient descriptor streaming
+	qboolean		amd_rasterization_order;		//allows primitives to draw in any order
 
 	VkInstance instance;
 	VkDevice device;
@@ -298,6 +308,19 @@ extern struct vulkaninfo_s
 	int mipcap[2];
 	float max_anistophy;
 	float max_anistophy_limit;
+
+	struct vk_mempool_s
+	{
+		struct vk_mempool_s *next;
+
+		uint32_t memtype;
+		VkDeviceMemory memory;
+
+		//FIXME: replace with an ordered list of free blocks.
+		VkDeviceSize gaps;
+		VkDeviceSize memoryoffset;
+		VkDeviceSize memorysize;
+	} *mempools;
 
 	struct descpool
 	{
@@ -450,11 +473,15 @@ void VKBE_RT_End(struct vk_rendertarg *targ);
 void VKBE_RT_Destroy(struct vk_rendertarg *targ);
 
 
+qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDeviceSize poolalignment, vk_poolmem_t *mem);
+void VK_ReleasePoolMemory(vk_poolmem_t *mem);
+qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t *mem);	//dedicated should normally be TRUE for render targets
+void VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated);	//dedicated should normally be TRUE for render targets
 struct stagingbuf
 {
 	VkBuffer buf;
 	VkBuffer retbuf;
-	VkDeviceMemory memory;
+	vk_poolmem_t mem;
 	size_t size;
 	VkBufferUsageFlags usage;
 };
@@ -462,7 +489,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkPipelineStageFlagBits srcstagemask, VkImageLayout new_image_layout, VkAccessFlags dstaccess, VkPipelineStageFlagBits dststagemask);
 void VK_CreateSampler(unsigned int flags, vk_image_t *img);
 void *VKBE_CreateStagingBuffer(struct stagingbuf *n, size_t size, VkBufferUsageFlags usage);
-VkBuffer VKBE_FinishStaging(struct stagingbuf *n, VkDeviceMemory *memptr);
+VkBuffer VKBE_FinishStaging(struct stagingbuf *n, vk_poolmem_t *memptr);
 void *VK_FencedBegin(void (*passed)(void *work), size_t worksize);
 void VK_FencedSubmit(void *work);
 void VK_FencedCheck(void);

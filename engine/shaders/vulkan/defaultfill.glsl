@@ -1,8 +1,8 @@
 #include "sys/defs.h"
 
-#ifdef VERTEX_SHADER
-varying vec4 vc;
+layout(location=0) varying vec4 vc;
 
+#ifdef VERTEX_SHADER
 void main ()
 {
 	vc = v_colour;
@@ -11,7 +11,6 @@ void main ()
 #endif
 
 #ifdef FRAGMENT_SHADER
-varying vec4 vc;
 void main ()
 {
 	gl_FragColor = vc;

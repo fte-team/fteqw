@@ -4,7 +4,7 @@
 //the bloom filter
 //filter out any texels which are not to bloom
 
-varying vec2 tc;
+layout(location=0) varying vec2 tc;
 
 #ifdef VERTEX_SHADER
 void main ()

@@ -373,7 +373,7 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 	Con_Printf("NET_CompareAdr: Bad address type\n");
 	return false;
 }
- 
+
 /*
 ===================
 NET_CompareBaseAdr
@@ -524,7 +524,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 	char *rs = s;
 	char *prot = "";
 #ifdef IPPROTO_IPV6
-	qboolean doneblank;
+	int doneblank;
 #endif
 
 	switch(a->prot)
@@ -590,7 +590,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 		{
 			char *p;
 			int i;
-			if (!*(int*)&a->address.ip6[0] && 
+			if (!*(int*)&a->address.ip6[0] &&
 				!*(int*)&a->address.ip6[4] &&
 				!*(short*)&a->address.ip6[8] &&
 				*(short*)&a->address.ip6[10] == (short)0xffff)
@@ -756,7 +756,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 		{
 			char *p;
 			int i, doneblank;
-			if (!*(int*)&a->address.ip6[0] && 
+			if (!*(int*)&a->address.ip6[0] &&
 				!*(int*)&a->address.ip6[4] &&
 				!*(short*)&a->address.ip6[8] &&
 				*(short*)&a->address.ip6[10] == (short)0xffff)
@@ -996,7 +996,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qs
 		{
 			if (addrfamily)
 				addrfamily[i] = ((struct sockaddr*)sadr)->sa_family;
-		
+
 			if (((struct sockaddr*)&sadr[i])->sa_family == AF_INET)
 			{
 				if (!((struct sockaddr_in *)&sadr[i])->sin_port)
@@ -2108,7 +2108,7 @@ static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connectio
 {
 	int i, m;
 	netadr_t adr;
-	
+
 	netadr_t	addr[64];
 	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
 	int			flags[sizeof(addr)/sizeof(addr[0])];
@@ -2145,7 +2145,7 @@ static void FTENET_NATPMP_Refresh(pmpcon_t *pmp, short oldport, ftenet_connectio
 			!*(int*)&adr.address.ip6[0] &&
 			!*(int*)&adr.address.ip6[4] &&
 			!*(short*)&adr.address.ip6[8] &&
-			*(short*)&adr.address.ip6[10]==(short)0xffff && 
+			*(short*)&adr.address.ip6[10]==(short)0xffff &&
 			!*(int*)&adr.address.ip6[12])
 		{
 			*(int*)adr.address.ip = *(int*)&adr.address.ip6[12];
@@ -2228,7 +2228,7 @@ qboolean FTENET_NATPMP_GetPacket(struct ftenet_generic_connection_s *con)
 }
 neterr_t FTENET_NATPMP_SendPacket(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to)
 {
-	return false;
+	return NETERR_NOROUTE;
 }
 void FTENET_NATPMP_Close(struct ftenet_generic_connection_s *con)
 {
@@ -2786,7 +2786,7 @@ int FTENET_Generic_GetLocalAddresses(struct ftenet_generic_connection_s *con, un
 			!*(int*)&adr.address.ip6[0] &&
 			!*(int*)&adr.address.ip6[4] &&
 			!*(short*)&adr.address.ip6[8] &&
-			*(short*)&adr.address.ip6[10]==(short)0xffff && 
+			*(short*)&adr.address.ip6[10]==(short)0xffff &&
 			!*(int*)&adr.address.ip6[12])
 		{
 			//ipv6 socket bound to the ipv4-any address is a bit weird, but oh well.
@@ -3105,7 +3105,7 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserv
 		protocol = 0;
 		break;
 	}
-	
+
 
 	if (adr.type == NA_INVALID)
 	{
@@ -4050,7 +4050,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 							}
 							else if (j+4 <= i && !strncmp(&st->inbuffer[j], "gzip", 4) && (j+4==i || st->inbuffer[j+4] == ';' || st->inbuffer[j+4] == ','))
 								acceptsgzip = true;
-							
+
 							while (j < i && st->inbuffer[j] != ',')
 								j++;
 							if (j < i && st->inbuffer[j] == ',')
@@ -4585,7 +4585,7 @@ closesvstream:
 				if (ctrl & 0x7000)
 				{
 					Con_Printf ("%s: reserved bits set\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
-					goto closesvstream; 
+					goto closesvstream;
 				}
 				if ((ctrl & 0x7f) == 127)
 				{
@@ -4594,13 +4594,13 @@ closesvstream:
 					if (sizeof(ullpaylen) < 8)
 					{
 						Con_Printf ("%s: payload frame too large\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
-						goto closesvstream; 
+						goto closesvstream;
 					}
 					else
 					{
 						if (payoffs + 8 > st->inlen)
 							break;
-						ullpaylen = 
+						ullpaylen =
 							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+0]<<56u |
 							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+1]<<48u |
 							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+2]<<40u |
@@ -4612,12 +4612,12 @@ closesvstream:
 						if (ullpaylen < 0x10000)
 						{
 							Con_Printf ("%s: payload size (%"PRIu64") encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
-							goto closesvstream; 
+							goto closesvstream;
 						}
 						if (ullpaylen > 0x40000)
 						{
 							Con_Printf ("%s: payload size (%"PRIu64") is abusive\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
-							goto closesvstream; 
+							goto closesvstream;
 						}
 						paylen = ullpaylen;
 						payoffs += 8;
@@ -4627,13 +4627,13 @@ closesvstream:
 				{
 					if (payoffs + 2 > st->inlen)
 						break;
-					paylen = 
+					paylen =
 						((unsigned char*)st->inbuffer)[payoffs+0]<<8 |
 						((unsigned char*)st->inbuffer)[payoffs+1]<<0;
 					if (paylen < 126)
 					{
 						Con_Printf ("%s: payload size encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
-						goto closesvstream; 
+						goto closesvstream;
 					}
 					payoffs += 2;
 				}
@@ -5783,7 +5783,7 @@ typedef struct
 	int datasock;	//only if we're a client
 
 	size_t numclients;
-	struct 
+	struct
 	{
 		netadr_t remoteadr;
 		int datasock;
@@ -6413,7 +6413,7 @@ qboolean NET_UpdateRates(ftenet_connections_t *collection, qboolean inbound, siz
 	int ctime;
 	if (!collection)
 		return false;
-	
+
 	if (inbound)
 	{
 		cls.sockets->bytesin += size;

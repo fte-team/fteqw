@@ -12,10 +12,11 @@ extern cvar_t vk_dualqueue;
 extern cvar_t vk_busywait;
 extern cvar_t vk_waitfence;
 extern cvar_t vk_nv_glsl_shader;
-extern cvar_t vk_nv_dedicated_allocation;
+extern cvar_t vk_khr_get_memory_requirements2;
 extern cvar_t vk_khr_dedicated_allocation;
 extern cvar_t vk_khr_push_descriptor;
 extern cvar_t vk_amd_rasterization_order;
+extern cvar_t vk_usememorypools;
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
 void R2D_Console_Resize(void);
 
@@ -182,8 +183,7 @@ void VK_DestroyVkTexture(vk_image_t *img)
 		vkDestroyImageView(vk.device, img->view, vkallocationcb);
 	if (img->image)
 		vkDestroyImage(vk.device, img->image, vkallocationcb);
-	if (img->memory)
-		vkFreeMemory(vk.device, img->memory, vkallocationcb);
+	VK_ReleasePoolMemory(&img->mem);
 }
 static void VK_DestroyVkTexture_Delayed(void *w)
 {
@@ -303,7 +303,7 @@ static qboolean VK_CreateSwapChain(void)
 	VkPresentModeKHR *presentmode;
 	VkSurfaceCapabilitiesKHR surfcaps;
 	VkSwapchainCreateInfoKHR swapinfo = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-	uint32_t i, curpri;
+	uint32_t i, curpri, preaquirecount;
 	VkSwapchainKHR newvkswapchain;
 	VkImage *images;
 	VkDeviceMemory *memories;
@@ -369,9 +369,7 @@ static qboolean VK_CreateSwapChain(void)
 			VkMemoryRequirements mem_reqs;
 			VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 			VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
-			VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
 			VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-			VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
 
 			ici.flags = 0;
 			ici.imageType = VK_IMAGE_TYPE_2D;
@@ -389,13 +387,6 @@ static qboolean VK_CreateSwapChain(void)
 			ici.pQueueFamilyIndices = NULL;
 			ici.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-			if (vk.nv_dedicated_allocation)
-			{	//render targets should always have dedicated allocations, supposedly. and we're doing it anyway.
-				nv_daici.dedicatedAllocation = true;
-				nv_daici.pNext = ici.pNext;
-				ici.pNext = &nv_daici;
-			}
-
 			VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &images[i]));
 
 			vkGetImageMemoryRequirements(vk.device, images[i], &mem_reqs);
@@ -409,12 +400,6 @@ static qboolean VK_CreateSwapChain(void)
 			if (memAllocInfo.memoryTypeIndex == ~0)
 				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 
-			if (vk.nv_dedicated_allocation)
-			{	//annoying, but hey.
-				nv_damai.pNext = memAllocInfo.pNext;
-				nv_damai.image = images[i];
-				memAllocInfo.pNext = &nv_damai;
-			}
 			if (vk.khr_dedicated_allocation)
 			{
 				khr_mdai.pNext = memAllocInfo.pNext;
@@ -478,11 +463,20 @@ static qboolean VK_CreateSwapChain(void)
 		if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
 			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		else if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+		{
 			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+			Con_Printf(CON_WARNING"Vulkan swapchain using composite alpha premultiplied\n");
+		}
 		else if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
+		{
 			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+			Con_Printf(CON_WARNING"Vulkan swapchain using composite alpha postmultiplied\n");
+		}
 		else
+		{
 			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;	//erk?
+			Con_Printf(CON_WARNING"composite alpha inherit\n");
+		}
 		swapinfo.imageArrayLayers = /*(r_stereo_method.ival==1)?2:*/1;
 		swapinfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		swapinfo.queueFamilyIndexCount = 0;
@@ -663,7 +657,7 @@ static qboolean VK_CreateSwapChain(void)
 		vk.aquirelast = vk.aquirenext = 0;
 		for (i = 0; i < ACQUIRELIMIT; i++)
 		{
-			if (vk_waitfence.ival)
+			if (vk_waitfence.ival || !*vk_waitfence.string)
 			{
 				VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
 				VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
@@ -676,8 +670,12 @@ static qboolean VK_CreateSwapChain(void)
 				vk.acquirefences[i] = VK_NULL_HANDLE;
 			}
 		}
+		if (!vk_submissionthread.value && *vk_submissionthread.string)
+			preaquirecount = 1;
+		else
+			preaquirecount = vk.backbuf_count;
 		/*-1 to hide any weird thread issues*/
-		while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
+		while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < preaquirecount && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
 		{
 			VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
 			vk.aquirelast++;
@@ -733,10 +731,10 @@ static qboolean VK_CreateSwapChain(void)
 	{
 		VkImageViewCreateInfo ivci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
 		ivci.format = vk.backbufformat;
-		ivci.components.r = VK_COMPONENT_SWIZZLE_R;
-		ivci.components.g = VK_COMPONENT_SWIZZLE_G;
-		ivci.components.b = VK_COMPONENT_SWIZZLE_B;
-		ivci.components.a = VK_COMPONENT_SWIZZLE_A;
+//		ivci.components.r = VK_COMPONENT_SWIZZLE_R;
+//		ivci.components.g = VK_COMPONENT_SWIZZLE_G;
+//		ivci.components.b = VK_COMPONENT_SWIZZLE_B;
+//		ivci.components.a = VK_COMPONENT_SWIZZLE_A;
 		ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		ivci.subresourceRange.baseMipLevel = 0;
 		ivci.subresourceRange.levelCount = 1;
@@ -747,7 +745,7 @@ static qboolean VK_CreateSwapChain(void)
 		ivci.image = images[i];
 		vk.backbufs[i].colour.image = images[i];
 		if (memories)
-			vk.backbufs[i].colour.memory = memories[i];
+			vk.backbufs[i].colour.mem.memory = memories[i];
 		vk.backbufs[i].colour.width = swapinfo.imageExtent.width;
 		vk.backbufs[i].colour.height = swapinfo.imageExtent.height;
 		VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &vk.backbufs[i].colour.view));
@@ -759,7 +757,6 @@ static qboolean VK_CreateSwapChain(void)
 			//depth image
 			{
 				VkImageCreateInfo depthinfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-				VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
 				depthinfo.flags = 0;
 				depthinfo.imageType = VK_IMAGE_TYPE_2D;
 				depthinfo.format = vk.depthformat;
@@ -775,39 +772,11 @@ static qboolean VK_CreateSwapChain(void)
 				depthinfo.queueFamilyIndexCount = 0;
 				depthinfo.pQueueFamilyIndices = NULL;
 				depthinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				if (vk.nv_dedicated_allocation)
-				{
-					nv_daici.dedicatedAllocation = true;
-					nv_daici.pNext = depthinfo.pNext;
-					depthinfo.pNext = &nv_daici;
-				}
 				VkAssert(vkCreateImage(vk.device, &depthinfo, vkallocationcb, &vk.backbufs[i].depth.image));
 			}
 
 			//depth memory
-			{
-				VkMemoryRequirements mem_reqs;
-				VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-	                        VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
-				VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
-				vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].depth.image, &mem_reqs);
-				memAllocInfo.allocationSize = mem_reqs.size;
-				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
-				if (vk.nv_dedicated_allocation)
-				{
-					nv_damai.image = vk.backbufs[i].depth.image;
-					nv_damai.pNext = memAllocInfo.pNext;
-					memAllocInfo.pNext = &nv_damai;
-				}
-				if (vk.khr_dedicated_allocation)
-				{
-					khr_mdai.image = vk.backbufs[i].depth.image;
-					khr_mdai.pNext = memAllocInfo.pNext;
-					memAllocInfo.pNext = &khr_mdai;
-				}
-				VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].depth.memory));
-				VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].depth.image, vk.backbufs[i].depth.memory, 0));
-			}
+			VK_AllocateBindImageMemory(&vk.backbufs[i].depth, true);
 
 			//depth view
 			{
@@ -836,7 +805,6 @@ static qboolean VK_CreateSwapChain(void)
 			//mscolour image
 			{
 				VkImageCreateInfo mscolourinfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-				VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
 				mscolourinfo.flags = 0;
 				mscolourinfo.imageType = VK_IMAGE_TYPE_2D;
 				mscolourinfo.format = vk.backbufformat;
@@ -852,40 +820,11 @@ static qboolean VK_CreateSwapChain(void)
 				mscolourinfo.queueFamilyIndexCount = 0;
 				mscolourinfo.pQueueFamilyIndices = NULL;
 				mscolourinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				if (vk.nv_dedicated_allocation)
-				{
-					nv_daici.dedicatedAllocation = true;
-					nv_daici.pNext = mscolourinfo.pNext;
-					mscolourinfo.pNext = &nv_daici;
-				}
 				VkAssert(vkCreateImage(vk.device, &mscolourinfo, vkallocationcb, &vk.backbufs[i].mscolour.image));
 			}
 
 			//mscolour memory
-			{
-				VkMemoryRequirements mem_reqs;
-				VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-	                        VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
-				VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
-				vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].mscolour.image, &mem_reqs);
-				memAllocInfo.allocationSize = mem_reqs.size;
-				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
-				if (vk.nv_dedicated_allocation)
-				{
-					nv_damai.image = vk.backbufs[i].mscolour.image;
-					nv_damai.pNext = memAllocInfo.pNext;
-					memAllocInfo.pNext = &nv_damai;
-				}
-				if (vk.khr_dedicated_allocation)
-				{
-					khr_mdai.image = vk.backbufs[i].mscolour.image;
-					khr_mdai.pNext = memAllocInfo.pNext;
-					memAllocInfo.pNext = &khr_mdai;
-				}
-
-				VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].mscolour.memory));
-				VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].mscolour.image, vk.backbufs[i].mscolour.memory, 0));
-			}
+			VK_AllocateBindImageMemory(&vk.backbufs[i].mscolour, true);
 
 			//mscolour view
 			{
@@ -1020,21 +959,133 @@ void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 	}
 }
 
+qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDeviceSize poolalignment, vk_poolmem_t *mem)
+{
+	struct vk_mempool_s *p;
+	VkDeviceSize pad;
+
+	if (!vk_usememorypools.ival)
+		return false;
+
+	if (memsize > 1024*1024*4)
+		return false;
+	for (p = vk.mempools; p; p = p->next)
+	{
+		if (p->memtype == pooltype)
+		{
+			if (p->memoryoffset + poolalignment + memsize < p->memorysize)
+				break;
+		}
+	}
+	if (!p)
+	{
+		VkMemoryAllocateInfo poolai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+		p = Z_Malloc(sizeof(*p));
+		p->memorysize = poolai.allocationSize = 512*1024*1024;	//lets just allocate big...
+		p->memtype = poolai.memoryTypeIndex = pooltype;
+
+		if (VK_SUCCESS != vkAllocateMemory(vk.device, &poolai, vkallocationcb, &p->memory))
+		{	//out of memory? oh well, a smaller dedicated allocation might still work.
+			Z_Free(p);
+			return false;
+		}
+		p->next = vk.mempools;
+		vk.mempools = p;
+	}
+	pad = ((p->memoryoffset+poolalignment-1)&~(poolalignment-1)) - p->memoryoffset;
+	p->memoryoffset = (p->memoryoffset+poolalignment-1)&~(poolalignment-1);
+	p->gaps += pad;
+	mem->offset = p->memoryoffset;
+	mem->size = memsize;	//FIXME: we have no way to deal with gaps due to alignment
+	mem->memory = p->memory;
+	mem->pool = p;
+
+	p->memoryoffset += memsize;
+	return true;
+}
+void VK_ReleasePoolMemory(vk_poolmem_t *mem)
+{
+	if (mem->pool)
+	{
+		//FIXME: track power-of-two holes?
+		mem->pool->gaps += mem->size;
+		mem->pool = NULL;
+		mem->memory = VK_NULL_HANDLE;
+	}
+	else if (mem->memory)
+	{
+		vkFreeMemory(vk.device, mem->memory, vkallocationcb);
+		mem->memory = VK_NULL_HANDLE;
+	}
+}
+
+
+//does NOT bind.
+//image memory is NOT expected to be host-visible. you'll get what vulkan gives you.
+qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t *mem)
+{
+	uint32_t pooltype;
+	VkMemoryRequirements2KHR mem_reqs2 = {VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR};
+
+	if (!dedicated && vk.khr_get_memory_requirements2)
+	{
+		VkImageMemoryRequirementsInfo2KHR imri = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2_KHR};
+		VkMemoryDedicatedRequirementsKHR mdr = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR};
+		imri.image = image;
+		if (vk.khr_dedicated_allocation)
+			mem_reqs2.pNext = &mdr;	//chain the result struct
+		vkGetImageMemoryRequirements2KHR(vk.device, &imri, &mem_reqs2);
+
+		//and now we know if it should be dedicated or not.
+		dedicated |= mdr.prefersDedicatedAllocation || mdr.requiresDedicatedAllocation;
+	}
+	else
+		vkGetImageMemoryRequirements(vk.device, image, &mem_reqs2.memoryRequirements);
+
+	pooltype = vk_find_memory_try(mem_reqs2.memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	if (pooltype == ~0)
+		pooltype = vk_find_memory_require(mem_reqs2.memoryRequirements.memoryTypeBits, 0);
+
+	if (!dedicated && VK_AllocatePoolMemory(pooltype, mem_reqs2.memoryRequirements.size, mem_reqs2.memoryRequirements.alignment, mem))
+		return true;	//got a shared allocation.
+	else
+	{	//make it dedicated one way or another.
+		VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+		VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
+
+		//shouldn't really happen, but just in case...
+		mem_reqs2.memoryRequirements.size = max(1,mem_reqs2.memoryRequirements.size);
+
+		memAllocInfo.allocationSize = mem_reqs2.memoryRequirements.size;
+		memAllocInfo.memoryTypeIndex = pooltype;
+		if (vk.khr_dedicated_allocation)
+		{
+			khr_mdai.image = image;
+			khr_mdai.pNext = memAllocInfo.pNext;
+			memAllocInfo.pNext = &khr_mdai;
+		}
+
+		mem->pool = NULL;
+		mem->offset = 0;
+		mem->size = mem_reqs2.memoryRequirements.size;
+		mem->memory = VK_NULL_HANDLE;
+
+		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &mem->memory));
+		return true;
+	}
+}
+void VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated)
+{
+	if (VK_AllocateImageMemory(image->image, dedicated, &image->mem))
+		VkAssert(vkBindImageMemory(vk.device, image->image, image->mem.memory, image->mem.offset));
+}
+
+
 vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget)
 {
 	vk_image_t ret;
-#ifdef USE_STAGING_BUFFERS
-	qboolean staging = layers == 0;
-#else
-	const qboolean staging = false;
-#endif
-	VkMemoryRequirements mem_reqs;
-	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-	VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
-	VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
-
+	VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
 	VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-	VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
 	VkFormat format = VK_FORMAT_UNDEFINED;;
 
 	ret.width = width;
@@ -1043,7 +1094,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	ret.mipcount = mips;
 	ret.encoding = encoding;
 	ret.type = type;
-	ret.layout = staging?VK_IMAGE_LAYOUT_PREINITIALIZED:VK_IMAGE_LAYOUT_UNDEFINED;
+	ret.layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	//vulkan expresses packed formats in terms of native endian (if big-endian, then everything makes sense), non-packed formats are expressed in byte order (consistent with big-endian).
 	//PTI formats are less well-defined...
@@ -1165,102 +1216,67 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	ici.extent.height = height;
 	ici.extent.depth = 1;
 	ici.mipLevels = mips;
-	ici.arrayLayers = staging?1:layers;
+	ici.arrayLayers = layers;
 	ici.samples = VK_SAMPLE_COUNT_1_BIT;
-	ici.tiling = staging?VK_IMAGE_TILING_LINEAR:VK_IMAGE_TILING_OPTIMAL;
-	ici.usage = staging?VK_IMAGE_USAGE_TRANSFER_SRC_BIT:(VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ici.usage = VK_IMAGE_USAGE_SAMPLED_BIT|(rendertarget?0:VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 	ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	ici.queueFamilyIndexCount = 0;
 	ici.pQueueFamilyIndices = NULL;
 	ici.initialLayout = ret.layout;
-	if (vk.nv_dedicated_allocation/* && (size > foo || rendertarget)*/)	//FIXME: should only really be used for rendertargets or large images, other stuff should be merged. however, as we don't support any memory suballocations, we're going to just flag everything for now.
-	{
-		nv_daici.dedicatedAllocation = true;
-		nv_daici.pNext = ici.pNext;
-		ici.pNext = &nv_daici;
-	}
+
 	VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &ret.image));
 
-	vkGetImageMemoryRequirements(vk.device, ret.image, &mem_reqs);
-
-	memAllocInfo.allocationSize = mem_reqs.size;
-	if (staging)
-		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-	else
-	{
-		memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		if (memAllocInfo.memoryTypeIndex == ~0)
-			memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		if (memAllocInfo.memoryTypeIndex == ~0)
-			memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-		if (memAllocInfo.memoryTypeIndex == ~0)
-			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
-	}
-	if (nv_daici.dedicatedAllocation)
-	{
-		nv_damai.image = ret.image;
-		nv_damai.pNext = memAllocInfo.pNext;
-		memAllocInfo.pNext = &nv_damai;
-	}
-	if (vk.khr_dedicated_allocation)
-	{
-		khr_mdai.image = ret.image;
-		khr_mdai.pNext = memAllocInfo.pNext;
-		memAllocInfo.pNext = &khr_mdai;
-	}
-	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &ret.memory));
-	VkAssert(vkBindImageMemory(vk.device, ret.image, ret.memory, 0));
+	VK_AllocateBindImageMemory(&ret, false);
 
 	ret.view = VK_NULL_HANDLE;
 	ret.sampler = VK_NULL_HANDLE;
 
-	if (!staging)
+
+	viewInfo.flags = 0;
+	viewInfo.image = ret.image;
+	viewInfo.viewType = (ret.type==PTI_CUBEMAP)?VK_IMAGE_VIEW_TYPE_CUBE:VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	switch(encoding)
 	{
-		VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-		viewInfo.flags = 0;
-		viewInfo.image = ret.image;
-		viewInfo.viewType = (ret.type==PTI_CUBEMAP)?VK_IMAGE_VIEW_TYPE_CUBE:VK_IMAGE_VIEW_TYPE_2D;
-		viewInfo.format = format;
-		switch(encoding)
-		{
-		//formats that explicitly drop the alpha
-		case PTI_BC1_RGB:
-		case PTI_BC1_RGB_SRGB:
-		case PTI_RGBX8:
-		case PTI_RGBX8_SRGB:
-		case PTI_BGRX8:
-		case PTI_BGRX8_SRGB:
-			viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-			viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-			viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
-			break;
-		case PTI_L8:	//must be an R8 texture
-			viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
-			break;
-		case PTI_L8A8:	//must be an RG8 texture
-			viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
-			viewInfo.components.a = VK_COMPONENT_SWIZZLE_G;
-			break;
-		default:
-			viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			break;
-		}
-		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		viewInfo.subresourceRange.baseMipLevel = 0;
-		viewInfo.subresourceRange.levelCount = mips;
-		viewInfo.subresourceRange.baseArrayLayer = 0;
-		viewInfo.subresourceRange.layerCount = layers;
-		VkAssert(vkCreateImageView(vk.device, &viewInfo, NULL, &ret.view));
+	//formats that explicitly drop the alpha
+	case PTI_BC1_RGB:
+	case PTI_BC1_RGB_SRGB:
+	case PTI_RGBX8:
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRX8:
+	case PTI_BGRX8_SRGB:
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
+		break;
+	case PTI_L8:	//must be an R8 texture
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
+		break;
+	case PTI_L8A8:	//must be an RG8 texture
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_G;
+		break;
+	default:
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		break;
 	}
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = mips;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = layers;
+	VkAssert(vkCreateImageView(vk.device, &viewInfo, NULL, &ret.view));
+
 	return ret;
 }
 void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, 
@@ -1366,6 +1382,7 @@ void VK_FencedSubmit(void *work)
 	//check if we can release anything yet.
 	VK_FencedCheck();
 
+	//FIXME: this seems to be an excessively expensive function.
 	vkCreateFence(vk.device, &fenceinfo, vkallocationcb, &w->fence);
 
 	VK_Submit_Work(w->cbuf, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, w->fence, NULL, w);
@@ -1423,45 +1440,26 @@ void *VK_AtFrameEnd(void (*frameended)(void *work), void *workdata, size_t works
 	return w+1;
 }
 
-#define USE_STAGING_BUFFERS
 struct texturefence
 {
 	struct vk_fencework w;
 
 	int mips;
-#ifdef USE_STAGING_BUFFERS
 	VkBuffer stagingbuffer;
 	VkDeviceMemory stagingmemory;
-#else
-	vk_image_t staging[32];
-#endif
 };
 static void VK_TextureLoaded(void *ctx)
 {
 	struct texturefence *w = ctx;
-#ifdef USE_STAGING_BUFFERS
 	vkDestroyBuffer(vk.device, w->stagingbuffer, vkallocationcb);
 	vkFreeMemory(vk.device, w->stagingmemory, vkallocationcb);
-#else
-	unsigned int i;
-	for (i = 0; i < w->mips; i++)
-		if (w->staging[i].image != VK_NULL_HANDLE)
-		{
-			vkDestroyImage(vk.device, w->staging[i].image, vkallocationcb);
-			vkFreeMemory(vk.device, w->staging[i].memory, vkallocationcb);
-		}
-#endif
 }
 qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 {
-#ifdef USE_STAGING_BUFFERS
 	VkBufferCreateInfo bci = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 	VkMemoryRequirements mem_reqs;
 	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 	void *mapdata;
-#else
-	uint32_t y;
-#endif
 
 	struct texturefence *fence;
 	VkCommandBuffer vkloadcmd;
@@ -1571,7 +1569,6 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		}
 	}
 
-#ifdef USE_STAGING_BUFFERS
 	//figure out how big our staging buffer needs to be
 	bci.size = 0;
 	for (i = 0; i < mipcount; i++)
@@ -1636,63 +1633,6 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		bci.size += blockswidth*blocksheight*blockbytes;
 	}
 	vkUnmapMemory(vk.device, fence->stagingmemory);
-#else
-//create the staging images and fill them
-	for (i = 0; i < mipcount; i++)
-	{
-		VkImageSubresource subres = {0};
-		VkSubresourceLayout layout;
-		void *mapdata;
-		//figure out the number of 'blocks' in the image.
-		//for non-compressed formats this is just the width directly.
-		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
-		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
-		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
-
-		fence->staging[i] = VK_CreateTexture2DArray(mips->mip[i].width, mips->mip[i].height, 0, 1, mips->encoding, PTI_2D);
-		subres.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		subres.mipLevel = 0;
-		subres.arrayLayer = 0;
-		vkGetImageSubresourceLayout(vk.device, fence->staging[i].image, &subres, &layout);
-		VkAssert(vkMapMemory(vk.device, fence->staging[i].memory, 0, layout.size, 0, &mapdata));
-		if (mapdata)
-		{
-			for (y = 0; y < blockheight; y++)
-				memcpy((char*)mapdata + layout.offset + y*layout.rowPitch, (char*)mips->mip[i].data + y*blockswidth*blockbytes, blockswidth*blockbytes);
-		}
-		else
-			Sys_Error("Unable to map staging image\n");
-	
-		vkUnmapMemory(vk.device, fence->staging[i].memory);
-
-		//queue up an image copy for this mip
-		{
-			VkImageCopy region;
-			region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			region.srcSubresource.mipLevel = 0;
-			region.srcSubresource.baseArrayLayer = 0;
-			region.srcSubresource.layerCount = 1;
-			region.srcOffset.x = 0;
-			region.srcOffset.y = 0;
-			region.srcOffset.z = 0;
-			region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			region.dstSubresource.mipLevel = i%(mipcount/layers);
-			region.dstSubresource.baseArrayLayer = i/(mipcount/layers);
-			region.dstSubresource.layerCount = 1;
-			region.dstOffset.x = 0;
-			region.dstOffset.y = 0;
-			region.dstOffset.z = 0;
-			region.extent.width = mips->mip[i].width;
-			region.extent.height = mips->mip[i].height;
-			region.extent.depth = 1;
-
-			set_image_layout(vkloadcmd, fence->staging[i].image, VK_IMAGE_ASPECT_COLOR_BIT,
-					VK_IMAGE_LAYOUT_PREINITIALIZED, VK_ACCESS_HOST_WRITE_BIT,
-					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
-			vkCmdCopyImage(vkloadcmd, fence->staging[i].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-		}
-	}
-#endif
 
 	//layouts are annoying. and weird.
 	{
@@ -3079,7 +3019,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.pNext = NULL;
 		imgbarrier.srcAccessMask = 0;//VK_ACCESS_MEMORY_READ_BIT;
 		imgbarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;//vk.rendertarg->colour.layout;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
+		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;//vk.rendertarg->colour.layout;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image's contents need not be preserved.'
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		imgbarrier.image = vk.frame->backbuf->colour.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -3216,7 +3156,7 @@ void VK_DebugFramerate(void)
 
 qboolean	VK_SCR_UpdateScreen			(void)
 {
-	uint32_t fblayout;
+	VkImageLayout fblayout;
 
 	VK_FencedCheck();
 
@@ -3519,7 +3459,12 @@ void VK_DoPresent(struct vkframe *theframe)
 		RSpeedMark();
 		if (err)
 		{
-			Con_Printf("ERROR: vkQueuePresentKHR: %x\n", err);
+			if (err == VK_SUBOPTIMAL_KHR)
+				Con_DPrintf("vkQueuePresentKHR: VK_SUBOPTIMAL_KHR\n");
+			else if (err == VK_ERROR_OUT_OF_DATE_KHR)
+				Con_DPrintf("vkQueuePresentKHR: VK_ERROR_OUT_OF_DATE_KHR\n");
+			else
+				Con_Printf("ERROR: vkQueuePresentKHR: %i\n", err);
 			vk.neednewswapchain = true;
 		}
 		else
@@ -3527,7 +3472,7 @@ void VK_DoPresent(struct vkframe *theframe)
 			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
 			if (err)
 			{
-				Con_Printf("ERROR: vkAcquireNextImageKHR: %x\n", err);
+				Con_Printf("ERROR: vkAcquireNextImageKHR: %i\n", err);
 				vk.neednewswapchain = true;
 				vk.devicelost |= (err == VK_ERROR_DEVICE_LOST);
 			}
@@ -3657,7 +3602,12 @@ void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStage
 	*link = work;
 
 #ifdef MULTITHREAD
-	if (vk.submitthread && !vk.neednewswapchain)
+	if (vk.neednewswapchain && vk.submitthread)
+	{	//if we're trying to kill the submission thread, don't post work to it - instead wait for it to die cleanly then do it ourselves.
+		Sys_WaitOnThread(vk.submitthread);
+		vk.submitthread = NULL;
+	}
+	if (vk.submitthread)
 		Sys_ConditionSignal(vk.submitcondition);
 	else
 #endif
@@ -3796,6 +3746,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	VkResult err;
 	VkApplicationInfo app;
 	VkInstanceCreateInfo inst_info;
+	int gpuidx;
 	const char *extensions[8];
 	uint32_t extensions_count = 0;
 
@@ -3812,12 +3763,12 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		qboolean supported;
 	} knowndevexts[] =
 	{
-		{&vk.khr_swapchain,				VK_KHR_SWAPCHAIN_EXTENSION_NAME,			NULL,							true, NULL, " Nothing will be drawn!"},
-		{&vk.nv_glsl_shader,			VK_NV_GLSL_SHADER_EXTENSION_NAME,			&vk_nv_glsl_shader,				false, NULL, " Direct use of glsl is not supported."},
-		{&vk.nv_dedicated_allocation,	VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_nv_dedicated_allocation,	true, &vk.khr_dedicated_allocation, NULL},
-		{&vk.khr_dedicated_allocation,	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_khr_dedicated_allocation,	true, NULL, NULL},
-		{&vk.khr_push_descriptor,		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,		&vk_khr_push_descriptor,		true, NULL, NULL},
-		{&vk.amd_rasterization_order,	VK_AMD_RASTERIZATION_ORDER_EXTENSION_NAME,	&vk_amd_rasterization_order,	false, NULL, NULL},
+		{&vk.khr_swapchain,					VK_KHR_SWAPCHAIN_EXTENSION_NAME,				NULL,							true, NULL, " Nothing will be drawn!"},
+		{&vk.nv_glsl_shader,				VK_NV_GLSL_SHADER_EXTENSION_NAME,				&vk_nv_glsl_shader,				false, NULL, " Direct use of glsl is not supported."},
+		{&vk.khr_get_memory_requirements2,	VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,&vk_khr_get_memory_requirements2,true, NULL, NULL},
+		{&vk.khr_dedicated_allocation,		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,		&vk_khr_dedicated_allocation,	true, NULL, NULL},
+		{&vk.khr_push_descriptor,			VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,			&vk_khr_push_descriptor,		true, NULL, NULL},
+		{&vk.amd_rasterization_order,		VK_AMD_RASTERIZATION_ORDER_EXTENSION_NAME,		&vk_amd_rasterization_order,	false, NULL, NULL},
 	};
 	size_t e;
 
@@ -3959,6 +3910,17 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		uint32_t gpucount = 0, i;
 		uint32_t bestpri = ~0u, pri;
 		VkPhysicalDevice *devs;
+		char *s = info->subrenderer;
+		int wantdev = -1;
+		if (*s)
+		{
+			if (!Q_strncasecmp(s, "GPU", 3))
+				s += 3;
+			wantdev = strtoul(s, &s, 0);
+			if (*s)	//its a named device.
+				wantdev = -1;
+		}
+
 		vkEnumeratePhysicalDevices(vk.instance, &gpucount, NULL);
 		if (!gpucount)
 		{
@@ -3993,7 +3955,10 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 			Con_DPrintf("Found Vulkan Device \"%s\"\n", props.deviceName);
 
 			if (!vk.gpu)
+			{
+				gpuidx = i;
 				vk.gpu = devs[i];
+			}
 			switch(props.deviceType)
 			{
 			default:
@@ -4013,17 +3978,27 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				pri = 4;
 				break;
 			}
-			if (!Q_strcasecmp(props.deviceName, info->subrenderer))
-				pri = 0;
+			if (wantdev >= 0)
+			{
+				if (wantdev == i)
+					pri = 0;
+			}
+			else
+			{
+				if (!Q_strcasecmp(props.deviceName, info->subrenderer))
+					pri = 0;
+			}
+
 			if (pri < bestpri)
 			{
-				vk.gpu = devs[i];
+				gpuidx = i;
+				vk.gpu = devs[gpuidx];
 				bestpri = pri;
 			}
 		}
 		free(devs);
 
-		if (bestpri == ~0u)
+		if (!vk.gpu)
 		{
 			Con_Printf("vulkan: unable to pick a usable device\n");
 			return false;
@@ -4037,7 +4012,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	
 		switch(props.vendorID)
 		{
-		//explicit vendors
+		//explicit registered vendors
 		case 0x10001: vendor = "Vivante";		break;
 		case 0x10002: vendor = "VeriSilicon";	break;
 
@@ -4053,6 +4028,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case 0x1AEE: vendor = "Imagination";break;
 		case 0x1957: vendor = "Freescale";	break;
 
+		//I really have no idea who makes mobile gpus nowadays, but lets make some guesses.
 		case 0x1AE0: vendor = "Google";		break;
 		case 0x5333: vendor = "S3";			break;
 		case 0xA200: vendor = "NEC";		break;
@@ -4076,8 +4052,8 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:				type = "software"; break;
 		}
 
-		Con_Printf("Vulkan %u.%u.%u: %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
-			type, vendor, props.deviceName,
+		Con_Printf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
+			gpuidx, type, vendor, props.deviceName,
 			VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion), VK_VERSION_PATCH(props.driverVersion)
 			);
 	}
@@ -4205,7 +4181,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				Con_DPrintf("Using %s.\n", knowndevexts[e].name);
 				devextensions[numdevextensions++] = knowndevexts[e].name;
 			}
-			else if (knowndevexts[e].var->ival)
+			else if (knowndevexts[e].var && knowndevexts[e].var->ival)
 				Con_Printf("unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].warningtext?knowndevexts[e].warningtext:"");
 			else if (knowndevexts[e].supported)
 				Con_DPrintf("Ignoring %s.\n", knowndevexts[e].name);
@@ -4255,7 +4231,43 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		devinf.ppEnabledExtensionNames = devextensions;
 		devinf.pEnabledFeatures = &features;
 
-		err = vkCreateDevice(vk.gpu, &devinf, NULL, &vk.device);
+#if 0
+		if (vkEnumeratePhysicalDeviceGroupsKHR && vk_afr.ival)
+		{	
+			//'Every physical device must be in exactly one device group'. So we can just use the first group that lists it and automatically get AFR.
+			uint32_t gpugroups = 0;
+			VkDeviceGroupDeviceCreateInfoKHX dgdci = {VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO_KHR};
+
+			VkPhysicalDeviceGroupPropertiesKHR *groups;
+			vkEnumeratePhysicalDeviceGroupsKHR(vk.instance, &gpugroups, NULL);
+			groups = malloc(sizeof(*groups)*gpugroups);
+			vkEnumeratePhysicalDeviceGroupsKHR(vk.instance, &gpugroups, groups);
+			for (i = 0; i < gpugroups; i++)
+			{
+				for (j = 0; j < groups[i].physicalDeviceCount; j++)
+					if (groups[i].physicalDevices[j] == vk.gpu)
+					{
+						dgdci.physicalDeviceCount = groups[i].physicalDeviceCount;
+						dgdci.pPhysicalDevices = groups[i].physicalDevices;
+						break;
+					}
+			}
+			
+			if (dgdci.physicalDeviceCount > 1)
+			{
+				vk.subdevices = dgdci.physicalDeviceCount;
+				dgdci.pNext = devinf.pNext;
+				devinf.pNext = &dgdci;
+			}
+		
+			err = vkCreateDevice(vk.gpu, &devinf, NULL, &vk.device);
+
+			free(groups);
+		}
+		else
+#endif
+			err = vkCreateDevice(vk.gpu, &devinf, NULL, &vk.device);
+
 		switch(err)
 		{
 		case VK_ERROR_INCOMPATIBLE_DRIVER:
@@ -4394,6 +4406,15 @@ void VK_Shutdown(void)
 			Z_Free(ptr);
 		}
 		vkDestroyPipelineCache(vk.device, vk.pipelinecache, vkallocationcb);
+	}
+
+	while(vk.mempools)
+	{
+		void *l;
+		vkFreeMemory(vk.device, vk.mempools->memory, vkallocationcb);
+		l = vk.mempools;
+		vk.mempools = vk.mempools->next;
+		Z_Free(l);
 	}
 
 	if (vk.device)

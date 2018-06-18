@@ -8,9 +8,11 @@
 
 #include "sys/defs.h"
 #include "sys/fog.h"
+
+layout(location=0) varying vec2 tc;
+layout(location=1) varying vec4 vc;
+
 #ifdef VERTEX_SHADER
-varying vec2 tc;
-varying vec4 vc;
 void main ()
 {
 	tc = v_texcoord;
@@ -19,8 +21,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-varying vec2 tc;
-varying vec4 vc;
 void main ()
 {
 	vec4 col = texture2D(s_t0, tc);

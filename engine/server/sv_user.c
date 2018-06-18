@@ -802,14 +802,7 @@ void SVQ2_ConfigStrings_f (void)
 		return;
 	}
 
-	start = atoi(Cmd_Argv(2));
-
-	if (start < 0)
-	{
-		Con_Printf ("SV_Configstrings_f: %s tried crashing us\n", host_client->name);
-		host_client->drop = true;
-		return;
-	}
+	start = strtoul(Cmd_Argv(2), NULL, 0);
 
 	// write a packet full of data
 
@@ -820,7 +813,7 @@ void SVQ2_ConfigStrings_f (void)
 		if (str && *str)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
+			MSG_WriteShort (&host_client->netchan.message, (unsigned short)start);
 			MSG_WriteString (&host_client->netchan.message, str);
 		}
 		start++;
@@ -7898,7 +7891,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 #ifdef Q2SERVER
 void SVQ2_ExecuteClientMessage (client_t *cl)
 {
-	enum clcq2_ops_e		c;
+	int		c;
 	char	*s;
 	usercmd_t	oldest, oldcmd, newcmd;
 	q2client_frame_t	*frame;
@@ -7978,7 +7971,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		if (c == -1)
 			break;
 
-		switch (c)
+		switch ((enum clcq2_ops_e)c)
 		{
 		default:
 			Con_Printf ("SVQ2_ReadClientMessage: unknown command char %i\n", c);

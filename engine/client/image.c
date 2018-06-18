@@ -2197,7 +2197,8 @@ static qbyte *ReadRawBMPFile(qbyte *buf, int length, int *width, int *height, si
 				data32[i] = pal[buf[x]];
 				i++;
 			}
-			buf += h.Width;
+			//BMP rows are 32-bit aligned.
+			buf += (h.Width+3)&~3;
 		}
 
 		if (!OffsetofBMPBits)

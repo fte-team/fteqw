@@ -4,8 +4,8 @@
 
 //stereographic view rendering, for high fovs that are still playable.
 
+layout(location=0) varying vec2 texcoord;
 #ifdef VERTEX_SHADER
-varying vec2 texcoord;
 //uniform float cvar_ffov;
 void main()
 {
@@ -18,7 +18,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-varying vec2 texcoord;
 void main()
 {
 	vec3 tc;	

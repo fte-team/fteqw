@@ -6,9 +6,9 @@
 //this is a post processing shader that is drawn fullscreen whenever the view is underwater.
 //its generally expected to warp the view a little.
 
-varying vec2 v_stc;
-varying vec2 v_warp;
-varying vec2 v_edge;
+layout(location=0) varying vec2 v_stc;
+layout(location=1) varying vec2 v_warp;
+layout(location=2) varying vec2 v_edge;
 
 #ifdef VERTEX_SHADER
 void main ()

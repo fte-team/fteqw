@@ -1073,7 +1073,7 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 {
 	pluginstream_t *stream;
 	unsigned int handle = VM_LONG(arg[0]);
-	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+	if (handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
 		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
 		return -2;
@@ -1106,7 +1106,7 @@ qintptr_t VARGS Plug_Net_GetTLSBinding(void *offset, quintptr_t mask, const qint
 		return -2;
 	if (VM_OOB(arg[1], *bindsize))
 		return -2;
-	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+	if ((size_t)handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
 		Con_Printf("Plug_Net_GetTLSBinding: socket does not belong to you (or is invalid)\n");
 		return -2;

@@ -7360,7 +7360,7 @@ vectorarrayindex:
 						i = tmp.sym->symboldata[tmp.ofs]._float;
 					else
 						i = -1;
-					if (i < 0 || i >= 3)
+					if ((unsigned)i >= 3u)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
 				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
@@ -7382,7 +7382,7 @@ vectorarrayindex:
 						i = tmp.sym->symboldata[tmp.ofs]._float;
 					else
 						i = -1;
-					if (i < 0 || i >= 3)
+					if ((unsigned)i >= 3u)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
 				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
@@ -7405,7 +7405,7 @@ vectorarrayindex:
 					i = tmp.sym->symboldata[tmp.ofs]._float;
 				else
 					i = -1;
-				if (i < 0 || i >= arraysize)
+				if ((unsigned)i >= (unsigned)arraysize)
 					QCC_PR_ParseErrorPrintSRef(0, r->base, "(constant) array index out of bounds (0 <= %i < %i)", i, arraysize);
 			}
 			else

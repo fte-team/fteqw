@@ -3128,7 +3128,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 	info->maxplayers = bound(0, ping, 255);
 
 	ping = atoi(Info_ValueForKey(msg, "timelimit"));
-	info->tl = bound(-327678, ping, 32767);
+	info->tl = bound(-32768, ping, 32767);
 	ping = atoi(Info_ValueForKey(msg, "fraglimit"));
 	info->fl = bound(-32768, ping, 32767);
 

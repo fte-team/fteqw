@@ -1188,7 +1188,8 @@ int menuentsize;
 // cvars
 #define MENUPROGSGROUP "Menu progs control"
 cvar_t forceqmenu = CVAR("forceqmenu", "0");
-cvar_t pr_menuqc_coreonerror = CVAR("pr_menuqc_coreonerror", "1");
+cvar_t pr_menu_coreonerror = CVAR("pr_menu_coreonerror", "1");
+cvar_t pr_menu_memsize = CVAR("pr_menu_memsize", "64m");
 
 
 //new generic functions.
@@ -2447,7 +2448,7 @@ void VARGS Menu_Abort (char *format, ...)
 
 	Con_Printf("Menu_Abort: %s\nShutting down menu.dat\n", string);
 
-	if (pr_menuqc_coreonerror.value)
+	if (pr_menu_coreonerror.value)
 	{
 		char *buffer;
 		size_t size = 1024*1024*8;
@@ -2585,7 +2586,7 @@ qboolean MP_Init (void)
 		int mprogs;
 		Con_DPrintf("Initializing menu.dat\n");
 		menu_world.progs = InitProgs(&menuprogparms);
-		PR_Configure(menu_world.progs, 64*1024*1024, 1, pr_enable_profiling.ival);
+		PR_Configure(menu_world.progs, PR_ReadBytesString(pr_menu_memsize.string), 1, pr_enable_profiling.ival);
 		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat");
 		if (mprogs < 0) //no per-progs builtins.
 		{
@@ -2746,7 +2747,8 @@ void MP_RegisterCvarsAndCmds(void)
 
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
-	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);
+	Cvar_Register(&pr_menu_coreonerror, MENUPROGSGROUP);
+	Cvar_Register(&pr_menu_memsize, MENUPROGSGROUP);
 
 	if (COM_CheckParm("-qmenu"))
 		Cvar_Set(&forceqmenu, "1");

@@ -1619,7 +1619,7 @@ void CL_ClearState (void)
 #ifdef Q2CLIENT
 	for (i = 0; i < countof(cl.configstring_general); i++)
 	{
-		if (cl.configstring_general)
+		if (cl.configstring_general[i])
 			Z_Free(cl.configstring_general[i]);
 	}
 #endif

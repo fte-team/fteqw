@@ -5,8 +5,8 @@
 
 //fisheye view rendering, for silly fovs that are still playable.
 
+layout(location=0) varying vec2 texcoord;
 #ifdef VERTEX_SHADER
-varying vec2 texcoord;
 void main()
 {
 	texcoord = v_texcoord.xy;
@@ -14,8 +14,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-varying vec2 texcoord;
-//uniform float cvar_ffov;
 void main()
 {
 	vec3 tc;	

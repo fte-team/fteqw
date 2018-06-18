@@ -2,7 +2,7 @@
 #include "sys/defs.h"
 //apply gaussian filter
 
-varying vec2 tc;
+layout(location=0) varying vec2 tc;
 
 #ifdef VERTEX_SHADER
 void main ()

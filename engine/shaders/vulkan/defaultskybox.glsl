@@ -6,7 +6,7 @@
 
 //simple shader for simple skyboxes.
 
-varying vec3 pos;
+layout(location=0) varying vec3 pos;
 #ifdef VERTEX_SHADER
 void main ()
 {

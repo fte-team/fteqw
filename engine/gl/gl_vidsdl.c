@@ -221,7 +221,7 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	sdlwindow = SDL_CreateWindow(FULLENGINENAME, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, info->width, info->height, flags);
 	if (!sdlwindow)
 	{
-		Con_Printf("Couldn't set video mode: %s\n", SDL_GetError());
+		Con_Printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
 		return false;
 	}
 	CL_UpdateWindowTitle();
@@ -379,7 +379,9 @@ void GLVID_DeInit (void)
 #endif
 
 	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+#ifdef OPENGL_SDL
 	GL_ForgetPointers();
+#endif
 }
 
 

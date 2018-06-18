@@ -10,7 +10,8 @@
 //this is expected to be moderately fast.
 
 #include "sys/fog.h"
-varying vec2 tc;
+layout(location=0) varying vec2 tc;
+
 #ifdef VERTEX_SHADER
 void main ()
 {

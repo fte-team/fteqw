@@ -1863,10 +1863,9 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 	#ifndef CLIENTONLY
 		if (sv.state && cls.state != ca_active)
-		{
-			fullsend = -1;
+		{	//HACK: if we're also the server, spam like a crazy person until we're on the server, for faster apparent load times.
+			fullsend = -1;	//send no movement command.
 			msecstouse = usetime = msecs;
-			msecs = 0;
 		}
 		else 
 	#endif

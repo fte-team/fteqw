@@ -310,7 +310,11 @@ typedef union QCC_eval_s
 {
 	QCC_string_t			string;
 	float				_float;
-	float				vector[1];
+#ifdef __GNUC__
+	float				vector[0];	//gnuc extension. I'm using it to mute clang warnings.
+#else
+	float				vector[1];	//should be 3, except that then eval_t would be too big.
+#endif
 	func_t				function;
 	int					_int;
 //	union QCC_eval_s		*ptr;

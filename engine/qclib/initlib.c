@@ -205,7 +205,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 	l = 0;
 	while (b)
 	{
-		if (b < 0 || b >= prinst.addressableused)
+		if ((size_t)b >= (size_t)prinst.addressableused)
 		{
 			printf("PF_memalloc: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);

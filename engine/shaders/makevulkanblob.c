@@ -108,8 +108,13 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 
 	FILE *glsl = fopen(glslname, "rt");
 	if (!glsl)
+	{
+		printf("Unable to read %s\n", glslname);
 		return 0;
+	}
 	FILE *temp = fopen(tempname, "wt");
+	if (!temp)
+		printf("Unable to write %s\n", tempname);
 	while(fgets(command, sizeof(command), glsl))
 	{
 		if (inheader && !strncmp(command, "!!", 2))
@@ -130,14 +135,14 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				{
 					type = command[5] == 'i' || command[5] == 'f' || command[5] == 'b';
 					size = type?1:(command[5]-'0');
-					arg = strtok(command+7, " ,=\n");
+					arg = strtok(command+7, " ,=\r\n");
 					type = command[6-type] - 'a' + 'A';
 				}
 				else
 				{
 					type = command[6] == 'i' || command[6] == 'f' || command[6] == 'b';
 					size = type?1:(command[6]-'0');
-					arg = strtok(command+8, " ,=\n");
+					arg = strtok(command+8, " ,=\r\n");
 					type = command[7-type];
 				}
 
@@ -154,8 +159,13 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				{
 					if (arg)
 					{
-						arg = strtok(NULL, " ,=\n");
-						if (type == 'f' || type == 'F')
+						arg = strtok(NULL, " ,=\r\n");
+						if (!arg)
+						{
+							printf("%s has no default value. Assuming 0\n", cb+4);
+							u[i].u = 0;	//0 either way.
+						}
+						else if (type == 'f' || type == 'F')
 							u[i].f = atof(arg);
 						else
 							u[i].u = atoi(arg);
@@ -172,7 +182,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 			}
 			else if (!strncmp(command, "!!permu", 7))
 			{
-				char *arg = strtok(command+7, " ,\n");
+				char *arg = strtok(command+7, " ,\r\n");
 				for (i = 0; permutationnames[i]; i++)
 				{
 					if (!strcmp(arg, permutationnames[i]))
@@ -191,7 +201,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 			}
 			else if (!strncmp(command, "!!samps", 7))
 			{
-				char *arg = strtok(command+7, " ,\n");
+				char *arg = strtok(command+7, " ,\r\n");
 				do
 				{
 					//light
@@ -235,7 +245,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 						blob->numtextures = atoi(arg);
 					else
 						printf("Unknown texture: \"%s\"\n", arg);
-				} while((arg = strtok(NULL, " ,\n")));
+				} while((arg = strtok(NULL, " ,\r\n")));
 			}
 			continue;
 		}
@@ -397,26 +407,34 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 
 	snprintf(command, sizeof(command),
 		/*preprocess the vertex shader*/
+#ifdef _WIN32
 		"echo #version 450 core > %s && "
+#else
+		"echo \"#version 450 core\" > %s && "
+#endif
 		"cpp %s -DVULKAN -DVERTEX_SHADER -P >> %s && "
 
 		/*preprocess the fragment shader*/
+#ifdef _WIN32
 		"echo #version 450 core > %s && "
+#else
+		"echo \"#version 450 core\" > %s && "
+#endif
 		"cpp %s -DVULKAN -DFRAGMENT_SHADER -P >> %s && "
 
 		/*convert to spir-v (annoyingly we have no control over the output file names*/
 		"glslangValidator -V -l -d %s %s"
 
 		/*strip stuff out, so drivers don't glitch out from stuff that we don't use*/
-		" && spirv-remap -i vert.spv frag.spv -o vulkan/remap"
+//		" && spirv-remap -i vert.spv frag.spv -o vulkan/remap"
 
 		,tempvert, tempname, tempvert, tempfrag, tempname, tempfrag, tempvert, tempfrag);
 
 	system(command);
 
-	unlink(tempname);
-	unlink(tempvert);
-	unlink(tempfrag);
+	remove(tempname);
+	remove(tempvert);
+	remove(tempfrag);
 
 	return 1;
 }
@@ -451,12 +469,20 @@ int main(int argc, const char **argv)
 				fclose(o);
 				r = 0;
 			}
+			else
+				printf("Unable to write blob %s\n", blobname);
 		}
 	}
-	fclose(f);
-	fclose(v);
-	unlink("vert.spv");
-	unlink("frag.spv");
+	if (f)
+		fclose(f);
+	else
+		printf("Unable to read frag.spv\n");
+	if (v)
+		fclose(v);
+	else
+		printf("Unable to read vert.spv\n");
+	remove("vert.spv");
+	remove("frag.spv");
 
 	return r;
 }

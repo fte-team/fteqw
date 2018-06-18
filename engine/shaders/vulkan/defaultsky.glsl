@@ -8,8 +8,9 @@
 //regular sky shader for scrolling q1 skies
 //the sky surfaces are thrown through this as-is.
 
+layout(location=0) varying vec3 pos;
+
 #ifdef VERTEX_SHADER
-varying vec3 pos;
 void main ()
 {
 	pos = v_position.xyz;
@@ -17,7 +18,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-varying vec3 pos;
 void main ()
 {
 	vec2 tccoord;

@@ -373,42 +373,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WAYLANDQUAKE
 #endif
 
-#ifdef NO_MULTITHREAD
-	#undef MULTITHREAD
-#endif
-#ifdef NO_LIBRARIES //catch-all...
-	#define NO_DIRECTX
-	#define NO_PNG
-	#define NO_JPEG
-	#define NO_ZLIB
-	#define NO_OGG
-	#define NO_FREETYPE
-#endif
-#ifdef NO_OPENAL
-	#undef AVAIL_OPENAL
-#endif
-#ifdef NO_PNG
-	#undef AVAIL_PNGLIB
-#endif
-#ifdef NO_JPEG
-	#undef AVAIL_JPEGLIB
-#endif
-#ifdef NO_OGG
-	#undef AVAIL_OGGVORBIS
-#endif
-#ifdef NO_FREETYPE
-	#undef AVAIL_FREETYPE
-#endif
-#ifdef NO_ZLIB
-	#undef AVAIL_ZLIB
-	#undef AVAIL_PNGLIB
-	#undef AVAIL_XZDEC
-	#undef AVAIL_GZDEC
-#endif
-#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
-	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
-#endif
-
 //include a file to update the various configurations for game-specific configs (hopefully just names)
 #ifdef BRANDING_INC
 	#include STRINGIFY(BRANDING_INC)
@@ -580,6 +544,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef ANDROID
 	#define GLESONLY	//should reduce the conditions a little
 //	#undef HEADLESSQUAKE
+	#define NO_FREETYPE
+	#define NO_OPENAL
 #endif
 #if defined(NACL)
 	//stuff is sandboxed.
@@ -599,11 +565,46 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HEADLESSQUAKE
 	#define NO_FREETYPE
 #endif
+#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
+	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
+#endif
 
+#ifdef NO_MULTITHREAD
+	#undef MULTITHREAD
+#endif
 #ifndef MULTITHREAD
 	//database code requires threads to do stuff async.
 	#undef USE_SQLITE
 	#undef USE_MYSQL
+#endif
+#ifdef NO_LIBRARIES //catch-all...
+#define NO_DIRECTX
+	#define NO_PNG
+	#define NO_JPEG
+	#define NO_ZLIB
+	#define NO_OGG
+	#define NO_FREETYPE
+#endif
+#ifdef NO_OPENAL
+	#undef AVAIL_OPENAL
+#endif
+#ifdef NO_PNG
+	#undef AVAIL_PNGLIB
+#endif
+#ifdef NO_JPEG
+	#undef AVAIL_JPEGLIB
+#endif
+#ifdef NO_OGG
+	#undef AVAIL_OGGVORBIS
+#endif
+#ifdef NO_FREETYPE
+	#undef AVAIL_FREETYPE
+#endif
+#ifdef NO_ZLIB
+	#undef AVAIL_ZLIB
+	#undef AVAIL_PNGLIB
+	#undef AVAIL_XZDEC
+	#undef AVAIL_GZDEC
 #endif
 
 #if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)

@@ -6577,7 +6577,7 @@ static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elem
 		PR_BIError(prinst, "brush: elementcount %u is too large\n", (unsigned int)elementcount);
 		return NULL;
 	}
-	if (qcptr < 0 || qcptr+(elementsize*elementcount) > prinst->stringtablesize)
+	if (qcptr+(elementsize*elementcount) > (size_t)prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "brush: invalid qc pointer\n");
 		return NULL;
@@ -6803,7 +6803,7 @@ void QCBUILTIN PF_brush_selected(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	brushid			= G_INT(OFS_PARM1);
 //	unsigned int	faceid			= G_INT(OFS_PARM2);
-	unsigned int	state			= G_FLOAT(OFS_PARM3);
+	int				state			= G_FLOAT(OFS_PARM3);
 	unsigned int	i;
 	brushes_t		*br;
 
@@ -6842,17 +6842,17 @@ void QCBUILTIN PF_brush_selected(pubprogfuncs_t *prinst, struct globalvars_s *pr
 //	{"brush_calcfacepoints",PF_brush_calcfacepoints,0,0,		0,		0,		D("int(int faceid, brushface_t *in_faces, int numfaces, vector *points, int maxpoints)", "Determines the points of the specified face, if the specified brush were to actually be created.")},
 void QCBUILTIN PF_brush_calcfacepoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	unsigned int	faceid			= G_INT(OFS_PARM0);
-	unsigned int	numfaces		= G_INT(OFS_PARM2);
+	size_t	faceid			= G_INT(OFS_PARM0);
+	size_t	numfaces		= G_INT(OFS_PARM2);
 	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, false);
-	unsigned int	maxpoints		= G_INT(OFS_PARM4);
+	size_t	maxpoints		= G_INT(OFS_PARM4);
 	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints, false);
 	vecV_t			facepoints[256];
 	vec4_t			planes[256];
 	unsigned int	j, numpoints;
 
 	faceid--;
-	if (faceid < 0 || faceid >= numfaces)
+	if ((size_t)faceid >= numfaces)
 	{
 		G_INT(OFS_RETURN) = 0;
 		return;

@@ -2265,7 +2265,7 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmprogfuncs.edicttable_length = sv.world.max_edicts;
 
 	limit = VM_MemoryMask(q1qvm);
-	if (gd.sizeofent < 0 || gd.sizeofent > 0xffffffff / gd.maxedicts)
+	if (gd.sizeofent > 0xffffffff / gd.maxedicts)
 		gd.sizeofent = 0xffffffff / gd.maxedicts;
 	if ((quintptr_t)gd.ents+(gd.sizeofent*gd.maxedicts) < (quintptr_t)gd.ents || (quintptr_t)gd.ents > (quintptr_t)limit)
 		gd.ents = 0;

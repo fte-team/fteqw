@@ -40,12 +40,14 @@ struct encctx
 	AVFormatContext *fc;
 	qboolean doneheaders;
 
+	AVCodecContext *video_codec;
 	AVStream *video_st;
 	struct SwsContext *scale_ctx;
 	AVFrame *picture;
 	uint8_t *video_outbuf;
 	int video_outbuf_size;
 
+	AVCodecContext *audio_codec;
 	AVStream *audio_st;
 	AVFrame *audio;
 	uint8_t *audio_outbuf;
@@ -60,8 +62,8 @@ struct encctx
 #define av_make_error_string qav_make_error_string
 static inline char *av_make_error_string(char *errbuf, size_t errbuf_size, int errnum)
 {
-    av_strerror(errnum, errbuf, errbuf_size);
-    return errbuf;
+	av_strerror(errnum, errbuf, errbuf_size);
+	return errbuf;
 }
 #endif
 
@@ -108,12 +110,23 @@ static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, i
 	if (!st)
 		return NULL;
 
+	st->id = ctx->fc->nb_streams-1;
+#if 1//LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 0)
 	c = st->codec;
+#else
+	c = avcodec_alloc_context3(codec);
+	if(avcodec_parameters_to_context(c, st->codecpar))
+		return NULL;
+#endif
+	ctx->video_codec = c;
 	c->codec_id = codec->id;
 	c->codec_type = codec->type;
 
 	/* put sample parameters */
-	c->bit_rate = bitrate;
+	if (bitrate)
+		c->bit_rate = bitrate;
+//	c->rc_max_rate = bitrate;
+//	c->rc_min_rate = bitrate;
 	/* resolution must be a multiple of two */
 	c->width = forcewidth?forcewidth:width;
 	c->height = forceheight?forceheight:height;
@@ -136,7 +149,7 @@ static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, i
 	}
 	// some formats want stream headers to be seperate
 	if (ctx->fc->oformat->flags & AVFMT_GLOBALHEADER)
-		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+		c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
 	if (*ffmpeg_videopreset->string)
 		av_opt_set(c->priv_data, "preset", ffmpeg_videopreset->string, AV_OPT_SEARCH_CHILDREN);
@@ -151,7 +164,7 @@ static void close_video(struct encctx *ctx)
 	if (!ctx->video_st)
 		return;
 
-	avcodec_close(ctx->video_st->codec);
+	avcodec_close(ctx->video_codec);
 	if (ctx->picture)
 	{
 		av_free(ctx->picture->data[0]);
@@ -162,10 +175,9 @@ static void close_video(struct encctx *ctx)
 
 #if HAVE_DECOUPLED_API
 //frame can be null on eof.
-static void AVEnc_DoEncode(AVFormatContext *fc, AVStream *stream, AVFrame *frame)
+static void AVEnc_DoEncode(AVFormatContext *fc, AVStream *stream, AVCodecContext *codec, AVFrame *frame)
 {
 	AVPacket pkt;
-	AVCodecContext *codec = stream->codec;
 	int err = avcodec_send_frame(codec, frame);
 	if (err)
 	{
@@ -218,6 +230,9 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 		return;
 	}
 
+	if (bytestride < 0)	//fix up the buffers so callers don't have to.
+		data = (char*)data - bytestride*(height-1);
+
 	//weird maths to flip it.
 	srcslices[0] = (uint8_t*)data;
 	srcstride[0] = bytestride;
@@ -231,13 +246,13 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 	//fixme: it would be nice to avoid copies here if possible...
 	//convert RGB to whatever the codec needs (ie: yuv...).
 	//also rescales, but only if the user resizes the video while recording. which is a stupid thing to do.
-	ctx->scale_ctx = sws_getCachedContext(ctx->scale_ctx, width, height, avpfmt, ctx->picture->width, ctx->picture->height, ctx->video_st->codec->pix_fmt, SWS_POINT, 0, 0, 0);
+	ctx->scale_ctx = sws_getCachedContext(ctx->scale_ctx, width, height, avpfmt, ctx->picture->width, ctx->picture->height, ctx->video_codec->pix_fmt, SWS_POINT, 0, 0, 0);
 	sws_scale(ctx->scale_ctx, srcslices, srcstride, 0, height, ctx->picture->data, ctx->picture->linesize);
 
 	ctx->picture->pts = frameno;
-	ctx->picture->format = ctx->video_st->codec->pix_fmt;
+	ctx->picture->format = ctx->video_codec->pix_fmt;
 #if HAVE_DECOUPLED_API
-	AVEnc_DoEncode(ctx->fc, ctx->video_st, ctx->picture);
+	AVEnc_DoEncode(ctx->fc, ctx->video_st, ctx->video_codec, ctx->picture);
 #else
 	{
 		AVPacket pkt;
@@ -248,7 +263,7 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 		pkt.data = ctx->video_outbuf;
 		pkt.size = ctx->video_outbuf_size;
 		success = 0;
-		err = avcodec_encode_video2(ctx->video_st->codec, &pkt, ctx->picture, &success);
+		err = avcodec_encode_video2(ctx->video_codec, &pkt, ctx->picture, &success);
 		if (err)
 		{
 			char buf[512];
@@ -256,7 +271,7 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 		}
 		else if (err == 0 && success)
 		{
-			av_packet_rescale_ts(&pkt, ctx->video_st->codec->time_base, ctx->video_st->time_base);
+			av_packet_rescale_ts(&pkt, ctx->video_codec->time_base, ctx->video_st->time_base);
 			pkt.stream_index = ctx->video_st->index;
 			err = av_interleaved_write_frame(ctx->fc, &pkt);
 		
@@ -270,7 +285,7 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 #endif
 }
 
-static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int samplerate, int *bits, int channels)
+static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *samplerate, int *bits, int channels)
 {
 	AVCodecContext *c;
 	AVStream *st;
@@ -281,16 +296,26 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int sample
 		return NULL;
 
 	st->id = ctx->fc->nb_streams-1;
+#if 1//LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 0)
 	c = st->codec;
+#else
+	c = avcodec_alloc_context3(codec);
+	if(avcodec_parameters_to_context(c, st->codecpar))
+		return NULL;
+#endif
+	ctx->audio_codec = c;
 	c->codec_id = codec->id;
 	c->codec_type = codec->type;
+
+//	if (c->codec_id == AV_CODEC_ID_OPUS)	//opus is strictly 48khz. force that here.
+//		*samplerate = 48000;				//FIXME: the engine can't cope with this.
 
 	/* put sample parameters */
 	c->bit_rate = bitrate;
 	/* frames per second */
 	c->time_base.num = 1;
-	c->time_base.den = samplerate;
-	c->sample_rate = samplerate;
+	c->time_base.den = *samplerate;
+	c->sample_rate = *samplerate;
 	c->channels = channels;
 	c->channel_layout = av_get_default_channel_layout(c->channels);
 	c->sample_fmt = codec->sample_fmts[0];
@@ -308,7 +333,7 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int sample
 
 	// some formats want stream headers to be seperate
 	if (ctx->fc->oformat->flags & AVFMT_GLOBALHEADER)
-		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+		c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
 //	avcodec_parameters_from_context(st->codecpar, c);
 
@@ -319,7 +344,7 @@ static void close_audio(struct encctx *ctx)
 	if (!ctx->audio_st)
 		return;
 
-	avcodec_close(ctx->audio_st->codec);
+	avcodec_close(ctx->audio_codec);
 }
 static void AVEnc_Audio (void *vctx, void *data, int bytes)
 {
@@ -330,10 +355,10 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 
 	while (bytes)
 	{
-		int i, p, chans = ctx->audio_st->codec->channels;
+		int i, p, chans = ctx->audio_codec->channels;
 		int blocksize = sizeof(float)*chans;
 		int count = bytes / blocksize;
-		int planesize = ctx->audio_st->codec->frame_size;
+		int planesize = ctx->audio_codec->frame_size;
 		float *in;
 		int offset;
 
@@ -343,8 +368,8 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 			if (count > VARIABLE_AUDIO_FRAME_MAX_SIZE - ctx->audio_outcount)
 				count = VARIABLE_AUDIO_FRAME_MAX_SIZE - ctx->audio_outcount;
 		}
-		else if (count > ctx->audio_st->codec->frame_size - ctx->audio_outcount)
-			count = ctx->audio_st->codec->frame_size - ctx->audio_outcount;
+		else if (count > ctx->audio_codec->frame_size - ctx->audio_outcount)
+			count = ctx->audio_codec->frame_size - ctx->audio_outcount;
 
 		in = (float*)data;
 		offset = ctx->audio_outcount;
@@ -355,7 +380,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 		//input is always float audio, because I'm lazy.
 		//output is whatever the codec needs (may be packed or planar, gah).
 		//the engine's mixer will do all rate scaling for us, as well as channel selection
-		switch(ctx->audio_st->codec->sample_fmt)
+		switch(ctx->audio_codec->sample_fmt)
 		{
 		case AV_SAMPLE_FMT_DBL:
 			offset *= chans;
@@ -433,9 +458,9 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 			return;
 		}
 
-		if (ctx->audio_st->codec->frame_size)
+		if (ctx->audio_codec->frame_size)
 		{
-			if (ctx->audio_outcount < ctx->audio_st->codec->frame_size)
+			if (ctx->audio_outcount < ctx->audio_codec->frame_size)
 				break;	//not enough data yet.
 		}
 		else
@@ -445,13 +470,13 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 		}
 
 		ctx->audio->nb_samples = ctx->audio_outcount;
-		avcodec_fill_audio_frame(ctx->audio, ctx->audio_st->codec->channels, ctx->audio_st->codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_st->codec->sample_fmt)*ctx->audio_outcount*ctx->audio_st->codec->channels, 1);
+		avcodec_fill_audio_frame(ctx->audio, ctx->audio_codec->channels, ctx->audio_codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_codec->sample_fmt)*ctx->audio_outcount*ctx->audio_codec->channels, 1);
 		ctx->audio->pts = ctx->audio_pts;
 		ctx->audio_pts += ctx->audio_outcount;
 		ctx->audio_outcount = 0;
 
 #if HAVE_DECOUPLED_API
-		AVEnc_DoEncode(ctx->fc, ctx->audio_st, ctx->audio);
+		AVEnc_DoEncode(ctx->fc, ctx->audio_st, ctx->audio_codec, ctx->audio);
 #else
 		{
 			AVPacket pkt;
@@ -461,7 +486,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 			pkt.data = NULL;
 			pkt.size = 0;
 			success = 0;
-			err = avcodec_encode_audio2(ctx->audio_st->codec, &pkt, ctx->audio, &success);
+			err = avcodec_encode_audio2(ctx->audio_codec, &pkt, ctx->audio, &success);
 
 			if (err)
 			{
@@ -470,11 +495,11 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 			}
 			else if (success)
 			{
-		//		pkt.pts = ctx->audio_st->codec->coded_frame->pts;
-		//		if(ctx->audio_st->codec->coded_frame->key_frame)
+		//		pkt.pts = ctx->audio_codec->coded_frame->pts;
+		//		if(ctx->audio_codec->coded_frame->key_frame)
 		//			pkt.flags |= AV_PKT_FLAG_KEY;
 
-				av_packet_rescale_ts(&pkt, ctx->audio_st->codec->time_base, ctx->audio_st->time_base);
+				av_packet_rescale_ts(&pkt, ctx->audio_codec->time_base, ctx->audio_st->time_base);
 				pkt.stream_index = ctx->audio_st->index;
 				err = av_interleaved_write_frame(ctx->fc, &pkt);
 				if (err)
@@ -495,13 +520,14 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	AVCodec *videocodec = NULL;
 	AVCodec *audiocodec = NULL;
 	int err;
+	char errtxt[AV_ERROR_MAX_STRING_SIZE] = {0};
 
-	if (ffmpeg_format_force->string)
+	if (*ffmpeg_format_force->string)
 	{
 		fmt = av_guess_format(ffmpeg_format_force->string, NULL, NULL);
 		if (!fmt)
 		{
-			Con_Printf("Unknown format specified.\n");
+			Con_Printf("Unknown format specified: %s.\n", ffmpeg_format_force->string);
 			return NULL;
 		}
 	}
@@ -579,24 +605,26 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 
 	ctx->fc = avformat_alloc_context();
 	ctx->fc->oformat = fmt;
-	Q_snprintf(ctx->fc->filename, sizeof(ctx->fc->filename), "%s", streamname);
-
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 6, 100) || defined(FF_API_FORMAT_FILENAME)
+	Q_strncatz(ctx->fc->filename, streamname, sizeof(ctx->fc->filename));
+#else
+	ctx->fc->url = av_strdup(streamname);
+#endif
 
 	//pick default codecs
 	ctx->video_st = NULL;
 	if (videocodec)
 		ctx->video_st = add_video_stream(ctx, videocodec, videorate, width, height);
 	if (audiocodec)
-		ctx->audio_st = add_audio_stream(ctx, audiocodec, *sndkhz, sndbits, *sndchannels);
+		ctx->audio_st = add_audio_stream(ctx, audiocodec, sndkhz, sndbits, *sndchannels);
 
 	if (ctx->video_st)
 	{
-		AVCodecContext *c = ctx->video_st->codec;
+		AVCodecContext *c = ctx->video_codec;
 		err = avcodec_open2(c, videocodec, NULL);
 		if (err < 0)
 		{
-			char buf[512];
-			Con_Printf(ENCODERNAME": Could not init codec instance \"%s\" - %s\nMaybe try a different framerate/resolution/bitrate\n", videocodec->name, av_make_error_string(buf, sizeof(buf), err));
+			Con_Printf(ENCODERNAME": Could not init codec instance \"%s\" - %s\nMaybe try a different framerate/resolution/bitrate\n", videocodec->name, av_make_error_string(errtxt, sizeof(errtxt), err));
 			AVEnc_End(ctx);
 			return NULL;
 		}
@@ -611,21 +639,20 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	if (ctx->audio_st)
 	{
 		int sz;
-		AVCodecContext *c = ctx->audio_st->codec;
+		AVCodecContext *c = ctx->audio_codec;
 		err = avcodec_open2(c, audiocodec, NULL);
 		if (err < 0)
 		{
-			char buf[512];
-			Con_Printf(ENCODERNAME": Could not init codec instance \"%s\" - %s\n", audiocodec->name, av_make_error_string(buf, sizeof(buf), err));
+			Con_Printf(ENCODERNAME": Could not init codec instance \"%s\" - %s\n", audiocodec->name, av_make_error_string(errtxt, sizeof(errtxt), err));
 			AVEnc_End(ctx);
 			return NULL;
 		}
 
 		ctx->audio = av_frame_alloc();
-		sz = ctx->audio_st->codec->frame_size;
+		sz = ctx->audio_codec->frame_size;
 		if (!sz)
 			sz = VARIABLE_AUDIO_FRAME_MAX_SIZE;
-		sz *= av_get_bytes_per_sample(ctx->audio_st->codec->sample_fmt) * ctx->audio_st->codec->channels;
+		sz *= av_get_bytes_per_sample(ctx->audio_codec->sample_fmt) * ctx->audio_codec->channels;
 		ctx->audio_outbuf = av_malloc(sz);
 	}
 
@@ -634,9 +661,16 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	if (!(fmt->flags & AVFMT_NOFILE))
 	{
 		//okay, this is annoying, but I'm too lazy to figure out the issue I was having with avio stuff.
-		if (!pFS_NativePath(streamname, FS_GAMEONLY, ctx->abspath, sizeof(ctx->abspath)) || avio_open(&ctx->fc->pb, ctx->abspath, AVIO_FLAG_WRITE) < 0)
+		if (!pFS_NativePath(streamname, FS_GAMEONLY, ctx->abspath, sizeof(ctx->abspath)))
 		{
-			Con_Printf("Could not open '%s'\n", streamname);
+			Con_Printf("Couldn't find system path for '%s'\n", streamname);
+			AVEnc_End(ctx);
+			return NULL;
+		}
+		err = avio_open(&ctx->fc->pb, ctx->abspath, AVIO_FLAG_WRITE);
+		if (err < 0)
+		{
+			Con_Printf("Could not open '%s' - %s\n", ctx->abspath, av_make_error_string(errtxt, sizeof(errtxt), err));
 			AVEnc_End(ctx);
 			return NULL;
 		}
@@ -646,8 +680,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	err = avformat_write_header(ctx->fc, NULL);
 	if (err < 0)
 	{
-		char buf[512];
-		Con_Printf("avformat_write_header: failed %s\n", av_make_error_string(buf, sizeof(buf), err));
+		Con_Printf("avformat_write_header: failed %s\n", av_make_error_string(errtxt, sizeof(errtxt), err));
 		AVEnc_End(ctx);
 		return NULL;
 	}
@@ -664,9 +697,9 @@ static void AVEnc_End (void *vctx)
 	{
 		//terminate the codecs properly, flushing all unwritten packets
 		if (ctx->video_st)
-			AVEnc_DoEncode(ctx->fc, ctx->video_st, NULL);
+			AVEnc_DoEncode(ctx->fc, ctx->video_st, ctx->video_codec, NULL);
 		if (ctx->audio_st)
-			AVEnc_DoEncode(ctx->fc, ctx->audio_st, NULL);
+			AVEnc_DoEncode(ctx->fc, ctx->audio_st, ctx->audio_codec, NULL);
 	}
 #endif
 
@@ -740,14 +773,14 @@ qboolean AVEnc_Init(void)
 	}
 
 	ffmpeg_format_force		= pCvar_GetNVFDG(ENCODERNAME"_format_force",		"",				0, "Forces the output container format. If blank, will guess based upon filename extension.", ENCODERNAME);
-	ffmpeg_videocodec		= pCvar_GetNVFDG(ENCODERNAME"_videocodec",			"",				0, "Forces which video encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
-	ffmpeg_videobitrate		= pCvar_GetNVFDG(ENCODERNAME"_videobitrate",		"4000000",		0, "Specifies the target video bitrate", ENCODERNAME);
+	ffmpeg_videocodec		= pCvar_GetNVFDG(ENCODERNAME"_videocodec",			"",				0, "Forces which video encoder to use. If blank, guesses based upon container defaults.\nCommon names are libx264 (software), x264_nvenc (hardware accelerated)", ENCODERNAME);
+	ffmpeg_videobitrate		= pCvar_GetNVFDG(ENCODERNAME"_videobitrate",		"",				0, "Specifies the target video bitrate", ENCODERNAME);
 	ffmpeg_videoforcewidth	= pCvar_GetNVFDG(ENCODERNAME"_videoforcewidth",		"",				0, "Rescales the input video width. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
 	ffmpeg_videoforceheight	= pCvar_GetNVFDG(ENCODERNAME"_videoforceheight",	"",				0, "Rescales the input video height. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
 	ffmpeg_videopreset		= pCvar_GetNVFDG(ENCODERNAME"_videopreset",			"veryfast",		0, "Specifies which codec preset to use, for codecs that support such presets.", ENCODERNAME);
-	ffmpeg_video_crf		= pCvar_GetNVFDG(ENCODERNAME"_video_crf",			"",				0, "Specifies the 'Constant Rate Factor' codec setting.", ENCODERNAME);
+	ffmpeg_video_crf		= pCvar_GetNVFDG(ENCODERNAME"_video_crf",			"",				0, "Specifies the 'Constant Rate Factor' codec setting.\nA value of 0 is 'lossless', a value of 51 is 'worst quality posible', a value of 23 is default.", ENCODERNAME);
 	ffmpeg_audiocodec		= pCvar_GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
-	ffmpeg_audiobitrate		= pCvar_GetNVFDG(ENCODERNAME"_audiobitrate",		"64000",		0, "Specifies the target audio bitrate", ENCODERNAME);
+	ffmpeg_audiobitrate		= pCvar_GetNVFDG(ENCODERNAME"_audiobitrate",		"",				0, "Specifies the target audio bitrate", ENCODERNAME);
 
 //	if (Plug_Export("ExecuteCommand", AVEnc_ExecuteCommand))
 //		Cmd_AddCommand("avcapture");

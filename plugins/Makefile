@@ -115,7 +115,7 @@ irc-clean:
 #linux users are expected to have the library installed locally already. If your version is too old or missing, run the following command to install it (to /usr/local), then delete the gz and directory.
 #wget http://ffmpeg.org/releases/ffmpeg-1.2.tar.gz && cd tar xvfz ffmpeg-1.2.tar.gz && cd ffmpeg-1.2/ && ./configure --disable-yasm --enable-shared && make && sudo make install
 #we use ffmpeg's version for some reason, as opposed to libav. not sure what the differences are meant to be, but libav seemed to have non-depricated functions defined, docs that say to use them, and these functions missing.
-AV_VER=ffmpeg-3.4.2
+AV_VER=ffmpeg-4.0
 ifeq (0,1)
     AV_ARCHIVEEXT=.z7
     AV_EXTRACT=7z e -y

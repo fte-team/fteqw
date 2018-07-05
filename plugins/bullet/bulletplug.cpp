@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define FTEENGINE
 #define FTEPLUGIN
 #define pCvar_Register Cvar_Get
+#define pCvar_GetNVFDG Cvar_Get2
 #define pCvar_GetFloat(x) Cvar_FindVar(x)->value
 #define pSys_Error Sys_Error
 #define Plug_Init Plug_Bullet_Init

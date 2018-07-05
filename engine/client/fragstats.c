@@ -618,7 +618,7 @@ static void Stats_LoadFragFile(char *name)
 	strcpy(filename, name);
 	COM_DefaultExtension(filename, ".dat", sizeof(filename));
 
-	file = COM_LoadTempFile(filename, NULL);
+	file = COM_LoadTempFile(filename, 0, NULL);
 	if (!file || !*file)
 	{
 		Con_DPrintf("Couldn't load %s\n", filename);

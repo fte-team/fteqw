@@ -2138,14 +2138,16 @@ Filename are reletive to the quake directory.
 Always appends a 0 qbyte to the loaded data.
 ============
 */
-qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize)
+qbyte *COM_LoadFile (const char *path, unsigned int locateflags, int usehunk, size_t *filesize)
 {
 	vfsfile_t *f;
 	qbyte *buf;
 	qofs_t len;
 	flocation_t loc;
 	
-	if (!FS_FLocateFile(path, FSLF_IFFOUND, &loc) || !loc.search)
+	locateflags &= ~FSLF_DEEPONFAILURE;	//disable any flags that can't be supported here
+
+	if (!FS_FLocateFile(path, locateflags, &loc) || !loc.search)
 		return NULL;	//wasn't found
 
 	if (loc.len > 0x7fffffff)	//don't malloc 5000gb sparse files or anything crazy on a 32bit system...
@@ -2198,7 +2200,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize)
 
 qbyte *FS_LoadMallocFile (const char *path, size_t *fsize)
 {
-	return COM_LoadFile (path, 5, fsize);
+	return COM_LoadFile (path, 0, 5, fsize);
 }
 
 void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path, size_t *fsize)
@@ -2223,13 +2225,13 @@ void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path, size_t *fsize)
 	return mem;
 }
 
-qbyte *COM_LoadTempFile (const char *path, size_t *fsize)
+qbyte *COM_LoadTempFile (const char *path, unsigned int locateflags, size_t *fsize)
 {
-	return COM_LoadFile (path, 2, fsize);
+	return COM_LoadFile (path, locateflags, 2, fsize);
 }
 qbyte *COM_LoadTempMoreFile (const char *path, size_t *fsize)
 {
-	return COM_LoadFile (path, 6, fsize);
+	return COM_LoadFile (path, 0, 6, fsize);
 }
 
 // uses temp hunk if larger than bufsize
@@ -2241,7 +2243,7 @@ qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, siz
 
 	loadbuf = (qbyte *)buffer;
 	loadsize = bufsize;
-	buf = COM_LoadFile (path, 4, fsize);
+	buf = COM_LoadFile (path, 0, 4, fsize);
 
 	return buf;
 }
@@ -2251,7 +2253,7 @@ qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, siz
 qofs_t FS_LoadFile(const char *name, void **file)
 {
 	size_t fsz;
-	*file = COM_LoadFile (name, 5, &fsz);
+	*file = FS_LoadMallocFile (name, &fsz);
 	if (!*file)
 		return (qofs_t)-1;
 	return fsz;
@@ -3119,8 +3121,8 @@ const gamemode_info_t gamemode_info[] = {
 #ifndef NOLEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//two quakes - one without extra game dirs which should avoid fuckups from nquake's configs (which screw over cvars that every nq progs.dat depends upon but which the ezquake id1-only less-compatible gamecode ignores).
-	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
-	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1"},										"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1"},										"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
 	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity

@@ -115,23 +115,3 @@ extern unsigned int	d_8to24rgbtable[256];
 extern unsigned int	d_8to24srgbtable[256];
 extern unsigned int	d_8to24bgrtable[256];
 extern unsigned int	d_quaketo24srgbtable[256];
-
-#ifdef GLQUAKE
-//called when gamma ramps need to be reapplied
-qboolean GLVID_ApplyGammaRamps (unsigned int size, unsigned short *ramps);
-
-qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);
-// Called at startup to set up translation tables, takes 256 8 bit RGB values
-// the palette data will go away after the call, so it must be copied off if
-// the video driver will need it again
-
-void GLVID_Crashed(void);
-
-void	GLVID_Update (vrect_t *rects);
-// flushes the given rectangles from the view buffer to the screen
-
-void GLVID_SwapBuffers(void);
-enum uploadfmt;
-char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum uploadfmt *fmt);
-void GLVID_SetCaption(const char *caption);
-#endif

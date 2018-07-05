@@ -1440,15 +1440,16 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 
 		for (i = 0; i < c->num; i++)
 		{
+			int col = (con_commandmatch == i+1)?3:2;
 			s = (conchar_t*)(con->completionline+1);
 
 			//note: if cl_chatmode is 0, then we shouldn't show the leading /, however that is how the console link stuff recognises it as command text, so we always display it.
 			cmd = c->completions[i].text;
 //			desc = c->completions[i].desc;
 //			if (desc)
-//				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s\\tip\\%s^]\t", cmd, desc), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
+//				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^%i/%s\\tip\\%s^]\t", col, cmd, desc), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
 //			else
-				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s^]\t", cmd), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
+				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^%i/%s^]\t", col, cmd), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
 			con->completionline->length = end - s;
 		}
 		if (c->extra)
@@ -2645,7 +2646,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 								size_t fsize;
 								char *buf;
 								shader->defaulttextures->base = Image_CreateTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
-								if ((buf = COM_LoadFile (key, 5, &fsize)))
+								if ((buf = FS_LoadMallocFile (key, &fsize)))
 									Image_LoadTextureFromMemory(shader->defaulttextures->base, shader->defaulttextures->base->flags|IF_NOWORKER, key, key, buf, fsize);
 							}
 							shader->width = shader->defaulttextures->base->width;

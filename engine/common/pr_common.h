@@ -356,6 +356,7 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 void QCBUILTIN PF_strtrim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_digest_ptr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_edict_for_num (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -501,12 +502,14 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored);
 void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary);
 
+uploadfmt_t PR_TranslateTextureFormat(int qcformat);
+
 //FIXME
 pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...);
 
 
 /*these are server ones, provided by pr_cmds.c, as required by pr_q1qvm.c*/
-int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value);
+int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value, size_t valsize);
 #ifdef VM_Q1
 void PR_SV_FillWorldGlobals(world_t *w);
 model_t *QDECL SVPR_GetCModel(world_t *w, int modelindex);

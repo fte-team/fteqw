@@ -362,7 +362,7 @@ void deleetstring(char *result, const char *leet);
 
 extern	char		com_token[65536];
 
-typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING, TTP_RAWTOKEN, TTP_EOF, TTP_PUNCTUATION} com_tokentype_t;
+typedef enum com_tokentype_e {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING, TTP_RAWTOKEN, TTP_EOF, TTP_PUNCTUATION} com_tokentype_t;
 extern com_tokentype_t com_tokentype;
 
 //these cast away the const for the return value.
@@ -616,7 +616,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name);
 qboolean CL_ListFilesInPackage(searchpathfuncs_t *search, char *name, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, void *recursioninfo);
 
 qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, size_t *fsize);
-qbyte *COM_LoadTempFile (const char *path, size_t *fsize);
+qbyte *COM_LoadTempFile (const char *path, unsigned int locateflags, size_t *fsize);
 qbyte *COM_LoadTempMoreFile (const char *path, size_t *fsize);	//allocates a little bit more without freeing old temp
 //qbyte *COM_LoadHunkFile (const char *path);
 
@@ -704,7 +704,7 @@ qbyte *FS_LoadMallocFile (const char *path, size_t *fsize);
 qofs_t FS_LoadFile(const char *name, void **file);
 void FS_FreeFile(void *file);
 
-qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize);
+qbyte *COM_LoadFile (const char *path, unsigned int locateflags, int usehunk, size_t *filesize);
 
 qboolean COM_LoadMapPackFile(const char *name, qofs_t offset);
 void COM_FlushTempoaryPacks(void);
@@ -724,15 +724,79 @@ unsigned int COM_RemapMapChecksum(struct model_s *model, unsigned int checksum);
 
 #define	MAX_INFO_KEY	256
 char *Info_ValueForKey (const char *s, const char *key);
-void Info_RemoveKey (char *s, const char *key);
-char *Info_KeyForNumber (const char *s, int num);
-void Info_RemovePrefixedKeys (char *start, char prefix);
-void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
+void Info_RemovePrefixedKeys (char *start, char prefix);
+void Info_RemoveKey (char *s, const char *key);
+char *Info_KeyForNumber (const char *s, int num);
 void Info_Print (const char *s, const char *lineprefix);
+/*
+void Info_RemoveNonStarKeys (char *start);
 void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
+*/
+
+/*
+  Info Buffers
+  Keynames are still length limited, and may not contain nulls, but neither restriction applies to values.
+  Using base64 encoding, we're able to encode problematic chars like quotes and newlines (and nulls).
+  This allows mods to store image files inside userinfo.
+*/
+typedef struct
+{
+	struct infokey_s
+	{
+		qbyte			partial:1;		//partial values read as "".
+		qbyte			large:1;		//requires partial/encoded transmission
+		char			*name;
+		size_t			size;
+		size_t			buffersize;		//to avoid excessive reallocs
+		char			*value;
+	} *keys;
+	size_t numkeys;
+	size_t totalsize;	//so we can limit userinfo abuse.
+
+	void (*ChangeCB)(void *context, const char *key);	//usually calls InfoSync_Add on all the interested parties.
+	void *ChangeCTX;
+} infobuf_t;
+typedef struct
+{
+	struct
+	{
+		void			*context;
+		char			*name;
+		size_t			syncpos;		//reset to 0 when dirty.
+	} *keys;
+	size_t numkeys;
+} infosync_t;
+void InfoSync_Remove(infosync_t *sync, size_t k);
+void InfoSync_Add(infosync_t *sync, void *context, const char *name);
+void InfoSync_Clear(infosync_t *sync);	//wipes all memory etc.
+void InfoSync_Strip(infosync_t *sync, void *context);	//Clears away all infos from that context.
+extern const char *basicuserinfos[];	//note: has a leading *
+extern const char *privateuserinfos[];	//key names that are not broadcast from the server
+qboolean InfoBuf_FindKey (infobuf_t *info, const char *key, size_t *idx);
+const char *InfoBuf_KeyForNumber (infobuf_t *info, int num);
+const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize);
+char *InfoBuf_ReadKey (infobuf_t *info, const char *key, char *outbuf, size_t outsize);
+char *InfoBuf_ValueForKey (infobuf_t *info, const char *key);
+qboolean InfoBuf_RemoveKey (infobuf_t *info, const char *key);
+qboolean InfoBuf_SetKey (infobuf_t *info, const char *key, const char *val);	//refuses to set *keys.
+qboolean InfoBuf_SetStarKey (infobuf_t *info, const char *key, const char *val);
+qboolean InfoBuf_SetStarBlobKey (infobuf_t *info, const char *key, const char *val, size_t valsize);
+#define InfoBuf_SetValueForKey InfoBuf_SetKey
+#define InfoBuf_SetValueForStarKey InfoBuf_SetStarKey
+void InfoBuf_Clear(infobuf_t *info, qboolean all);
+void InfoBuf_Clone(infobuf_t *dest, infobuf_t *src);
+void InfoBuf_FromString(infobuf_t *info, const char *infostring, qboolean append);
+char *InfoBuf_DecodeString(const char *instart, const char *inend, size_t *sz);
+qboolean InfoBuf_EncodeString(const char *n, size_t s, char *out, size_t outsize);
+size_t InfoBuf_ToString(infobuf_t *info, char *infostring, size_t maxsize, const char **priority, const char **ignore, const char **exclusive, infosync_t *sync, void *synccontext);	//_ and * can be used to indicate ALL such keys.
+qboolean InfoBuf_SyncReceive (infobuf_t *info, const char *key, size_t keysize, const char *val, size_t valsize, size_t offset, qboolean final);
+void InfoBuf_Print(infobuf_t *info, const char *prefix);
+void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname, int cvarflags);
+void InfoBuf_Enumerate (infobuf_t *info, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
+
 
 void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);
 unsigned int Com_BlockChecksum (const void *buffer, int length);

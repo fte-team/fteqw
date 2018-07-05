@@ -181,6 +181,7 @@ typedef enum uploadfmt
 	PTI_DEPTH32,
 	PTI_DEPTH24_8,
 
+	//non-native formats (generally requiring weird palettes that are not supported by hardware)
 	TF_BGR24_FLIP,			/*bgr byte order, no alpha channel nor pad, and bottom up*/
 	TF_MIP4_R8,		/*8bit 4-mip greyscale image*/
 	TF_MIP4_SOLID8,	/*8bit 4-mip image in default palette*/

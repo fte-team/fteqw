@@ -107,7 +107,7 @@ sfx_t *S_PrecacheSexedSound(int entnum, const char *soundname)
 	{	//a 'sexed' sound
 		if (entnum > 0 && entnum <= MAX_CLIENTS)
 		{
-			char *model = Info_ValueForKey(cl.players[entnum-1].userinfo, "skin");
+			char *model = InfoBuf_ValueForKey(&cl.players[entnum-1].userinfo, "skin");
 			char *skin;
 			skin = strchr(model, '/');
 			if (skin)
@@ -2140,7 +2140,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 				ent.model=NULL;
 
 				player = &cl.players[(s1->skinnum&0xff)%MAX_CLIENTS];
-				modelname = Info_ValueForKey(player->userinfo, "skin");
+				modelname = InfoBuf_ValueForKey(&player->userinfo, "skin");
 				if (!modelname[0])
 					modelname = "male";
 				skin = strchr(modelname, '/');

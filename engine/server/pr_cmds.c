@@ -206,6 +206,47 @@ static qcstate_t *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float re
 	return state;
 }
 
+void *PR_GetWriteQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize)
+{
+//	void *r;
+	if (qcsize < 0)
+		return NULL;
+	if (!qcptr)
+		return NULL;
+	if (qcptr >= 0 && qcptr <= prinst->stringtablemaxsize)
+	{	
+		if (qcptr + qcsize <= prinst->stringtablemaxsize)
+			return prinst->stringtable+qcptr;	//its in bounds
+	}
+	/*else
+	{
+		r = PR_GetString(prinst, qcptr);
+		if (qcsize < strlen(r))
+			return r;
+	}*/
+	return NULL;
+}
+const void *PR_GetReadQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize)
+{
+	const char *r;
+	if (qcsize < 0)
+		return NULL;
+	if (!qcptr)
+		return NULL;
+	if (qcptr >= 0 && qcptr <= prinst->stringtablemaxsize)
+	{	
+		if (qcptr + qcsize <= prinst->stringtablemaxsize)
+			return prinst->stringtable+qcptr;	//its in bounds
+	}
+	else
+	{
+		r = PR_GetString(prinst, qcptr);
+		if (qcsize < strlen(r))
+			return r;
+	}
+	return NULL;
+}
+
 void PDECL ED_Spawned (struct edict_s *ent, int loading)
 {
 #ifdef VM_Q1
@@ -1778,7 +1819,7 @@ void Q_InitProgs(void)
 		int j, maps;
 		char *f;
 
-		f = COM_LoadTempFile("maplist.txt", NULL);
+		f = COM_LoadTempFile("maplist.txt", 0, NULL);
 		f = COM_Parse(f);
 		maps = atoi(com_token);
 		for (j = 0; j < maps; j++)
@@ -3853,7 +3894,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 			case 13:	tname = "blue";	break;
 			default:	tname = va("t%i", team);	break;	//good job our va has multiple buffers
 			}
-			PF_ForceInfoKey_Internal(entnum, "team", tname);
+			PF_ForceInfoKey_Internal(entnum, "team", tname, strlen(tname));
 
 			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("color "));
 			ClientReliableWrite_String (cl, "color ");
@@ -4721,14 +4762,14 @@ void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	i = NUM_FOR_EDICT(prinst, ent);
 	if (i>0 && i<sv.allocated_client_slots)
 	{
-		noaim = Info_ValueForKey (svs.clients[i-1].userinfo, "noaim");
+		noaim = InfoBuf_ValueForKey (&svs.clients[i-1].userinfo, "noaim");
 		if (atoi(noaim) > 0)
 		{
 			VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
 			return;
 		}
 
-		noaim = Info_ValueForKey (svs.clients[i-1].userinfo, "aim");
+		noaim = InfoBuf_ValueForKey (&svs.clients[i-1].userinfo, "aim");
 		if (noaim)
 		{
 			dist = atof(noaim);
@@ -5842,8 +5883,8 @@ char *PF_infokey_Internal (int entnum, const char *key)
 			value = "2.40";
 		else
 		{
-			if ((value = Info_ValueForKey (svs.info, key)) == NULL || !*value)
-				value = Info_ValueForKey(localinfo, key);
+			if ((value = InfoBuf_ValueForKey(&svs.info, key)) == NULL || !*value)
+				value = InfoBuf_ValueForKey(&svs.localinfo, key);
 		}
 	}
 	else if (entnum <= sv.allocated_client_slots)
@@ -5950,7 +5991,7 @@ char *PF_infokey_Internal (int entnum, const char *key)
 		else if (!strcmp(key, "*islagged"))
 			value = (svs.clients[entnum-1].penalties & BAN_LAGGED)?"1":"";
 		else
-			value = Info_ValueForKey (svs.clients[entnum-1].userinfo, key);
+			value = InfoBuf_ValueForKey (&svs.clients[entnum-1].userinfo, key);
 	} else
 		value = "";
 
@@ -5985,17 +6026,95 @@ static void QCBUILTIN PF_infokey_f (pubprogfuncs_t *prinst, struct globalvars_s 
 static void QCBUILTIN PF_sv_serverkeystring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char	*value = Info_ValueForKey (svs.info, key);
+	const char	*value = InfoBuf_ValueForKey (&svs.info, key);
 	G_INT(OFS_RETURN) = *value?PR_TempString(prinst, value):0;
 }
 static void QCBUILTIN PF_sv_serverkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char	*value = Info_ValueForKey (svs.info, key);
+	const char	*value = InfoBuf_ValueForKey (&svs.info, key);
 	if (*value)
 		G_FLOAT(OFS_RETURN) = strtod(value, NULL);
 	else
 		G_FLOAT(OFS_RETURN) = (prinst->callargc>=2)?G_FLOAT(OFS_PARM1):0;
+}
+static void QCBUILTIN PF_sv_serverkeyblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	size_t blobsize = 0;
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*blobvalue = InfoBuf_BlobForKey(&svs.info, key, &blobsize);
+
+	if ((prinst->callargc<2) || G_INT(OFS_PARM1) == 0)
+		G_INT(OFS_RETURN) = blobsize;	//no pointer to write to, just return the length.
+	else
+	{
+		size_t size = min(blobsize, G_INT(OFS_PARM2));
+		void *ptr = PR_GetWriteQCPtr(prinst, G_INT(OFS_PARM1), size);
+		if (!ptr)
+			PR_BIError(prinst, "PF_sv_serverkeyblob: invalid pointer/size\n");
+		G_INT(OFS_RETURN) = size;
+		memcpy(ptr, blobvalue, size);
+	}
+}
+static void QCBUILTIN PF_setserverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*value;
+	size_t size;
+	if (prinst->callargc > 2)
+	{
+		size = G_INT(OFS_PARM2);
+		value = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
+	}
+	else
+	{
+		value = PR_GetStringOfs(prinst, OFS_PARM1);
+		size = strlen(value);
+	}
+	if (!value)
+		PR_BIError(prinst, "PF_setserverkey: invalid pointer/size\n");
+
+	InfoBuf_SetStarBlobKey(&svs.info, key, value, size);
+}
+
+
+static void QCBUILTIN PF_getlocalinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	size_t blobsize = 0;
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*blobvalue = InfoBuf_BlobForKey(&svs.localinfo, key, &blobsize);
+
+	if ((prinst->callargc<2) || G_INT(OFS_PARM1) == 0)
+		G_INT(OFS_RETURN) = blobsize;	//no pointer to write to, just return the length.
+	else
+	{
+		size_t size = min(blobsize, G_INT(OFS_PARM2));
+		void *ptr = PR_GetWriteQCPtr(prinst, G_INT(OFS_PARM1), size);
+		if (!ptr)
+			PR_BIError(prinst, "PF_getlocalinfo: invalid pointer/size\n");
+		G_INT(OFS_RETURN) = size;
+		memcpy(ptr, blobvalue, size);
+	}
+}
+static void QCBUILTIN PF_setlocalinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*value;
+	size_t size;
+	if (prinst->callargc > 2)
+	{
+		size = G_INT(OFS_PARM2);
+		value = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
+	}
+	else
+	{
+		value = PR_GetStringOfs(prinst, OFS_PARM1);
+		size = strlen(value);
+	}
+	if (!value)
+		PR_BIError(prinst, "PF_setlocalinfo: invalid pointer/size\n");
+
+	InfoBuf_SetStarBlobKey(&svs.localinfo, key, value, size);
 }
 
 /*
@@ -7384,7 +7503,7 @@ void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 		sprintf(temp,"%i",(int)classnum);
 	else
 		*temp = 0;
-	Info_SetValueForKey (cl->userinfo, "cl_playerclass", temp, sizeof(cl->userinfo));
+	InfoBuf_SetKey (&cl->userinfo, "cl_playerclass", temp);
 	if (cl->playerclass != classnum)
 	{
 		cl->edict->xv->playerclass = classnum;
@@ -7427,7 +7546,7 @@ static void QCBUILTIN PF_h2setclass (pubprogfuncs_t *prinst, struct globalvars_s
 	client->playerclass = NewClass;
 
 	sprintf(temp,"%d",(int)NewClass);
-	Info_SetValueForKey (client->userinfo, "cl_playerclass", temp, sizeof(client->userinfo));
+	InfoBuf_SetValueForKey (&client->userinfo, "cl_playerclass", temp);
 	client->sendinfo = true;
 }
 
@@ -9091,29 +9210,25 @@ static void QCBUILTIN PF_te_plasmaburn(pubprogfuncs_t *prinst, struct globalvars
 }
 
 
-int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value)
+int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value, size_t valsize)
 {
 	if (entnum == 0)
-	{	//localinfo
-		Info_SetValueForKey (localinfo, key, value, MAX_LOCALINFO_STRING);
+	{	//serverinfo
+		InfoBuf_SetStarBlobKey(&svs.info, key, value, valsize);
 		return 2;
 	}
 	else if (entnum <= sv.allocated_client_slots)
 	{	//woo. we found a client.
-		char *oldvalue;
 		if (svs.clients[entnum-1].state == cs_free)
 		{
 			Con_DPrintf("PF_ForceInfoKey: inactive client\n");
 			return 0;
 		}
-		oldvalue = Info_ValueForKey(svs.clients[entnum-1].userinfo, key);
-		if (strcmp(oldvalue, value))
+		if (InfoBuf_SetStarBlobKey(&svs.clients[entnum-1].userinfo, key, value, valsize))
 		{
-			Info_SetValueForStarKey(svs.clients[entnum-1].userinfo, key, value, sizeof(svs.clients[entnum-1].userinfo));
-			
 			SV_ExtractFromUserinfo (&svs.clients[entnum-1], false);
 
-			value = Info_ValueForKey(svs.clients[entnum-1].userinfo, key);
+			value = InfoBuf_ValueForKey(&svs.clients[entnum-1].userinfo, key);
 
 			if (!strcmp(key, "*spectator"))
 			{
@@ -9155,7 +9270,33 @@ static void QCBUILTIN PF_ForceInfoKey(pubprogfuncs_t *prinst, struct globalvars_
 	key = PR_GetStringOfs(prinst, OFS_PARM1);
 	value = PR_GetStringOfs(prinst, OFS_PARM2);
 
-	G_FLOAT(OFS_RETURN) = PF_ForceInfoKey_Internal(e->entnum, key, value);
+	G_FLOAT(OFS_RETURN) = PF_ForceInfoKey_Internal(e->entnum, key, value, strlen(value));
+}
+static void QCBUILTIN PF_ForceInfoKeyBlob(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t	*e;
+	const char	*value;
+	const char	*key;
+	int size;
+
+	e = G_EDICT(prinst, OFS_PARM0);
+	key = PR_GetStringOfs(prinst, OFS_PARM1);
+	value = PR_GetStringOfs(prinst, OFS_PARM2);
+	size = G_INT(OFS_PARM3);
+	if (size < 0)
+		size = 0;
+	if (G_INT(OFS_PARM2) >= 0 && G_INT(OFS_PARM2) < prinst->stringtablesize)
+	{
+		if (value+size > prinst->stringtable+prinst->stringtablesize)
+			return;
+	}
+	else
+	{
+		if (size > strlen(value)+1)
+			return;
+	}
+
+	G_FLOAT(OFS_RETURN) = PF_ForceInfoKey_Internal(e->entnum, key, value, size);
 }
 
 /*
@@ -9189,16 +9330,16 @@ static void QCBUILTIN PF_setcolors (pubprogfuncs_t *prinst, struct globalvars_s 
 	client->edict->v->team = (i & 15) + 1;
 
 	Q_snprintfz(number, sizeof(number), "%i", i>>4);
-	if (strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
+	if (strcmp(number, InfoBuf_ValueForKey(&client->userinfo, "topcolor")))
 	{
-		Info_SetValueForKey(client->userinfo, "topcolor", number, sizeof(client->userinfo));
+		InfoBuf_SetValueForKey(&client->userinfo, "topcolor", number);
 		key = "topcolor";
 	}
 
 	Q_snprintfz(number, sizeof(number), "%i", i&15);
-	if (strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
+	if (strcmp(number, InfoBuf_ValueForKey(&client->userinfo, "bottomcolor")))
 	{
-		Info_SetValueForKey(client->userinfo, "bottomcolor", number, sizeof(client->userinfo));
+		InfoBuf_SetValueForKey(&client->userinfo, "bottomcolor", number);
 		key = key?"*bothcolours":"bottomcolor";
 	}
 
@@ -10282,6 +10423,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"abort",			PF_Abort,			0,		0,		0,		211,	D("void(optional __variant ret)", "QC execution is aborted. Parent QC functions on the stack will be skipped, effectively this forces all QC functions to 'return ret' until execution returns to the engine. If ret is ommited, it is assumed to be 0.")},
 	{"sleep",			PF_Sleep,			0,		0,		0,		212,	D("void(float sleeptime)", "Suspends the current QC execution thread for 'sleeptime' seconds.\nOther QC functions can and will be executed in the interim, including changing globals and field state (but not simultaneously).\nThe self and other globals will be restored when the thread wakes up (or set to world if they were removed since the thread started sleeping). Locals will be preserved, but will not be protected from remove calls.\nIf the engine is expecting the QC to return a value (even in the parent/root function), the value 0 shall be used instead of waiting for the qc to resume.")},
 	{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213,	D("void(entity player, string key, string value)", "Directly changes a user's info without pinging off the client. Also allows explicitly setting * keys, including *spectator. Does not affect the user's config or other servers.")},
+	{"forceinfokeyblob",PF_ForceInfoKeyBlob,0,		0,		0,		0,		D("void(entity player, string key, void *data, int size)", "Directly changes a user's info without pinging off the client. Also allows explicitly setting * keys, including *spectator. Does not affect the user's config or other servers.")},
 #ifdef SVCHAT
 	{"chat",			PF_chat,			0,		0,		0,		214,	"void(string filename, float starttag, entity edict)"}, //(FTE_NPCCHAT)
 #endif
@@ -10486,8 +10628,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension.")},// (EXT_CSQC)
-	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, int *pixeldata)", "Updates a texture with the specified rgba data. Will be created if needed.")},
-	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw pixel data. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
+	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, void *pixeldata, optional int datasize, optional int format)", "Updates a texture with the specified rgba data. Will be created if needed. If blobsize is specified then the image is decoded (eg .ktx or .dds data) instead of being raw R8G8B8A data. You'll typically want shaderforname to also generate a shader to use the texture.")},
+	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw R8G8B8A pixel data. Should not be used for dds or ktx etc formats. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
 	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
 //320
@@ -10540,6 +10682,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"runstandardplayerphysics",PF_runclientphys,0,0,0,		347,	D("void(entity ent)", "Perform the engine's standard player movement prediction upon the given entity using the input_* globals to describe movement.")},
 	{"getplayerkeyvalue",	PF_Fixme,0,		0,		0,		348,	D("string(float playernum, string keyname)", "Look up a player's userinfo, to discover things like their name, topcolor, bottomcolor, skin, team, *ver.\nAlso includes scoreboard info like frags, ping, pl, userid, entertime, as well as voipspeaking and voiploudness.")},// (EXT_CSQC)
 	{"getplayerkeyfloat",	PF_Fixme,0,		0,		0,		0,		D("float(float playernum, string keyname, optional float assumevalue)", "Cheaper version of getplayerkeyvalue that avoids the need for so many tempstrings.")},
+	{"getplayerkeyblob",	PF_Fixme,0,		0,		0,		0,		D("int(float playernum, string keyname, optional void *outptr, int size)", "Obtains a copy of the full data blob. Will write up to size bytes and return the actual size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
+
+	{"getlocalinfo",	PF_getlocalinfo,0,	0,		0,		0,		D("int(string keyname, optional void *outptr, int size)", "Obtains a copy of the full data blob. Will write up to size bytes and return the actual size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
+	{"setlocalinfo",	PF_setlocalinfo,0,	0,		0,		0,		D("void(string keyname, optional void *outptr, int size)", "Changes the server's localinfo. This data will be available for the following map, and will *usually* reload with saved games.")},
 
 	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
@@ -10549,6 +10695,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
 	{"serverkey",		PF_sv_serverkeystring,0,0,	0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
 	{"serverkeyfloat",	PF_sv_serverkeyfloat,0,0,	0,		0,		D("float(string key, optional float assumevalue)", "Version of serverkey that returns the value as a float (which avoids tempstrings).")},//
+	{"serverkeyblob",	PF_sv_serverkeyblob,0,0,	0,		0,		D("int(int buf, string key, optional void *ptr, int size)", "Version of serverkey that can obtain entire serverinfo, localinfo, or (local)userinfo blobs. Returns blob size")},//
+	{"setserverkey",	PF_setserverkey,0,	0,		0,		0,		D("void(int buf, string key, void *ptr, optional int size)", "Changes the server's serverinfo.")},//
 	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
 	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
@@ -10869,6 +11017,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"crypto_getmyidfp",PF_Fixme,			0,		0,		0,		637,	"string(float addr)" STUB},
 //	{"VM_CL_RotateMoves",PF_Fixme,			0,		0,		0,		638,	""},
 	{"digest_hex",		PF_digest_hex,		0,		0,		0,		639,	"string(string digest, string data, ...)"},
+	{"digest_ptr",		PF_digest_ptr,		0,		0,		0,		0,		D("string(string digest, void *data, int length)", "Calculates the digest of a single contiguous block of memory (including nulls) using the specified hash function.")},
 //	{"V_CalcRefdef",	PF_Fixme,			0,		0,		0,		640,	"void(entity e)"},
 	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"float(float i)"	STUB},
 
@@ -11075,7 +11224,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	{
 		char *builtinmap;
 		int binum;
-		builtinmap = COM_LoadTempFile("fte_bimap.txt", NULL);
+		builtinmap = COM_LoadTempFile("fte_bimap.txt", 0, NULL);
 		while(1)
 		{
 			builtinmap = COM_Parse(builtinmap);

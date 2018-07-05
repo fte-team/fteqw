@@ -525,7 +525,12 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 	
 	memcpy(&progs, buf, sizeof(progs));
 
-	if (progs.version == PROG_VERSION)
+	if (progs.version == PROG_QTESTVERSION)
+	{
+		defsz = -32;	//ddefs_t is 32bit
+		stsz = -16;	//statements is mostly 16bit. there's some line numbers in there too.
+	}
+	else if (progs.version == PROG_VERSION)
 		stsz = defsz = 16;
 	else if (progs.version == 7)
 	{
@@ -559,8 +564,10 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 
 //	if (numstatements > MAX_STATEMENTS)
 //		Sys_Error("Too many statements");
-	if (stsz == 16)
-	{
+	if (stsz == 32)
+		statements = (dstatement32_t*)(buf+progs.ofs_statements);
+	else if (stsz == 16)
+	{	//need to expand the statements to 32bit.
 		const dstatement16_t	*statements6 = (const dstatement16_t*)(buf+progs.ofs_statements);
 		statements = malloc(numstatements * sizeof(*statements));
 		for (i = 0; i < numstatements; i++)
@@ -582,8 +589,29 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 			statements[i].c = (unsigned short)statements6[i].c;
 		}
 	}
-	else if (stsz == 32)
-		statements = (dstatement32_t*)(buf+progs.ofs_statements);
+	else if (stsz == -16)
+	{
+		const qtest_statement_t	*statements3 = (const qtest_statement_t*)(buf+progs.ofs_statements);
+		statements = malloc(numstatements * sizeof(*statements));
+		for (i = 0; i < numstatements; i++)
+		{
+			statements[i].op = statements3[i].op;
+
+			if (statements[i].op == OP_GOTO)
+				statements[i].a = (signed short)statements3[i].a;
+			else
+				statements[i].a = (unsigned short)statements3[i].a;
+
+			if (statements[i].op == OP_IF_I || statements[i].op == OP_IFNOT_I ||
+				statements[i].op == OP_IF_F || statements[i].op == OP_IFNOT_F ||
+				statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S)
+				statements[i].b = (signed short)statements3[i].b;
+			else
+				statements[i].b = (unsigned short)statements3[i].b;
+
+			statements[i].c = (unsigned short)statements3[i].c;
+		}
+	}
 	else
 		Sys_Error("Unrecognised progs version");
 
@@ -613,6 +641,45 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 			fields[i].ofs = gd16[i].ofs;
 			fields[i].s_name = gd16[i].s_name;
 			fields[i].type = gd16[i].type;
+		}
+	}
+	else if (defsz == -32)
+	{
+		const qtest_function_t *funcin = (const qtest_function_t*)(buf+progs.ofs_functions);
+		const qtest_def_t	*gdqt = (const qtest_def_t*)(buf+progs.ofs_globaldefs);
+		globals = malloc(numglobaldefs * sizeof(*globals));
+		for (i = 0; i < numglobaldefs; i++)
+		{
+			globals[i].ofs = gdqt[i].ofs;
+			globals[i].s_name = gdqt[i].s_name;
+			globals[i].type = gdqt[i].type;
+		}
+
+
+		gdqt = (const qtest_def_t*)(buf+progs.ofs_fielddefs);
+		fields = malloc(numfielddefs * sizeof(*fields));
+		for (i = 0; i < numfielddefs; i++)
+		{
+			fields[i].ofs = gdqt[i].ofs;
+			fields[i].s_name = gdqt[i].s_name;
+			fields[i].type = gdqt[i].type;
+		}
+
+		functions = malloc(numfunctions * sizeof(*functions));
+		for (i = 0; i < numfunctions; i++)
+		{
+			functions[i].first_statement = funcin[i].first_statement;	// negative numbers are builtins
+			functions[i].parm_start = funcin[i].parm_start;
+			functions[i].locals = funcin[i].locals;				// total ints of parms + locals
+
+			functions[i].profile = funcin[i].profile;		// runtime
+
+			functions[i].s_name = funcin[i].s_name;
+			functions[i].s_file = funcin[i].s_file;			// source file defined in
+
+			functions[i].numparms = funcin[i].numparms;
+			for (j = 0; j < MAX_PARMS; j++)
+				functions[i].parm_size[j] = funcin[i].parm_size[j];
 		}
 	}
 	else
@@ -2775,7 +2842,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 	}
 	QCC_CatVFile(Decompileofile, "\n{\n");
 
-	startpos = Decompileofile->fsize;
+	startpos = Decompileofile->size;
 
 /*
 	fprintf(Decompileprofile, "%s", DecompileProfiles[findex]);
@@ -3014,7 +3081,7 @@ void DecompileProgsDat(char *name, void *buf, size_t bufsize)
 	DecompileReadData(name, buf, bufsize);
 	DecompileDecompileFunctions(c);
 
-	printf("Done.");
+	printf("Done.\n");
 }
 
 char *DecompileGlobalStringNoContents(gofs_t ofs)

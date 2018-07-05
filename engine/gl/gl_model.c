@@ -1131,7 +1131,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 				char *buf;
 				char dollname[MAX_QPATH];
 				Q_snprintfz(dollname, sizeof(dollname), "%s.doll", mod->name);
-				buf = COM_LoadFile(dollname, 5, &filesize);
+				buf = FS_LoadMallocFile(dollname, &filesize);
 				if (buf)
 				{
 					mod->dollinfo = rag_createdollfromstring(mod, dollname, numbones, buf);
@@ -1273,7 +1273,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			char altname[MAX_QPATH];
 			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
 			TRACE(("Mod_LoadModel: Trying to load (replacement) model \"%s\"\n", altname));
-			buf = (unsigned *)COM_LoadFile (altname, 5, &filesize);
+			buf = (unsigned *)FS_LoadMallocFile (altname, &filesize);
 
 			if (buf)
 				Q_strncpyz(mod->name, altname, sizeof(mod->name));
@@ -1281,7 +1281,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		else
 		{
 			TRACE(("Mod_LoadModel: Trying to load model \"%s\"\n", mod->publicname));
-			buf = (unsigned *)COM_LoadFile (mod->publicname, 5, &filesize);
+			buf = (unsigned *)FS_LoadMallocFile (mod->publicname, &filesize);
 			if (buf)
 				Q_strncpyz(mod->name, mod->publicname, sizeof(mod->name));
 			else if (!buf)
@@ -1837,7 +1837,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 					samples = ql2->lmsize;
 
 					litdata = shifts+ql2->numsurfs;
-					if (r_deluxmapping)
+					if (r_deluxemapping)
 						luxdata = litdata+samples*3;
 				}
 			}
@@ -1906,7 +1906,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	}
 
 
-	if (!luxdata && r_loadlits.ival && r_deluxmapping)
+	if (!luxdata && r_loadlits.ival && r_deluxemapping)
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];
 		size_t luxsz = 0;
@@ -1971,14 +1971,14 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 #endif
 
 #ifdef RUNTIMELIGHTING
-	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxmapping)))
+	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
 	{
 		writelitfile = !litdata;
 		numlightdata = l->filelen;
 		lightmodel = loadmodel;
 		relitsurface = 0;
 	}
-	else if (!lightmodel && r_deluxmapping_cvar.value>1 && r_deluxmapping && !luxdata
+	else if (!lightmodel && r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
 #ifdef RTLIGHTS
 		&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
 #endif
@@ -2008,7 +2008,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		}
 	}
 	/*if we're relighting, make sure there's the proper lux data to be updated*/
-	if (lightmodel == loadmodel && r_deluxmapping && !luxdata)
+	if (lightmodel == loadmodel && r_deluxemapping && !luxdata)
 	{
 		int i;
 		luxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);

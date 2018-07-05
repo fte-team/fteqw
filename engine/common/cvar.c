@@ -784,13 +784,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 #ifndef CLIENTONLY
 	if (var->flags & CVAR_SERVERINFO)
 	{
-//		char *old = Info_ValueForKey(svs.info, var->name);
-//		if (strcmp(old, value))	//only spam the server if it actually changed
-		{
-			Info_SetValueForKey (svs.info, var->name, value, MAX_SERVERINFO_STRING);
-			SV_SendServerInfoChange(var->name, value);
-//			SV_BroadcastCommand ("fullserverinfo \"%s\"\n", svs.info);
-		}
+		InfoBuf_SetKey (&svs.info, var->name, value);
 	}
 #endif
 #ifndef SERVERONLY
@@ -802,23 +796,10 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	}
 	if (var->flags & CVAR_USERINFO)
 	{
-		char *old = Info_ValueForKey(cls.userinfo[0], var->name);
+		char *old = InfoBuf_ValueForKey(&cls.userinfo[0], var->name);
 		if (strcmp(old, value))	//only spam the server if it actually changed
 		{				//this helps with config execs
-			Info_SetValueForKey (cls.userinfo[0], var->name, value, sizeof(cls.userinfo[0]));
-			if (cls.state >= ca_connected)
-			{
-#if defined(Q2CLIENT) || defined(Q3CLIENT)
-				if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)	//q2 just resends the lot. Kinda bad...
-				{
-					cls.resendinfo = true;
-				}
-				else
-#endif
-				{
-					CL_SendClientCommand(true, "setinfo \"%s\" \"%s\"\n", var->name, value);
-				}
-			}
+			InfoBuf_SetKey (&cls.userinfo[0], var->name, value);
 		}
 	}
 #endif

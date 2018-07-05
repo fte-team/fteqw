@@ -664,7 +664,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 	snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
 
-	in.c = COM_LoadTempFile(name, &sz);
+	in.c = COM_LoadTempFile(name, 0, &sz);
 	if (sz == sizeof(fontInfo_t))
 	{
 		for(i=0; i<GLYPHS_PER_FONT; i++)

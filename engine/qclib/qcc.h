@@ -1100,13 +1100,14 @@ int	QCC_CopyStringLength (const char *str, size_t length);
 
 
 typedef struct qcc_cachedsourcefile_s {
-	char filename[128];
 	size_t size;
+	size_t bufsize;
 	size_t zhdrofs;
 	int zcrc;
 	char *file;
 	enum{FT_CODE, FT_DATA} type;	//quakec source file or not.
 	struct qcc_cachedsourcefile_s *next;
+	char filename[1];
 } qcc_cachedsourcefile_t;
 extern qcc_cachedsourcefile_t *qcc_sourcefile;
 int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell, pbool legacyembed);
@@ -1164,18 +1165,26 @@ extern void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
 extern void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);
 extern void (*pHash_RemoveData)(hashtable_t *table, const char *name, void *data);
 
-typedef struct vfile_s
-{	//when originally running from a .dat, we load up all the functions and work from those rather than actual files.
-	//(these get re-written into the resulting .dat)
-	struct vfile_s *next;
-	void *fdata;
-	size_t fsize;
-	size_t msize;
-	char name[1];
-} vfile_t;
+//when originally running from a .dat, we load up all the functions and work from those rather than actual files.
+//(these get re-written into the resulting .dat)
+typedef struct qcc_cachedsourcefile_s vfile_t;
 vfile_t *QCC_FindVFile(const char *name);
 vfile_t *QCC_AddVFile(const char *name, void *data, size_t size);
 void QCC_CatVFile(vfile_t *, const char *fmt, ...);
 void QCC_InsertVFile(vfile_t *, size_t pos, const char *fmt, ...);
 
 //void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile);
+
+
+typedef struct
+{
+	char	name[56];
+	int		filepos, filelen;
+} packfile_t;
+
+typedef struct
+{
+	char	id[4];
+	int		dirofs;
+	int		dirlen;
+} packheader_t;

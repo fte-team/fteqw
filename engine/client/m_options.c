@@ -763,7 +763,7 @@ const char *presetexec[] =
 	"seta gl_polyblend 0;"
 	"seta gl_flashblend 0;"
 	"seta gl_specular 0;"
-	"seta r_deluxmapping 0;"
+	"seta r_deluxemapping 0;"
 	"seta r_loadlit 0;"
 	"seta r_fastsky 1;"
 	"seta r_drawflame 0;"
@@ -893,12 +893,12 @@ const char *presetexec[] =
 	"r_shadow_realtime_dlight 1;"
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
-	"r_deluxmapping 2;"
+	"r_deluxemapping 2;"
 	"gl_texture_anisotropic_filtering 4;"
 
 	, // realtime options
 	"r_bloom 1;"
-	"r_deluxmapping 0;"	//won't be seen anyway
+	"r_deluxemapping 0;"	//won't be seen anyway
 	"r_particledesc \"high tsshaft\";"
 	"r_waterstyle 3;"
 	"r_glsl_offsetmapping 1;"
@@ -959,7 +959,7 @@ void M_Menu_Preset_f (void)
 #else
 	bias = 1;
 #endif
-		if (r_deluxmapping_cvar.ival)
+		if (r_deluxemapping_cvar.ival)
 		item = 2;	//nice
 	else if (gl_load24bit.ival)
 		item = 3;	//normal
@@ -1571,7 +1571,7 @@ void M_Menu_Lighting_f (void)
 #endif
 			MB_COMBOCVAR("Lightmap Format", r_lightmap_format, lightmapformatopts, lightmapformatvalues, "Selects which format to use for lightmaps."),
 			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, loadlitvalues, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
-			MB_COMBOCVAR("Deluxmapping", r_deluxmapping_cvar, loadlitopts, loadlitvalues, "Controls whether static lighting should respond to lighting directions."),
+			MB_COMBOCVAR("Deluxemapping", r_deluxemapping_cvar, loadlitopts, loadlitvalues, "Controls whether static lighting should respond to lighting directions."),
 			MB_CHECKBOXCVAR("Lightstyle Lerp", r_lightstylesmooth, 0),
 			MB_SPACING(4),
 			MB_COMBOCVAR("Flash Blend", r_flashblend, fbopts, fbvalues, "Disables or enables the spherical light effect for dynamic lights. Traced means the sphere effect will be line of sight checked before displaying the effect."),

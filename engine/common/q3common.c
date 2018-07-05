@@ -8,10 +8,7 @@
 
 typedef struct {
 	char name[256];
-	char *data;
-	int bufferlen;
-	qofs_t len;
-	qofs_t ofs;
+	vfsfile_t *file;
 	int accessmode;
 	int owner;
 } vm_fopen_files_t;
@@ -20,7 +17,6 @@ vm_fopen_files_t vm_fopen_files[MAX_VM_FILES];
 qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner)
 {
 	int i;
-	size_t insize;
 
 	if (!handle)
 		return !!FS_FLocateFile(name, FSLF_IFFOUND, NULL);
@@ -28,7 +24,7 @@ qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner)
 	*handle = 0;
 
 	for (i = 0; i < MAX_VM_FILES; i++)
-		if (!vm_fopen_files[i].data)
+		if (!vm_fopen_files[i].file)
 			break;
 
 	if (i == MAX_VM_FILES)	//too many already open
@@ -46,39 +42,27 @@ qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner)
 	switch (fmode)
 	{
 	case VM_FS_READ:
-		vm_fopen_files[i].data = FS_LoadMallocFile(name, &insize);
-		vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = insize;
-		vm_fopen_files[i].ofs = 0;
-		if (vm_fopen_files[i].data)
-			break;
-		else
-			return -1;
+		vm_fopen_files[i].file = FS_OpenVFS(name, "rb", FS_GAME);
 		break;
-		/*
 	case VM_FS_APPEND:
-	case VM_FS_APPEND2:
-		vm_fopen_files[i].data = FS_LoadMallocFile(name);
-		vm_fopen_files[i].ofs = vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = com_filesize;
-		if (vm_fopen_files[i].data)
-			break;
-		//fall through
-	case VM_FS_WRITE:
-		vm_fopen_files[i].bufferlen = 8192;
-		vm_fopen_files[i].data = BZ_Malloc(vm_fopen_files[i].bufferlen);
-		vm_fopen_files[i].len = 0;
-		vm_fopen_files[i].ofs = 0;
+	case VM_FS_APPEND_SYNC:
+		vm_fopen_files[i].file = FS_OpenVFS(name, "ab", FS_GAMEONLY);
 		break;
-		*/
+	case VM_FS_WRITE:
+		vm_fopen_files[i].file = FS_OpenVFS(name, "wb", FS_GAMEONLY);
+		break;
 	default: //bad
 		return -1;
 	}
+	if (!vm_fopen_files[i].file)
+		return -1;
 
 	Q_strncpyz(vm_fopen_files[i].name, name, sizeof(vm_fopen_files[i].name));
 	vm_fopen_files[i].accessmode = fmode;
 	vm_fopen_files[i].owner = owner;
 
 	*handle = i+1;
-	return vm_fopen_files[i].len;
+	return VFS_GETLEN(vm_fopen_files[i].file);
 }
 
 void VM_fclose (int fnum, int owner)
@@ -91,22 +75,10 @@ void VM_fclose (int fnum, int owner)
 	if (vm_fopen_files[fnum].owner != owner)
 		return;	//cgs?
 
-	if (!vm_fopen_files[fnum].data)
+	if (!vm_fopen_files[fnum].file)
 		return;	//not open
-
-	switch(vm_fopen_files[fnum].accessmode)
-	{
-	case VM_FS_READ:
-		BZ_Free(vm_fopen_files[fnum].data);
-		break;
-	case VM_FS_WRITE:
-	case VM_FS_APPEND:
-	case VM_FS_APPEND2:
-		COM_WriteFile(vm_fopen_files[fnum].name, FS_GAMEONLY, vm_fopen_files[fnum].data, vm_fopen_files[fnum].len);
-		BZ_Free(vm_fopen_files[fnum].data);
-		break;
-	}
-	vm_fopen_files[fnum].data = NULL;
+	VFS_CLOSE(vm_fopen_files[fnum].file);
+	vm_fopen_files[fnum].file = NULL;
 }
 
 int VM_FRead (char *dest, int quantity, int fnum, int owner)
@@ -118,76 +90,68 @@ int VM_FRead (char *dest, int quantity, int fnum, int owner)
 	if (vm_fopen_files[fnum].owner != owner)
 		return 0;	//cgs?
 
-	if (!vm_fopen_files[fnum].data)
+	if (!vm_fopen_files[fnum].file)
 		return 0;	//not open
-
-	if (quantity > vm_fopen_files[fnum].len - vm_fopen_files[fnum].ofs)
-		quantity = vm_fopen_files[fnum].len - vm_fopen_files[fnum].ofs;
-	memcpy(dest, vm_fopen_files[fnum].data + vm_fopen_files[fnum].ofs, quantity);
-	vm_fopen_files[fnum].ofs += quantity;
-
-	return quantity;
+	if (!vm_fopen_files[fnum].file->ReadBytes)
+		return 0;
+	return VFS_READ(vm_fopen_files[fnum].file, dest, quantity);
 }
 int VM_FWrite (const char *dest, int quantity, int fnum, int owner)
 {
-/*
-	int fnum = G_FLOAT(OFS_PARM0);
-	char *msg = PF_VarString(prinst, 1, pr_globals);
-	int len = strlen(msg);
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
-		return;	//out of range
+	fnum--;
+	if (fnum < 0 || fnum >= MAX_VM_FILES)
+		return 0;	//out of range
 
-	if (!pf_fopen_files[fnum].data)
-		return;	//not open
+	if (vm_fopen_files[fnum].owner != owner)
+		return 0;	//cgs?
 
-	if (pf_fopen_files[fnum].prinst != prinst)
-		return;	//this just isn't ours.
+	if (!vm_fopen_files[fnum].file)
+		return 0;	//not open
+	if (!vm_fopen_files[fnum].file->WriteBytes)
+		return 0;
+	quantity = VFS_WRITE(vm_fopen_files[fnum].file, dest, quantity);
 
-	if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
-	{
-		char *newbuf;
-		pf_fopen_files[fnum].bufferlen = pf_fopen_files[fnum].bufferlen*2 + len;
-		newbuf = BZF_Malloc(pf_fopen_files[fnum].bufferlen);
-		memcpy(newbuf, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
-		BZ_Free(pf_fopen_files[fnum].data);
-		pf_fopen_files[fnum].data = newbuf;
-	}
-
-	memcpy(pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, msg, len);
-	if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
-		pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
-	pf_fopen_files[fnum].ofs+=len;
-*/
-	return 0;
+	if (vm_fopen_files[fnum].accessmode == VM_FS_APPEND_SYNC)
+		VFS_FLUSH(vm_fopen_files[fnum].file);
+	return quantity;
 }
 qboolean VM_FSeek (int fnum, qofs_t offset, int seektype, int owner)
 {
+	qofs_t fsize;
 	fnum--;
 	if (fnum < 0 || fnum >= MAX_VM_FILES)
 		return false;	//out of range
 	if (vm_fopen_files[fnum].owner != owner)
 		return false;	//cgs?
-	if (!vm_fopen_files[fnum].data)
+	if (!vm_fopen_files[fnum].file)
 		return false;	//not open
-
-	switch(seektype)
+	switch(vm_fopen_files[fnum].file->seekstyle)
 	{
-	case 0:
-		offset = vm_fopen_files[fnum].ofs + offset;
-	case 1:
-		offset = vm_fopen_files[fnum].len + offset;
-		break;
-	default:
-	case 2:
-		//offset = 0 + offset;
-		break;
+	case SS_SEEKABLE:
+	case SS_SLOW:
+		fsize = VFS_GETLEN(vm_fopen_files[fnum].file);	//can't cache it if we're writing
+		switch(seektype)
+		{
+		case 0:
+			offset += VFS_TELL(vm_fopen_files[fnum].file);
+			return 0;
+		case 1:
+			offset += fsize;
+			break;
+		default:
+		case 2:
+			offset += 0;
+			break;
+		}
+		if (offset > fsize)
+			return false;
+		VFS_SEEK(vm_fopen_files[fnum].file, offset);
+		return true;
+	case SS_PIPE:
+	case SS_UNSEEKABLE:
+		return false;
 	}
-//	if (offset < 0)
-//		offset = 0;
-	if (offset > vm_fopen_files[fnum].len)
-		offset = vm_fopen_files[fnum].len;
-	vm_fopen_files[fnum].ofs = offset;
-	return true;
+	return false;	//should be unreachable.
 }
 qofs_t VM_FTell (int fnum, int owner)
 {
@@ -196,10 +160,10 @@ qofs_t VM_FTell (int fnum, int owner)
 		return 0;	//out of range
 	if (vm_fopen_files[fnum].owner != owner)
 		return 0;	//cgs?
-	if (!vm_fopen_files[fnum].data)
+	if (!vm_fopen_files[fnum].file)
 		return 0;	//not open
 
-	return vm_fopen_files[fnum].ofs;
+	return VFS_TELL(vm_fopen_files[fnum].file);
 }
 void VM_fcloseall (int owner)
 {
@@ -370,16 +334,14 @@ int VMQ3_Cvar_Register(q3vmcvar_t *v, char *name, char *defval, int flags)
 	if ((flags & CVAR_USERINFO) && !(c->flags & CVAR_USERINFO))
 	{
 		c->flags |= CVAR_USERINFO;
-		Info_SetValueForKey(cls.userinfo[0], c->name, c->string, sizeof(cls.userinfo[0]));
-		cls.resendinfo = true;
+		InfoBuf_SetKey(&cls.userinfo[0], c->name, c->string);
 	}
 #endif
 #ifndef CLIENTONLY
 	if ((flags & CVAR_SERVERINFO) && !(c->flags & CVAR_SERVERINFO))
 	{
 		c->flags |= CVAR_SERVERINFO;
-		Info_SetValueForKey (svs.info, c->name, c->string, MAX_SERVERINFO_STRING);
-		SV_SendServerInfoChange(c->name, c->string);
+		InfoBuf_SetKey (&svs.info, c->name, c->string);
 	}
 #endif
 	for (i = 0; i < MAX_VMQ3_CVARS; i++)

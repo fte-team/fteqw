@@ -1353,16 +1353,23 @@ static const char *glsl_hdrs[] =
 			"uniform samplerCube s_reflectcube;"
 			"uniform sampler2D s_reflectmask;"
 			"uniform sampler2D s_lightmap;"
-			"uniform sampler2D s_deluxmap;"
+			"uniform sampler2D s_deluxemap;"
 			"\n#define s_lightmap0 s_lightmap\n"
-			"#define s_deluxmap0 s_deluxmap\n"
+			"#define s_deluxemap0 s_deluxemap\n"
 #if MAXRLIGHTMAPS > 1
 			"uniform sampler2D s_lightmap1;"
 			"uniform sampler2D s_lightmap2;"
 			"uniform sampler2D s_lightmap3;"
-			"uniform sampler2D s_deluxmap1;"
-			"uniform sampler2D s_deluxmap2;"
-			"uniform sampler2D s_deluxmap3;\n"
+			"uniform sampler2D s_deluxemap1;"
+			"uniform sampler2D s_deluxemap2;"
+			"uniform sampler2D s_deluxemap3;\n"
+
+			//FIXME: remove these some time.
+//			"#define s_deluxmap s_deluxemap\n"
+//			"#define s_deluxmap0 s_deluxemap0\n"
+//			"#define s_deluxmap1 s_deluxemap1\n"
+//			"#define s_deluxmap2 s_deluxemap2\n"
+//			"#define s_deluxmap3 s_deluxemap3\n"
 #endif
 #endif
 			"#ifdef USEUBOS\n"
@@ -2107,14 +2114,14 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				"uniform samplerCube s_reflectcube;\n",
 				"uniform sampler2D s_reflectmask;\n",
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
-				"uniform sampler2D s_deluxmap;\n#define s_deluxmap0 s_deluxmap\n",
+				"uniform sampler2D s_deluxemap;\n#define s_deluxemap0 s_deluxemap\n",
 
 				"uniform sampler2D s_lightmap1;\n",
 				"uniform sampler2D s_lightmap2;\n",
 				"uniform sampler2D s_lightmap3;\n",
-				"uniform sampler2D s_deluxmap1;\n",
-				"uniform sampler2D s_deluxmap2;\n",
-				"uniform sampler2D s_deluxmap3;\n",
+				"uniform sampler2D s_deluxemap1;\n",
+				"uniform sampler2D s_deluxemap2;\n",
+				"uniform sampler2D s_deluxemap3;\n",
 			};
 			for (i = 0; i < countof(defaultsamplernames); i++)
 			{

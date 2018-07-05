@@ -1416,23 +1416,23 @@ void CL_UpdateSeats(void)
 		{
 			char *ver;
 			char buffer[2048];
-			char newinfo[2048];
-			Q_strncpyz(newinfo, cls.userinfo[cl.splitclients], sizeof(newinfo));
+			char infostr[2048];
+			infobuf_t *info = &cls.userinfo[cl.splitclients];
 
 			//some userinfos should always have a value
-			if (!*Info_ValueForKey(newinfo, "name"))	//$name-2
-				Info_SetValueForKey(newinfo, "name", va("%s-%i\n", Info_ValueForKey(cls.userinfo[0], "name"), cl.splitclients+1), sizeof(newinfo));
+			if (!*InfoBuf_ValueForKey(info, "name"))	//$name-2
+				InfoBuf_SetKey(info, "name", va("%s-%i\n", InfoBuf_ValueForKey(&cls.userinfo[0], "name"), cl.splitclients+1));
 			if (cls.protocol != CP_QUAKE2)
 			{
-				if (!*Info_ValueForKey(newinfo, "team"))	//put players on the same team by default. this avoids team damage in coop, and if you're playing on the same computer then you probably want to be on the same team anyway.
-					Info_SetValueForKey(newinfo, "team", Info_ValueForKey(cls.userinfo[0], "team"), sizeof(newinfo));
-				if (!*Info_ValueForKey(newinfo, "bottomcolor"))	//bottom colour implies team in nq
-					Info_SetValueForKey(newinfo, "bottomcolor", Info_ValueForKey(cls.userinfo[0], "bottomcolor"), sizeof(newinfo));
-				if (!*Info_ValueForKey(newinfo, "topcolor"))	//should probably pick a random top colour or something
-					Info_SetValueForKey(newinfo, "topcolor", Info_ValueForKey(cls.userinfo[0], "topcolor"), sizeof(newinfo));
+				if (!*InfoBuf_ValueForKey(info, "team"))	//put players on the same team by default. this avoids team damage in coop, and if you're playing on the same computer then you probably want to be on the same team anyway.
+					InfoBuf_SetKey(info, "team", InfoBuf_ValueForKey(&cls.userinfo[0], "team"));
+				if (!*InfoBuf_ValueForKey(info, "bottomcolor"))	//bottom colour implies team in nq
+					InfoBuf_SetKey(info, "bottomcolor", InfoBuf_ValueForKey(&cls.userinfo[0], "bottomcolor"));
+				if (!*InfoBuf_ValueForKey(info, "topcolor"))	//should probably pick a random top colour or something
+					InfoBuf_SetKey(info, "topcolor", InfoBuf_ValueForKey(&cls.userinfo[0], "topcolor"));
 			}
-			if (!*Info_ValueForKey(newinfo, "skin"))	//give players the same skin by default, because we can. q2 cares for teams. qw might as well (its not like anyone actually uses them thanks to enemy-skin forcing).
-				Info_SetValueForKey(newinfo, "skin", Info_ValueForKey(cls.userinfo[0], "skin"), sizeof(newinfo));
+			if (!*InfoBuf_ValueForKey(info, "skin"))	//give players the same skin by default, because we can. q2 cares for teams. qw might as well (its not like anyone actually uses them thanks to enemy-skin forcing).
+				InfoBuf_SetKey(info, "skin", InfoBuf_ValueForKey(&cls.userinfo[0], "skin"));
 
 #ifdef SVNREVISION
 			if (strcmp(STRINGIFY(SVNREVISION), "-"))
@@ -1440,11 +1440,12 @@ void CL_UpdateSeats(void)
 			else
 #endif
 				ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
-			Info_SetValueForStarKey(newinfo, "*ver", ver, sizeof(newinfo));
+			InfoBuf_SetStarKey(info, "*ver", ver);
+			InfoBuf_ToString(info, infostr, sizeof(infostr), NULL, NULL, NULL, &cls.userinfosync, info);
 
-			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(newinfo, buffer, sizeof(buffer), false));
+			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(infostr, buffer, sizeof(buffer), false));
 		}
-		else if (cl.splitclients > targ)
+		else if (cl.splitclients > targ && targ >= 1)
 			CL_SendClientCommand(true, "addseat %i", targ);
 	}
 }
@@ -1509,13 +1510,6 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 		//q2admin is retarded and kicks you if you get a stall.
 		if (cmd->msec > 100)
 			cmd->msec = 100;
-
-		if (cls.resendinfo)
-		{
-			MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-			MSG_WriteString (&cls.netchan.message, cls.userinfo[seat]);
-			cls.resendinfo = false;
-		}
 
 		MSG_WriteByte (buf, clcq2_move);
 
@@ -1701,6 +1695,96 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 		CL_UpdateSeats();
 
 	return dontdrop;
+}
+
+static void CL_SendUserinfoUpdate(void)
+{
+	const char *key = cls.userinfosync.keys[0].name;
+	infobuf_t *info = cls.userinfosync.keys[0].context;
+	size_t bloboffset = cls.userinfosync.keys[0].syncpos;
+	unsigned int seat = info - cls.userinfo;
+	size_t blobsize;
+	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize);
+	size_t sendsize = blobsize - bloboffset;
+
+	const char *s;
+	qboolean final = true;
+	char enckey[2048];
+	char encval[2048];
+	//handle splitscreen
+	char pl[64];
+
+	if (seat)
+		Q_snprintfz(pl, sizeof(pl), "%i ", seat);
+	else
+		*pl = 0;
+
+#ifdef Q3CLIENT
+	if (cls.protocol == CP_QUAKE3)
+	{	//q3 sends it all in one go
+		char userinfo[2048];
+		InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
+		CLQ3_SendClientCommand("userinfo \"%s\"", userinfo);
+		InfoSync_Strip(&cls.userinfosync, info);	//can't track this stuff. all or nothing.
+		return;
+	}
+#endif
+#ifdef Q2CLIENT
+	if (cls.protocol == CP_QUAKE2 && !cls.fteprotocolextensions)
+	{
+		char userinfo[2048];
+		InfoSync_Strip(&cls.userinfosync, info);	//can't track this stuff. all or nothing.
+		InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
+
+		MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
+		SZ_Write(&cls.netchan.message, pl, strlen(pl));
+		MSG_WriteString (&cls.netchan.message, userinfo);
+		return;
+	}
+#endif
+
+	if (seat < max(1,cl.splitclients))
+	{
+		if (sendsize > 1023)
+		{
+			final = false;
+			sendsize = 1023;	//should be a multiple of 3
+		}
+
+		if (!InfoBuf_EncodeString(key, strlen(key), enckey, sizeof(enckey)) ||
+			!InfoBuf_EncodeString(blobdata+bloboffset, sendsize, encval, sizeof(encval)))
+		{	//some buffer wasn't big enough... shouldn't happen.
+			InfoSync_Remove(&cls.userinfosync, 0);
+			return;
+		}
+
+		if (final && !bloboffset && *encval != '\xff' && *encval != '\xff')
+		{	//vanilla-compatible info.
+			s = va("%ssetinfo \"%s\" \"%s\"", pl, enckey, encval);
+		}
+		else if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
+		{	//only flood servers that actually support it.
+			if (final)
+				s = va("%ssetinfo \"%s\" \"%s\" %u", pl, enckey, encval, bloboffset);
+			else
+				s = va("%ssetinfo \"%s\" \"%s\" %u+", pl, enckey, encval, bloboffset);
+		}
+		else
+		{	//server doesn't support it, just ignore the key
+			InfoSync_Remove(&cls.userinfosync, 0);
+			return;
+		}
+		if (cls.protocol == CP_QUAKE2)
+			MSG_WriteByte (&cls.netchan.message, clcq2_stringcmd);
+		else
+			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString (&cls.netchan.message, s);
+	}
+
+	if (bloboffset+sendsize == blobsize)
+		InfoSync_Remove(&cls.userinfosync, 0);
+	else
+		cls.userinfosync.keys[0].syncpos += sendsize;
 }
 
 void CL_SendCmd (double frametime, qboolean mainloop)
@@ -2001,6 +2085,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			Z_Free(clientcmdlist);
 			clientcmdlist = next;
 		}
+
+		//only start spamming userinfo blobs once we receive the initial serverinfo.
+		while (cls.userinfosync.numkeys && cls.netchan.message.cursize < 512 && (cl.haveserverinfo || cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3))
+			CL_SendUserinfoUpdate();
 	}
 
 	// if we're not doing clc_moves and etc, don't continue unless we wrote something previous

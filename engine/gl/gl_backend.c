@@ -24,7 +24,6 @@ extern cvar_t gl_overbright;
 extern cvar_t r_tessellation;
 extern cvar_t r_wireframe;
 extern cvar_t r_refract_fbo;
-extern cvar_t r_refractreflect_scale;
 
 extern texid_t missing_texture;
 extern texid_t missing_texture_gloss;
@@ -5132,7 +5131,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 			if ((bs->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
-				float renderscale = r_refractreflect_scale.value;
+				float renderscale = bs->portalfboscale;
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
 				if (!shaderstate.tex_reflection[r_refdef.recurse])
@@ -5155,7 +5154,13 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					shaderstate.tex_reflection[r_refdef.recurse]->width = r_refdef.pxrect.width;
 					shaderstate.tex_reflection[r_refdef.recurse]->height = r_refdef.pxrect.height;
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection[r_refdef.recurse]);
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+					if ((vid.flags&VID_FP16) && sh_config.texfmt[PTI_RGBA16F])
+						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					else if ((vid.flags&(VID_SRGBAWARE|VID_FP16)) && sh_config.texfmt[PTI_RGBA8_SRGB])
+						qglTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8_EXT, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					else
+						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -5177,7 +5182,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			{
 				if (r_refract_fboival || (bs->flags&SHADER_HASPORTAL))
 				{
-					float renderscale = min(1, r_refractreflect_scale.value);
+					float renderscale = min(1, bs->portalfboscale);
 					vrect_t ovrect = r_refdef.vrect;
 					pxrect_t oprect = r_refdef.pxrect;
 					r_refdef.vrect.x = 0;
@@ -5200,7 +5205,12 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 						shaderstate.tex_refraction[r_refdef.recurse]->width = r_refdef.pxrect.width;
 						shaderstate.tex_refraction[r_refdef.recurse]->height = r_refdef.pxrect.height;
 						GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction[r_refdef.recurse]);
-						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+						if ((vid.flags&VID_FP16) && sh_config.texfmt[PTI_RGBA16F])
+							qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+						else if ((vid.flags&(VID_SRGBAWARE|VID_FP16)) && sh_config.texfmt[PTI_RGBA16F])
+							qglTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8_EXT, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+						else
+							qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -5252,7 +5262,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			}
 			if ((bs->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
-				float renderscale = r_refractreflect_scale.value;
+				float renderscale = bs->portalfboscale;
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
 				r_refdef.vrect.x = 0;

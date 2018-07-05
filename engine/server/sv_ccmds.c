@@ -579,7 +579,7 @@ void SV_Map_f (void)
 		if (!startspot)
 		{
 			//revert the startspot if its not overridden
-			Q_strncpyz(spot, Info_ValueForKey(svs.info, "*startspot"), sizeof(spot));
+			Q_strncpyz(spot, InfoBuf_ValueForKey(&svs.info, "*startspot"), sizeof(spot));
 			startspot = spot;
 		}
 	}
@@ -664,7 +664,7 @@ void SV_Map_f (void)
 	if (!isDedicated)	//otherwise, info used on map loading isn't present
 	{
 		cl.haveserverinfo = true;
-		Q_strncpyz (cl.serverinfo, svs.info, sizeof(cl.serverinfo));
+		InfoBuf_Clone(&cl.serverinfo, &svs.info);
 		CL_CheckServerInfo();
 	}
 
@@ -1100,9 +1100,9 @@ void SV_EvaluatePenalties(client_t *cl)
 	}
 
 	if (delta & BAN_VIP)
-		Info_SetValueForStarKey(cl->userinfo, "*VIP", (cl->penalties & BAN_VIP)?"1":"", sizeof(cl->userinfo));
+		InfoBuf_SetStarKey(&cl->userinfo, "*VIP", (cl->penalties & BAN_VIP)?"1":"");
 	if (delta & BAN_MAPPER)
-		Info_SetValueForStarKey(cl->userinfo, "*mapper", (cl->penalties & BAN_MAPPER)?"1":"", sizeof(cl->userinfo));
+		InfoBuf_SetStarKey(&cl->userinfo, "*mapper", (cl->penalties & BAN_MAPPER)?"1":"");
 }
 
 static time_t reevaluatebantime;
@@ -1623,7 +1623,7 @@ static void SV_ForceName_f (void)
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		Info_SetValueForKey(cl->userinfo, "name", Cmd_Argv(2), EXTENDED_INFO_STRING);
+		InfoBuf_SetKey(&cl->userinfo, "name", Cmd_Argv(2));
 		SV_LogPlayer(cl, "name forced");
 		SV_ExtractFromUserinfo(cl, true);
 		Q_strncpyz(cl->name, Cmd_Argv(2), sizeof(cl->namebuf));
@@ -2192,51 +2192,6 @@ static void SV_Heartbeat_f (void)
 	SV_Master_ReResolve();
 }
 
-#define FOREACHCLIENT(i,cl)	\
-for (i = sv.mvdrecording?-1:0; i < sv.allocated_client_slots; i++)	\
-if ((cl = (i==-1?&demo.recorder:&svs.clients[i])))	\
-if ((i == -1) || cl->state >= cs_connected)
-
-void SV_SendServerInfoChange(const char *key, const char *value)
-{
-	int i;
-	client_t *cl;
-
-	if (!sv.state)
-		return;
-
-#ifdef Q2SERVER
-	if (svs.gametype == GT_QUAKE2)
-		return;	//FIXME!!!
-#endif
-#ifdef Q3SERVER
-	if (svs.gametype == GT_QUAKE3)
-		return;	//FIXME!!!
-#endif
-
-	FOREACHCLIENT(i, cl)
-	{
-		if (cl->controller)
-			continue;
-
-		if (ISQWCLIENT(cl))
-		{
-			ClientReliableWrite_Begin(cl, svc_serverinfo, strlen(key) + strlen(value)+3);
-			ClientReliableWrite_String(cl, key);
-			ClientReliableWrite_String(cl, value);
-		}
-		else if (ISNQCLIENT(cl) && (cl->fteprotocolextensions2 & PEXT2_PREDINFO))
-		{
-			ClientReliableWrite_Begin(cl, svc_stufftext, 1+6+strlen(key)+2+strlen(value)+3);
-			ClientReliableWrite_SZ(cl, "//svi ", 6);
-			ClientReliableWrite_SZ(cl, key, strlen(key));
-			ClientReliableWrite_SZ(cl, " \"", 2);
-			ClientReliableWrite_SZ(cl, value, strlen(value));
-			ClientReliableWrite_String(cl, "\"\n");
-		}
-	}
-}
-
 /*
 ===========
 SV_Serverinfo_f
@@ -2253,7 +2208,7 @@ void SV_Serverinfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		Con_TPrintf ("Server info settings:\n");
-		Info_Print (svs.info, "");
+		InfoBuf_Print (&svs.info, "");
 		return;
 	}
 
@@ -2268,18 +2223,18 @@ void SV_Serverinfo_f (void)
 		if (!strcmp(Cmd_Argv(1), "*"))
 			if (!strcmp(Cmd_Argv(2), ""))
 			{	//clear it out
-				char *k;
+				const char *k;
 				for(i=0;;)
 				{
-					k = Info_KeyForNumber(svs.info, i);
-					if (!*k)
+					k = InfoBuf_KeyForNumber(&svs.info, i);
+					if (!k)
 						break;	//no more.
 					else if (*k == '*')
 						i++;	//can't remove * keys
 					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_SERVERINFO)
 						i++;	//this one is a cvar.
 					else
-						Info_RemoveKey(svs.info, k);	//we can remove this one though, so yay.
+						InfoBuf_RemoveKey(&svs.info, k);	//we can remove this one though, so yay.
 				}
 
 				return;
@@ -2287,15 +2242,34 @@ void SV_Serverinfo_f (void)
 		Con_Printf ("Can't set * keys\n");
 		return;
 	}
-	Q_strncpyz(value, Cmd_Argv(2), sizeof(value));
-	value[sizeof(value)-1] = '\0';
-	for (i = 3; i < Cmd_Argc(); i++)
-	{
-		strncat(value, " ", sizeof(value)-1);
-		strncat(value, Cmd_Argv(i), sizeof(value)-1);
-	}
 
-	Info_SetValueForKey (svs.info, Cmd_Argv(1), value, MAX_SERVERINFO_STRING);
+	if (!strcmp(Cmd_Argv(0), "serverinfoblob"))
+	{
+		qofs_t fsize;
+		char *data = FS_MallocFile(Cmd_Argv(2), FS_GAME, &fsize);
+		if (!data)
+		{
+			Con_Printf ("Unable to read %s\n", Cmd_Argv(2));
+			return;
+		}
+		if (fsize > 64*1024*1024)
+			Con_Printf ("File is over 64mb\n");
+		else
+			InfoBuf_SetStarBlobKey(&svs.info, Cmd_Argv(1), data, fsize);
+		FS_FreeFile(data);
+	}
+	else
+	{
+		Q_strncpyz(value, Cmd_Argv(2), sizeof(value));
+		value[sizeof(value)-1] = '\0';
+		for (i = 3; i < Cmd_Argc(); i++)
+		{
+			strncat(value, " ", sizeof(value)-1);
+			strncat(value, Cmd_Argv(i), sizeof(value)-1);
+		}
+
+		InfoBuf_SetValueForKey (&svs.info, Cmd_Argv(1), value);
+	}
 
 	// if this is a cvar, change it too
 	var = Cvar_FindVar (Cmd_Argv(1));
@@ -2306,8 +2280,6 @@ void SV_Serverinfo_f (void)
 		var->string = Z_StrDup (value);
 		var->value = Q_atof (var->string);
 */	}
-
-	SV_SendServerInfoChange(Cmd_Argv(1), value);
 }
 
 
@@ -2325,7 +2297,7 @@ static void SV_Localinfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		Con_TPrintf ("Local info settings:\n");
-		Info_Print (localinfo, "");
+		InfoBuf_Print (&svs.localinfo, "");
 		return;
 	}
 
@@ -2340,14 +2312,14 @@ static void SV_Localinfo_f (void)
 		if (!strcmp(Cmd_Argv(1), "*"))
 			if (!strcmp(Cmd_Argv(2), ""))
 			{	//clear it out
-				Info_RemoveNonStarKeys(localinfo);
+				InfoBuf_Clear(&svs.localinfo, false);
 				return;
 			}
 		Con_Printf ("Can't set * keys\n");
 		return;
 	}
-	old = Info_ValueForKey(localinfo, Cmd_Argv(1));
-	Info_SetValueForKey (localinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_LOCALINFO_STRING);
+	old = InfoBuf_ValueForKey(&svs.localinfo, Cmd_Argv(1));
+	InfoBuf_SetValueForKey (&svs.localinfo, Cmd_Argv(1), Cmd_Argv(2));
 
 	PR_LocalInfoChanged(Cmd_Argv(1), old, Cmd_Argv(2));
 
@@ -2358,10 +2330,10 @@ void SV_SaveInfos(vfsfile_t *f)
 {
 	VFS_WRITE(f, "\n", 1);
 	VFS_WRITE(f, "serverinfo * \"\"\n", 16);
-	Info_WriteToFile(f, svs.info, "serverinfo", CVAR_SERVERINFO);
+	InfoBuf_WriteToFile(f, &svs.info, "serverinfo", CVAR_SERVERINFO);
 	VFS_WRITE(f, "\n", 1);
 	VFS_WRITE(f, "localinfo * \"\"\n", 15);
-	Info_WriteToFile(f, localinfo, "localinfo", 0);
+	InfoBuf_WriteToFile(f, &svs.localinfo, "localinfo", 0);
 }
 
 /*
@@ -2390,7 +2362,7 @@ void SV_User_f (void)
 											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords", 
 											"OLD vweap",	"q2bsp",	"q3bsp",			"colormod",		"splitscreen",	"hexen2",		"spawnstatic2",		"customtempeffects",
 											"packents",		"UNKNOWN",	"showpic",			"setattachment","UNKNOWN",		"chunkeddls",	"csqc",				"dpflags"};
-	static const char *pext2names[32] = {	"prydoncursor",	"voip",		"setangledelta",	"rplcdeltas",	"maxplayers",	"predinfo",		"sizeenc",			"UNKNOWN",
+	static const char *pext2names[32] = {	"prydoncursor",	"voip",		"setangledelta",	"rplcdeltas",	"maxplayers",	"predinfo",		"sizeenc",			"infoblobs",
 											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN", 
 											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN",
 											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN"};
@@ -2405,14 +2377,17 @@ void SV_User_f (void)
 	Con_Printf("Userinfo:\n");
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		Info_Print (cl->userinfo, "  ");
+		InfoBuf_Print (&cl->userinfo, "  ");
 		switch(cl->protocol)
 		{
 		case SCP_BAD:
 			Con_Printf("protocol: bot/invalid\n");
 			break;
-		case SCP_QUAKEWORLD:
-			Con_Printf("protocol: quakeworld\n");
+		case SCP_QUAKEWORLD:	//branding is everything...
+			if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+				Con_Printf("protocol: fteqw-nack\n");
+			else
+				Con_Printf("protocol: quakeworld\n");
 			break;
 		case SCP_QUAKE2:
 			Con_Printf("protocol: quake2\n");
@@ -2421,13 +2396,19 @@ void SV_User_f (void)
 			Con_Printf("protocol: quake3\n");
 			break;
 		case SCP_NETQUAKE:
-			Con_Printf("protocol: (net)quake\n");
+			if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+				Con_Printf("protocol: ftenq-nack\n");
+			else
+				Con_Printf("protocol: (net)quake\n");
 			break;
 		case SCP_BJP3:
 			Con_Printf("protocol: bjp3\n");
 			break;
 		case SCP_FITZ666:
-			Con_Printf("protocol: fitzquake 666\n");
+			if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+				Con_Printf("protocol: fte666-nack\n");
+			else
+				Con_Printf("protocol: fitzquake 666\n");
 			break;
 		case SCP_DARKPLACES6:
 			Con_Printf("protocol: dpp6\n");
@@ -2442,9 +2423,12 @@ void SV_User_f (void)
 
 		if (cl->fteprotocolextensions)
 		{
+			unsigned int effective = cl->fteprotocolextensions;
+			if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)	//these flags were made obsolete. don't list them.
+				effective &= ~(PEXT_SCALE|PEXT_TRANS|PEXT_ACCURATETIMINGS|PEXT_FATNESS|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_COLOURMOD|PEXT_SPAWNSTATIC2|PEXT_SETATTACHMENT|PEXT_DPFLAGS);
 			Con_Printf("pext1:");
 			for (u = 0; u < 32; u++)
-				if (cl->fteprotocolextensions & (1u<<u))
+				if (effective & (1u<<u))
 						Con_Printf(" %s", pext1names[u]);
 			Con_Printf("\n");
 		}
@@ -2520,7 +2504,7 @@ static void SV_Gamedir (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf ("Current gamedir: %s\n", Info_ValueForKey (svs.info, "*gamedir"));
+		Con_TPrintf ("Current gamedir: %s\n", InfoBuf_ValueForKey (&svs.info, "*gamedir"));
 		return;
 	}
 
@@ -2539,7 +2523,7 @@ static void SV_Gamedir (void)
 		return;
 	}
 
-	Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
+	InfoBuf_SetValueForStarKey (&svs.info, "*gamedir", dir);
 }
 
 static int QDECL CompleteGamedirPath (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -2630,7 +2614,7 @@ static void SV_Gamedir_f (void)
 	else
 	{
 		COM_Gamedir (dir, NULL);
-		Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey (&svs.info, "*gamedir", dir);
 	}
 	Z_Free(dir);
 }
@@ -3004,6 +2988,7 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("sayone", SV_ConSayOne_f);
 		Cmd_AddCommand ("tell", SV_ConSayOne_f);
 		Cmd_AddCommand ("serverinfo", SV_Serverinfo_f);	//commands that conflict with client commands.
+		Cmd_AddCommand ("serverinfoblob", SV_Serverinfo_f);	//commands that conflict with client commands.
 		Cmd_AddCommand ("user", SV_User_f);
 
 		Cmd_AddCommand ("god", SV_God_f);

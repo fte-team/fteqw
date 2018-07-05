@@ -111,7 +111,7 @@ typedef struct {
 	const char					*engine_version;
 
 	int (*checkextension)		(const char *ext);
-	void (*error)				(const char *err);
+	void (QDECL *error)			(const char *err, ...);
 	void (*printf)				(const char *text, ...);
 	void (*dprintf)				(const char *text, ...);
 	void (*localcmd)			(const char *cmd);
@@ -129,7 +129,7 @@ typedef struct {
 	void (*localsound)			(const char *sample, int channel, float volume);
 
 	// file input / search crap
-	struct vfsfile_s *(*fopen)	(const char *filename, char *modestring, enum fs_relative fsroot);	//modestring should be one of rb,r+b,wb,w+b,ab,wbp. Mostly use a root of FS_GAMEONLY for writes, otherwise FS_GAME for reads.
+	struct vfsfile_s *(*fopen)	(const char *filename, const char *modestring, enum fs_relative fsroot);	//modestring should be one of rb,r+b,wb,w+b,ab,wbp. Mostly use a root of FS_GAMEONLY for writes, otherwise FS_GAME for reads.
 	void (*fclose)				(struct vfsfile_s *fhandle);
 	char *(*fgets)				(struct vfsfile_s *fhandle, char *out, size_t outsize);	//returns output buffer, or NULL
 	void (*fprintf)				(struct vfsfile_s *fhandle, const char *s, ...);
@@ -142,14 +142,14 @@ typedef struct {
 	qboolean (*drawgetimagesize)(struct shader_s *pic, int *x, int *y);
 	void (*drawquad)			(const vec2_t position[4], const vec2_t texcoords[4], struct shader_s *pic, const vec4_t rgba, unsigned int be_flags);
 
-	float (*drawstring)			(vec2_t position, const char *text, struct font_s *font, float height, const vec4_t rgba, unsigned int be_flags);
+	float (*drawstring)			(const vec2_t position, const char *text, struct font_s *font, float height, const vec4_t rgba, unsigned int be_flags);
 	float (*stringwidth)		(const char *text, struct font_s *font, float height);
 	struct font_s *(*loadfont)	(const char *facename, float intendedheight);	//with ttf fonts, you'll probably want one for each size.
 	void (*destroyfont)			(struct font_s *font);
 
 	// 3D scene stuff
 	struct model_s *(*cachemodel)(const char *name);
-	void (*getmodelsize)		(struct model_s *model, vec3_t out_mins, vec3_t out_maxs);
+	qboolean (*getmodelsize)	(struct model_s *model, vec3_t out_mins, vec3_t out_maxs);
 	void (*renderscene)			(menuscene_t *scene);
 
 	// Menu specific stuff

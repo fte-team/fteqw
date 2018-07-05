@@ -889,10 +889,17 @@ void ResizeBuf(int hand, int newsize)
 }
 void SafeWrite(int hand, const void *buf, long count)
 {
-	if (qccfile[hand].ofs +count >= qccfile[hand].buffsize)
-		ResizeBuf(hand, qccfile[hand].ofs + count+(64*1024));
+	if (qccfile[hand].stdio)
+	{
+		fwrite(buf, 1, count, qccfile[hand].stdio);
+	}
+	else
+	{
+		if (qccfile[hand].ofs +count >= qccfile[hand].buffsize)
+			ResizeBuf(hand, qccfile[hand].ofs + count+(64*1024));
 
-	memcpy(&qccfile[hand].buff[qccfile[hand].ofs], buf, count);
+		memcpy(&qccfile[hand].buff[qccfile[hand].ofs], buf, count);
+	}
 	qccfile[hand].ofs+=count;
 	if (qccfile[hand].ofs > qccfile[hand].maxofs)
 		qccfile[hand].maxofs = qccfile[hand].ofs;
@@ -903,7 +910,10 @@ int SafeSeek(int hand, int ofs, int mode)
 		return qccfile[hand].ofs;
 	else
 	{
-		ResizeBuf(hand, ofs+1024);
+		if (qccfile[hand].stdio)
+			fseek(qccfile[hand].stdio, ofs, SEEK_SET);
+		else
+			ResizeBuf(hand, ofs+1024);
 		qccfile[hand].ofs = ofs;
 		if (qccfile[hand].ofs > qccfile[hand].maxofs)
 			qccfile[hand].maxofs = qccfile[hand].ofs;
@@ -1220,7 +1230,7 @@ char *QCC_SanitizeCharSet(char *mem, size_t *len, pbool *freeresult, int *origfm
 
 static unsigned char *PDECL QCC_LoadFileHunk(void *ctx, size_t size)
 {	//2 ensures we can always put a \n in there.
-	return (unsigned char*)qccHunkAlloc(sizeof(qcc_cachedsourcefile_t)+size+2) + sizeof(qcc_cachedsourcefile_t);
+	return (unsigned char*)qccHunkAlloc(sizeof(qcc_cachedsourcefile_t)+strlen(ctx)+size+2) + sizeof(qcc_cachedsourcefile_t) + strlen(ctx);
 }
 
 long	QCC_LoadFile (char *filename, void **bufferptr)
@@ -1234,13 +1244,13 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	int orig;
 	pbool warned = false;
 
-	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len, true);
+	mem = externs->ReadFile(filename, QCC_LoadFileHunk, filename, &len, true);
 	if (!mem)
 	{
 		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
 		return -1;
 	}
-	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t));
+	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t)-strlen(filename));
 	mem[len] = 0;
 
 	mem = QCC_SanitizeCharSet(mem, &len, NULL, &orig);
@@ -1284,10 +1294,10 @@ void	QCC_AddFile (char *filename)
 	char *mem;
 	size_t len;
 
-	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len, false);
+	mem = externs->ReadFile(filename, QCC_LoadFileHunk, filename, &len, false);
 	if (!mem)
 		externs->Abort("failed to find file %s", filename);
-	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t));
+	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t)-strlen(filename));
 	mem[len] = '\0';
 
 	sfile->size = len;

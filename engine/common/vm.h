@@ -87,7 +87,7 @@ void Script_Get_File_And_Line(int handle, char *filename, int *line);
 #define VM_FS_READ 0
 #define VM_FS_WRITE 1
 #define VM_FS_APPEND 2
-#define VM_FS_APPEND2 3	//I don't know, don't ask me. look at q3 source
+#define VM_FS_APPEND_SYNC 3	//I don't know, don't ask me. look at q3 source
 qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner);
 int VM_FRead (char *dest, int quantity, int fnum, int owner);
 int VM_FWrite (const char *dest, int quantity, int fnum, int owner);

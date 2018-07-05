@@ -725,7 +725,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if (defined(CSQC_DAT) || !defined(CLIENTONLY)) && defined(PLUGINS)	//use ode only if we have a constant world state, and the library is enbled in some form.
+#if (defined(CSQC_DAT) || !defined(CLIENTONLY)) && (defined(PLUGINS)||defined(USE_INTERNAL_BULLET)||defined(USE_INTERNAL_ODE))	//use ode only if we have a constant world state, and the library is enbled in some form.
 	#define USERBE
 #endif
 

@@ -647,11 +647,11 @@ void NPP_SetInfo(client_t *cl, char *key, char *value)
 	if (!strcmp(key, "colours"))
 	{
 		i = atoi(value);
-		Info_SetValueForKey (cl->userinfo, "bottomcolor", va("%i", i&15), sizeof(cl->userinfo));
-		Info_SetValueForKey (cl->userinfo, "topcolor", va("%i", i>>4), sizeof(cl->userinfo));
+		InfoBuf_SetKey (&cl->userinfo, "bottomcolor", va("%i", i&15));
+		InfoBuf_SetKey (&cl->userinfo, "topcolor", va("%i", i>>4));
 	}
-	Info_SetValueForKey (cl->userinfo, key, value, sizeof(cl->userinfo));
-	if (!*Info_ValueForKey (cl->userinfo, "name"))
+	InfoBuf_SetKey (&cl->userinfo, key, value);
+	if (!*InfoBuf_ValueForKey (&cl->userinfo, "name"))
 		cl->name[0] = '\0';
 	else // process any changed values
 		SV_ExtractFromUserinfo (cl, false);
@@ -662,19 +662,19 @@ void NPP_SetInfo(client_t *cl, char *key, char *value)
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, i);
 		MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, "bottomcolor"));
+		MSG_WriteString (&sv.reliable_datagram, InfoBuf_ValueForKey(&cl->userinfo, "bottomcolor"));
 
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, i);
 		MSG_WriteString (&sv.reliable_datagram, "topcolor");
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, "topcolor"));
+		MSG_WriteString (&sv.reliable_datagram, InfoBuf_ValueForKey(&cl->userinfo, "topcolor"));
 	}
 	else
 	{
 		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 		MSG_WriteByte (&sv.reliable_datagram, i);
 		MSG_WriteString (&sv.reliable_datagram, key);
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, key));
+		MSG_WriteString (&sv.reliable_datagram, InfoBuf_ValueForKey(&cl->userinfo, key));
 	}
 }
 
@@ -1851,8 +1851,8 @@ void NPP_QWFlush(void)
 			unsigned int j = buffer[1];
 			if (j < sv.allocated_client_slots)
 			{
-				Q_strncpyz(svs.clients[j].userinfo, (buffer+6), sizeof(svs.clients[j].userinfo));
-				if (*Info_ValueForKey(svs.clients[j].userinfo, "name"))
+				InfoBuf_FromString(&svs.clients[j].userinfo, buffer+6, false);
+				if (*InfoBuf_ValueForKey(&svs.clients[j].userinfo, "name"))
 					SV_ExtractFromUserinfo(&svs.clients[j], false);
 				else
 					*svs.clients[j].name = '\0';
@@ -1864,7 +1864,7 @@ void NPP_QWFlush(void)
 			if (j < sv.allocated_client_slots)
 			{
 				*svs.clients[j].name = '\0';
-				*svs.clients[j].userinfo = '\0';
+				InfoBuf_Clear(&svs.clients[j].userinfo, true);
 			}
 		}
 

@@ -1207,7 +1207,6 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	vfsfile_t *f;
 	int len;
 	levelcache_t *cache;
-	char str[MAX_LOCALINFO_STRING+1];
 	char *savefilename;
 
 #ifndef QUAKETC
@@ -1291,13 +1290,9 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 																					//write floats too so you can use it to debug.
 	}
 
-	Q_strncpyz(str, svs.info, sizeof(str));
-	Info_RemovePrefixedKeys(str, '*');
-	VFS_PRINTF (f, "%s\n",	str);
-
-	Q_strncpyz(str, localinfo, sizeof(str));
-	Info_RemovePrefixedKeys(str, '*');
-	VFS_PUTS(f, str);
+	InfoBuf_WriteToFile(f, &svs.info, NULL, 0);
+	VFS_PUTS(f, "\n");
+	InfoBuf_WriteToFile(f, &svs.localinfo, NULL, 0);
 
 	VFS_PRINTF (f, "\n{\n");	//all game vars. FIXME: Should save the ones that have been retrieved/set by progs.
 	VFS_PRINTF (f, "skill			\"%s\"\n",	skill.string);
@@ -1703,9 +1698,8 @@ void SV_Loadgame_f (void)
 	for (trim = str; *trim <= ' ' && *trim; trim++)
 		;
 	Info_RemovePrefixedKeys(str, '*');	//just in case
-	Info_RemoveNonStarKeys(svs.info);
-	len = strlen(svs.info);
-	Q_strncpyz(svs.info+len, str, sizeof(svs.info)-len);
+	InfoBuf_Clear(&svs.info, false);
+	InfoBuf_FromString(&svs.info, str, true);
 
 	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
@@ -1713,9 +1707,8 @@ void SV_Loadgame_f (void)
 	for (trim = str; *trim <= ' ' && *trim; trim++)
 		;
 	Info_RemovePrefixedKeys(str, '*');	//just in case
-	Info_RemoveNonStarKeys(localinfo);
-	len = strlen(localinfo);
-	Q_strncpyz(localinfo+len, str, sizeof(localinfo)-len);
+	InfoBuf_Clear(&svs.localinfo, false);
+	InfoBuf_FromString(&svs.localinfo, str, true);
 
 	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)

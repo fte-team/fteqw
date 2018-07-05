@@ -96,7 +96,7 @@ static void Validation_Version(void)
 	{
 		signed_buffer_t *resp;
 
-		resp = Security_Generate_Crc(cl.playerview[0].playernum, cl.players[cl.playerview[0].playernum].userinfo, cl.serverinfo);
+		resp = NULL;//Security_Generate_Crc(cl.playerview[0].playernum, cl.players[cl.playerview[0].playernum].userinfo, cl.serverinfo);
 		if (!resp || !resp->buf)
 			auth = "";
 		else
@@ -186,7 +186,7 @@ void Validation_CheckIfResponse(char *text)
 	{
 		signed_buffer_t *resp;
 
-		resp = Security_Verify_Response(f_query_client, crc, cl.players[f_query_client].userinfo, cl.serverinfo);
+		resp = NULL;//Security_Verify_Response(f_query_client, crc, cl.players[f_query_client].userinfo, cl.serverinfo);
 
 		if (resp && resp->size && *resp->buf)
 			Con_Printf(CON_NOTICE "Authentication Successful.\n");

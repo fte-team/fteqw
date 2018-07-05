@@ -796,8 +796,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	D3D9_Set2D();
 
-
-
 //	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &width, &height);
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
@@ -1006,10 +1004,12 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 	if (vid_srgb.modified)
 	{
 		vid_srgb.modified = false;
-		vid.flags &= VID_SRGB_FB;
-		if ((vid.flags & VID_SRGBAWARE) || vid_srgb.ival)
+		//VID_SRGBAWARE defines whether textures are meant to be srgb or not.
+		//as it requires a vid_reload, we don't mess with it here.
+		//that said, we can still change srgb freely otherwise.
+		vid.flags &= VID_SRGBAWARE;
+		if ((vid.flags & VID_SRGBAWARE) || vid_srgb.ival<0)
 			vid.flags |= (d3dpp.Windowed)?VID_SRGB_FB_FAKED:VID_SRGB_FB_LINEAR;
-
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, !!(vid.flags&VID_SRGB_FB_LINEAR));
 	}
 
@@ -1182,8 +1182,13 @@ static void	(D3D9_Draw_Init)				(void)
 {
 	{
 		vid_srgb.modified = false;
-		vid.flags &= VID_SRGB_FB;
-		if ((vid.flags & VID_SRGBAWARE) || vid_srgb.ival)
+		//VID_SRGBAWARE defines whether textures are meant to be srgb or not.
+		//we're doing a vid_reload here, so we can change it here easily enough
+		if (vid_srgb.ival > 0)	//d3d9 does srgb using post-process stuff for us.
+			vid.flags |= VID_SRGBAWARE;
+		else
+			vid.flags = 0;
+		if ((vid.flags & VID_SRGBAWARE) || vid_srgb.ival<0)
 			vid.flags |= (d3dpp.Windowed)?VID_SRGB_FB_FAKED:VID_SRGB_FB_LINEAR;
 
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, !!(vid.flags&VID_SRGB_FB_LINEAR));
@@ -1351,6 +1356,7 @@ rendererinfo_t d3d9rendererinfo =
 		"D3D",
 		"Direct3d",
 		"DirectX",
+		"2"	//this is evil, but worth a laugh.
 	},
 	QR_DIRECT3D9,
 

@@ -9,7 +9,7 @@
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_tessellation_level=5
-!!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3
+!!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3 deluxemap deluxemap1 deluxemap2 deluxemap3
 
 #include "sys/defs.h"
 
@@ -271,16 +271,16 @@ void main ()
 	#else
 	vec3 lightmaps = vc.rgb;
 	#endif
-	#define delux vec3(0.0,0.0,1.0)
+	#define deluxe vec3(0.0,0.0,1.0)
 #else
 	#ifdef LIGHTSTYLED
-		#define delux vec3(0.0,0.0,1.0)
+		#define deluxe vec3(0.0,0.0,1.0)
 		vec3 lightmaps;
 		#ifdef DELUXE
-			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);
-			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxmap1, lm1).rgb-0.5);
-			lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxmap2, lm2).rgb-0.5);
-			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxmap3, lm3).rgb-0.5);
+			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxemap0, lm0).rgb-0.5);
+			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxemap1, lm1).rgb-0.5);
+			lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxemap2, lm2).rgb-0.5);
+			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxemap3, lm3).rgb-0.5);
 		#else
 			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb;
 			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb;
@@ -291,15 +291,15 @@ void main ()
 		vec3 lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 		//modulate by the  bumpmap dot light
 		#ifdef DELUXE
-			vec3 delux = (texture2D(s_deluxmap, lm0).rgb-0.5);
+			vec3 deluxe = (texture2D(s_deluxemap, lm0).rgb-0.5);
 			#ifdef BUMPMODELSPACE
-				delux = normalize(delux*invsurface);
+				deluxe = normalize(deluxe*invsurface);
 #else
-				lightmaps *= 2.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
+				lightmaps *= 2.0 / max(0.25, deluxe.z);	//counter the darkening from deluxemaps
 			#endif
-			lightmaps *= dot(norm, delux);
+			lightmaps *= dot(norm, deluxe);
 		#else
-			#define delux vec3(0.0,0.0,1.0)
+			#define deluxe vec3(0.0,0.0,1.0)
 		#endif
 	#endif
 #endif
@@ -307,7 +307,7 @@ void main ()
 //add in specular, if applicable.
 #ifdef SPECULAR
 	vec4 specs = texture2D(s_specular, tc);
-	vec3 halfdir = normalize(normalize(eyevector) + delux);	//this norm should be the deluxemap info instead
+	vec3 halfdir = normalize(normalize(eyevector) + deluxe);	//this norm should be the deluxemap info instead
 	float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * specs.a);
 	spec *= FTE_SPECULAR_MULTIPLIER;
 //NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.

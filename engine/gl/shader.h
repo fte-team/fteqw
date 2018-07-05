@@ -592,6 +592,7 @@ struct shader_s
 	byte_vec4_t fog_color;
 	float fog_dist;
 	float portaldist;
+	float portalfboscale;	//if we're using texturemaps for portal recursion, this is the scale of the texture relative to the screen.
 
 	int numdeforms;
 	deformv_t	deforms[SHADER_DEFORM_MAX];
@@ -714,6 +715,7 @@ void Shader_RemapShader_f(void);
 void Shader_ShowShader_f(void);
 
 program_t *Shader_FindGeneric(char *name, int qrtype);
+const char *Shader_NameForGeneric(program_t *prog);
 void Shader_ReleaseGeneric(program_t *prog);
 
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
@@ -838,7 +840,11 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo);
 void GLBE_EndShadowMap(int restorefbo);
 void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale);
 
-
+qboolean GLVID_ApplyGammaRamps (unsigned int size, unsigned short *ramps);	//called when gamma ramps need to be reapplied
+qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);		//the platform-specific function to init gl state
+void GLVID_SwapBuffers(void);
+char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum uploadfmt *fmt);
+void GLVID_SetCaption(const char *caption);
 #endif
 #ifdef D3D8QUAKE
 void D3D8BE_Init(void);

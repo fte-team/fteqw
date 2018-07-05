@@ -39,9 +39,9 @@ void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
 {
 	char st[40];
 	Q_snprintfz(st, sizeof(st), "%d", (int) a);
-	if (strcmp(st, Info_ValueForKey(cls.userinfo[0], ctx)))
+	if (strcmp(st, InfoBuf_ValueForKey(&cls.userinfo[0], ctx)))
 	{
-		Info_SetValueForKey (cls.userinfo[0], ctx, st, sizeof(cls.userinfo[0]));
+		InfoBuf_SetKey(&cls.userinfo[0], ctx, st);
 		if (cls.state >= ca_connected && (cls.protocol == CP_QUAKEWORLD || (cls.fteprotocolextensions2 & PEXT2_PREDINFO)))
 			CL_SendClientCommand(true, "setinfo %s %s", (char*)ctx, st);
 	}
@@ -2571,7 +2571,7 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 	size_t fsize;
 	com_tokentype_t ttype;
 	Q_snprintfz(fname, sizeof(fname), "%s.framegroups", modelname);
-	line = file = COM_LoadFile(fname, 5, &fsize);
+	line = file = FS_LoadMallocFile(fname, &fsize);
 	if (!file)
 		return NULL;
 	while(line && *line)
@@ -2650,7 +2650,7 @@ static qboolean Mod_ParseModelEvents(model_t *mod, galiasanimation_t *anims, uns
 	size_t fsize;
 	char *line, *file, *eol;
 	Q_snprintfz(fname, sizeof(fname), "%s.events", modelname);
-	line = file = COM_LoadFile(fname, 5, &fsize);
+	line = file = FS_LoadMallocFile(fname, &fsize);
 	if (!file)
 		return false;
 	while(line && *line)
@@ -3914,7 +3914,7 @@ int Mod_ReadFlagsFromMD1(char *name, int md3version)
 		return 0;
 	}
 
-	pinmodel = (dmdl_t *)COM_LoadFile(fname, 5, &fsize);
+	pinmodel = (dmdl_t *)FS_LoadMallocFile(fname, &fsize);
 	if (pinmodel)
 	{
 		if (fsize >= sizeof(dmdl_t) && LittleLong(pinmodel->ident) == IDPOLYHEADER)			
@@ -5812,7 +5812,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	COM_StripExtension(mod->name, psaname, sizeof(psaname));
 	Q_strncatz(psaname, ".psa", sizeof(psaname));
 	buffer = NULL;//test
-	psabuffer = COM_LoadFile(psaname, 5, &psasize);
+	psabuffer = FS_LoadMallocFile(psaname, &psasize);
 	if (psabuffer)
 	{
 		pos = 0;

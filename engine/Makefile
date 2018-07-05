@@ -100,6 +100,9 @@ ifneq (,$(findstring -Os,$(FTE_CONFIG_EXTRA)))
 	CPUOPTIMIZATIONS+=-Os
 	BRANDFLAGS:=$(filter-out -O%,$(BRANDFLAGS))
 endif
+ifneq (,$(findstring DLINK_INTERNAL_BULLET,$(FTE_CONFIG_EXTRA)))
+	INTERNAL_BULLET=1	#bullet plugin will be built into the exe itself
+endif
 
 ifeq ($(BITS),64)
 	CC:=$(CC) -m64
@@ -844,6 +847,9 @@ endif
 ifeq (1,$(USE_FREETYPE))
 	LIBFREETYPE_STATIC=-DFREETYPE_STATIC
 	LIBFREETYPE_LDFLAGS=-lfreetype
+endif
+ifeq (1,$(strip $(INTERNAL_BULLET)))
+	COMMON_OBJS+=com_phys_bullet.o
 endif
 
 COMMONLIBFLAGS=
@@ -2171,3 +2177,4 @@ install: sv-rel gl-rel mingl-rel qcc-rel
 	$(INSTALL_PROGRAM) $(RELEASE_DIR)/$(EXE_NAME)-mingl $(DESTDIR)$(bindir)/$(EXE_NAME)-mingl
 	$(INSTALL_PROGRAM) $(RELEASE_DIR)/$(EXE_NAME)-sv $(DESTDIR)$(bindir)/$(EXE_NAME)-sv
 	$(INSTALL_PROGRAM) $(RELEASE_DIR)/fteqcc $(DESTDIR)$(bindir)/fteqcc
+

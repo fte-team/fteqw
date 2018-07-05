@@ -251,11 +251,13 @@ void SV_LogPlayer(client_t *cl, char *msg)
 	if (cl->protocol == SCP_BAD)
 		return;	//don't log botclients
 
-	snprintf(line, sizeof(line),
-			"%s\\%s\\%i\\%s\\%s\\%i\\guid\\%s%s\n",
+	Q_snprintfz(line, sizeof(line)-1,
+			"%s\\%s\\%i\\%s\\%s\\%i\\guid\\%s",
 			msg, cl->name, cl->userid,
 			NET_BaseAdrToString(remote_adr, sizeof(remote_adr), &cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(realip_adr, sizeof(realip_adr), &cl->realip) : "??"),
-			cl->netchan.remote_address.port, cl->guid, cl->userinfo);
+			cl->netchan.remote_address.port, cl->guid);
+	InfoBuf_ToString(&cl->userinfo, line+strlen(line), sizeof(line)-1-strlen(line), NULL, NULL, NULL, NULL, NULL);
+	Q_strncatz(line, "\n", sizeof(line));
 
 	Log_String(LOG_PLAYER, line);
 }

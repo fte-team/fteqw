@@ -458,9 +458,10 @@ typedef struct client_s
 	qboolean		drop;				// lose this guy next opportunity
 	int				lossage;			// loss percentage
 
-	int challenge;
-	int				userid;							// identifying number
-	char			userinfo[EXTENDED_INFO_STRING];		// infostring
+	int				challenge;
+	int				userid;				// identifying number
+	infobuf_t		userinfo;			// all of the user's various settings
+	infosync_t		infosync;			// information about the infos that the client still doesn't know (server and multiple clients).
 	char			*transfer;
 
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
@@ -908,7 +909,8 @@ typedef struct
 	int			heartbeat_sequence;
 	svstats_t	stats;
 
-	char		info[MAX_SERVERINFO_STRING];
+	infobuf_t	info;
+	infobuf_t	localinfo;
 
 	// log messages are used so that fraglog processes can get stats
 	int			logsequence;	// the message currently being filled
@@ -1069,8 +1071,6 @@ extern	edict_t		*sv_player;
 
 //extern	char		localmodels[MAX_MODELS][5];	// inline model names for precache
 
-extern	char		localinfo[MAX_LOCALINFO_STRING+1];
-
 extern	vfsfile_t	*sv_fraglogfile;
 
 //===========================================================
@@ -1123,7 +1123,6 @@ void SV_ArgumentOverrides(void);
 
 int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
-void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength);
 char *SV_PlayerPublicAddress(client_t *cl);
 
 qboolean SVC_GetChallenge (qboolean respond_dp);
@@ -1273,7 +1272,6 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);
 void VARGS SV_BroadcastTPrintf (int level, translation_t fmt, ...);
 void VARGS SV_BroadcastCommand (const char *fmt, ...) LIKEPRINTF(1);
-void SV_SendServerInfoChange(const char *key, const char *value);
 void SV_SendMessagesToAll (void);
 void SV_FindModelNumbers (void);
 

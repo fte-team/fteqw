@@ -1235,10 +1235,10 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		qboolean anycsqc;
 		char *endptr;
 		unsigned int chksum;
-		anycsqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc"));
+		anycsqc = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "anycsqc"));
 		if (cls.demoplayback)
 			anycsqc = true;
-		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
 		chksum = strtoul(s, &endptr, 0);
 		if (*endptr)
 		{
@@ -1515,7 +1515,7 @@ static void Sound_CheckDownloads (void)
 //	if (cls.fteprotocolextensions & PEXT_CSQC)
 	{
 		char	*s;
-		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
 		if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
 			extern cvar_t cl_download_csprogs, cl_nocsqc;
@@ -1640,6 +1640,8 @@ void CL_RequestNextDownload (void)
 		current_loading_size = cl.contentstage;
 		if (stage < 0)
 			return;
+		//if (cls.userinfosync.numkeys)
+		//	return;	//don't prespawn until we've actually sent all our initial userinfo.
 		if (requiredownloads.ival && COM_HasWork())
 		{
 			SCR_SetLoadingFile("loading content");
@@ -2457,7 +2459,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 			case DL_DARKPLACES:
 			case DL_QWCHUNKS:
 				{
-					char *serverversion = Info_ValueForKey(cl.serverinfo, "*version");
+					char *serverversion = InfoBuf_ValueForKey(&cl.serverinfo, "*version");
 					if (strncmp(serverversion , "MVDSV ", 6))	//don't tell mvdsv to stop, because it has retarded annoying clientprints that are spammy as fuck, and we don't want that.
 						CL_SendClientCommand(true, "stopdownload");
 				}
@@ -3116,7 +3118,7 @@ static void CLQW_ParseServerData (void)
 		COM_FlushTempoaryPacks();
 		COM_Gamedir(str, NULL);
 #ifndef CLIENTONLY
-		Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey (&svs.info, "*gamedir", str);
 #endif
 	}
 
@@ -3676,7 +3678,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 			COM_FlushTempoaryPacks();
 			COM_Gamedir(str, NULL);
 #ifndef CLIENTONLY
-			Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
+			InfoBuf_SetStarKey (&svs.info, "*gamedir", str);
 #endif
 		}
 	}
@@ -3752,29 +3754,29 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	//fill in the csqc stuff
 	if (!cl_dp_csqc_progscrc)
 	{
-		Info_RemoveKey(cl.serverinfo, "*csprogs");
-		Info_RemoveKey(cl.serverinfo, "*csprogssize");
-		Info_RemoveKey(cl.serverinfo, "*csprogsname");
+		InfoBuf_RemoveKey(&cl.serverinfo, "*csprogs");
+		InfoBuf_RemoveKey(&cl.serverinfo, "*csprogssize");
+		InfoBuf_RemoveKey(&cl.serverinfo, "*csprogsname");
 	}
 	else
 	{
-		Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
-		Info_SetValueForStarKey(cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize), sizeof(cl.serverinfo));
-		Info_SetValueForStarKey(cl.serverinfo, "*csprogsname", va("%s", cl_dp_csqc_progsname), sizeof(cl.serverinfo));
+		InfoBuf_SetStarKey(&cl.serverinfo, "*csprogs",		va("%i", cl_dp_csqc_progscrc));
+		InfoBuf_SetStarKey(&cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize));
+		InfoBuf_SetStarKey(&cl.serverinfo, "*csprogsname", va("%s", cl_dp_csqc_progsname));
 	}
 
 	//update gamemode
 	if (gametype != GAME_COOP)
-		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "1", sizeof(cl.serverinfo));
+		InfoBuf_SetKey(&cl.serverinfo, "deathmatch", "1");
 	else
-		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "0", sizeof(cl.serverinfo));
-	Info_SetValueForStarKey(cl.serverinfo, "teamplay", "0", sizeof(cl.serverinfo));
+		InfoBuf_SetKey(&cl.serverinfo, "deathmatch", "0");
+	InfoBuf_SetKey(&cl.serverinfo, "teamplay", "0");
 
 	//allow some things by default that quakeworld bans by default
-	Info_SetValueForStarKey(cl.serverinfo, "watervis", "1", sizeof(cl.serverinfo));
+	InfoBuf_SetKey(&cl.serverinfo, "watervis", "1");
 
 	//prohibit some things that QW/FTE has enabled by default, which would be frowned upon in NQ
-	Info_SetValueForStarKey(cl.serverinfo, "fbskins", "0", sizeof(cl.serverinfo));
+	InfoBuf_SetKey(&cl.serverinfo, "fbskins", "0");
 
 	//pretend it came from the server, and update cheat/permissions/etc
 	CL_CheckServerInfo();
@@ -3822,7 +3824,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 		CL_SendClientCommand(true, "color %i %i\n", topcolor.ival, bottomcolor.ival);
 		if (cl.haveserverinfo)
-			Info_Enumerate(cls.userinfo[0], NULL, CLNQ_SendInitialUserInfo);
+			InfoBuf_Enumerate(&cls.userinfo[0], NULL, CLNQ_SendInitialUserInfo);
 		else if (CPNQ_IS_DP)
 		{	//dp needs a couple of extras to work properly in certain cases. don't send them on other servers because that generally results in error messages.
 			CL_SendClientCommand(true, "rate %s", rate.string);
@@ -4168,7 +4170,7 @@ static void CLQ2_ParseClientinfo(int i, char *s)
 
 	player = &cl.players[i];
 
-	*player->userinfo = '\0';
+	InfoBuf_Clear(&player->userinfo, true);
 	cl.players[i].userinfovalid = true;
 
 	model = strchr(s, '\\');
@@ -4192,12 +4194,12 @@ static void CLQ2_ParseClientinfo(int i, char *s)
 	}
 	else
 		skin = "";
-	Info_SetValueForKey(player->userinfo, "model", model, MAX_INFO_STRING);
-	Info_SetValueForKey(player->userinfo, "skin", skin, MAX_INFO_STRING);
+	InfoBuf_SetValueForKey(&player->userinfo, "model", model);
+	InfoBuf_SetValueForKey(&player->userinfo, "skin", skin);
 #else
-	Info_SetValueForKey(player->userinfo, "skin", model, sizeof(player->userinfo));
+	InfoBuf_SetValueForKey(&player->userinfo, "skin", model);
 #endif
-	Info_SetValueForKey(player->userinfo, "name", name, sizeof(player->userinfo));
+	InfoBuf_SetValueForKey(&player->userinfo, "name", name);
 
 	cl.players[i].userid = i;
 	cl.players[i].rbottomcolor = 1;
@@ -4288,6 +4290,8 @@ static void CLQ2_ParseConfigString (void)
 	{
 		Media_NamedTrack (s, NULL);
 	}
+	else if (i == Q2CS_AIRACCEL)
+		Q_strncpyz(cl.q2airaccel, s, sizeof(cl.q2airaccel));
 	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
 	{
 		if (*s == '/')
@@ -4756,7 +4760,7 @@ static void CLQ2_ParseStartSoundPacket(void)
 	{	//a 'sexed' sound
 		if (ent > 0 && ent <= MAX_CLIENTS)
 		{
-			char *model = Info_ValueForKey(cl.players[ent-1].userinfo, "skin");
+			char *model = InfoBuf_ValueForKey(&cl.players[ent-1].userinfo, "skin");
 			char *skin;
 			skin = strchr(model, '/');
 			if (skin)
@@ -4975,7 +4979,7 @@ void CL_NewTranslation (int slot)
 		player->ttopcolor = TOP_DEFAULT;
 		player->tbottomcolor = BOTTOM_DEFAULT;
 
-		mod = Info_ValueForKey(player->userinfo, "skin");
+		mod = InfoBuf_ValueForKey(&player->userinfo, "skin");
 		skin = strchr(mod, '/');
 		if (skin)
 			*skin++ = 0;
@@ -5077,22 +5081,22 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 	int i;
 	char *col;
 	int ospec = player->spectator;
-	Q_strncpyz (player->name, Info_ValueForKey (player->userinfo, "name"), sizeof(player->name));
-	Q_strncpyz (player->team, Info_ValueForKey (player->userinfo, "team"), sizeof(player->team));
+	Q_strncpyz (player->name, InfoBuf_ValueForKey (&player->userinfo, "name"), sizeof(player->name));
+	Q_strncpyz (player->team, InfoBuf_ValueForKey (&player->userinfo, "team"), sizeof(player->team));
 
-	col = Info_ValueForKey (player->userinfo, "topcolor");
+	col = InfoBuf_ValueForKey (&player->userinfo, "topcolor");
 	if (!strncmp(col, "0x", 2))
 		player->rtopcolor = 0xff000000|strtoul(col+2, NULL, 16);
 	else
 		player->rtopcolor = atoi(col);
 
-	col = Info_ValueForKey (player->userinfo, "bottomcolor");
+	col = InfoBuf_ValueForKey (&player->userinfo, "bottomcolor");
 	if (!strncmp(col, "0x", 2))
 		player->rbottomcolor = 0xff000000|strtoul(col+2, NULL, 16);
 	else
 		player->rbottomcolor = atoi(col);
 
-	i = atoi(Info_ValueForKey (player->userinfo, "*spectator"));
+	i = atoi(InfoBuf_ValueForKey (&player->userinfo, "*spectator"));
 	if (i == 2)
 		player->spectator = 2;
 	else if (i)
@@ -5108,7 +5112,7 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 
 #ifdef HEXEN2
 	/*if we're running hexen2, they have to be some class...*/
-	player->h2playerclass = atoi(Info_ValueForKey (player->userinfo, "cl_playerclass"));
+	player->h2playerclass = atoi(InfoBuf_ValueForKey (&player->userinfo, "cl_playerclass"));
 	if (player->h2playerclass > 5)
 		player->h2playerclass = 5;
 	if (player->h2playerclass < 1)
@@ -5168,7 +5172,7 @@ static void CL_UpdateUserinfo (void)
 
 	player = &cl.players[slot];
 	player->userid = MSG_ReadLong ();
-	Q_strncpyz (player->userinfo, MSG_ReadString(), sizeof(player->userinfo));
+	InfoBuf_FromString(&player->userinfo, MSG_ReadString(), false);
 	player->userinfovalid = true;
 
 	CL_ProcessUserInfo (slot, player);
@@ -5178,7 +5182,7 @@ static void CL_UpdateUserinfo (void)
 	if (slot == cl.playerview[0].playernum && player->name[0])
 	{
 		char *qz;
-		qz = Info_ValueForKey(player->userinfo, "Qizmo");
+		qz = InfoBuf_ValueForKey(&player->userinfo, "Qizmo");
 		if (*qz)
 			TP_ExecTrigger("f_qizmoconnect", false);
 	}
@@ -5193,27 +5197,55 @@ static void CL_ParseSetInfo (void)
 {
 	int		slot;
 	player_info_t	*player;
-	char key[MAX_QWMSGLEN];
-	char value[MAX_QWMSGLEN];
+	char *temp;
+	char *key;
+	char *val;
+	unsigned int offset;
+	qboolean final;
+	size_t keysize;
+	size_t valsize;
 
 	slot = MSG_ReadByte ();
 
-	Q_strncpyz (key, MSG_ReadString(), sizeof(key));
-	Q_strncpyz (value, MSG_ReadString(), sizeof(value));
+	if (slot == 255)
+	{
+		slot = MSG_ReadByte();
+		offset = MSG_ReadLong();
+		final = !!(offset & 0x80000000);
+		offset &= ~0x80000000;
+	}
+	else
+	{
+		final = true;
+		offset = 0;
+	}
 
-	if (slot >= MAX_CLIENTS)
-		Con_Printf("INVALID SETINFO %i: %s=%s\n", slot, key, value);
+	temp = MSG_ReadString();
+	key = InfoBuf_DecodeString(temp, temp+strlen(temp), &keysize);
+
+	temp = MSG_ReadString();
+	val = InfoBuf_DecodeString(temp, temp+strlen(temp), &valsize);
+
+	if (slot == 255)
+		InfoBuf_SyncReceive(&cl.serverinfo, key, keysize, val, valsize, offset, final);
+	else if (slot >= MAX_CLIENTS)
+		Con_Printf("INVALID SETINFO %i: %s=%s\n", slot, key, val);
 	else
 	{
 		player = &cl.players[slot];
 
-		Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
+		if (offset)
+			Con_DPrintf("SETINFO %s: %s+=%s\n", player->name, key, val);
+		else
+			Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, val);
 
-		Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
+		InfoBuf_SyncReceive(&player->userinfo, key, keysize, val, valsize, offset, final);
 		player->userinfovalid = true;
 
 		CL_ProcessUserInfo (slot, player);
 	}
+	Z_Free(key);
+	Z_Free(val);
 }
 
 /*
@@ -5233,7 +5265,7 @@ static void CL_ServerInfo (void)
 
 	Con_DPrintf("SERVERINFO: %s=%s\n", key, value);
 
-	Info_SetValueForStarKey (cl.serverinfo, key, value, MAX_SERVERINFO_STRING);
+	InfoBuf_SetStarKey(&cl.serverinfo, key, value);
 
 	CL_CheckServerInfo();
 }
@@ -5286,11 +5318,11 @@ static void CL_SetStatMovevar(int pnum, int stat, int ivalue, float value)
 	{
 	case STAT_FRAGLIMIT:
 		if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
-			Info_SetValueForKey(cl.serverinfo, "fraglimit", va("%g", value), sizeof(cl.serverinfo));
+			InfoBuf_SetKey(&cl.serverinfo, "fraglimit", va("%g", value));
 		break;
 	case STAT_TIMELIMIT:
 		if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
-			Info_SetValueForKey(cl.serverinfo, "timelimit", va("%g", value), sizeof(cl.serverinfo));
+			InfoBuf_SetKey(&cl.serverinfo, "timelimit", va("%g", value));
 		break;
 	case STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR:	//0
 	case STAT_MOVEVARS_AIRCONTROL_PENALTY:			//0
@@ -5714,7 +5746,7 @@ static int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 		// 0-6 is standard colors (red to white)
 		// 7-13 is using secondard charactermask
 		// 14 and afterwards repeats
-		t = Info_ValueForKey(plr->userinfo, "tc");
+		t = InfoBuf_ValueForKey(&plr->userinfo, "tc");
 		if (*t)
 			c = atoi(t);
 		else
@@ -6194,20 +6226,20 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			if (Cmd_Argc() == 2)
 			{
 				cl.haveserverinfo = true;
-				Q_strncpyz (cl.serverinfo, Cmd_Argv(1), sizeof(cl.serverinfo));
+				InfoBuf_FromString(&cl.serverinfo, Cmd_Argv(1), false);
 				CL_CheckServerInfo();
 			}
 
 			#if _MSC_VER > 1200
 			if (cls.netchan.remote_address.type != NA_LOOPBACK)
-				Sys_RecentServer("+connect", cls.servername, va("%s (%s)", Info_ValueForKey(cl.serverinfo, "hostname"), cls.servername), "Join QW Server");
+				Sys_RecentServer("+connect", cls.servername, va("%s (%s)", InfoBuf_ValueForKey(&cl.serverinfo, "hostname"), cls.servername), "Join QW Server");
 			#endif
 		}
 		else if (!strncmp(stufftext, "//svi ", 6))	//for serverinfo over NQ protocols
 		{
 			Cmd_TokenizeString(stufftext+2, false, false);
 			Con_DPrintf("SERVERINFO: %s=%s\n", Cmd_Argv(1), Cmd_Argv(2));
-			Info_SetValueForStarKey (cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_SERVERINFO_STRING);
+			InfoBuf_SetStarKey(&cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2));
 			CL_CheckServerInfo();
 		}
 
@@ -6241,8 +6273,8 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		{
 			if (!cl.haveserverinfo)
 			{
-				Info_SetValueForStarKey(cl.serverinfo, "maxpitch", (atoi(stufftext+13))? "90":"", sizeof(cl.serverinfo));
-				Info_SetValueForStarKey(cl.serverinfo, "minpitch", (atoi(stufftext+13))?"-90":"", sizeof(cl.serverinfo));
+				InfoBuf_SetKey(&cl.serverinfo, "maxpitch", (atoi(stufftext+13))? "90":"");
+				InfoBuf_SetKey(&cl.serverinfo, "minpitch", (atoi(stufftext+13))?"-90":"");
 				CL_CheckServerInfo();
 			}
 		}
@@ -6363,12 +6395,12 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			{
 				player_info_t *player = &cl.players[slot];
 				Con_DPrintf("SETINFO %s: %s\n", player->name, value);
-				Q_strncpyz(player->userinfo, value, sizeof(player->userinfo));
+				InfoBuf_FromString(&player->userinfo, value, false);
 				player->userinfovalid = true;
 				CL_ProcessUserInfo (slot, player);
 			}
 		}
-		else if (!strncmp(stufftext, "//ui ", 5))				//ui <slot> <key> <value>. Full user info updates.
+		else if (!strncmp(stufftext, "//ui ", 5))				//ui <slot> <key> <value>. Partial user info updates.
 		{
 			unsigned int slot;
 			const char *key, *value;
@@ -6380,7 +6412,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			{
 				player_info_t *player = &cl.players[slot];
 				Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
-				Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
+				InfoBuf_SetValueForStarKey (&player->userinfo, key, value);
 				CL_ProcessUserInfo (slot, player);
 			}
 		}
@@ -7871,7 +7903,7 @@ void CLNQ_ParseServerMessage (void)
 				strcpy(cl.players[i].name, MSG_ReadString());
 				if (*cl.players[i].name)
 					cl.players[i].userid = i+1;
-				Info_SetValueForKey(cl.players[i].userinfo, "name", cl.players[i].name, sizeof(cl.players[i].userinfo));
+				InfoBuf_SetValueForKey(&cl.players[i].userinfo, "name", cl.players[i].name);
 				if (!cl.nqplayernamechanged)
 					cl.nqplayernamechanged = realtime+2;
 
@@ -7901,9 +7933,9 @@ void CLNQ_ParseServerMessage (void)
 //					cl.players[i].rbottomcolor = (a&0xf0)>>4;
 //					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
 
-					Info_SetValueForKey(cl.players[i].userinfo, "topcolor", va("%i", a&0x0f), sizeof(cl.players[i].userinfo));
-					Info_SetValueForKey(cl.players[i].userinfo, "bottomcolor", va("%i", (a&0xf0)>>4), sizeof(cl.players[i].userinfo));
-					Info_SetValueForKey(cl.players[i].userinfo, "team", va("%i", (a&0xf0)>>4), sizeof(cl.players[i].userinfo));
+					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "topcolor", va("%i", a&0x0f));
+					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "bottomcolor", va("%i", (a&0xf0)>>4));
+					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "team", va("%i", (a&0xf0)>>4));
 					CL_ProcessUserInfo (i, &cl.players[i]);
 
 //					CLNQ_CheckPlayerIsSpectator(i);

@@ -956,7 +956,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			int inwater = VM_LONG(arg[3]);
 
 			cl.playerview[0].audio.defaulted = false;
-			cl.playerview[0].audio.entnum = VM_LONG(arg[0]);
+			cl.playerview[0].audio.entnum = VM_LONG(arg[0])+1;
 			VectorCopy(org, cl.playerview[0].audio.origin);
 			VectorCopy(axis[0], cl.playerview[0].audio.forward);
 			VectorCopy(axis[1], cl.playerview[0].audio.right);

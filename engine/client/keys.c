@@ -455,7 +455,7 @@ void Key_UpdateCompletionDesc(void)
 	}
 }
 
-void CompleteCommand (qboolean force)
+void CompleteCommand (qboolean force, int direction)
 {
 	const char	*cmd, *s;
 	const char *desc;
@@ -535,7 +535,9 @@ void CompleteCommand (qboolean force)
 		}
 	}
 
-	con_commandmatch++;
+	con_commandmatch += direction;
+	if (con_commandmatch <= 0)
+		con_commandmatch += c->num;
 	Key_UpdateCompletionDesc();
 }
 
@@ -1695,14 +1697,15 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			Cbuf_AddText("\nvid_toggle\n", RESTRICT_LOCAL);
 #endif
 
-		if (con_commandmatch)
+		if ((con_commandmatch && !strchr(key_lines[edit_line], ' ')) || shift)
 		{	//if that isn't actually a command, and we can actually complete it to something, then lets try to complete it.
 			char *txt = key_lines[edit_line];
 			if (*txt == '/')
 				txt++;
-			if (!Cmd_IsCommand(txt) && Cmd_CompleteCommand(txt, true, true, con_commandmatch, NULL))
+
+			if ((shift||!Cmd_IsCommand(txt)) && Cmd_CompleteCommand(txt, true, true, con_commandmatch, NULL))
 			{
-				CompleteCommand (true);
+				CompleteCommand (true, 1);
 				return true;
 			}
 			Con_Footerf(con, false, "");
@@ -1723,6 +1726,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		key_lines[edit_line] = BZ_Malloc(1);
 		key_lines[edit_line][0] = '\0';
 		key_linepos = 0;
+		con_commandmatch = 0;
 		return true;
 	}
 
@@ -1733,21 +1737,21 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			txt++;
 		if (Cmd_CompleteCommand(txt, true, true, con->commandcompletion, NULL))
 		{
-			CompleteCommand (true);
+			CompleteCommand (true, 1);
 			return true;
 		}
 	}
 
 	if (key == K_TAB)
 	{	// command completion
-		if (shift)
+		if (ctrl&&shift)
 		{
 			Con_CycleConsole();
 			return true;
 		}
 
 		if (con->commandcompletion)
-			CompleteCommand (ctrl);
+			CompleteCommand (ctrl, shift?-1:1);
 		return true;
 	}
 	
@@ -1802,9 +1806,29 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		if (rkey != '`' || key_linepos==0)
 			return false;
 	}
+
 	if (con_commandmatch)
-		con_commandmatch = 1;
-	Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
+	{	//if they're typing, try to retain the current completion guess.
+		cmd_completion_t *c;
+		char *txt = key_lines[edit_line];
+		char *guess = Cmd_CompleteCommand(*txt=='/'?txt+1:txt, true, true, con_commandmatch, NULL);
+		Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
+		if (guess)
+		{
+			guess = Z_StrDup(guess);
+			txt = key_lines[edit_line];
+			c = Cmd_Complete(*txt=='/'?txt+1:txt, true);
+			for (con_commandmatch = c->num; con_commandmatch > 1; con_commandmatch--) 
+			{
+				if (!strcmp(guess, c->completions[con_commandmatch-1].text))
+					break;
+			}
+			Z_Free(guess);
+		}
+	}
+	else
+		Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
+
 	return true;
 }
 
@@ -1999,9 +2023,9 @@ static char *Key_KeynumToStringRaw (int keynum)
 	return "<UNKNOWN KEYNUM>";
 }
 
-char *Key_KeynumToString (int keynum, int modifier)
+const char *Key_KeynumToString (int keynum, int modifier)
 {
-	char *r = Key_KeynumToStringRaw(keynum);
+	const char *r = Key_KeynumToStringRaw(keynum);
 	if (r[0] == '<' && r[1])
 		modifier = 0;	//would be too weird.
 	switch(modifier)

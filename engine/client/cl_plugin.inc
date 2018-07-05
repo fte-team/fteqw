@@ -544,7 +544,7 @@ static qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const q
 		out->activetime = realtime - cl.players[i].realentertime;
 		out->userid = cl.players[i].userid;
 		out->spectator = cl.players[i].spectator;
-		Q_strncpyz(out->userinfo, cl.players[i].userinfo, sizeof(out->userinfo));
+		InfoBuf_ToString(&cl.players[i].userinfo, out->userinfo, sizeof(out->userinfo), basicuserinfos, NULL, NULL, NULL, NULL);
 		Q_strncpyz(out->team, cl.players[i].team, sizeof(out->team));
 	}
 
@@ -589,7 +589,7 @@ static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const q
 	if (VM_OOB(arg[0], outlen))
 		return false;
 
-	Q_strncpyz(outptr, cl.serverinfo, outlen);
+	InfoBuf_ToString(&cl.serverinfo, outptr, outlen, NULL, NULL, NULL, NULL, NULL);
 	Q_strncatz(outptr, va("\\intermission\\%i", cl.intermissionmode), outlen);
 	switch(cls.demoplayback)
 	{

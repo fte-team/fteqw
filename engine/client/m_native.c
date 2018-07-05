@@ -76,7 +76,7 @@ static shader_t *MN_CachePic(const char *picname)
 {
 	return R2D_SafeCachePic(picname);
 }
-static qboolean MN_DrawGetImageSize(void *pic, int *w, int *h)
+static qboolean MN_DrawGetImageSize(struct shader_s *pic, int *w, int *h)
 {
 	return R_GetShaderSizes(pic, w, h, true)>0;
 }
@@ -234,8 +234,8 @@ static void MN_RenderScene(menuscene_t *scene)
 		ent.keynum = i;
 		ent.model = scene->entlist[i].model;
 		VectorCopy(e->matrix[0], ent.axis[0]); ent.origin[0] = e->matrix[0][3];
-		VectorCopy(e->matrix[1], ent.axis[1]); ent.origin[1] = e->matrix[0][7];
-		VectorCopy(e->matrix[2], ent.axis[2]); ent.origin[2] = e->matrix[0][11];
+		VectorCopy(e->matrix[1], ent.axis[1]); ent.origin[1] = e->matrix[1][3];
+		VectorCopy(e->matrix[2], ent.axis[2]); ent.origin[2] = e->matrix[2][3];
 
 		ent.scale = 1;
 		ent.framestate.g[FS_REG].frame[0] = e->frame[0];
@@ -263,8 +263,8 @@ static void MN_RenderScene(menuscene_t *scene)
 	}
 
 	VectorCopy(scene->viewmatrix[0], r_refdef.viewaxis[0]); r_refdef.vieworg[0] = scene->viewmatrix[0][3];
-	VectorCopy(scene->viewmatrix[1], r_refdef.viewaxis[1]); r_refdef.vieworg[1] = scene->viewmatrix[0][7];
-	VectorCopy(scene->viewmatrix[2], r_refdef.viewaxis[2]); r_refdef.vieworg[2] = scene->viewmatrix[0][11];
+	VectorCopy(scene->viewmatrix[1], r_refdef.viewaxis[1]); r_refdef.vieworg[1] = scene->viewmatrix[1][3];
+	VectorCopy(scene->viewmatrix[2], r_refdef.viewaxis[2]); r_refdef.vieworg[2] = scene->viewmatrix[2][3];
 	
 	r_refdef.viewangles[0] = -(atan2(r_refdef.viewaxis[0][2], sqrt(r_refdef.viewaxis[0][1]*r_refdef.viewaxis[0][1]+r_refdef.viewaxis[0][0]*r_refdef.viewaxis[0][0])) * 180 / M_PI);
 	r_refdef.viewangles[1] = (atan2(r_refdef.viewaxis[0][1], r_refdef.viewaxis[0][0]) * 180 / M_PI);

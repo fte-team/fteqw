@@ -1524,7 +1524,7 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 			}
 			else
 				Vector4Set(map->colorsb, 255, 255, 255, 255);
-			VectorCopy(mesh->st_array[i], map->tc[0]);
+			Vector2Copy(mesh->st_array[i], map->tc[0]);
 			if (mesh->lmst_array[0])
 				Vector2Copy(mesh->lmst_array[0][i], map->tc[1]);
 		}

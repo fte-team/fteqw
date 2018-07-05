@@ -1390,7 +1390,7 @@ void Media_LoadTrackNames (char *listname)
 	char *trackname;
 	mediatrack_t *newtrack;
 	size_t fsize;
-	char *data = COM_LoadTempFile(listname, &fsize);
+	char *data = COM_LoadTempFile(listname, FSLF_IGNOREPURE, &fsize);
 
 	loadedtracknames=true;
 
@@ -3210,13 +3210,16 @@ static void QDECL capture_avi_video(void *vctx, int frame, void *vdata, int stri
 	qbyte *data, *in, *out;
 	int x, y;
 
+	if (stride < 0)	//if stride is negative, then its bottom-up, but the data pointer is at the start of the buffer (rather than 'first row')
+		vdata = (char*)vdata - stride*(height-1);
+
 	//we need to output a packed bottom-up bgr image.
 
-	//switch the input from logically top-down to bottom-up (regardless of the physical ordering of its rows)
+	//switch the input from logical-top-down to bottom-up (regardless of the physical ordering of its rows)
 	in = (qbyte*)vdata + stride*(height-1);
 	stride = -stride;
 
-	if (fmt == TF_BGR24 && stride == width*3)
+	if (fmt == TF_BGR24 && stride == width*-3)
 	{	//no work needed!
 		data = in;
 	}

@@ -1531,7 +1531,7 @@ void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	}
 	else
 		twod = qcflags & DRAWFLAG_2D;
-	
+
 	if ((qcflags & 3) == DRAWFLAG_ADD)
 		beflags = BEF_NOSHADOWS|BEF_FORCEADDITIVE;
 	else
@@ -2053,7 +2053,7 @@ nogameaccess:
 		break;
 	}
 }
-static uploadfmt_t PR_TranslateTextureFormat(int qcformat)
+uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 {
 	switch(qcformat)
 	{
@@ -2291,7 +2291,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		break;
 
 	case VF_ENVMAP:
-		Q_strncpyz(r_refdef.nearenvmap.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_sourcecolour));
+		Q_strncpyz(r_refdef.nearenvmap.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.nearenvmap.texname));
 		BE_RenderToTextureUpdate2d(false);
 		break;
 
@@ -3694,13 +3694,13 @@ static const char *PF_cs_serverkey_internal(const char *keyname)
 #ifndef CLIENTONLY
 		if (sv.state >= ss_loading)
 		{
-			ret = Info_ValueForKey(svs.info, keyname);
+			ret = InfoBuf_ValueForKey(&svs.info, keyname);
 			if (!*ret)
-				ret = Info_ValueForKey(localinfo, keyname);
+				ret = InfoBuf_ValueForKey(&svs.localinfo, keyname);
 		}
 		else
 #endif
-			ret = Info_ValueForKey(cl.serverinfo, keyname);
+			ret = InfoBuf_ValueForKey(&cl.serverinfo, keyname);
 	}
 	return ret;
 }
@@ -3810,7 +3810,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 #endif
 	else
 	{
-		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
+		ret = InfoBuf_ValueForKey(&cl.players[pnum].userinfo, keyname);
 	}
 	return ret;
 }
@@ -3834,6 +3834,34 @@ static void QCBUILTIN PF_cs_serverkeyfloat (pubprogfuncs_t *prinst, struct globa
 	else
 		G_FLOAT(OFS_RETURN) = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):0;
 }
+static void QCBUILTIN PF_cs_serverkeyblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int qcptr = G_INT(OFS_PARM1);
+	int qcsize = G_INT(OFS_PARM2);
+	void *ptr;
+	size_t blobsize = 0;
+	const char *blob;
+
+	if (qcptr < 0 || qcptr+qcsize >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_cs_serverkeyblob: invalid pointer\n");
+		return;
+	}
+	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+
+	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize);
+
+	if (qcptr)
+	{
+		blobsize = min(blobsize, qcsize);
+		memcpy(ptr, blob, blobsize);
+		G_INT(OFS_RETURN) = blobsize;
+	}
+	else
+		G_INT(OFS_RETURN) = blobsize;
+}
+
 //string(float pnum, string keyname)
 static void QCBUILTIN PF_cs_getplayerkeystring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3882,6 +3910,50 @@ static void QCBUILTIN PF_cs_getplayerkeyfloat (pubprogfuncs_t *prinst, struct gl
 		G_FLOAT(OFS_RETURN) = strtod(ret, NULL);
 	else
 		G_FLOAT(OFS_RETURN) = (prinst->callargc >= 3)?G_FLOAT(OFS_PARM2):0;
+}
+static void QCBUILTIN PF_cs_getplayerkeyblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int pnum = G_FLOAT(OFS_PARM0);
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
+	int qcptr = G_INT(OFS_PARM2);
+	int qcsize = G_INT(OFS_PARM3);
+	void *ptr;
+	if (pnum < 0)
+	{
+		if (csqc_resortfrags)
+		{
+			Sbar_SortFrags(true, false);
+			csqc_resortfrags = false;
+		}
+		if (pnum >= -scoreboardlines)
+		{//sort by
+			pnum = fragsort[-(pnum+1)];
+		}
+	}
+
+	if (qcptr < 0 || qcptr+qcsize >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_cs_getplayerkeyblob: invalid pointer\n");
+		return;
+	}
+	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+
+	if ((unsigned int)pnum >= (unsigned int)cl.allocated_client_slots)
+		G_INT(OFS_RETURN) = 0;
+	else
+	{
+		size_t blobsize = 0;
+		const char *blob = InfoBuf_BlobForKey(&cl.players[pnum].userinfo, keyname, &blobsize);
+
+		if (qcptr)
+		{
+			blobsize = min(blobsize, qcsize);
+			memcpy(ptr, blob, blobsize);
+			G_INT(OFS_RETURN) = blobsize;
+		}
+		else
+			G_INT(OFS_RETURN) = blobsize;
+	}
 }
 
 static void QCBUILTIN PF_cs_infokey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6092,6 +6164,7 @@ static struct {
 	{"abort",					PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
 //	{"sleep",					PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
 	{"forceinfokey",			PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
+	{"forceinfokeyblob",		PF_NoCSQC,	0},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"chat",					PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
 
 	{"particle2",				PF_cs_particle2,	215}, //215 (FTE_PEXT_HEXEN2)
@@ -6296,7 +6369,8 @@ static struct {
 	{"runstandardplayerphysics",PF_cs_runplayerphysics,			347},	// #347 void() runstandardplayerphysics (EXT_CSQC)
 
 	{"getplayerkeyvalue",		PF_cs_getplayerkeystring,		348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
-	{"getplayerkeyfloat",		PF_cs_getplayerkeyfloat,		0},	// #348 string(float playernum, string keyname) getplayerkeyvalue
+	{"getplayerkeyfloat",		PF_cs_getplayerkeyfloat,		0},		// #348 string(float playernum, string keyname) getplayerkeyvalue
+	{"getplayerkeyblob",		PF_cs_getplayerkeyblob,			0},		// #0   int(float playernum, string keyname, optional void *outptr, int size) getplayerkeyblob
 
 	{"isdemo",					PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
 //350
@@ -6309,6 +6383,7 @@ static struct {
 
 	{"serverkey",				PF_cs_serverkey,				354},	// #354 string(string key) serverkey;
 	{"serverkeyfloat",			PF_cs_serverkeyfloat,			0},		// #0 float(string key) serverkeyfloat;
+	{"serverkeyblob",			PF_cs_serverkeyblob,			0},
 	{"getentitytoken",			PF_cs_getentitytoken,			355},	// #355 string() getentitytoken;
 	{"findfont",				PF_CL_findfont,					356},
 	{"loadfont",				PF_CL_loadfont,					357},
@@ -6618,6 +6693,7 @@ static struct {
 	{"setbindmaps",				PF_cl_SetBindMap,			632},
 
 	{"digest_hex",				PF_digest_hex,				639},
+	{"digest_ptr",				PF_digest_ptr,				0},
 	{"V_CalcRefdef",			PF_V_CalcRefdef,			640},
 
 	{NULL}
@@ -6901,9 +6977,11 @@ void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(v
 		char newname[MAX_QPATH];
 		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csprogs_checksum);
 
+		//we can use FSLF_IGNOREPURE because we have our own hashes/size checks instead.
+		//this should make it slightly easier for server admins
 		if (csprogs_checksum)
 		{
-			file = COM_LoadTempFile (newname, sz);
+			file = COM_LoadTempFile (newname, FSLF_IGNOREPURE, sz);
 			if (file)
 			{
 				if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
@@ -6921,7 +6999,7 @@ void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(v
 
 		if (!file)
 		{
-			file = COM_LoadTempFile (path, sz);
+			file = COM_LoadTempFile (path, FSLF_IGNOREPURE, sz);
 
 			if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 			{
@@ -6956,7 +7034,7 @@ void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(v
 		}
 	}
 	else
-		file = COM_LoadTempFile (path, sz);
+		file = COM_LoadTempFile (path, 0, sz);
 
 	if (file)
 	{
@@ -7137,7 +7215,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	csqc_mayread = false;
 
 	csqc_singlecheats = cls.demoplayback;
-	cheats = Info_ValueForKey(cl.serverinfo, "*cheats");
+	cheats = InfoBuf_ValueForKey(&cl.serverinfo, "*cheats");
 	if (!Q_strcasecmp(cheats, "ON") || atoi(cheats))
 		csqc_singlecheats = true;
 #ifndef CLIENTONLY
@@ -7353,7 +7431,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		str = (string_t*)PR_FindGlobal(csqcprogs, "mapname", 0, NULL);
 		if (str)
 		{
-			char *s = Info_ValueForKey(cl.serverinfo, "map");
+			char *s = InfoBuf_ValueForKey(&cl.serverinfo, "map");
 			if (!*s)
 				s = cl.model_name[1];
 			if (!*s)

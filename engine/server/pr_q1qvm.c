@@ -1532,11 +1532,11 @@ static qintptr_t QVM_Add_Bot (void *offset, quintptr_t mask, const qintptr_t *ar
 
 			cl->edict = EDICT_NUM_PB(sv.world.progs, i+1);
 
-			Info_SetValueForKey(cl->userinfo, "name", name, sizeof(cl->userinfo));
-			Info_SetValueForKey(cl->userinfo, "topcolor", va("%i", top), sizeof(cl->userinfo));
-			Info_SetValueForKey(cl->userinfo, "bottomcolor", va("%i", bottom), sizeof(cl->userinfo));
-			Info_SetValueForKey(cl->userinfo, "skin", skin, sizeof(cl->userinfo));
-			Info_SetValueForStarKey(cl->userinfo, "*bot", "1", sizeof(cl->userinfo));
+			InfoBuf_SetKey(&cl->userinfo, "name", name);
+			InfoBuf_SetKey(&cl->userinfo, "topcolor", va("%i", top));
+			InfoBuf_SetKey(&cl->userinfo, "bottomcolor", va("%i", bottom));
+			InfoBuf_SetKey(&cl->userinfo, "skin", skin);
+			InfoBuf_SetStarKey(&cl->userinfo, "*bot", "1");
 			SV_ExtractFromUserinfo(cl, true);
 			SV_SetUpClientEdict (cl, cl->edict);
 
@@ -1598,14 +1598,20 @@ static qintptr_t QVM_SetBotCMD (void *offset, quintptr_t mask, const qintptr_t *
 }
 static qintptr_t QVM_SetUserInfo (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	char *key = VM_POINTER(arg[1]);
+	int ent = VM_LONG(arg[0]);
+	const char *key = VM_POINTER(arg[1]);
+	const char *val = VM_POINTER(arg[2]);
 	if (*key == '*' && (VM_LONG(arg[3])&1))
 		return -1;	//denied!
-	return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+	return PF_ForceInfoKey_Internal(ent, key, val, strlen(val));
 }
 static qintptr_t QVM_SetBotUserInfo (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+	int ent = VM_LONG(arg[0]);
+	const char *key = VM_POINTER(arg[1]);
+	const char *val = VM_POINTER(arg[2]);
+
+	return PF_ForceInfoKey_Internal(ent, key, val,  strlen(val));
 }
 static qintptr_t QVM_MoveToGoal (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -2509,7 +2515,7 @@ qboolean Q1QVM_ClientSay(edict_t *player, qboolean team)
 }
 
 qboolean Q1QVM_UserInfoChanged(edict_t *player)
-{
+{	//mod will use G_CMD_ARGV to get argv1+argv2 to read the info that is changing.
 	if (!q1qvm)
 		return false;
 

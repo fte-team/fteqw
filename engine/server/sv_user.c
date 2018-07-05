@@ -121,6 +121,9 @@ cvar_t sv_realiphostname_ipv4 = CVARD("sv_realiphostname_ipv4", "", "This is the
 cvar_t sv_realiphostname_ipv6 = CVARD("sv_realiphostname_ipv6", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
 cvar_t sv_realip_timeout = CVAR("sv_realip_timeout", "10");
 
+cvar_t sv_userinfo_keylimit = CVARD("sv_userinfo_keylimit", "128", "This is the maximum number of userinfo keys each user may create.");
+cvar_t sv_userinfo_bytelimit = CVARD("sv_userinfo_bytelimit", "8192", "This is the maximum number of bytes that may be stored into each user's userinfo. Note that this includes key names too.");
+
 #ifdef VOICECHAT
 cvar_t sv_voip = CVARD("sv_voip", "1", "Enable reception of voice packets.");
 cvar_t sv_voip_record = CVARD("sv_voip_record", "0", "Record voicechat into mvds. Requires player support. 0=noone, 1=everyone, 2=spectators only");
@@ -255,7 +258,7 @@ void SV_New_f (void)
 	}
 	else
 	{
-		char *srv = Info_ValueForKey(host_client->userinfo, "*redirect");
+		const char *srv = InfoBuf_ValueForKey(&host_client->userinfo, "*redirect");
 		if (*srv)
 		{
 			char *msg = va("connect \"%s\"\n", srv);
@@ -284,7 +287,7 @@ void SV_New_f (void)
 //	SV_FullClientUpdate (host_client, &sv.reliable_datagram);
 //	host_client->sendinfo = true;
 
-	gamedir = Info_ValueForKey (svs.info, "*gamedir");
+	gamedir = InfoBuf_ValueForKey (&svs.info, "*gamedir");
 	if (!gamedir[0])
 	{
 		if (ISQWCLIENT(host_client) || ISQ2CLIENT(host_client))
@@ -650,7 +653,7 @@ void SVNQ_New_f (void)
 		Q_snprintfz(build, sizeof(build), "%s", __DATE__);
 #endif
 
-	gamedir = Info_ValueForKey (svs.info, "*gamedir");
+	gamedir = InfoBuf_ValueForKey (&svs.info, "*gamedir");
 	if (!gamedir[0])
 	{
 		gamedir = FS_GetGamedir(true);
@@ -694,7 +697,7 @@ void SVNQ_New_f (void)
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 
-		f = COM_LoadTempFile("csprogs.dat", &sz);
+		f = COM_LoadTempFile("csprogs.dat", 0, &sz);
 		if (f)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
@@ -1009,13 +1012,15 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			{
 				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{	//nq does not normally get serverinfo sent to it.
-					ClientReliableWrite_Begin(client, svc_stufftext, 20 + strlen(svs.info));
-					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", svs.info) );
+					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
+					ClientReliableWrite_Begin(client, svc_stufftext, 20 + i);
+					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", buffer) );
 				}
 				else if (sv.csqcdebug)
 				{
-					ClientReliableWrite_Begin(client, svc_stufftext, 22 + strlen(svs.info));
-					ClientReliableWrite_String (client, va("//fullserverinfo \"%s\"\n", svs.info) );
+					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
+					ClientReliableWrite_Begin(client, svc_stufftext, 22 + i);
+					ClientReliableWrite_String (client, va("//fullserverinfo \"%s\"\n", buffer) );
 				}
 			}
 			else if (client->prespawn_idx == 1)
@@ -1946,7 +1951,9 @@ void SV_Begin_Core(client_t *split)
 #ifdef Q2SERVER
 	if (ge)
 	{
-		ge->ClientUserinfoChanged (split->q2edict, split->userinfo);	//tell the gamecode
+		char userinfo[8192];
+		InfoBuf_ToString(&split->userinfo, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
+		ge->ClientUserinfoChanged (split->q2edict, userinfo);	//tell the gamecode
 		SV_ExtractFromUserinfo(split, true);	//let the server routines know
 
 		ge->ClientBegin(split->q2edict);
@@ -1980,11 +1987,11 @@ void SV_Begin_Core(client_t *split)
 
 			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "playermodel", ev_string, NULL);
 			if (eval)
-				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, Info_ValueForKey(split->userinfo, "model"), false);
+				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, InfoBuf_ValueForKey(&split->userinfo, "model"), false);
 
 			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "playerskin", ev_string, NULL);
 			if (eval)
-				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, Info_ValueForKey(split->userinfo, "skin"), false);
+				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, InfoBuf_ValueForKey(&split->userinfo, "skin"), false);
 
 			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "netaddress", ev_string, NULL);
 			if (eval)
@@ -2176,8 +2183,8 @@ void SV_Begin_f (void)
 	//check he's not cheating
 	if (progstype == PROG_QW)
 	{
-		pmodel = atoi(Info_ValueForKey (host_client->userinfo, "pmodel"));
-		emodel = atoi(Info_ValueForKey (host_client->userinfo, "emodel"));
+		pmodel = atoi(InfoBuf_ValueForKey (&host_client->userinfo, "pmodel"));
+		emodel = atoi(InfoBuf_ValueForKey (&host_client->userinfo, "emodel"));
 
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
@@ -3694,7 +3701,7 @@ void SV_Say (qboolean team)
 
 	if (team)
 	{
-		Q_strncpyz (t1, Info_ValueForKey (host_client->userinfo, "team"), sizeof(t1));
+		Q_strncpyz (t1, InfoBuf_ValueForKey(&host_client->userinfo, "team"), sizeof(t1));
 	}
 
 	if (host_client->spectator && (!sv_spectalk.value || team))
@@ -3790,7 +3797,7 @@ void SV_Say (qboolean team)
 				if (!client->spectator)
 					continue;
 			} else {
-				t2 = Info_ValueForKey (client->userinfo, "team");
+				t2 = InfoBuf_ValueForKey (&client->userinfo, "team");
 				if (strcmp(t1, t2) || client->spectator)
 					continue;	// on different teams
 			}
@@ -4222,7 +4229,7 @@ void SV_Rate_f (void)
 		return;
 	}
 
-	Info_SetValueForKey (host_client->userinfo, "rate", Cmd_Argv(1), sizeof(host_client->userinfo));
+	InfoBuf_SetKey (&host_client->userinfo, "rate", Cmd_Argv(1));
 	SV_ExtractFromUserinfo (host_client, true);
 
 	if (host_client->state > cs_connected)
@@ -4254,20 +4261,9 @@ void SV_Msg_f (void)
 qboolean SV_UserInfoIsBasic(const char *infoname)
 {
 	int i;
-	char *basicinfos[] = {
-
-		"name",
-		"team",
-		"skin",
-		"topcolor",
-		"bottomcolor",
-		"chat",	//ezquake's afk indicators
-
-		NULL};
-
-	for (i = 0; basicinfos[i]; i++)
+	for (i = 1; basicuserinfos[i]; i++)
 	{
-		if (*infoname == '*' || !strcmp(infoname, basicinfos[i]))
+		if (*infoname == '*' || !strcmp(infoname, basicuserinfos[i]))
 			return true;
 	}
 	return false;
@@ -4277,6 +4273,8 @@ qboolean SV_UserInfoIsBasic(const char *infoname)
 static void SV_SetInfo_PrintCB (void *ctx, const char *key, const char *value)
 {
 	client_t *cl = ctx;
+	if (cl->num_backbuf > MAX_BACK_BUFFERS/2)
+		return;	//stop printing if there's too many...
 	SV_ClientPrintf(cl, PRINT_HIGH, "\t%-20s%s\n", key, value);
 }
 
@@ -4290,89 +4288,102 @@ Allow clients to change userinfo
 void SV_SetInfo_f (void)
 {
 	char oldval[MAX_INFO_KEY];
-	char *key, *val;
+	char *key, *val, *t;
+	size_t offset, keysize, valsize, k;
+	qboolean final;
 
 	if (Cmd_Argc() == 1)
 	{
 		SV_ClientPrintf(host_client, PRINT_HIGH, "User info settings:\n");
-		Info_Enumerate(host_client->userinfo, (void*)host_client, SV_SetInfo_PrintCB);
+		InfoBuf_Enumerate(&host_client->userinfo, (void*)host_client, SV_SetInfo_PrintCB);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "[%u/%i, %u/%i]\n", (unsigned int)host_client->userinfo.numkeys, sv_userinfo_keylimit.ival, (unsigned int)host_client->userinfo.totalsize, sv_userinfo_bytelimit.ival);
 		return;
 	}
 
-	if (Cmd_Argc() != 3)
+	if (Cmd_Argc() == 4)
+	{
+		offset = strtoul(Cmd_Argv(3), &t, 0);
+		final = (*t != '+');
+	}
+	else if (Cmd_Argc() == 3)
+	{
+		offset = 0;
+		final = true;
+	}
+	else
 	{
 		SV_ClientPrintf(host_client, PRINT_HIGH, "usage: setinfo [ <key> <value> ]\n");
 		return;
 	}
-
-	key = Cmd_Argv(1);
-
-	if (key[0] == '*')
-		return;		// don't set priveledged values
-
-	if (strstr(key, "\\") || strstr(Cmd_Argv(2), "\\"))
-		return;		// illegal char
-
-	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, key), sizeof(oldval));
 
 #ifdef VM_Q1
 	if (Q1QVM_UserInfoChanged(sv_player))
 		return;
 #endif
 
-	Info_SetValueForKey (host_client->userinfo, key, Cmd_Argv(2), sizeof(host_client->userinfo));
-// name is extracted below in ExtractFromUserInfo
-//	strncpy (host_client->name, Info_ValueForKey (host_client->userinfo, "name")
-//		, sizeof(host_client->name)-1);
-//	SV_FullClientUpdate (host_client, &sv.reliable_datagram);
-//	host_client->sendinfo = true;
+	key = Cmd_Argv(1);
+	val = Cmd_Argv(2);
+	if (strstr(key, "\\") || strstr(val, "\\"))
+		return;		// illegal char, at least at this point.
+	key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
+	val = InfoBuf_DecodeString(val, val+strlen(val), &valsize);
 
-	if (!strcmp(Info_ValueForKey(host_client->userinfo, key), oldval))
-		return; // key hasn't changed
-
+	if (key[0] == '*')
+		SV_ClientPrintf(host_client, PRINT_HIGH, "setinfo: %s may not be changed mid-game\n", key);
+	else if (sv_userinfo_keylimit.ival >= 0 && host_client->userinfo.numkeys >= sv_userinfo_keylimit.ival && !offset && *val && !InfoBuf_FindKey(&host_client->userinfo, key, &k))	//when the limit is hit, allow people to freely change existing keys, but not new ones. they can also silently remove any that don't exist yet, too.
+		SV_ClientPrintf(host_client, PRINT_MEDIUM, "setinfo: userinfo is limited to %i keys. Ignoring setting %s\n", sv_userinfo_keylimit.ival, key);
+	else if (sv_userinfo_bytelimit.ival >= 0 && host_client->userinfo.totalsize >= sv_userinfo_bytelimit.ival && *val)
+	{
+		SV_ClientPrintf(host_client, PRINT_MEDIUM, "setinfo: userinfo is limited to %i bytes. Ignoring setting %s\n", sv_userinfo_bytelimit.ival, key);
+		if (offset)	//kill it if they're part way through sending one, so that they're not penalised by the presence of partials that will never complete.
+			InfoBuf_RemoveKey(&host_client->userinfo, key);
+	}
+	else if (InfoBuf_SyncReceive(&host_client->userinfo, key, keysize, val, valsize, offset, final))
+	{
 #ifdef Q2SERVER
-	if (svs.gametype == GT_QUAKE2)
-	{
-		ge->ClientUserinfoChanged (host_client->q2edict, host_client->userinfo);	//tell the gamecode
-		SV_ExtractFromUserinfo(host_client, true);	//let the server routines know
-		return;
-	}
+		if (svs.gametype == GT_QUAKE2)
+		{
+			char tempbuffer[32768];
+			InfoBuf_ToString(&host_client->userinfo, tempbuffer, sizeof(tempbuffer), NULL, NULL, NULL, NULL, NULL);
+			ge->ClientUserinfoChanged (host_client->q2edict, tempbuffer);	//tell the gamecode
+			SV_ExtractFromUserinfo(host_client, true);	//let the server routines know
+		}
+		else
 #endif
+		{
 
-	if (progstype != PROG_QW && !strcmp(key, "bottomcolor"))
-	{	//team fortress has a nasty habit of booting people without this
-		sv_player->v->team = atoi(Cmd_Argv(2))+1;
-	}
+			if (progstype != PROG_QW && !strcmp(key, "bottomcolor"))
+			{	//team fortress has a nasty habit of booting people without this
+				sv_player->v->team = atoi(Cmd_Argv(2))+1;
+			}
 #ifndef NOLEGACY
-	if (progstype != PROG_QW && !strcmp(key, "model"))
-	{
-		eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playermodel", ev_string, NULL);
-		if (eval)
-			svprogfuncs->SetStringField(svprogfuncs, sv_player, &eval->string, Cmd_Argv(2), false);
-	}
-	if (progstype != PROG_QW && !strcmp(key, "skin"))
-	{
-		eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playerskin", ev_string, NULL);
-		if (eval)
-			svprogfuncs->SetStringField(svprogfuncs, sv_player, &eval->string, Cmd_Argv(2), false);
-	}
+			if (progstype != PROG_QW && !strcmp(key, "model"))
+			{
+				eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playermodel", ev_string, NULL);
+				if (eval)
+					svprogfuncs->SetStringField(svprogfuncs, sv_player, &eval->string, Cmd_Argv(2), false);
+			}
+			if (progstype != PROG_QW && !strcmp(key, "skin"))
+			{
+				eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playerskin", ev_string, NULL);
+				if (eval)
+					svprogfuncs->SetStringField(svprogfuncs, sv_player, &eval->string, Cmd_Argv(2), false);
+			}
 #endif
 
-	// process any changed values
-	SV_ExtractFromUserinfo (host_client, true);
+			// process any changed values
+			// chat happens far too often and makes debugging annoying, as well as making logs spammy
+			if (strcmp(key, "chat"))
+			{
+				SV_ExtractFromUserinfo (host_client, true);
+				SV_LogPlayer(host_client, "userinfo changed");
+			}
 
-	if (*key != '_')
-	{
-		val = Info_ValueForKey(host_client->userinfo, key);
-
-		SV_BroadcastUserinfoChange(host_client, SV_UserInfoIsBasic(key), key, val);
+			PR_ClientUserInfoChanged(key, oldval, InfoBuf_ValueForKey(&host_client->userinfo, key));
+		}
 	}
-
-	//doh't spam chat changes. they're not interesting, and just spammy.
-	if (strcmp(key, "chat"))
-		SV_LogPlayer(host_client, "userinfo changed");
-
-	PR_ClientUserInfoChanged(key, oldval, Info_ValueForKey(host_client->userinfo, key));
+	Z_Free(key);
+	Z_Free(val);
 }
 
 /*
@@ -4385,7 +4396,7 @@ Dumps the serverinfo info string
 void SV_ShowServerinfo_f (void)
 {
 	SV_BeginRedirect(RD_CLIENT, host_client->language);
-	Info_Print (svs.info, "");
+	InfoBuf_Print (&svs.info, "");
 	SV_EndRedirect();
 }
 
@@ -4950,8 +4961,8 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	}
 
 	{
-		int tc = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
-		int bc = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
+		int tc = atoi(InfoBuf_ValueForKey(&cl->userinfo, "topcolor"));
+		int bc = atoi(InfoBuf_ValueForKey(&cl->userinfo, "bottomcolor"));
 		if (tc < 0 || tc > 13)
 			tc = 0;
 		if (bc < 0 || bc > 13)
@@ -5152,7 +5163,7 @@ void Cmd_Join_f (void)
 
 		// turn the spectator into a player
 		host_client->spectator = false;
-		Info_RemoveKey (host_client->userinfo, "*spectator");
+		InfoBuf_RemoveKey (&host_client->userinfo, "*spectator");
 
 		// FIXME, bump the client's userid?
 
@@ -5287,7 +5298,7 @@ void Cmd_Observe_f (void)
 
 		// turn the player into a spectator
 		host_client->spectator = true;
-		Info_SetValueForStarKey (host_client->userinfo, "*spectator", "1", sizeof(host_client->userinfo));
+		InfoBuf_SetValueForStarKey (&host_client->userinfo, "*spectator", "1");
 
 		// FIXME, bump the client's userid?
 
@@ -5555,8 +5566,8 @@ static void SVNQ_Begin_f (void)
 
 	if (sv_playermodelchecks.value)
 	{
-		pmodel = atoi(Info_ValueForKey (host_client->userinfo, "pmodel"));
-		emodel = atoi(Info_ValueForKey (host_client->userinfo, "emodel"));
+		pmodel = atoi(InfoBuf_ValueForKey (&host_client->userinfo, "pmodel"));
+		emodel = atoi(InfoBuf_ValueForKey (&host_client->userinfo, "emodel"));
 
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
@@ -5672,18 +5683,12 @@ static void SVNQ_NQColour_f (void)
 		host_client->edict->v->team = bottom + 1;
 
 	val = va("%i", top);
-	if (strcmp(val, Info_ValueForKey(host_client->userinfo, "topcolor")))
-	{
-		Info_SetValueForKey(host_client->userinfo, "topcolor", val, sizeof(host_client->userinfo));
+	if (InfoBuf_SetValueForKey(&host_client->userinfo, "topcolor", val))
 		SV_BroadcastUserinfoChange(host_client, true, "topcolor", NULL);
-	}
 
 	val = va("%i", bottom);
-	if (strcmp(val, Info_ValueForKey(host_client->userinfo, "bottomcolor")))
-	{
-		Info_SetValueForKey(host_client->userinfo, "bottomcolor", val, sizeof(host_client->userinfo));
+	if (InfoBuf_SetValueForKey(&host_client->userinfo, "bottomcolor", val))
 		SV_BroadcastUserinfoChange(host_client, true, "bottomcolor", NULL);
-	}
 
 	switch(bottom)
 	{
@@ -5697,9 +5702,9 @@ static void SVNQ_NQColour_f (void)
 		val = va("t%i", bottom+1);
 		break;
 	}
-	if (strcmp(val, Info_ValueForKey(host_client->userinfo, "team")))
+	if (strcmp(val, InfoBuf_ValueForKey(&host_client->userinfo, "team")))
 	{
-		Info_SetValueForKey(host_client->userinfo, "team", val, sizeof(host_client->userinfo));
+		InfoBuf_SetValueForKey(&host_client->userinfo, "team", val);
 		SV_BroadcastUserinfoChange(host_client, true, "team", NULL);
 	}
 
@@ -6066,6 +6071,7 @@ ucmd_t nqucmds[] =
 	{"download",	SV_BeginDownload_f},
 	{"sv_startdownload",	SVDP_StartDownload_f},
 
+	{"serverinfo", SV_ShowServerinfo_f},
 	/*userinfo stuff*/
 	{"setinfo",		SV_SetInfo_f},
 	{"name",		SVNQ_NQInfo_f},
@@ -8067,9 +8073,11 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			break;
 
 		case clcq2_userinfo:
-			strncpy (cl->userinfo, MSG_ReadString (), sizeof(cl->userinfo)-1);
-			ge->ClientUserinfoChanged (cl->q2edict, cl->userinfo);	//tell the gamecode
+			//FIXME: allows the client to set * keys mid-game.
+			s = MSG_ReadString();
+			InfoBuf_FromString(&cl->userinfo, s, false);
 			SV_ExtractFromUserinfo(cl, true);	//let the server routines know
+			ge->ClientUserinfoChanged (cl->q2edict, s);	//tell the gamecode
 			break;
 
 		case clcq2_stringcmd:
@@ -8458,6 +8466,9 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_realiphostname_ipv4, cvargroup_servercontrol);
 	Cvar_Register (&sv_realiphostname_ipv6, cvargroup_servercontrol);
 	Cvar_Register (&sv_realip_timeout, cvargroup_servercontrol);
+
+	Cvar_Register (&sv_userinfo_keylimit, cvargroup_servercontrol);
+	Cvar_Register (&sv_userinfo_bytelimit, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
 	Cvar_Register (&sv_protocol_nq, cvargroup_servercontrol);

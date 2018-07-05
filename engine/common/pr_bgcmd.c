@@ -2780,7 +2780,7 @@ void QCBUILTIN PF_callfunction (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_loadfromfile (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*filename = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char *file = COM_LoadTempFile(filename, NULL);
+	const char *file = COM_LoadTempFile(filename, 0, NULL);
 
 	size_t size;
 
@@ -4439,14 +4439,11 @@ void QCBUILTIN PF_crc16 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_FLOAT(OFS_RETURN) = QCRC_Block(str, len);
 }
 
-void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_digest_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, const char *hashtype, const void *str, size_t len)
 {
-	const char *hashtype = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char *str = PF_VarString(prinst, 1, pr_globals);
 	int digestsize, i;
 	unsigned char digest[64];
 	unsigned char hexdig[sizeof(digest)*2+1];
-	size_t len = strlen(str);
 
 	if (!strcmp(hashtype, "MD4"))
 	{
@@ -4485,6 +4482,27 @@ void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	}
 	else
 		G_INT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *hashtype = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *str = PF_VarString(prinst, 1, pr_globals);
+	PF_digest_internal(prinst, pr_globals, hashtype, str, strlen(str));
+}
+
+void QCBUILTIN PF_digest_ptr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *hashtype = PR_GetStringOfs(prinst, OFS_PARM0);
+	int qcptr = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	if (qcptr < 0 || qcptr+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_digest_ptr: invalid dest\n");
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+	PF_digest_internal(prinst, pr_globals, hashtype, prinst->stringtable + qcptr, size);
 }
 
 // #510 string(string in) uri_escape = #510;

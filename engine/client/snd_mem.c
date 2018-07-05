@@ -907,7 +907,7 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 			else
 				Q_snprintfz(namebuffer, sizeof(namebuffer), "%s%s", prefixes[pre], name);
 
-			data = COM_LoadFile(namebuffer, 5, &filesize);
+			data = FS_LoadMallocFile(namebuffer, &filesize);
 			if (data)
 				break;
 			COM_FileExtension(namebuffer, orig, sizeof(orig));
@@ -917,7 +917,7 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 				if (!strcmp(orig, extensions[ex]+1))
 					continue;
 				Q_snprintfz(namebuffer, sizeof(namebuffer), "%s%s", altname, extensions[ex]);
-				data = COM_LoadFile(namebuffer, 5, &filesize);
+				data = FS_LoadMallocFile(namebuffer, &filesize);
 				if (data)
 				{
 					Con_DPrintf("found a mangled name: %s\n", namebuffer);

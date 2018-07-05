@@ -2119,12 +2119,12 @@ const char *COM_GetFileExtension (const char *in, const char *term)
 	if (!term)
 		term = in + strlen(in);
 
-	for (dot = term; dot >= in && *dot != '.' && *dot != '/' && *dot != '\\'; dot--)
-		;
-	if (dot < in)
-		return "";
-	in = dot;
-	return in;
+	for (dot = term; dot >= in && *dot != '/' && *dot != '\\'; dot--)
+	{
+		if (*dot == '.')
+			return dot;
+	}
+	return "";
 }
 
 //Quake 2's tank model has a borked skin (or two).
@@ -2805,6 +2805,7 @@ conchar_t q3codemasks[MAXQ3COLOURS] = {
 //Converts a conchar_t string into a char string. returns the null terminator. pass NULL for stop to calc it
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags, qboolean forceutf8)
 {
+	static char tohex[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 	unsigned int codeflags, codepoint;
 	if (!stop)
 	{
@@ -2828,15 +2829,22 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 	}
 	else*/
 	{
-		int fl, d;
+		unsigned int fl, d;
 		unsigned int c;
 		int prelinkflags = CON_WHITEMASK;	//if used, its already an error.
 		//FIXME: TEST!
 
 		fl = CON_WHITEMASK;
-		while(str < stop)
+		while(str <= stop)
 		{
-			str = Font_Decode(str, &codeflags, &codepoint);
+			if (str == stop)
+			{
+				codeflags = CON_WHITEMASK;
+				codepoint = 0;
+				str++;
+			}
+			else
+				str = Font_Decode(str, &codeflags, &codepoint);
 			if ((codeflags & CON_HIDDEN) && ignoreflags)
 			{
 				continue;
@@ -2871,7 +2879,6 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 			else if (codeflags != fl && !ignoreflags)
 			{
 				d = fl^codeflags;
-//				if (fl & CON_NONCLEARBG)	//not represented.
 				if (d & CON_BLINKTEXT)
 				{
 					if (outsize<=2)
@@ -2881,66 +2888,94 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 					*out++ = 'b';
 				}
 				if (d & CON_2NDCHARSETTEXT)
-				{
-					if (outsize<=2)
-						break;
-					outsize -= 2;
-					*out++ = '^';
-					*out++ = 'a';
-				}
-				if (d & CON_HALFALPHA)
-				{
-					if (outsize<=2)
-						break;
-					outsize -= 2;
-					*out++ = '^';
-					*out++ = 'h';
-				}
-
-				if (d & (CON_FGMASK | CON_BGMASK | CON_NONCLEARBG))
-				{
-					static char q3[16] = {	'0', 0,   0,   0,
-											0,   0,   0,   0,
-											0,	 '4', '2', '5',
-											'1', '6', '3', '7'};
-					if (!(d & (CON_BGMASK | CON_NONCLEARBG)) && q3[(codeflags & CON_FGMASK) >> CON_FGSHIFT] && !((d|fl) & CON_HALFALPHA))
+				{	//FIXME: convert to quake glyphs...
+					if (!com_parseutf8.ival && !forceutf8 && codepoint >= 0 && codepoint <= 255)
+					{	//strip the flag and encode it in private use (so it gets encoded as quake-compatible)
+						d &= ~CON_2NDCHARSETTEXT;
+						codepoint |= 0xe000;
+					}
+					else
 					{
 						if (outsize<=2)
 							break;
 						outsize -= 2;
-
-						d = codeflags;
 						*out++ = '^';
-						*out++ = q3[(codeflags & CON_FGMASK) >> CON_FGSHIFT];
-					}
-					else
-					{
-						if (outsize<=4)
-							break;
-						outsize -= 4;
-
-						d = codeflags;
-						*out++ = '^';
-						*out++ = '&';
-						if ((d & CON_FGMASK) == CON_WHITEMASK)
-							*out = '-';
-						else
-							sprintf(out, "%X", d>>24);
-						out++;
-						if (d & CON_NONCLEARBG)
-							sprintf(out, "%X", d>>28);
-						else
-							*out = '-';
-						out++;
+						*out++ = 'a';
 					}
 				}
 
+				if (codeflags & CON_RICHFORECOLOUR)
+				{
+					if (d & (CON_RICHFORECOLOUR|CON_RICHFOREMASK))
+					{
+						if (outsize<=5)
+							break;
+						outsize -= 5;
+						*out++ = '^';
+						*out++ = 'x';
+						*out++ = tohex[(codeflags>>CON_RICHRSHIFT)&15];
+						*out++ = tohex[(codeflags>>CON_RICHGSHIFT)&15];
+						*out++ = tohex[(codeflags>>CON_RICHBSHIFT)&15];
+					}
+				}
+				else
+				{
+					if (d & (CON_RICHFORECOLOUR | CON_FGMASK | CON_BGMASK | CON_NONCLEARBG))
+					{
+						static char q3[16] = {	'0', 0,   0,   0,
+												0,   0,   0,   0,
+												0,	 '4', '2', '5',
+												'1', '6', '3', '7'};
+						if (d & CON_RICHFORECOLOUR)
+							d = (d&~CON_RICHFOREMASK) | (CON_WHITEMASK&CON_RICHFOREMASK);
+						if (!(d & (CON_BGMASK | CON_NONCLEARBG)) && q3[(codeflags & CON_FGMASK) >> CON_FGSHIFT])
+						{
+							if (outsize<=2)
+								break;
+							outsize -= 2;
+
+							d = codeflags;
+							*out++ = '^';
+							*out++ = q3[(codeflags & CON_FGMASK) >> CON_FGSHIFT];
+						}
+						else
+						{
+							if (outsize<=4)
+								break;
+							outsize -= 4;
+
+							*out++ = '^';
+							*out++ = '&';
+							if ((codeflags & CON_FGMASK) == CON_WHITEMASK)
+								*out = '-';
+							else
+								*out = tohex[(codeflags>>24)&0xf];
+							out++;
+							if (codeflags & CON_NONCLEARBG)
+								*out = tohex[(codeflags>>28)&0xf];
+							else
+								*out = '-';
+							out++;
+						}
+					}
+					if (d & CON_HALFALPHA)
+					{
+						if (outsize<=2)
+							break;
+						outsize -= 2;
+						*out++ = '^';
+						*out++ = 'h';
+					}
+				}
 				fl = codeflags;
 			}
 
 			//don't magically show hidden text
 			if (ignoreflags && (codeflags & CON_HIDDEN))
 				continue;
+
+			if (str > stop)
+				break;
 
 			if (forceutf8)
 				c = utf8_encode(out, codepoint, outsize-1);
@@ -3343,7 +3378,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				str+=2;
 				continue;
 			}
-			else if (str[1] == ']' && linkstart)
+			else if (str[1] == ']')
 			{
 				if (keepmarkup)
 				{
@@ -3354,20 +3389,24 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 				if (!--outsize)
 					break;
+				if (linkstart)
+				{
+					*out++ = ']'|CON_HIDDEN|CON_LINKSPECIAL;
+					
+					//its a valid link, so we can hide it all now
+					*linkstart++ |= CON_HIDDEN|CON_LINKSPECIAL;	//leading [ is hidden
+					while(linkstart < out-1 && (*linkstart&CON_CHARMASK) != '\\')	//link text is NOT hidden
+						linkstart++;
+					while(linkstart < out)	//but the infostring behind it is, as well as the terminator
+						*linkstart++ |= CON_HIDDEN;
 
-				*out++ = ']'|CON_HIDDEN|CON_LINKSPECIAL;
-				
-				//its a valid link, so we can hide it all now
-				*linkstart++ |= CON_HIDDEN|CON_LINKSPECIAL;	//leading [ is hidden
-				while(linkstart < out-1 && (*linkstart&CON_CHARMASK) != '\\')	//link text is NOT hidden
-					linkstart++;
-				while(linkstart < out)	//but the infostring behind it is, as well as the terminator
-					*linkstart++ |= CON_HIDDEN;
-
-				//reset colours to how they used to be
-				ext = linkinitflags;
-				linkstart = NULL;
-				keepmarkup = linkkeep;
+					//reset colours to how they used to be
+					ext = linkinitflags;
+					linkstart = NULL;
+					keepmarkup = linkkeep;
+				}
+				else
+					*out++ = ']'|CON_LINKSPECIAL;
 
 				//never keep the markup
 				str+=2;
@@ -5892,110 +5931,358 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 	return checksum;
 }
 
+static char Base64_Encode(int byt)
+{
+	if (byt >= 0 && byt < 26)
+		return 'A' + byt - 0;
+	if (byt >= 26 && byt < 52)
+		return 'a' + byt - 26;
+	if (byt >= 52 && byt < 62)
+		return '0' + byt - 52;
+	if (byt == 62)
+		return '+';
+	if (byt == 63)
+		return '/';
+	return '!';
+}
+static int Base64_Decode(char inp)
+{
+	if (inp >= 'A' && inp <= 'Z')
+		return (inp-'A') + 0;
+	if (inp >= 'a' && inp <= 'z')
+		return (inp-'a') + 26;
+	if (inp >= '0' && inp <= '9')
+		return (inp-'0') + 52;
+	if (inp == '+')
+		return 62;
+	if (inp == '/')
+		return 63;
+	//if (inp == '=') //padding char
+	return 0;	//invalid
+}
 /*
   Info Buffers
 */
-/*
-typedef struct
+const char *basicuserinfos[] = {
+	"*",
+	"name",
+	"team",
+	"skin",
+	"topcolor",
+	"bottomcolor",
+	"chat",	//ezquake's afk indicators
+	NULL};
+const char *privateuserinfos[] =
 {
-	struct infobuf_s
-	{
-		char *name;
-		char *value;
-	} *keys;
-	size_t numkeys;
-	qboolean nolegacy;	//no \\ or \" limitations.
-} infobuf_t;
-char *InfoBuf_GetValue (infobuf_t *info, const char *key, char *outbuf, size_t outsize)
+	"_",		//ignore comments
+	"password",	//many users will forget to clear it after.
+	"prx",		//if someone has this set, don't bother broadcasting it.
+	"*ip",		//this is the ip the client used to connect to the server. this isn't useful as any proxy that would affect it can trivially strip/rewrite it anyway.
+	NULL
+};
+
+void InfoSync_Remove(infosync_t *sync, size_t k)
+{
+	sync->numkeys--;
+	Z_Free(sync->keys[k].name);
+	memmove(sync->keys + k, sync->keys + k + 1, sizeof(*sync->keys)*(sync->numkeys-k));
+}
+void InfoSync_Clear(infosync_t *sync)
 {
 	size_t k;
-	for (k = 0; k < info->numkeys; k++)
+	for (k = 0; k < sync->numkeys; k++)
+		Z_Free(sync->keys[k].name);
+	Z_Free(sync->keys);
+	sync->keys = NULL;
+	sync->numkeys = 0;
+}
+void InfoSync_Strip(infosync_t *sync, void *context)
+{
+	size_t k;
+	if (!sync->numkeys)
+		return;
+
+	for (k = 0; k < sync->numkeys; )
 	{
-		if (!strcmp(info->keys[k].name, key))
+		if (sync->keys[k].context == context)
 		{
-			Q_strncpyz(outbuf, info->keys[k].value, outsize);
-			return outbuf;
+			sync->numkeys--;
+			Z_Free(sync->keys[k].name);
+			memmove(sync->keys + k, sync->keys + k + 1, sizeof(*sync->keys)*(sync->numkeys-k));
+		}
+		else
+			k++;
+	}
+}
+void InfoSync_Add(infosync_t *sync, void *context, const char *name)
+{
+	size_t k;
+
+	for (k = 0; k < sync->numkeys; k++)
+	{
+		if (sync->keys[k].context == context && !strcmp(sync->keys[k].name, name))
+		{	//urr, it changed while we were sending it. reset!
+			sync->keys[k].syncpos = 0;
+			return;
 		}
 	}
-	*outbuf = 0;
-	return outbuf;
+
+	if (!ZF_ReallocElements((void**)&sync->keys, &sync->numkeys, sync->numkeys+1, sizeof(*sync->keys)))
+		return; //out of memory!
+	sync->keys[k].context = context;
+	sync->keys[k].name = Z_StrDup(name);
+	sync->keys[k].syncpos = 0;
 }
-char *InfoBuf_GetValueTmp (infobuf_t *info, const char *key)
-{
-	static	char value[4][1024];	// use multiple buffers so compares work without stomping on each other
-	static	int	valueindex;
-	COM_AssertMainThread("InfoBuf_GetValue");
-	valueindex = (valueindex+1)&3;
-	return InfoBuf_GetValue(info, key, value[valueindex], sizeof(value[valueindex]));
-}
-qboolean InfoBuf_RemoveKey (infobuf_t *info, const char *key)
+
+qboolean InfoBuf_FindKey (infobuf_t *info, const char *key, size_t *idx)
 {
 	size_t k;
 	for (k = 0; k < info->numkeys; k++)
 	{
 		if (!strcmp(info->keys[k].name, key))
 		{
-			Z_Free(info->keys[k].name);
-			Z_Free(info->keys[k].value);
-			info->numkeys--;
-			memmove(info->keys+k+0, info->keys+k+1, sizeof(*info->keys) * (info->numkeys-k));
-			return true;	//only one entry per key, so we can give up here
+			*idx = k;
+			return true;
 		}
 	}
 	return false;
 }
-void InfoBuf_SetKey (infobuf_t *info, const char *key, const char *val, qboolean force)
+const char *InfoBuf_KeyForNumber(infobuf_t *info, int idx)
+{	//allows itteration, removal can change the names of this/higher keys, but not lower keys.
+	if (idx >= 0 && idx < info->numkeys)
+		return info->keys[idx].name;
+	return NULL;
+}
+char *InfoBuf_ReadKey (infobuf_t *info, const char *key, char *outbuf, size_t outsize)	//not to be used with blobs. writes to a user-supplied buffer
 {
-	qboolean removed;
 	size_t k;
-
-	if (!val)
-		val = "";
-
-	if (!info->nolegacy)
+	if (InfoBuf_FindKey(info, key, &k) && !info->keys[k].partial)
 	{
-		//block invalid keys
-		//\\ makes parsing really really messy and isn't supported by most clients (although we could do it anyway)
-		//\" requires string escapes, again compat issues.
-		//0xff bugs out vanilla.
-		if (strchr(key, '\\') || strchr(key, '\"') || strchr(key, 0xff))
-			return;
-		if (strchr(val, '\\') || strchr(val, '\"') || strchr(val, 0xff))
-			return;
+		Q_strncpyz(outbuf, info->keys[k].value, outsize);
+		return outbuf;
+	}
+	*outbuf = 0;
+	return outbuf;
+}
+char *InfoBuf_ValueForKey (infobuf_t *info, const char *key)	//not to be used with blobs. cycles buffer and imposes a length limit.
+{
+	static	char value[4][1024];	// use multiple buffers so compares work without stomping on each other
+	static	int	valueindex;
+	COM_AssertMainThread("InfoBuf_ValueForKey");
+	valueindex = (valueindex+1)&3;
+	return InfoBuf_ReadKey(info, key, value[valueindex], sizeof(value[valueindex]));
+}
+const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize)	//obtains a direct pointer to temp memory
+{
+	size_t k;
+	if (InfoBuf_FindKey(info, key, &k) && !info->keys[k].partial)
+	{
+		*blobsize = info->keys[k].size;
+		return info->keys[k].value;
+	}
+	*blobsize = 0;
+	return NULL;
+}
+qboolean InfoBuf_RemoveKey (infobuf_t *info, const char *key)
+{
+	size_t k;
+	if (InfoBuf_FindKey(info, key, &k))
+	{
+		char *kn = info->keys[k].name;	//paranoid
+		Z_Free(info->keys[k].value);
+		info->numkeys--;
+		info->totalsize -= strlen(info->keys[k].name)+2;
+		info->totalsize -= info->keys[k].size;
+		memmove(info->keys+k+0, info->keys+k+1, sizeof(*info->keys) * (info->numkeys-k));
 
-		if (strlen(key) >= 64)
-			return;	//key length limits is a thing in vanilla qw.
-		if (strlen(val) >= 512)
-			return;	//value length limits is a thing in vanilla qw.
-					//note that qw reads values up to 512, but only sets them up to 64 bytes...
-					//probably just so that people don't spot buffer overflows so easily.
+		if (info->ChangeCB)
+			info->ChangeCB(info->ChangeCTX, kn);
+		Z_Free(kn);
+		return true;	//only one entry per key, so we can give up here
+	}
+	return false;
+}
+char *InfoBuf_DecodeString(const char *instart, const char *inend, size_t *sz)
+{
+	char *ret = Z_Malloc(inend-instart + 1);	//guarenteed to end up equal or smaller
+	int i;
+	unsigned int v;
+	if (*instart == '\xff')
+	{	//base64-coded
+		instart++;
+		for (i = 0; instart+1 < inend;)
+		{
+			v  = Base64_Decode(*instart++)<<18;
+			v |= Base64_Decode(*instart++)<<12;
+			ret[i++] = (v>>16)&0xff;
+			if (instart >= inend || *instart == '=')
+				break;
+			v |= Base64_Decode(*instart++)<<6;
+			ret[i++] = (v>>8)&0xff;
+			if (instart >= inend || *instart == '=')
+				break;
+			v |= Base64_Decode(*instart++)<<0;
+			ret[i++] = (v>>0)&0xff;
+		}
+		ret[i] = 0;
+		*sz = i;
+	}
+	else
+	{	//as-is
+		memcpy(ret, instart, inend-instart);
+		ret[inend-instart] = 0;
+		*sz = inend-instart;
+	}
+	return ret;
+}
+static qboolean InfoBuf_IsLarge(struct infokey_s *key)
+{
+	if (key->partial)
+		return true;
+		//detect invalid keys/values
+	//\\ makes parsing really really messy and isn't supported by most clients (although we could do it anyway)
+	//\" requires string escapes, again compat issues.
+	//0xff bugs out vanilla.
+	//nulls are bad, too...
+	if (strchr(key->name, '\\') || strchr(key->name, '\"') || strchr(key->name, 0xff))
+		return true;
+	if (strchr(key->value, '\\') || strchr(key->value, '\"') || strchr(key->value, 0xff) || strlen(key->value) != key->size)
+		return true;
+
+	if (key->size >= 64)
+		return true;	//key length limits is a thing in vanilla qw.
+	if (strlen(key->name) >= 64)
+		return true;	//value length limits is a thing in vanilla qw.
+						//note that qw reads values up to 512, but only sets them up to 64 bytes...
+						//probably just so that people don't spot buffer overflows so easily.
+	return false;
+}
+//like InfoBuf_SetStarBlobKey, but understands partials.
+qboolean InfoBuf_SyncReceive (infobuf_t *info, const char *key, size_t keysize, const char *val, size_t valsize, size_t offset, qboolean final)
+{
+	size_t k;
+	size_t newsize;
+
+	if (!InfoBuf_FindKey(info, key, &k))
+	{	//its new
+		if (!valsize)
+			return false;	//and not set to anything new either
+
+		if (offset)
+			return false;	//was missing the initial message...
+
+		k = info->numkeys;
+		if (!ZF_ReallocElements((void**)&info->keys, &info->numkeys, info->numkeys+1, sizeof(*info->keys)))
+			return false; //out of memory!
+		info->keys[k].name = Z_StrDup(key);
+		info->keys[k].size = 0;
+		info->keys[k].value = NULL;
+		info->totalsize += strlen(info->keys[k].name)+2;
+	}
+	else
+	{
+		if (!valsize)	//probably an error.
+			return InfoBuf_RemoveKey(info, key);
+
+		if (offset)
+		{
+			if (offset != info->keys[k].size)	//probably an error... should be progressive.
+				return InfoBuf_RemoveKey(info, key);
+		}
+//		else silently truncate.
+		info->totalsize -= info->keys[k].size;
 	}
 
+	newsize = offset + valsize;
+	if (final)
+	{	//release any excess memory (which could potentially be in the MB)
+		if (!ZF_ReallocElements((void**)&info->keys[k].value, &info->keys[k].buffersize, newsize+1, 1))
+			return false;
+		info->keys[k].buffersize = newsize+1;
+	}
+	else
+	{
+		if (info->keys[k].buffersize < newsize+1)
+		{
+			if (!ZF_ReallocElements((void**)&info->keys[k].value, &info->keys[k].buffersize, newsize*2+1, 1))
+				return false;
+		}
+	}
+	memcpy(info->keys[k].value+offset, val, valsize);
+	info->keys[k].value[newsize] = 0;
+	info->keys[k].size = newsize;
+	info->keys[k].partial = !final;
+	info->keys[k].large = InfoBuf_IsLarge(&info->keys[k]);
+	info->totalsize += info->keys[k].size;
+
+	if (final)
+		if (info->ChangeCB)
+			info->ChangeCB(info->ChangeCTX, key);
+	return true;
+}
+qboolean InfoBuf_SetStarBlobKey (infobuf_t *info, const char *key, const char *val, size_t valsize)
+{
+	size_t k;
+	if (!val)
+	{
+		val = "";
+		valsize = 0;
+	}
+
+	if (!InfoBuf_FindKey(info, key, &k))
+	{	//its new
+		if (!valsize)
+			return false;	//and not set to anything new either
+
+		k = info->numkeys;
+		if (!ZF_ReallocElements((void**)&info->keys, &info->numkeys, info->numkeys+1, sizeof(*info->keys)))
+			return false; //out of memory!
+		info->keys[k].name = Z_StrDup(key);
+
+		info->totalsize += strlen(info->keys[k].name)+2;
+	}
+	else
+	{
+		if (!valsize)
+			return InfoBuf_RemoveKey(info, key);
+
+		if (info->keys[k].size == valsize && !memcmp(info->keys[k].value, val, valsize))
+			return false;	//nothing new
+		Z_Free(info->keys[k].value);
+		info->totalsize -= info->keys[k].size;
+	}
+
+	info->keys[k].buffersize = valsize+1;
+	info->keys[k].size = valsize;
+	info->keys[k].value = Z_Malloc(info->keys[k].buffersize);
+	memcpy(info->keys[k].value, val, valsize);
+	info->keys[k].value[valsize] = 0;
+	info->keys[k].partial = false;
+	info->keys[k].large = InfoBuf_IsLarge(&info->keys[k]);
+	info->totalsize += info->keys[k].size;
+
+	if (info->ChangeCB)
+		info->ChangeCB(info->ChangeCTX, key);
+	return true;
+}
+qboolean InfoBuf_SetKey (infobuf_t *info, const char *key, const char *val)
+{
 	// *keys are meant to be secure (or rather unsettable by the user, preventing spoofing of stuff like *ip)
 	//		but note that this is pointless as a hacked client can send whatever initial *keys it wants (they are blocked mid-connection at least)
 	// * userinfos are always sent even to clients that can't support large infokey blobs
-	if (*key == '*' && !force)
-		return;
-
-	removed = InfoBuf_RemoveKey(info, key);
-	if (*val)
-	{
-		k = info->numkeys;
-		if (removed)
-			info->numkeys+=1;	//the memory is still allocated, because we're too lazy to free it.
-		else
-		{
-			if (!ZF_ReallocElements((void**)&info->keys, &info->numkeys, info->numkeys+1, sizeof(*info->keys)))
-				return; //out of memory!
-		}
-		info->keys[k].name = Z_StrDup(key);
-		info->keys[k].value = Z_StrDup(val);
-	}
+	if (*key == '*')
+		return false;
+	return InfoBuf_SetStarBlobKey (info, key, val, strlen(val));
 }
+qboolean InfoBuf_SetStarKey (infobuf_t *info, const char *key, const char *val)
+{
+	return InfoBuf_SetStarBlobKey (info, key, val, strlen(val));
+}
+
 void InfoBuf_Clear(infobuf_t *info, qboolean all)
 {//if all is false, leaves *keys
 	size_t k;
-	for (k = info->numkeys-1; k >= 0; k--)
+	for (k = info->numkeys; k --> 0; )
 	{
 		if (all || *info->keys[k].name != '*')
 		{
@@ -6010,12 +6297,60 @@ void InfoBuf_Clear(infobuf_t *info, qboolean all)
 		Z_Free(info->keys);
 		info->keys = NULL;
 	}
+	info->totalsize = 0;
 }
-void InfoBuf_FromString(infobuf_t *info, const char *infostring)
+//the callback reports how much data it splurged.
+/*qboolean InfoBuf_SyncSend(infobuf_t *info, size_t(*cb)(void *ctx, const char *key, const char *data, size_t offset, size_t size), void *ctx)
 {
-	if (*infostring++ != '\\')
-		return;	//invalid... not an info string
-	while (*infostring)
+	size_t k;
+	for (k = 0; k < info->numkeys; k++)
+	{
+		if (!info->keys[k].size)
+		{	//null keys are actually just present to flag removals.
+			//the sync is meant to be reliable, so these can be stripped once the update is sent.
+			cb(ctx, info->keys[k].name, NULL, 0, 0);
+			Z_Free(info->keys[k].name);
+			Z_Free(info->keys[k].value);
+			info->numkeys--;
+			memmove(info->keys+k, info->keys+k+1, (info->numkeys-k)*sizeof(*info->keys));
+			return true;
+		}
+		if (info->keys[k].syncedsize < info->keys[k].size)
+		{	//regular update, possibly partial.
+			info->keys[k].syncedsize += cb(ctx, info->keys[k].name, info->keys[k].value, info->keys[k].syncedsize, info->keys[k].size-info->keys[k].syncedsize);
+			return true;
+		}
+	}
+
+	return false;	//nothing to change.
+}*/
+void InfoBuf_Clone(infobuf_t *dest, infobuf_t *src)
+{
+	size_t k;
+
+	InfoBuf_Clear(dest, true);
+
+	dest->numkeys = src->numkeys;
+	dest->keys = BZ_Malloc(sizeof(*dest->keys) * dest->numkeys);
+	for (k = 0; k < dest->numkeys; k++)
+	{
+		dest->keys[k].partial = src->keys[k].partial;	//this is a problem. should we just not replicate partials?
+		dest->keys[k].large = src->keys[k].large;
+		dest->keys[k].name = Z_StrDup(src->keys[k].name);
+		dest->keys[k].size = src->keys[k].size;
+		dest->keys[k].value = Z_Malloc(src->keys[k].size+1);
+		memcpy(dest->keys[k].value, src->keys[k].value, src->keys[k].size);
+		dest->keys[k].value[src->keys[k].size] = 0;
+
+		dest->totalsize += strlen(dest->keys[k].name)+2+dest->keys[k].size;
+	}
+}
+void InfoBuf_FromString(infobuf_t *info, const char *infostring, qboolean append)
+{
+	if (!append)
+		InfoBuf_Clear(info, true);
+	//all keys must start with a backslash
+	while (*infostring++ == '\\')
 	{
 		const char *keystart = infostring;
 		const char *keyend;
@@ -6023,15 +6358,11 @@ void InfoBuf_FromString(infobuf_t *info, const char *infostring)
 		const char *valend;
 		char *key;
 		char *val;
-		char *o;
+		size_t keysize, valsize;
 		while (*infostring)
 		{
 			if (*infostring == '\\')
-			{
-				if (infostring[1] == '\\')
-					infostring += 2;
 				break;
-			}
 			else infostring += 1;
 		}
 		keyend = infostring;
@@ -6041,82 +6372,135 @@ void InfoBuf_FromString(infobuf_t *info, const char *infostring)
 		while (*infostring)
 		{
 			if (*infostring == '\\')
-			{
-				if (infostring[1] == '\\')
-					infostring += 2;
 				break;
-			}
 			else infostring += 1;
 		}
 		valend = infostring;
-		// *infostring might be '\\' or '\0'. doesn't really matter
 
-		if (!strncmp(keystart, " \\\\", 3))
-			keystart += 3;
-		if (!strncmp(valstart, " \\\\", 3))
-			valstart += 3;
-
-		key = Z_Malloc(1+keyend-keystart);
-		for (o = key; keystart < keyend; )
-		{
-			if (keystart[0] == '\\')
-				keystart+=1;
-			*o++ = *keystart++;
-		}
-		*o=0;
-		val = Z_Malloc(1+valend-valstart);
-		for (o = val; valstart < valend; )
-		{
-			if (valstart[0] == '\\')
-				valstart+=1;
-			*o++ = *valstart++;
-		}
-		*o=0;
-		InfoBuf_SetKey(info, key, val, true);
+		key = InfoBuf_DecodeString(keystart, keyend, &keysize);
+		val = InfoBuf_DecodeString(valstart, valend, &valsize);
+		InfoBuf_SetStarBlobKey(info, key, val, valsize);
 		Z_Free(key);
 		Z_Free(val);
 	}
 }
-static size_t InfoBuf_ToStringToken(const char *n, char *out, char *end)
+//internal logic
+static qboolean InfoBuf_EncodeString_Internal(const char *n, size_t s, char *out, char *end)
 {
-	size_t r = 1;
-	if (out < end)
-		*out++ = '\\';
-	if (*n == '\\' || (n[0] == ' ' && n[1] == '\\'))
-	{	//" \\" prefix is stripped by the reader, and present to allow keys or values with a leading \\ in a well-defined-but-annoying way
-		// (vanilla qw doesn't allow double-backslash anywhere in infostrings)
-		r += 3;
-		if (out < end)
-			*out++ = ' ';
-		if (out < end)
-			*out++ = '\\';
-		if (out < end)
-			*out++ = '\\';
-	}
-	while (*n)
+	size_t r = 0;
+	const char *c;
+	for (c = n; c < n+s; c++)
 	{
-		if (*n == '\\')
+		if (*c == (char)255 && c == n)
+			break;
+		if (*c == '\\')	//abiguity with end-of-token
+			break;
+		if (*c == '\"')	//parsing often sends these enclosed in quotes
+			break;
+		if (*c == '\n' || *c == '\r')	//generally bad form
+			break;
+		if (*c == 0)	//are we really doing this?
+			break;
+		if (*c == '$')	//a number of engines like expanding things inside quotes. make sure that cannot ever happen.
+			break;
+		if (*c == ';')	//in case someone manages to break out of quotes
+			break;
+	}
+	if (c != n+s)
+	{
+		unsigned int base64_cur = 0;
+		unsigned int base64_bits = 0;
+		r += 1;
+		if (out < end) *out++ = (char)255;
+
+		for (c = n; c < n+s; c++)
 		{
-			if (out < end)
-				*out++ = '\\';
+			base64_cur |= *(unsigned char*)c<<(16-	base64_bits);//first byte fills highest bits
+			base64_bits += 8;
+
+			if (base64_bits == 24)
+			{
+				r += 4;
+				if (out < end) *out++ = Base64_Encode((base64_cur>>18)&63);
+				if (out < end) *out++ = Base64_Encode((base64_cur>>12)&63);
+				if (out < end) *out++ = Base64_Encode((base64_cur>>6)&63);
+				if (out < end) *out++ = Base64_Encode((base64_cur>>0)&63);
+				base64_bits = 0;
+				base64_cur = 0;
+			}
 		}
-		if (out < end)
-			*out++ = *n;
-		n++;
+		if (base64_bits != 0)
+		{
+			r += 4;
+			if (out < end) *out++ = Base64_Encode((base64_cur>>18)&63);
+			if (out < end) *out++ = Base64_Encode((base64_cur>>12)&63);
+			if (base64_bits == 8)
+			{
+				if (out < end) *out++ = '=';
+				if (out < end) *out++ = '=';
+			}
+			else
+			{
+				if (out < end) *out++ = Base64_Encode((base64_cur>>6)&63);
+				if (base64_bits == 16)
+				{
+					if (out < end) *out++ = '=';
+				}
+				else
+				{
+					if (out < end) *out++ = Base64_Encode((base64_cur>>0)&63);
+				}
+			}
+		}
+	}
+	else
+	{
+		for (c = n; c < n+s; c++)
+		{
+			r++;
+			if (out < end) *out++ = *c;
+		}
 	}
 	return r;
 }
-size_t InfoBuf_ToString(infobuf_t *info, char *infostring, size_t maxsize, const char **priority, const char **ignore, const char **exclusive)
+//public interface to make things easy
+qboolean InfoBuf_EncodeString(const char *n, size_t s, char *out, size_t outsize)
 {
-	//if infostring is null, returns the needed buffer size
-	//\foo\\\bar is ambiguous. and interpreted as foo\ + bar
-	//\foo\ \\\\bar is interpreted as foo + \bar - leading " \\" is ignored if present.
-
-	//FIXME: add a filter, for short/compated buffers. prioritisation or something
+	size_t l = InfoBuf_EncodeString_Internal(n, s, out, out+outsize);
+	if (l < outsize)
+	{
+		out[l] = 0;
+		return true;
+	}
+	*out = 0;
+	return false;
+}
+void *InfoBuf_EncodeString_Malloc(const char *n, size_t s)
+{
+	size_t l = InfoBuf_EncodeString_Internal(n, s, NULL, NULL);
+	char *ret = BZ_Malloc(l+1);
+	if (!ret || l != InfoBuf_EncodeString_Internal(n, s, ret, ret+l))
+		Sys_Error("InfoBuf_EncodeString_Malloc: error\n");
+	ret[l] = 0;
+	return ret;
+}
+size_t InfoBuf_EncodeStringSlash(const char *n, size_t s, char *out, char *end)
+{
+	size_t l = 1+InfoBuf_EncodeString_Internal(n, s, out+1, end);
+	if (out < end)
+		*out = '\\';
+	return l;
+}
+size_t InfoBuf_ToString(infobuf_t *info, char *infostring, size_t maxsize, const char **priority, const char **ignore, const char **exclusive, infosync_t *sync, void *synccontext)
+{
 	size_t k, r = 1, l;
 	char *o = infostring;
 	char *e = infostring?infostring + maxsize-1:infostring;
 	int pri, p;
+
+	if (sync)	//if we have a sync object then we just wiped whatever infostrings that were set
+		InfoSync_Strip(sync, synccontext);
+
 	for (pri = 0; pri < 2; pri++)
 	{
 		for (k = 0; k < info->numkeys; k++)
@@ -6124,24 +6508,42 @@ size_t InfoBuf_ToString(infobuf_t *info, char *infostring, size_t maxsize, const
 			if (exclusive)
 			{
 				for (l = 0; exclusive[l]; l++)
+				{
 					if (!strcmp(exclusive[l], info->keys[k].name))
 						break;
+					else if (exclusive[l][0] == '*' && !exclusive[l][1] && *info->keys[k].name == '*')
+						break;	//read-only
+					else if (exclusive[l][0] == '_' && !exclusive[l][1] && *info->keys[k].name == '_')
+						break;	//comment
+				}
 				if (!exclusive[l])
 					continue;	//ignore when not in the list
 			}
 			if (ignore)
 			{
 				for (l = 0; ignore[l]; l++)
+				{
 					if (!strcmp(ignore[l], info->keys[k].name))
 						break;
+					else if (ignore[l][0] == '*' && !ignore[l][1] && *info->keys[k].name == '*')
+						break;	//read-only
+					else if (ignore[l][0] == '_' && !ignore[l][1] && *info->keys[k].name == '_')
+						break;	//comment
+				}
 				if (ignore[l])
 					continue;	//ignore when in the list
 			}
 			if (priority)
 			{
 				for (l = 0; priority[l]; l++)
+				{
 					if (!strcmp(priority[l], info->keys[k].name))
 						break;
+					else if (priority[l][0] == '*' && !priority[l][1] && *info->keys[k].name == '*')
+						break;	//read-only
+					else if (priority[l][0] == '_' && !priority[l][1] && *info->keys[k].name == '_')
+						break;	//comment
+				}
 				if (priority[l])
 					p = 0;	//high priority
 				else
@@ -6157,22 +6559,62 @@ size_t InfoBuf_ToString(infobuf_t *info, char *infostring, size_t maxsize, const
 			if (pri != p)
 				continue;
 
-			l = InfoBuf_ToStringToken(info->keys[k].name, o, e);
-			l += InfoBuf_ToStringToken(info->keys[k].value, o, e);
-			r += l;
-			if (o && o + l < e)
-				o += l;
+			if (!info->keys[k].large)	//lower priorities don't bother with extended blocks. be sure to prioritise them explicitly. they'd just bug stuff out.
+			{
+				l = InfoBuf_EncodeStringSlash(info->keys[k].name, strlen(info->keys[k].name), o, e);
+				l += InfoBuf_EncodeStringSlash(info->keys[k].value, info->keys[k].size, o+l, e);
+				r += l;
+				if (o && o + l < e)
+					o += l;
+				else if (sync)
+					InfoSync_Add(sync, synccontext, info->keys[k].name);	//not enough space. send this one later
+			}
+			else if (sync)
+				InfoSync_Add(sync, synccontext, info->keys[k].name);	//don't include large/weird keys in the initial string
 		}
 	}
 	*o = 0;
 	return r;
 }
 
-void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname, int cvarflags)
+void InfoBuf_Print(infobuf_t *info, const char *lineprefix)
 {
-	char buffer[1024];
 	const char *key;
 	const char *val;
+	size_t k;
+
+	for (k = 0; k < info->numkeys; k++)
+	{
+		char *partial = info->keys[k].partial?"<PARTIAL>":"";
+		key = info->keys[k].name;
+		val = info->keys[k].value;
+
+		if (info->keys[k].size != strlen(info->keys[k].value))
+			Con_Printf ("%s%-20s%s<BINARY %u BYTES>\n", lineprefix, key, partial, (unsigned int)info->keys[k].size);
+		else if (info->keys[k].size > 64 || strchr(val, '\n') || strchr(val, '\r') || strchr(val, '\t'))
+			Con_Printf ("%s%-20s%s<%u BYTES>\n", lineprefix, key, partial, (unsigned int)info->keys[k].size);
+		else
+			Con_Printf ("%s%-20s%s%s\n", lineprefix, key, partial, val);
+	}
+}
+void InfoBuf_Enumerate (infobuf_t *info, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))
+{
+	const char *key;
+	const char *val;
+	size_t k;
+
+	for (k = 0; k < info->numkeys; k++)
+	{
+		key = info->keys[k].name;
+		val = info->keys[k].value;
+		cb(ctx, key, val);
+	}
+}
+
+void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname, int cvarflags)
+{
+	char *key;
+	char *val;
 	cvar_t *var;
 	size_t k;
 
@@ -6186,21 +6628,32 @@ void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname,
 		if (cvarflags)
 		{
 			var = Cvar_FindVar(key);
-			if (var && var->flags & cvarflags)
+			if (var && (var->flags & cvarflags))
 				continue;	//this is saved via a cvar.
 		}
 
-		VFS_WRITE(f, commandname, strlen(commandname));
-		VFS_WRITE(f, " ", 1);
-		key = COM_QuotedString(key, buffer, sizeof(buffer), false);
-		VFS_WRITE(f, key, strlen(key));
-		VFS_WRITE(f, " ", 1);
-		val = COM_QuotedString(val, buffer, sizeof(buffer), false);
-		VFS_WRITE(f, val, strlen(val));
-		VFS_WRITE(f, "\n", 1);
+		key = InfoBuf_EncodeString_Malloc(key, strlen(key));
+		val = InfoBuf_EncodeString_Malloc(val, info->keys[k].size);
+		if (!commandname)
+		{	//with no command name, just writes a (big) infostring that we can parse later
+			VFS_WRITE(f, "\\", 1);
+			VFS_WRITE(f, key, strlen(key));
+			VFS_WRITE(f, "\\", 1);
+			VFS_WRITE(f, val, strlen(val));
+		}
+		else
+		{
+			VFS_WRITE(f, commandname, strlen(commandname));
+			VFS_WRITE(f, " \"", 2);
+			VFS_WRITE(f, key, strlen(key));
+			VFS_WRITE(f, "\" \"", 3);
+			VFS_WRITE(f, val, strlen(val));
+			VFS_WRITE(f, "\"\n", 2);
+		}
+		BZ_Free(key);
+		BZ_Free(val);
 	}
 }
-*/
 
 /*
 =====================================================================

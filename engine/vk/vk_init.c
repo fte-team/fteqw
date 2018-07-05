@@ -3746,7 +3746,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	VkResult err;
 	VkApplicationInfo app;
 	VkInstanceCreateInfo inst_info;
-	int gpuidx;
+	int gpuidx = 0;
 	const char *extensions[8];
 	uint32_t extensions_count = 0;
 

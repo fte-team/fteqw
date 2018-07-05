@@ -100,7 +100,7 @@ void W_LoadWadFile (char *filename)
 	if (wad_base)
 		Z_Free(wad_base);
 	
-	wad_base = COM_LoadFile (filename, 0, NULL);
+	wad_base = COM_LoadFile (filename, 0, 0, NULL);
 	if (!wad_base)
 	{
 		wad_numlumps = 0;

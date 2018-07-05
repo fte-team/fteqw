@@ -5069,7 +5069,6 @@ void VKBE_RT_End(struct vk_rendertarg *targ)
 
 static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 {
-	extern cvar_t r_refractreflect_scale;
 	float oldil;
 	int oldbem;
 //	struct vk_rendertarg *targ;
@@ -5093,8 +5092,8 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 
 		r_refdef.vrect.x = 0;
 		r_refdef.vrect.y = 0;
-		r_refdef.vrect.width = max(1, vid.fbvwidth*r_refractreflect_scale.value);
-		r_refdef.vrect.height = max(1, vid.fbvheight*r_refractreflect_scale.value);
+		r_refdef.vrect.width = max(1, vid.fbvwidth*bs->portalfboscale);
+		r_refdef.vrect.height = max(1, vid.fbvheight*bs->portalfboscale);
 		VKBE_RT_Gen(&shaderstate.rt_reflection, r_refdef.vrect.width, r_refdef.vrect.height, false, RT_IMAGEFLAGS);
 		VKBE_RT_Begin(&shaderstate.rt_reflection);
 		R_DrawPortal(batch, cl.worldmodel->batches, NULL, 1);

@@ -1187,10 +1187,12 @@ void CL_RecordMap_f (void)
 #endif
 
 //qw-specific serverdata
-static void CLQW_RecordServerData(sizebuf_t *buf)
+static void CLQW_RecordServerData(sizebuf_t *buf, int *seq)
 {
 	extern	char gamedirfile[];
 	unsigned int i;
+	infosync_t sync;
+	char serverinfostring[1024];
 
 // send the serverdata
 	MSG_WriteByte (buf, svc_serverdata);
@@ -1246,31 +1248,79 @@ static void CLQW_RecordServerData(sizebuf_t *buf)
 	MSG_WriteFloat(buf, movevars.entgravity);
 
 	// send server info string
+	memset(&sync, 0, sizeof(sync));
+	InfoBuf_ToString(&cl.serverinfo, serverinfostring, sizeof(serverinfostring), NULL, NULL, NULL, &sync, NULL);
 	MSG_WriteByte (buf, svc_stufftext);
-	MSG_WriteString (buf, va("fullserverinfo \"%s\"\n", cl.serverinfo) );
+	MSG_WriteString (buf, va("fullserverinfo \"%s\"\n", serverinfostring));
+	while(sync.numkeys)
+	{
+		char *keyname = sync.keys[0].name;
+		char enckey[2048], encdata[2048];
+		if (InfoBuf_EncodeString(keyname,strlen(keyname), enckey, sizeof(enckey)))
+		{
+			size_t k;
+			if (InfoBuf_FindKey(&cl.serverinfo, keyname, &k))
+			{
+				size_t offset, chunk;
+				qboolean final;
+				for (offset = 0 ; offset < cl.serverinfo.keys[k].size; offset += chunk)
+				{
+					chunk = cl.serverinfo.keys[k].size - offset;
+					if (chunk > 1024)
+						chunk = 1024;
+
+					if (!InfoBuf_EncodeString(cl.serverinfo.keys[k].value, chunk, encdata, sizeof(encdata)))
+						break;	//shouldn't happen.
+				
+					if (buf->cursize > 512)
+						CL_WriteRecordDemoMessage (buf, (*seq)++);
+
+					final = (offset+chunk == cl.serverinfo.keys[k].size) && !cl.serverinfo.keys[k].partial;
+					if (!offset && final)
+					{	//vanilla compat. we must just have a lot of data.
+						MSG_WriteByte(buf, svc_serverinfo);
+						MSG_WriteString(buf, enckey);
+						MSG_WriteString(buf, encdata);
+					}
+					else
+					{	//awkward stuff.
+						MSG_WriteByte(buf, svc_setinfo);
+						MSG_WriteByte(buf, 255); //special meaning to say that this is a partial update
+						MSG_WriteByte(buf, 255);	//the serverinfo
+						MSG_WriteLong(buf, (final?0x80000000:0)|offset);
+						MSG_WriteString(buf, enckey);
+						MSG_WriteString(buf, encdata);
+					}
+					offset += chunk;
+				}
+			}
+		}
+		InfoSync_Remove(&sync, 0);
+	}
+	InfoSync_Clear(&sync);
 }
 
 #ifdef NQPROT
-void CLNQ_WriteServerData(sizebuf_t *buf)
+void CLNQ_WriteServerData(sizebuf_t *buf)	//for demo recording
 {
 	unsigned int protmain;
 	unsigned int protfl = 0;
 	unsigned int i;
 	const char *val;
 
-	val = Info_ValueForKey(cl.serverinfo, "*csprogs");
+	val = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
 	if (*val)
 	{
 		MSG_WriteByte(buf, svc_stufftext);
 		MSG_WriteString(buf, va("csqc_progcrc \"%s\"\n", val));
 	}
-	val = Info_ValueForKey(cl.serverinfo, "*csprogssize");
+	val = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogssize");
 	if (*val)
 	{
 		MSG_WriteByte(buf, svc_stufftext);
 		MSG_WriteString(buf, va("csqc_progsize \"%s\"\n", val));
 	}
-	val = Info_ValueForKey(cl.serverinfo, "*csprogsname");
+	val = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
 	if (*val)
 	{
 		MSG_WriteByte(buf, svc_stufftext);
@@ -1724,7 +1774,7 @@ void CL_Record_f (void)
 
 		cls.demorecording = DPB_QUAKEWORLD;
 
-		CLQW_RecordServerData(&buf);
+		CLQW_RecordServerData(&buf, &seq);
 
 		// send music
 		Media_WriteCurrentTrack(&buf);
@@ -1881,19 +1931,21 @@ void CL_Record_f (void)
 				MSG_WriteByte (&buf, player->pl);
 			}
 
-			if (*player->userinfo)
+			if (player->userinfo.numkeys)
 			{
 				MSG_WriteByte (&buf, svc_updateentertime);
 				MSG_WriteByte (&buf, i);
 				MSG_WriteFloat (&buf, realtime - player->realentertime);	//seconds since
 			}
 
-			if (*player->userinfo)
+			if (player->userinfo.numkeys)
 			{
+				char info[MAX_LOCALINFO_STRING];
+				InfoBuf_ToString(&player->userinfo, info, sizeof(info), basicuserinfos, NULL, NULL, NULL, NULL);
 				MSG_WriteByte (&buf, svc_updateuserinfo);
 				MSG_WriteByte (&buf, i);
 				MSG_WriteLong (&buf, player->userid);
-				MSG_WriteString (&buf, player->userinfo);
+				MSG_WriteString (&buf, info);
 			}
 
 			if (buf.cursize > buf.maxsize/2)
@@ -2954,7 +3006,11 @@ void CL_QTVPlay_f (void)
 		{
 			Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
 					"QTV_EZQUAKE_EXT: 3\n"
-					"USERINFO: %s\n", cls.userinfo[0]);
+					"USERINFO: ");
+			msglen += strlen(msg+msglen);
+			InfoBuf_ToString(&cls.userinfo[0], msg+msglen, sizeof(msg)-msglen-1, basicuserinfos, NULL, NULL, NULL, NULL);
+			msglen += strlen(msg+msglen);
+			Q_strncatz(msg+msglen, "\n", sizeof(msg)-msglen);
 			msglen += strlen(msg+msglen);
 		}
 

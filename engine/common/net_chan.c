@@ -199,6 +199,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		mask |= PEXT2_VOICECHAT;
 	#endif
 		mask |= PEXT2_SETANGLEDELTA;
+//		mask |= PEXT2_INFOBLOBS;
 
 		if (pext_replacementdeltas.ival)
 			mask |= PEXT2_REPLACEMENTDELTAS;

@@ -1,6 +1,44 @@
 #include "quakedef.h"
 #include "fs.h"
 
+//#define AVAIL_BZLIB
+//#define DYNAMIC_BZLIB
+
+#ifdef AVAIL_BZLIB
+#	include <bzlib.h>
+#	ifdef DYNAMIC_BZLIB
+#	ifndef WINAPI
+#		define WINAPI
+#	endif
+#	define BZ2_bzDecompressInit pBZ2_bzDecompressInit
+#	define BZ2_bzDecompress pBZ2_bzDecompress
+#	define BZ2_bzDecompressEnd pBZ2_bzDecompressEnd
+	static int (WINAPI *BZ2_bzDecompressInit)(bz_stream *strm, int verbosity, int small);
+	static int (WINAPI *BZ2_bzDecompress)(bz_stream* strm);
+	static int (WINAPI *BZ2_bzDecompressEnd)(bz_stream *strm);
+	static qboolean BZLIB_LOADED(void)
+	{
+		static qboolean tried;
+		static void *handle;
+		if (!tried)
+		{
+			static dllfunction_t funcs[] =
+			{
+				{(void*)&BZ2_bzDecompressInit,	"BZ2_bzDecompressInit"},
+				{(void*)&BZ2_bzDecompress,		"BZ2_bzDecompress"},
+				{(void*)&BZ2_bzDecompressEnd,	"BZ2_bzDecompressEnd"},
+				{NULL, NULL}
+			};
+			tried = true;
+			handle = Sys_LoadLibrary("libbz2", funcs);
+		}
+		return handle != NULL;
+	}
+#	else
+#		define BZLIB_LOADED() 1
+#	endif
+#endif
+
 #ifdef AVAIL_ZLIB
 # define ZIPCRYPT
 
@@ -504,9 +542,6 @@ vfsfile_t *FS_GZ_WriteFilter(vfsfile_t *outfile, qboolean autoclosefile, qboolea
 
 
 
-
-
-
 #ifdef PACKAGE_PK3
 
 typedef struct
@@ -520,11 +555,12 @@ typedef struct
 	unsigned int		crc;
 	unsigned int		flags;
 } zpackfile_t;
-#define ZFL_DEFLATED	1	//need to use zlib
-#define ZFL_STORED		2	//direct access is okay
-#define ZFL_SYMLINK		4	//file is a symlink
-#define ZFL_CORRUPT		8	//file is corrupt or otherwise unreadable (usually just means we don't support reading it rather than actually corrupt, but hey).
-#define ZFL_WEAKENCRYPT	16	//traditional zip encryption
+#define ZFL_DEFLATED	(1u<<0)	//need to use zlib
+#define ZFL_BZIP2		(1u<<1)	//bzip2 compression
+#define ZFL_STORED		(1u<<2)	//direct access is okay
+#define ZFL_SYMLINK		(1u<<3)	//file is a symlink
+#define ZFL_CORRUPT		(1u<<4)	//file is corrupt or otherwise unreadable (usually just means we don't support reading it rather than actually corrupt, but hey).
+#define ZFL_WEAKENCRYPT	(1u<<5)	//traditional zip encryption
 
 
 typedef struct zipfile_s
@@ -712,9 +748,12 @@ static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 	return result;
 }
 
-#ifdef AVAIL_ZLIB
 struct decompressstate
 {
+	struct decompressstate *(*Reinit)(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc);
+	qofs_t (*Read)(struct decompressstate *st, qbyte *buffer, qofs_t bytes);
+	void (*Destroy)(struct decompressstate *st);
+
 	zipfile_t *source;
 	qofs_t cstart;	//position of start of data
 	qofs_t cofs;	//current read offset
@@ -731,8 +770,15 @@ struct decompressstate
 	const z_crc_t * crctable;
 #endif
 
+#ifdef AVAIL_ZLIB
 	z_stream strm;
+#endif
+#ifdef AVAIL_BZLIB
+	bz_stream bstrm;
+#endif
 };
+
+#if defined(AVAIL_ZLIB) || defined(AVAIL_BZLIB)
 
 #ifdef ZIPCRYPT
 #define CRC32(c, b) ((*(st->crctable+(((int)(c) ^ (b)) & 0xff))) ^ ((c) >> 8))
@@ -791,47 +837,8 @@ static void FSZIP_DecryptBlock(struct decompressstate *st, char *block, size_t b
 }
 #endif
 
-static struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
-{
-	struct decompressstate *st;
-	if (!ZLIB_LOADED())
-	{
-		Con_Printf("zlib not available\n");
-		return NULL;
-	}
-	st = Z_Malloc(sizeof(*st));
-	st->source = source;
-
-#ifdef ZIPCRYPT
-	if (password && csize >= 12)
-	{
-		char entropy[12];
-		if (Sys_LockMutex(source->mutex))
-		{
-			VFS_SEEK(source->raw, start);
-			VFS_READ(source->raw, entropy, sizeof(entropy));
-			Sys_UnlockMutex(source->mutex);
-		}
-		if (!FSZIP_SetupCrytoKeys(st, password, entropy, crc))
-		{
-			Con_Printf("Invalid password, cannot decrypt %s\n", filename);
-			Z_Free(st);
-			return NULL;
-		}
-		start += sizeof(entropy);
-		csize -= sizeof(entropy);
-	}
-#endif
-
-	st->cstart = st->cofs = start;
-	st->cend = start + csize;
-	st->usize = usize;
-	st->strm.data_type = Z_UNKNOWN;
-	qinflateInit2(&st->strm, -MAX_WBITS);
-	return st;
-}
-
-static qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
+#ifdef AVAIL_ZLIB
+static qofs_t FSZIP_Deflate_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
 {
 	qboolean eof = false;
 	int err;
@@ -893,11 +900,171 @@ static qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, q
 	return read;
 }
 
-static void FSZIP_Decompress_Destroy(struct decompressstate *st)
+static void FSZIP_Deflate_Destroy(struct decompressstate *st)
 {
 	qinflateEnd(&st->strm);
 	Z_Free(st);
 }
+
+static struct decompressstate *FSZIP_Deflate_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
+{
+	struct decompressstate *st;
+	if (!ZLIB_LOADED())
+	{
+		Con_Printf("zlib not available\n");
+		return NULL;
+	}
+	st = Z_Malloc(sizeof(*st));
+	st->Reinit	= FSZIP_Deflate_Init;
+	st->Read	= FSZIP_Deflate_Read;
+	st->Destroy	= FSZIP_Deflate_Destroy;
+	st->source = source;
+
+#ifdef ZIPCRYPT
+	if (password && csize >= 12)
+	{
+		char entropy[12];
+		if (Sys_LockMutex(source->mutex))
+		{
+			VFS_SEEK(source->raw, start);
+			VFS_READ(source->raw, entropy, sizeof(entropy));
+			Sys_UnlockMutex(source->mutex);
+		}
+		if (!FSZIP_SetupCrytoKeys(st, password, entropy, crc))
+		{
+			Con_Printf("Invalid password, cannot decrypt %s\n", filename);
+			Z_Free(st);
+			return NULL;
+		}
+		start += sizeof(entropy);
+		csize -= sizeof(entropy);
+	}
+#endif
+
+	st->cstart = st->cofs = start;
+	st->cend = start + csize;
+	st->usize = usize;
+
+	st->strm.data_type = Z_UNKNOWN;
+	qinflateInit2(&st->strm, -MAX_WBITS);
+	return st;
+}
+#endif
+
+#ifdef AVAIL_BZLIB
+static qofs_t FSZIP_BZip2_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
+{
+	qboolean eof = false;
+	int err;
+	qofs_t read = 0;
+	while(bytes)
+	{
+		if (st->readoffset < st->bstrm.total_out_lo32)
+		{
+			unsigned int consume = st->bstrm.total_out_lo32-st->readoffset;
+			if (consume > bytes)
+				consume = bytes;
+			memcpy(buffer, st->outbuffer+st->readoffset, consume);
+			buffer += consume;
+			bytes -= consume;
+			read += consume;
+			st->readoffset += consume;
+			continue;
+		}
+		else if (eof)
+			break;	//no input available, and nothing in the buffers.
+
+		st->bstrm.total_out_lo32 = 0;
+		st->bstrm.total_out_hi32 = 0;
+		st->bstrm.avail_out = sizeof(st->outbuffer);
+		st->bstrm.next_out = st->outbuffer;
+		st->readoffset = 0;
+		if (!st->bstrm.avail_in)
+		{
+			qofs_t sz;
+			sz = st->cend - st->cofs;
+			if (sz > sizeof(st->inbuffer))
+				sz = sizeof(st->inbuffer);
+			if (sz)
+			{
+				//feed it.
+				if (Sys_LockMutex(st->source->mutex))
+				{
+					VFS_SEEK(st->source->raw, st->cofs);
+					st->bstrm.avail_in = VFS_READ(st->source->raw, st->inbuffer, sz);
+					Sys_UnlockMutex(st->source->mutex);
+				}
+				else
+					st->bstrm.avail_in = 0;
+				st->bstrm.next_in = st->inbuffer;
+				st->cofs += st->bstrm.avail_in;
+#ifdef ZIPCRYPT
+				if (st->encrypted)
+					FSZIP_DecryptBlock(st, st->inbuffer, st->bstrm.avail_in);
+#endif
+			}
+			if (!st->bstrm.avail_in)
+				eof = true;
+		}
+		err = BZ2_bzDecompress(&st->bstrm);
+		if (err == BZ_FINISH_OK)
+			eof = true;
+		else if (err < 0)
+			break;
+	}
+	return read;
+}
+
+static void FSZIP_BZip2_Destroy(struct decompressstate *st)
+{
+	BZ2_bzDecompressEnd(&st->bstrm);
+	Z_Free(st);
+}
+
+static struct decompressstate *FSZIP_BZip2_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
+{
+	struct decompressstate *st;
+	if (!BZLIB_LOADED())
+	{
+		Con_Printf("bzlib not available\n");
+		return NULL;
+	}
+	st = Z_Malloc(sizeof(*st));
+	st->Reinit	= FSZIP_BZip2_Init;
+	st->Read	= FSZIP_BZip2_Read;
+	st->Destroy	= FSZIP_BZip2_Destroy;
+	st->source	= source;
+
+#ifdef ZIPCRYPT
+	if (password && csize >= 12)
+	{
+		char entropy[12];
+		if (Sys_LockMutex(source->mutex))
+		{
+			VFS_SEEK(source->raw, start);
+			VFS_READ(source->raw, entropy, sizeof(entropy));
+			Sys_UnlockMutex(source->mutex);
+		}
+		if (!FSZIP_SetupCrytoKeys(st, password, entropy, crc))
+		{
+			Con_Printf("Invalid password, cannot decrypt %s\n", filename);
+			Z_Free(st);
+			return NULL;
+		}
+		start += sizeof(entropy);
+		csize -= sizeof(entropy);
+	}
+#endif
+
+	st->cstart = st->cofs = start;
+	st->cend = start + csize;
+	st->usize = usize;
+
+	BZ2_bzDecompressInit(&st->bstrm, 0, false);
+	return st;
+}
+#endif
+
 static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
 {	//if they're going to seek on a file in a zip, let's just copy it out
 	qofs_t cstart = decompress->cstart, csize = decompress->cend - cstart;
@@ -906,61 +1073,48 @@ static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress
 	struct decompressstate *nc;
 	qbyte buffer[16384];
 	vfsfile_t *defer;
+	struct decompressstate *(*Reinit)(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc) = decompress->Reinit;
 	zipfile_t *source = decompress->source;
+#ifdef ZIPCRYPT	//we need to preserve any crypto stuff if we're restarting the stream
 	qboolean encrypted = decompress->encrypted;
 	unsigned int cryptkeys[3];
 	const z_crc_t *crctab = decompress->crctable;
 
 	memcpy(cryptkeys, decompress->initialkey, sizeof(cryptkeys));
+#endif
 
 	defer = FS_OpenTemp();
 	if (defer)
 	{
-		FSZIP_Decompress_Destroy(decompress);
+		decompress->Destroy(decompress);
 		decompress = NULL;
 
-		nc = FSZIP_Decompress_Init(source, cstart, csize, usize, NULL, NULL, 0);
+		nc = Reinit(source, cstart, csize, usize, NULL, NULL, 0);
+#ifdef ZIPCRYPT
 		nc->encrypted = encrypted;
 		nc->crctable = crctab;
 		memcpy(nc->initialkey, cryptkeys, sizeof(nc->initialkey));
 		memcpy(nc->cryptkey, cryptkeys, sizeof(nc->cryptkey));
+#endif
 
 		while (upos < usize)
 		{
 			chunk = usize - upos;
 			if (chunk > sizeof(buffer))
 				chunk = sizeof(buffer);
-			if (!FSZIP_Decompress_Read(nc, buffer, chunk))
+			if (!nc->Read(nc, buffer, chunk))
 				break;
 			if (VFS_WRITE(defer, buffer, chunk) != chunk)
 				break;
 			upos += chunk;
 		}
-		FSZIP_Decompress_Destroy(nc);
+		nc->Destroy(nc);
 
 		return defer;
 	}
 	return NULL;
 }
 #else
-struct decompressstate
-{
-	int nothing;
-};
-struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
-{
-	return NULL;
-}
-
-qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
-{
-	return 0;
-}
-
-void FSZIP_Decompress_Destroy(struct decompressstate *st)
-{
-}
-
 vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
 {
 	return NULL;
@@ -992,7 +1146,7 @@ static int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int byt
 
 	if (vfsz->decompress)
 	{
-		read = FSZIP_Decompress_Read(vfsz->decompress, buffer, bytestoread);
+		read = vfsz->decompress->Read(vfsz->decompress, buffer, bytestoread);
 	}
 	else if (Sys_LockMutex(vfsz->parent->mutex))
 	{
@@ -1056,7 +1210,7 @@ static qboolean QDECL VFSZIP_Close (struct vfsfile_s *file)
 		VFS_CLOSE(vfsz->defer);
 
 	if (vfsz->decompress)
-		FSZIP_Decompress_Destroy(vfsz->decompress);
+		vfsz->decompress->Destroy(vfsz->decompress);
 
 	FSZIP_ClosePath(&vfsz->parent->pub);
 	Z_Free(vfsz);
@@ -1131,6 +1285,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 		return NULL;
 	}
 
+#ifdef AVAIL_ZLIB
 	if (flags & ZFL_DEFLATED)
 	{
 #ifdef ZIPCRYPT
@@ -1139,7 +1294,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 #else
 		char *password = NULL;
 #endif
-		vfsz->decompress = FSZIP_Decompress_Init(zip, vfsz->startpos, datasize, vfsz->length, pf->name, password, pf->crc);
+		vfsz->decompress = FSZIP_Deflate_Init(zip, vfsz->startpos, datasize, vfsz->length, pf->name, password, pf->crc);
 		if (!vfsz->decompress)
 		{
 			/*
@@ -1150,6 +1305,28 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 			return NULL;
 		}
 	}
+#endif
+#ifdef AVAIL_BZLIB
+	if (flags & ZFL_BZIP2)
+	{
+#ifdef ZIPCRYPT
+		//FIXME: Cvar_Get is not threadsafe, and nor is accessing the cvar...
+		char *password = (flags & ZFL_WEAKENCRYPT)?Cvar_Get("fs_zip_password", "thisispublic", 0, "Filesystem")->string:NULL;
+#else
+		char *password = NULL;
+#endif
+		vfsz->decompress = FSZIP_BZip2_Init(zip, vfsz->startpos, datasize, vfsz->length, pf->name, password, pf->crc);
+		if (!vfsz->decompress)
+		{
+			/*
+			windows explorer tends to use deflate64 on large files, which zlib and thus we, do not support, thus this is a 'common' failure path
+			this might also trigger from other errors, of course.
+			*/
+			Z_Free(vfsz);
+			return NULL;
+		}
+	}
+#endif
 
 	if (Sys_LockMutex(zip->mutex))
 	{
@@ -1159,7 +1336,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	else
 	{
 		if (vfsz->decompress)
-			FSZIP_Decompress_Destroy(vfsz->decompress);
+			vfsz->decompress->Destroy(vfsz->decompress);
 		Z_Free(vfsz);
 		return NULL;
 	}
@@ -1376,9 +1553,15 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 		return false;	//FIXME: proper spanned zips fragment compressed data over multiple spans, but we don't support that
 
 	if (local.cmethod == 0)
-		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED)) == ZFL_STORED;
+		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_STORED;
+#ifdef AVAIL_ZLIB
 	if (local.cmethod == 8)
-		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED)) == ZFL_DEFLATED;
+		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_DEFLATED;
+#endif
+#ifdef AVAIL_BZLIB
+	if (local.cmethod == 12)
+		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_BZIP2;
+#endif
 	return false;	//some other method that we don't know.
 }
 
@@ -1539,13 +1722,12 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	//2-5: reduce
 	//6: implode
 	//7: tokenize
-	else if (entry->cmethod == 8)
+	else if (entry->cmethod == 8)	//8: deflate
 		entry->flags |= ZFL_DEFLATED;
-	//8: deflate64 - patented. sometimes written by microsoft's crap, so this might be problematic. only minor improvements.
+	//9: deflate64 - patented. sometimes written by microsoft's crap, so this might be problematic. only minor improvements.
 	//10: implode
-	//12: bzip2
-//	else if (entry->cmethod == 12)
-//		entry->flags |= ZFL_BZIP2;
+	else if (entry->cmethod == 12)	//12: bzip2
+		entry->flags |= ZFL_BZIP2;
 //	else if (entry->cmethod == 14)
 //		entry->flags |= ZFL_LZMA;
 	//19: lz77

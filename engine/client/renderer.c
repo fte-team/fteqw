@@ -120,7 +120,7 @@ cvar_t r_wireframe							= CVARFD ("r_wireframe", "0",
 													CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
-cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use a different scale for refraction and reflection. Because $reasons.");
+cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use a different scale for refraction and reflection texturemaps. Because $reasons.");
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
@@ -344,9 +344,9 @@ cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
-cvar_t r_deluxmapping_cvar					= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
+cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "1", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE|CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
-qboolean r_deluxmapping;
+qboolean r_deluxemapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
 cvar_t gl_conback							= CVARFCD ("gl_conback", "",
@@ -529,7 +529,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
-	Cvar_Register (&r_deluxmapping_cvar, GRAPHICALNICETIES);
+	Cvar_Register (&r_deluxemapping_cvar, GRAPHICALNICETIES);
 
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
@@ -1464,7 +1464,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			if (host_basepal)
 				Z_Free(host_basepal);
 			host_basepal = BZ_Malloc(768);
-			pcx = COM_LoadTempFile("pics/colormap.pcx", &sz);
+			pcx = COM_LoadTempFile("pics/colormap.pcx", 0, &sz);
 			if (!pcx || !ReadPCXPalette(pcx, sz, host_basepal))
 			{
 				memcpy(host_basepal, default_quakepal, 768);
@@ -1522,7 +1522,7 @@ TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 		R_GenPaletteLookup();
 
 		r_softwarebanding = false;
-		r_deluxmapping = false;
+		r_deluxemapping = false;
 		r_lightprepass = false;
 
 		W_LoadWadFile("gfx.wad");

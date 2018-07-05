@@ -179,6 +179,7 @@ typedef struct
 	float m_model[16];
 	unsigned int lastpasscount;
 	vbo_t *batchvbo;
+	program_t	*curprog;
 
 	shader_t	*shader_rtlight;
 	IDirect3DTexture9	*curtex[MAX_TMUS];
@@ -1070,6 +1071,8 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, 
 		break;
 	default:
 	identity:
+	case RGB_GEN_UNKNOWN:
+	case RGB_GEN_IDENTITY_OVERBRIGHT:
 	case RGB_GEN_IDENTITY:
 		block = D3DCOLOR_RGBA(255, 255, 255, 255);
 		while((cnt)--)
@@ -1459,6 +1462,11 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 			break;
 
 		default:
+			for (j = 0; j < cnt; j++, dst+=2,src+=2)
+			{
+				dst[0] = src[0];
+				dst[1] = src[1];
+			}
 			break;
 	}
 }
@@ -1862,109 +1870,6 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 	}
 }
 
-
-
-/*does not do the draw call, does not consider indicies (except for billboard generation) */
-static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vertcount)
-{
-	int vdec;
-	void *map;
-	int i;
-	unsigned int passno = 0, tmu;
-
-	int lastpass = pass->numMergedPasses;
-
-	for (i = 0; i < lastpass; i++)
-	{
-		if (pass[i].texgen == T_GEN_UPPEROVERLAY && !TEXLOADED(shaderstate.curtexnums->upperoverlay))
-			continue;
-		if (pass[i].texgen == T_GEN_LOWEROVERLAY && !TEXLOADED(shaderstate.curtexnums->loweroverlay))
-			continue;
-		if (pass[i].texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
-			continue;
-		break;
-	}
-	if (i == lastpass)
-		return false;
-
-	/*all meshes in a chain must have the same features*/
-	vdec = 0;
-
-	/*we only use one colour, generated from the first pass*/
-	vdec |= BE_GenerateColourMods(vertcount, pass);
-
-	tmu = 0;
-	/*activate tmus*/
-	for (passno = 0; passno < lastpass; passno++)
-	{
-		if (pass[passno].texgen == T_GEN_UPPEROVERLAY && !TEXLOADED(shaderstate.curtexnums->upperoverlay))
-			continue;
-		if (pass[passno].texgen == T_GEN_LOWEROVERLAY && !TEXLOADED(shaderstate.curtexnums->loweroverlay))
-			continue;
-		if (pass[passno].texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
-			continue;
-
-		SelectPassTexture(tmu, pass+passno);
-
-		vdec |= D3D_VDEC_ST0<<tmu;
-		if (shaderstate.batchvbo && pass[passno].tcgen == TC_GEN_BASE && !pass[passno].numtcmods)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
-		else if (shaderstate.batchvbo && pass[passno].tcgen == TC_GEN_LIGHTMAP && !pass[passno].numtcmods)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->lmcoord[0].d3d.buff, shaderstate.batchvbo->lmcoord[0].d3d.offs, sizeof(vbovdata_t)));
-		else if (pass[passno].tcgen == TC_GEN_SKYBOX)
-		{
-			vdec |= D3D_VDEC_CM;
-			allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec3_t));
-			GenerateTCMods3(pass+passno, map);
-			d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[tmu]));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec3_t), sizeof(vec3_t)));
-		}
-		else
-		{
-			allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec2_t));
-			GenerateTCMods(pass+passno, map);
-			d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[tmu]));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
-		}
-		tmu++;
-	}
-	/*deactivate any extras*/
-	for (; tmu < shaderstate.lastpasscount; )
-	{
-		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, NULL, 0, 0));
-		BindTexture(tmu, NULL);
-		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_COLOROP, D3DTOP_DISABLE));
-		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
-		tmu++;
-	}
-	shaderstate.lastpasscount = tmu;
-
-//	if (meshchain->normals_array &&
-//		meshchain->2 &&
-//		meshchain->tnormals_array)
-//		vdec |= D3D_VDEC_NORMS;
-
-	if (vdec != shaderstate.curvertdecl)
-	{
-		shaderstate.curvertdecl = vdec;
-		d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
-	}
-
-	BE_ApplyShaderBits(pass->shaderbits);
-	return true;
-}
-
-static void BE_SubmitMeshChain(unsigned int vertbase, unsigned int firstvert, unsigned int vertcount, unsigned int idxfirst, int unsigned idxcount)
-{
-	if (shaderstate.flags & BEF_LINES)
-		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_LINELIST, vertbase, firstvert, vertcount, idxfirst, idxcount/2);
-	else
-		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, vertbase, firstvert, vertcount, idxfirst, idxcount/3);
-	RQuantAdd(RQUANT_DRAWS, 1);
-
-	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
-}
-
 static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 {
 	int i;
@@ -1997,7 +1902,6 @@ static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 		*retblue = gammatable[*retblue];
 	}*/
 }
-
 static void BE_ApplyUniforms(program_t *prog, int permu)
 {
 	struct programpermu_s *perm = &prog->permu[permu];
@@ -2005,8 +1909,12 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	vec4_t param4;
 	int h;
 	int i;
-	IDirect3DDevice9_SetVertexShader(pD3DDev9, perm->h.hlsl.vert);
-	IDirect3DDevice9_SetPixelShader(pD3DDev9, perm->h.hlsl.frag);
+	if (shaderstate.curprog != prog)
+	{
+		shaderstate.curprog = prog;
+		IDirect3DDevice9_SetVertexShader(pD3DDev9, perm->h.hlsl.vert);
+		IDirect3DDevice9_SetPixelShader(pD3DDev9, perm->h.hlsl.frag);
+	}
 	for (i = 0, pp = perm->parm; i < perm->numparms; i++, pp++)
 	{
 		h = pp->handle;
@@ -2169,6 +2077,208 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	}
 }
 
+static unsigned int BE_DrawMeshChain_SetupProgram(program_t *p)
+{
+	unsigned int vdec = 0;
+	unsigned int perm = 0;
+#ifdef SKELETALMODELS
+	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
+	{
+		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
+			perm |= PERMUTATION_SKELETAL;
+	}
+#endif
+	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
+		perm |= PERMUTATION_BUMPMAP;
+	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
+		perm |= PERMUTATION_FULLBRIGHT;
+	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
+		perm |= PERMUTATION_UPPERLOWER;
+	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
+		perm |= PERMUTATION_FOG;
+#ifdef NONSKELETALMODELS
+	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
+	{
+		perm |= PERMUTATION_FRAMEBLEND;
+		vdec |= D3D_VDEC_POS2;
+	}
+#endif
+//	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//		perm |= PERMUTATION_DELUXE;
+#if MAXRLIGHTMAPS > 1
+	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
+		perm |= PERMUTATION_LIGHTSTYLES;
+#endif
+
+	vdec |= D3D_VDEC_COL4B;//BE_GenerateColourMods(vertcount, s->passes);
+
+	BE_ApplyUniforms(p, perm);
+
+	return vdec;
+}
+
+/*does not do the draw call, does not consider indicies (except for billboard generation) */
+static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vertcount)
+{
+	int vdec;
+	void *map;
+	int i;
+	unsigned int passno = 0, tmu;
+
+	int lastpass = pass->numMergedPasses;
+
+	for (i = 0; i < lastpass; i++)
+	{
+		if (pass[i].texgen == T_GEN_UPPEROVERLAY && !TEXLOADED(shaderstate.curtexnums->upperoverlay))
+			continue;
+		if (pass[i].texgen == T_GEN_LOWEROVERLAY && !TEXLOADED(shaderstate.curtexnums->loweroverlay))
+			continue;
+		if (pass[i].texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
+			continue;
+		break;
+	}
+	if (i == lastpass)
+		return false;
+
+	/*all meshes in a chain must have the same features*/
+	vdec = 0;
+
+	/*we only use one colour, generated from the first pass*/
+	vdec |= BE_GenerateColourMods(vertcount, pass);
+
+	if (pass->prog)
+	{
+		vdec |= BE_DrawMeshChain_SetupProgram(pass->prog);
+
+		tmu = 0;
+		/*activate tmus*/
+		for (passno = 0; passno < lastpass; passno++)
+		{
+			SelectPassTexture(tmu, pass+passno);
+			tmu++;
+		}
+		/*deactivate any extras*/
+		for (; tmu < shaderstate.lastpasscount; )
+		{
+			BindTexture(tmu, NULL);
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_COLOROP, D3DTOP_DISABLE));
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+			tmu++;
+		}
+
+		if (1)
+		{
+			vdec |= D3D_VDEC_ST0|D3D_VDEC_ST1;
+			if (shaderstate.batchvbo)
+			{
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC1, shaderstate.batchvbo->lmcoord[0].d3d.buff, shaderstate.batchvbo->lmcoord[0].d3d.offs, sizeof(vbovdata_t)));
+			}
+			else
+			{
+				mesh_t *mesh;
+				unsigned int mno;
+				float *outtc, *outlm;
+
+				allocvertexbuffer(shaderstate.dynst_buff[0], shaderstate.dynst_size, &shaderstate.dynst_offs[0], &map, vertcount*sizeof(vec4_t));
+				outtc = map;
+				outlm = outtc + vertcount*2;
+				for (mno = 0; mno < shaderstate.nummeshes; mno++)
+				{
+					mesh = shaderstate.meshlist[mno];
+
+					memcpy(outtc, mesh->st_array, sizeof(vec2_t)*mesh->numvertexes);
+					memcpy(outlm, mesh->lmst_array[0], sizeof(vec2_t)*mesh->numvertexes);
+				}
+				d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[0]));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.dynst_buff[0], shaderstate.dynst_offs[0] - vertcount*sizeof(vec4_t), sizeof(vec2_t)));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC1, shaderstate.dynst_buff[0], shaderstate.dynst_offs[0] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
+			}
+			shaderstate.lastpasscount = max(2, tmu);
+		}
+	}
+	else
+	{
+		if (shaderstate.curprog)
+		{
+			shaderstate.curprog = NULL;
+			IDirect3DDevice9_SetVertexShader(pD3DDev9, NULL);
+			IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
+		}
+	
+		tmu = 0;
+		/*activate tmus*/
+		for (passno = 0; passno < lastpass; passno++)
+		{
+			if (pass[passno].texgen == T_GEN_UPPEROVERLAY && !TEXLOADED(shaderstate.curtexnums->upperoverlay))
+				continue;
+			if (pass[passno].texgen == T_GEN_LOWEROVERLAY && !TEXLOADED(shaderstate.curtexnums->loweroverlay))
+				continue;
+			if (pass[passno].texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
+				continue;
+
+			SelectPassTexture(tmu, pass+passno);
+
+			vdec |= D3D_VDEC_ST0<<tmu;
+			if (shaderstate.batchvbo && pass[passno].tcgen == TC_GEN_BASE/* && !pass[passno].numtcmods*/)
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
+			else if (shaderstate.batchvbo)// && pass[passno].tcgen == TC_GEN_LIGHTMAP/* && !pass[passno].numtcmods*/)
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->lmcoord[0].d3d.buff, shaderstate.batchvbo->lmcoord[0].d3d.offs, sizeof(vbovdata_t)));
+			else if (pass[passno].tcgen == TC_GEN_SKYBOX)
+			{
+				vdec |= D3D_VDEC_CM;
+				allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec3_t));
+				GenerateTCMods3(pass+passno, map);
+				d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[tmu]));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec3_t), sizeof(vec3_t)));
+			}
+			else
+			{
+				allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec2_t));
+				GenerateTCMods(pass+passno, map);
+				d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[tmu]));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
+			}
+			tmu++;
+		}
+		/*deactivate any extras*/
+		for (; tmu < shaderstate.lastpasscount; )
+		{
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, NULL, 0, 0));
+			BindTexture(tmu, NULL);
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_COLOROP, D3DTOP_DISABLE));
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+			tmu++;
+		}
+		shaderstate.lastpasscount = tmu;
+	}
+
+//	if (meshchain->normals_array &&
+//		meshchain->2 &&
+//		meshchain->tnormals_array)
+//		vdec |= D3D_VDEC_NORMS;
+
+	if (vdec != shaderstate.curvertdecl)
+	{
+		shaderstate.curvertdecl = vdec;
+		d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+	}
+
+	BE_ApplyShaderBits(pass->shaderbits);
+	return true;
+}
+
+static void BE_SubmitMeshChain(unsigned int vertbase, unsigned int firstvert, unsigned int vertcount, unsigned int idxfirst, int unsigned idxcount)
+{
+	if (shaderstate.flags & BEF_LINES)
+		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_LINELIST, vertbase, firstvert, vertcount, idxfirst, idxcount/2);
+	else
+		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, vertbase, firstvert, vertcount, idxfirst, idxcount/3);
+	RQuantAdd(RQUANT_DRAWS, 1);
+
+	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
+}
+
 static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned int vertfirst, unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
 {
 	int vdec = D3D_VDEC_ST0|D3D_VDEC_ST1|D3D_VDEC_NORM;
@@ -2208,7 +2318,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 		perm |= PERMUTATION_LIGHTSTYLES;
 #endif
 
-	vdec |= BE_GenerateColourMods(vertcount, s->passes);
+	vdec |= D3D_VDEC_COL4B;//BE_GenerateColourMods(vertcount, s->passes);
 
 	BE_ApplyUniforms(p, perm);
 

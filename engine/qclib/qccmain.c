@@ -769,7 +769,7 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 		if (zipembed)
 		{
 			size_t end;
-			char header[32+sizeof(f->filename)];
+			char header[32];
 			size_t fnamelen = strlen(f->filename);
 			f->zcrc = QC_encodecrc(f->size, f->file);
 			misint  (header, 0, 0x04034b50);
@@ -783,10 +783,10 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 			misint  (header, 22, f->size);//uncompressed size
 			misshort(header, 26, fnamelen);//filename length
 			misshort(header, 28, 0);//extradata length
-			strcpy(header+30, f->filename);
 
 			f->zhdrofs = SafeSeek(h, 0, SEEK_CUR);
-			SafeWrite(h, header, 30+fnamelen);
+			SafeWrite(h, header, 30);
+			SafeWrite(h, f->filename, fnamelen);
 
 			strcpy(idf[num].filename, f->filename);
 			idf[num].size = f->size;
@@ -803,13 +803,13 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 
 				end = SafeSeek(h, 0, SEEK_CUR);
 				SafeSeek(h, f->zhdrofs, SEEK_SET);
-				SafeWrite(h, header, 30+strlen(f->filename));
+				SafeWrite(h, header, 30);
 				SafeSeek(h, end, SEEK_SET);
 			}
 		}
 		else
 		{
-			if (f->type == FT_CODE && !sourceaswell)
+			if (strlen(f->filename) >= sizeof(idf[num].filename))
 				continue;
 
 			strcpy(idf[num].filename, f->filename);
@@ -827,7 +827,7 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 
 	if (zipembed)
 	{
-		char centralheader[46+sizeof(f->filename)];
+		char centralheader[46];
 		int centraldirsize;
 		ofs = SafeSeek(h, 0, SEEK_CUR);
 		for (f = filelist,num=0; f ; f=f->next)
@@ -853,8 +853,8 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 			misshort(centralheader, 36, 0);//internal file attribs
 			misint  (centralheader, 38, 0);//external file attribs
 			misint  (centralheader, 42, f->zhdrofs);//local header offset
-			strcpy(centralheader+46, f->filename);
-			SafeWrite(h, centralheader, 46 + fnamelen);
+			SafeWrite(h, centralheader, 46);
+			SafeWrite(h, f->filename, fnamelen);
 			num++;
 		}
 
@@ -3613,19 +3613,6 @@ DIRECTORY COPYING / PACKFILE CREATION
 
 ==============================================================================
 */
-
-typedef struct
-{
-	char	name[56];
-	int		filepos, filelen;
-} packfile_t;
-
-typedef struct
-{
-	char	id[4];
-	int		dirofs;
-	int		dirlen;
-} packheader_t;
 
 packfile_t	pfiles[4096], *pf;
 int			packhandle;

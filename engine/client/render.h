@@ -447,7 +447,8 @@ image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsign
 image_t *QDECL Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
 qboolean Image_UnloadTexture(image_t *tex);	//true if it did something.
 void Image_DestroyTexture	(image_t *tex);
-qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, char *fname, qbyte *filedata, int filesize);	//intended really for worker threads, but should be fine from the main thread too
+qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);	//intended really for worker threads, but should be fine from the main thread too
+qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *bestname, size_t bestnamesize, unsigned int *bestflags);
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
@@ -626,8 +627,8 @@ extern	cvar_t	r_telestyle;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
-extern	cvar_t	r_deluxmapping_cvar;
-extern	qboolean r_deluxmapping;
+extern	cvar_t	r_deluxemapping_cvar;
+extern	qboolean r_deluxemapping;
 extern	cvar_t r_softwarebanding_cvar;
 extern	qboolean r_softwarebanding;
 extern	cvar_t r_lightprepass_cvar;

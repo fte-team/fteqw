@@ -321,7 +321,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		else if (!Q_stricmp(token, "lightmap"))
 			lhs = !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap") || !Q_stricmp(token, "deluxe"))
-			lhs = r_deluxmapping;
+			lhs = r_deluxemapping;
 		else if (!Q_stricmp(token, "softwarebanding"))
 			lhs = r_softwarebanding;
 
@@ -374,7 +374,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 //		else if (!Q_stricmp(token, "GLSL"))
 //			lhs = 1;
 		else if (!Q_stricmp(token, "deluxeMaps") || !Q_stricmp(token, "deluxe"))
-			lhs = r_deluxmapping;
+			lhs = r_deluxemapping;
 		else if (!Q_stricmp(token, "portalMaps"))
 			lhs = false;
 		//end qfusion
@@ -1149,21 +1149,21 @@ const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 	{"s_reflectcube",	1u<<9},
 	{"s_reflectmask",	1u<<10},
 	{"s_lightmap",		1u<<11},
-	{"s_deluxmap",		1u<<12},
+	{"s_deluxemap",		1u<<12},
 #if MAXRLIGHTMAPS > 1
 	{"s_lightmap1",		1u<<13},
 	{"s_lightmap2",		1u<<14},
 	{"s_lightmap3",		1u<<15},
-	{"s_deluxmap1",		1u<<16},
-	{"s_deluxmap2",		1u<<17},
-	{"s_deluxmap3",		1u<<18},
+	{"s_deluxemap1",	1u<<16},
+	{"s_deluxemap2",	1u<<17},
+	{"s_deluxemap3",	1u<<18},
 #else
 	{"s_lightmap1",		0},
 	{"s_lightmap2",		0},
 	{"s_lightmap3",		0},
-	{"s_deluxmap1",		0},
-	{"s_deluxmap2",		0},
-	{"s_deluxmap3",		0},
+	{"s_deluxemap1",	0},
+	{"s_deluxemap2",	0},
+	{"s_deluxemap3",	0},
 #endif
 	{NULL}
 };
@@ -1258,6 +1258,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			script += 7;
 			while (*script != '\n' && *script != '\r')
 			{
+				size_t len;
 				int i;
 				char *start;
 				while (*script == ' ' || *script == '\t')
@@ -1266,9 +1267,18 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				while (*script != ' ' && *script != '\t' && *script != '\r' && *script != '\n')
 					script++;
 
+#ifndef NOLEGACY
+				if (script-start >= 8 && !strncmp(start, "deluxmap", 8))
+				{	//FIXME: remove this some time.
+					start = va("deluxemap%s",start+8);
+					len = strlen(start);
+				}
+				else
+#endif
+					len = script-start;
 				for (i = 0; sh_defaultsamplers[i].name; i++)
 				{
-					if (!strncmp(start, sh_defaultsamplers[i].name+2, script-start) && sh_defaultsamplers[i].name[2+script-start] == 0)
+					if (!strncmp(start, sh_defaultsamplers[i].name+2, len) && sh_defaultsamplers[i].name[2+len] == 0)
 					{
 						prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
 						break;
@@ -1656,7 +1666,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
 			}
 
-			if (r_deluxmapping)	//fixme: should be per-model really
+			if (r_deluxemapping)	//fixme: should be per-model really
 				permutationdefines[pn++] = "#define DELUXE\n";
 		}
 		permutationdefines[pn++] = NULL;
@@ -1832,7 +1842,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 
 	if (file)
 	{
-		Con_DPrintf("Loaded %s from disk\n", sh_config.progpath?va(sh_config.progpath, basicname):basicname);
+//		Con_DPrintf("Loaded %s from disk\n", sh_config.progpath?va(sh_config.progpath, basicname):basicname);
 		g->failed = !Shader_LoadPermutations(g->name, &g->prog, file, qrtype, 0, blobname);
 		FS_FreeFile(file);
 		return;
@@ -1860,6 +1870,18 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 		}
 	}
 }
+
+const char *Shader_NameForGeneric(program_t *prog)
+{
+	sgeneric_t *g;
+	for (g = sgenerics; g; g = g->next)
+	{
+		if (prog == &g->prog)
+			return g->name;
+	}
+	return "INLINE";
+}
+
 program_t *Shader_FindGeneric(char *name, int qrtype)
 {
 	sgeneric_t *g;
@@ -1982,51 +2004,55 @@ struct shader_field_names_s shader_attr_names[] =
 
 struct shader_field_names_s shader_unif_names[] =
 {
+	/**///tagged names are available to vulkan
+
 	/*matricies*/
-	{"m_model",					SP_M_MODEL},
-	{"m_view",					SP_M_VIEW},
-	{"m_modelview",				SP_M_MODELVIEW},
-	{"m_projection",			SP_M_PROJECTION},
-	{"m_modelviewprojection",	SP_M_MODELVIEWPROJECTION},
-	{"m_bones",					SP_M_ENTBONES},
-	{"m_invviewprojection",		SP_M_INVVIEWPROJECTION},
-	{"m_invmodelviewprojection",SP_M_INVMODELVIEWPROJECTION},
+/**/{"m_model",					SP_M_MODEL},	//the model matrix
+	{"m_view",					SP_M_VIEW},		//the view matrix
+	{"m_modelview",				SP_M_MODELVIEW},//the combined modelview matrix
+	{"m_projection",			SP_M_PROJECTION},//projection matrix
+/**/{"m_modelviewprojection",	SP_M_MODELVIEWPROJECTION},//fancy mvp matrix. probably has degraded precision.
+	{"m_bones",					SP_M_ENTBONES},	//bone matrix array. should normally be read via sys/skeletal.h
+	{"m_invviewprojection",		SP_M_INVVIEWPROJECTION},//inverted vp matrix
+	{"m_invmodelviewprojection",SP_M_INVMODELVIEWPROJECTION},//inverted mvp matrix.
+/**///m_modelinv
 
 	/*viewer properties*/
-	{"v_eyepos",				SP_V_EYEPOS},
-	{"w_fog",					SP_W_FOG},
-	{"w_user",					SP_W_USER},
+	{"v_eyepos",				SP_V_EYEPOS},	//eye pos in worldspace
+/**/{"w_fog",					SP_W_FOG},		//read by sys/fog.h
+	{"w_user",					SP_W_USER},		//set via VF_USERDATA
 
 	/*ent properties*/
-	{"e_vblend",				SP_E_VBLEND},
-	{"e_lmscale",				SP_E_LMSCALE}, /*overbright shifting*/
-	{"e_vlscale",				SP_E_VLSCALE}, /*no lightmaps, no overbrights*/
-	{"e_origin",				SP_E_ORIGIN},
-	{"e_time",					SP_E_TIME},
-	{"e_eyepos",				SP_E_EYEPOS},
-	{"e_colour",				SP_E_COLOURS},
-	{"e_colourident",			SP_E_COLOURSIDENT},
-	{"e_glowmod",				SP_E_GLOWMOD},
-	{"e_uppercolour",			SP_E_TOPCOLOURS},
-	{"e_lowercolour",			SP_E_BOTTOMCOLOURS},
-	{"e_light_dir",				SP_E_L_DIR},
-	{"e_light_mul",				SP_E_L_MUL},
-	{"e_light_ambient",			SP_E_L_AMBIENT},
+	{"e_vblend",				SP_E_VBLEND},	//v_position1+v_position2 scalers
+/**/{"e_lmscale",				SP_E_LMSCALE},	/*overbright shifting*/
+	{"e_vlscale",				SP_E_VLSCALE},	/*no lightmaps, no overbrights*/
+	{"e_origin",				SP_E_ORIGIN},		//the ents origin in worldspace
+/**/{"e_time",					SP_E_TIME},			//r_refdef.time - entity->time
+/**/{"e_eyepos",				SP_E_EYEPOS},		//eye pos in modelspace
+	{"e_colour",				SP_E_COLOURS},		//colormod/alpha, even if colormod isn't set
+/**/{"e_colourident",			SP_E_COLOURSIDENT},	//colormod,alpha or 1,1,1,alpha if colormod isn't set
+/**/{"e_glowmod",				SP_E_GLOWMOD},		//fullbright scalers (for hdr mostly)
+/**/{"e_uppercolour",			SP_E_TOPCOLOURS},	//q1 player colours
+/**/{"e_lowercolour",			SP_E_BOTTOMCOLOURS},//q1 player colours
+/**/{"e_light_dir",				SP_E_L_DIR},		//lightgrid light dir. dotproducts should be clamped to 0-1.
+/**/{"e_light_mul",				SP_E_L_MUL},		//lightgrid light scaler.
+/**/{"e_light_ambient",			SP_E_L_AMBIENT},	//lightgrid light value for the unlit side.
 
-	{"s_colour",				SP_S_COLOUR},
+	{"s_colour",				SP_S_COLOUR},	//the rgbgen/alphagen stuff. obviously doesn't work with per-vertex ones.
 
 	/*rtlight properties, use with caution*/
-	{"l_lightscreen",			SP_LIGHTSCREEN},
-	{"l_lightradius",			SP_LIGHTRADIUS},
-	{"l_lightcolour",			SP_LIGHTCOLOUR},
-	{"l_lightposition",			SP_LIGHTPOSITION},
-	{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},
-	{"l_cubematrix",			SP_LIGHTCUBEMATRIX},
-	{"l_shadowmapproj",			SP_LIGHTSHADOWMAPPROJ},
-	{"l_shadowmapscale",		SP_LIGHTSHADOWMAPSCALE},
+	{"l_lightscreen",			SP_LIGHTSCREEN},	//screenspace position of the current rtlight
+/**/{"l_lightradius",			SP_LIGHTRADIUS},	//radius of the current rtlight
+/**/{"l_lightcolour",			SP_LIGHTCOLOUR},	//rgb values of the current rtlight
+/**/{"l_lightposition",			SP_LIGHTPOSITION},	//light position in modelspace
+/**/{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},//ambient/diffuse/specular scalers
+/**/{"l_cubematrix",			SP_LIGHTCUBEMATRIX},//matrix used to control the rtlight's cubemap projection
+/**/{"l_shadowmapproj",			SP_LIGHTSHADOWMAPPROJ},	//compacted projection matrix for shadowmaps
+/**/{"l_shadowmapscale",		SP_LIGHTSHADOWMAPSCALE},//should probably use a samplerRect instead...
 
-	{"e_sourcesize",			SP_SOURCESIZE},
-	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
+	{"e_sourcesize",			SP_SOURCESIZE},			//size of VF_SOURCECOLOUR image
+	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},	//scaler for $currentrender, when npot isn't supported.
+
 	{NULL}
 };
 
@@ -2434,6 +2460,12 @@ static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
 	shader->flags |= SHADER_BLEND;
 }
 
+static void Shader_PortalFBOScale(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	shader->portalfboscale = Shader_ParseFloat(shader, ptr, 0);
+	shader->portalfboscale = max(shader->portalfboscale, 0);
+}
+
 static void Shader_DP_Camera(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	shader->sort = SHADER_SORT_PORTAL;
@@ -2623,6 +2655,7 @@ static shaderkey_t shaderkeys[] =
 	{"uppermap",			Shader_UpperMap,			"fte"},
 	{"lowermap",			Shader_LowerMap,			"fte"},
 	{"reflectmask",			Shader_ReflectMask,			"fte"},
+	{"portalfboscale",		Shader_PortalFBOScale,		"fte"},	//portal/mirror/refraction/reflection FBOs are resized by this scale
 
 	/*program stuff at the material level is an outdated practise.*/
 	{"program",				Shader_ProgramName,			"fte"},	//usable with any renderer that has a usable shader language...
@@ -4087,6 +4120,7 @@ char *Shader_Skip ( char *ptr )
 
 void Shader_Reset(shader_t *s)
 {
+	extern cvar_t r_refractreflect_scale;
 	char name[MAX_QPATH];
 	int id = s->id;
 	int uses = s->uses;
@@ -4103,6 +4137,7 @@ void Shader_Reset(shader_t *s)
 	s->defaulttextures = NULL;
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
+	s->portalfboscale = r_refractreflect_scale.value;	//unless otherwise specified, this cvar specifies the value.
 
 	s->remapto = s;
 	s->id = id;
@@ -6819,15 +6854,42 @@ static qboolean Shader_ParseShader(char *parsename, shader_t *s)
 	size_t offset = 0, length;
 	char *buf = NULL;
 	shadercachefile_t *sourcefile = NULL;
+	char *file;
+	const char *token;
+
+	//if the named shader is a .shader file then just directly load it.
+	token = COM_GetFileExtension(parsename, NULL);
+	if (!strcmp(token, ".shader") || !*token)
+	{
+		char shaderfile[MAX_QPATH];
+		if (!*token)
+		{
+			Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
+			file = COM_LoadTempMoreFile(shaderfile, &length);
+		}
+		else
+			file = COM_LoadTempMoreFile(parsename, &length);
+		if (file)
+		{
+			Shader_Reset(s);
+			token = COM_ParseExt (&file, true, false);	//we need to skip over the leading {.
+			if (*token != '{')
+				token = COM_ParseExt (&file, true, false);	//try again, in case we found some legacy name.
+			if (*token == '{')
+			{
+				Shader_ReadShader(s, file, NULL);
+				return true;
+			}
+			else
+				Con_Printf("file %s.shader does not appear to contain a shader\n", shaderfile);
+		}
+	}
 
 	if (Shader_LocateSource(parsename, &buf, &length, &offset, &sourcefile))
 	{
 		// the shader is in the shader scripts
 		if (buf && offset < length )
 		{
-			char *file, *token;
-
-
 			file = buf + offset;
 			token = COM_ParseExt (&file, true, true);
 			if ( !file || token[0] != '{' )
@@ -6974,8 +7036,9 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 		}
 		if (Shader_ParseShader(cleanname, s))
 			return s;
-		if (Shader_ParseShader(shortname, s))
-			return s;
+		if (strcmp(cleanname, shortname))
+			if (Shader_ParseShader(shortname, s))
+				return s;
 	}
 
 	// make a default shader
@@ -7045,7 +7108,7 @@ static char *Shader_DecomposePass(char *o, shaderpass_t *p, qboolean simple)
 
 	if (p->prog)
 	{
-		sprintf(o, "program\n");
+		sprintf(o, "program %s\n", Shader_NameForGeneric(p->prog));
 		o+=strlen(o);
 	}
 
@@ -7277,7 +7340,7 @@ char *Shader_Decompose(shader_t *s)
 
 	if (s->prog)
 	{
-		sprintf(o, "program\n");
+		sprintf(o, "program %s\n", Shader_NameForGeneric(s->prog));
 		o+=strlen(o);
 
 		p = s->passes;
@@ -7396,6 +7459,8 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 		}
 	}
 #endif
+
+	saveshaderbody = NULL;
 	return adr;
 }
 
@@ -7526,8 +7591,9 @@ void Shader_DoReload(void)
 			}
 			if (Shader_ParseShader(cleanname, s))
 				continue;
-			if (Shader_ParseShader(shortname, s))
-				continue;
+			if (strcmp(cleanname, shortname))
+				if (Shader_ParseShader(shortname, s))
+					continue;
 		}
 		if (s->generator)
 		{
@@ -7666,7 +7732,7 @@ void Shader_RemapShader_f(void)
 	char *destname = Cmd_Argv(2);
 	float timeoffset = atof(Cmd_Argv(3));
 	
-	if (!Cmd_FromGamecode() && strcmp(Info_ValueForKey(cl.serverinfo, "*cheats"), "ON"))
+	if (!Cmd_FromGamecode() && strcmp(InfoBuf_ValueForKey(&cl.serverinfo, "*cheats"), "ON"))
 	{
 		Con_Printf("%s may only be used from gamecode, or when cheats are enabled\n", Cmd_Argv(0));
 		return;

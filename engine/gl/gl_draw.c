@@ -403,7 +403,7 @@ void GLDraw_Init (void)
 
 
 	//figure out which extra features we can support on these drivers.
-	r_deluxmapping = r_deluxmapping_cvar.ival;
+	r_deluxemapping = r_deluxemapping_cvar.ival;
 	r_lightprepass = r_lightprepass_cvar.ival && sh_config.progs_supported;
 	r_softwarebanding = r_softwarebanding_cvar.ival && sh_config.progs_supported;
 	if (gl_config.gles && gl_config.glversion < 3.0)

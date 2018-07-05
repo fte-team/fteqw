@@ -393,6 +393,86 @@ void Con_EditorMoveCursor(console_t *con, conline_t *newline, int newoffset, qbo
 	con->userline = newline;
 	con->useroffset = newoffset;
 }
+static conchar_t *Con_Editor_Equals(conchar_t *start, conchar_t *end, const char *match)
+{
+	conchar_t *n;
+	unsigned int ccode, flags;
+
+	for (; start < end; start = n)
+	{
+		n = Font_Decode(start, &flags, &ccode);
+		if (*match)
+		{
+			if (ccode != *(unsigned char*)match++)
+				return NULL;
+		}
+		else if (ccode == ' ' || ccode == '\t')
+			break;	//found whitespace after the token, its complete.
+		else
+			return NULL;
+	}
+	if (*match)
+		return NULL;	//truncated
+
+	//and skip any trailing whitespace, because we can.
+	for (; start < end; start = n)
+	{
+		n = Font_Decode(start, &flags, &ccode);
+		if (ccode == ' ' || ccode == '\t')
+			continue;
+		else
+			break;
+	}
+	return start;
+}
+static conchar_t *Con_Editor_SkipWhite(conchar_t *start, conchar_t *end)
+{
+	conchar_t *n;
+	unsigned int ccode, flags;
+	for (; start < end; start = n)
+	{
+		n = Font_Decode(start, &flags, &ccode);
+		if (ccode == ' ' || ccode == '\t')
+			continue;
+		else
+			break;
+	}
+	return start;
+}
+static void Con_Editor_LineChanged_Shader(conline_t *line)
+{
+	static const char *maplines[] = {"map", "clampmap"};
+	size_t i;
+	conchar_t *start = (conchar_t*)(line+1), *end = start + line->length, *n;
+
+	start = Con_Editor_SkipWhite(start, end);
+
+	line->flags &= ~(CONL_BREAKPOINT|CONL_EXECUTION);
+
+	for (i = 0; i < countof(maplines); i++)
+	{
+		n = Con_Editor_Equals(start, end, maplines[i]);
+		if (n)
+		{
+			char mapname[8192];
+			char fname[MAX_QPATH];
+			flocation_t loc;
+			unsigned int flags;
+			image_t img;
+			memset(&img, 0, sizeof(img));
+			img.ident = mapname;
+			COM_DeFunString(n, end, mapname, sizeof(mapname), true, true);
+			if (!Image_LocateHighResTexture(&img, &loc, fname, sizeof(fname), &flags))
+				line->flags |= CONL_BREAKPOINT;
+			return;
+		}
+	}
+}
+static void Con_Editor_LineChanged(console_t *con, conline_t *line)
+{
+	if (!Q_strncasecmp(con->name, "scripts/", 8))
+		Con_Editor_LineChanged_Shader(line);
+}
 qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 {
 	extern qboolean	keydown[K_MAX];
@@ -430,6 +510,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			con->useroffset--;
 			memmove((conchar_t*)(con->userline+1)+con->useroffset, (conchar_t*)(con->userline+1)+con->useroffset+1, (con->userline->length - con->useroffset)*sizeof(conchar_t));
 			con->userline->length -= 1;
+			Con_Editor_LineChanged(con, con->userline);
 		}
 		return true;
 	case K_DEL:
@@ -444,6 +525,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 		{
 			memmove((conchar_t*)(con->userline+1)+con->useroffset, (conchar_t*)(con->userline+1)+con->useroffset+1, (con->userline->length - con->useroffset)*sizeof(conchar_t));
 			con->userline->length -= 1;
+			Con_Editor_LineChanged(con, con->userline);
 		}
 		break;
 	case K_ENTER:	/*split the line into two, selecting the new line*/
@@ -553,7 +635,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 //			"F12: Go to definition\n"
 			);
 		Cbuf_AddText("toggleconsole\n", RESTRICT_LOCAL);
-		break;
+		return true;
 	case K_F2:
 		/*{
 			char file[1024];
@@ -721,7 +803,10 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			if (con->flags & CONF_KEEPSELECTION)
 				Con_Editor_DeleteSelection(con);
 			if (Con_InsertConChars(con, con->userline, con->useroffset, c, l))
+			{
 				con->useroffset += l;
+				Con_Editor_LineChanged(con, con->userline);
+			}
 			break;
 		}
 		return false;
@@ -782,6 +867,7 @@ console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 {
 	static int editorcascade;
 	console_t *con;
+	conline_t *l;
 	con = Con_FindConsole(fname);
 	if (con)
 	{
@@ -820,7 +906,7 @@ console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 			con->redirect = Con_Editor_Key;
 			con->mouseover = Con_Editor_MouseOver;
 			con->close = Con_Editor_Close;
-			con->maxlines = 0x7fffffff;	//line limit is effectively unbounded.
+			con->maxlines = 0x7fffffff;	//line limit is effectively unbounded, for a 31-bit process.
 			
 			if (!newfile)
 			{
@@ -835,6 +921,9 @@ console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 					}
 					VFS_CLOSE(file);
 				}
+
+				for (l = con->oldest; l; l = l->newer)
+					Con_Editor_LineChanged(con, l);
 			}
 
 			con->display = con->oldest;

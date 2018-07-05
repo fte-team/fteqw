@@ -2336,7 +2336,7 @@ void Cmd_Complete_End(cmd_completion_t *c)
 int QDECL Cmd_Complete_Sort(const void *a, const void *b)
 {	//FIXME: its possible that they're equal (eg: filesystem searches). we should strip one in that case, but gah.
 	const struct cmd_completion_opt_s *c1 = a, *c2 = b;
-	return strcmp(c1->text, c2->text);
+	return Q_strcasecmp(c1->text, c2->text);
 }
 cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 {
@@ -2351,7 +2351,7 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 	qboolean quoted = false;
 
 	static cmd_completion_t c;
-	
+
 	if (!partial)
 	{
 		Cmd_Complete_End(&c);
@@ -2725,7 +2725,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 					return;	//let the csqc handle it if it wants.
 #endif
 #if defined(MENU_NATIVECODE)
-				if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, cmd_argv))
+				if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, (char const*const*)cmd_argv))
 					return;
 #endif
 				Cmd_ForwardToServer ();
@@ -2890,7 +2890,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 		return;	//let the csqc handle it if it wants.
 #endif
 #if defined(MENU_NATIVECODE)
-	if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, cmd_argv))
+	if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, (char const*const*)cmd_argv))
 		return;
 #endif
 

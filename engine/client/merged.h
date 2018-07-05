@@ -385,7 +385,7 @@ typedef enum backendmode_e
 
 typedef struct rendererinfo_s {
 	char *description;
-	char *name[4];
+	char *name[5];
 	r_qrenderer_t rtype;
 	//FIXME: all but the vid stuff really should be filled in by the video code, simplifying system-specific stuff.
 

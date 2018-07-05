@@ -191,6 +191,18 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 	int ret = 0;
 	if (blobsize < 22)
 		return ret;
+	if (!strncmp(blob, "PACK", 4))
+	{
+		const packheader_t *head = blob;
+		const packfile_t *f = (packfile_t*)((char*)blob + head->dirofs);
+		for (ret = 0; ret < head->dirlen/sizeof(*f); ret++, f++)
+		{
+			cb(f->name, (const char*)blob+f->filepos, f->filelen, 0, f->filelen);
+		}
+		return ret;
+	}
+
+	//treat it as a zip
 	eocd = blob;
 	eocd += blobsize-22;
 	if (QC_ReadRawInt(eocd+0) != 0x06054b50)

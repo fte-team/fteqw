@@ -585,7 +585,7 @@ unsigned SV_CheckModel(char *mdl)
 	unsigned short crc;
 //	int len;
 
-	buf = (qbyte *)COM_LoadFile (mdl, 5, &fsize);
+	buf = (qbyte *)FS_LoadMallocFile (mdl, &fsize);
 	if (!buf)
 		return 0;
 	crc = QCRC_Block(buf, fsize);
@@ -645,6 +645,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		svs.clients[i].state = 0;
 		*svs.clients[i].namebuf = '\0';
 		svs.clients[i].name = NULL;
+		InfoBuf_Clear(&svs.clients[i].userinfo, true);
 	}
 	free(svs.clients);
 	svs.clients = NULL;
@@ -693,6 +694,13 @@ void SV_UpdateMaxPlayers(int newmax)
 				svs.clients[i].controller = svs.clients + (svs.clients[i].controller - old);
 		}
 		svs.allocated_client_slots = sv.allocated_client_slots = newmax;
+
+		for (i = 0; i < svs.allocated_client_slots; i++)
+		{
+			InfoSync_Clear(&svs.clients[i].infosync);
+			svs.clients[i].userinfo.ChangeCB = svs.info.ChangeCB;
+			svs.clients[i].userinfo.ChangeCTX = &svs.clients[i].userinfo;
+		}
 	}
 	sv.allocated_client_slots = svs.allocated_client_slots;
 }
@@ -874,7 +882,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		svs.clients[i].nextservertimeupdate = 0;
 		if (!svs.clients[i].state)	//bots with the net_preparse module.
-			svs.clients[i].userinfo[0] = '\0';	//clear the userinfo to clear the name
+			InfoBuf_Clear(&svs.clients[i].userinfo, true);	//clear the userinfo to clear the name
 
 		if (svs.clients[i].netchan.remote_address.type == NA_LOOPBACK)
 		{	//forget this client's message buffers, so that any shared client/server network state persists (eg: float coords)
@@ -943,17 +951,17 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	if (sv_cheats.ival)
 	{
 		sv_allow_cheats = true;
-		Info_SetValueForStarKey(svs.info, "*cheats", "ON", MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*cheats", "ON");
 	}
 	else
 	{
 		sv_allow_cheats = 2;
-		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*cheats", "");
 	}
 #ifndef SERVERONLY
 	//This fixes a bug where the server advertises cheats, the internal client connects, and doesn't think cheats are allowed.
 	//this applies to anything that can affect the content that is loaded by the server, but cheats is the only special one (because of the *)
-	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
+	InfoBuf_Clone(&cl.serverinfo, &svs.info);
 	if (!isDedicated)
 		CL_CheckServerInfo();
 #endif
@@ -1029,16 +1037,16 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #endif
 
 	if (sv.world.worldmodel->fromgame == fg_doom)
-		Info_SetValueForStarKey(svs.info, "*bspversion", "1", MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*bspversion", "1");
 	else if (sv.world.worldmodel->fromgame == fg_halflife)
-		Info_SetValueForStarKey(svs.info, "*bspversion", "30", MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*bspversion", "30");
 	else if (sv.world.worldmodel->fromgame == fg_quake2)
-		Info_SetValueForStarKey(svs.info, "*bspversion", "38", MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*bspversion", "38");
 	else if (sv.world.worldmodel->fromgame == fg_quake3)
-		Info_SetValueForStarKey(svs.info, "*bspversion", "46", MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*bspversion", "46");
 	else
-		Info_SetValueForStarKey(svs.info, "*bspversion", "", MAX_SERVERINFO_STRING);
-	Info_SetValueForStarKey(svs.info, "*startspot", (startspot?startspot:""), MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey(&svs.info, "*bspversion", "");
+	InfoBuf_SetStarKey(&svs.info, "*startspot", (startspot?startspot:""));
 
 	//
 	// init physics interaction links
@@ -1049,7 +1057,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #ifdef PEXT_CSQC
 	fsz = 0;
 	if (*sv_csqc_progname.string)
-		file = COM_LoadTempFile(sv_csqc_progname.string, &fsz);
+		file = COM_LoadTempFile(sv_csqc_progname.string, 0, &fsz);
 	else
 		file = NULL;
 	if (file)
@@ -1057,27 +1065,27 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		char text[64];
 		sv.csqcchecksum = Com_BlockChecksum(file, fsz);
 		sprintf(text, "0x%x", sv.csqcchecksum);
-		Info_SetValueForStarKey(svs.info, "*csprogs", text, MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey(&svs.info, "*csprogs", text);
 		sprintf(text, "0x%x", (unsigned int)fsz);
-		Info_SetValueForStarKey(svs.info, "*csprogssize", text, MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey(&svs.info, "*csprogssize", text);
 		if (strcmp(sv_csqc_progname.string, "csprogs.dat"))
-			Info_SetValueForStarKey(svs.info, "*csprogsname", sv_csqc_progname.string, MAX_SERVERINFO_STRING);
+			InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", sv_csqc_progname.string);
 		else
-			Info_SetValueForStarKey(svs.info, "*csprogsname", "", MAX_SERVERINFO_STRING);
+			InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", "");
 	}
 	else
 	{
 		sv.csqcchecksum = 0;
-		Info_SetValueForStarKey(svs.info, "*csprogs", "", MAX_SERVERINFO_STRING);
-		Info_SetValueForStarKey(svs.info, "*csprogssize", "", MAX_SERVERINFO_STRING);
-		Info_SetValueForStarKey(svs.info, "*csprogsname", "", MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey(&svs.info, "*csprogs", "");
+		InfoBuf_SetValueForStarKey(&svs.info, "*csprogssize", "");
+		InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", "");
 	}
 
 	sv.csqcdebug = sv_csqcdebug.value;
 	if (sv.csqcdebug)
-		Info_SetValueForStarKey(svs.info, "*csqcdebug", "1", MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey(&svs.info, "*csqcdebug", "1");
 	else
-		Info_RemoveKey(svs.info, "*csqcdebug");
+		InfoBuf_RemoveKey(&svs.info, "*csqcdebug");
 #endif
 
 	if (svs.gametype == GT_PROGS)
@@ -1272,6 +1280,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		svs.clients[i].edict = NULL;
 		svs.clients[i].name = svs.clients[i].namebuf;
 		svs.clients[i].team = svs.clients[i].teambuf;
+		InfoSync_Clear(&svs.clients[i].infosync);	//we'll mark all the info as dirty at some point while connecting.
 	}
 
 	switch (svs.gametype)
@@ -1368,8 +1377,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
-		Q_strncpyz(svs.clients[i].name, Info_ValueForKey(svs.clients[i].userinfo, "name"), sizeof(svs.clients[i].namebuf));
-		Q_strncpyz(svs.clients[i].team, Info_ValueForKey(svs.clients[i].userinfo, "team"), sizeof(svs.clients[i].teambuf));
+		Q_strncpyz(svs.clients[i].name, InfoBuf_ValueForKey(&svs.clients[i].userinfo, "name"), sizeof(svs.clients[i].namebuf));
+		Q_strncpyz(svs.clients[i].team, InfoBuf_ValueForKey(&svs.clients[i].userinfo, "team"), sizeof(svs.clients[i].teambuf));
 	}
 
 #ifndef SERVERONLY
@@ -1484,10 +1493,10 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		char crc[12];
 		sprintf(crc, "%i", sv.world.worldmodel->entitiescrc);
-		Info_SetValueForStarKey(svs.info, "*entfile", crc, MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey(&svs.info, "*entfile", crc);
 	}
 	else
-		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForStarKey(&svs.info, "*entfile", "");
 
 	file = Mod_GetEntitiesString(sv.world.worldmodel);
 	if (!file)
@@ -1599,7 +1608,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	SV_GibFilterInit();
 	SV_FilterImpulseInit();
 
-	Info_SetValueForKey (svs.info, "map", svs.name, MAX_SERVERINFO_STRING);
+	InfoBuf_SetValueForKey (&svs.info, "map", svs.name);
 	if (sv.allocated_client_slots != 1)
 		Con_TPrintf ("Server spawned.\n");	//misc filenotfounds can be misleading.
 

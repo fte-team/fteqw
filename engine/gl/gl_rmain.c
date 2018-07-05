@@ -1987,7 +1987,7 @@ void GLR_RenderView (void)
 	}
 	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || forcedfb)
 	{
-		unsigned int rtflags = IF_NOMIPMAP|IF_CLAMP|IF_RENDERTARGET;
+		unsigned int rtflags = IF_NOMIPMAP|IF_CLAMP|IF_RENDERTARGET|IF_NOSRGB;
 		enum uploadfmt fmt;
 
 		r_refdef.flags |= RDF_RENDERSCALE;

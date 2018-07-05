@@ -432,8 +432,6 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 	cls.fteprotocolextensions2 = 0;
 	cls.ezprotocolextensions1 = 0;
 
-	cls.resendinfo = false;
-
 	connectinfo.time = realtime;	// for retransmit requests
 
 	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\%s\\name\\%s", 255, 255, 255, 255, challenge, name.string);
@@ -619,8 +617,6 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	t2 = Sys_DoubleTime ();
 
-	cls.resendinfo = false;
-
 	connectinfo.time = realtime+t2-t1;	// for retransmit requests
 
 	//fixme: we shouldn't cycle these so much
@@ -652,7 +648,10 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		*a = '@';
 	}
 	//the info itself
-	Q_strncatz(data, cls.userinfo[0], sizeof(data));
+	{
+		static const char *prioritykeys[] = {"name", "password", "spectator", "lang", "rate", "team", "topcolor", "bottomcolor", "skin", "_", "*", NULL};
+		InfoBuf_ToString(&cls.userinfo[0], data+strlen(data), sizeof(data)-strlen(data), prioritykeys, NULL, NULL, &cls.userinfosync, &cls.userinfo[0]);
+	}
 	if (connectinfo.protocol == CP_QUAKEWORLD)	//zquake extension info.
 		Q_strncatz(data, va("\\*z_ext\\%i", SUPPORTED_Z_EXTENSIONS), sizeof(data));
 
@@ -1633,6 +1632,8 @@ void CL_ClearState (void)
 
 	Z_Free(cl.windowtitle);
 
+	InfoBuf_Clear(&cl.serverinfo, true);
+
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
@@ -1647,7 +1648,7 @@ void CL_ClearState (void)
 		cl.allocated_client_slots = sv.allocated_client_slots;
 #endif
 
-	SZ_Clear (&cls.netchan.message);
+//	SZ_Clear (&cls.netchan.message);
 
 	r_worldentity.model = NULL;
 
@@ -1666,7 +1667,7 @@ void CL_ClearState (void)
 		cl.playerview[i].maxspeed = 320;
 		cl.playerview[i].entgravity = 1;
 
-		cl.playerview[i].chatstate = atoi(Info_ValueForKey(cls.userinfo[i], "chat"));
+		cl.playerview[i].chatstate = atoi(InfoBuf_ValueForKey(&cls.userinfo[i], "chat"));
 	}
 #ifdef QUAKESTATS
 	for (i = 0; i < MAX_CLIENTS; i++)	//in case some server doesn't support it
@@ -1889,7 +1890,7 @@ void CL_User_f (void)
 			if (!cl.players[i].userinfovalid)
 				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
 			else
-				Info_Print (cl.players[i].userinfo, "");
+				InfoBuf_Print (&cl.players[i].userinfo, "");
 			found = true;
 		}
 	}
@@ -1953,8 +1954,8 @@ void CL_Color_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		char *t = Info_ValueForKey (cls.userinfo[pnum], "topcolor");
-		char *b = Info_ValueForKey (cls.userinfo[pnum], "bottomcolor");
+		char *t = InfoBuf_ValueForKey(&cls.userinfo[pnum], "topcolor");
+		char *b = InfoBuf_ValueForKey(&cls.userinfo[pnum], "bottomcolor");
 		if (!*t)
 			t = "0";
 		if (!*b)
@@ -1973,10 +1974,10 @@ void CL_Color_f (void)
 	t = Cmd_Argv(1);
 	b = (Cmd_Argc()==2)?t:Cmd_Argv(2);
 	if (!strcmp(t, "-1"))
-		t = Info_ValueForKey (cls.userinfo[pnum], "topcolor");
+		t = InfoBuf_ValueForKey(&cls.userinfo[pnum], "topcolor");
 	top = CL_ParseColour(t);
 	if (!strcmp(b, "-1"))
-		b = Info_ValueForKey (cls.userinfo[pnum], "bottomcolor");
+		b = InfoBuf_ValueForKey(&cls.userinfo[pnum], "bottomcolor");
 	bottom = CL_ParseColour(b);
 
 	Q_snprintfz (num, sizeof(num), (top&0xff000000)?"0x%06x":"%i", top & 0xffffff);
@@ -2049,7 +2050,7 @@ void CL_PakDownloads(int mode)
 void CL_CheckServerPacks(void)
 {
 	static int oldpure;
-	int pure = atof(Info_ValueForKey(cl.serverinfo, "sv_pure"));
+	int pure = atof(InfoBuf_ValueForKey(&cl.serverinfo, "sv_pure"));
 	if (pure < cl_pure.ival)
 		pure = cl_pure.ival;
 	pure = bound(0, pure, 2);
@@ -2094,8 +2095,8 @@ void CL_CheckServerInfo(void)
 			spectating = false;
 
 	oldteamplay = cl.teamplay;
-	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
-	cls.deathmatch = cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
+	cl.teamplay = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "teamplay"));
+	cls.deathmatch = cl.deathmatch = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "deathmatch"));
 
 	cls.allow_cheats = false;
 	cls.allow_semicheats=true;
@@ -2106,16 +2107,16 @@ void CL_CheckServerInfo(void)
 //	cls.allow_overbrightlight;
 
 
-	cls.allow_csqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc")) || *Info_ValueForKey(cl.serverinfo, "*csprogs");
-	cl.csqcdebug = atoi(Info_ValueForKey(cl.serverinfo, "*csqcdebug"));
+	cls.allow_csqc = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "anycsqc")) || *InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
+	cl.csqcdebug = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "*csqcdebug"));
 
-	if (spectating || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
+	if (spectating || cls.demoplayback || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "watervis")))
 		cls.allow_watervis=true;
 
-	if (spectating || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
+	if (spectating || cls.demoplayback || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow_skybox")) || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow_skyboxes")))
 		cls.allow_skyboxes=true;	//mostly obsolete.
 
-	s = Info_ValueForKey(cl.serverinfo, "fbskins");
+	s = InfoBuf_ValueForKey(&cl.serverinfo, "fbskins");
 	if (*s)
 		cls.allow_fbskins = atof(s);
 	else if (cl.teamfortress)
@@ -2123,7 +2124,7 @@ void CL_CheckServerInfo(void)
 	else
 		cls.allow_fbskins = 1;
 
-	s = Info_ValueForKey(cl.serverinfo, "*cheats");
+	s = InfoBuf_ValueForKey(&cl.serverinfo, "*cheats");
 	if (spectating || cls.demoplayback || !stricmp(s, "on"))
 		cls.allow_cheats = true;
 
@@ -2134,14 +2135,14 @@ void CL_CheckServerInfo(void)
 		cls.allow_cheats = true;
 #endif
 
-	s = Info_ValueForKey(cl.serverinfo, "strict");
+	s = InfoBuf_ValueForKey(&cl.serverinfo, "strict");
 	if ((!spectating && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.ival)
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
 	}
 
-	cls.z_ext = atoi(Info_ValueForKey(cl.serverinfo, "*z_ext"));
+	cls.z_ext = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "*z_ext"));
 
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
@@ -2151,22 +2152,22 @@ void CL_CheckServerInfo(void)
 	else
 #endif
 	{
-		cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
+		cls.maxfps = atof(InfoBuf_ValueForKey(&cl.serverinfo, "maxfps"));
 		if (cls.maxfps < 20)
 			cls.maxfps = 72;
 
 		// movement vars for prediction
-		cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
-		movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
-		movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
-		movevars.stepdown = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_stepdown")) != 0);
-		movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
-		movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
-		s = Info_ValueForKey(cl.serverinfo, "pm_stepheight");
+		cl.bunnyspeedcap = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_bunnyspeedcap"));
+		movevars.slidefix = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_slidefix")) != 0);
+		movevars.airstep = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_airstep")) != 0);
+		movevars.stepdown = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_stepdown")) != 0);
+		movevars.walljump = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_walljump")));
+		movevars.ktjump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_ktjump"));
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_stepheight");
 		movevars.stepheight = *s?Q_atof(s):PM_DEFAULTSTEPHEIGHT;
-		s = Info_ValueForKey(cl.serverinfo, "pm_watersinkspeed");
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_watersinkspeed");
 		movevars.watersinkspeed = *s?Q_atof(s):60;
-		s = Info_ValueForKey(cl.serverinfo, "pm_flyfriction");
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_flyfriction");
 		movevars.flyfriction = *s?Q_atof(s):4;
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize; 
@@ -2174,9 +2175,9 @@ void CL_CheckServerInfo(void)
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
 	{
-		s = Info_ValueForKey (cl.serverinfo, "maxpitch");
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "maxpitch");
 		cl.maxpitch = *s ? Q_atof(s) : ((cl_fullpitch_nq.ival && !cl.haveserverinfo)?90.0f:80.0f);
-		s = Info_ValueForKey (cl.serverinfo, "minpitch");
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "minpitch");
 		cl.minpitch = *s ? Q_atof(s) : ((cl_fullpitch_nq.ival && !cl.haveserverinfo)?-90.0f:-70.0f);
 
 		if (cls.protocol == CP_NETQUAKE)
@@ -2195,9 +2196,9 @@ void CL_CheckServerInfo(void)
 	cl.maxpitch = bound(-89.9, cl.maxpitch, 89.9);
 	cl.minpitch = bound(-89.9, cl.minpitch, 89.9);
 
-	cl.hexen2pickups = atoi(Info_ValueForKey(cl.serverinfo, "sv_pupglow"));
+	cl.hexen2pickups = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "sv_pupglow"));
 
-	allowed = atoi(Info_ValueForKey(cl.serverinfo, "allow"));
+	allowed = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow"));
 	if (allowed & 1)
 		cls.allow_watervis = true;
 //	if (allowed & 2)
@@ -2224,14 +2225,14 @@ void CL_CheckServerInfo(void)
 	if (spectating || cls.demoplayback)
 		cl.fpd = 0;
 	else
-		cl.fpd = atoi(Info_ValueForKey(cl.serverinfo, "fpd"));
+		cl.fpd = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "fpd"));
 
-	cl.gamespeed = atof(Info_ValueForKey(cl.serverinfo, "*gamespeed"))/100.f;
+	cl.gamespeed = atof(InfoBuf_ValueForKey(&cl.serverinfo, "*gamespeed"))/100.f;
 	if (cl.gamespeed < 0.1)
 		cl.gamespeed = 1;
 
 #ifdef QUAKESTATS
-	s = Info_ValueForKey(cl.serverinfo, "status");
+	s = InfoBuf_ValueForKey(&cl.serverinfo, "status");
 	oldstate = cl.matchstate;
 	if (!stricmp(s, "standby"))
 		cl.matchstate = MATCH_STANDBY;
@@ -2253,7 +2254,7 @@ void CL_CheckServerInfo(void)
 		{
 			//always update it. this is to try to cope with overtime.
 			oldstate = cl.matchstate = MATCH_INPROGRESS;
-			cl.matchgametimestart = cl.gametime + time - 60*atof(Info_ValueForKey(cl.serverinfo, "timelimit"));
+			cl.matchgametimestart = cl.gametime + time - 60*atof(InfoBuf_ValueForKey(&cl.serverinfo, "timelimit"));
 		}
 		else
 		{
@@ -2335,11 +2336,11 @@ void CL_FullInfo_f (void)
 		if (!stricmp(key, pmodel_name) || !stricmp(key, emodel_name))
 			continue;
 
-		Info_SetValueForKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
+		InfoBuf_SetKey (&cls.userinfo[pnum], key, value);
 	}
 }
 
-void CL_SetInfo (int pnum, char *key, char *value)
+void CL_SetInfoBlob (int pnum, const char *key, const char *value, size_t valuesize)
 {
 	cvar_t *var;
 	if (!pnum)
@@ -2352,25 +2353,11 @@ void CL_SetInfo (int pnum, char *key, char *value)
 		}
 	}
 
-	Info_SetValueForStarKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
-	if (cls.state >= ca_connected && !cls.demoplayback)
-	{
-		if (pnum >= cl.splitclients)
-			return;
-
-#ifdef Q2CLIENT
-		if ((cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3) && !cls.fteprotocolextensions)
-			cls.resendinfo = true;
-		else
-#endif
-			if (cls.protocol != CP_NETQUAKE || (cls.fteprotocolextensions & PEXT_BIGUSERINFOS))
-		{
-			if (pnum)
-				CL_SendClientCommand(true, "%i setinfo %s \"%s\"", pnum+1, key, value);
-			else
-				CL_SendClientCommand(true, "setinfo %s \"%s\"", key, value);
-		}
-	}
+	InfoBuf_SetStarBlobKey(&cls.userinfo[pnum], key, value, valuesize);
+}
+void CL_SetInfo (int pnum, const char *key, const char *value)
+{
+	CL_SetInfoBlob(pnum, key, value, strlen(value));
 }
 /*
 ==================
@@ -2385,7 +2372,8 @@ void CL_SetInfo_f (void)
 	int pnum = CL_TargettedSplit(true);
 	if (Cmd_Argc() == 1)
 	{
-		Info_Print (cls.userinfo[pnum], "");
+		InfoBuf_Print (&cls.userinfo[pnum], "");
+		Con_Printf("[%u]", (unsigned int)cls.userinfo[pnum].totalsize);
 		return;
 	}
 	if (Cmd_Argc() != 3)
@@ -2402,18 +2390,18 @@ void CL_SetInfo_f (void)
 		if (!strcmp(Cmd_Argv(1), "*"))
 			if (!strcmp(Cmd_Argv(2), ""))
 			{	//clear it out
-				char *k;
+				const char *k;
 				for(i=0;;)
 				{
-					k = Info_KeyForNumber(cls.userinfo[pnum], i);
-					if (!*k)
+					k = InfoBuf_KeyForNumber(&cls.userinfo[pnum], i);
+					if (!k)
 						break;	//no more.
 					else if (*k == '*')
 						i++;	//can't remove * keys
-					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_USERINFO)
+					else if ((var = Cvar_FindVar(k)) && (var->flags&CVAR_USERINFO))
 						i++;	//this one is a cvar.
 					else
-						Info_RemoveKey(cls.userinfo[pnum], k);	//we can remove this one though, so yay.
+						InfoBuf_RemoveKey(&cls.userinfo[pnum], k);	//we can remove this one though, so yay.
 				}
 
 				return;
@@ -2422,9 +2410,48 @@ void CL_SetInfo_f (void)
 		return;
 	}
 
-
 	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
 }
+
+#ifdef _DEBUG
+void CL_SetInfoBlob_f (void)
+{
+	qofs_t fsize;
+	void *data;
+	int pnum = CL_TargettedSplit(true);
+	if (Cmd_Argc() == 1)
+	{
+		InfoBuf_Print (&cls.userinfo[pnum], "");
+		return;
+	}
+	if (Cmd_Argc() != 3)
+	{
+		Con_TPrintf ("usage: setinfo [ <key> <filename> ]\n");
+		return;
+	}
+
+	//user isn't allowed to set pmodel, emodel, *foo as these could break stuff.
+	if (!stricmp(Cmd_Argv(1), pmodel_name) || !strcmp(Cmd_Argv(1), emodel_name))
+		return;
+	if (Cmd_Argv(1)[0] == '*')
+	{
+		Con_Printf ("Can't set * keys\n");
+		return;
+	}
+
+	data = FS_MallocFile(Cmd_Argv(2), FS_GAME, &fsize);
+	if (!data)
+	{
+		Con_Printf ("Unable to read %s\n", Cmd_Argv(2));
+		return;
+	}
+	if (fsize > 64*1024*1024)
+		Con_Printf ("File is over 64mb\n");
+	else
+		CL_SetInfoBlob(pnum, Cmd_Argv(1), data, fsize);
+	FS_FreeFile(data);
+}
+#endif
 
 void CL_SaveInfo(vfsfile_t *f)
 {
@@ -2435,12 +2462,12 @@ void CL_SaveInfo(vfsfile_t *f)
 		if (i)
 		{
 			VFS_WRITE(f, va("p%i setinfo * \"\"\n", i+1), 16);
-			Info_WriteToFile(f, cls.userinfo[i],  va("p%i setinfo", i+1), 0);
+			InfoBuf_WriteToFile(f, &cls.userinfo[i],  va("p%i setinfo", i+1), 0);
 		}
 		else
 		{
 			VFS_WRITE(f, "setinfo * \"\"\n", 13);
-			Info_WriteToFile(f, cls.userinfo[i], "setinfo", CVAR_USERINFO);
+			InfoBuf_WriteToFile(f, &cls.userinfo[i], "setinfo", CVAR_USERINFO);
 		}
 	}
 }
@@ -3921,10 +3948,8 @@ void CL_ServerInfo_f(void)
 {
 	if (!sv.state && cls.state && Cmd_Argc() < 2)
 	{
-		if (cls.demoplayback || cls.protocol != CP_QUAKEWORLD)
-		{
-			Info_Print (cl.serverinfo, "");
-		}
+		if (cl.haveserverinfo)
+			InfoBuf_Print (&cl.serverinfo, "");
 		else
 			Cmd_ForwardToServer ();
 	}
@@ -4117,6 +4142,12 @@ void CL_Demo_SetSpeed_f(void)
 		Con_Printf("demo playback speed %g%%\n", cl_demospeed.value * 100);
 }
 
+static void CL_UserinfoChanged(void *ctx, const char *keyname)
+{
+	InfoSync_Add(&cls.userinfosync, ctx, keyname);
+}
+
+
 void CL_Skygroup_f(void);
 /*
 =================
@@ -4133,6 +4164,7 @@ void CL_Init (void)
 	extern	cvar_t		noskins;
 #endif
 	char *ver;
+	size_t seat;
 
 	cls.state = ca_disconnected;
 
@@ -4143,7 +4175,12 @@ void CL_Init (void)
 #endif
 		ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
 
-	Info_SetValueForStarKey (cls.userinfo[0], "*ver", ver, sizeof(cls.userinfo[0]));
+	for (seat = 0; seat < MAX_SPLITS; seat++)
+	{
+		cls.userinfo[seat].ChangeCTX = &cls.userinfo[seat];
+		cls.userinfo[seat].ChangeCB = CL_UserinfoChanged;
+		InfoBuf_SetStarKey (&cls.userinfo[seat], "*ver", ver);
+	}
 
 	InitValidation();
 
@@ -4412,6 +4449,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("user", CL_User_f);
 	Cmd_AddCommand ("users", CL_Users_f);
 
+#ifdef _DEBUG
+	Cmd_AddCommand ("setinfoblob", CL_SetInfoBlob_f);
+#endif
 	Cmd_AddCommand ("setinfo", CL_SetInfo_f);
 	Cmd_AddCommand ("fullinfo", CL_FullInfo_f);
 
@@ -5756,7 +5796,7 @@ void CL_ReadCDKey(void)
 {	//q3 cdkey
 	//you don't need one, just use a server without sv_strictauth set to 0.
 	char *buffer;
-	buffer = COM_LoadTempFile("q3key", NULL);
+	buffer = COM_LoadTempFile("q3key", FSLF_IGNOREPURE, NULL);
 	if (buffer)	//a cdkey is meant to be 16 chars
 	{
 		char *chr;
@@ -6221,6 +6261,7 @@ to run quit through here before the final handoff to the sys code.
 */
 void Host_Shutdown(void)
 {
+	size_t i;
 	if (!host_initialized)
 		return;
 	host_initialized = false;
@@ -6289,6 +6330,10 @@ void Host_Shutdown(void)
 #ifdef PLUGINS
 	Plug_Shutdown(true);
 #endif
+
+	for (i = 0; i < MAX_SPLITS; i++)
+		InfoBuf_Clear(&cls.userinfo[i], true);
+	InfoSync_Clear(&cls.userinfosync);
 
 	Con_Shutdown();
 	COM_BiDi_Shutdown();

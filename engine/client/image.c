@@ -2801,7 +2801,7 @@ void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips)
 
 	VFS_CLOSE(file);
 }
-static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	static const char magic[12] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
 	ktxheader_t *header;
@@ -3038,7 +3038,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, char *fn
 #endif
 
 #ifdef IMAGEFMT_PKM
-static struct pendingtextureinfo *Image_ReadPKMFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadPKMFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	struct pendingtextureinfo *mips;
 	unsigned int encoding, blockbytes;
@@ -3157,7 +3157,7 @@ typedef struct {
 	unsigned int miscflags2;
 } dds10header_t;
 
-static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	int nummips;
 	int mipnum;
@@ -3362,7 +3362,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, char *fn
 #endif
 
 #ifdef IMAGEFMT_BLP
-static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	//FIXME: cba with endian.
 	int miplevel;
@@ -6212,7 +6212,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 #if 1
 //always frees filedata, even on failure.
 //also frees the textures fallback data, but only on success
-static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, char *fname, qbyte *filedata, int filesize)
+static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize)
 {
 	qboolean hasalpha;
 	qbyte *rgbadata;
@@ -6267,7 +6267,7 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 			COM_FileExtension(fname, ext, sizeof(ext));
 			Q_strncatz(aname, "_alpha.", sizeof(aname));
 			Q_strncatz(aname, ext, sizeof(aname));
-			if (!strchr(aname, ':') && (alph = COM_LoadFile (aname, 5, &alphsize)))
+			if (!strchr(aname, ':') && (alph = FS_LoadMallocFile (aname, &alphsize)))
 			{
 				if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
 				{
@@ -6324,7 +6324,7 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 
 //always frees filedata, even on failure.
 //also frees the textures fallback data, but only on success
-qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, char *fname, qbyte *filedata, int filesize)
+qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, const char *fname, qbyte *filedata, int filesize)
 {
 	struct pendingtextureinfo *mips = Image_LoadMipsFromMemory(flags, iname, fname, filedata, filesize);
 	if (mips)
@@ -6406,7 +6406,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 			COM_FileExtension(fname, ext, sizeof(ext));
 			Q_strncatz(aname, "_alpha.", sizeof(aname));
 			Q_strncatz(aname, ext, sizeof(aname));
-			if (!strchr(aname, ':') && (alph = COM_LoadFile (aname, 5, &alphsize)))
+			if (!strchr(aname, ':') && (alph = FS_LoadMallocFile (aname, &alphsize)))
 			{
 				if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
 				{
@@ -6465,7 +6465,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 }
 #endif
 
-struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, char *subpath, unsigned int texflags)
+static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, char *subpath, unsigned int texflags)
 {
 	static struct
 	{
@@ -6529,12 +6529,12 @@ struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, ch
 				for (j = 0; j < countof(cmscheme); j++)
 				{
 					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s_%s%s", nicename, cmscheme[j][i].suffix, tex_extensions[e].name);
-					buf = COM_LoadFile(fname, 5, &filesize);
+					buf = FS_LoadMallocFile(fname, &filesize);
 					if (buf)
 						break;
 
 					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s%s%s", nicename, cmscheme[j][i].suffix, tex_extensions[e].name);
-					buf = COM_LoadFile(fname, 5, &filesize);
+					buf = FS_LoadMallocFile(fname, &filesize);
 					if (buf)
 						break;
 				}
@@ -6592,7 +6592,7 @@ nextface:;
 	return mips;
 }
 
-static qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *bestname, size_t bestnamesize, unsigned int *bestflags)
+qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *bestname, size_t bestnamesize, unsigned int *bestflags)
 {
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
 	int i, e;
@@ -6827,8 +6827,6 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	int imgheight;
 	qboolean alphaed;
 
-//	Sys_Sleep(0.3);
-
 	if ((tex->flags & IF_TEXTYPE) == IF_CUBEMAP)
 	{	//cubemaps require special handling because they are (normally) 6 files instead of 1.
 		//the exception is single-file dds cubemaps, but we don't support those.
@@ -6963,7 +6961,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 				if (Image_LoadTextureFromMemory(tex, tex->flags, tex->ident, fname, buf, fsize))
 				{
 					BZ_Free(tex->fallbackdata);
-					tex->fallbackdata = NULL;	
+					tex->fallbackdata = NULL;
 					return;
 				}
 			}
@@ -7057,7 +7055,10 @@ static image_t *Image_CreateTexture_Internal (const char *identifier, const char
 	tex->next = imagelist;
 	imagelist = tex;
 
-	tex->flags = flags;
+	if ((vid.flags & VID_SRGBAWARE) && !(flags & IF_NOSRGB))
+		tex->flags = flags | IF_SRGB;	//guess...
+	else
+		tex->flags = flags;
 	tex->width = 0;
 	tex->height = 0;
 	tex->regsequence = r_regsequence;
@@ -7597,7 +7598,7 @@ texid_t R_LoadBumpmapTexture(const char *name, const char *subpath)
 
 			TRACE(("dbg: Mod_LoadBumpmapTexture: opening %s\n", fname));
 
-			if ((buf = COM_LoadFile (fname, 5, &fsize)))
+			if ((buf = FS_LoadMallocFile (fname, &fsize)))
 			{
 				if ((data = ReadTargaFile(buf, fsize, &image_width, &image_height, &hasalpha, 2)))	//Only load a greyscale image.
 				{

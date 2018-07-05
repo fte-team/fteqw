@@ -1013,7 +1013,9 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 		{
 			char *dest = VM_POINTER(arg[0]);
 			int length = VM_LONG(arg[1]);
-			Q_strncpyz(dest, svs.info, length);
+			if (VM_OOB(arg[1], arg[2]))
+				return 0;
+			InfoBuf_ToString(&svs.info, dest, length, NULL, NULL, NULL, NULL, NULL);
 		}
 		return true;
 	case G_GET_USERINFO://int num, char *buffer, int bufferSize										20
@@ -1021,11 +1023,13 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 			return 0;
 		if ((unsigned)VM_LONG(arg[0]) >= sv.allocated_client_slots)
 			return 0;
-		Q_strncpyz(VM_POINTER(arg[1]), svs.clients[VM_LONG(arg[0])].userinfo, VM_LONG(arg[2]));
+		InfoBuf_ToString(&svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), VM_LONG(arg[2]), NULL, NULL, NULL, NULL, NULL);
 		break;
 
 	case G_SET_USERINFO://int num, char *buffer										20
-		Q_strncpyz(svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), sizeof(svs.clients[0].userinfo));
+		if (VM_OOB(arg[1], 1))
+			return 0;
+		InfoBuf_FromString(&svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), false);
 		SV_ExtractFromUserinfo(&svs.clients[VM_LONG(arg[0])], false);
 		break;
 
@@ -1894,13 +1898,13 @@ qboolean SVQ3_InitGame(void)
 
 	q3_sentities = Z_Malloc(sizeof(q3serverEntity_t)*MAX_GENTITIES);
 
-	/*qw serverinfo settings are not normally visible in the q3 serverinfo*/
-	strcpy(buffer, svs.info);
-	Info_SetValueForKey(buffer, "map", "", sizeof(buffer));
-	Info_SetValueForKey(buffer, "maxclients", "", sizeof(buffer));
-	Info_SetValueForKey(buffer, "mapname", svs.name, sizeof(buffer));
-	Info_SetValueForKey(buffer, "sv_maxclients", "32", sizeof(buffer));
-	Info_SetValueForKey(buffer, "sv_pure", "", sizeof(buffer));
+	{	/*qw serverinfo settings are not normally visible in the q3 serverinfo, so strip them from the configstring*/
+		static const char *ignores[] = {"maxclients", "map", "sv_maxclients", "*z_ext", "*bspversion", "*gamedir", NULL};
+		extern cvar_t maxclients;
+		InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, ignores, NULL, NULL, NULL);
+		//add in maxclients.. the q3 version
+		Q_strncatz(buffer, va("\\sv_maxclients\\%s", maxclients.string), sizeof(buffer));
+	}
 	SVQ3_SetConfigString(0, buffer);
 
 	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "1");
@@ -3069,8 +3073,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 
 void SVQ3_UpdateUserinfo_f(client_t *cl)
 {
-	Q_strncpyz(cl->userinfo, Cmd_Argv(1), sizeof(cl->userinfo));
-
+	InfoBuf_FromString(&cl->userinfo, Cmd_Argv(1), false);
 	SV_ExtractFromUserinfo (cl, true);
 
 	if (svs.gametype == GT_QUAKE3)
@@ -3386,9 +3389,9 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 			reason = "Invalid challenge";
 		else
 		{
-			Q_strncpyz(cl->userinfo, userinfo, sizeof(cl->userinfo));
+			InfoBuf_FromString(&cl->userinfo, userinfo, false);
 			reason = NET_AdrToString(adr, sizeof(adr), &net_from);
-			Info_SetValueForStarKey(cl->userinfo, "ip", reason, sizeof(cl->userinfo));
+			InfoBuf_SetKey(&cl->userinfo, "ip", reason);
 
 			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), false, false);
 			if (!ret)

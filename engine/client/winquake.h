@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WINQUAKE_H
 
 #ifdef _WIN32
+void GLVID_Crashed(void);
 
 #if defined(_WIN32) && !defined(WIN32)
 #define WIN32 _WIN32

@@ -823,7 +823,7 @@ void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 	MSG_WriteByte (msg, player - svs.clients);
 	MSG_WriteFloat (msg, realtime - player->connection_started);
 
-	SV_GeneratePublicUserInfo(demo.recorder.fteprotocolextensions, player, info, sizeof(info));
+	InfoBuf_ToString(&player->userinfo, info, sizeof(info), basicuserinfos, privateuserinfos, NULL, &demo.recorder.infosync, player);
 
 	if (dosizes)
 		msg = MVDWrite_Begin (dem_all, 0, 7 + strlen(info));
@@ -1205,12 +1205,12 @@ static char *SV_PrintTeams(void)
 
 		clients[numcl++] = &svs.clients[i];
 		for (j = 0; j < numt; j++)
-			if (!strcmp(Info_ValueForKey(svs.clients[i].userinfo, "team"), teams[j]))
+			if (!strcmp(InfoBuf_ValueForKey(&svs.clients[i].userinfo, "team"), teams[j]))
 				break;
 		if (j != numt)
 			continue;
 
-		teams[numt++] = Info_ValueForKey(svs.clients[i].userinfo, "team");
+		teams[numt++] = InfoBuf_ValueForKey(&svs.clients[i].userinfo, "team");
 	}
 
 	// create output
@@ -1231,7 +1231,7 @@ static char *SV_PrintTeams(void)
 		{
 			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "team %s:\n", teams[j]);
 			for (i = 0; i < numcl; i++)
-				if (!strcmp(Info_ValueForKey(clients[i]->userinfo, "team"), teams[j]))
+				if (!strcmp(InfoBuf_ValueForKey(&clients[i]->userinfo, "team"), teams[j]))
 					snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "  %s\n", clients[i]->name);
 		}
 	}
@@ -1668,7 +1668,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 // send the serverdata
 
-	gamedir = Info_ValueForKey (svs.info, "*gamedir");
+	gamedir = InfoBuf_ValueForKey (&svs.info, "*gamedir");
 	if (!gamedir[0])
 		gamedir = FS_GetGamedir(true);
 
@@ -2088,11 +2088,11 @@ char *Dem_Team(int num)
 		if (!client->name[0] || client->spectator)
 			continue;
 
-		if (first || strcmp(lastteam[index], Info_ValueForKey(client->userinfo, "team")))
+		if (first || strcmp(lastteam[index], InfoBuf_ValueForKey(&client->userinfo, "team")))
 		{
 			first = false;
 			num--;
-			lastteam[index] = Info_ValueForKey(client->userinfo, "team");
+			lastteam[index] = InfoBuf_ValueForKey(&client->userinfo, "team");
 		}
 	}
 
@@ -2136,7 +2136,7 @@ char *Dem_PlayerNameTeam(char *t)
 		if (!client->name[0] || client->spectator)
 			continue;
 
-		if (strcmp(t, Info_ValueForKey(client->userinfo, "team"))==0)
+		if (strcmp(t, InfoBuf_ValueForKey(&client->userinfo, "team"))==0)
 		{
 			if (sep >= 1)
 				Q_strncatz (n, "_", sizeof(n));
@@ -2158,7 +2158,7 @@ int	Dem_CountTeamPlayers (char *t)
 	for (i = 0; i < sv.allocated_client_slots ; i++)
 	{
 		if (svs.clients[i].name[0] && !svs.clients[i].spectator)
-			if (strcmp(Info_ValueForKey(svs.clients[i].userinfo, "team"), t)==0)
+			if (strcmp(InfoBuf_ValueForKey(&svs.clients[i].userinfo, "team"), t)==0)
 				count++;
 	}
 

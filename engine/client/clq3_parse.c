@@ -513,7 +513,7 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 			value = "baseq3";
 		COM_Gamedir(value, NULL);
 #ifndef CLIENTONLY
-		Info_SetValueForStarKey (svs.info, "*gamedir", value, MAX_SERVERINFO_STRING);
+		InfoBuf_SetStarKey (&svs.info, "*gamedir", value);
 #endif
 	}
 
@@ -899,12 +899,6 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	usercmd_t *to, *from;
 	extern int keycatcher;
 
-	if (cls.resendinfo)
-	{
-		cls.resendinfo = false;
-		CLQ3_SendClientCommand("userinfo \"%s\"", cls.userinfo[0]);
-	}
-
 	//reuse the q1 array
 	cmd->servertime = cl.servertime*1000;
 	cmd->weapon = ccs.selected_weapon;
@@ -1044,11 +1038,15 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 
 void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
 {
+	char infostr[1024];
 	char data[2048];
 	char adrbuf[MAX_ADR_SIZE];
 	sizebuf_t msg;
+	static const char *nonq3[] = {"challenge", "qport", "protocol", "ip", "chat", NULL};
 
 	memset(&ccs, 0, sizeof(ccs));
+
+	InfoBuf_ToString(&cls.userinfo[0], infostr, sizeof(infostr), basicuserinfos, nonq3, NULL, &cls.userinfosync, &cls.userinfo[0]);
 
 	cl.splitclients = 1;
 	msg.data = data;
@@ -1056,7 +1054,7 @@ void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
 	msg.overflowed = msg.allowoverflow = 0;
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", challenge, qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), cls.userinfo[0]));
+	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", challenge, qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), infostr));
 #ifdef HUFFNETWORK
 	Huff_EncryptPacket(&msg, 12);
 	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))

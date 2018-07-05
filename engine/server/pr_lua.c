@@ -1100,7 +1100,7 @@ static int bi_lua_setinfokey(lua_State *L)
 	key = lua_tolstring(L, 2, NULL);
 	value = lua_tolstring(L, 3, NULL);
 
-	result = PF_ForceInfoKey_Internal(entnum, key, value);
+	result = PF_ForceInfoKey_Internal(entnum, key, value, strlen(value));
 	lua_pushinteger(L, result);
 	return 1;
 }

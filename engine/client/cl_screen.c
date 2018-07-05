@@ -1769,7 +1769,7 @@ void SCR_DrawGameClock(void)
 
 	flags = (show_gameclock.value-1);
 	if (flags & 1)
-		timelimit = 60 * atof(Info_ValueForKey(cl.serverinfo, "timelimit"));
+		timelimit = 60 * atof(InfoBuf_ValueForKey(&cl.serverinfo, "timelimit"));
 	else
 		timelimit = 0;
 

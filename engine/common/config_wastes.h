@@ -154,12 +154,18 @@
 #undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 
+//#define USE_INTERNAL_BULLET
+
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself
 -DOMIT_QCC	//disable the built-in qcc 
 -DSIMPLE_QCVM	//disable qc debugging and 32bit opcodes
 #ifndef AVAIL_ZLIB
 -DNO_ZLIB	//disable zlib
+#endif
+
+#ifdef USE_INTERNAL_BULLET	//makefile will respond to this by trying to link bullet into the engine itself, instead of as a plugin.
+-DLINK_INTERNAL_BULLET
 #endif
 
 

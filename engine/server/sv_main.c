@@ -271,6 +271,10 @@ void SV_Shutdown (void)
 	Cmd_Shutdown();
 	PM_Shutdown();
 
+	
+	InfoBuf_Clear(&svs.info, true);
+	InfoBuf_Clear(&svs.localinfo, true);
+
 #ifdef WEBSERVER
 	IWebShutdown();
 #endif
@@ -643,7 +647,8 @@ void SV_DropClient (client_t *drop)
 #endif
 	drop->namebuf[0] = 0;
 	drop->name = drop->namebuf;
-	memset (drop->userinfo, 0, sizeof(drop->userinfo));
+	InfoBuf_Clear(&drop->userinfo, true);
+	InfoSync_Clear(&drop->infosync);
 
 	while ((lp = drop->laggedpacket))
 	{
@@ -943,39 +948,6 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	return 0;
 }
 
-//generate whatever public userinfo is supported by the client.
-//private keys like _ prefixes and the password key are stripped out here.
-//password needs to be stripped in case the password key doesn't actually relate to this server.
-void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength)
-{
-	char *key, *s;
-	int i;
-	
-	//FIXME: we should probably use some sort of priority system instead if I'm honest about it
-	if (pext & PEXT_BIGUSERINFOS)
-		Q_strncpyz (info, cl->userinfo, infolength);
-	else
-	{
-		if (infolength >= BASIC_INFO_STRING)
-			infolength = BASIC_INFO_STRING;
-		*info = 0;
-		for (i = 0; (key = Info_KeyForNumber(cl->userinfo, i)); i++)
-		{
-			if (!*key)
-				break;
-			if (!SV_UserInfoIsBasic(key))
-				continue;
-
-			s = Info_ValueForKey(cl->userinfo, key);
-			Info_SetValueForStarKey (info, key, s, infolength);
-		}
-	}
-
-	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
-	Info_RemoveKey(info, "password");
-	Info_RemoveKey(info, "*ip");
-}
-
 /*
 ===================
 SV_FullClientUpdate
@@ -1011,6 +983,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 
 	if (ISQWCLIENT(to))
 	{
+		unsigned int pext = to->fteprotocolextensions;
 		int ping = SV_CalcPing (client, false);
 		if (ping > 0xffff)
 			ping = 0xffff;
@@ -1031,8 +1004,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		ClientReliableWrite_Byte (to, i);
 		ClientReliableWrite_Float (to, realtime - client->connection_started);
 
-		SV_GeneratePublicUserInfo(to->fteprotocolextensions, client, info, sizeof(info));
-
+		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, NULL, NULL);
 		ClientReliableWrite_Begin(to, svc_updateuserinfo, 7 + strlen(info));
 		ClientReliableWrite_Byte (to, i);
 		ClientReliableWrite_Long (to, client->userid);
@@ -1041,7 +1013,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 	else if (ISNQCLIENT(to))
 	{
 		int top, bottom, playercolor;
-		char *nam = Info_ValueForKey(client->userinfo, "name");
+		char *nam = InfoBuf_ValueForKey(&client->userinfo, "name");
 
 		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
 		ClientReliableWrite_Byte (to, i);
@@ -1051,8 +1023,8 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		ClientReliableWrite_Byte (to, i);
 		ClientReliableWrite_String(to, nam);
 
-		top = atoi(Info_ValueForKey(client->userinfo, "topcolor"));
-		bottom = atoi(Info_ValueForKey(client->userinfo, "bottomcolor"));
+		top = atoi(InfoBuf_ValueForKey(&client->userinfo, "topcolor"));
+		bottom = atoi(InfoBuf_ValueForKey(&client->userinfo, "bottomcolor"));
 		top &= 15;
 		if (top > 13)
 			top = 13;
@@ -1067,8 +1039,9 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 
 		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
 		{
-			char quotedval[8192];
-			char *s = va("//fui %i %s\n", i, COM_QuotedString(client->userinfo, quotedval, sizeof(quotedval), false));
+			char *s;
+			InfoBuf_ToString(&client->userinfo, info, sizeof(info), basicuserinfos, privateuserinfos, NULL, NULL, NULL);
+			s = va("//fui %i \"%s\"\n", i, info);
 			ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
 			ClientReliableWrite_String(to, s);
 		}
@@ -1124,21 +1097,27 @@ static void SVC_Status (void)
 	Cmd_TokenizeString ("status", false, false);
 	SV_BeginRedirect (RD_PACKET, TL_FindLanguage(""));
 	if (displayflags&STATUS_SERVERINFO)
-		Con_Printf ("%s\n", svs.info);
+	{
+		char infostr[1024];	//FIXME: vanilla limit is 512. we should probably have a list of known cvars for lower priority sending.
+		const char *ignorekeys[] = {"mapname", "*z_ext", NULL};	//ignore some pointless stuff
+		const char *prioritykeys[] = {"hostname", "admin", "*gamedir", "*version", "deathmatch", "timelimit", "fraglimit", "maxclients", "maxspectators", "status", NULL}; //make sure we include these before we start overflowing
+		InfoBuf_ToString(&svs.info, infostr, sizeof(infostr), prioritykeys, ignorekeys, NULL, NULL, NULL);
+		Con_Printf ("%s\n", infostr);
+	}
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
 		if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && ((cl->spectator && displayflags&STATUS_SPECTATORS) || (!cl->spectator && displayflags&STATUS_PLAYERS)))
 		{
-			top = atoi(Info_ValueForKey (cl->userinfo, "topcolor"));
-			bottom = atoi(Info_ValueForKey (cl->userinfo, "bottomcolor"));
+			top = atoi(InfoBuf_ValueForKey (&cl->userinfo, "topcolor"));
+			bottom = atoi(InfoBuf_ValueForKey (&cl->userinfo, "bottomcolor"));
 			top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
 			bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
 			ping = SV_CalcPing (cl, false);
 			name = cl->name;
 
-			skin = Info_ValueForKey (cl->userinfo, "skin");
-			team = Info_ValueForKey (cl->userinfo, "team");
+			skin = InfoBuf_ValueForKey (&cl->userinfo, "skin");
+			team = InfoBuf_ValueForKey (&cl->userinfo, "team");
 
 			if (!cl->state || cl->protocol == SCP_BAD)	//show bots differently. Just to be courteous.
 				botpre = "BOT:";
@@ -1235,26 +1214,31 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 	resp += strlen(resp);
 	*resp++ = '\n';
 
-	//first line is the serverinfo
-	Q_strncpyz(resp, svs.info, sizeof(response) - (resp-response));
-	//this is a DP protocol query, so some QW fields are not needed
-	Info_RemoveKey(resp, "maxclients");	//replaced with sv_maxclients
-	Info_RemoveKey(resp, "map");		//replaced with mapname
-	Info_RemoveKey(resp, "*gamedir");	//replaced with modname
-	Info_RemoveKey(resp, "*z_ext");		//uninteresting and spammy.
-	Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
-//	Info_SetValueForKey(resp, "gamedir", FS_GetGamedir(true), sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "protocol", va("%d", com_protocolversion.ival), sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "mapname", Info_ValueForKey(svs.info, "map"), sizeof(response) - (resp-response));
-	if (*gamestatus)
-		Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "challenge", challenge, sizeof(response) - (resp-response));
-	resp += strlen(resp);
+	//first line contains the serverinfo, or some form of it
+	{
+		const char *ignorekeys[] = {
+			"maxclients", "map", "*gamedir", "*z_ext",	//this is a DP protocol query, so some QW fields are not needed
+			"gamename", "modname", "protocol", "clients", "sv_maxclients", "mapname", "qcstatus", "challenge", NULL};	//and we need to add some
+		const char *prioritykeys[] = {"hostname", NULL}; //make sure we include these before we start overflowing
 
-	*resp++ = 0;	//there's already a null, but hey
+		*resp = 0;
+		Info_SetValueForKey(resp, "challenge", challenge, sizeof(response) - (resp-response));	//the challenge can be important for the master protocol to prevent poisoning
+		Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));//distinguishes it from other types of games
+		Info_SetValueForKey(resp, "protocol", com_protocolversion.string, sizeof(response) - (resp-response));	//should be an int.
+		Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
+		Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
+		Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
+		Info_SetValueForKey(resp, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(response) - (resp-response));
+		resp += strlen(resp);
+		//now include the full/regular serverinfo 
+		resp += InfoBuf_ToString(&svs.info, resp, sizeof(response) - (resp-response), prioritykeys, ignorekeys, NULL, NULL, NULL);
+		*resp = 0;
+		//and any possibly-long qc status string
+		if (*gamestatus)
+			Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(response) - (resp-response));
+		resp += strlen(resp);
+	}
+	*resp++ = 0;
 
 	if (fullstatus)
 	{
@@ -2225,21 +2209,18 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	case GT_QUAKE2:
 		cl->q2edict = Q2EDICT_NUM(i+1);
 
-		if (!ge->ClientConnect(cl->q2edict, cl->userinfo))
+		if (!ge->ClientConnect(cl->q2edict, info))
 		{
-			const char *reject = Info_ValueForKey(cl->userinfo, "rejmsg");
+			const char *reject = Info_ValueForKey(info, "rejmsg");
 			if (*reject)
 				SV_ClientPrintf(controller, PRINT_HIGH, "Splitscreen Refused: %s\n", reject);
 			else
 				SV_ClientPrintf(controller, PRINT_HIGH, "Splitscreen Refused\n");
 			Con_DPrintf ("Game rejected a connection.\n");
-
-			*cl->userinfo = 0;
-			cl->namebuf[0] = 0;
 			return NULL;
 		}
 
-		ge->ClientUserinfoChanged(cl->q2edict, cl->userinfo);
+		ge->ClientUserinfoChanged(cl->q2edict, info);
 		break;
 #endif
 	default:
@@ -2252,13 +2233,11 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	cl->controller = controller;
 	cl->controlled = NULL;
 
-	Q_strncpyS (cl->userinfo, info, sizeof(cl->userinfo)-1);
-	cl->userinfo[sizeof(cl->userinfo)-1] = '\0';
-
-	Info_RemoveKey (cl->userinfo, "spectator");
+	InfoBuf_FromString(&cl->userinfo, info, false);
+	InfoBuf_RemoveKey (&cl->userinfo, "spectator");
 	//this is a hint rather than a game breaker should it fail.
 	if (cl->spectator)
-		Info_SetValueForStarKey (cl->userinfo, "*spectator", va("%i", cl->spectator), sizeof(cl->userinfo));
+		InfoBuf_SetValueForStarKey (&cl->userinfo, "*spectator", va("%i", cl->spectator));
 	cl->state = controller->state;
 
 //	host_client = NULL;
@@ -2759,20 +2738,6 @@ client_t *SVC_DirectConnect(void)
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;
 
-	// works properly
-	if (!sv_highchars.value)
-	{
-		qbyte *p, *q;
-
-		for (p = (qbyte *)newcl->userinfo, q = (qbyte *)userinfo;
-			*q && p < (qbyte *)newcl->userinfo + sizeof(newcl->userinfo)-1; q++)
-			if (*q > 31 && *q <= 127)
-				*p++ = *q;
-	}
-	else
-		Q_strncpyS (newcl->userinfo, userinfo[0], sizeof(newcl->userinfo)-1);
-	newcl->userinfo[sizeof(newcl->userinfo)-1] = '\0';
-
 //	Con_TPrintf("%s:%s:connect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 
 	// if there is already a slot for this ip, drop it
@@ -2814,13 +2779,13 @@ client_t *SVC_DirectConnect(void)
 		}
 	}
 
-	name = Info_ValueForKey (temp.userinfo, "name");
+	name = Info_ValueForKey (userinfo[0], "name");
 
-	if (sv.world.worldmodel && protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
+	if (sv.world.worldmodel && protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (userinfo[0], "iknow")))
 	{
 		if (sv.world.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
 		{
-			if (atof(Info_ValueForKey (temp.userinfo, "*FuhQuake")) < 0.3)
+			if (atof(Info_ValueForKey (userinfo[0], "*FuhQuake")) < 0.3)
 			{
 				SV_RejectMessage (protocol, "The server is using a halflife level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //				Con_Printf("player %s was dropped due to incompatible client\n", name);
@@ -3045,9 +3010,9 @@ client_t *SVC_DirectConnect(void)
 		temp.edict = NULL;
 		temp.q2edict = q2ent;
 
-		if (!ge->ClientConnect(q2ent, temp.userinfo))
+		if (!ge->ClientConnect(q2ent, userinfo[0]))
 		{
-			const char *reject = Info_ValueForKey(temp.userinfo, "rejmsg");
+			const char *reject = Info_ValueForKey(userinfo[0], "rejmsg");
 			if (*reject)
 				SV_RejectMessage(protocol, "%s\nConnection Refused.", reject);
 			else
@@ -3056,7 +3021,7 @@ client_t *SVC_DirectConnect(void)
 			return NULL;
 		}
 
-		ge->ClientUserinfoChanged(q2ent, temp.userinfo);
+		ge->ClientUserinfoChanged(q2ent, userinfo[0]);
 
 
 		break;
@@ -3074,13 +3039,18 @@ client_t *SVC_DirectConnect(void)
 
 	temp.name = newcl->name;
 	temp.team = newcl->team;
+	
+	InfoSync_Clear(&newcl->infosync);
 	*newcl = temp;
+	newcl->userinfo.ChangeCB = svs.info.ChangeCB;
+	newcl->userinfo.ChangeCTX = &svs.clients[i].userinfo;
+	InfoBuf_FromString(&newcl->userinfo, userinfo[0], false);
 
 //	NET_AdrToStringResolve(&adr, SV_UserDNSResolved, NULL, newcl-svs.clients, newcl->userid);
 
 	newcl->challenge = challenge;
-	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));
-	if (*Info_ValueForKey(newcl->userinfo, "*fuhquake"))	//fuhquake doesn't claim to support z_ext but does look at our z_ext serverinfo key.
+	newcl->zquake_extensions = atoi(InfoBuf_ValueForKey(&newcl->userinfo, "*z_ext"));
+	if (*InfoBuf_ValueForKey(&newcl->userinfo, "*fuhquake"))	//fuhquake doesn't claim to support z_ext but does look at our z_ext serverinfo key.
 	{														//so switch on the bits that it should be sending.
 		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
 	}
@@ -3089,7 +3059,7 @@ client_t *SVC_DirectConnect(void)
 	//ezquake's download mechanism is so smegging buggy.
 	//its causing far far far too many connectivity issues. seriously. its beyond a joke. I cannot stress that enough.
 	//as the client needs to listen for the serverinfo to know which extensions will actually be used (yay demos), we can just forget that it supports svc-level extensions, at least for anything that isn't spammed via clc_move etc before the serverinfo.
-	s = Info_ValueForKey(newcl->userinfo, "*client");
+	s = InfoBuf_ValueForKey(&newcl->userinfo, "*client");
 	if (!strncmp(s, "ezQuake", 7) && (newcl->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS))
 	{
 		if (pext_ezquake_nochunks.ival)
@@ -3184,7 +3154,7 @@ client_t *SVC_DirectConnect(void)
 				SV_RejectMessage (protocol, "Rankings/Account system failed\n");
 				Con_TPrintf("banned player %s is trying to connect\n", newcl->name);
 				newcl->name[0] = 0;
-				memset (newcl->userinfo, 0, sizeof(newcl->userinfo));
+				InfoBuf_Clear(&newcl->userinfo, true);
 				newcl->state = cs_free;
 				return NULL;
 			}
@@ -3312,7 +3282,7 @@ client_t *SVC_DirectConnect(void)
 		if (spectators >= maxspectators.ival)
 			newcl->drop = true;	//oops.
 		newcl->spectator = spectator = true;
-		Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", sizeof(cl->userinfo));
+		InfoBuf_SetValueForStarKey (&cl->userinfo, "*spectator", "1");
 	}
 
 	//only advertise PEXT_SPLITSCREEN when splitscreen is allowed, to avoid spam. this might mean people need to reconnect after its enabled. oh well.
@@ -4076,18 +4046,18 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		SZ_Clear (&sb);
 		MSG_WriteLong (&sb, 0);
 		{
-			char *rname, *rval, *kname;
+			const char *rname, *rval, *kname;
 			rname = MSG_ReadString();
 
 			if (!*rname)
-				rname = Info_KeyForNumber(svs.info, 0);
+				rname = InfoBuf_KeyForNumber(&svs.info, 0);
 			else
 			{
 				int i = 0;
 				for(;;)
 				{
-					kname = Info_KeyForNumber(svs.info, i);
-					if (!*kname)
+					kname = InfoBuf_KeyForNumber(&svs.info, i);
+					if (!kname)
 					{
 						rname = NULL;
 						break;
@@ -4095,12 +4065,15 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					i++;
 					if (!strcmp(kname, rname))
 					{
-						rname = Info_KeyForNumber(svs.info, i);
+						rname = InfoBuf_KeyForNumber(&svs.info, i);
 						break;
 					}
 				}
 			}
-			rval = Info_ValueForKey(svs.info, rname);
+			if (rname)
+				rval = InfoBuf_ValueForKey(&svs.info, rname);
+			else
+				rval = rname = "";
 			MSG_WriteByte (&sb, CCREP_RULE_INFO);
 			MSG_WriteString (&sb, rname);
 			MSG_WriteString (&sb, rval);
@@ -4627,9 +4600,9 @@ void SV_CheckVars (void)
 
 	Con_DPrintf ("Updated needpass.\n");
 	if (!v)
-		Info_SetValueForKey (svs.info, "needpass", "", MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForKey (&svs.info, "needpass", "");
 	else
-		Info_SetValueForKey (svs.info, "needpass", va("%i",v), MAX_SERVERINFO_STRING);
+		InfoBuf_SetValueForKey (&svs.info, "needpass", va("%i",v));
 }
 
 #ifdef Q2SERVER
@@ -4815,8 +4788,7 @@ float SV_Frame (void)
 			newspeed = "";
 		else
 			newspeed = va("%g", sv.gamespeed*100);
-		Info_SetValueForStarKey(svs.info, "*gamespeed", newspeed, MAX_SERVERINFO_STRING);
-		SV_SendServerInfoChange("*gamespeed", newspeed);
+		InfoBuf_SetValueForStarKey(&svs.info, "*gamespeed", newspeed);
 
 		//correct sv.starttime
 		sv.starttime = Sys_DoubleTime() - (sv.time/sv.gamespeed);
@@ -5048,6 +5020,23 @@ float SV_Frame (void)
 	return delay;
 }
 
+static void SV_InfoChanged(void *context, const char *key)
+{
+	size_t i;
+	if (context != &svs.info && *key == '_')
+		return;	//these keys are considered private to originating client/server, and are not broadcast to anyone else
+
+	if (svs.demorecording)
+		InfoSync_Add(&demo.recorder.infosync, context, key);	//make sure it gets written into mvds too.
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].state >= cs_connected)
+		{
+			InfoSync_Add(&svs.clients[i].infosync, context, key);
+		}
+	}
+}
+
 /*
 ===============
 SV_InitLocal
@@ -5232,9 +5221,10 @@ void SV_InitLocal (void)
 
 	SV_MVDInit();
 
-	Info_SetValueForStarKey (svs.info, "*version", version_string(), MAX_SERVERINFO_STRING);
-
-	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
+	svs.info.ChangeCB = SV_InfoChanged;
+	svs.info.ChangeCTX = &svs.info;
+	InfoBuf_SetValueForStarKey (&svs.info, "*version", version_string());
+	InfoBuf_SetValueForStarKey (&svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS));
 
 	// init fraglog stuff
 	svs.logsequence = 1;
@@ -5251,17 +5241,18 @@ void SV_InitLocal (void)
 }
 
 #define iswhite(c) ((c) == ' ' || (unsigned char)(c) == (unsigned char)INVIS_CHAR1 || (unsigned char)(c) == (unsigned char)INVIS_CHAR2 || (unsigned char)(c) == (unsigned char)INVIS_CHAR3)
-#define isinvalid(c) ((c) == ':' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff || (c) == '\"')
+#define isinvalid(c) ((c) == ':' || (c) == '\\' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff || (c) == '\"')
 //colon is so clients can't get confused while parsing chats
 //255 is so fuhquake/ezquake don't end up with nameless players
 //" is so mods that use player names in tokenizing/frik_files don't mess up. mods are still expected to be able to cope with space.
+//\ is blocked because it messes up our ^[NAME\player\NUM^] links, and because vanilla would hate it.
 
 //is allowed to shorten, out must be as long as in and min of "unnamed"+1
 void SV_FixupName(const char *in, char *out, unsigned int outlen)
 {
 	char *s, *p;
-	unsigned int len;
-	conchar_t testbuf[1024], *t, *e;
+	unsigned int len, codepoint, codeflags;
+	conchar_t testbuf[1024], *t, *n, *e;
 
 	if (outlen == 0)
 		return;
@@ -5274,7 +5265,7 @@ void SV_FixupName(const char *in, char *out, unsigned int outlen)
 	while(*in && len > 1)
 	{
 		if (isinvalid(*in))
-		{
+		{	//chars that cause a problem.
 			in++;
 			continue;
 		}
@@ -5285,16 +5276,21 @@ void SV_FixupName(const char *in, char *out, unsigned int outlen)
 
 	/*note: clients are not guarenteed to parse things the same as the server. utf-8 surrogates may be awkward here*/
 	e = COM_ParseFunString(CON_WHITEMASK, out, testbuf, sizeof(testbuf), false);
-	for (t = testbuf; t < e; t++)
+	for (t = testbuf; t < e; t = n)
 	{
+		n = Font_Decode(t, &codeflags, &codepoint);
 		/*reject anything hidden in names*/
-		if (*t & CON_HIDDEN)
+		if ((codeflags & CON_HIDDEN) || (codeflags&(CON_LINKSPECIAL|CON_RICHFORECOLOUR))==CON_LINKSPECIAL)
 			break;
 		/*reject pictograms*/
-		if ((*t & CON_CHARMASK) >= 0xe100 && (*t & CON_CHARMASK) < 0xe200)
+		if (codepoint >= 0xe100 && codepoint < 0xe200)
+			break;
+		if (!sv_highchars.ival && (codeflags & CON_2NDCHARSETTEXT))
 			break;
 		/*FIXME: should we try to ensure that the chars are in most fonts? that might annoy speakers of more exotic languages I suppose. cvar it?*/
 	}
+	//and spit it out again, which makes sure there's no weird markup that might screw up other strings.
+	COM_DeFunString(testbuf, t, out, outlen, false, false);
 
 	if (!*out || (t < e) || e == testbuf)
 	{	//reached end and it was all whitespace
@@ -5316,9 +5312,9 @@ qboolean ReloadRanking(client_t *cl, const char *newname)
 	int newid;
 	int j;
 	rankstats_t rs;
-	newid = Rank_GetPlayerID(cl->guid, newname, atoi(Info_ValueForKey (cl->userinfo, "_pwd")), true, false);	//'_' keys are always stripped. On any server. So try and use that so persistant data won't give out the password when connecting to a different server
+	newid = Rank_GetPlayerID(cl->guid, newname, atoi(InfoBuf_ValueForKey (&cl->userinfo, "_pwd")), true, false);	//'_' keys are always stripped. On any server. So try and use that so persistant data won't give out the password when connecting to a different server
 	if (!newid)
-		newid = Rank_GetPlayerID(cl->guid, newname, atoi(Info_ValueForKey (cl->userinfo, "password")), true, false);
+		newid = Rank_GetPlayerID(cl->guid, newname, atoi(InfoBuf_ValueForKey (&cl->userinfo, "password")), true, false);
 	if (newid)
 	{
 		if (cl->rankid && cl->state >= cs_spawned)//apply current stats
@@ -5383,23 +5379,23 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	extern cvar_t rank_filename;
 #endif
 
-	int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
+	int bottom = atoi(InfoBuf_ValueForKey(&cl->userinfo, "bottomcolor"));
 
 	if (progstype == PROG_NQ)
 		p = va("t%u", bottom);
 	else
-		p = Info_ValueForKey(localinfo, va("team%u", bottom));
-	val = Info_ValueForKey (cl->userinfo, "team");
+		p = InfoBuf_ValueForKey(&svs.localinfo, va("team%u", bottom));
+	val = InfoBuf_ValueForKey (&cl->userinfo, "team");
 	if (*p && strcmp(p, val))
 	{
-		Info_SetValueForKey(cl->userinfo, "team", p, sizeof(cl->userinfo));
+		InfoBuf_SetValueForKey(&cl->userinfo, "team", p);
 		if (verbose)
 			SV_BroadcastUserinfoChange(cl, true, "team", p);
 	}
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 
 	// name for C code
-	val = Info_ValueForKey (cl->userinfo, "name");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "name");
 
 	if (cl->protocol != SCP_BAD || *val)
 	{
@@ -5473,18 +5469,6 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 		}
 
-		//try and actually set that new name, if it differs from what they asked for.
-		if (strcmp(val, newname))
-		{
-			Info_SetValueForKey (cl->userinfo, "name", newname, sizeof(cl->userinfo));
-			val = Info_ValueForKey (cl->userinfo, "name");
-			if (!*val)
-			{
-				SV_BroadcastTPrintf (PRINT_HIGH, "corrupt userinfo for player %s\n", cl->name);
-				cl->drop = true;
-			}
-		}
-
 		if (!cl->drop && strncmp(val, cl->name, sizeof(cl->namebuf)-1) && cl->state > cs_zombie)
 		{
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
@@ -5506,30 +5490,41 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 		}
 	}
 
-	val = Info_ValueForKey (cl->userinfo, "lang");
+	//make CERTAIN that the name we think they're using is actually the name everyone else sees too.
+	{
+		InfoBuf_SetValueForKey (&cl->userinfo, "name", newname);
+		val = InfoBuf_ValueForKey (&cl->userinfo, "name");
+		if (!*val)
+		{
+			SV_BroadcastTPrintf (PRINT_HIGH, "corrupt userinfo for player %s\n", cl->name);
+			cl->drop = true;
+		}
+	}
+
+	val = InfoBuf_ValueForKey (&cl->userinfo, "lang");
 	cl->language = *val?TL_FindLanguage(val):svs.language;
 
-	val = Info_ValueForKey (cl->userinfo, "nogib");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "nogib");
 	cl->gibfilter = !!atoi(val);
 
 	// rate command
-	val = Info_ValueForKey (cl->userinfo, "rate");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "rate");
 	if (strlen(val))
 		cl->rate = atoi(val);
 	else
 		cl->rate = 0;//0 means no specific limit, limited only by sv_maxrate.
 
-	val = Info_ValueForKey (cl->userinfo, "dupe");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "dupe");
 	cl->netchan.dupe = bound(0, atoi(val), 5);
 
-	val = Info_ValueForKey (cl->userinfo, "drate");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "drate");
 	if (strlen(val))
 		cl->drate = atoi(val);
 	else
 		cl->drate = 0;	//0 disables rate limiting while downloading
 
 #ifdef HEXEN2
-	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "cl_playerclass");
 	if (val)
 	{
 		PRH2_SetPlayerClass(cl, atoi(val), false);
@@ -5537,13 +5532,13 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 #endif
 
 	// msg command
-	val = Info_ValueForKey (cl->userinfo, "msg");
+	val = InfoBuf_ValueForKey (&cl->userinfo, "msg");
 	if (strlen(val))
 	{
 		cl->messagelevel = atoi(val);
 	}
 
-	val = Info_ValueForKey (cl->userinfo, "sp");	//naming for compat with mvdsv
+	val = InfoBuf_ValueForKey (&cl->userinfo, "sp");	//naming for compat with mvdsv
 	if (*val)
 		cl->spec_print = atoi(val);
 	else
@@ -5551,7 +5546,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 
 #ifdef NQPROT
 	{
-		int top = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
+		int top = atoi(InfoBuf_ValueForKey(&cl->userinfo, "topcolor"));
 		top &= 15;
 		if (top > 13)
 			top = 13;

@@ -567,7 +567,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				int y = ypos+option->common.posy;
 				int		keys[8], keymods[countof(keys)];
 				int keycount;
-				char *keyname;
+				const char *keyname;
 				int j;
 
 				Draw_FunStringWidth(x, y, option->bind.caption, option->bind.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);

@@ -802,7 +802,7 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	scd.BufferCount = 1+info->triplebuffer;	//back buffer count
 	if (info->srgb)
 	{
-		if (info->srgb >= 3)	//fixme: detect properly.
+		if (info->srgb >= 2)	//fixme: detect properly.
 			scd.BufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;	//on nvidia, outputs linear rgb to srgb devices, which means info->srgb is effectively set
 		else
 			scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -956,7 +956,7 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 		//non-linear formats.
 		break;
 	}
-	if ((vid.flags & VID_SRGB_FB) && info->srgb != 1)
+	if ((vid.flags & VID_SRGB_FB) && info->srgb >= 0)
 		vid.flags |= VID_SRGBAWARE;
 
 	vid.numpages = scd.BufferCount;

@@ -1064,7 +1064,7 @@ qboolean R_LoadRTLights(void)
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
 
-	file = COM_LoadTempFile(fname, NULL);
+	file = COM_LoadTempFile(fname, 0, NULL);
 	if (file)
 	while(1)
 	{

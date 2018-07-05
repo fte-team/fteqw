@@ -114,7 +114,7 @@ typedef struct
 	short		gravity;
 	short		delta_angles[3];	// add to command angles to get view direction
 									// changed by spawns, rotating objects, and teleporters
-	short		pad;
+//	short		pad;
 } q2pmove_state_t;
 
 typedef struct
@@ -156,11 +156,11 @@ typedef struct colourised_s {
 #define MAX_DISPLAYEDNAME	16
 typedef struct player_info_s
 {
-	int		userid;
-	char	userinfo[EXTENDED_INFO_STRING];
-	qboolean userinfovalid;	//set if we actually know the userinfo (ie: false on vanilla nq servers)
-	char	teamstatus[128];
-	float	teamstatustime;
+	int			userid;
+	infobuf_t	userinfo;
+	qboolean	userinfovalid;	//set if we actually know the userinfo (ie: false on vanilla nq servers)
+	char		teamstatus[128];
+	float		teamstatustime;
 
 	// scoreboard information
 	int		spectator;
@@ -474,8 +474,6 @@ typedef struct
 
 	int protocol_q2;
 
-
-	qboolean resendinfo;
 	qboolean findtrack;
 
 	int framecount;
@@ -487,8 +485,8 @@ typedef struct
 	netchan_t	netchan;
 	float lastarbiatarypackettime;	//used to mark when packets were sent to prevent mvdsv servers from causing us to disconnect.
 
-// private userinfo for sending to masterless servers
-	char		userinfo[MAX_SPLITS][EXTENDED_INFO_STRING];
+	infobuf_t	userinfo[MAX_SPLITS];
+	infosync_t	userinfosync;
 
 	char		servername[MAX_OSPATH];	// name of server from original connect
 
@@ -757,7 +755,7 @@ typedef struct
 	qboolean	stillloading;	// set when doing something slow, and the game is still loading.
 
 	qboolean	haveserverinfo;	//nq servers will usually be false. don't override stuff if we already know better.
-	char		serverinfo[MAX_SERVERINFO_STRING];
+	infobuf_t	serverinfo;
 	char		serverpaknames[1024];
 	char		serverpakcrcs[1024];
 	qboolean	serverpakschanged;
@@ -899,6 +897,7 @@ typedef struct
 	qboolean gamedirchanged;
 
 #ifdef Q2CLIENT
+	char		q2airaccel[16];
 	char		q2statusbar[1024];
 	char		q2layout[MAX_SPLITS][1024];
 	int parse_entities;
@@ -1089,7 +1088,7 @@ void CL_Reconnect_f (void);
 void CL_ConnectionlessPacket (void);
 qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
-void CL_SetInfo (int pnum, char *key, char *value);
+void CL_SetInfo (int pnum, const char *key, const char *value);
 
 void CL_BeginServerConnect(const char *host, int port, qboolean noproxy);
 char *CL_TryingToConnect(void);
@@ -1197,7 +1196,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime);
 int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcost, int *chainedcost);
 
 float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
-char *Key_KeynumToString (int keynum, int modifier);
+const char *Key_KeynumToString (int keynum, int modifier);
 int Key_StringToKeynum (const char *str, int *modifier);
 char *Key_GetBinding(int keynum, int bindmap, int modifier);
 void Key_GetBindMap(int *bindmaps);
@@ -1688,7 +1687,7 @@ void Stats_NewMap(void);
 void Stats_Clear(void);
 void Stats_Init(void);
 
-enum uploadfmt;
+//enum uploadfmt;
 /*struct mediacallbacks_s
 {	//functions provided by the engine/renderer, for faster/off-thread updates
 	qboolean pbocanoffthread;

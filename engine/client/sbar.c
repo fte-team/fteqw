@@ -346,7 +346,7 @@ char *Get_Q2ConfigString(int i)
 	if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS	+ Q2MAX_SOUNDS)
 		return cl.sound_name [i-Q2CS_SOUNDS];
 	if (i == Q2CS_AIRACCEL)
-		return "4";
+		return cl.q2airaccel;
 	if (i >= Q2CS_PLAYERSKINS && i < Q2CS_GENERAL+Q2MAX_GENERAL)
 		return cl.configstring_general[i-Q2CS_PLAYERSKINS]?cl.configstring_general[i-Q2CS_PLAYERSKINS]:"";
 //#define	Q2CS_LIGHTS				(Q2CS_IMAGES	+Q2MAX_IMAGES)
@@ -465,7 +465,7 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 			Draw_FunString (x+32, y+16, va("Ping:  %i", ping));
 			Draw_FunString (x+32, y+24, va("Time:  %i", time));
 
-			p = R2D_SafeCachePic(va("players/%s_i.pcx", Info_ValueForKey(cl.players[value].userinfo, "skin")));
+			p = R2D_SafeCachePic(va("players/%s_i.pcx", InfoBuf_ValueForKey(&cl.players[value].userinfo, "skin")));
 			if (!p || !R_GetShaderSizes(p, NULL, NULL, false))	//display a default if the icon couldn't be found.
 				p = R2D_SafeCachePic("players/male/grunt_i.pcx");
 			R2D_ScalePic (x, y, 32, 32, p);
@@ -3289,7 +3289,7 @@ ping time frags name
 #define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},NOFILL)
 #define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},NOFILL)
 #define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(Info_ValueForKey(s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
+#define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(InfoBuf_ValueForKey(&s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
 
 
 //columns are listed here in display order
@@ -3519,7 +3519,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 			{
 				int background_color;
 				// Electro's scoreboard eyecandy: red vs blue are common teams, force the colours
-				Q_strncpyz (team, Info_ValueForKey(s->userinfo, "team"), sizeof(team));
+				Q_strncpyz (team, InfoBuf_ValueForKey(&s->userinfo, "team"), sizeof(team));
 
 				if (S_Voip_Speaking(k))
 					background_color = 0x00ff00;

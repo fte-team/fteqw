@@ -23,13 +23,14 @@ struct
 	qintptr_t (*initfunction)(qintptr_t *args);
 } staticplugins[] = 
 {
-#if defined(USERBE) && !defined(QUAKETC)
-//	{"Bullet_internal", Plug_Bullet_Init},
-//	{"ODE_internal", Plug_ODE_Init},
+#if defined(USE_INTERNAL_BULLET)
+	{"Bullet_internal", Plug_Bullet_Init},
+#endif
+#if defined(USE_INTERNAL_ODE)
+	{"ODE_internal", Plug_ODE_Init},
 #endif
 	{NULL}
 };
-
 
 #ifdef GLQUAKE
 #include "glquake.h"

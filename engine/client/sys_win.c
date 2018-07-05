@@ -2396,7 +2396,6 @@ int			global_nCmdShow;
 HWND		hwnd_dialog;
 
 static const IID qIID_IShellLinkW	= {0x000214F9L, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
-static const IID qIID_IPersistFile	= {0x0000010BL, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
 
 #include <shlobj.h>
 #if defined(_MSC_VER) && _MSC_VER <= 1200
@@ -2764,11 +2763,11 @@ void Win7_TaskListInit(void)
 			#define UPD_BUILDTYPE "test"
 			//WARNING: Security comes from the fact that the triptohell.info certificate is hardcoded in the tls code.
 			//this will correctly detect insecure tls proxies also.
-			#define UPDATE_URL_ROOT		"https://triptohell.info/moodles/"
-			#define UPDATE_URL_TESTED	UPDATE_URL_ROOT "autoup/"
-			#define UPDATE_URL_NIGHTLY	UPDATE_URL_ROOT
-			#define UPDATE_URL_VERSION	"%sversion.txt"
-			#ifdef NOLEGACY
+//			#define UPDATE_URL_ROOT		"https://triptohell.info/moodles/"
+//			#define UPDATE_URL_TESTED	UPDATE_URL_ROOT "autoup/"
+//			#define UPDATE_URL_NIGHTLY	UPDATE_URL_ROOT
+//			#define UPDATE_URL_VERSION	"%sversion.txt"
+/*			#ifdef NOLEGACY
 				#ifdef _WIN64
 					#define UPDATE_URL_BUILD "%snocompat64/fte" EXETYPE "64.exe"
 				#else
@@ -2780,7 +2779,7 @@ void Win7_TaskListInit(void)
 				#else
 					#define UPDATE_URL_BUILD "%swin32/fte" EXETYPE ".exe"
 				#endif
-			#endif
+			#endif*/
 		#endif
 
 		#if defined(SERVERONLY)
@@ -3150,6 +3149,7 @@ static BOOL microsoft_accessU(LPCSTR pszFolder, DWORD dwAccessDesired)
 #define BFFM_SETOKTEXT		(WM_USER + 105)	//v6
 #define BFFM_SETEXPANDED	(WM_USER + 106)	//v6
 #endif
+static const IID qIID_IPersistFile	= {0x0000010BL, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
 
 static WNDPROC omgwtfwhyohwhy;
 static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM lp)
@@ -4297,6 +4297,8 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		}
 	}
 
+	// FIXME: CreateIconIndirect does NOT understand DPI scaling, and will show a tiny cursor in such cases.
+	// we should rescale scale by vid_conautoscale etc.
 	if (scale != 1)
 	{
 		int nw,nh;
@@ -4363,8 +4365,8 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 	// Create the alpha cursor with the alpha DIB section.
 	hAlphaCursor = CreateIconIndirect(&ii);
 
-	DeleteObject(ii.hbmColor);          
-	DeleteObject(ii.hbmMask); 
+	DeleteObject(ii.hbmColor);
+	DeleteObject(ii.hbmMask);
 
 	return hAlphaCursor;
 }

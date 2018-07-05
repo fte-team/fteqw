@@ -711,7 +711,8 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 	int width = G_INT(OFS_PARM1);
 	int height = G_INT(OFS_PARM2);
 	int src = G_INT(OFS_PARM3);	//ptr
-	int size = width * height * 4;
+	int size = (prinst->callargc > 4)?G_INT(OFS_PARM4):(width * height * 4);
+	uploadfmt_t format = (prinst->callargc > 5)?PR_TranslateTextureFormat(G_INT(OFS_PARM5)):TF_RGBA32;
 	void *imgptr;
 	texid_t tid;
 
@@ -735,11 +736,30 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (!TEXVALID(tid))
 		tid = Image_CreateTexture(imagename, NULL, RT_IMAGEFLAGS);
 
-	Image_Upload(tid, TF_RGBA32, imgptr, NULL, width, height, RT_IMAGEFLAGS);
-	tid->width = width;
-	tid->height = height;
-
-	G_INT(OFS_RETURN) = 1;
+	if (!format)
+	{
+		void *data = BZ_Malloc(size);
+		memcpy(data, imgptr, size);
+		G_INT(OFS_RETURN) = Image_LoadTextureFromMemory(tid, tid->flags, tid->ident, imagename, data, size);
+	}
+	else
+	{
+		unsigned int blockbytes, blockwidth, blockheight;
+		//get format info
+		Image_BlockSizeForEncoding(format, &blockbytes, &blockwidth, &blockheight);
+		//round up as appropriate
+		blockwidth = ((width+blockwidth-1)/blockwidth)*blockwidth;
+		blockheight = ((height+blockheight-1)/blockheight)*blockheight;
+		if (size != blockwidth*blockheight*blockbytes)
+			G_INT(OFS_RETURN) = 0;	//size isn't right. which means the pointer might be invalid too.
+		else
+		{
+			Image_Upload(tid, format, imgptr, NULL, width, height, RT_IMAGEFLAGS);
+			tid->width = width;
+			tid->height = height;
+			G_INT(OFS_RETURN) = 1;
+		}
+	}
 }
 
 //warning: not threadable. hopefully noone abuses it.
@@ -2152,6 +2172,9 @@ static struct {
 //unproject													310
 //project													311
 
+	{"r_uploadimage",			PF_CL_uploadimage,			0},
+	{"r_readimage",				PF_CL_readimage,			0},
+
 
 	{"print_csqc",				PF_print,					339},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
@@ -2317,6 +2340,7 @@ static struct {
 	{"crypto_getmykeyfp",		PF_crypto_getmykeyfp,		636},
 	{"crypto_getmyidfp",		PF_crypto_getmyidfp,		637},
 	{"digest_hex",				PF_digest_hex,				639},
+	{"digest_ptr",				PF_digest_ptr,				0},
 	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
 	{NULL}
 };

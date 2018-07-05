@@ -3558,18 +3558,20 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		out += (m%loadmodel->lightmaps.merge)*mapsize;
 
 #if 1
+		//q3bsp has 4-fold overbrights, so if we're not using overbrights then we basically need to scale the values up by 4
+		//this will require clamping, which can result in oversaturation of channels, meaning discolouration
 		for(s = 0; s < mapsize; )
 		{
+			float scale = (1<<(2-gl_overbright.ival));
 			float i;
 			vec3_t l;
 			l[0] = *in++;
 			l[1] = *in++;
 			l[2] = *in++;
-			i = VectorNormalize(l);
-			i *= (1<<(2-gl_overbright.ival));
+			VectorScale(l, scale, l);		//it should be noted that this maths is wrong if you're trying to use srgb lightmaps.
+			i = max(l[0], max(l[1], l[2]));
 			if (i > 255)
-				i = 255;	//don't oversaturate (clamping results in discolouration, which looks weird)
-			VectorScale(l, i, l);
+				VectorScale(l, 255/i, l);	//clamp the brightest channel, scaling the others down to retain chromiance.
 			out[s++] = l[0];
 			out[s++] = l[1];
 			out[s++] = l[2];

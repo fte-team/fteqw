@@ -225,9 +225,9 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 QCC_sref_t QCC_PR_GenerateFunctionCall1 (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t a, QCC_type_t *type_a);
 QCC_sref_t QCC_PR_GenerateFunctionCall2 (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t a, QCC_type_t *type_a, QCC_sref_t b, QCC_type_t *type_b);
 
-QCC_sref_t QCC_MakeTranslateStringConst(char *value);
-QCC_sref_t QCC_MakeStringConst(char *value);
-QCC_sref_t QCC_MakeStringConstLength(char *value, int length);
+QCC_sref_t QCC_MakeTranslateStringConst(const char *value);
+QCC_sref_t QCC_MakeStringConst(const char *value);
+QCC_sref_t QCC_MakeStringConstLength(const char *value, int length);
 QCC_sref_t QCC_MakeFloatConst(float value);
 QCC_sref_t QCC_MakeIntConst(int value);
 QCC_sref_t QCC_MakeVectorConst(float a, float b, float c);
@@ -6758,15 +6758,15 @@ static QCC_sref_t QCC_MakeStringConstInternal(const char *value, size_t length, 
 	return QCC_MakeSRefForce(cn, 0, type_string);
 }
 
-QCC_sref_t QCC_MakeStringConstLength(char *value, int length)
+QCC_sref_t QCC_MakeStringConstLength(const char *value, int length)
 {
 	return QCC_MakeStringConstInternal(value, length, false);
 }
-QCC_sref_t QCC_MakeStringConst(char *value)
+QCC_sref_t QCC_MakeStringConst(const char *value)
 {
 	return QCC_MakeStringConstInternal(value, strlen(value)+1, false);
 }
-QCC_sref_t QCC_MakeTranslateStringConst(char *value)
+QCC_sref_t QCC_MakeTranslateStringConst(const char *value)
 {
 	return QCC_MakeStringConstInternal(value, strlen(value)+1, true);
 }
@@ -7463,7 +7463,7 @@ vectorarrayindex:
 			QCC_FreeTemp(idx);
 			return QCC_PR_BuildRef(retbuf, REF_GLOBAL, QCC_MakeIntConst(arraysize), nullsref, type_integer, true);
 		}
-		else if (t->type == ev_vector && !arraysize && QCC_PR_CheckToken("."))
+		else if (t->type == ev_vector && !arraysize && !t->accessors && QCC_PR_CheckToken("."))
 		{
 			char *swizzle = QCC_PR_ParseName();
 			//single-channel swizzles just result in a float. nice and easy. assignable, too.
@@ -7492,7 +7492,7 @@ vectorarrayindex:
 		}
 		else if (((t->type == ev_pointer && !arraysize) || (t->type == ev_field && (t->aux_type->type == ev_struct || t->aux_type->type == ev_union)) || t->type == ev_struct || t->type == ev_union) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 		{
-			char *tname;
+			const char *tname;
 			unsigned int ofs;
 			pbool fld = t->type == ev_field;
 			struct QCC_typeparam_s *p;
@@ -7738,6 +7738,9 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		//fixme: namespaces should be relative
 		if (QCC_PR_CheckToken("::"))
 		{
+			struct accessor_s *a;
+			QCC_type_t *p;
+			char membername[1024];
 			expandmemberfields = false;	//this::classname should also be available to the find builtin, etc. this won't affect self.classname::member nor classname::staticfunc
 
 			if (assumeclass && !strcmp(name, "super"))
@@ -7746,18 +7749,37 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 				t = assumeclass;
 			else
 				t = QCC_TypeForName(name);
-			if (!t || t->type != ev_entity)
+			if (!t)
 			{
-				QCC_PR_ParseError (ERR_NOTATYPE, "Not a class \"%s\"", name);
-				d = nullsref;
+				d = QCC_PR_GetSRef (pr_assumetermtype, name, pr_assumetermscope, false, 0, pr_assumetermflags);
+				if (d.cast)
+				{
+					QCC_FreeTemp(d);
+					t = d.cast;
+				}
+				else
+					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "\"%s\" is not a type", name);
 			}
-			else
+
+			name = QCC_PR_ParseName ();
+			//walk up the parents if needed, to find one that has that field
+			for(d = nullsref, p = t; ; )
 			{
-				QCC_type_t *p;
-				char membername[1024];
-				name = QCC_PR_ParseName ();
-				//walk up the parents if needed, to find one that has that field
-				for(d = nullsref, p = t; !d.cast && p; p = p->parentclass)
+				if (!d.cast && p->accessors)
+				{
+					for (a = t->accessors; a; a = a->next)
+					{
+						if (!strcmp(a->fieldname, name))
+						{
+							d = a->staticval;
+							QCC_ForceUnFreeDef(d.sym);
+							break;
+						}
+					}
+					if (d.cast)
+						break;
+				}
+				if (!d.cast && t->type == ev_entity)
 				{
 					//use static functions in preference to virtual functions. kinda needed so you can use super::func...
 					QC_snprintfz(membername, sizeof(membername), "%s::%s", p->name, name);
@@ -7767,11 +7789,16 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 						QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, p->name, name);
 						d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
 					}
+
+					p = p->parentclass;
+					if (p)
+						continue;
 				}
-				if (!d.cast)
-				{
-					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s::%s\"", t->name, name);
-				}
+				break;
+			}
+			if (!d.cast)
+			{
+				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s::%s\"", t->name, name);
 			}
 		}
 		else
@@ -8506,6 +8533,7 @@ void QCC_StoreToSRef(QCC_sref_t dest, QCC_sref_t source, QCC_type_t *type, pbool
 	{
 	case ev_struct:
 	case ev_union:
+	case ev_enum:
 		//don't bother trying to optimise any temps here, its not likely to happen anyway.
 		for (i = 0; i+2 < type->size; i+=3, dest.ofs += 3, source.ofs += 3)
 		{
@@ -9196,6 +9224,11 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 			QCC_ForceUnFreeDef(ref->accessor->getset_func[0].sym);
 			return QCC_PR_GenerateFunctionCallSref(nullsref, ref->accessor->getset_func[0], arg, args);
 		}
+		else if (ref->accessor && ref->accessor->staticval.cast)
+		{
+			QCC_ForceUnFreeDef(ref->accessor->staticval.sym);
+			return ref->accessor->staticval;
+		}
 		else
 			QCC_PR_ParseErrorPrintSRef(ERR_NOFUNC, ref->base, "Accessor %s has no get function", ref->accessor?ref->accessor->fieldname:"");
 		break;
@@ -9472,6 +9505,16 @@ QCC_opcode_t *QCC_PR_ChooseOpcode(QCC_sref_t lhs, QCC_sref_t rhs, QCC_opcode_t *
 	// type check
 	type_a = lhs.cast->type;
 //	type_b = rhs.cast->type;
+
+	if (type_a == ev_enum)
+	{
+		if (lhs.cast == rhs.cast)
+		{
+			lhs.cast = lhs.cast->aux_type;
+			rhs.cast = rhs.cast->aux_type;
+//			type_a = lhs.cast->type;
+		}
+	}
 
 	if (op->name[0] == '.')// field access gets type from field
 	{
@@ -10925,6 +10968,7 @@ void QCC_PR_ParseStatement (void)
 		int defaultcase = -1;
 		int oldst;
 		QCC_type_t *switchtype;
+		struct accessor_s *acc;
 
 		breaks = num_breaks;
 		cases = num_cases;
@@ -10967,7 +11011,7 @@ void QCC_PR_ParseStatement (void)
 		//it should be possible to nest these.
 
 		switchtype = e.cast;
-		switch(switchtype->type)
+		switch(switchtype->type==ev_enum?switchtype->aux_type->type:switchtype->type)
 		{
 		case ev_float:
 			op = OP_SWITCH_F;
@@ -11027,6 +11071,39 @@ void QCC_PR_ParseStatement (void)
 			patch1->a.ofs = &statements[numstatements] - patch1;	//the goto start part
 
 		oldst = numstatements;
+
+		for (acc = switchtype->accessors; acc; acc = acc->next)
+		{
+			const QCC_eval_t *match = QCC_SRef_EvalConst(acc->staticval);
+			if (!match)
+				continue;	//not an enum value, ignore it.
+			for (i = cases; i < num_cases; i++)
+			{
+				if (!pr_casesref[i].cast)
+					break;	//its a default
+				if (pr_casesref2[i].cast)
+				{	//caserange
+					break;	//FIXME: too lazy to check these.
+				}
+				else
+				{	//case
+					if (pr_casesref[i].type == REF_GLOBAL && pr_casesref[i].cast == switchtype)
+					{
+						const QCC_eval_t *eval = QCC_SRef_EvalConst(pr_casesref[i].base);
+						if (!eval)
+							break;	//can't verify it
+						if (!memcmp(eval, match, sizeof(*eval)*switchtype->size))
+							break;	//validated.
+					}
+					else
+						break;	//can't verify it
+				}
+			}
+			if (i == num_cases)
+			{
+				QCC_PR_ParseWarning(0, "%s::%s not part of switch", switchtype->name, acc->fieldname);
+			}
+		}
 
 		QCC_ForceUnFreeDef(e.sym);	//in the following code, e should still be live
 		for (i = cases; i < num_cases; i++)
@@ -11090,7 +11167,7 @@ void QCC_PR_ParseStatement (void)
 						const QCC_eval_t *eval = QCC_SRef_EvalConst(dmin);
 						if (!eval || eval->_int)
 						{
-							switch(e.cast->type)
+							switch(e.cast->type==ev_enum?e.cast->aux_type->type:e.cast->type)
 							{
 							case ev_float:
 								e2 = QCC_PR_StatementFlags (&pr_opcodes[OP_EQ_F], e, dmin, NULL, STFL_PRESERVEA);
@@ -14551,22 +14628,61 @@ QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type)
 int accglobalsblock;	//0 = error, 1 = var, 2 = function, 3 = objdata
 
 
-void QCC_PR_ParseEnum(pbool flags)
+QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 {
-	const char *name;
+	const char *name = NULL;
 	QCC_sref_t		sref;
-	pbool wantint = false;
-	int iv = flags?1:0;
-	float fv = iv;
+	int next_i = flags?1:0;
+	float next_f = next_i;
+	struct accessor_s *acc;
+	QCC_type_t *enumtype = NULL, *basetype;
+	pbool strictenum = false;
+	basetype = (flag_assume_integer?type_integer:type_float);
 
-	if (QCC_PR_CheckKeyword(keyword_integer, "integer") || QCC_PR_CheckKeyword(keyword_int, "int"))
-		wantint = true;
-	else if (QCC_PR_CheckKeyword(keyword_float, "float"))
-		wantint = false;
-	else
-		wantint = flag_assume_integer;
+	if (!QCC_PR_CheckToken("{"))
+	{
+		QCC_type_t *type;
 
-	QCC_PR_Expect("{");
+		strictenum = QCC_PR_CheckName("class");	//c++11 style
+
+		type = QCC_PR_ParseType(false, true);	//legacy behaviour
+		if (type)
+			basetype = basetype;
+		else
+		{
+			basetype = (flag_assume_integer?type_integer:type_float);
+			if (pr_token_type == tt_name)
+				name = QCC_PR_ParseName();
+			else
+				name = NULL;
+			if (QCC_PR_CheckToken(":"))
+				basetype = QCC_PR_ParseType(false, false);
+			else if (strictenum)
+				QCC_PR_Expect(":");
+		}
+		QCC_PR_Expect("{");
+	}
+
+	if (flags && basetype->type != ev_float && basetype->type != ev_integer && basetype->type != ev_vector)
+		QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - must be numeric type");
+
+	if (name)
+	{
+		enumtype = QCC_TypeForName(name);
+		if (!enumtype)
+		{
+			if (strictenum)
+			{
+				enumtype = QCC_PR_NewType(name, basetype->type, true);
+				enumtype->aux_type = basetype;
+				enumtype->type = ev_enum;
+			}
+			else
+				enumtype = QCC_PR_NewType(name, basetype->type, true);
+			enumtype->size = basetype->size;
+		}
+	}
+
 	while(1)
 	{
 		name = QCC_PR_ParseName();
@@ -14586,28 +14702,48 @@ void QCC_PR_ParseEnum(pbool flags)
 			{
 				const QCC_eval_t *eval;
 				sref = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+				sref = QCC_SupplyConversion(sref, basetype->type, true);
 				eval = QCC_SRef_EvalConst(sref);
 				if (eval)
 				{
 					if (sref.cast->type == ev_float)
-						iv = fv = eval->_float;
-					else
-						fv = iv = eval->_int;
+						next_i = next_f = eval->_float;
+					else if (sref.cast->type == ev_integer)
+						next_f = next_i = eval->_int;
 				}
 				else if (sref.sym)
 					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a constant", sref.sym->name);
 				else
 					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - not a number");
 
-				QCC_FreeTemp(sref);
+				//do this, because we can. with any luck we'll just hit the same const anyway, and if not then we may have managed to avoid hitting a global.
+				if (basetype->type==ev_integer)
+				{
+					QCC_FreeTemp(sref);
+					sref = QCC_MakeIntConst(next_i);
+				}
+				else if (basetype->type==ev_float)
+				{
+					QCC_FreeTemp(sref);
+					sref = QCC_MakeFloatConst(next_i);
+				}
 			}
+		}
+		else
+		{
+			if (basetype->type==ev_integer)
+				sref = QCC_MakeIntConst(next_i);
+			else if (basetype->type==ev_float)
+				sref = QCC_MakeFloatConst(next_f);
+			else
+				QCC_PR_ParseError(ERR_NOTANUMBER, "values for enums of this type must be initialised");
 		}
 		if (flags)
 		{
 			int bits = 0;
-			int i = wantint?iv:(int)fv;
-			if (!wantint && i != fv)
-				QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer value", fv);
+			int i = (basetype->type==ev_integer)?next_i:(int)next_f;
+			if (basetype->type!=ev_integer && i != next_f)
+				QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer value", next_f);
 			else
 			{
 				while(i)
@@ -14617,25 +14753,42 @@ void QCC_PR_ParseEnum(pbool flags)
 					i>>=1;
 				}
 				if (bits > 1)
-					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f has multiple bits set", fv);
+					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %x(%f) has multiple bits set", next_i, next_f);
 			}
 		}
-		if (wantint)
-			sref = QCC_MakeIntConst(iv);
+		if (enumtype)
+		{
+			for (acc = enumtype->accessors; acc; acc = acc->next)
+				if (!strcmp(acc->fieldname, name))
+				{
+					QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s already declared", enumtype->name, name);
+					break;
+				}
+			acc = qccHunkAlloc(sizeof(*acc));
+			acc->fieldname = (char*)name;
+			acc->next = enumtype->accessors;
+			acc->type = enumtype;//sref.cast;
+			acc->indexertype = NULL;
+			enumtype->accessors = acc;
+
+			acc->staticval = sref;
+			acc->staticval.cast = enumtype;
+		}
 		else
-			sref = QCC_MakeFloatConst(fv);
-		pHash_Add(&globalstable, name, sref.sym, qccHunkAlloc(sizeof(bucket_t)));
+		{	//value gets added to global pool
+			pHash_Add(&globalstable, name, sref.sym, qccHunkAlloc(sizeof(bucket_t)));
+		}
 		QCC_FreeTemp(sref);
 
 		if (flags)
 		{
-			fv *= 2;
-			iv *= 2;
+			next_f *= 2;
+			next_i *= 2;
 		}
 		else
 		{
-			fv++;
-			iv++;
+			next_f++;
+			next_i++;
 		}
 
 		if (QCC_PR_CheckToken("}"))
@@ -14644,6 +14797,7 @@ void QCC_PR_ParseEnum(pbool flags)
 		if (QCC_PR_CheckToken("}"))
 			break; // accept trailing comma
 	}
+	return enumtype?enumtype:basetype;
 }
 /*
 ================
@@ -14684,20 +14838,6 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 
 	while (QCC_PR_CheckToken(";"))
 		fatal = false;
-
-	//FIXME: these should be moved into parsetype
-	if (QCC_PR_CheckKeyword(keyword_enum, "enum"))
-	{
-		QCC_PR_ParseEnum(false);
-		QCC_PR_Expect(";");
-		return;
-	}
-	if (QCC_PR_CheckKeyword(keyword_enumflags, "enumflags"))
-	{
-		QCC_PR_ParseEnum(true);
-		QCC_PR_Expect(";");
-		return;
-	}
 
 	if (QCC_PR_CheckKeyword (keyword_typedef, "typedef"))
 	{

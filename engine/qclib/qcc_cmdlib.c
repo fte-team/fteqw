@@ -47,7 +47,8 @@ char *basictypenames[] = {
 	"variant",
 	"struct",
 	"union",
-	"accessor"
+	"accessor",
+	"enum"
 };
 
 /*

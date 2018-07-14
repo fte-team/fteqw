@@ -103,7 +103,7 @@ QCC_def_t	def_ret, def_parms[MAX_PARMS];
 void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 
 
-
+QCC_type_t *QCC_PR_ParseEnum(pbool flags);
 
 //for compiler constants and file includes.
 
@@ -4500,6 +4500,7 @@ QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in, pbool recurse)
 	out->num_parms = in->num_parms;
 	out->params = qccHunkAlloc(sizeof(*out->params) * out->num_parms);
 	memcpy(out->params, in->params, sizeof(*out->params) * out->num_parms);
+	out->accessors = in->accessors;
 	out->size = in->size;
 	out->num_parms = in->num_parms;
 	out->name = in->name;
@@ -4659,7 +4660,7 @@ QCC_type_t *QCC_PR_NextSubType(QCC_type_t *type, QCC_type_t *prev)
 }
 */
 
-QCC_type_t *QCC_TypeForName(char *name)
+QCC_type_t *QCC_TypeForName(const char *name)
 {
 	return pHash_Get(&typedeftable, name);
 /*
@@ -4953,8 +4954,7 @@ QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 	{
 		char name[128];
 		QC_snprintfz(name, sizeof(name), "ptr to %s", pointsto->name);
-		e->name = qccHunkAlloc(strlen(name)+1);
-		strcpy(e->name, name);
+		e->name = strcpy(qccHunkAlloc(strlen(name)+1), name);
 	}
 	pointsto->ptrto = e;
 	return e;
@@ -5679,6 +5679,22 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		QCC_PR_Expect(";");
 		return NULL;
+	}
+
+	//FIXME: these should be moved into parsetype
+	if (QCC_PR_CheckKeyword(keyword_enum, "enum"))
+	{
+		newt = QCC_PR_ParseEnum(false);
+		if (QCC_PR_CheckToken(";"))
+			return NULL;
+		return newt;
+	}
+	if (QCC_PR_CheckKeyword(keyword_enumflags, "enumflags"))
+	{
+		newt = QCC_PR_ParseEnum(true);
+		if (QCC_PR_CheckToken(";"))
+			return NULL;
+		return newt;
 	}
 
 	structtype = ev_void;

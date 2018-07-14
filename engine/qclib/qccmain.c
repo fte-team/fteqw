@@ -3039,7 +3039,7 @@ PR_PrintDefs
 		QCC_PR_PrintOfs (d->ofs);
 }*/
 
-QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed)
+QCC_type_t *QCC_PR_NewType (const char *name, int basictype, pbool typedefed)
 {
 	if (numtypeinfos>= maxtypeinfos)
 		QCC_Error(ERR_TOOMANYTYPES, "Too many types");

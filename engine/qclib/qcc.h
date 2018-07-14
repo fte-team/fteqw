@@ -347,6 +347,7 @@ struct accessor_s
 	struct QCC_type_s *type;
 	struct QCC_type_s *indexertype;	//null if not indexer
 	QCC_sref_t getset_func[2];
+	QCC_sref_t staticval;
 	pbool getset_isref[2];
 	char *fieldname;
 };
@@ -366,8 +367,8 @@ typedef struct QCC_type_s
 	pbool typedefed:1;
 	pbool vargs:1;		//function has vargs
 	pbool vargcount:1;	//function has special varg count param
-	char *name;
-	char *aname;
+	const char *name;
+	const char *aname;
 
 	struct accessor_s *accessors;
 
@@ -688,12 +689,12 @@ void QCC_PR_PrintStatement (QCC_statement_t *s);
 void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
 
-QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
+QCC_type_t *QCC_PR_NewType (const char *name, int basictype, pbool typedefed);	//note: name must be hunk/immediate
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type);
 QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
 QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type);
 extern pbool type_inlinefunction;
-QCC_type_t *QCC_TypeForName(char *name);
+QCC_type_t *QCC_TypeForName(const char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs);
@@ -785,6 +786,7 @@ enum {
 	WARN_DUPLICATEPRECOMPILER,
 	WARN_IDENTICALPRECOMPILER,
 	WARN_FORMATSTRING,		//sprintf
+	WARN_DEPRECACTEDSYNTAX,	//triggered when syntax is used that I'm trying to kill
 	WARN_GMQCC_SPECIFIC,	//extension created by gmqcc that conflicts or isn't properly implemented.
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands

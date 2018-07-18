@@ -5011,7 +5011,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	QCC_type_t	*newt;
 	QCC_type_t	*type;
 	char	*name;
-	int i;
 	etype_t structtype;
 
 	type_inlinefunction = false;	//doesn't really matter so long as its not from an inline function type
@@ -5270,6 +5269,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		pbool redeclaration;
 		int basicindex;
 		QCC_def_t *d;
+		int d_offset = 0;
 		QCC_type_t *pc;
 		pbool found = false;
 		int assumevirtual = 0;	//0=erk, 1=yes, -1=no
@@ -5617,13 +5617,15 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 			//make sure the union is okay
 			d = QCC_PR_GetDef(NULL, parmname, NULL, 0, 0, GDF_CONST);
-			if (!d)
+			if (d)
+				basicindex = 0;
+			else
 			{	//don't go all weird with unioning generic fields
 				QC_snprintfz(membername, sizeof(membername), "::*%s", basictypenames[newparm->type]);
 				d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
 				if (!d)
 				{
-					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, arraysize, GDF_CONST|GDF_POSTINIT);
+					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST|GDF_POSTINIT);
 //					for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
 //						d->symboldata[i]._int = pr.size_fields+i;
 //					pr.size_fields += i;

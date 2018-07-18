@@ -5619,19 +5619,24 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			d = QCC_PR_GetDef(NULL, parmname, NULL, 0, 0, GDF_CONST);
 			if (!d)
 			{	//don't go all weird with unioning generic fields
-				QC_snprintfz(membername, sizeof(membername), "::%s%i", basictypenames[newparm->type], basicindex+1);
+				QC_snprintfz(membername, sizeof(membername), "::*%s", basictypenames[newparm->type]);
 				d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
 				if (!d)
 				{
-					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, arraysize, GDF_CONST);
-					for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
-						d->symboldata[i]._int = pr.size_fields+i;
-					pr.size_fields += i;
+					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, arraysize, GDF_CONST|GDF_POSTINIT);
+//					for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
+//						d->symboldata[i]._int = pr.size_fields+i;
+//					pr.size_fields += i;
 
 					d->referenced = true;	//always referenced, so you can inherit safely.
 				}
-				else if (d->arraysize != arraysize)
-					QCC_PR_ParseError(ERR_INTERNAL, "array members are kinda limited, sorry. try rearranging them or adding padding for alignment\n");	//FIXME: add relocs to cope with this all of a type can then be contiguous and thus allow arrays.
+				if (d->arraysize < basicindex+(arraysize?arraysize:1))
+				{
+					if (d->symboldata)
+						QCC_PR_ParseError(ERR_INTERNAL, "array members are kinda limited, sorry. try rearranging them or adding padding for alignment\n");	//FIXME: add relocs to cope with this all of a type can then be contiguous and thus allow arrays.
+					else
+						d->arraysize = basicindex+(arraysize?arraysize:1);
+				}
 			}
 			QCC_FreeDef(d);
 
@@ -5639,7 +5644,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//actually, that seems pointless.
 			QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, arraysize, d, 0, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
+			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, arraysize, d, basicindex, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
 			d->referenced = true;	//always referenced, so you can inherit safely.
 		}
 

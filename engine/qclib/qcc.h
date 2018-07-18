@@ -975,6 +975,7 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_USED		64	//don't strip this, ever.
 #define GDF_BASICTYPE	128	//don't care about #merge types not being known correctly.
 #define GDF_SCANLOCAL	256	//don't use the locals hash table
+#define GDF_POSTINIT	512	//field must be initialised at the end of the compile (allows arrays to be extended later)
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 void QCC_FreeTemp(QCC_sref_t t);

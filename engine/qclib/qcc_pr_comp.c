@@ -6826,94 +6826,6 @@ QCC_def_t *QCC_MemberInParentClass(char *name, QCC_type_t *clas)
 	return QCC_MemberInParentClass(name, clas->parentclass);
 }
 
-#if 0
-//create fields for the types, instanciate the members to the fields.
-//we retouch the parents each time to guarentee polymorphism works.
-//FIXME: virtual methods will not work properly. Need to trace down to see if a parent already defined it
-void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas, int *basictypefield)
-{
-//we created fields for each class when we defined the actual classes.
-//we need to go through each member and match it to the offset of it's parent class, if overloaded, or create a new field if not..
-
-//basictypefield is cleared before we do this
-//we emit the parent's fields first (every time), thus ensuring that we don't reuse parent fields on a child class.
-	char membername[2048];
-	unsigned int p;
-	int a;
-	unsigned int o;
-	QCC_type_t *mt, *ft;
-	QCC_def_t *f, *m;
-	extern pbool verbose;
-	if (clas->parentclass != type_entity)	//parents MUST have all their fields set or inheritance would go crazy.
-		QCC_PR_EmitFieldsForMembers(clas->parentclass, basictypefield);
-
-	for (p = 0; p < clas->num_parms; p++)
-	{
-		mt = clas->params[p].type;
-		QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, clas->name, clas->params[p].paramname);
-		m = QCC_PR_GetDef(NULL, membername, NULL, false, 0, false);
-
-		f = QCC_MemberInParentClass(clas->params[p].paramname, clas->parentclass);
-		if (f)
-		{
-			if (f->type->type != ev_field || typecmp(f->type->aux_type, mt))
-			{
-				char ct[256];
-				char pt[256];
-				TypeName(f->type->aux_type, pt, sizeof(pt));
-				TypeName(mt, ct, sizeof(ct));
-				QCC_PR_Warning(0, NULL, 0, "type mismatch on inheritance of %s::%s. %s vs %s", clas->name, clas->params[p].paramname, ct, pt);
-			}
-			if (!m)
-			{
-				basictypefield[mt->type] += 1;
-				continue;
-			}
-			if (m->arraysize)
-				QCC_Error(ERR_INTERNAL, "FTEQCC does not support overloaded arrays of members");
-			a=0;
-			for (o = 0; o < m->type->size; o++)
-				((int *)qcc_pr_globals)[o+a*mt->size+m->ofs] = ((int *)qcc_pr_globals)[o+a*mt->size+f->ofs];
-			continue;
-		}
-
-		//came from parent class instead?
-		if (!m)
-			QCC_Error(ERR_INTERNAL, "field def missing for class member (%s::%s)", clas->name, clas->params[p].paramname);
-
-		for (a = 0; a < (m->arraysize?m->arraysize:1); a++)
-		{
-			/*if it was already set, don't go recursive and generate 500 fields for a one-member class that was inheritted from 500 times*/
-			if (((int *)qcc_pr_globals)[0+a*mt->size+m->ofs])
-			{
-				++basictypefield[mt->type];
-				continue;
-			}
-
-			//we need the type in here so saved games can still work without saving ints as floats. (would be evil)
-			ft = QCC_PR_FieldType(*basictypes[mt->type]);
-			QC_snprintfz(membername, sizeof(membername), "::%s%i", basictypenames[mt->type], ++basictypefield[mt->type]);
-			f = QCC_PR_GetDef(ft, membername, NULL, false, 0, GDF_CONST);
-			if (!f)
-			{
-				//give it a location if this is the first class that uses this fieldspace
-				f = QCC_PR_GetDef(ft, membername, NULL, true, 0, GDF_CONST);
-				for (o = 0; o < m->type->size; o++)
-					((int *)qcc_pr_globals)[o+f->ofs] = pr.size_fields + o;
-				pr.size_fields += o;
-			}
-
-			for (o = 0; o < m->type->size; o++)
-				((int *)qcc_pr_globals)[o+a*mt->size+m->ofs] = ((int *)qcc_pr_globals)[o+f->ofs];
-
-			if (verbose)
-				QCC_PR_Note(0, NULL, 0, "%s maps to %s", m->name, f->name);
-
-			f->references++;
-		}
-	}
-}
-#endif
 void QCC_PR_EmitClassFunctionTable(QCC_type_t *clas, QCC_type_t *childclas, QCC_sref_t ed)
 {	//go through clas, do the virtual thing only if the child class does not override.
 
@@ -13641,11 +13553,14 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		if (!rootsymbol)
 		{
 			rootsymbol = first;
-			rootsymbol->symboldata = qccHunkAlloc ((def->arraysize?def->arraysize:1) * type->size * sizeof(float));
+			if (flags & GDF_POSTINIT)
+				rootsymbol->symboldata = NULL;
+			else
+				rootsymbol->symboldata = qccHunkAlloc ((def->arraysize?def->arraysize:1) * type->size * sizeof(float));
 		}
 
 		def->symbolheader = rootsymbol;
-		def->symboldata = rootsymbol->symboldata + def->ofs;
+		def->symboldata = (rootsymbol->symboldata?rootsymbol->symboldata + def->ofs:NULL);
 		def->symbolsize = (def->arraysize?def->arraysize:1) * type->size;
 
 		if (type->type == ev_struct && (!arraysize || a>=0))

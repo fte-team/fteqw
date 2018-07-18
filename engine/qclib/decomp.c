@@ -91,12 +91,12 @@ char *type_names[] =
 	"ev_quat",
 	"ev_uinteger"
 };
-char *typetoname(QCC_type_t *type)
+const char *typetoname(QCC_type_t *type)
 {
 	return type->name;
 }
 
-char *temp_type (int temp, dstatement_t *start, dfunction_t *df)
+const char *temp_type (int temp, dstatement_t *start, dfunction_t *df)
 {
 	int i;
 	dstatement_t *stat;
@@ -452,7 +452,7 @@ static struct {
 	{80,	"infokey",			&type_string, {&type_entity, &type_string},									"string(entity e, string key)"},
 	{81,	"stof",				&type_float, {&type_string},												"float(string s)"},
 	{82,	"multicast",		NULL, {&type_vector, &type_float},											"void(vector where, float set)"},
-
+/*
 //these are mvdsv specific
 	{83,	"executecmd",		NULL, {NULL},																NULL},
 	{84,	"tokenize",			NULL, {&type_string},														NULL},
@@ -475,6 +475,50 @@ static struct {
 	{101,	"redirectcmd",		NULL, {NULL},																NULL},
 	{102,	"calltimeofday",	NULL, {NULL},																NULL},
 	{103,	"forcedemoframe",	NULL, {NULL},																NULL},
+*/
+
+//some QSG extensions
+
+	{83,	NULL,				NULL, {NULL},																NULL},
+	{84,	NULL,				NULL, {NULL},																NULL},
+	{85,	NULL,				NULL, {NULL},																NULL},
+	{86,	NULL,				NULL, {NULL},																NULL},
+	{87,	NULL,				NULL, {NULL},																NULL},
+	{88,	NULL,				NULL, {NULL},																NULL},
+	{89,	NULL,				NULL, {NULL},																NULL},
+	{90,	"tracebox",		NULL, {&type_vector, &type_vector, &type_vector, &type_vector, &type_float, &type_entity},	"void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)"},
+	{91,	"randomvec",	&type_vector, {NULL},															"vector()"},
+	{92,	"getlight",		&type_vector, {&type_vector},													"vector(vector org)"},
+	{93,	"registercvar",	&type_float, {&type_string, &type_string},										"float(string cvarname, string defaultvalue)"},
+	{94,	"min",			&type_float, {&type_float,&type_float,&type_float,&type_float,&type_float,&type_float,&type_float,&type_float},"float(float a, float b, ...)"},
+	{95,	"max",			&type_float, {&type_float,&type_float,&type_float,&type_float,&type_float,&type_float,&type_float,&type_float},"float(float a, float b, ...)"},
+	{96,	"bound",		&type_float, {&type_float,&type_float,&type_float},								"float(float minimum, float val, float maximum)"},
+	{97,	"pow",			&type_float, {&type_float,&type_float},											"float(float value, float exp)"},
+	{98,	"findfloat",	&type_entity, {&type_entity,&type_field,&type_float},							"entity(entity start, .__variant fld, __variant match)"},
+
+	{99,	"checkextension",&type_float, {&type_string},													"float(string extname)"},
+	{100,	"builtin_find",	&type_float, {&type_string},													"float(string builtinname)"},
+	{101,	"redirectcmd",	NULL, {&type_entity,&type_string},												"void(entity to, string str)"},
+	{102,	"anglemod",		&type_float, {&type_float},														"float(float value)"},
+	{103,	"cvar_string",	&type_string, {&type_string},													"string(string cvarname)"},
+
+	{104,	"showpic",		NULL, {NULL},																"void(string slot, string picname, float x, float y, float zone, optional entity player)"},
+	{105,	"hidepic",		NULL, {NULL},																"void(string slot, optional entity player)"},
+	{106,	"movepic",		NULL, {NULL},																"void(string slot, float x, float y, float zone, optional entity player)"},
+	{107,	"changepic",	NULL, {NULL},																"void(string slot, string picname, optional entity player)"},
+	{108,	"showpicent",	NULL, {NULL},																"void(string slot, entity player)"},
+	{109,	"hidepicent",	NULL, {NULL},																"void(string slot, entity player)"},
+
+	{110,	"fopen",		&type_float, {&type_string,&type_float},									"filestream(string filename, float mode, optional float mmapminsize)"},
+	{111,	"fclose",		NULL, {&type_float},														"void(filestream fhandle)"},
+	{112,	"fgets",		&type_string, {&type_float,&type_string},									"string(filestream fhandle)"},
+	{113,	"fputs",		NULL, {&type_float,&type_string},											"void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
+	{114,	"strlen",		&type_float, {&type_string},												"float(string s)"},
+	{115,	"strcat",		&type_string, {&type_string,&type_string},									"string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},
+	{116,	"substring",	&type_string, {&type_string,&type_float,&type_float},						"string(string s, float start, float length)"},
+	{117,	"stov",			&type_vector, {&type_string},												"vector(string s)"},
+	{118,	"strzone",		&type_string, {&type_string},												"string(string s, ...)"},
+	{119,	"strunzone",	NULL, {&type_string},														"void(string s)"},
 };
 
 char *DecompileValueString(etype_t type, void *val);
@@ -1044,11 +1088,12 @@ void DecompileCalcProfiles(void)
 			 */
 
 			for (j = 0, ps = 0; j < df->numparms; j++)
-			ps += df->parm_size[j];
+				ps += df->parm_size[j];
 
 			if (ps > 0) 
 			{
-				for (j = df->parm_start; j < (df->parm_start) + ps; j++)
+				int p;
+				for (p = 0, j = df->parm_start; j < (df->parm_start) + ps; p++)
 				{
 					line[0] = '\0';
 					par = DecompileGetParameter(j);
@@ -1059,16 +1104,31 @@ void DecompileCalcProfiles(void)
 					{
 						//Error("Error - No parameter names with offset %i.", j);
 //						printf("No parameter names with offset %i\n", j);
-						if (j < (df->parm_start) + ps - 1)
-							QC_snprintfz(line, sizeof(line), "float par%i, ", j - df->parm_start);
+						if (p<8)
+							j += df->parm_size[p];
 						else
-							QC_snprintfz(line, sizeof(line), "float par%i", j - df->parm_start);
+							j += 1;
+						if (p<8&&df->parm_size[p] == 3)
+						{
+							if (j < (df->parm_start) + ps)
+								QC_snprintfz(line, sizeof(line), "vector par%i, ", p);
+							else
+								QC_snprintfz(line, sizeof(line), "vector par%i", p);
+						}
+						else
+						{
+							if (j < (df->parm_start) + ps)
+								QC_snprintfz(line, sizeof(line), "__variant par%i, ", p);
+							else
+								QC_snprintfz(line, sizeof(line), "__variant par%i", p);
+						}
 					}
 					else
 					{
 						if (par->type == ev_vector)
 							j += 2;
-						if (j < (df->parm_start) + ps - 1)
+						j++;
+						if (j < (df->parm_start) + ps)
 						{
 							QC_snprintfz(line, sizeof(line), "%s, ", DecompilePrintParameter(par));
 						}
@@ -1195,7 +1255,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 	if (def)
 	{
 
-		if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm"))
+		if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm") || !def->s_name)
 		{
 			etype_t ty;
 			if (!req_t)
@@ -1363,6 +1423,24 @@ void DecompileImmediate_Insert(dfunction_t *df, gofs_t ofs, char *knew, QCC_type
 	}
 }
 
+void FloatToString(char *out, size_t outsize, float f)
+{
+	char *e;
+	QC_snprintfz(out, outsize, "%f", f);
+
+	//trim any trailing decimals
+	e = strchr(out, '.');
+	if (e)
+	{
+		e = e+strlen(e);
+		while (e > out && e[-1] == '0')
+			e--;
+		if (e > out && e[-1] == '.')
+			e--;
+		*e = 0;
+	}
+}
+
 char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 {
 	char *res;
@@ -1402,16 +1480,21 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 		{
 		case ev_void:	//for lack of any better ideas.
 		case ev_float:
-			if ((float)(int)pr_globals[ofs] == pr_globals[ofs])
-				QC_snprintfz(temp, sizeof(temp), "%i", (int)(pr_globals[ofs]));
-			else if ((*(int*)&pr_globals[ofs] & 0x7f800000) || !(*(int*)&pr_globals[ofs] & 0x7fffffff))
-				QC_snprintfz(temp, sizeof(temp), "%f", pr_globals[ofs]);
+			//denormalised floats need special handling.
+			if ((0x7fffffff&*(int*)&pr_globals[ofs]) >= 1 && (0x7fffffff&*(int*)&pr_globals[ofs]) < 0x00800000)
+			{
+				QC_snprintfz(temp, sizeof(temp), "((float)(__variant)%ii)", *(int*)&pr_globals[ofs]);
+
+//				if (req_t && *(int*)&pr_globals[ofs] >= 1 && *(int*)&pr_globals[ofs] < strofs)
+//					;	//failure to break means we'll print out a trailing /*string*/
+//				else
+					break;
+			}
 			else
-				QC_snprintfz(temp, sizeof(temp), "%%%i", *(int*)&pr_globals[ofs]);
-			if (pr_globals[ofs] == 0 || ((int*)pr_globals)[ofs] < 0 || ((int*)pr_globals)[ofs] >= strofs || strcmp(temp, "0.000000"))
+			{
+				FloatToString(temp, sizeof(temp), pr_globals[ofs]);
 				break;
-//				printf("Hey! That's not a float! error in %s\n", strings + df->s_name);
-//				printf("%f could be %s\n", pr_globals[ofs], &strings[((int*)pr_globals)[ofs]]);
+			}
 		case ev_string:
 			{
 				const char *in;
@@ -1495,7 +1578,13 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 			}
 			break;
 		case ev_vector:
-			QC_snprintfz(temp, sizeof(temp), "\'%f %f %f\'", pr_globals[ofs],pr_globals[ofs+1],pr_globals[ofs+2]);
+			{
+				char x[64], y[64], z[64];
+				FloatToString(x, sizeof(x), pr_globals[ofs+0]);
+				FloatToString(y, sizeof(y), pr_globals[ofs+1]);
+				FloatToString(z, sizeof(z), pr_globals[ofs+2]);
+				QC_snprintfz(temp, sizeof(temp), "\'%s %s %s\'", x, y, z);
+			}
 			break;
 //		case ev_quat:
 //			QC_snprintfz(temp, sizeof(temp), "\'%f %f %f %f\'", pr_globals[ofs],pr_globals[ofs+1],pr_globals[ofs+2],pr_globals[ofs+3]);
@@ -2498,56 +2587,14 @@ QCC_ddef_t *DecompileFunctionGlobal(int funcnum)
 	return NULL;
 }
 
-void DecompileFunction(const char *name, int *lastglobal)
+void DecompilePreceedingGlobals(int start, int end, const char *name)
 {
-	int i, findex, ps;
-	dstatement_t *ds, *ts, *altdone;
-	dfunction_t *df;
 	QCC_ddef_t *par;
-	char *arg2;
-	unsigned short dom, tom;
-	int j, start, end;
+	int j;
 	QCC_ddef_t *ef;
 	static char line[8192];
-	dstatement_t *k;
-	int dum;
-	size_t startpos;
 
 	const char *matchingfield;
-
-	for (i = 1; i < numfunctions; i++)
-		if (!strcmp(name, strings + functions[i].s_name))
-			break;
-	if (i == numfunctions)
-	{
-		printf("Fatal Error: No function named \"%s\"\n", name);
-		exit(1);
-	}
-	df = functions + i;
-	altdone = statements + numstatements;
-	for (j = i+1; j < numfunctions; j++)
-	{
-		if (functions[j].first_statement <= 0)
-			continue;
-		altdone = statements + functions[j].first_statement;
-		break;
-	}
-
-	findex = i;
-
-	start = *lastglobal;
-
-//    if (dfpred->first_statement <= 0 && df->first_statement > 0)
-//		start -= 1;
-
-	end = df->parm_start;
-	if (!end)
-	{
-		par = DecompileFindGlobal(name);
-		if (par)
-			end = par - globals;
-	}
-	*lastglobal = max(*lastglobal, end + df->locals);
 
 	//print globals leading up to the function.
 	for (j = start; j < end; j++)
@@ -2584,7 +2631,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 			}
 			else if (par->type != ev_pointer)
 			{
-				if (strcmp(strings + par->s_name, "IMMEDIATE") && strcmp(strings + par->s_name, ".imm"))
+				if (strcmp(strings + par->s_name, "IMMEDIATE") && strcmp(strings + par->s_name, ".imm") && par->s_name)
 				{
 
 					if (par->type == ev_field)
@@ -2656,8 +2703,58 @@ void DecompileFunction(const char *name, int *lastglobal)
 			}
 		}
 	}
+}
+void DecompileFunction(const char *name, int *lastglobal)
+{
+	int i, findex, ps;
+	dstatement_t *ds, *ts, *altdone;
+	dfunction_t *df;
+	QCC_ddef_t *par;
+	char *arg2;
+	unsigned short dom, tom;
+	int j, start, end;
+	static char line[8192];
+	dstatement_t *k;
+	int dum;
+	size_t startpos;
+
+
+
+	for (i = 1; i < numfunctions; i++)
+		if (!strcmp(name, strings + functions[i].s_name))
+			break;
+	if (i == numfunctions)
+	{
+		printf("Fatal Error: No function named \"%s\"\n", name);
+		exit(1);
+	}
+	df = functions + i;
+	altdone = statements + numstatements;
+	for (j = i+1; j < numfunctions; j++)
+	{
+		if (functions[j].first_statement <= 0)
+			continue;
+		altdone = statements + functions[j].first_statement;
+		break;
+	}
+
+	findex = i;
+
+	start = *lastglobal;
+//	if (dfpred->first_statement <= 0 && df->first_statement > 0)
+//		start -= 1;
+	end = df->parm_start;
+	if (!end)
+	{
+		par = DecompileFindGlobal(name);
+		if (par)
+			end = par - globals;
+	}
+	*lastglobal = max(*lastglobal, end + df->locals);
+	DecompilePreceedingGlobals(start, end, name);
+
 	/*
-	 * Check ''local globals'' 
+	 * Check ''local globals''  
 	 */
 
 	if (df->first_statement <= 0)
@@ -2967,6 +3064,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	vfile_t *f;
 	char fname[512];
 	int lastglob = 1;
+	QCC_ddef_t *def;
 
 	DecompileCalcProfiles();
 
@@ -2985,6 +3083,27 @@ void DecompileDecompileFunctions(const char *origcopyright)
 		QCC_CatVFile(Decompileprogssrc, "//#pragma copyright \"%s\"\n", origcopyright);
 	QCC_CatVFile(Decompileprogssrc, "\n", origcopyright);
 
+	def = DecompileFindGlobal("end_sys_fields");
+	lastglob = def?def->ofs+1:1;
+	if (lastglob != 1)
+	{
+		QC_snprintfz(synth_name, sizeof(synth_name), "sysdefs.qc");
+		QC_snprintfz(fname, sizeof(fname), synth_name);
+		if (!DecompileAlreadySeen(fname, &f))
+		{
+			printf("decompiling %s\n", fname);
+			compilecb();
+			QCC_CatVFile(Decompileprogssrc, "%s\n", fname);
+		}
+		if (!f)
+		{
+			printf("Fatal Error - Could not open \"%s\" for output.\n", fname);
+			exit(1);
+		}
+		Decompileofile = f;
+
+		DecompilePreceedingGlobals(1, lastglob, "");
+	}
 
 	for (i = 1; i < numfunctions; i++)
 	{

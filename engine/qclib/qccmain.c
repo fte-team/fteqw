@@ -3145,6 +3145,27 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	QCC_PrioritiseOpcodes();
 }
 
+void QCC_PR_FinishFieldDef(QCC_def_t *d)
+{
+	int i;
+	if (d->symboldata)
+		return;	//nothing to finish
+
+	d->symbolsize = (d->arraysize?d->arraysize:1) * d->type->size;
+
+	if (d->symbolheader != d)
+	{
+		QCC_PR_FinishFieldDef(d->symbolheader);
+		d->symboldata = d->symbolheader->symboldata + d->ofs;
+	}
+	else
+	{
+		d->symboldata = qccHunkAlloc (d->symbolsize * sizeof(float));
+		for (i = 0; i < d->symbolsize; i++)
+			d->symboldata[i]._int = pr.size_fields++;
+	}
+}
+
 /*
 ==============
 PR_FinishCompilation
@@ -3172,6 +3193,8 @@ int QCC_PR_FinishCompilation (void)
 // check to make sure all functions prototyped have code
 	for (d=pr.def_head.next ; d ; d=d->next)
 	{
+		if (d->type->type == ev_field && !d->symboldata)
+			QCC_PR_FinishFieldDef(d);
 		if (d->type->type == ev_function && d->constant)// function parms are ok
 		{
 //			f = G_FUNCTION(d->ofs);

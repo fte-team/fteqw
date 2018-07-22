@@ -975,4 +975,24 @@ void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s 
 	G_INT(OFS_RETURN) = 0;
 }
 
+//This is consistent with vanilla quakeworld's 'packet' console command.
+void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	netadr_t to;
+	const char *address = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *contents = PF_VarString(prinst, 1, pr_globals);
+
+	G_FLOAT(OFS_RETURN) = NETERR_NOROUTE;
+	if (NET_StringToAdr(address, 0, &to))
+	{
+		char *send = Z_Malloc(4+strlen(contents));
+		send[0] = send[1] = send[2] = send[3] = 0xff;
+		memcpy(send+4, contents, strlen(contents));
+		//FIXME: NS_CLIENT is likely to change its port randomly...
+		G_FLOAT(OFS_RETURN) = NET_SendPacket(NS_CLIENT, 4+strlen(contents), send, &to);
+		Z_Free(send);
+	}
+}
+
+
 #endif

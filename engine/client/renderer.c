@@ -101,6 +101,9 @@ cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfac
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
 extern cvar_t dpcompat_nopremulpics;
+#ifdef PSKMODELS
+cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
+#endif
 
 cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3s was never officially defined. If this is set to 1, the flags will be treated identically to mdl files. Otherwise they will be ignored. Naturally, this is required to provide rotating pickups in quake.");
 
@@ -418,7 +421,6 @@ cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffe
 cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of portals the camera is allowed to recurse through.");
 cvar_t r_portaldrawplanes					= CVARD  ("r_portaldrawplanes", "0", "Draw front and back planes in portals. Debug feature.");
 cvar_t r_portalonly							= CVARD  ("r_portalonly", "0", "Don't draw things which are not portals. Debug feature.");
-cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
 cvar_t r_noaliasshadows						= CVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
 cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
@@ -516,7 +518,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
 
+#ifdef PSKMODELS
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
+#endif
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);
 	Cvar_Register (&r_portalrecursion, GLRENDEREROPTIONS);
@@ -1004,7 +1008,9 @@ void Renderer_Init(void)
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
+#ifndef NOLEGACY
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
+#endif
 #ifdef VKQUAKE
 	Cvar_Register (&vk_stagingbuffers,			VKRENDEREROPTIONS);
 	Cvar_Register (&vk_submissionthread,		VKRENDEREROPTIONS);
@@ -1792,12 +1798,16 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 void R_ReloadRenderer_f (void)
 {
+#ifndef CLIENTONLY
 	void *portalblob = NULL;
 	size_t portalsize = 0;
+#endif
+
 	float time = Sys_DoubleTime();
 	if (qrenderer == QR_NONE || qrenderer == QR_HEADLESS)
 		return;	//don't bother reloading the renderer if its not actually rendering anything anyway.
 
+#ifndef CLIENTONLY
 	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 	{
 		void *t;
@@ -1805,6 +1815,7 @@ void R_ReloadRenderer_f (void)
 		if (portalsize && (portalblob = BZ_Malloc(portalsize)))
 			memcpy(portalblob, t, portalsize);
 	}
+#endif
 
 	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 	R_ShutdownRenderer(false);
@@ -1813,13 +1824,14 @@ void R_ReloadRenderer_f (void)
 	R_ApplyRenderer_Load(NULL);
 	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);
 
-	
+#ifndef CLIENTONLY
 	if (portalblob)
 	{
 		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 			CM_ReadPortalState(sv.world.worldmodel, portalblob, portalsize);
 		BZ_Free(portalblob);
 	}
+#endif
 }
 
 //use Cvar_ApplyLatches(CVAR_RENDERERLATCH) beforehand.
@@ -2036,8 +2048,10 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 
 void R_RestartRenderer (rendererstate_t *newr)
 {
+#ifndef CLIENTONLY
 	void *portalblob = NULL;
 	size_t portalsize = 0;
+#endif
 	rendererstate_t oldr;
 	if (r_blockvidrestart)
 	{
@@ -2045,6 +2059,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 		return;
 	}
 
+#ifndef CLIENTONLY
 	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 	{
 		void *t;
@@ -2052,6 +2067,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 		if (portalsize && (portalblob = BZ_Malloc(portalsize)))
 			memcpy(portalblob, t, portalsize);
 	}
+#endif
 
 	TRACE(("dbg: R_RestartRenderer_f renderer %p\n", newr->renderer));
 
@@ -2127,12 +2143,14 @@ void R_RestartRenderer (rendererstate_t *newr)
 		}
 	}
 
+#ifndef CLIENTONLY
 	if (portalblob)
 	{
 		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 			CM_ReadPortalState(sv.world.worldmodel, portalblob, portalsize);
 		BZ_Free(portalblob);
 	}
+#endif
 
 	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);
 	SCR_EndLoadingPlaque();

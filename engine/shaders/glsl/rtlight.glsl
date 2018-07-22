@@ -52,7 +52,7 @@
 	#ifdef REFLECTCUBEMASK
 		varying mat3 invsurface;
 	#endif
-	#if defined(PCF) || defined(CUBE) || defined(SPOT)
+	#if defined(PCF) || defined(CUBE) || defined(SPOT) || defined(ORTHO)
 		varying vec4 vtexprojcoord;
 	#endif
 #endif
@@ -68,15 +68,22 @@ void main ()
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	tcbase = v_texcoord;	//pass the texture coords straight through
-	vec3 lightminusvertex = l_lightposition - w.xyz;
-#ifdef NOBUMP
-	//the only important thing is distance
-	lightvector = lightminusvertex;
-#else
-	//the light direction relative to the surface normal, for bumpmapping.
+#ifdef ORTHO
+	vec3 lightminusvertex = -l_lightdirection;
 	lightvector.x = dot(lightminusvertex, s.xyz);
 	lightvector.y = dot(lightminusvertex, t.xyz);
 	lightvector.z = dot(lightminusvertex, n.xyz);
+#else
+	vec3 lightminusvertex = l_lightposition - w.xyz;
+	#ifdef NOBUMP
+		//the only important thing is distance
+		lightvector = lightminusvertex;
+	#else
+		//the light direction relative to the surface normal, for bumpmapping.
+		lightvector.x = dot(lightminusvertex, s.xyz);
+		lightvector.y = dot(lightminusvertex, t.xyz);
+		lightvector.z = dot(lightminusvertex, n.xyz);
+	#endif
 #endif
 #if defined(VERTEXCOLOURS)
 	vc = v_colour;
@@ -92,7 +99,7 @@ void main ()
 	invsurface[1] = v_tvector;
 	invsurface[2] = v_normal;
 #endif
-#if defined(PCF) || defined(SPOT) || defined(CUBE)
+#if defined(PCF) || defined(SPOT) || defined(CUBE) || defined(ORTHO)
 	//for texture projections/shadowmapping on dlights
 	vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
 #endif
@@ -184,7 +191,7 @@ void main()
 	vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];
 	w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);
 
-#if defined(PCF) || defined(SPOT) || defined(CUBE)
+#if defined(PCF) || defined(SPOT) || defined(CUBE) || defined(ORTHO)
 	//for texture projections/shadowmapping on dlights
 	vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
 #endif
@@ -309,8 +316,7 @@ void main ()
 	diff *= vc.rgb * vc.a;
 #endif
 
-	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);
-
+	gl_FragColor = vec4(fog3additive(diff*colorscale*l_lightcolour), 1.0);
 }
 #endif
 

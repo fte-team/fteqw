@@ -706,6 +706,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	qboolean	reliable;
 	client_t	*oneclient = NULL, *split;
 	int seat;
+	qboolean	andspecs = false;
 
 	if (!sv.multicast.cursize 
 #ifdef NQPROT
@@ -790,9 +791,11 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
 			break;
 
-		case MULTICAST_ONE_R:
+		case MULTICAST_ONE_R_NOSPECS:
+		case MULTICAST_ONE_R_SPECS:
 			reliable = true;
-		case MULTICAST_ONE:
+		case MULTICAST_ONE_NOSPECS:
+		case MULTICAST_ONE_SPECS:
 			if (svprogfuncs)
 			{
 				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
@@ -801,6 +804,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			else
 				oneclient = NULL;	//unsupported in this game mode
 			mask = NULL;
+			andspecs = (to==MULTICAST_ONE_R_SPECS||to==MULTICAST_ONE_SPECS);
 			break;
 
 		default:
@@ -838,7 +842,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				{
 					if (oneclient != split)
 					{
-						if (split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+						if (andspecs && split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
 							;
 						else
 							continue;
@@ -975,9 +979,11 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				mask = NULL;
 			break;
 
-		case MULTICAST_ONE_R:
+		case MULTICAST_ONE_R_NOSPECS:
+		case MULTICAST_ONE_R_SPECS:
 			reliable = true;
-		case MULTICAST_ONE:
+		case MULTICAST_ONE_NOSPECS:
+		case MULTICAST_ONE_SPECS:
 			if (svprogfuncs)
 			{
 				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
@@ -986,6 +992,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			else
 				oneclient = NULL;
 			mask = NULL;
+			andspecs = (to==MULTICAST_ONE_R_SPECS||to==MULTICAST_ONE_SPECS);
 			break;
 
 		default:
@@ -1150,9 +1157,15 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			msg = &demo.datagram;
 			break;
 
+		case MULTICAST_ONE_R_NOSPECS:
+		case MULTICAST_ONE_NOSPECS:
+			msg = &demo.datagram;
+			sv.multicast.cursize = 0;
+			break;
+
 		//mvds are all reliables really.
-		case MULTICAST_ONE_R:
-		case MULTICAST_ONE:
+		case MULTICAST_ONE_R_SPECS:
+		case MULTICAST_ONE_SPECS:
 			{
 				int pnum;
 				if (svprogfuncs)
@@ -1190,6 +1203,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 	int			cluster;
 	int			j;
 	client_t	*oneclient = NULL, *split;
+	qboolean	andspecs = false;
 
 	switch (to)
 	{
@@ -1224,9 +1238,12 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 			mask = NULL;
 		break;
 
-	case MULTICAST_ONE_R:
+	case MULTICAST_ONE_R_NOSPECS:
+	case MULTICAST_ONE_R_SPECS:
 		reliable = true;
-	case MULTICAST_ONE:
+
+	case MULTICAST_ONE_NOSPECS:
+	case MULTICAST_ONE_SPECS:
 		if (svprogfuncs)
 		{
 			edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
@@ -1235,6 +1252,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 		else
 			oneclient = NULL;
 		mask = NULL;
+		andspecs = (to == MULTICAST_ONE_R_SPECS || to == MULTICAST_ONE_SPECS);
 		break;
 
 	default:
@@ -1262,7 +1280,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 			{
 				if (oneclient != split)
 				{
-					if (split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+					if (andspecs && split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
 						;
 					else
 						continue;
@@ -1340,9 +1358,13 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 			msg = &demo.datagram;
 			break;
 
+		case MULTICAST_ONE_R_NOSPECS:
+		case MULTICAST_ONE_NOSPECS:
+			return;	//demos count as spectators.
+
 		//mvds are all reliables really.
-		case MULTICAST_ONE_R:
-		case MULTICAST_ONE:
+		case MULTICAST_ONE_R_SPECS:
+		case MULTICAST_ONE_SPECS:
 			{
 				int pnum = -1;
 				if (svprogfuncs)
@@ -1589,7 +1611,7 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 
 	if (chflags & CF_UNICAST)
 	{
-		SV_MulticastCB(origin, reliable ? MULTICAST_ONE_R : MULTICAST_ONE, seenmask, SV_SoundMulticast, &ctx);
+		SV_MulticastCB(origin, reliable ? MULTICAST_ONE_R_SPECS : MULTICAST_ONE_SPECS, seenmask, SV_SoundMulticast, &ctx);
 	}
 	else
 	{
@@ -1880,13 +1902,10 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
 		return;
 
-
-#ifdef NQPROT
 	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
 		nqjunk = false;
 	else
 		nqjunk = true;
-#endif
 
 	bits = 0;
 
@@ -2973,7 +2992,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 	{	//vanilla-compatible info.
 		if (ISNQCLIENT(client))
 		{	//except that nq never had any userinfo
-			const char *s = va("//ui %i \"%s\" \"%s\"\n", (client_t*)info-svs.clients, enckey, encval);
+			const char *s = va("//ui %i \"%s\" \"%s\"\n", (int)((client_t*)info-svs.clients), enckey, encval);
 			ClientReliableWrite_Begin(client, svc_stufftext, strlen(s)+2);
 			ClientReliableWrite_String(client, s);
 		}

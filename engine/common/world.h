@@ -191,6 +191,8 @@ typedef struct
 	void (QDECL *RagDestroyJoint)(struct world_s *world, rbejoint_t *joint);
 	void (QDECL *RunFrame)(struct world_s *world, double frametime, double gravity);
 	void (QDECL *PushCommand)(struct world_s *world, rbecommandqueue_t *cmd);
+//	void (QDECL *ExpandBodyAABB)(struct world_s *world, rbebody_t *bodyptr, float *mins, float *maxs);	//expands an aabb to include the size of the body.
+//	void (QDECL *Trace) ();
 } rigidbodyengine_t;
 #endif
 

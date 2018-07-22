@@ -1536,6 +1536,10 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 					ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
 					shadelight[0] = shadelight[1] = shadelight[2] = 1;
 
+					VectorSet(e->light_dir, 1, 0, 0);
+					VectorClear(e->light_range);
+					VectorScale(shadelight, fb, e->light_avg);
+
 					e->light_known = 2;
 					return e->light_known-1;
 				}

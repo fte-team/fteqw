@@ -34,7 +34,7 @@ struct wedict_s
 	int solidsize;
 
 #ifdef USERBE
-	entityode_t ode;
+	entityrbe_t rbe;
 #endif
 	/*the above is shared with ssqc*/
 };
@@ -289,6 +289,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void skel_dodelete(world_t *world);
 	void skel_reset(world_t *world);
 	void skel_reload(void);
+	void skel_updateentbounds();
 #endif
 void QCBUILTIN PF_physics_supported(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -458,6 +459,7 @@ void QCBUILTIN PF_cl_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_cl_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void search_close_progs(pubprogfuncs_t *prinst, qboolean complain);
 

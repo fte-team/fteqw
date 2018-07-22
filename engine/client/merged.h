@@ -1,4 +1,6 @@
 #ifdef VKQUAKE
+//we need some types available elsewhere, but don't really want to have to include the entire vulkan api everywhere.
+//unfortunately, vulkan's handle types are not well defined.
 #if defined(__LP64__) || defined(_WIN64)
 #define VulkanAPIRandomness void*
 #elif defined(_MSC_VER) && _MSC_VER < 1300
@@ -6,12 +8,12 @@
 #else
 #define VulkanAPIRandomness long long
 #endif
-#define VkRetardedDescriptorSet VulkanAPIRandomness
-#define VkRetardedShaderModule VulkanAPIRandomness
-#define VkRetardedPipelineLayout VulkanAPIRandomness
-#define VkRetardedDescriptorSetLayout VulkanAPIRandomness
-#define VkRetardedBuffer VulkanAPIRandomness
-#define VkRetardedDeviceMemory VulkanAPIRandomness
+#define qVkDescriptorSet VulkanAPIRandomness
+#define qVkShaderModule VulkanAPIRandomness
+#define qVkPipelineLayout VulkanAPIRandomness
+#define qVkDescriptorSetLayout VulkanAPIRandomness
+#define qVkBuffer VulkanAPIRandomness
+#define qVkDeviceMemory VulkanAPIRandomness
 #endif
 
 //These are defined later in the source tree. This file should probably be moved to a later spot.
@@ -248,7 +250,7 @@ typedef struct image_s
 #ifdef VKQUAKE
 		struct
 		{
-			VkRetardedDescriptorSet vkdescriptor;
+			qVkDescriptorSet vkdescriptor;
 			struct vk_image_s *vkimage;
 		};
 #endif
@@ -334,7 +336,7 @@ typedef union vboarray_s
 #ifdef VKQUAKE
 	struct
 	{
-		VkRetardedBuffer buff;
+		qVkBuffer buff;
 		unsigned int offs;
 	} vk;
 #endif

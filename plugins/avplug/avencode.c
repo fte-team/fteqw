@@ -19,6 +19,14 @@
 
 #define HAVE_DECOUPLED_API (LIBAVCODEC_VERSION_MAJOR>57 || (LIBAVCODEC_VERSION_MAJOR==57&&LIBAVCODEC_VERSION_MINOR>=36))
 
+//crappy compat crap
+#ifndef AV_CODEC_FLAG_GLOBAL_HEADER
+#define AV_CODEC_FLAG_GLOBAL_HEADER CODEC_FLAG_GLOBAL_HEADER
+#endif
+#ifndef AV_ERROR_MAX_STRING_SIZE
+#define AV_ERROR_MAX_STRING_SIZE 64
+#endif
+
 /*
 Most of the logic in here came from here:
 http://svn.gnumonks.org/tags/21c3-video/upstream/ffmpeg-0.4.9-pre1/output_example.c

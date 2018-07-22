@@ -369,10 +369,10 @@ void PM_ValidatePackage(package_t *p)
 					}
 					else if (p->qhash)
 					{
-						char buf[8];
 						searchpathfuncs_t *archive;
 
 #ifdef PACKAGE_Q1PAK
+						char buf[8];
 						if (!Q_strcasecmp(COM_FileExtension(n, buf, sizeof(buf)), "pak"))
 							archive = FSPAK_LoadArchive(pf, NULL, n, n, NULL);
 						else
@@ -2852,6 +2852,10 @@ qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
 }
 
 #else
+qboolean PM_CanInstall(const char *packagename)
+{
+	return false;
+}
 void PM_Command_f (void)
 {
 	Con_Printf("Package Manager is not implemented in this build\n");

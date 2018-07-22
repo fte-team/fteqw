@@ -3600,6 +3600,8 @@ void Surf_DeInit(void)
 		Z_Free(surf_frustumvis[i].buffer);
 	memset(surf_frustumvis, 0, sizeof(surf_frustumvis));
 
+	CL_FreeDlights();
+
 	lightmap=NULL;
 	numlightmaps=0;
 
@@ -4286,6 +4288,7 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 		cl_static_entities[i].emit = NULL;
 	}
 
+	CL_InitDlights();
 #ifdef RTLIGHTS
 	Sh_PreGenerateLights();
 #endif

@@ -301,7 +301,9 @@ extern	cvar_t		com_protocolname;
 extern	cvar_t		com_protocolversion;
 extern	cvar_t		com_nogamedirnativecode;
 extern	cvar_t		com_parseutf8;
+#ifndef NOLEGACY
 extern	cvar_t		com_parseezquake;
+#endif
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;
 extern	cvar_t		developer;

@@ -397,7 +397,9 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #define PFS_KEEPMARKUP		1	//leave markup in the final string (but do parse it)
 #define PFS_FORCEUTF8		2	//force utf-8 decoding
 #define PFS_NOMARKUP		4	//strip markup completely
+#ifndef NOLEGACY
 #define PFS_EZQUAKEMARKUP	8	//aim for compat with ezquake instead of q3 compat
+#endif
 #define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
 #define PFS_NONOTIFY		32	//flag used by console prints (text won't be visible other than by looking at the console)
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator

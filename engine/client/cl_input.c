@@ -1765,9 +1765,9 @@ static void CL_SendUserinfoUpdate(void)
 		else if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
 		{	//only flood servers that actually support it.
 			if (final)
-				s = va("%ssetinfo \"%s\" \"%s\" %u", pl, enckey, encval, bloboffset);
+				s = va("%ssetinfo \"%s\" \"%s\" %u", pl, enckey, encval, (unsigned int)bloboffset);
 			else
-				s = va("%ssetinfo \"%s\" \"%s\" %u+", pl, enckey, encval, bloboffset);
+				s = va("%ssetinfo \"%s\" \"%s\" %u+", pl, enckey, encval, (unsigned int)bloboffset);
 		}
 		else
 		{	//server doesn't support it, just ignore the key

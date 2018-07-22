@@ -114,6 +114,7 @@ typedef struct shadowmesh_s
 	{
 		SMT_STENCILVOLUME,	//build edges mesh (and surface list)
 		SMT_SHADOWMAP,		//build front faces mesh (and surface list)
+		SMT_ORTHO,			//bounded by a box and with a single direction rather than an origin.
 		SMT_SHADOWLESS,		//build vis+surface list only
 		SMT_DEFERRED		//build vis without caring about any surfaces at all.
 	} type;
@@ -220,6 +221,46 @@ static void SHM_MeshFrontOnly(int numverts, vecV_t *verts, int numidx, index_t *
 	v = (sh_shmesh->numverts+numverts + inc)&~(inc-1);	//and a bit of padding
 	if (sh_shmesh->maxverts < v)
 	{
+		v *= 2;
+		v += 1024;
+		sh_shmesh->maxverts = v;
+		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, v * sizeof(*sh_shmesh->verts));
+	}
+
+	outv = sh_shmesh->verts + sh_shmesh->numverts;
+	for (v = 0; v < numverts; v++)
+	{
+		VectorCopy(verts[v], outv[v]);
+	}
+
+	v = (sh_shmesh->numindicies+numidx + inc)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxindicies < v)
+	{
+		v *= 2;
+		v += 1024;
+		sh_shmesh->maxindicies = v;
+		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, v * sizeof(*sh_shmesh->indicies));
+	}
+	outi = sh_shmesh->indicies + sh_shmesh->numindicies;
+	for (i = 0; i < numidx; i++)
+	{
+		outi[i] = first + idx[i];
+	}
+
+	sh_shmesh->numverts += numverts;
+	sh_shmesh->numindicies += numidx;
+}
+static void SHM_MeshBackOnly(int numverts, vecV_t *verts, int numidx, index_t *idx)
+{
+	int first = sh_shmesh->numverts;
+	int v, i;
+	vecV_t *outv;
+	index_t *outi;
+
+	/*make sure there's space*/
+	v = (sh_shmesh->numverts+numverts + inc)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxverts < v)
+	{
 		v += 1024;
 		sh_shmesh->maxverts = v;
 		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, v * sizeof(*sh_shmesh->verts));
@@ -239,9 +280,11 @@ static void SHM_MeshFrontOnly(int numverts, vecV_t *verts, int numidx, index_t *
 		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, v * sizeof(*sh_shmesh->indicies));
 	}
 	outi = sh_shmesh->indicies + sh_shmesh->numindicies;
-	for (i = 0; i < numidx; i++)
+	for (i = 0; i < numidx; i+=3)
 	{
-		outi[i] = first + idx[i];
+		outi[i+0] = first + idx[i+2];
+		outi[i+1] = first + idx[i+1];
+		outi[i+2] = first + idx[i+0];
 	}
 
 	sh_shmesh->numverts += numverts;
@@ -774,6 +817,129 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 
 // recurse down the back side
 	SHM_RecursiveWorldNodeQ1_r (dl, node->children[!side]);
+}
+
+void CategorizePlane ( mplane_t *plane );
+static void SHM_OrthoWorldLeafsQ1 (dlight_t *dl)
+{
+	int			c, i;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf, *plastleaf;
+	float dot;
+
+	mplane_t orthoplanes[5];
+
+	sh_shadowframe++;
+
+	VectorCopy(dl->axis[0], orthoplanes[0].normal);
+	VectorNegate(dl->axis[0], orthoplanes[1].normal);
+	VectorCopy(dl->axis[1], orthoplanes[2].normal);
+	VectorNegate(dl->axis[1], orthoplanes[3].normal);
+	VectorNegate(dl->axis[0], orthoplanes[4].normal);
+
+	for (i = 0; i < countof(orthoplanes); i++)
+	{
+		orthoplanes[i].dist = DotProduct(dl->origin, orthoplanes[i].normal) - dl->radius;
+		CategorizePlane(&orthoplanes[i]);
+	}
+
+	for (pleaf = cl.worldmodel->leafs+1, plastleaf = cl.worldmodel->leafs+cl.worldmodel->submodels[0].visleafs; pleaf <= plastleaf; pleaf++)
+	{
+		for (i = 0; i < countof(orthoplanes); i++)
+			if (BOX_ON_PLANE_SIDE (pleaf->minmaxs, pleaf->minmaxs+3, &orthoplanes[i]) == 2)
+				goto next;
+
+		SHM_Shadow_Cache_Leaf(pleaf);
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		while (c --> 0)
+		{
+			surf = *mark++;
+
+			if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED | SURF_DRAWSKY))
+				continue;
+
+			if (surf->shadowframe != sh_shadowframe)
+			{
+				surf->shadowframe = sh_shadowframe;
+
+				dot = DotProduct(surf->plane->normal, dl->axis[0]);
+				if (surf->flags & SURF_PLANEBACK)
+					dot = -dot;
+			
+				if (dot < 0)
+				{
+					SHM_Shadow_Cache_Surface(surf);
+
+				}
+//				else
+//				SHM_MeshBackOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+					SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+			}
+		}
+
+next:;
+	}
+}
+
+static void SHM_OrthoWorldLeafsQ3 (dlight_t *dl)
+{
+	int			c, i;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf, *plastleaf;
+
+	mplane_t orthoplanes[5];
+
+	sh_shadowframe++;
+
+	VectorCopy(dl->axis[0], orthoplanes[0].normal);
+	VectorNegate(dl->axis[0], orthoplanes[1].normal);
+	VectorCopy(dl->axis[1], orthoplanes[2].normal);
+	VectorNegate(dl->axis[1], orthoplanes[3].normal);
+	VectorNegate(dl->axis[0], orthoplanes[4].normal);
+
+	for (i = 0; i < countof(orthoplanes); i++)
+	{
+		orthoplanes[i].dist = DotProduct(dl->origin, orthoplanes[i].normal) - dl->radius;
+		CategorizePlane(&orthoplanes[i]);
+	}
+
+	for (pleaf = cl.worldmodel->leafs+1, plastleaf = cl.worldmodel->leafs+cl.worldmodel->numleafs; pleaf <= plastleaf; pleaf++)
+	{
+		for (i = 0; i < countof(orthoplanes); i++)
+			if (BOX_ON_PLANE_SIDE (pleaf->minmaxs, pleaf->minmaxs+3, &orthoplanes[i]) == 2)
+				goto next;
+
+		SHM_Shadow_Cache_Leaf(pleaf);
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		while (c --> 0)
+		{
+			surf = *mark++;
+
+			if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED | SURF_DRAWSKY))
+				continue;
+
+			if (surf->shadowframe != sh_shadowframe)
+			{
+				surf->shadowframe = sh_shadowframe;
+			
+//				if (dot < 0)
+				{
+					SHM_Shadow_Cache_Surface(surf);
+				}
+//				else
+//				SHM_MeshBackOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+					SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+			}
+		}
+
+next:;
+	}
 }
 
 #ifdef Q2BSPS
@@ -1407,7 +1573,9 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	if (!lvis)
 	{
 		int clus;
-		if ((type == SMT_SHADOWLESS || dl->lightcolourscales[0]) && cl.worldmodel->funcs.ClustersInSphere)
+		if (type == SMT_ORTHO)
+			;
+		else if ((type == SMT_SHADOWLESS || dl->lightcolourscales[0]) && cl.worldmodel->funcs.ClustersInSphere)
 			//shadowless lights don't cast shadows, so they're seen through everything - their vis must reflect that.
 			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb, NULL);
 		else
@@ -1446,8 +1614,13 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			{
 				SHM_BeginShadowMesh(dl, type);
 
-				SHM_MarkLeavesQ1(dl, lvis);
-				SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
+				if (type == SMT_ORTHO)
+					SHM_OrthoWorldLeafsQ1(dl);
+				else
+				{
+					SHM_MarkLeavesQ1(dl, lvis);
+					SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
+				}
 			}
 			break;
 #ifdef Q2BSPS
@@ -1462,8 +1635,13 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			/*q3 doesn't have edge info*/
 			SHM_BeginShadowMesh(dl, type);
 
-			sh_shadowframe++;
-			SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
+			if (type == SMT_ORTHO)
+				SHM_OrthoWorldLeafsQ3(dl);
+			else
+			{
+				sh_shadowframe++;
+				SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
+			}
 			if (type == SMT_STENCILVOLUME)
 				SHM_ComposeVolume_BruteForce(dl);
 			break;
@@ -2146,6 +2324,12 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 
 	R_SetFrustum(proj, r_refdef.m_view);
 
+	if (lighttype & LSHADER_ORTHO)
+	{
+		r_refdef.frustum_numplanes = 4;	//kill the near clip plane - we allow ANYTHING nearer through.
+		qglEnable(GL_DEPTH_CLAMP_ARB);
+	}
+
 #ifdef SHADOWDBG_COLOURNOTDEPTH
 	BE_SelectMode(BEM_STANDARD);
 #else
@@ -2217,6 +2401,9 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 		break;
 #endif
 	}
+
+	if (lighttype & LSHADER_ORTHO)
+		qglDisable(GL_DEPTH_CLAMP_ARB);
 
 /*
 	{
@@ -2310,7 +2497,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 	memcpy(oprojv, r_refdef.m_projection_view, sizeof(oprojv));
 	memcpy(oview, r_refdef.m_view, sizeof(oview));
 	oprect = r_refdef.pxrect;
-	smesh = SHM_BuildShadowMesh(l, lvis, SMT_SHADOWMAP);
+	smesh = SHM_BuildShadowMesh(l, lvis, (lighttype & LSHADER_ORTHO)?SMT_ORTHO:SMT_SHADOWMAP);
 
 	if (lighttype & LSHADER_SPOT)
 		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius, false);
@@ -3708,7 +3895,20 @@ void Sh_DrawLights(qbyte *vis)
 			axis = dl->axis;
 
 		drawdlightnum++;
-		if (dl->flags & LFLAG_CREPUSCULAR)
+		if (dl->flags & LFLAG_ORTHO)
+		{
+			vec3_t saveorg = {dl->origin[0], dl->origin[1], dl->origin[2]}, neworg;
+			vec3_t saveaxis[3];
+			memcpy(saveaxis, dl->axis, sizeof(saveaxis));
+			memcpy(dl->axis, axis, sizeof(saveaxis));
+			VectorMA(r_origin, dl->radius/3, vpn, neworg);
+			VectorCopy(neworg, dl->origin);
+			dl->rebuildcache = true;
+			Sh_DrawShadowMapLight(dl, colour, axis, NULL);
+			VectorCopy(saveorg, dl->origin);
+			memcpy(dl->axis, saveaxis, sizeof(saveaxis));
+		}
+		else if (dl->flags & LFLAG_CREPUSCULAR)
 			Sh_DrawCrepuscularLight(dl, colour);
 		else if (((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
 		{

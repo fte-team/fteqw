@@ -534,7 +534,7 @@ void Plug_InitStandardBuiltins(void)
 }
 
 #ifndef Q3_VM
-void NATIVEEXPORT dllEntry(qintptr_t (QDECL *funcptr)(qintptr_t,...))
+NATIVEEXPORT void QDECL dllEntry(qintptr_t (QDECL *funcptr)(qintptr_t,...))
 {
 	plugin_syscall = funcptr;
 }

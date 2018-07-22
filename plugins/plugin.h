@@ -94,10 +94,14 @@ void BadBuiltin(void);
 	#endif
 #endif
 
-#ifdef _WIN32
-#define NATIVEEXPORT __declspec(dllexport) QDECL
-#else
-#define NATIVEEXPORT __attribute__((visibility("default")))
+#ifndef NATIVEEXPORT
+	#ifdef _WIN32
+		#define NATIVEEXPORTPROTO __declspec(dllexport)
+		#define NATIVEEXPORT NATIVEEXPORTPROTO
+	#else
+		#define NATIVEEXPORTPROTO
+		#define NATIVEEXPORT __attribute__((visibility("default")))
+	#endif
 #endif
 
 

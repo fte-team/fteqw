@@ -793,6 +793,7 @@ const char *presetexec[] =
 	"seta cl_gibfilter 1;"
 	"if cl_deadbodyfilter == 0 then seta cl_deadbodyfilter 1;"		//as useful as 2 is, some mods use death frames for crouching etc.
 	"seta gl_simpleitems 1;"
+	"seta cl_fullpitch 1;seta maxpitch \"\";seta minpitch \"\";"	//mimic quakespasm where possible.
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -838,8 +839,10 @@ const char *presetexec[] =
 	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
 	"cl_gibfilter 0;"
 	"seta cl_deadbodyfilter 0;"
+	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"	//QS has cheaty viewpitch range. some maps require it.
 
 	, //vanilla-esque options.
+	"cl_fullpitch 0;maxpitch \"\";seta minpitch \"\";"	//quakespasm is not vanilla
 	"gl_texturemode nll;"		//yup, we went there.
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_nolerp 1;"
@@ -876,6 +879,7 @@ const char *presetexec[] =
 	"r_loadlit 1;"
 	"r_nolerp 0;"
 	"r_noframegrouplerp 0;"
+	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"
 
 	, // nice options
 //	"r_stains 0.75;"
@@ -1112,7 +1116,7 @@ void M_Menu_FPS_f (void)
 	menu_t *menu;
 	fpsmenuinfo_t *info;
 
-	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp;
+	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
 	static menuresel_t resel;
 	int y;
 	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
@@ -1129,6 +1133,8 @@ void M_Menu_FPS_f (void)
 			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
 			MB_SPACING(4),
 			MB_COMBOCVAR("Show FPS", show_fps, fpsopts, fpsvalues, "Display FPS or frame millisecond values on screen. Settings except immediate are for values across 1 second."),
+			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
+			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
 			MB_COMBOCVAR("Player lerping", cl_lerp_players, playerlerpopts, values_0_1, "Smooth movement of other players, but will increase effective latency. Does not affect all network protocols."),
 			MB_COMBOCVAR("Entity lerping", cl_nolerp, entlerpopts, values_0_1_2, "Smooth movement of entities, but will increase effective latency."),
 			MB_CHECKBOXCVAR("Content Blend", v_contentblend, 0),
@@ -2782,6 +2788,18 @@ void M_Menu_Video_f (void)
 	};
 	static const char *scalevalues[] = { "1", "1.5", "2", "2.5", "3", "4", "5", "6", NULL};
 
+	static const char *vsyncopts[] =
+	{
+		"Off",
+		"Strict",
+		"Lax",
+		"Alternate Frames",
+		NULL
+	};
+	static const char *vsyncvalues[] = { "0", "1", "-1", "2", NULL};
+	extern cvar_t vid_vsync;
+	extern cvar_t cl_maxfps;
+	extern cvar_t cl_yieldcpu;
 
 /*
 	static const char *vsyncoptions[] =
@@ -2849,6 +2867,7 @@ void M_Menu_Video_f (void)
 			MB_EDITCVARSLIMRETURN("Height", "vid_height", info->height),
 			MB_EDITCVARSLIMRETURN("Color Depth", "vid_bpp", info->bpp),
 			MB_EDITCVARSLIMRETURN("Refresh Rate", "vid_displayfrequency", info->hz),
+
 			MB_SPACING(4),
 			MB_COMBORETURN("2D Mode", res2dmodeopts, res2dmodechoice, info->res2dmode, "Select method for determining or configuring 2D resolution and scaling. The default option matches the current display resolution, and the scale option scales by a factor of the display resolution."),
 			// scale entry
@@ -2874,6 +2893,11 @@ void M_Menu_Video_f (void)
 			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
 			MB_COMBOCVAR("Gamma Mode", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
+
+			MB_COMBOCVAR("VSync", vid_vsync, vsyncopts, vsyncvalues, "Controls whether to wait for rendering to finish."),
+			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
+			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
+			
 			MB_END()
 		};
 		MC_AddBulk(menu, &resel, bulk, 16, 200, y);

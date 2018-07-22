@@ -2718,7 +2718,8 @@ static int Mod_Batches_Generate(model_t *mod)
 					lbatch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
 					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
-					lbatch->fog == surf->fog))
+					lbatch->fog == surf->fog &&
+					lbatch->envmap == surf->envmap))
 			batch = lbatch;
 		else
 		{
@@ -2735,7 +2736,8 @@ static int Mod_Batches_Generate(model_t *mod)
 							batch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
 							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
-							batch->fog == surf->fog)
+							batch->fog == surf->fog &&
+							batch->envmap == surf->envmap)
 					break;
 			}
 		}
@@ -2772,6 +2774,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			batch->next = mod->batches[sortid];
 			batch->ent = &r_worldentity;
 			batch->fog = surf->fog;
+			batch->envmap = surf->envmap;
 			Vector4Copy(plane, batch->plane);
 
 			mod->batches[sortid] = batch;
@@ -2938,7 +2941,7 @@ static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int 
 
 	if (isDedicated ||
 		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
-		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB)) ||	//q1
+		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTILED)) ||	//q1
 		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
 		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
 		smax > lmallocator->width || tmax > lmallocator->height || smax < 0 || tmax < 0)	//bugs/bounds/etc
@@ -3683,8 +3686,18 @@ static qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			out->texture = r_notexture_mip; // texture not found
 			out->flags = 0;
 		}
-		else if (!strncmp(out->texture->name, "scroll", 6) || ((*out->texture->name == '*' || *out->texture->name == '{' || *out->texture->name == '!') && !strncmp(out->texture->name+1, "scroll", 6)))
-			out->flags |= TI_FLOWING;
+		else
+		{
+			if (*out->texture->name == '*' || (*out->texture->name == '!' && loadmodel->fromgame == fg_halflife))		// turbulent
+			{
+				if (!(out->flags & TEX_SPECIAL) && !strchr(out->texture->name, '#'))
+					Q_strncatz(out->texture->name, "#LIT", sizeof(out->texture->name));
+			}
+
+			if (!strncmp(out->texture->name, "scroll", 6) || ((*out->texture->name == '*' || *out->texture->name == '{' || *out->texture->name == '!') && !strncmp(out->texture->name+1, "scroll", 6)))
+				out->flags |= TI_FLOWING;
+
+		}
 	}
 
 	return true;
@@ -3896,14 +3909,17 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, l
 			out->flags |= (SURF_DRAWSKY | SURF_DRAWTILED);
 			continue;
 		}
-		
 		if (*out->texinfo->texture->name == '*' || (*out->texinfo->texture->name == '!' && loadmodel->fromgame == fg_halflife))		// turbulent
 		{
-			out->flags |= (SURF_DRAWTURB | SURF_DRAWTILED);
-			for (i=0 ; i<2 ; i++)
+			out->flags |= SURF_DRAWTURB;
+			if (out->texinfo->flags & TEX_SPECIAL)
 			{
-				out->extents[i] = 16384;
-				out->texturemins[i] = -8192;
+				out->flags |= SURF_DRAWTILED;
+				for (i=0 ; i<2 ; i++)
+				{
+					out->extents[i] = 16384;
+					out->texturemins[i] = -8192;
+				}
 			}
 			continue;
 		}

@@ -940,7 +940,7 @@ static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count,
 			if (dir)
 				VectorCopy(dir, dl->axis[0]);
 			else
-				VectorSet(dir, 0, 0, 1);
+				VectorSet(dl->axis[0], 0, 0, 1);
 			VectorVectors(dl->axis[0], dl->axis[1], dl->axis[2]);
 			VectorInverse(dl->axis[1]);
 			if (dir)

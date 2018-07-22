@@ -1169,7 +1169,6 @@ void GLVID_SetCaption(const char *text)
 	SetWindowTextW(mainwindow, wide);
 }
 
-
 static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 {
 	int i;
@@ -1264,6 +1263,21 @@ static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 	if (!dibwindow)
 		Sys_Error ("Couldn't create DIB window");
+
+	{
+		BOOL fDisable = TRUE;
+		DWORD qDWMWA_TRANSITIONS_FORCEDISABLED = 3;
+		HRESULT (WINAPI *pDwmSetWindowAttribute)(HWND hWnd,DWORD dwAttribute,LPCVOID pvAttribute,DWORD cbAttribute);
+		dllfunction_t dwm[] =
+		{
+			{(void*)&pDwmSetWindowAttribute, "DwmSetWindowAttribute"},
+			{NULL,NULL}
+		};
+		if (Sys_LoadLibrary("dwmapi.dll", dwm))
+		{
+			pDwmSetWindowAttribute(dibwindow, qDWMWA_TRANSITIONS_FORCEDISABLED, &fDisable, sizeof(fDisable));
+		}
+	}
 
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
@@ -2874,7 +2888,7 @@ static LONG WINAPI GLMainWndProc (
 			GLAppActivate(FALSE, Minimized);//FIXME: thread
 			ClearAllStates ();	//FIXME: thread
 #endif
-			if (modestate == MS_FULLDIB)
+			if (modestate != MS_WINDOWED)
 				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
 			break;
 		case WM_SETFOCUS:

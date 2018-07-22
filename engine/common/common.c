@@ -111,7 +111,9 @@ cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_protocolversion = CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+#ifndef NOLEGACY
 cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
+#endif
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
@@ -135,7 +137,9 @@ void COM_Locate_f (void);
 #define	PAK0_COUNT		339
 #define	PAK0_CRC		52883
 
-qboolean		standard_quake = true, rogue, hipnotic;
+#ifdef NQPROT
+qboolean		standard_quake = true;	//unfortunately, the vanilla NQ protocol(and 666) subtly changes when -rogue or -hipnotic are used (and by extension -quoth). QW/FTE protocols don't not need to care, but compat...
+#endif
 
 /*
 
@@ -3239,13 +3243,13 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	conchar_t *oldout = out;
 #ifndef NOLEGACY
 	extern cvar_t dpcompat_console;
-#endif
 
 	if (flags & PFS_EZQUAKEMARKUP)
 	{
 		ezquakemess = true;
 		utf8 = 0;
 	}
+#endif
 	if (flags & PFS_FORCEUTF8)
 		utf8 = 2;
 
@@ -3970,7 +3974,9 @@ skipwhite:
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize)
 {
+#ifndef NOLEGACY
 	extern cvar_t dpcompat_console;
+#endif
 	int		c;
 	int		len;
 	char *s;
@@ -4038,6 +4044,7 @@ skipwhite:
 	if (c == '\"')
 	{
 		data++;
+#ifndef NOLEGACY
 		if (dpcompat_console.ival)
 		{
 			while (1)
@@ -4066,6 +4073,7 @@ skipwhite:
 			}
 		}
 		else
+#endif
 		{
 			while (1)
 			{
@@ -4330,7 +4338,11 @@ skipwhite:
 
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes)
 {
+#ifndef NOLEGACY
 	extern cvar_t dpcompat_console;
+#else
+	static const cvar_t dpcompat_console = {0};
+#endif
 	const char *result = buf;
 	if (strchr(string, '\r') || strchr(string, '\n') || (!dpcompat_console.ival && strchr(string, '\"')))
 	{
@@ -5713,7 +5725,9 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
+#ifndef NOLEGACY
 	Cvar_Register (&com_parseezquake, NULL);
+#endif
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
 

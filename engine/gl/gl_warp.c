@@ -900,6 +900,7 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 
 	//try to load dual-layer-single-image skies.
 	//this is always going to be lame special case crap
+	if (gl_load24bit.ival)
 	{
 		size_t filesize = 0;
 		qbyte *filedata = NULL;

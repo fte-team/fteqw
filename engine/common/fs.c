@@ -3683,6 +3683,9 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		i = COM_CheckNextParm ("-basepack", i);
 	}
 
+#ifdef NQPROT
+	standard_quake = true;
+#endif
 	for (i = 0; i < sizeof(fs_manifest->gamepath) / sizeof(fs_manifest->gamepath[0]); i++)
 	{
 		char *dir = fs_manifest->gamepath[i].path;
@@ -3697,11 +3700,19 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				continue;
 			}
 
-			if (!Q_strncasecmp(dir, "downloads", 9))
+			//some gamedirs should never be used...
+			if (!Q_strncasecmp(dir, "downloads", 9) || !Q_strncasecmp(dir, "docs", 4) || !Q_strncasecmp(dir, "help", 4))
 			{
 				Con_Printf ("Gamedir should not be \"%s\"\n", dir);
 				continue;
 			}
+			
+#ifdef NQPROT
+			//vanilla NQ uses a slightly different protocol when started with -rogue or -hipnotic (and by extension -quoth).
+			//QW+FTE protocols don't care so we can get away with being a little loose here
+			if (!strcmp(dir, "rogue") || !strcmp(dir, "hipnotic") || !strcmp(dir, "quoth"))
+				standard_quake = false;
+#endif
 
 			//paths equal to '*' actually result in loading packages without an actual gamedir. note that this does not imply that we can write anything.
 			if (!strcmp(dir, "*"))

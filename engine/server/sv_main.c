@@ -5127,6 +5127,9 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_resetparms,	cvargroup_servercontrol);
 
+	if (isDedicated)
+		sv_public.string = "1";
+
 	Cvar_Register (&sv_guidhash,	cvargroup_servercontrol);
 	Cvar_Register (&sv_serverip,	cvargroup_servercontrol);
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
@@ -5143,11 +5146,6 @@ void SV_InitLocal (void)
 	SVNET_RegisterCvars();
 
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
-
-#ifndef SERVERONLY
-	if (isDedicated)
-#endif
-		Cvar_Set(&sv_public, "1");
 
 	Cvar_Register (&sv_showconnectionlessmessages, cvargroup_servercontrol);
 	Cvar_Register (&sv_banproxies, cvargroup_serverpermissions);

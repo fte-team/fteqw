@@ -584,6 +584,16 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		VectorAdd (ent->v->origin, ent->v->maxs, ent->v->absmax);
 	}
 
+	//some fancy things can mean the ent's aabb is larger than its collision box.
+#ifdef USERBE
+//	if (ent->rbe.body.body)
+//		w->rbe->ExpandBodyAABB(w->rbe, &ent->rbe.body, ent->v->absmin, env->v->absmax);
+#endif
+#ifdef SKELETALOBJECTS
+	if (ent->xv->skeletonindex)
+		skel_updateentbounds(ent);
+#endif
+
 	if (!ent->v->solid)
 		ent->solidsize = ES_SOLID_BSP;
 	else// if (1)///*ent->v->modelindex || */ent->v->model)
@@ -2793,10 +2803,10 @@ static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t
 		}
 	}
 
-	ed->ode.ode_element3i = ptr_elements;
-	ed->ode.ode_vertex3f = ptr_verts;
-	ed->ode.ode_numvertices = numverts;
-	ed->ode.ode_numtriangles = numindexes/3;
+	ed->rbe.element3i = ptr_elements;
+	ed->rbe.vertex3f = ptr_verts;
+	ed->rbe.numvertices = numverts;
+	ed->rbe.numtriangles = numindexes/3;
 	return true;
 }
 
@@ -2859,10 +2869,10 @@ static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict
 
 	Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
 
-	ed->ode.ode_element3i = ptr_elements;
-	ed->ode.ode_vertex3f = ptr_verts;
-	ed->ode.ode_numvertices = numverts;
-	ed->ode.ode_numtriangles = numindexes/3;
+	ed->rbe.element3i = ptr_elements;
+	ed->rbe.vertex3f = ptr_verts;
+	ed->rbe.numvertices = numverts;
+	ed->rbe.numtriangles = numindexes/3;
 	return true;
 }
 
@@ -2872,22 +2882,22 @@ static void CollisionMesh_CleanupMesh(wedict_t *ed)
 	float *v1, *v2, *v3;
 	vec3_t d1, d2, cr;
 	int in, out;
-	for (in = 0, out = 0; in < ed->ode.ode_numtriangles*3; in+=3)
+	for (in = 0, out = 0; in < ed->rbe.numtriangles*3; in+=3)
 	{
-		v1 = &ed->ode.ode_vertex3f[ed->ode.ode_element3i[in+0]*3];
-		v2 = &ed->ode.ode_vertex3f[ed->ode.ode_element3i[in+1]*3];
-		v3 = &ed->ode.ode_vertex3f[ed->ode.ode_element3i[in+2]*3];
+		v1 = &ed->rbe.vertex3f[ed->rbe.element3i[in+0]*3];
+		v2 = &ed->rbe.vertex3f[ed->rbe.element3i[in+1]*3];
+		v3 = &ed->rbe.vertex3f[ed->rbe.element3i[in+2]*3];
 		VectorSubtract(v3, v1, d1);
 		VectorSubtract(v2, v1, d2);
 		CrossProduct(d1, d2, cr);
 		if (DotProduct(cr,cr) == 0)
 			continue;
-		ed->ode.ode_element3i[out+0] = ed->ode.ode_element3i[in+0];
-		ed->ode.ode_element3i[out+1] = ed->ode.ode_element3i[in+1];
-		ed->ode.ode_element3i[out+2] = ed->ode.ode_element3i[in+2];
+		ed->rbe.element3i[out+0] = ed->rbe.element3i[in+0];
+		ed->rbe.element3i[out+1] = ed->rbe.element3i[in+1];
+		ed->rbe.element3i[out+2] = ed->rbe.element3i[in+2];
 		out+=3;
 	}
-	ed->ode.ode_numtriangles = out/3;
+	ed->rbe.numtriangles = out/3;
 }
 
 qboolean QDECL World_GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
@@ -2912,19 +2922,19 @@ qboolean QDECL World_GenerateCollisionMesh(world_t *world, model_t *mod, wedict_
 	if (result)
 	{
 		CollisionMesh_CleanupMesh(ed);
-		if (ed->ode.ode_numtriangles > 0)
+		if (ed->rbe.numtriangles > 0)
 			return true;
 	}
 	return false;
 }
 void QDECL World_ReleaseCollisionMesh(wedict_t *ed)
 {
-	BZ_Free(ed->ode.ode_element3i);
-	ed->ode.ode_element3i = NULL;
-	BZ_Free(ed->ode.ode_vertex3f);
-	ed->ode.ode_vertex3f = NULL;
-	ed->ode.ode_numvertices = 0;
-	ed->ode.ode_numtriangles = 0;
+	BZ_Free(ed->rbe.element3i);
+	ed->rbe.element3i = NULL;
+	BZ_Free(ed->rbe.vertex3f);
+	ed->rbe.vertex3f = NULL;
+	ed->rbe.numvertices = 0;
+	ed->rbe.numtriangles = 0;
 }
 #endif
 #endif

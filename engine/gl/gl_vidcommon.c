@@ -1473,6 +1473,7 @@ static const char *glsl_hdrs[] =
 				"uniform float	l_lightradius;"
 				"uniform vec3	l_lightcolour;"
 				"uniform vec3	l_lightposition;"
+				"uniform vec3	l_lightdirection;"
 				"uniform vec3	l_lightcolourscale;"
 				"uniform mat4	l_cubematrix;"
 				"uniform vec4	l_shadowmapproj;"
@@ -1776,7 +1777,7 @@ static const char *glsl_hdrs[] =
 					"return ((cubeproj.yxz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 				"#elif defined(ORTHO)\n"
 					//the light's origin is in the center of the 'cube', projecting from one side to the other, so don't bias the z.
-					"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 0.0)) * vec3(0.5, 0.5, 1.0);\n"
+					"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 				//"#elif defined(CUBESHADOW)\n"
 				//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
 				//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r

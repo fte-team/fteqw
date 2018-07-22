@@ -175,6 +175,7 @@ char *Cvar_FlagToName(int flag)
 #define CLF_LATCHES 0x20
 #define CLF_FLAGS 0x40
 #define CLF_FLAGMASK 0x80
+#define CLF_CHANGEDONLY 0x100
 void Cvar_List_f (void)
 {
 	cvar_group_t	*grp;
@@ -186,6 +187,7 @@ void Cvar_List_f (void)
 	static char *cvarlist_help =
 "cvarlist list all cvars matching given parameters\n"
 "Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
+"  -c includes only the cvars that have been changed from their defaults\n"
 "  -F shows cvar flags\n"
 "  -L shows latched values\n"
 "  -a shows cvar alternate names\n"
@@ -224,6 +226,9 @@ void Cvar_List_f (void)
 					}
 
 					gsearch = Cmd_Argv(i);
+					break;
+				case 'c':
+					listflags |= CLF_CHANGEDONLY;
 					break;
 				case 'a':
 					listflags |= CLF_ALTNAME;
@@ -356,6 +361,9 @@ showhelp:
 
 			// list only cvars with matching flags
 			if ((listflags & CLF_FLAGMASK) && !(cmd->flags & cvarflags))
+				continue;
+
+			if ((listflags & CLF_CHANGEDONLY) && cmd->defaultstr && !strcmp(cmd->string, cmd->defaultstr))
 				continue;
 
 			// print cvar list header

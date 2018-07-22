@@ -522,7 +522,7 @@ typedef struct csqcedict_s
 	int lastruntime;
 	int solidsize;
 #ifdef USERBE
-	entityode_t ode;
+	entityrbe_t rbe;
 #endif
 	/*the above is shared with ssqc*/
 
@@ -6207,7 +6207,7 @@ static struct {
 
 	{"checkpvs",				PF_checkpvs,		240},
 //	{"matchclientname",			PF_matchclient,		241},
-	{"sendpacket",				PF_NoCSQC,			242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
+	{"sendpacket",				PF_cl_SendPacket,	242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
 
 //	{"bulleten",				PF_bulleten,		243}, (removed builtin)
 	{"rotatevectorsbytag",		PF_rotatevectorsbytag,	244},

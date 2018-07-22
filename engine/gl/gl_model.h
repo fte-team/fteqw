@@ -121,6 +121,7 @@ typedef struct batch_s
 	struct vbo_s *vbo;
 	entity_t *ent;	/*used for shader properties*/
 	struct mfog_s *fog;
+	image_t		*envmap;
 
 	short lightmap[MAXRLIGHTMAPS];	/*used for shader lightmap textures*/
 	unsigned char lmlightstyle[MAXRLIGHTMAPS];
@@ -390,6 +391,14 @@ typedef struct mfog_s
 	mplane_t		**planes;
 } mfog_t;
 
+typedef struct
+{
+	vec3_t origin;
+	int cubesize;	//pixels
+
+	texid_t *image;
+} menvmap_t;
+
 #define LMSHIFT_DEFAULT 4
 typedef struct msurface_s
 {
@@ -405,6 +414,7 @@ typedef struct msurface_s
 
 	unsigned short	light_s[MAXRLIGHTMAPS], light_t[MAXRLIGHTMAPS];	// gl lightmap coordinates
 
+	image_t		*envmap;
 	mfog_t		*fog;
 	mesh_t		*mesh;
 
@@ -972,6 +982,8 @@ typedef struct model_s
 	q3lightgridinfo_t *lightgrid;
 	mfog_t		*fogs;
 	int			numfogs;
+	menvmap_t	*envmaps;
+	unsigned	numenvmaps;
 	struct {unsigned int id; char *keyvals;} *entityinfo;
 	size_t		numentityinfo;
 	const char	*entities_raw;

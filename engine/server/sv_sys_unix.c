@@ -219,7 +219,8 @@ void Sys_Error (const char *error, ...)
 	exit (1);
 }
 
-int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+static qboolean useansicolours;
+static int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
 void ApplyColour(unsigned int chr)
 {
 	static int oldchar = CON_WHITEMASK;
@@ -229,6 +230,8 @@ void ApplyColour(unsigned int chr)
 	if (oldchar == chr)
 		return;
 	oldchar = chr;
+	if (!useansicolours)	//don't spew weird chars when redirected to a file.
+		return;
 
 	printf("\e[0;"); // reset
 
@@ -713,6 +716,9 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 #ifdef HAVE_GNUTLS
 qboolean SSL_InitGlobal(qboolean isserver);
 #endif
+#ifdef SQL
+#include "sv_sql.h"
+#endif
 static int Sys_CheckChRoot(void)
 {	//also warns if run as root.
 	int ret = false;
@@ -720,7 +726,7 @@ static int Sys_CheckChRoot(void)
 	//three ways to use this:
 	//nonroot-with-SUID-root -- chroots+drops to a fixed path when run as a regular user. the homedir mechanism can be used for writing files.
 	//root -chroot foo -uid bar -- requires root, changes the filesystem and then switches user rights before starting the game itself.
-	//root -chroot foo -- requires root,changes the filesystem and 
+	//root -chroot foo -- requires root, changes the filesystem and leaves the process with far far too many rights
 
 	uid_t ruid, euid, suid;
 	int arg = COM_CheckParm("-chroot");
@@ -735,18 +741,18 @@ static int Sys_CheckChRoot(void)
 		//this means we can't allow
 		//FIXME other games. should use the list in fs.c
 		if (COM_CheckParm("-quake"))
-			newroot = "/usr/share/quake";
+			newroot = "/usr/share/games/quake";
 		else if (COM_CheckParm("-quake2"))
-			newroot = "/usr/share/quake2";
+			newroot = "/usr/share/games/quake2";
 		else if (COM_CheckParm("-quake3"))
-			newroot = "/usr/share/quake3";
+			newroot = "/usr/share/games/quake3";
 		else if (COM_CheckParm("-hexen2") || COM_CheckParm("-portals"))
-			newroot = "/usr/share/hexen2";
+			newroot = "/usr/share/games/hexen2";
 		else
 #ifdef GAME_SHORTNAME
-			newroot = "/usr/share/" GAME_SHORTNAME;
+			newroot = "/usr/share/games/" GAME_SHORTNAME;
 #else
-			newroot = "/usr/share/quake";
+			newroot = "/usr/share/games/quake";
 #endif
 
 		//just read the environment name
@@ -765,11 +771,19 @@ static int Sys_CheckChRoot(void)
 		//make sure there's no suid programs in the new root dir that might get confused by /etc/ being something else.
 		//this binary MUST NOT be inside the new root.
 
+		//make sure we don't crash on any con_printfs.
+#ifdef MULTITHREAD
+		Sys_ThreadsInit();
+#endif
+
 		//FIXME: should we temporarily try swapping uid+euid so we don't have any more access than a non-suid binary for this initial init stuff?
 		struct addrinfo *info;
-		if (getaddrinfo("localhost", NULL, NULL, &info) == 0)	//make sure we've loaded /etc/resolv.conf etc, otherwise any dns requests are going to fail.
+		if (getaddrinfo("master.quakeservers.net", NULL, NULL, &info) == 0)	//make sure we've loaded /etc/resolv.conf etc, otherwise any dns requests are going to fail, which would mean no masters.
 			freeaddrinfo(info);
 
+#ifdef SQL
+		SQL_Available();
+#endif
 #ifdef HAVE_GNUTLS
 		SSL_InitGlobal(false);	//we need to load the known CA certs while we still can, as well as any shared objects
 		//SSL_InitGlobal(true);	//make sure we load our public cert from outside the sandbox. an exploit might still be able to find it in memory though. FIXME: disabled in case this reads from somewhere bad - we're still root.
@@ -863,6 +877,12 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_MANIFEST_TEXT
 	parms.manifest = CONFIG_MANIFEST_TEXT;
 #endif
+
+	//decide if we should be printing colours to the stdout or not.
+	if (!COM_CheckParm("-nocolour")||!COM_CheckParm("-nocolor"))
+		useansicolours = false;
+	else
+		useansicolours = (isatty(STDOUT_FILENO) || !COM_CheckParm("-colour")||!COM_CheckParm("-color"));
 
 	switch(Sys_CheckChRoot())
 	{

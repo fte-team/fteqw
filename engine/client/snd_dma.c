@@ -2829,16 +2829,18 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	target_chan->entchannel = entchannel;
 	SND_Spatialize(sc, target_chan);
 
-	if (!updateonly && !target_chan->vol[0] && !target_chan->vol[1] && !target_chan->vol[2] && !target_chan->vol[3] && !target_chan->vol[4] && !target_chan->vol[5] && sc->ChannelUpdate)
-	{
-		target_chan->sfx = NULL;
-		return;		// not audible at all
-	}
-
 	if (!S_LoadSound (sfx))
 	{
 		target_chan->sfx = NULL;
 		return;		// couldn't load the sound's data
+	}
+
+	//FIXME: why does this only filter for openal devices? its weird.
+	if (!updateonly && !target_chan->vol[0] && !target_chan->vol[1] && !target_chan->vol[2] && !target_chan->vol[3] && !target_chan->vol[4] && !target_chan->vol[5] && sc->ChannelUpdate)
+	if (sfx->loopstart == -1 && !(flags&CF_FORCELOOP))	//only skip if its not looping.
+	{
+		target_chan->sfx = NULL;
+		return;		// not audible at all
 	}
 
 	target_chan->sfx = sfx;

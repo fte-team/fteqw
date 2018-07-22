@@ -292,6 +292,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	G_FLOAT(OFS_RETURN) = slotnum;
 }
 
+#ifndef NOLEGACY
 void CL_LoadFont_f(void)
 {
 	//console command for compat with dp/debug.
@@ -405,6 +406,7 @@ void CL_LoadFont_f(void)
 			Cvar_Set(&gl_font, facename);
 	}
 }
+#endif
 
 //scrolling could be done with scissoring.
 //selection could be done with some substrings
@@ -585,7 +587,7 @@ void QCBUILTIN PF_CL_drawrotpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	R2D_Image2dQuad(points, tcoords, p);
+	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, p);
 	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
@@ -657,7 +659,7 @@ void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	R2D_Image2dQuad(points, tcoords, p);
+	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, p);
 	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
@@ -2148,6 +2150,7 @@ static struct {
 	{"strtrim",					PF_strtrim,					0},
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
+	{"sendpacket",				PF_cl_SendPacket,			242},
 															//gap
 	{"hash_createtab",			PF_hash_createtab,			287},
 	{"hash_destroytab",			PF_hash_destroytab,			288},
@@ -2765,7 +2768,9 @@ void MP_RegisterCvarsAndCmds(void)
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
+#ifndef NOLEGACY
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);
+#endif
 
 	Cmd_AddCommand("poke_menuqc", MP_Poke_f);
 

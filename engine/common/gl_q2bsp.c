@@ -2555,6 +2555,28 @@ static qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
+texid_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
+{
+	int i;
+	menvmap_t 	*e;
+	float bestdist = FLT_MAX, dist;
+	texid_t *ret = NULL;
+	vec3_t move;
+	if (!wmodel || wmodel->loadstate != MLS_LOADED)
+		return NULL;
+	for ( i=0 , e=wmodel->envmaps ; i<wmodel->numenvmaps ; i++, e++)
+	{
+		VectorSubtract(org, e->origin, move);
+		dist = DotProduct(move,move);
+		if (bestdist > dist)
+		{
+			bestdist = dist;
+			ret = e->image;
+		}
+	}
+	return ret;
+}
+
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org)
 {
 	int i, j;

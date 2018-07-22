@@ -66,6 +66,7 @@ struct galiasbone_s
 {
 	char name[32];
 	int parent;
+//	float radius;
 	float inverse[12];
 };
 

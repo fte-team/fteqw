@@ -1,6 +1,6 @@
 !!permu FOG
 !!cvarf r_wateralpha
-!!samps diffuse
+!!samps diffuse lightmap
 
 #include "sys/defs.h"
 
@@ -9,12 +9,18 @@
 
 #include "sys/fog.h"
 varying vec2 tc;
+#ifdef LIT
+varying vec2 lm0;
+#endif
 #ifdef VERTEX_SHADER
 void main ()
 {
 	tc = v_texcoord.st;
 	#ifdef FLOW
 	tc.s += e_time * -0.5;
+	#endif
+	#ifdef LIT
+	lm0 = v_lmcoord;
 	#endif
 	gl_Position = ftetransform();
 }
@@ -32,6 +38,11 @@ void main ()
 	ntc.s = tc.s + sin(tc.t+e_time)*0.125;
 	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
 	vec3 ts = vec3(texture2D(s_diffuse, ntc));
+
+#ifdef LIT
+	ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
+#endif
+
 	gl_FragColor = fog4(vec4(ts, USEALPHA));
 }
 #endif

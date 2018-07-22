@@ -257,6 +257,7 @@ enum {
 #define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
 #define PEXT2_PREDINFO				0x00000020	//movevar stats, NQ input sequences+acks.
 #define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding.
+#define PEXT2_INFOBLOBS				0x00000080	//serverinfo+userinfo lengths can be MUCH higher (protocol is unbounded, but expect low sanity limits on userinfo), and contain nulls etc.
 //#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
 

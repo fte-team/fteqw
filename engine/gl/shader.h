@@ -455,6 +455,7 @@ typedef struct {
 		SP_LIGHTCOLOUR,
 		SP_LIGHTCOLOURSCALE,
 		SP_LIGHTPOSITION,
+		SP_LIGHTDIRECTION,
 		SP_LIGHTSCREEN,
 		SP_LIGHTCUBEMATRIX,
 		SP_LIGHTSHADOWMAPPROJ,
@@ -490,10 +491,10 @@ typedef struct programshared_s
 #ifdef VKQUAKE
 	unsigned char *cvardata;
 	unsigned int cvardatasize;
-	VkRetardedShaderModule vert;		//for slightly faster regeneration
-	VkRetardedShaderModule frag;
-	VkRetardedPipelineLayout layout;	//all permutations share the same layout. I'm too lazy not to.
-	VkRetardedDescriptorSetLayout desclayout;
+	qVkShaderModule vert;		//for slightly faster regeneration
+	qVkShaderModule frag;
+	qVkPipelineLayout layout;	//all permutations share the same layout. I'm too lazy not to.
+	qVkDescriptorSetLayout desclayout;
 	struct pipeline_s *pipelines;
 #endif
 #if defined(GLQUAKE) || defined(D3DQUAKE)

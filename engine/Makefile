@@ -832,6 +832,7 @@ endif
 ifeq (1,$(USE_OPUS))
 	LIBOPUS_STATIC=-DOPUS_STATIC
 	LIBOPUS_LDFLAGS=-lopus
+	ALL_CFLAGS+=-I/usr/include/opus
 endif
 ifeq (1,$(USE_SPEEX))
 	LIBSPEEX_STATIC=-DSPEEX_STATIC

@@ -305,7 +305,7 @@ typedef struct
 #define LFLAG_NOSHADOWS		(1<<8)
 #define LFLAG_SHADOWMAP		(1<<9)
 #define LFLAG_CREPUSCULAR	(1<<10)	//weird type of sun light that gives god rays
-//#define LFLAG_ORTHO			(1<<11)	//sun-style -light
+#define LFLAG_ORTHO			(1<<11)	//sun-style -light
 
 #define LFLAG_INTERNAL		(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND)	//these are internal to FTE, and never written to disk (ie: .rtlights files shouldn't contain these)
 #define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)

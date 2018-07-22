@@ -341,6 +341,7 @@ void Media_WriteCurrentTrack(sizebuf_t *buf)
 qboolean Media_NamedTrack(const char *track, const char *looptrack)
 {
 	unsigned int tracknum;
+	//FIXME: for q2, gog uses ../music/Track%02i.ogg, with various remapping requirements for the mission packs.
 	static char *path[] =
 	{
 		"music/",

@@ -1115,6 +1115,39 @@ void skel_lookup(world_t *world, int skelidx, framestate_t *out)
 	}
 }
 
+
+void skel_updateentbounds(world_t *w, wedict_t *ent)
+{/*
+	float radius[MAX_BONES];
+	float maxr = 0;
+	size_t i, numbones;
+	skelobject_t *skel = skel_get(w, ent->xv->skeletonindex);
+	galiasbone_t *bones;
+	if (!skel)
+		return;
+	bones = Mod_GetBoneInfo(skel->model, &numbones);
+	if (!skel || numbones != skel->numbones)
+		return;
+	if (skel->type == SKEL_RELATIVE)
+	{
+		for (i = 0; i < skel->numbones; i++)
+		{
+			radius[i] = skel->bonematrix[i*12+3]*skel->bonematrix[i*12+3]+skel->bonematrix[i*12+7]*skel->bonematrix[i*12+7]+skel->bonematrix[i*12+11]*skel->bonematrix[i*12+11];
+			if (bones[i].parent >= 0)
+				radius[i] += radius[bones[i].parent];
+			if (maxr < radius[i] + bones[i].radius)
+				maxr = radius[i] + bones[i].radius;
+		}
+		for (i = 0; i < 3; i++)
+		{
+			if (ent->v->absmin[i] > env->v->origin-maxr)
+				ent->v->absmin[i] = env->v->origin-maxr;
+			if (ent->v->absmax[i] < env->v->origin+maxr)
+				ent->v->absmax[i] = env->v->origin+maxr;
+		}
+	}*/
+}
+
 void QCBUILTIN PF_skel_mmap(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *world = prinst->parms->user;

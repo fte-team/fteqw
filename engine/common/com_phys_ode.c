@@ -1371,53 +1371,53 @@ static void QDECL World_ODE_End(world_t *world)
 
 static void QDECL World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed)
 {
-	ed->ode.ode_joint_type = 0;
-	if(ed->ode.ode_joint)
-		dJointDestroy((dJointID)ed->ode.ode_joint);
-	ed->ode.ode_joint = NULL;
+	ed->rbe.joint_type = 0;
+	if(ed->rbe.joint.joint)
+		dJointDestroy((dJointID)ed->rbe.joint.joint);
+	ed->rbe.joint.joint = NULL;
 }
 
 static void QDECL World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed)
 {
-	if (!ed->ode.ode_physics)
+	if (!ed->rbe.physics)
 		return;
 
 	// entity is not physics controlled, free any physics data
-	ed->ode.ode_physics = false;
-	if (ed->ode.ode_geom)
-		dGeomDestroy((dGeomID)ed->ode.ode_geom);
-	ed->ode.ode_geom = NULL;
-	if (ed->ode.ode_body)
+	ed->rbe.physics = false;
+	if (ed->rbe.body.geom)
+		dGeomDestroy((dGeomID)ed->rbe.body.geom);
+	ed->rbe.body.geom = NULL;
+	if (ed->rbe.body.body)
 	{
 		dJointID j;
 		dBodyID b1, b2;
 		wedict_t *ed2;
-		while(dBodyGetNumJoints((dBodyID)ed->ode.ode_body))
+		while(dBodyGetNumJoints((dBodyID)ed->rbe.body.body))
 		{
-			j = dBodyGetJoint((dBodyID)ed->ode.ode_body, 0);
+			j = dBodyGetJoint((dBodyID)ed->rbe.body.body, 0);
 			ed2 = (wedict_t *) dJointGetData(j);
 			b1 = dJointGetBody(j, 0);
 			b2 = dJointGetBody(j, 1);
-			if(b1 == (dBodyID)ed->ode.ode_body)
+			if(b1 == (dBodyID)ed->rbe.body.body)
 			{
 				b1 = 0;
-				ed2->ode.ode_joint_enemy = 0;
+				ed2->rbe.joint_enemy = 0;
 			}
-			if(b2 == (dBodyID)ed->ode.ode_body)
+			if(b2 == (dBodyID)ed->rbe.body.body)
 			{
 				b2 = 0;
-				ed2->ode.ode_joint_aiment = 0;
+				ed2->rbe.joint_aiment = 0;
 			}
 			dJointAttach(j, b1, b2);
 		}
-		dBodyDestroy((dBodyID)ed->ode.ode_body);
+		dBodyDestroy((dBodyID)ed->rbe.body.body);
 	}
-	ed->ode.ode_body = NULL;
+	ed->rbe.body.body = NULL;
 
 	rbefuncs->ReleaseCollisionMesh(ed);
-	if(ed->ode.ode_massbuf)
-		BZ_Free(ed->ode.ode_massbuf);
-	ed->ode.ode_massbuf = NULL;
+	if(ed->rbe.massbuf)
+		BZ_Free(ed->rbe.massbuf);
+	ed->rbe.massbuf = NULL;
 }
 
 static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
@@ -1427,7 +1427,7 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	const dReal *o;
 	const dReal *r; // for some reason dBodyGetRotation returns a [3][4] matrix
 	const dReal *vel;
-	dBodyID body = (dBodyID)ed->ode.ode_body;
+	dBodyID body = (dBodyID)ed->rbe.body.body;
 	int movetype;
 	float bodymatrix[16];
 	float entitymatrix[16];
@@ -1479,7 +1479,7 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	VectorCopy(vel, velocity);
 	VectorCopy(avel, spinvelocity);
 	Matrix4x4_RM_FromVectors(bodymatrix, forward, left, up, origin);
-	Matrix4_Multiply(ed->ode.ode_offsetimatrix, bodymatrix, entitymatrix);
+	Matrix4_Multiply(ed->rbe.offsetimatrix, bodymatrix, entitymatrix);
 	Matrix3x4_RM_ToVectors(entitymatrix, forward, left, up, origin);
 
 	VectorAngles(forward, up, angles, false);
@@ -1507,11 +1507,11 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	VectorCopy(avelocity, ed->v->avelocity);
 
 	// values for BodyFromEntity to check if the qc modified anything later
-	VectorCopy(origin, ed->ode.ode_origin);
-	VectorCopy(velocity, ed->ode.ode_velocity);
-	VectorCopy(angles, ed->ode.ode_angles);
-	VectorCopy(avelocity, ed->ode.ode_avelocity);
-	ed->ode.ode_gravity = dBodyGetGravityMode(body);
+	VectorCopy(origin, ed->rbe.origin);
+	VectorCopy(velocity, ed->rbe.velocity);
+	VectorCopy(angles, ed->rbe.angles);
+	VectorCopy(avelocity, ed->rbe.avelocity);
+	ed->rbe.gravity = dBodyGetGravityMode(body);
 
 	rbefuncs->LinkEdict(world, ed, true);
 }
@@ -1544,10 +1544,10 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		jointtype = 0; // can't have both
 
 	o = (wedict_t*)PROG_TO_EDICT(world->progs, enemy);
-	if(ED_ISFREE(o) || o->ode.ode_body == 0)
+	if(ED_ISFREE(o) || o->rbe.body.body == 0)
 		enemy = 0;
 	o = (wedict_t*)PROG_TO_EDICT(world->progs, aiment);
-	if(ED_ISFREE(o) || o->ode.ode_body == 0)
+	if(ED_ISFREE(o) || o->rbe.body.body == 0)
 		aiment = 0;
 	// see http://www.ode.org/old_list_archives/2006-January/017614.html
 	// we want to set ERP? make it fps independent and work like a spring constant
@@ -1579,7 +1579,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		FMax = 0;
 		Stop = dInfinity;
 	}
-	if(jointtype == ed->ode.ode_joint_type && VectorCompare(origin, ed->ode.ode_joint_origin) && VectorCompare(velocity, ed->ode.ode_joint_velocity) && VectorCompare(angles, ed->ode.ode_joint_angles) && enemy == ed->ode.ode_joint_enemy && aiment == ed->ode.ode_joint_aiment && VectorCompare(movedir, ed->ode.ode_joint_movedir))
+	if(jointtype == ed->rbe.joint_type && VectorCompare(origin, ed->rbe.joint_origin) && VectorCompare(velocity, ed->rbe.joint_velocity) && VectorCompare(angles, ed->rbe.joint_angles) && enemy == ed->rbe.joint_enemy && aiment == ed->rbe.joint_aiment && VectorCompare(movedir, ed->rbe.joint_movedir))
 		return; // nothing to do
 	AngleVectorsFLU(angles, forward, left, up);
 	switch(jointtype)
@@ -1608,28 +1608,28 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 			j = 0;
 			break;
 	}
-	if(ed->ode.ode_joint)
+	if(ed->rbe.joint.joint)
 	{
 		//Con_Printf("deleted old joint %i\n", (int) (ed - prog->edicts));
-		dJointAttach(ed->ode.ode_joint, 0, 0);
-		dJointDestroy(ed->ode.ode_joint);
+		dJointAttach(ed->rbe.joint.joint, 0, 0);
+		dJointDestroy(ed->rbe.joint.joint);
 	}
-	ed->ode.ode_joint = (void *) j;
-	ed->ode.ode_joint_type = jointtype;
-	ed->ode.ode_joint_enemy = enemy;
-	ed->ode.ode_joint_aiment = aiment;
-	VectorCopy(origin, ed->ode.ode_joint_origin);
-	VectorCopy(velocity, ed->ode.ode_joint_velocity);
-	VectorCopy(angles, ed->ode.ode_joint_angles);
-	VectorCopy(movedir, ed->ode.ode_joint_movedir);
+	ed->rbe.joint.joint = (void *) j;
+	ed->rbe.joint_type = jointtype;
+	ed->rbe.joint_enemy = enemy;
+	ed->rbe.joint_aiment = aiment;
+	VectorCopy(origin, ed->rbe.joint_origin);
+	VectorCopy(velocity, ed->rbe.joint_velocity);
+	VectorCopy(angles, ed->rbe.joint_angles);
+	VectorCopy(movedir, ed->rbe.joint_movedir);
 	if(j)
 	{
 		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
 		dJointSetData(j, (void *) ed);
 		if(enemy)
-			b1 = (dBodyID)((WEDICT_NUM_UB(world->progs, enemy))->ode.ode_body);
+			b1 = (dBodyID)((WEDICT_NUM_UB(world->progs, enemy))->rbe.body.body);
 		if(aiment)
-			b2 = (dBodyID)((WEDICT_NUM_UB(world->progs, aiment))->ode.ode_body);
+			b2 = (dBodyID)((WEDICT_NUM_UB(world->progs, aiment))->rbe.body.body);
 		dJointAttach(j, b1, b2);
 
 		switch(jointtype)
@@ -1995,7 +1995,7 @@ static void QDECL World_ODE_RagDestroyJoint(world_t *world, rbejoint_t *joint)
 static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
 	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
-	dBodyID body = (dBodyID)ed->ode.ode_body;
+	dBodyID body = (dBodyID)ed->rbe.body.body;
 	dMass mass;
 	float test;
 	void *dataID;
@@ -2090,7 +2090,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		break;
 	default:
 //	case GEOMTYPE_NONE:
-		if (ed->ode.ode_physics)
+		if (ed->rbe.physics)
 			World_ODE_RemoveFromEntity(world, ed);
 		return;
 	}
@@ -2099,7 +2099,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	if (DotProduct(geomsize,geomsize) == 0)
 	{
 		// we don't allow point-size physics objects...
-		if (ed->ode.ode_physics)
+		if (ed->rbe.physics)
 			World_ODE_RemoveFromEntity(world, ed);
 		return;
 	}
@@ -2108,21 +2108,21 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		massval = 1.0f;
 
 	// check if we need to create or replace the geom
-	if (!ed->ode.ode_physics
-	 || !VectorCompare(ed->ode.ode_mins, entmins)
-	 || !VectorCompare(ed->ode.ode_maxs, entmaxs)
-	 || ed->ode.ode_mass != massval
-	 || ed->ode.ode_modelindex != modelindex)
+	if (!ed->rbe.physics
+	 || !VectorCompare(ed->rbe.mins, entmins)
+	 || !VectorCompare(ed->rbe.maxs, entmaxs)
+	 || ed->rbe.mass != massval
+	 || ed->rbe.modelindex != modelindex)
 	{
 		modified = true;
 		World_ODE_RemoveFromEntity(world, ed);
-		ed->ode.ode_physics = true;
-		VectorCopy(entmins, ed->ode.ode_mins);
-		VectorCopy(entmaxs, ed->ode.ode_maxs);
-		ed->ode.ode_mass = massval;
-		ed->ode.ode_modelindex = modelindex;
+		ed->rbe.physics = true;
+		VectorCopy(entmins, ed->rbe.mins);
+		VectorCopy(entmaxs, ed->rbe.maxs);
+		ed->rbe.mass = massval;
+		ed->rbe.modelindex = modelindex;
 		VectorAvg(entmins, entmaxs, geomcenter);
-		ed->ode.ode_movelimit = min(geomsize[0], min(geomsize[1], geomsize[2]));
+		ed->rbe.movelimit = min(geomsize[0], min(geomsize[1], geomsize[2]));
 
 		if (massval * geomsize[0] * geomsize[1] * geomsize[2] == 0)
 		{
@@ -2135,37 +2135,37 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		switch(geomtype)
 		{
 		case GEOMTYPE_TRIMESH:
-			Matrix4x4_Identity(ed->ode.ode_offsetmatrix);
-			ed->ode.ode_geom = NULL;
+			Matrix4x4_Identity(ed->rbe.offsetmatrix);
+			ed->rbe.body.geom = NULL;
 			if (!model)
 			{
 				Con_Printf("entity %i (classname %s) has no model\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
-				if (ed->ode.ode_physics)
+				if (ed->rbe.physics)
 					World_ODE_RemoveFromEntity(world, ed);
 				return;
 			}
 			if (!rbefuncs->GenerateCollisionMesh(world, model, ed, geomcenter))
 			{
-				if (ed->ode.ode_physics)
+				if (ed->rbe.physics)
 					World_ODE_RemoveFromEntity(world, ed);
 				return;
 			}
 
-			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4x4_RM_CreateTranslate(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			// now create the geom
 			dataID = dGeomTriMeshDataCreate();
-			dGeomTriMeshDataBuildSingle(dataID, (void*)ed->ode.ode_vertex3f, sizeof(float[3]), ed->ode.ode_numvertices, ed->ode.ode_element3i, ed->ode.ode_numtriangles*3, sizeof(int[3]));
-			ed->ode.ode_geom = (void *)dCreateTriMesh(ctx->space, dataID, NULL, NULL, NULL);
+			dGeomTriMeshDataBuildSingle(dataID, (void*)ed->rbe.vertex3f, sizeof(float[3]), ed->rbe.numvertices, ed->rbe.element3i, ed->rbe.numtriangles*3, sizeof(int[3]));
+			ed->rbe.body.geom = (void *)dCreateTriMesh(ctx->space, dataID, NULL, NULL, NULL);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
 		case GEOMTYPE_BOX:
-			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
-			ed->ode.ode_geom = (void *)dCreateBox(ctx->space, geomsize[0], geomsize[1], geomsize[2]);
+			Matrix4x4_RM_CreateTranslate(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			ed->rbe.body.geom = (void *)dCreateBox(ctx->space, geomsize[0], geomsize[1], geomsize[2]);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
 		case GEOMTYPE_SPHERE:
-			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
-			ed->ode.ode_geom = (void *)dCreateSphere(ctx->space, geomsize[0] * 0.5f);
+			Matrix4x4_RM_CreateTranslate(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			ed->rbe.body.geom = (void *)dCreateSphere(ctx->space, geomsize[0] * 0.5f);
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
 		case GEOMTYPE_CAPSULE:
@@ -2188,17 +2188,17 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// transform to it
 			if (axisindex == 0)
 			{
-				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
+				Matrix4x4_CM_ModelMatrix(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
 				radius = min(geomsize[1], geomsize[2]) * 0.5f;
 			}
 			else if (axisindex == 1)
 			{
-				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
+				Matrix4x4_CM_ModelMatrix(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
 				radius = min(geomsize[0], geomsize[2]) * 0.5f;
 			}
 			else
 			{
-				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
+				Matrix4x4_CM_ModelMatrix(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
 				radius = min(geomsize[0], geomsize[1]) * 0.5f;
 			}
 			length = geomsize[axisindex] - radius*2;
@@ -2210,7 +2210,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// because we want to support more than one axisindex, we have to
 			// create a transform, and turn on its cleanup setting (which will
 			// cause the child to be destroyed when it is destroyed)
-			ed->ode.ode_geom = (void *)dCreateCapsule(ctx->space, radius, length);
+			ed->rbe.body.geom = (void *)dCreateCapsule(ctx->space, radius, length);
 			dMassSetCapsuleTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		case GEOMTYPE_CYLINDER:
@@ -2233,17 +2233,17 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// transform to it
 			if (axisindex == 0)
 			{
-				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
+				Matrix4x4_CM_ModelMatrix(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
 				radius = min(geomsize[1], geomsize[2]) * 0.5f;
 			}
 			else if (axisindex == 1)
 			{
-				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
+				Matrix4x4_CM_ModelMatrix(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
 				radius = min(geomsize[0], geomsize[2]) * 0.5f;
 			}
 			else
 			{
-				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
+				Matrix4x4_CM_ModelMatrix(ed->rbe.offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
 				radius = min(geomsize[0], geomsize[1]) * 0.5f;
 			}
 			length = geomsize[axisindex] - radius*2;
@@ -2255,38 +2255,38 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// because we want to support more than one axisindex, we have to
 			// create a transform, and turn on its cleanup setting (which will
 			// cause the child to be destroyed when it is destroyed)
-			ed->ode.ode_geom = (void *)dCreateCylinder(ctx->space, radius, length);
+			ed->rbe.body.geom = (void *)dCreateCylinder(ctx->space, radius, length);
 			dMassSetCylinderTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
 			Sys_Errorf("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
-		Matrix3x4_InvertTo4x4_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
-		ed->ode.ode_massbuf = BZ_Malloc(sizeof(dMass));
-		memcpy(ed->ode.ode_massbuf, &mass, sizeof(dMass));
+		Matrix3x4_InvertTo4x4_Simple(ed->rbe.offsetmatrix, ed->rbe.offsetimatrix);
+		ed->rbe.massbuf = BZ_Malloc(sizeof(dMass));
+		memcpy(ed->rbe.massbuf, &mass, sizeof(dMass));
 	}
 
-	if(ed->ode.ode_geom)
-		dGeomSetData(ed->ode.ode_geom, (void*)ed);
-	if (movetype == MOVETYPE_PHYSICS && ed->ode.ode_geom)
+	if(ed->rbe.body.geom)
+		dGeomSetData(ed->rbe.body.geom, (void*)ed);
+	if (movetype == MOVETYPE_PHYSICS && ed->rbe.body.geom)
 	{
-		if (ed->ode.ode_body == NULL)
+		if (ed->rbe.body.body == NULL)
 		{
-			ed->ode.ode_body = (void *)(body = dBodyCreate(ctx->dworld));
-			dGeomSetBody(ed->ode.ode_geom, body);
+			ed->rbe.body.body = (void *)(body = dBodyCreate(ctx->dworld));
+			dGeomSetBody(ed->rbe.body.geom, body);
 			dBodySetData(body, (void*)ed);
-			dBodySetMass(body, (dMass *) ed->ode.ode_massbuf);
+			dBodySetMass(body, (dMass *) ed->rbe.massbuf);
 			modified = true;
 		}
 	}
 	else
 	{
-		if (ed->ode.ode_body != NULL)
+		if (ed->rbe.body.body != NULL)
 		{
-			if(ed->ode.ode_geom)
-				dGeomSetBody(ed->ode.ode_geom, 0);
-			dBodyDestroy((dBodyID) ed->ode.ode_body);
-			ed->ode.ode_body = NULL;
+			if(ed->rbe.body.geom)
+				dGeomSetBody(ed->rbe.body.geom, 0);
+			dBodyDestroy((dBodyID) ed->rbe.body.body);
+			ed->rbe.body.body = NULL;
 			modified = true;
 		}
 	}
@@ -2371,16 +2371,16 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	}
 
 	// check if the qc edited any position data
-	if (!VectorCompare(origin, ed->ode.ode_origin)
-	 || !VectorCompare(velocity, ed->ode.ode_velocity)
-	 || !VectorCompare(angles, ed->ode.ode_angles)
-	 || !VectorCompare(avelocity, ed->ode.ode_avelocity)
-	 || gravity != ed->ode.ode_gravity)
+	if (!VectorCompare(origin, ed->rbe.origin)
+	 || !VectorCompare(velocity, ed->rbe.velocity)
+	 || !VectorCompare(angles, ed->rbe.angles)
+	 || !VectorCompare(avelocity, ed->rbe.avelocity)
+	 || gravity != ed->rbe.gravity)
 		modified = true;
 
 	// store the qc values into the physics engine
-	body = ed->ode.ode_body;
-	if (modified && ed->ode.ode_geom)
+	body = ed->rbe.body.body;
+	if (modified && ed->rbe.body.geom)
 	{
 		dVector3 r[3];
 		float entitymatrix[16];
@@ -2388,27 +2388,27 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 
 #if 0
 		Con_Printf("entity %i got changed by QC\n", (int) (ed - prog->edicts));
-		if(!VectorCompare(origin, ed->ode.ode_origin))
-			Con_Printf("  origin: %f %f %f -> %f %f %f\n", ed->ode.ode_origin[0], ed->ode.ode_origin[1], ed->ode.ode_origin[2], origin[0], origin[1], origin[2]);
-		if(!VectorCompare(velocity, ed->ode.ode_velocity))
-			Con_Printf("  velocity: %f %f %f -> %f %f %f\n", ed->ode.ode_velocity[0], ed->ode.ode_velocity[1], ed->ode.ode_velocity[2], velocity[0], velocity[1], velocity[2]);
-		if(!VectorCompare(angles, ed->ode.ode_angles))
-			Con_Printf("  angles: %f %f %f -> %f %f %f\n", ed->ode.ode_angles[0], ed->ode.ode_angles[1], ed->ode.ode_angles[2], angles[0], angles[1], angles[2]);
-		if(!VectorCompare(avelocity, ed->ode.ode_avelocity))
-			Con_Printf("  avelocity: %f %f %f -> %f %f %f\n", ed->ode.ode_avelocity[0], ed->ode.ode_avelocity[1], ed->ode.ode_avelocity[2], avelocity[0], avelocity[1], avelocity[2]);
-		if(gravity != ed->ode.ode_gravity)
+		if(!VectorCompare(origin, ed->rbe.origin))
+			Con_Printf("  origin: %f %f %f -> %f %f %f\n", ed->rbe.origin[0], ed->rbe.origin[1], ed->rbe.origin[2], origin[0], origin[1], origin[2]);
+		if(!VectorCompare(velocity, ed->rbe.velocity))
+			Con_Printf("  velocity: %f %f %f -> %f %f %f\n", ed->rbe.velocity[0], ed->rbe.velocity[1], ed->rbe.velocity[2], velocity[0], velocity[1], velocity[2]);
+		if(!VectorCompare(angles, ed->rbe.angles))
+			Con_Printf("  angles: %f %f %f -> %f %f %f\n", ed->rbe.angles[0], ed->rbe.angles[1], ed->rbe.angles[2], angles[0], angles[1], angles[2]);
+		if(!VectorCompare(avelocity, ed->rbe.avelocity))
+			Con_Printf("  avelocity: %f %f %f -> %f %f %f\n", ed->rbe.avelocity[0], ed->rbe.avelocity[1], ed->rbe.avelocity[2], avelocity[0], avelocity[1], avelocity[2]);
+		if(gravity != ed->rbe.gravity)
 			Con_Printf("  gravity: %i -> %i\n", ed->ide.ode_gravity, gravity);
 #endif
 
 		// values for BodyFromEntity to check if the qc modified anything later
-		VectorCopy(origin, ed->ode.ode_origin);
-		VectorCopy(velocity, ed->ode.ode_velocity);
-		VectorCopy(angles, ed->ode.ode_angles);
-		VectorCopy(avelocity, ed->ode.ode_avelocity);
-		ed->ode.ode_gravity = gravity;
+		VectorCopy(origin, ed->rbe.origin);
+		VectorCopy(velocity, ed->rbe.velocity);
+		VectorCopy(angles, ed->rbe.angles);
+		VectorCopy(avelocity, ed->rbe.avelocity);
+		ed->rbe.gravity = gravity;
 
 		Matrix4x4_RM_FromVectors(entitymatrix, forward, left, up, origin);
-		Matrix4_Multiply(ed->ode.ode_offsetmatrix, entitymatrix, bodymatrix);
+		Matrix4_Multiply(ed->rbe.offsetmatrix, entitymatrix, bodymatrix);
 		Matrix3x4_RM_ToVectors(bodymatrix, forward, left, up, origin);
 		r[0][0] = forward[0];
 		r[1][0] = forward[1];
@@ -2423,7 +2423,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		{
 			if(movetype == MOVETYPE_PHYSICS)
 			{
-				dGeomSetBody(ed->ode.ode_geom, body);
+				dGeomSetBody(ed->rbe.body.geom, body);
 				dBodySetPosition(body, origin[0], origin[1], origin[2]);
 				dBodySetRotation(body, r[0]);
 				dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
@@ -2432,21 +2432,21 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			}
 			else
 			{
-				dGeomSetBody(ed->ode.ode_geom, body);
+				dGeomSetBody(ed->rbe.body.geom, body);
 				dBodySetPosition(body, origin[0], origin[1], origin[2]);
 				dBodySetRotation(body, r[0]);
 				dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
 				dBodySetAngularVel(body, spinvelocity[0], spinvelocity[1], spinvelocity[2]);
 				dBodySetGravityMode(body, gravity);
-				dGeomSetBody(ed->ode.ode_geom, 0);
+				dGeomSetBody(ed->rbe.body.geom, 0);
 			}
 		}
 		else
 		{
 			// no body... then let's adjust the parameters of the geom directly
-			dGeomSetBody(ed->ode.ode_geom, 0); // just in case we previously HAD a body (which should never happen)
-			dGeomSetPosition(ed->ode.ode_geom, origin[0], origin[1], origin[2]);
-			dGeomSetRotation(ed->ode.ode_geom, r[0]);
+			dGeomSetBody(ed->rbe.body.geom, 0); // just in case we previously HAD a body (which should never happen)
+			dGeomSetPosition(ed->rbe.body.geom, origin[0], origin[1], origin[2]);
+			dGeomSetRotation(ed->rbe.body.geom, r[0]);
 		}
 	}
 
@@ -2527,7 +2527,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 		//ragdolls don't make contact with the bbox of the doll entity
 		//the origional entity should probably not be solid anyway.
 		//these bodies should probably not collide against bboxes of other entities with ragdolls either, but meh.
-		if (ed1->ode.ode_body == b1 || ed2->ode.ode_body == b2)
+		if (ed1->rbe.body.body == b1 || ed2->rbe.body.body == b2)
 			return;
 	}
 	if(!ed1 || ED_ISFREE(ed1))
@@ -2791,25 +2791,25 @@ static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 	switch(cmd->command)
 	{
 	case RBECMD_ENABLE:
-		if (cmd->edict->ode.ode_body)
-			dBodyEnable(cmd->edict->ode.ode_body);
+		if (cmd->edict->rbe.body.body)
+			dBodyEnable(cmd->edict->rbe.body.body);
 		break;
 	case RBECMD_DISABLE:
-		if (cmd->edict->ode.ode_body)
-			dBodyDisable(cmd->edict->ode.ode_body);
+		if (cmd->edict->rbe.body.body)
+			dBodyDisable(cmd->edict->rbe.body.body);
 		break;
 	case RBECMD_FORCE:
-		if (cmd->edict->ode.ode_body)
+		if (cmd->edict->rbe.body.body)
 		{
-			dBodyEnable(cmd->edict->ode.ode_body);
-			dBodyAddForceAtPos(cmd->edict->ode.ode_body, cmd->v1[0], cmd->v1[1], cmd->v1[2], cmd->v2[0], cmd->v2[1], cmd->v2[2]);
+			dBodyEnable(cmd->edict->rbe.body.body);
+			dBodyAddForceAtPos(cmd->edict->rbe.body.body, cmd->v1[0], cmd->v1[1], cmd->v1[2], cmd->v2[0], cmd->v2[1], cmd->v2[2]);
 		}
 		break;
 	case RBECMD_TORQUE:
-		if (cmd->edict->ode.ode_body)
+		if (cmd->edict->rbe.body.body)
 		{
-			dBodyEnable(cmd->edict->ode.ode_body);
-			dBodyAddTorque(cmd->edict->ode.ode_body, cmd->v1[0], cmd->v1[1], cmd->v1[2]);
+			dBodyEnable(cmd->edict->rbe.body.body);
+			dBodyAddTorque(cmd->edict->rbe.body.body, cmd->v1[0], cmd->v1[1], cmd->v1[2]);
 		}
 		break;
 	}

@@ -85,7 +85,7 @@ typedef struct edict_s
 	int lastruntime;
 	int solidsize;
 #ifdef USERBE
-	entityode_t ode;
+	entityrbe_t rbe;
 #endif
 	/*csqc doesn't reference the rest*/
 

@@ -1082,6 +1082,8 @@ void Route_Calculate(void *ctx, void *data, size_t a, size_t b)
 	COM_AddWork(WG_MAIN, Route_Calculated, NULL, route, 0, 0);
 }
 
+//void route_linkitem(entity item, int ittype)	//-1 to unlink
+//void route_choosedest(entity ent, int numitemtypes, float *itemweights)
 /*
 =============
 PF_route_calculate
@@ -1093,6 +1095,7 @@ the first node in the nodelist is the destination.
 typedef struct {
 	vector dest;
 	int linkflags;
+	//float anglehint;
 } nodeslist_t;
 void(entity ent, vector dest, int denylinkflags, void(entity ent, vector dest, int numnodes, nodeslist_t *nodelist) callback) route_calculate = #0;
 =============

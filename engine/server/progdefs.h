@@ -448,7 +448,7 @@ typedef struct
 	qboolean isoffset:1;
 	int orientpeer;
 
-	//ode info
+	//physics engine info
 	int geomshape;
 	float relmatrix[12];
 	float inverserelmatrix[12];
@@ -503,43 +503,32 @@ typedef struct rbecommandqueue_s
 typedef struct
 {
 	// physics parameters
-	qboolean ode_physics;
-	void *ode_body;
-	void *ode_geom;
-	void *ode_joint;
-	float *ode_vertex3f;
-	int *ode_element3i;
-	int ode_numvertices;
-	int ode_numtriangles;
-	vec3_t ode_mins;
-	vec3_t ode_maxs;
-	vec_t ode_mass;
-	vec3_t ode_origin;
-	vec3_t ode_velocity;
-	vec3_t ode_angles;
-	vec3_t ode_avelocity;
-	qboolean ode_gravity;
-	int ode_modelindex;
-	vec_t ode_movelimit; // smallest component of (maxs[]-mins[])
-	float ode_offsetmatrix[16];
-	float ode_offsetimatrix[16];
-	int ode_joint_type;
-	int ode_joint_enemy;
-	int ode_joint_aiment;
-	vec3_t ode_joint_origin; // joint anchor
-	vec3_t ode_joint_angles; // joint axis
-	vec3_t ode_joint_velocity; // second joint axis
-	vec3_t ode_joint_movedir; // parameters
-	void *ode_massbuf;
-} entityode_t;
-/*
-typedef struct
-{
-	void *ode_body;
-} skelbodyode_t;
-typedef struct
-{
-	int dummy;
-} skeljointode_t;
-*/
+	qboolean physics;
+	rbebody_t body;
+	rbejoint_t joint;
+	float *vertex3f;
+	int *element3i;
+	int numvertices;
+	int numtriangles;
+	vec3_t mins;
+	vec3_t maxs;
+	vec_t mass;
+	vec3_t origin;
+	vec3_t velocity;
+	vec3_t angles;
+	vec3_t avelocity;
+	qboolean gravity;
+	int modelindex;
+	vec_t movelimit; // smallest component of (maxs[]-mins[])
+	float offsetmatrix[16];
+	float offsetimatrix[16];
+	int joint_type;
+	int joint_enemy;
+	int joint_aiment;
+	vec3_t joint_origin; // joint anchor
+	vec3_t joint_angles; // joint axis
+	vec3_t joint_velocity; // second joint axis
+	vec3_t joint_movedir; // parameters
+	void *massbuf;
+} entityrbe_t;
 #endif

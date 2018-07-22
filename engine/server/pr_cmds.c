@@ -9882,7 +9882,13 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 	const char *contents = PF_VarString(prinst, 1, pr_globals);
 
 	if (NET_StringToAdr(address, 0, &to))
-		NET_SendPacket(NS_SERVER, strlen(contents), contents, &to);
+	{
+		char *send = Z_Malloc(4+strlen(contents));
+		send[0] = send[1] = send[2] = send[3] = 0xff;
+		memcpy(send+4, contents, strlen(contents));
+		G_FLOAT(OFS_RETURN) = NET_SendPacket(NS_SERVER, 4+strlen(contents), send, &to);
+		Z_Free(send);
+	}
 }
 
 //be careful to not touch the resource unless we're meant to, to avoid stalling
@@ -10475,7 +10481,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240,	"float(vector viewpos, entity entity)"},
 	{"matchclientname",	PF_matchclient,		0,		0,		0,		241,	"entity(string match, optional float matchnum)"},
-	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242,	"void(string destaddress, string content)"},// (FTE_QC_SENDPACKET)
+	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242,	D("void(string destaddress, string content)", "Sends a UDP packet to the specified destination. Note that the payload will be prefixed with four 255 bytes as a sort of security feature.")},// (FTE_QC_SENDPACKET)
 
 //	{"bulleten",		PF_bulleten,		0,		0,		0,		243}, (removed builtin)
 
@@ -11976,11 +11982,13 @@ void PR_DumpPlatform_f(void)
 		{"MULTICAST_ALL",		"const float", QW|NQ, D("The multicast message is unreliably sent to all players. MULTICAST_ constants are valid arguments for the multicast builtin, which ignores the specified origin when given this constant."), MULTICAST_ALL},
 		{"MULTICAST_PHS",		"const float", QW|NQ, D("The multicast message is unreliably sent to only players that can potentially hear the specified origin. Its quite loose."), MULTICAST_PHS},
 		{"MULTICAST_PVS",		"const float", QW|NQ, D("The multicast message is unreliably sent to only players that can potentially see the specified origin."), MULTICAST_PVS},
-		{"MULTICAST_ONE",		"const float", QW|NQ, D("The multicast message is unreliably sent to the player specified in the msg_entity global. The specified origin is ignored."), MULTICAST_ONE},
+		{"MULTICAST_ONE",		"const float", QW|NQ, D("The multicast message is unreliably sent to the player (AND ALL TRACKING SPECTATORS) specified in the msg_entity global. The specified origin is ignored."), MULTICAST_ONE_SPECS},
+		{"MULTICAST_ONE_NOSPECS","const float", QW|NQ, D("The multicast message is unreliably sent to the player specified in the msg_entity global. The specified origin is ignored."), MULTICAST_ONE_NOSPECS},
 		{"MULTICAST_ALL_R",		"const float", QW|NQ, D("The multicast message is reliably sent to all players. The specified origin is ignored."), MULTICAST_ALL_R},
 		{"MULTICAST_PHS_R",		"const float", QW|NQ, D("The multicast message is reliably sent to only players that can potentially hear the specified origin. Players might still not receive it if they are out of range."), MULTICAST_PHS_R},
 		{"MULTICAST_PVS_R",		"const float", QW|NQ, D("The multicast message is reliably sent to only players that can potentially see the specified origin. Players might still not receive it if they cannot see the event."), MULTICAST_PVS_R},
-		{"MULTICAST_ONE_R",		"const float", QW|NQ, D("The multicast message is reliably sent to the player specified in the msg_entity global. The specified origin is ignored"), MULTICAST_ONE_R},
+		{"MULTICAST_ONE_R",		"const float", QW|NQ, D("The multicast message is reliably sent to the player (AND ALL TRACKING SPECTATORS) specified in the msg_entity global. The specified origin is ignored"), MULTICAST_ONE_R_SPECS},
+		{"MULTICAST_ONE_R_NOSPECS","const float", QW|NQ, D("The multicast message is reliably sent to the player specified in the msg_entity global. The specified origin is ignored"), MULTICAST_ONE_R_NOSPECS},
 
 		{"PRINT_LOW",			"const float", QW, NULL, PRINT_LOW},
 		{"PRINT_MEDIUM",		"const float", QW, NULL, PRINT_MEDIUM},
@@ -12091,7 +12099,7 @@ void PR_DumpPlatform_f(void)
 		{"EF_FLAG1",			"const float", QW      , NULL, QWEF_FLAG1},
 		{"EF_FLAG2",			"const float", QW      , NULL, QWEF_FLAG2},
 		{"EF_NODRAW",			"const float",    NQ|CS, NULL, NQEF_NODRAW},
-		{"EF_ADDITIVE",			"const float",    NQ|CS, D("The entity will be drawn with an additive blend."), NQEF_ADDITIVE},
+		{"EF_ADDITIVE",			"const float", QW|NQ|CS, D("The entity will be drawn with an additive blend. This is NOT supported on players in any quakeworld engine."), NQEF_ADDITIVE},
 		{"EF_BLUE",				"const float", QW|NQ|CS, D("A blue glow"), EF_BLUE},
 		{"EF_RED",				"const float", QW|NQ|CS, D("A red glow"), EF_RED},
 		{"EF_GREEN",			"const float", QW|NQ|CS, D("A green glow"), EF_GREEN},

@@ -2045,6 +2045,7 @@ struct shader_field_names_s shader_unif_names[] =
 /**/{"l_lightradius",			SP_LIGHTRADIUS},	//radius of the current rtlight
 /**/{"l_lightcolour",			SP_LIGHTCOLOUR},	//rgb values of the current rtlight
 /**/{"l_lightposition",			SP_LIGHTPOSITION},	//light position in modelspace
+	{"l_lightdirection",		SP_LIGHTDIRECTION},	//light direction in modelspace (ortho lights only, instead of position)
 /**/{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},//ambient/diffuse/specular scalers
 /**/{"l_cubematrix",			SP_LIGHTCUBEMATRIX},//matrix used to control the rtlight's cubemap projection
 /**/{"l_shadowmapproj",			SP_LIGHTSHADOWMAPPROJ},	//compacted projection matrix for shadowmaps
@@ -2179,167 +2180,6 @@ static void Shader_HLSL9ProgramName (shader_t *shader, shaderpass_t *pass, char 
 static void Shader_HLSL11ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D11);
-}
-
-static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **ptr )
-{
-#if 1
-	Con_DPrintf("shader %s: 'param' no longer supported\n", shader->name);
-#elif defined(GLQUAKE)
-	cvar_t *cv = NULL;
-	enum shaderprogparmtype_e parmtype = SP_BAD;
-	char *token;
-	qboolean silent = false;
-	char *forcename = NULL;
-
-	token = Shader_ParseString(ptr);
-	if (!Q_stricmp(token, "opt"))
-	{
-		silent = true;
-		token = Shader_ParseString(ptr);
-	}
-	if (!Q_stricmp(token, "texture"))
-	{
-		token = Shader_ParseString(ptr);
-		specialint = atoi(token);
-		parmtype = SP_TEXTURE;
-	}
-	else if (!Q_stricmp(token, "consti"))
-	{
-		token = Shader_ParseSensString(ptr);
-		specialint = atoi(token);
-		parmtype = SP_CONSTI;
-	}
-	else if (!Q_stricmp(token, "constf"))
-	{
-		token = Shader_ParseSensString(ptr);
-		specialfloat = atof(token);
-		parmtype = SP_CONSTF;
-	}
-	else if (!Q_stricmp(token, "cvari"))
-	{
-		token = Shader_ParseSensString(ptr);
-		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
-		if (!cv)
-			return;
-		parmtype = SP_CVARI;
-	}
-	else if (!Q_stricmp(token, "cvarf"))
-	{
-		token = Shader_ParseSensString(ptr);
-		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
-		if (!cv)
-			return;
-		parmtype = SP_CVARF;
-	}
-	else if (!Q_stricmp(token, "cvar3f"))
-	{
-		token = Shader_ParseSensString(ptr);
-		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
-		if (!cv)
-			return;
-		parmtype = SP_CVAR3F;
-	}
-	else if (!Q_stricmp(token, "time"))
-		parmtype = SP_E_TIME;
-	else if (!Q_stricmp(token, "eyepos"))
-		parmtype = SP_E_EYEPOS;
-	else if (!Q_stricmp(token, "entmatrix"))
-		parmtype = SP_M_MODEL;
-	else if (!Q_stricmp(token, "colours") || !Q_stricmp(token, "colors"))
-		parmtype = SP_E_COLOURS;
-	else if (!Q_stricmp(token, "upper"))
-		parmtype = SP_E_TOPCOLOURS;
-	else if (!Q_stricmp(token, "lower"))
-		parmtype = SP_E_BOTTOMCOLOURS;
-	else if (!Q_stricmp(token, "lightradius"))
-		parmtype = SP_LIGHTRADIUS;
-	else if (!Q_stricmp(token, "lightcolour"))
-		parmtype = SP_LIGHTCOLOUR;
-	else if (!Q_stricmp(token, "lightpos"))
-		parmtype = SP_LIGHTPOSITION;
-	else if (!Q_stricmp(token, "rendertexturescale"))
-		parmtype = SP_RENDERTEXTURESCALE;
-	else
-		Con_Printf("shader %s: parameter type \"%s\" not known\n", shader->name, token);
-
-	if (forcename)
-		token = forcename;
-	else
-		token = Shader_ParseSensString(ptr);
-
-	if (qrenderer == QR_OPENGL)
-	{
-		int specialint = 0;
-		float specialfloat = 0;
-		vec3_t specialvec = {0};
-
-		int p;
-		qboolean foundone;
-		unsigned int uniformloc;
-		program_t *prog = shader->prog;
-		if (!prog)
-		{
-			Con_Printf("shader %s: param without program set\n", shader->name);
-		}
-		else if (prog->numparams == SHADER_PROGPARMS_MAX)
-			Con_Printf("shader %s: too many parms\n", shader->name);
-		else
-		{
-			if (prog->refs != 1)
-				Con_Printf("shader %s: parms on shared shader\n", shader->name);
-
-			foundone = false;
-			prog->parm[prog->numparams].type = parmtype;
-			for (p = 0; p < PERMUTATIONS; p++)
-			{
-				if (!prog->permu[p].handle.glsl.handle)
-					continue;
-				GLSlang_UseProgram(prog->permu[p].handle.glsl.handle);
-
-				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, token);
-				prog->permu[p].parm[prog->numparams] = uniformloc;
-
-				if (uniformloc != -1)
-				{
-					foundone = true;
-					switch(parmtype)
-					{
-					case SP_BAD:
-						foundone = false;
-						break;
-					case SP_TEXTURE:
-					case SP_CONSTI:
-						prog->parm[prog->numparams].ival = specialint;
-						break;
-					case SP_CONSTF:
-						prog->parm[prog->numparams].fval = specialfloat;
-						break;
-					case SP_CVARF:
-					case SP_CVARI:
-						prog->parm[prog->numparams].pval = cv;
-						break;
-					case SP_CVAR3F:
-						prog->parm[prog->numparams].pval = cv;
-						qglUniform3fvARB(uniformloc, 1, specialvec);
-						break;
-					default:
-						break;
-					}
-				}
-			}
-			if (!foundone)
-			{
-				if (!silent)
-					Con_Printf("shader %s: param \"%s\" not found\n", shader->name, token);
-			}
-			else
-				prog->numparams++;
-
-			GLSlang_UseProgram(0);
-		}
-	}
-#endif
 }
 
 static void Shader_ReflectCube(shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2662,7 +2502,6 @@ static shaderkey_t shaderkeys[] =
 	{"glslprogram",			Shader_GLSLProgramName,		"fte"},	//for renderers that accept embedded glsl
 	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d with embedded hlsl
 	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d with embedded hlsl
-	{"param",				Shader_ProgramParam,		"fte"},	//legacy
 	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
 	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
 

@@ -7179,7 +7179,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "defaultwarp",
 "!!permu FOG\n"
 "!!cvarf r_wateralpha\n"
-"!!samps diffuse\n"
+"!!samps diffuse lightmap\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -7188,12 +7188,18 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#include \"sys/fog.h\"\n"
 "varying vec2 tc;\n"
+"#ifdef LIT\n"
+"varying vec2 lm0;\n"
+"#endif\n"
 "#ifdef VERTEX_SHADER\n"
 "void main ()\n"
 "{\n"
 "tc = v_texcoord.st;\n"
 "#ifdef FLOW\n"
 "tc.s += e_time * -0.5;\n"
+"#endif\n"
+"#ifdef LIT\n"
+"lm0 = v_lmcoord;\n"
 "#endif\n"
 "gl_Position = ftetransform();\n"
 "}\n"
@@ -7211,6 +7217,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 "vec3 ts = vec3(texture2D(s_diffuse, ntc));\n"
+
+"#ifdef LIT\n"
+"ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;\n"
+"#endif\n"
+
 "gl_FragColor = fog4(vec4(ts, USEALPHA));\n"
 "}\n"
 "#endif\n"
@@ -11356,7 +11367,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef REFLECTCUBEMASK\n"
 "varying mat3 invsurface;\n"
 "#endif\n"
-"#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
+"#if defined(PCF) || defined(CUBE) || defined(SPOT) || defined(ORTHO)\n"
 "varying vec4 vtexprojcoord;\n"
 "#endif\n"
 "#endif\n"
@@ -11372,6 +11383,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec3 n, s, t, w;\n"
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "tcbase = v_texcoord; //pass the texture coords straight through\n"
+"#ifdef ORTHO\n"
+"vec3 lightminusvertex = -l_lightdirection;\n"
+"lightvector.x = dot(lightminusvertex, s.xyz);\n"
+"lightvector.y = dot(lightminusvertex, t.xyz);\n"
+"lightvector.z = dot(lightminusvertex, n.xyz);\n"
+"#else\n"
 "vec3 lightminusvertex = l_lightposition - w.xyz;\n"
 "#ifdef NOBUMP\n"
 //the only important thing is distance
@@ -11381,6 +11398,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "lightvector.x = dot(lightminusvertex, s.xyz);\n"
 "lightvector.y = dot(lightminusvertex, t.xyz);\n"
 "lightvector.z = dot(lightminusvertex, n.xyz);\n"
+"#endif\n"
 "#endif\n"
 "#if defined(VERTEXCOLOURS)\n"
 "vc = v_colour;\n"
@@ -11396,7 +11414,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "invsurface[1] = v_tvector;\n"
 "invsurface[2] = v_normal;\n"
 "#endif\n"
-"#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
+"#if defined(PCF) || defined(SPOT) || defined(CUBE) || defined(ORTHO)\n"
 //for texture projections/shadowmapping on dlights
 "vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
 "#endif\n"
@@ -11488,7 +11506,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];\n"
 "w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);\n"
 
-"#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
+"#if defined(PCF) || defined(SPOT) || defined(CUBE) || defined(ORTHO)\n"
 //for texture projections/shadowmapping on dlights
 "vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
 "#endif\n"
@@ -11613,8 +11631,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "diff *= vc.rgb * vc.a;\n"
 "#endif\n"
 
-"gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n"
-
+"gl_FragColor = vec4(fog3additive(diff*colorscale*l_lightcolour), 1.0);\n"
 "}\n"
 "#endif\n"
 

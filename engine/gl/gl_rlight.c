@@ -736,15 +736,19 @@ void R_PushDlights (void)
 #ifdef RTLIGHTS
 qboolean R_ImportRTLights(const char *entlump)
 {
-	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_NONE, LIGHTTYPE_SUN, LIGHTTYPE_MINUSXX} lighttype_t;
+	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_INFINITE, LIGHTTYPE_LOCALMIN, LIGHTTYPE_RECIPXX2, LIGHTTYPE_SUN} lighttype_t;
 
 	/*I'm using the DP code so I know I'll get the DP results*/
 	int entnum, style, islight, skin, pflags, n;
 	lighttype_t type;
-	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], colourscales[3], vec[4];
+	float origin[3], angles[3], mangle[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], colourscales[3], vec[4];
 	char key[256], value[8192];
+	char targetname[256], target[256];
 	int nest;
 	qboolean okay = false;
+	infobuf_t targets;
+	const char *lmp;
+	memset(&targets, 0, sizeof(targets));
 
 	//a quick note about tenebrae:
 	//by default, tenebrae's rtlights come from the server via static entities, which is all fancy and posh and actually fairly nice... if all servers actually did it.
@@ -753,11 +757,61 @@ qboolean R_ImportRTLights(const char *entlump)
 	//such lights are ONLY created if they're not near some other existing light (like a static entity one).
 	//this can result in FTE having noticably more and bigger lights than tenebrae. shadowmapping doesn't help performance either.
 
+	//handle doom3's header
 	COM_Parse(entlump);
 	if (!strcmp(com_token, "Version"))
 	{
 		entlump = COM_Parse(entlump);
 		entlump = COM_Parse(entlump);
+	}
+
+	//find targetnames, and store their origins so that we can deal with spotlights.
+	for (lmp = entlump; ;)
+	{
+		lmp = COM_Parse(lmp);
+		if (com_token[0] != '{')
+			break;
+
+		*targetname = 0;
+		VectorClear(origin);
+
+		nest = 1;
+		while (1)
+		{
+			lmp = COM_ParseOut(lmp, key, sizeof(key));
+			if (!lmp)
+				break; // error
+			if (key[0] == '{')
+			{
+				nest++;
+				continue;
+			}
+			if (key[0] == '}')
+			{
+				nest--;
+				if (!nest)
+					break; // end of entity
+				continue;
+			}
+			if (nest!=1)
+				continue;
+			if (key[0] == '_')
+				memmove(key, key+1, strlen(key));
+			while (key[strlen(key)-1] == ' ') // remove trailing spaces
+				key[strlen(key)-1] = 0;
+			lmp = COM_ParseOut(lmp, value, sizeof(value));
+			if (!lmp)
+				break; // error
+
+			// now that we have the key pair worked out...
+			if (!strcmp("targetname", key))
+				Q_strncpyz(targetname, value, sizeof(targetname));
+			else if (!strcmp("origin", key))
+				sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
+		}
+		//if we found an ent with a targetname and an origin, then record where it was.
+		if (*targetname && (origin[0] || origin[1] || origin[2]))
+			InfoBuf_SetStarKey(&targets, targetname, va("%f %f %f", origin[0], origin[1], origin[2]));
 	}
 
 	for (entnum = 0; ;entnum++)
@@ -770,11 +824,13 @@ qboolean R_ImportRTLights(const char *entlump)
 		origin[0] = origin[1] = origin[2] = 0;
 		originhack[0] = originhack[1] = originhack[2] = 0;
 		angles[0] = angles[1] = angles[2] = 0;
+		mangle[0] = mangle[1] = mangle[2] = 0;
 		color[0] = color[1] = color[2] = 1;
 		light[0] = light[1] = light[2] = 1;light[3] = 300;
 		overridecolor[0] = overridecolor[1] = overridecolor[2] = 1;
 		fadescale = 1;
 		lightscale = 1;
+		*target = 0;
 		style = 0;
 		skin = 0;
 		pflags = 0;
@@ -837,14 +893,22 @@ qboolean R_ImportRTLights(const char *entlump)
 				type = atoi(value);
 			else if (!strcmp("origin", key))
 				sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
-			else if (!strcmp("angle", key))
+			else if (!strcmp("angle", key))	//orientation for cubemaps (or angle of spot lights)
 				angles[0] = 0, angles[1] = atof(value), angles[2] = 0;
-			else if (!strcmp("angles", key))
+			else if (!strcmp("mangle", key))	//orientation for cubemaps (or angle of spot lights)
+			{
+				sscanf(value, "%f %f %f", &mangle[1], &mangle[0], &mangle[2]);	//FIXME: order is fucked.
+				mangle[0] = 360-mangle[0];	//FIXME: pitch is fucked too.
+			}
+			//_softangle -- the inner cone angle of a spotlight.
+			else if (!strcmp("angles", key))	//richer cubemap orientation.
 				sscanf(value, "%f %f %f", &angles[0], &angles[1], &angles[2]);
 			else if (!strcmp("color", key))
 				sscanf(value, "%f %f %f", &color[0], &color[1], &color[2]);
 			else if (!strcmp("wait", key))
 				fadescale = atof(value);
+			else if (!strcmp("target", key))
+				Q_strncpyz(target, value, sizeof(target));
 			else if (!strcmp("classname", key))
 			{
 				if (!strncmp(value, "light", 5))
@@ -989,32 +1053,55 @@ qboolean R_ImportRTLights(const char *entlump)
 		color[0] = color[0] * light[0];
 		color[1] = color[1] * light[1];
 		color[2] = color[2] * light[2];
+#define CUTOFF (128.0/255)
 		switch (type)
 		{
 		case LIGHTTYPE_MINUSX:
 			break;
 		case LIGHTTYPE_RECIPX:
+#if 1
 			radius *= 2;
-			VectorScale(color, (1.0f / 16.0f), color);
+//			VectorScale(color, (1.0f / 16.0f), color);
+#else
+			//light util uses something like: cutoff == light/((scaledist*fadescale*radius)/128)
+			//radius = light/(cutoff*128*scaledist*fadescale)
+			radius = lightscale*r_editlights_import_radius.value*256/(1*fadescale);
+			radius = min(radius, 300);
+			VectorScale(color, 255/light[3], color);
+#endif
 			break;
 		case LIGHTTYPE_RECIPXX:
+		case LIGHTTYPE_RECIPXX2:
+#if 1
 			radius *= 2;
-			VectorScale(color, (1.0f / 16.0f), color);
+//			VectorScale(color, (1.0f / 16.0f), color);
+#else
+			//light util uses something like: cutoff == light/((scaledist*scaledist*fadescale*fadescale*radius*radius)/(128*128))
+			radius = lightscale*r_editlights_import_radius.value*sqrt(1/CUTOFF*128*128*1*1*fadescale*fadescale);
+			radius = min(radius, 300);
+			VectorScale(color, 255/light[3], color);
+#endif
 			break;
 		default:
-		case LIGHTTYPE_NONE:
+		case LIGHTTYPE_INFINITE:
+			radius = FLT_MAX;	//close enough
+			break;
+		case LIGHTTYPE_LOCALMIN:	//can't support, treat like LIGHTTYPE_MINUSX
 			break;
 		case LIGHTTYPE_SUN:
 			break;
-		case LIGHTTYPE_MINUSXX:
-			break;
 		}
+		
+		if (radius < 50)	//some mappers insist on many tiny lights. such lights can usually get away with no shadows..
+			pflags |= PFLAGS_NOSHADOW;
+
 		VectorAdd(origin, originhack, origin);
 		if (radius >= 1 && !(cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, origin) & FTECONTENTS_SOLID))
 		{
 			dlight_t *dl = CL_AllocSlight();
 			if (!dl)
 				break;
+
 			VectorCopy(origin, dl->origin);
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			VectorInverse(dl->axis[1]);
@@ -1026,12 +1113,42 @@ qboolean R_ImportRTLights(const char *entlump)
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 			dl->style = style+1;
 			VectorCopy(colourscales, dl->lightcolourscales);
+
+			//handle spotlights.
+			if (mangle[0] || mangle[1] || mangle[2])
+			{
+				dl->fov = angles[1];
+				if (!dl->fov)	//default is 40, supposedly
+					dl->fov = 40;
+
+				AngleVectors(mangle, dl->axis[0], dl->axis[1], dl->axis[2]);
+				VectorInverse(dl->axis[1]);
+			}
+			else if (*target)
+			{
+				lmp = InfoBuf_ValueForKey(&targets, target);
+				if (*lmp)
+				{
+					dl->fov = angles[1];
+					if (!dl->fov)	//default is 40, supposedly
+						dl->fov = 40;
+					sscanf(lmp, "%f %f %f", &angles[0], &angles[1], &angles[2]);
+					VectorSubtract(angles, origin, dl->axis[0]);
+					VectorNormalize(dl->axis[0]);
+					VectorVectors(dl->axis[0], dl->axis[1], dl->axis[2]);
+					VectorInverse(dl->axis[1]);
+					//we don't have any control over the inner cone.
+				}
+			}
+
 			if (skin >= 16)
 				R_LoadNumberedLightTexture(dl, skin);
 
 			okay = true;
 		}
 	}
+
+	InfoBuf_Clear(&targets, true);
 
 	return okay;
 }

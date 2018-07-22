@@ -20,3 +20,13 @@ at the time of writing, r_polygonoffset_* need to be set to 0, or you'll get pur
 
 Cheats: static realtime lighting _used_ to be cheat protected. Which made it useless and unusable. Darkplaces has permitted realtime lights for a while on quakeworld servers without complaint. Thus FTE no longer mandates that the server explicitly allows it.
 Having said that, you can tell if static or dynamic lights are enabled in someone else's client via the f_version say request.
+
+
+
+
+todo:
+light util that omits direct lighting + engine that forces r_shadow_realtime_world_lightmaps 1
+light util that emits e5bgr9 lighting + worldspawn key that forces srgb.
+light util that generates complete .rtlights files, with radiuses and colours and falloffs and spotlights etc.
+ggx.
+screenspace refections.

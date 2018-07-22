@@ -16,7 +16,6 @@
 #endif
 
 qboolean		r_loadbumpmapping;
-extern cvar_t dpcompat_psa_ungroup;
 extern cvar_t r_noframegrouplerp;
 cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
 static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
@@ -2029,9 +2028,11 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 #else
 		if (!mod->numanimations)
 		{
+#ifdef SKELETALMODELS
 			if (mod->ofs_skel_xyz)
 				posedata = mod->ofs_skel_xyz;
 			else
+#endif
 				continue;
 		}
 		else
@@ -5551,6 +5552,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 //psk
 #ifdef PSKMODELS
 /*Typedefs copied from DarkPlaces*/
+extern cvar_t dpcompat_psa_ungroup;
 
 typedef struct pskchunk_s
 {
@@ -6061,6 +6063,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			}
 			num_animinfo = numgroups;
 		}
+#ifdef NOLEGACY
 		else if (dpcompat_psa_ungroup.ival)
 		{
 			/*unpack each frame of each animation to be a separate framegroup*/
@@ -6086,6 +6089,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			}
 			num_animinfo = iframe;
 		}
+#endif
 		else
 		{
 			/*keep each framegroup as a group*/

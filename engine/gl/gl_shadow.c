@@ -250,7 +250,7 @@ static void SHM_MeshFrontOnly(int numverts, vecV_t *verts, int numidx, index_t *
 	sh_shmesh->numverts += numverts;
 	sh_shmesh->numindicies += numidx;
 }
-static void SHM_MeshBackOnly(int numverts, vecV_t *verts, int numidx, index_t *idx)
+/*static void SHM_MeshBackOnly(int numverts, vecV_t *verts, int numidx, index_t *idx)
 {
 	int first = sh_shmesh->numverts;
 	int v, i;
@@ -289,7 +289,7 @@ static void SHM_MeshBackOnly(int numverts, vecV_t *verts, int numidx, index_t *i
 
 	sh_shmesh->numverts += numverts;
 	sh_shmesh->numindicies += numidx;
-}
+}*/
 static void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float pd)
 {
 	int v, i, idxs;
@@ -2325,10 +2325,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 	R_SetFrustum(proj, r_refdef.m_view);
 
 	if (lighttype & LSHADER_ORTHO)
-	{
 		r_refdef.frustum_numplanes = 4;	//kill the near clip plane - we allow ANYTHING nearer through.
-		qglEnable(GL_DEPTH_CLAMP_ARB);
-	}
 
 #ifdef SHADOWDBG_COLOURNOTDEPTH
 	BE_SelectMode(BEM_STANDARD);
@@ -2342,6 +2339,8 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		GL_ViewportUpdate();
+		if (lighttype & LSHADER_ORTHO)
+			qglEnable(GL_DEPTH_CLAMP_ARB);
 		GL_CullFace(SHADER_CULL_FRONT);
 		GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], smesh->verts, smesh->numindicies, smesh->vebo[1], smesh->indicies);
 		break;
@@ -2383,6 +2382,9 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		GLBE_BaseEntTextures();
+
+		if (lighttype & LSHADER_ORTHO)
+			qglDisable(GL_DEPTH_CLAMP_ARB);
 		break;
 #endif
 #ifdef D3D9QUAKE
@@ -2401,9 +2403,6 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 		break;
 #endif
 	}
-
-	if (lighttype & LSHADER_ORTHO)
-		qglDisable(GL_DEPTH_CLAMP_ARB);
 
 /*
 	{

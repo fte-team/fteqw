@@ -2898,7 +2898,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 	if (MP_ConsoleCommand(text))
 		return;	//let the csqc handle it if it wants.
 #endif
-#if defined(MENU_NATIVECODE)
+#if defined(MENU_NATIVECODE) && !defined(SERVERONLY)
 	if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, (char const*const*)cmd_argv))
 		return;
 #endif

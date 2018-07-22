@@ -250,7 +250,8 @@ static void SHM_MeshFrontOnly(int numverts, vecV_t *verts, int numidx, index_t *
 	sh_shmesh->numverts += numverts;
 	sh_shmesh->numindicies += numidx;
 }
-/*static void SHM_MeshBackOnly(int numverts, vecV_t *verts, int numidx, index_t *idx)
+#if 0
+static void SHM_MeshBackOnly(int numverts, vecV_t *verts, int numidx, index_t *idx)
 {
 	int first = sh_shmesh->numverts;
 	int v, i;
@@ -289,7 +290,8 @@ static void SHM_MeshFrontOnly(int numverts, vecV_t *verts, int numidx, index_t *
 
 	sh_shmesh->numverts += numverts;
 	sh_shmesh->numindicies += numidx;
-}*/
+}
+#endif
 static void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float pd)
 {
 	int v, i, idxs;

@@ -395,8 +395,13 @@ typedef struct
 {
 	vec3_t origin;
 	int cubesize;	//pixels
+} denvmap_t;
+typedef struct
+{
+	vec3_t origin;
+	int cubesize;	//pixels
 
-	texid_t *image;
+	texid_t image;
 } menvmap_t;
 
 #define LMSHIFT_DEFAULT 4
@@ -537,10 +542,12 @@ typedef struct hull_s
 
 void Q1BSP_CheckHullNodes(hull_t *hull);
 void Q1BSP_SetModelFuncs(struct model_s *mod);
-void Q1BSP_LoadBrushes(struct model_s *model);
+void Q1BSP_LoadBrushes(struct model_s *model, bspx_header_t *bspx, void *mod_base);
 void Q1BSP_Init(void);
-void *Q1BSPX_FindLump(char *lumpname, int *lumpsize);
-void Q1BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps);
+
+void BSPX_LoadEnvmaps(struct model_s *mod, bspx_header_t *bspx, void *mod_base);
+void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize);
+bspx_header_t *BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps);
 
 typedef struct fragmentdecal_s fragmentdecal_t;
 void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shader_t *surfshader);

@@ -1362,7 +1362,7 @@ unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 	return contents;
 }
 
-void Q1BSP_LoadBrushes(model_t *model)
+void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 {
 	struct {
 		unsigned int ver;
@@ -1395,7 +1395,7 @@ void Q1BSP_LoadBrushes(model_t *model)
 
 	model->engineflags &= ~MDLF_HASBRUSHES;
 
-	permodel = Q1BSPX_FindLump("BRUSHLIST", &lumpsizeremaining);
+	permodel = BSPX_FindLump(bspx, mod_base, "BRUSHLIST", &lumpsizeremaining);
 	if (!permodel)
 		return;
 
@@ -2183,17 +2183,15 @@ typedef struct {
     int fileofs;  // from file start
     int filelen;
 } bspx_lump_t;
-typedef struct {
+struct bspx_header_s {
     char id[4];  // 'BSPX'
     int numlumps;
 	bspx_lump_t lumps[1];
-} bspx_header_t;
-static char *bspxbase;
-static bspx_header_t *bspxheader;
+};
 //supported lumps:
 //RGBLIGHTING (.lit)
 //LIGHTINGDIR (.lux)
-void *Q1BSPX_FindLump(char *lumpname, int *lumpsize)
+void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize)
 {
 	int i;
 	*lumpsize = 0;
@@ -2205,19 +2203,16 @@ void *Q1BSPX_FindLump(char *lumpname, int *lumpsize)
 		if (!strncmp(bspxheader->lumps[i].lumpname, lumpname, 24))
 		{
 			*lumpsize = bspxheader->lumps[i].filelen;
-			return bspxbase + bspxheader->lumps[i].fileofs;
+			return (char*)mod_base + bspxheader->lumps[i].fileofs;
 		}
 	}
 	return NULL;
 }
-void Q1BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps)
+bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps)
 {
 	int i;
 	int offs = 0;
 	bspx_header_t *h;
-
-	bspxbase = filebase;
-	bspxheader = NULL;
 
 	for (i = 0; i < numlumps; i++, lumps++)
 	{
@@ -2225,8 +2220,8 @@ void Q1BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lu
 			offs = lumps->fileofs + lumps->filelen;
 	}
 	offs = (offs + 3) & ~3;
-	if (offs + sizeof(*bspxheader) > filelen)
-		return; /*no space for it*/
+	if (offs + sizeof(*h) > filelen)
+		return NULL; /*no space for it*/
 	h = (bspx_header_t*)(filebase + offs);
 
 	i = LittleLong(h->numlumps);
@@ -2234,15 +2229,580 @@ void Q1BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lu
 	if (*(int*)h->id != (('B'<<0)|('S'<<8)|('P'<<16)|('X'<<24)) ||
 		i < 0 ||
 		offs + sizeof(*h) + sizeof(h->lumps[0])*(i-1) > filelen)
-		return;
+		return NULL;
 	h->numlumps = i;
 	while(i-->0)
 	{
 		h->lumps[i].fileofs = LittleLong(h->lumps[i].fileofs);
 		h->lumps[i].filelen = LittleLong(h->lumps[i].filelen);
 		if (h->lumps[i].fileofs + h->lumps[i].filelen > filelen)
-			return;
+			return NULL;
 	}
 
-	bspxheader = h;
+	return h;
 }
+
+/*
+void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt);
+void BSPX_RenderEnvmaps(model_t *mod)
+{
+	int c, i;
+
+	void *buffer;
+	int stride, cubesize;
+	uploadfmt_t fmt;
+	char filename[MAX_QPATH];
+	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
+	vec3_t oldangles;
+	const struct
+	{
+		vec3_t angle;
+		const char *postfix;
+		qboolean verticalflip;
+		qboolean horizontalflip;
+	} sides[] =
+	{
+		{{0, 0, 90}, "_px", true},
+		{{0, 180, -90}, "_nx", true},
+		{{0, 90, 0}, "_py", true},	//upside down
+		{{0, 270, 0}, "_ny", false, true},
+		{{-90, 0, 90}, "_pz", true},
+		{{90, 0, 90}, "_nz", true},
+	};
+	char base[MAX_QPATH];
+	COM_FileBase(cl.worldmodel->name, base, sizeof(base));
+
+	r_refdef.stereomethod = STEREO_OFF;
+	Q_strncpyz(olddrawviewmodel, r_drawviewmodel.string, sizeof(olddrawviewmodel));
+	Cvar_Set(&r_drawviewmodel, "0");
+
+	VectorCopy(cl.playerview->viewangles, oldangles);
+
+	for (c = 0; c < mod->numenvmaps; c++)
+	{
+		cubesize = mod->envmaps[c].cubesize;
+		if (cubesize < 1)
+			cubesize = 32;
+
+		VectorCopy(mod->envmaps[c].origin, r_refdef.vieworg);
+
+		for (i = 0; i < 6; i++)
+		{
+			Q_snprintfz(filename, sizeof(filename), "%s/%i_%i_%i%s.tga", base, (int)mod->envmaps[c].origin[0], (int)mod->envmaps[c].origin[1], (int)mod->envmaps[c].origin[2], sides[i].postfix);
+
+			VectorCopy(sides[i].angle, cl.playerview->simangles);
+			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
+
+			buffer = SCR_ScreenShot_Capture(cubesize, cubesize, &stride, &fmt);
+			if (buffer)
+			{
+				char			sysname[1024];
+				if (sides[i].horizontalflip)
+				{
+					int y, x, p;
+					int pxsize;
+					char *bad = buffer;
+					char *in = buffer, *out;
+					switch(fmt)
+					{
+					case TF_RGBA32:
+					case TF_BGRA32:
+					case TF_RGBX32:
+					case TF_BGRX32:
+						pxsize = 4;
+						break;
+					case TF_RGB24:
+					case TF_BGR24:
+						pxsize = 3;
+						break;
+					case TF_RGBA16F:
+						pxsize = 8;
+						break;
+					case TF_RGBA32F:
+						pxsize = 16;
+						break;
+					default:	//erk!
+						pxsize = 1;
+						break;
+					}
+					buffer = out = BZ_Malloc(cubesize*cubesize*pxsize);
+					for (y = 0; y < cubesize; y++, in += abs(stride), out += cubesize*pxsize)
+					{
+						for (x = 0; x < cubesize*pxsize; x+=pxsize)
+						{
+							for (p = 0; p < pxsize; p++)
+								out[x+p] = in[(cubesize-1)*pxsize-x+p];
+						}
+					}
+					BZ_Free(bad);
+					if (stride < 0)
+						stride = -cubesize*pxsize;
+					else
+						stride = cubesize*pxsize;
+				}
+				if (sides[i].verticalflip)
+					stride = -stride;
+				if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, cubesize, cubesize, fmt))
+				{
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf ("Wrote %s\n", sysname);
+				}
+				else
+				{
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf ("Failed to write %s\n", sysname);
+				}
+				BZ_Free(buffer);
+			}
+		}
+	}
+	Cvar_Set(&r_drawviewmodel, olddrawviewmodel);
+
+	VectorCopy(oldangles, cl.playerview->viewangles);
+}
+*/
+
+void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
+{
+	unsigned int *envidx, idx;
+	int i;
+	char base[MAX_QPATH];
+	char imagename[MAX_QPATH];
+	menvmap_t *out;
+	int count;
+	denvmap_t *in = BSPX_FindLump(bspx, mod_base, "ENVMAP", &count);
+	if (count%sizeof(*in))
+		return;	//erk
+	count /= sizeof(*in);
+	if (!count)
+		return;
+	out = ZG_Malloc(&mod->memgroup, sizeof(*out)*count);
+
+	mod->envmaps = out;
+	mod->numenvmaps = count;
+
+	COM_FileBase(mod->name, base, sizeof(base));
+	for (i = 0; i < count; i++)
+	{
+		out[i].origin[0] = LittleFloat(in[i].origin[0]);
+		out[i].origin[1] = LittleFloat(in[i].origin[1]);
+		out[i].origin[2] = LittleFloat(in[i].origin[2]);
+		out[i].cubesize = LittleLong(in[i].cubesize);
+
+		Q_snprintfz(imagename, sizeof(imagename), "%s/%i_%i_%i", base, (int)mod->envmaps[i].origin[0], (int)mod->envmaps[i].origin[1], (int)mod->envmaps[i].origin[2]);
+		out[i].image = Image_GetTexture(imagename, NULL, IF_CUBEMAP|IF_NOREPLACE, NULL, NULL, out[i].cubesize, out[i].cubesize, PTI_INVALID);
+	}
+
+
+
+	//now update surface lists.
+	envidx = BSPX_FindLump(bspx, mod_base, "SURFENVMAP", &i);
+	if (i/sizeof(*envidx) == mod->numsurfaces)
+	{
+		for (i = 0; i < mod->numsurfaces; i++)
+		{
+			idx = LittleLong(envidx[i]);
+			if (idx < (unsigned int)count)
+				mod->surfaces[i].envmap = out[idx].image;
+		}
+	}
+}
+
+
+#if 1//ndef SERVERONLY
+
+struct bspxrw
+{
+	fromgame_t fg;
+	const char *fname;
+	char *origfile;
+	qofs_t origsize;
+	int lumpofs;
+
+	size_t corelumps;
+	size_t totallumps;
+
+	struct
+	{
+		char lumpname[24]; // up to 23 chars, zero-padded
+		void *data;  // from file start
+		qofs_t filelen;
+	} *lumps;
+};
+void Mod_BSPXRW_Free(struct bspxrw *ctx)
+{
+	FS_FreeFile(ctx->origfile);
+	Z_Free(ctx->lumps);
+	ctx->corelumps = ctx->totallumps = 0;
+	ctx->origfile = NULL;
+}
+void Mod_BSPXRW_Write(struct bspxrw *ctx)
+{
+#if 1
+	vfsfile_t *f = FS_OpenVFS(ctx->fname, "wb", FS_GAMEONLY);
+	if (f)
+	{
+		qofs_t bspxofs;
+		size_t i, j;
+		int pad, paddata = 0;
+		int nxlumps = ctx->totallumps-ctx->corelumps;
+		lump_t *lumps = alloca(sizeof(*lumps)*ctx->corelumps);
+		bspx_lump_t *xlumps = alloca(sizeof(*xlumps)*(ctx->totallumps-ctx->corelumps));
+		//bsp header info
+		VFS_WRITE(f, ctx->origfile, ctx->lumpofs);
+		VFS_WRITE(f, lumps, sizeof(lumps[0])*ctx->corelumps);	//placeholder
+		//orig lumps
+		for (i = 0; i < ctx->corelumps; i++)
+		{
+			lumps[i].fileofs = VFS_TELL(f);
+			lumps[i].filelen = ctx->lumps[i].filelen;
+
+			VFS_WRITE(f, ctx->lumps[i].data, ctx->lumps[i].filelen);
+			//ALL lumps must be 4-aligned, so pad if needed.
+			pad = ((ctx->lumps[i].filelen+3)&~3)-ctx->lumps[i].filelen;
+			VFS_WRITE(f, &paddata, pad);
+		}
+		//bspx header
+		VFS_WRITE(f, "BSPX", 4);
+		VFS_WRITE(f, &nxlumps, sizeof(nxlumps));
+		bspxofs = VFS_TELL(f);
+		VFS_WRITE(f, xlumps, sizeof(xlumps[0])*(ctx->totallumps-ctx->corelumps)); //placeholder
+		//bspx data
+		for (i = 0; i < nxlumps; i++)
+		{
+			j = ctx->corelumps+i;
+			xlumps[i].fileofs = VFS_TELL(f);
+			xlumps[i].filelen = ctx->lumps[j].filelen;
+			memcpy(xlumps[i].lumpname, ctx->lumps[j].lumpname, sizeof(xlumps[i].lumpname));
+
+			VFS_WRITE(f, ctx->lumps[j].data, ctx->lumps[j].filelen);
+			//ALL lumps must be 4-aligned, so pad if needed.
+			pad = ((ctx->lumps[j].filelen+3)&~3)-ctx->lumps[j].filelen;
+			VFS_WRITE(f, &paddata, pad);
+		}
+
+		//now rewrite both sets of offsets.
+		VFS_SEEK(f, ctx->lumpofs);
+		VFS_WRITE(f, lumps, sizeof(lumps[0])*ctx->corelumps);
+		VFS_SEEK(f, bspxofs);
+		VFS_WRITE(f, xlumps, sizeof(xlumps[0])*(ctx->totallumps-ctx->corelumps));
+
+		VFS_CLOSE(f);
+	}
+#endif
+	Mod_BSPXRW_Free(ctx);
+}
+
+void Mod_BSPXRW_SetLump(struct bspxrw *ctx, const char *lumpname, void *data, size_t datasize)
+{
+	int i;
+	for (i = 0; i < ctx->totallumps; i++)
+	{
+		if (!strcmp(ctx->lumps[i].lumpname, lumpname))
+		{	//replace the existing lump
+			ctx->lumps[i].data = data;
+			ctx->lumps[i].filelen = datasize;
+			return;
+		}
+	}
+
+	Z_ReallocElements(&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
+	Q_strncpyz(ctx->lumps[i].lumpname, lumpname, sizeof(ctx->lumps[i].lumpname));
+	ctx->lumps[i].data = data;
+	ctx->lumps[i].filelen = datasize;
+}
+
+qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
+{
+	int i;
+	lump_t *l;
+	const char **corelumpnames = NULL;
+	bspx_header_t *bspxheader;
+#ifdef Q3BSPS
+	static const char *q3corelumpnames[Q3LUMPS_TOTAL] = {"entities","shaders","planes","nodes","leafs","leafsurfs","leafbrushes","submodels","brushes","brushsides","verts","indexes","fogs","surfaces","lightmaps","lightgrid","visibility"
+		#ifdef RFBSPS
+			,"lightgrididx"
+		#endif
+		};
+#endif
+	ctx->fname = fname;
+	ctx->origfile = FS_MallocFile(ctx->fname, FS_GAME, &ctx->origsize);
+	if (!ctx->origfile)
+		return false;
+	ctx->lumps = 0;
+	ctx->totallumps = 0;
+
+	i = LittleLong(*(int*)ctx->origfile);
+	switch(i)
+	{
+	case 29:
+	case 30:
+		ctx->fg = ((i==30)?fg_halflife:fg_quake);
+		ctx->lumpofs = 4;
+		ctx->corelumps = 0;
+		break;
+	case IDBSPHEADER:
+		i = LittleLong(*(int*)(ctx->origfile+4));
+		ctx->lumpofs = 8;
+		switch(i)
+		{
+#ifdef Q2BSPS
+		case BSPVERSION_Q2:
+//		case BSPVERSION_Q2W:
+			ctx->fg = fg_quake2;
+			ctx->corelumps = Q2HEADER_LUMPS;
+			break;
+#endif
+#ifdef Q3BSPS
+		case BSPVERSION_Q3:
+		case BSPVERSION_RTCW:
+			ctx->fg = fg_quake3;
+			ctx->corelumps = 17;
+			corelumpnames = q3corelumpnames;
+			break;
+#endif
+		default:
+			Mod_BSPXRW_Free(ctx);
+			return false;
+		}
+		break;
+#ifdef RFBSPS
+	case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
+	case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
+		i = LittleLong(*(int*)(ctx->origfile+4));
+		ctx->lumpofs = 8;
+		switch(i)
+		{
+		case BSPVERSION_RBSP:
+			ctx->fg = fg_quake3;
+			ctx->corelumps = 18;
+			corelumpnames = q3corelumpnames;
+			break;
+		default:
+			Mod_BSPXRW_Free(ctx);
+			return false;
+		}
+		break;
+#endif
+	default:
+		Mod_BSPXRW_Free(ctx);
+		return false;
+	}
+
+	l = (lump_t*)(ctx->origfile+ctx->lumpofs);
+	for (i = 0; i < ctx->corelumps; i++)
+	{
+		Z_ReallocElements(&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
+		ctx->lumps[ctx->totallumps-1].data = ctx->origfile+l[i].fileofs;
+		ctx->lumps[ctx->totallumps-1].filelen = l[i].filelen;
+		if (corelumpnames)
+			Q_snprintfz(ctx->lumps[ctx->totallumps-1].lumpname, sizeof(ctx->lumps[0].lumpname), "%s", corelumpnames[i]);
+		else
+			Q_snprintfz(ctx->lumps[ctx->totallumps-1].lumpname, sizeof(ctx->lumps[0].lumpname), "lump%u", i);
+	}
+
+	bspxheader = BSPX_Setup(NULL, ctx->origfile, ctx->origsize, l, ctx->corelumps);
+	if (bspxheader)
+	{
+		for (i = 0; i < bspxheader->numlumps; i++)
+		{
+			Z_ReallocElements(&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
+			ctx->lumps[ctx->totallumps-1].data = ctx->origfile+bspxheader->lumps[i].fileofs;
+			ctx->lumps[ctx->totallumps-1].filelen = bspxheader->lumps[i].filelen;
+			memcpy(ctx->lumps[ctx->totallumps-1].lumpname, bspxheader->lumps[i].lumpname, sizeof(ctx->lumps[0].lumpname));
+		}
+	}
+	return true;
+}
+
+unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t nenvmap)
+{	//this is slow, yes.
+	size_t n, v;
+	unsigned int best = ~0;
+	float bestdist = FLT_MAX, dist;
+	vec3_t diff, mid;
+
+	if (surf->mesh)
+	{
+		VectorClear(mid);
+		for (v = 0; v < surf->mesh->numvertexes; v++)
+			VectorAdd(mid, surf->mesh->xyz_array[v], mid);
+		VectorScale(mid, 1.0/surf->mesh->numvertexes, mid);
+
+		for (n = 0; n < nenvmap; n++)
+		{
+			VectorSubtract(mid, envmap[n].origin, diff);
+			dist = DotProduct(diff,diff);
+			if (bestdist > dist)
+			{
+				best = n;
+				bestdist = dist;
+			}
+		}
+	}
+	return best;
+}
+
+int QDECL envmapsort(const void *av, const void *bv)
+{	//sorts cubemaps in order of size, to make texturearrays easier, if ever. The loader can then just make runs.
+	const denvmap_t *a=av, *b=bv;
+	if (a->cubesize == b->cubesize)
+		return 0;
+	if (a->cubesize > b->cubesize)
+		return 1;
+	return -1;
+}
+void Mod_FindCubemaps_f(void)
+{
+	struct bspxrw bspctx;
+	if (Mod_BSPXRW_Read(&bspctx, cl.worldmodel->name))
+	{
+		const char *entlump = Mod_GetEntitiesString(cl.worldmodel), *lmp;
+		int nest;
+		char key[1024];
+		char value[1024];
+
+		qboolean isenvmap;
+		float size;
+		vec3_t origin;
+
+		denvmap_t *envmap = NULL; //*nenvmap
+		size_t	nenvmap = 0;
+		unsigned int *envmapidx = NULL;	//*numsurfaces
+		size_t nenvmapidx = 0, i;
+		
+		//find targetnames, and store their origins so that we can deal with spotlights.
+		for (lmp = entlump; ;)
+		{
+			lmp = COM_Parse(lmp);
+			if (com_token[0] != '{')
+				break;
+
+			isenvmap = false;
+			size = 128;
+			VectorClear(origin);
+
+			nest = 1;
+			while (1)
+			{
+				lmp = COM_ParseOut(lmp, key, sizeof(key));
+				if (!lmp)
+					break; // error
+				if (key[0] == '{')
+				{
+					nest++;
+					continue;
+				}
+				if (key[0] == '}')
+				{
+					nest--;
+					if (!nest)
+						break; // end of entity
+					continue;
+				}
+				if (nest!=1)
+					continue;
+				if (key[0] == '_')
+					memmove(key, key+1, strlen(key));
+				while (key[strlen(key)-1] == ' ') // remove trailing spaces
+					key[strlen(key)-1] = 0;
+				lmp = COM_ParseOut(lmp, value, sizeof(value));
+				if (!lmp)
+					break; // error
+
+				// now that we have the key pair worked out...
+				if (!strcmp("classname", key) && !strcmp(value, "env_cubemap"))
+					isenvmap = true;
+				else if (!strcmp("origin", key))
+					sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
+				else if (!strcmp("size", key))
+					sscanf(value, "%f", &size);
+			}
+			
+			if (isenvmap)
+			{
+				int e = nenvmap;
+				if (ZF_ReallocElements(&envmap, &nenvmap, nenvmap+1, sizeof(*envmap)))
+				{
+					VectorCopy(origin, envmap[e].origin);
+					envmap[e].cubesize = size;
+				}
+			}
+		}
+
+		if (nenvmap)
+		{
+			qsort(envmap, nenvmap, sizeof(*envmap), envmapsort);
+			if (ZF_ReallocElements(&envmapidx, &nenvmapidx, cl.worldmodel->numsurfaces, sizeof(*envmapidx)))
+			{
+				for(i = 0; i < cl.worldmodel->numsurfaces; i++)
+					envmapidx[i] = Mod_NearestCubeForSurf(cl.worldmodel->surfaces+i, envmap, nenvmap);
+			}
+
+			Mod_BSPXRW_SetLump(&bspctx, "ENVMAP", envmap, nenvmap*sizeof(*envmap));
+			Mod_BSPXRW_SetLump(&bspctx, "SURFENVMAP", envmapidx, cl.worldmodel->numsurfaces*sizeof(*envmapidx));
+			Mod_BSPXRW_Write(&bspctx);
+		}
+		else
+		{
+			Con_Printf("No cubemaps found on map\n");
+			Mod_BSPXRW_Free(&bspctx);
+		}
+
+		Z_Free(envmapidx);
+		Z_Free(envmap);
+	}
+}
+void Mod_Realign_f(void)
+{
+	struct bspxrw bspctx;
+	if (Mod_BSPXRW_Read(&bspctx, cl.worldmodel->name))
+		Mod_BSPXRW_Write(&bspctx);
+}
+void Mod_BSPX_List_f(void)
+{
+	int i;
+	struct bspxrw ctx;
+	char *fname = Cmd_Argv(1);
+	if (!*fname && cl.worldmodel)
+		fname = cl.worldmodel->name;
+	if (Mod_BSPXRW_Read(&ctx, fname))
+	{
+		for (i = 0; i < ctx.corelumps; i++)
+		{
+			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, ctx.lumps[i].filelen);
+		}
+		for (     ; i < ctx.totallumps; i++)
+		{
+			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, ctx.lumps[i].filelen);
+		}
+		Mod_BSPXRW_Free(&ctx);
+	}
+}
+void Mod_BSPX_Strip_f(void)
+{
+	int i;
+	struct bspxrw ctx;
+	qboolean found = false;
+	if (Cmd_Argc() != 3)
+		Con_Printf("%s FILENAME NAME: removes an extended lump from the named bsp file\n", Cmd_Argv(0));
+	else if (Mod_BSPXRW_Read(&ctx, Cmd_Argv(1)))
+	{
+		for (i = ctx.corelumps; i < ctx.totallumps;)
+		{
+			if (!Q_strcasecmp(ctx.lumps[i].lumpname, Cmd_Argv(2)))
+			{
+				found = true;
+				memmove(&ctx.lumps[i], &ctx.lumps[i+1], sizeof(ctx.lumps[0])*(ctx.totallumps-(i+1)));
+				ctx.totallumps--;
+			}
+			else
+				i++;
+		}
+		if (found)
+			Mod_BSPXRW_Write(&ctx);
+		else
+			Mod_BSPXRW_Free(&ctx);
+	}
+}
+#endif

@@ -387,9 +387,9 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 		skin->width = 320;
 		skin->height = 200;
 
-		skin->skindata = out = BZ_Malloc(320*200);
+		skin->skindata = out = BZ_Malloc(skin->width*skin->height);
 
-		memset (out, bv, 320*200);
+		memset (out, bv, skin->width*skin->height);
 
 		skin->loadstate = SKIN_LOADED;
 

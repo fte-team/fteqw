@@ -2060,6 +2060,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		case SP_LIGHTCUBEMATRIX:
 		case SP_LIGHTSHADOWMAPPROJ:
 		case SP_LIGHTSHADOWMAPSCALE:
+		case SP_LIGHTDIRECTION:
 
 		case SP_RENDERTEXTURESCALE:
 

@@ -719,6 +719,7 @@ program_t *Shader_FindGeneric(char *name, int qrtype);
 const char *Shader_NameForGeneric(program_t *prog);
 void Shader_ReleaseGeneric(program_t *prog);
 
+image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org);
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 
 #define BEF_FORCEDEPTHWRITE		1

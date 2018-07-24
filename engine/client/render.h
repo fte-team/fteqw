@@ -517,7 +517,8 @@ typedef struct
 	unsigned char *styles;
 	unsigned char *shifts;
 } lightmapoverrides_t;
-void Mod_LoadLighting (struct model_s *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides);
+typedef struct bspx_header_s bspx_header_t;
+void Mod_LoadLighting (struct model_s *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides);
 
 struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
 

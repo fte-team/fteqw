@@ -1256,7 +1256,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		t = shaderstate.curtexnums->fullbright;
 		break;
 	case T_GEN_REFLECTCUBE:
-		t = (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->reflectcube))?shaderstate.curtexnums->reflectcube:shaderstate.tex_reflectcube;
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->reflectcube))
+			t = shaderstate.curtexnums->reflectcube;
+		else if (shaderstate.curbatch->envmap)
+			t = shaderstate.curbatch->envmap;
+		else
+			t = shaderstate.tex_reflectcube;
 		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t);
 		return;
 	case T_GEN_REFLECTMASK:

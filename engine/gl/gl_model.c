@@ -736,6 +736,11 @@ void Mod_Purge(enum mod_purge_e ptype)
 	}
 }
 
+void Mod_FindCubemaps_f(void);
+void Mod_Realign_f(void);
+void Mod_BSPX_List_f(void);
+void Mod_BSPX_Strip_f(void);
+
 /*
 ===============
 Mod_Init
@@ -771,6 +776,11 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&temp_lit2support, NULL);
 		Cmd_AddCommand("sv_saveentfile", Mod_SaveEntFile_f);
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
+
+		Cmd_AddCommandD("map_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection envmap sites and determines the nearest one to each surface.");
+		Cmd_AddCommandD("map_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
+		Cmd_AddCommandD("map_bspx_list", Mod_BSPX_List_f, "Lists all lumps (and their sizes) in the specified bsp.");
+		Cmd_AddCommandD("map_bspx_strip", Mod_BSPX_Strip_f, "Strips a named extension lump from a bsp file.");
 	}
 
 	if (initial)
@@ -1677,7 +1687,7 @@ typedef struct
 Mod_LoadLighting
 =================
 */
-void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides)
+void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides)
 {
 	qboolean luxtmp = true;
 	qboolean exptmp = true;
@@ -1718,11 +1728,11 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		samples >>= 1;
 	if (!samples)
 	{
-		expdata = Q1BSPX_FindLump("LIGHTING_E5BGR9", &samples);	//expressed as a big-endian packed int - 0xEBGR type thing, except misaligned and 32bit.
+		expdata = BSPX_FindLump(bspx, mod_base, "LIGHTING_E5BGR9", &samples);	//expressed as a big-endian packed int - 0xEBGR type thing, except misaligned and 32bit.
 		samples /= 4;
 		if (!samples)
 		{
-			litdata = Q1BSPX_FindLump("RGBLIGHTING", &samples); //RGB packed data
+			litdata = BSPX_FindLump(bspx, mod_base, "RGBLIGHTING", &samples); //RGB packed data
 			samples /= 3;
 			if (!samples)
 				return;
@@ -1853,13 +1863,13 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		{
 			int size;
 			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
-			expdata = Q1BSPX_FindLump("LIGHTING_E5BGR9", &size);
+			expdata = BSPX_FindLump(bspx, mod_base, "LIGHTING_E5BGR9", &size);
 			exptmp = true;
 			if (size != samples*4)
 			{
 				expdata = NULL;
 
-				litdata = Q1BSPX_FindLump("RGBLIGHTING", &size);
+				litdata = BSPX_FindLump(bspx, mod_base, "RGBLIGHTING", &size);
 				littmp = true;
 				if (size != samples*3)
 					litdata = NULL;
@@ -1944,7 +1954,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		if (!luxdata)
 		{
 			int size;
-			luxdata = Q1BSPX_FindLump("LIGHTINGDIR", &size);
+			luxdata = BSPX_FindLump(bspx, mod_base, "LIGHTINGDIR", &size);
 			if (size != samples*3)
 				luxdata = NULL;
 			luxtmp = true;
@@ -2024,7 +2034,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	if (overrides && !overrides->shifts)
 	{
 		int size;
-		overrides->shifts = Q1BSPX_FindLump("LMSHIFT", &size);
+		overrides->shifts = BSPX_FindLump(bspx, mod_base, "LMSHIFT", &size);
 		if (size != loadmodel->numsurfaces)
 			overrides->shifts = NULL;
 
@@ -2032,14 +2042,14 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		if (!overrides->offsets)
 		{
 			int size;
-			overrides->offsets = Q1BSPX_FindLump("LMOFFSET", &size);
+			overrides->offsets = BSPX_FindLump(bspx, mod_base, "LMOFFSET", &size);
 			if (size != loadmodel->numsurfaces * sizeof(int))
 				overrides->offsets = NULL;
 		}
 		if (!overrides->styles)
 		{
 			int size;
-			overrides->styles = Q1BSPX_FindLump("LMSTYLE", &size);
+			overrides->styles = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
 			if (size != loadmodel->numsurfaces * sizeof(qbyte)*MAXQ1LIGHTMAPS)
 				overrides->styles = NULL;
 		}
@@ -2305,7 +2315,7 @@ qboolean Mod_LoadVertexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l)
 {
 	float	*in;
 	float	*out;
@@ -2323,7 +2333,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	}
 	else
 	{
-		in = Q1BSPX_FindLump("VERTEXNORMALS", &count); 
+		in = BSPX_FindLump(bspx, mod_base, "VERTEXNORMALS", &count); 
 		if (in)
 			count /= sizeof(vec3_t);
 		else
@@ -3765,7 +3775,7 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s);
 Mod_LoadFaces
 =================
 */
-static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lm)
+static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lm)
 {
 	dsface_t		*ins;
 	dlface_t		*inl;
@@ -3820,7 +3830,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, l
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
 
-	Mod_LoadLighting (loadmodel, mod_base, lightlump, false, &overrides);
+	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides);
 
 	switch(loadmodel->lightmaps.fmt)
 	{
@@ -5075,6 +5085,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	qboolean isnotmap;
 	qboolean using_rbe = true;
 	qboolean misaligned = false;
+	bspx_header_t *bspx;
 
 	COM_FileBase (mod->name, loadname, sizeof(loadname));
 	mod->type = mod_brush;
@@ -5176,12 +5187,13 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 			ofs += header.lumps[i].filelen;
 		}
 		BZ_Free(tmp);
+		bspx = NULL;
 	}
 	else
 	{
-		Q1BSPX_Setup(mod, mod_base, fsize, header.lumps, HEADER_LUMPS);
+		bspx = BSPX_Setup(mod, mod_base, fsize, header.lumps, HEADER_LUMPS);
 
-		if (1)//mod_ebfs.value)
+		/*if (1)//mod_ebfs.value)
 		{
 			char *id;
 			id = (char *)mod_base + sizeof(dheader_t);
@@ -5189,7 +5201,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 			{	//EBFS detected.
 				COM_LoadMapPackFile(mod->name, sizeof(dheader_t));
 			}
-		}
+		}*/
 	}
 		
 	noerrors = true;
@@ -5229,7 +5241,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		TRACE(("Loading Texinfo\n"));
 		noerrors = noerrors && Mod_LoadTexinfo (mod, mod_base, &header.lumps[LUMP_TEXINFO]);
 		TRACE(("Loading Faces\n"));
-		noerrors = noerrors && Mod_LoadFaces (mod, mod_base, &header.lumps[LUMP_FACES], &header.lumps[LUMP_LIGHTING], longm);
+		noerrors = noerrors && Mod_LoadFaces (mod, bspx, mod_base, &header.lumps[LUMP_FACES], &header.lumps[LUMP_LIGHTING], longm);
 	}
 	if (!isDedicated)
 	{
@@ -5270,7 +5282,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	}
 
 	TRACE(("LoadBrushModel %i\n", __LINE__));
-	Q1BSP_LoadBrushes(mod);
+	Q1BSP_LoadBrushes(mod, bspx, mod_base);
 	TRACE(("LoadBrushModel %i\n", __LINE__));
 	Q1BSP_SetModelFuncs(mod);
 	TRACE(("LoadBrushModel %i\n", __LINE__));

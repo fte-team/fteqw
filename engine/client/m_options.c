@@ -1002,6 +1002,15 @@ void FPS_Preset_f (void)
 		return;
 	}
 
+	if (!stricmp("hdr", arg))
+	{
+		Cbuf_InsertText(
+			"set vid_srgb 2\n"
+			"set r_hdr_irisadaptation 1\n"
+			, RESTRICT_LOCAL, false);
+		return;
+	}
+
 	if (!stricmp("tenebrae", arg))
 	{	//for the luls. combine with the tenebrae mod for maximum effect.
 		Cbuf_InsertText(

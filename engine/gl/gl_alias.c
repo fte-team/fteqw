@@ -1738,6 +1738,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 			b->buildmeshes = R_GAlias_DrawBatch;
 			b->ent = e;
+			b->envmap = Mod_CubemapForOrigin(cl.worldmodel, e->origin);
 #if defined(Q3BSPS) || defined(RFBSPS)
 			b->fog = Mod_FogForOrigin(cl.worldmodel, e->origin);
 #endif

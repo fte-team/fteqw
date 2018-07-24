@@ -2555,12 +2555,12 @@ static qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-texid_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
+image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
 {
 	int i;
 	menvmap_t 	*e;
 	float bestdist = FLT_MAX, dist;
-	texid_t *ret = NULL;
+	image_t *ret = NULL;
 	vec3_t move;
 	if (!wmodel || wmodel->loadstate != MLS_LOADED)
 		return NULL;
@@ -2974,7 +2974,6 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->fog = NULL;
 		else
 			out->fog = mod->fogs + LittleLong(in->fognum);
-
 		if (prv->surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &mesh[surfnum];
@@ -4017,6 +4016,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	model_t			*wmod = mod;
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
+	bspx_header_t	*bspx = NULL;
 #ifdef Q3BSPS
 	extern cvar_t	gl_overbright;
 #endif
@@ -4147,7 +4147,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 		prv->faces = NULL;
 
-		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
+		bspx = BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
 
 		//q3 maps have built in 4-fold overbright.
 		//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
@@ -4439,6 +4439,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		}
 #endif
 	}
+
+	BSPX_LoadEnvmaps(mod, bspx, mod_base);
 
 	if (map_autoopenportals.value)
 		memset (prv->portalopen, 1, sizeof(prv->portalopen));	//open them all. Used for progs that havn't got a clue.

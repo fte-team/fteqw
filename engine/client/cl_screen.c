@@ -2641,7 +2641,7 @@ static void SCR_ScreenShot_f (void)
 	Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
 }
 
-static void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt)
+void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt)
 {
 	int width, height;
 	void *buf;
@@ -2997,7 +2997,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 		return;
 	}
 
-	firstside = strcmp(Cmd_Argv(0), "envmap")?0:6;
+	firstside = (!strcmp(Cmd_Argv(0), "envmap"))?6:0;
 
 	r_refdef.stereomethod = STEREO_OFF;
 	Q_strncpyz(olddrawviewmodel, r_drawviewmodel.string, sizeof(olddrawviewmodel));

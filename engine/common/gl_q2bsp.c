@@ -4351,7 +4351,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
 			i++;
 		}
-		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
+		BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
 
 #ifndef SERVERONLY
 		if (CM_GetQ2Palette())
@@ -4399,7 +4399,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
 			noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
-				Mod_LoadLighting							(mod, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, NULL);
+				Mod_LoadLighting							(mod, bspx, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, NULL);
 			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
 			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);

@@ -3073,14 +3073,14 @@ static void CLQW_ParseServerData (void)
 		}
 		if (protover == PROTOCOL_VERSION_QW)	//this ends the version info
 			break;
-		if (cls.demoplayback && (protover == 26 || protover == 27 || protover == 28))	//older versions, maintain demo compatability.
+		if (cls.demoplayback && (protover >= 24 && protover <= 28))	//older versions, maintain demo compatability.
 			break;
 		Host_EndGame ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION_QW);
 	}
 #else
 	protover = MSG_ReadLong ();
 	if (protover != PROTOCOL_VERSION_QW &&
-		!(cls.demoplayback && (protover == 26 || protover == 27 || protover == 28)))
+		!(cls.demoplayback && (protover >= 24 && protover <= 28)))
 		Host_EndGame ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION_QW);
 #endif
 

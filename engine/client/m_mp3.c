@@ -498,6 +498,11 @@ void Media_NamedTrack_f(void)
 	else
 		Media_NamedTrack(Cmd_Argv(1), Cmd_Argv(1));
 }
+void Media_StopTrack_f(void)
+{
+	*media_playtrack = *media_loopingtrack = 0;
+	Media_Changed(MEDIA_GAMEMUSIC);
+}
 
 void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack)
 {
@@ -5179,4 +5184,5 @@ void Media_Init(void)
 #endif
 
 	Cmd_AddCommand("music", Media_NamedTrack_f);
+	Cmd_AddCommand("stopmusic", Media_StopTrack_f);
 }

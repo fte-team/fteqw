@@ -2389,7 +2389,7 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 		out[i].origin[2] = LittleFloat(in[i].origin[2]);
 		out[i].cubesize = LittleLong(in[i].cubesize);
 
-		Q_snprintfz(imagename, sizeof(imagename), "%s/%i_%i_%i", base, (int)mod->envmaps[i].origin[0], (int)mod->envmaps[i].origin[1], (int)mod->envmaps[i].origin[2]);
+		Q_snprintfz(imagename, sizeof(imagename), "textures/env/%s_%i_%i_%i", base, (int)mod->envmaps[i].origin[0], (int)mod->envmaps[i].origin[1], (int)mod->envmaps[i].origin[2]);
 		out[i].image = Image_GetTexture(imagename, NULL, IF_CUBEMAP|IF_NOREPLACE, NULL, NULL, out[i].cubesize, out[i].cubesize, PTI_INVALID);
 	}
 

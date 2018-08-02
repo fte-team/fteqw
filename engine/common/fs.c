@@ -5542,7 +5542,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			if (com_homepathenabled)
 				Con_TPrintf("Using home directory \"%s\"\n", com_homepath);
 			else
-				Con_TPrintf("Disabled home directory suport\n");
+				Con_TPrintf("Disabled home directory support\n");
 		}
 	}
 

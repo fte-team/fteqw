@@ -14,24 +14,30 @@
 #define GAME_SHORTNAME		"wastes"	//short alphanumeric description
 #define GAME_FULLNAME		FULLENGINENAME 	//full name of the game we're playing
 #define GAME_BASEGAMES		GAME_SHORTNAME	//comma-separate list of basegame strings to use
-#define GAME_PROTOCOL		"FTE-Wastes"	//so other games won't show up in the server browser
-#define GAME_DEFAULTPORT	23000
+#define GAME_PROTOCOL		"FTE-TW"	//so other games won't show up in the server browser
+#define GAME_DEFAULTPORT	23000	// This is our port. Don't mess with it or use it for any custom games
 //#define GAME_IDENTIFYINGFILES	NULL	//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL	NULL	//url for the package manger to update from
 //#define GAME_DEFAULTCMDS	NULL	//a string containing the things you want to 
 
 // All my fault -eukara
-#define MENU_NATIVECODE
 #define ENGINE_ROUTING
+#define USE_INTERNAL_BULLET
+#undef MENU_NATIVECODE // Will make a debut eventually, hopefully
+
+#if defined(WIN32)
+#define FREETYPE_STATIC
+#endif
 
 // What do we use
-//#define D3D9QUAKE
-//#define GLQUAKE
-#undef D3D11QUAKE
-#if defined(WIN32) && !defined(D3D8QUAKE)
-#define D3D8QUAKE
+#ifndef GLQUAKE
+#define GLQUAKE
 #endif
-#undef VKQUAKE
+
+#ifndef VKQUAKE
+#define VKQUAKE
+#endif
+
 #undef HEADLESSQUAKE
 #undef WAYLANDQUAKE
 
@@ -46,30 +52,36 @@
 #define MENU_DAT
 #define PSET_SCRIPT
 #define VOICECHAT
-#undef RTLIGHTS
+#define RTLIGHTS
 #ifndef MULTITHREAD
 #define MULTITHREAD	//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
 #endif
 #define LOADERTHREAD	//worker threads for loading misc stuff. falls back on main thread if not supported.
 //#define USEAREAGRID		//world collision optimisation. REQUIRED for performance with xonotic. hopefully it helps a few other mods too.
+#define USERBE
+#define AVAIL_FREETYPE	//for truetype font rendering
+#define IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
+#define DECOMPRESS_ETC2
+#define DECOMPRESS_RGTC
+#define DECOMPRESS_S3TC
 
 #define NOBUILTINMENUS
-#define NOLEGACY	//just spike trying to kill off crappy crap...
+#define NOLEGACY //just spike trying to kill off crappy crap...
 #define AVAIL_DINPUT
 #ifndef DEBUG
-#define NOQCDESCRIPTIONS 2	//if 2, disables writing fteextensions.qc completely.
+#define NOQCDESCRIPTIONS 2 //if 2, disables writing fteextensions.qc completely.
 #endif
 
 
 // Various package formats
 #define PACKAGE_PK3
-#undef PACKAGE_Q1PAK
+#define PACKAGE_TEXWAD // We need this for HL WAD3 support
+#define PACKAGE_Q1PAK // HL content will benefit from this, too
 #undef PACKAGE_DOOMWAD
-#define PACKAGE_TEXWAD	// We need this for WAD3 support
 
 // Map formats
-#define Q3BSPS
-#define Q1BSPS // Half-Life Support
+#define Q3BSPS // What we use
+#define Q1BSPS // HL content support
 #undef Q2BSPS
 #undef RFBSPS
 #undef TERRAIN
@@ -78,6 +90,7 @@
 
 // Model formats
 #define INTERQUAKEMODELS
+#define HALFLIFEMODELS // HL content support
 #undef SPRMODELS
 #undef SP2MODELS
 #undef DSPMODELS
@@ -88,10 +101,11 @@
 #undef ZYMOTICMODELS
 #undef DPMMODELS
 #undef PSKMODELS
-#undef HALFLIFEMODELS
 
 // What do we NOT want to use
-#undef AVAIL_FREETYPE	//for truetype font rendering
+#undef D3D9QUAKE
+#undef D3D11QUAKE
+#undef D3D8QUAKE
 #undef AVAIL_WASAPI	//windows advanced sound api
 #undef AVAIL_DSOUND
 #undef BOTLIB_STATIC	//q3 botlib
@@ -103,11 +117,7 @@
 #undef AVAIL_MP3_ACM	//.mp3 support (in windows).
 #undef IMAGEFMT_KTX
 #undef IMAGEFMT_PKM
-#undef IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
 #undef IMAGEFMT_BLP	//legacy crap
-#undef DECOMPRESS_ETC2
-#undef DECOMPRESS_RGTC
-#undef DECOMPRESS_S3TC
 #undef NETPREPARSE	//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
 #undef USE_SQLITE	//sql-database-as-file support
 #undef QUAKESTATS	//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.
@@ -153,8 +163,6 @@
 #undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
 #undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
-
-//#define USE_INTERNAL_BULLET
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

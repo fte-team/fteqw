@@ -1911,7 +1911,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 	pbool resethunk=0;
 	pbool isloadgame;
 	if (file && !strncmp(file, "loadgame", 8))
-	{
+	{	//this is internally inserted for legacy saved games.
 		isloadgame = true;
 		numents = -1;
 		file+=8;

@@ -5601,8 +5601,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 							found = true;
 							break;
 						}
-						if ((unsigned int)basicindex < pp[i].ofs+(pp[i].arraysize?pp[i].arraysize:1))	//if we found one with the index
-							basicindex = pp[i].ofs+(pp[i].arraysize?pp[i].arraysize:1);	//make sure we don't union it.
+						if ((unsigned int)basicindex < pp[i].ofs+pp[i].type->size*(pp[i].arraysize?pp[i].arraysize:1))	//if we found one with the index
+							basicindex = pp[i].ofs+pp[i].type->size*(pp[i].arraysize?pp[i].arraysize:1);	//make sure we don't union it.
 					}
 				}
 			}

@@ -1,7 +1,7 @@
 #include "quakedef.h"
 #include "pr_common.h"
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 
 extern cvar_t skill;
 extern cvar_t deathmatch;
@@ -9,7 +9,7 @@ extern cvar_t coop;
 extern cvar_t teamplay;
 extern cvar_t pr_enable_profiling;
 
-cvar_t sv_savefmt = CVARFD("sv_savefmt", "1", CVAR_SAVE, "Specifies the format used for the saved game.\n0=legacy.\n1=fte\n2=binary");
+cvar_t sv_savefmt = CVARFD("sv_savefmt", "", CVAR_SAVE, "Specifies the format used for the saved game.\n0=legacy.\n1=fte\n2=binary");
 cvar_t sv_autosave = CVARFD("sv_autosave", "5", CVAR_SAVE, "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
 
 void SV_Savegame_f (void);
@@ -78,7 +78,7 @@ void SV_SavegameComment (char *text, size_t textsize)
 
 #ifndef QUAKETC
 //expects the version to have already been parsed
-void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
+static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 {
 	//FIXME: Multiplayer save probably won't work with spectators.
 	char	mapname[MAX_QPATH];
@@ -394,7 +394,7 @@ static void SV_LegacySavegame (const char *savename)
 	}
 
 	sprintf (name, "%s", savename);
-	COM_RequireExtension (name, ".sav", sizeof(name));
+	COM_RequireExtension (name, ".sav", sizeof(name));	//do NOT allow .pak etc
 	if (!FS_NativePath(name, FS_GAMEONLY, native, sizeof(native)))
 		return;
 	Con_TPrintf (U8("Saving game to %s...\n"), native);
@@ -1109,7 +1109,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		//FIXME: static entities
 		//FIXME: midi track
 		//FIXME: custom temp-ents?
-		//FIXME: pending uri_gets? (if only just to report fails)
+		//FIXME: pending uri_gets? (if only just to report fails on load)
 		//FIXME: routing calls?
 		//FIXME: sql queries?
 		//FIXME: frik files?

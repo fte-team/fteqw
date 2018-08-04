@@ -4899,8 +4899,10 @@ float SV_Frame (void)
 		{
 			isidle = false;
 
+#ifdef SAVEDGAMES
 			if (sv.time > sv.autosave_time)
 				SV_AutoSave();
+#endif
 		}
 	}
 	else
@@ -5203,10 +5205,9 @@ void SV_InitLocal (void)
 
 	Cmd_AddCommand ("openroute", SV_OpenRoute_f);
 
-#ifndef NOBUILTINMENUS
-#ifndef SERVERONLY
+#ifdef SAVEDGAMES
+#if !defined(NOBUILTINMENUS) && !defined(SERVERONLY)
 	Cvar_Register(&sv_autosave, cvargroup_servercontrol);
-#endif
 #endif
 	Cvar_Register(&sv_savefmt, cvargroup_servercontrol);
 #ifndef QUAKETC
@@ -5216,6 +5217,7 @@ void SV_InitLocal (void)
 	Cmd_AddCommandAD ("loadgame", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
 	Cmd_AddCommandAD ("save", SV_Savegame_f, SV_Savegame_c, "Saves the game to the named location.");
 	Cmd_AddCommandAD ("load", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
+#endif
 
 	SV_MVDInit();
 

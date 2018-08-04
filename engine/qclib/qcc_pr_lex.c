@@ -5625,11 +5625,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
 				if (!d)
 				{
-					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST|GDF_POSTINIT);
+					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST|GDF_POSTINIT|GDF_USED);
 //					for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
 //						d->symboldata[i]._int = pr.size_fields+i;
 //					pr.size_fields += i;
 
+					d->used = true;
 					d->referenced = true;	//always referenced, so you can inherit safely.
 				}
 				if (d->arraysize < basicindex+(arraysize?arraysize:1))
@@ -5637,7 +5638,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					if (d->symboldata)
 						QCC_PR_ParseError(ERR_INTERNAL, "array members are kinda limited, sorry. try rearranging them or adding padding for alignment\n");	//FIXME: add relocs to cope with this all of a type can then be contiguous and thus allow arrays.
 					else
-						d->arraysize = basicindex+(arraysize?arraysize:1);
+					{
+						int newsize = basicindex+(arraysize?arraysize:1);
+						if (d->type->type == ev_union || d->type->type == ev_struct)
+							d->arraysize = newsize;
+						else while(d->arraysize < newsize)
+						{
+							QC_snprintfz(membername, sizeof(membername), "::%s[%i]", basictypenames[newparm->type], d->arraysize/d->type->size);
+							QCC_PR_DummyDef(d->type, membername, d->scope, 0, d, d->arraysize, true, GDF_CONST);
+							d->arraysize+=d->type->size;
+						}
+					}
 				}
 			}
 			QCC_FreeDef(d);

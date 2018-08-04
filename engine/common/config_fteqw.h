@@ -111,6 +111,7 @@
 #define SUBSERVERS				//Allows the server to fork itself, each acting as an MMO-style server instance of a single 'realm'.
 //#define HLCLIENT 7			//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //#define HLSERVER 140			//we can run HL gamecode (not protocol compatible, set to 138 or 140)
+#define SAVEDGAMES				//Can save the game.
 
 // Networking options
 #define NQPROT					//act as an nq client/server, with nq gamecode.
@@ -124,6 +125,7 @@
 //#define IRCCONNECT			//lame support for routing game packets via irc server. not a good idea.
 #define SUPPORT_ICE				//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #define CL_MASTER				//Clientside Server Browser functionality.
+#define PACKAGEMANAGER			//Allows the user to enable/disable/download(with WEBCLIENT) packages and plugins.
 
 // Audio Drivers
 #define AVAIL_OPENAL

@@ -13621,7 +13621,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		}
 		else if (type->type == ev_field)
 		{
-			if (type->aux_type->type == ev_vector && !arraysize)
+			if (type->aux_type->type == ev_vector && !arraysize && *def->name != ':')
 			{
 				//do the vector thing.
 				QC_snprintfz(newname, sizeof(newname), "%s_x", def->name);

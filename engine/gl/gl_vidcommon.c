@@ -1877,26 +1877,74 @@ static const char *glsl_hdrs[] =
 	NULL
 };
 
-qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *prstrings[], GLint length[], const char *shadersource)
+#define GLSLPARTS (64+16)
+struct glslparts_s
+{
+	const GLchar *str[GLSLPARTS];
+	GLint len[GLSLPARTS];
+	const GLchar *file[GLSLPARTS];
+	int line[GLSLPARTS];
+	int strings;
+
+	const char *error;
+};
+
+static void GLSlang_GenerateInternal(struct glslparts_s *glsl, const char *shadersource)
+{
+	if (glsl->strings == GLSLPARTS)
+	{
+		glsl->error = "Too many parts";
+		return;
+	}
+	glsl->str[glsl->strings] = shadersource;
+	glsl->len[glsl->strings] = strlen(shadersource);
+	glsl->file[glsl->strings] = NULL;
+	glsl->line[glsl->strings] = 0;
+	glsl->strings += 1;
+}
+
+static void GLSlang_Generate(struct glslparts_s *glsl, const char *shadersource, GLint length, const char *filename, int linenumber)
+{
+	if (glsl->strings == GLSLPARTS)
+	{
+		glsl->error = "Too many parts";
+		return;
+	}
+	glsl->str[glsl->strings] = shadersource;
+	glsl->len[glsl->strings] = length;
+	glsl->file[glsl->strings] = filename;
+	glsl->line[glsl->strings] = linenumber;
+	glsl->strings += 1;
+}
+
+static qboolean GLSlang_GenerateIncludes(struct glslparts_s *glsl, const char *shadersource, const char *filename, int linenumber)
 {
 	int i;
 	char *incline, *inc;
 	char incname[256];
 	while((incline=strstr(shadersource, "#include")))
 	{
-		if (*strings == maxstrings)
-			return false;
-
 		/*emit up to the include*/
 		if (incline - shadersource)
 		{
-			prstrings[*strings] = shadersource;
-			length[*strings] = incline - shadersource;
-			*strings += 1;
+			char *e = incline;
+			while(e > shadersource && (e[-1] == ' ' || e[-1] == '\t'))
+				e--;
+			if (e > shadersource && e[-1] == '\n')
+				GLSlang_Generate(glsl, shadersource, e-shadersource, filename, linenumber);
+			else
+				GLSlang_Generate(glsl, shadersource, incline-shadersource, filename, linenumber);
 		}
 
 		incline += 8;
 		incline = COM_ParseOut (incline, incname, sizeof(incname));
+		if (!incline)
+		{
+			glsl->error = "missing include name";
+			return false;
+		}
+		while (*incline == ' ' || *incline == '\t')
+			incline++;
 
 		if (!strncmp(incname, "cvar/", 5))
 		{
@@ -1904,17 +1952,13 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 			if (var)
 			{
 				var->flags |= CVAR_SHADERSYSTEM;
-				if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, var->string))
+				if (!GLSlang_GenerateIncludes(glsl, var->string, NULL, 0))
 					return false;
 			}
 			else
 			{
 				/*dump something if the cvar doesn't exist*/
-				if (*strings == maxstrings)
-					return false;
-				prstrings[*strings] = "0";
-				length[*strings] = strlen("0");
-				*strings += 1;
+				GLSlang_Generate(glsl, "0", strlen("0"), filename, linenumber);
 			}
 		}
 		else
@@ -1923,38 +1967,39 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 			{
 				if (!strcmp(incname, glsl_hdrs[i]))
 				{
-					if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, glsl_hdrs[i+1]))
+					if (!GLSlang_GenerateIncludes(glsl, glsl_hdrs[i+1], glsl_hdrs[i], 1))
 						return false;
 					break;
 				}
 			}
 			if (!glsl_hdrs[i])
 			{
-				if (FS_LoadFile(incname, (void**)&inc) != (qofs_t)-1)
+				size_t sz;
+				inc = COM_LoadTempMoreFile(incname, &sz);
+				if (inc)
 				{
-					if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
-					{
-						FS_FreeFile(inc);
+					if (!GLSlang_GenerateIncludes(glsl, inc, NULL, 1))
 						return false;
-					}
-					FS_FreeFile(inc);
+				}
+				else
+				{
+					glsl->error = "include file not found";
+					return false;	//FIXME: add a warning
 				}
 			}
 		}
 
 		/*move the pointer past the include*/
-		shadersource = incline;
+		while (shadersource < incline)
+		{
+			if (*shadersource == '\n')
+				linenumber++;
+			shadersource++;
+		}
 	}
-	if (*shadersource)
-	{
-		if (*strings == maxstrings)
-			return false;
 
-		/*dump the remaining shader string*/
-		prstrings[*strings] = shadersource;
-		length[*strings] = strlen(prstrings[*strings]);
-		*strings += 1;
-	}
+	if (*shadersource)
+		GLSlang_Generate(glsl, shadersource, strlen(shadersource), filename, linenumber);
 	return true;
 }
 
@@ -1965,10 +2010,11 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 {
 	GLhandleARB shader;
 	int i;
-	const GLchar *prstrings[64+16];
-	GLint length[sizeof(prstrings)/sizeof(prstrings[0])];
-	int strings = 0;
+	struct glslparts_s glsl;
 	char verline[64];
+
+	glsl.strings = 0;
+	glsl.error = NULL;
 
 	if (!shadersource)
 		return 0;
@@ -2013,44 +2059,32 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				Q_snprintfz(verline, sizeof(verline), "#version %u compatibility\n", ver);
 			else
 				Q_snprintfz(verline, sizeof(verline), "#version %u\n", ver);	//core assumed, where defined
-			prstrings[strings] = verline;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+			GLSlang_GenerateInternal(&glsl, verline);
 		}
 	}
 
 	while(*precompilerconstants)
-	{
-		prstrings[strings] = *precompilerconstants++;
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
-	}
+		GLSlang_GenerateInternal(&glsl, *precompilerconstants++);
 
-	prstrings[strings] = "#define ENGINE_"DISTRIBUTION"\n";
-	length[strings] = strlen(prstrings[strings]);
-	strings++;
+	GLSlang_GenerateInternal(&glsl, "#define ENGINE_"DISTRIBUTION"\n");
 
 	switch (shadertype)
 	{
 	case GL_FRAGMENT_SHADER_ARB:
-		prstrings[strings] = "#define FRAGMENT_SHADER\n";
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+		GLSlang_GenerateInternal(&glsl, "#define FRAGMENT_SHADER\n");
 		if (gl_config.gles)
 		{
-			prstrings[strings] =
+			GLSlang_GenerateInternal(&glsl, 
 					"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
 					"precision highp float;\n"
 					"#else\n"
 					"precision mediump float;\n"
 					"#endif\n"
-				;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+				);
 		}
 		if (ver >= 130)
 		{
-			prstrings[strings] =
+			GLSlang_GenerateInternal(&glsl, 
 				//gl3+ deprecated the some things. these are removed in forwards-compatible / core contexts.
 				//varying became either in or out, which is important if you have geometry shaders...
 				"#define varying in\n"
@@ -2071,20 +2105,16 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 					"out vec4 fte_fragdata3;"
 				"\n#endif\n"	//gles3 requires this
 				"#define gl_FragColor fte_fragdata0\n"
-			;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+			);
 		}
 		else
 		{
-			prstrings[strings] =
+			GLSlang_GenerateInternal(&glsl,
 				"#define fte_fragdata0 gl_FragData[0]\n"
 				"#define fte_fragdata1 gl_FragData[1]\n"
 				"#define fte_fragdata2 gl_FragData[2]\n"
 				"#define fte_fragdata3 gl_FragData[3]\n"
-			;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+			);
 		}
 
 		if (prog)
@@ -2127,82 +2157,62 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			for (i = 0; i < countof(defaultsamplernames); i++)
 			{
 				if (prog->defaulttextures & (1u<<i))
-				{
-					prstrings[strings] = defaultsamplernames[i];
-					length[strings] = strlen(prstrings[strings]);
-					strings++;
-				}
+					GLSlang_GenerateInternal(&glsl, defaultsamplernames[i]);
 			}
 #endif
 			for (i = 0; i < prog->numsamplers && i < countof(numberedsamplernames); i++)
-			{
-				prstrings[strings] = numberedsamplernames[i];
-				length[strings] = strlen(prstrings[strings]);
-				strings++;
-			}
+				GLSlang_GenerateInternal(&glsl, numberedsamplernames[i]);
 		}
 		break;
 	case GL_GEOMETRY_SHADER_ARB:
-		prstrings[strings] = "#define GEOMETRY_SHADER\n";
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+		GLSlang_GenerateInternal(&glsl, "#define GEOMETRY_SHADER\n");
 		break;
 	case GL_TESS_CONTROL_SHADER_ARB:
-		prstrings[strings] =
+		GLSlang_GenerateInternal(&glsl,
 			"#define TESS_CONTROL_SHADER\n"
 			"#if __VERSION__ < 400\n"
 				"#extension GL_ARB_tessellation_shader : enable\n"
-			"#endif\n";
+			"#endif\n"
 			//varyings are arrays, so don't bother defining that here.
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+		);
 		break;
 	case GL_TESS_EVALUATION_SHADER_ARB:
-		prstrings[strings] = 
+		GLSlang_GenerateInternal(&glsl,
 			"#define TESS_EVALUATION_SHADER\n"
 			"#if __VERSION__ < 400\n"
 				"#extension GL_ARB_tessellation_shader : enable\n"
 			"#endif\n"
-			"#define varying out\n";
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+			"#define varying out\n"
+		);
 		break;
 	case GL_VERTEX_SHADER_ARB:
-		prstrings[strings] = "#define VERTEX_SHADER\n";
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+		GLSlang_GenerateInternal(&glsl, "#define VERTEX_SHADER\n");
 #ifdef RTLIGHTS
 		if (!r_shadow_shadowmapping.ival && ver >= 120)
 		{
-			prstrings[strings] = "invariant gl_Position;\n";
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+			GLSlang_GenerateInternal(&glsl, "invariant gl_Position;\n");
 		}
 #endif
 		if (gl_config.gles)
 		{
-			prstrings[strings] =
+			GLSlang_GenerateInternal(&glsl,
 					"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
 					"precision highp float;\n"
 					"#else\n"
 					"precision mediump float;\n"
 					"#endif\n"
-				;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+				);
 		}
 		if (ver >= 130)
 		{
-			prstrings[strings] =
-				"#define attribute in\n"
-				"#define varying out\n"
-			;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+			GLSlang_GenerateInternal(&glsl,
+					"#define attribute in\n"
+					"#define varying out\n"
+				);
 		}
 		if (gl_config_nofixedfunc)
 		{
-			prstrings[strings] =
+			GLSlang_GenerateInternal(&glsl,
 					"attribute vec3 v_position1;\n"
 					"#ifdef FRAMEBLEND\n"
 					"attribute vec3 v_position2;\n"
@@ -2218,13 +2228,11 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 #else
 					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 #endif
-				;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+				);
 		}
 		else
 		{
-			prstrings[strings] =
+			GLSlang_GenerateInternal(&glsl,
 					"#ifdef FRAMEBLEND\n"
 					"attribute vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
@@ -2236,24 +2244,51 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 					"uniform mat4 m_modelviewprojection;\n"
 					"#define ftetransform ftransform\n"
 					"#endif\n"
-				;
-			length[strings] = strlen(prstrings[strings]);
-			strings++;
+				);
 		}
 
 		break;
 	default:
-		prstrings[strings] = "#define UNKNOWN_SHADER\n";
-		length[strings] = strlen(prstrings[strings]);
-		strings++;
+		GLSlang_GenerateInternal(&glsl, "#define UNKNOWN_SHADER\n");
 		break;
 	}
 
-	GLSlang_GenerateIncludes(sizeof(prstrings)/sizeof(prstrings[0]), &strings, prstrings, length, shadersource);
+	GLSlang_GenerateIncludes(&glsl, shadersource, name, 1);
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	if (gl_workaround_ati_shadersource.ival)
+	if (developer.ival)
+	{
+		GLcharARB *combined;
+		int totallen = 1;
+		for (i = 0; i < glsl.strings; i++)
+			totallen += glsl.len[i] + 64;
+		combined = malloc(totallen);
+		totallen = 0;
+		combined[totallen] = 0;
+		for (i = 0; i < glsl.strings; i++)
+		{
+			if (ver && !i)
+				; //#version MUST be the first line, don't prefix it with a #line, it'll just break things.
+			else if (!totallen || combined[totallen-1] == '\n')
+			{	//last line was a newline, hurrah. safe to insert without breaking anything
+				Q_snprintfz(combined+totallen, 64, "#line %i %i //%s\n", glsl.line[i], i, glsl.file[i]);
+				totallen += strlen(combined+totallen);
+			}
+			else if (glsl.len[i] && *glsl.str[i] == '\n')
+			{	//last line didn't end with a newline, but there is one after. that's okay too, but we need to play it safe.
+				Q_snprintfz(combined+totallen, 64, "\n#line %i %i //%s\n", glsl.line[i], i, glsl.file[i]);
+				totallen += strlen(combined+totallen);
+			}
+			//now shove stuff there.
+			memcpy(combined+totallen, glsl.str[i], glsl.len[i]);
+			totallen += glsl.len[i];
+			combined[totallen] = 0;
+		}
+		qglShaderSourceARB(shader, 1, (const GLcharARB**)&combined, NULL);
+		free(combined);
+	}
+	else if (gl_workaround_ati_shadersource.ival)
 	{
 		/*ATI Driver Bug: ATI drivers ignore the 'length' array.
 		this code does what the drivers fail to do.
@@ -2262,22 +2297,22 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		*/
 		GLcharARB *combined;
 		int totallen = 1;
-		for (i = 0; i < strings; i++)
-			totallen += length[i];
+		for (i = 0; i < glsl.strings; i++)
+			totallen += glsl.len[i];
 		combined = malloc(totallen);
 		totallen = 0;
 		combined[totallen] = 0;
-		for (i = 0; i < strings; i++)
+		for (i = 0; i < glsl.strings; i++)
 		{
-			memcpy(combined + totallen, prstrings[i], length[i]);
-			totallen += length[i];
+			memcpy(combined + totallen, glsl.str[i], glsl.len[i]);
+			totallen += glsl.len[i];
 			combined[totallen] = 0;
 		}
 		qglShaderSourceARB(shader, 1, (const GLcharARB**)&combined, NULL);
 		free(combined);
 	}
 	else
-		qglShaderSourceARB(shader, strings, prstrings, length);
+		qglShaderSourceARB(shader, glsl.strings, glsl.str, glsl.len);
 	qglCompileShaderARB(shader);
 
 	return shader;

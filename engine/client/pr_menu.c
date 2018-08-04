@@ -1817,6 +1817,8 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	model_t *mod = Mod_ForName(modelname, MLV_WARN);
 	if (modelval)
 		modelval->string = G_INT(OFS_PARM1);	//lets hope garbage collection is enough.
+	else
+		Con_Printf("PF_m_setmodel: no model field!\n");
 
 	if (mod)
 		while(mod->loadstate == MLS_LOADING)
@@ -1834,7 +1836,10 @@ static void QCBUILTIN PF_m_setcustomskin(pubprogfuncs_t *prinst, struct globalva
 	const char *skindata = PF_VarString(prinst, 2, pr_globals);
 	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "skinobject", ev_string, &menuc_eval.skinobject);
 	if (!val)
+	{
+		Con_Printf("PF_m_setcustomskin: no skinobject field!\n");
 		return;
+	}
 
 	if (val->_float > 0)
 	{
@@ -1858,6 +1863,8 @@ static void QCBUILTIN PF_m_setorigin(pubprogfuncs_t *prinst, struct globalvars_s
 	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "origin", ev_vector, &menuc_eval.origin);
 	if (val)
 		VectorCopy(org, val->_vector);
+	else
+		Con_Printf("PF_m_setorigin: no origin field!\n");
 }
 static void QCBUILTIN PF_m_clearscene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2644,6 +2651,12 @@ qboolean MP_Init (void)
 		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);
 
 		PR_ProgsAdded(menu_world.progs, mprogs, "menu.dat");
+
+		//ensure that there's space for these fields in.
+		//other fields will always be referenced/defined by the qc, or 0.
+		PR_RegisterFieldVar(menu_world.progs, ev_string, "model", -1, -1);
+		PR_RegisterFieldVar(menu_world.progs, ev_vector, "origin", -1, -1);
+		PR_RegisterFieldVar(menu_world.progs, ev_float, "skinobject", -1, -1);
 
 		menuentsize = PR_InitEnts(menu_world.progs, 8192);
 

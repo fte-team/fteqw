@@ -1222,7 +1222,7 @@ void M_Init_Internal (void)
 		return;
 	internalmenusregistered = true;
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
 	Cmd_AddCommand ("menu_load", M_Menu_Load_f);
 	Cmd_AddCommand ("menu_loadgame", M_Menu_Load_f);	//q2...
@@ -1371,7 +1371,7 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_servers", M_Menu_ServerList2_f);
 #endif
 	//downloads menu needs sandboxing, so cannot be provided by qc.
-#ifdef WEBCLIENT
+#ifdef PACKAGEMANAGER
 	Cmd_AddCommand ("menu_download", Menu_DownloadStuff_f);
 #endif
 	//demo menu is allowed to see outside of the quakedir. you can't replicate that in qc's sandbox.

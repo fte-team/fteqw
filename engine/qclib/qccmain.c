@@ -604,6 +604,25 @@ void QCC_PrintStrings (void)
 	}
 }*/
 
+void QCC_SortFields (void)
+{
+	int				i, j;
+	QCC_ddef32_t	t;
+
+	// good 'ol bubble sort
+	//(qsort doesn't guarentee ordering)
+	for (i = 0; i < numfielddefs; i++)
+	{
+		for (j = i; j < numfielddefs; j++)
+			if (fields[i].ofs > fields[j].ofs)
+			{
+				t = fields[i];
+				fields[i] = fields[j];
+				fields[j] = t;
+			}
+	}
+}
+
 void QCC_PrintFields (void)
 {
 	extern char *basictypenames[];
@@ -1855,6 +1874,7 @@ pbool QCC_WriteData (int crc)
 			printf("code: %s:%i: %s%s%s %s@%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
 #endif
 	}
+	QCC_SortFields();
 
 	if (dupewarncount > 10 && !verbose)
 		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about unreferenced variables, as you clearly don't care about the first 10.", dupewarncount-10);

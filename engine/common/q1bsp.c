@@ -2242,6 +2242,11 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lu
 	return h;
 }
 
+#ifdef SERVERONLY
+void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
+{
+}
+#else
 /*
 void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt);
 void BSPX_RenderEnvmaps(model_t *mod)
@@ -2407,9 +2412,6 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 		}
 	}
 }
-
-
-#if 1//ndef SERVERONLY
 
 struct bspxrw
 {
@@ -2632,7 +2634,13 @@ unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t 
 		for (n = 0; n < nenvmap; n++)
 		{
 			VectorSubtract(mid, envmap[n].origin, diff);
+#if 1
+			//axial distance
+			dist = min(min(fabs(diff[0]), fabs(diff[1])), fabs(diff[2]));
+#else
+			//radial distance (squared)
 			dist = DotProduct(diff,diff);
+#endif
 			if (bestdist > dist)
 			{
 				best = n;

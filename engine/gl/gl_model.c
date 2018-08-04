@@ -736,10 +736,12 @@ void Mod_Purge(enum mod_purge_e ptype)
 	}
 }
 
+#ifndef SERVERONLY
 void Mod_FindCubemaps_f(void);
 void Mod_Realign_f(void);
 void Mod_BSPX_List_f(void);
 void Mod_BSPX_Strip_f(void);
+#endif
 
 /*
 ===============
@@ -777,10 +779,12 @@ void Mod_Init (qboolean initial)
 		Cmd_AddCommand("sv_saveentfile", Mod_SaveEntFile_f);
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
 
+#ifndef SERVERONLY
 		Cmd_AddCommandD("map_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection envmap sites and determines the nearest one to each surface.");
 		Cmd_AddCommandD("map_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
 		Cmd_AddCommandD("map_bspx_list", Mod_BSPX_List_f, "Lists all lumps (and their sizes) in the specified bsp.");
 		Cmd_AddCommandD("map_bspx_strip", Mod_BSPX_Strip_f, "Strips a named extension lump from a bsp file.");
+#endif
 	}
 
 	if (initial)

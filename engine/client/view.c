@@ -1453,7 +1453,7 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.fovv_x = 0;
 	r_refdef.fovv_y = 0;
 
-	r_refdef.drawsbar = cl.intermissionmode == IM_NONE;
+	r_refdef.drawsbar = (cl.intermissionmode == IM_NONE);
 	r_refdef.flags = 0;
 
 	r_refdef.areabitsknown = false;

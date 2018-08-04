@@ -163,6 +163,8 @@
 #undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
 #undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
+//#define SAVEDGAMES			//Can save the game.
+#undef PACKAGEMANAGER			//Allows the user to enable/disable/download packages and plugins.
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

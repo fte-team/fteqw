@@ -675,6 +675,7 @@ void SV_Map_f (void)
 	if (!isrestart)
 		SV_SaveSpawnparms ();
 
+#ifdef SAVEDGAMES
 	if (newunit)
 		SV_FlushLevelCache();	//forget all on new unit
 	else if (startspot && !isrestart && !newunit)
@@ -698,6 +699,7 @@ void SV_Map_f (void)
 #endif
 			SV_SaveLevelCache(NULL, false);
 	}
+#endif
 
 #ifdef Q3SERVER
 	{
@@ -783,7 +785,11 @@ void SV_Map_f (void)
 	}
 
 	SCR_SetLoadingFile("spawnserver");
-	if (newunit || !startspot || cinematic || !SV_LoadLevelCache(NULL, level, startspot, false))
+	if (newunit || !startspot || cinematic
+#ifdef SAVEDGAMES
+			|| !SV_LoadLevelCache(NULL, level, startspot, false)
+#endif
+			)
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
@@ -854,12 +860,13 @@ void SV_Map_f (void)
 			Cvar_Set(nsv, "");
 	}
 
+#ifdef SAVEDGAMES
 	if (q2savetos0)
 	{
 		if (sv.state != ss_cinematic)	//too weird.
 			SV_Savegame("s0", true);
 	}
-
+#endif
 
 	if (isDedicated)
 		Mod_Purge(MP_MAPCHANGED);

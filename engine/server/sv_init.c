@@ -650,7 +650,9 @@ void SV_UnspawnServer (void)	//terminate the running server.
 	free(svs.clients);
 	svs.clients = NULL;
 	svs.allocated_client_slots = 0;
+#ifdef SAVEDGAMES
 	SV_FlushLevelCache();
+#endif
 	NET_CloseServer ();
 	SV_RunCmdCleanup();
 }
@@ -1614,7 +1616,9 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 	if (!startspot)
 	{
+#ifdef SAVEDGAMES
 		SV_FlushLevelCache();	//to make sure it's caught
+#endif
 		for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
 			if (svs.clients[i].spawninfo)
@@ -1730,7 +1734,9 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	SV_SetMoveVars();
 
 	sv.starttime = Sys_DoubleTime() - sv.time;
+#ifdef SAVEDGAMES
 	sv.autosave_time = sv.time + sv_autosave.value*60;
+#endif
 }
 
 #endif

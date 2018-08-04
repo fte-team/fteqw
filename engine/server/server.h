@@ -116,7 +116,9 @@ typedef struct
 	unsigned int csqcchecksum;
 	qboolean	mapchangelocked;
 
+#ifdef SAVEDGAMES
 	double		autosave_time;
+#endif
 	double		time;
 	double		starttime;
 	int framenum;
@@ -1572,7 +1574,6 @@ typedef struct
 int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p);
 
 // savegame.c
-void SV_LegacySavegame_f(void);
 void SV_Savegame_f (void);
 void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void SV_Loadgame_f (void);

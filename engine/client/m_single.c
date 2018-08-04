@@ -4,7 +4,7 @@
 #include "winquake.h"
 #include "shader.h"
 #ifndef NOBUILTINMENUS
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 //=============================================================================
 /* LOAD/SAVE MENU */
 
@@ -329,10 +329,10 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		va("closemenu; skill 0;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
 		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	va("closemenu; skill 1;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
 		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		va("closemenu; skill 2;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
-
+#ifdef SAVEDGAMES
 		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 170, 80,	"Save Game", "menu_save\n");
-
+#endif
 		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
 		return;
 #endif
@@ -455,8 +455,10 @@ void M_Menu_SinglePlayer_f (void)
 					menu->selecteditem = (menuoption_t*)
 					MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	"New Game",		"menu_single class demo1\n");
 				}
+#ifdef SAVEDGAMES
 				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Save Game",	"menu_save\n");
 				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Load Game",	"menu_load\n");
+#endif
 			}
 
 			menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
@@ -474,8 +476,10 @@ void M_Menu_SinglePlayer_f (void)
 
 			menu->selecteditem = (menuoption_t*)
 			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",  "closemenu;disconnect;maxclients 1;samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
+#ifdef SAVEDGAMES
 			MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 			MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
+#endif
 
 			menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 			return;
@@ -525,12 +529,14 @@ void M_Menu_SinglePlayer_f (void)
 		menu->selecteditem = (menuoption_t *)b;
 		b->common.width = width;
 		b->common.height = 20;
+#ifdef SAVEDGAMES
 		b = MC_AddConsoleCommand	(menu, 72, 304, 52,	"", "menu_load\n");
 		b->common.width = width;
 		b->common.height = 20;
 		b = MC_AddConsoleCommand	(menu, 72, 304, 72,	"", "menu_save\n");
 		b->common.width = width;
 		b->common.height = 20;
+#endif
 
 #if MAX_SPLITS > 1
 		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 72+width/2, 92, "", &cl_splitscreen, opts, vals);

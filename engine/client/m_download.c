@@ -3,8 +3,7 @@
 //FIXME: block downloads of exe/dll/so/etc if not an https url (even if inside zips). also block such files from package lists over http.
 #include "quakedef.h"
 
-#ifdef WEBCLIENT
-	#define PACKAGEMANAGER
+#ifdef PACKAGEMANAGER
 	#if !defined(NOBUILTINMENUS) && !defined(SERVERONLY)
 		#define DOWNLOADMENU
 	#endif
@@ -134,7 +133,6 @@ typedef struct package_s {
 
 	struct package_s *alternative;	//alternative (hidden) forms of this package.
 
-	unsigned int trymirrors;
 	char *mirror[8];	//FIXME: move to two types of dep...
 	char gamedir[16];
 	enum fs_relative fsroot;
@@ -172,7 +170,10 @@ typedef struct package_s {
 		char name[1];
 	} *deps;
 
+#ifdef WEBCLIENT
 	struct dl_download *download;
+	unsigned int trymirrors;
+#endif
 
 	int flags;
 	int priority;
@@ -190,8 +191,12 @@ static int domanifestinstall;	//SECURITY_MANIFEST_*
 #ifdef PLUGINS
 static qboolean pluginpromptshown;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
 #endif
+#ifdef WEBCLIENT
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 static qboolean pkg_updating;	//when flagged, further changes are blocked until completion.
+#else
+static const qboolean pkg_updating = false;
+#endif
 
 //FIXME: these are allocated for the life of the exe. changing basedir should purge the list.
 static int numdownloadablelists = 0;
@@ -1152,11 +1157,13 @@ void PM_Shutdown(void)
 	{
 		numdownloadablelists--;
 
+#ifdef WEBCLIENT
 		if (downloadablelist[numdownloadablelists].curdl)
 		{
 			DL_Close(downloadablelist[numdownloadablelists].curdl);
 			downloadablelist[numdownloadablelists].curdl = NULL;
 		}
+#endif
 		downloadablelist[numdownloadablelists].received = 0;
 		Z_Free(downloadablelist[numdownloadablelists].url);
 		downloadablelist[numdownloadablelists].url = NULL;
@@ -1232,6 +1239,7 @@ static void PM_UnmarkPackage(package_t *package)
 		return;	//looks like its already deselected.
 	package->flags &= ~(DPF_MARKED);
 
+#ifdef WEBCLIENT
 	//Is this safe?
 	package->trymirrors = 0;	//if its enqueued, cancel that quickly...
 	if (package->download)
@@ -1239,6 +1247,7 @@ static void PM_UnmarkPackage(package_t *package)
 		DL_Close(package->download);
 		package->download = NULL;
 	}
+#endif
 
 	//remove stuff that depends on us
 	for (o = availablepackages; o; o = o->next)
@@ -1530,7 +1539,7 @@ static void PM_PrintChanges(void)
 }
 
 static void PM_ApplyChanges(void);
-
+#ifdef WEBCLIENT
 static void PM_ListDownloaded(struct dl_download *dl)
 {
 	int i;
@@ -1619,6 +1628,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 		}
 	}
 }
+#endif
 //retry 1==
 static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 {
@@ -1633,6 +1643,10 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 	if (*pm_downloads_url.string)
 		PM_AddSubList(pm_downloads_url.string, "", true, true);
 
+#ifndef WEBCLIENT
+	for (i = 0; i < numdownloadablelists; i++)
+		downloadablelist[i].received = true;
+#else
 	doautoupdate |= autoupdate;
 
 	//kick off the initial tier of list-downloads.
@@ -1673,6 +1687,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 				PM_PrintChanges();
 		}
 	}
+#endif
 }
 
 
@@ -1860,6 +1875,7 @@ static void PM_WriteInstalledPackages(void)
 	}
 }
 
+#ifdef WEBCLIENT
 //callback from PM_Download_Got, extracts each file from an archive
 static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {	//this is gonna suck. threading would help, but gah.
@@ -2114,6 +2130,7 @@ static char *PM_GetTempName(package_t *p)
 	Z_Free(ts);
 	return Z_StrDup(destname);
 }
+#endif
 
 /*static void PM_AddDownloadedPackage(const char *filename)
 {
@@ -2143,8 +2160,9 @@ static char *PM_GetTempName(package_t *p)
 
 int PM_IsApplying(qboolean listsonly)
 {
-	package_t *p;
 	int count = 0;
+#ifdef WEBCLIENT
+	package_t *p;
 	int i;
 	if (!listsonly)
 	{
@@ -2159,12 +2177,14 @@ int PM_IsApplying(qboolean listsonly)
 		if (downloadablelist[i].curdl)
 			count++;
 	}
+#endif
 	return count;
 }
 
 //looks for the next package that needs downloading, and grabs it
 static void PM_StartADownload(void)
 {
+#ifdef WEBCLIENT
 	vfsfile_t *tmpfile;
 	char *temp;
 	package_t *p;
@@ -2284,6 +2304,7 @@ static void PM_StartADownload(void)
 
 	//clear the updating flag once there's no more activity needed
 	pkg_updating = downloading;
+#endif
 }
 //'just' starts doing all the things needed to remove/install selected packages
 static void PM_ApplyChanges(void)
@@ -2291,17 +2312,22 @@ static void PM_ApplyChanges(void)
 	package_t *p, **link;
 	char temp[MAX_OSPATH];
 
+#ifdef WEBCLIENT
 	if (pkg_updating)
 		return;
 	pkg_updating = true;
+#endif
 
 //delete any that don't exist
 	for (link = &availablepackages; *link ; )
 	{
 		p = *link;
+#ifdef WEBCLIENT
 		if (p->download)
 			; //erk, dude, don't do two!
-		else if ((p->flags & DPF_PURGE) || (!(p->flags&DPF_MARKED) && (p->flags&DPF_ENABLED)))
+		else
+#endif
+			if ((p->flags & DPF_PURGE) || (!(p->flags&DPF_MARKED) && (p->flags&DPF_ENABLED)))
 		{	//if we don't want it but we have it anyway. don't bother to follow this logic when reinstalling
 			qboolean reloadpacks = false;
 			struct packagedep_s *dep;
@@ -2416,12 +2442,14 @@ static void PM_ApplyChanges(void)
 		link = &(*link)->next;
 	}
 
+#ifdef WEBCLIENT
 	//and flag any new/updated ones for a download
 	for (p = availablepackages; p ; p=p->next)
 	{
 		if ((p->flags&DPF_MARKED) && !(p->flags&DPF_ENABLED) && !p->download)
 			p->trymirrors = ~0u;
 	}
+#endif
 	PM_StartADownload();	//and try to do those downloads.
 }
 
@@ -2496,14 +2524,18 @@ static qboolean PM_DeclinedPackages(char *out, size_t outsize)
 }
 static void PM_PromptApplyChanges_Callback(void *ctx, int opt)
 {
+#ifdef WEBCLIENT
 	pkg_updating = false;
+#endif
 	if (opt == 0)
 		PM_ApplyChanges();
 }
 static void PM_PromptApplyChanges(void);
 static void PM_PromptApplyDecline_Callback(void *ctx, int opt)
 {
+#ifdef WEBCLIENT
 	pkg_updating = false;
+#endif
 	if (opt == 1)
 	{
 		PM_DeclinedPackages(NULL, 0);
@@ -2514,6 +2546,7 @@ static void PM_PromptApplyChanges(void)
 {
 	unsigned int changes;
 	char text[8192];
+#ifdef WEBCLIENT
 	//lock it down, so noone can make any changes while this prompt is still displayed
 	if (pkg_updating)
 	{
@@ -2521,6 +2554,7 @@ static void PM_PromptApplyChanges(void)
 		return;
 	}
 	pkg_updating = true;
+#endif
 
 	strcpy(text, "Really decline the following\nrecommendedpackages?\n\n");
 	if (PM_DeclinedPackages(text+strlen(text), sizeof(text)-strlen(text)))
@@ -2530,7 +2564,11 @@ static void PM_PromptApplyChanges(void)
 		strcpy(text, "Apply the following changes?\n\n");
 		changes = PM_ChangeList(text+strlen(text), sizeof(text)-strlen(text));
 		if (!changes)
+		{
+#ifdef WEBCLIENT
 			pkg_updating = false;//no changes...
+#endif
+		}
 		else
 			M_Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, text, "Apply", NULL, "Cancel");
 	}
@@ -2903,11 +2941,13 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 		if (p->alternative && (p->flags & DPF_HIDDEN))
 			p = p->alternative;
 
+#ifdef WEBCLIENT
 		if (p->download)
 			Draw_FunString (x+4, y, va("%i", (int)p->download->qdownload.percent));
 		else if (p->trymirrors)
 			Draw_FunString (x+4, y, "PND");
-		else 
+		else
+#endif
 		{
 			switch((p->flags & (DPF_ENABLED | DPF_MARKED)))
 			{
@@ -3055,14 +3095,17 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 				}
 			}
 		}
+#ifdef WEBCLIENT
 		else
 			p->trymirrors = 0;
+#endif
 		return true;
 	}
 
 	return false;
 }
 
+#ifdef WEBCLIENT
 static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	char *settings[] = 
@@ -3094,6 +3137,17 @@ static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct menu_s *m, int
 	return false;
 }
 
+static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct menu_s *m,int key)
+{
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	{
+		PM_MarkUpdates();
+		return true;
+	}
+	return false;
+}
+#endif
+
 qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
@@ -3114,15 +3168,6 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int k
 	return false;
 }
 
-static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct menu_s *m,int key)
-{
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
-	{
-		PM_MarkUpdates();
-		return true;
-	}
-	return false;
-}
 static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
@@ -3154,20 +3199,22 @@ static void MD_AddItemsToDownloadMenu(menu_t *m)
 	y+=8;
 	if (!prefixlen)
 	{
+#ifdef WEBCLIENT
 		MC_AddCommand(m, 0, 170, y, "Mark Updates", MD_MarkUpdatesButton);
 		y+=8;
+#endif
 
 		MC_AddCommand(m, 0, 170, y, "Revert Updates", MD_RevertUpdates);
 		y+=8;
-	}
-	if (!prefixlen)
-	{
+
+#ifdef WEBCLIENT
 		c = MC_AddCustom(m, 0, y, p, 0);
 		c->draw = MD_AutoUpdate_Draw;
 		c->key = MD_AutoUpdate_Key;
 		c->common.width = 320;
 		c->common.height = 8;
 		y += 8;
+#endif
 	}
 
 	y+=4;	//small gap

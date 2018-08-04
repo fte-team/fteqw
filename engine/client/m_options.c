@@ -187,9 +187,6 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 void M_Menu_Options_f (void)
 {
 	extern cvar_t crosshair, r_projection;
-#ifndef CLIENTONLY
-	extern cvar_t sv_autosave;
-#endif
 	int y;
 
 	static const char *projections[] = {
@@ -211,7 +208,8 @@ void M_Menu_Options_f (void)
 		NULL
 	};
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(SAVEDGAMES)
+	extern cvar_t sv_autosave;
 	static const char *autosaveopts[] = {
 		"Off",
 		"30 secs",
@@ -234,8 +232,8 @@ void M_Menu_Options_f (void)
 
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
-#ifdef WEBCLIENT
-		MB_CONSOLECMD("Updates and packages", "menu_download\n", "Modify keyboard and mouse inputs."),
+#ifdef PACKAGEMANAGER
+		MB_CONSOLECMD("Updates and Packages", "menu_download\n", "Configure additional content and plugins."),
 #endif
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
 		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
@@ -250,7 +248,7 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
 #endif
 		MB_SPACING(4),

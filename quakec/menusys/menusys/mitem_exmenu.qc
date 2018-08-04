@@ -24,9 +24,9 @@ class mitem_exmenu : mitem_frame
 				item_remove();
 			}
 			else if (scan == K_UPARROW && down)
-				this.item_focuschange(menu_nextitem(this, item_kactivechild?item_kactivechild:item_mactivechild), IF_KFOCUSED);
+				menu_selectnextitem(this, TRUE);
 			else if (scan == K_DOWNARROW && down)
-				this.item_focuschange(menu_previousitem(this, item_kactivechild?item_kactivechild:item_mactivechild), IF_KFOCUSED);
+				menu_selectnextitem(this, FALSE);
 			else if (scan >= K_F1 && scan <= K_F12)	//allow f1-f12 to work, but every other button event gets canceled.
 				ret = FALSE;
 		}

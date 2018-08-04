@@ -44,33 +44,31 @@ nonstatic void(mitem_desktop desktop) M_Options_Audio =
 	//ambient fade
 	fr.add(menuitemcheck_spawn(_("Static Sounds"),	"cl_staticsounds", 					'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Mix in Background"),"s_inactive", 					'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-	if (assumefalsecheckcommand("+voip"))
-	{
-		pos += 8;
-		fr.add(menuitemcombo_spawn(_("Microphone Device"),	"cl_voip_capturedevice",		'280 8', cvar_string("_cl_voip_capturedevice_opts")),
-																	fl, [0, pos], [0, 8]); pos += 8;
-		fr.add(menuitemslider_spawn(_("VOIP Playback Vol"),"cl_voip_play",		'0 2 0.1', 	'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-		fr.add(menuitemcheck_spawn(_("VOIP Test"),		"cl_voip_test", 			'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-		fr.add(menuitemslider_spawn(_("VOIP Record Vol"),	"cl_voip_micamp",	'0 4 0.1', 	'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-		fr.add(menuitemcombo_spawn(_("VOIP Mode"),		"cl_voip_send",				'280 8', _(
-												"0 \"Push-To-Talk\" 1 "
-												"\"Voice Activation\" "
-												"2 \"Continuous\""
-															)),		fl, [0, pos], [0, 8]); pos += 8;
-		//VAD threshhold
-		//ducking
-		//noise cancelation
-		fr.add(menuitemcombo_spawn(_("VOIP Codec"),		"cl_voip_codec",			'280 8',_(
-												"0	\"speex (narrow 11khz)\" "
-												//"1	\"raw (wasteful)\" "
-												"2	\"opus\" "
-												"3	\"speex (narrow 8khz)\" "
-												"4	\"speex (wide 16khz)\" "
-												"5	\"speex (ultrawide 32khz)\" "
-															)),		fl, [0, pos], [0, 8]); pos += 8;
-															
-		fr.add(menuitemslider_spawn(_("Opus bitrate"),		"cl_voip_bitrate",	'0.5 128 0.5','280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-	}
+
+	pos += 8;
+	fr.add(menuitemcombo_spawn(_("Microphone Device"),	"cl_voip_capturedevice",		'280 8', cvar_string("_cl_voip_capturedevice_opts")),
+																fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemslider_spawn(_("VOIP Playback Vol"),"cl_voip_play",		'0 2 0.1', 	'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("VOIP Test"),		"cl_voip_test", 			'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemslider_spawn(_("VOIP Record Vol"),	"cl_voip_micamp",	'0 4 0.1', 	'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcombo_spawn(_("VOIP Mode"),		"cl_voip_send",				'280 8', _(
+											"0 \"Push-To-Talk\" 1 "
+											"\"Voice Activation\" "
+											"2 \"Continuous\""
+														)),		fl, [0, pos], [0, 8]); pos += 8;
+	//VAD threshhold
+	//ducking
+	//noise cancelation
+	fr.add(menuitemcombo_spawn(_("VOIP Codec"),		"cl_voip_codec",			'280 8',_(
+											"0	\"speex (narrow 11khz)\" "
+											//"1	\"raw (wasteful)\" "
+											"2	\"opus\" "
+											"3	\"speex (narrow 8khz)\" "
+											"4	\"speex (wide 16khz)\" "
+											"5	\"speex (ultrawide 32khz)\" "
+														)),		fl, [0, pos], [0, 8]); pos += 8;
+														
+	fr.add(menuitemslider_spawn(_("Opus bitrate"),		"cl_voip_bitrate",	'0.5 128 0.5','280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 
 	addmenuback(m);
 };

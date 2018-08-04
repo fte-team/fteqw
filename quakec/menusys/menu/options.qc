@@ -50,7 +50,7 @@ nonstatic void(mitem_desktop desktop) M_Options =
 		{fr.add(spawn(mitem_text, item_text:"Save Settings", 		item_command:"cfg_save", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 	if (assumefalsecheckcommand("cvarreset"))
 		{fr.add(spawn(mitem_text, item_text:"Reset to Defaults", 	item_command:"m_reset", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
-
+		
 	//random art for style
 #if 1//def CSQC
 	m.addm(spawn (mitem_spinnymodel, item_text: "progs/suit.mdl"), [0, 12*-16/2], [160, 12*16/2]);

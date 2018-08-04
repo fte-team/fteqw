@@ -21,9 +21,9 @@ class mitem_tab : mitem_frame
 	virtual float(vector pos, float scan, float char, float down) item_keypress =
 	{
 		if (scan == K_UPARROW && down)
-			this.item_focuschange(menu_nextitem(this, item_kactivechild?item_kactivechild:item_mactivechild), IF_KFOCUSED);
+			menu_selectnextitem(this, TRUE);
 		else if (scan == K_DOWNARROW && down)
-			this.item_focuschange(menu_previousitem(this, item_kactivechild?item_kactivechild:item_mactivechild), IF_KFOCUSED);
+			menu_selectnextitem(this, FALSE);
 		else if (super::item_keypress(pos, scan, char, down))
 			return TRUE;
 		else

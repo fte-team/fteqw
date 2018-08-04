@@ -103,11 +103,6 @@ class mitem
 	mitem_frame	item_parent;		//the item that contains us. make mitem_frame?
 	mitem 		item_next;		//the next child within the parent
 
-
-#ifdef MENU
-//	vector		mins;		//gravity mins
-//	vector		maxs;		//gravity mins
-#endif
 	float			resizeflags;
 
 

@@ -8,6 +8,15 @@ class mitem_edit : mitem
 	virtual float(vector pos, float scan, float char, float down) item_keypress;
 	virtual void() item_remove;
 	float spos;
+	
+	virtual void() item_resized =
+	{
+		if (isvalid(item_command))
+			item_flags |= IF_SELECTABLE;		
+		else
+			item_flags &= ~IF_SELECTABLE;
+		super::item_resized();
+	};
 };
 
 void() mitem_edit::item_remove =

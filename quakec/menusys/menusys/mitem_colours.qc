@@ -8,6 +8,15 @@ class mitem_colours : mitem
 {
 	virtual void(vector pos) item_draw;
 	virtual float(vector pos, float scan, float char, float down) item_keypress;
+	
+	virtual void() item_resized =
+	{
+		if (isvalid(item_command))
+			item_flags |= IF_SELECTABLE;		
+		else
+			item_flags &= ~IF_SELECTABLE;
+		super::item_resized();
+	};
 };
 
 //http://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
@@ -93,7 +102,31 @@ static vector(string v) hextorgb =
 		return r;
 	}
 	else
-		return '0 0 0';
+	{
+		float legacycolour = stof(v);
+		switch(legacycolour)
+		{
+		case  0:	return [0xeb, 0xeb, 0xeb]/255;
+		case  1:	return [0x8f, 0x6f, 0x23]/255;
+		case  2:	return [0x8b, 0x8b, 0xcb]/255;
+		case  3:	return [0x6b, 0x6b, 0x0f]/255;
+		case  4:	return [0x7f, 0x00, 0x00]/255;
+		case  5:	return [0xaf, 0x67, 0x23]/255;
+		case  6:	return [0xff, 0xf3, 0x1b]/255;
+		case  7:	return [0xe3, 0xb3, 0x97]/255;
+		
+		case  8:	return [0xab, 0x8b, 0xa3]/255;
+		case  9:	return [0xbb, 0x73, 0x97]/255;
+		case 10:	return [0xdb, 0xc3, 0xbb]/255;
+		case 11:	return [0x6f, 0x83, 0x7b]/255;
+		case 12:	return [0xff, 0xf3, 0x1b]/255;
+		case 13:	return [0x00, 0x00, 0xff]/255;
+		//14+15 are fullbrights, so not valid.
+
+		default:
+			return '0 0 0';
+		}
+	}
 };
 static string(vector v) rgbtohex =
 {
@@ -136,6 +169,8 @@ void(vector pos) mitem_colours::item_draw =
 	for (step = 0; step < STEPS; step += 1, pos_x += stride)
 	{
 		rgb = hsvtorgb([step/STEPS, 1, 1]);
+		if (!(item_flags & IF_SELECTABLE))
+			rgb *= 0.2;
 		ui.drawfill(pos, [stride, item_size_y-2], rgb, item_alpha, 0);
 	}
 #else

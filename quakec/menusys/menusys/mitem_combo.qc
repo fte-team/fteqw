@@ -23,6 +23,15 @@ class mitem_combo : mitem
 	float		visrows;
 
 	virtual void() item_remove;
+	
+	virtual void() item_resized =
+	{
+		if (isvalid(item_command))
+			item_flags |= IF_SELECTABLE;		
+		else
+			item_flags &= ~IF_SELECTABLE;
+		super::item_resized();
+	};
 };
 
 class mitem_combo_popup : mitem
@@ -222,8 +231,14 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 			i = 0;
 		curval = argv(i);
 	}
-	else if (scan == K_MOUSE1)
+	else if (scan == K_MOUSE1 || scan == K_ENTER)
 	{
+		if (scan == K_ENTER && cfriend)
+		{
+			cfriend.item_remove();
+			return TRUE;
+		}
+		
 		visrows = ((c>18)?18/2:c/2);
 		if (!cfriend)
 		{
@@ -245,7 +260,7 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 		cfriend.item_flags |= IF_SELECTABLE;
 		cfriend.totop();
 
-		if (cfriend.item_flags & IF_MFOCUSED)
+		if (scan == K_MOUSE1 && (cfriend.item_flags & IF_MFOCUSED))
 		{
 			//if they clicked inside the popup, change the selected item.
 			f = ui.mousepos[1] - (pos_y + item_size_y);
@@ -258,6 +273,8 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 				cfriend.item_flags &~= IF_SELECTABLE;
 				cfriend.item_size = cfriend.maxs = '0 0';
 				item_parent.item_focuschange(this, IF_MFOCUSED|IF_KFOCUSED);
+				
+				cfriend.item_remove();
 			}
 		}
 	}

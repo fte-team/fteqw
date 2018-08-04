@@ -1,7 +1,6 @@
-
 class mitem_playerpreview : mitem_spinnymodel
 {
-#if defined(FTE_QC_CUSTOMSKINS)
+#if 1//defined(FTE_QC_CUSTOMSKINS)
 	virtual void(vector pos) item_draw =
 	{
 		//if you wanted to get more advanced, you could use q3 skins here.
@@ -39,12 +38,16 @@ class options_basic : mitem_exmenu
 	{
 		if (key == "m_pitchsign")
 			return TRUE;
+		if (key == "cl_run")
+			return TRUE;
 		return super::isvalid(key);
 	};
 	virtual string(string key) get =
 	{
 		if (key == "m_pitchsign")
 			return (autocvar_m_pitch<0)?"1":"0";
+		if (key == "cl_run")
+			return (stof(super::get("cl_forwardspeed")) > 200)?"1":"0";
 		return super::get(key);
 	};
 	virtual void(string key, string newval) set =
@@ -58,6 +61,27 @@ class options_basic : mitem_exmenu
 				invert = autocvar_m_pitch < 0;
 			if (invert)
 				cvar_set("m_pitch", ftos(-autocvar_m_pitch));
+		}
+		else if (key == "cl_run")
+		{
+			float setbackspeed = (super::get("cl_backspeed") != "");
+			if (stof(newval))
+			{
+				super::set("cl_forwardspeed", "400");
+				super::set("cl_sidespeed", "400");
+				if (setbackspeed)
+					super::set("cl_backspeed", "400");
+				super::set("cl_movespeedkey", "0.5");	//makes +speed act like +walk
+			}
+			else
+			{
+				//these are the defaults from winquake.
+				super::set("cl_forwardspeed", "200");
+				super::set("cl_sidespeed", "350");
+				if (setbackspeed)
+					super::set("cl_backspeed", "200");
+				super::set("cl_movespeedkey", "2.0");
+			}
 		}
 		else
 			super::set(key, newval);
@@ -87,14 +111,14 @@ nonstatic void(mitem_desktop desktop) M_Options_Basic =
 	fr.add(menuitemcombo_spawn(_("Player Skin"), 		"skin",						'280 8', 	skinopts()), fl, [0, pos], [0, 8]); pos += 8;
 																	
 																	
-	if (assumefalsecheckcommand("topcolor"))
-		fr.add(menuitemcolour_spawn(_("Upper Colour"), 	"topcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	if (assumefalsecheckcommand("bottomcolor"))
-		fr.add(menuitemcolour_spawn(_("Lower Colour"), 	"bottomcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;	/*aka: arse colour*/
+	fr.add(menuitemcolour_spawn(_("Upper Colour"), 	"topcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcolour_spawn(_("Lower Colour"), 	"bottomcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;	/*aka: arse colour*/
 	pos += 8;
+	fr.add(menuitemcheck_spawn (_("Always Run"),		"cl_run", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn (_("Invert Mouse"),		"m_pitchsign", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Sensitivity"),		"sensitivity", 			'3 20 1',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Fov"),			"fov", 				'80 130 5',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemslider_spawn(_("Viewmodel Fov"),		"r_viewmodel_fov", 		'80 130 5',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Gamma"),			dp("v_gamma", "gamma"), 	'0.4 1.3 0.1',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Contrast"),		dp("v_contrast", "contrast"), 	'0.8 1.8 0.1', 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Brightness"),		dp("v_brightness", "brightness"),'0.0 0.5 0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;

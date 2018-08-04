@@ -51,6 +51,15 @@ class mitem_check : mitem
 		if (isvalid(item_command))
 			item_flags |= IF_SELECTABLE;
 	};
+	
+	virtual void() item_resized =
+	{
+		if (isvalid(item_command))
+			item_flags |= IF_SELECTABLE;		
+		else
+			item_flags &= ~IF_SELECTABLE;
+		super::item_resized();
+	};
 };
 
 //optional, can spawn direcly

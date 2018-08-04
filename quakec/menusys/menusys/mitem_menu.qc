@@ -197,9 +197,9 @@ float(vector pos, float scan, float char, float down) mitem_menu::item_keypress 
 			}
 		}
 		else if (scan == K_UPARROW && down)
-			this.item_focuschange(menu_nextitem(this, item_kactivechild?item_kactivechild:item_mactivechild), IF_KFOCUSED);
+			menu_selectnextitem(this, TRUE);
 		else if (scan == K_DOWNARROW && down)
-			this.item_focuschange(menu_previousitem(this, item_kactivechild?item_kactivechild:item_mactivechild), IF_KFOCUSED);
+			menu_selectnextitem(this, FALSE);
 		else if (scan == K_MOUSE2 && down && !(this.item_flags & IF_NOKILL))
 		{	//unhandled right click closes menus, if we're allowed
 			localcmd(strcat(item_command, "\n"));	//console command to exec if someone clicks the close button.

@@ -8,6 +8,15 @@ class mitem_hslider : mitem
 	virtual float(vector pos, float scan, float char, float down) item_keypress;
 
 	vector item_slidercontrols;	//min, max, step
+	
+	virtual void() item_resized =
+	{
+		if (isvalid(item_command))
+			item_flags |= IF_SELECTABLE;		
+		else
+			item_flags &= ~IF_SELECTABLE;
+		super::item_resized();
+	};
 };
 void(vector pos) mitem_hslider::item_draw =
 {

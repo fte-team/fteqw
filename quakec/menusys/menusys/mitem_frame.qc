@@ -356,43 +356,117 @@ void() mitem_vslider::mitem_vslider =
 	item_size[1] = 128;
 };
 
-
-mitem(mitem_frame menu, mitem item) menu_previousitem =
+//does NOT wrap.
+//does NOT pass go.
+static mitem(mitem item, float upwards) menu_simplenextitem =
 {
-	if (!item)
-		item = menu.item_children;
-	local mitem stop = item;
-	local mitem prev;
-	if (!stop)
-		return stop;
-	while(1)
+	mitem_frame menu = item.item_parent;
+	mitem prev;
+	if (upwards)
+	{
+		if (item)
+		{
+			item = item.item_next;
+			if (!item)
+				return __NULL__;
+			return item;
+		}
+		else
+			return __NULL__;
+	}
+	else
 	{
 		for(prev = menu.item_children; prev.item_next; prev = prev.item_next)
 		{
 			if (prev.item_next == item)
-				break;
+				return prev;
 		}
-		if (prev == stop || (prev.item_flags & IF_SELECTABLE))
-			return prev;
-		item = prev;
+		return __NULL__;
 	}
 };
-mitem(mitem_frame menu, mitem item) menu_nextitem =
-{
-	if (!item)
-		item = menu.item_children;
-	local mitem stop = item;
-	if (!stop)
-		return stop;
-	while(1)
-	{
-		item = item.item_next;
-		if (!item)
-			item = menu.item_children;
 
-		if (item == stop || (item.item_flags & IF_SELECTABLE))
+//finds the next/prev item through multiple children, returning NULL when it runs out of items in the sequence.
+//call this with item==null to find the first item in the sequence (to handle wraps).
+static mitem(mitem_frame menu, float upwards, mitem item) menu_findnextitem =
+{
+	mitem_frame frame;
+	mitem citem;
+	
+	if (item && (item.item_flags & IF_ISFRAME))
+	{
+		frame = (mitem_frame)item;
+		citem = menu_findnextitem(frame, upwards, frame.item_kactivechild?frame.item_kactivechild:frame.item_mactivechild);
+		if (citem)
+			return citem;
+	}
+	
+	for(;;)
+	{
+		if (!item)
+		{	//we go for the opposite end here, as we assume to be starting/unfocused
+			item = menu.item_children;
+			if (!upwards && item)
+			{
+				while(item.item_next)
+					item = item.item_next;
+			}
+		}
+		else
+			item = menu_simplenextitem(item, upwards);
+		
+		if (!item)
+		{	//we reached the end of the list, let the parent frame try its next
+			return __NULL__;
+		}
+		
+		if (item.item_flags & IF_ISFRAME)
+		{	//if the next item is a frame, try and select its first element instead
+			frame = (mitem_frame)item;
+			citem = menu_findnextitem(frame, upwards, __NULL__);
+			if (citem)
+				return citem;
+		}
+
+		if (item.item_flags & IF_INVISIBLE)
+			continue;
+		if (item.item_flags & IF_SELECTABLE)
 			return item;
 	}
+	
+};
+static void(mitem item) menu_deselectitem =
+{
+	if (!item)
+		return;
+	if (item && (item.item_flags & IF_ISFRAME))
+	{
+		mitem_frame frame = (mitem_frame)item;
+		if (frame.item_kactivechild)
+			menu_deselectitem(frame.item_kactivechild);
+	}
+	item.item_focuschange(__NULL__, IF_KFOCUSED);	//deselect the previous one	
+};
+static void(mitem item) menu_selectitem =
+{
+	if (!item)
+		return;
+	mitem_frame menu = item.item_parent;
+	if (menu)
+	{
+		if (menu.item_kactivechild != item)
+			menu_deselectitem(menu.item_kactivechild);
+		menu_selectitem(menu);
+		menu.item_focuschange(item, IF_KFOCUSED);	//focus on the new
+	}
+};
+void(mitem_frame rootmenu, float upwards) menu_selectnextitem =
+{
+	mitem item = menu_findnextitem(rootmenu, upwards, rootmenu.item_kactivechild?rootmenu.item_kactivechild:rootmenu.item_mactivechild);
+	if (!item)
+		item = menu_findnextitem(rootmenu, upwards, __NULL__);
+
+	menu_selectitem(item);
+	item.item_focuschange(item, IF_KFOCUSED);	//focus on the new
 };
 
 float(vector pos, float scan, float char, float down) mitem_frame::item_keypress =

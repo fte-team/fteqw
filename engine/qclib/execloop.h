@@ -1330,9 +1330,9 @@ reeval:
 		break;
 */
 	default:					
-		if (op & 0x8000)	//break point!
+		if (op & OP_BIT_BREAKPOINT)	//break point!
 		{
-			op &= ~0x8000;
+			op &= ~OP_BIT_BREAKPOINT;
 			s = st-pr_statements;
 			if (pr_xstatement != s)
 			{
@@ -1341,7 +1341,7 @@ reeval:
 				s = ShowStep(progfuncs, s, NULL, false);
 				st = &pr_statements[s];	//let the user move execution
 				pr_xstatement = s = st-pr_statements;
-				op = st->op & ~0x8000;
+				op = st->op & ~OP_BIT_BREAKPOINT;
 			}
 			goto reeval;	//reexecute
 		}

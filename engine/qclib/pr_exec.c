@@ -10,6 +10,12 @@
 	#define fte_restrict
 #endif
 
+#if defined(_WIN32) || defined(__DJGPP__)
+	#include <malloc.h>
+#elif !defined(alloca)	//alloca.h isn't present on bsd (stdlib.h should define it to __builtin_alloca, and we can check for that here).
+	#include <alloca.h>
+#endif
+
 #define HunkAlloc BADGDFG sdfhhsf FHS
 
 
@@ -360,7 +366,8 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 {
 	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
 	const mfunction_t	*f;
-	int			i;
+	int prnum;
+	int			i, st;
 	int progs;
 	int ofs;
 	int *globalbase;
@@ -378,11 +385,20 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 	//point this to the function's locals
 	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
 
-	pr_stack[pr_depth].f = pr_xfunction;
-	pr_stack[pr_depth].s = pr_xstatement;
 	for (i=pr_depth ; i>0 ; i--)
 	{
-		f = pr_stack[i].f;
+		if (i == pr_depth)
+		{
+			f = pr_xfunction;
+			st = pr_xstatement;
+			prnum = prinst.pr_typecurrent;
+		}
+		else
+		{
+			f = pr_stack[i].f;
+			st = pr_stack[i].s;
+			prnum = pr_stack[i].progsnum;
+		}
 
 		if (!f)
 		{
@@ -392,9 +408,9 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 		{
 			globalbase -= f->locals;
 
-			if (pr_stack[i].progsnum != progs)
+			if (prnum != progs)
 			{
-				progs = pr_stack[i].progsnum;
+				progs = prnum;
 
 				printf ("<%s>\n", pr_progstate[progs].filename);
 			}
@@ -402,7 +418,6 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 				printf ("stripped     : %s\n", PR_StringToNative(ppf, f->s_name));
 			else
 			{
-				int st = pr_stack[i].s;
 				if (pr_progstate[progs].linenums)
 					printf ("%12s:%i: %s\n", PR_StringToNative(ppf, f->s_file), pr_progstate[progs].linenums[st], PR_StringToNative(ppf, f->s_name));
 				else
@@ -1092,12 +1107,26 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 //	EditorHighlightLine(editwnd, pr_progstate[pn].linenums[snum]);
 }
 
+struct sortedfunc_s
+{
+	int firststatement;
+	int firstline;
+};
+int PDECL PR_SortBreakFunctions(const void *va, const void *vb)
+{
+	const struct sortedfunc_s *a = va;
+	const struct sortedfunc_s *b = vb;
+	if (a->firstline == b->firstline)
+		return 0;
+	return a->firstline > b->firstline;
+}
+
 //0 clear. 1 set, 2 toggle, 3 check
 int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, int flag)	//write alternate route to work by function name.
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int ret=0;
-	unsigned int fl;
+	unsigned int fl, stline;
 	unsigned int i;
 	int pn = prinst.pr_typecurrent;
 	mfunction_t *f;
@@ -1110,8 +1139,11 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 
 		if (linenum)	//linenum is set means to set the breakpoint on a file and line
 		{
+			struct sortedfunc_s *sortedstatements;
+			int numfilefunctions = 0;
 			if (!pr_progstate[pn].linenums)
 				continue;
+			sortedstatements = alloca(pr_progstate[pn].progs->numfunctions * sizeof(*sortedstatements));
 
 			//we need to use the function table in order to set breakpoints in the right file.
 			for (f = pr_progstate[pn].functions, fl = 0; fl < pr_progstate[pn].progs->numfunctions; f++, fl++)
@@ -1121,77 +1153,90 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 					fncfile+=2;
 				if (!stricmp(fncfile, filename))
 				{
-					for (i = f->first_statement; i < pr_progstate[pn].progs->numstatements; i++)
-					{
-						if (pr_progstate[pn].linenums[i] >= linenum)
-						{
-							fl = pr_progstate[pn].linenums[i];
-							for (; ; i++)
-							{
-								if ((unsigned int)pr_progstate[pn].linenums[i] > fl)
-									break;
+					sortedstatements[numfilefunctions].firststatement = f->first_statement;
+					if (f->first_statement < 0 || f->first_statement >= (int)pr_progstate[pn].progs->numstatements)
+						sortedstatements[numfilefunctions].firstline = 0;
+					else
+						sortedstatements[numfilefunctions].firstline = pr_progstate[pn].linenums[f->first_statement];
+					numfilefunctions++;
+				}
+			}
+			f = NULL;
+			qsort(sortedstatements, numfilefunctions, sizeof(*sortedstatements), PR_SortBreakFunctions);
 
-								switch(pr_progstate[pn].structtype)
+			//our functions are now in terms of ascending line numbers.
+			for (fl = 0; fl < numfilefunctions; fl++)
+			{
+				for (i = sortedstatements[fl].firststatement; i < pr_progstate[pn].progs->numstatements; i++)
+				{
+					if (pr_progstate[pn].linenums[i] >= linenum)
+					{
+						stline = pr_progstate[pn].linenums[i];
+						for (; ; i++)
+						{
+							if ((unsigned int)pr_progstate[pn].linenums[i] != stline)
+								break;
+
+							switch(pr_progstate[pn].structtype)
+							{
+							case PST_DEFAULT:
+							case PST_QTEST:
+								op = ((dstatement16_t*)pr_progstate[pn].statements + i)->op;
+								break;
+							case PST_KKQWSV:
+							case PST_FTE32:
+								op = ((dstatement32_t*)pr_progstate[pn].statements + i)->op;
+								break;
+							default:
+								Sys_Error("Bad structtype");
+								op = 0;
+							}
+							switch (flag)
+							{
+							default:
+								if (op & OP_BIT_BREAKPOINT)
 								{
-								case PST_DEFAULT:
-								case PST_QTEST:
-									op = ((dstatement16_t*)pr_progstate[pn].statements + i)->op;
-									break;
-								case PST_KKQWSV:
-								case PST_FTE32:
-									op = ((dstatement32_t*)pr_progstate[pn].statements + i)->op;
-									break;
-								default:
-									Sys_Error("Bad structtype");
-									op = 0;
-								}
-								switch (flag)
-								{
-								default:
-									if (op & 0x8000)
-									{
-										op &= ~0x8000;
-										ret = false;
-										flag = 0;
-									}
-									else
-									{
-										op |= 0x8000;
-										ret = true;
-										flag = 1;
-									}
-									break;
-								case 0:
-									op &= ~0x8000;
+									op &= ~OP_BIT_BREAKPOINT;
 									ret = false;
-									break;
-								case 1:
-									op |= 0x8000;
-									ret = true;
-									break;
-								case 3:
-									if (op & 0x8000)
-										return true;
+									flag = 0;
 								}
-								switch(pr_progstate[pn].structtype)
+								else
 								{
-								case PST_DEFAULT:
-								case PST_QTEST:
-									((dstatement16_t*)pr_progstate[pn].statements + i)->op = op;
-									break;
-								case PST_KKQWSV:
-								case PST_FTE32:
-									((dstatement32_t*)pr_progstate[pn].statements + i)->op = op;
-									break;
-								default:
-									Sys_Error("Bad structtype");
-									op = 0;
+									op |= OP_BIT_BREAKPOINT;
+									ret = true;
+									flag = 1;
 								}
-								if (ret)	//if its set, only set one breakpoint statement, not all of them.
+								break;
+							case 0:
+								op &= ~OP_BIT_BREAKPOINT;
+								ret = false;
+								break;
+							case 1:
+								op |= OP_BIT_BREAKPOINT;
+								ret = true;
+								break;
+							case 3:
+								if (op & OP_BIT_BREAKPOINT)
 									return true;
 							}
-							goto cont;
+							switch(pr_progstate[pn].structtype)
+							{
+							case PST_DEFAULT:
+							case PST_QTEST:
+								((dstatement16_t*)pr_progstate[pn].statements + i)->op = op;
+								break;
+							case PST_KKQWSV:
+							case PST_FTE32:
+								((dstatement32_t*)pr_progstate[pn].statements + i)->op = op;
+								break;
+							default:
+								Sys_Error("Bad structtype");
+								op = 0;
+							}
+							if (ret)	//if its set, only set one breakpoint statement, not all of them.
+								return true;
 						}
+						goto cont;
 					}
 				}
 			}

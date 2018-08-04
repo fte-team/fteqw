@@ -171,6 +171,8 @@ static void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, 
 #endif
 		cnst->inside++;
 	}
+	else
+		pr_source_line = 1;
 
 	if (duplicate)
 	{

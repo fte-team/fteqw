@@ -1,3 +1,6 @@
+#ifndef CL_MASTER_H
+#define CL_MASTER_H
+
 enum masterprotocol_e
 {
 	MP_UNSPECIFIED,
@@ -238,9 +241,13 @@ qboolean Master_GetSortDescending(void);
 int Master_NumSorted(void);
 void Master_ClearMasks(void);
 serverinfo_t *Master_SortedServer(int idx);
-void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, slist_test_t testop);
-void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_test_t testop);
+void Master_SetMaskString(qboolean or_, hostcachekey_t field, const char *param, slist_test_t testop);
+void Master_SetMaskInteger(qboolean or_, hostcachekey_t field, int param, slist_test_t testop);
 serverinfo_t *Master_FindRoute(netadr_t target);
 #else
 #define MasterInfo_WriteServers()
+#endif
+
+
+
 #endif

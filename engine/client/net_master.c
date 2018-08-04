@@ -3457,7 +3457,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			info->special = type;
 			info->refreshtime = 0;
 
-			snprintf(info->name, sizeof(info->name), "%s (via %s)", NET_AdrToString(adr, sizeof(adr), &info->adr), madr);
+			Q_snprintfz(info->name, sizeof(info->name), "%s (via %s)", NET_AdrToString(adr, sizeof(adr), &info->adr), madr);
 
 			info->next = last;
 			last = info;

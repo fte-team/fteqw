@@ -72,6 +72,7 @@ PLUG_NATIVE_EXT?=_unk.so
 PLUG_DEFFILE?=
 PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden
 PLUG_CXXFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden
+PLUG_CMAKE?=-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
 PLUG_LDFLAGS_ZLIB?=
 ARCH:=$(shell $(CC) -dumpmachine)
 PLUG_LDFLAGS:=-L../engine/libs-$(ARCH) $(PLUG_LDFLAGS)
@@ -222,20 +223,28 @@ $(OUT_DIR)/fteplug_ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
 #NATIVE_PLUGINS+=ode
 
 
-BULLET_VER=2.83.7
+BULLET_VER=2.87
 BULLET_URL=https://github.com/bulletphysics/bullet3/archive/$(BULLET_VER).tar.gz
-BULLET_BASE=$(OUT_DIR)/../bullet3-$(ODE_VER)_$(FTE_TARGET)/
-BULLET_LIB=$(ODE_BASE)bullet3-$(ODE_VER)/ode/src/.libs/libode.a
+BULLET_BASE=$(OUT_DIR)/../bullet3-$(BULLET_VER)_$(FTE_TARGET)/
+BULLET_LIBS=	\
+	$(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletDynamics/libBulletDynamics.a		\
+	$(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletCollision/libBulletCollision.a	\
+	$(BULLET_BASE)bullet3-$(BULLET_VER)/src/LinearMath/libLinearMath.a
+BULLET_CFLAGS=-I$(BULLET_BASE)bullet3-$(BULLET_VER)/src
 $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz:
 	mkdir -p $(BULLET_BASE)
 	wget -N $(BULLET_URL) -O $@
+
+BULLET_LIB=$(BULLET_BASE)bullet3-$(BULLET_VER)/src/LinearMath/libLinearMath.a
+$(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletDynamics/libBulletDynamics.a $(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletCollision/libBulletCollision.a: $(BULLET_LIB)
 $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz
 	mkdir -p $(BULLET_BASE) && cd $(BULLET_BASE) && tar xvfz $<
-	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
+	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(PLUG_CMAKE) . && $(MAKE) LinearMath BulletDynamics BulletCollision
+#./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
 
 
-$(OUT_DIR)/fteplug_bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.c plugin.c qvm_api.c $(BULLET_LIB)
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+$(OUT_DIR)/fteplug_bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.cpp plugin.c qvm_api.c $(BULLET_LIBS)
+	$(CXX) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(BULLET_CFLAGS)
 #NATIVE_PLUGINS+=bullet
 
 

@@ -485,7 +485,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 			;	//don't block if the players have different powerups
 		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)) && !(cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)))
 			;	//don't block the switch if the new player has a decent weapon, and the guy we're tracking does not.
-		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))==(IT_ROCKET_LAUNCHER|IT_INVULNERABILITY) && (cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)) != (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))
+		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))==(IT_ROCKET_LAUNCHER|IT_INVULNERABILITY) && (cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY)) != (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))
 			;	//don't block if we're switching to someone with pent+rl from someone that does not.
 		else
 #endif

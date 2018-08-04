@@ -5271,7 +5271,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		pbool redeclaration;
 		int basicindex;
 		QCC_def_t *d;
-		int d_offset = 0;
 		QCC_type_t *pc;
 		pbool found = false;
 		int assumevirtual = 0;	//0=erk, 1=yes, -1=no

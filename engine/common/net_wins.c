@@ -7777,13 +7777,15 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 
 	if (tf->conpending)
 	{
-		fd_set fd;
+		fd_set fdw, fdx;
 		struct timeval timeout;
 		timeout.tv_sec = 0;
 		timeout.tv_usec = 0;
-		FD_ZERO(&fd);
-		FD_SET(tf->sock, &fd);
-		if (!select((int)tf->sock+1, NULL, &fd, &fd, &timeout))
+		FD_ZERO(&fdw);
+		FD_SET(tf->sock, &fdw);
+		FD_ZERO(&fdx);
+		FD_SET(tf->sock, &fdx);
+		if (!select((int)tf->sock+1, NULL, &fdw, &fdx, &timeout))
 			return 0;
 		tf->conpending = false;
 	}

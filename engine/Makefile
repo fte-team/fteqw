@@ -35,6 +35,7 @@ OPUSVER=1.2.1
 SPEEXVER=1.2.0
 SPEEXDSPVER=1.2rc3
 FREETYPEVER=2.9
+BULLETVER=2.87
 
 #only limited forms of cross-making is supported
 #only the following 3 are supported
@@ -106,9 +107,11 @@ endif
 
 ifeq ($(BITS),64)
 	CC:=$(CC) -m64
+	CXX:=$(CXX) -m64
 endif
 ifeq ($(BITS),32)
 	CC:=$(CC) -m32
+	CXX:=$(CXX) -m32
 endif
 
 #correct the gcc build when cross compiling
@@ -119,6 +122,7 @@ ifneq (,$(findstring win32,$(FTE_TARGET)))
 		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i586-mingw32msvc-gcc
+			CXX=i586-mingw32msvc-g++
 			AR=i586-mingw32msvc-ar
 			WINDRES=i586-mingw32msvc-windres
 			STRIP=i586-mingw32msvc-strip
@@ -128,6 +132,7 @@ ifneq (,$(findstring win32,$(FTE_TARGET)))
 		ifneq ($(shell which i686-w64-mingw32-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i686-w64-mingw32-gcc
+			CXX=i686-w64-mingw32-g++
 			AR=i686-w64-mingw32-ar
 			WINDRES=i686-w64-mingw32-windres
 			STRIP=i686-w64-mingw32-strip
@@ -143,6 +148,7 @@ ifneq (,$(findstring win64,$(FTE_TARGET)))
 		ifneq ($(shell which x86_64-w64-mingw32-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=x86_64-w64-mingw32-gcc -m64
+			CXX=x86_64-w64-mingw32-g++ -m64
 			AR=x86_64-w64-mingw32-ar
 			WINDRES=x86_64-w64-mingw32-windres
 			STRIP=x86_64-w64-mingw32-strip
@@ -151,6 +157,7 @@ ifneq (,$(findstring win64,$(FTE_TARGET)))
 		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=amd64-mingw32msvc-gcc -m64
+			CXX=amd64-mingw32msvc-g++ -m64
 			AR=amd64-mingw32msvc-ar
 			WINDRES=amd64-mingw32msvc-windres
 			STRIP=amd64-mingw32msvc-strip
@@ -279,6 +286,7 @@ ifeq ($(FTE_TARGET),droid)
 		ANDROID_SCRIPT=android.bat
 		#make can't cope with absolute win32 paths in dependancy files
 		DEPCC=
+		DEPCXX=
 
 		ifneq ($(realpath $(TOOLCHAINPATH)),)	#don't invoke cygpath when realpath returns nothing due to dodgy paths (which happens when stuff isn't set up right for the top-level makefile)
 			#configure hates android, with its broken default sysroot and lack of path etc
@@ -289,6 +297,7 @@ ifeq ($(FTE_TARGET),droid)
 	endif
 
 	CC:=$(TOOLCHAIN)gcc --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
+	CXX:=$(TOOLCHAIN)g++ --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
 	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lm -lz
 	LD:=$(TOOLCHAIN)ld
 	AR:=$(TOOLCHAIN)ar
@@ -305,6 +314,7 @@ ifeq ($(FTE_TARGET),macosx)
 	ifeq ($(shell $(CC) -v 2>&1 | grep apple),)
 		ifneq ($(shell which powerpc-apple-darwin8-gcc 2> /dev/null),)
 			CC=powerpc-apple-darwin8-gcc
+			CXX=powerpc-apple-darwin8-g++
 			STRIP=powerpc-apple-darwin8-strip
 			#seems, macosx has a more limited version of strip
 			STRIPFLAGS=
@@ -319,6 +329,7 @@ ifeq ($(FTE_TARGET),macosx_ppc64)
 		ifneq ($(shell which powerpc-apple-darwin8-gcc 2> /dev/null),)
 			FTE_TARGET=macosx
 			CC=powerpc-apple-darwin8-gcc -arch ppc64
+			CXX=powerpc-apple-darwin8-g++ -arch ppc64
 			STRIP=powerpc-apple-darwin8-strip
 			#seems, macosx has a more limited version of strip
 			STRIPFLAGS=
@@ -334,6 +345,7 @@ ifeq ($(FTE_TARGET),macosx_x86)
 			FTE_TARGET=macosx
 			# i686-apple-darwin8-gcc's default target is i386, powerpc-apple-darwin8-gcc -arch i386 just invokes i686-apple-darwin8-gcc anyway
 			CC=i686-apple-darwin8-gcc
+			CXX=i686-apple-darwin8-g++
 			STRIP=i686-apple-darwin8-strip
 			#seems, macosx has a more limited version of strip
 			STRIPFLAGS=
@@ -347,6 +359,7 @@ ifeq ($(FTE_TARGET),morphos)
 	ifeq ($(shell $(CC) -v 2>&1 | grep morphos),)
 		ifneq ($(shell which ppc-morphos-gcc 2> /dev/null),)
 			CC=ppc-morphos-gcc
+			CXX=ppc-morphos-g++
 			#morphos strip has a 'feature', it strips permissions
 			STRIP=ppc-morphos-strip
 		endif
@@ -356,6 +369,7 @@ endif
 ifeq ($(FTE_TARGET),dos)
 	#at least from dos.
 	CC=i586-pc-msdosdjgpp-gcc
+	CXX=i586-pc-msdosdjgpp-g++
 	CFLAGS+=-DNO_ZLIB
 endif
 
@@ -363,12 +377,14 @@ endif
 ifeq ($(FTE_TARGET),linux32)
 	FTE_TARGET=linux
 	CC=gcc -m32
+	CXX=g++ -m32
 	BITS=32
 endif
 ifeq ($(FTE_TARGET),linuxarmhf)
 	#debian's armhf is armv7, but armv6 works on RPI too.
 	FTE_TARGET=linux
 	CC=arm-linux-gnueabihf-gcc -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
+	CXX=arm-linux-gnueabihf-g++ -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
 	BITS=armhf
 endif
 ifeq ($(FTE_TARGET),linuxx32)
@@ -376,11 +392,13 @@ ifeq ($(FTE_TARGET),linuxx32)
 	#at the current time, you will need to edit your kernel's commandline to allow this stuff to run
 	FTE_TARGET=linux
 	CC=gcc -mx32
+	CXX=g++ -mx32
 	BITS=x32
 endif
 ifeq ($(FTE_TARGET),linux64)
 	FTE_TARGET=linux
 	CC=gcc -m64
+	CXX=g++ -m64
 	BITS=64
 endif
 ifeq ($(FTE_TARGET),cygwin)
@@ -445,6 +463,7 @@ ifeq ($(NOCOMPAT),1)
 	NCDIRPREFIX=nc
 endif
 ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(BRANDFLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS) $(NCCFLAGS) -I$(ARCHLIBS)
+ALL_CXXFLAGS=$(subst -Wno-pointer-sign,,$(ALL_CFLAGS))
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -463,6 +482,7 @@ endif
 DO_ECHO=@
 #DO_ECHO=
 DO_CC=$(DO_ECHO) $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
+DO_CXX=$(DO_ECHO) $(CXX) $(LTO_CC) $(ALL_CXXFLAGS) -o $@ -c $<
 
 ifeq ($(FTE_TARGET),vc)
 	BASELDFLAGS=
@@ -829,6 +849,12 @@ ifeq (1,$(USE_BOTLIB))
 		l_struct.o	
 endif
 
+COMMONLIBFLAGS=
+COMMONLDDEPS=
+CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC) $(LIBFREETYPE_STATIC)
+SERVERLIBFLAGS=$(COMMONLIBFLAGS)
+CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS) $(LIBFREETYPE_LDFLAGS)
+SERVERLDDEPS=$(COMMONLDDEPS)
 ifeq (1,$(USE_OPUS))
 	LIBOPUS_STATIC=-DOPUS_STATIC
 	LIBOPUS_LDFLAGS=-lopus
@@ -851,14 +877,11 @@ ifeq (1,$(USE_FREETYPE))
 endif
 ifeq (1,$(strip $(INTERNAL_BULLET)))
 	COMMON_OBJS+=com_phys_bullet.o
+	ALL_CFLAGS+=-I/usr/include/bullet -I$(ARCHLIBS)/bullet3-$(BULLETVER)/src
+	COMMONLDDEPS+=-lBulletDynamics -lBulletCollision -lLinearMath
+	LDCC=$(CXX)
+	MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
 endif
-
-COMMONLIBFLAGS=
-CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC) $(LIBFREETYPE_STATIC)
-SERVERLIBFLAGS=$(COMMONLIBFLAGS)
-COMMONLDDEPS=
-CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS) $(LIBFREETYPE_LDFLAGS)
-SERVERLDDEPS=$(COMMONLDDEPS)
 
 #the defaults for sdl come first
 #CC_MACHINE:=$(shell $(CC) -dumpmachine)
@@ -941,28 +964,33 @@ ifeq ($(FTE_TARGET),nacl)
 	endif
 
 	CC=
+	CXX=
 	STRIP=
 	NACLLIBC=glibc
 	ifeq ($(NARCH),x86_32)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m32
+		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-g++ -DNACL -m32
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-strip
 		BITS=
 		NACLLIBS=$(NACLLIBC)_x86_32/Release
 	endif
 	ifeq ($(NARCH),x86_64)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m64
+		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-g++ -DNACL -m64
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-strip
 		BITS=
 		NACLLIBS=$(NACLLIBC)_x86_64/Release
 	endif
 	ifeq ($(NARCH),arm)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-gcc -DNACL
+		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-g++ -DNACL
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-strip
 		BITS=
 		NACLLIBS=$(NACLLIBC)_arm/Release
 	endif
 	ifeq ($(NARCH),pnacl)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-clang -DNACL
+		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-clang++ -DNACL
 		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-strip
 		STRIPFLAGS=
 		BITS=
@@ -1121,6 +1149,7 @@ ifeq ($(FTE_TARGET),vc)
 	EXEPOSTFIX=.exe
 
 	CC=PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
+	CXX=PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
 	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
 	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast
 	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
@@ -1129,9 +1158,11 @@ ifeq ($(FTE_TARGET),vc)
 # /LTCG:PGOPTIMIZE
 
 	DO_CC=$(DO_ECHO) $(CC) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
+	DO_CXX=$(DO_ECHO) $(CXX) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
 	DO_LD=$(DO_ECHO) PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)link" /nologo /out:"$(shell cygpath -m $@)" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) $(SDKLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib kernel32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
 	DEPCC=
+	DEPCXX=
 
 	LIBS_DIR=./libs/
 
@@ -1372,6 +1403,7 @@ ifneq (,$(findstring rpi,$(FTE_TARGET)))
 	#These next two lines enable cross compiling. If you're compiling natively you can just kill the two.
 	RPI_SYSROOT:=$(realpath $(shell echo ~)/rpi/rpi-sysroot/)
 	CC=~/rpi/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-gcc --sysroot=$(RPI_SYSROOT)
+	CXX=~/rpi/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-g++ --sysroot=$(RPI_SYSROOT)
 	SDLCONFIG=$(RPI_SYSROOT)/usr/bin/sdl-config --prefix=$(RPI_SYSROOT)/usr
 	GL_CFLAGS+= -I$(RPI_SYSROOT)/opt/vc/include -I$(RPI_SYSROOT)/opt/vc/include/interface/vmcs_host/linux -I$(RPI_SYSROOT)/opt/vc/include/interface/vcos/pthreads -DFTE_RPI -DUSE_EGL
 	GL_LDFLAGS+= -L$(RPI_SYSROOT)/opt/vc/lib -Wl,--sysroot=$(RPI_SYSROOT),-rpath=/opt/vc/lib,-rpath-link=$(RPI_SYSROOT)/opt/vc/lib -lbcm_host
@@ -1544,6 +1576,7 @@ ifeq ($(FTE_TARGET),web)
 #	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
 	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2
 	CC?=emcc
+	CXX?=emcc
 	#BASELDFLAGS=
 	PRECOMPHEADERS=
 
@@ -1574,10 +1607,12 @@ ifeq ($(FTE_TARGET),web)
 	BOTLIB_CFLAGS=
 	#generate deps properly
 	#DEPCC=
+	#DEPCXX=
 endif
 
 SV_DIR?=sv_sdl
 DEPCC?=$(CC)
+DEPCXX?=$(CXX)
 ARCH:=$(ARCH)
 BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
 
@@ -1648,24 +1683,24 @@ endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.cpp
-ifneq ($(DEPCC),)
+ifneq ($(DEPCXX),)
 	@-set -e; rm -f $@.d; \
-	$(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	$(DEPCXX) -MM $(ALL_CXXFLAGS) $< > $@.d.$$$$; \
 	sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	rm -f $@.d.$$$$
 endif
-	$(DO_CC) -I$(OUT_DIR)
+	$(DO_CXX) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.cxx
-ifneq ($(DEPCC),)
+ifneq ($(DEPCXX),)
 	@-set -e; rm -f $@.d; \
-	$(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	$(DEPCXX) -MM $(ALL_CXXFLAGS) $< > $@.d.$$$$; \
 	sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	rm -f $@.d.$$$$
 endif
-	$(DO_CC) -I$(OUT_DIR)
+	$(DO_CXX) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
 ifneq ($(DEPCC),)
@@ -1696,7 +1731,8 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-DO_LD ?= $(DO_ECHO) $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS)
+LDCC ?=$(CC)
+DO_LD ?= $(DO_ECHO) $(LDCC) -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
@@ -2152,7 +2188,11 @@ libs-$(ARCH)/libfreetype.a:
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
 	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
 
-makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a
+libs-$(ARCH)/libBulletDynamics.a:
+	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz
+	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) cmake . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
+
+makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 
 HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c http/ftpserver.c
 $(RELEASE_DIR)/httpserver$(BITS): $(HTTP_OBJECTS)

@@ -568,7 +568,7 @@ void Q_ftoa(char *str, float in)
 		sprintf(str, "%.0f", in);
 	else
 	{
-		char tstr[8];
+		char tstr[32];
 		char *lsig = str - 1;
 		sprintf(tstr, "%%.%if", exp);
 		sprintf(str, tstr, in);
@@ -5041,6 +5041,12 @@ void COM_Version_f (void)
 	Con_DPrintf(" ^h(disabled: openal)^7");
 #endif
 #endif
+#ifdef USE_INTERNAL_BULLET
+	Con_Printf(" bullet");
+#endif
+#ifdef ENGINE_ROUTING
+	Con_Printf(" routing");
+#endif
 	Con_Printf("\n");
 
 #ifdef _WIN32
@@ -5101,6 +5107,9 @@ void COM_Version_f (void)
 #endif
 #if defined(MENU_DAT)
 	Con_Printf(" menuqc");
+#endif
+#if defined(MENU_NATIVECODE)
+	Con_Printf(" nmenu");
 #endif
 #if defined(CSQC_DAT)
 	Con_Printf(" csqc");

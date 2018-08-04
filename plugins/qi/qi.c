@@ -277,7 +277,7 @@ void QI_RefreshMapList(qboolean forcedisplay)
 
 		tech = XML_ChildOfTree(file, "techinfo", 0);
 		//if the filter isn't contained in the id/desc then don't display it.
-		if (filters.namefilter)
+		if (*filters.namefilter)
 		{
 			if (!QI_strcasestr(id, filters.namefilter) && !QI_strcasestr(desc, filters.namefilter) && !QI_strcasestr(author, filters.namefilter))
 			{

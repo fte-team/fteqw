@@ -323,7 +323,7 @@ int sql_serverworker(void *sref)
 					if (qres)
 					{
 						if (qerror)
-							Q_strncpy(qres->error, qerror, qesize);
+							Q_strncpyz(qres->error, qerror, qesize);
 						qres->result = res;
 						qres->rows = rows;
 						qres->columns = columns;
@@ -491,7 +491,7 @@ int sql_serverworker(void *sref)
 		if (qres)
 		{ // hopefully the qmysql_close gained us some memory otherwise we're pretty screwed
 			qres->rows = qres->columns = -1;
-			Q_strncpy(qres->error, error, esize);
+			Q_strncpyz(qres->error, error, esize);
 
 			SQL_PushResult(server, qres);
 		}
@@ -872,14 +872,14 @@ int SQL_NewServer(const char *driver, const char **paramstr)
 	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
 	{
 		server->connectparams[i] = ((char *)(server + 1)) + tsize;
-		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
+		Q_strncpyz(server->connectparams[i], paramstr[i], paramsize[i]);
 		// string should be null-terminated due to Z_Malloc
 		tsize += paramsize[i] + 1;
 	}
 	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
 	{
 		server->connectparams[i] = (char *)Z_Malloc(sizeof(char) * (paramsize[i] + 1));
-		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
+		Q_strncpyz(server->connectparams[i], paramstr[i], paramsize[i]);
 		// string should be null-terminated due to Z_Malloc
 	}
 
@@ -936,7 +936,7 @@ int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, 
 		}
 		
 		qreq->callback = callback;
-		Q_strncpy(qreq->query, str, qsize);
+		Q_strncpyz(qreq->query, str, qsize);
 
 		qreq->nextreq = server->requests;
 		server->requests = qreq;

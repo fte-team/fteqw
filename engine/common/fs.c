@@ -2553,7 +2553,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	char			pakfile[MAX_OSPATH];
 	char			logicalpaths[MAX_OSPATH];	//with a slash
 	char			purefile[MAX_OSPATH];
-	char			logicalfile[MAX_OSPATH];
+	char			logicalfile[MAX_OSPATH*2];
 	unsigned int	keptflags;
 	vfsfile_t *vfs;
 	flocation_t loc;
@@ -2621,7 +2621,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 				if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
 					break;	//not found..
 
-				snprintf (logicalfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
+				snprintf (logicalfile, sizeof(logicalfile), "%spak%i.%s", logicalpaths, i, extension);
 				snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
 
 				for (existing = com_searchpaths; existing; existing = existing->next)

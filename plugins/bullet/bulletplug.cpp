@@ -41,7 +41,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define BZ_Malloc malloc
 #define BZ_Free free
 #define Z_Free BZ_Free
-static vec3_t vec3_origin;
+//#define vec3_origin vec3_origin_
+//static vec3_t vec3_origin;
+#define VectorCompare VectorCompare_
 static int VectorCompare (const vec3_t v1, const vec3_t v2)
 {
 	int		i;
@@ -62,7 +64,7 @@ static rbeplugfuncs_t *rbefuncs;
 #define DEG2RAD(d) (d * M_PI * (1/180.0f))
 #define RAD2DEG(d) ((d*180) / M_PI)
 
-#include <btBulletDynamicsCommon.h>
+#include "btBulletDynamicsCommon.h"
 
 
 static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd);
@@ -176,13 +178,13 @@ static void QDECL World_Bullet_RemoveFromEntity(world_t *world, wedict_t *ed)
 	ed->rbe.physics = qfalse;
 
 	body = (btRigidBody*)ed->rbe.body.body;
-	ed->rbe.body = NULL;
+	ed->rbe.body.body = NULL;
 	if (body)
 		ctx->dworld->removeRigidBody (body);
 
-	geom = (btCollisionShape*)ed->rbe.geom;
-	ed->rbe.geom = NULL;
-	if (ed->rbe.geom)
+	geom = (btCollisionShape*)ed->rbe.body.geom;
+	ed->rbe.body.geom = NULL;
+	if (ed->rbe.body.geom)
 		delete geom;
 
 	//FIXME: joints
@@ -202,7 +204,7 @@ static void World_Bullet_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	const float *o;
 	const float *r; // for some reason dBodyGetRotation returns a [3][4] matrix
 	const float *vel;
-	btRigidBody *body = (btRigidBody*)ed->rbe.body;
+	btRigidBody *body = (btRigidBody*)ed->rbe.body.body;
 	int movetype;
 	float bodymatrix[16];
 	float entitymatrix[16];
@@ -352,11 +354,11 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		jointtype = 0; // can't have both
 
 	e1 = (wedict_t*)PROG_TO_EDICT(world->progs, enemy);
-	b1 = (btRigidBody*)e1->rbe.body;
+	b1 = (btRigidBody*)e1->rbe.body.body;
 	if(ED_ISFREE(e1) || !b1)
 		enemy = 0;
 	e2 = (wedict_t*)PROG_TO_EDICT(world->progs, aiment);
-	b2 = (btRigidBody*)e2->rbe.body;
+	b2 = (btRigidBody*)e2->rbe.body.body;
 	if(ED_ISFREE(e2) || !b2)
 		aiment = 0;
 	// see http://www.ode.org/old_list_archives/2006-January/017614.html
@@ -364,9 +366,9 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	// note: if movedir[2] is 0, it becomes ERP = 1, CFM = 1.0 / (H * K)
 	if(movedir[0] > 0 && movedir[1] > 0)
 	{
-		float K = movedir[0];
-		float D = movedir[1];
-		float R = 2.0 * D * sqrt(K); // we assume D is premultiplied by sqrt(sprungMass)
+//		float K = movedir[0];
+//		float D = movedir[1];
+//		float R = 2.0 * D * sqrt(K); // we assume D is premultiplied by sqrt(sprungMass)
 //		CFM = 1.0 / (rbe->ode_step * K + R); // always > 0
 //		ERP = rbe->ode_step * K * CFM;
 		Vel = 0;
@@ -392,11 +394,11 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	if(jointtype == ed->rbe.joint_type && VectorCompare(origin, ed->rbe.joint_origin) && VectorCompare(velocity, ed->rbe.joint_velocity) && VectorCompare(ed->v->angles, ed->rbe.joint_angles) && enemy == ed->rbe.joint_enemy && aiment == ed->rbe.joint_aiment && VectorCompare(movedir, ed->rbe.joint_movedir))
 		return; // nothing to do
 
-	if(ed->rbe.joint)
+	if(ed->rbe.joint.joint)
 	{
-		j = (btTypedConstraint*)ed->rbe.joint;
+		j = (btTypedConstraint*)ed->rbe.joint.joint;
 		rbe->dworld->removeConstraint(j);
-		ed->rbe.joint = NULL;
+		ed->rbe.joint.joint = NULL;
 		delete j;
 	}
 	if (!jointtype)
@@ -523,7 +525,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		break;
 	}
 
-	ed->rbe.joint = (void *) j;
+	ed->rbe.joint.joint = (void *) j;
 	if (j)
 	{
 		j->setUserConstraintPtr((void *) ed);
@@ -575,7 +577,7 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
 	int axisindex;
 	ctx->hasextraobjs = true;
-	
+
 	switch(bodyinfo->geomshape)
 	{
 /*
@@ -953,7 +955,7 @@ public:
 
 		rbefuncs->VectorAngles(fwd, up, edict->v->angles, (qboolean)NegativeMeshPitch(world, edict));
 
-		const btVector3 &vel = ((btRigidBody*)edict->rbe.body)->getLinearVelocity();
+		const btVector3 &vel = ((btRigidBody*)edict->rbe.body.body)->getLinearVelocity();
 		VectorCopy(vel.m_floats, edict->v->velocity);
 
 		//so it doesn't get rebuilt
@@ -1218,7 +1220,7 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 //		ed->rbe.massbuf = BZ_Malloc(sizeof(dMass));
 //		memcpy(ed->rbe.massbuf, &mass, sizeof(dMass));
 
-		ed->rbe.geom = (void *)geom;
+		ed->rbe.body.geom = (void *)geom;
 	}
 
 	//non-moving objects need to be static objects (and thus need 0 mass)
@@ -1229,32 +1231,32 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	if (ed->rbe.mass != massval)
 	{
 		ed->rbe.mass = massval;
-		body = (btRigidBody*)ed->rbe.body;
+		body = (btRigidBody*)ed->rbe.body.body;
 		if (body)
 			ctx->dworld->removeRigidBody(body);
-		ed->rbe.body = NULL;
+		ed->rbe.body.body = NULL;
 	}
 
-//	if(ed->rbe.geom)
-//		dGeomSetData(ed->rbe.geom, (void*)ed);
+//	if(ed->rbe.body.geom)
+//		dGeomSetData(ed->rbe.body.geom, (void*)ed);
 	if (movetype == MOVETYPE_PHYSICS && ed->rbe.mass)
 	{
-		if (ed->rbe.body == NULL)
+		if (ed->rbe.body.body == NULL)
 		{
-//			ed->rbe.body = (void *)(body = dBodyCreate(world->rbe.world));
-//			dGeomSetBody(ed->rbe.geom, body);
+//			ed->rbe.body.body = (void *)(body = dBodyCreate(world->rbe.world));
+//			dGeomSetBody(ed->rbe.body.geom, body);
 //			dBodySetData(body, (void*)ed);
 //			dBodySetMass(body, (dMass *) ed->rbe.massbuf);
 
 			btVector3 fallInertia(0, 0, 0);
-			((btCollisionShape*)ed->rbe.geom)->calculateLocalInertia(ed->rbe.mass, fallInertia);
-			btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(ed->rbe.mass, new QCMotionState(ed,world), (btCollisionShape*)ed->rbe.geom, fallInertia);
+			((btCollisionShape*)ed->rbe.body.geom)->calculateLocalInertia(ed->rbe.mass, fallInertia);
+			btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(ed->rbe.mass, new QCMotionState(ed,world), (btCollisionShape*)ed->rbe.body.geom, fallInertia);
 			body = new btRigidBody(fallRigidBodyCI);
 			body->setUserPointer(ed);
 //			btTransform trans;
 //			trans.setFromOpenGLMatrix(ed->rbe.offsetmatrix);
 //			body->setCenterOfMassTransform(trans);
-			ed->rbe.body = (void*)body;
+			ed->rbe.body.body = (void*)body;
 
 			//motion threshhold should be speed/physicsframerate.
 			//FIXME: recalculate...
@@ -1269,15 +1271,15 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	}
 	else
 	{
-		if (ed->rbe.body == NULL)
+		if (ed->rbe.body.body == NULL)
 		{
-			btRigidBody::btRigidBodyConstructionInfo rbci(ed->rbe.mass, new QCMotionState(ed,world), (btCollisionShape*)ed->rbe.geom, btVector3(0, 0, 0));
+			btRigidBody::btRigidBodyConstructionInfo rbci(ed->rbe.mass, new QCMotionState(ed,world), (btCollisionShape*)ed->rbe.body.geom, btVector3(0, 0, 0));
 			body = new btRigidBody(rbci);
 			body->setUserPointer(ed);
 //			btTransform trans;
 //			trans.setFromOpenGLMatrix(ed->rbe.offsetmatrix);
 //			body->setCenterOfMassTransform(trans);
-			ed->rbe.body = (void*)body;
+			ed->rbe.body.body = (void*)body;
 			if (ed->rbe.mass)
 				body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
 			else
@@ -1288,7 +1290,7 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		}
 	}
 
-	body = (btRigidBody*)ed->rbe.body;
+	body = (btRigidBody*)ed->rbe.body.body;
 
 	// get current data from entity
 	gravity = qtrue;
@@ -1376,7 +1378,7 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		modified = qtrue;
 
 	// store the qc values into the physics engine
-	body = (btRigidBody*)ed->rbe.body;
+	body = (btRigidBody*)ed->rbe.body.body;
 	if (modified && body)
 	{
 //		dVector3 r[3];
@@ -1508,7 +1510,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 		//ragdolls don't make contact with the bbox of the doll entity
 		//the origional entity should probably not be solid anyway.
 		//these bodies should probably not collide against bboxes of other entities with ragdolls either, but meh.
-		if (ed1->rbe.body == b1 || ed2->rbe.body == b2)
+		if (ed1->rbe.body.body == b1 || ed2->rbe.body == b2)
 			return;
 	}
 	if(!ed1 || ed1->isfree)
@@ -1605,7 +1607,7 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
 	if (world->rbe_hasphysicsents || ctx->hasextraobjs)
 	{
-		int i;
+		unsigned int i;
 		wedict_t *ed;
 
 //		world->rbe.iterations = bound(1, physics_bullet_iterationsperframe.ival, 1000);
@@ -1674,7 +1676,7 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 
 static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 {
-	btRigidBody *body = (btRigidBody*)(cmd->edict->rbe.body);
+	btRigidBody *body = (btRigidBody*)(cmd->edict->rbe.body.body);
 	switch(cmd->command)
 	{
 	case RBECMD_ENABLE:
@@ -1693,7 +1695,7 @@ static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 		}
 		break;
 	case RBECMD_TORQUE:
-		if (cmd->edict->rbe.body)
+		if (cmd->edict->rbe.body.body)
 		{
 			body->setActivationState(1);
 			body->applyTorque(btVector3(cmd->v1[0], cmd->v1[1], cmd->v1[2]));
@@ -1722,7 +1724,7 @@ static void QDECL World_Bullet_PushCommand(world_t *world, rbecommandqueue_t *va
 static void QDECL World_Bullet_TraceEntity(world_t *world, vec3_t start, vec3_t end, wedict_t *ed)
 {
 	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
-	btCollisionShape *shape = (btCollisionShape*)ed->rbe.geom;
+	btCollisionShape *shape = (btCollisionShape*)ed->rbe.body.geom;
 
 	class myConvexResultCallback : public btCollisionWorld::ConvexResultCallback
 	{

@@ -13,12 +13,13 @@ You can probably get a better version from somewhere.
 int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 {
 	int tokens=0;
+	const char *string_;
 	char *string;
 	char tempbuffer[64];
 	char sign;
-	unsigned int _uint;
-	int _int;
-	float _float;
+	unsigned int uint_;
+	int int_;
+	float float_;
 	int i;
 	int use0s;
 	int width, useprepad, plus;
@@ -75,50 +76,50 @@ retry:
 				*buffer++ = *format;
 				break;
 			case 's':
-				string = va_arg(vargs, char *);
-				if (!string)
-					string = "(null)";
+				string_ = va_arg(vargs, char *);
+				if (!string_)
+					string_ = "(null)";
 				if (width)
 				{
-					while (*string && width--)
+					while (*string_ && width--)
 					{
 						if (maxlen-- == 0) 
 							{*buffer++='\0';return tokens;}
-						*buffer++ = *string++;
+						*buffer++ = *string_++;
 					}
 				}
 				else
 				{
-					while (*string)
+					while (*string_)
 					{
 						if (maxlen-- == 0) 
 							{*buffer++='\0';return tokens;}
-						*buffer++ = *string++;
+						*buffer++ = *string_++;
 					}
 				}
 				tokens++;
 				break;
 			case 'c':
-				_int = va_arg(vargs, int);
+				int_ = va_arg(vargs, int);
 				if (maxlen-- == 0) 
 					{*buffer++='\0';return tokens;}
-				*buffer++ = _int;
+				*buffer++ = int_;
 				tokens++;
 				break;
 			case 'p':
 				if (1)
-				_uint = (size_t)va_arg(vargs, void*);
+				uint_ = (size_t)va_arg(vargs, void*);
 				else
 			case 'x':
-				_uint = va_arg(vargs, unsigned int);
+				uint_ = va_arg(vargs, unsigned int);
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[i+1] = '\0';
-				while(_uint)
+				while(uint_)
 				{
-					tempbuffer[i] = (_uint&0xf) + '0';
+					tempbuffer[i] = (uint_&0xf) + '0';
 					if (tempbuffer[i] > '9')
 						tempbuffer[i] = tempbuffer[i] - ':' + 'a';
-					_uint/=16;
+					uint_/=16;
 					i--;
 				}
 				string = tempbuffer+i+1;
@@ -153,23 +154,23 @@ retry:
 			case 'd':
 			case 'u':
 			case 'i':
-				_int = va_arg(vargs, int);
+				int_ = va_arg(vargs, int);
 				if (useprepad)
 				{
 /*
-					if (_int >= 1000)
+					if (int_ >= 1000)
 						useprepad = 4;
-					else if (_int >= 100)
+					else if (int_ >= 100)
 						useprepad = 3;
-					else if (_int >= 10)
+					else if (int_ >= 10)
 						useprepad = 2;
-					else if (_int >= 0)
+					else if (int_ >= 0)
 						useprepad = 1;
-					else if (_int <= -1000)
+					else if (int_ <= -1000)
 						useprepad = 5;
-					else if (_int <= -100)
+					else if (int_ <= -100)
 						useprepad = 4;
-					else if (_int <= -10)
+					else if (int_ <= -10)
 						useprepad = 3;
 					else
 						useprepad = 2;
@@ -186,10 +187,10 @@ Con_Printf("add %i chars\n", useprepad);
 Con_Printf("%i bytes left\n", maxlen);
 */
 				}
-				if (_int < 0)
+				if (int_ < 0)
 				{
 					sign = '-';
-					_int *= -1;
+					int_ *= -1;
 				}
 				else if (plus)
 					sign = '+';
@@ -197,10 +198,10 @@ Con_Printf("%i bytes left\n", maxlen);
 					sign = 0;
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[sizeof(tempbuffer)-1] = '\0';
-				while(_int)
+				while(int_)
 				{
-					tempbuffer[i--] = _int%10 + '0';
-					_int/=10;
+					tempbuffer[i--] = int_%10 + '0';
+					int_/=10;
 				}
 				if (sign)
 					tempbuffer[i--] = sign;
@@ -242,29 +243,29 @@ Con_Printf("%i bytes left\n", maxlen);
 				tokens++;
 				break;
 			case 'f':
-				_float = (float)va_arg(vargs, double);
+				float_ = (float)va_arg(vargs, double);
 
 //integer part.
-				_int = (int)_float;
-				if (_int < 0)
+				int_ = (int)float_;
+				if (int_ < 0)
 				{
 					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
 					*buffer++ = '-';
-					_int *= -1;
+					int_ *= -1;
 				}
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[sizeof(tempbuffer)-1] = '\0';
-				if (!_int)
+				if (!int_)
 				{
 					tempbuffer[i--] = '0';
 				}
 				else
 				{
-					while(_int)
+					while(int_)
 					{
-						tempbuffer[i--] = _int%10 + '0';
-						_int/=10;
+						tempbuffer[i--] = int_%10 + '0';
+						int_/=10;
 					}
 				}
 				string = tempbuffer+i+1;
@@ -275,21 +276,21 @@ Con_Printf("%i bytes left\n", maxlen);
 					*buffer++ = *string++;
 				}
 
-				_int = sizeof(tempbuffer)-2-i;
+				int_ = sizeof(tempbuffer)-2-i;
 
 //floating point part.
-				_float -= (int)_float;
+				float_ -= (int)float_;
 				i = 0;
 				tempbuffer[i++] = '.';
 				if (precision < 0)
 					precision = 7;
-				while(_float - (int)_float)
+				while(float_ - (int)float_)
 				{
 					if (i > precision)	//remove the excess presision.
 						break;
 
-					_float*=10;
-					tempbuffer[i++] = (int)_float%10 + '0';
+					float_*=10;
+					tempbuffer[i++] = (int)float_%10 + '0';
 				}
 				if (i == 1)	//no actual fractional part
 				{
@@ -310,12 +311,12 @@ Con_Printf("%i bytes left\n", maxlen);
 				tokens++;
 				break;
 			default:
-				string = "ERROR IN FORMAT";
-				while (*string)
+				string_ = "ERROR IN FORMAT";
+				while (*string_)
 				{
 					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
-					*buffer++ = *string++;
+					*buffer++ = *string_++;
 				}
 				break;
 			}
@@ -635,7 +636,7 @@ char *Plug_Info_ValueForKey (const char *s, const char *key, char *out, size_t o
 		isvalue = !isvalue;
 		if (isvalue)
 		{
-			if (strlen(key) == s - start && !strncmp(start, key, s - start))
+			if (strlen(key) == (size_t)(s - start) && !strncmp(start, key, s - start))
 			{
 				s++;
 				while (outsize --> 1)

@@ -719,7 +719,12 @@ void Cmd_Exec_f (void)
 		return;
 	}
 	if (cl_warncmd.ival || developer.ival || cvar_watched)
-		Con_TPrintf ("execing %s\n",name);
+	{
+		if (loc.search)
+			Con_TPrintf ("execing %s/%s\n",name, loc.search->logicalpath);
+		else
+			Con_TPrintf ("execing %s\n",name);
+	}
 
 	l = VFS_GETLEN(file);
 	f = BZ_Malloc(l+1);

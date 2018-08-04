@@ -2508,7 +2508,7 @@ void Mod_BSPXRW_SetLump(struct bspxrw *ctx, const char *lumpname, void *data, si
 		}
 	}
 
-	Z_ReallocElements(&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
+	Z_ReallocElements((void**)&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
 	Q_strncpyz(ctx->lumps[i].lumpname, lumpname, sizeof(ctx->lumps[i].lumpname));
 	ctx->lumps[i].data = data;
 	ctx->lumps[i].filelen = datasize;
@@ -2594,7 +2594,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	l = (lump_t*)(ctx->origfile+ctx->lumpofs);
 	for (i = 0; i < ctx->corelumps; i++)
 	{
-		Z_ReallocElements(&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
+		Z_ReallocElements((void**)&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
 		ctx->lumps[ctx->totallumps-1].data = ctx->origfile+l[i].fileofs;
 		ctx->lumps[ctx->totallumps-1].filelen = l[i].filelen;
 		if (corelumpnames)
@@ -2608,7 +2608,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	{
 		for (i = 0; i < bspxheader->numlumps; i++)
 		{
-			Z_ReallocElements(&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
+			Z_ReallocElements((void**)&ctx->lumps, &ctx->totallumps, ctx->totallumps+1, sizeof(*ctx->lumps));
 			ctx->lumps[ctx->totallumps-1].data = ctx->origfile+bspxheader->lumps[i].fileofs;
 			ctx->lumps[ctx->totallumps-1].filelen = bspxheader->lumps[i].filelen;
 			memcpy(ctx->lumps[ctx->totallumps-1].lumpname, bspxheader->lumps[i].lumpname, sizeof(ctx->lumps[0].lumpname));
@@ -2730,7 +2730,7 @@ void Mod_FindCubemaps_f(void)
 			if (isenvmap)
 			{
 				int e = nenvmap;
-				if (ZF_ReallocElements(&envmap, &nenvmap, nenvmap+1, sizeof(*envmap)))
+				if (ZF_ReallocElements((void**)&envmap, &nenvmap, nenvmap+1, sizeof(*envmap)))
 				{
 					VectorCopy(origin, envmap[e].origin);
 					envmap[e].cubesize = size;
@@ -2741,7 +2741,7 @@ void Mod_FindCubemaps_f(void)
 		if (nenvmap)
 		{
 			qsort(envmap, nenvmap, sizeof(*envmap), envmapsort);
-			if (ZF_ReallocElements(&envmapidx, &nenvmapidx, cl.worldmodel->numsurfaces, sizeof(*envmapidx)))
+			if (ZF_ReallocElements((void**)&envmapidx, &nenvmapidx, cl.worldmodel->numsurfaces, sizeof(*envmapidx)))
 			{
 				for(i = 0; i < cl.worldmodel->numsurfaces; i++)
 					envmapidx[i] = Mod_NearestCubeForSurf(cl.worldmodel->surfaces+i, envmap, nenvmap);
@@ -2778,11 +2778,11 @@ void Mod_BSPX_List_f(void)
 	{
 		for (i = 0; i < ctx.corelumps; i++)
 		{
-			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, ctx.lumps[i].filelen);
+			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
 		}
 		for (     ; i < ctx.totallumps; i++)
 		{
-			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, ctx.lumps[i].filelen);
+			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
 		}
 		Mod_BSPXRW_Free(&ctx);
 	}

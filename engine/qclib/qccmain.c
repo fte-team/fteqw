@@ -4375,7 +4375,7 @@ int		qccmline;
 char	*qccmsrc;
 //char	*qccmsrc2;
 char	qccmfilename[1024];
-char	qccmprogsdat[1024];
+char	qccmprogsdat[1024*2];
 
 void QCC_FinishCompile(void);
 
@@ -4930,14 +4930,15 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		{
 			p = QCC_CheckParm ("-qc");
 			if (p && p < argc-1 )
-				sprintf (qccmprogsdat, "%s", argv[p+1]);
+				QC_strlcpy(qccmprogsdat, argv[p+1], sizeof(qccmprogsdat));
 			else
 			{	//look for a preprogs.src... :o)
-				sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
-				if (externs->FileSize(qccmprogsdat) <= 0)
-					sprintf (qccmprogsdat, "progs.src");
+				char tmp[sizeof(qccmsourcedir)+16];
+				QC_snprintfz (tmp, sizeof(tmp), "%spreprogs.src", qccmsourcedir);
+				if (externs->FileSize(tmp) <= 0)
+					QC_snprintfz (qccmprogsdat, sizeof(qccmprogsdat), "progs.src");
 				else
-					sprintf (qccmprogsdat, "preprogs.src");
+					QC_snprintfz (qccmprogsdat, sizeof(qccmprogsdat), "preprogs.src");
 			}
 
 			numsourcefiles = 0;
@@ -4958,7 +4959,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		else
 			printf("%s\n", QCC_VersionString());
 
-		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
+		QC_snprintfz (qccmprogsdat, sizeof(qccmprogsdat), "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
 		printf ("Source file: %s\n", qccmprogsdat);
 
 		QC_strlcpy(compilingrootfile, qccmprogsdat, sizeof(compilingrootfile));

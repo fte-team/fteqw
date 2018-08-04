@@ -80,7 +80,7 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 	char dllname_anycpu[MAX_OSPATH];//simple
 	dllhandle_t *hVM;
 
-	char fname[MAX_OSPATH];
+	char fname[MAX_OSPATH*2];
 	char gpath[MAX_OSPATH];
 	void *iterator;
 

@@ -3881,11 +3881,11 @@ void S_PlayVol(void)
 	{
 		if (!Q_strrchr(Cmd_Argv(i), '.'))
 		{
-			Q_strncpy(name, Cmd_Argv(i), sizeof(name)-4);
+			Q_strncpyz(name, Cmd_Argv(i), sizeof(name)-4);
 			Q_strcat(name, ".wav");
 		}
 		else
-			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
+			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
 		S_StartSound(0, -1, sfx, NULL, NULL, vol, 0.0, 0, 0, CF_NOSPACIALISE);

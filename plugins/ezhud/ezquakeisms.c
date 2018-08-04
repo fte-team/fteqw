@@ -150,9 +150,9 @@ void SCR_HUD_DrawBar(int direction, int value, float max_value, float *rgba, int
 
 	if(direction >= 2)
 		// top-down
-		amount = Q_rint(abs((height * value) / max_value));
+		amount = Q_rint(fabs((height * value) / max_value));
 	else// left-right
-		amount = Q_rint(abs((width * value) / max_value));
+		amount = Q_rint(fabs((width * value) / max_value));
 
 	pDraw_Colour4f(rgba[0]/255.0, rgba[1]/255.0, rgba[2]/255.0, rgba[3]/255.0 * alphamul);
 	if(direction == 0)
@@ -390,7 +390,7 @@ char *SCR_GetGameTime(int t, char *buffer, size_t buffersize)
 	if (cl.countdown || cl.standby)
 		SecondsToMinutesString(timelimit, buffer, buffersize);
 	else
-		SecondsToMinutesString((int) abs(timelimit - (cl.time - cl.matchstart)), buffer, buffersize);
+		SecondsToMinutesString((int) fabs(timelimit - (cl.time - cl.matchstart)), buffer, buffersize);
 	return buffer;
 }
 	

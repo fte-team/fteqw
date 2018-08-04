@@ -11188,7 +11188,7 @@ void QCC_PR_ParseStatement (void)
 			pr_labels = realloc(pr_labels, sizeof(*pr_labels)*max_labels);
 		}
 
-		strncpy(pr_labels[num_labels].name, pr_token, sizeof(pr_labels[num_labels].name) -1);
+		QC_strlcpy(pr_labels[num_labels].name, pr_token, sizeof(pr_labels[num_labels].name));
 		pr_labels[num_labels].lineno = pr_source_line;
 		pr_labels[num_labels].statementno = numstatements;
 
@@ -11368,7 +11368,7 @@ void QCC_PR_ParseStatement (void)
 			pr_labels = realloc(pr_labels, sizeof(*pr_labels)*max_labels);
 		}
 
-		strncpy(pr_labels[num_labels].name, pr_token, sizeof(pr_labels[num_labels].name) -1);
+		QC_strlcpy(pr_labels[num_labels].name, pr_token, sizeof(pr_labels[num_labels].name));
 		pr_labels[num_labels].lineno = pr_source_line;
 		pr_labels[num_labels].statementno = numstatements;
 
@@ -13588,6 +13588,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 					break;
 
 				case ev_accessor:	//shouldn't happen.
+				case ev_enum:
 				case ev_float:
 				case ev_string:
 				case ev_entity:
@@ -14007,6 +14008,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, int arr
 						break;
 					}
 					//fallthrough. any named structs will become global structs that contain field references. hopefully.
+				case ev_enum:
 				case ev_accessor:
 				case ev_float:
 				case ev_string:
@@ -14120,15 +14122,15 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 				else if (pr_token_type == tt_immediate && pr_immediate_type == type_integer)
 					binum = pr_immediate._int;
 				else if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
-					strncpy(fname, pr_immediate_string, sizeof(fname));
+					QC_strlcpy(fname, pr_immediate_string, sizeof(fname));
 				else if (pr_token_type == tt_name)
-					strncpy(fname, pr_token, sizeof(fname));
+					QC_strlcpy(fname, pr_token, sizeof(fname));
 				else 
 					QCC_PR_ParseError (ERR_BADBUILTINIMMEDIATE, "Bad builtin immediate");
 				QCC_PR_Lex();
 
 				if (!*fname && QCC_PR_CheckToken (":"))
-					strncpy(fname, QCC_PR_ParseName(), sizeof(fname));
+					QC_strlcpy(fname, QCC_PR_ParseName(), sizeof(fname));
 
 				//if the builtin already exists, just use that dfunction instead
 				if (basedef && basedef->initialized)

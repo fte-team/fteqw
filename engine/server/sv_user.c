@@ -1231,9 +1231,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			{
 				//grab the model name... without a progs/ prefix if it has one
 				if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
-					Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
+					Q_strncpyz(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
 				else
-					Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
+					Q_strncpyz(mname, sv.strings.vw_model_precache[i], sizeof(mname));
 
 				//strip .mdl extensions, for compat with ezquake
 				COM_FileExtension(mname, ext, sizeof(ext));

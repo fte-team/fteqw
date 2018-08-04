@@ -28,10 +28,7 @@ struct searchpathfuncs_s;
 struct model_s;
 struct font_s;
 struct shader_s;
-enum slist_test_e;
-enum hostcachekey_e;	//obtained via calls to gethostcacheindexforkey
-enum fs_relative;
-enum com_tokentype_e;
+
 #ifndef __QUAKEDEF_H__
 	#ifdef __cplusplus
 		typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
@@ -51,6 +48,15 @@ enum com_tokentype_e;
 	#include <stdint.h>
 	typedef uint64_t qofs_t;
 #endif
+
+#if 1 //c++ or standard C
+	#include "cl_master.h"
+#else
+	enum slist_test_e;
+	enum hostcachekey_e;	//obtained via calls to gethostcacheindexforkey
+#endif
+enum fs_relative;
+enum com_tokentype_e;
 
 struct menu_inputevent_args_s
 {
@@ -166,8 +172,8 @@ typedef struct {
 	char *(*gethostcachestring)						(struct serverinfo_s *host, enum hostcachekey_e fld);
 	float (*gethostcachenumber)						(struct serverinfo_s *host, enum hostcachekey_e fld);
 	void (*resethostcachemasks)						(void);
-	void (*sethostcachemaskstring)					(qboolean or, enum hostcachekey_e fld, const char *str, enum slist_test_e op);
-	void (*sethostcachemasknumber)					(qboolean or, enum hostcachekey_e fld, int num, enum slist_test_e op);
+	void (*sethostcachemaskstring)					(qboolean or_, enum hostcachekey_e fld, const char *str, enum slist_test_e op);
+	void (*sethostcachemasknumber)					(qboolean or_, enum hostcachekey_e fld, int num, enum slist_test_e op);
 	void (*sethostcachesort)						(enum hostcachekey_e fld, qboolean descending);
 	int (*resorthostcache)							(void);
 	void (*refreshhostcache)						(qboolean fullreset);

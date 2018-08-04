@@ -64,8 +64,8 @@ BUILTINR(qhandle_t, Con_POpen, (const char *conname, quintptr_t flags));
 #define ARGNAMES ,conname,text
 BUILTIN(void, Con_SubPrint, (const char *conname, const char *text));	//on to named sub console (creating it too).
 #undef ARGNAMES
-#define ARGNAMES ,old,new
-BUILTIN(void, Con_RenameSub, (const char *old, const char *new));	//rename a subconsole
+#define ARGNAMES ,old,newname
+BUILTIN(void, Con_RenameSub, (const char *old, const char *newname));	//rename a subconsole
 #undef ARGNAMES
 #define ARGNAMES ,conname
 BUILTINR(int, Con_IsActive, (const char *conname));
@@ -565,18 +565,18 @@ qintptr_t QDECL Plug_InitAPI(qintptr_t *args)
 
 qboolean Plug_Export(const char *name, export_t func)
 {
-	int i;
+	size_t i;
 	for (i = 0; i < sizeof(exports)/sizeof(exports[0]); i++)
 	{
 		if (!exports[i].name)
 		{
 			exports[i].name = name;
 			exports[i].func = func;
-			return pPlug_ExportToEngine(name, i);
+			return pPlug_ExportToEngine(name, i)?qtrue:qfalse;
 		}
 	}
 	pSys_Error("Plugin exports too many functions");
-	return 0;
+	return qfalse;
 }
 
 

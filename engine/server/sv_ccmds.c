@@ -462,7 +462,7 @@ void SV_Map_f (void)
 {
 	char	level[MAX_QPATH];
 	char	spot[MAX_QPATH];
-	char	expanded[MAX_QPATH];
+	char	expanded[MAX_QPATH+64];
 	char	*nextserver;
 	qboolean preserveplayers= false;
 	qboolean isrestart		= false;	//don't hurt settings

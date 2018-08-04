@@ -1777,7 +1777,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 	char *aname;
 	char *parms;
 	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
-	char facename[MAX_QPATH];
+	char facename[MAX_QPATH*12];
 	struct charcache_s *c;
 	float aspect = 1;
 	enum
@@ -1790,7 +1790,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 		FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
 	} fmt = FMT_AUTO;
 
-	Q_strncpy(facename, fontfilename, sizeof(facename));
+	Q_strncpyz(facename, fontfilename, sizeof(facename));
 
 	aname = strstr(facename, ":");
 	if (aname)

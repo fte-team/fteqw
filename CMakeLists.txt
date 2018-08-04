@@ -1,7 +1,13 @@
 #Note: this file was made primarily to support msvc and its project file incompatibilities nightmare.
+#Its also useful for various other IDEs like QtCreator etc.
+#It uses system libraries, so it will have dependancy issues with public releases where those dependancies are distro/version-specific.
+#Public builds are still built using the (overcomplicated) traditional (g)makefile.
 
-
-CMAKE_MINIMUM_REQUIRED(VERSION 3.9)
+IF(${ANDROID})
+    CMAKE_MINIMUM_REQUIRED(VERSION 3.6) #special dispensation for android crap.
+ELSE()
+    CMAKE_MINIMUM_REQUIRED(VERSION 3.9)
+ENDIF()
 PROJECT(fteqw)
 
 INCLUDE_DIRECTORIES(
@@ -30,14 +36,38 @@ ENDIF()
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 
-#use LTO where possible. reportedly requires cmake 3.9 to actually work
-INCLUDE(CheckIPOSupported)
-check_ipo_supported(RESULT result)
-IF(result)
-	SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+IF(${CMAKE_VERSION} VERSION_LESS "3.9.0")
+    #android studio sucks and insists on using an outdated version of cmake instead of the system version.
+ELSE()
+    IF(NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
+        #use LTO where possible. reportedly requires cmake 3.9 to actually work
+        INCLUDE(CheckIPOSupported)
+        check_ipo_supported(RESULT result)
+        IF(result)
+            SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        ENDIF()
+    ENDIF()
 ENDIF()
 
-IF(${WIN32})
+if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pointer-sign")
+endif()
+
+IF(${ANDROID})
+#	FIND_PACKAGE(Freetype REQUIRED)
+
+#	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
+
+	SET(FTE_DEFINES ANDROID;GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS android log EGL z m ${CMAKE_DL_LIBS})
+	SET(FTE_ARCH_FILES
+		engine/client/sys_droid.c
+		engine/common/sys_linux_threads.c
+		engine/client/snd_droid.c
+		engine/client/cd_null.c
+		engine/gl/gl_viddroid.c
+	)
+ELSEIF(${WIN32})
 	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)
 #	LINK_DIRECTORIES(engine/libs/mingw64-libs)
 	
@@ -129,13 +159,13 @@ ELSEIF(${UNIX})	#linux(ish)
 		)
 	ENDIF()
 
-	SET(FTESV_DEFINES stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTESV_DEFINES MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
 	SET(FTESV_ARCH_FILES 
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
 	)
-	SET(FTESV_LIBS z m ${CMAKE_DL_LIBS})
+	SET(FTESV_LIBS z m ${CMAKE_DL_LIBS} pthread)
 ELSEIF(1)	#SDL
 	FIND_PACKAGE(Freetype REQUIRED)
 #	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)
@@ -318,11 +348,9 @@ SET(FTE_COMMON_FILES
 	
 	engine/http/httpclient.c
 )
-	
-ADD_EXECUTABLE(fteqw WIN32
-	${FTE_ARCH_FILES}
-	${FTE_COMMON_FILES}	
-	
+
+#these files are only in the client
+SET(FTE_CLIENT_FILES
 	engine/client/cl_cam.c
 	engine/client/cl_cg.c
 	engine/client/cl_demo.c
@@ -402,51 +430,71 @@ ADD_EXECUTABLE(fteqw WIN32
 	engine/gl/gl_screen.c
 	engine/gl/gl_vidcommon.c
 	engine/gl/glmod_doom.c
-	
+
 	engine/vk/vk_backend.c
 	engine/vk/vk_init.c
 )
-SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_DEFINES};${FTE_REVISON}")
-TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
 
-ADD_EXECUTABLE(fteqw-sv
-	${FTESV_ARCH_FILES}
-	${FTE_COMMON_FILES}
-)
-SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTESV_DEFINES};${FTE_REVISON}")
-TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
+IF(${ANDROID})
+    #android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
+
+    ADD_LIBRARY(ftedroid MODULE
+        ${FTE_ARCH_FILES}
+        ${FTE_COMMON_FILES}
+        ${FTE_CLIENT_FILES}
+    )
+    SET_TARGET_PROPERTIES(ftedroid PROPERTIES COMPILE_DEFINITIONS "${FTE_DEFINES};${FTE_REVISON}")
+    TARGET_LINK_LIBRARIES(ftedroid ${FTE_LIBS} )
+
+ELSE()
+    #systems that actually have executables...
+    ADD_EXECUTABLE(fteqw WIN32
+        ${FTE_ARCH_FILES}
+        ${FTE_COMMON_FILES}
+        ${FTE_CLIENT_FILES}
+    )
+
+    SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_DEFINES};${FTE_REVISON}")
+    TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
+
+    ADD_EXECUTABLE(fteqw-sv
+        ${FTESV_ARCH_FILES}
+        ${FTE_COMMON_FILES}
+    )
+    SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTESV_DEFINES};${FTE_REVISON}")
+    TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
 
 
-ADD_EXECUTABLE(fteqcc
-	engine/qclib/qcctui.c
-	engine/qclib/comprout.c
-	engine/qclib/hash.c
-	engine/qclib/qcc_cmdlib.c
-	engine/qclib/qcc_pr_comp.c
-	engine/qclib/qcc_pr_lex.c
-	engine/qclib/qccmain.c
-	engine/qclib/qcd_main.c
-)
-TARGET_LINK_LIBRARIES(fteqcc z m)
+    ADD_EXECUTABLE(fteqcc
+        engine/qclib/qcctui.c
+        engine/qclib/comprout.c
+        engine/qclib/hash.c
+        engine/qclib/qcc_cmdlib.c
+        engine/qclib/qcc_pr_comp.c
+        engine/qclib/qcc_pr_lex.c
+        engine/qclib/qccmain.c
+        engine/qclib/qcd_main.c
+    )
+    TARGET_LINK_LIBRARIES(fteqcc z m)
 
 
-IF(${WIN32})
-	ADD_EXECUTABLE(fteqccgui WIN32
-		engine/qclib/qccgui.c
-		engine/qclib/qccguistuff.c
-		engine/qclib/comprout.c
-		engine/qclib/hash.c
-		engine/qclib/qcc_cmdlib.c
-		engine/qclib/qcc_pr_comp.c
-		engine/qclib/qcc_pr_lex.c
-		engine/qclib/qccmain.c
-		engine/qclib/decomp.c
-		engine/qclib/packager.c
-		engine/qclib/qcd_main.c
-	)
-	TARGET_LINK_LIBRARIES(fteqccgui z shlwapi ole32 comctl32 comdlg32)
+    IF(${WIN32})
+        ADD_EXECUTABLE(fteqccgui WIN32
+            engine/qclib/qccgui.c
+            engine/qclib/qccguistuff.c
+            engine/qclib/comprout.c
+            engine/qclib/hash.c
+            engine/qclib/qcc_cmdlib.c
+            engine/qclib/qcc_pr_comp.c
+            engine/qclib/qcc_pr_lex.c
+            engine/qclib/qccmain.c
+            engine/qclib/decomp.c
+            engine/qclib/packager.c
+            engine/qclib/qcd_main.c
+        )
+        TARGET_LINK_LIBRARIES(fteqccgui z shlwapi ole32 comctl32 comdlg32)
+    ENDIF()
 ENDIF()
-
 
 
 #Quake Injector Alike plugin
@@ -459,6 +507,28 @@ ADD_LIBRARY(qi MODULE
 )
 SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
 SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
+
+#Bullet Physics library plugin
+FIND_PACKAGE(Bullet REQUIRED)
+ADD_LIBRARY(bullet MODULE
+	plugins/qvm_api.c
+	plugins/plugin.c
+	plugins/bullet/bulletplug.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
+SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
+
+#Bullet Physics library plugin
+#FIND_PACKAGE(ode REQUIRED)
+ADD_LIBRARY(ode MODULE
+	plugins/qvm_api.c
+	plugins/plugin.c
+	engine/common/com_phys_ode.c
+)
+TARGET_INCLUDE_DIRECTORIES(ode PUBLIC ${BULLET_INCLUDE_DIRS})
+SET_TARGET_PROPERTIES(ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
+SET_TARGET_PROPERTIES(ode PROPERTIES PREFIX "fteplug_")
 
 #EzQuake Hud port plugin
 ADD_LIBRARY(ezhud MODULE
@@ -481,19 +551,21 @@ ADD_LIBRARY(irc MODULE
 SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
 SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 
-#XMPP/jabber client plugin
-ADD_LIBRARY(xmpp MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	plugins/jabber/jabberclient.c
-	plugins/jabber/xml.c
-	plugins/jabber/jingle.c
-	plugins/jabber/sift.c
-	engine/common/sha1.c
-	plugins/emailnot/md5.c
-)
-SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
-SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
+IF(NOT ${ANDROID})
+    #XMPP/jabber client plugin
+    ADD_LIBRARY(xmpp MODULE
+        plugins/qvm_api.c
+        plugins/plugin.c
+        plugins/jabber/jabberclient.c
+        plugins/jabber/xml.c
+        plugins/jabber/jingle.c
+        plugins/jabber/sift.c
+        engine/common/sha1.c
+        plugins/emailnot/md5.c
+    )
+    SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+    SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
+ENDIF()
 
 #ffmpeg plugin
 #cef plugin

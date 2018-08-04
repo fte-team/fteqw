@@ -24,7 +24,7 @@ struct
 } staticplugins[] = 
 {
 #if defined(USE_INTERNAL_BULLET)
-	{"Bullet_internal", Plug_Bullet_Init},
+	{"bullet_internal", Plug_Bullet_Init},
 #endif
 #if defined(USE_INTERNAL_ODE)
 	{"ODE_internal", Plug_ODE_Init},

@@ -2927,7 +2927,7 @@ static void P_ImportEffectInfo(char *config, char *line)
 				for (i = 0; i < 64; i++)
 				{
 					parenttype = ptype - part_type;
-					snprintf(newname, sizeof(newname), "%i+%s", i, arg[1]);
+					Q_snprintfz(newname, sizeof(newname), "%i+%s", i, arg[1]);
 					ptype = P_GetParticleType(config, newname);
 					if (!ptype->loaded)
 					{

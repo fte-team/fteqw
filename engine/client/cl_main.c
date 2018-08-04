@@ -5045,17 +5045,17 @@ done:
 			goto done;
 		}
 
-		snprintf(loadcommand, sizeof(loadcommand), "map \"%s\"\n", shortname);
-		snprintf(displayname, sizeof(displayname), "map: %s", shortname);
-		snprintf(qname, sizeof(qname), "maps/%s.bsp", shortname);
+		Q_snprintfz(loadcommand, sizeof(loadcommand), "map \"%s\"\n", shortname);
+		Q_snprintfz(displayname, sizeof(displayname), "map: %s", shortname);
+		Q_snprintfz(qname, sizeof(qname), "maps/%s.bsp", shortname);
 	}
 	else if (f->flags & HRF_PACKAGE)
 	{
 		char *shortname;
 		shortname = COM_SkipPath(f->fname);
-		snprintf(qname, sizeof(qname), "%s", shortname);
-		snprintf(loadcommand, sizeof(loadcommand), "fs_restart\n");
-		snprintf(displayname, sizeof(displayname), "package: %s", shortname);
+		Q_snprintfz(qname, sizeof(qname), "%s", shortname);
+		Q_snprintfz(loadcommand, sizeof(loadcommand), "fs_restart\n");
+		Q_snprintfz(displayname, sizeof(displayname), "package: %s", shortname);
 	}
 	else if (f->flags & HRF_MANIFEST)
 	{

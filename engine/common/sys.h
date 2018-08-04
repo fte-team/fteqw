@@ -151,7 +151,9 @@ void *Sys_CreateMutexNamed(char *file, int line);
 		#define Sys_IsMainThread() Sys_MutexStub()
 		#define Sys_LockMutex(m) Sys_MutexStub()
 		#define Sys_UnlockMutex(m) Sys_MutexStub()
-		static inline qboolean Sys_IsThread(void *thread) {return !thread;}
+		#ifndef __cplusplus
+			static inline qboolean Sys_IsThread(void *thread) {return !thread;}
+		#endif
 	#else
 		#define Sys_IsMainThread() (qboolean)(true)
 		#define Sys_CreateMutex() (void*)(NULL)

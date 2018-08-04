@@ -800,7 +800,13 @@ void Mod_Init (qboolean initial)
 
 		//q2/q3bsps
 #if defined(Q2BSPS) || defined(Q3BSPS)
+#ifndef Q2BSPS
+		Mod_RegisterModelFormatMagic(NULL, "Quake3 Map (bsp)",				IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#elif !defined(Q3BSPS)
+		Mod_RegisterModelFormatMagic(NULL, "Quake2 Map (bsp)",				IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#else
 		Mod_RegisterModelFormatMagic(NULL, "Quake2/Quake3 Map (bsp)",		IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#endif
 #endif
 #ifdef RFBSPS
 		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);

@@ -4300,7 +4300,7 @@ void SV_SetInfo_f (void)
 		return;
 	}
 
-	if (Cmd_Argc() == 4)
+	if (Cmd_Argc() == 4 && (host_client->fteprotocolextensions2 & PEXT2_INFOBLOBS))
 	{
 		offset = strtoul(Cmd_Argv(3), &t, 0);
 		final = (*t != '+');
@@ -4325,8 +4325,18 @@ void SV_SetInfo_f (void)
 	val = Cmd_Argv(2);
 	if (strstr(key, "\\") || strstr(val, "\\"))
 		return;		// illegal char, at least at this point.
-	key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
-	val = InfoBuf_DecodeString(val, val+strlen(val), &valsize);
+	if (host_client->fteprotocolextensions2 & PEXT2_INFOBLOBS)
+	{
+		key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
+		val = InfoBuf_DecodeString(val, val+strlen(val), &valsize);
+	}
+	else
+	{
+		keysize = strlen(key);
+		key = Z_StrDup(key);
+		valsize = strlen(val);
+		val = Z_StrDup(val);
+	}
 
 	if (key[0] == '*')
 		SV_ClientPrintf(host_client, PRINT_HIGH, "setinfo: %s may not be changed mid-game\n", key);

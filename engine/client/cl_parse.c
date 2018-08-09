@@ -5207,7 +5207,7 @@ static void CL_ParseSetInfo (void)
 
 	slot = MSG_ReadByte ();
 
-	if (slot == 255)
+	if (slot == 255 && (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS))
 	{
 		slot = MSG_ReadByte();
 		offset = MSG_ReadLong();
@@ -5221,10 +5221,16 @@ static void CL_ParseSetInfo (void)
 	}
 
 	temp = MSG_ReadString();
-	key = InfoBuf_DecodeString(temp, temp+strlen(temp), &keysize);
+	if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
+		key = InfoBuf_DecodeString(temp, temp+strlen(temp), &keysize);
+	else
+		key = Z_StrDup(temp);
 
 	temp = MSG_ReadString();
-	val = InfoBuf_DecodeString(temp, temp+strlen(temp), &valsize);
+	if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
+		val = InfoBuf_DecodeString(temp, temp+strlen(temp), &valsize);
+	else
+		val = Z_StrDup(temp);
 
 	if (slot == 255)
 		InfoBuf_SyncReceive(&cl.serverinfo, key, keysize, val, valsize, offset, final);

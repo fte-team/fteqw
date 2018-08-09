@@ -87,6 +87,7 @@ cvar_t	qport = CVARF("qport_", "0", CVAR_NOSAVE);
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
+cvar_t	pext_infoblobs = CVARD("_pext_infoblobs", "0", "RENAME ME WHEN STABLE. Enables the use of very large infokeys containing potentially invalid chars. Note that the userinfo is still limited by sv_userinfo_bytelimit and sv_userinfo_keylimit.");
 cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
 cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to support prediction over NQ protocols.");
 
@@ -199,19 +200,19 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		mask |= PEXT2_VOICECHAT;
 	#endif
 		mask |= PEXT2_SETANGLEDELTA;
-//		mask |= PEXT2_INFOBLOBS;
 
 		if (pext_replacementdeltas.ival)
+		{
 			mask |= PEXT2_REPLACEMENTDELTAS;
-		if (/*fornq &&*/ pext_predinfo.ival)
-			mask |= PEXT2_PREDINFO;
+			if (/*fornq &&*/ pext_predinfo.ival)
+				mask |= PEXT2_PREDINFO;
+		}
+
+		if (pext_infoblobs.ival)
+			mask |= PEXT2_INFOBLOBS;
 
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
-
-		//kinda depenant
-		if (mask & PEXT2_PREDINFO)
-			mask |= PEXT2_REPLACEMENTDELTAS;
 
 		if (mask & PEXT2_REPLACEMENTDELTAS)
 			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
@@ -252,6 +253,7 @@ void Netchan_Init (void)
 
 	Cvar_Register (&pext_predinfo, "Protocol Extensions");
 	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
+	Cvar_Register (&pext_infoblobs, "Protocol Extensions");
 	Cvar_Register (&showpackets, "Networking");
 	Cvar_Register (&showdrop, "Networking");
 	Cvar_Register (&qport, "Networking");

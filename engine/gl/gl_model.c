@@ -4439,6 +4439,8 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 	if (hexen2map)
 	{	//hexen2.
 		hexen2map=false;
+
+		//compatible with Q1.
 		hull = &loadmodel->hulls[1];
 		hull->clipnodes = out;
 		hull->firstclipnode = 0;
@@ -4452,6 +4454,7 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 		hull->clip_maxs[2] = 32;
 		hull->available = true;
 
+		//NOT compatible with Q1
 		hull = &loadmodel->hulls[2];
 		hull->clipnodes = out;
 		hull->firstclipnode = 0;

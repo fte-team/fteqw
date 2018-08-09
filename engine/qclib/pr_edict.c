@@ -1801,9 +1801,11 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 		//write the ents
 		for (a = 0; a < sv_num_edicts; a++)
 		{
+			char head[64];
 			edictrun_t *ed = (edictrun_t *)EDICT_NUM(progfuncs, a);
 
-			AddS ("{\n");
+			QC_snprintfz(head, sizeof(head), "{//%i\n", a);
+			AddS (head);
 
 			if (ed->ereftype == ER_ENTITY)	//free entities write a {} with no data. the loader detects this specifically.
 				ED_WriteEdict(progfuncs, ed, buf, bufofs, bufmax, true);
@@ -2207,9 +2209,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				}
 				else
 				{
-					ed = (edictrun_t *)EDICT_NUM(progfuncs, numents);
-					if (!ed)
-						ed = ED_AllocIntoTable(progfuncs, numents, false, prinst.fields_size);
+					ed = ED_AllocIntoTable(progfuncs, numents, false, prinst.fields_size);
 
 					if (externs->entspawn)
 						externs->entspawn((struct edict_s *) ed, true);

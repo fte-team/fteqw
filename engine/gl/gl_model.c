@@ -5184,7 +5184,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	{	//pre-phong versions of tyrutils wrote misaligned lumps. These crash on arm/etc.
 		char *tmp;
 		int ofs = 0;
-		Con_Printf(CON_WARNING"%s: Misaligned lumps detected\n", mod->name);
+		Con_DPrintf(CON_WARNING"%s: Misaligned lumps detected\n", mod->name);
 		tmp = BZ_Malloc(fsize);
 		memcpy(tmp, mod_base, fsize);
 		for (i = 0; i < HEADER_LUMPS; i++)

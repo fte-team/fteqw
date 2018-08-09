@@ -5224,13 +5224,19 @@ static void CL_ParseSetInfo (void)
 	if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
 		key = InfoBuf_DecodeString(temp, temp+strlen(temp), &keysize);
 	else
+	{
+		keysize = strlen(temp);
 		key = Z_StrDup(temp);
+	}
 
 	temp = MSG_ReadString();
 	if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
 		val = InfoBuf_DecodeString(temp, temp+strlen(temp), &valsize);
 	else
+	{
+		valsize = strlen(temp);
 		val = Z_StrDup(temp);
+	}
 
 	if (slot == 255)
 		InfoBuf_SyncReceive(&cl.serverinfo, key, keysize, val, valsize, offset, final);

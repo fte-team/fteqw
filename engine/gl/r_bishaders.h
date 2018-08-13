@@ -9802,6 +9802,68 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "postproc_ascii",
+"!!cvardf r_glsl_ascii_mono=0\n"
+"!!samps 1\n"
+//derived from https://www.shadertoy.com/view/lssGDj
+
+"#include \"sys/defs.h\"\n"
+"varying vec2 texcoord;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"void main()\n"
+"{\n"
+"texcoord = v_texcoord.xy;\n"
+"texcoord.y = 1.0 - texcoord.y;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform vec2 e_sourcesize;\n"
+
+"float character(float n, vec2 p)\n"
+"{\n"
+"p = floor(p*vec2(4.0, -4.0) + 2.5);\n"
+"if (clamp(p.x, 0.0, 4.0) == p.x && clamp(p.y, 0.0, 4.0) == p.y)\n"
+"{\n"
+"if (int(mod(n/exp2(p.x + 5.0*p.y), 2.0)) == 1) return 1.0;\n"
+"} \n"
+"return 0.0;\n"
+"}\n"
+
+"void main(void)\n"
+"{\n"
+"vec2 uv = floor(texcoord.xy * e_sourcesize); //in pixels.\n"
+"vec3 col = texture2D(s_t0, (floor(uv/8.0)*8.0+4.0)/e_sourcesize.xy).rgb; \n"
+
+"float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;\n"
+
+"if (r_glsl_ascii_mono != 0)\n"
+"gray = gray = pow(gray, 0.7); //quake is just too dark otherwise.\n"
+"else\n"
+"gray = gray = pow(gray, 0.45); //col*char is FAR too dark otherwise, and much of the colour will come from the col term anyway.\n"
+
+"float n =  0.0;              // space\n"
+"if (gray > 0.1) n = 4096.0; // .\n"
+"if (gray > 0.2) n = 65600.0;    // :\n"
+"if (gray > 0.3) n = 332772.0;   // *\n"
+"if (gray > 0.4) n = 15255086.0; // o \n"
+"if (gray > 0.5) n = 23385164.0; // &\n"
+"if (gray > 0.6) n = 15252014.0; // 8\n"
+"if (gray > 0.7) n = 13199452.0; // @\n"
+"if (gray > 0.8) n = 11512810.0; // #\n"
+
+"vec2 p = mod(uv/4.0, 2.0) - vec2(1.0);\n"
+"if (r_glsl_ascii_mono != 0)\n"
+"col = vec3(character(n, p));\n"
+"else\n"
+"col = col*character(n, p); //note that this is kinda cheating.\n"
+"gl_FragColor = vec4(col, 1.0);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "fxaa",
 "!!samps 1\n"
 "#include \"sys/defs.h\"\n"

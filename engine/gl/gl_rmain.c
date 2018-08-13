@@ -56,7 +56,7 @@ cvar_t	gl_dither = CVAR("gl_dither", "1");
 extern cvar_t	r_stereo_separation;
 extern cvar_t	r_stereo_convergence;
 extern cvar_t	r_stereo_method;
-extern cvar_t	r_postprocshader, r_fxaa;
+extern cvar_t	r_postprocshader, r_fxaa, r_graphics;
 extern cvar_t	r_hdr_framebuffer;
 
 extern cvar_t	gl_screenangle;
@@ -1912,20 +1912,31 @@ void GLR_RenderView (void)
 		r_refdef.globalfog.density /= 64;	//FIXME
 	}
 
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && (*r_postprocshader.string))
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
-		custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+		if (r_fxaa.ival)
+			r_refdef.flags |= RDF_ANTIALIAS;
+		if (*r_postprocshader.string)
+			custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+		else if (!r_graphics.ival)
+			custompostproc = R_RegisterShader("postproc_ascii", 0, 
+				"{\n"
+					"program postproc_ascii\n"
+					"affine\n"
+					"{\n"
+						"map $sourcecolour\n"
+						"nodepthtest\n"
+					"}\n"
+				"}\n"
+				);
 		if (custompostproc)
 			r_refdef.flags |= RDF_CUSTOMPOSTPROC;
+
+		if (r_hdr_framebuffer.ival && !(vid.flags & VID_FP16))	//primary use of this cvar is to fix q3shader overbrights (so bright lightmaps can oversaturate then drop below 1 by modulation with the lightmap
+			forcedfb = true;
+		if (vid_hardwaregamma.ival == 4 && (v_gamma.value != 1 || v_contrast.value != 1 || v_brightness.value != 0))
+			r_refdef.flags |= RDF_SCENEGAMMA;
 	}
-
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_fxaa.ival) //overlays will have problems.
-		r_refdef.flags |= RDF_ANTIALIAS;
-
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_hdr_framebuffer.ival && !(vid.flags & VID_FP16))	//primary use of this cvar is to fix q3shader overbrights (so bright lightmaps can oversaturate then drop below 1 by modulation with the lightmap
-		forcedfb = true;
-	if (vid_hardwaregamma.ival == 4 && (v_gamma.value != 1 || v_contrast.value != 1 || v_brightness.value != 0))
-		r_refdef.flags |= RDF_SCENEGAMMA;
 
 	//disable stuff if its simply not supported.
 	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !sh_config.texture_non_power_of_two_pic)

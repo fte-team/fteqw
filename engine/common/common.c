@@ -2702,6 +2702,24 @@ unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, q
 	}
 	return chars;
 }
+void unicode_strpad(char *out, size_t outsize, const char *in, qboolean leftalign, size_t minwidth, size_t maxwidth, qboolean markup)
+{
+	if(com_parseutf8.ival <= 0 && !markup)
+	{
+		Q_snprintfz(out, outsize, "%*.*s", leftalign ? -(int) minwidth : (int) minwidth, (int) maxwidth, in);
+	}
+	else
+	{
+		size_t l = unicode_byteofsfromcharofs(in, maxwidth, markup);
+		size_t actual_width = unicode_charcount(in, l, markup);
+		int pad = (int)((actual_width >= minwidth) ? 0 : (minwidth - actual_width));
+		int prec = (int)l;
+		int lpad = leftalign ? 0 : pad;
+		int rpad = leftalign ? pad : 0;
+		Q_snprintfz(out, outsize, "%*s%.*s%*s", lpad, "", prec, in, rpad, "");
+	}
+}
+
 
 #if defined(FTE_TARGET_WEB) || defined(__DJGPP__)
 //targets that don't support towupper/towlower...

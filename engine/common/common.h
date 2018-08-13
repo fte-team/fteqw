@@ -422,6 +422,7 @@ unsigned int unicode_decode(int *error, const void *in, char **out, qboolean mar
 size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean markup);
 size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean markup);
 unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean markup);
+void unicode_strpad(char *out, size_t outsize, const char *in, qboolean leftalign, size_t minwidth, size_t maxwidth, qboolean markup);
 
 char *COM_SkipPath (const char *pathname);
 void QDECL COM_StripExtension (const char *in, char *out, int outlen);

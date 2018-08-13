@@ -4695,7 +4695,7 @@ nolength:
 				//always 8-bytes wide with 0 padding, always ints.
 				if (isfloat < 0) isfloat = 0;
 			}
-			else if (*s == 'i')
+			else if (*s == 'i' || *s == 'I')
 			{
 				//%i defaults to ints, not floats.
 				if(isfloat < 0) isfloat = 0;
@@ -4714,7 +4714,7 @@ nolength:
 			switch(*s)
 			{
 			//fixme: should we validate char ranges?
-			case 'd': case 'i': case 'c':
+			case 'd': case 'i': case 'I': case 'c':
 			case 'o': case 'u': case 'x': case 'X': case 'p': case 'P':
 			case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
 				if (isfloat)
@@ -4778,6 +4778,7 @@ nolength:
 					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires intvector at arg %i", funcname, formatbuf, thisarg+1);
 				break;
 			case 's':
+			case 'S':
 				switch(ARGTYPE(thisarg))
 				{
 				case ev_string:

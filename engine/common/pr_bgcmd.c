@@ -5907,7 +5907,7 @@ nolength:
 				if(o < end - 1)
 				{
 					f = &formatbuf[1];
-					if(*s != 's' && *s != 'c')
+					if(*s != 's' && *s != 'c' && *s != 'S')
 						if(flags & PRINTF_ALTERNATE) *f++ = '#';
 					if(flags & PRINTF_ZEROPAD) *f++ = '0';
 					if(flags & PRINTF_LEFT) *f++ = '-';
@@ -5932,7 +5932,7 @@ nolength:
 
 					switch(*s)
 					{
-						case 'd': case 'i':
+					case 'd': case 'i': case 'I':
 							if(precision < 0) // not set
 								Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (int) GETARG_FLOAT(thisarg) : (int) GETARG_INT(thisarg)));
 							else
@@ -5970,44 +5970,65 @@ nolength:
 							o += strlen(o);
 							break;
 						case 'c':
-							//UTF-8-FIXME: figure it out yourself
-//							if(flags & PRINTF_ALTERNATE)
-							{
+							if((flags & PRINTF_ALTERNATE) || !VMUTF8)
+							{	//precision+width are in bytes
 								if(precision < 0) // not set
 									Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
 								else
 									Q_snprintfz(o, end - o, formatbuf, width, precision, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
 								o += strlen(o);
 							}
-/*							else
-							{
+							else
+							{	//precision+width are in chars
 								unsigned int c = (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg));
-								char charbuf16[16];
-								const char *buf = u8_encodech(c, NULL, charbuf16);
-								if(!buf)
-									buf = "";
+								char buf[16];
+								c = unicode_encode(buf, c, sizeof(buf), VMUTF8MARKUP);
+								buf[c] = 0;
 								if(precision < 0) // not set
 									precision = end - o - 1;
-								o += u8_strpad(o, end - o, buf, (flags & PRINTF_LEFT) != 0, width, precision);
+								unicode_strpad(o, end - o, buf, (flags & PRINTF_LEFT) != 0, width, precision, VMUTF8MARKUP);
+								o += strlen(o);
 							}
-*/							break;
-						case 's':
-							//UTF-8-FIXME: figure it out yourself
-//							if(flags & PRINTF_ALTERNATE)
+							break;
+						case 'S':
 							{
+								char quotedbuf[65536];	//FIXME: no idea how big this actually needs to be.
+								const char *s = GETARG_STRING(thisarg);
+								s = COM_QuotedString(s, quotedbuf, sizeof(quotedbuf), false);
+								if((flags & PRINTF_ALTERNATE) || !VMUTF8)
+								{	//precision+width are in bytes
+									if(precision < 0) // not set
+										Q_snprintfz(o, end - o, formatbuf, width, s);
+									else
+										Q_snprintfz(o, end - o, formatbuf, width, precision, s);
+									o += strlen(o);
+								}
+								else
+								{	//precision+width are in chars
+									if(precision < 0) // not set
+										precision = end - o - 1;
+									unicode_strpad(o, end - o, s, (flags & PRINTF_LEFT) != 0, width, precision, VMUTF8MARKUP);
+									o += strlen(o);
+								}
+							}
+							break;
+						case 's':	
+							if((flags & PRINTF_ALTERNATE) || !VMUTF8)
+							{	//precision+width are in bytes
 								if(precision < 0) // not set
 									Q_snprintfz(o, end - o, formatbuf, width, GETARG_STRING(thisarg));
 								else
 									Q_snprintfz(o, end - o, formatbuf, width, precision, GETARG_STRING(thisarg));
 								o += strlen(o);
 							}
-/*							else
-							{
+							else
+							{	//precision+width are in chars
 								if(precision < 0) // not set
 									precision = end - o - 1;
-								o += u8_strpad(o, end - o, GETARG_STRING(thisarg), (flags & PRINTF_LEFT) != 0, width, precision);
+								unicode_strpad(o, end - o, GETARG_STRING(thisarg), (flags & PRINTF_LEFT) != 0, width, precision, VMUTF8MARKUP);
+								o += strlen(o);
 							}
-*/							break;
+							break;
 						default:
 							Con_Printf("PF_sprintf: invalid format string: %s\n", s0);
 							goto finished;

@@ -36,6 +36,7 @@ char shaders[][64] =
 	"postproc_laea",
 	"postproc_stereographic",
 	"postproc_equirectangular",
+	"postproc_ascii",
 	"fxaa",
 	"underwaterwarp",
 	"menutint",

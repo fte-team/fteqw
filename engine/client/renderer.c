@@ -195,8 +195,9 @@ cvar_t r_stainfadetime						= CVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t r_renderscale						= CVARD("r_renderscale", "1", "Provides a way to enable subsampling or super-sampling");
-cvar_t r_fxaa								= CVARD("r_fxaa", "0", "Runs a post-procesing pass to strip the jaggies.");
+cvar_t r_renderscale						= CVARD("r_renderscale", "1", CVAR_ARCHIVE, "Provides a way to enable subsampling or super-sampling");
+cvar_t r_fxaa								= CVARD("r_fxaa", "0", CVAR_ARCHIVE, "Runs a post-procesing pass to strip the jaggies.");
+cvar_t r_graphics							= CVARFD("r_graphics", "1", CVAR_ARCHIVE, "Turning this off will result in ascii-style rendering.");
 cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a custom shader to use as a post-processing shader");
 cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
@@ -890,6 +891,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_refractreflect_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_postprocshader, GRAPHICALNICETIES);
 	Cvar_Register (&r_fxaa, GRAPHICALNICETIES);
+	Cvar_Register (&r_graphics, GRAPHICALNICETIES);
 	Cvar_Register (&r_renderscale, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_convergence, GRAPHICALNICETIES);

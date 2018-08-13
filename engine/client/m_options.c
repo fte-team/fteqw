@@ -792,6 +792,8 @@ const char *presetexec[] =
 	"if cl_deadbodyfilter == 0 then seta cl_deadbodyfilter 1;"		//as useful as 2 is, some mods use death frames for crouching etc.
 	"seta gl_simpleitems 1;"
 	"seta cl_fullpitch 1;seta maxpitch \"\";seta minpitch \"\";"	//mimic quakespasm where possible.
+	"seta r_graphics 1;"
+	"seta r_renderscale 1;"
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -1176,7 +1178,7 @@ void M_Menu_Render_f (void)
 	static const char *logcentervalues[] = {"0", "1", "2", NULL};
 
 	menu_t *menu;
-	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint;
+	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint, r_fxaa, r_graphics;
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
 #endif
@@ -1187,6 +1189,7 @@ void M_Menu_Render_f (void)
 	{
 		MB_REDTEXT("Rendering Options", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+		MB_CHECKBOXCVAR("Graphics", r_graphics, 0),	//graphics on / off. Its a general dig at modern games not having any real options.
 		MB_CHECKBOXCVAR("Disable VIS", r_novis, 0),
 		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
@@ -1200,6 +1203,7 @@ void M_Menu_Render_f (void)
 		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
 #endif
 		MB_COMBOCVAR("Log Centerprints", scr_logcenterprint, logcenteropts, logcentervalues, "Display centerprints in the console also."),
+		MB_CHECKBOXCVAR("FXAA", r_fxaa, 0),
 #ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif

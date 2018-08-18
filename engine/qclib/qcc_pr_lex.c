@@ -2417,6 +2417,8 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 					pr_file_p++;
 					return;
 				}
+				if (pr_file_p[0] == '/' && pr_file_p[1] == '*')
+					QCC_PR_ParseWarning(WARN_NESTEDCOMMENT, "\"/*\" inside comment");
 			} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
 			pr_file_p+=2;
 			continue;
@@ -4148,6 +4150,8 @@ pbool QCC_PR_CheckTokenComment(const char *string, char **comment)
 						QCC_PR_ParseError(0, "EOF inside comment\n");
 						break;
 					}
+					if (pr_file_p[0] == '/' && pr_file_p[1] == '*')
+						QCC_PR_ParseWarning(WARN_NESTEDCOMMENT, "\"/*\" inside comment");
 				} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
 
 				if (pr_file_p[1] == 0)
@@ -5065,7 +5069,14 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		return QCC_PR_FindType (newt);
 	}
 
-	name = QCC_PR_CheckCompConstString(pr_token);
+	name = pr_token;
+	if (pr_token_type != tt_name)
+	{
+		if (silentfail)
+			return NULL;
+		QCC_PR_ParseError (ERR_NOTATYPE, "\"%s\" is not a type", name);
+	}
+//	name = QCC_PR_CheckCompConstString(name);
 
 	//accessors
 	if (QCC_PR_CheckKeyword (keyword_class, "accessor"))

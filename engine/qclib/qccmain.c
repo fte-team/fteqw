@@ -218,6 +218,7 @@ struct {
 	{" F322", WARN_IFSTRING_USED},
 	{" F323", WARN_UNREACHABLECODE},
 	{" F324", WARN_FORMATSTRING},
+	{" F325", WARN_NESTEDCOMMENT},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -4157,7 +4158,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_state = true;
 			else if (!strcmp(myargv[i]+5, "fteqcc"))
 				;	//as above, its the default.
-			else if (!strcmp(myargv[i]+5, "id"))
+			else if (!strcmp(myargv[i]+5, "qcc") || !strcmp(myargv[i]+5, "id"))
 			{
 				flag_ifvector = flag_vectorlogic = false;
 
@@ -4169,6 +4170,21 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_int = keyword_integer = keyword_typedef = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 				keyword_wrap = keyword_weak = false;
+			}
+			else if (!strcmp(myargv[i]+5, "hcc") || !strcmp(myargv[i]+5, "hexenc"))
+			{
+				flag_ifvector = flag_vectorlogic = false;
+
+				keyword_asm = keyword_continue = keyword_for = keyword_goto = false;
+				keyword_const = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_static = keyword_nonstatic = keyword_ignore = keyword_strip = false;
+				keyword_class = keyword_const = false;
+
+				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
+				keyword_int = keyword_integer = keyword_typedef = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
+				keyword_wrap = keyword_weak = false;
+
+				keyword_thinktime = keyword_until = keyword_loop = true;
+				keyword_switch = keyword_case = keyword_default = keyword_break = true;
 			}
 			else if (!strcmp(myargv[i]+5, "gmqcc"))
 			{

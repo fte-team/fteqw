@@ -517,7 +517,7 @@ typedef struct
 //q2origin,q3origin					0x01000000	//could define, but normally removed by compiler, so why?
 #define FTECONTENTS_BODY			0x02000000
 #define FTECONTENTS_CORPSE			0x04000000
-//q2detail,q3detail					0x08000000	//not very useful to us
+#define FTECONTENTS_DETAIL			0x08000000	//not very useful to us, but used by .map support
 //q2translucent,q3structual			0x10000000
 //q2ladder,q3translucent			0x20000000
 //q3trigger							0x40000000

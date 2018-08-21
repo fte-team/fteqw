@@ -281,7 +281,7 @@ typedef struct
 			vec3_t sdir;
 			vec3_t tdir;
 		} verts[1]; //x+(y*xpoints)
-	} *patch;
+	} *patch;	//if this is NULL, then its a regular brush. otherwise its a patch.
 	struct brushface_s
 	{
 		brushtex_t *tex;
@@ -295,6 +295,8 @@ typedef struct
 		unsigned short relit:1;
 		int lmbias[2];
 		unsigned short lmextents[2];
+		unsigned int surfaceflags;	//used by q2
+		unsigned int surfacevalue;	//used by q2 (generally light levels)
 		qbyte *lightdata;
 	} *faces;
 } brushes_t;

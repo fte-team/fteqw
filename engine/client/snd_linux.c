@@ -140,6 +140,9 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 		alsadetected = true;
 #endif
 
+	if (COM_CheckParm("-nooss"))
+		return false;
+
 	if (!snddev || !*snddev)
 		snddev = "/dev/dsp";
 	else if (strncmp(snddev, "/dev/dsp", 8))
@@ -453,8 +456,13 @@ static qboolean QDECL OSS_Enumerate(void (QDECL *cb) (const char *drivername, co
 {
 #if defined(SNDCTL_SYSINFO) && defined(SNDCTL_AUDIOINFO)
 	int i;
-	int fd = open("/dev/mixer", O_RDWR, 0);
+	int fd;
 	oss_sysinfo si;
+
+	if (COM_CheckParm("-nooss"))
+		return true;
+	fd = open("/dev/mixer", O_RDWR, 0);
+
 	if (fd == -1)
 		return true;	//oss not supported. don't list any devices.
 
@@ -479,7 +487,7 @@ static qboolean QDECL OSS_Enumerate(void (QDECL *cb) (const char *drivername, co
 		printf("OSS driver is too old to support device enumeration.\n");
 	close(fd);
 #endif
-	return false;	//enumeration failed.
+	return false;	//enumeration failed, will show only a default device.
 }
 
 sounddriver_t OSS_Output =
@@ -497,6 +505,9 @@ sounddriver_t OSS_Output =
 
 static qboolean QDECL OSS_Capture_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
 {
+	if (COM_CheckParm("-nooss"))
+		return true;	//no default devices or anything
+
 	//open /dev/dsp or /dev/mixer or env("OSS_MIXERDEV") or something
 	//SNDCTL_SYSINFO to get sysinfo.numcards
 	//for i=0; i<sysinfo.numcards
@@ -509,6 +520,8 @@ void *OSS_Capture_Init(int rate, const char *snddev)
 	intptr_t fd;
 	if (!snddev || !*snddev)
 		snddev = "/dev/dsp";
+	if (COM_CheckParm("-nooss"))
+		return NULL;
 	fd = open(snddev, O_RDONLY | O_NONBLOCK);       //try the primary device
 	if (fd == -1)
 		return NULL;

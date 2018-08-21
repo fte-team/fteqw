@@ -120,6 +120,9 @@ static qboolean SSDL_InitAudio(void)
 	}
 #endif
 
+	if (COM_CheckParm("-nosndsnd"))
+		return false;
+
 	if (!inited)
 		if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
 		{

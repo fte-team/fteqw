@@ -205,6 +205,10 @@ static qboolean Alsa_InitAlsa(void)
 		return alsaworks;
 	tried = true;
 
+	//pulseaudio's wrapper library fucks with alsa in bad ways, making it unusable on some systems.
+	if (COM_CheckParm("-noalsa"))
+		return false;
+
 	// Try alternative names of libasound, sometimes it is not linked correctly.
 	alsasharedobject = dlopen("libasound.so.2", RTLD_LAZY|RTLD_LOCAL);
 	if (!alsasharedobject)

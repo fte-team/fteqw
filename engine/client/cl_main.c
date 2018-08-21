@@ -46,6 +46,7 @@ int startuppending;
 void Host_FinishLoading(void);
 
 
+cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE, "Controls whether to send a hash instead of sending rcon passwords as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");
 cvar_t	rcon_password = CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
@@ -147,6 +148,9 @@ cvar_t	noaim		= CVARF("noaim",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg			= CVARFD("msg",			"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
 cvar_t	b_switch	= CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	w_switch	= CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+#ifdef HEXEN2
+cvar_t	cl_playerclass=CVARF("cl_playerclass","",		CVAR_ARCHIVE | CVAR_USERINFO);
+#endif
 cvar_t	cl_nofake	= CVARD("cl_nofake",		"2", "value 0: permits \\r chars in chat messages\nvalue 1: blocks all \\r chars\nvalue 2: allows \\r chars, but only from teammates");
 cvar_t	cl_chatsound	= CVAR("cl_chatsound","1");
 cvar_t	cl_enemychatsound	= CVAR("cl_enemychatsound", "misc/talk.wav");
@@ -1437,7 +1441,49 @@ void CL_Rcon_f (void)
 	message[4] = 0;
 
 	Q_strncatz (message, "rcon ", sizeof(message));
-	Q_strncatz (message, password, sizeof(message));
+	if (cl_crypt_rcon.ival)
+	{
+		char	cryptpass[1024], crypttime[64];
+		const char *hex = "0123456789ABCDEF";	//must be upper-case for compat with mvdsv.
+		time_t clienttime;
+		time(&clienttime);
+		size_t digestsize;
+		unsigned char digest[64];
+		const unsigned char **tokens = alloca(sizeof(*tokens)*(4+Cmd_Argc()*2));
+		size_t *tokensizes = alloca(sizeof(*tokensizes)*(4+Cmd_Argc()*2));
+		int j, k;
+
+		for (j = 0; j < sizeof(time_t); j++)
+		{	//little-endian byte order, but big-endian nibble order. just screwed. for compat with ezquake.
+			crypttime[j*2+0] = hex[(clienttime>>(j*8+4))&0xf];
+			crypttime[j*2+1] = hex[(clienttime>>(j*8))&0xf];
+		}
+		crypttime[j*2] = 0;
+
+		tokens[0] = "rcon ";
+		tokens[1] = password;
+		tokens[2] = crypttime;
+		tokens[3] = " ";
+		for (j=0 ; j<Cmd_Argc()-i ; j++)
+		{
+			tokens[4+j*2+0] = Cmd_Argv(i+j);
+			tokens[4+j*2+1] = " ";
+		}
+		for (k = 0; k < 4+j*2; k++)
+			tokensizes[k] = strlen(tokens[k]);
+		digestsize = SHA1_m(digest, sizeof(digest), k, tokens, tokensizes);
+
+		for (j = 0; j < digestsize; j++)
+		{
+			cryptpass[j*2+0] = hex[digest[j]>>4];
+			cryptpass[j*2+1] = hex[digest[j]&0xf];
+		}
+		cryptpass[j*2] = 0;
+		Q_strncatz (message, cryptpass, sizeof(message));
+		Q_strncatz (message, crypttime, sizeof(message));
+	}
+	else
+		Q_strncatz (message, password, sizeof(message));
 	Q_strncatz (message, " ", sizeof(message));
 
 	for ( ; i<Cmd_Argc() ; i++)
@@ -4242,6 +4288,7 @@ void CL_Init (void)
 	Cvar_Register (&m_forward, cl_inputgroup);
 	Cvar_Register (&m_side, cl_inputgroup);
 
+	Cvar_Register (&cl_crypt_rcon,	cl_controlgroup);
 	Cvar_Register (&rcon_password,	cl_controlgroup);
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
@@ -4309,6 +4356,9 @@ void CL_Init (void)
 	Cvar_Register (&noaim,						cl_controlgroup);
 	Cvar_Register (&b_switch,					cl_controlgroup);
 	Cvar_Register (&w_switch,					cl_controlgroup);
+#ifdef HEXEN2
+	Cvar_Register (&cl_playerclass,				cl_controlgroup);
+#endif
 
 	Cvar_Register (&cl_demoreel,				cl_controlgroup);
 	Cvar_Register (&record_flush,					cl_controlgroup);

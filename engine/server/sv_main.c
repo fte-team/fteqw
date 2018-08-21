@@ -60,7 +60,9 @@ cvar_t	fraglog_details				= CVARD("fraglog_details", "1", "Bitmask\n1: killer+ki
 
 cvar_t	timeout						= CVAR("timeout","65");		// seconds without any message
 cvar_t	zombietime					= CVAR("zombietime", "2");	// seconds to sink messages
-											// after disconnect
+
+cvar_t	sv_crypt_rcon				= CVARFD("sv_crypt_rcon", "", CVAR_ARCHIVE, "Controls whether the rcon password must be hashed or not. Hashed passwords also partially prevent replay attacks, but does NOT prevent malicious actors from reading the commands/results.\n0: completely insecure. ONLY allows plain-text passwords. Do not use.\n1: Mandatory hashing (recommended).\nEmpty: Allow either, whether the password is secure or not is purely the client's responsibility/fault. Only use this for comptibility with old clients.");
+cvar_t	sv_crypt_rcon_clockskew		= CVARFD("sv_timestamplen", "60", CVAR_ARCHIVE, "Limits clock skew to reduce (delayed) replay attacks");
 #ifdef SERVERONLY
 cvar_t	developer					= CVAR("developer","0");		// show extra messages
 
@@ -3328,16 +3330,83 @@ client_t *SVC_DirectConnect(void)
 	return newcl;
 }
 
-
+static int dehex(int i)
+{
+	if      (i >= '0' && i <= '9')
+		return (i-'0');
+	else if (i >= 'A' && i <= 'F')
+		return (i-'A'+10);
+	else
+		return (i-'a'+10);
+}
 int Rcon_Validate (void)
 {
-	if (!strlen (rcon_password.string))
+	const char *realpass = rcon_password.string;
+	const char *pass = Cmd_Argv(1);
+	if (!strlen (realpass))
 		return 0;
 
-	if (strcmp (Cmd_Argv(1), rcon_password.string) )
-		return 0;
+	if (!sv_crypt_rcon.ival)
+	{	//vanilla-compatible
+		if (!strcmp (pass, realpass) )
+			return 1;
+	}
+	if (sv_crypt_rcon.ival || !*sv_crypt_rcon.string)
+	{	//ezquake-compatible
+		//the password arg is "[SHA1Digest][unixtime-in-hex]" where the digest is "[arg0] password[unixtime] arg0 arg1 argn "
+		time_t clienttime = 0;
+		time_t servertime = 0;
+		intptr_t timediff;
+		qbyte b;
 
-	return 1;
+		const size_t digestsize = 20;
+		size_t i, k;
+		unsigned char digest[digestsize];
+		const unsigned char **tokens = alloca(sizeof(*tokens)*(Cmd_Argc()*2+5));	//overallocation in case argc is 0.
+		size_t *toksizes = alloca(sizeof(*toksizes)*(Cmd_Argc()*2+5));	//overallocation in case argc is 0.
+		if (strlen(pass) > digestsize*2)
+		{
+			for (i = 0; pass[digestsize*2+i] && i < sizeof(time_t)*2; i++)
+			{	//mixed endian for compat with ezquake
+				if (!(i & 1))
+					clienttime |= dehex(pass[digestsize*2+i]) << (((i/2)*8)+4);
+				else
+					clienttime |= dehex(pass[digestsize*2+i]) << (((i/2)*8)+0);
+			}
+			time(&servertime);
+			timediff = servertime-clienttime;
+			//make sure the client's time is within our allowed bounds, to prevent (extreme) replay attacks.
+			if (!sv_crypt_rcon_clockskew.value || (timediff >= -sv_crypt_rcon_clockskew.ival && timediff <= sv_crypt_rcon_clockskew.ival))
+			{
+				tokens[0] = Cmd_Argv(0);
+				tokens[1] = " ";
+				tokens[2] = realpass;
+				tokens[3] = pass+digestsize*2;
+				tokens[4] = " ";
+				for (i = 0; i < Cmd_Argc()-2; i++)
+				{
+					tokens[5+i*2+0] = Cmd_Argv(i+2);
+					tokens[5+i*2+1] = " ";	//a trailing space is required.
+				}
+				for (k = 0; k < 5+i*2; k++)
+					toksizes[k] = strlen(tokens[k]);
+				if (digestsize > 0 && digestsize == SHA1_m(digest, sizeof(digest), k, tokens, toksizes))
+				{
+					for (i = 0;;i++)
+					{
+						if (i == digestsize)
+							return 1;
+						if (!pass[i*2+0] || !pass[i*2+1])
+							break;	//premature termination
+						b = dehex(pass[i*2+0])*16+dehex(pass[i*2+1]);
+						if (b != digest[i])
+							break;
+					}
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 /*
@@ -5077,6 +5146,7 @@ void SV_InitLocal (void)
 		Log_Init();
 	}
 	rcon_password.restriction = RESTRICT_MAX;	//no cheatie rconers changing rcon passwords...
+	Cvar_Register (&sv_crypt_rcon,	cvargroup_servercontrol);
 	Cvar_Register (&spectator_password,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_mintic,	cvargroup_servercontrol);

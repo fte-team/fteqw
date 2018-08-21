@@ -2142,7 +2142,8 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		if (ent->lastruntime == w->framenum)
 			return;
 		ent->lastruntime = w->framenum;
-		ent->v->lastruntime = w->physicstime;
+		if (progstype == PROG_QW)	//we don't use the field any more, but qw mods might.
+			ent->v->lastruntime = w->physicstime;
 #ifndef CLIENTONLY
 		svent = NULL;
 #endif

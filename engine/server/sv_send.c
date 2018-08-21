@@ -3003,7 +3003,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 			else
 			{
 				ClientReliableWrite_Begin(client, svc_setinfo, 2+strlen(enckey)+1+strlen(encval)+1);
-				ClientReliableWrite_Byte(client, (client_t*)info-svs.clients);
+				ClientReliableWrite_Byte(client, (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
 			}
 			ClientReliableWrite_String(client, enckey);
 			ClientReliableWrite_String(client, encval);

@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //well, linux or cygwin (windows with posix emulation layer), anyway...
 
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+# define _GNU_SOURCE
 #endif
 #include <unistd.h>
 #include <signal.h>
@@ -37,8 +37,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <dlfcn.h>
 #include <dirent.h>
 #if !defined(__CYGWIN__) && !defined(__DJGPP__)
-#include <sys/ipc.h>
-#include <sys/shm.h>
+# include <sys/ipc.h>
+# include <sys/shm.h>
 #endif
 #include <sys/stat.h>
 #include <string.h>
@@ -46,11 +46,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <errno.h>
-#if !defined(__MACOSX__) && !defined(__DJGPP__)
-#include <X11/Xlib.h>
+#ifndef NO_X11
+# if !defined(__MACOSX__) && !defined(__DJGPP__) && !defined(NO_X11)
+#  include <X11/Xlib.h>
+# else
+#  define NO_X11
+# endif
 #endif
 #ifdef MULTITHREAD
-#include <pthread.h>
+# include <pthread.h>
 #endif
 
 #ifdef __CYGWIN__
@@ -1046,7 +1050,7 @@ void Sys_ServerActivity(void)
 //from the OS. This will cause problems with framebuffer-only setups.
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
-#if defined(__MACOSX__) || defined(__DJGPP__)
+#if defined(NO_X11)
 //this about sums up the problem with this function
 	return false;
 #else

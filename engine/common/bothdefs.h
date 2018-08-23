@@ -606,6 +606,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_XZDEC
 	#undef AVAIL_GZDEC
 #endif
+#ifdef NO_GNUTLS
+	#undef HAVE_GNUTLS
+#endif
+#ifdef NO_OPENGL
+	#undef GLQUAKE
+	#undef USE_EGL
+#endif
 
 #if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
 	#define HAVE_SSL

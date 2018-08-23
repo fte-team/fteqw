@@ -54,6 +54,9 @@ none of these issues will be fixed by a compositing window manager, because ther
 #include <dlfcn.h>
 
 #include "quakedef.h"
+
+#ifndef NO_X11
+
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
@@ -2627,6 +2630,7 @@ static Cursor CreateNullCursor(Display *display, Window root)
 	return cursor;
 }
 
+#ifndef NO_X11_CURSOR
 #include <X11/Xcursor/Xcursor.h>
 static struct
 {
@@ -2805,7 +2809,11 @@ static qboolean XCursor_Init(void)
 	Con_Printf("Hardware cursors unsupported.\n");
 	return false;
 }
-
+#else
+static qboolean XCursor_Init(void)
+{
+}
+#endif
 
 qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 {
@@ -3191,7 +3199,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			{
 				if (!Sys_LoadLibrary("libvulkan.so", func))
 				{
-					Con_Printf("Couldn't intialise libvulkan.so\nvulkan loader is not installed\n");
+					Con_Printf(CON_ERROR"Couldn't load libvulkan.so\nvulkan loader is not installed\n");
 					return false;
 				}
 			}
@@ -3474,164 +3482,6 @@ static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
 }
 #endif
 
-void Sys_SendKeyEvents(void)
-{
-#ifndef CLIENTONLY
-	//this is stupid
-	SV_GetConsoleCommands();
-#endif
-	if (sys_gracefulexit)
-	{
-		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
-		sys_gracefulexit = false;
-	}
-	if (vid_dpy && vid_window)
-	{
-		while (x11.pXPending(vid_dpy))
-			GetEvent();
-
-		if (modeswitchpending && modeswitchtime < Sys_Milliseconds())
-		{
-			UpdateGrabs();
-			if (modeswitchpending > 0 && !(fullscreenflags & FULLSCREEN_ACTIVE))
-			{
-				//entering fullscreen mode
-#ifdef USE_VMODE
-				if (fullscreenflags & FULLSCREEN_VMODE)
-				{
-					if (!(fullscreenflags & FULLSCREEN_VMODEACTIVE))
-					{
-						// change to the mode
-						vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[vm.usemode]);
-						fullscreenflags |= FULLSCREEN_VMODEACTIVE;
-						// Move the viewport to top left
-					}
-					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
-				}
-#endif
-#ifdef USE_XRANDR
-				if (fullscreenflags & FULLSCREEN_XRANDR)
-					XRandR_ApplyMode();
-#endif
-				Cvar_ForceCallback(&v_gamma);
-
-				/*release the mouse now, because we're paranoid about clip regions*/
-				if (fullscreenflags & FULLSCREEN_WM)
-					X_GoFullscreen();
-				if (fullscreenflags & FULLSCREEN_LEGACY)
-				{
-					x11.pXReparentWindow(vid_dpy, vid_window, vid_root, fullscreenx, fullscreeny);
-				//	if (vid_decoywindow)
-				//		x11.pXMoveWindow(vid_dpy, vid_decoywindow, fullscreenx, fullscreeny);
-					//x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
-					//make sure we have it
-					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
-					x11.pXRaiseWindow(vid_dpy, vid_window);
-					x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
-				}
-				if (fullscreenflags)
-					fullscreenflags |= FULLSCREEN_ACTIVE;
-			}
-			if (modeswitchpending < 0)
-			{
-				//leave fullscreen mode
-		 		if (!COM_CheckParm("-stayactive"))
- 				{	//a parameter that leaves the program fullscreen if you taskswitch.
- 					//sounds pointless, works great with two moniters. :D
-#ifdef USE_VMODE
-					if (fullscreenflags & FULLSCREEN_VMODE)
-					{
-	 					if (vm.originalapplied)
-							vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
-						if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
-						{
-							vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[0]);
-							fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
-						}
-					}
-#endif
-#ifdef USE_XRANDR
-					if (fullscreenflags & FULLSCREEN_XRANDR)
-						XRandR_RevertMode();
-#endif
-					if (fullscreenflags & FULLSCREEN_WM)
-						X_GoWindowed();
-					if (fullscreenflags & FULLSCREEN_LEGACY)
-					{
-						x11.pXReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
-//						x11.pXMoveResizeWindow(vid_dpy, vid_decoywindow, fullscreenx + (fullscreenwidth-640)/2, fullscreeny + (fullscreenheight-480)/2, 640, 480);
-						x11.pXMapWindow(vid_dpy, vid_decoywindow);
-					}
-					fullscreenflags &= ~FULLSCREEN_ACTIVE;
-				}
-			}
-			modeswitchpending = 0;
-		}
-
-		if (modeswitchpending)
-			return;
-
-		UpdateGrabs();
-	}
-}
-
-void Force_CenterView_f (void)
-{
-	cl.playerview[0].viewangles[PITCH] = 0;
-}
-
-
-//these are done from the x11 event handler. we don't support evdev.
-void INS_Move(void)
-{
-}
-void INS_Commands(void)
-{
-}
-void INS_Init(void)
-{
-}
-void INS_ReInit(void)
-{
-}
-void INS_Shutdown(void)
-{
-}
-void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
-{
-	callback(ctx, "keyboard", "x11", NULL);
-	switch(x11_input_method)
-	{
-	case XIM_ORIG:
-		callback(ctx, "mouse", "x11", &x11_mouseqdev);
-		break;
-	case XIM_DGA:
-		callback(ctx, "mouse", "dga", &x11_mouseqdev);
-		break;
-	case XIM_XI2:
-		{
-			int i, devs;
-			XIDeviceInfo *dev = xi2.pXIQueryDevice(vid_dpy, xi2.devicegroup, &devs);
-			for (i = 0; i < devs; i++)
-			{
-				if (!dev[i].enabled)
-					continue;
-				if (/*dev[i].use == XIMasterPointer ||*/ dev[i].use == XISlavePointer)
-				{
-					struct xidevinfo *devi = XI2_GetDeviceInfo(dev[i].deviceid);
-					callback(ctx, devi->abs?"tablet":"mouse", dev[i].name, &devi->qdev);
-				}
-//				else if (dev[i].use == XIMasterKeyboard || dev[i].use == XISlaveKeyboard)
-//				{
-//					int qdev = dev[i].deviceid;
-//					callback(ctx, "xi2kb", dev[i].name, &qdev);
-//				}
-			}
-			xi2.pXIFreeDeviceInfo(dev);
-		}
-		break;
-	}
-}
 
 void GLVID_SetCaption(const char *text)
 {
@@ -3867,5 +3717,173 @@ qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	x11.pXCloseDisplay(xtemp);
 
 	return true;
+}
+#endif
+
+
+
+
+void Sys_SendKeyEvents(void)
+{
+#ifndef CLIENTONLY
+	//this is stupid
+	SV_GetConsoleCommands();
+#endif
+
+#ifndef NO_X11
+	if (sys_gracefulexit)
+	{
+		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+		sys_gracefulexit = false;
+	}
+	if (vid_dpy && vid_window)
+	{
+		while (x11.pXPending(vid_dpy))
+			GetEvent();
+
+		if (modeswitchpending && modeswitchtime < Sys_Milliseconds())
+		{
+			UpdateGrabs();
+			if (modeswitchpending > 0 && !(fullscreenflags & FULLSCREEN_ACTIVE))
+			{
+				//entering fullscreen mode
+#ifdef USE_VMODE
+				if (fullscreenflags & FULLSCREEN_VMODE)
+				{
+					if (!(fullscreenflags & FULLSCREEN_VMODEACTIVE))
+					{
+						// change to the mode
+						vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[vm.usemode]);
+						fullscreenflags |= FULLSCREEN_VMODEACTIVE;
+						// Move the viewport to top left
+					}
+					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+				}
+#endif
+#ifdef USE_XRANDR
+				if (fullscreenflags & FULLSCREEN_XRANDR)
+					XRandR_ApplyMode();
+#endif
+				Cvar_ForceCallback(&v_gamma);
+
+				/*release the mouse now, because we're paranoid about clip regions*/
+				if (fullscreenflags & FULLSCREEN_WM)
+					X_GoFullscreen();
+				if (fullscreenflags & FULLSCREEN_LEGACY)
+				{
+					x11.pXReparentWindow(vid_dpy, vid_window, vid_root, fullscreenx, fullscreeny);
+				//	if (vid_decoywindow)
+				//		x11.pXMoveWindow(vid_dpy, vid_decoywindow, fullscreenx, fullscreeny);
+					//x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
+					//make sure we have it
+					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+					x11.pXRaiseWindow(vid_dpy, vid_window);
+					x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
+				}
+				if (fullscreenflags)
+					fullscreenflags |= FULLSCREEN_ACTIVE;
+			}
+			if (modeswitchpending < 0)
+			{
+				//leave fullscreen mode
+		 		if (!COM_CheckParm("-stayactive"))
+ 				{	//a parameter that leaves the program fullscreen if you taskswitch.
+ 					//sounds pointless, works great with two moniters. :D
+#ifdef USE_VMODE
+					if (fullscreenflags & FULLSCREEN_VMODE)
+					{
+	 					if (vm.originalapplied)
+							vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+						if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
+						{
+							vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[0]);
+							fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
+						}
+					}
+#endif
+#ifdef USE_XRANDR
+					if (fullscreenflags & FULLSCREEN_XRANDR)
+						XRandR_RevertMode();
+#endif
+					if (fullscreenflags & FULLSCREEN_WM)
+						X_GoWindowed();
+					if (fullscreenflags & FULLSCREEN_LEGACY)
+					{
+						x11.pXReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
+//						x11.pXMoveResizeWindow(vid_dpy, vid_decoywindow, fullscreenx + (fullscreenwidth-640)/2, fullscreeny + (fullscreenheight-480)/2, 640, 480);
+						x11.pXMapWindow(vid_dpy, vid_decoywindow);
+					}
+					fullscreenflags &= ~FULLSCREEN_ACTIVE;
+				}
+			}
+			modeswitchpending = 0;
+		}
+
+		if (modeswitchpending)
+			return;
+
+		UpdateGrabs();
+	}
+#endif
+}
+
+void Force_CenterView_f (void)
+{
+	cl.playerview[0].viewangles[PITCH] = 0;
+}
+
+
+//these are done from the x11 event handler. we don't support evdev.
+void INS_Move(void)
+{
+}
+void INS_Commands(void)
+{
+}
+void INS_Init(void)
+{
+}
+void INS_ReInit(void)
+{
+}
+void INS_Shutdown(void)
+{
+}
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
+{
+#ifndef NO_X11
+	callback(ctx, "keyboard", "x11", NULL);
+	switch(x11_input_method)
+	{
+	case XIM_ORIG:
+		callback(ctx, "mouse", "x11", &x11_mouseqdev);
+		break;
+	case XIM_DGA:
+		callback(ctx, "mouse", "dga", &x11_mouseqdev);
+		break;
+	case XIM_XI2:
+		{
+			int i, devs;
+			XIDeviceInfo *dev = xi2.pXIQueryDevice(vid_dpy, xi2.devicegroup, &devs);
+			for (i = 0; i < devs; i++)
+			{
+				if (!dev[i].enabled)
+					continue;
+				if (/*dev[i].use == XIMasterPointer ||*/ dev[i].use == XISlavePointer)
+				{
+					struct xidevinfo *devi = XI2_GetDeviceInfo(dev[i].deviceid);
+					callback(ctx, devi->abs?"tablet":"mouse", dev[i].name, &devi->qdev);
+				}
+//				else if (dev[i].use == XIMasterKeyboard || dev[i].use == XISlaveKeyboard)
+//				{
+//					int qdev = dev[i].deviceid;
+//					callback(ctx, "xi2kb", dev[i].name, &qdev);
+//				}
+			}
+			xi2.pXIFreeDeviceInfo(dev);
+		}
+		break;
+	}
+#endif
 }
 

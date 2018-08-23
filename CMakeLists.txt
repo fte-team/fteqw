@@ -3,11 +3,7 @@
 #It uses system libraries, so it will have dependancy issues with public releases where those dependancies are distro/version-specific.
 #Public builds are still built using the (overcomplicated) traditional (g)makefile.
 
-IF(${ANDROID})
-    CMAKE_MINIMUM_REQUIRED(VERSION 3.6) #special dispensation for android crap.
-ELSE()
-    CMAKE_MINIMUM_REQUIRED(VERSION 3.9)
-ENDIF()
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 PROJECT(fteqw)
 
 INCLUDE_DIRECTORIES(
@@ -37,19 +33,81 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 
 IF(${CMAKE_VERSION} VERSION_LESS "3.9.0")
-    #android studio sucks and insists on using an outdated version of cmake instead of the system version.
 ELSE()
-    IF(NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
-        #use LTO where possible. reportedly requires cmake 3.9 to actually work
-        INCLUDE(CheckIPOSupported)
-        check_ipo_supported(RESULT result)
-        IF(result)
-            SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-        ENDIF()
-    ENDIF()
+	IF(NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
+		#use LTO where possible. reportedly requires cmake 3.9 to actually work
+		INCLUDE(CheckIPOSupported)
+		check_ipo_supported(RESULT result)
+		IF(result)
+			SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+		ENDIF()
+	ENDIF()
 ENDIF()
 
-if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+FIND_PACKAGE(ZLIB)
+IF(NOT ZLIB_FOUND)
+	MESSAGE(WARNING "libz library NOT available. compressed pk3 will not be available.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ZLIB)
+	SET(ZLIB_LIBRARY m)
+	SET(ZLIB_LIBRARIES m)
+ENDIF()
+
+FIND_PACKAGE(GnuTLS)
+IF(NOT GNUTLS_FOUND)
+	MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
+ENDIF()
+
+FIND_PACKAGE(ALSA)
+IF(NOT ALSA_FOUND)
+	MESSAGE(WARNING "asound (alsa) library NOT available.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ALSA)
+ENDIF()
+
+FIND_PACKAGE(X11)
+IF(X11_FOUND)
+	IF (NOT X11_Xcursor_FOUND)			
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_CURSOR)
+		MESSAGE(WARNING "Xcursor library NOT available.")
+	ENDIF()
+ELSE()
+	MESSAGE(WARNING "x11 library NOT available.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
+ENDIF()
+
+FIND_PACKAGE(OpenGL)
+IF(NOT OpenGL_FOUND)
+	MESSAGE(WARNING "opengl library NOT available. Will depend upon vulkan.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OPENGL)
+ENDIF()
+
+FIND_PACKAGE(JPEG)
+IF(NOT JPEG_FOUND)
+	MESSAGE(WARNING "libjpeg library NOT available. Who cares?")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_JPEG)
+ENDIF()
+
+FIND_PACKAGE(PNG)
+IF(NOT PNG_FOUND)
+	MESSAGE(WARNING "libpng library NOT available. Good luck with screenshots.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_PNG)
+ENDIF()
+	
+FIND_PACKAGE(Freetype)
+IF(FREETYPE_FOUND)
+	INCLUDE_DIRECTORIES( ${FREETYPE_INCLUDE_DIRS} )
+ELSE()
+	MESSAGE(WARNING "freetype library NOT available. I hope you're okay with ascii.")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_FREETYPE)
+ENDIF()
+
+FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
+IF(NOT VORBISFILE_LIBRARY)
+	MESSAGE(WARNING "libvorbisfile library NOT available. Who listens to the bgm anyway?")
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OGG)
+ENDIF()
+
+IF(CMAKE_C_COMPILER_ID MATCHES "Clang")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pointer-sign")
 endif()
 
@@ -58,8 +116,8 @@ IF(${ANDROID})
 
 #	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
 
-	SET(FTE_DEFINES ANDROID;GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS android log EGL z m ${CMAKE_DL_LIBS})
+	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_droid.c
 		engine/common/sys_linux_threads.c
@@ -73,8 +131,8 @@ ELSEIF(${WIN32})
 	
 	#	engine/server/sv_sys_win.c
 	
-	SET(FTE_LIBS z ole32 gdi32 wsock32 winmm)
-	SET(FTE_DEFINES GLQUAKE;VKQUAKE;D3D9QUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG) #D3D11QUAKE not included.
+	SET(FTE_LIBS ${ZLIB_LIBRARIES} ole32 gdi32 wsock32 winmm)
+	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;D3D9QUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG) #D3D11QUAKE not included.
 	SET(FTE_ARCH_FILES 
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
@@ -104,7 +162,7 @@ ELSEIF(${WIN32})
 		engine/d3d/vid_d3d8.c
 	)
 	
-	SET(FTESV_LIBS z wsock32 winmm)
+	SET(FTESV_LIBS ${ZLIB_LIBRARIES} wsock32 winmm)
 	SET(FTESV_ARCH_FILES 
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
@@ -114,12 +172,8 @@ ELSEIF(${WIN32})
 	)
 ELSEIF(${UNIX})	#linux(ish)
 				#openbsd will have issues with snd_linux.c
-	FIND_PACKAGE(Freetype REQUIRED)
-
-	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
-
-	SET(FTE_DEFINES GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS z m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
+	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
@@ -141,7 +195,7 @@ ELSEIF(${UNIX})	#linux(ish)
 	#openbsd uses a libossaudio library for all the oss stuff, use that to ensure that we still get sound
 	FIND_LIBRARY(
 		OSSAUDIO_LIBRARY
-	NAMES ossaudio
+		NAMES ossaudio
 	)
 	IF(OSSAUDIO_LIBRARY)
 	SET(FTE_LIBS ${FTE_LIBS} ${OSSAUDIO_LIBRARY})
@@ -157,6 +211,12 @@ ELSEIF(${UNIX})	#linux(ish)
 		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
 			engine/gl/gl_vidwayland.c
 		)
+	ELSE()
+		MESSAGE(WARNING "Wayland library NOT available")
+		IF(NOT X11_FOUND)
+			MESSAGE(WARNING "No renderers supported!")
+			SET(FTE_NO_RENDERERS 1)
+		ENDIF()
 	ENDIF()
 
 	SET(FTESV_DEFINES MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
@@ -165,9 +225,9 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
 	)
-	SET(FTESV_LIBS z m ${CMAKE_DL_LIBS} pthread)
+	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread)
 ELSEIF(1)	#SDL
-	FIND_PACKAGE(Freetype REQUIRED)
+#	FIND_PACKAGE(Freetype REQUIRED)
 #	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)
 
 	FIND_PACKAGE(PkgConfig REQUIRED)
@@ -178,8 +238,8 @@ ELSEIF(1)	#SDL
 	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
 	
 	#SDL2.0.7 supports vulkan, so lets use it.
-	SET(FTE_DEFINES GLQUAKE;VKQUAKE;FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS z m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
+	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_sdl.c
 		engine/client/snd_al.c
@@ -190,7 +250,7 @@ ELSEIF(1)	#SDL
 	)
 
 	SET(FTESV_DEFINES FTE_SDL;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTESV_LIBS z m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
+	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
 		SET(FTE_LIBS ${FTE_LIBS} wsock32 gdi32 ole32)
@@ -420,7 +480,7 @@ SET(FTE_CLIENT_FILES
 	engine/gl/gl_warp.c
 	engine/gl/ltface.c
 
-#These are GL-specific
+#These are GL-specific, but can be left even if no gl is supported.
 	engine/gl/gl_backend.c
 	engine/gl/gl_bloom.c
 	engine/gl/gl_draw.c
@@ -430,70 +490,69 @@ SET(FTE_CLIENT_FILES
 	engine/gl/gl_screen.c
 	engine/gl/gl_vidcommon.c
 	engine/gl/glmod_doom.c
-
+	
 	engine/vk/vk_backend.c
 	engine/vk/vk_init.c
 )
 
 IF(${ANDROID})
-    #android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
-
-    ADD_LIBRARY(ftedroid MODULE
-        ${FTE_ARCH_FILES}
-        ${FTE_COMMON_FILES}
-        ${FTE_CLIENT_FILES}
-    )
-    SET_TARGET_PROPERTIES(ftedroid PROPERTIES COMPILE_DEFINITIONS "${FTE_DEFINES};${FTE_REVISON}")
-    TARGET_LINK_LIBRARIES(ftedroid ${FTE_LIBS} )
-
+	#android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
+	ADD_LIBRARY(ftedroid MODULE
+		${FTE_ARCH_FILES}
+		${FTE_COMMON_FILES}
+		${FTE_CLIENT_FILES}
+	)
+	SET_TARGET_PROPERTIES(ftedroid PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+	TARGET_LINK_LIBRARIES(ftedroid ${FTE_LIBS} )
 ELSE()
-    #systems that actually have executables...
-    ADD_EXECUTABLE(fteqw WIN32
-        ${FTE_ARCH_FILES}
-        ${FTE_COMMON_FILES}
-        ${FTE_CLIENT_FILES}
-    )
+	#systems that actually have executables...
+	ADD_EXECUTABLE(fteqw WIN32
+		${FTE_ARCH_FILES}
+		${FTE_COMMON_FILES}
+		${FTE_CLIENT_FILES}
+	)
+	SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
 
-    SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_DEFINES};${FTE_REVISON}")
-    TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
-
-    ADD_EXECUTABLE(fteqw-sv
-        ${FTESV_ARCH_FILES}
-        ${FTE_COMMON_FILES}
-    )
-    SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTESV_DEFINES};${FTE_REVISON}")
-    TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
-
-
-    ADD_EXECUTABLE(fteqcc
-        engine/qclib/qcctui.c
-        engine/qclib/comprout.c
-        engine/qclib/hash.c
-        engine/qclib/qcc_cmdlib.c
-        engine/qclib/qcc_pr_comp.c
-        engine/qclib/qcc_pr_lex.c
-        engine/qclib/qccmain.c
-        engine/qclib/qcd_main.c
-    )
-    TARGET_LINK_LIBRARIES(fteqcc z m)
+	ADD_EXECUTABLE(fteqw-sv
+		${FTESV_ARCH_FILES}
+		${FTE_COMMON_FILES}
+	)
+	SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
+	TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
 
 
-    IF(${WIN32})
-        ADD_EXECUTABLE(fteqccgui WIN32
-            engine/qclib/qccgui.c
-            engine/qclib/qccguistuff.c
-            engine/qclib/comprout.c
-            engine/qclib/hash.c
-            engine/qclib/qcc_cmdlib.c
-            engine/qclib/qcc_pr_comp.c
-            engine/qclib/qcc_pr_lex.c
-            engine/qclib/qccmain.c
-            engine/qclib/decomp.c
-            engine/qclib/packager.c
-            engine/qclib/qcd_main.c
-        )
-        TARGET_LINK_LIBRARIES(fteqccgui z shlwapi ole32 comctl32 comdlg32)
-    ENDIF()
+	ADD_EXECUTABLE(fteqcc
+		engine/qclib/qcctui.c
+		engine/qclib/comprout.c
+		engine/qclib/hash.c
+		engine/qclib/qcc_cmdlib.c
+		engine/qclib/qcc_pr_comp.c
+		engine/qclib/qcc_pr_lex.c
+		engine/qclib/qccmain.c
+		engine/qclib/qcd_main.c
+	)
+	SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
+	TARGET_LINK_LIBRARIES(fteqcc ${ZLIB_LIBRARIES} m)
+
+
+	IF(${WIN32})
+		ADD_EXECUTABLE(fteqccgui WIN32
+			engine/qclib/qccgui.c
+			engine/qclib/qccguistuff.c
+			engine/qclib/comprout.c
+			engine/qclib/hash.c
+			engine/qclib/qcc_cmdlib.c
+			engine/qclib/qcc_pr_comp.c
+			engine/qclib/qcc_pr_lex.c
+			engine/qclib/qccmain.c
+			engine/qclib/decomp.c
+			engine/qclib/packager.c
+			engine/qclib/qcd_main.c
+		)
+		SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} shlwapi ole32 comctl32 comdlg32)
+	ENDIF()
 ENDIF()
 
 
@@ -505,11 +564,11 @@ ADD_LIBRARY(qi MODULE
 	plugins/emailnot/md5.c
 	plugins/jabber/xml.c
 )
-SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
 
 #Bullet Physics library plugin
-FIND_PACKAGE(Bullet)
+#FIND_PACKAGE(Bullet)
 IF (${BULLET_FOUND})
 	ADD_LIBRARY(bullet MODULE
 		plugins/qvm_api.c
@@ -521,16 +580,18 @@ IF (${BULLET_FOUND})
 	SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
 ENDIF()
 
-#Bullet Physics library plugin
-#FIND_PACKAGE(ode REQUIRED)
-ADD_LIBRARY(ode MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	engine/common/com_phys_ode.c
-)
-TARGET_INCLUDE_DIRECTORIES(ode PUBLIC ${BULLET_INCLUDE_DIRS})
-SET_TARGET_PROPERTIES(ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
-SET_TARGET_PROPERTIES(ode PROPERTIES PREFIX "fteplug_")
+#ODE Physics library plugin
+FIND_PACKAGE(ode)
+IF (${ODE_FOUND})
+	ADD_LIBRARY(ode MODULE
+		plugins/qvm_api.c
+		plugins/plugin.c
+		engine/common/com_phys_ode.c
+	)
+	TARGET_INCLUDE_DIRECTORIES(ode PUBLIC ${ODE_INCLUDE_DIRS})
+	SET_TARGET_PROPERTIES(ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
+	SET_TARGET_PROPERTIES(ode PROPERTIES PREFIX "fteplug_")
+ENDIF()
 
 #EzQuake Hud port plugin
 ADD_LIBRARY(ezhud MODULE
@@ -541,7 +602,7 @@ ADD_LIBRARY(ezhud MODULE
 	plugins/ezhud/hud_common.c
 	plugins/ezhud/hud_editor.c
 )
-SET_TARGET_PROPERTIES(ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+SET_TARGET_PROPERTIES(ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(ezhud PROPERTIES PREFIX "fteplug_")
 
 #IRC client plugin
@@ -550,23 +611,23 @@ ADD_LIBRARY(irc MODULE
 	plugins/plugin.c
 	plugins/irc/ircclient.c
 )
-SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 
 IF(NOT ${ANDROID})
-    #XMPP/jabber client plugin
-    ADD_LIBRARY(xmpp MODULE
-        plugins/qvm_api.c
-        plugins/plugin.c
-        plugins/jabber/jabberclient.c
-        plugins/jabber/xml.c
-        plugins/jabber/jingle.c
-        plugins/jabber/sift.c
-        engine/common/sha1.c
-        plugins/emailnot/md5.c
-    )
-    SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
-    SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
+	#XMPP/jabber client plugin
+	ADD_LIBRARY(xmpp MODULE
+		plugins/qvm_api.c
+		plugins/plugin.c
+		plugins/jabber/jabberclient.c
+		plugins/jabber/xml.c
+		plugins/jabber/jingle.c
+		plugins/jabber/sift.c
+		engine/common/sha1.c
+		plugins/emailnot/md5.c
+	)
+	SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+	SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
 ENDIF()
 
 #ffmpeg plugin

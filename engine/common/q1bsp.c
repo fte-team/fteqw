@@ -2813,4 +2813,27 @@ void Mod_BSPX_Strip_f(void)
 			Mod_BSPXRW_Free(&ctx);
 	}
 }
+
+image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
+{
+	int i;
+	menvmap_t       *e;
+	float bestdist = FLT_MAX, dist;
+	image_t *ret = NULL;
+	vec3_t move;
+	if (!wmodel || wmodel->loadstate != MLS_LOADED)
+		return NULL;
+	for ( i=0 , e=wmodel->envmaps ; i<wmodel->numenvmaps ; i++, e++)
+	{
+		VectorSubtract(org, e->origin, move);
+		dist = DotProduct(move,move);
+		if (bestdist > dist)
+		{
+			bestdist = dist;
+			ret = e->image;
+		}
+	}
+	return ret;
+}
+
 #endif

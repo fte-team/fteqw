@@ -1454,7 +1454,22 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 				if (newr->fullscreen == 2)
 					Con_TPrintf("Setting fullscreen windowed %s%s\n", newr->srgb?"SRGB ":"", newr->renderer->description);
 				else if (newr->fullscreen)
-					Con_TPrintf("Setting mode %i*%i %ibpp %ihz %s%s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->srgb?"SRGB ":"", newr->renderer->description);
+				{
+					if (newr->rate)
+					{
+						if (newr->width || newr->height)
+							Con_TPrintf("Setting mode %i*%i %ibpp %ihz %s%s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->srgb?"SRGB ":"", newr->renderer->description);
+						else
+							Con_TPrintf("Setting mode auto %ibpp %ihz %s%s\n", newr->bpp, newr->rate, newr->srgb?"SRGB ":"", newr->renderer->description);
+					}
+					else
+					{
+						if (newr->width || newr->height)
+							Con_TPrintf("Setting mode %i*%i %ibpp %s%s\n", newr->width, newr->height, newr->bpp, newr->srgb?"SRGB ":"", newr->renderer->description);
+						else
+							Con_TPrintf("Setting mode auto %ibpp %s%s\n", newr->bpp, newr->srgb?"SRGB ":"", newr->renderer->description);
+					}
+				}
 				else
 					Con_TPrintf("Setting windowed mode %i*%i %s%s\n", newr->width, newr->height, newr->srgb?"SRGB ":"", newr->renderer->description);
 			}
@@ -2090,19 +2105,19 @@ void R_RestartRenderer (rendererstate_t *newr)
 
 			if (failed && newr->fullscreen == 1)
 			{
-				Con_Printf(CON_NOTICE "Trying fullscreen windowed\n");
+				Con_Printf(CON_NOTICE "Trying fullscreen windowed"CON_DEFAULT"\n");
 				newr->fullscreen = 2;
 				failed = !R_ApplyRenderer(newr);
 			}
 			if (failed && newr->rate != 0)
 			{
-				Con_Printf(CON_NOTICE "Trying default refresh rate\n");
+				Con_Printf(CON_NOTICE "Trying default refresh rate"CON_DEFAULT"\n");
 				newr->rate = 0;
 				failed = !R_ApplyRenderer(newr);
 			}
 			if (failed && newr->width != DEFAULT_WIDTH && newr->height != DEFAULT_HEIGHT)
 			{
-				Con_Printf(CON_NOTICE "Trying %i*%i\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
+				Con_Printf(CON_NOTICE "Trying %i*%i"CON_DEFAULT"\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
 				if (newr->fullscreen == 2)
 					newr->fullscreen = 1;
 				newr->width = DEFAULT_WIDTH;
@@ -2111,7 +2126,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 			}
 			if (failed && newr->fullscreen)
 			{
-				Con_Printf(CON_NOTICE "Trying windowed\n");
+				Con_Printf(CON_NOTICE "Trying windowed"CON_DEFAULT"\n");
 				newr->fullscreen = 0;
 				failed = !R_ApplyRenderer(newr);
 			}
@@ -2122,7 +2137,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 				newr->renderer = rendererinfo[i];
 				if (newr->renderer && newr->renderer != skip && newr->renderer->rtype != QR_HEADLESS)
 				{
-					Con_Printf(CON_NOTICE "Trying %s\n", newr->renderer->description);
+					Con_Printf(CON_NOTICE "Trying %s"CON_DEFAULT"\n", newr->renderer->description);
 					failed = !R_ApplyRenderer(newr);
 				}
 			}

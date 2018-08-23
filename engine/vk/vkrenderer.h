@@ -8,14 +8,17 @@
 	#define VK_USE_PLATFORM_ANDROID_KHR
 	#define VKInstXLibFuncs VKFunc(CreateAndroidSurfaceKHR)
 #elif defined(__linux__)
-	#define VK_USE_PLATFORM_XLIB_KHR
-	#define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
+	#ifndef NO_X11
+		#define VK_USE_PLATFORM_XLIB_KHR
+		#define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
 
-	#define VK_USE_PLATFORM_XCB_KHR
-	#define VKInstXCBFuncs VKFunc(CreateXcbSurfaceKHR)
-	
-	#define VK_USE_PLATFORM_WAYLAND_KHR
-	#define VKInstWaylandFuncs VKFunc(CreateWaylandSurfaceKHR)
+		#define VK_USE_PLATFORM_XCB_KHR
+		#define VKInstXCBFuncs VKFunc(CreateXcbSurfaceKHR)
+	#endif
+	#ifdef WAYLANDQUAKE
+		#define VK_USE_PLATFORM_WAYLAND_KHR
+		#define VKInstWaylandFuncs VKFunc(CreateWaylandSurfaceKHR)
+	#endif
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 	#define VK_USE_PLATFORM_XLIB_KHR
 	#define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)

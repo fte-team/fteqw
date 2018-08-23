@@ -122,7 +122,10 @@ struct pubprogfuncs_s
 
 	void	(PDECL *ED_Print)					(pubprogfuncs_t *prinst, struct edict_s *ed);
 	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, size_t *size, size_t maxsize, int mode);	//dump the entire progs info into one big self allocated string
-	int		(PDECL *load_ents)					(pubprogfuncs_t *prinst, const char *s, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend));	//restore the entire progs state (or just add some more ents) (returns edicts ize)
+	int		(PDECL *load_ents)					(pubprogfuncs_t *prinst, const char *s, void *ctx,
+														void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend),
+														pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline)
+												); //restore the entire progs state (or just add some more ents) (returns edicts ize)
 
 	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, size_t *size, size_t maxsize, struct edict_s *ed);	//will save just one entities vars
 	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, const char *buf, size_t *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
@@ -280,7 +283,7 @@ typedef union eval_s
 #define ED_Free(pf, ed)										(*pf->EntFree)				(pf, ed)
 #define ED_Clear(pf, ed)									(*pf->EntClear)				(pf, ed)
 
-#define PR_LoadEnts(pf, s, ctx, cb)							(*pf->load_ents)			(pf, s, ctx, cb)
+#define PR_LoadEnts(pf, s, ctx, entcb, extcb)				(*pf->load_ents)			(pf, s, ctx, entcb, extcb)
 #define PR_SaveEnts(pf, buf, size, maxsize, mode)			(*pf->save_ents)			(pf, buf, size, maxsize, mode)
 
 #if 0//def _DEBUG

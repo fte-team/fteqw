@@ -8,8 +8,6 @@
 //=============================================================================
 /* LOAD/SAVE MENU */
 
-#define FTESAVEGAME_VERSION 25000
-
 typedef struct {
 	int issave;
 	int cursorpos;
@@ -61,7 +59,7 @@ static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
 	{
 		VFS_GETS(f, line, sizeof(line));
 		version = atoi(line);
-		if (version != 5 && version != 6 && (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX))
+		if (version != SAVEGAME_VERSION_NQ && version != SAVEGAME_VERSION_QW && version != SAVEGAME_VERSION_FTE_LEG && (version < SAVEGAME_VERSION_FTE_HUB || version >= SAVEGAME_VERSION_FTE_HUB+GT_MAX))
 		{
 			Q_strncpyz (m_saves[slot].desc, "Incompatible version", sizeof(m_saves[slot].desc));
 			VFS_CLOSE (f);

@@ -1249,6 +1249,12 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	CL_AllowIndependantSendCmd(oldallow);
 }
 
+//sometimes a server will quickly restart twice.
+//connected clients will then receive TWO 'new' commands - both with the same servercount value.
+//the connection process then tries to proceed with two sets of commands until it fails catastrophically.
+//by attempting to strip out dupe commands we can usually avoid the issue
+//note that FTE servers track progress properly, so this is not an issue for us, but in the interests of compat with mvdsv...
+//however, FTE servers can send a little faster, so warnings about this can be awkward.
 int CL_RemoveClientCommands(char *command)
 {
 	clcmdbuf_t *next, *first;

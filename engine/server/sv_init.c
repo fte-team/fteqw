@@ -898,8 +898,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #ifndef SERVERONLY
 	cl.worldmodel = NULL;
 	r_worldentity.model = NULL;
-	if (0)
-	cls.state = ca_connected;
+//	if (0)
+//	cls.state = ca_connected;
 	Surf_PreNewMap();
 #ifdef VM_CG
 	CG_Stop();

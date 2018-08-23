@@ -1337,10 +1337,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, qbyte *
 		{
 			t = (-1-ambient)*255;
 			for (i=0 ; i<size*3 ; i++)
-			{
 				blocklights[i] = t;
-			}
-
 			for (maps = 0 ; maps < MAXQ1LIGHTMAPS ; maps++)
 			{
 				surf->cached_light[maps] = -1-ambient;
@@ -1350,25 +1347,19 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, qbyte *
 		else if (r_fullbright.value>0)	//not qw
 		{
 			for (i=0 ; i<size*3 ; i++)
-			{
 				blocklights[i] = r_fullbright.value*255*256;
-			}
 		}
 		else if (!currentmodel->lightdata)
 		{
 			/*fullbright if map is not lit. but not overbright*/
 			for (i=0 ; i<size*3 ; i++)
-			{
 				blocklights[i] = 128*256;
-			}
 		}
 		else if (!surf->samples)
 		{
 			/*no samples, but map is otherwise lit = pure black*/
 			for (i=0 ; i<size*3 ; i++)
-			{
 				blocklights[i] = 0;
-			}
 			surf->cached_light[0] = 0;
 			surf->cached_colour[0] = 0;
 		}
@@ -1472,8 +1463,26 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, qbyte *
 	else
 	{
 		// set to full bright if no light data
-		if (r_fullbright.ival || !currentmodel->lightdata)
+		if (ambient < 0)
 		{
+			t = (-1-ambient)*255;
+			for (i=0 ; i<size ; i++)
+				blocklights[i] = t;
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS ; maps++)
+			{
+				surf->cached_light[maps] = -1-ambient;
+				surf->cached_colour[maps] = 0xff;
+			}
+		}
+		else if (r_fullbright.value > 0)
+		{	//r_fullbright is meant to be a scaler.
+			for (i=0 ; i<size ; i++)
+				blocklights[i] = r_fullbright.value*255*256;
+			surf->cached_light[0] = d_lightstylevalue[0];
+			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
+		}
+		else if (!currentmodel->lightdata)
+		{	//no scalers here.
 			for (i=0 ; i<size ; i++)
 				blocklights[i] = 255*256;
 			surf->cached_light[0] = d_lightstylevalue[0];

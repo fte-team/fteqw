@@ -88,6 +88,21 @@ void PR_Route_Visualise (void);
 void PR_Route_Init (void);
 #endif
 
+//known progs versions...
+enum
+{
+	PROGHEADER_CRC_QW		= 54730,
+	PROGHEADER_CRC_NQ		= 5927,
+	PROGHEADER_CRC_PREREL	= 26940,	//prerelease
+	PROGHEADER_CRC_TENEBRAE	= 32401,	//tenebrae
+	PROGHEADER_CRC_H2		= 38488,	//basic hexen2
+	PROGHEADER_CRC_H2MP		= 26905,	//hexen2 mission pack uses slightly different defs... *sigh*...
+	PROGHEADER_CRC_H2DEMO	= 14046,	//I'm guessing this is from the original release or something
+	PROGHEADER_CRC_CSQC		= 22390,
+	PROGHEADER_CRC_CSQC_DP	= 52195,
+	PROGHEADER_CRC_MENUQC	= 10020
+};
+
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
 void QCBUILTIN PF_print (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

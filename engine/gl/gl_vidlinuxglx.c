@@ -150,6 +150,7 @@ static struct
 	Cursor	 (*pXCreatePixmapCursor)(Display *display, Pixmap source, Pixmap mask, XColor *foreground_color, XColor *background_color, unsigned int x, unsigned int y);
 	Window	 (*pXCreateWindow)(Display *display, Window parent, int x, int y, unsigned int width, unsigned int height, unsigned int border_width, int depth, unsigned int class, Visual *visual, unsigned long valuemask, XSetWindowAttributes *attributes);
 	int	 (*pXDefineCursor)(Display *display, Window w, Cursor cursor);
+	int	 (*pXDeleteProperty)(Display *display, Window w, Atom property);
 	int	 (*pXDestroyWindow)(Display *display, Window w);
 	int	 (*pXFillRectangle)(Display *display, Drawable d, GC gc, int x, int y, unsigned int width, unsigned int height);
 	int 	 (*pXFlush)(Display *display);
@@ -213,6 +214,13 @@ static struct
 	qboolean	dounicode;
 	XIC			unicodecontext;
 	XIM			inputmethod;
+
+	struct
+	{
+		Window	source;	//the source window to send dndFinished to.
+		Atom	type;	//the type of the data. usually text/uri-list.
+		Atom	myprop;	//the property on our window that we're copying the data to.
+	} dnd;
 } x11;
 
 static int X11_ErrorHandler(Display *dpy, XErrorEvent *e)
@@ -237,6 +245,7 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXCreatePixmapCursor,	"XCreatePixmapCursor"},
 		{(void**)&x11.pXCreateWindow,		"XCreateWindow"},
 		{(void**)&x11.pXDefineCursor,		"XDefineCursor"},
+		{(void**)&x11.pXDeleteProperty,		"XDeleteProperty"},
 		{(void**)&x11.pXDestroyWindow,		"XDestroyWindow"},
 		{(void**)&x11.pXFillRectangle,		"XFillRectangle"},
 		{(void**)&x11.pXFlush,			"XFlush"},
@@ -2353,26 +2362,150 @@ static void GetEvent(void)
 					Con_DPrintf("Got unknown x11wm message %s\n", protname);
 				x11.pXFree(protname);
 			}
+#if 1
+			else if (!strcmp(name, "XdndEnter") && event.xclient.format == 32)
+			{
+				//check for text/uri-list
+				int i;
+				for (i = 2; i < 2+3; i++)
+				{
+					if (event.xclient.data.l[i])
+					{
+						char *t = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[i]);
+						if (!strcmp(t, "text/uri-list"))	//file list
+							x11.dnd.type = event.xclient.data.l[i];
+						x11.pXFree(t);
+					}
+				}
+			}
+			else if (!strcmp(name, "XdndPosition") && event.xclient.format == 32)
+			{
+				//Send XdndStatus
+				XEvent xev;
+				memset(&xev, 0, sizeof(xev));
+				xev.type = ClientMessage;
+				xev.xclient.window = event.xclient.data.l[0];
+				xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "XdndStatus", False);
+				xev.xclient.format = 32;
+				xev.xclient.data.l[0] = vid_window;	//so source can ignore it if stale
+				xev.xclient.data.l[1] = 1;
+				xev.xclient.data.l[2] = 0;	//(x<<16)|y (should be in root coords)
+				xev.xclient.data.l[3] = 0;	//(w<<16)|h
+				xev.xclient.data.l[4] = x11.pXInternAtom (vid_dpy, "XdndActionCopy", False);
+				x11.pXSendEvent(vid_dpy, xev.xclient.window, False, 0, &xev);
+			}
+			else if (!strcmp(name, "XdndLeave") && event.xclient.format == 32)
+			{
+				if (x11.dnd.source == event.xclient.data.l[0])
+				{
+					x11.dnd.source = None;
+					x11.dnd.type = None;
+				}
+			}
+			else if (!strcmp(name, "XdndDrop") && event.xclient.format == 32)
+			{
+				Atom xa_XdndSelection = x11.pXInternAtom(vid_dpy, "XdndSelection", False);
+				Time t = CurrentTime;//event.xclient.data.l[2];
+				x11.dnd.myprop = x11.pXInternAtom(vid_dpy, "_FTE_dnd", False);
+				if (x11.pXGetSelectionOwner(vid_dpy, xa_XdndSelection) == event.xclient.data.l[0])
+				{
+					x11.pXDeleteProperty(vid_dpy, vid_window, x11.dnd.myprop);
+					x11.pXConvertSelection(vid_dpy, xa_XdndSelection, x11.dnd.type, x11.dnd.myprop, vid_window, t);
+				}
+			}
+#endif
 			else
 				Con_DPrintf("Got unknown x11 message %s\n", name);
 			x11.pXFree(name);
 		}
 		break;
-
 #if 1
-	case SelectionRequest:	//needed for copy-to-clipboard
+	case SelectionNotify:
+		//for drag-n-drop
+		if (event.xselection.selection == x11.pXInternAtom(vid_dpy, "XdndSelection", False) && x11.dnd.myprop != None)
 		{
-			Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
+			qboolean okay = false;
+			unsigned char *data;
+			Atom type;
+			int fmt;
+			unsigned long nitems;
+			unsigned long bytesleft;
+			if (x11.pXGetWindowProperty(vid_dpy, vid_window, x11.dnd.myprop, 0, 65536, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data) == Success && data)
+			{
+				if (type == x11.dnd.type)
+				{
+					char *start, *end;
+					for (start = data; *start; )
+					{
+						for (end = start; *end && *end != '\r'; end++)
+							;
+						if (end != start)
+							Host_RunFile(start, end-start, NULL);
+						start = end;
+						while (*start == '\r' || *start == '\n')
+							start++;
+					}
+					okay = true;
+					x11.pXFree(data);
+				}
+			}
+			x11.pXDeleteProperty(vid_dpy, vid_window, x11.dnd.myprop);	//might be large, so don't force it to hang around.
+
+			//Send XdndFinished now
+			XEvent xev;
+			memset(&xev, 0, sizeof(xev));
+			xev.type = ClientMessage;
+			xev.xclient.window = x11.dnd.source;
+			xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "XdndFinished", False);
+			xev.xclient.format = 32;
+			xev.xclient.data.l[0] = vid_window;	//so source can ignore it if stale
+			xev.xclient.data.l[1] = (okay?1:0);
+			xev.xclient.data.l[2] = x11.pXInternAtom (vid_dpy, "XdndActionCopy", False);
+			x11.pXSendEvent(vid_dpy, xev.xclient.window, False, 0, &xev);
+		}
+		break;
+
+	case SelectionRequest:	//needed for when another program tries pasting.
+		{
+			Atom xa_u8string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);	//explicitly UTF-8
+			Atom xa_l1string = x11.pXInternAtom(vid_dpy, "STRING", false);	//explicitly 8859-1
+			Atom xa_text = x11.pXInternAtom(vid_dpy, "TEXT", false);	//selection owner decides encoding (and we pick UTF-8)
+			Atom xa_targets = x11.pXInternAtom(vid_dpy, "TARGETS", false);
+			Atom xa_supportedtargets[] = {xa_u8string, xa_l1string, xa_text, xa_targets/*, xa_multiple, xa_timestamp*/};
 			memset(&rep, 0, sizeof(rep));
+
 			if (event.xselectionrequest.property == None)
 				event.xselectionrequest.property = x11.pXInternAtom(vid_dpy, "foobar2000", false);
-			if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_string)
-			{
+			if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_targets)
+			{	//TARGETS results in a list of accepted target types (atoms)
+				x11.pXChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 32, PropModeReplace, (void*)xa_supportedtargets, countof(xa_supportedtargets));
+				rep.xselection.property = event.xselectionrequest.property;
+			}
+			else if (event.xselectionrequest.property != None && (event.xselectionrequest.target == xa_u8string || event.xselectionrequest.target == xa_text))
+			{	//UTF8_STRING or TEXT (which we choose to use utf-8 as our charset)
 				x11.pXChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)clipboard_buffer, strlen(clipboard_buffer));
 				rep.xselection.property = event.xselectionrequest.property;
 			}
+			else if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_l1string)
+			{	//STRING == latin1. convert as needed.
+				char latin1[SYS_CLIPBOARD_SIZE];
+				char *in = clipboard_buffer;
+				int c = 0;
+				int err;
+				while (*in && c < sizeof(latin1))
+				{
+					int uc =utf8_decode(&err, in, &in);
+					if ((uc >= 0xe000 && uc <= 0xe100) && (uc&0x7f) >= 32)
+						uc = uc&0x7f;	//don't do c0/c1 glyphs. otherwise treat as ascii.
+					else if (uc > 255 || err)
+						uc = '?';	//unsupported char
+					latin1[c++] = uc;
+				}
+				x11.pXChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)latin1, c);
+				rep.xselection.property = event.xselectionrequest.property;
+			}
 			else
-			{
+			{	//unsupported target. we need to let them know that we don't know what they're asking for.
 				rep.xselection.property = None;
 			}
 			rep.xselection.type = SelectionNotify;
@@ -2518,7 +2651,7 @@ static void *X11VID_CreateCursorRGBA(const qbyte *rgbacursor, size_t w, size_t h
 
 	for (y = 0; y < h; y++)
 		for (x = 0; x < w; x++, rgbacursor+=4)
-			*dest++ = (rgbacursor[3]<<24)|(rgbacursor[0]<<16)|(rgbacursor[1]<<8)|(rgbacursor[0]<<0);	//0xARGB
+			*dest++ = (rgbacursor[3]<<24)|(rgbacursor[0]<<16)|(rgbacursor[1]<<8)|(rgbacursor[2]<<0);	//0xARGB
 
 	cursor = Z_Malloc(sizeof(*cursor));
 	*cursor = xcursor.ImageLoadCursor(vid_dpy, img);
@@ -2993,6 +3126,10 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int y, uns
 	X_StoreIcon(wnd);
 	/*make it visible*/
 	x11.pXMapWindow(vid_dpy, wnd);
+
+	//advertise support as a drag+drop target
+	prots[0] = 5;	//version 5 is the most recent.
+	x11.pXChangeProperty(vid_dpy, wnd, x11.pXInternAtom(vid_dpy, "XdndAware", False), XA_ATOM, 32, PropModeReplace, (void*)prots, 1);
 
 	return wnd;
 }
@@ -3656,6 +3793,7 @@ char *Sys_GetClipboard(void)
 {
 	if(vid_dpy)
 	{
+		//FIXME: we should query it using TARGETS first to see if UTF8_STRING etc is actually valid.
 		Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
 		Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
 		Window clipboardowner = x11.pXGetSelectionOwner(vid_dpy, xa_clipboard);
@@ -3666,8 +3804,15 @@ char *Sys_GetClipboard(void)
 			unsigned long nitems, bytesleft;
 			unsigned char *data;
 			x11.pXConvertSelection(vid_dpy, xa_clipboard, xa_string, None, vid_window, CurrentTime);
+
+			//FIXME: we should rewrite the clipboard pasting to invoke a callback once its available.
 			x11.pXFlush(vid_dpy);
-			x11.pXGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 0, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
+			x11.pXSync(vid_dpy, False);
+			Sys_Sleep(0.3);
+			x11.pXSync(vid_dpy, False);
+
+			//and now we can actually read the data.
+			x11.pXGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 65536, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
 			
 			return data;
 		}
@@ -3690,6 +3835,10 @@ void Sys_SaveClipboard(char *text)
 	if(vid_dpy)
 	{
 		Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
+		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
+
+		//Set both clipboards. Because x11 is kinda annoying.
+		xa_clipboard = x11.pXInternAtom(vid_dpy, "CLIPBOARD", false);
 		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
 	}
 }

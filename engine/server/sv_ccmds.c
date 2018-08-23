@@ -450,12 +450,29 @@ command from the console or progs.
 quirks:
 a leading '*' means new unit, meaning all old map state is flushed regardless of startspot
 a '+' means 'set nextmap cvar to the following value and otherwise ignore, for q2 compat. only applies if there's also a '.' and the specified bsp doesn't exist, for q1 compat.
-just a '.' is taken to mean 'restart'. parms are not changed from their current values, startspot is also unchanged.
+just a '.' is taken to mean 'restart'. parms are not changed from their current values, startspot is also unchanged. Loads the last saved game instead when applicable.
 
-'map' will change map, for most games. strips parms+serverflags+cache. note that NQ kicks everyone (NQ expects you to use changelevel for that).
+variations:
+'map' will change map, for most games. strips parms+serverflags+cache. note that vanilla NQ kicks everyone (NQ expects you to use changelevel for that).
 'changelevel' will not flush the level cache, for h2 compat (won't save current level state in such a situation, as nq would prefer not)
 'gamemap' will save the game to 'save0' after loading, for q2 compat
 'spmap' is for q3 and sets 'gametype' to '2', otherwise identical to 'map'. all other map commands will reset it to '0' if its '2' at the time.
+'map_restart' restarts the current map. Name is needed for q3 compat.
+'restart' is an alias for 'map_restart'. Exists for NQ compat, but as an alias for QW mods that tried to use it for mod-specific things.
+
+hexen2 fixme:
+'restart restore' restarts the map, reloading from a saved game if applicable.
+'restart' forgets the current map (potentially breaking the game). we don't care much for that behaviour (could make it a 'restart unit' I guess).
+
+quake2:
+'gamemap [*]foo.dm2[$spot][+nextserver]'
+	* == new unit
+	$ == start spot
+	+ == value for nextserver cvar (used for cinematics).
+'map' is always a new unit.
+
+quake:
++ is used in certain map names. * cannot be, but $ potentially could be.
 ======================
 */
 void SV_Map_f (void)
@@ -523,7 +540,9 @@ void SV_Map_f (void)
 
 	sv.mapchangelocked = false;
 
-	if (strcmp(level, "."))	//restart current
+	if (!strcmp(level, "."))
+		;//restart current
+	else
 	{
 		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level); // this function and the if statement below, is a quake bugfix which stopped a map called "dm6++.bsp" from loading because of the + sign, quake2 map syntax interprets + character as "intro.cin+base1.bsp", to play a cinematic then load a map after
 		if (!COM_FCheckExists (expanded))
@@ -583,6 +602,14 @@ void SV_Map_f (void)
 			startspot = spot;
 		}
 	}
+
+#ifdef SAVEDGAMES
+	if (isrestart && *sv.loadgame_on_restart && SV_Loadgame(sv.loadgame_on_restart))
+	{	//we managed to reload a saved game instead!
+		//this is required in order to keep hub state consistent (dying mid-map would require saved games to store both current and start of map(not to be confused with initial state, which would be trivial))
+		return;
+	}
+#endif
 
 	// check to make sure the level exists
 	if (*level == '*')
@@ -644,7 +671,7 @@ void SV_Map_f (void)
 			if (!exts[i])
 			{
 				// FTE is still a Quake engine so report BSP missing
-				snprintf (expanded, sizeof(expanded), exts[0], level);
+				snprintf (expanded, sizeof(expanded), exts[1], level);
 				Con_TPrintf ("Can't find %s\n", expanded);
 #ifndef SERVERONLY
 				SCR_SetLoadingStage(LS_NONE);
@@ -785,11 +812,9 @@ void SV_Map_f (void)
 	}
 
 	SCR_SetLoadingFile("spawnserver");
-	if (newunit || !startspot || cinematic
 #ifdef SAVEDGAMES
-			|| !SV_LoadLevelCache(NULL, level, startspot, false)
+	if (newunit || !startspot || cinematic || !SV_LoadLevelCache(NULL, level, startspot, false))
 #endif
-			)
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
@@ -1951,6 +1976,12 @@ static void SV_Status_f (void)
 			if (!sv.strings.sound_precache[count])
 				break;
 		Con_Printf("sounds           : %i/%i\n", count, MAX_PRECACHE_SOUNDS);
+
+		for (count = 1; count < MAX_SSPARTICLESPRE; count++)
+			if (!sv.strings.particle_precache[count])
+				break;
+		if (count!=1)
+			Con_Printf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
 	}
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 	if (sv.csqcdebug)
@@ -2882,25 +2913,38 @@ void SV_ReallyEvilHack_f(void)
 void SV_PrecacheList_f(void)
 {
 	unsigned int i;
-	for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+	char *group = Cmd_Argv(1);
+	if (!*group || !strncmp(group, "vwep", 4))
 	{
-		if (sv.strings.vw_model_precache[i])
-			Con_Printf("vweap %u: %s\n", i, sv.strings.vw_model_precache[i]);
+		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+		{
+			if (sv.strings.vw_model_precache[i])
+				Con_Printf("vwep  %u: %s\n", i, sv.strings.vw_model_precache[i]);
+		}
 	}
-	for (i = 0; i < MAX_PRECACHE_MODELS; i++)
+	if (!*group || !strncmp(group, "model", 5))
 	{
-		if (sv.strings.model_precache[i])
-			Con_Printf("model %u: %s\n", i, sv.strings.model_precache[i]);
+		for (i = 0; i < MAX_PRECACHE_MODELS; i++)
+		{
+			if (sv.strings.model_precache[i])
+				Con_Printf("model %u: %s\n", i, sv.strings.model_precache[i]);
+		}
 	}
-	for (i = 0; i < MAX_PRECACHE_SOUNDS; i++)
+	if (!*group || !strncmp(group, "sound", 5))
 	{
-		if (sv.strings.sound_precache[i])
-			Con_Printf("sound %u: %s\n", i, sv.strings.sound_precache[i]);
+		for (i = 0; i < MAX_PRECACHE_SOUNDS; i++)
+		{
+			if (sv.strings.sound_precache[i])
+				Con_Printf("sound %u: %s\n", i, sv.strings.sound_precache[i]);
+		}
 	}
-	for (i = 0; i < MAX_SSPARTICLESPRE; i++)
+	if (!*group || !strncmp(group, "part", 4))
 	{
-		if (sv.strings.particle_precache[i])
-			Con_Printf("pticl %u: %s\n", i, sv.strings.particle_precache[i]);
+		for (i = 0; i < MAX_SSPARTICLESPRE; i++)
+		{
+			if (sv.strings.particle_precache[i])
+				Con_Printf("part  %u: %s\n", i, sv.strings.particle_precache[i]);
+		}
 	}
 }
 

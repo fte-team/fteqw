@@ -3069,7 +3069,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
-#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\n"
+#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
 #define Q2CFG "set com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
@@ -4332,10 +4332,11 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "baseq2/pak0.pak"))
 				return true;
 	}
-	else if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp"))
+	else if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp") || !strcmp(gamename, "portals"))
 	{
 		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "data/pak0.pak"))
 			return true;
+		gamename = "hexen2";
 	}
 
 	s = va("/usr/share/games/%s/", gamename);

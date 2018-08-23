@@ -77,7 +77,7 @@ void R_SetSky(const char *sky)
 			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_CUBEMAP|IF_CLAMP);
 			if (tex.reflectcube->width)
 			{
-				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparms nodlight\nsurfaceparms sky\n}");
+				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
 				R_BuildDefaultTexnums(&tex, forcedsky);
 				return;
 			}
@@ -85,7 +85,7 @@ void R_SetSky(const char *sky)
 
 		//crappy old path that I still need to fix up a bit
 		//unlike cubemaps, this works on gl1.1/gles1, and also works with the different faces as different sizes.
-		forcedsky = R_RegisterShader(shadername, 0, va("{\nsort sky\nskyparms \"%s\" 512 -\nsurfaceparms nodlight\n}", sky));
+		forcedsky = R_RegisterShader(shadername, 0, va("{\nsort sky\nskyparms \"%s\" 512 -\nsurfaceparm nodlight\n}", sky));
 		//check that we actually got some textures.
 		//we accept the skybox if even 1 face is valid.
 		//we ignore the replacement only request if all are invalid.

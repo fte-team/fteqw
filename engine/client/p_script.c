@@ -2246,12 +2246,14 @@ parsefluid:
 			if (ptype->scale)
 			{
 				ptype->looks.type = PT_SPARKFAN;
-				Con_DPrintf("%s.%s: effect lacks a texture. assuming type sparkfan.\n", ptype->config, ptype->name);
+				if (ptype->countextra || ptype->count || ptype->countrand)
+					Con_DPrintf("%s.%s: effect lacks a texture. assuming type sparkfan.\n", ptype->config, ptype->name);
 			}
 			else
 			{
 				ptype->looks.type = PT_SPARK;
-				Con_DPrintf("%s.%s: effect lacks a texture. assuming type spark.\n", ptype->config, ptype->name);
+				if (ptype->countextra || ptype->count || ptype->countrand)
+					Con_DPrintf("%s.%s: effect lacks a texture. assuming type spark.\n", ptype->config, ptype->name);
 			}
 		}
 		else if (ptype->looks.type == PT_SPARK)

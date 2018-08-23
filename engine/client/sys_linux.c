@@ -565,7 +565,7 @@ int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_DPrintf("Failed to open dir %s\n", truepath);
+		Con_DLPrintf((errno==ENOENT)?2:1, "Failed to open dir %s\n", truepath);
 		return true;
 	}
 	do
@@ -664,7 +664,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		lib = lt_dlopenext (name);
 	if (!lib)
 	{
-		Con_DPrintf("%s: %s\n", name, lt_dlerror());
+		Con_DLPrintf(2, "%s: %s\n", name, lt_dlerror());
 		return NULL;
 	}
 
@@ -711,7 +711,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
 	{
-		Con_DPrintf("%s\n", dlerror());
+		Con_DLPrintf(2,"%s\n", dlerror());
 		return NULL;
 	}
 

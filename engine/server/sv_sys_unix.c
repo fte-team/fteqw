@@ -1032,7 +1032,7 @@ int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_DPrintf("Failed to open dir %s\n", truepath);
+		Con_DLPrintf((errno==ENOENT)?2:1, "Failed to open dir %s\n", truepath);
 		return true;
 	}
 	do

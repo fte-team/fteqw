@@ -509,15 +509,17 @@ SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
 SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
 
 #Bullet Physics library plugin
-FIND_PACKAGE(Bullet REQUIRED)
-ADD_LIBRARY(bullet MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	plugins/bullet/bulletplug.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
-SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
-SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
+FIND_PACKAGE(Bullet)
+IF (${BULLET_FOUND})
+	ADD_LIBRARY(bullet MODULE
+		plugins/qvm_api.c
+		plugins/plugin.c
+		plugins/bullet/bulletplug.cpp
+	)
+	TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
+	SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+	SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
+ENDIF()
 
 #Bullet Physics library plugin
 #FIND_PACKAGE(ode REQUIRED)
@@ -569,4 +571,3 @@ ENDIF()
 
 #ffmpeg plugin
 #cef plugin
-#bullet plugin

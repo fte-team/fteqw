@@ -5925,7 +5925,7 @@ typedef struct
 {
 	char	*name;
 	void	(*func) (void);
-	qboolean	noqchandling;
+	int	noqchandling;
 } ucmd_t;
 
 ucmd_t ucmds[] =
@@ -5976,8 +5976,8 @@ ucmd_t ucmds[] =
 	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
 	{"snap", SV_NoSnap_f},	//cheat detection
 
-	{"enablecsqc", SV_EnableClientsCSQC, true},
-	{"disablecsqc", SV_DisableClientsCSQC, true},
+	{"enablecsqc", SV_EnableClientsCSQC, 2},
+	{"disablecsqc", SV_DisableClientsCSQC, 2},
 
 	{"vote", SV_Vote_f},
 
@@ -6178,15 +6178,26 @@ void SV_ExecuteUserCommand (const char *s, qboolean fromQC)
 	for ( ; u->name ; u++)
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
+			if (u->noqchandling==2)
+			{	//issue the command then let the QC handle it too
+				if (!fromQC)
+				{
+					if (u->func)
+						u->func();
+					PR_KrimzonParseCommand(s);
+				}
+				host_client = oldhost;
+				return;
+			}
 			if (!fromQC && !u->noqchandling)
-				if (PR_KrimzonParseCommand(s))	//KRIMZON_SV_PARSECLIENTCOMMAND has the opertunity to parse out certain commands.
+				if (PR_KrimzonParseCommand(s))	//KRIMZON_SV_PARSECLIENTCOMMAND has the opportunity to parse out certain commands.
 				{
 					host_client = oldhost;
 					return;
 				}
 //			SV_BeginRedirect (RD_CLIENT, host_client->language);
 			if (u->func)
-				u->func ();
+				u->func();
 			host_client = oldhost;
 //			SV_EndRedirect ();
 			return;

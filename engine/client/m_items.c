@@ -1964,6 +1964,11 @@ void M_Menu_Main_f (void)
 	static menuresel_t resel;
 	int y;
 
+#ifndef SERVERONLY
+	if (isDedicated || !Renderer_Started())
+		return;
+#endif
+
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(-1, va("%s %s", Cmd_Argv(0), Cmd_Args())))
 		return;
@@ -2223,10 +2228,18 @@ int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xs
 		{	//lots of fancy code just to figure out the correct width of the string. yay. :(
 			int px, py;
 			conchar_t buffer[2048], *end;
-			end = COM_ParseFunString(CON_WHITEMASK, bulk->text, buffer, sizeof(buffer), false);
-			Font_BeginString(font_default, 0, 0, &px, &py);
-			px = Font_LineWidth(buffer, end);
-			Font_EndString(NULL);
+			if (font_default)
+			{
+				end = COM_ParseFunString(CON_WHITEMASK, bulk->text, buffer, sizeof(buffer), false);
+				Font_BeginString(font_default, 0, 0, &px, &py);
+				px = Font_LineWidth(buffer, end);
+				Font_EndString(NULL);
+			}
+			else
+			{
+				Con_DPrintf("MC_AddBulk: default font not initialised yet\n");
+				px = strlen(bulk->text)*8;
+			}
 
 			x -= ((float)px * vid.width) / vid.rotpixelwidth;
 		}

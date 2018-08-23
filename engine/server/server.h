@@ -140,6 +140,8 @@ typedef struct
 	char		mapname[256];		// text description of the map
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
 
+	char		loadgame_on_restart[MAX_QPATH];	//saved game to load on map_restart
+
 	world_t world;
 
 	union {
@@ -866,12 +868,12 @@ typedef struct bannedips_s {
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
 	GT_Q1QVM,
-#ifdef VM_LUA
-	GT_LUA,		//for the luls
-#endif
 	GT_HALFLIFE,
 	GT_QUAKE2,	//q2 servers run from a q2 game dll
 	GT_QUAKE3,	//q3 servers run off the q3 qvm api
+#ifdef VM_LUA
+	GT_LUA,		//for the luls
+#endif
 	GT_MAX
 } gametype_e;
 
@@ -879,6 +881,7 @@ typedef struct levelcache_s {
 	struct levelcache_s *next;
 	char *mapname;
 	gametype_e gametype;
+	unsigned char savedplayers[(MAX_CLIENTS+7)>>3];	//bitmask to say which players are actually stored in the cache. so that restarts can restore.
 } levelcache_t;
 
 #ifdef TCPCONNECT
@@ -1577,6 +1580,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 void SV_Savegame_f (void);
 void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void SV_Loadgame_f (void);
+qboolean SV_Loadgame (const char *unsafe_savename);
 void SV_AutoSave(void);
 void SV_FlushLevelCache(void);
 extern cvar_t sv_autosave;

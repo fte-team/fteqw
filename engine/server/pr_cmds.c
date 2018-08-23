@@ -1307,7 +1307,7 @@ static void PR_ApplyCompilation_f (void)
 	PR_RegisterFields();
 	sv.world.edict_size=PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, NULL, NULL);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, NULL, NULL, NULL);
 
 
 	PR_LoadGlabalStruct(false);
@@ -1555,6 +1555,35 @@ static void PR_FallbackSpawn_Misc_Model(pubprogfuncs_t *progfuncs, edict_t *self
 	G_INT(OFS_PARM0) = EDICT_TO_PROG(progfuncs, self);
 	PF_makestatic(progfuncs, pr_globals);
 }
+static void PR_FallbackSpawn_Func_Detail(pubprogfuncs_t *progfuncs, edict_t *self)
+{
+	void *pr_globals;
+	eval_t *val;
+
+	if (sv.world.worldmodel && sv.world.worldmodel->type==mod_brush && sv.world.worldmodel->fromgame == fg_quake3)
+	{	//on q3bsp, these are expected to be handled directly by q3map2, but it doesn't always strip it.
+		ED_Free(progfuncs, self);
+		return;
+	}
+
+	if (!self->v->model && (val = progfuncs->GetEdictFieldValue(progfuncs, self, "mdl", ev_string, NULL)))
+		self->v->model = val->string;
+	if (!*PR_GetString(progfuncs, self->v->model)) //must have a model, because otherwise various things will assume its not valid at all.
+		progfuncs->SetStringField(progfuncs, self, &self->v->model, "*null", true);
+
+	self->v->solid = SOLID_BSP;
+	self->v->movetype = MOVETYPE_PUSH;
+
+	//make sure the model is precached, to avoid errors.
+	pr_globals = PR_globals(progfuncs, PR_CURRENT);
+	G_INT(OFS_PARM0) = self->v->model;
+	PF_precache_model(progfuncs, pr_globals);
+
+	pr_globals = PR_globals(progfuncs, PR_CURRENT);
+	G_INT(OFS_PARM0) = EDICT_TO_PROG(progfuncs, self);
+	G_INT(OFS_PARM1) = self->v->model;
+	PF_setmodel(progfuncs, pr_globals);
+}
 struct spawnents_s
 {
 	int killonspawnflags;
@@ -1672,6 +1701,13 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 		}
 		else if (!strcmp(eclassname, "misc_model"))
 			PR_FallbackSpawn_Misc_Model(progfuncs, ed);
+		//func_detail+func_group are for compat with ericw-tools, etc.
+		else if (!strcmp(eclassname, "func_detail_illusionary"))
+			PR_FallbackSpawn_Misc_Model(progfuncs, ed);
+		else if (!strcmp(eclassname, "func_detail") || !strcmp(eclassname, "func_detail_wall") || !strcmp(eclassname, "func_detail_fence"))
+			PR_FallbackSpawn_Func_Detail(progfuncs, ed);
+		else if (!strcmp(eclassname, "func_group"))
+			PR_FallbackSpawn_Func_Detail(progfuncs, ed);
 		else
 		{
 			//only warn on the first occurence of the classname, don't spam.
@@ -1757,7 +1793,7 @@ void PR_SpawnInitialEntities(const char *file)
 	ctx.fulldata = PR_FindGlobal(svprogfuncs, "__fullspawndata", PR_ANY, NULL);
 
 	if (svprogfuncs)
-		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, &ctx, PR_DoSpawnInitialEntity);
+		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, &ctx, PR_DoSpawnInitialEntity, NULL);
 	else
 		sv.world.edict_size = 0;
 }
@@ -4243,7 +4279,7 @@ void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars
 
 #ifdef NQPROT
 	//DPP7's network protocol depends upon the ordering of these from an external file. unreliable, but if we're meant to be compatible then we need to at least pretend.
-	if (!sv.strings.particle_precache[1] && sv_listen_dp.ival)
+	if (!sv.strings.particle_precache[1] && (sv_listen_dp.ival || !strncmp(s, "effectinfo.", 11)))
 		COM_Effectinfo_Enumerate(SV_ParticlePrecache_Add);
 #endif
 
@@ -11764,10 +11800,12 @@ void PR_DumpPlatform_f(void)
 		*/
 
 		{"CSQC_Init",				"void(float apilevel, string enginename, float engineversion)", CS, "Called at startup. enginename and engineversion are arbitary hints and can take any form. enginename should be consistant between revisions, but this cannot truely be relied upon."},
-		{"CSQC_WorldLoaded",		"void()", CS, "Called after model+sound precaches have been executed. Gives a chance for the qc to read the entity lump from the bsp."},
+		{"CSQC_WorldLoaded",		"void()", CS, "Called after the server's model+sound precaches have been executed. Gives a chance for the qc to read the entity lump from the bsp (via getentitytoken)."},
 		{"CSQC_Shutdown",			"void()", CS, "Specifies that the csqc is going down. Save your persistant settings here."},
 		{"CSQC_UpdateView",			"void(float vwidth, float vheight, float notmenu)", CS, "Called every single video frame. The CSQC is responsible for rendering the entire screen."},
 		{"CSQC_UpdateViewLoading",	"void(float vwidth, float vheight, float notmenu)", CS, "Alternative to CSQC_UpdateView, called when the engine thinks there should be a loading screen. If present, will inhibit the engine's normal loading screen, deferring to qc to draw it."},
+		{"CSQC_DrawHud",			"void(vector viewsize, float scoresshown)", CS, "Part of simple csqc, called after drawing the 3d view whenever CSQC_UpdateView is not defined."},
+		{"CSQC_DrawScores",			"void(vector viewsize, float scoresshown)", CS, "Part of simple csqc, called after CSQC_DrawHud whenever CSQC_UpdateView is not defined, and when there are no menus/console active."},
 		{"CSQC_Parse_StuffCmd",		"void(string msg)", CS, "Gives the CSQC a chance to intercept stuffcmds. Use the tokenize builtin to parse the message. Unrecognised commands would normally be localcmded, but its probably better to drop unrecognised stuffcmds completely."},
 		{"CSQC_Parse_CenterPrint",	"float(string msg)", CS, "Gives the CSQC a chance to intercept centerprints. Return true if you wish the engine to otherwise ignore the centerprint."},
 		{"CSQC_Parse_Damage",		"float(float save, float take, vector inflictororg)", CS, "Called as a result of player.dmg_save or player.dmg_take being set on the server.\nReturn true to completely inhibit the engine's colour shift and damage rolls, allowing you to do your own thing.\nYou can use punch_roll += (normalize(inflictororg-player.origin)*v_right)*(take+save)*autocvar_v_kickroll; as a modifier for the roll angle should the player be hit from the side, and slowly fade it away over time."},

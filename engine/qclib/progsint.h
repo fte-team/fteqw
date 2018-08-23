@@ -289,7 +289,7 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs);
 pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, char *key);
 char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *progfuncs, char *key);
 char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, size_t *size, size_t maxsize, int mode);
-int PDECL PR_LoadEnts(pubprogfuncs_t *progfuncs, const char *file, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend));
+int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline));
 char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, size_t *size, size_t maxsize, struct edict_s *ed);
 struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *progfuncs, const char *buf, size_t *size, struct edict_s *ed);
 void PDECL PR_StackTrace (pubprogfuncs_t *progfuncs, int showlocals);

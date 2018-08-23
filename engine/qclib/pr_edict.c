@@ -10,6 +10,8 @@ struct edict_s;
 #define NOENDIAN
 #endif
 
+#define qcc_iswhite(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t' || (c) == '\v')
+
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, int fldtype, char *s);
 
 /*
@@ -1887,7 +1889,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 int header_crc;
 
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
-int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend))
+int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline))
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	const char *datastart;
@@ -1924,6 +1926,51 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 	while(1)
 	{
 		datastart = file;
+
+		if (extendedterm)
+		{
+			//skip simple leading whitespace
+			while (qcc_iswhite(*file))
+				file++;
+			if (file[0] == '/' && file[1] == '*')
+			{	//looks like we have a hidden extension.
+				file+=2;
+				for(;;)
+				{
+					//skip to end of line
+					if (!*file)
+						break;	//unexpected EOF
+					else if (file[0] == '*' && file[1] == '/')
+					{	//end of comment
+						file+=2;
+						break;
+					}
+					else if (*file != '\n')
+					{
+						file++;
+						continue;
+					}
+					file++;	//skip past the \n
+					while (*file == ' ' || *file == '\t')
+						file++;	//skip leading indentation
+
+					if (file[0] == '*' && file[1] == '/')
+					{	//end of comment
+						file+=2;
+						break;
+					}
+					else if (*file == '/')
+						continue;	//embedded comment. ignore the line. not going to do nested comments, because those are not normally valid anyway, just C++-style inside C-style.
+					else if (extendedterm(ppf, ctx, &file))
+						;	//found a term we recognised
+					else
+						;	//unknown line, but this is a comment so whatever
+
+				}
+				continue;
+			}
+		}
+
 		file = QCC_COM_Parse(file);
 		if (file == NULL)
 			break;	//finished reading file
@@ -1976,8 +2023,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
-			if (callback)
-				callback(ppf, (struct edict_s *)ed, ctx, datastart, file);
+			if (entspawned)
+				entspawned(ppf, (struct edict_s *)ed, ctx, datastart, file);
 		}
 		else if (!strcmp(qcc_token, "progs"))
 		{
@@ -2247,8 +2294,11 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
-			callback(ppf, (struct edict_s *)ed, ctx, datastart, file);
+			if (entspawned)
+				entspawned(ppf, (struct edict_s *)ed, ctx, datastart, file);
 		}
+		else if (extendedterm && extendedterm(ppf, ctx, &datastart))
+			file = datastart;
 		else
 			Sys_Error("Bad entity lump: '%s' not recognised (last ent was %i)", qcc_token, ed?ed->entnum:0);
 	}

@@ -3478,12 +3478,12 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 			case TF_H2_T4A4:
 				frames[0].defaultshader =
 					"{\n"
+						"cull disable\n"
 						"{\n"
 							"map $diffuse\n"
 							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
 							"alphagen entity\n"
 							"rgbgen lightingDiffuse\n"
-							"cull disable\n"
 							"depthwrite\n"
 						"}\n"
 					"}\n";

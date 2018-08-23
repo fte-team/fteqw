@@ -3302,7 +3302,7 @@ static void CLQW_ParseServerData (void)
 	}
 	else
 	{
-		if (CL_RemoveClientCommands("soundlist"))
+		if (CL_RemoveClientCommands("soundlist") && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 			Con_DPrintf("Multiple soundlists\n");
 		// ask for the sound list next
 //		CL_SendClientCommand ("soundlist %i 0", cl.servercount);
@@ -4068,7 +4068,7 @@ static void CL_ParseSoundlist (qboolean lots)
 		}
 		else
 		{
-			if (CL_RemoveClientCommands("modellist"))
+			if (CL_RemoveClientCommands("modellist") && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 				Con_DPrintf("Multiple modellists\n");
 //			CL_SendClientCommand ("modellist %i 0", cl.servercount);
 			CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
@@ -5247,9 +5247,9 @@ static void CL_ParseSetInfo (void)
 		player = &cl.players[slot];
 
 		if (offset)
-			Con_DPrintf("SETINFO %s: %s+=%s\n", player->name, key, val);
+			Con_DLPrintf(2,"SETINFO %s: %s+=%s\n", player->name, key, val);
 		else
-			Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, val);
+			Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
 
 		InfoBuf_SyncReceive(&player->userinfo, key, keysize, val, valsize, offset, final);
 		player->userinfovalid = true;

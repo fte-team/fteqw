@@ -7183,19 +7183,28 @@ pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
 {
 	if (!num)
 	{
-		if (crc == 22390)
-			;	//fte's full csqc stuff
-		else if (crc == 5927)
-			;	//simple csqc. but only if
-#ifndef csqc_isdarkplaces
-		else if (crc == 52195)
+		switch(crc)
 		{
+		case PROGHEADER_CRC_CSQC:
+			break;	//fte's full csqc stuff
+		case PROGHEADER_CRC_QW:
+		case PROGHEADER_CRC_NQ:
+		case PROGHEADER_CRC_PREREL:
+		case PROGHEADER_CRC_TENEBRAE:
+		case PROGHEADER_CRC_H2:
+		case PROGHEADER_CRC_H2MP:
+		case PROGHEADER_CRC_H2DEMO:
+			break;	//simple csqc. but only if it has the right entry points.
+#ifndef csqc_isdarkplaces
+		case PROGHEADER_CRC_CSQC_DP:
 			csqc_isdarkplaces = true;
 			Con_DPrintf(CON_WARNING "Running darkplaces csprogs.dat version\n");
-		}
+			break;
 #endif
-		else
+		default:
 			Con_Printf(CON_WARNING "Running unknown csprogs.dat version\n");
+			break;
+		}
 	}
 	return true;
 }
@@ -7372,7 +7381,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		if (csqc_nogameaccess && !PR_FindFunction (csqcprogs, "CSQC_DrawHud", PR_ANY))
 		{	//simple csqc module is not csqc. abort now.
 			CSQC_Shutdown();
-			Con_DPrintf("Loaded progs.dat has no CSQC_DrawHud\n");
+			Con_DPrintf("progs.dat is not suitable for SimpleCSQC - no CSQC_DrawHud\n");
 			return false;
 		}
 		else if (csqc_nogameaccess)

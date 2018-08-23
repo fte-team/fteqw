@@ -1220,8 +1220,14 @@ STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
 
 
 //savegame vars
-#define	SAVEGAME_COMMENT_LENGTH	39
-#define	SAVEGAME_VERSION	667
+#define	SAVEGAME_COMMENT_LENGTH		39
+#define	SAVEGAME_VERSION_NQ			5
+#define	SAVEGAME_VERSION_QW			6		//actually zQuake, but the functional difference is that its qw instead of nq.
+#define	SAVEGAME_VERSION_FTE_LEG	667		//found in .sav files. this is for legacy-like saved games with multiple players.
+#define SAVEGAME_VERSION_FTE_HUB	25000	//found in .fsv files. includes svs.gametype, so bumps should be large.
+#define CACHEGAME_VERSION_OLD		513
+#define CACHEGAME_VERSION_VERBOSE	514
+#define CACHEGAME_VERSION_BINARY	515
 
 
 #define PM_DEFAULTSTEPHEIGHT	18

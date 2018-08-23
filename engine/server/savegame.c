@@ -2,6 +2,7 @@
 #include "pr_common.h"
 
 #if !defined(CLIENTONLY) && defined(SAVEDGAMES)
+#define CACHEGAME_VERSION_DEFAULT CACHEGAME_VERSION_VERBOSE
 
 extern cvar_t skill;
 extern cvar_t deathmatch;
@@ -77,8 +78,94 @@ void SV_SavegameComment (char *text, size_t textsize)
 }
 
 #ifndef QUAKETC
+
+pbool SV_Legacy_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char **ptr)
+{
+	char token[8192];
+	com_tokentype_t tt;
+	const char *l = *ptr;
+	size_t idx;
+	if (l[0] == 's' && l[1] == 'v' && l[2] == '.')
+		l += 3;	//DPism
+
+	do
+	{
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);
+	} while(tt == TTP_LINEENDING);
+	if (tt != TTP_RAWTOKEN)return false;
+
+	if (!strcmp(token, "lightstyle") || !strcmp(token, "lightstyles"))
+	{	//lightstyle N "STYLESTRING" 1 1 1
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		if (idx >= countof(sv.strings.lightstyles))
+			return false;	//unsupported index.
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+
+		if (sv.strings.lightstyles[idx])
+			Z_Free((char*)sv.strings.lightstyles[idx]);
+		sv.strings.lightstyles[idx] = Z_StrDup(token);
+		sv.lightstylecolours[idx][0] = sv.lightstylecolours[idx][1] = sv.lightstylecolours[idx][2] = 1.0;
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		sv.lightstylecolours[idx][0] = atof(token);
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		sv.lightstylecolours[idx][1] = atof(token);
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		sv.lightstylecolours[idx][2] = atof(token);
+	}
+	else if (!strcmp(token, "model_precache") || !strcmp(token, "model"))
+	{	//model_precache N "MODELNAME"
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		if (!idx || idx >= countof(sv.strings.model_precache))
+			return false;	//unsupported index.
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		sv.strings.model_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
+	}
+	else if (!strcmp(token, "sound_precache") || !strcmp(token, "sound"))
+	{	//sound_precache N "MODELNAME"
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		if (!idx || idx >= countof(sv.strings.sound_precache))
+			return false;	//unsupported index.
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		sv.strings.sound_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
+	}
+	else if (!strcmp(token, "particle_precache"))
+	{	//particle_precache N "MODELNAME"
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		if (!idx || idx >= countof(sv.strings.particle_precache))
+			return false;	//unsupported index.
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		sv.strings.particle_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
+	}
+	else if (!strcmp(token, "buffer"))
+	{
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		//buffer = atoi(token);
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		//count = atoi(token);
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		return false;
+	}
+	else if (!strcmp(token, "bufstr"))
+	{
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		//buffer = atoi(token);
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		//idx = atoi(token);
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		return false;
+	}
+	else
+		return false;
+	*ptr = l;
+	return true;
+}
+
 //expects the version to have already been parsed
-static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
+static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 {
 	//FIXME: Multiplayer save probably won't work with spectators.
 	char	mapname[MAX_QPATH];
@@ -101,11 +188,11 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	char *modelnames[MAX_PRECACHE_MODELS];
 	char *soundnames[MAX_PRECACHE_SOUNDS];
 
-	if (version != 667 && version != 5 && version != 6)	//5 for NQ, 6 for ZQ/FQ
+	if (version != SAVEGAME_VERSION_FTE_LEG && version != SAVEGAME_VERSION_NQ && version != SAVEGAME_VERSION_QW)
 	{
 		VFS_CLOSE (f);
 		Con_TPrintf ("Unable to load savegame of version %i\n", version);
-		return;
+		return false;
 	}
 	VFS_GETS(f, str, sizeof(str));	//discard comment.
 	Con_Printf("loading legacy game from %s...\n", filename);
@@ -131,7 +218,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	}
 	SV_SendMessagesToAll();
 
-	if (version == 5 || version == 6)
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
 	{
 		slots = 1;
 		SV_UpdateMaxPlayers(1);
@@ -163,7 +250,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		{
 			VFS_CLOSE(f);
 			Con_Printf ("Corrupted save game");
-			return;
+			return false;
 		}
 		SV_UpdateMaxPlayers(slots);
 		for (clnum = 0; clnum < sv.allocated_client_slots; clnum++)	//work out which players we had when we saved, and hope they accepted the reconnect.
@@ -196,7 +283,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 			}
 		}
 	}
-	if (version == 5 || version == 6)
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		Cvar_SetValue (Cvar_FindVar("skill"), atof(str));
@@ -204,7 +291,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		Cvar_SetValue (Cvar_FindVar("coop"), 0);
 		Cvar_SetValue (Cvar_FindVar("teamplay"), 0);
 
-		if (version == 5)
+		if (version == SAVEGAME_VERSION_NQ)
 		{
 			progstype = PROG_NQ;
 			Cvar_Set (&pr_ssqc_progs, "progs.dat");	//NQ's progs.
@@ -240,7 +327,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	{
 		VFS_CLOSE (f);
 		Con_TPrintf ("Couldn't load map\n");
-		return;
+		return false;
 	}
 
 	sv.allocated_client_slots = slots;
@@ -285,7 +372,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 // load the edicts out of the savegame file
 // the rest of the file is sent directly to the progs engine.
 
-	if (version == 5 || version == 6)
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
 		;//Q_InitProgs();	//reinitialize progs entirly.
 	else
 	{
@@ -322,7 +409,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	strcpy(file, "loadgame");
 	clnum=VFS_READ(f, file+8, filelen);
 	file[filelen+8]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_Legacy_ExtendedSaveData);
 	BZ_Free(file);
 
 	PR_LoadGlabalStruct(false);
@@ -332,7 +419,7 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 
 	VFS_CLOSE(f);
 
-	//FIXME: DP saved games have some / *\nkey values\nkey values\n* / thing in them to save precaches and stuff
+	//FIXME: QSS+DP saved games have some / *\nkey values\nkey values\n* / thing in them to save precaches and stuff
 
 	World_ClearWorld(&sv.world, true);
 
@@ -362,16 +449,17 @@ static void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 			cl->playerclass = 0;
 #endif
 	}
+	return true;
 }
 
-static void SV_LegacySavegame (const char *savename)
+static qboolean SV_LegacySavegame (const char *savename)
 {
 	size_t len;
 	char *s = NULL;
 	client_t *cl;
 	int clnum;
 
-	int version = SAVEGAME_VERSION;
+	int version = SAVEGAME_VERSION_FTE_LEG;
 
 	char	native[MAX_OSPATH];
 	char	name[MAX_QPATH];
@@ -382,27 +470,26 @@ static void SV_LegacySavegame (const char *savename)
 	if (sv.state != ss_active)
 	{
 		Con_TPrintf("Can't apply: Server isn't running or is still loading\n");
-		return;
+		return false;
 	}
 
 	if (sv.allocated_client_slots != 1 || svs.clients->state != cs_spawned)
 	{
 		//we don't care about fte-format legacy.
 		Con_TPrintf("Unable to use legacy savegame format to save multiplayer games\n");
-		SV_Savegame_f();
-		return;
+		return false;
 	}
 
 	sprintf (name, "%s", savename);
 	COM_RequireExtension (name, ".sav", sizeof(name));	//do NOT allow .pak etc
 	if (!FS_NativePath(name, FS_GAMEONLY, native, sizeof(native)))
-		return;
+		return false;
 	Con_TPrintf (U8("Saving game to %s...\n"), native);
 	f = FS_OpenVFS(name, "wbp", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_TPrintf ("ERROR: couldn't open %s.\n", name);
-		return;
+		return false;
 	}
 
 	//if there are 1 of 1 players connected
@@ -412,9 +499,9 @@ static void SV_LegacySavegame (const char *savename)
 		if (s)
 		{
 			if (progstype == PROG_QW)
-				version = 6;
+				version = SAVEGAME_VERSION_QW;
 			else
-				version = 5;
+				version = SAVEGAME_VERSION_NQ;
 		}
 	}
 
@@ -423,7 +510,7 @@ static void SV_LegacySavegame (const char *savename)
 	SV_SavegameComment (comment, sizeof(comment));
 	VFS_PRINTF(f, "%s\n", comment);
 
-	if (version != SAVEGAME_VERSION)
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
 	{
 		//only 16 spawn parms.
 		for (i=0; i < 16; i++)
@@ -467,30 +554,45 @@ static void SV_LegacySavegame (const char *savename)
 		s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 	VFS_PUTS(f, s);
 	VFS_PUTS(f, "\n");
-	/*
-	// DarkPlaces extended savegame
-	sv.lightstyles %i %s
-	sv.model_precache %i %s
-	sv.sound_precache %i %s
-	sv.buffer %i %i "string"
-	sv.bufstr %i %i "%s"
+
+#if 1
+	/* Extended save info
+	** This should also be compatible with both DP and QSS.
+	** WARNING: this does NOT protect against models/sounds being precached in different/random orders (statics/baselines/ambients will be wrong).
+	**          the only protection we get is from late precaches.
+	**          theoretically the loader could make it work by rewriting the various tables, but that would not necessarily be reliable.
 	*/
+	VFS_PUTS(f, "/*\n");
+	VFS_PUTS(f, "// FTE extended savegame\n");
+	for (i=0 ; i < countof(sv.strings.lightstyles); i++)
+	{	//yes, repeat styles 0-63 again, for some reason, but only list ones that are not empty.
+		if (sv.strings.lightstyles[i])
+			VFS_PRINTF(f, "sv.lightstyles %i %s\n", i, sv.strings.lightstyles[i]);
+	}
+	for (i=1 ; i < countof(sv.strings.model_precache); i++)
+	{
+		if (sv.strings.model_precache[i])
+			VFS_PRINTF(f, "sv.model_precache %i %s\n", i, sv.strings.model_precache[i]);
+	}
+	for (i=1 ; i < countof(sv.strings.sound_precache); i++)
+	{
+		if (sv.strings.sound_precache[i])
+			VFS_PRINTF(f, "sv.lightstyles %i %s\n", i, sv.strings.sound_precache[i]);
+	}
+//	sv.buffer %i %i "string"
+//	sv.bufstr %i %i "%s"
+	VFS_PUTS(f, "*/\n");
+#endif
 	svprogfuncs->parms->memfree(s);
 
 	VFS_CLOSE(f);
 
 	FS_FlushFSHashWritten(name);
+
+	Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
+	return true;
 }
 #endif
-
-
-
-#define CACHEGAME_VERSION_OLD 513
-#define CACHEGAME_VERSION_VERBOSE 514
-#define CACHEGAME_VERSION_BINARY 515
-
-
-
 
 void SV_FlushLevelCache(void)
 {
@@ -701,35 +803,83 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 	VFS_GETS(f, str, sizeof(str));
 	version = atoi(str);
-	if (version != CACHEGAME_VERSION_OLD)
+	if (version != CACHEGAME_VERSION_OLD && version != CACHEGAME_VERSION_VERBOSE)
 	{
 		VFS_CLOSE (f);
-		Con_TPrintf ("Savegame is version %i, not %i\n", version, CACHEGAME_VERSION_OLD);
+		Con_TPrintf ("Savegame is version %i, not %i\n", version, CACHEGAME_VERSION_DEFAULT);
 		return false;
 	}
 	VFS_GETS(f, str, sizeof(str));	//comment
 
 	SV_SendMessagesToAll();
 
-	VFS_GETS(f, str, sizeof(str));
-	pt = atof(str);
+	if (version == CACHEGAME_VERSION_OLD)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		pt = atof(str);
 
-// this silliness is so we can load 1.06 save files, which have float skill values
-	VFS_GETS(f, str, sizeof(str));
-	current_skill = (int)(atof(str) + 0.1);
-	Cvar_Set (&skill, va("%i", current_skill));
+	// this silliness is so we can load 1.06 save files, which have float skill values
+		VFS_GETS(f, str, sizeof(str));
+		current_skill = (int)(atof(str) + 0.1);
+		Cvar_Set (&skill, va("%i", current_skill));
 
-	VFS_GETS(f, str, sizeof(str));
-	Cvar_SetValue (&deathmatch, atof(str));
-	VFS_GETS(f, str, sizeof(str));
-	Cvar_SetValue (&coop, atof(str));
-	VFS_GETS(f, str, sizeof(str));
-	Cvar_SetValue (&teamplay, atof(str));
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (&deathmatch, atof(str));
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (&coop, atof(str));
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (&teamplay, atof(str));
 
-	VFS_GETS(f, mapname, sizeof(mapname));
-	VFS_GETS(f, str, sizeof(str));
-	time = atof(str);
+		VFS_GETS(f, mapname, sizeof(mapname));
+		VFS_GETS(f, str, sizeof(str));
+		time = atof(str);
+	}
+	else
+	{
+		time = 0;
+		pt = PROG_UNKNOWN;
+		while (VFS_GETS(f, str, sizeof(str)))
+		{
+			char *s = str;
+			cvar_t *var;
+			s = COM_Parse(s);
+			if (!strcmp(com_token, "map"))
+			{	//map "foo": terminates the preamble.
+				COM_ParseOut(s, mapname, sizeof(mapname));
+				break;
+			}
+			else if (!strcmp(com_token, "cvar"))
+			{
+				s = COM_Parse(s);
+				var = Cvar_FindVar(com_token);
+				s = COM_Parse(s);
+				if (var)
+					Cvar_Set(var, com_token);
+			}
+			else if (!strcmp(com_token, "time"))
+			{
+				s = COM_Parse(s);
+				time = atof(com_token);
+			}
+			else if (!strcmp(com_token, "vmmode"))
+			{
+				s = COM_Parse(s);
+				if (!strcmp(com_token, "NONE")) pt = PROG_NONE;
+				else if (!strcmp(com_token, "QW")) pt = PROG_QW;
+				else if (!strcmp(com_token, "NQ")) pt = PROG_NQ;
+				else if (!strcmp(com_token, "H2")) pt = PROG_H2;
+				else if (!strcmp(com_token, "PREREL")) pt = PROG_PREREL;
+				else if (!strcmp(com_token, "TENEBRAE")) pt = PROG_TENEBRAE;
+				else if (!strcmp(com_token, "UNKNOWN")) pt = PROG_UNKNOWN;
+				else pt = PROG_UNKNOWN;
+			}
+			else
+				Con_TPrintf ("Unknown savegame directive %s\n", com_token);
+		}
+	}
 
+	//NOTE: This sets up the default baselines+statics+ambients.
+	//FIXME: if any model names changed, then we're screwed.
 	SV_SpawnServer (mapname, startspot, false, false);
 	sv.time = time;
 	if (svs.gametype != gametype)
@@ -741,20 +891,6 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	{
 		VFS_CLOSE (f);
 		Con_TPrintf ("Couldn't load map\n");
-		return false;
-	}
-
-//	sv.paused = true;		// pause until all clients connect
-//	sv.loadgame = true;
-
-// load the light styles
-
-	VFS_GETS(f, str, sizeof(str));
-	numstyles = atoi(str);
-	if (numstyles > MAX_LIGHTSTYLES)
-	{
-		VFS_CLOSE (f);
-		Con_Printf ("load failed - invalid number of lightstyles\n");
 		return false;
 	}
 
@@ -770,25 +906,39 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 	}
 
-	for (i = 0; i<MAX_LIGHTSTYLES ; i++)
+	if (version == CACHEGAME_VERSION_OLD)
 	{
-		if (sv.strings.lightstyles[i])
-			BZ_Free((void*)sv.strings.lightstyles[i]);
-		sv.strings.lightstyles[i] = NULL;
-	}
-
-	for (i=0 ; i<numstyles ; i++)
-	{
+		// load the light styles
 		VFS_GETS(f, str, sizeof(str));
-		sv.strings.lightstyles[i] = Z_StrDup(str);
-	}
-	for ( ; i<MAX_LIGHTSTYLES ; i++)
-	{
-		sv.strings.lightstyles[i] = Z_StrDup("");
-	}
+		numstyles = atoi(str);
+		if (numstyles > MAX_LIGHTSTYLES)
+		{
+			VFS_CLOSE (f);
+			Con_Printf ("load failed - invalid number of lightstyles\n");
+			return false;
+		}
+		for (i = 0; i<MAX_LIGHTSTYLES ; i++)
+		{
+			if (sv.strings.lightstyles[i])
+				BZ_Free((void*)sv.strings.lightstyles[i]);
+			sv.strings.lightstyles[i] = NULL;
+		}
 
-	modelpos = VFS_TELL(f);
-	LoadModelsAndSounds(f);
+		for (i=0 ; i<numstyles ; i++)
+		{
+			VFS_GETS(f, str, sizeof(str));
+			sv.strings.lightstyles[i] = Z_StrDup(str);
+		}
+		for ( ; i<MAX_LIGHTSTYLES ; i++)
+		{
+			sv.strings.lightstyles[i] = Z_StrDup("");
+		}
+
+		modelpos = VFS_TELL(f);
+		LoadModelsAndSounds(f);
+	}
+	else
+		modelpos = 0;
 
 	filepos = VFS_TELL(f);
 	filelen = VFS_GETLEN(f);
@@ -797,7 +947,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	memset(file, 0, filelen+1);
 	VFS_READ(f, file, filelen);
 	file[filelen]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_Legacy_ExtendedSaveData);
 	BZ_Free(file);
 
 	progstype = pt;
@@ -807,8 +957,11 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	pr_global_struct->time = sv.time = sv.world.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
 
-	VFS_SEEK(f, modelpos);
-	LoadModelsAndSounds(f);
+	if (modelpos != 0)
+	{
+		VFS_SEEK(f, modelpos);
+		LoadModelsAndSounds(f);
+	}
 
 	VFS_CLOSE(f);
 
@@ -918,7 +1071,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 	levelcache_t *cache;
-	int version = CACHEGAME_VERSION_OLD;
+	int version = CACHEGAME_VERSION_DEFAULT;
 
 	if (!sv.state)
 		return;
@@ -1078,44 +1231,13 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		case PROG_TENEBRAE: mode = "TENEBRAE";	break;
 		case PROG_UNKNOWN:	mode = "UNKNOWN";	break;
 		}
-		VFS_PRINTF (f, "vmmode %s\n",		COM_QuotedString(mode, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "skill %s\n",		COM_QuotedString(skill.string, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "deathmatch %s\n",	COM_QuotedString(deathmatch.string, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "coop %s\n",			COM_QuotedString(coop.string, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "teamplay %s\n",		COM_QuotedString(teamplay.string, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "map %s\n",			COM_QuotedString(svs.name, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "time %f\n",			sv.time);
-
-		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-			if (sv.strings.lightstyles[i])
-				VFS_PRINTF (f, "lstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.lightstylecolours[i][0], sv.lightstylecolours[i][1], sv.lightstylecolours[i][2]);
-		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
-			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
-				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
-		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
-			if (sv.strings.sound_precache[i] && *sv.strings.sound_precache[i])
-				VFS_PRINTF (f, "sound %i %s\n", i, COM_QuotedString(sv.strings.sound_precache[i], buf, sizeof(buf), false));
-		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
-			if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
-				VFS_PRINTF (f, "particles %i %s\n", i, sv.strings.particle_precache[i]);
-		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
-			VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
-
-		PR_Common_SaveGame(f, svprogfuncs, version >= CACHEGAME_VERSION_BINARY);
-
-		//FIXME: string buffers
-		//FIXME: hash tables
-		//FIXME: skeletal objects?
-		//FIXME: static entities
-		//FIXME: midi track
-		//FIXME: custom temp-ents?
-		//FIXME: pending uri_gets? (if only just to report fails on load)
-		//FIXME: routing calls?
-		//FIXME: sql queries?
-		//FIXME: frik files?
-		//FIXME: qc threads?
-
-		VFS_PRINTF (f, "entities\n");
+		VFS_PRINTF (f, "vmmode %s\n",			COM_QuotedString(mode, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "cvar skill %s\n",		COM_QuotedString(skill.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "cvar deathmatch %s\n",	COM_QuotedString(deathmatch.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "cvar coop %s\n",		COM_QuotedString(coop.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "cvar teamplay %s\n",	COM_QuotedString(teamplay.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "time %f\n",				sv.time);
+		VFS_PRINTF (f, "map %s\n",				COM_QuotedString(svs.name, buf, sizeof(buf), false));
 	}
 	else
 	{
@@ -1165,6 +1287,43 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		svprogfuncs->parms->memfree(s);
 	}
 
+	if (version >= CACHEGAME_VERSION_VERBOSE)
+	{
+		char buf[8192];
+		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+			if (sv.strings.lightstyles[i])
+				VFS_PRINTF (f, "lightstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.lightstylecolours[i][0], sv.lightstylecolours[i][1], sv.lightstylecolours[i][2]);
+		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
+			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
+				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
+		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
+			if (sv.strings.sound_precache[i] && *sv.strings.sound_precache[i])
+				VFS_PRINTF (f, "sound %i %s\n", i, COM_QuotedString(sv.strings.sound_precache[i], buf, sizeof(buf), false));
+		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
+			if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
+				VFS_PRINTF (f, "particle %i %s\n", i, COM_QuotedString(sv.strings.particle_precache[i], buf, sizeof(buf), false));
+		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+			if (sv.strings.vw_model_precache[i])
+				VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
+
+		PR_Common_SaveGame(f, svprogfuncs, version >= CACHEGAME_VERSION_BINARY);
+
+		//FIXME: string buffers
+		//FIXME: hash tables
+		//FIXME: skeletal objects?
+		//FIXME: static entities
+		//FIXME: midi track
+		//FIXME: custom temp-ents?
+		//FIXME: pending uri_gets? (if only just to report fails on load)
+		//FIXME: routing calls?
+		//FIXME: sql queries?
+		//FIXME: frik files?
+		//FIXME: qc threads?
+
+		//	portalblobsize = CM_WritePortalState(sv.world.worldmodel, &portalblob);
+		//	VFS_WRITE(f, portalblob, portalblobsize);
+	}
+
 	VFS_CLOSE (f);
 
 
@@ -1179,8 +1338,6 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 
 	FS_FlushFSHashWritten(name);
 }
-
-#define FTESAVEGAME_VERSION 25000
 
 //mapchange is true for Q2's map-change autosaves.
 void SV_Savegame (const char *savename, qboolean mapchange)
@@ -1209,14 +1366,6 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	levelcache_t *cache;
 	char *savefilename;
 
-#ifndef QUAKETC
-	if (!sv_savefmt.ival && !mapchange)
-	{
-		SV_LegacySavegame(savename);
-		return;
-	}
-#endif
-
 	if (!sv.state || sv.state == ss_clustermode)
 	{
 		Con_Printf("Server is not active - unable to save\n");
@@ -1227,6 +1376,22 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		Con_Printf("Server is playing a cinematic - unable to save\n");
 		return;
 	}
+
+#ifndef QUAKETC
+	{
+		int savefmt = sv_savefmt.ival;
+		if (!*sv_savefmt.string && (svs.gametype != GT_PROGS || progstype == PROG_H2 || svs.levcache))
+			savefmt = 1;	//hexen2+q2/etc must not use the legacy format by default. can't use it when using any kind of hub system either (harder to detect upfront, which might give confused saved game naming but will at least work).
+		else
+			savefmt = sv_savefmt.ival;
+		if (!savefmt && !mapchange)
+		{
+			if (SV_LegacySavegame(savename))
+				return;
+			Con_Printf("Unable to use legacy saved game format\n");
+		}
+	}
+#endif
 
 	switch(svs.gametype)
 	{
@@ -1265,7 +1430,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		return;
 	}
 	SV_SavegameComment(comment, sizeof(comment));
-	VFS_PRINTF (f, "%d\n", FTESAVEGAME_VERSION+svs.gametype);
+	VFS_PRINTF (f, "%d\n", SAVEGAME_VERSION_FTE_HUB+svs.gametype);
 	VFS_PRINTF (f, "%s\n", comment);
 
 	VFS_PRINTF(f, "%i\n", sv.allocated_client_slots);
@@ -1285,9 +1450,31 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		VFS_PRINTF(f, "%s\n", cl->name);
 
 		if (*cl->name)
-			for (len = 0; len < NUM_SPAWN_PARMS; len++)
-				VFS_PRINTF(f, "%i (%f)\n", *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
-																					//write floats too so you can use it to debug.
+		{
+			if (1)
+			{
+				char tmp[65536];
+				VFS_PRINTF(f, "{\n");
+				for (len = 0; len < NUM_SPAWN_PARMS; len++)
+					VFS_PRINTF(f, "\tparm%i 0x%x //%.9g\n", len, *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write hex as not everyone passes a float in the parms.
+				VFS_PRINTF(f, "\tparm_string %s\n", COM_QuotedString(cl->spawn_parmstring?cl->spawn_parmstring:"", tmp, sizeof(tmp), false));
+				/*if (cl->spawninfo)
+				{
+					VFS_PRINTF(f, "\tspawninfo %s\n", COM_QuotedString(cl->spawninfo, tmp, sizeof(tmp), false));
+					VFS_PRINTF(f, "\tspawninfotime %9g\n", cl->spawninfotime);
+				}*/
+				VFS_PRINTF(f, "}\n");	//write ints as not everyone passes a float in the parms.
+			}
+			else
+			{
+				for (len = 0; len < NUM_SPAWN_PARMS; len++)
+					VFS_PRINTF(f, "%i (%f)\n", *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
+																									//write floats too so you can use it to debug.
+				//FIXME: spawn_parmstring
+				//FIXME: spawninfo[time] (for hexen2)
+				//FIXME: startspot...
+			}
+		}
 	}
 
 	InfoBuf_WriteToFile(f, &svs.info, NULL, 0);
@@ -1414,6 +1601,8 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		//fixme
 		FS_FlushFSHashFull();
 	}
+
+	Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
 }
 
 
@@ -1464,10 +1653,13 @@ void SV_Savegame_f (void)
 		}
 #ifndef QUAKETC
 		if (!Q_strcasecmp(Cmd_Argv(0), "savegame_legacy"))
-			SV_LegacySavegame(savename);
-		else
+		{
+			if (SV_LegacySavegame(savename))
+				return;
+			Con_Printf("Unable to use legacy save format\n");
+		}
 #endif
-			SV_Savegame(savename, false);
+		SV_Savegame(savename, false);
 	}
 	else
 		Con_Printf("%s: invalid number of arguments\n", Cmd_Argv(0));
@@ -1527,7 +1719,8 @@ void SV_AutoSave(void)
 #endif
 }
 
-void SV_Loadgame_f (void)
+//Attempts to load a named saved game.
+qboolean SV_Loadgame (const char *unsafe_savename)
 {
 	levelcache_t *cache;
 	unsigned char str[MAX_LOCALINFO_STRING+1], *trim;
@@ -1555,16 +1748,7 @@ void SV_Loadgame_f (void)
 	};
 	int bd,best;
 
-#ifndef SERVERONLY
-	if (!Renderer_Started() && !isDedicated)
-	{
-		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
-		return;
-	}
-#endif
-
-	Q_strncpyz(savename, Cmd_Argv(1), sizeof(savename));
-
+	Q_strncpyz(savename, unsafe_savename, sizeof(savename));
 	if (!*savename || strstr(savename, ".."))
 		strcpy(savename, "quick");
 
@@ -1583,7 +1767,7 @@ void SV_Loadgame_f (void)
 	if (!f)
 	{
 		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);
-		return;
+		return false;
 	}
 
 #if defined(MENU_DAT) && !defined(SERVERONLY)
@@ -1592,18 +1776,23 @@ void SV_Loadgame_f (void)
 
 	VFS_GETS(f, str, sizeof(str)-1);
 	version = atoi(str);
-	if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
+	if (version < SAVEGAME_VERSION_FTE_HUB || version >= SAVEGAME_VERSION_FTE_HUB+GT_MAX)
 	{
 #ifdef QUAKETC
 		VFS_CLOSE (f);
 		Con_TPrintf ("Unable to load savegame of version %i\n", version);
+		return false;
 #else
-		SV_Loadgame_Legacy(filename, f, version);
+		if (SV_Loadgame_Legacy(filename, f, version))
+		{
+			Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
+			return true;
+		}
+		return false;
 #endif
-		return;
 	}
 
-	gametype = version - FTESAVEGAME_VERSION;
+	gametype = version - SAVEGAME_VERSION_FTE_HUB;
 	VFS_GETS(f, str, sizeof(str)-1);
 #ifndef SERVERONLY
 	if (!cls.state)
@@ -1676,6 +1865,32 @@ void SV_Loadgame_f (void)
 			for (len = 0; len < NUM_SPAWN_PARMS; len++)
 			{
 				VFS_GETS(f, str, sizeof(str)-1);
+				if (*str == '{')
+				{
+					while(VFS_GETS(f, str, sizeof(str)-1))
+					{
+						if (*str == '}')
+							break;
+						trim = COM_Parse(str);
+						if (!strcmp(com_token, "parm_string"))
+						{
+							COM_Parse(str);
+							cl->spawn_parmstring = Z_StrDup(com_token);
+						}
+						else if (!strncmp(com_token, "parm", 4) && (unsigned)atoi(com_token+4) < NUM_SPAWN_PARMS)
+						{
+							COM_Parse(str);
+							len = atoi(com_token+4);
+							if (!strncmp(com_token, "0x", 2))
+								*(int*)&cl->spawn_parms[len] = strtoul(com_token, NULL, 16);
+							else
+								cl->spawn_parms[len] = strtod(com_token, NULL);
+						}
+						else
+							Con_Printf("Unknown player data: %s\n", com_token);
+					}
+					break;
+				}
 				for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 					*trim='\0';
 				for (trim = str; *trim <= ' ' && *trim; trim++)
@@ -1802,5 +2017,21 @@ void SV_Loadgame_f (void)
 	sv.spawned_client_slots += loadzombies;
 
 	sv.autosave_time = sv.time + sv_autosave.value*60;
+
+	Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
+	return true;
+}
+
+void SV_Loadgame_f (void)
+{
+#ifndef SERVERONLY
+	if (!Renderer_Started() && !isDedicated)
+	{
+		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
+		return;
+	}
+#endif
+
+	SV_Loadgame(Cmd_Argv(1));
 }
 #endif

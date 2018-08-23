@@ -79,7 +79,7 @@ void World_Bullet_Init(void)
 	physics_bullet_enable					= pCvar_GetNVFDG("physics_bullet_enable",					"1",	0, "", "Bullet");
 	physics_bullet_maxiterationsperframe	= pCvar_GetNVFDG("physics_bullet_maxiterationsperframe",	"10",	0, "FIXME: should be 1 when CCD is working properly.", "Bullet");
 	physics_bullet_framerate				= pCvar_GetNVFDG("physics_bullet_framerate",				"60",	0, "", "Bullet");
-	pr_meshpitch								= pCvar_GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
+	pr_meshpitch							= pCvar_GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
 }
 
 void World_Bullet_Shutdown(void)
@@ -1259,9 +1259,10 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			ed->rbe.body.body = (void*)body;
 
 			//motion threshhold should be speed/physicsframerate.
+			//Threshhold enables CCD when the object moves faster than X
 			//FIXME: recalculate...
 			body->setCcdMotionThreshold((geomsize[0]+geomsize[1]+geomsize[2])*(4/3));
-			//radius should be the body's radius
+			//radius should be the body's radius, or smaller.
 			body->setCcdSweptSphereRadius((geomsize[0]+geomsize[1]+geomsize[2])*(0.5/3));
 
 			ctx->dworld->addRigidBody(body, ed->xv->dimension_solid, ed->xv->dimension_hit);

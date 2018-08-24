@@ -2667,7 +2667,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		}
 	}
 
-	PM_LoadPackages(oldpaths, purepath, logicalpaths, search, loadstuff, 1000, 0x7fffffff);
+	PM_LoadPackages(oldpaths, purepath, logicalpaths, search, loadstuff, 1000, 0x7ffffffe);
 }
 
 static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpathfuncs_t *handle, const char *prefix, unsigned int flags, unsigned int loadstuff)
@@ -3056,7 +3056,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #endif
 
 /*quake requires a few settings for compatibility*/
-#define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\n"
+#define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8"
 #define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
 //nehahra has to be weird with extra cvars, and buggy fullbrights.

@@ -2983,6 +2983,7 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 	ret = sendto (con->thesocket, data, length, 0, (struct sockaddr*)&addr, size );
 	if (ret == -1)
 	{
+		const char *prot;
 		int ecode = neterrno();
 // wouldblock is silent
 		if (ecode == NET_EWOULDBLOCK)
@@ -3000,15 +3001,25 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 			return NETERR_DISCONNECTED;
 		}
 
+		//network is unreachable scares the socks off people when IPv6 is non-functional despite ipv4 working fine.
+		//name the problem protocol in the error message.
+		switch(to->type)
+		{
+		case NA_IP: prot = "IPv4"; break;
+		case NA_IPV6: prot = "IPv6"; break;
+		case NA_IPX: prot = "IPX"; break;
+		default: prot = ""; break;
+		}
+
 #ifndef SERVERONLY
 		if (ecode == NET_EADDRNOTAVAIL)
-			Con_DPrintf("NET_SendPacket Warning: %i\n", ecode);
+			Con_DPrintf("NET_Send%sPacket Warning: %i\n", prot, ecode);
 		else
 #endif
 #ifdef _WIN32
-			Con_TPrintf ("NET_SendPacket ERROR: %i\n", ecode);
+			Con_TPrintf ("NET_Send%sPacket ERROR: %i\n", prot, ecode);
 #else
-			Con_TPrintf ("NET_SendPacket ERROR: %s\n", strerror(ecode));
+			Con_TPrintf ("NET_Send%sPacket ERROR: %s\n", prot, strerror(ecode));
 #endif
 	}
 	else if (ret < length)

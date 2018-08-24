@@ -1620,8 +1620,8 @@ BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
 
 .default: help
 all: rel
-rel: sv-rel gl-rel mingl-rel
-dbg: sv-dbg gl-dbg mingl-dbg
+rel: sv-rel m-rel mingl-rel qcc-rel
+dbg: sv-dbg m-dbg mingl-dbg qcc-dbg
 relcl: glcl-rel mcl-rel
 profile: sv-profile gl-profile mingl-profile
 

@@ -97,7 +97,9 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 
 #else
 	#include <gnutls/gnutls.h>
-	#include <gnutls/abstract.h>
+	#if GNUTLS_VERSION_MAJOR >= 3
+		#include <gnutls/abstract.h>
+	#endif
 	#include <gnutls/x509.h>
 	#if GNUTLS_VERSION_MAJOR >= 3 && defined(HAVE_DTLS)
 		#include <gnutls/dtls.h>
@@ -130,6 +132,7 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 		#endif
 #endif
 
+#if GNUTLS_VERSION_MAJOR >= 3
 #if GNUTLS_VERSION_MAJOR >= 3
 	#define GNUTLS_HAVE_SYSTEMTRUST
 #endif
@@ -1329,5 +1332,14 @@ const dtlsfuncs_t *GNUDTLS_InitClient(void)
 }
 #endif
 
+#else
+#warning "GNUTLS version is too old (3.0+ required). Please clean and then recompile with CFLAGS=-DNO_GNUTLS"
+
+qboolean SSL_InitGlobal(qboolean isserver) {return false;}
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver) {return NULL;}
+int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize) {return -1;}
+const dtlsfuncs_t *GNUDTLS_InitClient(void) {return NULL;}
+const dtlsfuncs_t *GNUDTLS_InitServer(void) {return NULL;}
+#endif
 #endif
 

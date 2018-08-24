@@ -3665,7 +3665,8 @@ void SV_SendClientMessages (void)
 		}
 		c->lastoutgoingphysicstime = sv.world.physicstime;
 	}
-
+	if (sv.mvdrecording)
+		SV_ProcessSendFlags(&demo.recorder);
 	SV_CleanupEnts();
 }
 

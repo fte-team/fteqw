@@ -4,6 +4,8 @@
 #Public builds are still built using the (overcomplicated) traditional (g)makefile.
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+cmake_policy(SET CMP0063 NEW)
+
 PROJECT(fteqw)
 
 INCLUDE_DIRECTORIES(
@@ -75,6 +77,7 @@ ELSE()
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
 ENDIF()
 
+SET(OpenGL_GL_PREFERENCE LEGACY)
 FIND_PACKAGE(OpenGL)
 IF(NOT OpenGL_FOUND)
 	MESSAGE(WARNING "opengl library NOT available. Will depend upon vulkan.")
@@ -581,7 +584,7 @@ IF (${BULLET_FOUND})
 ENDIF()
 
 #ODE Physics library plugin
-FIND_PACKAGE(ode)
+#FIND_PACKAGE(ode)
 IF (${ODE_FOUND})
 	ADD_LIBRARY(ode MODULE
 		plugins/qvm_api.c

@@ -41,7 +41,7 @@ cvar_t	sv_demofps = CVAR("sv_demofps", "30");
 cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");
 cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to be no larger than this size.");
 cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
-cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback.\n0: off.\n1: all extensions.\n2: extensions also supported by a certain other engine.");
+cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "1", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback.\n0: off.\n1: all extensions.\n2: extensions also supported by a certain other engine.");
 cvar_t	sv_demoAutoCompress = CVARD("sv_demoAutoCompress", "", "Specifies whether to compress demos as they're recorded.\n0 = no compression.\n1 = gzip compression.");
 cvar_t	sv_demo_write_csqc = CVARD("sv_demo_write_csqc", "", "Writes a copy of the csprogs into recorded demos. This ensures that the demo can be played back despite future gamecode changes.");
 
@@ -1577,7 +1577,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 		demo.datagram.prim = demo.recorder.netchan.netprim;
 
 		if (sv_demoExtensions.ival == 2 || !*sv_demoExtensions.string)
-		{	/*more limited subset supported by ezquake*/
+		{	/*more limited subset supported by ezquake, but not fuhquake/fodquake. sorry.*/
 			demo.recorder.fteprotocolextensions = /*PEXT_CHUNKEDDOWNLOADS|*/PEXT_256PACKETENTITIES|/*PEXT_FLOATCOORDS|*/PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
 //			demo.recorder.fteprotocolextensions |= PEXT_HLBSP;	/*ezquake DOES have this, but it is pointless and should have been in some feature mask rather than protocol extensions*/
 //			demo.recorder.fteprotocolextensions |= PEXT_ACCURATETIMINGS;	/*ezquake does not support this any more*/

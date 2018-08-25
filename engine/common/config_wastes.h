@@ -25,10 +25,6 @@
 #define USE_INTERNAL_BULLET
 #undef MENU_NATIVECODE // Will make a debut eventually, hopefully
 
-#if defined(WIN32)
-#define FREETYPE_STATIC
-#endif
-
 // What do we use
 #ifndef GLQUAKE
 #define GLQUAKE
@@ -177,7 +173,9 @@
 #ifdef USE_INTERNAL_BULLET	//makefile will respond to this by trying to link bullet into the engine itself, instead of as a plugin.
 -DLINK_INTERNAL_BULLET
 #endif
-
+#if defined(FTE_TARGET_win32) || defined(FTE_TARGET_win64)
+-DLINK_FREETYPE
+#endif
 
 -DNO_SPEEX	//disable static speex
 #ifndef BOTLIB_STATIC

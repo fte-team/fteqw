@@ -1032,7 +1032,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				{
 					if (oneclient != split)
 					{
-						if (split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+						if (andspecs && split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
 							;
 						else
 							continue;

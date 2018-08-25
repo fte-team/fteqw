@@ -57,6 +57,7 @@ static int VectorCompare (const vec3_t v1, const vec3_t v2)
 static rbeplugfuncs_t *rbefuncs;
 
 
+
 //============================================================================
 // physics engine support
 //============================================================================
@@ -66,6 +67,13 @@ static rbeplugfuncs_t *rbefuncs;
 
 #include "btBulletDynamicsCommon.h"
 
+//not sure where these are going. seems to be an issue only on windows.
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
 
 static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd);
 
@@ -341,7 +349,8 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	int enemy = 0, aiment = 0;
 	wedict_t *e1, *e2;
 //	vec_t CFM, ERP, FMax;
-	vec_t Stop, Vel;
+	vec_t Stop;
+//	vec_t Vel;
 	vec3_t forward;
 	movetype = (int)ed->v->movetype;
 	jointtype = (int)ed->xv->jointtype;
@@ -371,7 +380,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 //		float R = 2.0 * D * sqrt(K); // we assume D is premultiplied by sqrt(sprungMass)
 //		CFM = 1.0 / (rbe->ode_step * K + R); // always > 0
 //		ERP = rbe->ode_step * K * CFM;
-		Vel = 0;
+//		Vel = 0;
 //		FMax = 0;
 		Stop = movedir[2];
 	}
@@ -379,7 +388,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	{
 //		CFM = 0;
 //		ERP = 0;
-		Vel = movedir[0];
+//		Vel = movedir[0];
 //		FMax = -movedir[1]; // TODO do we need to multiply with world.physics.ode_step?
 		Stop = movedir[2] > 0 ? movedir[2] : BT_INFINITY;
 	}
@@ -387,7 +396,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	{
 //		CFM = 0;
 //		ERP = 0;
-		Vel = 0;
+//		Vel = 0;
 //		FMax = 0;
 		Stop = BT_INFINITY;
 	}
@@ -573,9 +582,10 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 {
 	btRigidBody *body = NULL;
 	btCollisionShape *geom = NULL;
-	float radius, length;
+	float radius;
+//	float length;
 	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
-	int axisindex;
+//	int axisindex;
 	ctx->hasextraobjs = true;
 
 	switch(bodyinfo->geomshape)
@@ -617,7 +627,7 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 		break;
 */
 	default:
-		Con_DPrintf("World_Bullet_RagCreateBody: unsupported geomshape\n", bodyinfo->geomshape);
+		Con_DPrintf("World_Bullet_RagCreateBody: unsupported geomshape %i\n", bodyinfo->geomshape);
 	case GEOMTYPE_BOX:
 		geom = new btBoxShape(btVector3(bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]) * 0.5);
 		break;
@@ -756,7 +766,7 @@ static void QDECL World_Bullet_RagMatrixFromJoint(rbejoint_t *joint, rbejointinf
 
 static void QDECL World_Bullet_RagMatrixFromBody(world_t *world, rbebody_t *bodyptr, float *mat)
 {
-	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
+//	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
 	btRigidBody *body = (btRigidBody*)bodyptr->body;
 	MatFromTransform(mat, body->getCenterOfMassTransform());
 }
@@ -971,9 +981,9 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
 	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
 	btRigidBody *body = NULL;
-	btScalar mass;
+//	btScalar mass;
 	float test;
-	void *dataID;
+//	void *dataID;
 	model_t *model;
 	int axisindex;
 	int modelindex = 0;
@@ -993,13 +1003,13 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	vec3_t spinvelocity;
 	vec3_t up;
 	vec3_t velocity;
-	vec_t f;
+//	vec_t f;
 	vec_t length;
 	vec_t massval = 1.0f;
 //	vec_t movelimit;
 	vec_t radius;
 	vec_t scale;
-	vec_t spinlimit;
+//	vec_t spinlimit;
 	qboolean gravity;
 
 	geomtype = (int)ed->xv->geomtype;
@@ -1383,8 +1393,8 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	if (modified && body)
 	{
 //		dVector3 r[3];
-		float entitymatrix[16];
-		float bodymatrix[16];
+//		float entitymatrix[16];
+//		float bodymatrix[16];
 
 #if 0
 		Con_Printf("entity %i got changed by QC\n", (int) (ed - prog->edicts));
@@ -1608,6 +1618,7 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
 	if (world->rbe_hasphysicsents || ctx->hasextraobjs)
 	{
+		int iters;
 		unsigned int i;
 		wedict_t *ed;
 
@@ -1642,7 +1653,10 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 
 		ctx->dworld->setGravity(btVector3(0, 0, -gravity));
 
-		ctx->dworld->stepSimulation(frametime, max(0, physics_bullet_maxiterationsperframe->value), 1/bound(1, physics_bullet_framerate->value, 500));
+		iters=physics_bullet_maxiterationsperframe->value;
+		if (iters < 0)
+			iters = 0;
+		ctx->dworld->stepSimulation(frametime, iters, 1/bound(1, physics_bullet_framerate->value, 500));
 
 		// set the tolerance for closeness of objects
 //		dWorldSetContactSurfaceLayer(world->rbe.world, max(0, physics_bullet_contactsurfacelayer.value));
@@ -1722,6 +1736,7 @@ static void QDECL World_Bullet_PushCommand(world_t *world, rbecommandqueue_t *va
 		ctx->cmdqueuetail = ctx->cmdqueuehead = cmd;
 }
 
+/*
 static void QDECL World_Bullet_TraceEntity(world_t *world, vec3_t start, vec3_t end, wedict_t *ed)
 {
 	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
@@ -1740,6 +1755,7 @@ static void QDECL World_Bullet_TraceEntity(world_t *world, vec3_t start, vec3_t 
 	btTransform to(btMatrix3x3(1, 0, 0, 0, 1, 0, 0, 0, 1), btVector3(end[0], end[1], end[2]));
 	ctx->dworld->convexSweepTest((btConvexShape*)shape, from, to, result, 1);
 }
+*/
 
 static void QDECL World_Bullet_Start(world_t *world)
 {

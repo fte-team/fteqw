@@ -483,10 +483,12 @@ void SV_Map_f (void)
 	char	*nextserver;
 	qboolean preserveplayers= false;
 	qboolean isrestart		= false;	//don't hurt settings
+#ifdef SAVEDGAMES
 	qboolean newunit		= false;	//no hubcache
+	qboolean q2savetos0		= false;
+#endif
 	qboolean flushparms		= false;	//flush parms+serverflags
 	qboolean cinematic		= false;	//new map is .cin / .roq or something
-	qboolean q2savetos0		= false;
 #ifdef Q3SERVER
 	qboolean q3singleplayer	= false;	//forces g_gametype to 2 (otherwise clears if it was 2).
 #endif
@@ -531,12 +533,14 @@ void SV_Map_f (void)
 		startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 	}
 
-	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
 #ifdef Q3SERVER
 	q3singleplayer = !strcmp(Cmd_Argv(0), "spmap");
 #endif
 	flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap");
+#ifdef SAVEDGAMES
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
+	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
+#endif
 
 	sv.mapchangelocked = false;
 
@@ -576,8 +580,10 @@ void SV_Map_f (void)
 		Q_strncpyz(level, svs.name, sizeof(level));
 		isrestart = true;
 		flushparms = false;
+#ifdef SAVEDGAMES
 		newunit = false;
 		q2savetos0 = false;
+#endif
 
 		if (!*level)
 		{
@@ -615,7 +621,9 @@ void SV_Map_f (void)
 	if (*level == '*')
 	{
 		memmove(level, level+1, strlen(level));
+#ifdef SAVEDGAMES
 		newunit=true;
+#endif
 	}
 #ifndef SERVERONLY
 	SCR_ImageName(level);
@@ -1862,7 +1870,9 @@ static void SV_Status_f (void)
 
 	int columns = 80;
 	extern cvar_t sv_listen_qw;
+#if defined(TCPCONNECT) && !defined(CLIENTONLY)
 	extern cvar_t net_enable_tls, net_enable_http, net_enable_webrtcbroker, net_enable_websockets, net_enable_qizmo, net_enable_qtv;
+#endif
 #ifdef NQPROT
 	extern cvar_t sv_listen_nq, sv_listen_dp;
 #endif
@@ -1936,6 +1946,7 @@ static void SV_Status_f (void)
 		else if (net_enable_dtls.ival)
 			Con_Printf(" DTLS");
 #endif
+#if defined(TCPCONNECT) && !defined(CLIENTONLY)
 		if (net_enable_tls.ival)
 			Con_Printf(" TLS");
 		if (net_enable_http.ival)
@@ -1948,6 +1959,7 @@ static void SV_Status_f (void)
 			Con_Printf(" QZ");
 		if (net_enable_qtv.ival)
 			Con_Printf(" QTV");
+#endif
 		Con_Printf("\n");
 		break;
 	}

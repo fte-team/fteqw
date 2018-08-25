@@ -78,7 +78,7 @@ ifneq (,$(BRANDING))
 	-include game_$(BRANDING).mak
 endif
 ifneq (,$(FTE_CONFIG))
-	export FTE_CONFIG_EXTRA:=$(shell $(CC) -xc -E -P -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
+	export FTE_CONFIG_EXTRA:=$(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
 	BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
 	EXE_NAME=$(FTE_CONFIG)
 endif
@@ -94,9 +94,13 @@ endif
 ifeq (,$(findstring DNO_VORBISFILE,$(FTE_CONFIG_EXTRA)))
 	USE_VORBISFILE=1
 endif
-#ifeq (,$(findstring DNO_FREETYPE,$(FTE_CONFIG_EXTRA)))
-#	USE_FREETYPE=1
-#endif
+ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
+	LINK_FREETYPE=1
+	LINK_PNG=1
+endif
+ifneq (,$(findstring DLINK_PNG,$(FTE_CONFIG_EXTRA)))
+	LINK_PNG=1
+endif
 ifneq (,$(findstring -Os,$(FTE_CONFIG_EXTRA)))
 	CPUOPTIMIZATIONS+=-Os
 	BRANDFLAGS:=$(filter-out -O%,$(BRANDFLAGS))
@@ -185,6 +189,7 @@ ANT?=ant
 JAVA_HOME?=/usr
 JAVATOOL=$(JAVA_HOME)/bin/
 ANDROID_SCRIPT=android
+DO_CMAKE=cmake -DCMAKE_C_COMPILER="$(firstword $(CC))" -DCMAKE_C_FLAGS="$(wordlist 2,99,$(CC)) $(CPUOPTIMIZATIONS)" -DCMAKE_CXX_COMPILER="$(firstword $(CXX))" -DCMAKE_CXX_FLAGS="$(wordlist 2,99,$(CXX)) $(CPUOPTIMIZATIONS)" 
 
 ifeq ($(DROID_ARCH),)
 	#armeabi armeabi-v7a arm64-v8a x86 x86_64 mips mips64
@@ -871,9 +876,13 @@ else
 	OGGVORBISLDFLAGS=
 	OGGVORBISFILE_STATIC=
 endif
-ifeq (1,$(USE_FREETYPE))
+ifeq (1,$(LINK_FREETYPE))
 	LIBFREETYPE_STATIC=-DFREETYPE_STATIC
 	LIBFREETYPE_LDFLAGS=-lfreetype
+endif
+ifeq (1,$(LINK_PNG))
+	LIBFREETYPE_STATIC=-DAVAIL_PNG
+	LIBFREETYPE_LDFLAGS=-lpng
 endif
 ifeq (1,$(strip $(INTERNAL_BULLET)))
 	COMMON_OBJS+=com_phys_bullet.o
@@ -910,9 +919,9 @@ ifdef windir
 	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 else
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(CLIENTLDDEPS) `$(SDLCONFIG) --static-libs`
-	VK_LDFLAGS=$(VKLDFLAGS) $(IMAGELDFLAGS) $(CLIENTLDDEPS) `$(SDLCONFIG) --static-libs`
-	M_LDFLAGS=$(MLDFLAGS) $(IMAGELDFLAGS) $(CLIENTLDDEPS) `$(SDLCONFIG) --static-libs`
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SDLCONFIG) --static-libs`
+	VK_LDFLAGS=$(VKLDFLAGS) $(IMAGELDFLAGS) `$(SDLCONFIG) --static-libs`
+	M_LDFLAGS=$(MLDFLAGS) $(IMAGELDFLAGS) `$(SDLCONFIG) --static-libs`
 	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 endif
 GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
@@ -955,6 +964,7 @@ endif
 #google native client
 ifeq ($(FTE_TARGET),nacl)
 	CLIENTLDDEPS=
+	SERVERLDDEPS=
 
 	NARCH ?= x86_32
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
@@ -1006,8 +1016,8 @@ ifeq ($(FTE_TARGET),nacl)
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
 
-	GL_LDFLAGS=$(GLLDFLAGS) $(CLIENTLDDEPS)
-	M_LDFLAGS=$(GLLDFLAGS) $(CLIENTLDDEPS)
+	GL_LDFLAGS=$(GLLDFLAGS)
+	M_LDFLAGS=$(GLLDFLAGS)
 	
 	GLB_DIR=gl_nacl_$(NARCH)
 	MINGL_DIR=mingl_nacl_$(NARCH)
@@ -1025,6 +1035,7 @@ endif
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
 ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	LIBS_DIR=./libs
+	DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
 
 	ifneq (,$(findstring win64,$(FTE_TARGET)))
 		BITS=64
@@ -1048,9 +1059,9 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
 		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) $(CLIENTLDDEPS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		VK_LDFLAGS=$(IMAGELDFLAGS) $(CLIENTLDDEPS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		M_LDFLAGS=$(IMAGELDFLAGS) $(CLIENTLDDEPS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
+		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+		VK_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
 		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
 		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 	endif
@@ -1079,7 +1090,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(BOTLIB_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
-	D3D_LDFLAGS=$(IMAGELDFLAGS) $(CLIENTLDDEPS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
 	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) $(CLIENTLIBFLAGS) $(DX7SDK)
 	D3DB_DIR=sdl_d3d_mgw$(BITS)
 	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
@@ -1204,6 +1215,9 @@ endif
 #FTE_TARGET=win32 | FTE_TARGET=win64 (MinGW32 | MinGW64)
 ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	# The extra object file called resources.o is specific for MinGW to link the icon in
+#	DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
+
+	DO_CMAKE=cmake -DCMAKE_TOOLCHAIN_FILE=/home/spike/fteqw/fteqw-code/cmakesucks.cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER="$(firstword $(CC))" -DCMAKE_C_FLAGS="$(wordlist 2,99,$(CC))" -DCMAKE_CXX_COMPILER="$(firstword $(CXX))" -DCMAKE_CXX_FLAGS="$(wordlist 2,99,$(CXX))" 
 
 	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
 	ifneq ($(shell $(CC) -dumpmachine 2>&1 | grep cygwin),)
@@ -1238,7 +1252,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_EXE_NAME=../fteglqw$(BITS)$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../fteglqwcl$(BITS)$(EXEPOSTFIX)
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(CLIENTLDDEPS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD $(CLIENTLIBFLAGS)
 	GLB_DIR=gl_mgw$(BITS)
 	GLCL_DIR=glcl_mgw$(BITS)
@@ -1252,7 +1266,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o gl_videgl.o $(WINDOWS_OBJS)
 	M_EXE_NAME=../$(EXE_NAME)$(BITS)$(EXEPOSTFIX)
 	MCL_EXE_NAME=../$(EXE_NAME)cl$(BITS)$(EXEPOSTFIX)
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(CLIENTLDDEPS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) $(VKCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
 	MB_DIR=m_mgw$(BITS)
 	MCL_DIR=mcl_mgw$(BITS)
@@ -1260,7 +1274,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(WINDOWS_OBJS)
 	D3D_EXE_NAME=../fted3dqw$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS)$(EXEPOSTFIX)
-	D3D_LDFLAGS=$(IMAGELDFLAGS) $(CLIENTLDDEPS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD $(CLIENTLIBFLAGS)
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
@@ -1268,7 +1282,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	VKCL_OBJS=$(GLQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(WINDOWS_OBJS) gl_vidnt.o
 	VK_EXE_NAME=../ftevkqw$(BITS)$(EXEPOSTFIX)
 	VKCL_EXE_NAME=../ftevkclqw$(BITS)$(EXEPOSTFIX)
-	VK_LDFLAGS=$(IMAGELDFLAGS) $(CLIENTLDDEPS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
+	VK_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
 	VK_CFLAGS=$(VKCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD $(CLIENTLIBFLAGS)
 	VKB_DIR=vk_mgw$(BITS)
 	VKCL_DIR=vkcl_mgw$(BITS)
@@ -1358,7 +1372,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-gl$(BITS)
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(CLIENTLDDEPS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(CL_CFLAGS) $(CLIENTLIBFLAGS)
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
@@ -1366,7 +1380,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)
 	VKCL_EXE_NAME=../$(EXE_NAME)-vkcl$(BITS)
-	VK_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(CLIENTLDDEPS)
+	VK_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS)
 	VK_CFLAGS=$(VKCFLAGS) -I/usr/X11R6/include $(CL_CFLAGS) $(CLIENTLIBFLAGS)
 	VKB_DIR=vk_linux$(BITS)
 	VKCL_DIR=vkcl_linux$(BITS)
@@ -1420,8 +1434,6 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 	
-	CLIENTLDDEPS=
-
 	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)	
 	ifeq ($(FTE_TARGET),macosx_x86)
 		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
@@ -1453,7 +1465,6 @@ ifeq ($(FTE_TARGET),morphos)
 
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-ldl -lz
-	CLIENTLDDEPS=
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../$(EXE_NAME)-morphos-gl
@@ -1490,7 +1501,6 @@ ifeq ($(FTE_TARGET),dos)
 	VKCL_DIR=vkcl_dos
 
 	IMAGELDFLAGS=
-	CLIENTLDDEPS=
 
 	SOFTWARE_OBJS=sw_rast.o sw_backend.o sw_image.o
 
@@ -1513,7 +1523,7 @@ ifeq ($(FTE_TARGET),cyg)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-cyg-gl$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../$(EXE_NAME)-cyg-glcl$(EXEPOSTFIX)
-	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(CLIENTLDDEPS) -lz -lltdl
+	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lz -lltdl
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(CLIENTLIBFLAGS) -DUSE_LIBTOOL
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
@@ -1521,7 +1531,7 @@ ifeq ($(FTE_TARGET),cyg)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../$(EXE_NAME)-cyg$(EXEPOSTFIX)
 	MCL_EXE_NAME=../$(EXE_NAME)-cyg-cl$(EXEPOSTFIX)
-	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(CLIENTLDDEPS) -lz -lltdl
+	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lz -lltdl
 	M_CFLAGS=$(GLCFLAGS) $(CLIENTLIBFLAGS) -DUSE_LIBTOOL
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin
@@ -1534,6 +1544,10 @@ endif
 
 ifeq ($(FTE_TARGET),droid)
 	BASELDFLAGS=-lz
+	
+	#erk! FIXME!
+	CLIENTLDDEPS=
+	SERVERLDDEPS=
 
 	SYS_DROID_O=sys_droid.o sys_linux_threads.o
 	GL_DROID_O=gl_viddroid.o $(SYS_DROID_O)
@@ -1598,11 +1612,12 @@ ifeq ($(FTE_TARGET),web)
 	GLB_DIR=gl_web
 	GL_EXE_NAME=../ftewebgl.js
 
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(CLIENTLDDEPS)
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS)
 
 	IMAGELDFLAGS=
 	CLIENTLDDEPS=
+	SERVERLDDEPS=
 
 	BOTLIB_CFLAGS=
 	#generate deps properly
@@ -1756,7 +1771,7 @@ _cl-profile: reldir
 	@$(MAKE) _out-profile EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS"
 
 _clsv-rel: reldir
-	@$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
+	$(DO_ECHO) $(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
 
 _clsv-dbg: debugdir
 	@$(MAKE) _out-dbg EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
@@ -1765,7 +1780,7 @@ _clsv-profile: reldir
 	@$(MAKE) _out-profile EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
 
 sv-tmp: reldir debugdir
-	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(ARCH_LDFLAGS) $(SV_LDFLAGS) $(LDFLAGS)" OBJS="SV_OBJS"
+	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(ARCH_LDFLAGS) $(SV_LDFLAGS) $(LDFLAGS) $(SERVERLDDEPS)" OBJS="SV_OBJS"
 sv-rel:
 	@$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 sv-dbg:
@@ -1774,9 +1789,9 @@ sv-profile:
 	@$(MAKE) sv-tmp TYPE=_out-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 
 d3dcl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3DCL_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS)" SOBJS="$(D3DCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3DCL_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(D3DCL_OBJS)"
 d3d-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3D_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS)" SOBJS="$(D3DCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3D_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(D3DCL_OBJS)"
 
 d3dcl-rel:
 	@$(MAKE) d3dcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(D3DCL_DIR)"
@@ -1795,9 +1810,9 @@ d3d-profile:
 
 
 vkcl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VKCL_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS)" SOBJS="$(VKCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VKCL_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(VKCL_OBJS)"
 vk-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VK_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS)" SOBJS="$(VKCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VK_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(VKCL_OBJS)"
 
 vkcl-rel:
 	@$(MAKE) vkcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(VKCL_DIR)"
@@ -1815,9 +1830,9 @@ vk-profile:
 
 
 glcl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(GLCL_OBJS)"
 gl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(GLCL_OBJS)"
 
 glcl-rel:
 	@$(MAKE) glcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(GLCL_DIR)"
@@ -1833,7 +1848,7 @@ gl-profile:
 	@$(MAKE) gl-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(GLB_DIR)"
 
 mingl-tmp: reldir
-	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
+	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(GLCL_OBJS)"
 mingl-rel:
 	@$(MAKE) mingl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MINGL_DIR)"
 mingl-dbg:
@@ -1842,9 +1857,9 @@ mingl-profile:
 	@$(MAKE) mingl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MINGL_DIR)"
 
 mcl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS)" SOBJS="$(MCL_OBJS)"
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(MCL_OBJS)"
 m-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS)" SOBJS="$(MCL_OBJS)"
+	$(DO_ECHO) $(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(MCL_OBJS)"
 
 mcl-rel:
 	@$(MAKE) mcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MCL_DIR)"
@@ -1853,7 +1868,7 @@ mcl-dbg:
 mcl-profile:
 	@$(MAKE) mcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MCL_DIR)"
 m-rel:
-	@$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
+	$(DO_ECHO) $(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 m-dbg:
 	@$(MAKE) m-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 m-profile:
@@ -2189,8 +2204,8 @@ libs-$(ARCH)/libfreetype.a:
 	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
-	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz
-	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) cmake . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
+	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
+	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
 
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 

@@ -2063,7 +2063,6 @@ void CL_Color_f (void)
 #endif
 }
 
-qboolean CL_CheckDLFile(const char *filename);
 void CL_PakDownloads(int mode)
 {
 	/*

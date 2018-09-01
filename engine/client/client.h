@@ -1280,6 +1280,7 @@ void CLQ2_ParseServerMessage (void);
 void CL_NewTranslation (int slot);
 
 int CL_IsDownloading(const char *localname);
+qboolean CL_CheckDLFile(const char *filename);
 qboolean CL_CheckOrEnqueDownloadFile (const char *filename, const char *localname, unsigned int flags);
 qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags);
 downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl);

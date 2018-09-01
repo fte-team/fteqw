@@ -1052,11 +1052,13 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				int track = 0;
 				const char *noise = "";
 
+#ifdef HEXEN2
 				if (progstype == PROG_H2)
 				{
 					track = sv.h2cdtrack;	//hexen2 has a special hack
-				}
-				else if (svprogfuncs)
+				} else
+#endif
+				if (svprogfuncs)
 				{
 					track = ((edict_t*)sv.world.edicts)->v->sounds;
 					noise = PR_GetString(svprogfuncs, ((edict_t*)sv.world.edicts)->v->noise);
@@ -1070,9 +1072,10 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					ClientReliableWrite_Byte (client, track);
 					if (ISNQCLIENT(client))
 						ClientReliableWrite_Byte (client, track);
-
+#ifdef HEXEN2
 					if (!track && *sv.h2miditrack)
 						SV_StuffcmdToClient(client, va("music \"%s\"\n", sv.h2miditrack));
+#endif
 				}
 			}
 			else if (client->prespawn_idx == 5)
@@ -7597,8 +7600,8 @@ void SV_ReadQCRequest(void)
 			ed = EDICT_NUM_PB(svprogfuncs, e);
 			if (!ed)
 			{
-				ed = sv.world.edicts;
-				Con_Printf("client %s sent invalid entity\n", fromclient->name);
+				ed = (edict_t*)sv.world.edicts;
+				Con_Printf("client %s sent invalid entity\n", host_client->name);
 				host_client->drop = true;
 			}
 			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, ed);

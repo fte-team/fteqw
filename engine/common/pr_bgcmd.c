@@ -2925,22 +2925,10 @@ void QCBUILTIN PF_num_for_edict (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_edict_for_num(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
-	edict_t	*ent;
 	unsigned int num = G_FLOAT(OFS_PARM0);
 	if (num >= w->num_edicts)
 		RETURN_EDICT(prinst, w->edicts);
-	G_INT(OFS_RETURN) = num;
-/*
-	ent = (edict_t*)EDICT_NUM_PB(prinst, num);
-	if (!ent)
-	{
-		ent = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
-		ent->ereftype = ER_FREE;
-		if (externs->entspawn)
-			externs->entspawn((struct edict_s *) ent, true);
-	}
-
-	RETURN_EDICT(prinst, ent);*/
+	G_INT(OFS_RETURN) = num;	//just directly store it. if its not spawned yet we'll need to catch that elsewhere anyway.
 }
 
 /*

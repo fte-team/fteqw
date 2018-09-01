@@ -221,8 +221,10 @@ void SV_Shutdown (void)
 
 	SV_UnspawnServer();
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 		SV_MVDStop (MVD_CLOSE_STOPPED, false);
+#endif
 
 	if (svs.entstatebuffer.entities)
 	{
@@ -722,7 +724,9 @@ void SV_DropClient (client_t *drop)
 	{
 // send notification to all remaining clients
 		SV_FullClientUpdate (drop, NULL);
+#ifdef MVD_RECORDING
 		SV_MVD_FullClientUpdate(NULL, drop);
+#endif
 	}
 
 	if (drop->controlled)
@@ -968,8 +972,10 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		{
 			SV_FullClientUpdate(client, &svs.clients[i]); 
 		}
+#ifdef MVD_RECORDING
 		if (sv.mvdrecording)
 			SV_FullClientUpdate(client, &demo.recorder);
+#endif
 		return;
 	}
 
@@ -2549,7 +2555,7 @@ client_t *SVC_DirectConnect(void)
 		}
 	}
 
-	if (sv.msgfromdemo || net_from.type == NA_LOOPBACK)	//normal rules don't apply
+	if (net_from.type == NA_LOOPBACK)	//normal rules don't apply
 		;
 	else
 	{
@@ -2736,9 +2742,6 @@ client_t *SVC_DirectConnect(void)
 	newcl->proquake_angles_hack = proquakeanglehack;
 	newcl->protocol = protocol;
 	Q_strncpyz(newcl->guid, guid, sizeof(newcl->guid));
-
-	if (sv.msgfromdemo)
-		newcl->wasrecorded = true;
 
 //	Con_TPrintf("%s:%s:connect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 
@@ -3127,89 +3130,82 @@ client_t *SVC_DirectConnect(void)
 	newcl->lockedtill = 0;
 
 #ifdef SVRANKING
-	if (svs.demorecording || (svs.demoplayback && newcl->wasrecorded))	//disable rankings. Could cock things up.
-	{
-		SV_GetNewSpawnParms(newcl);
-	}
-	else
-	{
 //rankid is figured out in extract from user info
-		if (!newcl->rankid)	//failed to get a userid
+	if (!newcl->rankid)	//failed to get a userid
+	{
+		if (rank_needlogin.value)
 		{
-			if (rank_needlogin.value)
-			{
-				SV_RejectMessage (protocol, "Bad password/username\nThis server requires logins. Please see the serverinfo for website and info on how to register.\n");
-				newcl->state = cs_free;
-				return NULL;
-			}
+			SV_RejectMessage (protocol, "Bad password/username\nThis server requires logins. Please see the serverinfo for website and info on how to register.\n");
+			newcl->state = cs_free;
+			return NULL;
+		}
 
 //			SV_OutOfBandPrintf (isquake2client, adr, "\nWARNING: You have not got a place on the ranking system, probably because a user with the same name has already connected and your pwds differ.\n\n");
 
-			if (!preserveparms)
-				SV_GetNewSpawnParms(newcl);
-		}
-		else
+		if (!preserveparms)
+			SV_GetNewSpawnParms(newcl);
+	}
+	else
+	{
+		rankstats_t rs;
+		if (!Rank_GetPlayerStats(newcl->rankid, &rs))
 		{
-			rankstats_t rs;
-			if (!Rank_GetPlayerStats(newcl->rankid, &rs))
-			{
-				SV_RejectMessage (protocol, "Rankings/Account system failed\n");
-				Con_TPrintf("banned player %s is trying to connect\n", newcl->name);
-				newcl->name[0] = 0;
-				InfoBuf_Clear(&newcl->userinfo, true);
-				newcl->state = cs_free;
-				return NULL;
-			}
+			SV_RejectMessage (protocol, "Rankings/Account system failed\n");
+			Con_TPrintf("banned player %s is trying to connect\n", newcl->name);
+			newcl->name[0] = 0;
+			InfoBuf_Clear(&newcl->userinfo, true);
+			newcl->state = cs_free;
+			return NULL;
+		}
 
-			if (rs.flags1 & RANK_MUTED)
-			{
-				SV_BroadcastTPrintf(PRINT_MEDIUM, "%s is muted (still)\n", newcl->name);
-			}
-			if (rs.flags1 & RANK_CUFFED)
-			{
-				SV_BroadcastTPrintf(PRINT_LOW, "%s is now cuffed permanently\n", newcl->name);
-			}
-			if (rs.flags1 & RANK_CRIPPLED)
-			{
-				SV_BroadcastTPrintf(PRINT_HIGH, "%s is still crippled\n", newcl->name);
-			}
+		if (rs.flags1 & RANK_MUTED)
+		{
+			SV_BroadcastTPrintf(PRINT_MEDIUM, "%s is muted (still)\n", newcl->name);
+		}
+		if (rs.flags1 & RANK_CUFFED)
+		{
+			SV_BroadcastTPrintf(PRINT_LOW, "%s is now cuffed permanently\n", newcl->name);
+		}
+		if (rs.flags1 & RANK_CRIPPLED)
+		{
+			SV_BroadcastTPrintf(PRINT_HIGH, "%s is still crippled\n", newcl->name);
+		}
 
-			if (rs.timeonserver)
-			{
-				if (preserveparms)
-				{	//do nothing.
-				}
-				else if (sv_resetparms.value)
-				{
-					SV_GetNewSpawnParms(newcl);
-				}
-				else
-				{
-					extern cvar_t rank_parms_first, rank_parms_last;
-					for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-					{
-						if (i < NUM_RANK_SPAWN_PARMS && i >= rank_parms_first.ival && i <= rank_parms_last.ival)
-							newcl->spawn_parms[i] = rs.parm[i];
-						else
-							newcl->spawn_parms[i] = 0;
-					}
-				}
-
-				if (rs.timeonserver > 3*60)	//woo. Ages.
-					s = va(langtext("Welcome back %s. You have previously spent %i:%i hours connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/(60*60)), (int)((int)(rs.timeonserver/60)%(60)));
-				else	//measure this guy in minuites.
-					s = va(langtext("Welcome back %s. You have previously spent %i mins connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/60));
-
-				SV_OutOfBandPrintf (protocol == SCP_QUAKE2, &adr, s);
+		if (rs.timeonserver)
+		{
+			if (preserveparms)
+			{	//do nothing.
 			}
-			else if (!preserveparms)
+			else if (sv_resetparms.value)
 			{
 				SV_GetNewSpawnParms(newcl);
-
-				SV_OutOfBandTPrintf (protocol == SCP_QUAKE2, &adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
 			}
-			//else loaded players already have their initial parms set
+			else
+			{
+				extern cvar_t rank_parms_first, rank_parms_last;
+				for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+				{
+					if (i < NUM_RANK_SPAWN_PARMS && i >= rank_parms_first.ival && i <= rank_parms_last.ival)
+						newcl->spawn_parms[i] = rs.parm[i];
+					else
+						newcl->spawn_parms[i] = 0;
+				}
+			}
+
+			if (rs.timeonserver > 3*60)	//woo. Ages.
+				s = va(langtext("Welcome back %s. You have previously spent %i:%i hours connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/(60*60)), (int)((int)(rs.timeonserver/60)%(60)));
+			else	//measure this guy in minuites.
+				s = va(langtext("Welcome back %s. You have previously spent %i mins connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/60));
+
+			SV_OutOfBandPrintf (protocol == SCP_QUAKE2, &adr, s);
 		}
+		else if (!preserveparms)
+		{
+			SV_GetNewSpawnParms(newcl);
+
+			SV_OutOfBandTPrintf (protocol == SCP_QUAKE2, &adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
+		}
+		//else loaded players already have their initial parms set
 	}
 #else
 	// call the progs to get default spawn parms for the new client
@@ -3220,44 +3216,28 @@ client_t *SVC_DirectConnect(void)
 #endif
 
 
-	if (!newcl->wasrecorded)
-	{
-		SV_AcceptMessage (newcl);
+	SV_AcceptMessage (newcl);
 
-		newcl->state = cs_free;
-		if (ISNQCLIENT(newcl))
-		{
-			//FIXME: we should delay this until we actually have a name, because right now they'll be called unnamed or unconnected or something
-			SV_BroadcastPrintf(PRINT_LOW, "New client connected\n");
-		}
-		else if (redirect)
-		{
-		}
-		else if (newcl->spectator)
-		{
-			SV_BroadcastTPrintf(PRINT_LOW, "spectator %s connected\n", newcl->name);
+	newcl->state = cs_free;
+	if (ISNQCLIENT(newcl))
+	{
+		//FIXME: we should delay this until we actually have a name, because right now they'll be called unnamed or unconnected or something
+		SV_BroadcastPrintf(PRINT_LOW, "New client connected\n");
+	}
+	else if (redirect)
+	{
+	}
+	else if (newcl->spectator)
+	{
+		SV_BroadcastTPrintf(PRINT_LOW, "spectator %s connected\n", newcl->name);
 //			Con_Printf ("Spectator %s connected\n", newcl->name);
-		}
-		else
-		{
-			SV_BroadcastTPrintf(PRINT_LOW, "client %s connected\n", newcl->name);
-//			Con_DPrintf ("Client %s connected\n", newcl->name);
-		}
-		newcl->state = cs_connected;
 	}
 	else
 	{
-		if (newcl->spectator)
-		{
-			SV_BroadcastTPrintf(PRINT_LOW, "recorded spectator %s connected\n", newcl->name);
-//			Con_Printf ("Recorded spectator %s connected\n", newcl->name);
-		}
-		else
-		{
-			SV_BroadcastTPrintf(PRINT_LOW, "recorded client %s connected\n", newcl->name);
-//			Con_DPrintf ("Recorded client %s connected\n", newcl->name);
-		}
+		SV_BroadcastTPrintf(PRINT_LOW, "client %s connected\n", newcl->name);
+//			Con_DPrintf ("Client %s connected\n", newcl->name);
 	}
+	newcl->state = cs_connected;
 	newcl->sendinfo = true;
 
 	if (redirect)
@@ -3361,7 +3341,7 @@ int Rcon_Validate (void)
 
 		const size_t digestsize = 20;
 		size_t i, k;
-		unsigned char digest[digestsize];
+		unsigned char digest[512];
 		const unsigned char **tokens = alloca(sizeof(*tokens)*(Cmd_Argc()*2+5));	//overallocation in case argc is 0.
 		size_t *toksizes = alloca(sizeof(*toksizes)*(Cmd_Argc()*2+5));	//overallocation in case argc is 0.
 		if (strlen(pass) > digestsize*2)
@@ -4778,11 +4758,13 @@ static void SV_PauseChanged(void)
 			ClientReliableWrite_Byte (cl, sv.paused!=0);
 		}
 	}
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		ClientReliableWrite_Begin (&demo.recorder, svc_setpause, 2);
 		ClientReliableWrite_Byte (&demo.recorder, sv.paused!=0);
 	}
+#endif
 }
 
 /*
@@ -5046,10 +5028,9 @@ float SV_Frame (void)
 // send messages back to the clients that had packets read this frame
 		SV_SendClientMessages ();
 
-//	demo_start = Sys_DoubleTime ();
+#ifdef MVD_RECORDING
 		SV_SendMVDMessage();
-//	demo_end = Sys_DoubleTime ();
-//	svs.stats.demo += demo_end - demo_start;
+#endif
 
 // send a heartbeat to the master if needed
 		SV_Master_Heartbeat ();
@@ -5097,8 +5078,10 @@ static void SV_InfoChanged(void *context, const char *key)
 	if (context != &svs.info && *key == '_')
 		return;	//these keys are considered private to originating client/server, and are not broadcast to anyone else
 
-	if (svs.demorecording)
+#ifdef MVD_RECORDING
+	if (sv.mvdrecording)
 		InfoSync_Add(&demo.recorder.infosync, context, key);	//make sure it gets written into mvds too.
+#endif
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].state >= cs_connected)
@@ -5289,7 +5272,9 @@ void SV_InitLocal (void)
 	Cmd_AddCommandAD ("load", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
 #endif
 
+#ifdef MVD_RECORDING
 	SV_MVDInit();
+#endif
 
 	svs.info.ChangeCB = SV_InfoChanged;
 	svs.info.ChangeCTX = &svs.info;

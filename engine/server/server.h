@@ -117,6 +117,7 @@ typedef struct
 	qboolean	mapchangelocked;
 
 #ifdef SAVEDGAMES
+	char		loadgame_on_restart[MAX_QPATH];	//saved game to load on map_restart
 	double		autosave_time;
 #endif
 	double		time;
@@ -140,8 +141,6 @@ typedef struct
 	char		mapname[256];		// text description of the map
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
 
-	char		loadgame_on_restart[MAX_QPATH];	//saved game to load on map_restart
-
 	world_t world;
 
 	union {
@@ -153,7 +152,9 @@ typedef struct
 		};
 #endif
 		struct {
+#ifndef NOLEGACY
 			const char	*vw_model_precache[32];
+#endif
 			const char	*model_precache[MAX_PRECACHE_MODELS];	// NULL terminated
 			const char	*particle_precache[MAX_SSPARTICLESPRE];	// NULL terminated
 			const char	*sound_precache[MAX_PRECACHE_SOUNDS];	// NULL terminated
@@ -164,8 +165,10 @@ typedef struct
 	qboolean	stringsalloced;	//if true, we need to free the string pointers safely rather than just memsetting them to 0
 	vec3_t		lightstylecolours[MAX_LIGHTSTYLES];
 
+#ifdef HEXEN2
 	char		h2miditrack[MAX_QPATH];
 	qbyte		h2cdtrack;
+#endif
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
 	int			spawned_client_slots; //number of PLAYER slots which are active (ie: putclientinserver was called)
@@ -223,8 +226,6 @@ typedef struct
 	int			signon_buffer_size[MAX_SIGNON_BUFFERS];
 	qbyte		signon_buffers[MAX_SIGNON_BUFFERS][MAX_DATAGRAM];
 
-	qboolean msgfromdemo;
-
 	qboolean gamedirchanged;
 
 	qboolean haveitems2;	//use items2 field instead of serverflags for the high bits of STAT_ITEMS
@@ -232,11 +233,12 @@ typedef struct
 
 
 
-
+#ifdef MVD_RECORDING
 	qboolean mvdrecording;
+#endif
 
 //====================================================
-//this lot is for serverside playback of demos
+//this lot is for serverside playback of mvds. Use QTV instead.
 #ifdef SERVER_DEMO_PLAYBACK
 	qboolean mvdplayback;
 	float realtime;
@@ -408,9 +410,13 @@ enum
 	PRESPAWN_INVALID=0,
 	PRESPAWN_PROTOCOLSWITCH,	//nq drops unreliables until reliables are acked. this gives us a chance to drop any clc_move packets with formats from the previous map
 	PRESPAWN_SERVERINFO,
+#ifdef MVD_RECORDING
 	PRESPAWN_CSPROGS,			//demos contain a copy of the csprogs.
+#endif
 	PRESPAWN_SOUNDLIST,			//nq skips these
+#ifndef NOLEGACY
 	PRESPAWN_VWEPMODELLIST,		//qw ugly extension.
+#endif
 	PRESPAWN_MODELLIST,
 	PRESPAWN_MAPCHECK,			//wait for old prespawn command
 	PRESPAWN_PARTICLES,
@@ -676,8 +682,6 @@ typedef struct client_s
 
 	int trustlevel;
 
-	qboolean wasrecorded;	//this client shouldn't get any net messages sent to them
-
 	vec3_t	specorigin;	//mvds need to use a different origin from the one QC has.
 	vec3_t	specvelocity;
 
@@ -737,7 +741,7 @@ typedef struct client_s
 //=============================================================================
 
 //mvd stuff
-
+#ifdef MVD_RECORDING
 #define	MSG_BUF_SIZE 8192
 
 typedef struct
@@ -768,13 +772,13 @@ typedef struct {
 	int to;
 	int size;
 	qbyte data[1]; //gcc doesn't allow [] (?)
-} header_t;
+} mvd_header_t;
 
 typedef struct
 {
 	sizebuf_t sb;
 	int		bufsize;
-	header_t *h;
+	mvd_header_t *h;
 } demobuf_t;
 
 typedef struct
@@ -821,7 +825,7 @@ typedef struct
 
 	struct mvddest_s *dest;
 } demo_t;
-
+#endif
 
 //=============================================================================
 
@@ -934,10 +938,6 @@ typedef struct
 	int numprogs;
 
 	struct netprim_s netprim;
-
-	qboolean demoplayback;
-	qboolean demorecording;
-	qboolean msgfromdemo;
 
 	int language;	//the server operators language
 	laggedpacket_t *free_lagged_packet;
@@ -1479,7 +1479,7 @@ void SV_ChatThink(client_t *client);
 #endif
 
 
-
+#ifdef MVD_RECORDING
 /*
 //
 // sv_mvd.c
@@ -1551,12 +1551,16 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 
 extern demo_t			demo;				// server demo struct
 
+extern cvar_t	sv_demoDir;
+extern cvar_t	sv_demoAutoRecord;
 extern cvar_t	sv_demofps;
 extern cvar_t	sv_demoPings;
 extern cvar_t	sv_demoUseCache;
 extern cvar_t	sv_demoMaxSize;
 extern cvar_t	sv_demoMaxDirSize;
 
+qboolean MVD_CheckSpace(qboolean broadcastwarnings);
+void SV_MVD_AutoRecord (void);
 char *SV_Demo_CurrentOutput(void);
 void SV_Demo_PrintOutputs(void);
 void SV_MVDInit(void);
@@ -1575,6 +1579,7 @@ typedef struct
 	char challenge[32];
 } qtvpendingstate_t;
 int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p);
+#endif
 
 // savegame.c
 void SV_Savegame_f (void);

@@ -3528,7 +3528,8 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 	}
 }
 
-qboolean FS_PureOkay(void)
+#ifndef SERVERONLY
+int FS_PureOkay(void)
 {
 	//returns true if all pure packages that we're meant to need could load.
 	//if they couldn't then they won't override things, or the game will just be completely screwed due to having absolutely no game data
@@ -3591,7 +3592,10 @@ qboolean FS_PureOkay(void)
 				continue;
 			else //if (!sp)
 			{
-				Con_Printf("Pure package %s:%i missing\n", pname, crc);
+				if (!CL_CheckDLFile(va("package/%s", pname)))
+					if (CL_CheckOrEnqueDownloadFile(va("package/%s", pname), va("%s.%i", pname, crc), DLLF_NONGAME))
+						return -1;
+				Con_Printf(CON_ERROR"Pure package %s:%i missing.\n", pname, crc);
 				return false;
 			}
 		}
@@ -3600,6 +3604,7 @@ qboolean FS_PureOkay(void)
 
 	return true;
 }
+#endif
 
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 {	//this is for q3 compatibility.

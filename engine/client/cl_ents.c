@@ -4002,6 +4002,7 @@ void CL_LinkPacketEntities (void)
 				modelflags = model->flags;
 		}
 
+#ifndef NOLEGACY
 		if (cl.model_precache_vwep[0] && state->modelindex2 < MAX_VWEP_MODELS)
 		{
 			if (state->modelindex == cl_playerindex && cl.model_precache_vwep[0]->loadstate == MLS_LOADED &&
@@ -4013,7 +4014,9 @@ void CL_LinkPacketEntities (void)
 			else
 				model2 = NULL;
 		}
-		else if (state->modelindex2 && state->modelindex2 < MAX_PRECACHE_MODELS)
+		else
+#endif
+			if (state->modelindex2 && state->modelindex2 < MAX_PRECACHE_MODELS)
 			model2 = cl.model_precache[state->modelindex2];
 		else
 			model2 = NULL;
@@ -4972,7 +4975,9 @@ void CL_LinkPlayers (void)
 	static int		flickertime;
 	static int		flicker;
 	float			predictmsmult = 1000*cl_predict_players_frac.value;
+#ifndef NOLEGACY
 	int				modelindex2;
+#endif
 	extern cvar_t	cl_demospeed;
 	int displayseq;
 
@@ -5023,15 +5028,19 @@ void CL_LinkPlayers (void)
 			continue;
 
 		//the extra modelindex check is to stop lame mods from using vweps with rings
+#ifndef NOLEGACY
 		if (state->command.impulse && cl.model_precache_vwep[0] && cl.model_precache_vwep[0]->type != mod_dummy && state->modelindex == cl_playerindex)
 		{
 			model = cl.model_precache_vwep[0];
 			modelindex2 = state->command.impulse;
 		}
 		else
+#endif
 		{
 			model = cl.model_precache[state->modelindex];
+#ifndef NOLEGACY
 			modelindex2 = 0;
+#endif
 		}
 
 		// spawn light flashes, even ones coming from invisible objects
@@ -5221,8 +5230,10 @@ void CL_LinkPlayers (void)
 			CL_AddFlagModels (ent, 0);
 		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
+#ifndef NOLEGACY
 		if (modelindex2)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[modelindex2]);
+#endif
 
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);

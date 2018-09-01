@@ -724,7 +724,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				nl = strchr(msg, '\n');
 				if (nl)
 					*nl = '\0';
-				Con_Printf("HTTP: %s %s (%s)\n", buffer, COM_TrimString(msg, trimmed, sizeof(trimmed)), Location);
+				Con_Printf("%s: %s %s (%s)\n", dl->url, buffer, COM_TrimString(msg, trimmed, sizeof(trimmed)), Location);
 				if (!*Location)
 					Con_Printf("Server redirected to null location\n");
 				else
@@ -763,7 +763,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				if (nl>msg&&nl[-1] == '\r')
 					nl--;
 				*nl = '\0';
-				Con_Printf("HTTP: %s%s\n", buffer, msg);
+				Con_Printf("%s: %s%s\n", dl->url, buffer, msg);
 				return false;	//something went wrong.
 			}
 

@@ -99,6 +99,7 @@
 #undef PSKMODELS
 
 // What do we NOT want to use
+#undef MVD_RECORDING			//server can record MVDs.
 #undef D3D9QUAKE
 #undef D3D11QUAKE
 #undef D3D8QUAKE

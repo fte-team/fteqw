@@ -111,6 +111,7 @@
 //#define HLCLIENT 7			//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //#define HLSERVER 140			//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 #define SAVEDGAMES				//Can save the game.
+#define MVD_RECORDING			//server can record MVDs.
 
 // Networking options
 //#define NQPROT				//act as an nq client/server, with nq gamecode.

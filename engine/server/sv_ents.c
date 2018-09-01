@@ -2363,6 +2363,7 @@ qboolean Cull_Traceline(pvscamera_t *cameras, edict_t *seen)
 	return true;
 }
 
+#ifdef MVD_RECORDING
 void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *msg)
 {
 	int			j;
@@ -2449,6 +2450,7 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 			dcl->flags |= DF_GIB;
 	}
 }
+#endif
 
 /*
 =============
@@ -4034,9 +4036,11 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			// send over the players in the PVS
 			if (svs.gametype != GT_HALFLIFE)
 			{
+#ifdef MVD_RECORDING
 				if (client == &demo.recorder)
 					SV_WritePlayersToMVD(client, frame, msg);
 				else
+#endif
 					SV_WritePlayersToClient (client, frame, clent, cameras, msg);
 			}
 

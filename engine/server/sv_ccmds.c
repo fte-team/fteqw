@@ -692,8 +692,10 @@ void SV_Map_f (void)
 		}
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 		SV_MVDStop_f();
+#endif
 
 #ifndef SERVERONLY
 	if (!isDedicated)	//otherwise, info used on map loading isn't present
@@ -1999,7 +2001,9 @@ static void SV_Status_f (void)
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
+#ifdef MVD_RECORDING
 	SV_Demo_PrintOutputs();
+#endif
 	NET_PrintConnectionsStatus(svs.sockets);
 
 
@@ -2187,6 +2191,7 @@ void SV_ConSay_f(void)
 		SV_ClientPrintf(client, PRINT_CHAT, "%s\n", text);
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg;
@@ -2198,6 +2203,7 @@ void SV_ConSay_f(void)
 		MSG_WriteChar(msg, '\n');
 		MSG_WriteChar(msg, 0);
 	}
+#endif
 }
 
 static void SV_ConSayOne_f (void)
@@ -2927,6 +2933,7 @@ void SV_PrecacheList_f(void)
 {
 	unsigned int i;
 	char *group = Cmd_Argv(1);
+#ifndef NOLEGACY
 	if (!*group || !strncmp(group, "vwep", 4))
 	{
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
@@ -2935,6 +2942,7 @@ void SV_PrecacheList_f(void)
 				Con_Printf("vwep  %u: %s\n", i, sv.strings.vw_model_precache[i]);
 		}
 	}
+#endif
 	if (!*group || !strncmp(group, "model", 5))
 	{
 		for (i = 0; i < MAX_PRECACHE_MODELS; i++)

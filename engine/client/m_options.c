@@ -229,6 +229,50 @@ void M_Menu_Options_f (void)
 		NULL
 	};
 #endif
+#if !defined(CLIENTONLY) && defined(MVD_RECORDING)
+	extern cvar_t sv_demoAutoRecord;
+	static const char *autorecordopts[] = {
+		"Off",
+		"Singleview",
+		"Multiview",
+		NULL
+	};
+	static const char *autorecordvals[] = {
+		"0",
+		"-1",
+		"1",
+		NULL
+	};
+	extern cvar_t cl_loopbackprotocol;
+	static const char *lprotopts[] = {
+		"Vanilla QW",
+		"FTE QW (recommended)",
+#ifdef NQPROT
+		"FTE NQ",
+		"666",
+		"BJP3",
+//		"DP6",
+//		"DP7",
+		"Automatic (FTE NQ/QW)",
+		"Vanilla NQ",
+#endif
+		NULL
+	};
+	static const char *lprotvals[] = {
+		"qwid",
+		"qw",
+#ifdef NQPROT
+		"nq",
+		"fitz",
+		"bjp3",
+//		"dp6",
+//		"dp7",
+		"auto",
+		"nqid",
+#endif
+		NULL
+	};
+#endif
 
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
@@ -250,6 +294,10 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
 #if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
+#endif
+#if !defined(CLIENTONLY) && defined(MVD_RECORDING)
+		MB_COMBOCVAR("Auto Record", sv_demoAutoRecord, autorecordopts, autorecordvals, NULL),
+		MB_COMBOCVAR("Force Protocol", cl_loopbackprotocol, lprotopts, lprotvals, "Some protocols may impose additional limitations/breakages, and are listed only for potential demo-recording compat."),
 #endif
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
@@ -904,7 +952,7 @@ const char *presetexec[] =
 	"r_bloom 1;"
 	"r_deluxemapping 0;"	//won't be seen anyway
 	"r_particledesc \"high tsshaft\";"
-	"r_waterstyle 3;"
+//	"r_waterstyle 3;"	//too expensive.
 	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"

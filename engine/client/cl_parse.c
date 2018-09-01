@@ -829,6 +829,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 					break;
 				}
 			}
+#ifndef NOLEGACY
 			for (i = 0; i < MAX_VWEP_MODELS; i++)
 			{
 				if (!strcmp(cl.model_name_vwep[i], filename))
@@ -837,6 +838,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 					break;
 				}
 			}
+#endif
 		}
 		S_ResetFailedLoad();	//okay, so this can still get a little spammy in bad places...
 
@@ -1163,6 +1165,7 @@ static void Model_CheckDownloads (void)
 		CL_CheckModelResources(s);
 	}
 
+#ifndef NOLEGACY
 	for (i = 0; i < MAX_VWEP_MODELS; i++)
 	{
 		s = cl.model_name_vwep[i];
@@ -1176,6 +1179,7 @@ static void Model_CheckDownloads (void)
 		CL_CheckOrEnqueDownloadFile(s, s, 0);
 		CL_CheckModelResources(s);
 	}
+#endif
 }
 
 static int CL_LoadModels(int stage, qboolean dontactuallyload)
@@ -1300,6 +1304,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 				endstage();
 			}
 		}
+#ifndef NOLEGACY
 		for (i = 0; i < MAX_VWEP_MODELS; i++)
 		{
 			if (!cl.model_name_vwep[i][0])
@@ -1317,6 +1322,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 				endstage();
 			}
 		}
+#endif
 	}
 
 
@@ -1609,6 +1615,7 @@ void CL_RequestNextDownload (void)
 
 		if (!cl.contentstage)
 		{
+			int pure;
 			stage = 0;
 			stage = CL_LoadModels(stage, true);
 			stage = CL_LoadSounds(stage, true);
@@ -1616,8 +1623,12 @@ void CL_RequestNextDownload (void)
 			cl.contentstage = 0;
 
 			//might be safer to do it later, but kinder to do it before wasting time.
-			if (!FS_PureOkay())
-			{
+			pure = FS_PureOkay();
+			if (pure < 0 || (pure==0 && (cls.download || cl.downloadlist)))
+				return;	//we're downloading something and may still be able to satisfy it.
+			if (pure == 0 && !cls.demoplayback)
+			{	//failure!
+				Con_Printf(CON_ERROR"You are missing pure packages, and they could not be autodownloaded.\nYou may need to purchase an update.\n");
 	#ifdef HAVE_MEDIA_ENCODER
 				if (cls.demoplayback && Media_Capturing())
 				{
@@ -4108,8 +4119,10 @@ static void CL_ParseModellist (qboolean lots)
 			cl_spikeindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
 			cl_playerindex = nummodels;
+#ifndef NOLEGACY
 		if (*cl.model_name_vwep[0] && !strcmp(cl.model_name[nummodels],cl.model_name_vwep[0]) && cl_playerindex == -1)
 			cl_playerindex = nummodels;
+#endif
 		if (!strcmp(cl.model_name[nummodels],"progs/h_player.mdl"))
 			cl_h_playerindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/flag.mdl"))
@@ -6303,6 +6316,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			cl.serverpakschanged = true;
 			CL_CheckServerPacks();
 		}
+#ifndef NOLEGACY
 		else if (!strncmp(stufftext, "//vwep ", 7))			//list of vwep model indexes, because using the normal model precaches wasn't cool enough
 		{													//(from zquake/ezquake)
 			int i;
@@ -6323,6 +6337,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 				}
 			}
 		}
+#endif
 		else if (cls.demoplayback && !strncmp(stufftext, "playdemo ", 9))
 		{	//some demos (like speed-demos-archive's marathon runs) chain multiple demos with playdemo commands
 			//these should still chain properly even when the demo is in some archive(like .dz) or subdir

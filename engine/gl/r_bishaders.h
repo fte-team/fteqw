@@ -7990,7 +7990,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform vec4 e_lmscale;\n"
 "void main ()\n"
 "{\n"
+"#ifdef LM\n"
+"col = vec4(1.0);\n"
+"#else\n"
 "col = vec4(e_lmscale.rgb * ((v_normal.z < 0.73)?r_wallcolor:r_floorcolor), e_lmscale.a);\n"
+"#endif\n"
 "lm = v_lmcoord;\n"
 "gl_Position = ftetransform();\n"
 "}\n"
@@ -9805,6 +9809,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "postproc_ascii",
 "!!cvardf r_glsl_ascii_mono=0\n"
 "!!samps 1\n"
+
 //derived from https://www.shadertoy.com/view/lssGDj
 
 "#include \"sys/defs.h\"\n"
@@ -9838,7 +9843,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;\n"
 
-"if (r_glsl_ascii_mono != 0)\n"
+"if (r_glsl_ascii_mono != 0.0)\n"
 "gray = gray = pow(gray, 0.7); //quake is just too dark otherwise.\n"
 "else\n"
 "gray = gray = pow(gray, 0.45); //col*char is FAR too dark otherwise, and much of the colour will come from the col term anyway.\n"
@@ -9854,7 +9859,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "if (gray > 0.8) n = 11512810.0; // #\n"
 
 "vec2 p = mod(uv/4.0, 2.0) - vec2(1.0);\n"
-"if (r_glsl_ascii_mono != 0)\n"
+"if (r_glsl_ascii_mono != 0.0)\n"
 "col = vec3(character(n, p));\n"
 "else\n"
 "col = col*character(n, p); //note that this is kinda cheating.\n"

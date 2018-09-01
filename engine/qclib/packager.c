@@ -1,4 +1,5 @@
 #include "qcc.h"
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 #include <time.h>
 void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base);
 
@@ -1635,3 +1636,4 @@ void Packager_ParseFile(struct pkgctx_s *ctx, char *scriptname)
 void Packager_Destroy(struct pkgctx_s *ctx)
 {
 }
+#endif

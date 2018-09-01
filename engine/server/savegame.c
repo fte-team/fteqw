@@ -77,9 +77,7 @@ void SV_SavegameComment (char *text, size_t textsize)
 	text[textsize-1] = '\0';
 }
 
-#ifndef QUAKETC
-
-pbool SV_Legacy_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char **ptr)
+pbool SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char **ptr)
 {
 	char token[8192];
 	com_tokentype_t tt;
@@ -163,6 +161,8 @@ pbool SV_Legacy_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const
 	*ptr = l;
 	return true;
 }
+
+#ifndef QUAKETC
 
 //expects the version to have already been parsed
 static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
@@ -409,7 +409,7 @@ static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	strcpy(file, "loadgame");
 	clnum=VFS_READ(f, file+8, filelen);
 	file[filelen+8]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_Legacy_ExtendedSaveData);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_ExtendedSaveData);
 	BZ_Free(file);
 
 	PR_LoadGlabalStruct(false);
@@ -947,7 +947,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	memset(file, 0, filelen+1);
 	VFS_READ(f, file, filelen);
 	file[filelen]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_Legacy_ExtendedSaveData);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_ExtendedSaveData);
 	BZ_Free(file);
 
 	progstype = pt;
@@ -1302,9 +1302,11 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
 			if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
 				VFS_PRINTF (f, "particle %i %s\n", i, COM_QuotedString(sv.strings.particle_precache[i], buf, sizeof(buf), false));
+#ifndef NOLEGACY
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
 			if (sv.strings.vw_model_precache[i])
 				VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
+#endif
 
 		PR_Common_SaveGame(f, svprogfuncs, version >= CACHEGAME_VERSION_BINARY);
 

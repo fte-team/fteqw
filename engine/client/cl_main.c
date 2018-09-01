@@ -390,6 +390,17 @@ void CL_MakeActive(char *gamename)
 	SCR_EndLoadingPlaque();
 	CL_UpdateWindowTitle();
 
+#ifdef MVD_RECORDING
+	if (sv_demoAutoRecord.ival && !sv.mvdrecording && !cls.demorecording && !cls.demoplayback && MVD_CheckSpace(false))
+	{	//don't auto-record if we're already recording... or playing a different demo.
+		extern cvar_t sv_demoAutoPrefix;
+		char timestamp[64];
+		time_t tm = time(NULL);
+		strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", localtime(&tm));
+		Cbuf_AddText(va("record %s%s%s%s_%s\n", sv_demoDir.string, *sv_demoDir.string?"/":"", sv_demoAutoPrefix.string, host_mapname.string, timestamp), RESTRICT_LOCAL);
+	}
+#endif
+
 	TP_ExecTrigger("f_begin", true);
 	if (cls.demoplayback)
 		TP_ExecTrigger("f_spawndemo", true);
@@ -1445,8 +1456,7 @@ void CL_Rcon_f (void)
 	{
 		char	cryptpass[1024], crypttime[64];
 		const char *hex = "0123456789ABCDEF";	//must be upper-case for compat with mvdsv.
-		time_t clienttime;
-		time(&clienttime);
+		time_t clienttime = time(NULL);
 		size_t digestsize;
 		unsigned char digest[64];
 		const unsigned char **tokens = alloca(sizeof(*tokens)*(4+Cmd_Argc()*2));

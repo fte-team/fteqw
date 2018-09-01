@@ -605,8 +605,10 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		Con_TPrintf("Server ended\n");
 		SV_FinalMessage("Server unspawned\n");
 
+#ifdef MVD_RECORDING
 		if (sv.mvdrecording)
 			SV_MVDStop (MVD_CLOSE_STOPPED, false);
+#endif
 
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
@@ -1725,8 +1727,9 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 	FS_ReferenceControl(0, 0);
 
-
+#ifdef MVD_RECORDING
 	SV_MVD_SendInitialGamestate(NULL);
+#endif
 
 	SSV_UpdateAddresses();
 

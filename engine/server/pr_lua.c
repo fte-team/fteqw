@@ -2836,7 +2836,7 @@ cont:
 	return data;
 }
 
-static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend))
+static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool (PDECL *unhandledcallback)(pubprogfuncs_t *,void *,const char **))
 {
 	lua_State *L = lua.ctx;
 	struct edict_s *ed = NULL;

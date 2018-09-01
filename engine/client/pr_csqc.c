@@ -876,6 +876,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	}
 
 	effects = in->v->effects;
+	if (effects & EF_FULLBRIGHT)
+		out->flags |= RF_FULLBRIGHT;
 	if (effects & NQEF_ADDITIVE)
 		out->flags |= RF_ADDITIVE;
 	if (effects & EF_NOSHADOW)
@@ -7022,7 +7024,7 @@ void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(v
 					//also kinda irrelevant with sv_pure.
 #ifndef FTE_TARGET_WEB
 					if (file
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(MVD_RECORDING)
 						&& !sv_demo_write_csqc.ival
 #endif
 						)

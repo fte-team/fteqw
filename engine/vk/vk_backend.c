@@ -3597,7 +3597,10 @@ static void BE_DrawMeshChain_Internal(void)
 
 		vkCmdBindVertexBuffers(vk.rendertarg->cbuf, 0, VK_BUFF_MAX, vertexbuffers, vertexoffsets);
 		if (BE_SetupMeshProgram(altshader->prog, altshader->passes, altshader->flags, idxcount))
+		{
+//			vkCmdPushConstants(vk.rendertarg->cbuf, altshader->prog->layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(shaderstate.curtexnums->factors), shaderstate.curtexnums->factors);
 			vkCmdDrawIndexed(vk.rendertarg->cbuf, idxcount, 1, idxfirst, 0, 0);
+		}
 	}
 	else if (1)
 	{

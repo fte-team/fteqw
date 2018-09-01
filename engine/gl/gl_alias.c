@@ -676,7 +676,11 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)
 			{
 				//heads don't get skinned, only players (and weaponless players), they do still get recoloured.
-				if (model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0])
+				if (model==cl.model_precache[cl_playerindex]
+#ifndef NOLEGACY
+					|| model==cl.model_precache_vwep[0]
+#endif
+				)
 				{
 					if (!cl.players[e->playerindex].qwskin)
 						Skin_Find(&cl.players[e->playerindex]);
@@ -1333,15 +1337,17 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		e->light_known = 2;
 		return e->light_known-1;
 	}
+	if (
 #ifdef HEXEN2
-	if ((e->drawflags & MLS_MASK) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
+		(e->drawflags & MLS_MASK) == MLS_FULLBRIGHT ||
+#endif
+		(e->flags & RF_FULLBRIGHT))
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
 		e->light_known = 2;
 		return e->light_known-1;
 	}
-#endif
 	if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;

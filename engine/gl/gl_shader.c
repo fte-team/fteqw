@@ -2505,6 +2505,10 @@ static shaderkey_t shaderkeys[] =
 	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
 	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
 
+	{"basefactor",			NULL,						"fte"},	//material scalers for glsl
+	{"specularfactor",		NULL,						"fte"},	//material scalers for glsl
+	{"fullbrightfactor",	NULL,						"fte"},	//material scalers for glsl
+
 	//dp compat
 	{"reflectcube",			Shader_ReflectCube,			"dp"},
 	{"camera",				Shader_DP_Camera,			"dp"},
@@ -5847,11 +5851,10 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 	if (!builtin && r_lightmap.ival)
 		builtin = (
 				"{\n"
-					"fte_program drawflat_wall\n"
+				"fte_program drawflat_wall#LM\n"
 					"{\n"
 						"map $lightmap\n"
 						"tcgen lightmap\n"
-						"rgbgen srgb 255 255 255\n"
 					"}\n"
 				"}\n"
 			);

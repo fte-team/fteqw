@@ -501,6 +501,7 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...)
 	if(strlen(string) >= sizeof(string))
 		Sys_Error("SV_ClientPrintf: Buffer stomped\n");
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
@@ -508,6 +509,7 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...)
 		MSG_WriteByte (msg, level);
 		MSG_WriteString (msg, string);
 	}
+#endif
 
 	if (cl->controller)
 		SV_PrintToClient(cl->controller, level, string);
@@ -531,6 +533,7 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 	if(strlen(string) >= sizeof(string))
 		Sys_Error("SV_ClientTPrintf: Buffer stomped\n");
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
@@ -538,6 +541,7 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 		MSG_WriteByte (msg, level);
 		MSG_WriteString (msg, string);
 	}
+#endif
 
 	SV_PrintToClient(cl, level, string);
 }
@@ -585,6 +589,7 @@ void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
 		SV_PrintToClient(cl, level, string);
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(string)+3);
@@ -592,6 +597,7 @@ void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
 		MSG_WriteByte (msg, level);
 		MSG_WriteString (msg, string);
 	}
+#endif
 }
 
 
@@ -1136,6 +1142,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording && ((demo.recorder.fteprotocolextensions & with) == with) && !(demo.recorder.fteprotocolextensions & without))
 	{
 		sizebuf_t *msg;
@@ -1184,6 +1191,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 		SZ_Write(msg, sv.multicast.data, sv.multicast.cursize);
 	}
+#endif
 
 #ifdef NQPROT
 	SZ_Clear (&sv.nqmulticast);
@@ -1336,6 +1344,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 			callback(client, &client->datagram, ctx);
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg;
@@ -1388,6 +1397,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 		}
 		callback(&demo.recorder, msg, ctx);
 	}
+#endif
 }
 
 //version does all the work now
@@ -1803,12 +1813,14 @@ void SV_WriteCenterPrint(client_t *cl, char *s)
 	}
 	ClientReliableWrite_String (cl, s);
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_single, cl - svs.clients, 2 + strlen(s));
 		MSG_WriteByte (msg, svc_centerprint);
 		MSG_WriteString (msg, s);
 	}
+#endif
 }
 
 /*
@@ -2928,8 +2940,10 @@ void SV_FlushBroadcasts (void)
 		}
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 		SV_MVD_WriteReliables(true);
+#endif
 
 	SZ_Clear (&sv.reliable_datagram);
 	SZ_Clear (&sv.datagram);
@@ -3126,6 +3140,7 @@ void SV_UpdateToReliableMessages (void)
 							ClientReliableWrite_Short(client, host_client->edict->v->frags);
 					}
 
+#ifdef MVD_RECORDING
 					if (sv.mvdrecording)
 					{
 						sizebuf_t *msg = MVDWrite_Begin(dem_all, 0, 4);
@@ -3133,6 +3148,7 @@ void SV_UpdateToReliableMessages (void)
 						MSG_WriteByte(msg, i);
 						MSG_WriteShort(msg, host_client->edict->v->frags);
 					}
+#endif
 
 					host_client->old_frags = host_client->edict->v->frags;
 				}
@@ -3194,6 +3210,7 @@ void SV_UpdateToReliableMessages (void)
 						ClientReliableWrite_Short(client, curfrags);
 				}
 
+#ifdef MVD_RECORDING
 				if (sv.mvdrecording)
 				{
 					sizebuf_t *msg = MVDWrite_Begin(dem_all, 0, 4);
@@ -3201,6 +3218,7 @@ void SV_UpdateToReliableMessages (void)
 					MSG_WriteByte(msg, i);
 					MSG_WriteShort(msg, curfrags);
 				}
+#endif
 
 				host_client->old_frags = curfrags;
 			}
@@ -3384,6 +3402,7 @@ void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *k
 		SV_SendUserinfoChange(client, about, isbasic, key, newval);
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording && (isbasic || (demo.recorder.fteprotocolextensions & PEXT_BIGUSERINFOS)))
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(newval)+4);
@@ -3392,6 +3411,7 @@ void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *k
 		MSG_WriteString (msg, key);
 		MSG_WriteString (msg, newval);
 	}
+#endif
 }
 
 /*
@@ -3469,13 +3489,6 @@ void SV_SendClientMessages (void)
 #ifdef SVCHAT
 		SV_ChatThink(c);
 #endif
-
-		if (c->wasrecorded)
-		{
-			c->netchan.message.cursize = 0;
-			c->datagram.cursize = 0;
-			continue;
-		}
 
 #ifdef NEWSPEEDCHEATPROT
 		//allow the client more time for client movement.
@@ -3665,8 +3678,10 @@ void SV_SendClientMessages (void)
 		}
 		c->lastoutgoingphysicstime = sv.world.physicstime;
 	}
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 		SV_ProcessSendFlags(&demo.recorder);
+#endif
 	SV_CleanupEnts();
 }
 
@@ -3674,6 +3689,7 @@ void SV_SendClientMessages (void)
 //#pragma optimize( "", on )
 //#endif
 
+#ifdef MVD_RECORDING
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 
 void DemoWriteQTVTimePad(int msecs);
@@ -3871,7 +3887,7 @@ void SV_SendMVDMessage(void)
 
 //	MVDSetMsgBuf(demo.dbuf,&demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf);
 }
-
+#endif
 
 
 /*

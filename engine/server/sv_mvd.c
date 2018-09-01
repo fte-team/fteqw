@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#ifdef MVD_RECORDING
 #ifndef CLIENTONLY
 
 #include "winquake.h"
@@ -26,16 +27,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "netinc.h"
 
-
 void SV_MVDStop_f (void);
 
 #define demo_size_padding 0x1000
 
 static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
+cvar_t	sv_demoAutoRecord = CVARAD("sv_demoAutoRecord", "0", "cl_autodemo", "If set, automatically record demos.\n-1: record on client connection.\n1+: record once there's this many active players on the server.");
 cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "", "If set, demo data will be flushed only periodically");
 cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
-cvar_t	sv_demoMaxDirSize = CVARD("sv_demoMaxDirSize", "102400", "Maximum allowed serverside storage for mvds. set to blank to remove the limit. New demos cannot be recorded once this reaches 0.");	//so ktpro autorecords.
+cvar_t	sv_demoMaxDirSize = CVARD("sv_demoMaxDirSize", "100mb", "Maximum allowed serverside storage space for mvds. set to blank to remove the limit. New demos cannot be recorded once this size is reached.");	//so ktpro autorecords.
+cvar_t	sv_demoMaxDirCount = CVARD("sv_demoMaxDirCount", "500", "Maximum allowed serverside mvds to record. Set to 0 to remove the limit. New demos cannot be recorded once this many demos have already been recorded.");	//so ktpro autorecords.
+cvar_t	sv_demoMaxDirAge = CVARD("sv_demoMaxDirAge", "0", "Maximum allowed age for demos, any older demos will be deleted when sv_demoClearOld is set (this doesn't prevent recording new demos).");
+cvar_t	sv_demoClearOld = CVARD("sv_demoClearOld", "0", "Automatically delete demos to keep the demos count reasonable.");
 cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
 cvar_t	sv_demofps = CVAR("sv_demofps", "30");
 cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");
@@ -49,6 +53,7 @@ cvar_t qtv_password		= CVAR(		"qtv_password", "");
 cvar_t qtv_maxstreams	= CVARAFD(	"qtv_maxstreams", "0",
 									"mvd_maxstreams",  0, "This is the maximum number of QTV clients/proxies that may be directly connected to the server. If empty then there is no limit. 0 disallows any streaming.");
 
+cvar_t			sv_demoAutoPrefix = CVAR("sv_demoAutoPrefix", "auto_");
 cvar_t			sv_demoPrefix = CVAR("sv_demoPrefix", "");
 cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
 cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
@@ -656,20 +661,20 @@ void DemoWriteQTVTimePad(int msecs)	//broadcast to all proxies
 // returns the file size
 // return -1 if file is not present
 // the file should be in BINARY mode for stupid OSs that care
-#define MAX_DIRFILES 1000
 #define MAX_MVD_NAME 64
 
 typedef struct
 {
 	char	name[MAX_MVD_NAME];
-	int		size;
+	qofs_t	size;
 	time_t	mtime;
+	searchpathfuncs_t *path;
 } file_t;
 
 typedef struct
 {
 	file_t *files;
-	int		size;
+	qofs_t	size;
 	int		numfiles;
 	int		numdirs;
 
@@ -690,11 +695,19 @@ static int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime,
 		return true;
 	}
 	if (dir->numfiles == dir->maxfiles)
-		return true;
+	{
+		int nc = dir->numfiles + 256;
+		file_t *n = realloc(dir->files, nc*sizeof(*dir->files));
+		if (!n)
+			return false;
+		dir->files = n;
+		dir->maxfiles = nc;
+	}
 	f = &dir->files[dir->numfiles++];
 	Q_strncpyz(f->name, fname, sizeof(f->name));
 	f->size = fsize;
 	f->mtime = mtime;
+	f->path = spath;
 	dir->size += fsize;
 
 	return true;
@@ -712,22 +725,29 @@ static int QDECL Sys_listdir_Sort(const void *va, const void *vb)
 	return -1;
 }
 
-static dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
+static dir_t *Sys_listdemos (char *path, int ispublic, qboolean usesorting)
 {
+	const char *exts[] = {
+		".mvd", ".mvd.gz",
+		".qwz", ".qwz.gz",
+#ifdef NQPROT
+		".dem", ".dem.gz",
+#endif
+#if defined(Q2SERVER) || defined(Q2CLIENT)
+		".dm2", ".dm2.gz"
+#endif
+	};
 	char searchterm[MAX_QPATH];
+	size_t i;
 
-	unsigned int maxfiles = MAX_DIRFILES;
-	dir_t *dir = malloc(sizeof(*dir) + sizeof(*dir->files)*maxfiles);
+	dir_t *dir = malloc(sizeof(*dir));
 	memset(dir, 0, sizeof(*dir));
-	dir->files = (file_t*)(dir+1);
-	dir->maxfiles = maxfiles;
+	dir->files = NULL;
+	dir->maxfiles = 0;
 
-	Q_strncpyz(searchterm, va("%s/*%s", path, ext), sizeof(searchterm));
-	COM_EnumerateFiles(searchterm, Sys_listdirFound, dir);
-
-	if (!strcmp(ext, ".mvd"))
+	for (i = 0; i < (ispublic?2:countof(exts)); i++)
 	{
-		Q_strncpyz(searchterm, va("%s/*%s.gz", path, ext), sizeof(searchterm));
+		Q_strncpyz(searchterm, va("%s/*%s", path, exts[i]), sizeof(searchterm));
 		COM_EnumerateFiles(searchterm, Sys_listdirFound, dir);
 	}
 
@@ -738,6 +758,8 @@ static dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 }
 static void Sys_freedir(dir_t *dir)
 {
+	if (dir)
+		free(dir->files);
 	free(dir);
 }
 
@@ -1175,6 +1197,9 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoCacheSize,	MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxSize,		MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxDirSize,	MVDVARGROUP);
+	Cvar_Register (&sv_demoMaxDirCount,	MVDVARGROUP);
+	Cvar_Register (&sv_demoMaxDirAge,	MVDVARGROUP);
+	Cvar_Register (&sv_demoClearOld,	MVDVARGROUP);
 	Cvar_Register (&sv_demoDir,			MVDVARGROUP);
 	Cvar_Register (&sv_demoPrefix,		MVDVARGROUP);
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
@@ -1182,6 +1207,8 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoExtraNames,	MVDVARGROUP);
 	Cvar_Register (&sv_demoExtensions,	MVDVARGROUP);
 	Cvar_Register (&sv_demoAutoCompress,MVDVARGROUP);
+	Cvar_Register (&sv_demoAutoRecord,	MVDVARGROUP);
+	Cvar_Register (&sv_demoAutoPrefix,	MVDVARGROUP);
 	Cvar_Register (&sv_demo_write_csqc,MVDVARGROUP);
 }
 
@@ -1261,6 +1288,7 @@ mvddest_t *SV_FindRecordFile(char *match, mvddest_t ***link_out)
 	}
 	return NULL;
 }
+
 /*
 ====================
 SV_InitRecord
@@ -1269,11 +1297,9 @@ SV_InitRecord
 
 mvddest_t *SV_MVD_InitRecordFile (char *name)
 {
-	char *s;
+	char *s, *txtname;
 	mvddest_t *dst;
 	vfsfile_t *file;
-
-	char path[MAX_OSPATH];
 
 	if (strlen(name) >= countof(dst->filename))
 	{
@@ -1289,7 +1315,7 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 	}
 
 #ifdef AVAIL_GZDEC
-	if (!Q_strcasecmp("gz", COM_FileExtension(name, path, sizeof(path))))
+	if (!Q_strcasecmp(".gz", COM_GetFileExtension(name, NULL)))
 		file = FS_GZ_WriteFilter(file, true, true);
 #endif
 
@@ -1344,7 +1370,8 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "memory", name);
 		break;
 	case DEST_THREADEDFILE:
-		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "worker thread", name);
+		//SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "worker thread", name);
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording:\n%s\n", name);
 		break;
 	case DEST_FILE:
 		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "disk", name);
@@ -1352,31 +1379,39 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 	}
 	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
-	Q_strncpyz(path, name, MAX_OSPATH);
-	Q_strncpyz(path + strlen(path) - 3, "txt", MAX_OSPATH - strlen(path) + 3);
-
+	txtname = SV_MVDName2Txt(name);
 	if (sv_demotxt.value)
 	{
 		vfsfile_t *f;
 
-		f = FS_OpenVFS (path, "wt", FS_GAMEONLY);
-		if (f != NULL)
+		if (sv_demotxt.value == 2)
 		{
-			char buf[2000];
-			date_t date;
+			//this is a special mode for mods that want to write it instead (done via the sv_demoinfoadd command).
+			f = FS_OpenVFS (txtname, "wt", FS_GAMEONLY);
+			if (f)
+				VFS_CLOSE(f);
+		}
+		else
+		{
+			f = FS_OpenVFS (txtname, "wt", FS_GAMEONLY);
+			if (f != NULL)
+			{
+				char buf[2000];
+				date_t date;
 
-			COM_TimeOfDay(&date);
+				COM_TimeOfDay(&date);
 
-			snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, svs.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
-			VFS_WRITE(f, buf, strlen(buf));
-			VFS_FLUSH(f);
-			VFS_CLOSE(f);
+				snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, svs.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
+				VFS_WRITE(f, buf, strlen(buf));
+				VFS_FLUSH(f);
+				VFS_CLOSE(f);
+			}
 		}
 	}
 	else
 	{
-		FS_Remove(path, FS_GAMEONLY);
-		FS_FlushFSHashRemoved(path);
+		FS_Remove(txtname, FS_GAMEONLY);
+		FS_FlushFSHashRemoved(txtname);
 	}
 
 	return dst;
@@ -1607,13 +1642,8 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 		}
 
 		//pointless extensions that are redundant with mvds
-		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP | PEXT_CHUNKEDDOWNLOADS;
-#ifdef PEXT_Q2BSP
-		demo.recorder.fteprotocolextensions &= ~PEXT_Q2BSP;
-#endif
-#ifdef PEXT_Q3BSP
-		demo.recorder.fteprotocolextensions &= ~PEXT_Q3BSP;
-#endif
+		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_CHUNKEDDOWNLOADS;
+		demo.recorder.fteprotocolextensions &= ~PEXT1_HIDEPROTOCOLS;
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);
@@ -1917,6 +1947,86 @@ char *SV_CleanName (unsigned char *name)
 	return out;
 }
 
+//figure out the actual size limit. this is somewhat approximate anyway.
+qofs_t MVD_DemoMaxDirSize(void)
+{
+	char *e;
+	double maxdirsize = strtod(sv_demoMaxDirSize.string, &e);
+	if (*e == ' ' || *e == '\t')
+		e++;
+	//that will be trailed by g[b], m[b], k[b], or b
+	if (*e == 'b' || *e == 'B')
+		return maxdirsize;
+	else if (*e == 'k' || *e == 'K')
+		return maxdirsize * 1024;
+	else if (*e == 'm' || *e == 'M')
+		return maxdirsize * 1024*1024;
+	else if (*e == 'g' || *e == 'G')
+		return maxdirsize * 1024*1024*1024;
+	else
+		return maxdirsize * 1024;	//assume kb.
+}
+//returns if there's enough disk space to record another demo.
+qboolean MVD_CheckSpace(qboolean broadcastwarnings)
+{
+	dir_t	*dir;
+
+	qofs_t maxdirsize = MVD_DemoMaxDirSize();
+	if (maxdirsize > 0 || sv_demoMaxDirCount.ival > 0 || sv_demoMaxDirAge.ival > 0)
+	{
+		dir = Sys_listdemos(sv_demoDir.string, false, SORT_BY_DATE);
+		if (sv_demoClearOld.ival && *sv_demoDir.string)
+		{
+			time_t removebeforetime = time(NULL) - sv_demoMaxDirAge.value*60*60*24;
+			while (dir->numfiles && (
+				(maxdirsize>0 && dir->size > maxdirsize) ||
+				(sv_demoMaxDirCount.ival>0 && dir->numfiles >= sv_demoMaxDirCount.ival) ||
+				(sv_demoMaxDirAge.ival && dir->files[dir->numfiles-1].mtime && dir->files[dir->numfiles-1].mtime - removebeforetime < 0)))
+			{
+				file_t *f = &dir->files[dir->numfiles-1];	//this is the file we want to kill.
+				if (!f->path || !f->path->RemoveFile)
+				{	//erm, can't remove it...
+					dir->size -= f->size;
+					dir->numfiles--;
+					continue;
+				}
+				if (f->path->RemoveFile(f->path, f->name))
+				{	//okay, looks like we managed to kill it.
+					Con_Printf(CON_WARNING"Removed demo \"%s\"\n", f->name);
+					dir->size -= f->size;
+					dir->numfiles--;
+
+					//Try to take the .txt too.
+					f->path->RemoveFile(f->path, SV_MVDName2Txt(f->name));
+					continue;
+				}
+			}
+		}
+
+		if (dir->numfiles && sv_demoMaxDirCount.ival>0 && dir->numfiles >= sv_demoMaxDirCount.ival)
+		{
+			if (broadcastwarnings)
+				SV_BroadcastPrintf(PRINT_MEDIUM, CON_WARNING"insufficient directory space, increase server's sv_demoMaxDirCount\n");
+			else
+				Con_Printf(CON_WARNING"insufficient demo space, increase sv_demoMaxDirCount\n");
+			Sys_freedir(dir);
+			return false;
+		}
+		if (dir->numfiles && maxdirsize>0 && dir->size > maxdirsize)
+		{
+			if (broadcastwarnings)
+				SV_BroadcastPrintf(PRINT_MEDIUM, CON_WARNING"insufficient directory space, increase server's sv_demoMaxDirSize\n");
+			else
+				Con_Printf(CON_WARNING"insufficient demo space, increase sv_demoMaxDirSize\n");
+			Sys_freedir(dir);
+			return false;
+		}
+
+		Sys_freedir(dir);
+	}
+	return true;
+}
+
 /*
 ====================
 SV_Record_f
@@ -1929,7 +2039,6 @@ void SV_MVD_Record_f (void)
 	int		c;
 	char	name[MAX_OSPATH+MAX_MVD_NAME];
 	char	newname[MAX_MVD_NAME];
-	dir_t	*dir;
 
 	c = Cmd_Argc();
 	if (c != 2)
@@ -1943,15 +2052,8 @@ void SV_MVD_Record_f (void)
 		return;
 	}
 
-	dir = Sys_listdir(sv_demoDir.string, ".*", SORT_NO);
-	if (sv_demoMaxDirSize.value && dir->size > sv_demoMaxDirSize.value*1024)
-	{
-		Con_Printf("insufficient directory space, increase sv_demoMaxDirSize\n");
-		Sys_freedir(dir);
+	if (!MVD_CheckSpace(Cmd_FromGamecode()))
 		return;
-	}
-	Sys_freedir(dir);
-	dir = NULL;
 
 	Q_strncpyz(newname, va("%s%s", sv_demoPrefix.string, SV_CleanName(Cmd_Argv(1))),
 			sizeof(newname) - strlen(sv_demoSuffix.string) - 5);
@@ -1973,6 +2075,49 @@ void SV_MVD_Record_f (void)
 	// open the demo file and start recording
 	//
 	SV_MVD_Record (SV_MVD_InitRecordFile(name));
+}
+
+//called when a connecting player becomes active.
+void SV_MVD_AutoRecord (void)
+{
+	//not enabled (for the server) anyway.
+	if (sv_demoAutoRecord.ival <= 0)
+		return;
+
+	//don't record multiple...
+	if (sv.mvdrecording)
+		return;
+
+	//only do it if we're underneath our quotas.
+	if (!MVD_CheckSpace(true))
+		return;
+
+	if (sv_demoAutoRecord.ival > 0)
+	{
+		int playercount = 0, i;
+		for (i = 0; i < svs.allocated_client_slots; i++)
+		{
+			if (svs.clients[i].state >= cs_spawned)
+				playercount++;
+		}
+		if (playercount >= sv_demoAutoRecord.ival)
+		{	//okay, we've reached our player count, its time to start recording now.
+			char name[MAX_OSPATH];
+			char timestamp[64];
+			time_t tm = time(NULL);
+			strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", localtime(&tm));
+			Q_snprintfz(name, sizeof(name), "%s/%s%s_%s", sv_demoDir.string, sv_demoAutoPrefix.string, svs.name, timestamp);
+#ifdef AVAIL_GZDEC
+			if (sv_demoAutoCompress.ival == 1 || !*sv_demoAutoCompress.string)	//default is to gzip.
+				Q_strncatz(name, ".mvd.gz", sizeof(name));
+			else
+#endif
+				Q_strncatz(name, ".mvd", sizeof(name));
+			FS_CreatePath (name, FS_GAMEONLY);
+
+			SV_MVD_Record (SV_MVD_InitRecordFile(name));
+		}
+	}
 }
 
 void SV_MVD_QTVReverse_f (void)
@@ -2170,7 +2315,6 @@ int	Dem_CountTeamPlayers (char *t)
 void SV_MVDEasyRecord_f (void)
 {
 	int		c;
-	dir_t	*dir;
 	char	name[1024];
 	char	name2[MAX_OSPATH*7]; // scream
 	//char	name2[MAX_OSPATH*2];
@@ -2190,14 +2334,8 @@ void SV_MVDEasyRecord_f (void)
 		return;
 	}
 
-	dir = Sys_listdir(sv_demoDir.string, ".*", SORT_NO);
-	if (sv_demoMaxDirSize.value && dir->size > sv_demoMaxDirSize.value*1024)
-	{
-		Con_Printf("insufficient directory space, increase sv_demoMaxDirSize\n");
-		Sys_freedir(dir);
+	if (!MVD_CheckSpace(Cmd_FromGamecode()))
 		return;
-	}
-	Sys_freedir(dir);
 
 	if (c == 2)
 	{
@@ -2286,9 +2424,10 @@ void SV_MVDList_f (void)
 	file_t	*list;
 	float	f;
 	int		i,j,show;
+	qofs_t maxdirsize = MVD_DemoMaxDirSize();
 
 	Con_Printf("content of %s/*.mvd\n", sv_demoDir.string);
-	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
+	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
 	if (!list->name[0])
 	{
@@ -2307,10 +2446,10 @@ void SV_MVDList_f (void)
 			for (d = demo.dest; d; d = d->nextdest)
 			{
 				if (d->desttype != DEST_STREAM && !strcmp(list->name, d->simplename))
-					Con_Printf("*%d: ^[^7%s\\demo\\%s/%s^] %dk\n", i, list->name, sv_demoDir.string, list->name, d->totalsize/1024);
+					Con_Printf("*%d: ^[^7%s\\demo\\%s/%s^] %uk\n", i, list->name, sv_demoDir.string, list->name, (unsigned int)(d->totalsize/1024));
 			}
 			if (!d)
-				Con_Printf("%d: ^[^7%s\\demo\\%s/%s^] %dk\n", i, list->name, sv_demoDir.string, list->name, list->size/1024);
+				Con_Printf("%d: ^[^7%s\\demo\\%s/%s^] %uk\n", i, list->name, sv_demoDir.string, list->name, (unsigned int)(list->size/1024));
 		}
 	}
 
@@ -2318,9 +2457,9 @@ void SV_MVDList_f (void)
 		dir->size += d->totalsize;
 
 	Con_Printf("\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
-	if (sv_demoMaxDirSize.value)
+	if (maxdirsize)
 	{
-		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
+		f = (maxdirsize - dir->size)/(1024*1024);
 		if ( f < 0)
 			f = 0;
 		Con_Printf("space available: %.1fMB\n", f);
@@ -2337,9 +2476,10 @@ void SV_UserCmdMVDList_f (void)
 	file_t	*list;
 	float	f;
 	int		i,j,show;
+	qofs_t maxdirsize = MVD_DemoMaxDirSize();
 
 	SV_ClientPrintf(host_client, PRINT_HIGH, "available demos:\n");
-	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
+	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
 	if (!list->name[0])
 	{
@@ -2363,23 +2503,26 @@ void SV_UserCmdMVDList_f (void)
 			if (!d)
 			{
 				if (host_client->fteprotocolextensions2 & PEXT_CSQC)	//its a hack to use csqc this way, but oh well, but other clients don't want the gibberish.
-					SV_ClientPrintf(host_client, PRINT_HIGH, "%d: ^[%s\\type\\/download demos/%s^] %dk\n", i, list->name, list->name, list->size/1024);
+					SV_ClientPrintf(host_client, PRINT_HIGH, "%d: ^[%s\\type\\/download demos/%s^] %dk\n", i, list->name, list->name, (unsigned int)(list->size/1024));
 				else
-					SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
+					SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, (unsigned int)(list->size/1024));
 			}
 		}
 
-		if (host_client->num_backbuf == MAX_BACK_BUFFERS)
+		if (host_client->num_backbuf >= MAX_BACK_BUFFERS/2)
+		{
 			SV_ClientPrintf(host_client, PRINT_HIGH, "*MORE*\n");
+			break;
+		}
 	}
 
 	for (d = demo.dest; d; d = d->nextdest)
 		dir->size += d->totalsize;
 
 	SV_ClientPrintf(host_client, PRINT_HIGH, "\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
-	if (sv_demoMaxDirSize.value)
+	if (maxdirsize)
 	{
-		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
+		f = (maxdirsize - dir->size)/(1024*1024);
 		if ( f < 0)
 			f = 0;
 		SV_ClientPrintf(host_client, PRINT_HIGH, "space available: %.1fMB\n", f);
@@ -2395,6 +2538,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 	file_t	*list;
 	float	f;
 	int		i;
+	qofs_t maxdirsize = MVD_DemoMaxDirSize();
 
 	VFS_PRINTF(pipe,
 		"<html>"
@@ -2418,7 +2562,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 		, fs_manifest->formalname, hostname.string);
 
 	VFS_PRINTF(pipe, "available demos:<br/>\n");
-	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
+	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
 	if (!list->name[0])
 	{
@@ -2436,7 +2580,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 		{
 			char datetime[64];
 			strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localtime(&list->mtime));
-			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %dk <a href='javascript:void(0)' onclick='playdemo(\"%s\")'>play</a> %s<br/>\n", i, list->name, list->name, list->size/1024, list->name, datetime);
+			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %uk <a href='javascript:void(0)' onclick='playdemo(\"%s\")'>play</a> %s<br/>\n", i, list->name, list->name, (unsigned int)(list->size/1024), list->name, datetime);
 		}
 	}
 
@@ -2444,9 +2588,9 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 		dir->size += d->totalsize;
 
 	VFS_PRINTF(pipe, "<br/>\ndirectory size: %.1fMB<br/>\n",(float)dir->size/(1024*1024));
-	if (sv_demoMaxDirSize.value)
+	if (maxdirsize)
 	{
-		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
+		f = (maxdirsize - dir->size)/(1024*1024);
 		if ( f < 0)
 			f = 0;
 		VFS_PRINTF(pipe, "space available: %.1fMB<br/>\n", f);
@@ -2479,7 +2623,7 @@ char *SV_MVDNum(char *buffer, int bufferlen, int num)	//lame number->name lookup
 	file_t	*list;
 	dir_t	*dir;
 
-	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
+	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
 
 	if (num < 0)
@@ -2501,16 +2645,23 @@ char *SV_MVDNum(char *buffer, int bufferlen, int num)	//lame number->name lookup
 char *SV_MVDName2Txt(char *name)
 {
 	char s[MAX_OSPATH];
+	const char *ext;
 
 	if (!name)
 		return NULL;
 
 	Q_strncpyz(s, name, MAX_OSPATH);
 
-	if (strstr(s, ".mvd.gz") != NULL)
-		Q_strncpyz(s + strlen(s) - 6, "txt", MAX_OSPATH - strlen(s) + 6);
-	else
-		Q_strncpyz(s + strlen(s) - 3, "txt", MAX_OSPATH - strlen(s) + 3);
+	ext = COM_GetFileExtension(s, NULL);
+	if (!Q_strcasecmp(ext, ".gz"))
+		ext = COM_GetFileExtension(s, ext);
+	else if (!Q_strcasecmp(ext, ".xz"))
+		ext = COM_GetFileExtension(s, ext);
+	if (!ext || !*ext)	//if there's no extension on there, then make sure we're pointing to the end of the string.
+		ext = s+strlen(s);
+	if (ext > s+sizeof(s)+4)	//make sure we don't overflow the buffer by truncating the base/path, ensuring that we don't write some other type of file.
+		ext = s+sizeof(s)+4;	//should probably make this an error case and abort instead.
+	strcpy((char*)ext, ".txt");
 
 	return va("%s", s);
 }
@@ -2529,7 +2680,7 @@ void SV_MVDRemove_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_Printf("rmdemo <demoname> - removes the demo\nrmdemo *<token>   - removes demo with <token> in the name\nrmdemo *          - removes all demos\n");
+		Con_Printf("%s <demoname> - removes the demo\nrmdemo *<token>   - removes demo with <token> in the name\nrmdemo *          - removes all demos\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2542,7 +2693,7 @@ void SV_MVDRemove_f (void)
 		// remove all demos with specified token
 		ptr++;
 
-		dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
+		dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 		list = dir->files;
 		for (i = 0;i < dir->numfiles; list++)
 		{
@@ -2605,14 +2756,14 @@ void SV_MVDRemoveNum_f (void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_Printf("rmdemonum <#>\n");
+		Con_Printf("%s <#>\n", Cmd_Argv(0));
 		return;
 	}
 
 	val = Cmd_Argv(1);
 	if ((num = atoi(val)) == 0 && val[0] != '0')
 	{
-		Con_Printf("rmdemonum <#>\n");
+		Con_Printf("%s <#>\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2644,12 +2795,13 @@ void SV_MVDInfoAdd_f (void)
 	char *name, *args, path[MAX_OSPATH];
 	vfsfile_t *f;
 
+	//** is a special hack for ktx
 	if (Cmd_Argc() < 3) {
-		Con_Printf("usage:MVDInfoAdd <demonum> <info string>\n<demonum> = * for currently recorded demo\n");
+		Con_Printf("%s <demonum> <info string>\n<demonum> = * for currently recorded demo\n", Cmd_Argv(0));
 		return;
 	}
 
-	if (!strcmp(Cmd_Argv(1), "*"))
+	if (!strcmp(Cmd_Argv(1), "*") || !strcmp(Cmd_Argv(1), "**"))
 	{
 		mvddest_t *active = SV_FindRecordFile(NULL, NULL);
 		if (!active)
@@ -2673,19 +2825,34 @@ void SV_MVDInfoAdd_f (void)
 		snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, name);
 	}
 
-	if ((f = FS_OpenVFS(path, "a+t", FS_GAMEONLY)) == NULL)
+	if ((f = FS_OpenVFS(path, "ab", FS_GAMEONLY)) == NULL)
 	{
-		Con_Printf("failed to open the file\n");
+		Con_Printf("%s: failed to open \"%s\"\n", Cmd_Argv(0), path);
 		return;
 	}
 
-	// skip demonum
-	args = Cmd_Args();
-	while (*args > 32) args++;
-	while (*args && *args <= 32) args++;
+	if (!strcmp(Cmd_Argv(1), "**"))
+	{
+		size_t fsize;
+		args = FS_LoadMallocFile(Cmd_Argv(2), &fsize);
+		if (args)
+		{
+			VFS_WRITE(f, args, fsize);
+			FS_FreeFile(args);
+		}
+		else
+			Con_Printf("%s: failed to open input file\n", Cmd_Argv(0));
+	}
+	else
+	{
+		// skip demonum
+		args = Cmd_Args();
+		while (*args > 32) args++;
+		while (*args && *args <= 32) args++;
 
-	VFS_WRITE(f, args, strlen(args));
-	VFS_WRITE(f, "\n", 1);
+		VFS_WRITE(f, args, strlen(args));
+		VFS_WRITE(f, "\n", 1);
+	}
 	VFS_FLUSH(f);
 	VFS_CLOSE(f);
 }
@@ -2697,7 +2864,7 @@ void SV_MVDInfoRemove_f (void)
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("usage:demoInfoRemove <demonum>\n<demonum> = * for currently recorded demo\n");
+		Con_Printf("%s <demonum>\n<demonum> = * for currently recorded demo\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2744,7 +2911,7 @@ void SV_MVDInfo_f (void)
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("usage:demoinfo <demonum>\n<demonum> = * for currently recorded demo\n");
+		Con_Printf("%s <demonum>\n<demonum> = * for currently recorded demo\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2806,14 +2973,14 @@ void SV_MVDPlayNum_f(void)
 
 	if (Cmd_Argc() != 2)
 	{
-		Con_Printf("mvdplaynum <#>\n");
+		Con_Printf("%s <#>\n", Cmd_Argv(0));
 		return;
 	}
 
 	val = Cmd_Argv(1);
 	if ((num = atoi(val)) == 0 && val[0] != '0')
 	{
-		Con_Printf("mvdplaynum <#>\n");
+		Con_Printf("%s <#>\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2871,4 +3038,5 @@ void SV_MVDInit(void)
 	Cvar_Register(&qtv_password, "MVD Streaming");
 }
 
+#endif
 #endif

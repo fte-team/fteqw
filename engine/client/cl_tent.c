@@ -1077,22 +1077,33 @@ void CL_ParseTEnt (void)
 		case TENQ_BEAM:
 			type = TEQW_BEAM;
 			break;
-		case TENQ_EXPLOSION_SPRITE:
-			type = TE_EXPLOSION;
+		case TENQ_QWEXPLOSION:
+			type = TEQW_QWEXPLOSION;
 			break;
-		case TE_EXPLOSION:
-			type = TEQW_EXPLOSION_NOSPRITE;
+		case TENQ_NQEXPLOSION:
+			type = TEQW_NQEXPLOSION;
 			break;
-		case TE_GUNSHOT:
-			type = TE_GUNSHOT_NQCOMPAT;
+		case TENQ_NQGUNSHOT:
+			type = TEQW_NQGUNSHOT;
 			break;
-		case TE_GUNSHOT_NQCOMPAT:
-			type = TE_GUNSHOT;
+		case TENQ_QWGUNSHOT:
+			type = TEQW_QWGUNSHOT;
 			break;
+		case TENQ_RAILTRAIL:
+			type = TEQW_RAILTRAIL;
+			break;
+		case TENQ_NEHLIGHTNING4:
+			type = TEQW_NEHLIGHTNING4;
+			break;
+//		case TENQ_NEHSMOKE:
+//			type = TEQW_NEHSMOKE;
+//			break;
+
 		default:
 			break;
 		}
 	}
+	//else QW values
 
 	//right, nq vs qw doesn't matter now, supposedly.
 	
@@ -1103,15 +1114,14 @@ void CL_ParseTEnt (void)
 			"tarexplosion", "lightning1", "lightning2", "wizspike",
 			"knightspike", "lightning3", "lavasplash", "teleport",
 			"blood", "lightningblood", "bullet", "superbullet",	//bullets deprecated
-			"railtrail", "beam", "explosion2", "nqexplosion",
-			"nqgunshot", "?", "?", "?",
+			"neh_explosion3", "railtrail/neh_lightning4", "beam", "explosion2",
+			"nqexplosion", "nqgunshot", "?", "?",
 #ifdef HEXEN2
 			"h2lightsml", "h2chain", "h2sunstf1", "h2sunstf2",
 			"h2light", "h2cb", "h2ic", "h2gaze",
 			"h2famine", "h2partexp"
 #endif
 		};
-
 		if (type < countof(te_names))
 			Con_Printf("  te_%s\n", te_names[type]);
 		else
@@ -1274,7 +1284,7 @@ void CL_ParseTEnt (void)
 				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
-	case TE_SUPERBULLET:
+	case TEQW_SUPERBULLET:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1342,8 +1352,8 @@ void CL_ParseTEnt (void)
 			ex->endalpha = ex->startalpha;	//don't fade out
 		}
 		break;
-	case TEQW_EXPLOSION_NOSPRITE:	//nq-style, no sprite
-	case TE_EXPLOSION:				//qw-style, with (optional) sprite
+	case TEQW_NQEXPLOSION:	//nq-style, no sprite
+	case TEQW_QWEXPLOSION:				//qw-style, with (optional) sprite
 	// particles
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1375,7 +1385,7 @@ void CL_ParseTEnt (void)
 		S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 
 	// sprite
-		if (type == TE_EXPLOSION && cl_expsprite.ival) // temp hopefully
+		if (type == TEQW_QWEXPLOSION && cl_expsprite.ival) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion (pos);
 			ex->start = cl.time;
@@ -1411,6 +1421,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
+	case TE_EXPLOSION3_NEH:
 	case TEDP_EXPLOSIONRGB:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1420,6 +1431,18 @@ void CL_ParseTEnt (void)
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
 
+		if (type == TEDP_EXPLOSIONRGB)
+		{
+			pos2[0] = MSG_ReadByte()/255.0;
+			pos2[1] = MSG_ReadByte()/255.0;
+			pos2[2] = MSG_ReadByte()/255.0;
+		}
+		else
+		{	//TE_EXPLOSION3_NEH
+			pos2[0] = MSG_ReadCoord();
+			pos2[1] = MSG_ReadCoord();
+			pos2[2] = MSG_ReadCoord();
+		}
 
 	// light
 		if (r_explosionlight.value)
@@ -1430,9 +1453,9 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
 
-			dl->color[0] = 0.4f*MSG_ReadByte()/255.0f;
-			dl->color[1] = 0.4f*MSG_ReadByte()/255.0f;
-			dl->color[2] = 0.4f*MSG_ReadByte()/255.0f;
+			dl->color[0] = 0.4f*pos2[0];
+			dl->color[1] = 0.4f*pos2[1];
+			dl->color[2] = 0.4f*pos2[2];
 			dl->channelfade[0] = 0;
 			dl->channelfade[1] = 0;
 			dl->channelfade[2] = 0;
@@ -1490,6 +1513,11 @@ void CL_ParseTEnt (void)
 	case TE_LIGHTNING3:				// lightning bolts
 		CL_ParseBeam (BT_Q1LIGHTNING3);
 		break;
+	case TEQW_NEHLIGHTNING4:
+		Con_DPrintf("TEQW_NEHLIGHTNING4 not implemented\n");
+		MSG_ReadString();
+		CL_ParseBeam (BT_Q1LIGHTNING2);
+		break;
 
 	case TE_LAVASPLASH:
 		pos[0] = MSG_ReadCoord ();
@@ -1518,9 +1546,9 @@ void CL_ParseTEnt (void)
 
 		break;
 
-	case TE_GUNSHOT:			// bullet hitting wall
-	case TE_GUNSHOT_NQCOMPAT:
-		if (type == TE_GUNSHOT_NQCOMPAT)
+	case TEQW_QWGUNSHOT:			// bullet hitting wall
+	case TEQW_NQGUNSHOT:
+		if (type == TEQW_NQGUNSHOT)
 			cnt = 1;
 		else
 			cnt = MSG_ReadByte ();
@@ -1535,7 +1563,7 @@ void CL_ParseTEnt (void)
 
 		break;
 
-	case TEQW_BLOOD:				// bullets hitting body
+	case TEQW_QWBLOOD:				// bullets hitting body
 		cnt = MSG_ReadByte ();
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1565,7 +1593,7 @@ void CL_ParseTEnt (void)
 		CL_ParseBeam (BT_Q1BEAM);
 		break;
 
-	case TE_RAILTRAIL:
+	case TEQW_RAILTRAIL:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1835,6 +1863,11 @@ void CL_ParseTEnt (void)
 			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "snow");
 		}
 		break;
+
+//	case TEQW_NEHRAILTRAIL:
+//	case TEQW_NEHEXPLOSION3:
+//	case TEQW_NEHLIGHTNING4:
+//	case TEQW_NEHSMOKE:
 
 	default:
 		Host_EndGame ("CL_ParseTEnt: bad type - %i", type);
@@ -2438,7 +2471,7 @@ void CL_SmokeAndFlash(vec3_t origin)
 	ex = CL_AllocExplosion (origin);
 	VectorClear(ex->angles);
 //	ex->type = ex_flash;
-	ex->flags = Q2RF_FULLBRIGHT;
+	ex->flags = RF_FULLBRIGHT;
 	ex->numframes = 2;
 	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_flash].modelname, MLV_WARN);
@@ -2648,7 +2681,7 @@ void CLQ2_ParseTEnt (void)
 	case CRTE_BLASTER_MUZZLEFLASH:
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion (pos);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->flags = RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
@@ -2656,7 +2689,7 @@ void CLQ2_ParseTEnt (void)
 	case CRTE_BLUE_MUZZLEFLASH:
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion (pos);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->flags = RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
@@ -2664,7 +2697,7 @@ void CLQ2_ParseTEnt (void)
 	case CRTE_SMART_MUZZLEFLASH:
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion (pos);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->flags = RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
@@ -2675,7 +2708,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion (pos);
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->flags = RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");

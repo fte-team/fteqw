@@ -1247,12 +1247,11 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, int fldtype, char *s)
 {
 	int		i;
-	char	string[128];
 	fdef_t	*def;
-	char	*v, *w;
 	string_t st;
 	mfunction_t	*func;
 	int type = fldtype & ~DEF_SAVEGLOBAL;
+	double d;
 	qcptr += fldofs*sizeof(int);
 
 	switch (type)
@@ -1267,37 +1266,40 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 		break;
 
 	case ev_float:
-		*(float *)(progfuncs->funcs.stringtable + qcptr) = (float)atof (s);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		d = strtod(s, &s);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		*(float *)(progfuncs->funcs.stringtable + qcptr) = d;
+		if (*s)
+			return false;	//some kind of junk in there.
 		break;
 
+	case ev_entity:	//ent references are simple ints for us.
 	case ev_integer:
-		*(int *)(progfuncs->funcs.stringtable + qcptr) = atoi (s);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		i = strtol(s, &s, 0);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		*(int *)(progfuncs->funcs.stringtable + qcptr) = i;
+		if (*s)
+			return false;	//some kind of junk in there.
 		break;
 
 	case ev_vector:
-		strcpy (string, s);
-		v = string;
-		w = string;
 		for (i=0 ; i<3 ; i++)
 		{
-			while (*v && *v != ' ')
-				v++;
-			if (!*v)
-			{
-				((float *)(progfuncs->funcs.stringtable + qcptr))[i] = (float)atof (w);
-				w = v;
-			}
-			else
-			{
-				*v = 0;
-				((float *)(progfuncs->funcs.stringtable + qcptr))[i] = (float)atof (w);
-				w = v = v+1;
-			}
+			while(*s == ' ' || *s == '\t')
+				s++;
+			d = strtod(s, &s);
+			((float *)(progfuncs->funcs.stringtable + qcptr))[i] = d;
 		}
-		break;
-
-	case ev_entity:
-		*(int *)(progfuncs->funcs.stringtable + qcptr) = atoi (s);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		if (*s)
+			return false;	//some kind of junk in there.
 		break;
 
 	case ev_field:
@@ -1311,7 +1313,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 		break;
 
 	case ev_function:
-		if (s[1]==':'&&s[2]=='\0')
+		if (s[0] && s[1]==':'&&s[2]=='\0')	//this isn't right...
 		{
 			*(func_t *)(progfuncs->funcs.stringtable + qcptr) = 0;
 			return true;
@@ -1326,7 +1328,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 		break;
 
 	default:
-		break;
+		return false;
 	}
 	return true;
 }
@@ -1341,7 +1343,7 @@ Used for initial level load and for savegames.
 ====================
 */
 #if 1
-const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t *ent)
+static const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t *ent, pbool *out_maphack)
 {
 	fdef_t		*key;
 	pbool	init;
@@ -1432,8 +1434,19 @@ const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t 
 		}
 
 cont:
+		switch(key->type)
+		{
+		case ev_function:
+		case ev_field:
+		case ev_entity:
+		case ev_pointer:
+			*out_maphack = true;	//one of these types of fields means evil maphacks are at play.
+			break;
+		}
 		if (!ED_ParseEpair (progfuncs, (char*)ent->fields - progfuncs->funcs.stringtable, key->ofs, key->type, qcc_token))
 		{
+			if (externs->badfield && externs->badfield(&progfuncs->funcs, (struct edict_s*)ent, keyname, qcc_token))
+				continue;
 			continue;
 //			Sys_Error ("ED_ParseEdict: parse error on entities");
 		}
@@ -1911,6 +1924,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 	int crc = 1;
 	int entsize = 0;
 	int numents = 0;
+	pbool maphacks = false;
 
 	pbool resethunk=0;
 	pbool isloadgame;
@@ -2021,7 +2035,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			ed->ereftype = ER_ENTITY;
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) ed, true);
-			file = ED_ParseEdict(progfuncs, file, ed);
+			file = ED_ParseEdict(progfuncs, file, ed, &maphacks);
 
 			if (entspawned)
 				entspawned(ppf, (struct edict_s *)ed, ctx, datastart, file);
@@ -2262,7 +2276,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 						externs->entspawn((struct edict_s *) ed, true);
 
 					ed->ereftype = ER_ENTITY;
-					file = ED_ParseEdict (progfuncs, file, ed);
+					file = ED_ParseEdict (progfuncs, file, ed, &maphacks);
 				}
 				sv_num_edicts = ++numents;
 				continue;
@@ -2292,7 +2306,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			ed->ereftype = ER_ENTITY;
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) ed, true);
-			file = ED_ParseEdict(progfuncs, file, ed);
+			file = ED_ParseEdict(progfuncs, file, ed, &maphacks);
 
 			if (entspawned)
 				entspawned(ppf, (struct edict_s *)ed, ctx, datastart, file);
@@ -2409,6 +2423,7 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, size_
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *ent;
 	const char *start = buf;
+	pbool maphacks = false;	//don't really care.
 
 	buf = QCC_COM_Parse(buf);	//read the key
 	if (!buf || !*qcc_token)
@@ -2425,7 +2440,7 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, size_
 	if (ent->ereftype == ER_FREE && externs->entspawn)
 		externs->entspawn((struct edict_s *) ent, false);
 
-	buf = ED_ParseEdict(progfuncs, buf, ent);
+	buf = ED_ParseEdict(progfuncs, buf, ent, &maphacks);
 
 	*size = buf - start;
 

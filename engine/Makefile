@@ -919,7 +919,7 @@ ifdef windir
 	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 else
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SDLCONFIG) --static-libs`
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) `$(SDLCONFIG) --static-libs`
 	VK_LDFLAGS=$(VKLDFLAGS) $(IMAGELDFLAGS) `$(SDLCONFIG) --static-libs`
 	M_LDFLAGS=$(MLDFLAGS) $(IMAGELDFLAGS) `$(SDLCONFIG) --static-libs`
 	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`

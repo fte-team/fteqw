@@ -3226,7 +3226,7 @@ void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_globals)	//
 		if (color == 73)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
+		MSG_WriteByte (&sv.multicast, TEQW_QWBLOOD);
 		MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
@@ -3292,7 +3292,7 @@ static void QCBUILTIN PF_te_blooddp (pubprogfuncs_t *prinst, globalvars_t *pr_gl
 
 	(void)dir; //FIXME: sould be sending TEDP_BLOOD
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
+	MSG_WriteByte (&sv.multicast, TEQW_QWBLOOD);
 	MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
@@ -3878,6 +3878,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 				else
 					SV_StuffcmdToClient(cl, str);
 			}
+#ifdef MVD_RECORDING
 		if (!(flags & STUFFCMD_IGNOREINDEMO))
 			if (sv.mvdrecording)
 			{
@@ -3885,6 +3886,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 				MSG_WriteByte (msg, svc_stufftext);
 				MSG_WriteString (msg, str);
 			}
+#endif
 		return;
 	}
 
@@ -3948,6 +3950,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 			SV_StuffcmdToClient(cl, str);
 	}
 
+#ifdef MVD_RECORDING
 	if (!(flags & STUFFCMD_IGNOREINDEMO))
 	if (sv.mvdrecording)
 	{
@@ -3955,6 +3958,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 		MSG_WriteByte (msg, svc_stufftext);
 		MSG_WriteString (msg, str);
 	}
+#endif
 
 	//this seems a little dangerous. v_cshift could leave a spectator's machine unusable if they switch players at unfortunate times.
 	if (!(flags & STUFFCMD_DEMOONLY))
@@ -4444,6 +4448,7 @@ static void QCBUILTIN PF_getmodelindex (pubprogfuncs_t *prinst, struct globalvar
 
 	G_FLOAT(OFS_RETURN) = PF_precache_model_Internal(prinst, s, queryonly);
 }
+#ifndef NOLEGACY
 void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -4480,6 +4485,7 @@ void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars
 		G_FLOAT(OFS_RETURN) = 0;
 	}
 }
+#endif
 
 // warning: ‘PF_svcoredump’ defined but not used
 /*
@@ -4620,6 +4626,7 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 		}
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording)
 	{
 		if (style < MAX_STANDARDLIGHTSTYLES || *val)
@@ -4645,6 +4652,7 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 			}
 		}
 	}
+#endif
 }
 
 /*
@@ -5572,9 +5580,12 @@ static void QCBUILTIN PF_qtBroadcast_WriteEntity (pubprogfuncs_t *prinst, struct
 //======================================================
 
 //copes with any qw point entities.
-void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is available for some tent types.
+void SV_point_tempentity (vec3_t o, int qwtype, int count)	//count (usually 1) is available for some tent types.
 {
 	int split=0;
+#ifdef NQPROT
+	int nqtype = qwtype;
+#endif
 
 #ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
@@ -5586,49 +5597,63 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
 #endif
-	switch(type)
+	switch(qwtype)
 	{
 	case TE_BULLET:
 		MSG_WriteByte (&sv.multicast, TE_SPIKE);
+		qwtype = TE_BULLET;
 #ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, TE_SPIKE);
+		nqtype = TE_BULLET;
 #endif
-		type = TE_BULLET;
 		split = PEXT_TE_BULLET;
 		break;
-	case TE_SUPERBULLET:
+	case TEQW_SUPERBULLET:
 		MSG_WriteByte (&sv.multicast, TE_SUPERSPIKE);
+		qwtype = TEQW_SUPERBULLET;
 #ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, TE_SUPERSPIKE);
+		nqtype = TE_SUPERSPIKE;
 #endif
-		type = TE_SUPERBULLET;
 		split = PEXT_TE_BULLET;
 		break;
-	case TEQW_BLOOD:
-	case TE_GUNSHOT:
-		MSG_WriteByte (&sv.multicast, type);
+	case TEQW_QWBLOOD:
+	case TEQW_QWGUNSHOT:
+		MSG_WriteByte (&sv.multicast, qwtype);
 		MSG_WriteByte (&sv.multicast, count);
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, type);	//nq doesn't have a count.
+		MSG_WriteByte (&sv.nqmulticast, nqtype);	//nq doesn't have a count.
 #endif
 		break;
-	case TEQW_EXPLOSION_NOSPRITE:
-		MSG_WriteByte (&sv.multicast, TE_EXPLOSION);
+	case TEQW_QWEXPLOSION:
+		MSG_WriteByte (&sv.multicast, TEQW_QWEXPLOSION);
+		qwtype = -1;
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, TE_EXPLOSION);
+		MSG_WriteByte (&sv.nqmulticast, TENQ_NQEXPLOSION);
+		nqtype = TENQ_QWEXPLOSION;
 #endif
-		type = TEQW_EXPLOSION_NOSPRITE;
+		split = PEXT_TE_BULLET;
+		break;
+	case TEQW_NQEXPLOSION:
+		MSG_WriteByte (&sv.multicast, TEQW_QWEXPLOSION);
+		qwtype = TEQW_NQEXPLOSION;
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, TENQ_NQEXPLOSION);
+		nqtype = -1;
+#endif
 		split = PEXT_TE_BULLET;
 		break;
 	case TE_LIGHTNING1:
 	case TE_LIGHTNING2:
 	case TE_LIGHTNING3:
 		SV_Error("SV_point_tempentity - type is a beam\n");
+		break;
 	default:
-		MSG_WriteByte (&sv.multicast, type);
+		MSG_WriteByte (&sv.multicast, qwtype);
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, type);
+		MSG_WriteByte (&sv.nqmulticast, nqtype);
 #endif
+		break;
 	}
 	MSG_WriteCoord (&sv.multicast, o[0]);
 	MSG_WriteCoord (&sv.multicast, o[1]);
@@ -5638,7 +5663,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	MSG_WriteCoord (&sv.nqmulticast, o[1]);
 	MSG_WriteCoord (&sv.nqmulticast, o[2]);
 #endif
-	if (type == TEQW_BLOOD || type == TEQW_LIGHTNINGBLOOD)
+	if (qwtype == TEQW_QWBLOOD || qwtype == TEQW_LIGHTNINGBLOOD)
 	{
 #ifdef NQPROT
 		sv.nqmulticast.cursize = 0;	//don't send a te_blood or lightningblood to an nq client - they'll die horribly.
@@ -5653,7 +5678,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		MSG_WriteChar (&sv.nqmulticast, 0);
 		MSG_WriteChar (&sv.nqmulticast, 0);
 		MSG_WriteByte (&sv.nqmulticast, count*20);
-		if (type == TEQW_BLOOD)
+		if (qwtype == TEQW_QWBLOOD)
 			MSG_WriteByte (&sv.nqmulticast, 73);
 		else
 			MSG_WriteByte (&sv.nqmulticast, 225);
@@ -5665,13 +5690,29 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	if (!split)	//don't bother sending again.
 		return;
 
-//this is for cool people (not nq users)
-	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, type);
-	MSG_WriteCoord (&sv.multicast, o[0]);
-	MSG_WriteCoord (&sv.multicast, o[1]);
-	MSG_WriteCoord (&sv.multicast, o[2]);
-
+	//this is for people with an extension to do that effect properly
+	if (qwtype >= 0)
+	{
+		MSG_WriteByte (&sv.multicast, svc_temp_entity);
+		MSG_WriteByte (&sv.multicast, qwtype);
+		if (qwtype == TEQW_QWBLOOD || qwtype == TEQW_QWGUNSHOT)
+			MSG_WriteByte (&sv.multicast, count);
+		MSG_WriteCoord (&sv.multicast, o[0]);
+		MSG_WriteCoord (&sv.multicast, o[1]);
+		MSG_WriteCoord (&sv.multicast, o[2]);
+	}
+#ifdef NQPROT
+	if (nqtype >= 0)
+	{
+		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+		MSG_WriteByte (&sv.nqmulticast, nqtype);
+		if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype == TEQW_NQGUNSHOT)
+			MSG_WriteByte (&sv.multicast, count);
+		MSG_WriteCoord (&sv.nqmulticast, o[0]);
+		MSG_WriteCoord (&sv.nqmulticast, o[1]);
+		MSG_WriteCoord (&sv.nqmulticast, o[2]);
+	}
+#endif
 	SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, 0, split);
 }
 
@@ -6947,6 +6988,7 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 		SV_BeginRedirect(old, oldl);
 }
 
+#ifdef MVD_RECORDING
 /*
 =================
 PF_forcedemoframe
@@ -6963,7 +7005,7 @@ static void QCBUILTIN PF_forcedemoframe (pubprogfuncs_t *prinst, struct globalva
 //	if (G_FLOAT(OFS_PARM0) == 1)
 //        SV_SendDemoMessage();
 }
-
+#endif
 
 /*
 =================
@@ -8667,10 +8709,15 @@ static void QCBUILTIN PF_te_gunshot(pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	int count;
 	if (svprogfuncs->callargc >= 2)
+	{
 		count = G_FLOAT(OFS_PARM1);
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_QWGUNSHOT, count);
+	}
 	else
+	{
 		count = 1;
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_GUNSHOT, count);
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_NQGUNSHOT, count);
+	}
 }
 //DP_TE_QUADEFFECTS1
 static void QCBUILTIN PF_te_gunshotquad(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8710,7 +8757,7 @@ static void QCBUILTIN PF_te_bloodqw(pubprogfuncs_t *prinst, struct globalvars_s 
 		count = G_FLOAT(OFS_PARM1);
 	else
 		count = 1;
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_BLOOD, count);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_QWBLOOD, count);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -8729,10 +8776,10 @@ static void QCBUILTIN PF_te_superspikequad(pubprogfuncs_t *prinst, struct global
 //void(vector org) te_explosion = #421;
 static void QCBUILTIN PF_te_explosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (progstype != PROG_QW)
-		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_EXPLOSION_NOSPRITE, 1);
+	if (progstype == PROG_QW)
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_QWEXPLOSION, 1);
 	else
-		SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_NQEXPLOSION, 1);
 }
 //DP_TE_QUADEFFECTS1
 static void QCBUILTIN PF_te_explosionquad(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8789,7 +8836,7 @@ static void QCBUILTIN PF_te_explosion2(pubprogfuncs_t *prinst, struct globalvars
 	for(;;)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, old?TE_EXPLOSION:TEQW_EXPLOSION2);
+		MSG_WriteByte (&sv.multicast, old?TEQW_QWEXPLOSION:TEQW_EXPLOSION2);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);
@@ -8799,13 +8846,16 @@ static void QCBUILTIN PF_te_explosion2(pubprogfuncs_t *prinst, struct globalvars
 			MSG_WriteByte (&sv.multicast, length);
 		}
 	#ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-		MSG_WriteByte (&sv.nqmulticast, TENQ_EXPLOSION2);
-		MSG_WriteCoord (&sv.nqmulticast, org[0]);
-		MSG_WriteCoord (&sv.nqmulticast, org[1]);
-		MSG_WriteCoord (&sv.nqmulticast, org[2]);
-		MSG_WriteByte (&sv.nqmulticast, start);
-		MSG_WriteByte (&sv.nqmulticast, length);
+		if (!old)
+		{
+			MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+			MSG_WriteByte (&sv.nqmulticast, TENQ_EXPLOSION2);
+			MSG_WriteCoord (&sv.nqmulticast, org[0]);
+			MSG_WriteCoord (&sv.nqmulticast, org[1]);
+			MSG_WriteCoord (&sv.nqmulticast, org[2]);
+			MSG_WriteByte (&sv.nqmulticast, start);
+			MSG_WriteByte (&sv.nqmulticast, length);
+		}
 	#endif
 
 		if (old)
@@ -10335,7 +10385,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, D("void(string dst, string src, float count)",NULL), true},
 	{"logtext",			PF_logtext,			0,		0,		0,		100, D("void(string name, float console, string text)",NULL), true},
 	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, D("void()",NULL), true},
+#ifdef MVD_RECORDING
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, D("void(float now)",NULL), true},
+#endif
 //end of mvdsv
 #endif
 	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, D("void(entity to, string str)","Executes a single console command, and sends the text generated by it to the specified player. The command will be executed at the end of the frame once QC is no longer running - you may wish to pre/postfix it with 'echo'.")},
@@ -10996,7 +11048,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)", "Sets whether the server should or should not be paused. This does not affect auto-paused things like when the console is down.")},
 	//end dp extras
 	//begin mvdsv extras
+#ifndef NOLEGACY
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},
+#endif
 	//end mvdsv extras
 	//restart dp extras
 	{"log",				PF_Logarithm,		0,		0,		0,		532,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
@@ -11621,16 +11675,16 @@ void PR_DumpPlatform_f(void)
 		{"input_buttons",		"float", CS},
 		{"input_impulse",		"float", CS},
 		{"msg_entity",			"entity", QW|NQ},
-		{"main",				"void()", QW|NQ},
-		{"StartFrame",			"void()", QW|NQ},
-		{"PlayerPreThink",		"void()", QW|NQ},
-		{"PlayerPostThink",		"void()", QW|NQ},
-		{"ClientKill",			"void()", QW|NQ},
-		{"ClientConnect",		"void()", QW|NQ},
-		{"PutClientInServer",	"void()", QW|NQ},
-		{"ClientDisconnect",	"void()", QW|NQ},
-		{"SetNewParms",			"void()", QW|NQ},
-		{"SetChangeParms",		"void()", QW|NQ},
+		{"main",				"void()", QW|NQ, D("This function is never called, and is effectively dead code.")},
+		{"StartFrame",			"void()", QW|NQ, D("Called at the start of each new physics frame. Player entities may think out of sequence so try not to depend upon explicit ordering too much.")},
+		{"PlayerPreThink",		"void()", QW|NQ, D("With Prediction(QW compat/FTE default): Called before the player's input commands are processed.\nNo Prediction(NQ compat): Called AFTER the player's movement intents have already been processed (ie: velocity will have already changed according to input_*, but before the actual position change.")},
+		{"PlayerPostThink",		"void()", QW|NQ, D("Called after the player's input commands are processed.")},
+		{"ClientKill",			"void()", QW|NQ, D("Called in response to 'cmd kill' (or just 'kill').")},
+		{"ClientConnect",		"void(optional float csqcactive)", QW|NQ, D("Called after the connecting client has finished loading and is ready to receive active entities. Note that this is NOT the first place that a client might be referred to.")},
+		{"PutClientInServer",	"void()", QW|NQ, D("Enginewise, this is only ever called immediately after ClientConnect and is thus a little redundant. Modwise, this is also called for respawning a player etc.")},
+		{"ClientDisconnect",	"void()", QW|NQ, D("Called once a client disconnects or times out. Not guarenteed to be called on map changes.")},
+		{"SetNewParms",			"void()", QW|NQ, D("Called without context when a new client initially connects (before ClientConnect is even called). This function is expected to only set the parm* globals so that they can be decoded properly later. You should not rely on 'self' being set.")},
+		{"SetChangeParms",		"void()", QW|NQ, D("Called for each client on map changes. Should copy various entity fields to the parm* globals.")},
 		{"end_sys_globals",		"void", QW|NQ|CS|MENU},
 
 
@@ -11826,7 +11880,7 @@ void PR_DumpPlatform_f(void)
 
 		{"GameCommand",				"void(string cmdtext)", CS|MENU},
 		{"Cef_GeneratePage",		"string(string uri, string method, string postdata, __in string requestheaders, __inout string responseheaders)", QW|NQ|CS|MENU, "Provides an entrypoint to generate pages for the CEF plugin from within QC. Headers are \n-separated key/value pairs (use tokenizebyseparator)."},
-//		{"HTTP_GeneratePage",		"string(string uri, string method, string postdata, __in string requestheaders, __inout string responseheaders)", QW|NQ, "Provides an entrypoint to generate pages for pages requested over http (sv_listen_tcp+net_enable_http). Headers are \n-separated key/value pairs (use tokenizebyseparator)."},
+		{"HTTP_GeneratePage",		"string(string uri, string method, string postdata, __in string requestheaders, __inout string responseheaders)", QW|NQ, "Provides an entrypoint to generate pages for pages requested over http (sv_port_tcp+net_enable_http). Headers are \r\n-separated key/value pairs (use tokenizebyseparator). Return __NULL__ to let the engine handle it, an empty string for a 404, and any other text for a regular 200 response."},
 
 		{"init",					"void(float prevprogs)", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget)."},
 		{"initents",				"void()", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called after fields have been finalized. This is the first point at which it is safe to call spawn(), and is called before any entity fields have been parsed. You can use this entrypoint to send notifications to other modules."},

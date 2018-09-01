@@ -1636,7 +1636,7 @@ parsefluid:
 					else if (!Q_strncasecmp(e, "transparent", 11))
 						mod->rflags |= RF_TRANSLUCENT;		//force blend
 					else if (!Q_strncasecmp(e, "fullbright", 10))
-						mod->rflags |= Q2RF_FULLBRIGHT;		//fullbright, woo
+						mod->rflags |= RF_FULLBRIGHT;		//fullbright, woo
 					else if (!Q_strncasecmp(e, "shadow", 6))
 						mod->rflags &= ~RF_NOSHADOW;		//clear noshadow
 					else if (!Q_strncasecmp(e, "noshadow", 8))
@@ -2378,7 +2378,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 				Q_strncatz(outstr, " additive", outstrlen);
 			if (ptype->models[i].rflags&RF_TRANSLUCENT)
 				Q_strncatz(outstr, " transparent", outstrlen);
-			if (ptype->models[i].rflags&Q2RF_FULLBRIGHT)
+			if (ptype->models[i].rflags&RF_FULLBRIGHT)
 				Q_strncatz(outstr, " fullbright", outstrlen);
 			if (ptype->models[i].rflags&RF_NOSHADOW)
 				Q_strncatz(outstr, " noshadow", outstrlen);

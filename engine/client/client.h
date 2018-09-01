@@ -844,21 +844,23 @@ typedef struct
 //
 // information that is static for the entire time connected to a server
 //
-	char		model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
-	char		model_name[MAX_PRECACHE_MODELS][MAX_QPATH];
-	char		sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
-	char		*particle_ssname[MAX_SSPARTICLESPRE];
+#ifndef NOLEGACY
+	char				model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
+	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
+#endif
+	char				model_name[MAX_PRECACHE_MODELS][MAX_QPATH];
+	struct model_s		*model_precache[MAX_PRECACHE_MODELS];
+	char				sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
+	struct sfx_s		*sound_precache[MAX_PRECACHE_SOUNDS];
+	char				*particle_ssname[MAX_SSPARTICLESPRE];
+	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
+
 #ifdef Q2CLIENT
 	char		*configstring_general[Q2MAX_CLIENTS|Q2MAX_GENERAL];
 	char		*image_name[Q2MAX_IMAGES];
 	char		*item_name[Q2MAX_ITEMS];
 	short		inventory[MAX_SPLITS][Q2MAX_ITEMS];
 #endif
-
-	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
-	struct model_s		*model_precache[MAX_PRECACHE_MODELS];
-	struct sfx_s		*sound_precache[MAX_PRECACHE_SOUNDS];
-	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
 
 	char				model_csqcname[MAX_CSMODELS][MAX_QPATH];
 	struct model_s		*model_csqcprecache[MAX_CSMODELS];

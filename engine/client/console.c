@@ -2615,6 +2615,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	{
 		char *tiptext = NULL;
 		shader_t *shader = NULL;
+		model_t *model = NULL;
 		char *mouseover;
 		if (!mouseconsole->mouseover || !mouseconsole->mouseover(mouseconsole, &tiptext, &shader))
 		{
@@ -2662,13 +2663,20 @@ void Con_DrawConsole (int lines, qboolean noback)
 								shader->height = 240;
 							}
 						}
+						key = Info_ValueForKey(info, "modelviewer");
+						if (*key)
+						{
+							model = Mod_ForName(key, MLV_WARN);
+							if (model->loadstate != MLS_LOADED)
+								model = NULL;
+						}
 					}
 					tiptext = Info_ValueForKey(info, "tip");
 				}
 				Z_Free(mouseover);
 			}
 		}
-		if ((tiptext && *tiptext) || shader)
+		if ((tiptext && *tiptext) || shader || model)
 		{
 			//FIXME: draw a proper background.
 			//FIXME: support line breaks.
@@ -2683,7 +2691,12 @@ void Con_DrawConsole (int lines, qboolean noback)
 			lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK, tiptext, buffer, sizeof(buffer), false), (256.0 * vid.pixelwidth) / vid.width, countof(starts), starts, ends);
 			th = (Font_CharHeight()*lines * vid.height) / vid.pixelheight;
 
-			if (shader)
+			if (model)
+			{
+				iw = 128;
+				ih = 128;
+			}
+			else if (shader)
 			{
 				int w, h;
 				if (R_GetShaderSizes(shader, &w, &h, false) >= 0)
@@ -2726,6 +2739,94 @@ void Con_DrawConsole (int lines, qboolean noback)
 			}
 			Font_EndString(font_console);
 
+			if (model)
+			{
+				playerview_t pv;
+				entity_t ent;
+				vec3_t fwd, rgt, up;
+				vec3_t lightpos = {0, 1, 0};
+
+				if (R2D_Flush)
+					R2D_Flush();
+
+				memset(&pv, 0, sizeof(pv));
+
+				CL_DecayLights ();
+				CL_ClearEntityLists();
+				V_ClearRefdef(&pv);
+				r_refdef.drawsbar = false;
+				V_CalcRefdef(&pv);
+
+				r_refdef.grect.width = iw;
+				r_refdef.grect.height = ih;
+				r_refdef.grect.x = x-8-iw;
+				r_refdef.grect.y = y+((th>ih)?(th-ih)/2:0);
+				r_refdef.time = realtime;
+
+				r_refdef.flags = RDF_NOWORLDMODEL;
+
+				r_refdef.afov = 60;
+				r_refdef.fov_x = 0;
+				r_refdef.fov_y = 0;
+				r_refdef.dirty |= RDFD_FOV;
+
+				VectorClear(r_refdef.viewangles);
+				r_refdef.viewangles[0] = 20;
+				r_refdef.viewangles[1] = realtime * 90;
+				AngleVectors(r_refdef.viewangles, fwd, rgt, up);
+				VectorScale(fwd, -64, r_refdef.vieworg);
+
+				memset(&ent, 0, sizeof(ent));
+				ent.scale = 1;
+			//	ent.angles[1] = realtime*45;//mods->yaw;
+			//	ent.angles[0] = realtime*23.4;//mods->pitch;
+
+				ent.angles[0]*=r_meshpitch.value;
+				AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+				ent.angles[0]*=r_meshpitch.value;
+				VectorInverse(ent.axis[1]);
+
+				ent.model = model;
+				if (!ent.model)
+					return;	//panic!
+				ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+				Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+				/*if (strstr(model->name, "player"))
+				{
+					ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
+					ent.topcolour		= genhsv(realtime*0.1 + 0.5, 1, 1);
+				}
+				else*/
+				{
+					ent.topcolour = TOP_DEFAULT;
+					ent.bottomcolour = BOTTOM_DEFAULT;
+				}
+			//	ent.fatness = sin(realtime)*5;
+				ent.playerindex = -1;
+				ent.skinnum = 0;
+				ent.shaderTime = 0;//realtime;
+				ent.framestate.g[FS_REG].lerpweight[0] = 1;
+//				ent.framestate.g[FS_REG].frame[0] = animationnum;
+				ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime;
+				ent.framestate.g[FS_REG].endbone = 0x7fffffff;
+//				ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
+
+				ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
+				ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
+
+				V_ApplyRefdef();
+
+				VectorNormalize(lightpos);
+				ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);
+				ent.light_dir[1] = DotProduct(lightpos, ent.axis[1]);
+				ent.light_dir[2] = DotProduct(lightpos, ent.axis[2]);
+
+				ent.light_known = 2;
+
+				V_AddEntity(&ent);
+
+				R_RenderView();
+			}
 			if (shader)
 			{
 				if (th > ih)

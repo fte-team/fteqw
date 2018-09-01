@@ -392,7 +392,6 @@ char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength
 
 void PDECL ED_Print (pubprogfuncs_t *progfuncs, struct edict_s *ed);
 //void ED_Write (FILE *f, edictrun_t *ed);
-const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t *ent);
 
 //void ED_WriteGlobals (FILE *f);
 void ED_ParseGlobals (char *data);

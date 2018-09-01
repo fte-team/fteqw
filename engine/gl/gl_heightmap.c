@@ -7306,8 +7306,8 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	struct brushface_s faces[countof(planes)];
 
 	//patch info
-	brushtex_t *patch_tex;
-	int	patch_w, patch_h;
+	brushtex_t *patch_tex=NULL;
+	int	patch_w=0, patch_h=0;
 	vec5_t patch_v[64][64];
 
 #ifdef RUNTIMELIGHTING
@@ -7344,7 +7344,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						brush.patch = NULL;
 						Terr_Brush_Insert(submod, subhm, &brush);
 					}
-					else
+					else if (patch_tex)
 						Terr_Patch_Insert(submod, subhm, patch_tex, patch_w, patch_h, patch_v[0], countof(patch_v[0]));
 					subhm->brushesedited = oe;
 				}

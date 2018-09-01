@@ -464,7 +464,7 @@ cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
 #ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers",			"", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
+cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
 cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
 cvar_t vk_debug								= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
 cvar_t vk_dualqueue							= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
@@ -1731,6 +1731,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 					cl.model_precache[i] = Mod_FindName (Mod_FixName(cl.model_name[i], cl.model_name[1]));
 		}
 
+#ifndef NOLEGACY
 		for (i=0; i < MAX_VWEP_MODELS; i++)
 		{
 			if (*cl.model_name_vwep[i])
@@ -1738,6 +1739,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 			else
 				cl.model_precache_vwep[i] = NULL;
 		}
+#endif
 
 #ifdef CSQC_DAT
 		for (i=1 ; i<MAX_CSMODELS ; i++)
@@ -1815,7 +1817,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 void R_ReloadRenderer_f (void)
 {
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
 	void *portalblob = NULL;
 	size_t portalsize = 0;
 #endif
@@ -1824,7 +1826,7 @@ void R_ReloadRenderer_f (void)
 	if (qrenderer == QR_NONE || qrenderer == QR_HEADLESS)
 		return;	//don't bother reloading the renderer if its not actually rendering anything anyway.
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
 	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 	{
 		void *t;
@@ -1841,7 +1843,7 @@ void R_ReloadRenderer_f (void)
 	R_ApplyRenderer_Load(NULL);
 	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
 	if (portalblob)
 	{
 		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
@@ -2076,7 +2078,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 		return;
 	}
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
 	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 	{
 		void *t;
@@ -2160,7 +2162,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 		}
 	}
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
 	if (portalblob)
 	{
 		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)

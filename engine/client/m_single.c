@@ -1009,6 +1009,31 @@ void M_Demo_Reselect(demomenu_t *info, const char *name)
 
 void M_Menu_Demos_f (void)
 {
+	char *demoexts[] = {
+		".mvd", ".mvd.gz",
+		".qwz", ".qwz.gz",
+#ifdef NQPROT
+		".dem", ".dem.gz",
+#endif
+#ifdef Q2CLIENT
+		".dm2", ".dm2.gz"
+#endif
+		//there are also qizmo demos (.qwz) out there...
+		//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
+	};
+	char *archiveexts[] = {
+#ifdef PACKAGE_PK3
+		".zip", ".pk3", ".pk4",
+#endif
+#ifdef PACKAGE_Q1PAK
+		".pak",
+#endif
+#ifdef PACKAGE_DZIP
+		".dz",
+#endif
+		NULL
+	};
+	size_t u;
 	demomenu_t *info;
 	menu_t *menu;
 	static demoloc_t mediareenterloc = {FS_GAME, "demos/"};
@@ -1038,36 +1063,20 @@ void M_Menu_Demos_f (void)
 	}
 
 	info->numext = 0;
-	info->command[info->numext] = "closemenu;playdemo";
-	info->ext[info->numext++] = ".qwd";
-	info->command[info->numext] = "closemenu;playdemo";
-	info->ext[info->numext++] = ".dem";
-	info->command[info->numext] = "closemenu;playdemo";
-	info->ext[info->numext++] = ".dm2";
-	info->command[info->numext] = "closemenu;playdemo";
-	info->ext[info->numext++] = ".mvd";
-	info->command[info->numext] = "closemenu;playdemo";
-	info->ext[info->numext++] = ".mvd.gz";
-	//there are also qizmo demos (.qwz) out there...
-	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
+	for (u = 0; u < countof(demoexts); u++)
+	{
+		info->command[info->numext] = "closemenu;playdemo";
+		info->ext[info->numext++] = demoexts[u];
+	}
 
 	//and some archive formats... for the luls
-#ifdef PACKAGE_PK3
-	info->command[info->numext] = NULL;
-	info->ext[info->numext++] = ".zip";
-	info->command[info->numext] = NULL;
-	info->ext[info->numext++] = ".pk3";
-	info->command[info->numext] = NULL;
-	info->ext[info->numext++] = ".pk4";
-#endif
-#ifdef PACKAGE_Q1PAK
-	info->command[info->numext] = NULL;
-	info->ext[info->numext++] = ".pak";
-#endif
-#ifdef PACKAGE_DZIP
-	info->command[info->numext] = NULL;
-	info->ext[info->numext++] = ".dz";
-#endif
+	for (u = 0; u < countof(archiveexts); u++)
+	{
+		if (archiveexts[u])
+			continue;
+		info->command[info->numext] = NULL;
+		info->ext[info->numext++] = archiveexts[u];
+	}
 
 	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);

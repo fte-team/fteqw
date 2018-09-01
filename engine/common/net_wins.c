@@ -3307,7 +3307,9 @@ typedef struct ftenet_tcpconnect_stream_s {
 	{
 		qboolean connection_close;
 	} httpstate;
+#ifdef MVD_RECORDING
 	qtvpendingstate_t qtvstate;
+#endif
 	struct
 	{
 		char resource[32];
@@ -3475,8 +3477,8 @@ qboolean FTENET_TCPConnect_HTTPResponse(ftenet_tcpconnect_stream_t *st, httparg_
 	char adr[256];
 	int i;
 	const char *filetype = NULL;
-	char *resp = NULL;	//response headers (no length/gap)
-	char *body = NULL;	//response body
+	const char *resp = NULL;	//response headers (no length/gap)
+	const char *body = NULL;	//response body
 	int method;
 	if (!strcmp(arg[WCATTR_METHOD], "GET"))
 		method = 0;
@@ -3489,15 +3491,14 @@ qboolean FTENET_TCPConnect_HTTPResponse(ftenet_tcpconnect_stream_t *st, httparg_
 		body = NULL;
 	}
 
-	//FIXME: demonum/
-
 	st->dlfile = NULL;
 	if (!resp && *arg[WCATTR_URL] == '/')
 	{	//'can't use SV_LocateDownload, as that assumes an active client.
-		char *name = arg[WCATTR_URL]+1;
+		const char *name = arg[WCATTR_URL]+1;
 		char *extraheaders = "";
 		time_t modificationtime = 0;
 		char *query = strchr(arg[WCATTR_URL]+1, '?');
+		func_t func = 0;
 		if (query)
 			*query++ = 0;
 
@@ -3506,33 +3507,35 @@ qboolean FTENET_TCPConnect_HTTPResponse(ftenet_tcpconnect_stream_t *st, httparg_
 		if (!*name)
 			name = "index.html";
 
+		if (sv.state && svs.gametype == GT_PROGS && svprogfuncs)
+			func = svprogfuncs->FindFunction(svprogfuncs, "HTTP_GeneratePage", PR_ANY);
+
+		if (func)
+		{
+			void *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+			((string_t *)pr_globals)[OFS_PARM0] = svprogfuncs->TempString(svprogfuncs, query?va("%s?%s", name, query):name);
+			((string_t *)pr_globals)[OFS_PARM1] = svprogfuncs->TempString(svprogfuncs, arg[WCATTR_METHOD]);
+			((string_t *)pr_globals)[OFS_PARM2] = 0;	//we don't support any postdata at this time.
+			((string_t *)pr_globals)[OFS_PARM3] = 0;	//we don't support any request headers at this time.
+			((string_t *)pr_globals)[OFS_PARM4] = 0;	//we don't have any default response headers yet.
+			((string_t *)pr_globals)[OFS_PARM5] = 0;
+			((string_t *)pr_globals)[OFS_PARM6] = 0;
+			((string_t *)pr_globals)[OFS_PARM7] = 0;
+			svprogfuncs->ExecuteProgram(svprogfuncs, func);
+
+			if (((string_t *)pr_globals)[OFS_RETURN])
+			{	//note that "" is not null
+				body = svprogfuncs->StringToNative(svprogfuncs, ((string_t *)pr_globals)[OFS_RETURN]);
+				resp = svprogfuncs->StringToNative(svprogfuncs, ((string_t *)pr_globals)[OFS_PARM4]);
+				resp = va("%s%s", *body?"HTTP/1.1 200 Ok\r\n":"HTTP/1.1 404 File Not Found\r\n", resp);
+			}
+		}
+
 		//FIXME: provide some resource->filename mapping that allows various misc files.
 
-		/*if (!strcmp(name, "live.html"))
-		{
-			resp = "HTTP/1.1 200 Ok\r\n"
-				"Content-Type: text/html\r\n";
-			body =
-				"<!DOCTYPE HTML>"
-				"<html>"
-				"<style>"
-				"html, body { height: 100%%; width: 100%%; margin: 0; padding: 0;}"
-				"div { height: 100%%; width: 100%%; }"
-				"</style>"
-				"<div>"
-				"<object	name=\"ieplug\" type=\"application/x-fteplugin\" classid=\"clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb\" width=\"100%%\" height=\"100%%\">"
-					"<param name=\"game\" value=\"q1\">"
-					"<object	name=\"npplug\" type=\"application/x-fteplugin\" width=\"100%%\" height=\"100%%\">"
-						"<param name=\"game\" value=\"q1\">"
-						"Please install a plugin first.<br/>"
-					"</object>"
-				"</object>"
-				"</div>"
-				"</html>"
-				;
-		}
-		else */
-			if (!strcmp(name, "index.html"))
+		if (body)
+			;
+		else if (!strcmp(name, "index.html"))
 		{
 			resp = "HTTP/1.1 200 Ok\r\n"
 				"Content-Type: text/html\r\n";
@@ -3636,6 +3639,7 @@ qboolean FTENET_TCPConnect_HTTPResponse(ftenet_tcpconnect_stream_t *st, httparg_
 					"Content-Type: application/x-ftemanifest\r\n";
 			body = NULL;
 		}*/
+#ifdef MVD_RECORDING
 		else if (!Q_strncasecmp(name, "demolist", 8))
 		{
 			filetype = "text/html";
@@ -3656,6 +3660,7 @@ qboolean FTENET_TCPConnect_HTTPResponse(ftenet_tcpconnect_stream_t *st, httparg_
 				body = NULL;
 			}
 		}
+#endif
 		else if (!SV_AllowDownload(name))
 		{
 			Con_Printf("Denied download of %s to %s\n", arg[WCATTR_URL], NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
@@ -3680,9 +3685,10 @@ qboolean FTENET_TCPConnect_HTTPResponse(ftenet_tcpconnect_stream_t *st, httparg_
 		{
 			flocation_t gzloc;
 			flocation_t rawloc;
-			extern cvar_t sv_demoDir;
+#ifdef MVD_RECORDING
 			if (!Q_strncasecmp(name, "demos/", 6))
 				name = va("%s/%s", sv_demoDir.string, name+6);
+#endif
 
 			if (FS_FLocateFile(name, FSLF_IFFOUND, &rawloc))
 			{
@@ -4484,6 +4490,7 @@ closesvstream:
 
 				if (headerscomplete)
 				{
+#ifdef MVD_RECORDING
 					//for QTV connections, we just need the method and a blank line. our qtv parser will parse the actual headers.
 					if (!Q_strncasecmp(st->inbuffer, "QTV", 3))
 					{
@@ -4503,6 +4510,7 @@ closesvstream:
 						}
 					}
 					else
+#endif
 					{
 						net_message.cursize = 0;
 						if (!FTENET_TCP_ParseHTTPRequest(con, st))

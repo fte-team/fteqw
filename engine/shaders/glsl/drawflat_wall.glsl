@@ -13,7 +13,11 @@ varying vec2 lm;
 uniform vec4 e_lmscale;
 void main ()
 {
+#ifdef LM
+	col = vec4(1.0);
+#else
 	col = vec4(e_lmscale.rgb * ((v_normal.z < 0.73)?r_wallcolor:r_floorcolor), e_lmscale.a);
+#endif
 	lm = v_lmcoord;
 	gl_Position = ftetransform();
 }

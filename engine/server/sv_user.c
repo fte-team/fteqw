@@ -1050,19 +1050,30 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			else if (client->prespawn_idx == 4)
 			{
 				int track = 0;
+				const char *noise = "";
 
 				if (progstype == PROG_H2)
+				{
 					track = sv.h2cdtrack;	//hexen2 has a special hack
+				}
 				else if (svprogfuncs)
+				{
 					track = ((edict_t*)sv.world.edicts)->v->sounds;
+					noise = PR_GetString(svprogfuncs, ((edict_t*)sv.world.edicts)->v->noise);
+				}
 
-				ClientReliableWrite_Begin(client, svc_cdtrack, 2);
-				ClientReliableWrite_Byte (client, track);
-				if (ISNQCLIENT(client))
+				if (track == -1 && *noise)
+					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n", noise));
+				else
+				{
+					ClientReliableWrite_Begin(client, svc_cdtrack, 2);
 					ClientReliableWrite_Byte (client, track);
+					if (ISNQCLIENT(client))
+						ClientReliableWrite_Byte (client, track);
 
-				if (!track && *sv.h2miditrack)
-					SV_StuffcmdToClient(client, va("music \"%s\"\n", sv.h2miditrack));
+					if (!track && *sv.h2miditrack)
+						SV_StuffcmdToClient(client, va("music \"%s\"\n", sv.h2miditrack));
+				}
 			}
 			else if (client->prespawn_idx == 5)
 			{
@@ -1080,6 +1091,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 	}
 
+#ifdef MVD_RECORDING
 	if (client->prespawn_stage == PRESPAWN_CSPROGS)
 	{
 		extern cvar_t sv_demo_write_csqc;
@@ -1144,6 +1156,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		client->prespawn_stage++;
 		client->prespawn_idx = 0;
 	}
+#endif
 
 	if (client->prespawn_stage == PRESPAWN_SOUNDLIST)
 	{
@@ -1218,6 +1231,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 	}
 
+#ifndef NOLEGACY
 	if (client->prespawn_stage == PRESPAWN_VWEPMODELLIST)
 	{
 		//no indicies. the protocol can't cope with them.
@@ -1257,6 +1271,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 		client->prespawn_stage++;
 	}
+#endif
 
 	if (client->prespawn_stage == PRESPAWN_MODELLIST)
 	{
@@ -1702,7 +1717,7 @@ void SVQW_PreSpawn_f (void)
 	}
 
 	// handle the case of a level changing while a client was connecting
-	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
+	if ( atoi(Cmd_Argv(1)) != svs.spawncount)
 	{
 		Con_Printf ("SV_PreSpawn_f from different level\n");
 		//FIXME: we shouldn't need the following line.
@@ -1769,7 +1784,7 @@ void SVQW_Spawn_f (void)
 	}
 
 // handle the case of a level changing while a client was connecting
-	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
+	if ( atoi(Cmd_Argv(1)) != svs.spawncount)
 	{
 		Con_Printf ("SV_Spawn_f from different level\n");
 		SV_New_f ();
@@ -1785,7 +1800,9 @@ void SVQW_Spawn_f (void)
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
 		SV_FullClientUpdate(client, host_client);
+#ifdef MVD_RECORDING
 	SV_MVD_FullClientUpdate(NULL, host_client);
+#endif
 
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
@@ -2020,9 +2037,15 @@ void SV_Begin_Core(client_t *split)
 				SV_SpawnParmsToQC(split);
 
 				// call the spawn function
-				pr_global_struct->time = sv.world.physicstime;
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
+				{
+					globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+					pr_global_struct->time = sv.world.physicstime;
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+
+					if (pr_globals)
+						G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
+					PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
+				}
 			}
 			sv.spawned_observer_slots++;
 		}
@@ -2156,7 +2179,7 @@ void SV_Begin_f (void)
 		split->state = cs_spawned;
 
 	// handle the case of a level changing while a client was connecting
-	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
+	if ( atoi(Cmd_Argv(1)) != svs.spawncount)
 	{
 		Con_Printf ("SV_Begin_f from different level\n");
 		SV_New_f ();
@@ -2216,6 +2239,10 @@ void SV_Begin_f (void)
 		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
 		MSG_WriteAngle (&host_client->netchan.message, 0 );
 	}
+
+#ifdef MVD_RECORDING
+	SV_MVD_AutoRecord();
+#endif
 }
 
 //=============================================================================
@@ -2708,6 +2735,7 @@ void SV_VoiceReadPacket(void)
 		ring->receiver[j>>3] |= 1<<(j&3);
 	}
 
+#ifdef MVD_RECORDING
 	if (sv.mvdrecording && sv_voip_record.ival && !(sv_voip_record.ival == 2 && !host_client->spectator))
 	{
 		sizebuf_t *msg;
@@ -2733,6 +2761,7 @@ void SV_VoiceReadPacket(void)
 		MSG_WriteShort(msg, ring->datalen);
 		SZ_Write(msg, ring->data, ring->datalen);
 	}
+#endif
 }
 void SV_VoiceInitClient(client_t *client)
 {
@@ -3041,7 +3070,6 @@ qboolean SV_AllowDownload (const char *name)
 static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
 {
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
-	extern cvar_t sv_demoDir;
 	qboolean protectedpak;
 	qboolean found;
 	static char tmpname[MAX_QPATH];
@@ -3049,6 +3077,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 	if (replacementname)
 		*replacementname = NULL;
 
+#ifdef MVD_RECORDING
 	//mvdsv demo downloading support demonum/ -> demos/XXXX (sets up the client paths)
 	if (!Q_strncasecmp(name, "demonum/", 8))
 	{
@@ -3066,6 +3095,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 			return DLERR_REDIRECTFILE;
 		}
 	}
+#endif
 
 	if (!SV_AllowDownload(name))
 	{
@@ -3073,12 +3103,14 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		return DLERR_PERMISSIONS;	//not permitted (even if it exists).
 	}
 
+#ifdef MVD_RECORDING
 	//mvdsv demo downloading support. demos/ -> demodir (sets up the server paths)
 	if (!Q_strncasecmp(name, "demos/", 6))
 	{
 		Q_snprintfz(tmpname, sizeof(tmpname), "%s/%s", sv_demoDir.string, name+6);
 		name = tmpname;
 	}
+#endif
 
 	if (!Q_strncasecmp(name, "package/", 8))
 	{
@@ -3241,6 +3273,7 @@ void SV_DownloadSize_f(void)
 	}
 }
 
+#ifdef MVD_RECORDING
 void SV_DemoDownload_f(void)
 {
 	int arg;
@@ -3298,6 +3331,7 @@ void SV_DemoDownload_f(void)
 		}
 	}
 }
+#endif
 
 /*
 ==================
@@ -3309,7 +3343,6 @@ void SV_BeginDownload_f(void)
 	char *name = Cmd_Argv(1);
 	char *redirection = NULL;
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
-	extern cvar_t sv_demoDir;
 	flocation_t loc;
 	int result;
 
@@ -3682,12 +3715,13 @@ void SV_Say (qboolean team)
 	char	t1[32], *t2;
 	int cls = 0;
 	float floodtime;
+#ifdef MVD_RECORDING
 	sizebuf_t *msg;
+	qboolean mvdrecording;
+#endif
 
 	qboolean sent[MAX_CLIENTS];	//so we don't send to the same splitscreen connection twice. (it's ugly)
 	int cln;
-
-	qboolean mvdrecording;
 
 	char *s, *s2;
 
@@ -3780,8 +3814,10 @@ void SV_Say (qboolean team)
 	if (!(host_client->penalties & BAN_MUTE))
 		Sys_Printf ("%s", text);
 
+#ifdef MVD_RECORDING
 	mvdrecording = sv.mvdrecording;
 	sv.mvdrecording = false;	//so that the SV_ClientPrintf doesn't send to all players.
+#endif
 	for (j = 0, client = svs.clients; j < svs.allocated_client_slots; j++, client++)
 	{
 		if (client->state != cs_spawned && client->state != cs_connected)
@@ -3828,6 +3864,7 @@ void SV_Say (qboolean team)
 
 		SV_ClientPrintf(client, PRINT_CHAT, "%s", text);
 	}
+#ifdef MVD_RECORDING
 	sv.mvdrecording = mvdrecording;
 
 	if (!sv.mvdrecording || !cls)
@@ -3842,6 +3879,7 @@ void SV_Say (qboolean team)
 	MSG_WriteByte (msg, svc_print);
 	MSG_WriteByte (msg, PRINT_CHAT);
 	MSG_WriteString (msg, text);
+#endif
 }
 
 
@@ -4029,7 +4067,7 @@ void SV_Pause_f (void)
 		return;
 	}
 
-	if (host_client->spectator && !svs.demoplayback)
+	if (host_client->spectator)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "Spectators may not pause the game\n");
 		return;
@@ -5476,7 +5514,9 @@ static void SVNQ_Spawn_f (void)
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients; i<sv.allocated_client_slots ; i++, client++)
 		SV_FullClientUpdate(client, host_client);
+#ifdef MVD_RECORDING
 	SV_MVD_FullClientUpdate(NULL, host_client);
+#endif
 
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
@@ -5958,11 +5998,13 @@ ucmd_t ucmds[] =
 	{"setinfo", SV_SetInfo_f},
 	{"serverinfo", SV_ShowServerinfo_f},
 
+#ifdef MVD_RECORDING
 	/*demo/download commands*/
 	{"demolist", SV_UserCmdMVDList_f},
 	{"dlist", SV_UserCmdMVDList_f},	//apparently people are too lazy to type.
 	{"demoinfo", SV_MVDInfo_f},
 	{"dl", SV_DemoDownload_f},
+#endif
 
 	{"stopdownload", SV_StopDownload_f},
 	{"dlsize", SV_DownloadSize_f},
@@ -6098,8 +6140,8 @@ ucmd_t nqucmds[] =
 	/*various misc extensions*/
 	{"protocols",	SVNQ_Protocols_f, true},
 	{"pext",		SV_Pext_f, true},
-	{"enablecsqc",	SV_EnableClientsCSQC},
-	{"disablecsqc",	SV_DisableClientsCSQC},
+	{"enablecsqc",	SV_EnableClientsCSQC, 2},
+	{"disablecsqc",	SV_DisableClientsCSQC, 2},
 	{"challengeconnect", NULL},
 
 	/*spectating, this should be fun...*/
@@ -6184,7 +6226,8 @@ void SV_ExecuteUserCommand (const char *s, qboolean fromQC)
 				{
 					if (u->func)
 						u->func();
-					PR_KrimzonParseCommand(s);
+					if (host_client->spawned)
+						PR_KrimzonParseCommand(s);
 				}
 				host_client = oldhost;
 				return;
@@ -7491,6 +7534,7 @@ void SV_ReadQCRequest(void)
 	int i;
 	globalvars_t *pr_globals;
 	client_t *cl = host_client;
+	edict_t *ed;
 
 	if (!svprogfuncs)
 	{
@@ -7550,7 +7594,14 @@ void SV_ReadQCRequest(void)
 			e = MSGSV_ReadEntity(host_client);
 			if (e < 0 || e >= sv.world.num_edicts)
 				e = 0;
-			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_PB(svprogfuncs, e));
+			ed = EDICT_NUM_PB(svprogfuncs, e);
+			if (!ed)
+			{
+				ed = sv.world.edicts;
+				Con_Printf("client %s sent invalid entity\n", fromclient->name);
+				host_client->drop = true;
+			}
+			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, ed);
 			break;
 		}
 		i++;
@@ -7564,6 +7615,7 @@ done:
 	else
 		fname = va("CSEv_%s", rname);
 	f = PR_FindFunction(svprogfuncs, fname, PR_ANY);
+#ifndef NOLEGACY
 	if (!f)
 	{
 		if (i)
@@ -7572,7 +7624,10 @@ done:
 			rname = va("Cmd_%s", rname);
 		f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
 	}
-	if (!cl)
+#endif
+	if (host_client->drop)
+		;
+	else if (!cl)
 		;	//bad seat! not going to warn as they might have been removed recently
 	else if (f)
 	{
@@ -7905,6 +7960,8 @@ void SV_ExecuteClientMessage (client_t *cl)
 #endif
 		case clcdp_ackframe:
 			cl->delta_sequence = MSG_ReadLong();
+			if (cl->delta_sequence == -1 && cl->pendingdeltabits)
+				cl->pendingdeltabits[0] = UF_REMOVE;
 			SV_AckEntityFrame(cl, cl->delta_sequence);
 			break;
 		}

@@ -22,7 +22,7 @@
 
 // All my fault -eukara
 #define ENGINE_ROUTING
-#define USE_INTERNAL_BULLET
+#undef USE_INTERNAL_BULLET
 #undef MENU_NATIVECODE // Will make a debut eventually, hopefully
 
 // What do we use
@@ -55,7 +55,7 @@
 #define LOADERTHREAD	//worker threads for loading misc stuff. falls back on main thread if not supported.
 //#define USEAREAGRID		//world collision optimisation. REQUIRED for performance with xonotic. hopefully it helps a few other mods too.
 #define USERBE
-#define AVAIL_FREETYPE	//for truetype font rendering
+#undef AVAIL_FREETYPE	//for truetype font rendering
 #define IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
 #define DECOMPRESS_ETC2
 #define DECOMPRESS_RGTC

@@ -4252,7 +4252,14 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				else if (!stricmp(arg, "true-empty-strings"))
 					flag_brokenifstring = state;
 				else if (!stricmp(arg, "lno"))
-					;	//currently we always try to write lno files...
+				{
+					//currently we always try to write lno files, when filename info isn't stripped
+					if (opt_filenames)
+					{
+						QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Disabling -Ofilenames to satisfy -flno request");
+						opt_filenames = false;
+					}
+				}
 				else if (!stricmp(arg, "utf8"))
 					;	//we always interpret input as utf-8, and thus output strings are 'utf-8' too. -fno-utf8 might be useful to asciify inputs, but that'll just break quake-encoded text, so why bother
 				else if (!stricmp(arg, "return-assignments"))

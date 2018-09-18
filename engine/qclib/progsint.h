@@ -435,7 +435,7 @@ unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *progfuncs, struct edict_s *e
 #define	E_VECTOR(e,o) (&((float*)&e->v)[o])
 #define	E_STRING(e,o) (*(string_t *)&((float*)(e+1))[o])
 
-const extern	unsigned int		type_size[];
+extern	const unsigned int		type_size[];
 
 
 extern	unsigned short		pr_crc;

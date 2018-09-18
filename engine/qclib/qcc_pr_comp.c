@@ -4519,7 +4519,7 @@ void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, unsigned
 	char *err;
 	int width, thisarg, arg;
 	char formatbuf[16];
-	int argpos = firstarg;
+	int argpos = firstarg, argn_last = firstarg;
 	int isfloat;
 	const QCC_eval_t *formatstring = QCC_SRef_EvalConst(arglist[0]->base);
 	if (!formatstring)	//can't check variables.
@@ -4529,6 +4529,7 @@ void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, unsigned
 	s = strings + formatstring->string;
 
 #define ARGTYPE(a) (((a)>=firstarg && (a)<argcount) ? (arglist[a]->cast->type) : ev_void)
+#define ARGCTYPE(a) (((a)>=firstarg && (a)<argcount) ? (arglist[a]->cast) : type_void)
 
 	for(;;)
 	{
@@ -4536,7 +4537,7 @@ void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, unsigned
 		switch(*s)
 		{
 		case 0:
-			if (argpos < argcount)
+			if (argpos < argcount && argn_last < argcount)
 				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing arguments", funcname);
 			return;
 		case '%':
@@ -4707,6 +4708,8 @@ nolength:
 
 			if(thisarg < 0)
 				thisarg = argpos++;
+			if (argn_last < thisarg+1)
+				argn_last = thisarg+1;
 
 			memcpy(formatbuf, s0, s+1-s0);
 			formatbuf[s+1-s0] = 0;
@@ -4725,7 +4728,11 @@ nolength:
 					case ev_variant:
 						break;
 					default:
-						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires float at arg %i", funcname, formatbuf, thisarg+1);
+						{
+							char typename[256];
+							TypeName(ARGCTYPE(thisarg), typename, sizeof(typename));
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires float at arg %i (got %s)", funcname, formatbuf, thisarg+1, typename);
+						}
 						break;
 					}
 				}
@@ -14731,7 +14738,6 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 	QCC_def_t		*def, *d;
 	QCC_sref_t		dynlength;
 	QCC_function_t	*f;
-//	int			i = 0; // warning: ‘i’ may be used uninitialized in this function
 	pbool shared=false;
 	pbool isstatic=defaultstatic;
 	pbool externfnc=false;
@@ -15019,6 +15025,8 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 						QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "accumulating an accumulating accumulation");
 					accumulate = true;
 				}
+				else if (QCC_PR_CheckName("eraseable"))
+					noref = true;
 				else
 				{
 					QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "Unknown attribute \"%s\"", pr_token);
@@ -15492,7 +15500,12 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 					QCC_PR_ParsePrintDef(WARN_REDECLARATIONMISMATCH, def);
 				}
 			}
-
+			if (accumulate)
+			{
+				if (def->initialized)
+					QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "%s redeclared to accumulate after initial declaration", def->name);
+				def->accumulate |= true;
+			}
 
 			if (dostrip)
 				def->referenced = true;

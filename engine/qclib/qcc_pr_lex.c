@@ -1298,7 +1298,6 @@ pbool QCC_PR_Precompiler(void)
 			{
 	#define MAXSOURCEFILESLIST 8
 	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
-	//extern int currentsourcefile; // warning: unused variable âcurrentsourcefileâ
 	extern int numsourcefiles;
 
 				int i;

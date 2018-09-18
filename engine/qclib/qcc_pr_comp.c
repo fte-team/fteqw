@@ -2961,7 +2961,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	{	//optimise based on last statement.
 		if (op - pr_opcodes == OP_IFNOT_I)
 		{
-			if (opt_shortenifnots && var_a.cast && var_a.sym->refcount == 1 && (statements[numstatements-1].op == OP_NOT_F || statements[numstatements-1].op == OP_NOT_FNC || statements[numstatements-1].op == OP_NOT_ENT))
+			if (opt_shortenifnots && var_a.cast && var_a.sym->temp && var_a.sym->refcount == 1 && (statements[numstatements-1].op == OP_NOT_F || statements[numstatements-1].op == OP_NOT_FNC || statements[numstatements-1].op == OP_NOT_ENT))
 			{
 				if (statements[numstatements-1].c.sym == var_a.sym && statements[numstatements-1].c.ofs == var_a.ofs)
 				{
@@ -2980,7 +2980,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		}
 		else if (op - pr_opcodes == OP_IFNOT_F)
 		{
-			if (opt_shortenifnots && var_a.cast && var_a.sym->refcount == 1 && statements[numstatements-1].op == OP_NOT_F)
+			if (opt_shortenifnots && var_a.cast && var_a.sym->temp && var_a.sym->refcount == 1 && statements[numstatements-1].op == OP_NOT_F)
 			{
 				if (statements[numstatements-1].c.sym == var_a.sym && statements[numstatements-1].c.ofs == var_a.ofs)
 				{
@@ -2996,7 +2996,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		}
 		else if (op - pr_opcodes == OP_IFNOT_S)
 		{
-			if (opt_shortenifnots && var_a.cast && statements[numstatements-1].op == OP_NOT_S)
+			if (opt_shortenifnots && var_a.cast && var_a.sym->temp && var_a.sym->refcount == 1 && statements[numstatements-1].op == OP_NOT_S)
 			{
 				if (statements[numstatements-1].c.sym == var_a.sym && statements[numstatements-1].c.ofs == var_a.ofs)
 				{
@@ -12966,6 +12966,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	{	//FIXME: should probably always take this path, but kinda pointless until we have relocs for defs
 		QCC_RemapLockedTemps(f->code, numstatements);
 		QCC_Marshal_Locals(f->code, numstatements);
+		QCC_WriteAsmFunction(f, f->code, f->firstlocal);	//FIXME: this will print the entire function, not just the part that we added. and we'll print it all again later, too. should probably make it a function attribute that we check at the end.
 
 		f->numstatements = numstatements - f->code;
 		f->statements = qccHunkAlloc(sizeof(*statements)*f->numstatements);

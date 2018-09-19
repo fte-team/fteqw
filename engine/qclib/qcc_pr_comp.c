@@ -7293,6 +7293,7 @@ vectorarrayindex:
 			else if ((!idx.cast && r->cast->type == ev_field && r->cast->aux_type->type == ev_vector && !arraysize) || (idx.cast && t->type == ev_field && t->aux_type->type && !arraysize))
 			{
 				/*array notation on vector field*/
+fieldarrayindex:
 				if (tmp.sym->constant)
 				{
 					unsigned int i;
@@ -7406,6 +7407,33 @@ vectorarrayindex:
 			{
 				tmp = QCC_MakeIntConst(3);
 				goto vectorarrayindex;
+			}
+			else
+				QCC_PR_ParseError(0, "unsupported vector swizzle '.%s'", swizzle);
+		}
+		else if ((t->type == ev_field && t->aux_type->type == ev_vector) && !arraysize && !t->accessors && QCC_PR_CheckToken("."))
+		{
+			char *swizzle = QCC_PR_ParseName();
+			//single-channel swizzles just result in a float. nice and easy. assignable, too.
+			if (!strcmp(swizzle, "x") || !strcmp(swizzle, "r"))
+			{
+				tmp = QCC_MakeIntConst(0);
+				goto fieldarrayindex;
+			}
+			else if (!strcmp(swizzle, "y") || !strcmp(swizzle, "g"))
+			{
+				tmp = QCC_MakeIntConst(1);
+				goto fieldarrayindex;
+			}
+			else if (!strcmp(swizzle, "z") || !strcmp(swizzle, "b"))
+			{
+				tmp = QCC_MakeIntConst(2);
+				goto fieldarrayindex;
+			}
+			else if ((!strcmp(swizzle, "w")  || !strcmp(swizzle, "a")) && t->size >= 4)
+			{
+				tmp = QCC_MakeIntConst(3);
+				goto fieldarrayindex;
 			}
 			else
 				QCC_PR_ParseError(0, "unsupported vector swizzle '.%s'", swizzle);
@@ -10444,7 +10472,7 @@ void QCC_PR_ParseStatement (void)
 			PR_GenerateReturnOuts();
 			if (pr_scope->type->aux_type->type != ev_void)
 			{	//accumulated functions are not required to return anything, on the assumption that a previous 'part' of the function did so
-				if (!pr_scope->def || !pr_scope->def->accumulate || !pr_scope->returndef.cast)
+				if ((!pr_scope->def || !pr_scope->def->accumulate) && !pr_scope->returndef.cast)
 					QCC_PR_ParseWarning(WARN_MISSINGRETURNVALUE, "\'%s\' returned nothing, expected %s", pr_scope->name, pr_scope->type->aux_type->name);
 				//this should not normally happen
 				if (!pr_scope->returndef.cast)

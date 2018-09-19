@@ -291,7 +291,7 @@ optimisations_t optimisations[] =
 	{&opt_return_only,				"ro",	2,	FLAG_KILLSDEBUGGERS,	"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
 	{&opt_compound_jumps,			"cj",	2,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
-	{&opt_stripfunctions,			"sf",	3,	FLAG_KILLSDEBUGGERS,	"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
+	{&opt_stripfunctions,			"sf",	3,	FLAG_KILLSDEBUGGERS,	"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games, but will prevent FTE_MULTIPROGS/mutators from being able to hook functions."},
 	{&opt_locals_overlapping,		"lo",	2,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,	"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{&opt_classfields,				"cf",	2,	FLAG_KILLSDEBUGGERS,	"class_fields",		"Strip class field names. This will harm debugging and can result in 'gibberish' names appearing in saved games. Has no effect on engines other than FTEQW, which will not recognise these anyway."},
@@ -355,6 +355,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows | for linebreaks. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
 	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
+//	{&flag_lno,				defaultflag,	"lno",			"Write Line Numbers",	"Writes line number information. This is required for any real kind of debugging. Will be ignored if filenames were stripped."},
 	{&output_parms,			0,				"parms",		"Define offset parms",	"if PARM0 PARM1 etc should be defined by the compiler. These are useful if you make use of the asm keyword for function calls, or you wish to create your own variable arguments. This is an easy way to break decompilers."},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
 	{&autoprototype,		0,				"autoproto",	"Automatic Prototyping","Causes compilation to take two passes instead of one. The first pass, only the definitions are read. The second pass actually compiles your code. This means you never have to remember to prototype functions again."},	//so you no longer need to prototype functions and things in advance.
 	{&writeasm,				0,				"wasm",			"Dump Assembler",		"Writes out a qc.asm which contains all your functions but in assembler. This is a great way to look for bugs in fteqcc, but can also be used to see exactly what your functions turn into, and thus how to optimise statements better."},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
@@ -610,17 +611,24 @@ void QCC_SortFields (void)
 	int				i, j;
 	QCC_ddef32_t	t;
 
-	// good 'ol bubble sort
+	//insertion sort, of sorts.
 	//(qsort doesn't guarentee ordering)
-	for (i = 0; i < numfielddefs; i++)
+	for (i = 1; i < numfielddefs; i++)
 	{
-		for (j = i; j < numfielddefs; j++)
-			if (fields[i].ofs > fields[j].ofs)
+		if (fields[i].ofs < fields[i-1].ofs)
+		{	//this entry is out of order
+			for (j = i-1; j > 0; j--)
 			{
-				t = fields[i];
-				fields[i] = fields[j];
-				fields[j] = t;
+				if (fields[j].ofs <= fields[i].ofs)
+				{	//okay, so we're putting it after this element.
+					j++;
+					break;
+				}
 			}
+			t = fields[i];
+			memmove(&fields[j+1], &fields[j], (i-j)*sizeof(t));
+			fields[j] = t;
+		}
 	}
 }
 

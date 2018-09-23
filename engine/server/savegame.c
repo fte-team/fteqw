@@ -12,6 +12,7 @@ extern cvar_t pr_enable_profiling;
 
 cvar_t sv_savefmt = CVARFD("sv_savefmt", "", CVAR_SAVE, "Specifies the format used for the saved game.\n0=legacy.\n1=fte\n2=binary");
 cvar_t sv_autosave = CVARFD("sv_autosave", "5", CVAR_SAVE, "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
+extern cvar_t pr_ssqc_memsize;
 
 void SV_Savegame_f (void);
 
@@ -379,7 +380,7 @@ static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		Q_SetProgsParms(false);
 		svs.numprogs = 0;
 
-		PR_Configure(svprogfuncs, -1, MAX_PROGS, pr_enable_profiling.ival);
+		PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
 		PR_RegisterFields();
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);	//just in case the max edicts isn't set.
 		progstype = pt;	//presumably the progs.dat will be what they were before.
@@ -901,7 +902,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	if (progstype != PROG_H2)
 	{
 		Q_SetProgsParms(false);
-		PR_Configure(svprogfuncs, -1, MAX_PROGS, pr_enable_profiling.ival);
+		PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
 		PR_RegisterFields();
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 	}

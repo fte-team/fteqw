@@ -548,6 +548,10 @@ int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, 
 					break;
 				if (*ent->d_name != '.')
 				{
+#ifdef _DIRENT_HAVE_D_TYPE
+					if (ent->d_type != DT_DIR && ent->d_type != DT_UNKNOWN)
+						continue;
+#endif
 					if (wildcmp(subdir, ent->d_name))
 					{
 						memcpy(file, truepath, wild-truepath);

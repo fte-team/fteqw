@@ -329,6 +329,22 @@ void Con_DLPrintf (int level, const char *fmt, ...)
 	if (log_developer.value)
 		Con_Log(msg); // log to console
 }
+
+//for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
+void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (developerlevel)
+		Con_DLPrintf (developerlevel, "%s", msg);
+	else
+		Con_Printf("%s", msg);
+}
 #endif
 
 /*

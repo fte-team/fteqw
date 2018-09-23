@@ -613,7 +613,7 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 #define DSPK_EXP 0.0433
 
 /*
-qboolean QDECL S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
+qboolean QDECL S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
 	sfxcache_t	*sc;
 
@@ -689,7 +689,7 @@ qboolean QDECL S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, size_t datalen, in
 	return sc;
 }
 */
-static qboolean QDECL S_LoadDoomSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
+static qboolean QDECL S_LoadDoomSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
@@ -731,7 +731,7 @@ void S_ShortedLittleFloats(void *p, size_t samples)
 	}
 }
 
-static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
+static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
 	wavinfo_t	info;
 
@@ -772,11 +772,11 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 	return ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
 }
 
-qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed);
+qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
 
 #ifdef FTE_TARGET_WEB
 //web browsers contain their own decoding libraries that our openal stuff can use.
-static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
+static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
 	sfxcache_t *sc;
 	s->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + datalen);
@@ -834,7 +834,7 @@ S_LoadSound
 ==============
 */
 
-static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
+static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t forcedecode, size_t b)
 {
 	sfx_t *s = ctx;
 	char	namebuffer[256];
@@ -920,7 +920,7 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 				data = FS_LoadMallocFile(namebuffer, &filesize);
 				if (data)
 				{
-					Con_DPrintf("found a mangled name: %s\n", namebuffer);
+					Con_DPrintf("S_LoadSound: %s%s requested, but could only find %s\n", prefixes[pre], name, namebuffer);
 					break;
 				}
 			}
@@ -942,7 +942,7 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	{
 		if (AudioInputPlugins[i])
 		{
-			if (AudioInputPlugins[i](s, data, filesize, snd_speed))
+			if (AudioInputPlugins[i](s, data, filesize, snd_speed, forcedecode))
 			{
 				//wake up the main thread in case it decided to wait for us.
 				COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_LOADED, 0);
@@ -960,12 +960,12 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	return;
 }
 
-qboolean S_LoadSound (sfx_t *s)
+qboolean S_LoadSound (sfx_t *s, qboolean force)
 {
 	if (s->loadstate == SLS_NOTLOADED && sndcardinfo)
 	{
 		s->loadstate = SLS_LOADING;
-		COM_AddWork(WG_LOADER, S_LoadSoundWorker, s, NULL, 0, 0);
+		COM_AddWork(WG_LOADER, S_LoadSoundWorker, s, NULL, force, 0);
 	}
 	if (s->loadstate == SLS_FAILED)
 		return false;	//it failed to load once before, don't bother trying again.

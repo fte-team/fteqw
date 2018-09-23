@@ -803,7 +803,7 @@ static void QDECL PFQ2_SetAreaPortalState(unsigned int p, qboolean s)
 qboolean SVQ2_InitGameProgs(void)
 {
 	extern cvar_t maxclients;
-	volatile static game_import_t	import;	//volatile because msvc sucks
+	static volatile game_import_t	import;	//volatile because msvc sucks
 	if (COM_CheckParm("-noq2dll"))
 	{
 		SVQ2_ShutdownGameProgs();

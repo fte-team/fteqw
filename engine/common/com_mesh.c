@@ -1002,8 +1002,8 @@ typedef struct
 	skeltype_t	skeltype;	//the skeletal type of this bone block. all blocks should have the same result or the whole thing is unusable or whatever.
 	int			firstbone;	//first bone of interest
 	int			endbone;	//the first bone of the next group (ie: if first is 0, this is the count)
-	float		frac[8];	//weight of this animation (1 if lerpcount is 1)
-	float		*pose[8];	//pointer to the raw frame data for bone 0.
+	float		frac[FRAME_BLENDS*2];	//weight of this animation (1 if lerpcount is 1)
+	float		*pose[FRAME_BLENDS*2];	//pointer to the raw frame data for bone 0.
 	int			lerpcount;	//number of pose+frac entries.
 } skellerps_t;
 static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion_s *fs, int numbones, galiasinfo_t *inf)
@@ -1249,9 +1249,6 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 		endbone = lerp->endbone;
 		switch(lerp->lerpcount)
 		{
-		case 1://no blend required, data can be used as-is, once merged with the other bone groups, anyway.
-			memcpy(targetbuffer+bone*12, lerp->pose[0]+bone*12, (endbone-bone)*12*sizeof(float));
-			break;
 		case 2:
 			{
 				int k;
@@ -1288,6 +1285,32 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 				{
 					for (k = 0; k < 12; k++)	//please please unroll!
 						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]) + (pose3[k]*frac3) + (frac4*pose4[k]);
+				}
+			}
+			break;
+		case 0:
+		case 1:	//the weight will usually be 1, which won't take this path.
+		default:
+			{	//the generic slow path.
+				int k, i, b;
+				float *out, *pose, frac;
+				for (i = 0; i < lerp->lerpcount; i++)
+				{
+					out = targetbuffer + bone*12;
+					pose = lerp->pose[i] + bone*12;
+					frac = lerp->frac[i];
+					if (!i)
+					{	//first influence shouldn't add, saving us a memcpy.
+						for (b = bone; b < endbone; b++, out+=12, pose+=12)
+							for (k = 0; k < 12; k++)
+								out[k] = (pose[k]*frac);
+					}
+					else
+					{
+						for (b = bone; b < endbone; b++, out+=12, pose+=12)
+							for (k = 0; k < 12; k++)
+								out[k] += (pose[k]*frac);
+					}
 				}
 			}
 			break;
@@ -1681,7 +1704,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	meshcache.ent = e;
 
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && FRAME_BLENDS == 4
 	if (!e->framestate.g[FS_REG].lerpweight[0] && !e->framestate.g[FS_REG].lerpweight[1] && !e->framestate.g[FS_REG].lerpweight[2] && !e->framestate.g[FS_REG].lerpweight[3])
 		Con_Printf("Entity with no lerp info\n");
 #endif
@@ -1817,6 +1840,12 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		float lerp;
 		float fg1time;
 		//float fg2time;
+		static float printtimer;
+
+#if FRAME_BLENDS != 2
+		if (e->framestate.g[FS_REG].lerpweight[2] || e->framestate.g[FS_REG].lerpweight[3])
+			Con_ThrottlePrintf(&printtimer, 1, "Alias_GAliasBuildMesh(%s): non-skeletal animation only supports two animations\n", e->model->name);
+#endif
 
 		//FIXME: replace most of this logic with Alias_BuildSkelLerps
 
@@ -1828,22 +1857,22 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 		if (frame1 < 0)
 		{
-			Con_DPrintf("Negative frame (%s)\n", e->model->name);
+			Con_ThrottlePrintf(&printtimer, 1, "Negative frame (%s)\n", e->model->name);
 			frame1 = 0;
 		}
 		if (frame2 < 0)
 		{
-			Con_DPrintf("Negative frame (%s)\n", e->model->name);
+			Con_ThrottlePrintf(&printtimer, 1, "Negative frame (%s)\n", e->model->name);
 			frame2 = frame1;
 		}
 		if (frame1 >= inf->numanimations)
 		{
-			Con_DPrintf("Too high frame %i (%s)\n", frame1, e->model->name);
+			Con_ThrottlePrintf(&printtimer, 1, "Too high frame %i (%s)\n", frame1, e->model->name);
 			frame1 %= inf->numanimations;
 		}
 		if (frame2 >= inf->numanimations)
 		{
- 			Con_DPrintf("Too high frame %i (%s)\n", frame2, e->model->name);
+ 			Con_ThrottlePrintf(&printtimer, 1, "Too high frame %i (%s)\n", frame2, e->model->name);
 			frame2 %= inf->numanimations;
 		}
 
@@ -1857,7 +1886,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 		if (!inf->numanimations || !g1->numposes || !g2->numposes)
 		{
-			Con_Printf("Invalid animation data on entity with model %s\n", e->model->name);
+			Con_ThrottlePrintf(&printtimer, 1, "Invalid animation data on entity with model %s\n", e->model->name);
 			//no animation data. panic!
 			memset(mesh, 0, sizeof(*mesh));
 			*vbop = NULL;
@@ -4507,6 +4536,14 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			int frame1, frame2;
 			//float f1time, f2time;	//tags/md3s don't support framegroups.
 			float f2ness;
+
+#if FRAME_BLENDS != 2
+			if (fstate->g[FS_REG].lerpweight[2] || fstate->g[FS_REG].lerpweight[3])
+			{
+				static float printtimer;
+				Con_ThrottlePrintf(&printtimer, 1, "Mod_GetTag(%s): non-skeletal animation only supports two animations\n", model->name);
+			}
+#endif
 
 			frame1 = fstate->g[FS_REG].frame[0];
 			frame2 = fstate->g[FS_REG].frame[1];

@@ -198,7 +198,7 @@ typedef struct
 
 struct world_s
 {
-	void (QDECL *Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
+	void (QDECL *Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o, trace_t *trace);
 	void (QDECL *Event_Think)(struct world_s *w, wedict_t *s);
 	void (QDECL *Event_Sound) (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeoffset, unsigned int flags);
 	qboolean (QDECL *Event_ContentsTransition) (struct world_s *w, wedict_t *ent, int oldwatertype, int newwatertype);
@@ -370,7 +370,7 @@ void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, 
 /*sv_move.c*/
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)
 qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up);
-qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace), struct globalvars_s *set_trace_globs);
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *prinst, trace_t *trace));
 qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist);
 qboolean World_GetEntGravityAxis(wedict_t *ent, vec3_t axis[3]);
 #endif

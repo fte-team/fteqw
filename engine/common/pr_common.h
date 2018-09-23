@@ -300,7 +300,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 #endif
 
 #if defined(SKELETALOBJECTS) || defined(RAGDOLL)
-	void skel_lookup(world_t *prinst, int skelidx, framestate_t *out);
+	void skel_lookup(world_t *prinst, int skelidx, framestate_t *fte_restrict out);
 	void skel_dodelete(world_t *world);
 	void skel_reset(world_t *world);
 	void skel_reload(void);
@@ -328,6 +328,7 @@ void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
+cvar_t *PF_Cvar_FindOrGet(const char *var_name);
 void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cvars_haveunsaved (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cvar_set (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

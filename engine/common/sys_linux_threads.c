@@ -58,10 +58,10 @@ typedef struct {
 	int (*func)(void *);
 	void *args;
 } qthread_t;
-static int Sys_CreatedThread(void *v)
+static void *Sys_CreatedThread(void *v)
 {
 	qthread_t *qthread = v;
-	int r;
+	qintptr_t r;
 
 #ifdef ANDROID
 	JNIEnv* env;
@@ -74,7 +74,7 @@ static int Sys_CreatedThread(void *v)
 	(*sys_jvm)->DetachCurrentThread(sys_jvm);
 #endif
 
-	return r;
+	return (void*)r;
 }
 
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)

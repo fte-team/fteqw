@@ -745,8 +745,6 @@ static char *Macro_demoplayback (void)
 {
 	switch (cls.demoplayback)
 	{
-	case DPB_EZTV: // warning: enumeration value ‘DPB_EZTV’ not handled in switch
-		break;
 	case DPB_NONE:
 		return "0";
 	case DPB_QUAKEWORLD:
@@ -761,7 +759,10 @@ static char *Macro_demoplayback (void)
 	case DPB_QUAKE2:
 		return "dm2playback";
 #endif
+
 	//gcc will warn if we add annother playback and forget here, otherwise I'd use a default.
+	case DPB_EZTV:
+		break;
 	}
 	return "1";	//unknown.
 }

@@ -428,15 +428,6 @@ void R_MakeTexWad_f(void)
 }
 #endif
 void GLR_TimeRefresh_f (void);
-
-extern cvar_t v_contrast, r_drawflat;
-extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
-
-// callback defines
-extern cvar_t gl_font;
-extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
-extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
-extern cvar_t r_fastskycolour;
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)

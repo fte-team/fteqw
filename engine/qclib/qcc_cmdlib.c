@@ -958,7 +958,7 @@ unsigned int utf8_check(const void *in, unsigned int *value)
 		if ((str[1] & 0xc0) == 0x80)
 		{
 			*value = uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
-			if (!uc || uc >= (1u<<7))	//allow modified utf-8
+			if (!uc || uc >= (1u<<7))	//allow modified utf-8 (only for nulls)
 				return 2;
 		}
 	}

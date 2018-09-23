@@ -361,6 +361,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(SERVERONLY) && defined(CLIENTONLY)
 	#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
 #endif
+#ifndef CLIENTONLY
+	#define HAVE_SERVER
+#endif
+#ifndef SERVERONLY
+	#define HAVE_CLIENT
+#endif
 
 //software rendering is just too glitchy, don't use it - unless its the only choice.
 #if defined(SWQUAKE) && !defined(_DEBUG) && !defined(__DJGPP__)
@@ -1067,6 +1073,7 @@ STAT_PUNCHVECTOR_X	= 29,
 STAT_PUNCHVECTOR_Y	= 30,
 STAT_PUNCHVECTOR_Z	= 31,
 
+#ifdef HEXEN2
 //these stats are used only when running a hexen2 mod/hud, and will never be used for a quake mod/hud/generic code.
 STAT_H2_LEVEL	= 32,				// changes stat bar
 STAT_H2_INTELLIGENCE,				// changes stat bar
@@ -1123,7 +1130,7 @@ STAT_H2_PLAYERCLASS,
 
 STAT_H2_OBJECTIVE1,	//integer
 STAT_H2_OBJECTIVE2,	//integer
-
+#endif
 
 STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR		= 220, // DP
 STAT_MOVEVARS_AIRCONTROL_PENALTY			= 221, // DP

@@ -44,7 +44,12 @@ typedef enum
 	#define MAX_BONE_CONTROLLERS 5
 #endif
 
-#define FRAME_BLENDS 4
+#ifdef NOLEGACY
+#define FRAME_BLENDS 2
+#else
+#define FRAME_BLENDS 4	//for compat with DP (for mods that want 4-way blending yet refuse to use framegroups properly). real mods should be using skeletal objects allowing for N-way blending.
+#endif
+
 #define FST_BASE 0	//base frames
 #define FS_REG 1	//regular frames
 #define FS_COUNT 2	//regular frames

@@ -4224,7 +4224,14 @@ void SV_PTrack_f (void)
 
 	if (!SV_CanTrack(host_client, i+1))
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, "invalid player to track\n");
+		if (i < 0 || i >= sv.allocated_client_slots)
+			SV_ClientTPrintf (host_client, PRINT_HIGH, "invalid player to track\n");
+		else if (svs.clients[i].spectator)
+			SV_ClientTPrintf (host_client, PRINT_HIGH, "cannot track other spectators\n");
+		else if (svs.clients[i].state != cs_spawned)
+			SV_ClientTPrintf (host_client, PRINT_HIGH, "cannot track - player not spawned yet\n");
+		else
+			SV_ClientTPrintf (host_client, PRINT_HIGH, "invalid player to track\n");
 		host_client->spec_track = 0;
 		ent = EDICT_NUM_PB(svprogfuncs, host_client - svs.clients + 1);
 		tent = EDICT_NUM_PB(svprogfuncs, 0);
@@ -7416,11 +7423,11 @@ if (sv_player->v->health > 0 && before && !after )
 					VectorCopy(pmove.touchvel[i], old_vel);
 					VectorCopy(pmove.touchvel[i], sv_player->v->velocity);
 				}
-				sv.world.Event_Touch(&sv.world, (wedict_t*)ent, (wedict_t*)sv_player);
+				sv.world.Event_Touch(&sv.world, (wedict_t*)ent, (wedict_t*)sv_player, NULL);
 			}
 
 			if (sv_player->v->touch && !ED_ISFREE(ent))
-				sv.world.Event_Touch(&sv.world, (wedict_t*)sv_player, (wedict_t*)ent);
+				sv.world.Event_Touch(&sv.world, (wedict_t*)sv_player, (wedict_t*)ent, NULL);
 		}
 	}
 

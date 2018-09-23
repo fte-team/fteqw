@@ -8,18 +8,20 @@
 
 #include <ctype.h>
 
-#define VMUTF8 0
+#define VMUTF8 utf8_enable.ival
 #define VMUTF8MARKUP false
 
 
 static char *cvargroup_progs = "Progs variables";
 
+cvar_t utf8_enable = CVARD("utf8_enable", "0", "When 1, changes the qc builtins to act upon codepoints instead of bytes. Do not use unless com_parseutf8 is also set.");
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods. It is better for mods to use FL_FINDABLE_NONSOLID instead.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 #ifndef NOLEGACY
 cvar_t dpcompat_strcat_limit = CVARD("dpcompat_strcat_limit", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
 #endif
+cvar_t pr_autocreatecvars = CVARD("pr_autocreatecvars", "1", "Implicitly create any cvars that don't exist when read.");
 cvar_t pr_droptofloorunits = CVARD("pr_droptofloorunits", "256", "Distance that droptofloor is allowed to drop to be considered successul.");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
 cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "As part of its nq/qw/h2/csqc support, FTE remaps QC fields to match an internal order. This is a faster way to handle extended fields. However, some QCCs are buggy and don't report all field defs.\n0: do nothing. QCC must be well behaved.\n1: Duplicate engine fields, remap the ones we can to known offsets. This is sufficient for QCCX/FrikQCC mods that use hardcoded or even occasional calculated offsets (fixes ktpro).\n2: Scan the mod for field accessing instructions, and assume those are the fields (and that they don't alias non-fields). This can be used to work around gmqcc's WTFs (fixes xonotic).");
@@ -85,6 +87,8 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_enable_profiling, cvargroup_progs);
 	Cvar_Register (&pr_sourcedir, cvargroup_progs);
 	Cvar_Register (&pr_fixbrokenqccarrays, cvargroup_progs);
+	Cvar_Register (&utf8_enable, cvargroup_progs);
+	Cvar_Register (&pr_autocreatecvars, cvargroup_progs);
 
 #ifdef RAGDOLL
 	Cmd_AddCommand("skel_info", skel_info_f);
@@ -102,6 +106,16 @@ qofs_t PR_ReadBytesString(char *str)
 {
 	//use doubles, so we can cope with eg "5.3mb" or much larger values
 	double d = strtod(str, &str);
+	if (d < 0)
+	{
+#if defined(_WIN64) && !defined(WINRT)
+		return 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
+#elif defined(FTE_TARGET_WEB)
+		return 8*1024*1024;
+#else
+		return 32*1024*1024;
+#endif
+	}
 	if (*str == 'g')
 		d *= 1024*1024*1024;
 	if (*str == 'm')
@@ -1411,11 +1425,37 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 ////////////////////////////////////////////////////
 //Cvars
 
+cvar_t *PF_Cvar_FindOrGet(const char *var_name)
+{
+	const char *def;
+	cvar_t *var;
+
+	var = Cvar_FindVar(var_name);
+	if (!var && pr_autocreatecvars.ival)
+	{
+		//this little chunk is so cvars dp creates are created with meaningful values
+		def = "";
+		if (!strcmp(var_name, "sv_maxairspeed"))
+			def = "30";
+		else if (!strcmp(var_name, "sv_jumpvelocity"))
+			def = "270";
+		else
+			def = "";
+
+		var = Cvar_Get(var_name, def, 0, "Implicit QC variables");
+		if (var)
+			Con_Printf("^3Created QC Cvar %s\n", var_name);
+		else
+			Con_Printf(CON_ERROR"Unable to create QC Cvar %s\n", var_name);
+	}
+	return var;
+}
+
 //string(string cvarname) cvar_string
 void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
-	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+	cvar_t *cv = PF_Cvar_FindOrGet(str);
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 	{
 		if(cv->latched_string)
@@ -1436,7 +1476,7 @@ void QCBUILTIN PF_cvars_haveunsaved (pubprogfuncs_t *prinst, struct globalvars_s
 void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
-	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+	cvar_t *cv = PF_Cvar_FindOrGet(str);
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 		RETURN_CSTRING(cv->defaultstr);
 	else
@@ -1447,7 +1487,7 @@ void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
-	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+	cvar_t *cv = PF_Cvar_FindOrGet(str);
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 		RETURN_CSTRING(cv->description);
 	else
@@ -1461,7 +1501,7 @@ void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	int ret = 0;
 	cvar_t *v;
 
-	v = Cvar_FindVar(str);
+	v = Cvar_FindVar(str);	//this builtin MUST NOT create cvars implicitly, otherwise there would be no way to test if it exists.
 	if (v && !(v->flags & CVAR_NOUNSAFEEXPAND))
 	{
 		ret |= 1; // CVAR_EXISTS
@@ -1486,7 +1526,7 @@ void QCBUILTIN PF_cvar_set (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	var = Cvar_Get(var_name, val, 0, "QC variables");
+	var = PF_Cvar_FindOrGet(var_name);
 	if (!var || (var->flags & CVAR_NOTFROMSERVER))
 		return;
 	Cvar_Set (var, val);
@@ -1500,7 +1540,7 @@ void QCBUILTIN PF_cvar_setlatch (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	var = Cvar_Get(var_name, val, 0, "QC variables");
+	var = PF_Cvar_FindOrGet(var_name);
 	if (!var || (var->flags & CVAR_NOTFROMSERVER))
 		return;
 	Cvar_LockFromServer(var, val);
@@ -1515,7 +1555,7 @@ void QCBUILTIN PF_cvar_setf (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
 	val = G_FLOAT(OFS_PARM1);
 
-	var = Cvar_FindVar(var_name);
+	var = PF_Cvar_FindOrGet(var_name);
 	if (!var || (var->flags & CVAR_NOTFROMSERVER))
 		return;
 	Cvar_SetValue (var, val);
@@ -6553,7 +6593,6 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_INPUTBUTTONS"},
 	{"DP_LIGHTSTYLE_STATICVALUE"},
 	{"DP_LITSUPPORT"},
-	{"DP_MD3_TAGSINFO",					2,	NULL, {"gettagindex", "gettaginfo"}},
 	{"DP_MONSTERWALK",					0,	NULL, {NULL}, "MOVETYPE_WALK is valid on non-player entities. Note that only players receive acceleration etc in line with none/bounce/fly/noclip movetypes on the player, thus you will have to provide your own accelerations (incluing gravity) yourself."},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
@@ -6575,6 +6614,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
 	{"DP_QC_GETSURFACE",				6,	NULL, {"getsurfacenumpoints", "getsurfacepoint", "getsurfacenormal", "getsurfacetexture", "getsurfacenearpoint", "getsurfaceclippedpoint"}},
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	1,	NULL, {"getsurfacepointattribute"}},
+	{"DP_QC_GETTAGINFO",				2,	NULL, {"gettagindex", "gettaginfo"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS",		0,	NULL, {NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},

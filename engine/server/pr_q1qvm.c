@@ -977,7 +977,7 @@ static qintptr_t QVM_WalkMove (void *offset, quintptr_t mask, const qintptr_t *a
 	move[1] = sin(yaw)*dist;
 	move[2] = 0;
 
-	return World_movestep(&sv.world, (wedict_t*)ed, move, axis, true, false, NULL, NULL);
+	return World_movestep(&sv.world, (wedict_t*)ed, move, axis, true, false, NULL);
 }
 static qintptr_t QVM_DropToFloor (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -2106,7 +2106,7 @@ static void QDECL Q1QVM_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *
 #endif
 }
 
-static void QDECL Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+static void QDECL Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o, trace_t *trace)
 {
 	int oself = pr_global_struct->self;
 	int oother = pr_global_struct->other;

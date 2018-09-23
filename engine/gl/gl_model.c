@@ -825,11 +825,11 @@ void Mod_Init (qboolean initial)
 
 #ifdef Q1BSPS
 		//q1-based formats
-		Mod_RegisterModelFormatMagic(NULL, "Quake1 2PSB Map(bsp)",			BSPVERSION_LONG1,						Mod_LoadBrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "Quake1 BSP2 Map(bsp)",			BSPVERSION_LONG2,						Mod_LoadBrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "Half-Life Map (bsp)",			30,										Mod_LoadBrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "Quake1 Map (bsp)",				29,										Mod_LoadBrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "Quake1 Prerelease Map (bsp)",	28,										Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 2PSB Map (bsp)",			BSPVERSION_LONG1,						Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 BSP2 Map (bsp)",			BSPVERSION_LONG2,						Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Half-Life Map (bsp)",			BSPVERSIONHL,							Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 Map (bsp)",				BSPVERSION,								Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake1 Prerelease Map (bsp)",	BSPVERSIONPREREL,						Mod_LoadBrushModel);
 #endif
 	}
 }

@@ -9571,6 +9571,23 @@ QCC_opcode_t *QCC_PR_ChooseOpcode(QCC_sref_t lhs, QCC_sref_t rhs, QCC_opcode_t *
 	return op;
 }
 
+//used to optimise logicops slightly.
+pbool QCC_OpHasSideEffects(QCC_statement_t *st)
+{
+	//function calls potentially always have side effects (and are expensive)
+	if ((st->op >= OP_CALL0 && st->op <= OP_CALL8) || (st->op >= OP_CALL1H && st->op <= OP_CALL8H))
+		return true;
+	//otherwise if we're assigning to some variable (that isn't a temp) then it has a side effect.
+	//FIXME: this doesn't catch op_address+op_storep_*, but that should generally not happen as logicops is tied to a single statement.
+	if (st->c.sym && !st->c.sym->temp && OpAssignsToC(st->op))
+		return true;
+	if (st->b.sym && !st->b.sym->temp && OpAssignsToB(st->op))
+		return true;
+	if (st->a.sym && !st->a.sym->temp && OpAssignsToA(st->op))
+		return true;
+	return false;
+}
+
 QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 {
 	QCC_ref_t rhsbuf;
@@ -9996,7 +10013,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 						logicjump->b.ofs = &statements[numstatements] - logicjump;
 						if (logicjump->b.ofs == 1)
 							numstatements--;	//err, that was pointless.
-						else if (logicjump->b.ofs == 2 && !(logicjump[1].op >= OP_CALL0 && logicjump[1].op <= OP_CALL8) && !(logicjump[1].op >= OP_CALL1H && logicjump[1].op <= OP_CALL8H))
+						else if (logicjump->b.ofs == 2 && !QCC_OpHasSideEffects(&logicjump[1]))
 						{
 							logicjump[0] = logicjump[1];
 							numstatements--;	//don't bother if the jump is the same cost as the thing we're trying to skip (calls are expensive despite being a single opcode).

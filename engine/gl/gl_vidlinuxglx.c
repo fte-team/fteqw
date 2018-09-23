@@ -50,6 +50,7 @@ none of these issues will be fixed by a compositing window manager, because ther
 #include <stdarg.h>
 #include <stdio.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include <dlfcn.h>
 
@@ -1411,7 +1412,7 @@ GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 	int numconfigs;
 	GLXFBConfig *fbconfigs;
 
-	qboolean hassrgb, hasmultisample, hasfloats;
+	qboolean hassrgb, hasmultisample;//, hasfloats;
 
 	if (glx.QueryExtensionsString)
 		glx.glxextensions = glx.QueryExtensionsString(vid_dpy, scrnum);
@@ -1427,9 +1428,9 @@ GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 		return NULL;	//don't worry about it
 	}
 
-	hassrgb = GLX_CheckExtension("GLX_ARB_framebuffer_sRGB");
+	hassrgb = GLX_CheckExtension("GLX_ARB_framebuffer_sRGB") || GLX_CheckExtension("GLX_EXT_framebuffer_sRGB");
 	hasmultisample = GLX_CheckExtension("GLX_ARB_multisample");
-	hasfloats = GLX_CheckExtension("GLX_ARB_fbconfig_float");
+//	hasfloats = GLX_CheckExtension("GLX_ARB_fbconfig_float");
 
 	//do it in a loop, mostly to disable extensions that are unlikely to be supported on various glx implementations.
 	for (i = 0; i < (16<<1); i++)
@@ -1452,28 +1453,31 @@ GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 		//attrib[n++] = GLX_AUX_BUFFERS;	attrib[n++] = 0;
 
 		
+#if 0
 		if (!(i&4))
-		{
-			if (info->srgb <= 2 || !hasfloats)
+		{	//unlike on windows, this is explicitly blocked except for pbuffers. ffs.
+			if (info->srgb < 2 || !hasfloats)
 				continue;	//skip fp16 framebuffers
+			//unlike on windows, this is explicitly blocked except for pbuffers. ffs.
 			attrib[n++] = GLX_RENDER_TYPE;		attrib[n++] = GLX_RGBA_FLOAT_BIT;
 			attrib[n++] = GLX_RED_SIZE;			attrib[n++] = info->bpp?info->bpp/3:4;
 			attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
 			attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
 		}
 		else
+#endif
 		{
-			if (info->bpp > 24)
-			{
+			if (info->bpp == 32)
+			{	//bpp32 is an alias for 24 (we ignore the alpha channel)
 				attrib[n++] = GLX_RED_SIZE;			attrib[n++] = 8;
 				attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = 8;
 				attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = 8;
 			}
 			else
-			{
-				attrib[n++] = GLX_RED_SIZE;			attrib[n++] = info->bpp?info->bpp/3:4;
-				attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
-				attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
+			{	//clamp requested bitdepth to 8bits on the second pass, so that bpp30 doesn't fail
+				attrib[n++] = GLX_RED_SIZE;			attrib[n++] = bound(1,info->bpp?info->bpp/3:4, (i&4)?8:16);
+				attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = bound(1,info->bpp?info->bpp/3:4, (i&4)?8:16);
+				attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = bound(1,info->bpp?info->bpp/3:4, (i&4)?8:16);
 			}
 		}
 		//attrib[n++] = GLX_ALPHA_SIZE;		attrib[n++] = GLX_DONT_CARE;
@@ -1642,9 +1646,9 @@ qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInfo *visi
 
 		if (glx.GetFBConfigAttrib)
 		{
-			if (glx.GetFBConfigAttrib(vid_dpy, fbconfig, GLX_RENDER_TYPE, &val) && val == GLX_RGBA_FLOAT_BIT)
+			if (!glx.GetFBConfigAttrib(vid_dpy, fbconfig, GLX_RENDER_TYPE, &val) && val == GLX_RGBA_FLOAT_BIT)
 				vid.flags |= VID_FP16;			//other things need to be 16bit too, to avoid loss of precision.
-			if (glx.GetFBConfigAttrib(vid_dpy, fbconfig, GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB, &val) && val)
+			if (!glx.GetFBConfigAttrib(vid_dpy, fbconfig, GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB, &val) && val)
 				vid.flags |= VID_SRGB_CAPABLE;	//can use srgb properly, without faking it etc.
 		}
 
@@ -1958,7 +1962,7 @@ static void install_grabs(void)
 {
 	if (!mouse_grabbed)
 	{
-		Con_DPrintf("Grabbing mouse\n");
+		Con_DLPrintf(2, "Grabbing mouse\n");
 		mouse_grabbed = true;
 		//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
 		//the grab is purely to constrain the pointer to the window
@@ -1990,7 +1994,7 @@ static void uninstall_grabs(void)
 {
 	if (mouse_grabbed && vid_dpy)
 	{
-		Con_DPrintf("Releasing mouse grab\n");
+		Con_DLPrintf(2, "Releasing mouse grab\n");
 		mouse_grabbed = false;
 		if (x11_input_method == XIM_DGA)
 		{
@@ -2358,7 +2362,12 @@ static void GetEvent(void)
 				char *protname = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[0]);
 				if (!strcmp(protname, "WM_DELETE_WINDOW"))
 				{
-					Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
+					if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
+						Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
+					else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
+						Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);
+					else
+						Cmd_ExecuteString("quit", RESTRICT_LOCAL);
 					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 				}
 				else
@@ -2369,14 +2378,24 @@ static void GetEvent(void)
 			else if (!strcmp(name, "XdndEnter") && event.xclient.format == 32)
 			{
 				//check for text/uri-list
+				x11.dnd.type = None;
 				int i;
 				for (i = 2; i < 2+3; i++)
 				{
 					if (event.xclient.data.l[i])
 					{
 						char *t = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[i]);
+#ifdef XDS
+						//direct-save has no way to deal with multiple files, other than lying about it.
+						//which is unfortunately what other programs do. we have no real way to tell which file(s) actually got dragged/written.
+						//we would need to report an empty directory, then scan for new files, then wipe the lot recursively.
+						if (!strcmp(t, "XdndDirectSave0") && !x11.dnd.type)	//single file
+							x11.dnd.type = event.xclient.data.l[i];
+#endif
 						if (!strcmp(t, "text/uri-list"))	//file list
 							x11.dnd.type = event.xclient.data.l[i];
+//						else if (!strcmp(t, "application/octet-stream"))	//raw file data without a name.
+//							x11.dnd.type = event.xclient.data.l[i];
 						x11.pXFree(t);
 					}
 				}
@@ -2391,7 +2410,7 @@ static void GetEvent(void)
 				xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "XdndStatus", False);
 				xev.xclient.format = 32;
 				xev.xclient.data.l[0] = vid_window;	//so source can ignore it if stale
-				xev.xclient.data.l[1] = 1;
+				xev.xclient.data.l[1] = x11.dnd.type?1:0;
 				xev.xclient.data.l[2] = 0;	//(x<<16)|y (should be in root coords)
 				xev.xclient.data.l[3] = 0;	//(w<<16)|h
 				xev.xclient.data.l[4] = x11.pXInternAtom (vid_dpy, "XdndActionCopy", False);
@@ -2408,9 +2427,35 @@ static void GetEvent(void)
 			else if (!strcmp(name, "XdndDrop") && event.xclient.format == 32)
 			{
 				Atom xa_XdndSelection = x11.pXInternAtom(vid_dpy, "XdndSelection", False);
+				Window source = event.xclient.data.l[0];
 				Time t = CurrentTime;//event.xclient.data.l[2];
+
+#ifdef XDS
+				char *droptype = x11.dnd.type?x11.pXGetAtomName(vid_dpy, x11.dnd.type):NULL;
+				if (droptype && !strcmp(droptype, "XdndDirectSave0"))	//single file
+				{
+					unsigned char *data = NULL;
+					Atom type;
+					int fmt;
+					unsigned long nitems;
+					unsigned long bytesleft;
+					if (x11.pXGetWindowProperty(vid_dpy, source, x11.dnd.type, 0, 65536, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data) == Success && data)
+					{
+						char hostname[1024];
+						if (gethostname(hostname, sizeof(hostname)) < 0)
+							*hostname = 0;	//failed? o.O
+						char *path = va("file://%s/tmp/%s", hostname, data);
+						Atom proptype = x11.pXInternAtom(vid_dpy, "text/plain", false);
+						x11.pXChangeProperty(vid_dpy, source, x11.dnd.type, proptype, 8, PropModeReplace, (void*)path, strlen(path));
+						Con_Printf("Dropping file %s\n", data);
+						x11.pXFree(data);
+					}
+				}
+				x11.pXFree(droptype);
+#endif
+
 				x11.dnd.myprop = x11.pXInternAtom(vid_dpy, "_FTE_dnd", False);
-				if (x11.pXGetSelectionOwner(vid_dpy, xa_XdndSelection) == event.xclient.data.l[0])
+				if (x11.pXGetSelectionOwner(vid_dpy, xa_XdndSelection) == source)
 				{
 					x11.pXDeleteProperty(vid_dpy, vid_window, x11.dnd.myprop);
 					x11.pXConvertSelection(vid_dpy, xa_XdndSelection, x11.dnd.type, x11.dnd.myprop, vid_window, t);
@@ -2435,7 +2480,8 @@ static void GetEvent(void)
 			unsigned long bytesleft;
 			if (x11.pXGetWindowProperty(vid_dpy, vid_window, x11.dnd.myprop, 0, 65536, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data) == Success && data)
 			{
-				if (type == x11.dnd.type)
+				char *tname = x11.pXGetAtomName(vid_dpy, x11.dnd.type);
+				if (type == x11.dnd.type && !strcmp(tname, "text/uri-list"))
 				{
 					char *start, *end;
 					for (start = data; *start; )
@@ -2449,8 +2495,20 @@ static void GetEvent(void)
 							start++;
 					}
 					okay = true;
-					x11.pXFree(data);
 				}
+#ifdef XDS
+				else if (type == x11.dnd.type && !strcmp(tname, "XdndDirectSave0") && nitems == 1)
+				{
+					switch(data[0])
+					{
+					case 'S':	//sender wrote the file
+					case 'E':	//sender failed to generate the data or something
+					case 'F':	//sender failed to write the file. we should use application/octet-stream and write it ourself.
+					}
+				}
+#endif
+				x11.pXFree(tname);
+				x11.pXFree(data);
 			}
 			x11.pXDeleteProperty(vid_dpy, vid_window, x11.dnd.myprop);	//might be large, so don't force it to hang around.
 

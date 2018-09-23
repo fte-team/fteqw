@@ -38,8 +38,8 @@ static void DL_OnLoad(void *c, int buf)
 	{
 		if (*dl->localname)
 		{
-			FS_CreatePath(dl->localname, FS_GAMEONLY);
-			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAMEONLY);
+			FS_CreatePath(dl->localname, dl->fsroot);
+			dl->file = FS_OpenVFS(dl->localname, "w+b", dl->fsroot);
 		}
 		else
 		{
@@ -199,8 +199,8 @@ static void readfinished(void* user_data, int32_t result)
 		{
 			if (*f->localname)
 			{
-				FS_CreatePath(f->localname, FS_GAME);
-				f->file = FS_OpenVFS(f->localname, "w+b", FS_GAME);
+				FS_CreatePath(f->localname, dl->fsroot);
+				f->file = FS_OpenVFS(f->localname, "w+b", dl->fsroot);
 			}
 			else
 				f->file = FS_OpenTemp();
@@ -797,8 +797,8 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 #ifndef NPFTE
 			if (*dl->localname)
 			{
-				FS_CreatePath(dl->localname, FS_GAME);
-				dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
+				FS_CreatePath(dl->localname, dl->fsroot);
+				dl->file = FS_OpenVFS(dl->localname, "w+b", dl->fsroot);
 			}
 			else
 				dl->file = FS_OpenTemp();
@@ -1332,8 +1332,8 @@ qboolean DataScheme_Decode(struct dl_download *dl)
 #ifndef NPFTE
 		if (*dl->localname)
 		{
-			FS_CreatePath(dl->localname, FS_GAME);
-			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
+			FS_CreatePath(dl->localname, dl->fsroot);
+			dl->file = FS_OpenVFS(dl->localname, "w+b", dl->fsroot);
 		}
 		else
 			dl->file = FS_OpenTemp();
@@ -1485,6 +1485,7 @@ struct dl_download *DL_Create(const char *url)
 	newdl->url = (char*)(newdl+1);
 	strcpy(newdl->url, url);
 	newdl->poll = DL_Decide;
+	newdl->fsroot = FS_GAMEONLY;
 	newdl->sizelimit = 0x80000000u;	//some sanity limit.
 #if !defined(NPFTE) && !defined(SERVERONLY)
 	newdl->qdownload.method = DL_HTTP;

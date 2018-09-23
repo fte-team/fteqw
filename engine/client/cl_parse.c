@@ -36,6 +36,7 @@ static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
 
 #ifdef NQPROT
+char cl_dp_packagenames[4096];
 static char cl_dp_csqc_progsname[128];
 static int cl_dp_csqc_progssize;
 static int cl_dp_csqc_progscrc;
@@ -712,27 +713,35 @@ static void CL_SendDownloadStartRequest(char *filename, char *localname, unsigne
 	static int dlsequence;
 	qdownload_t *dl;
 
+	//don't download multiple things at once... its leaky if nothing else.
+	if (cls.download)
+		return;
+
 #ifdef WEBCLIENT
 	if (!strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
 	{
-		if (!cls.download || !(cls.download->flags & DLLF_ALLOWWEB))
+		struct dl_download *wdl = HTTP_CL_Get(filename, localname, CL_WebDownloadFinished);
+		if (wdl)
 		{
-			struct dl_download *wdl = HTTP_CL_Get(filename, localname, CL_WebDownloadFinished);
-			if (wdl)
+			if (flags & DLLF_NONGAME)
 			{
-				if (!(flags & DLLF_TEMPORARY))
-					Con_TPrintf ("Downloading %s to %s...\n", wdl->url, wdl->localname);
-				wdl->qdownload.flags = flags;
-				cls.download = &wdl->qdownload;
+				wdl->fsroot = FS_ROOT;
+				if (!strncmp(localname, "package/", 8))
+					Q_strncpyz(wdl->localname, localname+8, sizeof(wdl->localname));
 			}
-			else
-				CL_DownloadFailed(filename, NULL);
+			if (!(flags & DLLF_TEMPORARY))
+				Con_TPrintf ("Downloading %s to %s...\n", wdl->url, wdl->localname);
+			wdl->qdownload.flags = flags;
+
+			CL_DisenqueDownload(filename);
+
+			cls.download = &wdl->qdownload;
 		}
+		else
+			CL_DownloadFailed(filename, NULL);
 		return;
 	}
 #endif
-	if (cls.download)
-		return;	//no!
 	
 	dl = Z_Malloc(sizeof(*dl));
 	dl->filesequence = ++dlsequence;
@@ -785,7 +794,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 
 
 	//should probably ask the filesytem code if its a package format instead.
-	if (!strncmp(filename, "package/", 8) || !strncmp(ext, "pk4", 3) || !strncmp(ext, "pk3", 3) || !strncmp(ext, "pak", 3))
+	if (!strncmp(filename, "package/", 8) || !strncmp(ext, "pk4", 3) || !strncmp(ext, "pk3", 3) || !strncmp(ext, "pak", 3) || (dl->fsroot == FS_ROOT))
 	{
 		FS_ReloadPackFiles();
 		CL_CheckServerInfo();
@@ -815,7 +824,9 @@ void CL_DownloadFinished(qdownload_t *dl)
 			{
 				if (!strcmp(cl.model_name[i], filename))
 				{
-					cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);	//throw away result.
+					if (cl.model_precache[i] && cl.model_precache[i]->loadstate == MLS_FAILED)
+						cl.model_precache[i]->loadstate = MLS_NOTLOADED;
+					cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);
 					if (i == 1)
 						cl.worldmodel = cl.model_precache[i];
 					break;
@@ -825,7 +836,9 @@ void CL_DownloadFinished(qdownload_t *dl)
 			{
 				if (!strcmp(cl.model_csqcname[i], filename))
 				{
-					cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], MLV_WARN);	//throw away result.
+					if (cl.model_csqcprecache[i] && cl.model_csqcprecache[i]->loadstate == MLS_FAILED)
+						cl.model_csqcprecache[i]->loadstate = MLS_NOTLOADED;
+					cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], MLV_WARN);
 					break;
 				}
 			}
@@ -834,6 +847,8 @@ void CL_DownloadFinished(qdownload_t *dl)
 			{
 				if (!strcmp(cl.model_name_vwep[i], filename))
 				{
+					if (cl.model_precache_vwep[i] && cl.model_precache_vwep[i]->loadstate == MLS_FAILED)
+						cl.model_precache_vwep[i]->loadstate = MLS_NOTLOADED;
 					cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
 					break;
 				}
@@ -1194,34 +1209,42 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	pmove.numphysent = 0;
 	pmove.physents[0].model = NULL;
 
-/*#ifdef CSQC_DAT
-	if (atstage())
-	{
+#if defined(CSQC_DAT) && defined(NQPROT)
+	if (cls.protocol == CP_NETQUAKE && atstage())
+	{	//we only need this for nq. for qw we checked for downloads with the other stuff.
+		//there are also too many possible names to load... :(
 		extern cvar_t  cl_nocsqc;
-		if (cls.protocol == CP_NETQUAKE && !cl_nocsqc.ival && !cls.demoplayback)
+		if (!cl_nocsqc.ival && !cls.demoplayback)
 		{
-			char *s;
+			const char *cscrc = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
+			const char *cssize = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogssize");
+			const char *csname = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
+			unsigned int chksum = strtoul(cscrc, NULL, 0);
+			size_t chksize = strtoul(cssize, NULL, 0);
 			SCR_SetLoadingFile("csprogs");
-			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-			if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
+			if (!*csname)
+				csname = "csprogs.dat";
+			if (*cscrc && !CSQC_CheckDownload(csname, chksum, chksize))	//only allow csqc if the server says so, and the 'checksum' matches.
 			{
 				extern cvar_t cl_download_csprogs;
-				unsigned int chksum = strtoul(s, NULL, 0);
+				unsigned int chksum = strtoul(cscrc, NULL, 0);
 				if (cl_download_csprogs.ival)
 				{
 					char *str = va("csprogsvers/%x.dat", chksum);
-					if (CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED))
-						return stage;	//its kinda required
+					if (CL_IsDownloading(str))
+						return -1;	//don't progress to loading it while we're still downloading it.
+					if (CL_CheckOrEnqueDownloadFile(csname, str, DLLF_REQUIRED))
+						return -1;	//its kinda required
 				}
 				else
 				{
-					Con_Printf("Not downloading csprogs.dat due to allow_download_csprogs\n");
+					Con_Printf("Not downloading csprogs.dat due to %s\n", cl_download_csprogs.name);
 				}
 			}
 		}
 		endstage();
 	}
-#endif*/
+#endif
 
 #ifdef HLCLIENT
 	if (atstage())
@@ -1239,19 +1262,25 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		qboolean anycsqc;
 		char *endptr;
 		unsigned int chksum;
+		size_t progsize;
+		const char *progsname;
 		anycsqc = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "anycsqc"));
 		if (cls.demoplayback)
 			anycsqc = true;
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogssize");
+		progsize = strtoul(s, NULL, 0);
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
 		chksum = strtoul(s, &endptr, 0);
+		progsname = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
 		if (*endptr)
 		{
 			Con_Printf("corrupt *csprogs key in serverinfo\n");
 			anycsqc = true;
 			chksum = 0;
 		}
+		progsname = *s?InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname"):NULL;
 		SCR_SetLoadingFile("csprogs");
-		if (!CSQC_Init(anycsqc, *s?true:false, chksum))
+		if (!CSQC_Init(anycsqc, progsname, chksum, progsize))
 		{
 			Sbar_Start();	//try and start this before we're actually on the server,
 							//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
@@ -2700,13 +2729,25 @@ static void CLDP_ParseDownloadData(void)
 
 	if (dl->file)
 	{
-		VFS_SEEK(dl->file, start);
-		VFS_WRITE(dl->file, buffer, size);
+		if (start > dl->completedbytes)
+			;	//this protocol cannot deal with gaps. we might as well wait until its repeated later.
+		else if (start+size < dl->completedbytes)
+			;	//already completed this data
+		else
+		{
+			int offset = dl->completedbytes-start;	//we may already have completed some chunk already
 
-		dl->percent = (start+size) / (float)VFS_GETLEN(dl->file) * 100;
+			VFS_WRITE(dl->file, buffer+offset, size-offset);
+			dl->completedbytes += size-offset;
+			dl->ratebytes += size-offset;	//for download rate calcs
+		}
+
+		dl->percent = (start+size) / (float)dl->size * 100;
 	}
 
-	//this is only reliable because I'm lazy
+	//we need to ack in order.
+	//the server doesn't actually track packets, only position, however there's no way to tell it that we already have a chunk
+	//we could send the acks unreliably, but any cl->sv loss would involve a sv->cl resend (because we can't dupe).
 	MSG_WriteByte(&cls.netchan.message, clcdp_ackdownloaddata);
 	MSG_WriteLong(&cls.netchan.message, start);
 	MSG_WriteShort(&cls.netchan.message, size);
@@ -3133,7 +3174,7 @@ static void CLQW_ParseServerData (void)
 #endif
 	}
 
-	CL_ClearState ();
+	CL_ClearState (true);
 #ifdef QUAKEHUD
 	Stats_NewMap();
 #endif
@@ -3408,7 +3449,7 @@ static void CLQ2_ParseServerData (void)
 													//FTE doesn't actually have a timescale cvar, so create one to 'fool' q2admin.
 													//I can't really blame q2admin for rejecting engines that don't have this cvar, as it could have been renamed via a hex-edit.
 
-	CL_ClearState ();
+	CL_ClearState (true);
 	CLQ2_ClearState ();
 	cl.minpitch = -89;
 	cl.maxpitch = 89;
@@ -3504,7 +3545,9 @@ static void CLQ2_ParseServerData (void)
 void CL_ParseEstablished(void)
 {
 #ifdef NQPROT
+	*cl_dp_packagenames = 0;
 	cl_dp_serverextension_download = false;
+	*cl_dp_csqc_progsname = 0;
 	cl_dp_csqc_progscrc = 0;
 	cl_dp_csqc_progssize = 0;
 #endif
@@ -3671,7 +3714,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	int gametype;
 	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
 	SCR_SetLoadingStage(LS_CLIENT);
-	CL_ClearState ();
+	CL_ClearState (true);
 #ifdef QUAKEHUD
 	Stats_NewMap();
 #endif
@@ -3775,6 +3818,24 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 		InfoBuf_SetStarKey(&cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize));
 		InfoBuf_SetStarKey(&cl.serverinfo, "*csprogsname", va("%s", cl_dp_csqc_progsname));
 	}
+
+	if (*cl_dp_packagenames)
+	{
+		char *in = cl_dp_packagenames;
+		while (*in)
+		{
+			in = COM_Parse(in);
+
+			if (*cl.serverpaknames)
+				Q_strncatz(cl.serverpaknames, " ", sizeof(cl.serverpaknames));
+			Q_strncatz(cl.serverpaknames, com_token, sizeof(cl.serverpaknames));
+			if (*cl.serverpakcrcs)
+				Q_strncatz(cl.serverpakcrcs, " ", sizeof(cl.serverpakcrcs));
+			Q_strncatz(cl.serverpakcrcs, "-", sizeof(cl.serverpakcrcs));	//we don't have any crc info. we'll instead need this info as part of the filename.
+			cl.serverpakschanged = true;
+		}
+	}
+
 
 	//update gamemode
 	if (gametype != GAME_COOP)

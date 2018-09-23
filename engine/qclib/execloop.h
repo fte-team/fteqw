@@ -777,12 +777,22 @@ reeval:
 		break;
 
 	case OP_CP_ITOF:
-		ptr = (eval_t *)(((qbyte *)sv_edicts) + OPA->_int);
+		i = OPA->_int;
+		errorif (QCPOINTERREADFAIL(i, sizeof(char)))
+		{
+			QCFAULT(&progfuncs->funcs, "bad pointer read in %s (%#x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPA->_int);
+		}
+		ptr = QCPOINTERM(i);
 		OPC->_float = (float)ptr->_int;
 		break;
 
 	case OP_CP_FTOI:
-		ptr = (eval_t *)(((qbyte *)sv_edicts) + OPA->_int);
+		i = OPA->_int;
+		errorif (QCPOINTERREADFAIL(i, sizeof(char)))
+		{
+			QCFAULT(&progfuncs->funcs, "bad pointer read in %s (%#x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPA->_int);
+		}
+		ptr = QCPOINTERM(i);
 		OPC->_int = (int)ptr->_float;
 		break;
 

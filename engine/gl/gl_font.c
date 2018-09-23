@@ -275,13 +275,16 @@ typedef struct font_s
 		unsigned char advance;	//how wide this char is, when drawn
 		unsigned short block;	//to quickly find the char again
 
-		//glyph offset+sizes. I guess these are not strictly needed, but whatever
+		//texture offsets.
 		unsigned short bmx;
 		unsigned short bmy;
+
+		//texture/screen pixel sizes.
 		unsigned char bmw;
 		unsigned char bmh;
+		//unsigned short pad;
 
-		//positions inside the atlas
+		//screen offsets.
 		short top;
 		short left;
 	} *chars[FONTBLOCKS];

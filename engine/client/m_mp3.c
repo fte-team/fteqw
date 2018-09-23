@@ -5030,7 +5030,7 @@ typedef struct
 #define MPEGLAYER3_ID_MPEG 1
 #endif
 
-qboolean QDECL S_LoadMP3Sound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
+static qboolean QDECL S_LoadMP3Sound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
 	WAVEFORMATEX pcm_format;
 	MPEGLAYER3WAVEFORMAT mp3format;

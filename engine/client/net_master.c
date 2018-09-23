@@ -368,7 +368,7 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				{
 					//tcp masters require a route
 					if (NET_AddrIsReliable(na))
-						NET_EnsureRoute(svs.sockets, master->cv.name, master->cv.string);
+						NET_EnsureRoute(svs.sockets, master->cv.name, master->cv.string, na);
 
 					//q2+qw masters are given a ping to verify that they're still up
 					switch (master->protocol)
@@ -684,14 +684,14 @@ int slist_customkeys;
 #define POLLUDP4SOCKETS 64	//it's big so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
 int lastpollsockUDP4;
 
-#ifdef IPPROTO_IPV6
+#ifdef HAVE_IPV6
 #define POLLUDP6SOCKETS 4	//it's non-zero so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
 int lastpollsockUDP6;
 #else
 #define POLLUDP6SOCKETS 0
 #endif
 
-#ifdef USEIPX
+#ifdef HAVE_IPX
 #define POLLIPXSOCKETS	2	//ipx isn't used as much. In fact, we only expect local servers to be using it. I'm not sure why I implemented it anyway. You might see a q2 server using it. Rarely.
 int lastpollsockIPX;
 #else
@@ -1800,7 +1800,7 @@ qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 	char buf[128];
 
 	NetadrToSockadr (&to, &addr);
-#ifdef USEIPX
+#ifdef HAVE_IPX
 	if (((struct sockaddr*)&addr)->sa_family == AF_IPX)
 	{
 		lastpollsockIPX++;
@@ -1923,7 +1923,7 @@ int Master_CheckPollSockets(void)
 				continue;
 			if (e == NET_EMSGSIZE)
 			{
-				SockadrToNetadr (&from, &net_from);
+				SockadrToNetadr (&from, fromlen, &net_from);
 				Con_Printf ("Warning:  Oversize packet from %s\n",
 					NET_AdrToString (adr, sizeof(adr), &net_from));
 				continue;
@@ -1938,7 +1938,7 @@ int Master_CheckPollSockets(void)
 			Con_Printf ("NET_CheckPollSockets: %i, %s\n", e, strerror(e));
 			continue;
 		}
-		SockadrToNetadr (&from, &net_from);
+		SockadrToNetadr (&from, fromlen, &net_from);
 
 		net_message.cursize = ret;
 		if (ret >= sizeof(net_message_buffer) )
@@ -1968,7 +1968,7 @@ int Master_CheckPollSockets(void)
 				CL_ReadServerInfo(MSG_ReadString(), MP_QUAKE2, false);
 				continue;
 			}
-#ifdef IPPROTO_IPV6
+#ifdef HAVE_IPV6
 			if (!strncmp(s, "server6", 7))	//parse a bit more...
 			{
 				msg_readcount = c+7;
@@ -1991,7 +1991,7 @@ int Master_CheckPollSockets(void)
 			}
 #endif
 
-#ifdef IPPROTO_IPV6
+#ifdef HAVE_IPV6
 			if (!strncmp(s, "getserversResponse6", 19) && (s[19] == '\\' || s[19] == '/'))	//parse a bit more...
 			{
 				msg_readcount = c+19-1;
@@ -2017,7 +2017,7 @@ int Master_CheckPollSockets(void)
 				continue;
 			}
 
-#ifdef IPPROTO_IPV6
+#ifdef HAVE_IPV6
 			if (!strncmp(s, "qw_slist6\\", 10))	//parse a bit more...
 			{
 				msg_readcount = c+9-1;
@@ -2450,7 +2450,6 @@ void MasterInfo_ProcessHTTPJSON(struct dl_download *dl)
 //don't try sending to servers we don't support
 void MasterInfo_Request(master_t *mast)
 {
-	//static int mastersequence; // warning: unused variable âmastersequenceâ
 	if (!mast)
 		return;
 
@@ -2645,21 +2644,21 @@ void MasterInfo_Refresh(qboolean doreset)
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_DEFAULTSERVER),			MT_BCAST,			MP_DPMASTER, "Nearby Game Servers.");
 #ifndef QUAKETC
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),				MT_BCAST,			MP_QUAKEWORLD, "Nearby QuakeWorld UDP servers.");
-		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld",	MT_MASTERHTTP,		MP_QUAKEWORLD, "gameaholic's QW master");
+//		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld",	MT_MASTERHTTP,		MP_QUAKEWORLD, "gameaholic's QW master");
 		Master_AddMasterHTTP("https://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,		MP_QUAKEWORLD, "QuakeServers.net (http)");
 #endif
 #ifdef NQPROT
-		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NETQUAKE, "gameaholic's NQ master");
+//		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NETQUAKE, "gameaholic's NQ master");
 //		Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NETQUAKE, "quakeone's server listing");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_NETQUAKE, "Nearby Quake1 servers");
-		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_DPMASTER, "Nearby DarkPlaces servers");
+		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_DPMASTER, "Nearby DarkPlaces servers");	//only responds to one type, depending on active protocol.
 #endif
 #ifdef Q2CLIENT
-		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake2",		MT_MASTERHTTP,		MP_QUAKE2, "gameaholic's Q2 master");
+//		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake2",		MT_MASTERHTTP,		MP_QUAKE2, "gameaholic's Q2 master");
 		Master_AddMaster("255.255.255.255:27910",									MT_BCAST,			MP_QUAKE2, "Nearby Quake2 UDP servers.");
 #endif
 #ifdef Q3CLIENT
-		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3",		MT_MASTERHTTP,		MP_QUAKE3, "gameaholic's Q3 master");
+//		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3",		MT_MASTERHTTP,		MP_QUAKE3, "gameaholic's Q3 master");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_Q3SERVER),				MT_BCAST,			MP_QUAKE3, "Nearby Quake3 UDP servers.");
 #endif
 

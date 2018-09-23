@@ -62,6 +62,7 @@ cvar_t	temp1 = CVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = CVAR("noexit", "0");
 extern cvar_t sv_specprint;
 
+extern cvar_t pr_autocreatecvars;
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
 
 /*cvars purely for compat with others*/
@@ -95,6 +96,7 @@ cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", 
 #endif
 cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
+cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
 extern cvar_t sv_listen_dp;
 
 cvar_t sv_addon[MAXADDONS];
@@ -590,10 +592,14 @@ static void QDECL SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *f
 #endif
 }
 
-static void QDECL SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+static void set_trace_globals(pubprogfuncs_t *prinst, trace_t *trace);
+static void QDECL SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o, trace_t *trace)
 {
 	int oself = pr_global_struct->self;
 	int oother = pr_global_struct->other;
+
+	if (trace)
+		set_trace_globals(w->progs, trace);
 
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, o);
@@ -815,6 +821,8 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float svphysicsmode = 2;
 	static float writeonly;
 	static int writeonly_int;
+	static int endcontentsi, surfaceflagsi;
+	static float endcontentsf, surfaceflagsf;
 	static float dimension_send_default;
 	static float dimension_default = 255;
 	static float zero_default;
@@ -938,10 +946,10 @@ void PR_LoadGlabalStruct(qboolean muted)
 	// make sure these entries are always valid pointers
 	ensureglobal(dimension_send, dimension_send_default);
 	ensureglobal(dimension_default, dimension_default);
-	ensureglobal(trace_endcontentsf, writeonly);
-	ensureglobal(trace_endcontentsi, writeonly_int);
-	ensureglobal(trace_surfaceflagsf, writeonly);
-	ensureglobal(trace_surfaceflagsi, writeonly_int);
+	ensureglobal(trace_endcontentsf, endcontentsf);
+	ensureglobal(trace_endcontentsi, endcontentsi);
+	ensureglobal(trace_surfaceflagsf, surfaceflagsf);
+	ensureglobal(trace_surfaceflagsi, surfaceflagsi);
 	ensureglobal(trace_brush_id, writeonly_int);
 	ensureglobal(trace_brush_faceid, writeonly_int);
 	ensureglobal(trace_surface_id, writeonly_int);
@@ -1223,7 +1231,7 @@ static void PR_Decompile_f(void)
 	if (!svprogfuncs)
 	{
 		Q_SetProgsParms(false);
-		PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, 0);
+		PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, 0);
 	}
 
 
@@ -1303,7 +1311,7 @@ static void PR_ApplyCompilation_f (void)
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 
 
-	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
+	PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
 	PR_RegisterFields();
 	sv.world.edict_size=PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
@@ -1521,12 +1529,12 @@ void SVQ1_CvarChanged(cvar_t *var)
 static void QCBUILTIN PF_precache_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 static void QCBUILTIN PF_setmodel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-static void PR_FallbackSpawn_Misc_Model(pubprogfuncs_t *progfuncs, edict_t *self)
+static void PR_FallbackSpawn_Misc_Model(pubprogfuncs_t *progfuncs, edict_t *self, qboolean force)
 {
 	void *pr_globals;
 	eval_t *val;
 
-	if (sv.world.worldmodel && sv.world.worldmodel->type==mod_brush && sv.world.worldmodel->fromgame == fg_quake3)
+	if (sv.world.worldmodel && sv.world.worldmodel->type==mod_brush && sv.world.worldmodel->fromgame == fg_quake3 && !force)
 	{	//on q3bsp, these are expected to be handled directly by q3map2, but it doesn't always strip it.
 		ED_Free(progfuncs, self);
 		return;
@@ -1559,12 +1567,6 @@ static void PR_FallbackSpawn_Func_Detail(pubprogfuncs_t *progfuncs, edict_t *sel
 {
 	void *pr_globals;
 	eval_t *val;
-
-	if (sv.world.worldmodel && sv.world.worldmodel->type==mod_brush && sv.world.worldmodel->fromgame == fg_quake3)
-	{	//on q3bsp, these are expected to be handled directly by q3map2, but it doesn't always strip it.
-		ED_Free(progfuncs, self);
-		return;
-	}
 
 	if (!self->v->model && (val = progfuncs->GetEdictFieldValue(progfuncs, self, "mdl", ev_string, NULL)))
 		self->v->model = val->string;
@@ -1700,10 +1702,10 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 			//the mod is responsible for freeing unrecognised ents.
 		}
 		else if (!strcmp(eclassname, "misc_model"))
-			PR_FallbackSpawn_Misc_Model(progfuncs, ed);
+			PR_FallbackSpawn_Misc_Model(progfuncs, ed, false);
 		//func_detail+func_group are for compat with ericw-tools, etc.
 		else if (!strcmp(eclassname, "func_detail_illusionary"))
-			PR_FallbackSpawn_Misc_Model(progfuncs, ed);
+			PR_FallbackSpawn_Misc_Model(progfuncs, ed, true);
 		else if (!strcmp(eclassname, "func_detail") || !strcmp(eclassname, "func_detail_wall") || !strcmp(eclassname, "func_detail_fence"))
 			PR_FallbackSpawn_Func_Detail(progfuncs, ed);
 		else if (!strcmp(eclassname, "func_group"))
@@ -3586,7 +3588,7 @@ static void QCBUILTIN PF_ss_LocalSound(pubprogfuncs_t *prinst, struct globalvars
 #define PF_ss_LocalSound PF_Fixme
 #endif
 
-static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace)
+static void set_trace_globals(pubprogfuncs_t *prinst, /*struct globalvars_s *pr_globals,*/ trace_t *trace)
 {
 	pr_global_struct->trace_allsolid = trace->allsolid;
 	pr_global_struct->trace_startsolid = trace->startsolid;
@@ -3674,7 +3676,7 @@ void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
-	set_trace_globals(prinst, pr_globals, &trace);
+	set_trace_globals(prinst, &trace);
 }
 
 #ifdef HEXEN2
@@ -3694,7 +3696,7 @@ static void QCBUILTIN PF_traceboxh2 (pubprogfuncs_t *prinst, struct globalvars_s
 
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
-	set_trace_globals(prinst, pr_globals, &trace);
+	set_trace_globals(prinst, &trace);
 }
 #endif
 
@@ -3716,7 +3718,7 @@ static void QCBUILTIN PF_traceboxdp (pubprogfuncs_t *prinst, struct globalvars_s
 
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
-	set_trace_globals(prinst, pr_globals, &trace);
+	set_trace_globals(prinst, &trace);
 }
 
 static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3732,7 +3734,7 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	trace = WPhys_Trace_Toss (&sv.world, (wedict_t*)ent, (wedict_t*)ignore);
 
-	set_trace_globals(prinst, pr_globals, &trace);
+	set_trace_globals(prinst, &trace);
 }
 
 //============================================================================
@@ -4100,22 +4102,8 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		G_FLOAT(OFS_RETURN) = sv.world.worldmodel->fromgame == fg_halflife;
 	else
 	{
-		cvar_t *cv = Cvar_FindVar(str);
-		if (!cv)
-		{
-			//this little chunk is so cvars dp creates are created with meaningful values
-			char *def = "";
-			if (!strcmp(str, "sv_maxairspeed"))
-				def = "30";
-			else if (!strcmp(str, "sv_jumpvelocity"))
-				def = "270";
-			else
-				def = "";
-
-			cv = Cvar_Get(str, def, 0, "QC variables");
-			Con_Printf("^3Creating cvar %s\n", str);
-		}
-		if (cv->flags & CVAR_NOUNSAFEEXPAND)
+		cvar_t *cv = PF_Cvar_FindOrGet(str);
+		if (!cv || (cv->flags & CVAR_NOUNSAFEEXPAND))
 			G_FLOAT(OFS_RETURN) = 0;
 		else
 			G_FLOAT(OFS_RETURN) = cv->value;
@@ -4487,7 +4475,6 @@ void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars
 }
 #endif
 
-// warning: ‘PF_svcoredump’ defined but not used
 /*
 static void QCBUILTIN PF_svcoredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4558,7 +4545,7 @@ static void QCBUILTIN PF_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *
 //	}
 //	else if (!SV_TestEntityPosition(ent))
 //	{
-		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, axis, true, false, settrace?set_trace_globals:NULL, pr_globals);
+		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, axis, true, false, settrace?set_trace_globals:NULL);
 //		if (SV_TestEntityPosition(ent))
 //			Con_Printf("Entity became stuck\n");
 //	}
@@ -6243,7 +6230,6 @@ static void QCBUILTIN PF_mvdsv_freestring(pubprogfuncs_t *prinst, struct globalv
 }
 #endif
 
-// warning: ‘PF_strcatp’ defined but not used
 /*
 static void QCBUILTIN PF_strcatp(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6269,7 +6255,6 @@ static void QCBUILTIN PF_strcatp(pubprogfuncs_t *prinst, struct globalvars_s *pr
 }
 */
 
-// warning: ‘PF_redstring’ defined but not used
 /*
 static void QCBUILTIN PF_redstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -7743,7 +7728,7 @@ static void QCBUILTIN PF_h2movestep (pubprogfuncs_t *prinst, struct globalvars_s
 // save program state, because SV_movestep may call other progs
 	oldself = pr_global_struct->self;
 
-	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, NULL, false, true, set_trace?set_trace_globals:NULL, pr_globals);
+	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, NULL, false, true, set_trace?set_trace_globals:NULL);
 
 // restore program state
 	pr_global_struct->self = oldself;
@@ -9781,7 +9766,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 			if (!touched->v->touch || n >= playertouchmax || (playertouch[n/8]&(1<<(n%8))))
 				continue;
 
-			sv.world.Event_Touch(&sv.world, (wedict_t*)touched, (wedict_t*)ent);
+			sv.world.Event_Touch(&sv.world, (wedict_t*)touched, (wedict_t*)ent, NULL);
 			playertouch[n/8] |= 1 << (n%8);
 		}
 		pmove.numtouch = 0;
@@ -11839,7 +11824,7 @@ void PR_DumpPlatform_f(void)
 		{"SV_ShouldPause",			"float(float newstatus)", QW|NQ, "Called to give the qc a change to block pause/unpause requests. Return false for the pause request to be ignored. newstatus is 1 if the user is trying to pause the game. For the duration of the call, self will be set to the player who tried to pause, or to world if it was triggered by a server-side event."},
 		{"SV_RunClientCommand",		"void()", QW|NQ, "Called each time a player movement packet was received from a client. Self is set to the player entity which should be updated, while the input_* globals specify the various properties stored within the input packet. The contents of this function should be somewaht identical to the equivelent function in CSQC, or prediction misses will occur. If you're feeling lazy, you can simply call 'runstandardplayerphysics' after modifying the inputs."},
 		{"SV_AddDebugPolygons",		"void()", QW|NQ, "Called each video frame. This is the only place where ssqc is allowed to call the R_BeginPolygon/R_PolygonVertex/R_EndPolygon builtins. This is exclusively for debugging, and will break in anything but single player as it will not be called if the engine is not running both a client and a server."},
-		{"SV_PlayerPhysics",		"void()", QW|NQ, "Legacy method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
+		{"SV_PlayerPhysics",		"void()", QW|NQ, "Compatibility method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
 		{"EndFrame",				"void()", QW|NQ, "Called after non-player entities have been run at the end of the physics frame. Player physics is performed out of order and can/will still occur between EndFrame and BeginFrame."},
 		{"SV_CheckRejectConnection","string(string addr, string uinfo, string features) ", QW|NQ, "Called to give the mod a chance to ignore connection requests based upon client protocol support or other properties. Use infoget to read the uinfo and features arguments."},
 #ifdef HEXEN2

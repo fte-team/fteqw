@@ -879,10 +879,10 @@ int main(int argc, char *argv[])
 #endif
 
 	//decide if we should be printing colours to the stdout or not.
-	if (!COM_CheckParm("-nocolour")||!COM_CheckParm("-nocolor"))
+	if (COM_CheckParm("-nocolour")||COM_CheckParm("-nocolor"))
 		useansicolours = false;
 	else
-		useansicolours = (isatty(STDOUT_FILENO) || !COM_CheckParm("-colour")||!COM_CheckParm("-color"));
+		useansicolours = (isatty(STDOUT_FILENO) || COM_CheckParm("-colour") || COM_CheckParm("-color"));
 
 	switch(Sys_CheckChRoot())
 	{

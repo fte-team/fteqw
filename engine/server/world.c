@@ -1921,7 +1921,7 @@ void World_TouchAllLinks (world_t *w, wedict_t *ent)
 		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
 			continue;
 
-		w->Event_Touch(w, touch, ent);
+		w->Event_Touch(w, touch, ent, NULL);
 
 		if (ED_ISFREE(ent))
 			break;
@@ -2059,7 +2059,7 @@ static void World_ClipToLinks (world_t *w, areagridlink_t *node, moveclip_t *cli
 			//even if the trace traveled less, we still care if it was in a solid.
 			clip->trace.startsolid |= trace.startsolid;
 			clip->trace.allsolid |= trace.allsolid;
-			if (!clip->trace.ent)
+			if (!clip->trace.ent || trace.fraction == clip->trace.fraction)	//xonotic requires that second test (DP has no check at all, which would end up reporting mismatched fraction/ent results, so yuck).
 			{
 				clip->trace.contents = trace.contents;
 				clip->trace.ent = touch;

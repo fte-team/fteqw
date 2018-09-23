@@ -326,17 +326,27 @@ and the extension fields are added on the end and can have extra vm-specific stu
 #define HALFLIFEMODEL_FIELDS
 #endif
 
+#if FRAME_BLENDS >= 4
+#define frame34fields \
+	comfieldfloat(frame3,"Some people just don't understand how to use framegroups...")		/**/\
+	comfieldfloat(frame3time,".frame3 equivelent of frame1time.")	/*EXT_CSQC_1*/\
+	comfieldfloat(lerpfrac3,"Weight of .frame3 - .frame's weight is automatically calculated as 1-(lerpfrac+lerpfrac3+lerpfrac4), as a result these fields should NEVER add to above 1.")	/**/\
+	comfieldfloat(frame4,NULL)		/**/\
+	comfieldfloat(frame4time,".frame4 equivelent of frame1time.")	/*EXT_CSQC_1*/\
+	comfieldfloat(lerpfrac4,NULL)	/**/\
+
+#else
+#define frame34fields
+#endif
+
 //this is the list for all the csqc fields.
 //(the #define is so the list always matches the ones pulled out)
 #define csqcextfields	\
 	comfieldfloat(entnum,"This is the number of the entity that the ssqc is using.")		\
 	comfieldfloat(frame2,"This is typically the old frame of the entity. if lerpfrac is 1, .frame will be ignored and .frame2 will be used solely. lerpfrac 0.5 will give an even 50/50 blend.")		/*EXT_CSQC_1*/\
-	comfieldfloat(frame3,"Some people just don't understand how to use framegroups...")		/**/\
-	comfieldfloat(frame4,NULL)		/**/\
 	comfieldfloat(frame2time,".frame2 equivelent of frame1time.")	/*EXT_CSQC_1*/\
-	comfieldfloat(lerpfrac,"The value 0 means the entity will animate using only .frame, which will be jerky. As this value is incremented, more of frame2 will be used. If you wish to use .frame2 as the 'old' frame, it is generally recommended to start this field with the value 1, to decrement it by frametime, and when it drops below 0 add 1 to it and update .frame2 and .frame to lerp into the new frame.")	/*EXT_CSQC_1*/\
-	comfieldfloat(lerpfrac3,NULL)	/**/\
-	comfieldfloat(lerpfrac4,NULL)	/**/\
+	comfieldfloat(lerpfrac,"The weight of .frame2. A value of 0 means the entity will animate using only .frame, while 1 would exclusively be .frame2. As this value is incremented, more of frame2 will be used. If you wish to use .frame2 as the 'old' frame, it is generally recommended to start this field with the value 1, to decrement it by frametime, and when it drops below 0 add 1 to it and update .frame2 and .frame to lerp into the new frame.")	/*EXT_CSQC_1*/\
+	frame34fields	\
 	comfieldfloat(renderflags,NULL)\
 	comfieldfloat(forceshader,"Contains a shader handle used to replace all surfaces upon the entity.")/*FTE_CSQC_SHADERS*/\
 							\

@@ -1571,12 +1571,16 @@ void QCC_PR_LexString (void)
 #else
 void QCC_PR_LexString (void)
 {
-	int		c;
+	unsigned int	c, t;
+	int bytecount;
 	int		len = 0;
 	char	*end, *cnst;
 	int		raw;
 	char	rawdelim[64];
 	unsigned int		code;
+	int		stringtype = 0; //0 - quake output, input is 8bit. warnings when its not ascii. \u will still give utf-8 text, other chars as-is. Expect \s to screw everything up with utf-8 output.
+							//1 - quake output, input is utf-8. due to editors not supporting it, that generally means the input (ab)uses markup.
+							//2 - utf-8 output, input is utf-8. welcome to the future! unfortunately not the present.
 
 	int texttype;
 	pbool first = true;
@@ -1629,6 +1633,22 @@ void QCC_PR_LexString (void)
 				pr_file_p += 2;
 				pr_source_line++;
 			}
+		}
+		else if (*pr_file_p == 'Q' && pr_file_p[1] == '\"')
+		{	//quake output with utf-8 input (expect to need markup).
+			stringtype = 1;
+			pr_file_p+=2;
+		}
+		else if ((*pr_file_p == 'U' || *pr_file_p == 'u' || *pr_file_p == 'L') && pr_file_p[1] == '\"')
+		{	//unicode string, char32_t, char16_t, wchar_t respectively. we spit out utf-8 regardless.
+			QCC_PR_ParseWarning(WARN_NOTUTF8, "interpretting char32_t/char16_t/wchar_t as utf-8");
+			stringtype = 2;
+			pr_file_p+=2;
+		}
+		else if (*pr_file_p == 'u' && pr_file_p[1] == '8' && pr_file_p[2] == '\"')
+		{	//utf-8 string.
+			stringtype = 2;
+			pr_file_p+=3;
 		}
 		else if (*pr_file_p == '\"')
 			pr_file_p++;
@@ -1687,11 +1707,12 @@ void QCC_PR_LexString (void)
 					break;
 				}
 
-				//make sure line numbers are correct
+				//make sure line numbers are correct though.
 				if (c == '\r' && *pr_file_p != '\n')
 					pr_source_line++;	//mac
 				if (c == '\n')	//dos/unix
 					pr_source_line++;
+				goto forcebyte;
 			}
 			else
 			{
@@ -1726,9 +1747,9 @@ void QCC_PR_LexString (void)
 					//else if (c == 'b')
 					//	c = '\b';
 					else if (c == '[')
-						c = 16;	//quake specific
+						c = 0xe010;	//quake specific
 					else if (c == ']')
-						c = 17;	//quake specific
+						c = 0xe011;	//quake specific
 					else if (c == '{')
 					{
 						int d;
@@ -1741,71 +1762,44 @@ void QCC_PR_LexString (void)
 						}
 					}
 					else if (c == '.')
-						c = 0x1c | texttype;
+						c = 0xe01c | texttype;
 					else if (c == '<')
-						c = 29;
+						c = 0xe01d;	//separator start
 					else if (c == '-')
-						c = 30;
+						c = 0xe01e;	//separator middle
 					else if (c == '>')
-						c = 31;
+						c = 0xe01f;	//separator end
 					else if (c == '(')
-						c = 128;
+						c = 0xe080;	//slider start
 					else if (c == '=')
-						c = 129;
+						c = 0xe081;	//slider middle
 					else if (c == ')')
-						c = 130;
+						c = 0xe082;	//slider end
+					else if (c == '+')
+						c = 0xe083;	//slider box
 					else if (c == 'u' || c == 'U')
 					{
 						//lower case u specifies exactly 4 nibbles.
-						//upper case U specifies variable length. terminate with a double-doublequote pair, or some other non-hex char.
-						int count = 0;
-						unsigned long d;
-						unsigned long unicode;
-						unicode = 0;
-						for(;;)
+						//upper case U specifies exactly 8 nibbles.
+						unsigned int nibbles = (c=='u')?4:8;
+						c = 0;
+						while (nibbles --> 0)
 						{
-							d = (unsigned char)*pr_file_p;
-							if (d >= '0' && d <= '9')
-								unicode = (unicode*16) + (d - '0');
-							else if (d >= 'A' && d <= 'F')
-								unicode = (unicode*16) + (d - 'A') + 10;
-							else if (d >= 'a' && d <= 'f')
-								unicode = (unicode*16) + (d - 'a') + 10;
+							t = (unsigned char)*pr_file_p;
+							if (t >= '0' && t <= '9')
+								c = (c*16) + (t - '0');
+							else if (t >= 'A' && t <= 'F')
+								c = (c*16) + (t - 'A') + 10;
+							else if (t >= 'a' && t <= 'f')
+								c = (c*16) + (t - 'a') + 10;
 							else
 								break;
-							count++;
 							pr_file_p++;
 						}
-						if (!count || ((c=='u')?(count!=4):(count>8)) || unicode > 0x10FFFFu)	//RFC 3629 imposes the same limit as UTF-16 surrogate pairs.
-							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Bad unicode character code");
+						if (nibbles)
+							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Unicode character terminated unexpectedly");
 
-						//figure out the count of bytes required to encode this char
-						count = 1;
-						d = 0x7f;
-						while (unicode > d)
-						{
-							count++;
-							d = (d<<5) | 0x1f;
-						}
-
-						//error if needed
-						if (len+count >= sizeof(pr_token))
-							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
-
-						//output it.
-						if (count == 1)
-							pr_token[len++] = (unsigned char)(c&0x7f);
-						else
-						{
-							c = count*6;
-							pr_token[len++] = (unsigned char)((unicode>>c)&(0x0000007f>>count)) | (0xffffff00 >> count);
-							do
-							{
-								c = c-6;
-								pr_token[len++] = (unsigned char)((unicode>>c)&0x3f) | 0x80;
-							} while(c);
-						}
-						continue;
+						goto forceutf8;
 					}
 					else if (c == 'x' || c == 'X')
 					{
@@ -1833,13 +1827,14 @@ void QCC_PR_LexString (void)
 							c += d - 'a' + 10;
 						else
 							QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+						goto forcebyte;
 					}
 					else if (c == '\\')
 						c = '\\';
 					else if (c == '\'')
 						c = '\'';
 					else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
-						c = 18 + c - '0';
+						c = 0xe012 + c - '0';
 					else if (c == '\r')
 					{	//sigh
 						c = *pr_file_p++;
@@ -1913,13 +1908,82 @@ void QCC_PR_LexString (void)
 				else if (c == 0x7C && flag_acc)	//reacc support... reacc is strange.
 					c = '\n';
 				else
-					c |= texttype;
+				{
+					unsigned int cp;
+					unsigned int len = stringtype?utf8_check(pr_file_p-1, &cp):0;
+					if (!len)
+					{	//invalid utf-8 encoding? don't treat it as utf-8!
+						c |= texttype;
+						goto forcequake;
+					}
+					if (texttype)
+					{
+						c = cp;
+						if (cp < 128)
+							c |= 0xe080;	//FIXME: technically invalid for C0 chars.
+						else
+						{
+							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Unable to mask non-ascii chars. Attempting to mask bytes");
+							c |= texttype;
+							goto forcequake;
+						}
+					}
+					else
+						c = cp;
+					pr_file_p += len-1;
+				}
 			}
 
-			if (len >= sizeof(pr_token)-1)
-				QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
-			pr_token[len] = c;
-			len++;
+			if (stringtype == 2)
+			{	//we're outputting a utf-8 string.
+forceutf8:
+				if (c > 0x10FFFFu)	//RFC 3629 imposes the same limit as UTF-16 surrogate pairs.
+					QCC_PR_ParseWarning(WARN_NOTUTF8, "Bad unicode character code - codepoint is above 0x10FFFFu");
+
+				//figure out the count of bytes required to encode this char
+				bytecount = 1;
+				t = 0x7f;
+				while (c > t)
+				{
+					bytecount++;
+					t = (t<<5) | 0x1f;
+				}
+
+				//error if needed
+				if (len+bytecount >= sizeof(pr_token))
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+
+				//output it.
+				if (bytecount == 1)
+					pr_token[len++] = (unsigned char)(c&0x7f);
+				else
+				{
+					t = bytecount*6;
+					pr_token[len++] = (unsigned char)((c>>t)&(0x0000007f>>bytecount)) | (0xffffff00 >> bytecount);
+					do
+					{
+						t = t-6;
+						pr_token[len++] = (unsigned char)((c>>t)&0x3f) | 0x80;
+					} while(t);
+				}
+			}
+			else
+			{
+forcequake:
+				//we need to convert it to a quake char...
+				if (c >= 0xe000 && c <= 0xe0ff)
+					c = c & 0xff;	//this private use range is commonly used for quake's glyphs.
+				else if (c >= 0 && c <= 0x7f)
+					; //FIXME: SOME c0 codes are known to quake, but many got reused for random glyphs. however I'm going to treat quake as full ascii.
+				else if (c > 0xff)
+					QCC_PR_ParseWarning(WARN_NOTUTF8, "Cannot convert character to quake's charset");
+
+forcebyte:
+				if (len >= sizeof(pr_token)-1)
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+				pr_token[len] = c;
+				len++;
+			}
 		}
 	}
 
@@ -1940,7 +2004,7 @@ void QCC_PR_LexString (void)
 			len = utf8_check(&pr_token[c], &code);
 			if (!len || c+len>pr_immediate_strlen)
 			{
-				QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
+				QCC_PR_ParseWarning(WARN_NOTUTF8, "String literal is not valid utf-8");
 				break;
 			}
 			c += len;
@@ -3690,7 +3754,7 @@ void QCC_PR_Lex (void)
 	}
 
 // handle quoted strings as a unit
-	if (c == '\"' || (c == 'R' && pr_file_p[1] == '\"'))
+	if (c == '\"' || ((c == 'R' || c == 'Q' || c == 'u' || c == 'U') && pr_file_p[1] == '\"') || (c == 'u' && pr_file_p[1] == '8' && pr_file_p[2] == '\"'))
 	{
 		QCC_PR_LexString ();
 		return;

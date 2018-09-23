@@ -25,6 +25,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define HAVE_WEBSOCKCL
 #endif
 
+#ifdef __linux__
+//#define UNIXSOCKETS
+#endif
+
 //FIXME: should split this into loopback/dgram/stream/dtls/tls/irc
 //with the ipv4/v6/x as a separate parameter
 typedef enum {
@@ -34,6 +38,9 @@ typedef enum {
 	NA_IP,
 	NA_IPV6,
 	NA_IPX,
+#ifdef UNIXSOCKETS
+	NA_UNIX,
+#endif
 #ifdef IRCCONNECT
 	NA_IRC/*remove!*/,
 #endif
@@ -48,7 +55,9 @@ typedef enum {
 	NP_TLS,
 	NP_WS,
 	NP_WSS,
-	NP_NATPMP
+	NP_NATPMP,	//server-only scheme for registering public ports.
+
+	NP_INVALID
 } netproto_t;
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
@@ -71,6 +80,13 @@ typedef struct
 #endif
 #ifdef HAVE_WEBSOCKCL
 		char websocketurl[64];
+#endif
+#ifdef UNIXSOCKETS
+		struct
+		{
+			int len;	//abstract addresses contain nulls, so this is needed.
+			char path[108];
+		} un;
 #endif
 	} address;
 
@@ -126,7 +142,7 @@ neterr_t	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
-qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host);
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, netadr_t *adr);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
 enum addressscope_e
@@ -143,10 +159,10 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
 qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b);
 void		NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b);
 char		*NET_AdrToString (char *s, int len, netadr_t *a);
-char		*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a);
+char		*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a, size_t sizeofa);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
-size_t		NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
-#define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,a,f,z,1)>0)
+size_t		NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhint, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
+#define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,NA_INVALID,a,f,z,1)>0)
 size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount);
 #define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1)
 qboolean	NET_PortToAdr (netadrtype_t adrfamily, netproto_t adrprot, const char *s, netadr_t *a);
@@ -344,5 +360,5 @@ int UDP_OpenSocket (int port);
 int UDP6_OpenSocket (int port);
 int IPX_OpenSocket (int port);
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
-void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a);
+void SockadrToNetadr (struct sockaddr_qstorage *s, int sizeofsockaddr, netadr_t *a);
 qboolean NET_Sleep(float seconds, qboolean stdinissocket);

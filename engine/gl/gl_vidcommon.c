@@ -513,7 +513,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	{
 		int i;
 		qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
-		if (developer.value)
+		if (developer.value>1)
 		{
 			Con_Printf ("GL_EXTENSIONS:\n");
 			for (i = 0; i < gl_num_extensions; i++)
@@ -2262,7 +2262,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		GLcharARB *combined;
 		int totallen = 1;
 		for (i = 0; i < glsl.strings; i++)
-			totallen += glsl.len[i] + 64;
+			totallen += glsl.len[i] + 64 + (glsl.file[i]?strlen(glsl.file[i]):0);
 		combined = malloc(totallen);
 		totallen = 0;
 		combined[totallen] = 0;
@@ -2272,12 +2272,18 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				; //#version MUST be the first line, don't prefix it with a #line, it'll just break things.
 			else if (!totallen || combined[totallen-1] == '\n')
 			{	//last line was a newline, hurrah. safe to insert without breaking anything
-				Q_snprintfz(combined+totallen, 64, "#line %i %i //%s\n", glsl.line[i], i, glsl.file[i]);
+				if (glsl.file[i])
+					Q_snprintfz(combined+totallen, 64+strlen(glsl.file[i]), "#line %i %i //%s\n", glsl.line[i], i, glsl.file[i]);
+				else
+					Q_snprintfz(combined+totallen, 64, "#line %i %i\n", glsl.line[i], i);
 				totallen += strlen(combined+totallen);
 			}
 			else if (glsl.len[i] && *glsl.str[i] == '\n')
 			{	//last line didn't end with a newline, but there is one after. that's okay too, but we need to play it safe.
-				Q_snprintfz(combined+totallen, 64, "\n#line %i %i //%s\n", glsl.line[i], i, glsl.file[i]);
+				if (glsl.file[i])
+					Q_snprintfz(combined+totallen, 64+strlen(glsl.file[i]), "\n#line %i %i //%s\n", glsl.line[i], i, glsl.file[i]);
+				else
+					Q_snprintfz(combined+totallen, 64, "\n#line %i %i\n", glsl.line[i], i);
 				totallen += strlen(combined+totallen);
 			}
 			//now shove stuff there.
@@ -3366,8 +3372,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.nv_tex_env_combine4	= gl_config.nv_tex_env_combine4;
 		sh_config.env_add				= gl_config.env_add;
 	}
-
-	GL_SetupFormats();
 
 	return true;
 }

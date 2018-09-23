@@ -110,10 +110,10 @@ cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connecti
 extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
-cvar_t sv_maxrate			= CVAR("sv_maxrate", "30000");
-cvar_t sv_maxdrate			= CVARAF("sv_maxdrate", "500000",
-									"sv_maxdownloadrate", 0);
-cvar_t sv_minping			= CVARF("sv_minping", "", CVAR_SERVERINFO);
+cvar_t sv_maxrate			= CVARD("sv_maxrate", "50000", "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
+cvar_t sv_maxdrate			= CVARAFD("sv_maxdrate", "500000",
+									"sv_maxdownloadrate", 0, "This cvar controls the maximum number of bytes sent to each player per second while that player is downloading.\nIf this cvar is set to 0, there will be NO CAP for download rates (if the user's drate is empty/0 too, then expect really fast+abusive downloads that could potentially be considered denial of service attacks)");
+cvar_t sv_minping			= CVARFD("sv_minping", "", CVAR_SERVERINFO, "Simulate fake lag for any players with a ping under the value specified here. Value is in milliseconds.");
 
 cvar_t sv_bigcoords			= CVARFD("sv_bigcoords", "1", 0, "Uses floats for coordinates instead of 16bit values.\nAlso boosts angle precision, so can be useful even on small maps.\nAffects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
 cvar_t sv_calcphs			= CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
@@ -5546,6 +5546,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	}
 
 	//make CERTAIN that the name we think they're using is actually the name everyone else sees too.
+	//bots are allowed empty names. this gives the gamecode a chance to actually assign one.
+	if (cl->protocol != SCP_BAD)
 	{
 		InfoBuf_SetValueForKey (&cl->userinfo, "name", newname);
 		val = InfoBuf_ValueForKey (&cl->userinfo, "name");

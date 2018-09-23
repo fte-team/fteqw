@@ -339,7 +339,7 @@ typedef struct cminfo_s
 	q2mapsurface_t	*surfaces;
 
 	int				numleafbrushes;
-	q2cbrush_t		*leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
+	q2cbrush_t		**leafbrushes;
 
 	int				numcmodels;
 	cmodel_t		*cmodels;
@@ -1865,13 +1865,14 @@ static qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l
 		return false;
 	}
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_LEAFBRUSHES)
+	if (count > SANITY_MAX_MAP_LEAFBRUSHES)
 	{
 		Con_Printf (CON_ERROR "Map has too many leafbrushes\n");
 		return false;
 	}
 
-	out = prv->leafbrushes;
+	//prv->numbrushes is because of submodels being weird.
+	out = prv->leafbrushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+prv->numbrushes));
 	prv->numleafbrushes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
@@ -3206,7 +3207,7 @@ static qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	mleaf_t		*out;
 	q3dleaf_t 	*in;
 	int			count;
-	q2cbrush_t	*brush;
+	q2cbrush_t	**brush;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -3258,10 +3259,10 @@ static qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->nummarksurfaces = 0;
 		}
 
+		brush = &prv->leafbrushes[out->firstleafbrush];
 		for (j=0 ; j<out->numleafbrushes ; j++)
 		{
-			brush = prv->leafbrushes[out->firstleafbrush + j];
-			out->contents |= brush->contents;
+			out->contents |= brush[j]->contents;
 		}
 
 		if (out->area >= prv->numareas)
@@ -3333,17 +3334,18 @@ static qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l
 		return false;
 	}
 	// need to save space for box planes
-	if (count > MAX_Q2MAP_LEAFBRUSHES)
+	if (count > SANITY_MAX_MAP_LEAFBRUSHES)
 	{
 		Con_Printf (CON_ERROR "Map has too many leafbrushes\n");
 		return false;
 	}
 
-	out = prv->leafbrushes;
+	//prv->numbrushes is because of submodels being weird.
+	out = prv->leafbrushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+prv->numbrushes));
 	prv->numleafbrushes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
-		*out = prv->brushes + LittleLong (*in);
+		*out = prv->brushes + (unsigned int)LittleLong (*in);
 
 	return true;
 }

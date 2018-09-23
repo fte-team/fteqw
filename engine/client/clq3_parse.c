@@ -539,7 +539,7 @@ void CLQ3_ParseGameState(void)
 //
 // wipe the client_state_t struct
 //
-	CL_ClearState();
+	CL_ClearState(true);
 	ccs.firstParseEntity = 0;
 	memset(ccs.parseEntities, 0, sizeof(ccs.parseEntities));
 	memset(ccs.baselines, 0, sizeof(ccs.baselines));

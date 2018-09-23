@@ -1176,6 +1176,27 @@ void VARGS Con_DLPrintf (int level, const char *fmt, ...)
 	}
 }
 
+void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+	float now = realtime;
+
+	if (*timer > now)
+		;	//in the future? zomg
+	else if (*timer > now-1)
+		return;	//within the last second
+	*timer = now;	//in the future? zomg
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (developerlevel)
+		Con_DLPrintf(developerlevel, "%s", msg);
+	else
+		Con_Printf("%s", msg);
+}
 
 /*description text at the bottom of the console*/
 void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...)
@@ -2640,7 +2661,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 						key = Info_ValueForKey(info, "tiprawimg");
 						if (*key)
 						{
-							shader = R2D_SafeCachePic("riprawimg");
+							shader = R2D_SafeCachePic("tiprawimg");
 							shader->defaulttextures->base = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
 							if (!shader->defaulttextures->base)
 							{
@@ -2706,6 +2727,16 @@ void Con_DrawConsole (int lines, qboolean noback)
 				}
 				else
 					shader = NULL;
+			}
+			if (iw  > (vid.width/4.0))
+			{
+				ih *= (vid.width/4.0)/iw;
+				iw *= (vid.width/4.0)/iw;
+			}
+			if (ih  > (vid.height/4.0))
+			{
+				iw *= (vid.width/4.0)/ih;
+				ih *= (vid.width/4.0)/ih;
 			}
 
 			if (x + iw/2 + 8 + 256 > vid.width)

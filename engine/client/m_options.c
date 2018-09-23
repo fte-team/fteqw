@@ -2967,7 +2967,7 @@ void M_Menu_Video_f (void)
 	MC_AddRedText(menu, 200, y, current3dres, false); y+=8;
 
  	y+=8;
-	MC_AddRedText(menu, 0, y,								"      €‚ ", false); y+=8;
+	MC_AddRedText(menu, 0, y,								"      ^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
 	y+=8;
 	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
 	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;

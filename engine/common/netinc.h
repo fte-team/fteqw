@@ -41,13 +41,13 @@
 		#include <xtl.h>
 		#include <WinSockX.h>
 	#else
-		#ifdef _MSC_VER
-			#define USEIPX
+		#if defined(_MSC_VER) && !defined(NOLEGACY)
+			#define HAVE_IPX
 		#endif
 		#define WIN32_LEAN_AND_MEAN
 		#include <windows.h>
 		#include <winsock2.h>
-		#ifdef USEIPX
+		#ifdef HAVE_IPX
 			#include "wsipx.h"
 		#endif
 		#include <ws2tcpip.h>
@@ -130,6 +130,9 @@
 	#ifdef sun
 		#include <sys/filio.h>
 	#endif
+	#ifdef UNIXSOCKETS
+		#include <sys/un.h>
+	#endif
 
 	#ifdef NeXT
 		#include <libc.h>
@@ -143,16 +146,17 @@
 		#define ioctlsocket ioctl
 	#endif
 
-	#if defined(AF_INET6) && !defined(IPPROTO_IPV6)
-		#define IPPROTO_IPV6 IPPROTO_IPV6	//fte often just checks to see if IPPROTO_IPV6 is defined or not, which doesn't work if its an enum value or somesuch...
-	#endif
-
 	#if defined(AF_INET)
 		#define HAVE_IPV4
 	#endif
-	#ifdef IPPROTO_IPV6
+	#if defined(AF_INET6)
 		#define HAVE_IPV6
 	#endif
+
+//	#if defined(AF_IPX) && !defined(NOLEGACY)
+//		#include <netipx/ipx.h>
+//		#define HAVE_IPX
+//	#endif
 
 	#define SOCKET int
 #endif
@@ -204,7 +208,9 @@
 #endif
 
 #if defined(FTE_TARGET_WEB)
-	#undef IPPROTO_IPV6
+	#undef HAVE_IPV4
+	#undef HAVE_IPV6
+	#undef HAVE_IPX
 #endif
 
 #if 1//def SUPPORT_ICE

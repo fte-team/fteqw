@@ -5535,6 +5535,15 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 					tex->fullbright = R_LoadHiResTexture(va("%s_luma:%s_glow", imagename, imagename), subpath, imageflags);
 			}
 		}
+
+		//if there's a reflectcube texture specified by the shader, make sure we have a reflectmask to go with it.
+		if (tex->reflectcube)
+		{
+			if (!TEXVALID(tex->reflectmask) && *mapname)
+				tex->reflectmask = R_LoadHiResTexture(va("%s_reflect", mapname), NULL, imageflags);
+			if (!TEXVALID(tex->reflectmask))
+				tex->reflectmask = R_LoadHiResTexture(va("%s_reflect", imagename), subpath, imageflags);
+		}
 	}
 }
 
@@ -5792,7 +5801,6 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		
 		if (tex->reflectcube)
 		{
-			extern cvar_t r_shadow_bumpscale_basetexture;
 			if (!TEXVALID(tex->reflectmask) && *mapname)
 				tex->reflectmask = R_LoadHiResTexture(va("%s_reflect", mapname), NULL, imageflags);
 			if (!TEXVALID(tex->reflectmask))

@@ -99,6 +99,7 @@ struct dl_download
 	char *url;	/*original url*/
 	char redir[MAX_OSPATH];	/*current redirected url*/
 	char localname[MAX_OSPATH]; /*leave empty for a temp file*/
+	enum fs_relative fsroot;
 	struct vfsfile_s *file;	/*downloaded to, if not already set when starting will open localname or a temp file*/
 
 	char postmimetype[64];

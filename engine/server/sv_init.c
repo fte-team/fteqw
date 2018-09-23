@@ -852,8 +852,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	SCR_ImageName(server);
 #endif
 
-	NET_InitServer();
-
 	sv.state = ss_dead;
 
 	if (sv.gamedirchanged)
@@ -1390,6 +1388,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	//SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
 #endif
+
+	NET_InitServer();
 
 	//
 	// spawn the rest of the entities on the map

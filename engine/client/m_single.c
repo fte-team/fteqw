@@ -385,7 +385,7 @@ void M_Menu_SinglePlayer_f (void)
 			}
 			else if (!strncmp(Cmd_Argv(1), "skill", 5))
 			{
-				//yes, hexen2 has per-class names for the skill levels. because being weird and obtuse is kinda its forté
+				//yes, hexen2 has per-class names for the skill levels. because being weird and obtuse is kinda its forte
 				static char *skillnames[6][4] =
 				{
 					{

@@ -405,7 +405,6 @@ static void Surf_AddDynamicLights (msurface_t *surf)
 	}
 }
 
-// warning: ‘Surf_AddDynamicLightNorms’ defined but not used
 /*
 static void Surf_AddDynamicLightNorms (msurface_t *surf)
 {
@@ -1570,8 +1569,6 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 	static size_t maxblocksize;
 	static vec3_t *blocknormals;
 	static unsigned int *blocklights;
-
-	//int stride = LMBLOCK_WIDTH*lightmap_bytes; //warning: unused variable ‘stride’
 
 	shift += 7; // increase to base value
 	surf->cached_dlight = false;

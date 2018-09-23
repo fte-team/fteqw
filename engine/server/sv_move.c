@@ -142,7 +142,7 @@ possible, no move is done, false is returned, and
 pr_global_struct->trace_normal is set to the normal of the blocking wall
 =============
 */
-qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace), struct globalvars_s *set_trace_globs)
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *prinst, trace_t *trace))
 {
 	float		dz;
 	vec3_t		oldorg, neworg, end;
@@ -192,7 +192,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 			}
 			trace = World_Move (world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
 			if (set_move_trace)
-				set_move_trace(world->progs, set_trace_globs, &trace);
+				set_move_trace(world->progs, &trace);
 	
 			if (trace.fraction == 1)
 			{
@@ -218,7 +218,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 
 	trace = World_Move (world, neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 	if (set_move_trace)
-		set_move_trace(world->progs, set_trace_globs, &trace);
+		set_move_trace(world->progs, &trace);
 
 	if (trace.allsolid)
 		return false;
@@ -229,7 +229,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 		VectorMA(neworg, -movevars.stepheight, axis[2], neworg);
 		trace = World_Move (world, neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 		if (set_move_trace)
-			set_move_trace(world->progs, set_trace_globs, &trace);
+			set_move_trace(world->progs, &trace);
 		if (trace.allsolid || trace.startsolid)
 			return false;
 	}
@@ -448,7 +448,7 @@ qboolean World_StepDirection (world_t *world, wedict_t *ent, float yaw, float di
 	//FIXME: Hexen2: ent flags & FL_SET_TRACE
 
 	VectorCopy (ent->v->origin, oldorigin);
-	if (World_movestep (world, ent, move, axis, false, false, NULL, NULL))
+	if (World_movestep (world, ent, move, axis, false, false, NULL))
 	{
 		delta = anglemod(delta);
 		if (delta > 45 && delta < 315)

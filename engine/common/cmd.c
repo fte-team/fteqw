@@ -707,7 +707,7 @@ void Cmd_Exec_f (void)
 		return;
 	}
 
-	if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLF_IFFOUND, &loc))
+	if (!FS_FLocateFile(name, FSLF_IFFOUND|FSLF_IGNOREPURE, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLF_IFFOUND, &loc))
 	{
 		Con_TPrintf ("couldn't exec %s\n", name);
 		return;
@@ -721,9 +721,9 @@ void Cmd_Exec_f (void)
 	if (cl_warncmd.ival || developer.ival || cvar_watched)
 	{
 		if (loc.search)
-			Con_TPrintf ("execing %s/%s\n",name, loc.search->logicalpath);
+			Con_TPrintf ("execing ^[^7%s\\tip\\from %s/%s^]\n", name, loc.search->logicalpath, name);
 		else
-			Con_TPrintf ("execing %s\n",name);
+			Con_TPrintf ("execing %s\n", name);
 	}
 
 	l = VFS_GETLEN(file);

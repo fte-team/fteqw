@@ -2659,8 +2659,8 @@ char *SV_MVDName2Txt(char *name)
 		ext = COM_GetFileExtension(s, ext);
 	if (!ext || !*ext)	//if there's no extension on there, then make sure we're pointing to the end of the string.
 		ext = s+strlen(s);
-	if (ext > s+sizeof(s)+4)	//make sure we don't overflow the buffer by truncating the base/path, ensuring that we don't write some other type of file.
-		ext = s+sizeof(s)+4;	//should probably make this an error case and abort instead.
+	if (ext > s+sizeof(s)-4)	//make sure we don't overflow the buffer by truncating the base/path, ensuring that we don't write some other type of file.
+		ext = s+sizeof(s)-4;	//should probably make this an error case and abort instead.
 	strcpy((char*)ext, ".txt");
 
 	return va("%s", s);

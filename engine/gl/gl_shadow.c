@@ -3103,10 +3103,14 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		switch (emodel->type)
 		{
 		case mod_alias:
+			if (r_drawentities.ival == 3)
+				continue;
 			R_DrawGAliasShadowVolume (ent, dl->origin, dl->radius);
 			break;
 
 		case mod_brush:
+			if (r_drawentities.ival == 2)
+				continue;
 			Sh_DrawBrushModelShadow (dl, ent);
 			break;
 

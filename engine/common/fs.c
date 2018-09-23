@@ -3201,6 +3201,8 @@ void QDECL Q_strnlowercatz(char *d, const char *s, int n)
 	*d = 0;
 }
 
+//pname must be of the form "gamedir/foo.pk3"
+//as a special exception, we allow "downloads/*.pk3 too"
 qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, int llen)
 {
 	const char *fn;
@@ -3227,7 +3229,7 @@ qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, in
 		}
 	}
 //	fn = COM_SkipPath(pname);
-	if (fn == pname)
+	if (fn == pname || !*fn)
 	{	//only allow it if it has some game path first.
 		*local = 0;
 		return false;
@@ -3531,6 +3533,7 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 #ifndef SERVERONLY
 int FS_PureOkay(void)
 {
+	qboolean ret = true;
 	//returns true if all pure packages that we're meant to need could load.
 	//if they couldn't then they won't override things, or the game will just be completely screwed due to having absolutely no game data
 	if (fs_puremode == 1 && fs_purenames && *fs_purenames && fs_purecrcs && *fs_purecrcs)
@@ -3595,14 +3598,13 @@ int FS_PureOkay(void)
 				if (!CL_CheckDLFile(va("package/%s", pname)))
 					if (CL_CheckOrEnqueDownloadFile(va("package/%s", pname), va("%s.%i", pname, crc), DLLF_NONGAME))
 						return -1;
-				Con_Printf(CON_ERROR"Pure package %s:%i missing.\n", pname, crc);
-				return false;
+				Con_Printf(CON_ERROR"Pure package %s:%08x missing.\n", pname, crc);
+				ret = false;
 			}
 		}
-		return true;
 	}
 
-	return true;
+	return ret;
 }
 #endif
 
@@ -3825,8 +3827,10 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			names = COM_ParseOut(names, nametok, sizeof(nametok));
 
 			crc = strtoul(crctok, NULL, 0);
-			if (!crc)
+			if (!*crctok)
 				continue;
+			if (!strcmp(crctok, "-"))
+				*crctok = 0;
 
 			pname = nametok;
 
@@ -3855,7 +3859,8 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			for (sp = com_searchpaths; sp; sp = sp->next)
 			{
 				if (sp->nextpure == (void*)0x1)	//don't add twice.
-					if (sp->crc_check == crc)
+					if ((*crctok && sp->crc_check == crc) ||
+						(!*crctok && !strcmp(COM_SkipPath(sp->purepath), COM_SkipPath(pname))))
 					{
 						if (fs_puremode)
 						{
@@ -3888,14 +3893,19 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				int i;
 				COM_FileExtension(pname, ext, sizeof(ext));
 
-				if (FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local)))
+				if (FS_GenCachedPakName(pname, crctok, local, sizeof(local)))
 				{
 					unsigned int keptflags;
 					handle = FS_GetOldPath(&oldpaths, local, &keptflags);
 					if (handle)
 					{
 						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|keptflags, (unsigned int)-1);
-						if (sp->crc_check == crc)
+						if (sp->handle->GeneratePureCRC)
+						{
+							sp->crc_check = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 0);
+							sp->crc_reply = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 1);
+						}
+						if (sp->crc_check == crc || !*crctok)
 						{
 							if (fs_puremode)
 							{
@@ -3925,11 +3935,13 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 							if (!handle)
 								break;
 							sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY, (unsigned int)-1);
+							if (sp->handle->GeneratePureCRC)
+							{
+								sp->crc_check = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 0);
+								sp->crc_reply = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 1);
+							}
 
-							sp->crc_check = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 0);
-							sp->crc_reply = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 1);
-
-							if (sp->crc_check == crc)
+							if (!*crctok)
 							{
 								if (fs_puremode)
 								{
@@ -3947,7 +3959,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				}
 
 				if (!sp)
-					Con_DPrintf("Pure package %s:%i wasn't found\n", pname, crc);
+					Con_DPrintf("Pure package %s:%08x wasn't found\n", pname, crc);
 			}
 		}
 	}
@@ -5198,11 +5210,10 @@ void FS_BeginManifestUpdates(void)
 qboolean FS_FoundManifest(void *usr, ftemanifest_t *man)
 {
 	if (!*(ftemanifest_t**)usr)
-	{
 		*(ftemanifest_t**)usr = man;
-		return true;
-	}
-	return false;
+	else
+		FS_Manifest_Free(man);
+	return true;
 }
 
 //reads the default manifest based upon the basedir, the commandline arguments, the name of the exe, etc.
@@ -5366,7 +5377,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	{
 		if (allowreloadconfigs)
 		{
-			FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);	//q1
+			FS_FLocateFile(conffile[i], FSLF_IFFOUND|FSLF_IGNOREPURE, &loc);	//q1
 			confpath[i] = loc.search?loc.search->handle:NULL;
 		}
 		else
@@ -5409,9 +5420,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				//if we're a client, display a menu to pick between them (or display an error)
 				//servers can just use the first they find, they'd effectively just crash otherwise, but still give a warning.
 				if (!isDedicated)
+				{
+					FS_Manifest_Free(man);
 					man = NULL;
+				}
 				else if (found)
-					Con_Printf(CON_WARNING "Warning: found multiple possible games. Using the first found.\n");
+					Con_Printf(CON_WARNING "Warning: found multiple possible games. Using the first found (%s).\n", man->formalname);
 				else
 					Con_Printf(CON_ERROR "Error: unable to determine correct game/basedir.\n");
 			}
@@ -5610,7 +5624,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 			for (i = 0; i < countof(conffile); i++)
 			{
-				FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);
+				FS_FLocateFile(conffile[i], FSLF_IFFOUND|FSLF_IGNOREPURE, &loc);
 				if (confpath[i] != (loc.search?loc.search->handle:NULL))
 				{
 					reloadconfigs = true;
@@ -5756,6 +5770,7 @@ static int QDECL FS_EnumerateFMFs(const char *fname, qofs_t fsize, time_t mtime,
 	return true;
 }
 
+//callback must call FS_Manifest_Free.
 int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr)
 {
 	int i;
@@ -5786,6 +5801,15 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 	//this defaults to the working directory. perhaps try the exe's location instead?
 	if (!e.found)
 		Sys_EnumerateFiles(host_parms.basedir, "*.fmf", FS_EnumerateFMFs, &e, NULL);
+
+	if (!e.found)
+	{
+		if (*com_homepath)
+			Sys_EnumerateFiles(NULL, va("%s/*.fmf", com_homepath), FS_EnumerateFMFs, &e, NULL);
+#ifdef __linux__
+		Sys_EnumerateFiles(NULL, "/etc/fte/*.fmf", FS_EnumerateFMFs, &e, NULL);
+#endif
+	}
 
 	//right, no fmf files anywhere.
 	//just make stuff up from whatever games they may have installed on their system.
@@ -6251,6 +6275,12 @@ void COM_InitFilesystem (void)
 	com_homepathusable = usehome;
 	com_homepathenabled = false;
 
+	i = COM_CheckParm("-homedir");
+	if (i && i+1<com_argc)
+	{	//explicitly override the homedir.
+		Q_strncpyz(com_homepath, com_argv[i+1], sizeof(com_homepath));
+		com_homepathusable = true;
+	}
 	if (COM_CheckParm("-usehome"))
 		com_homepathusable = true;
 	if (COM_CheckParm("-nohome"))

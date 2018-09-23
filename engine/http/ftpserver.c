@@ -1478,7 +1478,7 @@ unsigned long _true = true;
 		closesocket(clientsock);	//try to forget this ever happend
 		return true;
 	}
-	NET_SockadrToString(cl->peername, sizeof(cl->peername), &from);
+	NET_SockadrToString(cl->peername, sizeof(cl->peername), &from, fromlen);
 	IWebPrintf("%s: New FTP connection\n", cl->peername);
 	//RFC1700
 	if (((struct sockaddr *)&from)->sa_family == AF_INET)

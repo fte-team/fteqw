@@ -138,7 +138,7 @@ static unsigned int domkeytoshift(unsigned int code)
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
 		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-		/* 48*/ ')','!','\"',0/*£*/,'$','%','^','&',                '*','(',0,':',0,'+',0,0,
+		/* 48*/ ')','!','\"',0xA3/*poundsign*/,'$','%','^','&',                '*','(',0,':',0,'+',0,0,
 
 		/* 64*/ 0,'A','B','C','D','E','F','G',          'H','I','J','K','L','M','N','O',
 		/* 80*/ 'P','Q','R','S','T','U','V','W',                'X','Y','Z',K_LWIN,K_RWIN,K_APP,0,0,

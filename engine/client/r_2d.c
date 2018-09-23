@@ -1279,7 +1279,7 @@ void R2D_PolyBlend (void)
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 		return;
 
-	R2D_ImageColours (r_refdef.playerview->screentint[0], r_refdef.playerview->screentint[1], r_refdef.playerview->screentint[2], r_refdef.playerview->screentint[3]);
+	R2D_ImageColours (SRGBA(r_refdef.playerview->screentint[0], r_refdef.playerview->screentint[1], r_refdef.playerview->screentint[2], r_refdef.playerview->screentint[3]));
 	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader_polyblend);
 	R2D_ImageColours (1, 1, 1, 1);
 }

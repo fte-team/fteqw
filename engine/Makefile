@@ -473,7 +473,7 @@ ALL_CXXFLAGS=$(subst -Wno-pointer-sign,,$(ALL_CFLAGS))
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
 	LTO_CC= -E
-	LTO_LD= -combine -fwhole-program -x c
+	LTO_LD= -flto -fwhole-program -x c
 	LTO_END=ltoxnone
 	LTO_START=ltoxc
 endif

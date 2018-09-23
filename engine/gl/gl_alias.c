@@ -1505,7 +1505,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		case PTI_RGBA16F:
 		case PTI_RGBA32F:
 			break;
-		default:
+		default:	//non-hdr lightmap format. clamp model lighting to match the lightmap's clamps.
 			m = max(max(ambientlight[0], ambientlight[1]), ambientlight[2]);
 			if (m > 255)
 			{
@@ -2860,7 +2860,6 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				R_HalfLife_GenerateBatches(ent, batches);
 #endif
 				break;
-			// warning: enumeration value ‘mod_*’ not handled in switch
 			case mod_dummy:
 			case mod_heightmap:
 #if defined(TERRAIN)

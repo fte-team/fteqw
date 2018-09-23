@@ -706,14 +706,11 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
 		CL_GatherButtons(cmd, pnum);
 }
 
-void CL_ClampPitch (int pnum)
+static void CL_ClampPitch (int pnum, float frametime)
 {
 	float mat[16];
 	float roll;
-	static float oldtime;
-	float timestep = realtime - oldtime;
 	playerview_t *pv = &cl.playerview[pnum];
-	oldtime = realtime;
 
 	if (cl.intermissionmode != IM_NONE)
 	{
@@ -819,17 +816,17 @@ void CL_ClampPitch (int pnum)
 		}
 		else
 		{
-			if (fabs(vang[ROLL]) < host_frametime*180)
+			if (fabs(vang[ROLL]) < frametime*180)
 				vang[ROLL] = 0;
 			else if (vang[ROLL] > 0)
 			{
 //				Con_Printf("Roll %f\n", vang[ROLL]);
-				vang[ROLL] -= host_frametime*180;
+				vang[ROLL] -= frametime*180;
 			}
 			else
 			{
 //				Con_Printf("Roll %f\n", vang[ROLL]);
-				vang[ROLL] += host_frametime*180;
+				vang[ROLL] += frametime*180;
 			}
 		}
 		VectorClear(pv->viewanglechange);
@@ -904,11 +901,11 @@ void CL_ClampPitch (int pnum)
 //		cl.viewangles[pnum][ROLL] = 50;
 //	if (cl.viewangles[pnum][ROLL] < -50)
 //		cl.viewangles[pnum][ROLL] = -50;
-	roll = timestep*pv->viewangles[ROLL]*30;
+	roll = frametime*pv->viewangles[ROLL]*30;
 	if ((pv->viewangles[ROLL]-roll < 0) != (pv->viewangles[ROLL]<0))
 		pv->viewangles[ROLL] = 0;
 	else
-		pv->viewangles[ROLL] -= timestep*pv->viewangles[ROLL]*3;
+		pv->viewangles[ROLL] -= frametime*pv->viewangles[ROLL]*3;
 }
 
 /*
@@ -920,7 +917,7 @@ static void CL_FinishMove (usercmd_t *cmd, int pnum)
 {
 	int	i;
 
-	CL_ClampPitch(pnum);
+	CL_ClampPitch(pnum, 0);
 
 //
 // always dump the first two message, because it may contain leftover inputs
@@ -1869,6 +1866,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				cl_pendingcmd[plnum].forwardmove += mousemovements[0];
 				cl_pendingcmd[plnum].sidemove += mousemovements[1];
 				cl_pendingcmd[plnum].upmove += mousemovements[2];
+				CL_ClampPitch(plnum, frametime);
 
 				// if we are spectator, try autocam
 				if (pv->spectator)
@@ -2021,7 +2019,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		CL_AdjustAngles (plnum, frametime);
 		VectorClear(mousemovements);
 		IN_Move (mousemovements, plnum, frametime);
-		CL_ClampPitch(plnum);
+		CL_ClampPitch(plnum, frametime);
 		cl_pendingcmd[plnum].forwardmove += mousemovements[0];	//FIXME: this will get nuked by CL_BaseMove.
 		cl_pendingcmd[plnum].sidemove += mousemovements[1];
 		cl_pendingcmd[plnum].upmove += mousemovements[2];

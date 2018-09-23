@@ -396,9 +396,9 @@ typedef struct qdownload_s
 	unsigned int	filesequence;			//unique file id.
 	enum fs_relative fsroot;				//where the local+temp file is meant to be relative to.
 
-	double			ratetime;
-	int				rate;
-	int				ratebytes;
+	double			ratetime;				//periodically updated
+	int				rate;					//ratebytes/ratetimedelta
+	int				ratebytes;				//updated by download reception code, and cleared when ratetime is bumped
 	unsigned int	flags;
 
 	//chunked downloads uses this
@@ -425,7 +425,7 @@ enum qdlabort
 };
 qboolean DL_Begun(qdownload_t *dl);
 void DL_Abort(qdownload_t *dl, enum qdlabort aborttype);		//just frees the download's resources. does not delete the temp file.
-qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile);
+qboolean CL_AllowArbitaryDownload(const char *oldname, const char *localfile);
 
 
 //
@@ -1185,11 +1185,10 @@ enum beamtype_e
 typedef struct beam_s beam_t;
 beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end);
 
-void CL_ClearState (void);
+void CL_ClearState (qboolean gamestart);
 void CLQ2_ClearState(void);
 
 void CL_ReadPackets (void);
-void CL_ClampPitch (int pnum);
 
 int  CL_ReadFromServer (void);
 void CL_WriteToServer (usercmd_t *cmd);
@@ -1398,7 +1397,8 @@ qboolean CSQC_Inited(void);
 void	 CSQC_RendererRestarted(void);
 qboolean CSQC_UnconnectedOkay(qboolean inprinciple);
 qboolean CSQC_UnconnectedInit(void);
-qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum);
+qboolean CSQC_CheckDownload(const char *name, unsigned int checksum, size_t checksize);	//reports whether we already have a usable csprogs.dat
+qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int checksum, size_t progssize);
 qboolean CSQC_ConsoleLink(char *text, char *info);
 void	 CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_SetupToRenderPortal(int entnum);

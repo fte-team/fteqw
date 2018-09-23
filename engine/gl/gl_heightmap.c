@@ -7911,6 +7911,61 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force)
 }
 
 #ifndef SERVERONLY
+struct ted_import_s
+{
+	int x, y;
+	int width;
+	int height;
+	unsigned short *data;
+};
+//static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float radius, float strength, int steps,
+void ted_import_heights(void *vctx, hmsection_t *s, int idx, float wx, float wy, float strength)
+{
+	struct ted_import_s *ctx = vctx;
+	unsigned int y = idx/SECTHEIGHTSIZE;
+	unsigned int x = idx%SECTHEIGHTSIZE;
+	x += s->sx*(SECTHEIGHTSIZE-1) - ctx->x;
+	y += s->sy*(SECTHEIGHTSIZE-1) - ctx->y;
+	if (x < 0 || x >= ctx->width || y < 0 || y >= ctx->height)
+		return;
+	s->flags |= TSF_NOTIFY|TSF_EDITED|TSF_DIRTY|TSF_RELIGHT;
+	s->heights[idx] = ctx->data[x + y*ctx->width] * (8192.0/(1<<16));
+}
+void Mod_Terrain_Import_f(void)
+{
+	model_t *mod;
+	struct ted_import_s ctx;
+	const char *mapname = Cmd_Argv(1);
+	size_t fsize;
+	heightmap_t *hm;
+	vec3_t pos = {0};
+	if (Cmd_IsInsecure())
+	{
+		Con_Printf("Please use this command via the console\n");
+		return;
+	}
+	if (*mapname)
+		mod = NULL;//Mod_FindName(va("maps/%s", mapname));
+	else
+		mod = cl.worldmodel;
+	if (!mod || mod->type == mod_dummy)
+		return;
+	hm = mod->terrain;
+	if (!hm)
+		return;
+
+	fsize = 0;
+	ctx.data = (void*)FS_LoadMallocFile("quake8km/height8km.r16", &fsize);
+	ctx.width = ctx.height = sqrt(fsize/2);
+	ctx.x = 0;
+	ctx.y = 0;
+	pos[0] += hm->sectionsize * CHUNKBIAS;
+	pos[1] += hm->sectionsize * CHUNKBIAS;
+	if (fsize == ctx.width*ctx.height*2)
+		ted_itterate(hm, tid_flat, pos, max(ctx.width, ctx.height), 1, SECTHEIGHTSIZE, ted_import_heights, &ctx);
+	FS_FreeFile(ctx.data);
+}
+
 void Mod_Terrain_Create_f(void)
 {
 	int x,y;
@@ -7932,7 +7987,6 @@ void Mod_Terrain_Create_f(void)
 		Con_Printf("%s: NAME \"DESCRIPTION\" SKYNAME DEFAULTGROUNDTEX DEFAULTHEIGHT DEFAULTWATER DEFAULTWATERHEIGHT seed\nGenerates a fresh maps/foo.hmp file. You may wish to edit it with notepad later to customise it. You will need csaddon.dat in order to edit the actual terrain.\n", Cmd_Argv(0));
 		return;
 	}
-	mname = va("maps/%s.hmp", Cmd_Argv(1));
 
 	mapdesc = Cmd_Argv(2); if (!*mapdesc) mapdesc = Cmd_Argv(1);
 	skyname = Cmd_Argv(3);
@@ -7999,6 +8053,7 @@ void Mod_Terrain_Create_f(void)
 			}
 		}
 
+	mname = va("maps/%s.hmp", Cmd_Argv(1));
 	if (COM_FCheckExists(mname))
 	{
 		Con_Printf("%s: already exists, not overwriting.\n", mname);
@@ -8154,6 +8209,7 @@ void Terr_Init(void)
 	Cmd_AddCommand("mod_terrain_save", Mod_Terrain_Save_f);
 	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
 #ifndef SERVERONLY
+	Cmd_AddCommandD("mod_terrain_import", Mod_Terrain_Import_f, "Import a raw heightmap");
 	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
 	Cmd_AddCommandD("mod_terrain_convert", Mod_Terrain_Convert_f, "mod_terrain_convert [mapname] [texkill]\nConvert a terrain to the current format. If texkill is specified, only tiles with the named texture will be converted, and tiles with that texture will be stripped. This is a slow operation.");
 #endif

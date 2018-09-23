@@ -1026,7 +1026,7 @@ void CL_CheckForResend (void)
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
 	{
-		host = strrchr(cls.servername, '@');
+		host = strrchr(cls.servername+1, '@');
 		if (host)
 			host++;
 		else
@@ -1087,7 +1087,7 @@ void CL_CheckForResend (void)
 		Con_TPrintf ("Connecting to %s...\n", cls.servername);
 
 	if (connectinfo.tries == 0)
-		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername))
+		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, &connectinfo.adr))
 		{
 			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
 			connectinfo.trying = false;
@@ -1564,12 +1564,14 @@ void CL_ResetFog(int ftype)
 =====================
 CL_ClearState
 
+gamestart==true says that we're changing map, as opposed to servers.
 =====================
 */
-void CL_ClearState (void)
+void CL_ClearState (qboolean gamestart)
 {
 	extern cvar_t cfg_save_auto;
 	int			i, j;
+	downloadlist_t *pendingdownloads, *faileddownloads;
 #ifndef CLIENTONLY
 #define serverrunning (sv.state != ss_dead)
 #define tolocalserver NET_IsLoopBackAddress(&cls.netchan.remote_address)
@@ -1655,6 +1657,7 @@ void CL_ClearState (void)
 		Z_Free(t);
 	}
 
+	if (!gamestart)
 	{
 		downloadlist_t *next;
 		while(cl.downloadlist)
@@ -1670,6 +1673,8 @@ void CL_ClearState (void)
 			cl.faileddownloads = next;
 		}
 	}
+	pendingdownloads = cl.downloadlist;
+	faileddownloads = cl.faileddownloads;
 
 #ifdef Q2CLIENT
 	for (i = 0; i < countof(cl.configstring_general); i++)
@@ -1741,6 +1746,8 @@ void CL_ClearState (void)
 	cl.splitclients = 1;
 	cl.autotrack_hint = -1;
 	cl.autotrack_killer = -1;
+	cl.downloadlist = pendingdownloads;
+	cl.faileddownloads = faileddownloads;
 
 	if (cfg_save_auto.ival && Cvar_UnsavedArchive())
 		Cmd_ExecuteString("cfg_save\n", RESTRICT_LOCAL);
@@ -1879,7 +1886,7 @@ void CL_Disconnect (void)
 
 	Cvar_ForceSet(&cl_servername, "none");
 
-	CL_ClearState();
+	CL_ClearState(false);
 
 	FS_PureMode(0, NULL, NULL, NULL, NULL, 0);
 
@@ -3779,7 +3786,7 @@ void CL_ReadPackets (void)
 
 //=============================================================================
 
-qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile)
+qboolean CL_AllowArbitaryDownload(const char *oldname, const char *localfile)
 {
 	int allow;
 	//never allow certain (native code) arbitary downloads.
@@ -3812,6 +3819,114 @@ qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile)
 	Con_Printf("Ignoring download redirection to \"%s\". This server may require you to set cl_download_redirection to 2.\n", localfile);
 	return false;
 }
+
+#if defined(NQPROT) && !defined(NOLEGACY)
+//this is for DP compat.
+static void CL_Curl_f(void)
+{
+	//curl --args url
+	int i, argc = Cmd_Argc();
+	const char *arg, *gamedir, *localterse/*no dlcache*/= NULL;
+	char localname[MAX_QPATH];
+	int usage = 0;
+	qboolean alreadyhave = false;
+	extern char cl_dp_packagenames[4096];
+	unsigned int dlflags = DLLF_VERBOSE;
+	if (argc < 2)
+	{
+		Con_Printf("%s: No args\n", Cmd_Argv(0));
+		return;
+	}
+//	Con_Printf("%s %s\n", Cmd_Argv(0), Cmd_Args());
+	for (i = 1; i < argc; i++)
+	{
+		arg = Cmd_Argv(i);
+		if (!strcmp(arg, "--info"))
+		{
+			Con_Printf("%s %s: not implemented\n", Cmd_Argv(0), arg);
+			return;
+		}
+		else if (!strcmp(arg, "--cancel"))
+		{
+			Con_Printf("%s %s: not implemented\n", Cmd_Argv(0), arg);
+			return;
+		}
+		else if (!strcmp(arg, "--pak"))
+			usage |= 1;
+		else if (!strcmp(arg, "--cachepic"))
+			usage |= 2;
+		else if (!strcmp(arg, "--skinframe"))
+			usage |= 4;
+		else if (!strcmp(arg, "--for"))
+		{
+			alreadyhave = true;	//assume we have it.
+			for (i++; i < argc-1; i++)
+			{
+				arg = Cmd_Argv(i);
+				if (!CL_CheckDLFile(arg))
+				{
+					alreadyhave = false;
+					break;
+				}
+			}
+		}
+		else if (!strcmp(arg, "--forthismap"))
+		{
+			//'don't reconnect on failure'
+			//though I'm guessing its better expressed as just flagging it as mandatory.
+			dlflags |= DLLF_REQUIRED;
+		}
+		else if (!strcmp(arg, "--as"))
+		{
+			//explicit local filename
+			localterse = Cmd_Argv(++i);
+		}
+		else if (!strcmp(arg, "--clear_autodownload"))
+		{
+			*cl_dp_packagenames = 0;
+			return;
+		}
+		else if (!strcmp(arg, "--finish_autodownload"))
+		{
+			//not really sure why this is needed
+//			Con_Printf("%s %s: not implemented\n", Cmd_Argv(0), arg);
+			return;
+		}
+		else if (!strcmp(arg, "--maxspeed="))
+			;
+		else if (*arg == '-')
+			Con_Printf("%s: Unknown option %s\n", Cmd_Argv(0), arg);
+		else
+			;	//usually just the last arg, but may also be some parameter for an unknown arg.
+	}
+	arg = Cmd_Argv(argc-1);
+	if (!localterse)
+	{
+		//for compat, we should look for the last / and truncate on a ?.
+		Con_Printf("%s: skipping download of %s, as the local name was not explicitly given\n", Cmd_Argv(0), arg);
+		return;
+	}
+	if (usage == 1)
+	{
+		dlflags |= DLLF_NONGAME;
+		gamedir = FS_GetGamedir(true);
+		FS_GenCachedPakName(va("%s/%s", gamedir, localterse), NULL, localname, sizeof(localname));
+
+		if (!alreadyhave)
+			if (!CL_CheckOrEnqueDownloadFile(arg, localname, dlflags))
+				Con_Printf("Downloading %s to %s\n", arg, localname);
+
+		if (*cl_dp_packagenames)
+			Q_strncatz(cl_dp_packagenames, " ", sizeof(cl_dp_packagenames));
+		Q_strncatz(cl_dp_packagenames, va("%s/%s", gamedir, localterse), sizeof(cl_dp_packagenames));
+	}
+	else
+	{
+		Con_Printf("%s: %s: non-package downloads are not supported\n", Cmd_Argv(0), arg);
+		return;
+	}
+}
+#endif
 
 /*
 =====================
@@ -4518,6 +4633,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("fullinfo", CL_FullInfo_f);
 
 	Cmd_AddCommand ("color", CL_Color_f);
+#if defined(NQPROT) && !defined(NOLEGACY)
+	Cmd_AddCommand ("curl",	CL_Curl_f);
+#endif
 	Cmd_AddCommand ("download", CL_Download_f);
 	Cmd_AddCommandD ("dlsize", CL_DownloadSize_f, "For internal use");
 	Cmd_AddCommandD ("nextul", CL_NextUpload, "For internal use");
@@ -4566,7 +4684,7 @@ void CL_Init (void)
 #ifdef QUAKEHUD
 	Stats_Init();
 #endif
-	CL_ClearState();	//make sure the cl.* fields are set properly if there's no ssqc or whatever.
+	CL_ClearState(false);	//make sure the cl.* fields are set properly if there's no ssqc or whatever.
 }
 
 

@@ -2485,7 +2485,7 @@ sfx_t *S_PrecacheSound2 (const char *name, qboolean syspath)
 
 // cache it in
 	if (precache.ival && sndcardinfo)
-		S_LoadSound (sfx);
+		S_LoadSound (sfx, true);
 
 	return sfx;
 }
@@ -2829,7 +2829,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	target_chan->entchannel = entchannel;
 	SND_Spatialize(sc, target_chan);
 
-	if (!S_LoadSound (sfx))
+	if (!S_LoadSound (sfx, false))
 	{
 		target_chan->sfx = NULL;
 		return;		// couldn't load the sound's data
@@ -3156,7 +3156,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 			}
 		}
 
-		if (!S_LoadSound (sfx))
+		if (!S_LoadSound (sfx, true))
 			break;
 
 		ss = &scard->channel[scard->total_chans];
@@ -3476,7 +3476,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		if (!sfx)
 			continue;
 		if (sfx->loadstate == SLS_NOTLOADED)
-			S_LoadSound(sfx);
+			S_LoadSound(sfx, true);
 		if (sfx->loadstate != SLS_LOADED)
 			continue;	//not ready yet
 

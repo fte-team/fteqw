@@ -960,26 +960,13 @@ static qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const q
 	if (!currentplug)
 		return -3;	//streams depend upon current plugin context. which isn't valid in a thread.
 	if (!localip)
-		localip = "0.0.0.0";	//pass "[::]" for ipv6
+		localip = "tcp://0.0.0.0";	//pass "[::]" for ipv6
 
 	if (!NET_StringToAdr(localip, localport, &a))
 		return -1;
-	NetadrToSockadr(&a, &address);
-
-	switch(((struct sockaddr*)&address)->sa_family)
-	{
-	case AF_INET:
-		alen = sizeof(struct sockaddr_in);
-		break;
-#ifdef IPPROTO_IPV6
-	case AF_INET6:
-		alen = sizeof(struct sockaddr_in6);
-		break;
-#endif
-	default:
-		return -2;
-	}
-
+	if (a.prot != NP_STREAM && a.prot != NP_DGRAM)
+		return -1;
+	alen = NetadrToSockadr(&a, &address);
 
 	if ((sock = socket(((struct sockaddr*)&address)->sa_family, SOCK_STREAM, 0)) == -1)
 	{
@@ -1041,7 +1028,7 @@ static qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qint
 	{
 		netadr_t a;
 		char *s;
-		SockadrToNetadr((struct sockaddr_qstorage *)&address, &a);
+		SockadrToNetadr((struct sockaddr_qstorage *)&address, addrlen, &a);
 		s = NET_AdrToString(adr, sizeof(adr), &a);
 		Q_strncpyz(VM_POINTER(arg[1]), s, addrlen);
 	}

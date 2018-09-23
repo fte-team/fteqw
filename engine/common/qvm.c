@@ -76,7 +76,7 @@ struct vm_s {
 qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
-	char dllname_arch[MAX_OSPATH];	//id compatible
+	char dllname_arch[MAX_OSPATH];	//id compatiblehttps://slashdot.org/
 	char dllname_anycpu[MAX_OSPATH];//simple
 	dllhandle_t *hVM;
 
@@ -526,7 +526,7 @@ do{							\
 **
 ** calls function
 */
-static void inline QVM_Call(qvm_t *vm, int addr)
+inline static void QVM_Call(qvm_t *vm, int addr)
 {
 	vm->sp--;
 	if (vm->sp < vm->min_sp) Sys_Error("QVM Stack underflow");
@@ -558,7 +558,7 @@ static void inline QVM_Call(qvm_t *vm, int addr)
 ** [oPC][0][.......]| <- oldBP
 ** ^BP
 */
-static void inline QVM_Enter(qvm_t *vm, int size)
+inline static void QVM_Enter(qvm_t *vm, int size)
 {
 	int *fp;
 
@@ -575,8 +575,9 @@ static void inline QVM_Enter(qvm_t *vm, int size)
 
 /*
 ** QVM_Return
+** returns failure when returning to the engine.
 */
-static void inline QVM_Return(qvm_t *vm, int size)
+inline static qboolean QVM_Return(qvm_t *vm, int size)
 {
 	int *fp;
 
@@ -586,16 +587,17 @@ static void inline QVM_Return(qvm_t *vm, int size)
 	if(vm->bp>vm->max_bp)
 		Sys_Error("VM run time error: freed too much stack\n");
 
-	if(fp[1]>=vm->len_cs*2)
-		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)	//this being false causes the program to quit.
-			Sys_Error("VM run time error: program returned to hyperspace (%p, %#x)\n", (char*)vm->cs, fp[1]);
-	if(fp[1]<0)
-		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)
-			Sys_Error("VM run time error: program returned to negative hyperspace\n");
-
 	if (vm->sp-vm->max_sp != fp[0])
 		Sys_Error("VM run time error: stack push/pop mismatch \n");
 	vm->pc=vm->cs+fp[1]; // restore PC
+
+	if((unsigned int)fp[1]>=(unsigned int)(vm->len_cs*2))	//explicit casts to make sure the C compiler can't make assumptions about overflows.
+	{
+		if (fp[1] == -1)
+			return false;	//return to engine.
+		Sys_Error("VM run time error: program returned to hyperspace (%p, %#x)\n", (char*)vm->cs, fp[1]);
+	}
+	return true;
 }
 
 // ------------------------- * execution * -------------------------
@@ -622,7 +624,7 @@ int QVM_ExecVM(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, i
 	oldpc = qvm->pc;
 
 // setup execution environment
-	qvm->pc=RETURNOFFSETMARKER;
+	qvm->pc=qvm->cs-1;
 //	qvm->cycles=0;
 // prepare local stack
 	qvm->bp -= 15*4;	//we have to do this each call for the sake of (reliable) recursion.
@@ -669,11 +671,9 @@ int QVM_ExecVM(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, i
 			QVM_Enter(qvm, param);
 			break;
 		case OP_LEAVE:
-			QVM_Return(qvm, param);
-
-			if ((size_t)qvm->pc == (size_t)RETURNOFFSETMARKER)
+			if (!QVM_Return(qvm, param))
 			{
-				// pick return value from stack
+				// pick return value from C stack
 				qvm->pc = oldpc;
 
 				qvm->bp += 15*4;

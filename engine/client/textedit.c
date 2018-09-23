@@ -204,30 +204,33 @@ static void Con_Editor_DeleteSelection(console_t *con)
 {
 	conline_t *n;
 	con->flags &= ~CONF_KEEPSELECTION;
-	if (con->selstartline == con->selendline)
+	if (con->selstartline)
 	{
-		memmove((conchar_t*)(con->selstartline+1)+con->selstartoffset, (conchar_t*)(con->selendline+1)+con->selendoffset, sizeof(conchar_t)*(con->selendline->length - con->selendoffset));
-		con->selendline->length = con->selstartoffset + (con->selendline->length - con->selendoffset);
-	}
-	else
-	{
-		con->selstartline->length = con->selstartoffset;
-		for(n = con->selstartline;;)
+		if (con->selstartline == con->selendline)
 		{
-			n = n->newer;
-			if (!n)
-				break;	//shouldn't happen
-			if (n == con->selendline)
+			memmove((conchar_t*)(con->selstartline+1)+con->selstartoffset, (conchar_t*)(con->selendline+1)+con->selendoffset, sizeof(conchar_t)*(con->selendline->length - con->selendoffset));
+			con->selendline->length = con->selstartoffset + (con->selendline->length - con->selendoffset);
+		}
+		else
+		{
+			con->selstartline->length = con->selstartoffset;
+			for(n = con->selstartline;;)
 			{
-				//this is the last line, we need to keep the end of the string but not the start.
-				memmove(n+1, (conchar_t*)(n+1)+con->selendoffset, sizeof(conchar_t)*(n->length - con->selendoffset));
-				n->length = n->length - con->selendoffset;
+				n = n->newer;
+				if (!n)
+					break;	//shouldn't happen
+				if (n == con->selendline)
+				{
+					//this is the last line, we need to keep the end of the string but not the start.
+					memmove(n+1, (conchar_t*)(n+1)+con->selendoffset, sizeof(conchar_t)*(n->length - con->selendoffset));
+					n->length = n->length - con->selendoffset;
+					n = Con_EditorMerge(con, con->selstartline, n);
+					break;
+				}
+				//truncate and merge
+				n->length = 0;
 				n = Con_EditorMerge(con, con->selstartline, n);
-				break;
 			}
-			//truncate and merge
-			n->length = 0;
-			n = Con_EditorMerge(con, con->selstartline, n);
 		}
 	}
 	con->userline = con->selstartline;

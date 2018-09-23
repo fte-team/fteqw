@@ -70,7 +70,7 @@ cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "Th
 cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
 cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
-cvar_t	pm_airstep			 = CVARF("pm_airstep", "", CVAR_SERVERINFO);
+cvar_t	pm_airstep			 = CVARAF("pm_airstep", "", "sv_jumpstep", CVAR_SERVERINFO);
 cvar_t	pm_stepdown			 = CVARF("pm_stepdown", "", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
 
@@ -105,7 +105,6 @@ void WPhys_Init(void)
 
 static void WPhys_Physics_Toss (world_t *w, wedict_t *ent);
 
-// warning: ‘SV_CheckAllEnts’ defined but not used
 /*
 ================
 SV_CheckAllEnts
@@ -239,12 +238,12 @@ static void WPhys_Impact (world_t *w, wedict_t *e1, trace_t *trace)
 	*w->g.time = w->physicstime;
 	if (e1->v->touch && e1->v->solid != SOLID_NOT)
 	{
-		w->Event_Touch(w, e1, e2);
+		w->Event_Touch(w, e1, e2, trace);
 	}
 
 	if (e2->v->touch && e2->v->solid != SOLID_NOT)
 	{
-		w->Event_Touch(w, e2, e1);
+		w->Event_Touch(w, e2, e1, trace);
 	}
 }
 
@@ -1657,7 +1656,6 @@ static void WPhys_WallFriction (wedict_t *ent, trace_t *trace)
 	ent->v->velocity[1] = side[1] * (1 + d);
 }
 
-// warning: ‘SV_TryUnstick’ defined but not used
 /*
 =====================
 SV_TryUnstick
@@ -1951,7 +1949,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 				return;
 
 			// only step up while jumping if that is enabled
-//			if (!(sv_jumpstep.value && sv_gameplayfix_stepwhilejumping.value))
+			if (!pm_airstep.value)
 				if (!oldonground && ent->v->waterlevel == 0)
 					return;
 		}
@@ -2079,7 +2077,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 {
 #ifdef HEXEN2
 	wedict_t	*movechain;
-	vec3_t	initial_origin = {0},initial_angle = {0}; // warning: ‘initial_?[?]’ may be used uninitialized in this function
+	vec3_t	initial_origin = {0},initial_angle = {0};
 #endif
 	const float *gravitydir;
 

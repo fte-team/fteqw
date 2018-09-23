@@ -52,6 +52,8 @@ typedef struct csqctreadstate_s {
 
 static qboolean csprogs_promiscuous;
 static unsigned int csprogs_checksum;
+static size_t csprogs_checksize;
+static char csprogs_checkname[MAX_QPATH];
 static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 world_t csqc_world;
@@ -584,7 +586,7 @@ static const char *csqcmapentitydata;
 static qboolean csqcmapentitydataloaded;
 
 static unsigned int csqc_deprecated_warned;
-#define csqc_deprecated(s) do {if (!csqc_deprecated_warned++){Con_Printf("csqc warning: %s\n", s); PR_StackTrace (prinst, false);}}while(0)
+#define csqc_deprecated(s) do {if (!csqc_deprecated_warned++){Con_Printf(CON_WARNING"csqc deprecation warning: %s\n", s); PR_StackTrace (prinst, false);}}while(0)
 
 static model_t *CSQC_GetModelForIndex(int index);
 
@@ -600,7 +602,7 @@ static void CS_CheckVelocity(csqcedict_t *ent)
 
 
 
-static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t *out)
+static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t *fte_restrict out)
 {
 	//FTE_CSQC_HALFLIFE_MODELS
 #ifdef HALFLIFEMODELS
@@ -623,12 +625,18 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 
 		out->g[FST_BASE].frame[0] = in->xv->baseframe;
 		out->g[FST_BASE].frame[1] = in->xv->baseframe2;
-		//out->g[FST_BASE].frame[2] = in->xv->baseframe3;
-		//out->g[FST_BASE].frame[3] = in->xv->baseframe4;
 		out->g[FST_BASE].lerpweight[1] = in->xv->baselerpfrac;
+		//out->g[FST_BASE].frame[3] = in->xv->baseframe4;
+
+#if 0//FRAME_BLENDS >= 4
+//		out->g[FST_BASE].frame[2] = in->xv->baseframe3;
 //		out->g[FST_BASE].lerpweight[2] = in->xv->baselerpfrac3;
+//		out->g[FST_BASE].frame[3] = in->xv->baseframe3;
 //		out->g[FST_BASE].lerpweight[3] = in->xv->baselerpfrac4;
+		out->g[FST_BASE].lerpweight[0] = 1-(out->g[FST_BASE].lerpweight[1]+out->g[FST_BASE].lerpweight[2]+out->g[FST_BASE].lerpweight[3]);
+#else
 		out->g[FST_BASE].lerpweight[0] = 1-(out->g[FST_BASE].lerpweight[1]);
+#endif
 		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 		{
 			out->g[FST_BASE].frametime[0] = *csqcg.simtime - in->xv->baseframe1time;
@@ -649,25 +657,33 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	out->g[FS_REG].endbone = 0x7fffffff;
 	out->g[FS_REG].frame[0] = in->v->frame;
 	out->g[FS_REG].frame[1] = in->xv->frame2;
-	out->g[FS_REG].frame[2] = in->xv->frame3;
-	out->g[FS_REG].frame[3] = in->xv->frame4;
 	out->g[FS_REG].lerpweight[1] = in->xv->lerpfrac;
+#if FRAME_BLENDS >= 4
+	out->g[FS_REG].frame[2] = in->xv->frame3;
 	out->g[FS_REG].lerpweight[2] = in->xv->lerpfrac3;
+	out->g[FS_REG].frame[3] = in->xv->frame4;
 	out->g[FS_REG].lerpweight[3] = in->xv->lerpfrac4;
 	out->g[FS_REG].lerpweight[0] = 1-(out->g[FS_REG].lerpweight[1]+out->g[FS_REG].lerpweight[2]+out->g[FS_REG].lerpweight[3]);
+#else
+	out->g[FS_REG].lerpweight[0] = 1-(out->g[FS_REG].lerpweight[1]);
+#endif
 	if ((rflags & CSQCRF_FRAMETIMESARESTARTTIMES) || csqc_isdarkplaces)
 	{
 		out->g[FS_REG].frametime[0] = *csqcg.simtime - in->xv->frame1time;
 		out->g[FS_REG].frametime[1] = *csqcg.simtime - in->xv->frame2time;
-		out->g[FS_REG].frametime[2] = 0;//*csqcg.simtime - in->xv->frame3time;
-		out->g[FS_REG].frametime[3] = 0;//*csqcg.simtime - in->xv->frame4time;
+#if FRAME_BLENDS >= 4
+		out->g[FS_REG].frametime[2] = *csqcg.simtime - in->xv->frame3time;
+		out->g[FS_REG].frametime[3] = *csqcg.simtime - in->xv->frame4time;
+#endif
 	}
 	else
 	{
 		out->g[FS_REG].frametime[0] = in->xv->frame1time;
 		out->g[FS_REG].frametime[1] = in->xv->frame2time;
-		out->g[FS_REG].frametime[2] = 0;//in->xv->frame3time;
-		out->g[FS_REG].frametime[3] = 0;//in->xv->frame4time;
+#if FRAME_BLENDS >= 4
+		out->g[FS_REG].frametime[2] = in->xv->frame3time;
+		out->g[FS_REG].frametime[3] = in->xv->frame4time;
+#endif
 	}
 
 
@@ -728,7 +744,7 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 	else
 	{
-		var = Cvar_Get(str, "", 0, "csqc cvars");
+		var = PF_Cvar_FindOrGet (str);
 		if (var && !(var->flags & CVAR_NOUNSAFEEXPAND))
 			G_FLOAT(OFS_RETURN) = var->value;
 		else
@@ -1833,8 +1849,16 @@ static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s
 		out[1] = 1-(1+tempv[1])/2;
 		out[2] = tempv[2];
 
-		out[0] = out[0]*r_refdef.vrect.width + r_refdef.vrect.x;
-		out[1] = out[1]*r_refdef.vrect.height + r_refdef.vrect.y;
+		if (csqc_isdarkplaces)
+		{	/*sigh*/
+			out[0] = out[0]*vid.width + r_refdef.vrect.x;
+			out[1] = out[1]*vid.height + r_refdef.vrect.y;
+		}
+		else
+		{
+			out[0] = out[0]*r_refdef.vrect.width + r_refdef.vrect.x;
+			out[1] = out[1]*r_refdef.vrect.height + r_refdef.vrect.y;
+		}
 
 		if (tempv[3] < 0)
 			out[2] *= -1;
@@ -1852,8 +1876,16 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 
 		float v[4], tempv[4];
 
-		tx = ((tx-r_refdef.vrect.x)/r_refdef.vrect.width);
-		ty = ((ty-r_refdef.vrect.y)/r_refdef.vrect.height);
+		if (csqc_isdarkplaces)
+		{	/*sigh*/
+			tx = ((tx-r_refdef.vrect.x)/vid.width);
+			ty = ((ty-r_refdef.vrect.y)/vid.height);
+		}
+		else
+		{
+			tx = ((tx-r_refdef.vrect.x)/r_refdef.vrect.width);
+			ty = ((ty-r_refdef.vrect.y)/r_refdef.vrect.height);
+		}
 		ty = 1-ty;
 		v[0] = tx*2-1;
 		v[1] = ty*2-1;
@@ -2532,7 +2564,7 @@ static void QCBUILTIN PF_cs_SetSize (pubprogfuncs_t *prinst, struct globalvars_s
 	World_LinkEdict (w, (wedict_t*)e, false);
 }
 
-static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *tr)
+static void cs_settracevars(pubprogfuncs_t *prinst, trace_t *tr)
 {
 	*csqcg.trace_allsolid = tr->allsolid;
 	*csqcg.trace_startsolid = tr->startsolid;
@@ -2596,7 +2628,7 @@ static void QCBUILTIN PF_cs_traceline(pubprogfuncs_t *prinst, struct globalvars_
 
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
-	cs_settracevars(prinst, pr_globals, &trace);
+	cs_settracevars(prinst, &trace);
 }
 static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2614,7 +2646,7 @@ static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s
 
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
-	cs_settracevars(prinst, pr_globals, &trace);
+	cs_settracevars(prinst, &trace);
 }
 
 static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
@@ -2668,7 +2700,7 @@ static void QCBUILTIN PF_cs_tracetoss (pubprogfuncs_t *prinst, struct globalvars
 
 	trace = CS_Trace_Toss (ent, ignore);
 
-	cs_settracevars(prinst, pr_globals, &trace);
+	cs_settracevars(prinst, &trace);
 }
 
 static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3116,7 +3148,29 @@ static void QCBUILTIN PF_cs_boxparticles(pubprogfuncs_t *prinst, struct globalva
 	float count			= G_FLOAT(OFS_PARM6);
 	int flags			= (prinst->callargc < 7)?0:G_FLOAT(OFS_PARM7);
 
-	if (flags & 128)
+/*	if (flags & 1)	//PARTICLES_USEALPHA
+	{
+		float *alphamin = (float*)PR_FindGlobal(csqcprogs, "particles_alphamin", 0, NULL);
+		float *alphamax = (float*)PR_FindGlobal(csqcprogs, "particles_alphamax", 0, NULL);
+		if (alphamin && alphamax)
+			;
+	}
+	if (flags & 2)	//PARTICLES_USECOLOR
+	{	//rgb vectors
+		float *colourmin = (float*)PR_FindGlobal(csqcprogs, "particles_colormin", 0, NULL);
+		float *colourmax = (float*)PR_FindGlobal(csqcprogs, "particles_colormax", 0, NULL);
+		if (colourmin && colourmax)
+			;
+	}
+	if (flags & 4)	//PARTICLES_USEFADE
+	{
+		float *fade = (float*)PR_FindGlobal(csqcprogs, "particles_fade", 0, NULL);
+		if (fade)
+			;
+	}
+*/
+
+	if (flags & 128)	//PARTICLES_DRAWASTRAIL
 	{
 		flags &= ~128;
 		P_ParticleTrail(org_from, org_to, effectnum, 0, NULL, NULL);
@@ -3126,8 +3180,11 @@ static void QCBUILTIN PF_cs_boxparticles(pubprogfuncs_t *prinst, struct globalva
 		P_RunParticleCube(effectnum, org_from, org_to, vel_from, vel_to, count, 0, true, 0);
 	}
 
-	if (flags)
-		Con_DPrintf("PF_cs_boxparticles: flags & %x is not supported\n", flags);
+	if (flags & ~128)
+	{
+		static float throttletimer;
+		Con_ThrottlePrintf(&throttletimer, 1, "PF_cs_boxparticles: flags & %x is not supported\n", flags);
+	}
 }
 
 static void QCBUILTIN PF_cs_pointparticles (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4852,7 +4909,7 @@ static void QCBUILTIN PF_cs_walkmove (pubprogfuncs_t *prinst, struct globalvars_
 // save program state, because CS_movestep may call other progs
 	oldself = *csqcg.self;
 
-	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, axis, true, false, settrace?cs_settracevars:NULL, pr_globals);
+	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, axis, true, false, settrace?cs_settracevars:NULL);
 
 // restore program state
 	*csqcg.self = oldself;
@@ -5935,7 +5992,7 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 		else
 		{
 			if (doload && sfx->loadstate == SLS_NOTLOADED)
-				S_LoadSound(sfx);
+				S_LoadSound(sfx, true);
 			switch(sfx->loadstate)
 			{
 			case SLS_NOTLOADED:
@@ -6805,6 +6862,8 @@ static void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
 //		ent->xv->dimension_ghost = 0;
 		ent->xv->dimension_solid = *csqcg.dimension_default;
 		ent->xv->dimension_hit = *csqcg.dimension_default;
+
+		ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;
 	}
 }
 
@@ -6835,7 +6894,7 @@ static pbool QDECL CSQC_EntFree (struct edict_s *e)
 	return true;
 }
 
-static void QDECL CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+static void QDECL CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o, trace_t *trace)
 {
 	int oself = *csqcg.self;
 	int oother = *csqcg.other;
@@ -6968,73 +7027,91 @@ void CSQC_Shutdown(void)
 	}
 }
 
-//when the qclib needs a file, it calls out to this function.
-void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *sz, pbool issource)
+static qboolean CSQC_ValidateMainCSProgs(void *file, size_t filesize, unsigned int checksum, size_t checksize)
 {
+	if (!file)
+		return false;
+	if (checksize && filesize != checksize)
+		return false;
+	if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+	{	//DP uses really lame checksums.
+		if (QCRC_Block(file, filesize) != checksum)
+			return false;
+	}
+	else
+	{	//FTE uses folded-md4. yeah, its broken but at least its still more awkward
+		if (LittleLong(Com_BlockChecksum(file, filesize)) != checksum)
+			return false;
+	}
+	return true;
+}
+static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int checksum, size_t checksize)
+{	//returns a TempFile
+	char newname[MAX_QPATH];
 	extern cvar_t sv_demo_write_csqc;
-	qbyte *file = NULL;
+	void *file = NULL;
 
-	if (!strcmp(path, "csprogs.dat"))
+	//the filename we'll cache to
+	snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", checksum);
+
+	//we can use FSLF_IGNOREPURE because we have our own hashes/size checks instead.
+	//this should make it slightly easier for server admins
+	if (checksum)
 	{
-		char newname[MAX_QPATH];
-		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csprogs_checksum);
+		file = COM_LoadTempFile (newname, FSLF_IGNOREPURE, sz);
+		if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
+			file = NULL;
+	}
 
-		//we can use FSLF_IGNOREPURE because we have our own hashes/size checks instead.
-		//this should make it slightly easier for server admins
-		if (csprogs_checksum)
+	if (!file)
+	{
+		const char *progsname = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
+		if (*progsname && cls.state)
+			file = COM_LoadTempFile (progsname, FSLF_IGNOREPURE, sz);
+		if (!file && strcmp(progsname, "csprogs.dat"))
+			file = COM_LoadTempFile ("csprogs.dat", FSLF_IGNOREPURE, sz);
+
+		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			file = COM_LoadTempFile (newname, FSLF_IGNOREPURE, sz);
-			if (file)
+			if (checksum && !csprogs_promiscuous)
 			{
-				if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
-				{
-					if (QCRC_Block(file, *sz) != csprogs_checksum)
-						file = NULL;
-				}
-				else
-				{
-					if (LittleLong(Com_BlockChecksum(file, *sz)) != csprogs_checksum)	//and the user wasn't trying to be cunning.
-						file = NULL;
-				}
-			}
-		}
+				if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
+					file = NULL;
 
-		if (!file)
-		{
-			file = COM_LoadTempFile (path, FSLF_IGNOREPURE, sz);
-
-			if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
-			{
-				if (csprogs_checksum && !csprogs_promiscuous)
-				{
-					if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
-					{
-						if (QCRC_Block(file, *sz) != csprogs_checksum)
-							file = NULL;
-					}
-					else
-					{
-						if (LittleLong(Com_BlockChecksum(file, *sz)) != csprogs_checksum)
-							file = NULL;	//not valid
-					}
-
-					//we write the csprogs into our archive if it was loaded from outside of there.
-					//this is to ensure that demos will play on the same machine later on...
-					//this is unreliable though, and redundant if we're writing the csqc into the demos themselves.
-					//also kinda irrelevant with sv_pure.
+				//we write the csprogs into our archive if it was loaded from outside of there.
+				//this is to ensure that demos will play on the same machine later on...
+				//this is unreliable though, and redundant if we're writing the csqc into the demos themselves.
+				//also kinda irrelevant with sv_pure.
+				//FIXME: don't back up if it was in a package.
 #ifndef FTE_TARGET_WEB
-					if (file
+				if (file
 #if !defined(CLIENTONLY) && defined(MVD_RECORDING)
-						&& !sv_demo_write_csqc.ival
+					&& !sv_demo_write_csqc.ival
 #endif
-						)
-						//back it up
-						COM_WriteFile(newname, FS_GAMEONLY, file, *sz);
+					)
+					//back it up
+					COM_WriteFile(newname, FS_GAMEONLY, file, *sz);
 #endif
-				}
 			}
 		}
 	}
+	return file;
+}
+qboolean CSQC_CheckDownload(const char *name, unsigned int checksum, size_t checksize)
+{
+	size_t sz;
+	if (CSQC_FindMainProgs(&sz, name, checksum, checksize))
+		return true;
+	return false;
+}
+
+//when the qclib needs a file, it calls out to this function.
+void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *sz, pbool issource)
+{
+	qbyte *file;
+
+	if (!strcmp(path, csprogs_checkname))
+		file = CSQC_FindMainProgs(sz, csprogs_checkname, csprogs_checksum, csprogs_checksize);
 	else
 		file = COM_LoadTempFile (path, 0, sz);
 
@@ -7078,7 +7155,7 @@ qboolean CSQC_UnconnectedInit(void)
 
 	if (csqcprogs)
 		return true;
-	return CSQC_Init(true, true, 0);
+	return CSQC_Init(true, "csprogs.dat", 0, 0);
 }
 void ASMCALL CSQC_StateOp(pubprogfuncs_t *prinst, float var, func_t func)
 {
@@ -7212,27 +7289,40 @@ pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
 }
 
 double  csqctime;
-qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum)
+qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int checksum, size_t progssize)
 {
 	int i;
 	string_t *str;
 	csqcedict_t *worldent;
 	char *cheats;
-	if (csprogs_promiscuous != anycsqc || csprogs_checksum != checksum)
+	qboolean csdatenabled = true;
+	if (!csprogsname)
+	{
+		csdatenabled = false;
+		csprogsname = "csprogs.dat";
+	}
+	if (csprogs_promiscuous != anycsqc || csprogs_checksum != checksum || csprogs_checksize != progssize || strcmp(csprogs_checkname,csprogsname))
 		CSQC_Shutdown();
 	csprogs_promiscuous = anycsqc;
 	csprogs_checksum = checksum;
+	csprogs_checksize = progssize;
+	Q_strncpyz(csprogs_checkname, csprogsname, sizeof(csprogs_checkname));
 
 	csqc_mayread = false;
 
 	csqc_singlecheats = cls.demoplayback;
-	cheats = InfoBuf_ValueForKey(&cl.serverinfo, "*cheats");
+#ifdef HAVE_SERVER
+	if (sv.state == ss_active)
+	{
+		cheats = InfoBuf_ValueForKey(&svs.info, "*cheats");
+		if (!*cheats && sv.allocated_client_slots == 1)
+			cheats = "ON";
+	}
+	else
+#endif
+		cheats = InfoBuf_ValueForKey(&cl.serverinfo, "*cheats");
 	if (!Q_strcasecmp(cheats, "ON") || atoi(cheats))
 		csqc_singlecheats = true;
-#ifndef CLIENTONLY
-	else if (sv.state == ss_active && sv.allocated_client_slots == 1)
-		csqc_singlecheats = true;
-#endif
 
 	//its already running...
 	if (csqcprogs)
@@ -7352,7 +7442,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 
 		if (!csqc_nogameaccess)
 		{	//only load csprogs if its expected to be able to work without failing for game access reasons
-			csprogsnum = PR_LoadProgs(csqcprogs, "csprogs.dat");
+			csprogsnum = PR_LoadProgs(csqcprogs, csprogs_checkname);
 			if (csprogsnum >= 0)
 				Con_DPrintf("Loaded csprogs.dat\n");
 		}

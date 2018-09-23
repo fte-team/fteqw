@@ -694,7 +694,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	{
 		if (!sfx->openal_buffer)
 		{
-			if (!S_LoadSound(sfx))
+			if (!S_LoadSound(sfx, false))
 				return;	//can't load it
 			if (sfx->loadstate != SLS_LOADED)
 			{
@@ -1110,24 +1110,24 @@ static void QDECL OnChangeALSettings (cvar_t *var, char *value)
 			switch ((enum distancemodel_e)s_al_distancemodel.ival)
 			{
 				case DM_INVERSE:
-					//gain = AL_REFERENCE_DISTANCE / (AL_REFERENCE_DISTANCE +  AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) )
+					//gain = AL_REFERENCE_DISTANCE / (AL_REFERENCE_DISTANCE +  AL_ROLLOFF_FACTOR * (distance - AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_INVERSE_DISTANCE);
 					break;
 				case DM_INVERSE_CLAMPED:	//openal's default mode
 					//istance = max(distance,AL_REFERENCE_DISTANCE); 
 					//distance = min(distance,AL_MAX_DISTANCE); 
-					//gain = AL_REFERENCE_DISTANCE / (AL_REFERENCE_DISTANCE +  AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) )
+					//gain = AL_REFERENCE_DISTANCE / (AL_REFERENCE_DISTANCE +  AL_ROLLOFF_FACTOR * (distance - AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
 					break;
 				case DM_LINEAR:	//most quake-like. linear
 					//distance = min(distance, AL_MAX_DISTANCE) // avoid negative gain 
-					//gain = ( 1 – AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) / (AL_MAX_DISTANCE – AL_REFERENCE_DISTANCE) )
+					//gain = ( 1 - AL_ROLLOFF_FACTOR * (distance - AL_REFERENCE_DISTANCE) / (AL_MAX_DISTANCE - AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_LINEAR_DISTANCE);
 					break;
 				case DM_LINEAR_CLAMPED: //linear, with near stuff clamped to further away
 					//distance = max(distance, AL_REFERENCE_DISTANCE) 
 					//distance = min(distance, AL_MAX_DISTANCE) 
-					//gain = ( 1 – AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) / (AL_MAX_DISTANCE – AL_REFERENCE_DISTANCE) )
+					//gain = ( 1 - AL_ROLLOFF_FACTOR * (distance - AL_REFERENCE_DISTANCE) / (AL_MAX_DISTANCE - AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
 					break;
 				case DM_EXPONENT:

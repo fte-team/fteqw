@@ -227,6 +227,7 @@ void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);	//developer>=1, for stuff that's probably actually slightly useful
 void VARGS Con_DLPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);	//developer>=2, for spammy stuff
+void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...); //for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
 void VARGS Con_SafePrintf (const char *fmt, ...) LIKEPRINTF(1);
 void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...) LIKEPRINTF(3); 
 void Con_Clear_f (void);

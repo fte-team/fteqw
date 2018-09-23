@@ -62,6 +62,7 @@ typedef struct {
 	int srcspeed;
 	int srcchannels;
 
+	qboolean nopurge;
 	qboolean failed;
 
 	char *tempbuffer;
@@ -79,52 +80,7 @@ typedef struct {
 	sfx_t *s;
 } ovdecoderbuffer_t;
 
-float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size_t namesize);
-static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);
-static void QDECL OV_CancelDecoder(sfx_t *s);
-static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
-
-qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
-{
-	ovdecoderbuffer_t *buffer;
-
-	if (datalen < 4 || strncmp(data, "OggS", 4))
-		return false;
-
-	buffer = Z_Malloc(sizeof(ovdecoderbuffer_t));
-
-	buffer->decodedbytestart = 0;
-	buffer->decodedbytecount = 0;
-	buffer->s = s;
-	s->decoder.buf = buffer;
-	s->loopstart = -1;
-
-	if (!OV_StartDecode(data, datalen, buffer))
-	{
-		if (buffer->decodedbuffer)
-		{
-			BZ_Free(buffer->decodedbuffer);
-			buffer->decodedbuffer = NULL;
-		}
-		buffer->decodedbufferbytes = 0;
-		buffer->decodedbytestart = 0;
-		buffer->decodedbytecount = 0;
-		Z_Free(s->decoder.buf);
-		s->decoder.buf = NULL;
-		s->loadstate = SLS_FAILED;	//failed!
-		return false;
-	}
-	s->decoder.decodedata = OV_DecodeSome;
-	s->decoder.querydata = OV_Query;
-	s->decoder.purge = OV_CancelDecoder;
-	s->decoder.ended = OV_CancelDecoder;
-
-	s->decoder.decodedata(s, NULL, 0, 100);
-
-	return true;
-}
-
-float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size_t namesize)
+static float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size_t namesize)
 {
 	ovdecoderbuffer_t *dec = sfx->decoder.buf;
 	if (!dec)
@@ -206,7 +162,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 			p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
 		}
 	*/
-		if (dec->decodedbytecount > outspeed*8)
+		if (dec->decodedbytecount > outspeed*8 && !dec->nopurge)
 		{
 			/*everything is okay, but our buffer is getting needlessly large.
 			keep anything after the 'new' position, but discard all before that
@@ -329,7 +285,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 		s->loadstate = SLS_NOTLOADED;
 }*/
 static void QDECL OV_CancelDecoder(sfx_t *s)
-{
+{	//called when the sound is unloaded. the entire thing is going away.
 	ovdecoderbuffer_t *dec;
 	s->loadstate = SLS_FAILED;
 
@@ -357,6 +313,26 @@ static void QDECL OV_CancelDecoder(sfx_t *s)
 	//so post a message to the main thread to override it, just in case.
 //	COM_AddWork(WG_MAIN, OV_CanceledDecoder, s, NULL, SLS_NOTLOADED, 0);
 	s->loadstate = SLS_NOTLOADED;
+}
+static void QDECL OV_ClearDecoder(sfx_t *s)
+{	//called when the sound is no longer playing.
+	ovdecoderbuffer_t *dec;
+	dec = s->decoder.buf;
+	if (dec->nopurge)
+	{
+/*		BZ_Free(dec->tempbuffer);
+		dec->tempbuffer = NULL;
+		dec->tempbufferbytes = 0;
+
+		BZ_Free(dec->decodedbuffer);
+		dec->decodedbuffer = NULL;
+		dec->decodedbufferbytes = 0;
+		dec->decodedbytestart = 0;
+		dec->decodedbytecount = 0;
+*/
+		return;
+	}
+	OV_CancelDecoder(s);
 }
 
 static size_t VARGS read_func (void *ptr, size_t size, size_t nmemb, void *datasource)
@@ -515,5 +491,48 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 
 	return true;
 }
+
+
+qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
+{
+	ovdecoderbuffer_t *buffer;
+
+	if (datalen < 4 || strncmp(data, "OggS", 4))
+		return false;
+
+	buffer = Z_Malloc(sizeof(ovdecoderbuffer_t));
+
+	buffer->decodedbytestart = 0;
+	buffer->decodedbytecount = 0;
+	buffer->nopurge = forcedecode;
+	buffer->s = s;
+	s->decoder.buf = buffer;
+	s->loopstart = -1;
+
+	if (!OV_StartDecode(data, datalen, buffer))
+	{
+		if (buffer->decodedbuffer)
+		{
+			BZ_Free(buffer->decodedbuffer);
+			buffer->decodedbuffer = NULL;
+		}
+		buffer->decodedbufferbytes = 0;
+		buffer->decodedbytestart = 0;
+		buffer->decodedbytecount = 0;
+		Z_Free(s->decoder.buf);
+		s->decoder.buf = NULL;
+		s->loadstate = SLS_FAILED;	//failed!
+		return false;
+	}
+	s->decoder.decodedata = OV_DecodeSome;
+	s->decoder.querydata = OV_Query;
+	s->decoder.purge = OV_CancelDecoder;
+	s->decoder.ended = OV_ClearDecoder;
+
+	s->decoder.decodedata(s, NULL, 0, 100);
+
+	return true;
+}
+
 #endif
 

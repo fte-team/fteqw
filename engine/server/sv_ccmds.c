@@ -381,10 +381,30 @@ static void SV_Give_f (void)
 
 static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
+	const char *levelshots[] =
+	{
+		"levelshots/%s.tga",
+		"levelshots/%s.jpg",
+		"levelshots/%s.png",
+		"maps/%s.tga",
+		"maps/%s.jpg",
+		"maps/%s.png"
+	};
+	size_t u;
 	char stripped[64];
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
 	COM_StripExtension(name+5, stripped, sizeof(stripped)); 
+	for (u = 0; u < countof(levelshots); u++)
+	{
+		const char *ls = va(levelshots[u], stripped);
+		if (COM_FCheckExists(ls))
+		{
+			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", stripped, ls);
+			Con_Printf("^[[%s]\\map\\%s\\tipimg\\%s^]\n", stripped, stripped, ls);
+			return true;
+		}
+	}
 	Con_Printf("^[[%s]\\map\\%s^]\n", stripped, stripped);
 	return true;
 }

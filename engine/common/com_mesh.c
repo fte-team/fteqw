@@ -5554,10 +5554,19 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 		return false;
 	}
 
+	Alias_BuildGPUWeights(mod, root, numtransforms, transforms, true);
+
 	for (i = 0; i < header->numsurfaces-1; i++)
 		root[i].nextsurf = &root[i+1];
 	for (i = 1; i < header->numsurfaces; i++)
 	{
+		root[i].ofs_skel_xyz = root[0].ofs_skel_xyz;
+		root[i].ofs_skel_norm = root[0].ofs_skel_norm;
+		root[i].ofs_skel_svect = root[0].ofs_skel_svect;
+		root[i].ofs_skel_tvect = root[0].ofs_skel_tvect;
+		root[i].ofs_skel_idx = root[0].ofs_skel_idx;
+		root[i].ofs_skel_weight = root[0].ofs_skel_weight;
+
 		root[i].shares_verts = 0;
 		root[i].numbones = root[0].numbones;
 		root[i].numverts = root[0].numverts;
@@ -5565,7 +5574,6 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 		root[i].ofsbones = root[0].ofsbones;
 	}
 
-	Alias_BuildGPUWeights(mod, root, numtransforms, transforms, true);
 	Z_Free(transforms);
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
@@ -6382,6 +6390,9 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 
 	int numtransforms;
 
+	int numgroups;
+	frameinfo_t *framegroups;
+
 	header = buffer;
 
 	if (memcmp(header->id, "DARKPLACESMODEL\0", 16))
@@ -6436,33 +6447,73 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		//throw away the flags.
 	}
 
-	outgroups = ZG_Malloc(&mod->memgroup, sizeof(galiasanimation_t)*header->num_frames + sizeof(float)*header->num_frames*header->num_bones*12);
-	outposedata = (float*)(outgroups+header->num_frames);
+	framegroups = ParseFrameInfo(mod->name, &numgroups);
+	if (!framegroups)
+	{	//use the dpm's poses directly.
+		numgroups = header->num_frames;
+		outgroups = ZG_Malloc(&mod->memgroup, sizeof(galiasanimation_t)*numgroups + sizeof(float)*header->num_frames*header->num_bones*12);
+		outposedata = (float*)(outgroups+numgroups);
 
-	inframes = (dpmframe_t*)((char*)buffer + header->ofs_frames);
-	for (i = 0; i < header->num_frames; i++)
-	{
-		inframes[i].ofs_bonepositions = BigLong(inframes[i].ofs_bonepositions);
-		inframes[i].allradius = BigLong(inframes[i].allradius);
-		inframes[i].yawradius = BigLong(inframes[i].yawradius);
-		inframes[i].mins[0] = BigLong(inframes[i].mins[0]);
-		inframes[i].mins[1] = BigLong(inframes[i].mins[1]);
-		inframes[i].mins[2] = BigLong(inframes[i].mins[2]);
-		inframes[i].maxs[0] = BigLong(inframes[i].maxs[0]);
-		inframes[i].maxs[1] = BigLong(inframes[i].maxs[1]);
-		inframes[i].maxs[2] = BigLong(inframes[i].maxs[2]);
+		inframes = (dpmframe_t*)((char*)buffer + header->ofs_frames);
+		for (i = 0; i < numgroups; i++)
+		{
+			inframes[i].ofs_bonepositions = BigLong(inframes[i].ofs_bonepositions);
+			inframes[i].allradius = BigLong(inframes[i].allradius);
+			inframes[i].yawradius = BigLong(inframes[i].yawradius);
+			inframes[i].mins[0] = BigLong(inframes[i].mins[0]);
+			inframes[i].mins[1] = BigLong(inframes[i].mins[1]);
+			inframes[i].mins[2] = BigLong(inframes[i].mins[2]);
+			inframes[i].maxs[0] = BigLong(inframes[i].maxs[0]);
+			inframes[i].maxs[1] = BigLong(inframes[i].maxs[1]);
+			inframes[i].maxs[2] = BigLong(inframes[i].maxs[2]);
 
-		Q_strncpyz(outgroups[i].name, inframes[i].name, sizeof(outgroups[i].name));
+			Q_strncpyz(outgroups[i].name, inframes[i].name, sizeof(outgroups[i].name));
 
-		outgroups[i].rate = 10;
-		outgroups[i].numposes = 1;
-		outgroups[i].skeltype = SKEL_RELATIVE;
-		outgroups[i].boneofs = outposedata;
+			outgroups[i].rate = 10;
+			outgroups[i].numposes = 1;
+			outgroups[i].skeltype = SKEL_RELATIVE;
+			outgroups[i].boneofs = outposedata;
 
-		inposedata = (float*)((char*)buffer + inframes[i].ofs_bonepositions);
-		for (j = 0; j < header->num_bones*12; j++)
-			*outposedata++ = BigFloat(*inposedata++);
+			inposedata = (float*)((char*)buffer + inframes[i].ofs_bonepositions);
+			for (j = 0; j < header->num_bones*12; j++)
+				*outposedata++ = BigFloat(*inposedata++);
+		}
 	}
+	else
+	{	//we read a .framegroups file to remap everything.
+		outgroups = ZG_Malloc(&mod->memgroup, sizeof(galiasanimation_t)*numgroups + sizeof(float)*header->num_frames*header->num_bones*12);
+		outposedata = (float*)(outgroups+numgroups);
+
+		inframes = (dpmframe_t*)((char*)buffer + header->ofs_frames);
+		for (i = 0; i < header->num_frames; i++)
+		{
+			inposedata = (float*)((char*)buffer + BigLong(inframes[i].ofs_bonepositions));
+			for (j = 0; j < header->num_bones*12; j++)
+				*outposedata++ = BigFloat(*inposedata++);
+		}
+		outposedata -= header->num_frames*header->num_bones*12;
+
+		for (i = 0; i < numgroups; i++)
+		{
+			int firstpose = framegroups[i].firstpose, numposes = framegroups[i].posecount;
+			if (firstpose >= header->num_frames)
+				firstpose = header->num_frames-1;
+			if (firstpose < 0)
+				firstpose = 0;
+			if (numposes < 0)
+				numposes = 0;
+			if (firstpose + numposes > header->num_frames)
+				numposes = header->num_frames - firstpose;
+			outgroups[i].skeltype = SKEL_RELATIVE;
+			outgroups[i].boneofs = outposedata + firstpose*header->num_bones*12;
+			outgroups[i].numposes = numposes;
+			outgroups[i].loop = framegroups[i].loop;
+			outgroups[i].rate = framegroups[i].fps;
+			outgroups[i].events = NULL;
+			Q_strncpyz(outgroups[i].name, framegroups[i].name, sizeof(outgroups[i].name));
+		}
+	}
+
 
 #ifndef SERVERONLY
 	skinfiles = Mod_CountSkinFiles(mod);
@@ -6482,7 +6533,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		m->ofsbones = outbone;
 		m->numbones = header->num_bones;
 
-		m->numanimations = header->num_frames;
+		m->numanimations = numgroups;
 		m->ofsanimations = outgroups;
 
 #ifdef SERVERONLY

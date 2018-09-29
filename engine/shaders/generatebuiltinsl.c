@@ -57,8 +57,11 @@ void dumpprogstring(FILE *out, FILE *src)
 			j++;
 		if ((line[j] == '/' && line[j] == '/') || line[j] == '\r' || line[j] == '\n')
 		{
-			while (line[j])
-				fputc(line[j++], out);
+			for (; line[j]; j++)
+			{
+				if (line[j] != '\r')
+					fputc(line[j], out);
+			}
 		}
 		else
 		{

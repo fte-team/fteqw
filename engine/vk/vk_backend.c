@@ -4551,6 +4551,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 void VKBE_SubmitBatch(batch_t *batch)
 {
 	shader_t *shader = batch->shader;
+	unsigned int bf;
 	shaderstate.nummeshes = batch->meshes - batch->firstmesh;
 	if (!shaderstate.nummeshes)
 		return;
@@ -4558,8 +4559,10 @@ void VKBE_SubmitBatch(batch_t *batch)
 	shaderstate.batchvbo = batch->vbo;
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = shader->remapto;
-	if (shaderstate.curentity != batch->ent)
+	bf = batch->flags | shaderstate.forcebeflags;
+	if (shaderstate.curentity != batch->ent || shaderstate.flags != bf)
 	{
+		shaderstate.flags = bf;
 		BE_RotateForEntity(batch->ent, batch->ent->model);
 		shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
 	}
@@ -4569,7 +4572,6 @@ void VKBE_SubmitBatch(batch_t *batch)
 		shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
 	else
 		shaderstate.curtexnums = shader->defaulttextures;
-	shaderstate.flags = batch->flags | shaderstate.forcebeflags;
 
 	BE_DrawMeshChain_Internal();
 }

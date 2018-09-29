@@ -769,7 +769,7 @@ void QCBUILTIN PF_cl_sethostcachemaskstring(pubprogfuncs_t *prinst, struct globa
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM2);
 	int op = G_FLOAT(OFS_PARM3);
 
-	Master_SetMaskString(mask, field, str, op);
+	Master_SetMaskString((mask&512)?true:false, field, str, op);
 }
 //void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
 void QCBUILTIN PF_cl_sethostcachemasknumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -779,7 +779,7 @@ void QCBUILTIN PF_cl_sethostcachemasknumber(pubprogfuncs_t *prinst, struct globa
 	int str = G_FLOAT(OFS_PARM2);
 	int op = G_FLOAT(OFS_PARM3);
 
-	Master_SetMaskInteger(mask, field, str, op);
+	Master_SetMaskInteger((mask&512)?true:false, field, str, op);
 }
 //void 	resorthostcache(void) = #618;
 void QCBUILTIN PF_cl_resorthostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

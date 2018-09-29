@@ -197,6 +197,8 @@ void *ZF_Malloc(int size)
 	void *ret = NULL;
 	if (!posix_memalign(&ret, max(sizeof(float)*4, sizeof(void*)), size))
 		memset(ret, 0, size);
+	else
+		ret = NULL;
 	return ret;
 #else
 	return calloc(size, 1);

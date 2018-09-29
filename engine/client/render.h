@@ -422,6 +422,8 @@ enum imageflags
 	IF_MIPCAP = 1<<12,
 	IF_PREMULTIPLYALPHA = 1<<13,	//rgb *= alpha
 
+	IF_WORLDTEX = 1<<18,	//gl_picmip_world
+	IF_SPRITETEX = 1<<19,	//gl_picmip_sprites
 	IF_NOSRGB = 1<<20,	//ignore srgb when loading. this is guarenteed to be linear, for normalmaps etc.
 
 	IF_PALETTIZE = 1<<21,
@@ -482,7 +484,7 @@ texid_tf R_LoadHiResTexture(const char *name, const char *subpath, unsigned int 
 texid_tf R_LoadBumpmapTexture(const char *name, const char *subpath);
 void R_LoadNumberedLightTexture(struct dlight_s *dl, int cubetexnum);
 
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname);
+qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);
 
 extern	texid_t	particletexture;
 extern	texid_t particlecqtexture;
@@ -577,13 +579,13 @@ void RQ_Shutdown(void);
 
 void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *hasalpha, int asgrey);
+qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *name);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
 
-void BoostGamma(qbyte *rgba, int width, int height);
+void BoostGamma(qbyte *rgba, int width, int height, uploadfmt_t fmt);
 void SaturateR8G8B8(qbyte *data, int size, float sat);
 void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
 

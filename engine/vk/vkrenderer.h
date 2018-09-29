@@ -479,7 +479,7 @@ void VKBE_RT_Destroy(struct vk_rendertarg *targ);
 qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDeviceSize poolalignment, vk_poolmem_t *mem);
 void VK_ReleasePoolMemory(vk_poolmem_t *mem);
 qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t *mem);	//dedicated should normally be TRUE for render targets
-void VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated);	//dedicated should normally be TRUE for render targets
+qboolean VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated);	//dedicated should normally be TRUE for render targets
 struct stagingbuf
 {
 	VkBuffer buf;

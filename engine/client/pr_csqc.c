@@ -1562,7 +1562,11 @@ void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	else if (twod)
 		shader = R_RegisterPic(shadername, NULL);
 	else
+	{
 		shader = R_RegisterSkin(shadername, NULL);
+		if (!shader->defaulttextures->base && (shader->flags & SHADER_HASDIFFUSE))
+			R_BuildDefaultTexnums(NULL, shader, 0);
+	}
 
 	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != beflags || csqc_poly_2d != twod))
 		R2D_Flush();
@@ -5739,6 +5743,7 @@ static void QCBUILTIN PF_cs_getplayerstat(pubprogfuncs_t *prinst, struct globalv
 static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//this function is essentially an overcomplicated way to shirk from defining your own view bobbing.
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	vec3_t savedvel;
 	/*enum
 	{
 		TELEPORTED,
@@ -5760,9 +5765,13 @@ static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_
 	r_refdef.drawsbar = false;	//csqc defaults to no sbar.
 	r_refdef.drawcrosshair = false;
 
+	VectorCopy(csqc_playerview->simvel, savedvel);
 	VectorCopy(ent->v->origin, csqc_playerview->simorg);
-
+	VectorCopy (ent->v->velocity, csqc_playerview->simvel);
+	csqc_playerview->onground = !!((int)ent->v->flags & FL_ONGROUND);
 	V_CalcRefdef(csqc_playerview);	//set up the defaults
+
+	VectorCopy(savedvel, csqc_playerview->simvel);
 }
 
 #if 1

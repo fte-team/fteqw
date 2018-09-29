@@ -50,16 +50,13 @@ varying vec3 normal;
 
 void main ()
 {
-#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
+#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
-#else
-	vec3 n, s, t, w;
-	gl_Position = skeletaltransform_wnst(w,n,s,t);
 #endif
 #ifdef REFLECTCUBEMASK
 	invsurface[0] = s;
@@ -258,7 +255,7 @@ void main ()
 		vec3 bumps = normalize(vec3(texture2D(s_normalmap, tc)) - 0.5);
 		vec4 specs = texture2D(s_specular, tc);
 
-		vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));
+		vec3 halfdir = normalize(normalize(eyevector) + e_light_dir);
 		float spec = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * specs.a);
 		col.rgb += FTE_SPECULAR_MULTIPLIER * spec * specs.rgb;
 	#elif defined(REFLECTCUBEMASK)

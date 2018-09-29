@@ -1297,7 +1297,7 @@ static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				if (!s->shader)
 				{
 					s->shader = R_RegisterSkin(s->name, rent->model->name);
-					R_BuildDefaultTexnums(&s->defaulttex, s->shader);
+					R_BuildDefaultTexnums(&s->defaulttex, s->shader, 0);
 				}
 				b->skin = NULL;
 				b->shader = s->shader;

@@ -2174,7 +2174,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		{
 			cl_pendingcmd[plnum].msec = 0;
 			cl_pendingcmd[plnum].impulse = 0;
-			cl_pendingcmd[plnum].buttons = 0;
+//			cl_pendingcmd[plnum].buttons = 0;
 		}
 	}
 

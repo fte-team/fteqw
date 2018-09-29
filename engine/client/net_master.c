@@ -50,6 +50,26 @@ void Master_DetermineMasterTypes(void)
 		}
 	}
 }
+qboolean Master_MasterProtocolIsEnabled(enum masterprotocol_e protocol)
+{
+	switch (protocol)
+	{
+	case MP_DPMASTER:
+		return sb_enabledarkplaces;
+	#ifdef Q2SERVER
+	case MP_QUAKE2:
+		return sb_enablequake2;
+	#endif
+	#ifdef Q3SERVER
+	case MP_QUAKE3:
+		return sb_enablequake3;
+	#endif
+	case MP_QUAKEWORLD:
+		return sb_enablequakeworld;
+	default:
+		return false;
+	}
+}
 
 #define MAX_MASTER_ADDRESSES 4	//each master might have multiple dns addresses, typically both ipv4+ipv6. we want to report to both address families so we work with remote single-stack hosts.
 
@@ -429,7 +449,6 @@ let it know we are alive, and log information
 void SV_Master_Heartbeat (void)
 {
 	int			i;
-	qboolean	enabled;
 
 	if (sv_public.ival<=0 || SSV_IsSubServer())
 		return;
@@ -446,19 +465,7 @@ void SV_Master_Heartbeat (void)
 	// send to group master
 	for (i = 0; net_masterlist[i].cv.name; i++)
 	{
-		switch (net_masterlist[i].protocol)
-		{
-		case MP_DPMASTER:	enabled = sb_enabledarkplaces;	break;
-#ifdef Q2SERVER
-		case MP_QUAKE2:		enabled = sb_enablequake2;		break;
-#endif
-#ifdef Q3SERVER
-		case MP_QUAKE3:		enabled = sb_enablequake3;		break;
-#endif
-		case MP_QUAKEWORLD:	enabled = sb_enablequakeworld;	break;
-		default:			enabled = false;				break;
-		}
-		if (!enabled)
+		if (!Master_MasterProtocolIsEnabled(net_masterlist[i].protocol))
 			continue;
 
 		if (net_masterlist[i].resolving)
@@ -650,7 +657,10 @@ static int numvisibleservers;
 static int maxvisibleservers;
 
 static hostcachekey_t sortfield;
-static qboolean decreasingorder;
+static qboolean sort_decreasing;
+static qboolean sort_favourites;
+static qboolean sort_categories;
+static serverinfo_t *categorisingserver;	//returned for sorted server -1 (hacky)
 
 
 
@@ -802,6 +812,14 @@ qboolean Master_CompareString(const char *a, const char *b, slist_test_t rule)
 
 qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 {
+	if (sort_categories)
+		if (a->qccategory != b->qccategory)
+			return Master_CompareInteger(a->qccategory, b->qccategory, SLIST_TEST_LESS);
+
+	if (sort_favourites)
+		if ((a->special & SS_FAVORITE) != (b->special & SS_FAVORITE))
+			return Master_CompareInteger(a->special & SS_FAVORITE, b->special & SS_FAVORITE, SLIST_TEST_LESS);
+
 	switch(sortfield)
 	{
 	case SLKEY_ADDRESS:
@@ -868,6 +886,9 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 	case SLKEY_ISFAVORITE:
 		return Master_CompareInteger(a->special & SS_FAVORITE, b->special & SS_FAVORITE, SLIST_TEST_LESS);
 
+	case SLKEY_CATEGORY:
+		return Master_CompareInteger(a->qccategory, b->qccategory, SLIST_TEST_LESS);
+
 	case SLKEY_MOD:
 	case SLKEY_PROTOCOL:
 	case SLKEY_QCSTATUS:
@@ -890,18 +911,6 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 	if (!(a->status & 1))
 		return false;
 
-/*	switch(a->special & SS_PROTOCOLMASK)
-	{
-	case SS_QUAKE3: enabled = sb_enablequake3; break;
-	case SS_QUAKE2: enabled = sb_enablequake2; break;
-	case SS_NETQUAKE: enabled = sb_enablenetquake; break;
-	case SS_QUAKEWORLD: enabled = sb_enablequakeworld; break;
-	case SS_DARKPLACES: enabled = sb_enabledarkplaces; break;
-	default: enabled = true; break;
-	}
-	if (!enabled)
-		return false;
-*/
 	val = 1;
 
 	for (i = 0; i < numvisrules; i++)
@@ -961,6 +970,9 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 		case SLKEY_QCSTATUS:
 			res = Master_CompareString(a->qcstatus, visrules[i].operands, visrules[i].compareop);
 			break;
+		case SLKEY_CATEGORY:
+			res = Master_CompareInteger(a->qccategory, visrules[i].operandi, visrules[i].compareop);
+			break;
 		default:
 			continue;
 		}
@@ -1000,10 +1012,12 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 	visrules[numvisrules].or = or;
 	numvisrules++;
 }
-void Master_SetSortField(hostcachekey_t field, qboolean descending)
+void Master_SetSortField(hostcachekey_t field, unsigned int sortflags)
 {
 	sortfield = field;
-	decreasingorder = descending;
+	sort_decreasing = sortflags & 1;
+	sort_favourites = sortflags & 2;
+	sort_categories = sortflags & 4;
 }
 hostcachekey_t Master_GetSortField(void)
 {
@@ -1011,7 +1025,7 @@ hostcachekey_t Master_GetSortField(void)
 }
 qboolean Master_GetSortDescending(void)
 {
-	return decreasingorder;
+	return sort_decreasing;
 }
 
 void Master_ShowServer(serverinfo_t *server)
@@ -1023,7 +1037,7 @@ void Master_ShowServer(serverinfo_t *server)
 		return;
 	}
 
-	if (decreasingorder)
+	if (sort_decreasing)
 	{
 		for (i = 0; i < numvisibleservers; i++)
 		{
@@ -1092,7 +1106,11 @@ int Master_SortServers(void)
 serverinfo_t *Master_SortedServer(int idx)
 {
 	if (idx < 0 || idx >= numvisibleservers)
+	{
+		if (idx == -1)
+			return categorisingserver;
 		return NULL;
+	}
 
 	return visibleservers[idx];
 }
@@ -1141,6 +1159,8 @@ float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum)
 			return !!(server->special & SS_LOCAL);
 		case SLKEY_ISPROXY:
 			return !!(server->special & SS_PROXY);
+		case SLKEY_CATEGORY:
+			return server->qccategory;
 
 		default:
 			return atof(Master_ReadKeyString(server, keynum));
@@ -1277,6 +1297,8 @@ hostcachekey_t Master_KeyForName(const char *keyname)
 		return SLKEY_ISLOCAL;
 	else if (!strcmp(keyname, "isproxy"))
 		return SLKEY_ISPROXY;
+	else if (!strcmp(keyname, "category"))
+		return SLKEY_CATEGORY;
 	else if (!strcmp(keyname, "serverinfo"))
 		return SLKEY_SERVERINFO;
 	else if (!strncmp(keyname, "player", 6))
@@ -1425,7 +1447,9 @@ void CLMaster_AddMaster_Worker_Resolved(void *ctx, void *data, size_t a, size_t 
 
 	if (mast->adr.type == NA_INVALID)
 	{
-		Con_Printf("Failed to resolve master address \"%s\"\n", mast->address);
+		if (b)
+			Con_Printf("Failed to resolve master address \"%s\"\n", mast->address);
+		//else master not enabled anyway. the lookup was skipped.
 	}
 	else if (mast->adr.type != NA_IP && mast->adr.type != NA_IPV6 && mast->adr.type != NA_IPX)
 	{
@@ -1492,18 +1516,24 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 //	qboolean first = true;
 	char *str;
 	master_t *work = data;
-	//resolve all the addresses
-	str = work->address;
-	while (str && *str)
+
+	if (!b)
+		;
+	else
 	{
-		str = COM_ParseOut(str, token, sizeof(token));
-		if (*token)
-			found += NET_StringToAdr2(token, 0, &adrs[found], MAX_MASTER_ADDRESSES-found);
-		//we don't do this logic because windows doesn't look up ipv6 names if it only has teredo
-		//this means an ipv4+teredo client cannot see ivp6-only servers. and that sucks.
-//		if (first && found)
-//			break;	//if we found one by name, don't try any fallback ip addresses.
-//		first = false;
+		//resolve all the addresses
+		str = work->address;
+		while (str && *str)
+		{
+			str = COM_ParseOut(str, token, sizeof(token));
+			if (*token)
+				found += NET_StringToAdr2(token, 0, &adrs[found], MAX_MASTER_ADDRESSES-found);
+			//we don't do this logic because windows doesn't look up ipv6 names if it only has teredo
+			//this means an ipv4+teredo client cannot see ivp6-only servers. and that sucks.
+//			if (first && found)
+//				break;	//if we found one by name, don't try any fallback ip addresses.
+//			first = false;
+		}
 	}
 
 	//add the main ip address
@@ -1563,7 +1593,7 @@ void Master_AddMaster (char *address, enum mastertype_e mastertype, enum masterp
 	strcpy(mast->address, address);
 	mast->sends = 1;
 
-	COM_AddWork(WG_LOADER, CLMaster_AddMaster_Worker_Resolve, NULL, mast, 0, 0);
+	COM_AddWork(WG_LOADER, CLMaster_AddMaster_Worker_Resolve, NULL, mast, 0, true/*Master_MasterProtocolIsEnabled(protocol)*/);
 }
 
 void MasterInfo_Shutdown(void)
@@ -3360,6 +3390,13 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		if (info->moreinfo)
 			memcpy(info->moreinfo, &details, sizeof(serverdetailedinfo_t));
 	}
+
+	info->qccategory = 0;
+#ifdef MENU_DAT
+	categorisingserver = info;
+	info->qccategory = MP_GetServerCategory(-1);
+	categorisingserver = NULL;
+#endif
 
 	return true;
 }

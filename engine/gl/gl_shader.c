@@ -5387,7 +5387,7 @@ void Shader_UpdateRegistration (void)
 	}
 */
 void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
-void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
+void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int imageflags)
 {
 	char *h;
 	char imagename[MAX_QPATH];
@@ -5395,7 +5395,6 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 	char *subpath = NULL;
 	texnums_t *tex;
 	unsigned int a, aframes;
-	unsigned int imageflags = 0;
 	strcpy(imagename, shader->name);
 	h = strchr(imagename, '#');
 	if (h)
@@ -5461,18 +5460,18 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 		{
 			/*dlights/realtime lighting needs some stuff*/
 			if (!TEXVALID(tex->base) && *tex->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
-				tex->base = R_LoadHiResTexture(tex->mapname, NULL, 0);
+				tex->base = R_LoadHiResTexture(tex->mapname, NULL, imageflags);
 
 			if (!TEXVALID(tex->base))
-				tex->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
+				tex->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA|imageflags);
 		}
 
 		if ((shader->flags & SHADER_HASPALETTED) && !TEXVALID(tex->paletted))
 		{
 			if (!TEXVALID(tex->paletted) && *tex->mapname)
-				tex->paletted = R_LoadHiResTexture(va("%s", tex->mapname), NULL, 0|IF_NEAREST|IF_PALETTIZE);
+				tex->paletted = R_LoadHiResTexture(va("%s", tex->mapname), NULL, 0|IF_NEAREST|IF_PALETTIZE|imageflags);
 			if (!TEXVALID(tex->paletted))
-				tex->paletted = R_LoadHiResTexture(va("%s", imagename), subpath, ((*imagename=='{')?0:IF_NOALPHA)|IF_NEAREST|IF_PALETTIZE);
+				tex->paletted = R_LoadHiResTexture(va("%s", imagename), subpath, ((*imagename=='{')?0:IF_NOALPHA)|IF_NEAREST|IF_PALETTIZE|imageflags);
 		}
 
 		imageflags |= IF_LOWPRIORITY;
@@ -5484,9 +5483,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 			if (r_loadbumpmapping || (shader->flags & SHADER_HASNORMALMAP))
 			{
 				if (!TEXVALID(tex->bump) && *mapname && (shader->flags & SHADER_HASNORMALMAP))
-					tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP|IF_NOSRGB);
+					tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP|IF_NOSRGB|imageflags);
 				if (!TEXVALID(tex->bump))
-					tex->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB);
+					tex->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB|imageflags);
 			}
 		}
 

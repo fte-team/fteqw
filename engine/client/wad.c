@@ -371,7 +371,7 @@ void W_ApplyGamma (qbyte *data, int len, int skipalpha)
 	}
 }
 */
-qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *height, qboolean *usesalpha)	//returns rgba
+qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *height, uploadfmt_t *format)	//returns rgba
 {	
 	qbyte *in, *data, *out, *pal;
 	int d, p;
@@ -447,13 +447,13 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 		}
 		out += 4;
 	}
+	*format = alpha?PTI_RGBA8:PTI_RGBX8;
 	if (!vid_hardwaregamma.value)
-		BoostGamma(data, tex->width, tex->height);
-	*usesalpha = !!alpha;
+		BoostGamma(data, tex->width, tex->height, *format);
 	return data;
 }
 
-qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha)//returns rgba
+qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *format)//returns rgba
 {
 	char texname[17];
 	int i, j;
@@ -482,7 +482,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 
 				*width = 128;
 				*height = 128;
-				*usesalpha = false;
+				*format = PTI_RGBX8;
 
 				data = BZ_Malloc(128 * 128 * 4);
 				for (i = 0; i < 128 * 128; i++)
@@ -500,7 +500,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 			{
 				*width = p->width;
 				*height = p->height;
-				*usesalpha = false;
+				*format = PTI_RGBX8;
 
 				data = BZ_Malloc(p->width * p->height * 4);
 				for (i = 0; i < p->width * p->height; i++)
@@ -514,7 +514,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 				qbyte *pal = p->data+p->width*p->height+4;
 				*width = p->width;
 				*height = p->height;
-				*usesalpha = true;
+				*format = PTI_RGBA8;
 
 				data = BZ_Malloc(p->width * p->height * 4);
 				for (i = 0; i < p->width * p->height; i++)
@@ -552,7 +552,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 					for (j = 0;j < MIPLEVELS;j++)
 						tex->offsets[j] = LittleLong(tex->offsets[j]);
 
-					data = W_ConvertWAD3Texture(tex, texwadlump[i].size, width, height, usesalpha);
+					data = W_ConvertWAD3Texture(tex, texwadlump[i].size, width, height, format);
 					BZ_Free(tex);
 					return data;
 				}

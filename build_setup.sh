@@ -273,7 +273,8 @@ fi
 
 if [ "$BUILD_WINDOWS" == "y" ]; then
 	#for building windows targets
-	debianpackages mingw-w64 || otherpackages x86_64-w64-mingw32-gcc || exit
+	#python is needed to configure scintilla properly.
+	debianpackages mingw-w64 python || otherpackages x86_64-w64-mingw32-gcc python || exit
 fi
 
 

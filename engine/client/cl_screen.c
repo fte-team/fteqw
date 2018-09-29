@@ -993,7 +993,19 @@ void SCR_DrawCursor(void)
 		{
 			key_customcursor[cmod].handle = NULL;
 			if (!key_customcursor[cmod].handle && *key_customcursor[cmod].name)
-				key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
+			{
+				image_t dummytex;
+				flocation_t loc;
+				char bestname[MAX_QPATH];
+				unsigned int bestflags;
+				memset(&dummytex, 0, sizeof(dummytex));
+				dummytex.ident = key_customcursor[cmod].name;
+				dummytex.flags = IF_NOREPLACE;	//no dds files
+				if (Image_LocateHighResTexture(&dummytex, &loc, bestname, sizeof(bestname), &bestflags))
+					key_customcursor[cmod].handle = rf->VID_CreateCursor(bestname, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
+				else
+					key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
+			}
 			if (!key_customcursor[cmod].handle)
 				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.tga", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
 			if (!key_customcursor[cmod].handle)
@@ -2147,6 +2159,7 @@ void SCR_EndLoadingPlaque (void)
 
 void SCR_ImageName (const char *mapname)
 {
+	//assume levelshots/foo
 	strcpy(levelshotname, "levelshots/");
 	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
 
@@ -2156,9 +2169,15 @@ void SCR_ImageName (const char *mapname)
 
 		if (!R_GetShaderSizes(R2D_SafeCachePic (levelshotname), NULL, NULL, true))
 		{
-			*levelshotname = '\0';
-			if (scr_disabled_for_loading)
-				return;
+			//try maps/foo
+			strcpy(levelshotname, "maps/");
+			COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
+			if (!R_GetShaderSizes(R2D_SafeCachePic (levelshotname), NULL, NULL, true))
+			{
+				*levelshotname = '\0';
+				if (scr_disabled_for_loading)
+					return;
+			}
 		}
 	}
 	else

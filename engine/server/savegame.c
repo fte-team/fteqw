@@ -121,6 +121,18 @@ pbool SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char *
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 		sv.strings.model_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
 	}
+#ifndef NOLEGACY
+	else if (!strcmp(token, "vwep"))
+	{	//vwep N "MODELNAME"
+		//0 IS valid, and frankly this stuff sucks.
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		if (idx >= countof(sv.strings.vw_model_precache))
+			return false;	//unsupported index.
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		sv.strings.vw_model_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
+	}
+#endif
 	else if (!strcmp(token, "sound_precache") || !strcmp(token, "sound"))
 	{	//sound_precache N "MODELNAME"
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;

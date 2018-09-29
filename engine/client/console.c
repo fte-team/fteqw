@@ -2306,14 +2306,15 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						send += center;
 
 						if (selactive == 1)
-						{
-							R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));
-							if (send < sstart)
-								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
-							else
-								R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
-							R2D_Flush();
-						}
+							R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));	//selected
+						else
+							R2D_ImageColours(SRGBA(0.3,0.3,0.3, alphaval));	//mouseover.
+
+						if (send < sstart)
+							R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+						else
+							R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+						R2D_Flush();
 					}
 				}
 			}
@@ -2663,6 +2664,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 						{
 							shader = R2D_SafeCachePic("tiprawimg");
 							shader->defaulttextures->base = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
+							if (!shader->defaulttextures->base)
+								shader->defaulttextures->base = Image_FindTexture(key, NULL, IF_NOREPLACE);
 							if (!shader->defaulttextures->base)
 							{
 								size_t fsize;

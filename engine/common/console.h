@@ -141,7 +141,7 @@ typedef struct console_s
 	char prompt[128];
 	char icon[MAX_QPATH];	//should really dynamically allocate this stuff.
 	char backimage[MAX_QPATH];
-	shader_t *backshader;
+	struct shader_s *backshader;
 	float wnd_x;
 	float wnd_y;
 	float wnd_w;
@@ -171,7 +171,7 @@ typedef struct console_s
 	//WARNING: note that links do NOT represent any sort of security. text can be inserted from anywhere. Its fine to use such things for context, but don't treat them as sescure.
 	int				(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
 	qboolean		(*redirect) (struct console_s *con, unsigned int unicode, int key);	//if present, called every character.
-	qboolean		(*mouseover)(struct console_s *con, char **out_tiptext, shader_t **out_shader);
+	qboolean		(*mouseover)(struct console_s *con, char **out_tiptext, struct shader_s **out_shader);
 	qboolean		(*close) (struct console_s *con, qboolean force);
 	void			*userdata;		//user context
 	conline_t		*userline;	//editor cursor line

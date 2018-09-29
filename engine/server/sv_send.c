@@ -3022,7 +3022,14 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 	{	//vanilla-compatible info.
 		if (ISNQCLIENT(client))
 		{	//except that nq never had any userinfo
-			const char *s = va("//ui %i \"%s\" \"%s\"\n", (int)((client_t*)info-svs.clients), enckey, encval);
+			const char *s;
+			if (info == &svs.info)
+				s = va("//svi \"%s\" \"%s\"\n", enckey, encval);
+			else
+			{
+				int playerslot = (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients;
+				s = va("//ui %i \"%s\" \"%s\"\n", playerslot, enckey, encval);
+			}
 			ClientReliableWrite_Begin(client, svc_stufftext, strlen(s)+2);
 			ClientReliableWrite_String(client, s);
 		}

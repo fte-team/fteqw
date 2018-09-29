@@ -5567,66 +5567,66 @@ static void QCBUILTIN PF_qtBroadcast_WriteEntity (pubprogfuncs_t *prinst, struct
 //======================================================
 
 //copes with any qw point entities.
-void SV_point_tempentity (vec3_t o, int qwtype, int count)	//count (usually 1) is available for some tent types.
+void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is available for some tent types.
 {
 	int split=0;
+	int qwtype[2] = {type,type};
 #ifdef NQPROT
-	int nqtype = qwtype;
+	int nqtype[2] = {type,type};
 #endif
+	int i;
 
 #ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
 #endif
 
-//this is for lamers with old (or unsupported) clients
-	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-#ifdef NQPROT
-	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-#endif
-	switch(qwtype)
+	switch(type)	//uses the QW types...
 	{
 	case TE_BULLET:
-		MSG_WriteByte (&sv.multicast, TE_SPIKE);
-		qwtype = TE_BULLET;
+		qwtype[1] = TE_SPIKE;
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, TE_SPIKE);
-		nqtype = TE_BULLET;
+		qwtype[1] = qwtype[0] = TE_SPIKE;
 #endif
 		split = PEXT_TE_BULLET;
 		break;
 	case TEQW_SUPERBULLET:
-		MSG_WriteByte (&sv.multicast, TE_SUPERSPIKE);
-		qwtype = TEQW_SUPERBULLET;
+		qwtype[1] = TE_SUPERSPIKE;
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, TE_SUPERSPIKE);
-		nqtype = TE_SUPERSPIKE;
+		qwtype[1] = qwtype[0] = TE_SUPERSPIKE;
 #endif
 		split = PEXT_TE_BULLET;
 		break;
 	case TEQW_QWBLOOD:
-	case TEQW_QWGUNSHOT:
-		MSG_WriteByte (&sv.multicast, qwtype);
-		MSG_WriteByte (&sv.multicast, count);
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, nqtype);	//nq doesn't have a count.
+		nqtype[0] = nqtype[1] = 73|256;
+#endif
+		break;
+	case TEQW_LIGHTNINGBLOOD:
+#ifdef NQPROT
+		nqtype[0] = nqtype[1] = 225|256;
+#endif
+		break;
+	case TEQW_QWGUNSHOT:
+#ifdef NQPROT
+		nqtype[0] = TENQ_QWGUNSHOT;
+		nqtype[1] = TENQ_NQGUNSHOT;
+		split = PEXT_TE_BULLET;
 #endif
 		break;
 	case TEQW_QWEXPLOSION:
-		MSG_WriteByte (&sv.multicast, TEQW_QWEXPLOSION);
-		qwtype = -1;
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, TENQ_NQEXPLOSION);
-		nqtype = TENQ_QWEXPLOSION;
+		nqtype[0] = TENQ_QWEXPLOSION;
+		nqtype[1] = TENQ_NQEXPLOSION;
 #endif
 		split = PEXT_TE_BULLET;
 		break;
 	case TEQW_NQEXPLOSION:
-		MSG_WriteByte (&sv.multicast, TEQW_QWEXPLOSION);
-		qwtype = TEQW_NQEXPLOSION;
+		qwtype[0] = TEQW_NQEXPLOSION;
+		qwtype[1] = TEQW_QWEXPLOSION;
 #ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, TENQ_NQEXPLOSION);
-		nqtype = -1;
+		nqtype[0] = TENQ_NQEXPLOSION;
+		nqtype[1] = TENQ_NQEXPLOSION;
 #endif
 		split = PEXT_TE_BULLET;
 		break;
@@ -5636,71 +5636,72 @@ void SV_point_tempentity (vec3_t o, int qwtype, int count)	//count (usually 1) i
 		SV_Error("SV_point_tempentity - type is a beam\n");
 		break;
 	default:
-		MSG_WriteByte (&sv.multicast, qwtype);
-#ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, nqtype);
-#endif
 		break;
 	}
-	MSG_WriteCoord (&sv.multicast, o[0]);
-	MSG_WriteCoord (&sv.multicast, o[1]);
-	MSG_WriteCoord (&sv.multicast, o[2]);
-#ifdef NQPROT
-	MSG_WriteCoord (&sv.nqmulticast, o[0]);
-	MSG_WriteCoord (&sv.nqmulticast, o[1]);
-	MSG_WriteCoord (&sv.nqmulticast, o[2]);
-#endif
-	if (qwtype == TEQW_QWBLOOD || qwtype == TEQW_LIGHTNINGBLOOD)
+	for (i = 0; i < 2; i++)
 	{
+		if (qwtype[i] >= 0)
+		{
+			MSG_WriteByte (&sv.multicast, svc_temp_entity);
+			MSG_WriteByte (&sv.multicast, qwtype[i]);
+			if (qwtype[i] == TEQW_QWBLOOD || qwtype[i] == TEQW_QWGUNSHOT)
+				MSG_WriteByte (&sv.multicast, count);
+			MSG_WriteCoord (&sv.multicast, o[0]);
+			MSG_WriteCoord (&sv.multicast, o[1]);
+			MSG_WriteCoord (&sv.multicast, o[2]);
+		}
 #ifdef NQPROT
-		sv.nqmulticast.cursize = 0;	//don't send a te_blood or lightningblood to an nq client - they'll die horribly.
+		if (nqtype[i] >= 256)
+		{
+			//send a particle instead
+			MSG_WriteByte (&sv.nqmulticast, svc_particle);
+			MSG_WriteCoord (&sv.nqmulticast, o[0]);
+			MSG_WriteCoord (&sv.nqmulticast, o[1]);
+			MSG_WriteCoord (&sv.nqmulticast, o[2]);
+			//no direction.
+			MSG_WriteChar (&sv.nqmulticast, 0);
+			MSG_WriteChar (&sv.nqmulticast, 0);
+			MSG_WriteChar (&sv.nqmulticast, 0);
+			MSG_WriteByte (&sv.nqmulticast, count*20);
+			MSG_WriteByte (&sv.nqmulticast, nqtype[i]&0xff);
+		}
+		else if (nqtype[i] >= 0)
+		{
+			int nqcount = min(3,count);
+			do
+			{
+				MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+				MSG_WriteByte (&sv.nqmulticast, nqtype[i]);
+				if (nqtype[i] == TEDP_BLOOD)
+				{
+					MSG_WriteChar(&sv.nqmulticast, 0);
+					MSG_WriteChar(&sv.nqmulticast, 0);
+					MSG_WriteChar(&sv.nqmulticast, 0);
+				}
+				if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype[i] == TENQ_QWGUNSHOT)
+					MSG_WriteByte (&sv.multicast, count);
+				MSG_WriteCoord (&sv.nqmulticast, o[0]);
+				MSG_WriteCoord (&sv.nqmulticast, o[1]);
+				MSG_WriteCoord (&sv.nqmulticast, o[2]);
 
-		//send a particle instead
-		MSG_WriteByte (&sv.nqmulticast, svc_particle);
-		MSG_WriteCoord (&sv.nqmulticast, o[0]);
-		MSG_WriteCoord (&sv.nqmulticast, o[1]);
-		MSG_WriteCoord (&sv.nqmulticast, o[2]);
-		//no direction.
-		MSG_WriteChar (&sv.nqmulticast, 0);
-		MSG_WriteChar (&sv.nqmulticast, 0);
-		MSG_WriteChar (&sv.nqmulticast, 0);
-		MSG_WriteByte (&sv.nqmulticast, count*20);
-		if (qwtype == TEQW_QWBLOOD)
-			MSG_WriteByte (&sv.nqmulticast, 73);
-		else
-			MSG_WriteByte (&sv.nqmulticast, 225);
+				//messy - TENQ_NQGUNSHOT looks until we reach our counter. should probably randomize positions a little
+				if (nqcount > 1 && nqtype[i] == TENQ_NQGUNSHOT)
+				{
+					nqcount--;
+					continue;
+				}
+			} while(0);
+		}
 #endif
+		if (i)
+		{
+			SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, 0, split);
+			break;
+		}
+		SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, split, 0);
+		if (!split)
+			break;
 	}
-
-	SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, split, 0);
-
-	if (!split)	//don't bother sending again.
-		return;
-
-	//this is for people with an extension to do that effect properly
-	if (qwtype >= 0)
-	{
-		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, qwtype);
-		if (qwtype == TEQW_QWBLOOD || qwtype == TEQW_QWGUNSHOT)
-			MSG_WriteByte (&sv.multicast, count);
-		MSG_WriteCoord (&sv.multicast, o[0]);
-		MSG_WriteCoord (&sv.multicast, o[1]);
-		MSG_WriteCoord (&sv.multicast, o[2]);
-	}
-#ifdef NQPROT
-	if (nqtype >= 0)
-	{
-		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-		MSG_WriteByte (&sv.nqmulticast, nqtype);
-		if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype == TEQW_NQGUNSHOT)
-			MSG_WriteByte (&sv.multicast, count);
-		MSG_WriteCoord (&sv.nqmulticast, o[0]);
-		MSG_WriteCoord (&sv.nqmulticast, o[1]);
-		MSG_WriteCoord (&sv.nqmulticast, o[2]);
-	}
-#endif
-	SV_MulticastProtExt (o, MULTICAST_PHS, pr_global_struct->dimension_send, 0, split);
 }
 
 void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)

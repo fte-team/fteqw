@@ -128,7 +128,6 @@ static qintptr_t VARGS Plug_Draw_LoadImage(char *name, int type, char *script)
 	return i + 1;
 }
 
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname);
 static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	qintptr_t ret = 0;
@@ -139,11 +138,12 @@ static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, co
 	image_t *t;
 	qbyte *rgbdata;
 	unsigned int width, height;
-	
+	uploadfmt_t format;
+
 	if (VM_OOB(arg[2], arg[3]))
 		return 0;
 		
-	if ((rgbdata = Read32BitImageFile(codeddata, datalength, &width, &height, NULL, name)))
+	if ((rgbdata = ReadRawImageFile(codeddata, datalength, &width, &height, &format, false, name)))
 	{
 //		name = va("%s", name);
 		
@@ -152,7 +152,7 @@ static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, co
 			t = Image_CreateTexture(name, NULL, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (TEXVALID(t))
 		{
-			Image_Upload(t, TF_RGBA32, rgbdata, NULL, width, height, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			Image_Upload(t, format, rgbdata, NULL, width, height, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 			ret = Plug_Draw_LoadImage(name, 3, NULL);
 		}
 		

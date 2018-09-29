@@ -102,8 +102,8 @@ void SwapPic (qpic_t *pic);
 struct model_s;
 
 void Mod_ParseWadsFromEntityLump(char *data);
-qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *height, qboolean *usesalpha);
+qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *height, uploadfmt_t *format);
 void Mod_ParseInfoFromEntityLump(struct model_s *wmodel);
 qboolean Wad_NextDownload (void);
-qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha);
+qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *format);
 miptex_t *W_GetMipTex(const char *name);

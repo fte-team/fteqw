@@ -771,7 +771,7 @@ void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	const char *filename = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	int imagewidth, imageheight;
-	qboolean hasalpha;
+	uploadfmt_t format;
 	void *filedata;
 
 	G_INT(OFS_RETURN) = 0;	//assume the worst
@@ -782,7 +782,7 @@ void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	if (filedata)
 	{
-		qbyte *imagedata = Read32BitImageFile(filedata, filesize, &imagewidth, &imageheight, &hasalpha, filename);
+		qbyte *imagedata = ReadRawImageFile(filedata, filesize, &imagewidth, &imageheight, &format, true, filename);
 		Z_Free(filedata);
 
 		if (imagedata)
@@ -1259,7 +1259,7 @@ static void QCBUILTIN PF_menu_cvar (pubprogfuncs_t *prinst, struct globalvars_s 
 	else
 	{
 		str = RemapCvarNameFromDPToFTE(str);
-		var = Cvar_Get(str, "", 0, "menu cvars");
+		var = PF_Cvar_FindOrGet(str);
 		if (var && !(var->flags & CVAR_NOUNSAFEEXPAND))
 		{
 			//menuqc sees desired settings, not latched settings.
@@ -1281,8 +1281,8 @@ static void QCBUILTIN PF_menu_cvar_set (pubprogfuncs_t *prinst, struct globalvar
 	var_name = RemapCvarNameFromDPToFTE(var_name);
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	var = Cvar_Get(var_name, val, 0, "QC variables");
-	if (var->flags & CVAR_NOTFROMSERVER)
+	var = PF_Cvar_FindOrGet(var_name);
+	if (var && var->flags & CVAR_NOTFROMSERVER)
 	{
 		//fixme: menuqc needs some way to display a prompt to allow it anyway.
 		return;
@@ -1292,7 +1292,7 @@ static void QCBUILTIN PF_menu_cvar_set (pubprogfuncs_t *prinst, struct globalvar
 static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
-	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
+	cvar_t *cv = PF_Cvar_FindOrGet(RemapCvarNameFromDPToFTE(str));
 	if (!cv)
 		G_INT(OFS_RETURN) = 0;
 	else if (cv->flags & CVAR_NOUNSAFEEXPAND)
@@ -2419,15 +2419,19 @@ menuedict_t *menu_edicts;
 int num_menu_edicts;
 world_t menu_world;
 
-func_t mp_init_function;
-func_t mp_shutdown_function;
-func_t mp_draw_function;
-func_t mp_drawloading_function;
-func_t mp_keydown_function;
-func_t mp_keyup_function;
-func_t mp_inputevent_function;
-func_t mp_toggle_function;
-func_t mp_consolecommand_function;
+static struct
+{
+	func_t init;
+	func_t shutdown;
+	func_t draw;
+	func_t drawloading;
+	func_t keydown;
+	func_t keyup;
+	func_t inputevent;
+	func_t toggle;
+	func_t consolecommand;
+	func_t gethostcachecategory;
+} mpfuncs;
 
 jmp_buf mp_abort;
 
@@ -2447,8 +2451,8 @@ void MP_Shutdown (void)
 		Z_Free(buffer);
 	}
 */
-	temp = mp_shutdown_function;
-	mp_shutdown_function = 0;
+	temp = mpfuncs.shutdown;
+	mpfuncs.shutdown = 0;
 	if (temp && !inmenuprogs)
 		PR_ExecuteProgram(menu_world.progs, temp);
 
@@ -2666,17 +2670,18 @@ qboolean MP_Init (void)
 		EDICT_NUM_PB(menu_world.progs, 0)->ereftype = ER_ENTITY;
 
 
-		mp_init_function = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
-		mp_shutdown_function = PR_FindFunction(menu_world.progs, "m_shutdown", PR_ANY);
-		mp_draw_function = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
-		mp_drawloading_function = PR_FindFunction(menu_world.progs, "m_drawloading", PR_ANY);
-		mp_inputevent_function = PR_FindFunction(menu_world.progs, "Menu_InputEvent", PR_ANY);
-		mp_keydown_function = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
-		mp_keyup_function = PR_FindFunction(menu_world.progs, "m_keyup", PR_ANY);
-		mp_toggle_function = PR_FindFunction(menu_world.progs, "m_toggle", PR_ANY);
-		mp_consolecommand_function = PR_FindFunction(menu_world.progs, "m_consolecommand", PR_ANY);
-		if (mp_init_function)
-			PR_ExecuteProgram(menu_world.progs, mp_init_function);
+		mpfuncs.init = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
+		mpfuncs.shutdown = PR_FindFunction(menu_world.progs, "m_shutdown", PR_ANY);
+		mpfuncs.draw = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
+		mpfuncs.drawloading = PR_FindFunction(menu_world.progs, "m_drawloading", PR_ANY);
+		mpfuncs.inputevent = PR_FindFunction(menu_world.progs, "Menu_InputEvent", PR_ANY);
+		mpfuncs.keydown = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
+		mpfuncs.keyup = PR_FindFunction(menu_world.progs, "m_keyup", PR_ANY);
+		mpfuncs.toggle = PR_FindFunction(menu_world.progs, "m_toggle", PR_ANY);
+		mpfuncs.consolecommand = PR_FindFunction(menu_world.progs, "m_consolecommand", PR_ANY);
+		mpfuncs.gethostcachecategory = PR_FindFunction(menu_world.progs, "m_gethostcachecategory", PR_ANY);
+		if (mpfuncs.init)
+			PR_ExecuteProgram(menu_world.progs, mpfuncs.init);
 		inmenuprogs--;
 
 		EDICT_NUM_PB(menu_world.progs, 0)->readonly = true;
@@ -2711,7 +2716,7 @@ qboolean MP_ConsoleCommand(const char *cmdtext)
 	void *pr_globals;
 	if (!menu_world.progs)
 		return false;
-	if (!mp_consolecommand_function)
+	if (!mpfuncs.consolecommand)
 		return false;
 
 	if (setjmp(mp_abort))
@@ -2719,7 +2724,7 @@ qboolean MP_ConsoleCommand(const char *cmdtext)
 	inmenuprogs++;
 	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menu_world.progs, cmdtext));
-	PR_ExecuteProgram (menu_world.progs, mp_consolecommand_function);
+	PR_ExecuteProgram (menu_world.progs, mpfuncs.consolecommand);
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -2798,7 +2803,25 @@ void MP_RegisterCvarsAndCmds(void)
 
 qboolean MP_UsingGamecodeLoadingScreen(void)
 {
-	return menu_world.progs && mp_drawloading_function;
+	return menu_world.progs && mpfuncs.drawloading;
+}
+
+int MP_GetServerCategory(int index)
+{
+	int category = 0;
+	if (menu_world.progs && mpfuncs.gethostcachecategory)
+	{
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+		if (!setjmp(mp_abort))
+		{
+			inmenuprogs++;
+			G_FLOAT(OFS_PARM0) = index;
+			PR_ExecuteProgram(menu_world.progs, mpfuncs.gethostcachecategory);
+			category = G_FLOAT(OFS_RETURN);
+			inmenuprogs--;
+		}
+	}
+	return category;
 }
 
 void MP_Draw(void)
@@ -2825,14 +2848,14 @@ void MP_Draw(void)
 	if (scr_drawloading||scr_disabled_for_loading)
 	{	//don't draw the menu if we're meant to be drawing a loading screen
 		//the menu should provide a special function if it wants to draw custom loading screens. this is for compat with old/dp/lazy/crappy menus.
-		if (mp_drawloading_function)
+		if (mpfuncs.drawloading)
 		{
 			((float *)pr_globals)[OFS_PARM1] = scr_disabled_for_loading;
-			PR_ExecuteProgram(menu_world.progs, mp_drawloading_function);
+			PR_ExecuteProgram(menu_world.progs, mpfuncs.drawloading);
 		}
 	}
-	else if (mp_draw_function)
-		PR_ExecuteProgram(menu_world.progs, mp_draw_function);
+	else if (mpfuncs.draw)
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.draw);
 	inmenuprogs--;
 }
 
@@ -2869,24 +2892,24 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
-	if (mp_inputevent_function)
+	if (mpfuncs.inputevent)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = CSIE_KEYDOWN;
 		G_FLOAT(OFS_PARM1) = qcinput_scan = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM2) = qcinput_unicode = unicode;
 		G_FLOAT(OFS_PARM3) = devid;
-		PR_ExecuteProgram(menu_world.progs, mp_inputevent_function);
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.inputevent);
 		result = G_FLOAT(OFS_RETURN);
 		qcinput_scan = 0;
 		qcinput_unicode = 0;
 	}
-	else if (mp_keydown_function)
+	else if (mpfuncs.keydown)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
-		PR_ExecuteProgram(menu_world.progs, mp_keydown_function);
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.keydown);
 		result = true;	//doesn't have a return value, so if the menu is set up for key events, all events are considered eaten.
 	}
 	inmenuprogs--;
@@ -2912,21 +2935,21 @@ void MP_Keyup(int key, int unicode, unsigned int devid)
 		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
-	if (mp_inputevent_function)
+	if (mpfuncs.inputevent)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = CSIE_KEYUP;
 		G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM2) = unicode;
 		G_FLOAT(OFS_PARM3) = devid;
-		PR_ExecuteProgram(menu_world.progs, mp_inputevent_function);
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.inputevent);
 	}
-	else if (mp_keyup_function)
+	else if (mpfuncs.keyup)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
-		PR_ExecuteProgram(menu_world.progs, mp_keyup_function);
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.keyup);
 	}
 	inmenuprogs--;
 }
@@ -2935,7 +2958,7 @@ qboolean MP_MousePosition(float xabs, float yabs, unsigned int devid)
 {
 	void *pr_globals;
 
-	if (!menu_world.progs || !mp_inputevent_function)
+	if (!menu_world.progs || !mpfuncs.inputevent)
 		return false;
 
 	if (setjmp(mp_abort))
@@ -2946,7 +2969,7 @@ qboolean MP_MousePosition(float xabs, float yabs, unsigned int devid)
 	G_FLOAT(OFS_PARM1) = (xabs * vid.width) / vid.pixelwidth;
 	G_FLOAT(OFS_PARM2) = (yabs * vid.height) / vid.pixelheight;
 	G_FLOAT(OFS_PARM3) = devid;
-	PR_ExecuteProgram (menu_world.progs, mp_inputevent_function);
+	PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -2954,7 +2977,7 @@ qboolean MP_MouseMove(float xdelta, float ydelta, unsigned int devid)
 {
 	void *pr_globals;
 
-	if (!menu_world.progs || !mp_inputevent_function)
+	if (!menu_world.progs || !mpfuncs.inputevent)
 		return false;
 
 	if (setjmp(mp_abort))
@@ -2965,7 +2988,7 @@ qboolean MP_MouseMove(float xdelta, float ydelta, unsigned int devid)
 	G_FLOAT(OFS_PARM1) = (xdelta * vid.width) / vid.pixelwidth;
 	G_FLOAT(OFS_PARM2) = (ydelta * vid.height) / vid.pixelheight;
 	G_FLOAT(OFS_PARM3) = devid;
-	PR_ExecuteProgram (menu_world.progs, mp_inputevent_function);
+	PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -2973,7 +2996,7 @@ qboolean MP_MouseMove(float xdelta, float ydelta, unsigned int devid)
 qboolean MP_JoystickAxis(int axis, float value, unsigned int devid)
 {
 	void *pr_globals;
-	if (!menu_world.progs || !mp_inputevent_function)
+	if (!menu_world.progs || !mpfuncs.inputevent)
 		return false;
 	if (setjmp(mp_abort))
 		return false;
@@ -2983,7 +3006,7 @@ qboolean MP_JoystickAxis(int axis, float value, unsigned int devid)
 	G_FLOAT(OFS_PARM1) = axis;
 	G_FLOAT(OFS_PARM2) = value;
 	G_FLOAT(OFS_PARM3) = devid;
-	PR_ExecuteProgram (menu_world.progs, mp_inputevent_function);
+	PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -3008,11 +3031,11 @@ qboolean MP_Toggle(int mode)
 		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
-	if (mp_toggle_function)
+	if (mpfuncs.toggle)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = mode;
-		PR_ExecuteProgram(menu_world.progs, mp_toggle_function);
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.toggle);
 	}
 	inmenuprogs--;
 

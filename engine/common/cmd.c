@@ -1491,7 +1491,7 @@ const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslev
 		pl = 2;
 		quotetype = 1;
 	}
-	else if (fixup-cvarterm > 2 && !strncmp(fixup-5, " asis", 5))
+	else if (fixup-cvarterm > 5 && !strncmp(fixup-5, " asis", 5))
 	{	//no escaping...
 		pl = 5;
 		quotetype = 0;

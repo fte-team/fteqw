@@ -531,6 +531,9 @@ qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspee
 
 	s->decoder.decodedata(s, NULL, 0, 100);
 
+	if (p_ov_time_total(&buffer->vf, -1) < 5)	//short sounds might as well remain cached.
+		buffer->nopurge = true;
+
 	return true;
 }
 

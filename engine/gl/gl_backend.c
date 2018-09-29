@@ -2412,18 +2412,28 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 		for (j = 0; j+3 < cnt; j+=4, src+=4, dst+=4)
 		{
 			vec3_t mid, d;
-			float radius;
+			vec2_t mid2;
+			float radius, s,t;
+			vec2_t *fte_restrict st = &mesh->st_array[j];
 			mid[0] = 0.25*(src[0][0] + src[1][0] + src[2][0] + src[3][0]);
 			mid[1] = 0.25*(src[0][1] + src[1][1] + src[2][1] + src[3][1]);
 			mid[2] = 0.25*(src[0][2] + src[1][2] + src[2][2] + src[3][2]);
 			VectorSubtract(src[0], mid, d);
-			radius = 2*VectorLength(d);
+			radius = VectorLength(d);
+
+			mid2[0] = 0.25*(st[0][0] + st[1][0] + st[2][0] + st[3][0]);
+			mid2[1] = 0.25*(st[0][1] + st[1][1] + st[2][1] + st[3][1]);
 
 			for (k = 0; k < 4; k++)
 			{
-				dst[k][0] = mid[0] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[0+1]);
-				dst[k][1] = mid[1] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[4+1]);
-				dst[k][2] = mid[2] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[8+1]);
+				//q3 fully regenerates verts. we don't because that destroys ST coords.
+				//even so, if the ST coords are non-centered for some reason then we still need to get the right values as if they were.
+				//hence the mid2.
+				s = (st[k][0] > mid2[0])?1:-1;
+				t = (st[k][1] > mid2[1])?1:-1;
+				dst[k][0] = mid[0] + radius*(s*shaderstate.modelviewmatrix[0+0]-t*shaderstate.modelviewmatrix[0+1]);
+				dst[k][1] = mid[1] + radius*(s*shaderstate.modelviewmatrix[4+0]-t*shaderstate.modelviewmatrix[4+1]);
+				dst[k][2] = mid[2] + radius*(s*shaderstate.modelviewmatrix[8+0]-t*shaderstate.modelviewmatrix[8+1]);
 			}
 		}
 		break;
@@ -5295,7 +5305,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 		qglClearColor(0, 0, 0, 1);
 		qglClear(GL_COLOR_BUFFER_BIT);
 
-//				r_refdef.waterheight = DotProduct(batch->mesh[0]->xyz_array[0], batch->mesh[0]->normals_array[0]);
+//		r_refdef.waterheight = DotProduct(batch->mesh[0]->xyz_array[0], batch->mesh[0]->normals_array[0]);
 
 		r_refdef.recurse+=1; //paranoid, should stop potential infinite loops
 		GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
@@ -5369,8 +5379,17 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 		}
 
 		if ((bs->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
+		{
 			if (!GLBE_GenerateBatchTextures(batch, bs))
 				continue;
+			if ((bs->flags&SHADER_HASPORTAL) && shaderstate.mode != BEM_DEPTHONLY && gl_config.arb_depth_clamp)
+			{	//this little bit of code is meant to prevent issues when the near clip plane intersects the portal surface, allowing us to be that little bit closer to the portal.
+				qglEnable(GL_DEPTH_CLAMP);
+				GLBE_SubmitBatch(batch);
+				qglDisable(GL_DEPTH_CLAMP);
+				continue;
+			}
+		}
 
 		GLBE_SubmitBatch(batch);
 	}

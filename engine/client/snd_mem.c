@@ -920,7 +920,8 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t forcedecode, siz
 				data = FS_LoadMallocFile(namebuffer, &filesize);
 				if (data)
 				{
-					Con_DPrintf("S_LoadSound: %s%s requested, but could only find %s\n", prefixes[pre], name, namebuffer);
+					static float throttletimer;
+					Con_ThrottlePrintf(&throttletimer, 1, "S_LoadSound: %s%s requested, but could only find %s\n", prefixes[pre], name, namebuffer);
 					break;
 				}
 			}

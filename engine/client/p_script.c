@@ -310,6 +310,7 @@ typedef struct part_type_s {
 	vec3_t dl_scales;
 	//PT_NODLSHADOW
 	int dl_cubemapnum;
+	int dl_lightstyle;
 	vec3_t stain_rgb;
 	float stain_radius;
 
@@ -970,10 +971,10 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			/*texture looks good, make a shader, and give it the texture as a diffuse stage*/
 			ptype->looks.shader = R_RegisterShader(va("%s%s", ptype->texname, namepostfix), SUF_NONE, defaultshader);
 		}
-		R_BuildDefaultTexnums(&tn, ptype->looks.shader);
+		R_BuildDefaultTexnums(&tn, ptype->looks.shader, 0);
 	}
 	else
-		R_BuildDefaultTexnums(NULL, ptype->looks.shader);
+		R_BuildDefaultTexnums(NULL, ptype->looks.shader, 0);
 }
 
 static void P_ResetToDefaults(part_type_t *ptype)
@@ -2219,6 +2220,8 @@ parsefluid:
 			ptype->flags = (ptype->flags & ~PT_NODLSHADOW) | (atof(value)?0:PT_NODLSHADOW);
 		else if (!strcmp(var, "lightcubemap"))
 			ptype->dl_cubemapnum = atoi(value);
+		else if (!strcmp(var, "lightstyle"))
+			ptype->dl_lightstyle = bound(0, atoi(value)+1, 256);
 		else if (!strcmp(var, "lightscales"))
 		{	//ambient diffuse specular
 			ptype->dl_scales[0] = atof(value);
@@ -2577,6 +2580,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("lighttime %g\n", ptype->dl_time), outstrlen);
 			Q_strncatz(outstr, va("lightshadows %g\n", (ptype->flags & PT_NODLSHADOW)?0.0f:1.0f), outstrlen);
 			Q_strncatz(outstr, va("lightcubemap %i\n", ptype->dl_cubemapnum), outstrlen);
+			Q_strncatz(outstr, va("lightstyle %i\n", ptype->dl_lightstyle-1), outstrlen);
 			Q_strncatz(outstr, va("lightcorona %g %g\n", ptype->dl_corona_intensity, ptype->dl_corona_scale), outstrlen);
 			Q_strncatz(outstr, va("lightscales %g %g %g\n", ptype->dl_scales[0], ptype->dl_scales[1], ptype->dl_scales[2]), outstrlen);
 		}
@@ -2847,6 +2851,7 @@ static void FinishEffectinfoParticleType(part_type_t *ptype, qboolean blooddecal
 }
 static void P_ImportEffectInfo(char *config, char *line)
 {
+	float printtimer = 0;
 	part_type_t *ptype = NULL;
 	int parenttype;
 	char arg[8][1024];
@@ -3222,19 +3227,19 @@ static void P_ImportEffectInfo(char *config, char *line)
 		}
 #if 1
 		else if (!strcmp(arg[0], "staincolor") && args == 3)	//stainmaps multiplier
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainalpha") && args == 3)	//affects stainmaps AND stain-decals.
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainsize") && args == 3)		//affects stainmaps AND stain-decals.
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "staintex") && args == 3)		//actually spawns a decal
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainless") && args == 2)
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "relativeoriginoffset") && args == 4)
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "relativevelocityoffset") && args == 4)
-			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "Particle effect token %s not supported\n", arg[0]);
 #endif
 		else if (!strcmp(arg[0], "rotate") && args == 5)
 		{
@@ -3249,7 +3254,7 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->rotationstartmin += M_PI/4;
 		}
 		else
-			Con_Printf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_ThrottlePrintf(&printtimer, 0, "Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
 		args = 0;
 	}
 
@@ -4411,6 +4416,8 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 			dl->flags |= LFLAG_NOSHADOWS;
 		if (ptype->dl_cubemapnum)
 			Q_snprintfz(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
+		if (ptype->dl_lightstyle > 0)
+			dl->style = ptype->dl_lightstyle;
 	}
 	if (ptype->numsounds)
 	{

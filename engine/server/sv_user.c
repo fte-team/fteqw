@@ -5597,7 +5597,12 @@ static void SVNQ_Spawn_f (void)
 		ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
 	}
 
-	//SV_Begin_Core(host_client);
+	//nq servers call ClientConnect early.
+	//qw servers hold off until the last possible moment.
+	//so qw servers prevent the player from getting shot too early.
+	//while nq ensures that reliables sent in ClientConnect are actually flushed before unreliables/entities start to arrive.
+//	if (nqcompat_spawnbeforeready.ival)
+		SV_Begin_Core(host_client);
 
 	ClientReliableWrite_Begin (host_client, svcnq_signonnum, 2);
 	ClientReliableWrite_Byte (host_client, 3);
@@ -5714,7 +5719,8 @@ static void SVNQ_PreSpawn_f (void)
 }
 static void SVNQ_NQInfo_f (void)
 {
-	Cmd_TokenizeString(va("setinfo \"%s\" \"%s\"\n", Cmd_Argv(0), Cmd_Argv(1)), false, false);
+	char buf[8192];
+	Cmd_TokenizeString(va("setinfo \"%s\" %s\n", Cmd_Argv(0), COM_QuotedString(Cmd_Argv(1), buf, sizeof(buf), false)), false, false);
 	SV_SetInfo_f();
 }
 

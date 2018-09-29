@@ -797,7 +797,7 @@ void CL_CheckForResend (void)
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
 			}
-			else if (!strcmp(lbp, "qwid") || !strcmp(cl_loopbackprotocol.string, "idqw"))
+			else if (!strcmp(lbp, "qwid") || !strcmp(lbp, "idqw"))
 			{	//for recording .qwd files in any client
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
@@ -824,12 +824,15 @@ void CL_CheckForResend (void)
 					connectinfo.fteext2 = Net_PextMask(2, false);
 				}
 			}
-			else if (!strcmp(lbp, "fitz") || !strcmp(lbp, "666") || !strcmp(lbp, "999"))
+			else if (!strcmp(lbp, "fitz") || !strcmp(lbp, "rmqe") ||
+					 !strcmp(lbp, "qs") ||
+					 !strcmp(lbp, "666") || !strcmp(lbp, "999"))
 			{	//we don't really distinguish between fitz and rmq protocols. we just use 999 with bigcoords and 666 othewise.
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
 			}
-			else if (!strcmp(lbp, "bjp3") || !strcmp(lbp, "bjp"))
+			else if (!strcmp(lbp, "bjp1") || !strcmp(lbp, "bjp2") || //placeholders only
+					 !strcmp(lbp, "bjp3") || !strcmp(lbp, "bjp"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_BJP3;
@@ -845,17 +848,24 @@ void CL_CheckForResend (void)
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_ID;
 			}
-			else if (!strcmp(lbp, "dp6") || !strcmp(lbp, "dpp6"))
+			else if (!strcmp(lbp, "dp1") || !strcmp(lbp, "dpp1")||	//most of these are not supported, but parsed as placeholders on the slim chance that we ever do support them
+					 !strcmp(lbp, "dp2") || !strcmp(lbp, "dpp2")||
+					 !strcmp(lbp, "dp3") || !strcmp(lbp, "dpp3")||
+					 !strcmp(lbp, "dp4") || !strcmp(lbp, "dpp4")||
+					 !strcmp(lbp, "dp5") || !strcmp(lbp, "dpp5")||	//we support this serverside, but not clientside.
+					 !strcmp(lbp, "dp6") || !strcmp(lbp, "dpp6"))	//this one is supported.
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_DP6;
 			}
-			else if (!strcmp(lbp, "dp7") || !strcmp(lbp, "dpp7"))
+			else if (!strcmp(lbp, "dp7") || !strcmp(lbp, "dpp7") ||
+					 !strcmp(lbp, "dp") || !strcmp(lbp, "xonotic"))	//family name, common usage.
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_DP7;
 			}
-			else if (progstype != PROG_QW && progstype != PROG_H2)	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
+			else if (!strcmp(lbp, "qss") ||
+					 (progstype != PROG_QW && progstype != PROG_H2))	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;

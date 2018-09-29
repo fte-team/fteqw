@@ -296,7 +296,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				skintext = COM_ParseToken(skintext, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
 				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
-				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
+				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->nummappings++;
 			}
@@ -317,7 +317,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				skintext = COM_ParseToken(skintext, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
 				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
-				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
+				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 
 				//parse the lines, and start to load the various shaders.
@@ -396,7 +396,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				skintext = COM_ParseToken(skintext+1, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
 				skin->mappings[skin->nummappings].shader = R_RegisterCustom (shadername, 0, Shader_DefaultSkin, NULL);
-				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
+				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->nummappings++;
 			}
@@ -656,7 +656,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		if (s)
 		{
 			if (!TEXVALID(s->defaulttextures->base))
-				R_BuildDefaultTexnums(NULL, s);
+				R_BuildDefaultTexnums(NULL, s, 0);
 			return s;
 		}
 	}
@@ -1330,7 +1330,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 
 	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
-	if (clmodel->engineflags & MDLF_FLAME || r_fullbright.ival)
+	if ((clmodel->engineflags & MDLF_FLAME) || r_fullbright.ival)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;

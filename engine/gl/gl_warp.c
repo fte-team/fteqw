@@ -78,7 +78,7 @@ void R_SetSky(const char *sky)
 			if (tex.reflectcube->width)
 			{
 				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
-				R_BuildDefaultTexnums(&tex, forcedsky);
+				R_BuildDefaultTexnums(&tex, forcedsky, IF_WORLDTEX);
 				return;
 			}
 		}
@@ -918,8 +918,8 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 		if (filedata)
 		{
 			int imagewidth, imageheight;
-			qboolean hasalpha;	//fixme, if this is false, is it worth all this code?
-			unsigned int *imagedata = (unsigned int*)Read32BitImageFile(filedata, filesize, &imagewidth, &imageheight, &hasalpha, name);
+			uploadfmt_t format;	//fixme, if this has no alpha, is it worth all this code?
+			unsigned int *imagedata = (unsigned int*)ReadRawImageFile(filedata, filesize, &imagewidth, &imageheight, &format, true, name);
 			Z_Free(filedata);
 
 			if (imagedata && !(imagewidth&1))

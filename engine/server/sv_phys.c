@@ -1414,6 +1414,8 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 		float bouncestop = ent->xv->bouncestop;
 		if (!bouncestop)
 			bouncestop = 60;
+		else
+			bouncestop *= movevars.gravity * (ent->xv->gravity?ent->xv->gravity:1);
 		if (sv_gameplayfix_bouncedownslopes.ival)
 			bouncespeed = DotProduct(trace.plane.normal, ent->v->velocity);
 		else

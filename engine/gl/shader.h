@@ -688,7 +688,7 @@ shader_t *R_RegisterShader_Flare (const char *name);
 shader_t *QDECL R_RegisterSkin  (const char *shadername, const char *modname);
 shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
 //once loaded, most shaders should have one of the following two calls used upon it
-void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
+void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader, unsigned int imageflags);
 void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette);
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 

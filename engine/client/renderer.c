@@ -389,6 +389,9 @@ cvar_t gl_overbright_all					= CVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_picmip							= CVARFD  ("gl_picmip", "0", CVAR_ARCHIVE, "Reduce world/model texture sizes by some exponential factor.");
 cvar_t gl_picmip2d							= CVARFD  ("gl_picmip2d", "0", CVAR_ARCHIVE, "Reduce hud/menu texture sizes by some exponential factor.");
+cvar_t gl_picmip_world						= CVARFD  ("gl_picmip_world", "0", CVAR_ARCHIVE, "Effectively added to gl_picmip for the purposes of world textures.");
+cvar_t gl_picmip_sprites					= CVARFD  ("gl_picmip_sprites", "0", CVAR_ARCHIVE, "Effectively added to gl_picmip for the purposes of sprite textures.");
+cvar_t gl_picmip_other						= CVARFD  ("gl_picmip_other", "0", CVAR_ARCHIVE, "Effectively added to gl_picmip for the purposes of model textures.");
 cvar_t gl_nohwblend							= CVARD  ("gl_nohwblend","1", "If 1, don't use hardware gamma ramps for transient effects that change each frame (does not affect long-term effects like holding quad or underwater tints).");
 //cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
 cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
@@ -544,6 +547,9 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_picmip_world, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_picmip_sprites, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_picmip_other, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_shaderblobs, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);

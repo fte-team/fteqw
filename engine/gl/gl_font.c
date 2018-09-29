@@ -1301,7 +1301,7 @@ qboolean Font_LoadHorizontalFont(struct font_s *f, int fheight, const char *font
 	qofs_t rawsize;
 	qbyte *rgbadata = NULL;
 	int width=0,height=0;
-	qboolean hasalpha=true;
+	uploadfmt_t format;
 
 	if (fheight < 1)
 		fheight = 1;
@@ -1322,7 +1322,7 @@ qboolean Font_LoadHorizontalFont(struct font_s *f, int fheight, const char *font
 
 	rawdata = FS_MallocFile(fontfilename, FS_GAME, &rawsize);
 	if (rawdata)
-		rgbadata = Read32BitImageFile(rawdata, rawsize, &width, &height, &hasalpha, fontfilename);
+		rgbadata = ReadRawImageFile(rawdata, rawsize, &width, &height, &format, true, fontfilename);
 	FS_FreeFile(rawdata);
 
 	if (rgbadata)
@@ -1678,9 +1678,9 @@ static texid_t Font_LoadFallbackConchars(void)
 	int width, height;
 	unsigned int i;
 	qbyte *lump;
-	qboolean hasalpha;
-	lump = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, &hasalpha, false);
-	if (!lump)
+	uploadfmt_t format;
+	lump = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, &format, false, PTI_INVALID);
+	if (!lump || format != PTI_RGBA8)
 		Sys_Error("Corrupt internal drawchars");
 	/*convert greyscale to alpha*/
 	for (i = 0; i < width*height; i++)

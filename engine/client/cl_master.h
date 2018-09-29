@@ -72,6 +72,7 @@ typedef enum hostcachekey_e
 	SLKEY_NUMSPECTATORS,//spectators
 	SLKEY_NUMHUMANS,	//actual players
 	SLKEY_QCSTATUS,
+	SLKEY_CATEGORY,		//urgh, hideous shite.
 //	SLKEY_PLAYERS,	//eep!
 	SLKEY_ISFAVORITE,//eep!
 	SLKEY_ISLOCAL,
@@ -140,8 +141,10 @@ typedef struct serverinfo_s
 	qbyte numbots;
 	qbyte freeslots;
 
+	int qccategory; //urgh
+
+	char qcstatus[128];
 	char modname[8+1];
-	char qcstatus[8+1];
 
 	char gamedir[8+1];
 	char map[16];

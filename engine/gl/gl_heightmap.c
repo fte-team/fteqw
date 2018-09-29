@@ -143,7 +143,7 @@ static void QDECL Terr_LoadSectionTextures(hmsection_t *s)
 	for (w = s->water; w; w = w->next)
 	{
 		w->shader = R_RegisterCustom (w->shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
-		R_BuildDefaultTexnums(NULL, w->shader);	//this might get expensive. hideously so.
+		R_BuildDefaultTexnums(NULL, w->shader, IF_WORLDTEX);	//this might get expensive. hideously so.
 	}
 #endif
 }
@@ -5775,7 +5775,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, 0, TF_MIP4_SOLID8, tx->width, tx->height, mips, NULL); 
 			}
 			else
-				R_BuildDefaultTexnums(NULL, bt->shader);
+				R_BuildDefaultTexnums(NULL, bt->shader, IF_WORLDTEX);
 
 			if (tx)
 			{

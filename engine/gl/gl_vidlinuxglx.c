@@ -2727,7 +2727,7 @@ static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, f
 {
 	void *r;
 	qbyte *rgbadata;
-	qboolean hasalpha;
+	uploadfmt_t format;
 	void *filedata;
 	int filelen, width, height;
 	if (!filename || !*filename)
@@ -2736,13 +2736,12 @@ static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, f
 	if (!filedata)
 		return NULL;
 
-	hasalpha = false;
-	rgbadata = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, filename);
+	rgbadata = ReadRawImageFile(filedata, filelen, &width, &height, &format, true, filename);
 	FS_FreeFile(filedata);
 	if (!rgbadata)
 		return NULL;
 
-	if (!hasalpha && !strchr(filename, ':'))
+	if (format==PTI_RGBX8 && !strchr(filename, ':'))
 	{	//people seem to insist on using jpgs, which don't have alpha.
 		//so screw over the alpha channel if needed.
 		unsigned int alpha_width, alpha_height, p;
@@ -2758,7 +2757,7 @@ static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, f
 		alphsize = FS_LoadFile(filename, (void**)&alph);
 		if (alph)
 		{
-			if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
+			if ((alphadata = ReadRawImageFile(alph, alphsize, &alpha_width, &alpha_height, &format, true, aname)))
 			{
 				if (alpha_width == width && alpha_height == height)
 					for (p = 0; p < alpha_width*alpha_height; p++)
@@ -2801,7 +2800,10 @@ static void X11VID_DestroyCursor(void *qcursor)
 }
 static qboolean X11VID_SetCursor(void *qcursor)
 {
-	vid_newcursor = *(Cursor*)qcursor;
+	if (qcursor)
+		vid_newcursor = *(Cursor*)qcursor;
+	else
+		vid_newcursor = None;
 
 	if (vid_dpy)
 		UpdateGrabs();
@@ -2988,8 +2990,8 @@ void X_StoreIcon(Window wnd)
 	{
 		int imagewidth, imageheight;
 		int *iconblob;
-		qboolean hasalpha;
-		qbyte *imagedata = Read32BitImageFile(filedata, filesize, &imagewidth, &imageheight, &hasalpha, "icon.png");
+		uploadfmt_t format;
+		qbyte *imagedata = ReadRawImageFile(filedata, filesize, &imagewidth, &imageheight, &format, true, "icon.png");
 		Z_Free(filedata);
 
 		iconblob = BZ_Malloc(sizeof(int)*(2+imagewidth*imageheight));

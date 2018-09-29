@@ -214,19 +214,20 @@ fi
 echo "--- QC builds ---"
 rm -rf $QCCBUILDFOLDER 2>&1
 mkdir -p $QCCBUILDFOLDER
-if [ -e "$BUILDFOLDER/linux_x86/fteqw-gl32" ]
+#this really should use the native cpu type... until then we use 32bit in case anyone's still using a 32bit kernel.
+if [ -e "$BUILDFOLDER/linux_x86/fteqw32" ]
 then
 	echo "Making fteextensions.qc"
 	mkdir -p ~/.fte/fte
 	echo "pr_dumpplatform -o fteextensions" > ~/.fte/fte/minusargsaresilly.cfg
 	echo "pr_dumpplatform -o csqcsysdefs -Tcs" >> ~/.fte/fte/minusargsaresilly.cfg
 	echo "pr_dumpplatform -o menusysdefs -Tmenu" >> ~/.fte/fte/minusargsaresilly.cfg
-	$BUILDFOLDER/linux_x86/fteqw-gl32 -basedir ~/.fte -nohome -quake +set snd_device none -nosound +set vid_renderer sv +exec minusargsaresilly.cfg +quit >> /dev/null
+	$BUILDFOLDER/linux_x86/fteqw32 -basedir ~/.fte -nohome -quake +set snd_device none -nosound +set vid_renderer sv +exec minusargsaresilly.cfg +quit >> /dev/null
 	mv ~/.fte/fte/src/fteextensions.qc $QCCBUILDFOLDER
 	mv ~/.fte/fte/src/csqcsysdefs.qc $QCCBUILDFOLDER
 	mv ~/.fte/fte/src/menusysdefs.qc $QCCBUILDFOLDER
 else
-	echo "Skipping FTE Extensions, no Linux gl32 build located"
+	echo "Skipping FTE Extensions, no Linux x86 (merged) build located"
 fi
 
 

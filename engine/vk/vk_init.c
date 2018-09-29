@@ -967,8 +967,8 @@ qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDevice
 	if (!vk_usememorypools.ival)
 		return false;
 
-	if (memsize > 1024*1024*4)
-		return false;
+//	if (memsize > 1024*1024*4)
+//		return false;
 	for (p = vk.mempools; p; p = p->next)
 	{
 		if (p->memtype == pooltype)
@@ -1052,6 +1052,7 @@ qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t 
 	{	//make it dedicated one way or another.
 		VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 		VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
+		VkResult err;
 
 		//shouldn't really happen, but just in case...
 		mem_reqs2.memoryRequirements.size = max(1,mem_reqs2.memoryRequirements.size);
@@ -1070,14 +1071,20 @@ qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t 
 		mem->size = mem_reqs2.memoryRequirements.size;
 		mem->memory = VK_NULL_HANDLE;
 
-		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &mem->memory));
+		err = vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &mem->memory);
+		if (err != VK_SUCCESS)
+			return false;
 		return true;
 	}
 }
-void VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated)
+qboolean VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated)
 {
 	if (VK_AllocateImageMemory(image->image, dedicated, &image->mem))
+	{
 		VkAssert(vkBindImageMemory(vk.device, image->image, image->mem.memory, image->mem.offset));
+		return true;
+	}
+	return false;	//out of memory?
 }
 
 
@@ -1121,6 +1128,8 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	//swizzled/legacy formats
 	case PTI_L8:				format = VK_FORMAT_R8_UNORM;					break;
 	case PTI_L8A8:				format = VK_FORMAT_R8G8_UNORM;					break;
+	case PTI_L8_SRGB:			format = VK_FORMAT_R8_SRGB;						break;
+	case PTI_L8A8_SRGB:			/*unsupportable*/								break;
 	//compressed formats
 	case PTI_BC1_RGB:			format = VK_FORMAT_BC1_RGB_UNORM_BLOCK;			break;
 	case PTI_BC1_RGB_SRGB:		format = VK_FORMAT_BC1_RGB_SRGB_BLOCK;			break;
@@ -1227,10 +1236,11 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 
 	VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &ret.image));
 
-	VK_AllocateBindImageMemory(&ret, false);
-
 	ret.view = VK_NULL_HANDLE;
 	ret.sampler = VK_NULL_HANDLE;
+
+	if (!VK_AllocateBindImageMemory(&ret, false))
+		return ret;	//oom?
 
 
 	viewInfo.flags = 0;
@@ -1548,6 +1558,12 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	{
 		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET));
 
+		if (target.mem.memory == VK_NULL_HANDLE)
+		{
+			VK_DestroyVkTexture(&target);
+			return false;	//the alloc failed? can't copy to that which does not exist.
+		}
+
 		{
 			//images have weird layout representations.
 			//we need to use a side-effect of memory barriers in order to convert from one layout to another, so that we can actually use the image.
@@ -1592,7 +1608,11 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	vkGetBufferMemoryRequirements(vk.device, fence->stagingbuffer, &mem_reqs);
 	memAllocInfo.allocationSize = mem_reqs.size;
 	memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &fence->stagingmemory));
+	if (VK_SUCCESS != vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &fence->stagingmemory))
+	{
+		VK_FencedSubmit(fence);
+		return false;	//some sort of oom error?
+	}
 	VkAssert(vkBindBufferMemory(vk.device, fence->stagingbuffer, fence->stagingmemory, 0));
 	VkAssert(vkMapMemory(vk.device, fence->stagingmemory, 0, bci.size, 0, &mapdata));
 	if (!mapdata)

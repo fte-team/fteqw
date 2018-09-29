@@ -481,6 +481,7 @@ qboolean MP_MousePosition(float x, float y, unsigned int devid);
 qboolean MP_JoystickAxis(int axis, float value, unsigned int devid);
 int MP_BuiltinValid(const char *name, int num);
 qboolean MP_ConsoleCommand(const char *cmdtext);
+int MP_GetServerCategory(int index);
 #endif
 
 #ifdef MENU_NATIVECODE

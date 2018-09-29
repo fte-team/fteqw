@@ -1429,12 +1429,14 @@ static void Alias_BuildGPUWeights(model_t *mod, galiasinfo_t *inf, size_t num_tr
 		inf->ofs_skel_xyz[v][0] += t->org[0] * matrix[0] + t->org[1] * matrix[1] + t->org[2] * matrix[ 2] + t->org[3] * matrix[ 3];
 		inf->ofs_skel_xyz[v][1] += t->org[0] * matrix[4] + t->org[1] * matrix[5] + t->org[2] * matrix[ 6] + t->org[3] * matrix[ 7];
 		inf->ofs_skel_xyz[v][2] += t->org[0] * matrix[8] + t->org[1] * matrix[9] + t->org[2] * matrix[10] + t->org[3] * matrix[11];
+#ifndef SERVERONLY
 		if (!calcnorms)
 		{
-			inf->ofs_skel_norm[v][0] += t->org[0] * matrix[0] + t->org[1] * matrix[1] + t->org[2] * matrix[ 2];
-			inf->ofs_skel_norm[v][1] += t->org[0] * matrix[4] + t->org[1] * matrix[5] + t->org[2] * matrix[ 6];
-			inf->ofs_skel_norm[v][2] += t->org[0] * matrix[8] + t->org[1] * matrix[9] + t->org[2] * matrix[10];
+			inf->ofs_skel_norm[v][0] += t->normal[0] * matrix[0] + t->normal[1] * matrix[1] + t->normal[2] * matrix[ 2];
+			inf->ofs_skel_norm[v][1] += t->normal[0] * matrix[4] + t->normal[1] * matrix[5] + t->normal[2] * matrix[ 6];
+			inf->ofs_skel_norm[v][2] += t->normal[0] * matrix[8] + t->normal[1] * matrix[9] + t->normal[2] * matrix[10];
 		}
+#endif
 
 		//we sorted them so we're guarenteed to see the highest influences first.
 		for (j = 0; j < 4; j++)
@@ -3026,7 +3028,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 					R_BuildLegacyTexnums(f->shader, basename, alttexpath, loadflags, imageflags, skintranstype, s->skinwidth, s->skinheight, mipdata, host_basepal);
 				}
 				else
-					R_BuildDefaultTexnums(&f->texnums, f->shader);
+					R_BuildDefaultTexnums(&f->texnums, f->shader, 0);
 			}
 		}
 		Mod_WipeSkin(skinid, false);

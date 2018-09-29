@@ -1230,19 +1230,25 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->publicname, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
-	else if (!strcmp(mod->publicname, "progs/flame.mdl") || 
-		!strcmp(mod->publicname, "progs/flame2.mdl") ||
-		!strcmp(mod->publicname, "models/flame1.mdl") ||	//hexen2 small standing flame
-		!strcmp(mod->publicname, "models/flame2.mdl") ||	//hexen2 large standing flame
-		!strcmp(mod->publicname, "models/cflmtrch.mdl"))	//hexen2 wall torch
+	else if (!strcmp(mod->publicname, "progs/flame.mdl")
+		|| !strcmp(mod->publicname, "progs/flame2.mdl")
+#ifdef HEXEN2
+		|| !strcmp(mod->publicname, "models/flame1.mdl")	//hexen2 small standing flame
+		|| !strcmp(mod->publicname, "models/flame2.mdl")	//hexen2 large standing flame
+		|| !strcmp(mod->publicname, "models/cflmtrch.mdl")	//hexen2 wall torch
+#endif
+			)
 		mod->engineflags |= MDLF_FLAME;
-	else if (!strcmp(mod->publicname, "progs/bolt.mdl") ||
-		!strcmp(mod->publicname, "progs/bolt2.mdl") ||
-		!strcmp(mod->publicname, "progs/bolt3.mdl") ||
-		!strcmp(mod->publicname, "progs/beam.mdl") || 
-		!strcmp(mod->publicname, "models/stsunsf2.mdl") || 
-		!strcmp(mod->publicname, "models/stsunsf1.mdl") ||
-		!strcmp(mod->publicname, "models/stice.mdl"))
+	else if (!strcmp(mod->publicname, "progs/bolt.mdl")
+		|| !strcmp(mod->publicname, "progs/bolt2.mdl")
+		|| !strcmp(mod->publicname, "progs/bolt3.mdl")
+		|| !strcmp(mod->publicname, "progs/beam.mdl")
+#ifdef HEXEN2
+		|| !strcmp(mod->publicname, "models/stsunsf2.mdl")
+		|| !strcmp(mod->publicname, "models/stsunsf1.mdl")
+		|| !strcmp(mod->publicname, "models/stice.mdl")
+#endif
+			 )
 		mod->engineflags |= MDLF_BOLT;
 	else if (!strcmp(mod->publicname, "progs/backpack.mdl"))
 		mod->engineflags |= MDLF_NOTREPLACEMENTS;
@@ -4922,7 +4928,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 		for (a = 0; a < mod->numfogs; a++)
 		{
 			mod->fogs[a].shader = R_RegisterShader_Lightmap(mod->fogs[a].shadername);
-			R_BuildDefaultTexnums(NULL, mod->fogs[a].shader);
+			R_BuildDefaultTexnums(NULL, mod->fogs[a].shader, IF_WORLDTEX);
 			if (!mod->fogs[a].shader->fog_dist)
 			{
 				//invalid fog shader, don't use.
@@ -4939,10 +4945,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 				for(a = 0; a < mod->numtexinfo; a++)
 				{
 					mod->textures[a]->shader = R_RegisterShader_Lightmap(va("%s#BUMPMODELSPACE", mod->textures[a]->name));
-					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
+					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
 					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
-					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader);
+					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}
 			else
@@ -4950,10 +4956,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 				for(a = 0; a < mod->numtexinfo; a++)
 				{
 					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
-					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
+					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
 					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
-					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader);
+					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}
 			mod->textures[2*mod->numtexinfo]->shader = R_RegisterShader_Flare("noshader");
@@ -4977,7 +4983,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, 0, TF_MIP4_8PAL24, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, TF_MIP4_8PAL24, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
 				BZ_Free(mod->textures[a]->mips[0]);
 			}
 		}

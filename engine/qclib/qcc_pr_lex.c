@@ -1577,8 +1577,7 @@ void QCC_PR_LexString (void)
 	char	*end, *cnst;
 	int		raw;
 	char	rawdelim[64];
-	unsigned int		code;
-	int		stringtype = 0; //0 - quake output, input is 8bit. warnings when its not ascii. \u will still give utf-8 text, other chars as-is. Expect \s to screw everything up with utf-8 output.
+	int		stringtype = flag_utf8strings?2:0; //0 - quake output, input is 8bit. warnings when its not ascii. \u will still give utf-8 text, other chars as-is. Expect \s to screw everything up with utf-8 output.
 							//1 - quake output, input is utf-8. due to editors not supporting it, that generally means the input (ab)uses markup.
 							//2 - utf-8 output, input is utf-8. welcome to the future! unfortunately not the present.
 
@@ -1913,6 +1912,8 @@ void QCC_PR_LexString (void)
 					unsigned int len = stringtype?utf8_check(pr_file_p-1, &cp):0;
 					if (!len)
 					{	//invalid utf-8 encoding? don't treat it as utf-8!
+						if (stringtype)
+							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Input string is not valid utf-8");
 						c |= texttype;
 						goto forcequake;
 					}
@@ -1996,8 +1997,9 @@ forcebyte:
 	memcpy(pr_immediate_string, pr_token, len+1);
 	pr_immediate_strlen = len;
 
-	if (qccwarningaction[WARN_NOTUTF8])
+	/*if (qccwarningaction[WARN_NOTUTF8] && stringtype != 1)
 	{
+		unsigned int		code;
 		size_t c;
 		for (c = 0; c < pr_immediate_strlen; )
 		{
@@ -2009,7 +2011,7 @@ forcebyte:
 			}
 			c += len;
 		}
-	}
+	}*/
 }
 #endif
 
@@ -3866,9 +3868,9 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 			else if (def->isstatic)
 				modifiers = "static ";
 			if (flag_msvcstyle)
-				printf ("%s(%i) :    %s%s %s  is defined here\n", def->filen, def->s_line, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
+				printf ("%s%s(%i) :    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
 			else
-				printf ("%s:%i:    %s%s %s  is defined here\n", def->filen, def->s_line, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
+				printf ("%s%s:%i:    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
 		}
 	}
 }
@@ -3887,7 +3889,7 @@ static void QCC_PR_PrintMacro (qcc_includechunk_t *chunk)
 		if (chunk->cnst)
 		{
 #if 1
-			printf ("%s:%i: %s is defined here\n", chunk->cnst->fromfile, chunk->cnst->fromline, chunk->cnst->name);
+			printf ("%s%s:%i: %s%s%s is defined here\n", col_location, chunk->cnst->fromfile, chunk->cnst->fromline, col_symbol, chunk->cnst->name, col_none);
 #else
 			printf ("%s:%i: expanding %s\n", chunk->currentfilename, chunk->currentlinenumber, chunk->cnst->name);
 #endif
@@ -3904,7 +3906,7 @@ void QCC_PR_PrintScope (void)
 	if (pr_scope)
 	{
 		if (errorscope != pr_scope)
-			printf ("in function %s (line %i),\n", pr_scope->name, pr_scope->line);
+			printf ("in function %s%s%s (line %i),\n", col_symbol, pr_scope->name, col_none, pr_scope->line);
 		errorscope = pr_scope;
 	}
 	else
@@ -3944,9 +3946,9 @@ void VARGS QCC_PR_ParseError (int errortype, const char *error, ...)
 
 	QCC_PR_PrintScope();
 	if (flag_msvcstyle)
-		printf ("%s(%i) : error: %s\n", s_filen, pr_source_line, string);
+		printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 	else
-		printf ("%s:%i: error: %s\n", s_filen, pr_source_line, string);
+		printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 
 	longjmp (pr_parse_abort, 1);
 }
@@ -3965,9 +3967,9 @@ void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char 
 #endif
 	QCC_PR_PrintScope();
 	if (flag_msvcstyle)
-		printf ("%s(%i) : error: %s\n", s_filen, pr_source_line, string);
+		printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 	else
-		printf ("%s:%i: error: %s\n", s_filen, pr_source_line, string);
+		printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 
 	QCC_PR_ParsePrintDef(WARN_ERROR, def);
 
@@ -3988,9 +3990,9 @@ void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t def, const char
 #endif
 	QCC_PR_PrintScope();
 	if (flag_msvcstyle)
-		printf ("%s(%i) : error: %s\n", s_filen, pr_source_line, string);
+		printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 	else
-		printf ("%s:%i: error: %s\n", s_filen, pr_source_line, string);
+		printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 
 	QCC_PR_ParsePrintSRef(WARN_ERROR, def);
 
@@ -4011,11 +4013,11 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 		if (!string)
 			;
 		else if (!file || !*file)
-			printf (":: error%s: %s\n", wnam, string);
+			printf (":: %serror%s%s: %s\n", col_error, wnam, col_none, string);
 		else if (flag_msvcstyle)
-			printf ("%s(%i) : error%s: %s\n", file, line, wnam, string);
+			printf ("%s%s(%i) : %serror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		else
-			printf ("%s:%i: error%s: %s\n", file, line, wnam, string);
+			printf ("%s%s:%i: %serror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		pr_error_count++;
 	}
 	else if (qccwarningaction[type] == 2)
@@ -4023,11 +4025,11 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 		if (!string)
 			;
 		else if (!file || !*file)
-			printf (":: werror%s: %s\n", wnam, string);
+			printf (":: %swerror%s%s: %s\n", col_error, wnam, col_none, string);
 		else if (flag_msvcstyle)
-			printf ("%s(%i) : werror%s: %s\n", file, line, wnam, string);
+			printf ("%s%s(%i) : %swerror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		else
-			printf ("%s:%i: werror%s: %s\n", file, line, wnam, string);
+			printf ("%s%s:%i: %swerror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		pr_error_count++;
 	}
 	else
@@ -4035,11 +4037,11 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 		if (!string)
 			;
 		else if (!file || !*file)
-			printf (":: warning%s: %s\n", wnam, string);
+			printf (":: %swarning%s%s: %s\n", col_warning, wnam, col_none, string);
 		else if (flag_msvcstyle)
-			printf ("%s(%i) : warning%s: %s\n", file, line, wnam, string);
+			printf ("%s%s(%i) : %swarning%s%s: %s\n", col_location, file, line, col_warning, wnam, col_none, string);
 		else
-			printf ("%s:%i: warning%s: %s\n", file, line, wnam, string);
+			printf ("%s%s:%i: %swarning%s%s: %s\n", col_location, file, line, col_warning, wnam, col_none, string);
 		pr_warning_count++;
 	}
 	return true;
@@ -4112,7 +4114,7 @@ Gets the next token
 void QCC_PR_Expect (const char *string)
 {
 	if (STRCMP (string, pr_token))
-		QCC_PR_ParseError (ERR_EXPECTED, "expected %s, found %s",string, pr_token);
+		QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s%s%s", col_location, string, col_none, col_name, pr_token, col_none);
 	QCC_PR_Lex ();
 }
 #endif
@@ -4345,7 +4347,7 @@ char *QCC_PR_ParseName (void)
 		if (pr_token_type == tt_eof)
 			QCC_PR_ParseError (ERR_EOF, "unexpected EOF", pr_token);
 		else if (strcmp(pr_token, "..."))	//seriously? someone used '...' as an intrinsic NAME?
-			QCC_PR_ParseError (ERR_NOTANAME, "\"%s\" - not a name", pr_token);
+			QCC_PR_ParseError (ERR_NOTANAME, "\"%s%s%s\" - not a name", col_name, pr_token, col_none);
 	}
 	if (strlen(pr_token) >= MAX_NAME-1)
 		QCC_PR_ParseError (ERR_NAMETOOLONG, "name too long");

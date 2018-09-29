@@ -3,6 +3,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#if defined(__linux__) || defined(__unix__)
+#include <unistd.h>
+#endif
+
 /*
 ==============
 LoadFile
@@ -126,6 +130,22 @@ int main (int argc, char **argv)
 	funcs.funcs.parms->WriteFile = QCC_WriteFile;
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
+
+#if defined(__linux__) || defined(__unix__)
+	if (isatty(STDOUT_FILENO))
+	{	//only use colours if its a tty, and not if we're redirected.
+		col_none = "\e[0;m";			//reset to white
+		col_error = "\e[0;31m";			//red
+		col_symbol = "\e[0;32m";		//green
+		col_warning = "\e[0;33m";		//yellow
+		//col_ = "\e[0;34m";			//blue
+		col_name = "\e[0;35m";			//magenta
+		//col_ = "\e[0;36m";			//cyan
+		col_location = "\e[0;1;37m";	//bright white
+	}
+#endif
+
+
 #ifdef _WIN32
 	logfile = fopen("fteqcc.log", "wt");
 #endif

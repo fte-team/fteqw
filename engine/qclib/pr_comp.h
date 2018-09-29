@@ -494,7 +494,9 @@ typedef struct
 } QCC_sref_t;
 typedef struct qcc_statement_s
 {
-	unsigned int		op;
+	unsigned short		op;
+	#define STF_LOGICOP (1u<<0)	//do not bother following when looking for uninitialised variables.
+	unsigned short		flags;
 	QCC_sref_t			a, b, c;
 	unsigned int		linenum;
 } QCC_statement_t;

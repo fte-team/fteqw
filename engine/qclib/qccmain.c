@@ -387,7 +387,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_allowuninit,		hideflag,		"allowuninit",	"Uninitialised Locals",	"Permit optimisations that may result in locals being uninitialised. This may allow for greater reductions in temps."},
 	{&flag_nopragmafileline,FLAG_MIDCOMPILE,"nofileline",	"Ignore #pragma file",	"Ignores #pragma file(foo) and #pragma line(foo), so that errors and symbols reflect the actual lines, instead of the original source."},
 //	{&flag_lno,				hidedefaultflag,"lno",			"Gen Debugging Info",	"Writes debugging info."},
-//	{&flag_utf8,			hidedefaultflag,"utf8",			"Unicode",				"Assume files to be UTF-8 encoded, instead of iso8859-1."},
+	{&flag_utf8strings,		FLAG_MIDCOMPILE,"utf8",			"Unicode",				"String immediates will use utf-8 encoding, instead of quake's encoding."},
 
 	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file. The resulting .dat can be opened as a standard zip archive (or by fteqccgui).\nGood for GPL compliance!"},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
@@ -1748,9 +1748,9 @@ pbool QCC_WriteData (int crc)
 					QCC_PR_Warning(wt, def->filen, def->s_line, NULL);
 				}
 				else if (def->arraysize)
-					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s[%i]  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name, def->arraysize);
+					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s%s%s[%i]  no references.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none, def->arraysize);
 				else
-					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name);
+					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s%s%s  no references.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none);
 			}
 			pr_scope = NULL;
 
@@ -1758,7 +1758,7 @@ pbool QCC_WriteData (int crc)
 			{
 				char typestr[256];
 				QCC_sref_t sr = {def, 0, def->type};
-				QCC_PR_Warning(WARN_NOTREFERENCED, def->filen, def->s_line, "%s %s = %s used, but not referenced.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
+				QCC_PR_Warning(WARN_NOTREFERENCED, def->filen, def->s_line, "%s %s%s%s = %s used, but not referenced.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none, QCC_VarAtOffset(sr));
 			}
 			/*if (opt_unreferenced && def->type->type != ev_field)
 			{
@@ -1959,7 +1959,7 @@ pbool QCC_WriteData (int crc)
 	}
 
 	if (dupewarncount > 10 && !verbose)
-		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about precaches.", dupewarncount-10);
+		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more %swarnings%s about precaches.", dupewarncount-10, col_warning, col_none);
 
 //PrintStrings ();
 //PrintFunctions ();
@@ -2462,7 +2462,7 @@ strofs = (strofs+3)&~3;
 
 	if (!SafeClose (h))
 	{
-		printf("Error while writing output %s\n", destfile);
+		printf("%sError%s while writing output %s\n", col_error, col_none, destfile);
 		return false;
 	}
 
@@ -4268,8 +4268,6 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 						opt_filenames = false;
 					}
 				}
-				else if (!stricmp(arg, "utf8"))
-					;	//we always interpret input as utf-8, and thus output strings are 'utf-8' too. -fno-utf8 might be useful to asciify inputs, but that'll just break quake-encoded text, so why bother
 				else if (!stricmp(arg, "return-assignments"))
 					;	//should really be a warning instead
 				else if (!stricmp(arg, "relaxed-switch"))
@@ -4650,6 +4648,8 @@ void QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, char *rel
 	}
 }
 
+const char *qcccol[COL_MAX];
+
 int qcc_compileactive = false;
 extern int accglobalsblock;
 char *originalqccmsrc;	//for autoprototype.
@@ -4664,6 +4664,11 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	const char *arg;
 
 	char *s;
+
+	//make sure any print colours are set up properly.
+	for (p = 0; p < COL_MAX; p++)
+		if (!qcccol[p])
+			qcccol[p] = "";
 
 	s_filen = "cmdline";
 	s_filed = 0;
@@ -4706,7 +4711,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	MAX_STRINGS		= 1<<21;
 	MAX_GLOBALS		= 1<<17;
 	MAX_FIELDS		= 1<<13;
-	MAX_STATEMENTS	= 0x100000;
+	MAX_STATEMENTS	= 1<<21;
 	MAX_FUNCTIONS	= 1<<15;
 	maxtypeinfos	= 1<<16;
 	MAX_CONSTANTS	= 1<<12;

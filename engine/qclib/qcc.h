@@ -636,6 +636,7 @@ extern pbool flag_allowuninit;
 extern pbool flag_cpriority;
 extern pbool flag_embedsrc;
 extern pbool flag_nopragmafileline;
+extern pbool flag_utf8strings;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -911,6 +912,25 @@ enum {
 
 	WARN_MAX
 };
+
+//ansi colour codes, for debugging stuff.
+enum
+{
+	COL_NONE,		//white/regular text.
+	COL_ERROR,		//to highlight errors
+	COL_WARNING,	//to highlight warnings
+	COL_LOCATION,	//to highlight file:line locations
+	COL_NAME,		//unknown symbols.
+	COL_SYMBOL,		//known symbols
+	COL_MAX
+};
+extern const char *qcccol[COL_MAX];
+#define col_none qcccol[COL_NONE]
+#define col_location qcccol[COL_LOCATION]
+#define col_error qcccol[COL_ERROR]
+#define col_name qcccol[COL_NAME]
+#define col_warning qcccol[COL_WARNING]
+#define col_symbol qcccol[COL_SYMBOL]
 
 #define FLAG_KILLSDEBUGGERS	1
 #define FLAG_ASDEFAULT		2

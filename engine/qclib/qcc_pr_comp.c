@@ -128,6 +128,7 @@ pbool flag_cpriority;		//operator precidence should adhere to C standards, inste
 pbool flag_allowuninit;		//ignore uninitialised locals, avoiding all private locals.
 pbool flag_embedsrc;		//embed all source files inside the .dat (can be opened with any zip program)
 pbool flag_nopragmafileline;//ignore #pragma file and #pragma line, so that I can actually read+debug xonotic's code.
+pbool flag_utf8strings;		//strings default to u8"" string rules.
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -3722,6 +3723,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 					/*generate new OP_ADDRESS instruction - FIXME: the arguments may have changed since the original instruction*/
 					statement->op = OP_ADDRESS;
+					statement->flags = 0;
 					statement->a = statements[st].a;
 					statement->b = statements[st].b;
 					statement->c = var_c->ofs;
@@ -3729,6 +3731,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 					/*convert old one to an OP_LOAD*/
 					statements[st].op = ((*op->type_c)->type==ev_vector)?OP_LOAD_V:OP_LOAD_F;
+					statement->flags = 0;
 //					statements[st].a = statements[st].a;
 //					statements[st].b = statements[st].b;
 //					statements[st].c = statements[st].c;
@@ -3805,6 +3808,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				//float pointer float
 				temp = QCC_GetTemp(type_float);
 				statement->op = OP_BITAND_F;
+				statement->flags = 0;
 				statement->a = var_c ? var_c->ofs : 0;
 				statement->b = var_a ? var_a->ofs : 0;
 				statement->c = temp->ofs;
@@ -3814,6 +3818,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 				statement->linenum = pr_token_line_last;
 				statement->op = OP_SUB_F;
+				statement->flags = 0;
 
 				//t = c & i
 				//c = c - t
@@ -4155,6 +4160,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	statement->linenum = pr_token_line_last;
 	statement->op = op - pr_opcodes;
+	statement->flags = 0;
 	statement->a = var_a;
 	statement->b = var_b;
 
@@ -4238,6 +4244,7 @@ QCC_statement_t *QCC_PR_SimpleStatement ( QCC_opcode_t *op, QCC_sref_t var_a, QC
 	numstatements++;
 
 	statement->op = op - pr_opcodes;
+	statement->flags = 0;
 	statement->a = var_a;
 	statement->b = var_b;
 	statement->c = var_c;
@@ -4538,7 +4545,7 @@ void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, unsigned
 		{
 		case 0:
 			if (argpos < argcount && argn_last < argcount)
-				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing arguments", funcname);
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing arguments for format", funcname);
 			return;
 		case '%':
 			if(*++s == '%')
@@ -9863,7 +9870,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				rhsr = QCC_PR_RefExpression (&rhsbuf, priority, exprflags | EXPR_DISALLOW_ARRAYASSIGN|EXPR_DISALLOW_COMMA);
 
 				if (conditional&1)
-					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "suggest parenthesis for assignment used as truth value .");
+					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "suggest parenthesis for assignment used as truth value");
 
 				rhsd = QCC_RefToDef(rhsr, true);
 
@@ -10010,6 +10017,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 					if (logicjump)	//logic shortcut jumps to just before the if. the rhs is uninitialised if the jump was taken, but the lhs makes it deterministic.
 					{
+						logicjump->flags |= STF_LOGICOP;
 						logicjump->b.ofs = &statements[numstatements] - logicjump;
 						if (logicjump->b.ofs == 1)
 							numstatements--;	//err, that was pointless.
@@ -12163,7 +12171,7 @@ int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_def_t *
 				return i;
 			}
 		}
-		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->b.ofs > 0)
+		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->b.ofs > 0 && !(st->flags & STF_LOGICOP))
 		{
 			int jump = i + (int)st->b.ofs;
 			//check if there's an else.
@@ -13027,21 +13035,20 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	if (num_labels)
 		num_labels = 0;
 
-
+	if (num_cases)
+	{
+		num_cases = 0;
+		QCC_PR_ParseError(ERR_ILLEGALCASES, "%s: function contains illegal cases", f->name);
+	}
 	if (num_continues)
 	{
 		num_continues=0;
-		QCC_PR_ParseError(ERR_ILLEGALCONTINUES, "%s: function contains illegal continues", pr_scope->name);
+		QCC_PR_ParseError(ERR_ILLEGALCONTINUES, "%s: function contains illegal continues", f->name);
 	}
 	if (num_breaks)
 	{
 		num_breaks=0;
-		QCC_PR_ParseError(ERR_ILLEGALBREAKS, "%s: function contains illegal breaks", pr_scope->name);
-	}
-	if (num_cases)
-	{
-		num_cases = 0;
-		QCC_PR_ParseError(ERR_ILLEGALCASES, "%s: function contains illegal cases", pr_scope->name);
+		QCC_PR_ParseError(ERR_ILLEGALBREAKS, "%s: function contains illegal breaks", f->name);
 	}
 
 	//clean up the locals. remove parms from the hashtable but don't clean subscoped_away so that we can repopulate on the next accumulation

@@ -482,7 +482,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 
 				*width = 128;
 				*height = 128;
-				*format = PTI_RGBX8;
+				*format = PTI_RGBA8;
 
 				data = BZ_Malloc(128 * 128 * 4);
 				for (i = 0; i < 128 * 128; i++)
@@ -498,15 +498,20 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 			}
 			else if (lumptype == TYP_QPIC && lumpsize == 8+p->width*p->height)
 			{
+				qboolean alpha = false;
+				qbyte pal;
 				*width = p->width;
 				*height = p->height;
-				*format = PTI_RGBX8;
 
 				data = BZ_Malloc(p->width * p->height * 4);
 				for (i = 0; i < p->width * p->height; i++)
 				{
-					((unsigned int*)data)[i] = d_8to24rgbtable[p->data[i]];
+					pal = p->data[i];
+					((unsigned int*)data)[i] = d_8to24rgbtable[pal];
+					if (pal == 0xff)
+						alpha = true;
 				}
+				*format = alpha?PTI_RGBA8:PTI_RGBX8;
 				return data;
 			}
 			else if (lumptype == TYP_QPIC && lumpsize == 8+p->width*p->height+4+768)

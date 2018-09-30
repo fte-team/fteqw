@@ -5384,9 +5384,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 			if ((bs->flags&SHADER_HASPORTAL) && shaderstate.mode != BEM_DEPTHONLY && gl_config.arb_depth_clamp)
 			{	//this little bit of code is meant to prevent issues when the near clip plane intersects the portal surface, allowing us to be that little bit closer to the portal.
-				qglEnable(GL_DEPTH_CLAMP);
+				qglEnable(GL_DEPTH_CLAMP_ARB);
 				GLBE_SubmitBatch(batch);
-				qglDisable(GL_DEPTH_CLAMP);
+				qglDisable(GL_DEPTH_CLAMP_ARB);
 				continue;
 			}
 		}

@@ -60,6 +60,11 @@ cvar_t	cl_bob					= CVAR("cl_bob","0.02");
 cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
 cvar_t	cl_bobup				= CVAR("cl_bobup","0.5");
 
+cvar_t	cl_bobmodel				= CVAR("cl_bobmodel", "0");
+cvar_t	cl_bobmodel_side		= CVAR("cl_bobmodel_side", "0.15");
+cvar_t	cl_bobmodel_up			= CVAR("cl_bobmodel_up", "0.06");
+cvar_t	cl_bobmodel_speed		= CVAR("cl_bobmodel_speed", "7");
+
 cvar_t	v_kicktime				= CVAR("v_kicktime", "0.5");
 cvar_t	v_kickroll				= CVAR("v_kickroll", "0.6");
 cvar_t	v_kickpitch				= CVAR("v_kickpitch", "0.6");
@@ -170,7 +175,7 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 	if (!pv->onground || cl.paused)
 	{
 		pv->bobcltime = cl.time;
-		return pv->bob;		// just use old value
+		return pv->bob;		// just use old value. FIXME: diminish over time.
 	}
 
 	pv->bobtime += cl.time - pv->bobcltime;
@@ -940,6 +945,8 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	static float oldpitch = 0;
 	vec3_t vw_angles;
 	int i;
+	float xyspeed;
+	vec3_t xyvel;
 
 	yaw = r_refdef.viewangles[YAW];
 	pitch = -r_refdef.viewangles[PITCH];
@@ -991,7 +998,6 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	VectorInverse(pv->vw_axis[1]);
 
 
-
 	VectorCopy (r_refdef.vieworg, pv->vw_origin);
 	for (i=0 ; i<3 ; i++)
 	{
@@ -999,6 +1005,22 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 //		pv->vw_origin[i] += pv->vw_axis[1][i]*sin(cl.time*5.5342452354235)*0.1;
 //		pv->vw_origin[i] += pv->vw_axis[2][i]*bob*0.8;
 	}
+
+	VectorMA(pv->simvel, -DotProduct(pv->simvel, pv->gravitydir), pv->gravitydir, xyvel);
+	xyspeed = VectorLength(xyvel);
+	//FIXME: clamp
+
+	if (cl_bobmodel.value)
+	{	//bobmodel causes the viewmodel to bob relative to the view.
+		float s = pv->bobtime * cl_bobmodel_speed.value, v;
+		v = xyspeed * 0.01 * cl_bobmodel_side.value * /*cl_viewmodel_scale.value * */sin(s);
+		VectorMA(pv->vw_origin, v, pv->vw_axis[1], pv->vw_origin);
+		v = xyspeed * 0.01 * cl_bobmodel_up.value * /*cl_viewmodel_scale.value * */cos(2*s);
+		VectorMA(pv->vw_origin, v, pv->vw_axis[2], pv->vw_origin);
+	}
+	//FIXME: cl_followmodel should lag the viewmodel's position relative to the view
+	//FIXME: cl_leanmodel should lag the viewmodel's angles relative to the view
+
 
 // fudge position around to keep amount of weapon visible
 // roughly equal with different FOV
@@ -2431,6 +2453,11 @@ void V_Init (void)
 	Cvar_Register (&cl_bob, VIEWVARS);
 	Cvar_Register (&cl_bobcycle, VIEWVARS);
 	Cvar_Register (&cl_bobup, VIEWVARS);
+
+	Cvar_Register (&cl_bobmodel, VIEWVARS);
+	Cvar_Register (&cl_bobmodel_side, VIEWVARS);
+	Cvar_Register (&cl_bobmodel_up, VIEWVARS);
+	Cvar_Register (&cl_bobmodel_speed, VIEWVARS);
 
 	Cvar_Register (&v_kicktime, VIEWVARS);
 	Cvar_Register (&v_kickroll, VIEWVARS);

@@ -3601,7 +3601,7 @@ static void Sys_MakeInstaller(const char *name)
 			qbyte *rgbadata;
 			int imgwidth, imgheight;
 			int iconid = 1;
-			qboolean hasalpha;
+			uploadfmt_t format;
 			memset(&icondata, 0, sizeof(icondata));
 			icondata.idType = 1;
 			filelen = VFS_GETLEN(filehandle);
@@ -3614,7 +3614,7 @@ static void Sys_MakeInstaller(const char *name)
 			UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(2), RESLANG, NULL, 0);
 //			UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(3), RESLANG, NULL, 0);
 
-			rgbadata = Read32BitImageFile(filedata, filelen, &imgwidth, &imgheight, &hasalpha, va("%s.png", name));
+			rgbadata = ReadRawImageFile(filedata, filelen, &imgwidth, &imgheight, &format, true, va("%s.png", name));
 			if (!rgbadata)
 				error = "unable to read icon image";
 			else
@@ -4255,7 +4255,7 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 	HDC maindc;
 
 	qbyte *rgbadata, *rgbadata_start, *bgradata, *bgradata_start;
-	qboolean hasalpha;
+	uploadfmt_t format;
 	void *filedata;
 	int filelen;
 	if (!filename || !*filename)
@@ -4264,13 +4264,12 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 	if (!filedata)
 		return NULL;
 
-	hasalpha = false;
-	rgbadata_start = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, "cursor");
+	rgbadata_start = ReadRawImageFile(filedata, filelen, &width, &height, &format, true, "cursor");
 	FS_FreeFile(filedata);
 	if (!rgbadata_start)
 		return NULL;
 
-	if (!hasalpha && !strchr(filename, ':'))
+	if ((format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(filename, ':'))
 	{	//people seem to insist on using jpgs, which don't have alpha.
 		//screw over the alpha channel if needed.
 		unsigned int alpha_width, alpha_height, p;
@@ -4279,6 +4278,7 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		char *alph;
 		size_t alphsize;
 		char ext[8];
+		uploadfmt_t alphaformat;
 		COM_StripExtension(filename, aname, sizeof(aname));
 		COM_FileExtension(filename, ext, sizeof(ext));
 		Q_strncatz(aname, "_alpha.", sizeof(aname));
@@ -4286,7 +4286,7 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		alphsize = FS_LoadFile(filename, (void**)&alph);
 		if (alph)
 		{
-			if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
+			if ((alphadata = ReadRawImageFile(alph, alphsize, &alpha_width, &alpha_height, &alphaformat, true, aname)))
 			{
 				if (alpha_width == width && alpha_height == height)
 					for (p = 0; p < alpha_width*alpha_height; p++)

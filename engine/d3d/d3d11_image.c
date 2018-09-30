@@ -295,6 +295,8 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 		tdesc.Format = DXGI_FORMAT_R8G8_SNORM;
 		break;
 
+	case PTI_L8_SRGB:			//no swizzles / single-channel srgb
+	case PTI_L8A8_SRGB:			//no swizzles / single-channel srgb
 	case PTI_ETC1_RGB8:			//not invented here...
 	case PTI_ETC2_RGB8:
 	case PTI_ETC2_RGB8A1:

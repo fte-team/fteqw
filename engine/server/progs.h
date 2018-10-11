@@ -36,6 +36,7 @@ void PR_RegisterFields(void);
 void PR_Init(void);
 void QDECL ED_Spawned (struct edict_s *ent, int loading);
 void SSQC_MapEntityEdited(int modelidx, int idx, const char *newdata);
+void SV_SetEntityButtons(struct edict_s *ent, unsigned int buttonbits);
 qboolean SV_RunFullQCMovement(struct client_s *client, usercmd_t *ucmd);
 qboolean PR_KrimzonParseCommand(const char *s);
 qboolean PR_ParseClusterEvent(const char *dest, const char *source, const char *cmd, const char *info);

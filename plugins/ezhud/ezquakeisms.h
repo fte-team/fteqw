@@ -2,6 +2,11 @@
 #include <assert.h>
 #include <ctype.h>
 
+//ezquake sucks. I'd fix these, but that'd make diffs more messy.
+#pragma GCC diagnostic ignored "-Wold-style-definition"
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+
 //ezquake types.
 #define byte qbyte
 #define qbool qboolean

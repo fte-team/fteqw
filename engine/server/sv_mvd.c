@@ -2204,7 +2204,7 @@ easyrecord [demoname]
 ====================
 */
 
-int	Dem_CountPlayers ()
+int	Dem_CountPlayers (void)
 {
 	int	i, count;
 

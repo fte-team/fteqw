@@ -4093,106 +4093,111 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, framestate_t *
 				Heightmap_Trace_Square(&hmtrace, x, y);
 	}
 
-	//make sure the start tile is valid
-	for (y = floor(pos[1] + emins[1]); y <= ceil(pos[1] + emaxs[1]); y++)
-		for (x = floor(pos[0] + emins[0]); x <= ceil(pos[0] + emaxs[0]); x++)
-			Heightmap_Trace_Square(&hmtrace, x, y);
-
-	//now walk over the terrain
-	if (hmtrace.end[0] != hmtrace.start[0] || hmtrace.end[1] != hmtrace.start[1])
+	//trace against the heightmap, if it exists.
+	if (hmtrace.hm->maxsegx != hmtrace.hm->firstsegx)
 	{
-		vec2_t dir, trstart, trdist;
+		//make sure the start tile is valid
+		for (y = floor(pos[1] + emins[1]); y <= ceil(pos[1] + emaxs[1]); y++)
+			for (x = floor(pos[0] + emins[0]); x <= ceil(pos[0] + emaxs[0]); x++)
+				Heightmap_Trace_Square(&hmtrace, x, y);
 
-		//figure out the leading point
-		for (axis = 0; axis < 2; axis++)
+		//now walk over the terrain
+		if (hmtrace.end[0] != hmtrace.start[0] || hmtrace.end[1] != hmtrace.start[1])
 		{
-			trdist[axis] = hmtrace.end[axis]-hmtrace.start[axis];
-			dir[axis] = (hmtrace.end[axis] - hmtrace.start[axis])/hmtrace.htilesize;
+			vec2_t dir, trstart, trdist;
 
-			if (dir[axis] > 0)
-			{
-				ipos[axis] = pos[axis] + emins[axis];
-				trstart[axis] = CHUNKBIAS*hmtrace.hm->sectionsize + (maxs[axis]) + hmtrace.start[axis];
-			}
-			else
-			{
-				ipos[axis] = pos[axis] + emaxs[axis];
-				trstart[axis] = CHUNKBIAS*hmtrace.hm->sectionsize + (mins[axis]) + hmtrace.start[axis];
-			}
-			trstart[axis] /= hmtrace.htilesize;
-			trdist[axis] /= hmtrace.htilesize;
-		}
-		for(;;)
-		{
-			if (breaklimit--< 0)
-				break;
+			//figure out the leading point
 			for (axis = 0; axis < 2; axis++)
 			{
+				trdist[axis] = hmtrace.end[axis]-hmtrace.start[axis];
+				dir[axis] = (hmtrace.end[axis] - hmtrace.start[axis])/hmtrace.htilesize;
+
 				if (dir[axis] > 0)
 				{
-					npos[axis] = ipos[axis]+1;
-					frac[axis] = (npos[axis]-trstart[axis])/trdist[axis];
-				}
-				else if (dir[axis] < 0)
-				{
-					npos[axis] = ipos[axis];
-					frac[axis] = (ipos[axis]-trstart[axis])/trdist[axis];
+					ipos[axis] = pos[axis] + emins[axis];
+					trstart[axis] = CHUNKBIAS*hmtrace.hm->sectionsize + (maxs[axis]) + hmtrace.start[axis];
 				}
 				else
-					frac[axis] = 1000000000000000.0;
+				{
+					ipos[axis] = pos[axis] + emaxs[axis];
+					trstart[axis] = CHUNKBIAS*hmtrace.hm->sectionsize + (mins[axis]) + hmtrace.start[axis];
+				}
+				trstart[axis] /= hmtrace.htilesize;
+				trdist[axis] /= hmtrace.htilesize;
 			}
-
-			//which side are we going down?
-			if (frac[0] < frac[1])
-				axis = 0;
-			else
-				axis = 1;
-
-			if (frac[axis] >= 1)
-				break;
-
-			//progress to the crossed boundary
-			if (dir[axis] < 0)
-				ipos[axis] = ipos[axis]-1;
-			else
-				ipos[axis] = ipos[axis]+1;
-
-			axis = !axis;
-			if (dir[axis] > 0)
-			{	//leading edge is on the right, so start on the left and keep going until we hit the leading edge
-				npos[0] = ipos[0];
-				npos[1] = ipos[1];
-
-				npos[axis] -= ceil(emins[axis]-emaxs[axis]);
-				e = ipos[axis];
-
-				npos[axis] -= 1;
-				e++;
-
-				for (; npos[axis] <= e; npos[axis]++)
-					Heightmap_Trace_Square(&hmtrace, npos[0], npos[1]);
-			}
-			else
+			for(;;)
 			{
-				//leading edge is on the left
-				npos[0] = ipos[0];
-				npos[1] = ipos[1];
-				e = ipos[axis] + ceil(emaxs[axis]-emins[axis]);
+				if (breaklimit--< 0)
+					break;
+				for (axis = 0; axis < 2; axis++)
+				{
+					if (dir[axis] > 0)
+					{
+						npos[axis] = ipos[axis]+1;
+						frac[axis] = (npos[axis]-trstart[axis])/trdist[axis];
+					}
+					else if (dir[axis] < 0)
+					{
+						npos[axis] = ipos[axis];
+						frac[axis] = (ipos[axis]-trstart[axis])/trdist[axis];
+					}
+					else
+						frac[axis] = 1000000000000000.0;
+				}
 
-				npos[axis] -= 1;
-				e++;
+				//which side are we going down?
+				if (frac[0] < frac[1])
+					axis = 0;
+				else
+					axis = 1;
 
-				for (; npos[axis] <= e; npos[axis]++)
-					Heightmap_Trace_Square(&hmtrace, npos[0], npos[1]);
+				if (frac[axis] >= 1)
+					break;
+
+				//progress to the crossed boundary
+				if (dir[axis] < 0)
+					ipos[axis] = ipos[axis]-1;
+				else
+					ipos[axis] = ipos[axis]+1;
+
+				axis = !axis;
+				if (dir[axis] > 0)
+				{	//leading edge is on the right, so start on the left and keep going until we hit the leading edge
+					npos[0] = ipos[0];
+					npos[1] = ipos[1];
+
+					npos[axis] -= ceil(emins[axis]-emaxs[axis]);
+					e = ipos[axis];
+
+					npos[axis] -= 1;
+					e++;
+
+					for (; npos[axis] <= e; npos[axis]++)
+						Heightmap_Trace_Square(&hmtrace, npos[0], npos[1]);
+				}
+				else
+				{
+					//leading edge is on the left
+					npos[0] = ipos[0];
+					npos[1] = ipos[1];
+					e = ipos[axis] + ceil(emaxs[axis]-emins[axis]);
+
+					npos[axis] -= 1;
+					e++;
+
+					for (; npos[axis] <= e; npos[axis]++)
+						Heightmap_Trace_Square(&hmtrace, npos[0], npos[1]);
+				}
+
+//				axis = !axis;
+				//and make sure our position on the other axis is correct, for the next time around the loop
+//				if (frac[axis] > hmtrace.truefrac)
+//					break;
 			}
-
-//			axis = !axis;
-			//and make sure our position on the other axis is correct, for the next time around the loop
-//			if (frac[axis] > hmtrace.truefrac)
-//				break;
 		}
 	}
 
+	//now trace against the brushes.
 	//FIXME: optimise into the section grid
 	{
 		brushes_t *brushes = hmtrace.hm->wbrushes;

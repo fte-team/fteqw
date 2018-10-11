@@ -591,7 +591,7 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 #endif
 #ifdef SKELETALOBJECTS
 	if (ent->xv->skeletonindex)
-		skel_updateentbounds(ent);
+		skel_updateentbounds(w, ent);
 #endif
 
 	if (!ent->v->solid)
@@ -2218,6 +2218,131 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		World_ClipToLinks (w, node->children[1], clip );
 }
 #endif
+
+#ifdef HAVE_CLIENT
+//The logic of this function is seriously handicapped vs the other types of trace we could be doing.
+static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
+{
+	int i;
+	packet_entities_t *pe = cl.currentpackentities;
+	entity_state_t	*touch;
+
+	unsigned int touchcontents;
+	model_t *model;
+	vec3_t bmins, bmaxs;
+	trace_t trace;
+	static framestate_t framestate;	//meh
+
+	if (clip->type == MOVE_WORLDONLY)
+		return;
+	if (clip->type & MOVE_ENTCHAIN)
+		return;
+
+	for (i = 0; i < pe->num_entities; i++)
+	{
+		touch = &pe->entities[i];
+
+		if (touch->solidsize == ES_SOLID_NOT)
+			continue;
+		else if (touch->solidsize == ES_SOLID_BSP)
+		{
+			switch(touch->skinnum)
+			{
+			case Q1CONTENTS_LADDER:	touchcontents = FTECONTENTS_LADDER;	break;
+			case Q1CONTENTS_SKY:	touchcontents = FTECONTENTS_SKY;	break;
+			case Q1CONTENTS_LAVA:	touchcontents = FTECONTENTS_LAVA;	break;
+			case Q1CONTENTS_SLIME:	touchcontents = FTECONTENTS_SLIME;	break;
+			case Q1CONTENTS_WATER:	touchcontents = FTECONTENTS_WATER;	break;
+			default:				touchcontents = ~0;					break;	//could be anything... :(
+			}
+			if (touch->modelindex <= 0 || touch->modelindex >= MAX_PRECACHE_MODELS)
+				continue;	//erk
+			model = cl.model_precache[touch->modelindex];
+			VectorCopy(model->mins, bmins);
+			VectorCopy(model->maxs, bmaxs);
+		}
+		else
+		{
+			if (clip->type & MOVE_NOMONSTERS)
+				continue;
+			touchcontents = FTECONTENTS_BODY;
+			model = NULL;
+			COM_DecodeSize(touch->solidsize, bmins, bmaxs);
+		}
+		if (!(clip->hitcontentsmask & touchcontents))
+			continue;
+
+		//FIXME: this doesn't handle rotations.
+		if (   clip->boxmins[0] > touch->origin[0]+bmaxs[0]
+			|| clip->boxmins[1] > touch->origin[1]+bmaxs[1]
+			|| clip->boxmins[2] > touch->origin[2]+bmaxs[2]
+			|| clip->boxmaxs[0] < touch->origin[0]+bmins[0]
+			|| clip->boxmaxs[1] < touch->origin[1]+bmins[1]
+			|| clip->boxmaxs[2] < touch->origin[2]+bmins[2] )
+			continue;
+
+		//lets say that ssqc ents are in dimension 0x1, as far as the csqc can see.
+		if (!((int)clip->passedict->xv->dimension_hit & 1))
+			continue;
+
+		if (!model || model->loadstate != MLS_LOADED)
+		{
+			model = NULL;
+
+			if (clip->hitcontentsmask & FTECONTENTS_BODY)
+				touchcontents = FTECONTENTS_CORPSE|FTECONTENTS_BODY;
+			else
+				touchcontents = 0;
+
+			World_HullForBox(bmins, bmaxs);
+		}
+
+		framestate.g[FS_REG].frame[0] = touch->frame;
+		framestate.g[FS_REG].lerpweight[0] = 1;
+
+		if (World_TransformedTrace(model, 0, &framestate, clip->start, clip->end, clip->mins, clip->maxs, clip->capsule, &trace, touch->origin, vec3_origin, clip->hitcontentsmask))
+		{
+	// if using hitmodel, we know it hit the bounding box, so try a proper trace now.
+			/*if (clip->type & MOVE_HITMODEL && (trace.fraction != 1 || trace.startsolid) && !model)
+			{
+				//okay, we hit the bbox
+				model = w->Get_CModel(w, mdlidx);
+
+				if (model && model->funcs.NativeTrace && model->loadstate == MLS_LOADED)
+				{
+					//do the second trace, using the actual mesh.
+					World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, vec3_origin, hitcontentsmask);
+				}
+			}*/
+		}
+
+		if (trace.fraction < clip->trace.fraction)
+		{
+			//trace traveled less, but don't forget if we started in a solid.
+			trace.startsolid |= clip->trace.startsolid;
+			trace.allsolid |= clip->trace.allsolid;
+
+			if (clip->trace.startsolid && !trace.startsolid)
+				trace.ent = clip->trace.ent;	//something else hit earlier, that one gets the trace entity, but not the fraction. yeah, combining traces like this was always going to be weird.
+			else
+				trace.ent = touch;
+			clip->trace = trace;
+		}
+		else if (trace.startsolid || trace.allsolid)
+		{
+			//even if the trace traveled less, we still care if it was in a solid.
+			clip->trace.startsolid |= trace.startsolid;
+			clip->trace.allsolid |= trace.allsolid;
+			if (!clip->trace.ent || trace.fraction == clip->trace.fraction)	//xonotic requires that second test (DP has no check at all, which would end up reporting mismatched fraction/ent results, so yuck).
+			{
+				clip->trace.contents = trace.contents;
+				clip->trace.ent = touch;
+			}
+		}
+	}
+}
+#endif
+
 /*
 ==================
 SV_MoveBounds
@@ -2591,6 +2716,14 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		}
 		World_ClipToLinks(w, &w->portallist, &clip);
 	}
+
+#ifdef HAVE_CLIENT
+	{
+		extern world_t csqc_world;
+		if (w == &csqc_world)
+			World_ClipToNetwork(w, &clip);
+	}
+#endif
 
 //	if (clip.trace.startsolid)
 //		clip.trace.fraction = 0;

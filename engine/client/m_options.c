@@ -834,7 +834,7 @@ const char *presetexec[] =
 	"seta cl_rollangle 0;"
 	"seta cl_bob 0;"
 	"seta cl_sbar 0;"
-	"seta sv_nqplayerphysics 0;"	//server settings in a preset might be bad.
+	"cvarreset sv_nqplayerphysics;"	//server settings in a preset might be bad.
 	"seta cl_demoreel 0;"
 	"seta cl_gibfilter 1;"
 	"if cl_deadbodyfilter == 0 then seta cl_deadbodyfilter 1;"		//as useful as 2 is, some mods use death frames for crouching etc.
@@ -922,7 +922,7 @@ const char *presetexec[] =
 	"gl_texturemode2d l;"
 	"cl_sbar 0;"
 	"v_viewmodel_quake 0;"	//don't move the gun around weirdly.
-	"sv_nqplayerphysics 0;"
+	"cvarreset sv_nqplayerphysics;"
 	"cl_demoreel 0;"
 	"r_loadlit 1;"
 	"r_nolerp 0;"
@@ -1225,6 +1225,9 @@ void M_Menu_Render_f (void)
 	static const char *logcenteropts[] = {"Off", "Singleplayer", "Always", NULL};
 	static const char *logcentervalues[] = {"0", "1", "2", NULL};
 
+	static const char *cshiftopts[] = {"Off", "Fullscreen", "Edges", NULL};
+	static const char *cshiftvalues[] = {"0", "1", "2", NULL};
+
 	menu_t *menu;
 	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint, r_fxaa, r_graphics;
 #ifdef GLQUAKE
@@ -1246,7 +1249,7 @@ void M_Menu_Render_f (void)
 		MB_COMBOCVAR("Water Warp", r_waterwarp, warpopts, warpvalues, NULL),
 		MB_SLIDER("Water Alpha", r_wateralpha, 0, 1, 0.1, NULL),
 		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
-		MB_CHECKBOXCVAR("Poly Blending", gl_cshiftenabled, 0),
+		MB_COMBOCVAR("Screen Tints", gl_cshiftenabled, cshiftopts, cshiftvalues, "Changes how screen flashes should be displayed (otherwise known as polyblends)."),
 #ifdef QWSKINS
 		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
 #endif
@@ -3737,6 +3740,30 @@ void M_Menu_ModelViewer_f(void)
 	mv->ragworld.worldmodel = Mod_ForName("", MLV_SILENT);
 	World_RBE_Start(&mv->ragworld);
 #endif
+}
+static int QDECL CompleteModelViewerList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	const char *ext = COM_GetFileExtension(name, NULL);
+	if (!strcmp(ext, ".mdl") || !strcmp(ext, ".md2") || !strcmp(ext, ".md3")
+		|| !strcmp(ext, ".iqm") || !strcmp(ext, ".dpm") || !strcmp(ext, ".zym")
+		|| !strcmp(ext, ".psk") || !strcmp(ext, ".md5mesh") || !strcmp(ext, ".md5anim")
+		|| !strcmp(ext, ".bsp") || !strcmp(ext, ".map") || !strcmp(ext, ".hmp")
+		|| !strcmp(ext, ".spr") || !strcmp(ext, ".sp2") || !strcmp(ext, ".spr32"))
+	{
+		ctx->cb(name, NULL, NULL, ctx);
+	}
+	return true;
+}
+void M_Menu_ModelViewer_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	if (argn == 1)
+	{
+		COM_EnumerateFiles(va("%s*", partial), CompleteModelViewerList, ctx);
+		COM_EnumerateFiles(va("%s*/*", partial), CompleteModelViewerList, ctx);
+		COM_EnumerateFiles(va("%s*/*", partial), CompleteModelViewerList, ctx);
+		COM_EnumerateFiles(va("%s*/*/*", partial), CompleteModelViewerList, ctx);
+	}
 }
 #else
 void M_Menu_ModelViewer_f(void)

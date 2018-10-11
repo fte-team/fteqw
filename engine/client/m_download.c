@@ -70,24 +70,26 @@ extern cvar_t pm_downloads_url;
 
 //!installed * missing [simply not installed]
 
-#define DPF_ENABLED					0x01
-#define DPF_NATIVE					0x02	//appears to be installed properly
-#define DPF_CACHED					0x04	//appears to be installed in their dlcache dir (and has a qhash)
-#define DPF_CORRUPT					0x08	//will be deleted before it can be changed
+#define DPF_ENABLED					(1u<<0)
+#define DPF_NATIVE					(1u<<1)	//appears to be installed properly
+#define DPF_CACHED					(1u<<2)	//appears to be installed in their dlcache dir (and has a qhash)
+#define DPF_CORRUPT					(1u<<3)	//will be deleted before it can be changed
 
-#define DPF_MARKED					0x10	//user selected it
-#define DPF_DISPLAYVERSION			0x20	//some sort of conflict, the package is listed twice, so show versions so the user knows what's old.
-#define DPF_FORGETONUNINSTALL		0x40	//for previously installed packages, remove them from the list if there's no current version any more (should really be automatic if there's no known mirrors)
-#define DPF_HIDDEN					0x80	//wrong arch, file conflicts, etc. still listed if actually installed.
-#define DPF_PURGE					0x200	//package should be completely removed (ie: the dlcache dir too). if its still marked then it should be reinstalled anew. available on cached or corrupt packages, implied by native.
-#define DPF_MANIFEST				0x400	//package was named by the manifest, and should only be uninstalled after a warning.
-#define DPF_TESTING					0x800	//package is provided on a testing/trial basis, and will only be selected/listed if autoupdates are configured to allow it.
+#define DPF_USERMARKED				(1u<<4)	//user selected it
+#define DPF_AUTOMARKED				(1u<<5)	//selected only to satisfy a dependancy
+#define DPF_DISPLAYVERSION			(1u<<6)	//some sort of conflict, the package is listed twice, so show versions so the user knows what's old.
+#define DPF_FORGETONUNINSTALL		(1u<<7)	//for previously installed packages, remove them from the list if there's no current version any more (should really be automatic if there's no known mirrors)
+#define DPF_HIDDEN					(1u<<8)	//wrong arch, file conflicts, etc. still listed if actually installed.
+#define DPF_PURGE					(1u<<9)	//package should be completely removed (ie: the dlcache dir too). if its still marked then it should be reinstalled anew. available on cached or corrupt packages, implied by native.
+#define DPF_MANIFEST				(1u<<10)	//package was named by the manifest, and should only be uninstalled after a warning.
+#define DPF_TESTING					(1u<<11)	//package is provided on a testing/trial basis, and will only be selected/listed if autoupdates are configured to allow it.
 
-#define DPF_ENGINE					0x1000	//engine update. replaces old autoupdate mechanism
-#define DPF_PLUGIN					0x2000	//this is a plugin package, with a dll
+#define DPF_ENGINE					(1u<<12)	//engine update. replaces old autoupdate mechanism
+#define DPF_PLUGIN					(1u<<13)	//this is a plugin package, with a dll
 
-#define DPF_TRUSTED					0x4000	//flag used when parsing package lists. if not set then packages will be ignored if they are anything but paks/pk3s
+#define DPF_TRUSTED					(1u<<14)	//flag used when parsing package lists. if not set then packages will be ignored if they are anything but paks/pk3s
 
+#define DPF_MARKED					(DPF_USERMARKED|DPF_AUTOMARKED)
 #define DPF_PRESENT					(DPF_NATIVE|DPF_CACHED)
 #define DPF_DISABLEDINSTALLED		(DPF_ENGINE|DPF_PLUGIN)	//engines+plugins can be installed without being enabled.
 //pak.lst
@@ -972,7 +974,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 			}
 			if (p->flags & DPF_ENABLED)
-				p->flags |= DPF_MARKED;
+				p->flags |= DPF_USERMARKED;	//FIXME: we don't know if this was manual or auto
 
 			PM_InsertPackage(p);
 		}
@@ -1219,15 +1221,31 @@ static void PM_RevertChanges(void)
 	for (p = availablepackages; p; p = p->next)
 	{
 		if (p->flags & DPF_ENABLED)
-			p->flags |= DPF_MARKED;
+			p->flags |= DPF_USERMARKED;
 		else
 			p->flags &= ~DPF_MARKED;
 		p->flags &= ~DPF_PURGE;
 	}
 }
 
-//just flags, doesn't delete
-static void PM_UnmarkPackage(package_t *package)
+static qboolean PM_HasDependant(package_t *package, unsigned int markflag)
+{
+	package_t *o;
+	struct packagedep_s *dep;
+	for (o = availablepackages; o; o = o->next)
+	{
+		if (o->flags & markflag)
+			for (dep = o->deps; dep; dep = dep->next)
+				if (dep->dtype == DEP_REQUIRE || dep->dtype == DEP_RECOMMEND)
+					if (!strcmp(package->name, dep->name))
+						return true;
+	}
+	return false;
+}
+
+//just flags, doesn't delete (yet)
+//markflag should be DPF_AUTOMARKED or DPF_USERMARKED
+static void PM_UnmarkPackage(package_t *package, unsigned int markflag)
 {
 	package_t *o;
 	struct packagedep_s *dep;
@@ -1235,32 +1253,51 @@ static void PM_UnmarkPackage(package_t *package)
 	if (pkg_updating)
 		return;
 
-	if (!(package->flags & DPF_MARKED))
+	if (!(package->flags & markflag))
 		return;	//looks like its already deselected.
-	package->flags &= ~(DPF_MARKED);
+	package->flags &= ~(markflag);
 
+	if (!(package->flags & DPF_MARKED))
+	{
 #ifdef WEBCLIENT
-	//Is this safe?
-	package->trymirrors = 0;	//if its enqueued, cancel that quickly...
-	if (package->download)
-	{					//if its currently downloading, cancel it.
-		DL_Close(package->download);
-		package->download = NULL;
-	}
+		//Is this safe?
+		package->trymirrors = 0;	//if its enqueued, cancel that quickly...
+		if (package->download)
+		{					//if its currently downloading, cancel it.
+			DL_Close(package->download);
+			package->download = NULL;
+		}
 #endif
 
-	//remove stuff that depends on us
-	for (o = availablepackages; o; o = o->next)
+		//remove stuff that depends on us
+		for (o = availablepackages; o; o = o->next)
+		{
+			for (dep = o->deps; dep; dep = dep->next)
+				if (dep->dtype == DEP_REQUIRE)
+					if (!strcmp(dep->name, package->name))
+						PM_UnmarkPackage(o, DPF_MARKED);
+		}
+	}
+	if (!(package->flags & DPF_USERMARKED))
 	{
-		for (dep = o->deps; dep; dep = dep->next)
-			if (dep->dtype == DEP_REQUIRE)
-				if (!strcmp(dep->name, package->name))
-					PM_UnmarkPackage(o);
+		//go through dependancies and unmark any automarked packages if nothing else depends upon them
+		for (dep = package->deps; dep; dep = dep->next)
+		{
+			if (dep->dtype == DEP_REQUIRE || dep->dtype == DEP_RECOMMEND)
+			{
+				package_t *d = PM_MarkedPackage(dep->name);
+				if (d && !(d->flags & DPF_USERMARKED))
+				{
+					if (!PM_HasDependant(d, DPF_MARKED))
+						PM_UnmarkPackage(d, DPF_AUTOMARKED);
+				}
+			}
+		}
 	}
 }
 
 //just flags, doesn't install
-static void PM_MarkPackage(package_t *package)
+static void PM_MarkPackage(package_t *package, unsigned int markflag)
 {
 	package_t *o;
 	struct packagedep_s *dep, *dep2;
@@ -1270,7 +1307,10 @@ static void PM_MarkPackage(package_t *package)
 		return;
 
 	if (package->flags & DPF_MARKED)
+	{
+		package->flags |= markflag;
 		return;	//looks like its already picked.
+	}
 
 	//any file-conflicts prevent the package from being installable.
 	//this is mostly for pak1.pak
@@ -1288,7 +1328,7 @@ static void PM_MarkPackage(package_t *package)
 		}
 	}
 
-	package->flags |= DPF_MARKED;
+	package->flags |= markflag;
 
 	//first check to see if we're replacing a different version of the same package
 	for (o = availablepackages; o; o = o->next)
@@ -1314,7 +1354,7 @@ static void PM_MarkPackage(package_t *package)
 						if (dep2->dtype == DEP_FILE)
 						if (!strcmp(dep->name, dep2->name))
 						{
-							PM_UnmarkPackage(o);
+							PM_UnmarkPackage(o, DPF_MARKED);
 							remove = true;
 							break;
 						}
@@ -1341,7 +1381,7 @@ static void PM_MarkPackage(package_t *package)
 			{
 				d = PM_FindPackage(dep->name);
 				if (d)
-					PM_MarkPackage(d);
+					PM_MarkPackage(d, DPF_AUTOMARKED);
 				else
 					Con_DPrintf("Couldn't find dependancy \"%s\"\n", dep->name);
 			}
@@ -1353,7 +1393,7 @@ static void PM_MarkPackage(package_t *package)
 				package_t *d = PM_MarkedPackage(dep->name);
 				if (!d)
 					break;
-				PM_UnmarkPackage(d);
+				PM_UnmarkPackage(d, DPF_MARKED);
 			}
 		}
 	}
@@ -1364,7 +1404,7 @@ static void PM_MarkPackage(package_t *package)
 		for (dep = o->deps; dep; dep = dep->next)
 			if (dep->dtype == DEP_CONFLICT)
 				if (!strcmp(dep->name, package->name))
-					PM_UnmarkPackage(o);
+					PM_UnmarkPackage(o, DPF_MARKED);
 	}
 }
 
@@ -1402,7 +1442,7 @@ static unsigned int PM_MarkUpdates (void)
 				p = PM_FindPackage(tok);
 				if (p)
 				{
-					PM_MarkPackage(p);
+					PM_MarkPackage(p, DPF_AUTOMARKED);
 					changecount++;
 				}
 			}
@@ -1438,8 +1478,8 @@ static unsigned int PM_MarkUpdates (void)
 			if (b)
 			{
 				changecount++;
-				PM_MarkPackage(b);
-				PM_UnmarkPackage(p);
+				PM_MarkPackage(b, p->flags&DPF_MARKED);
+				PM_UnmarkPackage(p, DPF_MARKED);
 			}
 		}
 	}
@@ -1448,7 +1488,7 @@ static unsigned int PM_MarkUpdates (void)
 		if (pm_autoupdate.ival >= UPD_STABLE)
 		{
 			changecount++;
-			PM_MarkPackage(e);
+			PM_MarkPackage(e, DPF_AUTOMARKED);
 		}
 	}
 
@@ -2786,7 +2826,7 @@ void PM_Command_f(void)
 			const char *key = Cmd_Argv(arg);
 			p = PM_FindPackage(key);
 			if (p)
-				PM_MarkPackage(p);
+				PM_MarkPackage(p, DPF_USERMARKED);
 			else
 				Con_Printf("%s: package %s not known\n", Cmd_Argv(0), key);
 		}
@@ -2801,7 +2841,7 @@ void PM_Command_f(void)
 			p = PM_FindPackage(key);
 			if (p)
 			{
-				PM_MarkPackage(p);
+				PM_MarkPackage(p, DPF_USERMARKED);
 				p->flags |= DPF_PURGE;
 			}
 			else
@@ -2819,7 +2859,7 @@ void PM_Command_f(void)
 			if (!p)
 				p = PM_FindPackage(key);
 			if (p)
-				PM_UnmarkPackage(p);
+				PM_UnmarkPackage(p, DPF_MARKED);
 			else
 				Con_Printf("%s: package %s not known\n", Cmd_Argv(0), key);
 		}
@@ -2836,7 +2876,7 @@ void PM_Command_f(void)
 				p = PM_FindPackage(key);
 			if (p)
 			{
-				PM_UnmarkPackage(p);
+				PM_UnmarkPackage(p, DPF_MARKED);
 				p->flags |=	DPF_PURGE;
 			}
 			else
@@ -2926,6 +2966,7 @@ typedef struct {
 	char intermediatefilename[MAX_QPATH];
 	char pathprefix[MAX_QPATH];
 	int downloadablessequence;
+	char titletext[128];
 	qboolean populated;
 } dlmenu_t;
 
@@ -2949,48 +2990,55 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 		else
 #endif
 		{
-			switch((p->flags & (DPF_ENABLED | DPF_MARKED)))
+			if (!(p->flags & DPF_MARKED))
 			{
-			case 0:
-				if (p->flags & DPF_PURGE)
-					Draw_FunString (x, y, "DEL");	//purge
-				else if (p->flags & DPF_HIDDEN)
-					Draw_FunString (x+4, y, "---");
-				else if (p->flags & DPF_CORRUPT)
-					Draw_FunString (x, y, "!!!");
-				else
-				{
-					Draw_FunString (x+4, y, "^Ue080^Ue082");
-					Draw_FunString (x+8, y, "^Ue081");
-					if (p->flags & DPF_PRESENT)
-						Draw_FunString (x+8, y, "C");
+				if (!(p->flags & DPF_ENABLED))
+				{	//!DPF_MARKED|!DPF_ENABLED:
+					if (p->flags & DPF_PURGE)
+						Draw_FunString (x, y, "DEL");	//purge
+					else if (p->flags & DPF_HIDDEN)
+						Draw_FunString (x+4, y, "---");
+					else if (p->flags & DPF_CORRUPT)
+						Draw_FunString (x, y, "!!!");
+					else
+					{
+						Draw_FunString (x+4, y, "^Ue080^Ue082");
+						Draw_FunString (x+8, y, "^Ue081");
+						if (p->flags & DPF_PRESENT)
+							Draw_FunString (x+8, y, "-");
+					}
 				}
-				break;
-			case DPF_ENABLED:
-				if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
-					Draw_FunString (x, y, "DEL");
 				else
-					Draw_FunString (x, y, "REM");
-				break;
-			case DPF_MARKED:
-				if (p->flags & DPF_PURGE)
-					Draw_FunString (x, y, "GET");
-				else if (p->flags & (DPF_PRESENT))
-					Draw_FunString (x, y, "USE");
-				else
-					Draw_FunString (x, y, "GET");
-				break;
-			case DPF_ENABLED | DPF_MARKED:
-				if (p->flags & DPF_PURGE)
-					Draw_FunString (x, y, "GET");	//purge and reinstall.
-				else if (p->flags & DPF_CORRUPT)
-					Draw_FunString (x, y, "?""?""?");
-				else
-				{
-					Draw_FunString (x+4, y, "^Ue080^Ue082");
-					Draw_FunString (x+8, y, "^Ue083");
+				{	//!DPF_MARKED|DPF_ENABLED:
+					if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
+						Draw_FunString (x, y, "DEL");
+					else
+						Draw_FunString (x, y, "REM");
 				}
-				break;
+			}
+			else
+			{
+				if (!(p->flags & DPF_ENABLED))
+				{	//DPF_MARKED|!DPF_ENABLED:
+					if (p->flags & DPF_PURGE)
+						Draw_FunString (x, y, "GET");
+					else if (p->flags & (DPF_PRESENT))
+						Draw_FunString (x, y, "USE");
+					else
+						Draw_FunString (x, y, "GET");
+				}
+				else
+				{	//DPF_MARKED|DPF_ENABLED:
+					if (p->flags & DPF_PURGE)
+						Draw_FunString (x, y, "GET");	//purge and reinstall.
+					else if (p->flags & DPF_CORRUPT)
+						Draw_FunString (x, y, "?""?""?");
+					else
+					{
+						Draw_FunString (x+4, y, "^Ue080^Ue082");
+						Draw_FunString (x+8, y, "^Ue083");
+					}
+				}
 			}
 		}
 
@@ -3026,8 +3074,10 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 		{
 			switch (p->flags & (DPF_PURGE|DPF_MARKED))
 			{
+			case DPF_USERMARKED:
+			case DPF_AUTOMARKED:
 			case DPF_MARKED:
-				PM_UnmarkPackage(p);	//deactivate it
+				PM_UnmarkPackage(p, DPF_MARKED);	//deactivate it
 				break;
 			case 0:
 				p->flags |= DPF_PURGE;	//purge
@@ -3035,10 +3085,12 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 					break;
 				//fall through
 			case DPF_PURGE:
-				PM_MarkPackage(p);		//reinstall
+				PM_MarkPackage(p, DPF_USERMARKED);		//reinstall
 //				if (!(p->flags & DPF_HIDDEN) && !(p->flags & DPF_CACHED))
 //					break;
 				//fall through
+			case DPF_USERMARKED|DPF_PURGE:
+			case DPF_AUTOMARKED|DPF_PURGE:
 			case DPF_MARKED|DPF_PURGE:
 				p->flags &= ~DPF_PURGE;	//back to no-change
 				break;
@@ -3049,17 +3101,21 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 			switch (p->flags & (DPF_PURGE|DPF_MARKED))
 			{
 			case 0:
-				PM_MarkPackage(p);
+				PM_MarkPackage(p, DPF_USERMARKED);
 				//now: try to install
 				break;
+			case DPF_USERMARKED:
+			case DPF_AUTOMARKED:
 			case DPF_MARKED:
 				p->flags |= DPF_PURGE;
 				//now: re-get despite already having it.
 				if ((p->flags & DPF_CORRUPT) || ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p)))
 					break;	//only makes sense if we already have a cached copy that we're not going to use.
 				//fallthrough
+			case DPF_USERMARKED|DPF_PURGE:
+			case DPF_AUTOMARKED|DPF_PURGE:
 			case DPF_MARKED|DPF_PURGE:
-				PM_UnmarkPackage(p);
+				PM_UnmarkPackage(p, DPF_MARKED);
 				//now: delete
 				if ((p->flags & DPF_CORRUPT) || ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p)))
 					break;	//only makes sense if we have a cached/corrupt copy of it already
@@ -3088,7 +3144,7 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 							continue;
 						if (!strcmp(dep->name, dep2->name))
 						{
-							PM_UnmarkPackage(p2);
+							PM_UnmarkPackage(p2, DPF_MARKED);
 							break;
 						}
 					}
@@ -3193,18 +3249,18 @@ static void MD_AddItemsToDownloadMenu(menu_t *m)
 	prefixlen = strlen(info->pathprefix);
 	y = 48;
 	
-	MC_AddCommand(m, 0, 170, y, "Apply", MD_ApplyDownloads);
+	MC_AddCommand(m, 0, 170, y, "Apply", MD_ApplyDownloads)->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
 	y+=8;
 	MC_AddCommand(m, 0, 170, y, "Back", MD_PopMenu);
 	y+=8;
 	if (!prefixlen)
 	{
 #ifdef WEBCLIENT
-		MC_AddCommand(m, 0, 170, y, "Mark Updates", MD_MarkUpdatesButton);
+		MC_AddCommand(m, 0, 170, y, "Mark Updates", MD_MarkUpdatesButton)->common.tooltip = "Select any updated versions of packages that are already installed.";
 		y+=8;
 #endif
 
-		MC_AddCommand(m, 0, 170, y, "Revert Updates", MD_RevertUpdates);
+		MC_AddCommand(m, 0, 170, y, "Revert Updates", MD_RevertUpdates)->common.tooltip = "Reset selection to only those packages that are currently installed.";
 		y+=8;
 
 #ifdef WEBCLIENT
@@ -3280,8 +3336,11 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 {
 	dlmenu_t *info = m->data;
 	int i;
+	package_t *p;
+	unsigned int totalpackages=0, selectedpackages=0, addpackages=0, rempackages=0, downloads=0;
+	menuoption_t *si;
 
-	if (info->downloadablessequence != downloadablessequence)
+	if (info->downloadablessequence != downloadablessequence || !info->populated)
 	{
 		while(m->options)
 		{
@@ -3294,11 +3353,65 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 		info->downloadablessequence = downloadablessequence;
 
 		info->populated = false;
-		MC_AddWhiteText(m, 24, 170, 8, "Downloads", false);
-		MC_AddWhiteText(m, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
+		MC_AddWhiteText(m, 24, 320, 8, "Downloads", false)->text = info->titletext;
+		MC_AddWhiteText(m, 16, 320, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 		//FIXME: should probably reselect the previous selected item. lets just assume everyone uses a mouse...
 	}
+
+	for (p = availablepackages; p; p = p->next)
+	{
+		if (p->alternative && (p->flags & DPF_HIDDEN))
+			p = p->alternative;
+
+		totalpackages++;
+#ifdef WEBCLIENT
+		if (p->download || p->trymirrors)
+			downloads++;	//downloading or pending
+#endif
+		if (p->flags & DPF_MARKED)
+		{
+			if (p->flags & DPF_ENABLED)
+			{
+				selectedpackages++;
+				if (p->flags & DPF_PURGE)
+				{
+					rempackages++;
+					addpackages++;
+				}
+			}
+			else
+			{
+				selectedpackages++;
+				if (p->flags & DPF_PURGE)
+					rempackages++;	//adding, but also deleting. how weird is that!
+				addpackages++;
+			}
+		}
+		else
+		{
+			if (p->flags & DPF_ENABLED)
+				rempackages++;
+			else
+			{
+				if (p->flags & DPF_PURGE)
+					rempackages++;
+			}
+		}
+	}
+
+	//show status.
+	if (cls.download)
+	{	//we can actually download more than one thing at a time, but that makes the UI messy, so only show one active download here.
+		if (cls.download->sizeunknown && cls.download->size == 0)
+			Q_snprintfz(info->titletext, sizeof(info->titletext), "Downloads (%ukbps - %s)", CL_DownloadRate()/1000, cls.download->localname);
+		else
+			Q_snprintfz(info->titletext, sizeof(info->titletext), "Downloads (%u%% %ukbps - %s)", (int)cls.download->percent, CL_DownloadRate()/1000, cls.download->localname);
+	}
+	else if (!addpackages && !rempackages)
+		Q_snprintfz(info->titletext, sizeof(info->titletext), "Downloads (%i of %i)", selectedpackages, totalpackages);
+	else
+		Q_snprintfz(info->titletext, sizeof(info->titletext), "Downloads (+%u -%u)", addpackages, rempackages);
 
 	if (!info->populated)
 	{
@@ -3315,9 +3428,12 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 		MD_AddItemsToDownloadMenu(m);
 	}
 
-	if (m->selecteditem && m->selecteditem->common.type == mt_custom && m->selecteditem->custom.dptr)
+	si = m->mouseitem;
+	if (!si)
+		si = m->selecteditem;
+	if (si && si->common.type == mt_custom && si->custom.dptr)
 	{
-		package_t *p = m->selecteditem->custom.dptr;
+		package_t *p = si->custom.dptr;
 		if (p->previewimage)
 		{
 			shader_t *sh = R_RegisterPic(p->previewimage, NULL);
@@ -3346,8 +3462,7 @@ void Menu_DownloadStuff_f (void)
 	if (!*info->pathprefix || !loadedinstalled)
 		PM_UpdatePackageList(false, true);
 
-	MC_AddWhiteText(menu, 24, 170, 8, "Downloads", false);
-	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
+	info->populated = false;	//will add any headers as needed
 }
 
 //should only be called AFTER the filesystem etc is inited.

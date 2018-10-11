@@ -78,7 +78,6 @@ pbool PreCompile(void)
 }
 
 pbool QCC_main (int argc, char **argv);
-void QCC_ContinueCompile(void);
 void QCC_FinishCompile(void);
 
 int comp_nump;char **comp_parms;
@@ -94,7 +93,7 @@ pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, char **pa
 		PostCompile();
 		if (*errorfile)
 		{
-			printf("Error in %s on line %i\n", errorfile, errorline);
+			externs->Printf("Error in %s on line %i\n", errorfile, errorline);
 		}
 		return false;
 	}

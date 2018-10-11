@@ -74,15 +74,11 @@ void *RT_GetCoreWindow(int *width, int *height){return NULL;}	//I already wrote 
 void D3D11_DoResize(int newwidth, int newheight);	//already written, call if resized since getcorewindow
 
 static char *clippy;
-char *Sys_GetClipboard(void)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
 {
-	return Z_StrDup(clippy);
+	callback(ctx, clippy);
 }
-void Sys_CloseClipboard(char *bf)
-{
-	Z_Free(bf);
-}
-void Sys_SaveClipboard(char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
 {
 	Z_Free(clippy);
 	clippy = Z_StrDup(text);
@@ -852,7 +848,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 				if (logpos+1 >= sizeof(stacklog))
 					break;
 			}
-			Sys_SaveClipboard(stacklog+logstart);
+			Sys_SaveClipboard(CBT_CLIPBOARD, stacklog+logstart);
 #ifdef _MSC_VER
 			if (MessageBoxA(0, stacklog, "KABOOM!", MB_ICONSTOP|MB_YESNO) != IDYES)
 			{
@@ -1414,6 +1410,8 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 {
 	char fullmatch[MAX_OSPATH];
 	int start;
+	if (!gpath)
+		gpath = "";
 	if (strlen(gpath) + strlen(match) + 2 > MAX_OSPATH)
 		return 1;
 
@@ -1838,10 +1836,10 @@ double Sys_DoubleTime (void)
 
 /////////////////////////////////////////////////////////////
 //clipboard
-HANDLE	clipboardhandle;
-char *cliputf8;
-char *Sys_GetClipboard(void)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
 {
+	HANDLE	clipboardhandle;
+	char *cliputf8;
 	if (OpenClipboard(NULL))
 	{
 		//windows programs interpret CF_TEXT as ansi (aka: gibberish)
@@ -1882,6 +1880,10 @@ char *Sys_GetClipboard(void)
 					utf8 += c;
 				}
 				*utf8 = 0;
+				callback(ctx, cliputf8);
+				free(cliputf8);
+				GlobalUnlock(clipboardhandle);
+				CloseClipboard();
 				return cliputf8;
 			}
 
@@ -1913,7 +1915,8 @@ char *Sys_GetClipboard(void)
 					utf8 += c;
 				}
 				*utf8 = 0;
-				return cliputf8;
+				callback(ctx, cliputf8);
+				free(cliputf8);
 			}
 
 			//failed at the last hurdle
@@ -1922,23 +1925,8 @@ char *Sys_GetClipboard(void)
 		}
 		CloseClipboard();
 	}
-
-	clipboardhandle = NULL;
-
-	return NULL;
 }
-void Sys_CloseClipboard(char *bf)
-{
-	if (clipboardhandle)
-	{
-		free(cliputf8);
-		cliputf8 = NULL;
-		GlobalUnlock(clipboardhandle);
-		CloseClipboard();
-		clipboardhandle = NULL;
-	}
-}
-void Sys_SaveClipboard(char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
 {
 	HANDLE glob;
 	char *temp;

@@ -216,14 +216,14 @@ EBUILTIN(int, Con_GetConsoleString, (const char *conname, const char *attribname
 EBUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname, const char *newvalue));
 
 EBUILTIN(void, Sys_Error, (const char *message));	//abort the entire engine.
-EBUILTIN(quintptr_t, Sys_Milliseconds, ());
+EBUILTIN(quintptr_t, Sys_Milliseconds, (void));
 
-EBUILTIN(int, Cmd_AddCommand, (const char *buffer));	//abort the entire engine.
+EBUILTIN(int, Cmd_AddCommand, (const char *buffer));	//Registers a console command.
 EBUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(int, Cmd_Argc, (void));	//abort the entire engine.
 EBUILTIN(void, Cmd_AddText, (const char *text, qboolean insert));
-EBUILTIN(void, Cmd_Tokenize, (const char *msg));	//abort the entire engine.
+EBUILTIN(void, Cmd_TokenizeString, (const char *msg));	//tokenize a string.
 
 EBUILTIN(void, Cvar_SetString, (const char *name, const char *value));
 EBUILTIN(void, Cvar_SetFloat, (const char *name, float value));
@@ -387,8 +387,8 @@ void Con_DPrintf(const char *format, ...);	//not a particuarly efficient impleme
 void Sys_Errorf(const char *format, ...);
 void QDECL Q_strncpyz(char *d, const char *s, int n);
 
-
-
+qintptr_t NATIVEEXPORT vmMain( qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6, qintptr_t arg7/*, qintptr_t arg8, qintptr_t arg9, qintptr_t arg10, qintptr_t arg11*/);
+NATIVEEXPORT void QDECL dllEntry(qintptr_t (QDECL *funcptr)(qintptr_t,...));
 
 #define PLUG_SHARED_BEGIN(t,p,b)		\
  {										\

@@ -22,11 +22,16 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
 float Font_CharScaleHeight(void);
+
+//FIXME: if we want to do emoji properly, then we're going to need support for variants somehow
+//       easiest is probably to make the next codepoint available too (and consumable)
+//       handling variants in the font cache is another issue. gah. not worth it.
 int Font_CharWidth(unsigned int charflags, unsigned int codepoint);
 float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint);
 int Font_CharEndCoord(struct font_s *font, int x, unsigned int charflags, unsigned int codepoint);
 int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint);
 float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned int codepoint); /*avoid using*/
+
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 struct font_s *font_default;
@@ -251,6 +256,7 @@ typedef struct fontface_s
 	struct
 	{
 		int activeheight;	//needs reconfiguring when different sizes are used
+		int actualsize;		//sometimes that activeheight isn't usable. :(
 		FT_Face face;
 		void *membuf;
 	} ft;
@@ -676,7 +682,8 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 		}
 	}
 	else if ((unsigned int)pixelmode == FT_PIXEL_MODE_RGBA_SA)
-	{	//rgba font
+	{	//rgba source using standard alpha.
+		//(we'll multiply out the alpha for the gpu)
 		for (y = -pad; y < 0; y++)
 		{
 			for (x = -pad; x < (int)bmw+pad; x++)
@@ -1056,15 +1063,31 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 			{
 				FT_Face face = qface->ft.face;
 
-//				if (qface->activeheight)
-					if (qface->ft.activeheight != f->charheight)
-					{
-						qface->ft.activeheight = f->charheight;
-//						if (FT_HAS_FIXED_SIZES(face))
-//							pFT_Select_Size(face, 0);
-//						else
-							pFT_Set_Pixel_Sizes(face, 0, f->charheight);
+				if (qface->ft.activeheight != f->charheight)
+				{
+					qface->ft.activeheight = f->charheight;
+					if (FT_HAS_FIXED_SIZES(face))
+					{	//freetype doesn't like scaling these for us, so we have to pick a usable size ourselves.
+						FT_Int best = 0, s;
+						int bestheight = 0, h;
+						for (s = 0; s < qface->ft.face->num_fixed_sizes; s++)
+						{
+							h = qface->ft.face->available_sizes[s].height;
+							if (h >= f->charheight && h < bestheight)
+							{
+								bestheight = h;
+								best = s;
+							}
+						}
+						qface->ft.actualsize = qface->ft.face->available_sizes[best].height;
+						pFT_Select_Size(face, best);
 					}
+					else
+					{
+						pFT_Set_Pixel_Sizes(face, 0, f->charheight);
+						qface->ft.actualsize = f->charheight;
+					}
+				}
 				if (charidx == 0xfffe || pFT_Get_Char_Index(face, charidx))	//ignore glyph 0 (undefined)
 					if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER|FT_LOAD_COLOR) == 0)
 					{
@@ -1073,14 +1096,28 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 
 						slot = face->glyph;
 						bm = &slot->bitmap;
-						if (!qface->ft.activeheight && bm->pixel_mode == FT_PIXEL_MODE_BGRA)
+						if (qface->ft.activeheight!=qface->ft.actualsize)
 						{
-							unsigned int *out = alloca(f->charheight*f->charheight*4);
-							Image_ResampleTexture((void*)bm->buffer, bm->width, bm->rows, out, f->charheight, f->charheight);
-							c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, f->charheight, f->charheight, f->charheight*4); 
+							//I'm just going to assume full-height raster glyphs here. I'm sure I'll be proven wrong some time but w/e.
+							int nh = f->charheight;
+							int nw = (bm->width*nh)/bm->rows;
+							if (bm->pixel_mode == FT_PIXEL_MODE_BGRA)
+							{
+								unsigned int *out = alloca(nw*nh*sizeof(*out));
+								Image_ResampleTexture((void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
+								c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, nw, nh, nw*sizeof(*out));
+							}
+							else if (bm->pixel_mode == FT_PIXEL_MODE_GRAY)
+							{
+								unsigned char *out = alloca(nw*nh*sizeof(*out));
+								Image_ResampleTexture8((void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
+								c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, nw, nh, nw*sizeof(*out));
+							}
+							else
+								c = NULL;
 							if (c)
 							{
-								c->advance = f->charheight;
+								c->advance = nw;
 								c->left = 0;
 								c->top = 0;
 								return c;
@@ -1088,7 +1125,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 						}
 						else
 						{
-							c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, bm->buffer, bm->width, bm->rows, bm->pitch); 
+							c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, bm->buffer, bm->width, bm->rows, bm->pitch);
 
 							if (c)
 							{
@@ -1476,6 +1513,13 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 				error = pFT_New_Face(fontlib, va("%s/%s.ttf", fontdir, fontfilename), 0, &face);
 		}
 	}
+#else
+	if (error)
+	{	//eg: /usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf
+		error = pFT_New_Face(fontlib, va("/usr/share/fonts/%s", fontfilename), 0, &face);
+		if (error)
+			error = pFT_New_Face(fontlib, va("/usr/share/fonts/truetype/%s.ttf", fontfilename), 0, &face);
+	}
 #endif
 	if (!error)
 	{
@@ -1496,7 +1540,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 			if (qface->fnext)
 				qface->fnext->flink = &qface->fnext;
 			qface->ft.face = face;
-			qface->ft.activeheight = height;
+			qface->ft.activeheight = qface->ft.actualsize = height;
 			qface->ft.membuf = fbase;
 			qface->refs++;
 			Q_strncpyz(qface->name, fontfilename, sizeof(qface->name));
@@ -1680,8 +1724,8 @@ static texid_t Font_LoadFallbackConchars(void)
 	qbyte *lump;
 	uploadfmt_t format;
 	lump = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, &format, false, PTI_INVALID);
-	if (!lump || format != PTI_RGBA8)
-		Sys_Error("Corrupt internal drawchars");
+	if (!lump || (format != PTI_RGBX8 && format != PTI_RGBA8 && format != PTI_LLLX8))
+		Sys_Error("Corrupt internal drawchars (%i)", format);
 	/*convert greyscale to alpha*/
 	for (i = 0; i < width*height; i++)
 	{

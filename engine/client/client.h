@@ -710,6 +710,7 @@ struct playerview_s
 
 	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups and content types
 	vec4_t		screentint;
+	vec4_t		bordertint;	//won't contain v_cshift values, only powerup+contents+damage+bf flashes
 
 	vec3_t		vw_axis[3];	//weapons should be positioned relative to this
 	vec3_t		vw_origin;	//weapons should be positioned relative to this

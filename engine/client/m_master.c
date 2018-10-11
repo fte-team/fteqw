@@ -826,7 +826,7 @@ dojoin:
 		}
 		else if (server && key == 'c' && ctrldown)	//copy to clip
 		{
-			Sys_SaveClipboard(NET_AdrToString(buf, sizeof(buf), &server->adr));
+			Sys_SaveClipboard(CBT_CLIPBOARD, NET_AdrToString(buf, sizeof(buf), &server->adr));
 			return true;
 		}
 		else if (server && (key == 'v' || key == 'c'))	//say to current server
@@ -840,7 +840,7 @@ dojoin:
 			while((s = strchr(safename, '\n')))
 				*s = ' ';
 			if (key == 'c')
-				Sys_SaveClipboard(va("%s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)));
+				Sys_SaveClipboard(CBT_CLIPBOARD, va("%s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)));
 			else if (ctrldown)
 				Cbuf_AddText(va("say_team %s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
 			else

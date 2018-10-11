@@ -613,7 +613,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 
 //return 1 to read data.
 //-1 or 0 for error or not ready
-int SSL_DoHandshake(gnutlsfile_t *file)
+static int SSL_DoHandshake(gnutlsfile_t *file)
 {
 	int err;
 	//session was previously closed = error
@@ -827,7 +827,7 @@ static gnutls_certificate_credentials_t xcred[2];
 static gnutls_datum_t cookie_key;
 #endif
 
-qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
+static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 {
 	int ret = -1;
 	gnutls_datum_t priv, pub;
@@ -1045,7 +1045,7 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		return false;
 	return true;
 }
-qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboolean datagram)
+static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboolean datagram)
 {
 	// Initialize TLS session
 	qgnutls_init (&newf->session, GNUTLS_NONBLOCK|(isserver?GNUTLS_SERVER:GNUTLS_CLIENT)|(datagram?GNUTLS_DATAGRAM:0));
@@ -1153,11 +1153,11 @@ int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 
 #ifdef HAVE_DTLS
 
-void GNUDTLS_DestroyContext(void *ctx)
+static void GNUDTLS_DestroyContext(void *ctx)
 {
 	SSL_Close(ctx);
 }
-void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+static void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
 	gnutlsfile_t *newf;
 
@@ -1185,7 +1185,7 @@ void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)
 	return newf;
 }
 
-neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
+static neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 {
 	int ret;
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
@@ -1217,7 +1217,7 @@ neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 	return NETERR_SENT;
 }
 
-neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
+static neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 {
 	int cli_addr = 0xdeadbeef;
 	int ret;
@@ -1291,7 +1291,7 @@ neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 	return NETERR_SENT;
 }
 
-neterr_t GNUDTLS_Timeouts(void *ctx)
+static neterr_t GNUDTLS_Timeouts(void *ctx)
 {
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
 	int ret;

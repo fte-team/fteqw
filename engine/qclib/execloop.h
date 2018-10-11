@@ -57,29 +57,29 @@
 		//this will fire on the next instruction after the variable got changed.
 		pr_xstatement = s;
 		if (current_progstate->linenums)
-			printf("Watch point hit in %s:%u, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), current_progstate->linenums[s-1], prinst.watch_name);
+			externs->Printf("Watch point hit in %s:%u, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), current_progstate->linenums[s-1], prinst.watch_name);
 		else
-			printf("Watch point hit in %s, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name);
+			externs->Printf("Watch point hit in %s, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name);
 		switch(prinst.watch_type)
 		{
 		case ev_float:
-			printf(" from %g to %g", prinst.watch_old._float, prinst.watch_ptr->_float);
+			externs->Printf(" from %g to %g", prinst.watch_old._float, prinst.watch_ptr->_float);
 			break;
 		case ev_vector:
-			printf(" from '%g %g %g' to '%g %g %g'", prinst.watch_old._vector[0], prinst.watch_old._vector[1], prinst.watch_old._vector[2], prinst.watch_ptr->_vector[0], prinst.watch_ptr->_vector[1], prinst.watch_ptr->_vector[2]);
+			externs->Printf(" from '%g %g %g' to '%g %g %g'", prinst.watch_old._vector[0], prinst.watch_old._vector[1], prinst.watch_old._vector[2], prinst.watch_ptr->_vector[0], prinst.watch_ptr->_vector[1], prinst.watch_ptr->_vector[2]);
 			break;
 		default:
-			printf(" from %i to %i", prinst.watch_old._int, prinst.watch_ptr->_int);
+			externs->Printf(" from %i to %i", prinst.watch_old._int, prinst.watch_ptr->_int);
 			break;
 		case ev_entity:
-			printf(" from %i(%s) to %i(%s)", prinst.watch_old._int, PR_GetEdictClassname(progfuncs, prinst.watch_old._int), prinst.watch_ptr->_int, PR_GetEdictClassname(progfuncs, prinst.watch_ptr->_int));
+			externs->Printf(" from %i(%s) to %i(%s)", prinst.watch_old._int, PR_GetEdictClassname(progfuncs, prinst.watch_old._int), prinst.watch_ptr->_int, PR_GetEdictClassname(progfuncs, prinst.watch_ptr->_int));
 			break;
 		case ev_function:
 		case ev_string:
-			printf(", now set to %s", PR_ValueString(progfuncs, prinst.watch_type, prinst.watch_ptr, false));
+			externs->Printf(", now set to %s", PR_ValueString(progfuncs, prinst.watch_type, prinst.watch_ptr, false));
 			break;
 		}
-		printf(".\n");
+		externs->Printf(".\n");
 		prinst.watch_old = *prinst.watch_ptr;
 //		prinst.watch_ptr = NULL;
 		progfuncs->funcs.debug_trace=DEBUG_TRACE_INTO;	//this is what it's for
@@ -143,7 +143,7 @@ reeval:
 /*		errorif (OPB->_float == 0)
 		{
 			pr_xstatement = st-pr_statements;
-			printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			externs->Printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 			PR_StackTrace (&progfuncs->funcs, 1);
 			OPC->_float = 0.0;
 		}
@@ -155,7 +155,7 @@ reeval:
 /*		errorif (!tmpf)
 		{
 			pr_xstatement = st-pr_statements;
-			printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			externs->Printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 			PR_StackTrace (&progfuncs->funcs, 1);
 		}
 */
@@ -659,7 +659,7 @@ reeval:
 
 				//skip the instruction if they just try stepping over it anyway.
 				PR_StackTrace(&progfuncs->funcs, 0);
-				printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+				externs->Printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 
 				pr_globals[OFS_RETURN] = 0;
 				pr_globals[OFS_RETURN+1] = 0;
@@ -1310,7 +1310,7 @@ reeval:
 	case OP_BOUNDCHECK:
 		errorif ((unsigned int)OPA->_int < (unsigned int)st->c || (unsigned int)OPA->_int >= (unsigned int)st->b)
 		{
-			printf("Progs boundcheck failed. Value is %i. Must be %u<=value<%u\n", OPA->_int, st->c, st->b);
+			externs->Printf("Progs boundcheck failed. Value is %i. Must be %u<=value<%u\n", OPA->_int, st->c, st->b);
 			QCFAULT(&progfuncs->funcs, "Progs boundcheck failed. Value is %i. Must be %u<=value<%u\n", OPA->_int, st->c, st->b);
 /*			s=ShowStepf(progfuncs, st - pr_statements, "Progs boundcheck failed. Value is %i. Must be between %u and %u\n", OPA->_int, st->c, st->b);
 			if (st == pr_statements + s)
@@ -1347,7 +1347,7 @@ reeval:
 			if (pr_xstatement != s)
 			{
 				pr_xstatement = s;
-				printf("Break point hit in %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+				externs->Printf("Break point hit in %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 				s = ShowStep(progfuncs, s, NULL, false);
 				st = &pr_statements[s];	//let the user move execution
 				pr_xstatement = s = st-pr_statements;

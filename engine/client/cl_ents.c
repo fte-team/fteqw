@@ -1909,16 +1909,15 @@ entity_state_t *CL_FindPacketEntity(int num)
 {
 	int					pnum;
 	entity_state_t		*s1;
-	packet_entities_t	*pack;
-	pack = &cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities;
+	packet_entities_t	*pack = cl.currentpackentities;
+	if (pack)
+		for (pnum=0 ; pnum<pack->num_entities ; pnum++)
+		{
+			s1 = &pack->entities[pnum];
 
-	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
-	{
-		s1 = &pack->entities[pnum];
-
-		if (num == s1->number)
-			return s1;
-	}
+			if (num == s1->number)
+				return s1;
+		}
 	return NULL;
 }
 #endif

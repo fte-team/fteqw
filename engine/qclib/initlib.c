@@ -8,7 +8,7 @@ typedef struct prmemb_s {
 	struct prmemb_s *prev;
 	int level;
 } prmemb_t;
-void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name)
+void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, const char *name)
 {
 	prmemb_t *mem;
 	ammount = sizeof(prmemb_t)+((ammount + 3)&~3);
@@ -177,7 +177,7 @@ static void PF_fmem_unlink(progfuncs_t *progfuncs, qcmemfreeblock_t *p)
 #ifdef _DEBUG
 	if (p->marker != MARKER_FREE)
 	{
-		printf("PF_fmem_unlink: memory corruption\n");
+		externs->Printf("PF_fmem_unlink: memory corruption\n");
 		PR_StackTrace(&progfuncs->funcs, false);
 	}
 	p->marker = 0;
@@ -207,7 +207,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 	{
 		if ((size_t)b >= (size_t)prinst.addressableused)
 		{
-			printf("PF_memalloc: memory corruption\n");
+			externs->Printf("PF_memalloc: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);
 			return;
 		}
@@ -223,7 +223,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 			b + p->size >= prinst.addressableused ||
 			p->prev >= b)
 		{
-			printf("PF_memalloc: memory corruption\n");
+			externs->Printf("PF_memalloc: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);
 			return;
 		}
@@ -248,7 +248,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 	{
 		if (/*b < 0 || */b+sizeof(qcmemfreeblock_t) >= prinst.addressableused)
 		{
-			printf("PF_memalloc: memory corruption\n");
+			externs->Printf("PF_memalloc: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);
 			return NULL;
 		}
@@ -260,7 +260,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 				b + p->size >= prinst.addressableused ||
 				p->prev >= b)
 			{
-				printf("PF_memalloc: memory corruption\n");
+				externs->Printf("PF_memalloc: memory corruption\n");
 				PR_StackTrace(&progfuncs->funcs, false);
 				return NULL;
 			}
@@ -307,7 +307,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 		ub = PRAddressableExtend(progfuncs, NULL, size, 0);
 		if (!ub)
 		{
-			printf("PF_memalloc: memory exausted\n");
+			externs->Printf("PF_memalloc: memory exausted\n");
 			PR_StackTrace(&progfuncs->funcs, false);
 			return NULL;
 		}
@@ -342,10 +342,10 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 		{
 			//the empty string is a point of contention. while we can detect it from fteqcc, its best to not give any special favours (other than nicer debugging, where possible)
 			//we might not actually spot it from other qccs, so warning about it where possible is probably a very good thing.
-			printf("PF_memfree: unable to free the non-null empty string constant at %x\n", ptr);
+			externs->Printf("PF_memfree: unable to free the non-null empty string constant at %x\n", ptr);
 		}
 		else
-			printf("PF_memfree: pointer invalid - out of range (%x >= %x)\n", ptr, (unsigned int)prinst.addressableused);
+			externs->Printf("PF_memfree: pointer invalid - out of range (%x >= %x)\n", ptr, (unsigned int)prinst.addressableused);
 		PR_StackTrace(&progfuncs->funcs, false);
 		return;
 	}
@@ -354,7 +354,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 	ub = (qcmemusedblock_t*)(progfuncs->funcs.stringtable + ptr);
 	if (ub->marker != MARKER_USED || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst.addressableused)
 	{
-		printf("PR_memfree: pointer lacks marker - double-freed?\n");
+		externs->Printf("PR_memfree: pointer lacks marker - double-freed?\n");
 		PR_StackTrace(&progfuncs->funcs, false);
 		return;
 	}
@@ -368,7 +368,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 	{
 		if (/*na < 0 ||*/ na >= prinst.addressableused)
 		{
-			printf("PF_memfree: memory corruption\n");
+			externs->Printf("PF_memfree: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);
 			return;
 		}
@@ -377,14 +377,14 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 			pb = pa?(qcmemfreeblock_t*)(progfuncs->funcs.stringtable + pa):NULL;
 			if (pb && pa+pb->size>ptr)
 			{	//previous free block extends into the block that we're trying to free.
-				printf("PF_memfree: double free\n");
+				externs->Printf("PF_memfree: double free\n");
 				PR_StackTrace(&progfuncs->funcs, false);
 				return;
 			}
 #ifdef _DEBUG
 			if (pb && pb->marker != MARKER_FREE)
 			{
-				printf("PF_memfree: use-after-free?\n");
+				externs->Printf("PF_memfree: use-after-free?\n");
 				PR_StackTrace(&progfuncs->funcs, false);
 				return;
 			}
@@ -393,14 +393,14 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 			nb = na?(qcmemfreeblock_t*)(progfuncs->funcs.stringtable + na):NULL;
 			if (nb && ptr+size > na)
 			{
-				printf("PF_memfree: block extends into neighbour\n");
+				externs->Printf("PF_memfree: block extends into neighbour\n");
 				PR_StackTrace(&progfuncs->funcs, false);
 				return;
 			}
 #ifdef _DEBUG
 			if (nb && nb->marker != MARKER_FREE)
 			{
-				printf("PF_memfree: use-after-free?\n");
+				externs->Printf("PF_memfree: use-after-free?\n");
 				PR_StackTrace(&progfuncs->funcs, false);
 				return;
 			}
@@ -490,7 +490,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 		int i;
 		for (i = 0; i < prinst.numfields; i++)
 		{
-			printf("%s(%i) %i -> %i\n", prinst.field[i].name, prinst.field[i].type, prinst.field[i].progsofs, prinst.field[i].ofs);
+			externs->Printf("%s(%i) %i -> %i\n", prinst.field[i].name, prinst.field[i].type, prinst.field[i].progsofs, prinst.field[i].ofs);
 		}
 	}
 #endif
@@ -551,7 +551,8 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	}
 	if (addressable_size > 0x80000000)
 		addressable_size = 0x80000000;
-	PRAddressableFlush(progfuncs, addressable_size);
+	PRAddressableFlush(progfuncs, addressable_size);	
+	progfuncs->funcs.stringtable = prinst.addressablehunk;
 
 	pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * max_progs, "progstatetable");
 
@@ -675,20 +676,21 @@ func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t p
 	{
 	ddef16_t *var16;
 	ddef32_t *var32;
-	switch(pr_progstate[pnum].structtype)
+	progstate_t *ps = &pr_progstate[pnum];
+	switch(ps->structtype)
 	{
 	case PST_KKQWSV:
 	case PST_DEFAULT:
-		var16 = ED_FindTypeGlobalFromProgs16(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
+		var16 = ED_FindTypeGlobalFromProgs16(progfuncs, ps, funcname, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var16)
-			return (f - pr_progstate[pnum].functions) | (pnum << 24);
-		return *(int *)&pr_progstate[pnum].globals[var16->ofs];
+			return (f - ps->functions) | (pnum << 24);
+		return *(int *)&ps->globals[var16->ofs];
 	case PST_QTEST:
 	case PST_FTE32:
-		var32 = ED_FindTypeGlobalFromProgs32(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
+		var32 = ED_FindTypeGlobalFromProgs32(progfuncs, ps, funcname, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var32)
-			return (f - pr_progstate[pnum].functions) | (pnum << 24);
-		return *(int *)&pr_progstate[pnum].globals[var32->ofs];	
+			return (f - ps->functions) | (pnum << 24);
+		return *(int *)&ps->globals[var32->ofs];
 	}
 	Sys_Error("Error with def size (PR_FindFunc)");	
 	}
@@ -748,11 +750,12 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 	unsigned int i;
 	ddef16_t *var16;
 	ddef32_t *var32;
+	progstate_t *cp;
 	if (type)
 		*type = ev_void;
-	if (pnum == PR_CURRENT)
-		pnum = prinst.pr_typecurrent;
-	if (pnum == PR_ANY)
+	if (pnum == PR_CURRENT && current_progstate)
+		cp = current_progstate;
+	else if (pnum == PR_ANY)
 	{
 		eval_t *ev;
 		for (i = 0; i < prinst.maxprogs; i++)
@@ -765,26 +768,28 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 		}
 		return NULL;
 	}
-	if (pnum < 0 || (unsigned)pnum >= prinst.maxprogs || !pr_progstate[pnum].progs)
+	else if (pnum >= 0 && (unsigned)pnum < prinst.maxprogs && pr_progstate[pnum].progs)
+		cp = &pr_progstate[pnum];
+	else
 		return NULL;
-	switch(pr_progstate[pnum].structtype)
+	switch(cp->structtype)
 	{
 	case PST_DEFAULT:
 	case PST_KKQWSV:
-		if (!(var16 = ED_FindGlobalFromProgs16(progfuncs, globname, pnum)))
+		if (!(var16 = ED_FindGlobalFromProgs16(progfuncs, cp, globname)))
 			return NULL;
 
 		if (type)
 			*type = var16->type;
-		return (eval_t *)&pr_progstate[pnum].globals[var16->ofs];
+		return (eval_t *)&cp->globals[var16->ofs];
 	case PST_QTEST:
 	case PST_FTE32:
-		if (!(var32 = ED_FindGlobalFromProgs32(progfuncs, globname, pnum)))
+		if (!(var32 = ED_FindGlobalFromProgs32(progfuncs, cp, globname)))
 			return NULL;
 
 		if (type)
 			*type = var32->type;
-		return (eval_t *)&pr_progstate[pnum].globals[var32->ofs];
+		return (eval_t *)&cp->globals[var32->ofs];
 	}
 	Sys_Error("Error with def size (PR_FindGlobal)");
 	return NULL;
@@ -811,7 +816,7 @@ char *PDECL PR_VarString (pubprogfuncs_t *ppf, int	first)
 	return out;
 }
 
-int PDECL PR_QueryField (pubprogfuncs_t *ppf, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache)
+int PDECL PR_QueryField (pubprogfuncs_t *ppf, unsigned int fieldoffset, etype_t *type, char const**name, evalc_t *fieldcache)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	fdef_t *var;
@@ -832,7 +837,7 @@ int PDECL PR_QueryField (pubprogfuncs_t *ppf, unsigned int fieldoffset, etype_t 
 	return true;
 }
 
-eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, char *name, etype_t type, evalc_t *cache)
+eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, const char *name, etype_t type, evalc_t *cache)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	fdef_t *var;
@@ -868,7 +873,7 @@ struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if ((unsigned)progs >= (unsigned)prinst.maxedicts)
 	{
-		printf("Bad entity index %i\n", progs);
+		externs->Printf("Bad entity index %i\n", progs);
 		if (pr_depth)
 		{
 			PR_StackTrace (ppf, false);
@@ -1282,7 +1287,7 @@ pbool PR_RunGC			(progfuncs_t *progfuncs)
 	}
 
 //	endtime = Sys_GetClock();
-//	printf("live: %u, dead: %u, time: mark=%f, sweep=%f\n", r_l, r_d, (double)(markedtime - starttime) / Sys_GetClockRate(), (double)(endtime - markedtime) / Sys_GetClockRate());
+//	externs->Printf("live: %u, dead: %u, time: mark=%f, sweep=%f\n", r_l, r_d, (double)(markedtime - starttime) / Sys_GetClockRate(), (double)(endtime - markedtime) / Sys_GetClockRate());
 
 	return true;
 }
@@ -1341,7 +1346,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 		if (ps->progs == NULL)	//we havn't loaded it yet, for some reason
 			continue;	
 
-		printf("%s:\n", ps->filename);
+		externs->Printf("%s:\n", ps->filename);
 		sorted = malloc(sizeof(*sorted) * ps->progs->numfunctions);
 		//pull out the functions in order to sort them
 		for (s = 0, f = 0; f < ps->progs->numfunctions; f++)
@@ -1374,9 +1379,9 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 		}
 
 		//print it out
-		printf("%8s %9s %10s: %s\n", "ops", "self-time", "total-time", "function");
+		externs->Printf("%8s %9s %10s: %s\n", "ops", "self-time", "total-time", "function");
 		for (f = 0; f < s; f++)
-			printf("%8u %9f %10f: %s\n", sorted[f].profile, ull2dbl(sorted[f].profiletime) / ull2dbl(cpufrequency), ull2dbl(sorted[f].totaltime) / ull2dbl(cpufrequency), sorted[f].fname);
+			externs->Printf("%8u %9f %10f: %s\n", sorted[f].profile, ull2dbl(sorted[f].profiletime) / ull2dbl(cpufrequency), ull2dbl(sorted[f].totaltime) / ull2dbl(cpufrequency), sorted[f].fname);
 		free(sorted);
 	}
 	return true;
@@ -1384,7 +1389,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 
 static void PDECL PR_CloseProgs(pubprogfuncs_t *ppf);
 
-static void PDECL RegisterBuiltin(pubprogfuncs_t *progfncs, char *name, builtin_t func);
+static void PDECL RegisterBuiltin(pubprogfuncs_t *progfncs, const char *name, builtin_t func);
 
 pubprogfuncs_t deffuncs = {
 	PROGSTRUCT_VERSION,
@@ -1617,7 +1622,7 @@ static void PDECL PR_CloseProgs(pubprogfuncs_t *ppf)
 	f(inst);
 }
 
-static void PDECL RegisterBuiltin(pubprogfuncs_t *progfuncs, char *name, builtin_t func)
+static void PDECL RegisterBuiltin(pubprogfuncs_t *progfuncs, const char *name, builtin_t func)
 {
 /*
 	extensionbuiltin_t *eb;

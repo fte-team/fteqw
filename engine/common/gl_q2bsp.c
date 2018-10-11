@@ -421,7 +421,7 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 
 #ifdef Q3BSPS
 
-int	PlaneTypeForNormal ( vec3_t normal )
+static int	PlaneTypeForNormal ( vec3_t normal )
 {
 	vec_t	ax, ay, az;
 
@@ -460,7 +460,7 @@ void CategorizePlane ( mplane_t *plane )
 	plane->type = PlaneTypeForNormal(plane->normal);
 }
 
-void PlaneFromPoints ( vec3_t verts[3], mplane_t *plane )
+static void PlaneFromPoints ( vec3_t verts[3], mplane_t *plane )
 {
 	vec3_t	v1, v2;
 
@@ -948,6 +948,163 @@ static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t
 
 //======================================================
 
+static qboolean CM_CreatePatchForFace (model_t *loadmodel, cminfo_t *prv, mleaf_t *leaf, int facenum, int *checkout)
+{
+	size_t u;
+	q3cface_t *face;
+	q2mapsurface_t *surf;
+	q3cpatch_t *patch;
+	q3cmesh_t *cmesh;
+
+	face = &prv->faces[facenum];
+
+	if (face->numverts <= 0)
+		return true;
+	if (face->shadernum < 0 || face->shadernum >= loadmodel->numtextures)
+		return true;
+	surf = &prv->surfaces[face->shadernum];
+	if (!surf->c.value)	//surface has no contents value, so can't ever block anything.
+		return true;
+
+	switch(face->facetype)
+	{
+	case MST_TRIANGLE_SOUP:
+		if (!face->soup.numindicies)
+			return true;
+		//only enable mesh collisions if its meant to be enabled.
+		//we haven't parsed any shaders, so we depend upon the stuff that the bsp compiler left lying around.
+		if (!(surf->c.flags & q3bsp_surf_meshcollision_flag.ival) && !q3bsp_surf_meshcollision_force.ival)
+			return true;
+
+		if (prv->numleafcmeshes >= prv->maxleafcmeshes)
+		{
+			prv->maxleafcmeshes *= 2;
+			prv->maxleafcmeshes += 16;
+			if (prv->numleafcmeshes > prv->maxleafcmeshes)
+			{	//detect overflow
+				Con_Printf (CON_ERROR "CM_CreateCMeshesForLeafs: map is insanely huge!\n");
+				return false;
+			}
+			prv->leafcmeshes = realloc(prv->leafcmeshes, sizeof(*prv->leafcmeshes) * prv->maxleafcmeshes);
+		}
+
+		// the patch was already built
+		if (checkout[facenum] != -1)
+		{
+			prv->leafcmeshes[prv->numleafcmeshes] = checkout[facenum];
+			cmesh = &prv->cmeshes[checkout[facenum]];
+		}
+		else
+		{
+			if (prv->numcmeshes >= MAX_CM_PATCHES)
+			{
+				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
+				return false;
+			}
+
+			cmesh = &prv->cmeshes[prv->numcmeshes];
+			prv->leafcmeshes[prv->numleafcmeshes] = prv->numcmeshes;
+			checkout[facenum] = prv->numcmeshes++;
+
+//gcc warns without this cast
+
+			cmesh->surface = surf;
+			cmesh->numverts = face->numverts;
+			cmesh->numincidies = face->soup.numindicies;
+			cmesh->xyz_array = ZG_Malloc(&loadmodel->memgroup, cmesh->numverts * sizeof(*cmesh->xyz_array) + cmesh->numincidies * sizeof(*cmesh->indicies));
+			cmesh->indicies = (index_t*)(cmesh->xyz_array + cmesh->numverts);
+
+			VectorCopy(prv->verts[face->firstvert+0], cmesh->xyz_array[0]);
+			VectorCopy(cmesh->xyz_array[0], cmesh->absmaxs);
+			VectorCopy(cmesh->xyz_array[0], cmesh->absmins);
+			for (u = 1; u < cmesh->numverts; u++)
+			{
+				VectorCopy(prv->verts[face->firstvert+u], cmesh->xyz_array[u]);
+				AddPointToBounds(cmesh->xyz_array[u], cmesh->absmins, cmesh->absmaxs);
+			}
+			for (u = 0; u < cmesh->numincidies; u++)
+				cmesh->indicies[u] = prv->surfindexes[face->soup.firstindex+u];
+		}
+		leaf->contents |= surf->c.value;
+		leaf->numleafcmeshes++;
+
+		prv->numleafcmeshes++;
+
+		break;
+	case MST_PATCH:
+		if (face->patch.cp[0] <= 0 || face->patch.cp[1] <= 0)
+			return true;
+
+		if ( !surf->c.value || (surf->c.flags & Q3SURF_NONSOLID) )
+			return true;
+
+		if (prv->numleafpatches >= prv->maxleafpatches)
+		{
+			prv->maxleafpatches *= 2;
+			prv->maxleafpatches += 16;
+			if (prv->numleafpatches > prv->maxleafpatches)
+			{	//detect overflow
+				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map is insanely huge!\n");
+				return false;
+			}
+			prv->leafpatches = realloc(prv->leafpatches, sizeof(*prv->leafpatches) * prv->maxleafpatches);
+		}
+
+		// the patch was already built
+		if (checkout[facenum] != -1)
+		{
+			prv->leafpatches[prv->numleafpatches] = checkout[facenum];
+			patch = &prv->patches[checkout[facenum]];
+		}
+		else
+		{
+			if (prv->numpatches >= MAX_CM_PATCHES)
+			{
+				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
+				return false;
+			}
+
+			patch = &prv->patches[prv->numpatches];
+			prv->leafpatches[prv->numleafpatches] = prv->numpatches;
+			checkout[facenum] = prv->numpatches++;
+
+//gcc warns without this cast
+			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp );
+		}
+		leaf->contents |= patch->surface->c.value;
+		leaf->numleafpatches++;
+
+		prv->numleafpatches++;
+		break;
+	}
+	return true;
+}
+static qboolean CM_CreatePatchesForLeaf (model_t *loadmodel, cminfo_t *prv, mleaf_t *leaf, int *checkout)
+{
+	int j, k;
+
+	leaf->numleafpatches = 0;
+	leaf->firstleafpatch = prv->numleafpatches;
+	leaf->numleafcmeshes = 0;
+	leaf->firstleafcmesh = prv->numleafcmeshes;
+
+	if (leaf->cluster == -1)
+		return true;
+
+	for (j=0 ; j<leaf->nummarksurfaces ; j++)
+	{
+		k = leaf->firstmarksurface[j] - loadmodel->surfaces;
+		if (k >= prv->numfaces)
+		{
+			Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: corrupt map\n");
+			break;
+		}
+		if (!CM_CreatePatchForFace (loadmodel, prv, leaf, k, checkout))
+			return false;
+	}
+	return true;
+}
+
 /*
 =================
 CM_CreatePatchesForLeafs
@@ -955,12 +1112,8 @@ CM_CreatePatchesForLeafs
 */
 static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 {
-	int i, j, k;
+	int i, k;
 	mleaf_t *leaf;
-	q3cface_t *face;
-	q2mapsurface_t *surf;
-	q3cpatch_t *patch;
-	q3cmesh_t *cmesh;
 	int *checkout = alloca(sizeof(int)*prv->numfaces);
 
 	if (map_noCurves.ival)
@@ -968,148 +1121,23 @@ static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 
 	memset (checkout, -1, sizeof(int)*prv->numfaces);
 
+	//worldmodel's leafs
 	for (i = 0, leaf = loadmodel->leafs; i < loadmodel->numleafs; i++, leaf++)
+		if (!CM_CreatePatchesForLeaf(loadmodel, prv, leaf, checkout))
+			return false;
+
+	//and the per-submodel uni-leaf.
+	for (i = 0; i < prv->numcmodels; i++)
 	{
-		leaf->numleafpatches = 0;
-		leaf->firstleafpatch = prv->numleafpatches;
-		leaf->numleafcmeshes = 0;
-		leaf->firstleafcmesh = prv->numleafcmeshes;
-
-		if (leaf->cluster == -1)
-			continue;
-
-		for (j=0 ; j<leaf->nummarksurfaces ; j++)
+		leaf = prv->cmodels[i].headleaf;
+		if (leaf)
 		{
-			k = leaf->firstmarksurface[j] - loadmodel->surfaces;
-			if (k >= prv->numfaces)
-			{
-				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: corrupt map\n");
-				break;
-			}
-			face = &prv->faces[k];
-
-			if (face->numverts <= 0)
-				continue;
-			if (face->shadernum < 0 || face->shadernum >= loadmodel->numtextures)
-				continue;
-			surf = &prv->surfaces[face->shadernum];
-			if (!surf->c.value)	//surface has no contents value, so can't ever block anything.
-				continue;
-
-			switch(face->facetype)
-			{
-			case MST_TRIANGLE_SOUP:
-				if (!face->soup.numindicies)
-					continue;
-				//only enable mesh collisions if its meant to be enabled.
-				//we haven't parsed any shaders, so we depend upon the stuff that the bsp compiler left lying around.
-				if (!(surf->c.flags & q3bsp_surf_meshcollision_flag.ival) && !q3bsp_surf_meshcollision_force.ival)
-					continue;
-
-				if (prv->numleafcmeshes >= prv->maxleafcmeshes)
-				{
-					prv->maxleafcmeshes *= 2;
-					prv->maxleafcmeshes += 16;
-					if (prv->numleafcmeshes > prv->maxleafcmeshes)
-					{	//detect overflow
-						Con_Printf (CON_ERROR "CM_CreateCMeshesForLeafs: map is insanely huge!\n");
-						return false;
-					}
-					prv->leafcmeshes = realloc(prv->leafcmeshes, sizeof(*prv->leafcmeshes) * prv->maxleafcmeshes);
-				}
-
-				// the patch was already built
-				if (checkout[k] != -1)
-				{
-					prv->leafcmeshes[prv->numleafcmeshes] = checkout[k];
-					cmesh = &prv->cmeshes[checkout[k]];
-				}
-				else
-				{
-					if (prv->numcmeshes >= MAX_CM_PATCHES)
-					{
-						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
-						return false;
-					}
-
-					cmesh = &prv->cmeshes[prv->numcmeshes];
-					prv->leafcmeshes[prv->numleafcmeshes] = prv->numcmeshes;
-					checkout[k] = prv->numcmeshes++;
-
-	//gcc warns without this cast
-
-					cmesh->surface = surf;
-					cmesh->numverts = face->numverts;
-					cmesh->numincidies = face->soup.numindicies;
-					cmesh->xyz_array = ZG_Malloc(&loadmodel->memgroup, cmesh->numverts * sizeof(*cmesh->xyz_array) + cmesh->numincidies * sizeof(*cmesh->indicies));
-					cmesh->indicies = (index_t*)(cmesh->xyz_array + cmesh->numverts);
-
-					VectorCopy(prv->verts[face->firstvert+0], cmesh->xyz_array[0]);
-					VectorCopy(cmesh->xyz_array[0], cmesh->absmaxs);
-					VectorCopy(cmesh->xyz_array[0], cmesh->absmins);
-					for (k = 1; k < cmesh->numverts; k++)
-					{
-						VectorCopy(prv->verts[face->firstvert+k], cmesh->xyz_array[k]);
-						AddPointToBounds(cmesh->xyz_array[k], cmesh->absmins, cmesh->absmaxs);
-					}
-					for (k = 0; k < cmesh->numincidies; k++)
-						cmesh->indicies[k] = prv->surfindexes[face->soup.firstindex+k];
-				}
-				leaf->contents |= surf->c.value;
-				leaf->numleafcmeshes++;
-
-				prv->numleafcmeshes++;
-
-				break;
-			case MST_PATCH:
-				if (face->patch.cp[0] <= 0 || face->patch.cp[1] <= 0)
-					continue;
-
-				if ( !surf->c.value || (surf->c.flags & Q3SURF_NONSOLID) )
-					continue;
-
-				if (prv->numleafpatches >= prv->maxleafpatches)
-				{
-					prv->maxleafpatches *= 2;
-					prv->maxleafpatches += 16;
-					if (prv->numleafpatches > prv->maxleafpatches)
-					{	//detect overflow
-						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map is insanely huge!\n");
-						return false;
-					}
-					prv->leafpatches = realloc(prv->leafpatches, sizeof(*prv->leafpatches) * prv->maxleafpatches);
-				}
-
-				// the patch was already built
-				if (checkout[k] != -1)
-				{
-					prv->leafpatches[prv->numleafpatches] = checkout[k];
-					patch = &prv->patches[checkout[k]];
-				}
-				else
-				{
-					if (prv->numpatches >= MAX_CM_PATCHES)
-					{
-						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
-						return false;
-					}
-
-					patch = &prv->patches[prv->numpatches];
-					prv->leafpatches[prv->numleafpatches] = prv->numpatches;
-					checkout[k] = prv->numpatches++;
-
-	//gcc warns without this cast
-					CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp );
-				}
-				leaf->contents |= patch->surface->c.value;
-				leaf->numleafpatches++;
-
-				prv->numleafpatches++;
-				break;
-			}
+			if (!CM_CreatePatchesForLeaf(loadmodel, prv, leaf, checkout))
+				return false;
+			for (k = 0; k < prv->cmodels[i].numsurfaces; k++)
+				CM_CreatePatchForFace(loadmodel, prv, leaf, prv->cmodels[i].firstsurface+k, checkout);
 		}
 	}
-
 	return true;
 }
 #endif
@@ -4669,7 +4697,7 @@ To keep everything totally uniform, bounding boxes are turned into small
 BSP trees instead of being compared directly.
 ===================
 */
-void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
+static void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
 {
 	box_planes[0].dist = maxs[0];
 	box_planes[1].dist = maxs[1];
@@ -4741,7 +4769,7 @@ int		*leaf_list;
 float	*leaf_mins, *leaf_maxs;
 int		leaf_topnode;
 
-void CM_BoxLeafnums_r (model_t *mod, int nodenum)
+static void CM_BoxLeafnums_r (model_t *mod, int nodenum)
 {
 	mplane_t	*plane;
 	mnode_t		*node;
@@ -4779,7 +4807,7 @@ void CM_BoxLeafnums_r (model_t *mod, int nodenum)
 	}
 }
 
-int	CM_BoxLeafnums_headnode (model_t *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int headnode, int *topnode)
+static int	CM_BoxLeafnums_headnode (model_t *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int headnode, int *topnode)
 {
 	leaf_list = list;
 	leaf_count = 0;
@@ -6355,7 +6383,7 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 	return buffer->buffer;
 }
 
-unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *result, qboolean merge)
+static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *result, qboolean merge)
 {
 	int	leafs[64];
 	int		i, j, count;

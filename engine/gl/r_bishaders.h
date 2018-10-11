@@ -2945,6 +2945,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "col.rgb *= light;\n"
+"col *= e_colourident;\n"
 
 "#ifdef FULLBRIGHT\n"
 "vec4 fb = texture2D(s_fullbright, tc);\n"
@@ -2953,7 +2954,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#endif\n"
 
-"gl_FragColor = fog4(col * e_colourident);\n"
+"gl_FragColor = fog4(col);\n"
 "}\n"
 "#endif\n"
 

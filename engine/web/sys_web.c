@@ -237,17 +237,13 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 
 
+#define SYS_CLIPBOARD_SIZE  256
 static char *clipboard_buffer;
-char *Sys_GetClipboard(void)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
 {
-	return clipboard_buffer;
+	callback(ctx, clipboard_buffer);
 }
-
-void Sys_CloseClipboard(char *bf)
-{
-}
-
-void Sys_SaveClipboard(char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
 {
 	free(clipboard_buffer);
 	clipboard_buffer = strdup(text);

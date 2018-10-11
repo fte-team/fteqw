@@ -2546,12 +2546,12 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	if (numcontacts)
 	{
 		if(ed1 && ed1->v->touch)
-		{
-			world->Event_Touch(world, ed1, ed2);
+		{	//no trace info here. you'll have to figure it out yourself or something.
+			world->Event_Touch(world, ed1, ed2, NULL);
 		}
 		if(ed2 && ed2->v->touch)
 		{
-			world->Event_Touch(world, ed2, ed1);
+			world->Event_Touch(world, ed2, ed1, NULL);
 		}
 
 		/* if either ent killed itself, don't collide */

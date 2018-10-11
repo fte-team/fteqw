@@ -304,7 +304,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void skel_dodelete(world_t *world);
 	void skel_reset(world_t *world);
 	void skel_reload(void);
-	void skel_updateentbounds();
+	void skel_updateentbounds(world_t *w, wedict_t *ent);
 #endif
 void QCBUILTIN PF_physics_supported(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -519,6 +519,7 @@ void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal);
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored);
 void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary);
+qboolean PR_Common_LoadGame(pubprogfuncs_t *prinst, char *command, const char **file);
 
 uploadfmt_t PR_TranslateTextureFormat(int qcformat);
 

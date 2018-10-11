@@ -1204,7 +1204,8 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	float giveuptime = Sys_DoubleTime()+1;	//small things get padded into a single frame
 
 #define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?true:false)
-#define endstage() ++cl.contentstage;if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
+#define endstage() ++cl.contentstage;if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1
+#define skipstage() if (atstage())++cl.contentstage;else
 
 	pmove.numphysent = 0;
 	pmove.physents[0].model = NULL;
@@ -1308,9 +1309,8 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 		{
 			if (!cl.model_name[i][0])
-				continue;
-
-			if (atstage())
+				skipstage();
+			else if (atstage())
 			{
 #if 0
 				SCR_SetLoadingFile(cl.model_name[i]);
@@ -1383,8 +1383,8 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	for (i=1 ; i<MAX_CSMODELS ; i++)
 	{
 		if (!cl.model_csqcname[i][0])
-			continue;
-		if (atstage())
+			skipstage();
+		else if (atstage())
 		{
 #if 0
 			SCR_SetLoadingFile(cl.model_csqcname[i]);

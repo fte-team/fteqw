@@ -514,7 +514,7 @@ static qboolean QDECL OSS_Capture_Enumerate (void (QDECL *callback) (const char 
 	//SNDCTL_CARDINFO
 	return false;
 }
-void *OSS_Capture_Init(int rate, const char *snddev)
+static void *OSS_Capture_Init(int rate, const char *snddev)
 {
 	int tmp;
 	intptr_t fd;
@@ -555,26 +555,26 @@ void *OSS_Capture_Init(int rate, const char *snddev)
 	fd++;
 	return (void*)fd;
 }
-void OSS_Capture_Start(void *ctx)
+static void OSS_Capture_Start(void *ctx)
 {
 	/*oss will automagically restart it when we next read*/
 }
 
-void OSS_Capture_Stop(void *ctx)
+static void OSS_Capture_Stop(void *ctx)
 {
 	intptr_t fd = ((intptr_t)ctx)-1;
 
 	ioctl(fd, SNDCTL_DSP_RESET, NULL);
 }
 
-void OSS_Capture_Shutdown(void *ctx)
+static void OSS_Capture_Shutdown(void *ctx)
 {
 	intptr_t fd = ((intptr_t)ctx)-1;
 
 	close(fd);
 }
 
-unsigned int OSS_Capture_Update(void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+static unsigned int OSS_Capture_Update(void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
 {
 	intptr_t fd = ((intptr_t)ctx)-1;
 	ssize_t res;

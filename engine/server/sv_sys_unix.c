@@ -76,24 +76,6 @@ struct termios orig, changes;
 
 /*
 ============
-Sys_FileTime
-
-returns -1 if not present
-============
-*/
-int	Sys_FileTime (char *path)
-{
-	struct	stat	buf;
-
-	if (stat (path,&buf) == -1)
-		return -1;
-
-	return buf.st_mtime;
-}
-
-
-/*
-============
 Sys_mkdir
 
 ============
@@ -221,7 +203,7 @@ void Sys_Error (const char *error, ...)
 
 static qboolean useansicolours;
 static int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
-void ApplyColour(unsigned int chr)
+static void ApplyColour(unsigned int chr)
 {
 	static int oldchar = CON_WHITEMASK;
 	int bg, fg;
@@ -284,7 +266,7 @@ void ApplyColour(unsigned int chr)
 }
 
 #define putch(c) putc(c, stdout);
-void Sys_PrintColouredChar(unsigned int chr)
+/*static void Sys_PrintColouredChar(unsigned int chr)
 {
 	ApplyColour(chr);
 
@@ -296,7 +278,7 @@ void Sys_PrintColouredChar(unsigned int chr)
 		chr &= ~0x80;
 
 	putch(chr);
-}
+}*/
 
 /*
 ================
@@ -493,7 +475,7 @@ void Sys_Quit (void)
 static int do_stdin = 1;
 
 #if 1
-char *Sys_LineInputChar(char *line)
+static char *Sys_LineInputChar(char *line)
 {
 	char c;
 	while(*line)
@@ -777,9 +759,11 @@ static int Sys_CheckChRoot(void)
 #endif
 
 		//FIXME: should we temporarily try swapping uid+euid so we don't have any more access than a non-suid binary for this initial init stuff?
-		struct addrinfo *info;
-		if (getaddrinfo("master.quakeservers.net", NULL, NULL, &info) == 0)	//make sure we've loaded /etc/resolv.conf etc, otherwise any dns requests are going to fail, which would mean no masters.
-			freeaddrinfo(info);
+		{
+			struct addrinfo *info;
+			if (getaddrinfo("master.quakeservers.net", NULL, NULL, &info) == 0)	//make sure we've loaded /etc/resolv.conf etc, otherwise any dns requests are going to fail, which would mean no masters.
+				freeaddrinfo(info);
+		}
 
 #ifdef SQL
 		SQL_Available();
@@ -892,24 +876,26 @@ int main(int argc, char *argv[])
 	case false:
 		parms.basedir = "./";
 #ifdef __linux__
-		//attempt to figure out where the exe is located
-		int l = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
-		if (l > 0)
-		{
-			bindir[l] = 0;
-			*COM_SkipPath(bindir) = 0;
-			printf("Binary is located at \"%s\"\n", bindir);
-			parms.binarydir = bindir;
+		{	//attempt to figure out where the exe is located
+			int l = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
+			if (l > 0)
+			{
+				bindir[l] = 0;
+				*COM_SkipPath(bindir) = 0;
+				printf("Binary is located at \"%s\"\n", bindir);
+				parms.binarydir = bindir;
+			}
 		}
 /*#elif defined(__bsd__)
-		//attempt to figure out where the exe is located
-		int l = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
-		if (l > 0)
-		{
-			bindir[l] = 0;
-			*COM_SkipPath(bindir) = 0;
-			printf("Binary is located at "%s"\n", bindir);
-			parms.binarydir = bindir;
+		{	//attempt to figure out where the exe is located
+			int l = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
+			if (l > 0)
+			{
+				bindir[l] = 0;
+				*COM_SkipPath(bindir) = 0;
+				printf("Binary is located at "%s"\n", bindir);
+				parms.binarydir = bindir;
+			}
 		}
 */
 #endif
@@ -970,7 +956,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char file[MAX_OSPATH];

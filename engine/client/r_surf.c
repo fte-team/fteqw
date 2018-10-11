@@ -3859,6 +3859,8 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 }
 int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 {
+	unsigned int nulllight = 0xffffffff;
+	unsigned int nulldeluxe = 0xffff7f7f;
 	int first = numlightmaps;
 	int i;
 	char nname[MAX_QPATH];
@@ -3891,6 +3893,13 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
 		if (lightmap[i]->lightmap_texture->status == TEX_LOADING)
 			COM_WorkerPartialSync(lightmap[i]->lightmap_texture, &lightmap[i]->lightmap_texture->status, TEX_LOADING);
+		if (lightmap[i]->lightmap_texture->status == TEX_FAILED)
+		{
+			if ((i&1) && deluxe)
+				lightmap[i]->lightmap_texture = R_LoadReplacementTexture("*nulldeluxe", NULL, IF_LOADNOW, &nulldeluxe, 1, 1, TF_RGBX32);
+			else
+				lightmap[i]->lightmap_texture = R_LoadReplacementTexture("*nulllight", NULL, IF_LOADNOW, &nulllight, 1, 1, TF_RGBX32);
+		}
 		lightmap[i]->width = lightmap[i]->lightmap_texture->width;
 		lightmap[i]->height = lightmap[i]->lightmap_texture->height;
 	}

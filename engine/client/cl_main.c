@@ -46,7 +46,7 @@ int startuppending;
 void Host_FinishLoading(void);
 
 
-cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE, "Controls whether to send a hash instead of sending rcon passwords as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");
+cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "Controls whether to send a hash instead of sending rcon passwords as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");	//CVAR_NOTFROMSERVER prevents evil servers from degrading it to send plain-text passwords.
 cvar_t	rcon_password = CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
@@ -6169,7 +6169,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
-	Cbuf_AddText("alias restart \"changelevel .\"\n",RESTRICT_LOCAL);
+	Cbuf_AddText("alias restart map_restart\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.

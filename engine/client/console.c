@@ -1351,8 +1351,6 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 			for (p = 0; (textstart[p]&CON_CHARMASK)>' '; p++)
 				textstart[p] = (textstart[p]&CON_CHARMASK) | (COLOR_YELLOW<<CON_FGSHIFT);
 		}
-//		else
-//			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
 		if (cursor == endmtext)	//cursor is at end
 		{
@@ -1371,8 +1369,6 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 			}
 		}
 	}
-//	else
-//		Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
 	if (!vid.activeapp)
 		cursorframe = 0;
@@ -2306,15 +2302,18 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						send += center;
 
 						if (selactive == 1)
-							R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));	//selected
-						else
-							R2D_ImageColours(SRGBA(0.3,0.3,0.3, alphaval));	//mouseover.
+						{
+							if (selactive == 1)
+								R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));	//selected
+							else
+								R2D_ImageColours(SRGBA(0.3,0.3,0.3, alphaval));	//mouseover.
 
-						if (send < sstart)
-							R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
-						else
-							R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
-						R2D_Flush();
+							if (send < sstart)
+								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+							else
+								R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+							R2D_Flush();
+						}
 					}
 				}
 			}

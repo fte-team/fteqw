@@ -283,12 +283,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(drawonlytoclient,"This entity will be sent *only* to the player named by this field. To other players they will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
 	comfieldentity(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.")/*DP_ENT_VIEWMODEL*/\
 	comfieldentity(exteriormodeltoclient,"This entity will be invisible to the player named by this field, except in mirrors or mirror-like surfaces, where it will be visible as normal. It may still cast shadows as normal, and generate lights+particles, depending on client settings. Does not affect how other players see the entity.")\
-	comfieldfloat(button3,"DP_INPUTBUTTONS (note in qw, we set 1 to equal 3, to match zquake/fuhquake/mvdsv)")\
-	comfieldfloat(button4,NULL)\
-	comfieldfloat(button5,NULL)\
-	comfieldfloat(button6,NULL)\
-	comfieldfloat(button7,NULL)\
-	comfieldfloat(button8,NULL)\
 	comfieldfloat(glow_size,NULL)\
 	comfieldfloat(glow_color,NULL)\
 	comfieldfloat(glow_trail,NULL)\
@@ -435,7 +429,6 @@ comextqcfields
 #else
 } comentvars_t;
 #endif
-
 
 #ifdef USEAREAGRID
 #define AREAGRIDPERENT 16

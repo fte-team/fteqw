@@ -270,6 +270,7 @@ void M_Menu_Audio_f (void);
 void M_Menu_Demos_f (void);
 void M_Menu_Mods_f (void);
 void M_Menu_ModelViewer_f(void);
+void M_Menu_ModelViewer_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 
 extern menu_t *menu_script;
 
@@ -1234,7 +1235,9 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
-	Cmd_AddCommand ("modelviewer", M_Menu_ModelViewer_f);
+#ifndef MINIMAL
+	Cmd_AddCommandAD ("modelviewer", M_Menu_ModelViewer_f, M_Menu_ModelViewer_c, "View a model...");
+#endif
 
 #ifdef CL_MASTER
 	Cmd_AddCommand ("menu_slist", M_Menu_ServerList2_f);

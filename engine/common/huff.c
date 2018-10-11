@@ -84,15 +84,15 @@ static void	Huff_setBloc(int _bloc)
 {
 	bloc = _bloc;
 }
-*/
-int		Huff_getBit( qbyte *fin, int *offset) {
+
+static int		Huff_getBit( qbyte *fin, int *offset) {
 	int t;
 	bloc = *offset;
 	t = (fin[(bloc>>3)] >> (bloc&7)) & 0x1;
 	bloc++;
 	*offset = bloc;
 	return t;
-}
+}*/
 
 /* Add a bit to the output file (buffered) */
 static void huff_add_bit (char bit, qbyte *fout) {

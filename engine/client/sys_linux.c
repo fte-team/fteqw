@@ -312,24 +312,30 @@ static void Sys_Register_File_Associations_f(void)
 	{
 		char *exe = realpath(host_parms.argv[0], NULL);
 		char *basedir = realpath(com_gamepath, NULL);
+		char *iconname = fs_manifest->installation;
 		const char *desktopfile = 
 			"[Desktop Entry]\n"
 			"Type=Application\n"
 			"Encoding=UTF-8\n"
-			"Name=FTE QuakeWorld\n"	//FIXME: needs to come from the manifest
+			"Name=%s\n"
 			"Comment=Awesome First Person Shooter\n"	//again should be a manicfest item
 			"Exec=\"%s\" %%u\n"	//FIXME: FS_GetManifestArgs! etc!
 			"Path=%s\n"
-			"Icon=quake\n"		//FIXME: fix me!
+			"Icon=%s\n"
 			"Terminal=false\n"
 			"Categories=Game;\n"
-			"MimeType=application/x-quakeworlddemo;x-scheme-handler/qw;\n"
+			"MimeType=" "application/x-quakeworlddemo;" "x-scheme-handler/qw;\n"
 			;
+		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
+			iconname = "quake";
 		desktopfile = va(desktopfile,
-					exe, basedir);
+					fs_manifest->formalname?fs_manifest->formalname:fs_manifest->installation,
+					exe, basedir, iconname);
 		free(exe);
 		free(basedir);
-		FS_WriteFile(va("%s/applications/fteqw.desktop", xdgbase), desktopfile, strlen(desktopfile), FS_SYSTEM);
+		FS_WriteFile(va("%s/applications/fte-%s.desktop", xdgbase, fs_manifest->installation), desktopfile, strlen(desktopfile), FS_SYSTEM);
+
+		//FIXME: read icon.png and write it to ~/.local/share/icons/hicolor/WxH/apps/foo.png
 	}
 
 	//we need to set some default applications.
@@ -374,7 +380,7 @@ static void Sys_Register_File_Associations_f(void)
 				if (foundassoc)
 				{	//if we found it, or somewhere to insert it, then insert it.
 					VFS_WRITE(out, in, foundassoc-in);
-					VFS_PRINTF(out, "x-scheme-handler/qw=fteqw.desktop\n");
+					VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop\n", fs_manifest->installation);
 					VFS_WRITE(out, foundassoc, insize - (foundassoc-in));
 				}
 				else
@@ -384,7 +390,7 @@ static void Sys_Register_File_Associations_f(void)
 			if (!foundassoc)
 			{	//if file not found, or no appropriate section, just concat it on the end.
 				VFS_PRINTF(out, "[Added Associations]\n");
-				VFS_PRINTF(out, "x-scheme-handler/qw=fteqw.desktop\n");
+				VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop\n", fs_manifest->installation);
 			}
 			VFS_FLUSH(out);
 			VFS_CLOSE(out);
@@ -418,9 +424,20 @@ void Sys_Error (const char *error, ...)
 	fprintf(stderr, "Error: %s\n", string);
 
 	Host_Shutdown ();
+
 #ifdef USE_LIBTOOL
 	lt_dlexit();
 #endif
+
+	fflush(stdout);
+	fflush(stderr);
+
+	if (!isatty(STDERR_FILENO))
+	{	//if we're a graphical x11 program then its quite likely that we have no stdout with the user never knowing why the game just disappeared
+		//the crash could have come from malloc failures, this means we can't really depend upon xlib
+		//but we can start some other program to display the message.
+		execl("/usr/bin/xmessage", "xmessage", string, NULL);
+	}
 	exit (1);
 }
 
@@ -435,24 +452,6 @@ void Sys_Warn (char *warning, ...)
 
 	fprintf(stderr, "Warning: %s", string);
 }
-
-/*
-============
-Sys_FileTime
-
-returns -1 if not present
-============
-*/
-int	Sys_FileTime (char *path)
-{
-	struct	stat	buf;
-
-	if (stat (path,&buf) == -1)
-		return -1;
-
-	return buf.st_mtime;
-}
-
 
 void Sys_mkdir (const char *path)
 {
@@ -507,7 +506,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 }
 
-int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char file[MAX_OSPATH];
@@ -593,7 +592,7 @@ int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, 
 
 					if (!func(file, st.st_size, st.st_mtime, parm, spath))
 					{
-						Con_DPrintf("giving up on search after finding %s\n", file);
+//						Con_DPrintf("giving up on search after finding %s\n", file);
 						closedir(dir);
 						return false;
 					}
@@ -861,7 +860,7 @@ char *Sys_ConsoleInput(void)
 
 //	if (!qrenderer)
 	{
-		len = read (0, text, sizeof(text));
+		len = read (STDIN_FILENO, text, sizeof(text));
 		if (len < 1)
 			return NULL;
 
@@ -911,10 +910,12 @@ int main (int c, const char **v)
 #endif
 
 #ifdef __linux__
-	uid_t ruid, euid, suid;
-	getresuid(&ruid, &euid, &suid);
-	if (!ruid || !euid || !suid)
-		printf("WARNING: you should NOT be running this as root!\n");
+	{
+		uid_t ruid, euid, suid;
+		getresuid(&ruid, &euid, &suid);
+		if (!ruid || !euid || !suid)
+			printf("WARNING: you should NOT be running this as root!\n");
+	}
 #endif
 
 #ifdef __linux__
@@ -1059,7 +1060,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	return false;
 #else
 	return X11_GetDesktopParameters(width, height, bpp, refreshrate);
-
+/*
 	Display *xtemp;
 	int scr;
 
@@ -1078,6 +1079,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	XCloseDisplay(xtemp);
 
 	return true;
+*/
 #endif
 }
 
@@ -1085,15 +1087,12 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #define SYS_CLIPBOARD_SIZE		256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
 
-char *Sys_GetClipboard(void) {
-	return clipboard_buffer;
-}
-
-void Sys_CloseClipboard(char *bf)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
 {
+	callback(ctx, clipboard_buffer);
 }
 
-void Sys_SaveClipboard(char *text) {
+void Sys_SaveClipboard(clipboardtype_t cbt, char *text) {
 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }
 #endif

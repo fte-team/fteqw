@@ -191,7 +191,7 @@ void SV_AcceptClient (netadr_t *adr, int userid, char *userinfo);
 void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 
 #ifdef SQL
-void PR_SQLCycle();
+void PR_SQLCycle(void);
 #endif
 
 int	nextuserid;

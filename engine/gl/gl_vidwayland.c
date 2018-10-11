@@ -538,7 +538,7 @@ static void WL_SwapBuffers(void)
 }
 
 #ifdef VKQUAKE
-static qboolean WLVK_SetupSurface()
+static qboolean WLVK_SetupSurface(void)
 {
 	VkWaylandSurfaceCreateInfoKHR inf = {VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR};
     inf.flags = 0;

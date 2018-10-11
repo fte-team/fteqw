@@ -1685,7 +1685,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	texnums_t *skin;
 
-	if ((r_refdef.externalview || r_refdef.recurse) && e->flags & RF_WEAPONMODEL)
+	if ((r_refdef.externalview || r_refdef.recurse) && (e->flags & RF_WEAPONMODEL))
 		return;
 
 	clmodel = e->model;
@@ -2758,6 +2758,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	unsigned int orig_numvisedicts = cl_numvisedicts;
 //	unsigned int orig_numstrisidx = cl_numstrisidx;
 //	unsigned int orig_numstrisvert = cl_numstrisvert;
+	extern cvar_t chase_active;	//I fucking hate this cvar. die die die.
 
 	/*clear the batch list*/
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
@@ -2792,7 +2793,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	{
 		ent = &cl_visedicts[i];
 
-		if (!r_refdef.externalview && (ent->flags & RF_EXTERNALMODEL))
+		if (!r_refdef.externalview && (ent->flags & RF_EXTERNALMODEL) && !chase_active.ival)
 			continue;
 
 #ifdef RTLIGHTS

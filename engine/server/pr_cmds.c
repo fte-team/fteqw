@@ -187,6 +187,51 @@ progparms_t svprogparms;
 
 progstype_t progstype;
 
+static struct
+{
+	const char *fieldname;
+	unsigned int bit;
+	int offset;	//((float*)ent->v)[offset] = buttonpressed; or -1
+} buttonfields[] =
+{
+	//0,1,2 are handled specially, because they're always defined in qc (and button1 is hacky).
+	{"button3",  2},
+	{"button4",  3},
+	{"button5",  4},
+	{"button6",  5},
+	{"button7",  6},
+	{"button8",  7},
+
+	//and for dp compat (these names are fucked, yes)
+	{"buttonuse",    8},
+	{"buttonchat",   9},
+	{"cursor_active", 10},
+	{"button9",  11},
+	{"button10", 12},
+	{"button11", 13},
+	{"button12", 14},
+	{"button13", 15},
+
+	{"button14", 16},
+	{"button15", 17},
+	{"button16", 18},
+/*	{"button17", 19},
+	{"button18", 20},
+	{"button19", 21},
+	{"button20", 22},
+	{"button21", 23},
+
+	{"button22", 24},
+	{"button23", 25},
+	{"button24", 26},
+	{"button25", 27},
+	{"button26", 28},
+	{"button27", 29},
+	{"button28", 30},
+	{"button29", 31},
+*/
+};
+
 void PR_RegisterFields(void);
 void PR_ResetBuiltins(progstype_t type);
 
@@ -492,6 +537,9 @@ static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *k
 
 void PR_SV_FillWorldGlobals(world_t *w)
 {
+	unsigned int i;
+	for (i = 0; i < countof(buttonfields); i++)
+		buttonfields[i].offset = -1;
 	w->g.self = pr_global_ptrs->self;
 	w->g.other = pr_global_ptrs->other;
 	w->g.force_retouch = pr_global_ptrs->force_retouch;
@@ -1196,6 +1244,15 @@ static progsnum_t AddProgs(const char *name)
 	{
 		PF_InitTempStrings(svprogfuncs);
 		PR_ResetBuiltins(progstype);
+	}
+
+	for (i = 0; i < countof(buttonfields); i++)
+	{
+		eval_t *val = svprogfuncs->GetEdictFieldValue(svprogfuncs, (edict_t*)sv.world.edicts, buttonfields[i].fieldname, ev_float, NULL);
+		if (val)
+			buttonfields[i].offset = (float*)val - (float*)sv.world.edicts->v;
+		else
+			buttonfields[i].offset = -1;
 	}
 
 	if ((f = PR_FindFunction (svprogfuncs, "VersionChat", num )))
@@ -5586,14 +5643,14 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	case TE_BULLET:
 		qwtype[1] = TE_SPIKE;
 #ifdef NQPROT
-		qwtype[1] = qwtype[0] = TE_SPIKE;
+		nqtype[1] = nqtype[0] = TE_SPIKE;
 #endif
 		split = PEXT_TE_BULLET;
 		break;
 	case TEQW_SUPERBULLET:
 		qwtype[1] = TE_SUPERSPIKE;
 #ifdef NQPROT
-		qwtype[1] = qwtype[0] = TE_SUPERSPIKE;
+		nqtype[1] = nqtype[0] = TE_SUPERSPIKE;
 #endif
 		split = PEXT_TE_BULLET;
 		break;
@@ -5618,8 +5675,8 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 #ifdef NQPROT
 		nqtype[0] = TENQ_QWEXPLOSION;
 		nqtype[1] = TENQ_NQEXPLOSION;
-#endif
 		split = PEXT_TE_BULLET;
+#endif
 		break;
 	case TEQW_NQEXPLOSION:
 		qwtype[0] = TEQW_NQEXPLOSION;
@@ -5662,7 +5719,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 			MSG_WriteChar (&sv.nqmulticast, 0);
 			MSG_WriteChar (&sv.nqmulticast, 0);
 			MSG_WriteChar (&sv.nqmulticast, 0);
-			MSG_WriteByte (&sv.nqmulticast, count*20);
+			MSG_WriteByte (&sv.nqmulticast, bound(0, count*20, 254));	//255=explosion.
 			MSG_WriteByte (&sv.nqmulticast, nqtype[i]&0xff);
 		}
 		else if (nqtype[i] >= 0)
@@ -5678,8 +5735,8 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 					MSG_WriteChar(&sv.nqmulticast, 0);
 					MSG_WriteChar(&sv.nqmulticast, 0);
 				}
-				if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype[i] == TENQ_QWGUNSHOT)
-					MSG_WriteByte (&sv.multicast, count);
+				else if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype[i] == TENQ_QWGUNSHOT)
+					MSG_WriteByte (&sv.nqmulticast, count);
 				MSG_WriteCoord (&sv.nqmulticast, o[0]);
 				MSG_WriteCoord (&sv.nqmulticast, o[1]);
 				MSG_WriteCoord (&sv.nqmulticast, o[2]);
@@ -9774,6 +9831,24 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	}
 }
 
+void SV_SetEntityButtons(edict_t *ent, unsigned int buttonbits)
+{
+	unsigned int i;
+	extern cvar_t pr_allowbutton1;
+
+	//set vanilla buttons
+	ent->v->button0 = buttonbits & 1;
+	ent->v->button2 = (buttonbits >> 1) & 1;
+	if (pr_allowbutton1.ival && progstype == PROG_QW)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+		ent->v->button1 = ((buttonbits >> 2) & 1);
+
+	//set extended buttons
+	for (i = 0; i < countof(buttonfields); i++)
+	{
+		if (buttonfields[i].offset >= 0)
+			((float*)ent->v)[buttonfields[i].offset] = ((buttonbits >> buttonfields[i].bit)&1);
+	}
+}
 
 //EXT_CSQC_1 (called when a movement command is received. runs full acceleration + movement)
 qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
@@ -9803,15 +9878,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 			sv_player->xv->light_level = 128;	//hmm... HACK!!!
 #endif
 
-		sv_player->v->button0 = ucmd->buttons & 1;
-		sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
-	// DP_INPUTBUTTONS
-		sv_player->xv->button3 = ((ucmd->buttons >> 2) & 1);
-		sv_player->xv->button4 = ((ucmd->buttons >> 3) & 1);
-		sv_player->xv->button5 = ((ucmd->buttons >> 4) & 1);
-		sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
-		sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
-		sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
+		SV_SetEntityButtons(sv_player, ucmd->buttons);
 		if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 			sv_player->v->impulse = ucmd->impulse;
 

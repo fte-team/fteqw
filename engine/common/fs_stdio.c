@@ -148,7 +148,7 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 vfsfile_t *Sys_OpenAsset(const char *fname);
 #endif
 
-vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush)
+static vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush)
 {
 	FILE *f;
 	vfsstdiofile_t *file;

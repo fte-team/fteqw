@@ -128,10 +128,6 @@ qboolean		msg_suppress_1 = false;
 int				isPlugin;	//if 2, we qcdebug to external program
 qboolean		wantquit;
 
-void COM_Path_f (void);
-void COM_Dir_f (void);
-void COM_Locate_f (void);
-
 
 // if a packfile directory differs from this, it is assumed to be hacked
 #define	PAK0_COUNT		339
@@ -448,11 +444,6 @@ char *Q_strcasestr(const char *haystack, const char *needle)
 		haystack++;
 	}
 	return NULL;	//didn't find it
-}
-
-int QDECL Q_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
-{
-	return vsnprintf(buffer, size, format, argptr);
 }
 
 int VARGS Com_sprintf(char *buffer, int size, const char *format, ...)
@@ -799,7 +790,7 @@ short   ShortSwap (short l)
 	return (b1<<8) + b2;
 }
 
-short	ShortNoSwap (short l)
+static short	ShortNoSwap (short l)
 {
 	return l;
 }
@@ -816,12 +807,12 @@ int    LongSwap (int l)
 	return ((int)b1<<24) + ((int)b2<<16) + ((int)b3<<8) + b4;
 }
 
-int	LongNoSwap (int l)
+static int	LongNoSwap (int l)
 {
 	return l;
 }
 
-float FloatSwap (float f)
+static float FloatSwap (float f)
 {
 	union
 	{
@@ -838,7 +829,7 @@ float FloatSwap (float f)
 	return dat2.f;
 }
 
-float FloatNoSwap (float f)
+static float FloatNoSwap (float f)
 {
 	return f;
 }
@@ -1032,11 +1023,11 @@ void MSG_WriteCoord (sizebuf_t *sb, float f)
 	coorddata i = MSG_ToCoord(f, sb->prim.coordsize);
 	SZ_Write (sb, (void*)&i, sb->prim.coordsize);
 }
-void MSG_WriteCoord24 (sizebuf_t *sb, float f)
+/*static void MSG_WriteCoord24 (sizebuf_t *sb, float f)
 {
 	coorddata i = MSG_ToCoord(f, 3);
 	SZ_Write (sb, (void*)&i, 3);
-}
+}*/
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
@@ -1166,25 +1157,6 @@ unsigned int MSGCL_ReadEntity(void)
 	else
 		num = (unsigned short)(short)MSG_ReadShort();
 	return num;
-}
-//compat for ktx/ezquake's railgun
-unsigned int MSGCLF_ReadEntity(qboolean *flagged)
-{
-	int s;
-	*flagged = false;
-	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		return MSG_ReadEntity();
-	else
-	{
-		s = MSG_ReadShort();
-		if (s < 0)
-		{
-			*flagged = true;
-			return -1 -s;
-		}
-		else
-			return s;
-	}
 }
 #endif
 void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
@@ -1716,12 +1688,12 @@ float MSG_ReadCoord (void)
 	MSG_ReadData(&c, net_message.prim.coordsize);
 	return MSG_FromCoord(c, net_message.prim.coordsize);
 }
-float MSG_ReadCoord24 (void)
+/*static float MSG_ReadCoord24 (void)
 {
 	coorddata c = {{0}};
 	MSG_ReadData(&c, 3);
 	return MSG_FromCoord(c, 3);
-}
+}*/
 float MSG_ReadCoordFloat (void)
 {
 	coorddata c = {{0}};
@@ -4354,6 +4326,8 @@ skipwhite:
 	return (char*)data;
 }
 
+//escape a string so that COM_Parse will give the same string.
+//maximum expansion is strlen(string)*2+4 (includes null terminator)
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes)
 {
 #ifndef NOLEGACY
@@ -4363,7 +4337,8 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 #endif
 	const char *result = buf;
 	if (strchr(string, '\r') || strchr(string, '\n') || (!dpcompat_console.ival && strchr(string, '\"')))
-	{
+	{	//strings of the form \"foo" can contain c-style escapes, including for newlines etc.
+		//it might be fancy to ALWAYS escape non-ascii chars too, but mneh
 		if (!omitquotes)
 		{
 			*buf++ = '\\';	//prefix so the reader knows its a quoted string.
@@ -4427,8 +4402,9 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 		else
 			buflen -= 1;
 		if (dpcompat_console.ival)
-		{
-			while(*string && buflen >= 1)
+		{	//dp escapes \\ and \", but nothing else.
+			//so no new-lines etc
+			while(*string && buflen >= 2)
 			{
 				if (*string == '\\' || *string == '\"')
 				{
@@ -4440,7 +4416,7 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 			}
 		}
 		else
-		{
+		{	//vanilla quake's console doesn't support any escapes.
 			while(*string && buflen >= 1)
 			{
 				*buf++ = *string++;
@@ -4810,7 +4786,7 @@ void COM_AddParm (const char *parm)
 COM_Version_f
 ======================
 */
-void COM_Version_f (void)
+static void COM_Version_f (void)
 {
 	Con_Printf("%s\n", version_string());
 
@@ -5139,19 +5115,19 @@ void COM_Version_f (void)
 }
 
 #ifdef _DEBUG
-void COM_LoopMe_f(void)
+static void COM_LoopMe_f(void)
 {
 	while(1)
 		;
 }
-void COM_CrashMe_f(void)
+static void COM_CrashMe_f(void)
 {
 	int *crashaddr = (int*)0x05;
 
 	*crashaddr = 0;
 }
 
-void COM_ErrorMe_f(void)
+static void COM_ErrorMe_f(void)
 {
 	Sys_Error("\"errorme\" command used");
 }
@@ -5240,7 +5216,7 @@ void COM_AddWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_
 	Sys_UnlockConditional(com_workercondition[tg]);
 }
 
-void COM_PrintWork(void)
+/*static void COM_PrintWork(void)
 {
 	struct com_work_s *work;
 	int tg;
@@ -5256,7 +5232,7 @@ void COM_PrintWork(void)
 		}
 		Sys_UnlockConditional(com_workercondition[tg]);
 	}
-}
+}*/
 
 //leavelocked = false == poll mode.
 //leavelocked = true == safe sleeping
@@ -5733,9 +5709,6 @@ void COM_Init (void)
 #endif
 
 	Cmd_AddCommandD("pkg", PM_Command_f,		"Provides a way to install / list / disable / purge packages via the console.");
-	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
-	Cmd_AddCommandD("dir", COM_Dir_f,			"Displays filesystem listings. Accepts wildcards."); //q3 like
-	Cmd_AddCommandD("flocate", COM_Locate_f,	"Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommandD("version", COM_Version_f,	"Reports engine revision and optional compile-time settings.");	//prints the pak or whatever where this file can be found.
 
 #ifdef _DEBUG
@@ -5813,18 +5786,6 @@ char	*VARGS va(const char *format, ...)
 	va_end (argptr);
 
 	return string[bufnum];
-}
-
-
-/// just for debugging
-int	memsearch (qbyte *start, int count, int search)
-{
-	int		i;
-
-	for (i=0 ; i<count ; i++)
-		if (start[i] == search)
-			return i;
-	return -1;
 }
 
 #ifdef NQPROT
@@ -6516,7 +6477,7 @@ qboolean InfoBuf_EncodeString(const char *n, size_t s, char *out, size_t outsize
 	*out = 0;
 	return false;
 }
-void *InfoBuf_EncodeString_Malloc(const char *n, size_t s)
+static void *InfoBuf_EncodeString_Malloc(const char *n, size_t s)
 {
 	size_t l = InfoBuf_EncodeString_Internal(n, s, NULL, NULL);
 	char *ret = BZ_Malloc(l+1);
@@ -6525,7 +6486,7 @@ void *InfoBuf_EncodeString_Malloc(const char *n, size_t s)
 	ret[l] = 0;
 	return ret;
 }
-size_t InfoBuf_EncodeStringSlash(const char *n, size_t s, char *out, char *end)
+static size_t InfoBuf_EncodeStringSlash(const char *n, size_t s, char *out, char *end)
 {
 	size_t l = 1+InfoBuf_EncodeString_Internal(n, s, out+1, end);
 	if (out < end)
@@ -6919,10 +6880,9 @@ void Info_RemovePrefixedKeys (char *start, char prefix)
 		if (!*s)
 			return;
 	}
-
 }
 
-void Info_RemoveNonStarKeys (char *start)
+/*static void Info_RemoveNonStarKeys (char *start)
 {
 	char	*s;
 	char	pkey[1024];
@@ -6963,8 +6923,7 @@ void Info_RemoveNonStarKeys (char *start)
 		if (!*s)
 			return;
 	}
-
-}
+}*/
 
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize)
 {
@@ -7062,7 +7021,7 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 	Info_SetValueForStarKey (s, key, value, maxsize);
 }
 
-void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))
+static void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))
 {
 	char	key[1024];
 	char	value[1024];
@@ -7105,7 +7064,7 @@ void Info_Print (const char *s, const char *lineprefix)
 	Info_Enumerate(s, (void*)lineprefix, Info_PrintCB);
 }
 
-void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags)
+/*static void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags)
 {
 	const char *quotedvalue;
 	char buffer[1024];
@@ -7142,7 +7101,7 @@ void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags
 		*info = t;
 		VFS_WRITE(f, "\n", 1);
 	}
-}
+}*/
 
 
 static qbyte chktbl[1024 + 4] = {

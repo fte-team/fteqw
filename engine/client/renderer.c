@@ -124,7 +124,6 @@ cvar_t r_wireframe							= CVARFD ("r_wireframe", "0",
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use a different scale for refraction and reflection texturemaps. Because $reasons.");
-cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
@@ -430,7 +429,7 @@ cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blo
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
 cvar_t r_showshaders						= CVARD("r_showshaders", "0", "Debugging. Shows the name of the (worldmodel) shader being pointed to.");
-cvar_t r_lightprepass_cvar					= CVARFD("r_lightprepass", "0", CVAR_ARCHIVE, "Experimental. Attempt to use a different lighting mechanism. Requires vid_reload to take effect.");
+cvar_t r_lightprepass_cvar					= CVARFD("r_lightprepass", "0", CVAR_ARCHIVE, "Experimental. Attempt to use a different lighting mechanism (aka: deferred lighting). Requires vid_reload to take effect.");
 int r_lightprepass;
 
 cvar_t r_shadow_bumpscale_basetexture		= CVARD  ("r_shadow_bumpscale_basetexture", "0", "bumpyness scaler for generation of fallback normalmap textures from models");
@@ -981,7 +980,6 @@ void Renderer_Init(void)
 	Cvar_Register (&r_clear, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_miptexLevel, GRAPHICALNICETIES);
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_linear, GLRENDEREROPTIONS);

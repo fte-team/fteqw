@@ -335,7 +335,8 @@ struct QCC_typeparam_s
 {
 	struct QCC_type_s *type;
 	QCC_sref_t defltvalue;
-	pbool optional;
+	pbool optional:1;	//argument may safely be omitted, for builtin functions. for qc functions use the defltvalue instead.
+	pbool isvirtual:1;	//const, with implicit initialisation only. valid for structs
 	unsigned char out;	//0=in,1==inout,2=out
 	unsigned int ofs;
 	unsigned int arraysize;
@@ -394,7 +395,6 @@ typedef struct QCC_def_s
 	struct QCC_function_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	struct QCC_def_s	*generatedfor;
-	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern.
 	int			constant;		// 1 says we can use the value over and over again. 2 is used on fields, for some reason.
 
 	struct QCC_def_s	*symbolheader;	//this is the original symbol within which the def is stored.
@@ -429,6 +429,8 @@ typedef struct QCC_def_s
 	pbool weak:1;				//ignore any initialiser value (only permitted on functions)
 	pbool accumulate:1;			//don't finalise the function's statements.
 	pbool nofold:1;
+	pbool initialized:1;		//true when a declaration included "= immediate".
+	pbool isextern:1;			//fteqw-specific lump entry
 
 	int	fromstatement;		//statement that it is valid from.
 	temp_t *temp;
@@ -454,6 +456,7 @@ typedef struct
 		REF_FIELD,	//(entity.field)			- reading is a single load, writing requires address+storep
 		REF_STRING,	//"hello"[1]=='e'			- special opcodes, or str2chr builtin, or something
 		REF_NONVIRTUAL,	//(global.ofs)			- identical to global except for function calls, where index can be used to provide the 'newself' for the call.
+		REF_THISCALL,	//(global.ofs)			- identical to global except for function calls, where index is used as the first argument.
 		REF_ACCESSOR //buf_create()[5]
 	} type;
 
@@ -546,6 +549,7 @@ char *QCC_PR_GetDefinesList(void);
 //============================================================================
 
 extern	pbool	pr_dumpasm;
+extern pbool preprocessonly;
 
 //extern	QCC_def_t		**pr_global_defs;	// to find def for a global variable
 
@@ -701,6 +705,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs);
 char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
+struct QCC_typeparam_s *QCC_PR_FindStructMember(QCC_type_t *t, const char *membername, unsigned int *out_ofs);
 
 const char *QCC_VarAtOffset(QCC_sref_t ref);
 
@@ -1038,6 +1043,8 @@ void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags);
 void QCC_PR_FinaliseFunctions(void);
 
 
+pbool QCC_main (int argc, char **argv);	//as part of the quake engine
+void QCC_ContinueCompile(void);
 void PostCompile(void);
 pbool PreCompile(void);
 void QCC_Cleanup(void);

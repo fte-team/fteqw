@@ -2215,7 +2215,7 @@ void SV_QCStatName(int type, char *name, int statnum)
 void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum)
 {
 	evalc_t cache;
-	char *name;
+	const char *name;
 	etype_t ftype;
 
 	if (type < 0)

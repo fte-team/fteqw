@@ -53,21 +53,21 @@ cvar_t	vsec_yaw[SIDEVIEWS]		= {CVAR("v2_yaw", "180"),		CVAR("v3_yaw", "90"),		CV
 #endif
 
 cvar_t	cl_rollspeed			= CVAR("cl_rollspeed", "200");
-cvar_t	cl_rollangle			= CVAR("cl_rollangle", "2.0");
+cvar_t	cl_rollangle			= CVARD("cl_rollangle", "2.0", "Controls how much the view should tilt while strafing.");
 cvar_t	v_deathtilt				= CVAR("v_deathtilt", "1");
 
-cvar_t	cl_bob					= CVAR("cl_bob","0.02");
+cvar_t	cl_bob					= CVARD("cl_bob","0.02", "Controls how much the camera position should bob up down as the player runs around.");
 cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
 cvar_t	cl_bobup				= CVAR("cl_bobup","0.5");
 
-cvar_t	cl_bobmodel				= CVAR("cl_bobmodel", "0");
+cvar_t	cl_bobmodel				= CVARD("cl_bobmodel", "0", "Controls whether the viewmodel should bob up and down as the player runs around.");
 cvar_t	cl_bobmodel_side		= CVAR("cl_bobmodel_side", "0.15");
 cvar_t	cl_bobmodel_up			= CVAR("cl_bobmodel_up", "0.06");
 cvar_t	cl_bobmodel_speed		= CVAR("cl_bobmodel_speed", "7");
 
-cvar_t	v_kicktime				= CVAR("v_kicktime", "0.5");
-cvar_t	v_kickroll				= CVAR("v_kickroll", "0.6");
-cvar_t	v_kickpitch				= CVAR("v_kickpitch", "0.6");
+cvar_t	v_kicktime				= CVARD("v_kicktime", "0.5", "This controls how long viewangle changes from taking damage will last.");
+cvar_t	v_kickroll				= CVARD("v_kickroll", "0.6", "This controls part of the strength of viewangle changes from taking damage.");
+cvar_t	v_kickpitch				= CVARD("v_kickpitch", "0.6", "This controls part of the strength of viewangle changes from taking damage.");
 
 cvar_t	v_iyaw_cycle			= CVAR("v_iyaw_cycle", "2");
 cvar_t	v_iroll_cycle			= CVAR("v_iroll_cycle", "0.5");
@@ -88,18 +88,19 @@ cvar_t	crosshairimage			= CVAR("crosshairimage", "");
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
-cvar_t	gl_cshiftenabled		= CVARF("gl_polyblend", "1", CVAR_ARCHIVE);
+cvar_t	gl_cshiftenabled		= CVARFD("gl_polyblend", "1", CVAR_ARCHIVE, "Controls whether temporary whole-screen colour changes should be honoured or not. Change gl_cshiftpercent if you want to adjust the intensity.\nThis does not affect v_cshift commands sent from the server.");
+cvar_t	gl_cshiftborder			= CVARD("gl_polyblend_edgesize", "128", "This constrains colour shifts to the edge of the screen, with the value specifying the size of those borders.");
 
-cvar_t	v_bonusflash			= CVAR("v_bonusflash", "1");
+cvar_t	v_bonusflash			= CVARD("v_bonusflash", "1", "Controls the strength of temporary screen flashes when picking up items (gl_polyblend must be enabled).");
 
-cvar_t  v_contentblend			= CVARF("v_contentblend", "1", CVAR_ARCHIVE);
-cvar_t	v_damagecshift			= CVAR("v_damagecshift", "1");
-cvar_t	v_quadcshift			= CVAR("v_quadcshift", "1");
-cvar_t	v_suitcshift			= CVAR("v_suitcshift", "1");
-cvar_t	v_ringcshift			= CVAR("v_ringcshift", "1");
-cvar_t	v_pentcshift			= CVAR("v_pentcshift", "1");
-cvar_t	v_gunkick				= CVAR("v_gunkick", "0");
-cvar_t	v_gunkick_q2			= CVAR("v_gunkick_q2", "1");
+cvar_t  v_contentblend			= CVARFD("v_contentblend", "1", CVAR_ARCHIVE, "Controls the strength of underwater colour tints (gl_polyblend must be enabled).");
+cvar_t	v_damagecshift			= CVARD("v_damagecshift", "1", "Controls the strength of damage-taken colour tints (gl_polyblend must be enabled).");
+cvar_t	v_quadcshift			= CVARD("v_quadcshift", "1", "Controls the strength of quad-damage colour tints (gl_polyblend must be enabled).");
+cvar_t	v_suitcshift			= CVARD("v_suitcshift", "1", "Controls the strength of envirosuit colour tints (gl_polyblend must be enabled).");
+cvar_t	v_ringcshift			= CVARD("v_ringcshift", "1", "Controls the strength of ring-of-invisibility colour tints (gl_polyblend must be enabled).");
+cvar_t	v_pentcshift			= CVARD("v_pentcshift", "1", "Controls the strength of pentagram-of-protection colour tints (gl_polyblend must be enabled).");
+cvar_t	v_gunkick				= CVARD("v_gunkick", "0", "Controls the strength of view angle changes when firing weapons.");
+cvar_t	v_gunkick_q2			= CVARD("v_gunkick_q2", "1", "Controls the strength of view angle changes when firing weapons (in Quake2).");
 cvar_t	v_viewmodel_quake		= CVARD("r_viewmodel_quake", "0", "Controls whether to use weird viewmodel movements from vanilla quake.");	//name comes from MarkV.
 
 cvar_t	v_viewheight			= CVAR("v_viewheight", "0");
@@ -469,9 +470,9 @@ void V_ParseDamage (playerview_t *pv)
 #endif
 
 	if (v_damagecshift.value >= 0)
-		count *= v_damagecshift.value;
-
-	pv->cshifts[CSHIFT_DAMAGE].percent += 3*count;
+		pv->cshifts[CSHIFT_DAMAGE].percent += 3*count*v_damagecshift.value;
+	else
+		pv->cshifts[CSHIFT_DAMAGE].percent += 3*count;
 	if (pv->cshifts[CSHIFT_DAMAGE].percent < 0)
 		pv->cshifts[CSHIFT_DAMAGE].percent = 0;
 	if (pv->cshifts[CSHIFT_DAMAGE].percent > 150)
@@ -761,6 +762,7 @@ void V_CalcBlend (float *hw_blend)
 	{
 		pv = &cl.playerview[seat];
 		memset(pv->screentint, 0, sizeof(pv->screentint));
+		memset(pv->bordertint, 0, sizeof(pv->bordertint));
 
 		//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
 		for (j=0 ; j<NUM_CSHIFTS ; j++)
@@ -790,7 +792,9 @@ void V_CalcBlend (float *hw_blend)
 				/*flashing things should not change hardware gamma ramps - windows is too slow*/
 				/*splitscreen should only use hw gamma ramps if they're all equal, and they're probably not*/
 				/*hw blends may also not be supported or may be disabled*/
-				if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || !r2d_canhwgamma || cl.splitclients > 1)
+				if (gl_cshiftenabled.value)
+					blend = pv->bordertint;	//show the colours only on the borders so we don't blind ourselves
+				else if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || !r2d_canhwgamma || cl.splitclients > 1)
 					blend = pv->screentint;
 				else	//powerup or contents?
 					blend = hw_blend;
@@ -812,6 +816,7 @@ void V_CalcBlend (float *hw_blend)
 	{
 		pv = &cl.playerview[seat];
 		memset(pv->screentint, 0, sizeof(pv->screentint));
+		memset(pv->bordertint, 0, sizeof(pv->bordertint));
 	}
 	if (hw_blend[3] > 1)
 		hw_blend[3] = 1;
@@ -888,6 +893,15 @@ void V_UpdatePalette (qboolean force)
 			ramps[0][i] = gammatable[ir]<<8;
 			ramps[1][i] = gammatable[ig]<<8;
 			ramps[2][i] = gammatable[ib]<<8;
+
+#ifdef _WIN32
+			//'In fact, any entry in the ramp must be within 32768 of the identity value'
+			//so lets try to bound it so that it doesn't randomly fail.
+			ir = (i<<8)|i;
+			ramps[0][i] = bound(ir-32767, ramps[0][i], ir+32767);
+			ramps[1][i] = bound(ir-32767, ramps[1][i], ir+32767);
+			ramps[2][i] = bound(ir-32767, ramps[2][i], ir+32767);
+#endif
 		}
 
 		if (qrenderer)
@@ -1010,6 +1024,9 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	xyspeed = VectorLength(xyvel);
 	//FIXME: clamp
 
+	//FIXME: cl_followmodel should lag the viewmodel's position relative to the view
+	//FIXME: cl_leanmodel should lag the viewmodel's angles relative to the view
+
 	if (cl_bobmodel.value)
 	{	//bobmodel causes the viewmodel to bob relative to the view.
 		float s = pv->bobtime * cl_bobmodel_speed.value, v;
@@ -1018,8 +1035,6 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 		v = xyspeed * 0.01 * cl_bobmodel_up.value * /*cl_viewmodel_scale.value * */cos(2*s);
 		VectorMA(pv->vw_origin, v, pv->vw_axis[2], pv->vw_origin);
 	}
-	//FIXME: cl_followmodel should lag the viewmodel's position relative to the view
-	//FIXME: cl_leanmodel should lag the viewmodel's angles relative to the view
 
 
 // fudge position around to keep amount of weapon visible
@@ -1902,14 +1917,22 @@ void R_DrawNameTags(void)
 	if (cls.protocol == CP_QUAKE2)
 		return;	//FIXME: q2 has its own ent logic, which messes stuff up here.
 
-	if (r_showfields.ival && cls.allow_cheats)
+	if (r_showfields.ival)
 	{
 		world_t *w = NULL;
 		wedict_t *e;
 		vec3_t org;
 		vec3_t screenspace;
 		vec3_t diff;
-		if ((r_showfields.ival & 3) == 1)
+		if (!cls.allow_cheats)
+		{
+			vec2_t scale = {8,8};
+			float x = 0.5*r_refdef.vrect.width+r_refdef.vrect.x;
+			float y = (1-0.5)*r_refdef.vrect.height+r_refdef.vrect.y;
+			R_DrawTextField(x, y, vid.width - x, vid.height - y, "r_showfields requires sv_cheats 1", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
+			w = NULL;
+		}
+		else if ((r_showfields.ival & 3) == 1)
 		{
 #ifndef CLIENTONLY
 			w = &sv.world;
@@ -1955,7 +1978,6 @@ void R_DrawNameTags(void)
 						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
 						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, scale);
 					}
-
 				}
 			}
 		}
@@ -2008,7 +2030,6 @@ void R_DrawNameTags(void)
 						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
 						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
 					}
-
 				}
 			}
 		}
@@ -2447,6 +2468,7 @@ void V_Init (void)
 	Cvar_Register (&cl_crossy, VIEWVARS);
 	Cvar_Register (&gl_cshiftpercent, VIEWVARS);
 	Cvar_Register (&gl_cshiftenabled, VIEWVARS);
+	Cvar_Register (&gl_cshiftborder, VIEWVARS);
 
 	Cvar_Register (&cl_rollspeed, VIEWVARS);
 	Cvar_Register (&cl_rollangle, VIEWVARS);

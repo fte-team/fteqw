@@ -1,9 +1,6 @@
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 
 #include "qcc.h"
-#ifdef QCC
-#define print printf
-#endif
 #include "time.h"
 
 #define MEMBERFIELDNAME "__m%s"
@@ -302,16 +299,16 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
 		if (verbose == 2)
 		{
 			if (autoprototype)
-				printf("prototyping %s\n", fullname);
+				externs->Printf("prototyping %s\n", fullname);
 			else
-				printf("compiling %s\n", fullname);
+				externs->Printf("compiling %s\n", fullname);
 		}
 		else
 		{
 			if (autoprototype)
-				printf("prototyping include %s\n", fullname);
+				externs->Printf("prototyping include %s\n", fullname);
 			else
-				printf("including %s\n", fullname);
+				externs->Printf("including %s\n", fullname);
 		}
 	}
 	QCC_Include(fullname);
@@ -333,7 +330,7 @@ pbool QCC_PR_SimpleGetString(void);
 #define PPI_COMPARISON 3
 #define PPI_LOGICAL 4
 #define PPI_TOPLEVEL 5
-int ParsePrecompilerIf(int level)
+static int ParsePrecompilerIf(int level)
 {
 	CompilerConstant_t *c;
 	int eval = 0;
@@ -602,7 +599,7 @@ static void QCC_PR_SkipToEndOfLine(pbool errorifnonwhite)
 }
 
 //if hadtrue, then we allow elses, otherwise we skip them.
-pbool QCC_PR_FalsePreProcessorIf(pbool hadtrue, int originalline)
+static pbool QCC_PR_FalsePreProcessorIf(pbool hadtrue, int originalline)
 {
 	int eval;
 	int level = 1;
@@ -688,7 +685,7 @@ static void QCC_PR_PackagerMessage(void *userctx, char *message, ...)
 	QC_vsnprintf (string,sizeof(string)-1,message,argptr);
 	va_end (argptr);
 
-	printf ("%s", string);
+	externs->Printf ("%s", string);
 }
 #endif
 
@@ -699,7 +696,7 @@ QCC_PR_Precompiler
 
 Runs precompiler stage
 */
-pbool QCC_PR_Precompiler(void)
+static pbool QCC_PR_Precompiler(void)
 {
 	char msg[1024];
 	int ifmode;
@@ -856,9 +853,9 @@ pbool QCC_PR_Precompiler(void)
 			msg[a] = '\0';
 
 			if (flag_msvcstyle)
-				printf ("%s(%i) : #message: %s\n", s_filen, pr_source_line, msg);
+				externs->Printf ("%s(%i) : #message: %s\n", s_filen, pr_source_line, msg);
 			else
-				printf ("%s:%i: #message: %s\n", s_filen, pr_source_line, msg);
+				externs->Printf ("%s:%i: #message: %s\n", s_filen, pr_source_line, msg);
 			QCC_PR_SkipToEndOfLine(false);
 		}
 		else if (!strncmp(directive, "copyright", 9))
@@ -935,12 +932,12 @@ pbool QCC_PR_Precompiler(void)
 				pr_file_p++;
 
 			QCC_PR_SimpleGetString();
-			printf("Merging to %s\n", pr_token);
+			externs->Printf("Merging to %s\n", pr_token);
 			QCC_ImportProgs(pr_token);
 			if (!*destfile)
 			{
 				QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
-				printf("Outputfile: %s\n", destfile);
+				externs->Printf("Outputfile: %s\n", destfile);
 			}
 
 			QCC_PR_SkipToEndOfLine(true);
@@ -1039,7 +1036,7 @@ pbool QCC_PR_Precompiler(void)
 				pr_file_p++;
 
 			QCC_PR_SimpleGetString();
-			printf("Including datafile: %s\n", pr_token);
+			externs->Printf("Including datafile: %s\n", pr_token);
 			QCC_AddFile(pr_token);
 
 			pr_file_p++;
@@ -1064,7 +1061,7 @@ pbool QCC_PR_Precompiler(void)
 
 			QCC_PR_SimpleGetString();
 			QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
-			printf("Outputfile: %s\n", pr_token);
+			externs->Printf("Outputfile: %s\n", pr_token);
 
 			QCC_PR_SkipToEndOfLine(true);
 		}
@@ -1360,7 +1357,7 @@ pbool QCC_PR_Precompiler(void)
 				QCC_Canonicalize(destfile, sizeof(destfile), qcc_token, compilingfile);
 
 				if (strcmp(destfile, olddest))
-					printf("Outputfile: %s\n", destfile);
+					externs->Printf("Outputfile: %s\n", destfile);
 			}
 			else if (!QC_strcasecmp(qcc_token, "keyword") || !QC_strcasecmp(qcc_token, "flag"))
 			{
@@ -1577,9 +1574,10 @@ void QCC_PR_LexString (void)
 	char	*end, *cnst;
 	int		raw;
 	char	rawdelim[64];
-	int		stringtype = flag_utf8strings?2:0; //0 - quake output, input is 8bit. warnings when its not ascii. \u will still give utf-8 text, other chars as-is. Expect \s to screw everything up with utf-8 output.
-							//1 - quake output, input is utf-8. due to editors not supporting it, that generally means the input (ab)uses markup.
-							//2 - utf-8 output, input is utf-8. welcome to the future! unfortunately not the present.
+	int		stringtype;
+			//0 - quake output, input is 8bit. warnings when its not ascii. \u will still give utf-8 text, other chars as-is. Expect \s to screw everything up with utf-8 output.
+			//1 - quake output, input is utf-8. due to editors not supporting it, that generally means the input (ab)uses markup.
+			//2 - utf-8 output, input is utf-8. welcome to the future! unfortunately not the present.
 
 	int texttype;
 	pbool first = true;
@@ -1632,6 +1630,7 @@ void QCC_PR_LexString (void)
 				pr_file_p += 2;
 				pr_source_line++;
 			}
+			stringtype = 0;
 		}
 		else if (*pr_file_p == 'Q' && pr_file_p[1] == '\"')
 		{	//quake output with utf-8 input (expect to need markup).
@@ -1650,9 +1649,15 @@ void QCC_PR_LexString (void)
 			pr_file_p+=3;
 		}
 		else if (*pr_file_p == '\"')
+		{
+			stringtype = flag_utf8strings?2:0;
 			pr_file_p++;
+		}
 		else if (first)
+		{
+			stringtype = 0;
 			QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Expected string constant");
+		}
 		else
 			break;
 		first = false;
@@ -1663,40 +1668,6 @@ void QCC_PR_LexString (void)
 			if (!c)
 				QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
 
-			/*
-			if (!qccwarningaction[WARN_NOTUTF8] && (c&0x80))
-			{
-				//convert 0xe000 private-use area to quake's charset (if they don't have the utf-8 warning enabled)
-				//note: this may have a small false-positive risk.
-				if (utf8_check(pr_file_p-1, &code))
-				{
-					if (code >= 0xe000 && code <= 0xe0ff)
-					{
-						pr_file_p += utf8_check(pr_file_p-1, &code)-1;
-						c = code & 0xff;
-					}
-					else
-						QCC_PR_ParseWarning(WARN_DODGYCHARSET, "non-ascii chars outside of quake-mapped private-use area", sizeof(pr_token)-1);
-				}
-				else
-					QCC_PR_ParseWarning(WARN_DODGYCHARSET, "source file is not unicode", sizeof(pr_token)-1);
-			}
-			*/
-
-/*			//these two conditions are generally part of the C preprocessor.
-			if (c == '\\' && *pr_file_p == '\r' && pr_file_p[1] == '\n')
-			{	//dos format
-				pr_file_p += 2;
-				pr_source_line++;
-				continue;
-			}
-			if (c == '\\' && (*pr_file_p == '\r' || pr_file_p[1] == '\n'))
-			{	//mac + unix format
-				pr_file_p += 1;
-				pr_source_line++;
-				continue;
-			}
-*/
 			if (raw)
 			{
 				//raw strings contain very little parsing. just delimiter and initial \NL support.
@@ -1740,7 +1711,7 @@ void QCC_PR_LexString (void)
 						c = '\f';	//form feed
 					else if (c == 's' || c == 'b')
 					{
-						texttype ^= 128;
+						texttype ^= 0xe080;
 						continue;
 					}
 					//else if (c == 'b')
@@ -1908,20 +1879,22 @@ void QCC_PR_LexString (void)
 					c = '\n';
 				else
 				{
-					unsigned int cp;
+					unsigned int cp = c;
 					unsigned int len = stringtype?utf8_check(pr_file_p-1, &cp):0;
 					if (!len)
 					{	//invalid utf-8 encoding? don't treat it as utf-8!
 						if (stringtype)
 							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Input string is not valid utf-8");
-						c |= texttype;
-						goto forcequake;
+						if (c >= ' ')
+							c |= texttype;
+						goto forcebyte;
 					}
 					if (texttype)
 					{
-						c = cp;
-						if (cp < 128)
-							c |= 0xe080;	//FIXME: technically invalid for C0 chars.
+						if (cp < ' ')
+							c = cp;	//don't mask C0 chars like \t or \n
+						else if (cp < 0x80)
+							c = cp|0xe080;	//DO mask other ascii chars (and map to the private-use range at the same time, because this isn't standard unicode any more)
 						else
 						{
 							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Unable to mask non-ascii chars. Attempting to mask bytes");
@@ -1935,6 +1908,8 @@ void QCC_PR_LexString (void)
 				}
 			}
 
+//			if (c >= 0x20 && c < 0x80)
+//				c |= 0xe000;	//TEST
 			if (stringtype == 2)
 			{	//we're outputting a utf-8 string.
 forceutf8:
@@ -1943,11 +1918,16 @@ forceutf8:
 
 				//figure out the count of bytes required to encode this char
 				bytecount = 1;
-				t = 0x7f;
-				while (c > t)
+				t = 0x80;
+				while (c >= t)
 				{
+					if (bytecount == 1)
+						t <<= 4;
+					else if (bytecount < 7)
+						t <<= 5;
+					else
+						t <<= 6;
 					bytecount++;
-					t = (t<<5) | 0x1f;
 				}
 
 				//error if needed
@@ -1960,6 +1940,7 @@ forceutf8:
 				else
 				{
 					t = bytecount*6;
+					t = t-6;
 					pr_token[len++] = (unsigned char)((c>>t)&(0x0000007f>>bytecount)) | (0xffffff00 >> bytecount);
 					do
 					{
@@ -1976,8 +1957,11 @@ forcequake:
 					c = c & 0xff;	//this private use range is commonly used for quake's glyphs.
 				else if (c >= 0 && c <= 0x7f)
 					; //FIXME: SOME c0 codes are known to quake, but many got reused for random glyphs. however I'm going to treat quake as full ascii.
-				else if (c > 0xff)
+				else if (c >= 0x80)
+				{
+					//FIXME: spit it out as ^{xxxxxx} instead
 					QCC_PR_ParseWarning(WARN_NOTUTF8, "Cannot convert character to quake's charset");
+				}
 
 forcebyte:
 				if (len >= sizeof(pr_token)-1)
@@ -2053,7 +2037,7 @@ int QCC_PR_LexInteger (void)
 #define LL(x) x##ll
 #endif
 
-void QCC_PR_LexNumber (void)
+static void QCC_PR_LexNumber (void)
 {
 	int tokenlen = 0;
 	longlong num=0;
@@ -2205,7 +2189,7 @@ qccxhex:
 }
 
 
-float QCC_PR_LexFloat (void)
+static float QCC_PR_LexFloat (void)
 {
 	int		c;
 	int		len;
@@ -2232,7 +2216,7 @@ PR_LexVector
 Parses a single quoted vector
 ==============
 */
-void QCC_PR_LexVector (void)
+static void QCC_PR_LexVector (void)
 {
 	int		i;
 
@@ -2316,7 +2300,7 @@ PR_LexName
 Parses an identifier
 ==============
 */
-void QCC_PR_LexName (void)
+static void QCC_PR_LexName (void)
 {
 	unsigned int		c;
 	int		len;
@@ -2369,7 +2353,7 @@ void QCC_PR_LexName (void)
 PR_LexPunctuation
 ==============
 */
-void QCC_PR_LexPunctuation (void)
+static void QCC_PR_LexPunctuation (void)
 {
 	int		i;
 	int		len;
@@ -2515,7 +2499,7 @@ void QCC_PR_ClearGrabMacros (pbool newfile)
 	pr_savedmacro = -1;
 }
 
-int QCC_PR_FindMacro (char *name)
+static int QCC_PR_FindMacro (char *name)
 {
 	int		i;
 
@@ -2541,7 +2525,7 @@ int QCC_PR_FindMacro (char *name)
 	return -1;
 }
 
-void QCC_PR_ExpandMacro(void)
+static void QCC_PR_ExpandMacro(void)
 {
 	int		i = QCC_PR_FindMacro(pr_token);
 
@@ -2673,7 +2657,7 @@ pbool QCC_PR_SimpleGetToken (void)
 	return i!=0;
 }
 
-pbool QCC_PR_LexMacroName(void)
+static pbool QCC_PR_LexMacroName(void)
 {
 	int		c;
 	int		i;
@@ -2714,7 +2698,7 @@ pbool QCC_PR_LexMacroName(void)
 	return i!=0;
 }
 
-void QCC_PR_MacroFrame(char *name, int value, pbool force)
+static void QCC_PR_MacroFrame(char *name, int value, pbool force)
 {
 	int i;
 	for (i=pr_nummacros-1 ; i>=0 ; i--)
@@ -2748,7 +2732,7 @@ void QCC_PR_MacroFrame(char *name, int value, pbool force)
 	}
 }
 
-void QCC_PR_ParseFrame (void)
+static void QCC_PR_ParseFrame (void)
 {
 	while (QCC_PR_LexMacroName ())
 	{
@@ -2763,7 +2747,7 @@ PR_LexGrab
 Deals with counting sequence numbers and replacing frame macros
 ==============
 */
-void QCC_PR_LexGrab (void)
+static void QCC_PR_LexGrab (void)
 {
 	pr_file_p++;	// skip the $
 //	if (!QCC_PR_SimpleGetToken ())
@@ -2884,14 +2868,6 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 	pHash_Add(&compconstantstable, cnst->name, cnst, qccHunkAlloc(sizeof(bucket_t)));
 
 	return cnst;
-}
-
-void QCC_PR_Undefine(void)
-{
-	QCC_PR_SimpleGetToken ();
-
-	QCC_PR_UndefineName(pr_token);
-//		QCC_PR_ParseError("%s was not defined.", pr_token);
 }
 
 void QCC_PR_PreProcessor_Define(pbool append)
@@ -3033,13 +3009,10 @@ void QCC_PR_PreProcessor_Define(pbool append)
 			if( s[1] == '\n' || s[1] == '\r' )
 			{
 				char *exploitcheck;
-				s++;
+				s++;	//skip the \ char
+				if (*s == '\r' && s[1] == '\n')
+					s++;	//skip the \r. the \n will become part of the macro.
 				QCC_PR_NewLine(true);
-				s++;
-				if( s[-1] == '\r' && s[0] == '\n' )
-				{
-					s++;
-				}
 
 /*
 This began as a bug. It is still evil, but its oh so useful.
@@ -3234,7 +3207,7 @@ static void QCC_PR_ExpandStrCatMarkup(char **buffer, size_t *bufferlen, size_t *
 	/*no null terminator, remember to cat one if required*/
 }
 
-const struct tm *QCC_CurrentTime(void)
+static const struct tm *QCC_CurrentTime(void)
 {
 	//if SOURCE_DATE_EPOCH environment is defined, use that as seconds from epoch (and show utc)
 	//this helps give reproducable builds (which is for some debian project, demonstrating that noone is hacking binaries).
@@ -3280,7 +3253,14 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 	}
 	if (!strcmp(constname, "__FILE__"))
 	{
+		char *erk;
 		QC_snprintfz(retbuf, retbufsize, "\"%s\"", s_filen);
+		erk = strchr(retbuf, ':');
+		if (erk)
+		{
+			erk[0] = '\"';
+			erk[1] = 0;
+		}
 		return retbuf;
 	}
 	if (!strcmp(constname, "__LINE__"))
@@ -3305,25 +3285,266 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 	return NULL;	//didn't match
 }
 
-#define PASTE2(a,b) a##b
-#define PASTE(a,b) PASTE2(a,b)
-#define STRINGIFY2(a) #a
-#define STRINGIFY(a) STRINGIFY2(a)
-#define spam(x) /*static float PASTE(spam,__LINE__);*/ if (PASTE2(spam,__LINE__) != x) {dprint(#x " chaned in " __FILE__ " on line " STRINGIFY2(__LINE__) "\n");  PASTE2(spam,__LINE__) = x;}
-#define dprint printf
+static pbool QCC_PR_ExpandPreProcessorMacro(CompilerConstant_t *c, char **buffer, size_t *bufferlen, size_t *buffermax)
+{
+	int p;
+	char *start;
+	char *starttok;
+	char *argsend;
+	int argsendline;
+	size_t whitestart;
+	char *paramoffset[MAXCONSTANTPARAMS+1];
+	int param=0, extraparam=0;
+	int plevel=0;
+	pbool noargexpand;
+
+	char *end;
+	char retbuf[256];
+
+	pr_file_p++;
+	QCC_PR_LexWhitespace(false);
+	start = pr_file_p;
+	while(1)
+	{
+		// handle strings correctly by ignoring them
+		if (*pr_file_p == '\"')
+		{
+			do {
+				pr_file_p++;
+			} while( (pr_file_p[-1] == '\\' || pr_file_p[0] != '\"') && *pr_file_p && *pr_file_p != '\n' );
+		}
+		if (*pr_file_p == '(')
+			plevel++;
+		else if (!plevel && (*pr_file_p == ',' || *pr_file_p == ')'))
+		{
+			if (*pr_file_p == ',' && c->varg && param >= c->numparams)
+				extraparam++;	//skip extra trailing , arguments if we're varging.
+			else
+			{
+				paramoffset[param++] = start;
+				start = pr_file_p+1;
+				if (*pr_file_p == ')')
+				{
+					*pr_file_p = '\0';
+					pr_file_p++;
+					break;
+				}
+				*pr_file_p = '\0';
+				pr_file_p++;
+				QCC_PR_LexWhitespace(false);
+				start = pr_file_p;
+				// move back by one char because we move forward by one at the end of the loop
+				pr_file_p--;
+				if (param == MAXCONSTANTPARAMS || param > c->numparams)
+					QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
+			}
+		} else if (*pr_file_p == ')' )
+			plevel--;
+		else if(*pr_file_p == '\n')
+			QCC_PR_NewLine(false);
+
+		// see that *pr_file_p = '\0' up there? Must ++ BEFORE checking for !*pr_file_p
+		pr_file_p++;
+		if (!*pr_file_p)
+			QCC_PR_ParseError(ERR_EOF, "EOF on macro call");
+	}
+	if (param < c->numparams)
+		QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Not enough macro parameters");
+	paramoffset[param] = start;
+
+	*buffer = NULL;
+	*bufferlen = 0;
+	*buffermax = 0;
+
+//				QCC_PR_LexWhitespace(false);
+	argsend = pr_file_p;
+	argsendline = pr_source_line;
+	pr_file_p = c->value;
+	for(;;)
+	{
+		noargexpand = false;
+		whitestart = *bufferlen;
+		starttok = pr_file_p;
+		/*while(qcc_iswhite(*pr_file_p))	//copy across whitespace
+		{
+			if (!*pr_file_p)
+				break;
+			pr_file_p++;
+		}*/
+		QCC_PR_LexWhitespace(true);
+		if (starttok != pr_file_p)
+		{
+			QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   starttok, pr_file_p - starttok);
+		}
+
+		if(*pr_file_p == '\"')
+		{
+			starttok = pr_file_p;
+			do
+			{
+				pr_file_p++;
+			} while( (pr_file_p[-1] == '\\' || pr_file_p[0] != '\"') && *pr_file_p && *pr_file_p != '\n' );
+			if(*pr_file_p == '\"')
+				pr_file_p++;
+
+			QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   starttok, pr_file_p - starttok);
+			continue;
+		}
+		else if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead, or chain macros.
+		{
+			if (pr_file_p[1] == '#')
+			{	//concatinate (strip out whitespace before the token)
+				*bufferlen = whitestart;
+				pr_file_p+=2;
+				noargexpand = true;
+			}
+			else
+			{	//stringify
+				pr_file_p++;
+				pr_file_p = QCC_COM_Parse2(pr_file_p);
+				if (!pr_file_p)
+					break;
+
+				for (p = 0; p < param; p++)
+				{
+					if (!STRCMP(qcc_token, c->params[p]))
+					{
+						QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   "\"", 1);
+						QCC_PR_ExpandStrCatMarkup(buffer,bufferlen,buffermax,   paramoffset[p], strlen(paramoffset[p]));
+						QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   "\"", 1);
+						break;
+					}
+				}
+				if (p == param)
+				{
+					QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   "#", 1);
+					QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   qcc_token, strlen(qcc_token));
+					if (!c->evil)
+						QCC_PR_ParseWarning(0, "'#' is not followed by a macro parameter in %s", c->name);
+				}
+				continue;	//already did this one
+			}
+		}
+
+		end = qcc_token;
+		pr_file_p = QCC_COM_Parse2(pr_file_p);
+		if (!pr_file_p)
+			break;
+
+		for (p = 0; p < c->numparams; p++)
+		{
+			if (!STRCMP(qcc_token, c->params[p]))
+			{
+				char *argstart, *argend;
+
+				for (start = pr_file_p; qcc_iswhite(*start); start++)
+					;
+				if (noargexpand || (start[0] == '#' && start[1] == '#'))
+					QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   paramoffset[p], strlen(paramoffset[p]));
+				else
+				{
+					for (argstart = paramoffset[p]; *argstart; argstart = argend)
+					{
+						argend = argstart;
+						while (qcc_iswhite(*argend))
+							argend++;
+						if (*argend == '\"')
+						{
+							do
+							{
+								argend++;
+							} while( (argend[-1] == '\\' || argend[0] != '\"') && *argend && *argend != '\n' );
+							if(*argend == '\"')
+								argend++;
+							end = NULL;
+						}
+						else
+						{
+							argend = QCC_COM_Parse2(argend);
+							if (!argend)
+								break;
+							end = QCC_PR_CheckBuiltinCompConst(qcc_token, retbuf, sizeof(retbuf));
+						}
+						//FIXME: we should be testing all defines instead of just built-in ones.
+						if (end)
+							QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   end, strlen(end));
+						else
+							QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   argstart, argend-argstart);
+					}
+				}
+				break;
+			}
+		}
+		if (c->varg && !STRCMP(qcc_token, "__VA_ARGS__"))
+		{	//c99
+			if (param-1 == c->numparams)
+				QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   paramoffset[c->numparams], strlen(paramoffset[c->numparams]));
+			else if (noargexpand)
+			{
+				if(*bufferlen>0 && (*buffer)[*bufferlen-1] == ',')
+					*bufferlen-=1;
+			}
+		}
+		else if (c->varg && !STRCMP(qcc_token, "__VA_COUNT__"))
+		{	//not c99
+			char tmp[64];
+			if (param < c->numparams)
+				QCC_PR_ParseError(ERR_TOOFEWPARAMS, "__VA_COUNT__ without any variable args");
+			QC_snprintfz(tmp, sizeof(tmp), "%i", param-1+extraparam);
+			QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   tmp, strlen(tmp));
+		}
+		else if (p == c->numparams)
+		{
+			/*CompilerConstant_t *c2 = pHash_Get(&compconstantstable, qcc_token);
+			if (c2 && c2->numparams >= 0 && *pr_file_p == '(')
+			{	//oh dear god this is vile bullshit
+				char *sub = NULL;
+				size_t sublen;
+				size_t submax;
+				pr_file_p++;
+				if (QCC_PR_ExpandPreProcessorMacro(c, &sub,&sublen,&submax))
+				{
+					QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   sub, sublen);
+				}
+				free(sub);
+			}
+			else*/
+				QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   qcc_token, strlen(qcc_token));
+		}
+	}
+
+	for (p = 0; p < param-1; p++)
+		paramoffset[p][strlen(paramoffset[p])] = ',';
+	paramoffset[p][strlen(paramoffset[p])] = ')';
+
+	if (c->inside>8)
+		return false;
+
+	pr_file_p = argsend;
+	pr_source_line = argsendline;
+
+	if (flag_debugmacros)
+	{
+		if (flag_msvcstyle)
+			externs->Printf ("%s(%i) : macro %s: %s\n", s_filen, pr_source_line, c->name, pr_file_p);
+		else
+			externs->Printf ("%s:%i: macro %s: %s\n", s_filen, pr_source_line, c->name, pr_file_p);
+	}
+	return true;
+}
 
 int QCC_PR_CheckCompConst(void)
 {
+	//FIXME: FOO(SPLAT(FOO(BAR)))
+	//the above should expand the inner foo before expanding the outer foo
+
 	char		*initial_file_p = pr_file_p;
 	int			initial_line = pr_source_line;
-	int whitestart = 5;
 
 	CompilerConstant_t *c;
 
 	char *end, *tok;
 	char retbuf[256];
-
-//	spam(whitestart);
 
 	for (end = pr_file_p; ; end++)
 	{
@@ -3355,7 +3576,7 @@ int QCC_PR_CheckCompConst(void)
 	}
 	QC_strnlcpy(pr_token, pr_file_p, end-pr_file_p, sizeof(pr_token));
 
-//	printf("%s\n", pr_token);
+//	externs->Printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);
 
 	if (c && (!currentchunk || currentchunk->cnst != c))	//macros don't expand themselves
@@ -3367,229 +3588,16 @@ int QCC_PR_CheckCompConst(void)
 		{
 			if (*pr_file_p == '(')
 			{
-				int p;
-				char *start;
-				char *starttok;
-				char *buffer;
-				char *argsend;
-				int argsendline;
-				size_t buffermax;
-				size_t bufferlen;
-				char *paramoffset[MAXCONSTANTPARAMS+1];
-				int param=0, extraparam=0;
-				int plevel=0;
-				pbool noargexpand;
-
-				pr_file_p++;
-				QCC_PR_LexWhitespace(false);
-				start = pr_file_p;
-				while(1)
+				char *buffer = NULL;
+				size_t bufferlen, buffermax;
+				if (!QCC_PR_ExpandPreProcessorMacro(c, &buffer, &bufferlen, &buffermax))
 				{
-					// handle strings correctly by ignoring them
-					if (*pr_file_p == '\"')
-					{
-						do {
-							pr_file_p++;
-						} while( (pr_file_p[-1] == '\\' || pr_file_p[0] != '\"') && *pr_file_p && *pr_file_p != '\n' );
-					}
-					if (*pr_file_p == '(')
-						plevel++;
-					else if (!plevel && (*pr_file_p == ',' || *pr_file_p == ')'))
-					{
-						if (*pr_file_p == ',' && c->varg && param >= c->numparams)
-							extraparam++;	//skip extra trailing , arguments if we're varging.
-						else
-						{
-							paramoffset[param++] = start;
-							start = pr_file_p+1;
-							if (*pr_file_p == ')')
-							{
-								*pr_file_p = '\0';
-								pr_file_p++;
-								break;
-							}
-							*pr_file_p = '\0';
-							pr_file_p++;
-							QCC_PR_LexWhitespace(false);
-							start = pr_file_p;
-							// move back by one char because we move forward by one at the end of the loop
-							pr_file_p--;
-							if (param == MAXCONSTANTPARAMS || param > c->numparams)
-								QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
-						}
-					} else if (*pr_file_p == ')' )
-						plevel--;
-					else if(*pr_file_p == '\n')
-						QCC_PR_NewLine(false);
-
-					// see that *pr_file_p = '\0' up there? Must ++ BEFORE checking for !*pr_file_p
-					pr_file_p++;
-					if (!*pr_file_p)
-						QCC_PR_ParseError(ERR_EOF, "EOF on macro call");
-				}
-				if (param < c->numparams)
-					QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Not enough macro parameters");
-				paramoffset[param] = start;
-
-				buffer = NULL;
-				bufferlen = 0;
-				buffermax = 0;
-
-//				QCC_PR_LexWhitespace(false);
-				argsend = pr_file_p;
-				argsendline = pr_source_line;
-				pr_file_p = c->value;
-				for(;;)
-				{
-					noargexpand = false;
-					whitestart = bufferlen;
-					starttok = pr_file_p;
-					/*while(qcc_iswhite(*pr_file_p))	//copy across whitespace
-					{
-						if (!*pr_file_p)
-							break;
-						pr_file_p++;
-					}*/
-					QCC_PR_LexWhitespace(true);
-					if (starttok != pr_file_p)
-					{
-						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   starttok, pr_file_p - starttok);
-					}
-
-					if(*pr_file_p == '\"')
-					{
-						starttok = pr_file_p;
-						do
-						{
-							pr_file_p++;
-						} while( (pr_file_p[-1] == '\\' || pr_file_p[0] != '\"') && *pr_file_p && *pr_file_p != '\n' );
-						if(*pr_file_p == '\"')
-							pr_file_p++;
-
-						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   starttok, pr_file_p - starttok);
-						continue;
-					}
-					else if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead, or chain macros.
-					{
-						if (pr_file_p[1] == '#')
-						{	//concatinate (strip out whitespace before the token)
-							bufferlen = whitestart;
-							pr_file_p+=2;
-							noargexpand = true;
-						}
-						else
-						{	//stringify
-							pr_file_p++;
-							pr_file_p = QCC_COM_Parse2(pr_file_p);
-							if (!pr_file_p)
-								break;
-
-							for (p = 0; p < param; p++)
-							{
-								if (!STRCMP(qcc_token, c->params[p]))
-								{
-									QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "\"", 1);
-									QCC_PR_ExpandStrCatMarkup(&buffer, &bufferlen, &buffermax,   paramoffset[p], strlen(paramoffset[p]));
-									QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "\"", 1);
-									break;
-								}
-							}
-							if (p == param)
-							{
-								QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "#", 1);
-								QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   qcc_token, strlen(qcc_token));
-								if (!c->evil)
-									QCC_PR_ParseWarning(0, "'#' is not followed by a macro parameter in %s", c->name);
-							}
-							continue;	//already did this one
-						}
-					}
-
-					end = qcc_token;
-					pr_file_p = QCC_COM_Parse2(pr_file_p);
-					if (!pr_file_p)
-						break;
-
-					for (p = 0; p < c->numparams; p++)
-					{
-						if (!STRCMP(qcc_token, c->params[p]))
-						{
-							char *argstart, *argend;
-
-							for (start = pr_file_p; qcc_iswhite(*start); start++)
-								;
-							if (noargexpand || (start[0] == '#' && start[1] == '#'))
-								QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[p], strlen(paramoffset[p]));
-							else
-							{
-								for (argstart = paramoffset[p]; *argstart; argstart = argend)
-								{
-									argend = argstart;
-									while (qcc_iswhite(*argend))
-										argend++;
-									if (*argend == '\"')
-									{
-										do
-										{
-											argend++;
-										} while( (argend[-1] == '\\' || argend[0] != '\"') && *argend && *argend != '\n' );
-										if(*argend == '\"')
-											argend++;
-										end = NULL;
-									}
-									else
-									{
-										argend = QCC_COM_Parse2(argend);
-										if (!argend)
-											break;
-										end = QCC_PR_CheckBuiltinCompConst(qcc_token, retbuf, sizeof(retbuf));
-									}
-									//FIXME: we should be testing all defines instead of just built-in ones.
-									if (end)
-										QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   end, strlen(end));
-									else
-										QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   argstart, argend-argstart);
-								}
-							}
-							break;
-						}
-					}
-					if (c->varg && !STRCMP(qcc_token, "__VA_ARGS__"))
-					{
-						if (param-1 == c->numparams)
-							QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[c->numparams], strlen(paramoffset[c->numparams]));
-						else if (noargexpand)
-						{
-							if(bufferlen>0 && buffer[bufferlen-1] == ',')
-								bufferlen--;
-						}
-					}
-					else if (c->varg && !STRCMP(qcc_token, "__VA_COUNT__"))
-					{
-						char tmp[64];
-						if (param < c->numparams)
-							QCC_PR_ParseError(ERR_TOOFEWPARAMS, "__VA_COUNT__ without any variable args");
-						QC_snprintfz(tmp, sizeof(tmp), "%i", param-1+extraparam);
-						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   tmp, strlen(tmp));
-					}
-					else if (p == c->numparams)
-						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   qcc_token, strlen(qcc_token));
-				}
-
-				for (p = 0; p < param-1; p++)
-					paramoffset[p][strlen(paramoffset[p])] = ',';
-				paramoffset[p][strlen(paramoffset[p])] = ')';
-
-				if (c->inside>8)
-				{
+					free(buffer);
 					pr_file_p = initial_file_p;
 					pr_source_line = initial_line;
-					free(buffer);
 					return false;
 				}
 
-				pr_file_p = argsend;
-				pr_source_line = argsendline;
 				if (!bufferlen)
 					expandedemptymacro = true;
 				else
@@ -3599,18 +3607,11 @@ int QCC_PR_CheckCompConst(void)
 				}
 				expandedemptymacro = true;
 				free(buffer);
-
-				if (flag_debugmacros)
-				{
-					if (flag_msvcstyle)
-						printf ("%s(%i) : macro %s: %s\n", s_filen, pr_source_line, c->name, pr_file_p);
-					else
-						printf ("%s:%i: macro %s: %s\n", s_filen, pr_source_line, c->name, pr_file_p);
-				}
 			}
 			else
 			{
 				//QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Macro without argument list");
+				//such macros don't get expanded.
 				pr_file_p = initial_file_p;
 				pr_source_line = initial_line;
 				return false;
@@ -3858,7 +3859,7 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 		char *modifiers;
 		if (QCC_Temp_Describe(def, tmbuffer, sizeof(tmbuffer)))
 		{
-			printf ("%s:%i:    (%s)(%s)\n", def->filen, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), tmbuffer);
+			externs->Printf ("%s:%i:    (%s)(%s)\n", def->filen, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), tmbuffer);
 		}
 		else
 		{
@@ -3868,9 +3869,9 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 			else if (def->isstatic)
 				modifiers = "static ";
 			if (flag_msvcstyle)
-				printf ("%s%s(%i) :    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
+				externs->Printf ("%s%s(%i) :    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
 			else
-				printf ("%s%s:%i:    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
+				externs->Printf ("%s%s:%i:    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
 		}
 	}
 }
@@ -3889,30 +3890,30 @@ static void QCC_PR_PrintMacro (qcc_includechunk_t *chunk)
 		if (chunk->cnst)
 		{
 #if 1
-			printf ("%s%s:%i: %s%s%s is defined here\n", col_location, chunk->cnst->fromfile, chunk->cnst->fromline, col_symbol, chunk->cnst->name, col_none);
+			externs->Printf ("%s%s:%i: macro %s%s%s is defined here\n", col_location, chunk->cnst->fromfile, chunk->cnst->fromline, col_symbol, chunk->cnst->name, col_none);
 #else
-			printf ("%s:%i: expanding %s\n", chunk->currentfilename, chunk->currentlinenumber, chunk->cnst->name);
+			externs->Printf ("%s:%i: expanding %s\n", chunk->currentfilename, chunk->currentlinenumber, chunk->cnst->name);
 #endif
 			if (verbose)
-				printf ("%s\n", chunk->datastart);
+				externs->Printf ("%s\n", chunk->datastart);
 		}
 		else
-			printf ("%s:%i:\n", chunk->currentfilename, chunk->currentlinenumber);
+			externs->Printf ("%s:%i:\n", chunk->currentfilename, chunk->currentlinenumber);
 	}
 }
-void QCC_PR_PrintScope (void)
+static void QCC_PR_PrintScope (void)
 {
 	QCC_PR_PrintMacro(currentchunk);
 	if (pr_scope)
 	{
 		if (errorscope != pr_scope)
-			printf ("in function %s%s%s (line %i),\n", col_symbol, pr_scope->name, col_none, pr_scope->line);
+			externs->Printf ("in function %s%s%s (line %i),\n", col_symbol, pr_scope->name, col_none, pr_scope->line);
 		errorscope = pr_scope;
 	}
 	else
 	{
 		if (errorscope)
-			printf ("at global scope,\n");
+			externs->Printf ("at global scope,\n");
 		errorscope = NULL;
 	}
 }
@@ -3946,9 +3947,9 @@ void VARGS QCC_PR_ParseError (int errortype, const char *error, ...)
 
 	QCC_PR_PrintScope();
 	if (flag_msvcstyle)
-		printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 	else
-		printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 
 	longjmp (pr_parse_abort, 1);
 }
@@ -3967,9 +3968,9 @@ void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char 
 #endif
 	QCC_PR_PrintScope();
 	if (flag_msvcstyle)
-		printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 	else
-		printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 
 	QCC_PR_ParsePrintDef(WARN_ERROR, def);
 
@@ -3990,16 +3991,16 @@ void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t def, const char
 #endif
 	QCC_PR_PrintScope();
 	if (flag_msvcstyle)
-		printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 	else
-		printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
 
 	QCC_PR_ParsePrintSRef(WARN_ERROR, def);
 
 	longjmp (pr_parse_abort, 1);
 }
 
-pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const char *string)
+static pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const char *string)
 {
 	char *wnam = QCC_NameForWarning(type);
 	if (!wnam)
@@ -4013,11 +4014,11 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 		if (!string)
 			;
 		else if (!file || !*file)
-			printf (":: %serror%s%s: %s\n", col_error, wnam, col_none, string);
+			externs->Printf (":: %serror%s%s: %s\n", col_error, wnam, col_none, string);
 		else if (flag_msvcstyle)
-			printf ("%s%s(%i) : %serror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
+			externs->Printf ("%s%s(%i) : %serror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		else
-			printf ("%s%s:%i: %serror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
+			externs->Printf ("%s%s:%i: %serror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		pr_error_count++;
 	}
 	else if (qccwarningaction[type] == 2)
@@ -4025,11 +4026,11 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 		if (!string)
 			;
 		else if (!file || !*file)
-			printf (":: %swerror%s%s: %s\n", col_error, wnam, col_none, string);
+			externs->Printf (":: %swerror%s%s: %s\n", col_error, wnam, col_none, string);
 		else if (flag_msvcstyle)
-			printf ("%s%s(%i) : %swerror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
+			externs->Printf ("%s%s(%i) : %swerror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		else
-			printf ("%s%s:%i: %swerror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
+			externs->Printf ("%s%s:%i: %swerror%s%s: %s\n", col_location, file, line, col_error, wnam, col_none, string);
 		pr_error_count++;
 	}
 	else
@@ -4037,11 +4038,11 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 		if (!string)
 			;
 		else if (!file || !*file)
-			printf (":: %swarning%s%s: %s\n", col_warning, wnam, col_none, string);
+			externs->Printf (":: %swarning%s%s: %s\n", col_warning, wnam, col_none, string);
 		else if (flag_msvcstyle)
-			printf ("%s%s(%i) : %swarning%s%s: %s\n", col_location, file, line, col_warning, wnam, col_none, string);
+			externs->Printf ("%s%s(%i) : %swarning%s%s: %s\n", col_location, file, line, col_warning, wnam, col_none, string);
 		else
-			printf ("%s%s:%i: %swarning%s%s: %s\n", col_location, file, line, col_warning, wnam, col_none, string);
+			externs->Printf ("%s%s:%i: %swarning%s%s: %s\n", col_location, file, line, col_warning, wnam, col_none, string);
 		pr_warning_count++;
 	}
 	return true;
@@ -4094,11 +4095,11 @@ void VARGS QCC_PR_Note (int type, const char *file, int line, const char *error,
 
 	QCC_PR_PrintScope();
 	if (!file)
-		printf ("note: %s\n", string);
+		externs->Printf ("note: %s\n", string);
 	else if (flag_msvcstyle)
-		printf ("%s(%i) : note: %s\n", file, line, string);
+		externs->Printf ("%s(%i) : note: %s\n", file, line, string);
 	else
-		printf ("%s:%i: note: %s\n", file, line, string);
+		externs->Printf ("%s:%i: note: %s\n", file, line, string);
 }
 
 
@@ -4682,7 +4683,7 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 }
 //#define typecmp(a, b) (a && ((a)->type==(b)->type) && !STRCMP((a)->name, (b)->name))
 
-QCC_type_t *QCC_PR_FindType (QCC_type_t *type)
+static QCC_type_t *QCC_PR_FindType (QCC_type_t *type)
 {
 	int t;
 	for (t = 0; t < numtypeinfos; t++)
@@ -4706,8 +4707,8 @@ QCC_type_t *QCC_PR_FindType (QCC_type_t *type)
 			return &qcc_typeinfo[t];
 		}
 	}
-QCC_Error(ERR_INTERNAL, "Error with type");
 
+	type = QCC_PR_DuplicateType(type, false);
 	return type;
 }
 /*
@@ -4786,6 +4787,28 @@ char *pr_parm_argcount_name;
 
 int recursivefunctiontype;
 
+static QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype)
+{
+	QCC_type_t	ftype = *orig;
+
+	ftype.ptrto = NULL;
+	ftype.typedefed = false;
+	ftype.num_parms++;
+	ftype.params = qccHunkAlloc(sizeof(*ftype.params) * ftype.num_parms);
+	memcpy(ftype.params+1, orig->params, sizeof(*ftype.params) * orig->num_parms);
+	ftype.params[0].paramname = "this";
+	ftype.params[0].type = QCC_PointerTypeTo(thistype);
+	ftype.params[0].isvirtual = true;
+
+	orig = QCC_PR_FindType (&ftype);
+	if (!orig)
+	{
+		orig = QCC_PR_NewType(ftype.name, ftype.type, false);
+		*orig = ftype;
+	}
+	return orig;
+}
+
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 {
@@ -4821,6 +4844,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 			foundinout = false;
 			paramlist[numparms].optional = false;
+			paramlist[numparms].isvirtual = false;
 			paramlist[numparms].out = false;
 
 			while(1)
@@ -4985,6 +5009,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 
 			paramlist[numparms].out = false;
 			paramlist[numparms].optional = false;
+			paramlist[numparms].isvirtual = false;
 			paramlist[numparms].ofs = 0;
 			paramlist[numparms].arraysize = 0;
 			paramlist[numparms].type = nptype;
@@ -5063,6 +5088,7 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s 
 		p->type = args[i].type;
 		p->out = args[i].out;
 		p->optional = args[i].optional;
+		p->isvirtual = args[i].isvirtual;
 		p->ofs = args[i].ofs;
 		p->arraysize = args[i].arraysize;
 		p->defltvalue.cast = NULL;
@@ -5638,6 +5664,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			parms[numparms].ofs = 0;
 			parms[numparms].out = false;
 			parms[numparms].optional = false;
+			parms[numparms].isvirtual = isvirt;
 			parms[numparms].paramname = parmname;
 			parms[numparms].arraysize = arraysize;
 			parms[numparms].type = newparm;
@@ -5733,7 +5760,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//and make sure we can do member::__fname
 			//actually, that seems pointless.
 			QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
-//			printf("define %s -> %s\n", membername, d->name);
+//			externs->Printf("define %s -> %s\n", membername, d->name);
 			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, arraysize, d, basicindex, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
 			d->referenced = true;	//always referenced, so you can inherit safely.
 		}
@@ -5799,7 +5826,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		structtype = ev_struct;
 	if (structtype != ev_void)
 	{
-		struct QCC_typeparam_s *parms = NULL;
+		struct QCC_typeparam_s *parms = NULL, *oldparm;
 		int numparms = 0;
 		unsigned int arraysize;
 		char *parmname;
@@ -5811,10 +5838,30 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		}
 		else
 		{
-			newt = QCC_TypeForName(pr_token);
+			QCC_type_t *parenttype;
+			char *tname = QCC_PR_ParseName();
+
+			if (structtype == ev_struct && QCC_PR_CheckToken(":"))
+			{
+				char *parentname = QCC_PR_ParseName();
+				parenttype = QCC_TypeForName(parentname);
+				if (!parenttype)
+					QCC_PR_ParseError(ERR_NOTANAME, "Parent type %s was not yet defined", parentname);
+				if (parenttype->type != ev_struct)
+					QCC_PR_ParseError(ERR_NOTANAME, "Parent type %s is not a struct", parentname);
+			}
+			else
+				parenttype = NULL;
+
+			newt = QCC_TypeForName(tname);
 			if (!newt)
-				newt = QCC_PR_NewType(QCC_CopyString(pr_token)+strings, ev_struct, true);
-			QCC_PR_Lex();
+			{
+				newt = QCC_PR_NewType(tname, ev_struct, true);
+				newt->parentclass = parenttype;
+			}
+			else if (parenttype && newt->parentclass != parenttype)
+				QCC_PR_ParseError(ERR_NOTANAME, "Redeclaration of struct with different parent type", tname, parenttype->name);
+
 			if (newt->size)
 			{
 				if (QCC_PR_CheckToken("{"))
@@ -5823,33 +5870,82 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			}
 
 			//struct declaration only, not definition.
-			if (!QCC_PR_CheckToken("{"))
+			if (parenttype)
+				QCC_PR_Expect("{");
+			else if (!QCC_PR_CheckToken("{"))
 				return newt;
 		}
-		newt->size=0;
+		if (newt->parentclass)
+			newt->size = newt->parentclass->size;
+		else
+			newt->size=0;
 
 		type = NULL;
-		if (QCC_PR_CheckToken(","))
-			QCC_PR_ParseError(ERR_NOTANAME, "element missing name");
 
 		newparm = NULL;
-		while (!QCC_PR_CheckToken("}"))
+		for (;;)
 		{
-			if (QCC_PR_CheckToken(","))
+			//in qc, functions are assignable references like anything else, so no modifiers means the qc will need to assign to it somewhere.
+			//virtual functions are still references, but we initialise them somewhere
+			//nonvirtual functions and static functions are kinda the same thing
+			pbool isnonvirt = false;
+			pbool isstatic = false;
+			pbool isvirt = false;
+			QCC_sref_t defaultval;
+			if (QCC_PR_CheckToken("}"))
 			{
+				if (newparm)
+					QCC_PR_ParseError(ERR_EXPECTED, "missing semi-colon");
+				break;
+			}
+			else if (QCC_PR_CheckToken(";"))
+			{
+				newparm = NULL;
+				continue;
+			}
+			else if (QCC_PR_CheckToken(","))
+			{	//same as last type, unless initial/after-semicolon
 				if (!newparm)
-					QCC_PR_ParseError(ERR_NOTANAME, "element missing type");
+					QCC_PR_ParseError(ERR_EXPECTED, "element missing type");
 				newparm = QCC_PR_NewType(newparm->name, newparm->type, false);
 			}
 			else
-				newparm = QCC_PR_ParseType(false, false);
+			{	//new type!
+				if (newparm)
+					QCC_PR_ParseError(ERR_EXPECTED, "missing semi-colon");	//allow a missing semi-colon on functions, for mixed-style functions.
 
-			arraysize = 0;
+				if (QCC_PR_CheckKeyword(1, "public"))
+					/*ispublic = true*/;
+				else if (QCC_PR_CheckKeyword(1, "private"))
+					/*isprivate = true*/;
+				else if (QCC_PR_CheckKeyword(1, "protected"))
+					/*isprotected = true*/;
+
+				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
+					isnonvirt = true;
+				else if (QCC_PR_CheckKeyword(1, "static"))
+					isstatic = true;
+				else if (QCC_PR_CheckKeyword(1, "virtual"))
+					isvirt = true;
+//				else if (QCC_PR_CheckKeyword(1, "ignore"))
+//					isignored = true;
+//				else if (QCC_PR_CheckKeyword(1, "strip"))
+//					isignored = true;
+
+				newparm = QCC_PR_ParseType(false, false);
+			}
+			type = newparm;
 
 			while (QCC_PR_CheckToken("*"))
-				newparm = QCC_PointerTypeTo(newparm);
+				type = QCC_PointerTypeTo(type);
 
-			if (!QCC_PR_CheckToken(";"))
+			arraysize = 0;
+			if (QCC_PR_CheckToken(";"))
+			{	//annonymous structs do weird scope stuff.
+				newparm = NULL;
+				parmname = "";
+			}
+			else
 			{
 				parmname = qccHunkAlloc(strlen(pr_token)+1);
 				strcpy(parmname, pr_token);
@@ -5861,36 +5957,81 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
 					QCC_PR_Expect("]");
 				}
-				QCC_PR_CheckToken(";");
-			}
-			else
-				parmname = "";
 
-			if (newparm == newt || ((newparm->type == ev_struct || newparm->type == ev_union) && !newparm->size))
+				if (QCC_PR_CheckToken("("))
+					type = QCC_PR_ParseFunctionType(false, type);
+			}
+
+			if (type == newt || ((type->type == ev_struct || type->type == ev_union) && !type->size))
 			{
-				QCC_PR_ParseWarning(ERR_NOTANAME, "type %s not fully defined yet", newparm->name);
+				QCC_PR_ParseWarning(ERR_NOTANAME, "type %s not fully defined yet", type->name);
 				continue;
 			}
 
+			if ((isnonvirt || isvirt) && type->type != ev_function)
+				QCC_PR_ParseWarning(ERR_INTERNAL, "[non]virtual members must be functions", type->name);
+
+			//static members are technically just funny-named globals, and do not generate fields.
+			if (isnonvirt || isstatic || isvirt)
+			{	//either way its a regular global. the difference being static has no implicit this/self argument.
+				QCC_def_t *d;
+				char membername[2048];
+				if (!isstatic)
+					type = QCC_PR_MakeThiscall(type, newt);
+
+				QC_snprintfz(membername, sizeof(membername), "%s::%s", newt->name, parmname);
+				d = QCC_PR_GetDef(type, membername, NULL, true, 0, (type->type==ev_function)?GDF_CONST:0);
+				if (QCC_PR_CheckToken("=") || (type->type == ev_function && QCC_PR_PeekToken("{")))
+					QCC_PR_ParseInitializerDef(d, 0);
+				QCC_FreeDef(d);
+				if (!QCC_PR_PeekToken(","))
+					newparm = NULL;
+
+				if (isvirt)
+				{
+					defaultval.ofs = 0;
+					defaultval.cast = d->type;
+					defaultval.sym = d;
+				}
+				else
+					continue;
+			}
+			else
+			{
+				defaultval.cast = NULL;
+				if (QCC_PR_CheckToken("="))
+				{
+					defaultval = QCC_PR_ParseDefaultInitialiser(type);
+					QCC_PR_ParseWarning(ERR_INTERNAL, "TODO: initialised struct members are not implemented yet", type->name);
+				}
+			}
 
 			parms = realloc(parms, sizeof(*parms) * (numparms+1));
-			if (structtype == ev_union)
+			oldparm = QCC_PR_FindStructMember(newt, parmname, &parms[numparms].ofs);
+			if (oldparm && oldparm->arraysize == arraysize && !typecmp_lax(oldparm->type, type))
+			{
+				if (!isvirt)
+					continue;
+			}
+			else if (structtype == ev_union)
 			{
 				parms[numparms].ofs = 0;
-				if (newparm->size*(arraysize?arraysize:1) > newt->size)
-					newt->size = newparm->size*(arraysize?arraysize:1);
+				if (type->size*(arraysize?arraysize:1) > newt->size)
+					newt->size = type->size*(arraysize?arraysize:1);
 			}
 			else
 			{
 				parms[numparms].ofs = newt->size;
-				newt->size += newparm->size*(arraysize?arraysize:1);
+				newt->size += type->size*(arraysize?arraysize:1);
 			}
+
 			parms[numparms].arraysize = arraysize;
 			parms[numparms].out = false;
 			parms[numparms].optional = false;
+			parms[numparms].isvirtual = isvirt;
 			parms[numparms].paramname = parmname;
-			parms[numparms].type = newparm;
-			parms[numparms].defltvalue.cast = NULL;
+			parms[numparms].type = type;
+			parms[numparms].defltvalue = defaultval;
 			numparms++;
 		}
 		if (!numparms)

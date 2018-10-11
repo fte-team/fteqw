@@ -529,7 +529,7 @@ static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, voi
 	return sv.world.edict_size;
 }
 
-static int QDECL Q1QVMPF_QueryField(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache)
+static int QDECL Q1QVMPF_QueryField(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char const**name, evalc_t *fieldcache)
 {
 	*type = ev_void;
 	*name = "?";
@@ -539,7 +539,7 @@ static int QDECL Q1QVMPF_QueryField(pubprogfuncs_t *prinst, unsigned int fieldof
 	return true;
 }
 
-static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, etype_t type, evalc_t *cache)
+static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, const char *fieldname, etype_t type, evalc_t *cache)
 {
 	if (cache && !cache->varname)
 	{

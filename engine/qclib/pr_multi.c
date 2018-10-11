@@ -60,7 +60,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 
 	if ((unsigned)newpr >= prinst.maxprogs || !np->globals)
 	{
-		printf("QCLIB: Bad prog type - %i", newpr);
+		externs->Printf("QCLIB: Bad prog type - %i", newpr);
 		return false;
 	}
 	if ((unsigned)oldpr >= prinst.maxprogs || !op->globals)	//startup?
@@ -227,7 +227,7 @@ void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
 //origionaloffs is used to track matching field offsets. fields with the same progs offset overlap
 
 //note: we probably suffer from progs with renamed system globals.
-int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name, signed long engineofs, signed long progsofs)
+int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char *name, signed long engineofs, signed long progsofs)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 //	progstate_t *p;
@@ -246,7 +246,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 		{
 			progfuncs->funcs.fieldadjust = prinst.fields_size/4;
 #ifdef MAPPING_DEBUG
-			printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, prinst.fields_size, (int)prinst.fields_size/4);
+			externs->Printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, prinst.fields_size, (int)prinst.fields_size/4);
 #endif
 		}
 		return 0;
@@ -270,7 +270,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 					if (prinst.field[i].type == ev_string && type == ev_float && !strcmp(name, "message"))
 						;	//hexen2 uses floats here instead of strings.
 					else
-						printf("Field type mismatch on \"%s\". %i != %i\n", name, prinst.field[i].type, type);
+						externs->Printf("Field type mismatch on \"%s\". %i != %i\n", name, prinst.field[i].type, type);
 					continue;
 				}
 			}
@@ -281,7 +281,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 			if (prinst.field[i].progsofs == -1)
 				prinst.field[i].progsofs = progsofs;
 #ifdef MAPPING_DEBUG
-			printf("Dupfield %s %i -> %i\n", name, prinst.field[i].progsofs,prinst.field[i].ofs);
+			externs->Printf("Dupfield %s %i -> %i\n", name, prinst.field[i].progsofs,prinst.field[i].ofs);
 #endif
 			return prinst.field[i].ofs-progfuncs->funcs.fieldadjust;	//got a match
 		}
@@ -343,7 +343,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 				if (otherofs == (unsigned)progsofs)
 				{
 #ifdef MAPPING_DEBUG
-					printf("union(%s) ", prinst.field[i].name);
+					externs->Printf("union(%s) ", prinst.field[i].name);
 #endif
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs;
 					break;
@@ -351,7 +351,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 				if (prinst.field[i].type == ev_vector && otherofs+1 == (unsigned)progsofs)
 				{
 #ifdef MAPPING_DEBUG
-					printf("union(%s) ", prinst.field[i].name);
+					externs->Printf("union(%s) ", prinst.field[i].name);
 #endif
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs+1;
 					break;
@@ -359,7 +359,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 				if (prinst.field[i].type == ev_vector && otherofs+2 == (unsigned)progsofs)
 				{
 #ifdef MAPPING_DEBUG
-					printf("union(%s) ", prinst.field[i].name);
+					externs->Printf("union(%s) ", prinst.field[i].name);
 #endif
 					prinst.field[fnum].ofs = ofs = prinst.field[i].ofs+2;
 					break;
@@ -375,7 +375,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 		Sys_Error("Allocated too many additional fields after ents were inited.");
 
 #ifdef MAPPING_DEBUG
-	printf("Field %s %i -> %i\n", name, prinst.field[fnum].progsofs,prinst.field[fnum].ofs);
+	externs->Printf("Field %s %i -> %i\n", name, prinst.field[fnum].progsofs,prinst.field[fnum].ofs);
 #endif
 
 	if (type == ev_vector)
@@ -446,7 +446,7 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 #endif
 					*eval = QC_RegisterFieldVar(&progfuncs->funcs, fld[i].type, gname, -1, *eval);
 #ifdef MAPPING_DEBUG
-					printf("Field=%s global %i -> %i\n", gd[num].s_name+stringtable, old, *eval);
+					externs->Printf("Field=%s global %i -> %i\n", gd[num].s_name+stringtable, old, *eval);
 #endif
 					return;
 				}
@@ -462,7 +462,7 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 #endif
 					*eval = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
 #ifdef MAPPING_DEBUG
-					printf("Field global=%s %i -> %i\n", gname, old, *eval);
+					externs->Printf("Field global=%s %i -> %i\n", gname, old, *eval);
 #endif
 					return;
 				}
@@ -524,10 +524,10 @@ void QC_AddFieldGlobal(pubprogfuncs_t *ppf, int *globdata)
 #endif
 			*globdata = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
 #ifdef MAPPING_DEBUG
-			printf("Field global %i -> %i\n", old, *globdata);
+			externs->Printf("Field global %i -> %i\n", old, *globdata);
 #endif
 			return;
 		}
 	}
-	printf("Unable to map fieldglobal\n");
+	externs->Printf("Unable to map fieldglobal\n");
 }

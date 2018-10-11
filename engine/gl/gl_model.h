@@ -1135,3 +1135,6 @@ qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize);
 
 
 #endif	//Q2BSPS
+
+void CategorizePlane ( mplane_t *plane );
+void CalcSurfaceExtents (model_t *mod, msurface_t *s);

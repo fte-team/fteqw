@@ -529,8 +529,12 @@ void SV_Map_f (void)
 
 	if (!Q_strcasecmp(Cmd_Argv(0), "map_restart"))
 	{
-		float delay = atof(Cmd_Argv(1));
-		if (delay)
+		const char *arg = Cmd_Argv(1);
+		if (!strcmp(arg, "restore"))		//hexen2 reload-saved-game
+			;
+		else if (!strcmp(arg, "initial"))	//force initial, even if it breaks saved games.
+			*sv.loadgame_on_restart = 0;
+		else if (atof(arg))			//q3's restart-after-delay
 			Con_DPrintf ("map_restart delay not implemented yet\n");
 		Q_strncpyz (level, ".", sizeof(level));
 		startspot = NULL;
@@ -539,7 +543,6 @@ void SV_Map_f (void)
 	}
 	else
 	{
-
 		if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 		{
 			if (Cmd_IsInsecure())

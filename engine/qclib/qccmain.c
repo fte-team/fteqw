@@ -70,6 +70,7 @@ char compilingrootfile[1024];	//the .src file we started from (the current one, 
 char	qccmsourcedir[1024];	//the -src path, for #includes
 
 void QCC_PR_ResetErrorScope(void);
+static void StartNewStyleCompile(void);
 
 pbool	compressoutput;
 
@@ -133,6 +134,8 @@ pbool bodylessfuncs;
 QCC_type_t *qcc_typeinfo;
 int numtypeinfos;
 int maxtypeinfos;
+
+pbool preprocessonly;
 
 
 struct {
@@ -418,7 +421,7 @@ struct {
 };
 
 
-const char *QCC_VersionString(void)
+static const char *QCC_VersionString(void)
 {
 #ifdef SVNVERSION
 	if (strcmp(SVNVERSION, "-"))
@@ -434,10 +437,8 @@ BspModels
 Runs qbsp and light on all of the models with a .bsp extension
 =================
 */
-int QCC_CheckParm (char *check);
-const char *QCC_ReadParm (char *check);
 
-void QCC_BspModels (void)
+static void QCC_BspModels (void)
 {
 /*
 	int		p;
@@ -549,7 +550,7 @@ int	QCC_CopyStringLength (const char *str, size_t length)
 	return old;
 }
 
-int	QCC_CopyDupBackString (const char *str)
+/*static int	QCC_CopyDupBackString (const char *str)
 {
 	size_t length;
 	int		old;
@@ -568,14 +569,14 @@ int	QCC_CopyDupBackString (const char *str)
 	return old;
 }
 
-void QCC_PrintStrings (void)
+static void QCC_PrintStrings (void)
 {
 	int		i, l, j;
 
 	for (i=0 ; i<strofs ; i += l)
 	{
 		l = strlen(strings+i) + 1;
-		printf ("%5i : ",i);
+		externs->Printf ("%5i : ",i);
 		for (j=0 ; j<l ; j++)
 		{
 			if (strings[i+j] == '\n')
@@ -586,12 +587,12 @@ void QCC_PrintStrings (void)
 			else
 				putchar (strings[i+j]);
 		}
-		printf ("\n");
+		externs->Printf ("\n");
 	}
 }
 
 
-/*void QCC_PrintFunctions (void)
+void QCC_PrintFunctions (void)
 {
 	int		i,j;
 	QCC_dfunction_t	*d;
@@ -599,14 +600,14 @@ void QCC_PrintStrings (void)
 	for (i=0 ; i<numfunctions ; i++)
 	{
 		d = &functions[i];
-		printf ("%s : %s : %i %i (", strings + d->s_file, strings + d->s_name, d->first_statement, d->parm_start);
+		externs->Printf ("%s : %s : %i %i (", strings + d->s_file, strings + d->s_name, d->first_statement, d->parm_start);
 		for (j=0 ; j<d->numparms ; j++)
-			printf ("%i ",d->parm_size[j]);
-		printf (")\n");
+			externs->Printf ("%i ",d->parm_size[j]);
+		externs->Printf (")\n");
 	}
 }*/
 
-void QCC_SortFields (void)
+static void QCC_SortFields (void)
 {
 	int				i, j;
 	QCC_ddef32_t	t;
@@ -632,42 +633,42 @@ void QCC_SortFields (void)
 	}
 }
 
-void QCC_PrintFields (void)
+static void QCC_PrintFields (void)
 {
 	extern char *basictypenames[];
 	int		i;
 	QCC_ddef_t	*d;
 
-	printf("Fields Listing:\n");
+	externs->Printf("Fields Listing:\n");
 
 	for (i=0 ; i<numfielddefs ; i++)
 	{
 		d = &fields[i];
-		printf ("%5i : (%s) %s\n", d->ofs, basictypenames[d->type], strings + d->s_name);
+		externs->Printf ("%5i : (%s) %s\n", d->ofs, basictypenames[d->type], strings + d->s_name);
 	}
 }
-
-void QCC_PrintGlobals (void)
+/*
+static void QCC_PrintGlobals (void)
 {
 	int		i;
 	QCC_ddef_t	*d;
 
-	printf("Globals Listing:\n");
+	externs->Printf("Globals Listing:\n");
 
 	for (i=0 ; i<numglobaldefs ; i++)
 	{
 		d = &qcc_globals[i];
-		printf ("%5i : (%i) %s\n", d->ofs, d->type, strings + d->s_name);
+		externs->Printf ("%5i : (%i) %s\n", d->ofs, d->type, strings + d->s_name);
 	}
-}
+}*/
 
-void QCC_PrintAutoCvars (void)
+static void QCC_PrintAutoCvars (void)
 {
 	int		i;
 	QCC_ddef_t	*d;
 	char *n;
 
-	printf("Auto Cvars:\n");
+	externs->Printf("Auto Cvars:\n");
 	for (i=0 ; i<numglobaldefs ; i++)
 	{
 		d = &qcc_globals[i];
@@ -687,27 +688,27 @@ void QCC_PrintAutoCvars (void)
 			switch(d->type & ~(DEF_SAVEGLOBAL|DEF_SHARED))
 			{
 			case ev_float:
-				printf ("set %s\t%g%s%s\n",				n, val->_float,										desc?"\t//":"", desc?desc:"");
+				externs->Printf ("set %s\t%g%s%s\n",				n, val->_float,										desc?"\t//":"", desc?desc:"");
 				break;
 			case ev_vector:
-				printf ("set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
+				externs->Printf ("set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
 				break;
 			case ev_integer:
-				printf ("set %s\t%i%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
+				externs->Printf ("set %s\t%i%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
 				break;
 			case ev_string:
-				printf ("set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
+				externs->Printf ("set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
 				break;
 			default:
-				printf ("//set %s\t ?%s%s\n",			n,													desc?"\t//":"", desc?desc:"");
+				externs->Printf ("//set %s\t ?%s%s\n",			n,													desc?"\t//":"", desc?desc:"");
 				break;
 			}
 		}
 	}
-	printf("\n");
+	externs->Printf("\n");
 }
 
-void QCC_PrintFiles (void)
+static void QCC_PrintFiles (void)
 {
 	struct
 	{
@@ -724,7 +725,7 @@ void QCC_PrintFiles (void)
 	int		g, i, b;
 	pbool header;
 
-	printf("\nFile lists:\n");
+	externs->Printf("\nFile lists:\n");
 	for (b = 0; b < 64; b++)
 	{
 		for (header = false, g = 0; g < sizeof(precaches)/sizeof(precaches[0]); g++)
@@ -737,15 +738,15 @@ void QCC_PrintFiles (void)
 						continue;	//*-prefixed models are not real, and shouldn't be included in file lists.
 					if (!header)
 					{
-						printf("pak%i:\n", b-1);
+						externs->Printf("pak%i:\n", b-1);
 						header=true;
 					}
-					printf("%s\n", precaches[g].list[i].name);
+					externs->Printf("%s\n", precaches[g].list[i].name);
 				}
 			}
 		}
 		if (header)
-			printf("\n");
+			externs->Printf("\n");
 	}
 }
 
@@ -908,12 +909,12 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 	else
 		ofs = 0;
 
-	printf("Embedded files take %u bytes\n",  SafeSeek(h, 0, SEEK_CUR) - startofs);
+	externs->Printf("Embedded files take %u bytes\n",  SafeSeek(h, 0, SEEK_CUR) - startofs);
 
 	return ofs;
 }
 
-void QCC_InitData (void)
+static void QCC_InitData (void)
 {
 	static char parmname[12][MAX_PARMS];
 	int		i;
@@ -949,7 +950,7 @@ void QCC_InitData (void)
 	}
 }
 
-int WriteBodylessFuncs (int handle)
+static int WriteBodylessFuncs (int handle)
 {
 	QCC_def_t		*d;
 	int ret=0;
@@ -960,7 +961,7 @@ int WriteBodylessFuncs (int handle)
 
 		if (d->type->type == ev_function && !d->scope)// function parms are ok
 		{
-			if (d->initialized == 2)
+			if (d->isextern)
 			{
 				SafeWrite(handle, d->name, strlen(d->name)+1);
 				ret++;
@@ -976,7 +977,7 @@ int WriteBodylessFuncs (int handle)
 	return ret;
 }
 
-void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
+static void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 {
 	QCC_def_t *sym = pr.def_head.next;
 	size_t i;
@@ -1023,7 +1024,7 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 
 const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref);
 //allocates final space for the def, making it a true def
-void QCC_FinaliseDef(QCC_def_t *def)
+static void QCC_FinaliseDef(QCC_def_t *def)
 {
 //#define DEBUG_DUMP_GLOBALMAP
 #if defined(DEBUG_DUMP) || defined(DEBUG_DUMP_GLOBALMAP)
@@ -1122,7 +1123,7 @@ void QCC_FinaliseDef(QCC_def_t *def)
 	if (!def->symbolheader->used)
 	{
 		if (verbose >= VERBOSE_DEBUG)
-			printf("not needed: %s\n", def->name);
+			externs->Printf("not needed: %s\n", def->name);
 		return;
 	}
 
@@ -1177,31 +1178,31 @@ void QCC_FinaliseDef(QCC_def_t *def)
 
 #ifdef DEBUG_DUMP_GLOBALMAP
 	if (!def->referenced)
-		printf("Unreferenced ");
+		externs->Printf("Unreferenced ");
 	sr.sym = def;
 	sr.ofs = 0;
 	sr.cast = def->type;
 	v = QCC_SRef_EvalConst(sr);
 	if (v && def->type->type == ev_float)
-		printf("Finalise %s(%f) @ %i+%i\n", def->name, v->_float, def->ofs, ssize);
+		externs->Printf("Finalise %s(%f) @ %i+%i\n", def->name, v->_float, def->ofs, ssize);
 	else if (v && def->type->type == ev_vector)
-		printf("Finalise %s(%f %f %f) @ %i+%i\n", def->name, v->vector[0], v->vector[1], v->vector[2], def->ofs, ssize);
+		externs->Printf("Finalise %s(%f %f %f) @ %i+%i\n", def->name, v->vector[0], v->vector[1], v->vector[2], def->ofs, ssize);
 	else if (v && def->type->type == ev_integer)
-		printf("Finalise %s(%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
+		externs->Printf("Finalise %s(%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
 	else if (v && def->type->type == ev_function)
-		printf("Finalise %s(@%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
+		externs->Printf("Finalise %s(@%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
 	else if (v && def->type->type == ev_field)
-		printf("Finalise %s(.%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
+		externs->Printf("Finalise %s(.%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
 	else if (v && def->type->type == ev_string)
-		printf("Finalise %s(%s) @ %i+%i\n", def->name, strings+v->_int, def->ofs, ssize);
+		externs->Printf("Finalise %s(%s) @ %i+%i\n", def->name, strings+v->_int, def->ofs, ssize);
 	else
-		printf("Finalise %s @ %i+%i\n", def->name, def->ofs, ssize);
+		externs->Printf("Finalise %s @ %i+%i\n", def->name, def->ofs, ssize);
 #endif
 }
 
 //marshalled locals still point to the FIRST_LOCAL range.
 //this function remaps all the locals back into actual usable defs.
-void QCC_UnmarshalLocals(void)
+static void QCC_UnmarshalLocals(void)
 {
 	QCC_def_t *d;
 	unsigned int onum, biggest, eog;
@@ -1233,7 +1234,7 @@ void QCC_UnmarshalLocals(void)
 		{
 			onum = numpr_globals;
 #ifdef DEBUG_DUMP
-			printf("function %s locals:\n", functions[i].name);
+			externs->Printf("function %s locals:\n", functions[i].name);
 #endif
 			for (d = functions[i].firstlocal; d; d = d->nextlocal)
 				if (!d->isstatic && !(d->constant && d->initialized))
@@ -1241,9 +1242,9 @@ void QCC_UnmarshalLocals(void)
 			if (verbose >= VERBOSE_DEBUG)
 			{
 				if (onum == numpr_globals)
-					printf("code: %s:%i: function %s no private locals\n", functions[i].filen, functions[i].line, functions[i].name);
+					externs->Printf("code: %s:%i: function %s no private locals\n", functions[i].filen, functions[i].line, functions[i].name);
 				else 
-					printf("code: %s:%i: function %s private locals %i-%i\n", functions[i].filen, functions[i].line, functions[i].name, onum, numpr_globals);
+					externs->Printf("code: %s:%i: function %s private locals %i-%i\n", functions[i].filen, functions[i].line, functions[i].name, onum, numpr_globals);
 			}
 		}
 	}
@@ -1264,14 +1265,14 @@ void QCC_UnmarshalLocals(void)
 			if (verbose >= VERBOSE_DEBUG)
 			{
 				if (onum == numpr_globals)
-					printf("code: %s:%i: function %s no locals\n", functions[i].filen, functions[i].line, functions[i].name);
+					externs->Printf("code: %s:%i: function %s no locals\n", functions[i].filen, functions[i].line, functions[i].name);
 				else
 				{
-					printf("code: %s:%i: function %s overlapped locals %i-%i\n", functions[i].filen, functions[i].line, functions[i].name, onum, numpr_globals);
+					externs->Printf("code: %s:%i: function %s overlapped locals %i-%i\n", functions[i].filen, functions[i].line, functions[i].name, onum, numpr_globals);
 
 					for (d = functions[i].firstlocal; d; d = d->nextlocal)
 					{
-						printf("code: %s:%i: %s @%i\n", functions[i].filen, functions[i].line, d->name, d->ofs);
+						externs->Printf("code: %s:%i: %s @%i\n", functions[i].filen, functions[i].line, d->name, d->ofs);
 					}
 				}
 			}
@@ -1279,7 +1280,7 @@ void QCC_UnmarshalLocals(void)
 	}
 	numpr_globals = biggest;
 	if (verbose)
-		printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
+		externs->Printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
 }
 static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_type_t *type)
 {
@@ -1328,7 +1329,7 @@ static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_
 	dd->s_name = sname;
 }
 
-const char *QCC_FileForStatement(int st)
+static const char *QCC_FileForStatement(int st)
 {
 	const char *ret = "???";
 	int i;
@@ -1343,7 +1344,7 @@ const char *QCC_FileForStatement(int st)
 	}
 	return ret;
 }
-const char *QCC_FunctionForStatement(int st)
+static const char *QCC_FunctionForStatement(int st)
 {
 	const char *ret = "???";
 	int i;
@@ -1362,7 +1363,7 @@ const char *QCC_FunctionForStatement(int st)
 
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
-pbool QCC_WriteData (int crc)
+static pbool QCC_WriteData (int crc)
 {
 	QCC_def_t		*def;
 	QCC_ddef_t		*dd;
@@ -1385,7 +1386,7 @@ pbool QCC_WriteData (int crc)
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
 	{
-		printf("nothing to write\n");
+		externs->Printf("nothing to write\n");
 		return false;
 	}
 
@@ -1429,34 +1430,34 @@ pbool QCC_WriteData (int crc)
 	case QCF_HEXEN2:
 	case QCF_STANDARD:
 		if (bodylessfuncs)
-			printf("Warning: There are some functions without bodies.\n");
+			externs->Printf("Warning: There are some functions without bodies.\n");
 
 		if (bigjumps)
 		{
-			printf("Forcing target to FTE32 due to large function %s\n", bigjumps);
+			externs->Printf("Forcing target to FTE32 due to large function %s\n", bigjumps);
 			outputsttype = PST_FTE32;
 		}
 		else if (numpr_globals > 65530)
 		{
-			printf("Forcing target to FTE32 due to numpr_globals\n");
+			externs->Printf("Forcing target to FTE32 due to numpr_globals\n");
 			outputsttype = PST_FTE32;
 		}
 		else if (qcc_targetformat == QCF_FTEH2)
 		{
-			printf("Progs execution will require FTE\n");
+			externs->Printf("Progs execution will require FTE\n");
 			break;
 		}
 		else if (qcc_targetformat == QCF_HEXEN2)
 		{
-			printf("Progs execution requires a Hexen2 compatible HCVM\n");
+			externs->Printf("Progs execution requires a Hexen2 compatible HCVM\n");
 			break;
 		}
 		else
 		{
 			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
-				printf("Globals exceeds 32k - an enhanced QCVM will be required\n");
+				externs->Printf("Globals exceeds 32k - an enhanced QCVM will be required\n");
 			else if (verbose)
-				printf("Progs should run on any QuakeC VM\n");
+				externs->Printf("Progs should run on any QuakeC VM\n");
 			break;
 		}
 		qcc_targetformat = (qcc_targetformat==QCF_HEXEN2)?QCF_FTEH2:QCF_FTE;
@@ -1472,12 +1473,12 @@ pbool QCC_WriteData (int crc)
 		{
 			if (bigjumps)
 			{
-				printf("Using 32 bit target due to large function %s\n", bigjumps);
+				externs->Printf("Using 32 bit target due to large function %s\n", bigjumps);
 				outputsttype = PST_FTE32;
 			}
 			else if (numpr_globals > 65530)
 			{
-				printf("Using 32 bit target due to numpr_globals\n");
+				externs->Printf("Using 32 bit target due to numpr_globals\n");
 				outputsttype = PST_FTE32;
 			}
 		}
@@ -1500,29 +1501,29 @@ pbool QCC_WriteData (int crc)
 		if (types && sizeof(char *) != sizeof(string_t))
 		{
 			//qcc_typeinfo_t has a char* inside it, which changes size
-			printf("AMD64 builds cannot write typeinfo structures\n");
+			externs->Printf("AMD64 builds cannot write typeinfo structures\n");
 			types = false;
 		}
 
 		if (verbose)
 		{
 			if (qcc_targetformat == QCF_DARKPLACES)
-				printf("DarkPlaces or FTE will be required\n");
+				externs->Printf("DarkPlaces or FTE will be required\n");
 			else
-				printf("FTE's QCLib will be required\n");
+				externs->Printf("FTE's QCLib will be required\n");
 		}
 		break;
 	case QCF_KK7:
 		if (bodylessfuncs)
-			printf("Warning: There are some functions without bodies.\n");
+			externs->Printf("Warning: There are some functions without bodies.\n");
 		if (numpr_globals > 65530)
-			printf("Warning: Saving is not fully supported. Ensure all engine read fields and globals are defined early on.\n");
+			externs->Printf("Warning: Saving is not fully supported. Ensure all engine read fields and globals are defined early on.\n");
 
-		printf("A KK compatible executor will be required (FTE/KK)\n");
+		externs->Printf("A KK compatible executor will be required (FTE/KK)\n");
 		outputsttype = PST_KKQWSV;
 		break;
 	case QCF_QTEST:
-		printf("Compiled QTest progs will most likely not work at all. YOU'VE BEEN WARNED!\n");
+		externs->Printf("Compiled QTest progs will most likely not work at all. YOU'VE BEEN WARNED!\n");
 		outputsttype = PST_QTEST;
 		break;
 	default:
@@ -1660,8 +1661,8 @@ pbool QCC_WriteData (int crc)
 
 				if (verbose >= VERBOSE_DEBUG)
 				{
-					printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].filen, functions[i].line, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
-					printf("code: %s:%i: (%i,%i,%i,%i,%i,%i,%i,%i)\n", functions[i].filen, functions[i].line, funcs[i].parm_size[0], funcs[i].parm_size[1], funcs[i].parm_size[2], funcs[i].parm_size[3], funcs[i].parm_size[4], funcs[i].parm_size[5], funcs[i].parm_size[6], funcs[i].parm_size[7]);
+					externs->Printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].filen, functions[i].line, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
+					externs->Printf("code: %s:%i: (%i,%i,%i,%i,%i,%i,%i,%i)\n", functions[i].filen, functions[i].line, funcs[i].parm_size[0], funcs[i].parm_size[1], funcs[i].parm_size[2], funcs[i].parm_size[3], funcs[i].parm_size[4], funcs[i].parm_size[5], funcs[i].parm_size[6], funcs[i].parm_size[7]);
 				}
 			}
 			funcdata = funcs;
@@ -1764,7 +1765,7 @@ pbool QCC_WriteData (int crc)
 			{
 				optres_unreferenced++;
 #ifdef DEBUG_DUMP
-				printf("code: %s:%i: strip noref %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+				externs->Printf("code: %s:%i: strip noref %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 				continue;
 			}*/
@@ -1772,7 +1773,7 @@ pbool QCC_WriteData (int crc)
 		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
 		{
 #ifdef DEBUG_DUMP
-			printf("code: %s:%i: strip struct %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+			externs->Printf("code: %s:%i: strip struct %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 			//the head of an array/struct is never written. only, its member fields are.
 			continue;
@@ -1782,7 +1783,7 @@ pbool QCC_WriteData (int crc)
 		{
 			optres_unreferenced++;
 #ifdef DEBUG_DUMP
-			printf("code: %s:%i: strip %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+			externs->Printf("code: %s:%i: strip %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 			continue;
 		}
@@ -1806,7 +1807,7 @@ pbool QCC_WriteData (int crc)
 			{								//if it ever does self.think then it could be needed for saves.
 				optres_stripfunctions++;	//if it's only ever called explicitly, the engine doesn't need to know.
 #ifdef DEBUG_DUMP
-				printf("code: %s:%i: strip const %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+				externs->Printf("code: %s:%i: strip const %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 				continue;
 			}
@@ -1828,9 +1829,9 @@ pbool QCC_WriteData (int crc)
 
 #ifdef DEBUG_DUMP
 				if (def->scope)
-					printf("code: %s:%i: strip local %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+					externs->Printf("code: %s:%i: strip local %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 				else if (def->constant)
-					printf("code: %s:%i: strip const %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+					externs->Printf("code: %s:%i: strip const %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 				continue;
 			}
@@ -1868,19 +1869,19 @@ pbool QCC_WriteData (int crc)
 
 #ifdef DEBUG_DUMP
 		if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
-			printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[0].string>=(unsigned)strofs)?"???":(strings + def->symboldata[0].string));
+			externs->Printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[0].string>=(unsigned)strofs)?"???":(strings + def->symboldata[0].string));
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_float)
-			printf("code: %s:%i: %s%s%s %s@%i = %g\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._float);
+			externs->Printf("code: %s:%i: %s%s%s %s@%i = %g\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._float);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_integer)
-			printf("code: %s:%i: %s%s%s %s@%i = %i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._int);
+			externs->Printf("code: %s:%i: %s%s%s %s@%i = %i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._int);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_vector)
-			printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0].vector[0], def->symboldata[0].vector[1], def->symboldata[0].vector[2]);
+			externs->Printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0].vector[0], def->symboldata[0].vector[1], def->symboldata[0].vector[2]);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_function)
-			printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0].function, def->symboldata[0].function >= numfunctions?"???":functions[def->symboldata[0].function].name);
+			externs->Printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0].function, def->symboldata[0].function >= numfunctions?"???":functions[def->symboldata[0].function].name);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_field)
-			printf("code: %s:%i: %s%s%s %s@%i = @%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._int);
+			externs->Printf("code: %s:%i: %s%s%s %s@%i = @%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._int);
 		else
-			printf("code: %s:%i: %s%s%s %s@%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
+			externs->Printf("code: %s:%i: %s%s%s %s@%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
 #endif
 	}
 	QCC_SortFields();
@@ -1969,20 +1970,20 @@ strofs = (strofs+3)&~3;
 
 	if (verbose)
 	{
-		printf ("%6i strofs (of %i)\n", strofs, MAX_STRINGS);
-		printf ("%6i numstatements (of %i)\n", numstatements, MAX_STATEMENTS);
-		printf ("%6i numfunctions (of %i)\n", numfunctions, MAX_FUNCTIONS);
-		printf ("%6i numglobaldefs (of %i)\n", numglobaldefs, MAX_GLOBALS);
-		printf ("%6i numfielddefs (%i unique) (of %i)\n", numfielddefs, pr.size_fields, MAX_FIELDS);
-		printf ("%6i numpr_globals (of %i)\n", numpr_globals, MAX_REGS);
-		printf ("%6i nummodels\n", nummodels);
-		printf ("%6i numsounds\n", numsounds);
+		externs->Printf ("%6i strofs (of %i)\n", strofs, MAX_STRINGS);
+		externs->Printf ("%6i numstatements (of %i)\n", numstatements, MAX_STATEMENTS);
+		externs->Printf ("%6i numfunctions (of %i)\n", numfunctions, MAX_FUNCTIONS);
+		externs->Printf ("%6i numglobaldefs (of %i)\n", numglobaldefs, MAX_GLOBALS);
+		externs->Printf ("%6i numfielddefs (%i unique) (of %i)\n", numfielddefs, pr.size_fields, MAX_FIELDS);
+		externs->Printf ("%6i numpr_globals (of %i)\n", numpr_globals, MAX_REGS);
+		externs->Printf ("%6i nummodels\n", nummodels);
+		externs->Printf ("%6i numsounds\n", numsounds);
 	}
 
 	if (!*destfile)
 		strcpy(destfile, "progs.dat");
 	if (verbose)
-		printf("Writing %s\n", destfile);
+		externs->Printf("Writing %s\n", destfile);
 	h = SafeOpenWrite (destfile, 2*1024*1024);
 	SafeWrite (h, &progs, sizeof(progs));
 	SafeWrite (h, "\r\n\r\n", 4);
@@ -2047,7 +2048,7 @@ strofs = (strofs+3)&~3;
 				statements32[i].c = PRLittleLong((statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs);
 
 				if (verbose >= VERBOSE_DEBUGSTATEMENTS)
-					printf("code: %s:%i: @%i %s %i %i %i\n", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].name, statements32[i].a, statements32[i].b, statements32[i].c);
+					externs->Printf("code: %s:%i: @%i %s %i %i %i\n", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].name, statements32[i].a, statements32[i].b, statements32[i].c);
 			}
 
 			if (progs.blockscompressed&1)
@@ -2116,11 +2117,11 @@ strofs = (strofs+3)&~3;
 					QC_snprintfz(line, sizeof(line), "code: %s:%i: @%i  %s  %i  %i  %i  (%s", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a));
 					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s", QCC_VarAtOffset(statements[i].b));
 					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s)\n", QCC_VarAtOffset(statements[i].c));
-					printf("%s", line);
+					externs->Printf("%s", line);
 				}
 #ifdef _DEBUG
 				if (((signed)a >= (signed)numpr_globals && statements[i].a.sym) || ((signed)b >= (signed)numpr_globals && statements[i].b.sym) || ((signed)c >= (signed)numpr_globals && statements[i].c.sym))
-					printf("invalid offset on %s instruction\n", pr_opcodes[statements[i].op].opname);
+					externs->Printf("invalid offset on %s instruction\n", pr_opcodes[statements[i].op].opname);
 #endif
 				//truncate to 16bit. should probably warn if the high bits are not 0x0000 or 0xffff
 				statements16[i].a = (unsigned short)PRLittleShort((unsigned short)a);
@@ -2269,7 +2270,7 @@ strofs = (strofs+3)&~3;
 			fields16[i].type = (unsigned short)PRLittleShort ((unsigned short)fields[i].type);
 			if (fields[i].ofs > 0xffff)
 			{
-				printf("Offset for field %s overflowed 16 bits.\n", strings+fields[i].s_name);
+				externs->Printf("Offset for field %s overflowed 16 bits.\n", strings+fields[i].s_name);
 				fields16[i].ofs = 0;
 			}
 			else
@@ -2412,11 +2413,11 @@ strofs = (strofs+3)&~3;
 	qcc_sourcefile = NULL;
 
 	if (progs.version != PROG_EXTENDEDVERSION && progs.numbodylessfuncs)
-		printf ("WARNING: progs format cannot handle extern functions\n");
+		externs->Printf ("WARNING: progs format cannot handle extern functions\n");
 
 
 	if (verbose)
-		printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
+		externs->Printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
 
 	progs.entityfields = pr.size_fields;
 
@@ -2433,7 +2434,7 @@ strofs = (strofs+3)&~3;
 		//this is a negative index due to allocation ordering with the assumption that the progs.dat was loaded on the heap directly followed by the entities.
 		//this will NOT work in FTE, DP, QuakeForge due to entity indexes. Various other engines will likely mess up too, if they change the allocation order or sizes etc. 64bit is screwed.
 		if (progs.blockscompressed&32)
-			printf("unable to write value for 'entity progs'\n");	//would not work anyway
+			externs->Printf("unable to write value for 'entity progs'\n");	//would not work anyway
 		else
 		{
 			QCC_PR_Warning(WARN_DENORMAL, def->filen, def->s_line, "'entity progs' is non-portable and will not work across engines nor cpus.");
@@ -2443,7 +2444,7 @@ strofs = (strofs+3)&~3;
 			else
 			{	//entsize(=96)+hunk header size(=32)
 				if (verbose)
-					printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
+					externs->Printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
 				i = 112;	//match qccx.
 			}
 			i = -(size + i);
@@ -2462,7 +2463,7 @@ strofs = (strofs+3)&~3;
 
 	if (!SafeClose (h))
 	{
-		printf("%sError%s while writing output %s\n", col_error, col_none, destfile);
+		externs->Printf("%sError%s while writing output %s\n", col_error, col_none, destfile);
 		return false;
 	}
 
@@ -2473,31 +2474,31 @@ strofs = (strofs+3)&~3;
 	switch(qcc_targetformat)
 	{
 	case QCF_QTEST:
-		printf("Compile finished: %s (qtest format)\n", destfile);
+		externs->Printf("Compile finished: %s (qtest format)\n", destfile);
 		break;
 	case QCF_KK7:
-		printf("Compile finished: %s (kk7 format)\n", destfile);
+		externs->Printf("Compile finished: %s (kk7 format)\n", destfile);
 		break;
 	case QCF_STANDARD:
-		printf("Compile finished: %s (id format)\n", destfile);
+		externs->Printf("Compile finished: %s (id format)\n", destfile);
 		break;
 	case QCF_HEXEN2:
-		printf("Compile finished: %s (hexen2 format)\n", destfile);
+		externs->Printf("Compile finished: %s (hexen2 format)\n", destfile);
 		break;
 	case QCF_DARKPLACES:
-		printf("Compile finished: %s (dp format)\n", destfile);
+		externs->Printf("Compile finished: %s (dp format)\n", destfile);
 		break;
 	case QCF_FTE:
-		printf("Compile finished: %s (fte format)\n", destfile);
+		externs->Printf("Compile finished: %s (fte format)\n", destfile);
 		break;
 	case QCF_FTEH2:
-		printf("Compile finished: %s (fteh2 format)\n", destfile);
+		externs->Printf("Compile finished: %s (fteh2 format)\n", destfile);
 		break;
 	case QCF_FTEDEBUG:
-		printf("Compile finished: %s (ftedbg format)\n", destfile);
+		externs->Printf("Compile finished: %s (ftedbg format)\n", destfile);
 		break;
 	default:
-		printf("Compile finished: %s\n", destfile);
+		externs->Printf("Compile finished: %s\n", destfile);
 		break;
 	}
 
@@ -2527,7 +2528,7 @@ strofs = (strofs+3)&~3;
 			if (gz)
 				strcat(destfile, ".gz");
 			if (verbose)
-				printf("Writing %s for debugging\n", destfile);
+				externs->Printf("Writing %s for debugging\n", destfile);
 			h = SafeOpenWrite (destfile, 2*1024*1024);
 			SafeWrite (h, &lnotype, sizeof(int));
 			SafeWrite (h, &version, sizeof(int));
@@ -2559,7 +2560,7 @@ static void QCC_MergeStrings(char *in, unsigned int num)
 	memcpy(strings, in, num);
 	strofs = num;
 }
-int QCC_MergeValidateString(int str)
+static int QCC_MergeValidateString(int str)
 {
 	if (str < 0 || str >= strofs)
 		str = 0;
@@ -2788,7 +2789,7 @@ void QCC_ImportProgs(const char *filename)
 	if (numpr_globals != RESERVED_OFS)	//not normally changed until after compiling
 		QCC_Error(ERR_BADEXTENSION, "#merge used too late. It must be used before any other definitions (regs).");
 
-	printf ("\nnote: The #merge feature is still experimental\n\n");
+	externs->Printf ("\nnote: The #merge feature is still experimental\n\n");
 	//FIXME: find overlapped locals. strip them. merge with new ones.
 	//FIXME: find temps. strip them. you get the idea.
 	//FIXME: find immediates. set up hash tables for them for reuse. HAH!
@@ -2835,7 +2836,7 @@ PR_String
 Returns a string suitable for printing (no newlines, max 60 chars length)
 ===============
 */
-char *QCC_PR_String (char *string)
+static char *QCC_PR_String (char *string)
 {
 	static char buf[80];
 	char	*s;
@@ -2874,7 +2875,7 @@ char *QCC_PR_String (char *string)
 
 
 
-QCC_def_t	*QCC_PR_DefForFieldOfs (gofs_t ofs)
+static QCC_def_t	*QCC_PR_DefForFieldOfs (gofs_t ofs)
 {
 	QCC_def_t	*d;
 
@@ -3010,7 +3011,7 @@ PR_PrintOfs
 */
 /*void QCC_PR_PrintOfs (gofs_t ofs)
 {
-	printf ("%s\n",QCC_PR_GlobalString(ofs));
+	externs->Printf ("%s\n",QCC_PR_GlobalString(ofs));
 }*/
 
 /*
@@ -3022,32 +3023,32 @@ PR_PrintStatement
 {
 	int		i;
 
-	printf ("%4i : %4i : %s ", (int)(s - statements), statement_linenums[s-statements], pr_opcodes[s->op].opname);
+	externs->Printf ("%4i : %4i : %s ", (int)(s - statements), statement_linenums[s-statements], pr_opcodes[s->op].opname);
 	i = strlen(pr_opcodes[s->op].opname);
 	for ( ; i<10 ; i++)
-		printf (" ");
+		externs->Printf (" ");
 
 	if (s->op == OP_IF || s->op == OP_IFNOT)
-		printf ("%sbranch %i",QCC_PR_GlobalString(s->a),s->b);
+		externs->Printf ("%sbranch %i",QCC_PR_GlobalString(s->a),s->b);
 	else if (s->op == OP_GOTO)
 	{
-		printf ("branch %i",s->a);
+		externs->Printf ("branch %i",s->a);
 	}
 	else if ( (unsigned)(s->op - OP_STORE_F) < 6)
 	{
-		printf ("%s",QCC_PR_GlobalString(s->a));
-		printf ("%s", QCC_PR_GlobalStringNoContents(s->b));
+		externs->Printf ("%s",QCC_PR_GlobalString(s->a));
+		externs->Printf ("%s", QCC_PR_GlobalStringNoContents(s->b));
 	}
 	else
 	{
 		if (s->a)
-			printf ("%s",QCC_PR_GlobalString(s->a));
+			externs->Printf ("%s",QCC_PR_GlobalString(s->a));
 		if (s->b)
-			printf ("%s",QCC_PR_GlobalString(s->b));
+			externs->Printf ("%s",QCC_PR_GlobalString(s->b));
 		if (s->c)
-			printf ("%s", QCC_PR_GlobalStringNoContents(s->c));
+			externs->Printf ("%s", QCC_PR_GlobalStringNoContents(s->c));
 	}
-	printf ("\n");
+	externs->Printf ("\n");
 }*/
 
 
@@ -3091,7 +3092,7 @@ PR_BeginCompilation
 called before compiling a batch of files, clears the pr struct
 ==============
 */
-void	QCC_PR_BeginCompilation (void *memory, int memsize)
+static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 {
 	extern int recursivefunctiontype;
 	int		i;
@@ -3122,12 +3123,11 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
 	type_integer = QCC_PR_NewType("__integer", ev_integer, true);
-	type_variant = QCC_PR_NewType("variant", ev_variant, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
 
-	type_floatfield = QCC_PR_NewType("fieldfloat", ev_field, false);
+	type_floatfield = QCC_PR_NewType("__fieldfloat", ev_field, false);
 	type_floatfield->aux_type = type_float;
-	type_pointer->aux_type = QCC_PR_NewType("pointeraux", ev_float, false);
+	type_pointer->aux_type = QCC_PR_NewType("__pointeraux", ev_float, false);
 
 	type_intpointer = QCC_PR_NewType("__intpointer", ev_pointer, false);
 	type_intpointer->aux_type = type_integer;
@@ -3138,8 +3138,13 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 
 	//type_field->aux_type = type_float;
 
-	type_integer = QCC_PR_NewType("integer", ev_integer, keyword_integer?true:false);
-	type_integer = QCC_PR_NewType("int", ev_integer, keyword_integer?true:false);
+//	QCC_PR_NewType("_Bool", ev_boolean, true);
+//	QCC_PR_NewType("bool", ev_boolean, true);
+//	QCC_PR_NewType("__int", ev_integer, keyword_integer?true:false);
+
+	QCC_PR_NewType("variant", ev_variant, true);
+	QCC_PR_NewType("integer", ev_integer, keyword_integer?true:false);
+	QCC_PR_NewType("int", ev_integer, keyword_integer?true:false);
 
 
 
@@ -3170,7 +3175,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	QCC_PrioritiseOpcodes();
 }
 
-void QCC_PR_FinishFieldDef(QCC_def_t *d)
+static void QCC_PR_FinishFieldDef(QCC_def_t *d)
 {
 	int i;
 	if (d->symboldata)
@@ -3199,7 +3204,7 @@ called after all files are compiled to check for errors
 Returns false if errors were detected.
 ==============
 */
-int QCC_PR_FinishCompilation (void)
+static int QCC_PR_FinishCompilation (void)
 {
 	QCC_def_t		*d;
 	QCC_type_t		*t;
@@ -3222,9 +3227,17 @@ int QCC_PR_FinishCompilation (void)
 			QCC_PR_FinishFieldDef(d);
 		if (d->type->type == ev_function && d->constant)// function parms are ok
 		{
-//			f = G_FUNCTION(d->ofs);
-//			if (!f || (!f->code && !f->builtin) )
-			if (d->initialized==0)
+			if (d->isextern)
+			{
+				if (!externokay)
+				{
+					QCC_PR_Warning(ERR_NOFUNC, d->filen, d->s_line, "extern is not supported with this target format",d->name);
+					QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
+					errors = true;
+				}
+				bodylessfuncs = true;
+			}
+			if (!d->initialized)
 			{
 				if (!strncmp(d->name, "ArrayGet*", 9))
 				{
@@ -3258,16 +3271,6 @@ int QCC_PR_FinishCompilation (void)
 				QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
 				bodylessfuncs = true;
 				errors = true;
-			}
-			else if (d->initialized==2)
-			{
-				if (!externokay)
-				{
-					QCC_PR_Warning(ERR_NOFUNC, d->filen, d->s_line, "extern is not supported with this target format",d->name);
-					QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
-					errors = true;
-				}
-				bodylessfuncs = true;
 			}
 		}
 	}
@@ -3324,20 +3327,20 @@ static unsigned short QCC_crctable[256] =
 	0x6e17,	0x7e36,	0x4e55,	0x5e74,	0x2e93,	0x3eb2,	0x0ed1,	0x1ef0
 };
 
-void QCC_CRC_Init(unsigned short *crcvalue)
+static void QCC_CRC_Init(unsigned short *crcvalue)
 {
 	*crcvalue = CRC_INIT_VALUE;
 }
 
-void QCC_CRC_ProcessByte(unsigned short *crcvalue, qbyte data)
+static void QCC_CRC_ProcessByte(unsigned short *crcvalue, qbyte data)
 {
 	*crcvalue = ((*crcvalue << 8) ^ QCC_crctable[(*crcvalue >> 8) ^ data]) & 0xffff;
 }
 
-unsigned short QCC_CRC_Value(unsigned short crcvalue)
+/*static unsigned short QCC_CRC_Value(unsigned short crcvalue)
 {
 	return crcvalue ^ CRC_XOR_VALUE;
-}
+}*/
 //=============================================================================
 
 
@@ -3390,7 +3393,7 @@ static void Add_CrcOnly(char *p, unsigned short *crc, char *file)
 }
 #define EAT_CRC(p) Add_CrcOnly(p, &crc, file)
 
-unsigned short QCC_PR_WriteProgdefs (char *filename)
+static unsigned short QCC_PR_WriteProgdefs (char *filename)
 {
 #define ADD_ONLY(p) QC_strlcat(file, p, sizeof(file))	//no crc (later changes)
 	char file[PROGDEFS_MAX_SIZE];
@@ -3528,7 +3531,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 
 	if (QCC_CheckParm("-progdefs"))
 	{
-		printf ("writing %s\n", filename);
+		externs->Printf ("writing %s\n", filename);
 		f = SafeOpenWrite(filename, 16384);
 		SafeWrite(f, file, strlen(file));
 		SafeClose(f);
@@ -3544,45 +3547,45 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		break;
 	case 54730:
 		if (verbose)
-			printf("Recognised progs as QuakeWorld\n");
+			externs->Printf("Recognised progs as QuakeWorld\n");
 		break;
 	case 5927:
 		if (verbose)
-			printf("Recognised progs as NetQuake server gamecode\n");
+			externs->Printf("Recognised progs as NetQuake server gamecode\n");
 		break;
 
 	case 26940:
 		if (verbose)
-			printf("Recognised progs as Quake pre-release...\n");
+			externs->Printf("Recognised progs as Quake pre-release...\n");
 		break;
 
 	case 38488:
 		if (verbose)
-			printf("Recognised progs as original Hexen2\n");
+			externs->Printf("Recognised progs as original Hexen2\n");
 		break;
 	case 26905:
 		if (verbose)
-			printf("Recognised progs as Hexen2 Mission Pack\n");
+			externs->Printf("Recognised progs as Hexen2 Mission Pack\n");
 		break;
 	case 14046:
 		if (verbose)
-			printf("Recognised progs as Hexen2 (demo)\n");
+			externs->Printf("Recognised progs as Hexen2 (demo)\n");
 		break;
 
 	case 22390: //EXT_CSQC_1
 		if (verbose)
-			printf("Recognised progs as an EXT_CSQC_1 module\n");
+			externs->Printf("Recognised progs as an EXT_CSQC_1 module\n");
 		break;
 	case 17105:
 	case 32199:	//outdated ext_csqc
 		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module\n");
 		break;
 	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
-		printf("Recognised progs as DP-specific CSQC module\n");
+		externs->Printf("Recognised progs as DP-specific CSQC module\n");
 		break;
 	case 10020:
 		if (verbose)
-			printf("Recognised progs as a DP/FTE Menu module\n");
+			externs->Printf("Recognised progs as a DP/FTE Menu module\n");
 		break;
 
 	case 32401:
@@ -3611,7 +3614,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		QCC_Error (ERR_NOFUNC, "No function named \"%s\"", name);
 	df = functions + i;
 
-	printf ("Statements for function %s:\n", name);
+	externs->Printf ("Statements for function %s:\n", name);
 	ds = statements + df->first_statement;
 	while (1)
 	{
@@ -3648,7 +3651,7 @@ void QCC_PrintOfs(unsigned int ofs)
 		if (printfunc)
 		{
 			QCC_PrintFunction(strings + functions[i].s_name);
-			printf(" \n \n");
+			externs->Printf(" \n \n");
 		}
 	}
 
@@ -3662,37 +3665,9 @@ DIRECTORY COPYING / PACKFILE CREATION
 ==============================================================================
 */
 
-packfile_t	pfiles[4096], *pf;
-int			packhandle;
-int			packbytes;
-
-
-/*
-============
-CreatePath
-============
-*/
-void	QCC_CreatePath (char *path)
-{
-	/*
-	char	*ofs;
-
-	for (ofs = path+1 ; *ofs ; ofs++)
-	{
-		if (*ofs == '/')
-		{	// create the directory
-			*ofs = 0;
-#ifdef QCC
-			mkdir(path);
-#else
-			QCC_mkdir (path);
-#endif
-			*ofs = '/';
-		}
-	}
-	*/
-}
-
+static packfile_t	pfiles[4096], *pf;
+static int			packhandle;
+static int			packbytes;
 
 /*
 ===========
@@ -3701,7 +3676,7 @@ PackFile
 Copy a file into the pak file
 ===========
 */
-void QCC_PackFile (char *src, char *name)
+static void QCC_PackFile (char *src, char *name)
 {
 	size_t	remaining;
 #if 1
@@ -3720,7 +3695,7 @@ void QCC_PackFile (char *src, char *name)
 	f = FS_ReadToMem(src, &remaining);
 	if (!f)
 	{
-		printf ("%64s : %7s\n", name, "");
+		externs->Printf ("%64s : %7s\n", name, "");
 //		QCC_Error("Failed to open file %s", src);
 		return;
 	}
@@ -3728,7 +3703,7 @@ void QCC_PackFile (char *src, char *name)
 	pf->filepos = PRLittleLong (SafeSeek (packhandle, 0, SEEK_CUR));
 	pf->filelen = PRLittleLong (remaining);
 	strcpy (pf->name, name);
-	printf ("%64s : %7u\n", pf->name, (unsigned int)remaining);
+	externs->Printf ("%64s : %7u\n", pf->name, (unsigned int)remaining);
 
 	packbytes += remaining;
 
@@ -3742,7 +3717,7 @@ void QCC_PackFile (char *src, char *name)
 	pf->filepos = PRLittleLong (lseek (packhandle, 0, SEEK_CUR));
 	pf->filelen = PRLittleLong (remaining);
 	strcpy (pf->name, name);
-	printf ("%64s : %7u\n", pf->name, (unsigned int)remaining);
+	externs->Printf ("%64s : %7u\n", pf->name, (unsigned int)remaining);
 
 	packbytes += remaining;
 
@@ -3770,7 +3745,7 @@ CopyFile
 Copies a file, creating any directories needed
 ===========
 */
-void QCC_CopyFile (char *src, char *dest)
+static void QCC_CopyFile (char *src, char *dest)
 {
 	/*
 	int		in, out;
@@ -3808,7 +3783,7 @@ CopyFiles
 ===========
 */
 
-void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
+static void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 {
 	int i;
 	int		dirlen;
@@ -3915,11 +3890,11 @@ void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *destdir)
 			QCC_CRC_ProcessByte (&crc, ((qbyte *)pfiles)[i]);
 
 		i = pf - pfiles;
-		printf ("%i files packed in %i bytes (%i crc)\n",i, packbytes, crc);
+		externs->Printf ("%i files packed in %i bytes (%i crc)\n",i, packbytes, crc);
 	}
 }
 
-void QCC_CopyFiles (void)
+static void QCC_CopyFiles (void)
 {
 	char *s;
 	char	srcdir[1024], destdir[1024];
@@ -3928,13 +3903,13 @@ void QCC_CopyFiles (void)
 	if (verbose)
 	{
 		if (numsounds > 0)
-			printf ("%3i unique precache_sounds\n", numsounds);
+			externs->Printf ("%3i unique precache_sounds\n", numsounds);
 		if (nummodels > 0)
-			printf ("%3i unique precache_models\n", nummodels);
+			externs->Printf ("%3i unique precache_models\n", nummodels);
 		if (numtextures > 0)
-			printf ("%3i unique precache_textures\n", numtextures);
+			externs->Printf ("%3i unique precache_textures\n", numtextures);
 		if (numfiles > 0)
-			printf ("%3i unique precache_files\n", numfiles);
+			externs->Printf ("%3i unique precache_files\n", numfiles);
 	}
 
 	p = QCC_CheckParm ("-copy");
@@ -3994,7 +3969,7 @@ void QCC_CopyFiles (void)
 #define WINDOWSARG(x) false
 #endif
 
-void QCC_PR_CommandLinePrecompilerOptions (void)
+static void QCC_PR_CommandLinePrecompilerOptions (void)
 {
 	CompilerConstant_t *cnst;
 	int             i, j, p;
@@ -4040,6 +4015,8 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		}
 		else if ( !strcmp(myargv[i], "-qc") )
 			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is experimental", myargv[i]);	//compile without linking. output cannot be read by engines.
+		else if ( !strcmp(myargv[i], "-E") )
+			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is experimental", myargv[i]);	//preprocess only
 		else if ( !strcmp(myargv[i], "-progdefs") )
 			;	//write progdefs.h
 		else if ( !strcmp(myargv[i], "-copy") )
@@ -4374,7 +4351,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		}
 		else if ( !strcmp(myargv[i], "--version") )
 		{
-			printf("%s\n", QCC_VersionString());
+			externs->Printf("%s\n", QCC_VersionString());
 			exit(EXIT_SUCCESS);
 		}
 		else if (*myargv[i] == '-' || WINDOWSARG(*myargv[i] == '/'))
@@ -4413,7 +4390,7 @@ void SetEndian(void);
 
 
 
-void QCC_SetDefaultProperties (void)
+static void QCC_SetDefaultProperties (void)
 {
 	int level;
 	int i;
@@ -4532,7 +4509,7 @@ void QCC_SetDefaultProperties (void)
 
 //builds a list of files, pretends that they came from a progs.src
 //FIXME: use sourcedir!
-int QCC_FindQCFiles(const char *sourcedir)
+static int QCC_FindQCFiles(const char *sourcedir)
 {
 #ifdef _WIN32
 	WIN32_FIND_DATA fd;
@@ -4559,7 +4536,7 @@ int QCC_FindQCFiles(const char *sourcedir)
 	} while(FindNextFile(h, &fd)!=0);
 	FindClose(h);
 #else
-	printf("-Facc is not supported on this platform. Please make a progs.src file instead\n");
+	externs->Printf("-Facc is not supported on this platform. Please make a progs.src file instead\n");
 #endif
 
 	//Sort alphabetically.
@@ -4590,7 +4567,7 @@ int QCC_FindQCFiles(const char *sourcedir)
 }
 
 
-void QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, char *relative)
+static void QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, char *relative)
 {
 	int p;
 	char *s1, *s2;
@@ -4777,7 +4754,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 			else if (!s)
 				break;
 			else
-				printf("Bad token in qcc.cfg file\n");
+				externs->Printf("Bad token in qcc.cfg file\n");
 		}
 	}
 	/* don't try to be clever
@@ -4893,24 +4870,24 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	if ( QCC_CheckParm ("/?") || QCC_CheckParm ("?") || QCC_CheckParm ("-?") || QCC_CheckParm ("-help") || QCC_CheckParm ("--help"))
 	{
-		printf ("qcc looks for progs.src in the current directory.\n");
-		printf ("to look in a different directory: qcc -src <directory>\n");
-//		printf ("to build a clean data tree: qcc -copy <srcdir> <destdir>\n");
-//		printf ("to build a clean pak file: qcc -pak <srcdir> <packfile>\n");
-//		printf ("to bsp all bmodels: qcc -bspmodels <gamedir>\n");
-		printf ("-Fwasm <funcname> causes FTEQCC to dump all asm to qc.asm\n");
-		printf ("-O0 to disable optimisations\n");
-		printf ("-O1 to optimise for size\n");
-		printf ("-O2 to optimise more - some behaviours may change\n");
-		printf ("-O3 to optimise lots - experimental or non-future-proof\n");
-		printf ("-Oname to enable an optimisation\n");
-		printf ("-Ono-name to disable optimisations\n");
-		printf ("-Kkeyword to activate keyword\n");
-		printf ("-Kno-keyword to disable keyword\n");
-		printf ("-Wall to give a stupid number of warnings\n");
-		printf ("-Ttarget to set a output format\n");
-		printf ("-Fautoproto to enable automatic prototyping\n");
-		printf ("-Fsubscope to make locals specific to their subscope\n");
+		externs->Printf ("qcc looks for progs.src in the current directory.\n");
+		externs->Printf ("to look in a different directory: qcc -src <directory>\n");
+//		externs->Printf ("to build a clean data tree: qcc -copy <srcdir> <destdir>\n");
+//		externs->Printf ("to build a clean pak file: qcc -pak <srcdir> <packfile>\n");
+//		externs->Printf ("to bsp all bmodels: qcc -bspmodels <gamedir>\n");
+		externs->Printf ("-Fwasm <funcname> causes FTEQCC to dump all asm to qc.asm\n");
+		externs->Printf ("-O0 to disable optimisations\n");
+		externs->Printf ("-O1 to optimise for size\n");
+		externs->Printf ("-O2 to optimise more - some behaviours may change\n");
+		externs->Printf ("-O3 to optimise lots - experimental or non-future-proof\n");
+		externs->Printf ("-Oname to enable an optimisation\n");
+		externs->Printf ("-Ono-name to disable optimisations\n");
+		externs->Printf ("-Kkeyword to activate keyword\n");
+		externs->Printf ("-Kno-keyword to disable keyword\n");
+		externs->Printf ("-Wall to give a stupid number of warnings\n");
+		externs->Printf ("-Ttarget to set a output format\n");
+		externs->Printf ("-Fautoproto to enable automatic prototyping\n");
+		externs->Printf ("-Fsubscope to make locals specific to their subscope\n");
 
 		qcc_compileactive = false;
 		return true;
@@ -4918,7 +4895,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	if (flag_caseinsensitive)
 	{
-		printf("Compiling without case sensitivity\n");
+		externs->Printf("Compiling without case sensitivity\n");
 		pHash_Get = &Hash_GetInsensitive;
 		pHash_GetNext = &Hash_GetNextInsensitive;
 		pHash_Add = &Hash_AddInsensitive;
@@ -4926,7 +4903,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 	}
 
 	if (*qccmsourcedir)
-		printf ("Source directory: %s\n", qccmsourcedir);
+		externs->Printf ("Source directory: %s\n", qccmsourcedir);
 
 	QCC_InitData ();
 
@@ -4991,12 +4968,12 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		}
 
 		if (currentsourcefile)
-			printf("-------------------------------------\n");
+			externs->Printf("-------------------------------------\n");
 		else
-			printf("%s\n", QCC_VersionString());
+			externs->Printf("%s\n", QCC_VersionString());
 
 		QC_snprintfz (qccmprogsdat, sizeof(qccmprogsdat), "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
-		printf ("Source file: %s\n", qccmprogsdat);
+		externs->Printf ("Source file: %s\n", qccmprogsdat);
 
 		QC_strlcpy(compilingrootfile, qccmprogsdat, sizeof(compilingrootfile));
 		if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)
@@ -5016,8 +4993,19 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 #endif
 
 	newstylesource = false;
-	pr_file_p = QCC_COM_Parse(qccmsrc);
+	if (qccmsrc[0] == '#' && qccmsrc[1] == '!')
+		qccmsrc = strchr(qccmsrc, '\n');	//ignore the first line if it starts with a #! for unix scripts. because we can.
 
+	compilingfile = qccmprogsdat;
+	preprocessonly = false;
+	if (QCC_CheckParm ("-E"))
+	{
+		pr_file_p = qccmsrc;
+		preprocessonly = true;
+		goto newstyle;
+	}
+
+	pr_file_p = QCC_COM_Parse(qccmsrc);
 	if (QCC_CheckParm ("-qc"))
 	{
 		strcpy(destfile, qccmprogsdat);
@@ -5031,10 +5019,8 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		goto newstyle;
 	}
 
-	compilingfile = qccmprogsdat;
 	if (*qcc_token == '#')
 	{
-		void StartNewStyleCompile(void);
 newstyle:
 		if (flag_filetimes)
 			QCC_PR_Warning(0, qccmsrc, 0, "-ffiletimes unsupported with this input");
@@ -5077,14 +5063,14 @@ newstyle:
 			{
 				if (stat(qcc_token, &s) == -1 || s.st_mtime > os.st_mtime)
 				{
-					printf("%s changed\n", qcc_token);
+					externs->Printf("%s changed\n", qcc_token);
 					modified = true;
 					break;
 				}
 			}
 			if (!modified)
 			{
-				printf("No changes\n");
+				externs->Printf("No changes\n");
 				qcc_compileactive = false;
 				return true;
 			}
@@ -5095,7 +5081,7 @@ newstyle:
 		}
 	}
 
-	printf ("outputfile: %s\n", destfile);
+	externs->Printf ("outputfile: %s\n", destfile);
 
 	pr_dumpasm = false;
 
@@ -5109,7 +5095,6 @@ void new_QCC_ContinueCompile(void);
 //called between exe frames - won't loose net connection (is the theory)...
 void QCC_ContinueCompile(void)
 {
-	currentchunk = NULL;
 	if (!qcc_compileactive)
 		//HEY!
 		return;
@@ -5212,10 +5197,10 @@ void QCC_ContinueCompile(void)
 
 	QCC_GenerateRelativePath(qccmfilename, sizeof(qccmfilename), compilingrootfile, qcc_token);
 	if (autoprototype)
-		printf ("prototyping %s\n", qccmfilename);
+		externs->Printf ("prototyping %s\n", qccmfilename);
 	else
 	{
-		printf ("compiling %s\n", qccmfilename);
+		externs->Printf ("compiling %s\n", qccmfilename);
 	}
 
 	QCC_LoadFile (qccmfilename, (void *)&qccmsrc2);
@@ -5287,61 +5272,61 @@ void QCC_FinishCompile(void)
 	{
 		if (verbose)
 		{
-			printf ("Compile Complete\n\n");
+			externs->Printf ("Compile Complete\n\n");
 
 			if (optres_shortenifnots)
-				printf("optres_shortenifnots %i\n", optres_shortenifnots);
+				externs->Printf("optres_shortenifnots %i\n", optres_shortenifnots);
 			if (optres_overlaptemps)
-				printf("optres_overlaptemps %i\n", optres_overlaptemps);
+				externs->Printf("optres_overlaptemps %i\n", optres_overlaptemps);
 			if (optres_noduplicatestrings)
-				printf("optres_noduplicatestrings %i\n", optres_noduplicatestrings);
+				externs->Printf("optres_noduplicatestrings %i\n", optres_noduplicatestrings);
 			if (optres_constantarithmatic)
-				printf("optres_constantarithmatic %i\n", optres_constantarithmatic);
+				externs->Printf("optres_constantarithmatic %i\n", optres_constantarithmatic);
 			if (optres_nonvec_parms)
-				printf("optres_nonvec_parms %i\n", optres_nonvec_parms);
+				externs->Printf("optres_nonvec_parms %i\n", optres_nonvec_parms);
 			if (optres_constant_names)
-				printf("optres_constant_names %i\n", optres_constant_names);
+				externs->Printf("optres_constant_names %i\n", optres_constant_names);
 			if (optres_constant_names_strings)
-				printf("optres_constant_names_strings %i\n", optres_constant_names_strings);
+				externs->Printf("optres_constant_names_strings %i\n", optres_constant_names_strings);
 			if (optres_precache_file)
-				printf("optres_precache_file %i\n", optres_precache_file);
+				externs->Printf("optres_precache_file %i\n", optres_precache_file);
 			if (optres_filenames)
-				printf("optres_filenames %i\n", optres_filenames);
+				externs->Printf("optres_filenames %i\n", optres_filenames);
 			if (optres_assignments)
-				printf("optres_assignments %i\n", optres_assignments);
+				externs->Printf("optres_assignments %i\n", optres_assignments);
 			if (optres_unreferenced)
-				printf("optres_unreferenced %i\n", optres_unreferenced);
+				externs->Printf("optres_unreferenced %i\n", optres_unreferenced);
 			if (optres_locals)
-				printf("optres_locals %i\n", optres_locals);
+				externs->Printf("optres_locals %i\n", optres_locals);
 			if (optres_function_names)
-				printf("optres_function_names %i\n", optres_function_names);
+				externs->Printf("optres_function_names %i\n", optres_function_names);
 			if (optres_dupconstdefs)
-				printf("optres_dupconstdefs %i\n", optres_dupconstdefs);
+				externs->Printf("optres_dupconstdefs %i\n", optres_dupconstdefs);
 			if (optres_return_only)
-				printf("optres_return_only %i\n", optres_return_only);
+				externs->Printf("optres_return_only %i\n", optres_return_only);
 			if (optres_compound_jumps)
-				printf("optres_compound_jumps %i\n", optres_compound_jumps);
+				externs->Printf("optres_compound_jumps %i\n", optres_compound_jumps);
 		//	if (optres_comexprremoval)
-		//		printf("optres_comexprremoval %i\n", optres_comexprremoval);
+		//		externs->Printf("optres_comexprremoval %i\n", optres_comexprremoval);
 			if (optres_stripfunctions)
-				printf("optres_stripfunctions %i\n", optres_stripfunctions);
+				externs->Printf("optres_stripfunctions %i\n", optres_stripfunctions);
 			if (optres_locals_overlapping)
-				printf("optres_locals_overlapping %i\n", optres_locals_overlapping);
+				externs->Printf("optres_locals_overlapping %i\n", optres_locals_overlapping);
 			if (optres_logicops)
-				printf("optres_logicops %i\n", optres_logicops);
+				externs->Printf("optres_logicops %i\n", optres_logicops);
 			if (optres_inlines)
-				printf("optres_inlines %i\n", optres_inlines);
+				externs->Printf("optres_inlines %i\n", optres_inlines);
 
 
 			if (optres_test1)
-				printf("optres_test1 %i\n", optres_test1);
+				externs->Printf("optres_test1 %i\n", optres_test1);
 			if (optres_test2)
-				printf("optres_test2 %i\n", optres_test2);
+				externs->Printf("optres_test2 %i\n", optres_test2);
 
-			printf("numtemps %u\n", (unsigned)tempsused);
+			externs->Printf("numtemps %u\n", (unsigned)tempsused);
 		}
 		if (!flag_msvcstyle)
-			printf("Done. %i warnings\n", pr_warning_count);
+			externs->Printf("Done. %i warnings\n", pr_warning_count);
 	}
 
 	qcc_compileactive = false;
@@ -5357,7 +5342,7 @@ extern int			pr_source_line;
 
 
 
-void StartNewStyleCompile(void)
+static void StartNewStyleCompile(void)
 {
 	char *tmp;
 	if (setjmp(pr_parse_abort))
@@ -5455,6 +5440,29 @@ void new_QCC_ContinueCompile(void)
 
 	pr_scope = NULL;	// outside all functions
 
+	if (preprocessonly)
+	{
+		pbool white = false;
+		static int line = 1;
+		while(pr_token_type != tt_eof)
+		{
+			//if there's whitespace next, make sure we represent that
+			if (line < pr_token_line)
+			{	//keep line numbers correct by splurging multiple newlines.
+				while(line++ < pr_source_line)
+					externs->Printf("\n");
+			}
+			else if (white)
+				externs->Printf(" ");
+
+			externs->Printf("%s", pr_token);
+			white = (qcc_iswhite(*pr_file_p) || (*pr_file_p == '/' && (pr_file_p[1] == '/' || pr_file_p[1] == '*')));
+			QCC_PR_Lex();
+		}
+		QCC_PR_Lex();
+		return;
+	}
+
 	QCC_PR_ParseDefs (NULL, false);
 }
 
@@ -5502,7 +5510,7 @@ void new_QCC_ContinueCompile(void)
 			break;
 		}
 //		strcat (qccmfilename, s);
-//		printf ("compiling %s\n", qccmfilename);
+//		externs->Printf ("compiling %s\n", qccmfilename);
 //		QCC_LoadFile (qccmfilename, (void *)&qccmsrc2);
 
 //		if (!new_QCC_PR_CompileFile (qccmsrc2, qccmfilename) )

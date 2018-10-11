@@ -2285,15 +2285,6 @@ static void Shaderpass_QF_Material(shader_t *shader, shaderpass_t *pass, char **
 }
 
 static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname);
-static void Shader_ProgMap(shader_t *shader, shaderpass_t *pass, char **ptr)
-{
-	//fixme
-//	Shaderpass_BlendFunc (shader, pass, ptr);
-}
-static void Shader_ProgBlendFunc(shader_t *shader, shaderpass_t *pass, char **ptr)
-{
-	//fixme
-}
 
 static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2495,19 +2486,26 @@ static shaderkey_t shaderkeys[] =
 	{"uppermap",			Shader_UpperMap,			"fte"},
 	{"lowermap",			Shader_LowerMap,			"fte"},
 	{"reflectmask",			Shader_ReflectMask,			"fte"},
+
 	{"portalfboscale",		Shader_PortalFBOScale,		"fte"},	//portal/mirror/refraction/reflection FBOs are resized by this scale
+	{"basefactor",			NULL,						"fte"},	//material scalers for glsl
+	{"specularfactor",		NULL,						"fte"},	//material scalers for glsl
+	{"fullbrightfactor",	NULL,						"fte"},	//material scalers for glsl
+
+	//TODO: PBR textures...
+//	{"albedomap",			Shader_DiffuseMap,			"fte"},	//rgb(a)
+//	{"loweruppermap",		Shader_LowerUpperMap,		"fte"}, //r=lower, g=upper (team being more important than personal colours, this allows the texture to gracefully revert to red-only)
+	//{"normalmap",			Shader_NormalMap,			"fte"},	//xy-h
+//	{"omrmap",				Shader_SpecularMap,			"fte"},	//r=occlusion, g=metalness, b=roughness.
+	//{"glowmap",			Shader_FullbrightMap,		"fte"}, //rgb
 
 	/*program stuff at the material level is an outdated practise.*/
 	{"program",				Shader_ProgramName,			"fte"},	//usable with any renderer that has a usable shader language...
 	{"glslprogram",			Shader_GLSLProgramName,		"fte"},	//for renderers that accept embedded glsl
 	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d with embedded hlsl
 	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d with embedded hlsl
-	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
-	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
-
-	{"basefactor",			NULL,						"fte"},	//material scalers for glsl
-	{"specularfactor",		NULL,						"fte"},	//material scalers for glsl
-	{"fullbrightfactor",	NULL,						"fte"},	//material scalers for glsl
+//	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
+//	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
 
 	//dp compat
 	{"reflectcube",			Shader_ReflectCube,			"dp"},
@@ -2532,7 +2530,7 @@ static shaderkey_t shaderkeys[] =
 	{"nooverlays",			NULL,						"doom3"},
 	{"nofragment",			NULL,						"doom3"},
 
-	/*RTCW vompat*/
+	/*RTCW compat*/
 	{"nocompress",			NULL,						"rtcw"},
 	{"allowcompress",		NULL,						"rtcw"},
 	{"nofog",				NULL,						"rtcw"},
@@ -6706,31 +6704,34 @@ static qboolean Shader_ParseShader(char *parsename, shader_t *s)
 	char *file;
 	const char *token;
 
-	//if the named shader is a .shader file then just directly load it.
-	token = COM_GetFileExtension(parsename, NULL);
-	if (!strcmp(token, ".shader") || !*token)
+	if (!strchr(parsename, ':'))
 	{
-		char shaderfile[MAX_QPATH];
-		if (!*token)
+		//if the named shader is a .shader file then just directly load it.
+		token = COM_GetFileExtension(parsename, NULL);
+		if (!strcmp(token, ".shader") || !*token)
 		{
-			Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
-			file = COM_LoadTempMoreFile(shaderfile, &length);
-		}
-		else
-			file = COM_LoadTempMoreFile(parsename, &length);
-		if (file)
-		{
-			Shader_Reset(s);
-			token = COM_ParseExt (&file, true, false);	//we need to skip over the leading {.
-			if (*token != '{')
-				token = COM_ParseExt (&file, true, false);	//try again, in case we found some legacy name.
-			if (*token == '{')
+			char shaderfile[MAX_QPATH];
+			if (!*token)
 			{
-				Shader_ReadShader(s, file, NULL);
-				return true;
+				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
+				file = COM_LoadTempMoreFile(shaderfile, &length);
 			}
 			else
-				Con_Printf("file %s.shader does not appear to contain a shader\n", shaderfile);
+				file = COM_LoadTempMoreFile(parsename, &length);
+			if (file)
+			{
+				Shader_Reset(s);
+				token = COM_ParseExt (&file, true, false);	//we need to skip over the leading {.
+				if (*token != '{')
+					token = COM_ParseExt (&file, true, false);	//try again, in case we found some legacy name.
+				if (*token == '{')
+				{
+					Shader_ReadShader(s, file, NULL);
+					return true;
+				}
+				else
+					Con_Printf("file %s.shader does not appear to contain a shader\n", shaderfile);
+			}
 		}
 	}
 

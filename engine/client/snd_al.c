@@ -383,7 +383,7 @@ static void PrintALError(char *string)
 	Con_Printf("OpenAL - %s: %x: %s\n",string,err,text);
 }
 
-qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
+static qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 {
 	unsigned int fmt;
 	unsigned int size;
@@ -1421,7 +1421,7 @@ sounddriver_t OPENAL_Output =
 
 #if defined(VOICECHAT)
 
-qboolean OpenAL_InitCapture(void)
+static qboolean OpenAL_InitCapture(void)
 {
 	if (!OpenAL_InitLibrary())
 		return false;
@@ -1445,7 +1445,7 @@ qboolean OpenAL_InitCapture(void)
 
 	return palcGetIntegerv&&palcCaptureOpenDevice&&palcCaptureStart&&palcCaptureSamples&&palcCaptureStop&&palcCaptureCloseDevice;
 }
-qboolean QDECL OPENAL_Capture_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
+static qboolean QDECL OPENAL_Capture_Enumerate (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename))
 {
 	const char *devnames;
 	if (!OpenAL_InitCapture())
@@ -1460,7 +1460,7 @@ qboolean QDECL OPENAL_Capture_Enumerate (void (QDECL *callback) (const char *dri
 	return true;
 }
 //fte's capture api specifies mono 16.
-void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
+static void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
 {
 #ifndef OPENAL_STATIC
 	if (!device)	//no default devices please, too buggy for that.
@@ -1475,12 +1475,12 @@ void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
 
 	return palcCaptureOpenDevice(device, samplerate, AL_FORMAT_MONO16, 0.5*samplerate);
 }
-void QDECL OPENAL_Capture_Start (void *ctx)
+static void QDECL OPENAL_Capture_Start (void *ctx)
 {
 	ALCdevice *device = ctx;
 	palcCaptureStart(device);
 }
-unsigned int QDECL OPENAL_Capture_Update (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+static unsigned int QDECL OPENAL_Capture_Update (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
 {
 #define samplesize sizeof(short)
 	ALCdevice *device = ctx;
@@ -1491,12 +1491,12 @@ unsigned int QDECL OPENAL_Capture_Update (void *ctx, unsigned char *buffer, unsi
 	palcCaptureSamples(device, (ALCvoid *)buffer, avail);
 	return avail * samplesize;
 }
-void QDECL OPENAL_Capture_Stop (void *ctx)
+static void QDECL OPENAL_Capture_Stop (void *ctx)
 {
 	ALCdevice *device = ctx;
 	palcCaptureStop(device);
 }
-void QDECL OPENAL_Capture_Shutdown (void *ctx)
+static void QDECL OPENAL_Capture_Shutdown (void *ctx)
 {
 	ALCdevice *device = ctx;
 	palcCaptureCloseDevice(device);

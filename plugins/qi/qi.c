@@ -36,7 +36,7 @@ struct
 	int type;
 } filters;
 
-void Con_SubPrintf(const char *subname, char *format, ...)
+static void Con_SubPrintf(const char *subname, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[8192];
@@ -49,7 +49,7 @@ void Con_SubPrintf(const char *subname, char *format, ...)
 }
 
 
-qintptr_t QI_Shutdown(qintptr_t *args)
+static qintptr_t QI_Shutdown(qintptr_t *args)
 {
 	if (dlcontext != -1)
 	{	//we're still downloading something? :o
@@ -62,7 +62,7 @@ qintptr_t QI_Shutdown(qintptr_t *args)
 	return false;
 }
 
-qboolean QI_SetupWindow(const char *console, qboolean force)
+static qboolean QI_SetupWindow(const char *console, qboolean force)
 {
 	if (!BUILTINISVALID(Con_GetConsoleFloat))
 		return false;
@@ -89,7 +89,7 @@ qboolean QI_SetupWindow(const char *console, qboolean force)
 		pCon_SetActive(console);
 	return true;
 }
-void QI_DeHTML(const char *in, char *out, size_t outsize)
+static void QI_DeHTML(const char *in, char *out, size_t outsize)
 {
 	outsize--;
 	while(*in && outsize > 0)
@@ -210,7 +210,7 @@ static char *QI_strcasestr(const char *haystack, const char *needle)
 	return NULL;	//didn't find it
 }
 
-void QI_RefreshMapList(qboolean forcedisplay)
+static void QI_RefreshMapList(qboolean forcedisplay)
 {
 	xmltree_t *file;
 	const char *console = WINDOWNAME;
@@ -497,7 +497,7 @@ static void QI_RunMap(xmltree_t *qifile, const char *map)
 	pCmd_AddText("\n", false);
 }
 
-qintptr_t QI_ConsoleLink(qintptr_t *args)
+static qintptr_t QI_ConsoleLink(qintptr_t *args)
 {
 	xmltree_t *file;
 	char *map;
@@ -570,7 +570,7 @@ qintptr_t QI_ConsoleLink(qintptr_t *args)
 	}
 	return false;
 }
-qintptr_t QI_Tick(qintptr_t *args)
+static qintptr_t QI_Tick(qintptr_t *args)
 {
 	if (dlcontext != -1)
 	{
@@ -621,7 +621,7 @@ qintptr_t QI_Tick(qintptr_t *args)
 	return false;
 }
 
-qintptr_t QI_ConExecuteCommand(qintptr_t *args)
+static qintptr_t QI_ConExecuteCommand(qintptr_t *args)
 {
 	char console[256];
 	char filter[256];
@@ -635,7 +635,7 @@ qintptr_t QI_ConExecuteCommand(qintptr_t *args)
 	return true;
 }
 
-qintptr_t QI_ExecuteCommand(qintptr_t *args)
+static qintptr_t QI_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
 	pCmd_Argv(0, cmd, sizeof(cmd));

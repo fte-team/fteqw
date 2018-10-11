@@ -119,7 +119,7 @@ extern int sys_parentwidth;
 extern int sys_parentheight;
 extern long    sys_parentwindow;
 
-qboolean X11_CheckFeature(const char *featurename, qboolean defaultval)
+static qboolean X11_CheckFeature(const char *featurename, qboolean defaultval)
 {
 	cvar_t *var;
 	if (COM_CheckParm(va("-no%s", featurename)))
@@ -131,6 +131,7 @@ qboolean X11_CheckFeature(const char *featurename, qboolean defaultval)
 		return !!var->ival;
 	return defaultval;
 }
+static qboolean X11_Clipboard_Notify(XSelectionEvent *xselection);
 
 #define KEY_MASK (KeyPressMask | KeyReleaseMask)
 #define MOUSE_MASK (ButtonPressMask | ButtonReleaseMask | \
@@ -1312,13 +1313,15 @@ static struct
 	int swapint;
 } glx;
 
-void GLX_CloseLibrary(void)
+/*Note: closing the GLX library is unsafe as nvidia's drivers like to crash once its reloaded.
+static void GLX_CloseLibrary(void)
 {
 	Sys_CloseLibrary(glx.gllibrary);
 	glx.gllibrary = NULL;
 }
+*/
 
-void *GLX_GetSymbol(char *name)
+static void *GLX_GetSymbol(char *name)
 {
 	void *symb;
 
@@ -1332,7 +1335,7 @@ void *GLX_GetSymbol(char *name)
 	return symb;
 }
 
-qboolean GLX_InitLibrary(char *driver)
+static qboolean GLX_InitLibrary(char *driver)
 {
 	dllfunction_t funcs[] =
 	{
@@ -1381,7 +1384,7 @@ qboolean GLX_InitLibrary(char *driver)
 #define GLX_CONTEXT_OPENGL_NO_ERROR_ARB	0x31B3
 #endif
 
-qboolean GLX_CheckExtension(const char *ext)
+static qboolean GLX_CheckExtension(const char *ext)
 {
 	const char *e = glx.glxextensions, *n;
 	size_t el = strlen(ext);
@@ -1405,7 +1408,7 @@ qboolean GLX_CheckExtension(const char *ext)
 }
 
 //Since GLX1.3 (equivelent to gl1.2)
-GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
+static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 {
 	int attrib[32];
 	int n, i;
@@ -1521,7 +1524,7 @@ GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 	return NULL;
 }
 //for GLX<1.3
-XVisualInfo *GLX_GetVisual(rendererstate_t *info)
+static XVisualInfo *GLX_GetVisual(rendererstate_t *info)
 {
 	XVisualInfo *visinfo;
 	int attrib[32];
@@ -1568,7 +1571,7 @@ XVisualInfo *GLX_GetVisual(rendererstate_t *info)
 	return NULL;
 }
 
-qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInfo *visinfo)
+static qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInfo *visinfo)
 {
 	extern cvar_t	vid_gl_context_version;
 	extern cvar_t	vid_gl_context_forwardcompatible;
@@ -2049,7 +2052,7 @@ static void ClearAllStates (void)
 	int		i;
 
 // send an up event for each key, to make sure the server clears them all
-	for (i=0 ; i<256 ; i++)
+	for (i=0 ; i<K_MAX ; i++)
 	{
 		Key_Event (0, i, 0, false);
 	}
@@ -2311,6 +2314,7 @@ static void GetEvent(void)
 	case FocusIn:
 		//activeapp is if the game window is focused
 		vid.activeapp = true;
+		ClearAllStates();	//just in case.
 
 		//but change modes to track the desktop window
 //		if (!(fullscreenflags & FULLSCREEN_ACTIVE) || event.xfocus.window != vid_decoywindow)
@@ -2378,8 +2382,8 @@ static void GetEvent(void)
 			else if (!strcmp(name, "XdndEnter") && event.xclient.format == 32)
 			{
 				//check for text/uri-list
-				x11.dnd.type = None;
 				int i;
+				x11.dnd.type = None;
 				for (i = 2; i < 2+3; i++)
 				{
 					if (event.xclient.data.l[i])
@@ -2444,6 +2448,7 @@ static void GetEvent(void)
 						char hostname[1024];
 						if (gethostname(hostname, sizeof(hostname)) < 0)
 							*hostname = 0;	//failed? o.O
+						hostname[sizeof(hostname)-1] = 0;
 						char *path = va("file://%s/tmp/%s", hostname, data);
 						Atom proptype = x11.pXInternAtom(vid_dpy, "text/plain", false);
 						x11.pXChangeProperty(vid_dpy, source, x11.dnd.type, proptype, 8, PropModeReplace, (void*)path, strlen(path));
@@ -2469,8 +2474,11 @@ static void GetEvent(void)
 		break;
 #if 1
 	case SelectionNotify:
+		//for paste
+		if (X11_Clipboard_Notify(&event.xselection))
+			;
 		//for drag-n-drop
-		if (event.xselection.selection == x11.pXInternAtom(vid_dpy, "XdndSelection", False) && x11.dnd.myprop != None)
+		else if (event.xselection.selection == x11.pXInternAtom(vid_dpy, "XdndSelection", False) && x11.dnd.myprop != None)
 		{
 			qboolean okay = false;
 			unsigned char *data;
@@ -2513,16 +2521,18 @@ static void GetEvent(void)
 			x11.pXDeleteProperty(vid_dpy, vid_window, x11.dnd.myprop);	//might be large, so don't force it to hang around.
 
 			//Send XdndFinished now
-			XEvent xev;
-			memset(&xev, 0, sizeof(xev));
-			xev.type = ClientMessage;
-			xev.xclient.window = x11.dnd.source;
-			xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "XdndFinished", False);
-			xev.xclient.format = 32;
-			xev.xclient.data.l[0] = vid_window;	//so source can ignore it if stale
-			xev.xclient.data.l[1] = (okay?1:0);
-			xev.xclient.data.l[2] = x11.pXInternAtom (vid_dpy, "XdndActionCopy", False);
-			x11.pXSendEvent(vid_dpy, xev.xclient.window, False, 0, &xev);
+			{
+				XEvent xev;
+				memset(&xev, 0, sizeof(xev));
+				xev.type = ClientMessage;
+				xev.xclient.window = x11.dnd.source;
+				xev.xclient.message_type = x11.pXInternAtom(vid_dpy, "XdndFinished", False);
+				xev.xclient.format = 32;
+				xev.xclient.data.l[0] = vid_window;	//so source can ignore it if stale
+				xev.xclient.data.l[1] = (okay?1:0);
+				xev.xclient.data.l[2] = x11.pXInternAtom (vid_dpy, "XdndActionCopy", False);
+				x11.pXSendEvent(vid_dpy, xev.xclient.window, False, 0, &xev);
+			}
 		}
 		break;
 
@@ -2589,7 +2599,7 @@ static void GetEvent(void)
 }
 
 
-void GLVID_Shutdown(void)
+static void GLVID_Shutdown(void)
 {
 	if (!vid_dpy)
 		return;
@@ -2741,7 +2751,7 @@ static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, f
 	if (!rgbadata)
 		return NULL;
 
-	if (format==PTI_RGBX8 && !strchr(filename, ':'))
+	if ((format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(filename, ':'))
 	{	//people seem to insist on using jpgs, which don't have alpha.
 		//so screw over the alpha channel if needed.
 		unsigned int alpha_width, alpha_height, p;
@@ -2966,7 +2976,7 @@ void GLVID_SwapBuffers (void)
 
 #include "fte_eukara64.h"
 //#include "bymorphed.h"
-void X_StoreIcon(Window wnd)
+static void X_StoreIcon(Window wnd)
 {
 	int i;
 	Atom propname = x11.pXInternAtom(vid_dpy, "_NET_WM_ICON", false);
@@ -3064,7 +3074,7 @@ void X_GoWindowed(void)
 	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
 //Con_Printf("Gone windowed\n");
 }
-qboolean X_CheckWMFullscreenAvailable(void)
+static qboolean X_CheckWMFullscreenAvailable(void)
 {
 	//root window must have _NET_SUPPORTING_WM_CHECK which is a Window created by the WM
 	//the WM's window must have _NET_WM_NAME set, which is the name of the window manager
@@ -3138,7 +3148,7 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	return success;
 }
 
-Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int y, unsigned int width, unsigned int height, qboolean fullscreen)
+static Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int y, unsigned int width, unsigned int height, qboolean fullscreen)
 {
 	Window wnd, parent;
 	XSetWindowAttributes attr;
@@ -3202,7 +3212,7 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int y, uns
 	return wnd;
 }
 
-qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
+static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 {
 	int x = 0;
 	int y = 0;
@@ -3529,7 +3539,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	return X11VID_Init(info, palette, PSL_GLX);
 }
 #ifdef USE_EGL
-qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
+static qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	return X11VID_Init(info, palette, PSL_EGL);
 }
@@ -3699,7 +3709,68 @@ rendererinfo_t vkrendererinfo =
 #endif
 
 #if 1
-char *Sys_GetClipboard(void)
+static void (*paste_callback)(void *cb, char *utf8);
+static void *pastectx;
+static struct {
+	Atom clipboard;
+	Atom prop;
+	Atom owner;
+} x11paste;
+void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, char *utf8), void *ctx)
+{
+	//if there's a paste already pending, cancel the callback to ensure it always gets called.
+	if (paste_callback)
+		paste_callback(pastectx, NULL);
+
+	paste_callback = NULL;
+	pastectx = NULL;
+
+	if(vid_dpy)
+	{
+		Window clipboardowner;
+		Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
+		//FIXME: we should query it using TARGETS first to see if UTF8_STRING etc is actually valid.
+		if (clipboardtype == CBT_SELECTION)
+			x11paste.clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
+		else
+			x11paste.clipboard = x11.pXInternAtom(vid_dpy, "CLIPBOARD", false);
+		x11paste.prop = x11.pXInternAtom(vid_dpy, "_FTE_PASTE", false);
+		clipboardowner = x11.pXGetSelectionOwner(vid_dpy, x11paste.clipboard);
+		if (clipboardowner == vid_window)
+			callback(ctx, clipboard_buffer);	//we own it? no point doing round-robin stuff.
+		else if (clipboardowner != None && clipboardowner != vid_window)
+		{
+			x11.pXConvertSelection(vid_dpy, x11paste.clipboard, xa_string, x11paste.prop, vid_window, CurrentTime);
+
+			paste_callback = callback;
+			pastectx = ctx;
+		}
+		else
+			callback(ctx, NULL);	//nothing to paste (the window that owned it sucks
+	}
+	else
+		callback(ctx, clipboard_buffer);	//if we're not using x11 then just instantly call the callback
+}
+static qboolean X11_Clipboard_Notify(XSelectionEvent *xselection)
+{	//called once XConvertSelection completes
+	if (xselection->display == vid_dpy && xselection->selection == x11paste.clipboard && xselection->requestor == vid_window && xselection->property == x11paste.prop)
+	{
+		int fmt;
+		Atom type;
+		unsigned long nitems, bytesleft;
+		unsigned char *data = NULL;
+		x11.pXGetWindowProperty(vid_dpy, vid_window, x11paste.prop, 0, 65536, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
+		if (paste_callback)
+			paste_callback(pastectx, data);
+		x11.pXFree(data);
+		paste_callback = NULL;
+		pastectx = NULL;
+		return true;
+	}
+	return false;
+}
+
+/*char *Sys_GetClipboard(void)
 {
 	if(vid_dpy)
 	{
@@ -3729,17 +3800,9 @@ char *Sys_GetClipboard(void)
 	}
 	return clipboard_buffer;
 }
+*/
 
-void Sys_CloseClipboard(char *bf)
-{
-	if (bf == clipboard_buffer)
-		return;
-
-	if(vid_dpy)
-		x11.pXFree(bf);
-}
-
-void Sys_SaveClipboard(char *text)
+void Sys_SaveClipboard(clipboardtype_t clipboardtype, char *text)
 {
 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 	if(vid_dpy)
@@ -3747,7 +3810,7 @@ void Sys_SaveClipboard(char *text)
 		Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
 		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
 
-		//Set both clipboards. Because x11 is kinda annoying.
+		//Set both clipboards for now. Because x11 is kinda annoying.
 		xa_clipboard = x11.pXInternAtom(vid_dpy, "CLIPBOARD", false);
 		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
 	}
@@ -3887,10 +3950,10 @@ void Sys_SendKeyEvents(void)
 #endif
 }
 
-void Force_CenterView_f (void)
+/*static void Force_CenterView_f (void)
 {
 	cl.playerview[0].viewangles[PITCH] = 0;
-}
+}*/
 
 
 //these are done from the x11 event handler. we don't support evdev.

@@ -70,7 +70,7 @@ To keep everything totally uniform, bounding boxes are turned into small
 BSP trees instead of being compared directly.
 ===================
 */
-hull_t	*PM_HullForBox (vec3_t mins, vec3_t maxs)
+static hull_t	*PM_HullForBox (vec3_t mins, vec3_t maxs)
 {
 	box_planes[0].dist = maxs[0];
 	box_planes[1].dist = mins[0];
@@ -83,7 +83,7 @@ hull_t	*PM_HullForBox (vec3_t mins, vec3_t maxs)
 }
 
 
-int PM_TransformedModelPointContents (model_t *mod, vec3_t p, vec3_t origin, vec3_t angles)
+static int PM_TransformedModelPointContents (model_t *mod, vec3_t p, vec3_t origin, vec3_t angles)
 {
 	vec3_t p_l, axis[3];
 	VectorSubtract (p, origin, p_l);

@@ -3597,6 +3597,8 @@ void Sh_PreGenerateLights(void)
 	int i;
 
 	r_shadow_realtime_world_lightmaps.value = atof(r_shadow_realtime_world_lightmaps.string);
+	if (!cl.worldmodel)
+		return;
 	if ((r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival) && rtlights_max == RTL_FIRST)
 	{
 		qboolean okay = false;

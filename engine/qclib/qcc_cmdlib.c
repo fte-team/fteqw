@@ -66,7 +66,7 @@ float   (*PRBigFloat) (float l);
 float   (*PRLittleFloat) (float l);
 
 
-short   QCC_SwapShort (short l)
+static short   QCC_SwapShort (short l)
 {
 	qbyte    b1,b2;
 
@@ -76,13 +76,13 @@ short   QCC_SwapShort (short l)
 	return (b1<<8) + b2;
 }
 
-short   QCC_Short (short l)
+static short   QCC_Short (short l)
 {
 	return l;
 }
 
 
-int    QCC_SwapLong (int l)
+static int    QCC_SwapLong (int l)
 {
 	qbyte    b1,b2,b3,b4;
 
@@ -94,13 +94,13 @@ int    QCC_SwapLong (int l)
 	return ((int)b1<<24) + ((int)b2<<16) + ((int)b3<<8) + b4;
 }
 
-int    QCC_Long (int l)
+static int    QCC_Long (int l)
 {
 	return l;
 }
 
 
-float	QCC_SwapFloat (float l)
+static float	QCC_SwapFloat (float l)
 {
 	union {qbyte b[4]; float f;} in, out;
 
@@ -113,7 +113,7 @@ float	QCC_SwapFloat (float l)
 	return out.f;
 }
 
-float	QCC_Float (float l)
+static float	QCC_Float (float l)
 {
 	return l;
 }
@@ -566,7 +566,7 @@ void VARGS QCC_Error (int errortype, const char *error, ...)
 	QC_vsnprintf (msg,sizeof(msg)-1, error,argptr);
 	va_end (argptr);
 
-	printf ("\n************ ERROR ************\n%s\n", msg);
+	externs->Printf ("\n************ ERROR ************\n%s\n", msg);
 
 
 	editbadfile(s_filen, pr_source_line);
@@ -591,7 +591,7 @@ Checks for the given parameter in the program's command line arguments
 Returns the argument number (1 to argc-1) or 0 if not present
 =================
 */
-int QCC_CheckParm (char *check)
+int QCC_CheckParm (const char *check)
 {
 	int i;
 
@@ -604,7 +604,7 @@ int QCC_CheckParm (char *check)
 	return 0;
 }
 
-const char *QCC_ReadParm (char *check)
+const char *QCC_ReadParm (const char *check)
 {
 	int i;
 
@@ -793,7 +793,7 @@ void ExtractFileExtension (char *path, char *dest)
 ParseNum / ParseHex
 ==============
 */
-long ParseHex (char *hex)
+static long ParseHex (char *hex)
 {
 	char    *str;
 	long    num;
@@ -875,7 +875,7 @@ int SafeOpenWrite (char *filename, int maxsize)
 	return -1;
 }
 
-void ResizeBuf(int hand, int newsize)
+static void ResizeBuf(int hand, int newsize)
 {
 	char *nb;
 

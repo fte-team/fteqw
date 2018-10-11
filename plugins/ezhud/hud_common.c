@@ -4800,7 +4800,7 @@ void OnAutoHudChange(cvar_t *var, char *value, qbool *cancel) {
 }
 
 // Is run when a new map is loaded.
-void HUD_NewMap() {
+void HUD_NewMap(void) {
 #if defined(WITH_PNG)
 	HUD_NewRadarMap();
 #endif // WITH_PNG

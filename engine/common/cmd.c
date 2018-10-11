@@ -110,7 +110,7 @@ void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions)
 		macro_count++;
 }
 
-char *TP_MacroString (char *s, int *newaccesslevel, int *len)
+static char *TP_MacroString (char *s, int *newaccesslevel, int *len)
 {
 	int i;
 	macro_command_t	*macro;
@@ -131,7 +131,7 @@ char *TP_MacroString (char *s, int *newaccesslevel, int *len)
 	return NULL;
 }
 
-void Cmd_MacroList_f (void)
+static void Cmd_MacroList_f (void)
 {
 	int	i;
 
@@ -182,7 +182,7 @@ next frame.  This allows commands like:
 bind g "impulse 5 ; +attack ; wait ; -attack ; impulse 2"
 ============
 */
-void Cmd_Wait_f (void)
+static void Cmd_Wait_f (void)
 {
 	if (cmd_blockwait)
 		return;
@@ -416,7 +416,7 @@ start:
 	return text;
 }
 
-char *Cbuf_StripText(int level)	//remove all text in the command buffer and return it (so it can be readded later)
+static char *Cbuf_StripText(int level)	//remove all text in the command buffer and return it (so it can be readded later)
 {
 	char *buf;
 	buf = (char*)Z_Malloc(cmd_text[level].buf.cursize+1);
@@ -626,7 +626,7 @@ void Cmd_StuffCmds (void)
 Cmd_Exec_f
 ===============
 */
-void Cmd_Exec_f (void)
+static void Cmd_Exec_f (void)
 {
 	char	*f, *s;
 	char	name[256];
@@ -818,6 +818,9 @@ void Cmd_Exec_f (void)
 	if (cvar_watched)
 		Cbuf_InsertText (va("echo BEGIN %s", buf), level, true);
 	BZ_Free(f);
+
+	if (level != Cmd_ExecLevel)
+		Cbuf_ExecuteLevel(level);
 }
 
 static int QDECL CompleteExecList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -826,7 +829,7 @@ static int QDECL CompleteExecList (const char *name, qofs_t flags, time_t mtime,
 	ctx->cb(name, NULL, NULL, ctx);
 	return true;
 }
-void Cmd_Exec_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+static void Cmd_Exec_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
 	{
@@ -844,7 +847,7 @@ Just prints the rest of the line to the console
 ===============
 */
 char *TP_ParseFunChars (char *s);
-void Cmd_Echo_f (void)
+static void Cmd_Echo_f (void)
 {
 	char text[4096];
 	char extext[4096], *t;
@@ -962,7 +965,7 @@ Creates a new command that executes a command string (possibly ; seperated)
 ===============
 */
 
-void Cmd_Alias_f (void)
+static void Cmd_Alias_f (void)
 {
 	cmdalias_t	*a, *b;
 	char		cmd[65536];
@@ -1165,7 +1168,7 @@ static void Cmd_AliasEdit_f (void)
 }
 #endif
 
-void Cmd_DeleteAlias(const char *name)
+/*static void Cmd_DeleteAlias(const char *name)
 {
 	cmdalias_t	*a, **link;
 	for (link = &cmd_alias; (a = *link); link = &(*link)->next)
@@ -1178,7 +1181,7 @@ void Cmd_DeleteAlias(const char *name)
 			return;
 		}
 	}
-}
+}*/
 
 char *Cmd_AliasExist(const char *name, int restrictionlevel)
 {
@@ -1198,7 +1201,7 @@ char *Cmd_AliasExist(const char *name, int restrictionlevel)
 	return NULL;
 }
 
-void Cmd_AliasLevel_f (void)
+static void Cmd_AliasLevel_f (void)
 {
 	cmdalias_t	*a;
 	char *s = Cmd_Argv(1);
@@ -1248,7 +1251,7 @@ void Cmd_AliasLevel_f (void)
 }
 
 //lists commands, also prints restriction level
-void Cmd_AliasList_f (void)
+static void Cmd_AliasList_f (void)
 {
 	cmdalias_t	*cmd;
 	int num=0;
@@ -1277,7 +1280,7 @@ void Cmd_AliasList_f (void)
 		Con_Printf("\n");
 }
 
-void Alias_WriteAliases (vfsfile_t *f)
+static void Alias_WriteAliases (vfsfile_t *f)
 {
 	const char *s;
 	cmdalias_t	*cmd;
@@ -1455,7 +1458,7 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 	}
 }
 
-const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslevel, qboolean enclosed, int *len)
+static const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslevel, qboolean enclosed, int *len)
 {
 	const char *ret = NULL;
 	char *fixup = NULL, fixval=0, *t;
@@ -1724,7 +1727,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 	return dest;
 }
 
-char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
+static char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
 {
 	char c;
 	int quotes = 0;
@@ -2004,7 +2007,7 @@ void	Cmd_RemoveCommands (xcommand_t function)
 	}
 }
 
-void Cmd_RestrictCommand_f (void)
+static void Cmd_RestrictCommand_f (void)
 {
 	cmdalias_t *a;
 	cvar_t *v;
@@ -2208,7 +2211,7 @@ fte_inlinestatic int Q_tolower(char c)
 		c -= ('a' - 'A');
 	return c;
 }
-void Cmd_Complete_CheckArg(const char *value, const char *desc, const char *repl, struct xcommandargcompletioncb_s *vctx)	//compare cumulative strings and join the result
+static void Cmd_Complete_CheckArg(const char *value, const char *desc, const char *repl, struct xcommandargcompletioncb_s *vctx)	//compare cumulative strings and join the result
 {
 	struct cmdargcompletion_ctx_s *ctx = (struct cmdargcompletion_ctx_s*)vctx;
 	cmd_completion_t *res = ctx->res;
@@ -2292,7 +2295,7 @@ void Cmd_Complete_CheckArg(const char *value, const char *desc, const char *repl
 	res->num++;
 }
 
-void Cmd_Complete_Check(const char *check, cmd_completion_t *res, const char *desc)	//compare cumulative strings and join the result
+static void Cmd_Complete_Check(const char *check, cmd_completion_t *res, const char *desc)	//compare cumulative strings and join the result
 {
 	const char *c;
 	char *p;
@@ -2323,7 +2326,7 @@ void Cmd_Complete_Check(const char *check, cmd_completion_t *res, const char *de
 	res->completions[res->num].repl = NULL;
 	res->num++;
 }
-void Cmd_Complete_End(cmd_completion_t *c)
+static void Cmd_Complete_End(cmd_completion_t *c)
 {
 	size_t u;
 	for (u = 0; u < c->num; u++)
@@ -2347,7 +2350,7 @@ void Cmd_Complete_End(cmd_completion_t *c)
 	Z_Free(c->partial);
 	c->partial = NULL;
 }
-int QDECL Cmd_Complete_Sort(const void *a, const void *b)
+static int QDECL Cmd_Complete_Sort(const void *a, const void *b)
 {	//FIXME: its possible that they're equal (eg: filesystem searches). we should strip one in that case, but gah.
 	const struct cmd_completion_opt_s *c1 = a, *c2 = b;
 	return Q_strcasecmp(c1->text, c2->text);
@@ -2501,7 +2504,7 @@ char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean case
 
 
 //lists commands, also prints restriction level
-void Cmd_List_f (void)
+static void Cmd_List_f (void)
 {
 	cmd_function_t	*cmd;
 	int num=0;
@@ -2519,7 +2522,7 @@ void Cmd_List_f (void)
 }
 
 //I'm not personally keen on this name, but its somewhat standard in both DP and suse (which lh uses, hence why DP uses that name). oh well.
-void Cmd_Apropos_f (void)
+static void Cmd_Apropos_f (void)
 {
 	extern cvar_group_t *cvar_groups;
 	cmd_function_t	*cmd;
@@ -2615,7 +2618,7 @@ void Cmd_ForwardToServer (void)
 }
 
 // don't forward the first argument
-void Cmd_ForwardToServer_f (void)
+static void Cmd_ForwardToServer_f (void)
 {
 	if (cls.state == ca_disconnected)
 	{
@@ -3383,7 +3386,7 @@ qboolean If_EvaluateBoolean(const char *text, int restriction)
 	return ret;
 }
 
-void Cbuf_ExecBlock(int level)
+static void Cbuf_ExecBlock(int level)
 {
 	char *remainingcbuf;
 	char *exectext = NULL;
@@ -3450,7 +3453,7 @@ void Cbuf_ExecBlock(int level)
 	Z_Free(remainingcbuf);
 }
 
-void Cbuf_SkipBlock(int level)
+static void Cbuf_SkipBlock(int level)
 {
 	char *line, *end;
 	line = Cbuf_GetNext(level, false);
@@ -3602,7 +3605,7 @@ skipblock:
 	If_Token_Clear(ts);
 }
 
-void Cmd_Vstr_f( void )
+static void Cmd_Vstr_f( void )
 {
 	char	*v;
 
@@ -3616,7 +3619,7 @@ void Cmd_Vstr_f( void )
 	Cbuf_InsertText(v, Cmd_ExecLevel, true);
 }
 
-void Cmd_toggle_f(void)
+static void Cmd_toggle_f(void)
 {
 	cvar_t *v;
 	if (Cmd_Argc()<2)
@@ -3652,7 +3655,7 @@ static void Cmd_Set_c(int argn, const char *partial, struct xcommandargcompletio
 		}
 }
 
-void Cmd_set_f(void)
+static void Cmd_set_f(void)
 {
 	void *mark;
 	cvar_t *var;
@@ -3832,7 +3835,7 @@ void Cmd_set_f(void)
 	If_Token_Clear(mark);
 }
 
-void Cvar_Inc_f (void)
+static void Cvar_Inc_f (void)
 {
 	int c;
 	cvar_t *var;
@@ -3895,7 +3898,7 @@ void Cvar_ParseWatches(void)
 	}
 }
 
-void Cvar_Watch_f(void)
+static void Cvar_Watch_f(void)
 {
 	char *cvarname = Cmd_Argv(1);
 	cvar_t *var;
@@ -3940,7 +3943,7 @@ void Cvar_Watch_f(void)
 	}
 }
 
-void Cmd_WriteConfig_f(void)
+static void Cmd_WriteConfig_f(void)
 {
 	vfsfile_t *f;
 	char *filename;
@@ -4023,13 +4026,13 @@ void Cmd_WriteConfig_f(void)
 	Con_Printf ("Wrote %s\n",sysname);
 }
 
-void Cmd_Reset_f(void)
+static void Cmd_Reset_f(void)
 {
 }
 
 #ifndef SERVERONLY
 // dumps current console contents to a text file
-void Cmd_Condump_f(void)
+static void Cmd_Condump_f(void)
 {
 	vfsfile_t *f;
 	char *filename;

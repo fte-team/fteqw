@@ -117,6 +117,8 @@ typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
 #define false qfalse
 #else
 typedef enum {false, true}	qboolean;
+#define qtrue true
+#define qfalse false
 #endif
 
 #define STRINGIFY2(s) #s
@@ -662,6 +664,7 @@ typedef struct
 	char *defaultoverrides;	//execed after default.cfg, to give usable defaults even when the mod the user is running is shit.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt
 	char *rtcbroker;	//the broker to use for webrtc connections.
+	char *basedir;		//this is where we expect to find the data.
 	struct
 	{
 		qboolean base;

@@ -587,7 +587,7 @@ void QCBUILTIN PF_CL_drawrotpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, p);
+	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, NULL, p);
 	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
@@ -659,7 +659,7 @@ void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, p);
+	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, NULL, p);
 	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;

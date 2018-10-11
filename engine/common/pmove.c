@@ -975,6 +975,7 @@ void PM_CategorizePosition (void)
 	pmove.watertype = FTECONTENTS_EMPTY;
 
 	//FIXME: gravitydir
+	VectorCopy(pmove.origin, point);
 	point[2] = pmove.origin[2] + pmove.player_mins[2] + 1;
 	cont = PM_PointContents (point);
 
@@ -1058,7 +1059,7 @@ void PM_CategorizePosition (void)
 PM_CheckJump
 =============
 */
-void PM_CheckJump (void)
+static void PM_CheckJump (void)
 {
 	if (pmove.pm_type == PM_FLY)
 		return;
@@ -1130,7 +1131,7 @@ void PM_CheckJump (void)
 PM_CheckWaterJump
 =============
 */
-void PM_CheckWaterJump (void)
+static void PM_CheckWaterJump (void)
 {
 	vec3_t	spot, spot2;
 //	int		cont;
@@ -1210,7 +1211,7 @@ try nudging slightly on all axis to
 allow for the cut precision of the net coordinates
 =================
 */
-void PM_NudgePosition (void)
+static void PM_NudgePosition (void)
 {
 	vec3_t	base;
 	int		x, y, z;

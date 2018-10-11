@@ -5215,7 +5215,7 @@ neterr_t FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 	return NETERR_NOROUTE;
 }
 
-int FTENET_TCPConnect_GetLocalAddresses(struct ftenet_generic_connection_s *gcon, unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
+static int FTENET_TCPConnect_GetLocalAddresses(struct ftenet_generic_connection_s *gcon, unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
 	netproto_t prot = con->tls?NP_TLS:NP_STREAM;
@@ -5227,7 +5227,7 @@ int FTENET_TCPConnect_GetLocalAddresses(struct ftenet_generic_connection_s *gcon
 	return r;
 }
 
-qboolean FTENET_TCPConnect_ChangeLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *adr)
+static qboolean FTENET_TCPConnect_ChangeLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *adr)
 {
 	//if we're a server, we want to try switching listening tcp port without shutting down all other connections.
 	//yes, this might mean we leave a connection active on the old port, but oh well.
@@ -5349,7 +5349,7 @@ qboolean FTENET_TCPConnect_ChangeLocalAddress(struct ftenet_generic_connection_s
 	}
 	return false;
 }
-void FTENET_TCPConnect_Close(ftenet_generic_connection_t *gcon)
+static void FTENET_TCPConnect_Close(ftenet_generic_connection_t *gcon)
 {
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
 	ftenet_tcpconnect_stream_t *st;
@@ -7801,7 +7801,7 @@ void NET_InitClient(qboolean loopbackonly)
 
 #ifndef CLIENTONLY
 #ifdef HAVE_IPV4
-void QDECL SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (!strcmp(var->string, "0"))	//qtv_streamport had an old default value of 0. make sure we don't end up listening on random ports.
 		FTENET_AddToCollection(svs.sockets, var->name, "", NA_IP, NP_STREAM);
@@ -7815,21 +7815,21 @@ cvar_t	qtv_streamport	= CVARAFCD(	"qtv_streamport", "",
 #endif
 #endif
 #ifdef HAVE_IPV6
-void QDECL SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, NP_STREAM);
 }
 cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #ifdef HAVE_IPV4
-void QDECL SV_Port_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_DGRAM);
 }
 cvar_t  sv_port_ipv4 = CVARC("sv_port", STRINGIFY(PORT_DEFAULTSERVER), SV_Port_Callback);
 #endif
 #ifdef HAVE_IPV6
-void QDECL SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, NP_DGRAM);
 }
@@ -7850,7 +7850,7 @@ void QDECL SV_PortUNIX_Callback(struct cvar_s *var, char *oldvalue)
 cvar_t  sv_port_unix = CVARC("sv_port_unix", "/tmp/fte.sock", SV_PortUNIX_Callback);
 #endif
 #ifdef HAVE_NATPMP
-void QDECL SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, va("natpmp://%s", var->string), NA_IP, NP_NATPMP);
 }
@@ -8034,7 +8034,7 @@ typedef struct {
 	int readbuffered;
 	char peer[1];
 } tcpfile_t;
-void VFSTCP_Error(tcpfile_t *f)
+static void VFSTCP_Error(tcpfile_t *f)
 {
 	if (f->sock != INVALID_SOCKET)
 	{
@@ -8193,16 +8193,16 @@ qboolean QDECL VFSTCP_Seek (struct vfsfile_s *file, qofs_t pos)
 	VFSTCP_Error((tcpfile_t*)file);
 	return false;
 }
-qofs_t QDECL VFSTCP_Tell (struct vfsfile_s *file)
+static qofs_t QDECL VFSTCP_Tell (struct vfsfile_s *file)
 {
 	VFSTCP_Error((tcpfile_t*)file);
 	return 0;
 }
-qofs_t QDECL VFSTCP_GetLen (struct vfsfile_s *file)
+static qofs_t QDECL VFSTCP_GetLen (struct vfsfile_s *file)
 {
 	return 0;
 }
-qboolean QDECL VFSTCP_Close (struct vfsfile_s *file)
+static qboolean QDECL VFSTCP_Close (struct vfsfile_s *file)
 {
 	tcpfile_t *f = (tcpfile_t *)file;
 	qboolean success = f->sock != INVALID_SOCKET;

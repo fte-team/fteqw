@@ -182,7 +182,7 @@ void Draw_ColoredString3(float x, float y, const char *str, clrinfo_t *clr, int 
 	pDraw_String(x, y, str);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
-void UI_PrintTextBlock()
+void UI_PrintTextBlock(void)
 {
 }
 void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r, byte g, byte b, byte a)

@@ -2210,11 +2210,11 @@ SCR_SetUpToDrawConsole
 void SCR_SetUpToDrawConsole (void)
 {
 	extern int startuppending;	//true if we're downloading media or something and have not yet triggered the startup action (read: main menu or cinematic)
-	if (scr_drawloading)
-		return;         // never a console with loading plaque
+//	if (scr_drawloading)
+//		return;         // never a console with loading plaque
 
 // decide on the height of the console
-	if (!scr_disabled_for_loading)
+//	if (!scr_disabled_for_loading)
 	{
 		float fullscreenpercent = 1;
 #ifdef ANDROID
@@ -2230,7 +2230,7 @@ void SCR_SetUpToDrawConsole (void)
 		else if (!startuppending && !Key_Dest_Has(kdm_emenu|kdm_gmenu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			//go fullscreen if we're not doing anything
-			if (con_curwindow && !cls.state)
+			if (con_curwindow && !cls.state && !scr_drawloading)
 			{
 				Key_Dest_Add(kdm_cwindows);
 				scr_conlines = 0;
@@ -2259,7 +2259,7 @@ void SCR_SetUpToDrawConsole (void)
 						Key_Dest_Add(kdm_console);
 				}
 			}
-			if (!con_stayhidden.ival && !startuppending && Key_Dest_Has(kdm_console))
+			if (!con_stayhidden.ival && !startuppending && Key_Dest_Has(kdm_console) && !scr_drawloading && !scr_disabled_for_loading && cls.state < ca_connected)
 				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 			else
 				scr_conlines = 0;
@@ -2276,19 +2276,19 @@ void SCR_SetUpToDrawConsole (void)
 		else
 			scr_conlines = 0;                               // none visible
 
-		if (scr_conlines < scr_con_current)
-		{
-			scr_con_current -= scr_conspeed.value*host_frametime * (vid.height/320.0f);
-			if (scr_conlines > scr_con_current)
-				scr_con_current = scr_conlines;
+	}
+	if (scr_conlines < scr_con_current)
+	{
+		scr_con_current -= scr_conspeed.value*host_frametime * (vid.height/320.0f);
+		if (scr_conlines > scr_con_current)
+			scr_con_current = scr_conlines;
 
-		}
-		else if (scr_conlines > scr_con_current)
-		{
-			scr_con_current += scr_conspeed.value*host_frametime * (vid.height/320.0f);
-			if (scr_conlines < scr_con_current)
-				scr_con_current = scr_conlines;
-		}
+	}
+	else if (scr_conlines > scr_con_current)
+	{
+		scr_con_current += scr_conspeed.value*host_frametime * (vid.height/320.0f);
+		if (scr_conlines < scr_con_current)
+			scr_con_current = scr_conlines;
 	}
 
 	if (scr_con_current>vid.height)

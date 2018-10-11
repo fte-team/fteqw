@@ -33,7 +33,7 @@ static char	*cvar_null_string = "";
 static char *cvar_zero_string = "0";
 static char *cvar_one_string = "1";
 
-char *Cvar_DefaultAlloc(char *str)
+static char *Cvar_DefaultAlloc(char *str)
 {
 	char *c;
 
@@ -86,7 +86,7 @@ cvar_t *Cvar_FindVar (const char *var_name)
 	return NULL;
 }
 
-cvar_group_t *Cvar_FindGroup (const char *group_name)
+static cvar_group_t *Cvar_FindGroup (const char *group_name)
 {
 	cvar_group_t	*grp;
 
@@ -96,7 +96,7 @@ cvar_group_t *Cvar_FindGroup (const char *group_name)
 
 	return NULL;
 }
-cvar_group_t *Cvar_GetGroup(const char *gname)
+static cvar_group_t *Cvar_GetGroup(const char *gname)
 {
 	cvar_group_t *g;
 	if (!gname)
@@ -115,7 +115,7 @@ cvar_group_t *Cvar_GetGroup(const char *gname)
 }
 
 // converts a given single cvar flag into a human readable string
-char *Cvar_FlagToName(int flag)
+static char *Cvar_FlagToName(int flag)
 {
 	switch (flag)
 	{
@@ -720,7 +720,7 @@ void Cvar_Saved(void)
 Cvar_Set
 ============
 */
-cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
+static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 {	//fixme: force should probably be a latch bitmask
 	char *latch=NULL;
 
@@ -738,7 +738,9 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		return NULL;
 	}
 
-	if (0)//var->flags & CVAR_SERVEROVERRIDE && !force)
+	if (force)
+		;
+	else if (0)//var->flags & CVAR_SERVEROVERRIDE && !force)
 		latch = "variable %s is under server control - latched\n";
 	else if (var->flags & CVAR_LATCH && (sv_state || cls_state))
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
@@ -757,7 +759,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s is a cheat variable - latched\n";
 #endif
 
-	if (latch && !force)
+	if (latch)
 	{
 		if (cl_warncmd.value)
 		{	//FIXME: flag that there's a latched cvar instead of spamming prints.
@@ -1053,7 +1055,7 @@ void Cvar_ForceSetValue (cvar_t *var, float value)
 	Cvar_ForceSet (var, val);
 }
 
-void Cvar_Free(cvar_t *tbf)
+static void Cvar_Free(cvar_t *tbf)
 {
 	cvar_t *var;
 	cvar_group_t *grp;
@@ -1160,6 +1162,11 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	{
 		Con_Printf ("Cvar_RegisterVariable: %s is a command\n", variable->name);
 		return false;
+	}
+	if (variable->name2 && (Cmd_Exists (variable->name2) || Cvar_FindVar (variable->name2)))
+	{
+		Con_Printf ("Cvar_RegisterVariable: %s is a command/exists\n", variable->name2);
+		variable->name2 = NULL;
 	}
 
 	group = Cvar_GetGroup(groupname);

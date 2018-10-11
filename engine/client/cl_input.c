@@ -150,7 +150,7 @@ static kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 static kbutton_t	in_use, in_jump, in_attack;
 static kbutton_t	in_rollleft, in_rollright, in_up, in_down;
 
-static kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8;
+static kbutton_t	in_button[16+1-3];
 
 #define IN_IMPULSECACHE 32
 static int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
@@ -322,18 +322,8 @@ static void IN_JumpUp (void)
 	KeyUp(&in_jump);
 }
 
-static void IN_Button3Down(void) {KeyDown(&in_button3, NULL);}
-static void IN_Button3Up(void) {KeyUp(&in_button3);}
-static void IN_Button4Down(void) {KeyDown(&in_button4, NULL);}
-static void IN_Button4Up(void) {KeyUp(&in_button4);}
-static void IN_Button5Down(void) {KeyDown(&in_button5, NULL);}
-static void IN_Button5Up(void) {KeyUp(&in_button5);}
-static void IN_Button6Down(void) {KeyDown(&in_button6, NULL);}
-static void IN_Button6Up(void) {KeyUp(&in_button6);}
-static void IN_Button7Down(void) {KeyDown(&in_button7, NULL);}
-static void IN_Button7Up(void) {KeyUp(&in_button7);}
-static void IN_Button8Down(void) {KeyDown(&in_button8, NULL);}
-static void IN_Button8Up(void) {KeyUp(&in_button8);}
+static void IN_ButtonNDown(void) {KeyDown(&in_button[atoi(Cmd_Argv(0)+7)-3], NULL);}
+static void IN_ButtonNUp(void) {KeyUp(&in_button[atoi(Cmd_Argv(0)+7)-3]);}
 
 float in_rotate;
 static void IN_Rotate_f (void) {in_rotate += atoi(Cmd_Argv(1));}
@@ -367,12 +357,6 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 		{&in_rollright,	"rollright"},
 		{&in_up,		"up"},
 		{&in_down,		"down"},
-		{&in_button3,	"button3"},
-		{&in_button4,	"button4"},
-		{&in_button5,	"button5"},
-		{&in_button6,	"button6"},
-		{&in_button7,	"button7"},
-		{&in_button8,	"button8"}
 	};
 
 	s = 0;
@@ -384,6 +368,13 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 		else if (b || all)
 			VFS_PRINTF(f, "-%s\n", buttons[b].name);
 	}
+	for (b = 0; b < countof(in_button); b++)
+	{
+		if ((in_button[b].state[s]&1) && (in_button[b].down[s][0]==-1 || in_button[b].down[s][1]==-1))
+			VFS_PRINTF(f, "+button%i\n", b+3);
+		else
+			VFS_PRINTF(f, "-button%i\n", b+3);
+	}
 	for (s = 1; s < MAX_SPLITS; s++)
 	{
 		VFS_PRINTF(f, "\n//Player %i buttons\n", s);
@@ -393,6 +384,13 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 				VFS_PRINTF(f, "+p%i %s\n", s, buttons[b].name);
 			else if (b || all)
 				VFS_PRINTF(f, "-p%i %s\n", s, buttons[b].name);
+		}
+		for (b = 0; b < countof(in_button); b++)
+		{
+			if ((in_button[b].state[s]&1) && (in_button[b].down[s][0]==-1 || in_button[b].down[s][1]==-1))
+				VFS_PRINTF(f, "+p%i button%i\n", s, b+3);
+			else
+				VFS_PRINTF(f, "-p%i button%i\n", s, b+3);
 		}
 	}
 
@@ -589,19 +587,34 @@ cvar_t	cl_pitchspeed = CVAR("cl_pitchspeed","150");
 cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
-#define GATHERBIT(bname,bit) if (bname.state[pnum] & 3)	{bits |=   bit;} bname.state[pnum]	&= ~2;
+#define GATHERBIT(bname,bit) if (bname.state[pnum] & 3)	{bits |=   (1u<<bit);} bname.state[pnum]	&= ~2;
 void CL_GatherButtons (usercmd_t *cmd, int pnum)
 {
 	unsigned int bits = 0;
-	GATHERBIT(in_attack,	1);
-	GATHERBIT(in_jump,		2);
-	GATHERBIT(in_use,		4);
-	GATHERBIT(in_button3,	4);	//yup, flag 4 twice.
-	GATHERBIT(in_button4,	8);
-	GATHERBIT(in_button5,	16);
-	GATHERBIT(in_button6,	32);
-	GATHERBIT(in_button7,	64);
-	GATHERBIT(in_button8,	128);
+	GATHERBIT(in_attack,		0);
+	GATHERBIT(in_jump,			1);
+	GATHERBIT(in_button[3-3],	2);
+	GATHERBIT(in_button[4-3],	3);
+	GATHERBIT(in_button[5-3],	4);
+	GATHERBIT(in_button[6-3],	5);
+	GATHERBIT(in_button[7-3],	6);
+	GATHERBIT(in_button[8-3],	7);
+
+	//these are fucked, as required for dpcompat.
+	GATHERBIT(in_use,			(cls.protocol==CP_QUAKEWORLD)?4:8);
+	if (Key_Dest_Has(~kdm_game))	//game is the lowest priority, anything else will take focus away. we consider that to mean 'chat' (although it could be menus).
+		bits |= (1u<<9);
+	if (cursor_active)				//prydon cursor stuff.
+		bits |= (1u<<10);
+	GATHERBIT(in_button[9-3],	11);
+	GATHERBIT(in_button[10-3],	12);
+	GATHERBIT(in_button[11-3],	13);
+	GATHERBIT(in_button[12-3],	14);
+	GATHERBIT(in_button[13-3],	15);
+
+	GATHERBIT(in_button[14-3],	16);
+	GATHERBIT(in_button[15-3],	17);
+	GATHERBIT(in_button[16-3],	18);
 	cmd->buttons = bits;
 }
 
@@ -2280,7 +2293,7 @@ CL_InitInput
 void CL_InitInput (void)
 {
 	static char pcmd[MAX_SPLITS][3][5];
-	int sp;
+	unsigned int sp, i;
 #define inputnetworkcvargroup "client networking options"
 	cl.splitclients = 1;
 
@@ -2372,16 +2385,12 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("+mlook",		IN_MLookDown);
 	Cmd_AddCommand ("-mlook",		IN_MLookUp);
 
-	Cmd_AddCommand ("+button3",		IN_Button3Down);
-	Cmd_AddCommand ("-button3",		IN_Button3Up);
-	Cmd_AddCommand ("+button4",		IN_Button4Down);
-	Cmd_AddCommand ("-button4",		IN_Button4Up);
-	Cmd_AddCommand ("+button5",		IN_Button5Down);
-	Cmd_AddCommand ("-button5",		IN_Button5Up);
-	Cmd_AddCommand ("+button6",		IN_Button6Down);
-	Cmd_AddCommand ("-button6",		IN_Button6Up);
-	Cmd_AddCommand ("+button7",		IN_Button7Down);
-	Cmd_AddCommand ("-button7",		IN_Button7Up);
-	Cmd_AddCommand ("+button8",		IN_Button8Down);
-	Cmd_AddCommand ("-button8",		IN_Button8Up);
+	for (i = 0; i < countof(in_button); i++)
+	{
+		static char bcmd[countof(in_button)][2][10];
+		Q_snprintfz(bcmd[i][0], sizeof(bcmd[sp][0]), "+button%i", i+3);
+		Q_snprintfz(bcmd[i][1], sizeof(bcmd[sp][1]), "-button%i", i+3);
+		Cmd_AddCommand (bcmd[i][0],		IN_ButtonNDown);
+		Cmd_AddCommand (bcmd[i][1],		IN_ButtonNUp);
+	}
 }

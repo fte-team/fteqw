@@ -74,9 +74,13 @@ qboolean Sys_RandomBytes(qbyte *string, int len);
 
 char *Sys_ConsoleInput (void);
 
-char *Sys_GetClipboard(void);	//A stub would return NULL
-void Sys_CloseClipboard(char *buf); //a stub would do nothing
-void Sys_SaveClipboard(char *text); //a stub would do nothing.
+typedef enum
+{
+	CBT_SELECTION,	//select-to-copy, middle-to-paste
+	CBT_CLIPBOARD	//ctrl+c, ctrl+v
+} clipboardtype_t;
+void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, char *utf8), void *ctx);	//calls the callback once the text is available (maybe instantly). utf8 arg may be NULL if the clipboard was unavailable.
+void Sys_SaveClipboard(clipboardtype_t clipboardtype, char *text); //a stub would do nothing.
 
 //stuff for dynamic dedicated console -> gfx and back.
 void Sys_CloseTerminal (void);

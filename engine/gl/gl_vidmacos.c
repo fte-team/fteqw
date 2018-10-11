@@ -213,19 +213,14 @@ void INS_Move (void)
 {
 }
 
-#define SYS_CLIPBOARD_SIZE		256
+#define SYS_CLIPBOARD_SIZE  256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
-
-char *Sys_GetClipboard(void)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
 {
-	return clipboard_buffer;
+	callback(ctx, clipboard_buffer);
+}
+void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
+{
+ 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }
 
-void Sys_CloseClipboard(char *bf)
-{
-}
-
-void Sys_SaveClipboard(char *text)
-{
-	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
-}

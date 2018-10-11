@@ -630,7 +630,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 			return;
 	}
 
-	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || R2D_Flush != R2D_ImageFlush || draw_mesh.numvertexes+4 > DRAW_QUADS)
 	{
 		if (R2D_Flush)
 			R2D_Flush();
@@ -662,7 +662,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	draw_mesh.numvertexes += 4;
 	draw_mesh.numindexes += 6;
 }
-void R2D_Image2dQuad(vec2_t const*points, vec2_t const*texcoords, mpic_t *pic)
+void R2D_Image2dQuad(vec2_t const*points, vec2_t const*texcoords, vec4_t const*rgba, mpic_t *pic)
 {
 	int i;
 	if (!pic)
@@ -677,7 +677,7 @@ void R2D_Image2dQuad(vec2_t const*points, vec2_t const*texcoords, mpic_t *pic)
 			return;
 	}
 
-	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || R2D_Flush != R2D_ImageFlush || draw_mesh.numvertexes+4 > DRAW_QUADS)
 	{
 		if (R2D_Flush)
 			R2D_Flush();
@@ -694,7 +694,10 @@ void R2D_Image2dQuad(vec2_t const*points, vec2_t const*texcoords, mpic_t *pic)
 	{
 		Vector2Copy(points[i], draw_mesh_xyz[draw_mesh.numvertexes+i]);
 		Vector2Copy(texcoords[i], draw_mesh_st[draw_mesh.numvertexes+i]);
-		Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+i]);
+		if (rgba)
+			Vector4Copy(rgba[i], draw_mesh_colors[draw_mesh.numvertexes+i]);
+		else
+			Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+i]);
 	}
 
 	draw_mesh.numvertexes += 4;
@@ -709,7 +712,7 @@ void R2D_FillBlock(float x, float y, float w, float h)
 		pic = shader_draw_fill_trans;
 	else
 		pic = shader_draw_fill;
-	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || R2D_Flush != R2D_ImageFlush || draw_mesh.numvertexes+4 > DRAW_QUADS)
 	{
 		if (R2D_Flush)
 			R2D_Flush();
@@ -1014,6 +1017,14 @@ void R2D_Font_AddFontLink(char *buffer, int buffersize, char *fontname)
 		}
 	}
 }
+#else
+int R2D_Font_ListSystemFonts(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *spath)
+{
+	char tmp[MAX_QPATH];
+	COM_StripExtension(fname, tmp, sizeof(tmp));
+	Con_Printf("^[/gl_font %s^]\n", tmp);
+	return true;
+}
 #endif
 void R2D_Font_Changed(void)
 {
@@ -1049,9 +1060,9 @@ void R2D_Font_Changed(void)
 	if (qrenderer == QR_NONE)
 		return;
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 	if (!strcmp(gl_font.string, "?"))
 	{
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 		BOOL (APIENTRY *pChooseFontW)(LPCHOOSEFONTW) = NULL;
 		dllfunction_t funcs[] =
 		{
@@ -1073,7 +1084,7 @@ void R2D_Font_Changed(void)
 		cf.lpLogFont = &lf;
 
 		Sys_LoadLibrary("comdlg32.dll", funcs);
-					
+
 		if (pChooseFontW && pChooseFontW(&cf))
 		{
 			char fname[MAX_OSPATH*8];
@@ -1099,8 +1110,11 @@ void R2D_Font_Changed(void)
 			Cvar_Set(&gl_font, fname);
 		}
 		return;
-	}
+#else
+		Sys_EnumerateFiles("/usr/share/fonts/truetype/", "*/*.ttf", R2D_Font_ListSystemFonts, NULL, NULL);
+		Cvar_Set(&gl_font, "");
 #endif
+	}
 
 	font_default = Font_LoadFont(gl_font.string, 8);
 	if (!font_default && *gl_font.string)
@@ -1273,15 +1287,79 @@ R_PolyBlend
 //bright flashes and stuff, game only, doesn't touch sbar
 void R2D_PolyBlend (void)
 {
-	if (!r_refdef.playerview->screentint[3])
-		return;
+	extern cvar_t gl_cshiftborder;
+	float bordersize = gl_cshiftborder.value;
 
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 		return;
 
-	R2D_ImageColours (SRGBA(r_refdef.playerview->screentint[0], r_refdef.playerview->screentint[1], r_refdef.playerview->screentint[2], r_refdef.playerview->screentint[3]));
-	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader_polyblend);
-	R2D_ImageColours (1, 1, 1, 1);
+
+	if (bordersize && bordersize < r_refdef.vrect.width && bordersize < r_refdef.vrect.height)
+	{
+		vec2_t points[4];
+		vec2_t tcoords[4];
+		vec4_t colours[4];
+		int i;
+		if (!bordersize)
+			bordersize = 64;
+		bordersize = min(bordersize, min(r_refdef.vrect.width, r_refdef.vrect.height)/2);
+
+		for (i = 0; i < 4; i++)
+		{
+			Vector4Copy(r_refdef.playerview->bordertint, colours[0]);
+			Vector4Copy(r_refdef.playerview->bordertint, colours[1]);
+			Vector4Copy(r_refdef.playerview->bordertint, colours[2]);
+			Vector4Copy(r_refdef.playerview->bordertint, colours[3]);
+			switch(i)
+			{
+			case 0:	//top
+				Vector2Set(points[0], r_refdef.vrect.x,									r_refdef.vrect.y);
+				Vector2Set(points[1], r_refdef.vrect.x+r_refdef.vrect.width,			r_refdef.vrect.y);
+				Vector2Set(points[2], r_refdef.vrect.x+r_refdef.vrect.width-bordersize,	r_refdef.vrect.y+bordersize);
+				Vector2Set(points[3], r_refdef.vrect.x+bordersize,						r_refdef.vrect.y+bordersize);
+
+				colours[2][3] = colours[3][3] = 0;
+				break;
+			case 1:	//bottom
+				Vector2Set(points[0], r_refdef.vrect.x+bordersize,						r_refdef.vrect.y+r_refdef.vrect.height-bordersize);
+				Vector2Set(points[1], r_refdef.vrect.x+r_refdef.vrect.width-bordersize,	r_refdef.vrect.y+r_refdef.vrect.height-bordersize);
+				Vector2Set(points[2], r_refdef.vrect.x+r_refdef.vrect.width,			r_refdef.vrect.y+r_refdef.vrect.height);
+				Vector2Set(points[3], r_refdef.vrect.x,									r_refdef.vrect.y+r_refdef.vrect.height);
+
+				colours[0][3] = colours[1][3] = 0;
+				break;
+			case 2:	//left
+				Vector2Set(points[0], r_refdef.vrect.x,									r_refdef.vrect.y);
+				Vector2Set(points[1], r_refdef.vrect.x+bordersize,						r_refdef.vrect.y+bordersize);
+				Vector2Set(points[2], r_refdef.vrect.x+bordersize,						r_refdef.vrect.y+r_refdef.vrect.height-bordersize);
+				Vector2Set(points[3], r_refdef.vrect.x,									r_refdef.vrect.y+r_refdef.vrect.height);
+
+				colours[1][3] = colours[2][3] = 0;
+				break;
+			case 3:	//right
+				Vector2Set(points[0], r_refdef.vrect.x+r_refdef.vrect.width-bordersize,	r_refdef.vrect.y+bordersize);
+				Vector2Set(points[1], r_refdef.vrect.x+r_refdef.vrect.width,			r_refdef.vrect.y);
+				Vector2Set(points[2], r_refdef.vrect.x+r_refdef.vrect.width,			r_refdef.vrect.y+r_refdef.vrect.height);
+				Vector2Set(points[3], r_refdef.vrect.x+r_refdef.vrect.width-bordersize,	r_refdef.vrect.y+r_refdef.vrect.height-bordersize);
+				colours[0][3] = colours[3][3] = 0;
+				break;
+			}
+
+			Vector2Set(tcoords[0], points[0][0]/64, points[0][1]/64);
+			Vector2Set(tcoords[1], points[1][0]/64, points[1][1]/64);
+			Vector2Set(tcoords[2], points[2][0]/64, points[2][1]/64);
+			Vector2Set(tcoords[3], points[3][0]/64, points[3][1]/64);
+
+			R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, colours, shader_polyblend);
+		}
+	}
+
+	if (r_refdef.playerview->screentint[3])
+	{
+		R2D_ImageColours (SRGBA(r_refdef.playerview->screentint[0], r_refdef.playerview->screentint[1], r_refdef.playerview->screentint[2], r_refdef.playerview->screentint[3]));
+		R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader_polyblend);
+		R2D_ImageColours (1, 1, 1, 1);
+	}
 }
 
 //for lack of hardware gamma

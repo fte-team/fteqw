@@ -83,6 +83,7 @@ typedef struct
 //FIXME: the defines hidden inside this structure are evil.
 typedef struct prinst_s
  {
+	//temp strings are GCed, and can be created by engine, builtins, or just by ent parsing code.
 	tempstr_t **tempstrings;
 	unsigned int maxtempstrings;
 	unsigned int numtempstrings;
@@ -92,15 +93,16 @@ typedef struct prinst_s
 	unsigned int numtempstringsstack;
 #endif
 
+	//alloced strings are generally used to direct strings outside of the vm itself, sharing them with general engine state.
 	char **allocedstrings;
 	int maxallocedstrings;
 	int numallocedstrings;
 
 	struct progstate_s * progstate;
 #define pr_progstate prinst.progstate
+	unsigned int maxprogs;
 
 	progsnum_t pr_typecurrent;	//active index into progstate array. fixme: remove in favour of only using current_progstate
-	unsigned int maxprogs;
 
 	struct progstate_s *current_progstate;
 #define current_progstate prinst.current_progstate
@@ -124,6 +126,7 @@ typedef struct prinst_s
 
 
 //pr_exec.c
+	//call stack
 #define	MAX_STACK_DEPTH		1024	//insanely high value requried for xonotic.
 	prstack_t pr_stack[MAX_STACK_DEPTH];
 #define pr_stack prinst.pr_stack
@@ -131,19 +134,21 @@ typedef struct prinst_s
 #define pr_depth prinst.pr_depth
 	int spushed;
 
+	//locals
 #define	LOCALSTACK_SIZE		16384
 	int localstack[LOCALSTACK_SIZE];
 	int localstack_used;
 
+	//step-by-step debug state
 	int debugstatement;
 	int continuestatement;
 	int exitdepth;
 
 	pbool profiling;
-	prclocks_t profilingalert;
-	mfunction_t	*pr_xfunction;
+	prclocks_t profilingalert;	//one second, in cpu clocks
+	mfunction_t	*pr_xfunction;	//active function
 #define pr_xfunction prinst.pr_xfunction
-	int pr_xstatement;
+	int pr_xstatement;			//active statement
 #define pr_xstatement prinst.pr_xstatement
 
 //pr_edict.c
@@ -199,6 +204,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define OPF_STORE		0x2	//b+=a or just b=a
 #define OPF_STOREPTR	0x4	//the form of c=(*b+=a)
 #define OPF_LOADPTR		0x8
+//FIXME: add jumps
 
 
 
@@ -217,12 +223,12 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define sv_edicts (*externs->sv_edicts)
 
 #define PR_DPrintf externs->DPrintf
-#define printf externs->Printf
+#define printf syntax error
 #define Sys_Error externs->Sys_Error
 
 int PRHunkMark(progfuncs_t *progfuncs);
 void PRHunkFree(progfuncs_t *progfuncs, int mark);
-void *PRHunkAlloc(progfuncs_t *progfuncs, int size, char *name);
+void *PRHunkAlloc(progfuncs_t *progfuncs, int size, const char *name);
 void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int pad);
 
 #ifdef printf
@@ -237,9 +243,9 @@ void QC_StartShares(progfuncs_t *progfuncs);
 void PDECL QC_AddSharedVar(pubprogfuncs_t *progfuncs, int num, int type);
 void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *progfuncs, int num, char *stringtable);
 void QC_AddFieldGlobal(pubprogfuncs_t *ppf, int *globdata);
-int PDECL QC_RegisterFieldVar(pubprogfuncs_t *progfuncs, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
-pbool PDECL QC_Decompile(pubprogfuncs_t *progfuncs, char *fname);
-int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *progfuncs, char *filename, int linenum, int flag);
+int PDECL QC_RegisterFieldVar(pubprogfuncs_t *progfuncs, unsigned int type, const char *name, signed long requestedpos, signed long originalofs);
+pbool PDECL QC_Decompile(pubprogfuncs_t *progfuncs, const char *fname);
+int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *progfuncs, const char *filename, int linenum, int flag);
 void    StripExtension (char *path);
 
 
@@ -286,8 +292,8 @@ typedef struct edictrun_s
 int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, char **parms);
 int PDECL Comp_Continue(pubprogfuncs_t *progfuncs);
 
-pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, char *key);
-char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *progfuncs, char *key);
+pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, const char *key);
+char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *progfuncs, const char *key);
 char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, size_t *size, size_t maxsize, int mode);
 int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline));
 char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, size_t *size, size_t maxsize, struct edict_s *ed);
@@ -315,15 +321,19 @@ typedef struct progstate_s
 	char			*strings;
 	union {
 		ddefXX_t		*globaldefs;
-		ddef16_t		*globaldefs16;
-		ddef32_t		*globaldefs32;
+		ddef16_t		*globaldefs16;	//vanilla, kk
+		ddef32_t		*globaldefs32;	//fte, qtest
 	};
 	union {
 		ddefXX_t		*fielddefs;
-		ddef16_t		*fielddefs16;
-		ddef32_t		*fielddefs32;
+		ddef16_t		*fielddefs16;	//vanilla, kk
+		ddef32_t		*fielddefs32;	//fte, qtest
 	};
-	void	*statements;
+//	union {
+		void	*statements;
+//		dstatement16_t *statements16;	//vanilla, qtest
+//		dstatement32_t *statements32;	//fte, kk
+//	};
 //	void			*global_struct;
 	float			*globals;			// same as pr_global_struct
 	int				globals_size;	// in bytes
@@ -336,7 +346,7 @@ typedef struct progstate_s
 
 	int *linenums;	//debug versions only
 
-	progstructtype_t structtype;
+	progstructtype_t structtype;	//specifies the sized struct types above. FIXME: should probably just load as 32bit or something.
 
 #ifdef QCJIT
 	struct jitstate *jit;
@@ -378,7 +388,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *progfuncs, func_t fnum);
 int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s);
 int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain);
 
-void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name);
+void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, const char *name);
 
 void PR_Profile_f (void);
 
@@ -440,7 +450,7 @@ extern	const unsigned int		type_size[];
 
 extern	unsigned short		pr_crc;
 
-void VARGS PR_RunError (pubprogfuncs_t *progfuncs, char *error, ...) LIKEPRINTF(2);
+void VARGS PR_RunError (pubprogfuncs_t *progfuncs, const char *error, ...) LIKEPRINTF(2);
 
 void ED_PrintEdicts (progfuncs_t *progfuncs);
 void ED_PrintNum (progfuncs_t *progfuncs, int ent);
@@ -452,7 +462,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newprogs);
 
 
 
-eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *progfuncs, struct edict_s *ed, char *name, etype_t type, evalc_t *cache);
+eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *progfuncs, struct edict_s *ed, const char *name, etype_t type, evalc_t *cache);
 void PDECL PR_GenerateStatementString (pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);
 fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *progfuncs, unsigned int *count);
 char *PDECL PR_UglyValueString (pubprogfuncs_t *progfuncs, etype_t type, eval_t *val);
@@ -487,10 +497,10 @@ void	PDECL PR_AbortStack			(pubprogfuncs_t *progfuncs);
 pbool	PDECL PR_GetBuiltinCallInfo	(pubprogfuncs_t *ppf, int *builtinnum, char *function, size_t sizeoffunction);
 
 eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *prfuncs, const char *globname, progsnum_t pnum, etype_t *type);
-ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type);
-ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type);
-ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum);
-ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum);
+ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, progstate_t *ps, const char *name, int type);
+ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, progstate_t *ps, const char *name, int type);
+ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, progstate_t *ps, const char *name);
+ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, progstate_t *ps, const char *name);
 fdef_t *ED_FindField (progfuncs_t *progfuncs, const char *name);
 fdef_t *ED_ClassFieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs, const char *classname);
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
@@ -504,8 +514,8 @@ void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount);
 void QC_FlushProgsOffsets(progfuncs_t *progfuncs);
 
 ddef16_t *ED_GlobalAtOfs16 (progfuncs_t *progfuncs, int ofs);
-ddef16_t *ED_FindGlobal16 (progfuncs_t *progfuncs, char *name);
-ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name);
+ddef16_t *ED_FindGlobal16 (progfuncs_t *progfuncs, const char *name);
+ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, const char *name);
 ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
 
 string_t PDECL PR_StringToProgs			(pubprogfuncs_t *inst, const char *str);

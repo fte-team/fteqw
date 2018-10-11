@@ -1226,7 +1226,7 @@ static void QDECL Plug_UnRegisterAllModelFormats(void)
 	Mod_UnRegisterAllModelFormats(module);
 }
 #endif
-qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 #ifdef SKELETALMODELS
 	static modplugfuncs_t funcs =
@@ -1262,7 +1262,7 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 		return 0;
 }
 
-void Plug_Client_Init(void)
+static void Plug_Client_Init(void)
 {
 	Plug_RegisterBuiltin("CL_GetStats",				Plug_CL_GetStats, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, PLUG_BIF_NEEDSRENDERER);
@@ -1317,7 +1317,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("Mod_GetPluginModelFuncs",	Plug_Mod_GetPluginModelFuncs, PLUG_BIF_NEEDSRENDERER|PLUG_BIF_DLLONLY);
 }
 
-void Plug_Client_Close(plugin_t *plug)
+static void Plug_Client_Close(plugin_t *plug)
 {
 	Plug_FreePlugImages(plug);
 
@@ -1335,7 +1335,7 @@ void Plug_Client_Close(plugin_t *plug)
 	}
 }
 
-void Plug_Client_Shutdown(void)
+static void Plug_Client_Shutdown(void)
 {
 	BZ_Free(pluginimagearray);
 	pluginimagearray = NULL;

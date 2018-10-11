@@ -4386,7 +4386,8 @@ void SV_SetInfo_f (void)
 		val = Z_StrDup(val);
 	}
 
-	if (key[0] == '*')
+
+	if (key[0] == '*' && !(ISNQCLIENT(host_client) && !host_client->spawned && !strcmp(key, "*ver")))	//nq clients are allowed to set some * keys if ClientConnect wasn't called yet. FIXME: saved games may still be an issue.
 		SV_ClientPrintf(host_client, PRINT_HIGH, "setinfo: %s may not be changed mid-game\n", key);
 	else if (sv_userinfo_keylimit.ival >= 0 && host_client->userinfo.numkeys >= sv_userinfo_keylimit.ival && !offset && *val && !InfoBuf_FindKey(&host_client->userinfo, key, &k))	//when the limit is hit, allow people to freely change existing keys, but not new ones. they can also silently remove any that don't exist yet, too.
 		SV_ClientPrintf(host_client, PRINT_MEDIUM, "setinfo: userinfo is limited to %i keys. Ignoring setting %s\n", sv_userinfo_keylimit.ival, key);
@@ -7046,17 +7047,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 #endif
 
-	sv_player->v->button0 = ucmd->buttons & 1;
-	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
-	if (pr_allowbutton1.ival && progstype == PROG_QW)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-		sv_player->v->button1 = ((ucmd->buttons >> 2) & 1);
-// DP_INPUTBUTTONS
-	sv_player->xv->button3 = ((ucmd->buttons >> 2) & 1);
-	sv_player->xv->button4 = ((ucmd->buttons >> 3) & 1);
-	sv_player->xv->button5 = ((ucmd->buttons >> 4) & 1);
-	sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
-	sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
-	sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
+	SV_SetEntityButtons(sv_player, ucmd->buttons);
 	if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 		sv_player->v->impulse = ucmd->impulse;
 
@@ -7872,17 +7863,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 						if (newcmd.impulse)// && SV_FilterImpulse(newcmd.impulse, host_client->trustlevel))
 							split->edict->v->impulse = newcmd.impulse;
 
-						split->edict->v->button0 = newcmd.buttons & 1;
-						split->edict->v->button2 = (newcmd.buttons >> 1) & 1;
-						if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-							split->edict->v->button1 = ((newcmd.buttons >> 2) & 1);
-					// DP_INPUTBUTTONS
-						split->edict->xv->button3 = ((newcmd.buttons >> 2) & 1);
-						split->edict->xv->button4 = ((newcmd.buttons >> 3) & 1);
-						split->edict->xv->button5 = ((newcmd.buttons >> 4) & 1);
-						split->edict->xv->button6 = ((newcmd.buttons >> 5) & 1);
-						split->edict->xv->button7 = ((newcmd.buttons >> 6) & 1);
-						split->edict->xv->button8 = ((newcmd.buttons >> 7) & 1);
+						SV_SetEntityButtons(split->edict, newcmd.buttons);
 					}
 					else
 					{
@@ -8347,17 +8328,7 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 //	if (i && SV_FilterImpulse(i, host_client->trustlevel))
 //		host_client->edict->v->impulse = i;
 
-	host_client->edict->v->button0 = bits & 1;
-	host_client->edict->v->button2 = (bits >> 1) & 1;
-	if (pr_allowbutton1.ival && progstype == PROG_QW)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
-		host_client->edict->v->button1 = ((bits >> 2) & 1);
-// DP_INPUTBUTTONS
-	host_client->edict->xv->button3 = ((bits >> 2) & 1);
-	host_client->edict->xv->button4 = ((bits >> 3) & 1);
-	host_client->edict->xv->button5 = ((bits >> 4) & 1);
-	host_client->edict->xv->button6 = ((bits >> 5) & 1);
-	host_client->edict->xv->button7 = ((bits >> 6) & 1);
-	host_client->edict->xv->button8 = ((bits >> 7) & 1);
+	SV_SetEntityButtons(host_client->edict, bits);
 
 	if (host_client->last_sequence && !sv_nqplayerphysics.ival && host_client->state == cs_spawned)
 	{

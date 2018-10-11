@@ -236,16 +236,16 @@ static void Con_Editor_DeleteSelection(console_t *con)
 	con->userline = con->selstartline;
 	con->useroffset = con->selstartoffset;
 }
-static void Con_Editor_Paste(console_t *con)
+static void Con_Editor_DoPaste(void *ctx, char *utf8)
 {
-	char *clipText = Sys_GetClipboard();
-	if (clipText)
+	console_t *con = ctx;
+	if (utf8)
 	{
 		conchar_t buffer[8192], *end;
 		char *s, *nl;
-		if (*clipText && (con->flags & CONF_KEEPSELECTION))
+		if (*utf8 && (con->flags & CONF_KEEPSELECTION))
 			Con_Editor_DeleteSelection(con);
-		for(s = clipText; ; )
+		for(s = utf8; ; )
 		{
 			nl = strchr(s, '\n');
 			if (nl)
@@ -263,8 +263,11 @@ static void Con_Editor_Paste(console_t *con)
 			else
 				break;
 		}
-		Sys_CloseClipboard(clipText);
 	}
+}
+static void Con_Editor_Paste(console_t *con)
+{
+	Sys_Clipboard_PasteText(CBT_CLIPBOARD, Con_Editor_DoPaste, con);
 }
 static void Con_Editor_Save(console_t *con)
 {
@@ -606,7 +609,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			char *buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
 			if (buffer)
 			{
-				Sys_SaveClipboard(buffer);
+				Sys_SaveClipboard(CBT_CLIPBOARD, buffer);
 				Z_Free(buffer);
 			}
 			break;
@@ -791,7 +794,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			char *buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
 			if (buffer)
 			{
-				Sys_SaveClipboard(buffer);
+				Sys_SaveClipboard(CBT_CLIPBOARD, buffer);
 				Z_Free(buffer);
 			}
 			break;

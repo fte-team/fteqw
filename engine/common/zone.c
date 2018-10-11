@@ -31,9 +31,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //must be multiple of 4.
-#define TEMPDEBUG 4
-#define ZONEDEBUG 4
-#define HUNKDEBUG 4
+//#define TEMPDEBUG 4
+//#define ZONEDEBUG 4
+//#define HUNKDEBUG 4
 
 //these need to be defined because it makes some bits of code simpler
 #ifndef HUNKDEBUG
@@ -197,8 +197,6 @@ void *ZF_Malloc(int size)
 	void *ret = NULL;
 	if (!posix_memalign(&ret, max(sizeof(float)*4, sizeof(void*)), size))
 		memset(ret, 0, size);
-	else
-		ret = NULL;
 	return ret;
 #else
 	return calloc(size, 1);

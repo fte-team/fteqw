@@ -38,6 +38,8 @@ static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
 	char	*in, *out, *end;
 	int		j;
 	char	line[MAX_OSPATH];
+	flocation_t loc;
+	time_t	mtime;
 	vfsfile_t	*f;
 	int		version;
 
@@ -49,12 +51,13 @@ static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
 	Q_strncpyz (m_saves[slot].time, "", sizeof(m_saves[slot].time));
 
 	snprintf (line, sizeof(line), "saves/%s/info.fsv", m_saves[slot].sname);
-	f = FS_OpenVFS (line, "rb", FS_GAME);
-	if (!f)
+	if (!FS_FLocateFile(line, FSLF_DONTREFERENCE|FSLF_IGNOREPURE, &loc))
 	{	//legacy saved games from some other engine
 		snprintf (line, sizeof(line), "%s.sav", m_saves[slot].sname);
-		f = FS_OpenVFS (line, "rb", FS_GAME);
+		if (!FS_FLocateFile(line, FSLF_DONTREFERENCE|FSLF_IGNOREPURE, &loc))
+			return;	//not found
 	}
+	f = FS_OpenReadLocation(&loc);
 	if (f)
 	{
 		VFS_GETS(f, line, sizeof(line));
@@ -84,8 +87,11 @@ static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
 			out--;
 		*out = 0;
 
-		Q_strncpyz(m_saves[slot].time, line+39, sizeof(m_saves[slot].time));
-
+		if (strlen(line) > 39)
+			Q_strncpyz(m_saves[slot].time, line+39, sizeof(m_saves[slot].time));
+		else if (FS_GetLocMTime(&loc, &mtime))
+			strftime(m_saves[slot].time, sizeof(m_saves[slot].time), "%Y-%m-%d %H:%M:%S", localtime( &mtime ));
+		// else time unknown, just leave it blank
 
 		if (version == 5 || version == 6)
 		{

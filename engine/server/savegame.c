@@ -151,13 +151,17 @@ pbool SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char *
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 		sv.strings.particle_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
 	}
+	else if (PR_Common_LoadGame(svprogfuncs, token, &l))
+		;
+	/*
 	else if (!strcmp(token, "buffer"))
 	{
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
 		//buffer = atoi(token);
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		//count = atoi(token);
+		//flags = atoi(token);
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		//"string" == token
 		return false;
 	}
 	else if (!strcmp(token, "bufstr"))
@@ -168,7 +172,7 @@ pbool SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char *
 		//idx = atoi(token);
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 		return false;
-	}
+	}*/
 	else
 		return false;
 	*ptr = l;

@@ -734,12 +734,14 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (!strcmp(str, "vid_conwidth"))
 	{
-		csqc_deprecated("vid_conwidth cvar used");
+		if (!csqc_isdarkplaces)	//don't warn when its unfixable...
+			csqc_deprecated("vid_conwidth cvar has aspect issues");
 		G_FLOAT(OFS_RETURN) = vid.width;
 	}
 	else if (!strcmp(str, "vid_conheight"))
 	{
-		csqc_deprecated("vid_conheight cvar used");
+		if (!csqc_isdarkplaces)
+			csqc_deprecated("vid_conheight cvar has aspect issues");
 		G_FLOAT(OFS_RETURN) = vid.height;
 	}
 	else
@@ -1806,6 +1808,7 @@ void buildmatricies(void)
 	float modelview[16];
 	float proj[16];
 	float ofovx = r_refdef.fov_x,ofovy=r_refdef.fov_y;
+	float ofovvx = r_refdef.fovv_x,ofovvy=r_refdef.fovv_y;
 
 	V_ApplyAFov(csqc_playerview);
 
@@ -1826,6 +1829,8 @@ void buildmatricies(void)
 
 	r_refdef.fov_x = ofovx,
 	r_refdef.fov_y = ofovy;
+	r_refdef.fovv_x = ofovvx,
+	r_refdef.fovv_y = ofovvy;
 }
 static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2145,25 +2150,28 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.afov = 0;
 		r_refdef.fov_x = p[0];
 		r_refdef.fov_y = p[1];
+		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
 		break;
 
 	case VF_FOVX:
 		r_refdef.afov = 0;
 		r_refdef.fov_x = *p;
+		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
 		break;
 
 	case VF_FOVY:
 		r_refdef.afov = 0;
 		r_refdef.fov_y = *p;
+		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
 		break;
 
 	case VF_AFOV:
 		r_refdef.afov = *p;
-		r_refdef.fov_x = 0;
-		r_refdef.fov_y = 0;
+		r_refdef.fov_x = r_refdef.fov_y = 0;
+		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
 		break;
 
@@ -2385,9 +2393,9 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 
 	r_refdef.playerview = csqc_playerview;
 
+	V_ApplyRefdef();
 	V_CalcGunPositionAngle(csqc_playerview, V_CalcBob(csqc_playerview, true));
 
-	V_ApplyRefdef();
 	R_RenderView();
 	R2D_PolyBlend ();
 
@@ -5751,9 +5759,15 @@ static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_
 		DEAD,
 		INTERMISSION
 	} flags = G_FLOAT(OFS_PARM1);*/
-	csqc_deprecated("V_CalcRefdef has too much undefined behaviour.\n");
+//	csqc_deprecated("V_CalcRefdef has too much undefined behaviour.\n");
 //	if (ent->xv->entnum >= 1 && ent->xv->entnum <= MAX_CLIENTS)
 //		CSQC_ChangeLocalPlayer(ent->xv->entnum-1);
+
+	/* xonotic requires:
+	   cl_followmodel
+	   cl_smoothviewheight
+	   cl_bobfall
+	*/
 
 	csqc_rebuildmatricies = true;
 

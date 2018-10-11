@@ -71,7 +71,8 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
 double I_FloatTime (void);
 
 void	VARGS QCC_Error (int errortype, const char *error, ...) LIKEPRINTF(2);
-int		CheckParm (char *check);
+int QCC_CheckParm (const char *check);
+const char *QCC_ReadParm (const char *check);
 
 
 int 	SafeOpenWrite (char *filename, int maxsize);

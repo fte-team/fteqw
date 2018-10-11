@@ -64,7 +64,7 @@ static char casevar[9][1000]; //numbered_command
 #define RELEASE __DATE__
 
 void (*Con_TrySubPrint)(const char *subname, const char *text);
-void Con_FakeSubPrint(const char *subname, const char *text)
+static void Con_FakeSubPrint(const char *subname, const char *text)
 {
 	pCon_Print(text);
 }
@@ -220,7 +220,7 @@ typedef struct ircclient_s {
 ircclient_t *ircclients;
 
 
-void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *format, ...)
+static void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -271,7 +271,7 @@ void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *format, ..
 			pCon_SetConsoleString(lwr, "footer", string);
 	}
 }
-qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
+static qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
 {
 	char lwr[128];
 	int i;
@@ -293,7 +293,7 @@ qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
 	}
 	return true;
 }
-void IRC_Printf(ircclient_t *irc, const char *subname, const char *format, ...)
+static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -351,7 +351,7 @@ void IRC_Printf(ircclient_t *irc, const char *subname, const char *format, ...)
 
 
 
-void IRC_InitCvars(void)
+static void IRC_InitCvars(void)
 {
 	vmcvar_t *v;
 	int i;
@@ -362,7 +362,7 @@ void IRC_InitCvars(void)
 	}
 }
 
-int IRC_CvarUpdate(void) // perhaps void instead?
+static int IRC_CvarUpdate(void) // perhaps void instead?
 {
 	vmcvar_t *v;
 	int i;
@@ -458,7 +458,7 @@ qintptr_t IRC_ConExecuteCommand(qintptr_t *args)
 	return true;
 }
 
-void IRC_AddClientMessage(ircclient_t *irc, char *msg)
+static void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 {
 	char output[4096];
 	int len;
@@ -475,7 +475,7 @@ void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 	if (irc_debug.value == 1) { IRC_Printf(irc, DEFAULTCONSOLE,COLOURYELLOW "<< %s \n",msg); }
 }
 
-ircclient_t *IRC_FindAccount(const char *server)
+static ircclient_t *IRC_FindAccount(const char *server)
 {
 	ircclient_t *irc;
 	for (irc = ircclients; irc; irc = irc->next)
@@ -486,7 +486,7 @@ ircclient_t *IRC_FindAccount(const char *server)
 	return NULL;	//no match
 }
 
-ircclient_t *IRC_Create(const char *server, const char *nick, const char *realname, const char *hostname, const char *password, const char *channels)
+static ircclient_t *IRC_Create(const char *server, const char *nick, const char *realname, const char *hostname, const char *password, const char *channels)
 {
 	ircclient_t *irc;
 
@@ -524,19 +524,19 @@ ircclient_t *IRC_Create(const char *server, const char *nick, const char *realna
 	return irc;
 }
 
-void IRC_SetPass(ircclient_t *irc, char *pass)
+static void IRC_SetPass(ircclient_t *irc, char *pass)
 {
 	Q_strlcpy(irc->pwd, pass, sizeof(irc->pwd));
 	if (*pass && irc->tlsmode != TLS_STARTING)
 		IRC_AddClientMessage(irc, va("PASS %s", pass));
 }
-void IRC_SetNick(ircclient_t *irc, char *nick)
+static void IRC_SetNick(ircclient_t *irc, char *nick)
 {
 	Q_strlcpy(irc->nick, nick, sizeof(irc->nick));
 	if (irc->tlsmode != TLS_STARTING)
 		IRC_AddClientMessage(irc, va("NICK %s", irc->nick));
 }
-void IRC_SetUser(ircclient_t *irc, char *user)
+static void IRC_SetUser(ircclient_t *irc, char *user)
 {
 	IRC_CvarUpdate();
 
@@ -544,7 +544,7 @@ void IRC_SetUser(ircclient_t *irc, char *user)
 		IRC_AddClientMessage(irc, va("USER %s %s %s :%s", irc_ident.string, irc->hostname, irc->server, irc_realname.string));
 }
 
-qboolean IRC_Establish(ircclient_t *irc)
+static qboolean IRC_Establish(ircclient_t *irc)
 {
 	if (!irc)
 		return false;
@@ -591,7 +591,7 @@ qboolean IRC_Establish(ircclient_t *irc)
 	return true;
 }
 
-void IRC_ParseConfig(void)
+static void IRC_ParseConfig(void)
 {
 	qhandle_t config;
 	int len = pFS_Open("**plugconfig", &config, 1);
@@ -638,7 +638,7 @@ void IRC_ParseConfig(void)
 		free(buf);
 	}
 }
-void IRC_WriteConfig(void)
+static void IRC_WriteConfig(void)
 {
 	qhandle_t config;
 	pFS_Open("**plugconfig", &config, 2);
@@ -657,7 +657,7 @@ void IRC_WriteConfig(void)
 	}
 }
 
-void IRC_PartChannelInternal(ircclient_t *irc, char *channelname)
+static void IRC_PartChannelInternal(ircclient_t *irc, char *channelname)
 {
 	char ac[countof(irc->autochannels)];
 	char *chan;
@@ -686,13 +686,13 @@ void IRC_PartChannelInternal(ircclient_t *irc, char *channelname)
 	}
 }
 
-void IRC_PartChannel(ircclient_t *irc, char *channelname)
+static void IRC_PartChannel(ircclient_t *irc, char *channelname)
 {
 	IRC_PartChannelInternal(irc, channelname);
 	IRC_AddClientMessage(irc, va("PART %s", channelname));
 }
 
-void IRC_JoinChannel(ircclient_t *irc, char *channel, char *key) // i screwed up, its actually: <channel>{,<channel>} [<key>{,<key>}]
+static void IRC_JoinChannel(ircclient_t *irc, char *channel, char *key) // i screwed up, its actually: <channel>{,<channel>} [<key>{,<key>}]
 {
 	IRC_PartChannelInternal(irc, channel);
 
@@ -716,7 +716,7 @@ void IRC_JoinChannel(ircclient_t *irc, char *channel, char *key) // i screwed up
 	}
 }
 
-void IRC_JoinChannels(ircclient_t *irc, char *channelstring)
+static void IRC_JoinChannels(ircclient_t *irc, char *channelstring)
 {
 	char *chan = strtok(channelstring, " ");
 	while(chan)
@@ -763,7 +763,7 @@ background examples: (note
 I hope this makes sense to you, to be able to edit the IRC_FilterMircColours function ~ Moodles
 
 */
-void IRC_FilterMircColours(char *msg)
+static void IRC_FilterMircColours(char *msg)
 {
 	int i;
 	int chars;
@@ -851,7 +851,7 @@ void IRC_FilterMircColours(char *msg)
 #define IRC_CONTINUE 1
 #define IRC_KILL 2
 
-void magic_tokenizer(int word,char *thestring)
+static void magic_tokenizer(int word,char *thestring)
 {
 	char *temp;
 	int i = 1;
@@ -879,7 +879,7 @@ void magic_tokenizer(int word,char *thestring)
 
 }
 
-void magic_etghack(char *thestring)
+static void magic_etghack(char *thestring)
 {
 	char *temp;
 	int i = 1;
@@ -910,7 +910,7 @@ void magic_etghack(char *thestring)
 
 //==================================================
 
-void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars up 1 more than debug says
+static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars up 1 more than debug says
 {
 	magic_tokenizer(0,msg);
 
@@ -1222,7 +1222,7 @@ void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars up 1 m
 	IRC_Printf(irc, DEFAULTCONSOLE, "%s\n", msg); // if no raw number exists, print the thing
 }
 
-struct ircice_s *IRC_ICE_Find(ircclient_t *irc, const char *sender, enum iceproto_e type)
+static struct ircice_s *IRC_ICE_Find(ircclient_t *irc, const char *sender, enum iceproto_e type)
 {
 	struct ircice_s *ice;
 	for (ice = irc->ice; ice; ice = ice->next)
@@ -1232,7 +1232,7 @@ struct ircice_s *IRC_ICE_Find(ircclient_t *irc, const char *sender, enum iceprot
 	}
 	return NULL;
 }
-struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enum iceproto_e type, qboolean creator)
+static struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enum iceproto_e type, qboolean creator)
 {
 	struct icestate_s *ice;
 	struct ircice_s *ircice;
@@ -1287,7 +1287,7 @@ struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enum icepr
 
 	return ircice;
 }
-void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
+static void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
 {
 	//I was originally using colons to separate terms, but switched to slashes to avoid smilies for irc clients that print unknown CTCP messages.
 	char message[1024];
@@ -1398,7 +1398,7 @@ void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
 		IRC_AddClientMessage(irc, va("NOTICE %s :\001FTEICE %c%s%s\001", ice->peer, updatetype, icetype, message));
 }
 
-void IRC_ICE_ParseCandidate(struct icestate_s *ice, char *cand)
+static void IRC_ICE_ParseCandidate(struct icestate_s *ice, char *cand)
 {
 	char *addr;
 	struct icecandinfo_s info;
@@ -1429,7 +1429,7 @@ void IRC_ICE_ParseCandidate(struct icestate_s *ice, char *cand)
 	piceapi->ICE_AddRCandidateInfo(ice, &info);
 }
 
-void IRC_ICE_ParseCodec(struct icestate_s *ice, char *codec)
+static void IRC_ICE_ParseCodec(struct icestate_s *ice, char *codec)
 {
 	char *start;
 	unsigned int num;
@@ -1444,7 +1444,7 @@ void IRC_ICE_ParseCodec(struct icestate_s *ice, char *codec)
 	piceapi->ICE_Set(ice, va("codec%i", num), name);
 }
 
-void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
+static void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
 {
 	struct ircice_s *ice;
 	char token[256];
@@ -1556,7 +1556,7 @@ void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
 		IRC_Printf(irc, sender, "ICE command type not supported\n", token);
 }
 
-void IRC_ICE_Frame(ircclient_t *irc)
+static void IRC_ICE_Frame(ircclient_t *irc)
 {
 	char bah[8];
 	struct ircice_s *ice;
@@ -1768,7 +1768,7 @@ qintptr_t IRC_ConsoleLink(qintptr_t *args)
 
 //==================================================
 
-int IRC_ClientFrame(ircclient_t *irc)
+static int IRC_ClientFrame(ircclient_t *irc)
 {
 	char prefix[64];
 	int ret;

@@ -28,7 +28,7 @@ vec3_t vec3_origin = {0,0,0};
 
 #define DEG2RAD( a ) ( a * M_PI ) / 180.0F
 
-void ProjectPointOnPlane( vec3_t dst, const vec3_t p, const vec3_t normal )
+static void ProjectPointOnPlane( vec3_t dst, const vec3_t p, const vec3_t normal )
 {
 	float d;
 	vec3_t n;
@@ -267,7 +267,7 @@ if (sides == 0)
 
 
 
-void VVPerpendicularVector(vec3_t dst, const vec3_t src)
+static void VVPerpendicularVector(vec3_t dst, const vec3_t src)
 {
 	if (!src[0] && !src[1])
 	{
@@ -858,9 +858,9 @@ void QDECL GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec
 	result[1*4+3]  =     pos[1];
 	result[2*4+3]  =     pos[2];
 }
-#ifdef HALFLIFEMODELS
+#if 0//def HALFLIFEMODELS
 
-void AngleQuaternion( const vec3_t angles, vec4_t quaternion )
+static void AngleQuaternion( const vec3_t angles, vec4_t quaternion )
 {
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
@@ -882,7 +882,7 @@ void AngleQuaternion( const vec3_t angles, vec4_t quaternion )
 	quaternion[3] = cr*cp*cy+sr*sp*sy; // W
 }
 
-void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] )
+static void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] )
 {
 
 	matrix[0][0] = 1.0 - 2.0 * quaternion[1] * quaternion[1] - 2.0 * quaternion[2] * quaternion[2];

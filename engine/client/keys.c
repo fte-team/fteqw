@@ -1172,7 +1172,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
-		Sys_SaveClipboard(buffer);
+		Sys_SaveClipboard(CBT_SELECTION,  buffer);
 		Z_Free(buffer);
 	}
 	if (con->buttonsdown == CB_CLOSE)
@@ -1320,6 +1320,13 @@ void Key_EntryInsert(unsigned char **line, int *linepos, char *instext)
 	*linepos += len;
 }
 
+static void Key_ConsolePaste(void *ctx, char *utf8)
+{
+	unsigned char **line = ctx;
+	int *linepos = ((line == &chat_buffer)?&chat_bufferpos:&key_linepos);
+	if (utf8)
+		Key_EntryInsert(line, linepos, utf8);
+}
 qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int key, unsigned int unicode)
 {
 	qboolean alt = keydown[K_LALT] || keydown[K_RALT];
@@ -1408,18 +1415,21 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 	//beware that windows translates ctrl+c and ctrl+v to a control char
 	if (((unicode=='C' || unicode=='c' || unicode==3) && ctrl) || (ctrl && key == K_INS))
 	{
-		Sys_SaveClipboard(*line);
+		Sys_SaveClipboard(CBT_CLIPBOARD, *line);
 		return true;
 	}
 
 	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
 	{
+		Sys_Clipboard_PasteText(CBT_CLIPBOARD, Key_ConsolePaste, line);
+		/*
 		char *clipText = Sys_GetClipboard();
 		if (clipText)
 		{
 			Key_EntryInsert(line, linepos, clipText);
 			Sys_CloseClipboard(clipText);
 		}
+		*/
 		return true;
 	}
 
@@ -1813,7 +1823,9 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		char *txt = key_lines[edit_line];
 		char *guess = Cmd_CompleteCommand(*txt=='/'?txt+1:txt, true, true, con_commandmatch, NULL);
 		Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
-		if (guess)
+		if (!key_linepos)
+			con_commandmatch = 0;
+		else if (guess)
 		{
 			guess = Z_StrDup(guess);
 			txt = key_lines[edit_line];

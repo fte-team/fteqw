@@ -270,6 +270,7 @@ void main ()
 	#endif
 
 	col.rgb *= light;
+	col *= e_colourident;
 
 	#ifdef FULLBRIGHT
 		vec4 fb = texture2D(s_fullbright, tc);
@@ -278,7 +279,7 @@ void main ()
 	#endif
 #endif
 
-	gl_FragColor = fog4(col * e_colourident);
+	gl_FragColor = fog4(col);
 }
 #endif
 

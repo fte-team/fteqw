@@ -89,7 +89,7 @@ void *EGL_Proc(char *f)
 	return proc;
 }
 
-const char *EGL_GetErrorString(int error)
+static const char *EGL_GetErrorString(int error)
 {
 	switch(error)
 	{
@@ -263,7 +263,11 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 	if (qeglGetPlatformDisplay && eglplat)
 		egldpy = qeglGetPlatformDisplay(eglplat, ndpy, NULL/*attribs*/);
 	else
+	{
+		if (eglplat == EGL_PLATFORM_WAYLAND_KHR)
+			Con_Printf(CON_ERROR "EGL: eglGetPlatformDisplay[EXT] not supported. Your EGL implementation is probably too old.\n");
 		egldpy = qeglGetDisplay(dpyid);
+	}
 	if (egldpy == EGL_NO_DISPLAY)
 	{
 		Con_Printf(CON_WARNING "EGL: creating default display\n");
@@ -309,8 +313,8 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 	if (eglsurf == EGL_NO_SURFACE)
 	{
 		int err = qeglGetError();
-		if (eglplat == EGL_PLATFORM_WAYLAND_KHR && err == EGL_BAD_CONTEXT)	//slightly more friendly error that slags off nvidia for their refusal to implement existing standards, as is apparently appropriate.
-			Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: Bad Display. This often happens with nvidia... Try different drivers...\n");
+		if (eglplat == EGL_PLATFORM_WAYLAND_KHR && err == EGL_BAD_DISPLAY)	//slightly more friendly error that slags off nvidia for their refusal to implement existing standards, as is apparently appropriate.
+			Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: Bad Display. Your wayland setup is probably not properly supported by your video drivers.\n");
 		else
 			Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: %s\n", EGL_GetErrorString(err));
 		return false;

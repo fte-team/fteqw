@@ -4567,11 +4567,12 @@ static int QCC_FindQCFiles(const char *sourcedir)
 }
 
 
-static void QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, char *relative)
+static pbool QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, char *relative)
 {
 	int p;
 	char *s1, *s2;
-	QC_strlcpy (dest, base, destsize);
+	if (!QC_strlcpy (dest, base, destsize))
+		return false;
 	s1 = strchr(dest, '\\');
 	s2 = strchr(dest, '/');
 	if (s2 > s1)
@@ -4607,22 +4608,27 @@ static void QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, ch
 	{
 		if (p)
 		{	//we were still looking for a separator, but didn't find one, so kill the entire path.
-			QC_strlcpy(dest, "", destsize);
+			(void)QC_strlcpy(dest, "", destsize);
 			p--;
 		}
-		else
-			QC_strlcat(dest, "/", destsize);
+		else if (!QC_strlcat(dest, "/", destsize))
+			return false;
 	}
-	QC_strlcat(dest, s2, destsize);
+	if (!QC_strlcat(dest, s2, destsize))
+		return false;
 
-	while (p>0 && strlen(dest)+3 < destsize)
+	while (p>0)
 	{
+		if (strlen(dest)+3 >= destsize)
+			return false;
 		memmove(dest+3, dest, strlen(dest)+1);
 		dest[0] = '.';
 		dest[1] = '.';
 		dest[2] = '/';
 		p--;
 	}
+
+	return true;
 }
 
 const char *qcccol[COL_MAX];
@@ -4769,7 +4775,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	time(&long_time);
 	strftime(QCC_copyright, sizeof(QCC_copyright),  "Compiled [%Y/%m/%d]. ", localtime( &long_time ));
-	QC_strlcat(QCC_copyright, QCC_VersionString(), sizeof(QCC_copyright));
+	(void)QC_strlcat(QCC_copyright, QCC_VersionString(), sizeof(QCC_copyright));
 	for (p = 0; p < 5; p++)
 		strcpy(QCC_Packname[p], "");
 
@@ -4913,7 +4919,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	qccmsrc = NULL;
 	if (!numsourcefiles)
-	{
+	{	//generate an internal .src file from the argument list
 		int i;
 		for (i = 1;i<myargc;i++)
 		{
@@ -4923,10 +4929,10 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 			if (!qccmsrc)
 			{
 				qccmsrc = qccHunkAlloc(8192);
-				QC_strlcpy(qccmsrc, "progs.dat\n", 8192);
+				(void)QC_strlcpy(qccmsrc, "progs.dat\n", 8192);
 			}
-			QC_strlcat(qccmsrc, myargv[i], 8192);
-			QC_strlcat(qccmsrc, "\n", 8192);
+			if (!QC_strlcat(qccmsrc, myargv[i], 8192) || !QC_strlcat(qccmsrc, "\n", 8192))
+				QCC_PR_ParseWarning (WARN_STRINGTOOLONG, "Too many files to compile");
 		}
 	}
 

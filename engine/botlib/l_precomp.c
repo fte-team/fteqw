@@ -466,6 +466,7 @@ int PC_ReadDefineParms(source_t *source, define_t *define, token_t **parms, int 
 //============================================================================
 int PC_StringizeTokens(token_t *tokens, token_t *token)
 {
+	int ret = qtrue;
 	token_t *t;
 
 	token->type = TT_STRING;
@@ -475,10 +476,15 @@ int PC_StringizeTokens(token_t *tokens, token_t *token)
 	strcat(token->string, "\"");
 	for (t = tokens; t; t = t->next)
 	{
-		strncat(token->string, t->string, MAX_TOKEN - strlen(token->string) - 1);
+		if (strlen(token->string)+strlen(t->string) >= MAX_TOKEN-1)
+		{
+			ret = qfalse;
+			break;
+		}
+		strcat(token->string, t->string);
 	} //end for
 	strncat(token->string, "\"", MAX_TOKEN - strlen(token->string) - 1);
-	return qtrue;
+	return ret;
 } //end of the function PC_StringizeTokens
 //============================================================================
 //
@@ -1018,7 +1024,10 @@ int PC_Directive_include(source_t *source)
 				break;
 			} //end if
 			if (token.type == TT_PUNCTUATION && *token.string == '>') break;
-			strncat(path, token.string, MAX_PATH - 1);
+			if (strlen(path) + strlen(token.string) >= MAX_PATH)
+				SourceWarning(source, "#include truncation");
+			else			
+				strcat(path, token.string);
 		} //end while
 		if (*token.string != '>')
 		{

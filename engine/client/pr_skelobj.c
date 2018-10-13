@@ -2075,7 +2075,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 			lastbone = firstbone;
 
 		fstate.g[FS_REG].endbone = 0x7fffffff;
-		for (i = 0; i < 4; i++)
+		for (i = 0; i < FRAME_BLENDS; i++)
 		{
 			fstate.g[FS_REG].frame[i] = blends->animation[i];
 			fstate.g[FS_REG].frametime[i] = blends->animationtime[i];

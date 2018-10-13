@@ -20,7 +20,7 @@ ifeq ($(SVNREVISION),)
 endif
 MAKE:=$(MAKE) SVNREVISION=$(SVNREVISION)
 
-WHOAMI:=$(shell whoami)
+#WHOAMI:=$(shell whoami)
 
 
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
@@ -28,7 +28,7 @@ JPEGVER=9b
 ZLIBVER=1.2.11
 PNGVER=1.6.34
 OGGVER=1.3.3
-VORBISVER=1.3.5
+VORBISVER=1.3.6
 SDL2VER=2.0.7
 SCINTILLAVER=373
 OPUSVER=1.2.1
@@ -77,11 +77,14 @@ ifneq (,$(BRANDING))
 	BRANDFLAGS+=-DBRANDING_INC=../game_$(BRANDING).h
 	-include game_$(BRANDING).mak
 endif
-ifneq (,$(FTE_CONFIG))
-	export FTE_CONFIG_EXTRA:=$(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
-	BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
-	EXE_NAME=$(FTE_CONFIG)
+FTE_CONFIG?=fteqw
+ifneq ($(FTE_TARGET),vc)
+ifeq (,$(FTE_CONFIG_EXTRA))
+	export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
 endif
+endif
+BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
+EXE_NAME=$(FTE_CONFIG)
 ifeq (,$(findstring DNO_SPEEX,$(FTE_CONFIG_EXTRA)))
 	USE_SPEEX=1
 endif
@@ -856,9 +859,9 @@ endif
 
 COMMONLIBFLAGS=
 COMMONLDDEPS=
-CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC) $(LIBFREETYPE_STATIC)
+CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC)
 SERVERLIBFLAGS=$(COMMONLIBFLAGS)
-CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS) $(LIBFREETYPE_LDFLAGS)
+CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS)
 SERVERLDDEPS=$(COMMONLDDEPS)
 ifeq (1,$(USE_OPUS))
 	LIBOPUS_STATIC=-DOPUS_STATIC
@@ -877,12 +880,12 @@ else
 	OGGVORBISFILE_STATIC=
 endif
 ifeq (1,$(LINK_FREETYPE))
-	LIBFREETYPE_STATIC=-DFREETYPE_STATIC
-	LIBFREETYPE_LDFLAGS=-lfreetype
+	CLIENTLIBFLAGS+=-DFREETYPE_STATIC
+	CLIENTLDDEPS+=-lfreetype
 endif
 ifeq (1,$(LINK_PNG))
-	LIBFREETYPE_STATIC=-DAVAIL_PNG
-	LIBFREETYPE_LDFLAGS=-lpng
+	CLIENTLIBFLAGS+=-DAVAIL_PNG
+	CLIENTLDDEPS+=-lpng
 endif
 ifeq (1,$(strip $(INTERNAL_BULLET)))
 	COMMON_OBJS+=com_phys_bullet.o
@@ -1739,6 +1742,7 @@ $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 $(OUT_DIR)/quakedef.h.gch : quakedef.h
 	$(CC) -x c $(ALL_CFLAGS) -o $@ -c $<
 PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
+ALL_CFLAGS+=-I$(OUT_DIR)
 
 #addprefix is to add the ./release/server/ part of the object name
 #foreach is needed as the OBJS is a list of variable names containing object lists.
@@ -2201,7 +2205,7 @@ libs-$(ARCH)/libspeexdsp.a:
 
 libs-$(ARCH)/libfreetype.a:
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
+	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz

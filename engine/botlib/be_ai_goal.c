@@ -283,7 +283,8 @@ itemconfig_t *LoadItemConfig(char *filename)
 		LibVarSet( "max_iteminfo", "256" );
 	}
 
-	strncpy( path, filename, MAX_PATH );
+	strncpy( path, filename, MAX_PATH-1 );
+	path[MAX_PATH-1] = 0;
 	PC_SetBaseFolder(BOTFILESBASEFOLDER);
 	source = LoadSourceFile( path );
 	if( !source ) {
@@ -316,7 +317,14 @@ itemconfig_t *LoadItemConfig(char *filename)
 				return NULL;
 			} //end if
 			StripDoubleQuotes(token.string);
-			strncpy(ii->classname, token.string, sizeof(ii->classname)-1);
+			if (strlen(token.string) >= sizeof(ii->classname))
+			{
+				SourceError(source, "more than %d chars\n", sizeof(ii->classname)-1);
+				FreeMemory(ic);
+				FreeSource(source);
+				return NULL;
+			}
+			strcpy(ii->classname, token.string);
 			if (!ReadStructure(source, &iteminfo_struct, (char *) ii))
 			{
 				FreeMemory(ic);
@@ -688,8 +696,11 @@ void BotGoalName(int number, char *name, int size)
 	{
 		if (li->number == number)
 		{
-			strncpy(name, itemconfig->iteminfo[li->iteminfo].name, size-1);
-			name[size-1] = '\0';
+			size_t r = strlen(itemconfig->iteminfo[li->iteminfo].name);
+			if (r > size-1)
+				r = size-1;	//truncate...
+			memcpy(name, itemconfig->iteminfo[li->iteminfo].name, r);
+			name[r] = '\0';
 			return;
 		} //end for
 	} //end for

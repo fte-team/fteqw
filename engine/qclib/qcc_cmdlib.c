@@ -143,39 +143,36 @@ void SetEndian(void)
 }
 
 
-void QC_strlcat(char *dest, const char *src, size_t destsize)
+pbool QC_strlcat(char *dest, const char *src, size_t destsize)
 {
 	size_t curlen = strlen(dest);
 	if (!destsize)
-		return;	//err
+		return false;	//err
 	dest += curlen;
 	while(*src && ++curlen < destsize)
 		*dest++ = *src++;
-//	if (*src)
-//		printf("QC_strlcpy: truncation\n");
 	*dest = 0;
+	return !*src;
 }
-void QC_strlcpy(char *dest, const char *src, size_t destsize)
+pbool QC_strlcpy(char *dest, const char *src, size_t destsize)
 {
 	size_t curlen = 0;
 	if (!destsize)
-		return;	//err
+		return false;	//err
 	while(*src && ++curlen < destsize)
 		*dest++ = *src++;
-//	if (*src)
-//		printf("QC_strlcpy: truncation\n");
 	*dest = 0;
+	return !*src;
 }
-void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
+pbool QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
 {
 	size_t curlen = 0;
 	if (!destsize)
-		return;	//err
+		return false;	//err
 	for(; *src && srclen > 0 && ++curlen < destsize; srclen--)
 		*dest++ = *src++;
-//	if (srclen)
-//		printf("QC_strlcpy: truncation\n");
 	*dest = 0;
+	return !srclen;
 }
 
 char *QC_strcasestr(const char *haystack, const char *needle)

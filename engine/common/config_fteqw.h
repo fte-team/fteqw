@@ -180,5 +180,9 @@
 #endif
 //-DNO_VORBISFILE	//disable static vorbisfile
 
+
+//enable some staticaly linked libraries
+-DLINK_FREETYPE		//international text requires international fonts.
+
 //-Os		//optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
 #endif

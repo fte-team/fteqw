@@ -286,10 +286,11 @@ int *pr_cases;
 QCC_ref_t *pr_casesref;
 QCC_ref_t *pr_casesref2;
 
+#define MAX_LABEL_LENGTH 256
 typedef struct {
 	int statementno;
 	int lineno;
-	char name[256];
+	char name[MAX_LABEL_LENGTH];
 } gotooperator_t;
 
 int max_labels;
@@ -793,6 +794,7 @@ static pbool OpAssignsToB(unsigned int op)
 	return false;
 }
 #define OpAssignsToA(op) false
+#ifdef _DEBUG
 static int OpAssignsCount(unsigned int op)
 {
 	switch(op)
@@ -855,7 +857,6 @@ static int OpAssignsCount(unsigned int op)
 		return 1;
 	}
 }
-#ifdef _DEBUG
 static void OpAssignsTo_Debug(void)
 {
 	int i;
@@ -10173,7 +10174,8 @@ static void QCC_PR_GotoStatement (QCC_statement_t *patch2, char *labelname)
 		pr_gotos = realloc(pr_gotos, sizeof(*pr_gotos)*max_gotos);
 	}
 
-	strncpy(pr_gotos[num_gotos].name, labelname, sizeof(pr_gotos[num_gotos].name) -1);
+	if (!QC_strlcpy(pr_gotos[num_gotos].name, labelname, sizeof(pr_gotos[num_gotos].name)))
+		QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Label name too long");
 	pr_gotos[num_gotos].lineno = pr_source_line;
 	pr_gotos[num_gotos].statementno = patch2 - statements;
 

@@ -479,7 +479,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
 			continue;
 
-		w->Event_Touch(w, touch, ent);
+		w->Event_Touch(w, touch, ent, NULL);
 
 		if (ED_ISFREE(ent))
 			break;
@@ -2242,9 +2242,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 	{
 		touch = &pe->entities[i];
 
-		if (touch->solidsize == ES_SOLID_NOT)
-			continue;
-		else if (touch->solidsize == ES_SOLID_BSP)
+		if (touch->solidsize == ES_SOLID_BSP)
 		{
 			switch(touch->skinnum)
 			{
@@ -2261,6 +2259,12 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			VectorCopy(model->mins, bmins);
 			VectorCopy(model->maxs, bmaxs);
 		}
+#if 1
+		else
+			continue;	//only hit brush ents.
+#else
+		else if (touch->solidsize == ES_SOLID_NOT)
+			continue;
 		else
 		{
 			if (clip->type & MOVE_NOMONSTERS)
@@ -2269,6 +2273,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			model = NULL;
 			COM_DecodeSize(touch->solidsize, bmins, bmaxs);
 		}
+#endif
 		if (!(clip->hitcontentsmask & touchcontents))
 			continue;
 
@@ -2325,7 +2330,10 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			if (clip->trace.startsolid && !trace.startsolid)
 				trace.ent = clip->trace.ent;	//something else hit earlier, that one gets the trace entity, but not the fraction. yeah, combining traces like this was always going to be weird.
 			else
-				trace.ent = touch;
+			{
+				trace.ent = NULL;
+				clip->trace.entnum = touch->number;
+			}
 			clip->trace = trace;
 		}
 		else if (trace.startsolid || trace.allsolid)
@@ -2336,7 +2344,8 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			if (!clip->trace.ent || trace.fraction == clip->trace.fraction)	//xonotic requires that second test (DP has no check at all, which would end up reporting mismatched fraction/ent results, so yuck).
 			{
 				clip->trace.contents = trace.contents;
-				clip->trace.ent = touch;
+				clip->trace.ent = NULL;
+				clip->trace.entnum = touch->number;
 			}
 		}
 	}

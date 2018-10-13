@@ -37,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pr_common.h"
 
 extern usercmd_t cl_pendingcmd[MAX_SPLITS];
+extern cvar_t sv_demo_write_csqc;
 
 
 static pubprogfuncs_t *csqcprogs;
@@ -6886,7 +6887,9 @@ static void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
 		ent->xv->dimension_solid = *csqcg.dimension_default;
 		ent->xv->dimension_hit = *csqcg.dimension_default;
 
+#ifdef HEXEN2
 		ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;
+#endif
 	}
 }
 
@@ -7071,7 +7074,6 @@ static qboolean CSQC_ValidateMainCSProgs(void *file, size_t filesize, unsigned i
 static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int checksum, size_t checksize)
 {	//returns a TempFile
 	char newname[MAX_QPATH];
-	extern cvar_t sv_demo_write_csqc;
 	void *file = NULL;
 
 	//the filename we'll cache to

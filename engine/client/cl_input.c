@@ -587,7 +587,7 @@ cvar_t	cl_pitchspeed = CVAR("cl_pitchspeed","150");
 cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
-#define GATHERBIT(bname,bit) if (bname.state[pnum] & 3)	{bits |=   (1u<<bit);} bname.state[pnum]	&= ~2;
+#define GATHERBIT(bname,bit) if (bname.state[pnum] & 3)	{bits |=   (1u<<(bit));} bname.state[pnum]	&= ~2;
 void CL_GatherButtons (usercmd_t *cmd, int pnum)
 {
 	unsigned int bits = 0;

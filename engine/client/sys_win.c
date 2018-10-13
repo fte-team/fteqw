@@ -1884,7 +1884,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 				free(cliputf8);
 				GlobalUnlock(clipboardhandle);
 				CloseClipboard();
-				return cliputf8;
+				return;
 			}
 
 			//failed at the last hurdle

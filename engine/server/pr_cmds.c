@@ -3922,7 +3922,6 @@ static void QCBUILTIN PF_checkclient (pubprogfuncs_t *prinst, struct globalvars_
 void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 {
 	client_t	*cl;
-	int		slen;
 	unsigned int i;
 
 	if (flags & STUFFCMD_BROADCAST)
@@ -3999,8 +3998,6 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	}
 #endif
 
-	slen = strlen(str);
-
 	if (!(flags & STUFFCMD_DEMOONLY))
 	{
 		if (flags & STUFFCMD_UNRELIABLE)
@@ -4013,7 +4010,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	if (!(flags & STUFFCMD_IGNOREINDEMO))
 	if (sv.mvdrecording)
 	{
-		sizebuf_t *msg = MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
+		sizebuf_t *msg = MVDWrite_Begin (dem_single, entnum - 1, 2 + strlen(str));
 		MSG_WriteByte (msg, svc_stufftext);
 		MSG_WriteString (msg, str);
 	}

@@ -4788,13 +4788,18 @@ COM_Version_f
 */
 static void COM_Version_f (void)
 {
+	Con_Printf("\n");
+	Con_Printf("^&F0%s\n", FULLENGINENAME);
+	Con_Printf("%s\n", ENGINEWEBSITE);
 	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
-
 #ifdef SVNREVISION
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))
 		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
+#endif
+#ifdef CONFIG_FILE_NAME
+	Con_Printf("Build config: %s\n\n", STRINGIFY(CONFIG_FILE_NAME));
 #endif
 
 #ifdef _DEBUG
@@ -4977,11 +4982,13 @@ static void COM_Version_f (void)
 #else
 	#ifdef SPEEX_STATIC
 		Con_Printf(" speex");
+		Con_DPrintf("(static)");
 	#else
 		Con_Printf(" speex(dynamic)");
 	#endif
 	#ifdef OPUS_STATIC
 		Con_Printf(" opus");
+		Con_DPrintf("(static)");
 	#else
 		Con_Printf(" opus(dynamic)");
 	#endif
@@ -5019,18 +5026,23 @@ static void COM_Version_f (void)
 
 	Con_Printf("Misc:");
 #ifdef SUBSERVERS
-	Con_Printf(" mapcluster(enabled)");
+	Con_Printf(" mapcluster");
 #else
 	Con_DPrintf(" ^h(disabled: mapcluster)^7");
 #endif
 #ifndef SERVERONLY
 #ifdef AVAIL_FREETYPE
-	Con_Printf(" freetype2");
+	#ifdef FREETYPE_STATIC
+		Con_Printf(" freetype2");
+		Con_DPrintf("(static)");
+	#else
+		Con_Printf(" freetype2(dynamic)");
+	#endif
 #else
 	Con_DPrintf(" ^h(disabled: freetype2)^7");
 #endif
 #ifdef AVAIL_OPENAL
-	Con_Printf(" openal");
+	Con_Printf(" openal(dynamic)");
 #else
 	Con_DPrintf(" ^h(disabled: openal)^7");
 #endif

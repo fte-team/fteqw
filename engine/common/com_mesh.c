@@ -2527,6 +2527,7 @@ static void Mod_ClampModelSize(model_t *mod)
 #endif
 }
 
+#ifdef NONSKELETALMODELS
 #ifndef SERVERONLY
 static int R_FindTriangleWithEdge (index_t *indexes, int numtris, int start, int end, int ignore)
 {
@@ -2581,6 +2582,7 @@ static void Mod_CompileTriangleNeighbours(model_t *loadmodel, galiasinfo_t *gali
 	}
 #endif
 }
+#endif
 
 typedef struct
 {

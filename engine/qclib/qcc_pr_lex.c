@@ -128,10 +128,16 @@ void QCC_PR_AddIncludePath(const char *newinc)
 	{
 		if (!*qccincludedir[i])
 		{
+			pbool trunc;
 			const char *e = newinc + strlen(newinc)-1;
-			QC_strlcpy(qccincludedir[i], newinc, sizeof(qccincludedir));
+			trunc = !QC_strlcpy(qccincludedir[i], newinc, sizeof(qccincludedir));
 			if (*e != '/' && *e != '\\')
-				QC_strlcat(qccincludedir[i], "/", sizeof(qccincludedir));
+				trunc |= !QC_strlcat(qccincludedir[i], "/", sizeof(qccincludedir));
+			if (trunc)
+			{
+				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Include path too long.");
+				*qccincludedir[i] = 0;
+			}
 			break;
 		}
 		if (!strcmp(qccincludedir[i], newinc))
@@ -469,24 +475,25 @@ static void QCC_PR_GetDefinesListEnumerate(void *vctx, void *data)
 	CompilerConstant_t *def = data;
 	char term[8192];
 	size_t termsize;
+	pbool success = true;
 
 	QC_snprintfz(term, sizeof(term), "\n%s", def->name);
 	if (def->numparams >= 0)
 	{
 		int i;
-		QC_strlcat(term, "(", sizeof(term));
+		success &= QC_strlcat(term, "(", sizeof(term));
 		for (i = 0; i < def->numparams; i++)
 		{
 			if (i)
-				QC_strlcat(term, ",", sizeof(term));
-			QC_strlcat(term, def->params[i], sizeof(term));
+				success &= QC_strlcat(term, ",", sizeof(term));
+			success &= QC_strlcat(term, def->params[i], sizeof(term));
 		}
-		QC_strlcat(term, ")", sizeof(term));
+		success &= QC_strlcat(term, ")", sizeof(term));
 	}
 	if (def->value && *def->value)
 	{
 		char *o, *i;
-		QC_strlcat(term, "=", sizeof(term));
+		success &= QC_strlcat(term, "=", sizeof(term));
 
 		//annoying logic to skip whitespace... hopefully it won't fuck stuff up too much.
 		for (o = term+strlen(term), i = def->value; o < term + sizeof(term)-1 && *i; )
@@ -498,6 +505,8 @@ static void QCC_PR_GetDefinesListEnumerate(void *vctx, void *data)
 		}
 		*o = 0;
 	}
+	if (!success)	//this define was too long. don't show truncated stuff.
+		return;
 
 	termsize = strlen(term);
 	if (ctx->length + termsize+1 > ctx->buffersize)
@@ -1126,9 +1135,8 @@ static pbool QCC_PR_Precompiler(void)
 					memmove(msg, msg+1, e-(msg+1));
 					msg[e-(msg+1)] = 0;
 				}
-				if (strlen(msg) >= sizeof(QCC_copyright))
+				if (!QC_strlcpy(QCC_copyright, msg, sizeof(QCC_copyright)))
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
-				QC_strlcpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 			}
 			else if (!QC_strcasecmp(qcc_token, "compress"))
 			{
@@ -2806,7 +2814,8 @@ static void QCC_PR_LexGrab (void)
 		if (*pr_framemodelname)
 			QCC_PR_MacroFrame(pr_framemodelname, pr_macrovalue, true);
 
-		QC_strlcpy(pr_framemodelname, pr_token, sizeof(pr_framemodelname));
+		if (!QC_strlcpy(pr_framemodelname, pr_token, sizeof(pr_framemodelname)))
+			QCC_PR_ParseWarning (WARN_STRINGTOOLONG, "$modelname name too long");
 
 		i = QCC_PR_FindMacro(pr_framemodelname);
 		if (i)
@@ -3574,7 +3583,8 @@ int QCC_PR_CheckCompConst(void)
 			||	*end == '#')
 				break;
 	}
-	QC_strnlcpy(pr_token, pr_file_p, end-pr_file_p, sizeof(pr_token));
+	if (!QC_strnlcpy(pr_token, pr_file_p, end-pr_file_p, sizeof(pr_token)))
+		return false;	//name too long to be a valid macro
 
 //	externs->Printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);

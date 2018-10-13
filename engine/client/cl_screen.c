@@ -2259,7 +2259,7 @@ void SCR_SetUpToDrawConsole (void)
 						Key_Dest_Add(kdm_console);
 				}
 			}
-			if (!con_stayhidden.ival && !startuppending && Key_Dest_Has(kdm_console) && !scr_drawloading && !scr_disabled_for_loading && cls.state < ca_connected)
+			if (Key_Dest_Has(kdm_console) || (!con_stayhidden.ival && !startuppending && !scr_drawloading && !scr_disabled_for_loading && cls.state < ca_connected))
 				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 			else
 				scr_conlines = 0;

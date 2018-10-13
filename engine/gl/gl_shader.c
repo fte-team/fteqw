@@ -340,7 +340,13 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		else if (!Q_stricmp(token, "d3d11"))
 			lhs = (qrenderer == QR_DIRECT3D11);
 		else if (!Q_stricmp(token, "gles"))
-			lhs = ((qrenderer == QR_OPENGL) && sh_config.minver == 100);
+		{
+#ifdef GLQUAKE
+			lhs = ((qrenderer == QR_OPENGL) && gl_config.gles);
+#else
+			lhs = false;
+#endif
+		}
 		else if (!Q_stricmp(token, "nofixed"))
 			lhs = sh_config.progs_required;
 		else if (!Q_stricmp(token, "glsl"))

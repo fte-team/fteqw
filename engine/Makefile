@@ -2205,7 +2205,7 @@ libs-$(ARCH)/libspeexdsp.a:
 
 libs-$(ARCH)/libfreetype.a:
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
+	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz

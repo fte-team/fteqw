@@ -1010,6 +1010,22 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		{
 			if (client->prespawn_idx == 0)
 			{
+				FS_GetPackNames(buffer, sizeof(buffer), 2, true); /*retain extensions, or we'd have to assume pk3*/
+				ClientReliableWrite_Begin(client, svc_stufftext, 1+11+strlen(buffer)+1+1);
+				ClientReliableWrite_SZ(client, "//paknames ", 11);
+				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
+				ClientReliableWrite_String(client, "\n");
+			}
+			else if (client->prespawn_idx == 1)
+			{
+				FS_GetPackHashes(buffer, sizeof(buffer), false);
+				ClientReliableWrite_Begin(client, svc_stufftext, 1+7+strlen(buffer)+1+1);
+				ClientReliableWrite_SZ(client, "//paks ", 7);
+				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
+				ClientReliableWrite_String(client, "\n");
+			}
+			else if (client->prespawn_idx == 2)
+			{
 				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{	//nq does not normally get serverinfo sent to it.
 					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
@@ -1022,22 +1038,6 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					ClientReliableWrite_Begin(client, svc_stufftext, 22 + i);
 					ClientReliableWrite_String (client, va("//fullserverinfo \"%s\"\n", buffer) );
 				}
-			}
-			else if (client->prespawn_idx == 1)
-			{
-				FS_GetPackNames(buffer, sizeof(buffer), 2, true); /*retain extensions, or we'd have to assume pk3*/
-				ClientReliableWrite_Begin(client, svc_stufftext, 1+11+strlen(buffer)+1+1);
-				ClientReliableWrite_SZ(client, "//paknames ", 11);
-				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
-				ClientReliableWrite_String(client, "\n");
-			}
-			else if (client->prespawn_idx == 2)
-			{
-				FS_GetPackHashes(buffer, sizeof(buffer), false);
-				ClientReliableWrite_Begin(client, svc_stufftext, 1+7+strlen(buffer)+1+1);
-				ClientReliableWrite_SZ(client, "//paks ", 7);
-				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
-				ClientReliableWrite_String(client, "\n");
 			}
 			else if (client->prespawn_idx == 3)
 			{

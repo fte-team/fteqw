@@ -1741,11 +1741,12 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		else
 			snprintf(out, outlen, "%s%s", com_gamepath, fname);
 		break;
-	case FS_BASEGAMEONLY:
+
+	case FS_BASEGAMEONLY:	// fte/
 		last = NULL;
-		for (i = 0; i < sizeof(fs_manifest->gamepath)/sizeof(fs_manifest->gamepath[0]); i++)
+		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
-			if (fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
+			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
 			{
 				if (!strcmp(fs_manifest->gamepath[i].path, "*"))
 					continue;
@@ -1762,16 +1763,15 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		else
 			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
-	case FS_PUBGAMEONLY:
+	case FS_PUBGAMEONLY:	// $gamedir/ or qw/ but not fte/
 		last = NULL;
-		for (i = 0; i < sizeof(fs_manifest->gamepath)/sizeof(fs_manifest->gamepath[0]); i++)
+		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
-			if (fs_manifest->gamepath[i].path)
+			if (fs_manifest && fs_manifest->gamepath[i].path)
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
 				last = fs_manifest->gamepath[i].path;
-				break;
 			}
 		}
 		if (!last)
@@ -1781,16 +1781,15 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		else
 			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
-	case FS_PUBBASEGAMEONLY:
+	case FS_PUBBASEGAMEONLY:	// qw/ (fixme: should be the last non-private basedir)
 		last = NULL;
-		for (i = 0; i < sizeof(fs_manifest->gamepath)/sizeof(fs_manifest->gamepath[0]); i++)
+		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
 			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
 				last = fs_manifest->gamepath[i].path;
-				break;
 			}
 		}
 		if (!last)
@@ -3610,9 +3609,9 @@ int FS_PureOkay(void)
 				continue;
 			else //if (!sp)
 			{
-				if (!CL_CheckDLFile(va("package/%s", pname)))
-					if (CL_CheckOrEnqueDownloadFile(va("package/%s", pname), va("%s.%i", pname, crc), DLLF_NONGAME))
-						return -1;
+//				if (!CL_CheckDLFile(va("package/%s", pname)))
+//					if (CL_CheckOrEnqueDownloadFile(pname, va("%s.%i", pname, crc), DLLF_NONGAME))
+//						return -1;
 				Con_Printf(CON_ERROR"Pure package %s:%08x missing.\n", pname, crc);
 				ret = false;
 			}
@@ -3915,12 +3914,14 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 					if (handle)
 					{
 						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|keptflags, (unsigned int)-1);
+						if (!sp)
+							continue;	//some kind of error...
 						if (sp->handle->GeneratePureCRC)
 						{
 							sp->crc_check = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 0);
 							sp->crc_reply = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 1);
 						}
-						if (sp->crc_check == crc || !*crctok)
+						if ((*crctok && sp->crc_check == crc) || !*crctok)
 						{
 							if (fs_puremode)
 							{
@@ -3932,6 +3933,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 								lastpure = sp;
 							}
 						}
+						//else crc mismatched...
 						continue;
 					}
 					vfs = FS_OpenVFS(local, "rb", FS_ROOT);
@@ -3956,7 +3958,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 								sp->crc_reply = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 1);
 							}
 
-							if (!*crctok)
+							if ((*crctok && sp->crc_check == crc) || !*crctok)
 							{
 								if (fs_puremode)
 								{

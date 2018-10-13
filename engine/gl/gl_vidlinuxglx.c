@@ -736,6 +736,8 @@ static qboolean XRandR_Init(void)
 				    	)
 					xrandr.canmodechange12 = true;
 			}
+
+			//FIXME: query monitor sizes and calculate dpi for vid.dpy_[x|y]
 			return true;
 		}
 	}

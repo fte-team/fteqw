@@ -184,6 +184,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalint(trace_surface_id,			"trace_surface_id");	/*int		written by traceline*/	\
 	globalint(trace_bone_id,			"trace_bone_id");		/*int		written by traceline*/	\
 	globalint(trace_triangle_id,		"trace_triangle_id");	/*int		written by traceline*/	\
+	globalfloat(trace_networkentity,	"trace_networkentity");	/*float		written by traceline*/	\
 	legacycsqcglobals \
 	\
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
@@ -415,6 +416,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	ensureint(trace_surface_id);
 	ensureint(trace_bone_id);
 	ensureint(trace_triangle_id);
+	ensurefloat(trace_networkentity);
 	ensureentity(trace_ent);
 
 
@@ -2600,6 +2602,7 @@ static void cs_settracevars(pubprogfuncs_t *prinst, trace_t *tr)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_world.edicts);
+	*csqcg.trace_networkentity = tr->entnum;
 
 #ifndef NOLEGACY
 	*csqcg.trace_endcontentsf = tr->contents;
@@ -7326,6 +7329,8 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		csdatenabled = false;
 		csprogsname = "csprogs.dat";
 	}
+	if (!*csprogsname)
+		csprogsname = "csprogs.dat";
 	if (csprogs_promiscuous != anycsqc || csprogs_checksum != checksum || csprogs_checksize != progssize || strcmp(csprogs_checkname,csprogsname))
 		CSQC_Shutdown();
 	csprogs_promiscuous = anycsqc;

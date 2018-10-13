@@ -2331,8 +2331,8 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 				trace.ent = clip->trace.ent;	//something else hit earlier, that one gets the trace entity, but not the fraction. yeah, combining traces like this was always going to be weird.
 			else
 			{
-				trace.ent = NULL;
-				clip->trace.entnum = touch->number;
+				trace.ent = w->edicts;	//misreport world
+				clip->trace.entnum = touch->number;	//with an ssqc ent number
 			}
 			clip->trace = trace;
 		}
@@ -2344,8 +2344,8 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			if (!clip->trace.ent || trace.fraction == clip->trace.fraction)	//xonotic requires that second test (DP has no check at all, which would end up reporting mismatched fraction/ent results, so yuck).
 			{
 				clip->trace.contents = trace.contents;
-				clip->trace.ent = NULL;
-				clip->trace.entnum = touch->number;
+				clip->trace.ent = w->edicts;	//misreport world
+				clip->trace.entnum = touch->number;	//with an ssqc ent number
 			}
 		}
 	}

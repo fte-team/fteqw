@@ -11849,6 +11849,7 @@ void PR_DumpPlatform_f(void)
 		{"trace_surface_id",	"int", QW|NQ|CS, D("1-based. 0 if not known.")},
 		{"trace_bone_id",		"int", QW|NQ|CS, D("1-based. 0 if not known. typically needs MOVE_HITMODEL.")},
 		{"trace_triangle_id",	"int", QW|NQ|CS, D("1-based. 0 if not known.")},
+		{"trace_networkentity",	"int", CS, D("Repots which ssqc entnum was hit when a csqc traceline impacts an ssqc-based brush entity.")},
 
 		{"global_gravitydir",	"vector", QW|NQ|CS,	D("The direction gravity should act in if not otherwise specified per entity."), 0,"'0 0 -1'"},
 		{"serverid",			"int", QW|NQ|CS,	D("The unique id of this server within the server cluster.")},

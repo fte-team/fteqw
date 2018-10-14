@@ -201,8 +201,9 @@ lame timers. :s
 typedef struct cmdtimer_s {
 	struct cmdtimer_s *next;
 	float timer;
-	int level;
-	char cmdtext[1];
+	int iarg;
+	void(*callback)(int iarg, void *data);
+	char data[1];
 } cmdtimer_t;
 static cmdtimer_t *cmdtimers;
 static void Cmd_ExecuteTimers(void)
@@ -215,16 +216,33 @@ static void Cmd_ExecuteTimers(void)
 		if (t->timer < realtime)
 		{
 			*link = t->next;
-			Cbuf_InsertText(t->cmdtext, t->level, true);
+			t->callback(t->iarg, t->data);
 			Z_Free(t);
 		}
 		else
 			link = &t->next;
 	}
 }
+void Cmd_AddTimer(float delay, void(*callback)(int iarg, void *data), int iarg, void *data, size_t datasize)
+{
+	cmdtimer_t *n = Z_Malloc(sizeof(*n) + datasize);
+	n->iarg = iarg;
+	n->callback = callback;
+	memcpy(n->data, data, datasize);
+	n->data[datasize] = 0;	//just in case.
+
+	n->timer = realtime + delay;
+
+	n->next = cmdtimers;
+	cmdtimers = n;
+}
+static void Cmd_In_Callback(int iarg, void *data)
+{
+	Cbuf_AddText((char*)data, iarg);
+	Cbuf_AddText("\n", iarg);
+}
 static void Cmd_In_f(void)
 {
-	cmdtimer_t *n;
 	float delay = atof(Cmd_Argv(1));
 	char *cmd;
 	if (Cmd_Argc() < 3)
@@ -236,15 +254,7 @@ static void Cmd_In_f(void)
 	cmd = Cmd_Args();
 
 	if (ruleset_allow_in.ival || !delay)
-	{
-		n = Z_Malloc(sizeof(*n) + strlen(cmd));
-		strcpy(n->cmdtext, cmd);
-		n->timer = realtime + delay;
-		n->level = Cmd_ExecLevel;
-
-		n->next = cmdtimers;
-		cmdtimers = n;
-	}
+		Cmd_AddTimer(delay, Cmd_In_Callback, Cmd_ExecLevel, cmd, strlen(cmd));
 }
 
 /*

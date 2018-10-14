@@ -193,3 +193,4 @@ qboolean If_EvaluateBoolean(const char *text, int restriction);
 
 extern cvar_t rcon_level;
 
+void Cmd_AddTimer(float delay, void(*callback)(int iarg, void *data), int iarg, void *data, size_t datasize); //wrong place, gah

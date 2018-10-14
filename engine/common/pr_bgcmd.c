@@ -458,49 +458,6 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 	if (fatal)
 		return DEBUG_TRACE_ABORT;
 	return DEBUG_TRACE_OFF;	//get lost
-	{
-		int i;
-		char buffer[8192];
-		char *r;
-		vfsfile_t *f;
-
-#ifndef CLIENTONLY
-		SV_EndRedirect();
-#endif
-		if (developer.value && line)
-		{
-			f = FS_OpenVFS(filename, "rb", FS_GAME);
-		}
-		else
-			f = NULL;	//faster.
-		if (!f)
-		{
-			Q_snprintfz(buffer, sizeof(buffer), "%s/%s", pr_sourcedir.string, filename);
-			f = FS_OpenVFS(buffer, "rb", FS_GAME);
-		}
-		if (!f)
-		{
-			if (reason)
-				Con_Printf("-%s - %i: %s\n", filename, line?*line:*statement, reason);
-			else
-				Con_Printf("-%s - %i\n", filename, line?*line:*statement);
-		}
-		else
-		{
-			for (i = 0; i < *line; i++)
-			{
-				VFS_GETS(f, buffer, sizeof(buffer));
-			}
-			if ((r = strchr(buffer, '\r')))
-			{ r[0] = '\n';r[1]='\0';}
-			Con_Printf("-%s", buffer);
-			VFS_CLOSE(f);
-		}
-	}
-	if (reason)
-		return DEBUG_TRACE_ABORT;
-//PF_break(NULL);
-	return DEBUG_TRACE_OVER;
 #endif
 }
 
@@ -4654,43 +4611,74 @@ void QCBUILTIN PF_uri_unescape  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 }
 
 #ifdef WEBCLIENT
-static void PR_uri_get_callback(struct dl_download *dl)
+typedef struct
 {
-	world_t *w = dl->user_ctx;
+	world_t *w;
+	float id;
+	int selfnum;
+	int spawncount;
+
+	int response;
+	vfsfile_t *file;
+} urigetcbctx_t;
+static void PR_uri_get_callback2(int iarg, void *data)
+{
+	urigetcbctx_t *ctx = data;
+	world_t *w = ctx->w;
 	pubprogfuncs_t *prinst = w->progs;
-	float id = dl->user_float;
-	int selfnum = dl->user_num;
+	float id = ctx->id;
+	int selfnum = ctx->selfnum;
+	int replycode = ctx->response;
 	func_t func;
 
-	if (!prinst || dl->user_sequence != w->spawncount)
-		return;
-	
-	func = PR_FindFunction(prinst, "URI_Get_Callback", PR_ANY);
-	if (!func)
-		Con_Printf("URI_Get_Callback missing\n");
-	else if (func)
+	//make sure the progs vm is still active and okay.
+	if (prinst && ctx->spawncount == w->spawncount)
 	{
-		int len;
-		char *buffer;
-		struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
-
-		*w->g.self = selfnum;
-		G_FLOAT(OFS_PARM0) = id;
-		G_FLOAT(OFS_PARM1) = (dl->replycode!=200)?dl->replycode:0;	//for compat with DP, we change any 200s to 0.
-		G_INT(OFS_PARM2) = 0;
-
-		if (dl->file)
+		func = PR_FindFunction(prinst, "URI_Get_Callback", PR_ANY);
+		if (!func)
+			Con_Printf("URI_Get_Callback missing\n");
+		else if (func)
 		{
-			len = VFS_GETLEN(dl->file);
-			buffer = malloc(len+1);
-			buffer[len] = 0;
-			VFS_READ(dl->file, buffer, len);
-			G_INT(OFS_PARM2) = PR_TempString(prinst, buffer);
-			free(buffer);
-		}
+			int len;
+			char *buffer;
+			struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
+			int oldself = *w->g.self;
+			*w->g.self = selfnum;
+			G_FLOAT(OFS_PARM0) = id;
+			G_FLOAT(OFS_PARM1) = (replycode!=200)?replycode:0;	//for compat with DP, we change any 200s to 0.
+			G_INT(OFS_PARM2) = 0;
 
-		PR_ExecuteProgram(prinst, func);
+			if (ctx->file)
+			{
+				len = VFS_GETLEN(ctx->file);
+				buffer = malloc(len+1);
+				buffer[len] = 0;
+				VFS_READ(ctx->file, buffer, len);
+				G_INT(OFS_PARM2) = PR_TempString(prinst, buffer);
+				free(buffer);
+			}
+
+			PR_ExecuteProgram(prinst, func);
+			*w->g.self = oldself;
+		}
 	}
+	if (ctx->file)
+		VFS_CLOSE(ctx->file);
+}
+static void PR_uri_get_callback(struct dl_download *dl)
+{	//we might be sitting on a setmodel etc call (or really anywhere). don't call qc while the qc is already busy.
+	urigetcbctx_t ctx;
+
+	ctx.w = dl->user_ctx;
+	ctx.id = dl->user_float;
+	ctx.selfnum = dl->user_num;
+	ctx.spawncount = dl->user_sequence;
+	ctx.response = dl->replycode;
+	ctx.file = dl->file;
+	dl->file = NULL;	//steal the file pointer, so the download code can't close it before we can read it.
+
+	//now post it to the timer queue, it'll get processed within a frame, ish, without screwing up any other qc state.
+	Cmd_AddTimer(0, PR_uri_get_callback2, 0, &ctx, sizeof(ctx));
 }
 #endif
 

@@ -80,6 +80,8 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 }
 void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
 {
+	if (cbt != CBT_CLIPBOARD)
+		return;	//don't copy on mere selection. windows users won't expect it.
 	Z_Free(clippy);
 	clippy = Z_StrDup(text);
 }

@@ -2622,21 +2622,26 @@ unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t 
 	size_t n, v;
 	unsigned int best = ~0;
 	float bestdist = FLT_MAX, dist;
-	vec3_t diff, mid;
+	vec3_t diff, mins, maxs, mid;
 
-	if (surf->mesh)
+	if (surf->mesh && surf->mesh->numvertexes)
 	{
-		VectorClear(mid);
-		for (v = 0; v < surf->mesh->numvertexes; v++)
-			VectorAdd(mid, surf->mesh->xyz_array[v], mid);
-		VectorScale(mid, 1.0/surf->mesh->numvertexes, mid);
+		VectorCopy(surf->mesh->xyz_array[0], mins);
+		VectorCopy(surf->mesh->xyz_array[0], maxs);
+		for (v = 1; v < surf->mesh->numvertexes; v++)
+			AddPointToBounds(surf->mesh->xyz_array[0], mins, maxs);
+		VectorAvg(mins, maxs, mid);
 
 		for (n = 0; n < nenvmap; n++)
 		{
-			VectorSubtract(mid, envmap[n].origin, diff);
+			VectorSubtract(envmap[n].origin, mid, diff);
 #if 1
 			//axial distance
-			dist = min(min(fabs(diff[0]), fabs(diff[1])), fabs(diff[2]));
+			dist = fabs(diff[0]);
+			if (dist > fabs(diff[1]))
+				dist = fabs(diff[1]);
+			if (dist > fabs(diff[2]))
+				dist = fabs(diff[2]);
 #else
 			//radial distance (squared)
 			dist = DotProduct(diff,diff);
@@ -2740,7 +2745,7 @@ void Mod_FindCubemaps_f(void)
 
 		if (nenvmap)
 		{
-			qsort(envmap, nenvmap, sizeof(*envmap), envmapsort);
+			qsort(envmap, nenvmap, sizeof(*envmap), envmapsort);	//sort them by size
 			if (ZF_ReallocElements((void**)&envmapidx, &nenvmapidx, cl.worldmodel->numsurfaces, sizeof(*envmapidx)))
 			{
 				for(i = 0; i < cl.worldmodel->numsurfaces; i++)

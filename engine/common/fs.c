@@ -606,6 +606,8 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		FS_Manifest_ParsePackage(man, mdt_installation);
 	else if (!Q_strcasecmp(cmd, "package") || !Q_strcasecmp(cmd, "archivedpackage"))
 		FS_Manifest_ParsePackage(man, mdt_singlepackage);
+	else if (!Q_strcasecmp(cmd, "basedir"))
+		;
 	else
 	{
 		Con_Printf("Unknown token: %s\n", cmd);

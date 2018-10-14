@@ -1284,8 +1284,7 @@ static qboolean XI2_Init(void)
 //qboolean isPermedia = false;
 extern qboolean sys_gracefulexit;
 
-#define SYS_CLIPBOARD_SIZE 512
-char clipboard_buffer[SYS_CLIPBOARD_SIZE];
+char *clipboard_buffer[2];
 
 
 /*-----------------------------------------------------------------------*/
@@ -2545,8 +2544,18 @@ static void GetEvent(void)
 			Atom xa_text = x11.pXInternAtom(vid_dpy, "TEXT", false);	//selection owner decides encoding (and we pick UTF-8)
 			Atom xa_targets = x11.pXInternAtom(vid_dpy, "TARGETS", false);
 			Atom xa_supportedtargets[] = {xa_u8string, xa_l1string, xa_text, xa_targets/*, xa_multiple, xa_timestamp*/};
+			char *cliptext = NULL;
 			memset(&rep, 0, sizeof(rep));
 
+			if (event.xselectionrequest.selection == x11.pXInternAtom(vid_dpy, "PRIMARY", false))
+				cliptext = clipboard_buffer[CBT_SELECTION];
+			else if (event.xselectionrequest.selection == x11.pXInternAtom(vid_dpy, "CLIPBOARD", false))
+				cliptext = clipboard_buffer[CBT_CLIPBOARD];
+			if (!cliptext)	//err, nothing in the clipboard buffer... that's not meant to happen.
+				cliptext = "";
+
+			if (event.xselectionrequest.property == None)	//no property sets a property matching the target atom, as a fallback.
+				event.xselectionrequest.property = event.xselectionrequest.target;
 			if (event.xselectionrequest.property == None)
 				event.xselectionrequest.property = x11.pXInternAtom(vid_dpy, "foobar2000", false);
 			if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_targets)
@@ -2556,18 +2565,18 @@ static void GetEvent(void)
 			}
 			else if (event.xselectionrequest.property != None && (event.xselectionrequest.target == xa_u8string || event.xselectionrequest.target == xa_text))
 			{	//UTF8_STRING or TEXT (which we choose to use utf-8 as our charset)
-				x11.pXChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)clipboard_buffer, strlen(clipboard_buffer));
+				x11.pXChangeProperty(vid_dpy, event.xselectionrequest.requestor, event.xselectionrequest.property, event.xselectionrequest.target, 8, PropModeReplace, (void*)cliptext, strlen(cliptext));
 				rep.xselection.property = event.xselectionrequest.property;
 			}
 			else if (event.xselectionrequest.property != None && event.xselectionrequest.target == xa_l1string)
 			{	//STRING == latin1. convert as needed.
-				char latin1[SYS_CLIPBOARD_SIZE];
-				char *in = clipboard_buffer;
+				char *latin1 = alloca(strlen(cliptext)+1);	//may shorten
+				char *in = cliptext;
 				int c = 0;
 				int err;
 				while (*in && c < sizeof(latin1))
 				{
-					int uc =utf8_decode(&err, in, &in);
+					int uc = utf8_decode(&err, in, &in);
 					if ((uc >= 0xe000 && uc <= 0xe100) && (uc&0x7f) >= 32)
 						uc = uc&0x7f;	//don't do c0/c1 glyphs. otherwise treat as ascii.
 					else if (uc > 255 || err)
@@ -3739,7 +3748,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(voi
 		x11paste.prop = x11.pXInternAtom(vid_dpy, "_FTE_PASTE", false);
 		clipboardowner = x11.pXGetSelectionOwner(vid_dpy, x11paste.clipboard);
 		if (clipboardowner == vid_window)
-			callback(ctx, clipboard_buffer);	//we own it? no point doing round-robin stuff.
+			callback(ctx, clipboard_buffer[clipboardtype]);	//we own it? no point doing round-robin stuff.
 		else if (clipboardowner != None && clipboardowner != vid_window)
 		{
 			x11.pXConvertSelection(vid_dpy, x11paste.clipboard, xa_string, x11paste.prop, vid_window, CurrentTime);
@@ -3751,7 +3760,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(voi
 			callback(ctx, NULL);	//nothing to paste (the window that owned it sucks
 	}
 	else
-		callback(ctx, clipboard_buffer);	//if we're not using x11 then just instantly call the callback
+		callback(ctx, clipboard_buffer[clipboardtype]);	//if we're not using x11 then just instantly call the callback
 }
 static qboolean X11_Clipboard_Notify(XSelectionEvent *xselection)
 {	//called once XConvertSelection completes
@@ -3806,14 +3815,22 @@ static qboolean X11_Clipboard_Notify(XSelectionEvent *xselection)
 
 void Sys_SaveClipboard(clipboardtype_t clipboardtype, char *text)
 {
-	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
+	free(clipboard_buffer[clipboardtype]);
+	clipboard_buffer[clipboardtype] = strdup(text);
 	if(vid_dpy)
 	{
-		Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
-		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
-
-		//Set both clipboards for now. Because x11 is kinda annoying.
-		xa_clipboard = x11.pXInternAtom(vid_dpy, "CLIPBOARD", false);
+		Atom xa_clipboard;
+		switch(clipboardtype)
+		{
+		case CBT_SELECTION:
+			xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
+			break;
+		case CBT_CLIPBOARD:
+			xa_clipboard = x11.pXInternAtom(vid_dpy, "CLIPBOARD", false);
+			break;
+		default:
+			return;
+		}
 		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
 	}
 }

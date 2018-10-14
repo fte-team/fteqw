@@ -131,7 +131,8 @@ typedef struct conline_s {
 #define CONF_KEYFOCUSED		32
 #define CONF_ISWINDOW		64
 #define CONF_NOWRAP			128
-#define CONF_KEEPSELECTION	256
+#define CONF_KEEPSELECTION	256	//there's text selected, keep it selected.
+#define CONF_BACKSELECTION	512	//a hint that the text was selected from the end
 typedef struct console_s
 {
 	int id;

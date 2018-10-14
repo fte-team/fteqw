@@ -596,9 +596,13 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 
 	if (!ent->v->solid)
 		ent->solidsize = ES_SOLID_BSP;
-	else// if (1)///*ent->v->modelindex || */ent->v->model)
+	else
 	{
-		model_t *mod = w->Get_CModel(w, ent->v->modelindex);
+		model_t *mod;
+		if (ent->v->solid == SOLID_BSP)
+			mod = w->Get_CModel(w, ent->v->modelindex);
+		else
+			mod = NULL;
 		if (mod && mod->type == mod_brush)
 			ent->solidsize = ES_SOLID_BSP;
 		else

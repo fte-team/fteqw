@@ -5841,7 +5841,7 @@ void Shader_DefaultScript(const char *shortname, shader_t *s, const void *args)
 		f++;
 		Shader_ReadShader(s, (void*)f, 0);
 	}
-};
+}
 
 void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 {

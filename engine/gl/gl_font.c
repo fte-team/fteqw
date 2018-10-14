@@ -1099,8 +1099,14 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 						if (qface->ft.activeheight!=qface->ft.actualsize)
 						{
 							//I'm just going to assume full-height raster glyphs here. I'm sure I'll be proven wrong some time but w/e.
-							int nh = f->charheight;
-							int nw = (bm->width*nh)/bm->rows;
+							int nw, nh;
+							if (bm->rows)
+							{
+								nh = f->charheight;
+								nw = (bm->width*nh)/bm->rows;
+							}
+							else
+								nw = nh = 0;
 							if (bm->pixel_mode == FT_PIXEL_MODE_BGRA)
 							{
 								unsigned int *out = alloca(nw*nh*sizeof(*out));

@@ -1071,6 +1071,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	}
 }
 
+#define Key_IsTouchScreen() false
 void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 {
 	char *buffer;	
@@ -1085,10 +1086,28 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 				con->flags &= ~CONF_KEEPSELECTION;
 			else
 				con->flags |= CONF_KEEPSELECTION;
-			con->userline = con->selstartline;
-			con->useroffset = con->selstartoffset;
+			if (con->userdata)
+			{
+				if (con->flags & CONF_BACKSELECTION)
+				{
+					con->userline = con->selendline;
+					con->useroffset = con->selendoffset;
+				}
+				else
+				{
+					con->userline = con->selstartline;
+					con->useroffset = con->selstartoffset;
+				}
+			}
 		}
 		con->buttonsdown = CB_NONE;
+
+		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+		if (buffer)
+		{
+			Sys_SaveClipboard(CBT_SELECTION,  buffer);
+			Z_Free(buffer);
+		}
 	}
 	if (key == K_MOUSE1 && con->buttonsdown == CB_SCROLL)
 	{
@@ -1172,7 +1191,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
-		Sys_SaveClipboard(CBT_SELECTION,  buffer);
+		Sys_SaveClipboard(CBT_CLIPBOARD,  buffer);
 		Z_Free(buffer);
 	}
 	if (con->buttonsdown == CB_CLOSE)
@@ -1327,7 +1346,7 @@ static void Key_ConsolePaste(void *ctx, char *utf8)
 	if (utf8)
 		Key_EntryInsert(line, linepos, utf8);
 }
-qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int key, unsigned int unicode)
+qboolean Key_EntryLine(console_t *con, unsigned char **line, int lineoffset, int *linepos, int key, unsigned int unicode)
 {
 	qboolean alt = keydown[K_LALT] || keydown[K_RALT];
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
@@ -1415,21 +1434,29 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 	//beware that windows translates ctrl+c and ctrl+v to a control char
 	if (((unicode=='C' || unicode=='c' || unicode==3) && ctrl) || (ctrl && key == K_INS))
 	{
+		if (con && (con->flags & CONF_KEEPSELECTION))
+		{	//copy selected text to the system clipboard
+			char *buffer = Con_CopyConsole(con, true, false);
+			if (buffer)
+			{
+				Sys_SaveClipboard(CBT_CLIPBOARD,  buffer);
+				Z_Free(buffer);
+			}
+			return true;
+		}
+		//copy the entire input line if there's nothing selected.
 		Sys_SaveClipboard(CBT_CLIPBOARD, *line);
 		return true;
 	}
 
+	if (key == K_MOUSE3)
+	{	//middle-click to paste from the unixy primary buffer.
+		Sys_Clipboard_PasteText(CBT_SELECTION, Key_ConsolePaste, line);
+		return true;
+	}
 	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
-	{
+	{	//ctrl+v to paste from the windows-style clipboard.
 		Sys_Clipboard_PasteText(CBT_CLIPBOARD, Key_ConsolePaste, line);
-		/*
-		char *clipText = Sys_GetClipboard();
-		if (clipText)
-		{
-			Key_EntryInsert(line, linepos, clipText);
-			Sys_CloseClipboard(clipText);
-		}
-		*/
 		return true;
 	}
 
@@ -1598,7 +1625,14 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			{
 				if (con->redirect && con->redirect(con, unicode, key))
 					return true;
-				con->buttonsdown = CB_SCROLL;
+				if (Key_IsTouchScreen())
+				{	//just scroll the console up/down
+					con->buttonsdown = CB_SCROLL;
+				}
+				else
+				{	//selecting text. woo.
+					con->buttonsdown = CB_SELECT;
+				}
 				con->flags &= ~CONF_KEEPSELECTION;
 			}
 		}
@@ -1680,6 +1714,10 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			return true;
 	}
 #endif
+
+	if (key == K_MOUSE3)	//mousewheel click/middle button
+	{
+	}
 
 	//console does not have any way to accept input, so don't try giving it any.
 	if (!con->linebuffered)
@@ -1822,7 +1860,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		cmd_completion_t *c;
 		char *txt = key_lines[edit_line];
 		char *guess = Cmd_CompleteCommand(*txt=='/'?txt+1:txt, true, true, con_commandmatch, NULL);
-		Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
+		Key_EntryLine(con, &key_lines[edit_line], 0, &key_linepos, key, unicode);
 		if (!key_linepos)
 			con_commandmatch = 0;
 		else if (guess)
@@ -1839,7 +1877,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		}
 	}
 	else
-		Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
+		Key_EntryLine(con, &key_lines[edit_line], 0, &key_linepos, key, unicode);
 
 	return true;
 }
@@ -1897,7 +1935,7 @@ void Key_Message (int key, int unicode)
 		return;
 	}
 
-	Key_EntryLine(&chat_buffer, 0, &chat_bufferpos, key, unicode);
+	Key_EntryLine(NULL, &chat_buffer, 0, &chat_bufferpos, key, unicode);
 }
 
 //============================================================================

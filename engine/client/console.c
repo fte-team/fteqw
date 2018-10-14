@@ -2021,7 +2021,10 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				x = selex;
 				selex = selsx;
 				selsx = x;
+				con->flags &= ~CONF_BACKSELECTION;
 			}
+			else
+				con->flags |= CONF_BACKSELECTION;
 	//		selsy *= Font_CharHeight();
 	//		seley *= Font_CharHeight();
 			selsy += y;
@@ -2594,9 +2597,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		con_current->mousecursor[0] = mousecursor_x;
 		con_current->mousecursor[1] = mousecursor_y;
-		con_current->selstartline = NULL;
-		con_current->selendline = NULL;
+		if (!(con_current->flags & CONF_KEEPSELECTION))
+		{
+			con_current->selstartline = NULL;
+			con_current->selendline = NULL;
+		}
 		selactive = Key_GetConsoleSelectionBox(con_current, &selsx, &selsy, &selex, &seley);
+
+		if ((con_current->flags & CONF_KEEPSELECTION) && con_current->selstartline && con_current->selendline)
+			selactive = -1;
 
 		Font_BeginString(font_console, x, y, &x, &y);
 		Font_BeginString(font_console, selsx, selsy, &selsx, &selsy);

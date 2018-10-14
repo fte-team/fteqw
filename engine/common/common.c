@@ -5080,7 +5080,7 @@ static void COM_Version_f (void)
 #elif defined(Q3CLIENT)
 	Con_Printf(" Quake3(client)");
 #elif defined(Q3BSPS)
-	Con_Printf(" Quake3(bsp only)");
+	Con_DPrintf(" ^hQuake3(bsp only)^7");
 #else
 	Con_DPrintf(" ^h(disabled: Quake3)^7");
 #endif
@@ -5091,7 +5091,7 @@ static void COM_Version_f (void)
 #elif defined(Q2CLIENT)
 	Con_Printf(" Quake2(client)");
 #elif defined(Q2BSPS)
-	Con_Printf(" Quake2(bsp only)");
+	Con_DPrintf(" ^hQuake2(bsp only)^7");
 #else
 	Con_DPrintf(" ^h(disabled: Quake2)^7");
 #endif

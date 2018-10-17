@@ -3976,7 +3976,7 @@ static const char *PR_buf_loadgame(pubprogfuncs_t *prinst, const char *l)
 		if (tt != TTP_RAWTOKEN)
 			break;
 		index = atoi(token);
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return NULL;
 
 		if (index < 0 || index >= buf->allocated)
 			continue;	//some sort of error.

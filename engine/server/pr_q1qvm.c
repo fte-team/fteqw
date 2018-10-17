@@ -897,7 +897,7 @@ static qintptr_t QVM_Sound (void *offset, quintptr_t mask, const qintptr_t *arg)
 	if (channel & 8)
 	{	//based on quakeworld, remember
 		channel = (channel & 7) | ((channel&~15)>>1);
-		flags |= CF_RELIABLE;
+		flags |= CF_SV_RELIABLE;
 	}
 	SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), channel, VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0, 0, flags);
 	return 0;

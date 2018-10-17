@@ -1066,14 +1066,15 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 				if (qface->ft.activeheight != f->charheight)
 				{
 					qface->ft.activeheight = f->charheight;
-					if (FT_HAS_FIXED_SIZES(face))
+					if (FT_HAS_FIXED_SIZES(face) && !FT_IS_SCALABLE(face))
 					{	//freetype doesn't like scaling these for us, so we have to pick a usable size ourselves.
 						FT_Int best = 0, s;
 						int bestheight = 0, h;
 						for (s = 0; s < qface->ft.face->num_fixed_sizes; s++)
 						{
 							h = qface->ft.face->available_sizes[s].height;
-							if (h >= f->charheight && h < bestheight)
+							//always try to pick the smallest size that is also >= our target size
+							if ((h > bestheight && bestheight < f->charheight) || (h >= f->charheight && h < bestheight))
 							{
 								bestheight = h;
 								best = s;
@@ -1106,8 +1107,10 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 								nw = (bm->width*nh)/bm->rows;
 							}
 							else
-								nw = nh = 0;
-							if (bm->pixel_mode == FT_PIXEL_MODE_BGRA)
+								nw = f->charheight, nh = 0;
+							if (!nw || !nh)
+								c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_GRAY, NULL, nw, nh, 0);
+							else if (bm->pixel_mode == FT_PIXEL_MODE_BGRA)
 							{
 								unsigned int *out = alloca(nw*nh*sizeof(*out));
 								Image_ResampleTexture((void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
@@ -1529,7 +1532,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 #endif
 	if (!error)
 	{
-		if (FT_HAS_FIXED_SIZES(face))
+		if (FT_HAS_FIXED_SIZES(face) && !FT_IS_SCALABLE(face))
 		{
 			height = 0;	//will need to rescale manually I guess
 			error = pFT_Select_Size(face, 0);

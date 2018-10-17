@@ -100,45 +100,21 @@ typedef struct
 } dma_t;
 
 //client and server
-//#define CF_RELIABLE		1
+#define CF_SV_RELIABLE		1	// send reliably
+#define CF_NET_SENTVELOCITY	CF_SV_RELIABLE
 #define CF_FORCELOOP		2	// forces looping. set on static sounds.
 #define CF_NOSPACIALISE		4	// these sounds are played at a fixed volume in both speakers, but still gets quieter with distance.
 //#define CF_PAUSED			8	// rate = 0. or something.
-//#define CF_ABSVOLUME		16
+#define CF_CL_ABSVOLUME		16	// ignores volume cvar. this is ignored if received from the server because there's no practical way for the server to respect the client's preferences.
+//#define CF_SV_RESERVED	CF_CL_ABSVOLUME
 #define CF_NOREVERB			32	// disables reverb on this channel, if possible.
 #define CF_FOLLOW			64	// follows the owning entity (stops moving if we lose track)
 //#define CF_RESERVEDN		128	// reserved for things that should be networked.
 
-//client only
-///CF_RELIABLE				1
-//#define CF_FORCELOOP		2
-//#define CF_NOSPACIALISE	4
-///#define CF_PAUSED		8
-#define CF_ABSVOLUME		16	// ignores volume cvar.
-//#define CF_NOREVERB		32
-//#define CF_FOLLOW			64
-///#define CF_RESERVEDN		128
-
-//client-internal
-#define CF_AUTOSOUND		1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
-#define CF_INACTIVE			2048	// try to play even when inactive
-
-//server only
-#define CF_RELIABLE			1	// serverside only. yeah, evil. screw you.
-//#define CF_FORCELOOP		2
-//#define CF_NOSPACIALISE	4
-///#define CF_PAUSED		8
-//#define CF_NOREVERB		32
-//#define CF_FOLLOW			64
-///#define CF_RESERVEDN		128
-#define CF_UNICAST			256 // serverside only. the sound is sent to msg_entity only.
-#define CF_SENDVELOCITY		512	// serverside hint that velocity is important
-///#define CF_UNUSED		2048
-///#define CF_UNUSED		4096
-///#define CF_UNUSED		8192
-///#define CF_UNUSED		16384
-///#define CF_UNUSED		32768
-
+#define CF_SV_UNICAST		256 // serverside only. the sound is sent to msg_entity only.
+#define CF_SV_SENDVELOCITY	512	// serverside hint that velocity is important
+#define CF_CLI_AUTOSOUND	1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
+#define CF_CLI_INACTIVE		2048	// try to play even when inactive
 #define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW/*|CF_RESERVEDN*/)
 
 typedef struct

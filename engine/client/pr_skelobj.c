@@ -1104,7 +1104,7 @@ static skelobject_t *skel_get(world_t *world, int skelidx)
 	return &skelobjects[skelidx];
 }
 
-void skel_lookup(world_t *world, int skelidx, framestate_t *out)
+void skel_lookup(world_t *world, int skelidx, framestate_t *fte_restrict out)
 {
 	skelobject_t *sko = skel_get(world, skelidx);
 	if (sko && sko->inuse)

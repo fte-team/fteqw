@@ -31,6 +31,14 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 
 	switch(mips->encoding)
 	{
+	case PTI_L8_SRGB:
+	case PTI_L8:
+		fmt = D3DFMT_L8;
+		break;
+	case PTI_L8A8_SRGB:
+	case PTI_L8A8:
+		fmt = D3DFMT_A8L8;
+		break;
 	case PTI_RGB565:
 		fmt = D3DFMT_R5G6B5;
 		break;

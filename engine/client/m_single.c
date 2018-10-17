@@ -1037,7 +1037,7 @@ void M_Menu_Demos_f (void)
 #ifdef PACKAGE_DZIP
 		".dz",
 #endif
-		NULL
+		NULL	//in case none of the above are defined. compilers don't much like 0-length arrays.
 	};
 	size_t u;
 	demomenu_t *info;
@@ -1078,7 +1078,7 @@ void M_Menu_Demos_f (void)
 	//and some archive formats... for the luls
 	for (u = 0; u < countof(archiveexts); u++)
 	{
-		if (archiveexts[u])
+		if (!archiveexts[u])
 			continue;
 		info->command[info->numext] = NULL;
 		info->ext[info->numext++] = archiveexts[u];

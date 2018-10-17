@@ -4903,7 +4903,7 @@ static void CLNQ_ParseStartSoundPacket(void)
 		pitchadj = (unsigned short)MSG_ReadShort() / 4000.0;
 
 	flags = field_mask>>8;
-	flags &= CF_FORCELOOP | CF_NOREVERB | CF_FOLLOW;
+	flags &= CF_NETWORKED;
 
 	if (field_mask & NQSND_LARGEENTITY)
 	{

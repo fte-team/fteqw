@@ -887,14 +887,19 @@ enum {
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
 //#define DPSND_LOOPING		(1<<2)		// a long, supposedly
-#define FTESND_MOREFLAGS	(1<<2)		// actually, chan flags
+#define FTESND_MOREFLAGS	(1<<2)		// actually, chan flags, mostly.
 #define NQSND_LARGEENTITY	(1<<3)		//both dp+fitz
 #define NQSND_LARGESOUND	(1<<4)		//both dp+fitz
 #define	DPSND_SPEEDUSHORT4000	(1<<5)		// ushort speed*4000 (speed is usually 1.0, a value of 0.0 is the same as 1.0)
 #define FTESND_TIMEOFS		(1<<6)		//signed short, in milliseconds.
 #define FTESND_PITCHADJ		(1<<7)			//a byte (speed percent (0=100%))
 //more flags are weird.
-#define FTESND_VELOCITY		(CF_RELIABLE<<8)	//borrowed.
+#define FTESND_VELOCITY		(CF_NET_SENTVELOCITY<<8)	//borrowed.
+//FTESND_NOSPACIALISE		(CF_NOSPACIALISE<<8)
+//FTESND_NOREVERB			(CF_NOREVERB<<8)
+//FTESND_FORCELOOP			(CF_FORCELOOP<<8)
+//FTESND_FOLLOW				(CF_FOLLOW<<8)
+//FTESND_RESERVED			(CF_RESERVEDN<<8)
 
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0

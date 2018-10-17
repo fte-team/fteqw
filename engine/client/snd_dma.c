@@ -2554,7 +2554,7 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 	float volscale;
 	int seat;
 
-	if (ch->flags & CF_ABSVOLUME)
+	if (ch->flags & CF_CL_ABSVOLUME)
 		volscale = 1;
 	else
 		volscale = volume.value * voicevolumemod;
@@ -2681,12 +2681,12 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	}
 
 	//sounds with absvolume ignore all volume etc cvars+settings
-	if (ch->flags & CF_ABSVOLUME)
+	if (ch->flags & CF_CL_ABSVOLUME)
 		volscale = 1;
 	else
 		volscale = volume.value * voicevolumemod;
 
-	if (!vid.activeapp && !snd_inactive.ival && !(ch->flags & CF_INACTIVE))
+	if (!vid.activeapp && !snd_inactive.ival && !(ch->flags & CF_CLI_INACTIVE))
 		volscale = 0;
 
 	if (sc->seat == -1)
@@ -3286,9 +3286,9 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		}
 		if (chan->sfx)
 		{
-			chan->flags = /*CF_INACTIVE|*/CF_ABSVOLUME|CF_NOSPACIALISE|CF_NOREVERB;	//bypasses volume cvar completely.
+			chan->flags = /*CF_CL_INACTIVE|*/CF_CL_ABSVOLUME|CF_NOSPACIALISE|CF_NOREVERB;	//bypasses volume cvar completely.
 			vol = 255*bgmvolume.value*voicevolumemod;
-			if (!vid.activeapp && !snd_inactive.ival && !(chan->flags & CF_INACTIVE))
+			if (!vid.activeapp && !snd_inactive.ival && !(chan->flags & CF_CLI_INACTIVE))
 				vol = 0;
 			vol = bound(0, vol, 255);
 			vol = Media_CrossFade(i-MUSIC_FIRST, vol, (chan->pos>>PITCHSHIFT) / (float)snd_speed);
@@ -3484,7 +3484,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		{
 			for (c = NULL, j=DYNAMIC_FIRST; j < DYNAMIC_STOP ; j++)
 			{
-				if (sc->channel[j].entnum == entnums[count] && !sc->channel[j].entchannel && (sc->channel[j].flags & CF_AUTOSOUND))
+				if (sc->channel[j].entnum == entnums[count] && !sc->channel[j].entchannel && (sc->channel[j].flags & CF_CLI_AUTOSOUND))
 				{
 					c = &sc->channel[j];
 					break;
@@ -3495,7 +3495,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		{
 			for (c = NULL, j=DYNAMIC_FIRST; j < DYNAMIC_STOP ; j++)
 			{
-				if (sc->channel[j].sfx == sfx && (sc->channel[j].flags & CF_AUTOSOUND))
+				if (sc->channel[j].sfx == sfx && (sc->channel[j].flags & CF_CLI_AUTOSOUND))
 				{
 					c = &sc->channel[j];
 					break;
@@ -3507,7 +3507,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 			c = SND_PickChannel(sc, 0, 0);
 			if (!c)
 				continue;
-			c->flags = CF_AUTOSOUND|CF_FORCELOOP;
+			c->flags = CF_CLI_AUTOSOUND|CF_FORCELOOP;
 			c->entnum = sc->ChannelUpdate?entnums[count]:0;
 			c->entchannel = 0;
 			c->dist_mult = 3 / sound_nominal_clip_dist;
@@ -3582,7 +3582,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	{
 		if (!ch->sfx)
 			continue;
-		if (ch->flags & CF_AUTOSOUND)
+		if (ch->flags & CF_CLI_AUTOSOUND)
 		{
 			if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
 			{
@@ -3959,7 +3959,7 @@ void S_LocalSound2 (const char *sound, int channel, float volume)
 		Con_Printf ("S_LocalSound: can't cache %s\n", sound);
 		return;
 	}
-	S_StartSound (0, channel, sfx, NULL, NULL, volume, 0, 0, 0, CF_INACTIVE|CF_NOSPACIALISE|CF_NOREVERB);
+	S_StartSound (0, channel, sfx, NULL, NULL, volume, 0, 0, 0, CF_CLI_INACTIVE|CF_NOSPACIALISE|CF_NOREVERB);
 }
 void S_LocalSound (const char *sound)
 {
@@ -4170,7 +4170,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			channel_t *c = SND_PickChannel(si, -1, 0);
 			if (c)
 			{
-				c->flags = (sourceid>=0?CF_INACTIVE:0)|CF_ABSVOLUME|CF_NOSPACIALISE;
+				c->flags = (sourceid>=0?CF_CLI_INACTIVE:0)|CF_CL_ABSVOLUME|CF_NOSPACIALISE;
 				c->entnum = 0;
 				c->entchannel = 0;
 				c->dist_mult = 0;

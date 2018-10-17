@@ -2892,6 +2892,9 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	struct pendingtextureinfo *mips;
 	int encoding = TF_INVALID;
 	qbyte *in;
+	qbyte *fileend = filedata + filesize;
+
+	unsigned int blockwidth, blockheight, blockbytes;
 
 	if (memcmp(filedata, magic, sizeof(magic)))
 		return NULL;	//not a ktx file
@@ -3082,6 +3085,8 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	if (nummips * header->numberoffaces > countof(mips->mip))
 		nummips = countof(mips->mip) / header->numberoffaces;
 
+	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
+
 	w = header->pixelwidth;
 	h = header->pixelheight;
 	d = header->pixeldepth;
@@ -3089,7 +3094,18 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	{
 		datasize = *(int*)filedata;
 		filedata += 4;
-		//FIXME: validate the data size
+
+		if (datasize != blockbytes * ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight))
+		{
+			Con_Printf("%s: mip %i does not match expected size\n", fname, mipnum);
+			break;
+		}
+
+		if (filedata + datasize*header->numberoffaces > fileend)
+		{
+			Con_Printf("%s: truncation at mip %i\n", fname, mipnum);
+			break;
+		}
 
 		for (face = 0; face < header->numberoffaces; face++)
 		{
@@ -3106,10 +3122,16 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 			if ((datasize & 3) && mips->type == PTI_CUBEMAP)
 				filedata += 4-(datasize&3);
 		}
-		w = (w+1)>>1;
-		h = (h+1)>>1;
+		w = max(1, w>>1);
+		h = max(1, h>>1);
 		if (mips->type == PTI_3D)
-			d = (d+1)>>1;
+			d = max(1, d>>1);
+	}
+
+	if (!mips->mipcount)
+	{
+		Z_Free(mips);
+		return NULL;
 	}
 
 	return mips;
@@ -5319,18 +5341,27 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	return "Unknown";
 }
 
-static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w), uploadfmt_t encoding)
+static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w), uploadfmt_t encoding)
 {
 #define TMPBLOCKSIZE 16u
 	pixel32_t *ret, *out;
 	pixel32_t tmp[TMPBLOCKSIZE*TMPBLOCKSIZE];
 	int x, y, i, j;
+	int sizediff;
 
 	unsigned int blockbytes, blockwidth, blockheight;
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
 
 	if (blockwidth > TMPBLOCKSIZE || blockheight > TMPBLOCKSIZE)
 		Sys_Error("Image_Block_Decode only supports up to %u*%u blocks.\n", TMPBLOCKSIZE,TMPBLOCKSIZE);
+
+	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight);
+	if (sizediff)
+	{
+		Con_Printf("Image_Block_Decode: %s data size is %u, expected %u\n\n", Image_FormatName(encoding), insize, insize-sizediff);
+		if (sizediff < 0)
+			return NULL;
+	}
 
 	ret = out = BZ_Malloc(w*h*sizeof(*out));
 
@@ -5349,9 +5380,8 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, int w, int h, void(
 			in+=blockbytes;
 		}
 	}
-
 	if (h%blockheight)
-	{
+	{	//now walk along the bottom of the image
 		h %= blockheight;
 		for (x = 0; x < w; )
 		{
@@ -5374,11 +5404,17 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, int w, int h, void(
 
 static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 {
-	//various compressed formats might not be supported.
+	//various compressed formats might not be supported by various gpus/apis.
+	//sometimes the gpu might only partially support the format (eg: d3d requires mip 0 be a multiple of the block size)
+	//and sometimes we want the actual rgb data (eg: so that we can palettize it)
+	//so this is still useful even if every driver ever created supported the format.
+	//as a general rule, decompressing is fairly straight forward, but not free. yay threads.
+
+	//iiuc any basic s3tc patents have now expired, so it is legally safe to decode (though fancy compression logic may still have restrictions, but we don't compress).
+	static float throttle;
 	void *decodefunc = NULL;
 	int rcoding = mips->encoding;
 	int mip;
-	//its easy enough to decompress these, if needed, its not so easy to compress them as something that's actually supported...
 	switch(mips->encoding)
 	{
 	default:
@@ -5416,7 +5452,7 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 		decodefunc = Image_Decode_EAC_R11U_Block;
 		rcoding = PTI_RGBX8;
 		break;
-/*		case PTI_EAC_R11_SNORM:
+/*	case PTI_EAC_R11_SNORM:
 		decodefunc = Image_Decode_EAC_R11S_Block;
 		rcoding = PTI_RGBX8;
 		break;*/
@@ -5424,36 +5460,62 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 		decodefunc = Image_Decode_EAC_RG11U_Block;
 		rcoding = PTI_RGBX8;
 		break;
-/*		case PTI_EAC_RG11_SNORM:
+/*	case PTI_EAC_RG11_SNORM:
 		decodefunc = Image_Decode_EAC_RG11S_Block;
 		rcoding = PTI_RGBX8;
 		break;*/
+#else
+	case PTI_ETC1_RGB8:
+	case PTI_ETC2_RGB8:
+	case PTI_ETC2_RGB8_SRGB:
+	case PTI_ETC2_RGB8A1:
+	case PTI_ETC2_RGB8A1_SRGB:
+	case PTI_ETC2_RGB8A8:
+	case PTI_ETC2_RGB8A8_SRGB:
+	case PTI_EAC_R11:
+	case PTI_EAC_R11_SNORM:
+	case PTI_EAC_RG11:
+	case PTI_EAC_RG11_SNORM:
+		Con_ThrottlePrintf(&throttle, 0, "ETC1/ETC2/EAC decompression is not supported in this build\n");
+		break;
 #endif
 
-#ifdef DECOMPRESS_S3TC
 	case PTI_BC1_RGB:
 	case PTI_BC1_RGB_SRGB:
+#ifdef DECOMPRESS_S3TC
 		decodefunc = Image_Decode_BC1_Block;
 		rcoding = (mips->encoding==PTI_BC1_RGB_SRGB)?PTI_RGBX8_SRGB:PTI_RGBX8;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "BC1 decompression is not supported in this build\n");
+#endif
 		break;
 	case PTI_BC1_RGBA:
 	case PTI_BC1_RGBA_SRGB:
+#ifdef DECOMPRESS_S3TC
 		decodefunc = Image_Decode_BC1A_Block;
 		rcoding = (mips->encoding==PTI_BC1_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "BC1A decompression is not supported in this build\n");
+#endif
 		break;
 	case PTI_BC2_RGBA:
 	case PTI_BC2_RGBA_SRGB:
+#ifdef DECOMPRESS_S3TC
 		decodefunc = Image_Decode_BC2_Block;
 		rcoding = (mips->encoding==PTI_BC2_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
-		break;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "BC2 decompression is not supported in this build\n");
 #endif
-#if defined(DECOMPRESS_RGTC) && defined(DECOMPRESS_S3TC)
+		break;
 	case PTI_BC3_RGBA:
 	case PTI_BC3_RGBA_SRGB:
+#if defined(DECOMPRESS_RGTC) && defined(DECOMPRESS_S3TC)
 		decodefunc = Image_Decode_BC3_Block;
 		rcoding = (mips->encoding==PTI_BC3_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
-		break;
+#else
+		Con_ThrottlePrintf(&throttle, 0, "BC3 decompression is not supported in this build\n");
 #endif
+		break;
 #ifdef DECOMPRESS_RGTC
 	case PTI_BC4_R8_SNORM:
 		decodefunc = Image_Decode_BC4S_Block;
@@ -5471,15 +5533,29 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 		decodefunc = Image_Decode_BC5U_Block;
 		rcoding = PTI_RGBX8;
 		break;
+#else
+	case PTI_BC4_R8_SNORM:
+	case PTI_BC4_R8:
+	case PTI_BC5_RG8_SNORM:
+	case PTI_BC5_RG8:
+		Con_ThrottlePrintf(&throttle, 0, "BC4/BC5 decompression is not supported in this build\n");
+		break;
 #endif
 #if 0//def DECOMPRESS_BPTC
-	case PTI_BC6_RGBFU:
-	case PTI_BC6_RGBFS:
+	case PTI_BC6_RGB_UFLOAT:
+	case PTI_BC6_RGB_SFLOAT:
 		rcoding = PTI_RGBA16F;
 		break;
 	case PTI_BC7_RGBA:
 	case PTI_BC7_RGBA_SRGB:
 		rcoding = PTI_ZOMGWTF;
+		break;
+#else
+	case PTI_BC6_RGB_UFLOAT:
+	case PTI_BC6_RGB_SFLOAT:
+	case PTI_BC7_RGBA:
+	case PTI_BC7_RGBA_SRGB:
+		Con_ThrottlePrintf(&throttle, 0, "BC6/BC7 decompression is not supported\n");
 		break;
 #endif
 	}
@@ -5487,7 +5563,7 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 	{
 		for (mip = 0; mip < mips->mipcount; mip++)
 		{
-			pixel32_t *out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
+			pixel32_t *out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
 			if (mips->mip[mip].needfree)
 				BZ_Free(mips->mip[mip].data);
 			mips->mip[mip].data = out;

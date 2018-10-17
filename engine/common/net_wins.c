@@ -7171,7 +7171,7 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 #endif
 #ifdef HAVE_IPX
 	case NA_IPX:
-		protocol = NSPROTO_IPX;
+		sysprot = NSPROTO_IPX;
 		break;
 #endif
 	default:
@@ -7842,7 +7842,7 @@ void QDECL SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
 }
 cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "", SV_PortIPX_Callback);
 #endif
-#ifdef HAVE_IPX
+#ifdef UNIXSOCKETS
 void QDECL SV_PortUNIX_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_UNIX, NP_DGRAM);

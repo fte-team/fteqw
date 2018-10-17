@@ -3,9 +3,11 @@
 #include <ctype.h>
 
 //ezquake sucks. I'd fix these, but that'd make diffs more messy.
-#pragma GCC diagnostic ignored "-Wold-style-definition"
-#pragma GCC diagnostic ignored "-Wstrict-prototypes"
-#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#ifdef __GNUC__
+	#pragma GCC diagnostic ignored "-Wold-style-definition"
+	#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+	#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
 
 //ezquake types.
 #define byte qbyte

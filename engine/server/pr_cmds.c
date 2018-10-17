@@ -3590,7 +3590,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	else
 	{
 		//QW uses channel&8 to mean reliable.
-		chflags = (channel & 8)?CF_RELIABLE:0;
+		chflags = (channel & 8)?CF_SV_RELIABLE:0;
 		//demangle it so the upper bits are still useful.
 		channel = (channel & 7) | ((channel & ~15) >> 1);
 	}
@@ -8385,7 +8385,7 @@ static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, NULL, 1, 0, 0, 0, CF_RELIABLE);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, NULL, 1, 0, 0, 0, CF_SV_RELIABLE);
 }
 
 static void QCBUILTIN PF_h2updatesoundpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -12096,14 +12096,14 @@ void PR_DumpPlatform_f(void)
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
 		{"CHANF_RELIABLE",	"const float", QW,		 D("Only valid if the flags argument is not specified. The sound will be sent reliably, which is important if it is intended to replace looping sounds on doors etc."), 8},
 
-		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,		D("The sound will be sent reliably, and without regard to phs."), CF_RELIABLE},
-		{"SOUNDFLAG_ABSVOLUME",		"const float",	/*QW|NQ|*/CS,D("The sample's volume is not scaled by the volume cvar. Use with caution"), CF_ABSVOLUME},
+		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,		D("The sound will be sent reliably, and without regard to phs."), CF_SV_RELIABLE},
+		{"SOUNDFLAG_ABSVOLUME",		"const float",	CS,			D("The sample's volume is not scaled by the volume cvar. Use with caution"), CF_CL_ABSVOLUME},
 		{"SOUNDFLAG_FORCELOOP",		"const float",	QW|NQ|CS,	D("The sound will restart once it reaches the end of the sample."), CF_FORCELOOP},
 		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,D("The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation."), CF_NOSPACIALISE},
 		{"SOUNDFLAG_NOREVERB",		"const float",	QW|NQ|CS,	D("Disables the use of underwater/reverb effects on this sound effect."), CF_NOREVERB},
 		{"SOUNDFLAG_FOLLOW",		"const float",	QW|NQ|CS,	D("The sound's origin will updated to follow the emitting entity."), CF_FOLLOW},
-		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be heard only by the player specified by msg_entity."), CF_UNICAST},
-		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		D("The entity's current velocity will be sent to the client, only useful if doppler is enabled."), CF_SENDVELOCITY},
+		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be sent only by the player specified by msg_entity. Spectators and related splitscreen players will also hear the sound."), CF_SV_UNICAST},
+		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		D("The entity's current velocity will be sent to the client, only useful if doppler is enabled."), CF_SV_SENDVELOCITY},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, D("Sounds with this attenuation can be heard throughout the map"), ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, D("Standard attenuation"), ATTN_NORM},

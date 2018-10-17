@@ -766,7 +766,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 	}
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
-	NET_SockadrToString(cl->peername, sizeof(cl->peername), &from);
+	NET_SockadrToString(cl->peername, sizeof(cl->peername), &from, sizeof(from));
 	IWebPrintf("%s: New http connection\n", cl->peername);
 
 	cl->datasock = clientsock;

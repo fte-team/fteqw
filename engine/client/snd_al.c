@@ -684,7 +684,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	}
 
 	cvolume = chan->master_vol/255.0f;
-	if (!(chan->flags & CF_ABSVOLUME))
+	if (!(chan->flags & CF_CL_ABSVOLUME))
 		cvolume *= volume.value*voicevolumemod;
 
 	//openal doesn't support loopstart (entire sample loops or not at all), so if we're meant to skip the first half then we need to stream it.

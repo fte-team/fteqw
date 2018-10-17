@@ -3,6 +3,12 @@
 #include "qcc.h"
 #include <math.h>
 
+#if defined(_WIN32) || defined(__DJGPP__)
+	#include <malloc.h>
+#elif !defined(alloca)	//alloca.h isn't present on bsd (stdlib.h should define it to __builtin_alloca, and we can check for that here).
+	#include <alloca.h>
+#endif
+
 /*
 TODO:
 *foo++ = 5;

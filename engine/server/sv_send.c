@@ -1556,7 +1556,7 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float ratemul, float timeofs, unsigned int chflags)
 {
 	qboolean	use_phs;
-	qboolean	reliable = chflags & CF_RELIABLE;
+	qboolean	reliable = chflags & CF_SV_RELIABLE;
 	struct startsoundcontext_s ctx;
 
 	if (volume < 0 || volume > 255)
@@ -1635,7 +1635,7 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 	else
 		use_phs = attenuation!=0;
 
-	if (chflags & CF_UNICAST)
+	if (chflags & CF_SV_UNICAST)
 	{
 		SV_MulticastCB(origin, reliable ? MULTICAST_ONE_R_SPECS : MULTICAST_ONE_SPECS, seenmask, SV_SoundMulticast, &ctx);
 	}
@@ -1667,7 +1667,7 @@ void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const
 			//making them all reliable avoids packetloss and phs issues.
 			//this applies only to pushers. you won't get extra latency on player actions because of this.
 			//be warned that it does mean you might be able to hear people triggering stuff on the other side of the map however.
-			chflags |= CF_RELIABLE;
+			chflags |= CF_SV_RELIABLE;
 		}
 		else if (progstype == PROG_QW)
 		{	//quakeworld puts the sound ONLY at the entity's actual origin. this is annoying and stupid. I'm not really sure what to do here. it seems wrong.
@@ -1679,7 +1679,7 @@ void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const
 				origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
 		}
 
-		if (chflags & CF_SENDVELOCITY)
+		if (chflags & CF_SV_SENDVELOCITY)
 			velocity = entity->v->velocity;
 	}
 

@@ -1087,7 +1087,7 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 	return true;
 }
 
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver)
+vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver)
 {
 	gnutlsfile_t *newf;
 
@@ -1127,7 +1127,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver
 	return &newf->funcs;
 }
 
-int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
+int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 {
 	gnutls_datum_t cb;
 	gnutlsfile_t *f = (gnutlsfile_t*)vf;
@@ -1337,7 +1337,7 @@ const dtlsfuncs_t *GNUDTLS_InitClient(void)
 
 qboolean SSL_InitGlobal(qboolean isserver) {return false;}
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver) {return NULL;}
-int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize) {return -1;}
+int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize) {return -1;}
 const dtlsfuncs_t *GNUDTLS_InitClient(void) {return NULL;}
 const dtlsfuncs_t *GNUDTLS_InitServer(void) {return NULL;}
 #endif

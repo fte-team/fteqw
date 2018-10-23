@@ -2294,7 +2294,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 		if (!((int)clip->passedict->xv->dimension_hit & 1))
 			continue;
 
-		if (!model || model->loadstate != MLS_LOADED)
+		if (!model || model->loadstate != MLS_LOADED || !model->funcs.NativeTrace)
 		{
 			model = NULL;
 

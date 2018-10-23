@@ -6255,6 +6255,44 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	NPP_Flush();
 #endif
 
+	if (sv.csqcdebug)
+	{
+#ifdef NQPROT
+		if (sv.nqmulticast.cursize && sv.nqmulticast.data[0] == svcfte_cgamepacket)
+		{
+			if (sv.nqmulticast.cursize + 2 > sv.nqmulticast.maxsize)
+				sv.nqmulticast.cursize = 0;
+			else
+			{
+				/*shift the data up by two bytes*/
+				memmove(sv.nqmulticast.data+3, sv.nqmulticast.data+1, sv.nqmulticast.cursize-1);
+
+				/*add a length in the 2nd/3rd bytes*/
+				sv.nqmulticast.data[1] = (sv.nqmulticast.cursize-1);
+				sv.nqmulticast.data[2] = (sv.nqmulticast.cursize-1) >> 8;
+
+				sv.nqmulticast.cursize += 2;
+			}
+		}
+#endif
+		if (sv.multicast.cursize)
+		{
+			if (sv.multicast.cursize + 2 > sv.multicast.maxsize)
+				sv.multicast.cursize = 0;
+			else
+			{
+				/*shift the data up by two bytes*/
+				memmove(sv.multicast.data+3, sv.multicast.data+1, sv.multicast.cursize-1);
+
+				/*add a length in the 2nd/3rd bytes*/
+				sv.multicast.data[1] = (sv.multicast.cursize-1);
+				sv.multicast.data[2] = (sv.multicast.cursize-1) >> 8;
+
+				sv.multicast.cursize += 2;
+			}
+		}
+	}
+
 	SV_MulticastProtExt(o, to, pr_global_struct->dimension_send, 0, 0);
 }
 

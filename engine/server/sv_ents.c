@@ -3893,8 +3893,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	// this is the frame we are creating
 	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
-	if (!sv.paused)
-		memset(frame->playerpresent, 0, sizeof(frame->playerpresent));
+	memset(frame->playerpresent, 0, sizeof(frame->playerpresent));
 
 	// find the client's PVS
 	if (ignorepvs)

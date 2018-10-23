@@ -1081,7 +1081,10 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			else if (client->prespawn_idx == 5)
 			{
 				ClientReliableWrite_Begin(client, svc_setpause, 2);
-				ClientReliableWrite_Byte (client, sv.paused!=0);
+				ClientReliableWrite_Byte (client, sv.oldpaused!=0);
+
+				if (sv.oldpaused && sv.oldpaused&~PAUSE_AUTO)
+					SV_PrintToClient(client, PRINT_HIGH, "server is paused\n");
 			}
 			else
 			{
@@ -1796,7 +1799,7 @@ void SVQW_Spawn_f (void)
 
 // send all current names, colors, and frag counts
 	// FIXME: is this a good thing?
-	SZ_Clear (&host_client->netchan.message);
+//	SZ_Clear (&host_client->netchan.message);
 
 // send current status of all other players
 
@@ -2138,6 +2141,8 @@ void SV_Begin_Core(client_t *split)
 					SV_PostRunCmd();
 					host_client = oh;
 					sv_player = oh?oh->edict:NULL;
+
+					host_client->lastruncmd = sv.time*1000;
 				}
 			}
 		}
@@ -2215,18 +2220,6 @@ void SV_Begin_f (void)
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
 			SV_BroadcastTPrintf (PRINT_HIGH, "warning: %s eyes or player model does not match\n", host_client->name);
-	}
-
-	// if we are paused, tell the client
-	if (sv.paused)
-	{
-		if (!ISQ2CLIENT(host_client))
-		{
-			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
-			ClientReliableWrite_Byte (host_client, sv.paused!=0);
-		}
-		if (sv.paused&~PAUSE_AUTO)
-			SV_ClientTPrintf(host_client, PRINT_HIGH, "server is paused\n");
 	}
 
 	if (sendangles)
@@ -5518,7 +5511,7 @@ static void SVNQ_Spawn_f (void)
 
 // send all current names, colors, and frag counts
 	// FIXME: is this a good thing?
-	SZ_Clear (&host_client->netchan.message);
+//	SZ_Clear (&host_client->netchan.message);
 
 // send current status of all other players
 
@@ -5638,19 +5631,6 @@ static void SVNQ_Begin_f (void)
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
 			SV_BroadcastTPrintf (PRINT_HIGH, "warning: %s eyes or player model not verified\n", host_client->name);
-	}
-
-
-	// if we are paused, tell the client
-	if (sv.paused)
-	{
-		if (!ISQ2CLIENT(host_client))
-		{
-			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
-			ClientReliableWrite_Byte (host_client, sv.paused!=0);
-		}
-		if (sv.paused&~PAUSE_AUTO)
-			SV_ClientTPrintf(host_client, PRINT_HIGH, "server is paused\n");
 	}
 
 	if (sendangles)
@@ -6830,6 +6810,7 @@ size_t playertouchmax;
 void SV_PreRunCmd(void)
 {
 	size_t max = MAX_EDICTS;//(sv.world.num_edicts+7)&~7;
+	host_client->lastruncmd = sv.time*1000;
 	if (max > playertouchmax)
 	{
 		playertouchmax = max;

@@ -9,6 +9,14 @@
 	#include <alloca.h>
 #endif
 
+#ifdef _MSC_VER
+#define longlong __int64
+#define LL(x) x##i64
+#else
+#define longlong long long
+#define LL(x) x##ll
+#endif
+
 /*
 TODO:
 *foo++ = 5;
@@ -236,7 +244,8 @@ QCC_sref_t QCC_MakeTranslateStringConst(const char *value);
 QCC_sref_t QCC_MakeStringConst(const char *value);
 QCC_sref_t QCC_MakeStringConstLength(const char *value, int length);
 QCC_sref_t QCC_MakeFloatConst(float value);
-QCC_sref_t QCC_MakeIntConst(int value);
+QCC_sref_t QCC_MakeFloatConstFromInt(longlong llvalue);
+QCC_sref_t QCC_MakeIntConst(longlong llvalue);
 QCC_sref_t QCC_MakeVectorConst(float a, float b, float c);
 
 enum
@@ -2181,7 +2190,7 @@ static int QCC_PR_RoundFloatConst(const QCC_eval_t *eval)
 	float val = eval->_float;
 	int ival = val;
 	if (val != (float)ival)
-		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant float operand not an integer value");
+		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant float operand %f will be truncated to %i", val, ival);
 	return ival;
 }
 
@@ -4553,7 +4562,7 @@ static void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, u
 		{
 		case 0:
 			if (argpos < argcount && argn_last < argcount)
-				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing arguments for format", funcname);
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing %s%s%s argument(s) for format %s\"%s\"%s", funcname, col_symbol, TypeName(ARGCTYPE(argpos), temp, sizeof(temp)), col_none, col_name, strings + formatstring->string, col_none);
 			return;
 		case '%':
 			if(*++s == '%')
@@ -4575,7 +4584,7 @@ static void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, u
 				width = strtol(s, &err, 10);
 				if(!err)
 				{
-					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: bad format string: %s", funcname, s0);
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: bad format string: %s%s%s", funcname, col_name, s0, col_none);
 					return;
 				}
 				if(*err == '$')
@@ -4621,7 +4630,7 @@ noflags:
 						arg = strtol(s, &err, 10);
 						if(!err || *err != '$')
 						{
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s%s%s", funcname, col_name, s0, col_none);
 							return;
 						}
 						s = err + 1;
@@ -4636,7 +4645,7 @@ noflags:
 					strtol(s, &err, 10);
 					if(!err)
 					{
-						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s%s%s", funcname, col_name, s0, col_none);
 						return;
 					}
 					s = err;
@@ -4656,7 +4665,7 @@ noflags:
 						arg = strtol(s, &err, 10);
 						if(!err || *err != '$')
 						{
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s%s%s", funcname, col_name, s0, col_none);
 							return;
 						}
 						s = err + 1;
@@ -4672,14 +4681,14 @@ noflags:
 					strtol(s, &err, 10);
 					if(!err)
 					{
-						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s%s%s", funcname, col_name, s0, col_none);
 						return;
 					}
 					s = err;
 				}
 				else
 				{
-					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s%s%s", funcname, col_name, s0, col_none);
 					return;
 				}
 			}
@@ -4744,7 +4753,7 @@ nolength:
 						break;
 					default:
 						{
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires float at arg %i (got %s)", funcname, formatbuf, thisarg+1, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)));
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires float at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 						}
 						break;
 					}
@@ -4759,7 +4768,7 @@ nolength:
 						case ev_variant:
 							break;
 						default:
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires pointer at arg %i (got %s)", funcname, formatbuf, thisarg+1, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)));
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires pointer at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 							break;
 						}
 					}
@@ -4775,7 +4784,7 @@ nolength:
 								break;
 							//fallthrough
 						default:
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires int at arg %i (got %s)", funcname, formatbuf, thisarg+1, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)));
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires int at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 							break;
 						}
 					}
@@ -4790,12 +4799,12 @@ nolength:
 					case ev_variant:
 						break;
 					default:
-						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires vector at arg %i (got %s)", funcname, formatbuf, thisarg+1, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)));
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires vector at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 						break;
 					}
 				}
 				else
-					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires intvector at arg %i (got %s)", funcname, formatbuf, thisarg+1, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)));
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires intvector at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 				break;
 			case 's':
 			case 'S':
@@ -4805,12 +4814,12 @@ nolength:
 				case ev_variant:
 					break;
 				default:
-					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s requires string at arg %i", funcname, formatbuf, thisarg+1, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)));
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires string at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 					break;
 				}
 				break;
 			default:
-				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s", funcname, s0);
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: invalid format string: %s%s%s", funcname, col_name, s0, col_none);
 				return;
 			}
 			s++;
@@ -5877,7 +5886,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			if (t)
 			{
 				QCC_PR_Expect(")");
-				return QCC_MakeIntConst(t->size * 4);
+				return QCC_PR_Statement(&pr_opcodes[OP_ADD_PIW], QCC_MakeIntConst(0), QCC_MakeIntConst(t->size), NULL);
 			}
 			else
 			{
@@ -6523,9 +6532,13 @@ QCC_sref_t QCC_MakeSRef(QCC_def_t *def, unsigned int ofs, QCC_type_t *type)
 //int varchecks;
 //int typechecks;
 extern hashtable_t floatconstdefstable;
-QCC_sref_t QCC_MakeIntConst(int value)
+QCC_sref_t QCC_MakeIntConst(longlong llvalue)
 {
 	QCC_def_t	*cn;
+	int value = llvalue;
+
+	if (value != llvalue)
+		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant int operand %lld will be truncated to %i", llvalue, value);
 
 	cn = Hash_GetKey(&floatconstdefstable, value);
 	if (cn)
@@ -7806,17 +7819,40 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 			if (assumeclass && assumeclass->parentclass)
 			{	//try getting a member.
 				QCC_type_t *type;
-				for(type = assumeclass; type && !d.cast; type = type->parentclass)
+				if (assumeclass->type == ev_struct)
 				{
-					//look for virtual things
-					QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, type->name, name);
-					d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+					unsigned int ofs;
+					struct QCC_typeparam_s *p = QCC_PR_FindStructMember(assumeclass, name, &ofs);
+					if (p)
+					{
+						QCC_sref_t		ths;
+						ths = QCC_PR_GetSRef(QCC_PR_PointerType(pr_classtype), "this", pr_scope, false, 0, false);
+						if (ths.cast)
+						{
+							ths.cast = QCC_PR_PointerType(p->type);
+							
+							if (d.sym->arraysize)
+							{
+								//FIXME: this should result in a pointer type, and not this->member[0]
+							}
+							return QCC_PR_ParseRefArrayPointer(refbuf, QCC_PR_BuildRef(refbuf, REF_POINTER, ths, QCC_MakeIntConst(ofs), p->type, false), allowarrayassign, makearraypointers);
+						}
+					}
 				}
-				for(type = assumeclass; type && !d.cast; type = type->parentclass)
+				else
 				{
-					//look for non-virtual things (functions: after virtual stuff, because this will find the actual function def too)
-					QC_snprintfz(membername, sizeof(membername), "%s::%s", type->name, name);
-					d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+					for(type = assumeclass; type && !d.cast; type = type->parentclass)
+					{
+						//look for virtual things
+						QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, type->name, name);
+						d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+					}
+					for(type = assumeclass; type && !d.cast; type = type->parentclass)
+					{
+						//look for non-virtual things (functions: after virtual stuff, because this will find the actual function def too)
+						QC_snprintfz(membername, sizeof(membername), "%s::%s", type->name, name);
+						d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+					}
 				}
 			}
 			if (!d.cast)
@@ -15452,6 +15488,8 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 		allocatenew = true;
 		if (classname)
 		{
+			unsigned int ofs;
+			struct QCC_typeparam_s *p;
 			char *membername = name;
 			name = qccHunkAlloc(strlen(classname) + strlen(name) + 3);
 			sprintf(name, "%s::%s", classname, membername);
@@ -15460,6 +15498,13 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 				allocatenew = false;
 			else if (!defclass || !defclass->parentclass)
 				QCC_PR_ParseError(ERR_NOTANAME, "%s is not a class\n", classname);
+
+			if (defclass->type == ev_struct)
+			{
+				p = QCC_PR_FindStructMember(defclass, membername, &ofs);
+				if (p && p->isvirtual)
+					type = QCC_PR_MakeThiscall(type, defclass);
+			}
 		}
 		else
 			defclass = NULL;

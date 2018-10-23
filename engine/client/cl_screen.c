@@ -991,27 +991,104 @@ void SCR_DrawCursor(void)
 		oldcurs = key_customcursor[cmod].handle;
 		if (rf->VID_CreateCursor && strcmp(key_customcursor[cmod].name, "none"))
 		{
+			image_t dummytex;
+			flocation_t loc;
+			char bestname[MAX_QPATH];
+			unsigned int bestflags;
+			qbyte *rgbadata;
+			uploadfmt_t format;
+			void *filedata = NULL;
+			int filelen = 0, width, height;
+
 			key_customcursor[cmod].handle = NULL;
-			if (!key_customcursor[cmod].handle && *key_customcursor[cmod].name)
+
+			memset(&dummytex, 0, sizeof(dummytex));
+			dummytex.flags = IF_NOREPLACE;	//no dds files
+			*bestname = 0;
+
+			//first try the named image, if possible
+			if (!filedata && *key_customcursor[cmod].name)
 			{
-				image_t dummytex;
-				flocation_t loc;
-				char bestname[MAX_QPATH];
-				unsigned int bestflags;
-				memset(&dummytex, 0, sizeof(dummytex));
 				dummytex.ident = key_customcursor[cmod].name;
-				dummytex.flags = IF_NOREPLACE;	//no dds files
 				if (Image_LocateHighResTexture(&dummytex, &loc, bestname, sizeof(bestname), &bestflags))
-					key_customcursor[cmod].handle = rf->VID_CreateCursor(bestname, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
-				else
-					key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
+					filelen = FS_LoadFile(bestname, &filedata);
 			}
-			if (!key_customcursor[cmod].handle)
-				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.tga", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
-			if (!key_customcursor[cmod].handle)
-				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.png", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
-			if (!key_customcursor[cmod].handle)
-				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.lmp", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
+			if (!filedata)
+			{
+				dummytex.ident = "gfx/cursor.lmp";
+				if (Image_LocateHighResTexture(&dummytex, &loc, bestname, sizeof(bestname), &bestflags))
+					filelen = FS_LoadFile(bestname, &filedata);
+			}
+			if (!filedata)
+			{
+				static qbyte lamecursor[] =
+				{
+#define W 0x8f,0x8f,0x8f,0xff,
+#define B 0x00,0x00,0x00,0xff,
+#define T 0x00,0x00,0x00,0x00,
+					W T T T T T T T
+					W W T T T T T T
+					W B W T T T T T
+					W B B W T T T T
+
+					W B B B W T T T
+					W B B B B W T T
+					W B B B B B W T
+					W B B B B B B W
+
+					W B B B B W W W
+					W B W B B W T T
+					W W T W B B W T
+					W T T W B B W T
+
+					T T T T W B B W
+					T T T T W B B W
+					T T T T T W W T
+#undef W
+#undef B
+				};
+				key_customcursor[cmod].handle = rf->VID_CreateCursor(lamecursor, 8, 15, PTI_LLLA8, 0, 0, 1);	//try the fallback
+			}
+			else if (!filedata)
+				FS_FreeFile(filedata);	//format not okay, just free it.
+			else
+			{	//raw file loaded.
+				rgbadata = ReadRawImageFile(filedata, filelen, &width, &height, &format, true, bestname);
+				FS_FreeFile(filedata);
+				if (rgbadata)
+				{	//image loaded properly, yay
+					if ((format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(bestname, ':'))
+					{	//people seem to insist on using jpgs, which don't have alpha.
+						//so screw over the alpha channel if needed.
+						unsigned int alpha_width, alpha_height, p;
+						char aname[MAX_QPATH];
+						unsigned char *alphadata;
+						char *alph;
+						size_t alphsize;
+						char ext[8];
+						COM_StripExtension(bestname, aname, sizeof(aname));
+						COM_FileExtension(bestname, ext, sizeof(ext));
+						Q_strncatz(aname, "_alpha.", sizeof(aname));
+						Q_strncatz(aname, ext, sizeof(aname));
+						alphsize = FS_LoadFile(aname, (void**)&alph);
+						if (alph)
+						{
+							if ((alphadata = ReadRawImageFile(alph, alphsize, &alpha_width, &alpha_height, &format, true, aname)))
+							{
+								if (alpha_width == width && alpha_height == height)
+									for (p = 0; p < alpha_width*alpha_height; p++)
+										rgbadata[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
+								BZ_Free(alphadata);
+							}
+							FS_FreeFile(alph);
+						}
+						format = (format==PTI_LLLX8)?PTI_LLLA8:PTI_RGBA8;
+					}
+
+					key_customcursor[cmod].handle = rf->VID_CreateCursor(rgbadata, width, height, format, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
+					BZ_Free(rgbadata);
+				}
+			}
 		}
 		else
 			key_customcursor[cmod].handle = NULL;

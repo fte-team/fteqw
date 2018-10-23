@@ -58,8 +58,7 @@ cvar_t	sv_nopvs					= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the serv
 cvar_t	fraglog_public				= CVARD("fraglog_public", "1", "Enables support for connectionless fraglog requests");
 cvar_t	fraglog_details				= CVARD("fraglog_details", "1", "Bitmask\n1: killer+killee names.\n2: killer+killee teams\n4:timestamp.\n8:killer weapon\n16:killer+killee guid.\nFor compatibility, use 1(vanilla) or 7(mvdsv).");
 
-cvar_t	timeout						= CVAR("timeout","65");		// seconds without any message
-cvar_t	zombietime					= CVAR("zombietime", "2");	// seconds to sink messages
+cvar_t	zombietime					= CVARD("zombietime", "2", "Client slots will not be reused for this number of seconds.");	// seconds to sink messages
 
 cvar_t	sv_crypt_rcon				= CVARFD("sv_crypt_rcon", "", CVAR_ARCHIVE, "Controls whether the rcon password must be hashed or not. Hashed passwords also partially prevent replay attacks, but does NOT prevent malicious actors from reading the commands/results.\n0: completely insecure. ONLY allows plain-text passwords. Do not use.\n1: Mandatory hashing (recommended).\nEmpty: Allow either, whether the password is secure or not is purely the client's responsibility/fault. Only use this for comptibility with old clients.");
 cvar_t	sv_crypt_rcon_clockskew		= CVARFD("sv_timestamplen", "60", CVAR_ARCHIVE, "Limits clock skew to reduce (delayed) replay attacks");
@@ -4780,7 +4779,6 @@ float SV_Frame (void)
 	static int oldpackets;
 	float oldtime;
 	qboolean isidle;
-	static int oldpaused;
 	float timedelta;
 	float delay;
 
@@ -4820,10 +4818,10 @@ float SV_Frame (void)
 		sv.paused ^= PAUSE_AUTO;
 #endif
 
-	if (oldpaused != sv.paused)
+	if (sv.oldpaused != sv.paused)
 	{
+		sv.oldpaused = sv.paused;
 		SV_PauseChanged();
-		oldpaused = sv.paused;
 	}
 
 
@@ -5084,7 +5082,7 @@ static void SV_InfoChanged(void *context, const char *key)
 #endif
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
-		if (svs.clients[i].state >= cs_connected)
+		if (svs.clients[i].state >= cs_connected && !svs.clients[i].controller)
 		{
 			InfoSync_Add(&svs.clients[i].infosync, context, key);
 		}
@@ -5155,7 +5153,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_allow_splitscreen,	cvargroup_serverinfo);
 	Cvar_Register (&fbskins,	cvargroup_serverinfo);
 
-	Cvar_Register (&timeout,	cvargroup_servercontrol);
 	Cvar_Register (&zombietime,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pupglow,	cvargroup_serverinfo);
@@ -5615,8 +5612,10 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			cl->playercolor = top*16 + bottom;
 			if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 			{
+#ifndef NOLEGACY
 				if (cl->edict)
 					cl->edict->xv->clientcolors = cl->playercolor;
+#endif
 				MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
 				MSG_WriteByte (&sv.nqreliable_datagram, cl-svs.clients);
 				MSG_WriteByte (&sv.nqreliable_datagram, cl->playercolor);

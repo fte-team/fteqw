@@ -162,7 +162,7 @@ qboolean	mouseactive;
 static cvar_t	in_joystick				= CVARAF("joystick","0", "in_joystick", CVAR_ARCHIVE);
 static qboolean	joy_advancedinit;
 
-static DWORD		joy_flags;
+static DWORD		joy_flags = JOY_RETURNALL|JOY_RETURNCENTERED;
 #define MAX_JOYSTICKS 8
 static struct wjoy_s {
 	qboolean			isxinput;	//xinput device

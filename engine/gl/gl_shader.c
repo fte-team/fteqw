@@ -7273,6 +7273,8 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 
 	if (fnamesize)
 	{
+		*fname = 0;
+
 		if (parsename)
 		{
 			unsigned int key;
@@ -7297,8 +7299,24 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 				}
 			}
 		}
-		else
-			*fname = 0;
+
+		if (!strchr(parsename, ':'))
+		{
+			//if the named shader is a .shader file then just directly load it.
+			const char *token = COM_GetFileExtension(parsename, NULL);
+			if (!strcmp(token, ".shader") || !*token)
+			{
+				char shaderfile[MAX_QPATH];
+				if (!*token)
+				{
+					Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
+					if (COM_FCheckExists(shaderfile))
+						Q_snprintfz(fname, fnamesize, "%s:%i", shaderfile, 1);
+				}
+				else if (COM_FCheckExists(parsename))
+					Q_snprintfz(fname, fnamesize, "%s:%i", parsename, 1);
+			}
+		}
 	}
 
 #ifdef _DEBUG

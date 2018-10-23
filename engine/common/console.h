@@ -113,26 +113,35 @@ typedef struct conline_s {
 } conline_t;
 
 //majority of these are mututally exclusive. the bits allow multiple.
-#define CB_NONE			0
-#define CB_SCROLL		1
-#define CB_COPY			2
-#define CB_CLOSE		3
-#define CB_MOVE			4
-#define CB_ACTIONBAR	5
-#define CB_SELECT		6
-#define CB_SIZELEFT		(1u<<29)
-#define CB_SIZERIGHT	(1u<<30)
-#define CB_SIZEBOTTOM	(1u<<31)
-#define CONF_HIDDEN			1	/*do not show in the console list (unless active)*/
-#define CONF_NOTIFY			2	/*text printed to console also appears as notify lines*/
-#define CONF_NOTIFY_BOTTOM	4	/*align the bottom*/
-#define CONF_NOTIFY_RIGHT	8
-//#define CONF_NOTIMES		16
-#define CONF_KEYFOCUSED		32
-#define CONF_ISWINDOW		64
-#define CONF_NOWRAP			128
-#define CONF_KEEPSELECTION	256	//there's text selected, keep it selected.
-#define CONF_BACKSELECTION	512	//a hint that the text was selected from the end
+enum
+{
+	CB_NONE			= 0,
+	CB_SCROLL		= 1,
+	CB_COPY			= 2,
+	CB_CLOSE		= 3,
+	CB_MOVE			= 4,
+	CB_ACTIONBAR	= 5,
+	CB_SELECT		= 6,
+	CB_SCROLL_R		= 7,
+
+	//the flags part
+	CB_SIZELEFT		= (1u<<29),
+	CB_SIZERIGHT	= (1u<<30),
+	CB_SIZEBOTTOM	= (1u<<31),
+};
+enum
+{
+	CONF_HIDDEN			= 1u<<0,	/*do not show in the console list (unless active)*/
+	CONF_NOTIFY			= 1u<<1,	/*text printed to console also appears as notify lines*/
+	CONF_NOTIFY_BOTTOM	= 1u<<2,	/*align the bottom*/
+	CONF_NOTIFY_RIGHT	= 1u<<3,
+	//CONF_NOTIMES		= 1u<<4,
+	CONF_KEYFOCUSED		= 1u<<5,
+	CONF_ISWINDOW		= 1u<<6,
+	CONF_NOWRAP			= 1u<<7,
+	CONF_KEEPSELECTION	= 1u<<8,	//there's text selected, keep it selected.
+	CONF_BACKSELECTION	= 1u<<9,	//a hint that the text was selected from the end
+};
 typedef struct console_s
 {
 	int id;
@@ -186,6 +195,7 @@ typedef struct console_s
 	int mousedown[2];	//x,y position that the current buttons were clicked.
 	unsigned int buttonsdown;
 	int mousecursor[2];	//x,y
+	float mousedowntime;	//time mouse1 last went down, to detect double-clicks
 
 	struct console_s *next;
 } console_t;
@@ -220,6 +230,7 @@ void Con_History_Load(void);
 struct font_s;
 void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy, float lineagelimit);
 void Con_DrawConsole (int lines, qboolean noback);
+void Con_ExpandConsoleSelection(console_t *con);
 char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink);
 void Con_Print (const char *txt);
 void Con_CenterPrint(const char *txt);

@@ -4175,13 +4175,19 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			{
 				flag_ifvector = flag_vectorlogic = true;
 				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = flag_cpriority = flag_allowuninit = true;
-				flag_boundchecks = false;	//gmqcc doesn't support these, so xonotic is buggy shite.
+				flag_boundchecks = false;	//gmqcc doesn't support dynamic bound checks, so xonotic is buggy shite. we don't want to generate code that will crash.
 				opt_logicops = true;
-				qccwarningaction[WARN_CONSTANTCOMPARISON] = WA_IGNORE;
-				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;
-				qccwarningaction[WARN_OVERFLOW] = WA_IGNORE;
-				qccwarningaction[WARN_STRICTTYPEMISMATCH] = WA_IGNORE;
-				qccwarningaction[WARN_PARAMWITHNONAME] = WA_IGNORE;
+
+				//we have to disable some of these warnings, because xonotic insists on using -Werror. use -Wextra to override.
+				qccwarningaction[WARN_NOTREFERENCEDCONST] = WA_IGNORE;	//gmqcc doesn't warn about function prototypes without any names
+				qccwarningaction[WARN_CONSTANTCOMPARISON] = WA_IGNORE;	//xonotic abuses this, and gmqcc doesn't warn.
+				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;	//so many macro expansions that we can't mute because of xonotic using an external preprocessor.
+				qccwarningaction[WARN_OVERFLOW] = WA_IGNORE;			//xonotic has data loss from implicit conversions too.
+				qccwarningaction[WARN_STRICTTYPEMISMATCH] = WA_IGNORE;	//gmqcc doesn't enforce checks on auxilliary types.
+				qccwarningaction[WARN_PARAMWITHNONAME] = WA_IGNORE;		//nor does it care if a parameter isn't named.
+				qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;		//and many people would argue that this was a feature rather than a bug
+				qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;		//all locals get 0-initialised anyway, and our checks are not quite up to scratch.
+				qccwarningaction[WARN_GMQCC_SPECIFIC] = WA_IGNORE;		//we shouldn't warn about gmqcc syntax when we're trying to be compatible with it. there's always -Wextra.
 
 				keyword_asm = false;
 				keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_unused = keyword_used = keyword_nonstatic = keyword_ignore = keyword_strip = false;
@@ -4284,10 +4290,30 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				for (j = 0; j < ERR_PARSEERRORS; j++)
 					if (qccwarningaction[j] == WA_IGNORE)
 					{
-						if (j != WARN_FTE_SPECIFIC &&		//kinda annoying when its actually valid code.
-							j != WARN_NOTREFERENCEDCONST &&	//warning about every single constant is annoying as heck. note that this includes both stuff like MOVETYPE_ and builtins.
-							j != WARN_EXTRAPRECACHE)		//we can't guarentee that we can parse this correctly. this warning is thus a common false positive. its available with -Wextra, and there's intrinsics to reduce false positives.
+						switch(j)
+						{
+						//these warnings do not get switched on with -Wall when using -std=gmqcc, because mods that use -Werror would screw up too much
+						case WARN_CONSTANTCOMPARISON:
+						case WARN_POINTLESSSTATEMENT:
+						case WARN_OVERFLOW:
+						case WARN_STRICTTYPEMISMATCH:
+						case WARN_PARAMWITHNONAME:
+						case WARN_IFSTRING_USED:
+						case WARN_UNINITIALIZED:
+						case WARN_GMQCC_SPECIFIC:
+							qccwarningaction[j] = qccwarningaction[WARN_GMQCC_SPECIFIC];
+							break;
+
+						//these warnings require -Wextra to enable, as they're too annoying to have to fix
+						case WARN_NOTREFERENCEDCONST:	//warning about every single constant is annoying as heck. note that this includes both stuff like MOVETYPE_ and builtins.
+						case WARN_EXTRAPRECACHE:		//we can't guarentee that we can parse this correctly. this warning is thus a common false positive. its available with -Wextra, and there's intrinsics to reduce false positives.
+						case WARN_FTE_SPECIFIC:			//kinda annoying when its actually valid code.
+							break;
+
+						default:
 							qccwarningaction[j] = WA_WARN;
+							break;
+						}
 					}
 			}
 			else if (!stricmp(a, "extra"))

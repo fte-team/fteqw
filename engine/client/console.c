@@ -697,6 +697,11 @@ void Con_Init (void)
 
 	con_main.linebuffered = Con_ExecuteLine;
 	con_main.commandcompletion = true;
+//	con_main.flags |= CONF_ISWINDOW;
+	con_main.wnd_w = 640;
+	con_main.wnd_h = 480;
+	con_main.wnd_x = 0;
+	con_main.wnd_y = 0;
 	Q_strncpyz(con_main.title, "MAIN", sizeof(con_main.title));
 	Q_strncpyz(con_main.prompt, "]", sizeof(con_main.prompt));
 
@@ -2571,7 +2576,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	}
 
 	//draw main console...
-	if (lines > 0)
+	if (lines > 0 && !(con_current->flags & CONF_ISWINDOW))
 	{
 		int top;
 #ifdef QTERM
@@ -2935,17 +2940,105 @@ static qbyte Con_IsTokenChar(unsigned int chr)
 		return true;
 	if (chr == '(' || chr == ')' || chr == '{' || chr == '}')
 		return false;
-	if (chr == '.' || chr == '/' || chr == '\\')
-		return 2;
+	if (chr == '/' || chr == '\\')
+		return 2;	//on left only
+	if (chr == '.' || chr == ':')
+		return 3;	//disallow only if followed by whitespace
 	if (chr >= 'a' && chr <= 'z')
 		return true;
 	if (chr >= 'A' && chr <= 'Z')
 		return true;
 	if (chr >= '0' && chr <= '9')
 		return true;
-	if (chr == '[' || chr == ']' || chr == '_' || chr == ':')
+	if (chr == '[' || chr == ']' || chr == '_')
 		return true;
 	return false;
+}
+void Con_ExpandConsoleSelection(console_t *con)
+{
+	conchar_t *cur, *n;
+	conline_t *l;
+	conchar_t *lstart;
+	conchar_t *lend;
+	unsigned int cf, uc;
+
+	//no selection to expand...
+	if (!con->selstartline || !con->selendline)
+		return;
+
+	l = con->selstartline;
+	lstart = (conchar_t*)(l+1);
+	cur = lstart + con->selstartoffset;
+
+	if (con->selstartline == con->selendline)
+	{
+		if (con->selstartoffset+1 == con->selendoffset)
+		{
+			//they only selected a single char?
+			//fix that up to select the entire token
+			while (cur > lstart)
+			{
+				cur--;
+				uc = (*cur & CON_CHARMASK);
+				if (!Con_IsTokenChar(uc))
+				{
+					cur++;
+					break;
+				}
+				if (*cur == CON_LINKSTART)
+					break;
+			}
+			for (n = lstart+con->selendoffset; con->selendoffset < l->length; )
+			{
+				n = Font_Decode(n, &cf, &uc);
+				if (Con_IsTokenChar(uc)==3)
+					continue;
+
+				if (Con_IsTokenChar(uc)==1 && lstart[con->selendoffset] != CON_LINKEND)
+					con->selendoffset = n-lstart;
+				else
+					break;
+			}
+			/*while (con->selendoffset > l->length)
+			{
+				uc = (((conchar_t*)(l+1))[con->selendoffset] & CON_CHARMASK);
+				if (Con_IsTokenChar(uc) == 2)
+					con->selendoffset--;
+				else
+					break;
+			}*/
+		}
+	}
+
+	//scan backwards to find any link enclosure
+	for(lend = cur-1; lend >= (conchar_t*)(l+1); lend--)
+	{
+		if (*lend == CON_LINKSTART)
+		{
+			//found one
+			cur = lend;
+			break;
+		}
+		if (*lend == CON_LINKEND)
+		{
+			//some other link ended here. don't use its start.
+			break;
+		}
+	}
+	//scan forwards to find the end of the selected link
+	if (l->length && cur < (conchar_t*)(l+1)+l->length && *cur == CON_LINKSTART)
+	{
+		for(lend = (conchar_t*)(con->selendline+1) + con->selendoffset; lend < (conchar_t*)(con->selendline+1) + con->selendline->length; lend++)
+		{
+			if (*lend == CON_LINKEND)
+			{
+				con->selendoffset = lend+1 - (conchar_t*)(con->selendline+1);
+				break;
+			}
+		}
+	}
+
+	con->selstartoffset = cur-(conchar_t*)(l+1);
 }
 char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 {

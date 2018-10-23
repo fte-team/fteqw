@@ -1294,7 +1294,7 @@ void R2D_PolyBlend (void)
 		return;
 
 
-	if (bordersize && bordersize < r_refdef.vrect.width && bordersize < r_refdef.vrect.height)
+	if (r_refdef.playerview->bordertint[3])
 	{
 		vec2_t points[4];
 		vec2_t tcoords[4];

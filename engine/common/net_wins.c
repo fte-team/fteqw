@@ -120,13 +120,16 @@ int UDP6_OpenSocket (int port);
 #ifdef HAVE_IPX
 void IPX_CloseSocket (int socket);
 #endif
+cvar_t	timeout					= CVARD("timeout","65", "Connections will time out if no packets are received for this duration of time.");		// seconds without any message
 cvar_t	net_hybriddualstack		= CVARD("net_hybriddualstack",		"1", "Uses hybrid ipv4+ipv6 sockets where possible. Not supported on xp or below.");
 cvar_t	net_fakeloss			= CVARFD("net_fakeloss",			"0", CVAR_CHEAT, "Simulates packetloss in both receiving and sending, on a scale from 0 to 1.");
 cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
 cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables compatibility with qizmo's tcp connections serverside. Frankly, using sv_port_tcp without this is a bit pointless.");
 cvar_t	net_enable_qtv			= CVARD("net_enable_qtv",			"1", "Listens for qtv proxies, or clients using the qtvplay command.");
+#if defined(HAVE_SSL)
 cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary data sent to a non-tls tcp port will be interpretted as a tls handshake (enabling https or wss over the same tcp port.");
+#endif
 cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"0", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
@@ -2035,6 +2038,44 @@ qboolean	NET_IsLoopBackAddress (netadr_t *adr)
 	return adr->type == NA_LOOPBACK;
 }
 
+
+#ifdef HAVE_SSL
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver)
+{
+	vfsfile_t *f = NULL;
+#ifdef HAVE_GNUTLS
+	if (!f)
+		f = GNUTLS_OpenVFS(hostname, source, isserver);
+#endif
+#ifdef HAVE_OPENSSL
+	if (!f)
+		f = OSSL_OpenVFS(hostname, source, isserver);
+#endif
+#ifdef HAVE_WINSSPI
+	if (!f)
+		f = SSPI_OpenVFS(hostname, source, isserver);
+#endif
+	return f;
+}
+int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize)
+{
+	int r = -1;
+#ifdef HAVE_GNUTLS
+	if (r == -1)
+		r = GNUTLS_GetChannelBinding(stream, data, datasize);
+#endif
+#ifdef HAVE_OPENSSL
+	if (r == -1)
+		r = OSSL_GetChannelBinding(stream, data, datasize);
+#endif
+#ifdef HAVE_WINSSPI
+	if (r == -1)
+		r = SSPI_GetChannelBinding(stream, data, datasize);
+#endif
+	return r;
+}
+#endif
+
 /////////////////////////////////////////////
 //loopback stuff
 
@@ -2495,34 +2536,56 @@ struct dtlspeer_s
 
 void NET_DTLS_Timeouts(ftenet_connections_t *col)
 {
-	struct dtlspeer_s *peer;
+	struct dtlspeer_s *peer, **link;
 	if (!col)
 		return;
-	for (peer = col->dtls; peer; peer = peer->next)
+	for (link = &col->dtls; (peer=*link); )
 	{
+		if (peer->timeout < realtime)
+		{
+			peer->funcs->DestroyContext(peer->dtlsstate);
+			*link = peer->next;
+			continue;
+		}
+
 		peer->funcs->Timeouts(peer->dtlsstate);
+		link = &peer->next;
 	}
 }
 
 const dtlsfuncs_t *DTLS_InitServer(void)
 {
-#if defined(HAVE_GNUTLS)
-	return GNUDTLS_InitServer();
-#elif defined(HAVE_WINSSPI)
-	return SSPI_DTLS_InitServer();
-#else
-	return NULL;
+	const dtlsfuncs_t *f = NULL;
+#ifdef HAVE_GNUTLS
+	if (!f)
+		f = GNUDTLS_InitServer();
 #endif
+#ifdef HAVE_OPENSSL
+	if (!f)
+		f = OSSL_InitServer();
+#endif
+#ifdef HAVE_WINSSPI
+	if (!f)
+		f = SSPI_DTLS_InitServer();
+#endif
+	return f;
 }
 const dtlsfuncs_t *DTLS_InitClient(void)
 {
+	const dtlsfuncs_t *f = NULL;
 #ifdef HAVE_WINSSPI
-	return SSPI_DTLS_InitClient();
-#elif defined(HAVE_GNUTLS)
-	return GNUDTLS_InitClient();
-#else
-	return NULL;
+	if (!f)
+		f = SSPI_DTLS_InitClient();
 #endif
+#ifdef HAVE_GNUTLS
+	if (!f)
+		f = GNUDTLS_InitClient();
+#endif
+#ifdef HAVE_OPENSSL
+	if (!f)
+		f = OSSL_InitClient();
+#endif
+	return f;
 }
 
 static neterr_t NET_SendPacketCol (ftenet_connections_t *collection, int length, const void *data, netadr_t *to);
@@ -2533,6 +2596,7 @@ static neterr_t FTENET_DTLS_DoSendPacket(void *cbctx, const qbyte *data, size_t 
 }
 qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 {
+	extern cvar_t timeout;
 	struct dtlspeer_s *peer;
 	if (to->prot != NP_DGRAM)
 		return false;
@@ -2554,6 +2618,8 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 			peer->funcs = DTLS_InitClient();
 		if (peer->funcs)
 			peer->dtlsstate = peer->funcs->CreateContext(NET_BaseAdrToString(hostname, sizeof(hostname), to), peer, FTENET_DTLS_DoSendPacket, col->islisten);
+
+		peer->timeout = realtime+timeout.value;
 		if (peer->dtlsstate)
 		{
 			if (peer->next)
@@ -2616,11 +2682,13 @@ static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, co
 
 qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 {
+	extern cvar_t timeout;
 	struct dtlspeer_s *peer;
 	for (peer = col->dtls; peer; peer = peer->next)
 	{
 		if (NET_CompareAdr(&peer->addr, &net_from))
 		{
+			peer->timeout = realtime+timeout.value;	//refresh the timeout if our peer is still alive.
 			switch(peer->funcs->Received(peer->dtlsstate, net_message.data, net_message.cursize))
 			{
 			case NETERR_DISCONNECTED:
@@ -7137,11 +7205,21 @@ void NET_PrintConnectionsStatus(ftenet_connections_t *collection)
 	}
 
 #ifdef HAVE_DTLS
+	if (developer.ival)
 	{
 		struct dtlspeer_s *dtls;
 		char adr[64];
 		for (dtls = collection->dtls; dtls; dtls = dtls->next)
 			Con_Printf("dtls: %s\n", NET_AdrToString(adr, sizeof(adr), &dtls->addr));
+	}
+	else
+	{
+		struct dtlspeer_s *dtls;
+		int c = 0;
+		for (dtls = collection->dtls; dtls; dtls = dtls->next)
+			c++;
+		if (c)
+			Con_Printf("dtls connections : %i\n", c);
 	}
 #endif
 }
@@ -7720,6 +7798,7 @@ void NET_Init (void)
 #endif
 	}
 
+	Cvar_Register(&timeout, "networking");
 	Cvar_Register(&net_hybriddualstack, "networking");
 	Cvar_Register(&net_fakeloss, "networking");
 
@@ -7912,7 +7991,9 @@ void SVNET_RegisterCvars(void)
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
 	Cvar_Register (&net_enable_qizmo,			"networking");
 	Cvar_Register (&net_enable_qtv,				"networking");
+#if defined(HAVE_SSL)
 	Cvar_Register (&net_enable_tls,				"networking");
+#endif
 	Cvar_Register (&net_enable_http,			"networking");
 	Cvar_Register (&net_enable_websockets,		"networking");
 	Cvar_Register (&net_enable_webrtcbroker,	"networking");

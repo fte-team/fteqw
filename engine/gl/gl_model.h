@@ -172,7 +172,7 @@ m*_t structures are in-memory
 #define	EF_BLUE					(1<<6)
 #define	EF_RED					(1<<7)
 #define	H2EF_NODRAW				(1<<7)	//this is going to get complicated... emulated server side.
-#define	DPEF_NOGUNBOB			(1<<8)	//viewmodel attachment does not bob
+#define	DPEF_NOGUNBOB			(1<<8)	//viewmodel attachment does not bob. only applies to viewmodelforclient/RF_WEAPONMODEL
 #define	EF_FULLBRIGHT			(1<<9)	//abslight=1
 #define	DPEF_FLAME				(1<<10)	//'onfire'
 #define	DPEF_STARDUST			(1<<11)	//'showering sparks'

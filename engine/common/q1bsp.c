@@ -627,7 +627,16 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 #endif
 #ifdef Q3BSPS
 	else if (cl.worldmodel->fromgame == fg_quake3)
-		Q3BSP_ClipDecalToNodes(&dec, mod->rootnode);
+	{
+		if (mod->submodelof)
+		{
+			msurface_t *surf;
+			for (surf = mod->surfaces+mod->firstmodelsurface, p = 0; p < mod->nummodelsurfaces; p++, surf++)
+				Fragment_Mesh(&dec, surf->mesh, surf->texinfo);
+		}
+		else
+			Q3BSP_ClipDecalToNodes(&dec, mod->rootnode);
+	}
 #endif
 
 #ifdef TERRAIN

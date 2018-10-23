@@ -311,14 +311,24 @@ typedef struct dtlsfuncs_s
 } dtlsfuncs_t;
 const dtlsfuncs_t *DTLS_InitServer(void);
 const dtlsfuncs_t *DTLS_InitClient(void);
+#endif
 #ifdef HAVE_WINSSPI
+	vfsfile_t *SSPI_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
+	int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
 	const dtlsfuncs_t *SSPI_DTLS_InitServer(void);	//returns NULL if there's no cert available.
 	const dtlsfuncs_t *SSPI_DTLS_InitClient(void);	//should always return something, if implemented.
 #endif
 #ifdef HAVE_GNUTLS
+	vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
+	int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
 	const dtlsfuncs_t *GNUDTLS_InitServer(void);	//returns NULL if there's no cert available.
 	const dtlsfuncs_t *GNUDTLS_InitClient(void);	//should always return something, if implemented.
 #endif
+#ifdef HAVE_OPENSSL
+	vfsfile_t *OSSL_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
+	int OSSL_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
+	const dtlsfuncs_t *OSSL_InitServer(void);	//returns NULL if there's no cert available.
+	const dtlsfuncs_t *OSSL_InitClient(void);	//should always return something, if implemented.
 #endif
 
 

@@ -5496,7 +5496,7 @@ void CL_SetSolidEntities (void)
 			so we need to make sure that item pickups are not erroneously considered solid, but doors etc are.
 			yes, this probably means that externally loaded models will be predicted non-solid - you'll need to upgrade your network protocol for the gamecode to be able to specify solidity.
 			*/
-			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && !((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode))
+			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && !((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->funcs.NativeTrace))
 				continue;
 	
 			pent = &pmove.physents[pmove.numphysent];

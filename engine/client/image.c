@@ -5358,7 +5358,7 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int 
 	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight);
 	if (sizediff)
 	{
-		Con_Printf("Image_Block_Decode: %s data size is %u, expected %u\n\n", Image_FormatName(encoding), insize, insize-sizediff);
+		Con_Printf("Image_Block_Decode: %s data size is %u, expected %u\n\n", Image_FormatName(encoding), (unsigned int)insize, (unsigned int)(insize-sizediff));
 		if (sizediff < 0)
 			return NULL;
 	}

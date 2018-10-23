@@ -534,7 +534,7 @@ void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 typedef struct vfsfile_s
 {
 	int (QDECL *ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
-	int (QDECL *WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestoread);
+	int (QDECL *WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestowrite);
 	qboolean (QDECL *Seek) (struct vfsfile_s *file, qofs_t pos);	//returns false for error
 	qofs_t (QDECL *Tell) (struct vfsfile_s *file);
 	qofs_t (QDECL *GetLen) (struct vfsfile_s *file);	//could give some lag
@@ -812,6 +812,8 @@ qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
 typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
+#define SHA1 SHA1_quake
+#define HMAC HMAC_quake
 hashfunc_t SHA1_m;
 //int SHA1_m(char *digest, size_t maxdigestsize, size_t numstrings, const char **strings, size_t *stringlens);
 //#define SHA1(digest,maxdigestsize,string,stringlen) SHA1_m(digest, maxdigestsize, 1, &string, &stringlen)

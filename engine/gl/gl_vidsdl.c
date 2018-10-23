@@ -60,25 +60,11 @@ static void *GLVID_getsdlglfunction(char *functionname)
 #endif
 
 #if SDL_MAJOR_VERSION >= 2
-void *GLVID_CreateCursor			(const char *filename, float hotx, float hoty, float scale)
+void *GLVID_CreateCursor			(const qbyte *imagedata, int width, int height, uploadfmt_t format, float hotx, float hoty, float scale)
 {
-	int width;
-	int height;
 	SDL_Cursor *curs;
 	SDL_Surface *surf;
-	qbyte *rgbadata_start;
-	qboolean hasalpha;
-	void *filedata;
-	int filelen;
-	if (!filename || !*filename)
-		return NULL;
-	filelen = FS_LoadFile(filename, &filedata);
-	if (!filedata)
-		return NULL;
-
-	rgbadata_start = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, "cursor");
-	FS_FreeFile(filedata);
-	if (!rgbadata_start)
+	if (!imagedata)
 		return NULL;
 
 	if (scale != 1)
@@ -90,17 +76,20 @@ void *GLVID_CreateCursor			(const char *filename, float hotx, float hoty, float 
 		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128)	//don't go crazy.
 			return NULL;
 		nd = BZ_Malloc(nw*nh*4);
-		Image_ResampleTexture((unsigned int*)rgbadata_start, width, height, (unsigned int*)nd, nw, nh);
-		width = nw;
-		height = nh;
-		BZ_Free(rgbadata_start);
-		rgbadata_start = nd;
-	}
+		Image_ResampleTexture((unsigned int*)imagedata, width, height, (unsigned int*)nd, nw, nh);
 
-	surf = SDL_CreateRGBSurfaceFrom(rgbadata_start, width, height, 32, width*4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
-	curs = SDL_CreateColorCursor(surf, hotx, hoty);
-	SDL_FreeSurface(surf);
-	BZ_Free(rgbadata_start);
+		surf = SDL_CreateRGBSurfaceFrom(nd, nw, nh, 32, nw*4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+		curs = SDL_CreateColorCursor(surf, hotx, hoty);
+		SDL_FreeSurface(surf);
+
+		BZ_Free(nd);
+	}
+	else
+	{
+		surf = SDL_CreateRGBSurfaceFrom((void*)imagedata, width, height, 32, width*4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+		curs = SDL_CreateColorCursor(surf, hotx, hoty);
+		SDL_FreeSurface(surf);
+	}
 	return curs;
 }
 qboolean GLVID_SetCursor			(void *cursor)

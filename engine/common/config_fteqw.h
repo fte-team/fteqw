@@ -119,6 +119,7 @@
 #define HAVE_PACKET				//we can send unreliable messages!
 #define HAVE_TCP				//we can create/accept TCP connections.
 #define HAVE_GNUTLS				//on linux
+//#define HAVE_OPENSSL			//on linux. hardlinked, so typically set only via the makefile.
 #define HAVE_WINSSPI			//on windows
 #define FTPSERVER				//sv_ftp cvar.
 #define WEBCLIENT				//uri_get+any internal downloads etc

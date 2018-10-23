@@ -368,6 +368,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define HAVE_CLIENT
 #endif
 
+#ifndef HAVE_SERVER
+	#undef MVD_RECORDING
+#endif
+
 //software rendering is just too glitchy, don't use it - unless its the only choice.
 #if defined(SWQUAKE) && !defined(_DEBUG) && !defined(__DJGPP__)
 	#undef SWQUAKE
@@ -620,10 +624,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef USE_EGL
 #endif
 
-#if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
+#if defined(HAVE_GNUTLS) || defined(HAVE_OPENSSL) || defined(HAVE_WINSSPI)
 	#define HAVE_SSL
 #endif
-#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
+#if defined(HAVE_GNUTLS) || defined(HAVE_OPENSSL) || defined(HAVE_WINSSPI)
 	//FIXME: HAVE_WINSSPI does not work as a server.
 	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
 	//FIXME: we don't cache server certs

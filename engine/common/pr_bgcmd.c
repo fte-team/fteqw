@@ -380,7 +380,10 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			return DEBUG_TRACE_ABORT;
 		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
 		{
-			Con_Printf("Unable to debug, please disable optimisations\n");
+			if (!*filename)
+				Con_Printf("Unable to debug, please disable optimisations\n");
+			else
+				Con_Printf("Unable to debug, please provide line number info\n");
 			if (fatal)
 				return DEBUG_TRACE_ABORT;
 			return DEBUG_TRACE_OFF;
@@ -5724,8 +5727,8 @@ void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	case 0:		//cached time at start of frame
 		G_FLOAT(OFS_RETURN) = realtime;
 		break;
-	case 1:		//actual time
-		G_FLOAT(OFS_RETURN) = Sys_DoubleTime();
+	case 1:		//actual time, ish. we round to milliseconds to reduce spectre exposure
+		G_FLOAT(OFS_RETURN) = (qint64_t)(Sys_DoubleTime()*1000) / 1000.0;
 		break;
 	//case 2:	//highres.. looks like time into the frame
 	//case 3:	//uptime

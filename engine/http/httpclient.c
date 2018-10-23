@@ -375,7 +375,7 @@ void Cookie_Monster(void)
 //path) I'm going to call this an optimisation feature and not bother with it... hopefully there won't be too many sites that have sub-paths or third-party stuff... gah.
 //httponly) irrelevant until we support javascript... which we don't.
 //secure) assumed to be true. https:// vs http:// are thus completely independant. sorry.
-//expires) gah, parsing time values sucks! plus we don't have persistent storage.
+//expires) gah, parsing time values sucks! plus we don't have persistent storage. All cookies are session cookies.
 void Cookie_Parse(char *domain, int secure, char *line, char *end)
 {
 	char *e;

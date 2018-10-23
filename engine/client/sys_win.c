@@ -4228,6 +4228,11 @@ static void Sys_QueryDesktopParameters(void)
 
 void Sys_Sleep (double seconds)
 {
+if (seconds < 0)
+seconds = 0;
+if (seconds > 1)
+seconds = 1;
+Con_Printf("Sys_Sleep%g\n", seconds);
 	Sleep(seconds * 1000);
 }
 
@@ -4235,57 +4240,19 @@ void Sys_Sleep (double seconds)
 
 
 HCURSOR	hArrowCursor, hCustomCursor;
-void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale)
+void *WIN_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t format, float hotx, float hoty, float scale)
 {
-	int width, height;
 	BITMAPV4HEADER bi;
 	DWORD x,y;
 	HCURSOR hAlphaCursor = NULL;
 	ICONINFO ii;
 	HDC maindc;
 
-	qbyte *rgbadata, *rgbadata_start, *bgradata, *bgradata_start;
-	uploadfmt_t format;
-	void *filedata;
-	int filelen;
-	if (!filename || !*filename)
+	const qbyte *rgbadata;
+	qbyte *bgradata, *bgradata_start;
+	void *scaled = NULL;
+	if (!imagedata)
 		return NULL;
-	filelen = FS_LoadFile(filename, &filedata);
-	if (!filedata)
-		return NULL;
-
-	rgbadata_start = ReadRawImageFile(filedata, filelen, &width, &height, &format, true, "cursor");
-	FS_FreeFile(filedata);
-	if (!rgbadata_start)
-		return NULL;
-
-	if ((format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(filename, ':'))
-	{	//people seem to insist on using jpgs, which don't have alpha.
-		//screw over the alpha channel if needed.
-		unsigned int alpha_width, alpha_height, p;
-		char aname[MAX_QPATH];
-		unsigned char *alphadata;
-		char *alph;
-		size_t alphsize;
-		char ext[8];
-		uploadfmt_t alphaformat;
-		COM_StripExtension(filename, aname, sizeof(aname));
-		COM_FileExtension(filename, ext, sizeof(ext));
-		Q_strncatz(aname, "_alpha.", sizeof(aname));
-		Q_strncatz(aname, ext, sizeof(aname));
-		alphsize = FS_LoadFile(filename, (void**)&alph);
-		if (alph)
-		{
-			if ((alphadata = ReadRawImageFile(alph, alphsize, &alpha_width, &alpha_height, &alphaformat, true, aname)))
-			{
-				if (alpha_width == width && alpha_height == height)
-					for (p = 0; p < alpha_width*alpha_height; p++)
-						rgbadata_start[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
-				BZ_Free(alphadata);
-			}
-			FS_FreeFile(alph);
-		}
-	}
 
 	// FIXME: CreateIconIndirect does NOT understand DPI scaling, and will show a tiny cursor in such cases.
 	// we should rescale scale by vid_conautoscale etc.
@@ -4298,11 +4265,10 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128)	//don't go crazy.
 			return NULL;
 		nd = BZ_Malloc(nw*nh*4);
-		Image_ResampleTexture((unsigned int*)rgbadata_start, width, height, (unsigned int*)nd, nw, nh);
+		Image_ResampleTexture((unsigned int*)imagedata, width, height, (unsigned int*)nd, nw, nh);
 		width = nw;
 		height = nh;
-		BZ_Free(rgbadata_start);
-		rgbadata_start = nd;
+		imagedata = scaled = nd;
 	}
 
 	memset(&bi,0, sizeof(bi));
@@ -4327,11 +4293,11 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 
 	if (!ii.hbmColor)
 	{
-		BZ_Free(rgbadata_start);
+		BZ_Free(scaled);
 		return NULL;
 	}
 
-	for (rgbadata=rgbadata_start,y=0;y<height;y++)
+	for (rgbadata=imagedata,y=0;y<height;y++)
 	{
 		bgradata = bgradata_start + (height-1-y)*width*4;
 		for (x=0;x<width;x++)
@@ -4345,7 +4311,7 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		}
 	}
 
-	BZ_Free(rgbadata_start);
+	BZ_Free(scaled);
 
 	ii.fIcon = FALSE;  // Change fIcon to TRUE to create an alpha icon
 	ii.xHotspot = hotx;

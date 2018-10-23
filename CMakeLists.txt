@@ -195,6 +195,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
+#		engine/common/net_ssl_openssl.c
 
 		engine/client/snd_al.c
 		engine/client/snd_alsa.c
@@ -241,8 +242,14 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
+#		engine/common/net_ssl_openssl.c
 	)
 	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread)
+
+#	SET(FTE_DEFINES ${FTE_DEFINES};HAVE_OPENSSL)
+#	SET(FTESV_DEFINES ${FTESV_DEFINES};HAVE_OPENSSL)
+#	SET(FTE_LIBS ${FTE_LIBS} ssl crypto)
+#	SET(FTESV_LIBS ${FTE_LIBS} ssl crypto)
 ELSEIF(1)	#SDL
 #	FIND_PACKAGE(Freetype REQUIRED)
 #	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)

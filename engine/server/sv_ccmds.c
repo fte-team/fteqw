@@ -1902,7 +1902,10 @@ static void SV_Status_f (void)
 	int columns = 80;
 	extern cvar_t sv_listen_qw;
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
-	extern cvar_t net_enable_tls, net_enable_http, net_enable_webrtcbroker, net_enable_websockets, net_enable_qizmo, net_enable_qtv;
+	#if defined(HAVE_SSL)
+		extern cvar_t net_enable_tls;
+	#endif
+	extern cvar_t net_enable_http, net_enable_webrtcbroker, net_enable_websockets, net_enable_qizmo, net_enable_qtv;
 #endif
 #ifdef NQPROT
 	extern cvar_t sv_listen_nq, sv_listen_dp;
@@ -1978,8 +1981,10 @@ static void SV_Status_f (void)
 			Con_Printf(" DTLS");
 #endif
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
+#if defined(HAVE_SSL)
 		if (net_enable_tls.ival)
 			Con_Printf(" TLS");
+#endif
 		if (net_enable_http.ival)
 			Con_Printf(" HTTP");
 		if (net_enable_webrtcbroker.ival)

@@ -2081,13 +2081,13 @@ static void QCC_PR_LexNumber (void)
 			num*=base;
 			num += c-'0';
 		}
-		else if (c >= 'a' && c <= 'f' && base > 10)
+		else if (c >= 'a' && c <= 'z' && c < 'a'+base-10)
 		{
 			pr_token[tokenlen++] = c;
 			num*=base;
 			num += c -'a'+10;
 		}
-		else if (c >= 'A' && c <= 'F' && base > 10)
+		else if (c >= 'A' && c <= 'Z' && c < 'A'+base-10)
 		{
 			pr_token[tokenlen++] = c;
 			num*=base;
@@ -2145,7 +2145,7 @@ static void QCC_PR_LexNumber (void)
 			if ((longlong)pr_immediate._int != (longlong)num)
 			{
 				if (((longlong)pr_immediate._int & LL(0xffffffff80000000)) != LL(0xffffffff80000000))
-						QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
+					QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
 			}
 			return;
 		}
@@ -4797,7 +4797,7 @@ char *pr_parm_argcount_name;
 
 int recursivefunctiontype;
 
-static QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype)
+QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype)
 {
 	QCC_type_t	ftype = *orig;
 
@@ -4807,8 +4807,11 @@ static QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype)
 	ftype.params = qccHunkAlloc(sizeof(*ftype.params) * ftype.num_parms);
 	memcpy(ftype.params+1, orig->params, sizeof(*ftype.params) * orig->num_parms);
 	ftype.params[0].paramname = "this";
-	ftype.params[0].type = QCC_PointerTypeTo(thistype);
+	ftype.params[0].type = QCC_PR_PointerType(thistype);
 	ftype.params[0].isvirtual = true;
+
+	memmove(&pr_parm_names[1], &pr_parm_names[0], sizeof(*pr_parm_names)*orig->num_parms);
+	strcpy(pr_parm_names[0], "this");
 
 	orig = QCC_PR_FindType (&ftype);
 	if (!orig)
@@ -5869,6 +5872,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				newt = QCC_PR_NewType(tname, ev_struct, true);
 				newt->parentclass = parenttype;
 			}
+			else if (!newt->size && !newt->parentclass)
+				newt->parentclass = parenttype;
 			else if (parenttype && newt->parentclass != parenttype)
 				QCC_PR_ParseError(ERR_NOTANAME, "Redeclaration of struct with different parent type", tname, parenttype->name);
 
@@ -5992,7 +5997,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				QC_snprintfz(membername, sizeof(membername), "%s::%s", newt->name, parmname);
 				d = QCC_PR_GetDef(type, membername, NULL, true, 0, (type->type==ev_function)?GDF_CONST:0);
 				if (QCC_PR_CheckToken("=") || (type->type == ev_function && QCC_PR_PeekToken("{")))
+				{
+//FIXME: methods cannot be compiled yet, as none of the fields are not actually defined yet.
+					pr_classtype = newt;
 					QCC_PR_ParseInitializerDef(d, 0);
+					pr_classtype = NULL;
+				}
 				QCC_FreeDef(d);
 				if (!QCC_PR_PeekToken(","))
 					newparm = NULL;

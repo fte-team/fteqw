@@ -1528,6 +1528,8 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		error = pFT_New_Face(fontlib, va("/usr/share/fonts/%s", fontfilename), 0, &face);
 		if (error)
 			error = pFT_New_Face(fontlib, va("/usr/share/fonts/truetype/%s.ttf", fontfilename), 0, &face);
+		if (error)	//just to give a chance of the same names working on more than one os, with the right package installed.
+			error = pFT_New_Face(fontlib, va("/usr/share/fonts/truetype/msttcorefonts/%s.ttf", fontfilename), 0, &face);
 	}
 #endif
 	if (!error)

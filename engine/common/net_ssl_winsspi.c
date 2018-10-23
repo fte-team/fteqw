@@ -1012,7 +1012,7 @@ static qboolean QDECL SSPI_Close (struct vfsfile_s *file)
 }
 
 #include <wchar.h>
-vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server)
+vfsfile_t *SSPI_OpenVFS(const char *servername, vfsfile_t *source, qboolean server)
 {
 	sslfile_t *newf;
 	int i = 0;
@@ -1095,7 +1095,7 @@ typedef struct _SecPkgContext_Bindings
 	SEC_CHANNEL_BINDINGS *Bindings;
 } SecPkgContext_Bindings, *PSecPkgContext_Bindings;
 #endif
-int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
+int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 {
 	int ret;
 	sslfile_t *f = (sslfile_t*)vf;

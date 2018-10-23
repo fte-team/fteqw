@@ -183,6 +183,7 @@ qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);
 qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
 void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 #endif
+extern cvar_t timeout;
 
 //============================================================================
 

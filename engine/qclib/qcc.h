@@ -706,6 +706,7 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s 
 char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
 struct QCC_typeparam_s *QCC_PR_FindStructMember(QCC_type_t *t, const char *membername, unsigned int *out_ofs);
+QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 
 const char *QCC_VarAtOffset(QCC_sref_t ref);
 
@@ -729,6 +730,8 @@ void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
 void QCC_PR_ParsePrintSRef (int warningtype, QCC_sref_t sref);
 void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char *error, ...);
 void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t sref, const char *error, ...);
+
+QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype);
 
 int QCC_WarningForName(const char *name);
 char *QCC_NameForWarning(int idx);

@@ -671,7 +671,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 {
 	*sx = *sy = *ex = *ey = 0;
 
-	if (con->buttonsdown == CB_SCROLL)
+	if (con->buttonsdown == CB_SCROLL || con->buttonsdown == CB_SCROLL_R)
 	{
 		//left-mouse.
 		//scroll the console with the mouse. trigger links on release.
@@ -1071,6 +1071,52 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	}
 }
 
+void Key_HandleConsoleLink(console_t *con, char *buffer)
+{
+	if (!buffer)
+		return;
+	if (buffer[0] == '^' && buffer[1] == '[')
+	{
+		//looks like it might be a link!
+		char *end = NULL;
+		char *info;
+		for (info = buffer + 2; *info; )
+		{
+			if (info[0] == '^' && info[1] == ']')
+				break; //end of tag, with no actual info, apparently
+			if (*info == '\\')
+				break;
+			else if (info[0] == '^' && info[1] == '^')
+				info+=2;
+			else
+				info++;
+		}
+		for(end = info; *end; )
+		{
+			if (end[0] == '^' && end[1] == ']')
+			{
+				//okay, its a valid link that they clicked
+				*end = 0;
+#ifdef PLUGINS
+				if (!Plug_ConsoleLink(buffer+2, info, con->name))
+#endif
+#ifdef CSQC_DAT
+				if (!CSQC_ConsoleLink(buffer+2, info))
+#endif
+				{
+					Key_DefaultLinkClicked(con, buffer+2, info);
+				}
+
+				break;
+			}
+			if (end[0] == '^' && end[1] == '^')
+				end+=2;
+			else
+				end++;
+		}
+	}
+}
+
 #define Key_IsTouchScreen() false
 void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 {
@@ -1083,33 +1129,48 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		if (con->selstartline)
 		{
 			if (con->selstartline == con->selendline && con->selendoffset <= con->selstartoffset+1)
-				con->flags &= ~CONF_KEEPSELECTION;
-			else
-				con->flags |= CONF_KEEPSELECTION;
-			if (con->userdata)
 			{
-				if (con->flags & CONF_BACKSELECTION)
-				{
-					con->userline = con->selendline;
-					con->useroffset = con->selendoffset;
-				}
+				con->flags &= ~CONF_KEEPSELECTION;
+				if (keydown[K_LSHIFT] || keydown[K_RSHIFT])
+					;
 				else
 				{
-					con->userline = con->selstartline;
-					con->useroffset = con->selstartoffset;
+					buffer = Con_CopyConsole(con, false, true);
+					if (buffer)
+					{
+						Key_HandleConsoleLink(con, buffer);
+						Z_Free(buffer);
+					}
+				}
+			}
+			else
+			{
+				con->flags |= CONF_KEEPSELECTION;
+				if (con->userdata)
+				{
+					if (con->flags & CONF_BACKSELECTION)
+					{
+						con->userline = con->selendline;
+						con->useroffset = con->selendoffset;
+					}
+					else
+					{
+						con->userline = con->selstartline;
+						con->useroffset = con->selstartoffset;
+					}
+				}
+
+				buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+				if (buffer)
+				{
+					Sys_SaveClipboard(CBT_SELECTION,  buffer);
+					Z_Free(buffer);
 				}
 			}
 		}
 		con->buttonsdown = CB_NONE;
-
-		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
-		if (buffer)
-		{
-			Sys_SaveClipboard(CBT_SELECTION,  buffer);
-			Z_Free(buffer);
-		}
 	}
-	if (key == K_MOUSE1 && con->buttonsdown == CB_SCROLL)
+	if ((key == K_MOUSE1 && con->buttonsdown == CB_SCROLL) || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
 	{
 		con->buttonsdown = CB_NONE;
 		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
@@ -1138,48 +1199,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 				Key_ConsoleInsert(buffer);
 			}
 			else
-			{
-				if (buffer[0] == '^' && buffer[1] == '[')
-				{
-					//looks like it might be a link!
-					char *end = NULL;
-					char *info;
-					for (info = buffer + 2; *info; )
-					{
-						if (info[0] == '^' && info[1] == ']')
-							break; //end of tag, with no actual info, apparently
-						if (*info == '\\')
-							break;
-						else if (info[0] == '^' && info[1] == '^')
-							info+=2;
-						else
-							info++;
-					}
-					for(end = info; *end; )
-					{
-						if (end[0] == '^' && end[1] == ']')
-						{
-							//okay, its a valid link that they clicked
-							*end = 0;
-#ifdef PLUGINS
-							if (!Plug_ConsoleLink(buffer+2, info, con->name))
-#endif
-#ifdef CSQC_DAT
-							if (!CSQC_ConsoleLink(buffer+2, info))
-#endif
-							{
-								Key_DefaultLinkClicked(con, buffer+2, info);
-							}
-
-							break;
-						}
-						if (end[0] == '^' && end[1] == '^')
-							end+=2;
-						else
-							end++;
-					}
-				}
-			}
+				Key_HandleConsoleLink(con, buffer);
 			Z_Free(buffer);
 		}
 		else
@@ -1553,6 +1573,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
 	int rkey = key;
+	char *buffer;
 
 	//weirdness for the keypad.
 	if ((unicode >= '0' && unicode <= '9') || unicode == '.' || key < 0)
@@ -1576,6 +1597,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
+		int olddown[2] = {con->mousedown[0],con->mousedown[1]};
 		if (con->flags & CONF_ISWINDOW)
 			if (con->mousecursor[0] < -8 || con->mousecursor[1] < 0 || con->mousecursor[0] > con->wnd_w || con->mousecursor[1] > con->wnd_h)
 				return true;
@@ -1609,8 +1631,12 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		{
 			if (con->redirect && con->redirect(con, unicode, key))
 				return true;
-			con->buttonsdown = CB_COPY;
+
 			con->flags &= ~CONF_KEEPSELECTION;
+			if (Key_IsTouchScreen())	//o.O mouse2+touchscreen? really?
+				con->buttonsdown = CB_COPY;
+			else
+				con->buttonsdown = CB_SCROLL_R;
 		}
 		else
 		{
@@ -1625,13 +1651,38 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			{
 				if (con->redirect && con->redirect(con, unicode, key))
 					return true;
-				if (Key_IsTouchScreen())
+				if (Key_IsTouchScreen() || con->mousecursor[0] > ((con->flags & CONF_ISWINDOW)?con->wnd_w-16:vid.width)-8)
 				{	//just scroll the console up/down
 					con->buttonsdown = CB_SCROLL;
 				}
 				else
 				{	//selecting text. woo.
+					if (realtime < con->mousedowntime + 0.4
+						&& con->mousecursor[0] >= olddown[0]-3 && con->mousecursor[0] <= olddown[0]+3
+						&& con->mousecursor[1] >= olddown[1]-3 && con->mousecursor[1] <= olddown[1]+3
+						)
+					{	//this was a double-click... expand the selection to the entire word
+						//FIXME: detect tripple-clicks to select the entire line
+						Con_ExpandConsoleSelection(con);
+						con->flags |= CONF_KEEPSELECTION;
+
+						buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+						if (buffer)
+						{
+							Sys_SaveClipboard(CBT_SELECTION,  buffer);
+							Z_Free(buffer);
+						}
+						return true;
+					}
+					con->mousedowntime = realtime;
+
 					con->buttonsdown = CB_SELECT;
+
+					if (shift)
+					{
+						con->mousedown[0] = olddown[0];
+						con->mousedown[1] = olddown[1];
+					}
 				}
 				con->flags &= ~CONF_KEEPSELECTION;
 			}

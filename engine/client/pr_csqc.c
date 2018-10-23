@@ -2467,8 +2467,8 @@ static void QCBUILTIN PF_cs_getstati(pubprogfuncs_t *prinst, struct globalvars_s
 	int stnum = G_FLOAT(OFS_PARM0);
 	if (stnum < 0 || stnum >= MAX_CL_STATS)
 	{
-		G_FLOAT(OFS_RETURN) = 0;
-		PR_RunWarning(prinst, "invalid stat index");
+		G_INT(OFS_RETURN) = 0;
+		PR_RunWarning(prinst, "PF_cs_getstati: invalid stat index (%i)\n", stnum);
 	}
 	else if (stnum >= 128 && csqc_isdarkplaces && cls.protocol != CP_NETQUAKE && !CPNQ_IS_DP)
 	{	//dpp7 stats are fucked.
@@ -2486,7 +2486,7 @@ static void QCBUILTIN PF_cs_getstatbits(pubprogfuncs_t *prinst, struct globalvar
 	if (stnum < 0 || stnum >= MAX_CL_STATS)
 	{
 		G_FLOAT(OFS_RETURN) = 0;
-		PR_RunWarning(prinst, "invalid stat index");
+		PR_RunWarning(prinst, "PF_cs_getstatbits: invalid stat index (%i)\n", stnum);
 	}
 	else if (prinst->callargc > 1)
 	{
@@ -2515,14 +2515,14 @@ static void QCBUILTIN PF_cs_getstats(pubprogfuncs_t *prinst, struct globalvars_s
 	if (stnum < 0 || stnum >= MAX_CL_STATS)
 	{
 		G_INT(OFS_RETURN) = 0;
-		PR_RunWarning(prinst, "invalid stat index");
+		PR_RunWarning(prinst, "PF_cs_getstats: invalid stat index (%i)\n", stnum);
 	}
 	else if (cls.fteprotocolextensions & PEXT_CSQC)
 		RETURN_TSTRING(csqc_playerview->statsstr[stnum]);
-	else if (stnum >= MAX_CL_STATS-3)
+	else if (stnum >= MAX_CL_STATS-3)	//we'll be reading the following 3 extra stats too.
 	{
 		G_INT(OFS_RETURN) = 0;
-		PR_RunWarning(prinst, "invalid stat index");
+		PR_RunWarning(prinst, "PF_cs_getstats: invalid packed-string stat index (%i)\n", stnum);
 	}
 	else
 	{
@@ -5751,7 +5751,7 @@ static void QCBUILTIN PF_cs_getplayerstat(pubprogfuncs_t *prinst, struct globalv
 	}
 }
 
-
+void CL_CalcCrouch (playerview_t *pv);
 static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//this function is essentially an overcomplicated way to shirk from defining your own view bobbing.
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
@@ -5777,7 +5777,7 @@ static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_
 
 	CL_DecayLights ();
 
-	CL_ClearEntityLists();
+//	CL_ClearEntityLists();
 
 	V_ClearRefdef(csqc_playerview);
 	r_refdef.drawsbar = false;	//csqc defaults to no sbar.
@@ -5787,6 +5787,7 @@ static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_
 	VectorCopy(ent->v->origin, csqc_playerview->simorg);
 	VectorCopy (ent->v->velocity, csqc_playerview->simvel);
 	csqc_playerview->onground = !!((int)ent->v->flags & FL_ONGROUND);
+	CL_CalcCrouch (csqc_playerview);
 	V_CalcRefdef(csqc_playerview);	//set up the defaults
 
 	VectorCopy(savedvel, csqc_playerview->simvel);
@@ -7094,32 +7095,42 @@ static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int check
 	if (!file)
 	{
 		const char *progsname = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
-		if (*progsname && cls.state)
-			file = COM_LoadTempFile (progsname, FSLF_IGNOREPURE, sz);
-		if (!file && strcmp(progsname, "csprogs.dat"))
-			file = COM_LoadTempFile ("csprogs.dat", FSLF_IGNOREPURE, sz);
-
-		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
+		flocation_t loc={0};
+		vfsfile_t *f;
+		qboolean found = false;
+		if (!found && *progsname && cls.state)
+			found = FS_FLocateFile(progsname, FSLF_IGNOREPURE, &loc);
+		if (!found && strcmp(progsname, "csprogs.dat"))
+			found = FS_FLocateFile("csprogs.dat", FSLF_IGNOREPURE, &loc);
+		if (found && (f=FS_OpenReadLocation(&loc)))
 		{
-			if (checksum && !csprogs_promiscuous)
-			{
-				if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
-					file = NULL;
+			*sz = VFS_GETLEN(f);
+			file = Hunk_TempAlloc (*sz);
+			VFS_READ(f, file, *sz);
+			VFS_CLOSE(f);
 
-				//we write the csprogs into our archive if it was loaded from outside of there.
-				//this is to ensure that demos will play on the same machine later on...
-				//this is unreliable though, and redundant if we're writing the csqc into the demos themselves.
-				//also kinda irrelevant with sv_pure.
-				//FIXME: don't back up if it was in a package.
+			if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
+			{
+				if (checksum && !csprogs_promiscuous)
+				{
+					if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
+						file = NULL;
+
+					//we write the csprogs into our archive if it was loaded from outside of there.
+					//this is to ensure that demos will play on the same machine later on...
+					//this is unreliable though, and redundant if we're writing the csqc into the demos themselves.
+					//also kinda irrelevant with sv_pure.
+					//FIXME: don't back up if it was in a package.
 #ifndef FTE_TARGET_WEB
-				if (file
+					if (file && !sv_state && !FS_WhichPackForLocation(&loc, false)
 #if !defined(CLIENTONLY) && defined(MVD_RECORDING)
-					&& !sv_demo_write_csqc.ival
+						&& !sv_demo_write_csqc.ival
 #endif
-					)
-					//back it up
-					COM_WriteFile(newname, FS_GAMEONLY, file, *sz);
+						)
+						//back it up
+						COM_WriteFile(newname, FS_GAMEONLY, file, *sz);
 #endif
+				}
 			}
 		}
 	}

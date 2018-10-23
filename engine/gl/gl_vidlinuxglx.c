@@ -2744,50 +2744,11 @@ static void *X11VID_CreateCursorRGBA(const qbyte *rgbacursor, size_t w, size_t h
 	Z_Free(cursor);
 	return NULL;
 }
-static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, float scale)
+static void *X11VID_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t format, float hotx, float hoty, float scale)
 {
 	void *r;
-	qbyte *rgbadata;
-	uploadfmt_t format;
-	void *filedata;
-	int filelen, width, height;
-	if (!filename || !*filename)
+	if (!imagedata)
 		return NULL;
-	filelen = FS_LoadFile(filename, &filedata);
-	if (!filedata)
-		return NULL;
-
-	rgbadata = ReadRawImageFile(filedata, filelen, &width, &height, &format, true, filename);
-	FS_FreeFile(filedata);
-	if (!rgbadata)
-		return NULL;
-
-	if ((format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(filename, ':'))
-	{	//people seem to insist on using jpgs, which don't have alpha.
-		//so screw over the alpha channel if needed.
-		unsigned int alpha_width, alpha_height, p;
-		char aname[MAX_QPATH];
-		unsigned char *alphadata;
-		char *alph;
-		size_t alphsize;
-		char ext[8];
-		COM_StripExtension(filename, aname, sizeof(aname));
-		COM_FileExtension(filename, ext, sizeof(ext));
-		Q_strncatz(aname, "_alpha.", sizeof(aname));
-		Q_strncatz(aname, ext, sizeof(aname));
-		alphsize = FS_LoadFile(filename, (void**)&alph);
-		if (alph)
-		{
-			if ((alphadata = ReadRawImageFile(alph, alphsize, &alpha_width, &alpha_height, &format, true, aname)))
-			{
-				if (alpha_width == width && alpha_height == height)
-					for (p = 0; p < alpha_width*alpha_height; p++)
-						rgbadata[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
-				BZ_Free(alphadata);
-			}
-			FS_FreeFile(alph);
-		}
-	}
 
 	if (scale != 1)
 	{
@@ -2798,15 +2759,14 @@ static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, f
 		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128) //don't go crazy.
 			return NULL;
 		nd = BZ_Malloc(nw*nh*4);
-		Image_ResampleTexture((unsigned int*)rgbadata, width, height, (unsigned int*)nd, nw, nh);
+		Image_ResampleTexture((unsigned int*)imagedata, width, height, (unsigned int*)nd, nw, nh);
 		width = nw;
 		height = nh;
-		BZ_Free(rgbadata);
-		rgbadata = nd;
+		r = X11VID_CreateCursorRGBA(nd, width, height, hotx, hoty);
+		BZ_Free(nd);
 	}
-
-	r = X11VID_CreateCursorRGBA(rgbadata, width, height, hotx, hoty);
-	BZ_Free(rgbadata);
+	else
+		r = X11VID_CreateCursorRGBA(imagedata, width, height, hotx, hoty);
 
 	return r;
 }

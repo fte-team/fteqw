@@ -2973,7 +2973,7 @@ void CL_ConnectionlessPacket (void)
 		unsigned int curtime = Sys_Milliseconds();
 		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
 #ifdef HAVE_DTLS
-		qboolean candtls = false;
+		int candtls = 0;	//0=no,1=optional,2=mandatory
 #endif
 		char guidhash[256];
 
@@ -3182,6 +3182,10 @@ void CL_ConnectionlessPacket (void)
 			//s2c dtlsopened
 			//c2s DTLS(getchallenge)
 			//DTLS(etc)
+
+			//getchallenge has to be done twice, with the outer one only reporting whether dtls can/should be used.
+			//this means the actual connect packet is already over dtls, which protects the user's userinfo.
+			//FIXME: do rcon via dtls too, but requires tracking pending rcon packets until the handshake completes.
 
 			//server says it can do tls.
 			char *pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
@@ -3440,9 +3444,9 @@ client_connect:	//fixme: make function
 		if (cls.netchan.remote_address.type != NA_LOOPBACK)
 		{
 			if (cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
-				Con_TPrintf ("Connected (encrypted).\n");
+				Con_TPrintf ("Connected (^2encrypted^7).\n");
 			else
-				Con_TPrintf ("Connected (plain-text).\n");
+				Con_TPrintf ("Connected (^1plain-text^7).\n");
 		}
 #ifdef QUAKESPYAPI
 		allowremotecmd = false; // localid required now for remote cmds
@@ -5666,12 +5670,12 @@ double Host_Frame (double time)
 	if (cl.paused)
 		cl.gametimemark += time;
 
-	idle = (cls.state == ca_disconnected) || 
+	idle = (cls.state == ca_disconnected) ||
 #ifdef VM_UI
-		UI_MenuState() != 0 || 
+		UI_MenuState() != 0 ||
 #endif
-		Key_Dest_Has(kdm_gmenu) || 
-		Key_Dest_Has(kdm_emenu) || 
+		Key_Dest_Has(kdm_gmenu) ||
+		Key_Dest_Has(kdm_emenu) ||
 		Key_Dest_Has(kdm_editor) ||
 		!vid.activeapp ||
 		cl.paused
@@ -5724,7 +5728,7 @@ double Host_Frame (double time)
 	if (sv.state && cls.state != ca_active)
 	{
 		maxfpsignoreserver = false;
-		maxfps = 0;
+		maxfps = cl_maxfps.ival;
 	}
 	else
 #endif
@@ -6042,9 +6046,6 @@ void CL_StartCinematicOrMenu(void)
 
 	Con_ClearNotify();
 
-	TP_ExecTrigger("f_startup", true);
-	Cbuf_Execute ();
-
 	if (com_installer)
 	{
 		com_installer = false;
@@ -6055,12 +6056,15 @@ void CL_StartCinematicOrMenu(void)
 #endif
 	}
 
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	{
+		TP_ExecTrigger("f_startup", true);
+		Cbuf_Execute ();
+	}
+
 	//and any startup cinematics
 #ifdef HAVE_MEDIA_DECODER
-#ifndef CLIENTONLY
-	if (!sv.state)
-#endif
-	if (!cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
 	{
 		int ol_depth;
 		int idcin_depth;
@@ -6091,30 +6095,25 @@ void CL_StartCinematicOrMenu(void)
 	}
 #endif
 
-	if (!cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
 	{
-#ifndef CLIENTONLY
-		if (!sv.state)
-#endif
+		if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_emenu))
 		{
-			if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_emenu))
-			{
 #ifndef NOBUILTINMENUS
-				if (!cls.state && !Key_Dest_Has(kdm_emenu) && !*FS_GetGamedir(false))
-					M_Menu_Mods_f();
+			if (!cls.state && !Key_Dest_Has(kdm_emenu) && !*FS_GetGamedir(false))
+				M_Menu_Mods_f();
 #endif
-				if (!cls.state && !Key_Dest_Has(kdm_emenu) && cl_demoreel.ival)
-				{
-					cls.demonum = 0;
-					CL_NextDemo();
-				}
-				if (!cls.state && !Key_Dest_Has(kdm_emenu))
-					//if we're (now) meant to be using csqc for menus, make sure that its running.
-					if (!CSQC_UnconnectedInit())
-						M_ToggleMenu_f();
+			if (!cls.state && !Key_Dest_Has(kdm_emenu) && cl_demoreel.ival)
+			{
+				cls.demonum = 0;
+				CL_NextDemo();
 			}
-			//Con_ForceActiveNow();
+			if (!cls.state && !Key_Dest_Has(kdm_emenu))
+				//if we're (now) meant to be using csqc for menus, make sure that its running.
+				if (!CSQC_UnconnectedInit())
+					M_ToggleMenu_f();
 		}
+		//Con_ForceActiveNow();
 	}
 }
 
@@ -6367,6 +6366,7 @@ void Host_Init (quakeparms_t *parms)
 			Sys_Quit();
 			return;
 		}
+		PM_Shutdown();	//will restart later as needed, but we need to be sure that no files are open or anything.
 	}
 	V_Init ();
 	NET_Init ();

@@ -784,7 +784,7 @@ void V_CalcBlend (float *hw_blend)
 
 			if (j == CSHIFT_SERVER)
 			{
-				/*server blend always goes into sw, ALWAYS*/
+				/*server blend always goes into sw, ALWAYS. hardware is too unreliable.*/
 				blend = pv->screentint;
 			}
 			else
@@ -792,7 +792,7 @@ void V_CalcBlend (float *hw_blend)
 				/*flashing things should not change hardware gamma ramps - windows is too slow*/
 				/*splitscreen should only use hw gamma ramps if they're all equal, and they're probably not*/
 				/*hw blends may also not be supported or may be disabled*/
-				if (gl_cshiftenabled.value)
+				if (gl_cshiftenabled.ival == 2)
 					blend = pv->bordertint;	//show the colours only on the borders so we don't blind ourselves
 				else if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || !r2d_canhwgamma || cl.splitclients > 1)
 					blend = pv->screentint;

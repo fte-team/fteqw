@@ -53,6 +53,7 @@ cvar_t	sv_airaccelerate	 = CVAR( "sv_airaccelerate", "0.7");
 cvar_t	sv_wateraccelerate	 = CVAR( "sv_wateraccelerate", "10");
 cvar_t	sv_friction			 = CVAR( "sv_friction", "4");
 cvar_t	sv_waterfriction	 = CVAR( "sv_waterfriction", "4");
+cvar_t	sv_wallfriction		 = CVARD( "sv_wallfriction", "1", "Additional friction when running into walls");
 cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
@@ -87,6 +88,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_wateraccelerate,					cvargroup_serverphysics);
 	Cvar_Register (&sv_friction,						cvargroup_serverphysics);
 	Cvar_Register (&sv_waterfriction,					cvargroup_serverphysics);
+	Cvar_Register (&sv_wallfriction,					cvargroup_serverphysics);
 	Cvar_Register (&sv_sound_watersplash,				cvargroup_serverphysics);
 	Cvar_Register (&sv_sound_land,						cvargroup_serverphysics);
 	Cvar_Register (&sv_stepheight,						cvargroup_serverphysics);
@@ -1887,7 +1889,7 @@ static void SV_WalkMove (edict_t *ent)
 #else
 
 // 1/32 epsilon to keep floating point happy
-#define	DIST_EPSILON	(0.03125)
+/*#define	DIST_EPSILON	(0.03125)
 static int WPhys_SetOnGround (world_t *w, wedict_t *ent, const float *gravitydir)
 {
 	vec3_t end;
@@ -1896,6 +1898,8 @@ static int WPhys_SetOnGround (world_t *w, wedict_t *ent, const float *gravitydir
 		return 1;
 	VectorMA(ent->v->origin, 1, gravitydir, end);
 	trace = World_Move(w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
+	if (DotProduct(trace.plane.normal, ent->v->velocity) > 0)
+		return 0;	//velocity is away from the plane normal, so this does not count as a contact.
 	if (trace.fraction <= DIST_EPSILON && -DotProduct(gravitydir, trace.plane.normal) >= 0.7)
 	{
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
@@ -1903,7 +1907,7 @@ static int WPhys_SetOnGround (world_t *w, wedict_t *ent, const float *gravitydir
 		return 1;
 	}
 	return 0;
-}
+}*/
 static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 {
 	//int originalmove_clip;
@@ -1922,7 +1926,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 
 	clip = WPhys_FlyMove (w, ent, gravitydir, host_frametime, NULL);
 
-	WPhys_SetOnGround (w, ent, gravitydir);
+//	WPhys_SetOnGround (w, ent, gravitydir);
 	WPhys_CheckVelocity(w, ent);
 
 	VectorCopy(ent->v->origin, originalmove_origin);
@@ -1951,7 +1955,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 				return;
 
 			// only step up while jumping if that is enabled
-			if (!pm_airstep.value)
+ 			if (!pm_airstep.value)
 				if (!oldonground && ent->v->waterlevel == 0)
 					return;
 		}
@@ -1967,9 +1971,9 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 		WPhys_PushEntity(w, ent, upmove, MOVE_NORMAL);
 
 		// move forward
-		ent->v->velocity[2] = 0;
+		VectorMA(ent->v->velocity, -DotProduct(gravitydir, ent->v->velocity), gravitydir, ent->v->velocity);	//ent->v->velocity[2] = 0;
 		clip = WPhys_FlyMove (w, ent, gravitydir, host_frametime, &steptrace);
-		ent->v->velocity[2] += start_velocity[2];
+		VectorMA(ent->v->velocity, DotProduct(gravitydir, start_velocity), gravitydir, ent->v->velocity);	//ent->v->velocity[2] += start_velocity[2];
 
 		WPhys_CheckVelocity(w, ent);
 
@@ -1994,22 +1998,23 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 		//Con_Printf("step - ");
 
 		// extra friction based on view angle
-		if (clip & 2)// && sv_wallfriction.value)
+		if ((clip & 2) && sv_wallfriction.value)
 		{
 //			Con_Printf("wall\n");
 			WPhys_WallFriction (ent, &steptrace);
 		}
 	}
-	else if (!sv_gameplayfix_stepdown.ival || !oldonground || start_velocity[2] > 0 || ((int)ent->v->flags & FL_ONGROUND) || ent->v->waterlevel >= 2)
+	else if (!sv_gameplayfix_stepdown.ival || !oldonground || -DotProduct(gravitydir,start_velocity) > 0 || ((int)ent->v->flags & FL_ONGROUND) || ent->v->waterlevel >= 2)
 		return;
 
 	// move down
-	VectorScale(gravitydir, -(-movevars.stepheight + start_velocity[2]*host_frametime), downmove);
+	VectorScale(gravitydir, movevars.stepheight + (1/32.0) - DotProduct(gravitydir,start_velocity)*host_frametime, downmove);
 	// FIXME: don't link?
 	downtrace = WPhys_PushEntity (w, ent, downmove, MOVE_NORMAL);
 
 	if (downtrace.fraction < 1 && -DotProduct(gravitydir, downtrace.plane.normal) > 0.7)
 	{
+		if (DotProduct(downtrace.plane.normal, ent->v->velocity)<=0) //Spike: moving away from the surface should not count as onground.
 		// LordHavoc: disabled this check so you can walk on monsters/players
 		//if (ent->v->solid == SOLID_BSP)
 		{
@@ -2031,7 +2036,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 		ent->v->groundentity = originalmove_groundentity;
 	}
 
-	WPhys_SetOnGround (w, ent, gravitydir);
+//	WPhys_SetOnGround (w, ent, gravitydir);
 	WPhys_CheckVelocity(w, ent);
 }
 #endif
@@ -2142,9 +2147,9 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		if (ent->lastruntime == w->framenum)
 			return;
 		ent->lastruntime = w->framenum;
-		if (progstype == PROG_QW)	//we don't use the field any more, but qw mods might.
-			ent->v->lastruntime = w->physicstime;
 #ifndef CLIENTONLY
+		if (progstype == PROG_QW && w == &sv.world)	//we don't use the field any more, but qw mods might.
+			ent->v->lastruntime = w->physicstime;
 		svent = NULL;
 #endif
 	}
@@ -2233,9 +2238,9 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		WPhys_WalkMove (w, ent, gravitydir);
 
 #ifndef CLIENTONLY
-		if (!(ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots) && w == &sv.world)
-			World_LinkEdict (w, ent, true);
+		if (!svent)
 #endif
+			World_LinkEdict (w, ent, true);
 		break;
 #ifdef USERBE
 	case MOVETYPE_PHYSICS:
@@ -2257,7 +2262,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 #ifndef CLIENTONLY
 	if (svent)
 	{
-		World_LinkEdict (w, (wedict_t*)svent, true);
+		World_LinkEdict (w, ent, true);
 
 		if (!host_client->spectator)
 		{
@@ -2416,7 +2421,6 @@ void World_Physics_Frame(world_t *w)
 						host_client = &svs.clients[i-1];
 						sv_player = svs.clients[i-1].edict;
 
-						host_client->lastruncmd = newt;
 						SV_PreRunCmd();
 #ifndef NEWSPEEDCHEATPROT
 						svs.clients[i-1].last_check = 0;

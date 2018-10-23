@@ -14,6 +14,7 @@
 
 void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
+static void COM_InitHomedir(ftemanifest_t *man);
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 qboolean com_installer = false;
@@ -550,7 +551,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		Z_Free(man->defaultexec);
 		man->defaultexec = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(cmd, "bind") || !Q_strcasecmp(cmd, "set") || !Q_strcasecmp(cmd, "seta"))
+	else if (!Q_strcasecmp(cmd, "bind") || !Q_strcasecmp(cmd, "set") || !Q_strcasecmp(cmd, "seta") || !Q_strcasecmp(cmd, "alias"))
 	{
 		Z_StrCat(&man->defaultoverrides, va("%s %s\n", Cmd_Argv(0), Cmd_Args()));
 	}
@@ -5607,6 +5608,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	{
 		qboolean oldhome = com_homepathenabled;
+		COM_InitHomedir(man);
 		com_homepathenabled = com_homepathusable;
 
 		if (man->disablehomedir && !COM_CheckParm("-usehome"))
@@ -6145,56 +6147,21 @@ void FS_ArbitraryFile_c(int argn, const char *partial, struct xcommandargcomplet
 	}
 }
 
-/*
-================
-COM_InitFilesystem
-
-note: does not actually load any packs, just makes sure the basedir+cvars+etc is set up. vfs_fopens will still fail.
-================
-*/
-void COM_InitFilesystem (void)
+static void COM_InitHomedir(ftemanifest_t *man)
 {
-	int		i;
-
+	int i;
 	char *ev;
 	qboolean usehome;
 
-	FS_RegisterDefaultFileSystems();
-
-	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles_f);
-	Cmd_AddCommandD("fs_changegame", FS_ChangeGame_f, "Switch between different manifests (or registered games)");
-	Cmd_AddCommandD("fs_changemod", FS_ChangeMod_f, "Provides the backend functionality of a transient online installer. Eg, for quaddicted's map/mod database.");
-	Cmd_AddCommand("fs_showmanifest", FS_ShowManifest_f);
-	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
-	Cmd_AddCommandAD("dir", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
-	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
-	Cmd_AddCommandAD("flocate", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
-
-
-//
-// -basedir <path>
-// Overrides the system supplied base directory (under id1)
-//
-	i = COM_CheckParm ("-basedir");
-	if (i && i < com_argc-1)
-		strcpy (com_gamepath, com_argv[i+1]);
-	else
-		strcpy (com_gamepath, host_parms.basedir);
-
-	FS_CleanDir(com_gamepath, sizeof(com_gamepath));
-
-
-	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
-	Cvar_Register(&com_fs_cache, "Filesystem");
-	Cvar_Register(&fs_gamename, "Filesystem");
-	Cvar_Register(&pm_downloads_url, "Filesystem");
-	Cvar_Register(&pm_autoupdate, "Filesystem");
-	Cvar_Register(&com_protocolname, "Server Info");
-	Cvar_Register(&com_protocolversion, "Server Info");
-	Cvar_Register(&fs_game, "Filesystem");
-#ifdef Q2SERVER
-	Cvar_Register(&fs_gamedir, "Filesystem");
-	Cvar_Register(&fs_basedir, "Filesystem");
+	//FIXME: this should come from the manifest, as fte_GAME or something
+#ifdef _WIN32
+	#define HOMESUBDIR FULLENGINENAME
+#else
+	#ifdef GAME_SHORTNAME
+		#define HOMESUBDIR GAME_SHORTNAME
+	#else
+		#define HOMESUBDIR "fte"
+	#endif
 #endif
 
 	usehome = false;
@@ -6221,7 +6188,7 @@ void COM_InitFilesystem (void)
 			if (dSHGetFolderPathW(NULL, 0x5, NULL, 0, wfolder) == S_OK)
 			{
 				narrowen(folder, sizeof(folder), wfolder);
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Games/%s/", folder, FULLENGINENAME);
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Games/%s/", folder, HOMESUBDIR);
 			}
 		}
 //		if (shfolder)
@@ -6231,12 +6198,12 @@ void COM_InitFilesystem (void)
 		{
 			ev = getenv("USERPROFILE");
 			if (ev)
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Documents/My Games/%s/", ev, FULLENGINENAME);
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Documents/My Games/%s/", ev, HOMESUBDIR);
 		}
 
 #ifdef NPFTE
 		if (!*com_homepath)
-			Q_snprintfz(com_homepath, sizeof(com_homepath), "/%s/", FULLENGINENAME);
+			Q_snprintfz(com_homepath, sizeof(com_homepath), "/%s/", HOMESUBDIR);
 		//as a browser plugin, always use their home directory
 		usehome = true;
 #else
@@ -6319,29 +6286,33 @@ void COM_InitFilesystem (void)
 		char newhome[MAX_OSPATH];
 		struct stat s;
 
-#ifdef GAME_SHORTNAME
-#define HOMESUBDIR GAME_SHORTNAME
-#else
-#define HOMESUBDIR "fte"	//FIXME: this should come from the manifest, as fte_GAME or something
-#endif
-
-		if (ev[strlen(ev)-1] == '/')
-			Q_snprintfz(oldhome, sizeof(oldhome), "%s."HOMESUBDIR"/", ev);
-		else
-			Q_snprintfz(oldhome, sizeof(oldhome), "%s/."HOMESUBDIR"/", ev);
-
 		xdghome = getenv("XDG_DATA_HOME");
 		if (!xdghome || !*xdghome)
 			xdghome = va("%s/.local/share", ev);
-		if (xdghome[strlen(xdghome)-1] == '/')
-			Q_snprintfz(newhome, sizeof(newhome), "%s"HOMESUBDIR"/", xdghome);
+		if (man && man->installation)
+		{
+			if (xdghome[strlen(xdghome)-1] == '/')
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
+			else
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
+		}
 		else
-			Q_snprintfz(newhome, sizeof(newhome), "%s/"HOMESUBDIR"/", xdghome);
+		{
+			if (xdghome[strlen(xdghome)-1] == '/')
+				Q_snprintfz(newhome, sizeof(newhome), "%s%s/", xdghome, HOMESUBDIR);
+			else
+				Q_snprintfz(newhome, sizeof(newhome), "%s/%s/", xdghome, HOMESUBDIR);
 
-		if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
-			Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
-		else
-			Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
+			if (ev[strlen(ev)-1] == '/')
+				Q_snprintfz(oldhome, sizeof(oldhome), "%s.%s/", ev, HOMESUBDIR);
+			else
+				Q_snprintfz(oldhome, sizeof(oldhome), "%s/.%s/", ev, HOMESUBDIR);
+
+			if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
+				Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
+			else
+				Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
+		}
 		usehome = true; // always use home on unix unless told not to
 	}
 #endif
@@ -6363,6 +6334,60 @@ void COM_InitFilesystem (void)
 		com_homepathusable = false;
 
 	com_homepathenabled = com_homepathusable;
+
+}
+
+/*
+================
+COM_InitFilesystem
+
+note: does not actually load any packs, just makes sure the basedir+cvars+etc is set up. vfs_fopens will still fail.
+================
+*/
+void COM_InitFilesystem (void)
+{
+	int		i;
+
+
+	FS_RegisterDefaultFileSystems();
+
+	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles_f);
+	Cmd_AddCommandD("fs_changegame", FS_ChangeGame_f, "Switch between different manifests (or registered games)");
+	Cmd_AddCommandD("fs_changemod", FS_ChangeMod_f, "Provides the backend functionality of a transient online installer. Eg, for quaddicted's map/mod database.");
+	Cmd_AddCommand("fs_showmanifest", FS_ShowManifest_f);
+	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
+	Cmd_AddCommandAD("dir", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
+	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
+	Cmd_AddCommandAD("flocate", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
+
+
+//
+// -basedir <path>
+// Overrides the system supplied base directory (under id1)
+//
+	i = COM_CheckParm ("-basedir");
+	if (i && i < com_argc-1)
+		strcpy (com_gamepath, com_argv[i+1]);
+	else
+		strcpy (com_gamepath, host_parms.basedir);
+
+	FS_CleanDir(com_gamepath, sizeof(com_gamepath));
+
+
+	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
+	Cvar_Register(&com_fs_cache, "Filesystem");
+	Cvar_Register(&fs_gamename, "Filesystem");
+	Cvar_Register(&pm_downloads_url, "Filesystem");
+	Cvar_Register(&pm_autoupdate, "Filesystem");
+	Cvar_Register(&com_protocolname, "Server Info");
+	Cvar_Register(&com_protocolversion, "Server Info");
+	Cvar_Register(&fs_game, "Filesystem");
+#ifdef Q2SERVER
+	Cvar_Register(&fs_gamedir, "Filesystem");
+	Cvar_Register(&fs_basedir, "Filesystem");
+#endif
+
+	COM_InitHomedir(NULL);
 
 	fs_readonly = COM_CheckParm("-readonly");
 

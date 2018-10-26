@@ -4228,11 +4228,6 @@ static void Sys_QueryDesktopParameters(void)
 
 void Sys_Sleep (double seconds)
 {
-if (seconds < 0)
-seconds = 0;
-if (seconds > 1)
-seconds = 1;
-Con_Printf("Sys_Sleep%g\n", seconds);
 	Sleep(seconds * 1000);
 }
 

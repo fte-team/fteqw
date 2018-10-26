@@ -4692,9 +4692,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				dir = bestdir;
 			}
 			else
-			{
-				VectorSubtract(org, dir, ctx.tangent2);
-				VectorAdd(org, dir, ctx.tangent1);
+			{	//the dir arg is generally assumed to be facing away from the surface.
+				VectorMA(org, 16, dir, ctx.tangent2);
+				VectorMA(org, -16, dir, ctx.tangent1);
 				CL_TraceLine(ctx.tangent2, ctx.tangent1, ctx.center, bestdir, &ctx.entity);
 			}
 			if (ctx.entity && (unsigned)ctx.entity < (unsigned)cl.maxlerpents)

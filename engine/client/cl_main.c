@@ -5670,17 +5670,13 @@ double Host_Frame (double time)
 	if (cl.paused)
 		cl.gametimemark += time;
 
-	idle = (cls.state == ca_disconnected) ||
+	//if we're at a menu/console/thing
+	idle = Key_Dest_Has_Higher(kdm_gmenu);
 #ifdef VM_UI
-		UI_MenuState() != 0 ||
+	idle |= UI_MenuState() != 0;
 #endif
-		Key_Dest_Has(kdm_gmenu) ||
-		Key_Dest_Has(kdm_emenu) ||
-		Key_Dest_Has(kdm_editor) ||
-		!vid.activeapp ||
-		cl.paused
-		;
-	// TODO: check if minimized or unfocused
+	idle = ((cls.state == ca_disconnected) || cl.paused) && !idle;	//idle if we're disconnected/paused and not at a menu
+	idle |= !vid.activeapp; //always idle when tabbed out
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
 	//should smooth out a few things, and increase download speeds.

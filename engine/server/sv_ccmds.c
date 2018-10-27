@@ -682,7 +682,7 @@ void SV_Map_f (void)
 	else
 #endif
 	{
-		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
+		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)

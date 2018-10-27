@@ -465,9 +465,21 @@ static void Con_Editor_LineChanged_Shader(conline_t *line)
 			flocation_t loc;
 			unsigned int flags;
 			image_t img;
+
 			memset(&img, 0, sizeof(img));
 			img.ident = mapname;
 			COM_DeFunString(n, end, mapname, sizeof(mapname), true, true);
+			while(*img.ident == '$')
+			{
+				if (!Q_strncasecmp(img.ident, "$lightmap", 9))
+					return;	//lightmaps don't need to load from disk
+				if (!Q_strncasecmp(img.ident, "$rt:", 4))
+					return;	//render targets never come from disk
+				if (!Q_strncasecmp(img.ident, "$clamp:", 7) || !Q_strncasecmp(img.ident, "$3d:", 4) || !Q_strncasecmp(img.ident, "$cube:", 6) || !Q_strncasecmp(img.ident, "$nearest:", 9) || !Q_strncasecmp(img.ident, "$linear:", 8))
+					img.ident = strchr(img.ident, ':')+1;
+				else
+					break;
+			}
 			if (!Image_LocateHighResTexture(&img, &loc, fname, sizeof(fname), &flags))
 				line->flags |= CONL_BREAKPOINT;
 			return;

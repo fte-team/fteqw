@@ -692,7 +692,7 @@ static void MenuDraw(menu_t *menu)
 }
 
 
-menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign)
+menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign)
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t) + (text?strlen(text):0)+1);
 	n->common.type = mt_text;
@@ -712,7 +712,7 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *t
 	return n;
 }
 
-menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign, qboolean red)
+menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign, qboolean red)
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t) + strlen(text)+1);
 	n->common.type = mt_text;
@@ -732,7 +732,7 @@ menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char
 	return n;
 }
 
-menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, qboolean rightalign)
+menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign)
 {
 	menutext_t *n;
 	n = MC_AddWhiteText(menu, lhs, rhs, y, text, rightalign);
@@ -1329,7 +1329,7 @@ menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, q
 	return n;
 }
 
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, qboolean rightalign, const char *text, char *command, ...)
+menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...)
 {
 	va_list		argptr;
 	static char		string[1024];

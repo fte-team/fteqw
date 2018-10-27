@@ -1499,8 +1499,9 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			}
 		}
 
-		switch(lightmap_fmt)
+		switch(PTI_E5BGR9)//lightmap_fmt)
 		{
+		//don't clamp model lighting if we're not clamping world lighting either.
 		case PTI_E5BGR9:
 		case PTI_RGBA16F:
 		case PTI_RGBA32F:

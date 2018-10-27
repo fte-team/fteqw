@@ -2969,8 +2969,23 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		//wait for the queued acquire to actually finish
 		if (vk_busywait.ival)
 		{	//busy wait, to try to get the highest fps possible
-			while (VK_TIMEOUT == vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
-					;
+			for (;;)
+			{
+				switch(vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
+				{
+				case VK_SUCCESS:
+					break;	//hurrah
+				case VK_NOT_READY:
+					continue;	//keep going until its actually signaled. submission thread is probably just slow.
+				case VK_TIMEOUT:
+					continue;	//erk? this isn't a documented result here.
+				case VK_ERROR_DEVICE_LOST:
+					Sys_Error("Vulkan device lost");
+				default:
+					return false;
+				}
+				break;
+			}
 		}
 		else
 		{
@@ -3616,17 +3631,24 @@ void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStage
 	work->fencedwork = fencedwork;
 
 	Sys_LockConditional(vk.submitcondition);
+
+#ifdef MULTITHREAD
+	if (vk.neednewswapchain && vk.submitthread)
+	{	//if we're trying to kill the submission thread, don't post work to it - instead wait for it to die cleanly then do it ourselves.
+		Sys_ConditionSignal(vk.submitcondition);
+		Sys_UnlockConditional(vk.submitcondition);
+		Sys_WaitOnThread(vk.submitthread);
+		vk.submitthread = NULL;
+		Sys_LockConditional(vk.submitcondition);	//annoying, but required for it to be reliable with respect to other things.
+	}
+#endif
+
 	//add it on the end in a lazy way.
 	for (link = &vk.work; *link; link = &(*link)->next)
 		;
 	*link = work;
 
 #ifdef MULTITHREAD
-	if (vk.neednewswapchain && vk.submitthread)
-	{	//if we're trying to kill the submission thread, don't post work to it - instead wait for it to die cleanly then do it ourselves.
-		Sys_WaitOnThread(vk.submitthread);
-		vk.submitthread = NULL;
-	}
 	if (vk.submitthread)
 		Sys_ConditionSignal(vk.submitcondition);
 	else

@@ -3536,6 +3536,7 @@ void SV_SendClientMessages (void)
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
 				SV_PostRunCmd();
+				c->lastruncmd = sv.time*1000;
 				if (stepmsec > c->msecs)
 					c->msecs = 0;
 				else

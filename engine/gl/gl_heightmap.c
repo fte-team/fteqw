@@ -72,8 +72,6 @@ void validatelinks2(link_t *firstnode, link_t *panic)
 	return;*/
 }
 
-//FIXME
-int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe);
 
 #ifndef SERVERONLY
 static void ted_dorelight(heightmap_t *hm);
@@ -164,7 +162,7 @@ static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 			int lm;
 			int i;
 			Sys_UnlockMutex(com_resourcemutex);
-			lm = Surf_NewLightmaps(1, SECTTEXSIZE*LMCHUNKS, SECTTEXSIZE*LMCHUNKS, false);
+			lm = Surf_NewLightmaps(1, SECTTEXSIZE*LMCHUNKS, SECTTEXSIZE*LMCHUNKS, PTI_BGRA8, false);
 			Sys_LockMutex(com_resourcemutex);
 			for (i = 0; i < LMCHUNKS*LMCHUNKS; i++)
 			{
@@ -196,9 +194,9 @@ static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 	if (initialise && s->lightmap >= 0)
 	{
 		int x, y;
-		unsigned char *lm;
-		lm = lightmap[s->lightmap]->lightmaps;
-		lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+		unsigned char *lm = lightmap[s->lightmap]->lightmaps;
+		unsigned int pixbytes = lightmap[s->lightmap]->pixbytes;
+		lm += (s->lmy * HMLMSTRIDE + s->lmx) * pixbytes;
 		for (y = 0; y < SECTTEXSIZE; y++)
 		{
 			for (x = 0; x < SECTTEXSIZE; x++)
@@ -208,7 +206,7 @@ static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 				lm[x*4+2] = 0;
 				lm[x*4+3] = 255;
 			}
-			lm += (HMLMSTRIDE)*lightmap_bytes;
+			lm += (HMLMSTRIDE)*pixbytes;
 		}
 	}
 
@@ -803,6 +801,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	unsigned int flags = s->flags;
 	int i, j, x, y;
 	struct hmwater_s *w;
+	unsigned int pixbytes;
 
 	flags &= ~(TSF_INTERNAL);
 	flags &= ~(TSF_HASCOLOURS|TSF_HASHEIGHTS|TSF_HASSHADOW);
@@ -824,8 +823,9 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		}
 	}
 
+	pixbytes = lightmap[s->lightmap]->pixbytes;
 	lm = lightmap[s->lightmap]->lightmaps;
-	lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+	lm += (s->lmy * HMLMSTRIDE + s->lmx) * pixbytes;
 	for (y = 0; y < SECTTEXSIZE; y++)
 	{
 		for (x = 0; x < SECTTEXSIZE; x++)
@@ -837,7 +837,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 				break;
 			}
 		}
-		lm += (HMLMSTRIDE)*lightmap_bytes;
+		lm += (HMLMSTRIDE)*pixbytes;
 	}
 
 	//write the flags so the loader knows what to load
@@ -927,8 +927,9 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 
 		//write the channel
 		last = 0;
+		pixbytes = lightmap[s->lightmap]->pixbytes;
 		lm = lightmap[s->lightmap]->lightmaps;
-		lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+		lm += (s->lmy * HMLMSTRIDE + s->lmx) * pixbytes;
 		for (y = 0; y < SECTTEXSIZE; y++)
 		{
 			for (x = 0; x < SECTTEXSIZE; x++)
@@ -937,7 +938,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 				last = lm[x*4+j];
 				Terr_Write_Byte(&strm, delta);
 			}
-			lm += (HMLMSTRIDE)*lightmap_bytes;
+			lm += (HMLMSTRIDE)*pixbytes;
 		}
 	}
 
@@ -994,15 +995,16 @@ static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, si
 	int y;
 
 	if (s)
-	if (lightmap_bytes == 4 && Terr_InitLightmap(s, false))
+	if (Terr_InitLightmap(s, false))
 	{
+		int pixbytes = lightmap[s->lightmap]->pixbytes;
 		outlm = lightmap[s->lightmap]->lightmaps;
-		outlm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+		outlm += (s->lmy * HMLMSTRIDE + s->lmx) * pixbytes;
 		for (y = 0; y < SECTTEXSIZE; y++)
 		{
 			memcpy(outlm, inlm, SECTTEXSIZE*4);
 			inlm += SECTTEXSIZE*4;
-			outlm += (HMLMSTRIDE)*lightmap_bytes;
+			outlm += (HMLMSTRIDE)*pixbytes;
 		}
 	}
 
@@ -1220,10 +1222,9 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 	if (s->lightmap >= 0)
 	{
 		int j;
-		qbyte *lm;
-
-		lm = lightmap[s->lightmap]->lightmaps;
-		lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+		qbyte *lm = lightmap[s->lightmap]->lightmaps;
+		int pixbytes = lightmap[s->lightmap]->pixbytes;
+		lm += (s->lmy * HMLMSTRIDE + s->lmx) * pixbytes;
 		for (i = 0; i < SECTTEXSIZE; i++)
 		{
 			for (j = 0; j < SECTTEXSIZE; j++)
@@ -1233,7 +1234,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 				lm[j*4+0] = 0;
 				lm[j*4+3] = 255;
 			}
-			lm += (HMLMSTRIDE)*lightmap_bytes;
+			lm += (HMLMSTRIDE)*pixbytes;
 		}
 		lightmap[s->lightmap]->modified = true;
 		lightmap[s->lightmap]->rectchange.l = 0;
@@ -1557,6 +1558,7 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	vec4_t dcolours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	int nothing = 0;
 	struct hmwater_s *w = s->water;
+	int pixbytes;
 
 	memset(&ds, 0, sizeof(ds));
 	memset(&dm, 0, sizeof(dm));
@@ -1595,12 +1597,13 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	}
 	s->flags |= TSF_DIRTY;
 
+	pixbytes = lightmap[s->lightmap]->pixbytes;
 	lm = lightmap[s->lightmap]->lightmaps;
-	lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+	lm += (s->lmy * HMLMSTRIDE + s->lmx) * pixbytes;
 	for (i = 0; i < SECTTEXSIZE; i++)
 	{
 		memcpy(ds.texmap + i, lm, sizeof(ds.texmap[0]));
-		lm += (HMLMSTRIDE)*lightmap_bytes;
+		lm += (HMLMSTRIDE)*pixbytes;
 	}
 
 	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
@@ -4349,7 +4352,6 @@ int	Heightmap_ClusterForPoint	(model_t *model, vec3_t point)
 #ifndef SERVERONLY
 static unsigned char *QDECL Terr_GetLightmap(hmsection_t *s, int idx, qboolean edit)
 {
-	unsigned char *lm;
 	int x = idx % SECTTEXSIZE, y = idx / SECTTEXSIZE;
 	if (s->lightmap < 0)
 	{
@@ -4369,9 +4371,7 @@ static unsigned char *QDECL Terr_GetLightmap(hmsection_t *s, int idx, qboolean e
 		lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
 		lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
 	}
-	lm = lightmap[s->lightmap]->lightmaps;
-	lm += ((s->lmy+y) * HMLMSTRIDE + (s->lmx+x)) * lightmap_bytes;
-	return lm;
+	return lightmap[s->lightmap]->lightmaps + ((s->lmy+y) * HMLMSTRIDE + (s->lmx+x)) * lightmap[s->lightmap]->pixbytes;
 }
 static void ted_dorelight(heightmap_t *hm)
 {
@@ -5588,7 +5588,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			{
 				int first;
 				hm->brushlmremaps = BZ_Realloc(hm->brushlmremaps, sizeof(*hm->brushlmremaps) * lmcount);
-				first = Surf_NewLightmaps(lmcount - hm->brushmaxlms, hm->brushlmalloc.width, hm->brushlmalloc.height, hm->brushlmalloc.deluxe);
+				first = Surf_NewLightmaps(lmcount - hm->brushmaxlms, hm->brushlmalloc.width, hm->brushlmalloc.height, PTI_BGRA8, hm->brushlmalloc.deluxe);
 
 				while(hm->brushmaxlms < lmcount)
 					hm->brushlmremaps[hm->brushmaxlms++] = first++;
@@ -5642,11 +5642,11 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				lm->rectchange.b = lm->height;
 
 				in = br->faces[j].lightdata;
-				out = lm->lightmaps + (br->faces[j].lmbase[1] * lm->width + br->faces[j].lmbase[0]) * lightmap_bytes;
-				switch(lightmap_fmt)
+				out = lm->lightmaps + (br->faces[j].lmbase[1] * lm->width + br->faces[j].lmbase[0]) * lm->pixbytes;
+				switch(lm->fmt)
 				{
 				default:
-					Sys_Error("Bad lightmap_fmt\n");
+					Sys_Error("Bad terrain lightmap format %i\n", lm->fmt);
 					break;
 				case PTI_BGRA8:
 				case PTI_BGRX8:
@@ -5741,8 +5741,33 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						out += (lm->width - br->faces[j].lmextents[0]);
 					}
 					break;
-				case PTI_RGBA16F:
 				case PTI_RGBA32F:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
+					{
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
+						{
+							((float*)out)[0] = in[0]/255.0;
+							((float*)out)[1] = in[1]/255.0;
+							((float*)out)[2] = in[2]/255.0;
+							((float*)out)[3] = 1.0;
+							out+=16;
+							in+=3;
+						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 16;
+					}
+					break;
+				/*case PTI_RGBA16F:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
+					{
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
+						{
+							Surf_PackRGB16F(in[0], in[1], in[2], 255);
+							out+=8;
+							in+=3;
+						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 8;
+					}
+					break;*/
 				case PTI_RGB565:
 				case PTI_RGBA4444:
 				case PTI_RGBA5551:

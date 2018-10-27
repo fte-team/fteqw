@@ -63,7 +63,6 @@ static struct predicted_player
 } predicted_players[MAX_CLIENTS];
 
 static void CL_LerpNetFrameState(framestate_t *fs, lerpents_t *le);
-qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence);
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence);
 void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay);
 

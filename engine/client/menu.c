@@ -1136,9 +1136,9 @@ void M_Menu_Quit_f (void)
 		quitmenu = M_CreateMenuInfront(0);
 		quitmenu->key = MC_SaveQuit_Key;
 
-		MC_AddWhiteText(quitmenu, 64, 0, 84,	 "You have unsaved settings ", false);
-		MC_AddWhiteText(quitmenu, 64, 0, 92,	 "    Would you like to     ", false);
-		MC_AddWhiteText(quitmenu, 64, 0, 100,	 "      save them now?      ", false);
+		MC_AddWhiteText(quitmenu, 64, 256, 84,	 "You have unsaved settings ", 2);
+		MC_AddWhiteText(quitmenu, 64, 256, 92,	 "    Would you like to     ", 2);
+		MC_AddWhiteText(quitmenu, 64, 256, 100,	 "      save them now?      ", 2);
 
 		quitmenu->selecteditem = (menuoption_t *)
 #ifdef FTE_TARGET_WEB
@@ -1162,19 +1162,19 @@ void M_Menu_Quit_f (void)
 
 #ifdef FTE_TARGET_WEB
 
-//		MC_AddWhiteText(quitmenu, 64, 0, 84,	 "                          ", false);
-		MC_AddWhiteText(quitmenu, 64, 0, 92,	 " There is nothing to save ", false);
-//		MC_AddWhiteText(quitmenu, 64, 0, 100,	 "                          ", false);
+//		MC_AddWhiteText(quitmenu, 64, 256, 84,	 "                          ", 2);
+		MC_AddWhiteText(quitmenu, 64, 256, 92,	 " There is nothing to save ", 2);
+//		MC_AddWhiteText(quitmenu, 64, 256, 100,	 "                          ", 2);
 
 		quitmenu->selecteditem = (menuoption_t *)
 		MC_AddConsoleCommand    (quitmenu, 120, 0, 116,        "Oh",			       "menupop\n");
 #else
 		{
 			int		i = rand()&7;
-			MC_AddWhiteText(quitmenu, 64, 0, 84, quitMessage[i*4+0], false);
-			MC_AddWhiteText(quitmenu, 64, 0, 92, quitMessage[i*4+1], false);
-			MC_AddWhiteText(quitmenu, 64, 0, 100, quitMessage[i*4+2], false);
-			MC_AddWhiteText(quitmenu, 64, 0, 108, quitMessage[i*4+3], false);
+			MC_AddWhiteText(quitmenu, 64, 256, 84, quitMessage[i*4+0], 2);
+			MC_AddWhiteText(quitmenu, 64, 256, 92, quitMessage[i*4+1], 2);
+			MC_AddWhiteText(quitmenu, 64, 256, 100, quitMessage[i*4+2], 2);
+			MC_AddWhiteText(quitmenu, 64, 256, 108, quitMessage[i*4+3], 2);
 		}
 
 		quitmenu->selecteditem = (menuoption_t *)

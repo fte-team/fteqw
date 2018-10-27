@@ -295,6 +295,7 @@ void main ()
 			#ifdef BUMPMODELSPACE
 				deluxe = normalize(deluxe*invsurface);
 #else
+				deluxe = normalize(deluxe);
 				lightmaps *= 2.0 / max(0.25, deluxe.z);	//counter the darkening from deluxemaps
 			#endif
 			lightmaps *= dot(norm, deluxe);

@@ -2139,10 +2139,9 @@ void SV_Begin_Core(client_t *split)
 						SV_RunCmd(&cmd, false);
 					}
 					SV_PostRunCmd();
+					split->lastruncmd = sv.time*1000;
 					host_client = oh;
 					sv_player = oh?oh->edict:NULL;
-
-					host_client->lastruncmd = sv.time*1000;
 				}
 			}
 		}
@@ -5658,6 +5657,7 @@ static void SVNQ_Begin_f (void)
 	host_client->lastcmd.msec = 0;
 	SV_RunCmd (&host_client->lastcmd, false);
 	SV_PostRunCmd();
+	host_client->lastruncmd = sv.time*1000;
 }
 static void SVNQ_PreSpawn_f (void)
 {
@@ -6810,7 +6810,6 @@ size_t playertouchmax;
 void SV_PreRunCmd(void)
 {
 	size_t max = MAX_EDICTS;//(sv.world.num_edicts+7)&~7;
-	host_client->lastruncmd = sv.time*1000;
 	if (max > playertouchmax)
 	{
 		playertouchmax = max;
@@ -7868,6 +7867,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 
 						if (!SV_PlayerPhysicsQC || host_client->spectator)
 							SV_PostRunCmd();
+						host_client->lastruncmd = sv.time*1000;
 					}
 
 				}
@@ -8320,6 +8320,7 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 		SV_RunCmd (move, false);
 		SV_PostRunCmd();
 		move->impulse = 0;
+		host_client->lastruncmd = sv.time*1000;
 	}
 	else
 	{

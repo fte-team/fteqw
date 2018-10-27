@@ -5445,20 +5445,20 @@ static void BE_UpdateLightmaps(void)
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lightmap_fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lightmap_fmt].format, gl_config.formatinfo[lightmap_fmt].type,	lm->lightmaps);
+				qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lm->fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type,	lm->lightmaps);
 
 				if (gl_config.glversion >= (gl_config.gles?3.0:3.3))
 				{
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lightmap_fmt].swizzle_r);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[lightmap_fmt].swizzle_g);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lightmap_fmt].swizzle_b);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lightmap_fmt].swizzle_a);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lm->fmt].swizzle_r);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[lm->fmt].swizzle_g);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lm->fmt].swizzle_b);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lm->fmt].swizzle_a);
 				}
 			}
 			else
 			{
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lightmap_fmt].format, gl_config.formatinfo[lightmap_fmt].type, lm->lightmaps+t*lm->width*lightmap_bytes);
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, lm->lightmaps+t*lm->width*lm->pixbytes);
 			}
 			lm->modified = false;
 			lm->rectchange.l = lm->width;

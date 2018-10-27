@@ -567,14 +567,14 @@ void GLBE_UploadAllLightmaps(void)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
 
-		qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lightmap_fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lightmap_fmt].format, gl_config.formatinfo[lightmap_fmt].type, lightmap[i]->lightmaps);
+		qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lm->fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, lightmap[i]->lightmaps);
 
 		if (gl_config.glversion >= (gl_config.gles?3.0:3.3))
 		{
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lightmap_fmt].swizzle_r);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[lightmap_fmt].swizzle_g);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lightmap_fmt].swizzle_b);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lightmap_fmt].swizzle_a);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lm->fmt].swizzle_r);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[lm->fmt].swizzle_g);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lm->fmt].swizzle_b);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lm->fmt].swizzle_a);
 		}
 
 		//for completeness.

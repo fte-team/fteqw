@@ -5490,6 +5490,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef BUMPMODELSPACE\n"
 "deluxe = normalize(deluxe*invsurface);\n"
 "#else\n"
+"deluxe = normalize(deluxe);\n"
 "lightmaps *= 2.0 / max(0.25, deluxe.z); //counter the darkening from deluxemaps\n"
 "#endif\n"
 "lightmaps *= dot(norm, deluxe);\n"

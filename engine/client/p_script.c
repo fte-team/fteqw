@@ -6489,6 +6489,8 @@ static void R_AddClippedDecal(scenetris_t *t, clippeddecal_t *d, plooks_t *type)
 	if (d->entity > 0)
 	{
 		lerpents_t *le = cl.lerpents+d->entity;
+		if (le->sequence != cl.lerpentssequence)
+			return;	//hide until its visible again.
 		if (le->angles[0] || le->angles[1] || le->angles[2])
 		{	//FIXME: deal with rotated entities.
 			d->die = -1;

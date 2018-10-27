@@ -9772,7 +9772,10 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		movevars.maxspeed *= ent->xv->hasted;
 #endif
 	if (client)
+	{
 		movevars.coordsize = client->netchan.netprim.coordsize;
+		client->lastruncmd = sv.time*1000;
+	}
 	else
 		movevars.coordsize = svs.netprim.coordsize;
 
@@ -10869,8 +10872,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getlocalinfo",	PF_getlocalinfo,0,	0,		0,		0,		D("int(string keyname, optional void *outptr, int size)", "Obtains a copy of the full data blob. Will write up to size bytes and return the actual size. Does not null terminate (but memalloc(ret+1) will, if you want to cast the buffer to a string), and the blob may contain embedded nulls. Ignores all special keys, returning only what is actually there.")},
 	{"setlocalinfo",	PF_setlocalinfo,0,	0,		0,		0,		D("void(string keyname, optional void *outptr, int size)", "Changes the server's localinfo. This data will be available for the following map, and will *usually* reload with saved games.")},
 
-	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
-	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
+	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not. Returns 2 when playing an mvd (where other player's stats can be queried, or the pov can be changed freely).")},// (EXT_CSQC)
+	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns non-zero whenever the local console can directly affect the server (ie: listen servers or single-player). Compat note: DP returns 0 for single-player.")},//(EXT_CSQC)
 	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, optional float reverbtype)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default. For reverbtype, see setup_reverb or treat as 'underwater'.")},// (EXT_CSQC)
 	{"setup_reverb",	PF_Fixme, 	0,		0,		0,		0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)

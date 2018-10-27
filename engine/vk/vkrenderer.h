@@ -289,7 +289,7 @@ extern struct vulkaninfo_s
 	VkCommandPool cmdpool;
 	VkPhysicalDeviceLimits limits;
 
-#define ACQUIRELIMIT 8
+#define ACQUIRELIMIT 8	//don't run more than this many frames behind
 	VkSemaphore acquiresemaphores[ACQUIRELIMIT];
 	VkFence acquirefences[ACQUIRELIMIT];
 	uint32_t acquirebufferidx[ACQUIRELIMIT];

@@ -358,22 +358,19 @@ typedef unsigned char stmap;
 struct mesh_s;
 typedef struct {
 	texid_t lightmap_texture;
-	qboolean	modified;
-	qboolean	external;
-	qboolean	hasdeluxe;
-	uploadfmt_t	fmt;
+	qboolean	modified;	//data was changed. consult rectchange to see the bounds.
+	qboolean	external;	//the data was loaded from a file (q3bsp feature where we shouldn't be blending lightmaps at all)
+	qboolean	hasdeluxe;	//says that the next lightmap index contains deluxemap info
+	uploadfmt_t	fmt;		//texture format that we're using
+	qbyte		pixbytes;	//yes, this means no compressed formats.
 	int			width;
 	int			height;
 	glRect_t	rectchange;
-	qbyte		*lightmaps;//[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
-	stmap		*stainmaps;//[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
+	qbyte		*lightmaps;	//[pixbytes*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
+	stmap		*stainmaps;	//[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
 } lightmapinfo_t;
 extern lightmapinfo_t **lightmap;
 extern int numlightmaps;
-//extern texid_t		*lightmap_textures;
-//extern texid_t		*deluxmap_textures;
-extern int				lightmap_bytes;		// 1, 3, or 4
-extern uploadfmt_t		lightmap_fmt;	//bgra32, rgba32, rgb24, lum8
 
 void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 

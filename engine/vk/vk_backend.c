@@ -4137,7 +4137,7 @@ void VK_UploadLightmap(lightmapinfo_t *lm)
 		mips.mip[0].width = lm->width;
 		mips.mip[0].height = lm->height;
 		mips.mip[0].depth = 1;
-		switch(lightmap_fmt)
+		switch(lm->fmt)
 		{
 		default:
 		case PTI_A2BGR10:
@@ -4145,7 +4145,7 @@ void VK_UploadLightmap(lightmapinfo_t *lm)
 		case PTI_RGBA16F:
 		case PTI_RGBA32F:
 		case PTI_L8:
-			mips.encoding = lightmap_fmt;
+			mips.encoding = lm->fmt;
 			break;
 		case PTI_BGRA8:
 			mips.encoding = PTI_BGRX8;
@@ -5957,7 +5957,9 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 			VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 			vkGetImageMemoryRequirements(vk.device, shad->image, &mem_reqs);
 			memAllocInfo.allocationSize = mem_reqs.size;
-			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
+			memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			if (memAllocInfo.memoryTypeIndex == ~0)
+				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &shad->memory));
 			VkAssert(vkBindImageMemory(vk.device, shad->image, shad->memory, 0));
 		}

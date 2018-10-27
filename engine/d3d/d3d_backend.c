@@ -3292,13 +3292,14 @@ static void BE_UploadLightmaps(qboolean force)
 			glRect_t *theRect = &lm->rectchange;
 			int r;
 			int w;
+			int pixbytes;
 
 			if (!TEXLOADED(lm->lightmap_texture))
 				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
 			tex = lm->lightmap_texture->ptr;
 			if (!tex)
 			{
-				switch(lightmap_fmt)
+				switch(lm->fmt)
 				{
 				default:
 					break;
@@ -3342,10 +3343,11 @@ static void BE_UploadLightmaps(qboolean force)
 			rect.top = theRect->t;
 			rect.bottom = theRect->b;
 
+			pixbytes = lightmap[i]->pixbytes;
 			IDirect3DTexture9_LockRect(tex, 0, &lock, &rect, 0);
 			for (r = 0, w = theRect->r-theRect->l; r < lightmap[i]->rectchange.b-lightmap[i]->rectchange.t; r++)
 			{
-				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*lightmap_bytes, w*lightmap_bytes);
+				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*pixbytes, w*pixbytes);
 			}
 			IDirect3DTexture9_UnlockRect(tex, 0);
 			theRect->l = lm->width;

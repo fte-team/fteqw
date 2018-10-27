@@ -5724,7 +5724,7 @@ double Host_Frame (double time)
 	if (sv.state && cls.state != ca_active)
 	{
 		maxfpsignoreserver = false;
-		maxfps = cl_maxfps.ival;
+		maxfps = 0;//cl_maxfps.ival;
 	}
 	else
 #endif

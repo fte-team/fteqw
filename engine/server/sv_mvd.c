@@ -1039,6 +1039,8 @@ qboolean SV_MVDWritePackets (int num)
 
 	if (!sv.mvdrecording)
 		return false;
+	if (demo.recorder.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		return false;
 
 	//flush any intermediate data
 	MVDWrite_Begin(255, -1, 0);

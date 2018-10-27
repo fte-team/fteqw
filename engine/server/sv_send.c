@@ -3886,7 +3886,8 @@ void SV_SendMVDMessage(void)
 
 	while (demo.lastwritten < demo.parsecount-1 && sv.mvdrecording)
 	{
-		SV_MVDWritePackets(1);
+		if (!SV_MVDWritePackets(1))
+			break;
 	}
 
 	if (demo.resetdeltas)

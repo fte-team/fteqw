@@ -2638,19 +2638,15 @@ unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t 
 		VectorCopy(surf->mesh->xyz_array[0], mins);
 		VectorCopy(surf->mesh->xyz_array[0], maxs);
 		for (v = 1; v < surf->mesh->numvertexes; v++)
-			AddPointToBounds(surf->mesh->xyz_array[0], mins, maxs);
+			AddPointToBounds(surf->mesh->xyz_array[v], mins, maxs);
 		VectorAvg(mins, maxs, mid);
 
 		for (n = 0; n < nenvmap; n++)
 		{
 			VectorSubtract(envmap[n].origin, mid, diff);
-#if 1
+#if 0
 			//axial distance
-			dist = fabs(diff[0]);
-			if (dist > fabs(diff[1]))
-				dist = fabs(diff[1]);
-			if (dist > fabs(diff[2]))
-				dist = fabs(diff[2]);
+			dist = fabs(diff[0]) + fabs(diff[1]) + fabs(diff[2]);
 #else
 			//radial distance (squared)
 			dist = DotProduct(diff,diff);

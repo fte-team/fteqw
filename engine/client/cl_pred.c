@@ -1131,6 +1131,7 @@ void CL_PredictMovePNum (int seat)
 	{
 		if (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
+			pv->nolocalplayer = false;
 			fromstate = &cl.inframes[cl.ackedmovesequence & UPDATE_MASK].playerstate[pv->playernum];
 			tostate = &cl.inframes[cl.movesequence & UPDATE_MASK].playerstate[pv->playernum];
 		}

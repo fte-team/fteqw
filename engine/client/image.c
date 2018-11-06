@@ -5717,6 +5717,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 }
 
 //resamples and depalettes as required
+//ALWAYS frees rawdata, even on failure (but never mips).
 static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flags, void *rawdata, void *palettedata, int imgwidth, int imgheight, uploadfmt_t fmt, qboolean freedata)
 {
 	unsigned int *rgbadata = rawdata;
@@ -6643,7 +6644,6 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 			return mips;
 		}
 		Z_Free(mips);
-		BZ_Free(rgbadata);
 	}
 #ifdef FTE_TARGET_WEB
 	else if (1)

@@ -1661,12 +1661,6 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 	func_t f;
 	char spawnfuncname[256];
 
-	if ((int)ed->v->spawnflags & ctx->killonspawnflags)
-	{
-		ED_Free(progfuncs, (struct edict_s *)ed);
-		return;
-	}
-
 	if (!ctx->foundfuncs)
 	{
 		ctx->foundfuncs = true;
@@ -1674,6 +1668,15 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 		ctx->SV_OnEntityPreSpawnFunction = PR_FindFunction(progfuncs, "SV_OnEntityPreSpawnFunction", -2);
 		ctx->SV_OnEntityNoSpawnFunction = PR_FindFunction(progfuncs, "SV_OnEntityNoSpawnFunction", -2);
 		ctx->SV_OnEntityPostSpawnFunction = PR_FindFunction(progfuncs, "SV_OnEntityPostSpawnFunction", -2);
+	}
+
+	//remove the entity if its spawnflags matches the ones we're killing on
+	//we skip this check if the mod has the CheckSpawn function defined. Such mods can do their own filtering easily enough.
+	//dpcompat: SV_OnEntityPreSpawnFunction does not inhibit this legacy behaviour (even though it really ought to).
+	if (!ctx->CheckSpawn && (int)ed->v->spawnflags & ctx->killonspawnflags)
+	{
+		ED_Free(progfuncs, (struct edict_s *)ed);
+		return;
 	}
 
 	if (ctx->SV_OnEntityPreSpawnFunction)

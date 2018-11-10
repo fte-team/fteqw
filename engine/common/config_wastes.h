@@ -1,7 +1,6 @@
 // The Wastes' config.h
-// We support both GL and D3D9. If Vulkan matures yeahsurewhynot
-// I want to get this mostly running on all systems. 
-// Possibly Xbox. Yes, the original one. Sue me.
+// We support both GL and Vulkan.
+// I want to get this mostly running on all systems post 2000.
 
 //general rebranding
 #define DISTRIBUTION "VTW"
@@ -23,7 +22,7 @@
 // All my fault -eukara
 #define ENGINE_ROUTING
 #undef USE_INTERNAL_BULLET
-#undef MENU_NATIVECODE // Will make a debut eventually, hopefully
+#define MENU_NATIVECODE // Will make a debut eventually, hopefully
 
 // What do we use
 #ifndef GLQUAKE
@@ -34,9 +33,7 @@
 #define VKQUAKE
 #endif
 
-#undef HEADLESSQUAKE
-#undef WAYLANDQUAKE
-
+#define PLUGINS		//support for external plugins (like huds or fancy menus or whatever)
 #define HAVE_PACKET
 #define QUAKETC
 #define AVAIL_OPENAL
@@ -55,28 +52,27 @@
 #define LOADERTHREAD	// worker threads for loading misc stuff. falls back on main thread if not supported.
 #define USEAREAGRID		// world collision optimisation
 #define USERBE
-#undef AVAIL_FREETYPE	// for truetype font rendering
 #define IMAGEFMT_DDS	// .dds files embed mipmaps and texture compression. faster to load.
 #define DECOMPRESS_ETC2
 #define DECOMPRESS_RGTC
 #define DECOMPRESS_S3TC
-
+#define USE_VORBISFILE
 #define NOBUILTINMENUS
 #define NOLEGACY //just spike trying to kill off crappy crap...
 #define AVAIL_DINPUT
+
 #ifndef DEBUG
 #define NOQCDESCRIPTIONS 2 //if 2, disables writing fteextensions.qc completely.
 #endif
 
-
 // Various package formats
 #define PACKAGE_PK3
-#define PACKAGE_TEXWAD // We need this for HL WAD3 support
-#define PACKAGE_Q1PAK // HL content will benefit from this, too
+#define PACKAGE_TEXWAD // HL content support, WAD3
+#define PACKAGE_Q1PAK // HL content support, PAK
 #undef PACKAGE_DOOMWAD
 
 // Map formats
-#define Q3BSPS // What we use
+#define Q3BSPS // What we use exclusively
 #define Q1BSPS // HL content support
 #undef Q2BSPS
 #undef RFBSPS
@@ -99,7 +95,7 @@
 #undef PSKMODELS
 
 // What do we NOT want to use
-#undef MVD_RECORDING			//server can record MVDs.
+#undef MVD_RECORDING //server can record MVDs.
 #undef D3D9QUAKE
 #undef D3D11QUAKE
 #undef D3D8QUAKE
@@ -107,6 +103,7 @@
 #undef AVAIL_DSOUND
 #undef BOTLIB_STATIC	//q3 botlib
 #undef AVAIL_XZDEC	//.xz decompression
+#undef AVAIL_SPEEX	//.xz decompression
 #undef AVAIL_GZDEC	//.gz decompression
 #undef AVAIL_DZIP	//.dzip special-case archive support
 #undef AVAIL_PNGLIB	//.png image format support (read+screenshots)
@@ -138,7 +135,6 @@
 #undef TEXTEDITOR	//my funky text editor! its awesome!
 #undef TCPCONNECT	//support for playing over tcp sockets, instead of just udp. compatible with qizmo.
 #undef IRCCONNECT	//lame support for routing game packets via irc server. not a good idea.
-#define PLUGINS		//support for external plugins (like huds or fancy menus or whatever)
 #undef SUPPORT_ICE	//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #undef PSET_CLASSIC	//support the 'classic' particle system, for that classic quake feel.
 #undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
@@ -162,6 +158,9 @@
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 //#define SAVEDGAMES			//Can save the game.
 #undef PACKAGEMANAGER			//Allows the user to enable/disable/download packages and plugins.
+#undef HEADLESSQUAKE
+#undef WAYLANDQUAKE
+#undef AVAIL_FREETYPE	// for truetype font rendering
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself
@@ -174,15 +173,13 @@
 #ifdef USE_INTERNAL_BULLET	//makefile will respond to this by trying to link bullet into the engine itself, instead of as a plugin.
 -DLINK_INTERNAL_BULLET
 #endif
-#if defined(FTE_TARGET_win32) || defined(FTE_TARGET_win64)
--DLINK_FREETYPE
-#endif
 
 -DNO_SPEEX	//disable static speex
 #ifndef BOTLIB_STATIC
 -DNO_BOTLIB	//disable static botlib
 #endif
--DNO_VORBISFILE	//disable static vorbisfile
 
--Os		//optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
+-DLIBVORBISFILE_STATIC
+
+//-Os //optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
 #endif

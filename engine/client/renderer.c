@@ -1557,6 +1557,10 @@ TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Image_Init();
 		Draw_Init();
 TRACE(("dbg: R_ApplyRenderer: draw inited\n"));
+#ifdef MENU_NATIVECODE
+	if (mn_entry)
+		mn_entry->Init(MI_RENDERER, vid.width, vid.height, vid.rotpixelwidth, vid.rotpixelheight);
+#endif
 		R_Init();
 		RQ_Init();
 		R_InitParticleTexture ();

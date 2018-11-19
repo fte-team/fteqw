@@ -1750,15 +1750,26 @@ static texid_t Font_LoadFallbackConchars(void)
 		Font_CopyGlyph('[', 128, lump);
 		Font_CopyGlyph('-', 129, lump);
 		Font_CopyGlyph(']', 130, lump);
-		Font_CopyGlyph('o', 131, lump);
+		Font_CopyGlyph('|', 131, lump);
+		Font_CopyGlyph('>', 13, lump);
 	}
 	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	BZ_Free(lump);
 	return tex;
 }
 
+enum fontfmt_e
+{
+	FMT_AUTO,		//freetype, or quake
+	FMT_QUAKE,		//first is default
+	FMT_ISO88591,	//latin-1 (first 256 chars of unicode too, c1 glyphs are usually invisible)
+	FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
+	FMT_KOI8U,		//image is 16*16 koi8-u codepage.
+	FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
+};
+
 /*loads a fallback image. not allowed to fail (use syserror if needed)*/
-static texid_t Font_LoadDefaultConchars(void)
+static texid_t Font_LoadDefaultConchars(enum fontfmt_e *fmt)
 {
 	texid_t tex;
 	tex = Font_LoadReplacementConchars();
@@ -1774,13 +1785,19 @@ static texid_t Font_LoadDefaultConchars(void)
 	if (tex && tex->status == TEX_LOADING)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
 	if (TEXLOADED(tex))
+	{
+		*fmt = FMT_ISO88591;
 		return tex;
+	}
 #endif
 	tex = Font_LoadFallbackConchars();
 	if (tex && tex->status == TEX_LOADING)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
 	if (TEXLOADED(tex))
+	{
+		*fmt = FMT_QUAKE;
 		return tex;
+	}
 	Sys_Error("Unable to load any conchars\n");
 }
 
@@ -1838,15 +1855,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 	char facename[MAX_QPATH*12];
 	struct charcache_s *c;
 	float aspect = 1;
-	enum
-	{
-		FMT_AUTO,		//freetype, or quake
-		FMT_QUAKE,		//first is default
-		FMT_ISO88591,	//latin-1 (first 256 chars of unicode too, c1 glyphs are usually invisible)
-		FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
-		FMT_KOI8U,		//image is 16*16 koi8-u codepage.
-		FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
-	} fmt = FMT_AUTO;
+	enum fontfmt_e fmt = FMT_AUTO;
 
 	Q_strncpyz(facename, fontfilename, sizeof(facename));
 
@@ -2155,7 +2164,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 	{
 		if (!TEXLOADED(fontplanes.defaultfont))
 		{
-			fontplanes.defaultfont = Font_LoadDefaultConchars();
+			fontplanes.defaultfont = Font_LoadDefaultConchars(&fmt);
 		}
 
 #ifdef HEXEN2

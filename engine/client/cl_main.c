@@ -232,10 +232,10 @@ static_entity_t *cl_static_entities;
 unsigned int    cl_max_static_entities;
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		*cl_dlights;
-unsigned int	cl_maxdlights; /*size of cl_dlights array*/
+size_t	cl_maxdlights; /*size of cl_dlights array*/
 
 int cl_baselines_count;
-int rtlights_first, rtlights_max;
+size_t rtlights_first, rtlights_max;
 
 // refresh list
 // this is double buffered so the last frame
@@ -2448,7 +2448,7 @@ void CL_SetInfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		InfoBuf_Print (&cls.userinfo[pnum], "");
-		Con_Printf("[%u]", (unsigned int)cls.userinfo[pnum].totalsize);
+		Con_Printf("[%u]\n", (unsigned int)cls.userinfo[pnum].totalsize);
 		return;
 	}
 	if (Cmd_Argc() != 3)
@@ -4876,10 +4876,10 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_DEMO		(HRF_DEMO_MVD|HRF_DEMO_QWD|HRF_DEMO_DM2|HRF_DEMO_DEM)
 #define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_ARCHIVE|HRF_MODEL|HRF_CONFIG)
 typedef struct {
-	unsigned int flags;
 	struct dl_download *dl;
 	vfsfile_t *srcfile;
 	vfsfile_t *dstfile;
+	unsigned int flags;
 	char fname[1];	//system path or url.
 } hrf_t;
 
@@ -6294,8 +6294,10 @@ void Host_FinishLoading(void)
 
 		Menu_Download_Update();
 
+#ifdef IPLOG
 		IPLog_Merge_File("iplog.txt");
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
+#endif
 	}
 
 	if (PM_IsApplying(true))

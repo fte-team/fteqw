@@ -1117,7 +1117,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 {
 	const char *s;
 	dlight_t *l;
-	unsigned int lno = G_FLOAT(OFS_PARM0);
+	size_t lno = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
 	while (lno >= cl_maxdlights)
 	{
@@ -1149,7 +1149,8 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		l->style = G_FLOAT(OFS_PARM2)+1;
 		break;
 	case lfield_angles:
-		AngleVectors(G_VECTOR(OFS_PARM2), l->axis[0], l->axis[1], l->axis[2]);
+		VectorCopy(G_VECTOR(OFS_PARM2), l->angles);
+		AngleVectors(l->angles, l->axis[0], l->axis[1], l->axis[2]);
 		VectorInverse(l->axis[1]);
 		break;
 	case lfield_fov:
@@ -1170,6 +1171,11 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 			l->cubetexture = r_nulltex;
 		break;
 #ifdef RTLIGHTS
+	case lfield_stylestring:
+		s = PR_GetStringOfs(prinst, OFS_PARM2);
+		Z_Free(l->customstyle);
+		l->customstyle = (s&&*s)?Z_StrDup(s):NULL;
+		break;
 	case lfield_ambientscale:
 		l->lightcolourscales[0] = G_FLOAT(OFS_PARM2);
 		break;
@@ -1202,7 +1208,6 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 }
 static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	vec3_t v;
 	dlight_t *l;
 	unsigned int lno = G_FLOAT(OFS_PARM0);
 	enum lightfield_e field = G_FLOAT(OFS_PARM1);
@@ -1233,10 +1238,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN) = l->style-1;
 		break;
 	case lfield_angles:
-		VectorAngles(l->axis[0], l->axis[2], v, false);
-		G_FLOAT(OFS_RETURN+0) = anglemod(v[0]);
-		G_FLOAT(OFS_RETURN+1) = v[1];
-		G_FLOAT(OFS_RETURN+2) = v[2];
+		VectorCopy(l->angles, G_VECTOR(OFS_RETURN));
 		break;
 	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
@@ -1251,6 +1253,12 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		RETURN_TSTRING(l->cubemapname);
 		break;
 #ifdef RTLIGHTS
+	case lfield_stylestring:
+		if (l->customstyle)
+			RETURN_TSTRING(l->customstyle);
+		else
+			RETURN_TSTRING("");
+		break;
 	case lfield_ambientscale:
 		G_FLOAT(OFS_RETURN) = l->lightcolourscales[0];
 		break;
@@ -1497,7 +1505,6 @@ static void CSQC_PolyFlush(void)
 	if (!csqc_poly_2d)
 	{
 		scenetris_t *t;
-		/*regular 3d polys are inserted into a 'scene trisoup' that the backend can then source from (multiple times, depending on how its drawn)*/
 		if (cl_numstris == cl_maxstris)
 		{
 			cl_maxstris+=8;
@@ -1510,7 +1517,7 @@ static void CSQC_PolyFlush(void)
 		t->firstvert = csqc_poly_origvert;
 
 		t->numidx = cl_numstrisidx - t->firstidx;
-		t->numvert = cl_numstrisvert-csqc_poly_origvert;
+		t->numvert = cl_numstrisvert-t->firstvert;
 	}
 	else
 	{
@@ -2135,7 +2142,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	case VF_ACTIVESEAT:
 		if (prinst == csqc_world.progs)
 		{
-			if (csqc_playerseat != *p)
+			if (csqc_playerseat != (int)*p)
 			{
 				CSQC_ChangeLocalPlayer(*p);
 				if (prinst->callargc < 3 || G_FLOAT(OFS_PARM2))
@@ -2419,6 +2426,9 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		scissored = false;
 
 	R_DrawNameTags();
+#ifdef RTLIGHTS
+	R_EditLights_DrawInfo();
+#endif
 
 	if (r_refdef.drawsbar)
 	{
@@ -7010,6 +7020,9 @@ void CSQC_Shutdown(void)
 	int i;
 	if (csqcprogs)
 	{
+		if (csqcg.shutdown_function)
+			PR_ExecuteProgram(csqcprogs, csqcg.shutdown_function);
+
 		key_dest_absolutemouse &= ~kdm_game;
 		CSQC_ForgetThreads();
 		PR_ReleaseFonts(kdm_game);

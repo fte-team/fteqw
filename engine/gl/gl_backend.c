@@ -1079,16 +1079,19 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo)
 
 	if (!TEXVALID(shadowmap[id]))
 	{
-		shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
-		qglGenTextures(1, &shadowmap[id]->num);
-		GL_MTBind(0, GL_TEXTURE_2D, shadowmap[id]);
+		uploadfmt_t encoding = PTI_DEPTH32;
+		texid_t tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
+		qglGenTextures(1, &tex->num);
+		GL_MTBind(0, GL_TEXTURE_2D, tex);
 #ifdef SHADOWDBG_COLOURNOTDEPTH
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 #else
-		if (gl_config.gles)
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+		if (qglTexStorage2D)
+			qglTexStorage2D(GL_TEXTURE_2D, 1, gl_config.formatinfo[encoding].sizedformat, w, h);
+		else if (gl_config.formatinfo[encoding].type)
+			qglTexImage2D				(GL_TEXTURE_2D, 0, gl_config.formatinfo[encoding].sizedformat, w, h, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	NULL);
 		else
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+			qglCompressedTexImage2D		(GL_TEXTURE_2D, 0, gl_config.formatinfo[encoding].sizedformat, w, h, 0,	0, NULL);
 #endif
 
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1614,7 +1617,16 @@ void GLBE_Init(void)
 
 	gl_overbright.modified = true; /*in case the d3d renderer does the same*/
 	/*lock the cvar down if the backend can't actually do it*/
-	if (!gl_config.tex_env_combine && !gl_config_nofixedfunc && gl_overbright.ival)
+	if (
+#if 1//defined(QUAKETC)
+		//TCs are expected to be using glsl and weird overbright things etc, don't take the risk.
+		(!sh_config.progs_supported)
+#else
+		//Q3 can get away with tex_env_combine for everything, if only because the content allows everything to be flattened to a single pass if needed...
+		//some shaders might screw up from our approach though...
+		(!gl_config.tex_env_combine && !gl_config_nofixedfunc)
+#endif
+		&& gl_overbright.ival)
 		Cvar_ApplyLatchFlag(&gl_overbright, "0", CVAR_RENDERERLATCH);
 	shaderstate.shaderbits = ~SBITS_ATEST_BITS;
 	BE_SendPassBlendDepthMask(0);

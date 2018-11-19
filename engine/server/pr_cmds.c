@@ -12022,6 +12022,7 @@ void PR_DumpPlatform_f(void)
 		{"MOVETYPE_6DOF",			"const float", QW|NQ|CS, D("A glorified MOVETYPE_FLY. Players using this movetype will get some flightsim-like physics, with fully independant rotations (order-dependant transforms)."), MOVETYPE_6DOF},
 		{"MOVETYPE_WALLWALK",		"const float", QW|NQ|CS, D("Players using this movetype will be able to orient themselves to walls, and then run up them."), MOVETYPE_WALLWALK},
 		{"MOVETYPE_PHYSICS",		"const float", QW|NQ|CS, D("Enable the use of ODE physics upon this entity."), MOVETYPE_PHYSICS},
+//		{"MOVETYPE_FLY_WORLDONLY",	"const float", QW|NQ|CS, D("A cross between noclip and fly. Basically, this prevents the player/spectator from being able to move into the void, which avoids pvs issues that are common with caulk brushes on q3bsp. ONLY the world model will be solid, all doors/etc will be non-solid."), MOVETYPE_FLY_WORLDONLY},
 
 		{"SOLID_NOT",				"const float", QW|NQ|CS, NULL, SOLID_NOT},
 		{"SOLID_TRIGGER",			"const float", QW|NQ|CS, NULL, SOLID_TRIGGER},
@@ -12463,6 +12464,7 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_DIETIME",		"const float", CS, NULL, lfield_dietime},
 		{"LFIELD_RGBDECAY",		"const float", CS, NULL, lfield_rgbdecay},
 		{"LFIELD_RADIUSDECAY",	"const float", CS, NULL, lfield_radiusdecay},
+		{"LFIELD_STYLESTRING",	"const float", CS, NULL, lfield_stylestring},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, NULL, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, NULL, LFLAG_REALTIMEMODE},
@@ -12614,17 +12616,17 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma noref 1\n");
 	VFS_PRINTF(f, "//#pragma flag enable logicops\n");
 
-	VFS_PRINTF(f, "#pragma warning error Q101 /*too many parms*/\n");
-	VFS_PRINTF(f, "#pragma warning error Q105 /*too few parms*/\n");
-	VFS_PRINTF(f, "#pragma warning error Q106 /*assignment to constant/lvalue*/\n");
-	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown*/\n");
+	VFS_PRINTF(f, "#pragma warning error Q101 /*too many parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n");
+	VFS_PRINTF(f, "#pragma warning error Q105 /*too few parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n");
+	VFS_PRINTF(f, "#pragma warning error Q106 /*assignment to constant/lvalue. Define them as var if you want to initialise something.*/\n");
+	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown. Compatibility goes out of the window if you disable this.*/\n");
 #ifdef NOLEGACY
-	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc)*/\n");
+	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc). Such mods will not run properly in FTE.*/\n");
 #else
-	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc)*/\n");
+	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc). Note that this may trigger emulation.*/\n");
 #endif
-	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings*/\n");
-	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals*/\n");
+	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings. Think of the foreigners! Also think of text editors that insist on screwing up your char encodings.*/\n");
+	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals. They usually default to 0 in qc (except in recursive functions), but its still probably a bug*/\n");
 
 	if ((targ&ALL) == H2)
 	{

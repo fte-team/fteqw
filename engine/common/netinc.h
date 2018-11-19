@@ -308,6 +308,7 @@ typedef struct dtlsfuncs_s
 	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
 	neterr_t (*Received)(void *ctx, qbyte *data, size_t datasize);
 	neterr_t (*Timeouts)(void *ctx);
+	void (*GetPeerCertificate)(void *ctx);
 } dtlsfuncs_t;
 const dtlsfuncs_t *DTLS_InitServer(void);
 const dtlsfuncs_t *DTLS_InitClient(void);

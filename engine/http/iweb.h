@@ -91,7 +91,7 @@ struct dl_download
 
 	qboolean isquery;	//will not be displayed in the download/progress bar stuff.
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	qdownload_t qdownload;
 #endif
 

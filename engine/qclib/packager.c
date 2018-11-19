@@ -59,7 +59,7 @@ texa0
 
 struct pkgctx_s
 {
-	void (*messagecallback)(void *userctx, char *message, ...);
+	void (*messagecallback)(void *userctx, const char *message, ...);
 	void *userctx;
 
 	char *listfile;
@@ -1557,7 +1557,7 @@ void Packager_WriteDataset(struct pkgctx_s *ctx, char *setname)
 			PKG_WriteDataset(ctx, dataset);
 	}
 }
-struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message, ...), void *userctx)
+struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, const char *message, ...), void *userctx)
 {
 	struct pkgctx_s *ctx;
 	ctx = malloc(sizeof(*ctx));

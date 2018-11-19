@@ -6029,7 +6029,8 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 
 			if (con_separatechat.ival == 1)
 			{
-				Con_PrintCon(&con_main, fullchatmessage, con_main.parseflags|PFS_NONOTIFY);
+				console_t *c = Con_GetMain();
+				Con_PrintCon(c, fullchatmessage, c->parseflags|PFS_NONOTIFY);
 				return;
 			}
 		}
@@ -6585,7 +6586,7 @@ static void CL_ParsePrecache(void)
 	}
 }
 
-static void Con_HexDump(qbyte *packet, size_t len)
+static void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
 {
 	int i;
 	int pos;
@@ -6598,6 +6599,8 @@ static void Con_HexDump(qbyte *packet, size_t len)
 		{
 			if (pos >= len)
 				Con_Printf(" - ");
+			else if (pos == badoffset)
+				Con_Printf("^b^1%2x ", packet[pos]);
 			else
 				Con_Printf("%2x ", packet[pos]);
 			pos++;
@@ -6608,9 +6611,19 @@ static void Con_HexDump(qbyte *packet, size_t len)
 			if (pos >= len)
 				Con_Printf("X");
 			else if (packet[pos] == 0 || packet[pos] == '\t' || packet[pos] == '\r' || packet[pos] == '\n')
-				Con_Printf(".");
+			{
+				if (pos == badoffset)
+					Con_Printf("^b^1.");
+				else
+					Con_Printf(".");
+			}
 			else
-				Con_Printf("%c", packet[pos]);
+			{
+				if (pos == badoffset)
+					Con_Printf("^b^1%c", packet[pos]);
+				else
+					Con_Printf("%c", packet[pos]);
+			}
 			pos++;
 		}
 		Con_Printf("\n");
@@ -6619,7 +6632,7 @@ static void Con_HexDump(qbyte *packet, size_t len)
 }
 void CL_DumpPacket(void)
 {
-	Con_HexDump(net_message.data, net_message.cursize);
+	Con_HexDump(net_message.data, net_message.cursize, msg_readcount-1);
 }
 
 static void CL_ParsePortalState(void)

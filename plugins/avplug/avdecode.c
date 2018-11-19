@@ -27,7 +27,7 @@
 #define PASSFLOAT(f) *(int*)&(f)
 
 #define ARGNAMES ,sourceid, data, speed, samples, channels, width, PASSFLOAT(volume)
-BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
+BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume))
 #undef ARGNAMES
 
 /*should probably try threading this, though I suppose it should be the engine doing that.*/

@@ -1310,7 +1310,9 @@ void SV_UpdateToReliableMessages (void);
 void SV_FlushBroadcasts (void);
 qboolean SV_CanTrack(client_t *client, int entity);
 
+#ifdef NQPROT
 void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg);
+#endif
 void SV_New_f (void);
 
 void SV_PreRunCmd(void);

@@ -315,6 +315,7 @@ typedef struct dlight_s
 	int		key;				// so entities can reuse same entry
 	vec3_t	origin;
 	vec3_t	axis[3];
+	vec3_t	angles;				//used only for reflection, to avoid things getting rounded/cycled.
 	vec3_t	rotation;			//cubemap/spotlight rotation
 	float	radius;
 	float	die;				// stop lighting after this time
@@ -330,6 +331,7 @@ typedef struct dlight_s
 
 	unsigned int flags;
 	char	cubemapname[64];
+	char	*customstyle;
 
 	int coronaocclusionquery;
 	unsigned int coronaocclusionresult;
@@ -780,7 +782,7 @@ typedef struct
 	double		last_servermessage;
 
 	//list of ent frames that still need to be acked.
-	int numackframes;
+	unsigned int numackframes;
 	int ackframes[64];
 
 #ifdef Q2CLIENT
@@ -1049,9 +1051,9 @@ extern	static_entity_t		*cl_static_entities;
 extern	unsigned int	cl_max_static_entities;
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		*cl_dlights;
-extern	unsigned int	cl_maxdlights;
+extern	size_t cl_maxdlights;
 
-extern int rtlights_first, rtlights_max;
+extern size_t rtlights_first, rtlights_max;
 extern int cl_baselines_count;
 
 extern	qboolean	nomaster;
@@ -1068,6 +1070,7 @@ dlight_t *CL_AllocDlight (int key);
 dlight_t *CL_AllocSlight (void);	//allocates a static light
 dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, float r, float g, float b);
 dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
+void CL_CloneDlight(dlight_t *dl, dlight_t *src);	//copies one light to another safely
 void	CL_DecayLights (void);
 
 void CLQW_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits);
@@ -1305,7 +1308,7 @@ qboolean CL_CheckBaselines (int size);
 void V_StartPitchDrift (playerview_t *pv);
 void V_StopPitchDrift (playerview_t *pv);
 
-void V_RenderView (void);
+void V_RenderView (qboolean no2d);
 void V_Register (void);
 void V_ParseDamage (playerview_t *pv);
 void V_SetContentsColor (int contents);

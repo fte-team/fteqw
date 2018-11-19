@@ -122,7 +122,9 @@ typedef struct q2trace_s
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	(1<<0)
 #define	MOVE_MISSILE	(1<<1)
-#define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE)
+#ifndef NOLEGACY
+#define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE) //use MOVE_OTHERONLY instead
+#endif
 #define	MOVE_HITMODEL	(1<<2)
 #define MOVE_RESERVED	(1<<3)			//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
 #define MOVE_TRIGGERS	(1<<4)			//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)

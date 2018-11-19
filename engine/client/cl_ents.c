@@ -125,6 +125,8 @@ void CL_FreeDlights(void)
 	if (cl_dlights)
 		for (i = 0; i < rtlights_max; i++)
 		{
+			if (cl_dlights[i].customstyle)
+				Z_Free(cl_dlights[i].customstyle);
 			if (cl_dlights[i].worldshadowmesh)
 				SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
 
@@ -147,11 +149,26 @@ void CL_InitDlights(void)
 	memset(cl_dlights, 0, sizeof(*cl_dlights)*cl_maxdlights);
 }
 
+void CL_CloneDlight(dlight_t *dl, dlight_t *src)
+{
+	char *customstyle = dl->customstyle;
+	void *sm = dl->worldshadowmesh;
+	unsigned int oq = dl->coronaocclusionquery;
+	unsigned int oqr = (dl->key == src->key)?dl->coronaocclusionresult:false;
+	memcpy (dl, src, sizeof(*dl));
+	dl->coronaocclusionquery = oq;
+	dl->coronaocclusionresult = oqr;
+	dl->rebuildcache = true;
+	dl->worldshadowmesh = sm;
+	dl->customstyle = src->customstyle?Z_StrDup(src->customstyle):NULL;
+	Z_Free(customstyle);
+}
 static void CL_ClearDlight(dlight_t *dl, int key)
 {
 	void *sm = dl->worldshadowmesh;
 	unsigned int oq = dl->coronaocclusionquery;
 	unsigned int oqr = (dl->key == key)?dl->coronaocclusionresult:false;
+	Z_Free(dl->customstyle);
 	memset (dl, 0, sizeof(*dl));
 	dl->coronaocclusionquery = oq;
 	dl->coronaocclusionresult = oqr;
@@ -179,13 +196,23 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 dlight_t *CL_AllocSlight(void)
 {
 	dlight_t	*dl;
-	if (rtlights_max == cl_maxdlights)
+	int i;
+	for (i = RTL_FIRST; i < rtlights_max; i++)
 	{
-		cl_maxdlights = rtlights_max+8;
-		cl_dlights = BZ_Realloc(cl_dlights, sizeof(*cl_dlights)*cl_maxdlights);
-		memset(&cl_dlights[rtlights_max], 0, sizeof(*cl_dlights)*(cl_maxdlights-rtlights_max));
+		if (cl_dlights[i].radius <= 0)
+			break;
 	}
-	dl = &cl_dlights[rtlights_max++];
+	if (i == rtlights_max)
+	{
+		if (rtlights_max == cl_maxdlights)
+		{
+			cl_maxdlights = rtlights_max+8;
+			cl_dlights = BZ_Realloc(cl_dlights, sizeof(*cl_dlights)*cl_maxdlights);
+			memset(&cl_dlights[rtlights_max], 0, sizeof(*cl_dlights)*(cl_maxdlights-rtlights_max));
+		}
+		i = rtlights_max++;
+	}
+	dl = &cl_dlights[i];
 
 	CL_ClearDlight(dl, 0);
 	dl->flags = LFLAG_REALTIMEMODE;
@@ -2459,10 +2486,86 @@ void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, flo
 	t->numidx = cl_numstrisidx - t->firstidx;
 	cl_numstrisvert += 2;
 }
+void CLQ1_AddSpriteQuad(shader_t *shader, vec3_t mid, float radius)
+{
+	float r=1, g=1, b=1;
+	scenetris_t *t;
+	int flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags && cl_stris[cl_numstris-1].numvert + 4 <= MAX_INDICIES)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris+=8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		t->numvert = 0;
+		t->numidx = 0;
+		t->flags = flags;
+	}
+
+	if (cl_numstrisidx+6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	{
+		VectorMA(mid, radius, vright,     cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], radius, vup,   cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		Vector2Set(cl_strisvertt[cl_numstrisvert], 1, 1);
+		cl_numstrisvert++;
+
+		VectorMA(mid, radius, vright,  cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -radius, vup, cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		Vector2Set(cl_strisvertt[cl_numstrisvert], 1, 0);
+		cl_numstrisvert++;
+
+		VectorMA(mid, -radius, vright,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -radius, vup,  cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		Vector2Set(cl_strisvertt[cl_numstrisvert], 0, 0);
+		cl_numstrisvert++;
+
+		VectorMA(mid, -radius, vright,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], radius, vup,   cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		Vector2Set(cl_strisvertt[cl_numstrisvert], 0, 1);
+		cl_numstrisvert++;
+	}
+
+	/*build the triangles*/
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 1;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 2;
+
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 3;
+
+
+	t->numidx = cl_numstrisidx - t->firstidx;
+	t->numvert += 4;
+}
 #include "shader.h"
-//well, 8192
 void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue)
 {
+	const float radius = 8192;	//infinite is quite small nowadays.
 	scenetris_t *t;
 	if (!enqueue)
 		cl_numstris = 0;
@@ -2501,26 +2604,26 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 		VectorNormalize(forward);
 
 		VectorScale(                        normal,    dist,      cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, right,     cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, forward,   cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], radius, right,     cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], radius, forward,   cl_strisvertv[cl_numstrisvert]);
 		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
 		cl_numstrisvert++;
 
 		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, right,  cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, forward, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], radius, right,  cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -radius, forward, cl_strisvertv[cl_numstrisvert]);
 		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
 		cl_numstrisvert++;
 
 		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, right,    cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, forward,  cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -radius, right,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -radius, forward,  cl_strisvertv[cl_numstrisvert]);
 		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
 		cl_numstrisvert++;
 
 		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, right,    cl_strisvertv[cl_numstrisvert]);
-		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, forward,   cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -radius, right,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], radius, forward,   cl_strisvertv[cl_numstrisvert]);
 		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
 		cl_numstrisvert++;
 	}
@@ -2874,7 +2977,7 @@ static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t
 		cl_strisvertc[cl_numstrisvert+v][0] = ctx->rgbavalue[0];
 		cl_strisvertc[cl_numstrisvert+v][1] = ctx->rgbavalue[1];
 		cl_strisvertc[cl_numstrisvert+v][2] = ctx->rgbavalue[2];
-		cl_strisvertc[cl_numstrisvert+v][3] = ctx->rgbavalue[3] * (1-(DotProduct(points[v], ctx->axis[0]) - ctx->offset[0]) * ctx->scale[0]);
+		cl_strisvertc[cl_numstrisvert+v][3] = ctx->rgbavalue[3] * (1-fabs(DotProduct(points[v], ctx->axis[0]) - ctx->offset[0]) * ctx->scale[0]);
 	}
 	for (v = 0; v < numpoints; v++)
 	{
@@ -2889,7 +2992,7 @@ static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t
 void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue)
 {
 	scenetris_t *t;
-	float l, s, radius;
+	float l, s, radius, vradius;
 	cl_adddecal_ctx_t ctx;
 
 	VectorNegate(up, ctx.axis[0]);
@@ -2897,20 +3000,24 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 
 	s = DotProduct(ctx.axis[2], ctx.axis[2]);
 	l = DotProduct(ctx.axis[0], ctx.axis[0]);
+	vradius = 1/sqrt(l);
 	radius = 1/sqrt(s);
 
-	VectorScale(ctx.axis[0], 1/sqrt(l), ctx.axis[0]);
+	VectorScale(ctx.axis[0], vradius, ctx.axis[0]);
 	VectorScale(ctx.axis[2], radius, ctx.axis[2]);
 
 	CrossProduct(ctx.axis[0], ctx.axis[2], ctx.axis[1]);
 
-	ctx.offset[1] = DotProduct(origin, ctx.axis[1]) + 0.5*radius;
 	ctx.offset[2] = DotProduct(origin, ctx.axis[2]) + 0.5*radius;
+	ctx.offset[1] = DotProduct(origin, ctx.axis[1]) + 0.5*radius;
 	ctx.offset[0] = DotProduct(origin, ctx.axis[0]);
 
-	ctx.scale[1] = 1/radius;
 	ctx.scale[2] = 1/radius;
-	ctx.scale[0] = 1;
+	ctx.scale[1] = 1/radius;
+	ctx.scale[0] = 2/vradius;
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	/*reuse the previous trigroup if its the same shader*/
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
@@ -2934,7 +3041,7 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 	ctx.t = t;
 	VectorCopy(rgbvalue, ctx.rgbavalue);
 	ctx.rgbavalue[3] = alphavalue;
-	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], max(radius, vradius), 0,0, CL_AddDecal_Callback, &ctx);
 
 	if (!t->numidx)
 		cl_numstris--;
@@ -4302,6 +4409,10 @@ void CL_LinkPacketEntities (void)
 #endif
 
 	CLQ1_AddVisibleBBoxes();
+
+#ifdef RTLIGHTS
+	R_EditLights_DrawLights();
+#endif
 }
 
 /*

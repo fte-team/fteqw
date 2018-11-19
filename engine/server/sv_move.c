@@ -32,7 +32,7 @@ is not a staircase.
 
 =============
 */
-int c_yes, c_no;
+//int c_yes, c_no;
 
 hull_t *Q1BSP_ChooseHull(model_t *model, int hullnum, vec3_t mins, vec3_t maxs, vec3_t offset);
 
@@ -92,11 +92,11 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 				goto realcheck;
 		}
 
-	c_yes++;
+//	c_yes++;
 	return true;		// we got out easy
 
 realcheck:
-	c_no++;
+//	c_no++;
 //
 // check it for real...
 //
@@ -128,7 +128,7 @@ realcheck:
 				return false;
 		}
 
-	c_yes++;
+//	c_yes++;
 	return true;
 }
 
@@ -629,7 +629,7 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 
 
 #ifdef ENGINE_ROUTING
-cvar_t route_shownodes = CVAR("route_shownodes", "0");
+static cvar_t route_shownodes = CVAR("route_shownodes", "0");
 
 #define LF_EDGE			0x00000001
 #define LF_JUMP			0x00000002
@@ -648,7 +648,7 @@ struct waypointnetwork_s
 		vec3_t pos;
 		int linkflags;
 	} *displaynode;
-	int displaynodes;
+	size_t displaynodes;
 
 	struct waypoint_s
 	{
@@ -660,7 +660,7 @@ struct waypointnetwork_s
 			float linkcost;//might be much lower in the case of teleports, or expensive if someone wanted it to be a lower priority link.
 			int linkflags; //LF_*
 		} *neighbour;
-		int neighbours;
+		size_t neighbours;
 	} waypoints[1];
 };
 void WayNet_Done(struct waypointnetwork_s *net)
@@ -814,8 +814,8 @@ int WayNet_FindNearestNode(struct waypointnetwork_s *net, vec3_t pos)
 struct routecalc_s
 {
 	world_t *world;
-	int spawncount;	//so we don't confuse stuff if the map gets restarted.
 	wedict_t *ed;
+	int spawncount;	//so we don't confuse stuff if the map gets restarted.
 //	float spawnid;	//so the route fails if the ent is removed.
 	func_t callback;
 

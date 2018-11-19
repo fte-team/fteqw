@@ -3450,7 +3450,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 				break;
 		}
 #endif
-		Con_Printf("Failed to create a vulkan context.\n");
+		Con_Printf(CON_ERROR "Failed to create a vulkan context.\n");
 		GLVID_Shutdown();
 		return false;
 #endif

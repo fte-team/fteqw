@@ -145,6 +145,7 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 #define CPRINT_RALIGN		(1<<2)	//R
 #define CPRINT_BALIGN		(1<<3)	//B
 #define CPRINT_BACKGROUND	(1<<4)	//P
+#define CPRINT_NOWRAP		(1<<5)
 
 #define CPRINT_OBITUARTY	(1<<16)	//O (show at 2/3rds from top)
 #define CPRINT_PERSIST		(1<<17)	//P (doesn't time out)
@@ -309,6 +310,8 @@ struct pendingtextureinfo
 		int depth;
 		qboolean needfree;
 	} mip[72];	//enough for a 4096 cubemap. or a really smegging big 2d texture...
+	//mips are ordered as in arrayindex THEN mip order, allowing easy truncation of mip levels.
+	//cubemaps are just arrayindex*6
 };
 
 //small context for easy vbo creation.

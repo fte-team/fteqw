@@ -96,259 +96,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#ifdef CONFIG_FILE_NAME
-	#undef MULTITHREAD
-	#define HEADLESSQUAKE	//usable renderers are normally specified via the makefile, but HEADLESS is considered a feature rather than an actual renderer, so usually gets forgotten about...
+#undef MULTITHREAD
+#define HEADLESSQUAKE	//usable renderers are normally specified via the makefile, but HEADLESS is considered a feature rather than an actual renderer, so usually gets forgotten about...
 
-	//yup, C89 allows this (doesn't like C's token concat though).
-	#include STRINGIFY(CONFIG_FILE_NAME)
-#else
-	#define QWSKINS	//disables qw .pcx skins, as well as enemy/team colour forcing.
-
-	#ifndef NO_LIBRARIES
-		#define AVAIL_OPENAL
-		#define AVAIL_FREETYPE
-	#endif
-
-	#define AVAIL_OGGVORBIS
-	#if defined(__CYGWIN__)
-		#define AVAIL_ZLIB
-	#else
-		#define AVAIL_PNGLIB
-		#define AVAIL_JPEGLIB
-		#define AVAIL_ZLIB
-		#define AVAIL_OGGVORBIS
-	#endif
-
-	#ifdef WINRT
-		#define AVAIL_XAUDIO2
-		#define AVAIL_WASAPI
-	#elif !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
-		#define AVAIL_DINPUT
-		#define AVAIL_DSOUND
-		#define AVAIL_WASAPI
-		//#define AVAIL_XAUDIO2 //gcc doesn't provide any headers
-	#endif
-	#define AVAIL_XZDEC
-
-	#if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
-		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
-			#if !defined(_MSC_VER) || _MSC_VER > 1200
-				#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
-			#endif
-		#elif (defined(__linux__) || defined(__CYGWIN__)) && !defined(ANDROID)
-			#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
-		#endif
-	#endif
-
-	//#define DYNAMIC_ZLIB
-	//#define DYNAMIC_LIBPNG
-	//#define DYNAMIC_LIBJPEG
-	//#define LIBVORBISFILE_STATIC
-	//#define SPEEX_STATIC
-
-	#if defined(_WIN32) && defined(GLQUAKE)
-		//#define USE_EGL
-	#endif
-
-	#if defined(_MSC_VER) && !defined(BOTLIB_STATIC) //too lazy to fix up the makefile
-		#define BOTLIB_STATIC
-	#endif
-
-	#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
-		#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
-	#endif
-
-	#define HAVE_TCP		//says we can use tcp too (either ipv4 or ipv6)
-	#define HAVE_PACKET		//if we have the socket api at all...
-	#define HAVE_MIXER	//can be disabled if you have eg openal instead.
-
-//set any additional defines or libs in win32
-	#define LOADERTHREAD
-
-	#define PACKAGE_Q1PAK
-	#define PACKAGE_PK3
-	#define AVAIL_GZDEC
-	#define PACKAGE_TEXWAD	//quake's image wad support
-
-	#ifdef GLQUAKE
-		#define HEADLESSQUAKE
-	#endif
-	#define AVAIL_MP3_ACM	//microsoft's Audio Compression Manager api
-
-	#ifdef NOLEGACY
-		//these are only the features that really make sense in a more modern engine
-		#define QUAKETC			//skip some legacy stuff
-		#define SPRMODELS		//quake1 sprite models
-		#define INTERQUAKEMODELS
-		#define RTLIGHTS		//realtime lighting
-		#define Q1BSPS			//quake 1 bsp support, because we're still a quake engine
-		#define Q2BSPS			//quake 2 bsp support (a dependancy of q3bsp)
-		#define Q3BSPS			//quake 3 bsp support
-//		#define TERRAIN			//heightmap support
-		#define WEBCLIENT		//http/ftp clients.
-		#define IMAGEFMT_DDS	//a sort of image file format.
-		#define PSET_SCRIPT
-//		#define PLUGINS			//qvm/dll plugins.
-//		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
-		#define CSQC_DAT		//support for csqc
-//		#define VOICECHAT
-
-		#undef AVAIL_JPEGLIB
-		#undef AVAIL_XZDEC
-
-	#elif defined(MINIMAL)
-		#define QUAKESTATS
-		#define QUAKEHUD
-		#define CL_MASTER		//this is useful
-
-		#undef AVAIL_JPEGLIB	//no jpeg support
-		#undef AVAIL_PNGLIB		//no png support
-		#undef AVAIL_OPENAL		//just bloat...
-		#undef AVAIL_GZDEC
-
-		#define Q1BSPS
-		#define SPRMODELS		//quake1 sprite models
-		#define MD1MODELS		//quake ain't much use without this
-		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
-		#define PLUGINS
-		#define NOQCDESCRIPTIONS 2	//trim space from no fteextensions.qc info
-
-		#define PSET_CLASSIC
-
-		//#define CSQC_DAT	//support for csqc
-
-		#ifndef SERVERONLY	//don't be stupid, stupid.
-			#ifndef CLIENTONLY
-				#define CLIENTONLY
-			#endif
-		#endif
-	#else
-		#define NETPREPARSE
-		#define QUAKESTATS
-		#define QUAKEHUD
-		#define SVRANKING
-		#define USE_SQLITE
-		#ifdef SERVERONLY
-//			#define USE_MYSQL	//allow mysql in dedicated servers.
-		#endif
-		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
-			#define SUBSERVERS	//use subserver code.
-		#elif defined(__linux__) && !defined(ANDROID) && !defined(FTE_SDL)
-			#define SUBSERVERS	//use subserver code.
-		#endif
-
-		#define SIDEVIEWS	4	//enable secondary/reverse views.
-
-//		#define DSPMODELS		//doom sprites (only needs PACKAGE_DOOMWAD to generate the right wad file names)
-		#define SPRMODELS		//quake1 sprite models
-		#define SP2MODELS		//quake2 sprite models
-		#define MD1MODELS		//quake1 alias models
-		#define MD2MODELS		//quake2 alias models
-		#define MD3MODELS		//quake3 alias models
-		#define MD5MODELS		//doom3 models
-		#define ZYMOTICMODELS	//zymotic skeletal models.
-		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
-//		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
-		#define HALFLIFEMODELS	//halflife model support (experimental)
-		#define INTERQUAKEMODELS
-		#define RAGDOLL
-
-		#define USEAREAGRID		//world collision optimisation. REQUIRED for performance with xonotic. hopefully it helps a few other mods too.
-		#define HUFFNETWORK		//huffman network compression
-//		#define PACKAGE_DOOMWAD	//doom wad support (maps+sprites are separate)
-//		#define MAP_DOOM		//doom map support
-//		#define MAP_PROC		//doom3/quake4 map support
-		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
-		#define Q1BSPS			//quake 1 bsp support, because we're still a quake engine
-		#define Q2BSPS			//quake 2 bsp support
-		#define Q3BSPS			//quake 3 bsp support
-		#define RFBSPS			//rogue(sof+jk2o)+qfusion bsp support
-		#define TERRAIN			//heightmap support
-//		#define SV_MASTER		//starts up a master server
-		#define SVCHAT			//serverside npc chatting. see sv_chat.c
-		#define Q2SERVER		//server can run a q2 game dll and switches to q2 network and everything else.
-		#define Q2CLIENT		//client can connect to q2 servers
-		#define Q3CLIENT
-		#define Q3SERVER
-		#define HEXEN2			//mostly server only, but also includes some hud+menu stuff, and effects
-//		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
-//		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
-		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
-		#define PACKAGE_DZIP	//support for the dzip format, common with the speed-demos-archive site
-//		#define WEBSERVER		//http server
-		#define FTPSERVER		//ftp server
-		#define WEBCLIENT		//http clients.
-		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
-//		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
-		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
-		#define R_XFLIP			//allow view to be flipped horizontally
-		#define TEXTEDITOR
-		#define IMAGEFMT_KTX	//Khronos TeXture. common on gles3 devices for etc2 compression
-		#define IMAGEFMT_PKM	//file format generally written by etcpack or android's etc1tool
-		#define IMAGEFMT_DDS	//a sort of image file format.
-		#define IMAGEFMT_BLP	//a sort of image file format.
-		#define DECOMPRESS_ETC2	//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
-//		#define DECOMPRESS_S3TC	//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
-		#define DECOMPRESS_RGTC	//bc4+bc5
-		//would be nice to have BPTC decompression too, for gl<4.2, d3d9, or d3d11_level10, but frankly its overcomplicated. I'm not going to bother with ASTC either.
-		#ifndef RTLIGHTS
-				#define RTLIGHTS		//realtime lighting
-		#endif
-		//#define SHADOWDBG_COLOURNOTDEPTH	//for debugging. renders shadowmaps to a colour buffer instead of a depth buffer. resulting in projected textures instead of actual shadows (the glsl only picks up the red component, but whatever)
-
-//		#define QWOVERQ3		//allows qw servers with q3 clients. requires specific cgame.
-
-		#define VM_Q1			//q1 qvm gamecode interface
-		//#define	VM_LUA			//q1 lua gamecode interface
-
-		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
-//		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
-
-		#define PLUGINS			//qvm/dll plugins.
-		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
-
-		#define CSQC_DAT	//support for csqc
-		#define MENU_DAT	//support for menu.dat
-
-		#define PSET_SCRIPT
-		#define PSET_CLASSIC
-
-
-		#define HAVE_CDPLAYER	//includes cd playback. actual cds. faketracks are supported regardless.
-		#define HAVE_JUKEBOX	//includes built-in jukebox crap
-		#define HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
-		#define HAVE_MEDIA_ENCODER	//capture/capturedemo work.
-		#define HAVE_SPEECHTOTEXT	//windows speech-to-text thing
-
-		#define VOICECHAT
-
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
-		#define MULTITHREAD
-#endif
-	#endif
+//yup, C89 allows this (doesn't like C's token concat though).
+#include STRINGIFY(CONFIG_FILE_NAME)
 
 
 
-	#ifdef QUAKETC
-		#define NOBUILTINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
-		#undef Q2CLIENT	//not useful
-		#undef Q2SERVER	//not useful
-		#undef Q3CLIENT	//not useful
-		#undef Q3SERVER	//not useful
-		#undef HLCLIENT	//not useful
-		#undef HLSERVER	//not useful
-		#undef VM_Q1	//not useful
-		#undef VM_LUA	//not useful
-		#undef HALFLIFEMODELS	//yuck
-		#undef RUNTIMELIGHTING	//presumably not useful
-		#undef HEXEN2
-	#endif
-
-#endif
-
-
-	#ifndef MSVCLIBSPATH
+#ifndef MSVCLIBSPATH
 	#ifdef MSVCLIBPATH
 		#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
 	#elif _MSC_VER == 1200
@@ -356,16 +112,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#else
 		#define MSVCLIBSPATH "../libs/"
 	#endif
-	#endif
+#endif
 
 #if defined(SERVERONLY) && defined(CLIENTONLY)
 	#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
 #endif
-#ifndef CLIENTONLY
-	#define HAVE_SERVER
-#endif
-#ifndef SERVERONLY
-	#define HAVE_CLIENT
+#ifndef WEBSVONLY
+	#ifndef CLIENTONLY
+		#define HAVE_SERVER
+	#endif
+	#ifndef SERVERONLY
+		#define HAVE_CLIENT
+	#endif
 #endif
 
 #ifndef HAVE_SERVER
@@ -796,8 +554,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define IFMINIMAL(x,y) y
 #endif
 
-//#define PRE_SAYONE	2.487	//FIXME: remove.
-
 // defs common to client and server
 
 #ifndef PLATFORM
@@ -863,30 +619,32 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ARCH_DL_POSTFIX ".so"
 #endif
 
-#if defined(_M_AMD64) || defined(__amd64__) || defined(__x86_64__)
-	#ifdef __ILP32__
-		#define ARCH_CPU_POSTFIX "x32"	//32bit pointers, with 16 registers.
-	#else
-		#ifdef _WIN32
-			#define ARCH_CPU_POSTFIX "x64"
+#ifndef ARCH_CPU_POSTFIX
+	#if defined(_M_AMD64) || defined(__amd64__) || defined(__x86_64__)
+		#ifdef __ILP32__
+			#define ARCH_CPU_POSTFIX "x32"	//32bit pointers, with 16 registers.
 		#else
-			#define ARCH_CPU_POSTFIX "amd64"
+			#ifdef _WIN32
+				#define ARCH_CPU_POSTFIX "x64"
+			#else
+				#define ARCH_CPU_POSTFIX "amd64"
+			#endif
 		#endif
-	#endif
-#elif defined(_M_IX86) || defined(__i386__)
-	#define ARCH_CPU_POSTFIX "x86"
-#elif defined(__powerpc__) || defined(__ppc__)
-	#define ARCH_CPU_POSTFIX "ppc"
-#elif defined(__aarch64__)
-	#define ARCH_CPU_POSTFIX "arm64"
-#elif defined(__arm__)
-	#ifdef __SOFTFP__
-		#define ARCH_CPU_POSTFIX "arm"
+	#elif defined(_M_IX86) || defined(__i386__)
+		#define ARCH_CPU_POSTFIX "x86"
+	#elif defined(__powerpc__) || defined(__ppc__)
+		#define ARCH_CPU_POSTFIX "ppc"
+	#elif defined(__aarch64__)
+		#define ARCH_CPU_POSTFIX "arm64"
+	#elif defined(__arm__)
+		#ifdef __SOFTFP__
+			#define ARCH_CPU_POSTFIX "arm"
+		#else
+			#define ARCH_CPU_POSTFIX "armhf"
+		#endif
 	#else
-		#define ARCH_CPU_POSTFIX "armhf"
+		#define ARCH_CPU_POSTFIX "unk"
 	#endif
-#else
-	#define ARCH_CPU_POSTFIX "unk"
 #endif
 
 #ifdef _MSC_VER

@@ -947,6 +947,9 @@ void BE_GenerateProgram(shader_t *shader);
 
 void Sh_RegisterCvars(void);
 #ifdef RTLIGHTS
+void R_EditLights_DrawLights(void);	//3d light previews
+void R_EditLights_DrawInfo(void);	//2d light info display.
+void R_EditLights_RegisterCommands(void);
 //
 #ifdef BEF_PUSHDEPTH
 void GLBE_PolyOffsetStencilShadow(qboolean foobar);
@@ -982,6 +985,7 @@ extern struct shader_field_names_s shader_unif_names[];
 extern struct shader_field_names_s shader_attr_names[];
 
 
+void CLQ1_AddSpriteQuad(shader_t *shader, vec3_t mid, float radius);
 void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, float b, float a);
 void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a);
 void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);

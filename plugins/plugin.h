@@ -61,11 +61,13 @@ void BadBuiltin(void);
 #else
 
 #ifdef _WIN32
-#define strcasecmp stricmp
-#define strncasecmp strnicmp
+#	ifndef strcasecmp
+#		define strcasecmp stricmp
+#		define strncasecmp strnicmp
+#	endif
 #else
-#define stricmp strcasecmp
-#define strnicmp strncasecmp
+#	define stricmp strcasecmp
+#	define strnicmp strncasecmp
 #endif
 
 #include <string.h>

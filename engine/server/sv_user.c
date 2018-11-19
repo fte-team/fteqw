@@ -349,7 +349,7 @@ void SV_New_f (void)
 		for (split = host_client; split; split = split->controlled)
 		{
 			playernum = split - svs.clients;// NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
-			if (sv.state == ss_cinematic)
+			if (ISQ2CLIENT(host_client) && sv.state == ss_cinematic)
 				playernum = -1;
 			ClientReliableWrite_Byte (host_client, playernum);
 
@@ -391,9 +391,6 @@ void SV_New_f (void)
 				if (split->spectator)
 				playernum |= 128;
 
-			if (sv.state == ss_cinematic)
-				playernum = -1;
-
 			split->state = cs_connected;
 			split->connection_started = realtime;
 		#ifdef SVRANKING
@@ -403,6 +400,8 @@ void SV_New_f (void)
 
 			if (ISQ2CLIENT(host_client))
 			{
+				if (sv.state == ss_cinematic)
+					playernum = -1;
 				ClientReliableWrite_Short (host_client, playernum);
 				break;
 			}
@@ -461,6 +460,16 @@ void SV_New_f (void)
 	SV_CheckRealIP(host_client, false);
 
 	SV_LogPlayer(host_client, "new (QW)");
+
+	if (sv.state == ss_cinematic)
+	{
+		char tmp[1024];
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString(&host_client->netchan.message, va("\nplayfilm %s\n", COM_QuotedString(svs.name, tmp, sizeof(tmp), false)));
+		host_client->prespawn_stage = PRESPAWN_INVALID;
+		host_client->prespawn_idx = 0;
+		return;
+	}
 
 	host_client->prespawn_stage = PRESPAWN_SERVERINFO;
 	host_client->prespawn_idx = 0;
@@ -716,6 +725,16 @@ void SVNQ_New_f (void)
 		//it is annoying to have prints about unknown commands however, hence the above pext checks (which are unfortunate).
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
+	}
+
+	if (sv.state == ss_cinematic)
+	{
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString(&host_client->netchan.message, va("\nplayfilm %s\n", COM_QuotedString(svs.name, message, sizeof(message), false)));
+		host_client->prespawn_stage = PRESPAWN_INVALID;
+		host_client->prespawn_idx = 0;
+		host_client->netchan.nqunreliableonly = 2;
+		return;
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
@@ -2242,6 +2261,7 @@ void SV_Begin_f (void)
 
 //=============================================================================
 
+#ifdef NQPROT
 //dp downloads are a 2-stream system
 //the server->client stream is as you'd expect. except that its unreliable rather than reliable
 //the client->server stream contains no actual data.
@@ -2349,6 +2369,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 		host_client->downloadsize = 0;
 	}
 }
+#endif
 
 static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum, int chunks)
 {
@@ -5485,14 +5506,6 @@ void SV_DisableClientsCSQC(void)
 }
 
 void SV_UserCmdMVDList_f (void);
-static void SV_STFU_f(void)
-{
-	char *msg;
-	SV_ClientPrintf(host_client, 255, "stfu\n");
-	msg = "cl_antilag 0\n";
-	ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(msg));
-	ClientReliableWrite_String(host_client, msg);
-}
 
 #ifdef NQPROT
 static void SVNQ_Spawn_f (void)
@@ -5974,9 +5987,6 @@ ucmd_t ucmds[] =
 	{"prespawn", SVQW_PreSpawn_f, true},
 	{"spawn", SVQW_Spawn_f, true},
 	{"begin", SV_Begin_f, true},
-
-	/*ezquake warning*/
-	{"al", SV_STFU_f, true},	//can probably be removed now.
 
 	{"drop", SV_Drop_f},
 	{"disconnect", SV_Drop_f},

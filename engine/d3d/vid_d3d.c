@@ -1127,7 +1127,7 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 		if (uimenu != 1)
 		{
 			if (r_worldentity.model && cls.state == ca_active)
-				V_RenderView ();
+				V_RenderView (nohud);
 			else
 			{
 				noworld = true;

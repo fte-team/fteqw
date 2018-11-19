@@ -148,6 +148,7 @@ char *Cmd_AliasExist(const char *name, int restrictionlevel);
 void Alias_WipeStuffedAliases(void);
 
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions);
+#define Cmd_AddMacroD(s,f,unsafe,desc) Cmd_AddMacro(s,f,unsafe)
 
 void Cmd_TokenizePunctation (char *text, char *punctuation);
 const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolean qctokenize);

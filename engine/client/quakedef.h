@@ -164,6 +164,7 @@ extern "C" {
 #include "mathlib.h"
 #include "cvar.h"
 #include "net.h"
+#ifndef WEBSVONLY
 #include "protocol.h"
 #include "cmd.h"
 #include "console.h"
@@ -196,6 +197,7 @@ extern "C" {
 #define SSV_IsSubServer() false
 #else
 #include "server.h"
+#endif
 #endif
 
 #ifndef max

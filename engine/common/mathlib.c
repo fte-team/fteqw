@@ -554,7 +554,7 @@ void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3])
 R_ConcatTransforms
 ================
 */
-void QDECL R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4])
+void QDECL R_ConcatTransforms (const float in1[3][4], const float in2[3][4], float out[3][4])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 				in1[0][2] * in2[2][0];

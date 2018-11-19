@@ -791,7 +791,11 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 #endif
 
 	// print out all the frames to stderr
+#ifdef SVNREVISION
+	fprintf(stderr, "Error: signal %s (revision "STRINGIFY(SVNREVISION)")\n", signame);
+#else
 	fprintf(stderr, "Error: signal %s:\n", signame);
+#endif
 	backtrace_symbols_fd(array+firstframe, size-firstframe, 2);
 
 	if (sig == SIGINT)

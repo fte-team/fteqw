@@ -6393,6 +6393,7 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 	pDraw_Colour4f(1, 1, 1, 1);
 }
 
+#ifdef QUAKEHUD
 static struct wstats_s *findweapon(struct wstats_s *w, size_t wc, char *wn)
 {
 	for (; wc>0; wc--, w++)
@@ -6495,6 +6496,7 @@ static void SCR_HUD_DrawWeaponStats(hud_t *hud)
 
 	Draw_SString(x, y, line, hud_weaponstats_scale->value);
 }
+#endif
 
 void SCR_HUD_DrawKeys(hud_t *hud)
 {
@@ -8464,6 +8466,7 @@ void CommonDraw_Init(void)
         NULL
 		);
 
+#ifdef QUAKEHUD
 	HUD_Register("weaponstats", NULL, "Weapon Stats",
         HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawWeaponStats,
         "0", "screen", "right", "center", "0", "0", "0", "0 0 0", NULL,
@@ -8471,6 +8474,7 @@ void CommonDraw_Init(void)
 		"fmt", "&c990sg&r:[%sg] &c099ssg&r:[%ssg] &c900rl&r:[#rl] &c009lg&r:[%lg]",
         NULL
 		);
+#endif
 
 /* hexum -> FIXME? this is used only for debug purposes, I wont bother to port it (it shouldnt be too difficult if anyone cares)
 #ifdef _DEBUG

@@ -3012,7 +3012,7 @@ static void EditorReload(editor_t *editor)
 	size_t flensz;
 	char *rawfile;
 	char *file;
-	unsigned int flen;
+	size_t flen;
 	pbool dofree;
 	rawfile = QCC_ReadFile(editor->filename, NULL, NULL, &flensz);
 	flen = flensz;

@@ -1947,7 +1947,7 @@ void GLR_RenderView (void)
 	if (dofbo)
 		forcedfb = false;
 	else if (renderscale != 1)
-		forcedfb = true;
+		forcedfb = gl_config.ext_framebuffer_objects && sh_config.texture_non_power_of_two_pic;
 
 	BE_Scissor(NULL);
 	if (dofbo)
@@ -1956,6 +1956,13 @@ void GLR_RenderView (void)
 		texid_t col[R_MAX_RENDERTARGETS], depth = r_nulltex;
 		unsigned int cw=0, ch=0, dw=0, dh=0;
 		int mrt;
+
+		if (!gl_config.ext_framebuffer_objects && sh_config.texture_non_power_of_two_pic)
+		{
+			Con_DPrintf(CON_WARNING"Render targets are not supported on this gpu.\n");
+			return;	//not supported on this gpu. you'll just get black textures or something.
+		}
+
 		//3d views generally ignore source colour+depth.
 		//FIXME: support depth with no colour
 		for (mrt = 0; mrt < R_MAX_RENDERTARGETS; mrt++)

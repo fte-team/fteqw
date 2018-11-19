@@ -3,11 +3,11 @@
 #include "gl_draw.h"
 #ifdef D3D9QUAKE
 #include "shader.h"
+#include <d3d9.h>
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
     #define HMONITOR_DECLARED
     DECLARE_HANDLE(HMONITOR);
 #endif
-#include <d3d9.h>
 
 /*
 Things to improve:

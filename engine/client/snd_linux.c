@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include "quakedef.h"
 
+#ifdef HAVE_MIXER
+
 #ifdef __linux__
 #include <sys/stat.h>
 #endif
@@ -458,23 +460,30 @@ static qboolean QDECL OSS_Enumerate(void (QDECL *cb) (const char *drivername, co
 	int i;
 	int fd;
 	oss_sysinfo si;
+	const char *devmixer;
 
 	if (COM_CheckParm("-nooss"))
 		return true;
-	fd = open("/dev/mixer", O_RDWR, 0);
+
+	devmixer = getenv("OSS_MIXERDEV");
+	if (!devmixer)
+		devmixer = "/dev/mixer";
+	fd = open(devmixer, O_RDWR|O_NONBLOCK, 0);
 
 	if (fd == -1)
 		return true;	//oss not supported. don't list any devices.
 
-	if (ioctl(fd, SNDCTL_SYSINFO, &si) != -1)
+	memset(&si, 0, sizeof(si));	//just in case the driver is really dodgy...
+	if (ioctl(fd, SNDCTL_SYSINFO, &si) >= 0)
 	{
-		if ((si.versionnum>>16) >= 4)
-		{	//only trust all the fields if its recent enough
+		if ((si.versionnum>>16) >= 4 || si.numaudios > 128)
+		{	//only trust all the fields if its recent enough and doesn't look dodgy.
 			for(i = 0; i < si.numaudios; i++)
 			{
 				oss_audioinfo ai;
+				memset(&ai, 0, sizeof(ai));	//just in case the driver is really dodgy...
 				ai.dev = i;
-				if (ioctl(fd, SNDCTL_AUDIOINFO, &ai) != -1)
+				if (ioctl(fd, SNDCTL_AUDIOINFO, &ai) >= 0)
 					cb(SDRVNAME, ai.devnode, ai.name);
 			}
 			close(fd);
@@ -497,9 +506,7 @@ sounddriver_t OSS_Output =
 	OSS_Enumerate
 };
 
-
-
-
+#endif
 #ifdef VOICECHAT	//this does apparently work after all.
 #include <stdint.h>
 
@@ -597,4 +604,3 @@ snd_capture_driver_t OSS_Capture =
 	OSS_Capture_Shutdown
 };
 #endif
-

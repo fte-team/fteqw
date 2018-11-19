@@ -177,6 +177,12 @@ qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);
 
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
 
+enum certprops_e
+{
+	QCERT_PEERFINGERPRINT
+};
+size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
+
 #ifdef HAVE_DTLS
 qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to);
 qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);

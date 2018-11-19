@@ -375,26 +375,6 @@ static void WL_BindRelativePointerManager(struct wl_registry *registry, uint32_t
 	w.relative_pointer_manager = pwl_registry_bind(registry, id, &zwp_relative_pointer_manager_v1_interface, 1);
 }
 
-/*
-struct zwp_locked_pointer_v1;
-static void WL_locked_pointer_locked(void *data, struct zwp_locked_pointer_v1 *locked_pointer)
-{
-}
-static void WL_locked_pointer_unlocked(void *data, struct zwp_locked_pointer_v1 *locked_pointer)
-{
-}
-struct zwp_locked_pointer_v1_listener
-{
-	void (*pointer_locked)(void *data, struct zwp_locked_pointer_v1 *locked_pointer);
-	void (*pointer_unlocked)(void *data, struct zwp_locked_pointer_v1 *locked_pointer);
-};
-static const struct zwp_locked_pointer_v1_listener locked_pointer_listener =
-{
-	WL_locked_pointer_locked,
-	WL_locked_pointer_unlocked,
-};
-*/
-
 static void WL_keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size)
 {
 }
@@ -490,10 +470,49 @@ static const struct wl_seat_listener seat_listener =
 	WL_seat_handle_capabilities
 };
 
+
+#if 0
+static void WL_BindDecoraionManager(struct wl_registry *registry, uint32_t id)
+{	/*oh hey, I wrote lots of code! pay me more! fuck that shit.*/
+
+	static const struct wl_interface *types[3];
+	static const struct wl_message zxdg_decoration_manager_v1_requests[] = {
+		{ "destroy", "", types + 0 },
+		{ "get_toplevel_decoration", "no", types + 1 },
+	};
+	static const struct wl_interface zxdg_decoration_manager_v1_interface = {
+		"zxdg_decoration_manager_v1", 1,
+		2, zxdg_decoration_manager_v1_requests,
+		0, NULL,
+	};
+	static const struct wl_message zxdg_toplevel_decoration_v1_requests[] = {
+		{ "destroy", "", types + 0 },
+		{ "set_mode", "u", types + 0 },
+		{ "unset_mode", "", types + 0 },
+	};
+	static const struct wl_message zxdg_toplevel_decoration_v1_events[] = {
+		{ "configure", "u", types + 0 },
+	};
+	static const struct wl_interface zxdg_toplevel_decoration_v1_interface = {
+		"zxdg_toplevel_decoration_v1", 1,
+		3, zxdg_toplevel_decoration_v1_requests,
+		1, zxdg_toplevel_decoration_v1_events,
+	};
+
+	//fix up types...
+	types[1] = &zxdg_toplevel_decoration_v1_interface;
+	types[2] = NULL;//&xdg_toplevel_interface;
+
+//	pzwp_relative_pointer_v1_interface = &zxdg_toplevel_decoration_v1_interface;
+	w.decoration_manager = pwl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
+}
+#endif
+
+
 static void WL_handle_global(void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version)
 {
 	struct wdisplay_s *d = data;
-//Sys_Printf("Interface %s id %u\n", interface, id);
+Con_DLPrintf(2, "Wayland Interface %s id %u\n", interface, id);
 	if (strcmp(interface, "wl_compositor") == 0)
 		d->compositor = pwl_registry_bind(registry, id, pwl_compositor_interface, 1);
 	else if (strcmp(interface, "wl_shell") == 0)
@@ -505,6 +524,8 @@ static void WL_handle_global(void *data, struct wl_registry *registry, uint32_t 
 	}
 	else if (strcmp(interface, "zwp_relative_pointer_manager_v1") == 0)
 		WL_BindRelativePointerManager(registry, id);
+//	else if (strcmp(interface, "zxdg_decoration_manager_v1") == 0)
+//		WL_BindDecorationManager(registry, id);
 //	else if (strcmp(interface, "zwp_pointer_constraints_v1") == 0)
 //		d->shell = pwl_registry_bind(registry, id, pwl_shell_interface, 1);
 /*	else if (!strcmp(interface, "input_device"))
@@ -659,7 +680,10 @@ static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 	case QR_VULKAN:
 		{
 			const char *extnames[] = {VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME, NULL};
-			return VK_Init(info, extnames, WLVK_SetupSurface, NULL);
+			if (VK_Init(info, extnames, WLVK_SetupSurface, NULL))
+				return true;
+			Con_Printf(CON_ERROR "Unable to initialise vulkan-on-wayland.\n");
+			return false;
 		}
 		break;
 #endif

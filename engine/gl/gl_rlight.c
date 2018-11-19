@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 extern cvar_t r_hdr_irisadaptation, r_hdr_irisadaptation_multiplier, r_hdr_irisadaptation_minvalue, r_hdr_irisadaptation_maxvalue, r_hdr_irisadaptation_fade_down, r_hdr_irisadaptation_fade_up;
 
-
 int	r_dlightframecount;
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
@@ -362,9 +361,6 @@ void R_RenderDlights (void)
 
 	if (!r_coronas.value && !r_flashblend.value)
 		return;
-
-//	r_dlightframecount = r_framecount + 1;	// because the count hasn't
-											//  advanced yet for this frame
 
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
@@ -734,6 +730,25 @@ void R_PushDlights (void)
 //rtlight loading
 
 #ifdef RTLIGHTS
+//These affect importing
+static cvar_t r_editlights_import_radius			= CVARAD ("r_editlights_import_radius", "1", "r_editlights_quakelightsizescale", "changes size of light entities loaded from a map");
+static cvar_t r_editlights_import_ambient			= CVARD ("r_editlights_import_ambient", "0", "ambient light scaler for imported lights");
+static cvar_t r_editlights_import_diffuse			= CVARD ("r_editlights_import_diffuse", "1", "diffuse light scaler for imported lights");
+static cvar_t r_editlights_import_specular			= CVARD ("r_editlights_import_specular", "1", "specular light scaler for imported lights");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+
+//these are just for the crappy editor
+static cvar_t r_editlights							= CVARD ("r_editlights", "0", "enables .rtlights file editing mode. Consider using csaddon/equivelent instead.");
+static cvar_t r_editlights_cursordistance			= CVARD ("r_editlights_cursordistance", "1024", "maximum distance of cursor from eye");
+static cvar_t r_editlights_cursorpushoff			= CVARD ("r_editlights_cursorpushoff", "4", "how far to push the cursor off the impacted surface");
+static cvar_t r_editlights_cursorpushback			= CVARD ("r_editlights_cursorpushback", "0", "how far to pull the cursor back toward the eye, for some reason");
+static cvar_t r_editlights_cursorgrid				= CVARD ("r_editlights_cursorgrid", "1", "snaps cursor to this grid size");
+
+//internal settings
+static qboolean r_editlights_locked = false;		//don't change the selected light
+static int r_editlights_selected = -1;				//the light closest to the cursor
+static vec3_t r_editlights_cursor;					//the position of the crosshair/cursor (new lights will be spawned here)
+static dlight_t r_editlights_copybuffer;			//written by r_editlights_copyinfo, read by r_editlights_pasteinfo. FIXME: use system clipboard?
+
 qboolean R_ImportRTLights(const char *entlump)
 {
 	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_INFINITE, LIGHTTYPE_LOCALMIN, LIGHTTYPE_RECIPXX2, LIGHTTYPE_SUN} lighttype_t;
@@ -1103,7 +1118,8 @@ qboolean R_ImportRTLights(const char *entlump)
 				break;
 
 			VectorCopy(origin, dl->origin);
-			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorCopy(angles, dl->angles);
+			AngleVectors(dl->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			VectorInverse(dl->axis[1]);
 			dl->radius = radius;
 			VectorCopy(color, dl->color);
@@ -1121,7 +1137,8 @@ qboolean R_ImportRTLights(const char *entlump)
 				if (!dl->fov)	//default is 40, supposedly
 					dl->fov = 40;
 
-				AngleVectors(mangle, dl->axis[0], dl->axis[1], dl->axis[2]);
+				VectorCopy(mangle, dl->angles);
+				AngleVectors(dl->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 				VectorInverse(dl->axis[1]);
 			}
 			else if (*target)
@@ -1138,6 +1155,10 @@ qboolean R_ImportRTLights(const char *entlump)
 					VectorVectors(dl->axis[0], dl->axis[1], dl->axis[2]);
 					VectorInverse(dl->axis[1]);
 					//we don't have any control over the inner cone.
+
+					//so queries work properly
+					VectorAngles(dl->axis[0], dl->axis[2], dl->angles, false);
+					dl->angles[0] = anglemod(dl->angles[0]);
 				}
 			}
 
@@ -1158,6 +1179,7 @@ qboolean R_LoadRTLights(void)
 	dlight_t *dl;
 	char fname[MAX_QPATH];
 	char cubename[MAX_QPATH];
+	char customstyle[1024];
 	char *file;
 	char *end;
 	int style;
@@ -1273,6 +1295,7 @@ qboolean R_LoadRTLights(void)
 		flags |= file?atoi(com_token):LFLAG_REALTIMEMODE;
 
 		fov = avel[0] = avel[1] = avel[2] = 0;
+		*customstyle = 0;
 		while(file)
 		{
 			file = COM_Parse(file);
@@ -1284,6 +1307,16 @@ qboolean R_LoadRTLights(void)
 				avel[2] = file?atof(com_token+5):0;
 			else if (!strncmp(com_token, "fov=", 4))
 				fov = file?atof(com_token+4):0;
+			else if (!strncmp(com_token, "nostencil=", 10))
+				flags |= atoi(com_token+10)?LFLAG_SHADOWMAP:0;
+			else if (!strncmp(com_token, "crepuscular=", 12))
+				flags |= atoi(com_token+12)?LFLAG_CREPUSCULAR:0;
+			else if (!strncmp(com_token, "ortho=", 6))
+				flags |= atoi(com_token+6)?LFLAG_ORTHO:0;
+			else if (!strncmp(com_token, "stylestring=", 12))
+				Q_strncpyz(customstyle, com_token+12, sizeof(customstyle));
+			else if (file)
+				Con_DPrintf("Unknown .rtlights arg \"%s\"\n", com_token);
 		}
 
 		if (radius)
@@ -1313,13 +1346,14 @@ qboolean R_LoadRTLights(void)
 				dl->cubetexture = r_nulltex;
 
 			dl->style = style+1;
+			dl->customstyle = (*customstyle)?Z_StrDup(customstyle):NULL;
 		}
 		file = end+1;
 	}
 	return !!file;
 }
 
-void R_SaveRTLights_f(void)
+static void R_SaveRTLights_f(void)
 {
 	dlight_t *light;
 	vfsfile_t *f;
@@ -1327,6 +1361,7 @@ void R_SaveRTLights_f(void)
 	char fname[MAX_QPATH];
 	char sysname[MAX_OSPATH];
 	vec3_t ang;
+	int ver = 0;
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
 
@@ -1347,24 +1382,46 @@ void R_SaveRTLights_f(void)
 		if (!light->radius)
 			continue;
 		VectorAngles(light->axis[0], light->axis[2], ang, false);
-		VFS_PUTS(f, va(
+
+		//the .rtlights format is defined by DP, the first few parts cannot be changed without breaking wider compat.
+		//it got extended a few times. only write what we need for greater compat, just in case.
+		if ((light->flags & (LFLAG_SHADOWMAP|LFLAG_CREPUSCULAR|LFLAG_ORTHO)) || light->rotation[0] || light->rotation[1] || light->rotation[2] || light->fov || light->customstyle)
+			ver = 2;	//one of our own flags. always spew the full DP stuff to try to avoid confusion
+		else if (light->coronascale!=0.25 || light->lightcolourscales[0]!=0 || light->lightcolourscales[1]!=1 || light->lightcolourscales[2]!=1 || (light->flags&~LFLAG_NOSHADOWS) != LFLAG_REALTIMEMODE)
+			ver = 2;
+		else if (*light->cubemapname || light->corona || ang[0] || ang[1] || ang[2])
+			ver = 1;
+		else
+			ver = 0;
+		VFS_PRINTF(f,
 			"%s%f %f %f "
 			"%f %f %f %f "
-			"%i "
-			"\"%s\" %f "
-			"%f %f %f "
-			"%f %f %f %f %i "
-			"rotx=%g roty=%g rotz=%g fov=%g "
-			"\n"
-			,
+			"%i",
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
-			light->radius, light->color[0], light->color[1], light->color[2], 
-			light->style-1,
-			light->cubemapname, light->corona,
-			ang[0], ang[1], ang[2],
-			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&~(LFLAG_NOSHADOWS|LFLAG_INTERNAL),
-			light->rotation[0],light->rotation[1],light->rotation[2],light->fov
-			));
+			light->radius, light->color[0], light->color[1], light->color[2],
+			light->style-1);
+		if (ver > 0)
+			VFS_PRINTF(f, " \"%s\" %f %f %f %f", light->cubemapname, light->corona, ang[0], ang[1], ang[2]);
+		if (ver > 1)
+			VFS_PRINTF(f, " %f %f %f %f %i", light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE));
+
+		//our weird flags
+		if (light->flags&LFLAG_SHADOWMAP)
+			VFS_PRINTF(f, " nostencil=1");
+		if (light->flags&LFLAG_CREPUSCULAR)
+			VFS_PRINTF(f, " crepuscular=1");
+		if (light->flags&LFLAG_ORTHO)
+			VFS_PRINTF(f, " ortho=1");
+		//spinning lights (for cubemaps)
+		if (light->rotation[0] || light->rotation[1] || light->rotation[2])
+			VFS_PRINTF(f, " rotx=%g roty=%g rotz=%g", light->rotation[0],light->rotation[1],light->rotation[2]);
+		//spotlights
+		if (light->fov)
+			VFS_PRINTF(f, " fov=%g", light->fov); //aka: outer cone
+		if (light->customstyle)
+			VFS_PRINTF(f, " \"stylestring=%s\"", light->customstyle); //aka: outer cone
+
+		VFS_PUTS(f, "\n");
 	}
 	VFS_CLOSE(f);
 
@@ -1412,7 +1469,7 @@ void R_StaticEntityToRTLight(int i)
 		R_LoadNumberedLightTexture(dl, state->skinnum);
 }
 
-void R_ReloadRTLights_f(void)
+static void R_ReloadRTLights_f(void)
 {
 	int i;
 
@@ -1427,19 +1484,800 @@ void R_ReloadRTLights_f(void)
 		R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 	else if (!strcmp(Cmd_Argv(1), "rtlights"))
 		R_LoadRTLights();
+	else if (!strcmp(Cmd_Argv(1), "statics"))
+	{
+		for (i = 0; i < cl.num_statics; i++)
+			R_StaticEntityToRTLight(i);
+	}
 	else if (!strcmp(Cmd_Argv(1), "none"))
 		;
 	else
 	{
-		R_LoadRTLights();
+		//try to load .rtlights file
+		if (rtlights_first == rtlights_max)
+			R_LoadRTLights();
+		//if there's a static entity with rtlights set, then assume the mod is taking care of it for us.
+		if (rtlights_first == rtlights_max)
+			for (i = 0; i < cl.num_statics; i++)
+				R_StaticEntityToRTLight(i);
+		//otherwise try to import.
 		if (rtlights_first == rtlights_max)
 			R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 	}
+}
 
-	for (i = 0; i < cl.num_statics; i++)
+//-1 for arg error
+static int R_EditLight(dlight_t *dl, const char *cmd, int argc, const char *x, const char *y, const char *z)
+{
+	if (argc == 1)
 	{
-		R_StaticEntityToRTLight(i);
+		y = x;
+		z = x;
 	}
+	if (!strcmp(cmd, "origin"))
+	{
+		dl->origin[0] = atof(x);
+		dl->origin[1] = atof(y);
+		dl->origin[2] = atof(z);
+	}
+	else if (!strcmp(cmd, "originscale"))
+	{
+		dl->origin[0] *= atof(x);
+		dl->origin[1] *= atof(y);
+		dl->origin[2] *= atof(z);
+	}
+	else if (!strcmp(cmd, "originx"))
+		dl->origin[0] = atof(x);
+	else if (!strcmp(cmd, "originy"))
+		dl->origin[1] = atof(x);
+	else if (!strcmp(cmd, "originz"))
+		dl->origin[2] = atof(x);
+	else if (!strcmp(cmd, "move"))
+	{
+		dl->origin[0] += atof(x);
+		dl->origin[1] += atof(y);
+		dl->origin[2] += atof(z);
+	}
+	else if (!strcmp(cmd, "movex"))
+		dl->origin[0] += atof(x);
+	else if (!strcmp(cmd, "movey"))
+		dl->origin[1] += atof(x);
+	else if (!strcmp(cmd, "movez"))
+		dl->origin[2] += atof(x);
+
+	else if (!strcmp(cmd, "angles"))
+	{
+		dl->angles[0] = atof(x);
+		dl->angles[1] = atof(y);
+		dl->angles[2] = atof(z);
+
+		AngleVectors(dl->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+		VectorInverse(dl->axis[1]);
+	}
+	else if (!strcmp(cmd, "anglesx"))
+	{
+		dl->angles[0] = atof(x);
+		AngleVectors(dl->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+		VectorInverse(dl->axis[1]);
+	}
+	else if (!strcmp(cmd, "anglesy"))
+	{
+		dl->angles[1] = atof(x);
+		AngleVectors(dl->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+		VectorInverse(dl->axis[1]);
+	}
+	else if (!strcmp(cmd, "anglesz"))
+	{
+		dl->angles[2] = atof(x);
+		AngleVectors(dl->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+		VectorInverse(dl->axis[1]);
+	}
+
+	else if (!strcmp(cmd, "avel"))
+	{
+		dl->rotation[0] = atof(x);
+		dl->rotation[1] = atof(y);
+		dl->rotation[2] = atof(z);
+	}
+	else if (!strcmp(cmd, "avelx"))
+		dl->rotation[0] = atof(x);
+	else if (!strcmp(cmd, "avey"))
+		dl->rotation[1] = atof(x);
+	else if (!strcmp(cmd, "avelz"))
+		dl->rotation[2] = atof(x);
+
+	else if (!strcmp(cmd, "outercone") || !strcmp(cmd, "fov"))
+		dl->fov = atof(x);
+	else if (!strcmp(cmd, "color") || !strcmp(cmd, "colour"))
+	{
+		dl->color[0] = atof(x);
+		dl->color[1] = atof(y);
+		dl->color[2] = atof(z);
+	}
+	else if (!strcmp(cmd, "colorscale") || !strcmp(cmd, "colourscale"))
+	{
+		dl->color[0] *= atof(x);
+		dl->color[1] *= atof(y);
+		dl->color[2] *= atof(z);
+	}
+	else if (!strcmp(cmd, "radius"))
+		dl->radius = atof(x);
+	else if (!strcmp(cmd, "radiusscale") || !strcmp(cmd, "sizescale"))
+		dl->radius *= atof(x);
+	else if (!strcmp(cmd, "style"))
+		dl->style = atoi(x)+1;	//fte's styles are internally 1-based, with 0 being a null style that ignores lightstyles entirely, which admittedly isn't often used.
+	else if (!strcmp(cmd, "stylestring"))
+	{
+		Z_Free(dl->customstyle);
+		dl->customstyle = x?Z_StrDup(x):NULL;
+	}
+	else if (!strcmp(cmd, "cubemap"))
+	{
+		Q_strncpyz(dl->cubemapname, x, sizeof(dl->cubemapname));
+		if (*dl->cubemapname)
+			dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+		else
+			dl->cubetexture = r_nulltex;
+	}
+	else if (!strcmp(cmd, "shadows"))
+		dl->flags = (dl->flags&~LFLAG_NOSHADOWS) | ((*x=='y'||*x=='Y'||*x=='t'||atoi(x))?0:LFLAG_NOSHADOWS);
+	else if (!strcmp(cmd, "nostencil"))
+		dl->flags = (dl->flags&~LFLAG_SHADOWMAP) | ((*x=='y'||*x=='Y'||*x=='t'||atoi(x))?0:LFLAG_SHADOWMAP);
+	else if (!strcmp(cmd, "crepuscular"))
+		dl->flags = (dl->flags&~LFLAG_CREPUSCULAR) | ((*x=='y'||*x=='Y'||*x=='t'||atoi(x))?LFLAG_CREPUSCULAR:0);
+	else if (!strcmp(cmd, "ortho"))
+		dl->flags = (dl->flags&~LFLAG_ORTHO) | ((*x=='y'||*x=='Y'||*x=='t'||atoi(x))?LFLAG_ORTHO:0);
+	else if (!strcmp(cmd, "corona"))
+		dl->corona = atof(x);
+	else if (!strcmp(cmd, "coronasize"))
+		dl->coronascale = atof(x);
+	else if (!strcmp(cmd, "ambient"))
+		dl->lightcolourscales[0] = atof(x);
+	else if (!strcmp(cmd, "diffuse"))
+		dl->lightcolourscales[1] = atof(x);
+	else if (!strcmp(cmd, "specular"))
+		dl->lightcolourscales[2] = atof(x);
+	else if (!strcmp(cmd, "normalmode"))
+		dl->flags = (dl->flags&~LFLAG_NORMALMODE) | ((*x=='y'||*x=='Y'||*x=='t'||atoi(x))?LFLAG_NORMALMODE:0);
+	else if (!strcmp(cmd, "realtimemode"))
+		dl->flags = (dl->flags&~LFLAG_REALTIMEMODE) | ((*x=='y'||*x=='Y'||*x=='t'||atoi(x))?LFLAG_REALTIMEMODE:0);
+	else
+		return -2;
+	dl->rebuildcache = true;	//mneh, lets just flag it for everything.
+	return 1;
+}
+
+void R_EditLights_DrawInfo(void)
+{
+	float fontscale[2] = {8,8};
+	float x = vid.width - 320;
+	float y = 0;
+	const char *s;
+	if (!r_editlights.ival)
+		return;
+
+	if (r_editlights_selected >= RTL_FIRST && r_editlights_selected < rtlights_max)
+	{
+		dlight_t *dl = &cl_dlights[r_editlights_selected];
+		s = va(	"      Origin : %.0f %.0f %.0f\n"
+				"      Angles : %.0f %.0f %.0f\n"
+				"      Colour : %.2f %.2f %.2f\n"
+				"      Radius : %.0f\n"
+				"      Corona : %.0f\n"
+				"       Style : %i\n"
+				"Style String : %s\n"
+				"     Shadows : %s\n"
+				"     Cubemap : \"%s\"\n"
+				"  CoronaSize : %.2f\n"
+				"     Ambient : %.2f\n"
+				"     Diffuse : %.2f\n"
+				"    Specular : %.2f\n"
+				"  NormalMode : %s\n"
+				"RealTimeMode : %s\n"
+				"        Spin : %.0f %.0f %.0f\n"
+				"        Cone : %.0f\n"
+				//"NoStencil    : %s\n"
+				//"Crepuscular  : %s\n"
+				//"Ortho        : %s\n"
+				,dl->origin[0],dl->origin[1],dl->origin[2]
+				,dl->angles[0],dl->angles[1],dl->angles[2]
+				,dl->color[0],dl->color[1],dl->color[2]
+				,dl->radius, dl->corona, dl->style-1, dl->customstyle?dl->customstyle:"---"
+				,((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"), dl->cubemapname, dl->coronascale
+				,dl->lightcolourscales[0], dl->lightcolourscales[1], dl->lightcolourscales[2]
+				,((dl->flags&LFLAG_NORMALMODE)?"yes":"no"), ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no")
+				,dl->rotation[0],dl->rotation[1],dl->rotation[2], dl->fov
+				//,((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"),((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"),((dl->flags&LFLAG_ORTHO)?"yes":"no")
+				);
+	}
+	else
+		s = "No light selected";
+	R2D_ImageColours(0,0,0,.35);
+	R2D_FillBlock(x-4, y, 320+4, 16*8+4);
+	R2D_ImageColours(1,1,1,1);
+	R_DrawTextField(x, y, 320, 16*8, s, CON_WHITEMASK, CPRINT_LALIGN|CPRINT_TALIGN|CPRINT_NOWRAP, font_default, fontscale);
+}
+void R_EditLights_DrawLights(void)
+{
+	const float SPRITE_SIZE = 8;
+	int		i;
+	dlight_t	*l;
+	enum
+	{
+//		ELS_CURSOR,
+		ELS_SELECTED,
+		ELS_LIGHT,
+		ELS_NOSHADOW,
+		ELS_MAX
+	};
+	char *lightshaderinfo[] =
+	{
+/*		"gfx/editlights/cursor",
+			".59..95."
+			"59....95"
+			"9.9..9.9"
+			"...99..."
+			"...99..."
+			"9.9..9.9"
+			"59....95"
+			".59..95.",
+*/
+		"gfx/editlights/selected",
+			"999..999"
+			"99....99"
+			"9......9"
+			"........"
+			"........"
+			"9......9"
+			"99....99"
+			"999..999",
+
+		"gfx/editlights/light",
+			"..1221.."
+			".245542."
+			"14677641"
+			"25799752"
+			"25799752"
+			"14677641"
+			".245542."
+			"..1221..",
+
+		"gfx/editlights/noshadow",
+			"..1221.."
+			".245542."
+			"14644641"
+			"274..472"	//mmm, donuts.
+			"274..472"
+			"14644641"
+			".247742."
+			"..1221..",
+	};
+	shader_t *shaders[ELS_MAX], *s;
+	unsigned int asciipalette[256];
+	asciipalette['.'] = 0;
+	for (i = 0; i < 10; i++)
+		asciipalette['0'+i] = 0xff000000 | ((int)(255/9.0*i)*0x010101);
+
+	if (!r_editlights.ival)
+		return;
+
+	for (i = 0; i < ELS_MAX; i++)
+	{
+		shaders[i] = R_RegisterShader(lightshaderinfo[i*2+0], SUF_NONE, va(
+				"{\n"
+					"program defaultadditivesprite\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc gl_one gl_one\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"%s"
+					"}\n"
+				"}\n"
+				,(i==ELS_SELECTED)?"nodepth\n":"")
+			);
+		if (!shaders[i]->defaulttextures->base)
+			shaders[i]->defaulttextures->base = Image_GetTexture(shaders[i]->name, NULL, IF_LINEAR|IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP, lightshaderinfo[i*2+1], asciipalette, 8, 8, TF_8PAL32);
+	}
+
+	if (!r_editlights_locked)
+	{
+		vec3_t targ, norm;
+		int ent;
+		int best = -1;
+		float bestscore = 0, score;
+
+		VectorMA(r_refdef.vieworg, r_editlights_cursordistance.value, vpn, targ);	//try to aim about 1024qu infront of the camera
+		CL_TraceLine(r_refdef.vieworg, targ, r_editlights_cursor, norm, &ent);		//figure out where the cursor ends up
+		VectorMA(r_editlights_cursor, r_editlights_cursorpushoff.value, norm, r_editlights_cursor);	//push off from the surface by 4qu.
+		VectorMA(r_editlights_cursor, -r_editlights_cursorpushback.value, vpn, r_editlights_cursor);//move it back towards the camera, for no apparent reason
+		if (r_editlights_cursorgrid.value)
+		{	//snap to a grid, if set
+			for (i =0; i < 3; i++)
+				r_editlights_cursor[i] = floor(r_editlights_cursor[i] / r_editlights_cursorgrid.value + 0.5) * r_editlights_cursorgrid.value;
+		}
+
+//		CLQ1_AddSpriteQuad(shaders[ELS_CURSOR], r_editlights_cursor, SPRITE_SIZE);
+
+		for (i=RTL_FIRST; i<rtlights_max; i++)
+		{
+			l = &cl_dlights[i];
+			if (!l->radius)	//dead light is dead.
+				continue;
+
+			VectorSubtract(l->origin, r_refdef.vieworg, targ);
+			score = DotProduct(vpn, targ) / sqrt(DotProduct(targ,targ));
+			if (score >= .95)	//there's a threshhold required for a light to be selectable.
+			{
+				//trace from the light to the view (so startsolid doesn't cause so many problems)
+				if (score > bestscore && CL_TraceLine(l->origin, r_refdef.vieworg, r_editlights_cursor, norm, &ent) == 1.0)
+				{
+					bestscore = score;
+					best = i;
+				}
+			}
+		}
+		r_editlights_selected = best;
+	}
+
+	for (i=RTL_FIRST; i<rtlights_max; i++)
+	{
+		l = &cl_dlights[i];
+		if (!l->radius)	//dead light is dead.
+			continue;
+
+		//we should probably show spotlights with a special icon or something
+		//dp has alternate icons for cubemaps.
+		if (l->flags & LFLAG_NOSHADOWS)
+			s = shaders[ELS_NOSHADOW];
+		else
+			s = shaders[ELS_LIGHT];
+		CLQ1_AddSpriteQuad(s, l->origin, SPRITE_SIZE);
+	}
+
+	if (r_editlights_selected >= RTL_FIRST && r_editlights_selected < rtlights_max)
+	{
+		l = &cl_dlights[r_editlights_selected];
+		CLQ1_AddSpriteQuad(shaders[ELS_SELECTED], l->origin, SPRITE_SIZE);
+	}
+}
+
+static void R_EditLights_Edit_f(void)
+{
+	int i = r_editlights_selected;
+	const char *cmd = Cmd_Argv(1);
+	const char *x = Cmd_Argv(2);
+	const char *y = Cmd_Argv(3);
+	const char *z = Cmd_Argv(4);
+	int argc = Cmd_Argc()-2;
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	dl = &cl_dlights[i];
+	if (!*cmd)
+	{
+		Con_Print("Selected light's properties:\n");
+		Con_Printf("Origin       : ^[%f %f %f\\type\\r_editlights_edit origin %g %g %g^]\n", dl->origin[0],dl->origin[1],dl->origin[2], dl->origin[0],dl->origin[1],dl->origin[2]);
+		Con_Printf("Angles       : ^[%f %f %f\\type\\r_editlights_edit angles %g %g %g^]\n", dl->angles[0],dl->angles[1],dl->angles[2], dl->angles[0],dl->angles[1],dl->angles[2]);
+		Con_Printf("Colour       : ^[%f %f %f\\type\\r_editlights_edit avel %g %g %g^]\n", dl->color[0],dl->color[1],dl->color[2], dl->color[0],dl->color[1],dl->color[2]);
+		Con_Printf("Radius       : ^[%f\\type\\r_editlights_edit radius %g^]\n", dl->radius, dl->radius);
+		Con_Printf("Corona       : ^[%f\\type\\r_editlights_edit corona %g^]\n", dl->corona, dl->corona);
+		Con_Printf("Style        : ^[%i\\type\\r_editlights_edit style %i^]\n", dl->style-1, dl->style-1);
+		Con_Printf("Style String : ^[%s\\type\\r_editlights_edit stylestring %s^]\n", dl->customstyle?dl->customstyle:"---", dl->customstyle?dl->customstyle:"");
+		Con_Printf("Shadows      : ^[%s\\type\\r_editlights_edit shadows %s^]\n", ((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"), ((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"));
+		Con_Printf("Cubemap      : ^[\"%s\"\\type\\r_editlights_edit cubemap \"%s\"^]\n", dl->cubemapname, dl->cubemapname);
+		Con_Printf("CoronaSize   : ^[%f\\type\\r_editlights_edit coronasize %g^]\n", dl->coronascale, dl->coronascale);
+		Con_Printf("Ambient      : ^[%f\\type\\r_editlights_edit ambient %g^]\n", dl->lightcolourscales[0], dl->lightcolourscales[0]);
+		Con_Printf("Diffuse      : ^[%f\\type\\r_editlights_edit diffuse %g^]\n", dl->lightcolourscales[1], dl->lightcolourscales[1]);
+		Con_Printf("Specular     : ^[%f\\type\\r_editlights_edit specular %g^]\n", dl->lightcolourscales[2], dl->lightcolourscales[2]);
+		Con_Printf("NormalMode   : ^[%s\\type\\r_editlights_edit normalmode %s^]\n", ((dl->flags&LFLAG_NORMALMODE)?"yes":"no"), ((dl->flags&LFLAG_NORMALMODE)?"yes":"no"));
+		Con_Printf("RealTimeMode : ^[%s\\type\\r_editlights_edit realtimemode %s^]\n", ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no"), ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no"));
+		Con_Printf("Spin         : ^[%f %f %f\\type\\r_editlights_edit avel %g %g %g^]\n", dl->rotation[0],dl->rotation[1],dl->rotation[2], dl->origin[0],dl->origin[1],dl->origin[2]);
+		Con_Printf("Cone         : ^[%f\\type\\r_editlights_edit outercone %g^]\n", dl->fov, dl->fov);
+//		Con_Printf("NoStencil    : ^[%s\\type\\r_editlights_edit nostencil %s^]\n", ((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"), ((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"));
+//		Con_Printf("Crepuscular  : ^[%s\\type\\r_editlights_edit crepuscular %s^]\n", ((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"), ((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"));
+//		Con_Printf("Ortho        : ^[%s\\type\\r_editlights_edit ortho %s^]\n", ((dl->flags&LFLAG_ORTHO)?"yes":"no"), ((dl->flags&LFLAG_ORTHO)?"yes":"no"));
+		return;
+	}
+	switch(R_EditLight(dl, cmd, argc, x,y,z))
+	{
+	case -1:
+		Con_Printf("Not enough args for %s\n", cmd);
+		return;
+	case -2:
+		Con_Printf("Argument not known: %s\n", cmd);
+		return;
+	}
+}
+static void R_EditLights_Remove_f(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	dl = &cl_dlights[i];
+	dl->radius = 0;
+	r_editlights_selected = -1;
+}
+static void R_EditLights_EditAll_f(void)
+{
+	int i = 0;
+	const char *cmd = Cmd_Argv(1);
+	const char *x = Cmd_Argv(2);
+	const char *y = Cmd_Argv(3);
+	const char *z = Cmd_Argv(4);
+	int argc = Cmd_Argc()-2;
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	for (i = RTL_FIRST; i < rtlights_max; i++)
+	{
+		dl = &cl_dlights[i];
+		if (dl->radius <= 0)
+			continue;	//don't edit dead lights back to life
+		switch(R_EditLight(dl, cmd, argc, x,y,z))
+		{
+		case -1:
+			Con_Printf("Not enough args for %s\n", cmd);
+			return;
+		case -2:
+			Con_Printf("Argument not known: %s\n", cmd);
+			return;
+		}
+	}
+}
+static void R_EditLights_Spawn_f(void)
+{
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	dl = CL_AllocSlight();
+	r_editlights_selected = dl - cl_dlights;
+
+	VectorCopy(r_editlights_cursor, dl->origin);
+	dl->radius = 200;
+
+	dl->style = 1;	//0... gah. match DP's results.
+	dl->lightcolourscales[0] = 0;
+	dl->lightcolourscales[1] = 1;
+	dl->lightcolourscales[2] = 1;
+}
+static void R_EditLights_Clone_f(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	dlight_t *src;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	src = &cl_dlights[i];
+	dl = CL_AllocSlight();
+	r_editlights_selected = dl - cl_dlights;
+	CL_CloneDlight(dl, src);
+
+	VectorCopy(r_editlights_cursor, dl->origin);
+}
+static void R_EditLights_ToggleShadow_f(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	dl = &cl_dlights[i];
+	dl->flags ^= LFLAG_NOSHADOWS;
+}
+static void R_EditLights_ToggleCorona_f(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	dl = &cl_dlights[i];
+	dl->corona = !dl->corona;
+}
+static void R_EditLights_CopyInfo_f(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return;
+	dl = &cl_dlights[i];
+	CL_CloneDlight(&r_editlights_copybuffer, dl);
+}
+static void R_EditLights_PasteInfo_f(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	vec3_t org;
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+	if (i < RTL_FIRST || i >= rtlights_max)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	dl = &cl_dlights[i];
+	VectorCopy(dl->origin, org);
+	CL_CloneDlight(dl, &r_editlights_copybuffer);
+	VectorCopy(org, dl->origin);	//undo the origin's copy.
+
+	//just in case its from a different map...
+	if (*dl->cubemapname)
+		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+	else
+		dl->cubetexture = r_nulltex;
+}
+
+static void R_EditLights_Lock_f(void)
+{
+	if (!r_editlights.ival)
+	{
+		Con_Printf("Toggle r_editlights first\n");
+		return;
+	}
+
+	if ((r_editlights_selected < RTL_FIRST || r_editlights_selected >= rtlights_max) && !r_editlights_locked)
+	{
+		Con_Printf("No light selected\n");
+		return;
+	}
+	r_editlights_locked = !r_editlights_locked;
+}
+
+static char	macro_buf[256] = "";
+static char *r_editlights_current_origin(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g %g %g", dl->origin[0], dl->origin[1], dl->origin[2]);
+	return macro_buf;
+}
+static char *r_editlights_current_angles(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g %g %g", dl->angles[0], dl->angles[1], dl->angles[2]);
+	return macro_buf;
+}
+static char *r_editlights_current_color(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g %g %g", dl->color[0], dl->color[1], dl->color[2]);
+	return macro_buf;
+}
+static char *r_editlights_current_radius(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g", dl->radius);
+	return macro_buf;
+}
+static char *r_editlights_current_corona(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g", dl->corona);
+	return macro_buf;
+}
+static char *r_editlights_current_coronasize(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g", dl->coronascale);
+	return macro_buf;
+}
+static char *r_editlights_current_style(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%i", dl->style-1);
+	return macro_buf;
+}
+static char *r_editlights_current_shadows(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	if (dl->flags & LFLAG_NOSHADOWS)
+		return "0";
+	return "1";
+}
+static char *r_editlights_current_cubemap(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "\"%s\"", dl->cubemapname);
+	return macro_buf;
+}
+static char *r_editlights_current_ambient(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g", dl->lightcolourscales[0]);
+	return macro_buf;
+}
+static char *r_editlights_current_diffuse(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g", dl->lightcolourscales[1]);
+	return macro_buf;
+}
+static char *r_editlights_current_specular(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%g", dl->lightcolourscales[2]);
+	return macro_buf;
+}
+static char *r_editlights_current_normalmode(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	if (dl->flags & LFLAG_NORMALMODE)
+		return "1";
+	return "0";
+}
+static char *r_editlights_current_realtimemode(void)
+{
+	int i = r_editlights_selected;
+	dlight_t *dl;
+	if (i < RTL_FIRST || i >= rtlights_max)
+		return "";
+	dl = &cl_dlights[i];
+
+	if (dl->flags & LFLAG_REALTIMEMODE)
+		return "1";
+	return "0";
+}
+
+void R_EditLights_RegisterCommands(void)
+{
+	Cmd_AddCommandD ("r_editlights_reload", R_ReloadRTLights_f, "Reload static rtlights. Argument can be rtlights|statics|bsp|none to override the source.");
+	Cmd_AddCommandD ("r_editlights_save", R_SaveRTLights_f, "Saves rtlights to maps/FOO.rtlights");
+	Cvar_Register (&r_editlights_import_radius,		"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_import_ambient,	"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_import_diffuse,	"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_import_specular,	"Realtime Light editing/importing");
+
+	Cvar_Register (&r_editlights,					"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_cursordistance,	"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_cursorpushoff,		"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_cursorpushback,	"Realtime Light editing/importing");
+	Cvar_Register (&r_editlights_cursorgrid,		"Realtime Light editing/importing");
+
+	//the rest is optional stuff that should normally be handled via csqc instead, but hurrah for dp compat...
+	Cmd_AddCommandD("r_editlights_spawn", R_EditLights_Spawn_f, "Spawn a new light with default properties");
+	Cmd_AddCommandD("r_editlights_clone", R_EditLights_Clone_f, "Duplicate the current light (with a new origin)");
+	Cmd_AddCommandD("r_editlights_remove", R_EditLights_Remove_f, "Removes the current light.");
+	Cmd_AddCommandD("r_editlights_edit", R_EditLights_Edit_f, "Changes named properties on the current light.");
+	Cmd_AddCommandD("r_editlights_editall", R_EditLights_EditAll_f, "Like r_editlights_edit, but affects all lights instead of just the selected one.");
+	Cmd_AddCommandD("r_editlights_toggleshadow", R_EditLights_ToggleShadow_f, "Toggles the shadow flag on the current light.");
+	Cmd_AddCommandD("r_editlights_togglecorona", R_EditLights_ToggleCorona_f, "Toggles the current light's corona field.");
+	Cmd_AddCommandD("r_editlights_copyinfo", R_EditLights_CopyInfo_f, "store a copy of all properties (except origin) of the selected light");
+	Cmd_AddCommandD("r_editlights_pasteinfo", R_EditLights_PasteInfo_f, "apply the stored properties onto the selected light (making it exactly identical except for origin)");
+	Cmd_AddCommandD("r_editlights_lock", R_EditLights_Lock_f, "Blocks changing the current light according the crosshair.");
+
+	//DP has these as cvars. mneh.
+	Cmd_AddMacroD("r_editlights_current_origin",	r_editlights_current_origin,	false, "origin of selected light");
+	Cmd_AddMacroD("r_editlights_current_angles",	r_editlights_current_angles,	false, "angles of selected light");
+	Cmd_AddMacroD("r_editlights_current_color",		r_editlights_current_color,		false, "color of selected light");
+	Cmd_AddMacroD("r_editlights_current_radius",	r_editlights_current_radius,	false, "radius of selected light");
+	Cmd_AddMacroD("r_editlights_current_corona",	r_editlights_current_corona,	false, "corona intensity of selected light");
+	Cmd_AddMacroD("r_editlights_current_coronasize",r_editlights_current_coronasize,false, "corona size of selected light");
+	Cmd_AddMacroD("r_editlights_current_style",		r_editlights_current_style,		false, "style of selected light");
+	Cmd_AddMacroD("r_editlights_current_shadows",	r_editlights_current_shadows,	false, "shadows flag of selected light");
+	Cmd_AddMacroD("r_editlights_current_cubemap",	r_editlights_current_cubemap,	false, "cubemap of selected light");
+	Cmd_AddMacroD("r_editlights_current_ambient",	r_editlights_current_ambient,	false, "ambient intensity of selected light");
+	Cmd_AddMacroD("r_editlights_current_diffuse",	r_editlights_current_diffuse,	false, "diffuse intensity of selected light");
+	Cmd_AddMacroD("r_editlights_current_specular",	r_editlights_current_specular,	false, "specular intensity of selected light");
+	Cmd_AddMacroD("r_editlights_current_normalmode",r_editlights_current_normalmode,false, "normalmode flag of selected light");
+	Cmd_AddMacroD("r_editlights_current_realtimemode",	r_editlights_current_realtimemode,	false, "realtimemode flag of selected light");
 }
 #endif
 

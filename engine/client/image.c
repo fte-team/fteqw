@@ -29,14 +29,18 @@ char *r_defaultimageextensions =
 #if defined(AVAIL_PNGLIB) || defined(FTE_TARGET_WEB)
 	" png"	//pngs, fairly common, but slow
 #endif
+#ifdef IMAGEFMT_BMP
 	//" bmp"	//wtf? at least not lossy
+	//" ico"	//noone wants this...
+#endif
 #if defined(AVAIL_JPEGLIB) || defined(FTE_TARGET_WEB)
 	" jpg"	//q3 uses some jpegs, for some reason
+	//" jpeg"	//thankfuly the quake community stuck to .jpg instead
 #endif
-#if 0//def IMAGEFMT_PKM
-	" pkm"	//compressed format, but lacks mipmaps which makes it terrible to use.
+#ifdef IMAGEFMT_PKM
+	//" pkm"	//compressed format, but lacks mipmaps which makes it terrible to use.
 #endif
-#ifndef NOLEGACY
+#ifdef IMAGEFMT_PCX
 	" pcx"	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
 #endif
 	;
@@ -44,6 +48,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
 cvar_t r_imageexensions				= CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
 cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "131072", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
+extern cvar_t			scr_sshot_compression;
 extern cvar_t gl_lerpimages;
 extern cvar_t gl_picmip2d;
 extern cvar_t gl_picmip;
@@ -59,6 +64,45 @@ extern cvar_t r_shadow_heightscale_bumpmap;
 static bucket_t *imagetablebuckets[256];
 static hashtable_t imagetable;
 static image_t *imagelist;
+
+
+
+
+
+static void GenerateXMPData(char *blob, size_t blobsize, int width, int height, unsigned int metainfo)
+{	//XMP is a general thing that applies to multiple formats - or at least png+jpeg.
+	//we need this if we want to correctly flag the data as a 360 image.
+	Q_snprintfz(blob, blobsize,
+		"<x:xmpmeta xmlns:x='adobe:ns:meta/'>"
+			"<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>"
+		);
+
+	if (metainfo)
+		Q_snprintfz(blob, blobsize,
+					"<rdf:Description rdf:about='' xmlns:GPano=\"http://ns.google.com/photos/1.0/panorama/\">"
+						"<GPano:ProjectionType>equirectangular</GPano:ProjectionType>"
+						"<GPano:PosePitchDegrees>%f</GPano:PosePitchDegrees>"
+						"<GPano:PoseHeadingDegrees>%f</GPano:PoseHeadingDegrees>"
+						"<GPano:PoseRollDegrees>%f</GPano:PoseRollDegrees>"
+						"<GPano:InitialViewHeadingDegrees>%f</GPano:InitialViewHeadingDegrees>"
+						"<GPano:InitialViewPitchDegrees>%f</GPano:InitialViewPitchDegrees>"
+						"<GPano:InitialViewRollDegrees>%f</GPano:InitialViewRollDegrees>"
+						"<GPano:CroppedAreaLeftPixels>0</GPano:CroppedAreaLeftPixels>"
+						"<GPano:CroppedAreaTopPixels>0</GPano:CroppedAreaTopPixels>"
+						"<GPano:CroppedAreaImageWidthPixels>%i</GPano:CroppedAreaImageWidthPixels>"
+						"<GPano:CroppedAreaImageHeightPixels>%i</GPano:CroppedAreaImageHeightPixels>"
+						"<GPano:FullPanoWidthPixels>%i</GPano:FullPanoWidthPixels>"
+						"<GPano:FullPanoHeightPixels>%i</GPano:FullPanoHeightPixels>"
+					"</rdf:Description>",
+			r_refdef.viewangles[0], r_refdef.viewangles[1], r_refdef.viewangles[2],
+			r_refdef.viewangles[0], r_refdef.viewangles[1], r_refdef.viewangles[2],
+			width, height, width, height);
+
+	Q_snprintfz(blob+strlen(blob), blobsize-strlen(blob),
+			"</rdf:RDF>"
+		"</x:xmpmeta>"
+		);
+}
 #endif
 
 #ifndef _WIN32
@@ -69,9 +113,11 @@ typedef struct {	//cm = colourmap
 	char	id_len;		//0
 	char	cm_type;	//1
 	char	version;	//2
+		char pad1;
 	short	cm_idx;		//3
 	short	cm_len;		//5
 	char	cm_size;	//7
+		char pad2;
 	short	originx;	//8 (ignored)
 	short	originy;	//10 (ignored)
 	short	width;		//12-13
@@ -723,6 +769,104 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	return NULL;
 }
 
+qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
+{
+	size_t c, i;
+	vfsfile_t *vfs;
+	if (fmt != TF_BGRA32 && fmt != TF_RGB24 && fmt != TF_RGBA32 && fmt != TF_BGR24 && fmt != TF_RGBX32 && fmt != TF_BGRX32)
+		return false;
+	FS_CreatePath(filename, fsroot);
+	vfs = FS_OpenVFS(filename, "wb", fsroot);
+	if (vfs)
+	{
+		int ipx,opx;
+		qboolean rgb;
+		unsigned char header[18];
+		memset (header, 0, 18);
+
+		if (fmt == TF_BGRA32 || fmt == TF_RGBA32)
+		{
+			rgb = fmt==TF_RGBA32;
+			ipx = 4;
+			opx = 4;
+		}
+		else if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
+		{
+			rgb = fmt==TF_RGBX32;
+			ipx = 4;
+			opx = 3;
+		}
+		else
+		{
+			rgb = fmt==TF_RGB24;
+			ipx = 3;
+			opx = 3;
+		}
+
+		header[2] = 2;			// uncompressed type
+		header[12] = width&255;
+		header[13] = width>>8;
+		header[14] = height&255;
+		header[15] = height>>8;
+		header[16] = opx*8;		// pixel size
+		header[17] = 0x00;		// flags
+
+		if (bytestride < 0)
+		{	//if we're upside down, lets just use an upside down tga.
+			rgb_buffer += bytestride*(height-1);
+			bytestride = -bytestride;
+			//now we can just do everything without worrying about rows
+		}
+		else	//our data is top-down, set up the header to also be top-down.
+			header[17] = 0x20;
+
+		if (ipx == opx && !rgb)
+		{	//can just directly write it
+			//bgr24, bgra24
+			c = width*height*opx;
+
+			VFS_WRITE(vfs, header, sizeof(header));
+			VFS_WRITE(vfs, rgb_buffer, c);
+		}
+		else
+		{
+			qbyte *fte_restrict rgb_out = malloc(width*opx*height);
+
+			//no need to swap alpha, and if we're just swapping alpha will be fine in-place.
+			if (rgb)
+			{	//rgb24, rgbx32, rgba32
+				// compact, and swap
+				c = width*height;
+				for (i=0 ; i<c ; i++)
+				{
+					rgb_out[i*opx+2] = rgb_buffer[i*ipx+0];
+					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
+					rgb_out[i*opx+0] = rgb_buffer[i*ipx+2];
+				}
+			}
+			else
+			{	//(bgr24), bgrx32, (bgra32)
+				// compact
+				c = width*height;
+				for (i=0 ; i<c ; i++)
+				{
+					rgb_out[i*opx+0] = rgb_buffer[i*ipx+0];
+					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
+					rgb_out[i*opx+2] = rgb_buffer[i*ipx+2];
+				}
+			}
+			c *= opx;
+
+			VFS_WRITE(vfs, header, sizeof(header));
+			VFS_WRITE(vfs, rgb_out, c);
+			free(rgb_out);
+		}
+
+		VFS_CLOSE(vfs);
+	}
+	return true;
+}
+
 #ifdef AVAIL_PNGLIB
 	#ifndef AVAIL_ZLIB
 		#error PNGLIB requires ZLIB
@@ -776,53 +920,56 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	#define png_const_structrp png_const_structp
 #endif
 
-void (PNGAPI *qpng_error) PNGARG((png_const_structrp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
-void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
-void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
-png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
-png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
+static void (PNGAPI *qpng_error) PNGARG((png_const_structrp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
+static void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
+static void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
+static png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
+static png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
 #if PNG_LIBPNG_VER < 10400
-	png_uint_32 (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+	static png_uint_32 (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
 #else
-	png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+	static png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
 #endif
-void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
-void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
-void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
-void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
-void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
-png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
+static void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
+static void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
+static void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
+static void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
+static void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
+static png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
 #if PNG_LIBPNG_VER >= 10400
-void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
+static void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
 #else
-void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
+static void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
 #endif
-void (PNGAPI *qpng_set_bgr) PNGARG((png_structp png_ptr)) PSTATIC(png_set_bgr);
-void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
-void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
-png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
+static void (PNGAPI *qpng_set_bgr) PNGARG((png_structp png_ptr)) PSTATIC(png_set_bgr);
+static void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
+static void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
+static png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
 			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
-void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
-void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
-void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
-void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
-png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_create_info_struct);
-png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
-int (PNGAPI *qpng_sig_cmp) PNGARG((png_const_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
+static void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
+static void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
+static void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
+static void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
+static png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_create_info_struct);
+static png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
+static int (PNGAPI *qpng_sig_cmp) PNGARG((png_const_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
 
-void (PNGAPI *qpng_write_end) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_write_end);
-void (PNGAPI *qpng_write_image) PNGARG((png_structrp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
-void (PNGAPI *qpng_write_info) PNGARG((png_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_write_info);
-void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
+static void (PNGAPI *qpng_write_end) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_write_end);
+static void (PNGAPI *qpng_write_image) PNGARG((png_structrp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
+static void (PNGAPI *qpng_write_info) PNGARG((png_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_write_info);
+#ifdef PNG_TEXT_SUPPORTED
+static void (PNGAPI *qpng_set_text) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_const_textp text_ptr, int num_text)) PSTATIC(png_set_text);
+#endif
+static void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
 			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
-void (PNGAPI *qpng_set_compression_level) PNGARG((png_structrp png_ptr, int level)) PSTATIC(png_set_compression_level);
-void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
-png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_io_ptr);
-void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
-png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
-void (PNGAPI *qpng_set_unknown_chunks) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_const_unknown_chunkp unknowns, int num_unknowns)) PSTATIC(png_set_unknown_chunks);
+static void (PNGAPI *qpng_set_compression_level) PNGARG((png_structrp png_ptr, int level)) PSTATIC(png_set_compression_level);
+static void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
+static png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_io_ptr);
+static void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
+static png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
+static void (PNGAPI *qpng_set_unknown_chunks) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_const_unknown_chunkp unknowns, int num_unknowns)) PSTATIC(png_set_unknown_chunks);
 
-png_voidp (PNGAPI *qpng_get_error_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_error_ptr);
+static png_voidp (PNGAPI *qpng_get_error_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_error_ptr);
 
 qboolean LibPNG_Init(void)
 {
@@ -858,6 +1005,9 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_create_read_struct,			"png_create_read_struct"},
 		{(void **) &qpng_sig_cmp,						"png_sig_cmp"},
 
+#ifdef PNG_TEXT_SUPPORTED
+		{(void **) &qpng_set_text,						"png_set_text"},
+#endif
 		{(void **) &qpng_write_end,						"png_write_end"},
 		{(void **) &qpng_write_image,					"png_write_image"},
 		{(void **) &qpng_write_info,					"png_write_info"},
@@ -1073,7 +1223,7 @@ error:
 
 
 #ifndef NPFTE
-int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bufferstride, int width, int height, enum uploadfmt fmt)
+static int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata)
 {
 	char name[MAX_OSPATH];
 	int i;
@@ -1147,12 +1297,12 @@ err:
 
 	if (fmt == TF_BGR24 || fmt == TF_BGRA32 || fmt == TF_BGRX32)
 		qpng_set_bgr(png_ptr);
-	if (fmt == TF_RGBA32 || fmt == TF_BGRA32)
+	if (fmt == TF_RGBA32 || fmt == TF_BGRA32 || fmt == PTI_LLLA8)
 	{
 		pxsize = 4;
 		qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 	}
-	else if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
+	else if (fmt == TF_RGBX32 || fmt == TF_BGRX32 || fmt == PTI_LLLX8)
 	{
 		pxsize = 4;
 		qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
@@ -1162,6 +1312,18 @@ err:
 		pxsize = 3;
 		qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 	}
+
+#ifdef PNG_TEXT_SUPPORTED
+	if (writemetadata)
+	{
+		char blob[8192];
+		png_text pngtext = {PNG_ITXT_COMPRESSION_NONE, "XML:com.adobe.xmp"};
+		pngtext.text = blob;
+		GenerateXMPData(blob, sizeof(blob), width, height, writemetadata);
+		pngtext.itxt_length = strlen(pngtext.text);
+		qpng_set_text(png_ptr, info_ptr, &pngtext, 1);
+	}
+#endif
 
 	if (numbuffers == 2)	//flag it as a standard stereographic image
 		qpng_set_unknown_chunks(png_ptr, info_ptr, &unknowns, 1);
@@ -1179,6 +1341,7 @@ err:
 			goto err;
 		pixels = (qbyte*)row_pointers + height;
 		//png requires right then left, which is a bit weird.
+		//they're meant to be viewable by going cross-eyed (if needed)
 		right = pixels;
 		left = right + (outwidth-width)*pxsize;
 
@@ -1275,23 +1438,24 @@ err:
 			  (size_t) sizeof(struct jpeg_decompress_struct))
 
 #ifdef DYNAMIC_LIBJPEG
-boolean (VARGS *qjpeg_resync_to_restart) JPP((j_decompress_ptr cinfo, int desired))										JSTATIC(jpeg_resync_to_restart);
-boolean (VARGS *qjpeg_finish_decompress) JPP((j_decompress_ptr cinfo))												JSTATIC(jpeg_finish_decompress);
-JDIMENSION (VARGS *qjpeg_read_scanlines) JPP((j_decompress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION max_lines))	JSTATIC(jpeg_read_scanlines);
-boolean (VARGS *qjpeg_start_decompress) JPP((j_decompress_ptr cinfo))													JSTATIC(jpeg_start_decompress);
-int (VARGS *qjpeg_read_header) JPP((j_decompress_ptr cinfo, boolean require_image))									JSTATIC(jpeg_read_header);
-void (VARGS *qjpeg_CreateDecompress) JPP((j_decompress_ptr cinfo, int version, size_t structsize))					JSTATIC(jpeg_CreateDecompress);
-void (VARGS *qjpeg_destroy_decompress) JPP((j_decompress_ptr cinfo))													JSTATIC(jpeg_destroy_decompress);
+static boolean (VARGS *qjpeg_resync_to_restart) JPP((j_decompress_ptr cinfo, int desired))									JSTATIC(jpeg_resync_to_restart);
+static boolean (VARGS *qjpeg_finish_decompress) JPP((j_decompress_ptr cinfo))												JSTATIC(jpeg_finish_decompress);
+static JDIMENSION (VARGS *qjpeg_read_scanlines) JPP((j_decompress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION max_lines))	JSTATIC(jpeg_read_scanlines);
+static boolean (VARGS *qjpeg_start_decompress) JPP((j_decompress_ptr cinfo))												JSTATIC(jpeg_start_decompress);
+static int (VARGS *qjpeg_read_header) JPP((j_decompress_ptr cinfo, boolean require_image))									JSTATIC(jpeg_read_header);
+static void (VARGS *qjpeg_CreateDecompress) JPP((j_decompress_ptr cinfo, int version, size_t structsize))					JSTATIC(jpeg_CreateDecompress);
+static void (VARGS *qjpeg_destroy_decompress) JPP((j_decompress_ptr cinfo))													JSTATIC(jpeg_destroy_decompress);
 
-struct jpeg_error_mgr * (VARGS *qjpeg_std_error) JPP((struct jpeg_error_mgr * err))									JSTATIC(jpeg_std_error);
+static struct jpeg_error_mgr * (VARGS *qjpeg_std_error) JPP((struct jpeg_error_mgr * err))									JSTATIC(jpeg_std_error);
 
-void (VARGS *qjpeg_finish_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_finish_compress);
-JDIMENSION (VARGS *qjpeg_write_scanlines) JPP((j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines))		JSTATIC(jpeg_write_scanlines);
-void (VARGS *qjpeg_start_compress) JPP((j_compress_ptr cinfo, boolean write_all_tables))								JSTATIC(jpeg_start_compress);
-void (VARGS *qjpeg_set_quality) JPP((j_compress_ptr cinfo, int quality, boolean force_baseline))						JSTATIC(jpeg_set_quality);
-void (VARGS *qjpeg_set_defaults) JPP((j_compress_ptr cinfo))															JSTATIC(jpeg_set_defaults);
-void (VARGS *qjpeg_CreateCompress) JPP((j_compress_ptr cinfo, int version, size_t structsize))						JSTATIC(jpeg_CreateCompress);
-void (VARGS *qjpeg_destroy_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_destroy_compress);
+static void (VARGS *qjpeg_finish_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_finish_compress);
+static JDIMENSION (VARGS *qjpeg_write_scanlines) JPP((j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines))	JSTATIC(jpeg_write_scanlines);
+static void (VARGS *qjpeg_write_marker) JPP((j_compress_ptr cinfo, int marker, const JOCTET *dataptr, unsigned int datalen))JSTATIC(jpeg_write_marker);
+static void (VARGS *qjpeg_start_compress) JPP((j_compress_ptr cinfo, boolean write_all_tables))								JSTATIC(jpeg_start_compress);
+static void (VARGS *qjpeg_set_quality) JPP((j_compress_ptr cinfo, int quality, boolean force_baseline))						JSTATIC(jpeg_set_quality);
+static void (VARGS *qjpeg_set_defaults) JPP((j_compress_ptr cinfo))															JSTATIC(jpeg_set_defaults);
+static void (VARGS *qjpeg_CreateCompress) JPP((j_compress_ptr cinfo, int version, size_t structsize))						JSTATIC(jpeg_CreateCompress);
+static void (VARGS *qjpeg_destroy_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_destroy_compress);
 #endif
 
 qboolean LibJPEG_Init(void)
@@ -1311,6 +1475,7 @@ qboolean LibJPEG_Init(void)
 
 		{(void **) &qjpeg_finish_compress,			"jpeg_finish_compress"},
 		{(void **) &qjpeg_write_scanlines,			"jpeg_write_scanlines"},
+		{(void **) &qjpeg_write_marker,				"jpeg_write_marker"},
 		{(void **) &qjpeg_start_compress,			"jpeg_start_compress"},
 		{(void **) &qjpeg_set_quality,				"jpeg_set_quality"},
 		{(void **) &qjpeg_set_defaults,				"jpeg_set_defaults"},
@@ -1647,6 +1812,7 @@ badjpeg:
 #define qjpeg_CreateCompress	jpeg_CreateCompress
 #define qjpeg_set_defaults		jpeg_set_defaults
 #define qjpeg_set_quality		jpeg_set_quality
+#define qjpeg_write_marker		jpeg_write_marker
 #define qjpeg_start_compress	jpeg_start_compress
 #define qjpeg_write_scanlines	jpeg_write_scanlines
 #define qjpeg_finish_compress	jpeg_finish_compress
@@ -1694,7 +1860,7 @@ METHODDEF(void) term_destination (j_compress_ptr cinfo)
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
 
-void ftejpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
+static void ftejpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
 {
 	my_destination_mgr *dest;
 
@@ -1724,7 +1890,7 @@ METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
 	longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int stride, int screenwidth, int screenheight, enum uploadfmt fmt)
+static qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int stride, int screenwidth, int screenheight, enum uploadfmt fmt, unsigned int writemeta)
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
@@ -1828,6 +1994,15 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 	qjpeg_set_quality (&cinfo, bound(0, compression, 100), true);
 	qjpeg_start_compress(&cinfo, true);
 
+	if (writemeta)
+	{
+		static const char header[] = "http://ns.adobe.com/xap/1.0/";
+		char blob[8192];
+		memcpy(blob, header, sizeof(header)); //MUST include the null terminator.
+		GenerateXMPData(blob+sizeof(header), sizeof(blob)-sizeof(header), screenwidth, screenheight, writemeta);
+		qjpeg_write_marker(&cinfo, JPEG_APP0+1, blob, sizeof(header)+strlen(blob+sizeof(header)));
+	}
+
 	while (cinfo.next_scanline < cinfo.image_height)
 	{
 		*row_pointer = &buffer[cinfo.next_scanline * stride];
@@ -1841,7 +2016,7 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 #endif
 #endif
 
-#ifndef NPFTE
+#ifdef IMAGEFMT_PCX
 /*
 ==============
 WritePCXfile
@@ -1908,8 +2083,6 @@ void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, i
 	else
 		COM_WriteFile (filename, fsroot, pcx, length);
 }
-#endif
-
 
 /*
 ============
@@ -2114,8 +2287,9 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 
 	return out;
 }
+#endif
 
-
+#ifdef IMAGEFMT_BMP
 typedef struct bmpheader_s
 {
 	unsigned int	SizeofBITMAPINFOHEADER;
@@ -2186,7 +2360,7 @@ static qbyte *ReadRawBMPFile(qbyte *buf, int length, int *width, int *height, si
 
 		for (i = 0; i < h.NumofColorIndices; i++)
 		{
-			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
+			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255u/*data[i*4+3]*/<<24);
 		}
 
 		if (OffsetofBMPBits)
@@ -2237,7 +2411,7 @@ static qbyte *ReadRawBMPFile(qbyte *buf, int length, int *width, int *height, si
 
 		for (i = 0; i < h.NumofColorIndices; i++)
 		{
-			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
+			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255u/*data[i*4+3]*/<<24);
 		}
 
 		if (OffsetofBMPBits)
@@ -2328,7 +2502,7 @@ static qbyte *ReadRawBMPFile(qbyte *buf, int length, int *width, int *height, si
 	return NULL;
 }
 
-qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
+static qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 {
 	unsigned short Type				= buf[0] | (buf[1]<<8);
 	unsigned short Size				= buf[2] | (buf[3]<<8) | (buf[4]<<16) | (buf[5]<<24);
@@ -2532,6 +2706,7 @@ static qbyte *ReadICOFile(qbyte *buf, int length, int *width, int *height, const
 
 	return NULL;
 }
+#endif
 
 #ifndef NPFTE
 
@@ -2745,7 +2920,7 @@ typedef struct
 	unsigned int numberofmipmaplevels;
 	unsigned int bytesofkeyvaluedata;
 } ktxheader_t;
-void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips)
+qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips)
 {
 	vfsfile_t *file;
 	ktxheader_t header = {{0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A}, 0x04030201,
@@ -2753,8 +2928,8 @@ void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips)
 		0/*base*/, mips->mip[0].width, mips->mip[0].height, 0/*depth*/,
 		0/*array elements*/, (mips->type==PTI_CUBEMAP)?6:1, mips->mipcount, 0/*kvdatasize*/};
 	size_t mipnum;
-	if (mips->type != PTI_2D)// && mips->type != PTI_CUBEMAP)
-		return;
+	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)
+		return false;
 	header.numberofmipmaplevels /= header.numberoffaces;
 
 	switch(mips->encoding)
@@ -2852,18 +3027,18 @@ void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips)
 #endif
 	case PTI_EMULATED:
 	case PTI_MAX:
-		return;
+		return false;
 
 //	default:
 //		return;
 	}
 
 	if (strchr(filename, '*') || strchr(filename, ':'))
-		return;
+		return false;
 
-	file = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+	file = FS_OpenVFS(filename, "wb", fsroot);
 	if (!file)
-		return;
+		return false;
 	VFS_WRITE(file, &header, sizeof(header));
 
 	for (mipnum = 0; mipnum < mips->mipcount; mipnum++)
@@ -2879,6 +3054,7 @@ void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips)
 	}
 
 	VFS_CLOSE(file);
+	return true;
 }
 static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
@@ -2979,7 +3155,8 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x93DC/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR*/:	encoding = PTI_ASTC_12X10_SRGB;		break;
 	case 0x93DD/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR*/:	encoding = PTI_ASTC_12X12_SRGB;		break;
 	case 0x80E1/*GL_BGRA_EXT*/:									encoding = PTI_BGRA8;				break;	//not even an internal format
-	case 0x1908/*GL_RGBA*/:										encoding = (header->glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8:PTI_RGBA8;				break;	//unsized types shouldn't really be here
+	case 0x1908/*GL_RGBA*/:
+	case 0x8058/*GL_RGBA8*/:									encoding = (header->glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8:PTI_RGBA8;			break;	//unsized types shouldn't really be here
 	case 0x8C43/*GL_SRGB8_ALPHA8*/:								encoding = (header->glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8_SRGB:PTI_RGBA8_SRGB;	break;
 	case 0x8040/*GL_LUMINANCE8*/:								encoding = PTI_L8;					break;
 	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:						encoding = PTI_L8A8;				break;
@@ -3090,6 +3267,10 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	w = header->pixelwidth;
 	h = header->pixelheight;
 	d = header->pixeldepth;
+
+	//fixme: if (w+blockwidth-1)/blockwidth)*blockbytes MUST be a multiple of 4.
+	//we need to de-pad it otherwise.
+
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
 		datasize = *(int*)filedata;
@@ -3334,11 +3515,17 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 //		pad = 8;
 		switch(fmt10header.dxgiformat)
 		{
+		case 2/*DXGI_FORMAT_R32G32B32A32_FLOAT*/:
+			encoding = PTI_RGBA32F;
+			break;
 		case 10/*DXGI_FORMAT_R16G16B16A16_FLOAT*/:
 			encoding = PTI_RGBA16F;
 			break;
 		case 24/*DXGI_FORMAT_R10G10B10A2_UNORM*/:
 			encoding = PTI_A2BGR10;
+			break;
+		case 28/*DXGI_FORMAT_R8G8B8A8_UNORM*/:
+			encoding = PTI_RGBA8;
 			break;
 		case 67/*DXGI_FORMAT_R9G9B9E5_SHAREDEXP*/:
 			encoding = PTI_E5BGR9;
@@ -3378,6 +3565,9 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 			break;
 		case 86/*DXGI_FORMAT_B5G5R5A1_UNORM*/:
 			encoding = PTI_ARGB1555;
+			break;
+		case 87/*DXGI_FORMAT_B8G8R8A8_UNORM*/:
+			encoding = PTI_BGRA8;
 			break;
 		case 95/*DXGI_FORMAT_BC6H_UF16*/:
 			encoding = PTI_BC6_RGB_UFLOAT;
@@ -3459,6 +3649,213 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	}
 
 	return mips;
+}
+
+qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips)
+{
+	vfsfile_t *file;
+	size_t mipnum;
+	size_t a;
+	dds10header_t h10={0};
+	ddsheader h9={0};
+
+	unsigned int blockbytes, blockwidth, blockheight;
+	unsigned int arraysize = (mips->type==PTI_CUBEMAP||mips->type==PTI_CUBEMAP_ARRAY)?6:1;
+
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
+
+	h9.dwSize = sizeof(h9);
+	h9.dwFlags = 0;
+	h9.dwFlags |= 1;			//CAPS
+	h9.dwFlags |= 2;			//HEIGHT
+	h9.dwFlags |= 4;			//WIDTH
+	h9.dwFlags |= 0x1000;		//PIXELFORMAT
+	if (blockwidth != 1 || blockheight != 1)
+	{
+		h9.dwFlags |= 0x80000;	//LINEARSIZE
+		h9.dwPitchOrLinearSize = ((mips->mip[0].width+blockwidth-1)/blockwidth)*((mips->mip[0].height+blockheight-1)/blockheight)*blockbytes;
+	}
+	else
+	{
+		h9.dwFlags |= 8;		//PITCH
+		h9.dwPitchOrLinearSize = mips->mip[0].width*blockbytes;
+	}
+	if (mips->mipcount > 1)
+		h9.dwFlags |= 0x20000;	//MIPMAPCOUNT
+	h9.dwHeight = mips->mip[0].height;
+	h9.dwWidth = mips->mip[0].width;
+	h9.dwDepth = 0;
+	h9.dwMipMapCount = mips->mipcount/arraysize;
+	h9.ddpfPixelFormat.dwSize = 32;
+	h9.ddpfPixelFormat.dwFlags = 4/*DDPF_FOURCC*/;
+	h9.ddpfPixelFormat.dwFourCC = ('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24);
+	h9.ddsCaps[0] = 0x1000;		//TEXTURE
+	if (mips->mipcount > 1)
+		h9.ddsCaps[0] |= 0x8;		//COMPLEX
+	if (mips->mipcount > arraysize)
+		h9.ddsCaps[0] |= 0x400000;	//MIPMAP
+	h9.ddsCaps[1] = 0;
+	h10.miscflag = 0;
+	h10.arraysize = arraysize;
+	h10.miscflags2 = 0;
+
+	switch(mips->type)
+	{
+	case PTI_3D:
+		h9.ddsCaps[1] |= 0x200000;	//VOLUME
+		h10.resourcetype = 4;	//3d
+		break;
+	case PTI_CUBEMAP:
+	case PTI_CUBEMAP_ARRAY:
+		h9.ddsCaps[1] |= 0x200|0xfc00;		//CUBEMAP+faces
+		h10.resourcetype = 3;	//2d
+		h10.miscflag = 4;//DDS_RESOURCE_MISC_TEXTURECUBE - otherwise they're basicaly just 2d_arrays
+		break;
+	case PTI_2D:
+	case PTI_2D_ARRAY:
+		h10.resourcetype = 3;	//2d
+		break;
+	}
+
+	h10.dxgiformat = 0;
+
+	switch(mips->encoding)
+	{
+	case PTI_ETC1_RGB8:
+	case PTI_ETC2_RGB8:
+	case PTI_ETC2_RGB8_SRGB:
+	case PTI_ETC2_RGB8A1:
+	case PTI_ETC2_RGB8A1_SRGB:
+	case PTI_ETC2_RGB8A8:
+	case PTI_ETC2_RGB8A8_SRGB:
+	case PTI_EAC_R11:
+	case PTI_EAC_R11_SNORM:
+	case PTI_EAC_RG11:
+	case PTI_EAC_RG11_SNORM:
+	case PTI_ASTC_4X4:
+	case PTI_ASTC_5X4:
+	case PTI_ASTC_5X5:
+	case PTI_ASTC_6X5:
+	case PTI_ASTC_6X6:
+	case PTI_ASTC_8X5:
+	case PTI_ASTC_8X6:
+	case PTI_ASTC_10X5:
+	case PTI_ASTC_10X6:
+	case PTI_ASTC_8X8:
+	case PTI_ASTC_10X8:
+	case PTI_ASTC_10X10:
+	case PTI_ASTC_12X10:
+	case PTI_ASTC_12X12:
+	case PTI_ASTC_4X4_SRGB:
+	case PTI_ASTC_5X4_SRGB:
+	case PTI_ASTC_5X5_SRGB:
+	case PTI_ASTC_6X5_SRGB:
+	case PTI_ASTC_6X6_SRGB:
+	case PTI_ASTC_8X5_SRGB:
+	case PTI_ASTC_8X6_SRGB:
+	case PTI_ASTC_10X5_SRGB:
+	case PTI_ASTC_10X6_SRGB:
+	case PTI_ASTC_8X8_SRGB:
+	case PTI_ASTC_10X8_SRGB:
+	case PTI_ASTC_10X10_SRGB:
+	case PTI_ASTC_12X10_SRGB:
+	case PTI_ASTC_12X12_SRGB:	return false;	//unsupported
+	case PTI_BC1_RGB:
+	case PTI_BC1_RGBA:			h10.dxgiformat = 71/*DXGI_FORMAT_BC1_UNORM*/; break;
+	case PTI_BC1_RGB_SRGB:
+	case PTI_BC1_RGBA_SRGB:		h10.dxgiformat = 72/*DXGI_FORMAT_BC1_UNORM_SRGB*/; break;
+	case PTI_BC2_RGBA:			h10.dxgiformat = 74/*DXGI_FORMAT_BC2_UNORM*/; break;
+	case PTI_BC2_RGBA_SRGB:		h10.dxgiformat = 75/*DXGI_FORMAT_BC2_UNORM_SRGB*/; break;
+	case PTI_BC3_RGBA:			h10.dxgiformat = 77/*DXGI_FORMAT_BC3_UNORM*/; break;
+	case PTI_BC3_RGBA_SRGB:		h10.dxgiformat = 78/*DXGI_FORMAT_BC3_UNORM_SRGB*/; break;
+	case PTI_BC4_R8_SNORM:		h10.dxgiformat = 81/*DXGI_FORMAT_BC4_SNORM*/; break;
+	case PTI_BC4_R8:			h10.dxgiformat = 80/*DXGI_FORMAT_BC4_UNORM*/; break;
+	case PTI_BC5_RG8_SNORM:		h10.dxgiformat = 84/*DXGI_FORMAT_BC5_SNORM*/; break;
+	case PTI_BC5_RG8:			h10.dxgiformat = 83/*DXGI_FORMAT_BC5_UNORM*/; break;
+	case PTI_BC6_RGB_UFLOAT:	h10.dxgiformat = 95/*DXGI_FORMAT_BC6H_UF16*/; break;
+	case PTI_BC6_RGB_SFLOAT:	h10.dxgiformat = 96/*DXGI_FORMAT_BC6H_SF16*/; break;
+	case PTI_BC7_RGBA:			h10.dxgiformat = 98/*DXGI_FORMAT_BC7_UNORM*/; break;
+	case PTI_BC7_RGBA_SRGB:		h10.dxgiformat = 99/*DXGI_FORMAT_BC7_UNORM_SRGB*/; break;
+
+	case PTI_BGRA8:				h10.dxgiformat = 87/*DXGI_FORMAT_B8G8R8A8_UNORM*/; break;
+	case PTI_RGBA8:				h10.dxgiformat = 28/*DXGI_FORMAT_R8G8B8A8_UNORM*/; break;
+	case PTI_BGRA8_SRGB:		h10.dxgiformat = 91/*DXGI_FORMAT_B8G8R8A8_UNORM_SRGB*/; break;
+	case PTI_RGBA8_SRGB:		h10.dxgiformat = 29/*DXGI_FORMAT_R8G8B8A8_UNORM_SRGB*/; break;
+	case PTI_L8:				return false;	//unsupported
+	case PTI_L8A8:				return false;	//unsupported
+	case PTI_L8_SRGB:			return false;	//unsupported
+	case PTI_L8A8_SRGB:			return false;	//unsupported
+	case PTI_RGB8:				return false;	//unsupported
+	case PTI_BGR8:				return false;	//unsupported
+	case PTI_RGBA16F:			h10.dxgiformat = 10/*DXGI_FORMAT_R16G16B16A16_FLOAT*/; break;
+	case PTI_RGBA32F:			h10.dxgiformat = 2/*DXGI_FORMAT_R32G32B32A32_FLOAT*/; break;
+	case PTI_A2BGR10:			h10.dxgiformat = 24/*DXGI_FORMAT_R10G10B10A2_UNORM*/; break;
+	case PTI_E5BGR9:			h10.dxgiformat = 67/*DXGI_FORMAT_R9G9B9E5_SHAREDEXP*/; break;
+	case PTI_R8:				h10.dxgiformat = 61/*DXGI_FORMAT_R8_UNORM*/; break;
+	case PTI_RG8:				h10.dxgiformat = 49/*DXGI_FORMAT_R8G8_UNORM*/; break;
+	case PTI_R8_SNORM:			h10.dxgiformat = 63/*DXGI_FORMAT_R8_SNORM*/; break;
+	case PTI_RG8_SNORM:			h10.dxgiformat = 51/*DXGI_FORMAT_R8G8_SNORM*/; break;
+	case PTI_BGRX8:				h10.dxgiformat = 88/*DXGI_FORMAT_B8G8R8X8_UNORM*/; break;
+	case PTI_RGBX8:				return false;	//unsupported
+	case PTI_BGRX8_SRGB:		h10.dxgiformat = 93/*DXGI_FORMAT_B8G8R8X8_UNORM_SRGB*/; break;
+	case PTI_RGBX8_SRGB:		return false; //unsupported
+	case PTI_RGB565:			h10.dxgiformat = 85/*DXGI_FORMAT_B5G6R5_UNORM*/; break;
+	case PTI_RGBA4444:			return false;	//unsupported
+	case PTI_ARGB4444:			h10.dxgiformat = 115/*DXGI_FORMAT_B4G4R4A4_UNORM*/; break;
+	case PTI_RGBA5551:			return false;	//unsupported
+	case PTI_ARGB1555:			h10.dxgiformat = 86/*DXGI_FORMAT_B5G5R5A1_UNORM*/; break;
+	case PTI_DEPTH16:			h10.dxgiformat = 55/*DXGI_FORMAT_D16_UNORM*/; break;
+	case PTI_DEPTH24:			return false; //unsupported
+	case PTI_DEPTH32:			h10.dxgiformat = 40/*DXGI_FORMAT_D32_FLOAT*/; break;
+	case PTI_DEPTH24_8:			h10.dxgiformat = 45/*DXGI_FORMAT_D24_UNORM_S8_UINT*/; break;
+
+#ifdef FTE_TARGET_WEB
+	case PTI_WHOLEFILE:
+#endif
+	case PTI_EMULATED:
+	case PTI_MAX:
+		return false;
+
+//	default:
+//		return;
+	}
+
+	//truncate the mip chain if they're dodgy sizes.
+	for (mipnum = 1; mipnum < h9.dwMipMapCount; mipnum++)
+	{
+		size_t m = mipnum*arraysize;
+		size_t p = (mipnum-1)*arraysize;
+		if (mips->mip[m].width != max(1,(mips->mip[p].width)>>1) ||
+			mips->mip[m].height != max(1,(mips->mip[p].height)>>1))
+		{
+			h9.dwMipMapCount = mipnum;
+			break;
+		}
+	}
+
+	if (strchr(filename, '*') || strchr(filename, ':'))
+		return false;
+
+	file = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+	if (!file)
+		return false;
+	VFS_WRITE(file, "DDS ", 4);
+	VFS_WRITE(file, &h9, sizeof(h9));
+	VFS_WRITE(file, &h10, sizeof(h10));
+
+	//our internal state uses a0m0, a1m0, a0m1, a1m1
+	//DDS requires a0m0, a0m1, a1m0, a1m1, so reorder with two nested loops
+	for (a = 0; a < arraysize; a++)
+	{
+		for (mipnum = 0; mipnum < h9.dwMipMapCount; mipnum++)
+		{
+			size_t m = a + mipnum*arraysize;
+			VFS_WRITE(file, mips->mip[m].data, mips->mip[m].datasize);
+		}
+	}
+
+	VFS_CLOSE(file);
+	return true;
 }
 #endif
 
@@ -3659,13 +4056,16 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		return data;
 	}
 #endif
+#ifdef IMAGEFMT_PCX
 	if ((data = ReadPCXFile(buf, len, width, height)))
 	{
 		*format = PTI_RGBA8;
 		TRACE(("dbg: Read32BitImageFile: pcx\n"));
 		return data;
 	}
+#endif
 
+#ifdef IMAGEFMT_BMP
 	if (len > 2 && (buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, len, width, height)))
 	{
 		*format = PTI_RGBA8;
@@ -3679,14 +4079,16 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		TRACE(("dbg: Read32BitImageFile: ico\n"));
 		return data;
 	}
+#endif
 
+#if 1//def IMAGEFMT_LMP
 	if (len >= 8)	//.lmp has no magic id. guess at it.
 	{
 		int w = LittleLong(((int*)buf)[0]);
 		int h = LittleLong(((int*)buf)[1]);
 		int i;
-		if (w >= 3 && h >= 4 && w*h+sizeof(int)*2 == len)
-		{
+		if (w >= 3 && h	>= 4 && w*h+sizeof(int)*2 == len)
+		{	//quake lmp
 			qboolean foundalpha = false;
 			qbyte *in = (qbyte*)((int*)buf+2);
 			data = BZ_Malloc(w * h * sizeof(int));
@@ -3702,7 +4104,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 			return data;
 		}
 		else if (w >= 3 && h >= 4 && w*h+sizeof(int)*2+768+2 == len)
-		{
+		{	//halflife. should probably verify that those 2 extra bytes read as 256.
 			qboolean foundalpha = false;
 			qbyte *in = (qbyte*)((int*)buf+2);
 			qbyte *palette = in + w*h+2, *p;
@@ -3723,6 +4125,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 			return data;
 		}
 	}
+#endif
 
 	TRACE(("dbg: Read32BitImageFile: life sucks\n"));
 
@@ -3786,7 +4189,7 @@ static void *R_FlipImage32(void *in, int *inoutwidth, int *inoutheight, qboolean
 	return out;
 }
 
-int tex_extensions_count;
+static int tex_extensions_count;
 #define tex_extensions_max 15
 static struct
 {
@@ -3815,20 +4218,20 @@ static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue)
 
 static struct
 {
-	int args;
 	char *path;
+	int args;
 
 	int enabled;
 } tex_path[] =
 {
 	/*if three args, first is the subpath*/
 	/*the last two args are texturename then extension*/
-	{2, "%s%s", 1},				/*directly named texture*/
-	{3, "textures/%s/%s%s", 1},	/*fuhquake compatibility*/
-	{3, "%s/%s%s", 1},			/*fuhquake compatibility*/
-	{2, "textures/%s%s", 1},	/*directly named texture with textures/ prefix*/
+	{"%s%s",			2, 1},	/*directly named texture*/
+	{"textures/%s/%s%s",3, 1},	/*fuhquake compatibility*/
+	{"%s/%s%s",			3, 1},	/*fuhquake compatibility*/
+	{"textures/%s%s",	2, 1},	/*directly named texture with textures/ prefix*/
 #ifndef NOLEGACY
-	{2, "override/%s%s", 1}		/*tenebrae compatibility*/
+	{"override/%s%s",	2, 1}	/*tenebrae compatibility*/
 #endif
 };
 
@@ -4061,7 +4464,7 @@ static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, 
 			lerp = f & 0xFFFF;
 			if (yi != oldy)
 			{
-				inrow = (qbyte *)indata + inwidth4*yi;
+				inrow = (const qbyte *)indata + inwidth4*yi;
 				if (yi == oldy+1)
 					memcpy(row1, row2, outwidth4);
 				else
@@ -4125,7 +4528,7 @@ static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, 
 			yi = endy;	//don't read off the end
 			if (yi != oldy)
 			{
-				inrow = (qbyte *)indata + inwidth4*yi;
+				inrow = (const qbyte *)indata + inwidth4*yi;
 				if (yi == oldy+1)
 					memcpy(row1, row2, outwidth4);
 				else
@@ -4683,6 +5086,8 @@ static void Image_Decode_ETC2_Block_TH_Internal(qbyte *fte_restrict in, pixel32_
 }
 static void Image_Decode_ETC2_Block_Internal(qbyte *fte_restrict in, pixel32_t *fte_restrict out0, int w, int alphamode)
 {
+	//the overflow modes are only valid with ETC2.
+	//alphamode=1 is used for punchthrough-alpha (which also forces the diff mode)
 	static const char tab[8][2] =
 	{
 		{2,8},
@@ -5412,7 +5817,7 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 
 	//iiuc any basic s3tc patents have now expired, so it is legally safe to decode (though fancy compression logic may still have restrictions, but we don't compress).
 	static float throttle;
-	void *decodefunc = NULL;
+	void (*decodefunc)(qbyte *fte_restrict, pixel32_t *fte_restrict, int) = NULL;
 	int rcoding = mips->encoding;
 	int mip;
 	switch(mips->encoding)
@@ -6818,8 +7223,9 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 {
 	static struct
 	{
-		char *suffix;
+		const char *suffix;
 		qboolean flipx, flipy, flipd;
+		int pad;
 	} cmscheme[][6] =
 	{
 		{
@@ -6995,6 +7401,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 
 		if (!tex->fallbackdata || (gl_load24bit.ival && !(tex->flags & IF_NOREPLACE)))
 		{
+#ifdef IMAGEFMT_DDS
 			Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
 			depth = FS_FLocateFile(fname, locflags, &loc);
 			if (depth < bestdepth)
@@ -7004,6 +7411,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 				*bestloc = loc;
 				bestflags = 0;
 			}
+#endif
 
 			if (strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
 				i = 0;
@@ -7635,6 +8043,7 @@ typedef struct
 	char *name;
 	char *legacyname;
 	int	maximize, minmip, minimize;
+	int pad;
 } texmode_t;
 static texmode_t texmodes[] = {
 	{"n",	"GL_NEAREST",					0,	-1,	0},
@@ -8074,3 +8483,166 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
 	}
 }
 #endif
+
+/*
+Find closest color in the palette for named color
+*/
+int MipColor(int r, int g, int b)
+{
+	int i;
+	float dist;
+	int best=15;
+	float bestdist;
+	int r1, g1, b1;
+	static int lr = -1, lg = -1, lb = -1;
+	static int lastbest;
+
+	if (r == lr && g == lg && b == lb)
+		return lastbest;
+
+	bestdist = 256*256*3;
+
+	for (i = 0; i < 256; i++)
+	{
+		r1 = host_basepal[i*3] - r;
+		g1 = host_basepal[i*3+1] - g;
+		b1 = host_basepal[i*3+2] - b;
+		dist = r1*r1 + g1*g1 + b1*b1;
+		if (dist < bestdist) {
+			bestdist = dist;
+			best = i;
+		}
+	}
+	lr = r; lg = g; lb = b;
+	lastbest = best;
+	return best;
+}
+
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta)
+{
+	char ext[8];
+	void *nbuffers[2];
+
+	switch(fmt)
+	{	//nuke any alpha channel...
+	case TF_RGBA32: fmt = TF_RGBX32; break;
+	case TF_BGRA32: fmt = TF_BGRX32; break;
+	default: break;
+	}
+
+	if (!bytestride)
+		bytestride = width*4;
+	if (bytestride < 0)
+	{	//fix up the buffers so callers don't have to.
+		int nb = numbuffers;
+		for (numbuffers = 0; numbuffers < nb && numbuffers < countof(nbuffers); numbuffers++)
+		nbuffers[numbuffers] = (char*)buffer[numbuffers] - bytestride*(height-1);
+		buffer = nbuffers;
+	}
+
+	COM_FileExtension(filename, ext, sizeof(ext));
+
+	#ifdef AVAIL_PNGLIB
+	if (!Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "pns"))
+	{
+		//png can do bgr+rgb
+		//rgba bgra will result in an extra alpha chan
+		//actual stereo is also supported. huzzah.
+		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, buffer, numbuffers, bytestride, width, height, fmt, writemeta);
+	}
+	else
+#endif
+#ifdef AVAIL_JPEGLIB
+	if (!Q_strcasecmp(ext, "jpeg") || !Q_strcasecmp(ext, "jpg") || !Q_strcasecmp(ext, "jps"))
+	{
+		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, buffer[0], bytestride, width, height, fmt, writemeta);
+	}
+	else
+#endif
+#ifdef IMAGEFMT_BMP
+	if (!Q_strcasecmp(ext, "bmp"))
+	{
+		return WriteBMPFile(filename, fsroot, buffer[0], bytestride, width, height, fmt);
+	}
+	else
+#endif
+#ifdef IMAGEFMT_PCX
+	if (!Q_strcasecmp(ext, "pcx"))
+	{
+		int y, x, s;
+		qbyte *src, *dest;
+		qbyte *srcbuf = buffer[0], *dstbuf;
+		if (fmt == TF_RGB24 || fmt == TF_RGBA32 || fmt == TF_RGBX32)
+		{
+			dstbuf = malloc(width*height);
+			s = (fmt == TF_RGB24)?3:4;
+			// convert in-place to eight bit
+			for (y = 0; y < height; y++)
+			{
+				src = srcbuf + (bytestride * y);
+				dest = dstbuf + (width * y);
+
+				for (x = 0; x < width; x++) {
+					*dest++ = MipColor(src[0], src[1], src[2]);
+					src += s;
+				}
+			}
+		}
+		else if (fmt == TF_BGR24 || fmt == TF_BGRA32 || fmt == TF_BGRX32)
+		{
+			dstbuf = malloc(width*height);
+			s = (fmt == TF_BGR24)?3:4;
+			// convert in-place to eight bit
+			for (y = 0; y < height; y++)
+			{
+				src = srcbuf + (bytestride * y);
+				dest = dstbuf + (width * y);
+
+				for (x = 0; x < width; x++) {
+					*dest++ = MipColor(src[2], src[1], src[0]);
+					src += s;
+				}
+			}
+		}
+		else
+			return false;
+
+		WritePCXfile (filename, fsroot, dstbuf, width, height, width, host_basepal, false);
+		free(dstbuf);
+	}
+	else
+#endif
+	if (!Q_strcasecmp(ext, "tga"))	//tga
+		return WriteTGA(filename, fsroot, buffer[0], bytestride, width, height, fmt);
+#ifdef IMAGEFMT_KTX
+	else if (!Q_strcasecmp(ext, "ktx") && bytestride > 0)	//ktx
+	{
+		struct pendingtextureinfo out = {PTI_2D};
+		out.encoding = fmt;
+		out.mipcount = 1;
+		out.mip[0].data = buffer[0];
+		out.mip[0].datasize = bytestride*height;
+		out.mip[0].width = width;
+		out.mip[0].height = height;
+		out.mip[0].depth = 1;
+		return Image_WriteKTXFile(filename, fsroot, &out);
+	}
+#endif
+#ifdef IMAGEFMT_DDS
+	else if (!Q_strcasecmp(ext, "dds") && bytestride > 0)	//dds
+	{
+		struct pendingtextureinfo out = {PTI_2D};
+		out.encoding = fmt;
+		out.mipcount = 1;
+		out.mip[0].data = buffer[0];
+		out.mip[0].datasize = bytestride*height;
+		out.mip[0].width = width;
+		out.mip[0].height = height;
+		out.mip[0].depth = 1;
+		return Image_WriteDDSFile(filename, fsroot, &out);
+	}
+#endif
+	else	//extension / type not recognised.
+		return false;
+	return true;
+}

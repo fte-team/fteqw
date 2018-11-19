@@ -1561,8 +1561,6 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 			}
 
 			UI_OpenMenu();
-
-			scr_conlines = 0;
 			return true;
 		}
 		return false;

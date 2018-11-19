@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <assert.h>
+#include <float.h>
 #include "iqm.h"
 
 #define ASSERT(c) if(c) {}
@@ -76,6 +77,7 @@ static inline T min(T a, T b)
 	return a < b ? a : b;
 }
 
+#define countof(n) (sizeof(n)/sizeof(n[0]))
 #define clamp(a,b,c) (max(b, min(a, c)))
 
 #define loop(v,m) for(int v = 0; v<int(m); v++)

@@ -45,9 +45,9 @@ typedef struct cmdalias_s
 {
 	struct cmdalias_s	*next;
 	char	*value;
+	int flags;
 	qbyte execlevel;
 	qbyte restriction;
-	int flags;
 	char	name[1];
 } cmdalias_t;
 
@@ -4044,11 +4044,12 @@ static void Cmd_Reset_f(void)
 // dumps current console contents to a text file
 static void Cmd_Condump_f(void)
 {
+	console_t *c = Con_GetMain();
 	vfsfile_t *f;
 	char *filename;
 	char line[8192];
 
-	if (!con_current)
+	if (!c)
 	{
 		Con_Printf ("No console to dump.\n");
 		return;
@@ -4074,13 +4075,12 @@ static void Cmd_Condump_f(void)
 	// print out current contents of console
 	// stripping out starting blank lines and blank spaces
 	{
-		console_t *curcon = &con_main;
 		conline_t *l;
 		conchar_t *t;
-		for (l = curcon->oldest; l; l = l->newer)
+		for (l = c->oldest; l; l = l->newer)
 		{
 			t = (conchar_t*)(l+1);
-			COM_DeFunString(t, t + l->length, line, sizeof(line), true, !!(curcon->parseflags & PFS_FORCEUTF8));
+			COM_DeFunString(t, t + l->length, line, sizeof(line), true, !!(c->parseflags & PFS_FORCEUTF8));
 			VFS_WRITE(f, line, strlen(line));
 			VFS_WRITE(f, "\n", 1);
 		}

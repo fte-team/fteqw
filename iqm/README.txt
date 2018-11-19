@@ -20,7 +20,10 @@ Unless you're doing complex stuff like any of the above, there's probably not al
 
 
 Command File Format:
-	output <FILENAME> - specified the output file name. you should only have one of these.
+	output <FILENAME> - specifies the output file name. you should only have one of each type of output.
+	output_qmdl <FILENAME> - specifies which file to write a quake1-format model. May only occur once.
+	output_md16 <FILENAME> - specifies the filename to write a quakeforge 16-bit md16 model to (a upgraded variation of quake's format). May only occur once.
+	output_md3 <FILENAME> - specifies the filename to write a quake3 md3 file to. May only occur once.
 	exec <FILENAME> - exec the specified command file, before parsing the rest of the current file.
 	hitbox <BODY NUM> <BONE NAME> <MIN POS VECTOR> <MAX POS VECTOR> - generates a hitmesh as a bbox centered around the bone in the base pose (the hitbox will rotate/move with animations). The bodynum will be visible to gamecode, and may merge with other hitboxes with the same group.
 	modelflags <NAME OR HEX> - enables the specified bit in the iqm header. supported names include q1_rocket, q1_grenade, q1_gib, q1_rotate, q1_tracer1, q1_zomgib, q1_tracer2, q1_tracer3

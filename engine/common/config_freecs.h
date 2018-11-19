@@ -104,6 +104,8 @@
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
 #undef IMAGEFMT_BLP	//legacy crap
+#undef IMAGEFMT_BMP	//legacy crap
+#undef IMAGEFMT_PCX	//legacy crap
 #undef DECOMPRESS_ETC2
 #undef DECOMPRESS_RGTC
 #undef DECOMPRESS_S3TC

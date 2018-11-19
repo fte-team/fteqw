@@ -27,7 +27,7 @@ float recdemostart;	//keyed to Sys_DoubleTime
 int demoframe;
 
 int cls_lastto;
-int cls_lasttype;
+static int cls_lasttype;
 
 void CL_PlayDemo(char *demoname, qboolean usesystempath);
 void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath);
@@ -1680,7 +1680,7 @@ static int CL_RecordInitialPlayers(sizebuf_t *buf, int seq, qboolean isnq)
 }
 static int CL_RecordInitialStats(sizebuf_t *buf, int seq, qboolean isnq)
 {
-	int seat, i;
+	size_t seat, i;
 	for (seat = 0; seat < cl.splitclients; seat++)
 	{
 		//higher stats should be 0 and thus not be sent, if not valid.
@@ -1741,7 +1741,7 @@ void CL_Record_f (void)
 	int		c;
 	char	name[MAX_OSPATH];
 	sizebuf_t	buf;
-	char	buf_data[MAX_OVERALLMSGLEN];
+	qbyte	buf_data[MAX_OVERALLMSGLEN];
 	int n, i;
 	char *s, *p, *fname;
 	extern	char gamedirfile[];
@@ -2601,12 +2601,12 @@ void CL_Demo_ClientCommand(char *commandtext)
 	}
 }
 
-char qtvhostname[1024];
-char qtvrequestbuffer[4096];
-int qtvrequestsize;
-char qtvrequestcmdbuffer[4096];
-int qtvrequestcmdsize;
-vfsfile_t *qtvrequest;
+static char qtvhostname[1024];
+static char qtvrequestbuffer[4096];
+static size_t qtvrequestsize;
+static char qtvrequestcmdbuffer[4096];
+static int qtvrequestcmdsize;
+static vfsfile_t *qtvrequest;
 
 void CL_QTVPoll (void)
 {

@@ -1579,16 +1579,16 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	if ((unicode >= '0' && unicode <= '9') || unicode == '.' || key < 0)
 		key = 0;
 
+	if (key == K_TAB && !(con->flags & CONF_ISWINDOW) && ctrl&&shift)
+	{	// cycle consoles with ctrl+shift+tab.
+		// (ctrl+tab forces tab completion,
+		//	shift+tab controls completion cycle,
+		//  so it has to be both.)
+		Con_CycleConsole();
+		return true;
+	}
 	if (con->redirect)
 	{
-		if (key == K_TAB)
-		{	// command completion
-			if (ctrl || shift)
-			{
-				Con_CycleConsole();
-				return true;
-			}
-		}
 		if (key == K_MOUSE1 || key == K_MOUSE2)
 			;
 		else if (con->redirect(con, unicode, key))
@@ -1614,7 +1614,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		{
 			if (key == K_MOUSE2 && !(con->flags & CONF_ISWINDOW))
 			{
-				if (con->close && !con->close(con, true))
+				if (con->close && !con->close(con, false))
 					return true;
 				Con_Destroy (con);
 			}
@@ -1843,12 +1843,6 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 
 	if (key == K_TAB)
 	{	// command completion
-		if (ctrl&&shift)
-		{
-			Con_CycleConsole();
-			return true;
-		}
-
 		if (con->commandcompletion)
 			CompleteCommand (ctrl, shift?-1:1);
 		return true;
@@ -2841,7 +2835,13 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	{
 		if (Key_Dest_Has(kdm_console|kdm_cwindows))
 		{
-			console_t *con = Key_Dest_Has(kdm_console)?con_current:con_curwindow;
+			console_t *con;
+			if (Key_Dest_Has(kdm_console))
+				con = con_current;
+			else if (Key_Dest_Has(kdm_cwindows))
+				con = con_curwindow;
+			else
+				con = NULL;
 			if (con_mouseover && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
 				con = con_mouseover;
 			if (con_curwindow && con_curwindow != con)

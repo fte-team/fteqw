@@ -213,7 +213,7 @@ void Draw_BigFontString(int x, int y, const char *text)
 	p = QBigFontWorks();
 	if (!p)
 	{
-		Draw_AltFunString(x, y, text);
+		Draw_AltFunString(x, y + (20-8)/2, text);
 		return;
 	}
 
@@ -438,7 +438,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		case mt_menudot:
 			i = (int)(realtime * 10)%maxdots;
 			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
-			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
+			if (R_GetShaderSizes(p, NULL, NULL, false)>0)
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
+			else if ((int)(realtime*4)&1)
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a^Ue00d");
 			break;
 		case mt_picturesel:
 			p = NULL;
@@ -2206,6 +2209,8 @@ void M_Menu_Main_f (void)
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options",		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit",			"menu_quit\n");		y += 20;
+
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 36);
 	}
 
 	if (!m_preset_chosen.ival)

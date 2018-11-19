@@ -6,7 +6,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 cmake_policy(SET CMP0063 NEW)
 
-PROJECT(fteqw)
+PROJECT(FTEQuake)
 
 INCLUDE_DIRECTORIES(
 	engine/common
@@ -35,51 +35,40 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 
 IF(${CMAKE_VERSION} VERSION_LESS "3.9.0")
+	MESSAGE(STATUS "no LTO - old cmake.")
 ELSE()
-	IF(NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
+	cmake_policy(SET CMP0069 NEW)
+	IF(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
 		#use LTO where possible. reportedly requires cmake 3.9 to actually work
 		INCLUDE(CheckIPOSupported)
 		check_ipo_supported(RESULT result)
 		IF(result)
 			SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+			MESSAGE(STATUS "Using LTO.")
+		ELSE()
+			MESSAGE(STATUS "no LTO - not supported.")
 		ENDIF()
+	ELSE()
+		MESSAGE(STATUS "no LTO - debug.")
 	ENDIF()
 ENDIF()
+
+SET(FTE_BUILD_CONFIG ${CMAKE_HOME_DIRECTORY}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
+SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
 
 FIND_PACKAGE(ZLIB)
 IF(NOT ZLIB_FOUND)
 	MESSAGE(WARNING "libz library NOT available. compressed pk3 will not be available.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ZLIB)
-	SET(ZLIB_LIBRARY m)
-	SET(ZLIB_LIBRARIES m)
-ENDIF()
-
-FIND_PACKAGE(GnuTLS)
-IF(NOT GNUTLS_FOUND)
-	MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
-ENDIF()
-
-FIND_PACKAGE(ALSA)
-IF(NOT ALSA_FOUND)
-	MESSAGE(WARNING "asound (alsa) library NOT available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ALSA)
-ENDIF()
-
-FIND_PACKAGE(X11)
-IF(X11_FOUND)
-	IF (NOT X11_Xcursor_FOUND)			
-		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_CURSOR)
-		MESSAGE(WARNING "Xcursor library NOT available.")
-	ENDIF()
-ELSE()
-	MESSAGE(WARNING "x11 library NOT available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
+	SET(ZLIB_LIBRARY )
+	SET(ZLIB_LIBRARIES )
 ENDIF()
 
 SET(OpenGL_GL_PREFERENCE LEGACY)
 FIND_PACKAGE(OpenGL)
-IF(NOT OpenGL_FOUND)
+IF(OpenGL_FOUND)
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GLQUAKE)
+ELSE()
 	MESSAGE(WARNING "opengl library NOT available. Will depend upon vulkan.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OPENGL)
 ENDIF()
@@ -103,6 +92,15 @@ ELSE()
 	MESSAGE(WARNING "freetype library NOT available. I hope you're okay with ascii.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_FREETYPE)
 ENDIF()
+
+#FIND_PACKAGE(Vulkan)
+#IF(Vulkan_FOUND)
+#	INCLUDE_DIRECTORIES( ${Vulkan_INCLUDE_DIRS} )
+	SET(FTE_DEFINES ${FTE_DEFINES};VKQUAKE)
+#ELSE()
+#	SET(FTE_DEFINES ${FTE_DEFINES};VKQUAKE)
+#	MESSAGE(WARNING "System vulkan headers NOT available.")
+#ENDIF()
 
 FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
 IF(NOT VORBISFILE_LIBRARY)
@@ -133,7 +131,7 @@ IF(${ANDROID})
 
 #	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
 
-	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
 	SET(FTE_LIBS android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_droid.c
@@ -148,8 +146,8 @@ ELSEIF(${WIN32})
 	
 	#	engine/server/sv_sys_win.c
 	
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} ole32 gdi32 wsock32 winmm)
-	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;D3D9QUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG) #D3D11QUAKE not included.
+	SET(FTE_LIBS ${ZLIB_LIBRARIES} ole32 gdi32 wsock32 winmm dxguid)
+	SET(FTE_DEFINES ${FTE_DEFINES};D3D9QUAKE;D3D11QUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG)
 	SET(FTE_ARCH_FILES 
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
@@ -189,7 +187,32 @@ ELSEIF(${WIN32})
 	)
 ELSEIF(${UNIX})	#linux(ish)
 				#openbsd will have issues with snd_linux.c
-	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
+
+	#linux-only packages
+	FIND_PACKAGE(GnuTLS)
+	IF(NOT GNUTLS_FOUND)
+		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
+	ENDIF()
+
+	FIND_PACKAGE(ALSA)
+	IF(NOT ALSA_FOUND)
+		MESSAGE(WARNING "asound (alsa) library NOT available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ALSA)
+	ENDIF()
+
+	FIND_PACKAGE(X11)
+	IF(X11_FOUND)
+		IF (NOT X11_Xcursor_FOUND)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_CURSOR)
+			MESSAGE(WARNING "Xcursor library NOT available.")
+		ENDIF()
+	ELSE()
+		MESSAGE(WARNING "x11 library NOT available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11)
+	ENDIF()
+
+	SET(FTE_DEFINES ${FTE_DEFINES};DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
 	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_linux.c
@@ -262,7 +285,7 @@ ELSEIF(1)	#SDL
 	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
 	
 	#SDL2.0.7 supports vulkan, so lets use it.
-	SET(FTE_DEFINES ${FTE_DEFINES};GLQUAKE;VKQUAKE;FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
+	SET(FTE_DEFINES ${FTE_DEFINES};FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
 	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_sdl.c
@@ -519,7 +542,7 @@ SET(FTE_CLIENT_FILES
 	engine/vk/vk_init.c
 )
 
-IF(${ANDROID})
+IF(ANDROID)
 	#android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
 	ADD_LIBRARY(ftedroid MODULE
 		${FTE_ARCH_FILES}
@@ -545,6 +568,19 @@ ELSE()
 	SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
 
+	ADD_EXECUTABLE(iqmtool
+		iqm/iqm.cpp
+		iqm/iqm.h
+	)
+	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
+
+	ADD_EXECUTABLE(httpserver
+		engine/common/fs_stdio.c
+		engine/http/httpserver.c
+		engine/http/iwebiface.c
+		engine/http/ftpserver.c
+	)
+	SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON};stricmp=strcasecmp;strnicmp=strncasecmp")
 
 	ADD_EXECUTABLE(fteqcc
 		engine/qclib/qcctui.c
@@ -593,7 +629,7 @@ SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
 
 #Bullet Physics library plugin
 #FIND_PACKAGE(Bullet)
-IF (${BULLET_FOUND})
+IF (BULLET_FOUND)
 	ADD_LIBRARY(bullet MODULE
 		plugins/qvm_api.c
 		plugins/plugin.c
@@ -606,7 +642,7 @@ ENDIF()
 
 #ODE Physics library plugin
 #FIND_PACKAGE(ode)
-IF (${ODE_FOUND})
+IF (ODE_FOUND)
 	ADD_LIBRARY(ode MODULE
 		plugins/qvm_api.c
 		plugins/plugin.c
@@ -638,7 +674,34 @@ ADD_LIBRARY(irc MODULE
 SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 
-IF(NOT ${ANDROID})
+#ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
+FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
+FIND_PATH(AVFORMAT_INCLUDE_DIR libavformat/avformat.h)
+FIND_PATH(AVUTIL_INCLUDE_DIR libavutil/avutil.h)
+FIND_PATH(AVSWSCALE_INCLUDE_DIR libswscale/swscale.h)
+IF(AVFORMAT_INCLUDE_DIR)
+	FIND_LIBRARY(AVCODEC_LIBRARY avcodec)
+	FIND_LIBRARY(AVFORMAT_LIBRARY avformat)
+	FIND_LIBRARY(AVUTIL_LIBRARY avutil)
+	FIND_LIBRARY(AVSWSCALE_LIBRARY swscale)
+
+	ADD_LIBRARY(ffmpeg MODULE
+		plugins/qvm_api.c
+		plugins/plugin.c
+		plugins/avplug/avaudio.c
+		plugins/avplug/avdecode.c
+		plugins/avplug/avencode.c
+	)
+	TARGET_INCLUDE_DIRECTORIES(ffmpeg PUBLIC ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR} ${AVSWSCALE_INCLUDE_DIR})
+	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	TARGET_LINK_LIBRARIES(ffmpeg m ${AVFORMAT_LIBRARY} ${AVCODEC_LIBRARY} ${AVUTIL_LIBRARY} ${AVSWSCALE_LIBRARY})
+	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+	SET_TARGET_PROPERTIES(ffmpeg PROPERTIES PREFIX "fteplug_")
+ELSE()
+	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
+ENDIF()
+
+IF(NOT ANDROID)
 	#XMPP/jabber client plugin
 	ADD_LIBRARY(xmpp MODULE
 		plugins/qvm_api.c
@@ -654,5 +717,4 @@ IF(NOT ${ANDROID})
 	SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
 ENDIF()
 
-#ffmpeg plugin
 #cef plugin

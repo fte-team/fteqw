@@ -2199,7 +2199,15 @@ struct bspx_header_s {
 };
 //supported lumps:
 //RGBLIGHTING (.lit)
+//LIGHTING_E5BGR9 (hdr lit)
 //LIGHTINGDIR (.lux)
+//LMSHIFT (lightmap scaling)
+//LMOFFSET (lightmap scaling)
+//LMSTYLE (lightmap scaling)
+//VERTEXNORMALS (smooth specular)
+//BRUSHLIST (no hull size issues)
+//ENVMAP (cubemaps)
+//SURFENVMAP (cubemaps)
 void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize)
 {
 	int i;
@@ -2424,11 +2432,11 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 
 struct bspxrw
 {
-	fromgame_t fg;
 	const char *fname;
 	char *origfile;
 	qofs_t origsize;
 	int lumpofs;
+	fromgame_t fg;
 
 	size_t corelumps;
 	size_t totallumps;

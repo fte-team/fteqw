@@ -43,8 +43,6 @@ static int	gl_filter_mip[3];	//everything else
 int		gl_mipcap_min = 0;
 int		gl_mipcap_max = 1000;
 
-void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips);
-
 void GL_DestroyTexture(texid_t tex)
 {
 	if (!tex)
@@ -964,7 +962,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				if (i)
 				{
 					out.mipcount = i;
-					Image_WriteKTXFile(va("textures/%s.ktx", tex->ident), &out);
+					Image_WriteKTXFile(va("textures/%s.ktx", tex->ident), FS_GAMEONLY, &out);
 				}
 				while (i-- > 0)
 					if (out.mip[i].needfree)

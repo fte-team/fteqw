@@ -84,7 +84,7 @@ glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementa
 or something.
 anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
 */
-#if defined(__GNUC__) && defined(__LP64__) && defined(__linux__) && !defined(FTE_SDL)
+#if defined(__GNUC__) && defined(__amd64__) && defined(__linux__) && !defined(FTE_SDL)
 	#include <features.h>       /* for glibc version */
 	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
 		__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
@@ -4790,7 +4790,7 @@ static void COM_Version_f (void)
 {
 	Con_Printf("\n");
 	Con_Printf("^&F0%s\n", FULLENGINENAME);
-	Con_Printf("%s\n", ENGINEWEBSITE);
+	Con_Printf("^[%s\\url\\%s^]\n", ENGINEWEBSITE, ENGINEWEBSITE);
 	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
@@ -4799,7 +4799,7 @@ static void COM_Version_f (void)
 		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
 #endif
 #ifdef CONFIG_FILE_NAME
-	Con_Printf("Build config: %s\n\n", STRINGIFY(CONFIG_FILE_NAME));
+	Con_Printf("Build config: %s\n\n", COM_SkipPath(STRINGIFY(CONFIG_FILE_NAME)));
 #endif
 
 #ifdef _DEBUG
@@ -5150,8 +5150,8 @@ static void COM_ErrorMe_f(void)
 #ifdef LOADERTHREAD
 static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue);
 cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
-cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
-cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
+static cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
+static cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
 
 #define WORKERTHREADS 16	//max
 /*multithreading worker thread stuff*/
@@ -6429,7 +6429,7 @@ static qboolean InfoBuf_EncodeString_Internal(const char *n, size_t s, char *out
 
 		for (c = n; c < n+s; c++)
 		{
-			base64_cur |= *(unsigned char*)c<<(16-	base64_bits);//first byte fills highest bits
+			base64_cur |= *(const unsigned char*)c<<(16-	base64_bits);//first byte fills highest bits
 			base64_bits += 8;
 
 			if (base64_bits == 24)

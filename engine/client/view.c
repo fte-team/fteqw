@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "winquake.h"
 #include "glquake.h"
+#include "shader.h"
 
 #include <ctype.h> // for isdigit();
 
@@ -103,8 +104,8 @@ cvar_t	v_gunkick				= CVARD("v_gunkick", "0", "Controls the strength of view ang
 cvar_t	v_gunkick_q2			= CVARD("v_gunkick_q2", "1", "Controls the strength of view angle changes when firing weapons (in Quake2).");
 cvar_t	v_viewmodel_quake		= CVARD("r_viewmodel_quake", "0", "Controls whether to use weird viewmodel movements from vanilla quake.");	//name comes from MarkV.
 
-cvar_t	v_viewheight			= CVAR("v_viewheight", "0");
-cvar_t	v_projectionmode		= CVAR("v_projectionmode", "0");
+cvar_t	v_viewheight			= CVARF("v_viewheight", "0", CVAR_ARCHIVE);
+cvar_t	v_projectionmode		= CVARF("v_projectionmode", "0", CVAR_ARCHIVE);
 
 cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
 
@@ -2160,6 +2161,9 @@ void V_RenderPlayerViews(playerview_t *pv)
 	R_RenderView ();
 	R2D_PolyBlend ();
 	R_DrawNameTags();
+#ifdef RTLIGHTS
+	R_EditLights_DrawInfo();
+#endif
 
 	if(cl.intermissionmode == IM_NONE)
 		R2D_DrawCrosshair();
@@ -2271,8 +2275,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 	r_refdef.externalview = false;
 }
 
-#include "shader.h"
-void V_RenderView (void)
+void V_RenderView (qboolean no2d)
 {
 	int seatnum;
 	int maxseats = cl.splitclients;
@@ -2291,6 +2294,8 @@ void V_RenderView (void)
 	for (seatnum = 0; seatnum < cl.splitclients && seatnum < maxseats; seatnum++)
 	{
 		V_ClearRefdef(&cl.playerview[seatnum]);
+		if (no2d)
+			r_refdef.drawcrosshair = r_refdef.drawsbar = 0;
 		if (seatnum)
 		{
 			//should be enough to just hack a few things.
@@ -2348,7 +2353,7 @@ void V_RenderView (void)
 #ifdef QUAKEHUD
 			case 0:	//show a mini-console.
 				{
-					console_t *con = &con_main;
+					console_t *con = Con_GetMain();
 					extern cvar_t gl_conback;
 					shader_t *conback;
 					if (*gl_conback.string && (conback = R_RegisterPic(gl_conback.string, NULL)) && R_GetShaderSizes(conback, NULL, NULL, true) > 0)
@@ -2357,7 +2362,7 @@ void V_RenderView (void)
 						R2D_Image(r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height, 0, 0, 1, 1, conback);
 					else
 						R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height);
-					if (!scr_conlines)
+					if (!scr_con_target && con)
 					{
 						int gah;
 						Font_BeginString(font_console, 0, 0, &gah, &gah);

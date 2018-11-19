@@ -2237,8 +2237,6 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 	trace_t trace;
 	static framestate_t framestate;	//meh
 
-	if (clip->type == MOVE_WORLDONLY)
-		return;
 	if (clip->type & MOVE_ENTCHAIN)
 		return;
 
@@ -2565,6 +2563,13 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		wedict_t *other = WEDICT_NUM_UB(w->progs, *w->g.other);
 		return World_ClipMoveToEntity (w, other, other->v->origin, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
 	}
+#ifndef NOLEGACY
+	if ((type&MOVE_WORLDONLY) == MOVE_WORLDONLY)
+	{	//for compat with DP
+		wedict_t *other = w->edicts;
+		return World_ClipMoveToEntity (w, other, other->v->origin, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
+	}
+#endif
 
 // clip to world
 	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false, clip.capsule, clip.hitcontentsmask);

@@ -1640,10 +1640,10 @@ typedef struct
 		char	*stringdata;
 	};
 } pf_hashentry_t;
-pf_hashtab_t *pf_hashtab;
-size_t pf_hash_maxtables;
-pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
-pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
+static pf_hashtab_t *pf_hashtab;
+static size_t pf_hash_maxtables;
+static pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
+//static pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
 static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 {
 	idx -= 1;
@@ -1664,7 +1664,7 @@ static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 	else
 		PR_BIError(prinst, "PF_hash_findtab: invalid hash table\n");
 	return NULL;
-};
+}
 
 void QCBUILTIN PF_hash_getkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1734,10 +1734,10 @@ void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			}
 			else
 				memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
+			return;
 		}
-		else
-			memcpy(G_VECTOR(OFS_RETURN), dflt, sizeof(vec3_t));
 	}
+	memcpy(G_VECTOR(OFS_RETURN), dflt, sizeof(vec3_t));
 }
 void QCBUILTIN PF_hash_getcb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1904,10 +1904,10 @@ typedef struct {
 	size_t bufferlen;
 	size_t len;
 	size_t ofs;
-	int accessmode;
 	pubprogfuncs_t *prinst;
+	long accessmode;
 } pf_fopen_files_t;
-pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
+static pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
 
 //returns false if the file is denied.
 //fallbackread can be NULL, if the qc is not allowed to read that (original) file at all.

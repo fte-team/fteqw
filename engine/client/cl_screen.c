@@ -183,8 +183,8 @@ float mousemove_x, mousemove_y;
 float multicursor_x[8], multicursor_y[8];
 qboolean multicursor_active[8];
 
-float           scr_con_current;
-float           scr_conlines;           // lines of console to display
+float           scr_con_current;	//current console lines shown
+float           scr_con_target;		//the target number of lines (not a local, because it helps to know if we're at the target yet, etc)
 
 qboolean		scr_con_forcedraw;
 
@@ -200,7 +200,6 @@ extern cvar_t			scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
 extern cvar_t			scr_sshot_prefix;
-extern cvar_t			scr_sshot_compression;
 extern cvar_t			crosshair;
 extern cvar_t			scr_consize;
 cvar_t			scr_neticontimeout = CVAR("scr_neticontimeout", "0.3");
@@ -222,7 +221,7 @@ qboolean        scr_disabled_for_loading;
 qboolean        scr_drawloading;
 float           scr_disabled_time;
 
-cvar_t	con_stayhidden = CVARFD("con_stayhidden", "0", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
+cvar_t	con_stayhidden = CVARFD("con_stayhidden", "1", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
 cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n1: framerate average over a second.\n2: Slowest frame over the last second (the game will play like shit if this is significantly lower than the average).\n3: Shows the rate of the fastest frame (not very useful).\n4: Shows the current frame's timings (this depends upon timer precision).\n5: Display a graph of how long it took to render each frame, large spikes are BAD BAD BAD.\n6: Displays the standard deviation of the frame times, if its greater than 3 then something is probably badly made, or you've a virus scanner running...\n7: Framegraph, for use with slower frames.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= CVAR("show_fps_y", "-1");
@@ -727,7 +726,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 	Font_BeginString(font, rect->x, y, &left, &top);
 	Font_BeginString(font, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
-	linecount = Font_LineBreaks(p->string, p->string + p->charcount, right - left, MAX_CPRINT_LINES, line_start, line_end);
+	linecount = Font_LineBreaks(p->string, p->string + p->charcount, (p->flags & CPRINT_NOWRAP)?0x7fffffff:(right - left), MAX_CPRINT_LINES, line_start, line_end);
 
 	ch = Font_CharHeight();
 
@@ -1943,8 +1942,6 @@ void SCR_SetLoadingStage(int stage)
 		SCR_SetLoadingFile("waiting for connection...");
 		break;
 	case LS_SERVER:
-		if (scr_con_current > vid.height*scr_consize.value)
-			scr_con_current = vid.height*scr_consize.value;
 		SCR_SetLoadingFile("starting server...");
 		break;
 	case LS_CLIENT:
@@ -2287,85 +2284,85 @@ SCR_SetUpToDrawConsole
 void SCR_SetUpToDrawConsole (void)
 {
 	extern int startuppending;	//true if we're downloading media or something and have not yet triggered the startup action (read: main menu or cinematic)
-//	if (scr_drawloading)
-//		return;         // never a console with loading plaque
-
-// decide on the height of the console
-//	if (!scr_disabled_for_loading)
-	{
-		float fullscreenpercent = 1;
+	float fullscreenpercent = 1;
 #ifdef ANDROID
-		//android has an onscreen imm that we don't want to obscure
-		fullscreenpercent = scr_consize.value;
+	//android has an onscreen imm that we don't want to obscure
+	fullscreenpercent = scr_consize.value;
 #endif
-		if (!con_stayhidden.ival && (!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->loadstate != MLS_LOADED))
+	if (!con_stayhidden.ival && (!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->loadstate != MLS_LOADED))
+	{
+		//force console to fullscreen if we're loading stuff (but don't necessarily force focus)
+//		Key_Dest_Add(kdm_console);
+		scr_con_target = scr_con_current = vid.height * fullscreenpercent;
+	}
+	else if (!startuppending && !Key_Dest_Has(kdm_emenu|kdm_gmenu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+	{
+		//go fullscreen if we're not doing anything
+		if (con_curwindow && !cls.state && !scr_drawloading && !Key_Dest_Has(kdm_console))
 		{
-			//force console to fullscreen if we're loading stuff
-//			Key_Dest_Add(kdm_console);
-			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
+			Key_Dest_Add(kdm_cwindows);
+			scr_con_target = 0; // not looking at an normal console
 		}
-		else if (!startuppending && !Key_Dest_Has(kdm_emenu|kdm_gmenu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
-		{
-			//go fullscreen if we're not doing anything
-			if (con_curwindow && !cls.state && !scr_drawloading)
-			{
-				Key_Dest_Add(kdm_cwindows);
-				scr_conlines = 0;
-			}
 #ifdef VM_UI
-			else if (UI_MenuState() || UI_OpenMenu())
-				scr_con_current = scr_conlines = 0;
+		else if (UI_MenuState() || UI_OpenMenu())
+			scr_con_current = scr_con_target = 0;	//force instantly hidden.
 #endif
-			else
+		else
+		{
+			qboolean legacyfullscreen = false;
+			if (cls.state < ca_demostart)
 			{
-				if (cls.state < ca_demostart)
-				{
-					if (con_stayhidden.ival)
+				if (con_stayhidden.ival)
+				{	//go to the menu instead of the console.
+					extern int startuppending;
+					if (!scr_drawloading && SCR_GetLoadingStage() == LS_NONE)
 					{
-						extern int startuppending;
-						scr_conlines = 0;
-						if (SCR_GetLoadingStage() == LS_NONE)
-						{
-							if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
-								SCR_SetLoadingStage(LS_CONNECTION);
-							else if (!Key_Dest_Has(kdm_emenu) && !startuppending)	//don't force anything until the startup stuff has been done
-								M_ToggleMenu_f();
-						}
+						if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
+							SCR_SetLoadingStage(LS_CONNECTION);
+						else if (!Key_Dest_Has(kdm_emenu) && !startuppending)	//don't force anything until the startup stuff has been done
+							M_ToggleMenu_f();
 					}
-					else
+				}
+				else
+				{	//nothing happening, make sure the console is visible or something.
+					if (!scr_drawloading)
 						Key_Dest_Add(kdm_console);
+					legacyfullscreen = true;
 				}
 			}
-			if (Key_Dest_Has(kdm_console) || (!con_stayhidden.ival && !startuppending && !scr_drawloading && !scr_disabled_for_loading && cls.state < ca_connected))
-				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
-			else
-				scr_conlines = 0;
-		}
-		else if (Key_Dest_Has(kdm_console))
-		{
-			//go half-screen if we're meant to have the console visible
-			scr_conlines = vid.height*scr_consize.value;    // half screen
-			if (scr_conlines < 32)
-				scr_conlines = 32;	//prevent total loss of console.
-			else if (scr_conlines>vid.height)
-				scr_conlines = vid.height;
-		}
-		else
-			scr_conlines = 0;                               // none visible
 
+			if (startuppending)
+				scr_con_target = 0;	//not made any decisions yet
+			else if (Key_Dest_Has(kdm_console) || legacyfullscreen)
+				scr_con_current = scr_con_target = vid.height * fullscreenpercent; // force instantly to fullscreen
+			else
+				scr_con_target = 0;
+		}
 	}
-	if (scr_conlines < scr_con_current)
+	else if (Key_Dest_Has(kdm_console))
+	{
+		//go half-screen if we're meant to have the console visible
+		scr_con_target = vid.height*scr_consize.value;    // half screen
+		if (scr_con_target < 32)
+			scr_con_target = 32;	//prevent total loss of console.
+		else if (scr_con_target>vid.height)
+			scr_con_target = vid.height;
+	}
+	else
+		scr_con_target = 0;                               // scroll to nothing
+
+	if (scr_con_target < scr_con_current)
 	{
 		scr_con_current -= scr_conspeed.value*host_frametime * (vid.height/320.0f);
-		if (scr_conlines > scr_con_current)
-			scr_con_current = scr_conlines;
+		if (scr_con_target > scr_con_current)
+			scr_con_current = scr_con_target;
 
 	}
-	else if (scr_conlines > scr_con_current)
+	else if (scr_con_target > scr_con_current)
 	{
 		scr_con_current += scr_conspeed.value*host_frametime * (vid.height/320.0f);
-		if (scr_conlines < scr_con_current)
-			scr_con_current = scr_conlines;
+		if (scr_con_target < scr_con_current)
+			scr_con_current = scr_con_target;
 	}
 
 	if (scr_con_current>vid.height)
@@ -2405,266 +2402,6 @@ void SCR_DrawConsole (qboolean noback)
 
 ==============================================================================
 */
-
-typedef struct _TargaHeader {
-	unsigned char   id_length, colormap_type, image_type;
-	unsigned short  colormap_index, colormap_length;
-	unsigned char   colormap_size;
-	unsigned short  x_origin, y_origin, width, height;
-	unsigned char   pixel_size, attributes;
-} TargaHeader;
-
-
-#if defined(AVAIL_JPEGLIB) && !defined(NO_JPEG)
-qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int bytestride, int screenwidth, int screenheight, enum uploadfmt fmt);
-#endif
-#ifdef AVAIL_PNGLIB
-int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt);
-#endif
-qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt);
-
-qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
-{
-	size_t c, i;
-	vfsfile_t *vfs;
-	if (fmt != TF_BGRA32 && fmt != TF_RGB24 && fmt != TF_RGBA32 && fmt != TF_BGR24 && fmt != TF_RGBX32 && fmt != TF_BGRX32)
-		return false;
-	FS_CreatePath(filename, fsroot);
-	vfs = FS_OpenVFS(filename, "wb", fsroot);
-	if (vfs)
-	{
-		int ipx,opx;
-		qboolean rgb;
-		unsigned char header[18];
-		memset (header, 0, 18);
-
-		if (fmt == TF_BGRA32 || fmt == TF_RGBA32)
-		{
-			rgb = fmt==TF_RGBA32;
-			ipx = 4;
-			opx = 4;
-		}
-		else if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
-		{
-			rgb = fmt==TF_RGBX32;
-			ipx = 4;
-			opx = 3;
-		}
-		else
-		{
-			rgb = fmt==TF_RGB24;
-			ipx = 3;
-			opx = 3;
-		}
-
-		header[2] = 2;			// uncompressed type
-		header[12] = width&255;
-		header[13] = width>>8;
-		header[14] = height&255;
-		header[15] = height>>8;
-		header[16] = opx*8;		// pixel size
-		header[17] = 0x00;		// flags
-
-		if (bytestride < 0)
-		{	//if we're upside down, lets just use an upside down tga.
-			rgb_buffer += bytestride*(height-1);
-			bytestride = -bytestride;
-			//now we can just do everything without worrying about rows
-		}
-		else	//our data is top-down, set up the header to also be top-down.
-			header[17] = 0x20;
-
-		if (ipx == opx && !rgb)
-		{	//can just directly write it
-			//bgr24, bgra24
-			c = width*height*opx;
-
-			VFS_WRITE(vfs, header, sizeof(header));
-			VFS_WRITE(vfs, rgb_buffer, c);
-		}
-		else
-		{
-			qbyte *fte_restrict rgb_out = malloc(width*opx*height);
-
-			//no need to swap alpha, and if we're just swapping alpha will be fine in-place.
-			if (rgb)
-			{	//rgb24, rgbx32, rgba32
-				// compact, and swap
-				c = width*height;
-				for (i=0 ; i<c ; i++)
-				{
-					rgb_out[i*opx+2] = rgb_buffer[i*ipx+0];
-					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
-					rgb_out[i*opx+0] = rgb_buffer[i*ipx+2];
-				}
-			}
-			else
-			{	//(bgr24), bgrx32, (bgra32)
-				// compact
-				c = width*height;
-				for (i=0 ; i<c ; i++)
-				{
-					rgb_out[i*opx+0] = rgb_buffer[i*ipx+0];
-					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
-					rgb_out[i*opx+2] = rgb_buffer[i*ipx+2];
-				}
-			}
-			c *= opx;
-
-			VFS_WRITE(vfs, header, sizeof(header));
-			VFS_WRITE(vfs, rgb_out, c);
-			free(rgb_out);
-		}
-
-		VFS_CLOSE(vfs);
-	}
-	return true;
-}
-
-/*
-Find closest color in the palette for named color
-*/
-int MipColor(int r, int g, int b)
-{
-	int i;
-	float dist;
-	int best=15;
-	float bestdist;
-	int r1, g1, b1;
-	static int lr = -1, lg = -1, lb = -1;
-	static int lastbest;
-
-	if (r == lr && g == lg && b == lb)
-		return lastbest;
-
-	bestdist = 256*256*3;
-
-	for (i = 0; i < 256; i++) {
-		r1 = host_basepal[i*3] - r;
-		g1 = host_basepal[i*3+1] - g;
-		b1 = host_basepal[i*3+2] - b;
-		dist = r1*r1 + g1*g1 + b1*b1;
-		if (dist < bestdist) {
-			bestdist = dist;
-			best = i;
-		}
-	}
-	lr = r; lg = g; lb = b;
-	lastbest = best;
-	return best;
-}
-
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt)
-{
-#if defined(AVAIL_PNGLIB) || defined(AVAIL_JPEGLIB)
-	extern cvar_t scr_sshot_compression;
-#endif
-
-	char ext[8];
-	void *nbuffers[2];
-
-	switch(fmt)
-	{	//nuke any alpha channel...
-	case TF_RGBA32: fmt = TF_RGBX32; break;
-	case TF_BGRA32: fmt = TF_BGRX32; break;
-	default: break;
-	}
-
-	if (!bytestride)
-		bytestride = width*4;
-	if (bytestride < 0)
-	{	//fix up the buffers so callers don't have to.
-		int nb = numbuffers;
-		for (numbuffers = 0; numbuffers < nb && numbuffers < countof(nbuffers); numbuffers++)
-			nbuffers[numbuffers] = (char*)buffer[numbuffers] - bytestride*(height-1);
-		buffer = nbuffers;
-	}
-
-	COM_FileExtension(filename, ext, sizeof(ext));
-
-#ifdef AVAIL_PNGLIB
-	if (!Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "pns"))
-	{
-		//png can do bgr+rgb
-		//rgba bgra will result in an extra alpha chan
-		//actual stereo is also supported. huzzah.
-		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, buffer, numbuffers, bytestride, width, height, fmt);
-	}
-	else
-#endif
-#ifdef AVAIL_JPEGLIB
-		if (!Q_strcasecmp(ext, "jpeg") || !Q_strcasecmp(ext, "jpg"))
-	{
-		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, buffer[0], bytestride, width, height, fmt);
-	}
-	else
-#endif
-		if (!Q_strcasecmp(ext, "bmp"))
-	{
-		return WriteBMPFile(filename, fsroot, buffer[0], bytestride, width, height, fmt);
-	}
-	else
-		if (!Q_strcasecmp(ext, "pcx"))
-	{
-		int y, x, s;
-		qbyte *src, *dest;
-		qbyte *srcbuf = buffer[0], *dstbuf;
-		if (fmt == TF_RGB24 || fmt == TF_RGBA32 || fmt == TF_RGBX32)
-		{
-			dstbuf = malloc(width*height);
-			s = (fmt == TF_RGB24)?3:4;
-			// convert in-place to eight bit
-			for (y = 0; y < height; y++)
-			{
-				src = srcbuf + (bytestride * y);
-				dest = dstbuf + (width * y);
-
-				for (x = 0; x < width; x++) {
-					*dest++ = MipColor(src[0], src[1], src[2]);
-					src += s;
-				}
-			}
-		}
-		else if (fmt == TF_BGR24 || fmt == TF_BGRA32 || fmt == TF_BGRX32)
-		{
-			dstbuf = malloc(width*height);
-			s = (fmt == TF_BGR24)?3:4;
-			// convert in-place to eight bit
-			for (y = 0; y < height; y++)
-			{
-				src = srcbuf + (bytestride * y);
-				dest = dstbuf + (width * y);
-
-				for (x = 0; x < width; x++) {
-					*dest++ = MipColor(src[2], src[1], src[0]);
-					src += s;
-				}
-			}
-		}
-		else
-			return false;
-
-		WritePCXfile (filename, fsroot, dstbuf, width, height, width, host_basepal, false);
-		free(dstbuf);
-	}
-	else if (!Q_strcasecmp(ext, "tga"))	//tga
-		return WriteTGA(filename, fsroot, buffer[0], bytestride, width, height, fmt);
-	/*else if (!Q_strcasecmp(ext, "ktx"))	//ktx
-	{
-		struct pendingtextureinfo out = {PTI_2D};
-		out.encoding = fmt;
-		out.mipcount = 1;
-		out.mip[0].data = buffer[0];
-		out.mip[0].datasize = bytestride*height;
-		out.mip[0].width = width;
-		out.mip[0].height = height;
-		out.mip[0].depth = 1;
-		return Image_WriteKTXFile(filename, fsroot, &out);
-	}*/
-	else	//extension / type not recognised.
-		return false;
-	return true;
-}
 
 /*
 ==================
@@ -2726,7 +2463,8 @@ static void SCR_ScreenShot_f (void)
 	rgbbuffer = VID_GetRGBInfo(&stride, &width, &height, &fmt);
 	if (rgbbuffer)
 	{
-		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt))
+		//regarding metadata - we don't really know what's on the screen, so don't write something that may be wrong (eg: if there's only a console, don't claim that its a 360 image)
+		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt, false))
 		{
 			Con_Printf ("Wrote %s\n", sysname);
 			BZ_Free(rgbbuffer);
@@ -2737,7 +2475,7 @@ static void SCR_ScreenShot_f (void)
 	Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
 }
 
-void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt)
+void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt, qboolean no2d)
 {
 	int width, height;
 	void *buf;
@@ -2764,7 +2502,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 #endif
 	if (!okay && r_worldentity.model)
 	{
-		V_RenderView ();
+		V_RenderView (no2d);
 		okay = true;
 	}
 	//fixme: add a way to get+save the depth values too
@@ -2792,6 +2530,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 
 static void SCR_ScreenShot_Mega_f(void)
 {
+	extern cvar_t r_projection;
 	int stride[2];
 	int width[2];
 	int height[2];
@@ -2801,6 +2540,7 @@ static void SCR_ScreenShot_Mega_f(void)
 	int buf;
 	char filename[MAX_QPATH];
 	stereomethod_t osm = r_refdef.stereomethod;
+	int projection = r_projection.ival;
 
 	//massage the rendering code to redraw the screen with an fbo forced.
 	//this allows us to generate screenshots which are not otherwise possible to actually draw.
@@ -2841,8 +2581,12 @@ static void SCR_ScreenShot_Mega_f(void)
 		mangle = COM_SkipPath(filename);
 		Q_snprintfz(mangle, sizeof(filename) - (mangle-filename), "%s", screenyname);
 	}
+
+	if (!strcmp(Cmd_Argv(0), "screenshot_360"))
+		r_projection.ival = PROJ_EQUIRECTANGULAR;
+
 	if (!strcmp(Cmd_Argv(0), "screenshot_stereo"))
-		COM_DefaultExtension (filename, "png", sizeof(filename));
+		COM_DefaultExtension (filename, "png", sizeof(filename));	//png/pns is the only format that can really cope with this right now.
 	else
 		COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
 
@@ -2868,7 +2612,7 @@ static void SCR_ScreenShot_Mega_f(void)
 				r_refdef.stereomethod = STEREO_LEFTONLY;
 		}
 
-		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride[buf], &fmt[buf]);
+		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride[buf], &fmt[buf], false);
 		width[buf] = fbwidth;
 		height[buf] = fbheight;
 
@@ -2885,7 +2629,7 @@ static void SCR_ScreenShot_Mega_f(void)
 	//okay, we drew something, we're good to save a screeny.
 	if (buffers[0])
 	{
-		if (SCR_ScreenShot(filename, FS_GAMEONLY, buffers, numbuffers, stride[0], width[0], height[0], fmt[0]))
+		if (SCR_ScreenShot(filename, FS_GAMEONLY, buffers, numbuffers, stride[0], width[0], height[0], fmt[0], true))
 		{
 			char			sysname[1024];
 			FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
@@ -2899,11 +2643,13 @@ static void SCR_ScreenShot_Mega_f(void)
 		BZ_Free(buffers[buf]);
 
 	r_refdef.stereomethod = osm;
+	r_projection.ival = projection;
 }
 
 static void SCR_ScreenShot_VR_f(void)
 {
 	char *screenyname = Cmd_Argv(1);
+	const char *ext;
 	int width = atoi(Cmd_Argv(2));
 	int stride=0;
 	//we spin the camera around, taking slices from equirectangular screenshots
@@ -2911,13 +2657,14 @@ static void SCR_ScreenShot_VR_f(void)
 	int height;	//equirectangular 360 * 180 gives a nice clean ratio
 	int px = 4;
 	int step = atof(Cmd_Argv(3));
-	void *left_buffer, *right_buffer, *buf;
+	void *buffer[2], *buf;
 	enum uploadfmt fmt;
 	int lx, rx, x, y;
 	vec3_t baseang;
 	float ang;
 	qboolean fail = false;
-	extern cvar_t r_projection, r_stereo_separation, r_stereo_convergence;;
+	extern cvar_t r_projection, r_stereo_separation, r_stereo_convergence;
+	qboolean stereo;
 	VectorCopy(r_refdef.viewangles, baseang);
 
 	if (width <= 2)
@@ -2928,8 +2675,8 @@ static void SCR_ScreenShot_VR_f(void)
 	if (step <= 0)
 		step = 5;
 
-	left_buffer = BZF_Malloc (width*height*2*px);
-	right_buffer = (qbyte*)left_buffer + width*height*px;
+	buffer[0] = BZF_Malloc (width*height*2*px);
+	buffer[1] = (qbyte*)buffer[0] + width*height*px;
 
 	if (strstr (screenyname, "..") || strchr(screenyname, ':') || *screenyname == '.' || *screenyname == '/')
 		screenyname = "";
@@ -2947,9 +2694,12 @@ static void SCR_ScreenShot_VR_f(void)
 	}
 	COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
 
+	ext = COM_GetFileExtension(filename, NULL);
+	stereo = !strcasecmp(ext, ".pns") || !strcasecmp(ext, ".jns");
 
 
-	if (!left_buffer)
+
+	if (!buffer[0])
 	{
 		Con_Printf("out of memory\n");
 		return;
@@ -2977,22 +2727,22 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] = sin(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[1] = cos(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt);
+		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt, true);
 		switch(fmt)
 		{
 		case TF_BGRA32:
 			for (y = 0; y < height; y++)
 			for (x = lx; x < rx; x++)
-				((unsigned int*)left_buffer)[y*width + x] = ((unsigned int*)buf)[y*width + x];
+				((unsigned int*)buffer[0])[y*width + x] = ((unsigned int*)buf)[y*width + x];
 			break;
 		case TF_RGB24:
 			for (y = 0; y < height; y++)
 			for (x = lx; x < rx; x++)
 			{
-				((qbyte*)left_buffer)[(y*width + x)*4+0] = ((qbyte*)buf)[(y*width + x)*3+2];
-				((qbyte*)left_buffer)[(y*width + x)*4+1] = ((qbyte*)buf)[(y*width + x)*3+1];
-				((qbyte*)left_buffer)[(y*width + x)*4+2] = ((qbyte*)buf)[(y*width + x)*3+0];
-				((qbyte*)left_buffer)[(y*width + x)*4+3] = 255;
+				((qbyte*)buffer[0])[(y*width + x)*4+0] = ((qbyte*)buf)[(y*width + x)*3+2];
+				((qbyte*)buffer[0])[(y*width + x)*4+1] = ((qbyte*)buf)[(y*width + x)*3+1];
+				((qbyte*)buffer[0])[(y*width + x)*4+2] = ((qbyte*)buf)[(y*width + x)*3+0];
+				((qbyte*)buffer[0])[(y*width + x)*4+3] = 255;
 			}
 			break;
 		default:
@@ -3011,22 +2761,22 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] *= -1;
 		r_refdef.eyeoffset[1] *= -1;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt);
+		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt, true);
 		switch(fmt)
 		{
 		case TF_BGRA32:
 			for (y = 0; y < height; y++)
 			for (x = lx; x < rx; x++)
-				((unsigned int*)right_buffer)[y*width + x] = ((unsigned int*)buf)[y*width + x];
+				((unsigned int*)buffer)[y*width + x] = ((unsigned int*)buf)[y*width + x];
 			break;
 		case TF_RGB24:
 			for (y = 0; y < height; y++)
 			for (x = lx; x < rx; x++)
 			{
-				((qbyte*)right_buffer)[(y*width + x)*4+0] = ((qbyte*)buf)[(y*width + x)*3+2];
-				((qbyte*)right_buffer)[(y*width + x)*4+1] = ((qbyte*)buf)[(y*width + x)*3+1];
-				((qbyte*)right_buffer)[(y*width + x)*4+2] = ((qbyte*)buf)[(y*width + x)*3+0];
-				((qbyte*)right_buffer)[(y*width + x)*4+3] = 255;
+				((qbyte*)buffer[1])[(y*width + x)*4+0] = ((qbyte*)buf)[(y*width + x)*3+2];
+				((qbyte*)buffer[1])[(y*width + x)*4+1] = ((qbyte*)buf)[(y*width + x)*3+1];
+				((qbyte*)buffer[1])[(y*width + x)*4+2] = ((qbyte*)buf)[(y*width + x)*3+0];
+				((qbyte*)buffer[1])[(y*width + x)*4+3] = 255;
 			}
 			break;
 		default:
@@ -3038,18 +2788,67 @@ static void SCR_ScreenShot_VR_f(void)
 
 	if (fail)
 		Con_Printf ("Unable to capture suitable screen image\n");
-	else if (SCR_ScreenShot(filename, FS_GAMEONLY, &left_buffer, 1, stride, width, height*2, TF_BGRA32))
+	else if (SCR_ScreenShot(filename, FS_GAMEONLY, buffer, (stereo?2:1), stride, width, height*(stereo?1:2), TF_BGRX32, true))
 	{
 		char			sysname[1024];
 		FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
 		Con_Printf ("Wrote %s\n", sysname);
 	}
 
-	BZ_Free(left_buffer);
+	BZ_Free(buffer[0]);
 
 	r_projection.ival = r_projection.value;
 	VectorCopy(baseang, r_refdef.viewangles);
 	VectorClear(r_refdef.eyeoffset);
+}
+
+//flips an image so that the result is always top-down
+static void *SCR_ScreenShot_FixStride(void *buffer, unsigned int fbwidth, unsigned int fbheight, int *stride, uploadfmt_t fmt, qboolean horizontalflip, qboolean verticalflip)
+{
+	unsigned int bb, bw, bh;
+	Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+	if (bw == 1 && bh == 1)
+	{
+		if (horizontalflip)
+		{
+			int y, x, p;
+			char *bad = buffer;
+			char *in = buffer, *out;
+			buffer = out = BZ_Malloc(fbwidth*fbheight*bb);
+			if (*stride < 0)
+				in += fbwidth*bb*(fbheight-1);
+			for (y = 0; y < fbheight; y++, in += *stride, out += fbwidth*bb)
+			{
+				for (x = 0; x < fbwidth*bb; x+=bb)
+				{
+					for (p = 0; p < bb; p++)
+						out[x+p] = in[(fbwidth-1)*bb-x+p];
+				}
+			}
+			BZ_Free(bad);
+			*stride = fbwidth*bb;
+		}
+		if (verticalflip && bh == 1)
+			*stride = -*stride;
+
+		if (*stride != fbwidth*bw)
+		{
+			unsigned int y;
+			char *tofree = buffer;
+			char *out = BZ_Malloc(fbwidth*fbheight*bb);
+			char *in = buffer;
+			buffer = out;
+			if (*stride < 0)
+				in += fbwidth*bb*(fbheight-1);	//the memory pointer always starts at the lowest address regardless of bottom-up state.
+			for (y = 0; y < fbheight; y++, in += *stride, out += fbwidth*bb)
+			{
+				memcpy(out, in, fbwidth*bb);
+			}
+			BZ_Free(tofree);
+			*stride = fbwidth*bb;
+		}
+	}
+	return buffer;
 }
 
 void SCR_ScreenShot_Cubemap_f(void)
@@ -3058,11 +2857,13 @@ void SCR_ScreenShot_Cubemap_f(void)
 	int stride, fbwidth, fbheight;
 	uploadfmt_t fmt;
 	char filename[MAX_QPATH];
+	char			sysname[1024];
 	char *fname = Cmd_Argv(1);
 	int i, firstside;
 	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
 	vec3_t oldangles;
-	const struct
+	struct pendingtextureinfo mips;
+	static const struct
 	{
 		vec3_t angle;
 		const char *postfix;
@@ -3086,6 +2887,8 @@ void SCR_ScreenShot_Cubemap_f(void)
 		{{90, 0, 0}, "_dn"},
 		{{-90, 0, 0}, "_up"}
 	};
+	const char *ext;
+	unsigned int bb, bw, bh;
 
 	if (!cls.state || !cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 	{
@@ -3106,74 +2909,146 @@ void SCR_ScreenShot_Cubemap_f(void)
 		fbheight = 512;
 	fbwidth = fbheight;
 
-	for (i = firstside; i < firstside+6; i++)
+	ext = COM_GetFileExtension(fname, NULL);
+	if (!*fname || ext == fname)
+	{	//generate a default filename if none exists yet.
+		char base[MAX_QPATH];
+		COM_FileBase(cl.worldmodel->name, base, sizeof(base));
+		fname = va("%s/%i_%i_%i", base, (int)r_refdef.vieworg[0], (int)r_refdef.vieworg[1], (int)r_refdef.vieworg[2]);
+	}
+	if (!strcmp(ext, ".ktx") || !strcmp(ext, ".dds"))
 	{
-		if (!*fname)
+		qboolean fail = false;
+		mips.type = PTI_CUBEMAP;
+		mips.encoding = 0;
+		mips.extrafree = NULL;
+		mips.mipcount = 6;
+
+		for (i = 0; i < 6; i++)
 		{
-			char base[MAX_QPATH];
-			COM_FileBase(cl.worldmodel->name, base, sizeof(base));
-			fname = va("%s/%i_%i_%i", base, (int)r_refdef.vieworg[0], (int)r_refdef.vieworg[1], (int)r_refdef.vieworg[2]);
+			VectorCopy(sides[i].angle, cl.playerview->simangles);
+			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
+
+			mips.mip[i].data = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true);
+			if (!mips.mip[i].data)
+				fail = true;
+			if (!i)
+				mips.encoding = fmt;
+			else if (fmt != mips.encoding || fbwidth != mips.mip[0].width || fbheight != mips.mip[0].height)
+				fail = true;	//zomgwtfbbq
+
+			mips.mip[i].data = SCR_ScreenShot_FixStride(mips.mip[i].data, fbwidth, fbheight, &stride, fmt, sides[i].horizontalflip, sides[i].verticalflip);
+			Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+
+			mips.mip[i].datasize = bb*((fbwidth+bw-1)/bw)*((fbheight+bh-1)/bh);
+			mips.mip[i].width = fbwidth;
+			mips.mip[i].height = fbheight;
+			mips.mip[i].depth = 0;
+			mips.mip[i].needfree = true;
 		}
-		Q_snprintfz(filename, sizeof(filename), "textures/%s%s", fname, sides[i].postfix);
-		COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
 
-		VectorCopy(sides[i].angle, cl.playerview->simangles);
-		VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
+		/*FIXME:
+		while (!fail && (w > 1 || h > 1))
+		{	//warning: d3d is different
+			w = max(1,w>>1);
+			h = max(1,h>>1);
+			if (mips.mipcount+6 > countof(mips.mip))
+				break;	//erk! how big was the original image?!?
 
-		buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt);
-		if (buffer)
-		{
-			char			sysname[1024];
-			if (sides[i].horizontalflip)
+			for (i = 0; i < 6; i++)
 			{
-				int y, x, p;
-				int pxsize;
-				char *bad = buffer;
-				char *in = buffer, *out;
-				switch(fmt)
-				{
-				case TF_RGBA32:
-				case TF_BGRA32:
-				case TF_RGBX32:
-				case TF_BGRX32:
-					pxsize = 4;
-					break;
-				case TF_RGB24:
-				case TF_BGR24:
-					pxsize = 3;
-					break;
-				default:	//erk!
-					pxsize = 1;
-					break;
-				}
-				buffer = out = BZ_Malloc(fbwidth*fbheight*pxsize);
-				for (y = 0; y < fbheight; y++, in += abs(stride), out += fbwidth*pxsize)
-				{
-					for (x = 0; x < fbwidth*pxsize; x+=pxsize)
-					{
-						for (p = 0; p < pxsize; p++)
-							out[x+p] = in[(fbwidth-1)*pxsize-x+p];
-					}
-				}
-				BZ_Free(bad);
-				if (stride < 0)
-					stride = -fbwidth*pxsize;
-				else
-					stride = fbwidth*pxsize;
+				mips.mip[mips.mipcount] = GenerateMip(mips.mip[mips.mipcount-6]);
+				mips.mipcount++;
 			}
-			if (sides[i].verticalflip)
-				stride = -stride;
-			if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, fbwidth, fbheight, fmt))
+		}
+		*/
+
+		Q_snprintfz(filename, sizeof(filename), "textures/%s", fname);
+		COM_DefaultExtension (filename, ext, sizeof(filename));
+#ifdef IMAGEFMT_KTX
+		COM_DefaultExtension (filename, ".ktx", sizeof(filename));
+#endif
+#ifdef IMAGEFMT_DDS
+		COM_DefaultExtension (filename, ".dds", sizeof(filename));
+#endif
+		ext = COM_GetFileExtension(filename, NULL);
+		if (fail)
+			Con_Printf("Unable to generate cubemap data\n");
+#ifdef IMAGEFMT_DDS
+		else if (!strcmp(ext, ".dds"))
+		{
+			if (Image_WriteDDSFile(filename, FS_GAMEONLY, &mips))
 			{
 				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
 				Con_Printf ("Wrote %s\n", sysname);
 			}
-			else
+		}
+#endif
+#ifdef IMAGEFMT_KTX
+		else if (!strcmp(ext, ".ktx"))
+		{
+			if (Image_WriteKTXFile(filename, FS_GAMEONLY, &mips))
 			{
 				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-				Con_Printf ("Failed to write %s\n", sysname);
+				Con_Printf ("Wrote %s\n", sysname);
 			}
-			BZ_Free(buffer);
+		}
+#endif
+		else
+			Con_Printf ("%s: Unknown format %s\n", Cmd_Argv(0), filename);
+		while (i-- > 0)
+			if (mips.mip[i].needfree)
+				BZ_Free(mips.mip[i].data);
+	}
+	else
+	{
+		for (i = firstside; i < firstside+6; i++)
+		{
+			VectorCopy(sides[i].angle, cl.playerview->simangles);
+			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
+
+			buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true);
+			if (buffer)
+			{
+				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+				if (sides[i].horizontalflip)
+				{
+					int y, x, p;
+					char *bad = buffer;
+					char *in = buffer, *out;
+					buffer = out = BZ_Malloc(fbwidth*fbheight*bb);
+					for (y = 0; y < fbheight; y++, in += abs(stride), out += fbwidth*bb)
+					{
+						for (x = 0; x < fbwidth*bb; x+=bb)
+						{
+							for (p = 0; p < bb; p++)
+								out[x+p] = in[(fbwidth-1)*bb-x+p];
+						}
+					}
+					BZ_Free(bad);
+					if (stride < 0)
+						stride = -fbwidth*bb;
+					else
+						stride = fbwidth*bb;
+				}
+				if (sides[i].verticalflip)
+					stride = -stride;
+
+				Q_snprintfz(filename, sizeof(filename), "textures/%s%s", fname, sides[i].postfix);
+				COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
+
+				if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, fbwidth, fbheight, fmt, false))
+				{
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf ("Wrote %s\n", sysname);
+				}
+				else
+				{
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf ("Failed to write %s\n", sysname);
+				}
+				BZ_Free(buffer);
+			}
 		}
 	}
 
@@ -3527,6 +3402,7 @@ void SCR_Init (void)
 //
 	Cmd_AddCommandD ("screenshot_mega",SCR_ScreenShot_Mega_f, "screenshot_mega <name> [width] [height]\nTakes a screenshot with explicit sizes that are not tied to the size of your monitor, allowing for true monstrosities.");
 	Cmd_AddCommandD ("screenshot_stereo",SCR_ScreenShot_Mega_f, "screenshot_stereo <name> [width] [height]\nTakes a simple stereo screenshot.");
+	Cmd_AddCommandD ("screenshot_360",SCR_ScreenShot_Mega_f, "screenshot_360 <name> [width] [height]\nTakes an equirectangular screenshot.");
 	Cmd_AddCommandD ("screenshot_vr",SCR_ScreenShot_VR_f, "screenshot_vr <name> [width]\nTakes a spherical stereoscopic panorama image, for viewing with VR displays.");
 	Cmd_AddCommandD ("screenshot_cubemap",SCR_ScreenShot_Cubemap_f, "screenshot_cubemap <name> [size]\nTakes 6 screenshots forming a single cubemap.");
 	Cmd_AddCommandD ("envmap",SCR_ScreenShot_Cubemap_f, "Legacy name for the screenshot_cubemap command.");	//legacy 

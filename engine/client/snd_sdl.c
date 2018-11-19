@@ -65,6 +65,25 @@ static const char *(SDLCALL *SDL_GetError)					(void);
 static uint32_t (SDLCALL *SDL_GetQueuedAudioSize)			(SDL_AudioDeviceID dev);
 static uint32_t (SDLCALL *SDL_DequeueAudio)					(SDL_AudioDeviceID dev, void *data, uint32_t len);
 #endif
+static dllfunction_t sdl_funcs[] =
+{
+	{(void*)&SDL_Init, "SDL_Init"},
+	{(void*)&SDL_InitSubSystem, "SDL_InitSubSystem"},
+	{(void*)&SDL_OpenAudioDevice, "SDL_OpenAudioDevice"},
+	{(void*)&SDL_PauseAudioDevice, "SDL_PauseAudioDevice"},
+	{(void*)&SDL_LockAudioDevice, "SDL_LockAudioDevice"},
+	{(void*)&SDL_UnlockAudioDevice, "SDL_UnlockAudioDevice"},
+	{(void*)&SDL_CloseAudioDevice, "SDL_CloseAudioDevice"},
+	{(void*)&SDL_GetNumAudioDevices, "SDL_GetNumAudioDevices"},
+	{(void*)&SDL_GetAudioDeviceName, "SDL_GetAudioDeviceName"},
+	{(void*)&SDL_GetError, "SDL_GetError"},
+#if SDL_VERSION_ATLEAST(2,0,5)
+	{(void*)&SDL_GetQueuedAudioSize, "SDL_GetQueuedAudioSize"},
+	{(void*)&SDL_DequeueAudio, "SDL_DequeueAudio"},
+#endif
+	{NULL, NULL}
+};
+static dllhandle_t *libsdl;
 #else
 #include <SDL.h>
 #endif
@@ -81,34 +100,17 @@ static uint32_t (SDLCALL *SDL_DequeueAudio)					(SDL_AudioDeviceID dev, void *da
 static qboolean SSDL_InitAudio(void)
 {
 	static qboolean inited = false;
+	if (COM_CheckParm("-nosdlsnd") || COM_CheckParm("-nosdl"))
+		return false;
 #ifdef DYNAMIC_SDL
-	static dllfunction_t funcs[] =
-	{
-		{(void*)&SDL_Init, "SDL_Init"},
-		{(void*)&SDL_InitSubSystem, "SDL_InitSubSystem"},
-		{(void*)&SDL_OpenAudioDevice, "SDL_OpenAudioDevice"},
-		{(void*)&SDL_PauseAudioDevice, "SDL_PauseAudioDevice"},
-		{(void*)&SDL_LockAudioDevice, "SDL_LockAudioDevice"},
-		{(void*)&SDL_UnlockAudioDevice, "SDL_UnlockAudioDevice"},
-		{(void*)&SDL_CloseAudioDevice, "SDL_CloseAudioDevice"},
-		{(void*)&SDL_GetNumAudioDevices, "SDL_GetNumAudioDevices"},
-		{(void*)&SDL_GetAudioDeviceName, "SDL_GetAudioDeviceName"},
-		{(void*)&SDL_GetError, "SDL_GetError"},
-#if SDL_VERSION_ATLEAST(2,0,5)
-		{(void*)&SDL_GetQueuedAudioSize, "SDL_GetQueuedAudioSize"},
-		{(void*)&SDL_DequeueAudio, "SDL_DequeueAudio"},
-#endif
-		{NULL, NULL}
-	};
-	static dllhandle_t *libsdl;
 	if (!libsdl)
 	{
-		libsdl = Sys_LoadLibrary("libSDL2-2.0.so.0", funcs);
+		libsdl = Sys_LoadLibrary("libSDL2-2.0.so.0", sdl_funcs);
 		if (!libsdl)
-			libsdl = Sys_LoadLibrary("libSDL2.so", funcs);	//maybe they have a dev package installed that fixes this mess.
+			libsdl = Sys_LoadLibrary("libSDL2.so", sdl_funcs);	//maybe they have a dev package installed that fixes this mess.
 #ifdef _WIN32
 		if (!libsdl)
-			libsdl = Sys_LoadLibrary("SDL2", funcs);
+			libsdl = Sys_LoadLibrary("SDL2", sdl_funcs);
 #endif
 		if (libsdl)
 			SDL_Init(SDL_INIT_NOPARACHUTE);
@@ -119,9 +121,6 @@ static qboolean SSDL_InitAudio(void)
 		}
 	}
 #endif
-
-	if (COM_CheckParm("-nosndsnd"))
-		return false;
 
 	if (!inited)
 		if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))

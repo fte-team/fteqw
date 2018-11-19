@@ -162,3 +162,65 @@ void Draw_Polygon(int x, int y, vec3_t *vertices, int num_vertices, qbool fill, 
 
 //glue
 EBUILTIN(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
+
+
+#undef sb_lines	//just in case.
+#ifndef SBAR_HEIGHT
+#define SBAR_HEIGHT 24
+#define STAT_HEALTH			0
+#define STAT_WEAPONMODELI	2
+#define STAT_AMMO			3
+#define STAT_ARMOR			4
+#define STAT_WEAPONFRAME	5
+#define STAT_SHELLS			6
+#define STAT_NAILS			7
+#define STAT_ROCKETS		8
+#define STAT_CELLS			9
+#define STAT_ACTIVEWEAPON	10
+#define STAT_TOTALSECRETS	11
+#define STAT_TOTALMONSTERS	12
+#define STAT_SECRETS		13		// bumped on client side by svc_foundsecret
+#define STAT_MONSTERS		14		// bumped by svc_killedmonster
+#define STAT_ITEMS			15
+#define STAT_VIEWHEIGHT		16	//same as zquake
+#define STAT_TIME			17	//zquake
+#define STAT_MATCHSTARTTIME 18
+
+#define	IT_SHOTGUN				(1u<<0)
+#define	IT_SUPER_SHOTGUN		(1u<<1)
+#define	IT_NAILGUN				(1u<<2)
+#define	IT_SUPER_NAILGUN		(1u<<3)
+
+#define	IT_GRENADE_LAUNCHER		(1u<<4)
+#define	IT_ROCKET_LAUNCHER		(1u<<5)
+#define	IT_LIGHTNING			(1u<<6)
+#define	IT_SUPER_LIGHTNING		(1u<<7)
+
+#define	IT_SHELLS				(1u<<8)
+#define	IT_NAILS				(1u<<9)
+#define	IT_ROCKETS				(1u<<10)
+#define	IT_CELLS				(1u<<11)
+
+#define	IT_AXE					(1u<<12)
+
+#define	IT_ARMOR1				(1u<<13)
+#define	IT_ARMOR2				(1u<<14)
+#define	IT_ARMOR3				(1u<<15)
+
+#define	IT_SUPERHEALTH			(1u<<16)
+
+#define	IT_KEY1					(1u<<17)
+#define	IT_KEY2					(1u<<18)
+
+#define	IT_INVISIBILITY			(1u<<19)
+
+#define	IT_INVULNERABILITY		(1u<<20)
+#define	IT_SUIT					(1u<<21)
+#define	IT_QUAD					(1u<<22)
+
+#define	IT_SIGIL1				(1u<<28)
+
+#define	IT_SIGIL2				(1u<<29)
+#define	IT_SIGIL3				(1u<<30)
+#define	IT_SIGIL4				(1u<<31)
+#endif

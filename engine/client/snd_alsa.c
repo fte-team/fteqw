@@ -33,6 +33,7 @@
 #include <alsa/asoundlib.h>
 
 #include "quakedef.h"
+#ifdef HAVE_MIXER
 #include <dlfcn.h>
 
 static void *alsasharedobject;
@@ -589,4 +590,4 @@ sounddriver_t ALSA_Output =
 	ALSA_Enumerate
 };
 #endif
-
+#endif

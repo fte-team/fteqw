@@ -1571,7 +1571,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 #endif
 		if (!okay && r_worldentity.model)
 		{
-			V_RenderView ();
+			V_RenderView (false);
 			okay = true;
 		}
 
@@ -1583,7 +1583,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 			if (rgbbuffer)
 			{
 //				extern cvar_t	scr_sshot_type;
-				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt);
+				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt, false);
 				BZ_Free(rgbbuffer);
 	
 

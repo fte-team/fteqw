@@ -1,5 +1,5 @@
-// Build-Config file for FTE's standard builds, the default settings.
-// to use: make FTE_CONFIG=fteqw
+// Build-Config file for Quake-derived total-conversion mods that have chosen to break compatibility.
+// to use: make FTE_CONFIG=nocompat
 
 // Features should either be commented or not. If you change undefs to defines or vice versa then expect problems.
 // Later code will disable any features if they're not supported on the current platform, so don't worry about win/lin/mac/android/web/etc here - any such issues should be fixed elsewhere.
@@ -86,12 +86,14 @@
 //#define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 //#define IMAGEFMT_BLP			//legacy crap
-//#define PACKAGE_TEXWAD			//quake's image wad support
+//#define IMAGEFMT_BMP			//windows bmp. yuck.
+//#define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 //#define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
+//#define PACKAGE_TEXWAD			//quake's image wad support
 #define AVAIL_FREETYPE			//for truetype font rendering
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
-//#define DECOMPRESS_S3TC		//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
+//#define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
 #define DECOMPRESS_RGTC			//bc4+bc5
 
 // Game/Gamecode Support

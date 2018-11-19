@@ -62,10 +62,6 @@ cvar_t r_shadow_realtime_dlight_shadows		= CVARFD ("r_shadow_realtime_dlight_sha
 cvar_t r_shadow_realtime_dlight_ambient		= CVAR ("r_shadow_realtime_dlight_ambient", "0");
 cvar_t r_shadow_realtime_dlight_diffuse		= CVAR ("r_shadow_realtime_dlight_diffuse", "1");
 cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
-cvar_t r_editlights_import_radius			= CVAR ("r_editlights_import_radius", "1");
-cvar_t r_editlights_import_ambient			= CVAR ("r_editlights_import_ambient", "0");
-cvar_t r_editlights_import_diffuse			= CVAR ("r_editlights_import_diffuse", "1");
-cvar_t r_editlights_import_specular			= CVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
 cvar_t r_shadow_playershadows				= CVARD ("r_shadow_playershadows", "1", "Controls the presence of shadows on the local player.");
 cvar_t r_shadow_shadowmapping				= CVARD ("r_shadow_shadowmapping", "1", "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
@@ -3571,7 +3567,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 void Sh_PurgeShadowMeshes(void)
 {
 	dlight_t *dl;
-	int i;
+	size_t i;
 	for (dl = cl_dlights, i=0; i<cl_maxdlights; i++, dl++)
 	{
 		if (dl->worldshadowmesh)
@@ -3604,6 +3600,12 @@ void Sh_PreGenerateLights(void)
 		qboolean okay = false;
 		if (!okay)
 			okay |= R_LoadRTLights();
+		if (!okay)
+		{
+			for (i = 0; i < cl.num_statics; i++)
+				R_StaticEntityToRTLight(i);
+			okay |= rtlights_max != RTL_FIRST;
+		}
 		if (!okay)
 			okay |= R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value != 1)
@@ -3867,6 +3869,54 @@ void Sh_DrawLights(qbyte *vis)
 		colour[0] = dl->color[0];
 		colour[1] = dl->color[1];
 		colour[2] = dl->color[2];
+		if (dl->customstyle)
+		{
+			const char *map = dl->customstyle;
+			int maplen = strlen(map);
+
+			int idx, v1, v2, vd;
+			float frac, strength;
+
+			if (!maplen)
+			{
+				strength = ('m'-'a')*22 * r_lightstylescale.value/255.0;
+			}
+			else if (map[0] == '=')
+			{
+				strength = atof(map+1)*r_lightstylescale.value;
+			}
+			else
+			{
+				frac = (cl.time*r_lightstylespeed.value);
+				if (*map == '?' && maplen>1)
+				{
+					map++;
+					maplen--;
+					frac += i*M_PI;
+				}
+				frac += i*M_PI;
+				if (frac < 0)
+					frac = 0;
+				idx = (int)frac;
+				frac -= idx;	//this can require updates at 1000 times a second.. Depends on your framerate of course
+
+				v1 = idx % maplen;
+				v1 = map[v1] - 'a';
+
+				v2 = (idx+1) % maplen;
+				v2 = map[v2] - 'a';
+
+				vd = v1 - v2;
+				if (/*!r_lightstylesmooth.ival ||*/ vd < -r_lightstylesmooth_limit.ival || vd > r_lightstylesmooth_limit.ival)
+					strength = v1*(22/255.0)*r_lightstylescale.value;
+				else
+					strength = (v1*(1-frac) + v2*(frac))*(22/255.0)*r_lightstylescale.value;
+			}
+			strength *= d_lightstylevalue[0]/255.0f;	//a lot of QW mods use lightstyle 0 for a global darkening fade-in thing, so be sure to respect that.
+			colour[0] *= strength;
+			colour[1] *= strength;
+			colour[2] *= strength;
+		}
 		if (dl->style)
 		{
 			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;

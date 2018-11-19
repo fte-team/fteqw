@@ -967,6 +967,7 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
+#ifdef AVAIL_FREETYPE
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 #include <windows.h>
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
@@ -1026,6 +1027,7 @@ int R2D_Font_ListSystemFonts(const char *fname, qofs_t fsize, time_t modtime, vo
 	return true;
 }
 #endif
+#endif
 void R2D_Font_Changed(void)
 {
 	float tsize;
@@ -1062,7 +1064,9 @@ void R2D_Font_Changed(void)
 
 	if (!strcmp(gl_font.string, "?"))
 	{
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#ifndef AVAIL_FREETYPE
+		Cvar_Set(&gl_font, "");
+#elif defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 		BOOL (APIENTRY *pChooseFontW)(LPCHOOSEFONTW) = NULL;
 		dllfunction_t funcs[] =
 		{
@@ -1112,6 +1116,7 @@ void R2D_Font_Changed(void)
 		return;
 #else
 		Sys_EnumerateFiles("/usr/share/fonts/truetype/", "*/*.ttf", R2D_Font_ListSystemFonts, NULL, NULL);
+		COM_EnumerateFiles("*.ttf", R2D_Font_ListSystemFonts, NULL);
 		Cvar_Set(&gl_font, "");
 #endif
 	}

@@ -240,7 +240,7 @@ cvar_t scr_showpause						= CVAR  ("showpause", "1");
 cvar_t scr_showturtle						= CVAR  ("showturtle", "0");
 cvar_t scr_turtlefps						= CVAR  ("scr_turtlefps", "10");
 cvar_t scr_sshot_compression				= CVAR  ("scr_sshot_compression", "75");
-cvar_t scr_sshot_type						= CVAR  ("scr_sshot_type", "png");
+cvar_t scr_sshot_type						= CVARD  ("scr_sshot_type", "png", "This specifies the default extension(and thus file format) for screenshots.\nKnown extensions are: png, jpg/jpeg, bmp, pcx, tga, ktx, dds.");
 cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
 cvar_t scr_viewsize							= CVARFC("viewsize", "100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 
@@ -458,6 +458,7 @@ cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
+cvar_t r_fog_cullentities					= CVARD ("r_fog_cullentities", "1", "Automatically cull entities according to fog.");
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 cvar_t r_fog_permutation					= CVARFD ("r_fog_permutation", "1", CVAR_SHADERSYSTEM, "Renders fog using a material permutation. 0 plays nicer with q3 shaders, but 1 is otherwise a better choice.");
 
@@ -557,6 +558,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
+	Cvar_Register (&r_fog_cullentities, GRAPHICALNICETIES);
 	Cvar_Register (&r_fog_exp2, GLRENDEREROPTIONS);
 	Cvar_Register (&r_fog_permutation, GLRENDEREROPTIONS);
 
@@ -732,14 +734,9 @@ void Renderer_Init(void)
 	Cmd_AddCommand("vid_toggle", R_ToggleFullscreen_f);
 
 #ifdef RTLIGHTS
-	Cmd_AddCommand ("r_editlights_reload", R_ReloadRTLights_f);
-	Cmd_AddCommand ("r_editlights_save", R_SaveRTLights_f);
-	Cvar_Register (&r_editlights_import_radius, "Realtime Light editing/importing");
-	Cvar_Register (&r_editlights_import_ambient, "Realtime Light editing/importing");
-	Cvar_Register (&r_editlights_import_diffuse, "Realtime Light editing/importing");
-	Cvar_Register (&r_editlights_import_specular, "Realtime Light editing/importing");
-
+	R_EditLights_RegisterCommands();
 #endif
+
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
 	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 	Cmd_AddCommand("r_showshader", Shader_ShowShader_f);
@@ -1243,12 +1240,12 @@ rendererinfo_t *rendererinfo[16] =
 void R_RegisterRenderer(rendererinfo_t *ri)
 {
 	size_t i;
-	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+	for (i = 0; i < countof(rendererinfo); i++)
 	{	//already registered
 		if (rendererinfo[i] == ri)
 			return;
 	}
-	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+	for (i = 0; i < countof(rendererinfo); i++)
 	{	//register it in the first empty slot
 		if (!rendererinfo[i])
 		{
@@ -1603,7 +1600,6 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 	Cvar_ForceSetValue(&vid_dpi_x, vid.dpi_x);
 	Cvar_ForceSetValue(&vid_dpi_y, vid.dpi_y);
 
-
 	TRACE(("dbg: R_ApplyRenderer: R_PreNewMap (how handy)\n"));
 	Surf_PreNewMap();
 
@@ -1690,6 +1686,10 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 	Plug_ResChanged();
 #endif
 	Cvar_ForceCallback(&r_particlesystem);
+#ifdef MENU_NATIVECODE
+	if (mn_entry)
+		mn_entry->Init(MI_RENDERER, vid.width, vid.height, vid.rotpixelwidth, vid.rotpixelheight);
+#endif
 
 	CL_InitDlights();
 
@@ -1861,6 +1861,22 @@ void R_ReloadRenderer_f (void)
 #endif
 }
 
+static int R_PriorityForRenderer(rendererinfo_t *r)
+{
+	if (r && r->name[0])
+	{
+		if (r->VID_GetPriority)
+			return r->VID_GetPriority();
+		else if (r->rtype == QR_HEADLESS)
+			return -1;	//headless renderers are a really poor choice, and will make the user think it buggy.
+		else if (r->rtype == QR_NONE)
+			return 0;	//dedicated servers are possible, but we really don't want to use them unless we have no other choice.
+		else
+			return 1;	//assume 1 for most renderers.
+	}
+	return -2;	//invalid renderer
+}
+
 //use Cvar_ApplyLatches(CVAR_RENDERERLATCH) beforehand.
 qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 {
@@ -1932,20 +1948,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		//I'd like to just qsort the renderers, but that isn't stable and might reorder gl+d3d etc.
 		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			if (rendererinfo[i] && rendererinfo[i]->name[0])
-			{
-				if (rendererinfo[i]->VID_GetPriority)
-					pri = rendererinfo[i]->VID_GetPriority();
-				else if (rendererinfo[i]->rtype == QR_HEADLESS)
-					pri = -1;	//headless renderers are a really poor choice, and will make the user think it buggy.
-				else if (rendererinfo[i]->rtype == QR_NONE)
-					pri = 0;	//dedicated servers are possible, but we really don't want to use them unless we have no other choice.
-				else
-					pri = 1;	//assume 1 for most renderers.
-			}
-			else
-				pri = -2;
-
+			pri = R_PriorityForRenderer(rendererinfo[i]);
 			if (pri > bestpri)
 			{
 				bestpri = pri;
@@ -1956,7 +1959,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	else if (!strcmp(com_token, "random"))
 	{
 		int count;
-		for (i = 0, count = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		for (i = 0, count = 0; i < countof(rendererinfo); i++)
 		{
 			if (!rendererinfo[i] || !rendererinfo[i]->description)
 				continue;	//not valid in this build. :(
@@ -1967,7 +1970,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 			count++;
 		}
 		count = rand()%count;
-		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		for (i = 0; i < countof(rendererinfo); i++)
 		{
 			if (!rendererinfo[i] || !rendererinfo[i]->description)
 				continue;	//not valid in this build. :(
@@ -1986,7 +1989,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	else
 	{
 		int bestpri = -2, pri;
-		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		for (i = 0; i < countof(rendererinfo); i++)
 		{
 			if (!rendererinfo[i] || !rendererinfo[i]->description)
 				continue;	//not valid in this build. :(
@@ -1996,14 +1999,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 					continue;
 				if (!stricmp(rendererinfo[i]->name[j], com_token))
 				{
-					if (rendererinfo[i]->VID_GetPriority)
-						pri = rendererinfo[i]->VID_GetPriority();
-					else if (rendererinfo[i]->rtype == QR_HEADLESS)
-						pri = -1;	//headless renderers are a really poor choice, and will make the user think it buggy.
-					else if (rendererinfo[i]->rtype == QR_NONE)
-						pri = 0;	//dedicated servers are possible, but we really don't want to use them unless we have no other choice.
-					else
-						pri = 1;
+					pri = R_PriorityForRenderer(rendererinfo[i]);
 
 					if (pri > bestpri)
 					{
@@ -2073,6 +2069,21 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	return newr->renderer != NULL;
 }
 
+struct sortedrenderers_s
+{
+	int index;	//original index, to try to retain stable sort orders.
+	int pri;
+	rendererinfo_t *r;
+};
+static int QDECL R_SortRenderers(const void *av, const void *bv)
+{
+	const struct sortedrenderers_s *a = av;
+	const struct sortedrenderers_s *b = bv;
+	if (a->pri == b->pri)
+		return (a->index > b->index)?1:-1;
+	return (a->pri < b->pri)?1:-1;
+}
+
 void R_RestartRenderer (rendererstate_t *newr)
 {
 #ifndef CLIENTONLY
@@ -2112,6 +2123,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 			int i;
 			qboolean failed = true;
 			rendererinfo_t *skip = newr->renderer;
+			struct sortedrenderers_s sorted[countof(rendererinfo)];
 
 			if (failed && newr->fullscreen == 1)
 			{
@@ -2141,10 +2153,16 @@ void R_RestartRenderer (rendererstate_t *newr)
 				failed = !R_ApplyRenderer(newr);
 			}
 
-			//FIXME: query renderers for their priority and then use that. then we can favour X11 when DISPLAY is set and wayland when WAYLAND_DISPLAY is set, etc.
-			for (i = 0; failed && i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+			for (i = 0; i < countof(sorted); i++)
 			{
-				newr->renderer = rendererinfo[i];
+				sorted[i].index = i;
+				sorted[i].r = rendererinfo[i];
+				sorted[i].pri = R_PriorityForRenderer(sorted[i].r);
+			}
+			qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);
+			for (i = 0; failed && i < countof(sorted); i++)
+			{
+				newr->renderer = sorted[i].r;
 				if (newr->renderer && newr->renderer != skip && newr->renderer->rtype != QR_HEADLESS)
 				{
 					Con_Printf(CON_NOTICE "Trying %s"CON_DEFAULT"\n", newr->renderer->description);
@@ -2216,11 +2234,21 @@ void R_SetRenderer_f (void)
 
 	if (Cmd_Argc() == 1 || !stricmp(param, "help"))
 	{
-		Con_Printf ("\nValid setrenderer parameters are:\n");
-		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		struct sortedrenderers_s sorted[countof(rendererinfo)];
+		for (i = 0; i < countof(sorted); i++)
 		{
-			if (rendererinfo[i] && rendererinfo[i]->description)
-				Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", rendererinfo[i]->name[0], rendererinfo[i]->name[0], rendererinfo[i]->description, (currentrendererstate.renderer == rendererinfo[i])?" ^2(current)":"");
+			sorted[i].index = i;
+			sorted[i].r = rendererinfo[i];
+			sorted[i].pri = R_PriorityForRenderer(sorted[i].r);
+		}
+		qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);
+
+		Con_Printf ("\nValid setrenderer parameters are:\n");
+		for (i = 0; i < countof(rendererinfo); i++)
+		{
+			rendererinfo_t *r = sorted[i].r;
+			if (r && r->description)
+				Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], r->name[0], r->description, (currentrendererstate.renderer == r)?" ^2(current)":"");
 		}
 		return;
 	}
@@ -2966,7 +2994,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 
 	//do far plane
 	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.globalfog.density)
+	if (r_refdef.globalfog.density && r_fog_cullentities.ival)
 	{
 		float culldist;
 		float fog;

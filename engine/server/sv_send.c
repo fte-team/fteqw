@@ -2831,7 +2831,9 @@ qboolean SV_SendClientDatagram (client_t *client)
 		SZ_Clear (&msg);
 	}
 
+#ifdef NQPROT
 	SV_DarkPlacesDownloadChunk(client, &msg);
+#endif
 
 	// send the datagram
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
@@ -3693,7 +3695,9 @@ void SV_SendClientMessages (void)
 			SV_SendClientDatagram (c);
 		else
 		{
+#ifdef NQPROT
 			SV_DarkPlacesDownloadChunk(c, &c->datagram);
+#endif
 			fnum = c->netchan.outgoing_sequence;
 			sentbytes = Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable
 			if (ISQWCLIENT(c) || ISNQCLIENT(c))

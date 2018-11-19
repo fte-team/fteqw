@@ -22,10 +22,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "shader.h"
 
-console_t	con_main;
-console_t	*con_curwindow;
-console_t	*con_current;		// points to whatever is the visible console
+console_t	*con_head;			// first console in the list
+console_t	*con_curwindow;		// the (window) console that's currently got focus.
+console_t	*con_current;		// points to whatever is the active console (the one that has focus ONLY when kdm_console)
 console_t	*con_mouseover;		// points to whichever console's title is currently mouseovered, or null
+
+console_t	*con_main;			// the default console that text will be thrown at. recreated as needed.
 console_t	*con_chat;			// points to a chat console
 
 #define Font_ScreenWidth() (vid.pixelwidth)
@@ -55,26 +57,54 @@ qterm_t *activeqterm;
 //int 		con_linewidth;	// characters across screen
 //int			con_totallines;		// total lines in console scrollback
 
-float		con_cursorspeed = 4;
+static float		con_cursorspeed = 4;
 
 
-cvar_t		con_numnotifylines = CVAR("con_notifylines","4");		//max lines to show
-cvar_t		con_notifytime = CVAR("con_notifytime","3");		//seconds
-cvar_t		con_notify_x = CVAR("con_notify_x","0");
-cvar_t		con_notify_y = CVAR("con_notify_y","0");
-cvar_t		con_notify_w = CVAR("con_notify_w","1");
-cvar_t		con_centernotify = CVAR("con_centernotify", "0");
-cvar_t		con_displaypossibilities = CVAR("con_displaypossibilities", "1");
-cvar_t		con_showcompletion = CVAR("con_showcompletion", "1");
-cvar_t		con_maxlines = CVAR("con_maxlines", "1024");
-cvar_t		cl_chatmode = CVARD("cl_chatmode", "2", "0(nq) - everything is assumed to be a console command. prefix with 'say', or just use a messagemode bind\n1(q3) - everything is assumed to be chat, unless its prefixed with a /\n2(qw) - anything explicitly recognised as a command will be used as a command, anything unrecognised will be a chat message.\n/ prefix is supported in all cases.\nctrl held when pressing enter always makes any implicit chat into team chat instead.");
-cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
-cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
-cvar_t		con_separatechat = CVAR("con_separatechat", "0");
-cvar_t		con_timestamps = CVAR("con_timestamps", "0");
-cvar_t		con_timeformat = CVAR("con_timeformat", "(%H:%M:%S) ");
-cvar_t		con_textsize = CVARD("con_textsize", "8", "Resize the console text to be a different height, scaled separately from the hud. The value is the height in (virtual) pixels.");
+static cvar_t		con_numnotifylines = CVAR("con_notifylines","4");		//max lines to show
+static cvar_t		con_notifytime = CVAR("con_notifytime","3");		//seconds
+static cvar_t		con_notify_x = CVAR("con_notify_x","0");
+static cvar_t		con_notify_y = CVAR("con_notify_y","0");
+static cvar_t		con_notify_w = CVAR("con_notify_w","1");
+static cvar_t		con_centernotify = CVAR("con_centernotify", "0");
+static cvar_t		con_displaypossibilities = CVAR("con_displaypossibilities", "1");
+static cvar_t		con_showcompletion = CVAR("con_showcompletion", "1");
+static cvar_t		con_maxlines = CVAR("con_maxlines", "1024");
+cvar_t				cl_chatmode = CVARD("cl_chatmode", "2", "0(nq) - everything is assumed to be a console command. prefix with 'say', or just use a messagemode bind\n1(q3) - everything is assumed to be chat, unless its prefixed with a /\n2(qw) - anything explicitly recognised as a command will be used as a command, anything unrecognised will be a chat message.\n/ prefix is supported in all cases.\nctrl held when pressing enter always makes any implicit chat into team chat instead.");
+static cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
+static cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
+cvar_t				con_separatechat = CVAR("con_separatechat", "0");
+static cvar_t		con_timestamps = CVAR("con_timestamps", "0");
+static cvar_t		con_timeformat = CVAR("con_timeformat", "(%H:%M:%S) ");
+cvar_t				con_textsize = CVARD("con_textsize", "8", "Resize the console text to be a different height, scaled separately from the hud. The value is the height in (virtual) pixels.");
 extern cvar_t log_developer;
+
+void con_window_cb(cvar_t *var, char *oldval)
+{
+	if (!con_main)
+		return;	//doesn't matter right now.
+
+	if (var->ival)
+	{
+		con_main->flags &= ~CONF_NOTIFY;
+		if (!(con_main->flags & CONF_ISWINDOW))
+		{
+			con_main->flags |= CONF_ISWINDOW;
+			if (con_current == con_main)
+				Con_SetActive(con_main);
+		}
+	}
+	else
+	{
+		con_main->flags |= CONF_NOTIFY;
+		if (con_main->flags & CONF_ISWINDOW)
+		{
+			con_main->flags &= ~CONF_ISWINDOW;
+			if (con_curwindow == con_main)
+				Con_SetActive(con_main);
+		}
+	}
+}
+static cvar_t con_window = CVARCD("con_window", "0", con_window_cb, "States whether the console should be a floating window as in source engine games, or a top-of-the-screen-only thing.");
 
 #define	NUM_CON_TIMES 24
 
@@ -110,7 +140,7 @@ int Con_IsActive (console_t *con)
 void Con_Destroy (console_t *con)
 {
 	shader_t *shader;
-	console_t *prev;
+	console_t **link;
 	conline_t *t;
 
 	if (con->close)
@@ -135,19 +165,11 @@ void Con_Destroy (console_t *con)
 		Z_Free(con->completionline);
 	con->completionline = NULL;
 
-	if (con == &con_main)
+	for (link = &con_head; *link; link = &(*link)->next)
 	{
-		/*main console is never destroyed, only cleared (unless shutting down)*/
-		if (con_initialized)
-			Con_Finit(con);
-		return;
-	}
-
-	for (prev = &con_main; prev->next; prev = prev->next)
-	{
-		if (prev->next == con)
+		if (*link == con)
 		{
-			prev->next = con->next;
+			(*link) = con->next;
 			break;
 		}
 	}
@@ -156,12 +178,15 @@ void Con_Destroy (console_t *con)
 
 	BZ_Free(con);
 
+	//make sure any special references are fixed up now that its gone
+	if (con_mouseover == con)
+		con_mouseover = NULL;
 	if (con_current == con)
-		con_current = &con_main;
+		con_current = con_head;
 
 	if (con_curwindow == con)
 	{
-		for (con_curwindow = &con_main; con_curwindow; con_curwindow = con_curwindow->next)
+		for (con_curwindow = con_head; con_curwindow; con_curwindow = con_curwindow->next)
 		{
 			if (con_curwindow->flags & CONF_ISWINDOW)
 				break;
@@ -180,7 +205,7 @@ void Con_FlushBackgrounds(void)
 {
 	console_t *con;
 	//fixme: we really need to handle videomaps differently here, for vid_restarts.
-	for (con = &con_main; con; con = con->next)
+	for (con = con_head; con; con = con->next)
 	{
 		if (con->backshader)
 			R_UnloadShader(con->backshader);
@@ -194,7 +219,9 @@ console_t *Con_FindConsole(const char *name)
 	console_t *con;
 	if (!strcmp(name, "current") && con_current)
 		return con_current;
-	for (con = &con_main; con; con = con->next)
+	if (!strcmp(name, "head") && con_current)
+		return con_head;
+	for (con = con_head; con; con = con->next)
 	{
 		if (!strcmp(con->name, name))
 			return con;
@@ -204,8 +231,10 @@ console_t *Con_FindConsole(const char *name)
 /*creates a potentially duplicate console_t - please use Con_FindConsole first, as its confusing otherwise*/
 console_t *Con_Create(const char *name, unsigned int flags)
 {
-	console_t *con;
+	console_t *con, *p;
 	if (!strcmp(name, "current"))
+		return NULL;
+	if (!strcmp(name, "head"))
 		return NULL;
 	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
@@ -214,10 +243,50 @@ console_t *Con_Create(const char *name, unsigned int flags)
 
 	con->flags = flags;
 	Con_Finit(con);
-	con->next = con_main.next;
-	con_main.next = con;
+
+	//insert at end. make it active if you must.
+	if (!con_head)
+		con_head = con;
+	else
+	{
+		for (p = con_head; p->next; p = p->next)
+			;
+		p->next = con;
+	}
 
 	return con;
+}
+
+static qboolean Con_Main_BlockClose(console_t *con, qboolean force)
+{
+	if (!force)
+	{	//trying to close it just hides it (this is to avoid it getting cleared).
+		if (con_curwindow == con)
+			Key_Dest_Remove(kdm_cwindows);
+		return false;
+	}
+	con_main = NULL;	//its forced to die. and don't forget it.
+	return true;
+}
+console_t *Con_GetMain(void)
+{
+	if (!con_main)
+	{
+		con_main = Con_Create("", 0);
+
+		con_main->linebuffered = Con_ExecuteLine;
+		con_main->commandcompletion = true;
+		con_main->wnd_w = 640;
+		con_main->wnd_h = 480;
+		con_main->wnd_x = 0;
+		con_main->wnd_y = 0;
+		con_main->close = Con_Main_BlockClose;
+		Q_strncpyz(con_main->title, "MAIN", sizeof(con_main->title));
+		Q_strncpyz(con_main->prompt, "]", sizeof(con_main->prompt));
+
+		Cvar_ForceCallback(&con_window);
+	}
+	return con_main;
 }
 /*sets a console as the active one*/
 void Con_SetActive (console_t *con)
@@ -231,7 +300,7 @@ void Con_SetActive (console_t *con)
 		if (con_curwindow == con)
 			return;
 
-		for (prev = &con_main; prev; prev = prev->next)
+		for (prev = con_head; prev; prev = prev->next)
 		{
 			if (prev->next == con)
 			{
@@ -248,7 +317,13 @@ void Con_SetActive (console_t *con)
 		con_curwindow = con;
 	}
 	else
+	{
+		if (con_curwindow == con)
+			con_curwindow = NULL;
+		Key_Dest_Add(kdm_console);
+		Key_Dest_Remove(kdm_cwindows);
 		con_current = con;
+	}
 
 	if (con->footerline)
 	{
@@ -263,7 +338,7 @@ void Con_SetActive (console_t *con)
 qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 {
 	console_t *con;
-	for (con = &con_main; con; con = con->next, num--)
+	for (con = con_head; con; con = con->next, num--)
 	{
 		if (num <= 0)
 		{
@@ -544,9 +619,11 @@ void Con_ToggleConsole_f (void)
 {
 	extern cvar_t con_stayhidden;
 
+	Con_GetMain();
+
 	if (!con_curwindow)
 	{
-		for (con_curwindow = &con_main; con_curwindow; con_curwindow = con_curwindow->next)
+		for (con_curwindow = con_head; con_curwindow; con_curwindow = con_curwindow->next)
 			if (con_curwindow->flags & CONF_ISWINDOW)
 				break;
 	}
@@ -598,9 +675,10 @@ Con_Clear_f
 */
 void Con_Clear_f (void)
 {
-	if (Cmd_IsInsecure())
+	console_t *con = Con_FindConsole(Cmd_Argv(1));
+	if (!con || Cmd_IsInsecure())
 		return;
-	Con_ClearCon(&con_main);
+	Con_ClearCon(con);
 }
 
 
@@ -680,7 +758,7 @@ void Con_MessageMode2_f (void)
 void Con_ForceActiveNow(void)
 {
 	Key_Dest_Add(kdm_console);
-	scr_conlines = scr_con_current = vid.height;
+	scr_con_target = scr_con_current = vid.height;
 }
 
 /*
@@ -692,18 +770,10 @@ void Log_Init (void);
 
 void Con_Init (void)
 {
-	con_current = &con_main;
-	Con_Finit(&con_main);
+	con_current = NULL;
+	con_head = NULL;
 
-	con_main.linebuffered = Con_ExecuteLine;
-	con_main.commandcompletion = true;
-//	con_main.flags |= CONF_ISWINDOW;
-	con_main.wnd_w = 640;
-	con_main.wnd_h = 480;
-	con_main.wnd_x = 0;
-	con_main.wnd_y = 0;
-	Q_strncpyz(con_main.title, "MAIN", sizeof(con_main.title));
-	Q_strncpyz(con_main.prompt, "]", sizeof(con_main.prompt));
+	con_main = Con_GetMain();
 
 	con_initialized = true;
 //	Con_TPrintf ("Console initialized.\n");
@@ -727,6 +797,8 @@ void Con_Init (void)
 	Cvar_Register (&con_timestamps, "Console controls");
 	Cvar_Register (&con_timeformat, "Console controls");
 	Cvar_Register (&con_textsize, "Console controls");
+	Cvar_Register (&con_window, "Console controls");
+	Cvar_ForceCallback(&con_window);
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("messagemode", Con_MessageMode_f);
@@ -736,11 +808,11 @@ void Con_Init (void)
 	Cmd_AddCommand ("qterm", Con_QTerm_f);
 #endif
 
-	Cmd_AddCommand ("conecho_center", Cmd_ConEchoCenter_f);
-	Cmd_AddCommand ("conecho", Cmd_ConEcho_f);
-	Cmd_AddCommand ("conclear", Cmd_ConClear_f);
-	Cmd_AddCommand ("conclose", Cmd_ConClose_f);
-	Cmd_AddCommand ("conactivate", Cmd_ConActivate_f);
+	Cmd_AddCommandD ("conecho_center", Cmd_ConEchoCenter_f, "conecho_center consolename The Text To Echo\nUse \"\" for the main console.\nAny added lines will be aligned to the middle of the console.");
+	Cmd_AddCommandD ("conecho", Cmd_ConEcho_f, "conecho consolename The Text To Echo\nEchos text to a named console instead of just the main one.");
+	Cmd_AddCommandD ("conclear", Cmd_ConClear_f, "Clears a named console (instead of just the main one)");
+	Cmd_AddCommandD ("conclose", Cmd_ConClose_f, "Destroys a named console");
+	Cmd_AddCommandD ("conactivate", Cmd_ConActivate_f, "Brings focus to the named console. Will not do anything if the named console is not created yet (so be sure to do any echos before using this command)");
 
 	Log_Init();
 }
@@ -754,12 +826,9 @@ void Con_Shutdown(void)
 		BZ_Free(key_lines[i]);
 	}
 
-	while(con_main.next)
-	{
-		Con_Destroy(con_main.next);
-	}
+	while(con_head)
+		Con_Destroy(con_head);
 	con_initialized = false;
-	Con_Destroy(&con_main);
 }
 
 void TTS_SayConString(conchar_t *stringtosay);
@@ -935,19 +1004,22 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 
 void Con_CenterPrint(const char *txt)
 {
-	int flags = con_main.parseflags|PFS_NONOTIFY|PFS_CENTERED;
-	Con_PrintCon(&con_main, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n", flags);
-	Con_PrintCon(&con_main, txt, flags);	//client console
-	Con_PrintCon(&con_main, "\n^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n", flags);
+	console_t *c = Con_GetMain();
+	int flags = c->parseflags|PFS_NONOTIFY|PFS_CENTERED;
+	Con_PrintCon(c, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n", flags);
+	Con_PrintCon(c, txt, flags);	//client console
+	Con_PrintCon(c, "\n^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n", flags);
 }
 
 void Con_Print (const char *txt)
 {
-	Con_PrintCon(&con_main, txt, con_main.parseflags);	//client console
+	console_t *c = Con_GetMain();
+	Con_PrintCon(c, txt, c->parseflags);	//client console
 }
 void Con_PrintFlags(const char *txt, unsigned int setflags, unsigned int clearflags)
 {
-	setflags |= con_main.parseflags;
+	console_t *c = Con_GetMain();
+	setflags |= c->parseflags;
 	setflags &= ~clearflags;
 
 // also echo to debugging console
@@ -957,19 +1029,26 @@ void Con_PrintFlags(const char *txt, unsigned int setflags, unsigned int clearfl
 	Con_Log (txt);
 
 	if (con_initialized)
-		Con_PrintCon(&con_main, txt, setflags);
+		Con_PrintCon(c, txt, setflags);
 }
 
 void Con_CycleConsole(void)
 {
+	console_t *first = con_current?con_current:con_head;
 	while(1)
 	{
 		con_current = con_current->next;
 		if (!con_current)
-			con_current = &con_main;
+			con_current = con_head;
+		if (con_current == first)
+		{
+			if (con_current->flags & (CONF_HIDDEN|CONF_ISWINDOW))
+				con_current = NULL; //no valid consoles
+			break;	//we wrapped? oh noes
+		}
 
 		if (con_current->flags & (CONF_HIDDEN|CONF_ISWINDOW))
-			continue;
+			continue;	//this is a valid choice
 		break;
 	}
 }
@@ -1098,8 +1177,9 @@ static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 		Con_Log(data);
 	if (developer.ival >= (int)a)
 	{
+		console_t *c = Con_GetMain();
 		Sys_Printf ("%s", (const char*)data);	// also echo to debugging console
-		Con_PrintCon(&con_main, data, con_main.parseflags);
+		Con_PrintCon(c, data, c->parseflags);
 	}
 	BZ_Free(data);
 }
@@ -1140,9 +1220,9 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 		Con_Log(msg);
 	if (developer.ival)
 	{
+		console_t *c = Con_GetMain();
 		Sys_Printf ("%s", msg);	// also echo to debugging console
-		if (con_initialized)
-			Con_PrintCon(&con_main, msg, con_main.parseflags);
+		Con_PrintCon(c, msg, c->parseflags);
 	}
 }
 void VARGS Con_DLPrintf (int level, const char *fmt, ...)
@@ -1177,7 +1257,10 @@ void VARGS Con_DLPrintf (int level, const char *fmt, ...)
 	{
 		Sys_Printf ("%s", msg);	// also echo to debugging console
 		if (con_initialized)
-			Con_PrintCon(&con_main, msg, con_main.parseflags);
+		{
+			console_t *c = Con_GetMain();
+			Con_PrintCon(c, msg, c->parseflags);
+		}
 	}
 }
 
@@ -1607,7 +1690,7 @@ void Con_ClearNotify(void)
 {
 	console_t *con;
 	conline_t *l;
-	for (con = &con_main; con; con = con->next)
+	for (con = con_head; con; con = con->next)
 	{
 		for (l = con->current; l; l = l->older)
 			l->flags |= CONL_NONOTIFY;
@@ -1618,13 +1701,15 @@ void Con_DrawNotify (void)
 	extern int startuppending;
 	console_t *con;
 
-	con_main.flags |= CONF_NOTIFY;
-	/*keep the main console up to date*/
-	con_main.notif_l = con_numnotifylines.ival;
-	con_main.notif_w = con_notify_w.value;
-	con_main.notif_x = con_notify_x.value;
-	con_main.notif_y = con_notify_y.value;
-	con_main.notif_t = con_notifytime.value;
+	if (con_main)
+	{
+		/*keep the main console up to date*/
+		con_main->notif_l = con_numnotifylines.ival;
+		con_main->notif_w = con_notify_w.value;
+		con_main->notif_x = con_notify_x.value;
+		con_main->notif_y = con_notify_y.value;
+		con_main->notif_t = con_notifytime.value;
+	}
 
 	if (con_chat)
 	{
@@ -1643,7 +1728,7 @@ void Con_DrawNotify (void)
 	}
 	else
 	{
-		for (con = &con_main; con; con = con->next)
+		for (con = con_head; con; con = con->next)
 		{
 			if (con->flags & CONF_NOTIFY)
 				Con_DrawNotifyOne(con);
@@ -1660,7 +1745,7 @@ void Con_DrawNotify (void)
 		char *foo = va(chat_team?"say_team: %s":"say: %s", chat_buffer?(char*)chat_buffer:"");
 		int lines, i, pos;
 		Font_BeginString(font_console, 0, 0, &x, &y);
-		y = con_main.notif_l * Font_CharHeight();
+		y = con_numnotifylines.ival * Font_CharHeight();
 
 		i = chat_team?10:5;
 		pos = strlen(foo)+i;
@@ -1697,11 +1782,14 @@ void Con_DrawNotify (void)
 //This is so that system consoles in windows can scroll up and have all the text.
 void Con_PrintToSys(void)
 {
-	console_t *curcon = &con_main;
+	console_t *curcon = con_main;
 	conline_t *l;
 	int i;
 	conchar_t *t;
 	char buf[16];
+
+	if (!curcon)
+		return;
 
 	for (l = curcon->oldest; l; l = l->newer)
 	{
@@ -1896,23 +1984,23 @@ int Con_DrawAlternateConsoles(int lines)
 	char *txt;
 	int x, y = 0, lx;
 	int consshown = 0;
-	console_t *con = &con_main, *om = con_mouseover;
+	console_t *con, *om = con_mouseover;
 	conchar_t buffer[512], *end, *start;
 	unsigned int codeflags, codepoint;
 
-	for (con = &con_main; con; con = con->next)
+	for (con = con_head; con; con = con->next)
 	{
 		if (!(con->flags & (CONF_HIDDEN|CONF_ISWINDOW)))
 			consshown++;
 	}
 
-	if (lines == (int)scr_conlines && consshown > 1) 
+	if (lines == (int)scr_con_target && consshown > 1)
 	{
 		int mx, my, h;
 		Font_BeginString(font_console, mousecursor_x, mousecursor_y, &mx, &my);
 		Font_BeginString(font_console, 0, y, &x, &y);
 		h = Font_CharHeight();
-		for (x = 0, con = &con_main; con; con = con->next)
+		for (x = 0, con = con_head; con; con = con->next)
 		{
 			if (con->flags & (CONF_HIDDEN|CONF_ISWINDOW))
 				continue;
@@ -2386,10 +2474,13 @@ void Con_DrawConsole (int lines, qboolean noback)
 	console_t *w, *mouseconsole;
 	float fadetime;
 
+	if (!con_current)
+		con_current = Con_GetMain();
+
 	con_mouseover = NULL;
 
 	//draw any windowed consoles (under main console)
-	for (w = &con_main; w; w = w->next)
+	for (w = con_head; w; w = w->next)
 	{
 		srect_t srect;
 		if ((w->flags & (CONF_HIDDEN|CONF_ISWINDOW)) != CONF_ISWINDOW)
@@ -2576,7 +2667,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	}
 
 	//draw main console...
-	if (lines > 0 && !(con_current->flags & CONF_ISWINDOW))
+	if (lines > 0 && con_current && !(con_current->flags & CONF_ISWINDOW))
 	{
 		int top;
 #ifdef QTERM

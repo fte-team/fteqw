@@ -2321,7 +2321,17 @@ static void PM_StartADownload(void)
 			}
 
 			if (tmpfile)
+			{
 				p->download = HTTP_CL_Get(mirror, NULL, PM_Download_Got);
+				if (!p->download)
+					Con_Printf("Unable to download %s\n", p->name);
+			}
+			else
+			{
+				char syspath[MAX_OSPATH];
+				FS_NativePath(temp, p->fsroot, syspath, sizeof(syspath));
+				Con_Printf("Unable to write %s. Fix permissions before trying to download %s\n", syspath, p->name);
+			}
 			if (p->download)
 			{
 				Con_Printf("Downloading %s\n", p->name);
@@ -2333,7 +2343,6 @@ static void PM_StartADownload(void)
 			}
 			else
 			{
-				Con_Printf("Unable to download %s\n", p->name);
 				p->flags &= ~DPF_MARKED;	//can't do it.
 				if (tmpfile)
 					VFS_CLOSE(tmpfile);

@@ -164,13 +164,13 @@ typedef struct sizebuf_s
 {
 	qboolean	allowoverflow;	// if false, do a Sys_Error
 	qboolean	overflowed;		// set to true if the buffer size failed
-	qbyte	*data;
-	int		maxsize;
-	int		cursize;
-	int packing;
-	int currentbit;
+	qbyte		*data;
+	int			maxsize;	//storage size of data
+	int			cursize;	//assigned size of data
+	sbpacking_t	packing;	//required for q3
+	int			currentbit; //ignored for rawbytes
 
-	struct netprim_s prim;
+	struct netprim_s prim;	//for unsized write/read coord/angles
 } sizebuf_t;
 
 void SZ_Clear (sizebuf_t *buf);
@@ -851,8 +851,10 @@ void Con_Log (const char *s);
 void Log_Logfile_f (void);
 void Log_Init(void);
 void Log_ShutDown(void);
+#ifdef IPLOG
 void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
 qboolean IPLog_Merge_File(const char *fname);
+#endif
 qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize);
 
 

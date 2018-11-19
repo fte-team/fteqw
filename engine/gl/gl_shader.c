@@ -7298,9 +7298,7 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 					break;
 				}
 			}
-		}
-		
-		if ( parsename ) {
+
 			if (!strchr(parsename, ':'))
 			{
 				//if the named shader is a .shader file then just directly load it.

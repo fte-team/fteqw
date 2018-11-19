@@ -2639,6 +2639,9 @@ client_t *SVC_DirectConnect(void)
 		}
 	}
 	msg_badread=false;
+
+	if (!*guid)
+		NET_GetConnectionCertificate(svs.sockets, &net_from, QCERT_PEERFINGERPRINT, guid, sizeof(guid));
 	
 	/*allow_splitscreen applies only to non-local clients, so that clients have only one enabler*/
 	if (!sv_allow_splitscreen.ival && net_from.type != NA_LOOPBACK)
@@ -3303,8 +3306,10 @@ client_t *SVC_DirectConnect(void)
 	SSV_SavePlayerStats(newcl, 0);
 #endif
 
+#ifdef IPLOG
 	if (Q_strncasecmp(newcl->name, "unconnected", 11) && Q_strncasecmp(newcl->name, "connecting", 10))
 		IPLog_Add(NET_AdrToString(adrbuf,sizeof(adrbuf), &newcl->netchan.remote_address), newcl->name);
+#endif
 
 	return newcl;
 }
@@ -5799,8 +5804,10 @@ void SV_Init (quakeparms_t *parms)
 		}
 #endif
 
-		IPLog_Merge_File("iplog.txt");
+#ifdef IPLOG
+		IPLog_Merge_File("iplog.txt");	//should be compatible with DP's take on the feature.
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
+#endif
 
 		// if a map wasn't specified on the command line, spawn start.map
 		//aliases require that we flush the cbuf in order to actually see the results.

@@ -5,13 +5,13 @@
 #if !defined(NACL) && !defined(FTE_TARGET_WEB)
 
 #ifdef WEBSVONLY
-#define Z_Free free
-#define Z_Malloc malloc
+	#define Z_Free free
+	#define Z_Malloc malloc
 #else
-#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
-#define FSSTDIO_OpenPath VFSOS_OpenPath
-#endif
-#define FSSTDIO_OpenTemp FS_OpenTemp
+	#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
+		#define FSSTDIO_OpenPath VFSOS_OpenPath
+	#endif
+	#define FSSTDIO_OpenTemp FS_OpenTemp
 #endif
 
 typedef struct {
@@ -148,7 +148,7 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 vfsfile_t *Sys_OpenAsset(const char *fname);
 #endif
 
-static vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush)
+vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush)
 {
 	FILE *f;
 	vfsstdiofile_t *file;

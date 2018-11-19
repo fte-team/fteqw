@@ -4283,6 +4283,243 @@ bool writeiqm(const char *filename)
 }
 
 
+uchar qmdl_bestnorm(Vec3 &v)
+{
+	//FIXME
+	return 0;
+}
+struct qmdl_vertex_t
+{
+	unsigned char	v[3];
+	unsigned char	normalIndex;
+};
+template<int md16> bool writemdl(const char *filename)
+{
+	if (meshes.length() != 1)
+	{
+		conoutf("warning: mdl output requires exactly one mesh");
+		return false;	//must have ONE mesh only.
+	}
+	auto mesh = meshes[0];
+	vertexarray *texcoords = NULL;
+	vertexarray *vertcoords = NULL;
+	vertexarray *vertnorm = NULL;
+	uint skinwidth = 0;
+	uint skinheight = 0;
+	Vec3 offset={0,0,0};
+	Vec3 scale={1,1,1};
+	uint numskins = 0;
+	vector<uchar> skindata;
+
+	loopv(varrays)
+	{
+		if(varrays[i].type == IQM_TEXCOORD && varrays[i].format == IQM_FLOAT && varrays[i].count == 2)
+			texcoords = &varrays[i];
+		if(varrays[i].type == IQM_POSITION && varrays[i].format == IQM_FLOAT && varrays[i].count == 3)
+			vertcoords = &varrays[i];
+		if(varrays[i].type == IQM_NORMAL && varrays[i].format == IQM_FLOAT && varrays[i].count == 3)
+			vertnorm = &varrays[i];
+//		if(varrays[i].type == IQM_BLENDINDEXES && varrays[i].format == IQM_BYTE && varrays[i].count == 4)
+//			vertbones = &varrays[i];
+//		if(varrays[i].type == IQM_BLENDWEIGHTS && varrays[i].format == IQM_FLOAT && varrays[i].count == 4)
+//			vertweights = &varrays[i];
+	}
+	if (!texcoords)
+	{
+		conoutf("warning: mdl output requires a float texcoord array");
+		return false;	//must have some vertex coords...
+	}
+	float *tcdata = (float*)texcoords->vdata.getbuf();
+
+	skinwidth = 4;
+	skinheight = 4;
+	memset(skindata.reserve(skinwidth*skinheight), 15, skinwidth*skinheight);
+	skindata.advance(skinwidth*skinheight);
+	numskins++;
+
+	//we're going to need the transformed pose data, without any bone weights getting in the way.
+	vector<Vec3> vpos, vnorm;
+	Vec3 min={FLT_MAX,FLT_MAX,FLT_MAX}, max={-FLT_MAX,-FLT_MAX,-FLT_MAX};
+	loopv(anims)
+	{
+		anim &a = anims[i];
+		Vec3 *outv = vpos.reserve(mesh.numverts*a.numframes);
+		Vec3 *outn = vnorm.reserve(mesh.numverts*a.numframes);
+
+		Vec3 *invert = (Vec3*)vertcoords->vdata.getbuf();
+		Vec3 *innorm = (Vec3*)vertnorm->vdata.getbuf();
+//		uchar *inbones = (uchar*)vertbones->vdata.getbuf();
+//		Vec4 *inweights = (Vec4*)vertweights->vdata.getbuf();
+
+		for (int j = 0; j < a.numframes; j++)
+		{
+			//FIXME: generate bone matricies
+			for (int i = mesh.firstvert; i < mesh.numverts; i++, outv++, outn++)
+			{
+				//FIXME: generate vert's matrix
+
+				//transform each vert
+				*outv = invert[i];
+
+				//bound it to find the model's extents
+				for (uint c = 0; c < 3; c++)
+				{
+					if (min.v[c] > outv->v[c])
+						min.v[c] = outv->v[c];
+					if (max.v[c] < outv->v[c])
+						max.v[c] = outv->v[c];
+				}
+
+				*outn = innorm[i];
+			}
+			vpos.advance(mesh.numverts);
+			vnorm.advance(mesh.numverts);
+		}
+	}
+
+	offset = -min;
+	scale = (max-min)/255; //ignore low order info here
+
+	stream *f = openfile(filename, "wb");
+	if(!f) return false;
+
+	if (md16)
+		f->putlil((uint)(('M'<<0)|('D'<<8)|('1'<<16)|('6'<<24)));
+	else
+		f->putlil((uint)(('I'<<0)|('D'<<8)|('P'<<16)|('O'<<24)));
+	f->putlil((uint)6);	//version
+	f->putlil((float)scale[0]);
+	f->putlil((float)scale[1]);
+	f->putlil((float)scale[2]);
+	f->putlil((float)offset[0]);
+	f->putlil((float)offset[1]);
+	f->putlil((float)offset[2]);
+	f->putlil(0.f);	//radius
+	f->putlil(0.f);	//eyeposx, never used afaik
+	f->putlil(0.f);	//eyeposy
+	f->putlil(0.f);	//eyeposz
+
+	f->putlil((uint)numskins);
+	f->putlil((uint)skinwidth);
+	f->putlil((uint)skinheight);
+
+	f->putlil((uint)mesh.numverts);
+	f->putlil((uint)mesh.numtris);
+	f->putlil((uint)anims.length());	//numanims
+
+	f->putlil((uint)0);	//synctype
+	f->putlil((uint)modelflags);	//flags
+	f->putlil(0.f);	//size
+
+	//skins
+	for (int i = 0; i < numskins; i++)
+	{
+		f->putlil((uint)0);	//ALIAS_SKIN_SINGLE
+		f->write(skindata.getbuf()+i*skinwidth*skinheight, skinwidth*skinheight);
+	}
+	//texcoords
+	for (int i = mesh.firstvert; i < mesh.numverts; i++)
+	{
+		f->putlil((uint)(0?32:0));	//onseam. no verts are ever onseam for us, as we don't do that nonsense here.
+		f->putlil((int)((tcdata[i*2+0]+.5)*skinwidth));	//mdl texcoords are ints, in texels. which sucks, but what can you do...
+		f->putlil((int)((tcdata[i*2+1]+.5)*skinheight));
+	}
+	//tris
+	for (int i = mesh.firsttri; i < mesh.firsttri+mesh.numtris; i++)
+	{
+		f->putlil((uint)1);	//faces front. All are effectively front-facing for us. This avoids annoying tc additions.
+		f->putlil((uint)triangles[i].vert[0]);
+		f->putlil((uint)triangles[i].vert[1]);
+		f->putlil((uint)triangles[i].vert[2]);
+	}
+	//animations
+	vector<qmdl_vertex_t> high, low;
+	size_t voffset = 0;
+	loopv(anims)
+	{
+		anim &a = anims[i];
+		for (int j = 0; j < a.numframes; j++)
+		{
+			qmdl_vertex_t *th=high.reserve(mesh.numverts),*tl=low.reserve(mesh.numverts);
+			for (int i = mesh.firstvert; i < mesh.numverts; i++, th++, tl++)
+			{
+				int l;
+				for (uint c = 0; c < 3; c++)
+				{
+					l = (((vpos[voffset][c]-offset[c])*256) / scale[c]);
+					if (l<0)		l = 0;
+					if (l > 0xff00)	l = 0xff00;	//0xffff would exceed the bounds values, so don't use it.
+					th->v[c] = l>>8;
+					tl->v[c] = l&0xff;
+				}
+				tl->normalIndex = th->normalIndex = qmdl_bestnorm(vnorm[voffset]);
+
+				voffset++;
+			}
+			high.advance(mesh.numverts);
+			low.advance(mesh.numverts);
+		}
+	}
+	voffset = 0;
+	loopv(anims)
+	{
+		anim &a = anims[i];
+		if (a.numframes == 1)
+			f->putlil((uint)0);	//single-pose type
+		else
+		{
+			f->putlil((uint)1);	//anim type
+			f->putlil((uint)a.numframes);
+
+			qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
+			for (uint k = 0; k < mesh.numverts*a.numframes; k++)
+			{
+				for (uint c = 0; c < 3; c++)
+				{
+					if (min.v[c] > high[voffset+k].v[c])
+						min.v[c] = high[voffset+k].v[c];
+					if (max.v[c] < high[voffset+k].v[c])
+						max.v[c] = high[voffset+k].v[c];
+				}
+			}
+			f->put(min);
+			f->put(max);
+			for (int j = 0; j < a.numframes; j++)
+				f->putlil(1.0f/a.fps);	//intervals. we use the same value for each
+		}
+
+		for (int j = 0; j < a.numframes; j++)
+		{
+			char name[16]={0};
+			qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
+			for (uint k = 0; k < mesh.numverts; k++)
+			{
+				for (uint c = 0; c < 3; c++)
+				{
+					if (min.v[c] > high[voffset+k].v[c])
+						min.v[c] = high[voffset+k].v[c];
+					if (max.v[c] < high[voffset+k].v[c])
+						max.v[c] = high[voffset+k].v[c];
+				}
+			}
+			f->put(min);
+			f->put(max);
+
+			strncpy(name, &stringdata[a.name], sizeof(name));
+			f->put(name);
+
+			f->write(&high[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
+			if (md16)
+				f->write(&low[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
+			voffset += mesh.numverts;
+		}
+	}
+
+	delete f;
+	return true;
+}
+
+
 void help(bool exitstatus = EXIT_SUCCESS)
 {
 	fprintf(exitstatus != EXIT_SUCCESS ? stderr : stdout,
@@ -4568,7 +4805,20 @@ bool parseanimfield(const char *tok, char **line, filespec &spec, bool defaults)
 	return true;
 }
 
-void parsecommands(char *filename, const char *&outfile, vector<filespec> &infiles, vector<hitbox> &hitboxes)
+struct
+{
+	bool (*write)(const char *filename);
+	const char *cmdname;
+	const char *altcmdname;
+} outputtypes[] =
+{
+	{writeiqm,		"output_iqm"},
+	{writemdl<0>,	"output_qmdl"},
+	{writemdl<1>,	"output_md16"},
+//	{writemd3,		"output_md3"},
+};
+
+void parsecommands(char *filename, const char *outfiles[countof(outputtypes)], vector<filespec> &infiles, vector<hitbox> &hitboxes)
 {
 	filespec defaultspec;
 	defaultspec.reset();
@@ -4586,7 +4836,7 @@ void parsecommands(char *filename, const char *&outfile, vector<filespec> &infil
 	char buf[2048];
 	while(f->getline(buf, sizeof(buf)))
 	{
-		char *tok;
+		const char *tok;
 		char *line = buf;
 		tok = mystrtok(&line);
 		if (tok && *tok == '$')
@@ -4600,8 +4850,6 @@ void parsecommands(char *filename, const char *&outfile, vector<filespec> &infil
 		}
 //		else if (!strcasecmp(tok, "outputdir"))
 //			(void)mystrtok(&line);
-		else if (!strcasecmp(tok, "output"))
-			outfile = newstring(mystrtok(&line));
 		else if (!strcasecmp(tok, "hitbox") || !strcasecmp(tok, "hbox"))
 		{
 			hitbox &hb = hitboxes.add();
@@ -4613,7 +4861,7 @@ void parsecommands(char *filename, const char *&outfile, vector<filespec> &infil
 				hb.maxs[i] = atof(mystrtok(&line));
 		}
 		else if (!strcasecmp(tok, "exec"))
-			parsecommands(mystrtok(&line), outfile, infiles, hitboxes);
+			parsecommands(mystrtok(&line), outfiles, infiles, hitboxes);
 		else if (!strcasecmp(tok, "modelflags"))
 		{
 			bitnames modelflagnames[] = {
@@ -4691,10 +4939,34 @@ void parsecommands(char *filename, const char *&outfile, vector<filespec> &infil
 
 			infiles.add(inspec);
 		}
-		else if (*tok)
+		else
 		{
-			printf("unsupported command \"%s\"\n", tok);
-			continue;
+			size_t n, j;
+			if (!strcasecmp(tok, "output"))
+				tok = "output_iqm";
+			for (n = 0; n < countof(outputtypes); n++)
+			{
+				if (!strcasecmp(tok, outputtypes[n].cmdname))
+				{
+					outfiles[n] = newstring(mystrtok(&line));
+					for (j = 0; j < countof(outputtypes); j++)
+					{
+						if (n!=j && outfiles[j] && !strcasecmp(outfiles[n], outfiles[j]))
+						{
+							printf("cancelling %s\n", outputtypes[j].cmdname);
+							outfiles[j] = NULL;
+							break;
+						}
+					}
+					tok = "";
+					break;
+				}
+			}
+			if (*tok)
+			{
+				printf("unsupported command \"%s\"\n", tok);
+				continue;
+			}
 		}
 
 		if ((tok=mystrtok(&line)))
@@ -4711,14 +4983,14 @@ int main(int argc, char **argv)
 	vector<filespec> infiles;
 	vector<hitbox> hitboxes;
 	filespec inspec;
-	const char *outfile = NULL;
+	const char *outfiles[countof(outputtypes)] = {};
 	for(int i = 1; i < argc; i++)
 	{
 		if(argv[i][0] == '-') 
 		{
 			if(argv[i][1] == '-')
 			{
-				if(!strcasecmp(&argv[i][2], "cmd")) { if(i + 1 < argc) parsecommands(argv[++i], outfile, infiles, hitboxes); }
+				if(!strcasecmp(&argv[i][2], "cmd")) { if(i + 1 < argc) parsecommands(argv[++i], outfiles, infiles, hitboxes); }
 				else if(!strcasecmp(&argv[i][2], "noext")) noext = true;
 				else if(!strcasecmp(&argv[i][2], "fps")) { if(i + 1 < argc) inspec.fps = atof(argv[++i]); }
 				else if(!strcasecmp(&argv[i][2], "name")) { if(i + 1 < argc) inspec.name = argv[++i]; }
@@ -4762,9 +5034,9 @@ int main(int argc, char **argv)
 		{
 			const char *type = strrchr(argv[i], '.');
 			if (type && (!strcasecmp(type, ".cmd")||!strcasecmp(type, ".cfg")||!strcasecmp(type, ".txt")||!strcasecmp(type, ".qc")))	//.qc to humour halflife fanboys
-				parsecommands(argv[i], outfile, infiles, hitboxes);
-			else if(!outfile)
-				outfile = argv[i];
+				parsecommands(argv[i], outfiles, infiles, hitboxes);
+			else if(!outfiles[0] && !outfiles[1] && !outfiles[2])
+				outfiles[0] = argv[i];	//first arg is the output name, if its not an export script thingie.
 			else
 			{
 				infiles.add(inspec).file = argv[i];
@@ -4773,8 +5045,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if(!outfile) fatal("no output file specified");
-	else if(infiles.empty()) fatal("no input files specified");
+	size_t n;
+	for (n = 0; n < countof(outputtypes) && !outfiles[n]; n++);
+	if(n == countof(outfiles)) fatal("no output file specified");
+	if(infiles.empty()) fatal("no input files specified");
 
 	if(gscale != 1) printf("scale: %f\n", escale);
 	if(gmeshtrans != Vec3(0, 0, 0)) printf("mesh translate: %f, %f, %f\n", gmeshtrans.x, gmeshtrans.y, gmeshtrans.z);
@@ -4833,13 +5107,18 @@ int main(int argc, char **argv)
 	if (!quiet)
 		conoutf("");
 
-	if(writeiqm(outfile))
+	for (size_t n = 0; n < countof(outputtypes); n++)
 	{
-		if (!quiet)
-			conoutf("exported: %s", outfile);
+		if (outfiles[n] != NULL)
+		{
+			if(outputtypes[n].write(outfiles[n]))
+			{
+				if (!quiet)
+					conoutf("exported: %s", outfiles[n]);
+			}
+			else fatal("failed writing: %s", outfiles[n]);
+		}
 	}
-	else fatal("failed writing: %s", outfile);
-
 	return EXIT_SUCCESS;
 }
 

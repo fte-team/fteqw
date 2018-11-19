@@ -40,16 +40,22 @@ BULLETVER=2.87
 #only limited forms of cross-making is supported
 #only the following 3 are supported
 #linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
-#linux->linux32 (FTE_TARGET=linux32)
-#linux->linux64 (FTE_TARGET=linux64)
+#linux->win64 (FTE_TARGET=win64) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
+#linux->linux 32 (FTE_TARGET=linux32)
+#linux->linux 64 (FTE_TARGET=linux64)
+#linux->linux x32 (FTE_TARGET=linuxx32)
+#linux->linux armhf (FTE_TARGET=linuxarmhf)
+#linux->linux arm64/aarch64 (FTE_TARGET=linuxarm64)
+#linux->linux *others* (FTE_TARGET=linux CC=other-gcc)
 #linux->morphos (FTE_TARGET=morphos)
 #linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
 #linux->javascript (FTE_TARGET=web)
-#linux->nacl (FTE_TARGET=nacl NARCH=x86_64)
+#linux->nacl (FTE_TARGET=nacl NARCH=x86_64) deprecated.
 #win32->nacl
 #linux->droid (make droid)
 #win32->droid (make droid)
 #if you are cross compiling, you'll need to use FTE_TARGET=mytarget
+#note: cross compiling will typically require 'make makelibs FTE_TARGET=mytarget', which avoids installing lots of extra system packages.
 
 #cygwin's make's paths confuses non-cygwin things
 RELEASE_DIR=$(BASE_DIR)/release
@@ -86,7 +92,7 @@ endif
 BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
 EXE_NAME=$(FTE_CONFIG)
 ifeq (,$(findstring DNO_SPEEX,$(FTE_CONFIG_EXTRA)))
-	USE_SPEEX=1
+	USE_SPEEX?=1
 endif
 ifeq (,$(findstring DNO_OPUS,$(FTE_CONFIG_EXTRA)))
 	USE_OPUS=1
@@ -395,12 +401,25 @@ ifeq ($(FTE_TARGET),linuxarmhf)
 	CXX=arm-linux-gnueabihf-g++ -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
 	BITS=armhf
 endif
+ifeq ($(FTE_TARGET),linuxarm64)
+	FTE_TARGET=linux
+	CC=aarch64-linux-gnu-gcc
+	CXX=aarch64-linux-gnu-g++
+	BITS=arm64
+	USE_SPEEX=0 #fails to compile due to neon asm, I'm just going to disable it (will still soft-link).
+endif
 ifeq ($(FTE_TARGET),linuxx32)
 	#note: the x32 abi is still not finished or something.
 	#at the current time, you will need to edit your kernel's commandline to allow this stuff to run
+	#try and use a proper cross-compiler if we can, otherwise fall back on multi-arch.
 	FTE_TARGET=linux
+ifneq ($(shell which x86_64-linux-gnux32-gcc 2> /dev/null),)
+	CC=x86_64-linux-gnux32-gcc
+	CXX=x86_64-linux-gnux32-g++
+else
 	CC=gcc -mx32
 	CXX=g++ -mx32
+endif
 	BITS=x32
 endif
 ifeq ($(FTE_TARGET),linux64)
@@ -1351,12 +1370,12 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_LDFLAGS=
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 
-	ifneq ("$(wildcard $(/usr/include/wayland-client.h))","")
+	ifneq ("$(wildcard /usr/include/wayland-client.h)","")
 		HAVE_WAYLAND=-DWAYLANDQUAKE
 	else
 		HAVE_WAYLAND=
 	endif
-	ifneq ("$(wildcard $(/usr/include/EGL/egl.h))","")
+	ifneq ("$(wildcard /usr/include/EGL/egl.h)","")
 		HAVE_EGL=-DUSE_EGL
 	else
 		HAVE_EGL=

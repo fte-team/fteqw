@@ -48,6 +48,7 @@
 #define TEXTEDITOR				//my funky text editor! its awesome!
 #define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
 #define USE_SQLITE				//sql-database-as-file support
+#define IPLOG					//track player's ip addresses (any decent server will hide ip addresses, so this probably isn't that useful, but nq players expect its)
 
 //Filesystem formats
 #define PACKAGE_PK3
@@ -87,9 +88,11 @@
 #define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 #define IMAGEFMT_BLP			//legacy crap
-#define PACKAGE_TEXWAD			//quake's image wad support
+#define IMAGEFMT_BMP			//windows bmp. yuck.
+#define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 #define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
+#define PACKAGE_TEXWAD			//quake's image wad support
 #define AVAIL_FREETYPE			//for truetype font rendering
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
 #define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...

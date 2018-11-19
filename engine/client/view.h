@@ -28,7 +28,7 @@ extern float hw_blend[4];
 extern qboolean r_secondaryview;
 
 void V_Init (void);
-void V_RenderView (void);
+void V_RenderView (qboolean no2d);
 float V_CalcRoll (vec3_t angles, vec3_t velocity);
 void V_UpdatePalette (qboolean force);
 void V_ClearCShifts (void);

@@ -33,7 +33,7 @@ cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "1", r_meshpitch_callback, "Sp
 cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "-1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, Quake compatibility requires -1.");
 #endif
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
 {
 	char st[40];
@@ -50,7 +50,7 @@ static void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
 //Common loader function.
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	//we've got to have this bit
 	if (mod->engineflags & MDLF_DOCRC)
 	{
@@ -78,7 +78,7 @@ extern cvar_t r_skin_overlays;
 extern cvar_t mod_md3flags;
 
 
-
+#ifdef HAVE_CLIENT
 typedef struct
 {
 	char *name;
@@ -88,7 +88,7 @@ typedef struct
 
 //these should be rounded up slightly.
 //really this is only to catch spiked models. This doesn't prevent more visible models, just bigger ones.
-clampedmodel_t clampedmodel[] = {
+static clampedmodel_t clampedmodel[] = {
 	{"maps/b_bh100.bsp", 3440},
 	{"progs/player.mdl", 22497},
 	{"progs/eyes.mdl", 755},
@@ -129,7 +129,7 @@ clampedmodel_t clampedmodel[] = {
 	{"progs/turrbase.mdl", 3000},
 	{"progs/turrgun.mdl", 3000}
 };
-
+#endif
 
 
 
@@ -240,7 +240,7 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolea
 #ifdef SKELETALMODELS
 
 /*like above, but guess the quat.w*/
-static void GenMatrixPosQuat3Scale(vec3_t pos, vec3_t quat3, vec3_t scale, float result[12])
+static void GenMatrixPosQuat3Scale(vec3_t const pos, vec3_t const quat3, vec3_t const scale, float result[12])
 {
 	vec4_t quat4;
 	float term = 1 - DotProduct(quat3, quat3);
@@ -581,7 +581,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 		for (i = 0; i < bonecount; i++)
 		{
 			if (bones[i].parent >= 0)
-				R_ConcatTransforms((void*)(dest + bones[i].parent*12), (void*)(sourcedata+i*12), (void*)(dest+i*12));
+				R_ConcatTransforms((void*)(dest + bones[i].parent*12), (const void*)(sourcedata+i*12), (void*)(dest+i*12));
 			else
 			{
 				Vector4Copy(sourcedata+i*12+0, dest+i*12+0);
@@ -605,7 +605,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 		for (i = 0; i < bonecount; i++)
 		{
 			Matrix3x4_Invert_Simple(bones[i].inverse, iim);
-			R_ConcatTransforms((void*)(sourcedata + i*12), (void*)iim, (void*)(dest + i*12));
+			R_ConcatTransforms((const void*)(sourcedata + i*12), (const void*)iim, (void*)(dest + i*12));
 		}
 		sourcedata = dest;
 		sourcetype = SKEL_ABSOLUTE;
@@ -623,7 +623,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 			if (bones[i].parent >= 0)
 			{
 				Matrix3x4_Invert_Simple(sourcedata+bones[i].parent*12, ip);
-				R_ConcatTransforms((void*)ip, (void*)(sourcedata+i*12), (void*)(dest+i*12));
+				R_ConcatTransforms((void*)ip, (const void*)(sourcedata+i*12), (void*)(dest+i*12));
 			}
 			else
 			{
@@ -644,7 +644,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 	{
 		float *dest = (sourcedata == destbuffer)?destbufferalt:destbuffer;
 		for (i = 0; i < bonecount; i++)
-			R_ConcatTransforms((void*)(sourcedata + i*12), (void*)(bones[i].inverse), (void*)(dest + i*12));
+			R_ConcatTransforms((const void*)(sourcedata + i*12), (void*)(bones[i].inverse), (void*)(dest + i*12));
 		sourcedata = dest;
 		sourcetype = SKEL_INVERSE_ABSOLUTE;
 	}
@@ -1002,9 +1002,9 @@ typedef struct
 	skeltype_t	skeltype;	//the skeletal type of this bone block. all blocks should have the same result or the whole thing is unusable or whatever.
 	int			firstbone;	//first bone of interest
 	int			endbone;	//the first bone of the next group (ie: if first is 0, this is the count)
+	int			lerpcount;	//number of pose+frac entries.
 	float		frac[FRAME_BLENDS*2];	//weight of this animation (1 if lerpcount is 1)
 	float		*pose[FRAME_BLENDS*2];	//pointer to the raw frame data for bone 0.
-	int			lerpcount;	//number of pose+frac entries.
 } skellerps_t;
 static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion_s *fs, int numbones, galiasinfo_t *inf)
 {
@@ -1470,7 +1470,7 @@ static void Alias_BuildGPUWeights(model_t *mod, galiasinfo_t *inf, size_t num_tr
 #endif
 
 #ifndef SERVERONLY
-static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
+static void Alias_DrawSkeletalBones(galiasbone_t *bones, float const*bonepose, int bonecount, int basebone)
 {
 	scenetris_t *t;
 	int flags = BEF_NODLIGHT|BEF_NOSHADOWS|BEF_LINES;
@@ -1788,7 +1788,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 					meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
 #ifndef SERVERONLY
 				if (inf->shares_bones != surfnum && qrenderer)
-					Alias_DrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
+					Alias_DrawSkeletalBones(inf->ofsbones, (const float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
 #endif
 			}
 		}
@@ -3104,7 +3104,7 @@ static void Q1MDL_LoadPose(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *ver
 		}
 	}
 }
-static void Q1MDL_LoadPose16(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
+static void Q1MDL_LoadPoseQF16(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
 {
 	//quakeforge's MD16 format has regular 8bit stuff, trailed by an extra low-order set of the verts providing the extra 8bits of precision.
 	//its worth noting that the model could be rendered using the high-order parts only, if your software renderer only supports that or whatever.
@@ -3186,24 +3186,24 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 
 			if (mdltype & 16)
 			{
-				Q1MDL_LoadPose16(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				Q1MDL_LoadPoseQF16(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
 				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts*2];
 			}
 			else
 			{
 				Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype, bbox);
 				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
-			}
 
 #ifdef _DEBUG
-			if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
-				bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2]) && !galias->warned)
+				if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
+					bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2]) && !galias->warned)
 #else
-			if (galias->numverts && pinframe[0].v[2] > frameinfo->bboxmax.v[2] && !galias->warned)
+				if (galias->numverts && pinframe[0].v[2] > frameinfo->bboxmax.v[2] && !galias->warned)
 #endif
-			{
-				Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
-				galias->warned = true;
+				{
+					Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
+					galias->warned = true;
+				}
 			}
 
 
@@ -3260,26 +3260,26 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 
 				if (mdltype & 16)
 				{
-					Q1MDL_LoadPose16(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+					Q1MDL_LoadPoseQF16(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
 					pinframe += pq1inmodel->numverts*2;
 				}
 				else
 				{
 					Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype, bbox);
 					pinframe += pq1inmodel->numverts;
-				}
 
 #ifdef _DEBUG
-				if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
-					bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2] ||
+					if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
+						bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2] ||
 #else
-				if (galias->numverts && (pinframe[0].v[2] > frameinfo->bboxmax.v[2] ||
+					if (galias->numverts && (pinframe[0].v[2] > frameinfo->bboxmax.v[2] ||
 #endif
-					frameinfo->bboxmin.v[0] < ingroup->bboxmin.v[0] || frameinfo->bboxmin.v[1] < ingroup->bboxmin.v[1] || frameinfo->bboxmin.v[2] < ingroup->bboxmin.v[2] ||
-					frameinfo->bboxmax.v[0] > ingroup->bboxmax.v[0] || frameinfo->bboxmax.v[1] > ingroup->bboxmax.v[1] || frameinfo->bboxmax.v[2] > ingroup->bboxmax.v[2]) && !galias->warned)
-				{
-					Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
-					galias->warned = true;
+						frameinfo->bboxmin.v[0] < ingroup->bboxmin.v[0] || frameinfo->bboxmin.v[1] < ingroup->bboxmin.v[1] || frameinfo->bboxmin.v[2] < ingroup->bboxmin.v[2] ||
+						frameinfo->bboxmax.v[0] > ingroup->bboxmax.v[0] || frameinfo->bboxmax.v[1] > ingroup->bboxmax.v[1] || frameinfo->bboxmax.v[2] > ingroup->bboxmax.v[2]) && !galias->warned)
+					{
+						Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
+						galias->warned = true;
+					}
 				}
 
 #ifndef SERVERONLY
@@ -6899,7 +6899,7 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 }
 */
 
-static qboolean IQM_ImportArray4B(const qbyte *base, const struct iqmvertexarray *src, byte_vec4_t *out, size_t count, unsigned int maxval)
+static qboolean IQM_ImportArray4B(const qbyte *fte_restrict base, const struct iqmvertexarray *fte_restrict src, byte_vec4_t *fte_restrict out, size_t count, unsigned int maxval)
 {
 	size_t i;
 	unsigned int j;
@@ -6922,7 +6922,7 @@ static qboolean IQM_ImportArray4B(const qbyte *base, const struct iqmvertexarray
 	case IQM_BYTE:	//FIXME: should be signed, but this makes no sense for our uses
 	case IQM_UBYTE:
 		{
-			qbyte *in = (qbyte*)(base+offset);
+			const qbyte *in = (const qbyte*)(base+offset);
 			/*if (sz == 4)
 				memcpy(out, in, count * sizeof(*out));	//the fast path.
 			else*/ for (i = 0; i < count; i++)
@@ -6943,7 +6943,7 @@ static qboolean IQM_ImportArray4B(const qbyte *base, const struct iqmvertexarray
 	case IQM_SHORT://FIXME: should be signed, but this makes no sense for our uses
 	case IQM_USHORT:
 		{
-			unsigned short *in = (unsigned short*)(base+offset);
+			const unsigned short *in = (const unsigned short*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < 4 && j < sz; j++)
@@ -6962,7 +6962,7 @@ static qboolean IQM_ImportArray4B(const qbyte *base, const struct iqmvertexarray
 	case IQM_INT://FIXME: should be signed, but this makes no sense for our uses
 	case IQM_UINT:
 		{
-			unsigned int *in = (unsigned int*)(base+offset);
+			const unsigned int *in = (const unsigned int*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < 4 && j < sz; j++)
@@ -6993,7 +6993,7 @@ static qboolean IQM_ImportArray4B(const qbyte *base, const struct iqmvertexarray
 
 	return !invalid;
 }
-static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src, float *out, size_t e, size_t count, float *def)
+static void IQM_ImportArrayF(const qbyte *fte_restrict base, const struct iqmvertexarray *fte_restrict src, float *fte_restrict out, size_t e, size_t count, float *def)
 {
 	size_t i;
 	unsigned int j;
@@ -7012,7 +7012,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_BYTE:	//negatives not handled properly
 		{
-			signed char *in = (signed char*)(base+offset);
+			const signed char *in = (const signed char*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7022,7 +7022,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_UBYTE:
 		{
-			qbyte *in = (qbyte*)(base+offset);
+			const qbyte *in = (const qbyte*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7032,7 +7032,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_SHORT:	//negatives not handled properly
 		{
-			signed short *in = (signed short*)(base+offset);
+			const signed short *in = (const signed short*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7042,7 +7042,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_USHORT:
 		{
-			unsigned short *in = (unsigned short*)(base+offset);
+			const unsigned short *in = (const unsigned short*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7052,7 +7052,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_INT:	//negatives not handled properly
 		{
-			signed int *in = (signed int*)(base+offset);
+			const signed int *in = (const signed int*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7062,7 +7062,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_UINT:
 		{
-			unsigned int *in = (unsigned int*)(base+offset);
+			const unsigned int *in = (const unsigned int*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7074,7 +7074,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 	case IQM_HALF:
 #ifdef __F16C__
 		{	//x86 intrinsics
-			unsigned short *in = (qbyte*)(base+offset);
+			const unsigned short *in = (const qbyte*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7083,7 +7083,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		}
 #elif 0
 		{
-			_Float16 *in = (qbyte*)(base+offset);
+			const _Float16 *in = (const _Float16*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7096,7 +7096,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_FLOAT:
 		{
-			float *in = (float*)(base+offset);
+			const float *in = (const float*)(base+offset);
 			if (e == sz)
 				memcpy(out, in, e * sizeof(float) * count);
 			else for (i = 0; i < count; i++)
@@ -7108,7 +7108,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 		break;
 	case IQM_DOUBLE:
 		{
-			double *in = (double*)(base+offset);
+			const double *in = (const double*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -7131,13 +7131,13 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 
 static const void *IQM_FindExtension(const char *buffer, size_t buffersize, const char *extname, int index, size_t *extsize)
 {
-	struct iqmheader *h = (struct iqmheader *)buffer;
+	const struct iqmheader *h = (const struct iqmheader *)buffer;
 	const char *strings = buffer + h->ofs_text;
-	struct iqmextension *ext;
+	const struct iqmextension *ext;
 	int i;
-	for (i = 0, ext = (struct iqmextension*)(buffer + h->ofs_extensions); i < h->num_extensions; i++, ext = (struct iqmextension*)(buffer + ext->ofs_extensions))
+	for (i = 0, ext = (const struct iqmextension*)(buffer + h->ofs_extensions); i < h->num_extensions; i++, ext = (const struct iqmextension*)(buffer + ext->ofs_extensions))
 	{
-		if ((char*)ext > buffer+buffersize || ext->name > h->num_text || ext->ofs_data+ext->num_data>buffersize)
+		if ((const char*)ext > buffer+buffersize || ext->name > h->num_text || ext->ofs_data+ext->num_data>buffersize)
 			break;
 		if (!Q_strcasecmp(strings + ext->name, extname) && index-->=0)
 		{
@@ -7185,7 +7185,7 @@ static void Mod_CleanWeights(const char *modelname, size_t numverts, vec4_t *owe
 
 static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsize)
 {
-	const struct iqmheader *h = (struct iqmheader *)buffer;
+	const struct iqmheader *h = (const struct iqmheader *)buffer;
 	const struct iqmmesh *mesh;
 	const struct iqmvertexarray *varray;
 	const struct iqmtriangle *tris;
@@ -7197,15 +7197,15 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	unsigned int i, j, t, numtris, numverts, firstvert, firsttri;
 	size_t extsize;
 
-	float *vtang = NULL;
+	const float *vtang = NULL;
 	struct iqmvertexarray vpos = {0}, vnorm = {0}, vtcoord = {0}, vbone = {0}, vweight = {0}, vrgba = {0};
 	unsigned int type, fmt, size, offset;
-	unsigned short *framedata;
+	const unsigned short *framedata;
 	vec4_t defaultcolour = {1,1,1,1};
 	vec4_t defaultweight = {0,0,0,0};
 	vec4_t defaultvert = {0,0,0,1};
 
-	struct iqmbounds	*inbounds;
+	const struct iqmbounds	*inbounds;
 
 	int memsize;
 	qbyte *obase=NULL;
@@ -7249,7 +7249,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		return NULL;
 	}
 
-	varray = (struct iqmvertexarray*)(buffer + h->ofs_vertexarrays);
+	varray = (const struct iqmvertexarray*)(buffer + h->ofs_vertexarrays);
 	for (i = 0; i < h->num_vertexarrays; i++)
 	{
 		type = LittleLong(varray[i].type);
@@ -7263,7 +7263,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		else if (type == IQM_NORMAL)
 			vnorm = varray[i];
 		else if (type == IQM_TANGENT && fmt == IQM_FLOAT && size == 4) /*yup, 4, extra is side, for the bitangent*/
-			vtang = (float*)(buffer + offset);
+			vtang = (const float*)(buffer + offset);
 		else if (type == IQM_BLENDINDEXES)
 			vbone = varray[i];
 		else if (type == IQM_BLENDWEIGHTS)
@@ -7340,7 +7340,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		numgroups = h->num_anims;
 		framegroups = malloc(sizeof(*framegroups)*numgroups);
 
-		anim = (struct iqmanim*)(buffer + h->ofs_anims);
+		anim = (const struct iqmanim*)(buffer + h->ofs_anims);
 		for (i = 0; i < numgroups; i++)
 		{
 			framegroups[i].firstpose = LittleLong(anim[i].first_frame);
@@ -7363,7 +7363,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		strcpy(framegroups->name, "base");
 	}
 
-	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
+	mesh = (const struct iqmmesh*)(buffer + h->ofs_meshes);
 
 #ifndef SERVERONLY
 	skinfiles = Mod_CountSkinFiles(mod);
@@ -7414,13 +7414,13 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 #undef dalloc
 
 //no code to load animations or bones
-	framedata = (unsigned short*)(buffer + h->ofs_frames);
+	framedata = (const unsigned short*)(buffer + h->ofs_frames);
 
 	/*Version 1 supports only normalized quaternions, version 2 uses complete quaternions. Some struct sizes change for this, otherwise functionally identical.*/
 	if (h->version == IQM_VERSION1)
 	{
-		struct iqmpose1 *p, *ipose = (struct iqmpose1*)(buffer + h->ofs_poses);
-		struct iqmjoint1 *ijoint = (struct iqmjoint1*)(buffer + h->ofs_joints);
+		const struct iqmpose1 *p, *ipose = (const struct iqmpose1*)(buffer + h->ofs_poses);
+		const struct iqmjoint1 *ijoint = (const struct iqmjoint1*)(buffer + h->ofs_joints);
 		vec3_t pos;
 		vec4_t quat;
 		vec3_t scale;
@@ -7464,8 +7464,8 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	}
 	else
 	{
-		struct iqmpose2 *p, *ipose = (struct iqmpose2*)(buffer + h->ofs_poses);
-		struct iqmjoint2 *ijoint = (struct iqmjoint2*)(buffer + h->ofs_joints);
+		const struct iqmpose2 *p, *ipose = (const struct iqmpose2*)(buffer + h->ofs_poses);
+		const struct iqmjoint2 *ijoint = (const struct iqmjoint2*)(buffer + h->ofs_joints);
 		vec3_t pos;
 		vec4_t quat;
 		vec3_t scale;
@@ -7564,7 +7564,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	}
 
 	//determine the bounds
-	inbounds = (struct iqmbounds*)(buffer + h->ofs_bounds);
+	inbounds = (const struct iqmbounds*)(buffer + h->ofs_bounds);
 	if (h->ofs_bounds)
 	{
 		for (i = 0; i < h->num_frames; i++)
@@ -7642,7 +7642,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		}
 #endif
 
-		tris = (struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
+		tris = (const struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
 		tris += firsttri;
 		gai[i].numindexes = numtris*3;
 		idx = ZG_Malloc(&mod->memgroup, sizeof(*idx)*gai[i].numindexes);

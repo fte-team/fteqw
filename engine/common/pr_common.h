@@ -775,7 +775,9 @@ enum lightfield_e
 	lfield_rotation=13,
 	lfield_dietime=14,
 	lfield_rgbdecay=15,
-	lfield_radiusdecay=16
+	lfield_radiusdecay=16,
+
+	lfield_stylestring=17
 };
 enum csqc_input_event
 {

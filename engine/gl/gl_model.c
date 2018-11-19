@@ -1997,23 +1997,26 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #endif
 
 #ifdef RUNTIMELIGHTING
-	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
-	{
-		writelitfile = !litdata;
-		numlightdata = l->filelen;
-		lightmodel = loadmodel;
-		relitsurface = 0;
-	}
-	else if (!lightmodel && r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
+	if ((loadmodel->type == mod_brush && loadmodel->fromgame == fg_quake) || loadmodel->type == mod_heightmap)
+	{	//we only support a couple of formats. :(
+		if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
+		{
+			writelitfile = !litdata;
+			numlightdata = l->filelen;
+			lightmodel = loadmodel;
+			relitsurface = 0;
+		}
+		else if (!lightmodel && r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
 #ifdef RTLIGHTS
-		&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
+			&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
 #endif
-		)
-	{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
-		writelitfile = false;
-		numlightdata = l->filelen;
-		lightmodel = loadmodel;
-		relitsurface = 0;
+			)
+		{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
+			writelitfile = false;
+			numlightdata = l->filelen;
+			lightmodel = loadmodel;
+			relitsurface = 0;
+		}
 	}
 
 	/*if we're relighting, make sure there's the proper lit data to be updated*/

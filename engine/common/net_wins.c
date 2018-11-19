@@ -2715,6 +2715,37 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 #endif
 
 
+size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize)
+{
+	if (!col)
+		return 0;
+
+	switch(prop)
+	{
+	default:
+		break;
+	case QCERT_PEERFINGERPRINT:
+#if 0//def HAVE_DTLS
+		if (a->prot == NP_DTLS)
+		{
+			struct dtlspeer_s *peer;
+			{
+				a->prot = NP_DGRAM;
+				for (peer = col->dtls; peer; peer = peer->next)
+				{
+					if (NET_CompareAdr(&peer->addr, a))
+						break;
+				}
+				a->prot = NP_DTLS;
+			}
+			if (peer)
+				return peer->funcs->GetPeerCertificate(peer->dtlsstate, data, length);
+		}
+#endif
+		return 0;
+	}
+	return 0;
+}
 
 
 

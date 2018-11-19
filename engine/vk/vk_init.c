@@ -56,8 +56,14 @@ const char *vklayerlist[] =
 
 #ifdef VK_NO_PROTOTYPES
 	#define VKFunc(n) PFN_vk##n vk##n;
-	VKFunc(CreateDebugReportCallbackEXT)
-	VKFunc(DestroyDebugReportCallbackEXT)
+	#ifdef VK_EXT_debug_utils
+		VKFunc(CreateDebugUtilsMessengerEXT)
+		VKFunc(DestroyDebugUtilsMessengerEXT)
+	#endif
+	#ifdef VK_EXT_debug_report
+		VKFunc(CreateDebugReportCallbackEXT)
+		VKFunc(DestroyDebugReportCallbackEXT)
+	#endif
 	VKFuncs
 	#undef VKFunc
 #endif
@@ -97,6 +103,133 @@ do {							\
 #define DOBACKTRACE()
 #endif
 
+#ifdef VK_EXT_debug_utils
+static void DebugSetName(VkObjectType objtype, uint64_t handle, const char *name)
+{
+	if (vkSetDebugUtilsObjectNameEXT)
+	{
+		VkDebugUtilsObjectNameInfoEXT info =
+		{
+			VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+			NULL,
+			objtype,
+			handle,
+			name
+		};
+		vkSetDebugUtilsObjectNameEXT(vk.device, &info);
+	}
+}
+static VkDebugUtilsMessengerEXT vk_debugucallback;
+char *DebugAnnotObjectToString(VkObjectType t)
+{
+	switch(t)
+	{
+	case VK_OBJECT_TYPE_UNKNOWN:						return "VK_OBJECT_TYPE_UNKNOWN";
+    case VK_OBJECT_TYPE_INSTANCE:						return "VK_OBJECT_TYPE_INSTANCE";
+	case VK_OBJECT_TYPE_PHYSICAL_DEVICE:				return "VK_OBJECT_TYPE_PHYSICAL_DEVICE";
+	case VK_OBJECT_TYPE_DEVICE:							return "VK_OBJECT_TYPE_DEVICE";
+	case VK_OBJECT_TYPE_QUEUE:							return "VK_OBJECT_TYPE_QUEUE";
+	case VK_OBJECT_TYPE_SEMAPHORE:						return "VK_OBJECT_TYPE_SEMAPHORE";
+	case VK_OBJECT_TYPE_COMMAND_BUFFER:					return "VK_OBJECT_TYPE_COMMAND_BUFFER";
+	case VK_OBJECT_TYPE_FENCE:							return "VK_OBJECT_TYPE_FENCE";
+	case VK_OBJECT_TYPE_DEVICE_MEMORY:					return "VK_OBJECT_TYPE_DEVICE_MEMORY";
+	case VK_OBJECT_TYPE_BUFFER:							return "VK_OBJECT_TYPE_BUFFER";
+	case VK_OBJECT_TYPE_IMAGE:							return "VK_OBJECT_TYPE_IMAGE";
+	case VK_OBJECT_TYPE_EVENT:							return "VK_OBJECT_TYPE_EVENT";
+	case VK_OBJECT_TYPE_QUERY_POOL:						return "VK_OBJECT_TYPE_QUERY_POOL";
+	case VK_OBJECT_TYPE_BUFFER_VIEW:					return "VK_OBJECT_TYPE_BUFFER_VIEW";
+	case VK_OBJECT_TYPE_IMAGE_VIEW:						return "VK_OBJECT_TYPE_IMAGE_VIEW";
+	case VK_OBJECT_TYPE_SHADER_MODULE:					return "VK_OBJECT_TYPE_SHADER_MODULE";
+	case VK_OBJECT_TYPE_PIPELINE_CACHE:					return "VK_OBJECT_TYPE_PIPELINE_CACHE";
+	case VK_OBJECT_TYPE_PIPELINE_LAYOUT:				return "VK_OBJECT_TYPE_PIPELINE_LAYOUT";
+	case VK_OBJECT_TYPE_RENDER_PASS:					return "VK_OBJECT_TYPE_RENDER_PASS";
+	case VK_OBJECT_TYPE_PIPELINE:						return "VK_OBJECT_TYPE_PIPELINE";
+	case VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT:			return "VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT";
+	case VK_OBJECT_TYPE_SAMPLER:						return "VK_OBJECT_TYPE_SAMPLER";
+	case VK_OBJECT_TYPE_DESCRIPTOR_POOL:				return "VK_OBJECT_TYPE_DESCRIPTOR_POOL";
+	case VK_OBJECT_TYPE_DESCRIPTOR_SET:					return "VK_OBJECT_TYPE_DESCRIPTOR_SET";
+	case VK_OBJECT_TYPE_FRAMEBUFFER:					return "VK_OBJECT_TYPE_FRAMEBUFFER";
+	case VK_OBJECT_TYPE_COMMAND_POOL:					return "VK_OBJECT_TYPE_COMMAND_POOL";
+	case VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION:		return "VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION";
+	case VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE:		return "VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE";
+	case VK_OBJECT_TYPE_SURFACE_KHR:					return "VK_OBJECT_TYPE_SURFACE_KHR";
+	case VK_OBJECT_TYPE_SWAPCHAIN_KHR:					return "VK_OBJECT_TYPE_SWAPCHAIN_KHR";
+	case VK_OBJECT_TYPE_DISPLAY_KHR:					return "VK_OBJECT_TYPE_DISPLAY_KHR";
+	case VK_OBJECT_TYPE_DISPLAY_MODE_KHR:				return "VK_OBJECT_TYPE_DISPLAY_MODE_KHR";
+	case VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT:		return "VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT";
+	case VK_OBJECT_TYPE_OBJECT_TABLE_NVX:				return "VK_OBJECT_TYPE_OBJECT_TABLE_NVX";
+	case VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX:	return "VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX";
+	case VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT:		return "VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT";
+	case VK_OBJECT_TYPE_VALIDATION_CACHE_EXT:			return "VK_OBJECT_TYPE_VALIDATION_CACHE_EXT";
+	case VK_OBJECT_TYPE_RANGE_SIZE:
+    case VK_OBJECT_TYPE_MAX_ENUM:
+		break;
+	}
+	return "UNKNOWNTYPE";
+}
+static VKAPI_ATTR VkBool32 VKAPI_CALL mydebugutilsmessagecallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT*pCallbackData, void* pUserData)
+{
+	char prefix[64];
+	int l = 0;	//developer level
+	if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
+	{	//spam?
+		strcpy(prefix, "VERBOSE:");
+		l = 2;
+	}
+	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+	{	//generally stuff like 'object created'
+		strcpy(prefix, "INFO:");
+		l = 1;
+	}
+	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+		strcpy(prefix, CON_WARNING"WARNING:");
+	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+		strcpy(prefix, CON_ERROR "ERROR:");
+
+	if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
+		strcat(prefix, "GENERAL");
+	else
+	{
+		if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+			strcat(prefix, "SPEC");
+		if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+		{
+			if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+			{
+				strcat(prefix, "|");
+			}
+			strcat(prefix,"PERF");
+		}
+	}
+	Con_DLPrintf(l, "%s[%d] %s - %s\n", prefix, pCallbackData->messageIdNumber, pCallbackData->pMessageIdName?pCallbackData->pMessageIdName:"", pCallbackData->pMessage);
+
+	if (pCallbackData->objectCount > 0)
+	{
+		uint32_t object;
+		for(object = 0; object < pCallbackData->objectCount; ++object)
+			Con_DLPrintf(l, "       Object[%d] - Type %s, Value %"PRIx64", Name \"%s\"\n", object,
+						DebugAnnotObjectToString(pCallbackData->pObjects[object].objectType),
+						pCallbackData->pObjects[object].objectHandle,
+						pCallbackData->pObjects[object].pObjectName);
+	}
+
+	if (pCallbackData->cmdBufLabelCount > 0)
+	{
+		uint32_t label;
+		for (label = 0; label < pCallbackData->cmdBufLabelCount; ++label)
+			Con_DLPrintf(l, "       Label[%d] - %s { %f, %f, %f, %f}\n", label,
+						pCallbackData->pCmdBufLabels[label].pLabelName,
+						pCallbackData->pCmdBufLabels[label].color[0],
+						pCallbackData->pCmdBufLabels[label].color[1],
+						pCallbackData->pCmdBufLabels[label].color[2],
+						pCallbackData->pCmdBufLabels[label].color[3]);
+	}
+	return false;
+}
+#else
+#define DebugSetName(objtype,handle,name)
+#endif
+#ifdef VK_EXT_debug_report
 static VkDebugReportCallbackEXT vk_debugcallback;
 static VkBool32 VKAPI_PTR mydebugreportcallback(
 				VkDebugReportFlagsEXT                       flags,
@@ -146,6 +279,7 @@ static VkBool32 VKAPI_PTR mydebugreportcallback(
 	}
 	return false;
 }
+#endif
 
 //typeBits is some vulkan requirement thing (like textures must be device-local).
 //requirements_mask are things that the engine may require (like host-visible).
@@ -388,6 +522,7 @@ static qboolean VK_CreateSwapChain(void)
 			ici.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 			VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &images[i]));
+			DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)images[i], "backbuffer");
 
 			vkGetImageMemoryRequirements(vk.device, images[i], &mem_reqs);
 
@@ -730,6 +865,10 @@ static qboolean VK_CreateSwapChain(void)
 	for (i = 0; i < vk.backbuf_count; i++)
 	{
 		VkImageViewCreateInfo ivci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+
+		vk.backbufs[i].colour.image = images[i];
+		DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)vk.backbufs[i].colour.image, "backbuffer");
+
 		ivci.format = vk.backbufformat;
 //		ivci.components.r = VK_COMPONENT_SWIZZLE_R;
 //		ivci.components.g = VK_COMPONENT_SWIZZLE_G;
@@ -743,7 +882,6 @@ static qboolean VK_CreateSwapChain(void)
 		ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		ivci.flags = 0;
 		ivci.image = images[i];
-		vk.backbufs[i].colour.image = images[i];
 		if (memories)
 			vk.backbufs[i].colour.mem.memory = memories[i];
 		vk.backbufs[i].colour.width = swapinfo.imageExtent.width;
@@ -773,6 +911,7 @@ static qboolean VK_CreateSwapChain(void)
 				depthinfo.pQueueFamilyIndices = NULL;
 				depthinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				VkAssert(vkCreateImage(vk.device, &depthinfo, vkallocationcb, &vk.backbufs[i].depth.image));
+				DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)vk.backbufs[i].depth.image, "backbuffer depth");
 			}
 
 			//depth memory
@@ -821,6 +960,7 @@ static qboolean VK_CreateSwapChain(void)
 				mscolourinfo.pQueueFamilyIndices = NULL;
 				mscolourinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				VkAssert(vkCreateImage(vk.device, &mscolourinfo, vkallocationcb, &vk.backbufs[i].mscolour.image));
+				DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)vk.backbufs[i].mscolour.image, "multisample");
 			}
 
 			//mscolour memory
@@ -1088,7 +1228,7 @@ qboolean VK_AllocateBindImageMemory(vk_image_t *image, qboolean dedicated)
 }
 
 
-vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget)
+vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget, const char *debugname)
 {
 	vk_image_t ret;
 	VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -1235,6 +1375,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	ici.initialLayout = ret.layout;
 
 	VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &ret.image));
+	DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)ret.image, debugname);
 
 	ret.view = VK_NULL_HANDLE;
 	ret.sampler = VK_NULL_HANDLE;
@@ -1556,7 +1697,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	}
 	else
 	{
-		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET));
+		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET), tex->ident);
 
 		if (target.mem.memory == VK_NULL_HANDLE)
 		{
@@ -2663,6 +2804,7 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		ici.pQueueFamilyIndices = NULL;
 		ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &tempimage));
+		DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)tempimage, "VKVID_GetRGBInfo staging");
 		vkGetImageMemoryRequirements(vk.device, tempimage, &mem_reqs);
 		memAllocInfo.allocationSize = mem_reqs.size;
 		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
@@ -2880,7 +3022,7 @@ static void VK_PaintScreen(void)
 		if (uimenu != 1)
 		{
 			if (r_worldentity.model && cls.state == ca_active)
- 				V_RenderView ();
+ 				V_RenderView (nohud);
 			else
 			{
 				noworld = true;
@@ -3844,14 +3986,26 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		qboolean surfext = false;
 		uint32_t count, i, j;
 		VkExtensionProperties *ext;
+#ifdef VK_EXT_debug_utils
+		qboolean havedebugutils = false;
+#endif
+#ifdef VK_EXT_debug_report
+		qboolean havedebugreport = false;
+#endif
 		vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
 		ext = malloc(sizeof(*ext)*count);
 		vkEnumerateInstanceExtensionProperties(NULL, &count, ext);
 		for (i = 0; i < count && extensions_count < countof(extensions); i++)
 		{
-			if (!strcmp(ext[i].extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME) && vk_debug.ival)
-				extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
-			else if (!strcmp(ext[i].extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+#ifdef VK_EXT_debug_utils
+			if (!strcmp(ext[i].extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME))
+				havedebugutils = true;
+#endif
+#ifdef VK_EXT_debug_report
+			if (!strcmp(ext[i].extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME))
+				havedebugreport = true;
+#endif
+			if (!strcmp(ext[i].extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
 				extensions[extensions_count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
 			else if (sysextnames && !strcmp(ext[i].extensionName, VK_KHR_SURFACE_EXTENSION_NAME))
 			{
@@ -3871,9 +4025,21 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 			}
 		}
 		free(ext);
+
+		if (!vk_debug.ival)
+			;
+#ifdef VK_EXT_debug_utils
+		else if (havedebugutils)
+			extensions[extensions_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+#endif
+#ifdef VK_EXT_debug_report
+		else if (havedebugreport)
+			extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
+#endif
+
 		if (sysextnames && (!vk.khr_swapchain || !surfext))
 		{
-			Con_Printf("Vulkan instance driver lacks support for %s\n", sysextnames[0]);
+			Con_Printf("Vulkan instance lacks driver support for %s\n", sysextnames[0]);
 			return false;
 		}
 	}
@@ -3926,6 +4092,27 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	//set up debug callbacks
 	if (vk_debug.ival)
 	{
+#ifdef VK_EXT_debug_utils
+		vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk.instance, "vkCreateDebugUtilsMessengerEXT");
+		vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk.instance, "vkDestroyDebugUtilsMessengerEXT");
+		if (vkCreateDebugUtilsMessengerEXT)
+		{
+			VkDebugUtilsMessengerCreateInfoEXT dbgCreateInfo;
+			memset(&dbgCreateInfo, 0, sizeof(dbgCreateInfo));
+			dbgCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+			dbgCreateInfo.pfnUserCallback = mydebugutilsmessagecallback;
+			dbgCreateInfo.pUserData = NULL;
+			dbgCreateInfo.messageSeverity =	VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT	|
+											VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT	|
+											VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT	|
+											VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+			dbgCreateInfo.messageType =	    VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+											VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+											VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+			vkCreateDebugUtilsMessengerEXT(vk.instance, &dbgCreateInfo, vkallocationcb, &vk_debugucallback);
+		}
+#endif
+#ifdef VK_EXT_debug_report
 		vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vk.instance, "vkCreateDebugReportCallbackEXT");
 		vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(vk.instance, "vkDestroyDebugReportCallbackEXT");
 		if (vkCreateDebugReportCallbackEXT && vkDestroyDebugReportCallbackEXT)
@@ -3942,6 +4129,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 									VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 			vkCreateDebugReportCallbackEXT(vk.instance, &dbgCreateInfo, vkallocationcb, &vk_debugcallback);
 		}
+#endif
 	}
 
 	//create the platform-specific surface
@@ -4461,11 +4649,20 @@ void VK_Shutdown(void)
 
 	if (vk.device)
 		vkDestroyDevice(vk.device, vkallocationcb);
+#ifdef VK_EXT_debug_utils
+	if (vk_debugucallback)
+	{
+		vkDestroyDebugUtilsMessengerEXT(vk.instance, vk_debugucallback, vkallocationcb);
+		vk_debugucallback = VK_NULL_HANDLE;
+	}
+#endif
+#ifdef VK_EXT_debug_report
 	if (vk_debugcallback)
 	{
 		vkDestroyDebugReportCallbackEXT(vk.instance, vk_debugcallback, vkallocationcb);
 		vk_debugcallback = VK_NULL_HANDLE;
 	}
+#endif
 
 	if (vk.surface)
 		vkDestroySurfaceKHR(vk.instance, vk.surface, vkallocationcb);

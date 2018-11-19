@@ -2986,7 +2986,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt);
+	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true);
 
 	if (capturethrottlesize.ival)
 	{
@@ -5159,10 +5159,10 @@ void Media_Init(void)
 	#endif
 	Media_RegisterEncoder(NULL, &capture_raw);
 
-	Cmd_AddCommand("capture", Media_RecordFilm_f);
-	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
-	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
-	Cmd_AddCommand("capturepause", Media_CapturePause_f);
+	Cmd_AddCommandD("capture", Media_RecordFilm_f, "Captures realtime action to a named video file. Check the capture* cvars to control driver/codecs/rates.");
+	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "Capture a nemed demo to a named video file. Demo capturing can be performed offscreen, allowing arbitrary video sizes, or smooth captures on underpowered hardware.");
+	Cmd_AddCommandD("capturestop", Media_StopRecordFilm_f, "Aborts the current video capture.");
+	Cmd_AddCommandD("capturepause", Media_CapturePause_f, "Pauses the video capture, allowing you to avoid capturing uninteresting parts. This is a toggle, so reuse the same command to resume capturing again.");
 
 	Cvar_Register(&capturemessage,			"Video Capture Controls");
 	Cvar_Register(&capturesound,			"Video Capture Controls");

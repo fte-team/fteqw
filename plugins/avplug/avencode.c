@@ -119,7 +119,7 @@ static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, i
 		return NULL;
 
 	st->id = ctx->fc->nb_streams-1;
-#if 1//LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 0)
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 101)
 	c = st->codec;
 #else
 	c = avcodec_alloc_context3(codec);
@@ -304,7 +304,7 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *sampl
 		return NULL;
 
 	st->id = ctx->fc->nb_streams-1;
-#if 1//LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 0)
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 101)
 	c = st->codec;
 #else
 	c = avcodec_alloc_context3(codec);
@@ -613,7 +613,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 
 	ctx->fc = avformat_alloc_context();
 	ctx->fc->oformat = fmt;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 6, 100) || defined(FF_API_FORMAT_FILENAME)
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 6, 100)
 	Q_strncatz(ctx->fc->filename, streamname, sizeof(ctx->fc->filename));
 #else
 	ctx->fc->url = av_strdup(streamname);
@@ -684,6 +684,10 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		}
 	}
 
+	//different formats have different metadata formats. there's no standards here.
+	//av_dict_set(&ctx->fc->metadata, "TPFL", "testtest", 0);
+	//FIXME: use ffmpeg's sidedata stuff, which should handle it in a generic way
+
 	//nearly complete, can make the file dirty now.
 	err = avformat_write_header(ctx->fc, NULL);
 	if (err < 0)
@@ -742,12 +746,13 @@ static media_encoder_funcs_t encoderfuncs =
 	AVEnc_End
 };
 
-/*
+
 qintptr_t AVEnc_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
-	Cmd_Argv(0, cmd, sizeof(cmd));
-	if (!strcmp(cmd, "avcapture"))
+	pCmd_Argv(0, cmd, sizeof(cmd));
+/*
+	if (!strcmp(cmd, ENCODERNAME"_configure"))
 	{
 menuclear
 menualias menucallback
@@ -762,9 +767,48 @@ menutext 0 24 "Report in"	 	"radio26"
 menutext 0 24 "Cancel"	
 		return true;
 	}
+*/
+	if (!strcmp(cmd, ENCODERNAME"_nvidia"))
+	{
+		pCvar_SetString("capturedriver", ENCODERNAME);	//be sure to use our encoder
+		pCvar_SetString(ENCODERNAME"_videocodec", "h264_nvenc");
+		pCvar_SetString("capturerate", "60");	//we should be able to cope with it, and the default of 30 sucks
+		pCvar_SetString("capturedemowidth", "1920");	//force a specific size, some codecs need multiples of 16 or whatever.
+		pCvar_SetString("capturedemoheight", "1080");	//so this avoids issues with various video codecs.
+
+		pCvar_SetString("capturesound", "1");
+		pCvar_SetString("capturesoundchannels", "2");
+		pCvar_SetString("capturesoundbits", "16");
+
+		Con_Printf(ENCODERNAME": now configured for nvidia's hardware encoder\n");
+		Con_Printf(ENCODERNAME": use ^[/capture foo.mp4^] or ^[/capturedemo foo.mvd foo.mkv^] commands to begin capturing\n");
+	}
+	if (!strcmp(cmd, ENCODERNAME"_defaults"))
+	{	//most formats will end up using the x264 encoder or something
+		pCvar_SetString(ENCODERNAME"_format_force", "");
+		pCvar_SetString(ENCODERNAME"_videocodec", "");
+		pCvar_SetString(ENCODERNAME"_videobitrate", "");
+		pCvar_SetString(ENCODERNAME"_videoforcewidth", "");
+		pCvar_SetString(ENCODERNAME"_videoforceheight", "");
+		pCvar_SetString(ENCODERNAME"_videopreset", "veryfast");
+		pCvar_SetString(ENCODERNAME"_video_crf", "");
+		pCvar_SetString(ENCODERNAME"_audiocodec", "");
+		pCvar_SetString(ENCODERNAME"_audiobitrate", "");
+
+		pCvar_SetString("capturedriver", ENCODERNAME);
+		pCvar_SetString("capturerate", "30");
+		pCvar_SetString("capturedemowidth", "0");
+		pCvar_SetString("capturedemoheight", "0");
+		pCvar_SetString("capturesound", "1");
+		pCvar_SetString("capturesoundchannels", "2");
+		pCvar_SetString("capturesoundbits", "16");
+
+		Con_Printf(ENCODERNAME": capture settings reset to "ENCODERNAME" defaults\n");
+		Con_Printf(ENCODERNAME": Note that some codecs may have restrictions on video sizes\n");
+	}
 	return false;
 }
-*/
+
 
 qboolean AVEnc_Init(void)
 {
@@ -790,8 +834,11 @@ qboolean AVEnc_Init(void)
 	ffmpeg_audiocodec		= pCvar_GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
 	ffmpeg_audiobitrate		= pCvar_GetNVFDG(ENCODERNAME"_audiobitrate",		"",				0, "Specifies the target audio bitrate", ENCODERNAME);
 
-//	if (Plug_Export("ExecuteCommand", AVEnc_ExecuteCommand))
-//		Cmd_AddCommand("avcapture");
+	if (Plug_Export("ExecuteCommand", AVEnc_ExecuteCommand))
+	{
+//		pCmd_AddCommand(ENCODERNAME"_configure");
+		pCmd_AddCommand(ENCODERNAME"_nvidia");
+	}
 
 	return true;
 }

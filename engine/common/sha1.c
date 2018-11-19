@@ -240,7 +240,7 @@ static void memxor(char *dest, const char *src, size_t length)
 	}
 }
 
-typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
+//typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
 size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
 				 const unsigned char *data, size_t datalen,
 				 const unsigned char *key, size_t keylen)

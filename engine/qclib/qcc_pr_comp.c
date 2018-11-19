@@ -4831,6 +4831,107 @@ nolength:
 	}
 }
 
+static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglist, unsigned int argcount)
+{
+	static struct
+	{
+		const char *name;
+		int n;
+		etype_t t1;
+		etype_t t2;
+		etype_t t3;
+	} argtypes[] =
+	{
+		{"VF_MIN",				1, ev_vector},
+		{"VF_MIN_X",			2, ev_float},
+		{"VF_MIN_Y",			3, ev_float},
+		{"VF_SIZE",				4, ev_vector},
+		{"VF_SIZE_X",			5, ev_float},
+		{"VF_SIZE_Y",			6, ev_float},
+		{"VF_VIEWPORT",			7, ev_vector},
+		{"VF_FOV",				8, ev_vector},
+		{"VF_FOVX",				9, ev_float},
+		{"VF_FOVY",				10, ev_float},
+		{"VF_ORIGIN",			11, ev_vector},
+		{"VF_ORIGIN_X",			12, ev_float},
+		{"VF_ORIGIN_Y",			13, ev_float},
+		{"VF_ORIGIN_Z",			14, ev_float},
+		{"VF_ANGLES",			15, ev_vector},
+		{"VF_ANGLES_X",			16, ev_float},
+		{"VF_ANGLES_Y",			17, ev_float},
+		{"VF_ANGLES_Z",			18, ev_float},
+		{"VF_DRAWWORLD",		19, ev_float},
+		{"VF_ENGINESBAR",		20, ev_float},
+		{"VF_DRAWCROSSHAIR",	21, ev_float},
+//		{"VF_CARTESIAN_ANGLES",	22, ev_vector},
+		{"VF_MINDIST",			23, ev_float},
+		{"VF_MAXDIST",			24, ev_float},
+
+		{"VF_CL_VIEWANGLES_V",	33, ev_vector},
+		{"VF_CL_VIEWANGLES_X",	34, ev_float},
+		{"VF_CL_VIEWANGLES_X",	35, ev_float},
+		{"VF_CL_VIEWANGLES_X",	36, ev_float},
+		{"VF_PERSPECTIVE",		200, ev_float},
+		//201
+		{"VF_ACTIVESEAT",		202, ev_float},
+		{"VF_AFOV",				203, ev_float},
+//		{"VF_SCREENVSIZE",		204, ev_vector},
+//		{"VF_SCREENPSIZE",		205, ev_vector},
+		{"VF_VIEWENTITY",		206, ev_float},
+//		{"VF_STATSENTITY",		207, ev_float},
+//		{"VF_SCREENVOFFSET",	208, ev_float},
+		{"VF_RT_SOURCECOLOUR",	209, ev_string},
+		{"VF_RT_DEPTH",			210, ev_string, ev_float, ev_vector},
+		{"VF_RT_RIPPLE",		211, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR0",	212, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR1",	213, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR2",	214, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR3",	215, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR4",	216, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR5",	217, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR6",	218, ev_string, ev_float, ev_vector},
+		{"VF_RT_DESTCOLOUR7",	219, ev_string, ev_float, ev_vector},
+		{"VF_ENVMAP",			220, ev_string},
+		{"VF_USERDATA",			221, ev_pointer, ev_integer},
+	};
+
+	char temp[256];
+	const QCC_eval_t *ev;
+	int i, vf;
+	if (!argcount)
+		return; // o.O
+	ev = QCC_SRef_EvalConst(arglist[0]->base);
+	if (!ev)	//can't check variables.
+		return;
+	vf = ev->_float;
+	if (!qccwarningaction[WARN_ARGUMENTCHECK])
+		return;	//don't bother if its not relevant anyway.
+
+	for (i = 0; i < sizeof(argtypes)/sizeof(argtypes[0]); i++)
+	{
+		if (argtypes[i].n == vf)
+		{
+			if (argcount >= 2 && argtypes[i].t1 != arglist[1]->cast->type)
+			{
+				QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s(%s, ...): expected %s, got %s", funcname, argtypes[i].name, basictypenames[argtypes[i].t1], TypeName(arglist[1]->cast, temp, sizeof(temp)));
+				return;
+			}
+			if (argcount >= 3 && argtypes[i].t2 != arglist[2]->cast->type)
+			{
+				QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s(%s, X, ...): expected %s, got %s", funcname, argtypes[i].name, basictypenames[argtypes[i].t2], TypeName(arglist[2]->cast, temp, sizeof(temp)));
+				return;
+			}
+			if (argcount >= 4 && argtypes[i].t3 != arglist[3]->cast->type)
+			{
+				QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s(%s, X, Y, ...): expected %s, got %s", funcname, argtypes[i].name, basictypenames[argtypes[i].t3], TypeName(arglist[3]->cast, temp, sizeof(temp)));
+				return;
+			}
+			return;
+		}
+	}
+	QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s: unknown argument %i", funcname, vf);
+}
+
 #ifdef SUPPORTINLINE
 struct inlinectx_s
 {
@@ -5336,6 +5437,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 
 	if (!strcmp(funcname, "sprintf"))
 		QCC_VerifyFormatString(funcname, arglist, argcount);
+	if (!strcmp(funcname, "setviewprop") || !strcmp(funcname, "setproperty"))
+		QCC_VerifyArgs_setviewprop(funcname, arglist, argcount);
 
 	func.sym->timescalled++;
 

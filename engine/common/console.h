@@ -200,10 +200,11 @@ typedef struct console_s
 	struct console_s *next;
 } console_t;
 
-extern	console_t	con_main;
+extern	console_t	*con_head;
 extern	console_t	*con_curwindow;		// refers to a windowed console
 extern	console_t	*con_current;		// point to either con_main or con_chat
 extern	console_t	*con_mouseover;
+
 extern	console_t	*con_chat;
 
 //shared between console and keys.
@@ -260,6 +261,7 @@ void Con_SetActive (console_t *con);
 qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(const char *name);
 console_t *Con_Create(const char *name, unsigned int flags);
+console_t *Con_GetMain(void); //retrieves the main console (creating it if needed)
 void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags);
 qboolean Con_InsertConChars (console_t *con, conline_t *line, int offset, conchar_t *c, int len);
 conline_t *Con_ResizeLineBuffer(console_t *con, conline_t *old, unsigned int length);

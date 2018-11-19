@@ -51,10 +51,9 @@ struct shader_s;
 
 #if 1 //c++ or standard C
 	#include "cl_master.h"
-#else
-	enum slist_test_e;
-	enum hostcachekey_e;	//obtained via calls to gethostcacheindexforkey
 #endif
+enum slist_test_e;
+enum hostcachekey_e;	//obtained via calls to gethostcacheindexforkey
 enum fs_relative;
 enum com_tokentype_e;
 

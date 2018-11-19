@@ -380,17 +380,17 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 	char foobar[64];
 	for (i = 0; i < countof(gamepaddeviceids); i++)
 	{
-		Q_snprintfz(foobar, sizeof(foobar), "gp%i", i);
+		Q_snprintfz(foobar, sizeof(foobar), "gp%i", (int)i);
 		callback(ctx, "gamepad", foobar, &gamepaddeviceids[i]);
 	}
 	for (i = 0; i < countof(mouseid); i++)
 	{
-		Q_snprintfz(foobar, sizeof(foobar), "m%i", i);
+		Q_snprintfz(foobar, sizeof(foobar), "m%i", (int)i);
 		callback(ctx, "mouse", foobar, &mouseid[i]);
 	}
 	for (i = 0; i < countof(keyboardid); i++)
 	{
-		Q_snprintfz(foobar, sizeof(foobar), "kb%i", i);
+		Q_snprintfz(foobar, sizeof(foobar), "kb%i", (int)i);
 		callback(ctx, "keyboard", foobar, &keyboardid[i]);
 	}
 }

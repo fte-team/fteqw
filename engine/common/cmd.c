@@ -2636,11 +2636,13 @@ static void Cmd_ForwardToServer_f (void)
 		return;
 	}
 
+#ifdef IMAGEFMT_PCX
 	if (Q_strcasecmp(Cmd_Argv(1), "snap") == 0 && cls.protocol == CP_QUAKEWORLD)
 	{
 		if (SCR_RSShot())
 			return;
 	}
+#endif
 #ifdef NQPROT
 	if (Q_strcasecmp(Cmd_Argv(1), "protocols") == 0 && cls.protocol == CP_NETQUAKE)
 	{

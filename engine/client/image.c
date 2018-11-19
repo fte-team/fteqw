@@ -69,6 +69,7 @@ static image_t *imagelist;
 
 
 
+#if defined(AVAIL_JPEGLIB) || defined(AVAIL_PNGLIB)
 static void GenerateXMPData(char *blob, size_t blobsize, int width, int height, unsigned int metainfo)
 {	//XMP is a general thing that applies to multiple formats - or at least png+jpeg.
 	//we need this if we want to correctly flag the data as a 360 image.
@@ -103,6 +104,7 @@ static void GenerateXMPData(char *blob, size_t blobsize, int width, int height, 
 		"</x:xmpmeta>"
 		);
 }
+#endif
 #endif
 
 #ifndef _WIN32

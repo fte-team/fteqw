@@ -629,7 +629,9 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 
 
 #ifdef ENGINE_ROUTING
+#ifndef SERVERONLY
 static cvar_t route_shownodes = CVAR("route_shownodes", "0");
+#endif
 
 #define LF_EDGE			0x00000001
 #define LF_JUMP			0x00000002

@@ -3057,7 +3057,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 	VectorCopy(oldangles, cl.playerview->viewangles);
 }
 
-
+#ifdef IMAGEFMT_PCX
 // from gl_draw.c
 qbyte		*draw_chars;				// 8*8 graphic characters
 
@@ -3116,6 +3116,7 @@ static void SCR_DrawStringToSnap (const char *s, qbyte *buf, int x, int y, int w
 SCR_RSShot
 ==================
 */
+int MipColor(int r, int g, int b);
 qboolean SCR_RSShot (void)
 {
 	int stride;
@@ -3251,6 +3252,7 @@ qboolean SCR_RSShot (void)
 
 	return true;
 }
+#endif
 
 //=============================================================================
 

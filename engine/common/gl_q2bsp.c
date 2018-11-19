@@ -6708,6 +6708,7 @@ size_t CM_WritePortalState (model_t *mod, void **data)
 			*data = prv->q2portalopen;
 			return sizeof(prv->q2portalopen);
 #endif
+		default: break;
 		}
 	}
 	*data = NULL;
@@ -6756,6 +6757,7 @@ qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize)
 			}
 			break;
 #endif
+		default: break;
 		}
 	}
 	return 0;

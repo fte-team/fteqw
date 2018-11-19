@@ -767,6 +767,7 @@ texid_t R_LoadColourmapImage(void)
 	unsigned int x;
 	unsigned int data[256*(VID_GRADES)];
 	qbyte *colourmappal = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
+#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
 	if (!colourmappal)
 	{
 		size_t sz;
@@ -778,6 +779,7 @@ texid_t R_LoadColourmapImage(void)
 			BZ_Free(pcx);
 		}
 	}
+#endif
 	if (colourmappal)
 	{
 		for (x = 0; x < sizeof(data)/sizeof(data[0]); x++)

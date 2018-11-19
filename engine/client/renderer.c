@@ -1482,6 +1482,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp", &sz);
 		if (!host_basepal)
 			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal", &sz);
+#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
 		if (!host_basepal || sz != 768)
 		{
 			qbyte *pcx=NULL;
@@ -1499,6 +1500,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 				goto q2colormap;	//skip the colormap.lmp file as we already read it
 			}
 		}
+#endif
 
 		{
 			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
@@ -1527,7 +1529,9 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		if (vid.fullbright < 2)
 			vid.fullbright = 0;	//transparent colour doesn't count.
 
+#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
 q2colormap:
+#endif
 
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 

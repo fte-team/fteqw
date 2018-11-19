@@ -1079,7 +1079,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo)
 
 	if (!TEXVALID(shadowmap[id]))
 	{
-		uploadfmt_t encoding = PTI_DEPTH32;
+		uploadfmt_t encoding = PTI_DEPTH16;
 		texid_t tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
 		qglGenTextures(1, &tex->num);
 		GL_MTBind(0, GL_TEXTURE_2D, tex);

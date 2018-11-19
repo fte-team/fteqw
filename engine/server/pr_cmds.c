@@ -5671,6 +5671,11 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		split = PEXT_TE_BULLET;
 #endif
 		break;
+	case TEQW_NQGUNSHOT:
+		qwtype[0] = TEQW_NQGUNSHOT;
+		qwtype[1] = TEQW_QWGUNSHOT;
+		split = PEXT_TE_BULLET;
+		break;
 	case TEQW_QWEXPLOSION:
 #ifdef NQPROT
 		nqtype[0] = TENQ_QWEXPLOSION;

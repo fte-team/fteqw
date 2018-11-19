@@ -3912,7 +3912,7 @@ void Sh_DrawLights(qbyte *vis)
 				else
 					strength = (v1*(1-frac) + v2*(frac))*(22/255.0)*r_lightstylescale.value;
 			}
-			strength *= d_lightstylevalue[0]/255.0f;	//a lot of QW mods use lightstyle 0 for a global darkening fade-in thing, so be sure to respect that.
+			strength *= d_lightstylevalue[0]/256.0f;	//a lot of QW mods use lightstyle 0 for a global darkening fade-in thing, so be sure to respect that.
 			colour[0] *= strength;
 			colour[1] *= strength;
 			colour[2] *= strength;

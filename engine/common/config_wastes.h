@@ -21,7 +21,7 @@
 
 // All my fault -eukara
 #define ENGINE_ROUTING
-#undef USE_INTERNAL_BULLET
+#define USE_INTERNAL_BULLET
 #define MENU_NATIVECODE // Will make a debut eventually, hopefully
 
 // What do we use
@@ -39,6 +39,7 @@
 #define AVAIL_OPENAL
 #define AVAIL_ZLIB
 #define AVAIL_OGGVORBIS
+#define IMAGEFMT_PCX
 #define NOMEDIA
 #define CL_MASTER
 #define CSQC_DAT
@@ -76,7 +77,7 @@
 #define Q1BSPS // HL content support
 #undef Q2BSPS
 #undef RFBSPS
-#undef TERRAIN
+#define TERRAIN
 #undef DOOMWADS
 #undef MAP_PROC
 
@@ -112,8 +113,8 @@
 #undef IMAGEFMT_KTX
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_BLP	//legacy crap
-#undef IMAGEFMT_BMP	//legacy crap
-#undef IMAGEFMT_PCX	//legacy crap
+#define IMAGEFMT_BMP	//legacy crap
+//#undef IMAGEFMT_PCX	//legacy crap
 #undef NETPREPARSE	//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
 #undef USE_SQLITE	//sql-database-as-file support
 #undef QUAKESTATS	//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.

@@ -1482,25 +1482,23 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp", &sz);
 		if (!host_basepal)
 			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal", &sz);
-#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
 		if (!host_basepal || sz != 768)
 		{
-			qbyte *pcx=NULL;
+#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
+			qbyte *pcx = COM_LoadTempFile("pics/colormap.pcx", 0, &sz);
+#endif
 			if (host_basepal)
 				Z_Free(host_basepal);
 			host_basepal = BZ_Malloc(768);
-			pcx = COM_LoadTempFile("pics/colormap.pcx", 0, &sz);
-			if (!pcx || !ReadPCXPalette(pcx, sz, host_basepal))
+#if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
+			if (pcx && ReadPCXPalette(pcx, sz, host_basepal))
+				goto q2colormap;	//skip the colormap.lmp file as we already read it
+			else
+#endif
 			{
 				memcpy(host_basepal, default_quakepal, 768);
 			}
-			else
-			{
-				//if (ReadPCXData(pcx, com_filesize, 256, VID_GRADES, colormap))
-				goto q2colormap;	//skip the colormap.lmp file as we already read it
-			}
 		}
-#endif
 
 		{
 			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);

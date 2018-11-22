@@ -327,6 +327,7 @@ static struct
 	unsigned int encsamplerate;
 
 	void *decoder[MAX_CLIENTS];
+	float declevel[MAX_CLIENTS];
 	unsigned char deccodec[MAX_CLIENTS];
 	unsigned char decseq[MAX_CLIENTS];	/*sender's sequence, to detect+cover minor packetloss*/
 	unsigned char decgen[MAX_CLIENTS];	/*last generation. if it changes, we flush speex to reset packet loss*/
@@ -787,6 +788,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		s_voip.deccodec[sender] = codec;
 		s_voip.decgen[sender] = gen;
 		s_voip.decseq[sender] = seq;
+		s_voip.declevel[sender] = 0;
 	}
 
 
@@ -913,7 +915,19 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		Con_DPrintf("%i dropped audio frames\n", drops);
 
 	if (decodesamps > 0)
+	{	//calculate levels of other people. eukara demanded this.
+		float level;
+		float f;
+		for (len = 0; len < decodesamps; len++)
+		{
+			f = decodebuf[len];
+			level += f*f;
+		}
+		level = (3000*level) / (32767.0f*32767*decodesamps);
+		s_voip.declevel[sender] = (s_voip.declevel[sender]*7 + level)/8;
+
 		S_RawAudio(sender, (qbyte*)decodebuf, s_voip.decsamplerate[sender], decodesamps, 1, 2, snd_voip_play.value);
+	}
 }
 
 #ifdef SUPPORT_ICE
@@ -1611,6 +1625,14 @@ int S_Voip_Loudness(qboolean ignorevad)
 	if (!s_voip.cdriverctx || (!ignorevad && s_voip.dumps))
 		return -1;
 	return s_voip.voiplevel;
+}
+int S_Voip_ClientLoudness(unsigned int plno)
+{
+	if (plno >= MAX_CLIENTS)
+		return 0;
+	if (s_voip.lastspoke[plno] > realtime)
+		return s_voip.declevel[plno];
+	return -1;
 }
 qboolean S_Voip_Speaking(unsigned int plno)
 {

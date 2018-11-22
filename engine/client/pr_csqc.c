@@ -3890,7 +3890,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		if (pnum == csqc_playerview->playernum)
 			sprintf(ret, "%i", S_Voip_Loudness(false));
 		else
-			*ret = 0;
+			sprintf(ret, "%i", S_Voip_ClientLoudness(pnum));
 	}
 #endif
 	else

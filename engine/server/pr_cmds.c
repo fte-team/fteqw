@@ -7231,7 +7231,7 @@ static void QCBUILTIN PF_logtext(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	otext = text = PF_VarString(prinst, 2, pr_globals);
 	while (*text)
 	{
-		int cp = unicode_decode(&err, text, (char**)&text, false);
+		int cp = unicode_decode(&err, text, &text, false);
 		if ((cp >= 0xe000 && cp < 0xe100) || cp == '\r')
 			cp = readable2[cp&0xff];	//dequake it
 		out += utf8_encode(out, cp, sizeof(unitext)-1-(out-unitext));
@@ -11162,7 +11162,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
 
-	{"physics_supported",PF_physics_supported,0,	0,		0,		0,		D("float(optional float force)", "Queries whether rigid body physics is enabled or not. CSQC and SSQC may report different values. If the force argument is used then the engine will try to activate or release physics (returning the new state, which may fail if plugins or dlls are missing). Note that restarting the physics engine is likely to result in hitches when collision trees get generated. The state may change if a plugin is disabled mid-map.")},
+	{"physics_supported",PF_physics_supported,0,	0,		0,		0,		D("float(optional float forcestate)", "Queries whether rigid body physics is enabled or not. CSQC and SSQC may report different values. If the force argument is specified then the engine will try to activate or release physics (returning the new state, which may fail if plugins or dlls are missing). Note that restarting the physics engine is likely to result in hitches when collision trees get generated. The state may change if a plugin is disabled mid-map.")},
 #ifdef USERBE
 	{"physics_enable",	PF_physics_enable,	0,		0,		0,		540,	D("void(entity e, float physics_enabled)", "Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time.")},
 	{"physics_addforce",PF_physics_addforce,0,		0,		0,		541,	D("void(entity e, vector force, vector relative_ofs)", "Apply some impulse directional force upon a MOVETYPE_PHYSICS entity.")},

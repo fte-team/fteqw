@@ -1928,7 +1928,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 		CloseClipboard();
 	}
 }
-void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
 	HANDLE glob;
 	char *temp;

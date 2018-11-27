@@ -405,7 +405,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
 #define PFS_NONOTIFY		32	//flag used by console prints (text won't be visible other than by looking at the console)
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
-unsigned int utf8_decode(int *error, const void *in, char **out);
+unsigned int utf8_decode(int *error, const void *in, char const**out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
@@ -420,7 +420,7 @@ void COM_BiDi_Shutdown(void);
 unsigned int unicode_byteofsfromcharofs(const char *str, unsigned int charofs, qboolean markup);
 unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, qboolean markup);
 unsigned int unicode_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
-unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup);
+unsigned int unicode_decode(int *error, const void *in, char const**out, qboolean markup);
 size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean markup);
 size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean markup);
 unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean markup);

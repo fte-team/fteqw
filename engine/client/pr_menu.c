@@ -870,7 +870,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 	while(*text)
 	{
 		if (1)//VMUTF8)
-			c = unicode_decode(&error, text, (char**)&text, false);
+			c = unicode_decode(&error, text, &text, false);
 		else
 		{
 			//FIXME: which charset is this meant to be using?

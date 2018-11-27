@@ -64,6 +64,16 @@ IF(NOT ZLIB_FOUND)
 	SET(ZLIB_LIBRARIES )
 ENDIF()
 
+FIND_PACKAGE(BZip2)
+IF(BZIP2_FOUND)
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AVAIL_BZLIB)
+	SET(FTE_LIBS ${FTE_LIBS} bz2)
+	SET(FTESV_LIBS ${FTESV_LIBS} bz2)
+	MESSAGE(STATUS "bzip2 library found. bz2-compressed pk3s will work for the price of extra bloat! yay!")
+ELSE()
+	MESSAGE(WARNING "bzip2 library NOT available. bz2-compressed pk3s will not be available, as if anyone cares.")
+ENDIF()
+
 SET(OpenGL_GL_PREFERENCE LEGACY)
 FIND_PACKAGE(OpenGL)
 IF(OpenGL_FOUND)
@@ -93,14 +103,13 @@ ELSE()
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_FREETYPE)
 ENDIF()
 
-#FIND_PACKAGE(Vulkan)
-#IF(Vulkan_FOUND)
-#	INCLUDE_DIRECTORIES( ${Vulkan_INCLUDE_DIRS} )
-	SET(FTE_DEFINES ${FTE_DEFINES};VKQUAKE)
-#ELSE()
-#	SET(FTE_DEFINES ${FTE_DEFINES};VKQUAKE)
-#	MESSAGE(WARNING "System vulkan headers NOT available.")
-#ENDIF()
+FIND_PATH(VULKAN_INCLUDE_DIR vulkan/vulkan.h)
+IF(VULKAN_INCLUDE_DIR)
+	INCLUDE_DIRECTORIES( ${VULKAN_INCLUDE_DIR} )
+	SET(FTE_DEFINES ${FTE_DEFINES};VKQUAKE) #no libs required, thankfully
+ELSE()
+	MESSAGE(WARNING "Vulkan headers NOT available.")
+ENDIF()
 
 FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
 IF(NOT VORBISFILE_LIBRARY)
@@ -132,7 +141,7 @@ IF(${ANDROID})
 #	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
 
 	SET(FTE_DEFINES ${FTE_DEFINES};ANDROID;VKQUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
+	SET(FTE_LIBS ${FTE_LIBS} android log EGL ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_droid.c
 		engine/common/sys_linux_threads.c
@@ -146,7 +155,7 @@ ELSEIF(${WIN32})
 	
 	#	engine/server/sv_sys_win.c
 	
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} ole32 gdi32 wsock32 winmm dxguid)
+	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} ole32 gdi32 wsock32 winmm dxguid)
 	SET(FTE_DEFINES ${FTE_DEFINES};D3D9QUAKE;D3D11QUAKE;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG)
 	SET(FTE_ARCH_FILES 
 		engine/client/winquake.rc
@@ -177,7 +186,7 @@ ELSEIF(${WIN32})
 		engine/d3d/vid_d3d8.c
 	)
 	
-	SET(FTESV_LIBS ${ZLIB_LIBRARIES} wsock32 winmm)
+	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} wsock32 winmm)
 	SET(FTESV_ARCH_FILES 
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
@@ -213,7 +222,7 @@ ELSEIF(${UNIX})	#linux(ish)
 	ENDIF()
 
 	SET(FTE_DEFINES ${FTE_DEFINES};DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;DYNAMIC_SDL;MULTITHREAD;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
+	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
@@ -267,7 +276,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/common/net_ssl_gnutls.c
 #		engine/common/net_ssl_openssl.c
 	)
-	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread)
+	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} pthread)
 
 #	SET(FTE_DEFINES ${FTE_DEFINES};HAVE_OPENSSL)
 #	SET(FTESV_DEFINES ${FTESV_DEFINES};HAVE_OPENSSL)
@@ -286,7 +295,7 @@ ELSEIF(1)	#SDL
 	
 	#SDL2.0.7 supports vulkan, so lets use it.
 	SET(FTE_DEFINES ${FTE_DEFINES};FTE_SDL;DYNAMIC_LIBPNG;DYNAMIC_LIBJPEG;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTE_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
+	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 	SET(FTE_ARCH_FILES
 		engine/client/sys_sdl.c
 		engine/client/snd_al.c
@@ -297,7 +306,7 @@ ELSEIF(1)	#SDL
 	)
 
 	SET(FTESV_DEFINES FTE_SDL;stricmp=strcasecmp;strnicmp=strncasecmp)
-	SET(FTESV_LIBS ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
+	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES} m ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
 		SET(FTE_LIBS ${FTE_LIBS} wsock32 gdi32 ole32)
@@ -375,6 +384,7 @@ SET(FTE_COMMON_FILES
 	engine/common/fs_stdio.c
 	engine/common/fs_xz.c
 	engine/common/fs_zip.c
+	engine/common/fs_vpk.c
 	engine/common/gl_q2bsp.c
 	engine/common/huff.c
 	engine/common/log.c
@@ -394,6 +404,11 @@ SET(FTE_COMMON_FILES
 	engine/common/sha1.c
 	engine/common/translate.c
 	engine/common/zone.c
+
+	engine/common/config_fteqw.h
+	engine/common/config_minimal.h
+	engine/common/config_nocompat.h
+	engine/common/config_wastes.h
 	
 	#sigh
 	engine/client/pr_skelobj.c
@@ -542,6 +557,31 @@ SET(FTE_CLIENT_FILES
 	engine/vk/vk_init.c
 )
 
+FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")
+IF(BULLET_INTERNAL)
+	#Built-in bullet physics plugin...
+	FIND_PACKAGE(Bullet REQUIRED)
+	SET(FTE_COMMON_FILES ${FTE_COMMON_FILES} plugins/bullet/bulletplug.cpp)
+	INCLUDE_DIRECTORIES( ${BULLET_INCLUDE_DIRS} )
+	SET(FTE_LIBS ${FTE_LIBS} ${BULLET_LIBRARIES})
+	SET(FTESV_LIBS ${FTESV_LIBS} ${BULLET_LIBRARIES})
+ELSE()
+	#Bullet Physics library plugin
+	FIND_PACKAGE(Bullet)
+	IF (BULLET_FOUND)
+		ADD_LIBRARY(bullet MODULE
+			plugins/qvm_api.c
+			plugins/plugin.c
+			plugins/bullet/bulletplug.cpp
+		)
+		TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
+		SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
+		SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
+		SET_TARGET_PROPERTIES(bullet PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		TARGET_LINK_LIBRARIES(bullet m ${BULLET_LIBRARIES})
+	ENDIF()
+ENDIF()
+
 IF(ANDROID)
 	#android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
 	ADD_LIBRARY(ftedroid MODULE
@@ -581,6 +621,9 @@ ELSE()
 		engine/http/ftpserver.c
 	)
 	SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON};stricmp=strcasecmp;strnicmp=strncasecmp")
+	IF(WIN32)
+		TARGET_LINK_LIBRARIES(httpserver ${ZLIB_LIBRARIES} ws2_32)
+	ENDIF()
 
 	ADD_EXECUTABLE(fteqcc
 		engine/qclib/qcctui.c
@@ -626,31 +669,24 @@ ADD_LIBRARY(qi MODULE
 )
 SET_TARGET_PROPERTIES(qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(qi PROPERTIES PREFIX "fteplug_")
-
-#Bullet Physics library plugin
-#FIND_PACKAGE(Bullet)
-IF (BULLET_FOUND)
-	ADD_LIBRARY(bullet MODULE
-		plugins/qvm_api.c
-		plugins/plugin.c
-		plugins/bullet/bulletplug.cpp
-	)
-	TARGET_INCLUDE_DIRECTORIES(bullet PUBLIC ${BULLET_INCLUDE_DIRS})
-	SET_TARGET_PROPERTIES(bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN")
-	SET_TARGET_PROPERTIES(bullet PROPERTIES PREFIX "fteplug_")
-ENDIF()
+SET_TARGET_PROPERTIES(qi PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(qi m)
 
 #ODE Physics library plugin
-#FIND_PACKAGE(ode)
-IF (ODE_FOUND)
+FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
+FIND_LIBRARY(LIBODE_LIBRARY ode)
+IF (LIBODE_INCLUDE_DIR)
 	ADD_LIBRARY(ode MODULE
 		plugins/qvm_api.c
 		plugins/plugin.c
 		engine/common/com_phys_ode.c
+		engine/common/mathlib.c
 	)
 	TARGET_INCLUDE_DIRECTORIES(ode PUBLIC ${ODE_INCLUDE_DIRS})
 	SET_TARGET_PROPERTIES(ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
 	SET_TARGET_PROPERTIES(ode PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(ode PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	TARGET_LINK_LIBRARIES(ode m ${LIBODE_LIBRARY})
 ENDIF()
 
 #EzQuake Hud port plugin
@@ -664,6 +700,8 @@ ADD_LIBRARY(ezhud MODULE
 )
 SET_TARGET_PROPERTIES(ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(ezhud PROPERTIES PREFIX "fteplug_")
+SET_TARGET_PROPERTIES(ezhud PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(ezhud m)
 
 #IRC client plugin
 ADD_LIBRARY(irc MODULE
@@ -673,6 +711,8 @@ ADD_LIBRARY(irc MODULE
 )
 SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
+SET_TARGET_PROPERTIES(irc PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(irc m)
 
 #ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
 FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
@@ -715,6 +755,11 @@ IF(NOT ANDROID)
 	)
 	SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 	SET_TARGET_PROPERTIES(xmpp PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(xmpp PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	IF(${WIN32})
+	ELSE()
+		TARGET_LINK_LIBRARIES(xmpp m resolv)
+	ENDIF()
 ENDIF()
 
 #cef plugin

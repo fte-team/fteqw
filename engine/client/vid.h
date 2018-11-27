@@ -107,6 +107,12 @@ typedef struct
 
 	float			dpi_x;
 	float			dpi_y;
+
+	conchar_t		*ime_preview;		//pending IME preview text that has been entered but isn't committed yet. set by video code.
+	size_t			ime_previewlen;
+	size_t			ime_caret;
+	float			ime_position[2];	//where to display any ime popups (virtual coords)
+	qboolean		ime_allow;			//enable the ime (ie: at the console or messagemode)
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state

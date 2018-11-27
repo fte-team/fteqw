@@ -5486,10 +5486,10 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 	size_t numindicies = 0;
 	int w, h, lmnum;
 	float scale[2];
+#ifdef RUNTIMELIGHTING
 	lightmapinfo_t *lm;
 	qboolean dorelight = true;
 
-#ifdef RUNTIMELIGHTING
 	//FIXME: lightmaps
 	//if we're enabling lightmaps, make sure all surfaces have known sizes first.
 	//allocate lightmap space for all surfaces, and then rebuild all textures.

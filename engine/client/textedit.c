@@ -97,7 +97,7 @@ conline_t *Con_Editor_FindLine(console_t *con, int line)
 	return NULL;
 }
 
-int Con_Editor_Evaluate(console_t *con, char *evalstring)
+int Con_Editor_Evaluate(console_t *con, const char *evalstring)
 {
 	char *eq, *term;
 
@@ -304,7 +304,7 @@ static void Con_Editor_Save(console_t *con)
 }
 qboolean	Con_Editor_MouseOver(struct console_s *con, char **out_tiptext, shader_t **out_shader)
 {
-	char *mouseover = Con_CopyConsole(con, true, false);
+	char *mouseover = Con_CopyConsole(con, true, false, false);
 
 	if (mouseover)
 	{
@@ -618,7 +618,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 		}
 		if (ctrldown && (con->flags & CONF_KEEPSELECTION))
 		{
-			char *buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+			char *buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 			if (buffer)
 			{
 				Sys_SaveClipboard(CBT_CLIPBOARD, buffer);
@@ -803,7 +803,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 		}
 		if (ctrldown && key =='c' && (con->flags & CONF_KEEPSELECTION))
 		{
-			char *buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+			char *buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 			if (buffer)
 			{
 				Sys_SaveClipboard(CBT_CLIPBOARD, buffer);
@@ -820,7 +820,7 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			c[l++] = CON_WHITEMASK | (unicode&0xffff);
 			if (con->flags & CONF_KEEPSELECTION)
 				Con_Editor_DeleteSelection(con);
-			if (Con_InsertConChars(con, con->userline, con->useroffset, c, l))
+			if (con->userline && Con_InsertConChars(con, con->userline, con->useroffset, c, l))
 			{
 				con->useroffset += l;
 				Con_Editor_LineChanged(con, con->userline);

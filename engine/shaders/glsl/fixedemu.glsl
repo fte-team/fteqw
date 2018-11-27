@@ -1,4 +1,5 @@
 !!ver 100-450
+!!samps sourcetex:0
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -22,7 +23,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
 varying vec2 tc;
 #ifndef UC
 varying vec4 vc;
@@ -33,7 +33,7 @@ uniform vec4 s_colour;
 float e_time;
 void main ()
 {
-	vec4 fc = texture2D(s_t0, tc) * vc;
+	vec4 fc = texture2D(s_sourcetex, tc) * vc;
 #ifdef ALPHATEST
 	if (!(fc.a ALPHATEST))
 		discard;

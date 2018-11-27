@@ -11,7 +11,8 @@
 !!cvarf gl_specular
 !!cvardf gl_affinemodels=0
 !!cvardf r_tessellation_level=5
-!!samps diffuse normalmap specular fullbright upper lower paletted reflectmask reflectcube
+!!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube
+!!samps =EIGHTBIT paletted 1
 
 #include "sys/defs.h"
 
@@ -208,7 +209,6 @@ uniform float cvar_gl_specular;
 
 #ifdef EIGHTBIT
 #define s_colourmap s_t0
-uniform sampler2D s_colourmap;
 #endif
 
 affine varying vec2 tc;

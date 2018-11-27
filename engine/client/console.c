@@ -1339,6 +1339,20 @@ DRAWING
 ==============================================================================
 */
 
+qboolean COM_InsertIME(conchar_t *buffer, size_t buffersize, conchar_t **cursor, conchar_t **textend)
+{
+	conchar_t *in = vid.ime_preview;
+	if (in && *in && *textend+vid.ime_previewlen < buffer+buffersize)
+	{
+		memmove(buffer + (*cursor-buffer) + vid.ime_previewlen, *cursor, ((*textend-*cursor)+1)*sizeof(conchar_t));
+		memcpy(buffer + (*cursor-buffer), in, vid.ime_previewlen*sizeof(conchar_t));
+		*cursor += vid.ime_caret;
+		*textend += vid.ime_previewlen;
+
+		return true;
+	}
+	return false;
+}
 
 /*
 ================
@@ -1364,8 +1378,17 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	size_t textsize;
 	qboolean cursorframe;
 	unsigned int codeflags, codepoint;
+	int cursorpos;
+	qboolean hidecomplete;
 
 	int x;
+
+	if (focused)
+	{
+		vid.ime_allow = true;
+		vid.ime_position[0] = ((float)left/vid.pixelwidth)*vid.width;
+		vid.ime_position[1] = ((float)y/vid.pixelheight)*vid.height;
+	}
 
 	if (!con->linebuffered || con->linebuffered == Con_Navigate)
 	{
@@ -1383,6 +1406,8 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 
 	text = key_lines[edit_line];
 
+	cursorpos = key_linepos;
+
 	//copy it to an alternate buffer and fill in text colouration escape codes.
 	//if it's recognised as a command, colour it yellow.
 	//if it's not a command, and the cursor is at the end of the line, leave it as is,
@@ -1390,12 +1415,23 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 
 	textstart = COM_ParseFunString(CON_WHITEMASK, con->prompt, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_FORCEUTF8);
 	textsize = (countof(maskedtext) - (textstart-maskedtext) - 1) * sizeof(maskedtext[0]);
-	i = text[key_linepos];
-	text[key_linepos] = 0;
+	i = text[cursorpos];
+	text[cursorpos] = 0;
 	cursor = COM_ParseFunString(CON_WHITEMASK, text, textstart, textsize, PFS_KEEPMARKUP | PFS_FORCEUTF8);
-	text[key_linepos] = i;
+	//okay, so that's where the cursor is. heal the input string and reparse (so we don't mess up escapes)
+	text[cursorpos] = i;
 	endmtext = COM_ParseFunString(CON_WHITEMASK, text, textstart, textsize, PFS_KEEPMARKUP | PFS_FORCEUTF8);
 //	endmtext = COM_ParseFunString(CON_WHITEMASK, text+key_linepos, cursor, ((char*)maskedtext)+sizeof(maskedtext) - (char*)(cursor+1), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+
+	hidecomplete = COM_InsertIME(maskedtext, countof(maskedtext), &cursor, &endmtext);
+/*	if (cursorpos == strlen(text) && vid.ime_preview)
+	{
+		endmtext = COM_ParseFunString(COLOR_MAGENTA<<CON_FGSHIFT, vid.ime_preview, endmtext, (countof(maskedtext) - (endmtext-maskedtext) - 1) * sizeof(maskedtext[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+		cursor += strlen(vid.ime_preview);
+		cursorpos += strlen(vid.ime_preview);
+		text = va("%s%s", text, vid.ime_preview);
+	}
+*/
 
 	if ((char*)endmtext == (char*)(maskedtext-2) + sizeof(maskedtext))
 		endmtext[-1] = CON_WHITEMASK | '+' | CON_NONCLEARBG;
@@ -1432,7 +1468,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	i = 0;
 	x = left;
 
-	if (con->commandcompletion && con_showcompletion.ival && text[0] && !(text[0] == '/' && !text[1]))
+	if (!hidecomplete && con->commandcompletion && con_showcompletion.ival && text[0] && !(text[0] == '/' && !text[1]))
 	{
 		if (cl_chatmode.ival && (text[0] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text))))
 		{	//color the first token yellow, it's a valid command
@@ -1447,10 +1483,10 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 			fname = Cmd_CompleteCommand(text+cmdstart, true, true, max(1, con_commandmatch), NULL);
 			if (fname && strlen(fname) < 256)	//we can compleate it to:
 			{
-				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>0; p++)
+				for (p = min(strlen(fname), cursorpos-cmdstart); fname[p]>0; p++)
 					textstart[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
-				if (p < key_linepos-cmdstart)
-					p = key_linepos-cmdstart;
+				if (p < cursorpos-cmdstart)
+					p = cursorpos-cmdstart;
 				p = min(p+cmdstart, sizeof(maskedtext)/sizeof(maskedtext[0]) - 3);
 				textstart[p] = 0;
 				textstart[p+1] = 0;
@@ -1742,7 +1778,8 @@ void Con_DrawNotify (void)
 		conchar_t *ends[8];
 		conchar_t markup[MAXCMDLINE+64];
 		conchar_t *c, *end;
-		char *foo = va(chat_team?"say_team: %s":"say: %s", chat_buffer?(char*)chat_buffer:"");
+		char demoji[8192];
+		char *foo = va(chat_team?"say_team: %s":"say: %s", Key_Demoji(demoji, sizeof(demoji), chat_buffer?(char*)chat_buffer:""));
 		int lines, i, pos;
 		Font_BeginString(font_console, 0, 0, &x, &y);
 		y = con_numnotifylines.ival * Font_CharHeight();
@@ -1767,7 +1804,7 @@ void Con_DrawNotify (void)
 		if (c == end)
 			end++;
 
-		lines = Font_LineBreaks(markup, end, Font_ScreenWidth(), 8, starts, ends);
+		lines = Font_LineBreaks(markup, end, Font_ScreenWidth(), countof(starts), starts, ends);
 		for (i = 0; i < lines; i++)
 		{
 			x = 0;
@@ -1775,6 +1812,10 @@ void Con_DrawNotify (void)
 			y += Font_CharHeight();
 		}
 		Font_EndString(font_console);
+
+		vid.ime_allow = true;
+		vid.ime_position[0] = 0;
+		vid.ime_position[1] = y;
 	}
 }
 
@@ -2105,7 +2146,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				}
 			}
 			*/
-			if (seley < selsy)
+			if (seley <= selsy)
 			{	//selection goes upwards
 				x = selsy;
 				selsy = seley;
@@ -2745,7 +2786,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		char *mouseover;
 		if (!mouseconsole->mouseover || !mouseconsole->mouseover(mouseconsole, &tiptext, &shader))
 		{
-			mouseover = Con_CopyConsole(mouseconsole, false, true);
+			mouseover = Con_CopyConsole(mouseconsole, false, true, true);
 			if (mouseover)
 			{
 				char *end = strstr(mouseover, "^]");
@@ -3131,7 +3172,7 @@ void Con_ExpandConsoleSelection(console_t *con)
 
 	con->selstartoffset = cur-(conchar_t*)(l+1);
 }
-char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
+char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink, qboolean forceutf8)
 {
 	conchar_t *cur;
 	conline_t *l;
@@ -3229,7 +3270,7 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 		else
 			lend = (conchar_t*)(l+1) + l->length;
 
-		outlen = COM_DeFunString(cur, lend, result + outlen, maxlen - outlen, nomarkup, !!(con->parseflags & PFS_FORCEUTF8)) - result;
+		outlen = COM_DeFunString(cur, lend, result + outlen, maxlen - outlen, nomarkup, forceutf8||!!(con->parseflags & PFS_FORCEUTF8)) - result;
 
 		if (l == con->selendline)
 			break;

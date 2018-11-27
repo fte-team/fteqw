@@ -1028,9 +1028,9 @@ VkShaderModule VK_CreateGLSLModule(program_t *prog, const char *name, int ver, c
 	return mod;
 }
 
-qboolean VK_LoadGLSL(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
+qboolean VK_LoadGLSL(program_t *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
-	if (permu)	//FIXME...
+	if (permu->permutation)	//FIXME...
 		return false;
 
 	prog->nofixedcompat = false;
@@ -1038,10 +1038,10 @@ qboolean VK_LoadGLSL(program_t *prog, const char *name, unsigned int permu, int 
 	prog->cvardata = NULL;
 	prog->cvardatasize = 0;
 	prog->pipelines = NULL;
-	prog->vert = VK_CreateGLSLModule(prog, name, ver, precompilerconstants, vert, false);
-	prog->frag = VK_CreateGLSLModule(prog, name, ver, precompilerconstants, frag, true);
+	prog->vert = VK_CreateGLSLModule(prog, prog->name, ver, precompilerconstants, vert, false);
+	prog->frag = VK_CreateGLSLModule(prog, prog->name, ver, precompilerconstants, frag, true);
 
-	VK_FinishProg(prog, name);
+	VK_FinishProg(prog, prog->name);
 
 	return true;
 }

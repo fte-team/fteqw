@@ -1,4 +1,5 @@
 !!cvarf ffov
+!!samps screen:samplerCube=0
 
 //my attempt at lambert azimuthal equal-area view rendering, because you'll remember that name easily.
 
@@ -17,7 +18,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform samplerCube s_t0;
 varying vec2 texcoord;
 void main()
 {
@@ -39,7 +39,7 @@ void main()
 		tc.y *= -1.0;
 		tc.z *= -1.0;
 
-		gl_FragColor = textureCube(s_t0, tc);
+		gl_FragColor = textureCube(s_screen, tc);
 	}
 }
 #endif

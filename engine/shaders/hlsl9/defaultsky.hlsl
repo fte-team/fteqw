@@ -1,3 +1,5 @@
+!!samps 2
+
 	struct a2v
 	{
 		float4 pos: POSITION;
@@ -12,11 +14,11 @@
 
 #ifdef VERTEX_SHADER
 	float4x4  m_modelviewprojection;
-	v2f main (a2v inp)
+	v2f main (in a2v inp)
 	{
 		v2f outp;
 		outp.pos = mul(m_modelviewprojection, inp.pos);
-		outp.vpos = inp.pos;
+		outp.vpos = inp.pos.xyz;
 		return outp;
 	}
 #endif
@@ -41,7 +43,6 @@
 
 		tccoord = (dir.xy + e_time*0.0625);
 		float4 clouds = tex2D(s_fullbright, tccoord);
-
 		return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);
 	}
 #endif

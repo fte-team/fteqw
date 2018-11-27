@@ -2318,7 +2318,7 @@ static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, const char *msg
 	}
 }
 
-static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_t len)
+static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *buf, size_t len)
 {
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
@@ -2347,7 +2347,7 @@ static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_
 		if (pf_fopen_files[fnum].ofs + len > pf_fopen_files[fnum].len)
 			len = pf_fopen_files[fnum].len - pf_fopen_files[fnum].ofs;
 
-		memcpy(msg, pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, len);
+		memcpy(buf, pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, len);
 		pf_fopen_files[fnum].ofs+=len;
 		return len;
 	}
@@ -2380,7 +2380,7 @@ void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
 	int ptr = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (ptr < 0 || size < 0 || ptr+size >= prinst->stringtablesize)
+	if (ptr <= 0 || size < 0 || (unsigned)ptr+(unsigned)size >= (unsigned)prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_fread: invalid ptr / size\n");
 		return;
@@ -3391,7 +3391,7 @@ void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_str2chr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int err;
-	char *next;
+	const char *next;
 	const char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
 	int ofs = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
 
@@ -6306,14 +6306,14 @@ void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *
 {
 	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
 	float	*force			= G_VECTOR(OFS_PARM1);
-	float	*relative_ofs	= G_VECTOR(OFS_PARM2);
+	float	*impactpos		= G_VECTOR(OFS_PARM2);	//world coord of impact.
 	world_t *world = prinst->parms->user;
 	rbecommandqueue_t cmd;
 
 	cmd.command = RBECMD_FORCE;
 	cmd.edict = e;
 	VectorCopy(force, cmd.v1);
-	VectorCopy(relative_ofs, cmd.v2);
+	VectorCopy(impactpos, cmd.v2);
 
 	if (world->rbe)
 		world->rbe->PushCommand(world, &cmd);

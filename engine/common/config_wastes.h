@@ -71,6 +71,7 @@
 #define PACKAGE_TEXWAD // HL content support, WAD3
 #define PACKAGE_Q1PAK // HL content support, PAK
 #undef PACKAGE_DOOMWAD
+#undef PACKAGE_VPK	//legacy crap
 
 // Map formats
 #define Q3BSPS // What we use exclusively
@@ -113,6 +114,7 @@
 #undef IMAGEFMT_KTX
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_BLP	//legacy crap
+#undef IMAGEFMT_VTF	//legacy crap
 #define IMAGEFMT_BMP	//legacy crap
 //#undef IMAGEFMT_PCX	//legacy crap
 #undef NETPREPARSE	//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
@@ -164,6 +166,7 @@
 #undef HEADLESSQUAKE
 #undef WAYLANDQUAKE
 #undef AVAIL_FREETYPE	// for truetype font rendering
+#undef SERVER_DEMO_PLAYBACK	//outdated crap
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

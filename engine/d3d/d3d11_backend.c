@@ -1908,7 +1908,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 }
 
 
-static void BE_ApplyUniforms(program_t *prog, int permu)
+static void BE_ApplyUniforms(program_t *prog, struct programpermu_s *permu)
 {
 	ID3D11Buffer *cbuf[3] =
 	{
@@ -1917,20 +1917,20 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		shaderstate.lcbuffer							//light buffer that changes rarelyish
 	};
 	//FIXME: how many of these calls can we avoid?
-	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->permu[permu].h.hlsl.layouts[shaderstate.stream_rgbaf]);
-	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.vert, NULL, 0);
-	ID3D11DeviceContext_HSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.hull, NULL, 0);
-	ID3D11DeviceContext_DSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.domain, NULL, 0);
-	ID3D11DeviceContext_GSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.geom, NULL, 0);
-	ID3D11DeviceContext_PSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.frag, NULL, 0);
-	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, prog->permu[permu].h.hlsl.topology);
+	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, permu->h.hlsl.layouts[shaderstate.stream_rgbaf]);
+	ID3D11DeviceContext_VSSetShader(d3ddevctx, permu->h.hlsl.vert, NULL, 0);
+	ID3D11DeviceContext_HSSetShader(d3ddevctx, permu->h.hlsl.hull, NULL, 0);
+	ID3D11DeviceContext_DSSetShader(d3ddevctx, permu->h.hlsl.domain, NULL, 0);
+	ID3D11DeviceContext_GSSetShader(d3ddevctx, permu->h.hlsl.geom, NULL, 0);
+	ID3D11DeviceContext_PSSetShader(d3ddevctx, permu->h.hlsl.frag, NULL, 0);
+	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, permu->h.hlsl.topology);
 
 	ID3D11DeviceContext_VSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	if (prog->permu[permu].h.hlsl.hull)
+	if (permu->h.hlsl.hull)
 		ID3D11DeviceContext_HSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	if (prog->permu[permu].h.hlsl.domain)
+	if (permu->h.hlsl.domain)
 		ID3D11DeviceContext_DSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	if (prog->permu[permu].h.hlsl.geom)
+	if (permu->h.hlsl.geom)
 		ID3D11DeviceContext_GSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 	ID3D11DeviceContext_PSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 }
@@ -1940,18 +1940,29 @@ static void BE_RenderMeshProgram(program_t *p, shaderpass_t *pass, unsigned int 
 	int passno;
 	int perm = 0;
 
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
+	struct programpermu_s *pp;
+
+	if (TEXLOADED(shaderstate.curtexnums->bump))
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->fullbright))
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
+	if ((TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
+	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
-//	if (r_glsl_offsetmapping.ival && TEXLOADED(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)
+//	if (r_glsl_offsetmapping.ival && TEXLOADED(shaderstate.curtexnums->bump))
 //		perm |= PERMUTATION_OFFSET;
 
-	BE_ApplyUniforms(p, perm);
+	perm &= p->supportedpermutations;
+	pp = p->permu[perm];
+	if (!pp)
+	{
+		pp = Shader_LoadPermutation(p, perm);
+		if (!pp)
+			pp = p->permu[perm=0];
+	}
+
+	BE_ApplyUniforms(p, pp);
 
 	D3D11BE_ApplyShaderBits(pass->shaderbits, &pass->becache);
 
@@ -3622,7 +3633,7 @@ void D3D11BE_RenderShadowBuffer(unsigned int numverts, void *vbuf, unsigned int 
 	ID3D11DeviceContext_IASetVertexBuffers(d3ddevctx, 0, 1, vbufs, vstrides, voffsets);
 	ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, ibuf, DXGI_FORMAT_INDEX_UINT, 0);
 
-	BE_ApplyUniforms(shaderstate.depthonly->prog, 0);
+	BE_ApplyUniforms(shaderstate.depthonly->prog, shaderstate.depthonly->prog->permu[0]);
 
 	ID3D11DeviceContext_DrawIndexed(d3ddevctx, numindicies, 0, 0);
 }

@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef HAVE_MIXER
+#if defined(HAVE_MIXER) || defined(VOICECHAT)
 #include "winquake.h"
 
 #ifdef DYNAMIC_SDL
@@ -87,8 +87,8 @@ static dllhandle_t *libsdl;
 #else
 #include <SDL.h>
 #endif
-
-#define SELFPAINT
+#define SDRVNAME "SDL"
+#endif
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
 //This results in extra latency due it needing to buffer that much data.
@@ -133,7 +133,8 @@ static qboolean SSDL_InitAudio(void)
 	return true;
 }
 
-
+#ifdef HAVE_MIXER
+#define SELFPAINT
 static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
 	Con_DPrintf("Shutdown SDL sound\n");
@@ -328,7 +329,6 @@ static qboolean QDECL SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 	return true;
 }
 
-#define SDRVNAME "SDL"
 static qboolean QDECL SDL_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))
 {
 #if SDL_MAJOR_VERSION >= 2
@@ -355,6 +355,7 @@ sounddriver_t SDL_Output =
 	SDL_InitCard,
 	SDL_Enumerate
 };
+#endif
 
 #if SDL_VERSION_ATLEAST(2,0,5) && defined(VOICECHAT)
 //Requires SDL 2.0.5+ supposedly.
@@ -403,20 +404,24 @@ static void *QDECL SDL_Capture_Init (int rate, const char *devname)
 	SDL_AudioSpec want, have;
 	sdlcapture_t c, *r;
 
-	memset(&want, 0, sizeof(want));
-	want.freq = rate;
-	want.format = AUDIO_S16SYS;
-	want.channels = 1;
-	want.samples = 256;	//this seems to be chunk sizes rather than total buffer size, so lets keep it reasonably small for lower latencies
-	want.callback = NULL;
+	if (SSDL_InitAudio())
+	{
+		memset(&want, 0, sizeof(want));
+		want.freq = rate;
+		want.format = AUDIO_S16SYS;
+		want.channels = 1;
+		want.samples = 256;	//this seems to be chunk sizes rather than total buffer size, so lets keep it reasonably small for lower latencies
+		want.callback = NULL;
 
-	c.dev = SDL_OpenAudioDevice(devname, true, &want, &have, 0);
-	if (!c.dev)	//failed?
-		return NULL;
-
-	r = Z_Malloc(sizeof(*r));
-	*r = c;
-	return r;
+		c.dev = SDL_OpenAudioDevice(devname, true, &want, &have, 0);
+		if (c.dev)
+		{
+			r = Z_Malloc(sizeof(*r));
+			*r = c;
+			return r;
+		}
+	}
+	return NULL;
 }
 
 /*minbytes is a hint to not bother wasting time*/
@@ -444,4 +449,4 @@ snd_capture_driver_t SDL_Capture =
 	SDL_Capture_Shutdown
 };
 #endif
-#endif
+

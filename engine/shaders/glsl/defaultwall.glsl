@@ -9,7 +9,11 @@
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_tessellation_level=5
-!!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3 deluxemap deluxemap1 deluxemap2 deluxemap3
+!!samps !EIGHTBIT diffuse specular normalmap fullbright reflectmask reflectcube
+//diffuse gives us alpha, and prevents dlight from bugging out when there's no diffuse.
+!!samps =EIGHTBIT paletted 1 specular diffuse
+!!samps lightmap deluxemap
+!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3 deluxemap deluxemap1 deluxemap2 deluxemap3
 
 #include "sys/defs.h"
 
@@ -224,10 +228,7 @@ void main()
 
 
 #ifdef FRAGMENT_SHADER
-
-//samplers
 #define s_colourmap	s_t0
-uniform sampler2D	s_colourmap;
 
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"

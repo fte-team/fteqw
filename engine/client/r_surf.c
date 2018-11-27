@@ -3689,7 +3689,8 @@ uploadfmt_t Surf_LightmapMode(model_t *model)
 
 	}
 
-	Con_DPrintf("%s: Using lightmap format %s\n", model->name, Image_FormatName(fmt));
+	if (!model->submodelof)
+		Con_DPrintf("%s: Using lightmap format %s\n", model->name, Image_FormatName(fmt));
 
 	return fmt;
 }

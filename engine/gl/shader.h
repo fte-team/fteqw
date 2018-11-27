@@ -479,61 +479,71 @@ typedef struct {
 	unsigned int handle;
 } shaderprogparm_t;
 
+struct programpermu_s
+{
+	union programhandle_u
+	{
+	#ifdef GLQUAKE
+		struct
+		{
+			int handle;
+			qboolean usetesselation;
+		} glsl;
+	#endif
+	#ifdef D3DQUAKE
+		struct
+		{
+			void *vert;
+			void *frag;
+			#ifdef D3D9QUAKE
+				void *ctabf;
+				void *ctabv;
+			#endif
+			#ifdef D3D11QUAKE
+				int topology;	//D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+				void *hull;
+				void *domain;
+				void *geom;
+				void *layouts[2];
+			#endif
+		} hlsl;
+	#endif
+	} h;
+	unsigned int permutation;
+	unsigned int attrmask;
+	unsigned int texmask;	//'standard' textures that are in use
+	unsigned int numparms;
+	shaderprogparm_t *parm;
+};
+
 typedef struct programshared_s
 {
+	char *name;
 	int refs;
-	qboolean nofixedcompat;
-	qboolean tess;
+	unsigned nofixedcompat:1;
+	unsigned tess:2;
+	unsigned geom:1;
+	unsigned warned:1;	//one of the permutations of this shader has already been warned about. don't warn about all of them because that's potentially spammy.
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
 
 	unsigned int supportedpermutations;
-#ifdef VKQUAKE
 	unsigned char *cvardata;
 	unsigned int cvardatasize;
+#ifdef VKQUAKE
 	qVkShaderModule vert;		//for slightly faster regeneration
 	qVkShaderModule frag;
 	qVkPipelineLayout layout;	//all permutations share the same layout. I'm too lazy not to.
 	qVkDescriptorSetLayout desclayout;
 	struct pipeline_s *pipelines;
 #endif
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-	struct programpermu_s
-	{
-		union programhandle_u
-		{
-			qintptr_t loaded;	//generic code must be able to test this to see if its valid. if not 0, then its considered loaded
-		#ifdef GLQUAKE
-			struct
-			{
-				int handle;
-				qboolean usetesselation;
-			} glsl;
-		#endif
-		#ifdef D3DQUAKE
-			struct
-			{
-				void *vert;
-				void *frag;
-				#ifdef D3D9QUAKE
-					void *ctabf;
-					void *ctabv;
-				#endif
-				#ifdef D3D11QUAKE
-					int topology;	//D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
-					void *hull;
-					void *domain;
-					void *geom;
-					void *layouts[2];
-				#endif
-			} hlsl;
-		#endif
-		} h;
-		unsigned int attrmask;
-		unsigned int texmask;	//'standard' textures that are in use
-		unsigned int numparms;
-		shaderprogparm_t *parm;
-	} permu[PERMUTATIONS];
+#define DELAYEDSHADERCOMPILE
+#ifdef DELAYEDSHADERCOMPILE
+	int shaderver;				//glsl version
+	char *preshade;		//general prefixed #defines
+	char *shadertext;		//the glsl text
+	unsigned char failed[(PERMUTATIONS+7)/8];		//so we don't try recompiling endlessly
+	struct programpermu_s *permu[PERMUTATIONS];	//set once compiled.
 #endif
 } program_t;
 
@@ -716,7 +726,7 @@ void Shader_RemapShader_f(void);
 void Shader_ShowShader_f(void);
 
 program_t *Shader_FindGeneric(char *name, int qrtype);
-const char *Shader_NameForGeneric(program_t *prog);
+struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p);
 void Shader_ReleaseGeneric(program_t *prog);
 
 image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org);
@@ -780,10 +790,10 @@ typedef struct
 	qboolean havecubemaps;	//since gl1.3, so pretty much everyone will have this... should probably only be set if we also have seamless or clamp-to-edge.
 
 	void	 (*pDeleteProg)		(program_t *prog);
-	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
-	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
-	qboolean (*pValidateProgram)(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile);
-	void	 (*pProgAutoFields)	(program_t *prog, const char *name, cvar_t **cvars, char **cvarnames, int *cvartypes);
+	qboolean (*pLoadBlob)		(program_t *prog, unsigned int permu, vfsfile_t *blobfile);
+	qboolean (*pCreateProgram)	(program_t *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
+	qboolean (*pValidateProgram)(program_t *prog, struct programpermu_s *permu, qboolean noerrors, vfsfile_t *blobfile);
+	void	 (*pProgAutoFields)	(program_t *prog, struct programpermu_s *permu, cvar_t **cvars, char **cvarnames, int *cvartypes);
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif

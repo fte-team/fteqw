@@ -817,6 +817,9 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 {
 	int last;
 	extern texid_t missing_texture;
+	extern texid_t missing_texture_gloss;
+	extern texid_t missing_texture_normal;
+	extern texid_t r_blackimage;
 
 	switch(pass->texgen)
 	{
@@ -828,25 +831,46 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 			BindTexture(tu, missing_texture);
 		break;
 	case T_GEN_NORMALMAP:
-		BindTexture( tu, shaderstate.curtexnums->bump);
+		if (TEXLOADED(shaderstate.curtexnums->bump))
+			BindTexture(tu, shaderstate.curtexnums->bump);
+		else
+			BindTexture(tu, missing_texture_normal);
 		break;
 	case T_GEN_SPECULAR:
-		BindTexture(tu, shaderstate.curtexnums->specular);
+		if (TEXLOADED(shaderstate.curtexnums->specular))
+			BindTexture(tu, shaderstate.curtexnums->specular);
+		else
+			BindTexture(tu, missing_texture_gloss);
 		break;
 	case T_GEN_UPPEROVERLAY:
-		BindTexture(tu, shaderstate.curtexnums->upperoverlay);
+		if (TEXLOADED(shaderstate.curtexnums->upperoverlay))
+			BindTexture(tu, shaderstate.curtexnums->upperoverlay);
+		else
+			BindTexture(tu, r_blackimage);
 		break;
 	case T_GEN_LOWEROVERLAY:
-		BindTexture(tu, shaderstate.curtexnums->loweroverlay);
+		if (TEXLOADED(shaderstate.curtexnums->loweroverlay))
+			BindTexture(tu, shaderstate.curtexnums->loweroverlay);
+		else
+			BindTexture(tu, r_blackimage);
 		break;
 	case T_GEN_FULLBRIGHT:
-		BindTexture(tu, shaderstate.curtexnums->fullbright);
+		if (TEXLOADED(shaderstate.curtexnums->fullbright))
+			BindTexture(tu, shaderstate.curtexnums->fullbright);
+		else
+			BindTexture(tu, r_blackimage);
 		break;
 	case T_GEN_REFLECTCUBE:
-		BindTexture(tu, shaderstate.curtexnums->reflectcube);
+		if (TEXLOADED(shaderstate.curtexnums->reflectcube))
+			BindTexture(tu, shaderstate.curtexnums->reflectcube);
+		else
+			BindTexture(tu, r_whiteimage);
 		break;
 	case T_GEN_REFLECTMASK:
-		BindTexture(tu, shaderstate.curtexnums->reflectmask);
+		if (TEXLOADED(shaderstate.curtexnums->reflectmask))
+			BindTexture(tu, shaderstate.curtexnums->reflectmask);
+		else
+			BindTexture(tu, r_whiteimage);
 		break;
 	case T_GEN_ANIMMAP:
 		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
@@ -1902,9 +1926,8 @@ static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 		*retblue = gammatable[*retblue];
 	}*/
 }
-static void BE_ApplyUniforms(program_t *prog, int permu)
+static void BE_ApplyUniforms(program_t *prog, struct programpermu_s *perm)
 {
-	struct programpermu_s *perm = &prog->permu[permu];
 	shaderprogparm_t *pp;
 	vec4_t param4;
 	int h;
@@ -2082,23 +2105,21 @@ static unsigned int BE_DrawMeshChain_SetupProgram(program_t *p)
 {
 	unsigned int vdec = 0;
 	unsigned int perm = 0;
+	struct programpermu_s *pp;
 #ifdef SKELETALMODELS
 	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
-	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
-			perm |= PERMUTATION_SKELETAL;
-	}
+		perm |= PERMUTATION_SKELETAL;
 #endif
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->bump))
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->fullbright))
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
+	if ((TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
+	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
 #ifdef NONSKELETALMODELS
-	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
+	if (shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
 	{
 		perm |= PERMUTATION_FRAMEBLEND;
 		vdec |= D3D_VDEC_POS2;
@@ -2107,13 +2128,24 @@ static unsigned int BE_DrawMeshChain_SetupProgram(program_t *p)
 //	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 #if MAXRLIGHTMAPS > 1
-	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
+	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0)
 		perm |= PERMUTATION_LIGHTSTYLES;
 #endif
 
 	vdec |= D3D_VDEC_COL4B;//BE_GenerateColourMods(vertcount, s->passes);
 
-	BE_ApplyUniforms(p, perm);
+	perm &= p->supportedpermutations;
+	pp = p->permu[perm];
+	if (!pp)
+	{
+		pp = p->permu[perm] = Shader_LoadPermutation(p, perm);
+		if (!pp)
+			pp = p->permu[perm=0];
+	}
+
+	if (perm & PERMUTATION_FRAMEBLEND)
+		vdec |= D3D_VDEC_POS2;
+	BE_ApplyUniforms(p, pp);
 
 	return vdec;
 }
@@ -2287,26 +2319,27 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 	int perm = 0;
 
 	program_t *p = s->prog;
+	struct programpermu_s *pp;
 
 #ifdef SKELETALMODELS
 	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
 	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
+		if (p->supportedpermutations & PERMUTATION_SKELETAL)
 			perm |= PERMUTATION_SKELETAL;
 		else
 			return;
 	}
 #endif
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->bump))
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
+	if (TEXLOADED(shaderstate.curtexnums->fullbright))
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
+	if ((TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
+	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
 #ifdef NONSKELETALMODELS
-	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
+	if (shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
 	{
 		perm |= PERMUTATION_FRAMEBLEND;
 		vdec |= D3D_VDEC_POS2;
@@ -2315,13 +2348,24 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 //	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 #if MAXRLIGHTMAPS > 1
-	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
+	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0)
 		perm |= PERMUTATION_LIGHTSTYLES;
 #endif
 
 	vdec |= D3D_VDEC_COL4B;//BE_GenerateColourMods(vertcount, s->passes);
 
-	BE_ApplyUniforms(p, perm);
+	perm &= p->supportedpermutations;
+	pp = p->permu[perm];
+	if (!pp)
+	{
+		pp = Shader_LoadPermutation(p, perm);
+		if (!pp)
+			pp = p->permu[perm=0];
+	}
+
+	if (perm & PERMUTATION_FRAMEBLEND)
+		vdec |= D3D_VDEC_POS2;
+	BE_ApplyUniforms(p, pp);
 
 
 	BE_ApplyShaderBits(s->passes->shaderbits);

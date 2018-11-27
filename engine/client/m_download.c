@@ -385,7 +385,7 @@ void PM_ValidatePackage(package_t *p)
 						else
 #endif
 						{
-#ifdef AVAIL_ZLIB					//assume zip/pk3/pk4/apk/etc
+#ifdef PACKAGE_PK3					//assume zip/pk3/pk4/apk/etc
 							archive = FSZIP_LoadArchive(pf, NULL, n, n, NULL);
 #else
 							archive = NULL;
@@ -2011,6 +2011,7 @@ static void PM_Download_Got(struct dl_download *dl)
 
 		if (p->extract == EXTRACT_ZIP)
 		{
+#ifdef PACKAGE_PK3
 			vfsfile_t *f = FS_OpenVFS(tempname, "rb", p->fsroot);
 			if (f)
 			{
@@ -2038,7 +2039,9 @@ static void PM_Download_Got(struct dl_download *dl)
 					VFS_CLOSE(f);
 			}
 			PM_ValidatePackage(p);
-
+#else
+			Con_Printf("zip format not supported in this build - %s (from %s)\n", p->name, dl->url);
+#endif
 			FS_Remove (tempname, p->fsroot);
 			Z_Free(tempname);
 			PM_StartADownload();

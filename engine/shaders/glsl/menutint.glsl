@@ -1,5 +1,6 @@
 !!cvari r_menutint_inverse
 !!cvard_srgb r_menutint
+!!samps 1
 
 #ifdef VERTEX_SHADER
 		attribute vec2 v_texcoord;
@@ -15,7 +16,6 @@
 #ifdef FRAGMENT_SHADER
 
 		varying vec2 texcoord;
-		uniform sampler2D s_t0;
 		uniform int cvar_r_menutint_inverse;
 		const vec3 lumfactors = vec3(0.299, 0.587, 0.114);
 		const vec3 invertvec = vec3(1.0, 1.0, 1.0);

@@ -1,5 +1,5 @@
 !!cvardf r_glsl_ascii_mono=0
-!!samps 1
+!!samps screen=0
 
 //derived from https://www.shadertoy.com/view/lssGDj
 
@@ -30,7 +30,7 @@ float character(float n, vec2 p)
 void main(void)
 {
 	vec2 uv = floor(texcoord.xy * e_sourcesize); //in pixels.
-	vec3 col = texture2D(s_t0, (floor(uv/8.0)*8.0+4.0)/e_sourcesize.xy).rgb;	
+	vec3 col = texture2D(s_screen, (floor(uv/8.0)*8.0+4.0)/e_sourcesize.xy).rgb;	
 
 	float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;
 

@@ -541,7 +541,7 @@ void CompleteCommand (qboolean force, int direction)
 	Key_UpdateCompletionDesc();
 }
 
-int Con_Navigate(console_t *con, char *line)
+int Con_Navigate(console_t *con, const char *line)
 {
 	if (con->backshader)
 	{
@@ -558,7 +558,7 @@ int Con_Navigate(console_t *con, char *line)
 }
 
 //lines typed at the main console enter here
-int Con_ExecuteLine(console_t *con, char *line)
+int Con_ExecuteLine(console_t *con, const char *line)
 {
 	qboolean waschat = false;
 	char *deutf8 = NULL;
@@ -598,7 +598,7 @@ int Con_ExecuteLine(console_t *con, char *line)
 		Cbuf_AddText (line, RESTRICT_LOCAL);
 	else
 	{
-		char *exec = NULL;
+		const char *exec = NULL;
 		if (line[0] == '\\' || line[0] == '/')
 			exec = line+1;	// skip the slash
 		else if (cl_chatmode.value == 2 && Cmd_IsCommand(line))
@@ -1128,6 +1128,19 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	{
 		if (con->selstartline)
 		{
+			if (con->userline)
+			{
+				if (con->flags & CONF_BACKSELECTION)
+				{
+					con->userline = con->selendline;
+					con->useroffset = con->selendoffset;
+				}
+				else
+				{
+					con->userline = con->selstartline;
+					con->useroffset = con->selstartoffset;
+				}
+			}
 			if (con->selstartline == con->selendline && con->selendoffset <= con->selstartoffset+1)
 			{
 				con->flags &= ~CONF_KEEPSELECTION;
@@ -1135,7 +1148,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 					;
 				else
 				{
-					buffer = Con_CopyConsole(con, false, true);
+					buffer = Con_CopyConsole(con, false, true, false);
 					if (buffer)
 					{
 						Key_HandleConsoleLink(con, buffer);
@@ -1146,21 +1159,8 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 			else
 			{
 				con->flags |= CONF_KEEPSELECTION;
-				if (con->userdata)
-				{
-					if (con->flags & CONF_BACKSELECTION)
-					{
-						con->userline = con->selendline;
-						con->useroffset = con->selendoffset;
-					}
-					else
-					{
-						con->userline = con->selstartline;
-						con->useroffset = con->selstartoffset;
-					}
-				}
 
-				buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+				buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 				if (buffer)
 				{
 					Sys_SaveClipboard(CBT_SELECTION,  buffer);
@@ -1175,7 +1175,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		con->buttonsdown = CB_NONE;
 		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
 		{
-			buffer = Con_CopyConsole(con, false, false);
+			buffer = Con_CopyConsole(con, false, false, false);
 			Con_Footerf(con, false, "");
 			if (!buffer)
 				return;
@@ -1208,7 +1208,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	if (key == K_MOUSE2 && con->buttonsdown == CB_COPY)
 	{
 		con->buttonsdown = CB_NONE;
-		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+		buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
 		Sys_SaveClipboard(CBT_CLIPBOARD,  buffer);
@@ -1236,6 +1236,111 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	}
 #endif
 }
+
+const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
+{
+	static const struct
+	{
+		const char *pattern;
+		const char *repl;
+	} emoji[] =
+	{
+		//https://www.webpagefx.com/tools/emoji-cheat-sheet/
+//		{":)",				"\xE2\x98\xBA"},
+
+#ifdef QUAKEHUD
+		{":sg:",			"\xEE\x84\x82"},
+		{":ssg:",			"\xEE\x84\x83"},
+		{":ng:",			"\xEE\x84\x84"},
+		{":sng:",			"\xEE\x84\x85"},
+		{":gl:",			"\xEE\x84\x86"},
+		{":rl:",			"\xEE\x84\x87"},
+		{":lg:",			"\xEE\x84\x88"},
+
+		{":sg2:",			"\xEE\x84\x92"},
+		{":ssg2:",			"\xEE\x84\x93"},
+		{":ng2:",			"\xEE\x84\x94"},
+		{":sng2:",			"\xEE\x84\x95"},
+		{":gl2:",			"\xEE\x84\x96"},
+		{":rl2:",			"\xEE\x84\x97"},
+		{":lg2:",			"\xEE\x84\x98"},
+
+		{":shells:",		"\xEE\x84\xA0"},
+		{":nails:",			"\xEE\x84\xA1"},
+		{":rocket:",		"\xEE\x84\xA2"},
+		{":cells:",			"\xEE\x84\xA3"},
+		{":ga:",			"\xEE\x84\xA4"},
+		{":ya:",			"\xEE\x84\xA5"},
+		{":ra:",			"\xEE\x84\xA6"},
+
+		{":key1:",			"\xEE\x84\xB0"},
+		{":key2:",			"\xEE\x84\xB1"},
+		{":ring:",			"\xEE\x84\xB2"},
+		{":pent:",			"\xEE\x84\xB3"},
+		{":suit:",			"\xEE\x84\xB4"},
+		{":quad:",			"\xEE\x84\xB5"},
+		{":sigil1:",		"\xEE\x84\xB6"},
+		{":sigil2:",		"\xEE\x84\xB7"},
+		{":sigil3:",		"\xEE\x84\xB8"},
+		{":sigil4:",		"\xEE\x84\xB9"},
+
+		{":face1:",			"\xEE\x85\x80"},
+		{":face_p1:",		"\xEE\x85\x81"},
+		{":face2:",			"\xEE\x85\x82"},
+		{":face_p2:",		"\xEE\x85\x83"},
+		{":face3:",			"\xEE\x85\x84"},
+		{":face_p3:",		"\xEE\x85\x85"},
+		{":face4:",			"\xEE\x85\x86"},
+		{":face_p4:",		"\xEE\x85\x87"},
+		{":face5:",			"\xEE\x85\x88"},
+		{":face_p5:",		"\xEE\x85\x89"},
+		{":face_invis:",	"\xEE\x85\x8A"},
+		{":face_invul2:",	"\xEE\x85\x8B"},
+		{":face_inv2:",		"\xEE\x85\x8C"},
+		{":face_quad:",		"\xEE\x85\x8D"},
+#endif
+	};
+	char *estart = strchr(in, ':');
+	size_t i;
+	char *out = buffer, *outend = buffer+buffersize-1;
+	if (!estart)
+		return in;
+	for(; estart; )
+	{
+		if (out + (estart-in) >= outend)
+			break; //not enough space
+		memcpy(out, in, estart-in);
+		out += estart-in;
+		in = estart;
+
+		for (i = 0; i < countof(emoji); i++)
+		{
+			if (!strncmp(in, emoji[i].pattern, strlen(emoji[i].pattern)))
+				break;	//its this one!
+		}
+		if (i < countof(emoji))
+		{
+			if (out + strlen(emoji[i].repl) >= outend)
+			{
+				in = "";	//no half-emoji
+				break;
+			}
+			in += strlen(emoji[i].pattern);
+			memcpy(out, emoji[i].repl, strlen(emoji[i].repl));
+			out += strlen(emoji[i].repl);
+			estart = strchr(in, ':');
+		}
+		else
+		{
+			estart = strchr(in+1, ':');
+		}
+	}
+	while (*in && out < outend)
+		*out++ = *in++;
+	*out = 0;
+	return buffer;
+}
+
 //if the referenced (trailing) chevron is doubled up, then it doesn't act as part of any markup and should be ignored for such things.
 static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
 {
@@ -1456,7 +1561,7 @@ qboolean Key_EntryLine(console_t *con, unsigned char **line, int lineoffset, int
 	{
 		if (con && (con->flags & CONF_KEEPSELECTION))
 		{	//copy selected text to the system clipboard
-			char *buffer = Con_CopyConsole(con, true, false);
+			char *buffer = Con_CopyConsole(con, true, false, true);
 			if (buffer)
 			{
 				Sys_SaveClipboard(CBT_CLIPBOARD,  buffer);
@@ -1666,7 +1771,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 						Con_ExpandConsoleSelection(con);
 						con->flags |= CONF_KEEPSELECTION;
 
-						buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+						buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
 						if (buffer)
 						{
 							Sys_SaveClipboard(CBT_SELECTION,  buffer);
@@ -1789,16 +1894,16 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)
 	{	// backslash text are commands, else chat
-		int oldl = edit_line;
+		char demoji[8192];
+		const char *txt = Key_Demoji(demoji, sizeof(demoji), key_lines[edit_line]);
 
 #ifndef FTE_TARGET_WEB
 		if (keydown[K_LALT] || keydown[K_RALT])
 			Cbuf_AddText("\nvid_toggle\n", RESTRICT_LOCAL);
 #endif
 
-		if ((con_commandmatch && !strchr(key_lines[edit_line], ' ')) || shift)
+		if ((con_commandmatch && !strchr(txt, ' ')) || shift)
 		{	//if that isn't actually a command, and we can actually complete it to something, then lets try to complete it.
-			char *txt = key_lines[edit_line];
 			if (*txt == '/')
 				txt++;
 
@@ -1814,7 +1919,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 
 		if (con->linebuffered)
 		{
-			if (con->linebuffered(con, key_lines[oldl]) != 2)
+			if (con->linebuffered(con, txt) != 2)
 			{
 				edit_line = (edit_line + 1) & (CON_EDIT_LINES_MASK);
 				history_line = edit_line;
@@ -1946,8 +2051,11 @@ void Key_Message (int key, int unicode)
 	{
 		if (chat_buffer && chat_buffer[0])
 		{	//send it straight into the command.
-			char *line = chat_buffer;
+			const char *line = chat_buffer;
 			char deutf8[8192];
+			char demoji[8192];
+			line = Key_Demoji(demoji, sizeof(demoji), line);
+
 			if (com_parseutf8.ival <= 0)
 			{
 				unsigned int unicode;

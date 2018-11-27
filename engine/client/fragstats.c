@@ -146,7 +146,7 @@ static void Stats_OwnFrag(char *name)
 
 void VARGS Stats_Message(char *msg, ...);
 
-qboolean Stats_TrackerImageLoaded(char *in)
+qboolean Stats_TrackerImageLoaded(const char *in)
 {
 	int error;
 	if (in)

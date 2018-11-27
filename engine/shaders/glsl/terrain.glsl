@@ -1,4 +1,11 @@
 !!permu FOG
+//t0-t3 are the diffusemaps, t4 is the blend factors
+!!samps 5
+!!samps =PCF 6
+!!samps =CUBE 7
+
+//light levels
+
 #include "sys/fog.h"
 varying vec2 tc;
 varying vec2 lm;
@@ -72,21 +79,8 @@ void main (void)
 
 
 #ifdef FRAGMENT_SHADER
-//four texture passes
-uniform sampler2D s_t0;
-uniform sampler2D s_t1;
-uniform sampler2D s_t2;
-uniform sampler2D s_t3;
-
-//mix values
-uniform sampler2D s_t4;
-
 #ifdef PCF
-	uniform sampler2DShadow s_t5;
 	#include "sys/pcf.h"
-#endif
-#ifdef CUBE
-	uniform samplerCube s_t6;
 #endif
 
 //light levels

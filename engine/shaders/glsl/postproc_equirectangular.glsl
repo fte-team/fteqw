@@ -1,4 +1,5 @@
 !!cvarf ffov
+!!samps screen:samplerCube=0
 
 //equirectangular view rendering, commonly used for sphere->2d map projections.
 
@@ -12,7 +13,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform samplerCube s_t0;
 varying vec2 texcoord;
 uniform float cvar_ffov;
 
@@ -26,6 +26,6 @@ void main()
 	tc.z = cos(lng) * sin(lat);	
 	tc.x = sin(lng) * sin(lat);
 	tc.y = cos(lat);
-	gl_FragColor = textureCube(s_t0, tc);
+	gl_FragColor = textureCube(s_screen, tc);
 }
 #endif

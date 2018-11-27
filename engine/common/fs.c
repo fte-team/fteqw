@@ -810,9 +810,11 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "txt") || !Q_strcasecmp(link, "log")
 			|| !Q_strcasecmp(link, "ent") || !Q_strcasecmp(link, "rtlights")
 			|| !Q_strcasecmp(link, "glsl") || !Q_strcasecmp(link, "hlsl")
-			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups"))
+			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups")
+			|| !Q_strcasecmp(link, "vmt")
+			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx"))
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf"))
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
@@ -6426,6 +6428,9 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);
 	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);
 	FS_RegisterFileSystemType(NULL, "exe", FSZIP_LoadArchive, false);	//for self-extracting zips.
+#endif
+#ifdef PACKAGE_VPK
+	FS_RegisterFileSystemType(NULL, "vpk", FSVPK_LoadArchive, true);
 #endif
 #ifdef PACKAGE_DOOMWAD
 	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);

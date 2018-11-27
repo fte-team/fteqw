@@ -14,7 +14,7 @@ layout(location=2) varying vec2 v_edge;
 void main ()
 {
 	gl_Position = ftetransform();
-	v_stc = vec2(v_texcoord.x, 1.0-v_texcoord.y);
+	v_stc = vec2(v_texcoord.x, /*1.0-*/v_texcoord.y);
 	v_warp.s = e_time * 0.25 + v_texcoord.s;
 	v_warp.t = e_time * 0.25 + v_texcoord.t;
 	v_edge = v_texcoord.xy;

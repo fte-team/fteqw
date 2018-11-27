@@ -1,5 +1,9 @@
 !!permu FRAMEBLEND
 !!permu UPPERLOWER
+//!!permu FULLBRIGHT
+!!samps diffuse upper lower
+// fullbright
+
 struct a2v
 {
 	float3 pos: POSITION0;
@@ -70,7 +74,7 @@ sampler s_fullbright; /*fullbright*/
 		col.rgb *= inp.light;
 #ifdef FULLBRIGHT
 		float4 fb = tex2D(s_fullbright, inp.tc);
-		col.rgb = mix(col.rgb, fb.rgb, fb.a);
+		col.rgb = lerp(col.rgb, fb.rgb, fb.a);
 #endif
 		return col * e_colourident;
 //		return fog4(col * e_colourident);

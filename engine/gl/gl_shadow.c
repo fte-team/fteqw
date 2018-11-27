@@ -3713,7 +3713,7 @@ void Sh_CheckSettings(void)
 #endif
 #ifdef D3D9QUAKE
 	case QR_DIRECT3D9:
-		canshadowless = true;
+//		canshadowless = true;
 		//the code still has a lot of ifdefs, so will crash if you try it in a merged build.
 		//its not really usable in d3d-only builds either, so no great loss.
 //		canstencil = true;
@@ -3739,7 +3739,7 @@ void Sh_CheckSettings(void)
 	{
 		//can't even do lighting
 		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival)
-			Con_Printf("Missing rendering features: realtime lighting is not possible.\n");
+			Con_Printf("Missing rendering features: realtime %s lighting is not possible.\n", r_shadow_realtime_world.ival?"world":"dynamic");
 		r_shadow_realtime_world.ival = 0;
 		r_shadow_realtime_dlight.ival = 0;
 	}

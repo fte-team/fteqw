@@ -316,6 +316,8 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode);
 struct console_s;
 qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int *ex, int *ey);
 qboolean Key_MouseShouldBeFree(void);
+
+const char *Key_Demoji(char *buffer, size_t buffersize, const char *in);	//strips out :smile: stuff.
 #endif
 #endif
 

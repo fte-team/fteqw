@@ -1,13 +1,14 @@
 !!cvarf r_waterwarp
+!!samps screen=0 warp=1 edge=2
 
 //this is a post processing shader that is drawn fullscreen whenever the view is underwater.
 //its generally expected to warp the view a little.
 
-#ifdef VERTEX_SHADER
-attribute vec2 v_texcoord;
 varying vec2 v_stc;
 varying vec2 v_warp;
 varying vec2 v_edge;
+#ifdef VERTEX_SHADER
+attribute vec2 v_texcoord;
 uniform float e_time;
 void main ()
 {
@@ -19,19 +20,13 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-varying vec2 v_stc;
-varying vec2 v_warp;
-varying vec2 v_edge;
-uniform sampler2D s_t0;/*$currentrender*/
-uniform sampler2D s_t1;/*warp image*/
-uniform sampler2D s_t2;/*edge image*/
 uniform vec4 e_rendertexturescale;
 uniform float cvar_r_waterwarp;
 void main ()
 {
-	vec2 amp		= (0.010 / 0.625) * cvar_r_waterwarp * texture2D(s_t2, v_edge).rg;
-	vec3 offset	= (texture2D(s_t1, v_warp).rgb - 0.5) * 2.0;
+	vec2 amp		= (0.010 / 0.625) * cvar_r_waterwarp * texture2D(s_edge, v_edge).rg;
+	vec3 offset	= (texture2D(s_warp, v_warp).rgb - 0.5) * 2.0;
 	vec2 temp		= v_stc + offset.xy * amp;
-	gl_FragColor	= texture2D(s_t0, temp*e_rendertexturescale.st);
+	gl_FragColor	= texture2D(s_screen, temp*e_rendertexturescale.st);
 }
 #endif

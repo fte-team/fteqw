@@ -58,6 +58,7 @@ void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
 void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
 FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
+FTEPFNGLVERTEXATTRIB4FARBPROC		qglVertexAttrib4f;
 FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
@@ -948,6 +949,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglLinkProgramARB			= NULL;
 		qglBindAttribLocationARB	= NULL;
 		qglGetAttribLocationARB		= NULL;
+		qglVertexAttrib4f			= NULL;
 		qglVertexAttribPointer		= NULL;
 		qglGetVertexAttribiv		= NULL;
 		qglGetVertexAttribPointerv	= NULL;
@@ -1009,6 +1011,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform2fvARB			= (void *)getglext("glUniform2fv");
 		qglUniform1iARB				= (void *)getglext("glUniform1i");
 		qglUniform1fARB				= (void *)getglext("glUniform1f");
+		qglVertexAttrib4f			= (void *)getglext("glVertexAttrib4f");
 		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
 		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
 		qglGetVertexAttribPointerv	= (void *)getglext("glGetVertexAttribPointerv");
@@ -1037,6 +1040,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglLinkProgramARB			= (void *)getglext("glLinkProgramARB");
 		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocationARB");
 		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocationARB");
+		qglVertexAttrib4f			= (void *)getglext("glVertexAttrib4fARB");
 		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointerARB");
 		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribivARB");
 		qglGetVertexAttribPointerv	= (void *)getglext("glGetVertexAttribPointervARB");
@@ -1340,7 +1344,7 @@ static const char *glsl_hdrs[] =
 				"#define SPECMUL 1.0\n"
 			"#endif\n"
 			"#define FTE_SPECULAR_MULTIPLIER (SPECULAR_BASE_MUL*float(SPECMUL))\n"
-#ifndef NOLEGACY
+#if 0//ndef NOLEGACY
 			"uniform sampler2DShadow s_shadowmap;"
 			"uniform samplerCube s_projectionmap;"
 			"uniform sampler2D s_diffuse;"
@@ -2118,19 +2122,8 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		}
 
 		if (prog)
-		{	//for compat with vulkan, that injects samplers...
-			const char *numberedsamplernames[] =
-			{
-				"uniform sampler2D s_t0;\n",
-				"uniform sampler2D s_t1;\n",
-				"uniform sampler2D s_t2;\n",
-				"uniform sampler2D s_t3;\n",
-				"uniform sampler2D s_t4;\n",
-				"uniform sampler2D s_t5;\n",
-				"uniform sampler2D s_t6;\n",
-				"uniform sampler2D s_t7;\n",
-			};
-#ifdef NOLEGACY
+		{	//for compat with our vulkan processor, which injects samplers in order to control layouts.
+#if 1//def NOLEGACY
 			const char *defaultsamplernames[] =
 			{
 				"uniform sampler2DShadow s_shadowmap;\n",
@@ -2160,8 +2153,6 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 					GLSlang_GenerateInternal(&glsl, defaultsamplernames[i]);
 			}
 #endif
-			for (i = 0; i < prog->numsamplers && i < countof(numberedsamplernames); i++)
-				GLSlang_GenerateInternal(&glsl, numberedsamplernames[i]);
 		}
 		break;
 	case GL_GEOMETRY_SHADER_ARB:
@@ -2210,6 +2201,9 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 					"#define varying out\n"
 				);
 		}
+		else if (ver < 120)
+			GLSlang_GenerateInternal(&glsl, "#define PACKEDBONES\n");
+
 		if (gl_config_nofixedfunc)
 		{
 			GLSlang_GenerateInternal(&glsl,
@@ -2363,13 +2357,13 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 				typedesc = "???";
 				break;
 			}
-			Con_Printf("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
+			Con_Printf("%s shader (%s) compilation error:\n"CON_ERROR"%s"CON_DEFAULT"----------\n", typedesc, name, str);
 
 			//if there's no fixed function then failure to compile the default2d shader should be considered fatal. this should help avoid black screens on android.
 			if (gl_config_nofixedfunc && !strcmp(name, "default2d"))
 				Sys_Error("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
 
-			if (developer.ival)
+			if (developer.ival>1)
 			{	//could use echo console-link I guess (with embedded line numbers). shaders can get quite big though.
 				unsigned int line;
 				char *eol, *start;
@@ -2582,11 +2576,13 @@ union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, i
 	return ret;
 }
 
-qboolean GLSlang_ValidateProgramPermu(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile)
+qboolean GLSlang_ValidateProgramPermu(program_t *prog, struct programpermu_s *permu, qboolean noerrors, vfsfile_t *blobfile)
 {
-	return GLSlang_ValidateProgram(&prog->permu[permu].h, name, noerrors, blobfile);
+	if (!permu)
+		return false;
+	return GLSlang_ValidateProgram(&permu->h, prog->name, noerrors, blobfile);
 }
-qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
+qboolean GLSlang_CreateProgramPermu(program_t *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
 	if (!ver)
 	{
@@ -2595,19 +2591,19 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned 
 		else
 		{
 			ver = 110;
-			if (sh_config.maxver>=120 && (permu & PERMUTATION_SKELETAL))
+			if (sh_config.maxver>=120 && (permu->permutation & PERMUTATION_SKELETAL))
 				ver = 120;
 		}
 	}
-	if ((permu & PERMUTATION_SKELETAL) && gl_config.maxattribs < 10)
+	if ((permu->permutation & PERMUTATION_SKELETAL) && gl_config.maxattribs < 10)
 		return false;	//can happen in gles2
 #if MAXRLIGHTMAPS > 1
-	if ((permu & PERMUTATION_LIGHTSTYLES) && gl_config.maxattribs < 16)
+	if ((permu->permutation & PERMUTATION_LIGHTSTYLES) && gl_config.maxattribs < 16)
 		return false;	//can happen in gles2
 #endif
 
-	prog->permu[permu].h = GLSlang_CreateProgram(prog, name, ver, precompilerconstants, vert, tcs, tes, geom, frag, noerrors, blobfile);
-	if (prog->permu[permu].h.glsl.handle)
+	permu->h = GLSlang_CreateProgram(prog, prog->name, ver, precompilerconstants, vert, tcs, tes, geom, frag, noerrors, blobfile);
+	if (permu->h.glsl.handle)
 		return true;
 	return false;
 }
@@ -2622,8 +2618,10 @@ GLint GLSlang_GetUniformLocation (int prog, char *name)
 	return i;
 }
 
-static qboolean GLSlang_LoadBlob(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile)
+static qboolean GLSlang_LoadBlob(program_t *prog, unsigned int permu, vfsfile_t *blobfile)
 {
+	return false;
+/*
 	unsigned int fmt;
 	unsigned int length;
 	void *binary;
@@ -2647,120 +2645,107 @@ static qboolean GLSlang_LoadBlob(program_t *prog, const char *name, unsigned int
 		memset(&prog->permu[permu].h, 0, sizeof(prog->permu[permu].h));
 	}
 	return !!success;
+*/
 }
 
 static void GLSlang_DeleteProg(program_t *prog)
 {
 	unsigned int permu;
+	struct programpermu_s *pp;
 	for (permu = 0; permu < countof(prog->permu); permu++)
 	{
-		if (prog->permu[permu].h.loaded)
+		pp = prog->permu[permu];
+		if (pp)
 		{
-			qglDeleteProgramObject_(prog->permu[permu].h.glsl.handle);
-			prog->permu[permu].h.glsl.handle = 0;
+			qglDeleteProgramObject_(pp->h.glsl.handle);
+			pp->h.glsl.handle = 0;
 
-			BZ_Free(prog->permu[permu].parm);
-			prog->permu[permu].parm = NULL;
-			prog->permu[permu].numparms = 0;
+			BZ_Free(pp->parm);
+			pp->parm = NULL;
+			pp->numparms = 0;
 		}
 	}
 }
 
-static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t **cvars, char **cvarnames, int *cvartypes)
+static void GLSlang_ProgAutoFields(program_t *prog, struct programpermu_s *pp, cvar_t **cvars, char **cvarnames, int *cvartypes)
 {
-#define ALTLIGHTMAPSAMP 13
-#define ALTDELUXMAPSAMP 16
-
-	unsigned int i, p;
+	unsigned int i;
 	int uniformloc;
 	char tmpname[128];
-	struct programpermu_s *pp;
+	int maxparms = 0;
 
 	//figure out visible attributes
-	for (p = 0; p < PERMUTATIONS; p++)
+	GLSlang_UseProgram(pp->h.glsl.handle);
+	for (i = 0; shader_attr_names[i].name; i++)
 	{
-		if (!prog->permu[p].h.loaded)
-			continue;
-		GLSlang_UseProgram(prog->permu[p].h.glsl.handle);
-		for (i = 0; shader_attr_names[i].name; i++)
+		uniformloc = qglGetAttribLocationARB(pp->h.glsl.handle, shader_attr_names[i].name);
+		if (uniformloc != -1)
 		{
-			uniformloc = qglGetAttribLocationARB(prog->permu[p].h.glsl.handle, shader_attr_names[i].name);
-			if (uniformloc != -1)
-			{
-				if (shader_attr_names[i].ptype != uniformloc)
-					Con_Printf("Bad attribute: %s\n", shader_attr_names[i].name);
-				else
-					prog->permu[p].attrmask |= 1u<<uniformloc;
-			}
+			if (shader_attr_names[i].ptype != uniformloc)
+				Con_Printf("Bad attribute: %s\n", shader_attr_names[i].name);
+			else
+				pp->attrmask |= 1u<<uniformloc;
 		}
 	}
 
-	prog->numsamplers = 0;
-	prog->defaulttextures = 0;
-	for (p = 0; p < PERMUTATIONS; p++)
+	pp->numparms = 0;
+	pp->parm = NULL;
+
+	for (i = 0; shader_unif_names[i].name; i++)
 	{
-		int maxparms = 0;
-		pp = &prog->permu[p];
-		if (!pp->h.loaded)
+		uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, shader_unif_names[i].name);
+		if (uniformloc >= 0)
+		{
+			if (pp->numparms >= maxparms)
+			{
+				maxparms = pp->numparms?pp->numparms * 2:8;
+				pp->parm = BZ_Realloc(pp->parm, sizeof(*pp->parm) * maxparms);
+			}
+			pp->parm[pp->numparms].type = shader_unif_names[i].ptype;
+			pp->parm[pp->numparms].handle = uniformloc;
+			pp->parm[pp->numparms].pval = NULL;
+			pp->numparms++;
+		}
+	}
+
+	/*set cvar uniforms*/
+	/*FIXME: enumerate cvars automatically instead*/
+	for (i = 0; cvarnames[i]; i++)
+	{
+		if (!cvars[i])
 			continue;
-		pp->numparms = 0;
-		pp->parm = NULL;
 
-		GLSlang_UseProgram(prog->permu[p].h.glsl.handle);	//we'll probably be setting samplers anyway.
-		for (i = 0; shader_unif_names[i].name; i++)
+		Q_snprintfz(tmpname, sizeof(tmpname), "cvar_%s", cvarnames[i]);
+		uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, tmpname);
+		if (uniformloc >= 0)
 		{
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, shader_unif_names[i].name);
-			if (uniformloc >= 0)
+			if (pp->numparms >= maxparms)
 			{
-				if (pp->numparms >= maxparms)
-				{
-					maxparms = pp->numparms?pp->numparms * 2:8;
-					pp->parm = BZ_Realloc(pp->parm, sizeof(*pp->parm) * maxparms);
-				}
-				pp->parm[pp->numparms].type = shader_unif_names[i].ptype;
-				pp->parm[pp->numparms].handle = uniformloc;
-				pp->parm[pp->numparms].pval = NULL;
-				pp->numparms++;
+				maxparms = pp->numparms?pp->numparms * 2:8;
+				pp->parm = BZ_Realloc(pp->parm, sizeof(*pp->parm) * maxparms);
 			}
+			pp->parm[pp->numparms].type = cvartypes[i];
+			pp->parm[pp->numparms].pval = cvars[i];
+			pp->parm[pp->numparms].handle = uniformloc;
+			pp->numparms++;
 		}
+	}
 
-		/*set cvar uniforms*/
-		/*FIXME: enumerate cvars automatically instead*/
-		for (i = 0; cvarnames[i]; i++)
-		{			
-			if (!cvars[i])
-				continue;
-
-			Q_snprintfz(tmpname, sizeof(tmpname), "cvar_%s", cvarnames[i]);
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, tmpname);
-			if (uniformloc >= 0)
-			{
-				if (pp->numparms >= maxparms)
-				{
-					maxparms = pp->numparms?pp->numparms * 2:8;
-					pp->parm = BZ_Realloc(pp->parm, sizeof(*pp->parm) * maxparms);
-				}
-				pp->parm[pp->numparms].type = cvartypes[i];
-				pp->parm[pp->numparms].pval = cvars[i];
-				pp->parm[pp->numparms].handle = uniformloc;
-				pp->numparms++;
-			}
-		}
-
-		//now scan/set texture uniforms
-		if (!(pp->attrmask & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
-			pp->attrmask |= (1u<<VATTR_LEG_VERTEX);
-		for (i = 0; i < 8; i++)
+	//now scan/set texture uniforms
+	if (!(pp->attrmask & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
+		pp->attrmask |= (1u<<VATTR_LEG_VERTEX);
+	for (i = 0; i < prog->numsamplers; i++)
+	{
+		Q_snprintfz(tmpname, sizeof(tmpname), "s_t%i", i);
+		uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, tmpname);
+		if (uniformloc != -1)
 		{
-			Q_snprintfz(tmpname, sizeof(tmpname), "s_t%i", i);
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, tmpname);
-			if (uniformloc != -1)
-			{
-				qglUniform1iARB(uniformloc, i);
-				if (prog->numsamplers < i+1)
-					prog->numsamplers = i+1;
-			}
+			qglUniform1iARB(uniformloc, i);
+//			if (prog->numsamplers < i+1)
+//				prog->numsamplers = i+1;
 		}
+	}
+	if (developer.ival)
 		for (i = 0; sh_defaultsamplers[i].name; i++)
 		{
 			//figure out which ones are needed.
@@ -2768,35 +2753,22 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 				continue;	//don't spam
 			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, sh_defaultsamplers[i].name);
 			if (uniformloc != -1)
-				prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
+				Con_Printf("glsl \"%s\" needs %s but doesn't declare so\n", prog->name, sh_defaultsamplers[i].name);
 		}
-	}
-
-	//multiple lightmaps is kinda hacky. if any are set, all must be. 
-	if (prog->defaulttextures & ((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2))))
-		prog->defaulttextures |=((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2)));
-	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
-		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
 
 	if (prog->defaulttextures)
 	{
-		unsigned int sampnum;
+		unsigned int sampnum = prog->numsamplers;
 		/*set default texture uniforms now that we know the right sampler ids*/
-		for (p = 0; p < PERMUTATIONS; p++)
+
+		for (i = 0; sh_defaultsamplers[i].name; i++)
 		{
-			if (!prog->permu[p].h.glsl.handle)
-				continue;
-			sampnum = prog->numsamplers;
-			GLSlang_UseProgram(prog->permu[p].h.glsl.handle);
-			for (i = 0; sh_defaultsamplers[i].name; i++)
+			if (prog->defaulttextures & sh_defaultsamplers[i].defaulttexbits)
 			{
-				if (prog->defaulttextures & sh_defaultsamplers[i].defaulttexbits)
-				{
-					uniformloc = qglGetUniformLocationARB(prog->permu[p].h.glsl.handle, sh_defaultsamplers[i].name);
-					if (uniformloc != -1)
-						qglUniform1iARB(uniformloc, sampnum);
-					sampnum++;
-				}
+				uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, sh_defaultsamplers[i].name);
+				if (uniformloc != -1)
+					qglUniform1iARB(uniformloc, sampnum);
+				sampnum++;
 			}
 		}
 	}
@@ -3019,6 +2991,7 @@ void GL_ForgetPointers(void)
 	qglLinkProgramARB			= NULL;
 	qglBindAttribLocationARB	= NULL;
 	qglGetAttribLocationARB		= NULL;
+	qglVertexAttrib4f			= NULL;
 	qglVertexAttribPointer		= NULL;
 	qglGetVertexAttribiv		= NULL;
 	qglGetVertexAttribPointerv	= NULL;

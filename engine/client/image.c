@@ -4030,6 +4030,190 @@ static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, const ch
 }
 #endif
 
+#ifdef IMAGEFMT_VTF
+//many of these look like dupes, not really sure how they're meant to work. probably legacy.
+typedef enum {
+	VMF_INVALID=-1,
+//	VMF_RGBA8=0,
+//	VMF_ABGR8=1,
+	VMF_RGB8=2,
+	VMF_BGR8=3,
+//	VMF_RGB565=4,
+//	VMF_I8=5,
+//	VMF_IA8=6,
+//	VMF_P8=7,
+//	VMF_A8=8,
+//	VMF_RGB8_BS=9,
+//	VMF_BGR8_BS=10,
+//	VMF_ARGB_BS=11,
+	VMF_BGRA8=12,
+	VMF_BC1=13,
+	VMF_BC2=14,
+	VMF_BC3=15,
+	VMF_BGRX8=16,
+//	VMF_BGR565=17,
+//	VMF_BGRX5551=18,
+//	VMF_BGRA4444=19,
+	VMF_BC1A=20,
+//	VMF_BGRA5551=21,
+	VMF_UV88=22,
+//	VMF_UVWQ8=23,
+	VMF_RGBA16F=24,
+//	VMF_RGBA16N=25,
+//	VMF_UVLX8=26,
+	VMF_MAX
+} fmtfmt_t;
+static uploadfmt_t ImageVTF_VtfToFTE(fmtfmt_t f)
+{
+	switch(f)
+	{
+	case VMF_BC1:
+		return PTI_BC1_RGB;
+	case VMF_BC1A:
+		return PTI_BC1_RGBA;
+	case VMF_BC2:
+		return PTI_BC2_RGBA;
+	case VMF_BC3:
+		return PTI_BC3_RGBA;
+	case VMF_RGB8:
+		return PTI_RGB8;
+	case VMF_BGR8:
+		return PTI_BGR8;
+	case VMF_BGRA8:
+		return PTI_BGRA8;
+	case VMF_BGRX8:
+		return PTI_BGRX8;
+	case VMF_RGBA16F:
+		return PTI_RGBA16F;
+	case VMF_UV88:
+		return PTI_RG8;
+	case VMF_INVALID:
+		return PTI_INVALID;
+
+	default:
+		return PTI_INVALID;
+	}
+}
+static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
+{
+	//FIXME: cba with endian.
+	struct vtf_s
+	{
+		char magic[4];
+		unsigned int major,minor;
+		unsigned int headersize;
+
+		unsigned short width, height;
+		unsigned int flags;
+		unsigned short numframes, firstframe;
+		unsigned int pad1;
+
+		vec3_t reflectivity;
+		float pad2;
+
+		float bumpmapscale;
+		unsigned int imgformat;
+		unsigned char mipmapcount;
+		unsigned char lowresfmt_misaligned[4];
+		unsigned char lowreswidth;
+		unsigned char lowresheight;
+
+		//7.2
+		unsigned char depth_misaligned[2];
+		//7.3
+		unsigned char pad3[3];
+		unsigned int numresources;
+	} *vtf;
+	fmtfmt_t vmffmt, lrfmt;
+	unsigned int bw, bh, bb;
+	qbyte *end = filedata + filesize;
+	unsigned int face, faces, frame, frames, miplevel, miplevels, img;
+	unsigned int w, h;
+	size_t	datasize;
+	unsigned int version;
+
+	struct pendingtextureinfo *mips;
+
+	vtf = (void*)filedata;
+
+	if (memcmp(vtf->magic, "VTF\0", 4))
+		return NULL;
+
+	version = (vtf->major<<16)|vtf->minor;
+	if (version >= 0x00070003)
+		return NULL;	//we don't support the whole resources thing.
+
+	lrfmt = (vtf->lowresfmt_misaligned[0]<<0)|(vtf->lowresfmt_misaligned[1]<<16)|(vtf->lowresfmt_misaligned[2]<<16)|(vtf->lowresfmt_misaligned[3]<<24);
+	vmffmt = vtf->imgformat;
+
+	if (vtf->lowreswidth && vtf->lowresheight)
+		Image_BlockSizeForEncoding(ImageVTF_VtfToFTE(lrfmt), &bb, &bw, &bh);
+	else
+		bb=bw=bh=1;
+	datasize = ((vtf->lowreswidth+bw-1)/bw) * ((vtf->lowresheight+bh-1)/bh) * bb;
+
+	mips = Z_Malloc(sizeof(*mips));
+	mips->type = (vtf->flags & 0x4000)?PTI_CUBEMAP:PTI_2D;
+
+	mips->extrafree = filedata;
+	filedata += vtf->headersize;	//skip the header
+	filedata += datasize;			//and skip the low-res image too.
+
+	mips->encoding = ImageVTF_VtfToFTE(vmffmt);
+	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
+
+	miplevels = vtf->mipmapcount;
+	frames = 1;//vtf->numframes;
+	faces = ((mips->type==PTI_CUBEMAP)?6:1);	//no cubemaps yet.
+
+	mips->mipcount = miplevels * frames * faces;
+	while (mips->mipcount > countof(mips->mip))
+	{
+		if (miplevels > 1)
+			miplevels--;
+		else
+			frames--;
+		mips->mipcount = miplevels * frames * faces;
+	}
+	if (!mips->mipcount)
+	{
+		Z_Free(mips);
+		return NULL;
+	}
+	for (miplevel = vtf->mipmapcount; miplevel-- > 0;)
+	{	//smallest to largest, which is awkward.
+		w = vtf->width>>miplevel;
+		h = vtf->height>>miplevel;
+		if (!w)
+			w = 1;
+		if (!h)
+			h = 1;
+		datasize = ((w+bw-1)/bw) * ((h+bh-1)/bh) * bb;
+		for (frame = 0; frame < vtf->numframes; frame++)
+		{
+			for (face = 0; face < faces; face++)
+			{
+				if (miplevel < miplevels && face < faces)
+				{
+					img = face+miplevel*faces + frame*miplevels*faces;
+					if (img >= countof(mips->mip))
+						break;	//erk?
+					if (filedata + datasize > end)
+						break;	//no more data here...
+					mips->mip[img].width = w;
+					mips->mip[img].height = h;
+					mips->mip[img].depth = 1;
+					mips->mip[img].data = filedata;
+					mips->mip[img].datasize = datasize;
+				}
+				filedata += datasize;
+			}
+		}
+	}
+	return mips;
+}
+#endif
+
 //if force_rgba8 then it guarentees rgba8 or rgbx8, otherwise can return l8, etc
 qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname)
 {
@@ -6956,6 +7140,10 @@ static struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char
 #ifdef IMAGEFMT_BLP
 	if (!mips && filedata[0] == 'B' && filedata[1] == 'L' && filedata[2] == 'P' && filedata[3] == '2') 
 		mips = Image_ReadBLPFile(flags, fname, filedata, filesize);
+#endif
+#ifdef IMAGEFMT_VTF
+	if (!mips && filedata[0] == 'V' && filedata[1] == 'T' && filedata[2] == 'F' && filedata[3] == '\0')
+		mips = Image_ReadVTFFile(flags, fname, filedata, filesize);
 #endif
 
 	//the above formats are assumed to have consumed filedata somehow (probably storing into mips->extradata)

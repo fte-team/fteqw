@@ -382,10 +382,12 @@ void CL_MakeActive(char *gamename)
 
 	//kill models left over from the last map.
 	Mod_Purge(MP_MAPCHANGED);
-	Image_Purge();
 
 	//and reload shaders now if needed (this was blocked earlier)
 	Shader_DoReload();
+
+	//and now free any textures that were not still needed.
+	Image_Purge();
 
 	SCR_EndLoadingPlaque();
 	CL_UpdateWindowTitle();
@@ -5911,6 +5913,7 @@ double Host_Frame (double time)
 
 		{
 			RSpeedMark();
+			vid.ime_allow = false;
 			if (SCR_UpdateScreen())
 				fps_count++;
 			if (R2D_Flush)

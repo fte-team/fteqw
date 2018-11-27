@@ -211,17 +211,21 @@ void D3D11Shader_DeleteProg(program_t *prog)
 	ID3D11PixelShader *frag;
 	ID3D11VertexShader *vert;
 	unsigned int permu, l;
+	struct programpermu_s *pp;
 	for (permu = 0; permu < countof(prog->permu); permu++)
 	{
-		vert = prog->permu[permu].h.hlsl.vert;
-		frag = prog->permu[permu].h.hlsl.frag;
+		pp = prog->permu[permu];
+		if (!pp)
+			continue;
+		vert = pp->h.hlsl.vert;
+		frag = pp->h.hlsl.frag;
 		if (vert)
 			ID3D11VertexShader_Release(vert);
 		if (frag)
 			ID3D11PixelShader_Release(frag);
-		for (l = 0; l < countof(prog->permu[permu].h.hlsl.layouts); l++)
+		for (l = 0; l < countof(pp->h.hlsl.layouts); l++)
 		{
-			layout = prog->permu[permu].h.hlsl.layouts[l];
+			layout = pp->h.hlsl.layouts[l];
 			if (layout)
 				ID3D11InputLayout_Release(layout);
 		}
@@ -229,7 +233,7 @@ void D3D11Shader_DeleteProg(program_t *prog)
 }
 
 //create a program from two blobs.
-static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int permu, 
+static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, struct programpermu_s *permu,
 										  void *vblob, size_t vsize,
 										  void *hblob, size_t hsize,
 										  void *dblob, size_t dsize,
@@ -239,25 +243,25 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 	int l;
 	qboolean success = true;
 
-	if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vblob, vsize, NULL, (ID3D11VertexShader**)&prog->permu[permu].h.hlsl.vert)))
+	if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vblob, vsize, NULL, (ID3D11VertexShader**)&permu->h.hlsl.vert)))
 		success = false;
 
 	if (hblob || dblob)
 	{
-		prog->permu[permu].h.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
-		if (FAILED(ID3D11Device_CreateHullShader(pD3DDev11, hblob, hsize, NULL, (ID3D11HullShader**)&prog->permu[permu].h.hlsl.hull)))
+		permu->h.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+		if (FAILED(ID3D11Device_CreateHullShader(pD3DDev11, hblob, hsize, NULL, (ID3D11HullShader**)&permu->h.hlsl.hull)))
 			success = false;
 
-		if (FAILED(ID3D11Device_CreateDomainShader(pD3DDev11, dblob, dsize, NULL, (ID3D11DomainShader**)&prog->permu[permu].h.hlsl.domain)))
+		if (FAILED(ID3D11Device_CreateDomainShader(pD3DDev11, dblob, dsize, NULL, (ID3D11DomainShader**)&permu->h.hlsl.domain)))
 			success = false;
 	}
 	else
-		prog->permu[permu].h.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		permu->h.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-	if (gblob && FAILED(ID3D11Device_CreateGeometryShader(pD3DDev11, gblob, gsize, NULL, (ID3D11GeometryShader**)&prog->permu[permu].h.hlsl.geom)))
+	if (gblob && FAILED(ID3D11Device_CreateGeometryShader(pD3DDev11, gblob, gsize, NULL, (ID3D11GeometryShader**)&permu->h.hlsl.geom)))
 		success = false;
 
-	if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fblob, fsize, NULL, (ID3D11PixelShader**)&prog->permu[permu].h.hlsl.frag)))
+	if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fblob, fsize, NULL, (ID3D11PixelShader**)&permu->h.hlsl.frag)))
 		success = false;
 
 	for (l = 0; l < 2 && success; l++)
@@ -347,7 +351,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
 */
-		if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vblob, vsize, (ID3D11InputLayout**)&prog->permu[permu].h.hlsl.layouts[l])))
+		if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vblob, vsize, (ID3D11InputLayout**)&permu->h.hlsl.layouts[l])))
 		{
 			Con_Printf("HLSL Shader %s requires unsupported inputs\n", name);
 			success = false;
@@ -356,7 +360,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 	return success;
 }
 
-static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile)
+static qboolean D3D11Shader_LoadBlob(program_t *prog, unsigned int permu, vfsfile_t *blobfile)
 {
 	qboolean success;
 	char *vblob, *hblob, *dblob, *gblob, *fblob;
@@ -398,7 +402,7 @@ static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned
 	VFS_READ(blobfile, fblob, fsz);
 
 
-	success = D3D11Shader_CreateShaders(prog, name, permu, vblob, vsz, hblob, hsz, dblob, dsz, gblob, gsz, fblob, fsz);
+	success = D3D11Shader_CreateShaders(prog, prog->name, prog->permu[permu], vblob, vsz, hblob, hsz, dblob, dsz, gblob, gsz, fblob, fsz);
 	Z_Free(vblob);
 	Z_Free(hblob);
 	Z_Free(dblob);
@@ -407,7 +411,7 @@ static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned
 	return success;
 }
 
-qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *geom, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
+qboolean D3D11Shader_CreateProgram (program_t *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *geom, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
 {
 	char *vsformat;
 	char *hsformat = NULL;
@@ -452,12 +456,12 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		fsformat = "ps_4_0_level_9_1";
 	}
 
-	prog->permu[permu].h.hlsl.vert = NULL;
-	prog->permu[permu].h.hlsl.frag = NULL;
-	prog->permu[permu].h.hlsl.hull = NULL;
-	prog->permu[permu].h.hlsl.domain = NULL;
-	prog->permu[permu].h.hlsl.geom = NULL;
-	memset(prog->permu[permu].h.hlsl.layouts, 0, sizeof(prog->permu[permu].h.hlsl.layouts));
+	permu->h.hlsl.vert = NULL;
+	permu->h.hlsl.frag = NULL;
+	permu->h.hlsl.hull = NULL;
+	permu->h.hlsl.domain = NULL;
+	permu->h.hlsl.geom = NULL;
+	memset(permu->h.hlsl.layouts, 0, sizeof(permu->h.hlsl.layouts));
 
 	if (pD3DCompile)
 	{
@@ -517,12 +521,12 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		success = true;
 
 		defines[0].Name = "VERTEX_SHADER";
-		if (FAILED(pD3DCompile(vert, strlen(vert), name, defines, &myd3dinclude, "main", vsformat, 0, 0, &vcode, &errors)))
+		if (FAILED(pD3DCompile(vert, strlen(vert), prog->name, defines, &myd3dinclude, "main", vsformat, 0, 0, &vcode, &errors)))
 			success = false;
 		if (errors && !silenterrors)
 		{
 			char *messages = ID3DBlob_GetBufferPointer(errors);
-			Con_Printf("vertex shader %s:\n%s", name, messages);
+			Con_Printf("vertex shader %s:\n%s", prog->name, messages);
 			ID3DBlob_Release(errors);
 		}
 
@@ -533,12 +537,12 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			else
 			{
 				defines[0].Name = "HULL_SHADER";
-				if (FAILED(pD3DCompile(hull, strlen(hull), name, defines, &myd3dinclude, "main", hsformat, 0, 0, &hcode, &errors)))
+				if (FAILED(pD3DCompile(hull, strlen(hull), prog->name, defines, &myd3dinclude, "main", hsformat, 0, 0, &hcode, &errors)))
 					success = false;
 				if (errors && !silenterrors)
 				{
 					char *messages = ID3DBlob_GetBufferPointer(errors);
-					Con_Printf("hull shader %s:\n%s", name, messages);
+					Con_Printf("hull shader %s:\n%s", prog->name, messages);
 					ID3DBlob_Release(errors);
 				}
 			}
@@ -551,12 +555,12 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			else
 			{
 				defines[0].Name = "DOMAIN_SHADER";
-				if (FAILED(pD3DCompile(domain, strlen(domain), name, defines, &myd3dinclude, "main", dsformat, 0, 0, &dcode, &errors)))
+				if (FAILED(pD3DCompile(domain, strlen(domain), prog->name, defines, &myd3dinclude, "main", dsformat, 0, 0, &dcode, &errors)))
 					success = false;
 				if (errors && !silenterrors)
 				{
 					char *messages = ID3DBlob_GetBufferPointer(errors);
-					Con_Printf("domain shader %s:\n%s", name, messages);
+					Con_Printf("domain shader %s:\n%s", prog->name, messages);
 					ID3DBlob_Release(errors);
 				}
 			}
@@ -569,24 +573,24 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			else
 			{
 				defines[0].Name = "GEOMETRY_SHADER";
-				if (FAILED(pD3DCompile(domain, strlen(domain), name, defines, &myd3dinclude, "main", gsformat, 0, 0, &gcode, &errors)))
+				if (FAILED(pD3DCompile(domain, strlen(domain), prog->name, defines, &myd3dinclude, "main", gsformat, 0, 0, &gcode, &errors)))
 					success = false;
 				if (errors && !silenterrors)
 				{
 					char *messages = ID3DBlob_GetBufferPointer(errors);
-					Con_Printf("geometry shader %s:\n%s", name, messages);
+					Con_Printf("geometry shader %s:\n%s", prog->name, messages);
 					ID3DBlob_Release(errors);
 				}
 			}
 		}
 
 		defines[0].Name = "FRAGMENT_SHADER";
-		if (FAILED(pD3DCompile(frag, strlen(frag), name, defines, &myd3dinclude, "main", fsformat, 0, 0, &fcode, &errors)))
+		if (FAILED(pD3DCompile(frag, strlen(frag), prog->name, defines, &myd3dinclude, "main", fsformat, 0, 0, &fcode, &errors)))
 			success = false;
 		if (errors && !silenterrors)
 		{
 			char *messages = ID3DBlob_GetBufferPointer(errors);
-			Con_Printf("fragment shader %s:\n%s", name, messages);
+			Con_Printf("fragment shader %s:\n%s", prog->name, messages);
 			ID3DBlob_Release(errors);
 		}
 
@@ -597,7 +601,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		}
 
 		if (success)
-			success = D3D11Shader_CreateShaders(prog, name, permu, 
+			success = D3D11Shader_CreateShaders(prog, prog->name, permu,
 				ID3DBlob_GetBufferPointer(vcode), ID3DBlob_GetBufferSize(vcode),
 				hcode?ID3DBlob_GetBufferPointer(hcode):NULL, hcode?ID3DBlob_GetBufferSize(hcode):0,
 				dcode?ID3DBlob_GetBufferPointer(dcode):NULL, dcode?ID3DBlob_GetBufferSize(dcode):0,
@@ -712,6 +716,7 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 		{NULL,NULL}
 	};
 
+	//FIXME: wine's d3dcompiler dlls don't work properly right now, and winetricks installs ms' only up to 43 (which works, but we loaded 47 instead)
 	for (ver = 47; ver >= 33; ver--)
 	{
 		shaderlib = Sys_LoadLibrary(va("D3dcompiler_%i.dll", ver), (ver>=40)?funcsnew:funcsold);

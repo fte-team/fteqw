@@ -1,4 +1,5 @@
 !!ver 100-450
+!!samps 1
 //this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
 
 varying vec2 tc;
@@ -15,7 +16,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
 void main ()
 {
 	gl_FragColor = pow(texture2D(s_t0, tc) * vc.g, vec4(vc.r)) + vc.b;

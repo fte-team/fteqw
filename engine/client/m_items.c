@@ -559,6 +559,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 
 				if (menu->selecteditem == option && (int)(realtime*4) & 1)
 				{
+					vid.ime_allow = true;
+					vid.ime_position[0] = x;
+					vid.ime_position[1] = y+8;
+
 					x += strlen(option->edit.text)*8;
 					Draw_FunString(x, y, "^Ue00b");
 				}

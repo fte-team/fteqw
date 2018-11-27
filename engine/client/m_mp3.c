@@ -101,6 +101,7 @@ static qboolean qacmStartup(void)
 #endif
 
 static char media_currenttrack[MAX_QPATH];
+static cvar_t music_fade = CVAR("music_fade", "1");
 
 //higher bits have priority (if they have something to play).
 #define MEDIA_GAMEMUSIC (1u<<0)	//cd music. also music command etc.
@@ -295,7 +296,7 @@ static qboolean Media_Changed (unsigned int mediatype)
 		CDAudio_Stop();
 	}
 #endif
-	media_fadeout = true;
+	media_fadeout = music_fade.ival;
 	media_fadeouttime = realtime;
 	return true;
 }
@@ -2450,9 +2451,10 @@ cin_t *Media_StartCin(char *name)
 	if (!name || !*name)	//clear only.
 		return NULL;
 
+#ifndef MINIMAL
 	if (!cin)
 		cin = Media_Static_TryLoad(name);
-
+#endif
 #ifdef Q2CLIENT
 	if (!cin)
 		cin = Media_Cin_TryLoad(name);
@@ -5130,6 +5132,7 @@ void Media_Init(void)
 		Cmd_AddCommand ("menu_media", M_Menu_Media_f);
 	#endif
 #endif
+	Cvar_Register(&music_fade,	"Media player things");
 
 #ifdef HAVE_SPEECHTOTEXT
 	Cmd_AddCommand("tts", TTS_Say_f);

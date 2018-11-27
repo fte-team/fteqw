@@ -1,4 +1,5 @@
 !!permu FOG
+!!samps 1
 //used by both particles and sprites.
 //note the fog blending mode is all that differs from defaultadditivesprite
 
@@ -16,7 +17,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
 varying vec2 tc;
 varying vec4 vc;
 uniform vec4 e_colourident;

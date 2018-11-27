@@ -1,4 +1,5 @@
 !!permu FOG
+!!samps 2
 #include "sys/fog.h"
 
 //regular sky shader for scrolling q1 skies
@@ -16,8 +17,6 @@ void main ()
 uniform float e_time;
 uniform vec3 e_eyepos;
 varying vec3 pos;
-uniform sampler2D s_t0;
-uniform sampler2D s_t1;
 void main ()
 {
 	vec2 tccoord;

@@ -675,6 +675,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				{
 					shaderstate.sha_attr &= ~(1u<<i);
 					qglDisableVertexAttribArray(i);
+					qglVertexAttrib4f(VATTR_COLOUR, 1, 1, 1, 1);
 					continue;
 				}
 				GL_SelectVBO(shaderstate.pendingcolourvbo);
@@ -3317,7 +3318,7 @@ static void DrawPass(const shaderpass_t *pass)
 }
 #endif
 
-static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, qboolean entunchanged)
+static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu_s *perm, qboolean entunchanged)
 {
 	vec4_t param4;
 	int r, g;//, b;
@@ -3329,8 +3330,8 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 	if (entunchanged)
 		return;
 
-	p = prog->permu[perm].parm;
-	for (i = prog->permu[perm].numparms; i > 0; i--, p++)
+	p = perm->parm;
+	for (i = perm->numparms; i > 0; i--, p++)
 	{
 		ph = p->handle;
 		switch(p->type)
@@ -3472,7 +3473,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 
 		case SP_E_VLSCALE:
 #if MAXRLIGHTMAPS > 1
-			if (perm & PERMUTATION_LIGHTSTYLES)
+			if (perm->permutation & PERMUTATION_LIGHTSTYLES)
 			{
 				vec4_t colscale[MAXRLIGHTMAPS];
 				int j, s;
@@ -3524,7 +3525,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 		case SP_E_LMSCALE:
 #if MAXRLIGHTMAPS > 1
-			if (perm & PERMUTATION_LIGHTSTYLES)
+			if (perm->permutation & PERMUTATION_LIGHTSTYLES)
 			{
 				vec4_t colscale[MAXRLIGHTMAPS];
 				int j, s;
@@ -3777,8 +3778,9 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 
 	int perm;
 
+	struct programpermu_s *permu;
+
 	perm = 0;
-#if 0
 	if (shaderstate.sourcevbo->numbones)
 		perm |= PERMUTATION_SKELETAL;
 #ifdef NONSKELETALMODELS
@@ -3793,7 +3795,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
-//	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//	if (TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 	if ((TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask)))
 		perm |= PERMUTATION_REFLECTCUBEMASK;
@@ -3803,45 +3805,15 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 #endif
 
 	perm &= p->supportedpermutations;
-	if (!p->permu[perm].h.loaded)
+	permu = p->permu[perm];
+	if (!permu)
 	{
-		perm = 0;
-		if (!p->permu[perm].h.loaded)
+		p->permu[perm] = permu = Shader_LoadPermutation(p, perm);
+		if (!permu)
 			return;
 	}
 
-#else
-	if (shaderstate.sourcevbo->numbones)
-	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
-			perm |= PERMUTATION_SKELETAL;
-		else
-			return;
-	}
-
-#ifdef NONSKELETALMODELS
-	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.sourcevbo->coord2.gl.addr)
-		perm |= PERMUTATION_FRAMEBLEND;
-#endif
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
-		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
-		perm |= PERMUTATION_FULLBRIGHT;
-	if ((TEXLOADED(shaderstate.curtexnums->loweroverlay) || TEXLOADED(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded)
-		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
-		perm |= PERMUTATION_FOG;
-//	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
-//		perm |= PERMUTATION_DELUXE;
-	if ((TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask)) && p->permu[perm|PERMUTATION_REFLECTCUBEMASK].h.loaded)
-		perm |= PERMUTATION_REFLECTCUBEMASK;
-#if MAXRLIGHTMAPS > 1
-	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
-		perm |= PERMUTATION_LIGHTSTYLES;
-#endif
-#endif
-
-	GL_SelectProgram(p->permu[perm].h.glsl.handle);
+	GL_SelectProgram(permu->h.glsl.handle);
 #ifndef FORCESTATE
 	if (shaderstate.lastuniform == shaderstate.currentprogram)
 		i = true;
@@ -3851,7 +3823,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		i = false;
 		shaderstate.lastuniform = shaderstate.currentprogram;
 	}
-	BE_Program_Set_Attributes(p, perm, i);
+	BE_Program_Set_Attributes(p, permu, i);
 
 	BE_SendPassBlendDepthMask(pass->shaderbits);
 
@@ -3892,8 +3864,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		shaderstate.lastpasstmus = i;	//in case it was already lower
 	}
-	BE_EnableShaderAttributes(p->permu[perm].attrmask, shaderstate.sourcevbo->vao);
-	BE_SubmitMeshChain(p->permu[perm].h.glsl.usetesselation);
+	BE_EnableShaderAttributes(permu->attrmask, shaderstate.sourcevbo->vao);
+	BE_SubmitMeshChain(permu->h.glsl.usetesselation);
 }
 
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model)

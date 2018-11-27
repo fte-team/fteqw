@@ -2259,7 +2259,7 @@ qboolean COM_RequireExtension(char *path, const char *extension, int maxlen)
 //3 invalid unicode char
 //4 invalid utf-16 lead/high surrogate
 //5 invalid utf-16 tail/low surrogate
-unsigned int utf8_decode(int *error, const void *in, char **out)
+unsigned int utf8_decode(int *error, const void *in, char const**out)
 {
 	//uc is the output unicode char
 	unsigned int uc = 0xfffdu;	//replacement character
@@ -2375,7 +2375,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 		uc = *str;
 	}
 
-	*out = (void*)(str + l);
+	*out = (const void*)(str + l);
 
 	if (!*error)
 	{
@@ -2384,7 +2384,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 		{
 #if 1
 			//cesu-8
-			char *lowend;
+			const char *lowend;
 			unsigned int lowsur = utf8_decode(error, str + l, &lowend);
 			if (*error == 4)
 			{
@@ -2409,7 +2409,7 @@ unsigned int utf8_decode(int *error, const void *in, char **out)
 	return uc;
 }
 
-unsigned int unicode_decode(int *error, const void *in, char **out, qboolean markup)
+unsigned int unicode_decode(int *error, const void *in, char const**out, qboolean markup)
 {
 	unsigned int charcode;
 	if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
@@ -2636,7 +2636,7 @@ unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean marku
 	int chars = 0;
 	for(chars = 0; in < end && *in; chars+=1)
 	{
-		unicode_decode(&error, in, (char**)&in, markup);
+		unicode_decode(&error, in, &in, markup);
 
 		if (in > end)
 			break;	//exceeded buffer size uncleanly
@@ -2655,7 +2655,7 @@ unsigned int unicode_byteofsfromcharofs(const char *str, unsigned int charofs, q
 		if (chars >= charofs)
 			return in - str;
 
-		unicode_decode(&error, in, (char**)&in, markup);
+		unicode_decode(&error, in, &in, markup);
 	}
 	return in - str;
 }
@@ -2667,7 +2667,7 @@ unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, q
 	int chars = 0;
 	for(chars = 0; str < end && *str; chars+=1)
 	{
-		unicode_decode(&error, str, (char**)&str, markup);
+		unicode_decode(&error, str, &str, markup);
 
 		if (str > end)
 			break;	//exceeded buffer size uncleanly
@@ -2722,7 +2722,7 @@ size_t unicode_strtoupper(const char *in, char *out, size_t outsize, qboolean ma
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, (char**)&in, markup);
+		c = unicode_decode(&error, in, &in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towupper(c & 0x7f) + (c & 0xff80);
 		else
@@ -2746,7 +2746,7 @@ size_t unicode_strtolower(const char *in, char *out, size_t outsize, qboolean ma
 
 	while(*in)
 	{
-		c = unicode_decode(&error, in, (char**)&in, markup);
+		c = unicode_decode(&error, in, &in, markup);
 		if (c >= 0xe020 && c <= 0xe07f)	//quake-char-aware.
 			c = towlower(c & 0x7f) + (c & 0xff80);
 		else
@@ -3274,7 +3274,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		if ((*str & 0x80) && utf8 > 0)
 		{	//check for utf-8
 			int decodeerror;
-			char *end;
+			const char *end;
 			uc = utf8_decode(&decodeerror, str, &end);
 			if (decodeerror && !(utf8 & 2))
 			{
@@ -5882,7 +5882,7 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 {
 #ifndef NOLEGACY
 	static const struct {
-		char *name;
+		const char *name;
 		unsigned int gpl2;
 		unsigned int id11;
 		unsigned int id12;

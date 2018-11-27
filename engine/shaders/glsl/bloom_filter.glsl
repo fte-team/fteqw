@@ -1,4 +1,5 @@
 !!cvarv r_bloom_filter
+!!samps 1
 //the bloom filter
 //filter out any texels which are not to bloom
 
@@ -14,7 +15,6 @@ void main ()
 #endif
 #ifdef FRAGMENT_SHADER
 uniform vec3 cvar_r_bloom_filter;
-uniform sampler2D s_t0;
 void main ()
 {
 	gl_FragColor.rgb = (texture2D(s_t0, tc).rgb - cvar_r_bloom_filter)/(1.0-cvar_r_bloom_filter);

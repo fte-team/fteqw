@@ -1,6 +1,10 @@
 !!cvardf r_glsl_turbscale_reflect=1	//simpler scaler
 !!cvardf r_glsl_turbscale_refract=1	//simpler scaler
-!!samps 4 diffuse normalmap
+!!samps diffuse normalmap
+!!samps				refract=0	//always present
+!!samps =REFLECT	reflect=1
+!!samps =RIPPLEMAP	ripplemap=2
+!!samps =DEPTH 		refractdepth=3
 
 #include "sys/defs.h"
 
@@ -87,11 +91,6 @@ void main (void)
 #include "sys/fog.h"
 #endif
 
-
-#define s_refract s_t0
-#define s_reflect s_t1
-#define s_ripplemap s_t2
-#define s_refractdepth s_t3
 
 void main (void)
 {

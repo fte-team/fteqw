@@ -485,10 +485,12 @@ int MP_GetServerCategory(int index);
 #endif
 
 #ifdef MENU_NATIVECODE
+#ifdef HAVE_CLIENT
 #include "api_menu.h"
 extern menu_export_t *mn_entry;
 void MN_Shutdown(void);
 qboolean MN_Init(void);
+#endif
 #endif
 
 #define MGT_BAD    ~0

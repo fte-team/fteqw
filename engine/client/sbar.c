@@ -1232,7 +1232,7 @@ void Draw_TinyString (float x, float y, const qbyte *str)
 
 	while (*str)
 	{
-		codepoint = unicode_decode(&error, str, (char**)&str, true);
+		codepoint = unicode_decode(&error, str, (char const**)&str, true);
 
 		if (codepoint == '\n')
 		{
@@ -2728,7 +2728,7 @@ static void Sbar_Voice(int y)
 #endif
 }
 
-void SCR_StringXY(char *str, float x, float y);
+void SCR_StringXY(const char *str, float x, float y);
 void SCR_DrawClock(void);
 void SCR_DrawGameClock(void);
 static void Sbar_DrawUPS(playerview_t *pv)

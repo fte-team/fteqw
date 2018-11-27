@@ -1,3 +1,4 @@
+!!samps 1
 //apply gaussian filter
 
 varying vec2 tc;
@@ -13,7 +14,6 @@ void main ()
 #ifdef FRAGMENT_SHADER
 /*offset should be 1.2 pixels away from the center*/
 uniform vec3 e_glowmod;
-uniform sampler2D s_t0;
 void main ()
 {
 	gl_FragColor =

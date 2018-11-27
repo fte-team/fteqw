@@ -269,7 +269,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 
 	if (header->version != 10)
 	{
-		Con_Printf(CON_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
+		Con_Printf(CON_ERROR "Cannot load halflife model %s - unknown version %i\n", mod->name, header->version);
 		return false;
 	}
 

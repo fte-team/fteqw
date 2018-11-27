@@ -1,5 +1,6 @@
 !!cvard3 r_floorcolour
 !!cvard3 r_wallcolour
+!!samps 1
 //FIXME !!permu FOG
 
 struct a2v {

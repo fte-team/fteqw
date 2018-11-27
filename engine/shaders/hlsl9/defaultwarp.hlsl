@@ -1,4 +1,6 @@
 !!cvarf r_wateralpha
+!!samps diffuse
+
 struct a2v {
 	float4 pos: POSITION;
 	float2 tc: TEXCOORD0;

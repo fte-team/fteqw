@@ -4950,7 +4950,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 					mod->textures[a]->shader = R_RegisterShader_Lightmap(va("%s#BUMPMODELSPACE", mod->textures[a]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
-					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}
@@ -4961,7 +4961,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
 					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
-					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}

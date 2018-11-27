@@ -1,4 +1,5 @@
 !!cvarf ffov
+!!samps screen:samplerCube=0
 
 //stereographic view rendering, for high fovs that are still playable.
 
@@ -17,7 +18,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform samplerCube s_t0;
 varying vec2 texcoord;
 void main()
 {
@@ -32,6 +32,6 @@ void main()
 	tc.y = -2.0*d.y/div;
 	tc.z = -(-1.0 + d.x*d.x + d.y*d.y)/div;
 
-	gl_FragColor = textureCube(s_t0, tc);
+	gl_FragColor = textureCube(s_screen, tc);
 }
 #endif

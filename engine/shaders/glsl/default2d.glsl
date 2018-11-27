@@ -1,4 +1,5 @@
 !!ver 100-450
+!!samps 1
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -19,7 +20,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
 void main ()
 {
 	vec4 f = vc;

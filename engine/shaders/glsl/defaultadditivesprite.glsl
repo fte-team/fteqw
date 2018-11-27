@@ -1,4 +1,5 @@
 !!permu FOG
+!!samps 1
 
 //meant to be used for additive stuff. presumably particles and sprites. though actually its only flashblend effects that use this at the time of writing.
 //includes fog, apparently.
@@ -17,7 +18,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
 varying vec2 tc;
 varying vec4 vc;
 uniform vec4 e_colourident;

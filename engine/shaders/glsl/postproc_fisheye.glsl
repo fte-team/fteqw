@@ -1,4 +1,5 @@
 !!cvarf ffov
+!!samps screen:samplerCube=0
 
 //fisheye view rendering, for silly fovs that are still playable.
 
@@ -12,7 +13,6 @@ void main()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform samplerCube s_t0;
 varying vec2 texcoord;
 uniform float cvar_ffov;
 void main()
@@ -26,6 +26,6 @@ void main()
 	tc.x = sin(ang.x) * cos(ang.y);	
 	tc.y = sin(ang.x) * sin(ang.y);	
 	tc.z = cos(ang.x);	
-	gl_FragColor = textureCube(s_t0, tc);
+	gl_FragColor = textureCube(s_screen, tc);
 }
 #endif

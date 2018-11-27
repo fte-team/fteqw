@@ -1,3 +1,4 @@
+!!samps 2
 //this glsl shader is useful for cubemapped post processing effects (see csaddon for an example)
 varying vec4 tf;
 #ifdef VERTEX_SHADER
@@ -7,8 +8,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
-uniform sampler3D s_t1;
 void main()
 {
 	vec2 fc;

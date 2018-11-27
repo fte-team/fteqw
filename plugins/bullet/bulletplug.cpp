@@ -924,6 +924,7 @@ public:
 		VectorNegate(axis[1], axis[1]);
 		VectorAvg(edict->rbe.mins, edict->rbe.maxs, offset);
 		VectorMA(edict->v->origin, offset[0]*1, axis[0], org);
+		org[3] = 0;//for sse.
 		VectorMA(org, offset[1]*1, axis[1], org);
 		VectorMA(org, offset[2]*1, axis[2], org);
 
@@ -1705,8 +1706,11 @@ static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 	case RBECMD_FORCE:
 		if (body)
 		{
+			btVector3 relativepos;
+			const btVector3 &center = body->getCenterOfMassPosition();
+			VectorSubtract(cmd->v2, center, relativepos);
 			body->setActivationState(1);
-			body->applyForce(btVector3(cmd->v1[0], cmd->v1[1], cmd->v1[2]), btVector3(cmd->v2[0], cmd->v2[1], cmd->v2[2]));
+			body->applyImpulse(btVector3(cmd->v1[0], cmd->v1[1], cmd->v1[2]), relativepos);
 		}
 		break;
 	case RBECMD_TORQUE:
@@ -1736,26 +1740,48 @@ static void QDECL World_Bullet_PushCommand(world_t *world, rbecommandqueue_t *va
 		ctx->cmdqueuetail = ctx->cmdqueuehead = cmd;
 }
 
-/*
-static void QDECL World_Bullet_TraceEntity(world_t *world, vec3_t start, vec3_t end, wedict_t *ed)
+static void QDECL World_Bullet_TraceEntity(world_t *world, wedict_t *ed, vec3_t start, vec3_t end, trace_t *trace)
 {
 	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
 	btCollisionShape *shape = (btCollisionShape*)ed->rbe.body.geom;
 
+//btCollisionAlgorithm
 	class myConvexResultCallback : public btCollisionWorld::ConvexResultCallback
 	{
 	public:
+		void *m_impactent;
+		btVector3 m_impactpos;
+		btVector3 m_impactnorm;
 		virtual	btScalar	addSingleResult(btCollisionWorld::LocalConvexResult& convexResult,bool normalInWorldSpace)
 		{
+			if (m_closestHitFraction > convexResult.m_hitFraction)
+			{
+				m_closestHitFraction = convexResult.m_hitFraction;
+				m_impactpos = convexResult.m_hitPointLocal;
+				m_impactnorm = convexResult.m_hitNormalLocal;
+				m_impactent = convexResult.m_hitCollisionObject->getUserPointer();
+			}
 			return 0;
 		}
 	} result;
+	result.m_impactent = NULL;
+	result.m_closestHitFraction = trace->fraction;
 
 	btTransform from(btMatrix3x3(1, 0, 0, 0, 1, 0, 0, 0, 1), btVector3(start[0], start[1], start[2]));
 	btTransform to(btMatrix3x3(1, 0, 0, 0, 1, 0, 0, 0, 1), btVector3(end[0], end[1], end[2]));
 	ctx->dworld->convexSweepTest((btConvexShape*)shape, from, to, result, 1);
+
+	if (result.m_impactent)
+	{
+		memset(trace, 0, sizeof(*trace));
+		trace->fraction = trace->truefraction = result.m_closestHitFraction;
+		VectorInterpolate(start, result.m_closestHitFraction, end, trace->endpos);
+//		VectorCopy(result.m_impactpos, trace->endpos);
+		VectorCopy(result.m_impactnorm, trace->plane.normal);
+		trace->ent = result.m_impactent;
+		trace->startsolid = qfalse; //FIXME: we don't really know
+	}
 }
-*/
 
 static void QDECL World_Bullet_Start(world_t *world)
 {
@@ -1782,6 +1808,7 @@ static void QDECL World_Bullet_Start(world_t *world)
 	ctx->funcs.RagDestroyJoint			= World_Bullet_RagDestroyJoint;
 	ctx->funcs.RunFrame					= World_Bullet_Frame;
 	ctx->funcs.PushCommand				= World_Bullet_PushCommand;
+	ctx->funcs.Trace					= World_Bullet_TraceEntity;
 	world->rbe = &ctx->funcs;
 
 

@@ -2346,6 +2346,8 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 
 		if (R2D_Flush)
 			Con_Printf("no flush\n");
+
+		VKBE_RT_End(&rtc->face[i]);
 	}
 
 	r_refdef.vrect = vrect;

@@ -916,7 +916,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 
 	if (decodesamps > 0)
 	{	//calculate levels of other people. eukara demanded this.
-		float level;
+		float level = 0;
 		float f;
 		for (len = 0; len < decodesamps; len++)
 		{

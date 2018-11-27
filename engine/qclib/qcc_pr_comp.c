@@ -4848,7 +4848,7 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 		{"VF_SIZE",				4, ev_vector},
 		{"VF_SIZE_X",			5, ev_float},
 		{"VF_SIZE_Y",			6, ev_float},
-		{"VF_VIEWPORT",			7, ev_vector},
+		{"VF_VIEWPORT",			7, ev_vector, ev_vector},
 		{"VF_FOV",				8, ev_vector},
 		{"VF_FOVX",				9, ev_float},
 		{"VF_FOVY",				10, ev_float},

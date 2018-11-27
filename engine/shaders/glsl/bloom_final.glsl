@@ -1,5 +1,6 @@
 !!cvarf r_bloom
 !!cvarf r_bloom_retain=1.0
+!!samps 4
 //add them together
 //optionally apply tonemapping
 
@@ -14,10 +15,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform sampler2D s_t0;
-uniform sampler2D s_t1;
-uniform sampler2D s_t2;
-uniform sampler2D s_t3;
 uniform float cvar_r_bloom;
 uniform float cvar_r_bloom_retain;
 void main ()

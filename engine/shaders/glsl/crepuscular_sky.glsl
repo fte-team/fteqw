@@ -1,3 +1,4 @@
+!!samps 2
 //pretty much a regular sky shader
 //though in reality we should render a sun circle in the middle.
 //still, its kinda cool to have scrolling clouds masking out parts of the sun.
@@ -14,8 +15,6 @@ void main ()
 uniform float e_time;
 uniform vec3 e_eyepos;
 varying vec3 pos;
-uniform sampler2D s_t0;
-uniform sampler2D s_t1;
 void main ()
 {
 	vec2 tccoord;

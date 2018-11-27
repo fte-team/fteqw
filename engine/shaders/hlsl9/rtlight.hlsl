@@ -3,7 +3,7 @@
 !!permu OFFSETMAPPING
 !!permu SKELETAL
 !!permu FOG
-
+!!samps diffuse
 
 //	texture units:
 //	s0=diffuse, s1=normal, s2=specular, s3=shadowmap

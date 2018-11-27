@@ -1,6 +1,7 @@
 !!cvarf crep_decay
 !!cvarf crep_density
 !!cvarf crep_weight
+!!samps 1
 
 //this is a post-processing shader, drawn in 2d
 //there will be a render target containing sky surfaces drawn with crepuscular_sky, and everything else drawn with crepuscular_opaque (to mask out the sky)
@@ -22,7 +23,6 @@ const float crep_density = 0.5;
 const float crep_weight = 0.2;
 uniform vec3 l_lightcolour;
 uniform vec3 l_lightscreen;
-uniform sampler2D s_t0;
 const int NUM_SAMPLES = 100;
 void main()
 {

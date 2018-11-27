@@ -59,6 +59,7 @@ struct searchpathfuncs_s
 //warning: the handle is known to be a string pointer to the dir name
 extern searchpathfuncs_t *(QDECL VFSOS_OpenPath)	(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSVPK_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 extern searchpathfuncs_t *(QDECL FSDZ_LoadArchive)	(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);

@@ -75,7 +75,7 @@ typedef struct plugin_s {
 	struct plugin_s *next;
 } plugin_t;
 
-int Plug_SubConsoleCommand(console_t *con, char *line);
+int Plug_SubConsoleCommand(console_t *con, const char *line);
 
 plugin_t *currentplug;
 
@@ -1826,7 +1826,7 @@ qboolean Plug_ConsoleLink(char *text, char *info, const char *consolename)
 	return result;
 }
 
-int Plug_SubConsoleCommand(console_t *con, char *line)
+int Plug_SubConsoleCommand(console_t *con, const char *line)
 {
 	int ret;
 	char buffer[2048];

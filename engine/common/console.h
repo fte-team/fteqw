@@ -179,7 +179,7 @@ typedef struct console_s
 	int		commandcompletion;	//allows tab completion of quake console commands
 
 	//WARNING: note that links do NOT represent any sort of security. text can be inserted from anywhere. Its fine to use such things for context, but don't treat them as sescure.
-	int				(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
+	int				(*linebuffered) (struct console_s *con, const char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
 	qboolean		(*redirect) (struct console_s *con, unsigned int unicode, int key);	//if present, called every character.
 	qboolean		(*mouseover)(struct console_s *con, char **out_tiptext, struct shader_s **out_shader);
 	qboolean		(*close) (struct console_s *con, qboolean force);
@@ -232,7 +232,7 @@ struct font_s;
 void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy, float lineagelimit);
 void Con_DrawConsole (int lines, qboolean noback);
 void Con_ExpandConsoleSelection(console_t *con);
-char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink);
+char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink, qboolean forceutf8);
 void Con_Print (const char *txt);
 void Con_CenterPrint(const char *txt);
 void Con_PrintFlags(const char *text, unsigned int setflags, unsigned int clearflags);
@@ -249,8 +249,8 @@ void Con_ClearNotify (void);
 void Con_ToggleConsole_f (void);//note: allows csqc to intercept the toggleconsole
 void Con_ToggleConsole_Force(void);
 
-int Con_ExecuteLine(console_t *con, char *line);	//takes normal console commands
-int Con_Navigate(console_t *con, char *line);		//special webbrowser hacks
+int Con_ExecuteLine(console_t *con, const char *line);	//takes normal console commands
+int Con_Navigate(console_t *con, const char *line);		//special webbrowser hacks
 
 vfsfile_t *Con_POpen(char *conname);
 void Con_CycleConsole (void);

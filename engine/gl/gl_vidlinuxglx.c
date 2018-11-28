@@ -3952,7 +3952,7 @@ static qboolean X11_Clipboard_Notify(XSelectionEvent *xselection)
 }
 */
 
-void Sys_SaveClipboard(clipboardtype_t clipboardtype, char *text)
+void Sys_SaveClipboard(clipboardtype_t clipboardtype, const char *text)
 {
 	free(clipboard_buffer[clipboardtype]);
 	clipboard_buffer[clipboardtype] = strdup(text);

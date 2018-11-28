@@ -3387,16 +3387,14 @@ void CL_LinkStaticEntities(void *pvs)
 		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->pvscache, pvs))
 			continue;
 
+
 		// emit particles for statics (we don't need to cheat check statics)
 		if (stat->state.u.q1.emiteffectnum)
 			P_EmitEffect (stat->ent.origin, stat->ent.axis, MDLF_EMITFORWARDS, CL_TranslateParticleFromServer(stat->state.u.q1.emiteffectnum), &(stat->emit));
-		else if (clmodel && clmodel->particleeffect >= 0 && gl_part_flame.ival)
+		else if (clmodel)
 		{
-			// TODO: this is ugly.. assumes ent is in static entities, and subtracts
-			// pointer math to get an index to use in cl_static emit
-			// there needs to be a cleaner method for this
-			P_EmitEffect(stat->ent.origin, stat->ent.axis, clmodel->engineflags, clmodel->particleeffect, &stat->emit);
-
+			if (clmodel->particleeffect >= 0 && gl_part_flame.ival)
+				P_EmitEffect(stat->ent.origin, stat->ent.axis, clmodel->engineflags, clmodel->particleeffect, &stat->emit);
 			if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
 				continue;
 		}

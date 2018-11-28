@@ -1718,6 +1718,7 @@ void Shader_UnloadProg(program_t *prog)
 	Z_Free(prog->name);
 	Z_Free(prog->preshade);
 	Z_Free(prog->shadertext);
+	Z_Free(prog->cvardata);
 
 	Z_Free(prog);
 }
@@ -1789,6 +1790,8 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 	g->prog.preshade = NULL;
 	Z_Free(g->prog.shadertext);
 	g->prog.shadertext = NULL;
+	Z_Free(g->prog.cvardata);
+	g->prog.cvardata = NULL;
 
 	if (file)
 	{

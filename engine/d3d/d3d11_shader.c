@@ -212,11 +212,15 @@ void D3D11Shader_DeleteProg(program_t *prog)
 	ID3D11VertexShader *vert;
 	unsigned int permu, l;
 	struct programpermu_s *pp;
-	for (permu = 0; permu < countof(prog->permu); permu++)
+	for (permu = countof(prog->permu); permu-- > 0; )
 	{
 		pp = prog->permu[permu];
 		if (!pp)
 			continue;
+		prog->permu[permu] = NULL;
+		if (pp == prog->permu[0] && permu)
+			continue;	//entry 0 (only) can get copied to avoid constant recompile failures (0 is always precompiled)
+
 		vert = pp->h.hlsl.vert;
 		frag = pp->h.hlsl.frag;
 		if (vert)
@@ -229,6 +233,7 @@ void D3D11Shader_DeleteProg(program_t *prog)
 			if (layout)
 				ID3D11InputLayout_Release(layout);
 		}
+		Z_Free(pp);
 	}
 }
 

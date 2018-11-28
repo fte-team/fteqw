@@ -999,7 +999,7 @@ qboolean SW_SCR_UpdateScreen(void)
 	if (cls.state == ca_active)
 	{
 		if (!CSQC_DrawView())
-			V_RenderView ();
+			V_RenderView (false);
 
 		R2D_BrightenScreen();
 	}

@@ -914,6 +914,7 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 	#define png_const_structp png_structp
 	#define png_const_bytep png_bytep
 	#define png_const_unknown_chunkp png_unknown_chunkp
+	#define png_const_textp png_textp
 #endif
 #if PNG_LIBPNG_VER < 10600
 	#define png_inforp png_infop

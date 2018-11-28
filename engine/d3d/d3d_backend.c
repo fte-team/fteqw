@@ -179,7 +179,7 @@ typedef struct
 	float m_model[16];
 	unsigned int lastpasscount;
 	vbo_t *batchvbo;
-	program_t	*curprog;
+	struct programpermu_s	*curperm;
 
 	shader_t	*shader_rtlight;
 	IDirect3DTexture9	*curtex[MAX_TMUS];
@@ -1932,9 +1932,9 @@ static void BE_ApplyUniforms(program_t *prog, struct programpermu_s *perm)
 	vec4_t param4;
 	int h;
 	int i;
-	if (shaderstate.curprog != prog)
+	if (shaderstate.curperm != perm)
 	{
-		shaderstate.curprog = prog;
+		shaderstate.curperm = perm;
 		IDirect3DDevice9_SetVertexShader(pD3DDev9, perm->h.hlsl.vert);
 		IDirect3DDevice9_SetPixelShader(pD3DDev9, perm->h.hlsl.frag);
 	}
@@ -2120,10 +2120,7 @@ static unsigned int BE_DrawMeshChain_SetupProgram(program_t *p)
 		perm |= PERMUTATION_FOG;
 #ifdef NONSKELETALMODELS
 	if (shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
-	{
 		perm |= PERMUTATION_FRAMEBLEND;
-		vdec |= D3D_VDEC_POS2;
-	}
 #endif
 //	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
@@ -2138,10 +2135,13 @@ static unsigned int BE_DrawMeshChain_SetupProgram(program_t *p)
 	pp = p->permu[perm];
 	if (!pp)
 	{
-		pp = p->permu[perm] = Shader_LoadPermutation(p, perm);
+		p->permu[perm] = pp = Shader_LoadPermutation(p, perm);
 		if (!pp)
-			pp = p->permu[perm=0];
+		{	//failed? copy from 0 so we don't keep re-failing
+			pp = p->permu[perm] = p->permu[0];
+		}
 	}
+	perm = pp->permutation;
 
 	if (perm & PERMUTATION_FRAMEBLEND)
 		vdec |= D3D_VDEC_POS2;
@@ -2232,9 +2232,9 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	}
 	else
 	{
-		if (shaderstate.curprog)
+		if (shaderstate.curperm)
 		{
-			shaderstate.curprog = NULL;
+			shaderstate.curperm = NULL;
 			IDirect3DDevice9_SetVertexShader(pD3DDev9, NULL);
 			IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
 		}
@@ -2340,12 +2340,9 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 		perm |= PERMUTATION_FOG;
 #ifdef NONSKELETALMODELS
 	if (shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
-	{
 		perm |= PERMUTATION_FRAMEBLEND;
-		vdec |= D3D_VDEC_POS2;
-	}
 #endif
-//	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//	if (TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 #if MAXRLIGHTMAPS > 1
 	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0)
@@ -2358,10 +2355,13 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 	pp = p->permu[perm];
 	if (!pp)
 	{
-		pp = Shader_LoadPermutation(p, perm);
+		p->permu[perm] = pp = Shader_LoadPermutation(p, perm);
 		if (!pp)
-			pp = p->permu[perm=0];
+		{	//failed? copy from 0 so we don't keep re-failing
+			pp = p->permu[perm] = p->permu[0];
+		}
 	}
+	perm = pp->permutation;
 
 	if (perm & PERMUTATION_FRAMEBLEND)
 		vdec |= D3D_VDEC_POS2;

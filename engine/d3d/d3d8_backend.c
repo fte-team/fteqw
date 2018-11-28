@@ -2669,6 +2669,8 @@ static void BE_UploadLightmaps(qboolean force)
 			if (!TEXLOADED(lm->lightmap_texture))
 				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
 			tex = lm->lightmap_texture->ptr;
+			if (lm->fmt != PTI_BGRA8)
+				continue;	//erk!
 			if (!tex)
 			{
 				IDirect3DDevice8_CreateTexture(pD3DDev8, lm->width, lm->height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex);
@@ -2687,7 +2689,7 @@ static void BE_UploadLightmaps(qboolean force)
 			IDirect3DTexture8_LockRect(tex, 0, &lock, &rect, 0);
 			for (r = 0, w = theRect->r-theRect->l; r < lightmap[i]->rectchange.b-lightmap[i]->rectchange.t; r++)
 			{
-				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*lightmap_bytes, w*lightmap_bytes);
+				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*4, w*4);
 			}
 			IDirect3DTexture8_UnlockRect(tex, 0);
 			theRect->l = lm->width;

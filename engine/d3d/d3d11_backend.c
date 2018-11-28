@@ -1957,9 +1957,11 @@ static void BE_RenderMeshProgram(program_t *p, shaderpass_t *pass, unsigned int 
 	pp = p->permu[perm];
 	if (!pp)
 	{
-		pp = Shader_LoadPermutation(p, perm);
+		p->permu[perm] = pp = Shader_LoadPermutation(p, perm);
 		if (!pp)
-			pp = p->permu[perm=0];
+		{	//failed? copy from 0 so we don't keep re-failing
+			pp = p->permu[perm] = p->permu[0];
+		}
 	}
 
 	BE_ApplyUniforms(p, pp);

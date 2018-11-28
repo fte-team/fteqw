@@ -2373,7 +2373,7 @@ void QCBUILTIN PF_fwrite (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		return;
 	}
 
-	G_INT(OFS_PARM1) = PF_fwrite_internal (prinst, fnum, prinst->stringtable + ptr, size);
+	G_INT(OFS_RETURN) = PF_fwrite_internal (prinst, fnum, prinst->stringtable + ptr, size);
 }
 void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2386,7 +2386,7 @@ void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;
 	}
 
-	G_INT(OFS_PARM1) = PF_fread_internal (prinst, fnum, prinst->stringtable + ptr, size);
+	G_INT(OFS_RETURN) = PF_fread_internal (prinst, fnum, prinst->stringtable + ptr, size);
 }
 void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

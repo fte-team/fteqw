@@ -2652,17 +2652,23 @@ static void GLSlang_DeleteProg(program_t *prog)
 {
 	unsigned int permu;
 	struct programpermu_s *pp;
-	for (permu = 0; permu < countof(prog->permu); permu++)
+	for (permu = countof(prog->permu); permu-- > 0; )
 	{
 		pp = prog->permu[permu];
 		if (pp)
 		{
+			prog->permu[permu] = NULL;
+			if (pp == prog->permu[0] && permu)
+				continue;	//entry 0 (only) can get copied to avoid constant recompile failures (0 is always precompiled)
+
 			qglDeleteProgramObject_(pp->h.glsl.handle);
 			pp->h.glsl.handle = 0;
 
 			BZ_Free(pp->parm);
 			pp->parm = NULL;
 			pp->numparms = 0;
+
+			Z_Free(pp);
 		}
 	}
 }

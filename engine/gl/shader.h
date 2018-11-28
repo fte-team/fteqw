@@ -481,6 +481,7 @@ typedef struct {
 
 struct programpermu_s
 {
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 	union programhandle_u
 	{
 	#ifdef GLQUAKE
@@ -509,6 +510,7 @@ struct programpermu_s
 		} hlsl;
 	#endif
 	} h;
+#endif
 	unsigned int permutation;
 	unsigned int attrmask;
 	unsigned int texmask;	//'standard' textures that are in use

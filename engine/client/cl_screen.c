@@ -2695,7 +2695,7 @@ static void SCR_ScreenShot_VR_f(void)
 	COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
 
 	ext = COM_GetFileExtension(filename, NULL);
-	stereo = !strcasecmp(ext, ".pns") || !strcasecmp(ext, ".jns");
+	stereo = !Q_strcasecmp(ext, ".pns") || !Q_strcasecmp(ext, ".jns");
 
 
 

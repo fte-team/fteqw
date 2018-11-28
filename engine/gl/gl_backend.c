@@ -3810,7 +3810,9 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	{
 		p->permu[perm] = permu = Shader_LoadPermutation(p, perm);
 		if (!permu)
-			return;
+		{	//failed? copy from 0 so we don't keep re-failing
+			permu = p->permu[perm] = p->permu[0];
+		}
 	}
 
 	GL_SelectProgram(permu->h.glsl.handle);

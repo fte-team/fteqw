@@ -2830,7 +2830,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			{
 				if (gl_part_flame.value)
 				{
-					if (ent->model->engineflags & MDLF_EMITREPLACE)
+					if (emodel->engineflags & MDLF_EMITREPLACE)
 						continue;
 				}
 			}

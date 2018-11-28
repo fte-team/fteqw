@@ -3457,8 +3457,11 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			"end: skin-=1\n"
 			"pgup: frame+=1\n"
 			"pgdn: frame-=1\n"
-			"mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
-			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
+			"mins: %g %g %g, maxs: %g %g %g\n"
+			"flags: %#x %#x\n", 
+				ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
+				ent.model->flags, ent.model->engineflags),
+			CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		break;
 	case MV_COLLISION:
 		if (!ent.model)

@@ -2982,7 +2982,7 @@ void SV_PrecacheList_f(void)
 		for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 		{
 			if (sv.strings.model_precache[i])
-				Con_Printf("model %u: %s\n", i, sv.strings.model_precache[i]);
+				Con_Printf("model %u: ^[%s\\modelviewer\\%s^]\n", i, sv.strings.model_precache[i], sv.strings.model_precache[i]);
 		}
 	}
 	if (!*group || !strncmp(group, "sound", 5))

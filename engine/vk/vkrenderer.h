@@ -28,7 +28,7 @@
 #endif
 
 #define VK_NO_PROTOTYPES
-#include <vulkan/vulkan.h>
+#include <../vulkan/vulkan.h>
 
 #if defined(_MSC_VER) && !defined(UINT64_MAX)
 #define UINT64_MAX _UI64_MAX

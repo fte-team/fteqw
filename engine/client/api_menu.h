@@ -139,6 +139,7 @@ typedef struct {
 	char *(*fgets)				(struct vfsfile_s *fhandle, char *out, size_t outsize);	//returns output buffer, or NULL
 	void (*fprintf)				(struct vfsfile_s *fhandle, const char *s, ...);
 	void (*enumeratefiles)		(const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx);
+	char *(*path_get)			(void);
 
 	// Drawing stuff
 	void (*drawsetcliparea)		(float x, float y, float width, float height);

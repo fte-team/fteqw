@@ -21,7 +21,7 @@
 
 // All my fault -eukara
 #define ENGINE_ROUTING
-#define USE_INTERNAL_BULLET
+#undef USE_INTERNAL_BULLET
 #define MENU_NATIVECODE // Will make a debut eventually, hopefully
 
 // What do we use

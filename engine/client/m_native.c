@@ -72,6 +72,10 @@ static void MN_fclose(vfsfile_t *f)
 {
 	VFS_CLOSE(f);
 }
+static const char *MN_path_get(void)
+{
+	return host_parms.binarydir;
+}
 static shader_t *MN_CachePic(const char *picname)
 {
 	return R2D_SafeCachePic(picname);
@@ -341,6 +345,7 @@ qboolean MN_Init(void)
 		VFS_GETS,
 		VFS_PRINTF,
 		COM_EnumerateFiles,
+		MN_path_get,
 
 		// Drawing stuff
 		MN_DrawSetClipArea,
@@ -401,7 +406,7 @@ qboolean MN_Init(void)
 			break;
 
 		if (host_parms.binarydir && !strchr(gamepath, '/') && !strchr(gamepath, '\\'))
-			libmenu = Sys_LoadLibrary(va("%smenu_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, host_parms.binarydir, gamepath), funcs);
+			libmenu = Sys_LoadLibrary(va("%smenu_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, host_parms.binarydir), funcs);
 		if (libmenu)
 			break;
 

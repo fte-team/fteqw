@@ -427,6 +427,9 @@ void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s 
 	}
 	font = PR_CL_ChooseFont(world->g.drawfont, scale[0], scale[1]);
 
+	// Oversight ~eukara
+	R2D_ImageColours(1.0f, 1.0f, 1.0f, 1.0f);
+
 	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags, font, scale);
 }
 

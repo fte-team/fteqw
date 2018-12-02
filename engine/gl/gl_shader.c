@@ -6652,12 +6652,12 @@ static qboolean Shader_ParseShader(char *parsename, shader_t *s)
 	{
 		//if the named shader is a .shader file then just directly load it.
 		token = COM_GetFileExtension(parsename, NULL);
-		if (!strcmp(token, ".shader") || !*token)
+		if (!strcmp(token, ".mat") || !*token)
 		{
 			char shaderfile[MAX_QPATH];
 			if (!*token)
 			{
-				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.shader", parsename);
+				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.mat", parsename);
 				file = COM_LoadTempMoreFile(shaderfile, &length);
 			}
 			else

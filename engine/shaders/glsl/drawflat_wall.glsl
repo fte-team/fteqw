@@ -1,7 +1,7 @@
 !!cvard_srgb_b r_floorcolor
 !!cvard_srgb_b r_wallcolor
 !!permu FOG
-!!samps lm:0
+!!samps lm=0
 
 //this is for the '286' preset walls, and just draws lightmaps coloured based upon surface normals.
 

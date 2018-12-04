@@ -1,5 +1,5 @@
 !!ver 100-450
-!!samps sourcetex:0
+!!samps sourcetex=0
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.

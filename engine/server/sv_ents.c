@@ -328,7 +328,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			{
 				if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
 				{	//while the entity has NOREMOVE, only remove it if the remove is a resend
-					if ((int)EDICT_NUM_PB(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
+					if ((int)EDICT_NUM_PB(svprogfuncs, entnum)->xv->pvsflags & PVSF_NOREMOVE)
 						continue;
 				}
 				if (msg->cursize + 5 >= msg->maxsize)
@@ -450,7 +450,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		if (client->pendingcsqcbits[entnum] & (SENDFLAGS_PRESENT|SENDFLAGS_REMOVED))
 		{
 			if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
-			{	//while the entity has NOREMOVE, only remove it if the remove is a resend
+			{	//while the original entity has NOREMOVE, only remove it if the remove is a resend
 				if ((int)EDICT_NUM_PB(svprogfuncs, entnum)->xv->pvsflags & PVSF_NOREMOVE)
 					continue;
 			}

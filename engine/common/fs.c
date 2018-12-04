@@ -5293,10 +5293,22 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 	//hopefully this will be used for TCs.
 	if (!man && game == -1)
 	{
+		char exename[MAX_QPATH];
+		COM_StripAllExtensions(COM_SkipPath(com_argv[0]), exename, sizeof(exename));
+		//take away any amd64/x86/x86_64 postfix, so that people can have multiple cpu arch binaries sharing a single fmf
+		if (strlen(exename) > strlen(ARCH_CPU_POSTFIX) && !strcmp(exename+strlen(exename)-strlen(ARCH_CPU_POSTFIX), ARCH_CPU_POSTFIX))
+			exename[strlen(exename)-strlen(ARCH_CPU_POSTFIX)] = 0;
+		//and then the trailing _ (before said postfix)
+		if (exename[strlen(exename)] == '_')
+			exename[strlen(exename)] = 0;
+		//and hopefully we now have something consistent that we can try to use.
+
+		f = VFSOS_Open(va("%s%s.fmf", newbasedir, exename), "rb");
 #ifdef BRANDING_NAME
-		f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
 		if (!f)
+			f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
 #endif
+		if (!f)
 			f = VFSOS_Open(va("%sdefault.fmf", newbasedir), "rb");
 		if (f)
 		{

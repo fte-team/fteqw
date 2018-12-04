@@ -1403,7 +1403,7 @@ int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int
 
 		if (count == maxcount)
 		{
-			Con_Printf ("World_AreaEdicts: MAXCOUNT\n");
+			Con_DPrintf ("World_AreaEdicts: MAXCOUNT\n");
 			return count;
 		}
 
@@ -1899,7 +1899,7 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 
 void World_TouchAllLinks (world_t *w, wedict_t *ent)
 {
-	wedict_t *touchedicts[512], *touch;
+	wedict_t *touchedicts[2048], *touch;
 	int num;
 	num = World_AreaEdicts(w, ent->v->absmin, ent->v->absmax, touchedicts, countof(touchedicts), AREA_TRIGGER);
 	while (num-- > 0)

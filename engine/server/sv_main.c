@@ -3323,17 +3323,17 @@ static int dehex(int i)
 	else
 		return (i-'a'+10);
 }
-int Rcon_Validate (void)
+static qboolean Rcon_Validate (void)
 {
 	const char *realpass = rcon_password.string;
 	const char *pass = Cmd_Argv(1);
 	if (!strlen (realpass))
-		return 0;
+		return false;
 
-	if (!sv_crypt_rcon.ival)
+	if (!sv_crypt_rcon.ival || !*sv_crypt_rcon.string)
 	{	//vanilla-compatible
 		if (!strcmp (pass, realpass) )
-			return 1;
+			return true;
 	}
 	if (sv_crypt_rcon.ival || !*sv_crypt_rcon.string)
 	{	//ezquake-compatible
@@ -3379,7 +3379,7 @@ int Rcon_Validate (void)
 					for (i = 0;;i++)
 					{
 						if (i == digestsize)
-							return 1;
+							return true;
 						if (!pass[i*2+0] || !pass[i*2+1])
 							break;	//premature termination
 						b = dehex(pass[i*2+0])*16+dehex(pass[i*2+1]);
@@ -3390,7 +3390,7 @@ int Rcon_Validate (void)
 			}
 		}
 	}
-	return 0;
+	return false;
 }
 
 /*

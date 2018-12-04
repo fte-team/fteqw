@@ -5052,11 +5052,28 @@ client_t *Write_GetClient(void)
 	return &svs.clients[entnum-1];
 }
 
+static int PF_Write_BoundForNetwork(pubprogfuncs_t *prinst, int minv, int v, int maxv)
+{
+	if (v > maxv)
+	{
+		if (developer.ival)
+			PR_RunWarning(prinst, "Write*: value %i is outside of the required %i to %i range\n", v, minv, maxv);
+		v = maxv;
+	}
+	if (v < minv)
+	{
+		if (developer.ival)
+			PR_RunWarning(prinst, "Write*: value %i is outside of the required %i to %i range\n", v, minv, maxv);
+		v = minv;
+	}
+	return v;
+}
+
 extern sizebuf_t csqcmsgbuffer;
 void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
-	qbyte val = 0xff & (int)G_FLOAT(OFS_PARM1);
+	qbyte val = PF_Write_BoundForNetwork(prinst, 0, G_FLOAT(OFS_PARM1), 255);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteByte(&csqcmsgbuffer, val);
@@ -5107,7 +5124,7 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
-	char val = 0xff & (int)G_FLOAT(OFS_PARM1);
+	char val = PF_Write_BoundForNetwork(prinst, -128, G_FLOAT(OFS_PARM1), 127);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteChar(&csqcmsgbuffer, val);
@@ -5157,7 +5174,7 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
-	short val = (((int)G_FLOAT(OFS_PARM1))&0xffff);
+	short val = PF_Write_BoundForNetwork(prinst, -32768, G_FLOAT(OFS_PARM1), 32767);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteShort(&csqcmsgbuffer, val);
@@ -5308,6 +5325,20 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
+	if (developer.ival && sv.reliable_datagram.prim.coordsize == 2)
+	{
+		int v = G_FLOAT(OFS_PARM1)*8;
+		if (v > 32767)
+		{
+			if (developer.ival)
+				PR_RunWarning(prinst, "WriteCoord: value %g is outside of the required -4096 to 4095.875 range\n", G_FLOAT(OFS_PARM1));
+		}
+		if (v < -32768)
+		{
+			if (developer.ival)
+				PR_RunWarning(prinst, "WriteCoord: value %g is outside of the required 4096 to 4095.875 range\n", G_FLOAT(OFS_PARM1));
+		}
+	}
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteCoord(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
@@ -12191,8 +12222,8 @@ void PR_DumpPlatform_f(void)
 		{"PVSF_NORMALPVS",		"const float", QW|NQ, D("Filter first by PVS, then filter this entity using tracelines if sv_cullentities is enabled."), PVSF_NORMALPVS},
 		{"PVSF_NOTRACECHECK",	"const float", QW|NQ, D("Filter strictly by PVS."), PVSF_NOTRACECHECK},
 		{"PVSF_USEPHS",			"const float", QW|NQ, D("Send if we're close enough to be able to hear this entity."), PVSF_USEPHS},
-		{"PVSF_IGNOREPVS",		"const float", QW|NQ, D("Ignores pvs. This entity is visible whereever you are on the map."), PVSF_IGNOREPVS},
-		{"PVSF_NOREMOVE",		"const float", QW|NQ, D("Once visible to a client, this entity will remain visible. This can be useful for csqc and corpses."), PVSF_NOREMOVE},
+		{"PVSF_IGNOREPVS",		"const float", QW|NQ, D("Ignores pvs. This entity is visible whereever you are on the map. Updates will be sent regardless of pvs or phs"), PVSF_IGNOREPVS},
+		{"PVSF_NOREMOVE",		"const float", QW|NQ, D("Once visible to a client, this entity will remain visible. This can be useful for csqc and corpses. While this flag is set, no CSQC_Remove events will be sent for the entity, but this does NOT mean that it will still receive further updates while outside of the pvs."), PVSF_NOREMOVE},
 
 		//most of these are there for documentation rather than anything else.
 		{"INFOKEY_P_IP",		"const string", QW|NQ, D("The apparent ip address of the client. This may be a proxy's ip address."), 0, "\"ip\""},

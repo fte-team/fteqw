@@ -316,7 +316,7 @@ static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		else
 		{
 			progstype = PROG_QW;
-			Cvar_Set (&pr_ssqc_progs, "spprogs.dat");	//zquake's single player qw progs.
+			Cvar_Set (&pr_ssqc_progs, "spprogs");	//zquake's single player qw progs.
 		}
 		pt = 0;
 	}
@@ -469,7 +469,7 @@ static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	return true;
 }
 
-static qboolean SV_LegacySavegame (const char *savename)
+static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 {
 	size_t len;
 	char *s = NULL;
@@ -486,14 +486,16 @@ static qboolean SV_LegacySavegame (const char *savename)
 
 	if (sv.state != ss_active)
 	{
-		Con_TPrintf("Can't apply: Server isn't running or is still loading\n");
+		if (verbose)
+			Con_TPrintf("Can't apply: Server isn't running or is still loading\n");
 		return false;
 	}
 
 	if (sv.allocated_client_slots != 1 || svs.clients->state != cs_spawned)
 	{
 		//we don't care about fte-format legacy.
-		Con_TPrintf("Unable to use legacy savegame format to save multiplayer games\n");
+		if (verbose)
+			Con_TPrintf("Unable to use legacy savegame format to save multiplayer games\n");
 		return false;
 	}
 
@@ -505,7 +507,8 @@ static qboolean SV_LegacySavegame (const char *savename)
 	f = FS_OpenVFS(name, "wbp", FS_GAMEONLY);
 	if (!f)
 	{
-		Con_TPrintf ("ERROR: couldn't open %s.\n", name);
+		if (verbose)
+			Con_TPrintf ("ERROR: couldn't open %s.\n", name);
 		return false;
 	}
 
@@ -1399,15 +1402,16 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 #ifndef QUAKETC
 	{
 		int savefmt = sv_savefmt.ival;
-		if (!*sv_savefmt.string && (svs.gametype != GT_PROGS || progstype == PROG_H2 || svs.levcache))
+		if (!*sv_savefmt.string && (svs.gametype != GT_PROGS || progstype == PROG_H2 || svs.levcache || (progstype == PROG_QW && strcmp(pr_ssqc_progs.string, "spprogs"))))
 			savefmt = 1;	//hexen2+q2/etc must not use the legacy format by default. can't use it when using any kind of hub system either (harder to detect upfront, which might give confused saved game naming but will at least work).
 		else
 			savefmt = sv_savefmt.ival;
 		if (!savefmt && !mapchange)
 		{
-			if (SV_LegacySavegame(savename))
+			if (SV_LegacySavegame(savename, *sv_savefmt.string))
 				return;
-			Con_Printf("Unable to use legacy saved game format\n");
+			if (*sv_savefmt.string)
+				Con_Printf("Unable to use legacy saved game format\n");
 		}
 	}
 #endif
@@ -1673,9 +1677,10 @@ void SV_Savegame_f (void)
 #ifndef QUAKETC
 		if (!Q_strcasecmp(Cmd_Argv(0), "savegame_legacy"))
 		{
-			if (SV_LegacySavegame(savename))
+			if (SV_LegacySavegame(savename, true))
 				return;
 			Con_Printf("Unable to use legacy save format\n");
+			return;
 		}
 #endif
 		SV_Savegame(savename, false);

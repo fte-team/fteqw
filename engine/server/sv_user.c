@@ -7609,6 +7609,8 @@ done:
 	rname = MSG_ReadString();
 	if (i)
 		fname = va("CSEv_%s_%s", rname, args);
+	else if (strchr(rname, '_'))	//this is awkward, as not forcing an underscore would allow people to mis-call things with lingering data (the alternative is to block underscores entirely).
+		fname = va("CSEv_%s_", rname);
 	else
 		fname = va("CSEv_%s", rname);
 	f = PR_FindFunction(svprogfuncs, fname, PR_ANY);
@@ -7620,6 +7622,8 @@ done:
 		else
 			rname = va("Cmd_%s", rname);
 		f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
+		if (f)
+			SV_ClientPrintf(host_client, PRINT_HIGH, "the name \"%s\" is deprecated\n", rname);
 	}
 #endif
 	if (host_client->drop)

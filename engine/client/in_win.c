@@ -1116,7 +1116,7 @@ void INS_RawInput_Init(void)
 	raw = BZ_Malloc(INIT_RIBUFFER_SIZE);
 	ribuffersize = INIT_RIBUFFER_SIZE;
 
-	Con_SafePrintf("Raw input: initialized with %i mice and %i keyboards\n", rawmicecount, rawkbdcount);
+	Con_DPrintf("Raw input: initialized with %i mice and %i keyboards\n", rawmicecount, rawkbdcount);
 
 	return; // success
 }

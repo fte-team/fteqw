@@ -22,6 +22,7 @@
 void OptionsDialog(void);
 static void GUI_CreateInstaller_Windows(void);
 static void GUI_CreateInstaller_Android(void);
+pbool GenBuiltinsList(char *buffer, int buffersize);
 static void SetProgsSrcFileAndPath(char *filename);
 static void CreateOutputWindow(pbool doannoates);
 void AddSourceFile(const char *parentsrc, const char *filename);
@@ -1410,17 +1411,37 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_STYLESETFORE, STYLE_BRACEBAD,					RGB(0x3F, 0x00, 0x00));
 		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACEBAD,					RGB(0xff, 0xaf, 0xaf));
 
+		//SCE_C_WORD
 		SendMessage(newc, SCI_SETKEYWORDS,	0,	(LPARAM)
 					"if else for do not while asm break case const continue "
-					"default entity enum enumflags extern "
-					"float goto int integer __variant __in __out __inout noref "
+					"default enum enumflags extern "
+					"float goto __in __out __inout noref "
 					"nosave shared state optional string "
 					"struct switch thinktime until loop "
-					"typedef union var vector void "
+					"typedef union var "
 					"accessor get set inline "
-					"virtual nonvirtual class static nonstatic local return"
+					"virtual nonvirtual class static nonstatic local return "
+					"string float vector void int integer __variant entity"
 					);
 
+		//SCE_C_WORD2
+		{
+			char buffer[65536];
+			GenBuiltinsList(buffer, sizeof(buffer));
+			SendMessage(newc, SCI_SETKEYWORDS,	1,	(LPARAM)buffer);
+		}
+		//SCE_C_COMMENTDOCKEYWORDERROR
+		//SCE_C_GLOBALCLASS
+		SendMessage(newc, SCI_SETKEYWORDS,	3,	(LPARAM)
+					""
+					);
+		//preprocessor listing
+		{
+			char *deflist = QCC_PR_GetDefinesList();
+			SendMessage(newc, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
+			free(deflist);
+		}
+		//task markers (in comments only)
 		SendMessage(newc, SCI_SETKEYWORDS,	5,	(LPARAM)
 					"TODO FIXME BUG"
 					);
@@ -2368,6 +2389,45 @@ pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
 
 			//make sure it has the right prefix
 			if (!strncmp(def->name, prefix, prefixlen))
+			//but ignore it if its one of those special things that you're not meant to know about.
+			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
+			{
+				l = strlen(def->name);
+				if (l && usedbuffer+2+l < buffersize)
+				{
+					if (usedbuffer)
+						buffer[usedbuffer++] = ' ';
+					memcpy(buffer+usedbuffer, def->name, l);
+					usedbuffer += l;
+				}
+			}
+		}
+	}
+	buffer[usedbuffer] = 0;
+	return usedbuffer>0;
+}
+
+pbool GenBuiltinsList(char *buffer, int buffersize)
+{
+	QCC_def_t *def;
+	int usedbuffer = 0;
+	int l;
+	int fno;
+	for (fno = 0; fno < sourcefilesnumdefs; fno++)
+	{
+		for (def = sourcefilesdefs[fno]; def; def = def->next)
+		{
+			if (def->scope)
+				continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
+
+			//if its a builtin function...
+			if (def->type->type == ev_function && def->symboldata->function && functions[def->symboldata->function].code<0)
+				;
+			else if (def->filen && strstr(def->filen, "extensions"))
+				;
+			else
+				continue;
+
 			//but ignore it if its one of those special things that you're not meant to know about.
 			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
 			{
@@ -3505,6 +3565,12 @@ void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t
 				char *deflist = QCC_PR_GetDefinesList();
 				SendMessage(e->editpane, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
 				free(deflist);
+
+				{	//and just in case some system defs changed.
+					char buffer[65536];
+					GenBuiltinsList(buffer, sizeof(buffer));
+					SendMessage(e->editpane, SCI_SETKEYWORDS,	1,	(LPARAM)buffer);
+				}
 
 				blen = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
 				buffer = buf_get(buf_ctx, blen+1);

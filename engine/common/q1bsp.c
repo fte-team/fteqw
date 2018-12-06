@@ -1933,6 +1933,12 @@ static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompresse
 
 			c = in[1];
 			in += 2;
+
+			if ((out - decompressed) + c > row) {
+				c = row - (out - decompressed);
+				Con_DPrintf ("warning: Vis decompression overrun\n");
+			}
+
 			while (c)
 			{
 				*out++ = 0;

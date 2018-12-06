@@ -293,6 +293,7 @@ static qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
 	}
 	return true;
 }
+static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format, ...) LIKEPRINTF(3);
 static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format, ...)
 {
 	va_list		argptr;
@@ -1198,7 +1199,7 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 		char *channel = strtok(casevar[3], " ");
 		char *error = casevar[4]+1;
 
-		IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Need +o or @ status)\n",channel,error,channel);
+		IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: <%s>: %s (Need +o or @ status)\n",channel,error);
 		return;
 	}
 	case 670: /* RPL_STARTTLS */
@@ -1553,7 +1554,7 @@ static void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
 		IRC_Printf(irc, sender, "dropping connections is not supported yet: %s\n", token);
 	}
 	else
-		IRC_Printf(irc, sender, "ICE command type not supported\n", token);
+		IRC_Printf(irc, sender, "ICE command type not supported: %s\n", token);
 }
 
 static void IRC_ICE_Frame(ircclient_t *irc)
@@ -2341,7 +2342,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 
 			if (IRC_FindAccount(server))
 			{
-				IRC_Printf(ircclient, dest, "IRC connection to %s already registered\n");
+				IRC_Printf(ircclient, dest, "IRC connection to %s already registered\n", server);
 				return;	//silently ignore it if the account already exists
 			}
 

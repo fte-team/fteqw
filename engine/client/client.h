@@ -1082,7 +1082,7 @@ void CL_CheckServerPacks(void);
 
 void CL_EstablishConnection (char *host);
 
-void CL_Disconnect (void);
+void CL_Disconnect (const char *reason);
 void CL_Disconnect_f (void);
 void CL_Reconnect_f (void);
 void CL_NextDemo (void);
@@ -1153,6 +1153,9 @@ extern	float in_sensitivityscale;
 void CL_MakeActive(char *gamename);
 void CL_UpdateWindowTitle(void);
 
+#ifdef QUAKESTATS
+const char *IN_GetPreselectedViewmodelName(unsigned int pnum);
+#endif
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);
 void CL_SendMove (usercmd_t *cmd);

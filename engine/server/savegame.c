@@ -224,7 +224,7 @@ static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 
 #ifndef SERVERONLY
 		if (cl->netchan.remote_address.type == NA_LOOPBACK)
-			CL_Disconnect();
+			CL_Disconnect(NULL);
 		else
 #endif
 		{

@@ -5379,12 +5379,14 @@ void CL_LinkPlayers (void)
 void CL_LinkViewModel(void)
 {
 #ifdef QUAKESTATS
+	extern cvar_t r_viewpreselgun;
 	entity_t	ent;
 
 	unsigned int plnum;
 	unsigned int playereffects;
 	float alpha;
 	playerview_t *pv = r_refdef.playerview;
+	const char *preselectedmodelname;
 
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
 	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
@@ -5465,6 +5467,12 @@ void CL_LinkViewModel(void)
 		ent.flags |= RF_TRANSLUCENT;
 	}
 
+	preselectedmodelname = r_viewpreselgun.ival?IN_GetPreselectedViewmodelName(pv-cl.playerview):NULL;
+	if (preselectedmodelname)
+		ent.model = Mod_ForName(preselectedmodelname, MLV_SILENT);
+	else
+		ent.model = NULL;
+	if (!ent.model)
 	ent.model = cl.model_precache[pv->stats[STAT_WEAPONMODELI]];
 	if (!ent.model)
 	{

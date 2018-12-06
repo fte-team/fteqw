@@ -68,6 +68,7 @@ extern vec3_t vec3_origin;
 
 #define FloatInterpolate(a, bness, b, c) ((c) = (a) + (b - a)*bness)
 
+#define DotProduct_Double(x,y) ((double)(x)[0]*(double)(y)[0]+(double)(x)[1]*(double)(y)[1]+(double)(x)[2]*(double)(y)[2])	//cast to doubles, to try to replicate x87 precision in 64bit sse builds etc. there'll still be a precision difference though.
 #define DotProduct(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
 #define DotProduct2(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1])
 #define DotProduct4(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2]+(x)[3]*(y)[3])

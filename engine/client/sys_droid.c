@@ -517,7 +517,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 {
 	callback(ctx, clipboard_buffer);
 }
-void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
  	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }

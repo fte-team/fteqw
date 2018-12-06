@@ -60,21 +60,20 @@ static int MN_GetServerState(void)
 		return 1;
 	return 2;
 }
-static int MN_GetClientState(void)
+static int MN_GetClientState(char const ** disconnect_reason)
 {
+	extern cvar_t cl_disconnectreason;
+	*disconnect_reason = NULL;
 	if (cls.state >= ca_active)
 		return 2;
 	if (cls.state != ca_disconnected)
 		return 1;
+	*disconnect_reason = (const char*)cl_disconnectreason.string;
 	return 0;
 }
 static void MN_fclose(vfsfile_t *f)
 {
 	VFS_CLOSE(f);
-}
-static const char *MN_path_get(void)
-{
-	return host_parms.binarydir;
 }
 static shader_t *MN_CachePic(const char *picname)
 {
@@ -345,7 +344,7 @@ qboolean MN_Init(void)
 		VFS_GETS,
 		VFS_PRINTF,
 		COM_EnumerateFiles,
-		MN_path_get,
+		FS_NativePath,
 
 		// Drawing stuff
 		MN_DrawSetClipArea,

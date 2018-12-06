@@ -300,7 +300,7 @@ extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
 extern cvar_t r_dodgymiptex;
 extern char *r_defaultimageextensions;
-extern cvar_t r_imageexensions;
+extern cvar_t r_imageextensions;
 extern cvar_t r_image_downloadsizelimit;
 extern cvar_t r_drawentities;
 extern cvar_t r_drawviewmodel;
@@ -845,9 +845,9 @@ void Renderer_Init(void)
 	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
 	Cvar_Register(&r_dodgypcxfiles, "Hacky bug workarounds");
 	Cvar_Register(&r_dodgymiptex, "Hacky bug workarounds");
-	r_imageexensions.enginevalue = r_defaultimageextensions;
-	Cvar_Register(&r_imageexensions, GRAPHICALNICETIES);
-	r_imageexensions.callback(&r_imageexensions, NULL);
+	r_imageextensions.enginevalue = r_defaultimageextensions;
+	Cvar_Register(&r_imageextensions, GRAPHICALNICETIES);
+	r_imageextensions.callback(&r_imageextensions, NULL);
 	Cvar_Register(&r_image_downloadsizelimit, GRAPHICALNICETIES);
 	Cvar_Register(&r_loadlits, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth, GRAPHICALNICETIES);
@@ -1587,7 +1587,7 @@ TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 		{
 			int os = sv.state;
 			sv.state = ss_dead;	//prevents server from being killed off too.
-			CL_Disconnect();
+			CL_Disconnect("Graphics rendering disabled");
 			sv.state = os;
 		}
 		Sys_InitTerminal();
@@ -1775,7 +1775,7 @@ TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 //				Con_Printf ("\nThe required model file '%s' could not be found.\n\n", cl.model_name[i]);
 //				Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
 
-				CL_Disconnect ();
+				CL_Disconnect ("Worldmodel missing after video reload");
 #ifdef VM_UI
 				UI_Reset();
 #endif

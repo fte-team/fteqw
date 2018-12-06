@@ -3199,7 +3199,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		{
 			if (!allow_download_anymap.value && !Q_strncasecmp(name, "maps/", 5))
 			{
-				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
+				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name);
 				return DLERR_PERMISSIONS;
 			}
 		}
@@ -3242,7 +3242,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		{	//if its in a pak file, don't allow downloads if we don't allow the contents of paks to be sent.
 			if (!allow_download_pakcontents.value)
 			{
-				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
+				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name);
 				return DLERR_PERMISSIONS;
 			}
 		}

@@ -5056,15 +5056,29 @@ static int PF_Write_BoundForNetwork(pubprogfuncs_t *prinst, int minv, int v, int
 {
 	if (v > maxv)
 	{
+		int mask = (minv<0)?maxv*2+1:maxv;
+		int n = (v&mask);
+		if (minv < 0 && n > maxv)
+			n |= ~mask;	//sign-extend it
 		if (developer.ival)
-			PR_RunWarning(prinst, "Write*: value %i is outside of the required %i to %i range\n", v, minv, maxv);
-		v = maxv;
+		{
+			Con_Printf("Write*: value %i is outside of the required %i to %i range, truncating to %i\n", v, minv, maxv, n);
+			PR_StackTrace(prinst, false);
+		}
+		return n;
 	}
 	if (v < minv)
 	{
+		int mask = (minv<0)?maxv*2+1:maxv;
+		int n = (v&mask);
+		if (minv < 0 && n > maxv)
+			n |= ~mask;	//sign-extend it
 		if (developer.ival)
-			PR_RunWarning(prinst, "Write*: value %i is outside of the required %i to %i range\n", v, minv, maxv);
-		v = minv;
+		{
+			Con_Printf("Write*: value %i is outside of the required %i to %i range, truncating to %i\n", v, minv, maxv, n);
+			PR_StackTrace(prinst, false);
+		}
+		return n;
 	}
 	return v;
 }

@@ -566,7 +566,7 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_BINARYPATH,	//for dlls and stuff
-	FS_ROOT,		//./ (the root basepath or root homepath.)
+	FS_ROOT,		//./ (effective -homedir if enabled, otherwise effective -basedir arg)
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
 
 	//after this point, all types must be relative to a gamedir

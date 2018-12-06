@@ -46,7 +46,7 @@ int startuppending;
 void Host_FinishLoading(void);
 
 
-cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "Controls whether to send a hash instead of sending rcon passwords as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");	//CVAR_NOTFROMSERVER prevents evil servers from degrading it to send plain-text passwords.
+cvar_t	cl_crypt_rcon = CVARFD("cl_crypt_rcon", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "Controls whether to send a hash instead of sending your rcon password as plain-text. Set to 1 for security, or 0 for backwards compatibility.\nYour command and any responses will still be sent as plain text.\nInstead, it is recommended to use rcon ONLY via dtls/tls/wss connections.");	//CVAR_NOTFROMSERVER prevents evil servers from degrading it to send plain-text passwords.
 cvar_t	rcon_password = CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
@@ -54,6 +54,8 @@ cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
 cvar_t	cl_timeout = CVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
+
+cvar_t	cl_disconnectreason = CVARFD("_cl_disconnectreason", "", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 is only reliable with total conversions.\nIf sv_pure is set, the client will prefer the highest value set.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
@@ -766,6 +768,8 @@ void CL_CheckForResend (void)
 		Cvar_ForceSet(&cl_servername, cls.servername);
 		if (!NET_StringToAdr(cls.servername, 0, &connectinfo.adr))
 			return;	//erk?
+		if (*cl_disconnectreason.string)
+			Cvar_Set(&cl_disconnectreason, "");
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
 		connectinfo.adr.prot = NP_DGRAM;
@@ -1190,6 +1194,8 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
 #endif
 	memset(&connectinfo, 0, sizeof(connectinfo));
+	if (*cl_disconnectreason.string)
+		Cvar_Set(&cl_disconnectreason, "");
 	connectinfo.trying = true;
 	connectinfo.defaultport = port;
 	connectinfo.protocol = CP_UNKNOWN;
@@ -1210,6 +1216,8 @@ void CL_BeginServerReconnect(void)
 	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
 	connectinfo.dtlsupgrade = 0;
 #endif
+	if (*cl_disconnectreason.string)
+		Cvar_Set(&cl_disconnectreason, "");
 	connectinfo.trying = true;
 	connectinfo.istransfer = false;
 	connectinfo.time = 0;
@@ -1242,6 +1250,7 @@ void CL_Transfer_f(void)
 			connectinfo.istransfer = true;
 			Q_strncpyz(connectinfo.guid, oldguid, sizeof(oldguid));	//retain the same guid on transfers
 		}
+		Cvar_Set(&cl_disconnectreason, "Transferring....");
 		connectinfo.trying = true;
 		connectinfo.defaultport = cl_defaultport.value;
 		connectinfo.protocol = CP_UNKNOWN;
@@ -1275,7 +1284,7 @@ void CL_Connect_f (void)
 
 #ifndef CLIENTONLY
 	if (sv.state == ss_clustermode)
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 	else
 #endif
 		CL_Disconnect_f ();
@@ -1311,7 +1320,7 @@ static void CL_ConnectBestRoute_f (void)
 
 #ifndef CLIENTONLY
 	if (sv.state == ss_clustermode)
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 	else
 #endif
 		CL_Disconnect_f ();
@@ -1774,10 +1783,13 @@ Sends a disconnect message to the server
 This is also called on Host_Error, so it shouldn't cause any errors
 =====================
 */
-void CL_Disconnect (void)
+void CL_Disconnect (const char *reason)
 {
 	qbyte	final[12];
 	int i;
+
+	if (reason)
+		Cvar_Set(&cl_disconnectreason, reason);
 
 	connectinfo.trying = false;
 
@@ -1918,7 +1930,7 @@ void CL_Disconnect_f (void)
 		SV_UnspawnServer();
 #endif
 
-	CL_Disconnect ();
+	CL_Disconnect (NULL);
 
 	connectinfo.trying = false;
 
@@ -2756,7 +2768,7 @@ void CL_Stopdemo_f (void)
 	if (cls.demoplayback == DPB_NONE)
 		return;
 	CL_StopPlayback ();
-	CL_Disconnect ();
+	CL_Disconnect (NULL);
 }
 
 
@@ -2802,7 +2814,7 @@ void CL_Changing_f (void)
 =================
 CL_Reconnect_f
 
-The server is changing levels
+User command, or NQ protocol command (messy).
 =================
 */
 void CL_Reconnect_f (void)
@@ -2831,7 +2843,7 @@ void CL_Reconnect_f (void)
 		return;
 	}
 
-	CL_Disconnect();
+	CL_Disconnect(NULL);
 	CL_BeginServerReconnect();
 }
 
@@ -3225,6 +3237,8 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("print\n");
 
 			s = MSG_ReadString ();
+			if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+				Cvar_Set(&cl_disconnectreason, s);
 			Con_Printf ("%s", s);
 			return;
 		}
@@ -3406,7 +3420,7 @@ client_connect:	//fixme: make function
 #ifndef CLIENTONLY
 				if (sv.state != ss_clustermode)
 #endif
-					CL_Disconnect ();
+					CL_Disconnect (NULL);
 			}
 			else
 			{
@@ -3515,24 +3529,33 @@ client_connect:	//fixme: make function
 	if (c == 'p')
 	{
 		if (!strncmp(net_message.data+4, "print\n", 6))
-		{
+		{	//quake2+quake3 send rejects this way
 			Con_TPrintf ("print\n");
 			Con_Printf ("%s", net_message.data+10);
+
+			if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+				Cvar_Set(&cl_disconnectreason, net_message.data+10);
 			return;
 		}
 	}
 	if (c == A2C_PRINT)
-	{
+	{	//closest quakeworld has to a reject message
 		Con_TPrintf ("print\n");
 
 		s = MSG_ReadString ();
 		Con_Printf ("%s", s);
+
+		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
-	if (c == 'r')//dp's reject
-	{
+	if (c == 'r')
+	{	//darkplaces-style rejects
 		s = MSG_ReadString ();
 		Con_Printf("r%s\n", s);
+
+		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
 
@@ -3627,6 +3650,9 @@ void CLNQ_ConnectionlessPacket(void)
 	case CCREP_REJECT:
 		s = MSG_ReadString();
 		Con_Printf("Connect failed\n%s\n", s);
+
+		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
 }
@@ -3789,7 +3815,7 @@ void CL_ReadPackets (void)
 #endif
 		{
 			Con_TPrintf ("\nServer connection timed out.\n");
-			CL_Disconnect ();
+			CL_Disconnect ("Connection Timed Out");
 			return;
 		}
 	}
@@ -4396,6 +4422,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_disconnectreason, cl_controlgroup);
 	Cvar_Register (&cl_proxyaddr, cl_controlgroup);
 	Cvar_Register (&cl_sendguid, cl_controlgroup);
 	Cvar_Register (&cl_defaultport, cl_controlgroup);
@@ -4729,7 +4756,7 @@ NORETURN void VARGS Host_EndGame (const char *message, ...)
 
 	SCR_EndLoadingPlaque();
 
-	CL_Disconnect ();
+	CL_Disconnect (string);
 
 	SV_UnspawnServer();
 	connectinfo.trying = false;
@@ -4762,7 +4789,7 @@ void VARGS Host_Error (const char *error, ...)
 	COM_AssertMainThread(string);
 	Con_TPrintf ("Host_Error: %s\n", string);
 
-	CL_Disconnect ();
+	CL_Disconnect (string);
 	cls.demonum = -1;
 
 	inerror = false;
@@ -6169,6 +6196,10 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart map_restart\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
+#ifdef QUAKESTATS
+	Cbuf_AddText("alias +attack2 +button3\n", RESTRICT_LOCAL);
+	Cbuf_AddText("alias -attack2 -button3\n", RESTRICT_LOCAL);
+#endif
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults

@@ -29,19 +29,19 @@ float in_sensitivityscale = 1;
 
 static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
 #ifdef NQPROT
-cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send movement sequence info over DPP7 protocols (other protocols are unaffected). Unlike cl_nopred, this can result in different serverside behaviour.");
+static cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send movement sequence info over DPP7 protocols (other protocols are unaffected). Unlike cl_nopred, this can result in different serverside behaviour.");
 #endif
 
 cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
-cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
+static cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
 cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = CVAR("cl_c2sImpulseBackup","3");
 cvar_t	cl_netfps = CVAR("cl_netfps", "150");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
-cvar_t	cl_iDrive = CVARFD("cl_iDrive", "1", CVAR_SEMICHEAT, "Effectively releases movement keys when the opposing key is pressed. This avoids dead-time when both keys are pressed. This can be emulated with various scripts, but that's messy.");
+static cvar_t	cl_iDrive = CVARFD("cl_iDrive", "1", CVAR_SEMICHEAT, "Effectively releases movement keys when the opposing key is pressed. This avoids dead-time when both keys are pressed. This can be emulated with various scripts, but that's messy.");
 cvar_t	cl_run = CVARD("cl_run", "0", "Enables autorun, inverting the state of the +speed key.");
 cvar_t	cl_fastaccel = CVARD("cl_fastaccel", "1", "Begin moving at full speed instantly, instead of waiting a frame or so.");
 extern cvar_t cl_rollspeed;
@@ -51,6 +51,9 @@ cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
 cvar_t in_xflip = {"in_xflip", "0"};
 
 cvar_t	prox_inmenu = CVAR("prox_inmenu", "0");
+
+static int preselectedweapons[MAX_SPLITS];
+static int preselectedweapon[MAX_SPLITS][32];
 
 usercmd_t cl_pendingcmd[MAX_SPLITS];
 
@@ -163,21 +166,12 @@ qboolean	cursor_active;
 
 
 
-static void KeyDown (kbutton_t *b, kbutton_t *anti)
+static qboolean KeyDown_Scan (kbutton_t *b, kbutton_t *anti, int k)
 {
-	int		k;
-	char	*c;
-
 	int pnum = CL_TargettedSplit(false);
 	
-	c = Cmd_Argv(1);
-	if (c[0])
-		k = atoi(c);
-	else
-		k = -1;		// typed manually at the console for continuous down
-
 	if (k == b->down[pnum][0] || k == b->down[pnum][1])
-		return;		// repeating key
+		return false;		// repeating key
 	
 	if (!b->down[pnum][0])
 		b->down[pnum][0] = k;
@@ -186,11 +180,11 @@ static void KeyDown (kbutton_t *b, kbutton_t *anti)
 	else
 	{
 		Con_DPrintf ("Three keys down for a button!\n");
-		return;
+		return false;
 	}
 	
 	if (b->state[pnum] & 1)
-		return;		// still down
+		return false;		// still down
 	b->state[pnum] |= 1 + 2;	// down + impulse down
 
 	if (anti && (anti->state[pnum] & 1) && cl_iDrive.ival)
@@ -200,24 +194,36 @@ static void KeyDown (kbutton_t *b, kbutton_t *anti)
 		anti->state[pnum] &= ~1;		// now up
 		anti->state[pnum] |= 4; 		// impulse up
 	}
+	return true;
 }
-
-static void KeyUp (kbutton_t *b)
+static void KeyDown (kbutton_t *b, kbutton_t *anti)
 {
 	int		k;
 	char	*c;
 
-	int pnum = CL_TargettedSplit(false);
-	
 	c = Cmd_Argv(1);
 	if (c[0])
 		k = atoi(c);
 	else
+		k = -1;		// typed manually at the console for continuous down
+
+	KeyDown_Scan(b, anti, k);
+}
+
+static qboolean KeyUp_Scan (kbutton_t *b, int k)
+{
+	int pnum = CL_TargettedSplit(false);
+
+	if (k < 0)
 	{ // typed manually at the console, assume for unsticking, so clear all
 		b->suppressed[pnum] = NULL;
 		b->down[pnum][0] = b->down[pnum][1] = 0;
-		b->state[pnum] = 4;	// impulse up
-		return;
+		if (b->state[pnum] & ~4)
+		{
+			b->state[pnum] = 4;	// impulse up
+			return true;
+		}
+		return false;
 	}
 
 	if (b->down[pnum][0] == k)
@@ -225,12 +231,12 @@ static void KeyUp (kbutton_t *b)
 	else if (b->down[pnum][1] == k)
 		b->down[pnum][1] = 0;
 	else
-		return;		// key up without coresponding down (menu pass through)
+		return false;		// key up without coresponding down (menu pass through)
 	if (b->down[pnum][0] || b->down[pnum][1])
-		return;		// some other key is still holding it down
+		return false;		// some other key is still holding it down
 
 	if (!(b->state[pnum] & 1))
-		return;		// still up (this should not happen)
+		return false;		// still up (this should not happen)
 	b->state[pnum] &= ~1;		// now up
 	b->state[pnum] |= 4; 		// impulse up
 
@@ -240,7 +246,242 @@ static void KeyUp (kbutton_t *b)
 			b->suppressed[pnum]->state[pnum] |= 1 + 2;
 		b->suppressed[pnum] = NULL;
 	}
+	return true;
 }
+static qboolean KeyUp (kbutton_t *b)
+{
+	int		k;
+	char	*c;
+
+	c = Cmd_Argv(1);
+	if (c[0])
+		k = atoi(c);
+	else
+		k = -1;
+
+	return KeyUp_Scan(b, k);
+}
+
+
+
+#ifdef QUAKESTATS
+static cvar_t	cl_weaponhide = CVARD("cl_weaponhide", "0", "HACK: Attempt to switch weapon to another in order to cheat your killer out of any possible weapon upgrades.\n0: original behaviour\n1: switch away when +attack/+fire is released\n2: switch away only in deathmatch\n");
+static cvar_t	cl_weaponhide_preference = CVARAD("cl_weaponhide_preference", "2 1", "cl_weaponhide_axe", "The weapon you would like to try to switch to when cl_weaponhide is active");
+static cvar_t	cl_weaponpreselect = CVARD("cl_weaponpreselect", "0", "HACK: Controls the interaction between the ^aweapon^a and ^a+attack^a commands (does not affect ^aimpulse^a).\n0: weapon switch happens instantly\n1: weapon switch happens on next attack\n2: instant only when already firing, otherwise delayed\n3: delay until new attack only in deathmatch 1\n4: delay until any attack only in deathmatch 1");
+static cvar_t	cl_weaponforgetorder = CVARD("cl_weaponforgetorder", "0", "The 'weapon' command will lock in its weapon choice, instead of choosing a different weapon between select+fire.");
+cvar_t r_viewpreselgun = CVARD("r_viewpreselgun", "0", "HACK: Display the preselected weaponmodel, instead of the current weaponmodel.");
+//hacks, because we have to guess what the mod is doing. we'll probably get it wrong, which sucks.
+static qboolean IN_HaveWeapon(int pnum, int imp)
+{
+	unsigned int items = cl.playerview[pnum].stats[STAT_ITEMS];
+	switch (imp)
+	{
+		case 1:	return (items & IT_AXE)?true:false;
+		case 2:	return (items & IT_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 1)?true:false;
+		case 3:	return (items & IT_SUPER_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 2)?true:false;
+		case 4:	return (items & IT_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 1)?true:false;
+		case 5:	return (items & IT_SUPER_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 2)?true:false;
+		case 6:	return (items & IT_GRENADE_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)?true:false;
+		case 7:	return (items & IT_ROCKET_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)?true:false;
+		case 8:	return (items & IT_LIGHTNING && cl.playerview[pnum].stats[STAT_CELLS] >= 1)?true:false;
+	}
+	return false;
+}
+static int IN_BestWeapon_Pre(unsigned int pnum);
+//if we're using weapon preselection, then we probably also want to show which weapon will be selected, instead of showing the shotgun the whole time.
+//this of course requires more hacks.
+const char *IN_GetPreselectedViewmodelName(unsigned int pnum)
+{
+	static const char *nametable[] =
+	{
+		NULL,	//can't cope with a 0
+		"progs/v_axe.mdl",
+		"progs/v_shot.mdl",
+		"progs/v_shot2.mdl",
+		"progs/v_nail.mdl",
+		"progs/v_nail2.mdl",
+		"progs/v_rock.mdl",
+		"progs/v_rock2.mdl",
+		"progs/v_light.mdl",
+	};
+
+	if (r_viewpreselgun.ival && cl_weaponpreselect.ival && pnum < countof(preselectedweapons) && preselectedweapons[pnum])
+	{
+		int best = IN_BestWeapon_Pre(pnum);
+		if (best < countof(nametable))
+			return nametable[best];
+	}
+	return NULL;
+}
+//FIXME: make a script to decide if a weapon is held? call into the csqc?
+static int IN_BestWeapon_Args(unsigned int pnum, int firstarg, int argcount)
+{
+	int i, imp;
+	unsigned int best = 0;
+
+	for (i = firstarg + argcount; --i >= firstarg; )
+	{
+		imp = Q_atoi(Cmd_Argv(i));
+		if (IN_HaveWeapon(pnum, imp))
+			best = imp;
+	}
+
+	return best;
+}
+static int IN_BestWeapon_Pre(unsigned int pnum)
+{
+	int i, imp;
+	unsigned int best = 0;
+
+	for (i = preselectedweapons[pnum]; i-- > 0; )
+	{
+		imp = preselectedweapon[pnum][i];
+		if (IN_HaveWeapon(pnum, imp))
+			best = imp;
+	}
+
+	return best;
+}
+
+static void IN_DoPostSelect(void)
+{
+	if (cl_weaponpreselect.ival)
+	{
+		int pnum = CL_TargettedSplit(false);
+		int best = IN_BestWeapon_Pre(pnum);
+		if (best)
+		{
+			in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = best;
+			in_impulsespending[pnum]=1;
+		}
+	}
+}
+//The weapon command autoselects a prioritised weapon like multi-arg impulse does.
+//however, it potentially makes the switch only on the next +attack.
+static void IN_Weapon (void)
+{
+	int newimp;
+	int pnum = CL_TargettedSplit(false);
+	int mode, best, i;
+
+	for (i = 1; i < Cmd_Argc() && i <= countof(preselectedweapon[pnum]); i++)
+		preselectedweapon[pnum][i-1] = atoi(Cmd_Argv(i));
+	preselectedweapons[pnum] = i-1;
+
+	best = IN_BestWeapon_Pre(pnum);
+	if (best)
+	{
+		newimp = best;
+		if (cl_weaponforgetorder.ival)
+		{	//make sure the +attack sticks with the selected weapon.
+			preselectedweapon[pnum][0] = best;
+			preselectedweapons[pnum] = 1;
+		}
+	}
+	else
+		return;	//no new weapon...
+
+	mode = cl_weaponpreselect.ival;
+	if (mode == 3)
+		mode = (cl.deathmatch==1)?1:0;
+	else if (mode == 4)
+		mode = (cl.deathmatch==1)?2:0;
+
+	if (mode == 1)
+		return;	//don't change yet.
+	if (mode == 2 && !(in_attack.state[pnum]&3))
+		return;	//2 changes instantly only when already firing.
+
+	if (cl_queueimpulses.ival)
+	{
+		if (in_impulsespending[pnum]>=IN_IMPULSECACHE)
+		{
+			Con_Printf("Too many impulses, ignoring %i\n", newimp);
+			return;
+		}
+		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
+		in_impulsespending[pnum]++;
+	}
+	else
+	{
+		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = newimp;
+		in_impulsespending[pnum]=1;
+	}
+}
+
+//+fire 8 7 [keycode]
+//does impulse 8 or 7 (according to held weapons) along with a +attack
+static void IN_FireDown(void)
+{
+	int pnum = CL_TargettedSplit(false);
+	int k;
+	int impulse;
+
+	impulse = Cmd_Argc()-1;
+	k = atoi(Cmd_Argv(impulse));
+	if (k >= 32)
+		impulse--;	//scancode, don't treat that arg as a weapon number
+	else
+		k = -1;
+
+	impulse = IN_BestWeapon_Args(pnum, 1, impulse);
+	if (impulse)
+	{
+		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = impulse;
+		in_impulsespending[pnum]=1;
+	}
+	else
+		IN_DoPostSelect();
+
+	KeyDown_Scan(&in_attack, NULL, k);
+}
+static void IN_DoWeaponHide(void)
+{
+	if (cl_weaponhide.ival && !(cl_weaponhide.ival==2 && cl.deathmatch==1))
+	{
+		int impulse, best = 0;
+		int pnum = CL_TargettedSplit(false);
+		char tok[64];
+		char *l = cl_weaponhide_preference.string;
+		if (!strcmp(l, "0")) l = "2"; //for compat with ezquake's cl_weaponhide_axe cvar.
+		while(l && *l)
+		{
+			l = COM_ParseOut(l, tok, sizeof(tok));
+			impulse = atoi(tok);
+			if (IN_HaveWeapon(pnum, impulse))
+				best = impulse;
+		}
+		if (best)
+		{	//looks like we're switching away
+			in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = best;
+			in_impulsespending[pnum]=1;
+		}
+	}
+}
+//-fire should trigger an impulse 1 or something.
+static void IN_FireUp(void)
+{
+	int k;
+	int impulse;
+
+	//any args are used in the +fire version and linger through to the -fire.
+	//the only useful one is the keynum.
+
+	impulse = Cmd_Argc()-1;
+	k = atoi(Cmd_Argv(impulse));
+	if (k >= 32)
+		impulse--;	//scancode, don't treat that arg as a weapon number
+	else
+		k = -1;
+
+	if (KeyUp_Scan(&in_attack, k))
+		IN_DoWeaponHide();
+}
+#else
+#define IN_DoPostSelect()
+#define IN_DoWeaponHide()
+#endif
+
 
 static void IN_KLookDown (void) {KeyDown(&in_klook, NULL);}
 static void IN_KLookUp (void) {KeyUp(&in_klook);}
@@ -282,8 +523,8 @@ static void IN_SpeedUp(void) {KeyUp(&in_speed);}
 static void IN_StrafeDown(void) {KeyDown(&in_strafe, NULL);}
 static void IN_StrafeUp(void) {KeyUp(&in_strafe);}
 
-static void IN_AttackDown(void) {KeyDown(&in_attack, NULL);}
-static void IN_AttackUp(void) {KeyUp(&in_attack);}
+static void IN_AttackDown(void) {IN_DoPostSelect(); KeyDown(&in_attack, NULL);}
+static void IN_AttackUp(void) {if (KeyUp(&in_attack)) IN_DoWeaponHide();}
 
 static void IN_UseDown (void) {KeyDown(&in_use, NULL);}
 static void IN_UseUp (void) {KeyUp(&in_use);}
@@ -397,8 +638,6 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 	//FIXME: save device remappings to config.
 }
 
-//is this useful?
-
 //This function incorporates Tonik's impulse  8 7 6 5 4 3 2 1 to select the prefered weapon on the basis of having it.
 //It also incorporates split screen input as well as impulse buffering
 void IN_Impulse (void)
@@ -411,52 +650,7 @@ void IN_Impulse (void)
 #ifdef QUAKESTATS
 	if (Cmd_Argc() > 2)
 	{
-		int best, i, imp, items;
-		items = cl.playerview[pnum].stats[STAT_ITEMS];
-		best = 0;
-
-		for (i = Cmd_Argc() - 1; i > 0; i--)
-		{
-			imp = Q_atoi(Cmd_Argv(i));
-			if (imp < 1 || imp > 8)
-				continue;
-
-			switch (imp)
-			{
-				case 1:
-					if (items & IT_AXE)
-						best = 1;
-					break;
-				case 2:
-					if (items & IT_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 1)
-						best = 2;
-					break;
-				case 3:
-					if (items & IT_SUPER_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 2)
-						best = 3;
-					break;
-				case 4:
-					if (items & IT_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 1)
-						best = 4;
-					break;
-				case 5:
-					if (items & IT_SUPER_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 2)
-						best = 5;
-					break;
-				case 6:
-					if (items & IT_GRENADE_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)
-						best = 6;
-					break;
-				case 7:
-					if (items & IT_ROCKET_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)
-						best = 7;
-					break;
-				case 8:
-					if (items & IT_LIGHTNING && cl.playerview[pnum].stats[STAT_CELLS] >= 1)
-						best = 8;
-			}
-		}
-
+		int best = IN_BestWeapon_Args(pnum, 1, Cmd_Argc() - 1);
 		if (best)
 			newimp = best;
 	}
@@ -2378,19 +2572,33 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-use",			IN_UseUp);
 	Cmd_AddCommand ("+jump",		IN_JumpDown);
 	Cmd_AddCommand ("-jump",		IN_JumpUp);
-	Cmd_AddCommand ("impulse",		IN_Impulse);
-	Cmd_AddCommandD("weapon",		IN_Impulse, "Partial implementation for compatibility");	//for pseudo-compat with ezquake.
+	Cmd_AddCommandD("impulse",		IN_Impulse, "Sends an impulse number to the server (read: weapon change).");
 	Cmd_AddCommand ("+klook",		IN_KLookDown);
 	Cmd_AddCommand ("-klook",		IN_KLookUp);
 	Cmd_AddCommand ("+mlook",		IN_MLookDown);
 	Cmd_AddCommand ("-mlook",		IN_MLookUp);
+
+#ifdef QUAKESTATS
+	//for pseudo-compat with ezquake.
+	//this stuff is kinda hacky and exploits instand weapon switching to basically try to cheat.
+	//for some reason this crap is standard, so not a cheat, despite obviously being a cheat.
+	Cmd_AddCommandD("weapon",		IN_Weapon, "Configures weapon priorities for the next +attack as an alternative for the impulse command");
+	Cmd_AddCommandD("+fire",		IN_FireDown, "'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.");
+	Cmd_AddCommand ("-fire",		IN_FireUp);
+
+	Cvar_Register (&cl_weaponhide, inputnetworkcvargroup);
+	Cvar_Register (&cl_weaponhide_preference, inputnetworkcvargroup);
+	Cvar_Register (&cl_weaponpreselect, inputnetworkcvargroup);
+	Cvar_Register (&cl_weaponforgetorder, inputnetworkcvargroup);
+	Cvar_Register (&r_viewpreselgun, inputnetworkcvargroup);
+#endif
 
 	for (i = 0; i < countof(in_button); i++)
 	{
 		static char bcmd[countof(in_button)][2][10];
 		Q_snprintfz(bcmd[i][0], sizeof(bcmd[sp][0]), "+button%i", i+3);
 		Q_snprintfz(bcmd[i][1], sizeof(bcmd[sp][1]), "-button%i", i+3);
-		Cmd_AddCommand (bcmd[i][0],		IN_ButtonNDown);
+		Cmd_AddCommandD(bcmd[i][0],		IN_ButtonNDown, "This auxilliary command has mod-specific behaviour (often none).");
 		Cmd_AddCommand (bcmd[i][1],		IN_ButtonNUp);
 	}
 }

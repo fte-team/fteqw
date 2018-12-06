@@ -762,7 +762,7 @@ static void CertLog_Add_Prompted(void *vctx, int button)
 		CertLog_Write();
 	}
 	else
-		CL_Disconnect();
+		CL_Disconnect("Server certificate rejected");
 
 	certlog_curprompt = NULL;
 }

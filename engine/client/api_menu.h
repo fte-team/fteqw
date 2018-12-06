@@ -130,7 +130,7 @@ typedef struct {
 	char *(*parsetoken)			(const char *data, char *out, int outlen, enum com_tokentype_e *toktype);
 
 	int (*isserver)				(void);
-	int (*getclientstate)		(void);
+	int (*getclientstate)		(char const**disconnectionreason);
 	void (*localsound)			(const char *sample, int channel, float volume);
 
 	// file input / search crap
@@ -139,7 +139,7 @@ typedef struct {
 	char *(*fgets)				(struct vfsfile_s *fhandle, char *out, size_t outsize);	//returns output buffer, or NULL
 	void (*fprintf)				(struct vfsfile_s *fhandle, const char *s, ...);
 	void (*enumeratefiles)		(const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx);
-	char *(*path_get)			(void);
+	qboolean (QDECL *nativepath)(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//Converts a relative path to a printable system path. All paths are considered to be utf-8. WARNING: This means that windows users will need to use _wfopen etc if they use the resulting path of this function in any system calls. WARNING: this function can and WILL fail for dodgy paths (eg blocking writes to "../engine.dll")
 
 	// Drawing stuff
 	void (*drawsetcliparea)		(float x, float y, float width, float height);

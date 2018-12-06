@@ -3391,7 +3391,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 		{
 			InfoBuf_FromString(&cl->userinfo, userinfo, false);
 			reason = NET_AdrToString(adr, sizeof(adr), &net_from);
-			InfoBuf_SetKey(&cl->userinfo, "ip", reason);
+			InfoBuf_SetKey(&cl->userinfo, "ip", reason);	//q3 gamecode needs to know the client's ip (server's perception of the client, NOT QW client's perception of the server/proxy)
 
 			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), false, false);
 			if (!ret)

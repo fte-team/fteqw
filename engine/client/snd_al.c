@@ -968,7 +968,7 @@ static void S_Info (void)
 
 static qboolean OpenAL_InitLibrary(void)
 {
-#if FTE_TARGET_WEB
+#ifdef FTE_TARGET_WEB
 	firefoxstaticsounds = !!strstr(emscripten_run_script_string("navigator.userAgent"), "Firefox");
 	if (firefoxstaticsounds)
 		Con_DPrintf("Firefox detected - disabling static sounds to avoid SORRY, I CAN'T HEAR YOU\n");
@@ -1024,6 +1024,8 @@ static qboolean OpenAL_InitLibrary(void)
 		openallib_tried = true;
 #ifdef _WIN32
 		openallib = Sys_LoadLibrary("OpenAL32", openalfuncs);
+		if (!openallib)
+			openallib = Sys_LoadLibrary("soft_oal", openalfuncs);
 #else
 		openallib = Sys_LoadLibrary("libopenal.so.1", openalfuncs);
 		if (!openallib)

@@ -265,7 +265,7 @@ void MSV_MapCluster_f(void)
 		return;
 
 #ifndef SERVERONLY
-	CL_Disconnect();
+	CL_Disconnect(NULL);
 #endif
 
 	if (sv.state)

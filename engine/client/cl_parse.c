@@ -1666,7 +1666,7 @@ void CL_RequestNextDownload (void)
 				}
 	#endif
 				SCR_SetLoadingStage(LS_NONE);
-				CL_Disconnect();
+				CL_Disconnect("Game Content differs from server");
 				return;
 			}
 		}
@@ -7442,7 +7442,7 @@ isilegible:
 		case svcq2_reconnect:	//8. this is actually kinda weird to have
 			Con_TPrintf ("reconnecting...\n");
 #if 1
-			CL_Disconnect();
+			CL_Disconnect("Reconnect request");
 			CL_BeginServerReconnect();
 			return;
 #else
@@ -7802,7 +7802,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_disconnect:
-			CL_Disconnect();
+			CL_Disconnect("Server disconnected");
 			return;
 
 		case svc_centerprint:

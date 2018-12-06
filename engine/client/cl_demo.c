@@ -2223,7 +2223,7 @@ void CL_ReRecord_f (void)
 
 	Q_snprintfz (name, sizeof(name), "%s", s);
 
-	CL_Disconnect();
+	CL_Disconnect(NULL);
 
 //
 // open the demo file

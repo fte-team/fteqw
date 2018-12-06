@@ -102,10 +102,8 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 
 		for (j=0 ; j<2 ; j++)
 		{
-			val = v->position[0] * tex->vecs[j][0] +
-				v->position[1] * tex->vecs[j][1] +
-				v->position[2] * tex->vecs[j][2] +
-				tex->vecs[j][3];
+			//doubles should replicate win32/x87 compiler 80-bit precision better. We have to hope that win64 compilers use the same precision.
+			val = DotProduct_Double(v->position, tex->vecs[j]) + tex->vecs[j][3];
 			if (val < mins[j])
 				mins[j] = val;
 			if (val > maxs[j])

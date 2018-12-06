@@ -1035,7 +1035,7 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 	case 'y':
 		M_RemoveMenu(menu);
 		Key_Dest_Add(kdm_console);
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 		Sys_Quit ();
 		break;
 
@@ -1065,7 +1065,7 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 	case 'N':
 		M_RemoveMenu(menu);
 #ifndef FTE_TARGET_WEB
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 		Sys_Quit ();
 #endif
 		break;
@@ -1075,7 +1075,7 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 		M_RemoveMenu(menu);
 		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
 #ifndef FTE_TARGET_WEB
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 		Sys_Quit ();
 #endif
 		break;
@@ -1125,7 +1125,7 @@ void M_Menu_Quit_f (void)
 	{
 	case 0:
 #ifndef FTE_TARGET_WEB
-		CL_Disconnect ();
+		CL_Disconnect (NULL);
 		Sys_Quit ();
 #endif
 		break;

@@ -735,7 +735,7 @@ void SV_Map_f (void)
 	}
 
 	if (!sv.state && cls.state)
-		CL_Disconnect();
+		CL_Disconnect(NULL);
 #endif
 
 	if (!isrestart)

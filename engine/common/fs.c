@@ -827,6 +827,8 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		}
 		else if (!Q_strcasecmp(link, "roq") || !Q_strcasecmp(link, "cin") || !Q_strcasecmp(link, "avi") || !Q_strcasecmp(link, "mp4") || !Q_strcasecmp(link, "mkv"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Film\\film\\%s", name);
+		else if (!Q_strcasecmp(link, "wav") || !Q_strcasecmp(link, "ogg") || !Q_strcasecmp(link, "mp3") || !Q_strcasecmp(link, "opus") || !Q_strcasecmp(link, "flac"))
+			Q_snprintfz(link, sizeof(link), "\\tip\\Play Audio\\playaudio\\%s", name);
 		else
 		{
 			colour = "^3";	//nothing

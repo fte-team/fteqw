@@ -393,15 +393,9 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 		Plug_Export("ConsoleLink", IRC_ConsoleLink);
 		if (!Plug_Export("ConExecuteCommand", IRC_ConExecuteCommand))
-		{
-			pCon_Print("IRC Client Plugin Loaded in single-console mode\n");
 			Con_TrySubPrint = Con_FakeSubPrint;
-		}
 		else
-		{
-			pCon_Print("IRC Client Plugin Loaded. ^[/"COMMANDNAME" /help^] for help\n");
 			Con_TrySubPrint = pCon_SubPrint;
-		}
 
 		reloadconfig = true;
 		IRC_InitCvars();
@@ -696,7 +690,10 @@ static void IRC_MakeDefault(ircclient_t *irc)
 	for (link = &ircclients; *link; link = &(*link)->next)
 	{
 		if (*link == irc)
+		{
 			*link = irc->next;
+			break;
+		}
 	}
 
 	irc->next = ircclients;

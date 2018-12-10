@@ -59,6 +59,7 @@ qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
 model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
 static void Mod_PrintFormats_f(void);
+static void Mod_ShowEnt_f(void);
 static void Mod_SaveEntFile_f(void);
 
 #ifdef MAP_DOOM
@@ -776,7 +777,8 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_loadentfiles, NULL);
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
-		Cmd_AddCommand("sv_saveentfile", Mod_SaveEntFile_f);
+		Cmd_AddCommandD("sv_saveentfile", Mod_SaveEntFile_f, "Dumps a copy of the map's entities to disk, so that it can be edited and used as a replacement for slightly customised maps.");
+		Cmd_AddCommandD("mod_showent", Mod_ShowEnt_f, "Allows you to quickly search through a map's entities.");
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
 
 #ifndef SERVERONLY
@@ -2171,6 +2173,54 @@ const char *Mod_ParseWorldspawnKey(model_t *mod, const char *key, char *buffer, 
 		}
 	}
 	return "";	//err...
+}
+
+static void Mod_ShowEnt_f(void)
+{
+	model_t *mod = NULL;
+	size_t idx = atoi(Cmd_Argv(1));
+	char *n = Cmd_Argv(2);
+
+	if (*n)
+		mod = Mod_ForName(n, MLV_WARN);
+#ifndef CLIENTONLY
+	if (sv.state && !mod)
+		mod = sv.world.worldmodel;
+#endif
+#ifndef SERVERONLY
+	if (cls.state && !mod)
+		mod = cl.worldmodel;
+#endif
+	if (mod && mod->loadstate == MLS_LOADING)
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+	if (!mod || mod->loadstate != MLS_LOADED)
+	{
+		Con_Printf("Map not loaded\n");
+		return;
+	}
+
+	if (!mod->numentityinfo)
+		Mod_ParseEntities(mod);
+	if (!idx && strcmp(Cmd_Argv(1), "0"))
+	{
+		char *match = Cmd_Argv(1);
+		unsigned count = 0;
+		for (idx = 0; idx < mod->numentityinfo; idx++)
+		{
+			if (strstr(mod->entityinfo[idx].keyvals, match))
+			{
+				Con_Printf("{\t//%u\n%s\n}\n", (unsigned)idx, mod->entityinfo[idx].keyvals);
+				count++;
+			}
+		}
+		Con_Printf("%u of %u ents match\n", (unsigned)count, (unsigned)mod->numentityinfo);
+	}
+	else if (idx >= mod->numentityinfo)
+		Con_Printf("Invalid entity index (max %u).\n", (unsigned)mod->numentityinfo);
+	else if (!mod->entityinfo[idx].keyvals)
+		Con_Printf("Entity index was cleared...\n");
+	else
+		Con_Printf("{\n%s\n}\n", mod->entityinfo[idx].keyvals);
 }
 
 static void Mod_SaveEntFile_f(void)

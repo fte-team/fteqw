@@ -154,7 +154,7 @@
 #undef HLSERVER
 #undef FTPSERVER
 //undef CLIENTONLY	//leave this up to the makefiles.
-#undef HAVE_TCP
+#define HAVE_TCP
 #undef HAVE_GNUTLS	//linux tls/dtls support
 #undef HAVE_WINSSPI	//windows tls/dtls support
 #undef HAVE_JUKEBOX	//includes built-in jukebox crap

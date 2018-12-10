@@ -132,7 +132,7 @@
 #undef TEXTEDITOR	//my funky text editor! its awesome!
 #undef TCPCONNECT	//support for playing over tcp sockets, instead of just udp. compatible with qizmo.
 #undef IRCCONNECT	//lame support for routing game packets via irc server. not a good idea.
-#undef PLUGINS		//support for external plugins (like huds or fancy menus or whatever)
+#define PLUGINS		//support for external plugins (like huds or fancy menus or whatever)
 #undef SUPPORT_ICE	//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #undef PSET_CLASSIC	//support the 'classic' particle system, for that classic quake feel.
 #undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
@@ -147,7 +147,7 @@
 #undef HLSERVER
 #undef FTPSERVER
 //undef CLIENTONLY	//leave this up to the makefiles.
-#undef HAVE_TCP
+#define HAVE_TCP
 #undef HAVE_GNUTLS	//linux tls/dtls support
 #undef HAVE_WINSSPI	//windows tls/dtls support
 #undef HAVE_JUKEBOX	//includes built-in jukebox crap

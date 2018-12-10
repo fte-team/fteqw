@@ -2,20 +2,20 @@
 #windows is special as always, but we don't support itanium, and microsoft don't support anything else (not even arm with the nt win32 api)
 ifeq ($(FTE_TARGET),win32)
 	PLUG_NATIVE_EXT=_x86.dll
-PLUG_LDFLAGS= 
+PLUG_LDFLAGS= -static-libgcc
 PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
 	BITS=32
 	PLUG_LDFLAGS_DL=
 endif
 ifeq ($(FTE_TARGET),win64)
 	PLUG_NATIVE_EXT=_x64.dll
-PLUG_LDFLAGS=-Wl,--support-old-code
+PLUG_LDFLAGS=-Wl,--support-old-code -static-libgcc
 PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
 	BITS=64
 	PLUG_LDFLAGS_DL=
 endif
 
-PLUG_LDFLAGS_DL?=-ldl
+PLUG_LDFLAGS_DL?=-ldl -static-libgcc
 PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lm
 PLUG_LDFLAGS_ZLIB?=-lz
 
@@ -70,8 +70,8 @@ endif
 PLUG_NATIVE_EXT?=_unk.so
 
 PLUG_DEFFILE?=
-PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden
-PLUG_CXXFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden
+PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden -static-libgcc
+PLUG_CXXFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden -static-libgcc
 PLUG_CMAKE?=-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
 PLUG_LDFLAGS_ZLIB?=
 ARCH:=$(shell $(CC) -dumpmachine)

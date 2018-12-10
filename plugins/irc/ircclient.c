@@ -35,6 +35,7 @@ vmcvar_t	irc_hostname = {"irc_hostname", "localhost", irccvars, 0};
 vmcvar_t	irc_ident = {"irc_ident", "FTE", irccvars, 0};
 vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
 vmcvar_t	irc_quitmessage = {"irc_quitmessage", "", irccvars, 0};
+vmcvar_t	irc_config = {"irc_config", "1", irccvars, 0};
 #undef irccvars
 
 vmcvar_t	*cvarlist[] ={
@@ -248,7 +249,7 @@ static void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *for
 		if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
 		{
 			pCon_SetConsoleString(lwr, "title", *channame?channame:irc->server);
-			pCon_SetConsoleString(lwr, "prompt", "^airc^a] ");
+			pCon_SetConsoleString(lwr, "prompt", va("[^1%s^7]: ", irc->nick));
 			pCon_SetConsoleFloat(lwr, "iswindow", 2);
 			pCon_SetConsoleFloat(lwr, "forceutf8", true);
 			pCon_SetConsoleFloat(lwr, "wnd_w", 256);
@@ -324,7 +325,7 @@ static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format
 		if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
 		{
 			pCon_SetConsoleString(lwr, "title", *channame?channame:irc->server);
-			pCon_SetConsoleString(lwr, "prompt", "^airc^a] ");
+			pCon_SetConsoleString(lwr, "prompt", va("[^1%s^7]: ", irc->nick));
 			pCon_SetConsoleFloat(lwr, "iswindow", 2);
 			pCon_SetConsoleFloat(lwr, "forceutf8", true);
 			pCon_SetConsoleFloat(lwr, "wnd_w", 256);
@@ -642,6 +643,10 @@ static void IRC_ParseConfig(void)
 static void IRC_WriteConfig(void)
 {
 	qhandle_t config;
+
+	if (irc_config.value == 0)
+		return;
+
 	pFS_Open("**plugconfig", &config, 2);
 	if (config >= 0)
 	{

@@ -26,26 +26,26 @@ enum tlsmode_e
 };
 
 #define irccvars "IRC Console Variables"
-vmcvar_t	irc_debug = {"irc_debug", "0", irccvars, 0};
-vmcvar_t	irc_motd = {"irc_motd", "0", irccvars, 0};
-vmcvar_t	irc_nick = {"irc_nick", "", irccvars, 0};
-vmcvar_t	irc_altnick = {"irc_altnick", "unnamed", irccvars, 0};
-vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin", irccvars, 0};
-vmcvar_t	irc_hostname = {"irc_hostname", "localhost", irccvars, 0};
-vmcvar_t	irc_ident = {"irc_ident", "FTE", irccvars, 0};
-vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
-vmcvar_t	irc_quitmessage = {"irc_quitmessage", "", irccvars, 0};
+static vmcvar_t	irc_debug = {"irc_debug", "0", irccvars, 0};
+static vmcvar_t	irc_motd = {"irc_motd", "0", irccvars, 0};
+static vmcvar_t	irc_nick = {"irc_nick", "", irccvars, 0};
+static vmcvar_t	irc_altnick = {"irc_altnick", "", irccvars, 0};
+static vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin", irccvars, 0};
+static vmcvar_t	irc_hostname = {"irc_hostname", "localhost", irccvars, 0};
+static vmcvar_t	irc_username = {"irc_username", "FTE", irccvars, 0};
+static vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
+static vmcvar_t	irc_quitmessage = {"irc_quitmessage", "", irccvars, 0};
 vmcvar_t	irc_config = {"irc_config", "1", irccvars, 0};
 #undef irccvars
 
-vmcvar_t	*cvarlist[] ={
+static vmcvar_t	*cvarlist[] ={
 	&irc_debug,
 	&irc_motd,
 	&irc_nick,
 	&irc_altnick,
 	&irc_realname,
 	&irc_hostname,
-	&irc_ident,
+	&irc_username,
 	&irc_timestamp,
 	&irc_quitmessage,
 	NULL
@@ -64,7 +64,7 @@ static char casevar[9][1000]; //numbered_command
 #define COMMANDNAME "irc"
 #define RELEASE __DATE__
 
-void (*Con_TrySubPrint)(const char *subname, const char *text);
+static void (*Con_TrySubPrint)(const char *subname, const char *text);
 static void Con_FakeSubPrint(const char *subname, const char *text)
 {
 	pCon_Print(text);
@@ -174,9 +174,6 @@ static void Con_FakeSubPrint(const char *subname, const char *text)
 #define IRC_MAXOUTBUFFER (IRC_MAXMSGLEN*16)
 
 
-char defaultuser[IRC_MAXNICKLEN+1] = "Unknown";
-
-
 typedef struct ircclient_s {
 	struct ircclient_s *next;
 
@@ -190,11 +187,16 @@ typedef struct ircclient_s {
 	enum tlsmode_e tlsmode;
 	qboolean quitting;
 	qboolean connecting;
-	char nick[IRC_MAXNICKLEN];
-	char pwd[128];
-	char realname[128];			//this is your OS user account... supposedly.
+	char nick[IRC_MAXNICKLEN];	//nick that we're actually using
+	size_t nicktries;			//so we can cycle nicks till we get one that works.
+
+	qboolean persist;			//server connection is persistent across restarts
+	char primarynick[IRC_MAXNICKLEN];	//primary nick the connection was configured with
+	char pwd[128];				//server password
+	char realname[128];			//this is your descriptive OS user account... supposedly.
+	char username[128];			//this is your unique OS user name... supposedly.
 	char hostname[128];			//this is your OS hostname... supposedly.
-	char autochannels[256];
+	char autochannels[256];		//"#chan,pwd #foo,bar #fred #splodge" for four channnels, two with a password
 
 	char defaultdest[IRC_MAXNICKLEN];//channel or nick
 
@@ -218,7 +220,7 @@ typedef struct ircclient_s {
 		struct icestate_s *ice;
 	} *ice;
 } ircclient_t;
-ircclient_t *ircclients;
+static ircclient_t *ircclients;
 
 
 static void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *format, ...)
@@ -376,7 +378,7 @@ static int IRC_CvarUpdate(void) // perhaps void instead?
 	return 0;
 }
 
-void IRC_Command(ircclient_t *ircclient, char *dest);
+void IRC_Command(ircclient_t *ircclient, char *dest, char *args);
 qintptr_t IRC_ExecuteCommand(qintptr_t *args);
 qintptr_t IRC_ConExecuteCommand(qintptr_t *args);
 qintptr_t IRC_Frame(qintptr_t *args);
@@ -403,7 +405,6 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 		reloadconfig = true;
 		IRC_InitCvars();
-		Q_strlcpy(defaultuser, "FTEUser", sizeof(defaultuser));
 
 		if (BUILTINISVALID(Plug_GetNativePointer))
 			piceapi = pPlug_GetNativePointer(ICE_API_CURRENT);
@@ -426,8 +427,10 @@ qintptr_t IRC_ExecuteCommand(qintptr_t *args)
 	if (!strcmp(cmd, COMMANDNAME))
 	{
 		ircclient_t *ircclient = ircclients;
+		char imsg[8192];
+		pCmd_Args(imsg, sizeof(imsg));
 		//FIXME: select an irc network more inteligently
-		IRC_Command(ircclient, ircclient?ircclient->defaultdest:"");
+		IRC_Command(ircclient, ircclient?ircclient->defaultdest:"", imsg);
 		return true;
 	}
 	return false;
@@ -435,10 +438,12 @@ qintptr_t IRC_ExecuteCommand(qintptr_t *args)
 qintptr_t IRC_ConExecuteCommand(qintptr_t *args)
 {
 	char buffer[256];
+	char imsg[8192];
 	ircclient_t *ircclient;
 	//FIXME: select the right network
 
 	pCmd_Argv(0, buffer, sizeof(buffer));
+	pCmd_Args(imsg, sizeof(imsg));
 
 	//buffer is something like: irc53:#foo
 	for (ircclient = ircclients; ircclient; ircclient = ircclient->next)
@@ -450,13 +455,13 @@ qintptr_t IRC_ConExecuteCommand(qintptr_t *args)
 	if (!ircclient)
 	{
 		if (*buffer == '/')
-			IRC_Command(NULL, "");
+			IRC_Command(NULL, "", imsg);
 		else
 			Con_TrySubPrint(buffer, "You were disconnected\n");
 		return true;
 	}
 
-	IRC_Command(ircclient, buffer+strlen(ircclient->id));
+	IRC_Command(ircclient, buffer+strlen(ircclient->id), imsg);
 	return true;
 }
 
@@ -488,7 +493,7 @@ static ircclient_t *IRC_FindAccount(const char *server)
 	return NULL;	//no match
 }
 
-static ircclient_t *IRC_Create(const char *server, const char *nick, const char *realname, const char *hostname, const char *password, const char *channels)
+static ircclient_t *IRC_Create(const char *server, const char *nick, const char *realname, const char *hostname, const char *username, const char *password, const char *channels)
 {
 	ircclient_t *irc;
 
@@ -510,12 +515,14 @@ static ircclient_t *IRC_Create(const char *server, const char *nick, const char 
 
 	IRC_CvarUpdate();
 
-	strcpy(irc->nick,			nick);
-	strcpy(irc->realname,		realname);
-	strcpy(irc->hostname,		hostname);
-	strcpy(irc->pwd,			password);
+	Q_strlcpy(irc->primarynick,	nick,		sizeof(irc->primarynick));
+	Q_strlcpy(irc->nick,		nick,		sizeof(irc->nick));
+	Q_strlcpy(irc->realname,	realname,	sizeof(irc->realname));
+	Q_strlcpy(irc->hostname,	hostname,	sizeof(irc->hostname));
+	Q_strlcpy(irc->username,	username,	sizeof(irc->username));
+	Q_strlcpy(irc->pwd,			password,	sizeof(irc->pwd));
 
-	strcpy(irc->autochannels,	channels);
+	Q_strlcpy(irc->autochannels,channels,	sizeof(irc->autochannels));
 
 //	gethostname(irc->hostname, sizeof(irc->hostname));
 //	irc->hostname[sizeof(irc->hostname)-1] = 0;
@@ -528,13 +535,15 @@ static ircclient_t *IRC_Create(const char *server, const char *nick, const char 
 
 static void IRC_SetPass(ircclient_t *irc, char *pass)
 {
-	Q_strlcpy(irc->pwd, pass, sizeof(irc->pwd));
+	if (irc->pwd != pass)
+		Q_strlcpy(irc->pwd, pass, sizeof(irc->pwd));
 	if (*pass && irc->tlsmode != TLS_STARTING)
 		IRC_AddClientMessage(irc, va("PASS %s", pass));
 }
 static void IRC_SetNick(ircclient_t *irc, char *nick)
 {
-	Q_strlcpy(irc->nick, nick, sizeof(irc->nick));
+	if (irc->nick != nick)
+		Q_strlcpy(irc->nick, nick, sizeof(irc->nick));
 	if (irc->tlsmode != TLS_STARTING)
 		IRC_AddClientMessage(irc, va("NICK %s", irc->nick));
 }
@@ -543,7 +552,21 @@ static void IRC_SetUser(ircclient_t *irc, char *user)
 	IRC_CvarUpdate();
 
 	if (irc->tlsmode != TLS_STARTING)
-		IRC_AddClientMessage(irc, va("USER %s %s %s :%s", irc_ident.string, irc->hostname, irc->server, irc_realname.string));
+	{
+		const char *username = irc->username;
+		const char *realname = irc->realname;
+		if (!*username)
+			username = getenv("USER");
+		if (!username)
+			username = "FTE";	//we need something.
+
+		if (!*realname)
+			realname = username;
+		//servers will usually ignore the server arg, as they usually know their own dns name already...
+		//servers SHOULD ignore the hostname arg too (using a reverse dns). or they'll just replace it with an ip address (note: could use this instead of a STUN server).
+		//the username+realname are used, and need to be persistent for auto-op type mechanisms.
+		IRC_AddClientMessage(irc, va("USER %s %s %s :%s", username, irc->hostname, irc->server, realname));
+	}
 }
 
 static qboolean IRC_Establish(ircclient_t *irc)
@@ -585,9 +608,10 @@ static qboolean IRC_Establish(ircclient_t *irc)
 	}
 	else
 	{
+		irc->nicktries = 0;
 		IRC_SetPass(irc, irc->pwd);
 		IRC_SetNick(irc, irc->nick);
-		IRC_SetUser(irc, defaultuser);
+		IRC_SetUser(irc, irc_username.string);
 	}
 
 	return true;
@@ -612,20 +636,23 @@ static void IRC_ParseConfig(void)
 			char channels[1024];
 			char nick[256];
 			char password[256];
-			char user[256];
+			char realname[256];
 			char hostname[256];
+			char username[256];
 
 			msg = COM_Parse(msg, server, sizeof(server));
 			msg = COM_Parse(msg, channels, sizeof(channels));
 			msg = COM_Parse(msg, nick, sizeof(nick));
 			msg = COM_Parse(msg, password, sizeof(password));
-			msg = COM_Parse(msg, user, sizeof(user));
+			msg = COM_Parse(msg, realname, sizeof(realname));
 			msg = COM_Parse(msg, hostname, sizeof(hostname));
+			msg = COM_Parse(msg, username, sizeof(username));
 			if (*server)
 			{
-				irc = IRC_Create(server, nick, user, hostname, password, channels);
+				irc = IRC_Create(server, nick, realname, hostname, username, password, channels);
 				if (irc)
 				{
+					irc->persist = true;
 					if (IRC_Establish(irc))
 					{
 						if (!*irc->autochannels)
@@ -653,14 +680,27 @@ static void IRC_WriteConfig(void)
 		ircclient_t *irc;
 		for(irc = ircclients; irc; irc = irc->next)
 		{
-			char *s = va("\"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n", irc->server, irc->autochannels, irc->nick, irc->pwd, irc->realname, irc->hostname);
-			if (irc->quitting)
+			char *s = va("\"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n", irc->server, irc->autochannels, irc->primarynick, irc->pwd, irc->realname, irc->hostname, irc->username);
+			if (irc->quitting || !irc->persist)
 				continue;
 			pFS_Write(config, s, strlen(s));
 		}
 
 		pFS_Close(config);
 	}
+}
+static void IRC_MakeDefault(ircclient_t *irc)
+{	//unlinks the client, then links it at the head, so that its the first found (thus the default)
+	ircclient_t **link;
+
+	for (link = &ircclients; *link; link = &(*link)->next)
+	{
+		if (*link == irc)
+			*link = irc->next;
+	}
+
+	irc->next = ircclients;
+	ircclients = irc;
 }
 
 static void IRC_PartChannelInternal(ircclient_t *irc, char *channelname)
@@ -1048,7 +1088,7 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	}
 	case 321:
 	{
-		IRC_Printf(irc, "list", "Start /LIST\n");
+//		IRC_Printf(irc, "list", "Start /LIST\n");
 
 		return;
 	}
@@ -1065,10 +1105,12 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	{
 		char *endoflist = casevar[3]+1;
 
-		IRC_Printf(irc, "list", "%s\n",endoflist);
+//		IRC_Printf(irc, "list", "%s\n",endoflist);
 
 		return;
 	}
+	case 333:	/* RPL_TOPICWHOTIME channel user timestamp*/
+		return;
 	case 366:	/* RPL_ENDOFNAMES */
 	{
 		char *channel = strtok(casevar[3], " ");
@@ -1104,17 +1146,18 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	case 403:	/* ERR_NOSUCHCHANNEL */
 	case 404:	/* ERR_CANNOTSENDTOCHAN */
 	case 405:	/* ERR_TOOMANYCHANNELS */
+	case 442:	/* ERR_NOTONCHANNEL */
 	{
 		char *username = strtok(casevar[3], " ");
 		char *error = casevar[4]+1;
 
-		IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR <%s>: %s\n",username,error);
+		IRC_Printf(irc, username, COLOURRED "ERROR <%s>: %s\n",username,error);
 		return;
 	}
 	case 432: /* #define ERR_ERRONEUSNICKNAME 432 */
 	{
 		IRC_Printf(irc, DEFAULTCONSOLE, "Erroneous/invalid nickname given\n");
-		return;
+		goto trynewnick;
 	}
 	case 433: /* #define ERR_NICKNAMEINUSE    433 */
 	case 438:
@@ -1131,32 +1174,64 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 
 		IRC_CvarUpdate();
 
-		IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: <%s> is already in use.\n",nickname);
+//		IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: <%s> is already in use.\n",nickname);
 
+trynewnick:
 		if (irc->tlsmode == TLS_STARTING)
 		{
 			//don't submit any of this info here.
+			return;
 		}
-		else if ( !strcmp(nickname,irc_nick.string) && (irc->connecting == 1) )
+		if (irc->connecting)
 		{
-			IRC_SetNick(irc, irc_altnick.string);
-		}
-		else if ( !strcmp(nickname, irc_altnick.string) && (irc->connecting == 1) )
-		{
-			IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: <%s> AND <%s> both in use. Attempting generic nickname.\n",irc_nick.string,irc_altnick.string);
-			seedednick = va("%s%i", irc_nick.string, rand());
+			if (irc->nicktries == 0)
+			{
+				irc->nicktries++;
+				if (*irc->primarynick && strcmp(nickname, irc->primarynick))
+				{
+					IRC_SetNick(irc, irc->primarynick);
+					return;
+				}
+			}
+			if (irc->nicktries == 1)
+			{
+				irc->nicktries++;
+				if (*irc_nick.string && strcmp(nickname, irc_nick.string))
+				{
+					IRC_SetNick(irc, irc_nick.string);
+					return;
+				}
+			}
+			if (irc->nicktries == 2)
+			{
+				irc->nicktries++;
+				if (*irc_altnick.string && strcmp(nickname, irc_altnick.string))
+				{
+					IRC_SetNick(irc, irc_altnick.string);
+					return;
+				}
+			}
+
+			if (++irc->nicktries == 10)
+			{
+				IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: Unable to obtain usable nickname\n");
+				return;
+			}
+
+			//panic and pick something at random
+			//IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: primary nickname in use. Attempting random nickname.\n");
+			if (*irc->primarynick && irc->nicktries < 7)
+				seedednick = va("%.6s%i", irc->primarynick, rand());
+			else if (*irc_nick.string && irc->nicktries < 8)
+				seedednick = va("%.6s%i", irc_nick.string, rand());
+			else if (*irc_altnick.string && irc->nicktries < 9)
+				seedednick = va("%.6s%i", irc_altnick.string, rand());
+			else
+				seedednick = va("%.6s%i", "FTE", rand());
+			seedednick[9] = 0; //'Each client is distinguished from other clients by a unique nickname having a maximum length of nine (9) characters'
 
 			IRC_SetNick(irc, seedednick);
 		}
-		else
-		{
-			if (irc->connecting == 1)
-			{
-				seedednick = va("FTE%i",rand());
-				IRC_SetNick(irc, seedednick);
-			}
-		}
-
 		return;
 	}
 	case 471: /* ERR_CHANNELISFULL */
@@ -1211,9 +1286,10 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	{
 		pNet_SetTLSClient(irc->socket, irc->server);
 		irc->tlsmode = TLS_START;
+		irc->nicktries = 0;
 		IRC_SetPass(irc, irc->pwd);
 		IRC_SetNick(irc, irc->nick);
-		IRC_SetUser(irc, defaultuser);
+		IRC_SetUser(irc, irc_username.string);
 		return;
 	}
 	case 691: /* ERR_STARTTLS */
@@ -1776,7 +1852,7 @@ qintptr_t IRC_ConsoleLink(qintptr_t *args)
 
 static int IRC_ClientFrame(ircclient_t *irc)
 {
-	char prefix[64];
+	char prefix[256];
 	int ret;
 	char *nextmsg, *msg;
 	char *temp;
@@ -2111,14 +2187,25 @@ static int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%s%s\n", prefix, msg+6);
 	}
-	else if (!strncmp(msg, "PART ", 5))
+	else if (!strncmp(msg, "QUIT ", 5))
 	{
-		char *exc = strchr(prefix, '!');
+		/*char *exc = strchr(prefix, '!');
 		char *col = strchr(msg+5, ':');
 		if (exc && col)
 		{
 			*exc = '\0';
-			IRC_Printf(irc, msg+5, "%s leaves channel %s\n", prefix, col);
+			IRC_Printf(irc, col+1, COLOURGREEN "%s joins channel %s\n", prefix, col+1);
+		}
+		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%s QUIT %s\n", prefix, msg+5);*/
+	}
+	else if (!strncmp(msg, "PART ", 5))
+	{
+		char *exc = strchr(prefix, '!');
+		COM_Parse(msg+5, token, sizeof(token));
+		if (exc)
+		{
+			*exc = '\0';
+			IRC_Printf(irc, token, "%s leaves channel %s\n", prefix, token);
 		}
 		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%sPART %s\n", prefix, msg+5);
 	}
@@ -2131,7 +2218,7 @@ static int IRC_ClientFrame(ircclient_t *irc)
 			*exc = '\0';
 			IRC_Printf(irc, col+1, COLOURGREEN "%s joins channel %s\n", prefix, col+1);
 		}
-		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%sJOIN %s\n", prefix, msg+5);
+		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%s JOIN %s\n", prefix, msg+5);
 	}
 	else if (!strncmp(msg, "372 ", 4))
 	{
@@ -2143,6 +2230,20 @@ static int IRC_ClientFrame(ircclient_t *irc)
 			else
 				IRC_Printf(irc, DEFAULTCONSOLE, "%s\n", msg);
 		}
+	}
+	else if (!strncmp(msg, "TOPIC ", 5))
+	{
+		char *topic = COM_Parse(msg+5, token, sizeof(token));
+		while (*topic == ' ')
+			topic++;
+		if (*topic++ == ':')
+		{
+			char *exc = strchr(prefix, '!');
+			if (exc)
+				*exc = 0;
+			IRC_Printf(irc, token, COLOURGREEN "%s changes topic to %s\n", prefix, topic);
+		}
+		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%s TOPIC %s\n", prefix, msg+5);
 	}
 	else if (!strncmp(msg, "331 ", 4) ||//no topic
 			 !strncmp(msg, "332 ", 4))	//the topic
@@ -2315,19 +2416,31 @@ qintptr_t IRC_Frame(qintptr_t *args)
 	return 0;
 }
 
-void IRC_Command(ircclient_t *ircclient, char *dest)
+void IRC_Command(ircclient_t *ircclient, char *dest, char *args)
 {
 	char token[1024];
-	char imsg[8192];
 	char *msg;
 
-	pCmd_Args(imsg, sizeof(imsg));
-
-	msg = COM_Parse(imsg, token, sizeof(token));
+	msg = COM_Parse(args, token, sizeof(token));
 
 	if (*token == '/')
 	{
-		if (!strcmp(token+1, "open") || !strcmp(token+1, "connect"))
+		if (!strcmp(token+1, "server"))
+		{	//selects the default server without connecting anywhere, for main console to use.
+			msg = COM_Parse(msg, token, sizeof(token));
+
+			ircclient = IRC_FindAccount(token);
+			if (!ircclient)
+				IRC_Printf(ircclient, dest, "No such connection\n");
+			else if (ircclients == ircclient)
+				IRC_Printf(ircclient, dest, "Connection is already the default.\n");
+			else
+			{
+				IRC_MakeDefault(ircclient);
+				IRC_Printf(ircclient, dest, "Connection is now default.\n");
+			}
+		}
+		else if (!strcmp(token+1, "open") || !strcmp(token+1, "connect"))
 		{
 			char server[256];
 			char channels[1024];
@@ -2345,15 +2458,21 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 			if (!*nick)
 				pCvar_GetString("name", nick, sizeof(nick));
 
-			if (IRC_FindAccount(server))
-			{
-				IRC_Printf(ircclient, dest, "IRC connection to %s already registered\n", server);
-				return;	//silently ignore it if the account already exists
-			}
-
-			ircclient = IRC_Create(server, nick, defaultuser, irc_hostname.string, password, channels);
+			ircclient = IRC_FindAccount(server);
 			if (ircclient)
 			{
+				if (handleisvalid(ircclient->socket))	//don't need to do anything.
+				{
+					IRC_Printf(ircclient, dest, "IRC connection to %s already registered\n", server);
+					return;	//silently ignore it if the account already exists
+				}
+			}
+			else
+				ircclient = IRC_Create(server, nick, irc_realname.string, irc_hostname.string, irc_username.string, password, channels);
+			if (ircclient)
+			{
+				IRC_MakeDefault(ircclient);
+				ircclient->persist |= !strcmp(token+1, "connect");
 				if (IRC_Establish(ircclient))
 					IRC_Printf(ircclient, dest, "Trying to connect\n");
 				else
@@ -2378,16 +2497,21 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 			if (!ircclient)	//not yet connected.
 				pCvar_SetString(irc_nick.name, token);
 			else
+			{
+				if (!handleisvalid(ircclient->socket))
+					Q_strlcpy(ircclient->primarynick, token, sizeof(ircclient->primarynick));
+				ircclient->nicktries = 0;
 				IRC_SetNick(ircclient, token);
+			}
 
 			IRC_WriteConfig();
 		}
 		else if (!strcmp(token+1, "user"))
 		{
 			msg = COM_Parse(msg, token, sizeof(token));
-			Q_strlcpy(defaultuser, token, sizeof(defaultuser));
+			pCvar_SetString(irc_username.name, token);
 			if (ircclient)
-				IRC_SetUser(ircclient, defaultuser);
+				IRC_SetUser(ircclient, token);
 
 			IRC_WriteConfig();
 		}
@@ -2397,7 +2521,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 			struct ircice_s *ice;
 			for (e = ircclients; e; e = e->next)
 			{
-				IRC_Printf(ircclient, dest, "SERVER: %s\n", e->server);
+				IRC_Printf(ircclient, dest, "SERVER: ^[%s\\type\\irc /server \"%s\"^]\n", e->server, e->server);
 				if (e->connecting && handleisvalid(e->socket))
 					IRC_Printf(ircclient, dest, "<CONNECTING>\n");
 				else if (handleisvalid(e->socket))
@@ -2617,9 +2741,22 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 				if(*msg <= ' ' && *msg)
 					msg++;
 				IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001ACTION %s\001", dest, msg));
-				IRC_Printf(ircclient, ircclient->defaultdest, "***^3%s^7 %s\n", ircclient->nick, msg);
+				IRC_Printf(ircclient, dest, "***^3%s^7 %s\n", ircclient->nick, msg);
 			}
 		}
+		else if (!strcmp(token+1, "topic"))
+		{
+			if (!*dest)
+				IRC_Printf(ircclient, DEFAULTCONSOLE, "No channel joined. Try /join #<channel>\n");
+			else
+			{
+				if(*msg <= ' ' && *msg)
+					msg++;
+				IRC_AddClientMessage(ircclient, va("TOPIC %s :%s", dest, msg));
+			}
+		}
+		else
+			IRC_Printf(ircclient, dest, "Command not recognised\n");
 	}
 	else
 	{
@@ -2635,7 +2772,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 			}
 			else
 			{
-				msg = imsg;
+				msg = args;
 				while (*msg == ' ')
 					msg++;
 				if (!*msg)

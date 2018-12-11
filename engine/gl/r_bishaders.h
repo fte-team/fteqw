@@ -6,7 +6,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "fixedemu",
 "!!ver 100-450\n"
-"!!samps sourcetex:0\n"
+"!!samps sourcetex=0\n"
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -6636,7 +6636,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;\n"
 "#endif\n"
 
-"gl_FragColor = fog4(vec4(ts, USEALPHA));\n"
+"gl_FragColor = fog4(vec4(ts, USEALPHA) * e_colourident);\n"
 "}\n"
 "#endif\n"
 },
@@ -7303,7 +7303,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvard_srgb_b r_floorcolor\n"
 "!!cvard_srgb_b r_wallcolor\n"
 "!!permu FOG\n"
-"!!samps lm:0\n"
+"!!samps lm=0\n"
 
 //this is for the '286' preset walls, and just draws lightmaps coloured based upon surface normals.
 

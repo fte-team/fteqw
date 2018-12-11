@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CHAN_ITEM   3
 #define CHAN_BODY   4
 
-extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, sv_edgefriction;
+extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction;
 extern cvar_t  dpcompat_stats;
 
 /*
@@ -2406,7 +2406,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_WATERACCELERATE]				= sv_wateraccelerate.value;
 			statsfi[STAT_MOVEVARS_ENTGRAVITY]					= client->entgravity/sv_gravity.value;
 			statsfi[STAT_MOVEVARS_JUMPVELOCITY]					= 270;//sv_jumpvelocity.value;	//bah
-			statsfi[STAT_MOVEVARS_EDGEFRICTION]					= sv_edgefriction.value;
+			statsfi[STAT_MOVEVARS_EDGEFRICTION]					= pm_edgefriction.value;
 			statsfi[STAT_MOVEVARS_MAXAIRSPEED]					= 30;	//max speed before airaccel cuts out. this is hardcoded in qw pmove
 			statsfi[STAT_MOVEVARS_STEPHEIGHT]					= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 			statsfi[STAT_MOVEVARS_AIRACCEL_QW]					= 1;		//we're a quakeworld engine...

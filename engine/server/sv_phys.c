@@ -74,6 +74,7 @@ cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = CVARAF("pm_airstep", "", "sv_jumpstep", CVAR_SERVERINFO);
 cvar_t	pm_stepdown			 = CVARF("pm_stepdown", "", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
+cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", "edgefriction", CVAR_SERVERINFO, "Default value of 2");	//alternative name (without prefix) for compat with dp
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
@@ -2683,5 +2684,6 @@ void SV_SetMoveVars(void)
 	movevars.stepheight			= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:4;
+	movevars.edgefriction		= *pm_edgefriction.string?pm_edgefriction.value:2;
 }
 #endif

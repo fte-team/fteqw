@@ -10761,8 +10761,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	"} skelblend_t;\n"
 
 	{"skel_create",		PF_skel_create,		0,		0,		0,		263,	D("float(float modlindex, optional float useabstransforms)", "Allocates a new uninitiaised skeletal object, with enough bone info to animate the given model.\neg: self.skeletonobject = skel_create(self.modelindex);")}, // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",		PF_skel_build,		0,		0,		0,		264,	D(qcskelblend"float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)", "Animation data (according to the entity's frame info) is pulled from the specified model and blended into the specified skeletal object.\nIf retainfrac is set to 0 on the first call and 1 on the others, you can blend multiple animations together according to the addfrac value. The final weight should be 1. Other values will result in scaling and/or other weirdness. You can use firstbone and lastbone to update only part of the skeletal object, to allow legs to animate separately from torso, use 0 for both arguments to specify all, as bones are 1-based.")}, // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build_ptr",	PF_skel_build_ptr,	0,		0,		0,		0,		D("float(float skel, int numblends, skelblend_t *weights, int structsize)", "Like skel_build, but slightly simpler.")},
+	{"skel_build",		PF_skel_build,		0,		0,		0,		264,	D("float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)", "Animation data (according to the entity's frame info) is pulled from the specified model and blended into the specified skeletal object.\nIf retainfrac is set to 0 on the first call and 1 on the others, you can blend multiple animations together according to the addfrac value. The final weight should be 1. Other values will result in scaling and/or other weirdness. You can use firstbone and lastbone to update only part of the skeletal object, to allow legs to animate separately from torso, use 0 for both arguments to specify all, as bones are 1-based.")}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build_ptr",	PF_skel_build_ptr,	0,		0,		0,		0,		D(qcskelblend"float(float skel, int numblends, skelblend_t *weights, int structsize)", "Like skel_build, but slightly simpler.")},
 	{"skel_get_numbones",PF_skel_get_numbones,0,	0,		0,		265,	D("float(float skel)", "Retrives the number of bones in the model. The valid range is 1<=bone<=numbones.")}, // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_get_bonename",PF_skel_get_bonename,0,	0,		0,		266,	D("string(float skel, float bonenum)", "Retrieves the name of the specified bone. Mostly only for debugging.")}, // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
 	{"skel_get_boneparent",PF_skel_get_boneparent,0,0,		0,		267,	D("float(float skel, float bonenum)", "Retrieves which bone this bone's position is relative to. Bone 0 refers to the entity's position rather than an actual bone")}, // (FTE_CSQC_SKELETONOBJECTS)
@@ -10963,7 +10963,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"adddecal",		PF_Fixme,	0,		0,		0,		375,	D("void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha)", "Adds a temporary clipped decal shader to the scene, centered at the given point with given orientation. Will be drawn by the next renderscene call, and freed by the next clearscene call.")},
 	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides to a new skin object. Releases the entities old skin (refcounted).")},
-	{"loadcustomskin",	PF_Fixme,	0,		0,		0,		377,	D("float(string skinfilename, optional string skindata)", "Creates a new skin object and returns it. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h$s,t,s2,t2?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader). Must be matched with a releasecustomskin call later, and is pointless without applycustomskin.")},
+	{"loadcustomskin",	PF_Fixme,	0,		0,		0,		377,	D("float(string skinfilename, optional string skindata)", "Creates a new skin object and returns it. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader (legacy format for compat with q3)\nreplace \"surfacename\" \"shadername\" - non-legacy equivalent.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h$s,t,s2,t2?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader). Must be matched with a releasecustomskin call later, and is pointless without applycustomskin.")},
 	{"applycustomskin",	PF_Fixme,	0,		0,		0,		378,	D("void(entity e, float skinobj)", "Updates the entity's custom skin (refcounted).")},
 	{"releasecustomskin",PF_Fixme,	0,		0,		0,		379,	D("void(float skinobj)", "Lets the engine know that the skin will no longer be needed. Thanks to refcounting any ents with the skin already applied will retain their skin until later changed. It is valid to destroy a skin just after applying it to an ent in the same function that it was created in, as the skin will only be destroyed once its refcount rops to 0.")},
 //END EXT_CSQC
@@ -11247,7 +11247,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	D("string(string fmt, ...)",	"'prints' to a formatted temp-string. Mostly acts as in C, however %d assumes floats (fteqcc has arg checking. Use it.).\ntype conversions: l=arg is an int, h=arg is a float, and will work as a prefix for any float or int representation.\nfloat representations: d=decimal, e,E=exponent-notation, f,F=floating-point notation, g,G=terse float, c=char code, x,X=hex\nother representations: i=int, s=string, S=quoted and marked-up string, v=vector, p=pointer\nso %ld will accept an int arg, while %hi will expect a float arg.\nentities, fields, and functions will generally need to be printed as ints with %i.")},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,0,		628,	"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,0,	0,		0,		629,	"vector(entity e, float s, float n)"},
-//	{"setkeybind",		PF_Fixme,			0,		0,		0,		630,	"float(float key, string bind, optional float bindmap)"},
+	{"setkeybind",		PF_Fixme,			0,		0,		0,		630,	"float(float key, string bind, optional float bindmap, optional float modifier)"},
 	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()"},
 	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)"},
 	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"string(string addr)"  STUB},
@@ -11703,13 +11703,15 @@ svextqcfields
 }
 
 //targets
-#define QW 1
-#define NQ 2
-#define CS 4
-#define MENU 8
-#define H2 16
+#define QW		1	//exists in qwssqc
+#define NQ		2	//exists in nqssqc
+#define CS		4	//exists in csqc
+#define MENU	8	//exists in menuqc
+#define H2		16	//exists in h2ssqc
 //mere flags
-#define FTE 32
+#define FTE		32	//use fte opcodes
+#define ID1		64	//symbol conflicts with vanilla defs.qc (so stripped, with exceptions)
+#define DPX		128	//symbol conflicts with dpextensions.qc
 #ifdef HEXEN2
 #define ALL (QW|NQ|H2|CS|MENU)
 #else
@@ -11824,7 +11826,7 @@ void PR_DumpPlatform_f(void)
 		{"PlayerPreThink",		"void()", QW|NQ, D("With Prediction(QW compat/FTE default): Called before the player's input commands are processed.\nNo Prediction(NQ compat): Called AFTER the player's movement intents have already been processed (ie: velocity will have already changed according to input_*, but before the actual position change.")},
 		{"PlayerPostThink",		"void()", QW|NQ, D("Called after the player's input commands are processed.")},
 		{"ClientKill",			"void()", QW|NQ, D("Called in response to 'cmd kill' (or just 'kill').")},
-		{"ClientConnect",		"void(optional float csqcactive)", QW|NQ, D("Called after the connecting client has finished loading and is ready to receive active entities. Note that this is NOT the first place that a client might be referred to.")},
+		{"ClientConnect",		"void(optional float csqcactive)", QW|NQ|ID1, D("Called after the connecting client has finished loading and is ready to receive active entities. Note that this is NOT the first place that a client might be referred to.")},
 		{"PutClientInServer",	"void()", QW|NQ, D("Enginewise, this is only ever called immediately after ClientConnect and is thus a little redundant. Modwise, this is also called for respawning a player etc.")},
 		{"ClientDisconnect",	"void()", QW|NQ, D("Called once a client disconnects or times out. Not guarenteed to be called on map changes.")},
 		{"SetNewParms",			"void()", QW|NQ, D("Called without context when a new client initially connects (before ClientConnect is even called). This function is expected to only set the parm* globals so that they can be decoded properly later. You should not rely on 'self' being set.")},
@@ -12176,13 +12178,13 @@ void PR_DumpPlatform_f(void)
 		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, D("Bits that tracebox would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"i|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP"},
 		{"CONTENTBITS_FLUID",		"const int", QW|NQ|CS, NULL, 0,"CONTENTBIT_WATER|CONTENTBIT_SLIME|CONTENTBIT_LAVA|CONTENTBIT_SKY"},
 
-		{"SPA_POSITION",			"const int", QW|NQ|CS, D("These SPA_* constants are to specify which attribute is returned by the getsurfacepointattribute builtin"), 0},
-		{"SPA_S_AXIS",				"const int", QW|NQ|CS, NULL, 1},
-		{"SPA_T_AXIS",				"const int", QW|NQ|CS, NULL, 2},
-		{"SPA_R_AXIS",				"const int", QW|NQ|CS, D("aka: SPA_NORMAL"), 3},
-		{"SPA_TEXCOORDS0",			"const int", QW|NQ|CS, NULL, 4},
-		{"SPA_LIGHTMAP0_TEXCOORDS",	"const int", QW|NQ|CS, NULL, 5},
-		{"SPA_LIGHTMAP0_COLOR",		"const int", QW|NQ|CS, NULL, 6},
+		{"SPA_POSITION",			"const float", QW|NQ|CS, D("These SPA_* constants are to specify which attribute is returned by the getsurfacepointattribute builtin"), 0},
+		{"SPA_S_AXIS",				"const float", QW|NQ|CS, NULL, 1},
+		{"SPA_T_AXIS",				"const float", QW|NQ|CS, NULL, 2},
+		{"SPA_R_AXIS",				"const float", QW|NQ|CS, D("aka: SPA_NORMAL"), 3},
+		{"SPA_TEXCOORDS0",			"const float", QW|NQ|CS, NULL, 4},
+		{"SPA_LIGHTMAP0_TEXCOORDS",	"const float", QW|NQ|CS, NULL, 5},
+		{"SPA_LIGHTMAP0_COLOR",		"const float", QW|NQ|CS, NULL, 6},
 
 		{"CHAN_AUTO",		"const float", QW|NQ|CS, D("The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other."), CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},
@@ -12592,6 +12594,8 @@ void PR_DumpPlatform_f(void)
 					"-Tqw        - dump specifically QW fields\n"	\
 					"-Tcs        - dump specifically CSQC fields\n"	\
 					"-Tmenu      - dump specifically menuqc fields\n"	\
+					"-Tid1       - omits any symbols that conflict with vanilla defs.qc\n"	\
+					"-Tdp        - omits any symbols that conflict with dpextensions.qc\n"	\
 					"-Fdefines   - generate #defines instead of constants\n"	\
 					"-Faccessors - use accessors instead of basic types via defines\n"	\
 					"-O          - write to a different qc file\n"
@@ -12611,6 +12615,10 @@ void PR_DumpPlatform_f(void)
 			targ |= MENU;
 		else if (!stricmp(arg, "-Th2"))
 			targ |= H2;
+		else if (!stricmp(arg, "-Tid1"))
+			targ |= ID1;
+		else if (!stricmp(arg, "-Tdp"))
+			targ |= DPX;
 		else if (!stricmp(arg, "-Fdefines"))
 			defines = true;
 		else if (!stricmp(arg, "-Fnodefines"))
@@ -12666,9 +12674,9 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma noref 1\n");
 	VFS_PRINTF(f, "//#pragma flag enable logicops\n");
 
-	VFS_PRINTF(f, "#pragma warning error Q101 /*too many parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n");
-	VFS_PRINTF(f, "#pragma warning error Q105 /*too few parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n");
-	VFS_PRINTF(f, "#pragma warning error Q106 /*assignment to constant/lvalue. Define them as var if you want to initialise something.*/\n");
+	VFS_PRINTF(f, "#pragma warning %s Q101 /*too many parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n", (targ & ID1)?"enable":"error");
+	VFS_PRINTF(f, "#pragma warning %s Q105 /*too few parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n", (targ & ID1)?"enable":"error");
+	VFS_PRINTF(f, "#pragma warning %s Q106 /*assignment to constant/lvalue. Define them as var if you want to initialise something.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown. Compatibility goes out of the window if you disable this.*/\n");
 #ifdef NOLEGACY
 	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc). Such mods will not run properly in FTE.*/\n");
@@ -12677,6 +12685,7 @@ void PR_DumpPlatform_f(void)
 #endif
 	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings. Think of the foreigners! Also think of text editors that insist on screwing up your char encodings.*/\n");
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals. They usually default to 0 in qc (except in recursive functions), but its still probably a bug*/\n");
+//	VFS_PRINTF(f, "#pragma warning %s F308 /*Optional arguments differ on redeclaration.*/\n", (targ & ID1)?"disable":"enable");
 
 	if ((targ&ALL) == H2)
 	{
@@ -12783,9 +12792,17 @@ void PR_DumpPlatform_f(void)
 	d = ALL & ~targ;
 	for (i = 0; knowndefs[i].name; i++)
 	{
+		const char *type = knowndefs[i].type;
 		nd = (knowndefs[i].module & targ) | (~targ & ALL);
 		if (!(nd & targ))
 			continue;
+		if ((knowndefs[i].module & targ) & ID1)
+		{
+			if (!strcmp(knowndefs[i].name, "ClientConnect"))
+				type = "void()";
+			else
+				continue;
+		}
 		if ((nd&targ) != (d&targ))
 		{
 			if (d != (ALL & ~targ))
@@ -12848,47 +12865,47 @@ void PR_DumpPlatform_f(void)
 		}
 		if (knowndefs[i].desc)
 		{
-			if (!strncmp(knowndefs[i].type, "//", 2))
+			if (!strncmp(type, "//", 2))
 				comment = va("\n/* %s */", knowndefs[i].desc);
 			else
 				comment = va("\t/* %s */", knowndefs[i].desc);
 		}
 		else
 			comment = "";
-		if (!strcmp(knowndefs[i].type, "const float"))
+		if (!strcmp(type, "const float"))
 		{
 			if (knowndefs[i].value >= (1<<23))
 			{
 				if (defines)
 					VFS_PRINTF(f, "#define %s %i%s\n", knowndefs[i].name, (int)knowndefs[i].value, comment);
 				else
-					VFS_PRINTF(f, "%s %s = %i;%s\n", knowndefs[i].type, knowndefs[i].name, (int)knowndefs[i].value, comment);
+					VFS_PRINTF(f, "%s %s = %i;%s\n", type, knowndefs[i].name, (int)knowndefs[i].value, comment);
 			}
 			else
 			{
 				if (defines)
 					VFS_PRINTF(f, "#define %s %g%s\n", knowndefs[i].name, knowndefs[i].value, comment);
 				else
-					VFS_PRINTF(f, "%s %s = %g;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
+					VFS_PRINTF(f, "%s %s = %g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
 			}
 		}
-		else if (!strcmp(knowndefs[i].type, "const string"))
+		else if (!strcmp(type, "const string"))
 		{
 			if (defines)
 				VFS_PRINTF(f, "#define %s %s%s\n", knowndefs[i].name, knowndefs[i].valuestr, comment);
 			else
-				VFS_PRINTF(f, "%s %s = %s;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr, comment);
+				VFS_PRINTF(f, "%s %s = %s;%s\n", type, knowndefs[i].name, knowndefs[i].valuestr, comment);
 		}
 		else if (knowndefs[i].valuestr)
 		{
-			VFS_PRINTF(f, "%s %s = %s;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr, comment);
+			VFS_PRINTF(f, "%s %s = %s;%s\n", type, knowndefs[i].name, knowndefs[i].valuestr, comment);
 		}
 		else if (knowndefs[i].value)
 		{
-			VFS_PRINTF(f, "%s %s = %g;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
+			VFS_PRINTF(f, "%s %s = %g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else
-			VFS_PRINTF(f, "%s %s;%s\n", knowndefs[i].type, knowndefs[i].name, comment);
+			VFS_PRINTF(f, "%s %s;%s\n", type, knowndefs[i].name, comment);
 	}
 	for (i = 0; BuiltinList[i].name; i++)
 	{
@@ -12928,6 +12945,36 @@ void PR_DumpPlatform_f(void)
 		if (MP_BuiltinValid(BuiltinList[i].name, idx))
 			nd |= MENU;
 #endif
+
+		if (targ & ID1)
+		{
+			//both engines have these defs, but fte's version has extra args, or added non-void return types
+			//so to avoid compile errors/warnings, we omit our versions.
+			const char *buggyvanillabuiltins[] = {
+				"sound","vectoyaw","findradius","bprint","sprint",
+				"walkmove","droptofloor","lightstyle","vectoangles","changelevel","centerprint"
+			};
+			for (j = 0; j < countof(buggyvanillabuiltins) && nd; j++)
+			{
+				if (!strcmp(buggyvanillabuiltins[j], BuiltinList[i].name))
+					nd = 0;
+			}
+		}
+		if (targ & DPX)
+		{
+			//both engines have these defs, but fte's version has extra args, or added non-void return types
+			//so to avoid compile errors/warnings, we omit our versions.
+			const char *buggydpbuiltins[] = {
+				"copyentity","callfunction","parseentitydata","findfloat","trailparticles",
+				"findchain","findchainflags","findchainfloat","log","whichpack","uri_get","te_gunshot","fopen","fputs","skel_create","skel_build","skel_set_bone",
+				"infoadd","strcmp","strncmp","strncasecmp","strcat"
+			};
+			for (j = 0; j < countof(buggydpbuiltins) && nd; j++)
+			{
+				if (!strcmp(buggydpbuiltins[j], BuiltinList[i].name))
+					nd = 0;
+			}
+		}
 		
 		if (!nd)	/*no idea what its for*/
 			continue;

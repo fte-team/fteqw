@@ -2258,6 +2258,8 @@ void CL_CheckServerInfo(void)
 		movevars.watersinkspeed = *s?Q_atof(s):60;
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_flyfriction");
 		movevars.flyfriction = *s?Q_atof(s):4;
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_edgefriction");
+		movevars.edgefriction = *s?Q_atof(s):2;
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize; 
 

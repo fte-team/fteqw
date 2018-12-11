@@ -2015,8 +2015,16 @@ static void SV_Status_f (void)
 
 	if (svs.gametype == GT_PROGS)
 	{
-		int count = 0;
-		Con_Printf("entities         : %i/%i (mem: %.1f%%)\n", sv.world.num_edicts, sv.world.max_edicts, 100*(float)(sv.world.progs->stringtablesize/(double)sv.world.progs->stringtablemaxsize));
+		int count = 0, i;
+		edict_t *e;
+		for (i = 0; i < sv.world.num_edicts; i++)
+		{
+			e = EDICT_NUM_PB(svprogfuncs, i);
+			if (e && e->ereftype == ER_FREE && sv.time - e->freetime > 0.5)
+				continue;	//free, and older than the zombie time
+			count++;
+		}
+		Con_Printf("entities         : %i/%i/%i (mem: %.1f%%)\n", count, sv.world.num_edicts, sv.world.max_edicts, 100*(float)(sv.world.progs->stringtablesize/(double)sv.world.progs->stringtablemaxsize));
 		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
 			if (!sv.strings.model_precache[count])
 				break;

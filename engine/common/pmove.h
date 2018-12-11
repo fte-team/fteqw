@@ -113,6 +113,7 @@ typedef struct {
 	float bunnyspeedcap;
 	float watersinkspeed;
 	float ktjump;
+	float edgefriction; //default 2
 	int	walljump;
 	qboolean slidefix;
 	qboolean airstep;

@@ -113,7 +113,7 @@ cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
 cvar_t snd_eax					= CVARAF(	"s_eax", "0",
 											"snd_eax", 0);
 cvar_t snd_speakers				= CVARAFD(	"s_numspeakers", "2",
-											"snd_numspeakers", CVAR_ARCHIVE, "Number of hardware audio channels to use. "DISTRIBUTION" supports up to 6.");
+											"snd_numspeakers", CVAR_ARCHIVE, "Number of hardware audio channels to use. "FULLENGINENAME" supports up to 6.");
 cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
 											"snd_buffersize", 0);
 cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",

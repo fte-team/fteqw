@@ -52,9 +52,6 @@ cvar_t in_xflip = {"in_xflip", "0"};
 
 cvar_t	prox_inmenu = CVAR("prox_inmenu", "0");
 
-static int preselectedweapons[MAX_SPLITS];
-static int preselectedweapon[MAX_SPLITS][32];
-
 usercmd_t cl_pendingcmd[MAX_SPLITS];
 
 /*kinda a hack...*/
@@ -270,6 +267,9 @@ static cvar_t	cl_weaponhide_preference = CVARAD("cl_weaponhide_preference", "2 1
 static cvar_t	cl_weaponpreselect = CVARD("cl_weaponpreselect", "0", "HACK: Controls the interaction between the ^aweapon^a and ^a+attack^a commands (does not affect ^aimpulse^a).\n0: weapon switch happens instantly\n1: weapon switch happens on next attack\n2: instant only when already firing, otherwise delayed\n3: delay until new attack only in deathmatch 1\n4: delay until any attack only in deathmatch 1");
 static cvar_t	cl_weaponforgetorder = CVARD("cl_weaponforgetorder", "0", "The 'weapon' command will lock in its weapon choice, instead of choosing a different weapon between select+fire.");
 cvar_t r_viewpreselgun = CVARD("r_viewpreselgun", "0", "HACK: Display the preselected weaponmodel, instead of the current weaponmodel.");
+static int preselectedweapons[MAX_SPLITS];
+static int preselectedweapon[MAX_SPLITS][32];
+
 //hacks, because we have to guess what the mod is doing. we'll probably get it wrong, which sucks.
 static qboolean IN_HaveWeapon(int pnum, int imp)
 {

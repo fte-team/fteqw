@@ -6785,7 +6785,7 @@ static struct {
 	{"getsurfacenumtriangles",	PF_getsurfacenumtriangles,628},
 	{"getsurfacetriangle",		PF_getsurfacetriangle,		629},
 
-//	{"setkeybind",				PF_Fixme,					630},
+	{"setkeybind",				PF_cl_setkeybind,			630},
 	{"getbindmaps",				PF_cl_GetBindMap,			631},
 	{"setbindmaps",				PF_cl_SetBindMap,			632},
 
@@ -7404,6 +7404,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.slidyslopes = false;//(pm_slidyslopes.value!=0);
 		movevars.watersinkspeed = 60;//*pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = 4;//*pm_flyfriction.string?pm_flyfriction.value:4;
+		movevars.edgefriction = 2;//*pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
 		movevars.coordsize = 4;
 	}

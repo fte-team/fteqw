@@ -5,7 +5,7 @@
 // Later code will disable any features if they're not supported on the current platform, so don't worry about win/lin/mac/android/web/etc here - any such issues should be fixed elsewhere.
 
 //general rebranding
-//#define DISTRIBUTION			"FTE"							//should be kept short. 3 or 4 letters is good, with no spaces.
+//#define DISTRIBUTION			"FTE"							//should be kept short. 8 or less letters is good, with no spaces.
 //#define DISTRIBUTIONLONG		"Forethought Entertainment"		//think of this as your company name. It isn't shown too often, so can be quite long.
 //#define FULLENGINENAME		"FTE Quake"						//nominally user-visible name.
 //#define ENGINEWEBSITE			"http://fte.triptohell.info"	//for shameless self-promotion purposes.

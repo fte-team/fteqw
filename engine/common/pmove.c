@@ -24,7 +24,6 @@ movevars_t		movevars;
 playermove_t	pmove;
 
 #define movevars_dpflags		MOVEFLAG_QWCOMPAT
-#define movevars_edgefriction	2
 #define movevars_maxairspeed	30
 #define movevars_jumpspeed		270
 
@@ -521,7 +520,7 @@ void PM_Friction (void)
 	else if (pmove.onground) {
 		// apply ground friction
 		friction = movevars.friction;
-		if (movevars_edgefriction != 1.0)
+		if (movevars.edgefriction != 1.0)
 		{
 			// if the leading edge is over a dropoff, increase friction
 			start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
@@ -544,7 +543,7 @@ void PM_Friction (void)
 				VectorCopy(max, pmove.player_maxs);
 			}
 			if (trace.fraction == 1 && !trace.startsolid)
-				friction *= movevars_edgefriction;
+				friction *= movevars.edgefriction;
 		}
 		control = speed < movevars.stopspeed ? movevars.stopspeed : speed;
 		drop = control*friction*frametime;

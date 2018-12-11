@@ -230,6 +230,7 @@ void Sys_Printf (char *fmt, ...)
 	}
 
 	ApplyColour(CON_WHITEMASK);
+	fflush(stdout);
 }
 #else
 void Sys_Printf (char *fmt, ...)

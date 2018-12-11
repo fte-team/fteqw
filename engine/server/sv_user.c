@@ -77,8 +77,6 @@ cvar_t cmd_gamecodelevel	= CVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "0", "sv_nomsec", 0, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
-cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
-								 "edgefriction", 0);
 
 #ifndef NOLEGACY
 cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
@@ -112,6 +110,7 @@ extern cvar_t	pm_stepdown;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
 extern cvar_t	pm_flyfriction;
+extern cvar_t	pm_edgefriction;
 cvar_t sv_pushplayers = CVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
@@ -6979,6 +6978,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
+		movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.coordsize = host_client->netchan.netprim.coordsize;
 
 		for (i=0 ; i<3 ; i++)
@@ -7216,6 +7216,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
+	movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
 	movevars.coordsize = host_client->netchan.netprim.coordsize;
 
 // should already be folded into host_client->maxspeed
@@ -8554,8 +8555,6 @@ void SV_UserInit (void)
 #ifndef NOLEGACY
 	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
 #endif
-
-	Cvar_Register (&sv_edgefriction, "netquake compatability");
 }
 
 
@@ -8655,7 +8654,7 @@ static void SV_UserFriction (void)
 	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)sv_player);
 
 	if (trace.fraction == 1.0)
-		friction = sv_friction.value*sv_edgefriction.value;
+		friction = sv_friction.value*pm_edgefriction.value;
 	else
 		friction = sv_friction.value;
 

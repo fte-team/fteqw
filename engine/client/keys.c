@@ -2263,7 +2263,7 @@ const char *Key_KeynumToString (int keynum, int modifier)
 Key_SetBinding
 ===================
 */
-void Key_SetBinding (int keynum, int modifier, char *binding, int level)
+void Key_SetBinding (int keynum, int modifier, const char *binding, int level)
 {
 	char	*newc;
 	int		l;

@@ -35,7 +35,7 @@ static vmcvar_t	irc_hostname = {"irc_hostname", "localhost", irccvars, 0};
 static vmcvar_t	irc_username = {"irc_username", "FTE", irccvars, 0};
 static vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
 static vmcvar_t	irc_quitmessage = {"irc_quitmessage", "", irccvars, 0};
-vmcvar_t	irc_config = {"irc_config", "1", irccvars, 0};
+static vmcvar_t	irc_config = {"irc_config", "1", irccvars, 0};
 #undef irccvars
 
 static vmcvar_t	*cvarlist[] ={

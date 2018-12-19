@@ -1043,7 +1043,7 @@ static void Mods_InitModList (void)
 {
 	extern qboolean com_homepathenabled;
 
-	FS_EnumerateKnownGames(Mods_AddManifest, NULL);
+	//FS_EnumerateKnownGames(Mods_AddManifest, NULL);
 
 	if (com_homepathenabled)
 		Sys_EnumerateFiles(com_homepath, "*", Mods_AddGamedir, com_homepath, NULL);
@@ -1069,6 +1069,7 @@ void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s 
 		case 1:	//description (contents of modinfo.txt)
 			if (modlist[diridx].description)
 				RETURN_TSTRING(modlist[diridx].description);
+			break;
 			//fallthrough
 		case 0:	//name
 			RETURN_TSTRING(modlist[diridx].gamedir);

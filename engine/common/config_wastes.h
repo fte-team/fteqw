@@ -1,30 +1,32 @@
-// The Wastes' config.h
-// We support both GL and Vulkan.
-// I want to get this mostly running on all systems post 2000.
+/***
+*
+*   Copyright (c) 2000-2019, Vera Visions. All rights reserved.
+*
+****/
 
-//general rebranding
+/* Branding Defaults */
 #define DISTRIBUTION "VTW"
 #define DISTRIBUTIONLONG "Vera Visions"
 #define FULLENGINENAME "The Wastes"
 #define ENGINEWEBSITE "https://www.vera-visions.com/"
 #define BRANDING_ICON "wastes.ico"
 
-//filesystem rebranding
-#define GAME_SHORTNAME		"wastes"	//short alphanumeric description
-#define GAME_FULLNAME		FULLENGINENAME 	//full name of the game we're playing
-#define GAME_BASEGAMES		GAME_SHORTNAME	//comma-separate list of basegame strings to use
-#define GAME_PROTOCOL		"FTE-TW"	//so other games won't show up in the server browser
-#define GAME_DEFAULTPORT	23000	// This is our port. Don't mess with it or use it for any custom games
+/* FS rebranding */
+#define GAME_SHORTNAME		"wastes"
+#define GAME_FULLNAME		FULLENGINENAME
+#define GAME_BASEGAMES		GAME_SHORTNAME
+#define GAME_PROTOCOL		"FTE-TW"
+#define GAME_DEFAULTPORT	23000
 //#define GAME_IDENTIFYINGFILES	NULL	//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL	NULL	//url for the package manger to update from
 //#define GAME_DEFAULTCMDS	NULL	//a string containing the things you want to 
 
-// All my fault -eukara
+/* Engine-side, fast routing */
 #define ENGINE_ROUTING
-#undef USE_INTERNAL_BULLET
-#define MENU_NATIVECODE // Will make a debut eventually, hopefully
 
-// What do we use
+/* Native menu replacing menuQC, will debut eventually */
+#undef MENU_NATIVECODE
+
 #ifndef GLQUAKE
 #define GLQUAKE
 #endif
@@ -33,8 +35,7 @@
 #define VKQUAKE
 #endif
 
-#define PLUGINS		//support for external plugins (like huds or fancy menus or whatever)
-#define HAVE_PACKET
+#define PLUGINS
 #define QUAKETC
 #define AVAIL_OPENAL
 #define AVAIL_ZLIB
@@ -47,20 +48,25 @@
 #define PSET_SCRIPT
 #define VOICECHAT
 #define RTLIGHTS
-#ifndef MULTITHREAD
-#define MULTITHREAD	//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
-#endif
-#define LOADERTHREAD	// worker threads for loading misc stuff. falls back on main thread if not supported.
-#define USEAREAGRID		// world collision optimisation
+#define LOADERTHREAD
+#define USEAREAGRID
 #define USERBE
-#define IMAGEFMT_DDS	// .dds files embed mipmaps and texture compression. faster to load.
+#define IMAGEFMT_DDS
 #define DECOMPRESS_ETC2
 #define DECOMPRESS_RGTC
 #define DECOMPRESS_S3TC
 #define USE_VORBISFILE
 #define NOBUILTINMENUS
-#define NOLEGACY //just spike trying to kill off crappy crap...
+#define NOLEGACY
 #define AVAIL_DINPUT
+#define IMAGEFMT_BMP
+#define HAVE_TCP
+#define HAVE_PACKET
+#define SUPPORT_ICE
+
+#ifndef MULTITHREAD
+#define MULTITHREAD
+#endif
 
 #ifndef DEBUG
 #define NOQCDESCRIPTIONS 2 //if 2, disables writing fteextensions.qc completely.
@@ -68,23 +74,26 @@
 
 // Various package formats
 #define PACKAGE_PK3
-#define PACKAGE_TEXWAD // HL content support, WAD3
-#define PACKAGE_Q1PAK // HL content support, PAK
-#undef PACKAGE_DOOMWAD
-#undef PACKAGE_VPK	//legacy crap
+#define PACKAGE_TEXWAD
+#define PACKAGE_Q1PAK
 
 // Map formats
-#define Q3BSPS // What we use exclusively
-#define Q1BSPS // HL content support
-#undef Q2BSPS
-#undef RFBSPS
+#define Q3BSPS
+#define Q1BSPS
 #define TERRAIN
+
+// Model formats, IQM/VVM and HLMDL for legacy maps
+#define INTERQUAKEMODELS
+#define HALFLIFEMODELS
+
+// What do we NOT want to use
+#undef USE_INTERNAL_BULLET
+#undef PACKAGE_DOOMWAD
+#undef PACKAGE_VPK
 #undef DOOMWADS
 #undef MAP_PROC
-
-// Model formats
-#define INTERQUAKEMODELS
-#define HALFLIFEMODELS // HL content support
+#undef Q2BSPS
+#undef RFBSPS
 #undef SPRMODELS
 #undef SP2MODELS
 #undef DSPMODELS
@@ -96,7 +105,6 @@
 #undef DPMMODELS
 #undef PSKMODELS
 
-// What do we NOT want to use
 #undef MVD_RECORDING //server can record MVDs.
 #undef D3D9QUAKE
 #undef D3D11QUAKE
@@ -115,7 +123,6 @@
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_BLP	//legacy crap
 #undef IMAGEFMT_VTF	//legacy crap
-#define IMAGEFMT_BMP	//legacy crap
 //#undef IMAGEFMT_PCX	//legacy crap
 #undef NETPREPARSE	//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
 #undef USE_SQLITE	//sql-database-as-file support
@@ -140,7 +147,6 @@
 #undef TEXTEDITOR	//my funky text editor! its awesome!
 #undef TCPCONNECT	//support for playing over tcp sockets, instead of just udp. compatible with qizmo.
 #undef IRCCONNECT	//lame support for routing game packets via irc server. not a good idea.
-#undef SUPPORT_ICE	//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #undef PSET_CLASSIC	//support the 'classic' particle system, for that classic quake feel.
 #undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
 #undef QTERM
@@ -154,7 +160,6 @@
 #undef HLSERVER
 #undef FTPSERVER
 //undef CLIENTONLY	//leave this up to the makefiles.
-#define HAVE_TCP
 #undef HAVE_GNUTLS	//linux tls/dtls support
 #undef HAVE_WINSSPI	//windows tls/dtls support
 #undef HAVE_JUKEBOX	//includes built-in jukebox crap

@@ -414,8 +414,15 @@ void IN_Commands(void)
 
 		switch(ev->type)
 		{
-		case IEV_KEYDOWN:
 		case IEV_KEYRELEASE:
+			if (ev->keyboard.scancode == -1)
+			{
+				int i;
+				for (i = 0; i < K_MAX; i++)
+					Key_Event(ev->devid, i, 0, false);
+				break;
+			}
+		case IEV_KEYDOWN:
 //Con_Printf("IEV_KEY%s %i: %i '%c'\n", (ev->type==IEV_KEYDOWN)?"DOWN":"RELEASE", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
 			//on touchscreens, mouse1 is used as up/down state. we have to emulate actual mouse clicks based upon distance moved, so we can get movement events.
 			if (ev->keyboard.scancode == K_MOUSE1 && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
@@ -1059,7 +1066,7 @@ void IN_JoystickAxisEvent(unsigned int devid, int axis, float value)
 void IN_KeyEvent(unsigned int devid, int down, int keycode, int unicode)
 {
 	struct eventlist_s *ev = in_newevent();
-	if (!ev)	
+	if (!ev)
 		return;
 	ev->type = down?IEV_KEYDOWN:IEV_KEYRELEASE;
 	ev->devid = devid;

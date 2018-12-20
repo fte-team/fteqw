@@ -2652,14 +2652,7 @@ ClearAllStates
 */
 static void ClearAllStates (void)
 {
-	int		i;
-
-// send an up event for each key, to make sure the server clears them all
-	for (i=0 ; i<256 ; i++)
-	{
-		Key_Event (0, i, 0, false);
-	}
-
+	IN_KeyEvent(0, false, -1, 0);	//-1 means to clear all keys.
 	Key_ClearStates ();
 	INS_ClearStates ();
 }

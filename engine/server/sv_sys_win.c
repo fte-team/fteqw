@@ -145,8 +145,9 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 
 	if (pIsDebuggerPresent && pIsDebuggerPresent())
 		return EXCEPTION_CONTINUE_SEARCH;
-#ifdef GLQUAKE
-	GLVID_Crashed();
+#if defined(HAVE_CLIENT) && defined(GLQUAKE)
+	if (qrenderer == QR_OPENGL)
+		GLVID_Crashed();
 #endif
 
 #if 1//ndef _MSC_VER
@@ -806,7 +807,9 @@ void Sys_Error (const char *error, ...)
 
 	Sys_Printf("\nLoading new instance of FTE...\n\n\n");
 	PR_Deinit();	//this takes a bit more mem
+#ifdef SVRANKING
 	Rank_Flush();
+#endif
 #ifndef MINGW
 	fcloseall();	//make sure all files are written.
 #endif

@@ -2946,20 +2946,10 @@ qboolean PM_CanInstall(const char *packagename)
 {
 	return false;
 }
-void PM_Command_f (void)
-{
-	Con_Printf("Package Manager is not implemented in this build\n");
-}
-void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
-{
-}
 void PM_EnumeratePlugins(void (*callback)(const char *name))
 {
 }
 void PM_ManifestPackage(const char *metaname, int security)
-{
-}
-void PM_Shutdown(void)
 {
 }
 int PM_IsApplying(qboolean listsonly)

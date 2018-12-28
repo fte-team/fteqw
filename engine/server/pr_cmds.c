@@ -10116,7 +10116,7 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 		char *send = Z_Malloc(4+strlen(contents));
 		send[0] = send[1] = send[2] = send[3] = 0xff;
 		memcpy(send+4, contents, strlen(contents));
-		G_FLOAT(OFS_RETURN) = NET_SendPacket(NS_SERVER, 4+strlen(contents), send, &to);
+		G_FLOAT(OFS_RETURN) = NET_SendPacket(svs.sockets, 4+strlen(contents), send, &to);
 		Z_Free(send);
 	}
 }

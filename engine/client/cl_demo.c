@@ -990,7 +990,7 @@ qboolean CL_GetMessage (void)
 	if	(cls.demoplayback != DPB_NONE)
 		return CL_GetDemoMessage ();
 
-	if (NET_GetPacket (NS_CLIENT, 0) < 0)
+	if (NET_GetPacket (cls.sockets, 0) < 0)
 		return false;
 
 	return true;

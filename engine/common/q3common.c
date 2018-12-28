@@ -4,6 +4,14 @@
 //field info, netchan, and the WriteBits stuff (which should probably be moved to common.c with the others) 
 //also contains vm filesystem
 
+#if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
+#define NET_SendPacket(c,s,d,t) NET_SendPacket(((c)!=NS_CLIENT)?svs.sockets:cls.sockets,s,d,t)
+#elif defined(HAVE_SERVER)
+#define NET_SendPacket(c,s,d,t) NET_SendPacket(svs.sockets,s,d,t)
+#else
+#define NET_SendPacket(c,s,d,t) NET_SendPacket(cls.sockets,s,d,t)
+#endif
+
 #define MAX_VM_FILES 8
 
 typedef struct {

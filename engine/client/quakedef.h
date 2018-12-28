@@ -99,13 +99,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define QUAKEDEF_H__
 
-#ifdef SERVERONLY
-#define isDedicated true
-#endif
-#ifdef CLIENTONLY
-#define isDedicated false
-#endif
-
 #ifdef __linux__
 #define PNG_SUCKS_WITH_SETJMP	//cos it does.
 #endif
@@ -154,8 +147,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern "C" {
 #endif
 
-#include "translate.h"
-
 #include "common.h"
 #include "bspfile.h"
 #include "vid.h"
@@ -163,6 +154,7 @@ extern "C" {
 #include "zone.h"
 #include "mathlib.h"
 #include "cvar.h"
+#include "translate.h"
 #include "net.h"
 #ifndef WEBSVONLY
 #include "protocol.h"
@@ -375,8 +367,11 @@ void COM_AssertMainThread(const char *msg);
 extern qboolean		msg_suppress_1;		// suppresses resolution and cache size console output
 										//  an fullscreen DIB focus gain/loss
 
-
-#if !defined(SERVERONLY) && !defined(CLIENTONLY)
+#ifndef HAVE_CLIENT
+#define isDedicated true
+#elif !defined(HAVE_SERVER)
+#define isDedicated false
+#else
 extern qboolean isDedicated;
 #endif
 extern qboolean wantquit;	//flagged if we want to force a quit, safely breaking out of any modal stuff

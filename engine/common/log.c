@@ -520,7 +520,7 @@ static void IPLog_Identify_f(void)
 		//treading carefully here, to avoid dns name lookups weirding everything out.
 		IPLog_Identify(&adr, &mask, "Identity of %s", NET_AdrToStringMasked(clean, sizeof(clean), &adr, &mask));
 	}
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	else if (sv.active)
 	{	//if server is active, walk players to see if there's a name match to get their address and guess an address mask
 		client_t *cl;
@@ -537,7 +537,7 @@ static void IPLog_Identify_f(void)
 		}
 	}
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	else if (cls.state >= ca_connected)
 	{	//else if client is active, walk players to see if there's a name match, to get their address+mask if known via nq hacks
 		int slot;
@@ -630,7 +630,7 @@ static void IPLog_Merge_f(void)
 }
 #endif
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT	//requires UI prompts
 struct certlog_s
 {
 	link_t l;
@@ -849,7 +849,7 @@ void Log_Init(void)
 	if (COM_CheckParm("-condebug"))
 		Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	ClearLink(&certlog);
 	Cmd_AddCommand("dtls_untrustall", CertLog_UntrustAll_f);
 	Cmd_AddCommand("dtls_importtrust", CertLog_Import_f);

@@ -129,16 +129,16 @@ typedef enum {false, true}	qboolean;
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
-#ifdef SERVERONLY
-#define cls_state 0
-#else
+#ifdef HAVE_CLIENT
 #define cls_state cls.state
+#else
+#define cls_state 0
 #endif
 
-#ifdef CLIENTONLY
-#define sv_state 0
-#else
+#ifdef HAVE_SERVER
 #define sv_state sv.state
+#else
+#define sv_state 0
 #endif
 
 struct netprim_s

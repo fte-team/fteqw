@@ -541,7 +541,6 @@ typedef struct
 #ifdef NQPROT
 	int signon;
 #endif
-	int language;
 
 	colourised_t *colourised;
 	qboolean	nqexpectingstatusresponse;

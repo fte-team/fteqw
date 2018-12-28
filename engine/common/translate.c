@@ -8,26 +8,21 @@
 //untranslate is lang->english for console commands.
 
 
-
+int com_language;
 char sys_language[64] = "";
 static char langpath[MAX_OSPATH] = "";
 struct language_s languages[MAX_LANGUAGES];
 
 static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 {
-#ifndef CLIENTONLY
-	svs.language = TL_FindLanguage(var->string);
-#endif
-#ifndef SERVERONLY
-	cls.language = TL_FindLanguage(var->string);
-#endif
+	com_language = TL_FindLanguage(var->string);
 }
 
 cvar_t language = CVARAFC("lang", sys_language, "prvm_language", CVAR_USERINFO, TL_LanguageChanged);
 
 void TranslateInit(void)
 {
-	Cvar_Register(&language, "International variables");
+	Cvar_Register(&language, "Internationalisation");
 }
 
 void TL_Shutdown(void)
@@ -145,12 +140,7 @@ void TL_InitLanguages(const char *newlangpath)
 		*lang = 0;
 	//but we do support territories.
 	
-#ifndef CLIENTONLY
-	svs.language = TL_FindLanguage(sys_language);
-#endif
-#ifndef SERVERONLY
-	cls.language = TL_FindLanguage(sys_language);
-#endif
+	com_language = TL_FindLanguage(sys_language);
 
 	//make sure a fallback exists, but not as language 0
 	TL_FindLanguage("");
@@ -226,7 +216,7 @@ char *T_GetString(int num)
 	return strings_table[num];
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 //for hexen2's objectives and stuff.
 static char *info_strings_list;
 static char **info_strings_table;

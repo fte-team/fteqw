@@ -63,7 +63,7 @@ crosses a waterline.
 =============================================================================
 */
 
-int needcleanup;
+static int needcleanup;
 
 //int		fatbytes;
 
@@ -106,9 +106,9 @@ void SV_ExpandNackFrames(client_t *client, int require)
 // because there can be a lot of nails, there is a special
 // network protocol for them
 #define	MAX_NAILS	32
-edict_t	*nails[MAX_NAILS];
-int		numnails;
-int		nailcount = 0;
+static edict_t	*nails[MAX_NAILS];
+static int		numnails;
+static int		nailcount = 0;
 extern	int	sv_nailmodel, sv_supernailmodel, sv_playermodel;
 
 #ifdef SERVER_DEMO_PLAYBACK
@@ -1564,6 +1564,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	frame->numresend = outno;
 	frame->sequence = sequence;
 
+	frame->laggedtime = sv.time;
 	for (i = 0; i < to->num_entities; i++)
 	{
 		n = &to->entities[i];
@@ -1582,9 +1583,10 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			age = sv.time - sv.world.physicstime;
 		age = bound(0, age, 0.1);
 
-		VectorMA(n->origin, (sv.time - cl->localtime)/8.0, n->u.q1.velocity, frame->playerpositions[j]);
+		VectorMA(n->origin, (sv.time - cl->localtime)/8.0, n->u.q1.velocity, frame->laggedplayer[j].origin);
+		VectorCopy(n->angles, frame->laggedplayer[j].angles);
 		//FIXME: add framestate_t info.
-		frame->playerpresent[j] = true;
+		frame->laggedplayer[j].present = true;
 	}
 
 	return overflow;
@@ -2762,13 +2764,14 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				clst.lastcmd = NULL;
 				clst.velocity = NULL;
 				clst.localtime = sv.time;
-				VectorCopy(clst.origin, frame->playerpositions[j]);
+				VectorCopy(clst.origin, frame->laggedplayer[j].origin);
 			}
 			else
 			{
-				VectorMA(clst.origin, (sv.time - clst.localtime), clst.velocity, frame->playerpositions[j]);
+				VectorMA(clst.origin, (sv.time - clst.localtime), clst.velocity, frame->laggedplayer[j].origin);
 			}
-			frame->playerpresent[j] = true;
+			VectorCopy(clst.angles, frame->laggedplayer[j].angles);
+			frame->laggedplayer[j].present = true;
 			SV_WritePlayerToClient(msg, &clst);
 		}
 
@@ -2983,7 +2986,7 @@ typedef struct gibfilter_s {
 	int minframe;
 	int maxframe;
 } gibfilter_t;
-gibfilter_t *gibfilter;
+static gibfilter_t *gibfilter;
 void SV_GibFilterPurge(void)
 {
 	gibfilter_t *gf;
@@ -3881,9 +3884,7 @@ svc_playerinfo messages
 */
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs)
 {
-#ifdef NQPROT
-	int		e;
-#endif
+	int i;
 	packet_entities_t	*pack;
 	edict_t	*clent;
 	client_frame_t	*frame;
@@ -3893,7 +3894,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	// this is the frame we are creating
 	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
-	memset(frame->playerpresent, 0, sizeof(frame->playerpresent));
+	for (i = 0; i < sv.allocated_client_slots; i++)
+		frame->laggedplayer[i].present = 0;
 
 	// find the client's PVS
 	if (ignorepvs)
@@ -3977,6 +3979,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			SVDP_EmitEntitiesUpdate(client, frame, pack, msg);
 		else
 		{
+			int e;
 			for (e = 0; e < pack->num_entities; e++)
 			{
 				if (pack->entities[e].number > sv.allocated_client_slots)

@@ -365,7 +365,7 @@ typedef struct ftenet_connections_s
 } ftenet_connections_t;
 
 void ICE_Tick(void);
-qboolean ICE_WasStun(netsrc_t netsrc);
+qboolean ICE_WasStun(ftenet_connections_t *col);
 void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int type);
 void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrno, int type);
 

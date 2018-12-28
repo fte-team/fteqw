@@ -641,14 +641,16 @@ CACHE MEMORY
 void Cache_Flush(void)
 {
 	//this generically named function is hyjacked to flush models and sounds, as well as ragdolls etc
+#ifdef HAVE_CLIENT
+	S_Purge(false);
+#endif
+#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
 #ifdef RAGDOLL
 	rag_flushdolls(true);
 #endif
-#ifndef SERVERONLY
-	S_Purge(false);
-#endif
 	Mod_Purge(MP_FLUSH);
-#ifndef SERVERONLY
+#endif
+#ifdef HAVE_CLIENT
 	Image_Purge();
 #endif
 }

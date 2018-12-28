@@ -209,7 +209,7 @@ qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const c
 						if (buf.overflowed)
 							return built;
 					}
-					NET_SendPacket(NS_CLIENT, buf.cursize, buf.data, &con->chosenpeer);
+					NET_SendPacket(cls.sockets, buf.cursize, buf.data, &con->chosenpeer);
 					break;
 				}
 			}
@@ -525,7 +525,7 @@ void ICE_ToStunServer(struct icestate_s *con)
 	data[2] = ((buf.cursize-20)>>8)&0xff;
 	data[3] = ((buf.cursize-20)>>0)&0xff;
 
-	NET_SendPacket((con->proto==ICEP_QWSERVER)?NS_SERVER:NS_CLIENT, buf.cursize, data, &con->pubstunserver);
+	NET_SendPacket(collection, buf.cursize, data, &con->pubstunserver);
 }
 
 void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n)
@@ -1129,10 +1129,10 @@ icefuncs_t iceapi =
 	ICE_GetLCandidateSDP
 };
 
-qboolean ICE_WasStun(netsrc_t netsrc)
+qboolean ICE_WasStun(ftenet_connections_t *col)
 {
-#if !defined(SERVERONLY) && defined(VOICECHAT)
-	if (netsrc == NS_CLIENT)
+#if defined(HAVE_CLIENT) && defined(VOICECHAT)
+	if (col == cls.sockets)
 	{
 		if (NET_RTP_Parse())
 			return true;		
@@ -1528,7 +1528,7 @@ qboolean ICE_WasStun(netsrc_t netsrc)
 
 					data[2] = ((buf.cursize-20)>>8)&0xff;
 					data[3] = ((buf.cursize-20)>>0)&0xff;
-					NET_SendPacket(netsrc, buf.cursize, data, &net_from);
+					NET_SendPacket(col, buf.cursize, data, &net_from);
 				}
 			}
 

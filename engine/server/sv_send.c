@@ -41,7 +41,7 @@ Con_Printf redirection
 =============================================================================
 */
 
-char	sv_redirected_buf[8000];
+char	sv_redirected_buf[countof(sv_redirected_buf)];
 
 redirect_t	sv_redirected;
 int sv_redirectedlang;
@@ -74,7 +74,7 @@ void SV_FlushRedirect (void)
 		send[4] = A2C_PRINT;
 		memcpy (send+5, sv_redirected_buf, strlen(sv_redirected_buf)+1);
 
-		NET_SendPacket (NS_SERVER, strlen(send)+1, send, &net_from);
+		NET_SendPacket (svs.sockets, strlen(send)+1, send, &net_from);
 	}
 #ifdef SUBSERVERS
 	else if (sv_redirected == RD_MASTER)
@@ -144,208 +144,6 @@ void SV_EndRedirect (void)
 	sv_redirectedlang = 0;	//clenliness rather than functionality. Shouldn't be needed.
 	sv_redirected = RD_NONE;
 }
-
-
-/*
-================
-Con_Printf
-
-Handles cursor positioning, line wrapping, etc
-================
-*/
-#define	MAXPRINTMSG	4096
-// FIXME: make a buffer size safe vsprintf?
-#ifdef SERVERONLY
-vfsfile_t *con_pipe;
-vfsfile_t *Con_POpen(char *conname)
-{
-	if (!conname || !*conname)
-	{
-		if (con_pipe)
-			VFS_CLOSE(con_pipe);
-		con_pipe = VFSPIPE_Open(2, false);
-		return con_pipe;
-	}
-	return NULL;
-}
-
-static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
-{
-	Con_Printf("%s", (char*)data);
-	BZ_Free(data);
-}
-void VARGS Con_Printf (const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (!Sys_IsMainThread())
-	{
-		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		if (sv_redirected != -1)
-			return;
-	}
-
-	Sys_Printf ("%s", msg);	// also echo to debugging console
-	Con_Log(msg); // log to console
-
-	if (con_pipe)
-		VFS_PUTS(con_pipe, msg);
-}
-void Con_TPrintf (translation_t stringnum, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-	const char *fmt;
- 
-	if (!Sys_IsMainThread())
-	{	//shouldn't be redirected anyway...
-		fmt = langtext(stringnum,svs.language);
-		va_start (argptr,stringnum);
-		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-		va_end (argptr);
-		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		fmt = langtext(stringnum,sv_redirectedlang);
-		va_start (argptr,stringnum);
-		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-		va_end (argptr);
-
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		return;
-	}
-
-	fmt = langtext(stringnum,svs.language);
-
-	va_start (argptr,stringnum);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	Sys_Printf ("%s", msg);	// also echo to debugging console
-	Con_Log(msg); // log to console
-
-	if (con_pipe)
-		VFS_PUTS(con_pipe, msg);
-}
-/*
-================
-Con_DPrintf
-
-A Con_Printf that only shows up if the "developer" cvar is set
-================
-*/
-static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
-{
-	Con_DLPrintf(a, "%s", (char*)data);
-	BZ_Free(data);
-}
-void Con_DPrintf (const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-	extern cvar_t log_developer;
-
-	if (!developer.value && !log_developer.value)
-		return;
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (!Sys_IsMainThread())
-	{
-		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		if (sv_redirected != -1)
-			return;
-	}
-
-	if (developer.value)
-		Sys_Printf ("%s", msg);	// also echo to debugging console
-
-	if (log_developer.value)
-		Con_Log(msg); // log to console
-}
-void Con_DLPrintf (int level, const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-	extern cvar_t log_developer;
-
-	if (developer.ival < level && !log_developer.value)
-		return;
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (!Sys_IsMainThread())
-	{
-		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), level, 0);
-		return;
-	}
-
-	// add to redirected message
-	if (sv_redirected)
-	{
-		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
-			SV_FlushRedirect ();
-		strcat (sv_redirected_buf, msg);
-		if (sv_redirected != -1)
-			return;
-	}
-
-	if (developer.ival >= level)
-		Sys_Printf ("%s", msg);	// also echo to debugging console
-
-	if (log_developer.value)
-		Con_Log(msg); // log to console
-}
-
-//for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
-void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[MAXPRINTMSG];
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
-	va_end (argptr);
-
-	if (developerlevel)
-		Con_DLPrintf (developerlevel, "%s", msg);
-	else
-		Con_Printf("%s", msg);
-}
-#endif
 
 /*
 =============================================================================
@@ -624,7 +422,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t stringnum, ...)
 	client_t	*cl;
 	int			i;
 	int oldlang=-1;
-	const char *fmt = langtext(stringnum, oldlang=svs.language);
+	const char *fmt = langtext(stringnum, oldlang=com_language);
 
 	va_start (argptr,stringnum);
 	vsnprintf (string,sizeof(string)-1, fmt,argptr);

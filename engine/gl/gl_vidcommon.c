@@ -1133,6 +1133,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		gl_config.arb_depth_texture = GL_CheckExtension("GL_ARB_depth_texture");
 	}
 	gl_config.arb_shadow = GL_CheckExtension("GL_ARB_shadow");
+	gl_config.arb_shadow |= gl_config.glversion >= 3.0;	//seems about right, for both gles and desktop...
 	//gl_config.arb_shadow |= GL_CheckExtension("GL_EXT_shadow_samplers");	//gles2. nvidia fucks up. depend on brute-force. :s
 
 	if (GL_CheckExtension("GL_ARB_seamless_cube_map"))
@@ -1325,13 +1326,7 @@ static const char *glsl_hdrs[] =
 				"attribute vec4 v_colour4;"
 #endif
 			"\n#endif\n"
-#ifdef SHADOWDBG_COLOURNOTDEPTH
-			"#define sampler2DShadow sampler2D\n"
-#else
-			"#ifndef USE_ARB_SHADOW\n"	//fall back on regular samplers if we must
-				"#define sampler2DShadow sampler2D\n"
-			"#endif\n"
-#endif
+
 			"#ifndef SPECEXP\n"
 				"#define SPECEXP 1.0\n"
 			"#endif\n"
@@ -1420,9 +1415,9 @@ static const char *glsl_hdrs[] =
 					"layout(std140) unform u_bones\n"
 					"{\n"
 						"#ifdef PACKEDBONES\n"
-							"vec4 m_bones[3*MAX_GPU_BONES];\n"
+							"vec4 m_bones_packed[3*MAX_GPU_BONES];\n"
 						"#else\n"
-							"mat3x4 m_bones[MAX_GPU_BONES]\n"
+							"mat3x4 m_bones_mat3x4[MAX_GPU_BONES]\n"
 						"#endif\n"
 					"};\n"
 				"#endif\n"
@@ -1436,9 +1431,9 @@ static const char *glsl_hdrs[] =
 				"#endif\n"
 				"#ifdef SKELETAL\n"	//skeletal permutation tends to require glsl 120
 					"#ifdef PACKEDBONES\n"
-						"uniform vec4 m_bones[3*MAX_GPU_BONES];\n"
+						"uniform vec4 m_bones_packed[3*MAX_GPU_BONES];\n"
 					"#else\n"
-						"uniform mat3x4 m_bones[MAX_GPU_BONES];\n"
+						"uniform mat3x4 m_bones_mat3x4[MAX_GPU_BONES];\n"
 					"#endif\n"
 				"#endif\n"
 				"uniform mat4 m_invviewprojection;"
@@ -1497,9 +1492,9 @@ static const char *glsl_hdrs[] =
 					"attribute vec4 v_bone;"
 					"attribute vec4 v_weight;\n"
 					"#ifdef PACKEDBONES\n"
-						"uniform vec4 m_bones[3*MAX_GPU_BONES];\n"
+						"uniform vec4 m_bones_packed[3*MAX_GPU_BONES];\n"
 					"#else\n"
-						"uniform mat3x4 m_bones[MAX_GPU_BONES];\n"
+						"uniform mat3x4 m_bones_mat3x4[MAX_GPU_BONES];\n"
 					"#endif\n"
 				"#endif\n"
 				
@@ -1507,36 +1502,36 @@ static const char *glsl_hdrs[] =
 					"vec4 skeletaltransform()"
 					"{"
 						"mat4 wmat;"
-						"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[0]  = m_bones_packed[0+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[1]  = m_bones_packed[1+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[2]  = m_bones_packed[2+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.w)] * v_weight.w;"
 						"wmat[3] = vec4(0.0,0.0,0.0,1.0);\n"
 						"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
 					"}\n"
 					"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
 					"{"
 						"mat4 wmat;"
-						"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[0]  = m_bones_packed[0+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[1]  = m_bones_packed[1+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[2]  = m_bones_packed[2+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.w)] * v_weight.w;"
 						"wmat[3] = vec4(0.0,0.0,0.0,1.0);"
 						"n = (vec4(v_normal.xyz, 0.0) * wmat).xyz;"
 						"t = (vec4(v_svector.xyz, 0.0) * wmat).xyz;"
@@ -1546,18 +1541,18 @@ static const char *glsl_hdrs[] =
 					"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
 					"{"
 						"mat4 wmat;"
-						"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[0]  = m_bones_packed[0+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[1]  = m_bones_packed[1+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[2]  = m_bones_packed[2+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.w)] * v_weight.w;"
 						"wmat[3] = vec4(0.0,0.0,0.0,1.0);"
 						"n = (vec4(v_normal.xyz, 0.0) * wmat).xyz;"
 						"t = (vec4(v_svector.xyz, 0.0) * wmat).xyz;"
@@ -1568,18 +1563,18 @@ static const char *glsl_hdrs[] =
 					"vec4 skeletaltransform_n(out vec3 n)"
 					"{"
 						"mat4 wmat;"
-						"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;"
-						"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;"
-						"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;"
-						"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[0]  = m_bones_packed[0+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[1]  = m_bones_packed[1+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[2]  = m_bones_packed[2+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.w)] * v_weight.w;"
 						"wmat[3] = vec4(0.0,0.0,0.0,1.0);"
 						"n = (vec4(v_normal.xyz, 0.0) * wmat).xyz;"
 						"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
@@ -1588,19 +1583,19 @@ static const char *glsl_hdrs[] =
 					"vec4 skeletaltransform()"
 					"{"
 						"mat3x4 wmat;"
-						"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
-						"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
-						"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
-						"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+						"wmat = m_bones_mat3x4[int(v_bone.x)] * v_weight.x;"
+						"wmat += m_bones_mat3x4[int(v_bone.y)] * v_weight.y;"
+						"wmat += m_bones_mat3x4[int(v_bone.z)] * v_weight.z;"
+						"wmat += m_bones_mat3x4[int(v_bone.w)] * v_weight.w;"
 						"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
 					"}\n"
 					"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
 					"{"
 						"mat3x4 wmat;"
-						"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
-						"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
-						"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
-						"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+						"wmat = m_bones_mat3x4[int(v_bone.x)] * v_weight.x;"
+						"wmat += m_bones_mat3x4[int(v_bone.y)] * v_weight.y;"
+						"wmat += m_bones_mat3x4[int(v_bone.z)] * v_weight.z;"
+						"wmat += m_bones_mat3x4[int(v_bone.w)] * v_weight.w;"
 						"n = vec4(v_normal.xyz, 0.0) * wmat;"
 						"t = vec4(v_svector.xyz, 0.0) * wmat;"
 						"b = vec4(v_tvector.xyz, 0.0) * wmat;"
@@ -1609,10 +1604,10 @@ static const char *glsl_hdrs[] =
 					"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
 					"{"
 						"mat3x4 wmat;"
-						"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
-						"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
-						"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
-						"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+						"wmat = m_bones_mat3x4[int(v_bone.x)] * v_weight.x;"
+						"wmat += m_bones_mat3x4[int(v_bone.y)] * v_weight.y;"
+						"wmat += m_bones_mat3x4[int(v_bone.z)] * v_weight.z;"
+						"wmat += m_bones_mat3x4[int(v_bone.w)] * v_weight.w;"
 						"n = vec4(v_normal.xyz, 0.0) * wmat;"
 						"t = vec4(v_svector.xyz, 0.0) * wmat;"
 						"b = vec4(v_tvector.xyz, 0.0) * wmat;"
@@ -1622,10 +1617,10 @@ static const char *glsl_hdrs[] =
 					"vec4 skeletaltransform_n(out vec3 n)"
 					"{"
 						"mat3x4 wmat;"
-						"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
-						"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
-						"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
-						"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+						"wmat = m_bones_mat3x4[int(v_bone.x)] * v_weight.x;"
+						"wmat += m_bones_mat3x4[int(v_bone.y)] * v_weight.y;"
+						"wmat += m_bones_mat3x4[int(v_bone.z)] * v_weight.z;"
+						"wmat += m_bones_mat3x4[int(v_bone.w)] * v_weight.w;"
 						"n = vec4(v_normal.xyz, 0.0) * wmat;"
 						"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
 					"}\n"
@@ -1748,9 +1743,9 @@ static const char *glsl_hdrs[] =
 				"vec2 tc = base;\n"
 				"tc += OffsetVector;\n"
 				"OffsetVector *= 0.333;\n"
-				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
-				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
-				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).a;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).a;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).a;\n"
 				"return tc;\n"
 			"#else\n"
 				"return base;\n"
@@ -2071,6 +2066,8 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		GLSlang_GenerateInternal(&glsl, *precompilerconstants++);
 
 	GLSlang_GenerateInternal(&glsl, "#define ENGINE_"DISTRIBUTION"\n");
+	if (ver < 120)
+		GLSlang_GenerateInternal(&glsl, "#define PACKEDBONES\n");
 
 	switch (shadertype)
 	{
@@ -2126,7 +2123,15 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 #if 1//def NOLEGACY
 			const char *defaultsamplernames[] =
 			{
+				#ifdef SHADOWDBG_COLOURNOTDEPTH
+							"#define sampler2DShadow sampler2D\n"
+				#else
+							"#ifndef USE_ARB_SHADOW\n"	//fall back on regular samplers if we must
+								"#define sampler2DShadow sampler2D\n"
+							"#endif\n"
+				#endif
 				"uniform sampler2DShadow s_shadowmap;\n",
+
 				"uniform samplerCube s_projectionmap;\n",
 				"uniform sampler2D s_diffuse;\n",
 				"uniform sampler2D s_normalmap;\n",
@@ -2201,8 +2206,6 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 					"#define varying out\n"
 				);
 		}
-		else if (ver < 120)
-			GLSlang_GenerateInternal(&glsl, "#define PACKEDBONES\n");
 
 		if (gl_config_nofixedfunc)
 		{
@@ -2365,19 +2368,41 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 
 			if (developer.ival>1)
 			{	//could use echo console-link I guess (with embedded line numbers). shaders can get quite big though.
-				unsigned int line;
-				char *eol, *start;
+				unsigned int rawline, line, filenum = 0;
+				char *eol, *start, *e;
+				const char *filename = name;
 				qglGetShaderSource(shader, sizeof(str), NULL, str);
 				Con_Printf("Shader \"%s\" source:\n", name);
-				for(start = str, line = 1; ;line++)
+				for(start = str, line = 1, rawline = 1; ;)
 				{
 					eol = strchr(start, '\n');
 					if (eol)
 						*eol=0;
-					Con_Printf("%3u: %s\n", line, start);
+//					if (filename)
+//						Con_Printf("%s:%u:%u: %s\n", filename, line, rawline, start);
+//					else
+						Con_Printf("%u:%u:%u: %s\n", filenum, line, rawline, start);
+					if (!strncmp(start, "#line ", 6))
+					{
+						line = strtoul(start+6, &e, 0);
+						while(*e == ' ')
+							e++;
+						if (*e)
+						{
+							filenum = strtoul(e, &e, 0);
+							while(*e == ' ')
+								e++;
+							filename = NULL;
+							if (e[0]=='/'&&e[1]=='/')
+								filename = e+2;
+						}
+					}
+					else
+						line++;
 					if (!eol)
 						break;
 					start = eol+1;
+					rawline++;
 				}
 			}
 		}
@@ -2589,11 +2614,7 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, struct programpermu_s *perm
 		if (gl_config.gles)
 			ver = 100;
 		else
-		{
 			ver = 110;
-			if (sh_config.maxver>=120 && (permu->permutation & PERMUTATION_SKELETAL))
-				ver = 120;
-		}
 	}
 	if ((permu->permutation & PERMUTATION_SKELETAL) && gl_config.maxattribs < 10)
 		return false;	//can happen in gles2

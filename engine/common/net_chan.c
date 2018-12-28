@@ -91,6 +91,14 @@ cvar_t	pext_infoblobs = CVARD("_pext_infoblobs", "0", "RENAME ME WHEN STABLE. En
 cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
 cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to support prediction over NQ protocols.");
 
+#if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
+#define NET_SendPacket(c,s,d,t) NET_SendPacket(((c)!=NS_CLIENT)?svs.sockets:cls.sockets,s,d,t)
+#elif defined(HAVE_SERVER)
+#define NET_SendPacket(c,s,d,t) NET_SendPacket(svs.sockets,s,d,t)
+#else
+#define NET_SendPacket(c,s,d,t) NET_SendPacket(cls.sockets,s,d,t)
+#endif
+
 /*returns the entire bitmask of supported+enabled extensions*/
 unsigned int Net_PextMask(int maskset, qboolean fornq)
 {

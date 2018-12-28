@@ -131,14 +131,14 @@ void		SVNET_RegisterCvars(void);
 void		NET_InitClient (qboolean loopbackonly);
 void		NET_CloseClient(void);
 void		NET_InitServer (void);
-qboolean	NET_WasSpecialPacket(netsrc_t netsrc);
+qboolean	NET_WasSpecialPacket(struct ftenet_connections_s *col);
 void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 qboolean	NET_GetRates(struct ftenet_connections_s *collection, float *pi, float *po, float *bi, float *bo);
 qboolean	NET_UpdateRates(struct ftenet_connections_s *collection, qboolean inbound, size_t size);	//for demos to not be weird
-int			NET_GetPacket (netsrc_t netsrc, int firstsock);
-neterr_t	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t *to);
+int			NET_GetPacket (struct ftenet_connections_s *col, int firstsock);
+neterr_t	NET_SendPacket (struct ftenet_connections_s *col, int length, const void *data, netadr_t *to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);

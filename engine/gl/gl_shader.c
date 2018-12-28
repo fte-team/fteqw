@@ -1659,6 +1659,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 	prog->preshade = Z_StrDup(prescript);
 	prog->supportedpermutations = (~nopermutation) & (PERMUTATIONS-1);
+	prog->shaderver = ver;
 
 	if (cvarcount)
 	{
@@ -1954,7 +1955,8 @@ struct shader_field_names_s shader_unif_names[] =
 	{"m_modelview",				SP_M_MODELVIEW},//the combined modelview matrix
 	{"m_projection",			SP_M_PROJECTION},//projection matrix
 /**/{"m_modelviewprojection",	SP_M_MODELVIEWPROJECTION},//fancy mvp matrix. probably has degraded precision.
-	{"m_bones",					SP_M_ENTBONES},	//bone matrix array. should normally be read via sys/skeletal.h
+	{"m_bones_packed",			SP_M_ENTBONES_PACKED},	//bone matrix array. should normally be read via sys/skeletal.h
+	{"m_bones_mat3x4",			SP_M_ENTBONES_MAT3X4},	//bone matrix array. should normally be read via sys/skeletal.h
 	{"m_invviewprojection",		SP_M_INVVIEWPROJECTION},//inverted vp matrix
 	{"m_invmodelviewprojection",SP_M_INVMODELVIEWPROJECTION},//inverted mvp matrix.
 /**///m_modelinv
@@ -4966,9 +4968,9 @@ done:;
 		}
 	}
 
-	pass = s->passes;
-	for (i = 0; i < s->numpasses; i++, pass++)
+	for (i = 0; i < s->numpasses; i += (pass->prog?pass->numMergedPasses:1))
 	{
+		pass = s->passes+i;
 		if (!(pass->shaderbits & (SBITS_BLEND_BITS|SBITS_MASK_BITS)))
 		{
 			break;

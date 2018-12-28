@@ -114,15 +114,32 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#if defined(SERVERONLY) && defined(CLIENTONLY)
-	#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
-#endif
-#ifndef WEBSVONLY
-	#ifndef CLIENTONLY
-		#define HAVE_SERVER
+#ifdef MASTERONLY
+	#define SV_MASTER
+	#undef SUBSERVERS
+	#undef PLUGINS
+	#undef HUFFNETWORK
+	#undef SUPPORT_ICE
+	#undef WEBCLIENT
+	#undef LOADERTHREAD
+	#undef PACKAGEMANAGER
+	#undef PACKAGE_PK3
+	#undef PACKAGE_Q1PAK
+	#undef PACKAGE_DOOMWAD
+	#undef PACKAGE_VPK
+	#undef PACKAGE_DZIP
+	#undef AVAIL_GZDEC
+#else
+	#if defined(SERVERONLY) && defined(CLIENTONLY)
+		#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
 	#endif
-	#ifndef SERVERONLY
-		#define HAVE_CLIENT
+	#ifndef WEBSVONLY
+		#ifndef CLIENTONLY
+			#define HAVE_SERVER
+		#endif
+		#ifndef SERVERONLY
+			#define HAVE_CLIENT
+		#endif
 	#endif
 #endif
 

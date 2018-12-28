@@ -437,7 +437,8 @@ typedef struct {
 		SP_W_FOG,
 		SP_W_USER,	//user-specified blob of data.
 
-		SP_M_ENTBONES,
+		SP_M_ENTBONES_PACKED,
+		SP_M_ENTBONES_MAT3X4,
 		SP_M_VIEW,
 		SP_M_MODEL,
 		SP_M_MODELVIEW,

@@ -174,7 +174,8 @@ typedef struct wedict_s wedict_t;
 typedef struct
 {
 	qboolean present;
-	vec3_t laggedpos;
+	vec3_t origin;
+	vec3_t angles;
 } laggedentinfo_t;
 
 #ifdef USERBE
@@ -206,6 +207,7 @@ struct world_s
 	qboolean (QDECL *Event_ContentsTransition) (struct world_s *w, wedict_t *ent, int oldwatertype, int newwatertype);
 	model_t *(QDECL *Get_CModel)(struct world_s *w, int modelindex);
 	void (QDECL *Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);
+	void (QDECL *Event_Backdate)(struct world_s *w, wedict_t *s, float timestamp);	//called for MOVE_LAGGED+MOVE_HITMODEL traces
 
 	unsigned int	keydestmask;	//menu:kdm_menu, csqc:kdm_game, server:0
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
@@ -241,7 +243,8 @@ struct world_s
 	qbyte		*lastcheckpvs;		// for monster ai
 
 	/*antilag*/
-	float lagentsfrac;
+	float	lagentsfrac;
+	float	lagentstime;
 	laggedentinfo_t *lagents;
 	unsigned int maxlagents;
 

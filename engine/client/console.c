@@ -1061,7 +1061,7 @@ Handles cursor positioning, line wrapping, etc
 ================
 */
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 extern redirect_t	sv_redirected;
 extern char	sv_redirected_buf[8000];
 void SV_FlushRedirect (void);
@@ -1103,7 +1103,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 		return;
 	}
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	// add to redirected message
 	if (sv_redirected)
 	{
@@ -1147,7 +1147,7 @@ void VARGS Con_TPrintf (translation_t text, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	const char *fmt = langtext(text, cls.language);
+	const char *fmt = langtext(text, com_language);
 
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
@@ -1161,7 +1161,7 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	const char *fmt = langtext(text, cls.language);
+	const char *fmt = langtext(text, com_language);
 
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);

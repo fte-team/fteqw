@@ -649,12 +649,12 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 			mod = Q3G_GetCModel(es->s.modelindex);
 			if (!mod)
 				continue;
-			World_TransformedTrace(mod, 0, 0, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, es->r.currentAngles, 0xffffffff);
+			World_TransformedTrace(mod, 0, NULL, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, es->r.currentAngles, 0xffffffff);
 		}
 		else
 		{
 			mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
-			World_TransformedTrace(mod, 0, 0, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, vec3_origin, 0xffffffff);
+			World_TransformedTrace(mod, 0, NULL, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, vec3_origin, 0xffffffff);
 		}
 
 		cont |= tr.contents;
@@ -3405,7 +3405,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	{
 		Con_Printf("%s\n", reason);
 		reason = va("\377\377\377\377print\n%s", reason);
-		NET_SendPacket (NS_SERVER, strlen(reason), reason, &net_from);
+		NET_SendPacket (svs.sockets, strlen(reason), reason, &net_from);
 		return;
 	}
 
@@ -3422,7 +3422,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 
 	cl->gamestatesequence = -1;
 
-	NET_SendPacket (NS_SERVER, 19, "\377\377\377\377connectResponse", &net_from);
+	NET_SendPacket (svs.sockets, 19, "\377\377\377\377connectResponse", &net_from);
 
 	cl->frameunion.q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*cl->frameunion.q3frames));
 }

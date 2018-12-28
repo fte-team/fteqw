@@ -3450,13 +3450,11 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 		case SP_M_MODEL:
 			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.modelmatrix);
 			break;
-		case SP_M_ENTBONES:
-			{
-				if (sh_config.maxver>=120)
-					qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
-				else
-					qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
-			}
+		case SP_M_ENTBONES_PACKED:
+			qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
+			break;
+		case SP_M_ENTBONES_MAT3X4:
+			qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
 			break;
 		case SP_M_INVVIEWPROJECTION:
 			{
@@ -4561,7 +4559,7 @@ static void DrawMeshes(void)
 #endif
 		break;
 	case BEM_DEPTHDARK:
-		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright))
+		if ((shaderstate.curshader->flags & (SHADER_HASLIGHTMAP|SHADER_NODLIGHT))==SHADER_HASLIGHTMAP && !TEXVALID(shaderstate.curtexnums->fullbright))
 		{
 			if (gl_config.arb_shader_objects)
 			{

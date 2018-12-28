@@ -707,14 +707,15 @@ void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 
-qboolean M_Vid_GetMode(int num, int *w, int *h);
+qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h);
 //a bit pointless really
 void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
-//	qboolean fixedmodes = (prinst->callargc >= 2)?!G_FLOAT(OFS_PARM1):false; //if true, we should return sane-sized modes suitable for a window... or the mod could make up its own, but whatever.
+	qboolean forfullscreen = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):true; //if true, we should return queried video modes... or the mod could make up its own, but whatever.
 	float *ret = G_VECTOR(OFS_RETURN);
 	int w, h;
+	float pixelheight = 0;
 
 	w=h=0;
 	if (mode == -1)
@@ -723,11 +724,11 @@ void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s 
 		Sys_GetDesktopParameters(&w, &h, &bpp, &rate);
 	}
 	else
-		M_Vid_GetMode(mode, &w, &h);
+		M_Vid_GetMode(forfullscreen, mode, &w, &h);
 
 	ret[0] = w;
 	ret[1] = h;
-	ret[2] = (w&&h)?1:0;
+	ret[2] = pixelheight?pixelheight:((w&&h)?1:0);	//pixelheight
 }
 
 #ifdef CL_MASTER
@@ -988,7 +989,7 @@ static struct modlist_s
 static size_t nummods;
 static qboolean modsinited;
 
-static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
+/*static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
 {
 	int i = nummods;
 	modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
@@ -997,7 +998,7 @@ static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
 	modlist[i].description = man->formalname;
 	nummods = i+1;
 	return true;
-}
+}*/
 static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, void *usr, searchpathfuncs_t *spath)
 {
 	char *f;
@@ -1027,7 +1028,7 @@ static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, 
 					return true;
 			}
 		}
-		f = FS_MallocFile(va("%s%s/modinfo.txt", usr, gamedir), FS_SYSTEM, NULL);
+		f = FS_MallocFile(va("%s%s/modinfo.txt", (const char*)usr, gamedir), FS_SYSTEM, NULL);
 		if (f)
 		{
 			modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
@@ -1070,7 +1071,6 @@ void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s 
 			if (modlist[diridx].description)
 				RETURN_TSTRING(modlist[diridx].description);
 			break;
-			//fallthrough
 		case 0:	//name
 			RETURN_TSTRING(modlist[diridx].gamedir);
 			break;
@@ -1091,8 +1091,8 @@ void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		char *send = Z_Malloc(4+strlen(contents));
 		send[0] = send[1] = send[2] = send[3] = 0xff;
 		memcpy(send+4, contents, strlen(contents));
-		//FIXME: NS_CLIENT is likely to change its port randomly...
-		G_FLOAT(OFS_RETURN) = NET_SendPacket(NS_CLIENT, 4+strlen(contents), send, &to);
+		//FIXME: this is likely to change its port randomly...
+		G_FLOAT(OFS_RETURN) = NET_SendPacket(cls.sockets, 4+strlen(contents), send, &to);
 		Z_Free(send);
 	}
 }

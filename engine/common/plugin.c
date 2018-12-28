@@ -1463,8 +1463,12 @@ static qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qint
 	struct sockaddr_qstorage sockaddr;
 	if (handle == -1)
 	{
-		NET_SendPacket(NS_CLIENT, srclen, src, address);
+#ifdef HAVE_CLIENT
+		NET_SendPacket(cls.sockets, srclen, src, address);
 		return srclen;
+#else
+		return -2;
+#endif
 	}
 
 	NetadrToSockadr(address, &sockaddr);

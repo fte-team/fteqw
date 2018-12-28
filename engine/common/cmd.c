@@ -65,7 +65,9 @@ cvar_t	cfg_save_buttons = CVARFD("cfg_save_buttons", "0", CVAR_ARCHIVE|CVAR_NOTF
 cvar_t cl_warncmd			= CVARF("cl_warncmd", "1", CVAR_NOSAVE|CVAR_NORESET);
 cvar_t cl_aliasoverlap		= CVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
+#ifdef HAVE_CLIENT
 cvar_t tp_disputablemacros	= CVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
+#endif
 
 
 //=============================================================================
@@ -120,9 +122,11 @@ static char *TP_MacroString (char *s, int *newaccesslevel, int *len)
 		macro = &macro_commands[i];
 		if (!Q_strcasecmp(s, macro->name))
 		{
+#ifdef HAVE_CLIENT
 			if (macro->disputableintentions)
 				if (!tp_disputablemacros.ival)
 					*newaccesslevel = 0;
+#endif
 			if (len)
 				*len = strlen(macro->name);
 			return macro->func();
@@ -187,7 +191,7 @@ static void Cmd_Wait_f (void)
 	if (cmd_blockwait)
 		return;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (cmd_didwait && sv.state)
 		Con_DPrintf("waits without server frames\n");
 #endif
@@ -531,7 +535,7 @@ void Cbuf_Execute (void)
 {
 	int level;
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (cmd_text[RESTRICT_LOCAL].waitattime && cls.state == ca_active)
 	{
 		//keep binds blocked until after the next input frame was sent to the server (at which point it will be cleared
@@ -876,7 +880,7 @@ static void Cmd_Echo_f (void)
 	//echo text is often quoted, so expand the text again now that we're no longer in quotes.
 	t = Cmd_ExpandString(text, extext, sizeof(extext), &level, !Cmd_IsInsecure()?true:false, true);
 
-#ifdef SERVERONLY
+#ifndef HAVE_CLIENT
 	Con_Printf ("%s", t);
 #else
 	t = TP_ParseFunChars(t);
@@ -1163,7 +1167,7 @@ static void Cmd_Alias_f (void)
 	}
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Cmd_AliasEdit_f (void)
 {
 	char *alias = Cmd_AliasExist(Cmd_Argv(1), RESTRICT_LOCAL);
@@ -2579,7 +2583,7 @@ static void Cmd_Apropos_f (void)
 	//FIXME: add aliases.
 }
 
-#ifndef SERVERONLY		// FIXME
+#ifdef HAVE_CLIENT		// FIXME
 /*
 ===================
 Cmd_ForwardToServer
@@ -2731,29 +2735,29 @@ void	Cmd_ExecuteString (const char *text, int level)
 				Con_TPrintf("cmd '%s' was restricted.\n", cmd_argv[0]);
 			else if (!cmd->function)
 			{
-#ifdef VM_CG
+#if defined(VM_CG) && defined(HAVE_CLIENT)
 				if (CG_Command())
 					return;
 #endif
-#ifdef Q3SERVER
+#if defined(Q3SERVER) && defined(HAVE_SERVER)
 				if (SVQ3_Command())
 					return;
 #endif
-#ifdef VM_UI
+#if defined(VM_UI) && defined(HAVE_CLIENT)
 				if (UI_Command())
 					return;
 #endif
 				if (Cmd_AliasExist(cmd_argv[0], level))
 					break;	//server stuffed an alias for a command that it would already have received. use that instead.
-#if defined(CSQC_DAT) && !defined(SERVERONLY)
+#if defined(CSQC_DAT) && defined(HAVE_CLIENT)
 				if (CSQC_ConsoleCommand(-1, text))
 					return;	//let the csqc handle it if it wants.
 #endif
-#if defined(MENU_DAT) && !defined(SERVERONLY)
+#if defined(MENU_DAT) && defined(HAVE_CLIENT)
 				if (MP_ConsoleCommand(text))
 					return;	//let the csqc handle it if it wants.
 #endif
-#if defined(MENU_NATIVECODE) && !defined(SERVERONLY)
+#if defined(MENU_NATIVECODE) && defined(HAVE_CLIENT)
 				if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, (char const*const*)cmd_argv))
 					return;
 #endif
@@ -2777,11 +2781,11 @@ void	Cmd_ExecuteString (const char *text, int level)
 		{
 			int execlevel;
 
-#ifndef SERVERONLY	//an emergency escape mechansim, to avoid infinatly recursing aliases.
+#ifdef HAVE_CLIENT	//an emergency escape mechansim, to avoid infinatly recursing aliases.
 			extern qboolean keydown[];
 			extern unsigned int con_splitmodifier;
 
-			if (keydown[K_SHIFT] && (keydown[K_LCTRL]||keydown[K_RCTRL]) && (keydown[K_LALT]||keydown[K_RALT]))
+			if (keydown[K_SHIFT] && (keydown[K_LCTRL]||keydown[K_RCTRL]) && (keydown[K_LALT]||keydown[K_RALT]) && !isDedicated)
 				return;
 #endif
 
@@ -2837,7 +2841,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 				Q_strncpyz(dest, a->value, sizeof(dest));
 			Cbuf_InsertText (dest, execlevel, false);
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (con_splitmodifier > 0)
 			{	//if the alias was execed via p1/p2 etc, make sure that propagates properly (at least for simple aliases like impulses)
 				//fixme: should probably prefix each line. that may have different issues however.
@@ -2910,15 +2914,15 @@ void	Cmd_ExecuteString (const char *text, int level)
 		return;
 	}
 
-#if defined(CSQC_DAT) && !defined(SERVERONLY)
+#if defined(CSQC_DAT) && defined(HAVE_CLIENT)
 	if (CSQC_ConsoleCommand(-1, text))
 		return;
 #endif
-#if defined(MENU_DAT) && !defined(SERVERONLY)
+#if defined(MENU_DAT) && defined(HAVE_CLIENT)
 	if (MP_ConsoleCommand(text))
 		return;	//let the csqc handle it if it wants.
 #endif
-#if defined(MENU_NATIVECODE) && !defined(SERVERONLY)
+#if defined(MENU_NATIVECODE) && defined(HAVE_CLIENT)
 	if (mn_entry && mn_entry->ConsoleCommand(text, cmd_argc, (char const*const*)cmd_argv))
 		return;
 #endif
@@ -2928,7 +2932,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 		return;
 #endif
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state)
 	{
 		if (PR_ConsoleCmd(text))
@@ -2936,19 +2940,19 @@ void	Cmd_ExecuteString (const char *text, int level)
 	}
 #endif
 
-#ifdef VM_CG
+#if defined(VM_CG) && defined(HAVE_CLIENT)
 	if (CG_Command())
 		return;
 #endif
-#ifdef Q3SERVER
+#if defined(Q3SERVER) && defined(HAVE_SERVER)
 	if (SVQ3_Command())
 		return;
 #endif
-#ifdef VM_UI
+#if defined(VM_UI) && defined(HAVE_CLIENT)
 	if (UI_Command())
 		return;
 #endif
-#ifdef Q2CLIENT
+#if defined(Q2CLIENT) && defined(HAVE_CLIENT)
 	if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
 	{	//q2 servers convert unknown commands to text.
 		Cmd_ForwardToServer();
@@ -3192,7 +3196,7 @@ static const char *If_Token_Term(const char *func, const char **end)
 	else if (!strcmp(com_token, "vid"))	//mostly for use with the menu system.
 	{
 		s = COM_ParseToken(s, IFPUNCT);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		if (qrenderer == QR_NONE)
 			s2 = "";
 		else if (!strcmp(com_token, "width"))
@@ -3978,7 +3982,9 @@ static void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "fte.cfg");
 #endif
 
+#if defined(CL_MASTER) && defined(HAVE_CLIENT)
 		MasterInfo_WriteServers();
+#endif
 
 		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
 
@@ -4007,7 +4013,7 @@ static void Cmd_WriteConfig_f(void)
 	}
 
 	VFS_PRINTF(f, "// %s config file\n\n", *fs_gamename.string?fs_gamename.string:FULLENGINENAME);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (cfg_save_binds.ival)
 		Key_WriteBindings (f);
 	if (cfg_save_buttons.ival)
@@ -4022,11 +4028,11 @@ static void Cmd_WriteConfig_f(void)
 #else
 	VFS_WRITE(f, "// Dedicated Server config\n\n", 28);
 #endif
-#ifdef CLIENTONLY
-	VFS_WRITE(f, "// no local/server infos\n\n", 26);
-#else
+#ifdef HAVE_SERVER
 	if (cfg_save_infos.ival)
 		SV_SaveInfos(f);
+#else
+	VFS_WRITE(f, "// no local/server infos\n\n", 26);
 #endif
 	if (cfg_save_aliases.ival)
 		Alias_WriteAliases (f);
@@ -4042,7 +4048,7 @@ static void Cmd_Reset_f(void)
 {
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 // dumps current console contents to a text file
 static void Cmd_Condump_f(void)
 {
@@ -4231,7 +4237,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("alias",Cmd_Alias_f);
 	Cmd_AddCommand ("newalias",Cmd_Alias_f);
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer_f);
 	Cmd_AddCommand ("condump", Cmd_Condump_f);
 	Cmd_AddCommandAD ("aliasedit", Cmd_AliasEdit_f, Key_Alias_c, NULL);
@@ -4279,7 +4285,9 @@ void Cmd_Init (void)
 	Cmd_AddMacro("qt", Macro_Quote, false);
 	Cmd_AddMacro("dedicated", Macro_Dedicated, false);
 
+#ifdef HAVE_CLIENT
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
+#endif
 
 	Cvar_Register(&ruleset_allow_in, "Console");
 	Cmd_AddCommandD ("in", Cmd_In_f, "Issues the given command after a time delay. Disabled if ruleset_allow_in is 0.");
@@ -4296,7 +4304,7 @@ void Cmd_Init (void)
 	Cvar_Register (&cfg_save_binds, "client operation options");
 	Cvar_Register (&cfg_save_buttons, "client operation options");
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	rcon_level.ival = atof(rcon_level.enginevalue);	//client is restricted to not be allowed to change restrictions.
 #else
 	Cvar_Register(&rcon_level, "Access controls");		//server gains versatility.

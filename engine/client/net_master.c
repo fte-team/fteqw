@@ -82,6 +82,7 @@ static void SV_SetMaster_f (void);
 
 extern cvar_t sv_public;
 extern cvar_t sv_reportheartbeats;
+extern cvar_t sv_heartbeat_interval;
 
 extern cvar_t sv_listen_qw;
 extern cvar_t sv_listen_nq;
@@ -98,7 +99,7 @@ typedef struct {
 	qboolean	resolving;	//set any time the cvar is modified
 	netadr_t	adr[MAX_MASTER_ADDRESSES];
 } net_masterlist_t;
-net_masterlist_t net_masterlist[] = {
+static net_masterlist_t net_masterlist[] = {
 #ifndef QUAKETC
 	//user-specified master lists.
 	{MP_QUAKEWORLD, CVARC("net_qwmaster1", "", Net_Masterlist_Callback)},
@@ -244,12 +245,14 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 	char		adr[MAX_ADR_SIZE];
 	netadr_t	*na;
 	int i;
+	int e;
 
 	for (i = 0; i < MAX_MASTER_ADDRESSES; i++)
 	{
 		na = &master->adr[i];
 		if (na->port)
 		{
+			e = -1;
 			switch(master->protocol)
 			{
 			case MP_QUAKEWORLD:
@@ -272,32 +275,26 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 						madeqwstring = true;
 					}
 
-					if (sv_reportheartbeats.value)
-					{
-						if (sv_reportheartbeats.ival != 2 || !master->announced)
-							Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
-						master->announced = true;
-					}
-
-					NET_SendPacket (NS_SERVER, strlen(string), string, na);
+					e = NET_SendPacket (svs.sockets, strlen(string), string, na);
 				}
 				break;
 #ifdef Q2SERVER
 			case MP_QUAKE2:
-				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
+				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value)	//sv_listen==sv_listen_qw, yes, weird.
 				{
-					if (sv_reportheartbeats.value)
+					char *str = "\377\377\377\377heartbeat\n%s\n%s";
+					char info[8192];
+					char q2users[8192];
+					size_t i;
+					const char *infos[] = {"hostname", "*version", "deathmatch", "fraglimit", "timelimit", "gamedir", "mapname", "maxclients", "dmflags", NULL};
+					InfoBuf_ToString(&svs.info, info, sizeof(info), NULL, NULL, infos, NULL, NULL);
+					q2users[0] = 0;
+					for (i = 0; i < sv.allocated_client_slots; i++)
 					{
-						if (sv_reportheartbeats.ival != 2 || !master->announced)
-							Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
-						master->announced = true;
+						if (svs.clients[i].state >= cs_connected)
+							Q_strncatz(q2users, va("%i %i \"%s\"\n", svs.clients[i].old_frags, SV_CalcPing(&svs.clients[i], false), svs.clients[i].name), sizeof(q2users));
 					}
-
-					{
-						char *str = "\377\377\377\377heartbeat\n%s";
-						char *q2statusresp = "";
-						NET_SendPacket (NS_SERVER, strlen(str), va(str, q2statusresp), na);
-					}
+					e = NET_SendPacket (svs.sockets, strlen(str), va(str, info, q2users), na);
 				}
 				break;
 #endif
@@ -311,22 +308,55 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				if (sv_listen_dp.value || sv_listen_nq.value)
 #endif
 				{
-					if (sv_reportheartbeats.value)
-					{
-						if (sv_reportheartbeats.ival != 2 || !master->announced)
-							Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
-						master->announced = true;
-					}
-
-					{
-						//darkplaces here refers to the master server protocol, rather than the game protocol
-						//(specifies that the server responds to infoRequest packets from the master)
-						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
-						NET_SendPacket (NS_SERVER, strlen(str), str, na);
-					}
+					//darkplaces here refers to the master server protocol, rather than the game protocol
+					//(specifies that the server responds to infoRequest packets from the master)
+					char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
+					e = NET_SendPacket (svs.sockets, strlen(str), str, na);
 				}
 				break;
 			default:
+				e = -2;
+				break;
+			}
+			switch(e)
+			{
+			case -1:	//master not enabled for this game type
+				break;
+			case NETERR_SENT:
+				if (sv_reportheartbeats.value)
+				{
+					if (sv_reportheartbeats.ival != 2 || !master->announced)
+					{
+						COM_Parse(master->cv.string);
+						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+					}
+					master->announced = true;
+				}
+				break;
+			case NETERR_NOROUTE:
+				if (sv_reportheartbeats.value)
+				{
+					if (sv_reportheartbeats.ival != 2 || !master->announced)
+					{
+						COM_Parse(master->cv.string);
+						Con_TPrintf (CON_WARNING"No route for heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+					}
+					master->announced = true;
+				}
+				break;
+			default:
+			case NETERR_DISCONNECTED:
+			case NETERR_MTU:
+			case NETERR_CLOGGED:
+				if (sv_reportheartbeats.value)
+				{
+					if (sv_reportheartbeats.ival != 2 || !master->announced)
+					{
+						COM_Parse(master->cv.string);
+						Con_TPrintf (CON_ERROR"Failed to send heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+					}
+					master->announced = true;
+				}
 				break;
 			}
 		}
@@ -395,12 +425,12 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 					{
 #ifdef Q2SERVER
 					case MP_QUAKE2:
-						NET_SendPacket (NS_SERVER, 8, "\xff\xff\xff\xffping", na);
+						NET_SendPacket (svs.sockets, 8, "\xff\xff\xff\xffping", na);
 						break;
 #endif
 					case MP_QUAKEWORLD:
 						//qw does this for some reason, keep the behaviour even though its unreliable thus pointless
-						NET_SendPacket (NS_SERVER, 2, "k\0", na);
+						NET_SendPacket (svs.sockets, 2, "k\0", na);
 						break;
 					default:
 						break;
@@ -445,18 +475,18 @@ Send a message to the master every few minutes to
 let it know we are alive, and log information
 ================
 */
-#define	HEARTBEAT_SECONDS	300
 void SV_Master_Heartbeat (void)
 {
 	int			i;
+	int interval = bound(90, sv_heartbeat_interval.ival, 600);
 
 	if (sv_public.ival<=0 || SSV_IsSubServer())
 		return;
 
-	if (realtime-HEARTBEAT_SECONDS - svs.last_heartbeat < HEARTBEAT_SECONDS)
+	if (realtime-interval - svs.last_heartbeat < interval)
 		return;		// not time to send yet
 
-	svs.last_heartbeat = realtime-HEARTBEAT_SECONDS;
+	svs.last_heartbeat = realtime-interval;
 
 	svs.heartbeat_sequence++;
 
@@ -605,7 +635,7 @@ void SV_Master_Shutdown (void)
 					if (sv_reportheartbeats.value)
 						Con_TPrintf ("Sending shutdown to %s\n", NET_AdrToString (adr, sizeof(adr), na));
 
-					NET_SendPacket (NS_SERVER, strlen(string), string, na);
+					NET_SendPacket (svs.sockets, strlen(string), string, na);
 					break;
 				//dp has no shutdown
 				default:
@@ -736,7 +766,7 @@ void Master_HideServer(serverinfo_t *server)
 		else
 			 i++;
 	}
-	server->status &= ~2u;
+	server->status &= ~SRVSTATUS_DISPLAYED;
 }
 
 void Master_InsertAt(serverinfo_t *server, int pos)
@@ -754,7 +784,7 @@ void Master_InsertAt(serverinfo_t *server, int pos)
 	visibleservers[pos] = server;
 	numvisibleservers++;
 
-	server->status |= 2u;
+	server->status |= SRVSTATUS_DISPLAYED;
 }
 
 qboolean Master_CompareInteger(int a, int b, slist_test_t rule)
@@ -907,8 +937,8 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 	qboolean val, res;
 //	qboolean enabled;
 
-	//always filter out dead unresponsive servers.
-	if (!(a->status & 1))
+	//always filter out dead/unresponsive servers.
+	if (!(a->status & SRVSTATUS_ALIVE))
 		return false;
 
 	val = 1;
@@ -1066,7 +1096,7 @@ void Master_ShowServer(serverinfo_t *server)
 
 void Master_ResortServer(serverinfo_t *server)
 {
-	if (server->status&2u)
+	if (server->status&SRVSTATUS_DISPLAYED)
 	{
 		if (!Master_PassesMasks(server))
 			Master_HideServer(server);
@@ -1092,7 +1122,7 @@ int Master_SortServers(void)
 	{
 		numvisibleservers = 0;
 		for (server = firstserver; server; server = server->next)
-			server->status &= ~2u;
+			server->status &= ~SRVSTATUS_DISPLAYED;
 	}
 
 	for (server = firstserver; server; server = server->next)
@@ -2343,6 +2373,7 @@ void MasterInfo_ProcessHTTP(struct dl_download *dl)
 
 			Master_ResortServer(info);
 		}
+		info->status |= SRVSTATUS_GLOBAL;
 	}
 }
 
@@ -2450,6 +2481,7 @@ char *jsonnode(int level, char *node)
 
 			Master_ResortServer(info);
 		}
+		info->status |= SRVSTATUS_GLOBAL;
 	}
 
 	return node;
@@ -2655,7 +2687,7 @@ void MasterInfo_Refresh(qboolean doreset)
 	if (doreset)
 	{
 		for (info = firstserver; info; info = info->next)
-			info->status &= ~1;	//hide until we get a new response from it.
+			info->status &= ~SRVSTATUS_ALIVE;	//hide until we get a new response from it.
 	}
 
 	loadedone = false;
@@ -2675,7 +2707,7 @@ void MasterInfo_Refresh(qboolean doreset)
 #ifndef QUAKETC
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),				MT_BCAST,			MP_QUAKEWORLD, "Nearby QuakeWorld UDP servers.");
 //		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld",	MT_MASTERHTTP,		MP_QUAKEWORLD, "gameaholic's QW master");
-		Master_AddMasterHTTP("https://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,		MP_QUAKEWORLD, "QuakeServers.net (http)");
+//		Master_AddMasterHTTP("https://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,		MP_QUAKEWORLD, "QuakeServers.net (http)");
 #endif
 #ifdef NQPROT
 //		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NETQUAKE, "gameaholic's NQ master");
@@ -2904,7 +2936,7 @@ unsigned int Master_NumAlive(void)
 
 	for (info = firstserver; info; info = info->next)
 	{
-		if (info->status&1u)
+		if (info->status&SRVSTATUS_ALIVE)
 			count++;
 	}
 	return count;
@@ -3032,7 +3064,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		info->refreshtime = 0;
 	}
 
-	info->status |= 1u;
+	info->status |= SRVSTATUS_ALIVE;
 
 	nl = strchr(msg, '\n');
 	if (nl)
@@ -3484,6 +3516,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			if ((old->special & (SS_PROTOCOLMASK)) != (type & (SS_PROTOCOLMASK)))
 				old->special = type | (old->special & (SS_FAVORITE|SS_LOCAL));
 			old->sends = 1;	//reset.
+			old->status |= SRVSTATUS_GLOBAL;
 			Z_Free(info);
 		}
 		else
@@ -3492,6 +3525,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 
 			info->special = type;
 			info->refreshtime = 0;
+			info->status |= SRVSTATUS_GLOBAL;
 
 			Q_snprintfz(info->name, sizeof(info->name), "%s (via %s)", NET_AdrToString(adr, sizeof(adr), &info->adr), madr);
 

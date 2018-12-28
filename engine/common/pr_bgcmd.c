@@ -1404,7 +1404,7 @@ cvar_t *PF_Cvar_FindOrGet(const char *var_name)
 
 		var = Cvar_Get(var_name, def, 0, "Implicit QC variables");
 		if (var)
-			Con_Printf("^3Created QC Cvar %s\n", var_name);
+			Con_DPrintf("^3Created QC Cvar %s\n", var_name);
 		else
 			Con_Printf(CON_ERROR"Unable to create QC Cvar %s\n", var_name);
 	}

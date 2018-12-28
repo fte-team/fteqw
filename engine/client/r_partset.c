@@ -1711,6 +1711,7 @@ char *particle_set_high =
 "surfaceparm nodlight\n"
 "glslprogram\n"
 "{\n"
+"!!samps screen=0\n"
 "varying vec2 tcoord;\n"
 "varying vec4 scoord;\n"
 "varying float alph;\n"
@@ -1738,7 +1739,7 @@ char *particle_set_high =
 //				f = 1.0 - tcoord*tcoord;
 "if (f < 0.0) discard;\n"
 "f *= alph;\n"
-"gl_FragColor = texture2D(s_t0, nst - tcoord*f);\n"
+"gl_FragColor = texture2D(s_screen, nst - tcoord*f);\n"
 "}\n"
 "#endif\n"
 "}\n"

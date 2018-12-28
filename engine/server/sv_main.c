@@ -27,20 +27,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define INVIS_CHAR2 (char)138
 #define INVIS_CHAR3 (char)160
 
-#ifdef SERVERONLY
+#ifndef HAVE_CLIENT
 double		host_frametime;
 double		realtime;				// without any filtering or bounding
 qboolean	host_initialized;		// true if into command execution (compatability)
 quakeparms_t host_parms;
 int			host_hunklevel;
 #endif
-
-// callbacks
-void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue);
-void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue);
-void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
-void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
-void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
 
 client_t	*host_client;			// current client
 
@@ -63,12 +56,9 @@ cvar_t	zombietime					= CVARD("zombietime", "2", "Client slots will not be reuse
 cvar_t	sv_crypt_rcon				= CVARFD("sv_crypt_rcon", "", CVAR_ARCHIVE, "Controls whether the rcon password must be hashed or not. Hashed passwords also partially prevent replay attacks, but does NOT prevent malicious actors from reading the commands/results.\n0: completely insecure. ONLY allows plain-text passwords. Do not use.\n1: Mandatory hashing (recommended).\nEmpty: Allow either, whether the password is secure or not is purely the client's responsibility/fault. Only use this for comptibility with old clients.");
 cvar_t	sv_crypt_rcon_clockskew		= CVARFD("sv_timestamplen", "60", CVAR_ARCHIVE, "Limits clock skew to reduce (delayed) replay attacks");
 #ifdef SERVERONLY
-cvar_t	developer					= CVAR("developer","0");		// show extra messages
-
 cvar_t	rcon_password				= CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);	// password for remote server commands
 cvar_t	password					= CVARF("password", "", CVAR_NOUNSAFEEXPAND);	// password for entering the game
 #else
-extern cvar_t	developer;
 extern cvar_t	rcon_password;
 extern cvar_t	password;
 #endif
@@ -108,6 +98,7 @@ cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connection within the specified length of time .");
 extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
+cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
 cvar_t sv_maxrate			= CVARD("sv_maxrate", "50000", "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
 cvar_t sv_maxdrate			= CVARAFD("sv_maxdrate", "500000",
@@ -272,7 +263,9 @@ void SV_Shutdown (void)
 #endif
 	Cvar_Shutdown();
 	Cmd_Shutdown();
+#ifdef PACKAGEMANAGER
 	PM_Shutdown();
+#endif
 
 	
 	InfoBuf_Clear(&svs.info, true);
@@ -1290,7 +1283,7 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 		}
 	}
 
-	NET_SendPacket (NS_SERVER, resp-response, response, &net_from);
+	NET_SendPacket (svs.sockets, resp-response, response, &net_from);
 }
 #endif
 
@@ -1378,7 +1371,7 @@ static void SVC_Log (void)
 		else if (seq == svs.logsequence)
 		{	//current log isn't available as its not complete yet.
 			data[0] = A2A_NACK;
-			NET_SendPacket (NS_SERVER, 1, data, &net_from);
+			NET_SendPacket (svs.sockets, 1, data, &net_from);
 			return;
 		}
 		else if (seq > svs.logsequence)	//future logs are not valid either. reply with the last that was. this is for compat, just in case.
@@ -1392,7 +1385,7 @@ static void SVC_Log (void)
 	if (!fraglog_public.ival)
 	{	//frag logs are not public (for DoS protection perhaps?.
 		data[0] = A2A_NACK;
-		NET_SendPacket (NS_SERVER, 1, data, &net_from);
+		NET_SendPacket (svs.sockets, 1, data, &net_from);
 		return;
 	}
 
@@ -1404,7 +1397,7 @@ static void SVC_Log (void)
 		Q_snprintfz(data, sizeof(data), "stdlog %i %s\n%s", seq, av, (char *)svs.log_buf[seq&(FRAGLOG_BUFFERS-1)]);
 	else
 		Q_snprintfz(data, sizeof(data), "stdlog %i\n%s", seq, (char *)svs.log_buf[seq&(FRAGLOG_BUFFERS-1)]);
-	NET_SendPacket (NS_SERVER, strlen(data)+1, data, &net_from);
+	NET_SendPacket (svs.sockets, strlen(data)+1, data, &net_from);
 }
 
 /*
@@ -1420,7 +1413,7 @@ void SVC_Ping (void)
 
 	data = A2A_ACK;
 
-	NET_SendPacket (NS_SERVER, 1, &data, &net_from);
+	NET_SendPacket (svs.sockets, 1, &data, &net_from);
 }
 
 //from net_from
@@ -1777,7 +1770,7 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 		vsnprintf (string+5,sizeof(string)-1-5, format,argptr);
 		len = strlen(string+4)+1+4;
 		*(int*)string = BigLong(NETFLAG_CTL|len);
-		NET_SendPacket(NS_SERVER, len, string, &net_from);
+		NET_SendPacket(svs.sockets, len, string, &net_from);
 		return;
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
@@ -1840,7 +1833,7 @@ void SV_AcceptMessage(client_t *newcl)
 				MSG_WriteByte(&sb, 0/*flags*/);
 			}
 			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
-			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 			return;
 		}
 	case SCP_DARKPLACES6:
@@ -3484,7 +3477,7 @@ void SVC_RemoteCommand (void)
 		Con_TPrintf ("Bad rcon from %s:\t%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET, svs.language);
+		SV_BeginRedirect (RD_PACKET, com_language);
 
 		Con_TPrintf ("Bad rcon_password. Passwords might be logged. Be careful.\n");
 	}
@@ -3501,7 +3494,7 @@ void SVC_RemoteCommand (void)
 		Con_TPrintf ("Rcon from %s:\t%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET_LOG, svs.language);
+		SV_BeginRedirect (RD_PACKET_LOG, com_language);
 
 		remaining[0] = 0;
 
@@ -3725,7 +3718,7 @@ qboolean SV_ConnectionlessPacket (void)
 
 		if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
-			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, svs.language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
+			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, com_language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
 		}
 		else
 		{
@@ -3891,7 +3884,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 						SZ_Clear(&sb);
 						MSG_WriteLong(&sb, BigLong(NETFLAG_ACK | 8));
 						MSG_WriteLong(&sb, sequence);
-						NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+						NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 					}
 
 
@@ -3907,7 +3900,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					MSG_WriteString(&sb, va("cmd challengeconnect %i %i\n", SV_NewChallenge(), MOD_PROQUAKE));
 
 					*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
-					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+					NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 
 					return true;
 				}
@@ -3935,7 +3928,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteByte(&sb, CCREP_REJECT);
 			MSG_WriteString(&sb, "Incorrect game\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 			return false;	//not our game.
 		}
 		if (MSG_ReadByte() != NQ_NETCHAN_VERSION)
@@ -3945,7 +3938,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteByte(&sb, CCREP_REJECT);
 			MSG_WriteString(&sb, "Incorrect version\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 			return false;	//not our version...
 		}
 
@@ -3957,7 +3950,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteByte(&sb, CCREP_REJECT);
 			MSG_WriteString(&sb, *banreason?va("You are banned: %s\n", banreason):"You are banned\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 			return false;	//not our version...
 		}
 
@@ -3982,7 +3975,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				MSG_WriteByte(&sb, CCREP_REJECT);
 				MSG_WriteString(&sb, "NQ clients are not supported with hexen2 gamecode\n");
 				*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 				return false;	//not our version...
 			}
 			if (sv_listen_nq.ival == 2)
@@ -3995,7 +3988,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				MSG_WriteByte(&sb, MOD_PROQUAKE);
 				MSG_WriteByte(&sb, MOD_PROQUAKE_VERSION);
 				*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
-				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 
 
 				SZ_Clear(&sb);
@@ -4006,7 +3999,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				MSG_WriteString(&sb, va("cmd challengeconnect %i %i %i %i %i\n", SV_NewChallenge(), mod, modver, flags, passwd));
 
 				*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
-				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 				/*don't worry about repeating, the nop case above will recover it*/
 			}
 			else
@@ -4048,7 +4041,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		MSG_WriteByte (&sb, maxclients.value);
 		MSG_WriteByte (&sb, NQ_NETCHAN_VERSION);
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+		NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_PLAYER_INFO:
 		if (sv_showconnectionlessmessages.ival)
@@ -4082,7 +4075,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString (&sb, SV_PlayerPublicAddress(cl));	/*player's address, leave blank, don't spam that info as it can result in personal attacks exploits*/
 		}
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+		NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_RULE_INFO:
 		if (sv_showconnectionlessmessages.ival)
@@ -4132,7 +4125,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString (&sb, rval);
 		}
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+		NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 		return true;
 	}
 	return false;
@@ -4285,7 +4278,7 @@ qboolean SV_ReadPackets (float *delay)
 #ifdef SERVER_DEMO_PLAYBACK
 	while (giveup-- > 0 && SV_GetPacket()>=0)
 #else
-	while (giveup-- > 0 && (cookie=NET_GetPacket (NS_SERVER, cookie)) >= 0)
+	while (giveup-- > 0 && (cookie=NET_GetPacket (svs.sockets, cookie)) >= 0)
 #endif
 	{
 		// check for connectionless packet (0xffffffff) first
@@ -4299,9 +4292,9 @@ qboolean SV_ReadPackets (float *delay)
 				if (ct - lt > 5*1000)
 				{
 					if (*banreason)
-						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "You are banned: %s\n", banreason);
+						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
 					else
-						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, svs.language, "You are banned\n");
+						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned\n");
 				}
 				continue;
 			}
@@ -4454,7 +4447,7 @@ dominping:
 		if (SV_BannedReason (&net_from))
 			continue;
 
-		if (NET_WasSpecialPacket(NS_SERVER))
+		if (NET_WasSpecialPacket(svs.sockets))
 			continue;
 
 		// packet is not from a known client
@@ -5125,8 +5118,6 @@ void SV_InitLocal (void)
 	if (isDedicated)
 #endif
 	{
-		Cvar_Register (&developer,	cvargroup_servercontrol);
-
 		Cvar_Register (&password,	cvargroup_servercontrol);
 		Cvar_Register (&rcon_password,	cvargroup_servercontrol);
 
@@ -5563,7 +5554,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	}
 
 	val = InfoBuf_ValueForKey (&cl->userinfo, "lang");
-	cl->language = *val?TL_FindLanguage(val):svs.language;
+	cl->language = *val?TL_FindLanguage(val):com_language;
 
 	val = InfoBuf_ValueForKey (&cl->userinfo, "nogib");
 	cl->gibfilter = !!atoi(val);

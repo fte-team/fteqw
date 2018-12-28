@@ -334,7 +334,7 @@ typedef struct
 	// received from client
 
 	// reply
-	double				senttime;		//time we sent this frame to the client, for ping calcs
+	double				senttime;		//time we sent this frame to the client, for ping calcs (realtime)
 	int					sequence;		//the outgoing sequence - without mask, meaning we know if its current or stale
 	float				ping_time;		//how long it took for the client to ack it, may be negative
 	float				move_msecs;		//
@@ -365,8 +365,9 @@ typedef struct
 	float				pmwaterjumptime;
 	usercmd_t			cmd;
 	//these are old positions of players, to give more accurate victim positions
-	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
-	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
+	laggedentinfo_t		laggedplayer[MAX_CLIENTS];
+	unsigned int		numlaggedplayers;
+	float				laggedtime;	//sv.time of when this frame was sent
 } client_frame_t;
 
 #ifdef Q2SERVER
@@ -524,6 +525,7 @@ typedef struct client_s
 	laggedentinfo_t	laggedents[MAX_CLIENTS];
 	unsigned int	laggedents_count;
 	float			laggedents_frac;
+	float			laggedents_time;
 
 // spawn parms are carried from level to level
 	float			spawn_parms[NUM_SPAWN_PARMS];
@@ -939,7 +941,6 @@ typedef struct
 
 	struct netprim_s netprim;
 
-	int language;	//the server operators language
 	laggedpacket_t *free_lagged_packet;
 	packet_entities_t entstatebuffer; /*just a temp buffer*/
 
@@ -1325,6 +1326,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client);
 
 //sv_master.c
 void SVM_Think(int port);
+vfsfile_t *SVM_GenerateIndex(const char *fname);
 
 
 //
@@ -1333,6 +1335,9 @@ void SVM_Think(int port);
 typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_PACKET_LOG, RD_OBLIVION, RD_MASTER} redirect_t;	//oblivion is provided so people can read the output before the buffer is wiped.
 void SV_BeginRedirect (redirect_t rd, int lang);
 void SV_EndRedirect (void);
+extern char	sv_redirected_buf[8000];
+extern redirect_t	sv_redirected;
+extern int sv_redirectedlang;
 
 
 qboolean PR_GameCodePacket(char *s);

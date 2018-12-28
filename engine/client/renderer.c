@@ -127,7 +127,7 @@ cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use 
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
-													  CVAR_ARCHIVE, "-1: the engine will bypass dlights completely, allowing for better batching.\n0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
+													  CVAR_ARCHIVE, "-1: the engine will use only pvs to determine which surfaces are visible. This can significantly reduce CPU time, but only if there are many surfaces with few textures visible from the camera.\n0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
 cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
@@ -1557,8 +1557,8 @@ TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Draw_Init();
 TRACE(("dbg: R_ApplyRenderer: draw inited\n"));
 #ifdef MENU_NATIVECODE
-	if (mn_entry)
-		mn_entry->Init(MI_RENDERER, vid.width, vid.height, vid.rotpixelwidth, vid.rotpixelheight);
+		if (mn_entry)
+			mn_entry->Init(MI_RENDERER, vid.width, vid.height, vid.rotpixelwidth, vid.rotpixelheight);
 #endif
 		R_Init();
 		RQ_Init();

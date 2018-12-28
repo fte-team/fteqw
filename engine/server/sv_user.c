@@ -194,7 +194,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 	if (client->realip_status == 1)
 	{
 		msg = va("\xff\xff\xff\xff%c %i", A2A_PING, client->realip_ping);
-		NET_SendPacket(NS_SERVER, strlen(msg), msg, &client->realip);
+		NET_SendPacket(svs.sockets, strlen(msg), msg, &client->realip);
 	}
 	else
 	{
@@ -2566,7 +2566,7 @@ void VARGS OutofBandPrintf(netadr_t *where, char *fmt, ...)
 	vsnprintf (send+5, sizeof(send)-5, fmt, argptr);
 	va_end (argptr);
 
-	NET_SendPacket (NS_SERVER, strlen(send)+1, send, where);
+	NET_SendPacket (svs.sockets, strlen(send)+1, send, where);
 }
 
 /*
@@ -4980,9 +4980,9 @@ void Cmd_SetPos_f(void)
 	if (!svprogfuncs)
 		return;
 
-	if (Cmd_Argc() != 4)
+	if (Cmd_Argc() != 4 && Cmd_Argc() != 7)
 	{
-		SV_ClientPrintf(host_client, PRINT_HIGH, "setpos %f %f %f\n", sv_player->v->origin[0], sv_player->v->origin[1], sv_player->v->origin[2]);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "setpos %f %f %f %f %f %f\n", sv_player->v->origin[0], sv_player->v->origin[1], sv_player->v->origin[2], sv_player->v->v_angle[0], sv_player->v->v_angle[1], sv_player->v->v_angle[2]);
 		return;
 	}
 	SV_LogPlayer(host_client, "setpos cheat");
@@ -4999,6 +4999,14 @@ void Cmd_SetPos_f(void)
 	sv_player->v->origin[1] = atof(Cmd_Argv(2));
 	sv_player->v->origin[2] = atof(Cmd_Argv(3));
 	World_LinkEdict (&sv.world, (wedict_t*)sv_player, false);
+
+	if (Cmd_Argc() > 4)
+	{
+		sv_player->v->angles[0] = atof(Cmd_Argv(4));
+		sv_player->v->angles[1] = atof(Cmd_Argv(5));
+		sv_player->v->angles[2] = atof(Cmd_Argv(6));
+		sv_player->v->fixangle = true;
+	}
 }
 
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
@@ -7657,7 +7665,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 	vec3_t o;
 	int		checksumIndex;
 	qbyte	checksum, calculatedChecksum;
-	int		seq_hash, i;
+	int		seq_hash;
 
 	// calc ping time
 	if (cl->frameunion.frames)
@@ -7694,14 +7702,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 #ifdef warningmsg
 #pragma warningmsg("FIXME: make antilag optionally support non-player ents too")
 #endif
-			for (i = 0; i < sv.allocated_client_slots; i++)
-			{
-				cl->laggedents[i].present = frame->playerpresent[i];
-				if (cl->laggedents[i].present)
-					VectorCopy(frame->playerpositions[i], cl->laggedents[i].laggedpos);
-			}
 			cl->laggedents_count = sv.allocated_client_slots;
-
+			memcpy(cl->laggedents, frame->laggedplayer, sizeof(*cl->laggedents)*cl->laggedents_count);
+			cl->laggedents_time = frame->laggedtime;
 			cl->laggedents_frac = !*sv_antilag_frac.string?1:sv_antilag_frac.value;
 		}
 		else

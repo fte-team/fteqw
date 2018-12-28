@@ -75,7 +75,7 @@ enum
 	ASPECT2D_CUSTOM,
 };
 
-qboolean M_Vid_GetMode(int num, int *w, int *h)
+qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h)
 {
 	int i;
 

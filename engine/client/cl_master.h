@@ -17,7 +17,7 @@ enum masterprotocol_e
 	MP_DPMASTER
 };
 
-#if defined(CL_MASTER) && !defined(SERVERONLY)
+#if defined(CL_MASTER) && defined(HAVE_CLIENT)
 #define SS_PROTOCOLMASK 0xf
 #define SS_UNKNOWN		0
 #define SS_QUAKEWORLD	1
@@ -134,7 +134,10 @@ typedef struct serverinfo_s
 	qbyte players;
 	qbyte maxplayers;
 	qbyte sends;
-	qbyte status; //1=alive, 2=displayed
+	qbyte status;
+#define SRVSTATUS_ALIVE		1u	//server is responding to pings
+#define SRVSTATUS_DISPLAYED	2u	//server passed all filters
+#define SRVSTATUS_GLOBAL	4u	//server was reported by one of the master servers (ie: global and not local)
 
 	qbyte numspectators;
 	qbyte numhumans;
@@ -247,8 +250,6 @@ serverinfo_t *Master_SortedServer(int idx);
 void Master_SetMaskString(qboolean or_, hostcachekey_t field, const char *param, slist_test_t testop);
 void Master_SetMaskInteger(qboolean or_, hostcachekey_t field, int param, slist_test_t testop);
 serverinfo_t *Master_FindRoute(netadr_t target);
-#else
-#define MasterInfo_WriteServers()
 #endif
 
 

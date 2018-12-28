@@ -301,11 +301,6 @@ qbyte		*host_basepal;
 qbyte		*h2playertranslations;
 
 cvar_t	host_speeds = CVAR("host_speeds","0");		// set for running times
-#ifdef CRAZYDEBUGGING
-cvar_t	developer = CVAR("developer","1");
-#else
-cvar_t	developer = CVAR("developer","0");
-#endif
 
 int			fps_count;
 qboolean	forcesaveprompt;
@@ -455,7 +450,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\%s\\name\\%s", 255, 255, 255, 255, challenge, name.string);
 
-	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+	NET_SendPacket (cls.sockets, strlen(data), data, adr);
 
 	cl.splitclients = 0;
 }
@@ -724,7 +719,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (info)
 		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
-	NET_SendPacket (NS_CLIENT, strlen(data), data, to);
+	NET_SendPacket (cls.sockets, strlen(data), data, to);
 }
 
 char *CL_TryingToConnect(void)
@@ -752,7 +747,7 @@ void CL_CheckForResend (void)
 	char *host;
 	extern int	r_blockvidrestart;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
 		const char *lbp;
@@ -951,7 +946,7 @@ void CL_CheckForResend (void)
 			NET_AdrToString(data, sizeof(data), &connectinfo.adr);
 
 			/*eat up the server's packets, to clear any lingering loopback packets (like disconnect commands... yes this might cause packetloss for other clients)*/
-			while(NET_GetPacket (NS_SERVER, 0) >= 0)
+			while(NET_GetPacket (svs.sockets, 0) >= 0)
 			{
 			}
 			net_message.packing = SZ_RAWBYTES;
@@ -1119,7 +1114,7 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		switch(NET_SendPacket (NS_CLIENT, strlen(data), data, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, strlen(data), data, &connectinfo.adr))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 		case NETERR_SENT:		//yay, works!
@@ -1159,7 +1154,7 @@ void CL_CheckForResend (void)
 			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		switch(NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, sb.cursize, sb.data, &connectinfo.adr))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 		case NETERR_SENT:		//yay, works!
@@ -1540,7 +1535,7 @@ void CL_Rcon_f (void)
 		}
 	}
 
-	NET_SendPacket (NS_CLIENT, strlen(message)+1, message, &to);
+	NET_SendPacket (cls.sockets, strlen(message)+1, message, &to);
 }
 
 void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf)
@@ -2659,7 +2654,7 @@ void CL_Packet_f (void)
 	}
 	*out = 0;
 
-	NET_SendPacket (NS_CLIENT, out-send, send, &adr);
+	NET_SendPacket (cls.sockets, out-send, send, &adr);
 
 	if (Cmd_FromGamecode())
 	{
@@ -2905,7 +2900,7 @@ void CL_ConnectionlessPacket (void)
 		Q_snprintfz(data+6, sizeof(data)-6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
 		len = strlen(data);
 
-		NET_SendPacket (NS_CLIENT, len, &data, &net_from);
+		NET_SendPacket (cls.sockets, len, &data, &net_from);
 		return;
 	}
 
@@ -2954,7 +2949,7 @@ void CL_ConnectionlessPacket (void)
 				{
 					connectinfo.istransfer = true;
 					connectinfo.adr = adr;
-					NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+					NET_SendPacket (cls.sockets, strlen(data), data, &adr);
 				}
 			}
 			return;
@@ -3205,7 +3200,7 @@ void CL_ConnectionlessPacket (void)
 
 			//server says it can do tls.
 			char *pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
-			NET_SendPacket (NS_CLIENT, strlen(pkt), pkt, &net_from);
+			NET_SendPacket (cls.sockets, strlen(pkt), pkt, &net_from);
 			return;
 		}
 		if (connectinfo.dtlsupgrade == DTLS_REQUIRE)
@@ -3730,7 +3725,7 @@ void CL_ReadPackets (void)
 
 		if (cls.state == ca_disconnected)
 		{	//connect to nq servers, but don't get confused with sequenced packets.
-			if (NET_WasSpecialPacket(NS_CLIENT))
+			if (NET_WasSpecialPacket(cls.sockets))
 				continue;
 #ifdef NQPROT
 			CLNQ_ConnectionlessPacket ();
@@ -3744,7 +3739,7 @@ void CL_ReadPackets (void)
 		if (!cls.demoplayback &&
 			!NET_CompareAdr (&net_from, &cls.netchan.remote_address))
 		{
-			if (NET_WasSpecialPacket(NS_CLIENT))
+			if (NET_WasSpecialPacket(cls.sockets))
 				continue;
 			Con_DPrintf ("%s:sequenced packet from wrong server\n"
 				,NET_AdrToString(adr, sizeof(adr), &net_from));
@@ -4188,7 +4183,7 @@ void CL_FTP_f(void)
 void CL_Fog_f(void)
 {
 	int ftype = Q_strcasecmp(Cmd_Argv(0), "fog");
-	if ((cl.fog_locked && !Cmd_FromGamecode()) || Cmd_Argc() <= 1)
+	if ((cl.fog_locked && !Cmd_FromGamecode() && !cls.allow_cheats) || Cmd_Argc() <= 1)
 	{
 		if (Cmd_ExecLevel != RESTRICT_INSECURE)
 			Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
@@ -4420,7 +4415,6 @@ void CL_Init (void)
 	CSQC_RegisterCvarsAndThings();
 #endif
 	Cvar_Register (&host_speeds, cl_controlgroup);
-	Cvar_Register (&developer, cl_controlgroup);
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
@@ -5307,7 +5301,9 @@ done:
 //						if (f->flags & HRF_DOWNLOADED)
 						man->blockupdate = true;
 						BZ_Free(fdata);
+#ifdef PACKAGEMANAGER
 						PM_Shutdown();
+#endif
 						FS_ChangeGame(man, true, true);
 					}
 					else
@@ -6359,7 +6355,9 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+#ifdef PACKAGEMANAGER
 	char engineupdated[MAX_OSPATH];
+#endif
 	int man;
 
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
@@ -6385,6 +6383,7 @@ void Host_Init (quakeparms_t *parms)
 	Cmd_Init ();
 	COM_Init ();
 
+#ifdef PACKAGEMANAGER
 	//we have enough of the filesystem inited now that we can read the package list and figure out which engine was last installed.
 	if (PM_FindUpdatedEngine(engineupdated, sizeof(engineupdated)))
 	{
@@ -6402,6 +6401,8 @@ void Host_Init (quakeparms_t *parms)
 		}
 		PM_Shutdown();	//will restart later as needed, but we need to be sure that no files are open or anything.
 	}
+#endif
+
 	V_Init ();
 	NET_Init ();
 
@@ -6548,7 +6549,9 @@ void Host_Shutdown(void)
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
+#ifdef PACKAGEMANAGER
 	PM_Shutdown();
+#endif
 	Key_Unbindall_f();
 
 #ifdef PLUGINS

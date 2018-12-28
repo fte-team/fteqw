@@ -348,6 +348,21 @@ void Hash_RemoveBucket(hashtable_t *table, const char *name, bucket_t *data)
 	return;
 }
 
+void Hash_RemoveDataKey(hashtable_t *table, unsigned int key, void *data)
+{
+	unsigned int bucknum = key%table->numbuckets;
+	bucket_t **link, *buck;
+
+	for (link = &table->bucket[bucknum]; *link; link = &(*link)->next)
+	{
+		buck = *link;
+		if (buck->data == data && buck->key.value == key)
+		{
+			*link = buck->next;
+			return;
+		}
+	}
+}
 void Hash_RemoveKey(hashtable_t *table, unsigned int key)
 {
 	unsigned int bucknum = key%table->numbuckets;

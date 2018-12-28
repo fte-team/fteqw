@@ -765,7 +765,7 @@ static int Sys_CheckChRoot(void)
 				freeaddrinfo(info);
 		}
 
-#ifdef SQL
+#if defined(SQL) && defined(HAVE_SERVER)
 		SQL_Available();
 #endif
 #ifdef HAVE_GNUTLS

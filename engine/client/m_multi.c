@@ -577,6 +577,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 	if (cls.state)
 		Cbuf_AddText("disconnect\n", RESTRICT_LOCAL);
 
+	Cbuf_AddText("sv_playerslots \"\"\n", RESTRICT_LOCAL);	//just in case.
 	Cbuf_AddText(va("maxclients \"%s\"\n", numplayeroptions[info->numplayers->selectedoption]), RESTRICT_LOCAL);
 	if (info->rundedicated->value)
 		Cbuf_AddText("setrenderer dedicated\n", RESTRICT_LOCAL);
@@ -711,7 +712,7 @@ void M_Menu_GameOptions_f (void)
 		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"map", "start");
 	y += 16;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, menu->selecteditem->common.posy, NULL, false);
 
 
 	info->lowercolour = bottomcolor.value;

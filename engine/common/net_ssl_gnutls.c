@@ -463,7 +463,7 @@ static struct
 
 static int SSL_CheckUserTrust(gnutls_session_t session, gnutlsfile_t *file, int ret)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	//when using dtls, we expect self-signed certs and persistent trust.
 	if (file->datagram)
 	{

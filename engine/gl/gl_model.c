@@ -777,6 +777,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_loadentfiles, NULL);
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
+		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cmd_AddCommandD("sv_saveentfile", Mod_SaveEntFile_f, "Dumps a copy of the map's entities to disk, so that it can be edited and used as a replacement for slightly customised maps.");
 		Cmd_AddCommandD("mod_showent", Mod_ShowEnt_f, "Allows you to quickly search through a map's entities.");
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);

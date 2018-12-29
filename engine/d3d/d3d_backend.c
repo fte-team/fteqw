@@ -2070,7 +2070,8 @@ static void BE_ApplyUniforms(program_t *prog, struct programpermu_s *perm)
 			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_refdef.userdata[0], countof(r_refdef.userdata));
 			break;
 
-		case SP_M_ENTBONES:
+		case SP_M_ENTBONES_MAT3X4:
+		case SP_M_ENTBONES_PACKED:
 		case SP_E_VLSCALE:
 		case SP_E_ORIGIN:
 		case SP_E_GLOWMOD:

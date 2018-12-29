@@ -229,15 +229,15 @@ typedef struct {
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
 
-	qboolean sgis_generate_mipmap;
+//	qboolean sgis_generate_mipmap;
 
 	qboolean arb_texture_env_combine;
 	qboolean arb_texture_env_dot3;
-	qboolean arb_texture_cube_map;
 
 	qboolean arb_texture_compression;	//means we support dynamic compression, rather than any specific compressed texture formats
 
 	qboolean geometryshaders;
+	qboolean arb_tessellation_shader;
 
 	qboolean ext_framebuffer_objects;
 	qboolean arb_framebuffer_srgb;

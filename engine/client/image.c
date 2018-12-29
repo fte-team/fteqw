@@ -8446,6 +8446,66 @@ void Image_List_f(void)
 	Con_Printf("%i images failed\n", failed);
 }
 
+void Image_Formats_f(void)
+{
+	size_t i;
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		Con_Printf("OpenGL info:\n");
+		Con_Printf("OpenGL Version: %s%g\n", gl_config.gles?"ES ":"", gl_config.glversion);
+		Con_Printf("OpenGLSL Version: %i\n", gl_config.maxglslversion);
+		Con_Printf("OpenGLSL Attributes: %u\n", gl_config.maxattribs);
+
+		Con_Printf("arb_texture_env_combine: %u\n", gl_config.arb_texture_env_combine);
+		Con_Printf("arb_texture_env_dot3: %u\n", gl_config.arb_texture_env_dot3);
+		Con_Printf("arb_texture_compression: %u\n", gl_config.arb_texture_compression);
+		Con_Printf("geometryshaders: %u\n", gl_config.geometryshaders);
+		Con_Printf("ext_framebuffer_objects: %u\n", gl_config.ext_framebuffer_objects);
+		Con_Printf("arb_framebuffer_srgb: %u\n", gl_config.arb_framebuffer_srgb);
+		Con_Printf("arb_shader_objects: %u\n", gl_config.arb_shader_objects);
+		Con_Printf("arb_shadow: %u\n", gl_config.arb_shadow);
+		Con_Printf("arb_depth_texture: %u\n", gl_config.arb_depth_texture);
+		Con_Printf("ext_stencil_wrap: %u\n", gl_config.ext_stencil_wrap);
+		Con_Printf("ext_packed_depth_stencil: %u\n", gl_config.ext_packed_depth_stencil);
+		Con_Printf("arb_depth_clamp: %u\n", gl_config.arb_depth_clamp);
+		Con_Printf("ext_texture_filter_anisotropic: %u\n", gl_config.ext_texture_filter_anisotropic);
+	}
+#endif
+
+	Con_Printf(		"            Programs: "S_COLOR_GREEN"%s\n", sh_config.progs_supported?va(sh_config.progpath, "*"):S_COLOR_RED"Unsupported");
+	if (sh_config.progs_supported)
+	{
+		Con_Printf(	"     Shader versions: %u - %u\n", sh_config.minver, sh_config.maxver);
+		Con_Printf(	"       Max GPU Bones: %s%u\n", sh_config.max_gpu_bones?S_COLOR_GREEN:S_COLOR_RED, sh_config.max_gpu_bones);
+	}
+	Con_Printf(		"     Legacy Pipeline: %s\n", sh_config.progs_required?S_COLOR_RED"Unsupported":S_COLOR_GREEN"Supported");
+	if (!sh_config.progs_required)
+	{
+		Con_Printf(	"       Env_Combiners: %s\n", sh_config.nv_tex_env_combine4?S_COLOR_GREEN"Extended":sh_config.tex_env_combine?S_COLOR_GREEN"Supported":S_COLOR_RED"Unsupported");
+		Con_Printf(	"             Env_Add: %s\n", sh_config.env_add?S_COLOR_GREEN"Supported":S_COLOR_RED"Unsupported");
+	}
+	Con_Printf(		"  Max Texture2d Size: %s%u*%u\n", S_COLOR_GREEN, sh_config.texture2d_maxsize, sh_config.texture2d_maxsize);
+	Con_Printf(		"Max Texture2d Layers: %s%u\n", sh_config.texture2darray_maxlayers?S_COLOR_GREEN:S_COLOR_RED, sh_config.texture2darray_maxlayers);
+	Con_Printf(		"  Max Texture3d Size: %s%u*%u*%u\n", sh_config.texture3d_maxsize?S_COLOR_GREEN:S_COLOR_RED, sh_config.texture3d_maxsize, sh_config.texture3d_maxsize, sh_config.texture3d_maxsize);
+	Con_Printf(		"Max TextureCube Size: %s%u*%u\n", sh_config.havecubemaps?S_COLOR_GREEN:S_COLOR_RED, sh_config.texturecube_maxsize, sh_config.texturecube_maxsize);
+	Con_Printf(		"    Non-Power-Of-Two: %s%s\n", sh_config.texture_non_power_of_two?S_COLOR_GREEN"Supported":(sh_config.texture_non_power_of_two_pic?S_COLOR_YELLOW"Limited":S_COLOR_RED"Unsupported"), sh_config.npot_rounddown?" (rounded down)":"");
+	Con_Printf(		"  Block Size Padding: %s\n", sh_config.texture_allow_block_padding?S_COLOR_GREEN"Supported":S_COLOR_RED"Unsupported");
+	Con_Printf(		"              Mipcap: %s\n", sh_config.can_mipcap?S_COLOR_GREEN"Supported":S_COLOR_RED"Unsupported");
+	for (i = 0; i < PTI_MAX; i++)
+	{
+		switch(i)
+		{
+		case PTI_EMULATED:
+			continue;
+		default:
+			break;
+		}
+		Con_Printf("%20s: %s\n", Image_FormatName(i), sh_config.texfmt[i]?S_COLOR_GREEN"Enabled":S_COLOR_RED"Disabled");
+	}
+}
+
 //may not create any images yet.
 void Image_Init(void)
 {
@@ -8454,6 +8514,7 @@ void Image_Init(void)
 	Hash_InitTable(&imagetable, sizeof(imagetablebuckets)/sizeof(imagetablebuckets[0]), imagetablebuckets);
 
 	Cmd_AddCommandD("r_imagelist", Image_List_f, "Prints out a list of the currently-known textures.");
+	Cmd_AddCommandD("r_imageformats", Image_Formats_f, "Prints out a list of the usable texture formats.");
 }
 //destroys all textures
 void Image_Shutdown(void)

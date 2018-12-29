@@ -2088,7 +2088,7 @@ static int QDECL R_SortRenderers(const void *av, const void *bv)
 
 void R_RestartRenderer (rendererstate_t *newr)
 {
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
 	void *portalblob = NULL;
 	size_t portalsize = 0;
 #endif

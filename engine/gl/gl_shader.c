@@ -5050,14 +5050,14 @@ done:;
 
 		if (!s->sort)
 		{
-			if (pass->shaderbits & SBITS_ATEST_BITS)
+			if (i < s->numpasses && (s->passes[i].shaderbits & SBITS_ATEST_BITS))
 				s->sort = SHADER_SORT_SEETHROUGH;
 		}
 
 		if (!( s->flags & SHADER_DEPTHWRITE) &&
 			!(s->flags & SHADER_SKY))
 		{
-			pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
+			s->passes->shaderbits |= SBITS_MISC_DEPTHWRITE;
 			s->flags |= SHADER_DEPTHWRITE;
 		}
 	}

@@ -845,10 +845,21 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglPNTrianglesfATI = (void *)getglext("glPNTrianglesfATI");
 		qglPNTrianglesiATI = (void *)getglext("glPNTrianglesiATI");
 	}
-	if (!gl_config.gles && gl_config.glversion >= 4.0)
+	if ((!gl_config.gles && gl_config.glversion >= 4.0) || (gl_config.gles && gl_config.glversion >= 3.2))
+	{
+		gl_config.arb_tessellation_shader = true;
 		qglPatchParameteriARB = getglext("glPatchParameteri");
+	}
 	else if (GL_CheckExtension("GL_ARB_tessellation_shader"))
+	{
+		gl_config.arb_tessellation_shader = true;
 		qglPatchParameteriARB = getglext("glPatchParameteriARB");
+	}
+	else if (GL_CheckExtension("GL_OES_tessellation_shader"))
+	{
+		gl_config.arb_tessellation_shader = true;
+		qglPatchParameteriARB = getglext("glPatchParameteriOES");
+	}
 	else
 		qglPatchParameteriARB = NULL;
 
@@ -879,8 +890,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.nv_tex_env_combine4 = GL_CheckExtension("GL_NV_texture_env_combine4");
 	gl_config.arb_texture_env_combine = GL_CheckExtension("GL_ARB_texture_env_combine");
 	gl_config.arb_texture_env_dot3 = GL_CheckExtension("GL_ARB_texture_env_dot3");
-
-	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
 	qglBufferStorage = NULL;
 #if !defined(GL_STATIC)
@@ -1139,10 +1148,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (GL_CheckExtension("GL_ARB_seamless_cube_map"))
 		qglEnable(0x884F);	//TEXTURE_CUBE_MAP_SEAMLESS                   0x884F
 
-	if (!gl_config.gles && gl_config.glversion >= 3.2)
-		gl_config.geometryshaders = true;
+	if (gl_config.gles)
+		gl_config.geometryshaders = (gl_config.glversion >= 3.2) || GL_CheckExtension("GL_OES_geometry_shader");
 	else
-		gl_config.geometryshaders = false;
+		gl_config.geometryshaders = (gl_config.glversion >= 3.2);
 
 	qglTexStorage2D = NULL;
 	qglTexStorage3D = NULL;
@@ -2378,9 +2387,9 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 					eol = strchr(start, '\n');
 					if (eol)
 						*eol=0;
-//					if (filename)
-//						Con_Printf("%s:%u:%u: %s\n", filename, line, rawline, start);
-//					else
+					if (filename)
+						Con_Printf("%s:%u:%u: %s\n", filename, line, rawline, start);
+					else
 						Con_Printf("%u:%u:%u: %s\n", filenum, line, rawline, start);
 					if (!strncmp(start, "#line ", 6))
 					{
@@ -2537,7 +2546,7 @@ union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, i
 
 	if (!gl_config.arb_shader_objects)
 		return ret;
-	if ((cont || eval) && !qglPatchParameteriARB)
+	if ((cont || eval) && !gl_config.arb_tessellation_shader)
 	{
 		Con_Printf("GLSlang_CreateProgram: %s requires tesselation support, but your gl drivers do not appear to support this (gl4.0 feature)\n", name);
 		return ret;
@@ -3320,7 +3329,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	{
 		sh_config.can_mipcap = gl_config.glversion >= 1.2;
 
-		sh_config.havecubemaps = gl_config.glversion >= 1.3;	//cubemaps AND clamp-to-edge.
+		sh_config.havecubemaps = gl_config.glversion >= 1.3||GL_CheckExtension("GL_ARB_texture_cube_map");;	//cubemaps AND clamp-to-edge.
 
 		if (gl_config.nofixedfunc)
 		{	//core contexts don't normally support glsl < 140 (such glsl versions have lots of compat syntax still, which will not function on core. drivers might accept it anyway, but yeah, lots of crap that shouldn't work)
@@ -3347,6 +3356,10 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	sh_config.texturecube_maxsize = 0;
 	if (sh_config.havecubemaps)
 		qglGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE_ARB, &sh_config.texturecube_maxsize);
+	if (!gl_config_gles || gl_config.glversion >= 3)
+		qglGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &sh_config.texture3d_maxsize);
+	if (gl_config.glversion >= 3)
+		qglGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &sh_config.texture2darray_maxlayers);
 
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
 	sh_config.progs_required	= gl_config_nofixedfunc;

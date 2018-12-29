@@ -115,7 +115,7 @@ void GL_SetupFormats(void)
 //		tc_srgba1 = GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT;
 
 	bc1 |= GL_CheckExtension("GL_EXT_texture_compression_dxt1");
-	bc2 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt3");
+	bc2 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt3");	//WARNING: can only use these if mip0 is a multiple of 4
 	bc3 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt5");
 
 	/*else if (sh_config.texfmt[PTI_ETC2_RGB8A8])

@@ -4275,7 +4275,7 @@ static void BE_LegacyLighting(void)
 		}
 	}
 
-	if (TEXLOADED(shaderstate.curtexnums->bump) && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
+	if (TEXLOADED(shaderstate.curtexnums->bump) && sh_config.havecubemaps && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
 	{	//we could get this down to 2 tmus by arranging for the dot3 result to be written the alpha buffer. But then we'd need to have an alpha buffer too.
 
 		if (!shaderstate.normalisationcubemap)

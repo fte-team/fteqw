@@ -781,6 +781,8 @@ typedef struct
 
 	qboolean texfmt[PTI_MAX];		//which texture formats are supported (renderable not implied)
 	unsigned int texture2d_maxsize;			//max size of a 2d texture
+	unsigned int texture3d_maxsize;			//max size of a 3d texture
+	unsigned int texture2darray_maxlayers;	//max layers of a 2darray texture
 	unsigned int texturecube_maxsize;
 	qboolean texture_non_power_of_two;		//full support for npot
 	qboolean texture_non_power_of_two_pic;	//npot only works with clamp-to-edge mipless images.

@@ -3602,8 +3602,11 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwa
 		}
 	}
 
-	FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
-	if (!file)
+	if (!strncmp(name, "./", 2))
+		FS_LoadFile(va("%s.cfg", name+2), (void**)&file);
+	else
+		FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
+	if (!file && strchr(name, '/'))
 		FS_LoadFile(va("%s.cfg", name), (void**)&file);
 	if (file)
 	{

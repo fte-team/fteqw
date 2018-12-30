@@ -36,6 +36,12 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_CLAMP_TO_EDGE                  0x812F
 //#endif
 
+
+#ifndef GL_MAX_ARRAY_TEXTURE_LAYERS
+#define GL_MAX_ARRAY_TEXTURE_LAYERS       0x88FF	/*opengl 3.0*/
+#endif
+
+
 // Added to make morphos and mingw32 crosscompilers to work
 /*
 ./gl/gl_draw.c: In function `GL_Upload32_BGRA':

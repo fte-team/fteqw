@@ -614,6 +614,27 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
 
+	IF(1)
+		ADD_EXECUTABLE(ftemaster
+			${FTESV_ARCH_FILES}
+			engine/server/sv_master.c
+			engine/common/net_wins.c
+			engine/common/cvar.c
+			engine/common/cmd.c
+			engine/common/sha1.c		#for websockets
+			engine/http/httpclient.c	#for the pipe stuff
+			engine/common/log.c
+			engine/common/fs.c
+			engine/common/fs_stdio.c
+			engine/common/common.c
+			engine/common/translate.c
+			engine/common/zone.c
+			engine/qclib/hash.c
+		)
+		SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
+	ENDIF()
+
 	ADD_EXECUTABLE(httpserver
 		engine/common/fs_stdio.c
 		engine/http/httpserver.c

@@ -159,6 +159,7 @@ void	Cmd_ExecuteString (const char *text, int restrictionlevel);
 
 void Cmd_Args_Set(const char *newargs, size_t len);
 
+//higher levels have greater access, BUT BE SURE TO CHECK Cmd_IsInsecure()
 #define RESTRICT_MAX_TOTAL  31
 #define RESTRICT_MAX_USER	29
 #define RESTRICT_DEFAULT	20

@@ -2421,18 +2421,19 @@ void Key_Bind_f (void)
 	int			i, c, b, modifier;
 	char		cmd[1024];
 	int bindmap = 0;
-
+	int level = Cmd_ExecLevel;
+	qboolean isbindlevel = !strcmp("bindlevel", Cmd_Argv(0));
 	if (!strcmp("in_bind", Cmd_Argv(0)))
 	{
 		bindmap = atoi(Cmd_Argv(1));
-		Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
+		Cmd_ShiftArgs(1, level==RESTRICT_LOCAL);
 	}
 	
 	c = Cmd_Argc();
 
-	if (c < 2)
+	if (c < 2+isbindlevel)
 	{
-		Con_Printf ("bind <key> [command] : attach a command to a key\n");
+		Con_Printf ("%s <key> %s[command] : attach a command to a key\n", Cmd_Argv(0), isbindlevel?"<level> ":"");
 		return;
 	}
 	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
@@ -2442,6 +2443,25 @@ void Key_Bind_f (void)
 			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
 	}
+	if (isbindlevel)
+	{
+		level = atoi(Cmd_Argv(2));
+		if (Cmd_IsInsecure())
+			level = Cmd_ExecLevel;
+		else
+		{
+			if (level > RESTRICT_MAX)
+				level = RESTRICT_INSECURE;
+			else
+			{
+				if (level < RESTRICT_MIN)
+					level = RESTRICT_MIN;
+				if (level > Cmd_ExecLevel)
+					level = Cmd_ExecLevel;	//clamp exec levels, so we don't get more rights than we should.
+			}
+		}
+	}
+
 	if (bindmap)
 	{
 		if (bindmap <= 0 || bindmap > KEY_MODIFIER_ALTBINDMAP)
@@ -2459,7 +2479,7 @@ void Key_Bind_f (void)
 		modifier = (bindmap-1) | KEY_MODIFIER_ALTBINDMAP;
 	}
 
-	if (c == 2)
+	if (c == 2+isbindlevel)
 	{
 		if (modifier == ~0)	//modifier unspecified. default to no modifier
 			modifier = 0;
@@ -2482,73 +2502,23 @@ void Key_Bind_f (void)
 		return;
 	}
 
-	if (c > 3)
+	if (c > 3+isbindlevel)
 	{
-		Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
-		Key_SetBinding (b, modifier, Cmd_Args(), Cmd_ExecLevel);
+		Cmd_ShiftArgs(1+isbindlevel, level==RESTRICT_LOCAL);
+		Key_SetBinding (b, modifier, Cmd_Args(), level);
 		return;
 	}
 	
 // copy the rest of the command line
 	cmd[0] = 0;		// start out with a null string
-	for (i=2 ; i< c ; i++)
+	for (i=2+isbindlevel ; i< c ; i++)
 	{
 		Q_strncatz (cmd, Cmd_Argv(i), sizeof(cmd));
 		if (i != (c-1))
 			Q_strncatz (cmd, " ", sizeof(cmd));
 	}
 
-	Key_SetBinding (b, modifier, cmd, Cmd_ExecLevel);
-}
-
-void Key_BindLevel_f (void)
-{
-	int			i, c, b, modifier;
-	char		cmd[1024];
-	
-	c = Cmd_Argc();
-
-	if (c != 2 && c != 4)
-	{
-		Con_Printf ("%s <key> [<level> <command>] : attach a command to a key for a specific level of access\n", Cmd_Argv(0));
-		return;
-	}
-	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
-	if (b==-1)
-	{
-		if (cl_warncmd.ival)
-			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
-		return;
-	}
-
-	if (modifier == ~0)	//modifier unspecified. default to no modifier
-		modifier = 0;
-
-	if (c == 2)
-	{
-		if (keybindings[b][modifier])
-			Con_Printf ("\"%s\" (%i)= \"%s\"\n", Cmd_Argv(1), bindcmdlevel[b][modifier], keybindings[b][modifier] );
-		else
-			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
-		return;
-	}
-
-	if (Cmd_IsInsecure())
-	{
-		Con_Printf("Server attempted usage of %s\n", Cmd_Argv(0));
-		return;
-	}
-
-// copy the rest of the command line
-	cmd[0] = 0;		// start out with a null string
-	for (i=3 ; i< c ; i++)
-	{
-		Q_strncatz (cmd, Cmd_Argv(i), sizeof(cmd));
-		if (i != (c-1))
-			Q_strncatz (cmd, " ", sizeof(cmd));
-	}
-
-	Key_SetBinding (b, modifier, cmd, atoi(Cmd_Argv(2)));
+	Key_SetBinding (b, modifier, cmd, level);
 }
 
 /*
@@ -2713,7 +2683,7 @@ void Key_Init (void)
 //
 	Cmd_AddCommandAD ("bind",Key_Bind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("in_bind",Key_Bind_f);
-	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
+	Cmd_AddCommand ("bindlevel",Key_Bind_f);
 	Cmd_AddCommandAD ("unbind",Key_Unbind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
 

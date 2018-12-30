@@ -3986,7 +3986,7 @@ static void Cmd_WriteConfig_f(void)
 		MasterInfo_WriteServers();
 #endif
 
-		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
+		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 4, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
 
 		all = cfg_save_all.ival;
 	}

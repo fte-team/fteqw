@@ -120,7 +120,8 @@ struct menu_s;
 
 
 typedef enum {
-	mt_childwindow,
+	mt_framestart,
+	mt_frameend,
 	mt_button,
 	mt_qbuttonbigfont,
 	mt_hexen2buttonbigfont,
@@ -243,6 +244,13 @@ typedef struct {
 	char *command;
 } menubind_t;
 
+typedef struct {
+	menucommon_t common;
+	qboolean mousedown;
+	float frac;
+	union menuoption_s *suboptions;
+} menuframe_t;
+
 typedef union menuoption_s {
 	menucommon_t	common;
 	menubutton_t	button;
@@ -255,6 +263,7 @@ typedef union menuoption_s {
 	menubox_t		box;
 	menucheck_t		check;
 	menubind_t		bind;
+	menuframe_t		frame;
 } menuoption_t;
 
 typedef struct menutooltip_s {
@@ -308,7 +317,7 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *t
 menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
-menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname);
+menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, int height, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *resel, int x, int y);
 menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, int y);
@@ -326,6 +335,8 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *ca
 menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
 menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint);
+menuframe_t *MC_AddFrameStart(menu_t *menu, int y);	//call before items are added
+menuframe_t *MC_AddFrameEnd(menu_t *menu, int y);	//and call AFTER that stuff with the same y.
 
 typedef struct menubulk_s {
 	menutype_t type;

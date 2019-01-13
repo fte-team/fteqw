@@ -2499,7 +2499,7 @@ void CL_SetInfo_f (void)
 	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
 }
 
-#ifdef _DEBUG
+#if 1//def _DEBUG
 void CL_SetInfoBlob_f (void)
 {
 	qofs_t fsize;
@@ -4665,7 +4665,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("user", CL_User_f);
 	Cmd_AddCommand ("users", CL_Users_f);
 
-#ifdef _DEBUG
+#if 1//def _DEBUG
 	Cmd_AddCommand ("setinfoblob", CL_SetInfoBlob_f);
 #endif
 	Cmd_AddCommand ("setinfo", CL_SetInfo_f);
@@ -5925,10 +5925,15 @@ double Host_Frame (double time)
 		VectorClear(cl.playerview[i].audio.velocity);
 	}
 
+	if (R2D_Flush)
+	{
+		R2D_Flush();
+		Con_Printf("R2D_Flush was set outside of SCR_UpdateScreen\n");
+	}
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
 		extern cvar_t r_stereo_method;
-
+		r_refdef.warndraw = false;
 		r_refdef.stereomethod = r_stereo_method.ival;
 #ifdef FTE_TARGET_WEB
 		if (emscriptenfte_getvrframedata())
@@ -5945,6 +5950,7 @@ double Host_Frame (double time)
 				Sys_Error("update didn't flush 2d cache\n");
 			RSpeedEnd(RSPEED_TOTALREFRESH);
 		}
+		r_refdef.warndraw = true;
 	}
 	else
 		fps_count++;

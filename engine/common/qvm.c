@@ -933,19 +933,19 @@ void VM_PrintInfo(vm_t *vm)
 	qvm_t *qvm;
 
 //	Con_Printf("%s (%p): ", vm->name, vm->hInst);
-	Con_Printf("%s: ", vm->filename);
+	Con_Printf("^2%s", vm->filename);
 
 	switch(vm->type)
 	{
 	case VM_NATIVE:
-		Con_Printf("native\n");
+		Con_Printf(": native\n");
 		break;
 	case VM_BUILTIN:
-		Con_Printf("built in\n");
+		Con_Printf(": built in\n");
 		break;
 
 	case VM_BYTECODE:
-		Con_Printf("interpreted\n");
+		Con_Printf(": interpreted\n");
 		if((qvm=vm->hInst))
 		{
 			Con_Printf("  code  length: %d\n", qvm->len_cs);
@@ -955,7 +955,7 @@ void VM_PrintInfo(vm_t *vm)
 		break;
 
 	default:
-		Con_Printf("unknown\n");
+		Con_Printf(": unknown\n");
 		break;
 	}
 }

@@ -176,17 +176,17 @@ static int Sbar_BottomColour(player_info_t *p)
 
 #endif
 //Draws a pre-marked-up string with no width limit. doesn't support new lines
-void Draw_ExpandedString(float x, float y, conchar_t *str)
+void Draw_ExpandedString(struct font_s *font, float x, float y, conchar_t *str)
 {
 	int px, py;
 	unsigned int codeflags, codepoint;
-	Font_BeginString(font_default, x, y, &px, &py);
+	Font_BeginString(font, x, y, &px, &py);
 	while(*str)
 	{
 		str = Font_Decode(str, &codeflags, &codepoint);
 		px = Font_DrawChar(px, py, codeflags, codepoint);
 	}
-	Font_EndString(font_default);
+	Font_EndString(font);
 }
 
 //Draws a marked-up string using the regular char set with no width limit. doesn't support new lines
@@ -195,7 +195,7 @@ void Draw_FunString(float x, float y, const void *str)
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 
-	Draw_ExpandedString(x, y, buffer);
+	Draw_ExpandedString(font_default, x, y, buffer);
 }
 //Draws a marked up string using the alt char set (legacy mode would be |128)
 void Draw_AltFunString(float x, float y, const void *str)
@@ -203,7 +203,7 @@ void Draw_AltFunString(float x, float y, const void *str)
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_ALTMASK, str, buffer, sizeof(buffer), false);
 
-	Draw_ExpandedString(x, y, buffer);
+	Draw_ExpandedString(font_default, x, y, buffer);
 }
 
 //Draws a marked up string no wider than $width virtual pixels.
@@ -285,7 +285,31 @@ static char		*q2sb_nums[2][11] =
 
 static mpic_t *Sbar_Q2CachePic(char *name)
 {
-	return R2D_SafeCachePic(va("pics/%s.pcx", name));
+	mpic_t *pic = R2D_SafeCachePic(va("pics/%s.pcx", name));
+#if defined(IMAGEFMT_PCX)
+	int xmin,ymin,swidth,sheight;
+	size_t length;
+	pcx_t *pcx = (pcx_t*)COM_LoadTempFile(va("pics/%s.pcx", name), 0, &length);
+	if (pcx && length >= sizeof(*pcx))
+	{
+		xmin = LittleShort(pcx->xmin);
+		ymin = LittleShort(pcx->ymin);
+		swidth = LittleShort(pcx->xmax)-xmin+1;
+		sheight = LittleShort(pcx->ymax)-ymin+1;
+
+		if (pcx->manufacturer == 0x0a
+			&& pcx->version == 5
+			&& pcx->encoding == 1
+			&& pcx->bits_per_pixel == 8
+			&& swidth <= 1024
+			&& sheight <= 1024)
+		{
+			pic->width = swidth;
+			pic->height = sheight;
+		}
+	}
+#endif
+	return pic;
 }
 
 #define	ICON_WIDTH	24
@@ -1210,7 +1234,7 @@ void Sbar_DrawString (float x, float y, char *str)
 
 void Sbar_DrawExpandedString (float x, float y, conchar_t *str)
 {
-	Draw_ExpandedString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
+	Draw_ExpandedString (font_default, sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
 void Draw_TinyString (float x, float y, const qbyte *str)

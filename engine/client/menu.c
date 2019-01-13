@@ -530,7 +530,7 @@ void M_Menu_Keys_f (void)
 	{
 #ifdef Q2CLIENT
 	case MGT_QUAKE2:
-		//fixme: no art?
+		MC_AddCenterPicture(menu, 0, 60, "pics/m_banner_customize.pcx");
 		y = 48;
 		bindnames = q2bindnames;
 		break;
@@ -606,13 +606,14 @@ void M_Menu_Keys_f (void)
 		return;
 	}
 
+	MC_AddFrameStart(menu, 48+8);
 	while (bindnames->name)
 	{
 		MC_AddBind(menu, 16, 170, y, bindnames->name, bindnames->command, NULL);
 		y += 8;
-
 		bindnames++;
 	}
+	MC_AddFrameEnd(menu, 48+8);
 }
 
 void M_UnbindCommand (const char *command)
@@ -1479,12 +1480,11 @@ void M_Draw (int uimenu)
 #endif
 
 #ifndef NOBUILTINMENUS
-	{extern menu_t *topmenu;
 	if (topmenu)
 	{
 		M_Complex_Draw ();
 		stillactive = true;
-	}}
+	}
 #endif
 	if (!stillactive)
 		Key_Dest_Remove(kdm_emenu);
@@ -1497,7 +1497,12 @@ void M_Keydown (int key, int unicode)
 	if (topmenu)
 	{
 		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
-			menu_mousedown = true;
+		{
+			if (topmenu->mouseitem->common.type == mt_frameend)
+				topmenu->mouseitem->frame.mousedown = true;
+			else
+				menu_mousedown = true;
+		}
 		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
 			;	//modifiers are sent on up events instead.
 		else

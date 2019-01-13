@@ -1206,6 +1206,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 						c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA, out, gw, gh, gw*4); 
 					if (c)
 					{
+						c->flags = 0;	//private glyph colours
 						c->advance = gw;
 						c->left = 0;
 						c->top = 0;
@@ -2386,13 +2387,17 @@ void Font_EndString(struct font_s *font)
 //	Font_Flush();
 //	curfont = NULL;
 
-	R2D_Flush = Font_Flush;
+	R2D_Flush = font_foremesh.numindexes?Font_Flush:NULL;
 }
 
 //obtains the font's row height (each row of chars should be drawn using this increment)
 int Font_CharHeight(void)
 {
 	return curfont->charheight;
+}
+float Font_CharVHeight(struct font_s *font)
+{
+	return ((float)font->charheight * vid.height)/vid.rotpixelheight;
 }
 
 //obtains the font's row height (each row of chars should be drawn using this increment)

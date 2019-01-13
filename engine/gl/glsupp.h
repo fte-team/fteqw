@@ -4,14 +4,14 @@
 
 //contains the extra things that would otherwise be found in glext.h
 
-typedef void (APIENTRY *qlpMTex2FUNC) (GLenum, GLfloat, GLfloat);
-typedef void (APIENTRY *qlpMTex3FUNC) (GLenum, GLfloat, GLfloat, GLfloat);
+//typedef void (APIENTRY *qlpMTex2FUNC) (GLenum, GLfloat, GLfloat);
+//typedef void (APIENTRY *qlpMTex3FUNC) (GLenum, GLfloat, GLfloat, GLfloat);
 typedef void (APIENTRY *qlpSelTexFUNC) (GLenum);
 
 extern qlpSelTexFUNC	qglActiveTextureARB;
 extern qlpSelTexFUNC	qglClientActiveTextureARB;
-extern qlpMTex3FUNC		qglMultiTexCoord3fARB;
-extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
+//extern qlpMTex3FUNC		qglMultiTexCoord3fARB;
+//extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 
 //This stuff is normally supplied in the <GL/glext.h> header file. I don't actually have one of them, so it's here instead.
 #if 0	//change to 1 if you do actually have the file in question - and its up to date.

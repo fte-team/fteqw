@@ -1701,7 +1701,7 @@ static qboolean SCR_VRectForPlayer(vrect_t *vrect, int pnum, unsigned maxseats)
 	return pnum < w*h;
 }
 
-void Draw_ExpandedString(float x, float y, conchar_t *str);
+void Draw_ExpandedString(struct font_s *font, float x, float y, conchar_t *str);
 
 static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 {
@@ -1753,6 +1753,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		&tp_name_lg
 	};
 #endif
+	struct font_s *font = font_default;
 
 	VectorCopy(org, tagcenter);
 	tagcenter[2] += 32;
@@ -1805,7 +1806,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	{
 		y -= 8;
 		len = COM_ParseFunString(textflags, pname, buffer, sizeof(buffer), false) - buffer;
-		Draw_ExpandedString(x - len*4, y, buffer);
+		Draw_ExpandedString(font, x - len*4, y, buffer);
 	}
 
 	if (!haveinfo)
@@ -1887,10 +1888,10 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 			if (len && (buffer[0] & CON_CHARMASK) == '{' && (buffer[len-1] & CON_CHARMASK) == '}')
 			{	//these are often surrounded by {} to make them white in chat messages, and recoloured.
 				buffer[len-1] = 0;
-				Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer+1);
+				Draw_ExpandedString(font, x + barwidth*0.5 + 4, y, buffer+1);
 			}
 			else
-				Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer);
+				Draw_ExpandedString(font, x + barwidth*0.5 + 4, y, buffer);
 		}
 	}
 #else
@@ -1915,8 +1916,40 @@ void R_DrawNameTags(void)
 
 	if (r_projection.ival)	//we don't actually know how to transform the points unless the projection is coded in advance. and it isn't.
 		return;
-	if (cls.protocol == CP_QUAKE2)
-		return;	//FIXME: q2 has its own ent logic, which messes stuff up here.
+
+#if defined(CSQC_DAT) || !defined(CLIENTONLY)
+	if (r_showshaders.ival && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
+	{
+		trace_t trace;
+		char *str;
+		vec3_t targ;
+		vec2_t scale = {12,12};
+		msurface_t *surf;
+		VectorMA(r_refdef.vieworg, 8192, vpn, targ);
+		//FIXME: should probably do a general trace, to hit (networked) submodels too
+		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
+
+		surf = Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
+		if (surf)
+		{
+			shader_t *shader = surf->texinfo->texture->shader;
+			char fname[MAX_QPATH];
+			char *body = shader?Shader_GetShaderBody(shader, fname, countof(fname)):NULL;
+			if (body)
+			{
+//				Q_snprintfz(fname, sizeof(fname), "<default shader>");
+				str = va("^2%s^7\n%s\n{%s\n", fname, surf->texinfo->texture->name, body);
+				Z_Free(body);
+			}
+			else
+				str = va("hit '%s'", surf->texinfo->texture->name);
+		}
+		else
+			str = "hit nothing";
+		R_DrawTextField(r_refdef.vrect.x + r_refdef.vrect.width/4, r_refdef.vrect.y, r_refdef.vrect.width/2, r_refdef.vrect.height, str, CON_WHITEMASK, CPRINT_LALIGN, font_console, scale);
+	}
+	else
+#endif
 
 	if (r_showfields.ival)
 	{
@@ -1982,6 +2015,56 @@ void R_DrawNameTags(void)
 				}
 			}
 		}
+#ifdef Q2SERVER //not enough fields for it to really be worth it.
+		if (w == &sv.world && svs.gametype == GT_QUAKE2 && ge)
+		{
+			struct q2edict_s	*e;
+
+			int best = 0;
+			float bestscore = 0, score = 0;
+			for (i = 1; i < ge->num_edicts; i++)
+			{
+				e = &ge->edicts[i];
+				if (!e->inuse)
+					continue;
+				VectorInterpolate(e->mins, 0.5, e->maxs, org);
+				VectorAdd(org, e->s.origin, org);
+				VectorSubtract(org, r_refdef.vieworg, diff);
+				if (DotProduct(diff, diff) < 16*16)
+					continue;	//ignore stuff too close(like the player themselves)
+				VectorNormalize(diff);
+				score = DotProduct(diff, vpn);// r_refdef.viewaxis[0]);
+				if (score > bestscore)
+				{
+					int hitent;
+					vec3_t imp;
+					if (CL_TraceLine(r_refdef.vieworg, org, imp, NULL, &hitent)>=1 || hitent == i)
+					{
+						best = i;
+						bestscore = score;
+					}
+				}
+			}
+			if (best)
+			{
+				e = &ge->edicts[best];
+				VectorInterpolate(e->mins, 0.5, e->maxs, org);
+				VectorAdd(org, e->s.origin, org);
+				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+				{
+					char *entstr = va("entity %i {\n\tmodelindex %i\n\torigin \"%f %f %f\"\n}\n", e->s.number, e->s.modelindex, e->s.origin[0], e->s.origin[1], e->s.origin[2]);
+					if (entstr)
+					{
+						vec2_t scale = {8,8};
+						int x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+						int y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
+					}
+				}
+			}
+		}
+		else
+#endif
 		if (w && w->progs)
 		{
 			int best = 0;
@@ -2036,36 +2119,8 @@ void R_DrawNameTags(void)
 		}
 	}
 
-#if defined(CSQC_DAT) || !defined(CLIENTONLY)
-	if (r_showshaders.ival && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
-	{
-		trace_t trace;
-		char *str;
-		vec3_t targ;
-		vec2_t scale = {12,12};
-		msurface_t *surf;
-		VectorMA(r_refdef.vieworg, 8192, vpn, targ);
-		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
-
-		surf = Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
-		if (surf)
-		{
-			shader_t *shader = surf->texinfo->texture->shader;
-			char fname[MAX_QPATH];
-			char *body = shader?Shader_GetShaderBody(shader, fname, countof(fname)):NULL;
-			if (body)
-			{
-				str = va("%s:\n%s\n{%s\n", fname, surf->texinfo->texture->name, body);
-				Z_Free(body);
-			}
-			else
-				str = va("hit '%s'", surf->texinfo->texture->name);
-		}
-		else
-			str = "hit nothing";
-		R_DrawTextField(r_refdef.vrect.x + r_refdef.vrect.width/4, r_refdef.vrect.y, r_refdef.vrect.width/2, r_refdef.vrect.height, str, CON_WHITEMASK, CPRINT_LALIGN, font_console, scale);
-	}
-#endif
+	if (cls.protocol == CP_QUAKE2)
+		return;	//FIXME: q2 has its own ent logic, which messes stuff up here.
 
 	if (((!r_refdef.playerview->spectator && !cls.demoplayback) || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
 		return;

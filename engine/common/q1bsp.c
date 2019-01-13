@@ -720,6 +720,27 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 
 #define	DIST_EPSILON	(0.03125)
 #if 1
+
+static const q1toftecontents[] =
+{
+	0,//EMPTY
+	FTECONTENTS_SOLID,//SOLID
+	FTECONTENTS_WATER,//WATER
+	FTECONTENTS_SLIME,//SLIME
+	FTECONTENTS_LAVA,//LAVA
+	FTECONTENTS_SKY,//SKY
+	FTECONTENTS_SOLID,//STRIPPED
+	FTECONTENTS_PLAYERCLIP,//CLIP
+	Q2CONTENTS_CURRENT_0,//FLOW_1
+	Q2CONTENTS_CURRENT_90,//FLOW_2
+	Q2CONTENTS_CURRENT_180,//FLOW_3
+	Q2CONTENTS_CURRENT_270,//FLOW_4
+	Q2CONTENTS_CURRENT_UP,//FLOW_5
+	Q2CONTENTS_CURRENT_DOWN,//FLOW_6
+	Q2CONTENTS_WINDOW,//TRANS
+	FTECONTENTS_LADDER,//LADDER
+};
+
 enum
 {
 	rht_solid,
@@ -728,6 +749,7 @@ enum
 };
 struct rhtctx_s
 {
+	unsigned int checkcontents;
 	vec3_t start, end;
 	mclipnode_t	*clipnodes;
 	mplane_t	*planes;
@@ -746,9 +768,11 @@ reenter:
 
 	if (num < 0)
 	{
+		unsigned int c = q1toftecontents[-1-num];
 		/*hit a leaf*/
-		if (num == Q1CONTENTS_SOLID)
+		if (c & ctx->checkcontents)
 		{
+			trace->contents = c;
 			if (trace->allsolid)
 				trace->startsolid = true;
 			return rht_solid;
@@ -756,10 +780,10 @@ reenter:
 		else
 		{
 			trace->allsolid = false;
-			if (num == Q1CONTENTS_EMPTY)
-				trace->inopen = true;
-			else
+			if (c & FTECONTENTS_FLUID)
 				trace->inwater = true;
+			else
+				trace->inopen = true;
 			return rht_empty;
 		}
 	}
@@ -813,9 +837,11 @@ reenter:
 	if (midf > p2f) midf = p2f;
 	VectorInterpolate(ctx->start, midf, ctx->end, mid);
 
+	//check the near side
 	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side], p1f, midf, p1, mid, trace);
 	if (rht != rht_empty && !trace->allsolid)
 		return rht;
+	//check the far side
 	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side^1], midf, p2f, mid, p2, trace);
 	if (rht != rht_solid)
 		return rht;
@@ -847,24 +873,25 @@ reenter:
 	return rht_impact;
 }
 
-qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, vec3_t p1, vec3_t p2, unsigned int hitcontents, trace_t *trace)
 {
 	if (VectorEquals(p1, p2))
 	{
 		/*points cannot cross planes, so do it faster*/
-		switch(Q1_HullPointContents(hull, num, p1))
-		{
-		case Q1CONTENTS_SOLID:
+		int q1 = Q1_HullPointContents(hull, num, p1);
+		unsigned int c = q1toftecontents[-1-q1];
+		trace->contents = c;
+		if (c & hitcontents)
 			trace->startsolid = true;
-			break;
-		case Q1CONTENTS_EMPTY:
-			trace->allsolid = false;
-			trace->inopen = true;
-			break;
-		default:
+		else if (c & FTECONTENTS_FLUID)
+		{
 			trace->allsolid = false;
 			trace->inwater = true;
-			break;
+		}
+		else
+		{
+			trace->allsolid = false;
+			trace->inopen = true;
 		}
 		return true;
 	}
@@ -875,7 +902,8 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 		VectorCopy(p2, ctx.end);
 		ctx.clipnodes = hull->clipnodes;
 		ctx.planes = hull->planes;
-		return Q1BSP_RecursiveHullTrace(&ctx, num, p1f, p2f, p1, p2, trace) != rht_impact;
+		ctx.checkcontents = hitcontents;
+		return Q1BSP_RecursiveHullTrace(&ctx, num, 0, 1, p1, p2, trace) != rht_impact;
 	}
 }
 
@@ -1576,7 +1604,6 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate,
 		traceinfo.solidcontents = hitcontentsmask;
 		Q1BSP_RecursiveBrushCheck(&traceinfo, model->rootnode, 0, 1, start, end);
 		memcpy(trace, &traceinfo.trace, sizeof(trace_t));
-		trace->contents = FTECONTENTS_SOLID;
 		if (trace->fraction < 1)
 		{
 			float d1 = DotProduct(start, trace->plane.normal) - trace->plane.dist;
@@ -1614,8 +1641,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate,
 		end_l[0] = DotProduct(tmp, axis[0]);
 		end_l[1] = DotProduct(tmp, axis[1]);
 		end_l[2] = DotProduct(tmp, axis[2]);
-		trace->contents = FTECONTENTS_SOLID;
-		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, start_l, end_l, hitcontentsmask, trace);
 
 		if (trace->fraction == 1)
 		{
@@ -1639,7 +1665,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate,
 	{
 		VectorSubtract(start, offset, start_l);
 		VectorSubtract(end, offset, end_l);
-		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, start_l, end_l, hitcontentsmask, trace);
 
 		if (trace->fraction == 1)
 		{
@@ -1756,7 +1782,7 @@ static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer
 static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, pvsbuffer_t *pvsbuffer)
 {
 	mplane_t	*plane;
-	float	d;
+	float	d; 
 
 	while (1)
 	{

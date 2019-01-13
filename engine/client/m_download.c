@@ -630,6 +630,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 	char mirror[countof(p->mirror)][MAX_OSPATH];
 	int nummirrors = 0;
 	int argc;
+	qboolean isauto;
 
 	if (!f)
 		return;
@@ -729,6 +730,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 				continue;
 			}
+			isauto = false;
 			if (version > 1)
 			{
 				char pathname[256];
@@ -815,6 +817,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 						flags &= ~DPF_ENABLED;	//known about, (probably) cached, but not actually enabled.
 					else if (!strncmp(arg, "installed=", 6) && version>2)
 						flags |= parseflags & DPF_ENABLED;
+					else if (!strcmp(arg, "auto"))
+						isauto = true;	//autoinstalled and NOT user-installed
 					else if (!strncmp(arg, "root=", 5) && (parseflags&DPF_ENABLED))
 					{
 						if (!Q_strcasecmp(arg+5, "bin"))
@@ -974,7 +978,12 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 			}
 			if (p->flags & DPF_ENABLED)
-				p->flags |= DPF_USERMARKED;	//FIXME: we don't know if this was manual or auto
+			{
+				if (isauto)
+					p->flags |= DPF_AUTOMARKED;	//FIXME: we don't know if this was manual or auto
+				else
+					p->flags |= DPF_USERMARKED;	//FIXME: we don't know if this was manual or auto
+			}
 
 			PM_InsertPackage(p);
 		}
@@ -1897,6 +1906,12 @@ static void PM_WriteInstalledPackages(void)
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
 				COM_QuotedConcat("test=1", buf, sizeof(buf));
+			}
+
+			if ((p->flags & DPF_AUTOMARKED) && !(p->flags & DPF_USERMARKED))
+			{
+				Q_strncatz(buf, " ", sizeof(buf));
+				COM_QuotedConcat("auto", buf, sizeof(buf));
 			}
 
 			buf[sizeof(buf)-2] = 0;	//just in case.
@@ -2986,60 +3001,84 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 
 #ifdef WEBCLIENT
 		if (p->download)
-			Draw_FunString (x+4, y, va("%i", (int)p->download->qdownload.percent));
+			Draw_FunStringWidth (x, y, va("%i%%", (int)p->download->qdownload.percent), 48, 2, false);
 		else if (p->trymirrors)
-			Draw_FunString (x+4, y, "PND");
+			Draw_FunStringWidth (x, y, "PND", 48, 2, false);
 		else
 #endif
 		{
-			if (!(p->flags & DPF_MARKED))
+			if (p->flags & DPF_USERMARKED)
 			{
 				if (!(p->flags & DPF_ENABLED))
-				{	//!DPF_MARKED|!DPF_ENABLED:
+				{	//DPF_MARKED|!DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunString (x, y, "DEL");	//purge
-					else if (p->flags & DPF_HIDDEN)
-						Draw_FunString (x+4, y, "---");
-					else if (p->flags & DPF_CORRUPT)
-						Draw_FunString (x, y, "!!!");
+						Draw_FunStringWidth (x, y, "GET", 48, 2, false);
+					else if (p->flags & (DPF_PRESENT))
+						Draw_FunStringWidth (x, y, "USE", 48, 2, false);
 					else
-					{
-						Draw_FunString (x+4, y, "^Ue080^Ue082");
-						Draw_FunString (x+8, y, "^Ue081");
-						if (p->flags & DPF_PRESENT)
-							Draw_FunString (x+8, y, "-");
-					}
+						Draw_FunStringWidth (x, y, "GET", 48, 2, false);
 				}
 				else
-				{	//!DPF_MARKED|DPF_ENABLED:
-					if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
-						Draw_FunString (x, y, "DEL");
+				{	//DPF_MARKED|DPF_ENABLED:
+					if (p->flags & DPF_PURGE)
+						Draw_FunStringWidth (x, y, "GET", 48, 2, false);	//purge and reinstall.
+					else if (p->flags & DPF_CORRUPT)
+						Draw_FunStringWidth (x, y, "?""?""?", 48, 2, false);
 					else
-						Draw_FunString (x, y, "REM");
+					{
+						Draw_FunStringWidth (x, y, "^Ue080^Ue082", 48, 2, false);
+						Draw_FunStringWidth (x, y, "^Ue083", 48, 2, false);
+					}
+				}
+			}
+			else if (p->flags & DPF_MARKED)
+			{
+				if (!(p->flags & DPF_ENABLED))
+				{	//DPF_MARKED|!DPF_ENABLED:
+					if (p->flags & DPF_PURGE)
+						Draw_FunStringWidth (x, y, "^hGET", 48, 2, false);
+					else if (p->flags & (DPF_PRESENT))
+						Draw_FunStringWidth (x, y, "^hUSE", 48, 2, false);
+					else
+						Draw_FunStringWidth (x, y, "^hGET", 48, 2, false);
+				}
+				else
+				{	//DPF_MARKED|DPF_ENABLED:
+					if (p->flags & DPF_PURGE)
+						Draw_FunStringWidth (x, y, "^hGET", 48, 2, false);	//purge and reinstall.
+					else if (p->flags & DPF_CORRUPT)
+						Draw_FunStringWidth (x, y, "?""?""?", 48, 2, false);
+					else
+					{
+						Draw_FunStringWidth (x, y, "^Ue080^Ue082", 48, 2, false);
+						Draw_FunStringWidth (x, y, "^Ue083", 48, 2, false);
+					}
 				}
 			}
 			else
 			{
 				if (!(p->flags & DPF_ENABLED))
-				{	//DPF_MARKED|!DPF_ENABLED:
+				{	//!DPF_MARKED|!DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunString (x, y, "GET");
-					else if (p->flags & (DPF_PRESENT))
-						Draw_FunString (x, y, "USE");
-					else
-						Draw_FunString (x, y, "GET");
-				}
-				else
-				{	//DPF_MARKED|DPF_ENABLED:
-					if (p->flags & DPF_PURGE)
-						Draw_FunString (x, y, "GET");	//purge and reinstall.
+						Draw_FunStringWidth (x, y, "DEL", 48, 2, false);	//purge
+					else if (p->flags & DPF_HIDDEN)
+						Draw_FunStringWidth (x, y, "---", 48, 2, false);
 					else if (p->flags & DPF_CORRUPT)
-						Draw_FunString (x, y, "?""?""?");
+						Draw_FunStringWidth (x, y, "!!!", 48, 2, false);
 					else
 					{
-						Draw_FunString (x+4, y, "^Ue080^Ue082");
-						Draw_FunString (x+8, y, "^Ue083");
+						Draw_FunStringWidth (x, y, "^Ue080^Ue082", 48, 2, false);
+						Draw_FunStringWidth (x, y, "^Ue081", 48, 2, false);
+						if (p->flags & DPF_PRESENT)
+							Draw_FunStringWidth (x, y, "-", 48, 2, false);
 					}
+				}
+				else
+				{	//!DPF_MARKED|DPF_ENABLED:
+					if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
+						Draw_FunStringWidth (x, y, "DEL", 48, 2, false);
+					else
+						Draw_FunStringWidth (x, y, "REM", 48, 2, false);
 				}
 			}
 		}
@@ -3053,9 +3092,9 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 //			if (!(p->flags & (DPF_ENABLED|DPF_MARKED|DPF_PRESENT))
 //				continue;
 
-		if (&m->selecteditem->common == &c->common)
-			Draw_AltFunString (x+48, y, n);
-		else
+//		if (&m->selecteditem->common == &c->common)
+//			Draw_AltFunString (x+48, y, n);
+//		else
 			Draw_FunString(x+48, y, n);
 	}
 }
@@ -3106,8 +3145,10 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 				PM_MarkPackage(p, DPF_USERMARKED);
 				//now: try to install
 				break;
+			case DPF_AUTOMARKED:	//
+				p->flags |= DPF_USERMARKED;
+				break;
 			case DPF_USERMARKED:
-			case DPF_AUTOMARKED:
 			case DPF_MARKED:
 				p->flags |= DPF_PURGE;
 				//now: re-get despite already having it.
@@ -3174,11 +3215,11 @@ static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct men
 	};
 	char *text;
 	int setting = bound(0, pm_autoupdate.ival, 2);
-	text = va("Auto Update: %s", settings[setting]);
-	if (&m->selecteditem->common == &c->common)
-		Draw_AltFunString (x+4, y, text);
-	else
-		Draw_FunString (x+4, y, text);
+	text = va("Auto Update: ^a%s", settings[setting]);
+//	if (&m->selecteditem->common == &c->common)
+//		Draw_AltFunString (x, y, text);
+//	else
+		Draw_FunString (x, y, text);
 }
 static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
 {
@@ -3236,88 +3277,24 @@ static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int ke
 	return false;
 }
 
-static void MD_AddItemsToDownloadMenu(menu_t *m)
+static int MD_AddItemsToDownloadMenu(menu_t *m, int y, const char *pathprefix)
 {
 	char path[MAX_QPATH];
-	int y;
 	package_t *p;
 	menucustom_t *c;
 	char *slash;
 	menuoption_t *mo;
-	dlmenu_t *info = m->data;
-	int prefixlen;
-	p = availablepackages;
+	int prefixlen = strlen(pathprefix);
 
-	prefixlen = strlen(info->pathprefix);
-	y = 48;
-	
-	MC_AddCommand(m, 0, 170, y, "Apply", MD_ApplyDownloads)->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
-	y+=8;
-	MC_AddCommand(m, 0, 170, y, "Back", MD_PopMenu);
-	y+=8;
-	if (!prefixlen)
-	{
-#ifdef WEBCLIENT
-		MC_AddCommand(m, 0, 170, y, "Mark Updates", MD_MarkUpdatesButton)->common.tooltip = "Select any updated versions of packages that are already installed.";
-		y+=8;
-#endif
-
-		MC_AddCommand(m, 0, 170, y, "Revert Updates", MD_RevertUpdates)->common.tooltip = "Reset selection to only those packages that are currently installed.";
-		y+=8;
-
-#ifdef WEBCLIENT
-		c = MC_AddCustom(m, 0, y, p, 0);
-		c->draw = MD_AutoUpdate_Draw;
-		c->key = MD_AutoUpdate_Key;
-		c->common.width = 320;
-		c->common.height = 8;
-		y += 8;
-#endif
-	}
-
-	y+=4;	//small gap
+	//add all packages in this dir
 	for (p = availablepackages; p; p = p->next)
 	{
-		if (strncmp(p->category, info->pathprefix, prefixlen))
+		if (strncmp(p->category, pathprefix, prefixlen))
 			continue;
 		if ((p->flags & DPF_HIDDEN) && (p->arch || !(p->flags & DPF_ENABLED)))
 			continue;
-//		if (p->flags & DPF_TESTING)	//hide testing updates 
-//			if (!(p->flags & (DPF_ENABLED|DPF_MARKED|DPF_PRESENT))
-//				continue;
-
 		slash = strchr(p->category+prefixlen, '/');
-		if (slash)
-		{
-			Q_strncpyz(path, p->category, MAX_QPATH);
-			slash = strchr(path+prefixlen, '/');
-			if (slash)
-				*slash = '\0';
-
-			for (mo = m->options; mo; mo = mo->common.next)
-				if (mo->common.type == mt_button)
-					if (!strcmp(mo->button.text+1, path + prefixlen))
-						break;
-			if (!mo)
-			{
-				package_t *s;
-				menubutton_t *b;
-				for (s = availablepackages; s; s = s->next)
-				{
-					if (!strncmp(s->category, info->pathprefix, slash-path) || s->category[slash-path] != '/')
-						continue;
-					if (!(s->flags & DPF_ENABLED) != !(s->flags & DPF_MARKED))
-						break;
-				}
-
-				b = MC_AddConsoleCommand(m, 6*8, 170, y, va("%s%s", s?"!":" ", path+prefixlen), va("menu_download \"%s/\"", path));
-				y += 8;
-
-				if (!m->selecteditem)
-					m->selecteditem = (menuoption_t*)b;
-			}
-		}
-		else
+		if (!slash)
 		{
 			c = MC_AddCustom(m, 0, y, p, downloadablessequence);
 			c->draw = MD_Draw;
@@ -3331,16 +3308,59 @@ static void MD_AddItemsToDownloadMenu(menu_t *m)
 				m->selecteditem = (menuoption_t*)c;
 		}
 	}
+
+	//and then try to add any subdirs...
+	for (p = availablepackages; p; p = p->next)
+	{
+		if (strncmp(p->category, pathprefix, prefixlen))
+			continue;
+		if ((p->flags & DPF_HIDDEN) && (p->arch || !(p->flags & DPF_ENABLED)))
+			continue;
+
+		slash = strchr(p->category+prefixlen, '/');
+		if (slash)
+		{
+			Q_strncpyz(path, p->category, MAX_QPATH);
+			slash = strchr(path+prefixlen, '/');
+			if (slash)
+				*slash = '\0';
+
+			for (mo = m->options; mo; mo = mo->common.next)
+				if (mo->common.type == mt_text/*mt_button*/)
+					if (!strcmp(mo->button.text, path + prefixlen))
+						break;
+			if (!mo)
+			{
+				package_t *s;
+				for (s = availablepackages; s; s = s->next)
+				{
+					if (!strncmp(s->category, pathprefix, slash-path) || s->category[slash-path] != '/')
+						continue;
+					if (!(s->flags & DPF_ENABLED) != !(s->flags & DPF_MARKED))
+						break;
+				}
+
+				y += 8;
+				MC_AddBufferedText(m, 48, 320, y, path+prefixlen, false, true);
+				y += 8;
+				Q_strncatz(path, "/", sizeof(path));
+				y = MD_AddItemsToDownloadMenu(m, y, path);
+			}
+		}
+	}
+	return y;
 }
 
 #include "shader.h"
 static void MD_Download_UpdateStatus(struct menu_s *m)
 {
 	dlmenu_t *info = m->data;
-	int i;
+	int i, y;
 	package_t *p;
 	unsigned int totalpackages=0, selectedpackages=0, addpackages=0, rempackages=0, downloads=0;
 	menuoption_t *si;
+	menubutton_t *b, *d;
+	menucustom_t *c;
 
 	if (info->downloadablessequence != downloadablessequence || !info->populated)
 	{
@@ -3427,7 +3447,39 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 		}
 
 		info->populated = true;
-		MD_AddItemsToDownloadMenu(m);
+		MC_AddFrameStart(m, 48);
+		y = 48;
+		b = MC_AddCommand(m, 48, 170, y, "Apply", MD_ApplyDownloads);
+		b->rightalign = false;
+		b->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
+		y+=8;
+		d = b = MC_AddCommand(m, 48, 170, y, "Back", MD_PopMenu);
+		b->rightalign = false;
+		y+=8;
+#ifdef WEBCLIENT
+		b = MC_AddCommand(m, 48, 170, y, "Mark Updates", MD_MarkUpdatesButton);
+		b->rightalign = false;
+		b->common.tooltip = "Select any updated versions of packages that are already installed.";
+		y+=8;
+#endif
+		b = MC_AddCommand(m, 48, 170, y, "Revert Updates", MD_RevertUpdates);
+		b->rightalign = false;
+		b->common.tooltip = "Reset selection to only those packages that are currently installed.";
+		y+=8;
+#ifdef WEBCLIENT
+		c = MC_AddCustom(m, 48, y, p, 0);
+		c->draw = MD_AutoUpdate_Draw;
+		c->key = MD_AutoUpdate_Key;
+		c->common.width = 320;
+		c->common.height = 8;
+		y += 8;
+#endif
+		y+=4;	//small gap
+		MD_AddItemsToDownloadMenu(m, y, info->pathprefix);
+		if (!m->selecteditem)
+			m->selecteditem = (menuoption_t*)d;
+		m->cursoritem = (menuoption_t*)MC_AddWhiteText(m, 40, 0, m->selecteditem->common.posy, NULL, false);
+		MC_AddFrameEnd(m, 48);
 	}
 
 	si = m->mouseitem;

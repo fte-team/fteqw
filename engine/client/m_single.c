@@ -241,7 +241,18 @@ void M_Menu_Save_f (void)
 	menu->remove = M_Menu_LoadSave_UnloadShaders;
 	menu->reset	 = M_Menu_LoadSave_UnloadShaders;
 	
-	MC_AddCenterPicture (menu, 4, 24, "gfx/p_save.lmp");	
+	switch(M_GameType())
+	{
+#ifdef Q2CLIENT
+	case MGT_QUAKE2:
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_save_game.pcx");
+		break;
+#endif
+	default:
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_save.lmp");
+		break;
+	}
+
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
 
 	M_ScanSaves ();
@@ -271,8 +282,18 @@ void M_Menu_Load_f (void)
 	menu->data = menu+1;
 	menu->remove = M_Menu_LoadSave_UnloadShaders;
 	menu->reset	 = M_Menu_LoadSave_UnloadShaders;
-	
-	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
+
+	switch(M_GameType())
+	{
+#ifdef Q2CLIENT
+	case MGT_QUAKE2:
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_load_game.pcx");
+		break;
+#endif
+	default:
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");
+		break;
+	}
 
 	M_ScanSaves ();
 

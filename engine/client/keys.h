@@ -257,9 +257,8 @@ typedef enum	//highest has priority
 	kdm_nmenu		= 0,
 #endif
 	kdm_emenu		= 1u<<5,	//engine's menus
-	kdm_editor		= 1u<<6,
-	kdm_console		= 1u<<7,
-	kdm_cwindows	= 1u<<8,
+	kdm_console		= 1u<<6,
+	kdm_cwindows	= 1u<<7,
 } keydestmask_t;
 
 //unsigned int Key_Dest_Get(void);	//returns highest priority destination

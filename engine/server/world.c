@@ -136,7 +136,7 @@ qboolean World_BoxTrace(struct model_s *model, int hulloverride, int frame, vec3
 	trace->allsolid = true;
 
 	VectorCopy (p2, trace->endpos);
-	return Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, p1, p2, trace);
+	return Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, p1, p2, against, trace);
 }
 qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
@@ -1174,8 +1174,6 @@ wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent)
 	return NULL;
 }
 
-qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace);
-
 //wrapper function. Rotates the start and end positions around the angles if needed.
 //qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
 qboolean World_TransformedTrace (struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask)
@@ -1223,9 +1221,10 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, frames
 		VectorSubtract (start, origin, start_l);
 		VectorSubtract (end, origin, end_l);
 		VectorCopy (end_l, trace->endpos);
-		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, start_l, end_l, MASK_PLAYERSOLID, trace);
 		VectorAdd (trace->endpos, origin, trace->endpos);
-		trace->contents = FTECONTENTS_BODY;
+		if (trace->contents)
+			trace->contents = FTECONTENTS_BODY;
 	}
 	else
 		result = false;

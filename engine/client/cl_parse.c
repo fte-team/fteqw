@@ -322,7 +322,7 @@ void CL_Parse_Disconnected(void)
 
 //=============================================================================
 
-int packet_latency[NET_TIMINGS];
+float packet_latency[NET_TIMINGS];
 
 int CL_CalcNet (float scale)
 {

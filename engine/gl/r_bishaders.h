@@ -5193,7 +5193,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
-"!!ver 100 150\n"
+"!!ver 100 450\n"
 "!!permu TESS\n"
 "!!permu DELUXE\n"
 "!!permu FULLBRIGHT\n"
@@ -6591,6 +6591,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwarp",
+"!!ver 100 450\n"
 "!!permu FOG\n"
 "!!cvarf r_wateralpha\n"
 "!!samps diffuse lightmap\n"
@@ -9086,7 +9087,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;\n"
 
-"if (r_glsl_ascii_mono != 0.0)\n"
+"if (float(r_glsl_ascii_mono) != 0.0)\n"
 "gray = gray = pow(gray, 0.7); //quake is just too dark otherwise.\n"
 "else\n"
 "gray = gray = pow(gray, 0.45); //col*char is FAR too dark otherwise, and much of the colour will come from the col term anyway.\n"
@@ -9102,7 +9103,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "if (gray > 0.8) n = 11512810.0; // #\n"
 
 "vec2 p = mod(uv/4.0, 2.0) - vec2(1.0);\n"
-"if (r_glsl_ascii_mono != 0.0)\n"
+"if (float(r_glsl_ascii_mono) != 0.0)\n"
 "col = vec3(character(n, p));\n"
 "else\n"
 "col = col*character(n, p); //note that this is kinda cheating.\n"
@@ -10620,7 +10621,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "rtlight",
-"!!ver 100 150\n"
+"!!ver 100 300\n"
 "!!permu TESS\n"
 "!!permu BUMP\n"
 "!!permu FRAMEBLEND\n"

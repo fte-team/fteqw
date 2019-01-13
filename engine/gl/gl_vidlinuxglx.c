@@ -1309,7 +1309,10 @@ static struct
 
 	const char * (*QueryExtensionsString)(Display * dpy,  int screen);
 	void *(*GetProcAddress) (char *name);
-	void (*SwapInterval) (Display *dpy, GLXDrawable drawable, int interval);
+	void (*SwapIntervalSGI) (int interval);				//FFS!
+	void (*SwapIntervalMESA) (unsigned int interval);	//FFS!
+	void (*SwapIntervalEXT) (Display *dpy, GLXDrawable drawable, int interval);
+	qboolean swaptear;
 
 	GLXFBConfig *(*ChooseFBConfig)(Display *dpy, int screen, const int *attrib_list, int *nelements);
 	int (*GetFBConfigAttrib)(Display *dpy, GLXFBConfig config, int attribute, int * value);
@@ -1675,6 +1678,29 @@ static void *GLX_GetSymbol(char *name)
 	return symb;
 }
 
+static qboolean GLX_CheckExtension(const char *ext)
+{
+	const char *e = glx.glxextensions, *n;
+	size_t el = strlen(ext);
+	while(e && *e)
+	{
+		while (*e == ' ')
+			e++;
+		n = strchr(e, ' ');
+		if (!n)
+			n = n+strlen(e);
+
+		if (n-e == el && !strncmp(ext, e, el))
+		{
+			Con_DPrintf("GLX: Found %s\n", ext);
+			return true;
+		}
+		e = n;
+	}
+	Con_DPrintf("GLX: Missing %s\n", ext);
+	return false;
+}
+
 static qboolean GLX_InitLibrary(char *driver)
 {
 	dllfunction_t funcs[] =
@@ -1703,17 +1729,15 @@ static qboolean GLX_InitLibrary(char *driver)
 	if (!glx.gllibrary)
 		return false;
 
+	glx.QueryExtensionsString = GLX_GetSymbol("glXQueryExtensionsString");
 	glx.GetProcAddress = GLX_GetSymbol("glXGetProcAddress");
 	if (!glx.GetProcAddress)
 		glx.GetProcAddress = GLX_GetSymbol("glXGetProcAddressARB");
-	glx.QueryExtensionsString = GLX_GetSymbol("glXQueryExtensionsString");
 
 	glx.ChooseFBConfig = GLX_GetSymbol("glXChooseFBConfig");
 	glx.GetFBConfigAttrib = GLX_GetSymbol("glXGetFBConfigAttrib");
 	glx.GetVisualFromFBConfig = GLX_GetSymbol("glXGetVisualFromFBConfig");
 	glx.CreateContextAttribs = GLX_GetSymbol("glXCreateContextAttribsARB");
-	glx.SwapInterval = GLX_GetSymbol("glXSwapIntervalEXT");
-
 	return true;
 }
 
@@ -1724,29 +1748,6 @@ static qboolean GLX_InitLibrary(char *driver)
 #define GLX_CONTEXT_OPENGL_NO_ERROR_ARB	0x31B3
 #endif
 
-static qboolean GLX_CheckExtension(const char *ext)
-{
-	const char *e = glx.glxextensions, *n;
-	size_t el = strlen(ext);
-	while(e && *e)
-	{
-		while (*e == ' ')
-			e++;
-		n = strchr(e, ' ');
-		if (!n)
-			n = n+strlen(e);
-
-		if (n-e == el && !strncmp(ext, e, el))
-		{
-			Con_DPrintf("GLX: Found %s\n", ext);
-			return true;
-		}
-		e = n;
-	}
-	Con_DPrintf("GLX: Missing %s\n", ext);
-	return false;
-}
-
 //Since GLX1.3 (equivelent to gl1.2)
 static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 {
@@ -1756,9 +1757,6 @@ static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 	GLXFBConfig *fbconfigs;
 
 	qboolean hassrgb, hasmultisample;//, hasfloats;
-
-	if (glx.QueryExtensionsString)
-		glx.glxextensions = glx.QueryExtensionsString(vid_dpy, scrnum);
 
 	if (!glx.ChooseFBConfig || !glx.GetVisualFromFBConfig)
 	{
@@ -1832,7 +1830,7 @@ static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 			if (!info->multisample || !hasmultisample)
 				continue;
 			attrib[n++] = GLX_SAMPLE_BUFFERS_ARB;	attrib[n++] = True;
-			attrib[n++] = GLX_SAMPLES_ARB,			attrib[n++] = info->multisample;
+			attrib[n++] = GLX_SAMPLES_ARB;			attrib[n++] = info->multisample;
 		}
 
 		//attrib[n++] = GLX_ACCUM_RED_SIZE;	attrib[n++] = 0;
@@ -3432,14 +3430,28 @@ void GLVID_SwapBuffers (void)
 			int n = vid_vsync.ival;
 			if (cls.timedemo && cls.demoplayback)
 				n = 0;
+			if (!glx.swaptear)
+				n = abs(n);
 			if (glx.swapint != n)
 			{
 				glx.swapint = n;
-				if (glx.SwapInterval)
+				if (glx.SwapIntervalEXT)
 				{
-					glx.SwapInterval(vid_dpy, vid_window, glx.swapint);
-					Con_Printf("Swap interval %i\n", glx.swapint);
+					glx.SwapIntervalEXT(vid_dpy, vid_window, glx.swapint);
+					Con_DPrintf("Swap interval changed to %i\n", glx.swapint);
 				}
+				else if (glx.SwapIntervalMESA && glx.swapint>=0)
+				{
+					glx.SwapIntervalMESA(glx.swapint);
+					Con_DPrintf("Swap interval changed to %i\n", glx.swapint);
+				}
+				else if (glx.SwapIntervalSGI && glx.swapint>0)
+				{
+					glx.SwapIntervalSGI(glx.swapint);
+					Con_DPrintf("Swap interval changed to %i\n", glx.swapint);
+				}
+				else
+					Con_Printf("Unable to change swap interval to %i\n", glx.swapint);
 			}
 		}
 
@@ -3836,6 +3848,8 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		break;
 #endif
 	case PSL_GLX:
+		if (glx.QueryExtensionsString)
+			glx.glxextensions = glx.QueryExtensionsString(vid_dpy, scrnum);
 		fbconfig = GLX_GetFBConfig(info);
 		if (fbconfig)
 			visinfo = glx.GetVisualFromFBConfig(vid_dpy, fbconfig);
@@ -3930,9 +3944,38 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		if (visinfo != &vinfodef)
 #endif
 			x11.pXFree(visinfo);
+
+		glx.SwapIntervalEXT = GLX_CheckExtension("GLX_EXT_swap_control")?GLX_GetSymbol("glXSwapIntervalEXT"):NULL;
+		glx.swaptear = glx.SwapIntervalEXT&&GLX_CheckExtension("GLX_EXT_swap_control_tear");
+//		if (glx.swaptear)
+//			glx.QueryDrawable(vid_dpy, vid_window, 0x20F3, &glx.swaptear);
+		if (!glx.SwapIntervalEXT)
+			glx.SwapIntervalMESA = GLX_CheckExtension("GLX_MESA_swap_control")?GLX_GetSymbol("glXSwapIntervalMESA"):NULL;
+		if (!glx.SwapIntervalEXT && !glx.SwapIntervalMESA)
+			glx.SwapIntervalSGI = GLX_CheckExtension("GLX_SGI_swap_control")?GLX_GetSymbol("glXSwapIntervalSGI"):NULL;
 		glx.swapint = vid_vsync.ival;
-		if (glx.SwapInterval)
-			glx.SwapInterval(vid_dpy, vid_window, glx.swapint);
+		if (!glx.swaptear)
+			glx.swapint	= abs(glx.swapint);
+		if (*vid_vsync.string)
+		{
+			if (glx.SwapIntervalEXT /*&& (glx.swapint>=0 || swap_tear)*/)
+			{
+				glx.SwapIntervalEXT(vid_dpy, vid_window, glx.swapint);
+				Con_DPrintf("Swap interval %i\n", glx.swapint);
+			}
+			else if (glx.SwapIntervalMESA && glx.swapint>=0)
+			{
+				glx.SwapIntervalMESA(abs(glx.swapint));
+				Con_DPrintf("Swap interval %i\n", glx.swapint);
+			}
+			else if (glx.SwapIntervalSGI && glx.swapint>0)
+			{
+				glx.SwapIntervalSGI(glx.swapint);
+				Con_DPrintf("Swap interval %i\n", glx.swapint);
+			}
+			else
+				Con_Printf("Unable to explicitly %s vsync\n", glx.swapint?"configure":"disable");
+		}
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:

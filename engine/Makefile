@@ -2242,7 +2242,12 @@ $(RELEASE_DIR)/iqm$(BITS): $(IQM_OBJECTS)
 	$(CC) -o $(RELEASE_DIR)/iqm$(BITS) $(IQM_OBJECTS) -lstdc++ -lm
 iqm: $(RELEASE_DIR)/iqm$(BITS)
 
-utils: httpserver iqm
+MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
+$(RELEASE_DIR)/ftemaster$(BITS): $(MASTER_OBJECTS)
+	$(CC) -o $(RELEASE_DIR)/master$(BITS) $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl
+master: $(RELEASE_DIR)/ftemaster$(BITS)
+
+utils: httpserver iqm master
 
 prefix ?= /usr/local
 exec_prefix ?= $(prefix)

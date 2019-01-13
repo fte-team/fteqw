@@ -89,7 +89,6 @@ void M_MenuS_Clear_f (void)
 
 void M_MenuS_Script_f (void)	//create a menu.
 {
-	extern menu_t *topmenu;
 	int items;
 	menu_t *oldmenu;
 	char *alias = Cmd_Argv(1);

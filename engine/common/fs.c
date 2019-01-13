@@ -6466,12 +6466,16 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "PAK", FSPAK_LoadArchive, true);
 #endif
 #endif
-	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);
+	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);	//used for git repos or whatever, to make packaging easier
 #ifdef PACKAGE_PK3
-	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);
-	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);
-	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);
-	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);
+	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);	//quake3's extension for zips
+	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);	//quake4's extension for zips...
+#ifdef Q2CLIENT
+	FS_RegisterFileSystemType(NULL, "pkz", FSZIP_LoadArchive, true);	//q2pro uses a different extension
+	FS_RegisterFileSystemType(NULL, "pkx", FSZIP_LoadArchive, true);	//q2xp naturally uses a different extension too... you'll be glad to know that yq2 uses pk3 instead. yay consistency - every engine uses something different!
+#endif
+	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);	//android package
+	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);	//regular zip file (don't automatically read from these, because it gets messy)
 	FS_RegisterFileSystemType(NULL, "exe", FSZIP_LoadArchive, false);	//for self-extracting zips.
 #endif
 #ifdef PACKAGE_VPK

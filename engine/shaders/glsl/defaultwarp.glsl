@@ -1,3 +1,4 @@
+!!ver 100 450
 !!permu FOG
 !!cvarf r_wateralpha
 !!samps diffuse lightmap

@@ -3592,7 +3592,7 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.\n");
 		break;
 	default:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "progs CRC not recognised from quake nor clones\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones\n");
 		break;
 	}
 

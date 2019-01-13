@@ -123,7 +123,6 @@ menu_t *M_Options_Title(int *y, int infosize)
 	{
 	case MGT_QUAKE2:	//q2...
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
-		*y += 32;
 		break;
 #ifdef HEXEN2
 	case MGT_HEXEN2://h2
@@ -325,6 +324,9 @@ void M_Menu_Options_f (void)
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
+	int framey = y;
+
+	MC_AddFrameStart(menu, framey);
 	y = MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 
 #ifdef PLUGINS
@@ -348,6 +350,7 @@ void M_Menu_Options_f (void)
 		MC_AddCvarCombo(menu, 16, 216, y, "Use Hud Plugin", &plug_sbar, hudplugopts, hudplugvalues);			y += 8;
 	}
 #endif
+	MC_AddFrameEnd(menu, framey);
 }
 
 #ifndef __CYGWIN__
@@ -667,7 +670,9 @@ void M_Menu_Audio_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	MC_AddFrameEnd(menu, y);
 }
 
 #else
@@ -764,7 +769,9 @@ void M_Menu_Particles_f (void)
 	static menuresel_t resel;
 
 	menu = M_Options_Title(&y, 0);
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
+	MC_AddFrameEnd(menu, y);
 }
 
 const char *presetname[] =
@@ -1202,7 +1209,9 @@ void M_Menu_FPS_f (void)
 			MB_EDITCVAR("Skybox", "r_skybox"),
 			MB_END()
 		};
+		MC_AddFrameStart(menu, y);
 		MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+		MC_AddFrameEnd(menu, y);
 	}
 }
 
@@ -1263,7 +1272,9 @@ void M_Menu_Render_f (void)
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	MC_AddFrameEnd(menu, y);
 }
 
 #ifdef GLQUAKE
@@ -1359,7 +1370,9 @@ void M_Menu_Textures_f (void)
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
+	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	MC_AddFrameEnd(menu, y);
 }
 #endif
 
@@ -1656,7 +1669,9 @@ void M_Menu_Lighting_f (void)
 			MB_END()
 		};
 		static menuresel_t resel;
+		MC_AddFrameStart(menu, y);
 		MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+		MC_AddFrameEnd(menu, y);
 	}
 }
 
@@ -2881,7 +2896,30 @@ void M_Menu_Video_f (void)
 	int y;
 	int resmodechoice, res2dmodechoice;
 	int reschoices[ASPECT_RATIOS], res2dchoices[ASPECT_RATIOS];
-	menu_t *menu = M_Options_Title(&y, sizeof(videomenuinfo_t));
+	menu_t *menu;
+
+	//not calling M_Options_Title because of quake2's different banner.
+	y = 32;
+	Key_Dest_Add(kdm_emenu);
+	menu = M_CreateMenu(sizeof(videomenuinfo_t));
+	switch(M_GameType())
+	{
+	case MGT_QUAKE2:	//q2...
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_video");
+		break;
+#ifdef HEXEN2
+	case MGT_HEXEN2://h2
+		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title3.lmp");
+		y += 32;
+		break;
+#endif
+	default: //q1
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
+		break;
+	}
+
 	info = (videomenuinfo_t*)menu->data;
 
 	snprintf(current3dres, sizeof(current3dres), "Current: %ix%i", vid.pixelwidth, vid.pixelheight);
@@ -2963,7 +3001,9 @@ void M_Menu_Video_f (void)
 			
 			MB_END()
 		};
+		MC_AddFrameStart(menu, y);
 		MC_AddBulk(menu, &resel, bulk, 16, 200, y);
+		MC_AddFrameEnd(menu, y);
 	}
 
 	/*

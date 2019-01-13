@@ -2597,7 +2597,7 @@ void Key_Init (void)
 	key_linepos = 0;
 
 	key_dest_mask = kdm_game;
-	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_editor | kdm_cwindows | kdm_emenu;
+	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_cwindows | kdm_emenu;
 
 //
 // init ascii characters in console mode
@@ -2698,15 +2698,6 @@ qboolean Key_MouseShouldBeFree(void)
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 	extern cvar_t cl_prydoncursor;
 	if (key_dest_absolutemouse & key_dest_mask)
-		return true;
-
-	if (Key_Dest_Has(kdm_editor))
-		return true;
-
-//	if (!vid.activeapp)
-//		return true;
-
-	if (Key_Dest_Has(kdm_emenu))
 		return true;
 
 #ifdef VM_UI
@@ -2837,7 +2828,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		if (!down)
 		{
 #ifdef MENU_DAT
-			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_editor|kdm_console|kdm_cwindows))
+			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_console|kdm_cwindows))
 				MP_Keyup (key, unicode, devid);
 #endif
 #ifdef MENU_NATIVECODE
@@ -2865,10 +2856,6 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			if (!cls.state && !Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
 				M_ToggleMenu_f ();
 		}
-#ifdef TEXTEDITOR
-		else if (Key_Dest_Has(kdm_editor))
-			Editor_Key (key, unicode);
-#endif
 		else if (Key_Dest_Has(kdm_emenu))
 			M_Keydown (key, unicode);
 #ifdef MENU_NATIVECODE
@@ -3016,13 +3003,6 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	if (Media_PlayingFullScreen())
 	{
 		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
-		return;
-	}
-#endif
-#ifdef TEXTEDITOR
-	if (Key_Dest_Has(kdm_editor))
-	{
-		Editor_Key (key, unicode);
 		return;
 	}
 #endif

@@ -257,6 +257,7 @@ void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
 void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
+float Font_CharVHeight(struct font_s *font);
 float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charflags, unsigned int codepoint);
 float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint);

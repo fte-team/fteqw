@@ -2154,13 +2154,81 @@ void Plug_CloseAll_f(void)
 	}
 }
 
+int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath)
+{
+plugin_t *plug;
+	char plugname[MAX_QPATH];
+	//lots of awkward logic so we hide modules for other cpus.
+	size_t nl = strlen(fname);
+	size_t u;
+	const char *knownarch[] =
+	{
+		"x32", "x64", "amd64", "x86",	//various x86 ABIs
+		"arm", "arm64", "armhf",		//various arm ABIs
+		"ppc", "unk",					//various misc ABIs
+	};
+	if (nl >= strlen(ARCH_DL_POSTFIX) && !Q_strcasecmp(fname+nl-strlen(ARCH_DL_POSTFIX), ARCH_DL_POSTFIX))
+	{
+		nl -= strlen(ARCH_DL_POSTFIX);
+		for (u = 0; u < countof(knownarch); u++)
+		{
+			size_t al = strlen(knownarch[u]);
+			if (!Q_strncasecmp(fname+nl-al, knownarch[u], al))
+			{
+				nl -= al;
+				break;
+			}
+		}
+		if (u == countof(knownarch) || !Q_strcasecmp(knownarch[u], ARCH_CPU_POSTFIX))
+		{
+			if (nl > sizeof(plugname)-1)
+				nl = sizeof(plugname)-1;
+			if (nl>0&&fname[nl] == '_')
+				nl--;	//ignore the _ before the ABI name.
+			memcpy(plugname, fname, nl);
+			plugname[nl] = 0;
+
+			//don't bother printing it if its already loaded.
+			for (plug = plugs; plug; plug = plug->next)
+			{
+				const char *existing = VM_GetFilename(plug->vm);
+				if (!Q_strncasecmp(existing, parm, strlen(parm)) && !Q_strcasecmp(existing+strlen(parm), fname))
+					return true;
+			}
+			Con_Printf("^[%s%s\\type\\plug_load %s\\^]: not loaded\n", (const char*)parm, fname, plugname+((!Q_strncasecmp(plugname,"fteplug_", 8))?8:0));
+		}
+	}
+	return true;
+}
+
 void Plug_List_f(void)
 {
+	char binarypath[MAX_OSPATH];
+	char rootpath[MAX_OSPATH];
+	unsigned int u;
+	char *mssuck;
 	plugin_t *plug;
 	for (plug = plugs; plug; plug = plug->next)
 	{
 		VM_PrintInfo(plug->vm);
 	}
+
+	if (FS_NativePath("", FS_BINARYPATH, binarypath, sizeof(binarypath)))
+	{
+		while ((mssuck=strchr(binarypath, '\\')))
+			*mssuck = '/';
+		Sys_EnumerateFiles(binarypath, "fteplug_*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
+	}
+	if (FS_NativePath("", FS_ROOT, rootpath, sizeof(rootpath)))
+	{
+		while ((mssuck=strchr(rootpath, '\\')))
+			*mssuck = '/';
+		if (strcmp(binarypath, rootpath))
+			Sys_EnumerateFiles(rootpath, "fteplug_*" ARCH_DL_POSTFIX, Plug_List_Print, rootpath, NULL);
+	}
+
+	for (u = 0; staticplugins[u].name; u++)
+		Plug_List_Print(staticplugins[u].name, 0, 0, "", NULL);
 }
 
 void Plug_Shutdown(qboolean preliminary)

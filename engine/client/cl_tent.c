@@ -282,9 +282,11 @@ sfx_t			*cl_sfx_r_exp3;
 cvar_t	cl_expsprite = CVARFD("cl_expsprite", "1", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not (which is problematic when played with the qw protocol).");
 cvar_t  r_explosionlight = CVARFC("r_explosionlight", "1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
-cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
-cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
-cvar_t	cl_shaftlight = {"gl_shaftlight", "0.8"};
+static cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
+static cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
+static cvar_t	cl_shaftlight = CVAR("gl_shaftlight", "0.8");
+static cvar_t	cl_part_density_fade_start = CVARD("cl_part_density_fade_start", "1024", "Specifies the distance at which ssqc's pointparticles will start to get less dense.");
+static cvar_t	cl_part_density_fade = CVARD("cl_part_density_fade", "1024", "Specifies the distance over which ssqc pointparticles density fades from all to none. If this is set to 0 then particles will spawn at their normal density regardless of location on the map.");
 
 typedef struct {
 	sfx_t **sfx;
@@ -412,6 +414,9 @@ void CL_InitTEnts (void)
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 	Cvar_Register (&cl_legacystains, "Temporary entity control");
 	Cvar_Register (&cl_shaftlight, "Temporary entity control");
+
+	Cvar_Register (&cl_part_density_fade_start, "Temporary entity control");
+	Cvar_Register (&cl_part_density_fade, "Temporary entity control");
 }
 
 void CL_ShutdownTEnts (void)
@@ -2264,7 +2269,8 @@ void CL_ParseTrailParticles(void)
 void CL_ParsePointParticles(qboolean compact)
 {
 	vec3_t		org, dir;
-	unsigned int count, effectindex;
+	unsigned int effectindex;
+	float count;
 
 	effectindex = (unsigned short)MSG_ReadShort();
 	org[0] = MSG_ReadCoord();
@@ -2284,6 +2290,21 @@ void CL_ParsePointParticles(qboolean compact)
 	}
 
 	effectindex = CL_TranslateParticleFromServer(effectindex);
+
+	if (cl.splitclients <= 1 && cl_part_density_fade.value > 0)
+	{
+		vec3_t move;
+		float dist;
+		VectorSubtract(org, cl.playerview[0].audio.origin, move);
+		dist = VectorLength(move);
+		if (dist > cl_part_density_fade_start.value)
+		{
+			dist -= cl_part_density_fade_start.value;
+			count = count - dist/cl_part_density_fade.value;
+			if (count < 0)
+				return;
+		}
+	}
 
 	if (P_RunParticleEffectType(org, dir, count, effectindex))
 		P_RunParticleEffect (org, dir, 15, 15);

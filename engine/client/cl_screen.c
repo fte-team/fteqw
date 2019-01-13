@@ -948,7 +948,7 @@ void SCR_DrawCursor(void)
 		return;
 
 	//choose the cursor based upon the module that has primary focus
-	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_cwindows|kdm_editor))
+	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_cwindows))
 		cmod = kc_console;
 	else if ((key_dest_mask & key_dest_absolutemouse & kdm_emenu))
 		cmod = kc_console;
@@ -1644,8 +1644,10 @@ void SCR_StringXY(const char *str, float x, float y)
 	int px, py;
 	unsigned int codepoint;
 	int error;
+	//pick the largest of the two. this is to avoid awkwardness with fonts that lack a version <12 pixels high.
+	struct font_s *font = (Font_CharVHeight(font_console)>Font_CharVHeight(font_default))?font_console:font_default;
 
-	Font_BeginString(font_default, ((x<0)?vid.width:x), ((y<0)?vid.height - sb_lines:y), &px, &py);
+	Font_BeginString(font, ((x<0)?vid.width:x), ((y<0)?vid.height - sb_lines:y), &px, &py);
 
 	if (x < 0)
 	{
@@ -1664,7 +1666,7 @@ void SCR_StringXY(const char *str, float x, float y)
 		codepoint = unicode_decode(&error, str, &str, true);
 		px = Font_DrawChar(px, py, CON_WHITEMASK, codepoint);
 	}
-	Font_EndString(font_default);
+	Font_EndString(font);
 }
 
 /*

@@ -308,6 +308,8 @@ typedef struct
 	qbyte		areabits[MAX_MAP_AREA_BYTES];
 
 	vec4_t		userdata[16];		/*for custom glsl*/
+
+	qboolean	warndraw;			/*buggy gamecode likes drawing outside of te drawing logic*/
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -517,6 +519,7 @@ typedef struct
 	unsigned short *extents;
 	unsigned char *styles;
 	unsigned char *shifts;
+	unsigned char defaultshift;
 } lightmapoverrides_t;
 typedef struct bspx_header_s bspx_header_t;
 void Mod_LoadLighting (struct model_s *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides);

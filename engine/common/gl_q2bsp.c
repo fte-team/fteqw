@@ -1538,7 +1538,7 @@ Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble)
+static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble, lightmapoverrides_t *overrides)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
@@ -1549,13 +1549,18 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 	unsigned short lmshift, lmscale;
 	char buf[64];
 
-	lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
-	if (!lmscale)
-		lmshift = LMSHIFT_DEFAULT;
+	if (overrides->offsets)
+		lmshift = overrides->defaultshift;
 	else
 	{
-		for(lmshift = 0; lmscale > 1; lmshift++)
-			lmscale >>= 1;
+		lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
+		if (!lmscale)
+			lmshift = LMSHIFT_DEFAULT;
+		else
+		{
+			for(lmshift = 0; lmscale > 1; lmshift++)
+				lmscale >>= 1;
+		}
 	}
 
 	in = (void *)(mod_base + l->fileofs);
@@ -1602,14 +1607,25 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 		}
 #endif
 
-		out->lmshift = lmshift;
+		if (overrides->shifts)
+			out->lmshift = overrides->shifts[surfnum];
+		else
+			out->lmshift = lmshift;
 		CalcSurfaceExtents (mod, out);
+		if (overrides->extents)
+		{
+			out->extents[0] = overrides->extents[surfnum*2+0];
+			out->extents[1] = overrides->extents[surfnum*2+1];
+		}
 
 	// lighting info
 
 		for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 			out->styles[i] = in->styles[i];
-		i = LittleLong(in->lightofs);
+		if (overrides->offsets)
+			i = overrides->offsets[surfnum];
+		else
+			i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
 		else if (lightofsisdouble)
@@ -1629,6 +1645,11 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 			}
 		}
 
+		if (overrides->extents)
+		{
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
+				out->styles[i] = overrides->extents[surfnum*4+i];
+		}
 	}
 
 	return true;
@@ -4412,48 +4433,52 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			break;
 #ifndef SERVERONLY
 		default:
-		// load into heap
-			noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
-			if (header.version == BSPVERSION_Q2W)
-				/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
-			noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
-			noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
-			if (noerrors)
-				Mod_LoadLighting							(mod, bspx, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, NULL);
-			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
-			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
-			if (noerrors)
-				Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
-			noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W);
-			noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
-			noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafs			(mod, mod_base, &header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CModQ2_LoadNodes			(mod, mod_base, &header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
-
-			if (!noerrors)
 			{
-				return NULL;
-			}
+				lightmapoverrides_t overrides = {0};
+				overrides.defaultshift = LMSHIFT_DEFAULT;
+				// load into heap
+				noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
+				if (header.version == BSPVERSION_Q2W)
+					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
+				noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
+				noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
+				if (noerrors)
+					Mod_LoadLighting							(mod, bspx, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, &overrides);
+				noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
+				noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
+				noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
+				if (noerrors)
+					Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
+				noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W, &overrides);
+				noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
+				noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
+				noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
+				noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
+				noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[Q2LUMP_LEAFBRUSHES]);
+				noerrors = noerrors && CModQ2_LoadLeafs			(mod, mod_base, &header.lumps[Q2LUMP_LEAFS]);
+				noerrors = noerrors && CModQ2_LoadNodes			(mod, mod_base, &header.lumps[Q2LUMP_NODES]);
+				noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
+				noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
+				noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
+
+				if (!noerrors)
+				{
+					return NULL;
+				}
 #ifndef CLIENTONLY
-			mod->funcs.FatPVS				= Q23BSP_FatPVS;
-			mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
-			mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
+				mod->funcs.FatPVS				= Q23BSP_FatPVS;
+				mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
+				mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
-			mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
-			mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
-			mod->funcs.MarkLights			= Q2BSP_MarkLights;
-			mod->funcs.ClusterPVS			= CM_ClusterPVS;
-			mod->funcs.ClusterForPoint		= CM_PointCluster;
-			mod->funcs.PointContents		= Q2BSP_PointContents;
-			mod->funcs.NativeTrace			= CM_NativeTrace;
-			mod->funcs.NativeContents		= CM_NativeContents;
+				mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
+				mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
+				mod->funcs.MarkLights			= Q2BSP_MarkLights;
+				mod->funcs.ClusterPVS			= CM_ClusterPVS;
+				mod->funcs.ClusterForPoint		= CM_PointCluster;
+				mod->funcs.PointContents		= Q2BSP_PointContents;
+				mod->funcs.NativeTrace			= CM_NativeTrace;
+				mod->funcs.NativeContents		= CM_NativeContents;
+			}
 			break;
 #endif
 		}

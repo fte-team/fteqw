@@ -22,91 +22,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "shader.h"
 
-extern qbyte		*draw_chars;				// 8*8 graphic characters
-
-static texid_t	netgraphtexture;	// netgraph texture
-static shader_t *netgraphshader;
-
+void Draw_ExpandedString(struct font_s *font, float x, float y, conchar_t *str);
 static int timehistory[NET_TIMINGS];
 static int findex;
 
 #define NET_GRAPHHEIGHT 32
 
-static	qbyte ngraph_texels[NET_GRAPHHEIGHT][NET_TIMINGS];
-
-static void R_LineGraph (int x, int h)
+//#define GRAPHTEX
+#ifdef GRAPHTEX
+static texid_t	netgraphtexture;	// netgraph texture
+static shader_t *netgraphshader;
+static	unsigned int ngraph_texels[NET_GRAPHHEIGHT][NET_TIMINGS];
+#else
+static	struct
 {
-	int		i;
-	int		s;
-	int		color, color2 = 0xff;
+	unsigned int col;
+	float height;
+} ngraph[NET_TIMINGS];
+#endif
 
-	s = NET_GRAPHHEIGHT;
-
-	if (h == 10000 || h<0)
-	{
-		color = 0;	// yellow
-		color2 = 1;
-		h=abs(h);
-	}
-	else if (h == 9999)
-	{
-		color = 2;	// red
-		color2 = 3;
-	}
-	else if (h == 9998)
-	{
-		color = 4;	// blue
-		color2 = 5;
-	}
-	else
-	{
-		color = 6;	// white
-		color2 = 7;
-	}
-
-	if (h>s)
-		h = s;
-	
-	for (i=0 ; i<h ; i++)
-		if (i & 1)
-			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)color2;
-		else
-			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)color;
-
-	for ( ; i<s ; i++)
-		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)8;
-}
-
-/*
-static void Draw_CharToNetGraph (int x, int y, int num)
-{
-	int		row, col;
-	qbyte	*source;
-	int		drawline;
-	int		nx;
-
-	if (!draw_chars)
-		return;
-
-	row = num>>4;
-	col = num&15;
-	source = draw_chars + (row<<10) + (col<<3);
-
-	for (drawline = 8; drawline; drawline--, y++)
-	{
-		for (nx=0 ; nx<8 ; nx++)
-			if (source[nx] != 255)
-				ngraph_texels[y][nx+x] = 0x60 + source[nx];
-		source += 128;
-	}
-}
-*/
-
-/*
-==============
-R_NetGraph
-==============
-*/
 //instead of assuming the quake palette, we should use a predictable lookup table. it makes the docs much easier.
 static unsigned ngraph_palette[] =
 {
@@ -120,13 +54,78 @@ static unsigned ngraph_palette[] =
 	0xffefefef,	//white2
 	0x00000000	//invisible.
 };
+
+static void R_LineGraph (int x, float h)
+{
+	int		s;
+	unsigned		color, color2;
+
+	s = NET_GRAPHHEIGHT;
+
+	if (h == 10000 || h<0)
+	{
+		color = 0xff00ffff;	// yellow
+		color2 = 0xff00efef;
+		h=fabs(h);
+	}
+	else if (h == 9999)
+	{
+		color = 0xff0000ff;	// red
+		color2 = 0xff0000ff;
+	}
+	else if (h == 9998)
+	{
+		color = 0xffff0000;	// blue
+		color2 = 0xffef0000;
+	}
+	else
+	{
+		color = 0xffffffff;	// white
+		color2 = 0xffefefef;
+	}
+
+#ifdef GRAPHTEX
+	if (h>s)
+		h = s;
+	
+	for (i=0 ; i<h ; i++)
+		if (i & 1)
+			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = color2;
+		else
+			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = color;
+
+	for ( ; i<s ; i++)
+		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = 0x00000000;
+#else
+	ngraph[x].col = color;
+	if (h > s)
+		ngraph[x].height = 1;
+	else
+		ngraph[x].height = h/(float)s;
+#endif
+}
+
+/*
+==============
+R_NetGraph
+==============
+*/
 void R_NetGraph (void)
 {
-	int		a, x, i, y;
+	int		a, x, i;
+	float y;
 	int lost;
-	char st[80];
-	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
 	float pi, po, bi, bo;
+
+	vec2_t p[4];
+	vec2_t tc[4];
+	vec4_t rgba[4];
+	extern shader_t *shader_draw_fill;
+	conchar_t line[2048];
+	float textheight, graphtop;
+
+	float pings, pings_min, pings_max, pingms_stddev, pingfr, dropped, choked, invalid;
+	int pingfr_min, pingfr_max;
 
 	x = 0;
 	if (r_netgraph.value < 0)
@@ -142,7 +141,7 @@ void R_NetGraph (void)
 	}
 	else
 	{
-		int last = 10000;
+		float last = 10000;
 		lost = CL_CalcNet(r_netgraph.value);
 		for (a=0 ; a<NET_TIMINGS ; a++)
 		{
@@ -155,38 +154,87 @@ void R_NetGraph (void)
 		}
 	}
 
-	// now load the netgraph texture into gl and draw it
-	for (y = 0; y < NET_GRAPHHEIGHT; y++)
-		for (x = 0; x < NET_TIMINGS; x++)
-			ngraph_pixels[y][x] = ngraph_palette[ngraph_texels[y][x]];
+	textheight = 4;
+#ifdef HAVE_SERVER
+	if (sv.state && sv.allocated_client_slots != 1)
+		textheight+=2;
+#endif
+	textheight = ceil(textheight*Font_CharVHeight(font_console)/8)*8;	//might have a small gap underneath
 
-	x =	((vid.width - 320)>>1);
+	x =	((vid.width - 320)>>1);	//eww
 	x=-x;
-	y = vid.height - sb_lines - 24 - NET_GRAPHHEIGHT - 2*8;
+	y = vid.height - sb_lines - textheight - NET_GRAPHHEIGHT - 2*8/*box borders*/;
 
-	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 3);
-	y += 8;
+	M_DrawTextBox (x, y, NET_TIMINGS/8, (NET_GRAPHHEIGHT + textheight)/8);
+	x = 8;
+	y += 8; //top border
+	graphtop = y+textheight;
 
-	sprintf(st, "%3i%% packet loss", lost);
-	Draw_FunString(8, y, st);
-	y += 8;
+	CL_CalcNet2(&pings, &pings_min, &pings_max, &pingms_stddev, &pingfr, &pingfr_min, &pingfr_max, &dropped, &choked, &invalid);
+	{
+		COM_ParseFunString(CON_WHITEMASK, va("%3.0f%% lost, %3.0f%% choked, %3.0f%% bad", dropped*100, choked*100, invalid*100), line, sizeof(line), false);
+		Draw_ExpandedString(font_console, x, y, line);
+		y += Font_CharVHeight(font_console);
+
+		COM_ParseFunString(CON_WHITEMASK, va(" ping: %4.1fms %6.2f (%.1f-%.1f)\n", pings*1000, pingms_stddev, pings_min*1000, pings_max*1000), line, sizeof(line), false);
+		Draw_ExpandedString(font_console, x, y, line);
+		y += Font_CharVHeight(font_console);
+	}
 
 	if (NET_GetRates(cls.sockets, &pi, &po, &bi, &bo))
 	{
-		Draw_FunString(8, y+0, va("in: %g %g\n", pi, bi));	//not relevent as a limit.
-		Draw_FunString(8, y+8, va("out: %g %g\n", po, bo));	//not relevent as a limit.
+		COM_ParseFunString(CON_WHITEMASK, va("   in: %.1f %.0fb\n", pi, bi), line, sizeof(line), false);
+		Draw_ExpandedString(font_console, x, y, line);
+		y += Font_CharVHeight(font_console);
+		COM_ParseFunString(CON_WHITEMASK, va("  out: %.1f %.0fb\n", po, bo), line, sizeof(line), false);
+		Draw_ExpandedString(font_console, x, y, line);
+		y += Font_CharVHeight(font_console);
 	}
-	y += 16;
+#ifdef HAVE_SERVER
+	if (sv.state && sv.allocated_client_slots != 1 && NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
+	{
+		COM_ParseFunString(CON_WHITEMASK, va("sv in: %.1f %.0fb\n", pi, bi), line, sizeof(line), false);
+		Draw_ExpandedString(font_console, x, y, line);
+		y += Font_CharVHeight(font_console);
+		COM_ParseFunString(CON_WHITEMASK, va("svout: %.1f %.0fb\n", po, bo), line, sizeof(line), false);
+		Draw_ExpandedString(font_console, x, y, line);
+		y += Font_CharVHeight(font_console);
+	}
+#endif
 
-	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
-	x=8;
+	y = graphtop;	//rounding makes it ugly.
+
+#ifdef GRAPHTEX
+	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_texels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
+#else
+	for (a=0 ; a<NET_TIMINGS ; a++)
+	{
+		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);
+		Vector2Copy(p[2], p[1]);	Vector4Copy(rgba[2], rgba[1]);
+
+		Vector2Set(p[2+0], x+a,		y+(1-ngraph[a].height)*NET_GRAPHHEIGHT);
+		Vector2Set(p[2+1], x+a,		y+NET_GRAPHHEIGHT);
+
+		Vector2Set(tc[2+0], x/(float)NET_TIMINGS,		(1-ngraph[a].height));
+		Vector2Set(tc[2+1], x/(float)NET_TIMINGS,		1);
+		Vector4Set(rgba[2+0], ((ngraph[a].col>>0)&0xff)/255.0, ((ngraph[a].col>>8)&0xff)/255.0, ((ngraph[a].col>>16)&0xff)/255.0, ((ngraph[a].col>>24)&0xff)/255.0);
+		Vector4Copy(rgba[2+0], rgba[2+1]);
+
+		if (a)
+			R2D_Image2dQuad(p, tc, rgba, shader_draw_fill);
+	}
+#endif
 }
 
 void R_FrameTimeGraph (int frametime)
 {
 	int		a, x, i, y;
-	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
+
+	vec2_t p[4];
+	vec2_t tc[4];
+	vec4_t rgba[4];
+	extern shader_t *shader_draw_fill;
 
 	timehistory[findex++&NET_TIMINGSMASK] = frametime;
 
@@ -197,28 +245,42 @@ void R_FrameTimeGraph (int frametime)
 		R_LineGraph (NET_TIMINGS-1-a, timehistory[i]);
 	}
 
-	// now load the netgraph texture into gl and draw it
-	for (y = 0; y < NET_GRAPHHEIGHT; y++)
-		for (x = 0; x < NET_TIMINGS; x++)
-			ngraph_pixels[y][x] = d_8to24rgbtable[ngraph_texels[y][x]];
-
 	x =	((vid.width - 320)>>1);
 	x=-x;
-	y = vid.height - sb_lines - 24 - NET_GRAPHHEIGHT - 1;
+	y = vid.height - sb_lines - 16 - NET_GRAPHHEIGHT;
 
-	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 1);
+	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8);
+	x=8;
 	y += 8;
 
-	y += 8;
-
-	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
+#ifdef GRAPHTEX
+	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_texels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
 	x=8;
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
+#else
+	for (a=0 ; a<NET_TIMINGS ; a++)
+	{
+		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);
+		Vector2Copy(p[2], p[1]);	Vector4Copy(rgba[2], rgba[1]);
+
+		Vector2Set(p[2+0], x+a,		y+(1-ngraph[a].height)*NET_GRAPHHEIGHT);
+		Vector2Set(p[2+1], x+a,		y+NET_GRAPHHEIGHT);
+
+		Vector2Set(tc[2+0], x/(float)NET_TIMINGS,		(1-ngraph[a].height));
+		Vector2Set(tc[2+1], x/(float)NET_TIMINGS,		1);
+		Vector4Set(rgba[2+0], ((ngraph[a].col>>0)&0xff)/255.0, ((ngraph[a].col>>8)&0xff)/255.0, ((ngraph[a].col>>16)&0xff)/255.0, ((ngraph[a].col>>24)&0xff)/255.0);
+		Vector4Copy(rgba[2+0], rgba[2+1]);
+
+		if (a)
+			R2D_Image2dQuad(p, tc, rgba, shader_draw_fill);
+	}
+#endif
 }
 
 void R_NetgraphInit(void)
 {
-	TEXASSIGN(netgraphtexture, Image_CreateTexture("***netgraph***", NULL, IF_UIPIC|IF_NOMIPMAP));
+#ifdef GRAPHTEX
+	TEXASSIGN(netgraphtexture, Image_CreateTexture("***netgraph***", NULL, IF_UIPIC|IF_NOMIPMAP|IF_CLAMP));
 	netgraphshader = R_RegisterShader("netgraph", SUF_NONE,
 		"{\n"
 			"program default2d\n"
@@ -229,4 +291,5 @@ void R_NetgraphInit(void)
 		"}\n"
 		);
 	netgraphshader->defaulttextures->base = netgraphtexture;
+#endif
 }

@@ -142,7 +142,7 @@ pbool SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char *
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 		sv.strings.sound_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
 	}
-	else if (!strcmp(token, "particle_precache"))
+	else if (!strcmp(token, "particle_precache") || !strcmp(token, "particle"))
 	{	//particle_precache N "MODELNAME"
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
 		idx = atoi(token);
@@ -1674,6 +1674,9 @@ void SV_Savegame_f (void)
 			Con_TPrintf ("Relative pathnames are not allowed\n");
 			return;
 		}
+		//make sure the name is valid, eg if its omitted.
+		if (!*savename || strstr(savename, ".."))
+			savename = "quick";
 #ifndef QUAKETC
 		if (!Q_strcasecmp(Cmd_Argv(0), "savegame_legacy"))
 		{

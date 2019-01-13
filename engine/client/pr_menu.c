@@ -22,8 +22,16 @@ extern unsigned int r2d_be_flags;
 #define DRAWFLAG_2D			(1u<<2)
 #define DRAWFLAG_TWOSIDED	0x400
 #define DRAWFLAG_LINES		0x800
-static unsigned int PF_SelectDPDrawFlag(int flag)
+static unsigned int PF_SelectDPDrawFlag(pubprogfuncs_t *prinst, int flag)
 {
+	if (r_refdef.warndraw)
+	{
+		if (!*r_refdef.rt_destcolour[0].texname)
+		{
+			r_refdef.warndraw = false; //don't spam too much
+			PR_RunWarning(prinst, "Detected attempt to draw to framebuffer where framebuffer is not valid\n");
+		}
+	}
 	csqc_dp_lastwas3d = false;	//for compat with dp's stupid beginpolygon
 
 	//flags:
@@ -47,7 +55,7 @@ void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	float alpha = G_FLOAT(OFS_PARM3);
 	int flag = prinst->callargc >= 5?G_FLOAT(OFS_PARM4):0;
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_FillBlock(pos[0], pos[1], size[0], size[1]);
 	r2d_be_flags = 0;
@@ -473,7 +481,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
 	str = buffer;
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &px, &py);
 	ipx = px;
 	R2D_ImageColours(r, g, b, alpha);
@@ -542,7 +550,7 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	else
 		G_FLOAT(OFS_RETURN) = 1;
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	if ((size[0] < 0) ^ (size[1] < 0))
 		R2D_Image(pos[0]+size[0], pos[1]+size[1], -size[0], -size[1], 1, 1, 0, 0, p);
@@ -588,7 +596,7 @@ void QCBUILTIN PF_CL_drawrotpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	Vector2Set(tcoords[2], 1, 1);
 	Vector2Set(tcoords[3], 0, 1);
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, NULL, p);
 	r2d_be_flags = 0;
@@ -613,7 +621,7 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
 		p = R2D_SafePicFromWad(picname);
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	if ((size[0] < 0) ^ (size[1] < 0))
 		R2D_Image(pos[0]+size[0], pos[1]+size[1], -size[0], -size[1], srcPos[0]+srcSize[0], srcPos[1]+srcSize[1], srcPos[0], srcPos[1], p);
@@ -660,7 +668,7 @@ void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s 
 	Vector2Set(tcoords[2], srcPos[0]+srcSize[0]	, srcPos[1]+srcSize[1]	);
 	Vector2Set(tcoords[3], srcPos[0]			, srcPos[1]+srcSize[1]	);
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, NULL, p);
 	r2d_be_flags = 0;
@@ -836,7 +844,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 		if (chara < 32 && chara != '\t')
 			chara |= 0xe000;
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	Font_DrawScaleChar(x, y, CON_WHITEMASK, chara);
@@ -866,7 +874,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 		return;
 	}
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 
@@ -914,7 +922,7 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			"}\n"
 		"}\n");
 
-	r2d_be_flags = PF_SelectDPDrawFlag(flags);
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flags);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Line(point1[0], point1[1], point2[0], point2[1], shader_draw_line);
 	R2D_ImageColours(1,1,1,1);
@@ -2579,8 +2587,8 @@ qboolean MP_Init (void)
 	menuprogparms.ReadFile = MP_PRReadFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
 	menuprogparms.FileSize = MP_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	menuprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
-	menuprogparms.Printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
-	menuprogparms.Printf = (void *)Con_DPrintf;//Con_DPrintf;//void (*dprintf) (char *, ...);
+	menuprogparms.Printf = PR_Printf;//Con_Printf;//void (*printf) (char *, ...);
+	menuprogparms.DPrintf = PR_DPrintf;//Con_DPrintf;//void (*dprintf) (char *, ...);
 	menuprogparms.Sys_Error = Sys_Error;
 	menuprogparms.Abort = Menu_Abort;
 	menuprogparms.CheckHeaderCrc = Menu_CheckHeaderCrc;
@@ -2915,6 +2923,8 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 		PR_ExecuteProgram(menu_world.progs, mpfuncs.keydown);
 		result = true;	//doesn't have a return value, so if the menu is set up for key events, all events are considered eaten.
 	}
+	if (R2D_Flush)
+		R2D_Flush();
 	inmenuprogs--;
 	return result;
 }
@@ -2954,6 +2964,8 @@ void MP_Keyup(int key, int unicode, unsigned int devid)
 		G_FLOAT(OFS_PARM1) = unicode;
 		PR_ExecuteProgram(menu_world.progs, mpfuncs.keyup);
 	}
+	if (R2D_Flush)
+		R2D_Flush();
 	inmenuprogs--;
 }
 
@@ -2973,6 +2985,8 @@ qboolean MP_MousePosition(float xabs, float yabs, unsigned int devid)
 	G_FLOAT(OFS_PARM2) = (yabs * vid.height) / vid.pixelheight;
 	G_FLOAT(OFS_PARM3) = devid;
 	PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
+	if (R2D_Flush)
+		R2D_Flush();
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -2992,6 +3006,8 @@ qboolean MP_MouseMove(float xdelta, float ydelta, unsigned int devid)
 	G_FLOAT(OFS_PARM2) = (ydelta * vid.height) / vid.pixelheight;
 	G_FLOAT(OFS_PARM3) = devid;
 	PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
+	if (R2D_Flush)
+		R2D_Flush();
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -3010,6 +3026,8 @@ qboolean MP_JoystickAxis(int axis, float value, unsigned int devid)
 	G_FLOAT(OFS_PARM2) = value;
 	G_FLOAT(OFS_PARM3) = devid;
 	PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
+	if (R2D_Flush)
+		R2D_Flush();
 	inmenuprogs--;
 	return G_FLOAT(OFS_RETURN);
 }
@@ -3040,6 +3058,8 @@ qboolean MP_Toggle(int mode)
 		G_FLOAT(OFS_PARM0) = mode;
 		PR_ExecuteProgram(menu_world.progs, mpfuncs.toggle);
 	}
+	if (R2D_Flush)
+		R2D_Flush();
 	inmenuprogs--;
 
 	return true;

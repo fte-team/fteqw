@@ -867,7 +867,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 						break;
 
 					if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
-					{
+					{	//always in range if within 1024 units (consistent with quakeworld).
 						vec3_t delta;
 						VectorSubtract(origin, split->edict->v->origin, delta);
 						if (DotProduct(delta, delta) <= 1024*1024)
@@ -2852,7 +2852,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		if (info == &svs.info)
 			pl = 255;	//colourmaps being 1-based with these being 0-based means that only 0-254 are valid players, and 255 is unused, so lets use it for serverinfo blobs.
 		else
-			pl = (client_t*)info-svs.clients;
+			pl = (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients;
 
 		ClientReliableWrite_Begin(client, svc_setinfo, 7+strlen(enckey)+1+strlen(encval)+1);
 		ClientReliableWrite_Byte(client, 255); //special meaning to say that this is a partial update

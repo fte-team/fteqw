@@ -429,8 +429,6 @@ void GL_SelectTexture(int target)
 	shaderstate.currenttmu = target;
 	if (qglActiveTextureARB)
 		qglActiveTextureARB(target + mtexid0);
-	else if (qglSelectTextureSGIS)
-		qglSelectTextureSGIS(target + mtexid0);
 }
 
 void GL_SelectVBO(int vbo)
@@ -3133,6 +3131,47 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi);
 		}
 		return;
+	}
+	else if (qglMultiDrawElements)
+	{	//if we're drawing via a VBO then we don't really need DrawRangeElements any more.
+		//and avoiding so many calls into the driver also gives the driver a chance to optimise the draws instead of constantly checking if anything changed.
+		static GLsizei counts[1024];
+		static const GLvoid *indicies[countof(counts)];
+		GLsizei drawcount = 0;
+		GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
+
+		for (m = 0, mesh = shaderstate.meshes[0]; m < shaderstate.meshcount; )
+		{
+			startv = mesh->vbofirstvert;
+			starti = mesh->vbofirstelement;
+
+			endv = startv+mesh->numvertexes;
+			endi = starti+mesh->numindexes;
+
+			//find consecutive surfaces
+			for (++m; m < shaderstate.meshcount; m++)
+			{
+				mesh = shaderstate.meshes[m];
+				if (endi == mesh->vbofirstelement)
+				{
+					endv = mesh->vbofirstvert+mesh->numvertexes;
+					endi = mesh->vbofirstelement+mesh->numindexes;
+				}
+				else
+				{
+					break;
+				}
+			}
+			if (drawcount == countof(counts))
+			{
+				qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
+				drawcount = 0;
+			}
+			counts[drawcount] = endi-starti;
+			indicies[drawcount] = (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti;
+			drawcount++;
+		}
+		qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
 	}
 	else
 	{

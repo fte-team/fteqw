@@ -10,6 +10,8 @@
 #endif
 #endif
 
+//#include <x86intrin.h>
+
 //small helper to aid compiling.
 #if defined(SKELETALMODELS) || defined(MD3MODELS)
 	#define SKELORTAGS

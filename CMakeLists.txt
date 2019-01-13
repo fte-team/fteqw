@@ -129,11 +129,20 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wc++-compat")	#lul
 	#TODO SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-prototypes")			#for finding missing statics.
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")			#
+
+	#might as well do this, public builds use the regular Makefile.
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+	ELSE()
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+	ENDIF()
 ENDIF()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
-endif()
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DEBUG")
+ENDIF()
 
 IF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
@@ -232,6 +241,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		engine/client/snd_al.c
 		engine/client/snd_alsa.c
 		engine/client/snd_linux.c
+		engine/client/snd_pulse.c
 		engine/client/snd_sdl.c	#we use SDL audio even without sys_sdl, because of pulseaudio fucking over alsa, alsa fucking over oss3, and oss4 not being used. Either way, openal should be the default anyway.
 
 		engine/client/cd_linux.c
@@ -405,11 +415,92 @@ SET(FTE_COMMON_FILES
 	engine/common/translate.c
 	engine/common/zone.c
 
+	#important headers
+	engine/common/bothdefs.h
 	engine/common/config_fteqw.h
 	engine/common/config_minimal.h
 	engine/common/config_nocompat.h
 	engine/common/config_wastes.h
-	
+	engine/common/config_freecs.h
+
+	#useless headers that I'll never search for
+	engine/client/api_menu.h
+	engine/client/cdaudio.h
+	engine/client/client.h
+	engine/client/cl_ignore.h
+	engine/client/cl_master.h
+	engine/client/clq3defs.h
+	engine/client/input.h
+	engine/client/keys.h
+	engine/client/menu.h
+	engine/client/merged.h
+	engine/client/modelgen.h
+	engine/client/quakedef.h
+	engine/client/render.h
+	engine/client/sbar.h
+	engine/client/screen.h
+	engine/client/sound.h
+	engine/client/spritegn.h
+#	engine/client/sys_plugfte.h
+	engine/client/vid.h
+	engine/client/view.h
+	engine/client/wad.h
+#	engine/client/winquake.h
+	engine/common/bothdefs.h
+	engine/common/bspfile.h
+	engine/common/cmd.h
+	engine/common/com_mesh.h
+	engine/common/common.h
+	engine/common/console.h
+	engine/common/crc.h
+	engine/common/cvar.h
+	engine/common/fs.h
+	engine/common/mathlib.h
+	engine/common/net.h
+	engine/common/netinc.h
+	engine/common/particles.h
+	engine/common/pmove.h
+	engine/common/pr_common.h
+	engine/common/protocol.h
+	engine/common/sys.h
+	engine/common/translate.h
+	engine/common/ui_public.h
+	engine/common/vm.h
+	engine/common/world.h
+	engine/common/zone.h
+	engine/gl/gl_draw.h
+	engine/gl/gl_model.h
+	engine/gl/glquake.h
+	engine/gl/glsupp.h
+	engine/gl/gl_terrain.h
+	engine/gl/gl_videgl.h
+	engine/gl/model_hl.h
+	engine/gl/shader.h
+	engine/http/iweb.h
+	engine/qclib/cmdlib.h
+	engine/qclib/execloop.h
+	engine/qclib/gui.h
+	engine/qclib/hash.h
+	engine/qclib/pr_comp.h
+	engine/qclib/progsint.h
+	engine/qclib/progslib.h
+	engine/qclib/progtype.h
+	engine/qclib/qcc.h
+	engine/qclib/qcd.h
+	engine/server/botlib.h
+	engine/server/progdefs.h
+	engine/server/progs.h
+	engine/server/q2game.h
+	engine/server/q3g_public.h
+	engine/server/server.h
+	#engine/server/svhl_gcapi.h
+	engine/server/sv_sql.h
+	#engine/sw/sw.h
+	#engine/sw/sw_spans.h
+	engine/vk/vkrenderer.h
+	engine/web/ftejslib.h
+
+
 	#sigh
 	engine/client/pr_skelobj.c
 	engine/client/m_download.c
@@ -740,7 +831,7 @@ FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
 FIND_PATH(AVFORMAT_INCLUDE_DIR libavformat/avformat.h)
 FIND_PATH(AVUTIL_INCLUDE_DIR libavutil/avutil.h)
 FIND_PATH(AVSWSCALE_INCLUDE_DIR libswscale/swscale.h)
-IF(AVFORMAT_INCLUDE_DIR)
+IF((AVFORMAT_INCLUDE_DIR) AND (AVSWSCALE_INCLUDE_DIR))
 	FIND_LIBRARY(AVCODEC_LIBRARY avcodec)
 	FIND_LIBRARY(AVFORMAT_LIBRARY avformat)
 	FIND_LIBRARY(AVUTIL_LIBRARY avutil)

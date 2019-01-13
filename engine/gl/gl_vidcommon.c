@@ -1,3 +1,27 @@
+/*
+	Lingering issues:
+
+	nvidia vsync:
+			with vsync enabled and framerates fluctuating across the 1000fps boundary, there is serious stuttering, like its re-showing the previous frame again.
+			this only happens with windows gl, and not vulkan/d3d so I'm assuming this is a driver bug with it mispredicting timings.
+			workaround: enable bloom or something else that's wasteful in terms of gpu time, to keep it under 1000fps.
+
+	nouveau vsync:
+			vsync seems forced when running fullscreen, but not when running windowed.
+			workaround: run windowed.
+
+	nouveau framerates:
+			nouveau doesn't seem to have any pstate control enabled.
+			workaround: sudo echo AUTO>/sys/kernel/debug/dri/0/pstate
+			(you could also use different ids for explicit pstates - eg to return to a low-power state)
+			(the engine cannot do this, as it requires root, nor does it know WHICH dri device to control)
+			(more recent gpus might not support this at all due to nvidia blocking them, but works for my 750ti)
+			(note that nouveau's presentation engine isn't that good, so don't expect 5000fps, but it should make rtlights usable)
+
+	core vs compatibility:
+			vid_gl_context_compatibility defaults to 1, because it still gives higher framerates (due to streaming vertex data from the cpu).
+*/
+
 #include "quakedef.h"
 #ifdef GLQUAKE
 #include "glquake.h"
@@ -170,6 +194,7 @@ void (APIENTRY *qglGetTexLevelParameteriv) (GLenum target, GLint level, GLenum p
 void (APIENTRY *qglGetTexEnviv) (GLenum target, GLenum pname, GLint *params);
 
 void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
+void (APIENTRY *qglMultiDrawElements) (GLenum mode, const GLsizei * count, GLenum type, const GLvoid * const * indices, GLsizei drawcount);
 void (APIENTRY *qglArrayElement) (GLint i);
 void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void (APIENTRY *qglNormalPointer) (GLenum type, GLsizei stride, const GLvoid *pointer);
@@ -238,11 +263,8 @@ FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 qlpSelTexFUNC qglActiveTextureARB;
 #endif
 qlpSelTexFUNC qglClientActiveTextureARB;
-qlpMTex3FUNC	qglMultiTexCoord3fARB;
-qlpMTex2FUNC	qglMultiTexCoord2fARB;
 
 //generic multitexture
-lpMTexFUNC qglMTexCoord2fSGIS;
 lpSelTexFUNC qglSelectTextureSGIS;
 int mtexid0;
 
@@ -627,9 +649,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 #ifndef qglActiveTextureARB
 	qglActiveTextureARB = NULL;
 #endif
-	qglMultiTexCoord2fARB = NULL;
-	qglMultiTexCoord3fARB = NULL;
-	qglMTexCoord2fSGIS = NULL;
 	qglSelectTextureSGIS = NULL;
 	mtexid0 = 0;
 
@@ -709,12 +728,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
 
-	if (gl_config.gles)
+	if (gl_config.gles || gl_config_nofixedfunc)
 	{
 #ifndef qglActiveTextureARB
 		qglActiveTextureARB = (void *) getglext("glActiveTexture");
 #endif
-		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");
+		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");	//compat contexts only...
 		qglSelectTextureSGIS = qglActiveTextureARB;
 		mtexid0 = GL_TEXTURE0_ARB;
 		if (!gl_config.nofixedfunc)
@@ -728,19 +747,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglActiveTextureARB = (void *) getglext("glActiveTextureARB");
 #endif
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTextureARB");
-		qglMultiTexCoord2fARB = (void *) getglext("glMultiTexCoord2fARB");
-		qglMultiTexCoord3fARB = (void *) getglext("glMultiTexCoord3fARB");
 
 		qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
 		gl_mtexable = true;
 
-		qglMTexCoord2fSGIS = qglMultiTexCoord2fARB;
 		qglSelectTextureSGIS = qglActiveTextureARB;
 
 		mtexid0 = GL_TEXTURE0_ARB;
 
 #ifndef qglActiveTextureARB
-		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB)
+		if (!qglActiveTextureARB || !qglClientActiveTextureARB)
 			gl_mtexable = false;
 		else if (gl_mtexarbable == 1)
 		{
@@ -751,8 +767,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		{
 			qglActiveTextureARB = NULL;
 			qglClientActiveTextureARB = NULL;
-			qglMultiTexCoord2fARB = NULL;
-			qglMTexCoord2fSGIS = NULL;
 			qglSelectTextureSGIS = NULL;
 			gl_mtexable=false;
 			gl_mtexarbable = false;
@@ -1136,13 +1150,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		gl_config.arb_depth_texture |= GL_CheckExtension("GL_CHROMIUM_depth_texture");	//nacl
 		gl_config.arb_depth_texture |= GL_CheckExtension("GL_WEBGL_depth_texture");	//webgl. duh.
 		gl_config.arb_depth_texture |= GL_CheckExtension("GL_ANGLE_depth_texture");	//gah. should just use wildcards huh (no uploads)
+		gl_config.arb_shadow = gl_config.glversion>=3.0;//||GL_CheckExtension("GL_EXT_shadow_samplers");
 	}
 	else
 	{
-		gl_config.arb_depth_texture = GL_CheckExtension("GL_ARB_depth_texture");
+		gl_config.arb_depth_texture = gl_config.glversion>=1.4 || GL_CheckExtension("GL_ARB_depth_texture");
+		gl_config.arb_shadow = gl_config.glversion>=1.4||GL_CheckExtension("GL_ARB_shadow");
 	}
-	gl_config.arb_shadow = GL_CheckExtension("GL_ARB_shadow");
-	gl_config.arb_shadow |= gl_config.glversion >= 3.0;	//seems about right, for both gles and desktop...
 	//gl_config.arb_shadow |= GL_CheckExtension("GL_EXT_shadow_samplers");	//gles2. nvidia fucks up. depend on brute-force. :s
 
 	if (GL_CheckExtension("GL_ARB_seamless_cube_map"))
@@ -2047,6 +2061,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			//150 [core|compatibility] == gl3.2
 			//300 ES == gles3
 			//310 ES == gles3.1
+			//320 ES == gles3.2
 			//330, 400, 410, 420, 430 [core|compatibility] == gl?.??
 
 			if (gl_config_gles)
@@ -2055,6 +2070,13 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 					ver = 100;
 				else if (ver <= 330)	//gles3 is rougly gl3.3 so 300es==330ish
 					ver = 300;
+			}
+			else
+			{
+				if (ver == 100)
+					ver = 110;	//gles2 is roughly equivelent to gl2
+				else if (ver >= 300 && ver < 330)
+					ver = 330;	//gles3 is roughly equivelent to gl3.3
 			}
 
 
@@ -2095,7 +2117,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		if (ver >= 130)
 		{
 			GLSlang_GenerateInternal(&glsl, 
-				//gl3+ deprecated the some things. these are removed in forwards-compatible / core contexts.
+				//gl3+ deprecated some things. these are removed in forwards-compatible / core contexts.
 				//varying became either in or out, which is important if you have geometry shaders...
 				"#define varying in\n"
 				//now only the 'texture' function exists, with overloads for each sampler type.
@@ -2137,6 +2159,8 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				#else
 							"#ifndef USE_ARB_SHADOW\n"	//fall back on regular samplers if we must
 								"#define sampler2DShadow sampler2D\n"
+							"#elif defined(GL_ES)\n"
+								"precision lowp sampler2DShadow;\n"	//gah
 							"#endif\n"
 				#endif
 				"uniform sampler2DShadow s_shadowmap;\n",
@@ -2948,11 +2972,6 @@ void GL_ForgetPointers(void)
 #endif
 	qglClientActiveTextureARB = NULL;
 	qglSelectTextureSGIS = NULL;
-	qglMTexCoord2fSGIS = NULL;
-	qglMultiTexCoord2fARB = NULL;
-	qglMultiTexCoord3fARB = NULL;
-	qglMTexCoord2fSGIS = NULL;
-	qglSelectTextureSGIS = NULL;
 	mtexid0 = 0;
 
 #ifndef GL_STATIC
@@ -3203,6 +3222,8 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglDrawRangeElements	= (void *)getglext("glDrawRangeElements");
 	if (qglDrawRangeElements == 0)
 		qglDrawRangeElements = GL_DrawRangeElementsEmul;
+
+	qglMultiDrawElements	= (void *)getglext("glMultiDrawElements");	//since gl2
 
 	//fixme: definatly make non-core
 	qglPushAttrib		= (void *)getglcore("glPushAttrib");

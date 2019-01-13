@@ -721,7 +721,7 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 #define	DIST_EPSILON	(0.03125)
 #if 1
 
-static const q1toftecontents[] =
+static const unsigned int q1toftecontents[] =
 {
 	0,//EMPTY
 	FTECONTENTS_SOLID,//SOLID

@@ -445,7 +445,6 @@ void M_Menu_Setup_f (void)
 			"female",
 			NULL
 		};
-		mpic_t *p;
 		menucustom_t *cu;
 		Key_Dest_Add(kdm_emenu);
 

@@ -168,8 +168,9 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 #if defined(HEXEN2) && defined(HAVE_SERVER)
 			//hexen2 has some extra logic for FLH2_HUNTFACE, but its buggy and thus never used.
 			//it would be nice to redefine the NOZ flag to instead force noenemy here, but that's not hexen2-compatible and FLH2_NOZ is bound to conflict with some quake mod.
-			&& (world != &sv.world || progstype != PROG_H2 || !(eflags & (FLH2_NOZ|FLH2_HUNTFACE))))
+			&& (world != &sv.world || progstype != PROG_H2 || !(eflags & (FLH2_NOZ|FLH2_HUNTFACE)))
 #endif
+			)
 	{
 	// try one move with vertical motion, then one without
 		for (i=0 ; i<2 ; i++)

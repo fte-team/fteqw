@@ -373,6 +373,8 @@ static qboolean M_MouseMoved(menu_t *menu)
 
 		switch(option->common.type)
 		{
+		default:
+			break;
 		case mt_framestart:
 			ypos += framescroll;
 			framescroll = 0;

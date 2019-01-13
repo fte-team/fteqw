@@ -41,48 +41,24 @@ static	struct
 } ngraph[NET_TIMINGS];
 #endif
 
-//instead of assuming the quake palette, we should use a predictable lookup table. it makes the docs much easier.
-static unsigned ngraph_palette[] =
-{
-	0xff00ffff,	//yellow
-	0xff00efef,	//yellow2
-	0xff0000ff,	//red
-	0xff0000ef,	//red2
-	0xffff0000,	//blue
-	0xffef0000,	//blue2
-	0xffffffff,	//white
-	0xffefefef,	//white2
-	0x00000000	//invisible.
-};
-
 static void R_LineGraph (int x, float h)
 {
 	int		s;
-	unsigned		color, color2;
+	unsigned		color;
 
 	s = NET_GRAPHHEIGHT;
 
 	if (h == 10000 || h<0)
 	{
 		color = 0xff00ffff;	// yellow
-		color2 = 0xff00efef;
 		h=fabs(h);
 	}
 	else if (h == 9999)
-	{
 		color = 0xff0000ff;	// red
-		color2 = 0xff0000ff;
-	}
 	else if (h == 9998)
-	{
 		color = 0xffff0000;	// blue
-		color2 = 0xffef0000;
-	}
 	else
-	{
 		color = 0xffffffff;	// white
-		color2 = 0xffefefef;
-	}
 
 #ifdef GRAPHTEX
 	if (h>s)
@@ -90,7 +66,7 @@ static void R_LineGraph (int x, float h)
 	
 	for (i=0 ; i<h ; i++)
 		if (i & 1)
-			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = color2;
+			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = color&0xffefefef;
 		else
 			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = color;
 
@@ -114,7 +90,6 @@ void R_NetGraph (void)
 {
 	int		a, x, i;
 	float y;
-	int lost;
 	float pi, po, bi, bo;
 
 	vec2_t p[4];
@@ -130,7 +105,6 @@ void R_NetGraph (void)
 	x = 0;
 	if (r_netgraph.value < 0)
 	{
-		lost = -1;
 		if (!cl.paused)
 			timehistory[++findex&NET_TIMINGSMASK] = (cl.currentpackentities?(cl.currentpackentities->servertime - cl.servertime)*NET_GRAPHHEIGHT*5:0);
 		for (a=0 ; a<NET_TIMINGS ; a++)
@@ -142,7 +116,7 @@ void R_NetGraph (void)
 	else
 	{
 		float last = 10000;
-		lost = CL_CalcNet(r_netgraph.value);
+		CL_CalcNet(r_netgraph.value);
 		for (a=0 ; a<NET_TIMINGS ; a++)
 		{
 			i = (cl.movesequence-a) & NET_TIMINGSMASK;

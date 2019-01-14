@@ -2062,9 +2062,9 @@ static void World_ClipToLinks (world_t *w, areagridlink_t *node, moveclip_t *cli
 			//even if the trace traveled less, we still care if it was in a solid.
 			clip->trace.startsolid |= trace.startsolid;
 			clip->trace.allsolid |= trace.allsolid;
+			clip->trace.contents |= trace.contents;
 			if (!clip->trace.ent || trace.fraction == clip->trace.fraction)	//xonotic requires that second test (DP has no check at all, which would end up reporting mismatched fraction/ent results, so yuck).
 			{
-				clip->trace.contents = trace.contents;
 				clip->trace.ent = touch;
 			}
 		}
@@ -2206,8 +2206,11 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			//even if the trace traveled less, we still care if it was in a solid.
 			clip->trace.startsolid |= trace.startsolid;
 			clip->trace.allsolid |= trace.allsolid;
+			clip->trace.contents |= trace.contents;
 			if (!clip->trace.ent)
+			{
 				clip->trace.ent = touch;
+			}
 		}
 	}
 	

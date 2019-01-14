@@ -92,7 +92,6 @@
 
 //=============================================================================
 
-char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax);
 /*
 =================
 PR_PrintStatement
@@ -1604,7 +1603,7 @@ static casecmprange_t casecmprange[] =
 static int PR_NoDebugVM(progfuncs_t *fte_restrict progfuncs)
 {
 	char stack[4*1024];
-	int ofs;
+	size_t ofs;
 	strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
 	ofs = strlen(stack);
 	PR_SaveCallStack (progfuncs, stack, &ofs, sizeof(stack));

@@ -467,7 +467,7 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *progfuncs, int statementn
 fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *progfuncs, unsigned int *count);
 char *PDECL PR_UglyValueString (pubprogfuncs_t *progfuncs, etype_t type, eval_t *val);
 pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, const char *s);
-
+char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t bufmax);
 
 prclocks_t Sys_GetClockRate(void);
 #endif

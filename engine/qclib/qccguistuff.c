@@ -1,6 +1,12 @@
 #include "qcc.h"
 #include "gui.h"
 
+#ifdef _WIN32
+#define alloca _alloca
+#else
+#include <unistd.h>
+#endif
+
 //common gui things
 
 pbool fl_nondfltopts;
@@ -15,8 +21,8 @@ int fl_tabsize;
 char parameters[16384];
 char progssrcname[256];
 char progssrcdir[256];
-char enginebinary[MAX_PATH];
-char enginebasedir[MAX_PATH];
+char enginebinary[MAX_OSPATH];
+char enginebasedir[MAX_OSPATH];
 char enginecommandline[8192];
 
 int qccpersisthunk = 1;
@@ -462,7 +468,7 @@ int GUI_ParseCommandLine(char *args, pbool keepsrcanddir)
 			fseek(f, 0, SEEK_END);
 			len = ftell(f);
 			fseek(f, 0, SEEK_SET);
-			args = _alloca(len+1);
+			args = alloca(len+1);
 			fread(args, 1, len, f);
 			args[len] = '\0';
 			fclose(f);
@@ -515,7 +521,11 @@ int GUI_ParseCommandLine(char *args, pbool keepsrcanddir)
 				args++;
 				memmove(progssrcname, args, strlen(args)+1);
 
+#ifdef _WIN32
 				SetCurrentDirectoryA(progssrcdir);
+#else
+				chdir(progssrcdir);
+#endif
 				*progssrcdir = 0;
 			}
 		}

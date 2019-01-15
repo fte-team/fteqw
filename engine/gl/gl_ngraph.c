@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 
 void Draw_ExpandedString(struct font_s *font, float x, float y, conchar_t *str);
-static int timehistory[NET_TIMINGS];
+static float timehistory[NET_TIMINGS];
 static int findex;
 
 #define NET_GRAPHHEIGHT 32
@@ -201,7 +201,7 @@ void R_NetGraph (void)
 #endif
 }
 
-void R_FrameTimeGraph (int frametime)
+void R_FrameTimeGraph (float frametime)
 {
 	int		a, x, i, y;
 

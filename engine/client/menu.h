@@ -334,7 +334,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *captio
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint);
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip);
 menuframe_t *MC_AddFrameStart(menu_t *menu, int y);	//call before items are added
 menuframe_t *MC_AddFrameEnd(menu_t *menu, int y);	//and call AFTER that stuff with the same y.
 

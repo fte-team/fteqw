@@ -146,6 +146,7 @@ typedef struct package_s {
 	char *description;
 	char *license;
 	char *author;
+	char *website;
 	char *previewimage;
 	enum
 	{
@@ -253,6 +254,7 @@ static void PM_FreePackage(package_t *p)
 	Z_Free(p->title);
 	Z_Free(p->description);
 	Z_Free(p->author);
+	Z_Free(p->website);
 	Z_Free(p->license);
 	Z_Free(p->previewimage);
 	Z_Free(p->qhash);
@@ -747,6 +749,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				char *license = NULL;
 				char *author = NULL;
 				char *previewimage = NULL;
+				char *website = NULL;
 				int extract = EXTRACT_COPY;
 				int priority = PM_DEFAULTPRIORITY;
 				unsigned int flags = parseflags;
@@ -786,6 +789,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 						author = arg+7;
 					else if (!strncmp(arg, "preview=", 8))
 						previewimage = arg+8;
+					else if (!strncmp(arg, "website=", 8))
+						website = arg+8;
 					else if (!strncmp(arg, "file=", 5))
 					{
 						if (!file)
@@ -879,6 +884,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				p->license = license?Z_StrDup(license):NULL;
 				p->author = author?Z_StrDup(author):NULL;
 				p->previewimage = previewimage?Z_StrDup(previewimage):NULL;
+				p->website = website?Z_StrDup(website):NULL;
 
 				if (url && (!strncmp(url, "http://", 7) || !strncmp(url, "https://", 8)))
 					p->mirror[0] = Z_StrDup(url);
@@ -1476,7 +1482,7 @@ static unsigned int PM_MarkUpdates (void)
 			{
 				if (p == o || (o->flags & DPF_HIDDEN))
 					continue;
-				if (!(p->flags & DPF_TESTING) || pm_autoupdate.ival >= UPD_TESTING)
+				if (!(o->flags & DPF_TESTING) || pm_autoupdate.ival >= UPD_TESTING)
 					if (!strcmp(o->name, p->name) && !strcmp(o->arch?o->arch:"", p->arch?p->arch:"") && strcmp(o->version, p->version) > 0)
 					{
 						if (!b || strcmp(b->version, o->version) < 0)
@@ -1841,20 +1847,25 @@ static void PM_WriteInstalledPackages(void)
 				COM_QuotedConcat(va("arch=%s", p->arch), buf, sizeof(buf));
 			}
 
-			if (p->description)
-			{
-				Q_strncatz(buf, " ", sizeof(buf));
-				COM_QuotedConcat(va("desc=%s", p->description), buf, sizeof(buf));
-			}
 			if (p->license)
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
 				COM_QuotedConcat(va("license=%s", p->license), buf, sizeof(buf));
 			}
+			if (p->website)
+			{
+				Q_strncatz(buf, " ", sizeof(buf));
+				COM_QuotedConcat(va("website=%s", p->website), buf, sizeof(buf));
+			}
 			if (p->author)
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
 				COM_QuotedConcat(va("author=%s", p->author), buf, sizeof(buf));
+			}
+			if (p->description)
+			{
+				Q_strncatz(buf, " ", sizeof(buf));
+				COM_QuotedConcat(va("desc=%s", p->description), buf, sizeof(buf));
 			}
 			if (p->previewimage)
 			{
@@ -2740,8 +2751,10 @@ void PM_Command_f(void)
 				Con_Printf("	license: %s\n", p->license);
 			if (p->author)
 				Con_Printf("	author: %s\n", p->author);
+			if (p->website)
+				Con_Printf("	website: %s\n", p->website);
 			if (p->description)
-				Con_Printf("	%s\n", p->description);
+				Con_Printf("%s\n", p->description);
 
 			if (p->flags & DPF_MARKED)
 			{
@@ -3101,12 +3114,16 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 
 static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
 {
+	extern qboolean	keydown[];
+	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	package_t *p, *p2;
 	struct packagedep_s *dep, *dep2;
 	if (c->dint != downloadablessequence)
 		return false;	//probably stale
 	p = c->dptr;
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == 'c' && ctrl)
+		Sys_SaveClipboard(CBT_CLIPBOARD, p->website);
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		if (p->alternative && (p->flags & DPF_HIDDEN))
 			p = p->alternative;
@@ -3296,12 +3313,16 @@ static int MD_AddItemsToDownloadMenu(menu_t *m, int y, const char *pathprefix)
 		slash = strchr(p->category+prefixlen, '/');
 		if (!slash)
 		{
-			c = MC_AddCustom(m, 0, y, p, downloadablessequence);
+			char *desc;
+			if (p->author || p->license || p->website)
+				desc = va("^aauthor: ^a%s\n^alicense: ^a%s\n^awebsite: ^a%s\n%s", p->author?p->author:"^hUnknown^h", p->license?p->license:"^hUnknown^h", p->website?p->website:"^hUnknown^h", p->description);
+			else
+				desc = p->description;
+			c = MC_AddCustom(m, 0, y, p, downloadablessequence, desc);
 			c->draw = MD_Draw;
 			c->key = MD_Key;
 			c->common.width = 320;
 			c->common.height = 8;
-			c->common.tooltip = p->description;
 			y += 8;
 
 			if (!m->selecteditem)
@@ -3467,7 +3488,7 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 		b->common.tooltip = "Reset selection to only those packages that are currently installed.";
 		y+=8;
 #ifdef WEBCLIENT
-		c = MC_AddCustom(m, 48, y, p, 0);
+		c = MC_AddCustom(m, 48, y, p, 0, NULL);
 		c->draw = MD_AutoUpdate_Draw;
 		c->key = MD_AutoUpdate_Key;
 		c->common.width = 320;

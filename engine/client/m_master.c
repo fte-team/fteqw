@@ -1149,7 +1149,7 @@ void M_Menu_ServerList2_f(void)
 	info = (serverlist_t*)(menu + 1);
 
 	y = 16;
-	cust = MC_AddCustom(menu, 0, y, NULL, 0);
+	cust = MC_AddCustom(menu, 0, y, NULL, 0, NULL);
 	cust->draw = SL_TitlesDraw;
 	cust->key = SL_TitlesKey;
 	cust->common.height = 8;
@@ -1159,7 +1159,7 @@ void M_Menu_ServerList2_f(void)
 	info->servers_top = y;
 	info->visibleslots = (vid.height-info->servers_top - 64);
 
-	cust = MC_AddCustom(menu, vid.width-8, 16, NULL, 0);
+	cust = MC_AddCustom(menu, vid.width-8, 16, NULL, 0, NULL);
 	cust->draw = SL_SliderDraw;
 	cust->key = SL_SliderKey;
 	cust->common.height = info->visibleslots;
@@ -1168,7 +1168,7 @@ void M_Menu_ServerList2_f(void)
 	info->visibleslots = (info->visibleslots-8)/8;
 	for (i = 0, y = info->servers_top; i <= info->visibleslots; y +=8, i++)
 	{
-		cust = MC_AddCustom(menu, 0, y, NULL, i);
+		cust = MC_AddCustom(menu, 0, y, NULL, i, NULL);
 		if (i==0)
 			menu->selecteditem = (menuoption_t*)&cust->common;
 		cust->draw = SL_ServerDraw;
@@ -1184,7 +1184,7 @@ void M_Menu_ServerList2_f(void)
 	{
 		for (y = vid.height-64+8; y < vid.height; y += 8, i++)
 		{
-			cust = MC_AddCustom(menu, x+16, y, NULL, i);
+			cust = MC_AddCustom(menu, x+16, y, NULL, i, NULL);
 			cust->draw = SL_ServerPlayer;
 			cust->key = NULL;
 			cust->common.height = 8;
@@ -1354,7 +1354,7 @@ void M_QuickConnect_f(void)
 	menu->key = M_QuickConnect_Key;
 	menu->remove = M_QuickConnect_Remove;
 
-	cust = MC_AddCustom(menu, 64, 64, NULL, 0);
+	cust = MC_AddCustom(menu, 64, 64, NULL, 0, NULL);
 	cust->draw = M_QuickConnect_DrawStatus;
 	cust->common.height = 8;
 	cust->common.width = vid.width-8;

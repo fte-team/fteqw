@@ -3865,7 +3865,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 	else if (csqc_isdarkplaces && !strcmp(keyname, "colors"))	//checks to see if a player has locally been set to ignored (for text chat)
 	{
 		ret = buffer;
-		sprintf(ret, "%i", cl.players[pnum].ttopcolor + cl.players[pnum].tbottomcolor*16);
+		sprintf(ret, "%i", cl.players[pnum].dtopcolor + cl.players[pnum].dbottomcolor*16);
 	}
 #endif
 	else if (!strcmp(keyname, "ignored"))	//checks to see if a player has locally been set to ignored (for text chat)
@@ -4163,7 +4163,7 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	if (sfx)
 		S_StartSound(-entity->entnum, channel, sfx, org, entity->v->velocity, volume, attenuation, startoffset, pitchpct, flags);
-};
+}
 
 static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

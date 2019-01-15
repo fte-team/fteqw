@@ -3755,7 +3755,7 @@ void M_Menu_ModelViewer_f(void)
 
 	menu = M_CreateMenu(sizeof(*mv));
 	mv = menu->data;
-	c = MC_AddCustom(menu, 64, 32, mv, 0);
+	c = MC_AddCustom(menu, 64, 32, mv, 0, NULL);
 	menu->cursoritem = (menuoption_t*)c;
 	c->draw = M_ModelViewerDraw;
 	c->key = M_ModelViewerKey;
@@ -3990,7 +3990,7 @@ void M_Menu_Mods_f (void)
 		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 	}
 
-	c = MC_AddCustom(menu, 64, 32, menu->data, 0);
+	c = MC_AddCustom(menu, 64, 32, menu->data, 0, NULL);
 	menu->cursoritem = (menuoption_t*)c;
 	c->draw = Mods_Draw;
 	c->key = Mods_Key;

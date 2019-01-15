@@ -919,9 +919,13 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(true, trace_ent);
 	globalfloat		(false, trace_inopen);
 	globalfloat		(false, trace_inwater);
+#ifndef NOLEGACY
 	globalfloat		(false, trace_endcontentsf);
+#endif
 	globalint		(false, trace_endcontentsi);
+#ifndef NOLEGACY
 	globalfloat		(false, trace_surfaceflagsf);
+#endif
 	globalint		(false, trace_surfaceflagsi);
 	globalstring	(false, trace_surfacename);
 	globalint		(false, trace_brush_id);
@@ -972,6 +976,12 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 #define ensureglobal(name,var) if (!(pr_globals)->name) (pr_globals)->name = &var;
 
+#ifdef NOLEGACY
+	if (!(pr_globals)->trace_surfaceflagsi)
+		(pr_globals)->trace_surfaceflagsi = (int*)PR_FindGlobal(svprogfuncs, "trace_surfaceflags", 0, NULL);
+	if (!(pr_globals)->trace_surfaceflagsi)
+		(pr_globals)->trace_endcontentsi = (int*)PR_FindGlobal(svprogfuncs, "trace_endcontents", 0, NULL);
+#else
 	if (!(pr_globals)->trace_surfaceflagsf && !(pr_globals)->trace_surfaceflagsi)
 	{
 		etype_t etype;
@@ -990,13 +1000,14 @@ void PR_LoadGlabalStruct(qboolean muted)
 		else if (etype == ev_integer)
 			(pr_globals)->trace_endcontentsi = (int*)v;
 	}
+	ensureglobal(trace_endcontentsf, endcontentsf);
+	ensureglobal(trace_surfaceflagsf, surfaceflagsf);
+#endif
 
 	// make sure these entries are always valid pointers
 	ensureglobal(dimension_send, dimension_send_default);
 	ensureglobal(dimension_default, dimension_default);
-	ensureglobal(trace_endcontentsf, endcontentsf);
 	ensureglobal(trace_endcontentsi, endcontentsi);
-	ensureglobal(trace_surfaceflagsf, surfaceflagsf);
 	ensureglobal(trace_surfaceflagsi, surfaceflagsi);
 	ensureglobal(trace_brush_id, writeonly_int);
 	ensureglobal(trace_brush_faceid, writeonly_int);
@@ -3655,11 +3666,9 @@ static void set_trace_globals(pubprogfuncs_t *prinst, /*struct globalvars_s *pr_
 	pr_global_struct->trace_fraction = trace->fraction;
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
-	pr_global_struct->trace_surfaceflagsf = trace->surface?trace->surface->flags:0;
 	pr_global_struct->trace_surfaceflagsi = trace->surface?trace->surface->flags:0;
 	if (pr_global_ptrs->trace_surfacename)
 		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, trace->surface?trace->surface->name:NULL, true);
-	pr_global_struct->trace_endcontentsf = trace->contents;
 	pr_global_struct->trace_endcontentsi = trace->contents;
 	pr_global_struct->trace_brush_id = trace->brush_id;
 	pr_global_struct->trace_brush_faceid = trace->brush_face;
@@ -3668,6 +3677,9 @@ static void set_trace_globals(pubprogfuncs_t *prinst, /*struct globalvars_s *pr_
 	pr_global_struct->trace_triangle_id = trace->triangle_id;
 
 #ifndef NOLEGACY
+	pr_global_struct->trace_surfaceflagsf = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_endcontentsf = trace->contents;
+
 	if (pr_global_ptrs->trace_dphittexturename)
 		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_dphittexturename, trace->surface?trace->surface->name:NULL, true);
 	if (pr_global_ptrs->trace_dpstartcontents)

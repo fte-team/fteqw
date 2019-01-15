@@ -1498,7 +1498,7 @@ void M_Keydown (int key, int unicode)
 	{
 		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 		{
-			if (topmenu->mouseitem->common.type == mt_frameend)
+			if (topmenu->mouseitem && topmenu->mouseitem->common.type == mt_frameend)
 				topmenu->mouseitem->frame.mousedown = true;
 			else
 				menu_mousedown = true;

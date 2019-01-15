@@ -17,6 +17,13 @@
 //this is for testing
 #define WRITEASM
 
+#ifndef MAX_QPATH
+#define MAX_QPATH 128
+#endif
+#ifndef MAX_OSPATH
+#define MAX_OSPATH 1024
+#endif
+
 #ifdef __MINGW32_VERSION
 #define MINGW
 #endif

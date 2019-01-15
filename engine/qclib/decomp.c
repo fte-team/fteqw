@@ -143,7 +143,7 @@ const char *temp_type (int temp, dstatement_t *start, dfunction_t *df)
 
 }
 
-boolean IsConstant(QCC_ddef_t *def)
+pbool IsConstant(QCC_ddef_t *def)
 {
 
 	int i;
@@ -964,7 +964,7 @@ char *DecompileReturnType(dfunction_t *df)
 {
 	dstatement_t *ds;
 	unsigned short dom;
-	boolean foundret = false;
+	pbool foundret = false;
 	static int recursion;
 	char *ret = NULL;	//return null if we don't know.
 	int couldbeastring = true;
@@ -2297,7 +2297,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 	return;
 }
 
-boolean DecompileDecompileFunction(dfunction_t * df, dstatement_t *altdone)
+pbool DecompileDecompileFunction(dfunction_t * df, dstatement_t *altdone)
 {
 	dstatement_t *ds;
 	int indent;
@@ -3034,11 +3034,11 @@ void DecompileFunction(const char *name, int *lastglobal)
 	QCC_CatVFile(Decompileofile, "};\n");
 }
 
-extern boolean safedecomp;
+extern pbool safedecomp;
 int fake_name;
 char synth_name[1024]; // fake name part2
 
-boolean TrySynthName(const char *first)
+pbool TrySynthName(const char *first)
 {
 	int i;
 
@@ -3060,7 +3060,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	int i;
 	unsigned int o;
 	dfunction_t *d;
-	boolean bogusname;
+	pbool bogusname;
 	vfile_t *f;
 	char fname[512];
 	int lastglob = 1;

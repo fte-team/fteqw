@@ -333,6 +333,7 @@ static qboolean M_MouseMoved(menu_t *menu)
 {
 	int ypos = menu->ypos, framescroll = 0;
 	menuoption_t *option;
+	qboolean havemouseitem = false;
 //	if (menu->prev && !menu->exclusive)
 //		if (M_MouseMoved(menu->prev))
 //			return true;
@@ -351,22 +352,11 @@ static qboolean M_MouseMoved(menu_t *menu)
 				{
 					if (menu->mouseitem != option)
 					{
-/*						if (!option->common.noselectionsound && vid.activeapp)
-						{
-#ifdef HEXEN2
-							if (M_GameType() == MGT_HEXEN2)
-								S_LocalSound ("raven/menu1.wav");
-							else
-#endif
-								S_LocalSound ("misc/menu1.wav");
-						}
-*/
 						menu->mouseitem = option;
 						menu->tooltiptime = realtime + 1;
 						MenuTooltipChange(menu, menu->mouseitem->common.tooltip);
 					}
-//					if (menu->cursoritem)
-//						menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+					havemouseitem = true;
 				}
 			}
 		}
@@ -394,6 +384,11 @@ static qboolean M_MouseMoved(menu_t *menu)
 			}
 			break;
 		}
+	}
+	if (!havemouseitem && menu->mouseitem)
+	{
+		menu->mouseitem = NULL;
+		MenuTooltipChange(menu, NULL);
 	}
 	return true;
 }
@@ -781,10 +776,10 @@ static void MenuDraw(menu_t *menu)
 	// draw tooltip
 	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime)
 	{
-		menuoption_t *option = menu->mouseitem;
+//		menuoption_t *option = menu->mouseitem;
 
-		if (omousex > menu->xpos+option->common.posx && omousex < menu->xpos+option->common.posx+option->common.width)
-			if (omousey > menu->ypos+option->common.posy && omousey < menu->ypos+option->common.posy+option->common.height)
+//		if (omousex > menu->xpos+option->common.posx && omousex < menu->xpos+option->common.posx+option->common.width)
+//			if (omousey > menu->ypos+option->common.posy && omousey < menu->ypos+option->common.posy+option->common.height)
 			{
 				int x = omousex+8;
 				int y = omousey;
@@ -1159,15 +1154,16 @@ menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
 	return n;
 }
 
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint)
+menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip)
 {
-	menucustom_t *n = Z_Malloc(sizeof(menucustom_t));
+	menucustom_t *n = Z_Malloc(sizeof(menucustom_t) + (tooltip?strlen(tooltip)+1:0));
 	n->common.type = mt_custom;
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->dptr = dptr;
 	n->dint = dint;
+	n->common.tooltip = tooltip?strcpy((char*)(n+1), tooltip):NULL;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;

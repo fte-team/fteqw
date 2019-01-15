@@ -1785,10 +1785,10 @@ void SCR_DrawFPS (void)
 		lastupdatetime = t;
 		break;
 	case 5:
-		R_FrameTimeGraph((int)(1000.0*2*frametime));
+		R_FrameTimeGraph(1000.0*2*frametime);
 		break;
 	case 7:
-		R_FrameTimeGraph((int)(1000.0*1*frametime));
+		R_FrameTimeGraph(1000.0*1*frametime);
 		break;
 	case 6:
 		{
@@ -1964,6 +1964,7 @@ void SCR_SetLoadingFile(char *str)
 
 	if (scr_loadingrefresh.ival)
 	{
+		r_refdef.warndraw = false;
 		SCR_UpdateScreen();
 	}
 }
@@ -2213,6 +2214,7 @@ void SCR_BeginLoadingPlaque (void)
 	if (!scr_disabled_for_loading)
 	{
 		Sbar_Changed ();
+		r_refdef.warndraw = false;
 		scr_drawloading = true;
 		SCR_UpdateScreen ();
 		scr_drawloading = false;
@@ -2266,8 +2268,10 @@ void SCR_ImageName (const char *mapname)
 	scr_drawloading = true;
 	if (qrenderer != QR_NONE)
 	{
+		r_refdef.warndraw = false;
 		Sbar_Changed ();
 		SCR_UpdateScreen ();
+		r_refdef.warndraw = true;
 	}
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....

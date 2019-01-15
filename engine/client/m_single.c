@@ -267,7 +267,7 @@ void M_Menu_Save_f (void)
 			menu->selecteditem = op;
 	}
 
-	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
+	MC_AddCustom(menu, 192, 60-16, NULL, 0, NULL)->draw = M_Menu_LoadSave_Preview_Draw;
 }
 void M_Menu_Load_f (void)
 {
@@ -314,7 +314,7 @@ void M_Menu_Load_f (void)
 	if (menu->selecteditem)
 		menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, menu->selecteditem->common.posy, NULL, false);	
 
-	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
+	MC_AddCustom(menu, 192, 60-16, NULL, 0, NULL)->draw = M_Menu_LoadSave_Preview_Draw;
 }
 
 
@@ -1108,7 +1108,7 @@ void M_Menu_Demos_f (void)
 	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
-	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
 	info->list->draw = M_DemoDraw;
 	info->list->key = M_DemoKey;
 
@@ -1172,7 +1172,7 @@ void M_Menu_MediaFiles_f (void)
 	MC_AddWhiteText(menu, 24, 170, 8, "Media List", false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
-	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
 	info->list->draw = M_DemoDraw;
 	info->list->key = M_DemoKey;
 

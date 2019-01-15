@@ -40,7 +40,7 @@
 #define AVAIL_OPENAL
 #define AVAIL_ZLIB
 #define AVAIL_OGGVORBIS
-#define NOMEDIA
+//#define NOMEDIA
 #define CL_MASTER
 #define CSQC_DAT
 #define MENU_DAT
@@ -102,10 +102,11 @@
 #undef AVAIL_MP3_ACM	//.mp3 support (in windows).
 #undef IMAGEFMT_KTX
 #undef IMAGEFMT_PKM
+#define IMAGEFMT_PCX
 #undef IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
 #undef IMAGEFMT_BLP	//legacy crap
 #define IMAGEFMT_BMP	//legacy crap
-#undef IMAGEFMT_PCX	//legacy crap
+//#undef IMAGEFMT_PCX	//legacy crap
 #undef DECOMPRESS_ETC2
 #undef DECOMPRESS_RGTC
 #undef DECOMPRESS_S3TC
@@ -151,8 +152,8 @@
 #undef HAVE_GNUTLS	//linux tls/dtls support
 #undef HAVE_WINSSPI	//windows tls/dtls support
 #undef HAVE_JUKEBOX	//includes built-in jukebox crap
-#undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
-#undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
+#define HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
+#define HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 
 #ifdef COMPILE_OPTS

@@ -979,7 +979,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 #ifdef NOLEGACY
 	if (!(pr_globals)->trace_surfaceflagsi)
 		(pr_globals)->trace_surfaceflagsi = (int*)PR_FindGlobal(svprogfuncs, "trace_surfaceflags", 0, NULL);
-	if (!(pr_globals)->trace_surfaceflagsi)
+	if (!(pr_globals)->trace_endcontentsi)
 		(pr_globals)->trace_endcontentsi = (int*)PR_FindGlobal(svprogfuncs, "trace_endcontents", 0, NULL);
 #else
 	if (!(pr_globals)->trace_surfaceflagsf && !(pr_globals)->trace_surfaceflagsi)

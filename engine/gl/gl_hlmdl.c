@@ -595,14 +595,14 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 	if(frame1 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame1 %= sequence->numframes-1;
+			frame1 %= sequence->numframes;
 		else
 			frame1 = sequence->numframes-1;
 	}
 	if(frame2 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame2 %= sequence->numframes-1;
+			frame2 %= sequence->numframes;
 		else
 			frame2 = sequence->numframes-1;
 	}
@@ -962,7 +962,7 @@ qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestat
 
 	memset (trace, 0, sizeof(trace_t));
 	trace->fraction = trace->truefraction = 1;
-	if (!(against & FTECONTENTS_BODY))
+	if (!(against & FTECONTENTS_BODY) || !framestate)
 		return false;
 
 	if (framestate->bonestate && framestate->skeltype == SKEL_ABSOLUTE)

@@ -767,6 +767,27 @@ ELSE()
 		)
 		SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
 		TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} shlwapi ole32 comctl32 comdlg32)
+	ELSE()
+		FIND_PACKAGE(Qt5Widgets)
+		IF (Qt5Widgets_FOUND)
+			ADD_EXECUTABLE(fteqccgui
+				engine/qclib/qccguiqt.cpp
+				engine/qclib/qccguistuff.c
+				engine/qclib/comprout.c
+				engine/qclib/hash.c
+				engine/qclib/qcc_cmdlib.c
+				engine/qclib/qcc_pr_comp.c
+				engine/qclib/qcc_pr_lex.c
+				engine/qclib/qccmain.c
+				engine/qclib/decomp.c
+				engine/qclib/packager.c
+				engine/qclib/qcd_main.c
+			)
+			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS})
+			SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};${Qt5Widgets_COMPILE_DEFINITIONS}")
+			SET_PROPERTY(TARGET fteqccgui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+			TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${Qt5Widgets_LIBRARIES} qscintilla2_qt5)
+		ENDIF()
 	ENDIF()
 ENDIF()
 

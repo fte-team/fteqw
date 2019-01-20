@@ -5,6 +5,8 @@
    sure qvms handle all the printf stuff that dlls do*/
 #include "plugin.h"
 
+#define longlong long
+
 /*
 this is a fairly basic implementation.
 don't expect it to do much.
@@ -17,13 +19,15 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 	char *string;
 	char tempbuffer[64];
 	char sign;
-	unsigned int uint_;
-	int int_;
+	unsigned longlong uint_;
+	longlong int_;
 	float float_;
 	int i;
 	int use0s;
 	int width, useprepad, plus;
 	int precision;
+	int lengthspec;
+	int base, firstletter;
 
 	if (!maxlen)
 		return 0;
@@ -39,6 +43,7 @@ maxlen--;
 			precision=-1;
 			useprepad=0;
 			use0s= 0;
+			lengthspec = 0;
 retry:
 			switch(*(++format))
 			{
@@ -52,6 +57,14 @@ retry:
 				precision = 0;
 				while (format[1] >= '0' && format[1] <= '9')
 					precision = precision*10+*++format-'0';
+				goto retry;
+			case 'l':
+			case 'h':
+			case 'j':
+			case 'z':
+			case 't':
+			case 'L':
+				lengthspec = (lengthspec<<8) | *format;
 				goto retry;
 			case '0':
 				if (!width)
@@ -76,7 +89,10 @@ retry:
 				*buffer++ = *format;
 				break;
 			case 's':
-				string_ = va_arg(vargs, char *);
+				if (!lengthspec)
+					string_ = va_arg(vargs, char *);
+				else
+					goto badformat;
 				if (!string_)
 					string_ = "(null)";
 				if (width)
@@ -100,7 +116,10 @@ retry:
 				tokens++;
 				break;
 			case 'c':
-				int_ = va_arg(vargs, int);
+				if (!lengthspec)
+					int_ = va_arg(vargs, int);
+				else
+					goto badformat;
 				if (maxlen-- == 0) 
 					{*buffer++='\0';return tokens;}
 				*buffer++ = int_;
@@ -108,18 +127,38 @@ retry:
 				break;
 			case 'p':
 				if (1)
-				uint_ = (size_t)va_arg(vargs, void*);
+				{
+					if (!lengthspec)
+						uint_ = (size_t)va_arg(vargs, void*);
+					else
+						goto badformat;
+				}
 				else
 			case 'x':
-				uint_ = va_arg(vargs, unsigned int);
+			case 'X':
+			case 'u':
+				{
+					if (!lengthspec)
+						uint_ = va_arg(vargs, unsigned int);
+					else if (lengthspec == 'l')
+						uint_ = va_arg(vargs, long);
+					else if (lengthspec == (('l'<<8)|'l'))
+						uint_ = va_arg(vargs, longlong);
+					else if (lengthspec == 'z')
+						int_ = va_arg(vargs, size_t);
+					else
+						goto badformat;
+				}
+				base = (*format=='u')?10:16;
+				firstletter = (*format=='X')?'A':'a';
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[i+1] = '\0';
 				while(uint_)
 				{
-					tempbuffer[i] = (uint_&0xf) + '0';
+					tempbuffer[i] = (uint_%base) + '0';
 					if (tempbuffer[i] > '9')
-						tempbuffer[i] = tempbuffer[i] - ':' + 'a';
-					uint_/=16;
+						tempbuffer[i] = tempbuffer[i] - ':' + firstletter;
+					uint_/=base;
 					i--;
 				}
 				string = tempbuffer+i+1;
@@ -152,9 +191,26 @@ retry:
 				tokens++;
 				break;
 			case 'd':
-			case 'u':
 			case 'i':
-				int_ = va_arg(vargs, int);
+				if (!lengthspec)
+					int_ = va_arg(vargs, int);
+				else if (lengthspec == 'l')
+					int_ = va_arg(vargs, long);
+				else if (lengthspec == (('l'<<8)|'l'))
+					int_ = va_arg(vargs, longlong);
+//				else if (lengthspec == (('h'<<8)|'h'))
+//					int_ = va_arg(vargs, char);
+//				else if (lengthspec == 'h')
+//					int_ = va_arg(vargs, short);
+//				else if (lengthspec == 'j')
+//					int_ = va_arg(vargs, intmax_t);
+				else if (lengthspec == 'z')
+					int_ = va_arg(vargs, size_t);
+//				else if (lengthspec == 't')
+//					int_ = va_arg(vargs, ptrdiff_t);
+				else
+					goto badformat;
+				base = 10;
 				if (useprepad)
 				{
 /*
@@ -200,8 +256,10 @@ Con_Printf("%i bytes left\n", maxlen);
 				tempbuffer[sizeof(tempbuffer)-1] = '\0';
 				while(int_)
 				{
-					tempbuffer[i--] = int_%10 + '0';
-					int_/=10;
+					tempbuffer[i--] = int_%base + '0';
+					if (tempbuffer[i] > '9')
+						tempbuffer[i] = tempbuffer[i] - ':' + 'a';
+					int_/=base;
 				}
 				if (sign)
 					tempbuffer[i--] = sign;
@@ -243,10 +301,14 @@ Con_Printf("%i bytes left\n", maxlen);
 				tokens++;
 				break;
 			case 'f':
-				float_ = (float)va_arg(vargs, double);
-
+				if (!lengthspec)
+					float_ = (float)va_arg(vargs, double);
+				else if (lengthspec == 'L')
+					float_ = (float)va_arg(vargs, long double);
+				else
+					goto badformat;
 //integer part.
-				int_ = (int)float_;
+				int_ = (longlong)float_;
 				if (int_ < 0)
 				{
 					if (maxlen-- == 0) 
@@ -279,18 +341,18 @@ Con_Printf("%i bytes left\n", maxlen);
 				int_ = sizeof(tempbuffer)-2-i;
 
 //floating point part.
-				float_ -= (int)float_;
+				float_ -= (longlong)float_;
 				i = 0;
 				tempbuffer[i++] = '.';
 				if (precision < 0)
 					precision = 7;
-				while(float_ - (int)float_)
+				while(float_ - (longlong)float_)
 				{
 					if (i > precision)	//remove the excess presision.
 						break;
 
 					float_*=10;
-					tempbuffer[i++] = (int)float_%10 + '0';
+					tempbuffer[i++] = (longlong)float_%10 + '0';
 				}
 				if (i == 1)	//no actual fractional part
 				{
@@ -311,6 +373,7 @@ Con_Printf("%i bytes left\n", maxlen);
 				tokens++;
 				break;
 			default:
+badformat:
 				string_ = "ERROR IN FORMAT";
 				while (*string_)
 				{
@@ -318,7 +381,8 @@ Con_Printf("%i bytes left\n", maxlen);
 						{*buffer++='\0';return tokens;}
 					*buffer++ = *string_++;
 				}
-				break;
+				*buffer++='\0';
+				return tokens;
 			}
 			break;
 		default:

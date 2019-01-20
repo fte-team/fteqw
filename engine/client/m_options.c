@@ -1071,6 +1071,7 @@ void FPS_Preset_f (void)
 		Cbuf_InsertText(
 			"set sv_listen_dp 1\n"
 			"set sv_bigcoords 1\n"
+			"set r_particledesc \"effectinfo classic\"\n"
 			"echo you may need to restart the map\n"
 			, RESTRICT_LOCAL, false);
 		return;

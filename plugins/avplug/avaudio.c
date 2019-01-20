@@ -4,7 +4,7 @@
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 
-static cvar_t *ffmpeg_audiodecoder;
+static cvar_t *ffmpeg_audiodecoder, *pdeveloper;
 
 #define HAVE_DECOUPLED_API (LIBAVCODEC_VERSION_MAJOR>57 || (LIBAVCODEC_VERSION_MAJOR==57&&LIBAVCODEC_VERSION_MINOR>=36))
 
@@ -425,7 +425,8 @@ static void AVLogCallback(void *avcl, int level, const char *fmt, va_list vl)
 #ifdef _DEBUG
 	char		string[1024];
 	Q_vsnprintf (string, sizeof(string), fmt, vl);
-	pCon_Print(string);
+	if (pdeveloper && pdeveloper->ival)
+		pCon_Print(string);
 #endif
 }
 
@@ -446,6 +447,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 		avcodec_register_all();
 #endif
 
+		pdeveloper = pCvar_GetNVFDG("developer", "0", 0, "Developer spam.", "ffmpeg");
 		av_log_set_level(AV_LOG_WARNING);
 		av_log_set_callback(AVLogCallback);
 	}

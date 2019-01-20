@@ -1289,7 +1289,7 @@ private:
 		connect(prefs, &QAction::triggered, [](){(new optionswindow())->show();});
 
 		auto grep = new QAction(tr("&Grep"), this);
-//		grep->setShortcuts(QKeySequence::Preferences);
+		grep->setShortcuts(QKeySequence::listFromString("Ctrl+G"));
 		grep->setStatusTip(tr("Search through all project files"));
 		connect(grep, &QAction::triggered, [=]()
 			{

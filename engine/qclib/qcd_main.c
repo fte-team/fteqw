@@ -41,7 +41,7 @@ pbool QC_decodeMethodSupported(int method)
 	return false;
 }
 
-char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const char *info, char *buffer)
+char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const void *info, char *buffer)
 {
 	int i;
 	if (method == 0)	//copy
@@ -53,7 +53,7 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const 
 	{
 		if (complen != len) Sys_Error("lengths do not match");
 		for (i = 0; i < len; i++)
-			buffer[i] = info[i] ^ 0xA5;		
+			buffer[i] = ((const char*)info)[i] ^ 0xA5;
 	}
 #ifdef AVAIL_ZLIB
 	else if (method == 2 || method == 8)	//compression (ZLIB)
@@ -272,7 +272,7 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 	return ret;
 }
 
-char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, size_t *size, char *buffer)
+char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, const char *fname, size_t *size, char *buffer)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int num;
@@ -310,7 +310,7 @@ char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, si
 }
 
 /*
-char *filefromnewprogs(progfuncs_t *progfuncs, char *prname, char *fname, int *size, char *buffer)
+char *filefromnewprogs(progfuncs_t *progfuncs, const char *prname, const char *fname, int *size, char *buffer)
 {
 	int num;
 	includeddatafile_t *s;	

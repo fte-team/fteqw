@@ -17,6 +17,7 @@ static char *cvargroup_progs = "Progs variables";
 cvar_t utf8_enable = CVARD("utf8_enable", "0", "When 1, changes the qc builtins to act upon codepoints instead of bytes. Do not use unless com_parseutf8 is also set.");
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods. It is better for mods to use FL_FINDABLE_NONSOLID instead.");
+cvar_t sv_gameplayfix_droptofloorstartsolid = CVARD("sv_gameplayfix_droptofloorstartsolid", "0", "When droptofloor fails, this causes a second attemp, but with traceline instead.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 #ifndef NOLEGACY
 cvar_t dpcompat_strcat_limit = CVARD("dpcompat_strcat_limit", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
@@ -73,6 +74,7 @@ void PF_Common_RegisterCvars(void)
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_droptofloorstartsolid, cvargroup_progs);
 	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
 #ifndef NOLEGACY
 	Cvar_Register (&dpcompat_strcat_limit, cvargroup_progs);
@@ -187,7 +189,6 @@ static int debuggerstacky;
 int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	extern int				isPlugin;
 	if (isPlugin >= 2)
 	{
@@ -197,14 +198,20 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 		Sys_SendKeyEvents();
 #endif
 		debuggerresume = -1;
-		printf("qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
+		fprintf(stdout, "qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
+#ifdef _WIN32
 #ifndef SERVERONLY
 		INS_UpdateGrabs(false, false);
 #endif
+#endif
 		while(debuggerresume == -1 && !wantquit)
 		{
+#ifdef _WIN32
 			Sleep(10);
+#else
+			usleep(10*1000);
+#endif
 #ifdef SERVERONLY
 			SV_GetConsoleCommands();
 #else
@@ -212,7 +219,6 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 #endif
 		}
 	}
-#endif
 }
 extern cvar_t pr_sourcedir;
 pubprogfuncs_t *debuggerinstance;
@@ -373,7 +379,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 
 int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
+//#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	if (isPlugin >= 2)
 	{
 		if (wantquit)
@@ -395,8 +401,10 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 #endif
 		debuggerresume = -1;
 		debuggerresumeline = *line;
+#ifdef _WIN32
 		if (debuggerwnd)
 			SetForegroundWindow((HWND)debuggerwnd);
+#endif
 		if (reason)
 		{
 			char tmpbuffer[8192];
@@ -415,18 +423,28 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		}
 		while(debuggerresume == -1 && !wantquit)
 		{
+#ifdef _WIN32
 			Sleep(10);
+#else
+			usleep(10*1000);
+#endif
 			SV_GetConsoleCommands();
 		}
 #else
+#ifdef _WIN32
 		INS_UpdateGrabs(false, false);
+#endif
 		if (reason)
 			Con_Footerf(NULL, false, "^bDebugging: %s", reason);
 		else
 			Con_Footerf(NULL, false, "^bDebugging");
 		while(debuggerresume == -1 && !wantquit)
 		{
+#ifdef _WIN32
 			Sleep(10);
+#else
+			usleep(10*1000);
+#endif
 			Sys_SendKeyEvents();
 
 			if (qrenderer)
@@ -453,7 +471,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			return DEBUG_TRACE_ABORT;
 		return debuggerresume;
 	}
-#endif
+//#endif
 
 #ifdef TEXTEDITOR
 	return QCLibEditor(prinst, filename, line, statement, reason, fatal);
@@ -5290,7 +5308,25 @@ void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	VectorCopy (ent->v->origin, start);
 	trace = World_Move (world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
 
-	if (trace.fraction == 1 || trace.allsolid)
+	if (trace.allsolid && sv_gameplayfix_droptofloorstartsolid.ival && gravitydir[2] == -1)
+	{
+		//try again but with a traceline, something is better than nothing.
+		vec3_t offset;
+		VectorAvg(ent->v->maxs, ent->v->mins, offset);
+		offset[2] = ent->v->mins[2];
+		VectorAdd(start, offset, start);
+		VectorAdd(end, offset, end);
+		trace = World_Move (world, start, vec3_origin, vec3_origin, end, MOVE_NORMAL, ent);
+		if (trace.fraction < 1)
+		{
+			VectorSubtract (trace.endpos, offset, ent->v->origin);
+			World_LinkEdict (world, ent, false);
+			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
+			ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
+			G_FLOAT(OFS_RETURN) = 1;
+		}
+	}
+	else if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{

@@ -115,7 +115,7 @@ static int logprintf(const char *format, ...)
 	return 0;
 }
 
-int main (int argc, char **argv)
+int main (int argc, const char **argv)
 {
 	unsigned int i;
 	pbool sucess;

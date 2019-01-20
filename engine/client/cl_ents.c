@@ -29,6 +29,7 @@ extern	cvar_t	cl_predict_players_frac;
 extern	cvar_t	cl_predict_players_latency;
 extern	cvar_t	cl_predict_players_nudge;
 extern	cvar_t	cl_lerp_players;
+extern  cvar_t	cl_lerp_maxinterval;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	cl_item_bobbing;
 
@@ -3279,7 +3280,7 @@ static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbase
 		frame = (fst==FST_BASE)?curbaseframe:curframe;
 		if (force || frame != le->newframe[fst])
 		{
-			le->framelerpdeltatime[fst] = bound(0, cl.servertime - le->newframestarttime[fst], 0.1);	//clamp to 10 tics per second
+			le->framelerpdeltatime[fst] = bound(0, cl.servertime - le->newframestarttime[fst], cl_lerp_maxinterval.value);	//clamp to 10 tics per second
 
 			if (!force)
 			{
@@ -3607,7 +3608,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				if (!VectorEquals(le->neworigin, snew__origin) || !VectorEquals(le->newangle, snew->angles))
 				{
 					le->newsequence = snew->sequence;
-					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.11);	//clamp to 10 tics per second
+					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, cl_lerp_maxinterval.value);	//clamp to 10 tics per second
 					le->orglerpstarttime = oldpack->servertime;
 
 					VectorCopy(le->neworigin, le->oldorigin);

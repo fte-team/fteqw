@@ -172,6 +172,13 @@ pbool IsConstant(QCC_ddef_t *def)
 	return true;
 }
 
+const char *qcstring(int str)
+{
+	if ((unsigned)str >= strofs)
+		return "";
+	return strings+str;
+}
+
 char *type_name (QCC_ddef_t *def)
 {
 	QCC_ddef_t *j;
@@ -509,10 +516,10 @@ static struct {
 	{108,	"showpicent",	NULL, {NULL},																"void(string slot, entity player)"},
 	{109,	"hidepicent",	NULL, {NULL},																"void(string slot, entity player)"},
 
-	{110,	"fopen",		&type_float, {&type_string,&type_float},									"filestream(string filename, float mode, optional float mmapminsize)"},
-	{111,	"fclose",		NULL, {&type_float},														"void(filestream fhandle)"},
-	{112,	"fgets",		&type_string, {&type_float,&type_string},									"string(filestream fhandle)"},
-	{113,	"fputs",		NULL, {&type_float,&type_string},											"void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
+	{110,	"fopen",		&type_float, {&type_string,&type_float},									"float(string filename, float mode, optional float mmapminsize)"},
+	{111,	"fclose",		NULL, {&type_float},														"void(float fhandle)"},
+	{112,	"fgets",		&type_string, {&type_float,&type_string},									"string(float fhandle)"},
+	{113,	"fputs",		NULL, {&type_float,&type_string},											"void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
 	{114,	"strlen",		&type_float, {&type_string},												"float(string s)"},
 	{115,	"strcat",		&type_string, {&type_string,&type_string},									"string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},
 	{116,	"substring",	&type_string, {&type_string,&type_float,&type_float},						"string(string s, float start, float length)"},
@@ -1254,8 +1261,9 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 
 	if (def)
 	{
+		const char *defname = qcstring(def->s_name);
 
-		if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm") || !def->s_name)
+		if (!strcmp(defname, "IMMEDIATE") || !strcmp(defname, ".imm") || !def->s_name)
 		{
 			etype_t ty;
 			if (!req_t)
@@ -1270,7 +1278,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 		}
 		else 
 		{
-			if (!strings[def->s_name])
+			if (!*defname)
 			{
 				char line[16];
 				char *buf;

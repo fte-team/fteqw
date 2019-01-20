@@ -1015,7 +1015,6 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 #define misint64(ptr,ofs,data) do{misint((ptr),(ofs),(data));misint((ptr),(ofs)+4,((quint64_t)(data))>>32);}while(0)
 	qofs_t num=0;
 	pbool pak = false;
-	int startofs = 0;
 
 	struct file_s *f;
 	char centralheader[46+sizeof(f->write.name)];
@@ -1291,6 +1290,7 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 	fclose(outf);
 }
 
+/*
 #include <sys/stat.h>
 static time_t PKG_GetFileTime(const char *filename)
 {
@@ -1298,6 +1298,7 @@ static time_t PKG_GetFileTime(const char *filename)
 	if (stat(filename, &s) != -1)
 		return s.st_mtime;
 }
+*/
 
 static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 {

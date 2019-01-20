@@ -22,7 +22,6 @@
 void OptionsDialog(void);
 static void GUI_CreateInstaller_Windows(void);
 static void GUI_CreateInstaller_Android(void);
-pbool GenBuiltinsList(char *buffer, int buffersize);
 static void SetProgsSrcFileAndPath(char *filename);
 static void CreateOutputWindow(pbool doannoates);
 void AddSourceFile(const char *parentsrc, const char *filename);
@@ -355,8 +354,8 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 #undef Sys_Error
 void Sys_Error(const char *text, ...);
 
-pbool qcc_vfiles_changed;
-static vfile_t *qcc_vfiles;
+extern pbool qcc_vfiles_changed;
+extern vfile_t *qcc_vfiles;
 HWND mainwindow;
 HINSTANCE ghInstance;
 static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) ;
@@ -450,96 +449,6 @@ void QCC_SaveVFiles(void)
 			return;
 		}
 	}
-}
-void QCC_CloseAllVFiles(void)
-{
-	vfile_t *f;
-
-	while(qcc_vfiles)
-	{
-		f = qcc_vfiles;
-		qcc_vfiles = f->next;
-
-		free(f->file);
-		free(f);
-	}
-	qcc_vfiles_changed = false;
-}
-vfile_t *QCC_FindVFile(const char *name)
-{
-	vfile_t *f;
-	for (f = qcc_vfiles; f; f = f->next)
-	{
-		if (!strcmp(f->filename, name))
-			return f;
-	}
-	//give it another go, for case
-	for (f = qcc_vfiles; f; f = f->next)
-	{
-		if (!QC_strcasecmp(f->filename, name))
-			return f;
-	}
-	return NULL;
-}
-vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
-{
-	vfile_t *f = QCC_FindVFile(name);
-	if (!f)
-	{
-		f = malloc(sizeof(vfile_t) + strlen(name));
-		f->next = qcc_vfiles;
-		strcpy(f->filename, name);
-		qcc_vfiles = f;
-	}
-	else
-		free(f->file);
-	f->file = malloc(size);
-	f->type = FT_CODE;
-	memcpy(f->file, data, size);
-	f->size = f->bufsize = size;
-
-	qcc_vfiles_changed = true;
-	return f;
-}
-void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
-{
-	va_list argptr;
-	char msg[8192];
-	size_t n;
-
-	va_start (argptr,fmt);
-	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
-	va_end (argptr);
-
-	n = strlen(msg);
-	if (f->size+n > f->bufsize)
-	{
-		size_t msize = f->bufsize + n + 8192;
-		f->file = realloc(f->file, msize);
-		f->bufsize = msize;
-	}
-	memcpy((char*)f->file+f->size, msg, n);
-	f->size += n;
-}
-void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
-{
-	va_list argptr;
-	char msg[8192];
-	size_t n;
-	va_start (argptr,fmt);
-	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
-	va_end (argptr);
-
-	n = strlen(msg);
-	if (f->size+n > f->bufsize)
-	{
-		size_t msize = f->bufsize + n + 8192;
-		f->file = realloc(f->file, msize);
-		f->bufsize = msize;
-	}
-	memmove((char*)f->file+pos+n, (char*)f->file+pos, f->size-pos);
-	f->size += n;
-	memcpy((char*)f->file+pos, msg, n);
 }
 
 void QCC_EnumerateFilesResult(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
@@ -1144,7 +1053,7 @@ enum
 
 
 
-void GUI_DialogPrint(char *title, char *text)
+void GUI_DialogPrint(const char *title, const char *text)
 {
 	MessageBox(mainwindow, text, title, 0);
 }
@@ -2389,45 +2298,6 @@ pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
 
 			//make sure it has the right prefix
 			if (!strncmp(def->name, prefix, prefixlen))
-			//but ignore it if its one of those special things that you're not meant to know about.
-			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
-			{
-				l = strlen(def->name);
-				if (l && usedbuffer+2+l < buffersize)
-				{
-					if (usedbuffer)
-						buffer[usedbuffer++] = ' ';
-					memcpy(buffer+usedbuffer, def->name, l);
-					usedbuffer += l;
-				}
-			}
-		}
-	}
-	buffer[usedbuffer] = 0;
-	return usedbuffer>0;
-}
-
-pbool GenBuiltinsList(char *buffer, int buffersize)
-{
-	QCC_def_t *def;
-	int usedbuffer = 0;
-	int l;
-	int fno;
-	for (fno = 0; fno < sourcefilesnumdefs; fno++)
-	{
-		for (def = sourcefilesdefs[fno]; def; def = def->next)
-		{
-			if (def->scope)
-				continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
-
-			//if its a builtin function...
-			if (def->type->type == ev_function && def->symboldata->function && functions[def->symboldata->function].code<0)
-				;
-			else if (def->filen && strstr(def->filen, "extensions"))
-				;
-			else
-				continue;
-
 			//but ignore it if its one of those special things that you're not meant to know about.
 			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
 			{
@@ -4673,6 +4543,7 @@ void GUI_CreateInstaller_Android(void)
 	free(mandata);
 }
 
+#ifdef AVAIL_PNGLIB
 //size info that microsoft recommends
 static const struct
 {
@@ -4692,6 +4563,8 @@ static const struct
 //	{32, 32, 1},
 	{256, 256, 32}	//vista!
 };
+#endif
+
 //dates back to 16bit windows. bah.
 #pragma pack(push)
 #pragma pack(2)
@@ -6885,7 +6758,7 @@ void compilecb(void)
 void Sys_Error(const char *text, ...);
 void RunCompiler(char *args, pbool quick)
 {
-	char *argv[128];
+	const char *argv[128];
 	int argc;
 	progexterns_t ext;
 	progfuncs_t funcs;

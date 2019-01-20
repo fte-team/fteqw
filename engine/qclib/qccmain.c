@@ -3973,7 +3973,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 {
 	CompilerConstant_t *cnst;
 	int             i, j, p;
-	char *name, *val;
+	const char *name, *val;
 	pbool werror = false;
 	qcc_nopragmaoptimise = false;
 
@@ -4036,10 +4036,15 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			val = strchr(name, '=');
 			if (val)
 			{
-				*val = '\0';
+				char *t = malloc(val-name+1);
+				memcpy(t, name, val-name);
+				t[val-name] = 0;
+				cnst = QCC_PR_DefineName(t);
+				free(t);
 				val++;
 			}
-			cnst = QCC_PR_DefineName(name);
+			else
+				cnst = QCC_PR_DefineName(name);
 			if (val)
 			{
 				cnst->value = qccHunkAlloc(strlen(val)+1);
@@ -4065,7 +4070,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			}
 			else
 			{
-				char *a = myargv[i]+2;
+				const char *a = myargv[i]+2;
 				pbool state = true;
 				if (!strnicmp(a, "no-", 3))
 				{
@@ -4284,7 +4289,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 
 		else if ( !strnicmp(myargv[i], "-W", 2) || WINDOWSARG(!strnicmp(myargv[i], "/W", 2)) )
 		{
-			char *a = myargv[i]+2;
+			const char *a = myargv[i]+2;
 			if (!stricmp(a, "all"))
 			{
 				for (j = 0; j < ERR_PARSEERRORS; j++)
@@ -4662,7 +4667,7 @@ const char *qcccol[COL_MAX];
 int qcc_compileactive = false;
 extern int accglobalsblock;
 char *originalqccmsrc;	//for autoprototype.
-pbool QCC_main (int argc, char **argv)	//as part of the quake engine
+pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 {
 	extern int			pr_bracelevel;
 	time_t long_time;

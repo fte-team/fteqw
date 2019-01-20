@@ -28,7 +28,7 @@
 
 // set these before calling CheckParm
 extern int myargc;
-extern char **myargv;
+extern const char **myargv;
 
 //char *strupr (char *in);
 //char *strlower (char *in);

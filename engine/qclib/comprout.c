@@ -77,12 +77,12 @@ pbool PreCompile(void)
 	return !!qcchunk;
 }
 
-pbool QCC_main (int argc, char **argv);
+pbool QCC_main (int argc, const char **argv);
 void QCC_FinishCompile(void);
 
-int comp_nump;char **comp_parms;
+int comp_nump;const char **comp_parms;
 //void Editor(char *fname, int line, int numparms, char **compileparms);
-pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, char **parms)
+pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, const char **parms)
 {
 	comp_nump = nump;
 	comp_parms = parms;
@@ -113,7 +113,7 @@ pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, char **pa
 
 	return true;
 }
-int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, char **parms)
+int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, const char **parms)
 {
 	comp_nump = nump;
 	comp_parms = parms;
@@ -158,7 +158,7 @@ pbool CompileFile(progfuncs_t *progfuncs, const char *filename)
 #else
 	char srcfile[32];
 	char newname[32];
-	static char *p[5];
+	static const char *p[5];
 	int parms;
 	char *s, *s2;
 	

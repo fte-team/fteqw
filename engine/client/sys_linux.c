@@ -850,7 +850,7 @@ char *Sys_ConsoleInput(void)
 {
 #if 1
 	static char text[256];
-	int len;
+	char *nl;
 
 #ifdef SUBSERVERS
 	if (SSV_IsSubServer())
@@ -865,11 +865,10 @@ char *Sys_ConsoleInput(void)
 
 //	if (!qrenderer)
 	{
-		len = read (STDIN_FILENO, text, sizeof(text));
-		if (len < 1)
+		if (!fgets(text, sizeof(text), stdin))
 			return NULL;
-
-		text[len-1] = 0;    // rip off the /n and terminate
+		nl = strchr(text, '\n');
+		*nl = 0;
 
 //Con_Printf("console input: %s\n", text);
 
@@ -937,6 +936,22 @@ int main (int c, const char **v)
 	}
 #endif
 
+	if (COM_CheckParm("-qcdebug"))
+	{
+		isPlugin = 3;
+		nostdout = true;	//only spew debugging messages.
+	}
+	else
+	{
+		isPlugin = !!COM_CheckParm("-plugin");
+		if (isPlugin)
+		{
+			printf("status Starting up!\n");
+			fflush(stdout);
+			nostdout = true;
+		}
+	}
+
 	parms.basedir = realpath(".", NULL);
 	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.
 #ifdef __linux__
@@ -944,7 +959,7 @@ int main (int c, const char **v)
 	if (readlink("/proc/self/exe", bindir, sizeof(bindir)-1) > 0)
 	{
 		*COM_SkipPath(bindir) = 0;
-		printf("Binary is located at \"%s\"\n", bindir);
+		Sys_Printf("Binary is located at \"%s\"\n", bindir);
 		parms.binarydir = bindir;
 	}
 /*#elif defined(__bsd__)
@@ -952,20 +967,12 @@ int main (int c, const char **v)
 	if (readlink("/proc/self/file", bindir, sizeof(bindir)-1) > 0)
 	{
 		*COM_SkipPath(bindir) = 0;
-		printf("Binary is located at "%s"\n", bindir);
+		Sys_Printf("Binary is located at "%s"\n", bindir);
 		parms.binarydir = bindir;
 	}
 */
 #endif
 	TL_InitLanguages(parms.binarydir);
-
-	isPlugin = !!COM_CheckParm("-plugin");
-	if (isPlugin)
-	{
-		printf("status Starting up!\n");
-		fflush(stdout);
-		nostdout = true;
-	}
 
 
 	noconinput = COM_CheckParm("-noconinput");

@@ -114,11 +114,11 @@ struct pubprogfuncs_s
 
 	func_t	(PDECL *FindFunction)				(pubprogfuncs_t *prinst, const char *funcname, progsnum_t num);
 
-	int		(PDECL *StartCompile)				(pubprogfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
+	int		(PDECL *StartCompile)				(pubprogfuncs_t *prinst, int argv, const char **argc);	//1 if can compile, 0 if failed to compile
 	int		(PDECL *ContinueCompile)			(pubprogfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed
 
-	char	*(PDECL *filefromprogs)				(pubprogfuncs_t *prinst, progsnum_t prnum, char *fname, size_t *size, char *buffer);	//reveals encoded/added files from already loaded progs
-	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, char *prname, char *fname, size_t *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
+	char	*(PDECL *filefromprogs)				(pubprogfuncs_t *prinst, progsnum_t prnum, const char *fname, size_t *size, char *buffer);	//reveals encoded/added files from already loaded progs
+	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, const char *prname, const char *fname, size_t *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
 
 	void	(PDECL *ED_Print)					(pubprogfuncs_t *prinst, struct edict_s *ed);
 	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, size_t *size, size_t maxsize, int mode);	//dump the entire progs info into one big self allocated string

@@ -289,7 +289,7 @@ typedef struct edictrun_s
 } edictrun_t;
 
 
-int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, char **parms);
+int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, const char **parms);
 int PDECL Comp_Continue(pubprogfuncs_t *progfuncs);
 
 pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, const char *key);

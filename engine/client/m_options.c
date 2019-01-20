@@ -1066,6 +1066,16 @@ void FPS_Preset_f (void)
 		return;
 	}
 
+	if (!stricmp("dp", arg))
+	{
+		Cbuf_InsertText(
+			"set sv_listen_dp 1\n"
+			"set sv_bigcoords 1\n"
+			"echo you may need to restart the map\n"
+			, RESTRICT_LOCAL, false);
+		return;
+	}
+
 	if (!stricmp("tenebrae", arg))
 	{	//for the luls. combine with the tenebrae mod for maximum effect.
 		Cbuf_InsertText(

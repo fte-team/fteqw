@@ -215,7 +215,7 @@ void R_GenerateFlashblendTexture(void)
 			pixels[y][x][3] = 255;
 		}
 	}
-	R_LoadReplacementTexture("***flashblend***", NULL, 0, pixels, 32, 32, TF_RGBA32);
+	R_LoadReplacementTexture("***flashblend***", NULL, IF_LINEAR, pixels, 32, 32, TF_RGBA32);
 }
 void R_InitFlashblends(void)
 {

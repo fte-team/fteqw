@@ -101,6 +101,7 @@ cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
 cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
+cvar_t	cl_lerp_maxinterval = CVARD("cl_lerp_maxinterval", "0.3", "Maximum interval between keyframes, in seconds. Larger values can result in entities drifting very slowly when they move sporadically.");
 cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "1", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
 cvar_t	cl_predict_players			= CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
 cvar_t	cl_predict_players_frac		= CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
@@ -4455,6 +4456,7 @@ void CL_Init (void)
 	Cvar_Register (&rcon_password,	cl_controlgroup);
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
+	Cvar_Register (&cl_lerp_maxinterval, cl_controlgroup);
 	Cvar_Register (&cl_lerp_players, cl_controlgroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_players_frac,	cl_predictiongroup);

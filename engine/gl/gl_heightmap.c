@@ -3030,13 +3030,13 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 
 	Terr_Brush_Draw(hm, batches, e);
 
-	if (r_refdef.globalfog.density || r_refdef.maxdist>0)
+	if ((r_refdef.globalfog.density&&r_refdef.globalfog.alpha>=1) || r_refdef.maxdist>0)
 	{
 		float culldist;
 		extern cvar_t r_fog_exp2;
 
-		if (r_refdef.globalfog.density)
-		{
+		if (r_refdef.globalfog.density&&r_refdef.globalfog.alpha>=1)
+		{	//fogalpha<1 means you can always see through it, so don't cull when its invisible.
 			//figure out the eyespace distance required to reach that fog value
 			culldist = log(0.5/255.0f);
 			if (r_fog_exp2.ival)

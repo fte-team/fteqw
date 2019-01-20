@@ -8,11 +8,11 @@
 #define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1,s2))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
 
 void QCC_PR_PreProcessor_Define(pbool append);
-pbool QCC_PR_UndefineName(char *name);
-char *QCC_PR_CheckCompConstString(char *def);
-CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
+pbool QCC_PR_UndefineName(const char *name);
+const char *QCC_PR_CheckCompConstString(const char *def);
+CompilerConstant_t *QCC_PR_CheckCompConstDefined(const char *def);
 int QCC_PR_CheckCompConst(void);
-pbool QCC_Include(char *filename);
+pbool QCC_Include(const char *filename);
 void QCC_FreeDef(QCC_def_t *def);
 
 #define MAXINCLUDEDIRS 8
@@ -1579,7 +1579,8 @@ void QCC_PR_LexString (void)
 	unsigned int	c, t;
 	int bytecount;
 	int		len = 0;
-	char	*end, *cnst;
+	char	*end;
+	const char *cnst;
 	int		raw;
 	char	rawdelim[64];
 	int		stringtype;
@@ -2833,7 +2834,7 @@ static void QCC_PR_LexGrab (void)
 //===========================
 //compiler constants	- dmw
 
-pbool QCC_PR_UndefineName(char *name)
+pbool QCC_PR_UndefineName(const char *name)
 {
 //	int a;
 	CompilerConstant_t *c;
@@ -2848,7 +2849,7 @@ pbool QCC_PR_UndefineName(char *name)
 	return true;
 }
 
-CompilerConstant_t *QCC_PR_DefineName(char *name)
+CompilerConstant_t *QCC_PR_DefineName(const char *name)
 {
 	int i;
 	CompilerConstant_t *cnst;
@@ -3653,9 +3654,9 @@ int QCC_PR_CheckCompConst(void)
 	return false;
 }
 
-char *QCC_PR_CheckCompConstString(char *def)
+const char *QCC_PR_CheckCompConstString(const char *def)
 {
-	char *s;
+	const char *s;
 
 	CompilerConstant_t *c;
 
@@ -3669,7 +3670,7 @@ char *QCC_PR_CheckCompConstString(char *def)
 	return def;
 }
 
-CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def)
+CompilerConstant_t *QCC_PR_CheckCompConstDefined(const char *def)
 {
 	CompilerConstant_t *c = pHash_Get(&compconstantstable, def);
 	return c;

@@ -14,7 +14,7 @@ extern jmp_buf qcccompileerror;
 
 // set these before calling CheckParm
 int myargc;
-char **myargv;
+const char **myargv;
 
 char	qcc_token[1024];
 int		qcc_eof;

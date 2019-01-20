@@ -1,9 +1,7 @@
 #include "qcc.h"
 #include "gui.h"
 
-#ifdef _WIN32
-#define alloca _alloca
-#else
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 
@@ -25,8 +23,15 @@ char enginebinary[MAX_OSPATH];
 char enginebasedir[MAX_OSPATH];
 char enginecommandline[8192];
 
+pbool qcc_vfiles_changed;
+vfile_t *qcc_vfiles;
+
+//for finding symbol keywords
+extern QCC_def_t *sourcefilesdefs[];
+extern int sourcefilesnumdefs;
+
 int qccpersisthunk = 1;
-int Grep(char *filename, char *string)
+int Grep(const char *filename, const char *string)
 {
 	int foundcount = 0;
 	char *last, *found, *linestart;
@@ -74,7 +79,7 @@ int Grep(char *filename, char *string)
 
 	return foundcount;
 }
-void GoToDefinition(char *name)
+void GoToDefinition(const char *name)
 {
 	#define MAXSOURCEFILESLIST 8
 	extern QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];
@@ -84,15 +89,22 @@ void GoToDefinition(char *name)
 	QCC_def_t *def, *guess;
 	QCC_function_t *fnc;
 
-	char *strip;	//trim whitespace (for convieniance).
+	const char *strip;	//trim whitespace (for convieniance).
 	while (*name <= ' ' && *name)
 		name++;
-	for (strip = name + strlen(name)-1; *strip; strip++)
+	for (strip = name + strlen(name)-1; strip > name; strip--)
 	{
 		if (*strip <= ' ')
-			*strip = '\0';
+			continue;
 		else	//got some part of a word
 			break;
+	}
+	if (*strip <= ' ')
+	{
+		char *t = alloca(strip-name+1);
+		memcpy(t, name, strip-t);
+		t[strip-t] = 0;
+		name = t;
 	}
 
 	if (!globalstable.numbuckets)
@@ -449,11 +461,11 @@ void GUI_LoadConfig(void)
 
 
 //this function takes the windows specified commandline and strips out all the options menu items.
-int GUI_ParseCommandLine(char *args, pbool keepsrcanddir)
+int GUI_ParseCommandLine(const char *args, pbool keepsrcanddir)
 {
 	int paramlen=0;
 	int l, p;
-	char *next;
+	const char *next;
 	int mode = 0;
 
 	if (!*args)
@@ -469,8 +481,8 @@ int GUI_ParseCommandLine(char *args, pbool keepsrcanddir)
 			len = ftell(f);
 			fseek(f, 0, SEEK_SET);
 			args = alloca(len+1);
-			fread(args, 1, len, f);
-			args[len] = '\0';
+			fread((char*)args, 1, len, f);
+			((char*)args)[len] = '\0';
 			fclose(f);
 
 			while((s = strchr(args, '\r')))
@@ -835,12 +847,12 @@ void GUI_RevealOptions(void)
 
 
 
-int GUI_BuildParms(char *args, char **argv, pbool quick)//, char *forceoutputfile)
+int GUI_BuildParms(const char *args, const char **argv, pbool quick)//, char *forceoutputfile)
 {
 	static char param[2048];
 	int paramlen = 0;
 	int argc;
-	char *next;
+	const char *next;
 	int i;
 	int targ;
 	char *targs[] = {"", "-Th2", "-Tfte", "-Tfteh2"};
@@ -937,4 +949,134 @@ int GUI_BuildParms(char *args, char **argv, pbool quick)//, char *forceoutputfil
 	}
 
 	return argc;
+}
+
+pbool GenBuiltinsList(char *buffer, int buffersize)
+{
+	QCC_def_t *def;
+	int usedbuffer = 0;
+	int l;
+	int fno;
+	for (fno = 0; fno < sourcefilesnumdefs; fno++)
+	{
+		for (def = sourcefilesdefs[fno]; def; def = def->next)
+		{
+			if (def->scope)
+				continue;   //ignore locals, because we don't know where we are, and they're probably irrelevent.
+
+			//if its a builtin function...
+			if (def->type->type == ev_function && def->symboldata->function && functions[def->symboldata->function].code<0)
+				;
+			else if (def->filen && strstr(def->filen, "extensions"))
+				;
+			else
+				continue;
+
+			//but ignore it if its one of those special things that you're not meant to know about.
+			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
+			{
+				l = strlen(def->name);
+				if (l && usedbuffer+2+l < buffersize)
+				{
+					if (usedbuffer)
+						buffer[usedbuffer++] = ' ';
+					memcpy(buffer+usedbuffer, def->name, l);
+					usedbuffer += l;
+				}
+			}
+		}
+	}
+	buffer[usedbuffer] = 0;
+	return usedbuffer>0;
+}
+
+void QCC_CloseAllVFiles(void)
+{
+	vfile_t *f;
+
+	while(qcc_vfiles)
+	{
+		f = qcc_vfiles;
+		qcc_vfiles = f->next;
+
+		free(f->file);
+		free(f);
+	}
+	qcc_vfiles_changed = false;
+}
+vfile_t *QCC_FindVFile(const char *name)
+{
+	vfile_t *f;
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		if (!strcmp(f->filename, name))
+			return f;
+	}
+	//give it another go, for case
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		if (!QC_strcasecmp(f->filename, name))
+			return f;
+	}
+	return NULL;
+}
+vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
+{
+	vfile_t *f = QCC_FindVFile(name);
+	if (!f)
+	{
+		f = malloc(sizeof(vfile_t) + strlen(name));
+		f->next = qcc_vfiles;
+		strcpy(f->filename, name);
+		qcc_vfiles = f;
+	}
+	else
+		free(f->file);
+	f->file = malloc(size);
+	f->type = FT_CODE;
+	memcpy(f->file, data, size);
+	f->size = f->bufsize = size;
+
+	qcc_vfiles_changed = true;
+	return f;
+}
+void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
+{
+	va_list argptr;
+	char msg[8192];
+	size_t n;
+
+	va_start (argptr,fmt);
+	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
+	va_end (argptr);
+
+	n = strlen(msg);
+	if (f->size+n > f->bufsize)
+	{
+		size_t msize = f->bufsize + n + 8192;
+		f->file = realloc(f->file, msize);
+		f->bufsize = msize;
+	}
+	memcpy((char*)f->file+f->size, msg, n);
+	f->size += n;
+}
+void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
+{
+	va_list argptr;
+	char msg[8192];
+	size_t n;
+	va_start (argptr,fmt);
+	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
+	va_end (argptr);
+
+	n = strlen(msg);
+	if (f->size+n > f->bufsize)
+	{
+		size_t msize = f->bufsize + n + 8192;
+		f->file = realloc(f->file, msize);
+		f->bufsize = msize;
+	}
+	memmove((char*)f->file+pos+n, (char*)f->file+pos, f->size-pos);
+	f->size += n;
+	memcpy((char*)f->file+pos, msg, n);
 }

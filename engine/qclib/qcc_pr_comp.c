@@ -12108,7 +12108,7 @@ static void QCC_CheckForDeadAndMissingReturns(int first, int last, int rettype)
 		{
 			if (statements[last-1].op != OP_GOTO || (signed)statements[last-1].a.ofs > 0)
 			{
-				QCC_PR_ParseWarning(WARN_MISSINGRETURN, "%s: not all control paths return a value", pr_scope->name );
+				QCC_PR_Warning(WARN_MISSINGRETURN, s_filen, statements[last].linenum, "%s: not all control paths return a value", pr_scope->name );
 				return;
 			}
 		}

@@ -1313,7 +1313,7 @@ static void PR_Compile_f(void)
 	qboolean killondone = false;
 	int argc=3;
 	double time = Sys_DoubleTime();
-	char *argv[64] = {"", "-src", pr_sourcedir.string, "-srcfile", "progs.src"};
+	const char *argv[64] = {"", "-src", pr_sourcedir.string, "-srcfile", "progs.src"};
 
 	if (Cmd_Argc()>2)
 	{

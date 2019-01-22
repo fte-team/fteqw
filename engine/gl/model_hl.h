@@ -14,6 +14,38 @@
 #define HLPOLYHEADER	(('T' << 24) + ('S' << 16) + ('D' << 8) + 'I')	/* little-endian "IDST" */
 #define HLMDLHEADER		"IDST"
 
+/* flags - eukara */
+#define HLMDLFL_FLAT		0x0001
+#define HLMDLFL_CHROME		0x0002
+#define HLMDLFL_FULLBRIGHT	0x0004
+
+#define HLSHADER_FULLBRIGHT \
+		"{\n" \
+			"program defaultskin\n" \
+			"{\n" \
+				"map $diffuse\n" \
+			"}\n" \
+		"}\n"
+
+#define HLSHADER_CHROME \
+		"{\n" \
+			"program defaultskin#CHROME\n" \
+			"{\n" \
+				"map $diffuse\n" \
+				"tcgen environment\n" \
+				"rgbgen lightingdiffuse\n" \
+			"}\n" \
+		"}\n"
+
+#define HLSHADER_FULLBRIGHTCHROME \
+		"{\n" \
+			"program defaultskin#CHROME\n" \
+			"{\n" \
+				"map $diffuse\n" \
+				"tcgen environment\n" \
+			"}\n" \
+		"}\n"
+
 /*
  -----------------------------------------------------------------------------------------------------------------------
     main model header

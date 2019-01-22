@@ -320,10 +320,29 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	for(i = 0; i < texheader->numtextures; i++)
 	{
 		Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "%s/%s", mod->name, COM_SkipPath(tex[i].name));
-		memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
-		shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
-		shaders[i].w = tex[i].w;
-		shaders[i].h = tex[i].h;
+
+		/* handle the special textures - eukara */
+		if (tex[i].flags) {
+			char *shader;
+			if (tex[i].flags & HLMDLFL_FULLBRIGHT) {
+				if (tex[i].flags & HLMDLFL_CHROME) {
+					shader = HLSHADER_FULLBRIGHTCHROME;
+				} else {
+					shader = HLSHADER_FULLBRIGHT;
+				}
+			} else if (tex[i].flags & HLMDLFL_CHROME) {
+				shader = HLSHADER_CHROME;
+			}
+			shaders[i].shader = R_RegisterShader(shaders[i].name, SUF_NONE, shader);
+			shaders[i].shader->defaulttextures->base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+			shaders[i].shader->width = tex[i].w;
+			shaders[i].shader->height = tex[i].h;
+		} else {
+			memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
+			shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+			shaders[i].w = tex[i].w;
+			shaders[i].h = tex[i].h;
+		}
 	}
 
 	model->numskinrefs = texheader->skinrefs;

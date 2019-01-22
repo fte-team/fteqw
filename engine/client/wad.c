@@ -796,7 +796,10 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 #ifdef PACKAGE_TEXWAD
 	mapskys_t *msky;
 
-	wads[0] = '\0';
+	if (wmodel && wmodel->fromgame == fg_halflife)
+		strcpy(wads, "decals.wad");
+	else
+		wads[0] = '\0';
 #endif
 
 	cl.skyrotate = 0;

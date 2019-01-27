@@ -777,10 +777,13 @@ void SV_Map_f (void)
 
 		gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 //		gametype->callback = gtcallback;
-		if (q3singleplayer)
-			Cvar_ForceSet(gametype, "2");//singleplayer
-		else if (gametype->value == 2)
-			Cvar_ForceSet(gametype, "");//force to ffa deathmatch
+
+		/* map_restart doesn't need to handle gametype changes - eukara */
+		if (Q_strcasecmp(Cmd_Argv(0), "map_restart"))
+			if (q3singleplayer)
+				Cvar_ForceSet(gametype, "2");//singleplayer
+			else if (gametype->value == 2)
+				Cvar_ForceSet(gametype, "");//force to ffa deathmatch
 	}
 #endif
 

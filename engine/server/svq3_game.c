@@ -3320,13 +3320,18 @@ void SVQ3_NewMapConnects(void)
 {
 	int i;
 	qintptr_t ret;
+
+	/* Kick old bots in SP - eukara */
+	cvar_t *gametype;
+	gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].state < cs_connected)
 			continue;
 
 		ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD);
-		if (ret)
+		if (ret || (gametype->value == 2 && svs.clients[i].protocol == SCP_BAD))
 		{
 			SV_DropClient(&svs.clients[i]);
 		}

@@ -3517,8 +3517,10 @@ static void X_StoreIcon(Window wnd)
 		unsigned long data[64*64+2];
 		data[0] = icon.width;
 		data[1] = icon.height;
+
+		/* GIMP exports dumps as RGBA only, so we have to convert them too - eukara */
 		for (i = 0; i < data[0]*data[1]; i++)
-			data[i+2] = ((const unsigned int*)icon.pixel_data)[i];
+			data[i+2] = (icon.pixel_data[i*4+3]<<24) | (icon.pixel_data[i*4+0]<<16) | (icon.pixel_data[i*4+1]<<8) | (icon.pixel_data[i*4+2]<<0);
 
 		x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
 	}

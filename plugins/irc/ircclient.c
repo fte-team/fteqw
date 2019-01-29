@@ -1100,7 +1100,7 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	}
 	case 323:	/* RPL_LISTEND*/
 	{
-		char *endoflist = casevar[3]+1;
+		//char *endoflist = casevar[3]+1;
 
 //		IRC_Printf(irc, "list", "%s\n",endoflist);
 

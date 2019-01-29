@@ -870,7 +870,9 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float writeonly;
 	static int writeonly_int;
 	static int endcontentsi, surfaceflagsi;
+#ifndef NOLEGACY
 	static float endcontentsf, surfaceflagsf;
+#endif
 	static float dimension_send_default;
 	static float dimension_default = 255;
 	static float zero_default;

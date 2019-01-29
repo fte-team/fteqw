@@ -175,7 +175,7 @@ cvar_t r_hdr_irisadaptation_fade_up			= CVAR	("r_hdr_irisadaptation_fade_up", "0
 cvar_t r_loadlits							= CVARF	("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
-cvar_t r_netgraph							= CVAR	("r_netgraph", "0");
+cvar_t r_netgraph							= CVARD	("r_netgraph", "0", "Displays a graph of packet latency. A value of 2 will give additional info about what sort of data is being received from the server.");
 extern cvar_t r_lerpmuzzlehack;
 cvar_t r_nolerp								= CVARF	("r_nolerp", "0", CVAR_ARCHIVE);
 cvar_t r_noframegrouplerp					= CVARF	("r_noframegrouplerp", "0", CVAR_ARCHIVE);

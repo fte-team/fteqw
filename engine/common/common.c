@@ -1134,7 +1134,21 @@ int COM_EncodeSize(vec3_t mins, vec3_t maxs)
 	return solid;
 }
 
-static unsigned int MSG_ReadEntity(void)
+#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
+void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
+{
+	if (entnum > MAX_EDICTS)
+		Host_EndGame("index %#x is not a valid entity\n", entnum);
+
+	if (entnum >= 0x8000)
+	{
+		MSG_WriteShort(sb, (entnum>>8) | 0x8000);
+		MSG_WriteByte(sb, entnum & 0xff);
+	}
+	else
+		MSG_WriteShort(sb, entnum);
+}
+static unsigned int MSG_ReadBigEntity(void)
 {
 	unsigned int num;
 	num = MSG_ReadShort();
@@ -1145,15 +1159,17 @@ static unsigned int MSG_ReadEntity(void)
 	}
 	return num;
 }
+#endif
+
 //we use the high bit of the entity number to state that this is a large entity.
 #ifdef HAVE_SERVER
 unsigned int MSGSV_ReadEntity(client_t *fromclient)
 {
 	unsigned int num;
 	if (fromclient->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		num = MSG_ReadEntity();
+		num = MSG_ReadBigEntity();
 	else
-		num = (unsigned short)(short)MSG_ReadEntity();
+		num = (unsigned short)(short)MSG_ReadShort();
 	if (num >= sv.world.max_edicts)
 	{
 		Con_Printf("client %s sent invalid entity\n", fromclient->name);
@@ -1168,25 +1184,10 @@ unsigned int MSGCL_ReadEntity(void)
 {
 	unsigned int num;
 	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		num = MSG_ReadEntity();
+		num = MSG_ReadBigEntity();
 	else
 		num = (unsigned short)(short)MSG_ReadShort();
 	return num;
-}
-#endif
-#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
-void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
-{
-	if (entnum > MAX_EDICTS)
-		Host_EndGame("index %#x is not a valid entity\n", entnum);
-
-	if (entnum >= 0x8000)
-	{
-		MSG_WriteShort(sb, (entnum>>8) | 0x8000);
-		MSG_WriteByte(sb, entnum & 0xff);
-	}
-	else
-		MSG_WriteShort(sb, entnum);
 }
 #endif
 

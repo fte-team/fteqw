@@ -133,7 +133,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing")
 	ELSE()
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 	ENDIF()

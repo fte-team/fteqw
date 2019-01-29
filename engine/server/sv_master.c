@@ -208,7 +208,7 @@ static void SVM_RemoveOldServers(void)
 	}
 }
 
-int SVM_AddIPAddresses(sizebuf_t *sb, int first, const char *gamename, int v4, int v6, qboolean prefixes)
+int SVM_AddIPAddresses(sizebuf_t *sb, int first, const char *gamename, int v4, int v6, qboolean prefixes, int gametype)
 {
 	int number = 0;
 	svm_server_t *server;
@@ -227,6 +227,9 @@ int SVM_AddIPAddresses(sizebuf_t *sb, int first, const char *gamename, int v4, i
 
 		for (; server; server = server->next)
 		{
+//FIXME
+//			if (gametype != -1 && server->gametype != gametype)
+//				continue;
 			switch(server->adr.type)
 			{
 			case NA_IP:
@@ -246,7 +249,7 @@ int SVM_AddIPAddresses(sizebuf_t *sb, int first, const char *gamename, int v4, i
 			}
 
 			if (prefixes)
-				MSG_WriteByte(sb, prefixes);
+				MSG_WriteByte(sb, prefix);
 
 			SZ_Write(sb, server->adr.address.ip, len);
 			MSG_WriteShort(sb, server->adr.port);
@@ -308,7 +311,7 @@ vfsfile_t *SVM_GenerateIndex(const char *fname)
 
 		f = VFSPIPE_Open(1, false);
 		VFS_PRINTF(f, "%s", thecss);
-		VFS_PRINTF(f, "<h1>Single Server Info</h1>\n", tmpbuf);
+		VFS_PRINTF(f, "<h1>Single Server Info</h1>\n");
 
 		VFS_PRINTF(f, "<table border=1>\n");
 		VFS_PRINTF(f, "<tr><th>Game</th><th>Address</th><th>Hostname</th><th>Mod dir</th><th>Mapname</th><th>Players</th></tr>\n");
@@ -476,6 +479,11 @@ void SVM_Think(int port)
 					gametype = GT_CTF;
 				else if (!strncmp(com_token, "gametype=", 9))
 					gametype = atoi(com_token+9);
+				else
+				{
+					char buf[256];
+					Con_DPrintf("Unknown request filter: %s\n", COM_QuotedString(com_token, buf, sizeof(buf), false));
+				}
 			}
 			svm.total.queries++;
 			memset(&sb, 0, sizeof(sb));
@@ -485,15 +493,16 @@ void SVM_Think(int port)
 
 			if (!ipv4 && !ipv6)
 				ipv4 = ipv6 = true; //neither specified? use both
+			(void)ver, (void)full, (void)empty;
 			if (ext)
 			{	//ipv6 and ipv4 addresses
 				MSG_WriteString(&sb, "getserversExtResponse");
-				SVM_AddIPAddresses(&sb, 0, game, ipv4, ipv6, true);
+				SVM_AddIPAddresses(&sb, 0, game, ipv4, ipv6, true, gametype);
 			}
 			else
 			{	//ipv4 only
 				MSG_WriteString(&sb, "getserversResponse");
-				SVM_AddIPAddresses(&sb, 0, game, ipv4, ipv6, true);
+				SVM_AddIPAddresses(&sb, 0, game, ipv4, ipv6, true, gametype);
 			}
 			sb.maxsize+=2;
 			MSG_WriteByte(&sb, '\\');	//otherwise the last may be considered invalid and ignored.
@@ -557,7 +566,7 @@ void SVM_Think(int port)
 			MSG_WriteLong(&sb, -1);
 			MSG_WriteString(&sb, "servers\n");
 			sb.cursize--;
-			SVM_AddIPAddresses(&sb, 0, "Quake2", true, false, false);
+			SVM_AddIPAddresses(&sb, 0, "Quake2", true, false, false, -1);
 			NET_SendPacket(svm_sockets, sb.cursize, sb.data, &net_from);
 		}
 		else if (*com_token == S2M_HEARTBEAT)	//sequence, players
@@ -580,7 +589,7 @@ void SVM_Think(int port)
 			MSG_WriteLong(&sb, -1);
 			MSG_WriteByte(&sb, M2C_MASTER_REPLY);
 			MSG_WriteByte(&sb, '\n');
-			SVM_AddIPAddresses(&sb, 0, "QuakeWorld", true, false, false);
+			SVM_AddIPAddresses(&sb, 0, "QuakeWorld", true, false, false, -1);
 			NET_SendPacket(svm_sockets, sb.cursize, sb.data, &net_from);
 		}
 		else if (*com_token == A2A_PING)

@@ -689,7 +689,7 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		}
 
 		if (rect->width < 32)
-			return;
+			return 0;
 		rect->x += 16;
 		rect->width -= 32;
 

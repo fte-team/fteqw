@@ -427,7 +427,7 @@ static void PKG_ParseOutput(struct pkgctx_s *ctx, pbool diff)
 	}
 }
 
-static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
+/*static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
 {
 	struct oldpack_s *pack;
 
@@ -437,17 +437,17 @@ static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
 	pack->file = NULL;
 	pack->next = ctx->oldpacks;
 	ctx->oldpacks = pack;
-}
+}*/
 static void PKG_ParseOldPack(struct pkgctx_s *ctx)
 {
 	char token[MAX_OSPATH];
-	char oldpack[MAX_OSPATH];
 
 	if (!PKG_GetStringToken(ctx, token, sizeof(token)))
 		return;
 
 #ifdef _WIN32
 	{
+		char oldpack[MAX_OSPATH];
 		WIN32_FIND_DATA fd;
 		HANDLE h;
 		QCC_Canonicalize(oldpack, sizeof(oldpack), token, ctx->gamepath);
@@ -594,7 +594,7 @@ static void PKG_ParseRule(struct pkgctx_s *ctx)
 	r->next = ctx->rules;
 	ctx->rules = r;
 }
-static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
+/*static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
 {
 	struct file_s *f;
 	struct tm *t;
@@ -614,7 +614,7 @@ static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char
 	f->write.dosdate = (t->tm_mday<<0)|(t->tm_mon<<5)|((t->tm_year+1900-1980)<<9);
 	f->next = c->files;
 	c->files = f;
-}
+}*/
 static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const char *fname)
 {
 #ifdef _WIN32

@@ -8320,15 +8320,20 @@ void CL_ShowTrafficUsage(float x, float y)
 	size_t svccount, i, j=0;
 	size_t total;
 	struct sortedsvcs_s sorted[256];
-	if (cls.protocol == CP_NETQUAKE)
+	switch(cls.protocol)
 	{
+#ifdef NQPROT
+	case CP_NETQUAKE:
 		svcnames = svc_nqstrings;
 		svccount = countof(svc_nqstrings);
-	}
-	else
-	{
+		break;
+#endif
+	case CP_QUAKEWORLD:
 		svcnames = svc_qwstrings;
 		svccount = countof(svc_qwstrings);
+		break;
+	default:
+		return;	//panic!
 	}
 	total = 0;
 	for (i = 0; i < 256; i++)

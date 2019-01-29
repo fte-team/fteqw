@@ -2450,7 +2450,7 @@ char *DecompileValueString(etype_t type, void *val)
 
 char *DecompilePrintParameter(QCC_ddef_t * def)
 {
-	static char line[128];
+	static char line[256];
 	static char debug[128];
 
 	line[0] = '0';

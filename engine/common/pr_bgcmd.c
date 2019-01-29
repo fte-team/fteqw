@@ -184,6 +184,8 @@ static int debuggerstacky;
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	#include <windows.h>
 	void INS_UpdateGrabs(int fullscreen, int activeapp);
+#else
+	#include <unistd.h>
 #endif
 
 int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int firststatement, char *error, pbool fatal);

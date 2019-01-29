@@ -658,9 +658,10 @@ qboolean Sys_rmdir (const char *path)
 }
 #else
 #include <unistd.h>
+#include <sys/stat.h>
 void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 {
-	mkdir(pname);
+	mkdir(pname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
 qboolean Sys_rmdir (const char *path)
 {

@@ -90,7 +90,7 @@
 #define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 //#define IMAGEFMT_BLP			//legacy crap
-#define IMAGEFMT_BMP			//windows bmp. yuck.
+#define IMAGEFMT_BMP			//windows bmp. yuck. also includes .ico for the luls
 #define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
 //#define IMAGEFMT_VTF			//hl2 image format
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)

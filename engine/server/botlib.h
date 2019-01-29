@@ -202,6 +202,9 @@ typedef struct botlib_import_s
 	//
 	int			(QDECL *DebugPolygonCreate)(int color, int numPoints, vec3_t *points);
 	void		(QDECL *DebugPolygonDelete)(int id);
+
+	//FTE additions...
+	void		(QDECL *Error)(const char *error);
 } botlib_import_t;
 
 typedef struct aas_export_s

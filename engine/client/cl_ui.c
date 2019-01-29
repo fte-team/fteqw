@@ -28,6 +28,7 @@ typedef struct {
 } script_t;
 static script_t *scripts;
 static int maxscripts;
+static unsigned int ui_width, ui_height;	//to track when it needs to be restarted (the api has no video mode changed event)
 #define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-\""
 void StripCSyntax (char *s)
 {
@@ -1483,6 +1484,12 @@ void UI_DrawMenu(void)
 {
 	if (uivm)
 	{
+		if (qrenderer != QR_NONE && (ui_width != vid.width || ui_height != vid.height))
+		{
+			ui_width = vid.width;
+			ui_height = vid.height;
+			VM_Call(uivm, UI_INIT);
+		}
 		VM_Call(uivm, UI_REFRESH, (int)(realtime * 1000));
 	}
 }
@@ -1585,11 +1592,14 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 //	return result;
 }
 
-qboolean UI_MousePosition(int xpos, int ypos)
+qboolean UI_MousePosition(float xpos, float ypos)
 {
 	if (uivm && (keycatcher&2))
 	{
-		VM_Call(uivm, UI_MOUSE_EVENT, (xpos)*640/(int)vid.width, (ypos)*480/(int)vid.height);
+		int px, py;
+		px = (xpos);//*640/(int)vid.width;
+		py = (ypos);//*480/(int)vid.height;
+		VM_Call(uivm, UI_MOUSE_EVENT, px, py);
 		return true;
 	}
 	return false;
@@ -1625,6 +1635,8 @@ void UI_Start (void)
 	for (i = 0; i < MAX_PINGREQUESTS; i++)
 		ui_pings[i].type = NA_INVALID;
 
+	ui_width = vid.width;
+	ui_height = vid.height;
 	uivm = VM_Create("vm/ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, UI_SystemCallsVM);
 	if (uivm)
 	{

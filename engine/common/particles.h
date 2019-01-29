@@ -246,7 +246,7 @@ typedef struct {
 	qboolean (*ParticleQuery) (int type, int body, char *outstr, int outstrlen);
 
 	int (*RunParticleEffectTypeString) (vec3_t org, vec3_t dir, float count, char *name);
-	int (*ParticleTrail) (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk);
+	int (*ParticleTrail) (vec3_t startpos, vec3_t end, int type, float timeinterval, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk);
 	int (*RunParticleEffectState) (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk);
 	void (*RunParticleWeather) (vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname);
 	void (*RunParticleCube) (int typenum, vec3_t minb, vec3_t maxb, vec3_t dir_min, vec3_t dir_max, float count, int colour, qboolean gravity, float jitter); //typenum may be P_INVALID
@@ -256,7 +256,7 @@ typedef struct {
 	void (*RunParticleEffect4) (vec3_t org, float radius, int color, int effect, int count);
 	void (*RunParticleEffectPalette) (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count);
 
-	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk);	//P_INVALID is fine for the type here, you'll get a default trail.
+	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int type, float timeinterval, int color, int crnd, trailstate_t **tsk);	//P_INVALID is fine for the type here, you'll get a default trail.
 	qboolean (*InitParticles) (void);
 	void (*ShutdownParticles) (void);
 	void (*DelinkTrailstate) (trailstate_t **tsk);

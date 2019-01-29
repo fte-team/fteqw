@@ -219,7 +219,6 @@ typedef struct frame_s {
 typedef struct {
 	int lastClientCommandNum;
 	int lastServerCommandNum;
-	int currentServerCommandNum;
 	int numClientCommands;
 
 	int				serverMessageNum;

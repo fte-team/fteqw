@@ -67,7 +67,7 @@ qboolean UI_OpenMenu(void);
 void UI_Restart_f(void);
 qboolean UI_Q2LayoutChanged(void);
 void UI_StringChanged(int num);
-qboolean UI_MousePosition(int xpos, int ypos);
+qboolean UI_MousePosition(float xpos, float ypos);
 int UI_MenuState(void);
 qboolean UI_KeyPress(int key, int unicode, qboolean down);
 void UI_Reset(void);

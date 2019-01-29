@@ -1772,19 +1772,49 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 #ifndef QUAKETC
 		{"%s.sav"},
 #endif
+		{"%s"}
 	};
-	int bd,best;
+	int bestd=0x7fffffff,best=0;
+	time_t bestt=0,t;
 
 	Q_strncpyz(savename, unsafe_savename, sizeof(savename));
 	if (!*savename || strstr(savename, ".."))
-		strcpy(savename, "quick");
+	{	//if no args, or its invalid, try to pick the last one that was saved (of those listed in the menu)
+		size_t n;
+		static char *autoload[] = {	"quick", "a0", "a1", "a2",
+									"s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"};
+		strcpy(savename, "quick");	//default...
 
-	for (len = 0, bd=0x7fffffff,best=0; len < countof(savefiles); len++)
-	{
-		int d = FS_FLocateFile(va(savefiles[len].pattern, savename), FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE, &savefiles[len].loc);
-		if (bd > d)
+		for (n = 0; n < countof(autoload); n++)
 		{
-			bd = d;
+			for (len = 0; len < countof(savefiles)-1; len++)
+			{
+				int d = FS_FLocateFile(va(savefiles[len].pattern, autoload[n]), FSLF_DONTREFERENCE, &savefiles[len].loc);
+				if (!d)
+					continue;
+				FS_GetLocMTime(&savefiles[len].loc, &t);
+				if (d < bestd || (bestd==d&&t>bestt))
+				{
+					bestd = d;
+					bestt = t;
+					best = len;
+
+					strcpy(savename, autoload[n]);
+				}
+			}
+		}
+	}
+
+	for (len = 0; len < countof(savefiles); len++)
+	{
+		int d = FS_FLocateFile(va(savefiles[len].pattern, savename), FSLF_DONTREFERENCE, &savefiles[len].loc);
+		if (!d)
+			continue;
+		FS_GetLocMTime(&savefiles[len].loc, &t);
+		if (d < bestd || (bestd==d&&t>bestt))
+		{
+			bestd = d;
+			bestt = t;
 			best = len;
 		}
 	}

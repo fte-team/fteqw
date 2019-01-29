@@ -476,6 +476,99 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	return ctx.numfrags;
 }
 
+
+
+//called by the sound code.
+static struct
+{
+	unsigned int entnum;
+	vec3_t origin;
+//	vec3_t velocity;
+	sfx_t *sfx;
+	qboolean ispersistent;
+} *loopers;
+static size_t numloopers;
+static size_t maxloopers;
+unsigned int CG_GatherLoopingSounds(vec3_t *positions, unsigned int *entnums, sfx_t **sounds, unsigned int max)
+{
+	size_t i;
+	if (max > numloopers)
+		max = numloopers;
+	for (i = 0; i < max; i++)
+	{
+		entnums[i] = loopers[i].entnum;
+		VectorCopy(loopers[i].origin, positions[i]);
+		sounds[i] = loopers[i].sfx;
+	}
+	return i;
+}
+static void CG_StopLoopingSounds(unsigned int entnum)
+{
+	size_t i;
+	for (i = 0; i < numloopers; i++)
+	{
+		if (loopers[i].entnum == entnum)
+			break;
+	}
+	if (i == numloopers)
+		return;
+	loopers[i] = loopers[numloopers-1];
+	numloopers--;
+}
+static void CG_StartLoopingSounds(unsigned int entnum, float *origin, float *velocity, const char *soundname, qboolean persistent)
+{
+	size_t i;
+	for (i = 0; i < numloopers; i++)
+	{
+		if (loopers[i].entnum == entnum)
+			break;
+	}
+
+	if (i == numloopers)
+	{
+		if (numloopers == maxloopers)
+			Z_ReallocElements((void**)&loopers, &maxloopers, maxloopers+1, sizeof(*loopers));
+		numloopers++;
+	}
+	loopers[i].entnum = entnum;
+	VectorCopy(origin, loopers[i].origin);
+	//VectorCopy(velocity, loopers[i].velocity);
+	loopers[i].sfx = S_PrecacheSound(soundname);
+	loopers[i].ispersistent = persistent;
+}
+static void CG_MoveLoopingSound(unsigned int entnum, float *origin)
+{
+	size_t i;
+	for (i = 0; i < numloopers; i++)
+	{
+		if (loopers[i].entnum == entnum)
+			break;
+	}
+
+	if (i == numloopers)
+		return;
+	VectorCopy(origin, loopers[i].origin);
+}
+static void CG_ClearLoopingSounds(qboolean clearall)
+{
+	if (clearall)
+		numloopers = 0;
+	else
+	{
+		size_t i;
+		for (i = 0; i < numloopers; )
+		{
+			if (!loopers[i].ispersistent)
+			{
+				loopers[i] = loopers[numloopers-1];
+				numloopers--;
+			}
+			else
+				i++;
+		}
+	}
+}
+
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname);
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
@@ -923,15 +1016,23 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_S_ADDLOOPINGSOUND:
 		//entnum, origin, velocity, sfx
-//		Con_DPrintf("CG_S_ADDLOOPINGSOUND: not implemented\n");
+		CG_StartLoopingSounds(VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_FROMSTRCACHE(arg[3]), false);
 		break;
 	case CG_S_ADDREALLOOPINGSOUND:
 		//entnum, origin, velocity, sfx
-//		Con_DPrintf("CG_S_ADDREALLOOPINGSOUND: not implemented\n");
+		CG_StartLoopingSounds(VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_FROMSTRCACHE(arg[3]), true);
 		break;
 	case CG_S_STOPLOOPINGSOUND:
 		//entnum
-//		Con_DPrintf("CG_S_STOPLOOPINGSOUND: not implemented\n");
+		CG_StopLoopingSounds(VM_LONG(arg[0])+1);
+		break;
+	case CG_S_CLEARLOOPINGSOUNDS:
+		//clearall
+		CG_ClearLoopingSounds(VM_LONG(arg[0]));
+		break;
+	case CG_S_UPDATEENTITYPOSITION://void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
+		//entnum, org
+		CG_MoveLoopingSound(VM_LONG(arg[0])+1, VM_POINTER(arg[1]));
 		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:
@@ -940,23 +1041,16 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_S_STOPBACKGROUNDTRACK:
 		Media_NamedTrack(NULL, NULL);
 		return 0;
-	case CG_S_CLEARLOOPINGSOUNDS:
-		//clearall
-		Con_DPrintf("CG_S_CLEARLOOPINGSOUNDS: not implemented\n");
-		break;
 
-	case CG_S_UPDATEENTITYPOSITION://void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
-		//entnum, org
-//		Con_DPrintf("CG_S_UPDATEENTITYPOSITION: not implemented\n");
-		break;
 	case CG_S_RESPATIALIZE://void		trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], int inwater );
 		{
+			int entnum = VM_LONG(arg[0])+1;
 			float *org = VM_POINTER(arg[1]);
 			vec3_t *axis = VM_POINTER(arg[2]);
 			int inwater = VM_LONG(arg[3]);
 
 			cl.playerview[0].audio.defaulted = false;
-			cl.playerview[0].audio.entnum = VM_LONG(arg[0])+1;
+			cl.playerview[0].audio.entnum = entnum;
 			VectorCopy(org, cl.playerview[0].audio.origin);
 			VectorCopy(axis[0], cl.playerview[0].audio.forward);
 			VectorCopy(axis[1], cl.playerview[0].audio.right);
@@ -1142,7 +1236,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_FTE_SPAWNPARTICLEEFFECT:
 		return pe->RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
 	case CG_FTE_SPAWNPARTICLETRAIL:
-		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0, NULL, VM_POINTER(arg[3]));
+		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0, 1, NULL, VM_POINTER(arg[3]));
 	case CG_FTE_FREEPARTICLESTATE:
 		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;

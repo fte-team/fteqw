@@ -1282,6 +1282,7 @@ void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);
 #endif
+void CL_ShowTrafficUsage(float x, float y);
 void CL_NewTranslation (int slot);
 
 int CL_IsDownloading(const char *localname);

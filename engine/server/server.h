@@ -576,12 +576,14 @@ typedef struct client_s
 
 #ifdef Q3SERVER
 	int	gamestatesequence;	//the sequence number the initial gamestate was sent in.
-	int last_server_command_num;
+
 	int last_client_command_num;
-	int num_server_commands;
-	int num_client_commands;
-	char server_commands[64][1024];
 	char last_client_command[1024];
+
+	//quake3 does reliables only via this mechanism. basically just like q1's stuffcmds.
+	int server_command_ack;				//number known to have been received.
+	int server_command_sequence;		//number available.
+	char server_commands[64][1024];		//the commands, to deal with resends
 #endif
 
 	//true/false/persist

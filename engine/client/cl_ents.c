@@ -3894,6 +3894,7 @@ void CL_LinkPacketEntities (void)
 	int trailef, trailidx;
 	int modelflags;
 	struct itemtimer_s	*timer, **timerlink;
+	float timestep = host_frametime;
 
 	pack = cl.currentpackentities;
 	if (!pack)
@@ -4023,7 +4024,7 @@ void CL_LinkPacketEntities (void)
 				CL_NewDlight(state->number, ent->origin, radius, 0.1, colour[0], colour[1], colour[2]);
 			}
 		}
-		if (state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA))
+		if ((state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)) && ((state->lightpflags&PFLAGS_FULLDYNAMIC)||state->light[3]))
 		{
 			vec3_t colour;
 			if (!state->light[0] && !state->light[1] && !state->light[2])
@@ -4380,9 +4381,9 @@ void CL_LinkPacketEntities (void)
 		//and emit it
 //		if (lasttime != cl.currentpacktime)
 		{
-			if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
+			if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, timestep, ent->keynum, ent->axis, &(le->trailstate)))
 				if (model->traildefaultindex >= 0)
-					pe->ParticleTrailIndex(old_origin, ent->origin, P_INVALID, trailidx, 0, &(le->trailstate));
+					pe->ParticleTrailIndex(old_origin, ent->origin, P_INVALID, timestep, trailidx, 0, &(le->trailstate));
 
 			//dlights are not so customisable.
 			if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))

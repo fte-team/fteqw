@@ -881,7 +881,7 @@ void Con_Editor_GoToLine(console_t *con, int line)
 		con->display = con->display->newer;
 	}
 }
-console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
+console_t *Con_TextEditor(const char *fname, const char *line, pubprogfuncs_t *disasmfuncs)
 {
 	static int editorcascade;
 	console_t *con;
@@ -926,7 +926,26 @@ console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 			con->close = Con_Editor_Close;
 			con->maxlines = 0x7fffffff;	//line limit is effectively unbounded, for a 31-bit process.
 			
-			if (!newfile)
+			if (disasmfuncs)
+			{
+				int i;
+				char buffer[65536];
+				int start = 1;
+				int end = INT_MAX;
+				char *colon = strchr(con->name, ':');
+				if (colon && *colon==':')
+					start = strtol(colon+1, &colon, 0);
+				if (colon && *colon==':')
+					end = strtol(colon+1, &colon, 0);
+				for (i = start; !end || i < end; i++)
+				{
+					disasmfuncs->GenerateStatementString(disasmfuncs, i, buffer, sizeof(buffer));
+					if (!*buffer)
+						break;
+					Con_PrintCon(con, buffer, PFS_FORCEUTF8|PFS_KEEPMARKUP|PFS_NONOTIFY);
+				}
+			}
+			else
 			{
 				file = FS_OpenVFS(fname, "rb", FS_GAME);
 				if (file)
@@ -939,10 +958,9 @@ console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 					}
 					VFS_CLOSE(file);
 				}
-
-				for (l = con->oldest; l; l = l->newer)
-					Con_Editor_LineChanged(con, l);
 			}
+			for (l = con->oldest; l; l = l->newer)
+				Con_Editor_LineChanged(con, l);
 
 			con->display = con->oldest;
 			con->selstartline = con->selendline = con->oldest;	//put the cursor at the start of the file
@@ -972,10 +990,10 @@ void Con_TextEditor_f(void)
 		Con_Printf("%s [filename[:line]]: edit a file\n", Cmd_Argv(0));
 		return;
 	}
-	Con_TextEditor(fname, line, false);
+	Con_TextEditor(fname, line, NULL);
 }
 
-int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *statement, char *reason, pbool fatal)
+int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *statement, int firststatement, char *reason, pbool fatal)
 {
 	char newname[MAX_QPATH];
 	console_t *edit;
@@ -983,7 +1001,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 	if (!strncmp(filename, "./", 2))
 		filename+=2;
 
-	stepasm = !line || *line < 0;
+	stepasm = !line || *line < 0 || pr_debugger.ival==2;
 
 	//we can cope with no line info by displaying asm
 	if (editormodal || (stepasm && !statement))
@@ -1001,7 +1019,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		return DEBUG_TRACE_OFF;	//get lost
 	}
 
-	if (qrenderer == QR_NONE || stepasm)
+	if (qrenderer == QR_NONE)// || stepasm)
 	{	//just dump the line of code that's being execed onto the console.
 		int i;
 		char buffer[8192];
@@ -1087,19 +1105,31 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 
 	if (stepasm)
 	{
-		if (fatal)
-			return DEBUG_TRACE_ABORT;
-		return DEBUG_TRACE_OFF;	//whoops
+		if (*statement)
+		{
+			char *fname = va(":%#x:%#x", firststatement, firststatement+300);
+			edit = Con_TextEditor(fname, NULL, prfncs);
+			if (!edit)
+				return DEBUG_TRACE_OFF;
+			firststatement--;	//displayed statements are +1
+			executionlinenum = *statement - firststatement;
+			Con_Editor_GoToLine(edit, executionlinenum);
+		}
+		else
+		{
+			if (fatal)
+				return DEBUG_TRACE_ABORT;
+			return DEBUG_TRACE_OFF;	//whoops
+		}
 	}
 	else
 	{
-		edit = Con_TextEditor(filename, NULL, false);
+		edit = Con_TextEditor(filename, NULL, NULL);
 		if (!edit)
 			return DEBUG_TRACE_OFF;
 		Con_Editor_GoToLine(edit, *line);
+		executionlinenum = *line;
 	}
-
-	executionlinenum = *line;
 
 	{
 		double oldrealtime = realtime;
@@ -1138,7 +1168,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 	{
 		if (line)
 			*line = 0;
-		*statement = executionlinenum;
+		*statement = executionlinenum+firststatement;
 	}
 	else if (line)
 		*line = executionlinenum;

@@ -2566,7 +2566,12 @@ qboolean SV_SendClientDatagram (client_t *client)
 	}
 
 	if (client->netchan.fragmentsize)
-		clientlimit = client->netchan.fragmentsize;	//try not to overflow
+	{
+		if (client->netchan.remote_address.type == NA_LOOPBACK)
+			clientlimit = countof(buf);	//biiiig...
+		else
+			clientlimit = client->netchan.fragmentsize;	//try not to overflow
+	}
 	else if (client->protocol == SCP_NETQUAKE)
 		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
 	else
@@ -2574,6 +2579,8 @@ qboolean SV_SendClientDatagram (client_t *client)
 	if (clientlimit > countof(buf))
 		clientlimit = countof(buf);
 	msg.maxsize = clientlimit - client->datagram.cursize;
+	if (msg.maxsize <= 0)
+		msg.maxsize = clientlimit;	//its going to overflow. favour ents over unreliables. its a little less fatal
 
 	if (sv.world.worldmodel && !client->controller)
 	{

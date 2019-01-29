@@ -29,6 +29,4 @@ extern char *particle_set_q2part;
 extern char *particle_set_tsshaft;
 #define R_PARTSET_BUILTINS_tsshaft {"tsshaft", &particle_set_tsshaft},
 #define R_PARTSET_BUILTINS R_PARTSET_BUILTINS_spikeset R_PARTSET_BUILTINS_faithful R_PARTSET_BUILTINS_highfps R_PARTSET_BUILTINS_high R_PARTSET_BUILTINS_minimal R_PARTSET_BUILTINS_h2part R_PARTSET_BUILTINS_q2part R_PARTSET_BUILTINS_tsshaft 
-#else
-#define R_PARTSET_BUILTINS
 #endif

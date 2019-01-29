@@ -562,7 +562,7 @@ public:
 		s->SendScintilla(QsciScintillaBase::SCI_STYLESETBACK, QsciScintillaBase::STYLE_BRACEBAD,		QColor(0xff, 0xaf, 0xaf));
 
 		//SCE_C_WORD
-		s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  static_cast<int>(0),
+		s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  0ul,
 					"if else for do not while asm break case const continue "
 					"default enum enumflags extern "
 					"float goto __in __out __inout noref "
@@ -578,11 +578,11 @@ public:
 		{
 			char buffer[65536];
 			GenBuiltinsList(buffer, sizeof(buffer));
-			s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  1,  buffer);
+			s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  1ul,  buffer);
 		}
 		//SCE_C_COMMENTDOCKEYWORDERROR
 		//SCE_C_GLOBALCLASS
-		s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  3,
+		s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  3ul,
 					""
 					);
 //preprocessor listing
@@ -590,11 +590,11 @@ public:
 			char *deflist = QCC_PR_GetDefinesList();
 			if (!deflist)
 				deflist = strdup("");
-			s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  4,  deflist);
+			s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  4ul,  deflist);
 			free(deflist);
 		}
 		//task markers (in comments only)
-		s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  5,
+		s->SendScintilla(QsciScintillaBase::SCI_SETKEYWORDS,  5ul,
 					"TODO FIXME BUG"
 					);
 

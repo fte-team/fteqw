@@ -549,7 +549,6 @@ void CLQ3_ParseGameState(void)
 	cl.maxpitch = 90;
 
 	ccs.lastServerCommandNum = MSG_ReadLong();
-	ccs.currentServerCommandNum = ccs.lastServerCommandNum;
 
 	for(;;)
 	{

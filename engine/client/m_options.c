@@ -1068,11 +1068,28 @@ void FPS_Preset_f (void)
 
 	if (!stricmp("dp", arg))
 	{
+		if (sv.state)
+			Cbuf_InsertText("echo Be sure to restart your server\n", RESTRICT_LOCAL, false);
 		Cbuf_InsertText(
-			"set sv_listen_dp 1\n"
-			"set sv_bigcoords 1\n"
-			"set r_particledesc \"effectinfo classic\"\n"
-			"echo you may need to restart the map\n"
+			//these are for smc+derived mods
+			"sv_listen_dp 1\n"					//awkward, but forces the server to load the effectinfo.txt in advance.
+			"sv_bigcoords 1\n"					//for viewmodel lep precision (would be better to use csqc)
+			"r_particledesc \"effectinfo high\"\n" //blurgh.
+			"dpcompat_noretouchground 1\n"		//don't call touch functions on entities that already appear onground. this also changes the order that the onground flag is set relative to touch functions.
+			"cl_nopred 1\n"						//DP doesn't predict by default, and DP mods have a nasty habit of clearing .solid values during prethinks, which screws up prediction. so play safe.
+			"r_dynamic 0\nr_shadow_realtime_dlight 1\n" //fte has separate cvars for everything. which kinda surprises people and makes stuff twice as bright as it should be.
+
+			//general compat stuff
+			"dpcompat_console 1\n"				//
+			"dpcompat_findradiusarealinks 1\n"	//faster findradiuses (but that require things are setorigined properly)
+			"dpcompat_makeshitup 2\n"			//flatten shaders to a single pass, then add new specular etc passes.
+			//"dpcompat_nopremulpics 1\n"			//don't use premultiplied alpha (solving issues with compressed image formats)
+			"dpcompat_psa_ungroup 1\n"			//don't use framegroups with psk models at all.
+			"dpcompat_set 1\n"					//handle 3-arg sets differently
+			"dpcompat_stats 1\n"				//truncate float stats
+			"dpcompat_strcat_limit 16383\n"		//xonotic compat. maximum length of strcat strings.
+
+//			"sv_listen_dp 1\nsv_listen_nq 0\nsv_listen_qw 0\ncl_loopbackprotocol dpp7\ndpcompat_nopreparse 1\n"
 			, RESTRICT_LOCAL, false);
 		return;
 	}

@@ -776,8 +776,8 @@ beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//f
 		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
 			// TODO: add support for those finnicky colored railtrails...
-			if (P_ParticleTrail(start, end, rtqw_railtrail, -ent, NULL, NULL))
-				P_ParticleTrailIndex(start, end, P_INVALID, 208, 8, NULL);
+			if (P_ParticleTrail(start, end, rtqw_railtrail, 0.1, -ent, NULL, NULL))
+				P_ParticleTrailIndex(start, end, P_INVALID, 0.1, 208, 8, NULL);
 			return NULL;
 		}
 		break;
@@ -1607,8 +1607,8 @@ void CL_ParseTEnt (void)
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, 0, NULL, NULL))
-			P_ParticleTrailIndex(pos, pos2, P_INVALID, 208, 8, NULL);
+		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, 1, 0, NULL, NULL))
+			P_ParticleTrailIndex(pos, pos2, P_INVALID, 1, 208, 8, NULL);
 		break;
 
 	case TEH2_STREAM_LIGHTNING_SMALL:
@@ -1751,8 +1751,8 @@ void CL_ParseTEnt (void)
 		MSG_ReadCoord ();
 		MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), 0, NULL, NULL))
-			P_ParticleTrailIndex(pos, pos2, P_INVALID, 15, 0, NULL);
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), 1, 0, NULL, NULL))
+			P_ParticleTrailIndex(pos, pos2, P_INVALID, 1, 15, 0, NULL);
 		break;
 
 	case TEDP_SMOKE:
@@ -1933,7 +1933,7 @@ void CL_SpawnCustomTEnt(custtentinst_t *info)
 			}
 		}
 		else
-			failed = P_ParticleTrail(info->pos, info->pos2, t->particleeffecttype, 0, NULL, NULL);
+			failed = P_ParticleTrail(info->pos, info->pos2, t->particleeffecttype, 1, 0, NULL, NULL);
 	}
 	else
 	{
@@ -2262,8 +2262,8 @@ void CL_ParseTrailParticles(void)
 	else
 		ts = NULL;
 
-	if (P_ParticleTrail(start, end, effectindex, entityindex, NULL, ts))
-		P_ParticleTrail(start, end, rt_blood, entityindex, NULL, ts);
+	if (P_ParticleTrail(start, end, effectindex, 1, entityindex, NULL, ts))
+		P_ParticleTrail(start, end, rt_blood, 1, entityindex, NULL, ts);
 }
 
 void CL_ParsePointParticles(qboolean compact)
@@ -2588,7 +2588,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLUEHYPERBLASTER:	//TE_BLASTER without model+light
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, pt, 0, NULL, NULL);
+		P_ParticleTrail(pos, pos2, pt, 1, 0, NULL, NULL);
 		break;
 	case Q2TE_EXPLOSION1:	//column
 	case Q2TE_EXPLOSION2:	//splits
@@ -2674,13 +2674,13 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
 		color = MSG_ReadByte ();
-		P_ParticleTrailIndex(pos, pos2, pt, color, 0, NULL);
+		P_ParticleTrailIndex(pos, pos2, pt, 1, color, 0, NULL);
 		break;
 
 	case Q2TE_FLASHLIGHT:	//white 400-radius dlight
 		MSG_ReadPos(pos);
 		ent = MSG_ReadShort();
-		P_ParticleTrail(pos, pos, pt, ent, NULL, NULL);
+		P_ParticleTrail(pos, pos, pt, 1, ent, NULL, NULL);
 		break;
 	case Q2TE_WIDOWBEAMOUT:		/*requires state tracking to keep it splurting constantly for 2.1 secs*/
 		ent = MSG_ReadShort();
@@ -2737,7 +2737,7 @@ void CLQ2_ParseTEnt (void)
 	case CRTE_BLASTERBEAM:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 0, NULL, NULL);
+		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 1, 0, NULL, NULL);
 		break;
 /*	case CRTE_STAIN:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
@@ -2969,7 +2969,7 @@ void CL_UpdateBeams (void)
 		}
 
 		if (ruleset_allow_particle_lightning.ival || !type->modelname)
-			if (type->ef_beam >= 0 && !P_ParticleTrail(org, b->end, type->ef_beam, b->entity, NULL, &b->trailstate))
+			if (type->ef_beam >= 0 && !P_ParticleTrail(org, b->end, type->ef_beam, host_frametime, b->entity, NULL, &b->trailstate))
 				continue;
 		if (!type->model)
 		{
@@ -3151,7 +3151,7 @@ void CL_UpdateExplosions (void)
 #endif
 
 		if (ex->traileffect != P_INVALID)
-			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, 0, ent->axis, &(ex->trailstate));
+			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, frametime, 0, ent->axis, &(ex->trailstate));
 		if (!(ex->flags & Q2RF_BEAM))
 			VectorCopy(ent->origin, ex->oldorigin);	//don't corrupt q2 beams
 		if (ex->flags & Q2RF_BEAM)

@@ -203,6 +203,8 @@ typedef struct botlib_import_s
 	//
 	int			(*DebugPolygonCreate)(int color, int numPoints, vec3_t *points);
 	void		(*DebugPolygonDelete)(int id);
+
+	void		(*Error)(const char *msg);	//for unrecoverable errors only. Will quit out.
 } botlib_import_t;
 
 typedef struct aas_export_s

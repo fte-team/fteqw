@@ -55,7 +55,7 @@ cvar_t	cl_timeout = CVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
 
-cvar_t	cl_disconnectreason = CVARFD("_cl_disconnectreason", "", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
+cvar_t	cl_disconnectreason = CVARAFD("_cl_disconnectreason", "", "com_errorMessage", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 is only reliable with total conversions.\nIf sv_pure is set, the client will prefer the highest value set.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
@@ -1046,6 +1046,7 @@ void CL_CheckForResend (void)
 
 		if (!NET_StringToAdr (host, connectinfo.defaultport, &connectinfo.adr))
 		{
+			Cvar_Set(&cl_disconnectreason, va("Bad server address \"%s\"", host));
 			Con_TPrintf ("Bad server address \"%s\"\n", host);
 			connectinfo.trying = false;
 			SCR_EndLoadingPlaque();
@@ -1072,6 +1073,7 @@ void CL_CheckForResend (void)
 	}
 	if (!NET_IsClientLegal(&connectinfo.adr))
 	{
+		Cvar_Set(&cl_disconnectreason, va("Illegal server address"));
 		Con_TPrintf ("Illegal server address\n");
 		SCR_EndLoadingPlaque();
 		connectinfo.trying = false;
@@ -1101,6 +1103,7 @@ void CL_CheckForResend (void)
 	if (connectinfo.tries == 0)
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, &connectinfo.adr))
 		{
+			Cvar_Set(&cl_disconnectreason, va("Unable to establish connection to %s\n", cls.servername));
 			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
 			connectinfo.trying = false;
 			SCR_EndLoadingPlaque();
@@ -1171,6 +1174,7 @@ void CL_CheckForResend (void)
 
 	if (!keeptrying)
 	{
+		Cvar_Set(&cl_disconnectreason, va("No route to \"%s\", giving up\n", cls.servername));
 		Con_TPrintf ("No route to host, giving up\n");
 		connectinfo.trying = false;
 		SCR_EndLoadingPlaque();
@@ -2960,18 +2964,27 @@ void CL_ConnectionlessPacket (void)
 			char *data = MSG_ReadStringLine();
 			Con_Printf ("reject\n%s\n", data);
 			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, va("%s\n", data));
 				connectinfo.trying = false;
+			}
 			return;
 		}
 		else if (!strcmp(s, "badname"))
 		{	//rejected purely because of player name
 			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, va("bad player name\n"));
 				connectinfo.trying = false;
+			}
 		}
 		else if (!strcmp(s, "badaccount"))
 		{	//rejected because username or password is wrong
 			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, va("invalid username or password\n"));
 				connectinfo.trying = false;
+			}
 		}
 		
 		Con_Printf ("f%s\n", s);
@@ -3206,6 +3219,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		if (connectinfo.dtlsupgrade == DTLS_REQUIRE)
 		{
+			Cvar_Set(&cl_disconnectreason, va("Server does not support/allow dtls. not connecting\n"));
 			connectinfo.trying = false;
 			Con_Printf("Server does not support/allow dtls. not connecting.\n");
 			return;

@@ -648,7 +648,7 @@ static char *SCR_CopyCenterPrint(cprint_t *p)	//reads the link under the mouse c
 }
 
 #define MAX_CPRINT_LINES 512
-void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
+int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 {
 	int				l;
 	int				y, x;
@@ -794,6 +794,8 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	}
 
 	Font_EndString(font);
+
+	return linecount;
 }
 
 qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
@@ -904,7 +906,7 @@ void SCR_CheckDrawCenterString (void)
 	}
 }
 
-void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags, struct font_s *font, vec2_t fontscale)
+int R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags, struct font_s *font, vec2_t fontscale)
 {
 	cprint_t p;
 	vrect_t r;
@@ -923,7 +925,7 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 	p.time_start = cl.time;
 	*p.titleimage = 0;
 
-	SCR_DrawCenterString(&r, &p, font);
+	return SCR_DrawCenterString(&r, &p, font);
 }
 
 qboolean SCR_HardwareCursorIsActive(void)

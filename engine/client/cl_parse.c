@@ -43,6 +43,12 @@ static int cl_dp_csqc_progscrc;
 static int cl_dp_serverextension_download;
 #endif
 
+//tracks which svcs are using what data (per second)
+static size_t packetusage_saved[256];
+static size_t packetusage_pending[256];
+static double packetusageflushtime;
+static const double packetusage_interval=10;
+
 #ifdef AVAIL_ZLIB
 #ifndef ZEXPORT
 	#define ZEXPORT VARGS
@@ -51,7 +57,7 @@ static int cl_dp_serverextension_download;
 #endif
 
 
-static char *svc_qwstrings[] =
+static const char *svc_qwstrings[] =
 {
 	"svc_bad",
 	"svc_nop",
@@ -182,7 +188,7 @@ static char *svc_qwstrings[] =
 };
 
 #ifdef NQPROT
-static char *svc_nqstrings[] =
+static const char *svc_nqstrings[] =
 {
 	"nqsvc_bad",
 	"nqsvc_nop",
@@ -6701,6 +6707,7 @@ void CLQW_ParseServerMessage (void)
 	qboolean	csqcpacket = false;
 	inframe_t	*inf;
 	extern vec3_t demoangles;
+	unsigned int cmdstart;
 
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
@@ -6751,6 +6758,13 @@ void CLQW_ParseServerMessage (void)
 		}
 	}
 
+	if (realtime > packetusageflushtime)
+	{
+		memcpy(packetusage_saved, packetusage_pending, sizeof(packetusage_saved));
+		memset(packetusage_pending, 0, sizeof(packetusage_pending));
+		packetusageflushtime = realtime + packetusage_interval;
+	}
+
 //
 // parse the message
 //
@@ -6763,6 +6777,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 		}
 
+		cmdstart = msg_readcount;
 		cmd = MSG_ReadByte ();
 
 		if (cmd == svcfte_choosesplitclient)
@@ -7267,6 +7282,8 @@ void CLQW_ParseServerMessage (void)
 			Con_Printf("Unable to parse gamecode packet\n");
 			break;
 		}
+
+		packetusage_pending[cmd] += msg_readcount-cmdstart;
 	}
 }
 
@@ -8282,3 +8299,57 @@ void CLNQ_ParseServerMessage (void)
 }
 #endif
 
+struct sortedsvcs_s
+{
+	const char *name;
+	size_t bytes;
+};
+static QDECL int sorttraffic(const void *l, const void *r)
+{
+	const struct sortedsvcs_s *a=l, *b=r;
+
+	if (a->bytes==b->bytes)
+		return 0;
+	if (a->bytes>b->bytes)
+		return -1;
+	return 1;
+}
+void CL_ShowTrafficUsage(float x, float y)
+{
+	const char **svcnames, *n;
+	size_t svccount, i, j=0;
+	size_t total;
+	struct sortedsvcs_s sorted[256];
+	if (cls.protocol == CP_NETQUAKE)
+	{
+		svcnames = svc_nqstrings;
+		svccount = countof(svc_nqstrings);
+	}
+	else
+	{
+		svcnames = svc_qwstrings;
+		svccount = countof(svc_qwstrings);
+	}
+	total = 0;
+	for (i = 0; i < 256; i++)
+		total += packetusage_saved[i];
+	for (i = 0; i < 256; i++)
+	{
+		if (!packetusage_saved[i])
+			continue;	//don't show if there's no point.
+		if (i < svccount)
+			n = svcnames[i];
+		else
+			n = va("svc %u", (unsigned)i);
+		sorted[j].name = n;
+		sorted[j].bytes = packetusage_saved[i];
+		j++;
+	}
+	qsort(sorted, j, sizeof(*sorted), sorttraffic);
+
+	for (i = 0; i < j; i++)
+	{
+		Draw_FunString(x, y, va("%22s:%5.1f%% (%.0f/s)", sorted[i].name, (100.0*sorted[i].bytes)/total, (sorted[i].bytes/packetusage_interval)));
+		y+=8;
+	}
+}

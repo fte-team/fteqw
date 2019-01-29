@@ -862,7 +862,7 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 		//don't include world lights
 		for (lno = rtlights_first; lno < RTL_FIRST; lno++)
 		{
-			if (cl_dlights[lno].radius)
+			if (cl_dlights[lno].radius && (cl_dlights[lno].flags & LFLAG_LIGHTMAP))
 			{
 				VectorSubtract (cl_dlights[lno].origin,
 								entity->origin,
@@ -3341,6 +3341,7 @@ static void *Q1MDL_LoadSkins_SV (galiasinfo_t *galias, dmdl_t *pq1inmodel, dalia
 }
 
 #ifndef SERVERONLY
+static cvar_t dpcompat_nofloodfill = CVARD("dpcompat_nofloodfill", "0", "Disables the q1mdl floodfill. Setting this to 1 may result in blue seams on the vanilla quake models.");
 /*
 =================
 Mod_FloodFillSkin
@@ -3376,6 +3377,9 @@ static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 	int					inpt = 0, outpt = 0;
 	int					filledcolor = -1;
 	int					i;
+
+	if (dpcompat_nofloodfill.ival)
+		return;
 
 	if (filledcolor == -1)
 	{
@@ -8541,6 +8545,9 @@ static qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t f
 void Alias_Register(void)
 {
 #ifdef MD1MODELS
+#ifndef SERVERONLY
+	Cvar_Register(&dpcompat_nofloodfill, NULL);
+#endif
 	Mod_RegisterModelFormatMagic(NULL, "Quake1 Model (mdl)",				IDPOLYHEADER,							Mod_LoadQ1Model);
 	Mod_RegisterModelFormatMagic(NULL, "QuakeForge 16bit Model",			(('6'<<24)+('1'<<16)+('D'<<8)+'M'),		Mod_LoadQ1Model);
 #ifdef HEXEN2

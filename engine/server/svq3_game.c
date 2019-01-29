@@ -34,6 +34,9 @@ static botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import
 		{(void**)&pGetBotLibAPI, "GetBotLibAPI"},
 		{NULL}
 	};
+
+	if (!botlib && host_parms.binarydir)
+		botlib = Sys_LoadLibrary(va("%slibfteq3bot", host_parms.binarydir), funcs);
 	if (!botlib)
 		botlib = Sys_LoadLibrary("botlib", funcs);
 	if (!botlib)
@@ -764,8 +767,8 @@ void SVQ3_SendServerCommand(client_t *cl, char *str)
 		return;
 	}
 
-	cl->num_server_commands++;
-	Q_strncpyz(cl->server_commands[cl->num_server_commands & TEXTCMD_MASK], str, sizeof(cl->server_commands[0]));
+	cl->server_command_sequence++;
+	Q_strncpyz(cl->server_commands[cl->server_command_sequence & TEXTCMD_MASK], str, sizeof(cl->server_commands[0]));
 }
 
 void SVQ3_SendConfigString(client_t *dest, int num, char *string)
@@ -832,11 +835,11 @@ static int SVQ3_BotGetConsoleMessage( int client, char *buf, int size )
 	cl = &svs.clients[client];
 //	cl->lastPacketTime = svs.time;
 
-	if (cl->last_server_command_num == cl->num_server_commands)
+	if (cl->server_command_ack == cl->server_command_sequence)
 		return false;
 
-	cl->last_server_command_num++;
-	index = cl->last_server_command_num & TEXTCMD_MASK;
+	cl->server_command_ack++;
+	index = cl->server_command_ack & TEXTCMD_MASK;
 
 	if ( !cl->server_commands[index][0] )
 		return false;
@@ -1804,6 +1807,10 @@ static void QDECL BL_DebugLineShow(int line, vec3_t start, vec3_t end, int color
 static int QDECL BL_DebugPolygonCreate(int color, int numPoints, vec3_t *points) {return 0;}
 static void QDECL BL_DebugPolygonDelete(int id) {}
 
+void QDECL BL_Error(const char *msg)
+{
+	Sys_Error("%s", msg);
+}
 #endif
 
 static void SV_InitBotLib(void)
@@ -1839,6 +1846,8 @@ static void SV_InitBotLib(void)
 	import.DebugLineShow = BL_DebugLineShow;
 	import.DebugPolygonCreate= BL_DebugPolygonCreate;
 	import.DebugPolygonDelete = BL_DebugPolygonDelete;
+
+	import.Error = BL_Error;
 
 //	Z_FreeTags(Z_TAG_BOTLIB);
 	botlibmemoryavailable = 1024*1024*16;
@@ -2690,6 +2699,23 @@ static void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
 }
 #endif
 
+static void SVQ3_WriteServerCommandsToClient(client_t *client, sizebuf_t *msg)
+{
+	int	i;
+	int j, len;
+	char *str;
+
+	for(i=client->server_command_ack+1; i<=client->server_command_sequence; i++)
+	{
+		MSG_WriteBits(msg, svcq3_serverCommand, 8);
+		MSG_WriteBits(msg, i, 32);
+		str = client->server_commands[i & TEXTCMD_MASK];
+		len = strlen(str);
+		for (j = 0; j <= len; j++)
+			MSG_WriteBits(msg, str[j], 8);
+	}
+}
+
 //writes initial gamestate
 void SVQ3_SendGameState(client_t *client)
 {
@@ -2709,8 +2735,10 @@ void SVQ3_SendGameState(client_t *client)
 	// write last clientCommand number we have processed
 	MSG_WriteBits(&msg, client->last_client_command_num, 32);
 
+	SVQ3_WriteServerCommandsToClient(client, &msg);
+
 	MSG_WriteBits(&msg, svcq3_gamestate, 8 );
-	MSG_WriteBits(&msg, client->num_client_commands, 32);
+	MSG_WriteBits(&msg, client->server_command_sequence, 32);
 
 	switch (svs.gametype)
 	{
@@ -2779,23 +2807,6 @@ void SVQ3_SendGameState(client_t *client)
 
 	client->state = cs_connected;
 	client->gamestatesequence = client->last_sequence;
-}
-
-void SVQ3_WriteServerCommandsToClient(client_t *client, sizebuf_t *msg)
-{
-	int	i;
-	int j, len;
-	char *str;
-
-	for(i=client->last_server_command_num+1; i<=client->num_server_commands; i++)
-	{
-		MSG_WriteBits(msg, svcq3_serverCommand, 8);
-		MSG_WriteBits(msg, i, 32);
-		str = client->server_commands[i & TEXTCMD_MASK];
-		len = strlen(str);
-		for (j = 0; j <= len; j++)
-			MSG_WriteBits(msg, str[j], 8);
-	}
 }
 
 void SVQ3_SendMessage(client_t *client)
@@ -2992,7 +3003,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 		return; // was dropped
 
 	// calculate key for usercmd decryption
-	string = client->server_commands[client->last_server_command_num & TEXTCMD_MASK];
+	string = client->server_commands[client->server_command_ack & TEXTCMD_MASK];
 	key = client->last_sequence ^ fs_key ^ StringKey(string, 32);
 
 	// read delta sequenced usercmds
@@ -3207,11 +3218,11 @@ void SVQ3_ParseClientMessage(client_t *client)
 	}
 
 	// read last server command number client received
-	client->last_server_command_num = MSG_ReadBits(32);
-	if( client->last_server_command_num <= client->num_server_commands - TEXTCMD_BACKUP )
-		client->last_server_command_num = client->num_server_commands - TEXTCMD_BACKUP + 1;
-	else if( client->last_server_command_num > client->num_server_commands )
-		client->last_server_command_num = client->num_server_commands;
+	client->server_command_ack = MSG_ReadBits(32);
+	if( client->server_command_ack <= client->server_command_sequence - TEXTCMD_BACKUP )
+		client->server_command_ack = client->server_command_sequence - TEXTCMD_BACKUP + 1; //too old
+	else if( client->server_command_ack > client->server_command_sequence )
+		client->server_command_ack = client->server_command_sequence;	//client is from the future? o.O make fatal?
 
 	// check if message is from a previous level
 	if( serverid != svs.spawncount )
@@ -3243,7 +3254,7 @@ void SVQ3_ParseClientMessage(client_t *client)
 
 		if(msg_readcount > net_message.cursize)
 		{
-			Con_Printf("corrupted packet from %s\n", client->name);
+			Con_Printf("corrupt packet from %s\n", client->name);
 			client->drop = true;
 			return;
 		}
@@ -3257,7 +3268,7 @@ void SVQ3_ParseClientMessage(client_t *client)
 		switch(c)
 		{
 		default:
-			Con_Printf("corrupted packet from %s\n", client->name);
+			Con_Printf("corrupt packet from %s\n", client->name);
 			client->drop = true;
 			return;
 		case clcq3_nop:

@@ -277,7 +277,7 @@ token_t *PC_CopyToken(token_t *token)
 #ifdef BSPC
 		Error("out of token space\n");
 #else
-		Com_Error(ERR_FATAL, "out of token space");
+		botimport.Error("out of token space");
 #endif
 		return NULL;
 	} //end if
@@ -561,7 +561,7 @@ void PC_PrintDefineHashTable(define_t **definehash)
 
 int PC_NameHash(char *name)
 {
-	int register hash, i;
+	register int hash, i;
 
 	hash = 0;
 	for (i = 0; name[i] != '\0'; i++)

@@ -264,6 +264,8 @@ typedef struct part_type_s {
 	int countextra;
 	float count;
 	float countrand;
+	float countspacing; //for trails.
+	float countoverflow; //for badly-designed effects, instead of depending on trail state.
 	float rainfrequency;
 
 	int assoc;
@@ -1368,12 +1370,14 @@ void P_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "step"))
 		{
+			ptype->countspacing = atof(value);
 			ptype->count = 1/atof(value);
 			if (Cmd_Argc()>2)
 				ptype->countrand = 1/atof(Cmd_Argv(2));
 		}
 		else if (!strcmp(var, "count"))
 		{
+			ptype->countspacing = 0;
 			ptype->count = atof(value);
 			if (Cmd_Argc()>2)
 				ptype->countrand = atof(Cmd_Argv(2));
@@ -2401,7 +2405,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("tcoords %g %g %g %g %g %i %g\n", ptype->s1, ptype->t1, ptype->s2, ptype->t2, 1.0f, ptype->randsmax, ptype->texsstride), outstrlen);
 		}
 
-		if (ptype->count || all)
+		if (ptype->count || ptype->countrand || ptype->countextra || all)
 			Q_strncatz(outstr, va("count %g %g %i\n", ptype->count, ptype->countrand, ptype->countextra), outstrlen);
 		if (ptype->rainfrequency != 1 || all)
 			Q_strncatz(outstr, va("rainfrequency %g\n", ptype->rainfrequency), outstrlen);
@@ -3152,7 +3156,10 @@ static void P_ImportEffectInfo(char *config, char *line)
 		else if (!strcmp(arg[0], "velocitymultiplier") && args == 2)
 			ptype->veladd = atof(arg[1]);
 		else if (!strcmp(arg[0], "trailspacing") && args == 2)
-			ptype->count = 1 / atof(arg[1]);
+		{
+			ptype->countspacing = atof(arg[1]);
+			ptype->count = 1 / ptype->countspacing;
+		}
 		else if (!strcmp(arg[0], "time") && args == 3)
 		{
 			ptype->die = atof(arg[1]);
@@ -5476,7 +5483,7 @@ static void PScript_RunParticleEffectPalette (const char *nameprefix, vec3_t org
 	}
 }
 
-static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk, int dlkey, vec3_t dlaxis[3])
+static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptype, float timeinterval, trailstate_t **tsk, int dlkey, vec3_t dlaxis[3])
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
@@ -5528,9 +5535,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	if (ptype->assoc>=0)
 	{
 		if (ts)
-			P_ParticleTrail(start, end, ptype->assoc, dlkey, NULL, &(ts->assoc));
+			P_ParticleTrail(start, end, ptype->assoc, timeinterval, dlkey, NULL, &(ts->assoc));
 		else
-			P_ParticleTrail(start, end, ptype->assoc, dlkey, NULL, NULL);
+			P_ParticleTrail(start, end, ptype->assoc, timeinterval, dlkey, NULL, NULL);
 	}
 
 	if (r_part_contentswitch.ival && (ptype->flags & (PT_TRUNDERWATER | PT_TROVERWATER)) && cl.worldmodel)
@@ -5561,19 +5568,29 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	if (!ptype->die)
 		ts = NULL;
 
-	// use ptype step to calc step vector and step size
-	step = (ptype->count*r_part_density.value) + ptype->countextra;
-	if (step>0)
-	{
-		step = 1/step;
-		if (step < 0.01)
-			step = 0.01;
-	}
-	else
-		step = 0;
-
 	VectorSubtract (end, start, vec);
 	len = VectorNormalize (vec);
+
+	// use ptype step to calc step vector and step size
+	if (ptype->countspacing)
+	{
+		step = ptype->countspacing;					//particles per qu
+		step /= r_part_density.value;				//scaled...
+
+		//FIXME: countextra
+	}
+	else
+	{
+		step = ptype->count * r_part_density.value * timeinterval;
+		step += ptype->countextra;					//particles per frame
+		step += ptype->countoverflow;
+		count = (int)step;
+		ptype->countoverflow = step-count;	//the part that we're forgetting, to add to the next frame...
+		if (count<=0)
+			return;
+		else
+			step = len/count;				//particles per second
+	}
 
 	if (ptype->flags & PT_AVERAGETRAIL)
 	{
@@ -5641,7 +5658,10 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		step = 0;
 		VectorClear(vstep);
 	}
-	count += ptype->countextra;
+//	count += ptype->countextra;
+
+if (count > 1000)
+count = 1000;
 
 	while (count-->0)//len < stop)
 	{
@@ -5992,14 +6012,14 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	return;
 }
 
-static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t axis[3], trailstate_t **tsk)
+static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timeinterval, int dlkey, vec3_t axis[3], trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[type];
 
 	// TODO: fallback particle system won't have a decent trailstate which will mess up
 	// high fps trails
 	if (type >= FALLBACKBIAS && fallback)
-		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, dlkey, axis, NULL);
+		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, timeinterval, dlkey, axis, NULL);
 
 	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value
@@ -6017,11 +6037,11 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlk
 			ptype = &part_type[ptype->inwater];
 	}
 
-	P_ParticleTrailDraw (startpos, end, ptype, tsk, dlkey, axis);
+	P_ParticleTrailSpawn (startpos, end, ptype, timeinterval, tsk, dlkey, axis);
 	return 0;
 }
 
-static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk)
+static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, float timeinterval, int color, int crnd, trailstate_t **tsk)
 {
 	if (type == P_INVALID)
 		type = pe_defaulttrail;
@@ -6029,7 +6049,7 @@ static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, int 
 	{
 		part_type[type].colorindex = color;
 		part_type[type].colorrand = crnd;
-		P_ParticleTrail(start, end, type, 0, NULL, tsk);
+		P_ParticleTrail(start, end, type, timeinterval, 0, NULL, tsk);
 	}
 }
 
@@ -7280,7 +7300,7 @@ static void PScript_DrawParticleTypes (void)
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					P_ParticleTrail(oldorg, p->org, type->emit, 0, NULL, &p->state.trailstate);
+					P_ParticleTrail(oldorg, p->org, type->emit, pframetime, 0, NULL, &p->state.trailstate);
 				else if (p->state.nextemit < particletime)
 				{
 					p->state.nextemit = particletime + type->emittime + frandom()*type->emitrand;

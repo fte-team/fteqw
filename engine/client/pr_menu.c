@@ -438,7 +438,7 @@ void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s 
 	// Oversight ~eukara
 	R2D_ImageColours(1.0f, 1.0f, 1.0f, 1.0f);
 
-	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags, font, scale);
+	G_FLOAT(OFS_RETURN) = R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags, font, scale);
 }
 
 //float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;

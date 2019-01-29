@@ -186,7 +186,7 @@ static int debuggerstacky;
 	void INS_UpdateGrabs(int fullscreen, int activeapp);
 #endif
 
-int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
+int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int firststatement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
 	extern int				isPlugin;
@@ -377,7 +377,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 	return true;
 }
 
-int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
+int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int firststatement, char *reason, pbool fatal)
 {
 //#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	if (isPlugin >= 2)
@@ -474,7 +474,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 //#endif
 
 #ifdef TEXTEDITOR
-	return QCLibEditor(prinst, filename, line, statement, reason, fatal);
+	return QCLibEditor(prinst, filename, line, statement, firststatement, reason, fatal);
 #else
 	if (fatal)
 		return DEBUG_TRACE_ABORT;

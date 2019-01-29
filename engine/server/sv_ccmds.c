@@ -779,11 +779,13 @@ void SV_Map_f (void)
 //		gametype->callback = gtcallback;
 
 		/* map_restart doesn't need to handle gametype changes - eukara */
-		if (Q_strcasecmp(Cmd_Argv(0), "map_restart"))
+		if (!isrestart)
+		{
 			if (q3singleplayer)
 				Cvar_ForceSet(gametype, "2");//singleplayer
 			else if (gametype->value == 2)
 				Cvar_ForceSet(gametype, "");//force to ffa deathmatch
+		}
 	}
 #endif
 

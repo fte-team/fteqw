@@ -89,9 +89,15 @@ cvar_t r_meshpitch;
 //#define ODE_DYNAMIC 1
 //#endif
 
+//ODE's headers provide version info only as a string, so we don' know when things are deprecated or not.
+//this then fucks us over when we try using -Werror
+//so until ODE changes its ways, we'll just have to make assumptions and ignore those warnings.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#define ODEVERSION MAKE2VER(0,15)
+#define MAKE2VER(maj,min) (((maj)<<8)|(min))
+
 // LordHavoc: this large chunk of definitions comes from the ODE library
 // include files.
-
 #ifdef ODE_STATIC
 #undef ODE_DYNAMIC
 #define dDOUBLE
@@ -1674,9 +1680,17 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 				dJointSetUniversalParam(j, dParamVel2, Vel);
 				break;
 			case JOINTTYPE_HINGE2:
-				dJointSetHinge2Anchor(j, origin[0], origin[1], origin[2]);
+				dJointSetHinge2Anchor(j, origin[0], origin[1], origin[2]);			
+#if ODEVERSION>=MAKE2VER(0,16)
+				{
+					dReal a1[]={forward[0], forward[1], forward[2]}, a2[]={velocity[0], velocity[1], velocity[2]};
+					dJointSetHinge2Axes(j, a1, a2);
+				}
+#else
 				dJointSetHinge2Axis1(j, forward[0], forward[1], forward[2]);
 				dJointSetHinge2Axis2(j, velocity[0], velocity[1], velocity[2]);
+#endif
+
 				dJointSetHinge2Param(j, dParamFMax, FMax);
 				dJointSetHinge2Param(j, dParamHiStop, Stop);
 				dJointSetHinge2Param(j, dParamLoStop, -Stop);
@@ -1953,8 +1967,15 @@ static void QDECL World_ODE_RagCreateJoint(world_t *world, rbejoint_t *joint, rb
 				break;
 			case JOINTTYPE_HINGE2:
 				dJointSetHinge2Anchor(joint->joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+#if ODEVERSION>=MAKE2VER(0,16)
+				{
+					dReal a1[]={aaa2[1][0], aaa2[1][1], aaa2[1][2]}, a2[]={aaa2[2][0], aaa2[2][1], aaa2[2][2]};
+					dJointSetHinge2Axes(joint->joint, a1, a2);
+				}
+#else
 				dJointSetHinge2Axis1(joint->joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
 				dJointSetHinge2Axis2(joint->joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
+#endif
 				dJointSetHinge2Param(joint->joint, dParamFMax, info->FMax);
 				dJointSetHinge2Param(joint->joint, dParamHiStop, info->HiStop);
 				dJointSetHinge2Param(joint->joint, dParamLoStop, info->LoStop);

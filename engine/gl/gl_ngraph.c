@@ -141,6 +141,8 @@ void R_NetGraph (void)
 
 	M_DrawTextBox (x, y, NET_TIMINGS/8, (NET_GRAPHHEIGHT + textheight)/8);
 	x = 8;
+	if (r_netgraph.ival > 1)
+		CL_ShowTrafficUsage(x + NET_TIMINGS + 8, y);
 	y += 8; //top border
 	graphtop = y+textheight;
 

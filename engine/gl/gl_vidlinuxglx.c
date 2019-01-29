@@ -3490,28 +3490,34 @@ static void X_StoreIcon(Window wnd)
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.jpg", &filesize);
 #endif
+#ifdef IMAGEFMT_BMP
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.ico", &filesize);
+#endif
 	if (filedata)
 	{
 		int imagewidth, imageheight;
-		int *iconblob;
+		unsigned long *iconblob;	//yes, long, even on 64bit machines. and even when we claim it to be 32bit. xlib legacy cruft that'll get stripped...
 		uploadfmt_t format;
 		qbyte *imagedata = ReadRawImageFile(filedata, filesize, &imagewidth, &imageheight, &format, true, "icon.png");
 		Z_Free(filedata);
 
-		iconblob = BZ_Malloc(sizeof(int)*(2+imagewidth*imageheight));
-		iconblob[0] = imagewidth;
-		iconblob[1] = imageheight;
-		//needs to be 0xARGB, rather than RGBA bytes
-		for (i = 0; i < imagewidth*imageheight; i++)
-			iconblob[i+2] = (imagedata[i*4+3]<<24) | (imagedata[i*4+0]<<16) | (imagedata[i*4+1]<<8) | (imagedata[i*4+2]<<0);
-		Z_Free(imagedata);
+		if (imagedata)
+		{
+			iconblob = BZ_Malloc(sizeof(*iconblob)*(2+imagewidth*imageheight));
+			iconblob[0] = imagewidth;
+			iconblob[1] = imageheight;
+			//needs to be 0xARGB, rather than RGBA bytes
+			for (i = 0; i < imagewidth*imageheight; i++)
+				iconblob[i+2] = (imagedata[i*4+3]<<24) | (imagedata[i*4+0]<<16) | (imagedata[i*4+1]<<8) | (imagedata[i*4+2]<<0);
+			Z_Free(imagedata);
 
-		x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)iconblob, 2+imagewidth*imageheight);
-		BZ_Free(iconblob);
+			x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)iconblob, 2+imagewidth*imageheight);
+			BZ_Free(iconblob);
+			return;
+		}
 	}
-	else
+
 	{
 		//fall back to the embedded icon.
 		unsigned long data[64*64+2];

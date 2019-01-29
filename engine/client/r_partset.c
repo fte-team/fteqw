@@ -1728,7 +1728,6 @@ char *particle_set_high =
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"uniform sampler2D s_t0;\n"
 "void main(void)\n"
 "{\n"
 "vec2 nst;\n"

@@ -648,6 +648,41 @@ SET(FTE_CLIENT_FILES
 	engine/vk/vk_init.c
 )
 
+ADD_LIBRARY(fteq3bot MODULE
+	engine/botlib/be_aas_bspq3.c
+	engine/botlib/be_aas_entity.c
+	engine/botlib/be_aas_move.c
+	engine/botlib/be_aas_routealt.c
+	engine/botlib/be_ai_char.c
+	engine/botlib/be_ai_goal.c
+	engine/botlib/be_ai_weight.c
+	engine/botlib/l_crc.c
+	engine/botlib/l_memory.c
+	engine/botlib/l_struct.c
+	engine/botlib/be_aas_cluster.c
+	engine/botlib/be_aas_file.c
+	engine/botlib/be_aas_optimize.c
+	engine/botlib/be_aas_route.c
+	engine/botlib/be_ai_chat.c
+	engine/botlib/be_ai_move.c
+	engine/botlib/be_ea.c
+	engine/botlib/l_libvar.c
+	engine/botlib/l_precomp.c
+	engine/botlib/be_aas_debug.c
+	engine/botlib/be_aas_main.c
+	engine/botlib/be_aas_reach.c
+	engine/botlib/be_aas_sample.c
+	engine/botlib/be_ai_gen.c
+	engine/botlib/be_ai_weap.c
+	engine/botlib/be_interface.c
+	engine/botlib/l_log.c
+	engine/botlib/l_script.c
+	engine/botlib/standalone.c
+)
+SET_TARGET_PROPERTIES(fteq3bot PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};BOTLIB;EXTERNALBOTLIB")
+TARGET_LINK_LIBRARIES(fteq3bot ${FTE_LIBS} )
+SET_TARGET_PROPERTIES(fteq3bot PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+
 FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")
 IF(BULLET_INTERNAL)
 	#Built-in bullet physics plugin...

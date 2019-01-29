@@ -265,7 +265,7 @@ static void PClassic_RunParticleEffect4 (vec3_t org, float radius, int color, in
 }
 
 //this function is used as a fallback in case a trail effect is unknown.
-static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk)
+static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int type, float timestep, int color, int crnd, trailstate_t **tsk)
 {
 }
 
@@ -1130,7 +1130,7 @@ int PClassic_PointFile(int c, vec3_t point)
 }
 
 //builds a trail from here to there. The trail state can be used to remember how far you got last frame.
-static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk)
+static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timestep, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk)
 {
 	float leftover;
 

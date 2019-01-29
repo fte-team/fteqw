@@ -3496,6 +3496,11 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		count = CLQ2_GatherSounds(positions, entnums, sounds, countof(sounds));
 	else
 #endif
+#ifdef Q3CLIENT
+	if (cls.protocol == CP_QUAKE3)
+		count = CG_GatherLoopingSounds(positions, entnums, sounds, countof(sounds));
+	else
+#endif
 		return;
 	
 	while(count --> 0)
@@ -3548,7 +3553,11 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		}
 		if (sc->ChannelUpdate)
 		{	//hardware mixing doesn't support merging
+			VectorCopy(positions[count], c->origin);
 			SND_Spatialize(sc, c);
+
+			if (c->sfx)
+				sc->ChannelUpdate(sc, c, false);
 		}
 		else
 		{	//merge with any other ents, if we can

@@ -180,6 +180,8 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 	*out = 0;
 	outlen--;
 
+	if ((unsigned)statementnum >= current_progstate->progs->numstatements)
+		return;
 	switch(current_progstate->structtype)
 	{
 	case PST_DEFAULT:
@@ -1364,7 +1366,7 @@ static const char *lastfile = NULL;
 			lastfile = file;
 
 			faultline = lastline;
-			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline!=-1)?&lastline:NULL), &statement, fault, fatal);
+			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline!=-1)?&lastline:NULL), &statement, f->first_statement, fault, fatal);
 
 //			if (pn != prinst.pr_typecurrent)
 

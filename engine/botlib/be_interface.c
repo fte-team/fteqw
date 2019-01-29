@@ -868,6 +868,13 @@ static void Init_AI_Export( ai_export_t *ai ) {
 GetBotLibAPI
 ============
 */
+#ifdef EXTERNALBOTLIB
+#ifdef _WIN32
+	__declspec(dllexport)
+#else
+	__attribute__((visibility("default")))
+#endif
+#endif
 botlib_export_t *QDECL GetBotLibAPI(int apiVersion, botlib_import_t *import) {
 	assert(import);
 	botimport = *import;

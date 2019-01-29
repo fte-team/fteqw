@@ -931,7 +931,7 @@ console_t *Con_TextEditor(const char *fname, const char *line, pubprogfuncs_t *d
 				int i;
 				char buffer[65536];
 				int start = 1;
-				int end = INT_MAX;
+				int end = 0x7fffffff;
 				char *colon = strchr(con->name, ':');
 				if (colon && *colon==':')
 					start = strtol(colon+1, &colon, 0);

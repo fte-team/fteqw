@@ -1772,7 +1772,9 @@ void CL_ClearState (qboolean gamestart)
 
 	if (cfg_save_auto.ival && Cvar_UnsavedArchive())
 		Cmd_ExecuteString("cfg_save\n", RESTRICT_LOCAL);
+#ifdef CL_MASTER
 	MasterInfo_WriteServers();
+#endif
 }
 
 /*

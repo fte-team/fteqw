@@ -427,7 +427,8 @@ static void PKG_ParseOutput(struct pkgctx_s *ctx, pbool diff)
 	}
 }
 
-/*static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
+#ifdef _WIN32
+static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
 {
 	struct oldpack_s *pack;
 
@@ -437,7 +438,8 @@ static void PKG_ParseOutput(struct pkgctx_s *ctx, pbool diff)
 	pack->file = NULL;
 	pack->next = ctx->oldpacks;
 	ctx->oldpacks = pack;
-}*/
+}
+#endif
 static void PKG_ParseOldPack(struct pkgctx_s *ctx)
 {
 	char token[MAX_OSPATH];
@@ -594,7 +596,8 @@ static void PKG_ParseRule(struct pkgctx_s *ctx)
 	r->next = ctx->rules;
 	ctx->rules = r;
 }
-/*static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
+#ifdef _WIN32
+static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
 {
 	struct file_s *f;
 	struct tm *t;
@@ -614,7 +617,8 @@ static void PKG_ParseRule(struct pkgctx_s *ctx)
 	f->write.dosdate = (t->tm_mday<<0)|(t->tm_mon<<5)|((t->tm_year+1900-1980)<<9);
 	f->next = c->files;
 	c->files = f;
-}*/
+}
+#endif
 static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const char *fname)
 {
 #ifdef _WIN32

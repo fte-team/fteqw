@@ -429,14 +429,14 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 			if (!knowncerts[i].data)
 			{
 				int j;
-				Con_Printf("%ls cert %i bytes\n", domain, datasize);
+				Con_Printf("%ls cert %i bytes\n", domain, (int)datasize);
 
-				Con_Printf("\"", datasize);
+				Con_Printf("\"");
 				for (j = 0; j < datasize; j++)
 					Con_Printf("\\x%02x", data[j]);
-				Con_Printf("\"\n", datasize);
+				Con_Printf("\"\n");
 
-				Con_Printf("\n", datasize);
+				Con_Printf("\n");
 				for (j = 0; j < datasize; j++)
 					Con_Printf("%c", data[j]);
 				continue;

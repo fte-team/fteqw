@@ -1096,7 +1096,9 @@ void M_Menu_Quit_f (void)
 	extern cvar_t cfg_save_auto;
 	char *arg = Cmd_Argv(1);
 
+#ifdef CL_MASTER
 	MasterInfo_WriteServers();
+#endif
 
 	if (!strcmp(arg, "force"))
 		mode = 0;

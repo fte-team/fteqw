@@ -1344,8 +1344,9 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 }
 
 #if defined(WEBSVONLY) && defined(_WIN32)
-unsigned int WINAPI BlockingClient(FTPclient_t *cl)
+DWORD WINAPI BlockingClient(void *ctx)
 {
+	FTPclient_t *cl = ctx;
 	unsigned long _false = false;
 	if (ioctlsocket (cl->controlsock, FIONBIO, &_false) == -1)
 	{

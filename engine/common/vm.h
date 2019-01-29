@@ -104,6 +104,7 @@ qboolean CG_VideoRestarted(void);
 int CG_Refresh(void);
 qboolean CG_Command(void);
 qboolean CG_KeyPress(int key, int unicode, int down);
+unsigned int CG_GatherLoopingSounds(vec3_t *positions, unsigned int *entnums, sfx_t **sounds, unsigned int max);
 #endif
 
 typedef struct {

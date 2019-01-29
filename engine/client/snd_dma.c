@@ -3496,7 +3496,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		count = CLQ2_GatherSounds(positions, entnums, sounds, countof(sounds));
 	else
 #endif
-#ifdef Q3CLIENT
+#ifdef VM_CG
 	if (cls.protocol == CP_QUAKE3)
 		count = CG_GatherLoopingSounds(positions, entnums, sounds, countof(sounds));
 	else

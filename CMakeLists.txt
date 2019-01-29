@@ -740,7 +740,7 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
 
-	IF(1)
+	IF(NOT WIN32)
 		ADD_EXECUTABLE(ftemaster
 			${FTESV_ARCH_FILES}
 			engine/server/sv_master.c

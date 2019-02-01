@@ -232,8 +232,8 @@ void GL_SetupFormats(void)
 			glfmtc(PTI_R16F,		GL_R16F,			GL_RED,					GL_RED,					GL_HALF_FLOAT,		0);
 			glfmtc(PTI_R32F,		GL_R32F,			GL_RED,					GL_RED,					GL_FLOAT,			0);
 
-			glfmtc(PTI_RGBA16F,		GL_RGBA16F_ARB,		GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT,		0);
-			glfmtc(PTI_RGBA32F,		GL_RGBA32F_ARB,		GL_RGBA,				GL_RGBA,				GL_FLOAT,			0);
+			glfmtc(PTI_RGBA16F,		GL_RGBA16F,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT,		0);
+			glfmtc(PTI_RGBA32F,		GL_RGBA32F,			GL_RGBA,				GL_RGBA,				GL_FLOAT,			0);
 		}
 		if (ver >= 1.2 && !gl_config_gles)
 		{

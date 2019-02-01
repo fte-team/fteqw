@@ -1179,7 +1179,7 @@ static void T_Gen_CurrentRender(int tmu)
 	}
 	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
 	if (vid.flags&VID_FP16)
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 0, 0, vwidth, vheight, 0);
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0, 0, vwidth, vheight, 0);
 	else if (vid.flags&VID_SRGBAWARE)
 		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 0, 0, vwidth, vheight, 0);
 	else
@@ -5191,7 +5191,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 			GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection[r_refdef.recurse]);
 
 			if ((vid.flags&VID_FP16) && sh_config.texfmt[PTI_RGBA16F])
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 			else if ((vid.flags&(VID_SRGBAWARE|VID_FP16)) && sh_config.texfmt[PTI_RGBA8_SRGB])
 				qglTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8_EXT, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 			else
@@ -5241,7 +5241,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 				shaderstate.tex_refraction[r_refdef.recurse]->height = r_refdef.pxrect.height;
 				GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction[r_refdef.recurse]);
 				if ((vid.flags&VID_FP16) && sh_config.texfmt[PTI_RGBA16F])
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 				else if ((vid.flags&(VID_SRGBAWARE|VID_FP16)) && sh_config.texfmt[PTI_RGBA16F])
 					qglTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8_EXT, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 				else
@@ -5321,7 +5321,7 @@ static qboolean GLBE_GenerateBatchTextures(batch_t *batch, shader_t *bs)
 			shaderstate.tex_ripplemap[r_refdef.recurse]->width = r_refdef.pxrect.width;
 			shaderstate.tex_ripplemap[r_refdef.recurse]->height = r_refdef.pxrect.height;
 			GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap[r_refdef.recurse]);
-			qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -5967,23 +5967,23 @@ void GLBE_DrawLightPrePass(void)
 			{
 				if (gl_config_gles)
 				{	//gles3
-					ifmt = GL_RGBA32F_ARB;
+					ifmt = GL_RGBA32F;
 					dfmt = GL_RGBA;
 					dtype = GL_FLOAT;
 				}
 				else
-					ifmt = GL_RGBA32F_ARB;
+					ifmt = GL_RGBA32F;
 			}
 			else if (!strcmp(var->string, "rgba16f"))
 			{
 				if (gl_config_gles)
 				{	//gles3
-					ifmt = GL_RGBA16F_ARB;
+					ifmt = GL_RGBA16F;
 					dfmt = GL_RGBA;
 					dtype = GL_HALF_FLOAT;
 				}
 				else
-					ifmt = GL_RGBA16F_ARB;
+					ifmt = GL_RGBA16F;
 			}
 //			else if (!strcmp(var->string, "rgba8s"))
 //				ifmt = GL_RGBA8_SNORM;

@@ -1032,8 +1032,10 @@ void CL_CheckForResend (void)
 #ifdef HAVE_DTLS
 	if (connectinfo.dtlsupgrade != DTLS_ACTIVE)
 #endif
-		//FIXME: this is switching ports far too much
-		NET_InitClient(false);
+	{
+		if (!cls.sockets)	//only if its needed... we don't want to keep using a new port unless we have to
+			NET_InitClient(false);
+	}
 
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
@@ -1112,9 +1114,13 @@ void CL_CheckForResend (void)
 
 	contype |= 1; /*always try qw type connections*/
 //	if ((connect_tries&3)==3) || (connect_defaultport==26000))
+#ifdef VM_UI
+	if (!UI_IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
+#endif
 		contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
 
 	/*DP, QW, Q2, Q3*/
+	/*NOTE: ioq3 has <challenge> <gamename> args. yes, a challenge to get a challenge.*/
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
@@ -1221,6 +1227,8 @@ void CL_BeginServerReconnect(void)
 	connectinfo.trying = true;
 	connectinfo.istransfer = false;
 	connectinfo.time = 0;
+
+	NET_InitClient(false);
 }
 
 void CL_Transfer_f(void)
@@ -2661,6 +2669,10 @@ void CL_Packet_f (void)
 	}
 	*out = 0;
 
+	if (!cls.sockets)
+		NET_InitClient(false);
+	if (!NET_EnsureRoute(cls.sockets, "packet", Cmd_Argv(1), &adr))
+		return;
 	NET_SendPacket (cls.sockets, out-send, send, &adr);
 
 	if (Cmd_FromGamecode())
@@ -3265,6 +3277,7 @@ void CL_ConnectionlessPacket (void)
 		{
 			if (NET_CompareAdr(&net_from, &cls.netchan.remote_address))
 			{
+				Cvar_Set(&cl_disconnectreason, "Disconnect request from server");
 				Con_Printf ("disconnect\n");
 				CL_Disconnect_f();
 				return;
@@ -3363,7 +3376,17 @@ void CL_ConnectionlessPacket (void)
 	{
 		s = MSG_ReadString ();
 		COM_Parse(s);
-		if (!strcmp(com_token, "tlsopened"))
+
+		if (!strcmp(com_token, "isconnect"))
+		{
+			Con_Printf("Disconnect\n");
+			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				Cvar_Set(&cl_disconnectreason, "Disconnect request from server");
+				CL_Disconnect_f();
+			}
+		}
+		else if (!strcmp(com_token, "tlsopened"))
 		{	//server is letting us know that its now listening for a dtls handshake.
 #ifdef HAVE_DTLS
 			Con_Printf ("dtlsopened\n");

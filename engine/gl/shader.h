@@ -269,6 +269,7 @@ typedef struct shaderpass_s {
 		T_GEN_PALETTED,		//texture's original paletted data (8bit)
 		T_GEN_REFLECTCUBE,	//dpreflectcube
 		T_GEN_REFLECTMASK,	//dpreflectcube mask
+		T_GEN_DISPLACEMENT,	//displacement texture (probably half-float or something so higher precision than normalmap.a)
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
@@ -647,6 +648,7 @@ struct shader_s
 		SHADER_HASPALETTED		= 1 << 28,	//has a T_GEN_PALETTED pass
 		SHADER_HASCURRENTRENDER	= 1 << 29,	//has a $currentrender pass
 		SHADER_HASPORTAL		= 1 << 30,	//reflection image is actually a portal rather than a simple reflection (must be paired with SHADER_HASREFRACT)
+		SHADER_HASDISPLACEMENT	= (int)(1u << 31)
 	} flags;
 
 	program_t *prog;

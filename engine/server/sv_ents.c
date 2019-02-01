@@ -3505,43 +3505,50 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 	int pvsflags;
 	int limit;
 	int c, maxc = cameras?cameras->numents:0;
+	client_t *seat;
 
 	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
-	if (client->viewent && ISQWCLIENT(client))
+	if (clent && ISQWCLIENT(client))
 	{
+		for (seat = client; seat; seat = seat->controlled)
+		{
+			edict_t *clent = seat->edict;
+			if (!client->viewent)
+				continue;
 //FIXME: this hack needs cleaning up
 #ifdef DEPTHOPTIMISE
-		distances[0] = 0;
+			distances[pack->num_entities] = 0;
 #endif
-		state = &pack->entities[pack->num_entities];
-		pack->num_entities++;
+			state = &pack->entities[pack->num_entities];
+			pack->num_entities++;
 
-		SV_Snapshot_BuildStateQ1(state, clent, client, pack);
+			SV_Snapshot_BuildStateQ1(state, clent, seat, pack);
 
-		state->number = client - svs.clients + 1;
+			state->number = seat - svs.clients + 1;
 
-		//yeah, I doubt anyone will need this
-		if (progstype == PROG_QW)
-		{
-			if ((int)clent->v->effects & QWEF_FLAG1)
+			//yeah, I doubt anyone will need this
+			if (progstype == PROG_QW)
 			{
-				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
-				state = &pack->entities[pack->num_entities];
-				pack->num_entities++;
-				state->modelindex = SV_ModelIndex("progs/flag.mdl");
-				state->frame = 0;
-				state->number++;	//yeek
-				state->skinnum = 0;
-			}
-			else if ((int)clent->v->effects & QWEF_FLAG2)
-			{
-				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
-				state = &pack->entities[pack->num_entities];
-				pack->num_entities++;
-				state->modelindex = SV_ModelIndex("progs/flag.mdl");
-				state->frame = 0;
-				state->number++;	//yeek
-				state->skinnum = 1;
+				if ((int)clent->v->effects & QWEF_FLAG1)
+				{
+					memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
+					state = &pack->entities[pack->num_entities];
+					pack->num_entities++;
+					state->modelindex = SV_ModelIndex("progs/flag.mdl");
+					state->frame = 0;
+					state->number++;	//yeek
+					state->skinnum = 0;
+				}
+				else if ((int)clent->v->effects & QWEF_FLAG2)
+				{
+					memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
+					state = &pack->entities[pack->num_entities];
+					pack->num_entities++;
+					state->modelindex = SV_ModelIndex("progs/flag.mdl");
+					state->frame = 0;
+					state->number++;	//yeek
+					state->skinnum = 1;
+				}
 			}
 		}
 	}

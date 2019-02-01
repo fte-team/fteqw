@@ -146,7 +146,7 @@ void GL_SetupFormats(void)
 //			glfmtc(PTI_RGBA4444,GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,	tc_rgba8);
 //			glfmtc(PTI_RGBA5551,GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
 		}
-		if (GL_CheckExtension("GL_OES_texture_half_float")) 
+		if (GL_CheckExtension("GL_OES_texture_half_float"))
 			glfmtc(PTI_RGBA16F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES,		0);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
 		if (GL_CheckExtension("GL_OES_texture_float"))
 			glfmtc(PTI_RGBA32F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_FLOAT,				0);
@@ -229,8 +229,11 @@ void GL_SetupFormats(void)
 
 		if (ver >= 3.0)
 		{
-			glfmtc(PTI_RGBA16F,	GL_RGBA16F_ARB,		GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT,		0);
-			glfmtc(PTI_RGBA32F,	GL_RGBA32F_ARB,		GL_RGBA,				GL_RGBA,				GL_FLOAT,			0);
+			glfmtc(PTI_R16F,		GL_R16F,			GL_RED,					GL_RED,					GL_HALF_FLOAT,		0);
+			glfmtc(PTI_R32F,		GL_R32F,			GL_RED,					GL_RED,					GL_FLOAT,			0);
+
+			glfmtc(PTI_RGBA16F,		GL_RGBA16F_ARB,		GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT,		0);
+			glfmtc(PTI_RGBA32F,		GL_RGBA32F_ARB,		GL_RGBA,				GL_RGBA,				GL_FLOAT,			0);
 		}
 		if (ver >= 1.2 && !gl_config_gles)
 		{

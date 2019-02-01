@@ -3319,7 +3319,10 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 		size = NetadrToSockadr (to, &addr);
 	}
 
-	ret = sendto (con->thesocket, data, length, 0, (struct sockaddr*)&addr, size );
+	if (!data)
+		ret = 0;	//don't send a runt, but pretend we did... yes, this'll confuse EnsureRoute, but at least it'll ensure there's a udp socket open, somewhere.
+	else
+		ret = sendto (con->thesocket, data, length, 0, (struct sockaddr*)&addr, size );
 	if (ret == -1)
 	{
 		const char *prot;

@@ -1274,6 +1274,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		else
 			t = r_whiteimage;
 		break;
+	case T_GEN_DISPLACEMENT:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->displacement))
+			t = shaderstate.curtexnums->displacement;
+		else
+			t = r_whiteimage;
+		break;
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
 		break;

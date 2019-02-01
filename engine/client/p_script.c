@@ -5577,7 +5577,13 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		step = ptype->countspacing;					//particles per qu
 		step /= r_part_density.value;				//scaled...
 
-		//FIXME: countextra
+		if (ptype->countextra)
+		{
+			count = ptype->countextra;
+			if (step>0)
+				count += len/step;
+			step = len/count;
+		}
 	}
 	else
 	{
@@ -5659,9 +5665,6 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		VectorClear(vstep);
 	}
 //	count += ptype->countextra;
-
-if (count > 1000)
-count = 1000;
 
 	while (count-->0)//len < stop)
 	{

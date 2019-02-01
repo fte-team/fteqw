@@ -4,6 +4,7 @@
 #include "glquake.h"
 #include "gl_draw.h"
 #include "shader.h"
+#include "renderque.h"
 
 //FIXME: instead of switching rendertargets and back, we should be using an alternative queue.
 
@@ -1096,7 +1097,7 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 	for (cvardata = prog->cvardata; cvardata < prog->cvardata + prog->cvardatasize; )
 	{
 		unsigned char type = cvardata[2], size = cvardata[3]-'0';
-		char *cvarname;
+		const char *cvarname;
 		cvar_t *var;
 
 		cvardata += 4;
@@ -1105,6 +1106,7 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 
 		if (type >= 'A' && type <= 'Z')
 		{	//args will be handled by the blob loader.
+			//the blob contains default values, overwrite them with the user's preferences...
 			VK_ShaderReadArgument(name, cvarname, type, size, cvardata);
 		}
 		else
@@ -1173,6 +1175,7 @@ void VKBE_DeleteProg(program_t *prog)
 
 	//clear stuff out so that the caller doesn't get confused.
 	Z_Free(prog->cvardata);
+	prog->cvardata = NULL;
 	prog->pipelines = NULL;
 	prog->layout = VK_NULL_HANDLE;
 	prog->desclayout = VK_NULL_HANDLE;
@@ -3164,14 +3167,16 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->reflectcube, r_blackimage, set, descs, desc++, img++);
 		if (p->defaulttextures & (1u<<10))
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->reflectmask, r_whiteimage, set, descs, desc++, img++);
+		if (p->defaulttextures & (1u<<11))
+			BE_SetupTextureDescriptor(shaderstate.curtexnums->displacement, r_whiteimage, set, descs, desc++, img++);
 
 		//batch
-		if (p->defaulttextures & (1u<<11))
+		if (p->defaulttextures & (1u<<12))
 		{
 			unsigned int lmi = shaderstate.curbatch->lightmap[0];
 			BE_SetupTextureDescriptor((lmi<numlightmaps)?lightmap[lmi]->lightmap_texture:NULL, r_whiteimage, set, descs, desc++, img++);
 		}
-		if (p->defaulttextures & (1u<<12))
+		if (p->defaulttextures & (1u<<13))
 		{
 			texid_t delux = NULL;
 			unsigned int lmi = shaderstate.curbatch->lightmap[0];
@@ -3180,7 +3185,7 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 			BE_SetupTextureDescriptor(delux, r_whiteimage, set, descs, desc++, img++);
 		}
 #if MAXRLIGHTMAPS > 1
-		if (p->defaulttextures & ((1u<<13)|(1u<<14)|(1u<<15)))
+		if (p->defaulttextures & ((1u<<14)|(1u<<15)|(1u<<16)))
 		{
 			int lmi = shaderstate.curbatch->lightmap[1];
 			BE_SetupTextureDescriptor((lmi<numlightmaps)?lightmap[lmi]->lightmap_texture:NULL, r_whiteimage, set, descs, desc++, img++);
@@ -3189,7 +3194,7 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 			lmi = shaderstate.curbatch->lightmap[3];
 			BE_SetupTextureDescriptor((lmi<numlightmaps)?lightmap[lmi]->lightmap_texture:NULL, r_whiteimage, set, descs, desc++, img++);
 		}
-		if (p->defaulttextures & ((1u<<16)|(1u<<17)|(1u<<18)))
+		if (p->defaulttextures & ((1u<<17)|(1u<<18)|(1u<<19)))
 		{
 			int lmi = shaderstate.curbatch->lightmap[1];
 			if (lmi<numlightmaps && lightmap[lmi]->hasdeluxe)
@@ -6303,6 +6308,10 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 	}
 
 	R_RenderDlights ();
+	if (r_refdef.recurse)
+		RQ_RenderBatch();
+	else
+		RQ_RenderBatchClear();
 
 	shaderstate.identitylighting = 1;
 

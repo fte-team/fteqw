@@ -103,6 +103,51 @@ do {							\
 #define DOBACKTRACE()
 #endif
 
+char *VK_VKErrorToString(VkResult err)
+{
+	switch(err)
+	{
+	//positive codes
+	case VK_SUCCESS:						return "VK_SUCCESS";
+	case VK_NOT_READY:						return "VK_NOT_READY";
+	case VK_TIMEOUT:						return "VK_TIMEOUT";
+	case VK_EVENT_SET:						return "VK_EVENT_SET";
+	case VK_EVENT_RESET:					return "VK_EVENT_RESET";
+	case VK_INCOMPLETE:						return "VK_INCOMPLETE";
+
+	//core errors
+	case VK_ERROR_OUT_OF_HOST_MEMORY:		return "VK_ERROR_OUT_OF_HOST_MEMORY";
+	case VK_ERROR_OUT_OF_DEVICE_MEMORY:		return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+	case VK_ERROR_INITIALIZATION_FAILED:	return "VK_ERROR_INITIALIZATION_FAILED";
+	case VK_ERROR_DEVICE_LOST:				return "VK_ERROR_DEVICE_LOST";	//by far the most common.
+	case VK_ERROR_MEMORY_MAP_FAILED:		return "VK_ERROR_MEMORY_MAP_FAILED";
+	case VK_ERROR_LAYER_NOT_PRESENT:		return "VK_ERROR_LAYER_NOT_PRESENT";
+	case VK_ERROR_EXTENSION_NOT_PRESENT:	return "VK_ERROR_EXTENSION_NOT_PRESENT";
+	case VK_ERROR_FEATURE_NOT_PRESENT:		return "VK_ERROR_FEATURE_NOT_PRESENT";
+	case VK_ERROR_INCOMPATIBLE_DRIVER:		return "VK_ERROR_INCOMPATIBLE_DRIVER";
+	case VK_ERROR_TOO_MANY_OBJECTS:			return "VK_ERROR_TOO_MANY_OBJECTS";
+	case VK_ERROR_FORMAT_NOT_SUPPORTED:		return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+	case VK_ERROR_FRAGMENTED_POOL:			return "VK_ERROR_FRAGMENTED_POOL";
+
+	case VK_ERROR_SURFACE_LOST_KHR:			return "VK_ERROR_SURFACE_LOST_KHR";
+	case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+	case VK_SUBOPTIMAL_KHR:					return "VK_SUBOPTIMAL_KHR";
+	case VK_ERROR_OUT_OF_DATE_KHR:			return "VK_ERROR_OUT_OF_DATE_KHR";
+	case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR:	return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+
+	case VK_ERROR_VALIDATION_FAILED_EXT:	return "VK_ERROR_VALIDATION_FAILED_EXT";
+	case VK_ERROR_INVALID_SHADER_NV:		return "VK_ERROR_INVALID_SHADER_NV";
+	case VK_ERROR_OUT_OF_POOL_MEMORY_KHR:	return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
+	case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR:	return "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR";
+
+	//irrelevant parts of the enum
+	case VK_RESULT_RANGE_SIZE:
+	case VK_RESULT_MAX_ENUM:
+	//default:
+		break;
+	}
+	return va("%d", (int)err);
+}
 #ifdef VK_EXT_debug_utils
 static void DebugSetName(VkObjectType objtype, uint64_t handle, const char *name)
 {
@@ -1256,6 +1301,8 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_RGBA5551:			format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;		break;
 	case PTI_ARGB1555:			format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;		break;
 	//float formats
+	case PTI_R16F:				format = VK_FORMAT_R16_SFLOAT;					break;
+	case PTI_R32F:				format = VK_FORMAT_R32_SFLOAT;					break;
 	case PTI_RGBA16F:			format = VK_FORMAT_R16G16B16A16_SFLOAT;			break;
 	case PTI_RGBA32F:			format = VK_FORMAT_R32G32B32A32_SFLOAT;			break;
 	//weird formats
@@ -3651,7 +3698,7 @@ void VK_DoPresent(struct vkframe *theframe)
 			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
 			if (err)
 			{
-				Con_Printf("ERROR: vkAcquireNextImageKHR: %i\n", err);
+				Con_Printf("ERROR: vkAcquireNextImageKHR: %s\n", VK_VKErrorToString(err));
 				vk.neednewswapchain = true;
 				vk.devicelost |= (err == VK_ERROR_DEVICE_LOST);
 			}
@@ -3715,7 +3762,8 @@ static void VK_Submit_DoWork(void)
 		err = vkQueueSubmit(subqueue, subcount, subinfo, waitfence);
 		if (err)
 		{
-			Con_Printf("ERROR: vkQueueSubmit: %i\n", err);
+			if (!vk.devicelost)
+				Con_Printf(CON_ERROR "ERROR: vkQueueSubmit: %s\n", VK_VKErrorToString(err));
 			errored = vk.neednewswapchain = true;
 			vk.devicelost |= (err==VK_ERROR_DEVICE_LOST);
 		}

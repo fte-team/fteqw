@@ -377,6 +377,7 @@ typedef struct texnums_s {
 	texid_t fullbright;
 	texid_t reflectcube;
 	texid_t reflectmask;
+	texid_t displacement;
 
 	//the material's pushconstants. vulkan guarentees only 128 bytes. so 8 vec4s. note that lmscales should want 4 of them...
 	/*struct

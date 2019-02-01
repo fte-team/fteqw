@@ -19,9 +19,8 @@ We also have no doppler with WebAudio.
 	qboolean firefoxstaticsounds;	//FireFox bugs out with static sounds. they all end up full volume AND THIS IS REALLY LOUD AND REALLY ANNOYING.
 #else
 	#define SDRVNAME "OpenAL"
+//	#define USEEFX
 #endif
-
-#define USEEFX
 
 #ifdef OPENAL_STATIC
 #include <AL/al.h>	//output
@@ -296,7 +295,9 @@ extern sfx_t *known_sfx;
 extern int loaded_sfx;
 extern int num_sfx;
 
+#ifdef USEEFX
 static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb);
+#endif
 static void OpenAL_Shutdown (soundcardinfo_t *sc);
 static void QDECL OnChangeALSettings (cvar_t *var, char *value);
 /*
@@ -1179,6 +1180,7 @@ static unsigned int OpenAL_GetDMAPos (soundcardinfo_t *sc)
 	return 0;
 }
 
+#ifdef USEEFX
 static void OpenAL_SetReverb (soundcardinfo_t *sc, size_t reverbeffect)
 {
 #ifdef USEEFX
@@ -1222,6 +1224,7 @@ static void OpenAL_SetReverb (soundcardinfo_t *sc, size_t reverbeffect)
 	//Con_Printf("OpenAL: SetUnderWater %i\n", underwater);
 #endif
 }
+#endif
 
 static void OpenAL_Shutdown (soundcardinfo_t *sc)
 {
@@ -1262,6 +1265,7 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 	Z_Free(oali);
 }
 
+#ifdef USEEFX
 static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb)
 {
 	ALuint effect = 0;
@@ -1323,6 +1327,7 @@ static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb)
 	}
 	return effect;
 }
+#endif
 
 static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 {

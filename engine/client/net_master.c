@@ -210,17 +210,8 @@ qboolean Net_AddressIsMaster(netadr_t *adr)
 	}
 	return false;
 }
-void Net_Master_Init(void)
-{
-	int i;
-	for (i = 0; net_masterlist[i].cv.name; i++)
-		Cvar_Register(&net_masterlist[i].cv, "master servers");
-#ifndef CLIENTONLY
-	Cmd_AddCommand ("setmaster", SV_SetMaster_f);
-#endif
-}
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 
 static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -2552,7 +2543,7 @@ void MasterInfo_Request(master_t *mast)
 		case MP_QUAKE3:
 			{
 				char *str;
-				str = va("%c%c%c%cgetservers %u empty full\x0A\n", 255, 255, 255, 255, 68);
+				str = va("%c%c%c%cgetservers %u empty full\n", 255, 255, 255, 255, 68);
 				NET_SendPollPacket (strlen(str), str, mast->adr);
 			}
 			break;
@@ -3575,9 +3566,66 @@ void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_
 		}
 	}
 }
+
 #else
 void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 }
 #endif
+
+#ifdef Q3CLIENT
+static void NetQ3_LocalServers_f(void)
+{
+	netadr_t na;
+	MasterInfo_Refresh(true);
+
+	if (NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na))
+		NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
+}
+static void NetQ3_GlobalServers_f(void)
+{
+	size_t masternum = atoi(Cmd_Argv(1));
+	int protocol = atoi(Cmd_Argv(2));
+	char *keywords;
+	size_t i;
+	MasterInfo_Refresh(true);
+
+	Cmd_ShiftArgs(2, false);
+	keywords = Cmd_Args();
+
+	if (!masternum)
+	{
+		for (i = 0; i < countof(net_masterlist); i++)
+			Cbuf_AddText(va("globalservers %u %i %s\n", (unsigned)(i+1), protocol, keywords), Cmd_ExecLevel);
+	}
+	masternum--;
+	if (masternum >= countof(net_masterlist))
+		return; //erk
+	if (net_masterlist[masternum].protocol == MP_QUAKE3)
+	{
+		netadr_t adr[16];
+		char *str;
+		size_t n;
+		COM_Parse(net_masterlist[masternum].cv.string);	//only want the first one
+		n = NET_StringToAdr2(com_token, 0, adr, countof(adr));
+		str = va("%c%c%c%cgetservers %u empty full\n", 255, 255, 255, 255, 68);
+		for (i = 0; i < n; i++)
+			NET_SendPollPacket (strlen(str), str, adr[i]);
+	}
+}
+#endif
+void Net_Master_Init(void)
+{
+	int i;
+	for (i = 0; net_masterlist[i].cv.name; i++)
+		Cvar_Register(&net_masterlist[i].cv, "master servers");
+#ifdef HAVE_SERVER
+	Cmd_AddCommand ("setmaster", SV_SetMaster_f);
+#endif
+
+#ifdef Q3CLIENT
+	Cmd_AddCommand ("localservers", NetQ3_LocalServers_f);
+	Cmd_AddCommand ("globalservers", NetQ3_GlobalServers_f);
+#endif
+}
 

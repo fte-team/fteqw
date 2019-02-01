@@ -1156,15 +1156,16 @@ const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 	{"s_paletted",		1u<<8},
 	{"s_reflectcube",	1u<<9},
 	{"s_reflectmask",	1u<<10},
-	{"s_lightmap",		1u<<11},
-	{"s_deluxemap",		1u<<12},
+	{"s_displacement",	1u<<11},
+	{"s_lightmap",		1u<<12},
+	{"s_deluxemap",		1u<<13},
 #if MAXRLIGHTMAPS > 1
-	{"s_lightmap1",		1u<<13},
-	{"s_lightmap2",		1u<<14},
-	{"s_lightmap3",		1u<<15},
-	{"s_deluxemap1",	1u<<16},
-	{"s_deluxemap2",	1u<<17},
-	{"s_deluxemap3",	1u<<18},
+	{"s_lightmap1",		1u<<14},
+	{"s_lightmap2",		1u<<15},
+	{"s_lightmap3",		1u<<16},
+	{"s_deluxemap1",	1u<<17},
+	{"s_deluxemap2",	1u<<18},
+	{"s_deluxemap3",	1u<<19},
 #else
 	{"s_lightmap1",		0},
 	{"s_lightmap2",		0},
@@ -2177,6 +2178,12 @@ static void Shader_LowerMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
 	shader->defaulttextures->loweroverlay = Shader_FindImage(token, flags);
 }
+static void Shader_DisplacementMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->displacement = Shader_FindImage(token, flags|IF_NOSRGB);
+}
 
 static void Shaderpass_QF_Material(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2430,6 +2437,7 @@ static shaderkey_t shaderkeys[] =
 	{"uppermap",			Shader_UpperMap,			"fte"},
 	{"lowermap",			Shader_LowerMap,			"fte"},
 	{"reflectmask",			Shader_ReflectMask,			"fte"},
+	{"displacementmap",		Shader_DisplacementMap,		"fte"},
 
 	{"portalfboscale",		Shader_PortalFBOScale,		"fte"},	//portal/mirror/refraction/reflection FBOs are resized by this scale
 	{"basefactor",			NULL,						"fte"},	//material scalers for glsl
@@ -2580,6 +2588,11 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	else if (!Q_stricmp (tname, "$reflectmask"))
 	{
 		pass->texgen = T_GEN_REFLECTMASK;
+	}
+	else if (!Q_stricmp (tname, "$displacement"))
+	{
+		shader->flags |= SHADER_HASDISPLACEMENT;
+		pass->texgen = T_GEN_DISPLACEMENT;
 	}
 	else if (!Q_stricmp (tname, "$shadowmap"))
 	{
@@ -4043,19 +4056,20 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 	} defaulttgen[] =
 	{
 		//light
-		{T_GEN_SHADOWMAP,		0},						//1
-		{T_GEN_LIGHTCUBEMAP,	0},						//2
+		{T_GEN_SHADOWMAP,		0},						//0
+		{T_GEN_LIGHTCUBEMAP,	0},						//1
 
 		//material
-		{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//3
-		{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//4
-		{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//5
-		{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
-		{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//7
-		{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//8
-		{T_GEN_PALETTED,		SHADER_HASPALETTED},	//9
-		{T_GEN_REFLECTCUBE,		0},						//10
-		{T_GEN_REFLECTMASK,		0},						//11
+		{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//2
+		{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//3
+		{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//4
+		{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//5
+		{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
+		{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//7
+		{T_GEN_PALETTED,		SHADER_HASPALETTED},	//8
+		{T_GEN_REFLECTCUBE,		0},						//9
+		{T_GEN_REFLECTMASK,		0},						//10
+		{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
@@ -5156,19 +5170,20 @@ done:;
 		} defaulttgen[] =
 		{
 			//light
-			{T_GEN_SHADOWMAP,		0},						//1
-			{T_GEN_LIGHTCUBEMAP,	0},						//2
+			{T_GEN_SHADOWMAP,		0},						//0
+			{T_GEN_LIGHTCUBEMAP,	0},						//1
 
 			//material
-			{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//3
-			{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//4
-			{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//5
-			{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
-			{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//7
-			{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//8
-			{T_GEN_PALETTED,		SHADER_HASPALETTED},	//9
-			{T_GEN_REFLECTCUBE,		0},						//10
-			{T_GEN_REFLECTMASK,		0},						//11
+			{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//2
+			{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//3
+			{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//4
+			{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//5
+			{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
+			{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//7
+			{T_GEN_PALETTED,		SHADER_HASPALETTED},	//8
+			{T_GEN_REFLECTCUBE,		0},						//9
+			{T_GEN_REFLECTMASK,		0},						//10
+			{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
@@ -5376,6 +5391,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 			tex->reflectmask	= src->reflectmask;
 		if (!TEXVALID(tex->reflectcube))
 			tex->reflectcube	= src->reflectcube;
+		if (!TEXVALID(tex->displacement))
+			tex->displacement	= src->displacement;
 	}
 	for (a = 1; a < aframes; a++)
 	{
@@ -5395,6 +5412,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 			tex[a].reflectmask	= tex[0].reflectmask;
 		if (!TEXVALID(tex[a].reflectcube))
 			tex[a].reflectcube	= tex[0].reflectcube;
+		if (!TEXVALID(tex[a].displacement))
+			tex[a].displacement	= tex[0].displacement;
 	}
 	for (a = 0; a < aframes; a++, tex++)
 	{
@@ -5612,6 +5631,8 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			tex[a].reflectmask	= tex[0].reflectmask;
 		if (!TEXVALID(tex[a].reflectcube))
 			tex[a].reflectcube	= tex[0].reflectcube;
+		if (!TEXVALID(tex[a].displacement))
+			tex[a].displacement	= tex[0].displacement;
 	}
 	for (a = 0; a < aframes; a++, tex++)
 	{
@@ -7088,6 +7109,7 @@ static char *Shader_DecomposeSubPass(char *o, shaderpass_t *p, qboolean simple)
 	case T_GEN_PALETTED: sprintf(o, "paletted "); break;
 	case T_GEN_REFLECTCUBE: sprintf(o, "reflectcube "); break;
 	case T_GEN_REFLECTMASK: sprintf(o, "reflectmask "); break;
+	case T_GEN_DISPLACEMENT: sprintf(o, "displacementmap "); break;
 	case T_GEN_CURRENTRENDER: sprintf(o, "currentrender "); break;
 	case T_GEN_SOURCECOLOUR: sprintf(o, "sourcecolour "); break;
 	case T_GEN_SOURCEDEPTH: sprintf(o, "sourcedepth "); break;

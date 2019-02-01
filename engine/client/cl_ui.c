@@ -278,7 +278,11 @@ char *Get_Q2ConfigString(int i);
 
 #define MAX_PINGREQUESTS 32
 
-netadr_t ui_pings[MAX_PINGREQUESTS];
+struct
+{
+	unsigned int startms;
+	netadr_t adr;
+} ui_pings[MAX_PINGREQUESTS];
 
 #define UITAGNUM 2452
 
@@ -816,13 +820,14 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			{
 				int i;
 				for (i = 0; i < MAX_PINGREQUESTS; i++)
-					if (ui_pings[i].type == NA_INVALID)
+					if (ui_pings[i].adr.type == NA_INVALID)
 					{
 						serverinfo_t *info;
 						COM_Parse(cmdtext + 5);
-						if (NET_StringToAdr(com_token, 0, &ui_pings[i]))
+						ui_pings[i].startms = Sys_Milliseconds();
+						if (NET_StringToAdr(com_token, 0, &ui_pings[i].adr))
 						{
-							info = Master_InfoForServer(&ui_pings[i]);
+							info = Master_InfoForServer(&ui_pings[i].adr);
 							if (info)
 							{
 								info->special |= SS_KEEPINFO;
@@ -832,15 +837,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 						}
 						break;
 					}
-			}
-			else if (!strncmp(cmdtext, "localservers", 12))
-			{
-				extern qboolean NET_SendPollPacket(int len, void *data, netadr_t to);
-				netadr_t na;
-				MasterInfo_Refresh(false);
-
-				if (NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na))
-					NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
 			}
 			else
 #endif
@@ -1084,14 +1080,14 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			int i;
 			for (i = 0; i < MAX_PINGREQUESTS; i++)
-				if (ui_pings[i].type != NA_INVALID)
+				if (ui_pings[i].adr.type != NA_INVALID)
 					VM_LONG(ret)++;
 		}
 		break;
 	case UI_LAN_CLEARPING:	//clear ping
 		//void (int pingnum)
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
-			ui_pings[VM_LONG(arg[0])].type = NA_INVALID;
+			ui_pings[VM_LONG(arg[0])].adr.type = NA_INVALID;
 		break;
 	case UI_LAN_GETPING:
 		//void (int pingnum, char *buffer, int buflen, int *ping)
@@ -1103,25 +1099,27 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		Master_CheckPollSockets();
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
 		{
+			int i = VM_LONG(arg[0]);
 			char *buf = VM_POINTER(arg[1]);
-			char *adr;
-			serverinfo_t *info = Master_InfoForServer(&ui_pings[VM_LONG(arg[0])]);
-			if (info && info->ping != 0xffff)
+			size_t bufsize = VM_LONG(arg[2]);
+			int *ping = VM_POINTER(arg[3]);
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr);
+			NET_AdrToString(buf, bufsize, &ui_pings[i].adr);
+
+			if (info && (info->status & SRVSTATUS_ALIVE) && info->moreinfo)
 			{
-				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr);
-				if (strlen(adr) < VM_LONG(arg[2]))
-				{
-					strcpy(buf, adr);
-					VM_LONG(ret) = true;
-					*(int *)VM_POINTER(arg[3]) = info->ping;
-				}	
+				VM_LONG(ret) = true;
+				*ping = info->ping;
+				break;
 			}
-			else
-				strcpy(buf, "");
+			i = Sys_Milliseconds()-ui_pings[i].startms;
+			if (i < 999)
+				i = 0;	//don't time out yet.
+			*ping = i;
 		}
 		break;
 	case UI_LAN_GETPINGINFO:
-		//void (int pingnum, char *buffer, int buflen, )
+		//void (int pingnum, char *buffer, int buflen)
 		if ((int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
 		if ((int)arg[3] + sizeof(int) >= mask || VM_POINTER(arg[3]) < offset)
@@ -1130,24 +1128,30 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		Master_CheckPollSockets();
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
 		{
+			int i = VM_LONG(arg[0]);
 			char *buf = VM_POINTER(arg[1]);
+			size_t bufsize = VM_LONG(arg[2]);
 			char *adr;
-			serverinfo_t *info = Master_InfoForServer(&ui_pings[VM_LONG(arg[0])]);
-			if (info && info->ping != 0xffff)
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr);
+			if (info && (info->status & SRVSTATUS_ALIVE) && info->moreinfo)
 			{
 				adr = info->moreinfo->info;
 				if (!adr)
 					adr = "";
-				if (strlen(adr) < VM_LONG(arg[2]))
+				if (strlen(adr) < bufsize)
 				{
 					strcpy(buf, adr);
-					if (!*Info_ValueForKey(buf, "mapname"))
-					{
-						Info_SetValueForKey(buf, "mapname", Info_ValueForKey(buf, "map"), VM_LONG(arg[2]));
-						Info_RemoveKey(buf, "map");
-					}
-					Info_SetValueForKey(buf, "sv_maxclients", va("%i", info->maxplayers), VM_LONG(arg[2]));
-					Info_SetValueForKey(buf, "clients", va("%i", info->players), VM_LONG(arg[2]));
+					Info_SetValueForKey(buf, "mapname", info->map, bufsize);
+					Info_SetValueForKey(buf, "hostname", info->name, bufsize);
+					Info_SetValueForKey(buf, "g_humanplayers", va("%i", info->numhumans), bufsize);
+					Info_SetValueForKey(buf, "sv_maxclients", va("%i", info->maxplayers), bufsize);
+					Info_SetValueForKey(buf, "clients", va("%i", info->players), bufsize);
+					if (info->adr.type == NA_IPV6 && info->adr.prot == NP_DGRAM)
+						Info_SetValueForKey(buf, "nettype", "2", bufsize);
+					else if (info->adr.type == NA_IP && info->adr.prot == NP_DGRAM)
+						Info_SetValueForKey(buf, "nettype", "1", bufsize);
+					else
+						Info_SetValueForKey(buf, "nettype", "", bufsize);
 					VM_LONG(ret) = true;
 				}	
 			}
@@ -1633,7 +1637,7 @@ void UI_Start (void)
 	UI_Stop();
 
 	for (i = 0; i < MAX_PINGREQUESTS; i++)
-		ui_pings[i].type = NA_INVALID;
+		ui_pings[i].adr.type = NA_INVALID;
 
 	ui_width = vid.width;
 	ui_height = vid.height;
@@ -1689,6 +1693,13 @@ qboolean UI_Command(void)
 {
 	if (uivm)
 		return VM_Call(uivm, UI_CONSOLE_COMMAND, (int)(realtime * 1000));
+	return false;
+}
+
+qboolean UI_IsRunning(void)
+{
+	if (uivm)
+		return true;
 	return false;
 }
 

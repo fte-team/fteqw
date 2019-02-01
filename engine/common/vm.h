@@ -59,6 +59,7 @@ int VMQ3_StringToHandle(char *str);
 void VMQ3_FlushStringHandles(void);
 
 #ifdef VM_UI
+qboolean UI_IsRunning(void);
 qboolean UI_Command(void);
 void UI_Init (void);
 void UI_Start (void);

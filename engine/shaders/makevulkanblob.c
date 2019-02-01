@@ -229,16 +229,18 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 						blob->defaulttextures |= 1u<<9;
 					else if (!strcasecmp(arg, "reflectmask"))
 						blob->defaulttextures |= 1u<<10;
+					else if (!strcasecmp(arg, "displacement"))
+						blob->defaulttextures |= 1u<<11;
 
 					//batch
 					else if (!strcasecmp(arg, "lightmap"))
-						blob->defaulttextures |= 1u<<11;
-					else if (!strcasecmp(arg, "deluxmap"))
 						blob->defaulttextures |= 1u<<12;
+					else if (!strcasecmp(arg, "deluxmap"))
+						blob->defaulttextures |= 1u<<13;
 					else if (!strcasecmp(arg, "lightmaps"))
-						blob->defaulttextures |= 1u<<11 | 1u<<13 | 1u<<14 | 1u<<15;
+						blob->defaulttextures |= 1u<<12 | 1u<<14 | 1u<<15 | 1u<<16;
 					else if (!strcasecmp(arg, "deluxmaps"))
-						blob->defaulttextures |= 1u<<12 | 1u<<16 | 1u<<17 | 1u<<18;
+						blob->defaulttextures |= 1u<<13 | 1u<<17 | 1u<<18 | 1u<<19;
 
 					//shader pass
 					else if (atoi(arg))
@@ -269,6 +271,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				"uniform sampler2D s_paletted;\n",
 				"uniform samplerCube s_reflectcube;\n",
 				"uniform sampler2D s_reflectmask;\n",
+				"uniform sampler2D s_displacement;\n",
 
 				//batch
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",

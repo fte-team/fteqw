@@ -826,6 +826,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					cm->texnum.paletted = r_nulltex;
 					cm->texnum.reflectcube = r_nulltex;
 					cm->texnum.reflectmask = r_nulltex;
+					cm->texnum.displacement = r_nulltex;
 					return shader;
 				}
 			}
@@ -1027,6 +1028,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				cm->texnum.reflectcube = shader->defaulttextures->reflectcube;
 				cm->texnum.reflectmask = shader->defaulttextures->reflectmask;
 				cm->texnum.paletted = shader->defaulttextures->paletted;
+				cm->texnum.displacement = shader->defaulttextures->displacement;
 
 #ifdef HEXEN2	//too lazy to do this
 				if (h2playertranslations && pc)
@@ -2526,9 +2528,9 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 		VectorMA(sprorigin, e->origin[0], r_refdef.playerview->vw_axis[0], sprorigin);
 		VectorMA(sprorigin, e->origin[1], r_refdef.playerview->vw_axis[1], sprorigin);
 		VectorMA(sprorigin, e->origin[2], r_refdef.playerview->vw_axis[2], sprorigin);
-		VectorMA(sprorigin, 12, vpn, sprorigin);
+//		VectorMA(sprorigin, 12, vpn, sprorigin);
 
-		batchflags |= BEF_FORCENODEPTH;
+//		batchflags |= BEF_FORCENODEPTH;
 	}
 	else
 		VectorCopy(e->origin, sprorigin);

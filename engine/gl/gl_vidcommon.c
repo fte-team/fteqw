@@ -2175,6 +2175,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				"uniform sampler2D s_paletted;\n",
 				"uniform samplerCube s_reflectcube;\n",
 				"uniform sampler2D s_reflectmask;\n",
+				"uniform sampler2D s_displacement;\n",
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
 				"uniform sampler2D s_deluxemap;\n#define s_deluxemap0 s_deluxemap\n",
 

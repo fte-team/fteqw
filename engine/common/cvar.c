@@ -1340,6 +1340,8 @@ qboolean	Cvar_Command (int level)
 		return true;
 	}
 
+	olev = Cmd_ExecLevel;
+	Cmd_ExecLevel = level;
 #ifdef HAVE_CLIENT
 	if (v->flags & CVAR_USERINFO)
 	{
@@ -1354,6 +1356,7 @@ qboolean	Cvar_Command (int level)
 		}
 		else
 			CL_SetInfo(seat, v->name, str);
+		Cmd_ExecLevel = olev;
 		return true;
 	}
 
@@ -1370,6 +1373,7 @@ qboolean	Cvar_Command (int level)
 			else
 			{
 				Cvar_LockFromServer(v, str);
+				Cmd_ExecLevel = olev;
 				return true;
 			}
 		}
@@ -1380,12 +1384,12 @@ qboolean	Cvar_Command (int level)
 		if (v->defaultstr && strcmp(v->defaultstr, str))
 		{	//lock the cvar, unless it's going to it's default value.
 			Cvar_LockFromServer(v, str);
+			Cmd_ExecLevel = olev;
 			return true;
 		}
 	}
 #endif
 
-	olev = Cmd_ExecLevel;
 	Cmd_ExecLevel = 0;//just to try to detect any bugs that could happen from this
 	Cvar_Set (v, str);	//will use all, quote included
 	Cmd_ExecLevel = olev;

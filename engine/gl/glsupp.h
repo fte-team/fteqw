@@ -892,9 +892,13 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_TEXTURE_MAX_LEVEL 0x813d 
 #endif
 
-#ifndef GL_RGBA16F_ARB
-#define GL_RGBA16F_ARB                      0x881A
-#define GL_RGBA32F_ARB                      0x8814
+#ifndef GL_RGBA16F
+#define GL_RGBA16F                      0x881A
+#define GL_RGBA32F                      0x8814
+#endif
+#ifndef GL_R16F
+#define GL_R16F                           0x822D
+#define GL_R32F                           0x822E
 #endif
 
 #ifndef GL_RED

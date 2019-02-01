@@ -196,8 +196,8 @@
 
 #define vkallocationcb NULL
 #ifdef _DEBUG
-#define VkAssert(f) do {VkResult err = f; if (err) Sys_Error("%s == %i", #f, err); } while(0)
-#define VkWarnAssert(f) do {VkResult err = f; if (err) Con_Printf("%s == %i\n", #f, err); } while(0)
+#define VkAssert(f) do {VkResult err = f; if (err) Sys_Error("%s == %s", #f, VK_VKErrorToString(err)); } while(0)
+#define VkWarnAssert(f) do {VkResult err = f; if (err) Con_Printf("%s == %s\n", #f, VK_VKErrorToString(err)); } while(0)
 #else
 #define VkAssert(f) f
 #define VkWarnAssert(f) f
@@ -481,6 +481,7 @@ void VKBE_RT_Begin(struct vk_rendertarg *targ);
 void VKBE_RT_End(struct vk_rendertarg *targ);
 void VKBE_RT_Destroy(struct vk_rendertarg *targ);
 
+char *VK_VKErrorToString(VkResult err);	//helper for converting vulkan error codes to strings, if we get something unexpected.
 
 qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDeviceSize poolalignment, vk_poolmem_t *mem);
 void VK_ReleasePoolMemory(vk_poolmem_t *mem);

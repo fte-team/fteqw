@@ -118,14 +118,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#pragma comment (lib, "wsock32.lib")
 	#endif
 	#define qerrno WSAGetLastError()
-	#define EWOULDBLOCK WSAEWOULDBLOCK
-	#define EINPROGRESS WSAEINPROGRESS
-	#define ECONNREFUSED WSAECONNREFUSED
-	#define ENOTCONN WSAENOTCONN
+	#define NET_EWOULDBLOCK WSAEWOULDBLOCK
+	#define NET_EINPROGRESS WSAEINPROGRESS
+	#define NET_ECONNREFUSED WSAECONNREFUSED
+	#define NET_ENOTCONN WSAENOTCONN
 
 	//we have special functions to properly terminate sprintf buffers in windows.
 	//we assume other systems are designed with even a minor thought to security.
-	#if !defined(__MINGW32_VERSION)
+	#if !defined(__MINGW32__)
 		#define unlink _unlink	//why do MS have to be so awkward?
 		int snprintf(char *buffer, int buffersize, char *format, ...) PRINTFWARNING(3);
 		int vsnprintf(char *buffer, int buffersize, const char *format, va_list argptr);
@@ -189,8 +189,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //try the cygwin ones
 #endif
 
-#ifndef EAGAIN
-#define EAGAIN EWOULDBLOCK
+#ifndef NET_EWOULDBLOCK
+#define NET_EWOULDBLOCK EWOULDBLOCK
+#define NET_EINPROGRESS EINPROGRESS
+#define NET_ECONNREFUSED ECONNREFUSED
+#define NET_ENOTCONN ENOTCONN
+#endif
+
+#ifndef NET_EAGAIN
+#define NET_EAGAIN NET_EWOULDBLOCK
 #endif
 #ifndef IPV6_V6ONLY
 	#define IPV6_V6ONLY 27
@@ -229,6 +236,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 size_t strlcpy(char *dst, const char *src, size_t siz);
 
+#define SHA1 SHA1_quake
 size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
 
 
@@ -236,8 +244,12 @@ size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *st
 #define Sys_Printf QTVSys_Printf
 #endif
 
+#ifndef STRINGIFY
+#define STRINGIFY2(s) #s
+#define STRINGIFY(s) STRINGIFY2(s)
+#endif
 #ifdef SVNREVISION
-#define QTV_VERSION_STRING SVNREVISION
+#define QTV_VERSION_STRING STRINGIFY(SVNREVISION)
 #else
 //#include "../engine/common/bothdefs.h"
 //#define QTV_VERSION_STRING STRINGIFY(FTE_VER_MAJOR)"."STRINGIFY(FTE_VER_MINOR)
@@ -748,10 +760,16 @@ typedef struct {
 	int time, smalltime;
 } availdemo_t;
 
-#define SOCKETGROUPS 2
+enum
+{
+	SG_IPV4,
+	SG_IPV6,
+	SG_UNIX,
+	SOCKETGROUPS
+};
 struct cluster_s {
-	SOCKET qwdsocket[2];	//udp + quakeworld protocols
-	SOCKET tcpsocket[2];	//tcp listening socket (for mvd and listings and stuff)
+	SOCKET qwdsocket[SOCKETGROUPS];	//udp + quakeworld protocols
+	SOCKET tcpsocket[SOCKETGROUPS];	//tcp listening socket (for mvd and listings and stuff)
 	tcpconnect_t *tcpconnects;	//'tcpconnect' qizmo-compatible quakeworld-over-tcp connection
 
 	char commandinput[512];
@@ -881,12 +899,15 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 void QW_UpdateUDPStuff(cluster_t *qtv);
+void QW_TCPConnection(cluster_t *cluster, SOCKET sock, wsrbuf_t ws);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_ConnectStream(sv_t *qtv, char *serverurl);
 void QTV_ShutdownStream(sv_t *qtv);
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport);
 void QTV_Printf(sv_t *qtv, char *format, ...) PRINTFWARNING(2);
+void QTV_UpdatedServerInfo(sv_t *tv);
+void QTV_CleanupMap(sv_t *qtv);
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
 void QW_PrintfToViewer(viewer_t *v, char *format, ...) PRINTFWARNING(2);
@@ -894,6 +915,11 @@ void QW_StuffcmdToViewer(viewer_t *v, char *format, ...) PRINTFWARNING(2);
 void QW_StreamPrint(cluster_t *cluster, sv_t *server, viewer_t *allbut, char *message);
 void QW_StreamStuffcmd(cluster_t *cluster, sv_t *server, char *fmt, ...) PRINTFWARNING(3);
 void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcommand);	//execute a command from a view
+void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv);
+void QW_SetMenu(viewer_t *v, int menunum);
+void QW_SetCommentator(cluster_t *cluster, viewer_t *v, viewer_t *commentator);
+void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer);
+void QW_ClearViewerState(viewer_t *viewer);
 
 void PM_PlayerMove (pmove_t *pmove);
 
@@ -924,14 +950,11 @@ qboolean BSP_Visible(bsp_t *bsp, int leafcount, unsigned short *list);
 void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
 const intermission_t *BSP_IntermissionSpot(bsp_t *bsp);
 
-void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv);
 unsigned short QCRC_Block (void *start, int count);
 unsigned short QCRC_Value(unsigned short crcvalue);
 void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
 void SendClientCommand(sv_t *qtv, char *fmt, ...) PRINTFWARNING(2);
 void QTV_Run(sv_t *qtv);
-void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer);
-void QW_SetMenu(viewer_t *v, int menunum);
 
 char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);
 char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize);
@@ -942,11 +965,13 @@ void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 void Cluster_BuildAvailableDemoList(cluster_t *cluster);
 
 void Sys_Printf(cluster_t *cluster, char *fmt, ...) PRINTFWARNING(2);
+//void Sys_mkdir(char *path);
+void QTV_mkdir(char *path);
 
 void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
 sv_t *QTV_NewServerConnection(cluster_t *cluster, int streamid, char *server, char *password, qboolean force, enum autodisconnect_e autodisconnect, qboolean noduplicates, qboolean query);
-void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6);
+void Net_TCPListen(cluster_t *cluster, int port, int socketid);
 qboolean Net_StopFileProxy(sv_t *qtv);
 
 
@@ -954,17 +979,23 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv);
 qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend);
 void SV_ForwardStream(sv_t *qtv, void *buffer, int length);
 int SV_SayToUpstream(sv_t *qtv, char *message);
+void SV_SayToViewers(sv_t *qtv, char *message);
 
 unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size);
 
 void ChooseFavoriteTrack(sv_t *tv);
 
 void DemoViewer_Update(sv_t *svtest);
+void Fwd_SayToDownstream(sv_t *qtv, char *message);
 
 
 //httpsv.c
 void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);
 void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata);
+
+//menu.c
+void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
+void Menu_Draw(cluster_t *cluster, viewer_t *viewer);
 
 
 #ifdef __cplusplus

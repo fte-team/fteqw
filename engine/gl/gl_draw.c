@@ -218,6 +218,7 @@ void GL_SetupFormats(void)
 			glfmt(PTI_A2BGR10,		GL_RGB10_A2,		GL_RGB10_A2,			GL_RGBA,				GL_UNSIGNED_INT_2_10_10_10_REV);
 		if (ver >= 3.0 || GL_CheckExtension("GL_ARB_texture_rg"))
 		{
+			glfmtc(PTI_P8,			GL_R8,				GL_RED,					GL_RED,					GL_UNSIGNED_BYTE,	tc_ru);
 			glfmtc(PTI_R8,			GL_R8,				GL_RED,					GL_RED,					GL_UNSIGNED_BYTE,	tc_ru);
 			glfmtc(PTI_RG8,			GL_RG8,				GL_RG,					GL_RG,					GL_UNSIGNED_BYTE,	tc_rs);
 		}
@@ -229,6 +230,9 @@ void GL_SetupFormats(void)
 
 		if (ver >= 3.0)
 		{
+			glfmtc(PTI_R16,			GL_R16,				GL_RED,					GL_RED,					GL_UNSIGNED_SHORT,	0);
+			glfmtc(PTI_RGBA16,		GL_RGBA16,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT,	0);
+
 			glfmtc(PTI_R16F,		GL_R16F,			GL_RED,					GL_RED,					GL_HALF_FLOAT,		0);
 			glfmtc(PTI_R32F,		GL_R32F,			GL_RED,					GL_RED,					GL_FLOAT,			0);
 

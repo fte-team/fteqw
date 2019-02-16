@@ -68,7 +68,7 @@ extern ftemanifest_t	*fs_manifest;
 #endif
 
 #if defined(_WIN32) || defined(__linux__) && !defined(ANDROID)
-#define USE_GETHOSTNAME_LOCALLISTING
+	#define USE_GETHOSTNAME_LOCALLISTING
 #endif
 
 netadr_t	net_local_cl_ipadr;	//still used to match local ui requests (quake/gamespy), and to generate ip reports for q3 servers (which is probably pointless).
@@ -81,39 +81,28 @@ sizebuf_t	net_message;
 //emscripten can misalign stuff, which is a problem when the leading int is checked directly in a few places. gah.
 FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 #if defined(_WIN32) && defined(HAVE_PACKET)
-WSADATA		winsockdata;
+	WSADATA		winsockdata;
 #endif
 
-#ifdef HAVE_IPV6
-#ifdef _WIN32
-int (WINAPI *pgetaddrinfo) (
-  const char* nodename,
-  const char* servname,
-  const struct addrinfo* hints,
-  struct addrinfo** res
-);
-void (WSAAPI *pfreeaddrinfo) (struct addrinfo*);
+#if defined(_WIN32)
+	int (WINAPI *pgetaddrinfo) (
+	  const char* nodename,
+	  const char* servname,
+	  const struct addrinfo* hints,
+	  struct addrinfo** res
+	);
+	void (WSAAPI *pfreeaddrinfo) (struct addrinfo*);
 #else
-#define pgetaddrinfo getaddrinfo
-#define pfreeaddrinfo freeaddrinfo
-/*int (*pgetaddrinfo)
-(
-  const char* nodename,
-  const char* servname,
-  const struct addrinfo* hints,
-  struct addrinfo** res
-);
-void (*pfreeaddrinfo) (struct addrinfo*);
-*/
-#endif
+	#define pgetaddrinfo getaddrinfo
+	#define pfreeaddrinfo freeaddrinfo
 #endif
 
 #if defined(HAVE_IPV4) && defined(HAVE_SERVER)
-#define HAVE_NATPMP
+	#define HAVE_NATPMP
 #endif
 
 #if defined(HAVE_SERVER) || defined(MASTERONLY)
-#define HAVE_HTTPSV
+	#define HAVE_HTTPSV
 #endif
 
 void NET_GetLocalAddress (int socket, netadr_t *out);
@@ -127,6 +116,8 @@ void IPX_CloseSocket (int socket);
 cvar_t	timeout					= CVARD("timeout","65", "Connections will time out if no packets are received for this duration of time.");		// seconds without any message
 cvar_t	net_hybriddualstack		= CVARD("net_hybriddualstack",		"1", "Uses hybrid ipv4+ipv6 sockets where possible. Not supported on xp or below.");
 cvar_t	net_fakeloss			= CVARFD("net_fakeloss",			"0", CVAR_CHEAT, "Simulates packetloss in both receiving and sending, on a scale from 0 to 1.");
+static cvar_t net_dns_ipv4		= CVARD("net_dns_ipv4",				"1", "If 0, disables dns resolution of names to ipv4 addresses (removing any associated error messages). Also hides ipv4 addresses in address:port listings.");
+static cvar_t net_dns_ipv6		= CVARD("net_dns_ipv6",				"1", "If 0, disables dns resolution of names to ipv6 addresses (removing any associated error messages). Also hides ipv6 addresses in address:port listings.");
 cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
@@ -1040,10 +1031,32 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	{
 		struct sockaddr_un *sa = (struct sockaddr_un *)sadr;
 		int i;
+
+		//limit to known prefixes. this allows for sandboxing.
+		const char *allowedprefixes[] = {"@"DISTRIBUTION, "/tmp/"DISTRIBUTION".", "/tmp/qsock.", "@FTE", "@qtv", "@qsock"};
+		for (i = 0; i < countof(allowedprefixes); i++)
+		{
+			if (!Q_strncasecmp(s, allowedprefixes[i], strlen(allowedprefixes[i])))
+				break;
+		}
+		if (i == countof(allowedprefixes))
+		{
+			Con_DPrintf(CON_WARNING "\"%s\" is not an accepted prefix for a unix socket. Forcing prefix.\n", s);
+			i = 0;
+			sa->sun_path[i++] = 0;
+			sa->sun_path[i++] = 'q';
+			sa->sun_path[i++] = 's';
+			sa->sun_path[i++] = 'o';
+			sa->sun_path[i++] = 'c';
+			sa->sun_path[i++] = 'k';
+		}
+		else i = 0;
+
 		sa->sun_family = AF_UNIX;
 
-		//this parsing is so annoying because I want to support abstract sockets too.
-		for (i = 0; *s && i < countof(sa->sun_path); )
+		//this parsing is so annoying because I want to support abstract sockets too, which have nulls.
+		//we're using @ charsto represent nulls, to match 'lsof -U'
+		for ( ; *s && i < countof(sa->sun_path); )
 		{
 			if (*s == '@')
 			{
@@ -1053,23 +1066,26 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 			else if (*s == '\\')
 			{
 				if (s[1] == 0)
+				{
+					sa->sun_path[i++] = '\\';
 					break;	//error.
+				}
 				else if (s[1] == '\\')
 					sa->sun_path[i++] = '\\';
 				else if (s[1] == '@')
 					sa->sun_path[i++] = '@';
 				else if (s[1] == 'n')
-					sa->sun_path[i++] = 'n';
+					sa->sun_path[i++] = '\n';
 				else if (s[1] == 'r')
-					sa->sun_path[i++] = 'r';
+					sa->sun_path[i++] = '\r';
 				else if (s[1] == 't')
-					sa->sun_path[i++] = 't';
+					sa->sun_path[i++] = '\t';
 				else if (s[1] == '1')
-					sa->sun_path[i++] = '1';
+					sa->sun_path[i++] = '\1';
 				else if (s[1] == '2')
-					sa->sun_path[i++] = '2';
+					sa->sun_path[i++] = '\2';
 				else if (s[1] == '3')
-					sa->sun_path[i++] = '3';
+					sa->sun_path[i++] = '\3';
 				else
 					sa->sun_path[i++] = '?';
 				s+=2;
@@ -1077,6 +1093,8 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 			else
 				 sa->sun_path[i++] = *s++;
 		}
+		if (sa->sun_path[0])	//'pathname sockets should be null terminated'
+			sa->sun_path[i++] = 0;
 		if (i < countof(sa->sun_path))
 			sa->sun_path[i] = 'X';
 		if (addrsize)
@@ -1185,6 +1203,10 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 		}
 		else
 		{
+#if defined(AI_ADDRCONFIG) && !defined(_WIN32)
+			udp6hint.ai_flags |= AI_ADDRCONFIG;	//don't return ipv6 if we can't send to ipv6 hosts
+#endif
+
 			port = strrchr(s, ':');
 
 			if (port)
@@ -1218,12 +1240,16 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 			switch(pos->ai_family)
 			{
 			case AF_INET6:
+				if (!net_dns_ipv6.ival)
+					continue;
 				if (result < addresses)
 					memcpy(&sadr[result++], pos->ai_addr, pos->ai_addrlen);
 				break;
 #ifdef HAVE_IPV4
 			case AF_INET:
-				//ipv4 addresses have a higher priority than ipv6 ones.
+				if (!net_dns_ipv4.ival)
+					continue;
+				//ipv4 addresses have a higher priority than ipv6 ones (too few other quake engines support ipv6).
 				if (result && ((struct sockaddr_in *)&sadr[0])->sin_family == AF_INET6)
 				{
 					if (result < addresses)
@@ -1262,7 +1288,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	else
 #endif
 	{
-#ifdef HAVE_IPV4
+#if defined(HAVE_IPV4) && !defined(pgetaddrinfo) && !defined(HAVE_IPV6)
 		char	copy[128];
 		char	*colon;
 
@@ -1271,6 +1297,8 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 		((struct sockaddr_in *)sadr)->sin_port = 0;
 
 		if (strlen(s) >= sizeof(copy)-1)
+			return false;
+		if (!net_dns_ipv4.ival)
 			return false;
 
 		((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
@@ -2931,71 +2959,15 @@ void FTENET_Generic_Close(ftenet_generic_connection_t *con)
 int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,   unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
 {
 	//in win32, we can look up our own hostname to retrieve a list of local interface addresses.
-#ifdef USE_GETHOSTNAME_LOCALLISTING
 	char		adrs[MAX_ADR_SIZE];
-	int b;
-#endif
 	int found = 0;
 
 	gethostname(adrs, sizeof(adrs));
-#ifdef HAVE_IPV6
-	if (pgetaddrinfo)
+#ifndef pgetaddrinfo
+	if (!pgetaddrinfo)
 	{
-		struct addrinfo hints, *result, *itr;
-		memset(&hints, 0, sizeof(struct addrinfo));
-		hints.ai_family = 0;    /* Allow IPv4 or IPv6 */
-		hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-		hints.ai_flags = 0;
-		hints.ai_protocol = 0;          /* Any protocol */
-
-		if (pgetaddrinfo(adrs, NULL, &hints, &result) == 0)
-		{
-			for (itr = result; itr; itr = itr->ai_next)
-			{
-				if ((itr->ai_addr->sa_family == AF_INET && ipv4)
-					|| (itr->ai_addr->sa_family == AF_INET6 && ipv6)
-#ifdef HAVE_IPX
-					|| (itr->ai_addr->sa_family == AF_IPX && ipx)
-#endif
-					)
-				if (maxaddresses)
-				{
-					SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, sizeof(struct sockaddr_qstorage), addresses);
-					addresses->port = port;
-					*adrflags++ = 0;
-					addresses++;
-					maxaddresses--;
-					found++;
-				}
-			}
-			pfreeaddrinfo(result);
-
-			/*if none found, fill in the 0.0.0.0 or whatever*/
-			if (!found && maxaddresses)
-			{
-				memset(addresses, 0, sizeof(*addresses));
-				addresses->port = port;
-				if (ipv6)
-					addresses->type = NA_IPV6;
-				else if (ipv4)
-					addresses->type = NA_IP;
-				else if (ipx)
-					addresses->type = NA_IPX;
-				else
-					addresses->type = NA_INVALID;
-				*adrflags++ = 0;
-				addresses++;
-				maxaddresses--;
-				found++;
-			}
-		}
-	}
-	else
-#endif
-	{
-		struct hostent *h;
-		h = gethostbyname(adrs);
-		b = 0;
+		struct hostent *h = gethostbyname(adrs);
+		int b = 0;
 #ifdef HAVE_IPV4
 		if(h && h->h_addrtype == AF_INET)
 		{
@@ -3033,6 +3005,63 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 		}
 #endif
 	}
+	else
+#endif
+	{
+		struct addrinfo hints, *result, *itr;
+		memset(&hints, 0, sizeof(struct addrinfo));
+		hints.ai_family = 0;    /* Allow IPv4 or IPv6 */
+		hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+		hints.ai_flags = 0;
+		hints.ai_protocol = 0;          /* Any protocol */
+
+		if (pgetaddrinfo(adrs, NULL, &hints, &result) == 0)
+		{
+			for (itr = result; itr; itr = itr->ai_next)
+			{
+				if (0
+#ifdef HAVE_IPV4
+					|| (itr->ai_addr->sa_family == AF_INET && ipv4)
+#endif
+#ifdef HAVE_IPV6
+					|| (itr->ai_addr->sa_family == AF_INET6 && ipv6)
+#endif
+#ifdef HAVE_IPX
+					|| (itr->ai_addr->sa_family == AF_IPX && ipx)
+#endif
+					)
+				if (maxaddresses)
+				{
+					SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, sizeof(struct sockaddr_qstorage), addresses);
+					addresses->port = port;
+					*adrflags++ = 0;
+					addresses++;
+					maxaddresses--;
+					found++;
+				}
+			}
+			pfreeaddrinfo(result);
+
+			/*if none found, fill in the 0.0.0.0 or whatever*/
+			if (!found && maxaddresses)
+			{
+				memset(addresses, 0, sizeof(*addresses));
+				addresses->port = port;
+				if (ipv6)
+					addresses->type = NA_IPV6;
+				else if (ipv4)
+					addresses->type = NA_IP;
+				else if (ipx)
+					addresses->type = NA_IPX;
+				else
+					addresses->type = NA_INVALID;
+				*adrflags++ = 0;
+				addresses++;
+				maxaddresses--;
+				found++;
+			}
+		}
+	}
 	return found;
 }
 
@@ -3051,6 +3080,10 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 	int fam;
 	int idx = 0;
 	unsigned int time = Sys_Milliseconds();
+
+	ipv4 = ipv4 && net_dns_ipv4.ival;
+	ipv6 = ipv6 && net_dns_ipv6.ival;
+
 	if (time - iftime > 1000 && iflist)
 	{
 		freeifaddrs(iflist);
@@ -3325,7 +3358,6 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 		ret = sendto (con->thesocket, data, length, 0, (struct sockaddr*)&addr, size );
 	if (ret == -1)
 	{
-		const char *prot;
 		int ecode = neterrno();
 // wouldblock is silent
 		if (ecode == NET_EWOULDBLOCK)
@@ -3346,26 +3378,21 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 			return NETERR_DISCONNECTED;
 		}
 
-		//network is unreachable scares the socks off people when IPv6 is non-functional despite ipv4 working fine.
-		//name the problem protocol in the error message.
-		switch(to->type)
 		{
-		case NA_IP: prot = "IPv4"; break;
-		case NA_IPV6: prot = "IPv6"; break;
-		case NA_IPX: prot = "IPX"; break;
-		default: prot = ""; break;
-		}
-
+			char adr[256];
 #ifdef HAVE_CLIENT
-		if (ecode == NET_EADDRNOTAVAIL)
-			Con_DPrintf("NET_Send%sPacket Warning: %i\n", prot, ecode);
-		else
+			if (ecode == NET_EADDRNOTAVAIL)
+				Con_DPrintf("NET_SendPacket(%s) Warning: %i\n", NET_AdrToString (adr, sizeof(adr), to), ecode);
+			else
 #endif
+			{
 #ifdef _WIN32
-			Con_TPrintf ("NET_Send%sPacket ERROR: %i\n", prot, ecode);
+				Con_Printf ("NET_SendPacket(%s) ERROR: %i\n", NET_AdrToString (adr, sizeof(adr), to), ecode);
 #else
-			Con_TPrintf ("NET_Send%sPacket ERROR: %s\n", prot, strerror(ecode));
+				Con_Printf ("NET_SendPacket(%s) ERROR: %s\n", NET_AdrToString (adr, sizeof(adr), to), strerror(ecode));
 #endif
+			}
+		}
 	}
 	else if (ret < length)
 		return NETERR_MTU;
@@ -3542,6 +3569,7 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserv
 				//and we can't re-bind to it while it still exists.
 				//so standard practise is to delete it before the bind.
 				//we do want to make sure the file is actually a socket before we remove it (so people can't abuse stuffcmds)
+				//FIXME: use lock-files
 				struct stat s;
 				if (stat(sa->sun_path, &s)!=-1)
 				{
@@ -7147,7 +7175,7 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 	else if (adr->type == NA_IPV6)
 	{
 		if ((*(int*)adr->address.ip6&BigLong(0xffc00000)) == BigLong(0xfe800000))	//fe80::/10
-			scope = ASCOPE_LAN, desc = "link-local";
+			scope = ASCOPE_LINK, desc = "link-local";
 		else if ((*(int*)adr->address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
 			scope = ASCOPE_LAN, desc = "ULA/private";
 		else if (*(int*)adr->address.ip6 == BigLong(0x20010000)) //2001::/32
@@ -7162,7 +7190,7 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 	else if (adr->type == NA_IP)
 	{
 		if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
-			scope = ASCOPE_LAN, desc = "link-local";
+			scope = ASCOPE_LINK, desc = "link-local";
 		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
 			scope = ASCOPE_LAN, desc = "private";
 		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
@@ -7191,6 +7219,8 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
 	int			flags[sizeof(addr)/sizeof(addr[0])];
 	qboolean	warn = true;
+	static const char *scopes[] = {"process", "local", "link", "lan", "net"};
+	char *desc;
 
 	if (!collection)
 		return;
@@ -7201,23 +7231,20 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	{
 		if (addr[i].type != NA_INVALID)
 		{
-			char *scopes[] = {NULL, "local", "lan", "net"};
-			char *scope;
-			char *desc;
-			scope = scopes[NET_ClassifyAddress(&addr[i], &desc)];
-			if (scope)
+			enum addressscope_e scope = NET_ClassifyAddress(&addr[i], &desc);
+			if (developer.ival || scope >= ASCOPE_LAN)
 			{
 				warn = false;
 				if (desc)
-					Con_Printf("%s address (%s): %s (%s)\n", scope, con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), desc);
+					Con_Printf("%s address (%s): %s (%s)\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), desc);
 				else
-					Con_Printf("%s address (%s): %s\n", scope, con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					Con_Printf("%s address (%s): %s\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
 			}
 		}
 	}
 
 	if (warn)
-		Con_Printf("net address: no addresses\n");
+		Con_Printf("net address: no public addresses\n");
 }
 
 void NET_PrintConnectionsStatus(ftenet_connections_t *collection)
@@ -7298,7 +7325,7 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 	{	//if its a unix socket, attempt to bind it to an unnamed address. linux should generate an ephemerial abstract address (otherwise the server will see an empty address).
 		struct sockaddr_un un;
 		memset(&un, 0, offsetof(struct sockaddr_un, sun_path));
-		bind(newsocket, &un, offsetof(struct sockaddr_un, sun_path));
+		bind(newsocket, (struct sockaddr*)&un, offsetof(struct sockaddr_un, sun_path));
 	}
 	else
 #endif
@@ -7815,6 +7842,8 @@ NET_Init
 void NET_Init (void)
 {
 	Cvar_Register(&net_enabled, "networking");
+	Cvar_Register(&net_dns_ipv4, "networking");
+	Cvar_Register(&net_dns_ipv6, "networking");
 	if (net_enabled.ival)
 	{
 #if defined(_WIN32) && defined(HAVE_PACKET)
@@ -7981,7 +8010,11 @@ void QDECL SV_PortUNIX_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_UNIX, NP_DGRAM);
 }
-cvar_t  sv_port_unix = CVARC("sv_port_unix", "/tmp/fte.sock", SV_PortUNIX_Callback);
+#ifdef __linux	//linux adds abstract sockets, which require no filesystem cleanup.
+cvar_t  sv_port_unix = CVARC("sv_port_unix", "@qsock.fte", SV_PortUNIX_Callback);
+#else
+cvar_t  sv_port_unix = CVARC("sv_port_unix", "/tmp/qsock.fte", SV_PortUNIX_Callback);
+#endif
 #endif
 #ifdef HAVE_NATPMP
 static void QDECL SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)

@@ -1,8 +1,9 @@
 !!permu FOG
 //t0-t3 are the diffusemaps, t4 is the blend factors
-!!samps 5
-!!samps =PCF 6
-!!samps =CUBE 7
+!!samps 4
+!!samps mix=4
+!!samps =PCF shadowmap
+!!samps =CUBE projectionmap
 
 //light levels
 
@@ -95,7 +96,7 @@ uniform vec4 e_lmscale;
 void main (void)
 {
 	vec4 r;
-	vec4 m = texture2D(s_t4, lm);
+	vec4 m = texture2D(s_mix, lm);
 
 	r  = texture2D(s_t0, tc)*m.r;
 	r += texture2D(s_t1, tc)*m.g;
@@ -129,13 +130,13 @@ void main (void)
 		colorscale *= 1.0-(dot(spot,spot));
 	#endif
 	#ifdef PCF
-		colorscale *= ShadowmapFilter(s_t5, vtexprojcoord);
+		colorscale *= ShadowmapFilter(s_shadowmap, vtexprojcoord);
 	#endif
 
 	r.rgb *= colorscale * l_lightcolour;
 
 	#ifdef CUBE
-		r.rgb *= textureCube(s_t6, vtexprojcoord.xyz).rgb;
+		r.rgb *= textureCube(s_projectionmap, vtexprojcoord.xyz).rgb;
 	#endif
 
 	gl_FragColor = fog4additive(r);

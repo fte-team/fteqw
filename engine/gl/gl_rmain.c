@@ -756,6 +756,7 @@ void R_RenderScene (void)
 		{
 			GL_ForceDepthWritable();
 			qglClear (GL_DEPTH_BUFFER_BIT);
+			r_framecount++;
 		}
 
 		TRACE(("dbg: calling R_SetupGL\n"));
@@ -1367,7 +1368,7 @@ void R_Clear (qboolean fbo)
 			//for performance, we clear the depth at the same time we clear colour, so we can skip clearing depth here the first time around each frame.
 			//but for multiple scenes, we do need to clear depth still.
 			//fbos always get cleared depth, just in case (colour fbos may contain junk, but hey).
-			if (fbo && r_clear.ival)
+			if ((fbo && r_clear.ival) || r_refdef.stereomethod==STEREO_RED_BLUE||r_refdef.stereomethod==STEREO_RED_GREEN)
 				qglClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 			else
 				qglClear (GL_DEPTH_BUFFER_BIT);
@@ -1744,6 +1745,8 @@ qboolean R_RenderScene_Cubemap(void)
 			GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
 			qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.fbpheight - (prect.y + cmapsize), cmapsize, cmapsize);
 		}
+
+		r_framecount++;
 	}
 
 	if (usefbo)

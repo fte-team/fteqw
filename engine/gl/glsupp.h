@@ -683,6 +683,7 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_RG                             0x8227
 #define GL_RGB9_E5                        0x8C3D	/*opengl 3.0*/
 #define GL_R8                             0x8229	/*opengl 3.0*/
+#define GL_R16                            0x822A	/*opengl 3.0*/
 #define GL_RG8                            0x822B	/*opengl 3.0*/
 #endif
 #ifndef GL_RG8_SNORM

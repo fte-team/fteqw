@@ -6,14 +6,16 @@
 //wmaker -display :1 (or xterm or whatever)
 
 #include "../plugin.h"
+#include "qux.h"
 #include "../engine.h"
 
-#include "qux.h"
+#undef MULTITHREAD
 
-int mousecursor_x, mousecursor_y;
+float mousecursor_x, mousecursor_y;
 
+static const int baseport = 6000;
 static xclient_t *xclients;
-static qhandle_t xlistensocket;
+static qhandle_t xlistensocket = -1;
 
 xwindow_t *xfocusedwindow;
 
@@ -27,6 +29,7 @@ extern xwindow_t *xpgrabbedwindow;
 
 int ctrldown, altdown;
 
+#ifndef K_CTRL
 int K_BACKSPACE;
 int K_CTRL;
 int K_ALT;
@@ -35,8 +38,175 @@ int K_MOUSE2;
 int K_MOUSE3;
 int K_MOUSE4;
 int K_MOUSE5;
+#endif
+
+int QKeyToScan(int qkey)
+{	//X11 uses some variation of hardware scancodes.
+	//custom keymaps tend to ignore the server and use some other table instead.
+	//so we need to try to match what most servers expect
+	switch(qkey)
+	{
+//	case K_:			return 1;
+//	case K_:			return 2;
+//	case K_:			return 3;
+//	case K_:			return 4;
+//	case K_:			return 5;
+//	case K_:			return 6;
+//	case K_:			return 7;
+//	case K_:			return 8;
+//	case K_:			return 9;
+	case '1':			return 10;
+	case '2':			return 11;
+	case '3':			return 12;
+	case '4':			return 13;
+	case '5':			return 14;
+	case '6':			return 15;
+	case '7':			return 16;
+	case '8':			return 17;
+	case '9':			return 18;
+	case '-':			return 19;
+	case '+':			return 20;
+	case '=':			return 21;
+	case K_BACKSPACE:	return 22;
+
+	case K_TAB:			return 23;
+	case 'q':			return 24;
+	case 'w':			return 25;
+	case 'e':			return 26;
+	case 'r':			return 27;
+	case 't':			return 28;
+	case 'y':			return 29;
+	case 'u':			return 30;
+	case 'i':			return 31;
+	case 'o':			return 32;
+	case 'p':			return 33;
+	case '[':			return 34;
+	case ']':			return 35;
+	case K_ENTER:		return 36;
+
+	case K_LCTRL:		return 37;
+	case 'a':			return 38;
+	case 's':			return 39;
+	case 'd':			return 40;
+	case 'f':			return 41;
+	case 'g':			return 42;
+	case 'h':			return 43;
+	case 'j':			return 44;
+	case 'k':			return 45;
+	case 'l':			return 46;
+	case ';':			return 47;
+	case '\'':			return 48;
+	case '`':			return 49;
+
+	case K_LSHIFT:		return 50;
+	case '#':			return 51;
+	case 'z':			return 52;
+	case 'x':			return 53;
+	case 'c':			return 54;
+	case 'v':			return 55;
+	case 'b':			return 56;
+	case 'n':			return 57;
+	case 'm':			return 58;
+	case ',':			return 59;
+	case '.':			return 60;
+	case '/':			return 61;
+	case K_RSHIFT:		return 62;
+
+	case K_KP_STAR:		return 63;
+	case K_LALT:		return 64;
+	case K_SPACE:		return 65;
+	case K_CAPSLOCK:	return 66;
+	case K_F1:			return 67;
+	case K_F2:			return 68;
+	case K_F3:			return 69;
+	case K_F4:			return 70;
+	case K_F5:			return 71;
+	case K_F6:			return 72;
+	case K_F7:			return 73;
+	case K_F8:			return 74;
+	case K_F9:			return 75;
+	case K_F10:			return 76;
+
+	case K_KP_NUMLOCK:	return 77;
+	case K_SCRLCK:		return 78;
+	case K_KP_HOME:		return 79;
+	case K_KP_UPARROW:	return 80;
+	case K_KP_PGUP:		return 81;
+	case K_KP_MINUS:	return 82;
+	case K_KP_LEFTARROW:return 83;
+	case K_KP_5:		return 84;
+	case K_KP_RIGHTARROW:return 85;
+	case K_KP_PLUS:		return 86;
+	case K_KP_END:		return 87;
+	case K_KP_DOWNARROW:return 88;
+	case K_KP_PGDN:		return 89;
+	case K_KP_INS:		return 90;
+	case K_KP_DEL:		return 91;
+
+//	case K_L3SHIFT:		return 92;
+//	case K_:			return 93;
+	case '\\':			return 94;
+	case K_F11:			return 95;
+	case K_F12:			return 96;
+//	case K_:			return 97;
+//	case K_KATAKANA:	return 98;
+//	case K_HIRAGANA:	return 99;
+//	case K_HENKAN_MODE:	return 100;
+//	case K_HIRAGANA_KATAKANA:return 101;
+//	case K_MUHENKAN:	return 102;
+//	case K_:			return 103;
+	case K_KP_ENTER:	return 104;
+	case K_RCTRL:		return 105;
+	case K_KP_SLASH:	return 106;
+	case K_PRINTSCREEN:	return 107;
+//	case K_L3SHIFT:		return 108;
+//	case K_LINEFEED:	return 109;
+	case K_HOME:		return 110;
+	case K_UPARROW:		return 111;
+	case K_PGUP:		return 112;
+	case K_LEFTARROW:	return 113;
+	case K_RIGHTARROW:	return 114;
+	case K_END:			return 115;
+	case K_DOWNARROW:	return 116;
+	case K_PGDN:		return 117;
+	case K_INS:			return 118;
+	case K_DEL:			return 119;
+
+//	case K_:			return 120;
+	case K_MM_VOLUME_MUTE:return 121;
+	case K_VOLDOWN:		return 122;
+	case K_VOLUP:		return 123;
+	case K_POWER:		return 124;
+	case K_KP_EQUALS:	return 125;
+//	case K_PLUSMINUS:	return 126;
+	case K_PAUSE:		return 127;
+//	case K_LAUNCHA:		return 128;
+//	case K_KP_DECIMAL:	return 129;
+//	case K_HANGUL:		return 130;
+//	case K_HANGUL_HANJA:return 131;
+//	case K_:			return 132;
+	case K_LWIN:		return 133;
+	case K_RWIN:		return 134;
+	case K_APP:			return 135;
+//	case K_CANCEL:		return 136;
+//	case K_REDO:		return 137;
+//	case K_SUNPROPS:	return 138;
+//	case K_UNDO:		return 139;
+//	case K_SUNFRONT:	return 140;
+//	case K_COPY:		return 141;
+//	case K_OPEN:		return 142;
+//	case K_PASTE:		return 143;
+//	case K_FIND:		return 144;
+//	case K_CUT:			return 145;
+//	case K_HELP:		return 146;
+//	case K_MENUKB:		return 147;
+//	case K_CALCULATOR:	return 148;
 
 
+
+	default:			return 0;
+	}
+}
 
 void X_SendData(xclient_t *cl, void *data, int datalen)
 {
@@ -133,7 +303,7 @@ int X_SendNotificationMasked(xEvent *data, xwindow_t *window, unsigned int mask)
 				continue;
 			}
 			window = child->parent;
-
+			if (window)
 //			for (window = child; window; window = window->parent)
 			{
 				for (nm = window->notificationmask; nm; nm = nm->next)
@@ -516,7 +686,6 @@ nextmessage:
 				if (inlen >= sizeof(xConnClientPrefix))
 				{
 					xConnClientPrefix *prefix = (xConnClientPrefix *)input;
-					input += sizeof(xConnClientPrefix);
 					cl->stillinitialising = false;
 					if (prefix->byteOrder != 'l')	//egad no. horrible.
 					{
@@ -539,7 +708,7 @@ nextmessage:
 #endif
 						return true;
 					}
-					if (prefix->nbytesAuthProto != 0)	//we can't handle this
+					/*if (prefix->nbytesAuthProto != 0)	//we can't handle this
 					{
 #ifdef MULTITHREADWIN32
 						LeaveCriticalSection(&cl->delecatesection);
@@ -552,9 +721,14 @@ nextmessage:
 						LeaveCriticalSection(&cl->delecatesection);
 #endif
 						return true;
+					}*/
+
+					if (inlen >= sizeof(*prefix) + ((prefix->nbytesAuthProto+3)&~3) + ((prefix->nbytesAuthString+3)&~3))
+					{
+						input += sizeof(*prefix) + ((prefix->nbytesAuthProto+3)&~3) + ((prefix->nbytesAuthString+3)&~3);
+						X_SendIntialResponse(cl);
+						goto nextmessage;
 					}
-					X_SendIntialResponse(cl);
-					goto nextmessage;
 				}
 			}
 			else if (inlen >= sizeof(xReq))
@@ -763,15 +937,11 @@ void XWindows_TendToClients(void)
 {
 	xclient_t *cl, *prev=NULL;
 	qhandle_t newclient;
-#ifndef MULTITHREADWIN32
-	unsigned int _true = 1;
-	unsigned int _false = 0;
-#endif
 
-	if (xlistensocket)
+	if (xlistensocket >= 0)
 	{
 		newclient = pNet_Accept(xlistensocket, NULL, 0);
-		if ((int)newclient != -1)
+		if (newclient >= 0)
 		{
 			cl = malloc(sizeof(xclient_t));
 			memset(cl, 0, sizeof(xclient_t));
@@ -829,27 +999,66 @@ void XWindows_TendToClients(void)
 	}
 }
 
-void XWindows_Startup(void)	//initialise the server socket and do any initial setup as required.
+#ifdef UNIXSOCKETS
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/file.h>
+int XWindows_UnixListen(int x11display)
 {
-	char buffer[64];
+	char lockfile[256];
+	char socketfile[256];
+	int lock_fd, ret;
 
-	int port = 6000;
+	Q_snprintf(lockfile, sizeof(lockfile), "/tmp/.X%i-lock", x11display);
+	Q_snprintf(socketfile, sizeof(socketfile), "/tmp/.X11-unix/X%i", x11display);
 
-	pCmd_Argv(1, buffer, sizeof(buffer));
-	port += atoi(buffer);
+	lock_fd = open(lockfile, O_RDONLY | O_CREAT, 0600);
+	if (lock_fd == -1)
+		return -1;	//can't do it, jim
 
-	if (!xlistensocket)
+	// try to acquire lock
+	ret = flock(lock_fd, LOCK_EX | LOCK_NB);
+	if (ret != 0)
 	{
-		xlistensocket = pNet_TCPListen(NULL, port, 3);
+		close(lock_fd);
+		return -1;
+	}
+
+	// remove socket file
+	unlink(socketfile);
+
+	return pNet_TCPListen(va("unix://%s", socketfile), baseport+x11display, 3);
+}
+#endif
+
+void XWindows_Startup(int x11display)	//initialise the server socket and do any initial setup as required.
+{
+	if (xlistensocket < 0)
+	{
+#ifdef UNIXSOCKETS
+		if (x11display < 0)
+		{
+			while(xlistensocket < 0)
+				xlistensocket = XWindows_UnixListen(++x11display);
+		}
+		else
+			xlistensocket = XWindows_UnixListen(x11display);
+#else
+		if (x11display < 0)
+			x11display = 0;
+		xlistensocket = pNet_TCPListen(NULL, baseport+x11display, 3);
+#endif
 		if (xlistensocket < 0)
 		{
-			xlistensocket = 0;
+			xlistensocket = -1;
 			Con_Printf("Failed to create tcp listen socket\n");
 			return;
 		}
 
 		X_InitRequests();
 		XS_CreateInitialResources();
+
+		system(va("DISPLAY=:%i /usr/bin/x-terminal-emulator &", x11display));
 	}
 
 	XS_CheckResourceSentinals();
@@ -1055,7 +1264,6 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 	xwindow_t *nw = ew;
 	xwindow_t *oc[MAX_WINDOW_CHAIN];
 	xwindow_t *nc[MAX_WINDOW_CHAIN];
-	unsigned int curtime = pSys_Milliseconds();
 
 
 	if (!nw)
@@ -1282,14 +1490,13 @@ void X_EvalutateCursorOwner(int movemode)
 {
 	xEvent ev;
 	xwindow_t *cursorowner, *wnd, *use;
-	int mx, my;
+	float mx, my;
 	int wcx;
 	int wcy;
 
 	extern xwindow_t *xpconfinewindow;
 
 	{
-		extern int mousecursor_x, mousecursor_y;
 		mx = mousecursor_x;
 		my = mousecursor_y;
 	}
@@ -1762,7 +1969,9 @@ void XWindows_KeyDown(int key)
 		else
 		{
 			ev.u.u.type						= KeyPress;
-			ev.u.u.detail					= key;
+			ev.u.u.detail					= QKeyToScan(key);
+			if (!ev.u.u.detail)
+				return;	//urm, never mind
 			ev.u.keyButtonPointer.state		= 0;
 			ev.u.keyButtonPointer.child		= x_windowwithfocus;
 		}
@@ -1861,7 +2070,9 @@ void XWindows_Keyup(int key)
 		else
 		{
 			ev.u.u.type					= KeyRelease;
-			ev.u.u.detail				= key;
+			ev.u.u.detail				= QKeyToScan(key);
+			if (!ev.u.u.detail)
+				return;	//urm, never mind
 			ev.u.keyButtonPointer.child		= x_windowwithfocus;
 		}
 		ev.u.u.sequenceNumber			= 0;
@@ -1899,7 +2110,7 @@ void XWindows_Keyup(int key)
 	XS_CheckResourceSentinals();
 }
 
-int Plug_MenuEvent(int *args)
+/*static int X11_MenuEvent(int *args)
 {
 	mousecursor_x = args[2];
 	mousecursor_y = args[3];
@@ -1919,21 +2130,22 @@ int Plug_MenuEvent(int *args)
 	}
 
 	return 0;
-}
+}*/
 
-qintptr_t Plug_ExecuteCommand(qintptr_t *args)
+static qintptr_t X11_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
 	pCmd_Argv(0, cmd, sizeof(cmd));
 	if (!strcmp("startx", cmd))
 	{
-		XWindows_Startup();
+		pCmd_Argv(1, cmd, sizeof(cmd));
+		XWindows_Startup(*cmd?atoi(cmd):-1);
 		return 1;
 	}
 	return 0;
 }
 
-qintptr_t Plug_Tick(qintptr_t *args)
+static qintptr_t X11_Tick(qintptr_t *args)
 {
 	XWindows_TendToClients();
 	return 0;
@@ -1943,7 +2155,7 @@ static void *XWindows_Create(const char *medianame)	//initialise the server sock
 {
 	if (!strcmp(medianame, "x11"))
 	{
-		XWindows_Startup();
+		XWindows_Startup(-1);
 		return xscreen;
 	}
 	return NULL;
@@ -1963,13 +2175,13 @@ static qboolean VARGS XWindows_DisplayFrame(void *ctx, qboolean nosound, qboolea
 static void XWindows_Shutdown(void *ctx)
 {
 	pNet_Close(xlistensocket);
-	xlistensocket = 0;
+	xlistensocket = -1;
 }
 
 static qboolean XWindows_SetSize (void *ctx, int width, int height)
 {
 	qbyte *ns;
-	if (width < 64 || height < 64 || width > 2048 || height > 2048)
+	if (width < 64 || height < 64 || width > 16384 || height > 16384)
 		return false;
 
 	ns = realloc(xscreen, width*4*height);
@@ -1980,8 +2192,11 @@ static qboolean XWindows_SetSize (void *ctx, int width, int height)
 		xscreenheight = height;
 		xscreenmodified = true;
 
-		//FIXME: resize root window + send notify
-
+		if (rootwindow)
+		{
+			X_Resize(rootwindow, 0, 0, width, height);
+			XW_ExposeWindow(rootwindow, 0, 0, rootwindow->width, rootwindow->height);
+		}
 		return true;
 	}
 	return false;
@@ -2026,9 +2241,9 @@ media_decoder_funcs_t decoderfuncs =
 
 qintptr_t Plug_Init(qintptr_t *args)
 {
-	if (!Plug_Export("ExecuteCommand", Plug_ExecuteCommand) ||
-//		!Plug_Export("MenuEvent", Plug_MenuEvent) ||
-		!Plug_Export("Tick", Plug_Tick))
+	if (!Plug_Export("ExecuteCommand", X11_ExecuteCommand) ||
+//		!Plug_Export("MenuEvent", X11_MenuEvent) ||
+		!Plug_Export("Tick", X11_Tick))
 	{
 		Con_Printf("XServer plugin failed\n");
 		return false;
@@ -2044,7 +2259,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 	pCmd_AddCommand("startx");
 
-
+#ifndef K_CTRL
 	K_CTRL			= pKey_GetKeyCode("ctrl");
 	K_ALT			= pKey_GetKeyCode("alt");
 	K_MOUSE1		= pKey_GetKeyCode("mouse1");
@@ -2065,5 +2280,6 @@ qintptr_t Plug_Init(qintptr_t *args)
 	K_LEFTARROW		= Key_GetKeyCode("leftarrow");
 	K_RIGHTARROW	= Key_GetKeyCode("rightarrow");
 */
+#endif
 	return true;
 }

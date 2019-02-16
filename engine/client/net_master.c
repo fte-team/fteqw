@@ -73,7 +73,7 @@ qboolean Master_MasterProtocolIsEnabled(enum masterprotocol_e protocol)
 
 #define MAX_MASTER_ADDRESSES 4	//each master might have multiple dns addresses, typically both ipv4+ipv6. we want to report to both address families so we work with remote single-stack hosts.
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
 static void SV_SetMaster_f (void);
 #else
@@ -247,7 +247,11 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 			switch(master->protocol)
 			{
 			case MP_QUAKEWORLD:
-				if (sv_listen_qw.value)
+				if ((svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM
+#ifdef VM_LUA
+					|| svs.gametype == GT_LUA
+#endif
+					) && sv_listen_qw.value && na->type == NA_IP)
 				{
 					if (!madeqwstring)
 					{
@@ -271,7 +275,7 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				break;
 #ifdef Q2SERVER
 			case MP_QUAKE2:
-				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value)	//sv_listen==sv_listen_qw, yes, weird.
+				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value && na->type == NA_IP)	//sv_listen==sv_listen_qw, yes, weird.
 				{
 					char *str = "\377\377\377\377heartbeat\n%s\n%s";
 					char info[8192];
@@ -363,6 +367,7 @@ struct thr_res
 };
 void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 {
+	char adr[256];
 	int i;
 	struct thr_res *work = data;
 	netadr_t *na;
@@ -380,10 +385,29 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 			*na = work->na[i];
 			master->needsresolve = false;
 
+			switch (master->protocol)
+			{
+#ifdef Q2SERVER
+			case MP_QUAKE2:
+#endif
+			case MP_QUAKEWORLD:
+				//these masters have no ipv6 results query, so don't sent ipv6 heartbeats
+				//(its possible that a router will convert to ipv4, but such a router is probably natted and its not really worth it)
+				if (na->type != NA_IP)
+					na->type = NA_INVALID;
+				break;
+			default:
+				//these masters should do ipv4+ipv6, but not others.
+				if (na->type != NA_IP && na->type != NA_IPV6)
+					na->type = NA_INVALID;
+				break;	//protocol
+			}
+
 			if (na->type == NA_INVALID)
 				memset(na, 0, sizeof(*na));
 			else
 			{
+				Con_DPrintf ("Resolved master \"%s\" to %s\n", master->cv.string, NET_AdrToString(adr, sizeof(adr), na));
 				//fix up default ports if not specified
 				if (!na->port)
 				{
@@ -395,7 +419,7 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 #endif
 					case MP_DPMASTER:	na->port = BigShort (27950);	break;
 #ifdef Q2SERVER
-					case MP_QUAKE2:		na->port = BigShort (27000);	break;	//FIXME: verify
+					case MP_QUAKE2:		na->port = BigShort (27900);	break;	//FIXME: verify
 #endif
 #ifdef Q3SERVER
 					case MP_QUAKE3:		na->port = BigShort (27950);	break;
@@ -541,6 +565,7 @@ void SV_Master_ClearAll(void)
 	}
 }
 
+#ifndef NOLEGACY
 /*
 ====================
 SV_SetMaster_f
@@ -580,6 +605,7 @@ static void SV_SetMaster_f (void)
 
 	svs.last_heartbeat = -99999;
 }
+#endif
 
 void SV_Master_ReResolve(void)
 {
@@ -2543,18 +2569,23 @@ void MasterInfo_Request(master_t *mast)
 		case MP_QUAKE3:
 			{
 				char *str;
-				str = va("%c%c%c%cgetservers %u empty full\n", 255, 255, 255, 255, 68);
+				if (mast->adr.type == NA_IPV6)
+					str = va("%c%c%c%cgetserversExt %u empty full ipv6\n", 255, 255, 255, 255, 68);
+				else
+					str = va("%c%c%c%cgetservers %u empty full\n", 255, 255, 255, 255, 68);
 				NET_SendPollPacket (strlen(str), str, mast->adr);
 			}
 			break;
 #endif
 #ifdef Q2CLIENT
 		case MP_QUAKE2:
-			NET_SendPollPacket (6, "query", mast->adr);
+			if (mast->adr.type == NA_IP)	//qw masters have no ipx/ipv6 reporting, so its a bit pointless
+				NET_SendPollPacket (6, "query", mast->adr);
 			break;
 #endif
 		case MP_QUAKEWORLD:
-			NET_SendPollPacket (3, "c\n", mast->adr);
+			if (mast->adr.type == NA_IP)	//qw masters have no ipx/ipv6 reporting, so its a bit pointless
+				NET_SendPollPacket (3, "c\n", mast->adr);
 			break;
 #ifdef NQPROT
 		case MP_NETQUAKE:
@@ -2573,9 +2604,9 @@ void MasterInfo_Request(master_t *mast)
 					//for compat with dp, we use the nq netchan version. which is stupid, but whatever
 					//we ask for ipv6 addresses from ipv6 masters (assuming it resolved okay)
 					if (mast->adr.type == NA_IPV6)
-						str = va("%c%c%c%cgetserversExt %s %u empty full ipv6"/*\x0A\n"*/, 255, 255, 255, 255, game, com_protocolversion.ival);
+						str = va("%c%c%c%cgetserversExt %s %u empty full ipv6", 255, 255, 255, 255, game, com_protocolversion.ival);
 					else
-						str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, game, com_protocolversion.ival);
+						str = va("%c%c%c%cgetservers %s %u empty full", 255, 255, 255, 255, game, com_protocolversion.ival);
 					NET_SendPollPacket (strlen(str), str, mast->adr);
 				}
 			}
@@ -3619,7 +3650,7 @@ void Net_Master_Init(void)
 	int i;
 	for (i = 0; net_masterlist[i].cv.name; i++)
 		Cvar_Register(&net_masterlist[i].cv, "master servers");
-#ifdef HAVE_SERVER
+#if defined(HAVE_SERVER) && !defined(NOLEGACY)
 	Cmd_AddCommand ("setmaster", SV_SetMaster_f);
 #endif
 

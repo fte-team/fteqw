@@ -337,6 +337,7 @@ void XR_GetProperty (xclient_t *cl, xReq *request)
 	int format;
 	int trailing;
 	xGetPropertyReply *rep = (xGetPropertyReply*)buffer;
+	Atom proptype;
 
 	if (XS_GetResource(req->window, (void**)&wnd) != x_window)
 	{	//wait a minute, That's not a window!!!
@@ -351,10 +352,12 @@ void XR_GetProperty (xclient_t *cl, xReq *request)
 
 	if (req->longLength > sizeof(buffer) - sizeof(req)/4)
 		req->longLength = sizeof(buffer) - sizeof(req)/4;
-	datalen = XS_GetProperty(wnd, req->property, &rep->propertyType, (char *)(rep+1), req->longLength*4, req->longOffset*4, &trailing, &format);
+
+	datalen = XS_GetProperty(wnd, req->property, &proptype, (char *)(rep+1), req->longLength*4, req->longOffset*4, &trailing, &format);
 
 	rep->type			= X_Reply;
     rep->format			= format;
+    rep->propertyType	= proptype;
     rep->sequenceNumber	= cl->requestnum;
     rep->length			= (datalen+3)/4;
 	//rep->propertyType	= None;
@@ -593,7 +596,38 @@ void XR_SetSelectionOwner (xclient_t *cl, xReq *request)
 	}
 }
 
+void XR_ConvertSelection (xclient_t *cl, xReq *request)
+{
+	xConvertSelectionReq *req = (void*)request;
+	xatom_t *atom = XS_GetResourceType(req->selection, x_atom);
+	xEvent rep;
 
+	if (atom && atom->selectionownerwindowid)
+	{	//forward the request to the selection's owner
+		rep.u.u.type = SelectionRequest;
+		rep.u.u.detail = 0;
+		rep.u.u.sequenceNumber = 0;
+		rep.u.selectionRequest.time = req->time;
+		rep.u.selectionRequest.owner = atom->selectionownerwindowid;
+		rep.u.selectionRequest.target = req->target;
+		rep.u.selectionRequest.property = req->property;
+		rep.u.selectionRequest.requestor = req->requestor;
+		rep.u.selectionRequest.selection = req->selection;
+		X_SendData(atom->selectionownerclient, &rep, sizeof(rep));
+	}
+	else
+	{	//return it back to the sender, or so
+		rep.u.u.type = SelectionNotify;
+		rep.u.u.detail = 0;
+		rep.u.u.sequenceNumber = 0;
+		rep.u.selectionNotify.time = req->time;
+		rep.u.selectionNotify.target = req->target;
+		rep.u.selectionNotify.property = req->property;
+		rep.u.selectionNotify.requestor = req->requestor;
+		rep.u.selectionNotify.selection = req->selection;
+		X_SendData(cl, &rep, sizeof(rep));
+	}
+}
 
 
 extern int x_windowwithcursor;
@@ -1063,7 +1097,7 @@ void XR_ChangeWindowAttributes (xclient_t *cl, xReq *request)
 
 void XR_ConfigureWindow (xclient_t *cl, xReq *request)
 {
-	int newx, newy, neww, newh, sibid, newbw;
+	int newx, newy, neww, newh, sibid, newbw, stackmode;
 	xConfigureWindowReq *req = (xConfigureWindowReq *)request;
 	xwindow_t *wnd;
 
@@ -1112,22 +1146,22 @@ void XR_ConfigureWindow (xclient_t *cl, xReq *request)
 	if (req->mask & CWSibling)
 		sibid = *parm++;
 	else
-		sibid = 0;
+		sibid = None;
 	if (req->mask & CWStackMode)
-		*parm++;
+		stackmode = *parm++;
+	else
+		stackmode = Above;
 
 	if (!wnd->overrideredirect && X_NotifcationMaskPresent(wnd, SubstructureRedirectMask, cl))
 	{
 		xEvent ev;
 
-
-
 		ev.u.u.type							= ConfigureRequest;
-		ev.u.u.detail						= 0;
+		ev.u.u.detail						= stackmode;
 		ev.u.u.sequenceNumber				= 0;
 		ev.u.configureRequest.parent		= wnd->parent->res.id;
 		ev.u.configureRequest.window		= wnd->res.id;
-		ev.u.configureRequest.sibling		= wnd->sibling?wnd->sibling->res.id:None;
+		ev.u.configureRequest.sibling		= sibid;
 		ev.u.configureRequest.x				= newx;
 		ev.u.configureRequest.y				= newy;
 		ev.u.configureRequest.width			= neww;
@@ -1139,55 +1173,7 @@ void XR_ConfigureWindow (xclient_t *cl, xReq *request)
 		X_SendNotificationMasked(&ev, wnd, SubstructureRedirectMask);
 	}
 	else
-	{
-		xEvent ev;
-
-	/*	if (wnd->xpos == newx && wnd->ypos == newy)
-		{
-			ev.u.u.type							= ResizeRequest;
-			ev.u.u.detail						= 0;
-			ev.u.u.sequenceNumber				= 0;
-			ev.u.resizeRequest.window			= wnd->res.id;
-			ev.u.resizeRequest.width			= wnd->width;
-			ev.u.resizeRequest.height			= wnd->height;
-
-			X_SendNotificationMasked(&ev, wnd, StructureNotifyMask);
-			X_SendNotificationMasked(&ev, wnd, SubstructureNotifyMask);
-
-			return;
-		}*/
-
-		wnd->xpos = newx;
-		wnd->ypos = newy;
-
-		if ((wnd->width != neww || wnd->height != newh) && wnd->buffer)
-		{
-			free(wnd->buffer);
-			wnd->buffer = NULL;
-		}
-		wnd->width = neww;
-		wnd->height = newh;
-
-		if (wnd->mapped)
-			xrefreshed = true;
-
-		ev.u.u.type							= ConfigureNotify;
-		ev.u.u.detail						= 0;
-		ev.u.u.sequenceNumber				= 0;
-		ev.u.configureNotify.event			= wnd->res.id;
-		ev.u.configureNotify.window			= wnd->res.id;
-		ev.u.configureNotify.aboveSibling	= None;
-		ev.u.configureNotify.x				= wnd->xpos;
-		ev.u.configureNotify.y				= wnd->ypos;
-		ev.u.configureNotify.width			= wnd->width;
-		ev.u.configureNotify.height			= wnd->height;
-		ev.u.configureNotify.borderWidth	= 0;
-		ev.u.configureNotify.override		= wnd->overrideredirect;
-		ev.u.configureNotify.bpad			= 0;
-
-		X_SendNotificationMasked(&ev, wnd, StructureNotifyMask);
-		X_SendNotificationMasked(&ev, wnd, SubstructureNotifyMask);
-	}
+		X_Resize(wnd, newx, newy, neww, newh);
 }
 
 void XR_ReparentWindow (xclient_t *cl, xReq *request)
@@ -1220,7 +1206,7 @@ void XR_ReparentWindow (xclient_t *cl, xReq *request)
 	ev.u.u.detail					= 0;
 	ev.u.reparent.override = wnd->overrideredirect;
 	ev.u.reparent.window = wnd->res.id;
-	ev.u.reparent.parent = wnd->res.id;
+	ev.u.reparent.parent = wnd->parent->res.id;
 	ev.u.reparent.x = req->x;
 	ev.u.reparent.y = req->y;
 
@@ -1344,17 +1330,280 @@ void XR_GetWindowAttributes (xclient_t *cl, xReq *request)
 	X_SendData(cl, &rep, sizeof(xGetWindowAttributesReply));
 }
 
+
+static struct
+{
+	KeySym keysym[8];
+} keyboardmapping[256] =
+{
+	{{0}},
+	{{0}},
+	{{0}},
+	{{0}},
+	{{0}},
+	{{0}},
+	{{0}},
+	{{0}},
+	{{0}},
+	{{XK_Escape, NoSymbol, XK_Escape}},	//10
+	{{XK_1, XK_exclam, XK_1, XK_exclam, XK_onesuperior, XK_exclamdown, XK_onesuperior}},	//10	//11
+	{{XK_2, XK_quotedbl, XK_2, XK_quotedbl, XK_twosuperior}},//, XK_oneeighth, XK_twosuperior}},	//12
+	{{XK_3, XK_sterling, XK_3, XK_sterling, XK_threesuperior, XK_sterling, XK_threesuperior}},	//13
+	{{XK_4, XK_dollar, XK_4, XK_dollar}},//, XK_EuroSign, XK_onequarter, XK_EuroSign}},	//14
+	{{XK_5, XK_percent, XK_5, XK_percent, XK_onehalf}},//, XK_threeeighths, XK_onehalf}},	//15
+	{{XK_6, XK_asciicircum, XK_6, XK_asciicircum, XK_threequarters}},//, XK_fiveeighths, XK_threequarters}},	//16
+	{{XK_7, XK_ampersand, XK_7, XK_ampersand, XK_braceleft}},//, XK_seveneighths, XK_braceleft}},	//17
+	{{XK_8, XK_asterisk, XK_8, XK_asterisk, XK_bracketleft}},//, XK_trademark, XK_bracketleft}},	//18
+	{{XK_9, XK_parenleft, XK_9, XK_parenleft, XK_bracketright, XK_plusminus, XK_bracketright}},	//19
+    {{XK_0, XK_parenright, XK_0, XK_parenright, XK_braceright, XK_degree, XK_braceright}},	//10
+    {{XK_minus, XK_underscore, XK_minus, XK_underscore, XK_backslash, XK_questiondown, XK_backslash}},	//20
+    {{XK_equal, XK_plus, XK_equal, XK_plus}},//, XK_dead_cedilla, XK_dead_ogonek, XK_dead_cedilla}},	//21
+    {{XK_BackSpace, XK_BackSpace, XK_BackSpace, XK_BackSpace}},	//22
+    {{XK_Tab}},//, XK_ISO_Left_Tab, XK_Tab, XK_ISO_Left_Tab}},	//23
+    {{XK_q, XK_Q, XK_q, XK_Q, XK_at}},//, XK_Greek_OMEGA, XK_at}},	//24
+    {{XK_w, XK_W, XK_w, XK_W}},//, XK_lstroke, XK_Lstroke, XK_lstroke}},	//25
+    {{XK_e, XK_E, XK_e, XK_E, XK_e, XK_E, XK_e}},	//26
+    {{XK_r, XK_R, XK_r, XK_R, XK_paragraph, XK_registered, XK_paragraph}},	//27
+    {{XK_t, XK_T, XK_t, XK_T}},//, XK_tslash, XK_Tslash, XK_tslash}},	//28
+    {{XK_y, XK_Y, XK_y, XK_Y}},//, XK_leftarrow, XK_yen, XK_leftarrow}},	//29
+     {{XK_u, XK_U, XK_u, XK_U}},//, XK_downarrow, XK_uparrow, XK_downarrow}},	//30
+     {{XK_i, XK_I, XK_i, XK_I}},//, XK_rightarrow, XK_idotless, XK_rightarrow}},	//31
+     {{XK_o, XK_O, XK_o, XK_O, XK_oslash, XK_Oslash, XK_oslash}},	//32
+     {{XK_p, XK_P, XK_p, XK_P, XK_thorn, XK_THORN, XK_thorn}},	//33
+     {{XK_bracketleft, XK_braceleft, XK_bracketleft, XK_braceleft}},//, XK_dead_diaeresis, XK_dead_abovering, XK_dead_diaeresis}},	//34
+     {{XK_bracketright, XK_braceright, XK_bracketright, XK_braceright}},//, XK_dead_tilde, XK_dead_macron, XK_dead_tilde}},	//35
+     {{XK_Return, NoSymbol, XK_Return}},	//36
+     {{XK_Control_L, NoSymbol, XK_Control_L}},	//37
+     {{XK_a, XK_A, XK_a, XK_A, XK_ae, XK_AE, XK_ae}},	//38
+     {{XK_s, XK_S, XK_s, XK_S, XK_ssharp, XK_section, XK_ssharp}},	//39
+     {{XK_d, XK_D, XK_d, XK_D, XK_eth, XK_ETH, XK_eth}},	//40
+     {{XK_f, XK_F, XK_f, XK_F}},//, XK_dstroke, XK_ordfeminine, XK_dstroke}},	//41
+     {{XK_g, XK_G, XK_g, XK_G}},//, XK_eng, XK_ENG, XK_eng}},	//42
+     {{XK_h, XK_H, XK_h, XK_H}},//, XK_hstroke, XK_Hstroke, XK_hstroke}},	//43
+     {{XK_j, XK_J, XK_j, XK_J}},//, XK_dead_hook, XK_dead_horn, XK_dead_hook}},	//44
+     {{XK_k, XK_K, XK_k, XK_K}},//, XK_kra, XK_ampersand, XK_kra}},	//45
+     {{XK_l, XK_L, XK_l, XK_L}},//, XK_lstroke, XK_Lstroke, XK_lstroke}},	//46
+     {{XK_semicolon, XK_colon, XK_semicolon, XK_colon}},//, XK_dead_acute, XK_dead_doubleacute, XK_dead_acute}},	//47
+     {{XK_apostrophe, XK_at, XK_apostrophe, XK_at}},//, XK_dead_circumflex, XK_dead_caron, XK_dead_circumflex}},	//48
+     {{XK_grave, XK_notsign, XK_grave, XK_notsign, XK_bar, XK_bar, XK_bar}},	//49
+     {{XK_Shift_L, NoSymbol, XK_Shift_L}},	//50
+     {{XK_numbersign, XK_asciitilde, XK_numbersign, XK_asciitilde}},//, XK_dead_grave, XK_dead_breve, XK_dead_grave}},	//51
+     {{XK_z, XK_Z, XK_z, XK_Z, XK_guillemotleft, XK_less, XK_guillemotleft}},	//52
+     {{XK_x, XK_X, XK_x, XK_X, XK_guillemotright, XK_greater, XK_guillemotright}},	//53
+     {{XK_c, XK_C, XK_c, XK_C, XK_cent, XK_copyright, XK_cent}},	//54
+     {{XK_v, XK_V, XK_v, XK_V}},//, XK_leftdoublequotemark, XK_leftsinglequotemark, XK_leftdoublequotemark}},	//55
+     {{XK_b, XK_B, XK_b, XK_B}},//, XK_rightdoublequotemark, XK_rightsinglequotemark, XK_rightdoublequotemark}},	//56
+     {{XK_n, XK_N, XK_n, XK_N, XK_n, XK_N, XK_n}},	//57
+     {{XK_m, XK_M, XK_m, XK_M, XK_mu, XK_masculine, XK_mu}},	//58
+     {{XK_comma, XK_less, XK_comma, XK_less}},//, XK_horizconnector, XK_multiply, XK_horizconnector}},	//59
+     {{XK_period, XK_greater, XK_period, XK_greater, XK_periodcentered, XK_division, XK_periodcentered}},	//60
+     {{XK_slash, XK_question, XK_slash, XK_question}},//, XK_dead_belowdot, XK_dead_abovedot, XK_dead_belowdot}},	//61
+     {{XK_Shift_R, NoSymbol, XK_Shift_R}},	//62
+     {{XK_KP_Multiply, XK_KP_Multiply, XK_KP_Multiply, XK_KP_Multiply, XK_KP_Multiply, XK_KP_Multiply}},//, XK_XF86ClearGrab}},	//63
+     {{XK_Alt_L, XK_Meta_L, XK_Alt_L, XK_Meta_L}},	//64
+     {{XK_space, NoSymbol, XK_space}},	//65
+     {{XK_Caps_Lock, NoSymbol, XK_Caps_Lock}},	//66
+     {{XK_F1, XK_F1, XK_F1, XK_F1, XK_F1, XK_F1}},//, XK_XF86Switch_VT_1}},	//67
+     {{XK_F2, XK_F2, XK_F2, XK_F2, XK_F2, XK_F2}},//, XK_XF86Switch_VT_2}},	//68
+     {{XK_F3, XK_F3, XK_F3, XK_F3, XK_F3, XK_F3}},//, XK_XF86Switch_VT_3}},	//69
+     {{XK_F4, XK_F4, XK_F4, XK_F4, XK_F4, XK_F4}},//, XK_XF86Switch_VT_4}},	//70
+     {{XK_F5, XK_F5, XK_F5, XK_F5, XK_F5, XK_F5}},//, XK_XF86Switch_VT_5}},	//71
+     {{XK_F6, XK_F6, XK_F6, XK_F6, XK_F6, XK_F6}},//, XK_XF86Switch_VT_6}},	//72
+     {{XK_F7, XK_F7, XK_F7, XK_F7, XK_F7, XK_F7}},//, XK_XF86Switch_VT_7}},	//73
+     {{XK_F8, XK_F8, XK_F8, XK_F8, XK_F8, XK_F8}},//, XK_XF86Switch_VT_8}},	//74
+     {{XK_F9, XK_F9, XK_F9, XK_F9, XK_F9, XK_F9}},//, XK_XF86Switch_VT_9}},	//75
+     {{XK_F10, XK_F10, XK_F10, XK_F10, XK_F10, XK_F10}},//, XK_XF86Switch_VT_10}},	//76
+     {{XK_Num_Lock, NoSymbol, XK_Num_Lock}},	//77
+     {{XK_Scroll_Lock, NoSymbol, XK_Scroll_Lock}},	//78
+     {{XK_KP_Home, XK_KP_7, XK_KP_Home, XK_KP_7}},	//79
+     {{XK_KP_Up, XK_KP_8, XK_KP_Up, XK_KP_8}},	//80
+     {{XK_KP_Prior, XK_KP_9, XK_KP_Prior, XK_KP_9}},	//81
+     {{XK_KP_Subtract, XK_KP_Subtract, XK_KP_Subtract, XK_KP_Subtract, XK_KP_Subtract, XK_KP_Subtract}},//, XK_XF86Prev_VMode}},	//82
+     {{XK_KP_Left, XK_KP_4, XK_KP_Left, XK_KP_4}},	//83
+     {{XK_KP_Begin, XK_KP_5, XK_KP_Begin, XK_KP_5}},	//84
+     {{XK_KP_Right, XK_KP_6, XK_KP_Right, XK_KP_6}},	//85
+     {{XK_KP_Add, XK_KP_Add, XK_KP_Add, XK_KP_Add, XK_KP_Add, XK_KP_Add}},//, XK_XF86Next_VMode}},	//86
+     {{XK_KP_End, XK_KP_1, XK_KP_End, XK_KP_1}},	//87
+     {{XK_KP_Down, XK_KP_2, XK_KP_Down, XK_KP_2}},	//88
+     {{XK_KP_Next, XK_KP_3, XK_KP_Next, XK_KP_3}},	//89
+     {{XK_KP_Insert, XK_KP_0, XK_KP_Insert, XK_KP_0}},	//90
+     {{XK_KP_Delete, XK_KP_Decimal, XK_KP_Delete, XK_KP_Decimal}},	//91
+     {{0}},//XK_ISO_Level3_Shift, NoSymbol, XK_ISO_Level3_Shift}},	//92
+     {{0}}, //93
+     {{XK_backslash, XK_bar, XK_backslash, XK_bar, XK_bar, XK_brokenbar, XK_bar}},	//94
+     {{XK_F11, XK_F11, XK_F11, XK_F11, XK_F11, XK_F11}},//, XK_XF86Switch_VT_11}},	//95
+     {{XK_F12, XK_F12, XK_F12, XK_F12, XK_F12, XK_F12}},//, XK_XF86Switch_VT_12}},	//96
+     {{0}},	//97
+     {{XK_Katakana, NoSymbol, XK_Katakana}},	//98
+     {{XK_Hiragana, NoSymbol, XK_Hiragana}},	//99
+    {{XK_Henkan_Mode, NoSymbol, XK_Henkan_Mode}},	//100
+    {{XK_Hiragana_Katakana, NoSymbol, XK_Hiragana_Katakana}},	//101
+    {{XK_Muhenkan, NoSymbol, XK_Muhenkan}},	//102
+    {{0}}, //103
+    {{XK_KP_Enter, NoSymbol, XK_KP_Enter}},	//104
+    {{XK_Control_R, NoSymbol, XK_Control_R}},	//105
+    {{XK_KP_Divide, XK_KP_Divide, XK_KP_Divide, XK_KP_Divide, XK_KP_Divide, XK_KP_Divide}},//, XK_XF86Ungrab}},	//106
+    {{XK_Print, XK_Sys_Req, XK_Print, XK_Sys_Req}},	//107
+    {{0}},//XK_ISO_Level3_Shift, XK_Multi_key, XK_ISO_Level3_Shift, XK_Multi_key}},	//108
+    {{XK_Linefeed, NoSymbol, XK_Linefeed}},	//109
+    {{XK_Home, NoSymbol, XK_Home}},	//110
+    {{XK_Up, NoSymbol, XK_Up}},	//111
+    {{XK_Prior, NoSymbol, XK_Prior}},	//112
+    {{XK_Left, NoSymbol, XK_Left}},	//113
+    {{XK_Right, NoSymbol, XK_Right}},	//114
+    {{XK_End, NoSymbol, XK_End}},	//115
+    {{XK_Down, NoSymbol, XK_Down}},	//116
+    {{XK_Next, NoSymbol, XK_Next}},	//117
+    {{XK_Insert, NoSymbol, XK_Insert}},	//118
+    {{XK_Delete, NoSymbol, XK_Delete}},	//119
+/*
+    120
+    121         0x1008ff12 (XF86AudioMute)      0x0000 (NoSymbol)       0x1008ff12 (XF86AudioMute)
+    122         0x1008ff11 (XF86AudioLowerVolume)       0x0000 (NoSymbol)       0x1008ff11 (XF86AudioLowerVolume)
+    123         0x1008ff13 (XF86AudioRaiseVolume)       0x0000 (NoSymbol)       0x1008ff13 (XF86AudioRaiseVolume)
+    124         0x1008ff2a (XF86PowerOff)       0x0000 (NoSymbol)       0x1008ff2a (XF86PowerOff)
+    125         0xffbd (KP_Equal)       0x0000 (NoSymbol)       0xffbd (KP_Equal)
+    126         0x00b1 (plusminus)      0x0000 (NoSymbol)       0x00b1 (plusminus)
+    127         0xff13 (Pause)  0xff6b (Break)  0xff13 (Pause)  0xff6b (Break)
+    128         0x1008ff4a (XF86LaunchA)        0x0000 (NoSymbol)       0x1008ff4a (XF86LaunchA)
+    129         0xffae (KP_Decimal)     0xffae (KP_Decimal)     0xffae (KP_Decimal)     0xffae (KP_Decimal)
+    130         0xff31 (Hangul) 0x0000 (NoSymbol)       0xff31 (Hangul)
+    131         0xff34 (Hangul_Hanja)   0x0000 (NoSymbol)       0xff34 (Hangul_Hanja)
+    132
+    133         0xffeb (Super_L)        0x0000 (NoSymbol)       0xffeb (Super_L)
+    134         0xffec (Super_R)        0x0000 (NoSymbol)       0xffec (Super_R)
+    135         0xff67 (Menu)   0x0000 (NoSymbol)       0xff67 (Menu)
+    136         0xff69 (Cancel) 0x0000 (NoSymbol)       0xff69 (Cancel)
+    137         0xff66 (Redo)   0x0000 (NoSymbol)       0xff66 (Redo)
+    138         0x1005ff70 (SunProps)   0x0000 (NoSymbol)       0x1005ff70 (SunProps)
+    139         0xff65 (Undo)   0x0000 (NoSymbol)       0xff65 (Undo)
+    140         0x1005ff71 (SunFront)   0x0000 (NoSymbol)       0x1005ff71 (SunFront)
+    141         0x1008ff57 (XF86Copy)   0x0000 (NoSymbol)       0x1008ff57 (XF86Copy)
+    142         0x1008ff6b (XF86Open)   0x0000 (NoSymbol)       0x1008ff6b (XF86Open)
+    143         0x1008ff6d (XF86Paste)  0x0000 (NoSymbol)       0x1008ff6d (XF86Paste)
+    144         0xff68 (Find)   0x0000 (NoSymbol)       0xff68 (Find)
+    145         0x1008ff58 (XF86Cut)    0x0000 (NoSymbol)       0x1008ff58 (XF86Cut)
+    146         0xff6a (Help)   0x0000 (NoSymbol)       0xff6a (Help)
+    147         0x1008ff65 (XF86MenuKB) 0x0000 (NoSymbol)       0x1008ff65 (XF86MenuKB)
+    148         0x1008ff1d (XF86Calculator)     0x0000 (NoSymbol)       0x1008ff1d (XF86Calculator)
+    149
+    150         0x1008ff2f (XF86Sleep)  0x0000 (NoSymbol)       0x1008ff2f (XF86Sleep)
+    151         0x1008ff2b (XF86WakeUp) 0x0000 (NoSymbol)       0x1008ff2b (XF86WakeUp)
+    152         0x1008ff5d (XF86Explorer)       0x0000 (NoSymbol)       0x1008ff5d (XF86Explorer)
+    153         0x1008ff7b (XF86Send)   0x0000 (NoSymbol)       0x1008ff7b (XF86Send)
+    154
+    155         0x1008ff8a (XF86Xfer)   0x0000 (NoSymbol)       0x1008ff8a (XF86Xfer)
+    156         0x1008ff41 (XF86Launch1)        0x0000 (NoSymbol)       0x1008ff41 (XF86Launch1)
+    157         0x1008ff42 (XF86Launch2)        0x0000 (NoSymbol)       0x1008ff42 (XF86Launch2)
+    158         0x1008ff2e (XF86WWW)    0x0000 (NoSymbol)       0x1008ff2e (XF86WWW)
+    159         0x1008ff5a (XF86DOS)    0x0000 (NoSymbol)       0x1008ff5a (XF86DOS)
+    160         0x1008ff2d (XF86ScreenSaver)    0x0000 (NoSymbol)       0x1008ff2d (XF86ScreenSaver)
+    161         0x1008ff74 (XF86RotateWindows)  0x0000 (NoSymbol)       0x1008ff74 (XF86RotateWindows)
+    162         0x1008ff7f (XF86TaskPane)       0x0000 (NoSymbol)       0x1008ff7f (XF86TaskPane)
+    163         0x1008ff19 (XF86Mail)   0x0000 (NoSymbol)       0x1008ff19 (XF86Mail)
+    164         0x1008ff30 (XF86Favorites)      0x0000 (NoSymbol)       0x1008ff30 (XF86Favorites)
+    165         0x1008ff33 (XF86MyComputer)     0x0000 (NoSymbol)       0x1008ff33 (XF86MyComputer)
+    166         0x1008ff26 (XF86Back)   0x0000 (NoSymbol)       0x1008ff26 (XF86Back)
+    167         0x1008ff27 (XF86Forward)        0x0000 (NoSymbol)       0x1008ff27 (XF86Forward)
+    168
+    169         0x1008ff2c (XF86Eject)  0x0000 (NoSymbol)       0x1008ff2c (XF86Eject)
+    170         0x1008ff2c (XF86Eject)  0x1008ff2c (XF86Eject)  0x1008ff2c (XF86Eject)  0x1008ff2c (XF86Eject)
+    171         0x1008ff17 (XF86AudioNext)      0x0000 (NoSymbol)       0x1008ff17 (XF86AudioNext)
+    172         0x1008ff14 (XF86AudioPlay)      0x1008ff31 (XF86AudioPause)     0x1008ff14 (XF86AudioPlay)      0x1008ff31 (XF86AudioPause)
+    173         0x1008ff16 (XF86AudioPrev)      0x0000 (NoSymbol)       0x1008ff16 (XF86AudioPrev)
+    174         0x1008ff15 (XF86AudioStop)      0x1008ff2c (XF86Eject)  0x1008ff15 (XF86AudioStop)      0x1008ff2c (XF86Eject)
+    175         0x1008ff1c (XF86AudioRecord)    0x0000 (NoSymbol)       0x1008ff1c (XF86AudioRecord)
+    176         0x1008ff3e (XF86AudioRewind)    0x0000 (NoSymbol)       0x1008ff3e (XF86AudioRewind)
+    177         0x1008ff6e (XF86Phone)  0x0000 (NoSymbol)       0x1008ff6e (XF86Phone)
+    178
+    179         0x1008ff81 (XF86Tools)  0x0000 (NoSymbol)       0x1008ff81 (XF86Tools)
+    180         0x1008ff18 (XF86HomePage)       0x0000 (NoSymbol)       0x1008ff18 (XF86HomePage)
+    181         0x1008ff73 (XF86Reload) 0x0000 (NoSymbol)       0x1008ff73 (XF86Reload)
+    182         0x1008ff56 (XF86Close)  0x0000 (NoSymbol)       0x1008ff56 (XF86Close)
+    183
+    184
+    185         0x1008ff78 (XF86ScrollUp)       0x0000 (NoSymbol)       0x1008ff78 (XF86ScrollUp)
+    186         0x1008ff79 (XF86ScrollDown)     0x0000 (NoSymbol)       0x1008ff79 (XF86ScrollDown)
+    187         0x0028 (parenleft)      0x0000 (NoSymbol)       0x0028 (parenleft)
+    188         0x0029 (parenright)     0x0000 (NoSymbol)       0x0029 (parenright)
+    189         0x1008ff68 (XF86New)    0x0000 (NoSymbol)       0x1008ff68 (XF86New)
+    190         0xff66 (Redo)   0x0000 (NoSymbol)       0xff66 (Redo)
+    191         0x1008ff81 (XF86Tools)  0x0000 (NoSymbol)       0x1008ff81 (XF86Tools)
+    192         0x1008ff45 (XF86Launch5)        0x0000 (NoSymbol)       0x1008ff45 (XF86Launch5)
+    193         0x1008ff46 (XF86Launch6)        0x0000 (NoSymbol)       0x1008ff46 (XF86Launch6)
+    194         0x1008ff47 (XF86Launch7)        0x0000 (NoSymbol)       0x1008ff47 (XF86Launch7)
+    195         0x1008ff48 (XF86Launch8)        0x0000 (NoSymbol)       0x1008ff48 (XF86Launch8)
+    196         0x1008ff49 (XF86Launch9)        0x0000 (NoSymbol)       0x1008ff49 (XF86Launch9)
+    197
+    198         0x1008ffb2 (XF86AudioMicMute)   0x0000 (NoSymbol)       0x1008ffb2 (XF86AudioMicMute)
+    199         0x1008ffa9 (XF86TouchpadToggle) 0x0000 (NoSymbol)       0x1008ffa9 (XF86TouchpadToggle)
+    200         0x1008ffb0 (XF86TouchpadOn)     0x0000 (NoSymbol)       0x1008ffb0 (XF86TouchpadOn)
+    201         0x1008ffb1 (XF86TouchpadOff)    0x0000 (NoSymbol)       0x1008ffb1 (XF86TouchpadOff)
+    202
+    203         0xff7e (Mode_switch)    0x0000 (NoSymbol)       0xff7e (Mode_switch)
+    204         0x0000 (NoSymbol)       0xffe9 (Alt_L)  0x0000 (NoSymbol)       0xffe9 (Alt_L)
+    205         0x0000 (NoSymbol)       0xffe7 (Meta_L) 0x0000 (NoSymbol)       0xffe7 (Meta_L)
+    206         0x0000 (NoSymbol)       0xffeb (Super_L)        0x0000 (NoSymbol)       0xffeb (Super_L)
+    207         0x0000 (NoSymbol)       0xffed (Hyper_L)        0x0000 (NoSymbol)       0xffed (Hyper_L)
+    208         0x1008ff14 (XF86AudioPlay)      0x0000 (NoSymbol)       0x1008ff14 (XF86AudioPlay)
+    209         0x1008ff31 (XF86AudioPause)     0x0000 (NoSymbol)       0x1008ff31 (XF86AudioPause)
+    210         0x1008ff43 (XF86Launch3)        0x0000 (NoSymbol)       0x1008ff43 (XF86Launch3)
+    211         0x1008ff44 (XF86Launch4)        0x0000 (NoSymbol)       0x1008ff44 (XF86Launch4)
+    212         0x1008ff4b (XF86LaunchB)        0x0000 (NoSymbol)       0x1008ff4b (XF86LaunchB)
+    213         0x1008ffa7 (XF86Suspend)        0x0000 (NoSymbol)       0x1008ffa7 (XF86Suspend)
+    214         0x1008ff56 (XF86Close)  0x0000 (NoSymbol)       0x1008ff56 (XF86Close)
+    215         0x1008ff14 (XF86AudioPlay)      0x0000 (NoSymbol)       0x1008ff14 (XF86AudioPlay)
+    216         0x1008ff97 (XF86AudioForward)   0x0000 (NoSymbol)       0x1008ff97 (XF86AudioForward)
+    217
+    218         0xff61 (Print)  0x0000 (NoSymbol)       0xff61 (Print)
+    219
+    220         0x1008ff8f (XF86WebCam) 0x0000 (NoSymbol)       0x1008ff8f (XF86WebCam)
+    221
+    222
+    223         0x1008ff19 (XF86Mail)   0x0000 (NoSymbol)       0x1008ff19 (XF86Mail)
+    224         0x1008ff8e (XF86Messenger)      0x0000 (NoSymbol)       0x1008ff8e (XF86Messenger)
+    225         0x1008ff1b (XF86Search) 0x0000 (NoSymbol)       0x1008ff1b (XF86Search)
+    226         0x1008ff5f (XF86Go)     0x0000 (NoSymbol)       0x1008ff5f (XF86Go)
+    227         0x1008ff3c (XF86Finance)        0x0000 (NoSymbol)       0x1008ff3c (XF86Finance)
+    228         0x1008ff5e (XF86Game)   0x0000 (NoSymbol)       0x1008ff5e (XF86Game)
+    229         0x1008ff36 (XF86Shop)   0x0000 (NoSymbol)       0x1008ff36 (XF86Shop)
+    230
+    231         0xff69 (Cancel) 0x0000 (NoSymbol)       0xff69 (Cancel)
+    232         0x1008ff03 (XF86MonBrightnessDown)      0x0000 (NoSymbol)       0x1008ff03 (XF86MonBrightnessDown)
+    233         0x1008ff02 (XF86MonBrightnessUp)        0x0000 (NoSymbol)       0x1008ff02 (XF86MonBrightnessUp)
+    234         0x1008ff32 (XF86AudioMedia)     0x0000 (NoSymbol)       0x1008ff32 (XF86AudioMedia)
+    235         0x1008ff59 (XF86Display)        0x0000 (NoSymbol)       0x1008ff59 (XF86Display)
+    236         0x1008ff04 (XF86KbdLightOnOff)  0x0000 (NoSymbol)       0x1008ff04 (XF86KbdLightOnOff)
+    237         0x1008ff06 (XF86KbdBrightnessDown)      0x0000 (NoSymbol)       0x1008ff06 (XF86KbdBrightnessDown)
+    238         0x1008ff05 (XF86KbdBrightnessUp)        0x0000 (NoSymbol)       0x1008ff05 (XF86KbdBrightnessUp)
+    239         0x1008ff7b (XF86Send)   0x0000 (NoSymbol)       0x1008ff7b (XF86Send)
+    240         0x1008ff72 (XF86Reply)  0x0000 (NoSymbol)       0x1008ff72 (XF86Reply)
+    241         0x1008ff90 (XF86MailForward)    0x0000 (NoSymbol)       0x1008ff90 (XF86MailForward)
+    242         0x1008ff77 (XF86Save)   0x0000 (NoSymbol)       0x1008ff77 (XF86Save)
+    243         0x1008ff5b (XF86Documents)      0x0000 (NoSymbol)       0x1008ff5b (XF86Documents)
+    244         0x1008ff93 (XF86Battery)        0x0000 (NoSymbol)       0x1008ff93 (XF86Battery)
+    245         0x1008ff94 (XF86Bluetooth)      0x0000 (NoSymbol)       0x1008ff94 (XF86Bluetooth)
+    246         0x1008ff95 (XF86WLAN)   0x0000 (NoSymbol)       0x1008ff95 (XF86WLAN)
+    247
+    248
+    249
+    250
+    251
+  */
+};
+
 void XR_GetKeyboardMapping (xclient_t *cl, xReq *request)
 {//fixme: send the XK equivelents.
 	xGetKeyboardMappingReq *req = (xGetKeyboardMappingReq *)request;
 	char buffer[8192];
 	xGetKeyboardMappingReply *rep = (xGetKeyboardMappingReply *)buffer;
-	int i;
+	int i, y, x;
+	int *syms = ((int *)(rep+1));
 
 	rep->type				= X_Reply;
-	rep->keySymsPerKeyCode	= 1;
+	rep->keySymsPerKeyCode	= countof(keyboardmapping[0].keysym);
 	rep->sequenceNumber		= cl->requestnum;
-	rep->length				= req->count;
+	rep->length				= 0;
 	rep->pad2				= 0;
 	rep->pad3				= 0;
 	rep->pad4				= 0;
@@ -1364,71 +1613,54 @@ void XR_GetKeyboardMapping (xclient_t *cl, xReq *request)
 
 	for (i = 0; i < req->count; i++)
 	{
-		switch (req->firstKeyCode+i)
-		{
-/*
-		case ' ':			((int *)(rep+1))[i] = XK_space;				break;
-
-		case K_PGUP:		((int *)(rep+1))[i] = XK_Page_Up;			break;
-		case K_PGDN:		((int *)(rep+1))[i] = XK_Page_Down;			break;
-		case K_HOME:		((int *)(rep+1))[i] = XK_Home;				break;
-		case K_END:			((int *)(rep+1))[i] = XK_End;				break;
-
-		case K_LEFTARROW:	((int *)(rep+1))[i] = XK_Left;				break;
-		case K_RIGHTARROW:	((int *)(rep+1))[i] = XK_Right;				break;
-		case K_DOWNARROW:	((int *)(rep+1))[i] = XK_Down;				break;
-		case K_UPARROW:		((int *)(rep+1))[i] = XK_Up;				break;
-
-		case K_ENTER:		((int *)(rep+1))[i] = XK_Return;			break;
-		case K_TAB:			((int *)(rep+1))[i] = XK_Tab;				break;
-		case K_ESCAPE:		((int *)(rep+1))[i] = XK_Escape;			break;
-
-		case K_F1:			((int *)(rep+1))[i] = XK_F1;				break;
-		case K_F2:			((int *)(rep+1))[i] = XK_F2;				break;
-		case K_F3:			((int *)(rep+1))[i] = XK_F3;				break;
-		case K_F4:			((int *)(rep+1))[i] = XK_F4;				break;
-		case K_F5:			((int *)(rep+1))[i] = XK_F5;				break;
-		case K_F6:			((int *)(rep+1))[i] = XK_F6;				break;
-		case K_F7:			((int *)(rep+1))[i] = XK_F7;				break;
-		case K_F8:			((int *)(rep+1))[i] = XK_F8;				break;
-		case K_F9:			((int *)(rep+1))[i] = XK_F9;				break;
-		case K_F10:			((int *)(rep+1))[i] = XK_F10;				break;
-		case K_F11:			((int *)(rep+1))[i] = XK_F11;				break;
-		case K_F12:			((int *)(rep+1))[i] = XK_F12;				break;
-
-		case K_BACKSPACE:	((int *)(rep+1))[i] = XK_BackSpace;			break;
-		case K_DEL:			((int *)(rep+1))[i] = XK_Delete;			break;
-		case K_INS:			((int *)(rep+1))[i] = XK_Insert;			break;
-		case K_PAUSE:		((int *)(rep+1))[i] = XK_Pause;				break;
-		case K_SHIFT:		((int *)(rep+1))[i] = XK_Shift_L;			break;
-		case K_CTRL:		((int *)(rep+1))[i] = XK_Control_L;			break;
-		case K_ALT:			((int *)(rep+1))[i] = XK_Alt_L;				break;
-
-
-		case K_KP_HOME:		((int *)(rep+1))[i] = XK_Home;				break;
-		case K_KP_UPARROW:	((int *)(rep+1))[i] = XK_Up;				break;
-
-
-
-		case K_KP_PGUP:			((int *)(rep+1))[i] = XK_KP_Page_Up;	break;
-		case K_KP_LEFTARROW:	((int *)(rep+1))[i] = XK_KP_Left;		break;
-		case K_KP_5:			((int *)(rep+1))[i] = XK_KP_Space;		break;
-		case K_KP_RIGHTARROW:	((int *)(rep+1))[i] = XK_KP_Right;		break;
-		case K_KP_END:			((int *)(rep+1))[i] = XK_KP_End;		break;
-		case K_KP_DOWNARROW:	((int *)(rep+1))[i] = XK_KP_Down;		break;
-		case K_KP_PGDN:			((int *)(rep+1))[i] = XK_KP_Page_Down;	break;
-		case K_KP_ENTER:		((int *)(rep+1))[i] = XK_KP_Enter;		break;
-		case K_KP_INS:			((int *)(rep+1))[i] = XK_KP_Insert;		break;
-		case K_KP_DEL:			((int *)(rep+1))[i] = XK_KP_Delete;		break;
-		case K_KP_SLASH:		((int *)(rep+1))[i] = XK_KP_Divide;		break;
-		case K_KP_MINUS:		((int *)(rep+1))[i] = XK_KP_Subtract;	break;
-		case K_KP_PLUS:			((int *)(rep+1))[i] = XK_KP_Add;		break;
-		case K_KP_STAR:			((int *)(rep+1))[i] = XK_KP_Multiply;	break;
-		case K_KP_EQUALS:		((int *)(rep+1))[i] = XK_KP_Enter;		break;
-*/
-		default:
-			((int *)(rep+1))[i]		= req->firstKeyCode+i;
+		y = req->firstKeyCode+i;
+		if (y >= countof(keyboardmapping))
 			break;
+		for (x = 0; x < rep->keySymsPerKeyCode; x++)
+			*syms++ = keyboardmapping[y].keysym[x];
+	}
+	rep->length = i*rep->keySymsPerKeyCode;
+
+	X_SendData(cl, rep, sizeof(*rep)+rep->length*4);
+}
+
+static struct
+{
+	KEYCODE keysym[8];
+} modifiermapping[] =
+{	//these are scancodes
+	{{0x32, 0x32}},
+	{{0x42}},
+	{{0x24, 0x69}},
+	{{0x40, 0xcd}},
+	{{0x4d}},
+	{{0}},
+	{{0x85, 0x86, 0xce, 0xcf}},
+	{{0x5c, 0xcb}},
+};
+void XR_GetModifierMapping (xclient_t *cl, xReq *request)
+{//fixme: send the XK equivelents.
+//	xReq *req = (xReq *)request;
+	char buffer[8192];
+	xGetModifierMappingReply *rep = (xGetModifierMappingReply *)buffer;
+	int x, y;
+	KEYCODE *syms = ((KEYCODE *)(rep+1));
+
+	rep->type				= X_Reply;
+	rep->numKeyPerModifier	= countof(modifiermapping[0].keysym);
+	rep->sequenceNumber		= cl->requestnum;
+	rep->length				= (8*rep->numKeyPerModifier * sizeof(KEYCODE) + 3)/4;
+	rep->pad2				= 0;
+	rep->pad3				= 0;
+	rep->pad4				= 0;
+	rep->pad5				= 0;
+	rep->pad6				= 0;
+
+	for (y = 0; y < countof(modifiermapping); y++)
+	{
+		for (x = 0; x < rep->numKeyPerModifier; x++)
+		{
+			*syms++ = modifiermapping[y].keysym[x];
 		}
 	}
 
@@ -1470,13 +1702,14 @@ void XR_QueryPointer (xclient_t *cl, xReq *request)
 
 void XR_CreateCursor (xclient_t *cl, xReq *request)
 {
-	xCreateCursorReq *req = (xCreateCursorReq *)request;
+//	xCreateCursorReq *req = (xCreateCursorReq *)request;
 
 	//	X_SendError(cl, BadImplementation, 0, req->reqType, 0);
 }
 void XR_CreateGlyphCursor (xclient_t *cl, xReq *request)
 {
-	xCreateGlyphCursorReq *req = (xCreateGlyphCursorReq *)request;
+//	xCreateGlyphCursorReq *req = (xCreateGlyphCursorReq *)request;
+
 //	char buffer[8192];
 //	xGetKeyboardMappingReply *rep = (xGetKeyboardMappingReply *)buffer;
 
@@ -1490,6 +1723,16 @@ void XR_FreeCursor (xclient_t *cl, xReq *request)
 {
 //	X_SendError(cl, BadImplementation, 0, req->reqType, 0);
 //	X_SendError(cl, BadValue, req->id, X_DestroyWindow, 0);
+}
+void XR_RecolorCursor (xclient_t *cl, xReq *request)
+{
+}
+
+void XR_GrabButton (xclient_t *cl, xReq *request)
+{
+}
+void XR_UngrabButton (xclient_t *cl, xReq *request)
+{
 }
 
 void XR_ChangeGCInternal(unsigned int mask, xgcontext_t *gc, CARD32 *param)
@@ -1524,8 +1767,10 @@ void XR_ChangeGCInternal(unsigned int mask, xgcontext_t *gc, CARD32 *param)
 		param++;
 	if (mask & GCFont)
 	{
-		if (XS_GetResource(*param++, &gc->font) != x_font)
-			gc->font = NULL;
+		void *font = NULL;
+		if (XS_GetResource(*param++, &font) != x_font)
+			font = NULL;
+		gc->font = font;
 	}
 	if (mask & GCSubwindowMode)
 		param++;
@@ -2364,14 +2609,12 @@ void XR_PutImage(xclient_t *cl, xReq *request)
 }
 void XR_GetImage(xclient_t *cl, xReq *request)
 {
-	unsigned char *out;
+	unsigned char *out, *data;
 	unsigned char *in;
 	xGetImageReq *req = (xGetImageReq *)request;
 	xresource_t *drawable;
-	int i;
 
-	unsigned int buffer[65535];
-	xGetImageReply *rep = (xGetImageReply *)buffer;
+	xGetImageReply rep;
 
 	int drwidth;
 	int drheight;
@@ -2398,7 +2641,7 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 		drheight = wnd->height;
 		drbuffer = wnd->buffer;
 
-		rep->visual			= 0x22;
+		rep.visual			= 0x22;
 	}
 	else if (drawable->restype == x_pixmap)
 	{
@@ -2414,7 +2657,7 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 		drheight = pm->height;
 		drbuffer = pm->data;
 
-		rep->visual			= 0;
+		rep.visual			= 0;
 	}
 	else
 	{
@@ -2445,18 +2688,22 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 		return;
 	}
 
-	out = (qbyte *)(rep+1);
+	data = out = alloca(req->width*4*req->height);
 	if (req->format == 2)	//32 bit network bandwidth (hideous)
 	{
 		while(req->height)
 		{
 			in = drbuffer + (req->x + req->y*drwidth)*4;
+#if 1
+			memcpy(out, in, req->width*4);
+#else
 			for (i = 0; i < req->width; i++)
 			{
 				out[i*4+0] = in[i*4+0];
 				out[i*4+1] = in[i*4+1];
 				out[i*4+2] = in[i*4+2];
 			}
+#endif
 			out += req->width*4;
 
 			req->height--;
@@ -2469,17 +2716,18 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 		return;
 	}
 
-	rep->type			= X_Reply;
-	rep->sequenceNumber	= cl->requestnum;
-	rep->length			= (out-(qbyte *)(rep+1)+3)/4;
-	rep->depth			= 24;
-	rep->pad3			= 0;
-	rep->pad4			= 0;
-	rep->pad5			= 0;
-	rep->pad6			= 0;
-	rep->pad7			= 0;
+	rep.type			= X_Reply;
+	rep.sequenceNumber	= cl->requestnum;
+	rep.length			= (out-data+3)/4;
+	rep.depth			= 24;
+	rep.pad3			= 0;
+	rep.pad4			= 0;
+	rep.pad5			= 0;
+	rep.pad6			= 0;
+	rep.pad7			= 0;
 
-	X_SendData(cl, rep, sizeof(*rep)+rep->length*4);
+	X_SendData(cl, &rep, sizeof(rep));
+	X_SendData(cl, data, rep.length*4);
 }
 
 void XW_PolyLine(unsigned int *dbuffer, int dwidth, int dheight, int x1, int x2, int y1, int y2, xgcontext_t *gc)
@@ -2715,6 +2963,7 @@ void XR_FillPoly(xclient_t *cl, xReq *request)
 			}
 			points+=2;
 
+(void)drbuffer, (void)drwidth, (void)drheight;
 //			XW_PolyLine((unsigned int *)drbuffer, drwidth, drheight, start[0], start[1], end[0], end[1], gc);
 			points++;
 
@@ -3026,7 +3275,7 @@ void Draw_CharToDrawable (int num, unsigned int *drawable, int x, int y, int wid
 	while (drawline-->=0)
 	{
 		for (i=s ; i<e ; i++)
-			if ((char*)(&source[i])[3] > 128 && source[i])
+			if (((qbyte*)(&source[i]))[3] > 128 && source[i])
 //				GCFunc(gc->fgcolour, drawable[i], gc->function, drawable[i], source[i]);
 				drawable[i] = source[i];
 		source += font->rowwidth;
@@ -3157,6 +3406,14 @@ void XR_OpenFont(xclient_t *cl, xReq *request)	//basically ignored. We only supp
 	XS_CreateFont(req->fid, cl, name);
 }
 
+void XR_CloseFont(xclient_t *cl, xReq *request)	//basically ignored. We only support one font...
+{
+	xResourceReq *req = (xResourceReq *)request;
+	void *font = XS_GetResourceType(req->id, x_font);
+	if (font)
+		XS_DestroyResource(font);
+}
+
 void XR_ListFonts(xclient_t *cl, xReq *request)	//basically ignored. We only support one font...
 {
 //	xListFontsReq *req = (xListFontsReq *)request;
@@ -3178,8 +3435,8 @@ void XR_QueryFont(xclient_t *cl, xReq *request)	//basically ignored. We only sup
 	int i;
 	xCharInfo *ci;
 	xQueryFontReply *rep = (xQueryFontReply *)buffer;
-	xfont_t	*font;
-	if (XS_GetResource(req->id, &font) != x_font)
+	xfont_t	*font = XS_GetResourceType(req->id, x_font);
+	if (!font)
 	{
 		X_SendError(cl, BadFont, req->id, req->reqType, 0);
 		return;
@@ -3257,6 +3514,40 @@ void XR_AllocColor(xclient_t *cl, xReq *request)
 	rep.pad5			= 0;
 
 	X_SendData(cl, &rep, sizeof(rep));
+}
+
+void XR_QueryColors(xclient_t *cl, xReq *request)
+{
+	xQueryColorsReq *req = (xQueryColorsReq *)request;
+	xQueryColorsReply rep;
+	xrgb rgb[65536];
+	int n;
+	int *pixel = (int*)(req+1);
+
+	rep.type			= X_Reply;
+	rep.pad1			= 0;
+	rep.sequenceNumber	= cl->requestnum;
+	rep.length			= 0;
+	rep.nColors			= 0;
+	rep.pad2			= 0;
+	rep.pad3			= 0;
+	rep.pad4			= 0;
+	rep.pad5			= 0;
+	rep.pad6			= 0;
+	rep.pad7			= 0;
+
+	for (n = 0; n < req->length - sizeof(*req)/4; n++)
+	{
+		rgb[n].red = ((pixel[n]>>16)&0xff)<<8;
+		rgb[n].green = ((pixel[n]>>8)&0xff)<<8;
+		rgb[n].blue = ((pixel[n]>>0)&0xff)<<8;
+		rgb[n].pad = 0;
+	}
+	rep.nColors = n;
+	rep.length = (sizeof(xrgb)*n+3)/4;
+
+	X_SendData(cl, &rep, sizeof(rep));
+	X_SendData(cl, rgb, rep.length*4);
 }
 
 void XR_LookupColor(xclient_t *cl, xReq *request)
@@ -3384,9 +3675,9 @@ void XR_SendEvent (xclient_t *cl, xReq *request)
 {
 	int count;
 	xSendEventReq *req = (xSendEventReq *)request;
-	xwindow_t *wnd;
+	xwindow_t *wnd = XS_GetResourceType(req->destination, x_window);
 
-	if (XS_GetResource(req->destination, (void**)&wnd) != x_window)
+	if (!wnd)
 	{
 		X_SendError(cl, BadWindow, req->destination, X_SendEvent, 0);
 		return;
@@ -3554,19 +3845,27 @@ void X_InitRequests(void)
 	XRequests[X_PolyLine] = XR_PolyLine;
 	XRequests[X_PolySegment] = XR_PolyLine;
 	XRequests[X_QueryPointer] = XR_QueryPointer;
+//	XRequests[X_ChangeKeyboardMapping] = XR_ChangeKeyboardMapping;
+//	XRequests[X_SetModifierMapping] = XR_ChangeKeyboardMapping;
 	XRequests[X_GetKeyboardMapping] = XR_GetKeyboardMapping;
 	XRequests[X_GetKeyboardControl] = XR_GetKeyboardControl;
+	XRequests[X_GetModifierMapping] = XR_GetModifierMapping;
 	XRequests[X_AllocColor] = XR_AllocColor;
 	XRequests[X_LookupColor] = XR_LookupColor;
+	XRequests[X_QueryColors] = XR_QueryColors;
 	XRequests[X_GetGeometry] = XR_GetGeometry;
 	XRequests[X_CreateCursor] = XR_CreateCursor;
 	XRequests[X_CreateGlyphCursor] = XR_CreateGlyphCursor;
+	XRequests[X_RecolorCursor] = XR_RecolorCursor;
 	XRequests[X_FreeCursor] = XR_FreeCursor;
 
-	XRequests[X_WarpPointer] = XR_WarpPointer;
+	XRequests[X_GrabButton] = XR_GrabButton;
+	XRequests[X_UngrabButton] = XR_UngrabButton;
 
+	XRequests[X_WarpPointer] = XR_WarpPointer;
 	XRequests[X_ListFonts] = XR_ListFonts;
 	XRequests[X_OpenFont] = XR_OpenFont;
+	XRequests[X_CloseFont] = XR_CloseFont;
 	XRequests[X_QueryFont] = XR_QueryFont;
 	XRequests[X_PolyText8] = XR_PolyText;
 	XRequests[X_PolyText16] = XR_PolyText;
@@ -3585,6 +3884,7 @@ void X_InitRequests(void)
 
 	XRequests[X_SendEvent] = XR_SendEvent;
 
+	XRequests[X_ConvertSelection] = XR_ConvertSelection;
 	XRequests[X_GetSelectionOwner] = XR_GetSelectionOwner;
 	XRequests[X_SetSelectionOwner] = XR_SetSelectionOwner;
 

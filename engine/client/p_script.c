@@ -261,7 +261,7 @@ typedef struct part_type_s {
 	float rotationmin, rotationrand;
 
 	float scaledelta;
-	int countextra;
+	float countextra;
 	float count;
 	float countrand;
 	float countspacing; //for trails.
@@ -2406,7 +2406,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		}
 
 		if (ptype->count || ptype->countrand || ptype->countextra || all)
-			Q_strncatz(outstr, va("count %g %g %i\n", ptype->count, ptype->countrand, ptype->countextra), outstrlen);
+			Q_strncatz(outstr, va("count %g %g %g\n", ptype->count, ptype->countrand, ptype->countextra), outstrlen);
 		if (ptype->rainfrequency != 1 || all)
 			Q_strncatz(outstr, va("rainfrequency %g\n", ptype->rainfrequency), outstrlen);
 
@@ -2829,6 +2829,7 @@ static void FinishEffectinfoParticleType(part_type_t *ptype, qboolean blooddecal
 	{
 		//fte's textured particles are *0.25 for some reason.
 		//but fte also uses radiuses, while dp uses total size so we only need to double it here..
+		ptype->looks.stretch = 1;//affects billboarding in dp
 		ptype->scale *= 2*ptype->looks.stretch;
 		ptype->scalerand *= 2*ptype->looks.stretch;
 		ptype->scaledelta *= 2*2*ptype->looks.stretch;	//fixme: this feels wrong, the results look correct though. hrmph.
@@ -2838,9 +2839,12 @@ static void FinishEffectinfoParticleType(part_type_t *ptype, qboolean blooddecal
 		ptype->clipbounce = -2;
 	if (ptype->looks.type == PT_TEXTUREDSPARK)
 	{
+		ptype->scale *= 2;
+		ptype->scalerand *= 2;
+		ptype->scaledelta *= 2;
 		ptype->looks.stretch *= 0.04;
-		if (ptype->looks.stretch < 0)
-			ptype->looks.stretch = 0.000001;
+//		if (ptype->looks.stretch < 0)
+//			ptype->looks.stretch = 0.000001;
 	}
 	
 	if (ptype->die == 9999)	//internal: means unspecified.
@@ -5572,31 +5576,18 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 	len = VectorNormalize (vec);
 
 	// use ptype step to calc step vector and step size
-	if (ptype->countspacing)
-	{
-		step = ptype->countspacing;					//particles per qu
-		step /= r_part_density.value;				//scaled...
 
-		if (ptype->countextra)
-		{
-			count = ptype->countextra;
-			if (step>0)
-				count += len/step;
-			step = len/count;
-		}
-	}
-	else
-	{
-		step = ptype->count * r_part_density.value * timeinterval;
-		step += ptype->countextra;					//particles per frame
-		step += ptype->countoverflow;
-		count = (int)step;
-		ptype->countoverflow = step-count;	//the part that we're forgetting, to add to the next frame...
-		if (count<=0)
-			return;
-		else
-			step = len/count;				//particles per second
-	}
+	//(fractional) extra count
+	step = (cl.paused&&(ptype->die||ptype->randdie))?0:ptype->countextra;
+	step += ptype->count * r_part_density.value * timeinterval;
+
+	//round it with overflow tracking
+	step += ptype->countoverflow;
+	count = step;
+	ptype->countoverflow = step-count;
+
+	step = ptype->countspacing;					//particles per qu
+	step /= r_part_density.value;				//scaled...
 
 	if (ptype->flags & PT_AVERAGETRAIL)
 	{
@@ -5610,7 +5601,36 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 
 	VectorScale(vec, step, vstep);
 
-	// add offset
+	// store last stop here for lack of a better solution besides vectors
+	if (ts)
+	{
+		ts->state2.laststop = stop = ts->state2.laststop + len;	//when to stop
+		len = ts->state1.lastdist;
+	}
+	else
+	{
+		stop = len;
+		len = 0;
+	}
+
+	if (step && len < stop)
+	{
+		if (count && len)
+		{
+			//recalculate step to cover the entire distance.
+			count += (stop-len) / step;
+			step = (stop-len)/count;
+		}
+		else
+			count += (stop-len) / step;
+	}
+	else
+	{
+		step = 0;
+		VectorClear(vstep);
+	}
+
+// add offset
 //	VectorAdd(start, ptype->orgbias, start);
 
 	// spawn mode precalculations
@@ -5628,22 +5648,6 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		VectorVectors(vec, right, up);
 	}
 
-	// store last stop here for lack of a better solution besides vectors
-	if (ts)
-	{
-		ts->state2.laststop = stop = ts->state2.laststop + len;	//when to stop
-		len = ts->state1.lastdist;
-	}
-	else
-	{
-		stop = len;
-		len = 0;
-	}
-
-//	len = ts->lastdist/step;
-//	len = (len - (int)len)*step;
-//	VectorMA (start, -len, vec, start);
-
 	if (ptype->flags & PT_NOSPREADFIRST)
 		nrfirst = len + step*1.5;
 	else
@@ -5655,16 +5659,6 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		nrlast = stop + step;
 
 	b = bfirst = NULL;
-
-	if (len < stop)
-		count = (stop-len) / step;
-	else
-	{
-		count = 0;
-		step = 0;
-		VectorClear(vstep);
-	}
-//	count += ptype->countextra;
 
 	while (count-->0)//len < stop)
 	{
@@ -6316,8 +6310,10 @@ static void R_AddTSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 		VectorSubtract(r_refdef.vieworg, o2, v);
 		CrossProduct(v, p->vel, cr);
 		VectorNormalize(cr);
-		VectorMA(o2, -p->scale/2, cr, cl_strisvertv[cl_numstrisvert+0]);
-		VectorMA(o2, p->scale/2, cr, cl_strisvertv[cl_numstrisvert+1]);
+
+		halfscale = fabs(p->scale);	//gah, I hate dp.
+		VectorMA(o2, -halfscale/2, cr, cl_strisvertv[cl_numstrisvert+0]);
+		VectorMA(o2, halfscale/2, cr, cl_strisvertv[cl_numstrisvert+1]);
 
 		VectorMA(p->org, length, movedir, o2);
 	}
@@ -6802,11 +6798,21 @@ static void PScript_DrawParticleTypes (void)
 	if (r_plooksdirty)
 	{
 		int i, j;
+		{
+			particleengine_t *tmp = fallback; fallback = NULL;
 
-		pe_default			= PScript_FindParticleType("PE_DEFAULT");
-		pe_size2			= PScript_FindParticleType("PE_SIZE2");
-		pe_size3			= PScript_FindParticleType("PE_SIZE3");
-		pe_defaulttrail		= PScript_FindParticleType("PE_DEFAULTTRAIL");
+			pe_default			= PScript_FindParticleType("PE_DEFAULT");
+			pe_size2			= PScript_FindParticleType("PE_SIZE2");
+			pe_size3			= PScript_FindParticleType("PE_SIZE3");
+			pe_defaulttrail		= PScript_FindParticleType("PE_DEFAULTTRAIL");
+
+			if (pe_default == P_INVALID)
+			{
+			//pe_default			= PScript_FindParticleType("SVC_PARTICLE");
+			}
+
+			fallback = tmp;
+		}
 
 		for (i = 0; i < numparticletypes; i++)
 		{

@@ -1143,7 +1143,6 @@ console.log("onerror: " + _url);
 		var gltex = GL.textures[texid];
 		img.onload = function()
 		{
-			console.log("Image Callback called!");
 			var oldtex = GLctx.getParameter(GLctx.TEXTURE_BINDING_2D);	//blurgh, try to avoid breaking anything in this unexpected event.
 			GLctx.bindTexture(GLctx.TEXTURE_2D, gltex);
 			GLctx.texImage2D(GLctx.TEXTURE_2D, 0, GLctx.RGBA, GLctx.RGBA, GLctx.UNSIGNED_BYTE, img);

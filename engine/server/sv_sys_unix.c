@@ -1090,8 +1090,15 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	dllhandle_t *lib;
 
 	lib = dlopen (name, RTLD_LAZY);
+	if (!lib && !strstr(name, ".so"))
+		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
+	{
+		const char *err = dlerror();
+		//I hate this string check
+		Con_DLPrintf(strstr(err, "No such file or directory")?2:0,"%s\n", err);
 		return NULL;
+	}
 
 	if (funcs)
 	{
@@ -1103,6 +1110,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		}
 		if (funcs[i].name)
 		{
+			Con_DPrintf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
 			Sys_CloseLibrary((dllhandle_t*)lib);
 			lib = NULL;
 		}

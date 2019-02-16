@@ -807,7 +807,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			Q_snprintfz(link, sizeof(link), "\\tip\\Change Map\\map\\%s", name+5);
 			colour = "^4";	//disconnects
 		}
-		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") || !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") || !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
+		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") ||
+				 !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") ||
+				 !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
 		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
 			|| !Q_strcasecmp(link, "cfg") || !Q_strcasecmp(link, "rc")
@@ -818,7 +820,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "vmt")
 			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf"))
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
+				 !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf") || !Q_strcasecmp(link, "psd") ||
+				 !Q_strcasecmp(link, "pbm") || !Q_strcasecmp(link, "ppm") || !Q_strcasecmp(link, "pgm") || !Q_strcasecmp(link, "pam") || !Q_strcasecmp(link, "pfm") || !Q_strcasecmp(link, "hdr") )
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
@@ -4514,7 +4518,7 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 }
 
 //false stops the search (and returns that value to FS_DirHasGame)
-int FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
+int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
 {
 	return false;
 }

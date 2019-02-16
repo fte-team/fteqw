@@ -62,6 +62,9 @@
 				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.dem" />
 				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.dem" />
 				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.dem" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.qwd" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.qwd" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.qwd" />
 				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.pak" />
 				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.pak" />
 				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.pak" />

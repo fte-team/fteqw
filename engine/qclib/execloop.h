@@ -445,7 +445,7 @@ reeval:
 				ddef32_t *d = ED_GlobalAtOfs32(progfuncs, st->a);
 #endif
 				fdef_t *f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
-				if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):NULL, f?f->name:NULL))
+				if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):"??", f?f->name:"??"))
 					return pr_xstatement;
 				OPC->_int = ~0;
 				break;

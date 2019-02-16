@@ -88,6 +88,9 @@
 //Image formats
 #define IMAGEFMT_KTX			//Khronos TeXture. common on gles3 devices for etc2 compression
 #define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
+#define IMAGEFMT_PBM			//pbm/ppm/pgm/pfm family formats.
+#define IMAGEFMT_PSD			//baselayer only.
+#define IMAGEFMT_HDR			//an RGBE format.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 //#define IMAGEFMT_BLP			//legacy crap
 #define IMAGEFMT_BMP			//windows bmp. yuck. also includes .ico for the luls

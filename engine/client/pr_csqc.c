@@ -1713,8 +1713,8 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 	qboolean twod = qcflags & DRAWFLAG_2D;
 	unsigned int beflags;
 	unsigned int numverts;
-	qcvertex_t *vert;
-	unsigned int *idx;
+	const qcvertex_t *fte_restrict vert;
+	const unsigned int *fte_restrict idx;
 	unsigned int i, j, first;
 
 	if ((qcflags & 3) == DRAWFLAG_ADD)
@@ -1728,10 +1728,14 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 	if (qcflags & DRAWFLAG_LINES)
 		beflags |= BEF_LINES;
 
-	if (twod)
+	if (1)//twod)
 		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 	else
+	{
 		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+		if (!shader->defaulttextures->base && (shader->flags & SHADER_HASDIFFUSE))
+			R_BuildDefaultTexnums(NULL, shader, 0);
+	}
 
 	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != beflags || csqc_poly_2d != twod))
 		R2D_Flush();
@@ -1748,13 +1752,13 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 		PR_BIError(prinst, "PF_R_AddTrisoup: invalid vertexes pointer\n");
 		return;
 	}
-	vert = (qcvertex_t*)(prinst->stringtable + vertsptr);
+	vert = (const qcvertex_t*)(prinst->stringtable + vertsptr);
 	if (indexesptr <= 0 || indexesptr+numindexes*sizeof(int) > prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_R_AddTrisoup: invalid indexes pointer\n");
 		return;
 	}
-	idx = (int*)(prinst->stringtable + indexesptr);
+	idx = (const int*)(prinst->stringtable + indexesptr);
 
 	first = cl_numstrisvert - csqc_poly_origvert;
 	if (first + numindexes > MAX_INDICIES)

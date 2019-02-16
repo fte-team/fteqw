@@ -149,8 +149,9 @@ enum addressscope_e
 {
 	ASCOPE_PROCESS=0,
 	ASCOPE_HOST=1,
-	ASCOPE_LAN=2,
-	ASCOPE_NET=3
+	ASCOPE_LINK=2,
+	ASCOPE_LAN=3,
+	ASCOPE_NET=4
 };
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc);
 

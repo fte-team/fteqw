@@ -36,7 +36,7 @@ typedef enum {
 #define PMF_JUMP_HELD			1
 #define PMF_LADDER				2	//pmove flags. seperate from flags
 
-#define	MAX_PHYSENTS	128
+#define	MAX_PHYSENTS	2048
 typedef struct
 {
 	vec3_t	origin;

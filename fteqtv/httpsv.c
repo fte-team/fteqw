@@ -7,7 +7,7 @@ size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *st
 
 void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 {
-	static tab[64] =
+	static unsigned char tab[64] =
 	{
 		'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
 		'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
@@ -730,7 +730,7 @@ static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streami
 static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest, char *args)
 {
 	int i;
-	char link[256];
+	char link[512];
 	char *s;
 	qboolean plugframe = false;
 	for (s=args; *s && *s != ' ';)

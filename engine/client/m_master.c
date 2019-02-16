@@ -790,7 +790,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 			Master_FindRoute(server->adr);
 			serverpreview = 4;
 		}
-		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key != K_GP_START)	//join
+		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)	//join
 		{
 			if (key == 's' || key == 'o')
 			{

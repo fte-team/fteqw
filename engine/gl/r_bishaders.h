@@ -2982,7 +2982,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/skeletal.h\"\n"
 
 "affine varying vec2 tc;\n"
-"varying vec3 light;\n"
+"varying vec4 light;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
@@ -2998,6 +2998,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec3 n, s, t, w;\n"
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
+"n = normalize(n);\n"
 "#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
@@ -3015,7 +3016,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "float d = dot(n,e_light_dir);\n"
 "if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
 "d = 0.0; //this avoids the dark side going below the ambient level.\n"
-"light = e_light_ambient + (d*e_light_mul);\n"
+"light.rgb = e_light_ambient + (d*e_light_mul);\n"
+"light.a = 1.0;\n"
+"#ifdef VC\n"
+"light *= v_colour;\n"
+"#endif\n"
 
 //FIXME: Software rendering imitation should possibly push out normals by half a pixel or something to approximate software's over-estimation of distant model sizes (small models are drawn using JUST their verticies using the nearest pixel, which results in larger meshes)
 
@@ -3044,8 +3049,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "out vec3 t_normal[];\n"
 "affine in vec2 tc[];\n"
 "affine out vec2 t_tc[];\n"
-"in vec3 light[];\n"
-"out vec3 t_light[];\n"
+"in vec4 light[];\n"
+"out vec4 t_light[];\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "in vec3 eyevector[];\n"
 "out vec3 t_eyevector[];\n"
@@ -3093,8 +3098,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "in vec3 t_normal[];\n"
 "affine in vec2 t_tc[];\n"
 "affine out vec2 tc;\n"
-"in vec3 t_light[];\n"
-"out vec3 light;\n"
+"in vec4 t_light[];\n"
+"out vec4 light;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "in vec3 t_eyevector[];\n"
 "out vec3 eyevector;\n"
@@ -3157,7 +3162,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "affine varying vec2 tc;\n"
-"varying vec3 light;\n"
+"varying vec4 light;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
@@ -3214,8 +3219,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
 "#endif\n"
 
-"col.rgb *= light;\n"
-"col *= e_colourident;\n"
+"col *= light * e_colourident;\n"
 
 "#ifdef FULLBRIGHT\n"
 "vec4 fb = texture2D(s_fullbright, tc);\n"
@@ -6913,7 +6917,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;\n"
 "#endif\n"
 
-"gl_FragColor = fog4(vec4(ts, USEALPHA) * e_colourident);\n"
+"gl_FragColor = fog4blend(vec4(ts, USEALPHA) * e_colourident);\n"
 "}\n"
 "#endif\n"
 },
@@ -10452,9 +10456,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "terrain",
 "!!permu FOG\n"
 //t0-t3 are the diffusemaps, t4 is the blend factors
-"!!samps 5\n"
-"!!samps =PCF 6\n"
-"!!samps =CUBE 7\n"
+"!!samps 4\n"
+"!!samps mix=4\n"
+"!!samps =PCF shadowmap\n"
+"!!samps =CUBE projectionmap\n"
 
 //light levels
 
@@ -10547,7 +10552,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main (void)\n"
 "{\n"
 "vec4 r;\n"
-"vec4 m = texture2D(s_t4, lm);\n"
+"vec4 m = texture2D(s_mix, lm);\n"
 
 "r  = texture2D(s_t0, tc)*m.r;\n"
 "r += texture2D(s_t1, tc)*m.g;\n"
@@ -10581,13 +10586,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "colorscale *= 1.0-(dot(spot,spot));\n"
 "#endif\n"
 "#ifdef PCF\n"
-"colorscale *= ShadowmapFilter(s_t5, vtexprojcoord);\n"
+"colorscale *= ShadowmapFilter(s_shadowmap, vtexprojcoord);\n"
 "#endif\n"
 
 "r.rgb *= colorscale * l_lightcolour;\n"
 
 "#ifdef CUBE\n"
-"r.rgb *= textureCube(s_t6, vtexprojcoord.xyz).rgb;\n"
+"r.rgb *= textureCube(s_projectionmap, vtexprojcoord.xyz).rgb;\n"
 "#endif\n"
 
 "gl_FragColor = fog4additive(r);\n"
@@ -10908,7 +10913,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_glsl_pcf\n"
 "!!cvardf r_tessellation_level=5\n"
-"!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask projectionmap\n"
+"!!samps diffuse normalmap specular upper lower reflectcube reflectmask\n"
+"!!samps =PCF shadowmap\n"
+"!!samps =CUBE projectionmap\n"
 
 "#include \"sys/defs.h\"\n"
 

@@ -2156,12 +2156,12 @@ void Plug_CloseAll_f(void)
 
 int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath)
 {
-plugin_t *plug;
+	plugin_t *plug;
 	char plugname[MAX_QPATH];
 	//lots of awkward logic so we hide modules for other cpus.
 	size_t nl = strlen(fname);
 	size_t u;
-	const char *knownarch[] =
+	static const char *knownarch[] =
 	{
 		"x32", "x64", "amd64", "x86",	//various x86 ABIs
 		"arm", "arm64", "armhf",		//various arm ABIs

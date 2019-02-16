@@ -291,7 +291,7 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 				if (cluster->inputlength > 0)
 				{
 					Sys_Printf(cluster, "%c", c);
-					Sys_Printf(cluster, " ", c);
+					Sys_Printf(cluster, " ");
 					Sys_Printf(cluster, "%c", c);
 
 					cluster->inputlength--;
@@ -466,12 +466,14 @@ int main(int argc, char **argv)
 	cluster = malloc(sizeof(*cluster));
 	if (cluster)
 	{
+		int j;
 		memset(cluster, 0, sizeof(*cluster));
 
-		cluster->qwdsocket[0] = INVALID_SOCKET;
-		cluster->qwdsocket[1] = INVALID_SOCKET;
-		cluster->tcpsocket[0] = INVALID_SOCKET;
-		cluster->tcpsocket[1] = INVALID_SOCKET;
+		for (j = 0; j < SOCKETGROUPS; j++)
+		{
+			cluster->qwdsocket[j] = INVALID_SOCKET;
+			cluster->tcpsocket[j] = INVALID_SOCKET;
+		}
 		cluster->anticheattime = 1*1000;
 		cluster->tooslowdelay = 100;
 		cluster->qwlistenportnum = 0;
@@ -487,18 +489,19 @@ int main(int argc, char **argv)
 
 		if (!cluster->numservers)
 		{	//probably running on a home user's computer
-			if (cluster->qwdsocket[0] == INVALID_SOCKET && cluster->qwdsocket[1] == INVALID_SOCKET && !cluster->qwlistenportnum)
+			if (cluster->qwdsocket[SG_IPV4] == INVALID_SOCKET && cluster->qwdsocket[SG_IPV6] == INVALID_SOCKET && !cluster->qwlistenportnum)
 			{
 				cluster->qwlistenportnum = 27599;
-				NET_InitUDPSocket(cluster, cluster->qwlistenportnum, true);
-				NET_InitUDPSocket(cluster, cluster->qwlistenportnum, false);
+				NET_InitUDPSocket(cluster, cluster->qwlistenportnum, SG_IPV6);
+				NET_InitUDPSocket(cluster, cluster->qwlistenportnum, SG_IPV4);
 			}
-			if (cluster->tcpsocket[0] == INVALID_SOCKET && cluster->tcpsocket[1] == INVALID_SOCKET && !cluster->tcplistenportnum)
+			if (cluster->tcpsocket[SG_IPV4] == INVALID_SOCKET && cluster->tcpsocket[SG_IPV6] == INVALID_SOCKET && !cluster->tcplistenportnum)
 			{
 				cluster->tcplistenportnum = 27599;
-				Net_TCPListen(cluster, cluster->tcplistenportnum, true);
-				Net_TCPListen(cluster, cluster->tcplistenportnum, false);
+				Net_TCPListen(cluster, cluster->tcplistenportnum, SG_IPV6);
+				Net_TCPListen(cluster, cluster->tcplistenportnum, SG_IPV4);
 			}
+			Net_TCPListen(cluster, 1, SG_UNIX);
 
 			Sys_Printf(cluster, "\n"
 				"Welcome to FTEQTV\n"

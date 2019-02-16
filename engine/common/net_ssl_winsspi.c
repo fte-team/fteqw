@@ -39,8 +39,12 @@ cvar_t *tls_ignorecertificateerrors;
 #define SCH_CRED_SNI_CREDENTIAL 0x00080000
 #endif
 
+#ifndef SEC_I_MESSAGE_FRAGMENT
 #define SEC_I_MESSAGE_FRAGMENT	0x00090364L
+#endif
+#ifndef SEC_E_INVALID_PARAMETER
 #define SEC_E_INVALID_PARAMETER	0x8009035DL
+#endif
 
 
 //hungarian ensures we hit no macros.

@@ -62,6 +62,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <signal.h>
 #endif
 
+#include <stddef.h>
+#ifdef UNIXSOCKETS
+#include <sys/un.h>
+#endif
+
 #define RECONNECT_TIME (1000*30)
 #define RECONNECT_TIME_DEMO (1000*5)
 #define UDPRECONNECT_TIME (1000)
@@ -238,13 +243,19 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2)
 	return false;
 }
 
-void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
+void Net_TCPListen(cluster_t *cluster, int port, int socketid)
 {
 	SOCKET sock;
 
-	struct sockaddr_in	address4;
-	struct sockaddr_in6	address6;
-	struct sockaddr	*address;
+	union
+	{
+		struct sockaddr		s;
+		struct sockaddr_in	ipv4;
+		struct sockaddr_in6	ipv6;
+#ifdef UNIXSOCKETS
+		struct sockaddr_un	un;
+#endif
+	} address;
 	int prot;
 	int addrsize;
 	int _true = true;
@@ -252,55 +263,69 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 
 	unsigned long nonblocking = true;
 	unsigned long v6only = false;
+	const char *famname;
 
-	if (ipv6)
+	switch(socketid)
 	{
-		prot = PF_INET6;
-		memset(&address6, 0, sizeof(address6));
-		address6.sin6_family = AF_INET6;
-		address6.sin6_port = htons((u_short)port);
-		address = (struct sockaddr *)&address6;
+#ifdef UNIXSOCKETS
+	case SG_UNIX:
+		prot = AF_UNIX;
+		memset(&address.un, 0, sizeof(address.un));
+		address.un.sun_family = prot;
+		memcpy(address.un.sun_path, "\0qtv", 4);
+		addrsize = offsetof(struct sockaddr_un, sun_path[4]);
+		famname = "unix";
+		break;
+#endif
+	case SG_IPV6:
+		prot = AF_INET6;
+		memset(&address.ipv6, 0, sizeof(address.ipv6));
+		address.ipv6.sin6_family = prot;
+		address.ipv6.sin6_port = htons((u_short)port);
 		addrsize = sizeof(struct sockaddr_in6);
-	}
-	else
-	{
-		prot = PF_INET;
-		address4.sin_family = AF_INET;
-		address4.sin_addr.s_addr = INADDR_ANY;
-		address4.sin_port = htons((u_short)port);
-		address = (struct sockaddr *)&address4;
+		if (v6only)
+			famname = "tcp6";
+		else
+			famname = "tcp";
+		break;
+	case SG_IPV4:
+		prot = AF_INET;
+		address.ipv4.sin_family = prot;
+		address.ipv4.sin_addr.s_addr = INADDR_ANY;
+		address.ipv4.sin_port = htons((u_short)port);
 		addrsize = sizeof(struct sockaddr_in);
+		famname = "tcp4";
+		break;
+	default:
+		return;	//some kind of error. avoid unintialised warnings.
 	}
 
-	if (!ipv6 && !v6only && cluster->tcpsocket[1] != INVALID_SOCKET)
-	{
+	if (socketid==SG_IPV4 && !v6only && cluster->tcpsocket[SG_IPV6] != INVALID_SOCKET)
+	{	//if we already have a hybrid ipv6 socket, don't bother with ipv4 too
 		int sz = sizeof(v6only);
 		if (getsockopt(cluster->tcpsocket[1], IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, &sz) == 0 && !v6only)
 			port = 0;
 	}
 
-	if (cluster->tcpsocket[ipv6] != INVALID_SOCKET)
+	if (cluster->tcpsocket[socketid] != INVALID_SOCKET)
 	{
-		closesocket(cluster->tcpsocket[ipv6]);
-		cluster->tcpsocket[ipv6] = INVALID_SOCKET;
+		closesocket(cluster->tcpsocket[socketid]);
+		cluster->tcpsocket[socketid] = INVALID_SOCKET;
 
-		if (v6only)
-			Sys_Printf(cluster, "closed tcp%i port\n", ipv6?6:4);
-		else
-			Sys_Printf(cluster, "closed tcp port\n");
+		Sys_Printf(cluster, "closed %s port\n", famname);
 	}
 	if (!port)
 		return;
 
-	if ((sock = socket (prot, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+	if ((sock = socket (prot, SOCK_STREAM, 0)) == INVALID_SOCKET)
 	{
-		cluster->tcpsocket[ipv6] = INVALID_SOCKET;
+		cluster->tcpsocket[socketid] = INVALID_SOCKET;
 		return;
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
 	{
-		cluster->tcpsocket[ipv6] = INVALID_SOCKET;
+		cluster->tcpsocket[socketid] = INVALID_SOCKET;
 		closesocket(sock);
 		return;
 	}
@@ -312,11 +337,17 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&_true, sizeof(_true));
 
 
-	if (prot == AF_INET6)
+	if (socketid == SG_IPV6)
+	{
 		if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only)) == -1)
 			v6only = true;
+		if (v6only)
+			famname = "tcp6";
+		else
+			famname = "tcp";
+	}
 
-	if (bind (sock, address, addrsize) == -1)
+	if (bind (sock, &address.s, addrsize) == -1)
 	{
 		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
 		closesocket(sock);
@@ -325,12 +356,9 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 
 	listen(sock, 2);	//don't listen for too many clients at once.
 
-	if (v6only)
-		Sys_Printf(cluster, "opened tcp%i port %i\n", ipv6?6:4, port);
-	else
-		Sys_Printf(cluster, "opened tcp port %i\n", port);
+	Sys_Printf(cluster, "opened %s port %i\n", famname, port);
 
-	cluster->tcpsocket[ipv6] = sock;
+	cluster->tcpsocket[socketid] = sock;
 }
 
 char *strchrrev(char *str, char chr)
@@ -533,7 +561,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress.sockaddr, asz) == INVALID_SOCKET)
 	{
 		err = qerrno;
-		if (err != EINPROGRESS && err != EAGAIN && err != EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
+		if (err != NET_EINPROGRESS && err != NET_EAGAIN && err != NET_EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
@@ -679,7 +707,7 @@ qboolean Net_ConnectToDemoServer(sv_t* qtv, char* ip, char* dir)
 		qtv->filelength = ftell(qtv->sourcefile);
 
 		//attempt to detect the end of the file
-		fseek(qtv->sourcefile, 0-sizeof(smallbuffer), SEEK_CUR);
+		fseek(qtv->sourcefile, 0-(long)sizeof(smallbuffer), SEEK_CUR);
 		fread(smallbuffer, 1, 17, qtv->sourcefile);
 		//0 is the time
 		if (smallbuffer[1] == dem_all || smallbuffer[1] == dem_read) //mvdsv changed it to read...
@@ -718,106 +746,108 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 	Sys_Printf(qtv->cluster, "Windows support coming soon!\n");
 	return false;
 	#else
-	DIR *dir;
-	struct dirent* ent;
-
-	dir = opendir(fullname);
-	if (dir)
 	{
-		char demoname[512];
-		int current_demo = 0;
-		int file_count = 0;
-		int random_number = 1; // always this value if the directory contains one file
+		DIR *dir;
+		struct dirent* ent;
 
-		// count the files, important for determining a random demo file
-		while ((ent = readdir(dir)) != NULL)
-		{
-			int len;
-
-			// only count files neding in .mvd
-			len = strlen(ent->d_name);
-			if (len < 5)
-			{
-				continue;
-			}
-			if (strcmp(ent->d_name+len-4, ".mvd"))
-			{
-				continue;
-			}
-
-			if (ent->d_type == DT_REG && *(ent->d_name) != '.')
-				file_count++;	// only add non-hidden and regular files
-		}
-
-		if (file_count == 0)
-		{
-			// empty directory
-			Sys_Printf(qtv->cluster, "Stream %i: Error: Directory has no demos.\n", qtv->streamid);
-			closedir(dir);
-			return false;
-		}
-
-		closedir(dir);
 		dir = opendir(fullname);
-
-		// FIXME: not sure if srand should only be called once somewhere?
-		// FIXME: this is not really shuffling the demos, but does introduce some variety
-		if (file_count > 1)
+		if (dir)
 		{
-			//srand(time(NULL));
-			while ((random_number = rand()%file_count + 1) == qtv->last_random_number);
-			qtv->last_random_number = random_number;
-		}
+			char demoname[512];
+			int current_demo = 0;
+			int file_count = 0;
+			int random_number = 1; // always this value if the directory contains one file
 
-		while (1) {
-			int len;
-
-			ent = readdir(dir);
-			if (!ent)
+			// count the files, important for determining a random demo file
+			while ((ent = readdir(dir)) != NULL)
 			{
-				// reached the end of the directory, shouldn't happen
-				Sys_Printf(qtv->cluster, "Stream %i: Error: Reached end of directory (%s%s)\n", qtv->streamid, qtv->cluster->demodir, ip);
+				int len;
+
+				// only count files neding in .mvd
+				len = strlen(ent->d_name);
+				if (len < 5)
+				{
+					continue;
+				}
+				if (strcmp(ent->d_name+len-4, ".mvd"))
+				{
+					continue;
+				}
+
+				if (ent->d_type == DT_REG && *(ent->d_name) != '.')
+					file_count++;	// only add non-hidden and regular files
+			}
+
+			if (file_count == 0)
+			{
+				// empty directory
+				Sys_Printf(qtv->cluster, "Stream %i: Error: Directory has no demos.\n", qtv->streamid);
 				closedir(dir);
 				return false;
 			}
 
-			if (ent->d_type != DT_REG || *(ent->d_name) == '.')
-			{
-				continue;	// ignore hidden and non-regular files
-			}
-
-			//now make certain that the last four characters are '.mvd' and not something like '.cfg' perhaps
-			len = strlen(ent->d_name);
-			if (len < 5)
-			{
-				continue;
-			}
-			if (strcmp((ent->d_name)+len-4, ".mvd"))
-			{
-				continue;
-			}
-
-			if (++current_demo != random_number)
-				continue;
-
-			snprintf(demoname, sizeof(demoname), "%s/%s", ip, ent->d_name);
-			qtv->sourcefile = demoname;
 			closedir(dir);
-			if (Net_ConnectToDemoServer(qtv, ent->d_name, ip) == true)
+			dir = opendir(fullname);
+
+			// FIXME: not sure if srand should only be called once somewhere?
+			// FIXME: this is not really shuffling the demos, but does introduce some variety
+			if (file_count > 1)
 			{
-				return true;
+				//srand(time(NULL));
+				while ((random_number = rand()%file_count + 1) == qtv->last_random_number);
+				qtv->last_random_number = random_number;
 			}
-			else
-			{
-				return false;
+
+			while (1) {
+				int len;
+
+				ent = readdir(dir);
+				if (!ent)
+				{
+					// reached the end of the directory, shouldn't happen
+					Sys_Printf(qtv->cluster, "Stream %i: Error: Reached end of directory (%s%s)\n", qtv->streamid, qtv->cluster->demodir, ip);
+					closedir(dir);
+					return false;
+				}
+
+				if (ent->d_type != DT_REG || *(ent->d_name) == '.')
+				{
+					continue;	// ignore hidden and non-regular files
+				}
+
+				//now make certain that the last four characters are '.mvd' and not something like '.cfg' perhaps
+				len = strlen(ent->d_name);
+				if (len < 5)
+				{
+					continue;
+				}
+				if (strcmp((ent->d_name)+len-4, ".mvd"))
+				{
+					continue;
+				}
+
+				if (++current_demo != random_number)
+					continue;
+
+				snprintf(demoname, sizeof(demoname), "%s/%s", ip, ent->d_name);
+				qtv->sourcefile = fopen(demoname, "rb");
+				closedir(dir);
+				if (Net_ConnectToDemoServer(qtv, ent->d_name, ip) == true)
+				{
+					return true;
+				}
+				else
+				{
+					return false;
+				}
 			}
+			closedir(dir);
 		}
-		closedir(dir);
-	}
-	else
-	{
-		Sys_Printf(qtv->cluster, "Stream %i: Unable to open directory %s\n", qtv->streamid, qtv->cluster->demodir);
-		return false;
+		else
+		{
+			Sys_Printf(qtv->cluster, "Stream %i: Unable to open directory %s\n", qtv->streamid, qtv->cluster->demodir);
+			return false;
+		}
 	}
 	#endif
 
@@ -935,13 +965,11 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 		if (len < 0)
 		{
 			int err = qerrno;
-			if (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN)
+			if (err != NET_EWOULDBLOCK && err != NET_EAGAIN && err != NET_ENOTCONN)
 			{
-				int err;
-				err = qerrno;
-				if (qerrno)
+				if (err)
 				{
-					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i (%s)\n", qtv->streamid, qerrno, strerror(qerrno));
+					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i (%s)\n", qtv->streamid, err, strerror(err));
 					strcpy(qtv->status, "Network error\n");
 				}
 				else
@@ -1091,7 +1119,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 		errsize = sizeof(err);
 		err = 0;
 		getsockopt(qtv->sourcesock, SOL_SOCKET, SO_ERROR, (char*)&err, &errsize);
-		if (err == ECONNREFUSED)
+		if (err == NET_ECONNREFUSED)
 		{
 			Sys_Printf(qtv->cluster, "Stream %i: Error: server %s refused connection\n", qtv->streamid, qtv->server);
 			closesocket(qtv->sourcesock);
@@ -1123,7 +1151,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 			err = 0;
 		else
 			err = qerrno;
-		if (read == 0 || (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
+		if (read == 0 || (err != NET_EWOULDBLOCK && err != NET_EAGAIN && err != NET_ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
 		{
 			if (qtv->sourcefile)
 				Sys_Printf(qtv->cluster, "Stream %i: Error: End of file\n", qtv->streamid);

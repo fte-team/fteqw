@@ -144,12 +144,21 @@ extern "C" {
 #define QDECL
 #endif
 #endif
+
+#ifndef LIKEPRINTF
+	#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#else
+		#define LIKEPRINTF(x)
+	#endif
+#endif
+
 extern qintptr_t (QDECL *plugin_syscall)( qintptr_t arg, ... );
 
 void Q_strlncpy(char *d, const char *s, int sizeofd, int lenofs);
 void Q_strlcpy(char *d, const char *s, int n);
 void Q_strlcat(char *d, const char *s, int n);
-int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...);
+int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...) LIKEPRINTF(3);
 int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 
 #endif
@@ -366,7 +375,8 @@ EBUILTIN(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(void, Net_Close, (qhandle_t socket));
 EBUILTIN(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
 EBUILTIN(int, Net_GetTLSBinding, (qhandle_t sock, char *outdata, int *datalen));
-#define N_WOULDBLOCK 0
+#define N_WOULDBLOCK -1
+#define N_FATALERROR -2
 #define NET_CLIENTPORT -1
 #define NET_SERVERPORT -2
 

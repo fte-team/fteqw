@@ -1224,6 +1224,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *fr
 	size_t numgroups;
 	size_t bone, endbone;
 
+	lerps[0].skeltype = SKEL_IDENTITY; //just in case.
 #ifdef SKELETALOBJECTS
 	if (framestate->bonestate && framestate->bonecount >= inf->numbones)
 	{
@@ -1613,7 +1614,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	if (!inf->numanimations)
 	{
 #ifdef SKELETALMODELS
-		if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
+		if (inf->ofs_skel_xyz)
 		{}
 		else
 #endif
@@ -2015,11 +2016,12 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 #ifndef SERVERONLY
 //used by the modelviewer.
-void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
+void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qboolean normals)
 {
 	galiasinfo_t *mod;
 	scenetris_t *t;
 	vecV_t *posedata = NULL;
+	vec3_t *normdata = NULL;
 	int surfnum = 0, i;
 #ifdef SKELETALMODELS
 	int cursurfnum = -1;
@@ -2040,6 +2042,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 			continue;
 
 #ifdef SKELETALMODELS
+		normdata = mod->ofs_skel_norm;
 		if (mod->numbones)
 		{
 			if (!mod->ofs_skel_idx)
@@ -2081,63 +2084,116 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 		}
 #endif
 
-		if (cl_numstris == cl_maxstris)
-		{
-			cl_maxstris+=8;
-			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
-		}
-		t = &cl_stris[cl_numstris++];
-		t->shader = shader;
-		t->flags = 0;//BEF_LINES;
-		t->firstidx = cl_numstrisidx;
-		t->firstvert = cl_numstrisvert;
-		if (t->flags&BEF_LINES)
-			t->numidx = mod->numindexes*2;
-		else
-			t->numidx = mod->numindexes;
-		t->numvert = mod->numverts;
 
-		if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
-		{
-			cl_maxstrisidx=cl_numstrisidx+t->numidx;
-			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-		}
-		if (cl_numstrisvert+mod->numverts > cl_maxstrisvert)
-		{
-			cl_maxstrisvert=cl_numstrisvert+mod->numverts;
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-		}
-		for (i = 0; i < mod->numverts; i++)
-		{
-			VectorMA(ent->origin,					posedata[i][0], ent->axis[0], cl_strisvertv[t->firstvert+i]);
-			VectorMA(cl_strisvertv[t->firstvert+i], posedata[i][1], ent->axis[1], cl_strisvertv[t->firstvert+i]);
-			VectorMA(cl_strisvertv[t->firstvert+i], posedata[i][2], ent->axis[2], cl_strisvertv[t->firstvert+i]);
-//			VectorAdd(ent->origin, posedata[i], cl_strisvertv[t->firstvert+i]);
-
-			Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
-			Vector4Set(cl_strisvertc[t->firstvert+i], (mod->contents?1:0), 1, 1, 0.1);
-		}
-		if (t->flags&BEF_LINES)
-		{
-			for (i = 0; i < mod->numindexes; i+=3)
+		if (normals && normdata)
+		{	//pegs, one on each vertex.
+			vec3_t push;
+			if (cl_numstris == cl_maxstris)
 			{
-				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
-				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
-				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
-				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
-				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
-				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
+				cl_maxstris+=8;
+				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
 			}
+			t = &cl_stris[cl_numstris++];
+			t->shader = shader;
+			t->flags = BEF_LINES;
+			t->firstidx = cl_numstrisidx;
+			t->firstvert = cl_numstrisvert;
+			t->numidx = t->numvert = mod->numverts*2;
+
+			if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
+			{
+				cl_maxstrisidx=cl_numstrisidx+t->numidx;
+				cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+			}
+			if (cl_numstrisvert+t->numvert > cl_maxstrisvert)
+			{
+				cl_maxstrisvert=cl_numstrisvert+t->numvert;
+				cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+				cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+				cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+			}
+			for (i = 0; i < mod->numverts; i++)
+			{
+				VectorMA(ent->origin,						posedata[i][0], ent->axis[0], cl_strisvertv[t->firstvert+i*2+0]);
+				VectorMA(cl_strisvertv[t->firstvert+i*2+0], posedata[i][1], ent->axis[1], cl_strisvertv[t->firstvert+i*2+0]);
+				VectorMA(cl_strisvertv[t->firstvert+i*2+0], posedata[i][2], ent->axis[2], cl_strisvertv[t->firstvert+i*2+0]);
+
+				VectorMA(posedata[i], 0.1, normdata[i], push);
+				VectorMA(ent->origin,						push[0], ent->axis[0], cl_strisvertv[t->firstvert+i*2+1]);
+				VectorMA(cl_strisvertv[t->firstvert+i*2+1], push[1], ent->axis[1], cl_strisvertv[t->firstvert+i*2+1]);
+				VectorMA(cl_strisvertv[t->firstvert+i*2+1], push[2], ent->axis[2], cl_strisvertv[t->firstvert+i*2+1]);
+
+				Vector2Set(cl_strisvertt[t->firstvert+i*2+0], 0.0, 0.0);
+				Vector2Set(cl_strisvertt[t->firstvert+i*2+1], 1.0, 1.0);
+				Vector4Set(cl_strisvertc[t->firstvert+i*2+0], 0, 0, 1, 1);
+				Vector4Set(cl_strisvertc[t->firstvert+i*2+1], 0, 0, 1, 1);
+
+				cl_strisidx[cl_numstrisidx+i*2+0] = i*2+0;
+				cl_strisidx[cl_numstrisidx+i*2+1] = i*2+1;
+			}
+			cl_numstrisidx += i*2;
+			cl_numstrisvert += i*2;
 		}
 		else
 		{
-			for (i = 0; i < mod->numindexes; i++)
-				cl_strisidx[cl_numstrisidx+i] = mod->ofs_indexes[i];
-			cl_numstrisidx += mod->numindexes;
+			if (cl_numstris == cl_maxstris)
+			{
+				cl_maxstris+=8;
+				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+			}
+			t = &cl_stris[cl_numstris++];
+			t->shader = shader;
+			t->flags = 0;//BEF_LINES;
+			t->firstidx = cl_numstrisidx;
+			t->firstvert = cl_numstrisvert;
+			if (t->flags&BEF_LINES)
+				t->numidx = mod->numindexes*2;
+			else
+				t->numidx = mod->numindexes;
+			t->numvert = mod->numverts;
+
+			if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
+			{
+				cl_maxstrisidx=cl_numstrisidx+t->numidx;
+				cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+			}
+			if (cl_numstrisvert+mod->numverts > cl_maxstrisvert)
+			{
+				cl_maxstrisvert=cl_numstrisvert+mod->numverts;
+				cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+				cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+				cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+			}
+			for (i = 0; i < mod->numverts; i++)
+			{
+				VectorMA(ent->origin,					posedata[i][0], ent->axis[0], cl_strisvertv[t->firstvert+i]);
+				VectorMA(cl_strisvertv[t->firstvert+i], posedata[i][1], ent->axis[1], cl_strisvertv[t->firstvert+i]);
+				VectorMA(cl_strisvertv[t->firstvert+i], posedata[i][2], ent->axis[2], cl_strisvertv[t->firstvert+i]);
+	//			VectorAdd(ent->origin, posedata[i], cl_strisvertv[t->firstvert+i]);
+
+				Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
+				Vector4Set(cl_strisvertc[t->firstvert+i], (mod->contents?1:0), 1, 1, 0.1);
+			}
+			if (t->flags&BEF_LINES)
+			{
+				for (i = 0; i < mod->numindexes; i+=3)
+				{
+					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
+					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
+					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
+					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
+					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
+					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
+				}
+			}
+			else
+			{
+				for (i = 0; i < mod->numindexes; i++)
+					cl_strisidx[cl_numstrisidx+i] = mod->ofs_indexes[i];
+				cl_numstrisidx += mod->numindexes;
+			}
+			cl_numstrisvert += mod->numverts;
 		}
-		cl_numstrisvert += mod->numverts;
 	}
 }
 #endif

@@ -809,6 +809,7 @@ typedef struct
 	double		time;			// this is the time value that the client
 								// is rendering at.  always <= realtime
 	double		lasttime;		//cl.time from last frame.
+	double		lastlinktime;	//cl.time from last frame.
 
 	float servertime;	//current server time, bound between gametime and gametimemark
 	float mtime;		//server time as on the server when we last received a packet. not allowed to decrease.

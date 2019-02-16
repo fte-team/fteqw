@@ -44,6 +44,6 @@ void main ()
 	ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 #endif
 
-	gl_FragColor = fog4(vec4(ts, USEALPHA) * e_colourident);
+	gl_FragColor = fog4blend(vec4(ts, USEALPHA) * e_colourident);
 }
 #endif

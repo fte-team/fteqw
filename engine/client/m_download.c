@@ -1023,26 +1023,45 @@ static void PM_WriteInstalledPackages(void);
 static package_t *PM_FindPackage(const char *packagename);
 static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
+	static const char *knownarch[] =
+	{
+		"x32", "x64", "amd64", "x86",	//various x86 ABIs
+		"arm", "arm64", "armhf",		//various arm ABIs
+		"ppc", "unk",					//various misc ABIs
+	};
 	package_t *p;
 	struct packagedep_s *dep;
 	char vmname[MAX_QPATH];
-	int len;
+	int len, l, a;
 	char *dot;
 	if (!strncmp(name, "fteplug_", 8))
 		Q_strncpyz(vmname, name+8, sizeof(vmname));
 	else
 		Q_strncpyz(vmname, name, sizeof(vmname));
 	len = strlen(vmname);
-	len -= strlen(ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
-	if (!strcmp(vmname+len, ARCH_CPU_POSTFIX ARCH_DL_POSTFIX))
+	l = strlen(ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
+	if (len > l && !strcmp(vmname+len-l, ARCH_CPU_POSTFIX ARCH_DL_POSTFIX))
+	{
+		len -= l;
 		vmname[len] = 0;
+	}
 	else
 	{
 		dot = strchr(vmname, '.');
 		if (dot)
+		{
 			*dot = 0;
+			len = strlen(vmname);
+
+			//if we can find a known cpu arch there then ignore it - its a different cpu arch
+			for (a = 0; a < countof(knownarch); a++)
+			{
+				l = strlen(knownarch[a]);
+				if (len > l && !Q_strcasecmp(vmname + len-l, knownarch[a]))
+					return true;	//wrong arch! ignore it.
+			}
+		}
 	}
-	len = strlen(vmname);
 	if (len > 0 && vmname[len-1] == '_')
 		vmname[len-1] = 0;
 
@@ -1112,7 +1131,7 @@ static void PM_PreparePackageList(void)
 			char nat[MAX_OSPATH];
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
 			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
+			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
 			if (foundone && !pluginpromptshown)
 			{
 				pluginpromptshown = true;

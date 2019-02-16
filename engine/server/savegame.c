@@ -78,7 +78,7 @@ void SV_SavegameComment (char *text, size_t textsize)
 	text[textsize-1] = '\0';
 }
 
-pbool SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char **ptr)
+pbool PDECL SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char **ptr)
 {
 	char token[8192];
 	com_tokentype_t tt;

@@ -97,10 +97,10 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 	hVM=NULL;
 	*fname = 0;
 
-	Con_DPrintf("Attempting to load native library: %s\n", name);
-
 	if (binroot)
 	{
+		Con_DPrintf("Attempting to load native library: %s\n", name);
+
 		if (!hVM && FS_NativePath(dllname_arch, FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
@@ -130,20 +130,22 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 	}
 	else
 	{
+		Con_DPrintf("Attempting to load (unsafe) native library: %s\n", name);
+
 		// run through the search paths
 		iterator = NULL;
 		while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath), NULL, 0))
 		{
 			if (!hVM)
 			{
-				snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);
+				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_arch);
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 
 			if (!hVM)
 			{
-				snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
+				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_anycpu);
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}

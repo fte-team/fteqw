@@ -170,6 +170,9 @@ typedef struct galiasinfo_s
 	struct galiasinfo_s *nextsurf;
 
 #ifdef SKELETALMODELS
+//	int *bonemap;		//some models are horribly complicated, this provides a gpubone->cpubone table, reducing the number of gpu bones needed on a per-mesh basis.
+//	int mappedbones;
+
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;
 	galiasbone_t *ofsbones;

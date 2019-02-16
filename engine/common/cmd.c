@@ -2700,13 +2700,14 @@ A complete command line has been parsed, so try to execute it
 FIXME: lookupnoadd the token to speed search?
 ============
 */
-void	Cmd_ExecuteString (const char *text, int level)
+static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 {
 	//WARNING: PF_checkcommand should match the order.
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
 	char dest[8192];
+	Cmd_ExecLevel = level;
 
 	while (*text == ' ' || *text == '\n')
 		text++;
@@ -2764,12 +2765,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 				Cmd_ForwardToServer ();
 			}
 			else
-			{
-				int olev = Cmd_ExecLevel;
-				Cmd_ExecLevel = level;
 				cmd->function ();
-				Cmd_ExecLevel = olev;
-			}
 			return;
 		}
 	}
@@ -2875,7 +2871,6 @@ void	Cmd_ExecuteString (const char *text, int level)
 			{
 				if (!strcmp(cmd_argv[0], tpcmds[level]))
 				{
-					int olev = Cmd_ExecLevel;
 					if (cmd->restriction && cmd->restriction > 0)
 					{	//warning, these commands would normally be considered to be run at restrict_local, but they're running at a much lower level
 						//which means that if there's ANY restriction on them then they'll fail.
@@ -2888,7 +2883,6 @@ void	Cmd_ExecuteString (const char *text, int level)
 						Cmd_ForwardToServer ();
 					else
 						cmd->function();
-					Cmd_ExecLevel = olev;
 					return;
 				}
 			}
@@ -2904,13 +2898,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 		else if (!cmd->function)
 			Cmd_ForwardToServer ();
 		else
-		{
-			int olev = Cmd_ExecLevel;
-			Cmd_ExecLevel = level;
 			cmd->function ();
-			Cmd_ExecLevel = olev;
-		}
-
 		return;
 	}
 
@@ -2962,7 +2950,14 @@ void	Cmd_ExecuteString (const char *text, int level)
 	if ((cl_warncmd.value && level <= RESTRICT_LOCAL) || developer.value)
 		Con_TPrintf ("Unknown command \"%s\"\n", Cmd_Argv(0));
 }
-
+void	Cmd_ExecuteString (const char *text, int level)
+{	//inserted a small wrapper due to all the returns in the original function.
+	//a number of things check for seats if nothing else, and security says is safer to do this than to be in doubt.
+	int olev = Cmd_ExecLevel;
+	Cmd_ExecuteStringGlobalsAreEvil(text, level);
+	Cmd_ExecLevel = level;
+	Cmd_ExecLevel = olev;
+}
 
 
 /*

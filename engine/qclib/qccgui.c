@@ -2596,7 +2596,7 @@ static void UpdateEditorTitle(editor_t *editor)
 	switch(editor->savefmt)
 	{
 	case UTF8_RAW:
-		encoding = "utf-8(raw)";
+		encoding = "utf-8";
 		break;
 	case UTF8_BOM:
 		encoding = "utf-8(bom)";

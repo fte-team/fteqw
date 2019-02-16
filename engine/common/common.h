@@ -97,8 +97,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef _MSC_VER
 	#if _MSC_VER >= 1310
 		#define strtoull _strtoui64
+		#define strtoll _strtoi64
 	#else
 		#define strtoull strtoul	//hopefully this won't cause too many issues
+		#define strtoll strtol	//hopefully this won't cause too many issues
 		#define DWORD_PTR DWORD		//32bit only
 		#define ULONG_PTR ULONG
 	#endif

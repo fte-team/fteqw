@@ -143,6 +143,7 @@ cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
 cvar_t r_globalskin_first					= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
 cvar_t r_globalskin_count					= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
+cvar_t r_coronas_intensity					= CVARFD ("r_coronas_intensity", "1",	CVAR_ARCHIVE, "Alternative intensity multiplier for coronas.");
 cvar_t r_coronas_occlusion					= CVARFD ("r_coronas_occlusion", "", CVAR_ARCHIVE, "Specifies that coronas should be occluded more carefully.\n0: No occlusion, at all.\n1: BSP occlusion only (simple tracelines).\n2: non-bsp occlusion also (complex tracelines).\n3: Depthbuffer reads (forces synchronisation).\n4: occlusion queries.");
 cvar_t r_coronas_mindist					= CVARFD ("r_coronas_mindist", "128", CVAR_ARCHIVE, "Coronas closer than this will be invisible, preventing near clip plane issues.");
 cvar_t r_coronas_fadedist					= CVARFD ("r_coronas_fadedist", "256", CVAR_ARCHIVE, "Coronas will fade out over this distance.");
@@ -230,7 +231,7 @@ cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
 cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
-cvar_t scr_fov_mode							= CVARFD  ("scr_fov_mode", "0", CVAR_ARCHIVE, "Controls what the fov cvar actually controls:\n0: largest axis (ultra-wide monitors means less height will be visible).\n1: smallest axis (ultra-wide monitors will distort at the edges).\n2: horizontal axis.\n3: vertical axis.");
+cvar_t scr_fov_mode							= CVARFD  ("scr_fov_mode", "0", CVAR_ARCHIVE, "Controls what the fov cvar actually controls:\n0: largest axis (ultra-wide monitors means less height will be visible).\n1: smallest axis (ultra-wide monitors will distort at the edges).\n2: horizontal axis.\n3: vertical axis.\n4: horizontally-padded 4:3");
 cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_fov_viewmodel					= CVARFD("r_viewmodel_fov", "", CVAR_ARCHIVE,
@@ -870,6 +871,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_stainfadeammount, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightprepass_cvar, GLRENDEREROPTIONS);
 	Cvar_Register (&r_coronas, GRAPHICALNICETIES);
+	Cvar_Register (&r_coronas_intensity, GRAPHICALNICETIES);
 	Cvar_Register (&r_coronas_occlusion, GRAPHICALNICETIES);
 	Cvar_Register (&r_coronas_mindist, GRAPHICALNICETIES);
 	Cvar_Register (&r_coronas_fadedist, GRAPHICALNICETIES);

@@ -153,6 +153,7 @@ extern xwindow_t *rootwindow;
 extern qboolean xrefreshed;	//something onscreen changed.
 
 int XS_GetResource(int id, void **data);
+void *XS_GetResourceType(int id, int requiredtype);
 void XS_SetProperty(xwindow_t *wnd, Atom atomid, Atom atomtype, char *data, int datalen, int format);
 int XS_GetProperty(xwindow_t *wnd, Atom atomid, Atom *type, char *output, int maxlen, int offset, int *extrabytes, int *format);
 void XS_DeleteProperty(xwindow_t *wnd, Atom atomid);
@@ -161,8 +162,10 @@ Atom XS_FindAtom(char *name);
 xgcontext_t *XS_CreateGContext(int id, xclient_t *owner, xresource_t *drawable);
 int XS_NewResource(void);
 xwindow_t *XS_CreateWindow(int wid, xclient_t *owner, xwindow_t *parent, short x, short y, short width, short height);
+void X_Resize(xwindow_t *wnd, int newx, int newy, int neww, int newh);
 void XS_SetParent(xwindow_t *wnd, xwindow_t *parent);
 xpixmap_t *XS_CreatePixmap(int id, xclient_t *owner, int width, int height, int depth);
+xfont_t *XS_CreateFont(int id, xclient_t *owner, char *fontname);
 void XS_CreateInitialResources(void);
 void XS_DestroyResource(xresource_t *res);
 void XS_DestroyResourcesOfClient(xclient_t *cl);
@@ -192,6 +195,7 @@ extern qbyte *xscreen;
 extern short xscreenwidth;
 extern short xscreenheight;
 
+#ifndef K_CTRL
 extern int K_BACKSPACE;
 extern int K_CTRL;
 extern int K_ALT;
@@ -200,3 +204,4 @@ extern int K_MOUSE2;
 extern int K_MOUSE3;
 extern int K_MOUSE4;
 extern int K_MOUSE5;
+#endif

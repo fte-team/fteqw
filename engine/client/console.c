@@ -2862,6 +2862,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 								if ((buf = FS_LoadMallocFile (key, &fsize)))
 									Image_LoadTextureFromMemory(shader->defaulttextures->base, shader->defaulttextures->base->flags|IF_NOWORKER, key, key, buf, fsize);
 							}
+						}
+						key = Info_ValueForKey(info, "tipimgptr");
+						if (*key)
+						{
+							shader = R2D_SafeCachePic("tiprawimg");
+							shader->defaulttextures->base = Image_TextureIsValid(strtoull(key, NULL, 0));
+						}
+						if (shader && shader->defaulttextures->base)
+						{
 							shader->width = shader->defaulttextures->base->width;
 							shader->height = shader->defaulttextures->base->height;
 							if (shader->width > 320)

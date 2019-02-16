@@ -37,7 +37,7 @@
 #include "sys/skeletal.h"
 
 affine varying vec2 tc;
-varying vec3 light;
+varying vec4 light;
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
 #endif
@@ -53,6 +53,7 @@ void main ()
 {
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
+	n = normalize(n);
 #if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
@@ -70,7 +71,11 @@ void main ()
 	float d = dot(n,e_light_dir);
 	if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
 		d = 0.0;	//this avoids the dark side going below the ambient level.
-	light = e_light_ambient + (d*e_light_mul);
+	light.rgb = e_light_ambient + (d*e_light_mul);
+	light.a = 1.0;
+#ifdef VC
+	light *= v_colour;
+#endif
 
 //FIXME: Software rendering imitation should possibly push out normals by half a pixel or something to approximate software's over-estimation of distant model sizes (small models are drawn using JUST their verticies using the nearest pixel, which results in larger meshes)
 
@@ -99,8 +104,8 @@ in vec3 normal[];
 out vec3 t_normal[];
 affine in vec2 tc[];
 affine out vec2 t_tc[];
-in vec3 light[];
-out vec3 t_light[];
+in vec4 light[];
+out vec4 t_light[];
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 in vec3 eyevector[];
 out vec3 t_eyevector[];
@@ -148,8 +153,8 @@ in vec3 t_vertex[];
 in vec3 t_normal[];
 affine in vec2 t_tc[];
 affine out vec2 tc;
-in vec3 t_light[];
-out vec3 light;
+in vec4 t_light[];
+out vec4 light;
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 in vec3 t_eyevector[];
 out vec3 eyevector;
@@ -212,7 +217,7 @@ uniform float cvar_gl_specular;
 #endif
 
 affine varying vec2 tc;
-varying vec3 light;
+varying vec4 light;
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
 #endif
@@ -269,8 +274,7 @@ void main ()
 		col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
 	#endif
 
-	col.rgb *= light;
-	col *= e_colourident;
+	col *= light * e_colourident;
 
 	#ifdef FULLBRIGHT
 		vec4 fb = texture2D(s_fullbright, tc);

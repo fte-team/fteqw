@@ -1257,6 +1257,13 @@ restart:
 			*y = CalcFov(afov, w, h);
 		}
 		break;
+
+	case 4:	//wide 4:3
+		*y = tan(scr_fov.value * M_PI / 360.0) * (3.0 / 4.0);
+		*x = *y * (float)w / (float)h;
+		*x = atan(*x) * (360.0 / M_PI);
+		*y = atan(*y) * (360.0 / M_PI);
+		break;
 	}
 }
 void V_ApplyAFov(playerview_t *pv)

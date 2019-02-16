@@ -122,7 +122,7 @@ void Fwd_ParseCommands(cluster_t *cluster, oproxy_t *prox)
 	bytes = NET_WebSocketRecv(prox->sock, &prox->websocket, prox->inbuffer+prox->inbuffersize, sizeof(prox->inbuffer)-prox->inbuffersize, NULL);
 	if (bytes < 0)
 	{
-		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
+		if (qerrno != NET_EWOULDBLOCK && qerrno != NET_EAGAIN)	//not a problem, so long as we can flush it later.
 		{
 			Sys_Printf(cluster, "network error from client proxy\n");
 			prox->drop = true;	//drop them if we get any errors
@@ -215,7 +215,7 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 		prox->flushing = false;
 		break;
 	case -1:
-		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
+		if (qerrno != NET_EWOULDBLOCK && qerrno != NET_EAGAIN)	//not a problem, so long as we can flush it later.
 		{
 			Sys_Printf(cluster, "network error from client proxy\n");
 			prox->drop = true;	//drop them if we get any errors

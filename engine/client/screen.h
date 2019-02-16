@@ -104,10 +104,14 @@ typedef enum uploadfmt
 	PTI_L8_SRGB,	//8bit format. luminance gets flooded to all RGB channels. might be supported using swizzles.
 	PTI_L8A8_SRGB,	//16bit format. L=luminance. note: this cannot be implemented as a swizzle as there's no way to get srgb on red without it on green.
 	//small formats.
-	PTI_R8,			//used for paletted data
+	PTI_P8,			//used for paletted data. Loaded as R8, but separate purely due to mipmap generation. should probably make a mipgen enum.
+	PTI_R8,			//used for greyscale data (that doesn't need to get expanded to rgb).
 	PTI_RG8,		//might be useful for normalmaps
 	PTI_R8_SNORM,
 	PTI_RG8_SNORM,	//might be useful for normalmaps
+	//big formats
+	PTI_R16,
+	PTI_RGBA16,
 	//floating point formats
 	PTI_R16F,
 	PTI_R32F,
@@ -188,8 +192,8 @@ typedef enum uploadfmt
 
 	//non-native formats (generally requiring weird palettes that are not supported by hardware)
 	TF_BGR24_FLIP,			/*bgr byte order, no alpha channel nor pad, and bottom up*/
-	TF_MIP4_R8,		/*8bit 4-mip greyscale image*/
-	TF_MIP4_SOLID8,	/*8bit 4-mip image in default palette*/
+	TF_MIP4_P8,		/*8bit 4-mip image in default palette, that will be loaded as an R8 texture.*/
+	TF_MIP4_SOLID8,	/*8bit 4-mip image in default palette, that will be expanded to an RGB texture.*/
 	TF_MIP4_8PAL24,	/*8bit 4-mip image with included palette*/
 	TF_MIP4_8PAL24_T255,/*8bit 4-mip image with included palette where index 255 is alpha 0*/
 	TF_SOLID8,      /*8bit quake-palette image*/
@@ -227,11 +231,9 @@ typedef enum uploadfmt
 	TF_BGRX32 = PTI_BGRX8,              /*rgb byte order, with extra wasted byte after blue*/
 	TF_RGB24 = PTI_RGB8,				/*rgb byte order, no alpha channel nor pad, and regular top down*/
 	TF_BGR24 = PTI_BGR8,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
-	TF_LUM8 = PTI_L8,
-	TF_R8 = PTI_R8
 
 	//these are emulated formats. this 'case' value allows drivers to easily ignore them
-#define PTI_EMULATED 	TF_INVALID:case TF_BGR24_FLIP:case TF_MIP4_R8:case TF_MIP4_SOLID8:case TF_MIP4_8PAL24:case TF_MIP4_8PAL24_T255:case TF_SOLID8:case TF_TRANS8:case TF_TRANS8_FULLBRIGHT:case TF_HEIGHT8:case TF_HEIGHT8PAL:case TF_H2_T7G1:case TF_H2_TRANS8_0:case TF_H2_T4A4:case TF_8PAL24:case TF_8PAL32:case PTI_LLLX8:case PTI_LLLA8
+#define PTI_EMULATED 	TF_INVALID:case TF_BGR24_FLIP:case TF_MIP4_P8:case TF_MIP4_SOLID8:case TF_MIP4_8PAL24:case TF_MIP4_8PAL24_T255:case TF_SOLID8:case TF_TRANS8:case TF_TRANS8_FULLBRIGHT:case TF_HEIGHT8:case TF_HEIGHT8PAL:case TF_H2_T7G1:case TF_H2_TRANS8_0:case TF_H2_T4A4:case TF_8PAL24:case TF_8PAL32:case PTI_LLLX8:case PTI_LLLA8
 } uploadfmt_t;
 
 qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta);

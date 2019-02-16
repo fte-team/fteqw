@@ -9,7 +9,9 @@
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_glsl_pcf
 !!cvardf r_tessellation_level=5
-!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask projectionmap
+!!samps diffuse normalmap specular upper lower reflectcube reflectmask
+!!samps =PCF shadowmap
+!!samps =CUBE projectionmap
 
 #include "sys/defs.h"
 

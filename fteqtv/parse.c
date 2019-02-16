@@ -210,7 +210,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE2 (%x) not supported\n", protocol & ~supported);
 			continue;
 		case PROTOCOL_VERSION_HUFFMAN:
-			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_HUFFMAN not supported\n", protocol);
+			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_HUFFMAN not supported\n");
 			ParseError(m);
 			return;
 		case PROTOCOL_VERSION_VARLENGTH:
@@ -236,7 +236,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			continue;
 		case PROTOCOL_VERSION_FRAGMENT:
 			protocol = ReadLong(m);
-			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FRAGMENT not supported\n", protocol);
+			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FRAGMENT not supported\n");
 			ParseError(m);
 			return;
 		default:
@@ -989,6 +989,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 	tv->physicstime = tv->curtime;
 
 	if (tv->cluster->chokeonnotupdated)
+	{
 		for (v = tv->cluster->viewers; v; v = v->next)
 		{
 			if (v->server == tv)
@@ -999,6 +1000,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 			if (v->server == tv && v->netchan.isnqprotocol)
 				v->maysend = true;
 		}
+	}
 
 
 	if (deltaframe != -1)

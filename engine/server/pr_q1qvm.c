@@ -364,16 +364,18 @@ typedef enum {
 		emufield(maxspeed,		F_FLOAT)	\
 		emufield(movement,		F_VECTOR)	\
 		emufield(vw_index,		F_FLOAT)	\
-		emufield(isBot,			F_INT)
-//		emufield(items2,		F_FLOAT)	
-//		emufield(brokenankle,	F_FLOAT)	
-//		emufield(mod_admin,		F_INT)		
-//		emufield(hideentity,	F_INT)		
-//		emufield(trackent,		F_INT)		
-//		emufield(hideplayers,	F_INT)		
-//		emufield(visclients,	F_INT)
+		emufield(isBot,			F_INT)		\
+		emufield(items2,		F_FLOAT)	\
+		emufield(trackent,		F_INT)	/*network another player instead, but not entity because of an mvdsv bug. used during bloodfest.*/
+//		emufield(mod_admin,		F_INT)	/*enable 'cmd ban' etc when &2*/
+//		emufield(hideentity,	F_INT)	/*backward nodrawtoclient, used by race mode spectators*/
+//		emufield(hideplayers,	F_INT)	/*force other clients as invisible, for race mode*/
+//		emufield(visclients,	F_INT)	/*bitfield of clients that can see this entity (borked with playerslots>32). used for 'cmd tpmsg foo', and bots.*/
+//		emufield(teleported,	F_INT)	/*teleport angle twisting*/
+//		emufield(brokenankle,	F_FLOAT) /*not actually in mvdsv after all*/
 
-struct
+
+static struct
 {
 #define emufield(n,t) int n;
 	emufields
@@ -2554,6 +2556,10 @@ void Q1QVM_PostThink(void)
 
 	if (fofs.vw_index)
 		sv_player->xv->vw_index = ((float*)sv_player->v)[fofs.vw_index];
+	if (fofs.items2)
+		sv_player->xv->items2 = ((float*)sv_player->v)[fofs.items2];
+	if (fofs.trackent)
+		host_client->viewent = ((int*)sv_player->v)[fofs.trackent];
 }
 
 void Q1QVM_StartFrame(qboolean botsarespecialsnowflakes)

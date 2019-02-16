@@ -1593,6 +1593,9 @@ void Sys_Init (void)
 
 	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
 
+#if _MSC_VER >= 1600 //msvc2010 runtime does not work on 9x any more. get rid of the deprecation warnings in later versions.
+	WinNT = true;
+#else
 	if (!GetVersionEx (&vinfo))
 		Sys_Error ("Couldn't get OS info");
 
@@ -1606,6 +1609,7 @@ void Sys_Init (void)
 		WinNT = true;
 	else
 		WinNT = false;
+#endif
 
 	qwinvermaj = vinfo.dwMajorVersion;
 	qwinvermin = vinfo.dwMinorVersion;
@@ -3767,7 +3771,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			WinNT = vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT;
 	}
 
-#if defined(_DEBUG) && defined(MULTITHREAD)
+#if defined(_DEBUG) && defined(_MSC_VER) && defined(MULTITHREAD)
 	Sys_SetThreadName(-1, "main thread");
 #endif
 

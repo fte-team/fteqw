@@ -3894,7 +3894,9 @@ void CL_LinkPacketEntities (void)
 	int trailef, trailidx;
 	int modelflags;
 	struct itemtimer_s	*timer, **timerlink;
-	float timestep = host_frametime;
+	float timestep = cl.time-cl.lastlinktime;
+	cl.lastlinktime = cl.time;
+	timestep = bound(0, timestep, 0.1);
 
 	pack = cl.currentpackentities;
 	if (!pack)

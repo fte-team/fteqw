@@ -1522,6 +1522,22 @@ char *particle_set_high =
 "assoc gunshotsmoke\n"
 "}\n"
 
+//simple slight trail, to show movement more than anything else.
+"r_part tr_spike\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"step 1.1\n"
+"scale 4\n"
+"die .4\n"
+"rgb 20 20 20\n"
+"alpha 1\n"
+"blend add\n"
+"spawnmode spiral 512\n"
+"spawnvel 10\n"
+"}\n"
+"r_trail \"progs/spike.mdl\" tr_spike\n"
+"r_trail \"progs/s_spike.mdl\" tr_spike\n"
+
 ////////////////////////////////////////////////
 //explosion
 

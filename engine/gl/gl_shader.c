@@ -5723,7 +5723,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->paletted) && *mapname)
 				tex->paletted = R_LoadHiResTexture(va("%s_pal", mapname), NULL, imageflags|IF_NEAREST);
 			if (!TEXVALID(tex->paletted))
-				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_R8:TF_R8);
+				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_P8:PTI_P8);
 		}
 
 		imageflags |= IF_LOWPRIORITY;

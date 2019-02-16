@@ -1467,13 +1467,13 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 			"POST %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
 			//"Authorization: Basic %s\r\n"
-			"Content-length: %i\r\n"
+			"Content-length: %u\r\n"
 			"Content-Type: application/x-www-form-urlencoded\r\n"
 			"Connection: close\r\n"
 			"\r\n",
 				resource,
 				host,
-				strlen(body));
+				(unsigned)strlen(body));
 
 		sock = pNet_TCPConnect(host, 443);
 		pNet_SetTLSClient(sock, host);
@@ -1541,12 +1541,12 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 			"POST %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
 			//"Authorization: Basic %s\r\n"
-			"Content-length: %i\r\n"
+			"Content-length: %u\r\n"
 			"Content-Type: application/x-www-form-urlencoded\r\n"
 			"user-agent: fteqw-plugin-xmpp\r\n"
 			"Connection: close\r\n"
 			"\r\n",
-			resource, host, strlen(body));
+			resource, host, (unsigned)strlen(body));
 
 		Con_Printf("XMPP: Requesting access token\n");
 		sock = pNet_TCPConnect(host, 443);
@@ -1613,12 +1613,12 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 			"POST %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
 			//"Authorization: Basic %s\r\n"
-			"Content-length: %i\r\n"
+			"Content-length: %u\r\n"
 			"Content-Type: application/x-www-form-urlencoded\r\n"
 			"user-agent: fteqw-plugin-xmpp\r\n"
 			"Connection: close\r\n"
 			"\r\n",
-			resource, host, strlen(body));
+			resource, host, (unsigned)strlen(body));
 
 		Con_Printf("XMPP: Refreshing access token\n");
 		sock = pNet_TCPConnect(host, 443);

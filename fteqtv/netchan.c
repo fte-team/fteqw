@@ -239,7 +239,7 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, net
 	if (ret < 0)
 	{
 		int er = qerrno;
-		if (er == EWOULDBLOCK || er == EAGAIN)
+		if (er == NET_EWOULDBLOCK || er == NET_EAGAIN)
 			return;
 
 		Sys_Printf(cluster, "udp send error %i (%s)\n", er, strerror(er));

@@ -6454,17 +6454,6 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 
 			if (arg >= MAX_PARMS+MAX_EXTRA_PARMS)
 				QCC_PR_ParseErrorPrintSRef (ERR_TOOMANYTOTALPARAMETERS, func, "More than %i parameters", MAX_PARMS+MAX_EXTRA_PARMS);
-			else if (extraparms && arg >= MAX_PARMS && !t->vargcount)
-			{
-				//vararg builtins cannot accept more than 8 args. they can't tell if they got more, and wouldn't know where to read them.
-				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSVARARGS, "More than %i parameters on varargs function", MAX_PARMS);
-				QCC_PR_ParsePrintSRef(WARN_TOOMANYPARAMETERSVARARGS, func);
-			}
-			else if (!extraparms && arg >= t->num_parms && !p)
-			{
-				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSFORFUNC, "too many parameters on call to %s", funcname);
-				QCC_PR_ParsePrintSRef(WARN_TOOMANYPARAMETERSFORFUNC, func);
-			}
 
 			if (QCC_PR_CheckToken("#"))
 			{
@@ -6481,8 +6470,20 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 				e = QCC_DefToRef(&parambuf[arg], func.cast->params[arg].defltvalue);
 			}
 			else
+				e = QCC_PR_RefExpression(&parambuf[arg], TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 
-			e = QCC_PR_RefExpression(&parambuf[arg], TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			if (extraparms && arg >= MAX_PARMS && !t->vargcount)
+			{
+				//vararg builtins cannot accept more than 8 args. they can't tell if they got more, and wouldn't know where to read them.
+				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSVARARGS, "More than %i parameters on varargs function", MAX_PARMS);
+				QCC_PR_ParsePrintSRef(WARN_TOOMANYPARAMETERSVARARGS, func);
+			}
+			else if (!extraparms && arg >= t->num_parms && !p)
+			{
+				char buf[256];
+				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSFORFUNC, "too many parameters on call to %s, argument %s will be ignored", funcname, QCC_GetRefName(e, buf, sizeof(buf)));
+				QCC_PR_ParsePrintSRef(WARN_TOOMANYPARAMETERSFORFUNC, func);
+			}
 
 			//with vectorcalls, we store the vector into the args as individual floats
 			//this allows better reuse of vector constants.
@@ -6600,7 +6601,10 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 		}
 		else*/
 		{
-			QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", QCC_GetSRefName(func));
+			if (func.cast->params[arg].paramname)
+				QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s, %s will be UNDEFINED", QCC_GetSRefName(func), func.cast->params[arg].paramname);
+			else
+				QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", QCC_GetSRefName(func));
 			QCC_PR_ParsePrintSRef (WARN_TOOFEWPARAMS, func);
 		}
 	}
@@ -14098,7 +14102,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 					{
 						//this is a hack. droptofloor was wrongly declared in vanilla qc, which causes problems with replacement extensions.qc.
 						//yes, this is a selfish lazy hack for this, there's probably a better way, but at least we spit out a warning still.
-						QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "%s builtin was wrongly defined as %s. ignoring later definition",name, TypeName(type, typebuf1, sizeof(typebuf1)));
+						QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "%s builtin was wrongly redefined as %s. ignoring later definition",name, TypeName(type, typebuf1, sizeof(typebuf1)));
 						QCC_PR_ParsePrintDef(WARN_COMPATIBILITYHACK, def);
 					}
 					else

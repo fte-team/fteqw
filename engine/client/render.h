@@ -443,6 +443,7 @@ enum imageflags
 #define R_LoadTextureFB(id,w,h,d,f)			Image_GetTexture(id, NULL, f, d, NULL, w, h, TF_TRANS8_FULLBRIGHT)
 #define R_LoadTexture(id,w,h,fmt,d,fl)		Image_GetTexture(id, NULL, fl, d, NULL, w, h, fmt)
 
+image_t *Image_TextureIsValid(qintptr_t address);
 image_t *Image_FindTexture	(const char *identifier, const char *subpath, unsigned int flags);
 image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsigned int flags);
 image_t *QDECL Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
@@ -583,7 +584,7 @@ void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, i
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
-qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *name);
+qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
 void Image_ResampleTexture8 (unsigned char *in, int inwidth, int inheight, unsigned char *out,  int outwidth, int outheight);
@@ -646,7 +647,7 @@ extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t r_renderscale;
 extern	cvar_t	gl_nohwblend;
-extern	cvar_t	r_coronas, r_coronas_occlusion, r_coronas_mindist, r_coronas_fadedist, r_flashblend, r_flashblendscale;
+extern	cvar_t	r_coronas, r_coronas_intensity, r_coronas_occlusion, r_coronas_mindist, r_coronas_fadedist, r_flashblend, r_flashblendscale;
 extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;

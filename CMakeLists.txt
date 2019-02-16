@@ -133,7 +133,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wcast-align -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 	ENDIF()
@@ -740,6 +740,31 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
 
+	ADD_EXECUTABLE(qtv
+		fteqtv/netchan.c
+		fteqtv/parse.c
+		fteqtv/msg.c
+		fteqtv/qw.c
+		fteqtv/source.c
+		fteqtv/bsp.c
+		fteqtv/rcon.c
+		fteqtv/mdfour.c
+		fteqtv/crc.c
+		fteqtv/control.c
+		fteqtv/forward.c
+		fteqtv/pmove.c
+		fteqtv/menu.c
+		fteqtv/httpsv.c
+		fteqtv/libqtvc/glibc_sucks.c
+		engine/common/sha1.c
+	)
+	SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON};stricmp=strcasecmp;strnicmp=strncasecmp")
+	IF(WIN32)
+		TARGET_LINK_LIBRARIES(qtv ${ZLIB_LIBRARIES} ws2_32 winmm)
+	ELSE()
+		TARGET_LINK_LIBRARIES(qtv m)
+	ENDIF()
+
 	IF(NOT WIN32)
 		ADD_EXECUTABLE(ftemaster
 			${FTESV_ARCH_FILES}
@@ -784,7 +809,6 @@ ELSE()
 	)
 	SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqcc ${ZLIB_LIBRARIES} m)
-
 
 	IF(${WIN32})
 		ADD_EXECUTABLE(fteqccgui WIN32
@@ -881,6 +905,32 @@ SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DE
 SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 SET_TARGET_PROPERTIES(irc PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 TARGET_LINK_LIBRARIES(irc m)
+
+#model formats plugin
+ADD_LIBRARY(models MODULE
+	plugins/qvm_api.c
+	plugins/plugin.c
+	plugins/models/models.c
+	plugins/models/gltf.c
+)
+SET_TARGET_PROPERTIES(models PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+SET_TARGET_PROPERTIES(models PROPERTIES PREFIX "fteplug_")
+SET_TARGET_PROPERTIES(models PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(models m)
+
+#x11 formats plugin
+ADD_LIBRARY(x11 MODULE
+	plugins/qvm_api.c
+	plugins/plugin.c
+	plugins/xsv/m_x.c
+	plugins/xsv/x_reqs.c
+	plugins/xsv/x_res.c
+	engine/qclib/hash.c
+)
+SET_TARGET_PROPERTIES(x11 PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+SET_TARGET_PROPERTIES(x11 PROPERTIES PREFIX "fteplug_")
+SET_TARGET_PROPERTIES(x11 PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(x11 m)
 
 #ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
 FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)

@@ -709,7 +709,7 @@ static qboolean XRandR_Init(void)
 	xrandr.outputs = NULL;
 
 	//enable by default once this is properly tested, and supports hwgamma.
-	if (!X11_CheckFeature("xrandr", false))
+	if (!X11_CheckFeature("xrandr", true))
 		return false;
 
 	if (!xrandr.lib)
@@ -877,6 +877,7 @@ static void XRandR_Shutdown(void)
 }
 static qboolean XRandR_FindOutput(const char *name)
 {
+	XRROutputInfo *primary = NULL;
 	int i;
 	xrandr.output = NULL;
 	if (!xrandr.outputs)
@@ -892,18 +893,18 @@ static qboolean XRandR_FindOutput(const char *name)
 	xrandr.crtcinfo = NULL;
 	for (i = 0; i < xrandr.res->noutput; i++)
 	{
-		if (xrandr.outputs[i]->connection != RR_Connected)
-			continue;
-		if (!xrandr.output || !strncmp(xrandr.outputs[i]->name, name, xrandr.outputs[i]->nameLen))
-		{
-			if (xrandr.outputs[i]->ncrtc)	//should be able to use this one
-			{
-				xrandr.output = xrandr.outputs[i];
-				if (!strncmp(xrandr.outputs[i]->name, name, xrandr.outputs[i]->nameLen))
-					break;
-			}
+		if (xrandr.outputs[i]->connection != RR_Connected || !xrandr.outputs[i]->ncrtc)
+			continue;	//not usable...
+		if (!primary || (xrandr.outputs[i]->npreferred && !primary->npreferred))
+			primary = xrandr.outputs[i];
+		if (*name && !strncmp(xrandr.outputs[i]->name, name, xrandr.outputs[i]->nameLen))
+		{	//this is the one they asked for
+			xrandr.output = xrandr.outputs[i];
+			break;
 		}
 	}
+	if (!xrandr.output)
+		xrandr.output = primary;
 	if (xrandr.output)
 	{
 		xrandr.crtc = xrandr.output->crtcs[0];
@@ -3652,7 +3653,7 @@ static qboolean X_CheckWMFullscreenAvailable(void)
 	return success;
 }
 
-static Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int y, unsigned int width, unsigned int height, qboolean fullscreen)
+static Window X_CreateWindow(rendererstate_t *info, qboolean override, XVisualInfo *visinfo, int x, int y, unsigned int width, unsigned int height, qboolean fullscreen)
 {
 	Window wnd, parent;
 	XSetWindowAttributes attr;
@@ -3677,14 +3678,23 @@ static Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int
 	}
 
 	memset(&szhints, 0, sizeof(szhints));
-	szhints.flags = PMinSize;
+	szhints.flags = PMinSize|PPosition|PSize;
 	szhints.min_width = 320;
 	szhints.min_height = 200;
-	szhints.x = x;
-	szhints.y = y;
-	szhints.width = width;
-	szhints.height = height;
 
+	if (!fullscreen)
+	{
+#ifdef USE_XRANDR
+		int dx, dy, dw, dh;
+		if (*info->devicename && XRandr_PickScreen(info->devicename, &dx, &dy, &dw, &dh))
+		{
+			x += dx + (dw-width)/2;
+			y += dy + (dh-height)/2;
+		}
+		else
+#endif
+			szhints.flags &= ~PPosition;
+	}
 
 	if (sys_parentwindow && !fullscreen)
 	{
@@ -3694,6 +3704,11 @@ static Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int
 	}
 	else
 		parent = vid_root;
+
+	szhints.x = x;
+	szhints.y = y;
+	szhints.width = width;
+	szhints.height = height;
 
 	wnd = x11.pXCreateWindow(vid_dpy, parent, x, y, width, height,
 						0, visinfo->depth, InputOutput,
@@ -3889,11 +3904,11 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	vid.activeapp = false;
 	if (fullscreenflags & FULLSCREEN_LEGACY)
 	{
-		vid_decoywindow = X_CreateWindow(false, visinfo, x, y, 320, 200, false);
-		vid_window = X_CreateWindow(true, visinfo, x, y, width, height, fullscreen);
+		vid_decoywindow = X_CreateWindow(info, false, visinfo, x, y, 320, 200, false);
+		vid_window = X_CreateWindow(info, true, visinfo, x, y, width, height, fullscreen);
 	}
 	else
-		vid_window = X_CreateWindow(false, visinfo, x, y, width, height, fullscreen);
+		vid_window = X_CreateWindow(info, false, visinfo, x, y, width, height, fullscreen);
 
 	vid_x_eventmask |= X_InitUnicode();
 	x11.pXSelectInput(vid_dpy, vid_window, vid_x_eventmask);

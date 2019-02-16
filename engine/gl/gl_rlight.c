@@ -388,7 +388,7 @@ void R_RenderDlights (void)
 		cscale = l->coronascale;
 		intensity = l->corona;// * 0.25;
 		if (coronastyle)
-			intensity *= r_coronas.value;
+			intensity *= r_coronas.value * r_coronas_intensity.value;
 		else
 			intensity *= r_flashblend.value;
 		if (intensity <= 0 || cscale <= 0)

@@ -607,14 +607,12 @@ void Cmd_Status(cmdctxt_t *ctx)
 		Cmd_Printf(ctx, " Talking allowed\n");
 	if (ctx->cluster->nobsp)
 		Cmd_Printf(ctx, " No BSP loading\n");
-	if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET || ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
-	{
+	if (ctx->cluster->tcpsocket[SG_UNIX] != INVALID_SOCKET)
+		Cmd_Printf(ctx, " unix socket open\n");
+	if (ctx->cluster->tcpsocket[SG_IPV4] != INVALID_SOCKET || ctx->cluster->tcpsocket[SG_IPV6] != INVALID_SOCKET)
 		Cmd_Printf(ctx, " tcp port %i\n", ctx->cluster->tcplistenportnum);
-	}
-	if (ctx->cluster->qwdsocket[0] != INVALID_SOCKET || ctx->cluster->qwdsocket[1] != INVALID_SOCKET)
-	{
+	if (ctx->cluster->qwdsocket[SG_IPV4] != INVALID_SOCKET || ctx->cluster->qwdsocket[SG_IPV6] != INVALID_SOCKET)
 		Cmd_Printf(ctx, " udp port %i\n", ctx->cluster->qwlistenportnum);
-	}
 	Cmd_Printf(ctx, " user connections are %sallowed\n", ctx->cluster->nouserconnects?"NOT ":"");
 	Cmd_Printf(ctx, "\n");
 

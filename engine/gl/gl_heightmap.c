@@ -6817,6 +6817,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	brush.numplanes = numfaces;
 	brush.planes = planes;
 	brush.faces = faces;
+	brush.patch = NULL;
 	if (numfaces)
 	{
 		nb = Terr_Brush_Insert(mod, hm, &brush);
@@ -7573,7 +7574,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						p = 4;	//we just managed to read an entire plane instead of 3 points.
 					break;
 				}
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				entities = COM_ParseTokenOut(entities, "()", token, sizeof(token), NULL);
 			}
 			if (p < 3)
 			{

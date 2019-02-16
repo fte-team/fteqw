@@ -4298,7 +4298,7 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= TOKENSIZE-1)
+			if (len >= tokenlen-1)
 			{
 				token[len] = '\0';
 				return (char*)data;
@@ -4328,7 +4328,7 @@ skipwhite:
 // parse a regular word
 	do
 	{
-		if (len >= TOKENSIZE-1)
+		if (len >= tokenlen-1)
 			break;
 		token[len] = c;
 		data++;

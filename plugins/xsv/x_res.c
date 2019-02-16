@@ -36,6 +36,18 @@ int XS_GetResource(int id, void **data)
 	}
 	return x_none;
 }
+void *XS_GetResourceType(int id, int requiredtype)
+{
+	xresource_t *res;
+	if (id < 0)
+		return NULL;
+
+	res = Hash_GetKey(&restable, id);
+
+	if (res && res->restype == requiredtype)
+		return res;
+	return NULL;
+}
 
 Atom XS_FindAtom(char *name)
 {
@@ -83,8 +95,8 @@ void XS_DestroyResource(xresource_t *res)
 	}
 	if (res->restype == x_gcontext)
 	{
-		xgcontext_t *gc = (xgcontext_t *)res;
-/*
+/*		xgcontext_t *gc = (xgcontext_t *)res;
+
 		gc->references--;
 		if (gc->references > 0)
 			return;
@@ -341,8 +353,23 @@ void XS_RaiseWindow(xwindow_t *wnd)
 	bigger->sibling = wnd;
 	wnd->sibling = NULL;
 }
+static qboolean XS_IsAncestor(xwindow_t *w, xwindow_t *check)
+{
+	xwindow_t *p;
+	if (w)
+	for (p = w->parent; p; p = p->parent)
+	{
+		if (p == check)
+			return true;
+	}
+	return false;
+}
 void XS_SetParent(xwindow_t *wnd, xwindow_t *parent)
 {
+	if (XS_IsAncestor(parent, wnd))
+		parent = wnd==rootwindow?NULL:rootwindow;
+	if (wnd == parent)
+		parent = wnd==rootwindow?NULL:rootwindow;
 	XS_ClearParent(wnd);
 	if (parent)
 	{
@@ -365,6 +392,57 @@ void XS_SetParent(xwindow_t *wnd, xwindow_t *parent)
 	wnd->parent = parent;
 
 	XS_RaiseWindow(wnd);
+}
+
+void X_Resize(xwindow_t *wnd, int newx, int newy, int neww, int newh)
+{
+	xEvent ev;
+
+/*	if (wnd->xpos == newx && wnd->ypos == newy)
+	{
+		ev.u.u.type							= ResizeRequest;
+		ev.u.u.detail						= 0;
+		ev.u.u.sequenceNumber				= 0;
+		ev.u.resizeRequest.window			= wnd->res.id;
+		ev.u.resizeRequest.width			= wnd->width;
+		ev.u.resizeRequest.height			= wnd->height;
+
+		X_SendNotificationMasked(&ev, wnd, StructureNotifyMask);
+		X_SendNotificationMasked(&ev, wnd, SubstructureNotifyMask);
+
+		return;
+	}*/
+
+	wnd->xpos = newx;
+	wnd->ypos = newy;
+
+	if ((wnd->width != neww || wnd->height != newh) && wnd->buffer)
+	{
+		free(wnd->buffer);
+		wnd->buffer = NULL;
+	}
+	wnd->width = neww;
+	wnd->height = newh;
+
+	if (wnd->mapped)
+		xrefreshed = true;
+
+	ev.u.u.type							= ConfigureNotify;
+	ev.u.u.detail						= 0;
+	ev.u.u.sequenceNumber				= 0;
+	ev.u.configureNotify.event			= wnd->res.id;
+	ev.u.configureNotify.window			= wnd->res.id;
+	ev.u.configureNotify.aboveSibling	= None;
+	ev.u.configureNotify.x				= wnd->xpos;
+	ev.u.configureNotify.y				= wnd->ypos;
+	ev.u.configureNotify.width			= wnd->width;
+	ev.u.configureNotify.height			= wnd->height;
+	ev.u.configureNotify.borderWidth	= 0;
+	ev.u.configureNotify.override		= wnd->overrideredirect;
+	ev.u.configureNotify.bpad			= 0;
+
+	X_SendNotificationMasked(&ev, wnd, StructureNotifyMask);
+	X_SendNotificationMasked(&ev, wnd, SubstructureNotifyMask);
 }
 
 xwindow_t *XS_CreateWindow(int wid, xclient_t *owner, xwindow_t *parent, short x, short y, short width, short height)
@@ -488,22 +566,28 @@ xfont_t *XS_CreateFont(int id, xclient_t *owner, char *fontname)
 	unsigned char *in, *insrc;
 
 	f = fopen("xfont.raw", "rb");
-	if (!f)
-		return NULL;
-	fseek(f, 0, SEEK_END);
-	len = ftell(f);
-	fseek(f, 0, SEEK_SET);
+	if (f)
+	{
+		fseek(f, 0, SEEK_END);
+		len = ftell(f);
+		fseek(f, 0, SEEK_SET);
 
-	if (len == 256*256*3)
+		if (len == 256*256*3)
+		{
+			width = height = 256;
+		}
+		else if (len == 128*128*3)
+			width = height = 128;
+		else
+		{	//urm, no idea.
+			fclose(f);
+			return NULL;
+		}
+	}
+	else
 	{
 		width = height = 256;
-	}
-	else if (len == 128*128*3)
-		width = height = 128;
-	else
-	{	//urm, no idea.
-		fclose(f);
-		return NULL;
+		len = width*height*3;
 	}
 
 	newfont = malloc(sizeof(xfont_t) + (width*height*4));
@@ -522,13 +606,16 @@ xfont_t *XS_CreateFont(int id, xclient_t *owner, char *fontname)
 	newfont->depth = 32;
 
 	in = insrc = malloc(len);
-	fread(in, len, 1, f);
-	fclose(f);
+	if (f)
+	{
+		fread(in, len, 1, f);
+		fclose(f);
+	}
 	out = newfont->data;
 
 	for (i = 0; i < width*height; i++)
 	{
-		*out = (in[0]) + (in[1]<<8) + (in[2]<<16) + (255<<24);
+		*out = (in[0]) + (in[1]<<8) + (in[2]<<16) + (255u<<24);
 		out++;
 		in+=3;
 	}

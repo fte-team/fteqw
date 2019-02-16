@@ -4725,7 +4725,7 @@ pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 	MAX_STRINGS		= 1<<21;
 	MAX_GLOBALS		= 1<<17;
 	MAX_FIELDS		= 1<<13;
-	MAX_STATEMENTS	= 1<<21;
+	MAX_STATEMENTS	= 1<<20;
 	MAX_FUNCTIONS	= 1<<15;
 	maxtypeinfos	= 1<<16;
 	MAX_CONSTANTS	= 1<<12;

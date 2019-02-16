@@ -252,7 +252,7 @@ void WriteStringSelection(netmsg_t *b, qboolean selected, const char *str)
 void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 {
 	char buffer[2048];
-	char str[64];
+	char str[256];
 	sv_t *sv;
 	int i, min;
 	unsigned char *s;

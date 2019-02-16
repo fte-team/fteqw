@@ -307,9 +307,7 @@ void M_Menu_Options_f (void)
 		MB_CONSOLECMD("FPS Options", "menu_fps\n", "Set model filtering and graphical profile options."),
 		MB_CONSOLECMD("Rendering Options", "menu_render\n", "Set rendering options such as water warp and tinting effects."),
 		MB_CONSOLECMD("Lighting Options", "menu_lighting\n", "Set options for level lighting and dynamic lights."),
-#ifdef GLQUAKE
 		MB_CONSOLECMD("Texture Options", "menu_textures\n", "Set options for texture detail and effects."),
-#endif
 #ifndef MINIMAL
 		MB_CONSOLECMD("Particle Options", "menu_particles\n", "Set particle effect options."),
 #endif
@@ -1068,8 +1066,10 @@ void FPS_Preset_f (void)
 
 	if (!stricmp("dp", arg))
 	{
+#ifdef HAVE_SERVER
 		if (sv.state)
 			Cbuf_InsertText("echo Be sure to restart your server\n", RESTRICT_LOCAL, false);
+#endif
 		Cbuf_InsertText(
 			//these are for smc+derived mods
 			"sv_listen_dp 1\n"					//awkward, but forces the server to load the effectinfo.txt in advance.
@@ -1078,6 +1078,9 @@ void FPS_Preset_f (void)
 			"dpcompat_noretouchground 1\n"		//don't call touch functions on entities that already appear onground. this also changes the order that the onground flag is set relative to touch functions.
 			"cl_nopred 1\n"						//DP doesn't predict by default, and DP mods have a nasty habit of clearing .solid values during prethinks, which screws up prediction. so play safe.
 			"r_dynamic 0\nr_shadow_realtime_dlight 1\n" //fte has separate cvars for everything. which kinda surprises people and makes stuff twice as bright as it should be.
+			"r_coronas_intensity 0.25\n"
+			"con_logcenterprint 0\n"			//kinda annoying....
+			"scr_fov_mode 4\n"					//for fairer framerate comparisons
 
 			//general compat stuff
 			"dpcompat_console 1\n"				//
@@ -1305,7 +1308,6 @@ void M_Menu_Render_f (void)
 	MC_AddFrameEnd(menu, y);
 }
 
-#ifdef GLQUAKE
 void M_Menu_Textures_f (void)
 {
 	static const char *texturefilternames[] =
@@ -1384,7 +1386,9 @@ void M_Menu_Textures_f (void)
 		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
 		MB_SPACING(4),
+#ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Software-style Rendering", r_softwarebanding_cvar, 0),
+#endif
 		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
 //		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
 		MB_CHECKBOXCVAR("offsetmapping", r_glsl_offsetmapping, 0),
@@ -1402,7 +1406,6 @@ void M_Menu_Textures_f (void)
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 	MC_AddFrameEnd(menu, y);
 }
-#endif
 
 typedef struct {
 	menucombo_t *lightcombo;
@@ -3088,11 +3091,13 @@ typedef struct
 		MV_TEXTURE,
 		MV_COLLISION,
 		MV_EVENTS,
+		MV_NORMALS,
 	} mode;
 	int surfaceidx;
 	int skingroup;
 	int framegroup;
 	int boneidx;
+	int textype;
 	double framechangetime;
 	double skinchangetime;
 	float pitch;
@@ -3337,6 +3342,25 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #endif
 
 
+	if (mods->mode == MV_NORMALS)
+	{
+		shader_t *s;
+		if (1)
+		{
+			s = R_RegisterShader("hitbox_nodepth", SUF_NONE,
+				"{\n"
+					"polygonoffset\n"
+					"{\n"
+						"map $whiteimage\n"
+						"blendfunc gl_src_alpha gl_one\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"nodepthtest\n"
+					"}\n"
+				"}\n");
+			Mod_AddSingleSurface(&ent, mods->surfaceidx, s, true);
+		}
+	}
 	if (mods->mode == MV_COLLISION)
 	{
 		shader_t *s;
@@ -3359,7 +3383,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 						"nodepthtest\n"
 					"}\n"
 				"}\n");
-			Mod_AddSingleSurface(&ent, mods->surfaceidx, s);
+			Mod_AddSingleSurface(&ent, mods->surfaceidx, s, false);
 		}
 		else
 		{
@@ -3497,7 +3521,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		else
 		{
 			shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
-			Draw_FunString(0, y, va("Skin %i: \"%s\", shader \"%s\"", mods->skingroup, fname, shader?shader->name:"NO SHADER"));
+			Draw_FunString(0, y, va("Skin %i: \"%s\", material \"%s\"", mods->skingroup, fname, shader?shader->name:"NO SHADER"));
 		}
 		y+=8;
 	}
@@ -3508,7 +3532,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		qboolean loop = false;
 		if (!Mod_FrameInfoForNum(ent.model, mods->surfaceidx, mods->framegroup, &fname, &numframes, &duration, &loop))
 			fname = "Unknown Frame";
-		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f/%f secs, %s)", mods->framegroup, fname, numframes, ent.framestate.g[FS_REG].frametime[0], duration, loop?"looped":"unlooped"));
+		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f of %f secs, %s)", mods->framegroup, fname, numframes, ent.framestate.g[FS_REG].frametime[0], duration, loop?"looped":"unlooped"));
 		y+=8;
 	}
 
@@ -3593,6 +3617,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 				, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		}
 		break;
+	case MV_NORMALS:
+		break;
 	case MV_BONES:
 #ifdef SKELETALMODELS
 		{
@@ -3645,10 +3671,62 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			shader_t *shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
 			if (shader)
 			{
+				char *t;
 				texnums_t *skin = shader->defaulttextures;
 				shader = R_RegisterShader("modelviewertexturepreview", SUF_2D, "{\nprogram default2d\n{\nmap $diffuse\n}\n}\n");
-				shader->defaulttextures->base = skin->base;
-				R2D_Image(0, y, shader->defaulttextures->base->width, shader->defaulttextures->base->height, 0, 0, 1, 1, shader);
+
+				switch(mods->textype)
+				{
+				case 1:
+					t = "Normalmap";
+					shader->defaulttextures->base = skin->bump;
+					break;
+				case 2:
+					t = "SpecularMap";
+					shader->defaulttextures->base = skin->specular;		//specular lighting values.
+					break;
+				case 3:
+					t = "UpperMap";
+					shader->defaulttextures->base = skin->upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb
+					break;
+				case 4:
+					t = "LopwerMap";
+					shader->defaulttextures->base = skin->loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb
+					break;
+				case 5:
+					t = "PalettedMap";
+					shader->defaulttextures->base = skin->paletted;		//8bit paletted data, just because.
+					break;
+				case 6:
+					t = "FullbrightMap";
+					shader->defaulttextures->base = skin->fullbright;
+					break;
+				case 7:
+					t = "ReflectCube";
+					shader->defaulttextures->base = skin->reflectcube;
+					break;
+				case 8:
+					t = "ReflectMask";
+					shader->defaulttextures->base = skin->reflectmask;
+					break;
+				case 9:
+					t = "DisplacementMap";
+					shader->defaulttextures->base = skin->displacement;
+					break;
+				default:
+					mods->textype = 0;
+					t = "Diffusemap";
+					shader->defaulttextures->base = skin->base;
+					break;
+				}
+				if (shader->defaulttextures->base)
+				{
+					Draw_FunString(0, y, va("%s: %s  (%s)", t, shader->defaulttextures->base->ident, shader->defaulttextures->base->subpath));
+					y+=8;
+					R2D_Image(0, y, shader->defaulttextures->base->width, shader->defaulttextures->base->height, 0, 0, 1, 1, shader);
+				}
+				else
+					Draw_FunString(0, y, va("%s: <NO TEXTURE>", t));
 			}
 		}
 		break;
@@ -3677,7 +3755,8 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		case MV_SHADER:	mods->mode = MV_TEXTURE;	break;
 		case MV_TEXTURE: mods->mode = MV_COLLISION;	break;
 		case MV_COLLISION: mods->mode = MV_EVENTS;	break;
-		case MV_EVENTS: mods->mode = MV_NONE;		break;
+		case MV_EVENTS: mods->mode = MV_NORMALS;	break;
+		case MV_NORMALS: mods->mode = MV_NONE;		break;
 		}
 	}
 	else if (key == 'r')
@@ -3694,7 +3773,11 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	}
 #endif
 	else if (key == '[')
+	{
 		mods->boneidx--;
+		if (mods->boneidx < 0)
+			mods->boneidx = 0;
+	}
 	else if (key == ']')
 		mods->boneidx++;
 	else if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
@@ -3705,6 +3788,14 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->yaw -= 5;
 	else if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 		mods->yaw += 5;
+	else if (key == 't')
+	{
+		if (mods->mode == MV_TEXTURE)
+			mods->textype += 1;
+		else
+			mods->textype = 0;
+		mods->mode = MV_TEXTURE;
+	}
 	else if (key == K_END)
 	{
 		mods->skingroup = max(0, mods->skingroup-1);
@@ -3821,7 +3912,8 @@ static int QDECL CompleteModelViewerList (const char *name, qofs_t flags, time_t
 		|| !strcmp(ext, ".iqm") || !strcmp(ext, ".dpm") || !strcmp(ext, ".zym")
 		|| !strcmp(ext, ".psk") || !strcmp(ext, ".md5mesh") || !strcmp(ext, ".md5anim")
 		|| !strcmp(ext, ".bsp") || !strcmp(ext, ".map") || !strcmp(ext, ".hmp")
-		|| !strcmp(ext, ".spr") || !strcmp(ext, ".sp2") || !strcmp(ext, ".spr32"))
+		|| !strcmp(ext, ".spr") || !strcmp(ext, ".sp2") || !strcmp(ext, ".spr32")
+		|| !strcmp(ext, ".gltf") || !strcmp(ext, ".glb") || !strcmp(ext, ".ase") || !strcmp(ext, ".lwo") || !strcmp(ext, ".obj"))
 	{
 		ctx->cb(name, NULL, NULL, ctx);
 	}

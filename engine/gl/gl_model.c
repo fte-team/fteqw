@@ -294,6 +294,8 @@ static void Mod_BlockTextureColour_f (void)
 #if defined(MULTITHREAD)
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__linux__)
+#include <unistd.h>
 #endif
 static void *relightthread[8];
 static unsigned int relightthreads;
@@ -349,7 +351,13 @@ void Mod_Think (void)
 			else
 				relightthreads--;
 #elif defined(__GNUC__)
+	#ifdef __linux__
+			relightthreads = sysconf(_SC_NPROCESSORS_ONLN)-1;
+			if (relightthreads < 1)
+				relightthreads = 1;
+	#else
 			relightthreads = 2;	//erm, lets hope...
+	#endif
 #else
 			/*can't do atomics*/
 			relightthreads = 1;

@@ -8304,7 +8304,7 @@ struct sortedsvcs_s
 	const char *name;
 	size_t bytes;
 };
-static QDECL int sorttraffic(const void *l, const void *r)
+static int QDECL sorttraffic(const void *l, const void *r)
 {
 	const struct sortedsvcs_s *a=l, *b=r;
 

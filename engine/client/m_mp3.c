@@ -2322,7 +2322,7 @@ static cin_t *Media_Static_TryLoad(char *name)
 			(staticfilmimage = ReadJPEGFile(file, fsize, &imagewidth, &imageheight)) ||
 #endif
 #ifdef AVAIL_PNGLIB
-			(staticfilmimage = ReadPNGFile(file, fsize, &imagewidth, &imageheight, fullname)) ||
+			(staticfilmimage = ReadPNGFile(fullname, file, fsize, &imagewidth, &imageheight, &format)) ||
 #endif
 			0)
 		{

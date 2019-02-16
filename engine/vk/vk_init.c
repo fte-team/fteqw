@@ -1300,12 +1300,15 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_ARGB4444:			/*format = VK_FORMAT_A4R4G4B4_UNORM_PACK16;*/	break;
 	case PTI_RGBA5551:			format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;		break;
 	case PTI_ARGB1555:			format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;		break;
+	case PTI_R16:				format = VK_FORMAT_R16_UNORM;					break;
+	case PTI_RGBA16:			format = VK_FORMAT_R16G16B16A16_UNORM;			break;
 	//float formats
 	case PTI_R16F:				format = VK_FORMAT_R16_SFLOAT;					break;
 	case PTI_R32F:				format = VK_FORMAT_R32_SFLOAT;					break;
 	case PTI_RGBA16F:			format = VK_FORMAT_R16G16B16A16_SFLOAT;			break;
 	case PTI_RGBA32F:			format = VK_FORMAT_R32G32B32A32_SFLOAT;			break;
 	//weird formats
+	case PTI_P8:
 	case PTI_R8:				format = VK_FORMAT_R8_UNORM;					break;
 	case PTI_RG8:				format = VK_FORMAT_R8G8_UNORM;					break;
 	case PTI_R8_SNORM:			format = VK_FORMAT_R8_SNORM;					break;
@@ -2395,6 +2398,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 			Con_Printf("no flush\n");
 
 		VKBE_RT_End(&rtc->face[i]);
+		r_framecount++;
 	}
 
 	r_refdef.vrect = vrect;
@@ -3887,6 +3891,7 @@ void VK_CheckTextureFormats(void)
 		{PTI_ARGB1555,			VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA16F,			VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
 		{PTI_RGBA32F,			VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_P8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_R8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RG8,				VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_R8_SNORM,			VK_FORMAT_R8_SNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},

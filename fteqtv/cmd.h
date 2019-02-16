@@ -16,7 +16,7 @@ struct cmdctxt_s {
 
 typedef void (*consolecommand_t) (cmdctxt_t *ctx);
 
-void Cmd_Printf(cmdctxt_t *ctx, char *fmt, ...);
+void Cmd_Printf(cmdctxt_t *ctx, char *fmt, ...) PRINTFWARNING(2);
 #define Cmd_Argc(ctx) ctx->argc
 #define Cmd_Argv(ctx, num) (((unsigned int)ctx->argc <= (unsigned int)(num))?"": ctx->arg[num])
 #define Cmd_IsLocal(ctx) ctx->localcommand

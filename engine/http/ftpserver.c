@@ -364,7 +364,7 @@ iwboolean	FTP_V4StringToAdr (const char *s, struct sockaddr_in *addr)
 	return true;
 }
 
-#if defined(_WIN32) && !defined(_WIN64) && !defined(WEBSVONLY)
+#if defined(_WIN32) && !defined(WEBSVONLY)
 	int (WINAPI *pgetaddrinfo) (
 	  const char* nodename,
 	  const char* servname,
@@ -373,8 +373,8 @@ iwboolean	FTP_V4StringToAdr (const char *s, struct sockaddr_in *addr)
 	);
 	void (WSAAPI *pfreeaddrinfo) (struct addrinfo*);
 #else
-#define qgetaddrinfo getaddrinfo
-#define qfreeaddrinfo freeaddrinfo
+#define pgetaddrinfo getaddrinfo
+#define pfreeaddrinfo freeaddrinfo
 #endif
 
 iwboolean FTP_HostToSockaddr(int prot, char *host, int port, struct sockaddr_qstorage *addr, size_t *addrsize)
@@ -397,7 +397,7 @@ iwboolean FTP_HostToSockaddr(int prot, char *host, int port, struct sockaddr_qst
 		break;
 	}
 	Q_snprintfz(service, sizeof(service), "%i", port);
-	if (qgetaddrinfo(host, service, &hint, &res))
+	if (pgetaddrinfo(host, service, &hint, &res))
 		return false;
 	if (res && res->ai_addr && res->ai_addrlen <= sizeof(*addr))
 	{
@@ -405,7 +405,7 @@ iwboolean FTP_HostToSockaddr(int prot, char *host, int port, struct sockaddr_qst
 		memcpy(addr, res->ai_addr, res->ai_addrlen);
 		r = true;
 	}
-	qfreeaddrinfo(res);
+	pfreeaddrinfo(res);
 	return r;
 #if 0
 	host = va("[%s]", host);

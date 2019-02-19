@@ -19,7 +19,7 @@ static void Headless_Draw_Shutdown(void)
 {
 	Shader_Shutdown();
 }
-static void		Headless_IMG_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+static void		Headless_IMG_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 }
 static qboolean	Headless_IMG_LoadTextureMips	(texid_t tex, const struct pendingtextureinfo *mips)

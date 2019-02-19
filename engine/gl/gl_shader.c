@@ -5800,7 +5800,7 @@ void Shader_DefaultScript(const char *shortname, shader_t *s, const void *args)
 	if (*f == '{')
 	{
 		f++;
-		Shader_ReadShader(s, (void*)f, 0);
+		Shader_ReadShader(s, (void*)f, NULL);
 	}
 }
 

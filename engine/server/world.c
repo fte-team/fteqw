@@ -345,7 +345,10 @@ static void World_ClearWorld_AreaGrid (world_t *w, qboolean relink)
 		size[i] /= w->gridsize[i];
 	//enforce a minimum grid size, so things don't end up getting added to every single node
 		if (size[i] < 128)
+		{
+			mins[i] -= (128-size[i])/2 * w->gridsize[i];
 			size[i] = 128;
+		}
 		w->gridscale[i] = size[i];
 		w->gridbias[i] = -mins[i];
 
@@ -654,8 +657,9 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		int ming[2], maxg[2], g[2], ga;
 		CALCAREAGRIDBOUNDS(w, ent->v->absmin, ent->v->absmax);
 
-		if ((maxg[0]-ming[0])*(maxg[1]-ming[1]) > countof(ent->gridareas))
-		{	//entity is too large to fit in our grid. shove it in the overflow
+		if ((maxg[0]-ming[0])*(maxg[1]-ming[1]) > countof(ent->gridareas)				//entity is too large to fit in our grid.
+			|| ming[0]<0||ming[1]<0||maxg[0]>=w->gridsize[0]||maxg[1]>=w->gridsize[1])	//entity crosses the boundary of the world.
+		{	//shove it in the overflow
 			ent->gridareas[0].ed = ent;
 			InsertLinkBefore (&ent->gridareas[0].l, &w->jumboarea.l);
 		}
@@ -2239,7 +2243,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 	trace_t trace;
 	static framestate_t framestate;	//meh
 
-	if (clip->type & MOVE_ENTCHAIN)
+	if ((clip->type & MOVE_ENTCHAIN) || !pe)
 		return;
 
 	for (i = 0; i < pe->num_entities; i++)

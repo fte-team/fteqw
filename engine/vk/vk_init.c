@@ -1100,7 +1100,7 @@ void VK_CreateSampler(unsigned int flags, vk_image_t *img)
 	lmsampinfo.addressModeU = clamptoedge?VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE:VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	lmsampinfo.addressModeV = clamptoedge?VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE:VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	lmsampinfo.addressModeW = clamptoedge?VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE:VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	lmsampinfo.mipLodBias = 0.0;
+	lmsampinfo.mipLodBias = vk.lodbias;
 	lmsampinfo.anisotropyEnable = (flags & IF_NEAREST)?false:(vk.max_anistophy > 1);
 	lmsampinfo.maxAnisotropy = vk.max_anistophy;
 	lmsampinfo.compareEnable = VK_FALSE;
@@ -1117,7 +1117,7 @@ static void VK_DestroySampler(void *w)
 	VkSampler s = *(VkSampler*)w;
 	vkDestroySampler(vk.device, s, vkallocationcb);
 }
-void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 	uint32_t i;
 	for (i = 0; i < countof(vk.filtermip); i++)
@@ -1126,6 +1126,7 @@ void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 		vk.filterpic[i] = filterpic[i];
 	for (i = 0; i < countof(vk.mipcap); i++)
 		vk.mipcap[i] = mipcap[i];
+	vk.lodbias = lodbias;
 	vk.max_anistophy = bound(1.0, anis, vk.max_anistophy_limit);
 
 	while(imagelist)

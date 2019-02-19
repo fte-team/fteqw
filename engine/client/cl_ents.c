@@ -2227,13 +2227,7 @@ void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float
 	}
 
 	if (cl_numstrisvert + latsteps*lngsteps > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + latsteps*lngsteps;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + latsteps*lngsteps);
 	if (cl_maxstrisidx < cl_numstrisidx+latsteps*(lngsteps-1)*6)
 	{
 		cl_maxstrisidx = cl_numstrisidx+latsteps*(lngsteps-1)*6 + 64;
@@ -2358,13 +2352,7 @@ void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboo
 		}
 
 		if (cl_numstrisvert + sides*2 > cl_maxstrisvert)
-		{
-			cl_maxstrisvert = cl_numstrisvert + sides*2;
-
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-		}
+			cl_stris_ExpandVerts(cl_numstrisvert + sides*2);
 		if (cl_maxstrisidx < cl_numstrisidx+sides*6)
 		{
 			cl_maxstrisidx = cl_numstrisidx+sides*6 + 64;
@@ -2451,13 +2439,7 @@ void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, flo
 		t->flags = flags;
 	}
 	if (cl_numstrisvert + 2 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + 2;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + 2);
 	if (cl_maxstrisidx < cl_numstrisidx+2)
 	{
 		cl_maxstrisidx = cl_numstrisidx+2;
@@ -2517,12 +2499,7 @@ void CLQ1_AddSpriteQuad(shader_t *shader, vec3_t mid, float radius)
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64);
 
 	{
 		VectorMA(mid, radius, vright,     cl_strisvertv[cl_numstrisvert]);
@@ -2589,12 +2566,7 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64);
 
 	{
 		vec3_t tmp = {0,0.04,0.96};
@@ -2686,13 +2658,8 @@ void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *mat
 
 
 	if (cl_numstrisvert + 8 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + 8 + 1024;
+		cl_stris_ExpandVerts(cl_numstrisvert + 8 + 1024);
 
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
 	if (cl_maxstrisidx < cl_numstrisidx+6*6)
 	{
 		cl_maxstrisidx = cl_numstrisidx + 6*6 + 1024;
@@ -2956,13 +2923,7 @@ static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t
 
 	
 	if (cl_numstrisvert + numpoints > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + numpoints;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + numpoints);
 	if (cl_maxstrisidx < cl_numstrisidx+numpoints)
 	{
 		cl_maxstrisidx = cl_numstrisidx+numpoints + 64;

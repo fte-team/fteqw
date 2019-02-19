@@ -90,7 +90,7 @@ static string(int fld, float foredit) readfield =
 		ret = strcat(ret, (fl & LFLAG_NOSHADOWS)?"c":"");
 		ret = strcat(ret, (fl & LFLAG_SHADOWMAP)?"s":"");
 		ret = strcat(ret, (fl & LFLAG_CREPUSCULAR)?"r":"");
-		ret = strcat(ret, (fl & LFLAG_ORTHO)?"o":"");
+		ret = strcat(ret, (fl & LFLAG_ORTHOSUN)?"o":"");
 		return ret;
 	case 6:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_STYLE));
@@ -142,7 +142,7 @@ static void(float fld, string newval) writefield =
 		if (strstrofs(newval, "c")>=0) fl |= LFLAG_NOSHADOWS;
 		if (strstrofs(newval, "s")>=0) fl |= LFLAG_SHADOWMAP;
 		if (strstrofs(newval, "r")>=0) fl |= LFLAG_CREPUSCULAR;
-		if (strstrofs(newval, "o")>=0) fl |= LFLAG_ORTHO;
+		if (strstrofs(newval, "o")>=0) fl |= LFLAG_ORTHOSUN;
 		dynamiclight_set(selectedlight, LFIELD_FLAGS, (float)fl);
 		return;
 	case 6:

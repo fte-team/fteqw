@@ -268,14 +268,11 @@ void(entedit_t *nent) editor_ents_updated =
 
 	if (nent->isbsp)
 		nent->ang = '0 0 0';	//bsp entities should not be displayed rotated, because that just messes everything up.
-		
-	
-	nent->bboxverts[0].xyz = (vec3)((__variant)nent->org);
-	nent->bboxverts[0].st = (vec2){0,0};
-	nent->bboxverts[0].rgba = (vec4){nent->colourmod[0], nent->colourmod[1], nent->colourmod[2], nent->alpha?nent->alpha:1};
-	nent->bboxverts[7] = nent->bboxverts[6] = nent->bboxverts[5] = nent->bboxverts[4] = nent->bboxverts[3] = nent->bboxverts[2] = nent->bboxverts[1] = nent->bboxverts[0];
+
 	for (i = 0; i < 8; i++)
 	{
+		nent->bboxverts[i].st = (vec2){0,0};
+		nent->bboxverts[i].rgba = (vec4){nent->colourmod[0], nent->colourmod[1], nent->colourmod[2], nent->alpha?nent->alpha:1};
 		nent->bboxverts[i].xyz[0] = nent->org[0] + ((i&1i)?nent->maxs[0]:nent->mins[0]);
 		nent->bboxverts[i].xyz[1] = nent->org[1] + (((i&2i)?nent->maxs[1]:nent->mins[1]));
 		nent->bboxverts[i].xyz[2] = nent->org[2] + ((i&4)?nent->maxs[2]:nent->mins[2]);

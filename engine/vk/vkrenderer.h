@@ -314,6 +314,7 @@ extern struct vulkaninfo_s
 	int filtermip[3];
 	int filterpic[3];
 	int mipcap[2];
+	float lodbias;
 	float max_anistophy;
 	float max_anistophy_limit;
 
@@ -510,7 +511,7 @@ void *VK_AtFrameEnd(void (*passed)(void *work), void *data, size_t worksize);
 void	VK_Draw_Init(void);
 void	VK_Draw_Shutdown(void);
 
-void	VK_UpdateFiltering			(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+void	VK_UpdateFiltering			(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis);
 qboolean VK_LoadTextureMips			(texid_t tex, const struct pendingtextureinfo *mips);
 void    VK_DestroyTexture			(texid_t tex);
 void	VK_DestroyVkTexture			(vk_image_t *img);

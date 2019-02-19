@@ -2356,12 +2356,7 @@ static void R_Beam_GenerateTrisoup(entity_t *e, int bemode)
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert+64);
 
 	xyz = &cl_strisvertv[cl_numstrisvert];
 	st = &cl_strisvertt[cl_numstrisvert];
@@ -2560,12 +2555,7 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert+64);
 
 	xyz = &cl_strisvertv[cl_numstrisvert];
 	st = &cl_strisvertt[cl_numstrisvert];
@@ -2699,6 +2689,9 @@ static void R_DB_Poly(batch_t *batch)
 
 	mesh.xyz_array = cl_strisvertv + cl_stris[i].firstvert;
 	mesh.st_array = cl_strisvertt + cl_stris[i].firstvert;
+//	mesh.normals_array = cl_strisvertn[0];// + cl_stris[i].firstvert;
+//	mesh.snormals_array = cl_strisvertn[1];// + cl_stris[i].firstvert;
+//	mesh.tnormals_array = cl_strisvertn[2];// + cl_stris[i].firstvert;
 	mesh.colors4f_array[0] = cl_strisvertc + cl_stris[i].firstvert;
 	mesh.indexes = cl_strisidx + cl_stris[i].firstidx;
 	mesh.numindexes = cl_stris[i].numidx;

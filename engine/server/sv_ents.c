@@ -340,8 +340,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 				if (lognum > maxlog)
 				{
+					if (maxlog == client->max_net_ents)
+						break;
 					SV_ExpandNackFrames(client, lognum+1, &frame);
-					break;
+					resend = frame->resend;
+					maxlog = frame->maxresend;
 				}
 				resend[lognum].entnum = entnum;
 				resend[lognum].bits = 0;
@@ -393,8 +396,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
+				if (maxlog == client->max_net_ents)
+					break;
 				SV_ExpandNackFrames(client, lognum+1, &frame);
-				break;
+				resend = frame->resend;
+				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
@@ -427,8 +433,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
+				if (maxlog == client->max_net_ents)
+					break;
 				SV_ExpandNackFrames(client, lognum+1, &frame);
-				break;
+				resend = frame->resend;
+				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
@@ -463,8 +472,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
+				if (maxlog == client->max_net_ents)
+					break;
 				SV_ExpandNackFrames(client, lognum+1, &frame);
-				break;
+				resend = frame->resend;
+				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
@@ -1516,8 +1528,11 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			}
 			if (outno >= outmax)
 			{	//expand the frames. may need some copying...
+				if (outmax == client->max_net_ents)
+					break;
 				SV_ExpandNackFrames(client, outno+1, &frame);
-				break;
+				resend = frame->resend;
+				outmax = frame->maxresend;
 			}
 
 			if (bits & UF_REMOVE)
@@ -1989,8 +2004,11 @@ void SVDP_EmitEntitiesUpdate (client_t *client, client_frame_t *frame, packet_en
 				break; /*give up if it gets full. FIXME: bone data is HUGE.*/
 			if (outno >= outmax)
 			{	//expand the frames. may need some copying...
+				if (outmax == client->max_net_ents)
+					break;
 				SV_ExpandNackFrames(client, outno+1, &frame);
-				break;
+				resend = frame->resend;
+				outmax = frame->maxresend;
 			}
 
 			if (bits & E5_SERVERREMOVE)

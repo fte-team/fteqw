@@ -2958,6 +2958,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvardf r_tessellation_level=5\n"
 "!!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube\n"
 "!!samps =EIGHTBIT paletted 1\n"
+//!!permu VC -- adds rgba vertex colour multipliers
+//!!permu SPECULAR -- auto-added when gl_specular>0
+//!!permu OFFSETMAPPING -- auto-added when r_glsl_offsetmapping is set
+//!!permu NONORMALS -- states that there's no normals available, which affects lighting.
 
 "#include \"sys/defs.h\"\n"
 
@@ -2972,7 +2976,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 
-
+"#ifdef NONORMALS //lots of things need normals to work properly. make sure nothing breaks simply because they added an extra texture.\n"
+"#undef BUMP\n"
+"#undef SPECULAR\n"
+"#undef OFFSETMAPPING\n"
+"#undef REFLECTCUBEMASK\n"
+"#endif\n"
 
 
 
@@ -2996,9 +3005,22 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "void main ()\n"
 "{\n"
+"light.rgba = vec4(e_light_ambient, 1.0);\n"
+
+"#ifdef NONORMALS\n"
+"vec3 n, w;\n"
+"gl_Position = skeletaltransform_w(w);\n"
+"n = vec3(0.0);\n"
+"#else\n"
 "vec3 n, s, t, w;\n"
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "n = normalize(n);\n"
+"float d = dot(n,e_light_dir);\n"
+"if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
+"d = 0.0; //this avoids the dark side going below the ambient level.\n"
+"light.rgb += (d*e_light_mul);\n"
+"#endif\n"
+
 "#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
@@ -3013,11 +3035,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "tc = v_texcoord;\n"
 
-"float d = dot(n,e_light_dir);\n"
-"if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
-"d = 0.0; //this avoids the dark side going below the ambient level.\n"
-"light.rgb = e_light_ambient + (d*e_light_mul);\n"
-"light.a = 1.0;\n"
 "#ifdef VC\n"
 "light *= v_colour;\n"
 "#endif\n"

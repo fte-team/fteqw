@@ -406,15 +406,18 @@ cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
-cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filtering", "0",
+cvar_t gl_texture_anisotropic_filtering		= CVARFCD("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
-												Image_TextureMode_Callback);
+												Image_TextureMode_Callback, "Allows for higher quality textures on surfaces that slope away from the camera (like the floor). Set to 16 or something. Only supported with trilinear filtering.");
 cvar_t gl_texturemode						= CVARFCD("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE, Image_TextureMode_Callback,
 												"Specifies how world/model textures appear. Typically 3 letters eg lln.\nFirst letter can be l(inear) or n(earest) and says how to sample from the mip (when downsampling).\nThe middle letter can . to disable mipmaps, or l or n to describe whether to blend between mipmaps.\nThe third letter says what to do when the texture is too low resolution and is thus the most noticable with low resolution textures, a n will make it look like lego, while an l will keep it smooth.");
-cvar_t gl_mipcap							= CVARAFC("d_mipcap", "0 1000", "gl_miptexLevel",
+cvar_t gl_texture_lodbias					= CVARAFCD("d_lodbias", "0", "gl_texture_lodbias",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
-												Image_TextureMode_Callback);
+												Image_TextureMode_Callback, "Biases choice of mipmap levels. Positive values will give more blury textures, while negative values will give crisper images (but will also give some mid-surface aliasing artifacts).");
+cvar_t gl_mipcap							= CVARAFCD("d_mipcap", "0 1000", "gl_miptexLevel",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+												Image_TextureMode_Callback, "Specifies the range of mipmap levels to use.");
 cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, Image_TextureMode_Callback,
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
@@ -983,6 +986,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_linear, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_texture_lodbias, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&r_max_gpu_bones, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);

@@ -467,12 +467,7 @@ void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts)
 	}
 
 	if (cl_maxstrisvert < cl_numstrisvert+num)
-	{
-		cl_maxstrisvert = cl_numstrisvert+num + 64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert+num + 64);
 	if (cl_maxstrisidx < cl_numstrisidx+(num-2)*3)
 	{
 		cl_maxstrisidx = cl_numstrisidx+(num-2)*3 + 64;

@@ -449,7 +449,7 @@ void(vector mousepos) editor_terrain_addentities =
 	float a;
 	
 	if (curtool == ter_tex_paint || curtool == ter_tex_paint_single || curtool == ter_tex)
-		terrain_edit(22, tex[painttex]);
+		terrain_edit(TEREDIT_TEX_SETMASK, tex[painttex]);
 	
 	if (mousepos_x < 128)
 		return;
@@ -515,7 +515,7 @@ void(vector mousepos) editor_terrain_overlay =
 	vector colour;
 	
 //	if (curtool == ter_tex_paint || curtool == ter_tex_paint_single || curtool == ter_tex)
-		terrain_edit(22, 0);
+		terrain_edit(TEREDIT_TEX_SETMASK, 0);
 
 	float ctime = gettime(5);
 	if (mautorepeattime)

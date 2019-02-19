@@ -893,6 +893,13 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_TEXTURE_MAX_LEVEL 0x813d 
 #endif
 
+#ifndef GL_TEXTURE_LOD_BIAS
+#define GL_TEXTURE_LOD_BIAS               0x8501	//gl1.4
+#endif
+
+#ifndef GL_RGBA16
+#define GL_RGBA16				0x805B	//gl1.1, but not in gles.
+#endif
 #ifndef GL_RGBA16F
 #define GL_RGBA16F                      0x881A
 #define GL_RGBA32F                      0x8814

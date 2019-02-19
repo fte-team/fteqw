@@ -13190,7 +13190,7 @@ void PR_DumpPlatform_f(void)
 		"accessor infostring : string\n{\n"
 			"\tget string[string] = infoget;\n"
 #ifdef QCGC
-			"\tinline seti& string[string fld] = {this = infoadd(this, fld, value);};\n"
+			"\tinline set& string[string fld] = {this = infoadd(this, fld, value);};\n"
 #endif
 		"};\n");
 	VFS_PRINTF(f,

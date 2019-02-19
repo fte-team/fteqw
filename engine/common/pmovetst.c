@@ -250,6 +250,9 @@ static qboolean PM_TransformedHullCheck (model_t *model, framestate_t *framestat
 				return false;
 		}
 
+		memset (trace, 0, sizeof(trace_t));
+		trace->fraction = 1;
+		trace->allsolid = true;
 		Q1BSP_RecursiveHullCheck (&box_hull, box_hull.firstclipnode, start_l, end_l, MASK_PLAYERSOLID, trace);
 	}
 

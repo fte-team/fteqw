@@ -488,12 +488,7 @@ static void PClassic_DrawParticles(void)
 
 #ifdef POLYS
 		if (cl_numstrisvert+3 > cl_maxstrisvert)
-		{
-			cl_maxstrisvert+=1024*3;
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-		}
+			cl_stris_ExpandVerts(cl_numstrisvert+1024*3);
 
 //		Vector4Set(cl_strisvertc[cl_numstrisvert+0],1,1,1,1);
 //		Vector4Set(cl_strisvertc[cl_numstrisvert+1],1,1,1,1);

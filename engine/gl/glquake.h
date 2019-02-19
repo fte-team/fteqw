@@ -257,7 +257,7 @@ extern gl_config_t gl_config;
 
 extern	float	gldepthmin, gldepthmax;
 
-void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis);
 qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips);
 void GL_DestroyTexture(texid_t tex);
 void GL_SetupFormats(void);

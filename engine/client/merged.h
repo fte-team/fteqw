@@ -414,7 +414,7 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 
-	void	 (*IMG_UpdateFiltering)		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+	void	 (*IMG_UpdateFiltering)		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis);
 	qboolean (*IMG_LoadTextureMips)		(texid_t tex, const struct pendingtextureinfo *mips);
 	void	 (*IMG_DestroyTexture)		(texid_t tex);
 

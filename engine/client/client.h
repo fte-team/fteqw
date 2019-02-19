@@ -1119,13 +1119,27 @@ extern scenetris_t		*cl_stris;
 extern vecV_t			*fte_restrict cl_strisvertv;
 extern vec4_t			*fte_restrict cl_strisvertc;
 extern vec2_t			*fte_restrict cl_strisvertt;
+extern vec3_t			*fte_restrict cl_strisvertn[3];
 extern index_t			*fte_restrict cl_strisidx;
 extern unsigned int cl_numstrisidx;
 extern unsigned int cl_maxstrisidx;
 extern unsigned int cl_numstrisvert;
 extern unsigned int cl_maxstrisvert;
+extern unsigned int cl_numstrisnormals;
+extern unsigned int cl_maxstrisnormals;
 extern unsigned int cl_numstris;
 extern unsigned int cl_maxstris;
+
+#define cl_stris_ExpandVerts(max) \
+	do {			\
+		cl_maxstrisvert = max;	\
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);	\
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);	\
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);	\
+/*		cl_strisvertn[0] = BZ_Realloc(cl_strisvertn[0], sizeof(*cl_strisvertn[0])*cl_maxstrisvert);	\
+		cl_strisvertn[1] = BZ_Realloc(cl_strisvertn[1], sizeof(*cl_strisvertn[1])*cl_maxstrisvert);	\
+		cl_strisvertn[2] = BZ_Realloc(cl_strisvertn[2], sizeof(*cl_strisvertn[2])*cl_maxstrisvert);	\
+*/	} while(0)
 
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
 

@@ -1583,6 +1583,25 @@ static const char *glsl_hdrs[] =
 						"w = (vec4(v_position.xyz, 1.0) * wmat).xyz;"
 						"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
 					"}\n"
+					"vec4 skeletaltransform_wnst(out vec3 w)"
+					"{"
+						"mat4 wmat;"
+						"wmat[0]  = m_bones_packed[0+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[0] += m_bones_packed[0+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[1]  = m_bones_packed[1+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[1] += m_bones_packed[1+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[2]  = m_bones_packed[2+3*int(v_bone.x)] * v_weight.x;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.y)] * v_weight.y;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.z)] * v_weight.z;"
+						"wmat[2] += m_bones_packed[2+3*int(v_bone.w)] * v_weight.w;"
+						"wmat[3] = vec4(0.0,0.0,0.0,1.0);"
+						"w = (vec4(v_position.xyz, 1.0) * wmat).xyz;"
+						"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
+					"}\n"
 					"vec4 skeletaltransform_n(out vec3 n)"
 					"{"
 						"mat4 wmat;"
@@ -1637,6 +1656,16 @@ static const char *glsl_hdrs[] =
 						"w = vec4(v_position.xyz, 1.0) * wmat;"
 						"return m_modelviewprojection * vec4(w, 1.0);"
 					"}\n"
+					"vec4 skeletaltransform_w(out vec3 w)"
+					"{"
+						"mat3x4 wmat;"
+						"wmat = m_bones_mat3x4[int(v_bone.x)] * v_weight.x;"
+						"wmat += m_bones_mat3x4[int(v_bone.y)] * v_weight.y;"
+						"wmat += m_bones_mat3x4[int(v_bone.z)] * v_weight.z;"
+						"wmat += m_bones_mat3x4[int(v_bone.w)] * v_weight.w;"
+						"w = vec4(v_position.xyz, 1.0) * wmat;"
+						"return m_modelviewprojection * vec4(w, 1.0);"
+					"}\n"
 					"vec4 skeletaltransform_n(out vec3 n)"
 					"{"
 						"mat3x4 wmat;"
@@ -1655,6 +1684,11 @@ static const char *glsl_hdrs[] =
 					"n = v_normal;"
 					"t = v_svector;"
 					"b = v_tvector;"
+					"w = v_position.xyz;"
+					"return ftetransform();"
+				"}\n"
+				"vec4 skeletaltransform_w(out vec3 w)"
+				"{"
 					"w = v_position.xyz;"
 					"return ftetransform();"
 				"}\n"
@@ -3344,14 +3378,16 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.shadernamefmt = "%s_gles";
 
 		sh_config.can_mipcap = gl_config.glversion >= 3.0;
+		sh_config.can_mipbias = false;
 
 		sh_config.havecubemaps = gl_config.glversion >= 2.0;
 	}
 	else
 	{
 		sh_config.can_mipcap = gl_config.glversion >= 1.2;
+		sh_config.can_mipbias = gl_config.glversion >= 1.4;//||GL_CheckExtension("GL_EXT_texture_lod_bias");
 
-		sh_config.havecubemaps = gl_config.glversion >= 1.3||GL_CheckExtension("GL_ARB_texture_cube_map");;	//cubemaps AND clamp-to-edge.
+		sh_config.havecubemaps = gl_config.glversion >= 1.3||GL_CheckExtension("GL_ARB_texture_cube_map");	//cubemaps AND clamp-to-edge.
 
 		if (gl_config.nofixedfunc)
 		{	//core contexts don't normally support glsl < 140 (such glsl versions have lots of compat syntax still, which will not function on core. drivers might accept it anyway, but yeah, lots of crap that shouldn't work)

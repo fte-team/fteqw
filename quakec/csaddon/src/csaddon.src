@@ -5,6 +5,8 @@
 //#pragma flag enable typeexplicit
 
 #define CSQC
+#define _ACCESSORS
+#pragma target FTE
 csplat.qc
 csfixups.qc
 

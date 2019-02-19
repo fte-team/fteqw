@@ -737,20 +737,21 @@ void Shader_ReleaseGeneric(program_t *prog);
 image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org);
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 
-#define BEF_FORCEDEPTHWRITE		1
-#define BEF_FORCEDEPTHTEST		2
-#define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE
-#define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
-#define BEF_FORCENODEPTH		16	//disables any and all depth.
+#define BEF_FORCEDEPTHWRITE		(1u<<0)
+#define BEF_FORCEDEPTHTEST		(1u<<1)
+#define BEF_FORCEADDITIVE		(1u<<2)	//blend dest = GL_ONE
+#define BEF_FORCETRANSPARENT	(1u<<3)	//texenv replace -> modulate
+#define BEF_FORCENODEPTH		(1u<<4)	//disables any and all depth.
 #ifndef NOLEGACY
-#define BEF_PUSHDEPTH			32	//additional polygon offset
+#define BEF_PUSHDEPTH			(1u<<5)	//additional polygon offset
 #endif
 //FIXME: the above should really be legacy-only
-#define BEF_NODLIGHT			64  //don't use a dlight pass
-#define BEF_NOSHADOWS			128 //don't appear in shadows
-#define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
-#define BEF_LINES				512	//draw line pairs instead of triangles.
-#define BEF_FORCETWOSIDED		1024 //more evilness.
+#define BEF_NODLIGHT			(1u<<6)  //don't use a dlight pass
+#define BEF_NOSHADOWS			(1u<<7) //don't appear in shadows
+#define BEF_FORCECOLOURMOD		(1u<<8) //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
+#define BEF_LINES				(1u<<9)	//draw line pairs instead of triangles.
+#define BEF_FORCETWOSIDED		(1u<<10) //more evilness.s
+//#define	BEFF_POLYHASNORMALS		(1u<<31) //false flag - for cl_scenetries and not actually used by the backend.
 
 typedef struct
 {
@@ -793,7 +794,8 @@ typedef struct
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
-	qboolean can_mipcap;		//
+	qboolean can_mipcap;		//gl1.2+
+	qboolean can_mipbias;		//gl1.4+
 	qboolean havecubemaps;	//since gl1.3, so pretty much everyone will have this... should probably only be set if we also have seamless or clamp-to-edge.
 
 	void	 (*pDeleteProg)		(program_t *prog);

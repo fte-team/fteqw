@@ -8870,9 +8870,9 @@ static void Image_ParseTextureMode(char *cvarname, char *modename, int modes[3])
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue)
 {
 	int mip[3]={1,0,1}, pic[3]={1,-1,1}, mipcap[2] = {0, 1000};
-	float anis = 1;
+	float anis = 1, lodbias = 0;
 	char *s;
-	extern cvar_t gl_texturemode, gl_texturemode2d, gl_texture_anisotropic_filtering, gl_mipcap;
+	extern cvar_t gl_texturemode, gl_texturemode2d, gl_texture_anisotropic_filtering, gl_texture_lodbias, gl_mipcap;
 
 	Image_ParseTextureMode(gl_texturemode.name, gl_texturemode.string, mip);
 	Image_ParseTextureMode(gl_texturemode2d.name, gl_texturemode2d.string, pic);
@@ -8886,9 +8886,10 @@ void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue)
 	mipcap[1] = *com_token?atoi(com_token):1000;
 	if (mipcap[1] < mipcap[0])
 		mipcap[1] = mipcap[0];
+	lodbias = gl_texture_lodbias.value;
 
 	if (rf && rf->IMG_UpdateFiltering)
-		rf->IMG_UpdateFiltering(imagelist, mip, pic, mipcap, anis);
+		rf->IMG_UpdateFiltering(imagelist, mip, pic, mipcap, lodbias, anis);
 }
 qboolean Image_UnloadTexture(image_t *tex)
 {

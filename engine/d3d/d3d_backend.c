@@ -323,7 +323,7 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 }
 
 //d3d9 is all sampler state
-void D3D9_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+void D3D9_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float miplod, float anis)
 {
 	int i;
 	memcpy(shaderstate.mipfilter, filtermip, sizeof(shaderstate.mipfilter));
@@ -338,6 +338,7 @@ void D3D9_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3]
 
 	for (i = 0; i < MAX_TMUS; i++)
 	{
+		IDirect3DDevice9_SetSamplerState(pD3DDev9, i, D3DSAMP_MIPMAPLODBIAS, miplod);
 		IDirect3DDevice9_SetSamplerState(pD3DDev9, i, D3DSAMP_MAXANISOTROPY, anis);
 //		IDirect3DDevice9_SetSamplerState(pD3DDev9, i, D3DSAMP_MIPMAPLODBIAS, 0);	//negative lod bias? :s
 

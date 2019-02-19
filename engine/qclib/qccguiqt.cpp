@@ -5,8 +5,6 @@
 	variables/watch list.
 	calltips for argument info
 	autocompletion calltips, for people who can't remember function names
-	ctrl+f/f3 stuff
-	options window
 	initial open project prompt
 	shpuld's styling
 	decompiler output saving
@@ -894,6 +892,8 @@ public:
 
 	document_s *FindFile(const char *filename)
 	{
+		if (!filename)
+			return curdoc;
 		for (int i = 0; i < numdocuments; i++)
 		{
 			if (!strcasecmp(filename, docs[i]->fname))
@@ -1106,7 +1106,17 @@ public:
 		DebuggerSendCommand("qcjump \"%s\" %i\n", curdoc->fname, curdoc->cursorline);
 	}
 
-	void EditFile(const char *filename, int linenum=-1, bool setcontrol=false);
+	void EditFile(document_s *doc, const char *filename, int linenum=-1, bool setcontrol=false);
+	void EditFile(const char *filename, int linenum=-1, bool setcontrol=false)
+	{
+		EditFile(NULL, filename, linenum, setcontrol);
+	}
+	void EditFile(QModelIndex idx, int linenum=-1, bool setcontrol=false)
+	{
+		auto d = getItem(idx);
+		if (d)
+			EditFile(d, d->fname, linenum, setcontrol);
+	}
 };
 
 template<class T>
@@ -1161,7 +1171,7 @@ class optionswindow : public QDialog
 			}
 			else if (lev == 5)
 				w->setCheckState((optimisations[id].flags&FLAG_ASDEFAULT)?Qt::Checked:Qt::Unchecked);
-			w->setEnabled(fl_nondfltopts);
+			w->setEnabled(fl_nondfltopts);	//FIXME: should use tristate on a per-setting basis
 		}
 	}
 
@@ -1283,15 +1293,36 @@ public:
 private:
 	void CreateMenus(void)
 	{
+		auto fileMenu = menuBar()->addMenu(tr("&File"));
+
+		//editor UI things
+		auto fileopen = new QAction(tr("Open"), this);
+		fileMenu->addAction(fileopen);
+		fileopen->setShortcuts(QKeySequence::listFromString("Ctrl+O"));
+		connect(fileopen, &QAction::triggered, [=]()
+			{
+				GUIprintf("Ctrl+O hit\n");
+			});
+		auto filesave = new QAction(tr("Save"), this);
+		fileMenu->addAction(filesave);
+		filesave->setShortcuts(QKeySequence::listFromString("Ctrl+S"));
+		connect(filesave, &QAction::triggered, [=]()
+			{
+				if (!docs.saveDocument(NULL))
+					QMessageBox::critical(nullptr, "Error", QString::asprintf("Unable to save"));
+			});
+
 		auto prefs = new QAction(tr("&Preferences"), this);
+		fileMenu->addAction(prefs);
 		prefs->setShortcuts(QKeySequence::Preferences);
 		prefs->setStatusTip(tr("Reconfigure stuff"));
 		connect(prefs, &QAction::triggered, [](){(new optionswindow())->show();});
 
-		auto grep = new QAction(tr("&Grep"), this);
-		grep->setShortcuts(QKeySequence::listFromString("Ctrl+G"));
-		grep->setStatusTip(tr("Search through all project files"));
-		connect(grep, &QAction::triggered, [=]()
+		auto goline = new QAction(tr("Go to line"), this);
+		fileMenu->addAction(goline);
+		goline->setShortcuts(QKeySequence::listFromString("Ctrl+G"));
+		goline->setStatusTip(tr("Jump to line"));
+		connect(goline, &QAction::triggered, [=]()
 			{
 				struct grepargs_s
 				{
@@ -1303,7 +1334,86 @@ private:
 				auto l = new QVBoxLayout;
 				l->addWidget(args.t);
 				args.d->setLayout(l);
-				args.d->setWindowTitle("FTEQCC Grep");
+				args.d->setWindowTitle("FTEQCC Go To Line");
+				args.t->installEventFilter(new keyEnterReceiver<grepargs_s>([](grepargs_s &ctx)
+					{
+						ctx.mw->docs.EditFile(NULL, atoi(ctx.t->text().toUtf8().data()));
+						ctx.d->done(0);
+					}, args));
+				args.d->show();
+			});
+
+		auto godef = new QAction(tr("Go To Definition"), this);
+		fileMenu->addAction(godef);
+		godef->setShortcuts(QKeySequence::listFromString("F12"));
+		connect(godef, &QAction::triggered, [=]()
+			{
+				struct grepargs_s
+				{
+					guimainwindow *mw;
+					QDialog *d;
+					QLineEdit *t;
+				} args = {this, new QDialog()};
+				args.t = new QLineEdit(this->s.selectedText());
+				auto l = new QVBoxLayout;
+				l->addWidget(args.t);
+				args.d->setLayout(l);
+				args.d->setWindowTitle("Go To Definition");
+				args.t->installEventFilter(new keyEnterReceiver<grepargs_s>([](grepargs_s &ctx)
+					{
+						GoToDefinition(ctx.t->text().toUtf8().data());
+						ctx.d->done(0);
+					}, args));
+				args.d->show();
+			});
+
+		auto find = new QAction(tr("Find"), this);
+		fileMenu->addAction(find);
+		find->setShortcuts(QKeySequence::listFromString("Ctrl+F"));
+		find->setStatusTip(tr("Search through all project files"));
+		connect(find, &QAction::triggered, [=]()
+			{
+				struct grepargs_s
+				{
+					guimainwindow *mw;
+					QDialog *d;
+					QLineEdit *t;
+				} args = {this, new QDialog()};
+				args.t = new QLineEdit(this->s.selectedText());
+				auto l = new QVBoxLayout;
+				l->addWidget(args.t);
+				args.d->setLayout(l);
+				args.d->setWindowTitle("FTEQCC Find");
+				args.t->installEventFilter(new keyEnterReceiver<grepargs_s>([](grepargs_s &ctx)
+					{
+						ctx.mw->s.findFirst(ctx.t->text(), false, false, false, true);
+						ctx.d->done(0);
+					}, args));
+				args.d->show();
+			});
+		connect(new QShortcut(QKeySequence(tr("F3", "File|FindNext")), this), &QShortcut::activated,
+			[=]()
+			{
+				s.findNext();
+			});
+
+		auto grep = new QAction(tr("Grep"), this);
+		fileMenu->addAction(grep);
+		grep->setShortcuts(QKeySequence::listFromString("Ctrl+Shift+G"));
+		grep->setStatusTip(tr("Search through all project files"));
+		connect(grep, &QAction::triggered, [=]()
+			{
+				struct grepargs_s
+				{
+					guimainwindow *mw;
+					QDialog *d;
+					QLineEdit *t;
+				} args = {this, new QDialog()};
+				args.t = new QLineEdit(this->s.selectedText());
+				auto l = new QVBoxLayout;
+				l->addWidget(args.t);
+				args.d->setLayout(l);
+				args.d->setWindowTitle("FTEQCC Grep Project Files");
 				args.t->installEventFilter(new keyEnterReceiver<grepargs_s>([](grepargs_s &ctx)
 					{
 						ctx.mw->files.GrepAll(ctx.t->text().toUtf8().data());
@@ -1312,9 +1422,86 @@ private:
 				args.d->show();
 			});
 
-		auto fileMenu = menuBar()->addMenu(tr("&File"));
-		fileMenu->addAction(prefs);
-		fileMenu->addAction(grep);
+		//convert to utf-8 chars
+		//convert to Quake chars
+
+		auto convertunix = new QAction(tr("Convert to Unix Endings"), this);
+		fileMenu->addAction(convertunix);
+		connect(convertunix, &QAction::triggered, [=]()
+			{
+				s.convertEols(QsciScintilla::EolUnix);
+				s.setEolVisibility(false);
+			});
+		auto convertdos = new QAction(tr("Convert to DOS Endings"), this);
+		fileMenu->addAction(convertdos);
+		connect(convertdos, &QAction::triggered, [=]()
+			{
+				s.convertEols(QsciScintilla::EolWindows);
+				s.setEolVisibility(false);
+			});
+
+		auto quit = new QAction(tr("Quit"), this);
+		fileMenu->addAction(quit);
+		connect(quit, &QAction::triggered, [=]()
+			{
+				this->close();
+			});
+
+
+		auto debugMenu = menuBar()->addMenu(tr("&Debug"));
+		auto debugrebuild = new QAction(tr("Rebuild"), this);
+		debugMenu->addAction(debugrebuild);
+		debugrebuild->setShortcuts(QKeySequence::listFromString("F7"));
+		connect(debugrebuild, &QAction::triggered, [=]()
+			{
+				RunCompiler("", false);
+			});
+		auto debugsetnext = new QAction(tr("Set Next Statement"), this);
+		debugMenu->addAction(debugsetnext);
+		debugsetnext->setShortcuts(QKeySequence::listFromString("F8"));
+		connect(debugsetnext, &QAction::triggered, [=]()
+			{
+				//FIXME
+			});
+		auto debugresume = new QAction(tr("Resume"), this);
+		debugMenu->addAction(debugresume);
+		debugresume->setShortcuts(QKeySequence::listFromString("F5"));
+		connect(debugresume, &QAction::triggered, [=]()
+			{
+				if (!DebuggerSendCommand("qcresume\n"))
+					DebuggerStart();	//unable to send? assume its not running.
+			});
+		auto debugover = new QAction(tr("Step Over"), this);
+		debugMenu->addAction(debugover);
+		debugover->setShortcuts(QKeySequence::listFromString("F10"));
+		connect(debugover, &QAction::triggered, [=]()
+			{
+				if (!DebuggerSendCommand("qcstep over\n"))
+					DebuggerStart();
+			});
+		auto debuginto = new QAction(tr("Step Into"), this);
+		debugMenu->addAction(debuginto);
+		debuginto->setShortcuts(QKeySequence::listFromString("F11"));
+		connect(debuginto, &QAction::triggered, [=]()
+			{
+				if (!DebuggerSendCommand("qcstep into\n"))
+					DebuggerStart();
+			});
+		auto debugout = new QAction(tr("Step Out"), this);
+		debugMenu->addAction(debugout);
+		debugout->setShortcuts(QKeySequence::listFromString("Shift+F11"));
+		connect(debugout, &QAction::triggered, [=]()
+			{
+				if (!DebuggerSendCommand("qcstep out\n"))
+					DebuggerStart();
+			});
+		auto debugbreak = new QAction(tr("Toggle Breakpoint"), this);
+		debugMenu->addAction(debugbreak);
+		debugbreak->setShortcuts(QKeySequence::listFromString("F9"));
+		connect(debugbreak, &QAction::triggered, [=]()
+			{
+				docs.toggleBreak();
+			});
 	}
 
 public:
@@ -1355,6 +1542,12 @@ public:
 		log.setReadOnly(true);
 		log.clear();
 
+		connect(&docs_w, &QAbstractItemView::clicked,
+			[=](const QModelIndex &index)
+			{
+				docs.EditFile(index);
+			});
+
 		connect(&log, &QTextEdit::selectionChanged,
 			[=]()
 			{
@@ -1373,56 +1566,6 @@ public:
 					else
 						EditFile(txt.mid(0, colon).toUtf8().data(), -1, true);
 				}
-			});
-
-		//editor UI things
-		connect(new QShortcut(QKeySequence(tr("Ctrl+O", "File|Open")), this), &QShortcut::activated,
-			[=]()
-			{
-				GUIprintf("Ctrl+O hit\n");
-			});
-		connect(new QShortcut(QKeySequence(tr("Ctrl+S", "File|Save")), this), &QShortcut::activated,
-			[=]()
-			{
-				GUIprintf("Ctrl+S hit\n");
-			});
-
-		//compiler things
-		connect(new QShortcut(QKeySequence(tr("F7", "File|Compile")), this), &QShortcut::activated,
-			[=]()
-			{
-				RunCompiler("", false);
-			});
-
-		//debug things.
-		connect(new QShortcut(QKeySequence(tr("F5", "File|Debug")), this), &QShortcut::activated,
-			[=]()
-			{
-				if (!DebuggerSendCommand("qcresume\n"))
-					DebuggerStart();	//unable to send? assume its not running.
-			});
-		connect(new QShortcut(QKeySequence(tr("F10", "File|DebugOver")), this), &QShortcut::activated,
-			[=]()
-			{
-				if (!DebuggerSendCommand("qcstep over\n"))
-					DebuggerStart();
-			});
-		connect(new QShortcut(QKeySequence(tr("F11", "File|DebugInto")), this), &QShortcut::activated,
-			[=]()
-			{
-				if (!DebuggerSendCommand("qcstep into\n"))
-					DebuggerStart();
-			});
-		connect(new QShortcut(QKeySequence(tr("Shift+F1", "File|DebugOut")), this), &QShortcut::activated,
-			[=]()
-			{
-				if (!DebuggerSendCommand("qcstep out\n"))
-					DebuggerStart();
-			});
-		connect(new QShortcut(QKeySequence(tr("F9", "File|DebugToggle")), this), &QShortcut::activated,
-			[=]()
-			{
-				docs.toggleBreak();
 			});
 
 		CreateMenus();
@@ -1725,7 +1868,7 @@ void documentlist::UpdateTitle(void)
 	else
 		mainwnd->setWindowTitle("FTEQCC");
 }
-void documentlist::EditFile(const char *filename, int linenum, bool setcontrol)
+void documentlist::EditFile(document_s *c, const char *filename, int linenum, bool setcontrol)
 {
 	if (setcontrol)
 	{
@@ -1737,7 +1880,8 @@ void documentlist::EditFile(const char *filename, int linenum, bool setcontrol)
 		}
 	}
 
-	auto c = FindFile(filename);
+	if (!c)
+		c = FindFile(filename);
 	if (!c)
 	{
 		c = new document_s();
@@ -1849,10 +1993,19 @@ static bool DebuggerSendCommand(const char *msg, ...)
 static void DebuggerStart(void)
 {
 	DebuggerStop();
+
+	const char *engine = enginebinary;
+	const char *cmdline = enginecommandline;
+	if (!*enginebinary)
+	{
+		engine = "fteqw";
+		if(!*cmdline)
+			cmdline = "-window";
+	}
 	qcdebugger = new QProcess(mainwnd);
-	qcdebugger->setProgram(enginebinary);
+	qcdebugger->setProgram(engine);
 	qcdebugger->setWorkingDirectory(enginebasedir);
-	qcdebugger->setArguments(QStringList(enginecommandline));
+	qcdebugger->setArguments(QStringList(cmdline));
 
 	QObject::connect(qcdebugger, static_cast<void(QProcess::*)(int)>(&QProcess::finished),
 		[=](int exitcode)

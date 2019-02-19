@@ -304,7 +304,7 @@ static d3d11backend_t shaderstate;
 
 extern int be_maxpasses;
 
-void D3D11_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+void D3D11_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 	D3D11_SAMPLER_DESC sampdesc;
 	int flags;
@@ -348,7 +348,7 @@ void D3D11_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3
 			sampdesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 			sampdesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 		}
-		sampdesc.MipLODBias = 0.0f;
+		sampdesc.MipLODBias = lodbias;
 		sampdesc.MaxAnisotropy = bound(1, anis, 16);
 		sampdesc.BorderColor[0] = 0;
 		sampdesc.BorderColor[1] = 0;

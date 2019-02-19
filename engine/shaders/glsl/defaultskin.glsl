@@ -13,6 +13,10 @@
 !!cvardf r_tessellation_level=5
 !!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube
 !!samps =EIGHTBIT paletted 1
+//!!permu VC -- adds rgba vertex colour multipliers
+//!!permu SPECULAR -- auto-added when gl_specular>0
+//!!permu OFFSETMAPPING -- auto-added when r_glsl_offsetmapping is set
+//!!permu NONORMALS -- states that there's no normals available, which affects lighting.
 
 #include "sys/defs.h"
 
@@ -27,7 +31,12 @@
 #endif
 
 
-
+#ifdef NONORMALS	//lots of things need normals to work properly. make sure nothing breaks simply because they added an extra texture.
+	#undef BUMP
+	#undef SPECULAR
+	#undef OFFSETMAPPING
+	#undef REFLECTCUBEMASK
+#endif
 
 
 
@@ -51,9 +60,22 @@ varying vec3 normal;
 
 void main ()
 {
+	light.rgba = vec4(e_light_ambient, 1.0);
+
+#ifdef NONORMALS
+	vec3 n, w;
+	gl_Position = skeletaltransform_w(w);
+	n = vec3(0.0);
+#else
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	n = normalize(n);
+	float d = dot(n,e_light_dir);
+	if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
+		d = 0.0;	//this avoids the dark side going below the ambient level.
+	light.rgb += (d*e_light_mul);
+#endif
+
 #if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
@@ -68,11 +90,6 @@ void main ()
 
 	tc = v_texcoord;
 
-	float d = dot(n,e_light_dir);
-	if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
-		d = 0.0;	//this avoids the dark side going below the ambient level.
-	light.rgb = e_light_ambient + (d*e_light_mul);
-	light.a = 1.0;
 #ifdef VC
 	light *= v_colour;
 #endif

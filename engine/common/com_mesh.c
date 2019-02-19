@@ -1518,13 +1518,7 @@ static void Alias_DrawSkeletalBones(galiasbone_t *bones, float const*bonepose, i
 		t->flags = flags;
 	}
 	if (cl_numstrisvert + bonecount*2 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + bonecount*2;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_numstrisvert + bonecount*2);
 	if (cl_maxstrisidx < cl_numstrisidx+bonecount*2)
 	{
 		cl_maxstrisidx = cl_numstrisidx+bonecount*2;
@@ -2106,12 +2100,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 				cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 			}
 			if (cl_numstrisvert+t->numvert > cl_maxstrisvert)
-			{
-				cl_maxstrisvert=cl_numstrisvert+t->numvert;
-				cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-				cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-				cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-			}
+				cl_stris_ExpandVerts(cl_numstrisvert+t->numvert);
 			for (i = 0; i < mod->numverts; i++)
 			{
 				VectorMA(ent->origin,						posedata[i][0], ent->axis[0], cl_strisvertv[t->firstvert+i*2+0]);
@@ -2158,12 +2147,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 				cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 			}
 			if (cl_numstrisvert+mod->numverts > cl_maxstrisvert)
-			{
-				cl_maxstrisvert=cl_numstrisvert+mod->numverts;
-				cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-				cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-				cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-			}
+				cl_stris_ExpandVerts(cl_numstrisvert+mod->numverts);
 			for (i = 0; i < mod->numverts; i++)
 			{
 				VectorMA(ent->origin,					posedata[i][0], ent->axis[0], cl_strisvertv[t->firstvert+i]);

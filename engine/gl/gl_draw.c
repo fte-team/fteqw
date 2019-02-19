@@ -42,6 +42,7 @@ static int	gl_filter_pic[3];	//ui elements
 static int	gl_filter_mip[3];	//everything else
 int		gl_mipcap_min = 0;
 int		gl_mipcap_max = 1000;
+int		gl_mip_lod_bias = 0;
 
 void GL_DestroyTexture(texid_t tex)
 {
@@ -611,6 +612,11 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 		}
 	}
 
+	if (sh_config.can_mipbias)
+	#define GL_TEXTURE_LOD_BIAS               0x8501
+	if (flags & IF_MIPCAP)
+		qglTexParameterf(targ, GL_TEXTURE_LOD_BIAS, (flags & IF_MIPCAP)?gl_mip_lod_bias:0);
+
 	qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, min);
 	qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, mag);
 	if (gl_anisotropy_factor)	//0 means driver doesn't support
@@ -742,9 +748,12 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			{
 				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, 0);
 				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, nummips-1);
+				qglTexParameteri(targ, GL_TEXTURE_LOD_BIAS, 0);
 			}
 		}
 	}
+	if (sh_config.can_mipbias)
+		qglTexParameteri(targ, GL_TEXTURE_LOD_BIAS, (tex->flags & IF_MIPCAP)?gl_mip_lod_bias:0);
 
 //	tex->width = mips->mip[0].width;
 //	tex->height = mips->mip[0].height;
@@ -982,13 +991,14 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	return true;
 }
 
-void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 	int targ;
 	image_t *img;
 
 	gl_mipcap_min = mipcap[0];
 	gl_mipcap_max = mipcap[1];
+	gl_mip_lod_bias = lodbias;
 
 	VectorCopy(filterpic, gl_filter_pic);
 	VectorCopy(filtermip, gl_filter_mip);

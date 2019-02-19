@@ -6187,12 +6187,7 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 static void R_AddLineSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 {
 	if (cl_numstrisvert+2 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64*2;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64*2);
 
 	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
 	VectorCopy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
@@ -6223,12 +6218,7 @@ static void R_AddTSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 //	float scale;
 
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64*4;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64*4);
 
 /*	if (type->scalefactor == 1)
 		scale = p->scale*0.25;
@@ -6501,12 +6491,7 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 static void R_AddClippedDecal(scenetris_t *t, clippeddecal_t *d, plooks_t *type)
 {
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64*4;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64*4);
 
 	if (d->entity > 0)
 	{
@@ -6578,12 +6563,7 @@ static void R_AddUnclippedDecal(scenetris_t *t, particle_t *p, plooks_t *type)
 	vec3_t sdir, tdir;
 
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64*4;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64*4);
 
 	if (type->premul)
 	{
@@ -6668,12 +6648,7 @@ static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 	float scale, x, y;
 
 	if (cl_numstrisvert+4 > cl_maxstrisvert)
-	{
-		cl_maxstrisvert+=64*4;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-	}
+		cl_stris_ExpandVerts(cl_maxstrisvert+64*4);
 
 	if (type->scalefactor == 1)
 		scale = p->scale*0.25;

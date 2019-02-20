@@ -231,7 +231,7 @@ cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
 cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
-cvar_t scr_fov_mode							= CVARFD  ("scr_fov_mode", "0", CVAR_ARCHIVE, "Controls what the fov cvar actually controls:\n0: largest axis (ultra-wide monitors means less height will be visible).\n1: smallest axis (ultra-wide monitors will distort at the edges).\n2: horizontal axis.\n3: vertical axis.\n4: horizontally-padded 4:3");
+cvar_t scr_fov_mode							= CVARFD  ("scr_fov_mode", "4", CVAR_ARCHIVE, "Controls what the fov cvar actually controls:\n0: largest axis (ultra-wide monitors means less height will be visible).\n1: smallest axis (ultra-wide monitors will distort at the edges).\n2: horizontal axis.\n3: vertical axis.\n4: 4:3 horizontal axis, padded for wider resolutions (for a more classic fov)");
 cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_fov_viewmodel					= CVARFD("r_viewmodel_fov", "", CVAR_ARCHIVE,

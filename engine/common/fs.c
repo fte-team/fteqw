@@ -1768,7 +1768,6 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 				last = fs_manifest->gamepath[i].path;
 				if (*last == '*')
 					last++;
-				break;
 			}
 		}
 		if (!last)
@@ -1955,14 +1954,15 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 		if (vfs || !(*mode == 'w' || *mode == 'a'))
 			return vfs;
 		//fall through
-	case FS_PUBGAMEONLY:
+	case FS_PUBGAMEONLY:		//used for $gamedir/downloads
+	case FS_BASEGAMEONLY:		//used for fte/configs/*
+	case FS_PUBBASEGAMEONLY:	//used for qw/skins/*
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
 		if (*mode == 'w')
 			COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
 	case FS_GAME:	//load from paks in preference to system paths. overwriting be damned.
-	case FS_PUBBASEGAMEONLY:	//load from paks in preference to system paths. overwriting be damned.
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
 		break;
@@ -1984,18 +1984,6 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 				return vfs;
 		}
 		if (!try_snprintf(fullname, sizeof(fullname), "%s%s", com_gamepath, filename))
-			return NULL;
-		return VFSOS_Open(fullname, mode);
-	case FS_BASEGAMEONLY:		//always bypass packs+pure.
-		if (com_homepathenabled)
-		{
-			if (!try_snprintf(fullname, sizeof(fullname), "%sfte/%s", com_homepath, filename))
-				return NULL;
-			vfs = VFSOS_Open(fullname, mode);
-			if (vfs)
-				return vfs;
-		}
-		if (!try_snprintf(fullname, sizeof(fullname), "%sfte/%s", com_gamepath, filename))
 			return NULL;
 		return VFSOS_Open(fullname, mode);
 	default:

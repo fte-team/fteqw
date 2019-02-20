@@ -27,8 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	extern world_t csqc_world;
 #endif
 
-static void S_Play(void);
-static void S_PlayVol(void);
+static void S_Play_f(void);
 static void S_SoundList_f(void);
 #ifdef HAVE_MIXER
 static void S_Update_(soundcardinfo_t *sc);
@@ -2212,9 +2211,9 @@ void S_Init (void)
 
 	Con_DPrintf("\nSound Initialization\n");
 
-	Cmd_AddCommand("play", S_Play);
-	Cmd_AddCommand("play2", S_Play);
-	Cmd_AddCommand("playvol", S_PlayVol);
+	Cmd_AddCommand("play", S_Play_f);	//sound that doesn't follow the player
+	Cmd_AddCommand("play2", S_Play_f);	//sound that DOES follow the player
+	Cmd_AddCommand("playvol", S_Play_f);
 	Cmd_AddCommand("stopsound", S_StopAllSounds_f);
 	Cmd_AddCommand("soundlist", S_SoundList_f);
 	Cmd_AddCommand("soundinfo", S_SoundInfo_f);
@@ -3884,34 +3883,27 @@ console functions
 ===============================================================================
 */
 
-void S_Play(void)
+void S_Play_f(void)
 {	//plays a sound located around the player
 	int 	i;
 	char name[256];
 	sfx_t	*sfx;
+	const char *cmdname = Cmd_Argv(0);
+	float vol, attenuation = 0;
+	unsigned int flags = CF_NOSPACIALISE;
+	int entnum = 0;
+	float *origin = NULL;
 
-	i = 1;
-	while (i<Cmd_Argc())
+
+/*	//Vanilla compat (breaks modern QW mods):
+   	if (!strcmp(cmdname, "play"))
 	{
-		if (!Q_strrchr(Cmd_Argv(i), '.'))
-		{
-			Q_strncpyz(name, Cmd_Argv(i), sizeof(name)-4);
-			Q_strcat(name, ".wav");
-		}
-		else
-			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
-		sfx = S_PrecacheSound(name);
-		S_StartSound(0, -1, sfx, NULL, NULL, 1.0, 0.0, 0, 0, CF_NOSPACIALISE);
-		i++;
+		flags = 0;
+		attenuation = 1;
+		origin = listener[0].origin;
+		entnum = listener[0].entnum;
 	}
-}
-
-void S_PlayVol(void)
-{
-	int i;
-	float vol;
-	char name[256];
-	sfx_t	*sfx;
+*/
 
 	i = 1;
 	while (i<Cmd_Argc())
@@ -3923,10 +3915,14 @@ void S_PlayVol(void)
 		}
 		else
 			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
+		i++;
 		sfx = S_PrecacheSound(name);
-		vol = Q_atof(Cmd_Argv(i+1));
-		S_StartSound(0, -1, sfx, NULL, NULL, vol, 0.0, 0, 0, CF_NOSPACIALISE);
-		i+=2;
+
+		if (!strcmp(cmdname, "playvol"))
+			vol = Q_atof(Cmd_Argv(i++));
+		else
+			vol = 1.0;
+		S_StartSound(entnum, 0, sfx, origin, NULL, vol, attenuation, 0, 0, flags);
 	}
 }
 

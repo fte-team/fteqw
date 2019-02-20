@@ -75,7 +75,9 @@ qboolean Master_MasterProtocolIsEnabled(enum masterprotocol_e protocol)
 
 #ifdef HAVE_SERVER
 static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
+#ifndef NOLEGACY
 static void SV_SetMaster_f (void);
+#endif
 #else
 #define Net_Masterlist_Callback NULL
 #endif
@@ -533,6 +535,7 @@ void SV_Master_Heartbeat (void)
 	}
 }
 
+#ifndef NOLEGACY
 static void SV_Master_Add(int type, char *stringadr)
 {
 	int i;
@@ -556,7 +559,7 @@ static void SV_Master_Add(int type, char *stringadr)
 	svs.last_heartbeat = -99999;
 }
 
-void SV_Master_ClearAll(void)
+static void SV_Master_ClearAll(void)
 {
 	int i;
 	for (i = 0; net_masterlist[i].cv.name; i++)
@@ -565,7 +568,6 @@ void SV_Master_ClearAll(void)
 	}
 }
 
-#ifndef NOLEGACY
 /*
 ====================
 SV_SetMaster_f

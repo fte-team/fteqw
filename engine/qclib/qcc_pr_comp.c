@@ -3871,10 +3871,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_LSHIFT_IF:
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_RSHIFT_I], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LSHIFT_I], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		case OP_LSHIFT_FI:
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_a, nullsref, NULL, flags&STFL_PRESERVEA);
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_RSHIFT_I], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LSHIFT_I], var_a, var_b, NULL, flags&STFL_PRESERVEB);
 		case OP_RSHIFT_IF:
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_RSHIFT_I], var_a, var_b, NULL, flags&STFL_PRESERVEA);

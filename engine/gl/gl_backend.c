@@ -3171,14 +3171,45 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			if (drawcount == countof(counts))
 			{
 				qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
+				RQuantAdd(RQUANT_DRAWS, drawcount);
 				drawcount = 0;
 			}
 			counts[drawcount] = endi-starti;
 			indicies[drawcount] = (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti;
 			drawcount++;
+			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi-starti);
 		}
 		qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
+		RQuantAdd(RQUANT_DRAWS, drawcount);
 	}
+#if 0 //def FTE_TARGET_WEB
+	else if (shaderstate.meshcount > 1)
+	{	//FIXME: not really needed if index lists are consecutive
+		index_t *tmp;
+		int ebo;
+
+		for (endi = 0, m = 0; m < shaderstate.meshcount; m++)
+		{
+			mesh = shaderstate.meshes[m];
+			endi += mesh->numindexes;
+		}
+		tmp = alloca(endi * sizeof(*tmp));
+		for (endi = 0, m = 0; m < shaderstate.meshcount; m++)
+		{
+			mesh = shaderstate.meshes[m];
+			for (starti = 0; starti < mesh->numindexes; starti++)
+				tmp[endi++] = mesh->vbofirstvert + mesh->indexes[starti];
+		}
+
+		shaderstate.streamid = (shaderstate.streamid + 1) & (sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]) - 1);
+		ebo = shaderstate.streamebo[shaderstate.streamid];
+		GL_SelectEBO(ebo);
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*tmp) * endi, tmp, GL_STREAM_DRAW_ARB);
+		qglDrawElements(batchtype, endi, GL_INDEX_TYPE, NULL);
+		RQuantAdd(RQUANT_DRAWS, 1);
+		RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi);
+	}
+#endif
 	else
 	{
 		GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
@@ -4122,7 +4153,7 @@ void GLBE_SelectEntity(entity_t *ent)
 	shaderstate.lastuniform = 0;
 }
 
-#if 1
+#ifndef GLSLONLY
 static void BE_SelectFog(vec3_t colour, float alpha, float density)
 {
 	float zscale;

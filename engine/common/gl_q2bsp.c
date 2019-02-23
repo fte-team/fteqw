@@ -47,7 +47,7 @@ extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
 qboolean Mod_LoadVertexes (model_t *loadmodel, qbyte *mod_base, lump_t *l);
-qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l);
+qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l);
 qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
@@ -4439,7 +4439,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				// load into heap
 				noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
 				if (header.version == BSPVERSION_Q2W)
-					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
+					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, bspx, mod_base, &header.lumps[19]);
 				noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
 				noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
 				if (noerrors)

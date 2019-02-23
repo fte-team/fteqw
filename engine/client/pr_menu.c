@@ -2551,7 +2551,11 @@ static void *PDECL MP_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void
 		return buffer;
 	}
 	else
+	{
+		if (FS_FLocateFile(path, FSLF_IFFOUND, &loc))
+			Con_Printf("Not loading %s because it comes from an untrusted source\n", path);
 		return NULL;
+	}
 }
 static int PDECL MP_PRFileSize (const char *path)
 {

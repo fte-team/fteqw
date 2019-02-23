@@ -27,6 +27,7 @@ THREADS="-j 4"
 
 TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
 TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
+TARGETS_WEB="gl-rel"
 
 ########### NaCL stuff
 NACL_SDK_ROOT=/opt/nacl_sdk/pepper_31/
@@ -169,7 +170,7 @@ if [ "$BUILD_DOS" == "y" ]; then
 fi
 if [ "$BUILD_WEB" != "n" ]; then
 	source $EMSDK/emsdk_env.sh >> /dev/null
-	build "Emscripten" web FTE_TARGET=web gl-rel CC=emcc
+	build "Emscripten" web FTE_TARGET=web $TARGETS_WEB CC=emcc
 fi
 if [ "$BUILD_LINUX" != "n" ] && [ "$BUILD_SDL" != "n" ] && [ "$(uname -m)" != "x86_64" ]; then
 	build "Linux 32-bit (SDL)" linux_x86_sdl FTE_TARGET=SDL BITS=32 LTO=1

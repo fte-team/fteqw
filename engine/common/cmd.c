@@ -4219,6 +4219,7 @@ Cmd_Init
 */
 void Cmd_Init (void)
 {
+	macro_count = 0;	
 //
 // register our commands
 //

@@ -569,7 +569,7 @@ ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wcast-align
+	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing #-Wcast-align
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
@@ -1610,10 +1610,10 @@ ifeq ($(FTE_TARGET),web)
 	JSLIBS=--js-library web/ftejslib.js -s LEGACY_GL_EMULATION=0
 	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	DEBUG_CFLAGS=-g -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	RELEASE_LDFLAGS=-s ASM_JS=1 -O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
-#	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
-	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2
+	DEBUG_CFLAGS=-g4 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
+	RELEASE_LDFLAGS=-O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS) -s NO_FILESYSTEM=1
+#	RELEASE_LDFLAGS=-O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
+	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2 -s NO_FILESYSTEM=1
 	CC?=emcc
 	CXX?=emcc
 	#BASELDFLAGS=
@@ -2072,14 +2072,14 @@ web-rel:
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js
-	@gzip -f $(RELEASE_DIR)/ftewebgl.js.mem
+	@gzip -f $(RELEASE_DIR)/ftewebgl.wasm
 
 web-dbg:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js
-	@gzip -f $(DEBUG_DIR)/ftewebgl.js.map
+	@gzip -f $(DEBUG_DIR)/ftewebgl.wasm
 
 #################################################
 #android

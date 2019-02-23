@@ -133,12 +133,12 @@ mergeInto(LibraryManager.library,
 								event.movementX = event.webkitMovementX;
 								event.movementY = event.webkitMovementY;
 							}
-							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, false, event.movementX, event.movementY, 0, 0]);
+							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [0, false, event.movementX, event.movementY, 0, 0]);
 						}
 						else
 						{
 							var rect = Module['canvas'].getBoundingClientRect();
-							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0]);
+							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0]);
 						}
 					}
 					break;
@@ -228,7 +228,7 @@ mergeInto(LibraryManager.library,
 					{
 						var t = touches[i];
 						if (FTEC.evcb.mouse)
-							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY)]);
+							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY)]);
 						if (FTEC.evcb.button)
 						{
 							if (event.type == 'touchstart')
@@ -271,7 +271,7 @@ mergeInto(LibraryManager.library,
 					delete FTEH.gamepads[gp.index];
 					if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
 						for (var j = 0; j < 6; j+=1)
-							Runtime.dynCall('viidi', FTEC.evcb.jaxis, [gp.index, j, 0, true]);
+							Runtime.dynCall('viifi', FTEC.evcb.jaxis, [gp.index, j, 0, true]);
 					if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
 						for (var j = 0; j < 32+4; j+=1)
 							Runtime.dynCall('viiii', FTEC.evcb.jbutton, [gp.index, j, 0, true]);
@@ -396,7 +396,7 @@ mergeInto(LibraryManager.library,
 				}
 			}
 			for (var j = 0; j < gp.axes.length; j+=1)
-				Runtime.dynCall('viidi', FTEC.evcb.jaxis, [gp.index, j, gp.axes[j], gp.mapping=="standard"]);
+				Runtime.dynCall('viifi', FTEC.evcb.jaxis, [gp.index, j, gp.axes[j], gp.mapping=="standard"]);
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
@@ -541,14 +541,14 @@ mergeInto(LibraryManager.library,
 				FTEC.vrDisplay.getFrameData(FTEC.vrframeData);
 			}
 			
-			try
-			{
+//			try
+//			{
 				dovsync = Runtime.dynCall('i', fnc, []);
-			}
-			catch(err)
-			{
-				console.log(err);
-			}
+//			}
+//			catch(err)
+//			{
+//				console.log(err);
+//			}
 			if (vr)
 				FTEC.vrDisplay.submitFrame();
 			if (dovsync)
@@ -1109,7 +1109,7 @@ console.log("onerror: " + _url);
 		}
 	},
 
-	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize)
+	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize, fname)
 	{
 		function encode64(data) {
 			var BASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -1141,8 +1141,14 @@ console.log("onerror: " + _url);
 
 		var img = new Image();
 		var gltex = GL.textures[texid];
+		img.name = Pointer_stringify(fname);
 		img.onload = function()
 		{
+			if (img.width < 1 || img.height < 1)
+			{
+				console.log("emscriptenfte_gl_loadtexturefile("+img.name+"): bad image size\n");
+				return;
+			}
 			var oldtex = GLctx.getParameter(GLctx.TEXTURE_BINDING_2D);	//blurgh, try to avoid breaking anything in this unexpected event.
 			GLctx.bindTexture(GLctx.TEXTURE_2D, gltex);
 			GLctx.texImage2D(GLctx.TEXTURE_2D, 0, GLctx.RGBA, GLctx.RGBA, GLctx.UNSIGNED_BYTE, img);
@@ -1151,6 +1157,5 @@ console.log("onerror: " + _url);
 		};
 		img.crossorigin = true;
 		img.src = "data:image/png;base64," + encode64(HEAPU8.subarray(dataptr, dataptr+datasize));
-		img.onload();
 	}
 });

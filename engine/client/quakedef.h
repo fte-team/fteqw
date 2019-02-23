@@ -143,6 +143,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <alloca.h>
 #endif
 
+#ifdef FTE_TARGET_WEB //emscripten's filesystem is throwing all sorts of exceptions and making it hard to debug real bugs.
+	#define NOSTDIO
+#endif
+#ifdef NOSTDIO
+	#define stat stat_nolink
+	#define fopen fopen_nolink
+	#define fread fread_nolink
+	#define fwrite fwrite_nolink
+	#define fclose fclose_nolink
+	#define fseek fseek_nolink
+	#define open open_nolink
+	#define read read_nolink
+	#define write write_nolink
+	#define close close_nolink
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

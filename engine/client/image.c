@@ -274,10 +274,10 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	tgaheader.cm_idx = MISSHORT(buf+3);
 	tgaheader.cm_len = MISSHORT(buf+5);
 	tgaheader.cm_size = buf[7];
-	tgaheader.originx = LittleShort(*(short *)&buf[8]);
-	tgaheader.originy = LittleShort(*(short *)&buf[10]);
-	tgaheader.width = LittleShort(*(short *)&buf[12]);
-	tgaheader.height = LittleShort(*(short *)&buf[14]);
+	tgaheader.originx = MISSHORT(buf+8);
+	tgaheader.originy = MISSHORT(buf+10);
+	tgaheader.width = MISSHORT(buf+12);
+	tgaheader.height = MISSHORT(buf+14);
 	tgaheader.bpp = buf[16];
 	tgaheader.attribs = buf[17];
 
@@ -2347,7 +2347,7 @@ static qbyte *ReadRawBMPFile(qbyte *buf, int length, int *width, int *height, si
 	bmpheader_t h;
 	qbyte *data;
 
-	memcpy(&h, (bmpheader_t *)buf, sizeof(h));	
+	memcpy(&h, buf, sizeof(h));	
 	h.SizeofBITMAPINFOHEADER = LittleLong(h.SizeofBITMAPINFOHEADER);
 	h.Width = LittleLong(h.Width);
 	h.Height = LittleLong(h.Height);
@@ -4735,7 +4735,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		if (w >= 3 && h	>= 4 && w*h+sizeof(int)*2 == len)
 		{	//quake lmp
 			qboolean foundalpha = false;
-			qbyte *in = (qbyte*)((int*)buf+2);
+			qbyte *in = buf+sizeof(int)*2;
 			data = BZ_Malloc(w * h * sizeof(int));
 			for (i = 0; i < w * h; i++)
 			{
@@ -4751,7 +4751,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		else if (w >= 3 && h >= 4 && w*h+sizeof(int)*2+768+2 == len)
 		{	//halflife. should probably verify that those 2 extra bytes read as 256.
 			qboolean foundalpha = false;
-			qbyte *in = (qbyte*)((int*)buf+2);
+			qbyte *in = buf+sizeof(int)*2;
 			qbyte *palette = in + w*h+2, *p;
 			data = BZ_Malloc(w * h * sizeof(int));
 			for (i = 0; i < w * h; i++)

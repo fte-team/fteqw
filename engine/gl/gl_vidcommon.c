@@ -2251,12 +2251,8 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		break;
 	case GL_VERTEX_SHADER_ARB:
 		GLSlang_GenerateInternal(&glsl, "#define VERTEX_SHADER\n");
-#ifdef RTLIGHTS
-		if (!r_shadow_shadowmapping.ival && ver >= 120)
-		{
+		if (ver >= 120 || gl_config_gles)	//invariant appeared in glsl 120, or glessl 100. rtlights, stencil shadows, multipass materials, fog volumes, blend-depth-masking all need invariant depth.
 			GLSlang_GenerateInternal(&glsl, "invariant gl_Position;\n");
-		}
-#endif
 		if (gl_config.gles)
 		{
 			GLSlang_GenerateInternal(&glsl,

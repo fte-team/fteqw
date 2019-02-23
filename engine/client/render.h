@@ -611,6 +611,7 @@ extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_glsl_offsetmapping;
+extern	cvar_t	r_skyfog;	//additional fog alpha on sky
 extern	cvar_t	r_shadow_playershadows;
 extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
 extern	cvar_t	r_shadow_realtime_dlight_ambient;

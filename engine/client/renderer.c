@@ -203,6 +203,7 @@ cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 //cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 //												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
+cvar_t r_skyfog								= CVARD  ("r_skyfog", "0.5", "This controls an alpha-blend value for fog on skyboxes, cumulative with regular fog alpha.");
 cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_lavaalpha							= CVARF  ("r_lavaalpha", "",
@@ -842,6 +843,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_softwarebanding_cvar, GRAPHICALNICETIES);
 
+	Cvar_Register (&r_skyfog, GRAPHICALNICETIES);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat

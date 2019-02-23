@@ -387,7 +387,7 @@ static image_t *Font_GetTrackerImage(unsigned int imid)
 	{
 		if (!*trackerimages[imid].name)
 			return NULL;
-		trackerimages[imid].image = Image_GetTexture(trackerimages[imid].name, NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
+		trackerimages[imid].image = Image_GetTexture(trackerimages[imid].name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC, NULL, NULL, 0, 0, TF_INVALID);
 	}
 	if (!trackerimages[imid].image)
 		return NULL;
@@ -404,7 +404,7 @@ qboolean Font_TrackerValid(unsigned int imid)
 	{
 		if (!*trackerimages[imid].name)
 			return false;
-		trackerimages[imid].image = Image_GetTexture(trackerimages[imid].name, NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
+		trackerimages[imid].image = Image_GetTexture(trackerimages[imid].name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC, NULL, NULL, 0, 0, TF_INVALID);
 	}
 	if (!trackerimages[imid].image)
 		return false;

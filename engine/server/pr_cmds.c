@@ -171,6 +171,8 @@ struct {
 #endif
 	func_t AddDebugPolygons;
 	func_t CheckRejectConnection;
+
+	func_t ZQ_ClientCommand;
 } gfuncs;
 func_t SpectatorConnect;	//QW
 func_t SpectatorThink;	//QW
@@ -1095,6 +1097,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	gfuncs.ChatMessage = PR_FindFunction(svprogfuncs, "ChatMessage", PR_ANY);
 	gfuncs.UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
 	gfuncs.ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
+	gfuncs.ZQ_ClientCommand = PR_FindFunction(svprogfuncs, "GE_ClientCommand", PR_ANY);
 
 	gfuncs.PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
 	gfuncs.ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
@@ -2416,6 +2419,20 @@ qboolean PR_UserCmd(const char *s)
 	if (!svprogfuncs)
 		return false;
 
+	if (gfuncs.ZQ_ClientCommand)
+	{
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		tokenizeqc(s, true);	//I don't know the spec, I'm making assumptions here. Of course, not having the original string means the tokens will be reordered if they tokenize parm1. sucks to be them if they do that.
+
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		//originally, UserCmd took no arguments. ezquake passes only the arg (the command's name). We pass the entire argument string.
+		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, Cmd_Argv(0));
+		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, Cmd_Args());
+		PR_ExecuteProgram (svprogfuncs, gfuncs.ZQ_ClientCommand);
+		return !!G_FLOAT(OFS_RETURN);
+	}
+
 	if (gfuncs.ParseClientCommand)
 	{	//the QC is expected to send it back to use via a builtin.
 
@@ -2423,7 +2440,7 @@ qboolean PR_UserCmd(const char *s)
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
+		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.ParseClientCommand);
 		return true;
 	}
@@ -2437,30 +2454,33 @@ qboolean PR_UserCmd(const char *s)
 	}
 #endif
 
-	if (gfuncs.UserCmd && pr_imitatemvdsv.value >= 0)
+	if (gfuncs.UserCmd && progstype == PROG_QW)
 	{	//we didn't recognise it. see if the mod does.
-		const char *arg0;
-		//ktpro bug warning:
-		//admin + judge. I don't know the exact rules behind this bug, so I just ban the entire command
-		//I can't be arsed detecting ktpro specifically, so assume we're always running ktpro
-
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.world.physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		tokenizeqc(s, true);
 
-		//make sure we use the same logic that the qc will use. specifically that we check for " and leading spaces etc
-		G_FLOAT(OFS_PARM0) = 0;
-		PF_ArgV(svprogfuncs, pr_globals);
-		arg0 = PR_GetStringOfs(svprogfuncs, OFS_RETURN);
-		if (!strcmp(arg0, "admin") || !strcmp(arg0, "judge"))
-		{
-			Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
-			return true;
+		{	//ktpro bug warning:
+			//admin + judge. I don't know the exact rules behind this bug, so I just ban the entire command
+			//I can't be arsed detecting ktpro specifically, so assume we're always running ktpro
+
+			const char *arg0;
+
+			//make sure we use the same logic that the qc will use. specifically that we check for " and leading spaces etc
+			G_FLOAT(OFS_PARM0) = 0;
+			PF_ArgV(svprogfuncs, pr_globals);
+			arg0 = PR_GetStringOfs(svprogfuncs, OFS_RETURN);
+			if (!strcmp(arg0, "admin") || !strcmp(arg0, "judge"))
+			{
+				Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
+				return true;
+			}
 		}
 
-		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		//originally, UserCmd took no arguments. ezquake passes only the arg (the command's name). We pass the entire argument string.
+		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.UserCmd);
 		return !!G_FLOAT(OFS_RETURN);
 	}
@@ -3210,6 +3230,20 @@ void PF_centerprint_Internal (int entnum, qboolean plaque, const char *s)
 		cl->centerprintstring[1] = 'P';
 		strcpy(cl->centerprintstring+2, s);
 	}
+#ifdef HEXEN2
+	else if (progstype == PROG_H2)
+	{
+		char *at;
+		cl->centerprintstring = Z_Malloc(slen+2);
+		cl->centerprintstring[0] = 2;	//hexen2's centerprints use the alternate charset.
+		strcpy(cl->centerprintstring+1, s);
+
+		//and @ chars are used for new-lines.
+		for (at = cl->centerprintstring+1; *at; at++)
+			if (*at == '@')
+				*at = '\n';
+	}
+#endif
 	else
 	{
 		cl->centerprintstring = Z_Malloc(slen+1);

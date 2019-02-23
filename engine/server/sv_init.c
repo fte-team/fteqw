@@ -1541,8 +1541,12 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 			snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
 #ifdef HEXEN2
 		else if (progstype == PROG_H2 && (val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", ev_float, NULL)))
-		{
-			snprintf(sv.mapname, sizeof(sv.mapname), "%s", T_GetString(val->_float-1));
+		{	//hexen2 uses a float string index for message.
+			//if its 0 or negative, fall back on netname instead (for custom maps).
+			if (val->_float <= 0)
+				snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, ent->v->netname));
+			else
+				snprintf(sv.mapname, sizeof(sv.mapname), "%s", T_GetString(val->_float-1));
 		}
 #endif
 		else

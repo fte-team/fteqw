@@ -4497,6 +4497,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "defaultskybox",
 "!!permu FOG\n"
 "!!samps reflectcube\n"
+"!!cvardf r_skyfog=0.5\n"
 "#include \"sys/defs.h\"\n"
 "#include \"sys/fog.h\"\n"
 
@@ -4515,7 +4516,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "vec4 skybox = textureCube(s_reflectcube, pos);\n"
-"gl_FragColor = vec4(fog3(skybox.rgb), 1.0);\n"
+"gl_FragColor = vec4(mix(skybox.rgb, fog3(skybox.rgb), float(r_skyfog)), 1.0);\n"
 "}\n"
 "#endif\n"
 },

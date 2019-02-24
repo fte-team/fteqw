@@ -2439,6 +2439,7 @@ void World_Physics_Frame(world_t *w)
 						SV_RunCmd (&svs.clients[i-1].lastcmd, true);
 						svs.clients[i-1].lastcmd.impulse = 0;
 						SV_PostRunCmd();
+						host_client->lastruncmd = sv.time*1000;
 						*w->g.frametime = host_frametime = ft;
 					}
 				}

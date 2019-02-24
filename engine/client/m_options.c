@@ -273,6 +273,24 @@ void M_Menu_Options_f (void)
 	};
 #endif
 
+	extern cvar_t scr_fov_mode;
+		static const char *fovmodes[] = {
+		"Major-",
+		"Minor+",
+		"Horizontal",
+		"Vertical",
+		"4:3 stretched",
+		NULL
+	};
+	static const char *fovmodevalues[] = {
+		"0",
+		"1",
+		"2",
+		"3",
+		"4",
+		NULL
+	};
+
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 #ifdef PACKAGEMANAGER
@@ -283,6 +301,7 @@ void M_Menu_Options_f (void)
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
 		MB_SPACING(4),
 		MB_COMBOCVAR("View Projection", r_projection, projections, projectionvalues, NULL),
+		MB_COMBOCVAR("FOV Mode", scr_fov_mode, fovmodes, fovmodevalues, NULL),
 		MB_SLIDER("Field of View", scr_fov, 70, 360, 5, NULL),
 		MB_SLIDER("Mouse Speed", sensitivity, 1, 10, 0.2, NULL),
 		MB_SLIDER("Crosshair", crosshair, 0, 22, 1, NULL), // move this to hud setup?

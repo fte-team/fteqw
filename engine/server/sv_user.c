@@ -7153,7 +7153,12 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				sv_player->v->velocity[2] -= 270;
 		}
 
-		WPhys_RunThink (&sv.world, (wedict_t*)sv_player);
+		{
+			float ptime = sv.world.physicstime;
+			sv.world.physicstime = sv.time;	//urgh, WPhys_RunThink uses the wrong time base
+			WPhys_RunThink (&sv.world, (wedict_t*)sv_player);
+			sv.world.physicstime = ptime;
+		}
 
 		if (host_client->state && host_client->protocol == SCP_BAD)
 		{

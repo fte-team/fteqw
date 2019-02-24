@@ -115,6 +115,9 @@ typedef struct
 #define CF_SV_SENDVELOCITY	512	// serverside hint that velocity is important
 #define CF_CLI_AUTOSOUND	1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
 #define CF_CLI_INACTIVE		2048	// try to play even when inactive
+#ifdef Q3CLIENT
+#define CF_CLI_NODUPES		4096	// block multiple identical sounds being started on the same entity within rapid succession. required by quake3.
+#endif
 #define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW/*|CF_RESERVEDN*/)
 
 typedef struct
@@ -130,6 +133,9 @@ typedef struct
 	vec3_t	velocity;		// velocity of sound effect
 	vec_t	dist_mult;		// distance multiplier (attenuation/clipK)
 	int		master_vol;		// 0-255 master volume
+#ifdef Q3CLIENT
+	unsigned int starttime;	// start time, to replicate q3's 50ms embargo on duped sounds.
+#endif
 } channel_t;
 
 struct soundcardinfo_s;

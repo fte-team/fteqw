@@ -47,7 +47,7 @@ qboolean CG_FillQ3Snapshot(int snapnum, snapshot_t *snapshot)
 	snapshot->numEntities = snap->numEntities;
 	for (i=0; i<snapshot->numEntities; i++)
 	{
-		memcpy(&snapshot->entities[i], &ccs.parseEntities[(snap->firstEntity+i) & PARSE_ENTITIES_MASK], sizeof(snapshot->entities[0]));
+		memcpy(&snapshot->entities[i], &ccs.parseEntities[(snap->firstEntity+i) & Q3PARSE_ENTITIES_MASK], sizeof(snapshot->entities[0]));
 	}
 
 	memcpy( &snapshot->areamask, snap->areabits, sizeof( snapshot->areamask ) );
@@ -108,7 +108,7 @@ static void CLQ3_DeltaEntity( clientSnap_t *frame, int newnum, q3entityState_t *
 {
 	q3entityState_t *state;
 
-	state = &ccs.parseEntities[ccs.firstParseEntity & PARSE_ENTITIES_MASK];
+	state = &ccs.parseEntities[ccs.firstParseEntity & Q3PARSE_ENTITIES_MASK];
 
 	if( unchanged )
 	{
@@ -155,7 +155,7 @@ static void CLQ3_ParsePacketEntities( clientSnap_t *oldframe, clientSnap_t *newf
 	}
 	else
 	{
-		oldstate = &ccs.parseEntities[oldframe->firstEntity & PARSE_ENTITIES_MASK];
+		oldstate = &ccs.parseEntities[oldframe->firstEntity & Q3PARSE_ENTITIES_MASK];
 		oldnum = oldstate->number;
 	}
 
@@ -193,7 +193,7 @@ static void CLQ3_ParsePacketEntities( clientSnap_t *oldframe, clientSnap_t *newf
 			}
 			else
 			{
-				oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & PARSE_ENTITIES_MASK];
+				oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & Q3PARSE_ENTITIES_MASK];
 				oldnum = oldstate->number;
 			}
 		}
@@ -213,7 +213,7 @@ static void CLQ3_ParsePacketEntities( clientSnap_t *oldframe, clientSnap_t *newf
 			}
 			else
 			{
-				oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & PARSE_ENTITIES_MASK];
+				oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & Q3PARSE_ENTITIES_MASK];
 				oldnum = oldstate->number;
 			}
 			continue;
@@ -244,7 +244,7 @@ static void CLQ3_ParsePacketEntities( clientSnap_t *oldframe, clientSnap_t *newf
 		}
 		else
 		{
-			oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & PARSE_ENTITIES_MASK];
+			oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & Q3PARSE_ENTITIES_MASK];
 			oldnum = oldstate->number;
 		}
 	}
@@ -289,12 +289,12 @@ void CLQ3_ParseSnapshot(void)
 		{
 			// The frame that the server did the delta from
 			// is too old, so we can't reconstruct it properly.
-			Con_Printf( "Delta frame too old.\n" );
+			Con_DPrintf( "Delta frame too old.\n" );
 		}
 		else if(ccs.firstParseEntity - oldsnap->firstEntity >
-			MAX_PARSE_ENTITIES - MAX_ENTITIES_IN_SNAPSHOT)
+			Q3MAX_PARSE_ENTITIES - MAX_ENTITIES_IN_SNAPSHOT)
 		{
-			Con_Printf( "Delta parse_entities too old.\n" );
+			Con_DPrintf( "Delta parse_entities too old.\n" );
 		}
 		else
 		{
@@ -371,8 +371,8 @@ void CLQ3_ParseDownload(void)
 	if (dl->size == (unsigned int)-1)
 	{
 		s = MSG_ReadString();
-		Con_Printf("\nDownload refused:\n %s\n", s);
 		CL_DownloadFailed(dl->remotename, dl);
+		Host_EndGame("%s", s);
 		return;
 	}
 
@@ -441,6 +441,7 @@ static qboolean CLQ3_SendDownloads(char *rc, char *rn)
 		char tempname[MAX_QPATH];
 		char crc[64];
 		vfsfile_t *f;
+		extern cvar_t cl_downloads;
 		rc = COM_ParseOut(rc, crc, sizeof(crc));
 		rn = COM_Parse(rn);
 		if (!*com_token)
@@ -468,8 +469,14 @@ static qboolean CLQ3_SendDownloads(char *rc, char *rn)
 		if (!FS_GenCachedPakName(va("%s.tmp", com_token), crc, tempname, sizeof(tempname)))
 			continue;
 
+		if (!cl_downloads.ival)
+		{
+			Con_Printf(CON_WARNING "Need to download %s.pk3, but downloads are disabled\n", com_token);
+			continue;
+		}
+
 		//fixme: request to download it
-		Con_Printf("Sending request to download %s\n", com_token);
+		Con_Printf("Sending request to download %s.pk3\n", com_token);
 		CLQ3_SendClientCommand("download %s.pk3", com_token);
 		ccs.downloadchunknum = 0;
 		dl = Z_Malloc(sizeof(*dl));
@@ -897,6 +904,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	int cmdcount, key;
 	usercmd_t *to, *from;
 	extern int keycatcher;
+	extern cvar_t cl_nodelta, cl_c2sdupe;
 
 	//reuse the q1 array
 	cmd->servertime = cl.servertime*1000;
@@ -927,10 +935,13 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		cmd->buttons |= 2;	//add in the 'at console' button
 
 	cl.outframes[cl.movesequence&CMD_MASK].cmd[0] = *cmd;
+	cl.movesequence++;
 
+	//FIXME: q3 generates a new command every video frame, but a new packet at a more limited rate.
+	//FIXME: we should return here if its not yet time for a network frame.
 
 	frame = &cl.outframes[cls.netchan.outgoing_sequence & CMD_MASK];
-	frame->cmd_sequence = cl.movesequence++;
+	frame->cmd_sequence = cl.movesequence;
 	frame->server_message_num = ccs.serverMessageNum;
 	frame->server_time = cl.gametime;
 	frame->client_time = Sys_DoubleTime()*1000;
@@ -955,15 +966,19 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		MSG_WriteBits(&msg, 0, 8);
 	}
 
-	i = (cls.netchan.outgoing_sequence-1);
+	i = cls.netchan.outgoing_sequence;
+	i -= bound(0, cl_c2sdupe.ival, 5); //extra age, if desired
+	i--;
+	if (i < cls.netchan.outgoing_sequence-CMD_MASK)
+		i = cls.netchan.outgoing_sequence-CMD_MASK;
 	oldframe = &cl.outframes[i & CMD_MASK];
 	cmdcount = cl.movesequence - oldframe->cmd_sequence;
 	if (cmdcount > CMD_MASK)
 		cmdcount = CMD_MASK;
+
 	// begin a client move command, if any
-	if( cmdcount )
+	if (cmdcount)
 	{
-		extern cvar_t cl_nodelta;
 		if(cl_nodelta.value || !ccs.snap.valid ||
 				ccs.snap.serverMessageNum != ccs.serverMessageNum)
 			MSG_WriteBits(&msg, clcq3_nodeltaMove, 8); // no compression
@@ -977,8 +992,8 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		string = ccs.serverCommands[ccs.lastServerCommandNum & TEXTCMD_MASK];
 		key = ccs.fs_key ^ ccs.serverMessageNum ^ StringKey(string, 32);
 
-		// send this and the previous cmds in the message, so
-		// if the last packet was dropped, it can be recovered
+		//note that q3 uses timestamps so sequences are not important
+		//we can also send dupes without issue.
 		from = &nullcmd;
 		for (i = cl.movesequence-cmdcount; i < cl.movesequence; i++)
 		{

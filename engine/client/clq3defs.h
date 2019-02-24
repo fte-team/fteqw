@@ -202,8 +202,8 @@ typedef struct frame_s {
 	int		serverTime;
 } q3frame_t;
 
-#define MAX_PARSE_ENTITIES 1024
-#define PARSE_ENTITIES_MASK (MAX_PARSE_ENTITIES-1)
+#define Q3MAX_PARSE_ENTITIES 2048
+#define Q3PARSE_ENTITIES_MASK (Q3MAX_PARSE_ENTITIES-1)
 
 #define	MAX_STRING_CHARS	1024
 #define TEXTCMD_BACKUP		64					// size of reliable text commands buffer, must be power of two
@@ -234,7 +234,7 @@ typedef struct {
 	clientSnap_t snapshots[Q3UPDATE_BACKUP];
 	clientSnap_t snap;
 
-	q3entityState_t parseEntities[MAX_PARSE_ENTITIES];
+	q3entityState_t parseEntities[Q3MAX_PARSE_ENTITIES];
 
 	q3entityState_t baselines[MAX_GENTITIES];
 

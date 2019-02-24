@@ -1621,7 +1621,42 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 		if (c == '"')
 			quotes++;
 
-		if (c == '$' && (!(quotes&1) || dpcompat_console.ival))
+		if (c == '%' && !(quotes&1) && !dpcompat_console.ival)
+		{	//QW262/ezquake does this. kinda annoying.
+			char *end;
+			if (data[1] == '%')
+			{
+				str = "%";
+				data+=2;
+			}
+			else if (data[1] == '#')
+			{
+				str = va("\"%s\"", Cmd_Args());
+				data+=2;
+			}
+			else if (data[1] == '*')
+			{
+				str = Cmd_Args();
+				data+=2;
+			}
+			else if ((i=strtol(data+1, &end, 10)))
+			{
+				data = end;
+				str = Cmd_Argv(i);
+			}
+			else
+			{
+				data++;
+				str = "%";	//some kind of encoding error
+			}
+
+			// check buffer size
+			if (len + strlen(str) >= destlen-1)
+				break;
+			strcpy(&dest[len], str);
+			len += strlen(str);
+		}
+		else if (c == '$' && (!(quotes&1) || dpcompat_console.ival))
 		{
 			data++;
 			if (*data == '$')
@@ -1737,75 +1772,6 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 
 	if (len && dest[len-1] == '\r')	//with dos line endings, don't add some pointless \r char on the end.
 		dest[len-1] = 0;
-
-	return dest;
-}
-
-static char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
-{
-	char c;
-	int quotes = 0;
-	int len = 0;
-
-	char *str, *strend;
-	int old_len;
-	while ( (c = *data) != 0)
-	{
-		if (c == '"')
-			quotes++;
-
-		if (c == '%' && !(quotes&1))
-		{
-			if (data[1] == '%')
-			{
-				str = "%";
-				old_len = 2;
-			}
-			else if (data[1] == '#')
-			{
-				str = va("\"%s\"", Cmd_Args());
-				old_len = 2;
-			}
-			else if (data[1] == '*')
-			{
-				str = Cmd_Args();
-				old_len = 2;
-			}
-			else if (strtol(data+1, &strend, 10))
-			{
-				str = Cmd_Argv(atoi(data+1));
-				old_len = strend - data;
-			}
-			else
-			{
-				str = NULL;
-				old_len = 0;
-			}
-
-			if (str)
-			{
-				// check buffer size
-				if (len + strlen(str) >= destlen-1)
-					break;
-
-				strcpy(&dest[len], str);
-				len += strlen(str);
-				dest[len] = 0;
-				data += old_len;
-
-				continue;
-			}
-		}
-
-		dest[len] = c;
-		data++;
-		len++;
-		dest[len] = 0;
-		if (len >= destlen-1)
-			break;
-	}
-
-	dest[len] = 0;
 
 	return dest;
 }
@@ -2805,7 +2771,6 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 			// if the alias value is a command or cvar and
 			// the alias is called with parameters, add them
 			//unless we're mimicing dp, or the alias has explicit expansions (or macros) in which case it can do its own damn args
-			if (dpcompat_console.ival)
 			{
 				char *ignoringquoteswasstupid;
 				Cmd_ExpandString(a->value, dest, sizeof(dest), &execlevel, !Cmd_IsInsecure()?true:false, true);
@@ -2821,7 +2786,7 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 				if ((a->restriction?a->restriction:rcon_level.ival) > execlevel)
 					return;
 			}
-			else if (!strchr(a->value, '$'))
+			if (!dpcompat_console.ival)
 			{
 				if (Cmd_Argc() > 1 && (!strncmp(a->value, "cmd ", 4) || (!strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
 					(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))))
@@ -2830,11 +2795,7 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 					Cbuf_InsertText (Cmd_Args(), execlevel, false);
 					Cbuf_InsertText (" ", execlevel, false);
 				}
-
-				Cmd_ExpandStringArguments (a->value, dest, sizeof(dest));
 			}
-			else
-				Q_strncpyz(dest, a->value, sizeof(dest));
 			Cbuf_InsertText (dest, execlevel, false);
 
 #ifdef HAVE_CLIENT

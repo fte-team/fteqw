@@ -34,7 +34,7 @@ static cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send 
 
 cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
-static cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
+cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
 cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = CVAR("cl_c2sImpulseBackup","3");
 cvar_t	cl_netfps = CVAR("cl_netfps", "150");

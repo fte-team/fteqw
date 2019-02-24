@@ -2152,9 +2152,9 @@ qboolean PR_LoadQ1QVM(void)
 
 	Q1QVM_Shutdown(true);
 
-	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, syscallqvm);
+	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, "qwprogs", syscallqvm);
 	if (!q1qvm)
-		q1qvm = VM_Create("qwprogs", syscallnative, NULL);
+		q1qvm = VM_Create("qwprogs", syscallnative, "qwprogs", NULL);
 	if (!q1qvm)
 	{
 		if (svprogfuncs == &q1qvmprogfuncs)

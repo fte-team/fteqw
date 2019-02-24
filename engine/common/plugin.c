@@ -286,14 +286,14 @@ static plugin_t *Plug_Load(const char *file, int type)
 	if (!newplug->vm && (type & PLUG_NATIVE) && !Q_strncasecmp(file, "fteplug_", 8) && !Q_strcasecmp(ARCH_DL_POSTFIX+1, COM_FileExtension(file, temp, sizeof(temp))))
 	{
 		COM_StripExtension(file, temp, sizeof(temp));
-		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL);
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
 	}
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL);
+		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL, NULL);
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL);
+		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL, NULL);
 	if (!newplug->vm && (type & PLUG_QVM))
-		newplug->vm = VM_Create(file, NULL, Plug_SystemCallsVM);
+		newplug->vm = VM_Create(NULL, NULL, file, Plug_SystemCallsVM);
 	if (!newplug->vm && (type & PLUG_NATIVE))
 	{
 		unsigned int u;

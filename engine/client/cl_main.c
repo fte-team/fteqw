@@ -178,7 +178,7 @@ cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
 cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
-cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
+cvar_t	cl_downloads			= CVARAFD("cl_downloads", "1", /*q3*/"cl_allowDownload", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
 cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/quakemaps/\"");
@@ -3496,10 +3496,18 @@ client_connect:	//fixme: make function
 		cls.state = ca_connected;
 		if (cls.netchan.remote_address.type != NA_LOOPBACK)
 		{
+			switch(cls.protocol)
+			{
+			case CP_QUAKEWORLD:	Con_DPrintf("QW ");	break;
+			case CP_NETQUAKE:	Con_Printf ("NQ ");	break;
+			case CP_QUAKE2:		Con_Printf ("Q2 ");	break;
+			case CP_QUAKE3:		Con_Printf ("Q3 ");	break;
+			default: break;
+			}
 			if (cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
-				Con_TPrintf ("Connected (^2encrypted^7).\n");
+				Con_TPrintf ("Connected (^[^2encrypted\\tip\\Any passwords will be sent securely, but may still be logged^]).\n");
 			else
-				Con_TPrintf ("Connected (^1plain-text^7).\n");
+				Con_TPrintf ("Connected (^[^1plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]).\n");
 		}
 #ifdef QUAKESPYAPI
 		allowremotecmd = false; // localid required now for remote cmds

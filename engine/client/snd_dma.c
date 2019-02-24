@@ -2568,6 +2568,9 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 
 	if (sc->total_chans <= oldest)
 		sc->total_chans = oldest+1;
+#ifdef Q3CLIENT	//presumably we should be using this instead of pos for oldest, but blurgh.
+	sc->channel[oldest].starttime = Sys_Milliseconds();
+#endif
 	return &sc->channel[oldest];
 }
 
@@ -2963,6 +2966,28 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t 
 	S_LockMixer();
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
+#ifdef Q3CLIENT
+		if (flags & CF_CLI_NODUPES)
+		{	//don't start too many simultaneous sounds. q3 sucks or something.
+			int active = 0, i;
+			unsigned int time = Sys_Milliseconds();
+			for (i = 0; i < sc->total_chans; i++)
+			{	//as per q3, channel isn't important.
+				if (sc->channel[i].entnum == entnum && sc->channel[i].sfx == sfx)
+				{
+					//never allow a new sound within 50ms of the previous one
+					if (time - sc->channel[i].starttime < 50)
+						break;
+					active++;
+				}
+			}
+			if (active >= 4 || i < sc->total_chans)
+			{
+				Con_DPrintf("CF_CLI_NODUPES strikes again!\n");
+				break;
+			}
+		}
+#endif
 		// pick a channel to play on
 		target_chan = SND_PickChannel(sc, entnum, entchannel);
 		if (!target_chan)

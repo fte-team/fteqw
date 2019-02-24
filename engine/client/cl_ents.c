@@ -5554,6 +5554,7 @@ void CL_SetSolidEntities (void)
 	packet_entities_t	*pak;
 	entity_state_t		*state;
 	physent_t			*pent;
+	model_t				*mod;
 
 	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	pmove.physents[0].model = cl.worldmodel;
@@ -5575,18 +5576,20 @@ void CL_SetSolidEntities (void)
 		{	/*bsp model size*/
 			if (state->modelindex <= 0)
 				continue;
-			if (!cl.model_precache[state->modelindex])
+			mod = cl.model_precache[state->modelindex];
+			if (!mod)
 				continue;
 			/*vanilla protocols have no 'solid' information. all entities get assigned ES_SOLID_BSP, even if its not actually solid.
 			so we need to make sure that item pickups are not erroneously considered solid, but doors etc are.
-			yes, this probably means that externally loaded models will be predicted non-solid - you'll need to upgrade your network protocol for the gamecode to be able to specify solidity.
+			normally, ONLY inline models are considered solid when we have no solid info.
+			monsters will always be non-solid, too.
 			*/
-			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && !((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->funcs.NativeTrace))
+			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && mod->numsubmodels <= 1)
 				continue;
 	
 			pent = &pmove.physents[pmove.numphysent];
 			memset(pent, 0, sizeof(physent_t));
-			pent->model = cl.model_precache[state->modelindex];
+			pent->model = mod;
 			if (pent->model->loadstate != MLS_LOADED)
 				continue;
 			VectorCopy (state->angles, pent->angles);

@@ -76,7 +76,10 @@ struct vm_s {
 qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
-	char dllname_arch[MAX_OSPATH];	//id compatiblehttps://slashdot.org/
+	char dllname_archpri[MAX_OSPATH];	//id compatible
+#ifdef ARCH_ALTCPU_POSTFIX
+	char dllname_archsec[MAX_OSPATH];	//id compatible
+#endif
 	char dllname_anycpu[MAX_OSPATH];//simple
 	dllhandle_t *hVM;
 
@@ -91,7 +94,10 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		{NULL, NULL},
 	};
 
-	snprintf(dllname_arch, sizeof(dllname_arch), "%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name);
+	snprintf(dllname_archpri, sizeof(dllname_archpri), "%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name);
+#ifdef ARCH_ALTCPU_POSTFIX
+	snprintf(dllname_archsec, sizeof(dllname_archsec), "%s"ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX, name);
+#endif
 	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s" ARCH_DL_POSTFIX, name);
 
 	hVM=NULL;
@@ -101,12 +107,12 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 	{
 		Con_DPrintf("Attempting to load native library: %s\n", name);
 
-		if (!hVM && FS_NativePath(dllname_arch, FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_NativePath(dllname_archpri, FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 
-		if (!hVM && FS_NativePath(dllname_arch, FS_ROOT, fname, sizeof(fname)))
+		if (!hVM && FS_NativePath(dllname_archpri, FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
@@ -138,10 +144,19 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		{
 			if (!hVM)
 			{
-				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_arch);
+				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_archpri);
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
+
+#ifdef ARCH_ALTCPU_POSTFIX
+			if (!hVM)
+			{
+				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_archsec);
+				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
+#endif
 
 			if (!hVM)
 			{
@@ -981,17 +996,15 @@ vm_t *VM_CreateBuiltin(const char *name, sys_calldll_t syscalldll, qintptr_t (*i
 /*
 ** VM_Create
 */
-vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm)
+vm_t *VM_Create(const char *dllname, sys_calldll_t syscalldll, const char *qvmname, sys_callqvm_t syscallqvm)
 {
 	vm_t *vm;
-	if(!name || !*name)
-		Sys_Error("VM_Create: bad parms");
 
 	vm = Z_Malloc(sizeof(vm_t));
 
 // prepare vm struct
 	memset(vm, 0, sizeof(vm_t));
-	Q_strncpyz(vm->filename, name, sizeof(vm->filename));
+	Q_strncpyz(vm->filename, "", sizeof(vm->filename));
 	vm->syscalldll=syscalldll;
 	vm->syscallqvm=syscallqvm;
 
@@ -1001,9 +1014,9 @@ vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscal
 	{
 		if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
 		{
-			if(QVM_LoadDLL(vm, name, !syscallqvm, (void**)&vm->vmMain, syscalldll))
+			if(QVM_LoadDLL(vm, dllname, !syscallqvm, (void**)&vm->vmMain, syscalldll))
 			{
-				Con_DPrintf("Creating native machine \"%s\"\n", name);
+				Con_DPrintf("Creating native machine \"%s\"\n", dllname);
 				vm->type=VM_NATIVE;
 				return vm;
 			}
@@ -1013,9 +1026,9 @@ vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscal
 
 	if (syscallqvm)
 	{
-		if(QVM_LoadVM(vm, name, syscallqvm))
+		if(QVM_LoadVM(vm, qvmname, syscallqvm))
 		{
-			Con_DPrintf("Creating virtual machine \"%s\"\n", name);
+			Con_DPrintf("Creating virtual machine \"%s\"\n", qvmname);
 			vm->type=VM_BYTECODE;
 			return vm;
 		}

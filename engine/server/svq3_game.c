@@ -862,7 +862,7 @@ static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 }
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
-static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, const qintptr_t *arg)
+static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret = 0;
 	switch(fn)
@@ -1615,7 +1615,7 @@ static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)
 	args[12]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return Q3G_SystemCalls(NULL, ~0, arg, args);
+	return Q3G_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
 void SVQ3_ShutdownGame(void)
@@ -1890,7 +1890,7 @@ qboolean SVQ3_InitGame(void)
 
 	SVQ3_ShutdownGame();
 
-	q3gamevm = VM_Create("vm/qagame", com_nogamedirnativecode.ival?NULL:Q3G_SystemCallsNative, Q3G_SystemCallsVM);
+	q3gamevm = VM_Create("qagame", com_nogamedirnativecode.ival?NULL:Q3G_SystemCallsNative, "vm/qagame", Q3G_SystemCallsVM);
 
 	if (!q3gamevm)
 		return false;

@@ -1636,7 +1636,7 @@ void UI_Start (void)
 
 	ui_width = vid.width;
 	ui_height = vid.height;
-	uivm = VM_Create("vm/ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, UI_SystemCallsVM);
+	uivm = VM_Create("ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, "vm/ui", UI_SystemCallsVM);
 	if (uivm)
 	{
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);

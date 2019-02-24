@@ -320,18 +320,28 @@ typedef struct {
 	qbyte			weapon;           // weapon
 	signed char	forwardmove, rightmove, upmove;
 } q3usercmd_t;
-#define CMD_BACKUP UPDATE_BACKUP
-#define CMD_MASK UPDATE_MASK
-qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
+#define CMD_BACKUP countof(cl.outframes)
+#define CMD_MASK (CMD_BACKUP-1)
+static int CGQ3_GetCurrentCmdNumber(void)
+{	//Q3 sequences are 1-based, so 1<=idx<=latestsequence are valid
+	//FTE's sequences are 0-based, so 0<=idx<latestsequence are valid
+	return cl.movesequence-1;
+}
+static qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 {
+	//q3 prediction uses for(int frame = CGQ3_GetCurrentCmdNumber() - CMD_BACKUP{64} + 1; frame <= CGQ3_GetCurrentCmdNumber(); frame++)
+	//skipping any that are older than the snapshot's time.
+
 	usercmd_t *cmd;
 
-	if (cmdNumber > cl.movesequence)
-		Host_EndGame("CL_GetUserCmd: cmdNumber > ccs.currentUserCmdNumber");
+	//q3 does not do partials.
+	if (cmdNumber >= cl.movesequence)
+		Host_EndGame("CLQ3_GetUserCmd: %i >= %i", cmdNumber, cl.movesequence);
 
-	if (cl.movesequence - cmdNumber >= CMD_BACKUP)
-		return false; // too old
+	if (cl.movesequence - (cmdNumber+1) > CMD_BACKUP)
+		return false;
 
+	//note: frames and commands are desynced in q3.
 	cmd = &cl.outframes[(cmdNumber) & CMD_MASK].cmd[0];
 	ucmd->angles[0] = cmd->angles[0];
 	ucmd->angles[1] = cmd->angles[1];
@@ -1011,7 +1021,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		S_StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, 0);
+		S_StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, CF_CLI_NODUPES);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
@@ -1121,7 +1131,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_GETCURRENTCMDNUMBER:
-		VM_LONG(ret) = cl.movesequence-1;
+		VM_LONG(ret) = CGQ3_GetCurrentCmdNumber();
 		break;
 	case CG_GETUSERCMD:
 		VALIDATEPOINTER(arg[1], sizeof(q3usercmd_t));
@@ -1290,7 +1300,7 @@ static qintptr_t EXPORT_FN CG_SystemCallsNative(qintptr_t arg, ...)
 	args[9]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return CG_SystemCalls(NULL, (unsigned)~0, arg, args);
+	return CG_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
 int CG_Refresh(void)
@@ -1343,7 +1353,7 @@ void CG_Start (void)
 	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
 
-	cgvm = VM_Create("vm/cgame", com_nogamedirnativecode.ival?NULL:CG_SystemCallsNative, CG_SystemCallsVM);
+	cgvm = VM_Create("cgame", com_nogamedirnativecode.ival?NULL:CG_SystemCallsNative, "vm/cgame", CG_SystemCallsVM);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		SCR_EndLoadingPlaque();

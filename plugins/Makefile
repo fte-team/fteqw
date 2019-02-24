@@ -316,4 +316,8 @@ $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhu
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iezhud $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=ezhud
 
+$(OUT_DIR)/fteplug_models$(PLUG_NATIVE_EXT): models/gltf.c models/models.c plugin.c qvm_api.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+#NATIVE_PLUGINS+=models
+
 native: $(foreach FOO,$(NATIVE_PLUGINS), $(OUT_DIR)/fteplug_$(FOO)$(PLUG_NATIVE_EXT))

@@ -225,6 +225,7 @@ typedef struct {
 	qboolean nofixedfunc;
 	qboolean gles;
 	qboolean webgl_ie;	//workaround ie webgl bugs/omissions.
+	qboolean blacklist_invariant; //mesa's invariant keyword is broken (for us when combined with fixed function)
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;

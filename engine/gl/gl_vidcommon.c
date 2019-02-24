@@ -1085,6 +1085,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_DPrintf("GLSL available\n");
 	}
 
+	if (Cvar_Get("gl_blacklist_invariant", "0", CVAR_VIDEOLATCH, "gl blacklists")->ival)
+		gl_config.blacklist_invariant = true;
+	else if (gl_config.arb_shader_objects && !gl_config_nofixedfunc &&
+		strstr(gl_renderer, " Mesa ") && gl_config.glversion <= 3.1 && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
+	{
+		gl_config.blacklist_invariant = true;
+		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword. This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it.\n");
+	}
+
 	if (gl_config.arb_shader_objects)
 		qglGetIntegerv(GL_MAX_VERTEX_ATTRIBS_ARB, &gl_config.maxattribs);
 #endif
@@ -2251,7 +2260,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		break;
 	case GL_VERTEX_SHADER_ARB:
 		GLSlang_GenerateInternal(&glsl, "#define VERTEX_SHADER\n");
-		if (ver >= 120 || gl_config_gles)	//invariant appeared in glsl 120, or glessl 100. rtlights, stencil shadows, multipass materials, fog volumes, blend-depth-masking all need invariant depth.
+		if ((ver >= 120 || gl_config_gles) && !gl_config.blacklist_invariant)	//invariant appeared in glsl 120, or glessl 100. rtlights, stencil shadows, multipass materials, fog volumes, blend-depth-masking all need invariant depth.
 			GLSlang_GenerateInternal(&glsl, "invariant gl_Position;\n");
 		if (gl_config.gles)
 		{

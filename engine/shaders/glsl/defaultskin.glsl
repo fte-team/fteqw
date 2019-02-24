@@ -253,7 +253,7 @@ void main ()
 #endif
 
 #ifdef EIGHTBIT
-	vec3 lightlev = light;
+	vec3 lightlev = light.rgb;
 	//FIXME: with this extra flag, half the permutations are redundant.
 	lightlev *= 0.5;	//counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.
 	float pal = texture2D(s_paletted, tc).r;	//the palette index. hopefully not interpolated.
@@ -261,7 +261,7 @@ void main ()
 	col.r = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.r)).r;	//do 3 lookups. this is to cope with lit files, would be a waste to not support those.
 	col.g = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.g)).g;	//its not very softwarey, but re-palettizing is ugly.
 	col.b = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.b)).b;	//without lits, it should be identical.
-	col.a = (pal<1.0)?1.0:0.0;
+	col.a = (pal<1.0)?light.a:0.0;
 #else
 	col = texture2D(s_diffuse, tc);
 	#ifdef UPPER

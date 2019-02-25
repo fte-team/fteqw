@@ -3578,6 +3578,13 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.safeorigin_known = false;
 	pmove.capsule = false;	//FIXME
 
+	if (ent->xv->gravity)
+		movevars.entgravity = ent->xv->gravity;
+	else if (csqc_playerseat >= 0 && cl.playerview[csqc_playerseat].playernum+1 == ent->xv->entnum)
+		movevars.entgravity = cl.playerview[csqc_playerseat].entgravity;
+	else
+		movevars.entgravity = 1;
+
 	if (ent->xv->entnum)
 		pmove.skipent = ent->xv->entnum;
 	else

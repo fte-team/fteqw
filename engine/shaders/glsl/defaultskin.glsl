@@ -13,10 +13,13 @@
 !!cvardf r_tessellation_level=5
 !!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube
 !!samps =EIGHTBIT paletted 1
-//!!permu VC -- adds rgba vertex colour multipliers
-//!!permu SPECULAR -- auto-added when gl_specular>0
-//!!permu OFFSETMAPPING -- auto-added when r_glsl_offsetmapping is set
-//!!permu NONORMALS -- states that there's no normals available, which affects lighting.
+//!!permu VC			// adds rgba vertex colour multipliers
+//!!permu SPECULAR		// auto-added when gl_specular>0
+//!!permu OFFSETMAPPING	// auto-added when r_glsl_offsetmapping is set
+//!!permu NONORMALS		// states that there's no normals available, which affects lighting.
+//!!permu ORM			// specularmap is r:Occlusion, g:Roughness, b:Metalness
+//!!permu F0R			// specularmap is rgb:F0, a:Roughness (instead of exponent)
+//!!permu PBR			// an attempt at pbr logic
 
 #include "sys/defs.h"
 

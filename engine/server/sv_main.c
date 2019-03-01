@@ -3071,7 +3071,7 @@ client_t *SVC_DirectConnect(void)
 	{														//so switch on the bits that it should be sending.
 		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
 	}
-	newcl->zquake_extensions &= SUPPORTED_Z_EXTENSIONS;
+	newcl->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
 	//ezquake's download mechanism is so smegging buggy.
 	//its causing far far far too many connectivity issues. seriously. its beyond a joke. I cannot stress that enough.
@@ -5310,7 +5310,7 @@ void SV_InitLocal (void)
 	svs.info.ChangeCB = SV_InfoChanged;
 	svs.info.ChangeCTX = &svs.info;
 	InfoBuf_SetValueForStarKey (&svs.info, "*version", version_string());
-	InfoBuf_SetValueForStarKey (&svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS));
+	InfoBuf_SetValueForStarKey (&svs.info, "*z_ext", va("%i", SERVER_SUPPORTED_Z_EXTENSIONS));
 
 	// init fraglog stuff
 	svs.logsequence = 1;

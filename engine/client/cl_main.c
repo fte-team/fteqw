@@ -668,7 +668,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		InfoBuf_ToString(&cls.userinfo[0], data+strlen(data), sizeof(data)-strlen(data), prioritykeys, NULL, NULL, &cls.userinfosync, &cls.userinfo[0]);
 	}
 	if (connectinfo.protocol == CP_QUAKEWORLD)	//zquake extension info.
-		Q_strncatz(data, va("\\*z_ext\\%i", SUPPORTED_Z_EXTENSIONS), sizeof(data));
+		Q_strncatz(data, va("\\*z_ext\\%i", CLIENT_SUPPORTED_Z_EXTENSIONS), sizeof(data));
 
 	Q_strncatz(data, "\"", sizeof(data));
 
@@ -2241,7 +2241,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_cheats	= false;
 	}
 
-	cls.z_ext = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "*z_ext"));
+	cls.z_ext = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "*z_ext")) & CLIENT_SUPPORTED_Z_EXTENSIONS;
 
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)

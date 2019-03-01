@@ -126,8 +126,8 @@ cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_protocolversion = CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
-#if !defined(NOLEGACY) && defined(HAVE_CLIENT)
-cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
+#if !defined(NOLEGACY)
+cvar_t	ezcompat_markup = CVARD("ezcompat_markup", "1", "Attempt compatibility with ezquake's text markup.0: disabled.\n1: Handle markup ampersand markup.\n2: Handle chevron markup (only in echo commands, for config compat, because its just too unreliable otherwise).");
 #endif
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
@@ -3251,6 +3251,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	conchar_t *oldout = out;
 #ifndef NOLEGACY
 	extern cvar_t dpcompat_console;
+	extern cvar_t ezcompat_markup;
 
 	if (flags & PFS_EZQUAKEMARKUP)
 	{
@@ -3577,7 +3578,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 		}
 #ifndef NOLEGACY
-		else if (*str == '&' && str[1] == 'c' && !(flags & PFS_NOMARKUP))
+		else if (*str == '&' && str[1] == 'c' && !(flags & PFS_NOMARKUP) && ezcompat_markup.ival)
 		{
 			// ezQuake color codes
 
@@ -3600,7 +3601,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				}
 			}
 		}
-		else if (*str == '&' && str[1] == 'r' && !(flags & PFS_NOMARKUP))
+		else if (*str == '&' && str[1] == 'r' && !(flags & PFS_NOMARKUP) && ezcompat_markup.ival)
 		{
 			//ezquake revert
 			ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
@@ -3610,7 +3611,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-		else if (str[0] == '=' && str[1] == '`' && str[2] == 'k' && str[3] == '8' && str[4] == ':' && !keepmarkup)
+		else if (str[0] == '=' && str[1] == '`' && str[2] == 'k' && str[3] == '8' && str[4] == ':' && !keepmarkup && ezcompat_markup.ival)
 		{
 			//ezquake compat: koi8 compat for crazy russian people.
 			//we parse for compat but don't generate (they'll see utf-8 from us).
@@ -5758,8 +5759,8 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
-#if !defined(NOLEGACY) && defined(HAVE_CLIENT)
-	Cvar_Register (&com_parseezquake, NULL);
+#if !defined(NOLEGACY)
+	Cvar_Register (&ezcompat_markup, NULL);
 #endif
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;

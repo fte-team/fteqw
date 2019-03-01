@@ -2404,6 +2404,7 @@ qboolean SV_AntiKnockBack(world_t *w, client_t *client)
 	VectorCopy(frame->pmorigin, pmove.origin);
 	VectorCopy(frame->pmvelocity, pmove.velocity);
 	pmove.pm_type = frame->pmtype;
+	pmove.onground = true;//FIXME
 	pmove.jump_held = frame->pmjumpheld;
 	pmove.waterjumptime = frame->pmwaterjumptime;
 	pmove.onladder = frame->pmonladder;

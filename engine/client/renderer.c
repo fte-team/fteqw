@@ -119,8 +119,10 @@ cvar_t r_drawflat							= CVARAF ("r_drawflat", "0", "gl_textureless",
 													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_lightmap							= CVARF ("r_lightmap", "0",
 													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
-cvar_t r_wireframe							= CVARFD ("r_wireframe", "0",
-													CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
+cvar_t r_wireframe							= CVARAFD ("r_wireframe", "0",
+													"r_showtris", CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
+cvar_t r_outline							= CVARD ("gl_outline", "0", "Draw some stylised outlines.");
+cvar_t r_outline_width						= CVARD ("gl_outline_width", "0", "The width of those outlines.");
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use a different scale for refraction and reflection texturemaps. Because $reasons.");
@@ -896,6 +898,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_telestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
+	Cvar_Register (&r_outline, GRAPHICALNICETIES);
+	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_refractreflect_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_postprocshader, GRAPHICALNICETIES);

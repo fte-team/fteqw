@@ -243,14 +243,20 @@ void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length)
 	{
 		unsigned int c;
 		int enclen = 0;
+		int datatype = 2;	//1=utf-8, 2=binary
 
 		/*work out how much buffer space we'll need*/
-		for (c = 0; c < length; c++)
+		if (datatype == 2)
+			enclen += length;
+		else
 		{
-			if (((unsigned char*)buffer)[c] == 0 || ((unsigned char*)buffer)[c] >= 0x80)
-				enclen += 2;
-			else
-				enclen += 1;
+			for (c = 0; c < length; c++)
+			{
+				if (((unsigned char*)buffer)[c] == 0 || ((unsigned char*)buffer)[c] >= 0x80)
+					enclen += 2;
+				else
+					enclen += 1;
+			}
 		}
 
 		if (prox->buffersize-prox->bufferpos + (enclen+4) > MAX_PROXY_BUFFER)
@@ -269,29 +275,37 @@ void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length)
 
 		if (enclen >= 126)
 		{
-			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x81;
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x80|datatype;
 			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 126;
 			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = enclen>>8;
 			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = enclen;
 		}
 		else
 		{
-			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x81;
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x80|datatype;
 			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = enclen;
 		}
-		while(length-->0)
+		if (datatype == 2)
 		{
-			c = *(unsigned char*)buffer;
-			buffer = (char*)buffer+1;
-			if (!c)
-				c |= 0x100;	/*will get truncated at the other end*/
-			if (c >= 0x80)
+			for(; length-->0; buffer = (char*)buffer+1)
+				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = *(unsigned char*)buffer;
+		}
+		else
+		{	//utf-8 (or really just bytes with upper bits truncated. sue me.
+			while(length-->0)
 			{
-				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0xc0 | (c>>6);
-				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x80 | (c & 0x3f);
+				c = *(unsigned char*)buffer;
+				buffer = (char*)buffer+1;
+				if (!c)
+					c |= 0x100;	/*will get truncated at the other end*/
+				if (c >= 0x80)
+				{
+					prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0xc0 | (c>>6);
+					prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x80 | (c & 0x3f);
+				}
+				else
+					prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = c;
 			}
-			else
-				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = c;
 		}
 		Net_TryFlushProxyBuffer(cluster, prox);	//try flushing in a desperate attempt to reduce bugs in google chrome.
 		return;

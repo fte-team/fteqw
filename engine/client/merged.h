@@ -109,6 +109,7 @@ void R2D_FadeScreen (void);
 void R2D_Font_Changed(void);
 void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
 void R2D_EditorBackground (void);
+qboolean R2D_DrawLevelshot(void);
 
 void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);
 void R2D_Image2dQuad(vec2_t const*points, vec2_t const*texcoords, vec4_t const*rgba, mpic_t *pic);

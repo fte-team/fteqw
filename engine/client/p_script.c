@@ -3599,6 +3599,7 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwa
 	}
 #endif
 
+	//built-in particle effects are always favoured. This is annoying, but means the cvar value alone is enough to detect cheats.
 	for (i = 0; partset_list[i].name; i++)
 	{
 		if (!stricmp(name, partset_list[i].name))

@@ -868,6 +868,8 @@ char *Sys_ConsoleInput(void)
 		if (!fgets(text, sizeof(text), stdin))
 			return NULL;
 		nl = strchr(text, '\n');
+		if (!nl)	//err? wut?
+			return NULL;
 		*nl = 0;
 
 //Con_Printf("console input: %s\n", text);
@@ -975,7 +977,10 @@ int main (int c, const char **v)
 	TL_InitLanguages(parms.binarydir);
 
 
-	noconinput = COM_CheckParm("-noconinput");
+	if (!isatty(STDIN_FILENO))
+		noconinput = !isPlugin;	//don't read the stdin if its probably screwed (running in qtcreator seems to pipe stdout to stdin in an attempt to screw everything up).
+	else
+		noconinput = COM_CheckParm("-noconinput");
 #ifndef __DJGPP__
 	if (!noconinput)
 		fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);

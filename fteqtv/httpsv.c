@@ -202,32 +202,6 @@ static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *titl
 		);
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-
-#if 0
-	if (plugin)
-	{
-		s =
-			"<script>"
-			"if (!parent.getplug || parent.getplug().plugver == undefined || parent.getplug().plugver < "MINPLUGVER")"
-			"{"
-				"if (!parent.getplug || parent.getplug().plugver == undefined)"
-				"{"
-					"document.write(\"You need a plugin! Get one here!\");"
-				"}"
-				"else"
-				"{"
-					"document.write(\"Update your plugin!\");"
-				"}"
-				"document.write(\"<br/>"
-								"<a href=\\\"npfte.xpi\\\">Firefox (open with firefox itself)</a><br/>"
-								"<a href=\\\"iefte.exe\\\">Internet Explorer</a><br/>"
-								"<a href=\\\"npfte.exe\\\">Others</a><br/>"
-								"\");"
-			"}"
-			"</script>";
-		Net_ProxySend(cluster, dest, s, strlen(s));
-	}
-#endif
 }
 
 static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
@@ -238,12 +212,6 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 	/*Proxy version*/
 	snprintf(buffer, sizeof(buffer), "<br/>Server Version: "QTV_VERSION_STRING" <a href=\""PROXYWEBSITE"\" target=\"_blank\">"PROXYWEBSITE"</a>");
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-
-#if 0
-	/*Plugin version*/
-	s = "<script>if (parent.getplug != null) document.write(\"<br/>Plugin Version: \" + parent.getplug().build + parent.getplug().server);</script>";
-	Net_ProxySend(cluster, dest, s, strlen(s));
-#endif
 
 	/*terminate html page*/
 	s = "</body>\n"
@@ -347,8 +315,11 @@ static void HTTPSV_GenerateCSSFile(cluster_t *cluster, oproxy_t *dest)
     HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/css", false);
 
     HTMLPRINT("* { font-family: Verdana, Helvetica, sans-serif; }");
-    HTMLPRINT("body { color: #000; background-color: #fff; padding: 0 40px; }");
+    HTMLPRINT("body { color: #000; background-color: #fff; padding: 0 0px; }");
     HTMLPRINT("a { color: #00f; }");
+    HTMLPRINT("div.topdiv { display:flex; align-items: stretch; position: absolute; top: 0; right: 0; bottom: 0; left: 0; }");
+    HTMLPRINT("div.left { resize: horizontal; overflow: auto; flex 0 0 25%;}");
+    HTMLPRINT("div.right { padding:0; margin: 0; flex: auto; }");
     HTMLPRINT("a.qtvfile { font-weight: bold; }");
     HTMLPRINT("a:visited { color: #00f; }");
     HTMLPRINT("a:hover { background-color: black; color: yellow; }");
@@ -357,6 +328,7 @@ static void HTTPSV_GenerateCSSFile(cluster_t *cluster, oproxy_t *dest)
     HTMLPRINT("dl.nowplaying dt { margin: 1em 0 0 0; font-size: 1.1em; font-weight: bold; }");
     HTMLPRINT("dl.nowplaying li { list-style: none; margin: 0 0 0 1em; padding: 0; }");
     HTMLPRINT("dl.nowplaying ul { margin: 0 0 0 1em; padding: 0; }");
+    HTMLPRINT("canvas.emscripten { border: 0px none; padding:0; margin: 0; width: 100%; height: 100%;}");
     HTMLPRINT("#navigation { background-color: #eef; }");
     HTMLPRINT("#navigation li { display: inline; list-style: none; margin: 0 3em; }");
 }
@@ -788,154 +760,66 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 	html = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n"
 		"<HTML><HEAD><TITLE>QuakeTV With Plugin</TITLE>"
 				"  <link rel=\"StyleSheet\" href=\"/style.css\" type=\"text/css\" />\n"
+				"<meta charset='utf-8' />"
 				"</HEAD><body>"
-	"<div id=optdiv style='position:fixed; left:0%; width:50%; top:0%; height:100%;'>"
-				"<iframe frameborder=0 src=\"nowplaying.html?p\" width=\"100%\" height=\"100%\">"
-				"oh dear. your browser doesn't support this site"
-				"</iframe>"
+	"<div class='topdiv'>"
+		"<div class='left' id=optdiv>"
+					"<iframe frameborder=0 src=\"nowplaying.html?p\" width=\"100%\" height=\"100%\">"
+					"oh dear. your browser doesn't support this site"
+					"</iframe>"
+		"</div>"
+		"<div class='right' id=plugdiv>"
+			"<canvas class='emscripten' id='canvas' oncontextmenu='event.preventDefault()'>Canvas not supported</canvas>"
+		"</div>"
 	"</div>"
-	"<div id=plugdiv style='position:fixed; left:50%; width:50%; top:0%; height:100%;'>"
+	"<script type='text/javascript'>"
+		"var Module = {"
+			"canvas: document.getElementById('canvas'),"
+			"print: function(msg)"
+			"{"
+				"console.log(msg);"
+			"},"
+			"printErr: function(text)"
+			"{"
+				"if (text.substr(0, 28) == 'Cannot enlarge memory arrays')"
+					"alert('Memory full/fragmented. Please reload the page.');"
+				"else "
+					"console.log(text);"
+			"},"
+			"arguments: ["
+				"'-nohome',"
+				"'-manifest',"
+				"'http://triptohell.info/demo.fmf',"
+				"'+connect',"
+				"window.location.host"
+			"]"
+		"};"
 
-#if 1
-#define EMBEDDEDWEBGLORIGIN "http://86.191.129.12:80"//127.0.0.1:80"
-#define EMBEDDEDWEBGLURL EMBEDDEDWEBGLORIGIN"/ftewebgl.html"
-#else
-#define EMBEDDEDWEBGLORIGIN "http://triptohell.info"
-#define EMBEDDEDWEBGLURL EMBEDDEDWEBGLORIGIN"/moodles/web/ftewebgl.html"
-#endif
+		//create the script object
+		"var s = document.createElement('script');"
+		// set it up
+		"s.setAttribute('src','http://triptohell.info/ftewebgl.js');"
+		"s.setAttribute('type','text/javascript');"
+		"s.setAttribute('charset','utf-8');"
+		"s.addEventListener('error', function() {alert('Error loading game script.');}, false);"
+		// add to DOM
+		"document.head.appendChild(s);"
 
-#if 1
-		"<iframe frameborder=0 allowfullscreen=1 name=\"webgl\" src=\""EMBEDDEDWEBGLURL"\" width=\"100%\" height=\"100%\">"
-			"oh dear. your browser doesn't support this site"
-		"</iframe>"
-#else
-		/*once for IE*/
-		"<object	name=\"ieplug\""
-		" type=\"text/x-quaketvident\""
-		" classid=\"clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb\""
-		//" codebase=\""PROXYWEBSITE"/test.cab\""
-		" width=100%"
-		" height=100%"
-		" >"
-		"<param name=\"splash\" value=\"http://"
-					;
-				Net_ProxySend(cluster, dest, html, strlen(html));
-				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-				html =
-					"/qtvsplash.jpg\">"
-		"<param name=\"availver\" value=\""MINPLUGVER"\">"
-		"<param name=\"game\" value=\"q1\">"
-		"<param name=\"dataDownload\" value='";
-	Net_ProxySend(cluster, dest, html, strlen(html));
-	Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
-	html = 
-		"'>"
-		/*once again for firefox and similar friends*/
-		"<object	name=\"npplug\""
-		" type=\"text/x-quaketvident\""
-		" width=100%"
-		" height=100%"
-		" >"
-		"<param name=\"splash\" value=\"http://"
-					;
-				Net_ProxySend(cluster, dest, html, strlen(html));
-				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-				html =
-					"/qtvsplash.jpg\">"
-		"<param name=\"availver\" value=\""MINPLUGVER"\">"
-		"<param name=\"game\" value=\"q1\">"
-		"<param name=\"dataDownload\" value='";
-	Net_ProxySend(cluster, dest, html, strlen(html));
-	Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
-	html = 
-		"'>"
-		"Plugin failed to load"
-		"</object>"
-		"</object>"
-#endif
-	"</div>"
+		//set up some functions that the embedded stuff can use
+		"parent.joinserver = function(d)"
+		"{"
+		"}\n"
 
-	"<script>"
-#if 0
-	"function getplugnp(d)\n"
-	"{\n"
-		"return document.npplug;\n"
-	"}\n"
-	"function getplugie(d)\n"
-	"{\n"
-		"return document.ieplug;\n"
-	"}\n"
-	"parent.host = \""
-					;
-			Net_ProxySend(cluster, dest, html, strlen(html));
-			Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-			html =
-			"\";\n"
+		"parent.playdemo = function(d)"
+		"{"
+		"}\n"
 
-	"if (getplugie() != undefined && getplugie().plugver != undefined)\n"
-		"{\nparent.getplug = getplugie;\n}\n"
-	"else\n"
-		"{\nparent.getplug = getplugnp;\n}\n"
-
-	"function joinserver(d)\n"
-	"{\n"
-		"getplug().mapsrc = \""
-					;
-			Net_ProxySend(cluster, dest, html, strlen(html));
-			Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
-			html = 
-			"\";\n"
-		"getplug().server = d;\n"
-		"getplug().running = 1;\n"
-	"}\n"
-
-	"function playdemo(d)\n"
-	"{\n"
-//		"getplug().mapsrc = \"http://bigfoot.morphos-team.net/misc/quakemaps/\";\n"
-		"getplug().stream = \"file:\"+d+\"@"
-						;
-				Net_ProxySend(cluster, dest, html, strlen(html));
-				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-				html =
-					"\";\n"
-		"getplug().running = 1;\n"
-	"}\n"
-#else
-	"function joinserver(d)"
-	"{"
-//		"webgl.postMessage({cmd:'mapsrc',url:\""
-//							;
-//			Net_ProxySend(cluster, dest, html, strlen(html));
-//			Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
-//						html = 
-//							"\"}, \""EMBEDDEDWEBGLORIGIN"\");"
-"webgl.postMessage({'cmd':'observeurl','url':'ws://86.191.129.12:27500'}, \""EMBEDDEDWEBGLORIGIN"\");"
-	"}\n"
-
-	"function playdemo(d)"
-	"{"
-//		"parent.webgl.postMessage({cmd:'mapsrc',url:\""
-//							;
-//			Net_ProxySend(cluster, dest, html, strlen(html));
-//			Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
-//						html = 
-//							"\"}, \""EMBEDDEDWEBGLORIGIN"\");"
-		"parent.webgl.postMessage({cmd:'demourl',url:d}, \""EMBEDDEDWEBGLORIGIN"\");"
-	"}\n"
-#endif
-
-	"parent.joinserver = joinserver;\n"
-	"parent.playdemo = playdemo;\n"
-
-/*	"if (getplug().plugver == undefined)"
-	"{"
-			"document.getElementById('plugdiv').style.left = '75%';"
-			"document.getElementById('optdiv').style.width = '25%';"
-			"document.getElementById('plugdiv').style.width = '0';"
-			"parent.getplug = null;"
-	"}"
-*/
 	"</script>"
+	"<noscript>"
+		"It looks like you have javascript disabled.<br/>"
+		"If you want to run a javascript port of a game engine, it helps to have javascript enabled. Just saying.<br/>"
+		"<br/>"
+	"</noscript>"
 
 	"</body></HTML>";
 	Net_ProxySend(cluster, dest, html, strlen(html));
@@ -1171,7 +1055,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 		uriend = s;
 	urilen = uriend - uri;
 
-	if (!pend->websocket.websocket && HTTPSV_GetHeaderField((char*)pend->inbuffer, "Connection", connection, sizeof(connection)) && !stricmp(connection, "Upgrade"))
+	if (!pend->websocket.websocket && HTTPSV_GetHeaderField((char*)pend->inbuffer, "Connection", connection, sizeof(connection)) && strstr(connection, "Upgrade"))
 	{
 		if (HTTPSV_GetHeaderField((char*)pend->inbuffer, "Upgrade", upgrade, sizeof(upgrade)) && !stricmp(upgrade, "websocket"))
 		{
@@ -1252,16 +1136,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 #endif
 	else REDIRECTIF("/", "/nowplaying.html")
 	else REDIRECTIF("/about.html", PROXYWEBSITE)
-#if 0
-	else REDIRECTIF("/qtvsplash.jpg", "/file/qtvsplash.jpg")	/*lame, very lame*/
-#if defined(_DEBUG) || defined(DEBUG)
-	else REDIRECTIF("/npfte.xpi", "/file/npfte_dbg.xpi")	/*lame, very lame*/
-#else
-	else REDIRECTIF("/npfte.xpi", "/file/npfte.xpi")	/*lame, very lame*/
-#endif
-	else REDIRECTIF("/npfte.exe", "/file/npfte.exe")	/*lame, very lame*/
-	else REDIRECTIF("/iefte.exe", "/file/iefte.exe")	/*lame, very lame*/
-#endif
+	else REDIRECTIF("/favicon.ico", "http://triptohell.info/favicon.ico")
 	else if (uriargmatch(uri, "/demos.html", urilen, &args))
 	{
 		HTTPSV_GenerateDemoListing(cluster, pend, args);

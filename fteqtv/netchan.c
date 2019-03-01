@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define curtime Sys_Milliseconds()
 
 
-void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6)
+void NET_InitUDPSocket(cluster_t *cluster, int port, int socketid)
 {
 	int sock;
 
@@ -38,39 +38,42 @@ void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6)
 	unsigned long v6only = false;
 
 #pragma message("fixme")
-	if (ipv6)
+	switch(socketid)
 	{
+	case SG_IPV6:
 		pf = PF_INET6;
 		memset(&address6, 0, sizeof(address6));
 		address6.sin6_family = AF_INET6;
 		address6.sin6_port = htons((u_short)port);
 		address = (struct sockaddr*)&address6;
 		addrlen = sizeof(address6);
-	}
-	else
-	{
+		break;
+	case SG_IPV4:
 		pf = PF_INET;
 		address4.sin_family = AF_INET;
 		address4.sin_addr.s_addr = INADDR_ANY;
 		address4.sin_port = htons((u_short)port);
 		address = (struct sockaddr*)&address4;
 		addrlen = sizeof(address4);
+		break;
+	default:
+		return;	//erk
 	}
 
-	if (!ipv6 && !v6only && cluster->qwdsocket[1] != INVALID_SOCKET)
+	if (socketid == SG_IPV4 && !v6only && cluster->qwdsocket[SG_IPV6] != INVALID_SOCKET)
 	{
 		int sz = sizeof(v6only);
-		if (getsockopt(cluster->qwdsocket[1], IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, &sz) == 0 && !v6only)
+		if (getsockopt(cluster->qwdsocket[SG_IPV6], IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, &sz) == 0 && !v6only)
 			port = 0;
 	}
 
 	if (!port)
 	{
-		if (cluster->qwdsocket[ipv6] != INVALID_SOCKET)
+		if (cluster->qwdsocket[socketid] != INVALID_SOCKET)
 		{
-			closesocket(cluster->qwdsocket[ipv6]);
-			cluster->qwdsocket[ipv6] = INVALID_SOCKET;
-			Sys_Printf(cluster, "closed udp%i port\n", ipv6?6:4);
+			closesocket(cluster->qwdsocket[socketid]);
+			cluster->qwdsocket[socketid] = INVALID_SOCKET;
+			Sys_Printf(cluster, "closed udp%i port\n", socketid?6:4);
 		}
 		return;
 	}
@@ -97,14 +100,14 @@ void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6)
 		return;
 	}
 
-	if (cluster->qwdsocket[ipv6] != INVALID_SOCKET)
+	if (cluster->qwdsocket[socketid] != INVALID_SOCKET)
 	{
-		closesocket(cluster->qwdsocket[ipv6]);
-		Sys_Printf(cluster, "closed udp%i port\n", ipv6?6:4);
+		closesocket(cluster->qwdsocket[socketid]);
+		Sys_Printf(cluster, "closed udp%i port\n", socketid?6:4);
 	}
-	cluster->qwdsocket[ipv6] = sock;
+	cluster->qwdsocket[socketid] = sock;
 	if (v6only)
-		Sys_Printf(cluster, "opened udp%i port %i\n", ipv6?6:4, port);
+		Sys_Printf(cluster, "opened udp%i port %i\n", socketid?6:4, port);
 	else
 		Sys_Printf(cluster, "opened udp port %i\n", port);
 }
@@ -115,9 +118,9 @@ SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *toadr, netadr_t ina)
 	if (((struct sockaddr *)ina.sockaddr)->sa_family == AF_INET6)
 	{
 		*toadr = ina;
-		return sock[1];
+		return sock[SG_IPV6];
 	}
-	if (sock[0] == INVALID_SOCKET && sock[1] != INVALID_SOCKET)
+	if (sock[0] == INVALID_SOCKET && sock[SG_IPV6] != INVALID_SOCKET)
 	{
 		struct sockaddr_in6 *out = (struct sockaddr_in6*)toadr->sockaddr;
 		struct sockaddr_in *in = (struct sockaddr_in*)ina.sockaddr;
@@ -128,11 +131,11 @@ SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *toadr, netadr_t ina)
 		*(short*)&out->sin6_addr.s6_addr[10] = 0xffff;
 		*(int*)&out->sin6_addr.s6_addr[12] = in->sin_addr.s_addr;
 		out->sin6_port = in->sin_port;
-		return sock[1];
+		return sock[SG_IPV6];
 	}
 #endif
 	*toadr = ina;
-	return sock[0];
+	return sock[SG_IPV4];
 }
 
 #ifdef LIBQTV
@@ -172,42 +175,57 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, net
 
 			if (dest->websocket.websocket)
 			{
+				int datatype = 2; //1=utf-8, 2=binary
 				int enclen = 0, c;
-				for (c = 0; c < length; c++)
+
+				if (datatype == 2)
+					enclen = length;
+				else
 				{
-					if (((unsigned char*)data)[c] == 0 || ((unsigned char*)data)[c] >= 0x80)
-						enclen += 2;
-					else
-						enclen += 1;
+					for (c = 0; c < length; c++)
+					{
+						if (((unsigned char*)data)[c] == 0 || ((unsigned char*)data)[c] >= 0x80)
+							enclen += 2;
+						else
+							enclen += 1;
+					}
 				}
 
 				if (dest->outbuffersize + 4+enclen < sizeof(dest->outbuffer))
 				{
 					if (enclen >= 126)
 					{
-						dest->outbuffer[dest->outbuffersize++] = 0x81;
+						dest->outbuffer[dest->outbuffersize++] = 0x80|datatype;
 						dest->outbuffer[dest->outbuffersize++] = 126;
 						dest->outbuffer[dest->outbuffersize++] = enclen>>8;
 						dest->outbuffer[dest->outbuffersize++] = enclen;
 					}
 					else
 					{
-						dest->outbuffer[dest->outbuffersize++] = 0x81;
+						dest->outbuffer[dest->outbuffersize++] = 0x80|datatype;
 						dest->outbuffer[dest->outbuffersize++] = enclen;
 					}
-					while(length-->0)
+					if (datatype == 2)
 					{
-						c = *(unsigned char*)data;
-						data = (char*)data+1;
-						if (!c)
-							c |= 0x100;	/*will get truncated at the other end*/
-						if (c >= 0x80)
+						memcpy(dest->outbuffer+dest->outbuffersize, data, enclen);
+						dest->outbuffersize += enclen;
+					}
+					else
+					{
+						while(length-->0)
 						{
-							dest->outbuffer[dest->outbuffersize++] = 0xc0 | (c>>6);
-							dest->outbuffer[dest->outbuffersize++] = 0x80 | (c & 0x3f);
+							c = *(unsigned char*)data;
+							data = (char*)data+1;
+							if (!c)
+								c |= 0x100;	/*will get truncated at the other end*/
+							if (c >= 0x80)
+							{
+								dest->outbuffer[dest->outbuffersize++] = 0xc0 | (c>>6);
+								dest->outbuffer[dest->outbuffersize++] = 0x80 | (c & 0x3f);
+							}
+							else
+								dest->outbuffer[dest->outbuffersize++] = c;
 						}
-						else
-							dest->outbuffer[dest->outbuffersize++] = c;
 					}
 				}
 			}

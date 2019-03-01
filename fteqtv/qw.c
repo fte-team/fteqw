@@ -158,6 +158,16 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 {
 	movevars_t movevars;
 	WriteByte(msg, svc_serverdata);
+	if (viewer->pext1)
+	{
+		WriteLong(msg, PROTOCOL_VERSION_FTE);
+		WriteLong(msg, viewer->pext1);
+	}
+	if (viewer->pext2)
+	{
+		WriteLong(msg, PROTOCOL_VERSION_FTE2);
+		WriteLong(msg, viewer->pext2);
+	}
 	WriteLong(msg, PROTOCOL_VERSION);
 	WriteLong(msg, servercount);
 
@@ -318,6 +328,14 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	char buffer[MAX_MSGLEN];
 
 	InitNetMsg(&msg, buffer, viewer->netchan.maxreliablelen);
+
+	if (tv)
+	{
+		viewer->pext1 = tv->pext1;
+		viewer->pext2 = tv->pext2;
+	}
+	else
+		viewer->pext1 = viewer->pext2 = 0;
 
 	if (tv && (tv->controller == viewer || !tv->controller))
 		viewer->thisplayer = tv->map.thisplayer;
@@ -2642,7 +2660,7 @@ I've removed the following from this function as it covered the menu (~Moodles):
 
 			"conmenu menucallback\n"
 
-			"menuedit 48 36 \"Óåòöåòº\" \"_server\"\n"
+			"menuedit 48 36 \"^aServer:\" \"_server\"\n"
 
 			"menutext 48 52 \"Demos\" DEMOS\n"
 
@@ -2672,7 +2690,8 @@ I've removed the following from this function as it covered the menu (~Moodles):
 			if (!shownheader)
 			{
 				shownheader = true;
-				QW_StuffcmdToViewer(v, "menutext 72 %i \"Áãôéöå Çáíåóº\"\n", y);
+
+				QW_StuffcmdToViewer(v, "menutext 72 %i \"^aActive Games:\"\n", y);
 				y+=8;
 			}
 			QW_StuffcmdToViewer(v, "menutext 32 %i \"%30s\" \"stream %i\"\n", y, *sv->map.hostname?sv->map.hostname:sv->server, sv->streamid);
@@ -4041,9 +4060,9 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			break;
 		case clc_tmove:
-			v->origin[0] = ((signed short)ReadShort(m))/8.0f;
-			v->origin[1] = ((signed short)ReadShort(m))/8.0f;
-			v->origin[2] = ((signed short)ReadShort(m))/8.0f;
+			v->origin[0] = ReadCoord(m, v->pext1);
+			v->origin[1] = ReadCoord(m, v->pext1);
+			v->origin[2] = ReadCoord(m, v->pext1);
 			break;
 
 		case clc_upload:

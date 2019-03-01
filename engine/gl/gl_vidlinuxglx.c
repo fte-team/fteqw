@@ -879,7 +879,12 @@ static qboolean XRandR_FindOutput(const char *name)
 {
 	XRROutputInfo *primary = NULL;
 	int i;
-	xrandr.output = NULL;
+	if (!xrandr.canmodechange12)
+		return false;
+	if (!xrandr.res)
+		xrandr.res = xrandr.pGetScreenResources(vid_dpy, DefaultRootWindow(vid_dpy));
+	if (!xrandr.res)
+		return false;
 	if (!xrandr.outputs)
 	{
 		xrandr.outputs = Z_Malloc(sizeof(*xrandr.outputs) * xrandr.res->noutput);
@@ -888,6 +893,12 @@ static qboolean XRandR_FindOutput(const char *name)
 	}
 	xrandr.output = NULL;
 	xrandr.crtc = None;
+	if (xrandr.origgamma)
+	{
+		xrandr.pSetCrtcGamma(vid_dpy, xrandr.crtc, xrandr.origgamma);
+		xrandr.pFreeGamma(xrandr.origgamma);
+		xrandr.origgamma = NULL;
+	}
 	if (xrandr.crtcinfo)
 		xrandr.pFreeCrtcInfo(xrandr.crtcinfo);
 	xrandr.crtcinfo = NULL;
@@ -922,19 +933,15 @@ static qboolean XRandR_FindOutput(const char *name)
 //(sets up crtc data 
 static qboolean XRandr_PickScreen(const char *devicename, int *x, int *y, int *width, int *height)
 {
-	if (xrandr.canmodechange12)
+	if (xrandr.crtcinfo || XRandR_FindOutput(devicename))
 	{
-		xrandr.res = xrandr.pGetScreenResources(vid_dpy, DefaultRootWindow(vid_dpy));
-		if (XRandR_FindOutput(devicename))
-		{
-			XRRCrtcInfo *c = xrandr.crtcinfo;
-			*x = c->x;
-			*y = c->y;
-			*width = c->width;
-			*height = c->height;
-			Con_Printf("Found monitor %s %ix%i +%i,%i\n", xrandr.output->name, c->width, c->height, c->x, c->y);
-			return true;
-		}
+		XRRCrtcInfo *c = xrandr.crtcinfo;
+		*x = c->x;
+		*y = c->y;
+		*width = c->width;
+		*height = c->height;
+		Con_Printf("Found monitor %s %ix%i +%i,%i\n", xrandr.output->name, c->width, c->height, c->x, c->y);
+		return true;
 	}
 	return false;
 }
@@ -945,34 +952,27 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 	if (COM_CheckParm("-current"))
 		return;
 
-	if (xrandr.canmodechange12)
+	if (XRandR_FindOutput(devicename))
 	{
 		XRRCrtcInfo *c;
-		xrandr.res = xrandr.pGetScreenResources(vid_dpy, DefaultRootWindow(vid_dpy));
-		if (xrandr.res)
+		xrandr.crtcmode = XRandR_FindBestMode(*width, *height, rate);
+		c = xrandr.crtcinfo;
+		if (!*width || !*height || c->mode == xrandr.crtcmode->id)
 		{
-			if (XRandR_FindOutput(devicename))
-			{
-				xrandr.crtcmode = XRandR_FindBestMode(*width, *height, rate);
-				c = xrandr.crtcinfo;
-				if (!*width || !*height || c->mode == xrandr.crtcmode->id)
-				{
-					fullscreenflags |= FULLSCREEN_DESKTOP;
-					Con_Printf("XRRSetCrtcConfig not needed\n");
-				}
-				else if (xrandr.crtcmode && Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, c->timestamp, c->x, c->y, xrandr.crtcmode->id, c->rotation, c->outputs, c->noutput))
-				{
-					*x = c->x;
-					*y = c->y;
-					*width = xrandr.crtcmode->width;
-					*height = xrandr.crtcmode->height;
-					fullscreenflags |= FULLSCREEN_XRANDR | FULLSCREEN_XRANDRACTIVE;
-					Con_Printf("XRRSetCrtcConfig succeeded\n");
-				}
-				else
-					Con_Printf("XRRSetCrtcConfig failed\n");
-			}
+			fullscreenflags |= FULLSCREEN_DESKTOP;
+			Con_Printf("XRRSetCrtcConfig not needed\n");
 		}
+		else if (xrandr.crtcmode && Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, c->timestamp, c->x, c->y, xrandr.crtcmode->id, c->rotation, c->outputs, c->noutput))
+		{
+			*x = c->x;
+			*y = c->y;
+			*width = xrandr.crtcmode->width;
+			*height = xrandr.crtcmode->height;
+			fullscreenflags |= FULLSCREEN_XRANDR | FULLSCREEN_XRANDRACTIVE;
+			Con_Printf("XRRSetCrtcConfig succeeded\n");
+		}
+		else
+			Con_Printf("XRRSetCrtcConfig failed\n");
 	}
 	else if (xrandr.canmodechange11)
 	{
@@ -1194,24 +1194,27 @@ static struct xidevinfo *XI2_GetDeviceInfo(int devid)
 			{
 				int devs;
 				XIDeviceInfo *dev = xi2.pXIQueryDevice(vid_dpy, xi2.ndeviceinfos, &devs);
-				if (devs==1)
+				if (dev)
 				{
-					int j;
-					for (j = 0; j < dev->num_classes; j++)
+					if (devs==1)
 					{
-						if (dev->classes[j]->sourceid == xi2.ndeviceinfos && dev->classes[j]->type == XIValuatorClass)
+						int j;
+						for (j = 0; j < dev->num_classes; j++)
 						{
-							XIValuatorClassInfo *v = (XIValuatorClassInfo*)dev->classes[j];
-							if (v->mode == XIModeAbsolute && v->number >= 0 && v->number < countof(xi2.deviceinfo[xi2.ndeviceinfos].axis))
+							if (dev->classes[j]->sourceid == xi2.ndeviceinfos && dev->classes[j]->type == XIValuatorClass)
 							{
-								xi2.deviceinfo[xi2.ndeviceinfos].abs = xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].abs = true;
-								xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].min = v->min;
-								xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].max = v->max;
+								XIValuatorClassInfo *v = (XIValuatorClassInfo*)dev->classes[j];
+								if (v->mode == XIModeAbsolute && v->number >= 0 && v->number < countof(xi2.deviceinfo[xi2.ndeviceinfos].axis))
+								{
+									xi2.deviceinfo[xi2.ndeviceinfos].abs = xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].abs = true;
+									xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].min = v->min;
+									xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].max = v->max;
+								}
 							}
 						}
-					}	
+					}
+					xi2.pXIFreeDeviceInfo(dev);
 				}
-				xi2.pXIFreeDeviceInfo(dev);
 			}
 			
 			xi2.ndeviceinfos++;
@@ -2528,8 +2531,8 @@ static void UpdateGrabs(void)
 	allownullcursor = wantmgrabs;	//this says whether we can possibly want it. if false then we disallow the null cursor. Yes, this might break mods that do their own sw cursors. such mods are flawed in other ways too.
 	if (Key_MouseShouldBeFree())
 		wantmgrabs = false;
-	if (modeswitchpending)
-		wantmgrabs = false;
+//	if (modeswitchpending)
+//		wantmgrabs = false;
 
 	if (wantmgrabs)
 		install_grabs();
@@ -2834,6 +2837,7 @@ static void GetEvent(void)
 		{
 			modeswitchpending = 1;
 			modeswitchtime = Sys_Milliseconds() + 1500;	/*fairly slow, to make sure*/
+			UpdateGrabs();
 		}
 
 		if (event.xfocus.window == vid_window)
@@ -2853,6 +2857,10 @@ static void GetEvent(void)
 			break;
 		}
 
+#ifdef USE_XRANDR
+		if (xrandr.origgamma)
+			xrandr.pSetCrtcGamma(vid_dpy, xrandr.crtc, xrandr.origgamma);
+#endif
 #ifdef USE_VMODE
 		if (vm.originalapplied)
 			vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
@@ -3389,6 +3397,33 @@ qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 		}
 	}
 
+#ifdef USE_XRANDR
+	if (xrandr.origgamma)
+	{	//we favour xrandr - xf86 gamma seems to cache old values which screws up gamma after having previously quit ezquake.
+		if (ramps && rampcount == xrandr.origgamma->size)
+		{
+			XRRCrtcGamma g;
+			g.size = rampcount;
+			g.red = &ramps[0];
+			g.green = &ramps[rampcount];
+			g.blue = &ramps[rampcount*2];
+			if (vid.activeapp)
+			{
+				if (gammaworks)
+					xrandr.pSetCrtcGamma(vid_dpy, xrandr.crtc, &g);
+				gammaworks = true;
+				return gammaworks;
+			}
+			return false;
+		}
+		else if (gammaworks)
+		{
+			xrandr.pSetCrtcGamma(vid_dpy, xrandr.crtc, xrandr.origgamma);
+			return true;
+		}
+	}
+#endif
+
 #ifdef USE_VMODE
 	//if we don't know the original ramps yet, don't allow changing them, because we're probably invalid anyway, and even if it worked, it'll break something later.
 	if (vm.originalapplied)
@@ -3818,6 +3853,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	XRandR_Init();
 	if (fullscreen && !(fullscreenflags & FULLSCREEN_ANYMODE))
 		XRandR_SelectMode(info->devicename, &x, &y, &width, &height, rate);
+	XRandR_FindOutput(info->devicename);
 #endif
 
 #ifdef USE_VMODE
@@ -3932,8 +3968,13 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 
 	x11.pXFlush(vid_dpy);
 
+#ifdef USE_XRANDR
+	if (xrandr.origgamma)
+		vid.gammarampsize = xrandr.origgamma->size;
+	else
+#endif
 #ifdef USE_VMODE
-	if (vm.vmajor >= 2)
+	if (!xrandr.origgamma)
 	{
 		int rampsize = 256;
 		vm.pXF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);
@@ -3948,7 +3989,9 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 			vm.originalapplied = vm.pXF86VidModeGetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 		}
 	}
+	else
 #endif
+		vid.gammarampsize = 256;
 
 	switch(currentpsl)
 	{
@@ -4568,22 +4611,25 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 		{
 			int i, devs;
 			XIDeviceInfo *dev = xi2.pXIQueryDevice(vid_dpy, xi2.devicegroup, &devs);
-			for (i = 0; i < devs; i++)
+			if (dev)
 			{
-				if (!dev[i].enabled)
-					continue;
-				if (/*dev[i].use == XIMasterPointer ||*/ dev[i].use == XISlavePointer)
+				for (i = 0; i < devs; i++)
 				{
-					struct xidevinfo *devi = XI2_GetDeviceInfo(dev[i].deviceid);
-					callback(ctx, devi->abs?"tablet":"mouse", dev[i].name, &devi->qdev);
+					if (!dev[i].enabled)
+						continue;
+					if (/*dev[i].use == XIMasterPointer ||*/ dev[i].use == XISlavePointer)
+					{
+						struct xidevinfo *devi = XI2_GetDeviceInfo(dev[i].deviceid);
+						callback(ctx, devi->abs?"tablet":"mouse", dev[i].name, &devi->qdev);
+					}
+//					else if (dev[i].use == XIMasterKeyboard || dev[i].use == XISlaveKeyboard)
+//					{
+//						int qdev = dev[i].deviceid;
+//						callback(ctx, "xi2kb", dev[i].name, &qdev);
+//					}
 				}
-//				else if (dev[i].use == XIMasterKeyboard || dev[i].use == XISlaveKeyboard)
-//				{
-//					int qdev = dev[i].deviceid;
-//					callback(ctx, "xi2kb", dev[i].name, &qdev);
-//				}
+				xi2.pXIFreeDeviceInfo(dev);
 			}
-			xi2.pXIFreeDeviceInfo(dev);
 		}
 		break;
 	}

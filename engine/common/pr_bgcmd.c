@@ -2358,12 +2358,22 @@ static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *buf, size_
 		return 0;	//this just isn't ours.
 	}
 
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READ_DELAY)
+	{	//on first read, convert into a regular file.
+		pf_fopen_files[fnum].accessmode = FRIK_FILE_READ;
+		pf_fopen_files[fnum].data = BZ_Malloc(pf_fopen_files[fnum].len+1);
+		pf_fopen_files[fnum].data[pf_fopen_files[fnum].len] = 0;
+		pf_fopen_files[fnum].len = pf_fopen_files[fnum].bufferlen = VFS_READ(pf_fopen_files[fnum].file, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		VFS_CLOSE(pf_fopen_files[fnum].file);
+		pf_fopen_files[fnum].file = NULL;
+	}
+
 	switch(pf_fopen_files[fnum].accessmode)
 	{
 	default:
+		PF_Warningf(prinst, "PF_fread: File not opened for reading\n");
 		return 0;
 	case FRIK_FILE_READ:
-		//UTF-8-FIXME: de-modify utf-8
 		if (pf_fopen_files[fnum].ofs + len > pf_fopen_files[fnum].len)
 			len = pf_fopen_files[fnum].len - pf_fopen_files[fnum].ofs;
 
@@ -5050,7 +5060,9 @@ void QCBUILTIN PF_argescape(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = (rand ()&0x7fff) / ((float)0x8000);
+	//don't return 1 (it would break array[random()*array.length];
+	//don't return 0 either, it would break the self.nextthink = time+random()*foo; lines in walkmonster_start, resulting rarely in statue-monsters.
+	G_FLOAT(OFS_RETURN) = (rand ()&0x7fff) / ((float)0x08000) + (0.5/0x08000);
 }
 
 //float(float number, float quantity) bitshift = #218;

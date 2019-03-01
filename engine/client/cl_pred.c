@@ -406,6 +406,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 		pmove.velocity[2] = 0;
 	}
 
+	pmove.onground = from->onground;
 	pmove.jump_msec = (cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
 	pmove.jump_held = from->jump_held;
 	pmove.waterjumptime = from->waterjumptime;
@@ -778,7 +779,7 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	memset(plstate, 0, sizeof(*plstate));
 	plstate->jump_held = jumpheld;
 
-	switch(state->u.q1.pmovetype)
+	switch(state->u.q1.pmovetype & 0x7f)
 	{
 	case MOVETYPE_NOCLIP:
 		if (cls.z_ext & Z_EXT_PM_TYPE_NEW)
@@ -816,7 +817,10 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 		plstate->onground = onground;
 	}
 	else
+	{
 		VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
+		plstate->onground = !!(state->u.q1.pmovetype&128);
+	}
 	plstate->pm_type = pmtype;
 
 	plstate->viewangles[0] = SHORT2ANGLE(state->u.q1.vangle[0]);
@@ -886,7 +890,7 @@ void CL_PredictEntityMovement(entity_state_t *estate, float age)
 //		cmd.forwardmove = 5000;
 //		cmd.msec = sin(realtime*6) * 128 + 128;
 		oldphysent = pmove.numphysent;
-		pmove.onground = true;
+		pmove.onground = startstate.onground;
 		CL_PredictUsercmd(0, estate->number, &startstate, &resultstate, &cmd);	//uses player 0's maxspeed/grav...
 		pmove.numphysent = oldphysent;
 
@@ -1236,6 +1240,7 @@ void CL_PredictMovePNum (int seat)
 //					Con_DPrintf(" propagate %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
 					CL_PredictUsercmd (seat, pv->viewentity, tostate, &tmp, &of->cmd[seat]);
 					next = &cl.inframes[(toframe+i) & UPDATE_MASK].playerstate[pv->playernum];
+					next->onground = tmp.onground;
 					next->jump_held = tmp.jump_held;
 					next->jump_msec = tmp.jump_msec;
 					VectorCopy(tmp.gravitydir, next->gravitydir);

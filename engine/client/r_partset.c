@@ -3386,6 +3386,24 @@ char *particle_set_h2part =
 "flurry 32\n"
 "}\n"
 
+//eidolon's arena
+"r_part ce_rain\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 1 63 63 256 2 64\n"
+"type texturedspark\n"
+"count   1\n"
+"scale 2\n"
+"scalefactor 1\n"
+"die 1\n"
+"alpha 0.2\n"
+"alphadelta 0\n"
+"rgb 255 255 255\n"
+"friction 0\n"
+"blend add\n"
+"veladd 1\n"
+"gravity 0\n"
+"}\n"
 
 //this teleport effect is nothing like hexen2's. hopefully it'll be acceptable :s
 //the down ring
@@ -3422,7 +3440,6 @@ char *particle_set_h2part =
 "}\n"
 
 
-//h2part.ce_rain was not loaded
 //h2part.ce_quake was not loaded
 //h2part.ce_ghost was not loaded
 //h2part.ce_teleporterbody_1 was not loaded

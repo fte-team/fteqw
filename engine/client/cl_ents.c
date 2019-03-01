@@ -4680,8 +4680,12 @@ void CLQW_ParsePlayerinfo (void)
 	flags = (unsigned short)MSG_ReadShort ();
 
 	if (cls.fteprotocolextensions & (PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS))
+	{
 		if (flags & PF_EXTRA_PFS)
 			flags |= MSG_ReadByte()<<16;
+	}
+	else
+		flags = (flags & 0x3fff) | ((flags & 0xc000)<<8);
 
 	state->flags = flags;
 
@@ -4783,15 +4787,15 @@ void CLQW_ParsePlayerinfo (void)
 	state->gravitydir[2] = -1;
 
 #ifdef PEXT_SCALE
-	if (flags & PF_SCALE && cls.fteprotocolextensions & PEXT_SCALE)
+	if ((flags & PF_SCALE) && (cls.fteprotocolextensions & PEXT_SCALE))
 		state->scale = (float)MSG_ReadByte()/50;
 #endif
 #ifdef PEXT_TRANS
-	if (flags & PF_TRANS && cls.fteprotocolextensions & PEXT_TRANS)
+	if ((flags & PF_TRANS) && (cls.fteprotocolextensions & PEXT_TRANS))
 		state->alpha = MSG_ReadByte();
 #endif
 #ifdef PEXT_FATNESS
-	if (flags & PF_FATNESS && cls.fteprotocolextensions & PEXT_FATNESS)
+	if ((flags & PF_FATNESS) && (cls.fteprotocolextensions & PEXT_FATNESS))
 		state->fatness = (float)MSG_ReadChar();
 #endif
 #ifdef PEXT_HULLSIZE
@@ -4818,8 +4822,12 @@ void CLQW_ParsePlayerinfo (void)
 	}
 	//should be passed to player move func.
 #endif
+	if (cls.z_ext & Z_EXT_PF_ONGROUND)
+		state->onground = !!(flags & PF_ONGROUND);
+	else
+		state->onground = false;
 
-	if (cls.fteprotocolextensions & PEXT_COLOURMOD && (flags & PF_COLOURMOD))
+	if ((cls.fteprotocolextensions & PEXT_COLOURMOD) && (flags & PF_COLOURMOD))
 	{
 		state->colourmod[0] = MSG_ReadByte();
 		state->colourmod[1] = MSG_ReadByte();
@@ -4830,6 +4838,15 @@ void CLQW_ParsePlayerinfo (void)
 		state->colourmod[0] = 32;
 		state->colourmod[1] = 32;
 		state->colourmod[2] = 32;
+	}
+
+	//if we have no solidity info, guess.
+	if (!(cls.z_ext & Z_EXT_PF_SOLID))
+	{
+		if (cl.players[num].spectator || state->flags & PF_DEAD)
+			state->flags &= ~PF_SOLID;
+		else
+			state->flags |= PF_SOLID;
 	}
 
 	if (cls.z_ext & Z_EXT_PM_TYPE)
@@ -5753,9 +5770,8 @@ void CL_SetSolidPlayers (void)
 	{
 		if (!pplayer->active)
 			continue;	// not present this frame
-
-		if (pplayer->flags & PF_DEAD)
-			continue; // dead players aren't solid
+		if (!(pplayer->flags & PF_SOLID))
+			continue;
 
 		memset(pent, 0, sizeof(physent_t));
 		VectorCopy(pplayer->origin, pent->origin);

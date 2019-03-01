@@ -426,8 +426,7 @@ int PM_StepSlideMove (qboolean in_air)
 		VectorCopy (trace.endpos, pmove.origin);
 	}
 
-	//FIXME gravitydir
-	if ((in_air || movevars.slidefix) && originalvel[2] < 0)
+	if ((in_air || movevars.slidefix) && -DotProduct(pmove.gravitydir, original) < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
 	PM_SlideMove ();
@@ -867,7 +866,7 @@ void PM_AirMove (void)
 		else
 			blocked = PM_SlideMove ();
 
-		if (blocked & BLOCKED_FLOOR)
+		if (movevars.pground && (blocked & BLOCKED_FLOOR))
 			pmove.onground = true;
 	}
 }
@@ -949,9 +948,17 @@ void PM_CategorizePosition (void)
 	{
 		pmove.onground = false;
 	}
-	else
+	else if (!movevars.pground || pmove.onground)
 	{
 		trace = PM_PlayerTracePortals (pmove.origin, point, MASK_PLAYERSOLID, NULL);
+		if (!trace.startsolid && trace.fraction < 1 && -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
+		{	//if the trace hit a slope, slide down the slope to see if we can find ground below. this should fix the 'base-of-slope-is-slide' bug.
+			vec3_t bounce;
+			PM_ClipVelocity (pmove.gravitydir, trace.plane.normal, bounce, 2);
+			VectorMA(trace.endpos, 1-trace.fraction, bounce, point);
+			trace = PM_PlayerTracePortals (trace.endpos, point, MASK_PLAYERSOLID, NULL);
+		}
+
 		if (!trace.startsolid && (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL))
 			pmove.onground = false;
 		else
@@ -1044,7 +1051,7 @@ void PM_CategorizePosition (void)
 		}
 	}
 
-	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
+	if (!movevars.pground && pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
 	{
 		// snap to ground so that we can't jump higher than we're supposed to
 		if (!trace.startsolid && !trace.allsolid)
@@ -1102,7 +1109,7 @@ static void PM_CheckJump (void)
 
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
-	if (-DotProduct(pmove.gravitydir, pmove.velocity) < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
+	if (!movevars.pground && -DotProduct(pmove.gravitydir, pmove.velocity) < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		// pmove.velocity is pointing into the ground, clip it
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
@@ -1121,7 +1128,6 @@ static void PM_CheckJump (void)
 	}
 
 	pmove.jump_held = true;		// don't jump again until released
-
 	pmove.jump_msec = pmove.cmd.msec;
 }
 
@@ -1215,19 +1221,21 @@ static void PM_NudgePosition (void)
 	vec3_t	base;
 	int		x, y, z;
 	int		i;
-	static int	sign[5] = {0, -1, 1, -2, 2};
+	static float	sign[5] = {0, -1/8.0, 1/8.0, -2/8.0, 2/8.0};
 
 	VectorCopy (pmove.origin, base);
 
-	for (i=0 ; i<3 ; i++)
-		base[i] = MSG_FromCoord(MSG_ToCoord(base[i], 2), 2);
+	if (movevars.coordsize) for (i=0 ; i<3 ; i++)
+		base[i] = MSG_FromCoord(MSG_ToCoord(base[i], movevars.coordsize), movevars.coordsize);	//higher precision or at least with more accurate rounding
+	else for (i=0 ; i<3 ; i++)
+		base[i] = ((int) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
 
 //	VectorCopy (base, pmove.origin);
 
 	//if we're moving, allow that spot without snapping to any grid
 //	if (pmove.velocity[0] || pmove.velocity[1] || pmove.velocity[2])
-		if (PM_TestPlayerPosition (pmove.origin, false))
-			return;
+//		if (PM_TestPlayerPosition (pmove.origin, false))
+//			return;
 
 	for (z=0 ; z<countof(sign) ; z++)
 	{
@@ -1235,9 +1243,9 @@ static void PM_NudgePosition (void)
 		{
 			for (y=0 ; y<countof(sign) ; y++)
 			{
-				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
-				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);
-				pmove.origin[2] = base[2] + (sign[z] * 1.0/8);
+				pmove.origin[0] = base[0] + sign[x];
+				pmove.origin[1] = base[1] + sign[y];
+				pmove.origin[2] = base[2] + sign[z];
 				if (PM_TestPlayerPosition (pmove.origin, false))
 					return;
 			}
@@ -1251,8 +1259,8 @@ static void PM_NudgePosition (void)
 		{
 			for (y=0 ; y<3 ; y++)
 			{
-				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
-				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);
+				pmove.origin[0] = base[0] + sign[x];
+				pmove.origin[1] = base[1] + sign[y];
 				pmove.origin[2] = base[2] + z;
 				if (PM_TestPlayerPosition (pmove.origin, false))
 					return;
@@ -1443,7 +1451,7 @@ void PM_PlayerMove (float gamespeed)
 
 	// this is to make sure landing sound is not played twice
 	// and falling damage is calculated correctly
-	if (pmove.onground && -DotProduct(pmove.gravitydir, pmove.velocity) < -300
+	if (!movevars.pground && pmove.onground && -DotProduct(pmove.gravitydir, pmove.velocity) < -300
 		&& DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);

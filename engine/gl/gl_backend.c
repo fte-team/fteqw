@@ -23,6 +23,8 @@ void DumpGLState(void);
 extern cvar_t gl_overbright;
 extern cvar_t r_tessellation;
 extern cvar_t r_wireframe;
+extern cvar_t r_outline;
+extern cvar_t r_outline_width;
 extern cvar_t r_refract_fbo;
 
 extern texid_t missing_texture;
@@ -3803,10 +3805,16 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_dir);
 			break;
 		case SP_E_L_MUL:
-			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_range);
+			if (shaderstate.mode == BEM_DEPTHDARK)
+				qglUniform3fvARB(ph, 1, vec3_origin);
+			else
+				qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_range);
 			break;
 		case SP_E_L_AMBIENT:
-			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_avg);
+			if (shaderstate.mode == BEM_DEPTHDARK)
+				qglUniform3fvARB(ph, 1, vec3_origin);
+			else
+				qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_avg);
 			break;
 
 		case SP_E_TIME:
@@ -6281,6 +6289,19 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 				TRACE(("GLBE_DrawWorld: lights drawn\n"));
 			}
 #endif
+		}
+
+		if (r_outline.ival && !r_wireframe.ival && qglPolygonMode && qglLineWidth)
+		{
+			shaderstate.identitylighting = 0;
+			shaderstate.identitylightmap = 0;
+			BE_SelectMode(BEM_DEPTHDARK);
+			qglLineWidth (bound(0.1, r_outline_width.value, 2000.0));
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
+			BE_SelectMode(BEM_STANDARD);
+			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			qglLineWidth (1);
 		}
 
 		shaderstate.identitylighting = 1;

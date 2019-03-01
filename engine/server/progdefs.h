@@ -232,7 +232,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 
 #define comextqcfields	\
 	comfieldvector(punchangle,NULL) /*std in nq*/\
-	comfieldfloat(gravity,NULL)	/*added in quake 1.09 (for hipnotic)*/\
+	comfieldfloat(gravity,"Multiplier applied in addition to sv_gravity (not absolute units), to control the gravity affecting this entity specifically.")	/*added in quake 1.09 (for hipnotic)*/\
 	comfieldfloat(hull,"Overrides the hull used by the entity for walkmove/movetogoal and not traceline/tracebox.")/*PEXT_HEXEN2*/\
 	comfieldentity(movechain,"This is a linked list of entities which will be moved whenever this entity moves, logically they are attached to this entity.")/*hexen2*/\
 	comfieldfunction(chainmoved, ".void()","Called when the entity is moved as a result of being part of another entity's .movechain")/*hexen2*/\

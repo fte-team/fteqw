@@ -152,7 +152,13 @@ void GL_SetupFormats(void)
 		if (GL_CheckExtension("GL_OES_texture_float"))
 			glfmtc(PTI_RGBA32F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_FLOAT,				0);
 
-		if (GL_CheckExtension("GL_OES_depth_texture"))
+		if (GL_CheckExtension("GL_WEBGL_depth_texture"))
+		{	//24bit is okay with this one.
+			glfmt(PTI_DEPTH16,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
+			glfmt(PTI_DEPTH24,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT_24_8);
+			glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);
+		}
+		else if (GL_CheckExtension("GL_OES_depth_texture") || GL_CheckExtension("GL_ANGLE_depth_texture"))
 		{	//16+32, not 24.
 			glfmt(PTI_DEPTH16,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
 			glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);

@@ -402,8 +402,8 @@ void Cmd_Master(cmdctxt_t *ctx)
 void Cmd_UDPPort(cmdctxt_t *ctx)
 {
 	int newp = atoi(Cmd_Argv(ctx, 1));
-	NET_InitUDPSocket(ctx->cluster, newp, true);
-	NET_InitUDPSocket(ctx->cluster, newp, false);
+	NET_InitUDPSocket(ctx->cluster, newp, SG_IPV6);
+	NET_InitUDPSocket(ctx->cluster, newp, SG_IPV4);
 }
 void Cmd_AdminPassword(cmdctxt_t *ctx)
 {

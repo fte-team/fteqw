@@ -473,7 +473,7 @@ static size_t JSON_ReadBody(json_t *t, char *out, size_t outsize)
 //glTF 1.0 and 2.0 differ in that 1 uses names and 2 uses indexes. There's also some significant differences with materials.
 //we only support 2.0
 
-//FTE does not support articulated models. we might be able to convert them to skeletal though.
+//articulated models are handled by loading them as skeletal (should probably optimise the engine for this usecase)
 //we don't support skeletal models either right now.
 
 //buffers are raw blobs that can come from multiple different sources
@@ -560,6 +560,7 @@ static void GLTF_RelativePath(const char *base, const char *relative, char *out,
 	out += t;
 	outsize -= t;
 
+	//FIXME: uris should be percent-decoded here.
 	t = strlen(relative);
 	if (t > outsize)
 		t = outsize;
@@ -611,6 +612,8 @@ static struct gltf_buffer *GLTF_GetBufferData(gltf_t *gltf, int bufferidx)
 				VFS_READ(f, out->data, length);
 				VFS_CLOSE(f);
 			}
+			else
+				Con_Printf(CON_WARNING"%s: Unable to read buffer file %s\n", gltf->mod->name, filename);
 		}
 	}
 	return out->data?out:NULL;
@@ -1891,8 +1894,10 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 	gltf.buffers[0].length = buffersize;
 	gltf.warnlimit = 5;
 
-	//asset.version must exist, supposedly.
-	gltfver = JSON_GetFloat(gltf.r, "asset.version", 2.0);
+	//asset.version must exist, supposedly. so default to something b0rked
+	gltfver = JSON_GetFloat(gltf.r, "asset.minVersion", 0.0);
+	if (gltfver != 2.0)
+		gltfver = JSON_GetFloat(gltf.r, "asset.version", 0.0);
 	if (gltfver == 2.0)
 	{
 		JSON_FlagAsUsed(gltf.r, "asset.copyright");
@@ -2042,9 +2047,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 					}
 				}
 
-				//TODO: make a guess at the number of frames+framerate
-				//(input samplers have min+max values).
-
+				//TODO: make a guess at the framerate according to sampler intervals
 				fg->rate = 30;
 				fg->numposes = max(1, maxtime*fg->rate);
 				if (maxtime)

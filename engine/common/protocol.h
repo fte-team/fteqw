@@ -92,15 +92,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define Z_EXT_JOIN_OBSERVE	(1<<5)	// server: "join" and "observe" commands are supported
 									// client: on-the-fly spectator <-> player switching supported
 
-//#define Z_EXT_PF_ONGROUND	(1<<6)	// server: PF_ONGROUND is valid for all svc_playerinfo
+#define Z_EXT_PF_ONGROUND	(1<<6)	// server: PF_ONGROUND is valid for all svc_playerinfo
 #define Z_EXT_VWEP			(1<<7)
-//#define Z_EXT_PF_SOLID		(1<<8)	//conflicts with many FTE extensions.
+#define Z_EXT_PF_SOLID		(1<<8)	//conflicts with many FTE extensions.
 
 #ifdef QUAKESTATS
-#define SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_VIEWHEIGHT|Z_EXT_SERVERTIME|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE|Z_EXT_VWEP)
+#define SERVER_SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_VIEWHEIGHT|Z_EXT_SERVERTIME|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE/*|Z_EXT_PF_ONGROUND*/|Z_EXT_VWEP/*|Z_EXT_PF_SOLID*/)
 #else
-#define SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE|Z_EXT_VWEP)
+#define SERVER_SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE/*|Z_EXT_PF_ONGROUND*/|Z_EXT_VWEP/*|Z_EXT_PF_SOLID*/)
 #endif
+#define CLIENT_SUPPORTED_Z_EXTENSIONS (SERVER_SUPPORTED_Z_EXTENSIONS|Z_EXT_PF_ONGROUND|Z_EXT_PF_SOLID)
 
 
 #define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//variable length handshake
@@ -519,29 +520,30 @@ enum {
 #define	PF_GIB			(1<<10)		// offset the view height differently
 
 //ZQuake.
-#define	PF_PMC_MASK		((1<<11)	+\
-						 (1<<12)	+\
+#define	PF_PMC_MASK		((1<<11) | \
+						 (1<<12) | \
 						 (1<<13))
-
-
 #ifdef PEXT_HULLSIZE
-#define	PF_HULLSIZE_Z		(1<<14)
+#define	PF_HULLSIZE_Z	(1<<14)
 #endif
 #define PF_EXTRA_PFS	(1<<15)
 
 #ifdef PEXT_SCALE
-#define	PF_SCALE			(1<<16)
+#define	PF_SCALE		(1<<16)
 #endif
 #ifdef PEXT_TRANS
-#define	PF_TRANS			(1<<17)
+#define	PF_TRANS		(1<<17)
 #endif
 #ifdef PEXT_FATNESS
 #define	PF_FATNESS		(1<<18)
 #endif
 
-#define	PF_COLOURMOD		(1<<19)
+#define	PF_COLOURMOD	(1<<19)
+//#define	PF_UNUSED	(1<<20)	//remember to faff with zext
+//#define	PF_UNUSED	(1<<21)	//remember to faff with zext
 //note that if you add any more, you may need to change the check in the client so more can be parsed
-
+#define PF_ONGROUND		(1<<22)	//or 14, depending on extensions... messy.
+#define PF_SOLID		(1<<23) //or 15, depending on extensions... messy.
 
 
 #define PF_PMC_SHIFT	11
@@ -1087,7 +1089,7 @@ typedef struct entity_state_s
 		struct
 		{
 			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
-			qbyte pmovetype;
+			qbyte pmovetype;	//&128 means onground.
 			qbyte msec;
 			short vangle[3];
 

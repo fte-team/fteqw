@@ -2259,6 +2259,7 @@ void CL_CheckServerInfo(void)
 		cl.bunnyspeedcap = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_bunnyspeedcap"));
 		movevars.slidefix = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_slidefix")) != 0);
 		movevars.airstep = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_airstep")) != 0);
+		movevars.pground = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_pground")) != 0);
 		movevars.stepdown = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_stepdown")) != 0);
 		movevars.walljump = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_walljump")));
 		movevars.ktjump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_ktjump"));

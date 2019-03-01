@@ -1440,6 +1440,46 @@ void R2D_FadeScreen (void)
 	Sbar_Changed();
 }
 
+qboolean R2D_DrawLevelshot(void)
+{
+	extern char levelshotname[];
+	extern cvar_t scr_loadingscreen_aspect;
+	if (*levelshotname)
+	{
+		shader_t *pic = R2D_SafeCachePic (levelshotname);
+		int w,h;
+		if (!R_GetShaderSizes(pic, &w, &h, true))
+		{
+#ifdef Q3CLIENT
+			pic = R2D_SafeCachePic("menu/art/unkownmap");
+			if (!R_GetShaderSizes(pic, &w, &h, true))
+#endif
+				w = h = 1;
+		}
+		switch(scr_loadingscreen_aspect.ival)
+		{
+		case 0:	//use the source image's aspect
+			break;
+		case 1:	//q3 assumed 4:3 resolutions, with power-of-two images. lame, but lets retain the aspect
+			w = 640;
+			h = 480;
+			break;
+		case 2:	//just ignore aspect entirely and stretch the thing in hideous ways
+			w = vid.width;
+			h = vid.height;
+			break;
+		}
+		R2D_Letterbox(0, 0, vid.width, vid.height, pic, w, h);
+
+		//q3's noise.
+		pic = R2D_SafeCachePic("levelShotDetail");
+		if (R_GetShaderSizes(pic, &w, &h, true))
+			R2D_Image(0, 0, vid.width, vid.height, 0, 0, vid.width/256, vid.height/256, pic);
+		return true;
+	}
+	return false;
+}
+
 //crosshairs
 #define CS_HEIGHT 8
 #define CS_WIDTH 8

@@ -53,9 +53,10 @@ cvar_t	vsec_scaley[SIDEVIEWS]	= {CVAR("v2_scaley", "0.25"),	CVAR("v3_scaley", "0
 cvar_t	vsec_yaw[SIDEVIEWS]		= {CVAR("v2_yaw", "180"),		CVAR("v3_yaw", "90"),		CVAR("v4_yaw", "270"),		CVAR("v5_yaw", "0")};
 #endif
 
-cvar_t	cl_rollspeed			= CVAR("cl_rollspeed", "200");
-cvar_t	cl_rollangle			= CVARD("cl_rollangle", "2.0", "Controls how much the view should tilt while strafing.");
-cvar_t	v_deathtilt				= CVAR("v_deathtilt", "1");
+cvar_t	cl_rollspeed			= CVARD("cl_rollspeed", "200", "Controls the speed required to reach cl_rollangle's tilt.");
+cvar_t	cl_rollangle			= CVARD("cl_rollangle", "2.0", "Controls the maximum view should tilt while strafing.");
+cvar_t	cl_rollalpha			= CVARD("cl_rollalpha", "20", "Controls the speed at which the view rolls according to sideways movement.");
+cvar_t	v_deathtilt				= CVARD("v_deathtilt", "1", "Specifies whether to tilt the view when dead.");
 
 cvar_t	cl_bob					= CVARD("cl_bob","0.02", "Controls how much the camera position should bob up down as the player runs around.");
 cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
@@ -76,7 +77,7 @@ cvar_t	v_ipitch_cycle			= CVAR("v_ipitch_cycle", "1");
 cvar_t	v_iyaw_level			= CVAR("v_iyaw_level", "0.3");
 cvar_t	v_iroll_level			= CVAR("v_iroll_level", "0.1");
 cvar_t	v_ipitch_level			= CVAR("v_ipitch_level", "0.3");
-cvar_t	v_idlescale				= CVAR("v_idlescale", "0");
+cvar_t	v_idlescale				= CVARD("v_idlescale", "0", "Enable swishing of the view (whether idle or otherwise). Often used for concussion effects.");
 
 cvar_t	crosshair				= CVARF("crosshair", "1", CVAR_ARCHIVE);
 cvar_t	crosshaircolor			= CVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
@@ -84,8 +85,8 @@ cvar_t	crosshairsize			= CVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
 cvar_t	cl_crossx				= CVARF("cl_crossx", "0", CVAR_ARCHIVE);
 cvar_t	cl_crossy				= CVARF("cl_crossy", "0", CVAR_ARCHIVE);
-cvar_t	crosshaircorrect		= CVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
-cvar_t	crosshairimage			= CVAR("crosshairimage", "");
+cvar_t	crosshaircorrect		= CVARFD("crosshaircorrect", "0", CVAR_SEMICHEAT, "Moves the crosshair around to represent the impact point of a weapon positioned below the actual view position.");
+cvar_t	crosshairimage			= CVARD("crosshairimage", "", "Enables the use of an external/custom crosshair image");
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
@@ -1133,12 +1134,7 @@ void V_CalcViewRoll (playerview_t *pv)
 
 	side = V_CalcRoll (pv->simangles, pv->simvel);
 
-	adjspeed = fabs(cl_rollangle.value);
-	if (adjspeed<1)
-		adjspeed=1;
-	if (adjspeed>45)
-		adjspeed = 45;
-	adjspeed*=20;
+	adjspeed = cl_rollalpha.value * bound(1, fabs(cl_rollangle.value), 45);
 	if (side > pv->rollangle)
 	{
 		pv->rollangle += host_frametime * adjspeed;
@@ -2544,6 +2540,7 @@ void V_Init (void)
 
 	Cvar_Register (&cl_rollspeed, VIEWVARS);
 	Cvar_Register (&cl_rollangle, VIEWVARS);
+	Cvar_Register (&cl_rollalpha, VIEWVARS);
 	Cvar_Register (&cl_bob, VIEWVARS);
 	Cvar_Register (&cl_bobcycle, VIEWVARS);
 	Cvar_Register (&cl_bobup, VIEWVARS);

@@ -541,14 +541,14 @@ mergeInto(LibraryManager.library,
 				FTEC.vrDisplay.getFrameData(FTEC.vrframeData);
 			}
 			
-//			try
-//			{
+			try	//this try is needed to handle Host_EndGame properly.
+			{
 				dovsync = Runtime.dynCall('i', fnc, []);
-//			}
-//			catch(err)
-//			{
-//				console.log(err);
-//			}
+			}
+			catch(err)
+			{
+				console.log(err);
+			}
 			if (vr)
 				FTEC.vrDisplay.submitFrame();
 			if (dovsync)
@@ -771,7 +771,7 @@ mergeInto(LibraryManager.library,
 		s.ws.onopen = function(event) {s.con = 1;};
 		s.ws.onmessage = function(event)
 			{
-				assert(typeof event.data !== 'string' && event.data.byteLength);
+				assert(typeof event.data !== 'string' && event.data.byteLength, 'websocket data is not usable');
 				s.inq.push(new Uint8Array(event.data));
 			};
 
@@ -1088,7 +1088,7 @@ console.log("onerror: " + _url);
 			return;
 		buf = buf - 1;
 
-		var ctx = AL.currentContext;
+		var ctx = AL.currentContext || AL.currentCtx;
 		try
 		{
 			//its async, so it needs its own copy of an arraybuffer

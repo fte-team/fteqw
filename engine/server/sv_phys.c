@@ -70,12 +70,13 @@ cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
 cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed that players will sink at while inactive in water. Empty means 60.");
 cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
-cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
-cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
-cvar_t	pm_airstep			 = CVARAF("pm_airstep", "", "sv_jumpstep", CVAR_SERVERINFO);
-cvar_t	pm_stepdown			 = CVARF("pm_stepdown", "", CVAR_SERVERINFO);
-cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
-cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", "edgefriction", CVAR_SERVERINFO, "Default value of 2");	//alternative name (without prefix) for compat with dp
+cvar_t	pm_slidefix			 = CVARFD("pm_slidefix", "", CVAR_SERVERINFO, "Fixes an issue when jumping down slopes (ie: they act more like slopes and not steps)");
+cvar_t	pm_slidyslopes		 = CVARFD("pm_slidyslopes", "", CVAR_SERVERINFO, "Replicates NQ behaviour, where players will slowly slide down ramps");
+cvar_t	pm_airstep			 = CVARAFD("pm_airstep", "", /*dp*/"sv_jumpstep", CVAR_SERVERINFO, "Allows players to step up while jumping. This makes stairs more graceful but also increases potential jump heights.");
+cvar_t	pm_pground			 = CVARFD("pm_pground", "", CVAR_SERVERINFO, "Use persisten onground state instead of recalculating every frame."CON_WARNING"Do NOT use with nq mods, as most nq mods will interfere with onground state, resulting in glitches.");
+cvar_t	pm_stepdown			 = CVARFD("pm_stepdown", "", CVAR_SERVERINFO, "Causes physics to stick to the ground, instead of constantly losing traction whiloe going down steps.");
+cvar_t	pm_walljump			 = CVARFD("pm_walljump", "", CVAR_SERVERINFO, "Allows the player to bounce off walls while arborne.");
+cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", /*dp*/"edgefriction", CVAR_SERVERINFO, "Default value of 2");
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)

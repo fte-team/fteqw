@@ -3091,7 +3091,13 @@ static void VK_PaintScreen(void)
 
 		//draw the levelshot or the conback fullscreen
 		if (*levelshotname)
-			R2D_ScalePic(0, 0, vid.width, vid.height, R2D_SafeCachePic (levelshotname));
+		{
+			shader_t *pic = R2D_SafeCachePic (levelshotname);
+			int w,h;
+			if (!R_GetShaderSizes(pic, &w, &h, true))
+				w = h = 1;
+			R2D_Letterbox(0, 0, vid.width, vid.height, pic, w, h);
+		}
 		else if (scr_con_current != vid.height)
 			R2D_ConsoleBackground(0, vid.height, true);
 		else

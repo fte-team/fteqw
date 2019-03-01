@@ -170,6 +170,7 @@ void (APIENTRY *qglMultMatrixf) (const GLfloat *m);
 void (APIENTRY *qglNewList) (GLuint list, GLenum mode);
 //void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 void (APIENTRY *qglPolygonMode) (GLenum face, GLenum mode);
+void (APIENTRY *qglLineWidth) (GLfloat width);
 void (APIENTRY *qglPopMatrix) (void);
 void (APIENTRY *qglPushMatrix) (void);
 void (APIENTRY *qglReadBuffer) (GLenum mode);
@@ -1088,7 +1089,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (Cvar_Get("gl_blacklist_invariant", "0", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 		gl_config.blacklist_invariant = true;
 	else if (gl_config.arb_shader_objects && !gl_config_nofixedfunc &&
-		strstr(gl_renderer, " Mesa ") && gl_config.glversion <= 3.1 && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
+		(strstr(gl_renderer, " Mesa ") || strstr(gl_version, " Mesa ")) && gl_config.glversion <= 3.1 && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 	{
 		gl_config.blacklist_invariant = true;
 		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword. This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it.\n");
@@ -3228,6 +3229,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglMultMatrixf		= (void *)getglcore("glMultMatrixf");
 //	qglOrtho			= (void *)getglcore("glOrtho");
 	qglPolygonMode		= (void *)getglcore("glPolygonMode");
+	qglLineWidth		= (void *)getglcore("glLineWidth");
 	qglPopMatrix		= (void *)getglcore("glPopMatrix");
 	qglPushMatrix		= (void *)getglcore("glPushMatrix");
 	qglReadBuffer		= (void *)getglcore("glReadBuffer");

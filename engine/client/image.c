@@ -59,7 +59,7 @@ char *r_defaultimageextensions =
 	;
 static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt);
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
-cvar_t r_imageextensions			= CVARCD("r_imageextensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
+cvar_t r_imageextensions			= CVARCD("r_imageextensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which might exist on disk (note that this does not list all supported formats, only the extensions that should be searched for).");
 cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "131072", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
 extern cvar_t			scr_sshot_compression;
 extern cvar_t gl_lerpimages;
@@ -9104,7 +9104,7 @@ void Image_Init(void)
 	Hash_InitTable(&imagetable, sizeof(imagetablebuckets)/sizeof(imagetablebuckets[0]), imagetablebuckets);
 
 	Cmd_AddCommandD("r_imagelist", Image_List_f, "Prints out a list of the currently-known textures.");
-	Cmd_AddCommandD("r_imageformats", Image_Formats_f, "Prints out a list of the usable texture formats.");
+	Cmd_AddCommandD("r_imageformats", Image_Formats_f, "Prints out a list of the usable hardware pixel formats.");
 }
 //destroys all textures
 void Image_Shutdown(void)

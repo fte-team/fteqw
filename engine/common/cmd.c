@@ -885,7 +885,7 @@ static void Cmd_Echo_f (void)
 #else
 	t = TP_ParseFunChars(t);
 #ifndef NOLEGACY
-	Con_PrintFlags (t, (com_parseezquake.ival?PFS_EZQUAKEMARKUP:0), 0);
+	Con_PrintFlags (t, ((ezcompat_markup.ival>=2)?PFS_EZQUAKEMARKUP:0), 0);
 #else
 	Con_PrintFlags (t, 0, 0);
 #endif

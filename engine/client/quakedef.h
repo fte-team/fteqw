@@ -312,7 +312,7 @@ extern	cvar_t		com_protocolversion;
 extern	cvar_t		com_nogamedirnativecode;
 extern	cvar_t		com_parseutf8;
 #ifndef NOLEGACY
-extern	cvar_t		com_parseezquake;
+extern	cvar_t		ezcompat_markup;
 #endif
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;

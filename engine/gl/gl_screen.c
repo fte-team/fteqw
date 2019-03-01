@@ -208,11 +208,9 @@ qboolean GLSCR_UpdateScreen (void)
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
-		extern char levelshotname[];
-
 		//draw the levelshot or the conback fullscreen
-		if (*levelshotname)
-			R2D_ScalePic(0, 0, vid.width, vid.height, R2D_SafeCachePic (levelshotname));
+		if (R2D_DrawLevelshot())
+			;
 		else if (scr_con_current != vid.height)
 			R2D_ConsoleBackground(0, vid.height, true);
 		else

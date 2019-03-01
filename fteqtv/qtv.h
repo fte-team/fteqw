@@ -469,6 +469,7 @@ typedef struct viewer_s {
 	qboolean thinksitsconnected;
 	qboolean conmenussupported;
 	qboolean isproxy;
+	unsigned int pext1, pext2;
 
 	int servercount;
 
@@ -926,7 +927,7 @@ void PM_PlayerMove (pmove_t *pmove);
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
 void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...) PRINTFWARNING(3);
 //int Netchan_IsLocal (netadr_t adr);
-void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6);
+void NET_InitUDPSocket(cluster_t *cluster, int port, int socketid);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);
 SOCKET NET_ChooseSocket(SOCKET sock[], netadr_t *toadr, netadr_t in);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);

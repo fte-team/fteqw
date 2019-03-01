@@ -37,6 +37,23 @@ int			host_hunklevel;
 
 client_t	*host_client;			// current client
 
+void CvarPostfixKMG(cvar_t *v, char *oldval)
+{
+	double k = 1000;	//scientific units are in thousands. 10ki is 10*1024.
+	char *end;
+	double f = strtod(v->string, &end);
+	if (*end && end[1]=='i')
+		k = 1024;	//kibi
+	if (*end == 'k' || *end == 'K')
+		f *= k;
+	if (*end == 'm' || *end == 'M')
+		f *= k*k;
+	if (*end == 'b' || *end == 'B' || *end == 'g' || *end == 'G')
+		f *= k*k*k;
+	v->ival = f;
+	v->value = f;
+}
+
 // bound the size of the physics time tic
 #ifdef SERVERONLY
 cvar_t	sv_mintic					= CVARD("sv_mintic","0.013", "The minimum interval between running physics frames.");
@@ -100,9 +117,9 @@ extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
-cvar_t sv_maxrate			= CVARD("sv_maxrate", "50000", "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
-cvar_t sv_maxdrate			= CVARAFD("sv_maxdrate", "500000",
-									"sv_maxdownloadrate", 0, "This cvar controls the maximum number of bytes sent to each player per second while that player is downloading.\nIf this cvar is set to 0, there will be NO CAP for download rates (if the user's drate is empty/0 too, then expect really fast+abusive downloads that could potentially be considered denial of service attacks)");
+cvar_t sv_maxrate			= CVARCD("sv_maxrate", "50k", CvarPostfixKMG, "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
+cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500k",
+									"sv_maxdownloadrate", 0, CvarPostfixKMG, "This cvar controls the maximum number of bytes sent to each player per second while that player is downloading.\nIf this cvar is set to 0, there will be NO CAP for download rates (if the user's drate is empty/0 too, then expect really fast+abusive downloads that could potentially be considered denial of service attacks)");
 cvar_t sv_minping			= CVARFD("sv_minping", "", CVAR_SERVERINFO, "Simulate fake lag for any players with a ping under the value specified here. Value is in milliseconds.");
 
 cvar_t sv_bigcoords			= CVARFD("sv_bigcoords", "1", 0, "Uses floats for coordinates instead of 16bit values.\nAlso boosts angle precision, so can be useful even on small maps.\nAffects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
@@ -123,7 +140,7 @@ cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
 
 cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
-cvar_t	sv_csqcdebug		= CVAR("sv_csqcdebug", "0");
+cvar_t	sv_csqcdebug		= CVARD("sv_csqcdebug", "0", "Inject packet size information for data directed to csqc.");
 cvar_t	sv_csqc_progname	= CVAR("sv_csqc_progname", "csprogs.dat");
 cvar_t pausable				= CVAR("pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
@@ -3060,12 +3077,27 @@ client_t *SVC_DirectConnect(void)
 	//its causing far far far too many connectivity issues. seriously. its beyond a joke. I cannot stress that enough.
 	//as the client needs to listen for the serverinfo to know which extensions will actually be used (yay demos), we can just forget that it supports svc-level extensions, at least for anything that isn't spammed via clc_move etc before the serverinfo.
 	s = InfoBuf_ValueForKey(&newcl->userinfo, "*client");
-	if (!strncmp(s, "ezQuake", 7) && (newcl->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS))
+	if (!strncmp(s, "ezQuake", 7))
 	{
-		if (pext_ezquake_nochunks.ival)
+		if (newcl->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 		{
-			newcl->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
-			Con_TPrintf("%s: ignoring ezquake chunked downloads extension.\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			if (pext_ezquake_nochunks.ival)
+			{
+				newcl->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
+				Con_TPrintf("%s: ignoring ezquake chunked downloads extension.\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			}
+		}
+		if (newcl->zquake_extensions & (Z_EXT_PF_SOLID|Z_EXT_PF_ONGROUND))
+		{
+			if (newcl->fteprotocolextensions & PEXT_HULLSIZE)
+				Con_TPrintf("%s: ignoring ezquake hullsize extension (conflicts with z_ext_pf_onground).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			if (newcl->fteprotocolextensions & PEXT_SCALE)
+				Con_TPrintf("%s: ignoring ezquake scale extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			if (newcl->fteprotocolextensions & PEXT_FATNESS)
+				Con_TPrintf("%s: ignoring ezquake fatness extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			if (newcl->fteprotocolextensions & PEXT_TRANS)
+				Con_TPrintf("%s: ignoring ezquake transparency extension (buggy on players, conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			newcl->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
 		}
 	}
 
@@ -5104,6 +5136,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_ktjump;
 	extern	cvar_t	pm_slidefix;
 	extern	cvar_t	pm_airstep;
+	extern	cvar_t	pm_pground;
 	extern	cvar_t	pm_stepdown;
 	extern	cvar_t	pm_walljump;
 	extern	cvar_t	pm_slidyslopes;
@@ -5163,6 +5196,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_slidefix,			cvargroup_serverphysics);
 	Cvar_Register (&pm_slidyslopes,			cvargroup_serverphysics);
 	Cvar_Register (&pm_airstep,				cvargroup_serverphysics);
+	Cvar_Register (&pm_pground,				cvargroup_serverphysics);
 	Cvar_Register (&pm_stepdown,			cvargroup_serverphysics);
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
 	Cvar_Register (&pm_edgefriction,		cvargroup_serverphysics);
@@ -5243,6 +5277,8 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_maxrate, cvargroup_servercontrol);
 	Cvar_Register (&sv_maxdrate, cvargroup_servercontrol);
+	Cvar_ForceCallback(&sv_maxrate);
+	Cvar_ForceCallback(&sv_maxdrate);
 	Cvar_Register (&sv_minping, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);

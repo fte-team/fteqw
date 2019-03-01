@@ -8222,7 +8222,7 @@ void SV_RegisterH2CustomTents(void)
 }
 static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float *min, *max, *size;
+	float *min, *max;//, *size;
 //	float *angle;
 	float colour;
 //	float wait, radius, frame, framelength, duration;
@@ -8239,18 +8239,29 @@ static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars
 		/*this effect is meant to be persistant (endeffect is never used)*/
 		min = G_VECTOR(OFS_PARM1);
 		max = G_VECTOR(OFS_PARM2);
-		size = G_VECTOR(OFS_PARM3);
-		dir = G_VECTOR(OFS_PARM4);
-		colour = G_FLOAT(OFS_PARM5);
-		count = G_FLOAT(OFS_PARM6);
-		//wait = G_FLOAT(OFS_PARM7);
+		//size = G_VECTOR(OFS_PARM3);	/*maxs-min, so useless*/
+		dir = G_VECTOR(OFS_PARM4);		/*[125,100] or [0,0]*/
+		colour = G_FLOAT(OFS_PARM5);	/*414 default*/
+		count = G_FLOAT(OFS_PARM6);		/*300 default*/
+		count *= /*wait =*/ G_FLOAT(OFS_PARM7);	/*0.1 default*/
 
 		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
 
-		if (colour == 0 && size == 0)
-			SV_CustomTEnt_Spawn(h2customtents[efnum], min, max, count, dir);
+		if (colour == 414)
+			efnum = h2customtents[efnum];
 		else
-			Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n");
+			efnum = SV_CustomTEnt_Register(va("h2part.ce_rain_%i", (int)colour),				CTE_PERSISTANT|CTE_CUSTOMVELOCITY|CTE_ISBEAM|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+
+		{	//align to the top of the rain volume
+			//particles should be removed once they reach the bottom
+			vec3_t nmin;
+			vec3_t ndir;
+			nmin[0] = min[0];
+			nmin[1] = min[1];
+			nmin[2] = max[2];
+			VectorSet(ndir, dir[0], dir[1], (min[2]-max[2])/1);	//divide by expected lifetime.
+			SV_CustomTEnt_Spawn(efnum, nmin, max, count, ndir);
+		}
 		return;
 	case ce_snow:
 		/*this effect is meant to be persistant (endeffect is never used)*/
@@ -9887,7 +9898,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	pmove.physents[0].model = sv.world.worldmodel;
 
 	pmove.onladder = false;
-	pmove.onground = false;
+	pmove.onground = ((int)ent->v->flags & FL_ONGROUND) != 0;
 	pmove.groundent = 0;
 	pmove.waterlevel = 0;
 	pmove.watertype = 0;
@@ -11853,7 +11864,7 @@ void PR_DumpPlatform_f(void)
 		{"total_monsters",		"float", QW|NQ},
 		{"found_secrets",		"float", QW|NQ},
 		{"killed_monsters",		"float", QW|NQ},
-		{"parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16", "float", QW|NQ},
+		{"parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16", "float", QW|NQ, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
 		{"intermission",		"float", CS},
 		{"v_forward, v_up, v_right",	"vector", QW|NQ|CS},
 		{"view_angles",			"vector", CS,		D("+x=DOWN")},
@@ -12090,9 +12101,11 @@ void PR_DumpPlatform_f(void)
 		{"m_toggle",				"void(float wantmode)", MENU},
 		{"m_consolecommand",		"float(string cmd)", MENU},
 
-		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ},
+		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ, "Additional spawn parms, following the same parmN theme."},
 		{"parm33, parm34, parm35, parm36, parm37, parm38, parm39, parm40, parm41, parm42, parm43, parm44, parm45, parm46, parm47, parm48", "float", QW|NQ},
 		{"parm49, parm50, parm51, parm52, parm53, parm54, parm55, parm56, parm57, parm58, parm59, parm60, parm61, parm62, parm63, parm64", "float", QW|NQ},
+		{"parm_string",				"string", QW|NQ, "Like the regular parmN globals, but preserves string contents."},
+		{"startspot",				"string", QW|NQ, "Receives the value of the second argument to changelevel from the previous map."},
 		{"dimension_send",			"var float", QW|NQ, "Used by multicast functionality. Multicasts (and related builtins that multicast internally) will only be sent to players where (player.dimension_see & dimension_send) is non-zero."},
 		{"dimension_default",		"//var float", QW|NQ, "Default dimension bitmask", 255},
 		{"physics_mode",			"__used var float", QW|NQ|CS, "0: original csqc - physics are not run\n1: DP-compat. Thinks occur, but not true movetypes.\n2: movetypes occur just as they do in ssqc.", 2},

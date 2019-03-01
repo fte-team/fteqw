@@ -243,6 +243,7 @@ cvar_t	scr_loadingrefresh = CVARD("scr_loadingrefresh", "0", "Force redrawing of
 cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
 //things to configure the legacy loading screen
 cvar_t	scr_loadingscreen_picture = CVAR("scr_loadingscreen_picture", "gfx/loading");
+cvar_t	scr_loadingscreen_aspect = CVARD("scr_loadingscreen_aspect", "0", "Controls the aspect of levelshot images.\n0: Use source image's aspect.\n1: Force 4:3 aspect (ignore image's aspect), for best q3 compat.\n2: Ignore aspect considerations and just smear it over the entire screen.");
 cvar_t	scr_loadingscreen_scale = CVAR("scr_loadingscreen_scale", "1");
 cvar_t	scr_loadingscreen_scale_limit = CVAR("scr_loadingscreen_scale_limit", "2");
 
@@ -269,6 +270,7 @@ void CLSCR_Init(void)
 	Cvar_Register(&scr_loadingscreen_picture, cl_screengroup);
 	Cvar_Register(&scr_loadingscreen_scale, cl_screengroup);
 	Cvar_Register(&scr_loadingscreen_scale_limit, cl_screengroup);
+	Cvar_Register(&scr_loadingscreen_aspect, cl_screengroup);
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
@@ -1998,13 +2000,8 @@ void SCR_DrawLoading (qboolean opaque)
 	//int mtype = M_GameType(); //unused variable
 	y = vid.height/2;
 
-	if (*levelshotname)
-	{
-		pic = R2D_SafeCachePic (levelshotname);
-		if (!R_GetShaderSizes(pic, &w, &h, true))
-			w = h = 1;
-		R2D_Letterbox(0, 0, vid.width, vid.height, pic, w, h);
-	}
+	if (R2D_DrawLevelshot())
+		;
 	else if (opaque)
 	{
 		R2D_ImageColours(0, 0, 0, 1);

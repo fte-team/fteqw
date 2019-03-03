@@ -8666,7 +8666,7 @@ static void SV_UserFriction (void)
 	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)sv_player);
 
 	if (trace.fraction == 1.0)
-		friction = sv_friction.value*pm_edgefriction.value;
+		friction = sv_friction.value*(*pm_edgefriction.string?pm_edgefriction.value:2);
 	else
 		friction = sv_friction.value;
 

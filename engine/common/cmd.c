@@ -1682,7 +1682,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 				}
 				buf[i] = 0;
 				bestvar = NULL;
-				if (expandcvars && (str = Cmd_ExpandCvar(buf+1+striptrailing, maxaccesslevel, accesslevel, true, &var_length)))
+				if ((str = Cmd_ExpandCvar(buf+1+striptrailing, expandcvars?maxaccesslevel:-999, accesslevel, true, &var_length)))
 					bestvar = str;
 				if (expandmacros && (str = TP_MacroString (buf+1+striptrailing, accesslevel, &var_length)))
 					bestvar = str;
@@ -1714,7 +1714,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 					data++;
 					buf[i++] = c;
 					buf[i] = 0;
-					if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, false, &var_length)))
+					if ((str = Cmd_ExpandCvar(buf+striptrailing, expandcvars?maxaccesslevel:-999, accesslevel, false, &var_length)))
 						bestvar = str;
 					if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
 						bestvar = str;

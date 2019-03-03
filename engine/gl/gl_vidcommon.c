@@ -58,6 +58,7 @@ const GLubyte * (APIENTRY *qglGetString) (GLenum name);
 void (APIENTRY *qglHint) (GLenum target, GLenum mode);
 GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
 void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
+void (APIENTRY *qglLineWidth) (GLfloat width);
 void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
@@ -170,7 +171,6 @@ void (APIENTRY *qglMultMatrixf) (const GLfloat *m);
 void (APIENTRY *qglNewList) (GLuint list, GLenum mode);
 //void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 void (APIENTRY *qglPolygonMode) (GLenum face, GLenum mode);
-void (APIENTRY *qglLineWidth) (GLfloat width);
 void (APIENTRY *qglPopMatrix) (void);
 void (APIENTRY *qglPushMatrix) (void);
 void (APIENTRY *qglReadBuffer) (GLenum mode);
@@ -3201,6 +3201,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglStencilFunc		= (void *)getglcore("glStencilFunc");
 	qglScissor			= (void *)getglcore("glScissor");
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
+	qglLineWidth		= (void *)getglcore("glLineWidth");
 #endif
 #ifndef FTE_TARGET_WEB
 	qglAlphaFunc		= (void *)getglcore("glAlphaFunc");
@@ -3229,7 +3230,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglMultMatrixf		= (void *)getglcore("glMultMatrixf");
 //	qglOrtho			= (void *)getglcore("glOrtho");
 	qglPolygonMode		= (void *)getglcore("glPolygonMode");
-	qglLineWidth		= (void *)getglcore("glLineWidth");
 	qglPopMatrix		= (void *)getglcore("glPopMatrix");
 	qglPushMatrix		= (void *)getglcore("glPushMatrix");
 	qglReadBuffer		= (void *)getglcore("glReadBuffer");

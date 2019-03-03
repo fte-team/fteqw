@@ -932,6 +932,9 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_LUMINANCE8_ALPHA8				0x8045	//not in gles2, nor gl3core (use gl_red+swizzles for gles3)
 #endif
 
+#ifndef GL_LINE
+#define GL_LINE     0x1B01
+#endif
 
 #ifndef GL_SAMPLES_PASSED_ARB
 #define GL_SAMPLES_PASSED_ARB                             0x8914

@@ -2503,11 +2503,15 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 			case DL_QW:
 				break;
 			case DL_DARKPLACES:
+				CL_SendClientCommand(true, "stopdownload");
+				break;
 			case DL_QWCHUNKS:
 				{
-					char *serverversion = InfoBuf_ValueForKey(&cl.serverinfo, "*version");
-					if (strncmp(serverversion , "MVDSV ", 6))	//don't tell mvdsv to stop, because it has retarded annoying clientprints that are spammy as fuck, and we don't want that.
-						CL_SendClientCommand(true, "stopdownload");
+					//char *serverversion = InfoBuf_ValueForKey(&cl.serverinfo, "*version");
+					//if (!strncmp(serverversion , "MVDSV ", 6))	//mvdsv will spam if we use stopdownload. and it'll misreport packetloss if we send nothing. grr.
+						CL_SendClientCommand(true, "nextdl -1 100 %i", dl->filesequence);
+					//else
+					//	CL_SendClientCommand(true, "stopdownload");
 				}
 				break;
 			}

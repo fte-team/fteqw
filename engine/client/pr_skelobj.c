@@ -2390,7 +2390,7 @@ void QCBUILTIN PF_skel_premul_bone (pubprogfuncs_t *prinst, struct globalvars_s 
 	Vector4Copy(skelobj->bonematrix+12*boneidx+0, temp[0]);
 	Vector4Copy(skelobj->bonematrix+12*boneidx+4, temp[1]);
 	Vector4Copy(skelobj->bonematrix+12*boneidx+8, temp[2]);
-	R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*boneidx));
+	R_ConcatTransforms((void*)mult, (void*)temp, (float(*)[4])(skelobj->bonematrix+12*boneidx));
 }
 void QCBUILTIN PF_skel_postmul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2412,7 +2412,7 @@ void QCBUILTIN PF_skel_postmul_bone (pubprogfuncs_t *prinst, struct globalvars_s
 	Vector4Copy(skelobj->bonematrix+12*boneidx+0, temp[0]);
 	Vector4Copy(skelobj->bonematrix+12*boneidx+4, temp[1]);
 	Vector4Copy(skelobj->bonematrix+12*boneidx+8, temp[2]);
-	R_ConcatTransforms(temp, mult, (float(*)[4])(skelobj->bonematrix+12*boneidx));
+	R_ConcatTransforms((void*)temp, (void*)mult, (float(*)[4])(skelobj->bonematrix+12*boneidx));
 }
 
 //void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
@@ -2446,7 +2446,7 @@ void QCBUILTIN PF_skel_premul_bones (pubprogfuncs_t *prinst, struct globalvars_s
 		Vector4Copy(skelobj->bonematrix+12*startbone+0, temp[0]);
 		Vector4Copy(skelobj->bonematrix+12*startbone+4, temp[1]);
 		Vector4Copy(skelobj->bonematrix+12*startbone+8, temp[2]);
-		R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*startbone));
+		R_ConcatTransforms((void*)mult, (void*)temp, (float(*)[4])(skelobj->bonematrix+12*startbone));
 
 		startbone++;
 	}

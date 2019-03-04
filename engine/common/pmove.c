@@ -161,7 +161,7 @@ static trace_t	PM_PlayerTracePortals(vec3_t start, vec3_t end, unsigned int soli
 		{
 			vec3_t move;
 			vec3_t from;
-			vec3_t newang, newvel;
+			vec3_t newang, newvel = {0,0,0};
 
 			VectorCopy(trace.endpos, from);	//just in case
 			VectorSubtract(end, trace.endpos, move);

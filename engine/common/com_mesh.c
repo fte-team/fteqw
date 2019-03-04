@@ -583,7 +583,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 		for (i = 0; i < bonecount; i++)
 		{
 			if (bones[i].parent >= 0)
-				R_ConcatTransforms((void*)(dest + bones[i].parent*12), (const void*)(sourcedata+i*12), (void*)(dest+i*12));
+				R_ConcatTransforms((void*)(dest + bones[i].parent*12), (void*)(sourcedata+i*12), (void*)(dest+i*12));
 			else
 			{
 				Vector4Copy(sourcedata+i*12+0, dest+i*12+0);
@@ -607,7 +607,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 		for (i = 0; i < bonecount; i++)
 		{
 			Matrix3x4_Invert_Simple(bones[i].inverse, iim);
-			R_ConcatTransforms((const void*)(sourcedata + i*12), (const void*)iim, (void*)(dest + i*12));
+			R_ConcatTransforms((void*)(sourcedata + i*12), (void*)iim, (void*)(dest + i*12));
 		}
 		sourcedata = dest;
 		sourcetype = SKEL_ABSOLUTE;
@@ -625,7 +625,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 			if (bones[i].parent >= 0)
 			{
 				Matrix3x4_Invert_Simple(sourcedata+bones[i].parent*12, ip);
-				R_ConcatTransforms((void*)ip, (const void*)(sourcedata+i*12), (void*)(dest+i*12));
+				R_ConcatTransforms((void*)ip, (void*)(sourcedata+i*12), (void*)(dest+i*12));
 			}
 			else
 			{
@@ -646,7 +646,7 @@ static const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *so
 	{
 		float *dest = (sourcedata == destbuffer)?destbufferalt:destbuffer;
 		for (i = 0; i < bonecount; i++)
-			R_ConcatTransforms((const void*)(sourcedata + i*12), (void*)(bones[i].inverse), (void*)(dest + i*12));
+			R_ConcatTransforms((void*)(sourcedata + i*12), (void*)(bones[i].inverse), (void*)(dest + i*12));
 		sourcedata = dest;
 		sourcetype = SKEL_INVERSE_ABSOLUTE;
 	}

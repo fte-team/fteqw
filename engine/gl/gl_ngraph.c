@@ -198,7 +198,7 @@ void R_NetGraph (void)
 		Vector4Copy(rgba[2+0], rgba[2+1]);
 
 		if (a)
-			R2D_Image2dQuad(p, tc, rgba, shader_draw_fill);
+			R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
 	}
 #endif
 }
@@ -248,7 +248,7 @@ void R_FrameTimeGraph (float frametime)
 		Vector4Copy(rgba[2+0], rgba[2+1]);
 
 		if (a)
-			R2D_Image2dQuad(p, tc, rgba, shader_draw_fill);
+			R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
 	}
 #endif
 }

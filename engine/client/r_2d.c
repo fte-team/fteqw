@@ -1355,7 +1355,7 @@ void R2D_PolyBlend (void)
 			Vector2Set(tcoords[2], points[2][0]/64, points[2][1]/64);
 			Vector2Set(tcoords[3], points[3][0]/64, points[3][1]/64);
 
-			R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, colours, shader_polyblend);
+			R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, (const vec4_t*)colours, shader_polyblend);
 		}
 	}
 

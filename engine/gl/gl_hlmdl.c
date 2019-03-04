@@ -1020,7 +1020,7 @@ qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestat
 		{
 			/* If we have a parent, take the addition. Otherwise just copy the values */
 			if(hm->bones[b].parent>=0)
-				R_ConcatTransforms(transform_matrix[hm->bones[b].parent], (void*)(relbones+b*12), transform_matrix[b]);
+				R_ConcatTransforms((void*)transform_matrix[hm->bones[b].parent], (void*)(relbones+b*12), transform_matrix[b]);
 			else if (axis)
 				R_ConcatTransformsAxis(axis, (void*)(relbones+b*12), transform_matrix[b]);
 			else
@@ -1174,7 +1174,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 				/* If we have a parent, take the addition. Otherwise just copy the values */
 				if(model->bones[b].parent>=0)
 				{
-					R_ConcatTransforms(transform_matrix[model->bones[b].parent], (void*)(curent->framestate.bonestate+b*12), transform_matrix[b]);
+					R_ConcatTransforms((void*)transform_matrix[model->bones[b].parent], (void*)(curent->framestate.bonestate+b*12), transform_matrix[b]);
 				}
 				else
 				{
@@ -1217,7 +1217,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 			/* If we have a parent, take the addition. Otherwise just copy the values */
 			if(model->bones[b].parent>=0)
 			{
-				R_ConcatTransforms(transform_matrix[model->bones[b].parent], (void*)(relatives+b*12), transform_matrix[b]);
+				R_ConcatTransforms((void*)transform_matrix[model->bones[b].parent], (void*)(relatives+b*12), transform_matrix[b]);
 			}
 			else
 			{
@@ -1447,9 +1447,9 @@ void HLMDL_DrawHitBoxes(entity_t *rent)
 	{
 		//If we have a parent, take the addition. Otherwise just copy the values
 		if(model->bones[b].parent>=0)
-			R_ConcatTransforms(transform_matrix[model->bones[b].parent], (void*)(relbones+b*12), transform_matrix[b]);
+			R_ConcatTransforms((void*)transform_matrix[model->bones[b].parent], (void*)(relbones+b*12), transform_matrix[b]);
 		else
-			R_ConcatTransforms(entitymatrix, (void*)(relbones+b*12), transform_matrix[b]);
+			R_ConcatTransforms((void*)entitymatrix, (void*)(relbones+b*12), transform_matrix[b]);
 	}
 
 	for (b = 0; b < model->header->num_hitboxes; b++, hitbox++)

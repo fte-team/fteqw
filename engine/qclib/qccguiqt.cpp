@@ -395,6 +395,7 @@ public:
 		if (c)
 			return;	//already in there.
 
+		beginResetModel();
 		c = new filenode_s();
 		c->name = strdup(filename);
 		c->parent = p;
@@ -402,6 +403,7 @@ public:
 		p->children = cpprealloc(p->children, sizeof(*p->children)*(p->numchildren+1));
 		p->children[p->numchildren] = c;
 		p->numchildren++;
+		endResetModel();
 	}
 };
 
@@ -925,6 +927,29 @@ public:
 		return ret;
 	}
 
+	bool annotate(const char *line)
+	{
+		auto filename = line+6;
+		auto filenameend = strchr(filename, ':');
+		if (!filenameend) return false;
+		auto linenum = atoi(filenameend+1);
+		line = strchr(filenameend+1, ':')+1;
+		if (!line) return false;
+		if (strncmp(curdoc->fname, filename, filenameend-filename) || curdoc->fname[filenameend-filename])
+		{
+			auto d = FindFile(filename);
+			if (d)
+			{
+				curdoc = d;
+				s->setDocument(d->doc);
+			}
+			else
+				return false;	//some other file that we're not interested in
+		}
+
+		s->annotate(linenum-1, s->annotation(linenum) + line + "\n", 0);
+		return true;
+	}
 
 	bool saveDocument(document_s *d)
 	{
@@ -1848,7 +1873,12 @@ int GUIprintf(const char *msg, ...)
 			QString s = l.mid(0, idx);
 			l = l.mid(idx+1);
 
-			if (s.contains(": error") || s.contains(": werror") || !s.mid(0,5).compare("error", Qt::CaseInsensitive))
+			if (!s.mid(0, 6).compare("code: "))
+			{
+				mainwnd->docs.annotate(s.toUtf8().data());
+				continue;
+			}
+			else if (s.contains(": error") || s.contains(": werror") || !s.mid(0,5).compare("error", Qt::CaseInsensitive))
 				mainwnd->log.setTextColor(QColor(255, 0, 0));
 			else if (s.contains(": warning"))
 				mainwnd->log.setTextColor(QColor(128, 128, 0));
@@ -1892,7 +1922,6 @@ void documentlist::EditFile(document_s *c, const char *filename, int linenum, bo
 		if (!CreateDocument(c))
 		{
 			delete(c);
-			numdocuments--;
 			return;
 		}
 

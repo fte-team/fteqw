@@ -4270,6 +4270,70 @@ QCC_statement_t *QCC_PR_SimpleStatement ( QCC_opcode_t *op, QCC_sref_t var_a, QC
 }
 
 /*
+	Removes trailing statements, rewinding back to a known-safe position.
+*/
+void QCC_UngenerateStatements(int newstatementcount)
+{
+	int i;
+
+	//forget any indexes to statements if those statements are going to go away...
+	for (i = 0; i < num_gotos; )
+	{
+		if (pr_gotos[i].statementno >= newstatementcount)
+		{
+			memmove(&pr_gotos[i], &pr_gotos[i+1], sizeof(*pr_gotos)*(num_gotos-(i+1)));
+			num_gotos--;
+		}
+		else
+			i++;
+	}
+	for (i = 0; i < num_labels; )
+	{	//FIXME: stripping a label? erk?
+		if (pr_labels[i].statementno >= newstatementcount)
+		{
+			memmove(&pr_labels[i], &pr_labels[i+1], sizeof(*pr_labels)*(num_labels-(i+1)));
+			num_labels--;
+		}
+		else
+			i++;
+	}
+	for (i = 0; i < num_breaks; )
+	{
+		if (pr_breaks[i] >= newstatementcount)
+		{
+			memmove(&pr_breaks[i], &pr_breaks[i+1], sizeof(*pr_breaks)*(num_breaks-(i+1)));
+			num_breaks--;
+		}
+		else
+			i++;
+	}
+	for (i = 0; i < num_continues; )
+	{
+		if (pr_continues[i] >= newstatementcount)
+		{
+			memmove(&pr_continues[i], &pr_continues[i+1], sizeof(*pr_continues)*(num_continues-(i+1)));
+			num_continues--;
+		}
+		else
+			i++;
+	}
+	for (i = 0; i < num_cases; )
+	{
+		if (pr_cases[i] >= newstatementcount)
+		{
+			memmove(&pr_cases[i], &pr_cases[i+1], sizeof(*pr_cases)*(num_cases-(i+1)));
+			memmove(&pr_casesref[i], &pr_casesref[i+1], sizeof(*pr_casesref)*(num_cases-(i+1)));
+			memmove(&pr_casesref2[i], &pr_casesref2[i+1], sizeof(*pr_casesref2)*(num_cases-(i+1)));
+			num_cases--;
+		}
+		else
+			i++;
+	}
+
+	numstatements = newstatementcount;
+}
+
+/*
 ============
 PR_ParseImmediate
 
@@ -5363,7 +5427,7 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 	}
 
 	if (!ctx.result.cast)
-		numstatements = statements;	//on failure, remove the extra statements
+		QCC_UngenerateStatements(statements);
 	else
 	{	//on success, make sure the args were freed
 		while (argcount-->0)
@@ -11071,7 +11135,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_ParseStatement ();
 		if (striptruth && oldlab == num_labels)
 		{
-			numstatements = oldnumst;
+			QCC_UngenerateStatements(oldnumst);
 			patch1 = NULL;
 		}
 		else
@@ -11096,7 +11160,7 @@ void QCC_PR_ParseStatement (void)
 				if (stripfalse && oldlab == num_labels)
 				{
 					patch2 = NULL;
-					numstatements = oldnumst;
+					QCC_UngenerateStatements(oldnumst);
 
 					if (patch1)
 						patch1->b.ofs = &statements[numstatements] - patch1;
@@ -11118,7 +11182,7 @@ void QCC_PR_ParseStatement (void)
 				if (stripfalse && oldlab == num_labels)
 				{
 					patch2 = NULL;
-					numstatements = oldnumst;
+					QCC_UngenerateStatements(oldnumst);
 
 					if (patch1)
 						patch1->b.ofs = &statements[numstatements] - patch1;
@@ -13231,7 +13295,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	{	//FIXME: should probably always take this path, but kinda pointless until we have relocs for defs
 		QCC_RemapLockedTemps(f->code, numstatements);
 		QCC_Marshal_Locals(f->code, numstatements);
-		QCC_WriteAsmFunction(f, f->code, f->firstlocal);	//FIXME: this will print the entire function, not just the part that we added. and we'll print it all again later, too. should probably make it a function attribute that we check at the end.
+//		QCC_WriteAsmFunction(f, f->code, f->firstlocal);	//FIXME: this will print the entire function, not just the part that we added. and we'll print it all again later, too. should probably make it a function attribute that we check at the end.
 
 		f->numstatements = numstatements - f->code;
 		f->statements = qccHunkAlloc(sizeof(*statements)*f->numstatements);

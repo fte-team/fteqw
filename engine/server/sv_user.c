@@ -3588,7 +3588,9 @@ void SV_BeginDownload_f(void)
 		}
 		if (ISNQCLIENT(host_client))
 			host_client->send_message = true;
+#ifndef NOLEGACY
 		SV_DownloadQueueNext(host_client);
+#endif
 		return;
 	}
 

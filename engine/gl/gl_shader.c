@@ -2901,13 +2901,14 @@ static void Shaderpass_ClampMap (parsestate_t *ps, char **ptr)
 
 static void Shaderpass_VideoMap (parsestate_t *ps, char **ptr)
 {
-	shader_t *shader = ps->s;
-	shaderpass_t *pass = ps->pass;
 	char		*token = Shader_ParseSensString (ptr);
 
 #ifndef HAVE_MEDIA_DECODER
 	(void)token;
 #else
+	shader_t *shader = ps->s;
+	shaderpass_t *pass = ps->pass;
+
 	if (pass->cin)
 		Z_Free (pass->cin);
 

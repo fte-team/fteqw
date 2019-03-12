@@ -370,6 +370,7 @@ void COM_AssertMainThread(const char *msg);
 #else
 #define com_workererror false
 #define COM_AddWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
+#define COM_InsertWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_WorkerPartialSync(c,a,v)
 #define COM_WorkerFullSync()
 #define COM_HasWork() false

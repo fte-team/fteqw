@@ -283,7 +283,7 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 	HANDLE r;
 	WIN32_FIND_DATAA fd;	
 	char apath[MAX_OSPATH];
-	char file[MAX_OSPATH];
+	char file[MAX_OSPATH+MAX_PATH];
 	char *s;
 	int go;
 	strcpy(apath, match);

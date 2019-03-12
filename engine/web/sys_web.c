@@ -24,6 +24,7 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string, sizeof (string), error, argptr);
 	va_end (argptr);
+	COM_WorkerAbort(string);
 	Sys_Printf("Error: %s\n", string);
 
 	Con_Print ("Quake Error: ");

@@ -190,6 +190,7 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
+	COM_WorkerAbort(string);
 	printf ("Fatal error: %s\n",string);
 
 	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);

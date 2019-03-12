@@ -422,6 +422,9 @@ void Sys_Error (const char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
+
+	COM_WorkerAbort(string);
+
 	fprintf(stderr, "Error: %s\n", string);
 
 	Host_Shutdown ();

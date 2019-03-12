@@ -35,6 +35,8 @@ unsigned int Sys_Milliseconds (void)
 
 NORETURN void VARGS Sys_Error (const char *error, ...)
 {
+	COM_WorkerAbort(error);
+
 	//FIXME: panic! everyone panic!
 	//you might want to figure out some way to display the message...
 	for(;;)

@@ -291,6 +291,7 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
 	struct hlmodelshaders_s
 	{
 		char name[MAX_QPATH];
+		char *defaultshadertext;
 		texnums_t defaulttex;
 		shader_t *shader;
 		int w, h;

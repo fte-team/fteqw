@@ -336,18 +336,13 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 				shader = HLSHADER_CHROME;
 			else
 				shader = "";
-			shaders[i].shader = R_RegisterShader(shaders[i].name, SUF_NONE, shader);
-			shaders[i].shader->defaulttextures->base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
-			shaders[i].shader->width = tex[i].w;
-			shaders[i].shader->height = tex[i].h;
+			shaders[i].defaultshadertext = shader;
 		}
-		else
-		{
-			memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
-			shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
-			shaders[i].w = tex[i].w;
-			shaders[i].h = tex[i].h;
-		}
+		shaders[i].defaultshadertext = NULL;
+		memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
+		shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+		shaders[i].w = tex[i].w;
+		shaders[i].h = tex[i].h;
 	}
 
 	model->numskinrefs = texheader->skinrefs;
@@ -1320,7 +1315,10 @@ static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 
 				if (!s->shader)
 				{
-					s->shader = R_RegisterSkin(s->name, rent->model->name);
+					if (s->defaultshadertext)
+						s->shader = R_RegisterShader(s->name, SUF_NONE, s->defaultshadertext);
+					else
+						s->shader = R_RegisterSkin(s->name, rent->model->name);
 					R_BuildDefaultTexnums(&s->defaulttex, s->shader, 0);
 				}
 				b->skin = NULL;

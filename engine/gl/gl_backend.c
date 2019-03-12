@@ -769,7 +769,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 					continue;
 				}
 				GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
-				qglVertexAttribPointer(VATTR_BONENUMS, 4, GL_UNSIGNED_BYTE, GL_FALSE, 0, shaderstate.sourcevbo->bonenums.gl.addr);
+				qglVertexAttribPointer(VATTR_BONENUMS, 4, GL_BONE_INDEX_TYPE, GL_FALSE, 0, shaderstate.sourcevbo->bonenums.gl.addr);
 				break;
 			case VATTR_BONEWEIGHTS:
 				if (!shaderstate.sourcevbo->boneweights.gl.vbo && !shaderstate.sourcevbo->boneweights.gl.addr)
@@ -1418,12 +1418,12 @@ static float *FTableForFunc ( unsigned int func )
 	}
 }
 
-void Shader_LightPass(const char *shortname, shader_t *s, const void *args)
+void Shader_LightPass(struct shaderparsestate_s *ps, const char *shortname, const void *args)
 {
 	char shadertext[8192*2];
 	extern cvar_t r_drawflat;
 	sprintf(shadertext, LIGHTPASS_SHADER, (r_lightmap.ival||r_drawflat.ival)?"#FLAT=1.0":"");
-	Shader_DefaultScript(shortname, s, shadertext);
+	Shader_DefaultScript(ps, shortname, shadertext);
 }
 
 void GenerateFogTexture(texid_t *tex, float density, float zscale)
@@ -3403,6 +3403,9 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 	int i;
 	unsigned int ph;
 	const shaderprogparm_t *p;
+
+	if (perm->factorsuniform != -1)
+		qglUniform4fvARB(perm->factorsuniform, countof(shaderstate.curshader->factors), shaderstate.curshader->factors[0]);
 
 	/*don't bother setting it if the ent properties are unchanged (but do if the mesh changed)*/
 	if (entunchanged)

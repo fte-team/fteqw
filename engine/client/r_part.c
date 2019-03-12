@@ -892,6 +892,7 @@ float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int 
 	int i;
 	vec3_t ts, te;
 	physent_t *pe;
+	model_t *mod;
 	int result=0;
 	vec3_t axis[3];
 
@@ -906,7 +907,8 @@ float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int 
 		pe = &pmove.physents[i];
 		if (pe->nonsolid)
 			continue;
-		if (pe->model && pe->model->loadstate == MLS_LOADED)
+		mod = pe->model;
+		if (mod && mod->loadstate == MLS_LOADED && mod->funcs.NativeTrace)
 		{
 			VectorSubtract(start, pe->origin, ts);
 			VectorSubtract(end, pe->origin, te);
@@ -914,10 +916,10 @@ float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int 
 			{
 				AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
 				VectorNegate(axis[1], axis[1]);
-				pe->model->funcs.NativeTrace(pe->model, 0, PE_FRAMESTATE, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+				mod->funcs.NativeTrace(mod, 0, PE_FRAMESTATE, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			}
 			else
-				pe->model->funcs.NativeTrace(pe->model, 0, PE_FRAMESTATE, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+				mod->funcs.NativeTrace(mod, 0, PE_FRAMESTATE, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			if (trace.fraction<1)
 			{
 				if (bestfrac > trace.fraction)

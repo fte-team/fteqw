@@ -5272,6 +5272,41 @@ static void CL_UpdateUserinfo (void)
 	}
 }
 
+static void CL_ParseSetInfoBlob (void)
+{
+	qbyte slot = MSG_ReadByte();
+	char *key = MSG_ReadString();
+	size_t keysize;
+	unsigned int offset = MSG_ReadLong();
+	qboolean final = !!(offset & 0x80000000);
+	unsigned short valsize = MSG_ReadShort();
+	char *val = BZ_Malloc(valsize);
+	MSG_ReadData(val, valsize);
+	offset &= ~0x80000000;
+	key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
+
+	if (slot-- == 0)
+		InfoBuf_SyncReceive(&cl.serverinfo, key, keysize, val, valsize, offset, final);
+	else if (slot >= MAX_CLIENTS)
+		Con_Printf("INVALID SETINFO %i: %s=%s\n", slot, key, val);
+	else
+	{
+		player_info_t *player = &cl.players[slot];
+		if (offset)
+			Con_DLPrintf(2,"SETINFO %s: %s+=%s\n", player->name, key, val);
+		else
+			Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
+
+		InfoBuf_SyncReceive(&player->userinfo, key, keysize, val, valsize, offset, final);
+		player->userinfovalid = true;
+
+		if (final)
+			CL_ProcessUserInfo (slot, player);
+	}
+
+	Z_Free(key);
+	Z_Free(val);
+}
 /*
 ==============
 CL_SetInfo
@@ -5281,67 +5316,27 @@ static void CL_ParseSetInfo (void)
 {
 	int		slot;
 	player_info_t	*player;
-	char *temp;
-	char *key;
 	char *val;
-	unsigned int offset;
-	qboolean final;
-	size_t keysize;
-	size_t valsize;
+	char key[512];
 
 	slot = MSG_ReadByte ();
 
-	if (slot == 255 && (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS))
-	{
-		slot = MSG_ReadByte();
-		offset = MSG_ReadLong();
-		final = !!(offset & 0x80000000);
-		offset &= ~0x80000000;
-	}
-	else
-	{
-		final = true;
-		offset = 0;
-	}
+	MSG_ReadStringBuffer(key, sizeof(key));
+	val = MSG_ReadString();
 
-	temp = MSG_ReadString();
-	if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
-		key = InfoBuf_DecodeString(temp, temp+strlen(temp), &keysize);
-	else
-	{
-		keysize = strlen(temp);
-		key = Z_StrDup(temp);
-	}
-
-	temp = MSG_ReadString();
-	if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
-		val = InfoBuf_DecodeString(temp, temp+strlen(temp), &valsize);
-	else
-	{
-		valsize = strlen(temp);
-		val = Z_StrDup(temp);
-	}
-
-	if (slot == 255)
-		InfoBuf_SyncReceive(&cl.serverinfo, key, keysize, val, valsize, offset, final);
-	else if (slot >= MAX_CLIENTS)
+	if (slot >= MAX_CLIENTS)
 		Con_Printf("INVALID SETINFO %i: %s=%s\n", slot, key, val);
 	else
 	{
 		player = &cl.players[slot];
 
-		if (offset)
-			Con_DLPrintf(2,"SETINFO %s: %s+=%s\n", player->name, key, val);
-		else
-			Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
+		Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
 
-		InfoBuf_SyncReceive(&player->userinfo, key, keysize, val, valsize, offset, final);
+		InfoBuf_SetStarKey(&player->userinfo, key, val);
 		player->userinfovalid = true;
 
 		CL_ProcessUserInfo (slot, player);
 	}
-	Z_Free(key);
-	Z_Free(val);
 }
 
 /*
@@ -7160,9 +7155,11 @@ void CLQW_ParseServerMessage (void)
 		case svc_setinfo:
 			CL_ParseSetInfo ();
 			break;
-
 		case svc_serverinfo:
 			CL_ServerInfo ();
+			break;
+		case svcfte_setinfoblob:
+			CL_ParseSetInfoBlob();
 			break;
 
 		case svc_download:

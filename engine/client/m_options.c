@@ -3254,7 +3254,6 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	VectorScale(fwd, -mods->dist, r_refdef.vieworg);
 
 	memset(&ent, 0, sizeof(ent));
-	ent.scale = 1;
 //	ent.angles[1] = realtime*45;//mods->yaw;
 //	ent.angles[0] = realtime*23.4;//mods->pitch;
 
@@ -3266,8 +3265,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.model = Mod_ForName(mods->modelname, MLV_WARN);
 	if (!ent.model)
 		return;	//panic!
-	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+	ent.scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
+	ent.scale = ent.scale?64.0/ent.scale:1;
+	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5;// + ent.model->mins[2];
+	ent.origin[2] *= ent.scale;
 	Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+	VectorSet(ent.glowmod, 1, 1, 1);
+
+//	VectorScale(ent.axis[0], ent.scale, ent.axis[0]);
+//	VectorScale(ent.axis[1], ent.scale, ent.axis[1]);
+//	VectorScale(ent.axis[2], ent.scale, ent.axis[2]);
+//	ent.scale = 1;
+
 	if (strstr(mods->modelname, "player"))
 	{
 		ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
@@ -3311,6 +3320,9 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		VectorCopy(tr.endpos, lightpos);
 	}
 */
+	lightpos[0] = sin(realtime*0.1);
+	lightpos[1] = cos(realtime*0.1);
+	lightpos[2] = 0;
 
 	VectorNormalize(lightpos);
 	ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);
@@ -3619,12 +3631,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 						"body: %i\n"
 						"geomset: %i %i%s\n"
 						"numverts: %i\nnumtris: %i\n"
+						"numbones: %i\n"
 						, ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
 						contents,
 						inf->csurface.flags,
 						inf->surfaceid,
 						inf->geomset>=MAX_GEOMSETS?-1:inf->geomset, inf->geomid, inf->geomset>=MAX_GEOMSETS?" (always)":"",
-						inf->numverts, inf->numindexes/3
+						inf->numverts, inf->numindexes/3,
+						inf->numbones
 						)
 					, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 			}
@@ -3709,7 +3723,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 					shader->defaulttextures->base = skin->upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb
 					break;
 				case 4:
-					t = "LopwerMap";
+					t = "LowerMap";
 					shader->defaulttextures->base = skin->loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb
 					break;
 				case 5:

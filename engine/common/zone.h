@@ -133,7 +133,7 @@ void ZG_FreeGroup(zonegroup_t *ctx);
 #endif
 #define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
 
-void Z_StrCat(char **ptr, char *append);
+void Z_StrCat(char **ptr, const char *append);
 
 /*
 void *Hunk_Alloc (int size);		// returns 0 filled memory

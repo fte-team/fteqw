@@ -1922,7 +1922,7 @@ static void CL_SendUserinfoUpdate(void)
 	size_t bloboffset = cls.userinfosync.keys[0].syncpos;
 	unsigned int seat = info - cls.userinfo;
 	size_t blobsize;
-	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize);
+	const char *blobdata = InfoBuf_BlobForKey(info, key, &blobsize, NULL);
 	size_t sendsize = blobsize - bloboffset;
 
 	const char *s;

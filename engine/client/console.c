@@ -2975,7 +2975,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 				playerview_t pv;
 				entity_t ent;
 				vec3_t fwd, rgt, up;
-				vec3_t lightpos = {0, 1, 0};
+				vec3_t lightpos = {1, 1, 0};
+				float transforms[12];
+				float scale;
 
 				if (R2D_Flush)
 					R2D_Flush();
@@ -3003,15 +3005,14 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 				VectorClear(r_refdef.viewangles);
 				r_refdef.viewangles[0] = 20;
-				r_refdef.viewangles[1] = realtime * 90;
+			//	r_refdef.viewangles[1] = realtime * 90;
 				AngleVectors(r_refdef.viewangles, fwd, rgt, up);
 				VectorScale(fwd, -64, r_refdef.vieworg);
 
 				memset(&ent, 0, sizeof(ent));
 				ent.scale = 1;
-			//	ent.angles[1] = realtime*45;//mods->yaw;
+				ent.angles[1] = realtime*90;//mods->yaw;
 			//	ent.angles[0] = realtime*23.4;//mods->pitch;
-
 				ent.angles[0]*=r_meshpitch.value;
 				AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 				ent.angles[0]*=r_meshpitch.value;
@@ -3020,8 +3021,16 @@ void Con_DrawConsole (int lines, qboolean noback)
 				ent.model = model;
 				if (!ent.model)
 					return;	//panic!
+				//ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+
+				ent.scale = 1;
+				scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
+				scale = scale?64.0/scale:1;
 				ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
 				Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+				VectorScale(ent.axis[0], scale, ent.axis[0]);
+				VectorScale(ent.axis[1], scale, ent.axis[1]);
+				VectorScale(ent.axis[2], scale, ent.axis[2]);
 				/*if (strstr(model->name, "player"))
 				{
 					ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
@@ -3042,10 +3051,48 @@ void Con_DrawConsole (int lines, qboolean noback)
 				ent.framestate.g[FS_REG].endbone = 0x7fffffff;
 //				ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
 
+				VectorSet(ent.glowmod, 1,1,1);
 				ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
 				ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
 
 				V_ApplyRefdef();
+
+				if (ent.model->camerabone>0 && Mod_GetTag(ent.model, ent.model->camerabone, &ent.framestate, transforms))
+				{
+					VectorClear(ent.origin);
+					ent.angles[0]*=r_meshpitch.value;
+					AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+					ent.angles[0]*=r_meshpitch.value;
+					VectorInverse(ent.axis[1]);
+					scale = 1;
+					{
+						vec3_t fwd, up;
+						float camera[12], et[12] = {
+							ent.axis[0][0], ent.axis[1][0], ent.axis[2][0], ent.origin[0],
+							ent.axis[0][1], ent.axis[1][1], ent.axis[2][1], ent.origin[1],
+							ent.axis[0][2], ent.axis[1][2], ent.axis[2][2], ent.origin[2],
+							};
+
+						R_ConcatTransforms((void*)et, (void*)transforms, (void*)camera);
+						VectorSet(fwd, camera[2], camera[6], camera[10]);
+						VectorNegate(fwd, fwd);
+						VectorSet(up, camera[1], camera[5], camera[9]);
+						VectorSet(r_refdef.vieworg, camera[3], camera[7], camera[11]);
+						VectorAngles(fwd, up, r_refdef.viewangles, false);
+					}
+				}
+				else
+				{
+					ent.angles[1] = realtime*90;//mods->yaw;
+					ent.angles[0]*=r_meshpitch.value;
+					AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+					ent.angles[0]*=r_meshpitch.value;
+					VectorScale(ent.axis[0], scale, ent.axis[0]);
+					VectorScale(ent.axis[1], -scale, ent.axis[1]);
+					VectorScale(ent.axis[2], scale, ent.axis[2]);
+				}
+
+				ent.scale = scale;
 
 				VectorNormalize(lightpos);
 				ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);

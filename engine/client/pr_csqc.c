@@ -1544,30 +1544,6 @@ static void CSQC_PolyFlush(void)
 	csqc_poly_shader = NULL;
 }
 
-static void Shader_PolygonShader(const char *shortname, shader_t *s, const void *args)
-{
-	Shader_DefaultScript(shortname, s,
-		"{\n"
-			"if $lpp\n"
-				"program lpp_skin\n"
-			"else\n"
-				"program defaultskin#NONORMALS\n"
-			"endif\n"
-			"{\n"
-				"map $diffuse\n"
-				"rgbgen vertex\n"
-				"alphagen vertex\n"
-			"}\n"
-			"{\n"
-				"map $fullbright\n"
-				"blendfunc add\n"
-			"}\n"
-		"}\n"
-		);
-
-	if (!s->defaulttextures->base && (s->flags & SHADER_HASDIFFUSE))
-		R_BuildDefaultTexnums(NULL, s, 0);
-}
 static shader_t *PR_R_PolygonShader(const char *shadername, qboolean twod)
 {
 	extern shader_t *shader_draw_fill_trans;
@@ -3961,7 +3937,7 @@ static void QCBUILTIN PF_cs_serverkeyblob (pubprogfuncs_t *prinst, struct global
 	}
 	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
 
-	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize);
+	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize, NULL);
 
 	if (qcptr)
 	{
@@ -4054,7 +4030,7 @@ static void QCBUILTIN PF_cs_getplayerkeyblob (pubprogfuncs_t *prinst, struct glo
 	else
 	{
 		size_t blobsize = 0;
-		const char *blob = InfoBuf_BlobForKey(&cl.players[pnum].userinfo, keyname, &blobsize);
+		const char *blob = InfoBuf_BlobForKey(&cl.players[pnum].userinfo, keyname, &blobsize, NULL);
 
 		if (qcptr)
 		{

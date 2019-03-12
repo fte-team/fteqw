@@ -117,8 +117,8 @@ extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
-cvar_t sv_maxrate			= CVARCD("sv_maxrate", "50k", CvarPostfixKMG, "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
-cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500k",
+cvar_t sv_maxrate			= CVARCD("sv_maxrate", "50000", CvarPostfixKMG, "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
+cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500000",
 									"sv_maxdownloadrate", 0, CvarPostfixKMG, "This cvar controls the maximum number of bytes sent to each player per second while that player is downloading.\nIf this cvar is set to 0, there will be NO CAP for download rates (if the user's drate is empty/0 too, then expect really fast+abusive downloads that could potentially be considered denial of service attacks)");
 cvar_t sv_minping			= CVARFD("sv_minping", "", CVAR_SERVERINFO, "Simulate fake lag for any players with a ping under the value specified here. Value is in milliseconds.");
 
@@ -619,6 +619,9 @@ void SV_DropClient (client_t *drop)
 			Con_TPrintf ("Client \"%s\" removed\n",drop->name);
 	}
 
+#ifndef NOLEGACY
+	SV_DownloadQueueClear(drop);
+#endif
 	if (drop->download)
 	{
 		VFS_CLOSE (drop->download);
@@ -5456,7 +5459,7 @@ into a more C freindly form.
 */
 void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 {
-	char	*val, *p;
+	const char	*val, *p;
 	int		i;
 	client_t	*client;
 	int		dupc = 1;
@@ -5464,6 +5467,8 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 #ifdef SVRANKING
 	extern cvar_t rank_filename;
 #endif
+	size_t blobsize;
+	qboolean large;
 
 	int bottom = atoi(InfoBuf_ValueForKey(&cl->userinfo, "bottomcolor"));
 
@@ -5481,16 +5486,19 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 
 	// name for C code
-	val = InfoBuf_ValueForKey (&cl->userinfo, "name");
-
-	if (cl->protocol != SCP_BAD || *val)
+	val = InfoBuf_BlobForKey (&cl->userinfo, "name", &blobsize, &large);
+	if (!val)
+		val = "";
+	//we block large names here because a) they're unwieldly. b) they might cause players to be invisible to older clients/server browsers/etc.
+	//bots with no name skip the fixup, to avoid default names(they're expected to be given a name eventually, so are allowed to be invisible for now)
+	if (large || (cl->protocol == SCP_BAD && !*val))
+		newname[0] = 0;
+	else
 	{
 		SV_FixupName(val, newname, sizeof(newname));
 		if (strlen(newname) > 40)
 			newname[40] = 0;
 	}
-	else
-		newname[0] = 0;
 
 	deleetstring(basic, newname);
 	if (cl->protocol != SCP_BAD)

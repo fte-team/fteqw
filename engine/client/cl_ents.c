@@ -3612,7 +3612,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					VectorCopy(snew->angles, le->newangle);
 
 					//fixme: should be oldservertime
-					le->orglerpdeltatime = servertime-le->orglerpstarttime;
+					le->orglerpdeltatime = bound(0.001, servertime-le->orglerpstarttime, cl_lerp_maxinterval.value);
 					le->orglerpstarttime = servertime;
 				}
 

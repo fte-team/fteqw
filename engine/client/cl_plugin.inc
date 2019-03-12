@@ -1253,7 +1253,9 @@ static qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mas
 #endif
 		NULL,
 		Image_GetTexture,
-		FS_OpenVFS
+		FS_OpenVFS,
+		Mod_AccumulateTextureVectors,
+		Mod_NormaliseTextureVectors,
 	};
 	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;

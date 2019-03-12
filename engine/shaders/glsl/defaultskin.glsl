@@ -18,8 +18,11 @@
 //!!permu OFFSETMAPPING	// auto-added when r_glsl_offsetmapping is set
 //!!permu NONORMALS		// states that there's no normals available, which affects lighting.
 //!!permu ORM			// specularmap is r:Occlusion, g:Roughness, b:Metalness
-//!!permu F0R			// specularmap is rgb:F0, a:Roughness (instead of exponent)
-//!!permu PBR			// an attempt at pbr logic
+//!!permu SG			// specularmap is rgb:F0, a:Roughness (instead of exponent)
+//!!permu PBR			// an attempt at pbr logic (enabled from ORM or SG)
+//!!permu NOOCCLUDE		// ignores the use of ORM's occlusion... yeah, stupid.
+//!!permu EIGHTBIT		// uses software-style paletted colourmap lookups
+//!!permu ALPHATEST		// if defined, this is the required alpha level (more versatile than doing it at the q3shader level)
 
 #include "sys/defs.h"
 
@@ -33,6 +36,9 @@
 #define affine
 #endif
 
+#if defined(ORM) || defined(SG)
+	#define PBR
+#endif
 
 #ifdef NONORMALS	//lots of things need normals to work properly. make sure nothing breaks simply because they added an extra texture.
 	#undef BUMP
@@ -40,7 +46,6 @@
 	#undef OFFSETMAPPING
 	#undef REFLECTCUBEMASK
 #endif
-
 
 
 
@@ -53,7 +58,7 @@ varying vec4 light;
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
 #endif
-#ifdef REFLECTCUBEMASK
+#if defined(PBR)||defined(REFLECTCUBEMASK)
 	varying mat3 invsurface;
 #endif
 #ifdef TESS
@@ -73,22 +78,28 @@ void main ()
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	n = normalize(n);
-	float d = dot(n,e_light_dir);
-	if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
-		d = 0.0;	//this avoids the dark side going below the ambient level.
-	light.rgb += (d*e_light_mul);
+	s = normalize(s);
+	t = normalize(t);
+	#ifndef PBR
+		float d = dot(n,e_light_dir);
+		if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
+			d = 0.0;	//this avoids the dark side going below the ambient level.
+		light.rgb += (d*e_light_mul);
+	#else
+		light.rgb = vec3(1.0);
+	#endif
 #endif
 
-#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(PBR)
+	eyevector = e_eyepos - w.xyz;
+#elif defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #endif
-#ifdef REFLECTCUBEMASK
-	invsurface[0] = s;
-	invsurface[1] = t;
-	invsurface[2] = n;
+#if defined(PBR) || defined(REFLECTCUBEMASK)
+	invsurface = mat3(s, t, n);
 #endif
 
 	tc = v_texcoord;
@@ -241,8 +252,37 @@ varying vec4 light;
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
 #endif
-#ifdef REFLECTCUBEMASK
+#if defined(PBR) || defined(REFLECTCUBEMASK)
 	varying mat3 invsurface;
+#endif
+
+#ifdef PBR
+#include "sys/pbr.h"
+#if 0
+vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
+{
+    float mipCount = 9.0; // resolution of 512x512
+    float lod = (pbrInputs.perceptualRoughness * mipCount);
+    // retrieve a scale and bias to F0. See [1], Figure 3
+    vec3 brdf = texture2D(u_brdfLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness)).rgb;
+    vec3 diffuseLight = textureCube(u_DiffuseEnvSampler, n).rgb;
+
+#ifdef USE_TEX_LOD
+    vec3 specularLight = textureCubeLodEXT(u_SpecularEnvSampler, reflection, lod).rgb;
+#else
+    vec3 specularLight = textureCube(u_SpecularEnvSampler, reflection).rgb;
+#endif
+
+    vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
+    vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
+
+    // For presentation, this allows us to disable IBL terms
+    diffuse *= u_ScaleIBLAmbient.x;
+    specular *= u_ScaleIBLAmbient.y;
+
+    return diffuse + specular;
+}
+#endif
 #endif
 
 
@@ -276,31 +316,85 @@ void main ()
 		col.rgb += lc.rgb*e_lowercolour*lc.a;
 	#endif
 
-	#if defined(BUMP) && defined(SPECULAR)
-		vec3 bumps = normalize(vec3(texture2D(s_normalmap, tc)) - 0.5);
-		vec4 specs = texture2D(s_specular, tc);
+	col *= factor_base;
 
-		vec3 halfdir = normalize(normalize(eyevector) + e_light_dir);
-		float spec = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * specs.a);
-		col.rgb += FTE_SPECULAR_MULTIPLIER * spec * specs.rgb;
-	#elif defined(REFLECTCUBEMASK)
-		vec3 bumps = vec3(0, 0, 1);
+	#define dielectricSpecular 0.04
+	#ifdef SPECULAR
+		vec4 specs = texture2D(s_specular, tc)*factor_spec;
+		#ifdef ORM
+			#define occlusion specs.r
+			#define roughness clamp(specs.g, 0.04, 1.0)
+			#define metalness specs.b
+			#define gloss 1.0 //sqrt(1.0-roughness)
+			#define ambientrgb (specrgb+col.rgb)
+			vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);
+			col.rgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);
+		#elif defined(SG) //pbr-style specular+glossiness
+			//occlusion needs to be baked in. :(
+			#define roughness (1.0-specs.a)
+			#define gloss (specs.a)
+			#define specrgb specs.rgb
+			#define ambientrgb (specs.rgb+col.rgb)
+		#else	//blinn-phong
+			#define roughness (1.0-specs.a)
+			#define gloss specs.a
+			#define specrgb specs.rgb
+			#define ambientrgb col.rgb
+		#endif
+	#else
+		#define roughness 0.3
+		#define specrgb 1.0 //vec3(dielectricSpecular)
+	#endif
+
+	#ifdef BUMP
+		#ifdef PBR	//to modelspace
+			vec3 bumps = normalize(invsurface * (texture2D(s_normalmap, tc).rgb*2.0 - 1.0));
+		#else	//stay in tangentspace
+			vec3 bumps = normalize(vec3(texture2D(s_normalmap, tc)) - 0.5);
+		#endif
+	#else
+		#ifdef PBR	//to modelspace
+			#define bumps normalize(invsurface[2])
+		#else	//tangent space
+			#define bumps vec3(0.0, 0.0, 1.0)
+		#endif
+	#endif
+
+	#ifdef PBR
+		//move everything to model space
+		col.rgb = DoPBR(bumps, normalize(eyevector), -e_light_dir, roughness, col.rgb, specrgb, vec3(0.0,1.0,1.0))*e_light_mul + e_light_ambient*.25*ambientrgb;
+	#elif defined(gloss)
+		vec3 halfdir = normalize(normalize(eyevector) - e_light_dir);
+		float specmag = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * gloss);
+		col.rgb += FTE_SPECULAR_MULTIPLIER * specmag * specrgb;
 	#endif
 
 	#ifdef REFLECTCUBEMASK
 		vec3 rtc = reflect(-eyevector, bumps);
-		rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
+		#ifndef PBR
+			rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
+		#endif
 		rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
 		col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
 	#endif
 
+#if defined(occlusion) && !defined(NOOCCLUDE)
+	col.rgb *= occlusion;
+#endif
 	col *= light * e_colourident;
 
 	#ifdef FULLBRIGHT
 		vec4 fb = texture2D(s_fullbright, tc);
 //		col.rgb = mix(col.rgb, fb.rgb, fb.a);
-		col.rgb += fb.rgb * fb.a * e_glowmod.rgb;
+		col.rgb += fb.rgb * fb.a * e_glowmod.rgb * factor_emit.rgb;
+	#elif defined(PBR)
+		col.rgb += e_glowmod.rgb * factor_emit.rgb;
 	#endif
+#endif
+
+#ifdef ALPHATEST
+    if (!(col.a ALPHATEST))
+        discard;
 #endif
 
 	gl_FragColor = fog4(col);

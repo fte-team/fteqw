@@ -2828,6 +2828,9 @@ static void GetEvent(void)
 		break;
 
 	case FocusIn:
+		//don't care about it if its just someone wiggling the mouse
+		if (event.xfocus.detail == NotifyPointer)
+			break;
 		//activeapp is if the game window is focused
 		vid.activeapp = true;
 		ClearAllStates();	//just in case.
@@ -2848,6 +2851,9 @@ static void GetEvent(void)
 //			x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
 		break;
 	case FocusOut:
+		//don't care about it if its just someone wiggling the mouse
+		if (event.xfocus.detail == NotifyPointer)
+			break;
 		//if we're already active, the decoy window shouldn't be focused anyway.
 		if (event.xfocus.window == vid_window)
 			x11.ime_shown = -1;

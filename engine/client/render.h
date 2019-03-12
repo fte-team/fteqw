@@ -402,40 +402,45 @@ void R_RenderDlights (void);
 enum imageflags
 {
 	/*warning: many of these flags only apply the first time it is requested*/
-	IF_CLAMP = 1<<0,	//disable texture coord wrapping.
-	IF_NOMIPMAP = 1<<1,	//disable mipmaps.
-	IF_NEAREST = 1<<2,	//force nearest
-	IF_LINEAR = 1<<3,	//force linear
-	IF_UIPIC = 1<<4,	//subject to texturemode2d
-	//IF_DEPTHCMD=1<<5,	//Reserved for d3d11
-	IF_SRGB = 1<<6,		//texture data is srgb
+	IF_CLAMP			= 1<<0,		//disable texture coord wrapping.
+	IF_NOMIPMAP			= 1<<1,		//disable mipmaps.
+	IF_NEAREST			= 1<<2,		//force nearest
+	IF_LINEAR			= 1<<3,		//force linear
+	IF_UIPIC			= 1<<4,		//subject to texturemode2d
+	//IF_DEPTHCMD		= 1<<5,		//Reserved for d3d11
+	IF_SRGB				= 1<<6,		//texture data is srgb (read-as-linear)
 	/*WARNING: If the above are changed, be sure to change shader pass flags*/
 
-	IF_NOPICMIP = 1<<7,
-	IF_NOALPHA = 1<<8,	/*hint rather than requirement*/
-	IF_NOGAMMA = 1<<9,
-	IF_3DMAP = 1<<10,	/*waning - don't test directly*/
-	IF_CUBEMAP = 1<<11,	/*waning - don't test directly*/
-	IF_TEXTYPE = (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
-	IF_TEXTYPESHIFT = 10, /*0=2d, 1=3d, 2-7=cubeface*/
-	IF_MIPCAP = 1<<12,
-	IF_PREMULTIPLYALPHA = 1<<13,	//rgb *= alpha
+	IF_NOPICMIP			= 1<<7,
+	IF_NOALPHA			= 1<<8,		/*hint rather than requirement*/
+	IF_NOGAMMA			= 1<<9,		/*do not apply texture-based gamma*/
+	IF_3DMAP			= 1<<10,	/*waning - don't test directly*/
+	IF_CUBEMAP			= 1<<11,	/*waning - don't test directly*/
+	IF_TEXTYPE				= (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
+	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2-7=cubeface*/
+	IF_MIPCAP			= 1<<12,	//allow the use of d_mipcap
+	IF_PREMULTIPLYALPHA	= 1<<13,	//rgb *= alpha
 
-	IF_WORLDTEX = 1<<18,	//gl_picmip_world
-	IF_SPRITETEX = 1<<19,	//gl_picmip_sprites
-	IF_NOSRGB = 1<<20,	//ignore srgb when loading. this is guarenteed to be linear, for normalmaps etc.
+	IF_UNUSED14			= 1<<14,	//
+	IF_UNUSED15			= 1<<15,	//
+	IF_UNUSED16			= 1<<16,	//
+	IF_UNUSED17			= 1<<17,	//
 
-	IF_PALETTIZE = 1<<21,
-	IF_NOPURGE = 1<<22,
-	IF_HIGHPRIORITY = 1<<23,
-	IF_LOWPRIORITY = 1<<24,
-	IF_LOADNOW = 1<<25,			/*hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance*/
-	IF_NOPCX = 1<<26,			/*block pcx format. meaning qw skins can use team colours and cropping*/
-	IF_TRYBUMP = 1<<27,			/*attempt to load _bump if the specified _norm texture wasn't found*/
-	IF_RENDERTARGET = 1<<28,	/*never loaded from disk, loading can't fail*/
-	IF_EXACTEXTENSION = 1<<29,	/*don't mangle extensions, use what is specified and ONLY that*/
-	IF_NOREPLACE = 1<<30,		/*don't load a replacement, for some reason*/
-	IF_NOWORKER = 1u<<31		/*don't pass the work to a loader thread. this gives fully synchronous loading. only valid from the main thread.*/
+	IF_WORLDTEX			= 1<<18,	//gl_picmip_world
+	IF_SPRITETEX		= 1<<19,	//gl_picmip_sprites
+	IF_NOSRGB			= 1<<20,	//ignore srgb when loading. this is guarenteed to be linear, for normalmaps etc.
+
+	IF_PALETTIZE		= 1<<21,	//convert+load it as an RTI_P8 texture for the current palette/colourmap
+	IF_NOPURGE			= 1<<22,	//texture is not flushed when no more shaders refer to it (for C code that holds a permanant reference to it - still purged on vid_reloads though)
+	IF_HIGHPRIORITY		= 1<<23,	//pushed to start of worker queue instead of end...
+	IF_LOWPRIORITY		= 1<<24,	//
+	IF_LOADNOW			= 1<<25,	/*hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance*/
+	IF_NOPCX			= 1<<26,	/*block pcx format. meaning qw skins can use team colours and cropping*/
+	IF_TRYBUMP			= 1<<27,	/*attempt to load _bump if the specified _norm texture wasn't found*/
+	IF_RENDERTARGET		= 1<<28,	/*never loaded from disk, loading can't fail*/
+	IF_EXACTEXTENSION	= 1<<29,	/*don't mangle extensions, use what is specified and ONLY that*/
+	IF_NOREPLACE		= 1<<30,	/*don't load a replacement, for some reason*/
+	IF_NOWORKER			= 1u<<31	/*don't pass the work to a loader thread. this gives fully synchronous loading. only valid from the main thread.*/
 };
 
 #define R_LoadTexture8(id,w,h,d,f,t)		Image_GetTexture(id, NULL, f, d, NULL, w, h, t?TF_TRANS8:TF_SOLID8)

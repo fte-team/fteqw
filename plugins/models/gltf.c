@@ -8,6 +8,12 @@ extern modplugfuncs_t *modfuncs;
 
 #define GLTFMODELS
 
+
+//'The units for all linear distances are meters.'
+//'feh: 1 metre is approx. 26.24671916 qu.'
+//if the player is 1.6m tall, and the player's model is around 48qu, then 1m=30qu, which is a slightly nicer number to work with, and 1qu is a really poorly defined unit.
+#define GLTFSCALE 30
+
 #ifdef GLTFMODELS
 typedef struct json_s
 {
@@ -283,6 +289,10 @@ static qintptr_t JSON_GetInteger(json_t *t, const char *child, int fallback)
 			l = MAX_QPATH-1;
 		memcpy(tmp, t->bodystart, l);
 		tmp[l] = 0;
+		if (!strcmp(tmp, "false"))	//special cases, for booleans
+			return 0;
+		if (!strcmp(tmp, "true"))	//special cases, for booleans
+			return 1;
 		return (qintptr_t)strtoll(tmp, NULL, 0);
 	}
 	return fallback;
@@ -490,11 +500,12 @@ typedef struct gltf_s
 	unsigned int numsurfaces;
 	json_t *r;
 
-	int bonemap[MAX_BONES];	//remap skinned bones. I hate that we have to do this.
+	int *bonemap;//[MAX_BONES];	//remap skinned bones. I hate that we have to do this.
 	struct gltfbone_s
 	{
 		char name[32];
 		int parent;
+		int camera;
 		double amatrix[16];
 		double inverse[16];
 		struct
@@ -507,7 +518,7 @@ typedef struct gltf_s
 			struct gltf_accessor *input;
 			struct gltf_accessor *output;
 		} *rot, *scale, *translation;
-	} bones[MAX_BONES];
+	} *bones;//[MAX_BONES];
 	unsigned int numbones;
 
 	int warnlimit;	//don't spam warnings. this is a loader, not a spammer
@@ -924,7 +935,7 @@ static void *GLTF_AccessorToDataUB(gltf_t *gltf, size_t outverts, unsigned int o
 static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_accessor *a)
 {	//input should only be ubytes||ushorts.
 	const unsigned int outcomponents = 4;
-	unsigned char *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
+	boneidx_t *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
 	char *in = a->data;
 
 
@@ -964,7 +975,7 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 			for (c = 0; c < ic; c++)
 			{
 				v = ((unsigned short*)in)[c];
-				if (v > 255)
+				if (v > MAX_BONES)
 					v = 0;
 				o[c] = gltf->bonemap[v];
 			}
@@ -974,6 +985,7 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 			in += a->bytestride;
 		}
 		break;
+		//the spec doesn't require these.
 //	case 5125: //UNSIGNED_INT
 /*	case 5126: //FLOAT
 		while(outverts --> 0)
@@ -1117,8 +1129,9 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 {
 	qboolean doubleSided;
 	int alphaMode;
-	//double alphaCutoff;
+	double alphaCutoff;
 	char shader[8192];
+	char alphaCutoffmodifier[128];
 	json_t *mat = JSON_FindIndexedChild(gltf->r, "materials", material);
 	galiasskin_t *ret;
 
@@ -1130,19 +1143,8 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	pbrmr = JSON_FindChild(mat, "pbrMetallicRoughness");
 	blinn = JSON_FindChild(mat, "extensions.KHR_materials_cmnBlinnPhong");
 
-/*	JSON_WarnIfChild(mat, "name");
-	JSON_WarnIfChild(pbrsg, "diffuseFactor");
-	JSON_WarnIfChild(pbrsg, "diffuseTexture");
-	JSON_WarnIfChild(pbrsg, "specularFactor");
-	JSON_WarnIfChild(pbrsg, "glossinessFactor");
-	JSON_WarnIfChild(pbrsg, "specularGlossinessTexture");
-	JSON_WarnIfChild(mat, "normalTexture");
-	JSON_WarnIfChild(mat, "occlusionTexture");
-	JSON_WarnIfChild(mat, "emissiveTexture");
-	JSON_WarnIfChild(mat, "emissiveFactor");	//0,0,0
-*/
 	doubleSided = JSON_GetInteger(mat, "doubleSided", false);
-	//alphaCutoff = JSON_GetInteger(mat, "alphaCutoff", 0.5);
+	alphaCutoff = JSON_GetFloat(mat, "alphaCutoff", 0.5);
 	if (JSON_Equals(mat, "alphaMode", "MASK"))
 		alphaMode = 1;
 	else if (JSON_Equals(mat, "alphaMode", "BLEND"))
@@ -1162,6 +1164,11 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	else
 		Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%i", material);
 
+	if (alphaMode == 1)
+		Q_snprintf(alphaCutoffmodifier, sizeof(alphaCutoffmodifier), "#ALPHATEST=>%f", alphaCutoff);
+	else
+		*alphaCutoffmodifier = 0;
+
 	if (unlit)
 	{	//if this extension was present, then we don't get ANY lighting info.
 		int albedo = JSON_GetInteger(pbrmr, "baseColorTexture.index", -1);	//.rgba
@@ -1171,7 +1178,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 			"{\n"
 				"surfaceparm nodlight\n"
 				"%s"//cull
-				"program default2d\n"	//fixme: there's no gpu skeletal stuff with this prog
+				"program default2d%s\n"	//fixme: there's no gpu skeletal stuff with this prog
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -1179,8 +1186,9 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"}\n"
 				"fte_basefactor %f %f %f %f\n"
 			"}\n",
-			doubleSided?"cullface disable\n":"",
-			(alphaMode==1)?"alphamask\n":(alphaMode==2)?"blendfunc blend\n":"",
+			doubleSided?"cull disable\n":"",
+			alphaCutoffmodifier,
+			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
 			JSON_GetFloat(pbrmr, "baseColorFactor.0", 1),
 				JSON_GetFloat(pbrmr, "baseColorFactor.1", 1),
@@ -1204,7 +1212,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin#VC\n"
+				"program defaultskin#VC%s\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -1214,20 +1222,21 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"fte_specularfactor %f %f %f %f\n"
 				"fte_fullbrightfactor %f %f %f 1.0\n"
 			"}\n",
-			doubleSided?"cullface disable\n":"",
-			(alphaMode==1)?"alphamask\n":(alphaMode==2)?"blendfunc blend\n":"",
+			doubleSided?"cull disable\n":"",
+			alphaCutoffmodifier,
+			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
 			JSON_GetFloat(pbrsg, "diffuseFactor.0", 1),
 				JSON_GetFloat(pbrsg, "diffuseFactor.1", 1),
 				JSON_GetFloat(pbrsg, "diffuseFactor.2", 1),
 				JSON_GetFloat(pbrsg, "diffuseFactor.3", 1),
-			JSON_GetFloat(pbrsg, "specularFactor.0", 1),
+			JSON_GetFloat(pbrsg, "specularFactor.0", 1),	//FIXME: divide by gl_specular
 				JSON_GetFloat(pbrsg, "specularFactor.1", 1),
 				JSON_GetFloat(pbrsg, "specularFactor.2", 1),
-			JSON_GetFloat(pbrsg, "shininessFactor", 1),
-			JSON_GetFloat(mat, "emissiveFactor.0", 1),
-				JSON_GetFloat(mat, "emissiveFactor.1", 1),
-				JSON_GetFloat(mat, "emissiveFactor.2", 1)
+				JSON_GetFloat(pbrsg, "shininessFactor", 1),	//FIXME: divide by gl_specular_power
+			JSON_GetFloat(mat, "emissiveFactor.0", 0),
+				JSON_GetFloat(mat, "emissiveFactor.1", 0),
+				JSON_GetFloat(mat, "emissiveFactor.2", 0)
 			);
 	}
 	else if (pbrsg)
@@ -1238,7 +1247,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin#VC\n"
+				"program defaultskin#SG#VC#NOOCCLUDE%s\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -1247,9 +1256,11 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"fte_basefactor %f %f %f %f\n"
 				"fte_specularfactor %f %f %f %f\n"
 				"fte_fullbrightfactor %f %f %f 1.0\n"
+				"bemode rtlight rtlight_sg\n"
 			"}\n",
-			doubleSided?"cullface disable\n":"",
-			(alphaMode==1)?"alphamask\n":(alphaMode==2)?"blendfunc blend\n":"",
+			doubleSided?"cull disable\n":"",
+			alphaCutoffmodifier,
+			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
 			JSON_GetFloat(pbrsg, "diffuseFactor.0", 1),
 				JSON_GetFloat(pbrsg, "diffuseFactor.1", 1),
@@ -1259,9 +1270,9 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				JSON_GetFloat(pbrsg, "specularFactor.1", 1),
 				JSON_GetFloat(pbrsg, "specularFactor.2", 1),
 			JSON_GetFloat(pbrsg, "glossinessFactor", 1)*32,	//this is fucked.
-			JSON_GetFloat(mat, "emissiveFactor.0", 1),
-				JSON_GetFloat(mat, "emissiveFactor.1", 1),
-				JSON_GetFloat(mat, "emissiveFactor.2", 1)
+			JSON_GetFloat(mat, "emissiveFactor.0", 0),
+				JSON_GetFloat(mat, "emissiveFactor.1", 0),
+				JSON_GetFloat(mat, "emissiveFactor.2", 0)
 			);
 	}
 	else if (pbrmr)
@@ -1270,45 +1281,52 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 		int mrt = JSON_GetInteger(pbrmr, "metallicRoughnessTexture.index", -1);	//.r = unused, .g = roughness, .b = metalic, .a = unused
 		int occ = JSON_GetInteger(mat, "occlusionTexture.index", -1);	//.r
 
-		//now work around potential lame exporters.
+		//now work around potential lame exporters (yay dds?).
 		occ = JSON_GetInteger(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index", occ);
 		mrt = JSON_GetInteger(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index", mrt);
 
 		if (occ != mrt && occ != -1)	//if its -1 then the mrt should have an unused channel set to 1. however, this isn't guarenteed...
+		{
+			occ = -1;	//not supported. fixme: support some weird loadtexture channel merging stuff
 			if (gltf->warnlimit --> 0)
 				Con_Printf(CON_WARNING"%s: Separate occlusion and metallicRoughness textures are not supported\n", gltf->mod->name);
+		}
 
 		//note: extensions.MSFT_packing_normalRoughnessMetallic.normalRoughnessMetallicTexture.index gives rg=normalxy, b=roughness, .a=metalic
 		//(would still need an ao map, and probably wouldn't work well as bc3 either)
 
 		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, albedo, 0);
-		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, mrt, 0);
+		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, mrt, IF_NOSRGB);
 
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin#PBR_ORM#VC\n"
+				"program defaultskin#ORM#VC%s%s\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
 					"%s"	//rgbgen
 				"}\n"
 				"fte_basefactor %f %f %f %f\n"
-				"fte_specularfactor 1.0 %f %f 1.0\n"
+				"fte_specularfactor %f %f %f 1.0\n"
 				"fte_fullbrightfactor %f %f %f 1.0\n"
+				"bemode rtlight rtlight_orm\n"
 			"}\n",
-			doubleSided?"cullface disable\n":"",
-			(alphaMode==1)?"alphamask\n":(alphaMode==2)?"blendfunc blend\n":"",
+			doubleSided?"cull disable\n":"",
+			(occ==-1)?"#NOOCCLUDE":"",
+			alphaCutoffmodifier,
+			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
 			JSON_GetFloat(pbrmr, "baseColorFactor.0", 1),
 				JSON_GetFloat(pbrmr, "baseColorFactor.1", 1),
 				JSON_GetFloat(pbrmr, "baseColorFactor.2", 1),
 				JSON_GetFloat(pbrmr, "baseColorFactor.3", 1),
-			JSON_GetFloat(pbrmr, "metallicFactor", 1),
-			JSON_GetFloat(pbrmr, "roughnessFactor", 1),
-			JSON_GetFloat(mat, "emissiveFactor.0", 1),
-				JSON_GetFloat(mat, "emissiveFactor.1", 1),
-				JSON_GetFloat(mat, "emissiveFactor.2", 1)
+			JSON_GetFloat(mat, "occlusionTexture.strength", 1),
+				JSON_GetFloat(pbrmr, "metallicFactor", 1),
+				JSON_GetFloat(pbrmr, "roughnessFactor", 1),
+			JSON_GetFloat(mat, "emissiveFactor.0", 0),
+				JSON_GetFloat(mat, "emissiveFactor.1", 0),
+				JSON_GetFloat(mat, "emissiveFactor.2", 0)
 			);
 	}
 	ret->frame->texnums.bump = GLTF_LoadTexture(gltf, JSON_GetInteger(mat, "normalTexture.index", -1), IF_NOSRGB|IF_TRYBUMP);
@@ -1374,9 +1392,14 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 
 		surf = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*surf));
 
-		surf->surfaceid = meshidx;
-		surf->contents = FTECONTENTS_BODY;
-		surf->csurface.flags = 0;
+		surf->surfaceid = surf->contents = JSON_GetInteger(prim, "extras.fte.surfaceid", meshidx);
+		surf->contents = JSON_GetInteger(prim, "extras.fte.contents", FTECONTENTS_BODY);
+		surf->csurface.flags = JSON_GetInteger(prim, "extras.fte.surfaceflags", 0);
+		surf->geomset = JSON_GetInteger(prim, "extras.fte.geomset", ~0u);
+		surf->geomid = JSON_GetInteger(prim, "extras.fte.geomid", 0);
+		surf->mindist = JSON_GetInteger(prim, "extras.fte.mindist", 0);
+		surf->maxdist = JSON_GetInteger(prim, "extras.fte.maxdist", 0);
+
 		surf->shares_bones = gltf->numsurfaces;
 		surf->shares_verts = gltf->numsurfaces;
 		JSON_ReadBody(meshname, surf->surfacename, sizeof(surf->surfacename));
@@ -1474,6 +1497,12 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 		surf->numskins = 1;
 		surf->ofsskins = GLTF_LoadMaterial(gltf, mat, surf->ofs_rgbaub||surf->ofs_rgbaf);
 
+		if (!tang.data)
+		{
+			modfuncs->AccumulateTextureVectors(surf->ofs_skel_xyz, surf->ofs_st_array, surf->ofs_skel_norm, surf->ofs_skel_svect, surf->ofs_skel_tvect, surf->ofs_indexes, surf->numindexes, !norm.data);
+			modfuncs->NormaliseTextureVectors(surf->ofs_skel_norm, surf->ofs_skel_svect, surf->ofs_skel_tvect, surf->numverts, !norm.data);
+		}
+
 		gltf->numsurfaces++;
 		surf->nextsurf = mod->meshinfo;
 		mod->meshinfo = surf;
@@ -1551,10 +1580,16 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], 
 	int skinidx;
 	struct gltfbone_s *b;
 	if (nodeidx < 0 || nodeidx >= gltf->numbones)
+	{
+		Con_Printf(CON_WARNING"%s: Invalid node index %i\n", gltf->mod->name, nodeidx);
 		return false;
+	}
 	node = JSON_FindIndexedChild(gltf->r, "nodes", nodeidx);
 	if (!node)
+	{
+		Con_Printf(CON_WARNING"%s: Invalid node index %i\n", gltf->mod->name, nodeidx);
 		return false;
+	}
 
 	b = &gltf->bones[nodeidx];
 	b->parent = parentidx;
@@ -1638,7 +1673,7 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], 
 		inversef = inverse.data;
 		if (inverse.componentType != 5126/*FLOAT*/ || inverse.type != ((4<<8) | 4)/*mat4x4*/)
 			inverse.count = 0;
-		for (j = 0; j < countof(gltf->bonemap); j++, inversef+=inverse.bytestride/sizeof(float))
+		for (j = 0; j < MAX_BONES; j++, inversef+=inverse.bytestride/sizeof(float))
 		{
 			int b = JSON_GetIndexedInteger(joints, j, -1);
 			if (b < 0)
@@ -1705,7 +1740,7 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], 
 		GLTF_ProcessNode(gltf, JSON_GetInteger(c, NULL, -1), b->amatrix, nodeidx, isjoint);
 	}
 
-	JSON_FlagAsUsed(node, "camera");
+	b->camera = JSON_GetInteger(node, "camera", -1);
 
 	JSON_WarnIfChild(node, "weights", &gltf->warnlimit);	//default value for morph weight animations
 	JSON_WarnIfChild(node, "extensions", &gltf->warnlimit);
@@ -1798,8 +1833,8 @@ static void LerpAnimData(gltf_t *gltf, struct gltf_animsampler *samp, float time
 	struct gltf_accessor *in = &samp->input;
 	struct gltf_accessor *out = &samp->output;
 
-	t1 = t2 = Anim_GetTime(in, 0);
-	for (f2 = 1 ; f2 < in->count; f2++)
+	t1 = t2 = Anim_GetTime(in, f1);
+	for (f2 = 1; f2 < in->count; f2++)
 	{
 		t2 = Anim_GetTime(in, f2);
 		if (t2 > time)
@@ -1808,19 +1843,35 @@ static void LerpAnimData(gltf_t *gltf, struct gltf_animsampler *samp, float time
 		f1 = f2;
 	}
 
-	//assume linear
-	if (f1==f2 || t1==t2)
-	{
-		Anim_GetVal(out, f1, result, elems);
-		return;
+	if (time <= t1)
+	{	//if before the first time, clamp it.
+		w1 = 1;
+		w2 = 0;
 	}
-	w2 = (time-t1)/(t2-t1);
-	w1 = 1-w2;
+	else if (time >= t2)
+	{	//if after tha last frame we could find, clamp it to the last.
+		w1 = 0;
+		w2 = 1;
+	}
+	else
+	{	//assume linear
+		w2 = (time-t1)/(t2-t1);
+//		if (1)	//step it. it'll still get lerped though. :(
+//			w2 = (w2>0.5)?1:0;
+		w1 = 1-w2;
+	}
 
-	Anim_GetVal(out, f1, v1, elems);
-	Anim_GetVal(out, f2, v2, elems);
-	for (c = 0; c < elems; c++)
-		result[c] = v1[c]*w1 + w2*v2[c];
+	if (w1 >= 1)
+		Anim_GetVal(out, f1, result, elems);
+	else if (w2 >= 1)
+		Anim_GetVal(out, f2, result, elems);
+	else
+	{
+		Anim_GetVal(out, f1, v1, elems);
+		Anim_GetVal(out, f2, v2, elems);
+		for (c = 0; c < elems; c++)
+			result[c] = v1[c]*w1 + w2*v2[c];
+	}
 }
 
 static void GLTF_RemapBone(gltf_t *gltf, int *nextidx, int b)
@@ -1877,6 +1928,20 @@ static void GLTF_RewriteBoneTree(gltf_t *gltf)
 //we do NOT supported nested nodes right now...
 static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize, void *buffer, size_t buffersize)
 {
+	static struct
+	{
+		const char *name;
+		qboolean supported;	//unsupported extensions don't really need to be listed, but they do prevent warnings from unkown-but-used extensions
+	} extensions[] =
+	{
+		{"KHR_materials_pbrSpecularGlossiness",		true},
+//draft	{"KHR_materials_cmnBlinnPhong",				true},
+		{"KHR_materials_unlit",						true},
+		{"KHR_texture_transform",					false},
+		{"KHR_draco_mesh_compression",				false},
+		{"MSFT_texture_dds",						true},
+		{"MSFT_packing_occlusionRoughnessMetallic", true},
+	};
 	gltf_t gltf;
 	int pos=0, j, k;
 	json_t *scene, *n, *anim;
@@ -1888,6 +1953,9 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 	unsigned int numframegroups = 0;
 	float *baseframe;
 	memset(&gltf, 0, sizeof(gltf));
+	gltf.bonemap = malloc(sizeof(*gltf.bonemap)*MAX_BONES);
+	gltf.bones = malloc(sizeof(*gltf.bones)*MAX_BONES);
+	memset(gltf.bones, 0, sizeof(*gltf.bones)*MAX_BONES);
 	gltf.r = JSON_Parse(NULL, mod->name, NULL, json, &pos, jsonsize);
 	gltf.mod = mod;
 	gltf.buffers[0].data = buffer;
@@ -1909,22 +1977,32 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{
 			char extname[256];
 			JSON_ReadBody(n, extname, sizeof(extname));
-			Con_Printf(CON_ERROR "%s: Required gltf2 extension \"%s\" not supported\n", mod->name, extname);
+			for (j = 0; j < countof(extensions); j++)
+			{
+				if (!strcmp(extname, extensions[j].name))
+					break;
+			}
+			if (j==countof(extensions) || !extensions[j].supported)
+				Con_Printf(CON_ERROR "%s: Required gltf2 extension \"%s\" not supported\n", mod->name, extname);
 
-			JSON_Destroy(gltf.r);
-			return false;
+			goto abort;
 		}
+
 		for(n = JSON_FindIndexedChild(gltf.r, "extensionsUsed", 0); n; n = n->sibling)
 		{	//must be a superset of the above.
 			char extname[256];
 			JSON_ReadBody(n, extname, sizeof(extname));
-			if (!strcmp(extname, "KHR_materials_pbrSpecularGlossiness"))
-				;
-			else if (!strcmp(extname, "KHR_texture_transform"))
-				;
-			else
+			for (j = 0; j < countof(extensions); j++)
+			{
+				if (!strcmp(extname, extensions[j].name))
+					break;
+			}
+			if (j==countof(extensions) || !extensions[j].supported)
 				Con_Printf(CON_WARNING "%s: gltf2 extension \"%s\" not known\n", mod->name, extname);
 		}
+
+		VectorClear(mod->maxs);
+		VectorClear(mod->mins);
 
 		//we don't really care about cameras.
 		JSON_FlagAsUsed(gltf.r, "cameras");
@@ -1933,16 +2011,21 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 
 		memset(&rootmatrix, 0, sizeof(rootmatrix));
 #if 1	//transform from gltf to quake. mostly only needed for the base pose.
-		rootmatrix[2] = rootmatrix[4] = rootmatrix[9] = 1; rootmatrix[15] = 1;
+		rootmatrix[2] = rootmatrix[4] = rootmatrix[9] = GLTFSCALE; rootmatrix[15] = 1;
 #else
 		rootmatrix[0] = rootmatrix[5] = rootmatrix[10] = 1; rootmatrix[15] = 1;
 #endif
 
-		for (j = 0; j < countof(gltf.bones); j++)
+		for (j = 0; ; j++)
 		{
 			n = JSON_FindIndexedChild(gltf.r, "nodes", j);
 			if (!n)
 				break;
+			if (j == MAX_BONES)
+			{
+				Con_Printf(CON_WARNING"%s: too many nodes (max %i)\n", mod->name, MAX_BONES);
+				break;
+			}
 			if (!JSON_ReadBody(JSON_FindChild(n, "name"), gltf.bones[j].name, sizeof(gltf.bones[j].name)))
 			{
 				if (n)
@@ -1950,6 +2033,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				else
 					Q_snprintf(gltf.bones[j].name, sizeof(gltf.bones[j].name), "bone%i", j);
 			}
+			gltf.bones[j].camera = -1;
 			gltf.bones[j].parent = -1;
 			gltf.bones[j].amatrix[0] = gltf.bones[j].amatrix[5] = gltf.bones[j].amatrix[10] = gltf.bones[j].amatrix[15] = 1;
 			gltf.bones[j].inverse[0] = gltf.bones[j].inverse[5] = gltf.bones[j].inverse[10] = gltf.bones[j].inverse[15] = 1;
@@ -1966,8 +2050,9 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			if (!n)
 				break;
 			n->used = true;
-			if (!GLTF_ProcessNode(&gltf, JSON_GetInteger(n, NULL, -1), rootmatrix, -1, false))
-				break;
+//			if (!
+			GLTF_ProcessNode(&gltf, JSON_GetInteger(n, NULL, -1), rootmatrix, -1, false);
+//				break;
 		}
 
 		GLTF_RewriteBoneTree(&gltf);
@@ -1978,6 +2063,9 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{
 			Q_strlcpy(bone[j].name, gltf.bones[j].name, sizeof(bone[j].name));
 			bone[j].parent = gltf.bones[j].parent;
+
+			if (gltf.bones[j].camera >= 0 && !mod->camerabone)
+				mod->camerabone = j+1;
 
 			for(k = 0; k < 12; k++)
 			{
@@ -1990,6 +2078,10 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			numframegroups++;
 		if (numframegroups)
 		{
+			struct
+			{
+				struct gltf_animsampler rot,scale,trans;
+			} *b = malloc(sizeof(*b)*gltf.numbones);
 			framegroups = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*framegroups)*numframegroups);
 			for (k = 0; k < numframegroups; k++)
 			{
@@ -1999,11 +2091,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				json_t *samps = JSON_FindChild(anim, "samplers");
 				int f, l;
 				float maxtime = 0;
-				struct
-				{
-					struct gltf_animsampler rot,scale,trans;
-				} b[MAX_BONES];
-				memset(b, 0, sizeof(b));
+				memset(b, 0, sizeof(*b)*gltf.numbones);
 
 				if (!JSON_ReadBody(JSON_FindChild(anim, "name"), fg->name, sizeof(fg->name)))
 				{
@@ -2041,14 +2129,14 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 					else if (gltf.warnlimit --> 0)
 					{	//these are unsupported
 						if (JSON_Equals(path, NULL, "weights"))	//morph weights
-							Con_Printf("%s: morph animations are not supported\n", mod->name);
+							Con_Printf(CON_WARNING"%s: morph animations are not supported\n", mod->name);
 						else
 							Con_Printf("%s: undocumented animation type\n", mod->name);
 					}
 				}
 
 				//TODO: make a guess at the framerate according to sampler intervals
-				fg->rate = 30;
+				fg->rate = 60;
 				fg->numposes = max(1, maxtime*fg->rate);
 				if (maxtime)
 					fg->rate = fg->numposes/maxtime;	//fix up the rate so we hit the exact end of the animation (so it doesn't have to be quite so exact).
@@ -2089,13 +2177,14 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 						if (gltf.bones[j].parent < 0)
 						{	//rotate any root bones from gltf to quake's orientation.
 							float fnar[12];
-							static float toquake[12]={0,0,1,0,1,0,0,0,0,1,0,0};
+							static float toquake[12]={0,0,GLTFSCALE,0,GLTFSCALE,0,0,0,0,GLTFSCALE,0,0};
 							memcpy(fnar, bonematrix, sizeof(fnar));
 							modfuncs->ConcatTransforms((void*)toquake, (void*)fnar, (void*)bonematrix);
 						}
 					}
 				}
 			}
+			free(b);
 		}
 
 		for(surf = mod->meshinfo; surf; surf = surf->nextsurf)
@@ -2111,13 +2200,19 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			surf->geomset = ~0;	//invalid set = always visible. FIXME: set this according to scene numbers?
 			surf->geomid = 0;
 		}
+		VectorScale(mod->mins, GLTFSCALE, mod->mins);
+		VectorScale(mod->maxs, GLTFSCALE, mod->maxs);
 
+		if (!mod->meshinfo)
+			Con_Printf("%s: Doesn't contain any meshes...\n", mod->name);
 		JSON_WarnUnused(gltf.r, &gltf.warnlimit);
 	}
 	else
 		Con_Printf("%s: unsupported gltf version (%.2f)\n", mod->name, gltfver);
+abort:
 	JSON_Destroy(gltf.r);
-
+	free(gltf.bones);
+	free(gltf.bonemap);
 
 
 	mod->type = mod_alias;

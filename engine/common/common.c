@@ -5209,6 +5209,40 @@ qboolean COM_HasWork(void)
 	}
 	return false;
 }
+void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
+{
+	struct com_work_s *work;
+
+	if (tg >= WG_COUNT)
+		return;
+
+	//no worker there, just do it immediately on this thread instead of pushing it to the worker.
+	if (!com_liveworkers[tg] || (tg!=WG_MAIN && com_workererror))
+	{
+		func(ctx, data, a, b);
+		return;
+	}
+
+	//build the work
+	work = Z_Malloc(sizeof(*work));
+	work->func = func;
+	work->ctx = ctx;
+	work->data = data;
+	work->a = a;
+	work->b = b;
+
+	//queue it (fifo)
+	Sys_LockConditional(com_workercondition[tg]);
+	work->next = com_work_head[tg];
+	if (!com_work_tail[tg])
+		com_work_tail[tg] = work;
+	com_work_head[tg] = work;
+
+//	Sys_Printf("%x: Queued work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
+
+	Sys_ConditionSignal(com_workercondition[tg]);
+	Sys_UnlockConditional(com_workercondition[tg]);
+}
 void COM_AddWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
 {
 	struct com_work_s *work;
@@ -6068,6 +6102,26 @@ void InfoSync_Add(infosync_t *sync, void *context, const char *name)
 	sync->keys[k].syncpos = 0;
 }
 
+static qboolean InfoBuf_NeedsEncoding(const char *str, size_t size)
+{
+	const char *c, *e = str+size;
+	for (c = str; c < e; c++)
+	{
+		switch((unsigned char)*c)
+		{
+		case 255:	//invalid for vanilla qw, and also used for special encoding
+		case '\\':	//abiguity with end-of-token
+		case '\"':	//parsing often sends these enclosed in quotes
+		case '\n':	//REALLY screws up parsing
+		case '\r':	//generally bad form
+		case 0:		//are we really doing this?
+		case '$':	//a number of engines like expanding things inside quotes. make sure that cannot ever happen.
+		case ';':	//in case someone manages to break out of quotes
+			return true;
+		}
+	}
+	return false;
+}
 qboolean InfoBuf_FindKey (infobuf_t *info, const char *key, size_t *idx)
 {
 	size_t k;
@@ -6106,14 +6160,18 @@ char *InfoBuf_ValueForKey (infobuf_t *info, const char *key)	//not to be used wi
 	valueindex = (valueindex+1)&3;
 	return InfoBuf_ReadKey(info, key, value[valueindex], sizeof(value[valueindex]));
 }
-const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize)	//obtains a direct pointer to temp memory
+const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize, qboolean *large)	//obtains a direct pointer to temp memory
 {
 	size_t k;
 	if (InfoBuf_FindKey(info, key, &k) && !info->keys[k].partial)
 	{
+		if (large)
+			*large = info->keys[k].large;
 		*blobsize = info->keys[k].size;
 		return info->keys[k].value;
 	}
+	if (large)
+		*large = InfoBuf_NeedsEncoding(key, sizeof(key));
 	*blobsize = 0;
 	return NULL;
 }
@@ -6169,26 +6227,25 @@ char *InfoBuf_DecodeString(const char *instart, const char *inend, size_t *sz)
 	}
 	return ret;
 }
+
 static qboolean InfoBuf_IsLarge(struct infokey_s *key)
 {
+	size_t namesize;
 	if (key->partial)
-		return true;
-		//detect invalid keys/values
-	//\\ makes parsing really really messy and isn't supported by most clients (although we could do it anyway)
-	//\" requires string escapes, again compat issues.
-	//0xff bugs out vanilla.
-	//nulls are bad, too...
-	if (strchr(key->name, '\\') || strchr(key->name, '\"') || strchr(key->name, 0xff))
-		return true;
-	if (strchr(key->value, '\\') || strchr(key->value, '\"') || strchr(key->value, 0xff) || strlen(key->value) != key->size)
 		return true;
 
 	if (key->size >= 64)
-		return true;	//key length limits is a thing in vanilla qw.
-	if (strlen(key->name) >= 64)
 		return true;	//value length limits is a thing in vanilla qw.
 						//note that qw reads values up to 512, but only sets them up to 64 bytes...
 						//probably just so that people don't spot buffer overflows so easily.
+	namesize = strlen(key->name);
+	if (namesize >= 64)
+		return true;	//key length limits is a thing in vanilla qw.
+
+	if (InfoBuf_NeedsEncoding(key->name, namesize))
+		return true;
+	if (InfoBuf_NeedsEncoding(key->value, key->size))
+		return true;
 	return false;
 }
 //like InfoBuf_SetStarBlobKey, but understands partials.
@@ -6423,24 +6480,7 @@ static qboolean InfoBuf_EncodeString_Internal(const char *n, size_t s, char *out
 {
 	size_t r = 0;
 	const char *c;
-	for (c = n; c < n+s; c++)
-	{
-		if (*c == (char)255 && c == n)
-			break;
-		if (*c == '\\')	//abiguity with end-of-token
-			break;
-		if (*c == '\"')	//parsing often sends these enclosed in quotes
-			break;
-		if (*c == '\n' || *c == '\r')	//generally bad form
-			break;
-		if (*c == 0)	//are we really doing this?
-			break;
-		if (*c == '$')	//a number of engines like expanding things inside quotes. make sure that cannot ever happen.
-			break;
-		if (*c == ';')	//in case someone manages to break out of quotes
-			break;
-	}
-	if (c != n+s)
+	if (InfoBuf_NeedsEncoding(n, s))
 	{
 		unsigned int base64_cur = 0;
 		unsigned int base64_bits = 0;

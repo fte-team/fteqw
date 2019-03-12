@@ -7602,6 +7602,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 
 			switch(nf)
 			{
+			case PTI_R8:
 			case PTI_L8:
 				for (i = 0; i < m; i++)
 					((qbyte*)rgbadata)[i+0] = 255*Image_LinearFloatFromsRGBFloat(((qbyte*)rgbadata)[i+0] * (1.0/255));
@@ -7610,6 +7611,19 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				m*=2;
 				for (i = 0; i < m; i+=2)
 					((qbyte*)rgbadata)[i+0] = 255*Image_LinearFloatFromsRGBFloat(((qbyte*)rgbadata)[i+0] * (1.0/255));
+				break;
+			case PTI_R16:
+				for (i = 0; i < m; i+=4)
+					((unsigned short*)rgbadata)[i+0] = 0xffff*Image_LinearFloatFromsRGBFloat(((unsigned short*)rgbadata)[i+0] * (1.0/0xffff));
+				break;
+			case PTI_RGBA16:
+				m*=4;
+				for (i = 0; i < m; i+=4)
+				{
+					((unsigned short*)rgbadata)[i+0] = 0xffff*Image_LinearFloatFromsRGBFloat(((unsigned short*)rgbadata)[i+0] * (1.0/0xffff));
+					((unsigned short*)rgbadata)[i+1] = 0xffff*Image_LinearFloatFromsRGBFloat(((unsigned short*)rgbadata)[i+1] * (1.0/0xffff));
+					((unsigned short*)rgbadata)[i+2] = 0xffff*Image_LinearFloatFromsRGBFloat(((unsigned short*)rgbadata)[i+2] * (1.0/0xffff));
+				}
 				break;
 			case PTI_RGBA8:
 			case PTI_RGBX8:
@@ -7627,7 +7641,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			case PTI_BC1_RGBA:
 			case PTI_BC2_RGBA:
 			case PTI_BC3_RGBA:
-				//FIXME: bc1/2/3 has two leading 16bit values per block.
+				//FIXME: bc1/2/3 has two leading 16bit 565 values per block.
 			default:
 				//these formats are weird. we can't just fiddle with the rgbdata
 				//FIXME: etc2 has all sorts of weird encoding tables...
@@ -8656,7 +8670,7 @@ image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, uns
 
 	qboolean dontposttoworker = (flags & (IF_NOWORKER | IF_LOADNOW));
 	qboolean lowpri = (flags & IF_LOWPRIORITY);
-//	qboolean highpri = (flags & IF_HIGHPRIORITY);
+	qboolean highpri = (flags & IF_HIGHPRIORITY);
 	flags &= ~(IF_LOADNOW | IF_LOWPRIORITY | IF_HIGHPRIORITY);
 
 #ifdef LOADERTHREAD
@@ -8782,7 +8796,9 @@ image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, uns
 		}
 		else
 #endif
-			if (lowpri)
+			if (highpri)
+			COM_InsertWork(WG_LOADER, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+		else if (lowpri)
 			COM_AddWork(WG_LOADER, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 		else
 			COM_AddWork(WG_LOADER, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);

@@ -54,7 +54,23 @@ typedef enum {
 	SHADER_SORT_COUNT
 } shadersort_t;
 
+#ifdef FTE_TARGET_WEB
 #define MAX_BONES 256
+#else
+#define MAX_BONES 256	//Note: there's lots of bone data allocated on the stack, so don't bump recklessly.
+#endif
+#if MAX_BONES>65536
+#define GL_BONE_INDEX_TYPE GL_UNSIGNED_INT
+typedef unsigned int boneidx_t;
+#elif MAX_BONES>256
+#define GL_BONE_INDEX_TYPE GL_UNSIGNED_SHORT
+typedef unsigned short boneidx_t;
+#else
+#define GL_BONE_INDEX_TYPE GL_UNSIGNED_BYTE
+typedef unsigned char boneidx_t;
+#endif
+typedef boneidx_t bone_vec4_t[4];
+
 struct doll_s;
 void rag_uninstanciateall(void);
 void rag_flushdolls(qboolean force);
@@ -102,7 +118,7 @@ typedef struct mesh_s
 	qboolean		istrifan;	/*if its a fan/poly/single quad  (permits optimisations)*/
 	const float		*bones;
 	int				numbones;
-	byte_vec4_t		*bonenums;
+	bone_vec4_t		*bonenums;
 	vec4_t			*boneweights;
 } mesh_t;
 
@@ -1040,6 +1056,7 @@ typedef struct model_s
 //
 	void *meshinfo;	//data allocated within the memgroup allocations, will be nulled out when the model is flushed
 	zonegroup_t memgroup;
+	int camerabone;	//the 1-based bone index that the camera should be attached to (for gltf rather than anything else)
 } model_t;
 
 #define MDLF_EMITREPLACE     0x0001 // particle effect engulphs model (don't draw)

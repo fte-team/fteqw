@@ -562,6 +562,9 @@ typedef struct client_s
 	#define SENDFLAGS_PRESENT 0x80000000u	//this entity is present on that client
 	#define SENDFLAGS_REMOVED 0x40000000u	//to handle remove packetloss
 
+#ifndef NOLEGACY
+	char			*dlqueue;			//name\name delimited list of files to ask the client to download.
+#endif
 	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
 	qofs_t			downloadsize;		// total bytes
@@ -1313,6 +1316,10 @@ void SV_UpdateToReliableMessages (void);
 void SV_FlushBroadcasts (void);
 qboolean SV_CanTrack(client_t *client, int entity);
 
+#ifndef NOLEGACY
+void SV_DownloadQueueNext(client_t *client);
+void SV_DownloadQueueClear(client_t *client);
+#endif
 #ifdef NQPROT
 void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg);
 #endif

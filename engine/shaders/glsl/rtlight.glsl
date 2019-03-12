@@ -13,6 +13,10 @@
 !!samps =PCF shadowmap
 !!samps =CUBE projectionmap
 
+#if defined(ORM) || defined(SG)
+	#define PBR
+#endif
+
 #include "sys/defs.h"
 
 //this is the main shader responsible for realtime dlights.
@@ -69,6 +73,9 @@ void main ()
 {
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
+n = normalize(n);
+s = normalize(s);
+t = normalize(t);
 	tcbase = v_texcoord;	//pass the texture coords straight through
 #ifdef ORTHO
 	vec3 lightminusvertex = -l_lightdirection;
@@ -97,9 +104,7 @@ void main ()
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #endif
 #ifdef REFLECTCUBEMASK
-	invsurface[0] = v_svector;
-	invsurface[1] = v_tvector;
-	invsurface[2] = v_normal;
+	invsurface = mat3(v_svector, v_tvector, v_normal);
 #endif
 #if defined(PCF) || defined(SPOT) || defined(CUBE) || defined(ORTHO)
 	//for texture projections/shadowmapping on dlights
@@ -229,6 +234,8 @@ void main()
 #include "sys/offsetmapping.h"
 #endif
 
+#include "sys/pbr.h"
+
 void main ()
 {
 #ifdef ORTHO
@@ -277,25 +284,54 @@ void main ()
 	vec4 specs = texture2D(s_specular, tcbase);
 #endif
 
-	vec3 diff;
-#ifdef NOBUMP
-	//surface can only support ambient lighting, even for lights that try to avoid it.
-	diff = bases.rgb * (l_lightcolourscale.x+l_lightcolourscale.y);
-#else
-	vec3 nl = normalize(lightvector);
-	#ifdef BUMP
-		diff = bases.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
+	#define dielectricSpecular 0.04
+	#ifdef SPECULAR
+		#ifdef ORM	//pbr-style occlusion+roughness+metalness
+			#define occlusion specs.r
+			#define roughness clamp(specs.g, 0.04, 1.0)
+			#define metalness specs.b
+			#define gloss 1.0 //sqrt(1.0-roughness)
+			#define ambientrgb (specrgb+col.rgb)
+			vec3 specrgb = mix(vec3(dielectricSpecular), bases.rgb, metalness);
+			bases.rgb = bases.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);
+		#elif defined(SG) //pbr-style specular+glossiness
+			//occlusion needs to be baked in. :(
+			#define roughness (1.0-specs.a)
+			#define gloss specs.a
+			#define specrgb specs.rgb
+			#define ambientrgb (specs.rgb+col.rgb)
+		#else   //blinn-phong
+			#define roughness (1.0-specs.a)
+			#define gloss specs.a
+			#define specrgb specs.rgb
+			#define ambientrgb col.rgb
+		#endif
 	#else
-		//we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
-		diff = bases.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
+		#define roughness 0.3
+		#define specrgb 1.0 //vec3(dielectricSpecular)
 	#endif
-#endif
 
-
-#ifdef SPECULAR
-	vec3 halfdir = normalize(normalize(eyevector) + nl);
-	float spec = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * specs.a)*float(SPECMUL);
-	diff += l_lightcolourscale.z * spec * specs.rgb;
+#ifdef PBR
+	vec3 diff = DoPBR(bumps, normalize(eyevector), normalize(lightvector), roughness, bases.rgb, specrgb, l_lightcolourscale);
+#else
+	vec3 diff;
+	#ifdef NOBUMP
+		//surface can only support ambient lighting, even for lights that try to avoid it.
+		diff = bases.rgb * (l_lightcolourscale.x+l_lightcolourscale.y);
+	#else
+		vec3 nl = normalize(lightvector);
+		#ifdef BUMP
+			diff = bases.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
+		#else
+			//we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
+			diff = bases.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
+		#endif
+	#endif
+	#ifdef SPECULAR
+		vec3 halfdir = normalize(normalize(eyevector) + nl);
+		float spec = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * gloss)*float(SPECMUL);
+		diff += l_lightcolourscale.z * spec * specrgb;
+	#endif
 #endif
 
 #ifdef REFLECTCUBEMASK
@@ -314,11 +350,15 @@ void main ()
 	/*2d projection, not used*/
 //	diff *= texture2d(s_projectionmap, shadowcoord);
 #endif
+#if defined(occlusion) && !defined(NOOCCLUDE)
+	diff *= occlusion;
+#endif
 #if defined(VERTEXCOLOURS)
 	diff *= vc.rgb * vc.a;
 #endif
 
-	gl_FragColor = vec4(fog3additive(diff*colorscale*l_lightcolour), 1.0);
+	diff *= colorscale*l_lightcolour;
+	gl_FragColor = vec4(fog3additive(diff), 1.0);
 }
 #endif
 

@@ -2472,6 +2472,10 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 
 
 		host_client->downloadstarted = false;
+
+#ifndef NOLEGACY
+		SV_DownloadQueueNext(host_client);
+#endif
 	}
 }
 
@@ -2551,6 +2555,9 @@ void SV_NextDownload_f (void)
 	VFS_CLOSE (host_client->download);
 	host_client->download = NULL;
 
+#ifndef NOLEGACY
+	SV_DownloadQueueNext(host_client);
+#endif
 }
 
 void VARGS OutofBandPrintf(netadr_t *where, char *fmt, ...)
@@ -2996,6 +3003,8 @@ qboolean SV_AllowDownload (const char *name)
 		return false;
 	if (*name == '/')	//no absolute.
 		return false;
+	if (strchr(name, ':'))	//no drives, alternative resources, etc. the filesystem should refuse such a file so this should just be paranoia.
+		return false;
 	if (strchr(name, '\\'))	//no windows paths - grow up you lame windows users.
 		return false;
 
@@ -3037,7 +3046,7 @@ qboolean SV_AllowDownload (const char *name)
 	if (Q_strncasecmp(name,	"sound/", 6) == 0)
 		return !!allow_download_sounds.value;
 	//particles
-	if (Q_strncasecmp(name,	"particles/", 6) == 0)
+	if (Q_strncasecmp(name,	"particles/", 10) == 0)
 		return !!allow_download_particles.value;
 	//demos
 	if (Q_strncasecmp(name,	"demos/", 6) == 0)
@@ -3290,6 +3299,50 @@ void SV_DownloadSize_f(void)
 }
 
 #ifdef MVD_RECORDING
+
+#ifndef NOLEGACY
+void SV_DownloadQueueAdd(client_t *client, const char *name)
+{
+	if (!client->dlqueue)
+	{
+		client->dlqueue = Z_StrDup(name);
+		SV_ClientPrintf (client, PRINT_HIGH, "Using legacy serverside download queue. This is subject to race conditions, be careful.\n");
+	}
+	else
+	{
+		Z_StrCat(&client->dlqueue, "\\");
+		Z_StrCat(&client->dlqueue, name);
+	}
+}
+void SV_DownloadQueueNext(client_t *client)
+{
+	char buf[MAX_QPATH*2];
+	char *name = client->dlqueue;
+	char *next;
+	if (!name)
+		return;
+	next = strchr(name, '\\');
+	if (next)
+	{
+		host_client->dlqueue = Z_StrDup(next+1);
+		*next = 0;
+	}
+	else
+		client->dlqueue = NULL;
+
+	next = va("download \"%s\"\n", COM_QuotedString(name, buf, sizeof(buf), true));
+	ClientReliableWrite_Begin (client, svc_stufftext, 2+strlen(next));
+	ClientReliableWrite_String (client, next);
+	Z_Free(name);
+}
+void SV_DownloadQueueClear(client_t *client)
+{
+	if (client->dlqueue)
+		Z_Free(client->dlqueue);
+	client->dlqueue = NULL;
+}
+#endif
+
 void SV_DemoDownload_f(void)
 {
 	int arg;
@@ -3306,7 +3359,16 @@ void SV_DemoDownload_f(void)
 		name = Cmd_Argv(1);
 		if (!strcmp(name, "\\") || !Q_strcasecmp(name, "stop") || !Q_strcasecmp(name, "cancel"))
 		{
-			//fte servers don't do download queues, as it is impossible to avoid race conditions with vanilla clients anyway.
+			if (strcmp(name, "\\"))
+			{	//cancel/stop kill any current download too. which is annoying
+				if (host_client->download)
+					VFS_CLOSE (host_client->download);
+				host_client->download = NULL;
+				host_client->downloadstarted = false;
+			}
+#ifndef NOLEGACY
+			SV_DownloadQueueClear(host_client);
+#endif
 			return;
 		}
 	}
@@ -3339,6 +3401,14 @@ void SV_DemoDownload_f(void)
 
 		if (!mvdname)
 			SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name);
+#ifndef NOLEGACY
+		else if (!(host_client->protocol & PEXT_CHUNKEDDOWNLOADS) || !strncmp(InfoBuf_ValueForKey(&host_client->userinfo, "*client"), "ezQuake", 7))
+		{	//chunked downloads was built around the client being in control (because only it knows which files are needed)
+			//but ezquake never implemented that part
+			SV_DownloadQueueAdd(host_client, va("demos/%s", mvdname));
+			continue;
+		}
+#endif
 		else
 		{
 			const char *s = va("download \"demos/%s\"\n", mvdname);
@@ -3346,6 +3416,10 @@ void SV_DemoDownload_f(void)
 			ClientReliableWrite_String (host_client, s);
 		}
 	}
+#ifndef NOLEGACY
+	if (!host_client->download)
+		SV_DownloadQueueNext(host_client);
+#endif
 }
 #endif
 
@@ -3458,7 +3532,7 @@ void SV_BeginDownload_f(void)
 		}
 	}
 
-	if (!host_client->download)
+	if (!host_client->download && !result)
 		result = -1;	//this isn't likely, but hey.
 
 	//handle errors
@@ -3514,6 +3588,7 @@ void SV_BeginDownload_f(void)
 		}
 		if (ISNQCLIENT(host_client))
 			host_client->send_message = true;
+		SV_DownloadQueueNext(host_client);
 		return;
 	}
 
@@ -3588,6 +3663,11 @@ void SV_StopDownload_f(void)
 		SV_ClientPrintf(host_client, PRINT_HIGH, "Can't stop download - not downloading anything\n");
 
 	host_client->downloadstarted = false;
+
+#ifndef NOLEGACY
+	SV_DownloadQueueNext(host_client);
+//	SV_DownloadQueueClear(host_client);
+#endif
 }
 
 //=============================================================================

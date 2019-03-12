@@ -381,7 +381,7 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 		return;
 	}
 
-	progfuncs->funcs.debug_trace = -10;
+	progfuncs->funcs.debug_trace = -10;	//PR_StringToNative(+via PR_ValueString) has various error conditions that we want to mute instead of causing recursive errors.
 
 	//point this to the function's locals
 	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
@@ -413,16 +413,16 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 			{
 				progs = prnum;
 
-				externs->Printf ("<%s>\n", pr_progstate[progs].filename);
+				externs->DPrintf ("<%s>\n", pr_progstate[progs].filename);
 			}
 			if (!f->s_file)
-				externs->Printf ("stripped     : %s\n", PR_StringToNative(ppf, f->s_name));
+				externs->Printf ("unknown-file : %s\n", PR_StringToNative(ppf, f->s_name));
 			else
 			{
 				if (pr_progstate[progs].linenums)
 					externs->Printf ("%12s:%i: %s\n", PR_StringToNative(ppf, f->s_file), pr_progstate[progs].linenums[st], PR_StringToNative(ppf, f->s_name));
 				else
-					externs->Printf ("%12s : %s\n", PR_StringToNative(ppf, f->s_file), PR_StringToNative(ppf, f->s_name));
+					externs->Printf ("%12s : %s+%i\n", PR_StringToNative(ppf, f->s_file), PR_StringToNative(ppf, f->s_name), st-f->first_statement);
 			}
 
 			//locals:0 = no locals
@@ -460,7 +460,7 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 					}
 					else
 					{
-						externs->Printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+ofs), false));
+						externs->Printf("    %s: %s\n", PR_StringToNative(ppf, local->s_name), PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+ofs), false));
 						if (local->type == ev_vector)
 							ofs+=2;
 					}

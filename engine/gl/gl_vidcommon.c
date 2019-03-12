@@ -1404,6 +1404,16 @@ static const char *glsl_hdrs[] =
 //			"#define s_deluxmap3 s_deluxemap3\n"
 #endif
 #endif
+			"#if defined(ORM) || defined(SG)\n"
+				"uniform vec4 factors[3];\n"
+				"#define factor_base factors[0]\n"
+				"#define factor_spec factors[1]\n"
+				"#define factor_emit factors[2]\n"
+			"#else\n"
+				"#define factor_base vec4(1.0)\n"
+				"#define factor_spec vec4(1.0)\n"
+				"#define factor_emit vec4(1.0)\n"
+			"#endif\n"
 			"#ifdef USEUBOS\n"
 				"layout(std140) uniform u_lightinfo\n"
 				"{"
@@ -1818,6 +1828,67 @@ static const char *glsl_hdrs[] =
 				"return base;\n"
 			"#endif\n"
 			"}\n"
+		,
+
+	"sys/pbr.h",
+			//ripped from the gltf webgl demo.
+			//https://github.com/KhronosGroup/glTF-WebGL-PBR/blob/master/shaders/pbr-frag.glsl
+			//because most of this maths is gibberish, especially the odd magic number.
+			"#ifdef PBR\n"
+			"const float PI = 3.141592653589793;\n"
+			"vec3 diffuse(vec3 diffuseColor)\n" //Basic Lambertian diffuse
+			"{\n"
+				"return diffuseColor / PI;\n"
+			"}\n"
+			"vec3 specularReflection(vec3 reflectance0, vec3 reflectance90, float VdotH)\n"
+			"{\n"
+				"return reflectance0 + (reflectance90 - reflectance0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);\n"
+			"}\n"
+			"float geometricOcclusion(float NdotL, float NdotV, float r)\n"
+			"{\n"
+				"float attenuationL = 2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));\n"
+				"float attenuationV = 2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));\n"
+				"return attenuationL * attenuationV;\n"
+			"}\n"
+			"float microfacetDistribution(float alphaRoughness, float NdotH)\n" //Trowbridge-Reitz
+			"{\n"
+				"float roughnessSq = alphaRoughness * alphaRoughness;\n"
+				"float f = (NdotH * roughnessSq - NdotH) * NdotH + 1.0;\n"
+				"return roughnessSq / (PI * f * f);\n"
+			"}\n"
+			"vec3 DoPBR(vec3 n, vec3 v, vec3 l, float perceptualRoughness, vec3 diffuseColor, vec3 specularColor, vec3 scales)\n"
+			"{\n"
+				// Compute reflectance.
+				"float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);\n"
+				"float alphaRoughness = perceptualRoughness * perceptualRoughness;\n"
+
+				// For typical incident reflectance range (between 4% to 100%) set the grazing reflectance to 100% for typical fresnel effect.
+				// For very low reflectance range on highly diffuse objects (below 4%), incrementally reduce grazing reflecance to 0%.
+				"float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);\n"
+				"vec3 specularEnvironmentR0 = specularColor.rgb;\n"
+				"vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;\n"
+
+				"vec3 h = normalize(l+v);\n"                          // Half vector between both l and v
+				"vec3 reflection = -normalize(reflect(v, n));\n"
+
+				"float NdotL = clamp(dot(n, l), 0.001, 1.0);\n"
+				"float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);\n"
+				"float NdotH = clamp(dot(n, h), 0.0, 1.0);\n"
+				"float LdotH = clamp(dot(l, h), 0.0, 1.0);\n"
+				"float VdotH = clamp(dot(v, h), 0.0, 1.0);\n"
+
+				// Calculate the shading terms for the microfacet specular shading model
+				"vec3 F = specularReflection(specularEnvironmentR0, specularEnvironmentR90, VdotH);\n"
+				"float G = geometricOcclusion(NdotL, NdotV, alphaRoughness);\n"
+				"float D = microfacetDistribution(alphaRoughness, NdotH);\n"
+
+				// Calculation of analytical lighting contribution
+				"vec3 diffuseContrib = (1.0 - F) * diffuse(diffuseColor) * scales.y;\n"
+				"vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV) * scales.z;\n"
+				// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+				"return NdotL * (diffuseContrib + specContrib);\n"
+			"}\n"
+			"#endif\n"
 		,
 	"sys/pcf.h",
 			//!!cvardf r_glsl_pcf
@@ -2791,6 +2862,8 @@ static void GLSlang_ProgAutoFields(program_t *prog, struct programpermu_s *pp, c
 
 	pp->numparms = 0;
 	pp->parm = NULL;
+
+	pp->factorsuniform = qglGetUniformLocationARB(pp->h.glsl.handle, "factors");
 
 	for (i = 0; shader_unif_names[i].name; i++)
 	{

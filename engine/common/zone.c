@@ -212,7 +212,7 @@ void *Z_Malloc(int size)
 }
 #endif
 
-void Z_StrCat(char **ptr, char *append)
+void Z_StrCat(char **ptr, const char *append)
 {
 	size_t oldlen = *ptr?strlen(*ptr):0;
 	size_t newlen = strlen(append);

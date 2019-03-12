@@ -15,6 +15,10 @@
 !!samps lightmap deluxemap
 !!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3 deluxemap deluxemap1 deluxemap2 deluxemap3
 
+#if defined(ORM) || defined(SG)
+    #define PBR
+#endif
+
 #include "sys/defs.h"
 
 //this is what normally draws all of your walls, even with rtlights disabled
@@ -58,9 +62,7 @@ void main ()
 	eyevector.z = dot(eyeminusvertex, v_normal.xyz);
 #endif
 #if defined(REFLECTCUBEMASK) || defined(BUMPMODELSPACE)
-	invsurface[0] = v_svector;
-	invsurface[1] = v_tvector;
-	invsurface[2] = v_normal;
+	invsurface = mat3(v_svector, v_tvector, v_normal);
 #endif
 	tc = v_texcoord;
 #ifdef FLOW
@@ -230,6 +232,8 @@ void main()
 #ifdef FRAGMENT_SHADER
 #define s_colourmap	s_t0
 
+#include "sys/pbr.h"
+
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"
 #endif
@@ -256,12 +260,12 @@ void main ()
 #endif
 
 
-//yay, regular texture!
-	gl_FragColor = texture2D(s_diffuse, tc);
+//Read the base texture (with EIGHTBIT only alpha is needed)
+	vec4 col = texture2D(s_diffuse, tc);
 
 #if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR) || defined(REFLECTCUBEMASK))
 	vec3 norm = normalize(texture2D(s_normalmap, tc).rgb - 0.5);
-#elif defined(SPECULAR) || defined(DELUXE) || defined(REFLECTCUBEMASK)
+#elif defined(PBR) || defined(SPECULAR) || defined(DELUXE) || defined(REFLECTCUBEMASK)
 	vec3 norm = vec3(0, 0, 1);	//specular lighting expects this to exist.
 #endif
 
@@ -306,61 +310,89 @@ void main ()
 	#endif
 #endif
 
-//add in specular, if applicable.
-#ifdef SPECULAR
-	vec4 specs = texture2D(s_specular, tc);
-	vec3 halfdir = normalize(normalize(eyevector) + deluxe);	//this norm should be the deluxemap info instead
-	float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * specs.a);
-	spec *= FTE_SPECULAR_MULTIPLIER;
-//NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
-//As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
-//we default to something that is not garish when the light value is directly infront of every single pixel.
-//we can justify this difference due to the rtlight editor etc showing the *4.
-	gl_FragColor.rgb += spec * specs.rgb;
-#endif
+//	col *= factor_base;
+    #define dielectricSpecular 0.04
+    #ifdef SPECULAR
+        vec4 specs = texture2D(s_specular, tc);//*factor_spec;
+        #ifdef ORM
+            #define occlusion specs.r
+            #define roughness specs.g
+            #define metalness specs.b
+            #define gloss (1.0-roughness)
+            #define ambientrgb (specrgb+col.rgb)
+            vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);
+            col.rgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);
+        #elif defined(SG) //pbr-style specular+glossiness
+            //occlusion needs to be baked in. :(
+            #define roughness (1.0-specs.a)
+            #define gloss specs.a
+            #define specrgb specs.rgb
+            #define ambientrgb (specs.rgb+col.rgb)
+        #else   //blinn-phong
+            #define roughness (1.0-specs.a)
+            #define gloss specs.a
+            #define specrgb specs.rgb
+            #define ambientrgb col.rgb
+        #endif
+    #else
+        #define roughness 0.3
+        #define specrgb 1.0 //vec3(dielectricSpecular)
+    #endif
+
+	//add in specular, if applicable.
+	#ifdef PBR
+		col.rgb = DoPBR(norm, normalize(eyevector), deluxe, roughness, col.rgb, specrgb, vec3(0.0,1.0,1.0));//*e_light_mul + e_light_ambient*.25*ambientrgb;
+	#elif defined(gloss)
+		vec3 halfdir = normalize(normalize(eyevector) + deluxe);	//this norm should be the deluxemap info instead
+		float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * gloss);
+		spec *= FTE_SPECULAR_MULTIPLIER;
+	//NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
+	//As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
+	//we default to something that is not garish when the light value is directly infront of every single pixel.
+	//we can justify this difference due to the rtlight editor etc showing the *4.
+		col.rgb += spec * specrgb;
+	#endif
 
 #ifdef REFLECTCUBEMASK
 	vec3 rtc = reflect(normalize(-eyevector), norm);
 	rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
 	rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
-	gl_FragColor.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
+	col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
 #endif
 
 #ifdef EIGHTBIT //FIXME: with this extra flag, half the permutations are redundant.
 	lightmaps *= 0.5;	//counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.
 	float pal = texture2D(s_paletted, tc).r;	//the palette index. hopefully not interpolated.
 	lightmaps -= 1.0 / 128.0;	//software rendering appears to round down, so make sure we favour the lower values instead of rounding to the nearest
-	gl_FragColor.r = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.r)).r;	//do 3 lookups. this is to cope with lit files, would be a waste to not support those.
-	gl_FragColor.g = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.g)).g;	//its not very softwarey, but re-palettizing is ugly.
-	gl_FragColor.b = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.b)).b;	//without lits, it should be identical.
+	col.r = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.r)).r;	//do 3 lookups. this is to cope with lit files, would be a waste to not support those.
+	col.g = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.g)).g;	//its not very softwarey, but re-palettizing is ugly.
+	col.b = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.b)).b;	//without lits, it should be identical.
 #else
 	//now we have our diffuse+specular terms, modulate by lightmap values.
-	gl_FragColor.rgb *= lightmaps.rgb;
+	col.rgb *= lightmaps.rgb;
 
 //add on the fullbright
 #ifdef FULLBRIGHT
-	gl_FragColor.rgb += texture2D(s_fullbright, tc).rgb;
+	col.rgb += texture2D(s_fullbright, tc).rgb;
 #endif
 #endif
 
 //entity modifiers
-	gl_FragColor = gl_FragColor * e_colourident;
+	col *= e_colourident;
 
 #if defined(MASK)
 #if defined(MASKLT)
-	if (gl_FragColor.a < MASK)
+	if (col.a < MASK)
 		discard;
 #else
-	if (gl_FragColor.a >= MASK)
+	if (col.a >= MASK)
 		discard;
 #endif
-	gl_FragColor.a = 1.0;	//alpha blending AND alpha testing usually looks stupid, plus it screws up our fog.
+	col.a = 1.0;	//alpha blending AND alpha testing usually looks stupid, plus it screws up our fog.
 #endif
 
 //and finally hide it all if we're fogged.
-#ifdef FOG
-	gl_FragColor = fog4(gl_FragColor);
-#endif
+	gl_FragColor = fog4(col);
 }
 #endif
 

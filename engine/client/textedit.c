@@ -1011,9 +1011,13 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		return DEBUG_TRACE_OFF;	//whoops
 	}
 
+	if (reason)
+		Con_Printf("QC Exception: %s\n", reason);
+
 	if (!pr_debugger.ival)
 	{
-		Con_Printf("Set %s to trace\n", pr_debugger.name);
+		if (!stepasm && *filename)
+			Con_Printf("Set %s to trace\n", pr_debugger.name);
 		if (fatal)
 			return DEBUG_TRACE_ABORT;
 		return DEBUG_TRACE_OFF;	//get lost

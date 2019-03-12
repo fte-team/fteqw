@@ -140,7 +140,7 @@ static clampedmodel_t clampedmodel[] = {
 
 
 
-void Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms)
+void QDECL Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms)
 {
 	int i;
 	const float *v0, *v1, *v2;
@@ -215,7 +215,7 @@ void Mod_AccumulateMeshTextureVectors(mesh_t *m)
 	Mod_AccumulateTextureVectors(m->xyz_array, m->st_array, m->normals_array, m->snormals_array, m->tnormals_array, m->indexes, m->numindexes, false);
 }
 
-void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms)
+void QDECL Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms)
 {
 	int i;
 	float f;
@@ -352,7 +352,7 @@ static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz
 #endif
 
 /*transforms some skeletal vecV_t values*/
-static void Alias_TransformVerticies_V(const float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *fte_restrict xyzout)
+static void Alias_TransformVerticies_V(const float *bonepose, int vertcount, boneidx_t *bidx, float *weights, float *xyzin, float *fte_restrict xyzout)
 {
 #if 1
 	int i, j;
@@ -428,7 +428,7 @@ static void Alias_TransformVerticies_V(const float *bonepose, int vertcount, qby
 }
 
 /*transforms some skeletal vecV_t values*/
-static void Alias_TransformVerticies_VN(const float *bonepose, int vertcount, const qbyte *bidx, float *weights,
+static void Alias_TransformVerticies_VN(const float *bonepose, int vertcount, const boneidx_t *bidx, float *weights,
 										const float *xyzin, float *fte_restrict xyzout,
 										const float *normin, float *fte_restrict normout)
 {
@@ -472,7 +472,7 @@ static void Alias_TransformVerticies_VN(const float *bonepose, int vertcount, co
 }
 
 /*transforms some skeletal vecV_t values*/
-static void Alias_TransformVerticies_VNST(const float *bonepose, int vertcount, const qbyte *bidx, const float *weights,
+static void Alias_TransformVerticies_VNST(const float *bonepose, int vertcount, const boneidx_t *bidx, const float *weights,
 										const float *xyzin, float *fte_restrict xyzout,
 										const float *normin, float *fte_restrict normout,
 										const float *sdirin, float *fte_restrict sdirout,
@@ -708,6 +708,8 @@ struct
 	entity_t *ent;
 
 #ifdef SKELETALMODELS
+	boneidx_t *bonemap; //force the renderer to forget the current entity when this changes
+	float gpubones[MAX_BONES*12]; //temp storage for multi-surface models with too many bones.
 	float boneposebuffer1[MAX_BONES*12];
 	float boneposebuffer2[MAX_BONES*12];
 	skeltype_t bonecachetype;
@@ -1325,7 +1327,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *fr
 
 static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, galiasinfo_t *inf)
 {
-	qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
+	boneidx_t *fte_restrict bidx = inf->ofs_skel_idx[0];
 	float *fte_restrict weight = inf->ofs_skel_weight[0];
 
 	if (meshcache.bonecachetype != SKEL_INVERSE_ABSOLUTE)
@@ -1350,7 +1352,7 @@ static void Alias_BuildSkeletalVerts(float *xyzout, framestate_t *framestate, ga
 {
 	float buffer[MAX_BONES*12];
 	float bufferalt[MAX_BONES*12];
-	qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
+	boneidx_t *fte_restrict bidx = inf->ofs_skel_idx[0];
 	float *fte_restrict weight = inf->ofs_skel_weight[0];
 	const float *bonepose = Alias_GetBoneInformation(inf, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
 
@@ -1654,11 +1656,11 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		usebones = false;
 	else if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 		usebones = false;
-	else if (e->fatness || !inf->ofs_skel_idx || inf->numbones > sh_config.max_gpu_bones)
+	else if (e->fatness || !inf->ofs_skel_idx || (!inf->mappedbones && inf->numbones > sh_config.max_gpu_bones))
 #endif
 		usebones = false;
 
-	if (0)//meshcache.ent == e)
+	if (meshcache.ent == e)
 	{
 		if (meshcache.vertgroup == inf->shares_verts && meshcache.ent == e && usebones == meshcache.usebones)
 		{
@@ -1683,7 +1685,22 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				mesh->boneweights = inf->ofs_skel_weight;
 				mesh->bones = meshcache.usebonepose;
 				mesh->numbones = inf->numbones;
+			}	
+#ifndef SERVERONLY
+			if (meshcache.bonemap != inf->bonemap)
+			{
+				meshcache.bonemap = inf->bonemap;
+				BE_SelectEntity(e);
 			}
+			if (inf->mappedbones)
+			{
+				int i;
+				for (i = 0; i < inf->mappedbones; i++)
+					memcpy(meshcache.gpubones + i*12, meshcache.usebonepose + inf->bonemap[i]*12, sizeof(float)*12);
+				meshcache.vbo.numbones = inf->mappedbones;
+				meshcache.vbo.bones = meshcache.gpubones;
+			}
+#endif
 			return false;	//don't generate the new vertex positions. We still have them all.
 		}
 		if (meshcache.bonegroup != inf->shares_bones)
@@ -2002,6 +2019,21 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		mesh->boneweights = inf->ofs_skel_weight;
 		mesh->bones = meshcache.usebonepose;
 		mesh->numbones = inf->numbones;
+#ifndef SERVERONLY
+		if (meshcache.bonemap != inf->bonemap)
+		{
+			meshcache.bonemap = inf->bonemap;
+			BE_SelectEntity(e);
+		}
+		if (inf->mappedbones)
+		{
+			int i;
+			for (i = 0; i < inf->mappedbones; i++)
+				memcpy(meshcache.gpubones + i*12, meshcache.usebonepose + inf->bonemap[i]*12, sizeof(float)*12);
+			meshcache.vbo.numbones = inf->mappedbones;
+			meshcache.vbo.bones = meshcache.gpubones;
+		}
+#endif
 	}
 #endif
 
@@ -2779,7 +2811,7 @@ void Mod_DestroyMesh(galiasinfo_t *galias)
 }
 
 #ifndef SERVERONLY
-static void Mod_GenerateMeshVBO(galiasinfo_t *galias)
+static void Mod_GenerateMeshVBO(model_t *mod, galiasinfo_t *galias)
 //vec3_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx, int numverts)
 {
 #ifdef NONSKELETALMODELS
@@ -2838,10 +2870,64 @@ static void Mod_GenerateMeshVBO(galiasinfo_t *galias)
 		BE_VBO_Data(&vboctx, galias->ofs_skel_svect, sizeof(*galias->ofs_skel_svect) * galias->numverts, &galias->vbo_skel_svector);
 	if (galias->ofs_skel_tvect)
 		BE_VBO_Data(&vboctx, galias->ofs_skel_tvect, sizeof(*galias->ofs_skel_tvect) * galias->numverts, &galias->vbo_skel_tvector);
-	if (galias->ofs_skel_idx)
-		BE_VBO_Data(&vboctx, galias->ofs_skel_idx, sizeof(*galias->ofs_skel_idx) * galias->numverts, &galias->vbo_skel_bonenum);
-	if (galias->ofs_skel_weight)
-		BE_VBO_Data(&vboctx, galias->ofs_skel_weight, sizeof(*galias->ofs_skel_weight) * galias->numverts, &galias->vbo_skel_bweight);
+	if (!galias->mappedbones /*&& galias->numbones > sh_config.max_gpu_bones*/ && galias->ofs_skel_idx)
+	{	//if we're using gpu bones, then its possible that we're trying to load a model with more bones than the gpu supports
+		//to work around this (and get performance back), each surface has a gpu->cpu table so that bones not used on a mesh don't cause it to need to use a software fallback
+		qboolean *seen = alloca(sizeof(*seen) * galias->numbones);
+		int j, k;
+		memset(seen, 0, sizeof(*seen) * galias->numbones);
+		for (j = 0; j < galias->numverts; j++)
+			for (k = 0; k < 4; k++)
+			{
+				if (galias->ofs_skel_weight[j][k])
+					seen[galias->ofs_skel_idx[j][k]] = true;
+			}
+
+		for (j = 0, k = 0; j < galias->numbones; j++)
+		{
+			if (seen[j])
+				k++;
+		}
+		if (k < sh_config.max_gpu_bones)
+		{	//okay, we can hardware accelerate that.
+			galias->bonemap = ZG_Malloc(&mod->memgroup, sizeof(*galias->bonemap)*sh_config.max_gpu_bones);
+			galias->mappedbones = 0;
+			for (j = 0; j < galias->numbones; j++)
+			{
+				if (seen[j])
+					galias->bonemap[galias->mappedbones++] = j;
+			}
+		}
+	}
+	if (galias->mappedbones)
+	{
+		boneidx_t *remaps = alloca(sizeof(*remaps) * galias->numbones);
+		bone_vec4_t *bones = alloca(sizeof(*bones) * galias->numverts);
+		int j, k;
+
+		//our remap table is gpu->cpu, but we need cpu->gpu here
+		for (j = 0; j < galias->numbones; j++)
+			remaps[j] = 0;	//errors.
+		for (j = 0; j < galias->mappedbones; j++)
+			remaps[galias->bonemap[j]] = j;
+		//now remap them all
+		for (j = 0; j < galias->numverts; j++)
+			for (k = 0; k < 4; k++)
+				bones[j][k] = remaps[galias->ofs_skel_idx[j][k]];
+
+		//and we can upload
+		if (galias->ofs_skel_idx)
+			BE_VBO_Data(&vboctx, bones, sizeof(*bones) * galias->numverts, &galias->vbo_skel_bonenum);
+		if (galias->ofs_skel_weight)
+			BE_VBO_Data(&vboctx, galias->ofs_skel_weight, sizeof(*galias->ofs_skel_weight) * galias->numverts, &galias->vbo_skel_bweight);
+	}
+	else
+	{
+		if (galias->ofs_skel_idx)
+			BE_VBO_Data(&vboctx, galias->ofs_skel_idx, sizeof(*galias->ofs_skel_idx) * galias->numverts, &galias->vbo_skel_bonenum);
+		if (galias->ofs_skel_weight)
+			BE_VBO_Data(&vboctx, galias->ofs_skel_weight, sizeof(*galias->ofs_skel_weight) * galias->numverts, &galias->vbo_skel_bweight);
+	}
 #endif
 #ifdef NONSKELETALMODELS
 	for (i = 0; i < galias->numanimations; i++)
@@ -2989,7 +3075,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 	{
 		if (numskins < ai->numskins)
 			numskins = ai->numskins;
-		Mod_GenerateMeshVBO(ai);	//FIXME: shares verts
+		Mod_GenerateMeshVBO(mod, ai);	//FIXME: shares verts
 	}
 	for (i = 0; i < numskins; i++)
 	{
@@ -5842,7 +5928,7 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 
 	vecV_t *skel_xyz;
 	vec3_t *skel_norm, *skel_svect, *skel_tvect;
-	byte_vec4_t *skel_idx;
+	bone_vec4_t *skel_idx;
 	vec4_t *skel_weights;
 
 	/*load the psk*/
@@ -6127,10 +6213,11 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	skel_tvect = ZG_Malloc(&mod->memgroup, sizeof(*skel_tvect) * num_vtxw);
 	skel_idx = ZG_Malloc(&mod->memgroup, sizeof(*skel_idx) * num_vtxw);
 	skel_weights = ZG_Malloc(&mod->memgroup, sizeof(*skel_weights) * num_vtxw);
+	for (j = 0; j < 4; j++)
+		skel_idx[i][j] = ~0;
 	for (i = 0; i < num_vtxw; i++)
 	{
 		float t;
-		*(unsigned int*)skel_idx[i] = ~0;
 		for (j = 0; j < num_rawweights; j++)
 		{
 			if (rawweights[j].pntsindex == vtxw[i].pntsindex)
@@ -6945,7 +7032,7 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 }
 */
 
-static qboolean IQM_ImportArray4B(const qbyte *fte_restrict base, const struct iqmvertexarray *fte_restrict src, byte_vec4_t *fte_restrict out, size_t count, unsigned int maxval)
+static qboolean IQM_ImportArray4Bone(const qbyte *fte_restrict base, const struct iqmvertexarray *fte_restrict src, bone_vec4_t *fte_restrict out, size_t count, unsigned int maxval)
 {
 	size_t i;
 	unsigned int j;
@@ -6953,7 +7040,7 @@ static qboolean IQM_ImportArray4B(const qbyte *fte_restrict base, const struct i
 	unsigned int fmt = LittleLong(src->format);
 	unsigned int offset = LittleLong(src->offset);
 	qboolean invalid = false;
-	maxval = min(256,maxval);	//output is bytes.
+	maxval = min(MAX_BONES,maxval);	//output is bytes.
 	if (!offset)
 	{
 		sz = 0;
@@ -7195,7 +7282,7 @@ static const void *IQM_FindExtension(const char *buffer, size_t buffersize, cons
 	return NULL;
 }
 
-static void Mod_CleanWeights(const char *modelname, size_t numverts, vec4_t *oweight, byte_vec4_t *oindex)
+static void Mod_CleanWeights(const char *modelname, size_t numverts, vec4_t *oweight, bone_vec4_t *oindex)
 {	//some IQMs lack weight values, apparently.
 	int j, v;
 	qboolean problemfound = false;
@@ -7258,7 +7345,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	vecV_t *opos=NULL;
 	vec3_t *onorm1=NULL, *onorm2=NULL, *onorm3=NULL;
 	vec4_t *oweight=NULL;
-	byte_vec4_t *oindex=NULL;
+	bone_vec4_t *oindex=NULL;
 	float *opose=NULL,*oposebase=NULL;
 	vec2_t *otcoords = NULL;
 	vec4_t *orgbaf = NULL;
@@ -7273,7 +7360,6 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	galiasanimation_t *fgroup=NULL;
 	galiasbone_t *bones = NULL;
 	index_t *idx;
-	float basepose[12 * MAX_BONES];
 	qboolean noweights;
 	frameinfo_t *framegroups;
 	int numgroups;
@@ -7481,10 +7567,10 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 			GenMatrixPosQuat3Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, mat);
 
 			if (ijoint[i].parent >= 0)
-				Matrix3x4_Multiply(mat, &basepose[ijoint[i].parent*12], &basepose[i*12]);
+				Matrix3x4_Multiply(mat, &oposebase[ijoint[i].parent*12], &oposebase[i*12]);
 			else
-				memcpy(&basepose[i*12], mat, sizeof(mat));
-			Matrix3x4_Invert_Simple(&basepose[i*12], bones[i].inverse);
+				memcpy(&oposebase[i*12], mat, sizeof(mat));
+			Matrix3x4_Invert_Simple(&oposebase[i*12], bones[i].inverse);
 		}
 
 		//pose info (anim)
@@ -7526,10 +7612,10 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 			GenMatrixPosQuat4Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, mat);
 
 			if (ijoint[i].parent >= 0)
-				Matrix3x4_Multiply(mat, &basepose[ijoint[i].parent*12], &basepose[i*12]);
+				Matrix3x4_Multiply(mat, &oposebase[ijoint[i].parent*12], &oposebase[i*12]);
 			else
-				memcpy(&basepose[i*12], mat, sizeof(mat));
-			Matrix3x4_Invert_Simple(&basepose[i*12], bones[i].inverse);
+				memcpy(&oposebase[i*12], mat, sizeof(mat));
+			Matrix3x4_Invert_Simple(&oposebase[i*12], bones[i].inverse);
 		}
 
 		//pose info (anim)
@@ -7552,8 +7638,6 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 			}
 		}
 	}
-	//basepose
-	memcpy(oposebase, basepose, sizeof(float)*12 * h->num_joints);
 
 	//now generate the animations.
 	for (i = 0; i < numgroups; i++)
@@ -7724,7 +7808,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	gai[i-1].nextsurf = NULL;
 	if (!noweights)
 	{
-		if (!IQM_ImportArray4B(buffer, &vbone, oindex, h->num_vertexes, h->num_joints))
+		if (!IQM_ImportArray4Bone(buffer, &vbone, oindex, h->num_vertexes, h->num_joints))
 			Con_DPrintf(CON_WARNING "Invalid bone indexes detected inside %s\n", mod->name);
 		IQM_ImportArrayF(buffer, &vweight, (float*)oweight, 4, h->num_vertexes, defaultweight);
 		Mod_CleanWeights(mod->name, h->num_vertexes, oweight, oindex);

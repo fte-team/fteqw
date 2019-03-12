@@ -785,7 +785,7 @@ extern const char *basicuserinfos[];	//note: has a leading *
 extern const char *privateuserinfos[];	//key names that are not broadcast from the server
 qboolean InfoBuf_FindKey (infobuf_t *info, const char *key, size_t *idx);
 const char *InfoBuf_KeyForNumber (infobuf_t *info, int num);
-const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize);
+const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsize, qboolean *large);
 char *InfoBuf_ReadKey (infobuf_t *info, const char *key, char *outbuf, size_t outsize);
 char *InfoBuf_ValueForKey (infobuf_t *info, const char *key);
 qboolean InfoBuf_RemoveKey (infobuf_t *info, const char *key);

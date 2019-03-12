@@ -6262,7 +6262,7 @@ static void QCBUILTIN PF_sv_serverkeyblob (pubprogfuncs_t *prinst, struct global
 {
 	size_t blobsize = 0;
 	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char	*blobvalue = InfoBuf_BlobForKey(&svs.info, key, &blobsize);
+	const char	*blobvalue = InfoBuf_BlobForKey(&svs.info, key, &blobsize, NULL);
 
 	if ((prinst->callargc<2) || G_INT(OFS_PARM1) == 0)
 		G_INT(OFS_RETURN) = blobsize;	//no pointer to write to, just return the length.
@@ -6302,7 +6302,7 @@ static void QCBUILTIN PF_getlocalinfo (pubprogfuncs_t *prinst, struct globalvars
 {
 	size_t blobsize = 0;
 	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char	*blobvalue = InfoBuf_BlobForKey(&svs.localinfo, key, &blobsize);
+	const char	*blobvalue = InfoBuf_BlobForKey(&svs.localinfo, key, &blobsize, NULL);
 
 	if ((prinst->callargc<2) || G_INT(OFS_PARM1) == 0)
 		G_INT(OFS_RETURN) = blobsize;	//no pointer to write to, just return the length.
@@ -10565,7 +10565,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifndef QUAKETC
 //mvdsv (don't require ebfs usage in qw)
 	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, D("void()","Attempt to flush the localcmd buffer NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code."),				true},
-	{"mvdtokenize",		PF_Tokenize, 		0,		0,		0,		84, D("void(string str)",NULL),		true},
+	{"mvdtokenize",		PF_tokenize_console,0,		0,		0,		84, D("void(string str)",NULL),		true},
 	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, D("float()",NULL),				true},
 	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, D("string(float num)",NULL),	true},
 

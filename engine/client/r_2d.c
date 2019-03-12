@@ -436,7 +436,6 @@ mpic_t	*R2D_SafeCachePic (const char *path)
 
 mpic_t *R2D_SafePicFromWad (const char *name)
 {
-	void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs);
 	shader_t *s;
 	if (!qrenderer)
 		return NULL;

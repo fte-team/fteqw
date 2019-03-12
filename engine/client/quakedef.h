@@ -355,6 +355,7 @@ typedef enum
 	WG_COUNT	= 2 //main and loaders
 } wgroup_t;
 void COM_AddWork(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);
+void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);
 qboolean COM_HasWork(void);
 void COM_WorkerFullSync(void);
 void COM_DestroyWorkerThread(void);

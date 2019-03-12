@@ -1,7 +1,7 @@
 FTE_MULTIPROGS
 
 void() init; //called before ents are available (spawn() will fail, but you can use addprogs() here)
-void() initents; //called just before worldspawn, after ents are spawnable spawn() works but addprogs() may fail)
+void() initents; //called just before worldspawn, after ents are spawnable (spawn() works but addprogs() may fail)
 
 float thisprogs; //set by the engine. main progs will always be 0, addons will be non-zero and unique.
 float(string modname) addprogs = #202; //load another progs as well - may fail if too many fields are added.

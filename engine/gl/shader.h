@@ -29,7 +29,8 @@ lights are then added over the top based upon the diffusemap, bumpmap and specul
 
 #ifndef SHADER_H
 #define SHADER_H
-typedef void (shader_gen_t)(const char *name, shader_t*, const void *args);
+struct shaderparsestate_s;
+typedef void (shader_gen_t)(struct shaderparsestate_s *ps, const char *name, const void *args);
 
 #define SHADER_TMU_MAX 16
 #define SHADER_PASS_MAX	16
@@ -513,6 +514,9 @@ struct programpermu_s
 	#endif
 	} h;
 #endif
+#ifdef GLQUAKE
+	int factorsuniform;
+#endif
 	unsigned int permutation;
 	unsigned int attrmask;
 	unsigned int texmask;	//'standard' textures that are in use
@@ -675,6 +679,12 @@ struct shader_s
 
 	bucket_t bucket;
 
+#define MATERIAL_FACTOR_BASE 0
+#define MATERIAL_FACTOR_SPEC 1
+#define MATERIAL_FACTOR_EMIT 2
+#define MATERIAL_FACTOR_COUNT 3
+	vec4_t factors[MATERIAL_FACTOR_COUNT];
+
 	//arranged as a series of vec4s
 /*	struct
 	{
@@ -711,15 +721,17 @@ cin_t *R_ShaderGetCinematic(shader_t *s);
 cin_t *R_ShaderFindCinematic(const char *name);
 shader_t *R_ShaderFind(const char *name);	//does NOT increase the shader refcount.
 
-void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultWaterShader(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultCinematic(const char *shortname, shader_t *s, const void *args);
-void Shader_DefaultScript(const char *shortname, shader_t *s, const void *args);
+void Shader_DefaultSkin			(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultSkinShell	(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_Default2D			(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultBSPLM		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultBSPQ1		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultBSPQ2		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultWaterShader	(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultSkybox		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultCinematic	(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_DefaultScript		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
+void Shader_PolygonShader		(struct shaderparsestate_s *ps, const char *shortname, const void *args);
 
 void Shader_ResetRemaps(void);	//called on map changes to reset remapped shaders.
 void Shader_DoReload(void);		//called when the shader system dies.

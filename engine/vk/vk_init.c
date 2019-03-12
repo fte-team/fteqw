@@ -4668,7 +4668,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		}
 #endif
 	}
-	if (info->srgb != 1 && (vid.flags & VID_SRGB_FB))
+	if (info->srgb > 0 && (vid.flags & VID_SRGB_FB))
 		vid.flags |= VID_SRGBAWARE;
 	return true;
 }

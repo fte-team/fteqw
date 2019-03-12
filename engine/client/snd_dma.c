@@ -74,7 +74,7 @@ int sound_started=0;
 
 cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0.3", "bgmvolume", CVAR_ARCHIVE,
 											"Volume level for background music.");
-cvar_t volume					= CVARFD(	"volume", "0.7", CVAR_ARCHIVE,
+cvar_t volume					= CVARAFD(	"volume", "0.7", /*q3*/"s_volume",CVAR_ARCHIVE,
 											"Main volume level for all engine sound.");
 
 cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,

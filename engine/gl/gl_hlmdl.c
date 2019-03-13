@@ -338,7 +338,8 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 				shader = "";
 			shaders[i].defaultshadertext = shader;
 		}
-		shaders[i].defaultshadertext = NULL;
+		else
+			shaders[i].defaultshadertext = NULL;
 		memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
 		shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
 		shaders[i].w = tex[i].w;

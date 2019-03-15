@@ -1405,7 +1405,7 @@ char *FS_GetPackageDownloadFilename(flocation_t *loc)
 			break;
 	}
 
-	if (sp && strchr(sp->purepath, '/'))	//never allow any packages that are directly sitting in the basedir.
+	if (sp && strchr(sp->purepath, '/') && sp->handle->GeneratePureCRC)	//never allow any packages that are directly sitting in the basedir.
 		return sp->purepath;
 	return NULL;
 }
@@ -5817,12 +5817,15 @@ void FS_CreateBasedir(const char *path)
 {
 	vfsfile_t *f;
 	com_installer = false;
-	Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
-	COM_CreatePath(com_gamepath);
+	if (path)
+	{
+		Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
+		COM_CreatePath(com_gamepath);
+	}
 	fs_manifest->security = MANIFEST_SECURITY_INSTALLER;
 	FS_ChangeGame(fs_manifest, true, false);
 
-	if (host_parms.manifest)
+	if (path && host_parms.manifest)
 	{
 		f = FS_OpenVFS("default.fmf", "wb", FS_ROOT);
 		if (f)

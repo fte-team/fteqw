@@ -2144,9 +2144,12 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 		if (f->faces < MAX_FACES)
 		{
 			size_t lumpsize;
-			qbyte lumptype;
-			void *lumpdata;
-			lumpdata = W_GetLumpName("conchars", &lumpsize, &lumptype);
+			qbyte lumptype = 0;
+			void *lumpdata = NULL;
+			if ((!lumpdata || lumptype != TYP_HLFONT) && *fontfilename)
+				lumpdata = W_GetLumpName(fontfilename, &lumpsize, &lumptype);
+			if (!lumpdata || lumptype != TYP_HLFONT)
+				lumpdata = W_GetLumpName("conchars", &lumpsize, &lumptype);
 			if (lumpdata && lumptype == TYP_HLFONT)
 			{
 				fontface_t *fa = Z_Malloc(sizeof(*fa));

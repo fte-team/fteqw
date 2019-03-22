@@ -3980,7 +3980,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	else
 #endif
 #ifdef USE_VMODE
-	if (!xrandr.origgamma)
+	if (!xrandr.origgamma && vm.pXF86VidModeGetGammaRampSize)
 	{
 		int rampsize = 256;
 		vm.pXF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);

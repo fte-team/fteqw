@@ -3053,7 +3053,55 @@ float S_GetSoundTime(int entnum, int entchannel)
 		{
 			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
 			{
-				result = (sc->channel[i].pos>>PITCHSHIFT) / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				ssamplepos_t spos = sc->GetChannelPos?sc->GetChannelPos(sc, &sc->channel[i]):(sc->channel[i].pos>>PITCHSHIFT);
+				result = spos / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				break;
+			}
+		}
+		//we found one on this sound device card, ignore others.
+		if (result != -1)
+			break;
+	}
+	S_UnlockMixer();
+	return result;
+}
+float S_GetChannelLevel(int entnum, int entchannel)
+{
+	int i, j;
+	float result = -1;	//if we didn't find one
+	soundcardinfo_t *sc;
+	sfxcache_t scachebuf, *scache;
+	S_LockMixer();
+	for (sc = sndcardinfo; sc && result == -1; sc = sc->next)
+	{
+		for (i = 0; i < sc->total_chans; i++)
+		{
+			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
+			{
+				ssamplepos_t spos = sc->GetChannelPos?sc->GetChannelPos(sc, &sc->channel[i]):(sc->channel[i].pos>>PITCHSHIFT);
+				scache = sc->channel[i].sfx->decoder.decodedata(sc->channel[i].sfx, &scachebuf, spos, 1);
+				if (!scache)
+					scache = sc->channel[i].sfx->decoder.buf;
+				if (scache && spos >= scache->soundoffset && spos < scache->soundoffset+scache->length)
+				{
+					spos -= scache->soundoffset;
+					spos *= scache->numchannels;
+					switch(scache->width)
+					{
+					case 1:
+						for (j = 0; j < scache->numchannels; j++)	//average the channels
+							result += abs(((signed char*)scache->data)[spos+j]);
+						result /= scache->numchannels*127.0;
+						break;
+					case 2:
+						for (j = 0; j < scache->numchannels; j++)	//average the channels
+							result += abs(((signed short*)scache->data)[spos+j]);
+						result /= scache->numchannels*32767.0;
+						break;
+					}
+				}
+				else
+					result = 0;
 				break;
 			}
 		}

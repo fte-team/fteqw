@@ -4131,6 +4131,13 @@ void QCBUILTIN PF_getsoundtime (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	G_FLOAT(OFS_RETURN) = S_GetSoundTime(-entity->entnum, channel);
 }
+void QCBUILTIN PF_getchannellevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*entity	= G_WEDICT(prinst, OFS_PARM0);
+	int			channel	= G_FLOAT(OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = S_GetChannelLevel(-entity->entnum, channel);
+}
 static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char		*sample;
@@ -6740,6 +6747,7 @@ static struct {
 	{"stopsound",				PF_stopsound,				0},
 	{"soundupdate",				PF_soundupdate,				0},
 	{"getsoundtime",			PF_getsoundtime,			533},
+	{"getchannellevel",			PF_getchannellevel,			0},
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
@@ -7414,6 +7422,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.edgefriction = 2;//*pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
 		movevars.coordsize = 4;
+		movevars.flags = MOVEFLAG_NOGRAVITYONGROUND;
 	}
 
 	for (i = 0; i < sizeof(csqc_builtin)/sizeof(csqc_builtin[0]); i++)

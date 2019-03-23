@@ -465,7 +465,7 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits)
 	if (bits & U_ORIGIN3)
 	{
 		if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
-			to->origin[1] = MSG_ReadCoordFloat ();
+			to->origin[2] = MSG_ReadCoordFloat ();
 		else
 			to->origin[2] = MSG_ReadCoord ();
 	}
@@ -4592,7 +4592,12 @@ void CLQW_ParsePlayerinfo (void)
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ORIGINX << i))
-				state->origin[i] = MSG_ReadCoord ();
+			{
+				if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
+					state->origin[i] = MSG_ReadCoordFloat ();
+				else
+					state->origin[i] = MSG_ReadCoord ();
+			}
 		}
 
 		VectorSubtract(state->origin, prevstate->origin, dist);

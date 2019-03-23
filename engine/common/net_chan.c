@@ -233,6 +233,10 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 //		else
 //			mask &= ~PEXT2_PREDINFO;
 	}
+	else if (maskset == 3)
+	{
+		mask = EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON;
+	}
 
 	return mask;
 }

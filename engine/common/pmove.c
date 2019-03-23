@@ -528,10 +528,10 @@ void PM_Friction (void)
 			//id quirk: this is a tracebox, NOT a traceline, yet still starts BELOW the player.
 			start[2] = pmove.origin[2] + pmove.player_mins[2];
 			stop[2] = start[2] - 34;
-			if (movevars_dpflags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which 
+			if (movevars.flags & MOVEFLAG_QWEDGEBOX)	//vanilla qw behaviour is to use a tracebox, which makes edge friction almost unnoticable.
 				trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
 			else
-			{
+			{	//traceline instead.
 				vec3_t min, max;
 				VectorCopy(pmove.player_mins, min);
 				VectorCopy(pmove.player_maxs, max);

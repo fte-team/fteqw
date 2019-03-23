@@ -3093,7 +3093,6 @@ static void CLQW_ParseServerData (void)
 
 // parse protocol version number
 // allow 2.2 and 2.29 demos to play
-#ifdef PROTOCOL_VERSION_FTE
 	cls.fteprotocolextensions = 0;
 	cls.fteprotocolextensions2 = 0;
 	cls.ezprotocolextensions1 = 0;
@@ -3139,18 +3138,18 @@ static void CLQW_ParseServerData (void)
 			break;
 		Host_EndGame ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION_QW);
 	}
-#else
-	protover = MSG_ReadLong ();
-	if (protover != PROTOCOL_VERSION_QW &&
-		!(cls.demoplayback && (protover >= 24 && protover <= 28)))
-		Host_EndGame ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION_QW);
-#endif
 
 	if (developer.ival || cl_shownet.ival)
 	{
-		if (cls.fteprotocolextensions2||cls.fteprotocolextensions)
-			Con_TPrintf ("Using FTE extensions 0x%x%08x\n", cls.fteprotocolextensions2, cls.fteprotocolextensions);
+		if (cls.fteprotocolextensions2||cls.fteprotocolextensions||cls.ezprotocolextensions1)
+			Con_TPrintf ("Using FTE extensions 0x%x%08x %#x\n", cls.fteprotocolextensions2, cls.fteprotocolextensions, cls.ezprotocolextensions1);
 	}
+	if (cls.fteprotocolextensions & ~PEXT_CLIENTSUPPORT)
+		Con_TPrintf (CON_WARNING"Using unknown fte-pext1 extensions (%#x)\n", cls.fteprotocolextensions&~PEXT_CLIENTSUPPORT);
+	if (cls.fteprotocolextensions2 & ~PEXT2_CLIENTSUPPORT)
+		Con_TPrintf (CON_WARNING"Using unknown fte-pext2 extensions (%#x)\n", cls.fteprotocolextensions2&~PEXT2_CLIENTSUPPORT);
+	if (cls.ezprotocolextensions1 & ~EZPEXT1_CLIENTSUPPORT)
+		Con_TPrintf (CON_WARNING"Using unknown ezquake extensions (%#x)\n", cls.ezprotocolextensions1&~EZPEXT1_CLIENTSUPPORT);
 
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
@@ -3332,6 +3331,7 @@ static void CLQW_ParseServerData (void)
 		movevars.waterfriction		= 1;
 		entgrav						= 1;
 	}
+	movevars.flags = MOVEFLAG_QWCOMPAT;
 
 	for (clnum = 0; clnum < cl.splitclients; clnum++)
 	{
@@ -3882,6 +3882,7 @@ static void CLNQ_SendInitialUserInfo(void *ctx, const char *key, const char *val
 {
 	char keybuf[2048];
 	char valbuf[4096];
+	#warning FIXME: use CL_SendUserinfoUpdate or something
 	CL_SendClientCommand(true, "setinfo %s %s\n", COM_QuotedString(key, keybuf, sizeof(keybuf), false), COM_QuotedString(value, valbuf, sizeof(valbuf), false));
 }
 void CLNQ_SignonReply (void)
@@ -5451,7 +5452,7 @@ static void CL_SetStatMovevar(int pnum, int stat, int ivalue, float value)
 		}
 		break;
 	case STAT_MOVEFLAGS:
-//		movevars.flags = ivalue;
+		movevars.flags = ivalue;
 		break;
 	case STAT_MOVEVARS_GRAVITY:
 		movevars.gravity = value;

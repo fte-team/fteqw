@@ -280,6 +280,7 @@ static struct
 	int				subprotocol;	//the monkeys are trying to eat me.
 	unsigned int	fteext1;
 	unsigned int	fteext2;
+	unsigned int	ezext1;
 	int				qport;
 	int				challenge;		//tracked as part of guesswork based upon what replies we get.
 	double			time;			//for connection retransmits
@@ -456,28 +457,31 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 	cl.splitclients = 0;
 }
 
-#ifdef PROTOCOL_VERSION_FTE
-void CL_SupportedFTEExtensions(int *pext1, int *pext2)
+void CL_SupportedFTEExtensions(unsigned int *pext1, unsigned int *pext2, unsigned int *ezpext1)
 {
-	unsigned int fteprotextsupported = 0;
+	unsigned int fteprotextsupported1 = 0;
 	unsigned int fteprotextsupported2 = 0;
+	unsigned int ezprotextsupported1 = 0;
 
-	fteprotextsupported = Net_PextMask(1, false);
+	fteprotextsupported1 = Net_PextMask(1, false);
 	fteprotextsupported2 = Net_PextMask(2, false);
+	ezprotextsupported1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 
-	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
+	fteprotextsupported1 &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
+//	ezprotextsupported1 &= strtoul(cl_ezpext1_mask.string, NULL, 16);
 
 	if (cl_nopext.ival)
 	{
-		fteprotextsupported = 0;
+		fteprotextsupported1 = 0;
 		fteprotextsupported2 = 0;
+		ezprotextsupported1 = 0;
 	}
 
-	*pext1 = fteprotextsupported;
+	*pext1 = fteprotextsupported1;
 	*pext2 = fteprotextsupported2;
+	*ezpext1 = ezprotextsupported1;
 }
-#endif
 
 char *CL_GUIDString(netadr_t *adr, const char *guidstring)
 {
@@ -550,9 +554,7 @@ called by CL_Connect_f and CL_CheckResend
 ======================
 */
 void CL_SendConnectPacket (netadr_t *to, int mtu, 
-#ifdef PROTOCOL_VERSION_FTE
-						   int ftepext, int ftepext2,
-#endif
+						   unsigned int ftepext1, unsigned int ftepext2, unsigned int ezpext1,
 						   int compressioncrc,
 						   const char *guidhash
 						  /*, ...*/)
@@ -562,10 +564,9 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	char	data[2048];
 	char *info;
 	double t1, t2;
-#ifdef PROTOCOL_VERSION_FTE
-	int fteprotextsupported=0;
+	int fteprotextsupported1=0;
 	int fteprotextsupported2=0;
-#endif
+	int ezprotextsupported1=0;
 	char *a;
 
 // JACK: Fixed bug where DNS lookups would cause two connects real fast
@@ -580,31 +581,33 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		compressioncrc = 0;
 	}
 
-#ifdef PROTOCOL_VERSION_FTE
 #ifdef Q2CLIENT
 	if (connectinfo.protocol == CP_QUAKE2)
 	{
-		fteprotextsupported = ftepext & (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
+		fteprotextsupported1 = ftepext1 & (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
 		fteprotextsupported2 = 0;
+		ezprotextsupported1 = 0;
 	}
 	else
 #endif
 	{
-		CL_SupportedFTEExtensions(&fteprotextsupported, &fteprotextsupported2);
+		CL_SupportedFTEExtensions(&fteprotextsupported1, &fteprotextsupported2, &ezprotextsupported1);
 
-		fteprotextsupported &= ftepext;
+		fteprotextsupported1 &= ftepext1;
 		fteprotextsupported2 &= ftepext2;
+		ezprotextsupported1 &= ezpext1;
 
 		if (connectinfo.protocol != CP_QUAKEWORLD)
 		{
-			fteprotextsupported = 0;
+			fteprotextsupported1 = 0;
 			fteprotextsupported2 = 0;
+			ezprotextsupported1 = 0;
 		}
 	}
 
-	connectinfo.fteext1 = fteprotextsupported;
+	connectinfo.fteext1 = fteprotextsupported1;
 	connectinfo.fteext2 = fteprotextsupported2;
-#endif
+	connectinfo.ezext1 = ezprotextsupported1;
 
 	t1 = Sys_DoubleTime ();
 
@@ -679,14 +682,13 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	Q_strncatz(data, "\n", sizeof(data));
 
-#ifdef PROTOCOL_VERSION_FTE
-	if (ftepext)
-		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported), sizeof(data));
-#endif
-#ifdef PROTOCOL_VERSION_FTE2
+	if (ftepext1)
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported1), sizeof(data));
 	if (ftepext2)
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
-#endif
+
+	if (ezpext1)
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_EZQUAKE1, ezprotextsupported1), sizeof(data));
 
 	{
 		int ourmtu;
@@ -786,6 +788,7 @@ void CL_CheckForResend (void)
 			connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
 			connectinfo.fteext1 = PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
 			connectinfo.fteext2 = 0;
+			connectinfo.ezext1 = 0;
 			break;
 #endif
 		default:
@@ -798,6 +801,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 			else if (!strcmp(lbp, "qwid") || !strcmp(lbp, "idqw"))
 			{	//for recording .qwd files in any client
@@ -805,6 +809,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = 0;
 				connectinfo.fteext2 = 0;
+				connectinfo.ezext1 = 0;
 			}
 #ifdef Q3CLIENT
 			else if (!strcmp(lbp, "q3"))
@@ -824,6 +829,7 @@ void CL_CheckForResend (void)
 					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 					connectinfo.fteext1 = Net_PextMask(1, false);
 					connectinfo.fteext2 = Net_PextMask(2, false);
+					connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 				}
 			}
 			else if (!strcmp(lbp, "fitz") || !strcmp(lbp, "rmqe") ||
@@ -873,6 +879,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = CPNQ_FITZ666;
 				connectinfo.fteext1 = Net_PextMask(1, true);
 				connectinfo.fteext2 = Net_PextMask(2, true);
+				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 #endif
 			else
@@ -881,6 +888,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 
 #ifdef NETPREPARSE
@@ -896,6 +904,7 @@ void CL_CheckForResend (void)
 					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 					connectinfo.fteext1 = Net_PextMask(1, false);
 					connectinfo.fteext2 = Net_PextMask(2, false);
+					connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 				}
 				else if (progstype != PROG_QW && cls.protocol == CP_QUAKEWORLD)
 				{
@@ -911,6 +920,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 #ifdef NQPROT
 			else if (cls.demorecording == DPB_NETQUAKE && cls.protocol != CP_NETQUAKE)
@@ -998,7 +1008,7 @@ void CL_CheckForResend (void)
 		{
 			if (!connectinfo.challenge)
 				connectinfo.challenge = rand();
-			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, 0, sv_guidhash.string);
+			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, connectinfo.ezext1, 0, sv_guidhash.string);
 		}
 
 		return;
@@ -2271,6 +2281,8 @@ void CL_CheckServerInfo(void)
 		movevars.flyfriction = *s?Q_atof(s):4;
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_edgefriction");
 		movevars.edgefriction = *s?Q_atof(s):2;
+		if (!(movevars.flags&MOVEFLAG_VALID))
+			movevars.flags = (movevars.flags&~MOVEFLAG_QWEDGEBOX) | (*s?0:MOVEFLAG_QWEDGEBOX);
 	}
 	movevars.coordsize = cls.netchan.netprim.coordsize; 
 
@@ -3011,7 +3023,7 @@ void CL_ConnectionlessPacket (void)
 		static unsigned int lasttime = 0xdeadbeef;
 		static netadr_t lastadr;
 		unsigned int curtime = Sys_Milliseconds();
-		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
+		unsigned long ftepext1= 0, ftepext2 = 0, ezpext1 = 0, huffcrc=0, mtu=0;
 #ifdef HAVE_DTLS
 		int candtls = 0;	//0=no,1=optional,2=mandatory
 #endif
@@ -3050,7 +3062,7 @@ void CL_ConnectionlessPacket (void)
 
 				connectinfo.protocol = CP_QUAKE3;
 				connectinfo.challenge = atoi(s+17);
-				CL_SendConnectPacket (&net_from, 0, 0, 0, 0/*, ...*/, NULL);
+				CL_SendConnectPacket (&net_from, 0, 0, 0, 0, 0/*, ...*/, NULL);
 			}
 			else
 			{
@@ -3197,8 +3209,9 @@ void CL_ConnectionlessPacket (void)
 				unsigned int l = MSG_ReadLong();
 				switch(cmd)
 				{
-				case PROTOCOL_VERSION_FTE:			pext = l;		break;
-				case PROTOCOL_VERSION_FTE2:			pext2 = l;		break;
+				case PROTOCOL_VERSION_FTE:			ftepext1 = l;		break;
+				case PROTOCOL_VERSION_FTE2:			ftepext2 = l;		break;
+				case PROTOCOL_VERSION_EZQUAKE1:		ezpext1 = l;		break;
 				case PROTOCOL_VERSION_FRAGMENT:		mtu = l;		break;
 #ifdef HAVE_DTLS
 				case PROTOCOL_VERSION_DTLSUPGRADE:	candtls = l;	break;	//0:not enabled. 1:explicit use allowed. 2:favour it. 3: require it
@@ -3241,7 +3254,7 @@ void CL_ConnectionlessPacket (void)
 		}
 #endif
 
-		CL_SendConnectPacket (&net_from, mtu, pext, pext2, huffcrc/*, ...*/, guidhash);
+		CL_SendConnectPacket (&net_from, mtu, ftepext1, ftepext2, ezpext1, huffcrc/*, ...*/, guidhash);
 		return;
 	}
 #ifdef Q2CLIENT
@@ -3473,6 +3486,7 @@ client_connect:	//fixme: make function
 		cls.proquake_angles_hack = false;
 		cls.fteprotocolextensions = connectinfo.fteext1;
 		cls.fteprotocolextensions2 = connectinfo.fteext2;
+		cls.ezprotocolextensions1 = connectinfo.ezext1;
 		cls.challenge = connectinfo.challenge;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 		if (cls.protocol == CP_QUAKE2)
@@ -3671,7 +3685,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		cls.fteprotocolextensions = connectinfo.fteext1;
 		cls.fteprotocolextensions2 = connectinfo.fteext2;
-		cls.ezprotocolextensions1 = 0;
+		cls.ezprotocolextensions1 = connectinfo.ezext1;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
@@ -5723,7 +5737,7 @@ double Host_Frame (double time)
 
 #ifdef WEBCLIENT
 //	FTP_ClientThink();
-	HTTP_CL_Think();
+	HTTP_CL_Think(NULL, NULL);
 #endif
 
 	if (r_blockvidrestart)

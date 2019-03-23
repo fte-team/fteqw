@@ -1396,7 +1396,7 @@ static unsigned int dlthreads = 0;
 static void HTTP_Wake_Think(void *ctx, void *data, size_t a, size_t b)
 {
 	dlthreads--;
-	HTTP_CL_Think();
+	HTTP_CL_Think(NULL, NULL);
 }
 #endif
 static int DL_Thread_Work(void *arg)
@@ -1613,7 +1613,7 @@ struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *d
 	return dl;
 }
 
-void HTTP_CL_Think(void)
+void HTTP_CL_Think(const char **curname, float *curpercent)
 {
 	struct dl_download *dl = activedownloads;
 	struct dl_download **link = NULL;
@@ -1660,6 +1660,23 @@ void HTTP_CL_Think(void)
 			}
 		}
 		link = &dl->next;
+
+		if (curname && curpercent)
+		{
+			if (*dl->localname)
+				*curname = (const char*)dl->localname;
+			else
+				*curname = (const char*)dl->url;
+
+			if (dl->status == DL_FINISHED)
+				*curpercent = 100;
+			else if (dl->status != DL_ACTIVE)
+				*curpercent = 0;
+			else if (dl->totalsize <= 0)
+				*curpercent = -1;
+			else
+				*curpercent = dl->completed*100.0f/dl->totalsize;
+		}
 
 #ifndef SERVERONLY
 		if (!cls.download && !dl->isquery)
@@ -1712,7 +1729,7 @@ void HTTP_CL_Terminate(void)
 		next = dl->next;
 		DL_Close(dl);
 	}
-	HTTP_CL_Think();
+	HTTP_CL_Think(NULL, NULL);
 
 #ifdef COOKIECOOKIECOOKIE
 	Cookie_Monster();

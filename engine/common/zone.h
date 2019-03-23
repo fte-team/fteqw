@@ -132,6 +132,7 @@ void ZG_FreeGroup(zonegroup_t *ctx);
 #define ZF_ReallocElements(p,e,n,s) ZF_ReallocElementsNamed(p,e,n,s,__FILE__,__LINE__)
 #endif
 #define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
+#define Z_StrDupPtr(v,s) do{Z_Free(*v),*(v) = strcpy(Z_Malloc(strlen(s)+1), s);}while(0)
 
 void Z_StrCat(char **ptr, const char *append);
 

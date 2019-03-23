@@ -647,11 +647,10 @@ typedef struct client_s
 #endif
 
 	qboolean		csqcactive;
-#ifdef PROTOCOL_VERSION_FTE
 	qboolean		pextknown;
 	unsigned int	fteprotocolextensions;
 	unsigned int	fteprotocolextensions2;
-#endif
+	unsigned int	ezprotocolextensions1;
 	unsigned int	zquake_extensions;
 	unsigned int	max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
 	unsigned int	max_net_staticents; /*limit to the number of static ents supported by the client*/
@@ -720,6 +719,11 @@ typedef struct client_s
 	float delay;
 	laggedpacket_t *laggedpacket;
 	laggedpacket_t *laggedpacket_last;
+
+#ifdef VM_Q1
+	int hideentity;
+	qboolean hideplayers;
+#endif
 } client_t;
 
 #if defined(NQPROT) || defined(Q2SERVER) || defined(Q3SERVER)
@@ -1270,7 +1274,7 @@ void SV_SendClientMessages (void);
 void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
-void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx);
+void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx);
 
 void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int flags);
 void QDECL SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags);
@@ -1567,7 +1571,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 
 extern demo_t			demo;				// server demo struct
 
-extern cvar_t	sv_demoDir;
+extern cvar_t	sv_demoDir, sv_demoDirAlt;
 extern cvar_t	sv_demoAutoRecord;
 extern cvar_t	sv_demofps;
 extern cvar_t	sv_demoPings;

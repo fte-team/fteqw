@@ -132,7 +132,7 @@ typedef struct {
 #define MOVEFLAG_NOGRAVITYONGROUND				0x00000002	//no slope sliding
 #define MOVEFLAG_GRAVITYUNAFFECTEDBYTICRATE		0x00000004	//apply half-gravity both before AND after the move, which better matches the curve
 #define MOVEFLAG_QWEDGEBOX						0x00010000	//calculate edgefriction using tracebox and a buggy start pos
-#define MOVEFLAG_QWCOMPAT						(MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|MOVEFLAG_QWEDGEBOX)
+#define MOVEFLAG_QWCOMPAT						(MOVEFLAG_NOGRAVITYONGROUND|MOVEFLAG_QWEDGEBOX)
 
 extern	movevars_t		movevars;
 extern	playermove_t	pmove;

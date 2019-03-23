@@ -3996,9 +3996,6 @@ char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qbo
 	len = 0;
 	token[0] = 0;
 
-	if (token == com_token)
-		COM_AssertMainThread("COM_ParseOut: com_token");
-
 	if (!data)
 		return NULL;
 

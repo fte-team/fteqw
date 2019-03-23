@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CHAN_ITEM   3
 #define CHAN_BODY   4
 
-extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction;
+extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_reliable_sound;
 extern cvar_t  dpcompat_stats;
 
 /*
@@ -1016,9 +1016,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	SZ_Clear (&sv.multicast);
 }
 
-void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx)
+void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx)
 {
-	qboolean reliable = false;
+	qboolean reliable = false, doreliable;
 
 	client_t	*client;
 	qbyte		*mask;
@@ -1140,7 +1140,15 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 		if (!split)
 			continue;
 
-		if (reliable)
+		doreliable = reliable;
+		if (reliableinfokey)
+		{	//allow the user to override reliable state according to a userinfo key (primarily "rsnd" right now, but hey).
+			const char *v = InfoBuf_ValueForKey(&client->userinfo, reliableinfokey);
+			if (*v)
+				doreliable = atoi(v);
+		}
+
+		if (doreliable)
 		{
 			char msgbuf[8192];
 			sizebuf_t msg = {0};
@@ -1435,14 +1443,14 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 
 	if (chflags & CF_SV_UNICAST)
 	{
-		SV_MulticastCB(origin, reliable ? MULTICAST_ONE_R_SPECS : MULTICAST_ONE_SPECS, seenmask, SV_SoundMulticast, &ctx);
+		SV_MulticastCB(origin, (reliable||sv_reliable_sound.ival) ? MULTICAST_ONE_R_SPECS : MULTICAST_ONE_SPECS, reliable?NULL:"rsnd", seenmask, SV_SoundMulticast, &ctx);
 	}
 	else
 	{
 		if (use_phs)
-			SV_MulticastCB(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, SV_SoundMulticast, &ctx);
+			SV_MulticastCB(origin, (reliable||sv_reliable_sound.ival) ? MULTICAST_PHS_R : MULTICAST_PHS, reliable?NULL:"rsnd", seenmask, SV_SoundMulticast, &ctx);
 		else
-			SV_MulticastCB(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, SV_SoundMulticast, &ctx);
+			SV_MulticastCB(origin, (reliable||sv_reliable_sound.ival) ? MULTICAST_ALL_R : MULTICAST_ALL, reliable?NULL:"rsnd", seenmask, SV_SoundMulticast, &ctx);
 	}
 }
 
@@ -2180,7 +2188,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 //			statsfi[STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW]			= 0;
 //			statsfi[STAT_MOVEVARS_AIRSTRAFEACCEL_QW]			= 0;
 //			statsfi[STAT_MOVEVARS_AIRCONTROL_POWER]				= 2;
-			statsi [STAT_MOVEFLAGS]								= MOVEFLAG_QWCOMPAT;
+			statsi [STAT_MOVEFLAGS]								= MOVEFLAG_VALID|MOVEFLAG_QWCOMPAT;
 //			statsfi[STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL]	= 0;
 //			statsfi[STAT_MOVEVARS_WARSOWBUNNY_ACCEL]			= 0;
 //			statsfi[STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED]			= 0;
@@ -2807,6 +2815,9 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 
 	if (!large)
 	{	//vanilla-compatible info.
+		if (!blobdata)
+			blobdata = "";
+
 		if (ISNQCLIENT(client))
 		{	//except that nq never had any userinfo
 			const char *s;
@@ -2847,6 +2858,8 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 			InfoSync_Remove(&client->infosync, 0);
 			return false;
 		}
+		if (!blobdata)
+			bloboffset = 0;	//wiped or something? I dunno, don't bug out though.y
 
 		sendsize = blobsize - bloboffset;
 		bufferspace = MAX_BACKBUFLEN - client->netchan.message.cursize;

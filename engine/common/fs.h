@@ -74,6 +74,8 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
 void PM_EnumeratePlugins(void (*callback)(const char *name));
 int PM_IsApplying(qboolean listsonly);
+unsigned int PM_MarkUpdates (void);	//mark new/updated packages as needing install.
+void PM_ApplyChanges(void);	//for -install/-doinstall args
 void PM_ManifestPackage(const char *name, int security);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
 void Menu_Download_Update(void);

@@ -583,6 +583,21 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 	return success;
 }
 
+//for querying sound offsets (for various hacks).
+static ssamplepos_t OpenAL_GetChannelPos(soundcardinfo_t *sc, channel_t *chan)
+{
+	ALint spos = 0;
+	oalinfo_t *oali = sc->handle;
+	int chnum = chan - sc->channel;
+	ALuint src;
+	src = oali->source[chnum];
+	if (!src)
+		return (ssamplepos_t)(~(usamplepos_t)0)>>1;	//not actually playing...
+
+	palGetSourcei(src, AL_SAMPLE_OFFSET, &spos);
+	return spos;
+}
+
 //schanged says the sample has changed, otherwise its merely moved around a little, maybe changed in volume, but nothing that will restart it.
 static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned int schanged)
 {
@@ -1361,6 +1376,7 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 #endif
 	sc->ChannelUpdate = OpenAL_ChannelUpdate;
 	sc->ListenerUpdate = OpenAL_ListenerUpdate;
+	sc->GetChannelPos = OpenAL_GetChannelPos;
 	//these are stubs for our software mixer, and are not used with hardware mixing.
 	sc->Lock = OpenAL_LockBuffer;
 	sc->Unlock = OpenAL_UnlockBuffer;

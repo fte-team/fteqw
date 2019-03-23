@@ -82,6 +82,13 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 	fr.add(menuitemslider_spawn(_("Gamma"),	"gamma",				'1.3 0.5 -0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Contrast"),	"contrast",				'0.7 2 0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Brightness"),	"brightness",			'0 0.4 0.05', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcombo_spawn(_("Hardware Gamma"),	"vid_hardwaregamma",			'280 8', 
+																		"0	\"Off\" "
+																		"1	\"Auto\" "
+																		"2	\"Soft\" "
+																		"3	\"Hard\" "
+																		"4	\"Scene Only\" "
+																		),	fl, [0, pos], [0, 8]); pos += 8;
 
 	addmenuback(m);
 };

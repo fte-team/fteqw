@@ -1833,4 +1833,10 @@ void Sys_SetAutoUpdateSetting(int newval)
 }
 #endif
 
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{	//not implemented
+	return false;
+}
+#endif
 #endif

@@ -88,6 +88,8 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define S_COLOR_CYAN	"^5"
 #define S_COLOR_MAGENTA	"^6"
 #define S_COLOR_WHITE	"^7"
+#define S_COLOR_TRANS	"^8"
+#define S_COLOR_GRAY	"^9"
 
 #define CON_DEFAULT "^&--"
 #define CON_WARNING "^&E0"

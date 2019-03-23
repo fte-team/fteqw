@@ -41,6 +41,7 @@ cvar_t	sv_demoMaxDirCount = CVARD("sv_demoMaxDirCount", "500", "Maximum allowed 
 cvar_t	sv_demoMaxDirAge = CVARD("sv_demoMaxDirAge", "0", "Maximum allowed age for demos, any older demos will be deleted when sv_demoClearOld is set (this doesn't prevent recording new demos).");
 cvar_t	sv_demoClearOld = CVARD("sv_demoClearOld", "0", "Automatically delete demos to keep the demos count reasonable.");
 cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
+cvar_t	sv_demoDirAlt = CVARD("sv_demoDir", "", "Provides a fallback directory name for demo downloads, for when sv_demoDir doesn't contain the requested demo.");
 cvar_t	sv_demofps = CVAR("sv_demofps", "30");
 cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");
 cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to be no larger than this size.");
@@ -1203,6 +1204,7 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoMaxDirAge,	MVDVARGROUP);
 	Cvar_Register (&sv_demoClearOld,	MVDVARGROUP);
 	Cvar_Register (&sv_demoDir,			MVDVARGROUP);
+	Cvar_Register (&sv_demoDirAlt,		MVDVARGROUP);
 	Cvar_Register (&sv_demoPrefix,		MVDVARGROUP);
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
 	Cvar_Register (&sv_demotxt,			MVDVARGROUP);

@@ -532,6 +532,8 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 				}
 				return data;
 			}
+			else if (lumptype == TYP_HLFONT)
+				; //FIXME... gah
 			else
 				Con_Printf("W_GetTexture: unknown lump type\n");
 		}

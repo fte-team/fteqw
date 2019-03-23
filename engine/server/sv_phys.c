@@ -2696,5 +2696,6 @@ void SV_SetMoveVars(void)
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:4;
 	movevars.edgefriction		= *pm_edgefriction.string?pm_edgefriction.value:2;
+	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*pm_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 }
 #endif

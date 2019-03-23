@@ -291,6 +291,7 @@ void M_Menu_Options_f (void)
 		NULL
 	};
 
+	extern cvar_t cfg_save_auto;
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 #ifdef PACKAGEMANAGER
@@ -299,6 +300,7 @@ void M_Menu_Options_f (void)
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
 		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
+		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
 		MB_SPACING(4),
 		MB_COMBOCVAR("View Projection", r_projection, projections, projectionvalues, NULL),
 		MB_COMBOCVAR("FOV Mode", scr_fov_mode, fovmodes, fovmodevalues, NULL),
@@ -1004,6 +1006,7 @@ static void ApplyPreset (int presetnum)
 
 void M_Menu_Preset_f (void)
 {
+	extern cvar_t cfg_save_auto;
 	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
@@ -1019,6 +1022,8 @@ void M_Menu_Preset_f (void)
 #ifdef RTLIGHTS
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
 #endif
+		MB_SPACING(16),
+		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
 		MB_END()
 	};
 	static menuresel_t resel;

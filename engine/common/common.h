@@ -693,6 +693,7 @@ qboolean PM_CanInstall(const char *packagename);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);
+void FS_CreateBasedir(const char *path);
 qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs, qboolean allowbasedirchange);
 void FS_Shutdown(void);
 struct gamepacks

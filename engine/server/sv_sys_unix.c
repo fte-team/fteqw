@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fcntl.h>
 #include <dirent.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef MULTITHREAD
 #include <pthread.h>
@@ -98,7 +99,11 @@ qboolean Sys_rmdir (const char *path)
 
 qboolean Sys_remove (const char *path)
 {
+#ifdef __unix__
+	return unlink(path);
+#else
 	return system(va("rm \"%s\"", path));
+#endif
 }
 
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
@@ -1132,10 +1137,90 @@ void Sys_ServerActivity(void)
 
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {
-	qboolean res;
+	qboolean res = false;
 	int fd = open("/dev/urandom", 0);
-	res = (read(fd, string, len) == len);
-	close(fd);
-
+	if (fd != -1)
+	{
+		res = (read(fd, string, len) == len);
+		close(fd);
+	}
 	return res;
 }
+
+#ifdef WEBCLIENT
+#include "fs.h"
+static qboolean Sys_DoInstall(void)
+{
+	char fname[MAX_QPATH];
+	float pct = 0;
+	qboolean applied = false;
+#ifdef __unix__
+	qboolean showprogress = isatty(STDOUT_FILENO);
+#else
+	qboolean showprogress = false;
+#endif
+
+#if 1
+	FS_CreateBasedir(NULL);
+#else
+	char basedir[MAX_OSPATH];
+	if (!FS_NativePath("", FS_ROOT, basedir, sizeof(basedir)))
+		return true;
+	FS_CreateBasedir(basedir);
+#endif
+
+	*fname = 0;
+	for(;;)
+	{
+		while(FS_DownloadingPackage())
+		{
+			const char *cur = "";
+			float newpct = 50;
+			HTTP_CL_Think(&cur, &newpct);
+
+			if (*cur && Q_strncmp(fname, cur, sizeof(fname)-1))
+			{
+				Q_strncpyz(fname, cur, sizeof(fname));
+				Con_Printf("Downloading: %s\n", fname);
+			}
+			if (showprogress && (int)(pct*10) != (int)(newpct*10))
+			{
+				pct = newpct;
+				Sys_Printf("%5.1f%%\r", pct);
+			}
+
+			Sys_Sleep(10/1000.0);
+			COM_MainThreadWork();
+		}
+
+		if (!applied)
+		{
+			if (!PM_MarkUpdates())
+				break;	//no changes to apply
+			PM_ApplyChanges();
+			applied = true;	//don't keep applying.
+			continue;
+		}
+		break;
+	}
+	if (showprogress)
+		Sys_Printf("     \r");
+	return true;
+}
+qboolean Sys_RunInstaller(void)
+{
+	if (COM_CheckParm("-install"))
+	{	//install THEN run
+		Sys_DoInstall();
+		return false;
+	}
+	if (COM_CheckParm("-doinstall"))
+	{
+		//install only, then quit
+		return Sys_DoInstall();
+	}
+	if (!com_installer)
+		return false;
+	return Sys_DoInstall();
+}
+#endif

@@ -187,6 +187,7 @@ void S_Startup (void);
 void S_EnumerateDevices(void);
 void S_Shutdown (qboolean final);
 float S_GetSoundTime(int entnum, int entchannel);
+float S_GetChannelLevel(int entnum, int entchannel);
 void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
 float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
@@ -376,6 +377,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	void (*Restore) (soundcardinfo_t *sc);							//called before lock/unlock/lock/unlock/submit. optional
 	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);	//properties of a sound effect changed. this is to notify hardware mixers. optional.
 	void (*ListenerUpdate) (soundcardinfo_t *sc, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);	//player moved or something. this is to notify hardware mixers. optional.
+	ssamplepos_t (*GetChannelPos) (soundcardinfo_t *sc, channel_t *channel);	//queries a hardware mixer's channel position (essentially returns channel->pos, except more up to date)
 
 //driver-specific - if you need more stuff, you should just shove it in the handle pointer
 	void *thread;

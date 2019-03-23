@@ -1126,3 +1126,10 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 
 	return res;
 }
+
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{
+	return false;
+}
+#endif

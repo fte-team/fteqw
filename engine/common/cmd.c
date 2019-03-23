@@ -2623,14 +2623,24 @@ static void Cmd_ForwardToServer_f (void)
 	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.fteprotocolextensions2 || cls.protocol_nq != CPNQ_ID || cls.proquake_angles_hack || cls.netchan.remote_address.type != NA_LOOPBACK))
 	{	//don't send any extension flags this if we're using cl_loopbackprotocol nqid, purely for a compat test.
 		//if you want to record compat-demos, disable extensions instead.
-		unsigned int fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE), fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE);
+		unsigned int	fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE),
+						fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE),
+						ez1 = Net_PextMask(3, cls.protocol == CP_NETQUAKE) & EZPEXT1_CLIENTADVERTISE;
 		extern cvar_t cl_nopext;
+		char line[256];
 		if (cl_nopext.ival)
 		{
 			fp1 = 0;
 			fp2 = 0;
 		}
-		CL_SendClientCommand(true, "pext %#x %#x %#x %#x", PROTOCOL_VERSION_FTE, fp1, PROTOCOL_VERSION_FTE2, fp2);
+		Q_strncpyz(line, "pext", sizeof(line));
+		if (fp1)
+			Q_strncatz(line, va(" %#x %#x", PROTOCOL_VERSION_FTE, fp1), sizeof(line));
+		if (fp2)
+			Q_strncatz(line, va(" %#x %#x", PROTOCOL_VERSION_FTE2, fp2), sizeof(line));
+		if (ez1)
+			Q_strncatz(line, va(" %#x %#x", PROTOCOL_VERSION_EZQUAKE1, ez1), sizeof(line));
+		CL_SendClientCommand(true, "%s", line);
 		return;
 	}
 	if (Q_strcasecmp(Cmd_Argv(1), "ptrack") == 0)

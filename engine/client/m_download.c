@@ -13,17 +13,17 @@
 #include "fs.h"
 
 //whole load of extra args for the downloads menu (for the downloads menu to handle engine updates).
-#ifdef VKQUAKE
+#if defined(VKQUAKE) && !defined(SERVERONLY)
 #define PHPVK "&vk=1"
 #else
 #define PHPVK
 #endif
-#ifdef GLQUAKE
+#if defined(GLQUAKE) && !defined(SERVERONLY)
 #define PHPGL "&gl=1"
 #else
 #define PHPGL
 #endif
-#ifdef D3DQUAKE
+#if defined(D3DQUAKE) && !defined(SERVERONLY)
 #define PHPD3D "&d3d=1"
 #else
 #define PHPD3D
@@ -262,7 +262,7 @@ static void PM_FreePackage(package_t *p)
 	Z_Free(p);
 }
 
-qboolean PM_PurgeOnDisable(package_t *p)
+static qboolean PM_PurgeOnDisable(package_t *p)
 {
 	//corrupt packages must be purged
 	if (p->flags & DPF_CORRUPT)
@@ -281,7 +281,7 @@ qboolean PM_PurgeOnDisable(package_t *p)
 }
 
 //checks the status of each package
-void PM_ValidatePackage(package_t *p)
+static void PM_ValidatePackage(package_t *p)
 {
 	package_t *o;
 	struct packagedep_s *dep;
@@ -631,8 +631,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 	char defaultgamedir[64];
 	char mirror[countof(p->mirror)][MAX_OSPATH];
 	int nummirrors = 0;
-	int argc;
 	qboolean isauto;
+	char *tokstart;
 
 	if (!f)
 		return;
@@ -676,52 +676,61 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 			*sl = '\0';
 		while((sl=strchr(line, '\r')))
 			*sl = '\0';
-		Cmd_TokenizeString (line, false, false);
-		argc = Cmd_Argc();
-		if (argc)
+
+		tokstart = COM_StringParse (line, com_token, sizeof(com_token), false, false);
+		if (*com_token)
 		{
-			if (!strcmp(Cmd_Argv(0), "sublist"))
+			if (!strcmp(com_token, "sublist"))
 			{
 				char *subprefix;
+				char url[MAX_OSPATH];
+				tokstart = COM_StringParse (tokstart, url, sizeof(url), false, false);
+				tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
 				if (*prefix)
-					subprefix = va("%s/%s", prefix, Cmd_Argv(2));
+					subprefix = va("%s/%s", prefix, com_token);
 				else
-					subprefix = Cmd_Argv(2);
-				PM_AddSubList(Cmd_Argv(1), subprefix, (parseflags & DPF_ENABLED)?true:false, (parseflags&DPF_TRUSTED));
+					subprefix = com_token;
+				PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, (parseflags&DPF_TRUSTED));
 				continue;
 			}
-			if (!strcmp(Cmd_Argv(0), "set"))
+			if (!strcmp(com_token, "set"))
 			{
-				if (!strcmp(Cmd_Argv(1), "gamedir"))
+				tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
+				if (!strcmp(com_token, "gamedir"))
 				{
-					if (argc == 2)
+					tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
+					if (!*com_token)
 						Q_strncpyz(defaultgamedir, FS_GetGamedir(false), sizeof(defaultgamedir));
 					else
-						Q_strncpyz(defaultgamedir, Cmd_Argv(2), sizeof(defaultgamedir));
+						Q_strncpyz(defaultgamedir, com_token, sizeof(defaultgamedir));
 				}
-				else if (!strcmp(Cmd_Argv(1), "mirrors"))
+				else if (!strcmp(com_token, "mirrors"))
 				{
 					nummirrors = 0;
-					while (nummirrors < countof(mirror) && 2+nummirrors < argc)
+					while (nummirrors < countof(mirror) && tokstart)
 					{
-						Q_strncpyz(mirror[nummirrors], Cmd_Argv(2+nummirrors), sizeof(mirror[nummirrors]));
-						if (!*mirror[nummirrors])
-							break;
-						nummirrors++;
+						tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
+						if (*com_token)
+						{
+							Q_strncpyz(mirror[nummirrors], com_token, sizeof(mirror[nummirrors]));
+							nummirrors++;
+						}
 					}
 				}
-				else if (!strcmp(Cmd_Argv(1), "updatemode"))
+				else if (!strcmp(com_token, "updatemode"))
 				{
+					tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
 					if (parseflags & DPF_ENABLED)	//don't use a downloaded file's version of this, only use the local version of it.
-						Cvar_ForceSet(&pm_autoupdate, Cmd_Argv(2));
+						Cvar_ForceSet(&pm_autoupdate, com_token);
 				}
-				else if (!strcmp(Cmd_Argv(1), "declined"))
+				else if (!strcmp(com_token, "declined"))
 				{
 					if (parseflags & DPF_ENABLED)	//don't use a downloaded file's version of this, only use the local version of it.
 					{
+						tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
 						Z_Free(declinedpackages);
-						if (*Cmd_Argv(2))
-							declinedpackages = Z_StrDup(Cmd_Argv(2));
+						if (*com_token)
+							declinedpackages = Z_StrDup(com_token);
 						else
 							declinedpackages = NULL;
 					}
@@ -733,183 +742,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				continue;
 			}
 			isauto = false;
-			if (version > 1)
-			{
-				char pathname[256];
-				char *fullname = Cmd_Argv(0);
-				char *file = NULL;
-				char *url = NULL;
-				char *gamedir = NULL;
-				char *ver = NULL;
-				char *arch = NULL;
-				char *qhash = NULL;
-				char *title = NULL;
-				char *category = NULL;
-				char *description = NULL;
-				char *license = NULL;
-				char *author = NULL;
-				char *previewimage = NULL;
-				char *website = NULL;
-				int extract = EXTRACT_COPY;
-				int priority = PM_DEFAULTPRIORITY;
-				unsigned int flags = parseflags;
-				enum fs_relative fsroot = FS_ROOT;
-				int i;
-
-				if (version > 2)
-					flags &= ~DPF_ENABLED;
-
-				p = Z_Malloc(sizeof(*p));
-				for (i = 1; i < argc; i++)
-				{
-					char *arg = Cmd_Argv(i);
-					if (!strncmp(arg, "url=", 4))
-						url = arg+4;
-					else if (!strncmp(arg, "category=", 9))
-						category = arg+9;
-					else if (!strncmp(arg, "title=", 6))
-						title = arg+6;
-					else if (!strncmp(arg, "gamedir=", 8))
-						gamedir = arg+8;
-					else if (!strncmp(arg, "ver=", 4))
-						ver = arg+4;
-					else if (!strncmp(arg, "v=", 2))
-						ver = arg+2;
-					else if (!strncmp(arg, "arch=", 5))
-						arch = arg+5;
-					else if (!strncmp(arg, "priority=", 9))
-						priority = atoi(arg+9);
-					else if (!strncmp(arg, "qhash=", 6))
-						qhash = arg+6;
-					else if (!strncmp(arg, "desc=", 5))
-						description = arg+5;
-					else if (!strncmp(arg, "license=", 8))
-						license = arg+8;
-					else if (!strncmp(arg, "author=", 7))
-						author = arg+7;
-					else if (!strncmp(arg, "preview=", 8))
-						previewimage = arg+8;
-					else if (!strncmp(arg, "website=", 8))
-						website = arg+8;
-					else if (!strncmp(arg, "file=", 5))
-					{
-						if (!file)
-							file = arg+5; //for when url isn't explicitly given. assume the url to be the same as the file (relative to defined mirrors)
-						PM_AddDep(p, DEP_FILE, arg+5);
-					}
-					else if (!strncmp(arg, "extract=", 8))
-					{
-						if (!strcmp(arg+8, "xz"))
-							extract = EXTRACT_XZ;
-						else if (!strcmp(arg+8, "gz"))
-							extract = EXTRACT_GZ;
-						else if (!strcmp(arg+8, "zip"))
-							extract = EXTRACT_ZIP;
-						else
-							Con_Printf("Unknown decompression method: %s\n", arg+8);
-					}
-					else if (!strncmp(arg, "depend=", 7))
-						PM_AddDep(p, DEP_REQUIRE, arg+7);
-					else if (!strncmp(arg, "conflict=", 9))
-						PM_AddDep(p, DEP_CONFLICT, arg+9);
-					else if (!strncmp(arg, "fileconflict=", 13))
-						PM_AddDep(p, DEP_FILECONFLICT, arg+13);
-					else if (!strncmp(arg, "recommend=", 10))
-						PM_AddDep(p, DEP_RECOMMEND, arg+10);
-					else if (!strncmp(arg, "test=", 5))
-						flags |= DPF_TESTING;
-					else if (!strncmp(arg, "stale=", 6) && version==2)
-						flags &= ~DPF_ENABLED;	//known about, (probably) cached, but not actually enabled.
-					else if (!strncmp(arg, "installed=", 6) && version>2)
-						flags |= parseflags & DPF_ENABLED;
-					else if (!strcmp(arg, "auto"))
-						isauto = true;	//autoinstalled and NOT user-installed
-					else if (!strncmp(arg, "root=", 5) && (parseflags&DPF_ENABLED))
-					{
-						if (!Q_strcasecmp(arg+5, "bin"))
-							fsroot = FS_BINARYPATH;
-						else
-							fsroot = FS_ROOT;
-					}
-					else
-					{
-						Con_DPrintf("Unknown package property\n");
-					}
-				}
-
-				if (category)
-				{
-					p->name = Z_StrDup(fullname);
-
-					if (*prefix)
-						Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, category);
-					else
-						Q_snprintfz(pathname, sizeof(pathname), "%s", category);
-					if (*pathname)
-					{
-						if (pathname[strlen(pathname)-1] != '/')
-							Q_strncatz(pathname, "/", sizeof(pathname));
-					}
-					p->category = Z_StrDup(pathname);
-				}
-				else
-				{
-					if (*prefix)
-						Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, fullname);
-					else
-						Q_snprintfz(pathname, sizeof(pathname), "%s", fullname);
-					p->name = Z_StrDup(COM_SkipPath(pathname));
-					*COM_SkipPath(pathname) = 0;
-					p->category = Z_StrDup(pathname);
-				}
-
-				if (!title)
-					title = p->name;
-
-				if (!gamedir)
-					gamedir = defaultgamedir;
-
-				Q_strncpyz(p->version, ver?ver:"", sizeof(p->version));
-
-				Q_snprintfz(p->gamedir, sizeof(p->gamedir), "%s", gamedir);
-				p->fsroot = fsroot;
-				p->extract = extract;
-				p->priority = priority;
-				p->flags = flags;
-
-				p->title = Z_StrDup(title);
-				p->arch = arch?Z_StrDup(arch):NULL;
-				p->qhash = qhash?Z_StrDup(qhash):NULL;
-				p->description = description?Z_StrDup(description):NULL;
-				p->license = license?Z_StrDup(license):NULL;
-				p->author = author?Z_StrDup(author):NULL;
-				p->previewimage = previewimage?Z_StrDup(previewimage):NULL;
-				p->website = website?Z_StrDup(website):NULL;
-
-				if (url && (!strncmp(url, "http://", 7) || !strncmp(url, "https://", 8)))
-					p->mirror[0] = Z_StrDup(url);
-				else
-				{
-					int m;
-					char *ext = "";
-					if (!url)
-					{
-						if (extract == EXTRACT_XZ)
-							ext = ".xz";
-						else if (extract == EXTRACT_GZ)
-							ext = ".gz";
-						else if (extract == EXTRACT_ZIP)
-							ext = ".zip";
-						url = file;
-					}
-					if (url)
-					{
-						for (m = 0; m < nummirrors; m++)
-							p->mirror[m] = Z_StrDup(va("%s%s%s", mirror[m], url, ext));
-					}
-				}
-			}
-			else
+#if 0
+			if (version < 2)
 			{
 				char pathname[256];
 				const char *fullname = Cmd_Argv(0);
@@ -952,7 +786,217 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					p->fsroot = FS_ROOT;
 				}
 			}
+			else
+#endif
+			{
+				char pathname[256];
+				char *fullname = Z_StrDup(com_token);
+				char *file = NULL;
+				char *url = NULL;
+				char *gamedir = NULL;
+				char *ver = NULL;
+				char *arch = NULL;
+				char *qhash = NULL;
+				char *title = NULL;
+				char *category = NULL;
+				char *description = NULL;
+				char *license = NULL;
+				char *author = NULL;
+				char *previewimage = NULL;
+				char *website = NULL;
+				int extract = EXTRACT_COPY;
+				int priority = PM_DEFAULTPRIORITY;
+				unsigned int flags = parseflags;
+				enum fs_relative fsroot = FS_ROOT;
+				int i;
 
+				if (version > 2)
+					flags &= ~DPF_ENABLED;
+
+				p = Z_Malloc(sizeof(*p));
+				for (i = 1; tokstart; i++)
+				{
+					char key[8192];
+					char val[8192];
+					char *eq;
+					//the following are [\]["]key=["]value["] parameters, which is definitely messy, yes.
+
+					//skip leading whitespace
+					while (*tokstart>0 && *tokstart <= ' ')
+						tokstart++;
+
+					*val = 0;
+					if (*tokstart == '\\' || *tokstart == '\"')
+					{	//legacy quoting
+						tokstart = COM_StringParse (tokstart, key, sizeof(key), false, false);
+						eq = strchr(key, '=');
+						if (eq)
+						{
+							*eq = 0;
+							Q_strncpyz(val, eq+1, sizeof(val));
+						}
+					}
+					else
+					{
+						tokstart = COM_ParseTokenOut(tokstart, "=", key, sizeof(key), NULL);
+						if (!*key)
+							continue;
+						if (tokstart && *tokstart == '=')
+						{
+							tokstart++;
+							if (!(*tokstart >= 0 && *tokstart <= ' '))
+								tokstart = COM_ParseCString(tokstart, val, sizeof(val), NULL);
+						}
+					}
+
+					if (!strcmp(key, "url"))
+						Z_StrDupPtr(&url, val);
+					else if (!strcmp(key, "category"))
+						Z_StrDupPtr(&category, val);
+					else if (!strcmp(key, "title"))
+						Z_StrDupPtr(&title, val);
+					else if (!strcmp(key, "gamedir"))
+						Z_StrDupPtr(&gamedir, val);
+					else if (!strcmp(key, "ver") || !strcmp(key, "v"))
+						Z_StrDupPtr(&ver, val);
+					else if (!strcmp(key, "arch"))
+						Z_StrDupPtr(&arch, val);
+					else if (!strcmp(key, "priority"))
+						priority = atoi(val);
+					else if (!strcmp(key, "qhash"))
+						Z_StrDupPtr(&qhash, val);
+					else if (!strcmp(key, "desc") || !strcmp(key, "description"))
+						Z_StrDupPtr(&description, val);
+					else if (!strcmp(key, "license"))
+						Z_StrDupPtr(&license, val);
+					else if (!strcmp(key, "author"))
+						Z_StrDupPtr(&author, val);
+					else if (!strcmp(key, "preview"))
+						Z_StrDupPtr(&previewimage, val);
+					else if (!strcmp(key, "website"))
+						Z_StrDupPtr(&website, val);
+					else if (!strcmp(key, "file"))
+					{
+						if (!file)
+							Z_StrDupPtr(&file, val);
+						PM_AddDep(p, DEP_FILE, val);
+					}
+					else if (!strcmp(key, "extract"))
+					{
+						if (!strcmp(val, "xz"))
+							extract = EXTRACT_XZ;
+						else if (!strcmp(val, "gz"))
+							extract = EXTRACT_GZ;
+						else if (!strcmp(val, "zip"))
+							extract = EXTRACT_ZIP;
+						else
+							Con_Printf("Unknown decompression method: %s\n", val);
+					}
+					else if (!strcmp(key, "depend"))
+						PM_AddDep(p, DEP_REQUIRE, val);
+					else if (!strcmp(key, "conflict"))
+						PM_AddDep(p, DEP_CONFLICT, val);
+					else if (!strcmp(key, "fileconflict"))
+						PM_AddDep(p, DEP_FILECONFLICT, val);
+					else if (!strcmp(key, "recommend"))
+						PM_AddDep(p, DEP_RECOMMEND, val);
+					else if (!strcmp(key, "test"))
+						flags |= DPF_TESTING;
+					else if (!strcmp(key, "stale") && version==2)
+						flags &= ~DPF_ENABLED;	//known about, (probably) cached, but not actually enabled.
+					else if (!strcmp(key, "installed") && version>2)
+						flags |= parseflags & DPF_ENABLED;
+					else if (!strcmp(key, "auto"))
+						isauto = true;	//autoinstalled and NOT user-installed
+					else if (!strcmp(key, "root") && (parseflags&DPF_ENABLED))
+					{
+						if (!Q_strcasecmp(val, "bin"))
+							fsroot = FS_BINARYPATH;
+						else
+							fsroot = FS_ROOT;
+					}
+					else
+					{
+						Con_DPrintf("Unknown package property\n");
+					}
+				}
+
+				if (category)
+				{
+					p->name = fullname;
+
+					if (*prefix)
+						Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, category);
+					else
+						Q_snprintfz(pathname, sizeof(pathname), "%s", category);
+					if (*pathname)
+					{
+						if (pathname[strlen(pathname)-1] != '/')
+							Q_strncatz(pathname, "/", sizeof(pathname));
+					}
+					p->category = Z_StrDup(pathname);
+				}
+				else
+				{
+					if (*prefix)
+						Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, fullname);
+					else
+						Q_snprintfz(pathname, sizeof(pathname), "%s", fullname);
+					Z_Free(fullname);
+					p->name = Z_StrDup(COM_SkipPath(pathname));
+					*COM_SkipPath(pathname) = 0;
+					p->category = Z_StrDup(pathname);
+				}
+
+				if (!title)
+					title = Z_StrDup(p->name);
+
+				Q_strncpyz(p->version, ver?ver:"", sizeof(p->version));
+
+				Q_snprintfz(p->gamedir, sizeof(p->gamedir), "%s", gamedir?gamedir:defaultgamedir);
+				p->fsroot = fsroot;
+				p->extract = extract;
+				p->priority = priority;
+				p->flags = flags;
+
+				p->title = title;
+				p->arch = arch;
+				p->qhash = qhash;
+				p->description = description;
+				p->license = license;
+				p->author = author;
+				p->previewimage = previewimage;
+				p->website = website;
+
+				if (url && (!strncmp(url, "http://", 7) || !strncmp(url, "https://", 8)))
+					p->mirror[0] = Z_StrDup(url);
+				else
+				{
+					int m;
+					char *ext = "";
+					char *relurl = url;
+					if (!relurl)
+					{
+						if (extract == EXTRACT_XZ)
+							ext = ".xz";
+						else if (extract == EXTRACT_GZ)
+							ext = ".gz";
+						else if (extract == EXTRACT_ZIP)
+							ext = ".zip";
+						relurl = file;
+					}
+					if (relurl)
+					{
+						for (m = 0; m < nummirrors; m++)
+							p->mirror[m] = Z_StrDup(va("%s%s%s", mirror[m], relurl, ext));
+					}
+				}
+				Z_Free(ver);
+				Z_Free(file);
+				Z_Free(url);
+				Z_Free(gamedir);
+				Z_Free(category);
+			}
 			if (p->arch)
 			{
 				if (!Q_strcasecmp(p->arch, THISENGINE))
@@ -964,7 +1008,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 				else if (!Q_strcasecmp(p->arch, THISARCH))
 				{
-					if ((p->fsroot == FS_ROOT || p->fsroot == FS_BINARYPATH) && !*p->gamedir)
+					if ((p->fsroot == FS_ROOT || p->fsroot == FS_BINARYPATH) && !*p->gamedir && p->priority == PM_DEFAULTPRIORITY)
 						p->flags |= DPF_PLUGIN;
 				}
 				else
@@ -1232,12 +1276,12 @@ static package_t *PM_FindPackage(const char *packagename)
 	return r;
 }
 //returns the marked version of a package, if any.
-static package_t *PM_MarkedPackage(const char *packagename)
+static package_t *PM_MarkedPackage(const char *packagename, int markflag)
 {
 	package_t *p;
 	for (p = availablepackages; p; p = p->next)
 	{
-		if (p->flags & DPF_MARKED)
+		if (p->flags & markflag)
 			if (!strcmp(p->name, packagename))
 				return p;
 	}
@@ -1319,7 +1363,7 @@ static void PM_UnmarkPackage(package_t *package, unsigned int markflag)
 		{
 			if (dep->dtype == DEP_REQUIRE || dep->dtype == DEP_RECOMMEND)
 			{
-				package_t *d = PM_MarkedPackage(dep->name);
+				package_t *d = PM_MarkedPackage(dep->name, DPF_AUTOMARKED);
 				if (d && !(d->flags & DPF_USERMARKED))
 				{
 					if (!PM_HasDependant(d, DPF_MARKED))
@@ -1343,7 +1387,7 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 	if (package->flags & DPF_MARKED)
 	{
 		package->flags |= markflag;
-		return;	//looks like its already picked.
+		return;	//looks like its already picked. marking it again will do no harm.
 	}
 
 	//any file-conflicts prevent the package from being installable.
@@ -1410,7 +1454,7 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 	{
 		if (dep->dtype == DEP_REQUIRE || dep->dtype == DEP_RECOMMEND)
 		{
-			package_t *d = PM_MarkedPackage(dep->name);
+			package_t *d = PM_MarkedPackage(dep->name, DPF_MARKED);
 			if (!d)
 			{
 				d = PM_FindPackage(dep->name);
@@ -1424,7 +1468,7 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 		{
 			for (;;)
 			{
-				package_t *d = PM_MarkedPackage(dep->name);
+				package_t *d = PM_MarkedPackage(dep->name, DPF_MARKED);
 				if (!d)
 					break;
 				PM_UnmarkPackage(d, DPF_MARKED);
@@ -1455,7 +1499,7 @@ static qboolean PM_NameIsInStrings(const char *strings, const char *match)
 }
 
 //just flag stuff as needing updating
-static unsigned int PM_MarkUpdates (void)
+unsigned int PM_MarkUpdates (void)
 {
 	unsigned int changecount = 0;
 	package_t *p, *o, *b, *e = NULL;
@@ -1470,7 +1514,7 @@ static unsigned int PM_MarkUpdates (void)
 			if (PM_NameIsInStrings(declinedpackages, tok))
 				continue;
 
-			p = PM_MarkedPackage(tok);
+			p = PM_MarkedPackage(tok, DPF_MARKED);
 			if (!p)
 			{
 				p = PM_FindPackage(tok);
@@ -1612,7 +1656,6 @@ static void PM_PrintChanges(void)
 		Con_Printf("<%i package(s) changed>\n", changes);
 }
 
-static void PM_ApplyChanges(void);
 #ifdef WEBCLIENT
 static void PM_ListDownloaded(struct dl_download *dl)
 {
@@ -1715,7 +1758,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	//make sure our sources are okay.
 	if (*pm_downloads_url.string)
-		PM_AddSubList(pm_downloads_url.string, "", true, true);
+		PM_AddSubList(pm_downloads_url.string, "", false, true);
 
 #ifndef WEBCLIENT
 	for (i = 0; i < numdownloadablelists; i++)
@@ -1790,7 +1833,7 @@ static void COM_QuotedConcat(const char *cat, char *buf, size_t bufsize)
 }
 static void PM_WriteInstalledPackages(void)
 {
-	char buf[8192];
+	char buf[65536];
 	int i;
 	char *s;
 	package_t *p, *e = NULL;
@@ -2404,7 +2447,7 @@ static void PM_StartADownload(void)
 #endif
 }
 //'just' starts doing all the things needed to remove/install selected packages
-static void PM_ApplyChanges(void)
+void PM_ApplyChanges(void)
 {
 	package_t *p, **link;
 	char temp[MAX_OSPATH];
@@ -2574,7 +2617,7 @@ static qboolean PM_DeclinedPackages(char *out, size_t outsize)
 			if (PM_NameIsInStrings(declinedpackages, tok))
 				continue;
 
-			p = PM_MarkedPackage(tok);
+			p = PM_MarkedPackage(tok, DPF_MARKED);
 			if (p)	//don't mark it as declined if it wasn't
 				continue;
 
@@ -2738,7 +2781,7 @@ void PM_Command_f(void)
 					if (p->flags & DPF_PURGE)
 						status = S_COLOR_CYAN"<reinstall>";
 					else
-						status = S_COLOR_CYAN"<install>";
+						status = S_COLOR_CYAN"<inst	all>";
 				}
 				else if ((p->flags & DPF_PURGE) || !(p->qhash && (p->flags & DPF_CACHED)))
 					status = S_COLOR_CYAN"<uninstall>";
@@ -2747,10 +2790,14 @@ void PM_Command_f(void)
 			}
 			else if ((p->flags & (DPF_ENABLED|DPF_CACHED)) == DPF_CACHED)
 				status = S_COLOR_CYAN"<disabled>";
+			else if (p->flags & DPF_USERMARKED)
+				status = S_COLOR_GRAY"<manual>";
+			else if (p->flags & DPF_AUTOMARKED)
+				status = S_COLOR_GRAY"<auto>";
 			else
 				status = "";
 
-			Con_Printf(" ^[%s%s%s%s^] %s^9 %s (%s%s)\n", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"", p->version, (p->flags&DPF_TESTING)?"-testing":"");
+			Con_Printf(" ^["S_COLOR_GRAY"%s%s%s%s%s^] %s"S_COLOR_GRAY" %s (%s%s)\n", p->category?p->category:"", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"", p->version, (p->flags&DPF_TESTING)?"-testing":"");
 		}
 		Con_Printf("<end of list>\n");
 	}
@@ -2831,7 +2878,7 @@ void PM_Command_f(void)
 		}
 		Con_Printf("<end of list>\n");
 	}
-	else if (!strcmp(act, "sources") || !strcmp(act, "addsources"))
+	else if (!strcmp(act, "sources") || !strcmp(act, "addsource"))
 	{
 		if (Cmd_Argc() == 2)
 		{
@@ -2908,13 +2955,13 @@ void PM_Command_f(void)
 		}
 		PM_PrintChanges();
 	}
-	else if (!strcmp(act, "disable") || !strcmp(act, "rem"))
+	else if (!strcmp(act, "disable") || !strcmp(act, "rem") || !strcmp(act, "remove"))
 	{
 		int arg = 2;
 		for (arg = 2; arg < Cmd_Argc(); arg++)
 		{
 			const char *key = Cmd_Argv(arg);
-			p = PM_MarkedPackage(key);
+			p = PM_MarkedPackage(key, DPF_MARKED);
 			if (!p)
 				p = PM_FindPackage(key);
 			if (p)
@@ -2930,7 +2977,7 @@ void PM_Command_f(void)
 		for (arg = 2; arg < Cmd_Argc(); arg++)
 		{
 			const char *key = Cmd_Argv(arg);
-			p = PM_MarkedPackage(key);
+			p = PM_MarkedPackage(key, DPF_MARKED);
 			if (!p)
 				p = PM_FindPackage(key);
 			if (p)
@@ -2944,7 +2991,7 @@ void PM_Command_f(void)
 		PM_PrintChanges();
 	}
 	else
-		Con_Printf("%s: Unknown action %s\nShould be one of list, show, search, upgrade, revert, add, rem, del, changes, apply\n", Cmd_Argv(0), act);
+		Con_Printf("%s: Unknown action %s\nShould be one of list, show, search, upgrade, revert, add, rem, del, changes, apply, sources, addsource, remsource\n", Cmd_Argv(0), act);
 }
 
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
@@ -3570,6 +3617,9 @@ void Menu_Download_Update(void)
 #else
 void Menu_Download_Update(void)
 {
+#ifdef PACKAGEMANAGER
+	PM_UpdatePackageList(true, 2);
+#endif
 }
 void Menu_DownloadStuff_f (void)
 {

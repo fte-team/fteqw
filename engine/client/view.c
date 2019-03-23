@@ -1946,7 +1946,7 @@ void R_DrawNameTags(void)
 			if (body)
 			{
 //				Q_snprintfz(fname, sizeof(fname), "<default shader>");
-				str = va("^2%s^7\n%s\n{%s\n", fname, surf->texinfo->texture->name, body);
+				str = va("^2%s^7\n%s%s\n{%s\n", fname, ruleset_allow_shaders.ival?"":CON_ERROR"WARNING: ruleset_allow_shaders disables external shaders"CON_DEFAULT"\n", surf->texinfo->texture->name, body);
 				Z_Free(body);
 			}
 			else

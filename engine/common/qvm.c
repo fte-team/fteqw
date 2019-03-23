@@ -126,8 +126,18 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
-
 			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
+			{
+				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
+
+			if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
+			{
+				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
+			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
 			{
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);

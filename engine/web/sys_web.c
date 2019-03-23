@@ -236,7 +236,12 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	return false;
 }
 
-
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{       //not implemented
+	return false;
+}
+#endif
 
 #define SYS_CLIPBOARD_SIZE  256
 static char *clipboard_buffer;

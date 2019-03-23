@@ -491,6 +491,14 @@ void Sys_ServerActivity(void)
 {
 	/*FIXME: flash window*/
 }
+
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{       //not implemented
+	return false;
+}
+#endif
+
 #ifndef MULTITHREAD
 void Sys_Sleep (double seconds)
 {

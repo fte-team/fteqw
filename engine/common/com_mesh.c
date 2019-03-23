@@ -2870,7 +2870,7 @@ static void Mod_GenerateMeshVBO(model_t *mod, galiasinfo_t *galias)
 		BE_VBO_Data(&vboctx, galias->ofs_skel_svect, sizeof(*galias->ofs_skel_svect) * galias->numverts, &galias->vbo_skel_svector);
 	if (galias->ofs_skel_tvect)
 		BE_VBO_Data(&vboctx, galias->ofs_skel_tvect, sizeof(*galias->ofs_skel_tvect) * galias->numverts, &galias->vbo_skel_tvector);
-	if (!galias->mappedbones /*&& galias->numbones > sh_config.max_gpu_bones*/ && galias->ofs_skel_idx)
+	if (!galias->mappedbones && galias->numbones > sh_config.max_gpu_bones && galias->ofs_skel_idx && sh_config.max_gpu_bones)
 	{	//if we're using gpu bones, then its possible that we're trying to load a model with more bones than the gpu supports
 		//to work around this (and get performance back), each surface has a gpu->cpu table so that bones not used on a mesh don't cause it to need to use a software fallback
 		qboolean *seen = alloca(sizeof(*seen) * galias->numbones);
@@ -2898,6 +2898,8 @@ static void Mod_GenerateMeshVBO(model_t *mod, galiasinfo_t *galias)
 					galias->bonemap[galias->mappedbones++] = j;
 			}
 		}
+		else
+			Con_DPrintf("\"%s\":\"%s\" exceeds gpu bone limit and will be software-skinned - %i > %i\n", mod->name, galias->surfacename, k, sh_config.max_gpu_bones);
 	}
 	if (galias->mappedbones)
 	{

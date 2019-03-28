@@ -1120,10 +1120,20 @@ static void Shader_Portal (parsestate_t *ps, char **ptr)
 
 static void Shader_PolygonOffset (parsestate_t *ps, char **ptr)
 {
+	int m;
+	char *token;
 	shader_t *shader = ps->s;
-	/*the q3 defaults*/
+
+	token = Shader_ParseString(ptr);
+	m = atoi(token);
+
+	if (m) {
+		shader->polyoffset.unit = -25 * m;
+	} else {
+		shader->polyoffset.unit = -25;
+	}
+
 	shader->polyoffset.factor = -0.05;
-	shader->polyoffset.unit = -25;
 	shader->flags |= SHADER_POLYGONOFFSET;	//some backends might be lazy and only allow simple values.
 }
 

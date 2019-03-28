@@ -35,6 +35,7 @@
 #define VKQUAKE
 #endif
 
+#define USEEFX
 #define PLUGINS
 #define QUAKETC
 #define AVAIL_OPENAL

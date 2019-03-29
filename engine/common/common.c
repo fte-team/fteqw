@@ -6168,7 +6168,7 @@ const char *InfoBuf_BlobForKey (infobuf_t *info, const char *key, size_t *blobsi
 		return info->keys[k].value;
 	}
 	if (large)
-		*large = InfoBuf_NeedsEncoding(key, sizeof(key));
+		*large = InfoBuf_NeedsEncoding(key, strlen(key));
 	*blobsize = 0;
 	return NULL;
 }

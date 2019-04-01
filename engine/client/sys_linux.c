@@ -755,7 +755,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 
 // =======================================================================
 //friendly way to crash, including stack traces. should help reduce gdb use.
-#ifdef __linux__ /*should probably be GNUC but whatever*/
+#if defined(__linux__) && defined(__GNUC__) /*should probably be GNUC but whatever*/
 #include <execinfo.h>
 #ifdef __i386__
 #include <ucontext.h>
@@ -927,7 +927,7 @@ int main (int c, const char **v)
 	}
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) && defined(__GNUC__)
 	if (!COM_CheckParm("-nodumpstack"))
 	{
 		struct sigaction act;

@@ -122,15 +122,15 @@ typedef struct {
 	qboolean slidyslopes;
 	int stepheight;
 
-	qbyte coordsize;
+	qbyte coordsize;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.
 
 	unsigned int	flags;
 } movevars_t;
 
 #define MOVEFLAG_VALID							0x80000000	//to signal that these are actually known. otherwise reserved.
-#define MOVEFLAG_Q2AIRACCELERATE				0x00000001	
+//#define MOVEFLAG_Q2AIRACCELERATE				0x00000001
 #define MOVEFLAG_NOGRAVITYONGROUND				0x00000002	//no slope sliding
-#define MOVEFLAG_GRAVITYUNAFFECTEDBYTICRATE		0x00000004	//apply half-gravity both before AND after the move, which better matches the curve
+//#define MOVEFLAG_GRAVITYUNAFFECTEDBYTICRATE	0x00000004	//apply half-gravity both before AND after the move, which better matches the curve
 #define MOVEFLAG_QWEDGEBOX						0x00010000	//calculate edgefriction using tracebox and a buggy start pos
 #define MOVEFLAG_QWCOMPAT						(MOVEFLAG_NOGRAVITYONGROUND|MOVEFLAG_QWEDGEBOX)
 

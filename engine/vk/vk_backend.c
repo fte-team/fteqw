@@ -1705,12 +1705,12 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 
 	case T_GEN_CURRENTRENDER:
 		return shaderstate.tex_currentrender;
-	case T_GEN_VIDEOMAP:
 #ifdef HAVE_MEDIA_DECODER
+	case T_GEN_VIDEOMAP:
 		if (pass->cin)
 			return Media_UpdateForShader(pass->cin);
-#endif
 		return r_nulltex;
+#endif
 
 	case T_GEN_LIGHTCUBEMAP:	//light's projected cubemap
 		if (shaderstate.curdlight)
@@ -4268,7 +4268,7 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 		float view[16];
 		float proj[16];
 		extern cvar_t r_shadow_shadowmapping_nearclip;
-		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value, l->radius, false);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
 		Matrix4_Multiply(proj, view, cbl->l_cubematrix);
 	}
@@ -6166,7 +6166,7 @@ void VKBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float sha
 {
 #define SHADOWMAP_SIZE 512
 	extern cvar_t r_shadow_shadowmapping_nearclip, r_shadow_shadowmapping_bias;
-	float nc = r_shadow_shadowmapping_nearclip.value;
+	float nc = dl->nearclip?dl->nearclip:r_shadow_shadowmapping_nearclip.value;
 	float bias = r_shadow_shadowmapping_bias.value;
 
 	//much of the projection matrix cancels out due to symmetry and stuff

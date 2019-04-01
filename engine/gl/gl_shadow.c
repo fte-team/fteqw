@@ -2223,7 +2223,7 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec3_t axis[3], vec4_t *planes, i
 	VectorCopy(l->origin, planes[4]);
 	VectorScale(axis[axis0], dir, planes[4]);
 	VectorNormalize(planes[4]);
-	planes[4][3] = r_shadow_shadowmapping_nearclip.value + DotProduct(planes[4], l->origin);
+	planes[4][3] = (l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value) + DotProduct(planes[4], l->origin);
 
 	for (i = 0; i < 4; i++)
 	{
@@ -2497,7 +2497,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 	smesh = SHM_BuildShadowMesh(l, lvis, (lighttype & LSHADER_ORTHO)?SMT_ORTHO:SMT_SHADOWMAP);
 
 	if (lighttype & LSHADER_SPOT)
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov, l->fov, l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value, l->radius, false);
 	else if (lighttype & LSHADER_ORTHO)
 	{
 		float xmin = -l->radius;
@@ -2509,7 +2509,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, xmin, xmax, ymax, ymin, znear, zfar);
 	}
 	else
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, 90, 90, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, 90, 90, l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value, l->radius, false);
 
 	memcpy(r_refdef.m_projection_view, r_refdef.m_projection_std, sizeof(r_refdef.m_projection_view));
 

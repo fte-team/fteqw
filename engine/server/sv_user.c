@@ -6249,6 +6249,7 @@ ucmd_t nqucmds[] =
 	{"name",		SVNQ_NQInfo_f},
 	{"color",		SVNQ_NQColour_f},
 	{"playermodel",	SVNQ_DPModel_f},
+//	{"pmodel",		SVNQ_DPModel_f},	//nehahra
 	{"playerskin",	SVNQ_DPSkin_f},
 	{"rate",		SV_Rate_f},
 	{"rate_burstsize",	NULL},

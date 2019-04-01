@@ -3153,7 +3153,7 @@ const gamemode_info_t gamemode_info[] = {
 	//because we can. quakespasm is hopefully close enough...
 	{"-fitz",		NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset spasm\n",{"id1"},			"NetQuake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can
-	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG"fps_preset tenebrae\n",{"id1","qw","*fte"},"Tenebrae", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset tenebrae\n",{"id1","qw","*fte"},"Tenebrae", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.

@@ -183,7 +183,7 @@ void main ()
 		//add on the fullbright
 		if (FULLBRIGHT)
 			gl_FragColor.rgb += texture2D(s_fullbright, tc).rgb;
-}
+	}
 
 //entity modifiers
 	gl_FragColor = gl_FragColor * e_colourident;

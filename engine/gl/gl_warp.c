@@ -115,6 +115,74 @@ void R_DrawFastSky(batch_t *batch)
 	b.texture = NULL;
 	BE_SubmitBatch(&b);
 }
+
+void R_RenderScene (void);
+qboolean R_DrawSkyroom(shader_t *skyshader)
+{
+#ifdef GLQUAKE
+	float vmat[16];
+	refdef_t oldrefdef;
+
+	if (qrenderer != QR_OPENGL)
+		return false;	//FIXME
+	if (r_viewcluster == -1)
+		return false;	//don't draw the skyroom if the camera is outside.
+
+	if (!r_refdef.skyroom_enabled || r_refdef.recurse >= R_MAX_RECURSE-1)
+		return false;
+
+	if (skyshader->numpasses)
+	{
+		shaderpass_t *pass = skyshader->passes;
+		if (pass->shaderbits & SBITS_ATEST_BITS)	//alphatests
+			;
+		else if (pass->shaderbits & SBITS_MASK_BITS)	//colormasks
+			;
+		else if ((pass->shaderbits & SBITS_BLEND_BITS) != 0 && (pass->shaderbits & SBITS_BLEND_BITS) != (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))	//blendfunc
+			;
+		else
+			return false;	//that shader looks like its opaque.
+	}
+
+	oldrefdef = r_refdef;
+	r_refdef.recurse+=1;
+
+	r_refdef.externalview = true;
+	r_refdef.skyroom_enabled = false;
+
+	/*work out where the camera should be (use the same angles)*/
+	VectorCopy(r_refdef.skyroom_pos, r_refdef.vieworg);
+	VectorCopy(r_refdef.skyroom_pos, r_refdef.pvsorigin);
+	Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+	R_SetFrustum (r_refdef.m_projection_std, vmat);
+
+	//now determine the stuff the backend will use.
+	memcpy(r_refdef.m_view, vmat, sizeof(float)*16);
+	VectorAngles(vpn, vup, r_refdef.viewangles, false);
+	VectorCopy(r_refdef.vieworg, r_origin);
+
+	Surf_SetupFrame();
+	//FIXME: just call Surf_DrawWorld instead?
+	R_RenderScene();
+
+	r_refdef = oldrefdef;
+
+	/*broken stuff*/
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	VectorCopy (r_refdef.vieworg, r_origin);
+
+	GLBE_SelectEntity(&r_worldentity);
+	GL_ForceDepthWritable();
+	qglClear(GL_DEPTH_BUFFER_BIT);
+
+	currententity = NULL;
+
+	return true;
+#else
+	return false;
+#endif
+}
+
 /*
 =================
 GL_DrawSkyChain
@@ -150,7 +218,11 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	{
 		skyshader = batch->shader;
 		if (skyshader->prog)	//glsl is expected to do the whole skybox/warpsky thing itself, with no assistance from this legacy code.
-			return false;
+		{
+			//if the first pass is transparent in some form, then be prepared to give it a skyroom behind.
+			R_DrawSkyroom(skyshader);
+			return false;	//draw as normal...
+		}
 	}
 
 	if (skyshader->skydome)
@@ -158,7 +230,12 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	else
 		skyboxtex = NULL;
 
-	if (skyboxtex && TEXVALID(*skyboxtex))
+	if (R_DrawSkyroom(skyshader))
+	{
+		if (skyshader->numpasses)
+			GL_DrawSkySphere(batch, skyshader);
+	}
+	else if (skyboxtex && TEXVALID(*skyboxtex))
 	{	//draw a skybox if we were given the textures
 		R_CalcSkyChainBounds(batch);
 		GL_DrawSkyBox (skyboxtex, batch);

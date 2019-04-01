@@ -1502,6 +1502,8 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.drawsbar = (cl.intermissionmode == IM_NONE);
 	r_refdef.flags = 0;
 
+	r_refdef.skyroom_enabled = false;
+
 	r_refdef.areabitsknown = false;
 
 //	memset(r_refdef.postprocshader, 0, sizeof(r_refdef.postprocshader));

@@ -709,6 +709,11 @@ static int Shader_SetImageFlags(parsestate_t *parsestate, shaderpass_t *pass, ch
 			*name += 7;
 			flags |= IF_CLAMP;
 		}
+		else if (!Q_strnicmp(*name, "$premul:", 8))
+		{	//have the engine premultiply textures for you, instead of needing to do it in an editor.
+			*name += 8;
+			flags |= IF_PREMULTIPLYALPHA;
+		}
 		else if (!Q_strnicmp(*name, "$3d:", 4))
 		{
 			*name+=4;
@@ -1120,19 +1125,10 @@ static void Shader_Portal (parsestate_t *ps, char **ptr)
 
 static void Shader_PolygonOffset (parsestate_t *ps, char **ptr)
 {
-	int m;
-	char *token;
 	shader_t *shader = ps->s;
+	float m = Shader_ParseFloat(shader, ptr, 1);
 
-	token = Shader_ParseString(ptr);
-	m = atoi(token);
-
-	if (m) {
-		shader->polyoffset.unit = -25 * m;
-	} else {
-		shader->polyoffset.unit = -25;
-	}
-
+	shader->polyoffset.unit = -25 * m;
 	shader->polyoffset.factor = -0.05;
 	shader->flags |= SHADER_POLYGONOFFSET;	//some backends might be lazy and only allow simple values.
 }
@@ -5085,7 +5081,11 @@ done:;
 			if (pass->rgbgen != RGB_GEN_IDENTITY && pass->rgbgen != RGB_GEN_IDENTITY_OVERBRIGHT && pass->rgbgen != RGB_GEN_IDENTITY_LIGHTING)
 				weight += 100;
 
-			if (pass->texgen != T_GEN_ANIMMAP && pass->texgen != T_GEN_SINGLEMAP && pass->texgen != T_GEN_VIDEOMAP)
+			if (pass->texgen != T_GEN_ANIMMAP && pass->texgen != T_GEN_SINGLEMAP
+#ifdef HAVE_MEDIA_DECODER
+					&& pass->texgen != T_GEN_VIDEOMAP
+#endif
+					)
 				weight += 1000;
 
 			if ((pass->texgen == T_GEN_ANIMMAP || pass->texgen == T_GEN_SINGLEMAP) && pass->anim_frames[0] && *pass->anim_frames[0]->ident == '$')
@@ -7163,7 +7163,46 @@ static char *Shader_DecomposePass(char *o, shaderpass_t *p, qboolean simple)
 
 	return o;
 }
-static char *Shader_DecomposeSubPass(char *o, shaderpass_t *p, qboolean simple)
+static void Shader_DecomposeSubPassMap(char *o, shader_t *s, char *name, texid_t tex)
+{
+	if (tex)
+	{
+		unsigned int flags = tex->flags;
+		sprintf(o, "%s \"%s\" %ix%i%s %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", name, tex->ident, tex->width, tex->height,
+			(tex->status == TEX_FAILED)?" FAILED":"",
+			Image_FormatName(tex->format),
+			(flags&IF_CLAMP)?" clamp":"",
+			(flags&IF_NOMIPMAP)?" nomipmap":"",
+			(flags&IF_NEAREST)?" nearest":"",
+			(flags&IF_LINEAR)?" linear":"",
+			(flags&IF_UIPIC)?" uipic":"",
+			(flags&IF_SRGB)?" srgb":"",
+
+			(flags&IF_NOPICMIP)?" nopicmip":"",
+			(flags&IF_NOALPHA)?" noalpha":"",
+			(flags&IF_NOGAMMA)?" noalpha":"",
+			(flags&IF_TEXTYPE)?" non-2d":"",
+			(flags&IF_MIPCAP)?"":" nomipcap",
+			(flags&IF_PREMULTIPLYALPHA)?" premultiply":"",
+
+			(flags&IF_NOSRGB)?" nosrgb":"",
+
+			(flags&IF_PALETTIZE)?" palettize":"",
+			(flags&IF_NOPURGE)?" nopurge":"",
+			(flags&IF_HIGHPRIORITY)?" highpri":"",
+			(flags&IF_LOWPRIORITY)?" lowpri":"",
+			(flags&IF_LOADNOW)?" loadnow":"",
+			(flags&IF_TRYBUMP)?" trybump":"",
+			(flags&IF_RENDERTARGET)?" rendertarget":"",
+			(flags&IF_EXACTEXTENSION)?" exactext":"",
+			(flags&IF_NOREPLACE)?" noreplace":"",
+			(flags&IF_NOWORKER)?" noworker":""
+			);
+	}
+	else
+		sprintf(o, "%s (%s)", name, "UNDEFINED");
+}
+static char *Shader_DecomposeSubPass(char *o, shader_t *s, shaderpass_t *p, qboolean simple)
 {
 	int i;
 	if (!simple)
@@ -7224,70 +7263,36 @@ static char *Shader_DecomposeSubPass(char *o, shaderpass_t *p, qboolean simple)
 	switch(p->texgen)
 	{
 	default: sprintf(o, "T_GEN_? "); break;
-	case T_GEN_SINGLEMAP:
-		if (p->anim_frames[0])
-		{
-			unsigned int flags = p->anim_frames[0]->flags;
-			sprintf(o, "singlemap \"%s\" %ix%i%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", p->anim_frames[0]->ident, p->anim_frames[0]->width, p->anim_frames[0]->height,
-				(p->anim_frames[0]->status == TEX_FAILED)?" FAILED":"",
-				(flags&IF_CLAMP)?" clamp":"",
-				(flags&IF_NOMIPMAP)?" nomipmap":"",
-				(flags&IF_NEAREST)?" nearest":"",
-				(flags&IF_LINEAR)?" linear":"",
-				(flags&IF_UIPIC)?" uipic":"",
-				(flags&IF_SRGB)?" srgb":"",
-
-				(flags&IF_NOPICMIP)?" nopicmip":"",
-				(flags&IF_NOALPHA)?" noalpha":"",
-				(flags&IF_NOGAMMA)?" noalpha":"",
-				(flags&IF_TEXTYPE)?" non-2d":"",
-				(flags&IF_MIPCAP)?"":" nomipcap",
-				(flags&IF_PREMULTIPLYALPHA)?" premultiply":"",
-
-				(flags&IF_NOSRGB)?" nosrgb":"",
-
-				(flags&IF_PALETTIZE)?" palettize":"",
-				(flags&IF_NOPURGE)?" nopurge":"",
-				(flags&IF_HIGHPRIORITY)?" highpri":"",
-				(flags&IF_LOWPRIORITY)?" lowpri":"",
-				(flags&IF_LOADNOW)?" loadnow":"",
-				(flags&IF_TRYBUMP)?" trybump":"",
-				(flags&IF_RENDERTARGET)?" rendertarget":"",
-				(flags&IF_EXACTEXTENSION)?" exactext":"",
-				(flags&IF_NOREPLACE)?" noreplace":"",
-				(flags&IF_NOWORKER)?" noworker":""
-				);
-		}
-		else
-			sprintf(o, "singlemap ");
-		break;
-	case T_GEN_ANIMMAP: sprintf(o, "animmap "); break;
-	case T_GEN_LIGHTMAP: sprintf(o, "lightmap "); break;
-	case T_GEN_DELUXMAP: sprintf(o, "deluxmap "); break;
-	case T_GEN_SHADOWMAP: sprintf(o, "shadowmap "); break;
-	case T_GEN_LIGHTCUBEMAP: sprintf(o, "lightcubemap "); break;
-	case T_GEN_DIFFUSE: sprintf(o, "diffuse "); break;
-	case T_GEN_NORMALMAP: sprintf(o, "normalmap "); break;
-	case T_GEN_SPECULAR: sprintf(o, "specular "); break;
-	case T_GEN_UPPEROVERLAY: sprintf(o, "upperoverlay "); break;
-	case T_GEN_LOWEROVERLAY: sprintf(o, "loweroverlay "); break;
-	case T_GEN_FULLBRIGHT: sprintf(o, "fullbright "); break;
-	case T_GEN_PALETTED: sprintf(o, "paletted "); break;
-	case T_GEN_REFLECTCUBE: sprintf(o, "reflectcube "); break;
-	case T_GEN_REFLECTMASK: sprintf(o, "reflectmask "); break;
-	case T_GEN_DISPLACEMENT: sprintf(o, "displacementmap "); break;
-	case T_GEN_CURRENTRENDER: sprintf(o, "currentrender "); break;
-	case T_GEN_SOURCECOLOUR: sprintf(o, "sourcecolour "); break;
-	case T_GEN_SOURCEDEPTH: sprintf(o, "sourcedepth "); break;
-	case T_GEN_REFLECTION: sprintf(o, "reflection "); break;
-	case T_GEN_REFRACTION: sprintf(o, "refraction "); break;
-	case T_GEN_REFRACTIONDEPTH: sprintf(o, "refractiondepth "); break;
-	case T_GEN_RIPPLEMAP: sprintf(o, "ripplemap "); break;
-	case T_GEN_SOURCECUBE: sprintf(o, "sourcecube "); break;
-	case T_GEN_VIDEOMAP: sprintf(o, "videomap "); break;
-	case T_GEN_CUBEMAP: sprintf(o, "cubemap "); break;
-	case T_GEN_3DMAP: sprintf(o, "3dmap "); break;
-	case T_GEN_GBUFFERCASE: sprintf(o, "gbuffer%i ",p->texgen-T_GEN_GBUFFER0); break;
+	case T_GEN_SINGLEMAP:		Shader_DecomposeSubPassMap(o, s, "singlemap", p->anim_frames[0]);	break;
+	case T_GEN_ANIMMAP:			Shader_DecomposeSubPassMap(o, s, "animmap", p->anim_frames[0]);	break;
+#ifdef HAVE_MEDIA_DECODER
+	case T_GEN_VIDEOMAP:		Shader_DecomposeSubPassMap(o, s, "videomap", Media_UpdateForShader(p->cin)); break;
+#endif
+	case T_GEN_CUBEMAP:			Shader_DecomposeSubPassMap(o, s, "cubemap", p->anim_frames[0]); break;
+	case T_GEN_3DMAP:			Shader_DecomposeSubPassMap(o, s, "3dmap", p->anim_frames[0]); break;
+	case T_GEN_LIGHTMAP:		sprintf(o, "lightmap "); break;
+	case T_GEN_DELUXMAP:		sprintf(o, "deluxemap "); break;
+	case T_GEN_SHADOWMAP:		sprintf(o, "shadowmap "); break;
+	case T_GEN_LIGHTCUBEMAP: 	sprintf(o, "lightcubemap "); break;
+	case T_GEN_DIFFUSE:			Shader_DecomposeSubPassMap(o, s, "diffuse", s->defaulttextures[0].base); break;
+	case T_GEN_NORMALMAP:		Shader_DecomposeSubPassMap(o, s, "normalmap", s->defaulttextures[0].bump); break;
+	case T_GEN_SPECULAR:		Shader_DecomposeSubPassMap(o, s, "specular", s->defaulttextures[0].specular); break;
+	case T_GEN_UPPEROVERLAY:	Shader_DecomposeSubPassMap(o, s, "upper", s->defaulttextures[0].upperoverlay); break;
+	case T_GEN_LOWEROVERLAY:	Shader_DecomposeSubPassMap(o, s, "lower", s->defaulttextures[0].loweroverlay); break;
+	case T_GEN_FULLBRIGHT:		Shader_DecomposeSubPassMap(o, s, "fullbright", s->defaulttextures[0].fullbright); break;
+	case T_GEN_PALETTED:		Shader_DecomposeSubPassMap(o, s, "paletted", s->defaulttextures[0].paletted); break;
+	case T_GEN_REFLECTCUBE:		Shader_DecomposeSubPassMap(o, s, "reflectcube", s->defaulttextures[0].reflectcube); break;
+	case T_GEN_REFLECTMASK:		Shader_DecomposeSubPassMap(o, s, "reflectmask", s->defaulttextures[0].reflectmask); break;
+	case T_GEN_DISPLACEMENT:	Shader_DecomposeSubPassMap(o, s, "displacement", s->defaulttextures[0].displacement); break;
+	case T_GEN_CURRENTRENDER:	sprintf(o, "currentrender "); break;
+	case T_GEN_SOURCECOLOUR:	sprintf(o, "sourcecolour"); break;
+	case T_GEN_SOURCEDEPTH:		sprintf(o, "sourcedepth"); break;
+	case T_GEN_REFLECTION:		sprintf(o, "reflection"); break;
+	case T_GEN_REFRACTION:		sprintf(o, "refraction"); break;
+	case T_GEN_REFRACTIONDEPTH:	sprintf(o, "refractiondepth"); break;
+	case T_GEN_RIPPLEMAP:		sprintf(o, "ripplemap"); break;
+	case T_GEN_SOURCECUBE:		sprintf(o, "sourcecube"); break;
+	case T_GEN_GBUFFERCASE:		sprintf(o, "gbuffer%i ",p->texgen-T_GEN_GBUFFER0); break;
 	}
 	o+=strlen(o);
 
@@ -7330,7 +7335,7 @@ char *Shader_Decompose(shader_t *s)
 		p = s->passes;
 		o = Shader_DecomposePass(o, p, true);
 		for (j = 0; j < s->numpasses; j++)
-			o = Shader_DecomposeSubPass(o, p+j, true);
+			o = Shader_DecomposeSubPass(o, s, p+j, true);
 	}
 	else
 	{
@@ -7341,7 +7346,7 @@ char *Shader_Decompose(shader_t *s)
 
 			o = Shader_DecomposePass(o, p, false);
 			for (j = 0; j < p->numMergedPasses; j++)
-				o = Shader_DecomposeSubPass(o, p+j, !!p->prog);
+				o = Shader_DecomposeSubPass(o, s, p+j, !!p->prog);
 			sprintf(o, "}\n"); o+=strlen(o);
 		}
 	}

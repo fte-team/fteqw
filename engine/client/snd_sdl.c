@@ -61,8 +61,11 @@ static int (SDLCALL *SDL_CloseAudioDevice)					(SDL_AudioDeviceID fd);
 static int (SDLCALL *SDL_GetNumAudioDevices)				(int iscapture);
 static const char *(SDLCALL *SDL_GetAudioDeviceName)		(int index, int iscapture);
 static const char *(SDLCALL *SDL_GetError)					(void);
-#if SDL_VERSION_ATLEAST(2,0,5)
+#if SDL_VERSION_ATLEAST(2,0,4)
+static int (SDLCALL *SDL_QueueAudio)						(SDL_AudioDeviceID dev, const void *data, uint32_t len);
 static uint32_t (SDLCALL *SDL_GetQueuedAudioSize)			(SDL_AudioDeviceID dev);
+#endif
+#if SDL_VERSION_ATLEAST(2,0,5)
 static uint32_t (SDLCALL *SDL_DequeueAudio)					(SDL_AudioDeviceID dev, void *data, uint32_t len);
 #endif
 static dllfunction_t sdl_funcs[] =
@@ -77,8 +80,11 @@ static dllfunction_t sdl_funcs[] =
 	{(void*)&SDL_GetNumAudioDevices, "SDL_GetNumAudioDevices"},
 	{(void*)&SDL_GetAudioDeviceName, "SDL_GetAudioDeviceName"},
 	{(void*)&SDL_GetError, "SDL_GetError"},
-#if SDL_VERSION_ATLEAST(2,0,5)
+#if SDL_VERSION_ATLEAST(2,0,4)
+	{(void*)&SDL_QueueAudio, "SDL_QueueAudio"},
 	{(void*)&SDL_GetQueuedAudioSize, "SDL_GetQueuedAudioSize"},
+#endif
+#if SDL_VERSION_ATLEAST(2,0,5)
 	{(void*)&SDL_DequeueAudio, "SDL_DequeueAudio"},
 #endif
 	{NULL, NULL}
@@ -154,7 +160,7 @@ static void SSDL_Shutdown(soundcardinfo_t *sc)
 #endif
 	sc->sn.buffer = NULL;
 }
-static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int SSDL_Callback_GetDMAPos(soundcardinfo_t *sc)
 {
 	sc->sn.samplepos = sc->snd_sent / sc->sn.samplebytes;
 	return sc->sn.samplepos;
@@ -162,7 +168,7 @@ static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
 
 //this function is called from inside SDL.
 //transfer the 'dma' buffer into the buffer it requests.
-static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
+static void VARGS SSDL_Callback_Paint(void *userdata, qbyte *stream, int len)
 {
 	soundcardinfo_t *sc = userdata;
 
@@ -194,7 +200,7 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 #endif
 }
 
-static void *SSDL_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
+static void *SSDL_Callback_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 #if SDL_MAJOR_VERSION >= 2
 	SDL_LockAudioDevice(sc->audio_fd);
@@ -205,7 +211,7 @@ static void *SSDL_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 	return sc->sn.buffer;
 }
 
-static void SSDL_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
+static void SSDL_Callback_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 {
 #if SDL_MAJOR_VERSION >= 2
 	SDL_UnlockAudioDevice(sc->audio_fd);
@@ -214,10 +220,41 @@ static void SSDL_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 #endif
 }
 
-static void SSDL_Submit(soundcardinfo_t *sc, int start, int end)
+static void SSDL_Callback_Submit(soundcardinfo_t *sc, int start, int end)
 {
 	//SDL will call SSDL_Paint to paint when it's time, and the sound buffer is always there...
 }
+
+#if SDL_VERSION_ATLEAST(2,0,4)
+static unsigned int SSDL_Queue_GetDMAPos(soundcardinfo_t *sc)
+{	//keep proper track of how much data has actually been sent to the audio device.
+	//note that SDL may have already submitted more than this to the physical device.
+	//note: if we don't mix enough data then sdl will mix 0s for us.
+	uint32_t queued = SDL_GetQueuedAudioSize(sc->audio_fd);
+	extern cvar_t _snd_mixahead;
+	int ahead = (_snd_mixahead.value*sc->sn.speed) - (queued / (sc->sn.samplebytes*sc->sn.numchannels));
+	if (ahead < 0)
+		ahead = 0;	//never behind
+	sc->samplequeue = -1;	//return value is a desired timestamp
+	return sc->sn.samplepos + ahead*sc->sn.numchannels;
+}
+static void *SSDL_Queue_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
+{	//queuing uses private memory, so no need to lock
+	*sampidx = 0;	//don't bother ringing it.
+	return sc->sn.buffer;
+}
+static void SSDL_Queue_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
+{	//nor a need to unlock
+}
+
+static void SSDL_Queue_Submit(soundcardinfo_t *sc, int start, int end)
+{
+	int bytecount = (end-start)*sc->sn.samplebytes*sc->sn.numchannels;
+	SDL_QueueAudio(sc->audio_fd, sc->sn.buffer, bytecount);
+
+	sc->sn.samplepos += bytecount/sc->sn.samplebytes;
+}
+#endif
 
 static qboolean QDECL SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 {
@@ -234,7 +271,12 @@ static qboolean QDECL SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 	desired.freq = sc->sn.speed;
 	desired.channels = sc->sn.numchannels;	//fixme!
 	desired.samples = 0x0200;	//'Good values seem to range between 512 and 8192 inclusive, depending on the application and CPU speed.'
-	desired.callback = (void*)SSDL_Paint;
+#if SDL_VERSION_ATLEAST(2,0,4)
+	if (!snd_mixerthread.ival)
+		desired.callback = NULL;
+	else
+#endif
+		desired.callback = (void*)SSDL_Callback_Paint;
 	desired.userdata = sc;
 	memcpy(&obtained, &desired, sizeof(obtained));
 
@@ -299,26 +341,44 @@ static qboolean QDECL SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 		break;
 	}
 
-#ifdef SELFPAINT
-	sc->selfpainting = true;
-#endif
-
 	Con_DPrintf("channels: %i\n", sc->sn.numchannels);
 	Con_DPrintf("Speed: %i\n", sc->sn.speed);
 	Con_DPrintf("Samplebits: %i\n", sc->sn.samplebytes*8);
 	Con_DPrintf("SDLSamples: %i (low for latency)\n", obtained.samples);
 	Con_DPrintf("FakeSamples: %i\n", sc->sn.samples);
 
-#ifndef SELFPAINT
-	sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebytes);
-#endif
 	Con_DPrintf("Got sound %i-%i\n", obtained.freq, obtained.format);
 
-	sc->Lock		= SSDL_LockBuffer;
-	sc->Unlock		= SSDL_UnlockBuffer;
-	sc->Submit		= SSDL_Submit;
-	sc->Shutdown		= SSDL_Shutdown;
-	sc->GetDMAPos		= SSDL_GetDMAPos;
+#if SDL_VERSION_ATLEAST(2,0,4)
+	if (!obtained.callback)
+	{
+		sc->Lock		= SSDL_Queue_LockBuffer;
+		sc->Unlock		= SSDL_Queue_UnlockBuffer;
+		sc->Submit		= SSDL_Queue_Submit;
+		sc->Shutdown	= SSDL_Shutdown;
+		sc->GetDMAPos	= SSDL_Queue_GetDMAPos;
+
+		sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebytes);
+
+		Con_DPrintf("Using SDL audio queues\n");
+	}
+	else
+#endif
+	{
+		sc->Lock		= SSDL_Callback_LockBuffer;
+		sc->Unlock		= SSDL_Callback_UnlockBuffer;
+		sc->Submit		= SSDL_Callback_Submit;
+		sc->Shutdown	= SSDL_Shutdown;
+		sc->GetDMAPos	= SSDL_Callback_GetDMAPos;
+
+#ifdef SELFPAINT
+		sc->selfpainting = true;
+		Con_DPrintf("Using SDL audio threading\n");
+#else
+		sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebytes);
+		Con_DPrintf("Using SDL audio callbacks\n");
+#endif
+	}
 
 #if SDL_MAJOR_VERSION >= 2
 	SDL_PauseAudioDevice(sc->audio_fd, 0);

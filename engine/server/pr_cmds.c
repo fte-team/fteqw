@@ -12526,6 +12526,7 @@ void PR_DumpPlatform_f(void)
 		{"VF_RT_RIPPLE",		"const float", CS|MENU, D("The texture name to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy."), VF_RT_RIPPLE},
 		{"VF_ENVMAP",			"const float", CS|MENU, D("The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything."), VF_ENVMAP},
 		{"VF_USERDATA",			"const float", CS|MENU, D("Pointer (and byte size) to an array of vec4s. This data is then globally visible to all glsl via the w_user uniform."), VF_USERDATA},
+		{"VF_SKYROOM_CAMERA",	"const float", CS, D("Controls the camera position of the skyroom (which will be drawn underneath transparent sky surfaces). This should move slightly with the real camera, but not so much that the skycamera enters walls. Requires a skyshader with a blend mode on the first pass (or no passes)."), VF_SKYROOM_CAMERA},
 
 		{"RF_VIEWMODEL",		"const float", CS, D("Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob."), CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, D("Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible."), CSQCRF_EXTERNALMODEL},
@@ -12579,6 +12580,7 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_RGBDECAY",		"const float", CS, NULL, lfield_rgbdecay},
 		{"LFIELD_RADIUSDECAY",	"const float", CS, NULL, lfield_radiusdecay},
 		{"LFIELD_STYLESTRING",	"const float", CS, NULL, lfield_stylestring},
+		{"LFIELD_NEARCLIP",		"const float", CS, NULL, lfield_nearclip},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, NULL, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, NULL, LFLAG_REALTIMEMODE},

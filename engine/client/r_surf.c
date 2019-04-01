@@ -3990,6 +3990,10 @@ void Surf_BuildModelLightmaps (model_t *m)
 						dst[2] = src[2];
 					}
 					break;
+				case PTI_RGB565:
+					for (; src < stop; dst += 2, src += 3)
+						*(unsigned short*)dst = ((src[0]>>3)<<11)|((src[1]>>2)<<5)|((src[2]>>3)<<0);
+					break;
 				case PTI_L8:
 					for (; src < stop; dst += 1, src += 3)
 					{

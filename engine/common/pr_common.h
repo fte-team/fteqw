@@ -730,6 +730,7 @@ typedef enum
 	VF_RT_DESTCOLOUR7	= 219,
 	VF_ENVMAP			= 220,	//cubemap image for reflectcube
 	VF_USERDATA			= 221,
+	VF_SKYROOM_CAMERA	= 222,
 } viewflags;
 
 /*FIXME: this should be changed*/
@@ -777,8 +778,8 @@ enum lightfield_e
 	lfield_dietime=14,
 	lfield_rgbdecay=15,
 	lfield_radiusdecay=16,
-
-	lfield_stylestring=17
+	lfield_stylestring=17,
+	lfield_nearclip=18
 };
 enum csqc_input_event
 {

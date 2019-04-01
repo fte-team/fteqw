@@ -1158,6 +1158,9 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 	case lfield_fov:
 		l->fov = G_FLOAT(OFS_PARM2);
 		break;
+	case lfield_nearclip:
+		l->nearclip = G_FLOAT(OFS_PARM2);
+		break;
 	case lfield_corona:
 		l->corona = G_FLOAT(OFS_PARM2);
 		break;
@@ -1244,6 +1247,9 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		break;
 	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
+		break;
+	case lfield_nearclip:
+		G_FLOAT(OFS_PARM2) = l->nearclip;
 		break;
 	case lfield_corona:
 		G_FLOAT(OFS_RETURN) = l->corona;
@@ -1978,6 +1984,13 @@ nogameaccess:
 		*r = r_refdef.afov;
 		break;
 
+	case VF_SKYROOM_CAMERA:
+		if (r_refdef.skyroom_enabled)
+			VectorCopy(r_refdef.skyroom_pos, r);
+		else
+			VectorClear(r);	//not really correct, but no other way to really signal this. -0? yuck.
+		break;
+
 	case VF_ORIGIN:
 		if (csqc_nogameaccess && prinst == csqc_world.progs)
 			goto nogameaccess;
@@ -2176,6 +2189,11 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.fov_x = r_refdef.fov_y = 0;
 		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
+		break;
+
+	case VF_SKYROOM_CAMERA:
+		r_refdef.skyroom_enabled = true;
+		VectorCopy(p, r_refdef.skyroom_pos);
 		break;
 
 	case VF_ORIGIN:

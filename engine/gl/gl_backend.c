@@ -1059,7 +1059,7 @@ void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float sha
 {
 	extern cvar_t r_shadow_shadowmapping_bias;
 	extern cvar_t r_shadow_shadowmapping_nearclip;
-	float n = r_shadow_shadowmapping_nearclip.value;
+	float n = dl->nearclip?dl->nearclip:r_shadow_shadowmapping_nearclip.value;
 	float f = dl->radius;
 	float b = r_shadow_shadowmapping_bias.value;
 
@@ -1303,13 +1303,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		GL_LazyBind(tmu, GL_TEXTURE_3D, t);
 		return;
 
-	case T_GEN_VIDEOMAP:
 #ifdef HAVE_MEDIA_DECODER
+	case T_GEN_VIDEOMAP:
 		t = Media_UpdateForShader(pass->cin);
-#else
 		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
-#endif
 		break;
+#endif
 
 	case T_GEN_CURRENTRENDER:
 		T_Gen_CurrentRender(tmu);
@@ -4261,7 +4260,7 @@ qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned
 		float view[16];
 		float proj[16];
 		extern cvar_t r_shadow_shadowmapping_nearclip;
-		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, r_shadow_shadowmapping_nearclip.value, dl->radius, false);
+		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, dl->nearclip?dl->nearclip:r_shadow_shadowmapping_nearclip.value, dl->radius, false);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(view, axis[0], axis[1], axis[2], dl->origin);
 		Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
 	}
@@ -5442,8 +5441,13 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 		{
 			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)// || shaderstate.mode == BEM_WIREFRAME)
 			{
+				float il = shaderstate.identitylighting;	//this stuff sucks!
 				if (R_DrawSkyChain(batch))
+				{
+					shaderstate.identitylighting = il;
 					continue;
+				}
+				shaderstate.identitylighting = il;
 			}
 			else if (/*shaderstate.mode != BEM_FOG &&*/ shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
 				continue;

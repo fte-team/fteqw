@@ -1188,7 +1188,7 @@ qboolean R_LoadRTLights(void)
 	float radius;
 	vec3_t rgb;
 	vec3_t avel;
-	float fov;
+	float fov, nearclip;
 	unsigned int flags;
 
 	float coronascale;
@@ -1294,7 +1294,7 @@ qboolean R_LoadRTLights(void)
 		file = COM_Parse(file);
 		flags |= file?atoi(com_token):LFLAG_REALTIMEMODE;
 
-		fov = avel[0] = avel[1] = avel[2] = 0;
+		nearclip = fov = avel[0] = avel[1] = avel[2] = 0;
 		*customstyle = 0;
 		while(file)
 		{
@@ -1307,6 +1307,8 @@ qboolean R_LoadRTLights(void)
 				avel[2] = file?atof(com_token+5):0;
 			else if (!strncmp(com_token, "fov=", 4))
 				fov = file?atof(com_token+4):0;
+			else if (!strncmp(com_token, "nearclip=", 9))
+				nearclip = file?atof(com_token+9):0;
 			else if (!strncmp(com_token, "nostencil=", 10))
 				flags |= atoi(com_token+10)?LFLAG_SHADOWMAP:0;
 			else if (!strncmp(com_token, "crepuscular=", 12))
@@ -1333,6 +1335,7 @@ qboolean R_LoadRTLights(void)
 			dl->die = 0;
 			dl->flags = flags;
 			dl->fov = fov;
+			dl->nearclip = nearclip;
 			dl->lightcolourscales[0] = ambientscale;
 			dl->lightcolourscales[1] = diffusescale;
 			dl->lightcolourscales[2] = specularscale;
@@ -1418,6 +1421,8 @@ static void R_SaveRTLights_f(void)
 		//spotlights
 		if (light->fov)
 			VFS_PRINTF(f, " fov=%g", light->fov); //aka: outer cone
+		if (light->nearclip)
+			VFS_PRINTF(f, " nearclip=%g", light->nearclip); //aka: distance into a wall, for lights that are meant to appear to come from a texture
 		if (light->customstyle)
 			VFS_PRINTF(f, " \"stylestring=%s\"", light->customstyle); //aka: outer cone
 
@@ -1588,6 +1593,8 @@ static int R_EditLight(dlight_t *dl, const char *cmd, int argc, const char *x, c
 
 	else if (!strcmp(cmd, "outercone") || !strcmp(cmd, "fov"))
 		dl->fov = atof(x);
+	else if (!strcmp(cmd, "nearclip"))
+		dl->nearclip = atof(x);
 	else if (!strcmp(cmd, "color") || !strcmp(cmd, "colour"))
 	{
 		dl->color[0] = atof(x);
@@ -1676,6 +1683,7 @@ void R_EditLights_DrawInfo(void)
 				"RealTimeMode : %s\n"
 				"        Spin : %.0f %.0f %.0f\n"
 				"        Cone : %.0f\n"
+				"    Nearclip : %.0f\n"
 				//"NoStencil    : %s\n"
 				//"Crepuscular  : %s\n"
 				//"Ortho        : %s\n"
@@ -1686,7 +1694,7 @@ void R_EditLights_DrawInfo(void)
 				,((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"), dl->cubemapname, dl->coronascale
 				,dl->lightcolourscales[0], dl->lightcolourscales[1], dl->lightcolourscales[2]
 				,((dl->flags&LFLAG_NORMALMODE)?"yes":"no"), ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no")
-				,dl->rotation[0],dl->rotation[1],dl->rotation[2], dl->fov
+				,dl->rotation[0],dl->rotation[1],dl->rotation[2], dl->fov, dl->nearclip
 				//,((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"),((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"),((dl->flags&LFLAG_ORTHO)?"yes":"no")
 				);
 	}
@@ -1882,6 +1890,7 @@ static void R_EditLights_Edit_f(void)
 		Con_Printf("RealTimeMode : ^[%s\\type\\r_editlights_edit realtimemode %s^]\n", ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no"), ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no"));
 		Con_Printf("Spin         : ^[%f %f %f\\type\\r_editlights_edit avel %g %g %g^]\n", dl->rotation[0],dl->rotation[1],dl->rotation[2], dl->origin[0],dl->origin[1],dl->origin[2]);
 		Con_Printf("Cone         : ^[%f\\type\\r_editlights_edit outercone %g^]\n", dl->fov, dl->fov);
+		Con_Printf("NearClip     : ^[%f\\type\\r_editlights_edit nearclip %g^]\n", dl->nearclip, dl->nearclip);
 //		Con_Printf("NoStencil    : ^[%s\\type\\r_editlights_edit nostencil %s^]\n", ((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"), ((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"));
 //		Con_Printf("Crepuscular  : ^[%s\\type\\r_editlights_edit crepuscular %s^]\n", ((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"), ((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"));
 //		Con_Printf("Ortho        : ^[%s\\type\\r_editlights_edit ortho %s^]\n", ((dl->flags&LFLAG_ORTHO)?"yes":"no"), ((dl->flags&LFLAG_ORTHO)?"yes":"no"));

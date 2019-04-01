@@ -86,7 +86,7 @@ void World_Bullet_Init(void)
 {
 	physics_bullet_enable					= pCvar_GetNVFDG("physics_bullet_enable",					"1",	0, "", "Bullet");
 	physics_bullet_maxiterationsperframe	= pCvar_GetNVFDG("physics_bullet_maxiterationsperframe",	"10",	0, "FIXME: should be 1 when CCD is working properly.", "Bullet");
-	physics_bullet_framerate				= pCvar_GetNVFDG("physics_bullet_framerate",				"60",	0, "", "Bullet");
+	physics_bullet_framerate				= pCvar_GetNVFDG("physics_bullet_framerate",				"60",	0, "Bullet physics run at a fixed framerate in order to preserve numerical stability (interpolation is used to smooth out the result). Higher framerates are of course more demanding.", "Bullet");
 	pr_meshpitch							= pCvar_GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
 }
 

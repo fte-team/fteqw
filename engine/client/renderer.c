@@ -898,8 +898,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_telestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
-	Cvar_Register (&r_outline, GRAPHICALNICETIES);
-	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
+//	Cvar_Register (&r_outline, GRAPHICALNICETIES);
+//	Cvar_Register (&r_outline_width, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_refractreflect_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_postprocshader, GRAPHICALNICETIES);
@@ -2734,7 +2734,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 		vis = cvis[portal] = r_refdef.forcedvis;
 
 		r_oldviewcluster = -1;
-		r_oldviewcluster2 = -1;
+		r_oldviewcluster2 = -2;
 	}
 	else
 	{
@@ -2749,7 +2749,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 		else
 		{
 			r_oldviewcluster = -1;
-			r_oldviewcluster2 = -1;
+			r_oldviewcluster2 = -2;
 		}
 
 		if (r_novis.ival)
@@ -2760,7 +2760,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 			memset (curframevis[portal].buffer, 0xff, curframevis[portal].buffersize);
 
 			r_oldviewcluster = -1;
-			r_oldviewcluster2 = -1;
+			r_oldviewcluster2 = -2;
 		}
 		else
 		{

@@ -28,8 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(disable : 4051)     // ALPHA
 #endif
 
-void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
-qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
+void AddPointToBounds (const vec3_t v, vec3_t mins, vec3_t maxs);
+qboolean BoundsIntersect (const vec3_t mins1, const vec3_t maxs1, const vec3_t mins2, const vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
 struct builddata_s

@@ -63,7 +63,7 @@ static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
 struct cminfo_s;
 static struct bihnode_s *CM_BuildBIH (model_t *mod, struct cminfo_s *prv);
-static unsigned int CM_PointContentsBIH (fte_restrict const struct bihnode_s *node, fte_restrict const vec3_t p);
+static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict node, const vec3_t p);
 #endif
 
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
@@ -5663,6 +5663,7 @@ static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 			break;
 		case shape_ispoint:
 			dist = plane->dist;
+			thickness = 0;
 			break;
 		}
 
@@ -6045,7 +6046,7 @@ struct bihtrace_s
 	vec_t *endpos;	//bounds.[min|max]
 	trace_t *trace;
 };
-static void CM_RecursiveBIHTrace (fte_restrict struct bihtrace_s *tr, fte_restrict const struct bihnode_s *node, fte_restrict struct bihbox_s *movesubbounds, fte_restrict struct bihbox_s *nodebox)
+static void CM_RecursiveBIHTrace (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node, struct bihbox_s *fte_restrict movesubbounds, struct bihbox_s *fte_restrict nodebox)
 {
 	//if the tree were 1d, we wouldn't need to be so careful with the bounds, but if the trace is long then we want to avoid hitting all surfaces within that entire-map-encompassing move aabb
 	if (node->type > BIH_Z)
@@ -6164,7 +6165,7 @@ static void CM_RecursiveBIHTrace (fte_restrict struct bihtrace_s *tr, fte_restri
 	}
 }
 
-static void CM_RecursiveBIHTest (fte_restrict struct bihtrace_s *tr, fte_restrict const struct bihnode_s *node)
+static void CM_RecursiveBIHTest (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node)
 {	//with BIH, its possible for a large child node to have a box larger than its sibling.
 	if (node->type > BIH_Z)
 	{	//leaf
@@ -6206,7 +6207,7 @@ static void CM_RecursiveBIHTest (fte_restrict struct bihtrace_s *tr, fte_restric
 	}
 }
 
-static unsigned int CM_PointContentsBIH (fte_restrict const struct bihnode_s *node, fte_restrict const vec3_t p)
+static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict node, const vec3_t p)
 {
 	if (node->type > BIH_Z)
 	{	//leaf
@@ -6538,7 +6539,12 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		if (start[0] == end[0] && start[1] == end[1] && start[2] == end[2])
 			CM_RecursiveBIHTest(&tr, prv->bihnodes);
 		else
-			CM_RecursiveBIHTrace(&tr, prv->bihnodes, &tr.bounds, &tr.bounds);
+		{
+			struct bihbox_s worldsize;
+			VectorCopy(mod->mins, worldsize.min);
+			VectorCopy(mod->maxs, worldsize.max);
+			CM_RecursiveBIHTrace(&tr, prv->bihnodes, &tr.bounds, &worldsize);
+		}
 	}
 	else
 	//

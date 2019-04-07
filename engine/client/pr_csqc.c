@@ -860,7 +860,7 @@ static float CSQC_PitchScaleForModelIndex(int index)
 wedict_t *skel_gettaginfo_args (pubprogfuncs_t *prinst, vec3_t axis[3], vec3_t origin, int tagent, int tagnum);
 #endif
 
-static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
+static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *fte_restrict out)
 {
 	int ival;
 	model_t *model;
@@ -874,6 +874,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 
 	memset(out, 0, sizeof(*out));
 	out->model = model;
+	out->pvscache = in->pvsinfo;
 
 	rflags = in->xv->renderflags;
 	if (csqc_isdarkplaces)
@@ -882,7 +883,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	{
 		rflags = in->xv->renderflags;
 		if (rflags & CSQCRF_VIEWMODEL)
+		{
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
+			out->pvscache.num_leafs = -1;
+		}
 		if (rflags & CSQCRF_EXTERNALMODEL)
 			out->flags |= RF_EXTERNALMODEL;
 		if (rflags & CSQCRF_DEPTHHACK)
@@ -947,6 +951,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		csqcedict_t *p = (csqcedict_t*)skel_gettaginfo_args(csqcprogs, out->axis, out->origin, in->xv->tag_entity, in->xv->tag_index);
 		if (p && (int)p->xv->renderflags & CSQCRF_VIEWMODEL)
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
+		out->pvscache.num_leafs = -1;	//make visible globally
 #endif
 	}
 
@@ -1030,9 +1035,9 @@ static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvar
 		cl_static_entities[cl.num_statics].emit = NULL;
 		cl_static_entities[cl.num_statics].mdlidx = in->v->modelindex;
 		if (cl.worldmodel && cl.worldmodel->funcs.FindTouchedLeafs)
-			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[cl.num_statics].pvscache, in->v->absmin, in->v->absmax);
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[cl.num_statics].ent.pvscache, in->v->absmin, in->v->absmax);
 		else
-			memset(&cl_static_entities[cl.num_statics].pvscache, 0, sizeof(cl_static_entities[cl.num_statics].pvscache));
+			memset(&cl_static_entities[cl.num_statics].ent.pvscache, 0, sizeof(cl_static_entities[cl.num_statics].ent.pvscache));
 		cl.num_statics++;
 
 		//rtlights kinda need all this junk
@@ -2116,13 +2121,24 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 {
 	switch(qcformat)
 	{
-	case 1: return TF_RGBA32;
-	case 2: return TF_RGBA16F;
-	case 3: return TF_RGBA32F;
-	case 4: return TF_DEPTH16;
-	case 5: return TF_DEPTH24;
-	case 6: return TF_DEPTH32;
-	default:return TF_INVALID;
+	case 1: return PTI_RGBA8;
+	case 2: return PTI_RGBA16F;
+	case 3: return PTI_RGBA32F;
+
+	case 4: return PTI_DEPTH16;
+	case 5: return PTI_DEPTH24;
+	case 6: return PTI_DEPTH32;
+
+	case 7: return PTI_R8;
+	case 8: return PTI_R16F;
+	case 9: return PTI_R32F;
+
+	case 10: return PTI_A2BGR10;
+	case 11: return PTI_RGB565;
+	case 12: return PTI_RGBA4444;
+	case 13: return PTI_RG8;
+
+	default:return PTI_INVALID;
 	}
 }
 void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

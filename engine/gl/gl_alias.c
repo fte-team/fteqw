@@ -2745,7 +2745,7 @@ static void BE_GenPolyBatches(batch_t **batches)
 }
 void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches);
 void PR_Route_Visualise(void);
-void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemode)
+void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemode, qbyte *worldpvs)
 {
 	int		i;
 	entity_t *ent;
@@ -2755,6 +2755,10 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 //	unsigned int orig_numstrisidx = cl_numstrisidx;
 //	unsigned int orig_numstrisvert = cl_numstrisvert;
 	extern cvar_t chase_active;	//I fucking hate this cvar. die die die.
+	extern cvar_t r_ignoreentpvs; //legacy value is 1...
+
+	if (r_ignoreentpvs.ival)
+		worldpvs = NULL;
 
 	/*clear the batch list*/
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
@@ -2805,6 +2809,9 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				continue;
 		}
 #endif
+
+		if (worldpvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &ent->pvscache, worldpvs))
+			continue;
 
 		switch(ent->rtype)
 		{

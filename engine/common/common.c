@@ -4970,70 +4970,97 @@ static void COM_Version_f (void)
 	Con_Printf("zlib: %s\n", ZLIB_VERSION);
 #endif
 
-
-#ifndef SERVERONLY
-	//but print client ones only if we're not dedicated
-#ifndef AVAIL_PNGLIB
-	Con_Printf("libpng disabled\n");
-#else
-	#ifdef DYNAMIC_LIBPNG
-		Con_Printf("libPNG(dynamic) %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
-	#else
-		Con_Printf("libPNG %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
+#ifdef HAVE_CLIENT
+	Con_Printf("image formats:");
+	#ifdef IMAGEFMT_DDS
+		Con_Printf(" dds");
 	#endif
-#endif
-#ifndef AVAIL_JPEGLIB
-	Con_Printf("libjpeg disabled\n");
-#else
-	#ifdef DYNAMIC_LIBJPEG
-		Con_Printf("libjpeg(dynamic): %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
-	#else
-		Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+	#ifdef IMAGEFMT_KTX
+		Con_Printf(" ktx");
 	#endif
-#endif
+	Con_Printf(" tga");
+	#if defined(AVAIL_PNGLIB)
+		Con_Printf(" png");
+		#ifdef DYNAMIC_LIBPNG
+				Con_Printf("^h(dynamic, %s)", PNG_LIBPNG_VER_STRING);
+		#else
+			Con_Printf("^h(%s)", PNG_LIBPNG_VER_STRING);
+		#endif
+	#else
+		Con_DPrintf(" ^h(disabled: png)");
+	#endif
+	#ifdef IMAGEFMT_BMP
+		Con_Printf(" bmp+ico");
+	#endif
+	#if defined(AVAIL_JPEGLIB)
+		Con_Printf(" jpeg");
+		#ifdef DYNAMIC_LIBJPEG
+			Con_Printf("^h(dynamic, %i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+		#else
+			Con_Printf("^h(%i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+		#endif
+	#else
+		Con_DPrintf(" ^h(disabled: jpeg)");
+	#endif
+	#ifdef IMAGEFMT_PBM
+		Con_Printf(" pfm+pbm+pgm+ppm"/*"+pam"*/);
+	#endif
+	#ifdef IMAGEFMT_PSD
+		Con_Printf(" psd");
+	#endif
+	#ifdef IMAGEFMT_HDR
+		Con_Printf(" hdr");
+	#endif
+	#ifdef IMAGEFMT_PKM
+		Con_Printf(" pkm");
+	#endif
+	#ifdef IMAGEFMT_PCX
+		Con_Printf(" pcx");
+	#endif
+	Con_Printf("\n");
 
 	Con_Printf("VoiceChat:");
-#if !defined(VOICECHAT)
-	Con_Printf(" disabled");
-#else
-	#ifdef SPEEX_STATIC
-		Con_Printf(" speex");
-		Con_DPrintf("(static)");
+	#if !defined(VOICECHAT)
+		Con_Printf(" disabled");
 	#else
-		Con_Printf(" speex(dynamic)");
+		#ifdef SPEEX_STATIC
+			Con_Printf(" speex");
+			Con_DPrintf("^h(static)");
+		#else
+			Con_Printf(" speex^h(dynamic)");
+		#endif
+		#ifdef OPUS_STATIC
+			Con_Printf(" opus");
+			Con_DPrintf("^h(static)");
+		#else
+			Con_Printf(" opus^h(dynamic)");
+		#endif
 	#endif
-	#ifdef OPUS_STATIC
-		Con_Printf(" opus");
-		Con_DPrintf("(static)");
-	#else
-		Con_Printf(" opus(dynamic)");
-	#endif
-#endif
 	Con_Printf("\n");
 
 	Con_Printf("Audio Decoders:");
-#ifndef AVAIL_OGGVORBIS
-	Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
-#elif defined(LIBVORBISFILE_STATIC)
-	Con_Printf(" Ogg Vorbis");
-#else
-	Con_Printf(" Ogg Vorbis(dynamic)");
-#endif
-#if defined(AVAIL_MP3_ACM)
-	Con_Printf(" mp3(system)");
-#endif
+	#ifndef AVAIL_OGGVORBIS
+		Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
+	#elif defined(LIBVORBISFILE_STATIC)
+		Con_Printf(" Ogg Vorbis");
+	#else
+		Con_Printf(" Ogg Vorbis^h(dynamic)");
+	#endif
+	#if defined(AVAIL_MP3_ACM)
+		Con_Printf(" mp3(system)");
+	#endif
 	Con_Printf("\n");
 #endif
 
 #ifdef SQL
 	Con_Printf("Databases:");
 	#ifdef USE_MYSQL
-		Con_Printf(" mySQL(dynamic)");
+		Con_Printf(" mySQL^h(dynamic)");
 	#else
 		Con_DPrintf(" ^h(disabled: mySQL)^7");
 	#endif
 	#ifdef USE_SQLITE
-		Con_Printf(" sqlite(dynamic)");
+		Con_Printf(" sqlite^h(dynamic)");
 	#else
 		Con_DPrintf(" ^h(disabled: sqlite)^7");
 	#endif
@@ -5046,19 +5073,19 @@ static void COM_Version_f (void)
 #else
 	Con_DPrintf(" ^h(disabled: mapcluster)^7");
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_SERVER
 #ifdef AVAIL_FREETYPE
 	#ifdef FREETYPE_STATIC
 		Con_Printf(" freetype2");
-		Con_DPrintf("(static)");
+		Con_DPrintf("^h(static)");
 	#else
-		Con_Printf(" freetype2(dynamic)");
+		Con_Printf(" freetype2^h(dynamic)");
 	#endif
 #else
 	Con_DPrintf(" ^h(disabled: freetype2)^7");
 #endif
 #ifdef AVAIL_OPENAL
-	Con_Printf(" openal(dynamic)");
+	Con_Printf(" openal^h(dynamic)");
 #else
 	Con_DPrintf(" ^h(disabled: openal)^7");
 #endif
@@ -5125,7 +5152,7 @@ static void COM_Version_f (void)
 	Con_Printf(" ssq1qvm");
 #endif
 #if defined(VM_LUA)
-	Con_Printf(" ssq1lua(dynamic)");
+	Con_Printf(" ssq1lua^h(dynamic)");
 #endif
 #if defined(MENU_DAT)
 	Con_Printf(" menuqc");
@@ -5136,7 +5163,7 @@ static void COM_Version_f (void)
 #if defined(CSQC_DAT)
 	Con_Printf(" csqc");
 #endif
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	Con_Printf(" ssqc");
 #endif
 	Con_Printf("\n");

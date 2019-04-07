@@ -277,6 +277,8 @@ typedef struct
 		{
 			vec3_t v;
 			vec2_t tc;
+			vec4_t rgba;
+
 			vec3_t norm;
 			vec3_t sdir;
 			vec3_t tdir;

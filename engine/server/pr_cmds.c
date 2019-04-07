@@ -12513,20 +12513,34 @@ void PR_DumpPlatform_f(void)
 		{"VF_SCREENPSIZE",		"const float", CS|MENU, D("Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect)."), VF_SCREENPSIZE},
 		{"VF_VIEWENTITY",		"const float", CS, D("Changes the RF_EXTERNALMODEL flag on entities to match the new selection, and removes entities flaged with RF_VIEWENTITY. Requires cunning use of .entnum and typically requires calling addentities(MASK_VIEWMODEL) too."), VF_VIEWENTITY},
 
-		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, D("The texture name to write colour info into, this includes both 3d and 2d drawing.\nAdditional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy.\nWritten to by both 3d and 2d rendering.\nNote that any rendertarget textures may be destroyed on video mode changes or so. Shaders can name render targets by prefixing texture names with '$rt:', or $sourcecolour."), VF_RT_DESTCOLOUR0},
-//		{"VF_RT_DESTCOLOUR1",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR1},
-//		{"VF_RT_DESTCOLOUR2",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR2},
-//		{"VF_RT_DESTCOLOUR3",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR3},
+		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, D("The texture name to write colour info into, this includes both 3d and 2d drawing.\nAdditional arguments are: format (IMGFMT_*), sizexy.\nWritten to by both 3d and 2d rendering.\nNote that any rendertarget textures may be destroyed on video mode changes or so. Shaders can name render targets by prefixing texture names with '$rt:', or $sourcecolour."), VF_RT_DESTCOLOUR0},
+		{"VF_RT_DESTCOLOUR1",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR1},
+		{"VF_RT_DESTCOLOUR2",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR2},
+		{"VF_RT_DESTCOLOUR3",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR3},
 //		{"VF_RT_DESTCOLOUR4",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR4},
 //		{"VF_RT_DESTCOLOUR5",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR5},
 //		{"VF_RT_DESTCOLOUR6",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR6},
 //		{"VF_RT_DESTCOLOUR7",	"const float", CS|MENU, D("Like VF_RT_DESTCOLOUR, for multiple render targets."), VF_RT_DESTCOLOUR7},
 		{"VF_RT_SOURCECOLOUR",	"const float", CS|MENU, D("The texture name to use with shaders that specify a $sourcecolour map."), VF_RT_SOURCECOLOUR},
-		{"VF_RT_DEPTH",			"const float", CS|MENU, D("The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16bit=4,24bit=5,32bit=6), sizexy."), VF_RT_DEPTH},
+		{"VF_RT_DEPTH",			"const float", CS|MENU, D("The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (IMGFMT_D*), sizexy."), VF_RT_DEPTH},
 		{"VF_RT_RIPPLE",		"const float", CS|MENU, D("The texture name to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy."), VF_RT_RIPPLE},
 		{"VF_ENVMAP",			"const float", CS|MENU, D("The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything."), VF_ENVMAP},
 		{"VF_USERDATA",			"const float", CS|MENU, D("Pointer (and byte size) to an array of vec4s. This data is then globally visible to all glsl via the w_user uniform."), VF_USERDATA},
 		{"VF_SKYROOM_CAMERA",	"const float", CS, D("Controls the camera position of the skyroom (which will be drawn underneath transparent sky surfaces). This should move slightly with the real camera, but not so much that the skycamera enters walls. Requires a skyshader with a blend mode on the first pass (or no passes)."), VF_SKYROOM_CAMERA},
+
+		{"IMGFMT_R8G8B8A8",		"const float", CS|MENU, D("Typical 32bit rgba pixel format."), 1},
+		{"IMGFMT_R16G16B16A16F","const float", CS|MENU, D("Half-Float pixel format. Requires gl3 support."), 2},
+		{"IMGFMT_R32G32B32A32F","const float", CS|MENU, D("Regular Float pixel format. Requires gl3 support."), 3},
+		{"IMGFMT_D16",			"const float", CS|MENU, D("16-bit depth pixel format. Must not be used with VF_RT_DESTCOLOUR*."), 4},
+		{"IMGFMT_D24",			"const float", CS|MENU, D("24-bit depth pixel format. Must not be used with VF_RT_DESTCOLOUR*."), 5},
+		{"IMGFMT_D32",			"const float", CS|MENU, D("32-bit depth pixel format. Must not be used with VF_RT_DESTCOLOUR*."), 6},
+		{"IMGFMT_R8",			"const float", CS|MENU, D("Single channel red-only 8bit pixel format."), 7},
+		{"IMGFMT_R16F",			"const float", CS|MENU, D("Single channel red-only Half-Float pixel format. Requires gl3 support."), 8},
+		{"IMGFMT_R32F",			"const float", CS|MENU, D("Single channel red-only Float pixel format. Requires gl3 support."), 9},
+		{"IMGFMT_A2B10G10R10",	"const float", CS|MENU, D("Packed 32-bit packed 10-bit colour pixel format. Requires gl3 support."), 10},
+		{"IMGFMT_R5G6B5",		"const float", CS|MENU, D("Packed 16-bit colour pixel format."), 11},
+		{"IMGFMT_R4G4B4A4",		"const float", CS|MENU, D("Packed 16-bit colour pixel format, with alpha"), 12},
+		{"IMGFMT_R8G8",			"const float", CS|MENU, D("16-bit two-channel pixel format."), 13},
 
 		{"RF_VIEWMODEL",		"const float", CS, D("Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob."), CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, D("Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible."), CSQCRF_EXTERNALMODEL},
@@ -12751,6 +12765,7 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals. They usually default to 0 in qc (except in recursive functions), but its still probably a bug*/\n");
 //	VFS_PRINTF(f, "#pragma warning %s F308 /*Optional arguments differ on redeclaration.*/\n", (targ & ID1)?"disable":"enable");
 
+#ifdef HEXEN2
 	if ((targ&ALL) == H2)
 	{
 		if (targ&FTE)
@@ -12759,6 +12774,7 @@ void PR_DumpPlatform_f(void)
 			VFS_PRINTF(f, "#pragma target H2\n");
 	}
 	else
+#endif
 	{
 		if (targ&FTE)
 			VFS_PRINTF(f, "#pragma target FTE\n");

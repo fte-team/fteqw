@@ -6012,21 +6012,29 @@ struct bihnode_s
 		BIH_X,
 		BIH_Y,
 		BIH_Z,
+		BIH_GROUP,
 		BIH_BRUSH,
 		BIH_PATCHBRUSH,
+		BIH_TRISOUP,
 	} type;
 	union
 	{
 		struct{
-			vec3_t temp_mins;
-			vec3_t temp_maxs;
+			int firstchild;
+			int numchildren;
+		} group;
+		struct{
 			int firstchild;
 			float cmin[2];
 			float cmax[2];
-		};
-		union bihdata_s{
-			q2cbrush_t *brush;
-			q2cbrush_t *patchbrush;
+		} node;
+		struct bihdata_s{
+			unsigned int contents;
+			union {
+				q2cbrush_t *brush;
+				q2cbrush_t *patchbrush;
+				q3cmesh_t *cmesh;
+			};
 		} data;
 	};
 };
@@ -6041,177 +6049,213 @@ struct bihtrace_s
 	vec3_t expand;
 	qboolean negativedir[3];
 
-	vec_t *startpos;	//bounds.[min|max]
+	vec3_t startpos;	//bounds.[min|max]
 	vec3_t totalmove;
-	vec_t *endpos;	//bounds.[min|max]
+	vec3_t endpos;	//bounds.[min|max]
 	trace_t *trace;
 };
-static void CM_RecursiveBIHTrace (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node, struct bihbox_s *fte_restrict movesubbounds, struct bihbox_s *fte_restrict nodebox)
+static void CM_RecursiveBIHTrace (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node, const struct bihbox_s *fte_restrict movesubbounds, const struct bihbox_s *fte_restrict nodebox)
 {
 	//if the tree were 1d, we wouldn't need to be so careful with the bounds, but if the trace is long then we want to avoid hitting all surfaces within that entire-map-encompassing move aabb
-	if (node->type > BIH_Z)
+	switch(node->type)
 	{	//leaf
-		if (node->type == BIH_BRUSH)
+	case BIH_BRUSH:
 		{
 			q2cbrush_t *b = node->data.brush;
-			if (b->contents & trace_contents)
-				if (BoundsIntersect(tr->bounds.min, tr->bounds.max, b->absmins, b->absmaxs))
+			if (node->data.contents & trace_contents)
+				if (BoundsIntersect(b->absmins, b->absmaxs, movesubbounds->min, movesubbounds->max))
 					CM_ClipBoxToBrush (tr->size.min, tr->size.max, tr->startpos, tr->endpos, tr->trace, b);
 		}
-		else //if (node->type == BIH_PATCHBRUSH)
+		return;
+	case BIH_PATCHBRUSH:
 		{
 			q2cbrush_t *b = node->data.patchbrush;
-			if (b->contents & trace_contents)
-				if (BoundsIntersect(tr->bounds.min, tr->bounds.max, b->absmins, b->absmaxs))
+			if (node->data.contents & trace_contents)
+				if (BoundsIntersect(b->absmins, b->absmaxs, movesubbounds->min, movesubbounds->max))
 					CM_ClipBoxToPatch (tr->size.min, tr->size.max, tr->startpos, tr->endpos, tr->trace, b);
 		}
-	}
-	else
-	{	//node (x y or z)
-		struct bihbox_s bounds;
-		struct bihbox_s newbounds;
-		float distnear, distfar, nearfrac, farfrac, min, max;
-		unsigned int axis = node->type, child;
+		return;
+	case BIH_TRISOUP:
+		{
+			q3cmesh_t *cmesh = node->data.cmesh;
+			if (node->data.contents & trace_contents)
+				if (BoundsIntersect(cmesh->absmins, cmesh->absmaxs, movesubbounds->min, movesubbounds->max))
+					Mod_Trace_Trisoup_(cmesh->xyz_array, cmesh->indicies, cmesh->numincidies, trace_start, trace_end, trace_mins, trace_maxs, &trace_trace, &cmesh->surface->c);
+		}
+		return;
+	case BIH_GROUP:
+		{
+			int i;
+			for (i = 0; i < node->group.numchildren; i++)
+				CM_RecursiveBIHTrace(tr, node+node->group.firstchild+i, movesubbounds, nodebox);
+		}
+		return;
+	case BIH_X:
+	case BIH_Y:
+	case BIH_Z:
+		{
+			struct bihbox_s bounds;
+			struct bihbox_s newbounds;
+			float distnear, distfar, nearfrac, farfrac, min, max;
+			unsigned int axis = node->type, child;
+			vec3_t points[2];
 
-		if (!tr->totalmove[axis])
-		{	//doesn't move with respect to this axis. don't allow infinities.
-			for (child = 0; child < 2; child++)
-			{	//only recurse if we are actually within the child
-				min = node->cmin[child] - tr->expand[axis];
-				max = node->cmax[child] + tr->expand[axis];
-				if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+			if (!tr->totalmove[axis])
+			{	//doesn't move with respect to this axis. don't allow infinities.
+				for (child = 0; child < 2; child++)
+				{	//only recurse if we are actually within the child
+					min = node->node.cmin[child] - tr->expand[axis];
+					max = node->node.cmax[child] + tr->expand[axis];
+					if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+					{
+						bounds = *nodebox;
+						bounds.min[axis] = min;
+						bounds.max[axis] = max;
+						CM_RecursiveBIHTrace(tr, node+node->node.firstchild+child, movesubbounds, &bounds);
+					}
+				}
+			}
+			else if (tr->negativedir[axis])
+			{	//trace goes from right to left so favour the right.
+				for (child = 2; child-- > 0;)
 				{
 					bounds = *nodebox;
-					bounds.min[axis] = min;
-					bounds.max[axis] = max;
-					CM_RecursiveBIHTrace(tr, node+node->firstchild+child, movesubbounds, &bounds);
-				}
-			}
-		}
-		else if (tr->negativedir[axis])
-		{	//trace goes from right to left so favour the right.
-			for (child = 2; child-- > 0;)
-			{
-				bounds = *nodebox;
-				bounds.min[axis] = node->cmin[child] - tr->expand[axis];
-				bounds.max[axis] = node->cmax[child] + tr->expand[axis];	//expand the bounds according to the player's size
+					bounds.min[axis] = node->node.cmin[child] - tr->expand[axis];
+					bounds.max[axis] = node->node.cmax[child] + tr->expand[axis];	//expand the bounds according to the player's size
 
-//				CM_RecursiveBIHTrace(tr, node+node->firstchild+child, nodebox, &bounds);
-//				continue;
+					if (!BoundsIntersect(movesubbounds->min, movesubbounds->max, bounds.min, bounds.max))
+						continue;
+//					if (movesubbounds->max[axis] < bounds.min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+//					if (bounds.max[axis] < movesubbounds->min[axis])
+//						continue;	//(clipped) move bounds is outside this child
 
-				if (bounds.min[axis] > movesubbounds->max[axis])
-					continue;	//(clipped) move bounds is outside this child
-				if (bounds.max[axis] < movesubbounds->min[axis])
-					continue;	//(clipped) move bounds is outside this child
-
-				distnear = bounds.max[axis] - tr->startpos[axis];
-				nearfrac = distnear/tr->totalmove[axis];
-//				if (/*nearfrac <= trace_truefraction &&*/ tr->startpos[axis] >= bounds.min[axis] && tr->trace->endpos[axis] <= bounds.max[axis])
-				{
-					//we need to be careful when tracing, so that we can ignore children that do not overlap the trace
-					if (movesubbounds->min[axis] < bounds.min[axis])
+					distnear = bounds.max[axis] - tr->startpos[axis];
+					nearfrac = distnear/tr->totalmove[axis];
+					if (nearfrac <= trace_truefraction)
 					{
+						VectorMA(tr->startpos, nearfrac, tr->totalmove, points[0]);	//clip the new movebounds (this is more to clip the other axis too)
 						distfar = bounds.min[axis] - tr->startpos[axis];
 						farfrac = distfar/tr->totalmove[axis];
-						VectorMA(tr->startpos, farfrac, tr->totalmove, newbounds.min);	//clip the new movebounds (this is more to clip the other axis too)
+						VectorMA(tr->startpos, farfrac, tr->totalmove, points[1]);	//clip the new movebounds (this is more to clip the other axis too)
+
+						newbounds.min[0] = max(points[tr->negativedir[0]][0]-tr->expand[axis], bounds.min[0]); newbounds.max[0] = min(points[!tr->negativedir[0]][0]+tr->expand[axis], bounds.max[0]);
+						newbounds.min[1] = max(points[tr->negativedir[1]][1]-tr->expand[axis], bounds.min[1]); newbounds.max[1] = min(points[!tr->negativedir[1]][1]+tr->expand[axis], bounds.max[1]);
+						newbounds.min[2] = max(points[tr->negativedir[2]][2]-tr->expand[axis], bounds.min[2]); newbounds.max[2] = min(points[!tr->negativedir[2]][2]+tr->expand[axis], bounds.max[2]);
+						CM_RecursiveBIHTrace(tr, node+node->node.firstchild+child, &newbounds, &bounds);
 					}
-					else
-						VectorCopy(movesubbounds->min, newbounds.min);
-					if (bounds.max[axis] < movesubbounds->max[axis])
-						VectorMA(tr->startpos, nearfrac, tr->totalmove, newbounds.max);
-					else
-						VectorCopy(movesubbounds->max, newbounds.max);
-					CM_RecursiveBIHTrace(tr, node+node->firstchild+child, &newbounds, &bounds);
 				}
 			}
-		}
-		else
-		{	//trace goes from left to right
-			for (child = 0; child < 2; child++)
-			{
-				bounds = *nodebox;
-				bounds.min[axis] = node->cmin[child] - tr->expand[axis];
-				bounds.max[axis] = node->cmax[child] + tr->expand[axis];	//expand the bounds according to the player's size
-
-//				CM_RecursiveBIHTrace(tr, node+node->firstchild+child, nodebox, &bounds);
-//				continue;
-
-				if (bounds.min[axis] > movesubbounds->max[axis])
-					continue;	//(clipped) move bounds is outside this child
-				if (bounds.max[axis] < movesubbounds->min[axis])
-					continue;	//(clipped) move bounds is outside this child
-
-				distnear = bounds.min[axis] - tr->startpos[axis];
-				nearfrac = distnear/tr->totalmove[axis];
-//				if (/*nearfrac <= trace_truefraction &&*/ tr->startpos[axis] <= bounds.max[axis] && tr->trace->endpos[axis] >= bounds.min[axis])
+			else
+			{	//trace goes from left to right
+				for (child = 0; child < 2; child++)
 				{
-					//we need to be careful when tracing, so that we can ignore children that do not overlap the trace
-					if (movesubbounds->min[axis] < bounds.min[axis])
-						VectorMA(tr->startpos, nearfrac, tr->totalmove, newbounds.min);	//clip the new movebounds (this is more to clip the other axis too)
-					else
-						VectorCopy(movesubbounds->min, newbounds.min);
-					if (bounds.max[axis] < movesubbounds->max[axis])
+					bounds = *nodebox;
+					bounds.min[axis] = node->node.cmin[child] - tr->expand[axis];
+					bounds.max[axis] = node->node.cmax[child] + tr->expand[axis];	//expand the bounds according to the player's size
+
+					if (!BoundsIntersect(movesubbounds->min, movesubbounds->max, bounds.min, bounds.max))
+						continue;
+//					if (movesubbounds->max[axis] < bounds.min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+//					if (bounds.max[axis] < movesubbounds->min[axis])
+//						continue;	//(clipped) move bounds is outside this child
+
+					distnear = bounds.min[axis] - tr->startpos[axis];
+					nearfrac = distnear/tr->totalmove[axis];
+					if (nearfrac <= trace_truefraction)
 					{
+						VectorMA(tr->startpos, nearfrac, tr->totalmove, points[0]);	//clip the new movebounds (this is more to clip the other axis too)
 						distfar = bounds.max[axis] - tr->startpos[axis];
 						farfrac = distfar/tr->totalmove[axis];
-						VectorMA(tr->startpos, farfrac, tr->totalmove, newbounds.max);
+						VectorMA(tr->startpos, farfrac, tr->totalmove, points[1]);	//clip the new movebounds (this is more to clip the other axis too)
+
+						newbounds.min[0] = max(points[tr->negativedir[0]][0]-tr->expand[axis], bounds.min[0]); newbounds.max[0] = min(points[!tr->negativedir[0]][0]+tr->expand[axis], bounds.max[0]);
+						newbounds.min[1] = max(points[tr->negativedir[1]][1]-tr->expand[axis], bounds.min[1]); newbounds.max[1] = min(points[!tr->negativedir[1]][1]+tr->expand[axis], bounds.max[1]);
+						newbounds.min[2] = max(points[tr->negativedir[2]][2]-tr->expand[axis], bounds.min[2]); newbounds.max[2] = min(points[!tr->negativedir[2]][2]+tr->expand[axis], bounds.max[2]);
+						CM_RecursiveBIHTrace(tr, node+node->node.firstchild+child, &newbounds, &bounds);
 					}
-					else
-						VectorCopy(movesubbounds->max, newbounds.max);
-					CM_RecursiveBIHTrace(tr, node+node->firstchild+child, &newbounds, &bounds);
 				}
 			}
 		}
+		return;
 	}
+	FTE_UNREACHABLE;
 }
 
 static void CM_RecursiveBIHTest (struct bihtrace_s *fte_restrict tr, const struct bihnode_s *fte_restrict node)
 {	//with BIH, its possible for a large child node to have a box larger than its sibling.
-	if (node->type > BIH_Z)
-	{	//leaf
-		if (node->type == BIH_BRUSH)
+	switch(node->type)
+	{
+	case BIH_BRUSH:
 		{
 			q2cbrush_t *b = node->data.brush;
-			if (b->contents & trace_contents)
+			if (node->data.contents & trace_contents)
 //				if (BoundsIntersect(tr->bounds.min, tr->bounds.max, b->absmins, b->absmaxs))
 					CM_TestBoxInBrush (tr->size.min, tr->size.max, tr->startpos, tr->trace, b);
 		}
-		else //if (node->type == BIH_PATCHBRUSH)
+		return;
+	case BIH_PATCHBRUSH:
 		{
 			q2cbrush_t *b = node->data.patchbrush;
-			if (b->contents & trace_contents)
+			if (node->data.contents & trace_contents)
 //				if (BoundsIntersect(tr->bounds.min, tr->bounds.max, b->absmins, b->absmaxs))
 					CM_TestBoxInPatch (tr->size.min, tr->size.max, tr->startpos, tr->trace, b);
 		}
-	}
-	else
-	{	//node (x y or z)
-		float min; float max;
-		int axis = node->type;
-		min = node->cmin[0] - tr->expand[axis];
-		max = node->cmax[0] + tr->expand[axis];	//expand the bounds according to the player's size
-
-		//the point can potentially be within both children, or neither.
-		//it doesn't really matter which order we walk the tree, just be sure to do it efficiently.
-		if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+		return;
+	case BIH_TRISOUP:
 		{
-			CM_RecursiveBIHTest(tr, node+node->firstchild+0);
-			if (trace_trace.allsolid)
-				return;
+			q3cmesh_t *cmesh = node->data.cmesh;
+			if (node->data.contents & trace_contents)
+//				if (BoundsIntersect(cmesh->absmins, cmesh->absmaxs, tr->bounds.min, tr->bounds.max))
+					Mod_Trace_Trisoup_(cmesh->xyz_array, cmesh->indicies, cmesh->numincidies, trace_start, trace_end, trace_mins, trace_maxs, &trace_trace, &cmesh->surface->c);
 		}
+		return;
+	case BIH_GROUP:
+		{
+			int i;
+			for (i = 0; i < node->group.numchildren; i++)
+			{
+				CM_RecursiveBIHTest(tr, node+node->group.firstchild+i);
+				if (trace_trace.allsolid)
+					break;
+			}
+		}
+		return;
+	case BIH_X:
+	case BIH_Y:
+	case BIH_Z:
+		{	//node (x y or z)
+			float min; float max;
+			int axis = node->type;
+			min = node->node.cmin[0] - tr->expand[axis];
+			max = node->node.cmax[0] + tr->expand[axis];	//expand the bounds according to the player's size
 
-		min = node->cmin[1] - tr->expand[axis];
-		max = node->cmax[1] + tr->expand[axis];
-		if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
-			return CM_RecursiveBIHTest(tr, node+node->firstchild+1);
+			//the point can potentially be within both children, or neither.
+			//it doesn't really matter which order we walk the tree, just be sure to do it efficiently.
+			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+			{
+				CM_RecursiveBIHTest(tr, node+node->node.firstchild+0);
+				if (trace_trace.allsolid)
+					return;
+			}
+
+			min = node->node.cmin[1] - tr->expand[axis];
+			max = node->node.cmax[1] + tr->expand[axis];
+			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
+				return CM_RecursiveBIHTest(tr, node+node->node.firstchild+1);
+		}
+		return;
 	}
+	FTE_UNREACHABLE;
 }
+
 
 static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict node, const vec3_t p)
 {
-	if (node->type > BIH_Z)
+	switch(node->type)
 	{	//leaf
-		if (node->type == BIH_BRUSH)
+	case BIH_BRUSH:
 		{
 			q2cbrush_t *b = node->data.brush;
 			q2cbrushside_t *brushside = b->brushside;
@@ -6226,26 +6270,42 @@ static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict no
 			}
 			return b->contents;	//inside all planes
 		}
-		else //if (node->type == BIH_PATCHBRUSH)
+	case BIH_PATCHBRUSH:
 		{	//patches have no contents...
 			return 0;
 		}
-	}
-	else
-	{	//node (x y or z)
-		unsigned int contents;
+	case BIH_TRISOUP:
+		{
+			//trisoup has no contents...
+			return 0;
+		}
+	case BIH_GROUP:
+		{
+			int i;
+			unsigned int contents = 0;
+			for (i = 0; i < node->group.numchildren; i++)
+				contents |= CM_PointContentsBIH(node+node->group.firstchild+i, p);
+			return contents;
+		}
+	case BIH_X:
+	case BIH_Y:
+	case BIH_Z:
+		{	//node (x y or z)
+			unsigned int contents;
 
-		//the point can potentially be within both children, or neither.
-		//it doesn't really matter which order we walk the tree, just be sure to do it efficiently.
-		if (node->cmin[0] <= p[node->type] && p[node->type] <= node->cmax[0])
-			contents = CM_PointContentsBIH(node+node->firstchild+0, p);
-		else
-			contents = 0;
+			//the point can potentially be within both children, or neither.
+			//it doesn't really matter which order we walk the tree, just be sure to do it efficiently.
+			if (node->node.cmin[0] <= p[node->type] && p[node->type] <= node->node.cmax[0])
+				contents = CM_PointContentsBIH(node+node->node.firstchild+0, p);
+			else
+				contents = 0;
 
-		if (node->cmin[1] <= p[node->type] && p[node->type] <= node->cmax[1])
-			contents |= CM_PointContentsBIH(node+node->firstchild+1, p);
-		return contents;
+			if (node->node.cmin[1] <= p[node->type] && p[node->type] <= node->node.cmax[1])
+				contents |= CM_PointContentsBIH(node+node->node.firstchild+1, p);
+			return contents;
+		}
 	}
+	FTE_UNREACHABLE;
 }
 
 struct bihleaf_s
@@ -6253,7 +6313,7 @@ struct bihleaf_s
 	int type;
 	vec3_t mins;
 	vec3_t maxs;
-	union bihdata_s data;
+	struct bihdata_s data;
 };
 
 static int QDECL CM_SortBIH_X (const void *va, const void *vb)
@@ -6288,10 +6348,38 @@ static struct bihbox_s CM_BuildBIHNode (struct bihnode_s *node, struct bihnode_s
 	struct bihbox_s bounds;
 	if (numleafs == 1)	//the leaf just gives the brush pointer.
 	{
+		size_t i;
 		VectorCopy(leafs[0].mins, bounds.min);
 		VectorCopy(leafs[0].maxs, bounds.max);
 		node->type = leafs[0].type;
 		node->data = leafs[0].data;
+
+		//expand by 1qu, to avoid precision issues.
+		for (i = 0; i < 3; i++)
+		{
+			bounds.min[i] -= 1;
+			bounds.max[i] += 1;
+		}
+	}
+	else if (numleafs < 8)	//the leaf just gives the brush pointer.
+	{
+		struct bihnode_s *cnodes;
+		struct bihbox_s cb;
+		size_t i;
+		node->type = BIH_GROUP;
+
+		cnodes = *freenodes;
+		*freenodes += numleafs;
+		node->group.firstchild = cnodes - node;
+		node->group.numchildren = numleafs;
+
+		bounds = CM_BuildBIHNode(cnodes+0, freenodes, leafs+0, 1);
+		for (i = 1; i < numleafs; i++)
+		{
+			cb = CM_BuildBIHNode(cnodes+i, freenodes, leafs+i, 1);
+			AddPointToBounds(cb.min, bounds.min, bounds.max);
+			AddPointToBounds(cb.max, bounds.min, bounds.max);
+		}
 	}
 	else
 	{
@@ -6299,8 +6387,8 @@ static struct bihbox_s CM_BuildBIHNode (struct bihnode_s *node, struct bihnode_s
 		size_t numleft = numleafs / 2;	//this ends up splitting at the median point.
 		size_t numright = numleafs - numleft;
 		struct bihbox_s left, right;
-		vec3_t size;
 		struct bihnode_s *cnodes;
+		static int (QDECL *sorts[3]) (const void *va, const void *vb) = {CM_SortBIH_X, CM_SortBIH_Y, CM_SortBIH_Z};
 		VectorCopy(leafs[0].mins, bounds.min);
 		VectorCopy(leafs[0].maxs, bounds.max);
 		for (i = 1; i < numleafs; i++)
@@ -6313,36 +6401,61 @@ static struct bihbox_s CM_BuildBIHNode (struct bihnode_s *node, struct bihnode_s
 					bounds.max[j] = leafs[i].maxs[j];
 			}
 		}
-		VectorSubtract(bounds.max, bounds.min, size);
-		if (size[0] > size[1] && size[0] > size[2])
-		{
-			qsort(leafs, numleafs, sizeof(*leafs), CM_SortBIH_X);
-			node->type = BIH_X;
+#if 1
+		{	//balanced by counts
+			vec3_t mid;
+			int onleft[3], onright[3], weight[3];
+			VectorAvg(bounds.max, bounds.min, mid);
+			VectorClear(onleft);
+			VectorClear(onright);
+			for (i = 0; i < numleafs; i++)
+			{
+				for (j = 0; j < 3; j++)
+				{	//ignore leafs that split the node.
+					if (leafs[i].maxs[j] < mid[j])
+						onleft[j]++;
+					if (mid[j] > leafs[i].mins[j])
+						onright[j]++;
+				}
+			}
+			for (j = 0; j < 3; j++)
+				weight[j] = onleft[j]+onright[j] - abs(onleft[j]-onright[j]);
+			//pick the most balanced.
+			if (weight[0] > weight[1] && weight[0] > weight[2])
+				node->type = BIH_X;
+			else if (weight[1] > weight[2])
+				node->type = BIH_Y;
+			else
+				node->type = BIH_Z;
 		}
-		else if (size[1] > size[2])
-		{
-			qsort(leafs, numleafs, sizeof(*leafs), CM_SortBIH_Y);
-			node->type = BIH_Y;
+#else
+		{	//balanced by volume
+			vec3_t size;
+			VectorSubtract(bounds.max, bounds.min, size);
+			if (size[0] > size[1] && size[0] > size[2])
+				node->type = BIH_X;
+			else if (size[1] > size[2])
+				node->type = BIH_Y;
+			else
+				node->type = BIH_Z;*/
 		}
-		else
-		{
-			qsort(leafs, numleafs, sizeof(*leafs), CM_SortBIH_Z);
-			node->type = BIH_Z;
-		}
-
-		VectorCopy(bounds.min, node->temp_mins);
-		VectorCopy(bounds.max, node->temp_maxs);
+#endif
+		qsort(leafs, numleafs, sizeof(*leafs), sorts[node->type]);
 
 		cnodes = *freenodes;
 		*freenodes += 2;
-		node->firstchild = cnodes - node;
+		node->node.firstchild = cnodes - node;
 		left = CM_BuildBIHNode (cnodes+0, freenodes, leafs, numleft);
 		right = CM_BuildBIHNode (cnodes+1, freenodes, &leafs[numleft], numright);
 
-		node->cmin[0] = left.min[node->type];
-		node->cmax[0] = left.max[node->type];
-		node->cmin[1] = right.min[node->type];
-		node->cmax[1] = right.max[node->type];
+		node->node.cmin[0] = left.min[node->type];
+		node->node.cmax[0] = left.max[node->type];
+		node->node.cmin[1] = right.min[node->type];
+		node->node.cmax[1] = right.max[node->type];
+
+		bounds = left;
+		AddPointToBounds(right.min, bounds.min, bounds.max);
+		AddPointToBounds(right.max, bounds.min, bounds.max);
 	}
 	return bounds;
 }
@@ -6361,6 +6474,7 @@ static struct bihnode_s *CM_BuildBIH (model_t *mod, cminfo_t *prv)
 	{
 		q2cbrush_t *b = &prv->brushes[i];
 		leaf->type = BIH_BRUSH;
+		leaf->data.contents = b->contents;
 		leaf->data.brush = b;
 		VectorCopy(b->absmins, leaf->mins);
 		VectorCopy(b->absmaxs, leaf->maxs);
@@ -6371,6 +6485,7 @@ static struct bihnode_s *CM_BuildBIH (model_t *mod, cminfo_t *prv)
 		for (j = 0; j < p->numfacets; j++, leaf++)
 		{
 			leaf->type = BIH_PATCHBRUSH;
+			leaf->data.contents = p->facets[j].contents;
 			leaf->data.patchbrush = &p->facets[j];
 			VectorCopy(p->facets[j].absmins, leaf->mins);
 			VectorCopy(p->facets[j].absmaxs, leaf->maxs);
@@ -6378,7 +6493,7 @@ static struct bihnode_s *CM_BuildBIH (model_t *mod, cminfo_t *prv)
 	}
 	tmpnodes = nodes+1;
 	CM_BuildBIHNode(nodes, &tmpnodes, leafs, numleafs);
-	if (tmpnodes != nodes+numnodes)
+	if (tmpnodes > nodes+numnodes)
 		Sys_Error("CM_BuildBIH: generated wrong number of nodes");
 	BZ_Free(leafs);	//just for temporary storage so that CM_BuildBIHNode doesn't need to care
 	return nodes;
@@ -6532,9 +6647,8 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 			tr.negativedir[j] = (end[j] - start[j]) < 0;
 		VectorSubtract(end, start, tr.totalmove);
 		VectorCopy(trace_extents, tr.expand);
-
-		tr.startpos = trace_start;
-		tr.endpos = trace_end;
+		VectorCopy(trace_start, tr.startpos);
+		VectorCopy(trace_end, tr.endpos);
 		tr.trace = &trace_trace;
 		if (start[0] == end[0] && start[1] == end[1] && start[2] == end[2])
 			CM_RecursiveBIHTest(&tr, prv->bihnodes);

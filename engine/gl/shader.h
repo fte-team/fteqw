@@ -990,9 +990,9 @@ void GLBE_PolyOffsetStencilShadow(qboolean foobar);
 void GLBE_PolyOffsetStencilShadow(void);
 #endif
 //Called from shadowmapping code into backend
-void GLBE_BaseEntTextures(void);
-void D3D9BE_BaseEntTextures(void);
-void D3D11BE_BaseEntTextures(void);
+void GLBE_BaseEntTextures(qbyte *worldpvs);
+void D3D9BE_BaseEntTextures(qbyte *worldpvs);
+void D3D11BE_BaseEntTextures(qbyte *worldpvs);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend

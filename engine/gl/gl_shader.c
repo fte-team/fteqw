@@ -556,6 +556,15 @@ static void Shader_ParseVector(shader_t *shader, char **ptr, vec3_t v)
 	else
 		bracket = false;
 
+	if (!strncmp(token, "0x", 2))
+	{	//0xRRGGBB
+		unsigned int hex = strtoul(token, NULL, 0);
+		v[0] = ((hex>>16)&255)/255.;
+		v[1] = ((hex>> 8)&255)/255.;
+		v[2] = ((hex>> 0)&255)/255.;
+		return;
+	}
+
 	v[0] = atof ( token );
 	
 	token = Shader_ParseString ( ptr );
@@ -1422,7 +1431,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					if (type)
 						*type++ = 0;
 					else
-						type = "sampler2D";
+						type = "2D";
 					if (idx)
 					{
 						*idx++ = 0;
@@ -1434,7 +1443,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 						prog->numsamplers = i+1;
 
 					//I really want to use layout(binding = %i) here, but its specific to the glsl version (which we don't really know yet)
-					Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define s_%s s_t%u\nuniform %s s_%s;\n", token, i, type, token);
+					Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define s_%s s_t%u\nuniform %s%s s_%s;\n", token, i, strncmp(type, "sampler", 7)?"sampler":"", type, token);
 				}
 				else
 				{
@@ -6738,10 +6747,11 @@ static qboolean Shader_ReadShaderTerms(parsestate_t *ps, struct scondinfo_s *con
 		{
 			if (!Q_stricmp (token, shadermacros[i].name))
 			{
-#define SHADER_MACRO_ARGS 6
+#define SHADER_MACRO_ARGS 8
 				int argn = 0;
 				char *oldptr;
 				char arg[SHADER_MACRO_ARGS][256];
+				char tmp[4096], *out, *in;
 				//parse args until the end of the line
 				while (ps->ptr)
 				{
@@ -6756,8 +6766,38 @@ static qboolean Shader_ReadShaderTerms(parsestate_t *ps, struct scondinfo_s *con
 						argn++;
 					}
 				}
+				for(out = tmp, in = shadermacros[i].body; *in; )
+				{
+					if (out == tmp+countof(tmp)-1)
+						break;
+					if (*in == '%' && in[1] == '%')
+						in++;	//skip doubled up percents
+					else if (*in == '%')
+					{	//expand an arg
+						char *e;
+						int i = strtol(in+1, &e, 0);
+						if (e != in+1)
+						{
+							i--;
+							if (i >= 0 && i < countof(arg))
+							{
+								for (in = arg[i]; *in; )
+								{
+									if (out == tmp+countof(tmp)-1)
+										break;
+									*out++ = *in++;
+								}
+								in = e;
+								continue;
+							}
+						}
+					}
+					*out++ = *in++;
+				}
+				*out = 0;
+
 				oldptr = ps->ptr;
-				ps->ptr = shadermacros[i].body;
+				ps->ptr = tmp;
 				Shader_ReadShaderTerms(ps, cond);
 				ps->ptr = oldptr;
 				return true;

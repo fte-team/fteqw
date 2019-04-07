@@ -841,10 +841,6 @@ typedef struct
 	} intermissionmode;	// don't change view angle, full screen, etc
 	float		completed_time;	// latched ffrom time at intermission start
 
-#define Q2MAX_VISIBLE_WEAPONS 32 //q2 has about 20.
-	int		numq2visibleweapons;	//q2 sends out visible-on-model weapons in a wierd gender-nutral way.
-	char	*q2visibleweapons[Q2MAX_VISIBLE_WEAPONS];//model names beginning with a # are considered 'sexed', and are loaded on a per-client basis. yay. :(
-
 //
 // information that is static for the entire time connected to a server
 //
@@ -860,6 +856,10 @@ typedef struct
 	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
 
 #ifdef Q2CLIENT
+#define Q2MAX_VISIBLE_WEAPONS 32 //q2 has about 20.
+	int		numq2visibleweapons;	//q2 sends out visible-on-model weapons in a wierd gender-nutral way.
+	char	*q2visibleweapons[Q2MAX_VISIBLE_WEAPONS];//model names beginning with a # are considered 'sexed', and are loaded on a per-client basis. yay. :(
+
 	char		*configstring_general[Q2MAX_CLIENTS|Q2MAX_GENERAL];
 	char		*image_name[Q2MAX_IMAGES];
 	char		*item_name[Q2MAX_ITEMS];
@@ -1043,7 +1043,6 @@ typedef struct
 	entity_state_t	state;
 	trailstate_t   *emit;
 	int	mdlidx;	/*negative are csqc indexes*/
-	pvscache_t		pvscache;
 } static_entity_t;
 
 // FIXME, allocate dynamically

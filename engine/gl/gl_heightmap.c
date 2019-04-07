@@ -13,6 +13,13 @@ See gl_terrain.h for terminology, networking notes, etc.
 #include "gl_terrain.h"
 
 static terrainfuncs_t terrainfuncs;
+struct patchvert_s
+{
+	vec3_t v;
+	vec2_t tc;
+	vec4_t rgba;
+};
+
 
 cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
 cvar_t mod_terrain_defaulttexture = CVARD("mod_terrain_defaulttexture", "", "Newly created terrain tiles will use this texture. This should generally be updated by the terrain editor.");
@@ -5470,6 +5477,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		vec3_t normal[65536];
 		vec3_t svector[65536];
 		vec3_t tvector[65536];
+		vec4_t rgba[65536];
 		index_t index[65535];
 	} *arrays = NULL;
 	size_t numverts = 0;
@@ -5858,6 +5866,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 									VectorCopy(br->patch->verts[r2].norm, arrays->normal[r1]);
 									VectorCopy(br->patch->verts[r2].sdir, arrays->svector[r1]);
 									VectorCopy(br->patch->verts[r2].tdir, arrays->tvector[r1]);
+									Vector4Copy(br->patch->verts[r2].rgba, arrays->rgba[r1]);
 
 									Vector2Copy(br->patch->verts[r2].tc, arrays->lmcoord[r1]);
 								}
@@ -5891,6 +5900,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 									VectorCopy(br->planes[j], arrays->normal[o]);
 									VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
 									VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
+									Vector4Set(arrays->rgba[o], 1.0, 1.0, 1.0, 1.0);
 
 									//compute the texcoord planes
 									s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
@@ -5915,7 +5925,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 					if (numverts || numindicies)
 					{
-						bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+						bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])+sizeof(arrays->rgba[0])) * numverts);
 						bb->next = bt->batches;
 						bt->batches = bb;
 						bb->lightmap = lmnum;
@@ -5926,6 +5936,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						BE_VBO_Data(&ctx, arrays->normal,	sizeof(arrays->normal	[0])*numverts,		&bb->vbo.normals);
 						BE_VBO_Data(&ctx, arrays->svector,	sizeof(arrays->svector	[0])*numverts,		&bb->vbo.svector);
 						BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
+						BE_VBO_Data(&ctx, arrays->rgba,		sizeof(arrays->rgba		[0])*numverts,		&bb->vbo.colours[0]);
 						BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies, &bb->vbo.vbomem, &bb->vbo.ebomem);
 
 						bb->mesh.xyz_array = (vecV_t*)(bb+1);
@@ -5940,6 +5951,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						memcpy(bb->mesh.snormals_array, arrays->svector, sizeof(*bb->mesh.snormals_array) * numverts);
 						bb->mesh.tnormals_array = (vec3_t*)(bb->mesh.snormals_array+numverts);
 						memcpy(bb->mesh.tnormals_array, arrays->tvector, sizeof(*bb->mesh.tnormals_array) * numverts);
+						bb->mesh.colors4f_array[0] = (vec4_t*)(bb->mesh.tnormals_array+numverts);
+						memcpy(bb->mesh.colors4f_array[0], arrays->rgba, sizeof(*bb->mesh.colors4f_array[0]) * numverts);
 
 						bb->pmesh = &bb->mesh;
 						bb->mesh.numindexes = numindicies;
@@ -6212,7 +6225,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 }
 
 
-static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t *patch_tex, int patch_w, int patch_h, vec5_t *patch_v, int stride)
+static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t *patch_tex, int patch_w, int patch_h, struct patchvert_s *patch_v, int stride)
 {
 	int x, y;
 	brushes_t brush;
@@ -6232,11 +6245,9 @@ static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t 
 	{
 		for (x = 0; x < patch_w; x++)
 		{
-			brush.patch->verts[x + y*patch_w].v[0] = patch_v[x][0];
-			brush.patch->verts[x + y*patch_w].v[1] = patch_v[x][1];
-			brush.patch->verts[x + y*patch_w].v[2] = patch_v[x][2];
-			brush.patch->verts[x + y*patch_w].tc[0] = patch_v[x][3];
-			brush.patch->verts[x + y*patch_w].tc[1] = patch_v[x][4];
+			VectorCopy(patch_v[x].v, brush.patch->verts[x + y*patch_w].v);
+			Vector2Copy(patch_v[x].tc, brush.patch->verts[x + y*patch_w].tc);
+			Vector4Copy(patch_v[x].rgba, brush.patch->verts[x + y*patch_w].rgba);
 			//brush.patch->verts[x + y*patch_w].norm
 			//brush.patch->verts[x + y*patch_w].sdir
 			//brush.patch->verts[x + y*patch_w].tdir
@@ -7083,7 +7094,16 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 	VFS_PRINTF(file, "\n{");
 	if (br->patch)
 	{
-		VFS_PRINTF(file, "\n\tpatchDef2\n\t{\n\t\t\"%s\"\n\t\t( %.9g %.9g %.9g %.9g %.9g )\n\t\t(\n",
+		qboolean hasrgba = false;
+		for (y = 0; y < br->patch->ypoints*br->patch->xpoints; y++)
+		{
+			if (br->patch->verts[y].rgba[0] != 1.0 || br->patch->verts[y].rgba[1] != 1.0 || br->patch->verts[y].rgba[2] != 1.0 || br->patch->verts[y].rgba[3] != 1.0)
+				break;
+		}
+		hasrgba = (y < br->patch->ypoints*br->patch->xpoints);
+
+		VFS_PRINTF(file, "\n\tpatchDef%s\n\t{\n\t\t\"%s\"\n\t\t( %.9g %.9g %.9g %.9g %.9g )\n\t\t(\n",
+				hasrgba?"WS":"2",
 				br->patch->tex?br->patch->tex->shadername:"",
 				0.0/*xoffset*/,
 				0.0/*yoffset*/,
@@ -7095,11 +7115,20 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 			VFS_PRINTF(file, "\t\t\t(\n");
 			for (x = 0; x < br->patch->xpoints; x++)
 			{
-				VFS_PRINTF(file, "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g )\n",	br->patch->verts[x + y*br->patch->xpoints].v[0],
-																			br->patch->verts[x + y*br->patch->xpoints].v[1],
-																			br->patch->verts[x + y*br->patch->xpoints].v[2],
-																			br->patch->verts[x + y*br->patch->xpoints].tc[0],
-																			br->patch->verts[x + y*br->patch->xpoints].tc[1]);
+				const char *fmt;
+				if (hasrgba)
+					fmt = "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g )\n";
+				else
+					fmt = "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g )\n";	//q3 compat.
+				VFS_PRINTF(file, fmt,	br->patch->verts[x + y*br->patch->xpoints].v[0],
+										br->patch->verts[x + y*br->patch->xpoints].v[1],
+										br->patch->verts[x + y*br->patch->xpoints].v[2],
+										br->patch->verts[x + y*br->patch->xpoints].tc[0],
+										br->patch->verts[x + y*br->patch->xpoints].tc[1],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[0],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[1],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[2],
+										br->patch->verts[x + y*br->patch->xpoints].rgba[3]);
 			}
 			VFS_PRINTF(file, "\t\t\t)\n");
 		}
@@ -7329,7 +7358,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	//patch info
 	brushtex_t *patch_tex=NULL;
 	int	patch_w=0, patch_h=0;
-	vec5_t patch_v[64][64];
+	struct patchvert_s patch_v[64][64];
 
 #ifdef RUNTIMELIGHTING
 	hm->entsdirty = true;
@@ -7451,9 +7480,10 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				continue;
 			}
 		}
-		else if (inbrush && !strcmp(token, "patchDef2"))
+		else if (inbrush && (!strcmp(token, "patchDef2") || !strcmp(token, "patchDefWS")))
 		{
 			int x, y;
+			qboolean parsergba = !strcmp(token, "patchDefWS");	//fancy alternative with rgba colours per control point
 			if (numplanes || patch_tex)
 			{
 				Con_Printf(CON_ERROR "%s: mixed patch+planes\n", mod->name);
@@ -7491,15 +7521,34 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				while (!strcmp(token, "("))
 				{
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][0] = atof(token);
+					patch_v[y][x].v[0] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][1] = atof(token);
+					patch_v[y][x].v[1] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][2] = atof(token);
+					patch_v[y][x].v[2] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][3] = atof(token);
+					patch_v[y][x].tc[0] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					patch_v[y][x][4] = atof(token);
+					patch_v[y][x].tc[1] = atof(token);
+
+					if (parsergba)
+					{
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[0] = atof(token);
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[1] = atof(token);
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[2] = atof(token);
+						entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+						patch_v[y][x].rgba[3] = atof(token);
+					}
+					else
+					{	//no data provided, use default values.
+						patch_v[y][x].rgba[0] =
+						patch_v[y][x].rgba[1] =
+						patch_v[y][x].rgba[2] =
+						patch_v[y][x].rgba[3] = 1.0;
+					}
 
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 					if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}

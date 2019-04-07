@@ -5785,10 +5785,10 @@ void VKBE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, int 
 
 #ifdef RTLIGHTS
 //FIXME: needs context for threading
-void VKBE_BaseEntTextures(void)
+void VKBE_BaseEntTextures(qbyte *scenepvs)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, scenepvs);
 	VKBE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	VKBE_SelectEntity(&r_worldentity);
 }
@@ -6240,7 +6240,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 
 	shaderstate.curdlight = NULL;
 	//fixme: figure out some way to safely orphan this data so that we can throw the rest to a worker.
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
 
 	BE_UploadLightmaps(false);
 	if (r_refdef.scenevis)

@@ -288,7 +288,7 @@ enum
 #ifdef NOLEGACY
 #define VOIP_DEFAULT_CODEC VOIP_OPUS
 #else
-#define VOIP_DEFAULT_CODEC (cls.protocol==CP_QUAKEWORLD?VOIP_SPEEX_OLD:VOIP_OPUS)	//opus is preferred, but ezquake is still common and only supports my first attempt at voice compression so favour that for quakeworld.
+#define VOIP_DEFAULT_CODEC ((cls.protocol==CP_QUAKEWORLD && !(cls.fteprotocolextensions2&PEXT2_REPLACEMENTDELTAS))?VOIP_SPEEX_OLD:VOIP_OPUS)	//opus is preferred, but ezquake is still common and only supports my first attempt at voice compression so favour that for mvdsv servers.
 #endif
 static struct
 {

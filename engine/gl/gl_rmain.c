@@ -1938,7 +1938,7 @@ void GLR_RenderView (void)
 
 		if (r_hdr_framebuffer.ival && !(vid.flags & VID_FP16))	//primary use of this cvar is to fix q3shader overbrights (so bright lightmaps can oversaturate then drop below 1 by modulation with the lightmap
 			forcedfb = true;
-		if (vid_hardwaregamma.ival == 4 && (v_gamma.value != 1 || v_contrast.value != 1 || v_brightness.value != 0))
+		if (vid_hardwaregamma.ival == 4 && (v_gamma.value != 1 || v_contrast.value != 1 || v_contrastboost.value != 1|| v_brightness.value != 0))
 			r_refdef.flags |= RDF_SCENEGAMMA;
 	}
 
@@ -2158,7 +2158,7 @@ void GLR_RenderView (void)
 	{
 		if (r_refdef.flags & RDF_SCENEGAMMA)
 		{
-			R2D_ImageColours (v_gamma.value, v_contrast.value, v_brightness.value, 1);
+			R2D_ImageColours (v_gammainverted.ival?v_gamma.value:(1/v_gamma.value), v_contrast.value, v_brightness.value, v_contrastboost.value);
 			sourcetex = R_RenderPostProcess (sourcetex, RDF_SCENEGAMMA, scenepp_gamma, "rt/$gammaed");
 			R2D_ImageColours (1, 1, 1, 1);
 		}

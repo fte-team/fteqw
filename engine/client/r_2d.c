@@ -1373,7 +1373,7 @@ void R2D_BrightenScreen (void)
 
 	RSpeedMark();
 
-	if (fabs(v_contrast.value - 1.0) < 0.05 && fabs(v_brightness.value - 0) < 0.05 && fabs(v_gamma.value - 1) < 0.05)
+	if (fabs(v_contrast.value - 1.0) < 0.05 && fabs(v_contrastboost.value - 1.0) < 0.05 && fabs(v_brightness.value - 0) < 0.05 && fabs(v_gamma.value - 1) < 0.05)
 		return;
 
 	//don't go crazy with brightness. that makes it unusable and is thus unsafe - and worse, lots of people assume its based around 1 (like gamma and contrast are). cap to 0.5
@@ -1386,10 +1386,10 @@ void R2D_BrightenScreen (void)
 		return;
 
 	TRACE(("R2D_BrightenScreen: brightening\n"));
-	if ((v_gamma.value != 1 || v_contrast.value > 3) && shader_gammacb->prog)
+	if ((v_gamma.value != 1 || v_contrast.value > 3 || v_contrastboost.value != 1) && shader_gammacb->prog)
 	{
 		//this should really be done properly, with render-to-texture
-		R2D_ImageColours (v_gamma.value, v_contrast.value, v_brightness.value, 1);
+		R2D_ImageColours (v_gammainverted.ival?v_gamma.value:(1/v_gamma.value), v_contrast.value, v_brightness.value, v_contrastboost.value);
 		R2D_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, shader_gammacb);
 	}
 	else

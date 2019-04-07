@@ -3,7 +3,7 @@
 //this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
 
 varying vec2 tc;
-varying vec4 vc;
+varying vec4 vc;	//gamma, contrast, brightness, contrastboost
 
 #ifdef VERTEX_SHADER
 attribute vec2 v_texcoord;
@@ -18,6 +18,8 @@ void main ()
 #ifdef FRAGMENT_SHADER
 void main ()
 {
-	gl_FragColor = pow(texture2D(s_t0, tc) * vc.g, vec4(vc.r)) + vc.b;
+	vec3 t = texture2D(s_t0, tc).rgb;
+	t = vc.a * t/((vc.a-1)*t + 1);
+	gl_FragColor = vec4(pow(t, vec3(vc.r))*vc.g + vc.b, 1.0);
 }
 #endif

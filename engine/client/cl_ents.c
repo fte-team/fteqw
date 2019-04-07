@@ -2133,6 +2133,7 @@ void V_AddAxisEntity(entity_t *in)
 void V_ClearEntity(entity_t *e)
 {
 	memset(e, 0, sizeof(*e));
+	e->pvscache.num_leafs = -1;
 	e->playerindex = -1;
 	e->topcolour = TOP_DEFAULT;
 	e->bottomcolour = BOTTOM_DEFAULT;
@@ -3342,11 +3343,11 @@ void CL_LinkStaticEntities(void *pvs)
 				VectorCopy(stat->state.origin, mins);
 				VectorCopy(stat->state.origin, maxs);
 			}
-			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &stat->pvscache, mins, maxs);
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &stat->ent.pvscache, mins, maxs);
 		}
 
 		/*pvs test*/
-		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->pvscache, pvs))
+		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->ent.pvscache, pvs))
 			continue;
 
 
@@ -3918,6 +3919,13 @@ void CL_LinkPacketEntities (void)
 		le = &cl.lerpents[state->number];
 
 		ent = &cl_visedicts[cl_numvisedicts];
+		ent->pvscache.num_leafs = 0;
+#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
+		ent->pvscache.areanum = 0;
+		ent->pvscache.areanum2 = 0;
+		ent->pvscache.headnode = 0;
+#endif
+
 		ent->rtype = RT_MODEL;
 		ent->playerindex = -1;
 		ent->customskin = 0;

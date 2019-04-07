@@ -605,7 +605,6 @@ void M_Menu_Audio_f (void)
 	};
 #ifdef VOICECHAT
 	static const char *voipcodecoptions[] = {
-		"Auto",
 		"Speex (ez-compat)",
 //		"Raw16 (11025)",
 		"Opus",
@@ -617,8 +616,7 @@ void M_Menu_Audio_f (void)
 		NULL
 	};
 	static const char *voipcodecvalue[] = {
-		"",
-		"0",	//speex non-standard
+		"0",	//speex non-standard (outdated)
 //		"1",	//pcm16 sucks
 		"2",	//opus
 		"3",	//speex narrow

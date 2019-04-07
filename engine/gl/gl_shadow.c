@@ -70,7 +70,7 @@ extern cvar_t r_shadow_shadowmapping_bias;
 cvar_t r_sun_dir							= CVARD ("r_sun_dir", "0.2 0.5 0.8", "Specifies the direction that crepusular rays appear along");
 cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Specifies the colour of sunlight that appears in the form of crepuscular rays.");
 
-static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
+static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs);
 
 static pvsbuffer_t	lvisb, lvisb2;
 
@@ -2237,7 +2237,7 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec3_t axis[3], vec4_t *planes, i
 
 //culling for the face happens in the caller.
 //these faces should thus match Sh_LightFrustumPlanes
-static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, float proj[16])
+static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, float proj[16], qbyte *lightpvs)
 {
 	vec3_t t1,t2,t3;
 	texture_t *tex;
@@ -2379,7 +2379,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		GLBE_BaseEntTextures();
+		GLBE_BaseEntTextures(lightpvs);
 
 		if (lighttype & LSHADER_ORTHO)
 			qglDisable(GL_DEPTH_CLAMP_ARB);
@@ -2387,17 +2387,17 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 #endif
 #ifdef D3D9QUAKE
 	case QR_DIRECT3D9:
-		D3D9BE_BaseEntTextures();
+		D3D9BE_BaseEntTextures(lightpvs);
 		break;
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
-		D3D11BE_BaseEntTextures();
+		D3D11BE_BaseEntTextures(lightpvs);
 		break;
 #endif
 #ifdef VKQUAKE
 	case QR_VULKAN:
-		VKBE_BaseEntTextures();
+		VKBE_BaseEntTextures(lightpvs);
 		break;
 #endif
 	}
@@ -2546,7 +2546,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 		if (sidevisible & (1u<<f))
 		{
 			RQuantAdd(RQUANT_SHADOWSIDES, 1);
-			Sh_GenShadowFace(l, axis, lighttype, smesh, f, smsize, r_refdef.m_projection_std);
+			Sh_GenShadowFace(l, axis, lighttype, smesh, f, smsize, r_refdef.m_projection_std, lvis);
 		}
 	}
 
@@ -2813,7 +2813,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 	BE_SelectEntity(&r_worldentity);
 
 	BE_SelectMode(BEM_LIGHT);
-	Sh_DrawEntLighting(l, colour);
+	Sh_DrawEntLighting(l, colour, vvis);
 
 }
 
@@ -2822,7 +2822,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 draws faces facing the light
 Note: Backend mode must have been selected in advance, as must the light to light from
 */
-static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
+static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs)
 {
 	int tno;
 	texture_t *tex;
@@ -2856,22 +2856,22 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			break;
 #ifdef GLQUAKE
 		case QR_OPENGL:
-			GLBE_BaseEntTextures();
+			GLBE_BaseEntTextures(pvs);
 			break;
 #endif
 #ifdef VKQUAKE
 		case QR_VULKAN:
-			VKBE_BaseEntTextures();
+			VKBE_BaseEntTextures(pvs);
 			break;
 #endif
 #ifdef D3D9QUAKE
 		case QR_DIRECT3D9:
-			D3D9BE_BaseEntTextures();
+			D3D9BE_BaseEntTextures(pvs);
 			break;
 #endif
 #ifdef D3D11QUAKE
 		case QR_DIRECT3D11:
-			D3D11BE_BaseEntTextures();
+			D3D11BE_BaseEntTextures(pvs);
 			break;
 #endif
 		}
@@ -3313,7 +3313,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 			//end stencil writing.
 
 			BE_SelectMode(BEM_LIGHT);
-			Sh_DrawEntLighting(dl, colour);
+			Sh_DrawEntLighting(dl, colour, vvis);
 			qglDisable(GL_STENCIL_TEST);
 			qglStencilFunc( GL_ALWAYS, 0, ~0 );
 		}
@@ -3469,7 +3469,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 
 	BE_SelectDLight(dl, colour, axis, dl->fov?LSHADER_SPOT:LSHADER_STANDARD);
 	BE_SelectMode(BEM_LIGHT);
-	Sh_DrawEntLighting(dl, colour);
+	Sh_DrawEntLighting(dl, colour, vvis);
 }
 
 void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)

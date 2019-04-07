@@ -1833,7 +1833,7 @@ static qboolean Q1BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte 
 {
 	int i;
 
-	if (ent->num_leafs == MAX_ENT_LEAFS+1)
+	if (ent->num_leafs < 0)
 		return true;	//it's in too many leafs for us to cope with. Just trivially accept it.
 
 	for (i=0 ; i < ent->num_leafs ; i++)
@@ -1865,9 +1865,9 @@ static void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_
 		if (node->contents == Q1CONTENTS_SOLID)
 			return;
 
-		if (ent->num_leafs >= MAX_ENT_LEAFS)
+		if ((unsigned)ent->num_leafs >= MAX_ENT_LEAFS)
 		{
-			ent->num_leafs = MAX_ENT_LEAFS+1;	//too many. mark it as such so we can trivially accept huge mega-big brush models.
+			ent->num_leafs = -1;	//too many. mark it as such so we can trivially accept huge mega-big brush models.
 			return;
 		}
 
@@ -2368,10 +2368,10 @@ void BSPX_RenderEnvmaps(model_t *mod)
 					case TF_BGR24:
 						pxsize = 3;
 						break;
-					case TF_RGBA16F:
+					case PTI_RGBA16F:
 						pxsize = 8;
 						break;
-					case TF_RGBA32F:
+					case PTI_RGBA32F:
 						pxsize = 16;
 						break;
 					default:	//erk!

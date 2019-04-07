@@ -333,8 +333,10 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
 cvar_t		v_gamma = CVARFCD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
-cvar_t		v_contrast = CVARFCD("contrast", "1.0", CVAR_ARCHIVE, V_Gamma_Callback, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
-cvar_t		v_brightness = CVARFCD("brightness", "0.0", CVAR_ARCHIVE, V_Gamma_Callback, "Brightness is how much 'white' to add to each and every pixel on the screen.");
+cvar_t		v_gammainverted = CVARFCD("v_gammainverted", "0", CVAR_ARCHIVE, V_Gamma_Callback, "Boolean that controls whether the gamma should be inverted (like quake) or not.");
+cvar_t		v_contrast = CVARAFCD("contrast", "1.0", "v_contrast", CVAR_ARCHIVE, V_Gamma_Callback, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
+cvar_t		v_contrastboost = CVARFCD("v_contrastboost", "1.0", CVAR_ARCHIVE, V_Gamma_Callback, "Amplifies contrast in dark areas");
+cvar_t		v_brightness = CVARAFCD("brightness", "0.0", "v_contrast", CVAR_ARCHIVE, V_Gamma_Callback, "Brightness is how much 'white' to add to each and every pixel on the screen.");
 
 qbyte		gammatable[256];	// palette is sent through this
 
@@ -363,14 +365,15 @@ void BuildGammaTable (float g)
 		gammatable[i] = inf;
 	}
 }*/
-void BuildGammaTable (float g, float c, float b)
+void BuildGammaTable (float gamma, float cscale, float cboost, float brightness)
 {
 	int i, inf;
+	float t;
 
-//	g = bound (0.1, g, 3);
-//	c = bound (1, c, 3);
+//	gamma = bound (0.1, gamma, 3);
+//	cscale = bound (1, cscale, 3);
 
-	if (g == 1 && c == 1)
+	if (gamma == 1 && cscale == 1 && cboost == 1 && brightness == 0)
 	{
 		for (i = 0; i < 256; i++)
 			gammatable[i] = i;
@@ -380,13 +383,11 @@ void BuildGammaTable (float g, float c, float b)
 	for (i = 0; i < 256; i++)
 	{
 		//the 0.5s are for rounding.
-		inf = 255 * (pow ((i + 0.5) / 255.5 * c, g) + b) + 0.5;
-		if (inf < 0)
-			inf = 0;
-		else if (inf > 255)
-			inf = 255;
-		gammatable[i] = inf;
-	}
+		t = (i + 0.5) / 255.5; //scale the lighting
+		t = cboost * t/((cboost-1)*t + 1);
+		inf = 255 * (pow (t, gamma)*cscale + brightness) + 0.5;
+		gammatable[i] = bound(0, inf, 255);
+	}	
 }
 
 /*
@@ -396,7 +397,7 @@ V_CheckGamma
 */
 static void QDECL V_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
-	BuildGammaTable (v_gamma.value, v_contrast.value, v_brightness.value);
+	BuildGammaTable (v_gammainverted.ival?v_gamma.value:(1/v_gamma.value), v_contrast.value, v_contrastboost.value, v_brightness.value);
 	V_UpdatePalette (true);
 }
 
@@ -2582,9 +2583,10 @@ void V_Init (void)
 	Cvar_Register (&ffov, VIEWVARS);
 	Cvar_Register (&r_projection, VIEWVARS);
 
-	BuildGammaTable (1.0, 1.0, 0.0);	// no gamma yet
+	BuildGammaTable (1.0, 1.0, 1.0, 0.0);	// no gamma yet
 	Cvar_Register (&v_gamma, VIEWVARS);
 	Cvar_Register (&v_contrast, VIEWVARS);
+	Cvar_Register (&v_contrastboost, VIEWVARS);
 	Cvar_Register (&v_brightness, VIEWVARS);
 
 	Cvar_Register (&chase_active, VIEWVARS);

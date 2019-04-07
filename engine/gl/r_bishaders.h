@@ -7489,7 +7489,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
 
 "varying vec2 tc;\n"
-"varying vec4 vc;\n"
+"varying vec4 vc; //gamma, contrast, brightness, contrastboost\n"
 
 "#ifdef VERTEX_SHADER\n"
 "attribute vec2 v_texcoord;\n"
@@ -7504,7 +7504,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 "void main ()\n"
 "{\n"
-"gl_FragColor = pow(texture2D(s_t0, tc) * vc.g, vec4(vc.r)) + vc.b;\n"
+"vec3 t = texture2D(s_t0, tc).rgb;\n"
+"t = vc.a * t/((vc.a-1)*t + 1);\n"
+"gl_FragColor = vec4(pow(t, vec3(vc.r))*vc.g + vc.b, 1.0);\n"
 "}\n"
 "#endif\n"
 },

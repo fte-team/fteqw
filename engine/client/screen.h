@@ -220,11 +220,6 @@ typedef enum uploadfmt
 	PTI_MAX,
 
 	TF_INVALID = PTI_INVALID,
-	TF_DEPTH16 = PTI_DEPTH16,
-	TF_DEPTH24 = PTI_DEPTH24,
-	TF_DEPTH32 = PTI_DEPTH32,
-	TF_RGBA16F = PTI_RGBA16F,
-	TF_RGBA32F = PTI_RGBA32F,
 	TF_RGBA32 = PTI_RGBA8,              /*rgba byte order*/
 	TF_BGRA32 = PTI_BGRA8,              /*bgra byte order*/
 	TF_RGBX32 = PTI_RGBX8,              /*rgb byte order, with extra wasted byte after blue*/

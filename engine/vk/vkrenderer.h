@@ -465,7 +465,7 @@ void VKBE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
 void VKBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
 void VKBE_VBO_Destroy(vboarray_t *vearray, void *mem);
 void VKBE_Scissor(srect_t *rect);
-void VKBE_BaseEntTextures(void);
+void VKBE_BaseEntTextures(qbyte *scenepvs);
 
 struct vk_shadowbuffer;
 struct vk_shadowbuffer *VKBE_GenerateShadowBuffer(vecV_t *verts, int numverts, index_t *indicies, int numindicies, qboolean istemp);

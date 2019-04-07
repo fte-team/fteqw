@@ -142,6 +142,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#endif
 	#endif
 #endif
+#ifndef NOLEGACY
+#define HAVE_LEGACY
+#endif
 
 #ifndef HAVE_SERVER
 	#undef MVD_RECORDING
@@ -542,7 +545,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3CLIENT //reconsider this (later)
 	#undef Q3SERVER //reconsider this (later)
 #endif
-#ifdef DEBUG
+#if defined(DEBUG) || defined(_DEBUG)
 	#undef NOQCDESCRIPTIONS	//don't disable writing fteextensions.qc in debug builds, otherwise how would you ever build one? :o
 #endif
 
@@ -691,6 +694,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NORETURN __attribute__((noreturn))
 #endif
 
+//unreachable marks the path leading to it as unreachable too.
+#if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5))
+	#define FTE_UNREACHABLE __builtin_unreachable()
+#endif
+
 //I'm making my own restrict, because msvc's headers can't cope if I #define restrict to __restrict, and quite possibly other platforms too
 #if __STDC_VERSION__ >= 199901L
 	#define fte_restrict restrict
@@ -739,6 +747,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef FTE_DEPRECATED
 #define FTE_DEPRECATED
 #endif
+#ifndef FTE_UNREACHABLE
+#define FTE_UNREACHABLE
+#endif
 #ifndef LIKEPRINTF
 #define LIKEPRINTF(x)
 #endif
@@ -752,6 +763,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef _WIN32
 #define ZEXPORT VARGS
 #define ZEXPORTVA VARGS
+#endif
+
+#ifdef _DEBUG
+	#undef FTE_UNREACHABLE
+	#define FTE_UNREACHABLE Sys_Error("Unreachable reached: %s %i\n", __FILE__, __LINE__)
 #endif
 
 

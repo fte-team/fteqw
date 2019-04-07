@@ -105,6 +105,12 @@ extern cvar_t dpcompat_nopremulpics;
 cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
 #endif
 
+#ifdef HAVE_LEGACY
+cvar_t r_ignoreentpvs						= CVARD ("r_ignoreentpvs", "1", "Disables pvs culling of entities that have been submitted to the renderer.");
+#else
+cvar_t r_ignoreentpvs						= CVARD ("r_ignoreentpvs", "0", "Disables pvs culling of entities that have been submitted to the renderer.");
+#endif
+
 cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3s was never officially defined. If this is set to 1, the flags will be treated identically to mdl files. Otherwise they will be ignored. Naturally, this is required to provide rotating pickups in quake.");
 
 cvar_t r_ambient							= CVARF ("r_ambient", "0",
@@ -958,6 +964,7 @@ void Renderer_Init(void)
 
 
 //renderer
+	Cvar_Register (&r_ignoreentpvs, "Hacky bug workarounds");
 	Cvar_Register (&r_fullbright, SCREENOPTIONS);
 	Cvar_Register (&r_drawentities, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodel, GRAPHICALNICETIES);

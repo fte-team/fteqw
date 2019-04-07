@@ -146,6 +146,8 @@ typedef struct entity_s
 
 	struct shader_s *forcedshader;
 
+	pvscache_t pvscache; //for culling of csqc ents.
+
 #ifdef PEXT_SCALE
 	float scale;
 #endif
@@ -322,7 +324,7 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
-void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode);	//if dl, filters based upon the dlight.
+void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode, qbyte *worldpvs);	//if dl, filters based upon the dlight.
 
 //gl_alias.c
 void R_GAliasFlushSkinCache(qboolean final);

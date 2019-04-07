@@ -3880,10 +3880,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 }
 static void CLNQ_SendInitialUserInfo(void *ctx, const char *key, const char *value)
 {
-	char keybuf[2048];
-	char valbuf[4096];
-	#warning FIXME: use CL_SendUserinfoUpdate or something
-	CL_SendClientCommand(true, "setinfo %s %s\n", COM_QuotedString(key, keybuf, sizeof(keybuf), false), COM_QuotedString(value, valbuf, sizeof(valbuf), false));
+	InfoSync_Add(&cls.userinfosync, ctx, key);
 }
 void CLNQ_SignonReply (void)
 {
@@ -3907,7 +3904,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 		CL_SendClientCommand(true, "color %i %i\n", topcolor.ival, bottomcolor.ival);
 		if (cl.haveserverinfo)
-			InfoBuf_Enumerate(&cls.userinfo[0], NULL, CLNQ_SendInitialUserInfo);
+			InfoBuf_Enumerate(&cls.userinfo[0], &cls.userinfo[0], CLNQ_SendInitialUserInfo);
 		else if (CPNQ_IS_DP)
 		{	//dp needs a couple of extras to work properly in certain cases. don't send them on other servers because that generally results in error messages.
 			CL_SendClientCommand(true, "rate %s", rate.string);
@@ -4593,7 +4590,7 @@ static void CL_ParseStaticProt (int baselinetype)
 	cl_static_entities[i].state = es;
 	ent = &cl_static_entities[i].ent;
 	V_ClearEntity(ent);
-	memset(&cl_static_entities[i].pvscache, 0, sizeof(cl_static_entities[i].pvscache));
+	memset(&cl_static_entities[i].ent.pvscache, 0, sizeof(cl_static_entities[i].ent.pvscache));
 
 	ent->keynum = es.number;
 
@@ -4662,7 +4659,7 @@ static void CL_ParseStaticProt (int baselinetype)
 		VectorCopy(es.origin, mins);
 		VectorCopy(es.origin, maxs);
 	}
-	cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
+	cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].ent.pvscache, mins, maxs);
 
 #ifdef RTLIGHTS
 	//and now handle any rtlight fields on it

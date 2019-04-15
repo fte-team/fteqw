@@ -1042,9 +1042,6 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 
 
 
-extern cvar_t	_windowed_mouse;
-
-
 static float mouse_grabbed = 0;
 
 static enum
@@ -2525,7 +2522,7 @@ static void UpdateGrabs(void)
 	qboolean wantmgrabs, allownullcursor;
 	Cursor wantcursor;
 
-	wantmgrabs = (fullscreenflags&FULLSCREEN_ACTIVE) || !!_windowed_mouse.value;
+	wantmgrabs = (fullscreenflags&FULLSCREEN_ACTIVE) || !!in_windowed_mouse.value;
 	if (!vid.activeapp)
 		wantmgrabs = false;
 	allownullcursor = wantmgrabs;	//this says whether we can possibly want it. if false then we disallow the null cursor. Yes, this might break mods that do their own sw cursors. such mods are flawed in other ways too.

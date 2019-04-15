@@ -1793,6 +1793,8 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 
 	g->failed = true;
 
+	TRACE(("Loading program %s...\n", g->name));
+
 	basicname[1] = 0;
 	Q_strncpyz(basicname, g->name, sizeof(basicname));
 	h = strchr(basicname+1, '#');
@@ -1839,6 +1841,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 
 	if (file)
 	{
+		TRACE(("Loading from disk (%s)\n", g->name));
 //		Con_DPrintf("Loaded %s from disk\n", sh_config.progpath?va(sh_config.progpath, basicname):basicname);
 		g->failed = !Shader_LoadPermutations(g->name, &g->prog, file, qrtype, 0, blobname);
 		FS_FreeFile(file);
@@ -1857,6 +1860,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 					if (!(qrenderer==QR_OPENGL&&ver==110))
 						continue;
 
+				TRACE(("Loading Embedded %s\n", g->name));
 				g->failed = !Shader_LoadPermutations(g->name, &g->prog, sbuiltins[i].body, qrtype, ver, blobname);
 
 				if (g->failed)
@@ -1865,6 +1869,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 				return;
 			}
 		}
+		TRACE(("Program unloadable %s\n", g->name));
 	}
 }
 
@@ -7616,6 +7621,7 @@ void Shader_DoReload(void)
 	}
 	shader_reload_needed = false;
 	R2D_ImageColours(1,1,1,1);
+	TRACE(("Reloading generics\n"));
 	Shader_ReloadGenerics();
 
 	for (i = 0; i < r_numshaders; i++)
@@ -7631,6 +7637,7 @@ void Shader_DoReload(void)
 		if (argsstart)
 			*argsstart = 0;
 		COM_StripExtension (cleanname, shortname, sizeof(shortname));
+		TRACE(("reparsing %s\n", s->name));
 		if (ruleset_allow_shaders.ival && !(s->usageflags & SUR_FORCEFALLBACK))
 		{
 			if (sh_config.shadernamefmt)
@@ -7657,6 +7664,8 @@ void Shader_DoReload(void)
 				resort = true;
 		}
 	}
+
+	TRACE(("Resorting shaders\n"));
 
 	if (resort)
 	{

@@ -2476,8 +2476,10 @@ static void SCR_ScreenShot_f (void)
 			return;
 		}
 		BZ_Free(rgbbuffer);
+		Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
 	}
-	Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
+	else
+		Con_Printf (CON_ERROR "Couldn't get colour buffer for screenshot\n");
 }
 
 void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt, qboolean no2d)

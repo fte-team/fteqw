@@ -57,14 +57,13 @@ void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short
 
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
-		#if 1
+		#ifndef GLSLONLY
 			#include <GLES/gl.h>
 			#ifndef GL_CLIP_PLANE0
 			#define GL_CLIP_PLANE0 0x3000
 			#endif
 		#else
 			#include <GLES2/gl2.h>
-			#define GL_TEXTURE_COORD_ARRAY 0
 		#endif
 		/*gles has no doubles*/
 		#define GLclampd GLclampf
@@ -197,7 +196,7 @@ typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);
 extern	BINDTEXFUNCPTR qglBindTexture;
 extern	DELTEXFUNCPTR delTexFunc;
 extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
-extern void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+extern void (APIENTRY *qglStencilOpSeparate) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 #endif
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
@@ -588,7 +587,6 @@ void R_NetGraph (void);
 #define qglVertexAttribPointer glVertexAttribPointer
 #define qglViewport glViewport
 
-#define qglStencilOpSeparateATI qglStencilOpSeparate
 #define qglGenFramebuffersEXT qglGenFramebuffers
 #define qglDeleteFramebuffersEXT qglDeleteFramebuffers
 #define qglBindFramebufferEXT qglBindFramebuffer

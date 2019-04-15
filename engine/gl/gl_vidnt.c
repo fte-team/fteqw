@@ -170,7 +170,6 @@ extern float gammapending;
 extern cvar_t	vid_mode;
 // Note that 3 is MODE_FULLSCREEN_DEFAULT
 extern cvar_t		vid_vsync;
-extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
 extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;

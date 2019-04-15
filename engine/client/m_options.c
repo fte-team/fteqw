@@ -311,7 +311,7 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXFUNC("Invert Mouse", M_Options_InvertMouse, 0, "Invert vertical mouse movement."),
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
-		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
+		MB_CHECKBOXCVAR("Windowed Mouse", in_windowed_mouse, 0),
 #if !defined(CLIENTONLY) && defined(SAVEDGAMES)
 		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
 #endif
@@ -3042,12 +3042,13 @@ void M_Menu_Video_f (void)
 			MB_SPACING(4),
 			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
 			MB_SPACING(4),
-			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
+			MB_COMBOCVAR("sRGB", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
 			MB_COMBOCVAR("Gamma Mode", v_gamma, gammamodeopts, gammamodevalues, "Controls how gamma is applied"),
 			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
-			MB_COMBOCVAR("Gamma Mode", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
-
+			MB_SLIDER("Brightness", v_brightness, 0.0, 0.5, 0.05, NULL),
+			MB_SPACING(4),
+			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
 			MB_COMBOCVAR("VSync", vid_vsync, vsyncopts, vsyncvalues, "Controls whether to wait for rendering to finish."),
 			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
 			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
@@ -3090,7 +3091,7 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"   Preserve Gamma", &vid_preservegamma,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"         Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
 	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &in_windowed_mouse,0);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->renderer;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
@@ -3994,14 +3995,19 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 
 	if (!mods->nummods)
 	{
-		Draw_FunString(x, y+0, "No games or mods known");
+		float scale[] = {8,8};
+		R_DrawTextField(0, y, vid.width, vid.height - y,
+					va(
+					"No games or mods known.\n"
 #if defined(FTE_TARGET_WEB) || defined(NACL)
-		Draw_FunString(x, y+8, "Connection issue or bad server config");
+					"Connection issue or bad server config.\n"
 #else
-		Draw_FunString(x, y+8, "You may need to use");
-		Draw_FunString(x, y+16, "  -basedir $PATHTOGAME");
-		Draw_FunString(x, y+24, "  on the commandline");
+	#ifndef ANDROID
+					"You may need to use -basedir $PATHTOGAME on the commandline.\n"
+	#endif
+					"\nExpected data path:\n^a%s", com_gamepath
 #endif
+					), CON_WHITEMASK, 0, font_console, scale);
 		return;
 	}
 

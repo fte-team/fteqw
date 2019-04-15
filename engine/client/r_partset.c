@@ -1740,7 +1740,7 @@ char *particle_set_high =
 "scoord = ftetransform();\n"
 "tcoord = (v_texcoord.st - 0.5)*2.0;\n"
 "alph = v_colour.a;\n"
-"gl_Position = scoord;\n"
+"gl_Position = ftetransform();\n"
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"

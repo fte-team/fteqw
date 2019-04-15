@@ -319,7 +319,7 @@ void GLVID_SwapBuffers (void)
 /*
 	if (!vid_isfullscreen)
 	{
-		if (!_windowed_mouse.value)
+		if (!in_windowed_mouse.value)
 		{
 			if (mouseactive)
 			{
@@ -352,7 +352,7 @@ void Sys_SendKeyEvents(void)
 {
 	/*most callbacks happen outside our code, we don't need to poll for events - except for joysticks*/
 	qboolean shouldbefree = Key_MouseShouldBeFree();
-	emscriptenfte_updatepointerlock(_windowed_mouse.ival && !shouldbefree, shouldbefree);
+	emscriptenfte_updatepointerlock(in_windowed_mouse.ival && !shouldbefree, shouldbefree);
 	emscriptenfte_polljoyevents();
 }
 /*various stuff for joysticks, which we don't support in this port*/

@@ -690,7 +690,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			//if they're strafing, calculate the speed to move at based upon their displacement
 			if (mouse->held)
 			{
-				if (m_touchstrafe.ival)	//left side
+				if (m_touchstrafe.ival == 2)	//left side
 					mx = mouse->oldpos[0] - (vid.pixelwidth*1)/4.0;
 				else	//right side
 					mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4.0;

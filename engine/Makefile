@@ -202,7 +202,9 @@ DO_CMAKE=cmake -DCMAKE_C_COMPILER="$(firstword $(CC))" -DCMAKE_C_FLAGS="$(wordli
 
 ifeq ($(DROID_ARCH),)
 	#armeabi armeabi-v7a arm64-v8a x86 x86_64 mips mips64
-	DROID_ARCH=x86 armeabi-v7a
+	DROID_ARCH=armeabi-v7a
+	DROID_ARCH+=x86
+	#DROID_ARCH+=x86_64	#starting with DROID_API_LEVEL 21
 endif
 ifeq ($(FTE_TARGET),droid)
 	#figure out the host system, required to find a usable compiler
@@ -244,9 +246,9 @@ ifeq ($(FTE_TARGET),droid)
 	DROID_ABI_ARCH___x86=x86
 	DROID_ABI_VER____x86?=$(DROID_ABI_VER)
 	DROID_ABI_CFLAGS_x86=-march=i686 -mssse3 -mfpmath=sse -m32 -Os
-	DROID_ABI_NAME___x86_64=$(DROID_ABI_NAME___x86)
-	DROID_ABI_PREFIX_x86_64=$(DROID_ABI_PREFIX_x86)
-	DROID_ABI_ARCH___x86_64=$(DROID_ABI_ARCH___x86)
+	DROID_ABI_NAME___x86_64=x86_64
+	DROID_ABI_PREFIX_x86_64=x86_64-linux-android
+	DROID_ABI_ARCH___x86_64=x86_64
 	DROID_ABI_VER____x86_64=$(DROID_ABI_VER____x86)
 	DROID_ABI_CFLAGS_x86_64=-march=x86-64 -msse4.2 -mpopcnt -m64 -Os
 	#DROID_ABI_NAME___mips=mipsel-linux-android
@@ -271,6 +273,10 @@ ifeq ($(FTE_TARGET),droid)
 		ifeq ($(DROID_ARCH),x86)
 			#google fecked up. anything before api_level 9 will fail to compile on x86
 			DROID_API_LEVEL=9
+		endif
+		ifeq ($(DROID_ARCH),x86_64)
+			#google fecked up. anything before api_level 9 will fail to compile on x86
+			DROID_API_LEVEL=21
 		endif
 		DROID_API_NAME?=android-$(DROID_API_LEVEL)
 		DROID_PLAT_INC=arch-$(DROID_ABI_ARCH___$(DROID_ARCH))
@@ -1584,14 +1590,15 @@ ifeq ($(FTE_TARGET),droid)
 	SV_EXE_NAME=libftedroid.so
 
 	GL_CFLAGS=$(GLCFLAGS)
-	GL_LDFLAGS=$(GLLDFLAGS) -landroid -lEGL
+	GL_LDFLAGS=$(GLLDFLAGS) -landroid
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_droid.o
 	GLB_DIR=gl_droid-$(DROID_ARCH)
 	GL_EXE_NAME=libftedroid.so	
 
 	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD
-	M_LDFLAGS=$(GLLDFLAGS) -landroid -lEGL
-	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_droid.o
+	M_LDFLAGS=$(GLLDFLAGS) -landroid -lEGL -lOpenSLES
+	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_opensl.o
+#snd_droid.o
 	MB_DIR=m_droid-$(DROID_ARCH)
 	M_EXE_NAME=libftedroid.so
 endif
@@ -2116,6 +2123,7 @@ endif
 droid-rel:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
 	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-rel DROID_ARCH=$a; )
+	-rm -rf droid/libs
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
 	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/m_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
 
@@ -2152,6 +2160,7 @@ droid-opt:
 droid-dbg:
 	$(MAKE) FTE_TARGET=droid droid/build.xml
 	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-dbg DROID_ARCH=$a; )
+	-rm -rf droid/libs
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
 	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/m_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
 	@cd droid && $(ANT) debug #&& $(ANT) debug install

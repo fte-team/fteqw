@@ -48,11 +48,6 @@ void Sys_ThreadAbort(void)
 	pthread_exit(NULL);
 }
 
-#ifdef ANDROID
-#include <jni.h>
-extern JavaVM *sys_jvm;
-#endif
-
 #if 1
 typedef struct {
 	int (*func)(void *);
@@ -63,16 +58,7 @@ static void *Sys_CreatedThread(void *v)
 	qthread_t *qthread = v;
 	qintptr_t r;
 
-#ifdef ANDROID
-	JNIEnv* env;
-	(*sys_jvm)->AttachCurrentThread(sys_jvm, &env, NULL);
-#endif
-
 	r = qthread->func(qthread->args);
-
-#ifdef ANDROID
-	(*sys_jvm)->DetachCurrentThread(sys_jvm);
-#endif
 
 	return (void*)r;
 }

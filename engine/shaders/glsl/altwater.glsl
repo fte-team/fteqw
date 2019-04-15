@@ -83,7 +83,7 @@ void main (void)
 	tf = ftetransform();
 	norm = v_normal;
 	eye = e_eyepos - v_position.xyz;
-	gl_Position = tf;
+	gl_Position = ftetransform();
 }
 #endif
 #ifdef FRAGMENT_SHADER

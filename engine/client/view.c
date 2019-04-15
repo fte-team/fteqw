@@ -336,7 +336,7 @@ cvar_t		v_gamma = CVARFCD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_
 cvar_t		v_gammainverted = CVARFCD("v_gammainverted", "0", CVAR_ARCHIVE, V_Gamma_Callback, "Boolean that controls whether the gamma should be inverted (like quake) or not.");
 cvar_t		v_contrast = CVARAFCD("contrast", "1.0", "v_contrast", CVAR_ARCHIVE, V_Gamma_Callback, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
 cvar_t		v_contrastboost = CVARFCD("v_contrastboost", "1.0", CVAR_ARCHIVE, V_Gamma_Callback, "Amplifies contrast in dark areas");
-cvar_t		v_brightness = CVARAFCD("brightness", "0.0", "v_contrast", CVAR_ARCHIVE, V_Gamma_Callback, "Brightness is how much 'white' to add to each and every pixel on the screen.");
+cvar_t		v_brightness = CVARAFCD("brightness", "0.0", "v_brightness", CVAR_ARCHIVE, V_Gamma_Callback, "Brightness is how much 'white' to add to each and every pixel on the screen.");
 
 qbyte		gammatable[256];	// palette is sent through this
 

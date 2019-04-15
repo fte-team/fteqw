@@ -197,6 +197,59 @@ void EGL_Shutdown(void)
 	eglsurf = EGL_NO_SURFACE;
 }
 
+static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
+{
+	struct
+	{
+		EGLint attr;
+		const char *attrname;
+	} eglattrs[] = 
+	{
+		{EGL_ALPHA_SIZE, "EGL_ALPHA_SIZE"},
+		{EGL_ALPHA_MASK_SIZE, "EGL_ALPHA_MASK_SIZE"},
+		{EGL_BIND_TO_TEXTURE_RGB, "EGL_BIND_TO_TEXTURE_RGB"},
+		{EGL_BIND_TO_TEXTURE_RGBA, "EGL_BIND_TO_TEXTURE_RGBA"},
+		{EGL_BLUE_SIZE, "EGL_BLUE_SIZE"},
+		{EGL_BUFFER_SIZE, "EGL_BUFFER_SIZE"},
+		{EGL_COLOR_BUFFER_TYPE, "EGL_COLOR_BUFFER_TYPE"},
+		{EGL_CONFIG_CAVEAT, "EGL_CONFIG_CAVEAT"},
+		{EGL_CONFIG_ID, "EGL_CONFIG_ID"},
+		{EGL_CONFORMANT, "EGL_CONFORMANT"},
+		{EGL_DEPTH_SIZE, "EGL_DEPTH_SIZE"},
+		{EGL_GREEN_SIZE, "EGL_GREEN_SIZE"},
+		{EGL_LEVEL, "EGL_LEVEL"},
+		{EGL_LUMINANCE_SIZE, "EGL_LUMINANCE_SIZE"},
+		{EGL_MAX_PBUFFER_WIDTH, "EGL_MAX_PBUFFER_WIDTH"},
+		{EGL_MAX_PBUFFER_HEIGHT, "EGL_MAX_PBUFFER_HEIGHT"},
+		{EGL_MAX_PBUFFER_PIXELS, "EGL_MAX_PBUFFER_PIXELS"},
+		{EGL_MAX_SWAP_INTERVAL, "EGL_MAX_SWAP_INTERVAL"},
+		{EGL_MIN_SWAP_INTERVAL, "EGL_MIN_SWAP_INTERVAL"},
+		{EGL_NATIVE_RENDERABLE, "EGL_NATIVE_RENDERABLE"},
+		{EGL_NATIVE_VISUAL_ID, "EGL_NATIVE_VISUAL_ID"},
+		{EGL_NATIVE_VISUAL_TYPE, "EGL_NATIVE_VISUAL_TYPE"},
+		{EGL_RED_SIZE, "EGL_RED_SIZE"},
+		{EGL_RENDERABLE_TYPE, "EGL_RENDERABLE_TYPE"},
+		{EGL_SAMPLE_BUFFERS, "EGL_SAMPLE_BUFFERS"},
+		{EGL_SAMPLES, "EGL_SAMPLES"},
+		{EGL_STENCIL_SIZE, "EGL_STENCIL_SIZE"},
+		{EGL_SURFACE_TYPE, "EGL_SURFACE_TYPE"},
+		{EGL_TRANSPARENT_TYPE, "EGL_TRANSPARENT_TYPE"},
+		{EGL_TRANSPARENT_RED_VALUE, "EGL_TRANSPARENT_RED_VALUE"},
+		{EGL_TRANSPARENT_GREEN_VALUE, "EGL_TRANSPARENT_GREEN_VALUE"},
+		{EGL_TRANSPARENT_BLUE_VALUE, "EGL_TRANSPARENT_BLUE_VALUE"},
+	};
+	size_t i;
+	EGLint val;
+
+	for (i = 0; i < countof(eglattrs); i++)
+	{
+		if (eglGetContifAttrib(egldpy, cfg, eglattrs[i].attr, &val))
+			Con_Printf("%i.%s: %i\n", cfg, eglattrs[i].attrname, val);
+		else
+			Con_Printf("%i.%s: UNKNOWN\n", cfg, eglattrs[i].attrname);
+	}
+}
+
 static void EGL_UpdateSwapInterval(void)
 {
 	int interval;
@@ -220,6 +273,8 @@ void EGL_SwapBuffers (void)
 	qeglSwapBuffers(egldpy, eglsurf);
 	/* TODO: check result? */
 	TRACE(("EGL_SwapBuffers done\n"));
+
+	Con_Printf("EGL_SwapBuffers\n");
 }
 
 qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, void *nwindow, void *ndpy, EGLNativeWindowType windowid, EGLNativeDisplayType dpyid)
@@ -305,6 +360,8 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 		Con_Printf(CON_ERROR "EGL: no configs!\n");
 		return false;
 	}
+
+	EGL_ShowConfig(egldpy, cfg);
 
 	if (qeglCreatePlatformWindowSurface)
 		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, info->srgb?wndattrib:NULL);

@@ -1583,6 +1583,13 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		}
 		option->current = range;
 	}
+	else if (key == K_DEL || key == K_BACKSPACE)
+	{
+		if (option->var && option->var->defaultstr)
+			option->current = atof(option->var->defaultstr);
+		else
+			option->current = (option->max-option->min)/2;
+	}
 	else
 		return;
 

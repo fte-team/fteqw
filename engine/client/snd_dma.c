@@ -1766,7 +1766,8 @@ extern sounddriver_t WaveOut_Output;
 sounddriver_t MacOS_AudioOutput;	//prefered on mac
 #endif
 #ifdef ANDROID
-sounddriver_t Droid_AudioOutput;	//prefered on android (java thread)
+sounddriver_t OSL_Output;			//general audio library, but android has all kinds of quirks.
+sounddriver_t Droid_AudioOutput;
 #endif
 #if defined(__MORPHOS__)
 sounddriver_t AHI_AudioOutput;		//prefered on morphos
@@ -1811,7 +1812,7 @@ static sounddriver_t *outputdrivers[] =
 	&MacOS_AudioOutput,	//prefered on mac
 #endif
 #ifdef ANDROID
-	&Droid_AudioOutput,	//prefered on android (java thread)
+	&OSL_Output,		//opensl(es)
 #endif
 #if defined(__MORPHOS__)
 	&AHI_AudioOutput,	//prefered on morphos

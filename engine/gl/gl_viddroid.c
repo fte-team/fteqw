@@ -29,6 +29,9 @@ static rendererinfo_t gles1rendererinfo;
 
 static void *GLES_GetSymbol(char *symname)
 {
+	//Can't use android's eglGetProcAddress
+	//1) it gives less efficient stubs
+	//2) it has a limited number of such stubs, and the limit is too low for core functions too
 	void *ret;
 
 	ret = Sys_GetAddressForName(sys_gl_module, symname);
@@ -50,28 +53,7 @@ static void *GLES_GetSymbol(char *symname)
 static EGLDisplay sys_display;
 static EGLSurface sys_surface;
 static EGLContext sys_context;
-static jobject sys_jsurface;
-extern JNIEnv *sys_jenv;
-
-extern qboolean r_forceheadless;
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_setwindow(JNIEnv *env, jobject obj, 
-				jobject surface)
-{
-	if (sys_jsurface)
-		(*env)->DeleteGlobalRef(sys_jenv, sys_jsurface);
-	sys_jenv = env;
-	sys_jsurface = surface?(*env)->NewGlobalRef(sys_jenv, surface):NULL;
-
-	r_forceheadless = (sys_jsurface == NULL);
-
-	if (r_forceheadless)
-		Sys_Printf("Running without a window\n");
-	else
-		Sys_Printf("Got a window\n");
-
-	if (qrenderer)	//if the window changed then we need to restart everything to match it, BEFORE we return from this function... :(
-		R_RestartRenderer_f();
-}
+ANativeWindow *sys_nativewindow;
 
 void GLVID_DeInit(void)
 {
@@ -94,11 +76,63 @@ void GLVID_DeInit(void)
 
 Sys_Printf("GLVID_DeInited\n");
 }
+static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
+{
+	struct
+	{
+		EGLint attr;
+		const char *attrname;
+	} eglattrs[] = 
+	{
+		{EGL_ALPHA_SIZE, "EGL_ALPHA_SIZE"},
+		{EGL_ALPHA_MASK_SIZE, "EGL_ALPHA_MASK_SIZE"},
+		{EGL_BIND_TO_TEXTURE_RGB, "EGL_BIND_TO_TEXTURE_RGB"},
+		{EGL_BIND_TO_TEXTURE_RGBA, "EGL_BIND_TO_TEXTURE_RGBA"},
+		{EGL_BLUE_SIZE, "EGL_BLUE_SIZE"},
+		{EGL_BUFFER_SIZE, "EGL_BUFFER_SIZE"},
+		{EGL_COLOR_BUFFER_TYPE, "EGL_COLOR_BUFFER_TYPE"},
+		{EGL_CONFIG_CAVEAT, "EGL_CONFIG_CAVEAT"},
+		{EGL_CONFIG_ID, "EGL_CONFIG_ID"},
+		{EGL_CONFORMANT, "EGL_CONFORMANT"},
+		{EGL_DEPTH_SIZE, "EGL_DEPTH_SIZE"},
+		{EGL_GREEN_SIZE, "EGL_GREEN_SIZE"},
+		{EGL_LEVEL, "EGL_LEVEL"},
+		{EGL_LUMINANCE_SIZE, "EGL_LUMINANCE_SIZE"},
+		{EGL_MAX_PBUFFER_WIDTH, "EGL_MAX_PBUFFER_WIDTH"},
+		{EGL_MAX_PBUFFER_HEIGHT, "EGL_MAX_PBUFFER_HEIGHT"},
+		{EGL_MAX_PBUFFER_PIXELS, "EGL_MAX_PBUFFER_PIXELS"},
+		{EGL_MAX_SWAP_INTERVAL, "EGL_MAX_SWAP_INTERVAL"},
+		{EGL_MIN_SWAP_INTERVAL, "EGL_MIN_SWAP_INTERVAL"},
+		{EGL_NATIVE_RENDERABLE, "EGL_NATIVE_RENDERABLE"},
+		{EGL_NATIVE_VISUAL_ID, "EGL_NATIVE_VISUAL_ID"},
+		{EGL_NATIVE_VISUAL_TYPE, "EGL_NATIVE_VISUAL_TYPE"},
+		{EGL_RED_SIZE, "EGL_RED_SIZE"},
+		{EGL_RENDERABLE_TYPE, "EGL_RENDERABLE_TYPE"},
+		{EGL_SAMPLE_BUFFERS, "EGL_SAMPLE_BUFFERS"},
+		{EGL_SAMPLES, "EGL_SAMPLES"},
+		{EGL_STENCIL_SIZE, "EGL_STENCIL_SIZE"},
+		{EGL_SURFACE_TYPE, "EGL_SURFACE_TYPE"},
+		{EGL_TRANSPARENT_TYPE, "EGL_TRANSPARENT_TYPE"},
+		{EGL_TRANSPARENT_RED_VALUE, "EGL_TRANSPARENT_RED_VALUE"},
+		{EGL_TRANSPARENT_GREEN_VALUE, "EGL_TRANSPARENT_GREEN_VALUE"},
+		{EGL_TRANSPARENT_BLUE_VALUE, "EGL_TRANSPARENT_BLUE_VALUE"},
+	};
+	size_t i;
+	EGLint val;
+
+	for (i = 0; i < countof(eglattrs); i++)
+	{
+		if (eglGetConfigAttrib(egldpy, cfg, eglattrs[i].attr, &val))
+			Sys_Printf("%i.%s: %i\n", (int)cfg, eglattrs[i].attrname, val);
+		else
+			Sys_Printf("%i.%s: UNKNOWN\n", (int)cfg, eglattrs[i].attrname);
+	}
+};
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 Sys_Printf("GLVID_Initing...\n");
-	if (!sys_jsurface)
+	if (!sys_nativewindow)
 	{
 		Sys_Printf("GLVID_Init failed: no window known yet\n");
 		return false;	//not at this time...
@@ -172,23 +206,15 @@ Sys_Printf("GLVID_Initing...\n");
 
 	Sys_Printf("Creating gles %i context\n", glesversion);
 
-	sys_gl_module = Sys_LoadLibrary((glesversion>=2)?"libGLESv2.so":"libGLESv1_CM.so", NULL);
-	if (!sys_gl_module)
-	{
-		GLVID_DeInit();
-		return false;
-	}
-
-	eglGetConfigAttrib(sys_display, config, EGL_NATIVE_VISUAL_ID, &format);
-	ANativeWindow *anwindow = ANativeWindow_fromSurface(sys_jenv, sys_jsurface);
-	ANativeWindow_setBuffersGeometry(anwindow, 0, 0, format);
-
-	sys_surface = eglCreateWindowSurface(sys_display, config, anwindow, NULL);
-	ANativeWindow_release(anwindow);
+	EGL_ShowConfig(sys_display, config);
+	
+	sys_surface = eglCreateWindowSurface(sys_display, config, sys_nativewindow, NULL);
 	if (!sys_surface)
 		return false;
 	EGLint ctxattribs[] = {EGL_CONTEXT_CLIENT_VERSION, glesversion, EGL_NONE};
-	sys_context = eglCreateContext(sys_display, config, NULL, glesversion>1?ctxattribs:NULL);
+	sys_context = eglCreateContext(sys_display, config, NULL, ctxattribs);
+	if (!sys_context)
+		return false;
 
 
 	if (eglMakeCurrent(sys_display, sys_surface, sys_surface, sys_context) == EGL_FALSE)
@@ -198,6 +224,28 @@ Sys_Printf("GLVID_Initing...\n");
 	eglQuerySurface(sys_display, sys_surface, EGL_HEIGHT, &h);
 	vid.pixelwidth = w;
 	vid.pixelheight = h;
+
+	/*now that the context is created, load the dll so that we don't have to crash from eglGetProcAddress issues*/	
+	unsigned int gl_major_version = 0;
+	const char *(*eglGetString)(GLenum) = (void*)eglGetProcAddress("glGetString");
+	const char *s = eglGetString(GL_VERSION);
+	while (*s && (*s < '0' || *s > '9'))
+		s++;
+	gl_major_version = atoi(s);
+	const char *driver;
+       	if (gl_major_version>=3)
+		driver = "libGLESv3.so";
+	else if (gl_major_version>=2)
+		driver = "libGLESv2.so";
+	else
+		driver = "libGLESv1_CM.so";
+	Sys_Printf("Loading %s\n", driver);
+	sys_gl_module = Sys_LoadLibrary(driver, NULL);
+	if (!sys_gl_module)
+	{
+		GLVID_DeInit();
+		return false;
+	}
 
 	if (!GL_Init(info, GLES_GetSymbol))
 		return false;
@@ -217,9 +265,11 @@ void GLVID_SwapBuffers(void)
 		else
 			interval = 1;	//default is to always vsync, according to EGL docs, so lets just do that.
 		eglSwapInterval(sys_display, interval);
+		Sys_Printf("Swap interval changed\n");
 	}
 
 	eglSwapBuffers(sys_display, sys_surface);
+	TRACE(("Swap Buffers\n"));
 
 	EGLint w, h;
 	eglQuerySurface(sys_display, sys_surface, EGL_WIDTH, &w);
@@ -230,6 +280,7 @@ void GLVID_SwapBuffers(void)
 		vid.pixelheight = h;
 		extern cvar_t vid_conautoscale;
 		Cvar_ForceCallback(&vid_conautoscale);
+		Sys_Printf("Video Resized\n");
 	}
 }
 
@@ -264,9 +315,8 @@ static qboolean VKVID_CreateSurface(void)
 	VkResult err;
 	VkAndroidSurfaceCreateInfoKHR createInfo = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
 	createInfo.flags = 0;
-	createInfo.window = ANativeWindow_fromSurface(sys_jenv, sys_jsurface);
+	createInfo.window = sys_nativewindow;
 	err = vkCreateAndroidSurfaceKHR(vk.instance, &createInfo, NULL, &vk.surface);
-	ANativeWindow_release(createInfo.window);
 	switch(err)
 	{
 	default:
@@ -284,7 +334,7 @@ static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
 	//(android surfaces can be resized/resampled separately from their window, and are always 'fullscreen' anyway, so this isn't actually an issue for once)
 	const char *extnames[] = {VK_KHR_ANDROID_SURFACE_EXTENSION_NAME, NULL};
 	Sys_Printf("initialising vulkan...\n");
-	if (!sys_jsurface)
+	if (!sys_nativewindow)
 	{
 		Sys_Printf("VKVID_Init failed: no window known yet\n");
 		return false;

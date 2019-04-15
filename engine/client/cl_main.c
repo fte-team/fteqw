@@ -4300,7 +4300,11 @@ void CL_Fog_f(void)
 
 void CL_CrashMeEndgame_f(void)
 {
-	Host_EndGame("crashme!");
+	Host_EndGame("crashme! %s", Cmd_Args());
+}
+void CL_CrashMeError_f(void)
+{
+	Sys_Error("crashme! %s", Cmd_Args());
 }
 
 void CL_Status_f(void)
@@ -4660,6 +4664,7 @@ void CL_Init (void)
 	Cmd_AddCommandD ("demo_nudge", CL_DemoNudge_f, "Nudge the demo by one frame. Argument should be +1 or -1. Nudging backwards is limited.");
 	Cmd_AddCommandAD ("timedemo", CL_TimeDemo_f, CL_DemoList_c, NULL);
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
+	Cmd_AddCommand ("crashme_error", CL_CrashMeError_f);
 
 	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen, that potentially has a key binding attached to it when clicked/touched.\nzone should be one of: TL, TR, BL, BR, MM, TM, BM, ML, MR. This serves as an extra offset to move the image around the screen without any foreknowledge of the screen resolution.");
 	Cmd_AddCommandD ("showpic_removeall", SCR_ShowPic_Remove_f, 	"removes any pictures inserted with the showpic command.");

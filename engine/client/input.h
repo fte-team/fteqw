@@ -78,5 +78,6 @@ extern cvar_t	cl_rollspeed;
 extern cvar_t	cl_prydoncursor;
 extern cvar_t	cl_instantrotate;
 extern cvar_t	in_xflip;
+extern cvar_t	in_windowed_mouse;	//if 0, uses absolute mouse coords allowing the mouse to be used for other programs too. ignored when fullscreen (and reliable).
 extern cvar_t	prox_inmenu;
 extern cvar_t	cl_forceseat;

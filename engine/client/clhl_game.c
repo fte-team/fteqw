@@ -1014,9 +1014,8 @@ void QDECL CLGHL_setsysmousepos(int x, int y)
 }
 void QDECL CLGHL_setmouseenable(qboolean enable)
 {
-	extern cvar_t _windowed_mouse;
 	bi_trace();
-	Cvar_Set(&_windowed_mouse, enable?"1":"0");
+	Cvar_Set(&in_windowed_mouse, enable?"1":"0");
 }
 
 

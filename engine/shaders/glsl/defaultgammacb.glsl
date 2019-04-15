@@ -19,7 +19,7 @@ void main ()
 void main ()
 {
 	vec3 t = texture2D(s_t0, tc).rgb;
-	t = vc.a * t/((vc.a-1)*t + 1);
+	t = vc.a * t/((vc.a-1.0)*t + 1.0);
 	gl_FragColor = vec4(pow(t, vec3(vc.r))*vc.g + vc.b, 1.0);
 }
 #endif

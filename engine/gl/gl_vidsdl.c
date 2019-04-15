@@ -405,7 +405,7 @@ void GLVID_SwapBuffers (void)
 
 	if (!vid_isfullscreen)
 	{
-		if (!_windowed_mouse.value)
+		if (!in_windowed_mouse.value)
 		{
 			IN_DeactivateMouse ();
 		}

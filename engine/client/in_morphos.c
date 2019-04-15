@@ -50,8 +50,6 @@ static struct MsgPort *inputport = 0;
 static struct IOStdReq *inputreq = 0;
 static BYTE inputret = -1;
 
-extern cvar_t _windowed_mouse;
-
 #define DEBUGRING(x)
 
 void INS_Shutdown(void)
@@ -192,7 +190,7 @@ void INS_ProcessInputMessage(struct InputEvent *msg, qboolean consumemotion)
 			else if (msg->ie_Code == (IECODE_MBUTTON|IECODE_UP_PREFIX))
 				IN_KeyEvent(0, false, K_MOUSE3, 0);
 
-			if (_windowed_mouse.ival)
+			if (in_windowed_mouse.ival)
 			{
 				if (consumemotion)
 				{

@@ -3240,7 +3240,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 			}
 		#endif
 
-			if (qglStencilOpSeparateATI)
+			if (qglStencilOpSeparate)
 			{
 				//ATI/GLES/ARB method
 				sref/=2;
@@ -3250,11 +3250,11 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 
 				qglStencilFunc(GL_ALWAYS, 0, ~0);
 
-				qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sbackfail, GL_KEEP);
-				qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sfrontfail, GL_KEEP);
+				qglStencilOpSeparate(GL_BACK, GL_KEEP, sbackfail, GL_KEEP);
+				qglStencilOpSeparate(GL_FRONT, GL_KEEP, sfrontfail, GL_KEEP);
 
 				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
-				qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
+				qglStencilOpSeparate(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
 
 				GL_CullFace(SHADER_CULL_FRONT);
 

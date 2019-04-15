@@ -79,7 +79,7 @@ cvar_t vid_vsync							= CVARAF  ("vid_vsync", "0",
 													   "vid_wait", CVAR_ARCHIVE);
 #endif
 
-cvar_t _windowed_mouse						= CVARF ("in_windowed_mouse","1",
+cvar_t in_windowed_mouse						= CVARF ("in_windowed_mouse","1",
 													 CVAR_ARCHIVE);	//renamed this, because of freecs users complaining that it doesn't work. I don't personally see why you'd want it set to 0, but that's winquake's default so boo hiss to that.
 
 cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
@@ -788,7 +788,7 @@ void Renderer_Init(void)
 #if defined(_WIN32) && defined(MULTITHREAD)
 	Cvar_Register (&vid_winthread, VIDCOMMANDGROUP);
 #endif
-	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
+	Cvar_Register (&in_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 	vid_renderer_opts.enginevalue = 
 #ifdef GLQUAKE

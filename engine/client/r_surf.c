@@ -3702,6 +3702,8 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	int i;
 
 	unsigned int pixbytes, pixw, pixh;
+	unsigned int dpixbytes, dpixw, dpixh;
+	uploadfmt_t dfmt;
 
 	if (!count)
 		return -1;
@@ -3715,6 +3717,12 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	Image_BlockSizeForEncoding(fmt, &pixbytes, &pixw, &pixh);
 	if (pixw != 1 || pixh != 1)
 		return -1;	//compressed formats are unsupported
+	dfmt = PTI_BGRX8;
+        if (!sh_config.texfmt[dfmt])
+		dfmt = PTI_RGBX8;
+        if (!sh_config.texfmt[dfmt])
+		dfmt = PTI_RGB8;
+	Image_BlockSizeForEncoding(dfmt, &dpixbytes, &dpixw, &dpixh);
 
 	Sys_LockMutex(com_resourcemutex);
 
@@ -3726,16 +3734,14 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 
 		if (deluxe && ((i - numlightmaps)&1))
 		{	//deluxemaps always use a specific format.
-			int pixbytes = 4;
-			uploadfmt_t fmt = PTI_BGRX8;	//deluxemaps have limited format choices. we should probably use RG textures or something, but mneh.
-			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*pixbytes)*width*height);
+			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*dpixbytes)*width*height);
 			lightmap[i]->width = width;
 			lightmap[i]->height = height;
 			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
 			lightmap[i]->stainmaps = NULL;
 			lightmap[i]->hasdeluxe = false;
-			lightmap[i]->pixbytes = pixbytes;
-			lightmap[i]->fmt = fmt;
+			lightmap[i]->pixbytes = dpixbytes;
+			lightmap[i]->fmt = dfmt;
 		}
 		else
 		{

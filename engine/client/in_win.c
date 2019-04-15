@@ -602,7 +602,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 
 	if (!activeapp)
 		grabmouse = false;
-	else if (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value)
+	else if (fullscreen || in_simulatemultitouch.ival || in_windowed_mouse.value)
 	{
 		if (!Key_MouseShouldBeFree())
 			grabmouse = true;
@@ -618,7 +618,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 #ifdef TEXTEDITOR
 			!editormodal &&
 #endif
-			!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value) && (fullscreen || (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom)))
+			!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || in_windowed_mouse.value) && (fullscreen || (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom)))
 		{
 			INS_HideMouse();
 		}

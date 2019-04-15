@@ -87,7 +87,7 @@ FTEPFNGLVERTEXATTRIB4FARBPROC		qglVertexAttrib4f;
 FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
-void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+void (APIENTRY *qglStencilOpSeparate) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid* *pointer);
 
@@ -798,11 +798,11 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		gl_config.ext_stencil_wrap = true;
 
 #ifndef GL_STATIC
-	qglStencilOpSeparateATI = NULL;
+	qglStencilOpSeparate = NULL;
 	if ((gl_config.gles && gl_config.glversion >= 2) || (!gl_config.gles && gl_config.glversion >= 3)) //theoretically that should be a 2 not 3.
-		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparate");
+		qglStencilOpSeparate = (void *) getglext("glStencilOpSeparate");
 	else if (GL_CheckExtension("GL_ATI_separate_stencil"))
-		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparateATI");
+		qglStencilOpSeparate = (void *) getglext("glStencilOpSeparateATI");
 #endif
 	qglActiveStencilFaceEXT = NULL;
 	if (GL_CheckExtension("GL_EXT_stencil_two_side"))
@@ -1008,7 +1008,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	else if (gl_config.glversion >= 2)// && (gl_config.gles || 0))
 	{
 		/*core names are different from extension names (more functions too)*/
-		gl_config.arb_shader_objects = true;
 		qglCreateProgramObjectARB	= (void *)getglext( "glCreateProgram");
 		qglDeleteProgramObject_		= (void *)getglext( "glDeleteProgram");
 		qglDeleteShaderObject_		= (void *)getglext( "glDeleteShader");
@@ -1042,7 +1041,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
 		qglGetShaderSource			= (void *)getglext("glGetShaderSource");
-		Con_DPrintf("GLSL available\n");
+
+		if (qglCreateProgramObjectARB && qglLinkProgramARB)
+		{
+			Con_DPrintf("GLSL available\n");
+			gl_config.arb_shader_objects = true;
+		}
+		else
+			Con_Printf(CON_ERROR"GL version specifies GLSL support, but GLSL functions are not available\n");
 	}
 	else if (GL_CheckExtension("GL_ARB_fragment_shader")
 		&& GL_CheckExtension("GL_ARB_vertex_shader")
@@ -3114,7 +3120,7 @@ void GL_ForgetPointers(void)
 
 
 #ifndef GL_STATIC
-	qglStencilOpSeparateATI = NULL;
+	qglStencilOpSeparate = NULL;
 #endif
 	qglActiveStencilFaceEXT = NULL;
 
@@ -3276,54 +3282,14 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
 	qglLineWidth		= (void *)getglcore("glLineWidth");
 #endif
+
 #ifndef FTE_TARGET_WEB
-	qglAlphaFunc		= (void *)getglcore("glAlphaFunc");
-	qglBegin			= (void *)getglcore("glBegin");
-	qglClearDepth		= (void *)getglcore("glClearDepth");
-	qglClipPlane 		= (void *)getglcore("glClipPlane");
-//	qglColor3f			= (void *)getglcore("glColor3f");
-//	qglColor3ub			= (void *)getglcore("glColor3ub");
-	qglColor4f			= (void *)getglcore("glColor4f");
-	qglColor4fv			= (void *)getglext("glColor4fv");
-	if (!qglColor4fv)
-		qglColor4fv = GL_Color4fv_Emul;	//can be missing in gles1
-//	qglColor4ub			= (void *)getglcore("glColor4ub");
-//	qglColor4ubv		= (void *)getglcore("glColor4ubv");
-//	qglDepthRange		= (void *)getglcore("glDepthRange");
-	qglDrawBuffer		= (void *)getglcore("glDrawBuffer");
-	qglDrawPixels		= (void *)getglcore("glDrawPixels");
-	qglEnd				= (void *)getglcore("glEnd");
-	qglFrustum			= (void *)getglcore("glFrustum");
 	qglGetTexLevelParameteriv	= (void *)getglcore("glGetTexLevelParameteriv");
-	qglLoadIdentity		= (void *)getglcore("glLoadIdentity");
-	qglLoadMatrixf		= (void *)getglcore("glLoadMatrixf");
-	qglNormal3f			= (void *)getglcore("glNormal3f");
-	qglNormal3fv		= (void *)getglcore("glNormal3fv");
-	qglMatrixMode		= (void *)getglcore("glMatrixMode");
-	qglMultMatrixf		= (void *)getglcore("glMultMatrixf");
-//	qglOrtho			= (void *)getglcore("glOrtho");
-	qglPolygonMode		= (void *)getglcore("glPolygonMode");
-	qglPopMatrix		= (void *)getglcore("glPopMatrix");
-	qglPushMatrix		= (void *)getglcore("glPushMatrix");
 	qglReadBuffer		= (void *)getglcore("glReadBuffer");
-	qglRotatef			= (void *)getglcore("glRotatef");
-	qglScalef			= (void *)getglcore("glScalef");
-	qglShadeModel		= (void *)getglcore("glShadeModel");
-	qglTexCoord1f		= (void *)getglcore("glTexCoord1f");
-	qglTexCoord2f		= (void *)getglcore("glTexCoord2f");
-	qglTexCoord2fv		= (void *)getglcore("glTexCoord2fv");
-	qglTexEnvf			= (void *)getglcore("glTexEnvf");
-	qglTexEnvfv			= (void *)getglcore("glTexEnvfv");
-	qglTexEnvi			= (void *)getglcore("glTexEnvi");
-	qglTexGeni			= (void *)getglcore("glTexGeni");
-	qglTexGenfv			= (void *)getglcore("glTexGenfv");
 	qglTexImage3D		= (void *)getglext("glTexImage3D");
 	qglTexSubImage3D	= (void *)getglext("glTexSubImage3D");
-	qglTranslatef		= (void *)getglcore("glTranslatef");
-	qglVertex2f			= (void *)getglcore("glVertex2f");
-	qglVertex3f			= (void *)getglcore("glVertex3f");
-	qglVertex3fv		= (void *)getglcore("glVertex3fv");
 #endif
+
 
 	//various vertex array stuff.
 	qglArrayElement			= (void *)getglcore("glArrayElement");
@@ -3340,26 +3306,11 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 
 	qglMultiDrawElements	= (void *)getglext("glMultiDrawElements");	//since gl2
 
-	//fixme: definatly make non-core
-	qglPushAttrib		= (void *)getglcore("glPushAttrib");
-	qglPopAttrib		= (void *)getglcore("glPopAttrib");
-
-	//does this need to be non-core as well?
-	qglFogi				= (void *)getglcore("glFogi");
-	qglFogf				= (void *)getglcore("glFogf");
-	qglFogfv			= (void *)getglcore("glFogfv");
-
 
 	qglGetTexEnviv		= (void *)getglext("glGetTexEnviv");
 	qglGetPointerv		= (void *)getglext("glGetPointerv");
 
 	qglGetStringi		= (void *)getglext("glGetStringi");
-
-	//used by heightmaps
-	qglGenLists		= (void*)getglcore("glGenLists");
-	qglNewList		= (void*)getglcore("glNewList");
-	qglEndList		= (void*)getglcore("glEndList");
-	qglCallList		= (void*)getglcore("glCallList");
 
 #ifndef GL_STATIC
 	qglBindBufferARB		= (void *)getglext("glBindBufferARB");
@@ -3383,6 +3334,69 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	memset(&sh_config, 0, sizeof(sh_config));
 
 	GL_CheckExtensions (getglfunction);
+
+#ifndef FTE_TARGET_WEB
+	if (!gl_config.gles)
+	{
+		qglAlphaFunc		= (void *)getglcore("glAlphaFunc");
+		qglBegin			= (void *)getglcore("glBegin");
+		qglClearDepth		= (void *)getglcore("glClearDepth");
+		qglClipPlane 		= (void *)getglcore("glClipPlane");
+//		qglColor3f			= (void *)getglcore("glColor3f");
+//		qglColor3ub			= (void *)getglcore("glColor3ub");
+		qglColor4f			= (void *)getglcore("glColor4f");
+		qglColor4fv			= (void *)getglext("glColor4fv");
+//		qglColor4ub			= (void *)getglcore("glColor4ub");
+//		qglColor4ubv		= (void *)getglcore("glColor4ubv");
+//		qglDepthRange		= (void *)getglcore("glDepthRange");
+		qglDrawBuffer		= (void *)getglcore("glDrawBuffer");
+		qglDrawPixels		= (void *)getglcore("glDrawPixels");
+		qglEnd				= (void *)getglcore("glEnd");
+		qglFrustum			= (void *)getglcore("glFrustum");
+		qglLoadIdentity		= (void *)getglcore("glLoadIdentity");
+		qglLoadMatrixf		= (void *)getglcore("glLoadMatrixf");
+		qglNormal3f			= (void *)getglcore("glNormal3f");
+		qglNormal3fv		= (void *)getglcore("glNormal3fv");
+		qglMatrixMode		= (void *)getglcore("glMatrixMode");
+		qglMultMatrixf		= (void *)getglcore("glMultMatrixf");
+//		qglOrtho			= (void *)getglcore("glOrtho");
+		qglPolygonMode		= (void *)getglcore("glPolygonMode");
+		qglPopMatrix		= (void *)getglcore("glPopMatrix");
+		qglPushMatrix		= (void *)getglcore("glPushMatrix");
+		qglRotatef			= (void *)getglcore("glRotatef");
+		qglScalef			= (void *)getglcore("glScalef");
+		qglShadeModel		= (void *)getglcore("glShadeModel");
+		qglTexCoord1f		= (void *)getglcore("glTexCoord1f");
+		qglTexCoord2f		= (void *)getglcore("glTexCoord2f");
+		qglTexCoord2fv		= (void *)getglcore("glTexCoord2fv");
+		qglTexEnvf			= (void *)getglcore("glTexEnvf");
+		qglTexEnvfv			= (void *)getglcore("glTexEnvfv");
+		qglTexEnvi			= (void *)getglcore("glTexEnvi");
+		qglTexGeni			= (void *)getglcore("glTexGeni");
+		qglTexGenfv			= (void *)getglcore("glTexGenfv");
+		qglTranslatef		= (void *)getglcore("glTranslatef");
+		qglVertex2f			= (void *)getglcore("glVertex2f");
+		qglVertex3f			= (void *)getglcore("glVertex3f");
+		qglVertex3fv		= (void *)getglcore("glVertex3fv");
+
+		//fixme: definatly make non-core
+		qglPushAttrib		= (void *)getglcore("glPushAttrib");
+		qglPopAttrib		= (void *)getglcore("glPopAttrib");
+
+		//does this need to be non-core as well?
+		qglFogi				= (void *)getglcore("glFogi");
+		qglFogf				= (void *)getglcore("glFogf");
+		qglFogfv			= (void *)getglcore("glFogfv");
+
+		//used by heightmaps
+		qglGenLists		= (void*)getglcore("glGenLists");
+		qglNewList		= (void*)getglcore("glNewList");
+		qglEndList		= (void*)getglcore("glEndList");
+		qglCallList		= (void*)getglcore("glCallList");
+	}
+	if (!qglColor4fv)
+		qglColor4fv = GL_Color4fv_Emul;	//can be missing in gles1
+#endif
 
 	if ((gl_config.gles && gl_config.glversion >= 3) || (!gl_config.gles && gl_config.glversion >= 2))
 		qglDrawBuffers = (void *)getglext("glDrawBuffers");
@@ -3502,7 +3516,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
 	sh_config.progs_required	= gl_config_nofixedfunc;
 
-	if (gl_config.arb_shader_objects)
+	if (sh_config.progs_supported)
 	{
 		sh_config.pDeleteProg		= GLSlang_DeleteProg;
 		sh_config.pLoadBlob			= qglProgramBinary?GLSlang_LoadBlob:NULL;
@@ -3523,6 +3537,9 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.nv_tex_env_combine4	= gl_config.nv_tex_env_combine4;
 		sh_config.env_add				= gl_config.env_add;
 	}
+
+
+//	Con_Printf("sh_config.progs supported: %i, required: %i, vers: %i - %i\n", sh_config.progs_supported, sh_config.progs_required, sh_config.minver, sh_config.maxver);
 
 	return true;
 }

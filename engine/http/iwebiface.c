@@ -145,6 +145,10 @@ int COM_CheckParm(const char *parm)
 	return 0;
 }
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 char *authedusername;
 char *autheduserpassword;
 int lport_min, lport_max;
@@ -158,6 +162,8 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
+#else
+	signal(SIGPIPE, SIG_IGN);	//so we don't crash out if a peer closes the socket half way through.
 #endif
 
 	while (arg < argc)

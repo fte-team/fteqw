@@ -1693,7 +1693,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				SV_ExtractFromUserinfo(host_client, true);
 				SV_SpawnParmsToQC(host_client);
 				SV_SetUpClientEdict(host_client, sv_player);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 				sv_player->xv->clientcolors = host_client->playercolor;
 #endif
 

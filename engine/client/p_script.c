@@ -48,10 +48,10 @@ static int rand(void)
 
 #include "renderque.h"
 
-#ifdef NOLEGACY
-#define R_PARTSET_BUILTINS
-#else
+#ifdef HAVE_LEGACY
 #include "r_partset.h"
+#else
+#define R_PARTSET_BUILTINS
 #endif
 
 struct
@@ -363,7 +363,7 @@ static pcfg_t *loadedconfigs;
 #define crand() (rand()%32767/16383.5f-1)
 
 static void P_ReadPointFile_f (void);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static void P_ExportBuiltinSet_f(void);
 #endif
 
@@ -1402,7 +1402,7 @@ void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "alpharand"))
 			ptype->alpharand = atof(value);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (!strcmp(var, "alphachange"))
 		{
 			Con_DPrintf("%s.%s: alphachange is deprecated, use alphadelta\n", ptype->config, ptype->name);
@@ -1429,7 +1429,7 @@ void P_ParticleEffect_f(void)
 				ptype->randdie = mx-mn;
 			}
 		}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (!strcmp(var, "diesubrand"))
 		{
 			Con_DPrintf("%s.%s: diesubrand is deprecated, use die with two arguments\n", ptype->config, ptype->name);
@@ -1915,7 +1915,7 @@ parsefluid:
 			else if (!strcmp(value, "syncfield"))
 			{
 				ptype->spawnmode = SM_FIELD;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 				ptype->spawnparam1 = 16;
 				ptype->spawnparam2 = 0;
 #endif
@@ -1971,7 +1971,7 @@ parsefluid:
 			ptype->looks.type = PT_CDECAL;
 			settype = true;
 		}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (!strcmp(var, "isbeam"))
 		{
 			Con_DPrintf("%s.%s: isbeam is deprecated, use type beam\n", ptype->config, ptype->name);
@@ -2016,7 +2016,7 @@ parsefluid:
 		else if (!strcmp(var, "emitstart"))
 			ptype->emitstart = atof(value);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		// old names
 		else if (!strcmp(var, "areaspread"))
 		{
@@ -2056,7 +2056,7 @@ parsefluid:
 				ptype->spawnvelvert = atof(Cmd_Argv(2));
 		}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		// spawn mode param fields
 		else if (!strcmp(var, "spawnparam1"))
 		{
@@ -2078,7 +2078,7 @@ parsefluid:
 		{
 			if (!strcmp(value, "none"))
 				ptype->rampmode = RAMP_NONE;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			else if (!strcmp(value, "absolute"))
 			{
 				Con_DPrintf("%s.%s: 'rampmode absolute' is deprecated, use 'rampmode nearest'\n", ptype->config, ptype->name);
@@ -2599,7 +2599,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 	return false;
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static void P_ExportAllEffects_f(void)
 {
 	char effect[8192];
@@ -2806,7 +2806,7 @@ static void FinishParticleType(part_type_t *ptype)
 	r_plooksdirty = true;
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static void FinishEffectinfoParticleType(part_type_t *ptype, qboolean blooddecalonimpact)
 {
 	if (ptype->looks.type == PT_CDECAL)
@@ -3384,7 +3384,7 @@ static qboolean PScript_InitParticles (void)
 
 	pe_script_enabled = true;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cmd_AddCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
 	Cmd_AddCommandD("r_converteffectinfo", P_ConvertEffectInfo_f, "Attempt to convert particle effects made for a certain other engine.");
 	Cmd_AddCommand("r_exportalleffects", P_ExportAllEffects_f);
@@ -3528,7 +3528,7 @@ static void PScript_ClearParticles (void)
 	}
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static void P_ExportBuiltinSet_f(void)
 {
 	char *efname = Cmd_Argv(1);
@@ -3629,7 +3629,7 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwa
 	}
 	else
 	{
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (!strcmp(name, "effectinfo"))
 		{
 			//FIXME: we're loading this too early to deal with per-map stuff.

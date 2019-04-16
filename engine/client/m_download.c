@@ -33,10 +33,10 @@
 #else
 #define PHPMIN
 #endif
-#ifdef NOLEGACY
-#define PHPLEG "&leg=0&test=1"
-#else
+#ifdef HAVE_LEGACY
 #define PHPLEG "&leg=1&test=1"
+#else
+#define PHPLEG "&leg=0&test=1"
 #endif
 #if defined(_DEBUG) || defined(DEBUG)
 #define PHPDBG "&dbg=1"

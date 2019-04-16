@@ -1378,7 +1378,7 @@ static const char *glsl_hdrs[] =
 				"#define SPECMUL 1.0\n"
 			"#endif\n"
 			"#define FTE_SPECULAR_MULTIPLIER (SPECULAR_BASE_MUL*float(SPECMUL))\n"
-#if 0//ndef NOLEGACY
+#if 0//def HAVE_LEGACY
 			"uniform sampler2DShadow s_shadowmap;"
 			"uniform samplerCube s_projectionmap;"
 			"uniform sampler2D s_diffuse;"
@@ -2272,7 +2272,6 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 
 		if (prog)
 		{	//for compat with our vulkan processor, which injects samplers in order to control layouts.
-#if 1//def NOLEGACY
 			const char *defaultsamplernames[] =
 			{
 				#ifdef SHADOWDBG_COLOURNOTDEPTH
@@ -2312,7 +2311,6 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				if (prog->defaulttextures & (1u<<i))
 					GLSlang_GenerateInternal(&glsl, defaultsamplernames[i]);
 			}
-#endif
 		}
 		break;
 	case GL_GEOMETRY_SHADER_ARB:

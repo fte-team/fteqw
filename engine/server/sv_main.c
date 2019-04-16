@@ -622,7 +622,7 @@ void SV_DropClient (client_t *drop)
 			Con_TPrintf ("Client \"%s\" removed\n",drop->name);
 	}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	SV_DownloadQueueClear(drop);
 #endif
 	if (drop->download)
@@ -5707,7 +5707,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			cl->playercolor = top*16 + bottom;
 			if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 			{
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 				if (cl->edict)
 					cl->edict->xv->clientcolors = cl->playercolor;
 #endif

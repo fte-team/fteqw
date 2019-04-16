@@ -2907,7 +2907,7 @@ void SV_UpdateToReliableMessages (void)
 	{
 		if ((svs.gametype == GT_Q1QVM || svs.gametype == GT_PROGS) && host_client->state == cs_spawned)
 		{
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			//DP_SV_CLIENTCOLORS
 			if (host_client->edict->xv->clientcolors != host_client->playercolor)
 			{

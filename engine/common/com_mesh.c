@@ -29,7 +29,7 @@ static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
 	else
 		Cvar_ForceSet(var, "1");
 }
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, also affects gamecode, so do not change from its default.");
 #else
 cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "-1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, Quake compatibility requires -1.");
@@ -6300,7 +6300,7 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			}
 			num_animinfo = numgroups;
 		}
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 		else if (dpcompat_psa_ungroup.ival)
 		{
 			/*unpack each frame of each animation to be a separate framegroup*/

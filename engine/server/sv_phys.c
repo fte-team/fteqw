@@ -58,7 +58,7 @@ cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse",
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1, while NQ expects 0.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
 cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedownslopes", "0", "MOVETYPE_BOUNCE speeds are calculated relative to the impacted surface, instead of the vertical, reducing the chance of grenades just sitting there on slopes.");
-#if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
+#if !defined(CLIENTONLY) && defined(NQPROT) && defined(HAVE_LEGACY)
 cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
 #endif
 cvar_t	dpcompat_noretouchground	= CVARD( "dpcompat_noretouchground", "0", "Prevents entities that are already standing on an entity from touching the same entity again.");
@@ -102,7 +102,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_gameplayfix_bouncedownslopes,	cvargroup_serverphysics);
 	Cvar_Register (&dpcompat_noretouchground,			cvargroup_serverphysics);
 
-#if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
+#if !defined(CLIENTONLY) && defined(NQPROT) && defined(HAVE_LEGACY)
 	Cvar_Register (&sv_gameplayfix_spawnbeforethinks,	cvargroup_serverphysics);
 #endif
 }
@@ -2105,7 +2105,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	{	//a client woo.
 		qboolean readyforjump = false;
 
-#if defined(NQPROT) && !defined(NOLEGACY)
+#if defined(NQPROT) && defined(HAVE_LEGACY)
 		if (svs.clients[ent->entnum-1].state == cs_connected)
 		{	//nq is buggy and calls playerprethink/etc while the player is still connecting.
 			//some mods depend on this, hopefully unintentionally (as is the case with Arcane Dimensions).

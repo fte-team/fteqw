@@ -19,7 +19,7 @@ cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods. It is better for mods to use FL_FINDABLE_NONSOLID instead.");
 cvar_t sv_gameplayfix_droptofloorstartsolid = CVARD("sv_gameplayfix_droptofloorstartsolid", "0", "When droptofloor fails, this causes a second attemp, but with traceline instead.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 cvar_t dpcompat_strcat_limit = CVARD("dpcompat_strcat_limit", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
 #endif
 cvar_t pr_autocreatecvars = CVARD("pr_autocreatecvars", "1", "Implicitly create any cvars that don't exist when read.");
@@ -76,7 +76,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_droptofloorstartsolid, cvargroup_progs);
 	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register (&dpcompat_strcat_limit, cvargroup_progs);
 #endif
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
@@ -3655,7 +3655,7 @@ void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		l[i] = strlen(s[i]);
 		len += l[i];
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (dpcompat_strcat_limit.ival && len > dpcompat_strcat_limit.ival)
 		{
 			l[i]-= len-dpcompat_strcat_limit.ival;
@@ -5255,7 +5255,7 @@ void QCBUILTIN PF_crossproduct (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 //Maths functions
 ////////////////////////////////////////////////////
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 unsigned int FTEToDPContents(unsigned int contents)
 {
 	unsigned int r = 0;
@@ -6245,11 +6245,11 @@ void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvar
 	G_INT(OFS_RETURN) = 0;
 	if (fidx < count)
 	{
-#if !defined(CLIENTONLY) && !defined(NOLEGACY)
+#if !defined(CLIENTONLY) && defined(HAVE_LEGACY)
 		qboolean isserver = (prinst == sv.world.progs);
 #endif
 		eval = (eval_t *)&((float *)ent->v)[fdef[fidx].ofs];
-#ifndef NOLEGACY	//extra code to be lazy so that xonotic doesn't go crazy and spam the fuck out of e
+#ifdef HAVE_LEGACY	//extra code to be lazy so that xonotic doesn't go crazy and spam the fuck out of e
 		if ((fdef->type & 0xff) == ev_vector)
 		{
 			if (eval->_vector[0]==0&&eval->_vector[1]==0&&eval->_vector[2]==0)
@@ -6832,7 +6832,7 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef PSET_SCRIPT
 	{"FTE_PART_SCRIPT",					0,	NULL, {NULL}, "Specifies that the r_particledesc cvar can be used to select a list of particle effects to load from particles/*.cfg, the format of which is documented elsewhere."},
 	{"FTE_PART_NAMESPACES",				0,	NULL, {NULL}, "Specifies that the engine can use foo.bar to load effect foo from particle description bar. When used via ssqc, this should cause the client to download whatever effects as needed."},
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	{"FTE_PART_NAMESPACE_EFFECTINFO",	0,	NULL, {NULL}, "Specifies that effectinfo.bar can load effects from effectinfo.txt for DP compatibility."},
 #endif
 #endif

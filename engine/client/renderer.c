@@ -1030,7 +1030,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #endif
 #ifdef VKQUAKE
@@ -1760,7 +1760,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 					cl.model_precache[i] = Mod_FindName (Mod_FixName(cl.model_name[i], cl.model_name[1]));
 		}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		for (i=0; i < MAX_VWEP_MODELS; i++)
 		{
 			if (*cl.model_name_vwep[i])

@@ -189,7 +189,7 @@ skipwhite:
 	return com_token;
 }
 
-static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen)
+static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen, float def)
 {
 	const char *var;
 
@@ -207,9 +207,9 @@ static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen)
 		}
 		var++;
 	}
-	return 0;	//not present.
+	return def;	//not present.
 }
-#define Shader_FloatArgument(s,k) (Com_FloatArgument(s->name,k,strlen(k)))
+#define Shader_FloatArgument(s,k) (Com_FloatArgument(s->name,k,strlen(k),0))
 
 
 
@@ -1412,13 +1412,13 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				if (*token == '=' || *token == '!')
 				{
 					len = strlen(token);
-					if (*token == (Com_FloatArgument(name, token+1, len-1)?'!':'='))
+					if (*token == (Com_FloatArgument(name, token+1, len-1, 0)?'!':'='))
 						ignore = true;
 					continue;
 				}
 				else if (ignore)
 					continue;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 				else if (!strncmp(token, "deluxmap", 8))
 				{	//FIXME: remove this some time.
 					token = va("deluxemap%s",token+8);
@@ -1581,6 +1581,79 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		{
 			if (cvarcount != sizeof(cvarnames)/sizeof(cvarnames[0]))
 				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVAR3F);
+		}
+		else if (!strncmp(script, "!!arg", 5))
+		{	//compat with our vulkan glsl, generate (specialisation) constants from #args
+			char namebuf[MAX_QPATH];
+			char valuebuf[MAX_QPATH];
+			char *out;
+			char *namestart;
+			char *atype;
+			script+=5;
+			if (*script == 'b')
+			{
+				atype = "bool";
+				strcpy(valuebuf, "false");
+			}
+			else if (*script == 'f')
+			{
+				atype = "float";
+				strcpy(valuebuf, "0.0");
+			}
+			else if (*script == 'd')
+			{
+				atype = "double";
+				strcpy(valuebuf, "0.0");
+			}
+			else if (*script == 'i')
+			{
+				atype = "int";
+				strcpy(valuebuf, "0");
+			}
+			else if (*script == 'u')
+			{
+				atype = "uint";
+				strcpy(valuebuf, "0");
+			}
+			else
+			{
+				atype = "float";	//I guess
+				strcpy(valuebuf, "0.0");
+			}
+			while (*script >= 'a' && *script <= 'z')
+				script++;
+			while (*script == ' ' || *script == '\t')
+				script++;
+			namestart = script;
+			while ((*script >= 'A' && *script <= 'Z') || (*script >= 'a' && *script <= 'z') || (*script >= '0' && *script <= '9') || *script == '_')
+				script++;
+
+			if (script-namestart < countof(namebuf))
+			{
+				float def = 0;
+				memcpy(namebuf, namestart, script - namestart);
+				namebuf[script - namestart] = 0;
+
+				while (*script == ' ' || *script == '\t')
+					script++;
+				if (*script == '=')
+				{
+					script++;
+					while (*script == ' ' || *script == '\t')
+						script++;
+
+					out = valuebuf;
+					while (out < com_token+countof(valuebuf)-1 && *script != '\n' && !(script[0] == '/' && script[1] == '/'))
+						*out++ = *script++;
+					*out++ = 0;
+					if (!strcmp(valuebuf, "true"))
+						def = 1;
+					else
+						def = atof(valuebuf);
+				}
+				Com_FloatArgument(name, valuebuf, sizeof(valuebuf), def);
+				Q_strlcatfz(prescript, &offset, sizeof(prescript), "const %s arg_%s = %s(%s);\n", atype, namebuf, atype, valuebuf);
+			}
 		}
 		else if (!strncmp(script, "!!permu", 7))
 		{

@@ -1335,7 +1335,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *captio
 	}
 	newops[i] = NULL;
 
-	if (initialvalue >= n->numoptions)
+	if (initialvalue && initialvalue >= n->numoptions)
 	{
 		Con_Printf("WARNING: Fixed initialvalue for %s\n", caption);
 		initialvalue = n->numoptions-1;
@@ -1681,7 +1681,7 @@ changed:
 	{
 		combo->selectedoption--;
 		if (combo->selectedoption < 0)
-			combo->selectedoption = combo->numoptions-1;
+			combo->selectedoption = combo->numoptions?combo->numoptions-1:0;
 		goto changed;
 	}
 }

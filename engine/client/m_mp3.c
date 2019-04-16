@@ -393,7 +393,7 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	}
 #endif
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	if (!tracknum)	//might as well require exact file
 	{
 		Q_snprintfz(trackname, sizeof(trackname), "%s", track);
@@ -2988,9 +2988,14 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true);
+	if (SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true))
+	{
+		Sys_Sleep(1);
+		if (SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt, true))
+			Con_DPrintf("Error writing frame %s\n", filename);
+	}
 
-	if (capturethrottlesize.ival)
+	if (capturethrottlesize.value)
 	{
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));

@@ -786,6 +786,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 
 qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
 {
+	qboolean success = false;
 	size_t c, i;
 	vfsfile_t *vfs;
 	if (fmt != TF_BGRA32 && fmt != TF_RGB24 && fmt != TF_RGBA32 && fmt != TF_BGR24 && fmt != TF_RGBX32 && fmt != TF_BGRX32)
@@ -877,9 +878,9 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 			free(rgb_out);
 		}
 
-		VFS_CLOSE(vfs);
+		success = VFS_CLOSE(vfs);
 	}
-	return true;
+	return success;
 }
 
 #ifdef AVAIL_PNGLIB
@@ -1411,8 +1412,10 @@ err:
 	qpng_write_end(png_ptr, info_ptr);
 	BZ_Free(row_pointers);
 	qpng_destroy_write_struct(&png_ptr, &info_ptr);
-	fclose(fp);
-	return true;
+	if (0==fclose(fp))
+		return true;
+	Con_Printf("File error writing %s\n", filename);
+	return false;
 }
 #endif
 
@@ -2553,6 +2556,7 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 	int bits = 32;
 	int extraheadersize = sizeof(h4);
 	size_t fsize;
+	qboolean success;
 
 	memset(&h4, 0, sizeof(h4));
 	h4.ColourSpace[0] = 'W';
@@ -2669,10 +2673,10 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 		in += instride;
 	}
 
-	COM_WriteFile(filename, fsroot, data, fsize);
+	success = COM_WriteFile(filename, fsroot, data, fsize);
 	BZ_Free(data);
 
-	return true;
+	return success;
 }
 
 static qbyte *ReadICOFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *fmt)
@@ -4875,7 +4879,7 @@ static struct
 	{"textures/%s/%s%s",3, 1},	/*fuhquake compatibility*/
 	{"%s/%s%s",			3, 1},	/*fuhquake compatibility*/
 	{"textures/%s%s",	2, 1},	/*directly named texture with textures/ prefix*/
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	{"override/%s%s",	2, 1}	/*tenebrae compatibility*/
 #endif
 };

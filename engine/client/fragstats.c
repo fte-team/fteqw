@@ -784,13 +784,13 @@ static int Stats_ExtractName(const char **line)
 
 qboolean Stats_ParsePickups(const char *line)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	//fixme: rework this to support custom strings, with custom pickup icons
 	if (!Q_strncmp(line, "You got the ", 12))	//weapons, ammo, keys, powerups
 		return true;
 	if (!Q_strncmp(line, "You got armor", 13))	//caaake...
 		return true;
-	if (!Q_strncmp(line, "You get ", 8))	//backpackets
+	if (!Q_strncmp(line, "You get ", 8))	//backpacks
 		return true;
 	if (!Q_strncmp(line, "You receive ", 12)) //%i health\n
 		return true;

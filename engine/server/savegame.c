@@ -121,7 +121,7 @@ pbool PDECL SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const 
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 		sv.strings.model_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
 	}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else if (!strcmp(token, "vwep"))
 	{	//vwep N "MODELNAME"
 		//0 IS valid, and frankly this stuff sucks.
@@ -1322,7 +1322,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
 			if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
 				VFS_PRINTF (f, "particle %i %s\n", i, COM_QuotedString(sv.strings.particle_precache[i], buf, sizeof(buf), false));
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
 			if (sv.strings.vw_model_precache[i])
 				VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));

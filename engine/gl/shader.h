@@ -756,7 +756,7 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 #define BEF_FORCEADDITIVE		(1u<<2)	//blend dest = GL_ONE
 #define BEF_FORCETRANSPARENT	(1u<<3)	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		(1u<<4)	//disables any and all depth.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 #define BEF_PUSHDEPTH			(1u<<5)	//additional polygon offset
 #endif
 //FIXME: the above should really be legacy-only

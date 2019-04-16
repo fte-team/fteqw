@@ -64,7 +64,7 @@ float csqc_starttime;	//reset on each csqc reload to restore lost precision of c
 int	csqc_playerseat;	//can be negative.
 static playerview_t *csqc_playerview;
 qboolean csqc_dp_lastwas3d;	//to emulate DP correctly, we need to track whether drawpic/drawfill or clearscene was called last. blame 515.
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #define csqc_isdarkplaces false	//hopefully this will allow a smart enough compiler to optimise it out cleanly
 #else
 static qboolean csqc_isdarkplaces;
@@ -100,7 +100,7 @@ extern sfx_t			*cl_sfx_ric3;
 extern sfx_t			*cl_sfx_r_exp3;
 
 #define ENDLIST	//clarifies \ in list macros.
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #define legacycsqcglobals
 #else
 #define legacycsqcglobals	\
@@ -372,7 +372,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 		csqcg.f_drawscores = 0;
 	}
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	{
 		etype_t etype = ev_void;
 		if (!csqcg.trace_surfaceflagsi)
@@ -2641,7 +2641,7 @@ static void cs_settracevars(pubprogfuncs_t *prinst, trace_t *tr)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_world.edicts);
 	*csqcg.trace_networkentity = tr->entnum;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	*csqcg.trace_endcontentsf = tr->contents;
 	*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
 
@@ -3897,7 +3897,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		else
 			sprintf(ret, "'%g %g %g'", ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
 	}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else if (csqc_isdarkplaces && !strcmp(keyname, "colors"))	//checks to see if a player has locally been set to ignored (for text chat)
 	{
 		ret = buffer;
@@ -8150,7 +8150,7 @@ qboolean CSQC_DrawView(void)
 
 	CSQC_RunThreads();	//wake up any qc threads
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (csqcg.autocvar_vid_conwidth)
 		*csqcg.autocvar_vid_conwidth = vid.width;
 	if (csqcg.autocvar_vid_conheight)

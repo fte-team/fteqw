@@ -3861,7 +3861,7 @@ void CL_Say (qboolean team, char *extra)
 			return;
 		//messagemode always adds quotes. the console command never did.
 		//the server is expected to use Cmd_Args and to strip first+last chars if the first is a quote. this is annoying and clumsy for mods to parse.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (!dpcompat_console.ival)
 			CL_SendClientCommand(true, "%s%s \"%s%s\"", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
 		else

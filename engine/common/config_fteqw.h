@@ -48,10 +48,10 @@
 #define TEXTEDITOR				//my funky text editor! its awesome!
 #define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
 #define USE_SQLITE				//sql-database-as-file support
-#define IPLOG					//track player's ip addresses (any decent server will hide ip addresses, so this probably isn't that useful, but nq players expect its)
+#define IPLOG					//track player's ip addresses (any decent server will hide ip addresses, so this probably isn't that useful, but nq players expect it)
 
 //Filesystem formats
-#define PACKAGE_PK3				//aka zips. we support utf8,zip64,spans,weakcrypto,deflate,(bzip2),symlinks. we do not support strongcrypto nor any of the other compression schemes.
+#define PACKAGE_PK3				//aka zips. we support utf8,zip64,spans,weakcrypto,(deflate),(bzip2),symlinks. we do not support strongcrypto nor any of the other compression schemes.
 #define PACKAGE_Q1PAK			//also q2
 //#define PACKAGE_DOOMWAD		//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
 //#define PACKAGE_VPK			//hl2 packages
@@ -107,6 +107,7 @@
 // Game/Gamecode Support
 #define CSQC_DAT
 #define MENU_DAT
+//#define MENU_NATIVECODE		//Use an external dll for menus.
 #define VM_Q1					//q1qvm implementation, to support ktx.
 //#define VM_LUA				//optionally supports lua instead of ssqc.
 #define Q2SERVER				//q2 server+gamecode.
@@ -114,6 +115,7 @@
 #define Q3CLIENT				//q3 client stuff.
 #define Q3SERVER				//q3 server stuff.
 #define AVAIL_BOTLIB			//q3 botlib
+//#undef BOTLIB_STATIC			//should normally be set only in the makefile, and only if AVAIL_BOTLIB is defined above.
 #define HEXEN2					//runs hexen2 gamecode, supports hexen2 file formats.
 #define HUFFNETWORK				//crappy network compression. probably needs reseeding.
 #define NETPREPARSE				//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
@@ -122,6 +124,9 @@
 //#define HLSERVER 140			//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 #define SAVEDGAMES				//Can save the game.
 #define MVD_RECORDING			//server can record MVDs.
+//#define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
+//#define USE_INTERNAL_BULLET	//Statically link against bullet physics plugin (instead of using an external plugin)
+//#define USE_INTERNAL_ODE		//Statically link against ode physics plugin (instead of using an external plugin)
 
 // Networking options
 #define NQPROT					//act as an nq client/server, with nq gamecode.
@@ -150,6 +155,8 @@
 
 // Other Audio Options
 #define VOICECHAT
+#define HAVE_SPEEX            //Support the speex codec.
+#define HAVE_OPUS               //Support the opus codec.
 #define HAVE_MEDIA_DECODER		//can play cin/roq, more with plugins
 #define HAVE_MEDIA_ENCODER		//capture/capturedemo work.
 #define HAVE_CDPLAYER			//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).

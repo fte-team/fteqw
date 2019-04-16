@@ -75,7 +75,7 @@ qboolean Master_MasterProtocolIsEnabled(enum masterprotocol_e protocol)
 
 #ifdef HAVE_SERVER
 static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static void SV_SetMaster_f (void);
 #endif
 #else
@@ -535,7 +535,7 @@ void SV_Master_Heartbeat (void)
 	}
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static void SV_Master_Add(int type, char *stringadr)
 {
 	int i;
@@ -3652,7 +3652,7 @@ void Net_Master_Init(void)
 	int i;
 	for (i = 0; net_masterlist[i].cv.name; i++)
 		Cvar_Register(&net_masterlist[i].cv, "master servers");
-#if defined(HAVE_SERVER) && !defined(NOLEGACY)
+#if defined(HAVE_SERVER) && defined(HAVE_LEGACY)
 	Cmd_AddCommand ("setmaster", SV_SetMaster_f);
 #endif
 

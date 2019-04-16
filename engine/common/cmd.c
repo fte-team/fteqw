@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
 cvar_t rcon_level			= CVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= CVAR("cmd_maxbuffersize", "65536");
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 cvar_t dpcompat_set         = CVAR("dpcompat_set", "0");
 cvar_t dpcompat_console     = CVARD("dpcompat_console", "0", "Enables hacks to emulate DP's console.");
 #else
@@ -884,7 +884,7 @@ static void Cmd_Echo_f (void)
 	Con_Printf ("%s", t);
 #else
 	t = TP_ParseFunChars(t);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Con_PrintFlags (t, ((ezcompat_markup.ival>=2)?PFS_EZQUAKEMARKUP:0), 0);
 #else
 	Con_PrintFlags (t, 0, 0);
@@ -4259,7 +4259,7 @@ void Cmd_Init (void)
 	Cvar_Register(&ruleset_allow_in, "Console");
 	Cmd_AddCommandD ("in", Cmd_In_f, "Issues the given command after a time delay. Disabled if ruleset_allow_in is 0.");
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
 	Cvar_Register(&dpcompat_console, "Darkplaces compatibility");
 #endif

@@ -3922,7 +3922,7 @@ qboolean CL_AllowArbitaryDownload(const char *oldname, const char *localfile)
 	return false;
 }
 
-#if defined(NQPROT) && !defined(NOLEGACY)
+#if defined(NQPROT) && defined(HAVE_LEGACY)
 //this is for DP compat.
 static void CL_Curl_f(void)
 {
@@ -4741,7 +4741,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("fullinfo", CL_FullInfo_f);
 
 	Cmd_AddCommand ("color", CL_Color_f);
-#if defined(NQPROT) && !defined(NOLEGACY)
+#if defined(NQPROT) && defined(HAVE_LEGACY)
 	Cmd_AddCommand ("curl",	CL_Curl_f);
 #endif
 	Cmd_AddCommand ("download", CL_Download_f);
@@ -6180,7 +6180,7 @@ void CL_StartCinematicOrMenu(void)
 		else if (idcin_depth != FDEPTH_MISSING)
 			Media_PlayFilm("video/idlog.cin", true);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		//and for fun (blame spirit):
 		if (COM_FCheckExists("data/local/video/New_Bliz640x480.bik"))
 			Media_PlayFilm("av:data/local/video/New_Bliz640x480.bik", true);

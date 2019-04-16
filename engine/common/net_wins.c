@@ -7972,7 +7972,7 @@ static void QDECL SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 		FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_STREAM);
 }
 cvar_t	sv_port_tcp = CVARFC("sv_port_tcp", "", CVAR_SERVERINFO, SV_Tcpport_Callback);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 cvar_t	qtv_streamport	= CVARAFCD(	"qtv_streamport", "",
 									"mvd_streamport", 0, SV_Tcpport_Callback, "Legacy cvar. Use sv_port_tcp instead.");
 #endif
@@ -8046,7 +8046,7 @@ void SVNET_RegisterCvars(void)
 #if defined(TCPCONNECT) && defined(HAVE_IPV4)
 	Cvar_Register (&sv_port_tcp,	"networking");
 	sv_port_tcp.restriction = RESTRICT_MAX;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register (&qtv_streamport,	"networking");
 	qtv_streamport.restriction = RESTRICT_MAX;
 #endif
@@ -8117,7 +8117,7 @@ void NET_InitServer(void)
 #endif
 #if defined(TCPCONNECT) && defined(HAVE_TCP)
 		Cvar_ForceCallback(&sv_port_tcp);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		Cvar_ForceCallback(&qtv_streamport);
 #endif
 #ifdef HAVE_IPV6

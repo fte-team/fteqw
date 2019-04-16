@@ -605,23 +605,35 @@ void M_Menu_Audio_f (void)
 	};
 #ifdef VOICECHAT
 	static const char *voipcodecoptions[] = {
-		"Speex (ez-compat)",
-//		"Raw16 (11025)",
+#ifdef HAVE_OPUS
 		"Opus",
+#endif
+#ifdef HAVE_SPEEX
+#ifdef HAVE_LEGACY
+		"Speex (ez-compat)",
+#endif
 		"Speex (Narrow)",
 		"Speex (Wide)",
 //		"Speex (UltraWide)",
+#endif
+//		"Raw16 (11025)",
 //		"PCM A-Law",
 //		"PCM U-Law",
 		NULL
 	};
 	static const char *voipcodecvalue[] = {
-		"0",	//speex non-standard (outdated)
-//		"1",	//pcm16 sucks
+#ifdef HAVE_OPUS
 		"2",	//opus
+#endif
+#ifdef HAVE_SPEEX
+#ifdef HAVE_LEGACY
+		"0",	//speex non-standard (outdated)
+#endif
 		"3",	//speex narrow
 		"4",	//speex wide
 //		"5",	//speex UW
+#endif
+//		"1",	//pcm16 sucks
 //		"6",	//pcma
 //		"7",	//pcmu
 		NULL

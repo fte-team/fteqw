@@ -401,7 +401,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #define PFS_KEEPMARKUP		1	//leave markup in the final string (but do parse it)
 #define PFS_FORCEUTF8		2	//force utf-8 decoding
 #define PFS_NOMARKUP		4	//strip markup completely
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 #define PFS_EZQUAKEMARKUP	8	//aim for compat with ezquake instead of q3 compat
 #endif
 #define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
@@ -579,7 +579,7 @@ enum fs_relative{
 	FS_PUBBASEGAMEONLY	//qw/ (fixme: should be the last non-private basedir)
 };
 
-void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
+qboolean COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
 
 void FS_FlushFSHashWritten(const char *fname);
 void FS_FlushFSHashRemoved(const char *fname);

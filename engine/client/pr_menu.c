@@ -300,7 +300,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	G_FLOAT(OFS_RETURN) = slotnum;
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 void CL_LoadFont_f(void)
 {
 	//console command for compat with dp/debug.
@@ -2802,7 +2802,7 @@ void MP_RegisterCvarsAndCmds(void)
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
 	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);
 #endif
 

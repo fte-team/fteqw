@@ -142,7 +142,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 #ifndef NOLEGACY
-#define HAVE_LEGACY
+	#define HAVE_LEGACY
 #endif
 
 #ifndef HAVE_SERVER
@@ -516,6 +516,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef SUBSERVERS
 	#undef VM_Q1
 	#undef SQL
+#endif
+
+#ifndef PLUGINS
+	#undef USE_INTERNAL_BULLET
+	#undef USE_INTERNAL_ODE
 #endif
 
 

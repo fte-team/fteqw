@@ -197,7 +197,7 @@ void EGL_Shutdown(void)
 	eglsurf = EGL_NO_SURFACE;
 }
 
-static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
+/*static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
 {
 	struct
 	{
@@ -243,12 +243,12 @@ static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
 
 	for (i = 0; i < countof(eglattrs); i++)
 	{
-		if (eglGetContifAttrib(egldpy, cfg, eglattrs[i].attr, &val))
-			Con_Printf("%i.%s: %i\n", cfg, eglattrs[i].attrname, val);
+		if (qeglGetContifAttrib(egldpy, cfg, eglattrs[i].attr, &val))
+			Con_DPrintf("%i.%s: %i\n", cfg, eglattrs[i].attrname, val);
 		else
-			Con_Printf("%i.%s: UNKNOWN\n", cfg, eglattrs[i].attrname);
+			Con_DPrintf("%i.%s: UNKNOWN\n", cfg, eglattrs[i].attrname);
 	}
-}
+}*/
 
 static void EGL_UpdateSwapInterval(void)
 {
@@ -361,7 +361,7 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 		return false;
 	}
 
-	EGL_ShowConfig(egldpy, cfg);
+//	EGL_ShowConfig(egldpy, cfg);
 
 	if (qeglCreatePlatformWindowSurface)
 		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, info->srgb?wndattrib:NULL);

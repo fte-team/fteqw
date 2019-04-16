@@ -848,7 +848,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 					break;
 				}
 			}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			for (i = 0; i < MAX_VWEP_MODELS; i++)
 			{
 				if (!strcmp(cl.model_name_vwep[i], filename))
@@ -1186,7 +1186,7 @@ static void Model_CheckDownloads (void)
 		CL_CheckModelResources(s);
 	}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	for (i = 0; i < MAX_VWEP_MODELS; i++)
 	{
 		s = cl.model_name_vwep[i];
@@ -1339,7 +1339,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 				endstage();
 			}
 		}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		for (i = 0; i < MAX_VWEP_MODELS; i++)
 		{
 			if (!cl.model_name_vwep[i][0])
@@ -3595,7 +3595,7 @@ static void CLNQ_ParseProtoVersion(void)
 	cls.protocol_nq = CPNQ_ID;
 	cls.z_ext = 0;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (protover == PROTOCOL_VERSION_NQ && cls.demoplayback)
 	{
 		if (!Q_strcasecmp(FS_GetGamedir(true), "nehahra"))
@@ -4188,7 +4188,7 @@ static void CL_ParseModellist (qboolean lots)
 			cl_spikeindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
 			cl_playerindex = nummodels;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (*cl.model_name_vwep[0] && !strcmp(cl.model_name[nummodels],cl.model_name_vwep[0]) && cl_playerindex == -1)
 			cl_playerindex = nummodels;
 #endif
@@ -6381,7 +6381,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			cl.serverpakschanged = true;
 			CL_CheckServerPacks();
 		}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (!strncmp(stufftext, "//vwep ", 7))			//list of vwep model indexes, because using the normal model precaches wasn't cool enough
 		{													//(from zquake/ezquake)
 			int i;
@@ -6650,11 +6650,14 @@ static void CL_ParsePortalState(void)
 			a1 = MSG_ReadShort();
 		else
 			a1 = MSG_ReadByte();
+		if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->fromgame == fg_quake2)
+		{
 #ifdef Q2BSPS
-		CMQ2_SetAreaPortalState(cl.worldmodel, a1, !!(mode&1));
+			CMQ2_SetAreaPortalState(cl.worldmodel, a1, !!(mode&1));
 #else
-		(void)a1;
+			(void)a1;
 #endif
+		}
 		break;
 	case 0xc0:
 		if (mode&2)
@@ -6667,20 +6670,26 @@ static void CL_ParsePortalState(void)
 			a1 = MSG_ReadByte();
 			a2 = MSG_ReadByte();
 		}
+		if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->fromgame == fg_quake3)
+		{
 #ifdef Q3BSPS
-		CMQ3_SetAreaPortalState(cl.worldmodel, a1, a2, !!(mode&1));
+			CMQ3_SetAreaPortalState(cl.worldmodel, a1, a2, !!(mode&1));
 #else
-		(void)a1;
-		(void)a2;
+			(void)a1;
+			(void)a2;
 #endif
+		}
 		break;
 
 	default:
 		//to be phased out.
 		mode |= MSG_ReadByte()<<8;
+		if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->fromgame == fg_quake2)
+		{
 #ifdef Q2BSPS
-		CMQ2_SetAreaPortalState(cl.worldmodel, mode & 0x7fff, !!(mode&0x8000));
+			CMQ2_SetAreaPortalState(cl.worldmodel, mode & 0x7fff, !!(mode&0x8000));
 #endif
+		}
 		break;
 	}
 }

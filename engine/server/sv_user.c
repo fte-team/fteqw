@@ -78,7 +78,7 @@ cvar_t cmd_gamecodelevel	= CVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "0", "sv_nomsec", 0, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
 #endif
 
@@ -653,7 +653,7 @@ void SVNQ_New_f (void)
 	if (!gamedir[0])
 	{
 		gamedir = FS_GetGamedir(true);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (!strcmp(gamedir, "qw"))	//hack: hide the qw dir from nq clients.
 			gamedir = "";
 #endif
@@ -1243,7 +1243,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 	}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (client->prespawn_stage == PRESPAWN_VWEPMODELLIST)
 	{
 		//no indicies. the protocol can't cope with them.
@@ -2006,7 +2006,7 @@ void SV_Begin_Core(client_t *split)
 	}
 	else
 	{
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		split->edict->xv->clientcolors = split->playercolor;
 		if (progstype != PROG_QW)
 		{	//some redundant things, purely for dp compat
@@ -2153,7 +2153,7 @@ void SV_Begin_Core(client_t *split)
 		}
 	}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	split->dp_ping = NULL;
 	split->dp_pl = NULL;
 	if (progstype == PROG_NQ)
@@ -2462,7 +2462,7 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 
 		host_client->downloadstarted = false;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		SV_DownloadQueueNext(host_client);
 #endif
 	}
@@ -2544,7 +2544,7 @@ void SV_NextDownload_f (void)
 	VFS_CLOSE (host_client->download);
 	host_client->download = NULL;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	SV_DownloadQueueNext(host_client);
 #endif
 }
@@ -3304,7 +3304,7 @@ void SV_DownloadSize_f(void)
 
 #ifdef MVD_RECORDING
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 void SV_DownloadQueueAdd(client_t *client, const char *name)
 {
 	if (!client->dlqueue)
@@ -3370,7 +3370,7 @@ void SV_DemoDownload_f(void)
 				host_client->download = NULL;
 				host_client->downloadstarted = false;
 			}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			SV_DownloadQueueClear(host_client);
 #endif
 			return;
@@ -3405,7 +3405,7 @@ void SV_DemoDownload_f(void)
 
 		if (!mvdname)
 			SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (!(host_client->protocol & PEXT_CHUNKEDDOWNLOADS) || !strncmp(InfoBuf_ValueForKey(&host_client->userinfo, "*client"), "ezQuake", 7))
 		{	//chunked downloads was built around the client being in control (because only it knows which files are needed)
 			//but ezquake never implemented that part
@@ -3420,7 +3420,7 @@ void SV_DemoDownload_f(void)
 			ClientReliableWrite_String (host_client, s);
 		}
 	}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (!host_client->download)
 		SV_DownloadQueueNext(host_client);
 #endif
@@ -3592,7 +3592,7 @@ void SV_BeginDownload_f(void)
 		}
 		if (ISNQCLIENT(host_client))
 			host_client->send_message = true;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		SV_DownloadQueueNext(host_client);
 #endif
 		return;
@@ -3670,7 +3670,7 @@ void SV_StopDownload_f(void)
 
 	host_client->downloadstarted = false;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	SV_DownloadQueueNext(host_client);
 //	SV_DownloadQueueClear(host_client);
 #endif
@@ -4524,7 +4524,7 @@ void SV_SetInfo_f (void)
 			{	//team fortress has a nasty habit of booting people without this
 				sv_player->v->team = atoi(Cmd_Argv(2))+1;
 			}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			if (progstype != PROG_QW && !strcmp(key, "model"))
 			{
 				eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playermodel", ev_string, NULL);
@@ -5129,7 +5129,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 
 	ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	{
 		extern int pr_teamfield;
 		if (pr_teamfield)
@@ -6867,7 +6867,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	}
 #endif
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
 	{								//it prevents bugs from being visible in unsuspecting mods.
 		if (cl && cl->spectator)
@@ -6905,7 +6905,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	case MOVETYPE_NONE:
 		return PM_NONE;
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	case MOVETYPE_TOSS:
 	case MOVETYPE_BOUNCE:
 		return PM_DEAD;
@@ -6913,7 +6913,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 
 	case MOVETYPE_WALK:
 	default:
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (cl && ent->v->health <= 0)
 			return PM_DEAD;
 #endif
@@ -7740,7 +7740,7 @@ done:
 	else
 		fname = va("CSEv_%s", rname);
 	f = PR_FindFunction(svprogfuncs, fname, PR_ANY);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (!f)
 	{
 		if (i)
@@ -8672,7 +8672,7 @@ void SV_UserInit (void)
 	Cvar_Register (&votepercent, sv_votinggroup);
 	Cvar_Register (&votetime, sv_votinggroup);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
 #endif
 }

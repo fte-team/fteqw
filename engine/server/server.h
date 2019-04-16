@@ -152,7 +152,7 @@ typedef struct
 		};
 #endif
 		struct {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 			const char	*vw_model_precache[32];
 #endif
 			const char	*model_precache[MAX_PRECACHE_MODELS];	// NULL terminated
@@ -415,7 +415,7 @@ enum
 	PRESPAWN_CSPROGS,			//demos contain a copy of the csprogs.
 #endif
 	PRESPAWN_SOUNDLIST,			//nq skips these
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	PRESPAWN_VWEPMODELLIST,		//qw ugly extension.
 #endif
 	PRESPAWN_MODELLIST,
@@ -503,7 +503,7 @@ typedef struct client_s
 										// extracted from userinfo
 	char			guid[64]; /*+2 for split+pad*/
 	int				messagelevel;		// for filtering printed messages
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	float			*dp_ping;
 	float			*dp_pl;
 #endif
@@ -562,7 +562,7 @@ typedef struct client_s
 	#define SENDFLAGS_PRESENT 0x80000000u	//this entity is present on that client
 	#define SENDFLAGS_REMOVED 0x40000000u	//to handle remove packetloss
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	char			*dlqueue;			//name\name delimited list of files to ask the client to download.
 #endif
 	char			downloadfn[MAX_QPATH];
@@ -1320,7 +1320,7 @@ void SV_UpdateToReliableMessages (void);
 void SV_FlushBroadcasts (void);
 qboolean SV_CanTrack(client_t *client, int entity);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 void SV_DownloadQueueNext(client_t *client);
 void SV_DownloadQueueClear(client_t *client);
 #endif

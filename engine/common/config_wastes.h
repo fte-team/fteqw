@@ -35,14 +35,12 @@
 #define VKQUAKE
 #endif
 
-#define USEEFX
 #define PLUGINS
 #define QUAKETC
 #define AVAIL_OPENAL
 #define AVAIL_ZLIB
 #define AVAIL_OGGVORBIS
 #define IMAGEFMT_PCX
-#define NOMEDIA
 #define CL_MASTER
 #define CSQC_DAT
 #define MENU_DAT
@@ -56,7 +54,6 @@
 #define DECOMPRESS_ETC2
 #define DECOMPRESS_RGTC
 #define DECOMPRESS_S3TC
-#define USE_VORBISFILE
 #define NOBUILTINMENUS
 #define NOLEGACY
 #define AVAIL_DINPUT
@@ -89,6 +86,7 @@
 
 // What do we NOT want to use
 #undef USE_INTERNAL_BULLET
+#undef USE_INTERNAL_ODE
 #undef PACKAGE_DOOMWAD
 #undef PACKAGE_VPK
 #undef DOOMWADS
@@ -114,9 +112,9 @@
 #undef AVAIL_DSOUND
 #undef BOTLIB_STATIC	//q3 botlib
 #undef AVAIL_XZDEC	//.xz decompression
-#undef AVAIL_SPEEX	//.xz decompression
+#undef HAVE_SPEEX	//.xz decompression
 #undef AVAIL_GZDEC	//.gz decompression
-#undef AVAIL_DZIP	//.dzip special-case archive support
+#undef PACKAGE_DZIP	//.dzip special-case archive support
 #undef AVAIL_PNGLIB	//.png image format support (read+screenshots)
 #undef AVAIL_JPEGLIB	//.jpeg image format support (read+screenshots)
 #undef AVAIL_MP3_ACM	//.mp3 support (in windows).
@@ -124,7 +122,6 @@
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_BLP	//legacy crap
 #undef IMAGEFMT_VTF	//legacy crap
-//#undef IMAGEFMT_PCX	//legacy crap
 #undef NETPREPARSE	//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
 #undef USE_SQLITE	//sql-database-as-file support
 #undef QUAKESTATS	//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.
@@ -141,7 +138,7 @@
 #undef Q3SERVER		//q3 server stuff.
 #undef HEXEN2		//runs hexen2 gamecode, supports hexen2 file formats.
 #undef NQPROT		//act as an nq client/server, with nq gamecode.
-#undef WEBSERVER	//sv_ftp + sv_http cvars.
+////#undef WEBSERVER	//sv_ftp + sv_http cvars.
 #undef WEBCLIENT	//uri_get+any internal downloads etc
 #undef RUNTIMELIGHTING	//automatic generation of .lit files
 #undef R_XFLIP		//old silly thing
@@ -150,17 +147,17 @@
 #undef IRCCONNECT	//lame support for routing game packets via irc server. not a good idea.
 #undef PSET_CLASSIC	//support the 'classic' particle system, for that classic quake feel.
 #undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
-#undef QTERM
+////#undef QTERM
 #undef SIDEVIEWS
 #undef MAX_SPLITS
 #undef SUBSERVERS
-#undef SV_MASTER
+////#undef SV_MASTER
 #undef HAVE_MIXER	//openal only
 #undef VM_LUA
 #undef HLCLIENT
 #undef HLSERVER
 #undef FTPSERVER
-//undef CLIENTONLY	//leave this up to the makefiles.
+//#undef CLIENTONLY	//leave this up to the makefiles.
 #undef HAVE_GNUTLS	//linux tls/dtls support
 #undef HAVE_WINSSPI	//windows tls/dtls support
 #undef HAVE_JUKEBOX	//includes built-in jukebox crap
@@ -173,6 +170,16 @@
 #undef WAYLANDQUAKE
 #undef AVAIL_FREETYPE	// for truetype font rendering
 #undef SERVER_DEMO_PLAYBACK	//outdated crap
+
+//FIXME
+#define HAVE_OPUS
+//#define HAVE_OPENSSL
+//#define IMAGEFMT_HDR
+//#define IMAGEFMT_PBM
+//#define IMAGEFMT_PSD
+//#define IPLOG
+//#define AVAIL_BOTLIB
+//#define AVAIL_BZLIB
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

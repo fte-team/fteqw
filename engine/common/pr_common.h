@@ -562,7 +562,7 @@ void PF_WriteString_Internal (int target, const char *str);
 pbool QDECL ED_CanFree (edict_t *ed);
 #endif
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 unsigned int FTEToDPContents(unsigned int contents);
 #endif
 

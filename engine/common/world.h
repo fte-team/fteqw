@@ -122,7 +122,7 @@ typedef struct q2trace_s
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	(1<<0)
 #define	MOVE_MISSILE	(1<<1)
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 #define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE) //use MOVE_OTHERONLY instead
 #endif
 #define	MOVE_HITMODEL	(1<<2)

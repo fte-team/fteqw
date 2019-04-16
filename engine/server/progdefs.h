@@ -60,12 +60,12 @@ typedef struct nqglobalvars_s
 	float	*trace_allsolid;
 	float	*trace_startsolid;
 	float	*trace_fraction;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	float	*trace_surfaceflagsf;
 #endif
 	int		*trace_surfaceflagsi;
 	string_t*trace_surfacename;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	float	*trace_endcontentsf;
 #endif
 	int		*trace_endcontentsi;
@@ -80,7 +80,7 @@ typedef struct nqglobalvars_s
 	int	*trace_ent;
 	float	*trace_inopen;
 	float	*trace_inwater;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	string_t*trace_dphittexturename;
 	float *trace_dpstartcontents;
 	float *trace_dphitcontents;
@@ -117,7 +117,7 @@ typedef struct nqglobalvars_s
 #define P_VEC(v) (pr_global_struct->v)
 
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #define comfieldfloat_legacy(n,desc)
 #else
 #define comfieldfloat_legacy comfieldfloat

@@ -41,7 +41,7 @@
 		#include <xtl.h>
 		#include <WinSockX.h>
 	#else
-		#if defined(_MSC_VER) && !defined(NOLEGACY)
+		#if defined(_MSC_VER) && defined(HAVE_LEGACY)
 			#define HAVE_IPX
 		#endif
 		#define WIN32_LEAN_AND_MEAN
@@ -153,7 +153,7 @@
 		#define HAVE_IPV6
 	#endif
 
-//	#if defined(AF_IPX) && !defined(NOLEGACY)
+//	#if defined(AF_IPX) && defined(HAVE_LEGACY)
 //		#include <netipx/ipx.h>
 //		#define HAVE_IPX
 //	#endif

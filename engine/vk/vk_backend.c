@@ -3025,12 +3025,13 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
 
 	if (err)
-	{
+	{	//valid err values are VK_ERROR_OUT_OF_HOST_MEMORY, VK_ERROR_OUT_OF_DEVICE_MEMORY, VK_ERROR_INVALID_SHADER_NV
+		//VK_INCOMPLETE is a Qualcom bug with certain spirv-opt optimisations.
 		shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 		if (err != VK_ERROR_INVALID_SHADER_NV)
-			Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
+			Sys_Error("%s creating pipeline %s for material %s. Check spir-v modules / drivers.\n", VK_VKErrorToString(err), p->name, shaderstate.curshader->name);
 		else
-			Con_Printf("Error creating pipeline for %s. Check glsl / spir-v modules / drivers.\n", shaderstate.curshader->name);
+			Con_Printf("Error creating pipeline %s for material %s. Check glsl / spir-v modules / drivers.\n", p->name, shaderstate.curshader->name);
 		return;
 	}
 

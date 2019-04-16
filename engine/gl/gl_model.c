@@ -5615,7 +5615,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 
 	if (mod_litsprites_force.ival || strchr(spr->publicname, '!'))
 		litsprite = true;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else
 	{
 		int i;

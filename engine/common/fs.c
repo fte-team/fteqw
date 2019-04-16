@@ -401,7 +401,7 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 
 	path = Cmd_Argv(arg++);
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	a = Cmd_Argv(arg);
 	if (!strcmp(a, "-"))
 	{
@@ -601,7 +601,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		}
 	}
 	//FIXME: these should generate package-manager entries.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else if (!Q_strcasecmp(cmd, "filedependancies") || !Q_strcasecmp(cmd, "archiveddependancies"))
 		FS_Manifest_ParsePackage(man, mdt_installation);
 	else if (!Q_strcasecmp(cmd, "archivedpackage"))
@@ -920,8 +920,9 @@ COM_WriteFile
 The filename will be prefixed by the current game directory
 ============
 */
-void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len)
+qboolean COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len)
 {
+	qboolean success = false;
 	vfsfile_t *vfs;
 
 	Sys_Printf ("COM_WriteFile: %s\n", filename);
@@ -931,13 +932,14 @@ void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *d
 	if (vfs)
 	{
 		VFS_WRITE(vfs, data, len);
-		VFS_CLOSE(vfs);
+		success = VFS_CLOSE(vfs);
 
 		if (fsroot >= FS_GAME)
 			FS_FlushFSHashWritten(filename);
 		else
 			com_fschanged=true;
 	}
+	return success;
 }
 
 /*
@@ -3067,7 +3069,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
-#if defined(NOLEGACY) || !defined(HAVE_CLIENT)
+#if !defined(HAVE_LEGACY) || !defined(HAVE_CLIENT)
 	#define ZFIXHACK
 #elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
 	#define ZFIXHACK
@@ -3143,7 +3145,7 @@ const gamemode_info_t gamemode_info[] = {
 //mission packs should generally come after the main game to avoid prefering the main game. we violate this for hexen2 as the mission pack is mostly a superset.
 //whereas the quake mission packs replace start.bsp making the original episodes unreachable.
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//standard quake
 	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG,{"id1",	"qw",				"*fte"},	"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},

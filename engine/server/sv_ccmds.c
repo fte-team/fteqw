@@ -2980,7 +2980,7 @@ void SV_PrecacheList_f(void)
 {
 	unsigned int i;
 	char *group = Cmd_Argv(1);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if (!*group || !strncmp(group, "vwep", 4))
 	{
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
@@ -3172,6 +3172,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommandD ("map_restart", SV_Map_f, NULL);	//from q3.
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
 	Cmd_AddCommand ("maplist", SV_MapList_f);
+	Cmd_AddCommand ("maps", SV_MapList_f);
 
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 

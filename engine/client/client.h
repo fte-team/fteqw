@@ -844,7 +844,7 @@ typedef struct
 //
 // information that is static for the entire time connected to a server
 //
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	char				model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
 #endif

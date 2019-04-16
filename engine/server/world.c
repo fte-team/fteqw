@@ -2510,7 +2510,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	if (passedict->xv->hitcontentsmaski)
 		clip.hitcontentsmask = passedict->xv->hitcontentsmaski;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	else if (passedict->xv->dphitcontentsmask)
 	{
 		unsigned int nm=0, fl = passedict->xv->dphitcontentsmask;
@@ -2544,7 +2544,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		clip.hitcontentsmask = nm;
 	}
 #endif
-/*#ifndef NOLEGACY
+/*#ifdef HAVE_LEGACY
 	else if (passedict->xv->hitcontentsmask)
 		clip.hitcontentsmask = passedict->xv->hitcontentsmask;
 #endif*/
@@ -2570,7 +2570,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		wedict_t *other = WEDICT_NUM_UB(w->progs, *w->g.other);
 		return World_ClipMoveToEntity (w, other, other->v->origin, other->v->angles, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
 	}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	if ((type&MOVE_WORLDONLY) == MOVE_WORLDONLY)
 	{	//for compat with DP
 		wedict_t *other = w->edicts;

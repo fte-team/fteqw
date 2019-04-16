@@ -677,7 +677,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{
 				//heads don't get skinned, only players (and weaponless players), they do still get recoloured.
 				if (model==cl.model_precache[cl_playerindex]
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 					|| model==cl.model_precache_vwep[0]
 #endif
 				)

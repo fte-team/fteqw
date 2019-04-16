@@ -40,7 +40,6 @@
 #define AVAIL_OPENAL
 #define AVAIL_ZLIB
 #define AVAIL_OGGVORBIS
-//#define NOMEDIA
 #define CL_MASTER
 #define CSQC_DAT
 #define MENU_DAT
@@ -96,7 +95,7 @@
 #undef BOTLIB_STATIC	//q3 botlib
 #undef AVAIL_XZDEC	//.xz decompression
 #undef AVAIL_GZDEC	//.gz decompression
-#undef AVAIL_DZIP	//.dzip special-case archive support
+#undef PACKAGE_DZIP	//.dzip special-case archive support
 #undef AVAIL_PNGLIB	//.png image format support (read+screenshots)
 #undef AVAIL_JPEGLIB	//.jpeg image format support (read+screenshots)
 #undef AVAIL_MP3_ACM	//.mp3 support (in windows).
@@ -106,7 +105,7 @@
 #undef IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
 #undef IMAGEFMT_BLP	//legacy crap
 #define IMAGEFMT_BMP	//legacy crap
-//#undef IMAGEFMT_PCX	//legacy crap
+////#undef IMAGEFMT_PCX	//legacy crap
 #undef DECOMPRESS_ETC2
 #undef DECOMPRESS_RGTC
 #undef DECOMPRESS_S3TC
@@ -126,7 +125,7 @@
 #undef Q3SERVER		//q3 server stuff.
 #undef HEXEN2		//runs hexen2 gamecode, supports hexen2 file formats.
 #undef NQPROT		//act as an nq client/server, with nq gamecode.
-#undef WEBSERVER	//sv_ftp + sv_http cvars.
+////#undef WEBSERVER	//sv_ftp + sv_http cvars.
 #undef WEBCLIENT	//uri_get+any internal downloads etc
 #undef RUNTIMELIGHTING	//automatic generation of .lit files
 #undef R_XFLIP		//old silly thing
@@ -137,17 +136,17 @@
 #undef SUPPORT_ICE	//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #undef PSET_CLASSIC	//support the 'classic' particle system, for that classic quake feel.
 #undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
-#undef QTERM
+////#undef QTERM
 #undef SIDEVIEWS
 #undef MAX_SPLITS
 #undef SUBSERVERS
-#undef SV_MASTER
+////#undef SV_MASTER
 #undef HAVE_MIXER	//openal only
 #undef VM_LUA
 #undef HLCLIENT
 #undef HLSERVER
 #undef FTPSERVER
-//undef CLIENTONLY	//leave this up to the makefiles.
+//#undef CLIENTONLY	//leave this up to the makefiles.
 #define HAVE_TCP
 #undef HAVE_GNUTLS	//linux tls/dtls support
 #undef HAVE_WINSSPI	//windows tls/dtls support
@@ -155,6 +154,26 @@
 #define HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
 #define HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
+
+//FIXME
+#define HAVE_OPUS
+//#define HAVE_SPEEX
+//#define HAVE_OPENSSL
+//#define IMAGEFMT_HDR
+//#define IMAGEFMT_PBM
+//#define IMAGEFMT_PSD
+//#define IMAGEFMT_VTF
+//#define IPLOG
+//#define MVD_RECORDING
+//#define PACKAGEMANAGER
+//#define PACKAGE_VPK
+//#define SAVEDGAMES
+//#define AVAIL_BOTLIB
+//#define AVAIL_BZLIB
+//#define USE_INTERNAL_ODE
+//#define USE_INTERNAL_BULLET
+//#define MENU_NATIVECODE
+
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

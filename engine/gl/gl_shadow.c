@@ -3352,7 +3352,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 
 		/*draw the light*/
 		BE_SelectMode(BEM_LIGHT);
-		Sh_DrawEntLighting(dl, colour);
+		Sh_DrawEntLighting(dl, colour, vvis);
 
 		/*okay, no more stencil stuff*/
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILENABLE, false);

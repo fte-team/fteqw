@@ -71,7 +71,7 @@ cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_LATCH, "Enables mvd
 /*other stuff*/
 cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "1", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #else
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
@@ -89,7 +89,7 @@ cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "O
 cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 
 cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "1", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
 #else
 cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
@@ -315,7 +315,7 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 			ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;	//if not running hexen2, default the scale origin to the actual origin.
 #endif
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		ent->xv->Version = sv.csqcentversion[ent->entnum];
 #endif
 		ent->xv->uniquespawnid = sv.csqcentversion[ent->entnum];
@@ -872,7 +872,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float writeonly;
 	static int writeonly_int;
 	static int endcontentsi, surfaceflagsi;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	static float endcontentsf, surfaceflagsf;
 #endif
 	static float dimension_send_default;
@@ -923,11 +923,11 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(true, trace_ent);
 	globalfloat		(false, trace_inopen);
 	globalfloat		(false, trace_inwater);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	globalfloat		(false, trace_endcontentsf);
 #endif
 	globalint		(false, trace_endcontentsi);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	globalfloat		(false, trace_surfaceflagsf);
 #endif
 	globalint		(false, trace_surfaceflagsi);
@@ -937,7 +937,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(false, trace_surface_id);
 	globalint		(false, trace_bone_id);
 	globalint		(false, trace_triangle_id);
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	globalstring	(false, trace_dphittexturename);
 	globalfloat		(false, trace_dpstartcontents);
 	globalfloat		(false, trace_dphitcontents);
@@ -980,7 +980,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 #define ensureglobal(name,var) if (!(pr_globals)->name) (pr_globals)->name = &var;
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	if (!(pr_globals)->trace_surfaceflagsi)
 		(pr_globals)->trace_surfaceflagsi = (int*)PR_FindGlobal(svprogfuncs, "trace_surfaceflags", 0, NULL);
 	if (!(pr_globals)->trace_endcontentsi)
@@ -3712,7 +3712,7 @@ static void set_trace_globals(pubprogfuncs_t *prinst, /*struct globalvars_s *pr_
 	pr_global_struct->trace_bone_id = trace->bone_id;
 	pr_global_struct->trace_triangle_id = trace->triangle_id;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	pr_global_struct->trace_surfaceflagsf = trace->surface?trace->surface->flags:0;
 	pr_global_struct->trace_endcontentsf = trace->contents;
 
@@ -4013,7 +4013,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 		return;
 	}
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	//this block is a hack to 'fix' nq mods that expect all clients to support nq commands - but we're a qw engine.
 	//FIXME: should buffer the entire command instead.
 	if (progstype != PROG_QW)
@@ -4541,7 +4541,7 @@ static void QCBUILTIN PF_getmodelindex (pubprogfuncs_t *prinst, struct globalvar
 
 	G_FLOAT(OFS_RETURN) = PF_precache_model_Internal(prinst, s, queryonly);
 }
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -11251,7 +11251,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)", "Sets whether the server should or should not be paused. This does not affect auto-paused things like when the console is down.")},
 	//end dp extras
 	//begin mvdsv extras
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},
 #endif
 	//end mvdsv extras
@@ -12756,7 +12756,7 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning %s Q105 /*too few parms. The vanilla qcc didn't validate properly, hence why fteqcc normally treats it as a warning.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning %s Q106 /*assignment to constant/lvalue. Define them as var if you want to initialise something.*/\n", (targ & ID1)?"enable":"error");
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown. Compatibility goes out of the window if you disable this.*/\n");
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc). Such mods will not run properly in FTE.*/\n");
 #else
 	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc). Note that this may trigger emulation.*/\n");

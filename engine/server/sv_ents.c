@@ -4142,7 +4142,7 @@ void SV_CleanupEnts(void)
 		ent = EDICT_NUM_PB(svprogfuncs, e);
 		ent->xv->SendFlags = 0;
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		//this is legacy code. we'll just have to live with the slight delay.
 		//FIXME: check if Version exists and do it earlier.
 		if ((int)ent->xv->Version != sv.csqcentversion[ent->entnum])

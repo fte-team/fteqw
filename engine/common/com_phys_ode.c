@@ -39,7 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../../plugins/plugin.h"
 #include "../../plugins/engine.h"
 
-#ifdef NOLEGACY
+#ifndef HAVE_LEGACY
 #undef USERBE
 #endif
 

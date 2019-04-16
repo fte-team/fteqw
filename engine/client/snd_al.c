@@ -19,7 +19,7 @@ We also have no doppler with WebAudio.
 	qboolean firefoxstaticsounds;	//FireFox bugs out with static sounds. they all end up full volume AND THIS IS REALLY LOUD AND REALLY ANNOYING.
 #else
 	#define SDRVNAME "OpenAL"
-//	#define USEEFX
+	#define USEEFX
 #endif
 
 #ifdef OPENAL_STATIC

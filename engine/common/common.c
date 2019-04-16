@@ -126,7 +126,7 @@ cvar_t	fs_gamename = CVARAD("com_fullgamename", NULL, "fs_gamename", "The filesy
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_protocolversion = CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
-#if !defined(NOLEGACY)
+#ifdef HAVE_LEGACY
 cvar_t	ezcompat_markup = CVARD("ezcompat_markup", "1", "Attempt compatibility with ezquake's text markup.0: disabled.\n1: Handle markup ampersand markup.\n2: Handle chevron markup (only in echo commands, for config compat, because its just too unreliable otherwise).");
 #endif
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
@@ -3003,7 +3003,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 	return out;
 }
 
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 static unsigned int koi2wc (unsigned char uc)
 {
 	static const char koi2wc_table[64] =
@@ -3249,7 +3249,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	conchar_t ext;
 	conchar_t *oldout = out;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	extern cvar_t dpcompat_console;
 	extern cvar_t ezcompat_markup;
 
@@ -3277,7 +3277,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 #endif
 
 	if (*str == 1 || *str == 2
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		|| (*str == 3 && dpcompat_console.ival)
 #endif
 		)
@@ -3577,7 +3577,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		else if (*str == '&' && str[1] == 'c' && !(flags & PFS_NOMARKUP) && ezcompat_markup.ival)
 		{
 			// ezQuake color codes
@@ -3983,7 +3983,7 @@ skipwhite:
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	extern cvar_t dpcompat_console;
 #endif
 	int		c;
@@ -4050,7 +4050,7 @@ skipwhite:
 	if (c == '\"')
 	{
 		data++;
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 		if (dpcompat_console.ival)
 		{
 			while (1)
@@ -4346,7 +4346,7 @@ skipwhite:
 //maximum expansion is strlen(string)*2+4 (includes null terminator)
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	extern cvar_t dpcompat_console;
 #else
 	static const cvar_t dpcompat_console = {0};
@@ -5817,7 +5817,7 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
-#if !defined(NOLEGACY)
+#ifdef HAVE_LEGACY
 	Cvar_Register (&ezcompat_markup, NULL);
 #endif
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
@@ -5958,7 +5958,7 @@ void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
 /*remaps map checksums from known non-cheat GPL maps to authentic id1 maps.*/
 unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 {
-#ifndef NOLEGACY
+#ifdef HAVE_LEGACY
 	static const struct {
 		const char *name;
 		unsigned int gpl2;

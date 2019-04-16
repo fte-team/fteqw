@@ -5,13 +5,14 @@ import android.view.MotionEvent;
 import android.view.InputDevice;
 import android.view.WindowManager;
 
-public class FTENativeActivity extends android.app.Activity
+public class FTENativeActivity extends android.app.NativeActivity
 {
 	private static native void keypress(int devid, boolean down, int androidkey, int unicode);
 	private static native void mousepress(int devid, int buttonbits);
 	private static native void motion(int devid, int action, float x, float y, float z, float size);
 	private static native boolean wantrelative();
 	private static native void axis(int devid, int axisid, float value);
+//	private static native void oncreate(String basedir, byte[] savedstate);
 	static
 	{
 		System.loadLibrary("ftedroid");
@@ -134,8 +135,7 @@ public class FTENativeActivity extends android.app.Activity
 	@Override
 	protected void onCreate(android.os.Bundle savedInstanceState)
 	{
-		mIMM = getSystemService(InputMethodManager.class);
-		getWindow().takeSurface(this);
+/*		getWindow().takeSurface(this);
 		getWindow().setFormat(PixelFormat.RGB_565);
 		getWindow().setSoftInputMode(
 				WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
@@ -148,18 +148,18 @@ public class FTENativeActivity extends android.app.Activity
 
 		byte[] nativeSavedState = savedInstanceState != null
 			? savedInstanceState.getByteArray(KEY_NATIVE_SAVED_STATE) : null;
-		mNativeHandle = loadNativeCode(path, funcname, Looper.myQueue(),
+		mNativeHandle = oncreate(
 				getAbsolutePath(getFilesDir()), getAbsolutePath(getObbDir()),
 				getAbsolutePath(getExternalFilesDir(null)),
-				Build.VERSION.SDK_INT, getAssets(), nativeSavedState,
-				classLoader, classLoader.getLdLibraryPath());
-
+				Build.VERSION.SDK_INT, getAssets(), nativeSavedState);
+*/
 		super.onCreate(savedInstanceState);
+		//Needed because the InputQueue stuff blocks dispatchKeyEvent
+		getWindow().takeInputQueue(null);
 	}
-
 	@Override
 	public boolean dispatchKeyEvent(KeyEvent event)
-	{
+	{	//needed because AKeyEvent_getUnicode is missing completely.
 		int act = event.getAction();
 		if (act == KeyEvent.ACTION_DOWN)
 		{

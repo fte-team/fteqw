@@ -975,7 +975,7 @@ MINGL_EXE_NAME=../$(EXE_NAME)-mingl$(FTE_FULLTARGET)
 MB_DIR=m_$(FTE_FULLTARGET)
 M_EXE_NAME=../$(EXE_NAME)-$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
-M_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
+M_CFLAGS=-DFTE_SDL $(VKCFLAGS) $(GLCFLAGS) `$(SDLCONFIG) --cflags`
 
 QCC_DIR=qcc$(BITS)
 
@@ -2099,7 +2099,7 @@ web-dbg:
 
 #makes an ant project for us
 droid/build.xml:
-	-cd droid && PATH=$$PATH:$(realpath $(ANDROID_HOME)/tools):$(realpath $(ANDROID_NDK_ROOT)) $(ANDROID_SCRIPT) update project -t android-8 -p . -n FTEDroid
+	-cd droid && PATH=$$PATH:$(realpath $(ANDROID_HOME)/tools):$(realpath $(ANDROID_NDK_ROOT)) $(ANDROID_SCRIPT) update project -t android-9 -p . -n FTEDroid
 
 #build FTE as a library, then build the java+package (release)
 droid/ftekeystore:

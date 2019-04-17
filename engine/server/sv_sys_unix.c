@@ -340,14 +340,18 @@ void Sys_Printf (char *fmt, ...)
 			wchar_t w;
 			conchar_t *e, *c;
 			conchar_t ctext[MAXPRINTMSG];
+			unsigned int codeflags, codepoint;
 			e = COM_ParseFunString(CON_WHITEMASK, msg, ctext, sizeof(ctext), false);
-			for (c = ctext; c < e; c++)
+			for (c = ctext; c < e; )
 			{
-				if (*c & CON_HIDDEN)
+				c = Font_Decode(c, &codeflags, &codepoint);
+				if (codeflags & CON_HIDDEN)
 					continue;
 
+				if (codepoint == '\n' && (codeflags&CON_NONCLEARBG))
+					codeflags &= CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
 				ApplyColour(*c);
-				w = *c & 0x0ffff;
+				w = codepoint;
 				if (w >= 0xe000 && w < 0xe100)
 				{
 					/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/

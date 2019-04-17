@@ -1098,7 +1098,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		(strstr(gl_renderer, " Mesa ") || strstr(gl_version, " Mesa ")) && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 	{
 		gl_config.blacklist_invariant = true;
-		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword. This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it (but you will probably get glsl compilation errors from your driver).\n");
+		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword."CON_DEFAULT" This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it (but you will probably get glsl compilation errors from your driver).\n");
 	}
 
 	if (gl_config.arb_shader_objects)

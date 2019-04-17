@@ -63,14 +63,140 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	return false;
 }
 
-//print into stdout
+static void ApplyColour(unsigned int chrflags)
+{
+//on win32, SDL usually redirected stdout to a file (as it won't get printed anyway.
+//win32 doesn't do ascii escapes, and text editors like to show the gibberish too, so just don't bother emitting any.
+#ifndef _WIN32
+	static const int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+	static int oldflags = CON_WHITEMASK;
+	int bg, fg;
+
+	if (oldflags == chrflags)
+		return;
+	oldflags = chrflags;
+
+	printf("\e[0;"); // reset
+
+	if (chrflags & CON_BLINKTEXT)
+		printf("5;"); // set blink
+
+	bg = (chrflags & CON_BGMASK) >> CON_BGSHIFT;
+	fg = (chrflags & CON_FGMASK) >> CON_FGSHIFT;
+
+	// don't handle intensive bit for background
+	// as terminals differ too much in displaying \e[1;7;3?m
+	bg &= 0x7;
+
+	if (chrflags & CON_NONCLEARBG)
+	{
+		if (fg & 0x8) // intensive bit set for foreground
+		{
+			printf("1;"); // set bold/intensity ansi flag
+			fg &= 0x7; // strip intensive bit
+		}
+
+		// set foreground and background colors
+		printf("3%i;4%im", ansiremap[fg], ansiremap[bg]);
+	}
+	else
+	{
+		switch(fg)
+		{
+		//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
+		case COLOR_BLACK:
+			printf("7m"); // set inverse
+			break;
+		case COLOR_GREY:
+			printf("1;30m"); // treat as dark grey
+			break;
+		case COLOR_WHITE:
+			printf("m"); // set nothing else
+			break;
+		default:
+			if (fg & 0x8) // intensive bit set for foreground
+			{
+				printf("1;"); // set bold/intensity ansi flag
+				fg &= 0x7; // strip intensive bit
+			}
+
+			printf("3%im", ansiremap[fg]); // set foreground
+			break;
+		}
+	}
+#endif
+}
+//#include <wchar.h>
 void Sys_Printf (char *fmt, ...)
 {
-	va_list		argptr;	
-		
+	va_list		argptr;
+	char		text[2048];
+	conchar_t	ctext[2048];
+	conchar_t       *c, *e;
+	wchar_t		w;
+	unsigned int codeflags, codepoint;
+
+//	if (nostdout)
+//		return;
+
 	va_start (argptr,fmt);
-	vprintf (fmt,argptr);
+	vsnprintf (text,sizeof(text)-1, fmt,argptr);
 	va_end (argptr);
+
+	if (strlen(text) > sizeof(text))
+		Sys_Error("memory overwrite in Sys_Printf");
+
+	e = COM_ParseFunString(CON_WHITEMASK, text, ctext, sizeof(ctext), false);
+
+	for (c = ctext; c < e; )
+	{
+		c = Font_Decode(c, &codeflags, &codepoint);
+		if (codeflags & CON_HIDDEN)
+			continue;
+
+		if (codepoint == '\n' && (codeflags&CON_NONCLEARBG))
+			codeflags &= CON_WHITEMASK;
+		ApplyColour(codeflags);
+		w = codepoint;
+		if (w >= 0xe000 && w < 0xe100)
+		{
+			/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
+			if ((w & 0x7f) > 0x20)
+				putc(w&0x7f, stdout);
+			else if (w & 0x80)
+			{
+				static char tab[32] = "---#@.@@@@ # >.." "[]0123456789.---";
+				putc(tab[w&31], stdout);
+			}
+			else
+			{
+				static char tab[32] = ".####.#### # >.." "[]0123456789.---";
+				putc(tab[w&31], stdout);
+			}
+		}
+		else if (w < ' ' && w != '\t' && w != '\r' && w != '\n')
+			putc('?', stdout);	//don't let anyone print escape codes or other things that could crash an xterm.
+		else
+		{
+			/*putwc doesn't like me. force it in utf8*/
+			if (w >= 0x80)
+			{
+				if (w > 0x800)
+				{
+					putc(0xe0 | ((w>>12)&0x0f), stdout);
+					putc(0x80 | ((w>>6)&0x3f), stdout);
+				}
+				else
+					putc(0xc0 | ((w>>6)&0x1f), stdout);
+				putc(0x80 | (w&0x3f), stdout);
+			}
+			else
+				putc(w, stdout);
+		}
+	}
+
+	ApplyColour(CON_WHITEMASK);
+	fflush(stdout);
 }
 
 unsigned int Sys_Milliseconds(void)

@@ -158,8 +158,10 @@ cvar_t snd_voip_play			= CVARAFCD("cl_voip_play", "1", NULL, CVAR_ARCHIVE, S_Voi
 cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_micamp			= CVARAFD("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.");
 cvar_t snd_voip_codec			= CVARAFD("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32). 6: pcma. 7: pcmu.");
+#ifdef HAVE_SPEEX
 cvar_t snd_voip_noisefilter		= CVARAFD("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.");
 cvar_t snd_voip_autogain		= CVARAFD("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.");
+#endif
 cvar_t snd_voip_bitrate			= CVARAFD("cl_voip_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.");
 #endif
 
@@ -700,17 +702,21 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			//make sure old state is closed properly.
 			switch(s_voip.deccodec[sender])
 			{
+#ifdef HAVE_SPEEX
 			case VOIP_SPEEX_OLD:
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
 			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_decoder_destroy(s_voip.decoder[sender]);
 				break;
+#endif
 			case VOIP_RAW16:
 				break;
+#ifdef HAVE_OPUS
 			case VOIP_OPUS:
 				qopus_decoder_destroy(s_voip.decoder[sender]);
 				break;
+#endif
 			}
 			s_voip.decoder[sender] = NULL;
 			s_voip.deccodec[sender] = VOIP_INVALID;
@@ -728,6 +734,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			s_voip.decsamplerate[sender] = 8000;
 			s_voip.decframesize[sender] = 8000/20;
 			break;
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
@@ -772,6 +779,8 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 					qspeex_bits_reset(&s_voip.speex.decbits[sender]);
 			}
 			break;
+#endif
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			if (!S_Opus_Init())
 				return;
@@ -799,6 +808,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			else
 				qopus_decoder_ctl(s_voip.decoder[sender], OPUS_RESET_STATE);
 			break;
+#endif
 		}
 		s_voip.deccodec[sender] = codec;
 		s_voip.decgen[sender] = gen;
@@ -824,6 +834,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		case VOIP_PCMA:
 		case VOIP_PCMU:
 			break;
+#ifdef HAVE_SPEEX
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
@@ -831,11 +842,14 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			qspeex_decode_int(s_voip.decoder[sender], NULL, decodebuf + decodesamps);
 			decodesamps += s_voip.decframesize[sender];
 			break;
+#endif
+#ifdef HAVE_OPUS
 		case VOIP_OPUS:
 			r = qopus_decode(s_voip.decoder[sender], NULL, 0, decodebuf + decodesamps, min(s_voip.decframesize[sender], sizeof(decodebuf)/sizeof(decodebuf[0]) - decodesamps), false);
 			if (r > 0)
 				decodesamps += r;
 			break;
+#endif
 		}
 		s_voip.decseq[sender]++;
 	}
@@ -973,16 +987,20 @@ qboolean S_Voip_RTP_CodecOkay(const char *codec)
 {
 	switch(S_Voip_NameToId(codec))
 	{
+#ifdef HAVE_SPEEX
 	case VOIP_SPEEX_NARROW:
 	case VOIP_SPEEX_OLD:
 	case VOIP_SPEEX_WIDE:
 	case VOIP_SPEEX_ULTRAWIDE:
 		return S_Speex_Init();
+#endif
 	case VOIP_PCMA:
 	case VOIP_PCMU:
 		return true;
+#ifdef HAVE_OPUS
 	case VOIP_OPUS:
 		return S_Opus_Init();
+#endif
 	default:
 		return false;
 	}
@@ -1034,8 +1052,10 @@ static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
 	int framesize = s_voip.encframesize;
 	while(samples >= framesize)
 	{
+#ifdef HAVE_SPEEX
 		if (s_voip.speexdsp.preproc)
 			qspeex_preprocess_run(s_voip.speexdsp.preproc, start);
+#endif
 		for (i = 0; i < framesize; i++)
 		{
 			f = start[i] * micamp;
@@ -1317,17 +1337,21 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			//reset codecs so they start with a clean slate when new audio blocks are generated.
 			switch(s_voip.enccodec)
 			{
+#ifdef HAVE_SPEEX
 			case VOIP_SPEEX_OLD:
 			case VOIP_SPEEX_NARROW:
 			case VOIP_SPEEX_WIDE:
 			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_bits_reset(&s_voip.speex.encbits);
 				break;
+#endif
 			case VOIP_RAW16:
 				break;
+#ifdef HAVE_OPUS
 			case VOIP_OPUS:
 				qopus_encoder_ctl(s_voip.encoder, OPUS_RESET_STATE);
 				break;
+#endif
 			}
 		}
 		else
@@ -1360,6 +1384,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	{
 		start = (short*)(s_voip.capturebuf + encpos);
 
+#ifdef HAVE_SPEEX
 		if (snd_voip_noisefilter.ival || snd_voip_autogain.ival)
 		{
 			if (!s_voip.speexdsp.preproc || snd_voip_noisefilter.modified || snd_voip_noisefilter.modified || s_voip.speexdsp.curframesize != s_voip.encframesize || s_voip.speexdsp.cursamplerate != s_voip.encsamplerate)
@@ -1386,6 +1411,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			qspeex_preprocess_state_destroy(s_voip.speexdsp.preproc);
 			s_voip.speexdsp.preproc = NULL;
 		}
+#endif
 
 		switch(s_voip.enccodec)
 		{
@@ -1630,12 +1656,17 @@ static void S_Voip_Disable_f(void)
 }
 static void S_Voip_f(void)
 {
-	int i;
+#ifdef HAVE_SPEEX
 	if (!strcmp(Cmd_Argv(1), "maxgain"))
 	{
-		i = atoi(Cmd_Argv(2));
+		int i = atoi(Cmd_Argv(2));
 		if (s_voip.speexdsp.preproc)
 			qspeex_preprocess_ctl(s_voip.speexdsp.preproc, SPEEX_PREPROCESS_SET_AGC_MAX_GAIN, &i);
+	}
+	else
+#endif
+	{
+		Con_Printf("unrecognised parameter \"%s\"\n", Cmd_Argv(1));
 	}
 }
 static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval)
@@ -1695,8 +1726,10 @@ void S_Voip_Init(void)
 	Cvar_Register(&snd_voip_ducking,		"Voice Chat");
 	Cvar_Register(&snd_voip_micamp,		"Voice Chat");
 	Cvar_Register(&snd_voip_codec,		"Voice Chat");
+#ifdef HAVE_SPEEX
 	Cvar_Register(&snd_voip_noisefilter,		"Voice Chat");
 	Cvar_Register(&snd_voip_autogain,		"Voice Chat");
+#endif
 	Cvar_Register(&snd_voip_bitrate,		"Voice Chat");
 	Cmd_AddCommand("+voip", S_Voip_Enable_f);
 	Cmd_AddCommand("-voip", S_Voip_Disable_f);

@@ -587,7 +587,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 {
 	callback(ctx, SDL_GetClipboardText());
 }
-void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
 	SDL_SetClipboardText(text);
 }
@@ -597,7 +597,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 {
 	callback(ctx, clipboard_buffer);
 }
-void Sys_SaveClipboard(clipboardtype_t cbt, char *text)
+void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
 	free(clipboard_buffer);
 	clipboard_buffer = strdup(text);
@@ -726,6 +726,12 @@ void Sys_Sleep (double seconds)
 	SDL_Delay(seconds * 1000);
 }
 
+#ifdef WEBCLIENT
+qboolean Sys_RunInstaller(void)
+{       //not implemented
+    return false;
+}
+#endif
 
 #ifdef HAVEAUTOUPDATE
 //legacy, so old build can still deal with updates properly

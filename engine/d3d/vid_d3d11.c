@@ -183,7 +183,7 @@ void D3D11_ApplyRenderTargets(qboolean usedepth)
 		if (*r_refdef.rt_depth.texname)
 			depth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
 		else
-			depth = R2D_RT_Configure("depth", width, height, TF_DEPTH24, RT_IMAGEFLAGS);
+			depth = R2D_RT_Configure("depth", width, height, PTI_DEPTH24, RT_IMAGEFLAGS);
 	}
 	else
 		depth = NULL;

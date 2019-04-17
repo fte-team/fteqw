@@ -85,18 +85,20 @@ static cvar_t	joy_advaxis[6] =
 };
 static cvar_t	joy_advaxisscale[6] =
 {
-	CVARD("joyadvaxisx_scale", "1.0", "Because joyadvaxisx etc can be added together, this provides a way to rescale or invert an individual axis without affecting another with the same action."),
-	CVAR("joyadvaxisy_scale", "1.0"),
-	CVAR("joyadvaxisz_scale", "1.0"),
-	CVAR("joyadvaxisr_scale", "1.0"),
-	CVAR("joyadvaxisu_scale", "1.0"),
-	CVAR("joyadvaxisv_scale", "1.0")
+#define ADVAXISSCALEDESC "Because joyadvaxisx etc can be added together, this provides a way to rescale or invert an individual axis without affecting another with the same action."
+	CVARD("joyadvaxisx_scale", "1.0", ADVAXISSCALEDESC),
+	CVARD("joyadvaxisy_scale", "1.0", ADVAXISSCALEDESC),
+	CVARD("joyadvaxisz_scale", "1.0", ADVAXISSCALEDESC),
+	CVARD("joyadvaxisr_scale", "1.0", ADVAXISSCALEDESC),
+	CVARD("joyadvaxisu_scale", "1.0", ADVAXISSCALEDESC),
+	CVARD("joyadvaxisv_scale", "1.0", ADVAXISSCALEDESC)
 };
 static cvar_t	joy_anglesens[3] =
 {
-	CVARD("joypitchsensitivity", "0.5", "Scaler value for the controller when it is at its most extreme value"),
-	CVAR("joyyawsensitivity", "-1.0"),
-	CVAR("joyrollsensitivity", "1.0")
+#define ANGLESENSDESC "Scaler value for the controller when it is at its most extreme value"
+	CVARD("joypitchsensitivity", "0.5", ANGLESENSDESC),
+	CVARD("joyyawsensitivity", "-1.0", ANGLESENSDESC),
+	CVARD("joyrollsensitivity", "1.0", ANGLESENSDESC)
 };
 static cvar_t	joy_movesens[3] =
 {
@@ -107,9 +109,10 @@ static cvar_t	joy_movesens[3] =
 //comments on threshholds comes from microsoft's xinput docs.
 static cvar_t	joy_anglethreshold[3] =
 {
-	CVARD("joypitchthreshold", "0.19", "Values reported near the center of the analog joystick/controller are often erroneous and undesired.\nThe joystick threshholds are how much of the total values to ignore."),	//8689/32767 (right thumb)
-	CVAR("joyyawthreshold", "0.19"),	//8689/32767 (right thumb)
-	CVAR("joyrollthreshold", "0.118"),	//30/255	 (trigger)
+#define ANGLETHRESHOLDDESC "Values reported near the center of the analog joystick/controller are often erroneous and undesired.\nThe joystick threshholds are how much of the total values to ignore."
+	CVARD("joypitchthreshold", "0.19", ANGLETHRESHOLDDESC),	//8689/32767 (right thumb)
+	CVARD("joyyawthreshold", "0.19", ANGLETHRESHOLDDESC),	//8689/32767 (right thumb)
+	CVARD("joyrollthreshold", "0.118", ANGLETHRESHOLDDESC),	//30/255	 (trigger)
 };
 static cvar_t	joy_movethreshold[3] =
 {

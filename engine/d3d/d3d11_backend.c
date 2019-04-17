@@ -3551,10 +3551,10 @@ void D3D11BE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, i
 }
 
 #ifdef RTLIGHTS
-void D3D11BE_BaseEntTextures(void)
+void D3D11BE_BaseEntTextures(qbyte *worldpvs)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, worldpvs);
 	D3D11BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	BE_SelectEntity(&r_worldentity);
 }
@@ -3673,7 +3673,7 @@ void D3D11BE_DrawWorld (batch_t **worldbatches)
 	D3D11BE_SetupViewCBuffer();
 
 	shaderstate.curdlight = NULL;
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
 
 	if (r_refdef.scenevis)
 	{

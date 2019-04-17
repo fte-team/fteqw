@@ -16,14 +16,17 @@
 #error ANDROID wasnt defined
 #endif
 
+#if 0
+//FIXME: remove the nativeactivity shit. android's standard NativeActivity class is buggy and basically fucked.
 #include <android/keycodes.h>
 #include <android/native_window_jni.h>
-//NOTE: This is apache 2.0, which means GPL3.0+ ONLY, no gpl2.
-//#include <../../../../../sources/android/native_app_glue/android_native_app_glue.h>	//Fucking frameworks suck big hairy donkey balls.
-//JNIEXPORT void ANativeActivity_onCreate(ANativeActivity* activity, void* savedState, size_t savedStateSize);
-//#include <../../../../../sources/android/native_app_glue/android_native_app_glue.c>	//Fucking frameworks suck big hairy donkey balls.
-//FIXME: remove that shit. android's standard NativeActivity class is buggy and basically fucked.
 // ANativeWindow_fromSurface((jobject)getSurfaceHolder().getSurface())
+#else
+//NOTE: This is apache 2.0, which means GPL3.0+ ONLY, no gpl2.
+#include <../../../../../sources/android/native_app_glue/android_native_app_glue.h>	//Fucking frameworks suck big hairy donkey balls.
+JNIEXPORT void ANativeActivity_onCreate(ANativeActivity* activity, void* savedState, size_t savedStateSize);
+#include <../../../../../sources/android/native_app_glue/android_native_app_glue.c>	//Fucking frameworks suck big hairy donkey balls.
+#endif
 
 #ifndef isDedicated
 #ifdef SERVERONLY

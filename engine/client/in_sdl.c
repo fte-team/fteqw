@@ -868,7 +868,7 @@ void Sys_SendKeyEvents(void)
 			{
 				unsigned int uc;
 				int err;
-				char *text = event.text.text;
+				const char *text = event.text.text;
 				while(*text)
 				{
 					uc = utf8_decode(&err, text, &text);

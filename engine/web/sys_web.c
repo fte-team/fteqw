@@ -103,6 +103,9 @@ qboolean Sys_remove (const char *path)
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return emscriptenfte_buf_rename(oldfname, newfname);
+}
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
+{	//not implemented. we could try querying local storage quotas, but our filesystem is otherwise purely ram so doesn't have much of a limit in 64bit browsers. hurrah for swap space.
 	return false;
 }
 

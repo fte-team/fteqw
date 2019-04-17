@@ -4245,11 +4245,16 @@ void CL_FTP_f(void)
 //fixme: make a cvar
 void CL_Fog_f(void)
 {
-	int ftype = Q_strcasecmp(Cmd_Argv(0), "fog");
+	int ftype;
+	if (!Q_strcasecmp(Cmd_Argv(0), "waterfog"))
+		ftype = 1;
+	else //fog
+		ftype = 0;
 	if ((cl.fog_locked && !Cmd_FromGamecode() && !cls.allow_cheats) || Cmd_Argc() <= 1)
 	{
+		static const char *fognames[]={"fog","waterfog"};
 		if (Cmd_ExecLevel != RESTRICT_INSECURE)
-			Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
+			Con_Printf("Current %s %f (r:%f g:%f b:%f, a:%f bias:%f)\n", fognames[ftype], cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
 	}
 	else
 	{
@@ -4297,6 +4302,29 @@ void CL_Fog_f(void)
 			cl.fog_locked = !!cl.fog[ftype].density;
 	}
 }
+
+#ifdef _DEBUG
+void CL_FreeSpace_f(void)
+{
+	quint64_t freespace;
+	const char *freepath = Cmd_Argv(1);
+	if (Sys_GetFreeDiskSpace(freepath, &freespace))
+	{
+		if (freespace > 512.0*1024*1024*1024)
+			Con_Printf("%s: %g tb available\n", freepath, freespace/(1024.0*1024*1024*1024));
+		else if (freespace > 512.0*1024*1024)
+			Con_Printf("%s: %g gb available\n", freepath, freespace/(1024.0*1024*1024));
+		else if (freespace > 512.0*1024)
+			Con_Printf("%s: %g mb available\n", freepath, freespace/(1024.0*1024));
+		else if (freespace > 512.0)
+			Con_Printf("%s: %g kb available\n", freepath, freespace/1024.0);
+		else
+			Con_Printf("%s: %"PRIu64" bytes available\n", freepath, freespace);
+	}
+	else
+		Con_Printf("%s: disk free not queryable\n", freepath);
+}
+#endif
 
 void CL_CrashMeEndgame_f(void)
 {
@@ -4663,6 +4691,9 @@ void CL_Init (void)
 	Cmd_AddCommandD ("demo_jump", CL_DemoJump_f, "Jump to a specified time in a demo. Prefix with a + or - for a relative offset. Seeking backwards will restart the demo and the fast forward, which can take some time in long demos.");
 	Cmd_AddCommandD ("demo_nudge", CL_DemoNudge_f, "Nudge the demo by one frame. Argument should be +1 or -1. Nudging backwards is limited.");
 	Cmd_AddCommandAD ("timedemo", CL_TimeDemo_f, CL_DemoList_c, NULL);
+#ifdef _DEBUG
+	Cmd_AddCommand ("freespace", CL_FreeSpace_f);
+#endif
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 	Cmd_AddCommand ("crashme_error", CL_CrashMeError_f);
 

@@ -682,3 +682,17 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_
 	return &np->pub;
 }
 #endif
+
+
+
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
+{	//symlinks means the path needs to be fairly full. it may also be a file, and relative to the working directory.
+	wchar_t ffs[MAX_OSPATH];
+	ULARGE_INTEGER freebytes;
+	if (GetDiskFreeSpaceExW(widen(ffs, sizeof(ffs), path), &freebytes, NULL, NULL))
+	{
+		*freespace = freebytes.QuadPart;
+		return true;
+	}
+	return false;
+}

@@ -287,6 +287,23 @@ qboolean Sys_Rename (const char *oldfname, const char *newfname)
 	return !rename(oldfname, newfname);
 }
 
+#if _POSIX_C_SOURCE >= 200112L
+	#include <sys/statvfs.h>
+#endif
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
+{
+#if _POSIX_C_SOURCE >= 200112L
+	//posix 2001
+	struct statvfs inf;
+	if(0==statvfs(path, &inf))
+	{
+		*freespace = inf.f_bsize*(quint64_t)inf.f_bavail;
+		return true;
+	}
+#endif
+	return false;
+}
+
 //someone used the 'quit' command
 void Sys_Quit (void)
 {

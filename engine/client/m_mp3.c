@@ -21,17 +21,6 @@
 	#define HAVE_API_VFW
 #endif
 
-#ifdef HAVE_MEDIA_ENCODER
-	#if defined(__linux__) && !defined(ANDROID)
-		//should really include posix 2001 systems in general
-		#define HAVE_STATVFS
-	#endif
-	#ifdef HAVE_STATVFS
-		#include <sys/statvfs.h>
-	#endif
-#endif
-
-
 #ifdef _WIN32
 	#include "winquake.h"
 #endif
@@ -2999,27 +2988,16 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	{
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
-		*COM_SkipPath(base) = 0;
 		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
-			#ifdef HAVE_STATVFS
-				//posix 2001
-				struct statvfs inf;
-				if(0==statvfs(filename, &inf))
-				{
-					if (inf.f_frsize*(double)inf.f_blocks < (1024.*1024)*capturethrottlesize.value)
-						Sys_Sleep(1);
-				}
-			#elif defined(_WIN32) && !defined(FTE_SDL)
-				wchar_t ffs[MAX_OSPATH];
-				ULARGE_INTEGER freebytes;
-				if (GetDiskFreeSpaceExW(widen(ffs, sizeof(ffs), filename), &freebytes, NULL, NULL))
-					if (freebytes.QuadPart < (ULONGLONG)(1024*1024)*capturethrottlesize.value)
-						Sys_Sleep(1);
-			#else
-				Con_Printf("capturethrottlesize is unsupported in this build\n");
-				capturethrottlesize.ival = 0;
-			#endif
+			quint64_t diskfree = 0;
+			if (Sys_GetFreeDiskSpace(filename, &diskfree) && diskfree < (quint64_t)1024*1024*capturethrottlesize.value)
+				Sys_Sleep(1);	//throttle
+			else
+			{
+				Con_Printf("%s: unable to query free disk space. Disabling\n", capturethrottlesize.name);
+				capturethrottlesize.ival = capturethrottlesize.value = 0;
+			}
 		}
 	}
 }

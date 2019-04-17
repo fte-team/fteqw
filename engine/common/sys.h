@@ -28,6 +28,7 @@ void Sys_mkdir (const char *path);	//not all pre-unix systems have directories (
 qboolean Sys_rmdir (const char *path);
 qboolean Sys_remove (const char *path);
 qboolean Sys_Rename (const char *oldfname, const char *newfname);
+qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace);	//false for not-implemented or other error. path will be a system path, but may be relative (if basedir isn't properly known). path MAY be a file, or may be a slash-terminated directory.
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts);
 
 //

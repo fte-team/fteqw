@@ -1907,7 +1907,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		Con_SafePrintf("WGL_EXTENSIONS: %s\n", wgl_extensions?wgl_extensions:"NONE");
 
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
-#if 1//def _DEBUG
+
 	//attempt to promote that to opengl3.
 	if (qwglCreateContextAttribsARB)
 	{
@@ -2020,7 +2020,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			}
 		}
 	}
-#endif
 
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 	qwglGetPixelFormatAttribfvARB = getglfunc("wglGetPixelFormatAttribfvARB");

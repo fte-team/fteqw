@@ -260,7 +260,7 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 }
 
 //d3d8 is all sampler state
-void D3D8_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+void D3D8_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 	int i;
 	memcpy(shaderstate.mipfilter, filtermip, sizeof(shaderstate.mipfilter));
@@ -3309,7 +3309,7 @@ void D3D8BE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, in
 void D3D8BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, r_refdef.scenevis);
 	D3D8BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	BE_SelectEntity(&r_worldentity);
 }
@@ -3361,7 +3361,7 @@ void D3D8BE_DrawWorld (batch_t **worldbatches)
 	}
 
 	shaderstate.curdlight = NULL;
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
 
 	if (worldbatches)
 	{

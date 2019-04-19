@@ -30,7 +30,7 @@ void SW_DestroyTexture(texid_t tex)
 
 
 
-void		SW_UpdateFiltering		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+void		SW_UpdateFiltering		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 	//always nearest...
 }

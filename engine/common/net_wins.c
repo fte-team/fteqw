@@ -3369,7 +3369,7 @@ neterr_t FTENET_Datagram_SendPacket(ftenet_generic_connection_t *con, int length
 		if (ecode == NET_EMSGSIZE)
 			return NETERR_MTU;
 
-		if (ecode == EADDRNOTAVAIL)
+		if (ecode == NET_EADDRNOTAVAIL)
 			return NETERR_NOROUTE;	//this interface doesn't actually support that (eg: happens when ipv6 is disabled on a specific interface).
 
 		if (ecode == NET_EACCES)

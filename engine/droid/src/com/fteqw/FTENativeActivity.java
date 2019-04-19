@@ -153,6 +153,15 @@ public class FTENativeActivity extends android.app.NativeActivity
 				getAbsolutePath(getExternalFilesDir(null)),
 				Build.VERSION.SDK_INT, getAssets(), nativeSavedState);
 */
+//		if (Build.VERSION.SDK_INT >= 19)
+//		{
+//			int flags = 0;
+//			flags |= 4096/*SYSTEM_UI_FLAG_IMMERSIVE_STICKY, api 19*/;
+//			flags |= 4/*SYSTEM_UI_FLAG_FULLSCREEN, api 16*/;
+//			flags |= 2/*SYSTEM_UI_FLAG_HIDE_NAVIGATION, api 14*/;			
+//			mNativeContentView.setSystemUiVisibility(flags); /*api 11*/
+//		}
+
 		super.onCreate(savedInstanceState);
 		//Needed because the InputQueue stuff blocks dispatchKeyEvent
 		getWindow().takeInputQueue(null);

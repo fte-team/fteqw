@@ -184,6 +184,10 @@ void R_NetGraph (void)
 	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_texels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 #else
+	Vector2Set(p[2], 0,0);
+	Vector2Set(p[3], 0,0);
+	Vector4Set(rgba[2], 0,0,0,0);
+	Vector4Set(rgba[3], 0,0,0,0);
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
 		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);
@@ -234,6 +238,10 @@ void R_FrameTimeGraph (float frametime)
 	x=8;
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 #else
+	Vector2Set(p[2], 0,0);
+	Vector2Set(p[3], 0,0);
+	Vector4Set(rgba[2], 0,0,0,0);
+	Vector4Set(rgba[3], 0,0,0,0);
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
 		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);

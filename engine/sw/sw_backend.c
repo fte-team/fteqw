@@ -633,7 +633,7 @@ void SWBE_DrawWorld(batch_t **worldbatches)
 
 		shaderstate.wbatch = 0;
 	}
-	BE_GenModelBatches(batches, NULL, shaderstate.mode);
+	BE_GenModelBatches(batches, NULL, shaderstate.mode, r_refdef.scenevis);
 //	R_GenDlightBatches(batches);
 
 	shaderstate.curentity = NULL;

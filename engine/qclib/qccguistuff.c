@@ -5,6 +5,12 @@
 #include <unistd.h>
 #endif
 
+#if defined(_WIN32) || defined(__DJGPP__)
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 //common gui things
 
 pbool fl_nondfltopts;

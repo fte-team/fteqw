@@ -728,8 +728,11 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	//FIXME: this should be part of sv_new_f or something instead, so that any angles sent by clients won't be invalid
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
-		svs.clients[i].datagram.prim = svs.netprim;
-		svs.clients[i].netchan.message.prim = svs.netprim;
+		svs.clients[i].netchan.netprim = svs.netprim;
+
+		//make sure those are kept up to date too.
+		svs.clients[i].datagram.prim =
+		svs.clients[i].netchan.message.prim = svs.clients[i].netchan.netprim;
 	}
 
 	//

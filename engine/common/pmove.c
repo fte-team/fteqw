@@ -1223,12 +1223,24 @@ static void PM_NudgePosition (void)
 	int		i;
 	static float	sign[5] = {0, -1/8.0, 1/8.0, -2/8.0, 2/8.0};
 
-	VectorCopy (pmove.origin, base);
-
-	if (movevars.coordsize) for (i=0 ; i<3 ; i++)
-		base[i] = MSG_FromCoord(MSG_ToCoord(base[i], movevars.coordsize), movevars.coordsize);	//higher precision or at least with more accurate rounding
+	//really we want to just use this here
+	//base[i] = MSG_FromCoord(MSG_ToCoord(pmove.origin[i], movevars.coordsize), movevars.coordsize);
+	//but it has overflow issues, so do things the painful way instead.
+	//this stuff is so annoying because we're trying to avoid biasing the position towards 0. you'll see the effects of that if you use a low forwardspeed or low sv_gamespeed etc, but its also noticable with default settings too.
+	if (movevars.coordsize == 4)	//float precision on the network. no need to truncate.
+		VectorCopy (pmove.origin, base);
+	else if (movevars.coordsize)	//1/8th precision, but don't truncate because that screws everything up.
+	{
+		for (i=0 ; i<3 ; i++)
+		{
+			if (pmove.origin[i] >= 0)
+				base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+			else
+				base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+		}
+	}
 	else for (i=0 ; i<3 ; i++)
-		base[i] = ((int) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
+		base[i] = ((qintptr_t) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
 
 //	VectorCopy (base, pmove.origin);
 

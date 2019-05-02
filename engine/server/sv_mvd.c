@@ -2433,7 +2433,7 @@ void SV_MVDList_f (void)
 	Con_Printf("content of %s/*.mvd\n", sv_demoDir.string);
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list->name[0])
+	if (!dir->numfiles)
 	{
 		Con_Printf("no demos\n");
 	}
@@ -2485,7 +2485,7 @@ void SV_UserCmdMVDList_f (void)
 	SV_ClientPrintf(host_client, PRINT_HIGH, "available demos:\n");
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list->name[0])
+	if (!dir->numfiles)
 	{
 		SV_ClientPrintf(host_client, PRINT_HIGH, "no demos\n");
 	}
@@ -2568,7 +2568,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 	VFS_PRINTF(pipe, "available demos:<br/>\n");
 	dir = Sys_listdemos(sv_demoDir.string, true, SORT_BY_DATE);
 	list = dir->files;
-	if (!list->name[0])
+	if (!dir->numfiles)
 	{
 		VFS_PRINTF(pipe, "no demos<br/>\n");
 	}

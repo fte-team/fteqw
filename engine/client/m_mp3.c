@@ -2993,7 +2993,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 			quint64_t diskfree = 0;
 			if (Sys_GetFreeDiskSpace(filename, &diskfree))
 			{
-				Con_DLPrintf(2, "Free Space: %"PRIu64", threshhold %"PRIu64"\n", diskfree, (quint64_t)(1024*1024*capturethrottlesize.value))
+				Con_DLPrintf(2, "Free Space: %"PRIu64", threshhold %"PRIu64"\n", diskfree, (quint64_t)(1024*1024*capturethrottlesize.value));
 				if (diskfree < (quint64_t)(1024*1024*capturethrottlesize.value))
 					Sys_Sleep(1);	//throttle
 			}

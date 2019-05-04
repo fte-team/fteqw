@@ -2991,8 +2991,12 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
 			quint64_t diskfree = 0;
-			if (Sys_GetFreeDiskSpace(filename, &diskfree) && diskfree < (quint64_t)1024*1024*capturethrottlesize.value)
-				Sys_Sleep(1);	//throttle
+			if (Sys_GetFreeDiskSpace(filename, &diskfree))
+			{
+				Con_DLPrintf(2, "Free Space: %"PRIu64", threshhold %"PRIu64"\n", diskfree, (quint64_t)(1024*1024*capturethrottlesize.value))
+				if (diskfree < (quint64_t)(1024*1024*capturethrottlesize.value))
+					Sys_Sleep(1);	//throttle
+			}
 			else
 			{
 				Con_Printf("%s: unable to query free disk space. Disabling\n", capturethrottlesize.name);

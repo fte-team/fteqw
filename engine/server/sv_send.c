@@ -2808,7 +2808,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		return false;
 	}
 
-	if (host_client->num_backbuf)
+	if (client->num_backbuf)
 		return false;
 	if (client->netchan.message.cursize >= MAX_BACKBUFLEN/2)
 		return false;	//don't bother trying to send anything.
@@ -3108,6 +3108,17 @@ void SV_UpdateToReliableMessages (void)
 				break;
 		}
 	}
+
+#ifdef MVD_RECORDING
+	if (sv.mvdrecording)
+	{
+		while (demo.recorder.infosync.numkeys)
+		{
+			if (!SV_SyncInfoBuf(&demo.recorder))
+				break;
+		}
+	}
+#endif
 
 	if (sv.reliable_datagram.overflowed)
 	{

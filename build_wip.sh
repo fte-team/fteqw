@@ -158,7 +158,7 @@ if [ "$BUILD_MSVC" != "n" ]; then
 fi
 export NATIVE_PLUGINS="qi ezhud xmpp irc"
 if [ "$BUILD_ANDROID" != "n" ]; then
-	build "Android" android droid-rel
+	NATIVE_PLUGINS="$PLUGINS_DROID" build "Android" android droid-rel
 fi
 #if [ "$BUILD_WINDOWS" != "n" ]; then
 #	build "NPFTE" npfte npfte-rel

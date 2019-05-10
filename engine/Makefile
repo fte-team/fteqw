@@ -6,11 +6,14 @@ STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
 CPUOPTIMIZATIONS=
 
+COMPILE_SYS:=$(shell uname -o 2>&1)
+
 #canonicalize the source path. except emscripten warns about that like crazy. *sigh*
 ifeq ($(FTE_TARGET),web)
 	BASE_DIR:=.
 else ifeq ($(FTE_TARGET),droid)
-	BASE_DIR:=.
+	#android tools suck, but plugins need to find the engine directory.
+	BASE_DIR:=../engine
 else
 	BASE_DIR:=$(realpath .)
 endif
@@ -61,7 +64,6 @@ BULLETVER=2.87
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 PROFILE_DIR=$(BASE_DIR)/profile
-COMPILE_SYS:=$(shell uname -o 2>&1)
 NATIVE_ABSBASE_DIR:=$(realpath $(BASE_DIR))
 ifeq ($(COMPILE_SYS),Cygwin)
 	OUT_DIR?=.
@@ -2122,10 +2124,10 @@ endif
 
 droid-rel:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
-	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-rel DROID_ARCH=$a; )
+	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-rel plugins-rel DROID_ARCH=$a NATIVE_PLUGINS="$(NATIVE_PLUGINS)"; )
 	-rm -rf droid/libs
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
-	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/m_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
+	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/m_droid-$a/*.so droid/libs/$a/; )
 
 	@cd droid && $(ANT) release
 ifneq ($(DROID_PACKSU),)
@@ -2159,10 +2161,10 @@ droid-opt:
 #build FTE as a library, then build the java+package (release). also installs it onto the 'current' device.
 droid-dbg:
 	$(MAKE) FTE_TARGET=droid droid/build.xml
-	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-dbg DROID_ARCH=$a; )
+	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-dbg plugins-dbg DROID_ARCH=$a NATIVE_PLUGINS="$(NATIVE_PLUGINS)"; )
 	-rm -rf droid/libs
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
-	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/m_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
+	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/m_droid-$a/*.so droid/libs/$a/; )
 	@cd droid && $(ANT) debug #&& $(ANT) debug install
 	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 

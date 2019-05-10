@@ -37,7 +37,7 @@ TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
 TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
 
 
-
+PLUGINS_DROID="qi ezhud irc"
 PLUGINS_LINUXx86="ode qi ezhud xmpp irc"
 PLUGINS_LINUXx64="ode qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
@@ -176,6 +176,7 @@ if [ "$UID" != "0" ]; then
 	echo "PLUGINS_LINUXx64=\"$PLUGINS_LINUXx64\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx32=\"$PLUGINS_LINUXx32\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXarmhf=\"$PLUGINS_LINUXarmhf\""	>>$FTECONFIG
+	echo "PLUGINS_DROID=\"$PLUGINS_DROID\""	>>$FTECONFIG
 fi
 
 true

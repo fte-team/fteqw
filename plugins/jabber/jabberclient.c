@@ -601,7 +601,7 @@ qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)
 	}
 	return false;
 }
-#elif defined(__unix__) || defined(ANDROID) || defined(__MACH__) || defined(__linux__)
+#elif (defined(__unix__) || defined(__MACH__) || defined(__linux__)) && !defined(ANDROID)
 #include <resolv.h>
 #include <arpa/nameser.h>
 qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)

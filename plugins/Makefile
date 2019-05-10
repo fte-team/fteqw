@@ -15,6 +15,7 @@ PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
 	PLUG_LDFLAGS_DL=
 endif
 
+PLUG_PREFIX=$(OUT_DIR)/fteplug_
 PLUG_LDFLAGS_DL?=-ldl -static-libgcc
 PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lm
 PLUG_LDFLAGS_ZLIB?=-lz
@@ -64,6 +65,17 @@ ifeq ($(PLUG_NATIVE_EXT),)
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
 		PLUG_NATIVE_EXT=_ppc.so
 	endif
+endif
+ifeq ($(FTE_TARGET),droid)
+	#plugins get written to the tmp build dir, to avoid conflicts
+	PLUG_PREFIX=$(OUT_DIR)/m_droid-$(DROID_ARCH)/fteplug_
+	#don't bother with cpu arch postfixes. they'll be in separate directories anyway.
+	PLUG_NATIVE_EXT=.so
+	#libresolv has no public api on android...
+	LIBRESOLV=
+	#so we know our target.
+	PLUG_CFLAGS=-DANDROID
+	PLUG_CXXFLAGS=-DANDROID
 endif
 
 #fallback
@@ -194,9 +206,9 @@ distclean:
 	rm $(AV_BASE)$(AV_VER)-win32.zip
 	rm $(AV_BASE)$(AV_VER)-win64.zip
 
-$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(FFMPEG_ZIP)
+$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(FFMPEG_ZIP)
 
-$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
+$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
 
 #small script for ode
@@ -218,7 +230,7 @@ $(ODE_LIB): $(OUT_DIR)/../ode-$(ODE_VER).tar.gz
 	cd $(ODE_BASE)ode-$(ODE_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x --with-pic CC="$(CC) $(PLUG_CXXFLAGS)" CXX="$(CC) $(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
 
 ODE_FILES=../engine/common/com_phys_ode.c ../engine/common/mathlib.c plugin.c qvm_api.c $(ODE_LIB)
-$(OUT_DIR)/fteplug_ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
+$(PLUG_PREFIX)ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
 	$(CC) -flto -s $(BASE_CFLAGS) $(CFLAGS) -Os -DFTEPLUGIN -DODE_STATIC -o $@ -shared $(PLUG_CFLAGS) -I$(ODE_BASE)ode-$(ODE_VER)/include $(ODE_FILES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -static-libgcc `$(CC) -print-file-name=libstdc++.a` -lpthread
 #NATIVE_PLUGINS+=ode
 
@@ -243,22 +255,22 @@ $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz
 #./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
 
 
-$(OUT_DIR)/fteplug_bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.cpp plugin.c qvm_api.c $(BULLET_LIBS)
+$(PLUG_PREFIX)bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.cpp plugin.c qvm_api.c $(BULLET_LIBS)
 	$(CXX) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(BULLET_CFLAGS)
 #NATIVE_PLUGINS+=bullet
 
 
 -include Makefile.private
 
-$(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_api.c
+$(PLUG_PREFIX)mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=mpq
 
-$(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
+$(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
 NATIVE_PLUGINS+=xmpp
 
-$(OUT_DIR)/fteplug_qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c qvm_api.c
+$(PLUG_PREFIX)qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=qi
 
@@ -297,27 +309,27 @@ $(OUT_DIR)/cef_$(CEF_VER).zip: cef/$(CEF_NAME)/rel.zip
 	cp cef/$(CEF_NAME)/rel.zip $@
 
 CEF_SOURCES=cef/cef.c plugin.c qvm_api.c
-$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT): $(CEF_SOURCES) $(OUT_DIR)/cef_$(CEF_VER).zip cef/$(CEF_NAME)/include/cef_version.h
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Icef/$(CEF_NAME) $(CEF_SOURCES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
+$(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT): $(CEF_SOURCES) $(OUT_DIR)/cef_$(CEF_VER).zip cef/$(CEF_NAME)/include/cef_version.h
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Icef/$(CEF_NAME) $(CEF_SOURCES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
 #NATIVE_PLUGINS+=cef
 else
-.PHONEY: $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
-$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT):
+.PHONEY: $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT)
+$(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT):
 	echo cef plugin not supported on this arch
 endif
 
 #irc plugin can still be built as a qvm.
-$(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c qvm_api.c
+$(PLUG_PREFIX)irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=irc
 
 #for compat with ezquake
-$(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c qvm_api.c
+$(PLUG_PREFIX)ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iezhud $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=ezhud
 
-$(OUT_DIR)/fteplug_models$(PLUG_NATIVE_EXT): models/gltf.c models/models.c plugin.c qvm_api.c
+$(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/models.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 #NATIVE_PLUGINS+=models
 
-native: $(foreach FOO,$(NATIVE_PLUGINS), $(OUT_DIR)/fteplug_$(FOO)$(PLUG_NATIVE_EXT))
+native: $(foreach FOO,$(NATIVE_PLUGINS), $(PLUG_PREFIX)$(FOO)$(PLUG_NATIVE_EXT))

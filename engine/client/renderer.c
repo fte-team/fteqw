@@ -274,16 +274,8 @@ cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of colour bits to request from the renedering context");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
-#ifdef NACL
-cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
-												CVAR_ARCHIVE);
-#else
-//these cvars will be given their names when they're registered, based upon whether -plugin was used. this means code can always use vid_fullscreen without caring, but gets saved properly.
-cvar_t vid_fullscreen						= CVARAFD (NULL, "1", "vid_fullscreen",
-												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Whether to use fullscreen or not. A value of 2 specifies fullscreen windowed (aka borderless window) mode.");
-cvar_t vid_fullscreen_alternative			= CVARFD (NULL, "1",
-												CVAR_ARCHIVE, "Whether to use fullscreen or not. This cvar is saved to your config but not otherwise used in this operating mode.");
-#endif
+cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "1",
+												CVAR_ARCHIVE|CVAR_VIDEOLATCH);
 cvar_t vid_height							= CVARFD ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
 cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
@@ -812,19 +804,6 @@ void Renderer_Init(void)
 		"";
 	Cvar_Register (&vid_renderer_opts, VIDCOMMANDGROUP);
 
-#ifndef NACL
-	if (COM_CheckParm("-plugin"))
-	{
-		vid_fullscreen.name = "vid_fullscreen_embedded";
-		vid_fullscreen_alternative.name = "vid_fullscreen_standalone";
-	}
-	else
-	{
-		vid_fullscreen.name = "vid_fullscreen_standalone";
-		vid_fullscreen_alternative.name = "vid_fullscreen_embedded";
-	}
-	Cvar_Register (&vid_fullscreen_alternative, VIDCOMMANDGROUP);
-#endif
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
 

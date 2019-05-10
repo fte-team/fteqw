@@ -952,7 +952,7 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 	if (COM_CheckParm("-current"))
 		return;
 
-	if (XRandR_FindOutput(devicename))
+	if (xrandr.crtcinfo)
 	{
 		XRRCrtcInfo *c;
 		xrandr.crtcmode = XRandR_FindBestMode(*width, *height, rate);
@@ -3854,9 +3854,9 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		fullscreenflags |= FULLSCREEN_DESKTOP;
 #ifdef USE_XRANDR
 	XRandR_Init();
+	XRandR_FindOutput(info->devicename);
 	if (fullscreen && !(fullscreenflags & FULLSCREEN_ANYMODE))
 		XRandR_SelectMode(info->devicename, &x, &y, &width, &height, rate);
-	XRandR_FindOutput(info->devicename);
 #endif
 
 #ifdef USE_VMODE
@@ -3884,7 +3884,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 
 		//window managers fuck up too much if we change the video mode and request the windowmanager make us fullscreen.
 		//we assume that window manages will understand xrandr, as that actually provides notifications that things have changed.
-		if (!(fullscreenflags & FULLSCREEN_VMODE) && X_CheckWMFullscreenAvailable())
+		if (!(fullscreenflags & (FULLSCREEN_VMODE|FULLSCREEN_XRANDR)) && X_CheckWMFullscreenAvailable())
 			fullscreenflags |= FULLSCREEN_WM;
 		else
 			fullscreenflags |= FULLSCREEN_LEGACY;

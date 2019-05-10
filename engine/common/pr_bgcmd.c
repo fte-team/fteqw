@@ -5063,6 +5063,14 @@ void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	//don't return 1 (it would break array[random()*array.length];
 	//don't return 0 either, it would break the self.nextthink = time+random()*foo; lines in walkmonster_start, resulting rarely in statue-monsters.
 	G_FLOAT(OFS_RETURN) = (rand ()&0x7fff) / ((float)0x08000) + (0.5/0x08000);
+
+	if (prinst->callargc)
+	{
+		if (prinst->callargc == 1)
+			G_FLOAT(OFS_RETURN) *= G_FLOAT(OFS_PARM0);
+		else
+			G_FLOAT(OFS_RETURN) = G_FLOAT(OFS_PARM0) + G_FLOAT(OFS_RETURN)*(G_FLOAT(OFS_PARM1)-G_FLOAT(OFS_PARM0));
+	}
 }
 
 //float(float number, float quantity) bitshift = #218;

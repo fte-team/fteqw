@@ -308,7 +308,7 @@ void SV_New_f (void)
 	ClientReliableWrite_Byte (host_client, ISQ2CLIENT(host_client)?svcq2_serverdata:svc_serverdata);
 	if (host_client->fteprotocolextensions)//let the client know
 	{
-		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE);
+		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE1);
 		if (svs.netprim.coordsize == 2)	//we're not using float orgs on this level.
 			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
 		else
@@ -727,7 +727,7 @@ void SVNQ_New_f (void)
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
 	if (protext1)
 	{
-		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE1);
 		MSG_WriteLong (&host_client->netchan.message, protext1);
 	}
 	if (protext2)
@@ -2462,7 +2462,7 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 
 		host_client->downloadstarted = false;
 
-#ifdef HAVE_LEGACY
+#if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 		SV_DownloadQueueNext(host_client);
 #endif
 	}
@@ -2544,7 +2544,7 @@ void SV_NextDownload_f (void)
 	VFS_CLOSE (host_client->download);
 	host_client->download = NULL;
 
-#ifdef HAVE_LEGACY
+#if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 	SV_DownloadQueueNext(host_client);
 #endif
 }
@@ -3592,7 +3592,7 @@ void SV_BeginDownload_f(void)
 		}
 		if (ISNQCLIENT(host_client))
 			host_client->send_message = true;
-#ifdef HAVE_LEGACY
+#if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 		SV_DownloadQueueNext(host_client);
 #endif
 		return;
@@ -3670,7 +3670,7 @@ void SV_StopDownload_f(void)
 
 	host_client->downloadstarted = false;
 
-#ifdef HAVE_LEGACY
+#if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 	SV_DownloadQueueNext(host_client);
 //	SV_DownloadQueueClear(host_client);
 #endif
@@ -6052,14 +6052,14 @@ void SV_Pext_f(void)
 		val = Cmd_Argv(i++);
 		switch(strtoul(tag, NULL, 0))
 		{
-		case PROTOCOL_VERSION_FTE:
-			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & Net_PextMask(1, ISNQCLIENT(host_client));
+		case PROTOCOL_VERSION_FTE1:
+			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(host_client));
 			break;
 		case PROTOCOL_VERSION_FTE2:
-			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & Net_PextMask(2, ISNQCLIENT(host_client));
+			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(host_client));
 			break;
 		case PROTOCOL_VERSION_EZQUAKE1:
-			host_client->ezprotocolextensions1 = strtoul(val, NULL, 0) & Net_PextMask(3, ISNQCLIENT(host_client)) & EZPEXT1_SERVERADVERTISE;
+			host_client->ezprotocolextensions1 = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(host_client)) & EZPEXT1_SERVERADVERTISE;
 			break;
 		}
 	}

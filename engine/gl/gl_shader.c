@@ -7381,36 +7381,36 @@ static char *Shader_DecomposeSubPass(char *o, shader_t *s, shaderpass_t *p, qboo
 	switch(p->texgen)
 	{
 	default: sprintf(o, "T_GEN_? "); break;
-	case T_GEN_SINGLEMAP:		Shader_DecomposeSubPassMap(o, s, "singlemap", p->anim_frames[0]);	break;
+	case T_GEN_SINGLEMAP:		Shader_DecomposeSubPassMap(o, s, "map", p->anim_frames[0]);	break;
 	case T_GEN_ANIMMAP:			Shader_DecomposeSubPassMap(o, s, "animmap", p->anim_frames[0]);	break;
 #ifdef HAVE_MEDIA_DECODER
 	case T_GEN_VIDEOMAP:		Shader_DecomposeSubPassMap(o, s, "videomap", Media_UpdateForShader(p->cin)); break;
 #endif
-	case T_GEN_CUBEMAP:			Shader_DecomposeSubPassMap(o, s, "cubemap", p->anim_frames[0]); break;
-	case T_GEN_3DMAP:			Shader_DecomposeSubPassMap(o, s, "3dmap", p->anim_frames[0]); break;
-	case T_GEN_LIGHTMAP:		sprintf(o, "lightmap "); break;
-	case T_GEN_DELUXMAP:		sprintf(o, "deluxemap "); break;
-	case T_GEN_SHADOWMAP:		sprintf(o, "shadowmap "); break;
-	case T_GEN_LIGHTCUBEMAP: 	sprintf(o, "lightcubemap "); break;
-	case T_GEN_DIFFUSE:			Shader_DecomposeSubPassMap(o, s, "diffuse", s->defaulttextures[0].base); break;
-	case T_GEN_NORMALMAP:		Shader_DecomposeSubPassMap(o, s, "normalmap", s->defaulttextures[0].bump); break;
-	case T_GEN_SPECULAR:		Shader_DecomposeSubPassMap(o, s, "specular", s->defaulttextures[0].specular); break;
-	case T_GEN_UPPEROVERLAY:	Shader_DecomposeSubPassMap(o, s, "upper", s->defaulttextures[0].upperoverlay); break;
-	case T_GEN_LOWEROVERLAY:	Shader_DecomposeSubPassMap(o, s, "lower", s->defaulttextures[0].loweroverlay); break;
-	case T_GEN_FULLBRIGHT:		Shader_DecomposeSubPassMap(o, s, "fullbright", s->defaulttextures[0].fullbright); break;
-	case T_GEN_PALETTED:		Shader_DecomposeSubPassMap(o, s, "paletted", s->defaulttextures[0].paletted); break;
-	case T_GEN_REFLECTCUBE:		Shader_DecomposeSubPassMap(o, s, "reflectcube", s->defaulttextures[0].reflectcube); break;
-	case T_GEN_REFLECTMASK:		Shader_DecomposeSubPassMap(o, s, "reflectmask", s->defaulttextures[0].reflectmask); break;
-	case T_GEN_DISPLACEMENT:	Shader_DecomposeSubPassMap(o, s, "displacement", s->defaulttextures[0].displacement); break;
-	case T_GEN_CURRENTRENDER:	sprintf(o, "currentrender "); break;
-	case T_GEN_SOURCECOLOUR:	sprintf(o, "sourcecolour"); break;
-	case T_GEN_SOURCEDEPTH:		sprintf(o, "sourcedepth"); break;
-	case T_GEN_REFLECTION:		sprintf(o, "reflection"); break;
-	case T_GEN_REFRACTION:		sprintf(o, "refraction"); break;
-	case T_GEN_REFRACTIONDEPTH:	sprintf(o, "refractiondepth"); break;
-	case T_GEN_RIPPLEMAP:		sprintf(o, "ripplemap"); break;
-	case T_GEN_SOURCECUBE:		sprintf(o, "sourcecube"); break;
-	case T_GEN_GBUFFERCASE:		sprintf(o, "gbuffer%i ",p->texgen-T_GEN_GBUFFER0); break;
+	case T_GEN_CUBEMAP:			Shader_DecomposeSubPassMap(o, s, "map $cubemap", p->anim_frames[0]); break;
+	case T_GEN_3DMAP:			Shader_DecomposeSubPassMap(o, s, "map $3dmap", p->anim_frames[0]); break;
+	case T_GEN_LIGHTMAP:		sprintf(o, "map $lightmap "); break;
+	case T_GEN_DELUXMAP:		sprintf(o, "map $deluxemap "); break;
+	case T_GEN_SHADOWMAP:		sprintf(o, "map $shadowmap "); break;
+	case T_GEN_LIGHTCUBEMAP: 	sprintf(o, "map $lightcubemap "); break;
+	case T_GEN_DIFFUSE:			Shader_DecomposeSubPassMap(o, s, "map $diffuse", s->defaulttextures[0].base); break;
+	case T_GEN_NORMALMAP:		Shader_DecomposeSubPassMap(o, s, "map $normalmap", s->defaulttextures[0].bump); break;
+	case T_GEN_SPECULAR:		Shader_DecomposeSubPassMap(o, s, "map $specular", s->defaulttextures[0].specular); break;
+	case T_GEN_UPPEROVERLAY:	Shader_DecomposeSubPassMap(o, s, "map $upper", s->defaulttextures[0].upperoverlay); break;
+	case T_GEN_LOWEROVERLAY:	Shader_DecomposeSubPassMap(o, s, "map $lower", s->defaulttextures[0].loweroverlay); break;
+	case T_GEN_FULLBRIGHT:		Shader_DecomposeSubPassMap(o, s, "map $fullbright", s->defaulttextures[0].fullbright); break;
+	case T_GEN_PALETTED:		Shader_DecomposeSubPassMap(o, s, "map $paletted", s->defaulttextures[0].paletted); break;
+	case T_GEN_REFLECTCUBE:		Shader_DecomposeSubPassMap(o, s, "map $reflectcube", s->defaulttextures[0].reflectcube); break;
+	case T_GEN_REFLECTMASK:		Shader_DecomposeSubPassMap(o, s, "map $reflectmask", s->defaulttextures[0].reflectmask); break;
+	case T_GEN_DISPLACEMENT:	Shader_DecomposeSubPassMap(o, s, "map $displacement", s->defaulttextures[0].displacement); break;
+	case T_GEN_CURRENTRENDER:	sprintf(o, "map $currentrender "); break;
+	case T_GEN_SOURCECOLOUR:	sprintf(o, "map $sourcecolour"); break;
+	case T_GEN_SOURCEDEPTH:		sprintf(o, "map $sourcedepth"); break;
+	case T_GEN_REFLECTION:		sprintf(o, "map $reflection"); break;
+	case T_GEN_REFRACTION:		sprintf(o, "map $refraction"); break;
+	case T_GEN_REFRACTIONDEPTH:	sprintf(o, "map $refractiondepth"); break;
+	case T_GEN_RIPPLEMAP:		sprintf(o, "map $ripplemap"); break;
+	case T_GEN_SOURCECUBE:		sprintf(o, "map $sourcecube"); break;
+	case T_GEN_GBUFFERCASE:		sprintf(o, "map $gbuffer%i ",p->texgen-T_GEN_GBUFFER0); break;
 	}
 	o+=strlen(o);
 

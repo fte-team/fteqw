@@ -8333,6 +8333,9 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 			Con_Printf("connection to \"%s\" timed out\n", tf->peer);
 			return -1;	//don't bother trying to read if we never connected.
 		case NET_ENOTCONN:
+#ifdef __unix__
+		case EPIPE:
+#endif
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
 			return -1;	//don't bother trying to read if we never connected.
 		default:

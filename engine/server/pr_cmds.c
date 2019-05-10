@@ -6915,7 +6915,7 @@ lh_extension_t *checkfteextensioncl(int mask, const char *name)	//true if the ci
 
 lh_extension_t *checkfteextensionsv(const char *name)	//true if the server supports an protocol extension.
 {
-	return checkfteextensioncl(Net_PextMask(1, false), name);
+	return checkfteextensioncl(Net_PextMask(PROTOCOL_VERSION_FTE1, false), name);
 }
 
 lh_extension_t *checkextension(const char *name)
@@ -11636,7 +11636,7 @@ void PR_SVExtensionList_f(void)
 
 			if (i < 32)
 			{
-				if (!(Net_PextMask(1, false) & (1<<i)))
+				if (!(Net_PextMask(PROTOCOL_VERSION_FTE1, false) & (1<<i)))
 				{
 					if (showflags & SHOW_NOTSUPPORTEDEXT)
 						Con_Printf("^4protocol %s is not supported\n", extlist[i].name);
@@ -12470,7 +12470,9 @@ void PR_DumpPlatform_f(void)
 		{"STAT_KILLEDMONSTERS",	"const float", CS, NULL, STAT_MONSTERS},
 		{"STAT_ITEMS",			"const float", CS, D("self.items | (self.items2<<23). In order to decode this stat properly, you need to use getstatbits(STAT_ITEMS,0,23) to read self.items, and getstatbits(STAT_ITEMS,23,11) to read self.items2 or getstatbits(STAT_ITEMS,28,4) to read the visible part of serverflags, whichever is applicable."), STAT_ITEMS},
 		{"STAT_VIEWHEIGHT",		"const float", CS, D("player.view_ofs_z"), STAT_VIEWHEIGHT},
+#ifdef SIDEVIEWS
 		{"STAT_VIEW2",			"const float", CS, D("This stat contains the number of the entity in the server's .view2 field."), STAT_VIEW2},
+#endif
 		{"STAT_VIEWZOOM",		"const float", CS, D("Scales fov and sensitiity. Part of DP_VIEWZOOM."), STAT_VIEWZOOM},
 
 		{"STAT_USER",			"const float", QW|NQ|CS, D("Custom user stats start here (lower values are reserved for engine use)."), 32},
@@ -13018,9 +13020,11 @@ void PR_DumpPlatform_f(void)
 			if (BuiltinList[i].h2num == idx)
 				nd |= H2;
 		}
-		
+
+#ifdef CSQC_DAT
 		if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
 			nd |= CS;
+#endif
 #ifdef MENU_DAT
 		if (MP_BuiltinValid(BuiltinList[i].name, idx))
 			nd |= MENU;
@@ -13220,12 +13224,14 @@ void PR_DumpPlatform_f(void)
 	if (d != (ALL & ~targ))
 		VFS_PRINTF(f, "#endif\n");
 
+#if defined(CSQC_DAT) || defined(MENU_DAT)
 	if (targ & (CS|MENU))
 	{
 		VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
 		Key_PrintQCDefines(f);
 		VFS_PRINTF(f, "#endif\n");
 	}
+#endif
 
 	VFS_PRINTF(f, "#ifdef _ACCESSORS\n");
 	VFS_PRINTF(f,

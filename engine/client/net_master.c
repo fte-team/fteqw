@@ -1741,7 +1741,7 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 		if (!*com_token)
 			continue;
 
-		//special cases. Add a port if you have a server named 'file'... (unlikly)
+		//special cases. Add a port if you have a host named 'file'... (unlikly)
 		if (!strcmp(entry, "file"))
 		{
 			if (withcomment)

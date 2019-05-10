@@ -6,7 +6,9 @@
 #include "com_mesh.h"
 extern modplugfuncs_t *modfuncs;
 
+#ifdef SKELETALMODELS
 #define GLTFMODELS
+#endif
 
 
 //'The units for all linear distances are meters.'

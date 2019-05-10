@@ -1407,7 +1407,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		break;
 	}
 	if (format == VK_FORMAT_UNDEFINED)	//no default case means warnings for unsupported formats above.
-		Sys_Error("VK_CreateTexture2DArray: Unrecognised image encoding: %u\n", encoding);
+		Sys_Error("VK_CreateTexture2DArray: Unsupported image encoding: %u(%s)\n", encoding, Image_FormatName(encoding));
 
 	ici.flags = (ret.type==PTI_CUBEMAP)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
 	ici.imageType = VK_IMAGE_TYPE_2D;

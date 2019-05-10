@@ -571,7 +571,9 @@ static sizebuf_t	*writedest;
 static client_t		*cldest;
 struct netprim_s *destprim;
 static int majortype;
+#ifdef NQPROT
 static int minortype;
+#endif
 static int protocollen;
 
 static qbyte buffer[MAX_QWMSGLEN];

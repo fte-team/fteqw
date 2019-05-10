@@ -43,7 +43,9 @@ extern cvar_t vk_stagingbuffers;
 
 unsigned int vk_usedynamicstaging;
 
+#ifdef RTLIGHTS
 static void VK_TerminateShadowMap(void);
+#endif
 void VKBE_BeginShadowmapFace(void);
 
 static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype);
@@ -4248,7 +4250,9 @@ batch_t *VKBE_GetTempBatch(void)
 
 void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 {
+#ifdef RTLIGHTS
 	extern cvar_t gl_specular;
+#endif
 	vkcbuf_light_t *cbl = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
 	shaderstate.ubo_light.range = sizeof(*cbl);
 

@@ -8,7 +8,9 @@ modplugfuncs_t *modfuncs;
 
 //#define ASEMODELS	//FIXME: TEST TEST TEST. shold be working iiuc
 //#define LWOMODELS	//not working
+#ifdef SKELETALMODELS
 #define GLTFMODELS	//FIXME: not yet working properly.
+#endif
 
 #ifdef ASEMODELS
 struct aseimport_s

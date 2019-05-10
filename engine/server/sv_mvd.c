@@ -84,7 +84,7 @@ static char demomsgbuf[MAX_OVERALLMSGLEN];
 
 static mvddest_t *singledest;	//used when a stream is starting up so redundant data doesn't get dumped into other streams
 
-static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream);
+static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream, const char *info);
 qboolean SV_MVD_Record (mvddest_t *dest);
 char *SV_MVDName2Txt(char *name);
 extern cvar_t qtv_password;
@@ -103,23 +103,27 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 	if (d->file)
 	{
 		VFS_CLOSE(d->file);
-		FS_FlushFSHashWritten(d->filename);
+		if (d->desttype != DEST_STREAM)
+			FS_FlushFSHashWritten(d->filename);
 	}
 
-	if (reason == MVD_CLOSE_CANCEL)
+	if (d->desttype != DEST_STREAM)
 	{
-		FS_Remove(d->filename, FS_GAMEONLY);
+		if (reason == MVD_CLOSE_CANCEL)
+		{
+			FS_Remove(d->filename, FS_GAMEONLY);
 
-		FS_Remove(SV_MVDName2Txt(d->filename), FS_GAMEONLY);
+			FS_Remove(SV_MVDName2Txt(d->filename), FS_GAMEONLY);
 
-		//SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
-	}
-	else if (d->desttype != DEST_STREAM)
-	{
-		char buf[512];
-		Q_strncpyz(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename, d->simplename, sizeof(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename));
-		demolog.sequence++;
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->simplename), buf, sizeof(buf), false));
+			//SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
+		}
+		else
+		{
+			char buf[512];
+			Q_strncpyz(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename, d->simplename, sizeof(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename));
+			demolog.sequence++;
+			SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->simplename), buf, sizeof(buf), false));
+		}
 	}
 
 	Z_Free(d);
@@ -247,6 +251,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	int versiontouse = 0;
 	int raw = 0;
 	char password[256] = "";
+	char userinfo[1024];
 	enum {
 		QTVAM_NONE,
 		QTVAM_PLAIN,
@@ -278,6 +283,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		return QTV_ERROR;
 	}
 
+	*userinfo = 0;
 	for(;;)
 	{
 		lineend = strchr(start, '\n');
@@ -359,6 +365,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 			else if (!strcmp(com_token, "USERINFO"))
 			{
 				//if we were treating this as a regular client over tcp (qizmo...)
+				start = COM_ParseTokenOut(start, NULL, userinfo, sizeof(userinfo), &com_tokentype);
 			}
 			else
 			{
@@ -528,7 +535,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	{
 		if (p->hasauthed == true)
 		{
-			SV_MVD_Record(SV_MVD_InitStream(clientstream));
+			SV_MVD_Record(SV_MVD_InitStream(clientstream, userinfo));
 			return QTV_ACCEPT;
 		}
 	}
@@ -542,7 +549,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				 "\n");
 			VFS_WRITE(clientstream, e, strlen(e));
 			e = NULL;
-			dst = SV_MVD_InitStream(clientstream);
+			dst = SV_MVD_InitStream(clientstream, userinfo);
 			dst->droponmapchange = p->isreverse;
 			SV_MVD_Record(dst);
 			return QTV_ACCEPT;
@@ -1443,7 +1450,7 @@ void SV_Demo_PrintOutputs(void)
 	}
 }
 
-static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream)
+static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream, const char *info)
 {
 	mvddest_t *dst;
 
@@ -1462,6 +1469,21 @@ static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream)
 	dst->maxcachesize = 0x8000;	//is this too small?
 	dst->cache = BZ_Malloc(dst->maxcachesize);
 	dst->droponmapchange = false;
+	*dst->filename = 0;
+	*dst->simplename = 0;
+
+	if (info)
+	{
+		char *s = Info_ValueForKey(info, "name");
+		Q_strncpyz(dst->simplename, s, sizeof(dst->simplename));
+
+		s = Info_ValueForKey(info, "streamid");
+		Q_strncpyz(dst->filename, s, sizeof(dst->filename));
+		s = Info_ValueForKey(info, "address");
+		if (*dst->filename && *s)
+			Q_strncatz(dst->filename, "@", sizeof(dst->filename));
+		Q_strncatz(dst->filename, s, sizeof(dst->filename));
+	}
 
 	return dst;
 }
@@ -1599,8 +1621,11 @@ void SV_WriteSetMVDMessage (void)
 void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 qboolean SV_MVD_Record (mvddest_t *dest)
 {
+	static int destid;
 	if (!dest)
 		return false;
+
+	dest->id = ++destid;	//give each stream a unique id, for no real reason other than for other people to track it via SVC_Status(|32).
 
 	SV_MVD_WriteReliables(false);
 	DestFlush(true);
@@ -1729,7 +1754,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	if (demo.recorder.fteprotocolextensions)
 	{
-		MSG_WriteLong(&buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong(&buf, PROTOCOL_VERSION_FTE1);
 		MSG_WriteLong(&buf, demo.recorder.fteprotocolextensions);
 	}
 	if (demo.recorder.fteprotocolextensions2)

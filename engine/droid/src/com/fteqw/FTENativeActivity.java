@@ -226,7 +226,7 @@ public class FTENativeActivity extends android.app.NativeActivity
 			canrelative = true;	//yay, no exceptions.
 			android.util.Log.i("FTEDroid", "relative mouse supported");
 
-			MotionEvent_getButtonState = MotionEvent.class.getMethod("getButtonState");
+			MotionEvent_getButtonState = MotionEvent.class.getMethod("getButtonState");		//api14ish
 			canbuttons = true;
 			android.util.Log.i("FTEDroid", "mouse buttons supported");
 		} catch(Exception e) {
@@ -323,7 +323,7 @@ public class FTENativeActivity extends android.app.NativeActivity
 			y = event.getY(id);
 			size = event.getSize(id);
 			id = event.getPointerId(id);
-			if (canbuttons)
+			if (canbuttons && event.getSource() == SOURCE_MOUSE)
 			{
 				try {mousepress(id, (Integer)MotionEvent_getButtonState.invoke(event));}
 				catch(Exception e){}
@@ -338,7 +338,7 @@ public class FTENativeActivity extends android.app.NativeActivity
 			y = event.getY(id);
 			size = event.getSize(id);
 			id = event.getPointerId(id);
-			if (canbuttons)
+			if (canbuttons && event.getSource() == SOURCE_MOUSE)
 			{
 				try {mousepress(id, (Integer)MotionEvent_getButtonState.invoke(event));}
 				catch(Exception e){}

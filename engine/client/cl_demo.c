@@ -1219,7 +1219,7 @@ static void CLQW_RecordServerData(sizebuf_t *buf, int *seq)
 	MSG_WriteByte (buf, svc_serverdata);
 	if (cls.fteprotocolextensions&~PEXT1_HIDEPROTOCOLS)	//maintain demo compatability
 	{
-		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE1);
 		MSG_WriteLong (buf, cls.fteprotocolextensions&~PEXT1_HIDEPROTOCOLS);
 	}
 	if (cls.fteprotocolextensions2)	//maintain demo compatability
@@ -1355,7 +1355,7 @@ void CLNQ_WriteServerData(sizebuf_t *buf)	//for demo recording
 	MSG_WriteByte(buf, svc_serverdata);
 	if (cls.fteprotocolextensions&~PEXT1_HIDEPROTOCOLS)
 	{
-		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE1);
 		MSG_WriteLong (buf, cls.fteprotocolextensions&~PEXT1_HIDEPROTOCOLS);
 	}
 	if (cls.fteprotocolextensions2)
@@ -2089,7 +2089,7 @@ void CL_Record_f (void)
 		MSG_WriteByte (&buf, svcq2_serverdata);
 		if (cls.fteprotocolextensions)	//maintain demo compatability
 		{
-			MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
+			MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE1);
 			MSG_WriteLong (&buf, cls.fteprotocolextensions);
 		}
 		if (cls.fteprotocolextensions2)	//maintain demo compatability

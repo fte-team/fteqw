@@ -441,6 +441,7 @@ void CL_Quit_f (void)
 	Sys_Quit ();
 }
 
+#ifdef NQPROT
 void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 {
 	char	data[2048];
@@ -456,16 +457,13 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	cl.splitclients = 0;
 }
+#endif
 
 void CL_SupportedFTEExtensions(unsigned int *pext1, unsigned int *pext2, unsigned int *ezpext1)
 {
-	unsigned int fteprotextsupported1 = 0;
-	unsigned int fteprotextsupported2 = 0;
-	unsigned int ezprotextsupported1 = 0;
-
-	fteprotextsupported1 = Net_PextMask(1, false);
-	fteprotextsupported2 = Net_PextMask(2, false);
-	ezprotextsupported1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+	unsigned int fteprotextsupported1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+	unsigned int fteprotextsupported2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+	unsigned int ezprotextsupported1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 
 	fteprotextsupported1 &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
@@ -683,7 +681,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	Q_strncatz(data, "\n", sizeof(data));
 
 	if (ftepext1)
-		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported1), sizeof(data));
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE1, fteprotextsupported1), sizeof(data));
 	if (ftepext2)
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
 
@@ -799,9 +797,9 @@ void CL_CheckForResend (void)
 				//for hexen2 we always force fte's native qw protocol. other protocols won't cut it.
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-				connectinfo.fteext1 = Net_PextMask(1, false);
-				connectinfo.fteext2 = Net_PextMask(2, false);
-				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 			else if (!strcmp(lbp, "qwid") || !strcmp(lbp, "idqw"))
 			{	//for recording .qwd files in any client
@@ -827,9 +825,9 @@ void CL_CheckForResend (void)
 				{
 					connectinfo.protocol = CP_QUAKEWORLD;
 					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-					connectinfo.fteext1 = Net_PextMask(1, false);
-					connectinfo.fteext2 = Net_PextMask(2, false);
-					connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+					connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+					connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+					connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 				}
 			}
 			else if (!strcmp(lbp, "fitz") || !strcmp(lbp, "rmqe") ||
@@ -877,18 +875,18 @@ void CL_CheckForResend (void)
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
-				connectinfo.fteext1 = Net_PextMask(1, true);
-				connectinfo.fteext2 = Net_PextMask(2, true);
-				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, true);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, true);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 #endif
 			else
 			{	//protocol wasn't recognised, and we didn't take the nq fallback, so that must mean we're going for qw.
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-				connectinfo.fteext1 = Net_PextMask(1, false);
-				connectinfo.fteext2 = Net_PextMask(2, false);
-				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 
 #ifdef NETPREPARSE
@@ -902,9 +900,9 @@ void CL_CheckForResend (void)
 				{
 					connectinfo.protocol = CP_QUAKEWORLD;
 					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-					connectinfo.fteext1 = Net_PextMask(1, false);
-					connectinfo.fteext2 = Net_PextMask(2, false);
-					connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+					connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+					connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+					connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 				}
 				else if (progstype != PROG_QW && cls.protocol == CP_QUAKEWORLD)
 				{
@@ -918,9 +916,9 @@ void CL_CheckForResend (void)
 			{
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-				connectinfo.fteext1 = Net_PextMask(1, false);
-				connectinfo.fteext2 = Net_PextMask(2, false);
-				connectinfo.ezext1 = Net_PextMask(3, false) & EZPEXT1_CLIENTADVERTISE;
+				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
 			}
 #ifdef NQPROT
 			else if (cls.demorecording == DPB_NETQUAKE && cls.protocol != CP_NETQUAKE)
@@ -3209,7 +3207,7 @@ void CL_ConnectionlessPacket (void)
 				unsigned int l = MSG_ReadLong();
 				switch(cmd)
 				{
-				case PROTOCOL_VERSION_FTE:			ftepext1 = l;		break;
+				case PROTOCOL_VERSION_FTE1:			ftepext1 = l;		break;
 				case PROTOCOL_VERSION_FTE2:			ftepext2 = l;		break;
 				case PROTOCOL_VERSION_EZQUAKE1:		ezpext1 = l;		break;
 				case PROTOCOL_VERSION_FRAGMENT:		mtu = l;		break;

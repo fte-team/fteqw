@@ -320,6 +320,7 @@ void M_Menu_Load_f (void)
 
 #endif
 
+extern cvar_t cl_splitscreen;
 void M_Menu_SinglePlayer_f (void)
 {
 	menu_t *menu;
@@ -327,7 +328,6 @@ void M_Menu_SinglePlayer_f (void)
 	menubutton_t *b;
 	mpic_t *p;
 	static menuresel_t resel;
-	extern cvar_t cl_splitscreen;
 #endif
 
 	Key_Dest_Add(kdm_emenu);
@@ -388,7 +388,6 @@ void M_Menu_SinglePlayer_f (void)
 			if (!strncmp(Cmd_Argv(1), "class", 5))
 			{
 				int pnum;
-				extern cvar_t cl_splitscreen;
 				pnum = atoi(Cmd_Argv(1)+5);
 				if (!pnum)
 					pnum = 1;
@@ -528,6 +527,7 @@ void M_Menu_SinglePlayer_f (void)
 	}
 	else
 	{
+#if MAX_SPLITS > 1
 		const char *opts[] =
 		{
 			"Single",
@@ -544,6 +544,7 @@ void M_Menu_SinglePlayer_f (void)
 			"3",
 			NULL
 		};
+#endif
 		int width;
 		if (R_GetShaderSizes(p, &width, NULL, true) <= 0)
 			width = 232;

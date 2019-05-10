@@ -3951,7 +3951,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 			if (pluginencodersfunc[i])
 			{
 				currentcapture_funcs = pluginencodersfunc[i];
-				break;
+//				break;
 			}
 		}
 	}
@@ -5141,13 +5141,13 @@ void Media_Init(void)
 #endif
 
 #ifdef HAVE_MEDIA_ENCODER
-	#if defined(HAVE_API_VFW)
-		Media_RegisterEncoder(NULL, &capture_avi);
-	#endif
 	#ifdef _DEBUG
 		Media_RegisterEncoder(NULL, &capture_null);
 	#endif
 	Media_RegisterEncoder(NULL, &capture_raw);
+	#if defined(HAVE_API_VFW)
+		Media_RegisterEncoder(NULL, &capture_avi);
+	#endif
 
 	Cmd_AddCommandD("capture", Media_RecordFilm_f, "Captures realtime action to a named video file. Check the capture* cvars to control driver/codecs/rates.");
 	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "Capture a nemed demo to a named video file. Demo capturing can be performed offscreen, allowing arbitrary video sizes, or smooth captures on underpowered hardware.");

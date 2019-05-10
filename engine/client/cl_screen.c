@@ -1968,8 +1968,10 @@ void SCR_SetLoadingFile(char *str)
 
 	if (scr_loadingrefresh.ival)
 	{
+		qboolean oldwarndraw = r_refdef.warndraw;
 		r_refdef.warndraw = false;
 		SCR_UpdateScreen();
+		r_refdef.warndraw = oldwarndraw;
 	}
 }
 
@@ -2212,12 +2214,14 @@ void SCR_BeginLoadingPlaque (void)
 // redraw with no console and the loading plaque
 	if (!scr_disabled_for_loading)
 	{
+		qboolean oldwarndraw = r_refdef.warndraw;
 		Sbar_Changed ();
 		r_refdef.warndraw = false;
 		scr_drawloading = true;
 		SCR_UpdateScreen ();
 		scr_drawloading = false;
 		scr_disabled_for_loading = true;
+		r_refdef.warndraw = oldwarndraw;
 	}
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
@@ -2267,10 +2271,11 @@ void SCR_ImageName (const char *mapname)
 	scr_drawloading = true;
 	if (qrenderer != QR_NONE)
 	{
+		qboolean oldwarndraw = r_refdef.warndraw;
 		r_refdef.warndraw = false;
 		Sbar_Changed ();
 		SCR_UpdateScreen ();
-		r_refdef.warndraw = true;
+		r_refdef.warndraw = oldwarndraw;
 	}
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....

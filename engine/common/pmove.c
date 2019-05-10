@@ -426,7 +426,7 @@ int PM_StepSlideMove (qboolean in_air)
 		VectorCopy (trace.endpos, pmove.origin);
 	}
 
-	if ((in_air || movevars.slidefix) && -DotProduct(pmove.gravitydir, original) < 0)
+	if (in_air && -DotProduct(pmove.gravitydir, original) < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
 	PM_SlideMove ();

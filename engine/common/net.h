@@ -280,7 +280,7 @@ void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, .
 void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);
 void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport);
-unsigned int Net_PextMask(int maskset, qboolean fornq);
+unsigned int Net_PextMask(unsigned int protover, qboolean fornq);
 extern cvar_t net_mtu;
 
 qboolean Netchan_CanPacket (netchan_t *chan, int rate);

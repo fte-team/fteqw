@@ -201,7 +201,8 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	}
 	if (info->fullscreen)
 		flags |= SDL_WINDOW_FULLSCREEN;
-	flags |= SDL_WINDOW_RESIZABLE;
+	else
+		flags |= SDL_WINDOW_RESIZABLE;
 	flags |= SDL_WINDOW_INPUT_GRABBED;
 	flags |= SDL_WINDOW_SHOWN;
 	#if SDL_PATCHLEVEL >= 1
@@ -502,6 +503,7 @@ static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
 	extnames = alloca(sizeof(*extnames)*(extcount+1));
 	if (!SDL_Vulkan_GetInstanceExtensions(sdlwindow, &extcount, extnames))
 		return false;
+	extnames[extcount] = 0;
 
 	vkGetInstanceProcAddr = SDL_Vulkan_GetVkGetInstanceProcAddr();
 	if (!VK_Init(info, extnames, VKSDL_CreateSurface, NULL))

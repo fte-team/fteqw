@@ -299,7 +299,7 @@ ELSEIF(1)	#SDL
 	FIND_PACKAGE(PkgConfig REQUIRED)
 	PKG_SEARCH_MODULE(sdl2 REQUIRED sdl2)
 
-#	FIND_PACKAGE(SDL2 REQUIRED)
+	FIND_PACKAGE(SDL2 REQUIRED)
 
 	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
 	
@@ -918,7 +918,7 @@ SET_TARGET_PROPERTIES(models PROPERTIES PREFIX "fteplug_")
 SET_TARGET_PROPERTIES(models PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 TARGET_LINK_LIBRARIES(models m)
 
-#x11 formats plugin
+#x11 server plugin (note: for displaying other programs)
 ADD_LIBRARY(x11 MODULE
 	plugins/qvm_api.c
 	plugins/plugin.c

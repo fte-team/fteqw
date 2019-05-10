@@ -188,8 +188,8 @@ void Sys_Printf (char *fmt, ...)
 		if (codeflags & CON_HIDDEN)
 			continue;
 
-		if (codepoint == '\n' && (codeflags&CON_NONCLEARBG))
-			codeflags &= CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
+		if ((codeflags&CON_RICHFORECOLOUR) || (codepoint == '\n' && (codeflags&CON_NONCLEARBG)))
+			codeflags = CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
 		ApplyColour(codeflags);
 		w = codepoint;
 		if (w >= 0xe000 && w < 0xe100)

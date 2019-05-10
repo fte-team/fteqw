@@ -273,23 +273,23 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		stype = flagstoservertype(si->special);
 		if (thisone == info->selectedpos)
 		{
-			R2D_ImageColours(
+			R2D_ImageColours(SRGBA(
 				serverhighlight[(int)stype][0],
 				serverhighlight[(int)stype][1],
 				serverhighlight[(int)stype][2],
-				1.0);
+				1.0));
 		}
 		else if (thisone == info->scrollpos + (int)(mousecursor_y-info->servers_top)/8 && mousecursor_x < x)
-			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, sb_alpha.value);
+			R2D_ImageColours(SRGBA((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, sb_alpha.value));
 		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr))
-			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, sb_alpha.value);
+			R2D_ImageColours(SRGBA(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, sb_alpha.value));
 		else
 		{
-			R2D_ImageColours(
+			R2D_ImageColours(SRGBA(
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][2],
-				sb_alpha.value);
+				sb_alpha.value));
 		}
 		R2D_FillBlock(0, y, ths->common.width, 8);
 
@@ -970,12 +970,12 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	}
 	else
 	{
-		R2D_ImageColours(0.1, 0.1, 0.2, 1.0);
+		R2D_ImageColours(SRGBA(0.1, 0.1, 0.2, 1.0));
 		R2D_FillBlock(x, y, ths->common.width, ths->common.height);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
 
-		R2D_ImageColours(0.35, 0.35, 0.55, 1.0);
+		R2D_ImageColours(SRGBA(0.35, 0.35, 0.55, 1.0));
 		R2D_FillBlock(x, y, 8, 8);
 		R2D_ImageColours(1,1,1,1);
 	}

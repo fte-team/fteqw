@@ -5929,7 +5929,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 						bb->next = bt->batches;
 						bt->batches = bb;
 						bb->lightmap = lmnum;
-						BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+						BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])+sizeof(arrays->rgba[0])) * numverts);
 						BE_VBO_Data(&ctx, arrays->coord,	sizeof(arrays->coord	[0])*numverts,		&bb->vbo.coord);
 						BE_VBO_Data(&ctx, arrays->texcoord, sizeof(arrays->texcoord	[0])*numverts,		&bb->vbo.texcoord);
 						BE_VBO_Data(&ctx, arrays->lmcoord,	sizeof(arrays->lmcoord	[0])*numverts,		&bb->vbo.lmcoord[0]);

@@ -2229,7 +2229,7 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 }
 #endif
 
-#ifdef HAVE_CLIENT
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 //The logic of this function is seriously handicapped vs the other types of trace we could be doing.
 static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 {
@@ -2766,7 +2766,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		World_ClipToLinks(w, &w->portallist, &clip);
 	}
 
-#ifdef HAVE_CLIENT
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 	{
 		extern world_t csqc_world;
 		if (w == &csqc_world)

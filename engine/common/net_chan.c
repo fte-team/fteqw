@@ -100,10 +100,10 @@ cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to
 #endif
 
 /*returns the entire bitmask of supported+enabled extensions*/
-unsigned int Net_PextMask(int maskset, qboolean fornq)
+unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 {
 	unsigned int mask = 0;
-	if (maskset == 1) /*FTEX*/
+	if (protover == PROTOCOL_VERSION_FTE1)
 	{
 	#ifdef PEXT_SCALE
 		mask |= PEXT_SCALE;
@@ -201,7 +201,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 			mask &= ~(PEXT_SCALE|PEXT_TRANS|PEXT_ACCURATETIMINGS|PEXT_FATNESS|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_COLOURMOD|PEXT_SPAWNSTATIC2|PEXT_256PACKETENTITIES|PEXT_SETATTACHMENT|PEXT_DPFLAGS); 
 		}
 	}
-	else if (maskset == 2)
+	else if (protover == PROTOCOL_VERSION_FTE2)
 	{
 		mask |= PEXT2_PRYDONCURSOR;
 	#ifdef PEXT2_VOICECHAT
@@ -233,7 +233,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 //		else
 //			mask &= ~PEXT2_PREDINFO;
 	}
-	else if (maskset == 3)
+	else if (protover == PROTOCOL_VERSION_EZQUAKE1)
 	{
 		mask = EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON;
 	}

@@ -58,25 +58,26 @@ cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse",
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1, while NQ expects 0.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
 cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedownslopes", "0", "MOVETYPE_BOUNCE speeds are calculated relative to the impacted surface, instead of the vertical, reducing the chance of grenades just sitting there on slopes.");
+cvar_t	sv_gameplayfix_trappedwithin		= CVARD( "sv_gameplayfix_trappedwithin", "0", "Blocks further entity movement when an entity is already inside another entity. This ensures that bsp precision issues cannot allow the entity to completely pass through eg the world.");
 #if !defined(CLIENTONLY) && defined(NQPROT) && defined(HAVE_LEGACY)
 cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
 #endif
 cvar_t	dpcompat_noretouchground	= CVARD( "dpcompat_noretouchground", "0", "Prevents entities that are already standing on an entity from touching the same entity again.");
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
-cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERVERINFO, "If empty, the value "STRINGIFY(PM_DEFAULTSTEPHEIGHT)" will be used instead. This is the size of the step you can step up or down.");
+cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	/*dp*/"sv_stepheight", CVAR_SERVERINFO, "If empty, the value "STRINGIFY(PM_DEFAULTSTEPHEIGHT)" will be used instead. This is the size of the step you can step up or down.");
 
 cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
 cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed that players will sink at while inactive in water. Empty means 60.");
 cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
-cvar_t	pm_slidefix			 = CVARFD("pm_slidefix", "", CVAR_SERVERINFO, "Fixes an issue when jumping down slopes (ie: they act more like slopes and not steps)");
+cvar_t	pm_slidefix			 = CVARFD("pm_slidefix", "", CVAR_SERVERINFO, "Fixes an issue when walking down slopes (ie: so they act more like slopes and not a series of steps)");
 cvar_t	pm_slidyslopes		 = CVARFD("pm_slidyslopes", "", CVAR_SERVERINFO, "Replicates NQ behaviour, where players will slowly slide down ramps");
 cvar_t	pm_airstep			 = CVARAFD("pm_airstep", "", /*dp*/"sv_jumpstep", CVAR_SERVERINFO, "Allows players to step up while jumping. This makes stairs more graceful but also increases potential jump heights.");
 cvar_t	pm_pground			 = CVARFD("pm_pground", "", CVAR_SERVERINFO, "Use persisten onground state instead of recalculating every frame."CON_WARNING"Do NOT use with nq mods, as most nq mods will interfere with onground state, resulting in glitches.");
 cvar_t	pm_stepdown			 = CVARFD("pm_stepdown", "", CVAR_SERVERINFO, "Causes physics to stick to the ground, instead of constantly losing traction whiloe going down steps.");
 cvar_t	pm_walljump			 = CVARFD("pm_walljump", "", CVAR_SERVERINFO, "Allows the player to bounce off walls while arborne.");
-cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", /*dp*/"edgefriction", CVAR_SERVERINFO, "Default value of 2");
+cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", /*nq*/"edgefriction", CVAR_SERVERINFO, "Default value of 2");
 
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
@@ -100,6 +101,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_stepdown,			cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_bouncedownslopes,	cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_trappedwithin,		cvargroup_serverphysics);
 	Cvar_Register (&dpcompat_noretouchground,			cvargroup_serverphysics);
 
 #if !defined(CLIENTONLY) && defined(NQPROT) && defined(HAVE_LEGACY)
@@ -1380,12 +1382,9 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	trace = WPhys_PushEntity (w, ent, move, fl);
 
-	if (trace.allsolid && ent->v->solid != SOLID_NOT && ent->v->solid != SOLID_TRIGGER)
+	if (trace.allsolid && sv_gameplayfix_trappedwithin.ival && ent->v->solid != SOLID_NOT && ent->v->solid != SOLID_TRIGGER)
 	{
-#ifndef CLIENTONLY
-		if (progstype != PROG_H2)
-#endif
-			trace.fraction = 0;	//traces that start in solid report a fraction of 0. this is to prevent things from dropping out of the world completely. at least this way they ought to still be shootable etc
+		trace.fraction = 0;	//traces that start in solid report a fraction of 0. this is to prevent things from dropping out of the world completely. at least this way they ought to still be shootable etc
 
 #pragma warningmsg("The following line might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
 		VectorNegate(gravitydir, trace.plane.normal);

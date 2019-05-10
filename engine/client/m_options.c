@@ -3647,14 +3647,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 						"body: %i\n"
 						"geomset: %i %i%s\n"
 						"numverts: %i\nnumtris: %i\n"
+#ifdef SKELETALMODELS
 						"numbones: %i\n"
+#endif
 						, ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
 						contents,
 						inf->csurface.flags,
 						inf->surfaceid,
 						inf->geomset>=MAX_GEOMSETS?-1:inf->geomset, inf->geomid, inf->geomset>=MAX_GEOMSETS?" (always)":"",
-						inf->numverts, inf->numindexes/3,
-						inf->numbones
+						inf->numverts, inf->numindexes/3
+#ifdef SKELETALMODELS
+						,inf->numbones
+#endif
 						)
 					, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 			}

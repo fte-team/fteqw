@@ -366,10 +366,10 @@ static int mapkey(int androidkey)
 //	case 265/*AKEYCODE_STEM_1*/:					return K_;
 //	case 266/*AKEYCODE_STEM_2*/:					return K_;
 //	case 267/*AKEYCODE_STEM_3*/:					return K_;
-//	case 268/*AKEYCODE_DPAD_UP_LEFT*/:				return K_;
-//	case 269/*AKEYCODE_DPAD_DOWN_LEFT*/:			return K_;
-//	case 270/*AKEYCODE_DPAD_UP_RIGHT*/:				return K_;
-//	case 271/*AKEYCODE_DPAD_DOWN_RIGHT*/:			return K_;
+//	case 268/*AKEYCODE_DPAD_UP_LEFT*/:				return K_UPLEFTARROW;
+//	case 269/*AKEYCODE_DPAD_DOWN_LEFT*/:			return K_DOWNLEFTARROW;
+//	case 270/*AKEYCODE_DPAD_UP_RIGHT*/:				return K_UPRIGHTARROW;
+//	case 271/*AKEYCODE_DPAD_DOWN_RIGHT*/:			return K_DOWNRIGHTARROW;
 //	case 272/*AKEYCODE_MEDIA_SKIP_FORWARD*/:		return K_;
 //	case 273/*AKEYCODE_MEDIA_SKIP_BACKWARD*/:		return K_;
 //	case 274/*AKEYCODE_MEDIA_STEP_FORWARD*/:		return K_;
@@ -448,6 +448,7 @@ static void run_intent_url(struct android_app *app)
 				{
 					if (!strncmp(url, "content:", 8))
 					{
+						Con_Printf(CON_ERROR"Content uris are not supported\n");
 						/*Java:
 						Cursor cursor = this.getContentResolver().query(data, null, null, null, null);
 						cursor.moveToFirst();   
@@ -697,7 +698,7 @@ void android_main(struct android_app *state)
 		Q_strncpyz(sys_basedir, getenv("EXTERNAL_STORAGE"), sizeof(sys_basedir));
 		Q_strncatz(sys_basedir, "/fte", sizeof(sys_basedir));
 #else	//so now users have to use some big long path to install stuff instead
-		Q_strncatz(sys_basedir, state->activity->externalDataPath, sizeof(sys_basedir));
+		Q_strncpyz(sys_basedir, state->activity->externalDataPath, sizeof(sys_basedir));
 #endif
 
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", sys_basepak, parms.basedir);

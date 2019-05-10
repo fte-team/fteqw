@@ -94,7 +94,6 @@ static dllhandle_t *libsdl;
 #include <SDL.h>
 #endif
 #define SDRVNAME "SDL"
-#endif
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
 //This results in extra latency due it needing to buffer that much data.
@@ -135,9 +134,11 @@ static qboolean SSDL_InitAudio(void)
 			return false;
 		}
 	inited = true;
-
 	return true;
 }
+#else
+#define SDL_VERSION_ATLEAST(x,y,z) 0
+#endif
 
 #ifdef HAVE_MIXER
 #define SELFPAINT

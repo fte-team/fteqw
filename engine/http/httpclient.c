@@ -371,7 +371,7 @@ void Cookie_Monster(void)
 
 //parses Set-Cookie: THISPARTONLY\r\n
 //we don't support:
-//domain) we don't have a list of composite roots, like .co.uk, and thus this wouldn't work very safely anyway. thus we require the exact same host each time
+//domain) we don't have a list of public suffixes, like .co.uk, and thus cannot safely block dangerous super-cookies. thus we require the exact same host each time
 //path) I'm going to call this an optimisation feature and not bother with it... hopefully there won't be too many sites that have sub-paths or third-party stuff... gah.
 //httponly) irrelevant until we support javascript... which we don't.
 //secure) assumed to be true. https:// vs http:// are thus completely independant. sorry.

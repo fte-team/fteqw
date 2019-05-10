@@ -3820,6 +3820,15 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 	}
 }
 
+void Sh_OrthoAlignToFrustum(dlight_t *dl)
+{
+	vec3_t neworg;
+	//there's 1 sample every dl->radius/(SHADOWMAP_SIZE*2)
+	//fixme: fit to frustum
+	VectorMA(r_origin, dl->radius/3, vpn, neworg);
+	VectorCopy(neworg, dl->origin);
+}
+
 int drawdlightnum;
 void Sh_DrawLights(qbyte *vis)
 {
@@ -3954,12 +3963,11 @@ void Sh_DrawLights(qbyte *vis)
 		drawdlightnum++;
 		if (dl->flags & LFLAG_ORTHO)
 		{
-			vec3_t saveorg = {dl->origin[0], dl->origin[1], dl->origin[2]}, neworg;
+			vec3_t saveorg = {dl->origin[0], dl->origin[1], dl->origin[2]};
 			vec3_t saveaxis[3];
 			memcpy(saveaxis, dl->axis, sizeof(saveaxis));
 			memcpy(dl->axis, axis, sizeof(saveaxis));
-			VectorMA(r_origin, dl->radius/3, vpn, neworg);
-			VectorCopy(neworg, dl->origin);
+			Sh_OrthoAlignToFrustum(dl);
 			dl->rebuildcache = true;
 			Sh_DrawShadowMapLight(dl, colour, axis, NULL);
 			VectorCopy(saveorg, dl->origin);

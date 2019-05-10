@@ -622,7 +622,7 @@ void SV_DropClient (client_t *drop)
 			Con_TPrintf ("Client \"%s\" removed\n",drop->name);
 	}
 
-#ifdef HAVE_LEGACY
+#if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 	SV_DownloadQueueClear(drop);
 #endif
 	if (drop->download)
@@ -1091,6 +1091,7 @@ char *SV_PlayerPublicAddress(client_t *cl)
 #define	STATUS_SPECTATORS				4
 #define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
 #define STATUS_SHOWTEAMS				16
+#define STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
 
 /*
 ================
@@ -1180,6 +1181,17 @@ static void SVC_Status (void)
 		else
 			slots++;
 	}
+#ifdef MVD_RECORDING
+	if (displayflags & STATUS_QTVLIST)
+	{
+		struct mvddest_s *d;
+		for (d = demo.dest; d; d = d->nextdest)
+		{
+			if (d->desttype == DEST_STREAM)
+				Con_Printf("qtv %d \"%s\" \"%s\" %d\n", d->id, d->simplename, d->filename, 0/*d->viewercount*/);
+		}
+	}
+#endif
 
 	SV_EndRedirect ();
 }
@@ -1578,10 +1590,10 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	{
 		unsigned int mask;
 		//tell the client what fte extensions we support
-		mask = Net_PextMask(1, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
 		if (mask)
 		{
-			lng = LittleLong(PROTOCOL_VERSION_FTE);
+			lng = LittleLong(PROTOCOL_VERSION_FTE1);
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 
@@ -1590,7 +1602,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			over+=sizeof(lng);
 		}
 		//tell the client what fte extensions we support
-		mask = Net_PextMask(2, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
 		if (mask)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_FTE2);
@@ -1601,6 +1613,19 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 		}
+		//tell the client what mvdsv/ezquake extensions we support
+		mask = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false);
+		if (mask)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_EZQUAKE1);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+
+			lng = LittleLong(mask);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+		}
+		//report the mtu
 		if (*net_mtu.string)
 			mask = net_mtu.ival&~7;
 		else
@@ -1913,9 +1938,9 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	extern cvar_t pr_maxedicts;
 	client_t *seat;
 
-	client->fteprotocolextensions  &= Net_PextMask(1, ISNQCLIENT(client));
-	client->fteprotocolextensions2 &= Net_PextMask(2, ISNQCLIENT(client));
-	client->ezprotocolextensions1  &= Net_PextMask(3, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
+	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client));
+	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client));
+	client->ezprotocolextensions1  &= Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
 
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
@@ -2615,7 +2640,7 @@ client_t *SVC_DirectConnect(void)
 		Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 		switch(Q_atoi(Cmd_Argv(0)))
 		{
-		case PROTOCOL_VERSION_FTE:
+		case PROTOCOL_VERSION_FTE1:
 			if (protocol == SCP_QUAKEWORLD || protocol == SCP_QUAKE2)
 			{
 				protextsupported = Q_atoi(Cmd_Argv(1));
@@ -3116,10 +3141,12 @@ client_t *SVC_DirectConnect(void)
 #endif
 		newcl->netchan.compresstable = NULL;
 	if (mtu >= 64)
-	{
+	{	//if we support application fragmenting, then we can send massive reliables without too much issue
 		newcl->netchan.fragmentsize = mtu;
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
 	}
+	else	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
+		newcl->netchan.message.maxsize = min(newcl->netchan.message.maxsize, max(net_mtu.ival, 512));
 
 	newcl->protocol = protocol;
 #ifdef NQPROT
@@ -5772,6 +5799,8 @@ void SV_ExecInitialConfigs(char *defaultexec)
 
 	Cbuf_AddText(defaultexec, RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
+	//make sure +set args override fmf/engine defaults (redundant when there's no map/etc command in configs)
+	COM_ParsePlusSets(true);
 
 	if (COM_FileSize("server.cfg") != -1)
 		Cbuf_AddText ("cl_warncmd 1\nexec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
@@ -5783,6 +5812,9 @@ void SV_ExecInitialConfigs(char *defaultexec)
 #endif
 	else
 		Cbuf_AddText ("cl_warncmd 0\nexec default.cfg\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
+
+	//make sure +set stuff still applies...
+	COM_ParsePlusSets(true);
 
 // process command line arguments
 	Cbuf_Execute ();

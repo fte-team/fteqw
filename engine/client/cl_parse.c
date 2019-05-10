@@ -3099,7 +3099,7 @@ static void CLQW_ParseServerData (void)
 	for(;;)
 	{
 		protover = MSG_ReadLong ();
-		if (protover == PROTOCOL_VERSION_FTE)
+		if (protover == PROTOCOL_VERSION_FTE1)
 		{
 			cls.fteprotocolextensions = MSG_ReadLong();
 			continue;
@@ -3417,7 +3417,7 @@ static void CLQ2_ParseServerData (void)
 // parse protocol version number
 	i = MSG_ReadLong ();
 
-	if (i == PROTOCOL_VERSION_FTE)
+	if (i == PROTOCOL_VERSION_FTE1)
 	{
 		cls.fteprotocolextensions = i = MSG_ReadLong();
 //		if (i & PEXT_FLOATCOORDS)
@@ -3577,7 +3577,7 @@ static void CLNQ_ParseProtoVersion(void)
 		protover = MSG_ReadLong ();
 		switch(protover)
 		{
-		case PROTOCOL_VERSION_FTE:
+		case PROTOCOL_VERSION_FTE1:
 			cls.fteprotocolextensions = MSG_ReadLong();
 			continue;
 		case PROTOCOL_VERSION_FTE2:

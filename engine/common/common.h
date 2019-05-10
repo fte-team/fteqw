@@ -35,8 +35,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//C99 has a stdint header which hopefully contains an intptr_t
 	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
 	#include <stdint.h>
-	#define qintptr_t intptr_t
-	#define quintptr_t uintptr_t
+	typedef intptr_t qintptr_t;
+	typedef uintptr_t quintptr_t;
 	#define qint16_t int16_t
 	#define quint16_t uint16_t
 	#define qint32_t int32_t

@@ -32,13 +32,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //FIXME: make sure that any 16bit indexes are bounded properly
 //FIXME: ensure that we don't get any count*size overflows
-#define	SANITY_MAX_MAP_PLANES		65536*64		//sanity
-#define	SANITY_MAX_MAP_NODES		65536*64		//sanity
+#define	SANITY_LIMIT(t)		((unsigned int)(0x7fffffffu/sizeof(t)))		//sanity limit for the array, to ensure a 32bit value cannot overflow us.
+//#define	SANITY_MAX_MAP_PLANES		65536*64		//sanity
+//#define	SANITY_MAX_MAP_NODES		65536*64		//sanity
 //#define	SANITY_MAX_MAP_CLIPNODES	65536*64		//sanity
 //#define	MAX_MAP_LEAFS				1		//pvs buffer size. not sanity.
-#define	SANITY_MAX_MAP_LEAFS		65536*64		//too many leafs results in massive amounts of ram used for pvs/phs caches.
+//#define	SANITY_MAX_MAP_LEAFS		65536*64		//too many leafs results in massive amounts of ram used for pvs/phs caches.
 //#define	SANITY_MAX_MAP_VERTS		65536		//sanity
-#define	SANITY_MAX_MAP_FACES		65536*64		//sanity
+//#define	SANITY_MAX_MAP_FACES		65536*64		//sanity
 //#define	MAX_MAP_MARKSURFACES 65536	//sanity
 //#define	MAX_MAP_TEXINFO		4096	//sanity
 //#define	MAX_MAP_EDGES		256000
@@ -838,7 +839,9 @@ enum q3surfacetype
 	MST_PLANAR=1,
 	MST_PATCH=2,
 	MST_TRIANGLE_SOUP=3,
-	MST_FLARE=4	
+	MST_FLARE=4,
+	MST_FOLIAGE=5,	//added in wolf/et
+	MST_PATCH_FIXED=256 //fte, fixed tessellation. Uses high parts of surf->patchwidth/height. if 0 then uses exact CPs instead.
 };
 
 typedef struct

@@ -589,6 +589,13 @@ static void Patch_Evaluate( const vec_t *p, const unsigned short *numcp, const i
 	const vec_t *pv[3][3];
 	vec4_t v1, v2, v3;
 
+	if (!tess[0] || !tess[1])
+	{	//not really a patch
+		for( i = 0; i < comp*numcp[1]*numcp[0]; i++ )
+			dest[i] = p[i];
+		return;
+	}
+
 	num_patches[0] = numcp[0] / 2;
 	num_patches[1] = numcp[1] / 2;
 	dstpitch = ( num_patches[0] * tess[0] + 1 ) * comp;
@@ -861,16 +868,36 @@ static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t
 	vec3_t tverts[4];
 	qbyte *data;
 	mplane_t *brushplanes;
+	float subdivlevel;
 
 	patch->surface = shaderref;
 
-	// find the degree of subdivision in the u and v directions
-	Patch_GetFlatness( cm_subdivlevel, verts, sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
+	if (patch_subdiv)
+	{	//fixed
+		step[0] = patch_subdiv[0];
+		step[1] = patch_subdiv[1];
+	}
+	else
+	{
+		// find the degree of subdivision in the u and v directions
+		subdivlevel = cm_subdivlevel;//r_subdivisions.value;
+		if ( subdivlevel < 1 )
+			subdivlevel = 1;
+		Patch_GetFlatness( subdivlevel, verts, sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
-	step[0] = 1 << flat[0];
-	step[1] = 1 << flat[1];
-	size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
-	size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+		step[0] = 1 << flat[0];
+		step[1] = 1 << flat[1];
+	}
+	if (!step[0] || !step[1])
+	{
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[1];
+	}
+	else
+	{
+		size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
+		size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+	}
 	if( size[0] <= 0 || size[1] <= 0 )
 		return;
 
@@ -1052,6 +1079,7 @@ static qboolean CM_CreatePatchForFace (model_t *loadmodel, cminfo_t *prv, mleaf_
 
 		break;
 	case MST_PATCH:
+	case MST_PATCH_FIXED:
 		if (face->patch.cp[0] <= 0 || face->patch.cp[1] <= 0)
 			return true;
 
@@ -1089,7 +1117,7 @@ static qboolean CM_CreatePatchForFace (model_t *loadmodel, cminfo_t *prv, mleaf_
 			checkout[facenum] = prv->numpatches++;
 
 //gcc warns without this cast
-			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp, face->patch.fixedres );
+			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp, (face->facetype==MST_PATCH_FIXED)?face->patch.fixedres:NULL );
 		}
 		leaf->contents |= patch->surface->c.value;
 		leaf->numleafpatches++;
@@ -1689,7 +1717,7 @@ static qboolean CModQ2_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
 		Con_Printf (CON_ERROR "Map has no nodes\n");
 		return false;
 	}
-	if (count > SANITY_MAX_MAP_NODES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many nodes\n");
 		return false;
@@ -1803,7 +1831,7 @@ static qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count > SANITY_MAX_MAP_LEAFS)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many leafs\n");
 		return false;
@@ -1880,7 +1908,7 @@ static qboolean CModQ2_LoadPlanes (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count >= SANITY_MAX_MAP_PLANES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many planes (%i)\n", count);
 		return false;
@@ -2484,7 +2512,7 @@ static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > SANITY_MAX_MAP_FACES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
@@ -2502,10 +2530,14 @@ static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->numverts = LittleLong ( in->num_vertices );
 		out->firstvert = LittleLong ( in->firstvertex );
 
-		if (out->facetype == MST_PATCH)
+		if (out->facetype == MST_PATCH || out->facetype == MST_PATCH_FIXED)
 		{
-			out->patch.cp[0] = LittleLong ( in->patchwidth );
-			out->patch.cp[1] = LittleLong ( in->patchheight );
+			unsigned int pw = LittleLong ( in->patchwidth );
+			unsigned int ph = LittleLong ( in->patchheight );
+			out->patch.cp[0] = pw&0xffff;
+			out->patch.cp[1] = ph&0xffff;
+			out->patch.fixedres[0] = pw>>16;
+			out->patch.fixedres[1] = ph>>16;
 		}
 		else
 		{
@@ -2535,7 +2567,7 @@ static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > SANITY_MAX_MAP_FACES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
@@ -2553,14 +2585,14 @@ static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->numverts = LittleLong ( in->num_vertices );
 		out->firstvert = LittleLong ( in->firstvertex );
 
-		if (out->facetype == MST_PATCH)
+		if (out->facetype == MST_PATCH || out->facetype == MST_PATCH_FIXED)
 		{
-			unsigned int w = LittleLong ( in->patchwidth );
-			unsigned int h = LittleLong ( in->patchheight );
-			out->patch.cp[0] = w&0xffff;
-			out->patch.cp[1] = h&0xffff;
-			out->patch.fixedres[0]=w>>16;
-			out->patch.fixedres[1]=h>>16;
+			unsigned int pw = LittleLong ( in->patchwidth );
+			unsigned int ph = LittleLong ( in->patchheight );
+			out->patch.cp[0] = pw&0xffff;
+			out->patch.cp[1] = ph&0xffff;
+			out->patch.fixedres[0] = pw>>16;
+			out->patch.fixedres[1] = ph>>16;
 		}
 		else
 		{
@@ -2661,14 +2693,38 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org)
 
 static index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
+static void GL_SizePatchFixed(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert, cminfo_t *prv)
+{
+	unsigned short patch_cp[2];
+	int step[2], size[2];
+
+	patch_cp[0] = patchwidth&0xffff;
+	patch_cp[1] = patchheight&0xffff;
+
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+	// allocate space for mesh
+	step[0] = 2;//patchwidth>>16;
+	step[1] = 2;//patchheight>>16;
+	size[0] = (patch_cp[0] / 2) * step[0] + 1;
+	size[1] = (patch_cp[1] / 2) * step[1] + 1;
+
+	mesh->numvertexes = size[0] * size[1];
+	mesh->numindexes = (size[0]-1) * (size[1]-1) * 6;
+}
 static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert, cminfo_t *prv)
 {
 	unsigned short patch_cp[2];
 	int step[2], size[2], flat[2];
 	float subdivlevel;
 
-	patch_cp[0] = patchwidth&0xffff;
-	patch_cp[1] = patchheight&0xffff;
+	patch_cp[0] = patchwidth;
+	patch_cp[1] = patchheight;
 
 	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{
@@ -2704,8 +2760,8 @@ static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, i
 	float subdivlevel;
 	int sty;
 
-	patch_cp[0] = patchwidth&0xffff;
-	patch_cp[1] = patchheight&0xffff;
+	patch_cp[0] = patchwidth;
+	patch_cp[1] = patchheight;
 
 	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{
@@ -2726,6 +2782,114 @@ static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, i
 	step[1] = (1 << flat[1]);
 	size[0] = (patch_cp[0] / 2) * step[0] + 1;
 	size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	numverts = size[0] * size[1];
+
+	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+
+	if (mesh->numvertexes != numverts)
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+// fill in
+
+	Patch_Evaluate ( prv->verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+	{
+		if (mesh->colors4f_array[sty])
+			Patch_Evaluate ( prv->colors4f_array[sty][firstvert], patch_cp, step, mesh->colors4f_array[sty][0], 4 );
+	}
+	Patch_Evaluate ( prv->normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
+	Patch_Evaluate ( prv->vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
+	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+	{
+		if (mesh->lmst_array[sty])
+			Patch_Evaluate ( prv->vertlstmexcoords[sty][firstvert], patch_cp, step, mesh->lmst_array[sty][0], 2 );
+	}
+
+// compute new indexes avoiding adding invalid triangles
+	numindexes = 0;
+	indexes = tempIndexesArray;
+	for (v = 0, i = 0; v < size[1]-1; v++)
+	{
+		for (u = 0; u < size[0]-1; u++, i += 6)
+		{
+			indexes[0] = p = v * size[0] + u;
+			indexes[1] = p + size[0];
+			indexes[2] = p + 1;
+
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
+				indexes += 3;
+				numindexes += 3;
+			}
+
+			indexes[0] = p + 1;
+			indexes[1] = p + size[0];
+			indexes[2] = p + size[0] + 1;
+
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
+				indexes += 3;
+				numindexes += 3;
+			}
+		}
+	}
+
+// allocate and fill index table
+
+	mesh->numindexes = numindexes;
+
+	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
+}
+
+static void GL_CreateMeshForPatchFixed (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
+{
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+	int numindexes, step[2], size[2], i, u, v, p;
+	unsigned short patch_cp[2];
+	index_t	*indexes;
+	float subdivlevel;
+	int sty;
+
+	patch_cp[0] = patchwidth&0xffff;
+	patch_cp[1] = patchheight&0xffff;
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+	subdivlevel = r_subdivisions.value;
+	if ( subdivlevel < 1 )
+		subdivlevel = 1;
+
+// allocate space for mesh
+	step[0] = patchwidth>>16;
+	step[1] = patchheight>>16;
+	if (!step[0] || !step[1])
+	{
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[0];
+	}
+	else
+	{
+		size[0] = (patch_cp[0] / 2) * step[0] + 1;
+		size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	}
 	numverts = size[0] * size[1];
 
 	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
@@ -2878,15 +3042,19 @@ static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *b
 static void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	q3dface_t *in = (q3dface_t*)(bd+1);
 	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
-	in += idx;
+	q3dface_t *in = (q3dface_t*)(bd+1) + idx;
+	int facetype = LittleLong(in->facetype);
 
-	if (LittleLong(in->facetype) == MST_PATCH)
+	if (facetype == MST_PATCH)
 	{
 		GL_CreateMeshForPatch(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 	}
-	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+	else if (facetype == MST_PATCH_FIXED)
+	{
+		GL_CreateMeshForPatchFixed(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+	}
+	else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 	{
 		unsigned int fv = LittleLong(in->firstvertex), fi = LittleLong(in->firstindex), i;
 		for (i = 0; i < out->mesh->numvertexes; i++)
@@ -3037,6 +3205,11 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->mesh = &mesh[surfnum];
 			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
 		}
+		else if (facetype == MST_PATCH_FIXED)
+		{
+			out->mesh = &mesh[surfnum];
+			GL_SizePatchFixed(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
+		}
 		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
 			out->mesh = &mesh[surfnum];
@@ -3149,6 +3322,11 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->mesh = &mesh[surfnum];
 			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
 		}
+		else if (facetype == MST_PATCH_FIXED)
+		{
+			out->mesh = &mesh[surfnum];
+			GL_SizePatchFixed(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
+		}
 		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
 			out->mesh = &mesh[surfnum];
@@ -3188,7 +3366,7 @@ static qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l
 	count = l->filelen / sizeof(*in);
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
-	if (count > SANITY_MAX_MAP_NODES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Too many nodes on map\n");
 		return false;
@@ -3297,7 +3475,7 @@ static qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	// need to save space for box planes
 
-	if (count > SANITY_MAX_MAP_LEAFS)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Too many leaves on map");
 		return false;
@@ -3362,7 +3540,7 @@ static qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *
 	}
 	count = l->filelen / sizeof(*in);
 
-	if (count > SANITY_MAX_MAP_PLANES)
+	if (count > SANITY_LIMIT(*out))
 	{
 		Con_Printf (CON_ERROR "Too many planes on map (%i)\n", count);
 		return false;

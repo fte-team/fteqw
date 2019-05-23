@@ -306,15 +306,15 @@ static void S_Info(void);
 
 static void S_Shutdown_f(void);
 */
-static cvar_t s_al_debug = CVAR("s_al_debug", "0");
-static cvar_t s_al_use_reverb = CVAR("s_al_use_reverb", "1");
+static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
+static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
 static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
-static cvar_t s_al_speedofsound = CVARFC("s_al_speedofsound", "343.3",0,OnChangeALSettings);
-static cvar_t s_al_dopplerfactor = CVARFC("s_al_dopplerfactor", "1.0",0,OnChangeALSettings);
-static cvar_t s_al_distancemodel = CVARFC("s_al_distancemodel", "2",0,OnChangeALSettings);
-static cvar_t s_al_rolloff_factor = CVAR("s_al_rolloff_factor", "1");
-static cvar_t s_al_reference_distance = CVAR("s_al_reference_distance", "120");
-static cvar_t s_al_velocityscale = CVAR("s_al_velocityscale", "1");
+static cvar_t s_al_speedofsound = CVARFCD("s_al_speedofsound", "343.3",0,OnChangeALSettings, "Configures the speed of sound, in game units per second. This affects doppler.");
+static cvar_t s_al_dopplerfactor = CVARFCD("s_al_dopplerfactor", "1.0",0,OnChangeALSettings, "Multiplies the strength of doppler effects.");
+static cvar_t s_al_distancemodel = CVARFCD("s_al_distancemodel", legacyval("2","0"),0,OnChangeALSettings, "Controls how sounds fade with distance.\n0: Inverse (most realistic)\n1: Inverse Clamped\n2: Linear (Quake-like)\n3: Linear Clamped\n4: Exponential\n5: Exponential Clamped\n6: None");
+//static cvar_t s_al_rolloff_factor = CVAR("s_al_rolloff_factor", "1");
+static cvar_t s_al_reference_distance = CVARD("s_al_reference_distance", "120", "This is the distance at which the sound is audiable with standard volume in the inverse distance models. Nearer sounds will be louder than the original sample.");
+static cvar_t s_al_velocityscale = CVARD("s_al_velocityscale", "1", "Rescales velocity values, before doppler can be calculated.");
 static cvar_t s_al_static_listener = CVAR("s_al_static_listener", "0");	//cheat
 extern cvar_t snd_doppler;
 
@@ -503,7 +503,7 @@ static void QDECL OpenAL_CvarInit(void)
 	Cvar_Register(&s_al_dopplerfactor, SOUNDVARS);
 	Cvar_Register(&s_al_distancemodel, SOUNDVARS);
 	Cvar_Register(&s_al_reference_distance, SOUNDVARS);
-	Cvar_Register(&s_al_rolloff_factor, SOUNDVARS);
+//	Cvar_Register(&s_al_rolloff_factor, SOUNDVARS);
 	Cvar_Register(&s_al_velocityscale, SOUNDVARS);
 	Cvar_Register(&s_al_static_listener, SOUNDVARS);
 	Cvar_Register(&s_al_speedofsound, SOUNDVARS);

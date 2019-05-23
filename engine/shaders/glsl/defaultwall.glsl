@@ -9,11 +9,17 @@
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_tessellation_level=5
-!!samps !EIGHTBIT diffuse specular normalmap fullbright reflectmask reflectcube
+!!samps diffuse
+!!samps !EIGHTBIT =FULLBRIGHT fullbright
+!!samps !EIGHTBIT =BUMP normalmap
+!!samps !EIGHTBIT =REFLECTCUBEMASK reflectmask reflectcube
 //diffuse gives us alpha, and prevents dlight from bugging out when there's no diffuse.
-!!samps =EIGHTBIT paletted 1 specular diffuse
-!!samps lightmap deluxemap
-!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3 deluxemap deluxemap1 deluxemap2 deluxemap3
+!!samps =EIGHTBIT paletted 1
+!!samps =SPECULAR specular
+!!samps lightmap
+!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3
+!!samps =DELUXE deluxmap
+!!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3
 
 #if defined(ORM) || defined(SG)
     #define PBR
@@ -299,7 +305,7 @@ void main ()
 			vec3 deluxe = (texture2D(s_deluxemap, lm0).rgb-0.5);
 			#ifdef BUMPMODELSPACE
 				deluxe = normalize(deluxe*invsurface);
-#else
+	#else
 				deluxe = normalize(deluxe);
 				lightmaps *= 2.0 / max(0.25, deluxe.z);	//counter the darkening from deluxemaps
 			#endif
@@ -370,7 +376,6 @@ void main ()
 #else
 	//now we have our diffuse+specular terms, modulate by lightmap values.
 	col.rgb *= lightmaps.rgb;
-
 //add on the fullbright
 #ifdef FULLBRIGHT
 	col.rgb += texture2D(s_fullbright, tc).rgb;

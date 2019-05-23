@@ -565,7 +565,10 @@ void SV_Map_f (void)
 #ifdef Q3SERVER
 	q3singleplayer = !strcmp(Cmd_Argv(0), "spmap");
 #endif
-	flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap");
+	if ((svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM) && progstype == PROG_QW)
+		flushparms = !strcmp(Cmd_Argv(0), "spmap");	//quakeworld's map command preserves spawnparms.
+	else
+		flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap"); //[sp]map flushes in nq+h2+q2+etc
 #ifdef SAVEDGAMES
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
 	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
@@ -1910,7 +1913,10 @@ static void SV_Status_f (void)
 	#if defined(HAVE_SSL)
 		extern cvar_t net_enable_tls;
 	#endif
-	extern cvar_t net_enable_http, net_enable_webrtcbroker, net_enable_websockets, net_enable_qizmo, net_enable_qtv;
+	#ifdef HAVE_HTTPSV
+		extern cvar_t net_enable_http, net_enable_webrtcbroker, net_enable_websockets;
+	#endif
+	extern cvar_t net_enable_qizmo, net_enable_qtv;
 #endif
 #ifdef NQPROT
 	extern cvar_t sv_listen_nq, sv_listen_dp;
@@ -1990,12 +1996,14 @@ static void SV_Status_f (void)
 		if (net_enable_tls.ival)
 			Con_Printf(" TLS");
 #endif
+#ifdef HAVE_HTTPSV
 		if (net_enable_http.ival)
 			Con_Printf(" HTTP");
 		if (net_enable_webrtcbroker.ival)
 			Con_Printf(" WebRTC");
 		if (net_enable_websockets.ival)
 			Con_Printf(" WS");
+#endif
 		if (net_enable_qizmo.ival)
 			Con_Printf(" QZ");
 		if (net_enable_qtv.ival)

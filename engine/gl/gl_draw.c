@@ -135,11 +135,11 @@ void GL_SetupFormats(void)
 	if (gl_config_gles)
 	{
 		//pre-3 gles doesn't support sized formats, and only a limited number of them too
-		glfmtc(PTI_RGB8,	GL_RGB,				GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE,			tc_rgb);
-		glfmtc(PTI_RGBA8,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,			tc_rgba8);
-		glfmt(PTI_L8A8,		GL_LUMINANCE_ALPHA,	GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
-		glfmt(PTI_L8,		GL_LUMINANCE,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
-//		glfmt(PTI_RGBA8,	GL_ALPHA,			GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
+		glfmtc(PTI_RGB8,	0,					GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE,			tc_rgb);
+		glfmtc(PTI_RGBA8,	0,					GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,			tc_rgba8);
+		glfmt(PTI_L8A8,		0,					GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
+		glfmt(PTI_L8,		0,					GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
+//		glfmt(PTI_A8,		0,					GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
 
 		if (!gl_config.webgl_ie)
 		{	//these should work on all gles2+webgl1 devices, but microsoft doesn't give a shit.
@@ -754,7 +754,6 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			{
 				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, 0);
 				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, nummips-1);
-				qglTexParameteri(targ, GL_TEXTURE_LOD_BIAS, 0);
 			}
 		}
 	}

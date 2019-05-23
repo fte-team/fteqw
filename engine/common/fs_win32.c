@@ -522,6 +522,30 @@ static void QDECL VFSW32_BuildHash(searchpathfuncs_t *handle, int hashdepth, voi
 	wp->hashdepth = hashdepth;
 	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
+static unsigned int QDECL VFSW32_CreateLoc(searchpathfuncs_t *handle, flocation_t *loc, const char *filename)
+{
+	vfsw32path_t *wp = (void*)handle;
+	char *ofs;
+
+	loc->len = 0;
+	loc->offset = 0;
+	loc->fhandle = handle;
+	loc->rawname[sizeof(loc->rawname)-1] = 0;
+	if ((unsigned int)snprintf (loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename) > sizeof(loc->rawname)-1)
+		return FF_NOTFOUND;
+	for (ofs = loc->rawname+1 ; *ofs ; ofs++)
+	{
+		if (*ofs == '/')
+		{	// create the directory
+			*ofs = 0;
+			Sys_mkdir (loc->rawname);
+			*ofs = '/';
+		}
+	}
+
+	return FF_FOUND;
+}
+
 #include <errno.h>
 static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
@@ -545,7 +569,8 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 */
 
 // check a file in the directory tree
-	snprintf (netpath, sizeof(netpath)-1, "%s/%s", wp->rootpath, filename);
+	if ((unsigned int)snprintf (netpath, sizeof(netpath), "%s/%s", wp->rootpath, filename) > sizeof(loc->rawname)-1)
+		return FF_NOTFOUND;
 
 	if (!WinNT)
 	{
@@ -634,16 +659,6 @@ static qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *f
 	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
 	return Sys_remove(syspath);
 }
-static qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filename)
-{
-	vfsw32path_t *wp = (vfsw32path_t*)handle;
-	char syspath[MAX_OSPATH];
-	if (fs_readonly)
-		return false;
-	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
-	Sys_mkdir(syspath);
-	return true;
-}
 
 searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
@@ -675,9 +690,10 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_
 
 	np->pub.FileStat		= VFSW32_FileStat;
 
+#undef CreateFile //stoopid windows.h
+	np->pub.CreateFile		= VFSW32_CreateLoc;
 	np->pub.RenameFile		= VFSW32_RenameFile;
 	np->pub.RemoveFile		= VFSW32_RemoveFile;
-	np->pub.MkDir			= VFSW32_MkDir;
 
 	return &np->pub;
 }

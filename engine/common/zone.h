@@ -87,12 +87,12 @@ void Memory_Init (void);
 void Memory_DeInit(void);
 
 void VARGS Z_Free (void *ptr);
-void *Z_Malloc (int size); // returns 0 filled memory
-void *ZF_Malloc (int size); // allowed to fail
-void *Z_MallocNamed (int size, char *file, int line); // returns 0 filled memory
-void *ZF_MallocNamed (int size, char *file, int line); // allowed to fail
+void *Z_Malloc (size_t size); // returns 0 filled memory
+void *ZF_Malloc (size_t size); // allowed to fail
+void *Z_MallocNamed (size_t size, char *file, int line); // returns 0 filled memory
+void *ZF_MallocNamed (size_t size, char *file, int line); // allowed to fail
 //#define Z_Malloc(x) Z_MallocNamed2(x, __FILE__, __LINE__ )
-void *VARGS Z_TagMalloc (int size, int tag);
+void *Z_TagMalloc (size_t size, int tag);
 void VARGS Z_TagFree(void *ptr);
 void VARGS Z_FreeTags(int tag);
 qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, size_t elementsize);	//returns false on error
@@ -101,14 +101,14 @@ qboolean ZF_ReallocElementsNamed(void **ptr, size_t *elements, size_t newelement
 
 //Big Zone: allowed to fail, doesn't clear. The expectation is a large file, rather than sensitive data structures.
 //(this is a nicer name for malloc)
-void *BZ_Malloc(int size);
-void *BZF_Malloc(int size);
-void *BZ_MallocNamed (int size, const char *file, int line); // returns 0 filled memory
-void *BZF_MallocNamed (int size, const char *file, int line); // allowed to fail
-void *BZ_Realloc(void *ptr, int size);
-void *BZ_ReallocNamed(void *data, int newsize, const char *file, int line);
-void *BZF_Realloc(void *data, int newsize);
-void *BZF_ReallocNamed(void *data, int newsize, const char *file, int line);
+void *BZ_Malloc(size_t size);
+void *BZF_Malloc(size_t size);
+void *BZ_MallocNamed (size_t size, const char *file, int line); // returns 0 filled memory
+void *BZF_MallocNamed (size_t size, const char *file, int line); // allowed to fail
+void *BZ_Realloc(void *ptr, size_t size);
+void *BZ_ReallocNamed(void *data, size_t newsize, const char *file, int line);
+void *BZF_Realloc(void *data, size_t newsize);
+void *BZF_ReallocNamed(void *data, size_t newsize, const char *file, int line);
 void BZ_Free(void *ptr);
 
 //ctx should start off as void*ctx=NULL
@@ -117,8 +117,8 @@ typedef struct zonegroup_s
 	void *first;
 	int bytes;
 } zonegroup_t;
-void *QDECL ZG_Malloc(zonegroup_t *ctx, int size);
-void *ZG_MallocNamed(zonegroup_t *ctx, int size, char *file, int line);
+void *QDECL ZG_Malloc(zonegroup_t *ctx, size_t size);
+void *ZG_MallocNamed(zonegroup_t *ctx, size_t size, char *file, int line);
 void ZG_FreeGroup(zonegroup_t *ctx);
 
 #ifdef USE_MSVCRT_DEBUG
@@ -141,8 +141,8 @@ void *Hunk_Alloc (int size);		// returns 0 filled memory
 void *Hunk_AllocName (int size, char *name);
 */
 
-void *Hunk_TempAlloc (int size);
-void *Hunk_TempAllocMore (int size); //Don't clear old temp
+void *Hunk_TempAlloc (size_t size);
+void *Hunk_TempAllocMore (size_t size); //Don't clear old temp
 
 /*
 typedef struct cache_user_s

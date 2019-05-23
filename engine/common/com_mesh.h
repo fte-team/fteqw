@@ -52,7 +52,8 @@ typedef struct
 #endif
 	qboolean loop;
 	int numposes;
-	float rate;
+	//float *poseendtime;	//first starts at 0, anim duration is poseendtime[numposes-1]
+	float rate;				//average framerate of animation.
 #ifdef NONSKELETALMODELS
 	galiaspose_t *poseofs;
 #endif
@@ -219,7 +220,7 @@ typedef struct modplugfuncs_s
 	void (QDECL *UnRegisterModelFormat)(int idx);
 	void (QDECL *UnRegisterAllModelFormats)(void);
 
-	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, int size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
+	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, size_t size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
 
 	void (QDECL *ConcatTransforms) (const float in1[3][4], const float in2[3][4], float out[3][4]);
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);

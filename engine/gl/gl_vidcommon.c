@@ -420,7 +420,7 @@ qboolean GL_CheckExtension(char *extname)
 		for (i = 0; i < gl_num_extensions; i++)
 			if (!strcmp(qglGetStringi(GL_EXTENSIONS, i), extname))
 			{
-				Con_DPrintf("Detected GL extension %s\n", extname);
+				Con_DPrintf("GL: Found %s\n", extname);
 				return true;
 			}
 	}
@@ -2280,6 +2280,9 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 							"#ifndef USE_ARB_SHADOW\n"	//fall back on regular samplers if we must
 								"#define sampler2DShadow sampler2D\n"
 							"#elif defined(GL_ES)\n"
+								"#if __VERSION__ < 300\n"
+									"#extension GL_EXT_shadow_samplers : require\n"
+								"#endif\n"
 								"precision lowp sampler2DShadow;\n"	//gah
 							"#endif\n"
 				#endif

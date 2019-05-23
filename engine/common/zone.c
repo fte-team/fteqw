@@ -52,11 +52,11 @@ qbyte sentinalkey;
 
 #define TAGLESS 1
 
-int zmemtotal;
-int zmemdelta;
+size_t zmemtotal;
+size_t zmemdelta;
 
 typedef struct memheader_s {
-	int size;
+	size_t size;
 	int tag;
 } memheader_t;
 
@@ -108,13 +108,13 @@ static void Z_DumpTree(void)
 }
 #endif
 
-void *VARGS Z_TagMalloc(int size, int tag)
+void *Z_TagMalloc(size_t size, int tag)
 {
 	zone_t *zone;
 
 	zone = (zone_t *)malloc(size + sizeof(zone_t));
 	if (!zone)
-		Sys_Error("Z_Malloc: Failed on allocation of %i bytes", size);
+		Sys_Error("Z_Malloc: Failed on allocation of %"PRIuSIZE" bytes", size);
 	Q_memset(zone, 0, size + sizeof(zone_t));
 	zone->mh.tag = tag;
 	zone->mh.size = size;
@@ -184,7 +184,7 @@ void *Z_MallocNamed(int size, char *file, int line)
 	return mem;
 }
 #else
-void *ZF_Malloc(int size)
+void *ZF_Malloc(size_t size)
 {
 #ifdef ANDROID
 	void *ret = NULL;
@@ -202,11 +202,11 @@ void *ZF_Malloc(int size)
 	return calloc(size, 1);
 #endif
 }
-void *Z_Malloc(int size)
+void *Z_Malloc(size_t size)
 {
 	void *mem = ZF_Malloc(size);
 	if (!mem)
-		Sys_Error("Z_Malloc: Failed on allocation of %i bytes", size);
+		Sys_Error("Z_Malloc: Failed on allocation of %"PRIuSIZE" bytes", size);
 
 	return mem;
 }
@@ -423,7 +423,7 @@ void *BZF_MallocNamed(int size, const char *file, int line)	//BZ_MallocNamed but
 	return mem;
 }
 #else
-void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight malloc.
+void *BZF_Malloc(size_t size)	//BZ_Malloc but allowed to fail - like straight malloc.
 {
 	void *mem;
 	mem = malloc(size);
@@ -446,11 +446,11 @@ void *BZ_MallocNamed(int size, const char *file, int line)	//BZ_MallocNamed but 
 	return mem;
 }
 #else
-void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensitive data structures.
+void *BZ_Malloc(size_t size)	//Doesn't clear. The expectation is a large file, rather than sensitive data structures.
 {
 	void *mem = BZF_Malloc(size);
 	if (!mem)
-		Sys_Error("BZ_Malloc: Failed on allocation of %i bytes", size);
+		Sys_Error("BZ_Malloc: Failed on allocation of %"PRIuSIZE" bytes", size);
 
 	return mem;
 }
@@ -472,17 +472,17 @@ void *BZ_ReallocNamed(void *data, int newsize, const char *file, int line)
 	return mem;
 }
 #else
-void *BZF_Realloc(void *data, int newsize)
+void *BZF_Realloc(void *data, size_t newsize)
 {
 	return realloc(data, newsize);
 }
 
-void *BZ_Realloc(void *data, int newsize)
+void *BZ_Realloc(void *data, size_t newsize)
 {
 	void *mem = BZF_Realloc(data, newsize);
 
 	if (!mem)
-		Sys_Error("BZ_Realloc: Failed on reallocation of %i bytes", newsize);
+		Sys_Error("BZ_Realloc: Failed on reallocation of %"PRIuSIZE" bytes", newsize);
 
 	return mem;
 }
@@ -508,7 +508,7 @@ typedef struct zonegroupblock_s
 void *QDECL ZG_Malloc(zonegroup_t *ctx, int size){return ZG_MallocNamed(ctx, size, "ZG_Malloc", size);}
 void *ZG_MallocNamed(zonegroup_t *ctx, int size, char *file, int line)
 #else
-void *QDECL ZG_Malloc(zonegroup_t *ctx, int size)
+void *QDECL ZG_Malloc(zonegroup_t *ctx, size_t size)
 #endif
 {
 	zonegroupblock_t *newm;
@@ -590,7 +590,7 @@ void Hunk_TempFree(void)
 
 //allocates without clearing previous temp.
 //safer than my hack that fuh moaned about...
-void *Hunk_TempAllocMore (int size)
+void *Hunk_TempAllocMore (size_t size)
 {
 	void	*buf;
 
@@ -624,7 +624,7 @@ void *Hunk_TempAllocMore (int size)
 }
 
 
-void *Hunk_TempAlloc (int size)
+void *Hunk_TempAlloc (size_t size)
 {
 	Hunk_TempFree();
 
@@ -657,8 +657,8 @@ void Cache_Flush(void)
 
 static void Hunk_Print_f (void)
 {
-	Con_Printf("Z Delta: %iKB\n", zmemdelta/1024); zmemdelta = 0;
-	Con_Printf("Z Total: %iKB\n", zmemtotal/1024);
+	Con_Printf("Z Delta: %"PRIuSIZE"KB\n", zmemdelta/1024); zmemdelta = 0;
+	Con_Printf("Z Total: %"PRIuSIZE"KB\n", zmemtotal/1024);
 	//note: Zone memory isn't tracked reliably. we don't track the mem that is freed, so it'll just climb and climb
 	//we don't track reallocs either.
 

@@ -987,12 +987,12 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		return;
 	}
 
-	//just because we CAN generate huge messages doesn't meant that we should.
+	//just because we CAN generate huge messages doesn't mean that we should.
 	//try to keep packets within reasonable sizes so that we don't trigger insane burst+packetloss on map changes.
 	maxsize = client->netchan.message.maxsize/2;
-	if (client->netchan.fragmentsize && maxsize > client->netchan.fragmentsize-200)
+	if (client->netchan.mtu && maxsize > client->netchan.mtu-200)
 	{
-		maxsize = client->netchan.fragmentsize-200;
+		maxsize = client->netchan.mtu-200;
 		if (maxsize < 500)
 			maxsize = 500;
 	}
@@ -1933,7 +1933,6 @@ void SVQW_Spawn_f (void)
 	// when that is completed, a begin command will be issued
 	ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
 	ClientReliableWrite_String (host_client, "skins\n" );
-
 }
 
 /*
@@ -7733,6 +7732,8 @@ void SV_ReadQCRequest(void)
 done:
 	args[i] = 0;
 	rname = MSG_ReadString();
+	//We used to use Cmd_foo_args, but that conflicts with a zquake extension and would cause [e]zquake mods that use it to be remotely exploitable (mostly crashes from uninitialised args though).
+	//Instead, we've switched to some more weird prefix that's much less likly to conflict.
 	if (i)
 		fname = va("CSEv_%s_%s", rname, args);
 	else if (strchr(rname, '_'))	//this is awkward, as not forcing an underscore would allow people to mis-call things with lingering data (the alternative is to block underscores entirely).
@@ -7749,7 +7750,10 @@ done:
 			rname = va("Cmd_%s", rname);
 		f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
 		if (f)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "the name \"%s\" is deprecated\n", rname);
+		{
+			SV_ClientPrintf(host_client, PRINT_HIGH, "\"%s\" is no longer supported.\n", rname);
+			f = 0;
+		}
 	}
 #endif
 	if (host_client->drop)

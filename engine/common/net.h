@@ -209,9 +209,10 @@ typedef struct
 	float		nqreliable_resendtime;//force nqreliable_allowed, thereby forcing a resend of anything n
 	qbyte		nqunreliableonly;	//nq can't cope with certain reliables some times. if 2, we have a reliable that result in a block (that should be sent). if 1, we are blocking. if 0, we can send reliables freely. if 3, then we just want to ignore clc_moves
 #endif
+	qboolean	pext_fragmentation;	//fte's packet fragmentation extension, to avoid issues with low mtus.
 	struct netprim_s netprim;
-	int			fragmentsize;
-	int			dupe;
+	int			mtu;				//the path mtu, if known
+	int			dupe;				//how many times to dupe packets
 
 	float		last_received;		// for timeouts
 

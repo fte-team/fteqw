@@ -802,8 +802,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 
 #if defined(__i386__)
 	//x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
-	ucontext_t *uc = vcontext;
-	array[1] = (void*)uc->uc_mcontext.gregs[REG_EIP];
+	array[1] = (void*)((ucontext_t*)vcontext)->uc_mcontext.gregs[REG_EIP];
 	firstframe = 1;
 #elif defined(__amd64__)
 	//amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.
@@ -994,7 +993,6 @@ int main (int c, const char **v)
 */
 #endif
 	TL_InitLanguages(parms.binarydir);
-
 
 	if (!isatty(STDIN_FILENO))
 		noconinput = !isPlugin;	//don't read the stdin if its probably screwed (running in qtcreator seems to pipe stdout to stdin in an attempt to screw everything up).

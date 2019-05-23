@@ -313,7 +313,8 @@ typedef struct
 	{
 		struct
 		{
-			int		cp[2];
+			unsigned short cp[2];
+			unsigned short fixedres[2];
 		} patch;
 		struct
 		{
@@ -527,7 +528,7 @@ static int Patch_FlatnessTest( float maxflat2, const float *point0, const float 
 Patch_GetFlatness
 ===============
 */
-static void Patch_GetFlatness( float maxflat, const float *points, int comp, const int *patch_cp, int *flat )
+static void Patch_GetFlatness( float maxflat, const float *points, int comp, const unsigned short *patch_cp, int *flat )
 {
 	int i, p, u, v;
 	float maxflat2 = maxflat * maxflat;
@@ -579,7 +580,7 @@ static void Patch_Evaluate_QuadricBezier( float t, const vec_t *point0, const ve
 Patch_Evaluate
 ===============
 */
-static void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, vec_t *dest, int comp )
+static void Patch_Evaluate( const vec_t *p, const unsigned short *numcp, const int *tess, vec_t *dest, int comp )
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
@@ -850,7 +851,7 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 /*
 * CM_CreatePatch
 */
-static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const int *patch_cp )
+static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const unsigned short *patch_cp, const unsigned short *patch_subdiv)
 {
 	int step[2], size[2], flat[2];
 	int i, j, k ,u, v;
@@ -1088,7 +1089,7 @@ static qboolean CM_CreatePatchForFace (model_t *loadmodel, cminfo_t *prv, mleaf_
 			checkout[facenum] = prv->numpatches++;
 
 //gcc warns without this cast
-			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp );
+			CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp, face->patch.fixedres );
 		}
 		leaf->contents |= patch->surface->c.value;
 		leaf->numleafpatches++;
@@ -2554,8 +2555,12 @@ static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 		if (out->facetype == MST_PATCH)
 		{
-			out->patch.cp[0] = LittleLong ( in->patchwidth );
-			out->patch.cp[1] = LittleLong ( in->patchheight );
+			unsigned int w = LittleLong ( in->patchwidth );
+			unsigned int h = LittleLong ( in->patchheight );
+			out->patch.cp[0] = w&0xffff;
+			out->patch.cp[1] = h&0xffff;
+			out->patch.fixedres[0]=w>>16;
+			out->patch.fixedres[1]=h>>16;
 		}
 		else
 		{
@@ -2658,11 +2663,12 @@ static index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
 static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert, cminfo_t *prv)
 {
-	int patch_cp[2], step[2], size[2], flat[2];
+	unsigned short patch_cp[2];
+	int step[2], size[2], flat[2];
 	float subdivlevel;
 
-	patch_cp[0] = patchwidth;
-	patch_cp[1] = patchheight;
+	patch_cp[0] = patchwidth&0xffff;
+	patch_cp[1] = patchheight&0xffff;
 
 	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{
@@ -2692,13 +2698,14 @@ static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numv
 static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
+	int numindexes, step[2], size[2], flat[2], i, u, v, p;
+	unsigned short patch_cp[2];
 	index_t	*indexes;
 	float subdivlevel;
 	int sty;
 
-	patch_cp[0] = patchwidth;
-	patch_cp[1] = patchheight;
+	patch_cp[0] = patchwidth&0xffff;
+	patch_cp[1] = patchheight&0xffff;
 
 	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{

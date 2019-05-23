@@ -4195,7 +4195,7 @@ void CL_LinkPacketEntities (void)
 					Q_snprintfz(name, sizeof(name), "textures/bmodels/simple_%s_%i.tga", basename, ent->skinnum);
 				else
 					Q_snprintfz(name, sizeof(name), "textures/models/simple_%s_%i.tga", basename, ent->skinnum);
-				model->simpleskin[ent->skinnum] = R_RegisterShader(name, 0, va("{\nnomipmaps\nprogram defaultsprite\nsurfaceparm noshadows\nsurfaceparm nodlight\nsort seethrough\n{\nmap \"%s\"\nalphafunc ge128\n}\n}\n", name));
+				model->simpleskin[ent->skinnum] = R_RegisterShader(name, 0, va("{\nnomipmaps\nprogram defaultsprite#MASK=0.5\nsurfaceparm noshadows\nsurfaceparm nodlight\nsort seethrough\n{\nmap \"%s\"\nalphafunc ge128\n}\n}\n", name));
 			}
 			VectorCopy(le->angles, angles);
 

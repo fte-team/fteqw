@@ -137,6 +137,7 @@
 #define HAVE_WINSSPI			//on windows
 #define FTPSERVER				//sv_ftp cvar.
 #define WEBCLIENT				//uri_get+any internal downloads etc
+#define HAVE_HTTPSV				//net_enable_http/websocket
 #define TCPCONNECT				//support for playing over tcp sockets, instead of just udp. compatible with qizmo.
 //#define IRCCONNECT			//lame support for routing game packets via irc server. not a good idea.
 #define SUPPORT_ICE				//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.

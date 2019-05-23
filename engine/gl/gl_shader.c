@@ -1256,6 +1256,7 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 	size_t n, pn = 0;
 	char defines[8192];
 	size_t offset;
+	qboolean fail = false;
 
 	extern cvar_t gl_specular, gl_specular_power;
 
@@ -1294,14 +1295,14 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 	permutationdefines[pn++] = NULL;
 
 	if (!sh_config.pCreateProgram(prog, pp, prog->shaderver, permutationdefines, prog->shadertext, prog->tess?prog->shadertext:NULL, prog->tess?prog->shadertext:NULL, prog->geom?prog->shadertext:NULL, prog->shadertext, prog->warned, NULL))
-		prog->warned = true;
+		prog->warned = fail = true;
 
 	//extra loop to validate the programs actually linked properly.
 	//delaying it like this gives certain threaded drivers a chance to compile them all while we're messing around with other junk
-	if (sh_config.pValidateProgram && !sh_config.pValidateProgram(prog, pp, prog->warned, NULL))
-		prog->warned = true;
+	if (!fail && sh_config.pValidateProgram && !sh_config.pValidateProgram(prog, pp, prog->warned, NULL))
+		prog->warned = fail = true;
 
-	if (sh_config.pProgAutoFields)
+	if (!fail && sh_config.pProgAutoFields)
 	{
 		cvar_t *cvarrefs[64];
 		char *cvarnames[64+1];
@@ -1320,7 +1321,50 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 		cvarnames[i] = NULL; //no more
 		sh_config.pProgAutoFields(prog, pp, cvarrefs, cvarnames, cvartypes);
 	}
+	if (fail)
+	{
+		Z_Free(pp);
+		return NULL;
+	}
 	return pp;
+}
+
+qboolean Shader_PermutationEnabled(unsigned int bit)
+{
+	if (bit == PERMUTATION_REFLECTCUBEMASK)
+		return gl_load24bit.ival;
+	if (bit == PERMUTATION_BUMPMAP)
+		return r_loadbumpmapping;
+	return true;
+}
+qboolean Com_PermuOrFloatArgument(const char *shadername, char *arg, size_t arglen, float def)
+{
+	extern cvar_t gl_specular;
+	size_t p;
+	//load-time-only permutations...
+	if (arglen == 8 && !strncmp("SPECULAR", arg, arglen) && gl_specular.value)
+		return true;
+	if ((arglen==5||arglen==6) && !strncmp("DELUXE", arg, arglen) && r_deluxemapping && Shader_PermutationEnabled(PERMUTATION_BUMPMAP))
+		return true;
+	if (arglen == 13 && !strncmp("OFFSETMAPPING", arg, arglen) && r_glsl_offsetmapping.ival)
+		return true;
+	if (arglen == 13 && !strncmp("RELIEFMAPPING", arg, arglen) && r_glsl_offsetmapping.ival && r_glsl_offsetmapping_reliefmapping.ival)
+		return true;
+
+	//real permutations
+	if (arglen == 5 && (!strncmp("UPPER", arg, arglen)||!strncmp("LOWER", arg, arglen)) && Shader_PermutationEnabled(PERMUTATION_BIT_UPPERLOWER))
+		return true;
+	for (p = 0; p < countof(permutations); p++)
+	{
+		if (arglen == strlen(permutations[p].name) && !strncmp(permutations[p].name, arg, arglen))
+		{
+			if (Shader_PermutationEnabled(permutations[p].bitmask))
+				return true;
+			break;
+		}
+	}
+
+	return Com_FloatArgument(shadername, arg, arglen, def) != 0;
 }
 
 static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver, char *blobfilename)
@@ -1412,15 +1456,16 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				if (*token == '=' || *token == '!')
 				{
 					len = strlen(token);
-					if (*token == (Com_FloatArgument(name, token+1, len-1, 0)?'!':'='))
+					if (*token == (Com_PermuOrFloatArgument(name, token+1, len-1, 0)?'!':'='))
 						ignore = true;
 					continue;
 				}
 				else if (ignore)
 					continue;
-#ifdef HAVE_LEGACY
+#if 1//def HAVE_LEGACY
 				else if (!strncmp(token, "deluxmap", 8))
 				{	//FIXME: remove this some time.
+					Con_DPrintf("Outdated texture name \"%s\" in program \"%s\"\n", token, name);
 					token = va("deluxemap%s",token+8);
 				}
 #endif
@@ -1470,7 +1515,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 								prog->numsamplers = i;
 						}
 						else
-							Con_Printf("Unknown texture name in %s\n", name);
+							Con_Printf("Unknown texture name \"%s\" in program \"%s\"\n", token, name);
 					}
 				}
 			}
@@ -1667,7 +1712,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			{
 				if (!strncmp(permutations[p].name, script, end - script) && permutations[p].name[end-script] == '\0')
 				{
-					nopermutation &= ~permutations[p].bitmask;
+					if (Shader_PermutationEnabled(permutations[p].bitmask))
+						nopermutation &= ~permutations[p].bitmask;
 					break;
 				}
 			}
@@ -1738,10 +1784,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		nopermutation |= PERMUTATION_SKELETAL;
 
 	//multiple lightmaps is kinda hacky. if any are set, all must be.
-#define ALTLIGHTMAPSAMP 13
+#define ALTLIGHTMAPSAMP 14
 	if (prog->defaulttextures & ((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2))))
 		prog->defaulttextures |=((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2)));
-#define ALTDELUXMAPSAMP 16
+#define ALTDELUXMAPSAMP 17
 	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
 		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
 

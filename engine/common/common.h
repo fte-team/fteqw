@@ -131,6 +131,13 @@ typedef enum {false, true}	qboolean;
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
+
+#ifdef HAVE_LEGACY
+#define legacyval(_legval,_newval) _legval
+#else
+#define legacyval(_legval,_newval) _newval
+#endif
+
 #ifdef HAVE_CLIENT
 #define cls_state cls.state
 #else
@@ -448,7 +455,7 @@ struct cache_user_s;
 
 extern char	com_gamepath[MAX_OSPATH];
 extern char	com_homepath[MAX_OSPATH];
-extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
+//extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
 //qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.

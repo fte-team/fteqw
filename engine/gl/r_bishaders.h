@@ -2975,7 +2975,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
 
-"#if gl_affinemodels==1 && __VERSION__ >= 130\n"
+"#if gl_affinemodels==1 && __VERSION__ >= 130 && !defined(GL_ES)\n"
 "#define affine noperspective\n"
 "#else\n"
 "#define affine\n"
@@ -5599,11 +5599,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_tessellation_level=5\n"
-"!!samps !EIGHTBIT diffuse specular normalmap fullbright reflectmask reflectcube\n"
+"!!samps diffuse\n"
+"!!samps !EIGHTBIT =FULLBRIGHT fullbright\n"
+"!!samps !EIGHTBIT =BUMP normalmap\n"
+"!!samps !EIGHTBIT =REFLECTCUBEMASK reflectmask reflectcube\n"
 //diffuse gives us alpha, and prevents dlight from bugging out when there's no diffuse.
-"!!samps =EIGHTBIT paletted 1 specular diffuse\n"
-"!!samps lightmap deluxemap\n"
-"!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3 deluxemap deluxemap1 deluxemap2 deluxemap3\n"
+"!!samps =EIGHTBIT paletted 1\n"
+"!!samps =SPECULAR specular\n"
+"!!samps lightmap\n"
+"!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3\n"
+"!!samps =DELUXE deluxmap\n"
+"!!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3\n"
 
 "#if defined(ORM) || defined(SG)\n"
 "#define PBR\n"
@@ -5960,7 +5966,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#else\n"
 //now we have our diffuse+specular terms, modulate by lightmap values.
 "col.rgb *= lightmaps.rgb;\n"
-
 //add on the fullbright
 "#ifdef FULLBRIGHT\n"
 "col.rgb += texture2D(s_fullbright, tc).rgb;\n"
@@ -10603,10 +10608,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "terrain",
+"!!ver 100 300\n"
 "!!permu FOG\n"
-//t0-t3 are the diffusemaps, t4 is the blend factors
-"!!samps 4\n"
-"!!samps mix=4\n"
+//RTLIGHT (+PCF,CUBE,SPOT,etc)
+"!!samps tr=0 tg=1 tb=2 tx=3 //the four texturemaps\n"
+"!!samps mix=4 //how the ground is blended\n"
 "!!samps =PCF shadowmap\n"
 "!!samps =CUBE projectionmap\n"
 
@@ -10703,10 +10709,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 r;\n"
 "vec4 m = texture2D(s_mix, lm);\n"
 
-"r  = texture2D(s_t0, tc)*m.r;\n"
-"r += texture2D(s_t1, tc)*m.g;\n"
-"r += texture2D(s_t2, tc)*m.b;\n"
-"r += texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b));\n"
+"r  = texture2D(s_tr, tc)*m.r;\n"
+"r += texture2D(s_tg, tc)*m.g;\n"
+"r += texture2D(s_tb, tc)*m.b;\n"
+"r += texture2D(s_tx, tc)*(1.0 - (m.r + m.g + m.b));\n"
+
+"r.rgb *= 1.0/r.a; //fancy maths, so low alpha values give other textures a greater focus\n"
 
 //vertex colours provide a scaler that applies even through rtlights.
 "r *= vc;\n"

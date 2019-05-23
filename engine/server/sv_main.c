@@ -3140,13 +3140,27 @@ client_t *SVC_DirectConnect(void)
 	else
 #endif
 		newcl->netchan.compresstable = NULL;
+	newcl->netchan.pext_fragmentation = mtu?true:false;
+	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
+	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
+	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
 	if (mtu >= 64)
 	{	//if we support application fragmenting, then we can send massive reliables without too much issue
-		newcl->netchan.fragmentsize = mtu;
+		newcl->netchan.mtu = mtu;
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
 	}
 	else	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
-		newcl->netchan.message.maxsize = min(newcl->netchan.message.maxsize, max(net_mtu.ival, 512));
+	{
+		mtu = atoi(Info_ValueForKey (userinfo[0], "mtu"));
+		if (mtu)
+			newcl->netchan.mtu = mtu;	//locked mtu size, because not everyone has a working connection (we need icmp would-fragment responses for mtu detection)
+		else						//if its not set then use some 'safe' fallback.
+			mtu = MAX_BACKBUFLEN;	//MAX_BACKBUFLEN of 1200 is < ipv6 required segment size so should always work for reliables.
+		//enforce some boundaries
+		mtu = bound(512-8, mtu, sizeof(newcl->netchan.message_buf));
+		newcl->netchan.message.maxsize = mtu;
+	}
+	Con_DLPrintf(2, "MTU size: %i - %i\n", newcl->netchan.message.maxsize, newcl->netchan.mtu);
 
 	newcl->protocol = protocol;
 #ifdef NQPROT

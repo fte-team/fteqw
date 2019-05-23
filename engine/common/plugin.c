@@ -125,7 +125,7 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 	}
 
 	//got an empty number.
-	Con_DPrintf("%s: %i\n", name, newnum);
+	Con_DLPrintf(2, "%s: %i\n", name, newnum);
 	plugbuiltins[newnum].name = name;
 	plugbuiltins[newnum].func = bi;
 	plugbuiltins[newnum].flags = flags;

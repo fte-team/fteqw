@@ -2573,13 +2573,15 @@ qboolean SV_SendClientDatagram (client_t *client)
 		client->edict->v->goalentity = 0;
 	}
 
-	if (client->netchan.fragmentsize)
+	if (client->netchan.pext_fragmentation)
 	{
 		if (client->netchan.remote_address.type == NA_LOOPBACK)
 			clientlimit = countof(buf);	//biiiig...
 		else
-			clientlimit = client->netchan.fragmentsize;	//try not to overflow
+			clientlimit = client->netchan.mtu;	//try not to overflow
 	}
+	else if (client->netchan.mtu)
+		clientlimit = client->netchan.mtu;
 	else if (client->protocol == SCP_NETQUAKE)
 		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
 	else
@@ -3411,7 +3413,7 @@ void SV_SendClientMessages (void)
 					memset(&c->backbuf, 0, sizeof(c->backbuf));
 					c->backbuf.data = c->backbuf_data[c->num_backbuf - 1];
 					c->backbuf.cursize = c->backbuf_size[c->num_backbuf - 1];
-					c->backbuf.maxsize = sizeof(c->backbuf_data[c->num_backbuf - 1]);
+					c->backbuf.maxsize = min(c->netchan.message.maxsize, sizeof(c->backbuf_data[c->num_backbuf-1]));
 				}
 			}
 		}
@@ -3526,6 +3528,9 @@ void SV_SendClientMessages (void)
 			c->datagram.cursize = 0;
 		}
 		c->lastoutgoingphysicstime = sv.world.physicstime;
+
+		if (c->netchan.fatal_error)
+			c->drop = true;
 	}
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)

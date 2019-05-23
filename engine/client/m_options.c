@@ -1062,6 +1062,7 @@ void M_Menu_Preset_f (void)
 		item = 6;	//fast
 	else
 		item = 7;	//simple
+	item++; //the autosave option
 	item -= bias;
 	while (item --> 0)
 		menu->selecteditem = menu->selecteditem->common.next;

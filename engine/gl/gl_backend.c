@@ -4725,6 +4725,20 @@ static void DrawMeshes(void)
 				p = &shaderstate.curshader->passes[passno];
 				passno += p->numMergedPasses;
 
+				if (p->prog)
+				{
+					shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+					shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+					shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+
+					shaderstate.pendingtexcoordparts[0] = 2;
+					shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+					shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+
+					BE_RenderMeshProgram(shaderstate.curshader, p, p->prog);
+					continue;
+				}
+
 				emumode = 0;
 				emumode = (p->shaderbits & SBITS_ATEST_BITS) >> SBITS_ATEST_SHIFT;
 

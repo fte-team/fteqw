@@ -1390,6 +1390,15 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 		return;	//looks like its already picked. marking it again will do no harm.
 	}
 
+#ifndef WEBCLIENT
+	//can't mark for download if we cannot download.
+	if (!(package->flags & DPF_PRESENT))
+	{	//though we can at least unmark it for deletion...
+		package->flags &= ~DPF_PURGE;
+		return;
+	}
+#endif
+
 	//any file-conflicts prevent the package from being installable.
 	//this is mostly for pak1.pak
 	for (dep = package->deps; dep; dep = dep->next)
@@ -1881,7 +1890,7 @@ static void PM_WriteInstalledPackages(void)
 			if (*p->title && strcmp(p->title, p->name))
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
-				COM_QuotedConcat(va("title=%s", p->version), buf, sizeof(buf));
+				COM_QuotedConcat(va("title=%s", p->title), buf, sizeof(buf));
 			}
 			if (*p->version)
 			{
@@ -2745,7 +2754,6 @@ qboolean PM_CanInstall(const char *packagename)
 
 void PM_Command_f(void)
 {
-	size_t i;
 	package_t *p;
 	const char *act = Cmd_Argv(1);
 	const char *key;
@@ -2878,6 +2886,7 @@ void PM_Command_f(void)
 		}
 		Con_Printf("<end of list>\n");
 	}
+#ifdef WEBCLIENT
 	else if (!strcmp(act, "sources") || !strcmp(act, "addsource"))
 	{
 		if (Cmd_Argc() == 2)
@@ -2890,6 +2899,7 @@ void PM_Command_f(void)
 		else
 			PM_AddSubList(Cmd_Argv(2), "", true, true);
 	}
+#endif
 	else if (!strcmp(act, "remsource"))
 		PM_RemSubList(Cmd_Argv(2));
 	else if (!strcmp(act, "apply"))
@@ -2908,8 +2918,10 @@ void PM_Command_f(void)
 	{
 		PM_RevertChanges();
 	}
+#ifdef WEBCLIENT
 	else if (!strcmp(act, "update"))
 	{	//flush package cache, make a new request.
+		int i;
 		for (i = 0; i < numdownloadablelists; i++)
 			downloadablelist[i].received = 0;
 	}
@@ -2924,6 +2936,7 @@ void PM_Command_f(void)
 		else
 			Con_Printf("Already using latest versions of all packages\n");
 	}
+#endif
 	else if (!strcmp(act, "add") || !strcmp(act, "get") || !strcmp(act, "install") || !strcmp(act, "enable"))
 	{	//FIXME: make sure this updates.
 		int arg = 2;
@@ -2938,6 +2951,7 @@ void PM_Command_f(void)
 		}
 		PM_PrintChanges();
 	}
+#ifdef WEBCLIENT
 	else if (!strcmp(act, "reinstall"))
 	{	//fixme: favour the current verson.
 		int arg = 2;
@@ -2955,6 +2969,7 @@ void PM_Command_f(void)
 		}
 		PM_PrintChanges();
 	}
+#endif
 	else if (!strcmp(act, "disable") || !strcmp(act, "rem") || !strcmp(act, "remove"))
 	{
 		int arg = 2;
@@ -3234,9 +3249,11 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 			case DPF_USERMARKED:
 			case DPF_MARKED:
 				p->flags |= DPF_PURGE;
+#ifdef WEBCLIENT
 				//now: re-get despite already having it.
 				if ((p->flags & DPF_CORRUPT) || ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p)))
 					break;	//only makes sense if we already have a cached copy that we're not going to use.
+#endif
 				//fallthrough
 			case DPF_USERMARKED|DPF_PURGE:
 			case DPF_AUTOMARKED|DPF_PURGE:
@@ -3444,10 +3461,13 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 	dlmenu_t *info = m->data;
 	int i, y;
 	package_t *p;
-	unsigned int totalpackages=0, selectedpackages=0, addpackages=0, rempackages=0, downloads=0;
+	unsigned int totalpackages=0, selectedpackages=0, addpackages=0, rempackages=0;
 	menuoption_t *si;
 	menubutton_t *b, *d;
+#ifdef WEBCLIENT
+	unsigned int downloads=0;
 	menucustom_t *c;
+#endif
 
 	if (info->downloadablessequence != downloadablessequence || !info->populated)
 	{

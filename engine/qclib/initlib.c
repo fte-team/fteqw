@@ -23,7 +23,7 @@ void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, const char *name)
 
 	return ((char *)mem)+sizeof(prmemb_t);
 }
-void *PDECL QC_HunkAlloc(pubprogfuncs_t *ppf, int ammount, char *name)
+static void *PDECL QC_HunkAlloc(pubprogfuncs_t *ppf, int ammount, char *name)
 {
 	return PRHunkAlloc((progfuncs_t*)ppf, ammount, name);
 }
@@ -48,7 +48,7 @@ void PRHunkFree(progfuncs_t *progfuncs, int mark)
 }
 
 /*if we ran out of memory, the vm can allocate a new block, but doing so requires fixing up all sorts of pointers*/
-void PRAddressableRelocate(progfuncs_t *progfuncs, char *oldb, char *newb, int oldlen)
+static void PRAddressableRelocate(progfuncs_t *progfuncs, char *oldb, char *newb, int oldlen)
 {
 	unsigned int i;
 	edictrun_t *e;
@@ -583,7 +583,7 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 
 
 
-struct globalvars_s *PDECL PR_globals (pubprogfuncs_t *ppf, progsnum_t pnum)
+static struct globalvars_s *PDECL PR_globals (pubprogfuncs_t *ppf, progsnum_t pnum)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if (pnum < 0)
@@ -598,7 +598,7 @@ struct globalvars_s *PDECL PR_globals (pubprogfuncs_t *ppf, progsnum_t pnum)
 	return (struct globalvars_s *)pr_progstate[pnum].globals;
 }
 
-struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *ed)
+static struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
 //	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if (((edictrun_t *)ed)->ereftype != ER_ENTITY)
@@ -607,7 +607,7 @@ struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *ed)
 	return (struct entvars_s *)edvars(ed);
 }
 
-pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, int *builtinnum, char *funcname, size_t funcnamesize)
+static pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, int *builtinnum, char *funcname, size_t funcnamesize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 
@@ -697,7 +697,7 @@ func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t p
 	return 0;
 }
 
-void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, int pnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx)
+static void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, int pnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int i;
@@ -795,7 +795,7 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 	return NULL;
 }
 
-char *PDECL PR_VarString (pubprogfuncs_t *ppf, int	first)
+static char *PDECL PR_VarString (pubprogfuncs_t *ppf, int	first)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int		i;
@@ -816,7 +816,7 @@ char *PDECL PR_VarString (pubprogfuncs_t *ppf, int	first)
 	return out;
 }
 
-int PDECL PR_QueryField (pubprogfuncs_t *ppf, unsigned int fieldoffset, etype_t *type, char const**name, evalc_t *fieldcache)
+static int PDECL PR_QueryField (pubprogfuncs_t *ppf, unsigned int fieldoffset, etype_t *type, char const**name, evalc_t *fieldcache)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	fdef_t *var;
@@ -868,7 +868,7 @@ eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, con
 	return (eval_t *) &(((int*)(((edictrun_t*)ed)->fields))[cache->ofs32->ofs]);
 }
 
-struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
+static struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if ((unsigned)progs >= (unsigned)prinst.maxedicts)
@@ -883,7 +883,7 @@ struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 	}
 	return (struct edict_s *)PROG_TO_EDICT_PB(progfuncs.inst, progs);
 }
-int PDECL EdictToProgs (pubprogfuncs_t *ppf, struct edict_s *ed)
+static int PDECL EdictToProgs (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
 //	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	return EDICT_TO_PROG(progfuncs, ed);
@@ -935,7 +935,7 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, const char *str)
 	return (string_t)((unsigned int)i | STRING_STATIC);
 }
 //if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
-void PDECL PR_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
+static void PDECL PR_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
 {
 	if (!str)
 		*fld = 0;
@@ -951,7 +951,7 @@ void PDECL PR_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, stri
 	}
 }
 
-char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)
+static char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	char *ret;
@@ -1110,7 +1110,7 @@ void QCBUILTIN PF_memsetval (pubprogfuncs_t *inst, struct globalvars_s *globals)
 }
 
 
-string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigned int len)
+static string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigned int len)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	tempstr_t **ntable;
@@ -1319,7 +1319,7 @@ static void PR_FreeAllTemps			(progfuncs_t *progfuncs)
 	prinst.numtempstrings = 0;
 	prinst.nexttempstring = 0;
 }
-pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
+static pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	struct progstate_s *ps;
@@ -1391,7 +1391,7 @@ static void PDECL PR_CloseProgs(pubprogfuncs_t *ppf);
 
 static void PDECL RegisterBuiltin(pubprogfuncs_t *progfncs, const char *name, builtin_t func);
 
-pubprogfuncs_t deffuncs = {
+static pubprogfuncs_t deffuncs = {
 	PROGSTRUCT_VERSION,
 	PR_CloseProgs,
 	PR_Configure,
@@ -1510,11 +1510,11 @@ static void PDECL qclib_free(void *ptr)
 #endif
 
 //defs incase following structure is not passed.
-struct edict_s *safesv_edicts;
-int safesv_num_edicts;
-double safetime=0;
+static struct edict_s *safesv_edicts;
+static int safesv_num_edicts;
+static double safetime=0;
 
-progexterns_t defexterns = {
+static progexterns_t defexterns = {
 	PROGSTRUCT_VERSION,		
 
 	NULL, //char *(*ReadFile) (char *fname, void *buffer, int len);

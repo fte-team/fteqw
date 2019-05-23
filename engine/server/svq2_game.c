@@ -809,6 +809,10 @@ static void QDECL PFQ2_SetAreaPortalState(unsigned int p, qboolean s)
 	CMQ2_SetAreaPortalState(sv.world.worldmodel, p, s);
 }
 
+static void *VARGS ZQ2_TagMalloc(int size, int tag)
+{
+	return Z_TagMalloc(size, tag);
+}
 qboolean SVQ2_InitGameProgs(void)
 {
 	extern cvar_t maxclients;
@@ -862,7 +866,7 @@ qboolean SVQ2_InitGameProgs(void)
 	import.WriteDir				= PFQ2_WriteDir;
 	import.WriteAngle			= PFQ2_WriteAngle;
 
-	import.TagMalloc			= Z_TagMalloc;
+	import.TagMalloc			= ZQ2_TagMalloc;
 	import.TagFree				= Z_TagFree;
 	import.FreeTags				= Z_FreeTags;
 

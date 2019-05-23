@@ -3493,9 +3493,14 @@ client_connect:	//fixme: make function
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 				cls.netchan.qportsize = 1;
 		}
-		cls.netchan.fragmentsize = connectinfo.mtu;
+		cls.netchan.pext_fragmentation = connectinfo.mtu?true:false;
 		if (connectinfo.mtu >= 64)
+		{
+			cls.netchan.mtu = connectinfo.mtu;
 			cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
+		}
+		else
+			cls.netchan.mtu = MAX_QWMSGLEN;
 #ifdef HUFFNETWORK
 		cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.compresscrc);
 #else
@@ -6396,7 +6401,12 @@ void Host_FinishLoading(void)
 		FS_ChangeGame(NULL, true, true);
 
 		if (waitingformanifest)
+		{
+#ifdef MULTITHREAD
+			Sys_Sleep(0.1);
+#endif
 			return;
+		}
 
 		Con_History_Load();
 
@@ -6437,7 +6447,12 @@ void Host_FinishLoading(void)
 	}
 
 	if (PM_IsApplying(true))
+	{
+#ifdef MULTITHREAD
+		Sys_Sleep(0.1);
+#endif
 		return;
+	}
 
 	//android may find that it has no renderer at various points.
 	if (r_forceheadless)

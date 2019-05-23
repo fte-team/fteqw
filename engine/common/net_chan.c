@@ -692,7 +692,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (chan->message.overflowed)
 	{
 		chan->fatal_error = true;
-		Con_TPrintf ("%s:Outgoing message overflow\n"
+		Con_TPrintf ("%s: Outgoing message overflow\n"
 			, NET_AdrToString (remote_adr, sizeof(remote_adr), &chan->remote_address));
 		return 0;
 	}
@@ -716,7 +716,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 // write the packet header
 	send.data = send_buf;
-	send.maxsize = MAX_QWMSGLEN + PACKET_HEADER;
+	send.maxsize = (chan->mtu?chan->mtu:MAX_QWMSGLEN) + PACKET_HEADER;
 	send.cursize = 0;
 
 	w1 = chan->outgoing_sequence | (send_reliable<<31);
@@ -738,9 +738,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	}
 #endif
 
-	if (chan->fragmentsize)
+	if (chan->pext_fragmentation)
 	{
-		//allow the max size to be bigger
+		//allow the max size to be bigger, sending everything available
 		send.maxsize = MAX_OVERALLMSGLEN + PACKET_HEADER;
 		MSG_WriteShort(&send, 0);
 	}
@@ -748,6 +748,17 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 // copy the reliable message to the packet first
 	if (send_reliable)
 	{
+		if (send.maxsize - send.cursize < chan->reliable_length)
+		{
+			if (!chan->fatal_error)
+			{
+				chan->fatal_error = true;
+				Con_TPrintf ("%s: Path MTU is lower than %u\n"
+					, NET_AdrToString (remote_adr, sizeof(remote_adr), &chan->remote_address), chan->reliable_length);
+			}
+			chan->outgoing_sequence--;
+			return 0;
+		}
 		SZ_Write (&send, chan->reliable_buf, chan->reliable_length);
 		chan->last_reliable_sequence = chan->outgoing_sequence;
 	}
@@ -765,7 +776,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (chan->compresstable)
 	{
 		//int oldsize = send.cursize;
-		Huff_CompressPacket(chan->compresstable, &send, 8 + ((chan->sock == NS_CLIENT)?2:0) + (chan->fragmentsize?2:0));
+		Huff_CompressPacket(chan->compresstable, &send, 8 + ((chan->sock == NS_CLIENT)?2:0) + (chan->pext_fragmentation?2:0));
 //		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
 //		Huff_DecompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
 	}
@@ -779,20 +790,23 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	{
 		int hsz = 10 + ((chan->sock == NS_CLIENT)?chan->qportsize:0); /*header size, if fragmentation is in use*/
 
-		if ((!chan->fragmentsize))// || send.cursize < ((chan->fragmentsize - hsz)&~7))
-		{
+		if ((!chan->pext_fragmentation))// || send.cursize < ((chan->mtu - hsz)&~7))
+		{	//vanilla sends
 			for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
 				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
 			send.cursize += send.cursize * i;
 
-			if (e == NETERR_MTU && chan->fragmentsize > 560)
+			//ipv4 'guarentees' mtu sizes of at least 560ish.
+			//our reliable/backbuf messages are limited to 1024 bytes.
+			//this means that large reliables may be unsendable.
+			if (e == NETERR_MTU && chan->mtu > 560)
 			{
-				Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
-				chan->fragmentsize -= 10;
+				Con_Printf("Reducing MSS to %i\n", chan->mtu);
+				chan->mtu -= 10;
 			}
 		}
 		else
-		{
+		{	//fte's fragmentaton protocol
 			int offset = 0, no;
 			qboolean more;
 
@@ -801,7 +815,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			/*send the additional parts, adding new headers within the previous packet*/
 			do
 			{
-				no = offset + chan->fragmentsize - hsz;
+				no = offset + chan->mtu - hsz;
 				if (no < send.cursize-hsz)
 				{
 					no &= ~7;
@@ -831,10 +845,10 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 					for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
 					{
 						e = NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
-						if (e == NETERR_MTU && !offset && chan->fragmentsize > 560)
+						if (e == NETERR_MTU && !offset && chan->mtu > 560)
 						{
-							chan->fragmentsize -= 16;
-							Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
+							chan->mtu -= 16;
+							Con_Printf("Reducing MSS to %i\n", chan->mtu);
 							no = offset;
 							more = true;
 							break;
@@ -917,7 +931,7 @@ qboolean Netchan_Process (netchan_t *chan)
 		MSG_ReadShort ();
 #endif
 
-	if (chan->fragmentsize)
+	if (chan->pext_fragmentation)
 		offset = (unsigned short)MSG_ReadShort();
 	else
 		offset = 0;

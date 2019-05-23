@@ -30,7 +30,7 @@
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
 
-#if gl_affinemodels==1 && __VERSION__ >= 130
+#if gl_affinemodels==1 && __VERSION__ >= 130 && !defined(GL_ES)
 #define affine noperspective
 #else
 #define affine

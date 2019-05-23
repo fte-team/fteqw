@@ -3362,10 +3362,15 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 			galias->numanimations++;
 
 			intervals = (daliasinterval_t *)(ingroup+1);
-			sinter = LittleFloat(intervals->interval);
-			if (sinter <= 0)
-				sinter = 0.1;
-			frame->rate = 1/sinter;
+			if (frame->numposes == 0)
+				frame->rate = 10;
+			else
+			{
+				sinter = LittleFloat(intervals->interval);
+				if (sinter <= 0)
+					sinter = 0.1;
+				frame->rate = 1/sinter;
+			}
 
 			pinframe = (dtrivertx_t *)(intervals+frame->numposes);
 			for (k = 0; k < frame->numposes; k++)

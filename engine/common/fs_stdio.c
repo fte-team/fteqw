@@ -271,6 +271,30 @@ static void QDECL FSSTDIO_BuildHash(searchpathfuncs_t *handle, int depth, void (
 	sp->AddFileHash = AddFileHash;
 	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, AddFileHash, handle);
 }
+
+static unsigned int QDECL FSSTDIO_CreateLoc(searchpathfuncs_t *handle, flocation_t *loc, const char *filename)
+{
+	stdiopath_t *sp = (void*)handle;
+	char	*ofs;
+
+	loc->len = 0;
+	loc->offset = 0;
+	loc->fhandle = handle;
+	if ((unsigned int)snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", sp->rootpath, filename) > sizeof(loc->rawname)-1)
+		return FF_NOTFOUND;	//too long...
+
+	for (ofs = loc->rawname+1 ; *ofs ; ofs++)
+	{
+		if (*ofs == '/')
+		{	// create the directory
+			*ofs = 0;
+			Sys_mkdir (loc->rawname);
+			*ofs = '/';
+		}
+	}
+
+	return FF_FOUND;
+}
 static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	stdiopath_t *sp = (void*)handle;
@@ -289,7 +313,8 @@ static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t
 */
 
 // check a file in the directory tree
-	snprintf (netpath, sizeof(netpath)-1, "%s/%s", sp->rootpath, filename);
+	if ((unsigned int)snprintf (netpath, sizeof(netpath), "%s/%s", sp->rootpath, filename) > sizeof(netpath)-1)
+		return FF_NOTFOUND;
 
 #ifdef ANDROID
 	{
@@ -378,6 +403,7 @@ searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, searchpathfuncs
 	np->pub.OpenVFS			= FSSTDIO_OpenVFS;
 	np->pub.PollChanges		= FSSTDIO_PollChanges;
 	np->pub.FileStat		= FSSTDIO_FileStat;
+	np->pub.CreateFile		= FSSTDIO_CreateLoc;
 	return &np->pub;
 }
 

@@ -172,14 +172,15 @@ char	gamedirfile[MAX_OSPATH];
 char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only paths
 
 
-
+searchpath_t *gameonly_homedir;
+searchpath_t *gameonly_gamedir;
 
 char	com_gamepath[MAX_OSPATH];	//c:\games\quake
 char	com_homepath[MAX_OSPATH];	//c:\users\foo\my docs\fte\quake
 qboolean	com_homepathenabled;
 qboolean	com_homepathusable;	//com_homepath is safe, even if not enabled.
 
-char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
+//char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
 
 int fs_hash_dups;
 int fs_hash_files;
@@ -737,7 +738,7 @@ static void COM_Path_f (void)
 		Con_Printf("pubgamedirfile: \"%s\"\n", pubgamedirfile);
 		Con_Printf("com_gamepath: \"%s\"\n", com_gamepath);
 		Con_Printf("com_homepath: \"%s\" (enabled: %s, usable: %s)\n", com_homepath, com_homepathenabled?"yes":"no", com_homepathusable?"yes":"no");
-		Con_Printf("com_configdir: \"%s\"\n", com_configdir);
+//		Con_Printf("com_configdir: \"%s\"\n", com_configdir);
 		if (fs_manifest)
 			FS_Manifest_Print(fs_manifest);
 		return;
@@ -1915,6 +1916,9 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 
 	fs_accessed_time = realtime;
 
+	if (fs_readonly && *mode == 'w')
+		return NULL;
+
 	if (relativeto == FS_SYSTEM)
 		return VFSOS_Open(filename, mode);
 
@@ -1937,23 +1941,48 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 	//if there can only be one file (eg: write access) find out where it is.
 	switch (relativeto)
 	{
-	case FS_GAMEONLY:	//OS access only, no paks
+	case FS_GAMEONLY:	//OS access only, no paks. Used for (re)writing files.
 		vfs = NULL;
+		//FIXME: go via a searchpath, because then the fscache can be selectively updated
 		if (com_homepathenabled)
 		{
-			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename))
-				return NULL;
-			if (*mode == 'w')
-				COM_CreatePath(fullname);
-			vfs = VFSOS_Open(fullname, mode);
+			if (gameonly_homedir)
+			{
+				if ((*mode == 'w')
+						? gameonly_homedir->handle->CreateFile(gameonly_homedir->handle, &loc, filename)
+						: gameonly_homedir->handle->FindFile  (gameonly_homedir->handle, &loc, filename, NULL))
+					vfs = gameonly_homedir->handle->OpenVFS   (gameonly_homedir->handle, &loc, mode);
+				else
+					vfs = NULL;
+			}
+			else
+			{
+				if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename))
+					return NULL;
+				if (*mode == 'w')
+					COM_CreatePath(fullname);
+				vfs = VFSOS_Open(fullname, mode);
+			}
 		}
 		if (!vfs && *gamedirfile)
 		{
-			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename))
-				return NULL;
-			if (*mode == 'w')
-				COM_CreatePath(fullname);
-			vfs =  VFSOS_Open(fullname, mode);
+			if (gameonly_gamedir)
+			{
+				if ((*mode == 'w')
+						? gameonly_gamedir->handle->CreateFile(gameonly_gamedir->handle, &loc, filename)
+						: gameonly_gamedir->handle->FindFile  (gameonly_gamedir->handle, &loc, filename, NULL))
+					vfs = gameonly_gamedir->handle->OpenVFS   (gameonly_gamedir->handle, &loc, mode);
+				else
+					vfs = NULL;
+			}
+			else
+			{
+				if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename))
+					return NULL;
+				if (*mode == 'w')
+					COM_CreatePath(fullname);
+				vfs =  VFSOS_Open(fullname, mode);
+			}
 		}
 		if (vfs || !(*mode == 'w' || *mode == 'a'))
 			return vfs;
@@ -2793,7 +2822,7 @@ Sets com_gamedir, adds the directory to the head of the path,
 then loads and adds pak1.pak pak2.pak ...
 ================
 */
-static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const char *dir, unsigned int loadstuff, unsigned int flags)
+static searchpath_t *FS_AddSingleGameDirectory (searchpath_t **oldpaths, const char *puredir, const char *dir, unsigned int loadstuff, unsigned int flags)
 {
 	unsigned int	keptflags;
 	searchpath_t	*search;
@@ -2808,7 +2837,7 @@ static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, c
 		if (!Q_strcasecmp(search->logicalpath, dir))
 		{
 			search->flags |= flags & SPF_WRITABLE;
-			return; //already loaded (base paths?)
+			return search; //already loaded (base paths?)
 		}
 	}
 
@@ -2831,7 +2860,20 @@ static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, c
 	if (!handle)
 		handle = VFSOS_OpenPath(NULL, NULL, dir, dir, "");
 
-	FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
+	return FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
+}
+static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, unsigned int loadstuff, unsigned int flags)
+{
+	char syspath[MAX_OSPATH];
+	Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, puredir);
+	gameonly_gamedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags&~(com_homepathenabled?SPF_WRITABLE:0u));
+	if (com_homepathenabled)
+	{
+		Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, puredir);
+		gameonly_homedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags);
+	}
+	else
+		gameonly_homedir = NULL;
 }
 
 //if syspath, something like c:\quake\baseq2
@@ -3698,7 +3740,6 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	searchpath_t	*next;
 	int i;
 	int orderkey;
-	char syspath[MAX_OSPATH];
 
 	COM_AssertMainThread("FS_ReloadPackFilesFlags");
 	COM_WorkerFullSync();
@@ -3715,6 +3756,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	com_searchpaths = NULL;
 	com_purepaths = NULL;
 	com_base_searchpaths = NULL;
+	gameonly_gamedir = gameonly_homedir = NULL;
 
 	i = COM_CheckParm ("-basepack");
 	while (i && i < com_argc-1)
@@ -3777,23 +3819,11 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			else if (*dir == '*')
 			{
 				//paths with a leading * are private, and not announced to clients that ask what the current gamedir is.
-				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir+1);
-				FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|(com_homepathenabled?0:SPF_WRITABLE));
-				if (com_homepathenabled)
-				{
-					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir+1);
-					FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|SPF_WRITABLE);
-				}
+				FS_AddGameDirectory(&oldpaths, dir+1, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|SPF_WRITABLE);
 			}
 			else
 			{
-				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir);
-				FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT|(com_homepathenabled?0:SPF_WRITABLE));
-				if (com_homepathenabled)
-				{
-					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir);
-					FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
-				}
+				FS_AddGameDirectory(&oldpaths, dir, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
 			}
 		}
 	}
@@ -3823,9 +3853,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_gamepath, dir), reloadflags, SPF_EXPLICIT|(com_homepathenabled?0:SPF_WRITABLE));
-				if (com_homepathenabled)
-					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homepath, dir), reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
+				FS_AddGameDirectory(&oldpaths, dir, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
 			}
 		}
 	}
@@ -6330,7 +6358,6 @@ static void COM_InitHomedir(ftemanifest_t *man)
 		//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
 		//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
 		//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
-
 		char *ev = getenv("FTEHOME");
 		if (ev && *ev)
 		{

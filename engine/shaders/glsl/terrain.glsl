@@ -1,7 +1,8 @@
+!!ver 100 300
 !!permu FOG
-//t0-t3 are the diffusemaps, t4 is the blend factors
-!!samps 4
-!!samps mix=4
+//RTLIGHT (+PCF,CUBE,SPOT,etc)
+!!samps tr=0 tg=1 tb=2 tx=3 //the four texturemaps
+!!samps mix=4	//how the ground is blended
 !!samps =PCF shadowmap
 !!samps =CUBE projectionmap
 
@@ -98,10 +99,12 @@ void main (void)
 	vec4 r;
 	vec4 m = texture2D(s_mix, lm);
 
-	r  = texture2D(s_t0, tc)*m.r;
-	r += texture2D(s_t1, tc)*m.g;
-	r += texture2D(s_t2, tc)*m.b;
-	r += texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b));
+	r  = texture2D(s_tr, tc)*m.r;
+	r += texture2D(s_tg, tc)*m.g;
+	r += texture2D(s_tb, tc)*m.b;
+	r += texture2D(s_tx, tc)*(1.0 - (m.r + m.g + m.b));
+
+	r.rgb *= 1.0/r.a;	//fancy maths, so low alpha values give other textures a greater focus
 
 	//vertex colours provide a scaler that applies even through rtlights.
 	r *= vc;

@@ -364,7 +364,9 @@ pubsubserver_t *Sys_ForkServer(void)
 	//make sure we're fully synced, so that workers can't mess up
 	Cvar_Set(Cvar_FindVar("worker_count"), "0");
 	COM_WorkerFullSync();
+#ifdef WEBCLIENT
 	DL_DeThread();
+#endif
 #ifdef SQL
 	SQL_KillServers();	//FIXME: this is bad...
 #endif

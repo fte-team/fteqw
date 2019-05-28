@@ -2709,10 +2709,18 @@ static void GL_SizePatchFixed(mesh_t *mesh, int patchwidth, int patchheight, int
 	}
 
 	// allocate space for mesh
-	step[0] = 2;//patchwidth>>16;
-	step[1] = 2;//patchheight>>16;
-	size[0] = (patch_cp[0] / 2) * step[0] + 1;
-	size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	step[0] = patchwidth>>16;
+	step[1] = patchheight>>16;
+	if (!step[0] || !step[1])
+	{
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[1];
+	}
+	else
+	{
+		size[0] = (patch_cp[0] / 2) * step[0] + 1;
+		size[1] = (patch_cp[1] / 2) * step[1] + 1;
+	}
 
 	mesh->numvertexes = size[0] * size[1];
 	mesh->numindexes = (size[0]-1) * (size[1]-1) * 6;
@@ -2881,9 +2889,9 @@ static void GL_CreateMeshForPatchFixed (model_t *mod, mesh_t *mesh, int patchwid
 	step[0] = patchwidth>>16;
 	step[1] = patchheight>>16;
 	if (!step[0] || !step[1])
-	{
+	{	//explicit CPs only.
 		size[0] = patch_cp[0];
-		size[1] = patch_cp[0];
+		size[1] = patch_cp[1];
 	}
 	else
 	{

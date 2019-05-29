@@ -198,14 +198,18 @@ public class FTENativeActivity extends android.app.NativeActivity
 	private static int AXIS_RELATIVE_X;//MotionEvent 24
 	private static int AXIS_RELATIVE_Y;//MotionEvent 24
 	private static java.lang.reflect.Method MotionEvent_getAxisValueP; //MotionEvent 12
-	private static int SOURCE_MOUSE;	//InputDevice
+	private static int SOURCE_MOUSE = 0x00002002;	//InputDevice 9
+	//private static int SOURCE_STYLUS = 0x00004002;	//InputDevice 14
+	//private static int SOURCE_STYLUS = 0x00004002;	//InputDevice 14
+	private static int SOURCE_MOUSE_RELATIVE = 0x00020004;	//InputDevice 26
 	private static boolean canbuttons;
 	private static java.lang.reflect.Method MotionEvent_getButtonState; //MotionEvent 14
 
 	private static boolean canjoystick;
 	private static java.lang.reflect.Method MotionEvent_getAxisValueJ;
 	private static java.lang.reflect.Method InputDevice_getMotionRange;
-	private static int SOURCE_JOYSTICK; //InputDevice
+	private static int SOURCE_JOYSTICK = 0x01000010; //InputDevice 12
+	private static int SOURCE_GAMEPAD = 0x00000401; //InputDevice 12
 	private static int AXIS_X;
 	private static int AXIS_Y;
 	private static int AXIS_LTRIGGER;
@@ -222,7 +226,8 @@ public class FTENativeActivity extends android.app.NativeActivity
 			java.lang.reflect.Field relY = MotionEvent.class.getField("AXIS_RELATIVE_Y");	//api24ish
 			AXIS_RELATIVE_X = (Integer)relX.get(null);
 			AXIS_RELATIVE_Y = (Integer)relY.get(null);
-			SOURCE_MOUSE = (Integer)InputDevice.class.getField("SOURCE_MOUSE").get(null);
+//			SOURCE_MOUSE = (Integer)InputDevice.class.getField("SOURCE_MOUSE").get(null);
+//			SOURCE_MOUSE_RELATIVE = (Integer)InputDevice.class.getField("SOURCE_MOUSE_RELATIVE").get(null);
 			canrelative = true;	//yay, no exceptions.
 			android.util.Log.i("FTEDroid", "relative mouse supported");
 
@@ -243,7 +248,8 @@ public class FTENativeActivity extends android.app.NativeActivity
 			AXIS_Z = (Integer)MotionEvent.class.getField("AXIS_Z").get(null);
 			AXIS_RZ = (Integer)MotionEvent.class.getField("AXIS_RZ").get(null);
 			AXIS_RTRIGGER = (Integer)MotionEvent.class.getField("AXIS_RTRIGGER").get(null);
-			SOURCE_JOYSTICK = (Integer)InputDevice.class.getField("SOURCE_JOYSTICK").get(null);
+//			SOURCE_JOYSTICK = (Integer)InputDevice.class.getField("SOURCE_JOYSTICK").get(null);
+//			SOURCE_GAMEPAD = (Integer)InputDevice.class.getField("SOURCE_GAMEPAD").get(null);
 			canjoystick = true;
 			android.util.Log.i("FTEDroid", "gamepad supported");
 		} catch(Exception e) {
@@ -274,9 +280,10 @@ public class FTENativeActivity extends android.app.NativeActivity
 		int id;
 		float x, y, size;
 		final int act = event.getAction();
+		final int src = event.getSource();
 
 		//handle gamepad axis
-		if ((event.getSource() & SOURCE_JOYSTICK)!=0 && event.getAction() == MotionEvent.ACTION_MOVE)
+		if ((event.getSource() & (SOURCE_GAMEPAD|SOURCE_JOYSTICK))!=0 && event.getAction() == MotionEvent.ACTION_MOVE)
 		{
 			InputDevice dev = event.getDevice();
 			handleJoystickAxis(event, dev, AXIS_X, 0);
@@ -294,7 +301,7 @@ public class FTENativeActivity extends android.app.NativeActivity
 		int i;
 		for (i = 0; i < pointerCount; i++)
 		{
-			if (canrelative && event.getSource() == SOURCE_MOUSE && wantrelative())
+			if (canrelative && src == SOURCE_MOUSE && wantrelative())
 			{
 				try
 				{
@@ -323,7 +330,7 @@ public class FTENativeActivity extends android.app.NativeActivity
 			y = event.getY(id);
 			size = event.getSize(id);
 			id = event.getPointerId(id);
-			if (canbuttons && event.getSource() == SOURCE_MOUSE)
+			if (canbuttons && src == SOURCE_MOUSE)
 			{
 				try {mousepress(id, (Integer)MotionEvent_getButtonState.invoke(event));}
 				catch(Exception e){}

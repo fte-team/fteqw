@@ -2833,6 +2833,21 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 			ClientReliableWrite_Begin(client, svc_stufftext, strlen(s)+2);
 			ClientReliableWrite_String(client, s);
 		}
+#ifdef MVD_RECORDING
+		else if (client == &demo.recorder)
+		{
+			sizebuf_t *buf = MVDWrite_Begin(dem_all, 0, 2+strlen(key)+1+strlen(blobdata)+1);
+			if (info == &svs.info)
+				MSG_WriteByte(buf, svc_serverinfo);
+			else
+			{
+				MSG_WriteByte(buf, svc_setinfo);
+				MSG_WriteByte(buf, (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
+			}
+			MSG_WriteString(buf, key);
+			MSG_WriteString(buf, blobdata);
+		}
+#endif
 		else
 		{
 			if (info == &svs.info)
@@ -2869,12 +2884,27 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		sendsize = min(bufferspace, sendsize);
 		final = (bloboffset+sendsize >= blobsize);
 
-		ClientReliableWrite_Begin(client, svcfte_setinfoblob, 8+strlen(enckey)+1+sendsize);
-		ClientReliableWrite_Byte(client, pl); //special meaning to say that this is a partial update
-		ClientReliableWrite_String(client, enckey);
-		ClientReliableWrite_Long(client, (final?0x80000000:0)|bloboffset);
-		ClientReliableWrite_Short(client, sendsize);
-		ClientReliableWrite_SZ(client, blobdata+bloboffset, sendsize);
+#ifdef MVD_RECORDING
+		if (client == &demo.recorder)
+		{
+			sizebuf_t *buf = MVDWrite_Begin(dem_all, 0, 8+strlen(enckey)+1+sendsize);
+			MSG_WriteByte(buf, svcfte_setinfoblob);
+			MSG_WriteByte(buf, pl); //special meaning to say that this is a partial update
+			MSG_WriteString(buf, enckey);
+			MSG_WriteLong(buf, (final?0x80000000:0)|bloboffset);
+			MSG_WriteShort(buf, sendsize);
+			SZ_Write(buf, blobdata+bloboffset, sendsize);
+		}
+		else
+#endif
+		{
+			ClientReliableWrite_Begin(client, svcfte_setinfoblob, 8+strlen(enckey)+1+sendsize);
+			ClientReliableWrite_Byte(client, pl); //special meaning to say that this is a partial update
+			ClientReliableWrite_String(client, enckey);
+			ClientReliableWrite_Long(client, (final?0x80000000:0)|bloboffset);
+			ClientReliableWrite_Short(client, sendsize);
+			ClientReliableWrite_SZ(client, blobdata+bloboffset, sendsize);
+		}
 
 		if (!final)
 		{
@@ -3112,7 +3142,7 @@ void SV_UpdateToReliableMessages (void)
 	}
 
 #ifdef MVD_RECORDING
-	if (sv.mvdrecording)
+	if (sv.mvdrecording && demo.recorder.infosync.numkeys)
 	{
 		while (demo.recorder.infosync.numkeys)
 		{

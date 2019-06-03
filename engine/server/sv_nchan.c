@@ -97,6 +97,22 @@ client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen)
 	}
 }
 
+sizebuf_t *ClientReliableWrite_StartWrite(client_t *cl, int maxsize)
+{
+#ifdef MVD_RECORDING
+	if (cl == &demo.recorder)
+		return MVDWrite_Begin(dem_all, 0, maxsize);
+#endif
+
+	if (cl->controller)
+		Con_Printf("Writing to slave client's message buffer\n");
+	ClientReliableCheckBlock(cl, maxsize);
+
+	if (cl->num_backbuf)
+		return &cl->backbuf;
+	else
+		return &cl->netchan.message;
+}
 void ClientReliable_FinishWrite(client_t *cl)
 {
 	if (cl->num_backbuf)

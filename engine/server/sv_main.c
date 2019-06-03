@@ -980,6 +980,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 {
 	int		i;
 	char	info[EXTENDED_INFO_STRING];
+	sizebuf_t *buf;
 
 	if (!to)
 	{
@@ -1011,40 +1012,55 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		if (ping > 0xffff)
 			ping = 0xffff;
 
-		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short(to, client->old_frags);
+		buf = ClientReliableWrite_StartWrite(to, 4);
+			MSG_WriteByte(buf, svc_updatefrags);
+			MSG_WriteByte(buf, i);
+			MSG_WriteShort(buf, client->old_frags);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin (to, svc_updateping, 4);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short (to, ping);
+		buf = ClientReliableWrite_StartWrite(to, 4);
+			MSG_WriteByte(buf, svc_updateping);
+			MSG_WriteByte(buf, i);
+			MSG_WriteShort(buf, ping);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin (to, svc_updatepl, 3);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Byte (to, client->lossage);
+		buf = ClientReliableWrite_StartWrite(to, 3);
+			MSG_WriteByte(buf, svc_updatepl);
+			MSG_WriteByte(buf, i);
+			MSG_WriteByte(buf, client->lossage);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin (to, svc_updateentertime, 6);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Float (to, realtime - client->connection_started);
+		buf = ClientReliableWrite_StartWrite(to, 6);
+			MSG_WriteByte(buf, svc_updateentertime);
+			MSG_WriteByte(buf, i);
+			MSG_WriteFloat(buf, realtime - client->connection_started);
+		ClientReliable_FinishWrite(to);
 
 		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, NULL, NULL);
-		ClientReliableWrite_Begin(to, svc_updateuserinfo, 7 + strlen(info));
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Long (to, client->userid);
-		ClientReliableWrite_String(to, info);
+		buf = ClientReliableWrite_StartWrite(to, 7 + strlen(info));
+			MSG_WriteByte(buf, svc_updateuserinfo);
+			MSG_WriteByte(buf, i);
+			MSG_WriteLong(buf, client->userid);
+			MSG_WriteString(buf, info);
+		ClientReliable_FinishWrite(to);
 	}
 	else if (ISNQCLIENT(to))
 	{
 		int top, bottom, playercolor;
 		char *nam = InfoBuf_ValueForKey(&client->userinfo, "name");
 
-		ClientReliableWrite_Begin(to, svc_updatefrags, 4);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Short(to, client->old_frags);
+		buf = ClientReliableWrite_StartWrite(to, 4);
+			MSG_WriteByte(buf, svc_updatefrags);
+			MSG_WriteByte(buf, i);
+			MSG_WriteShort(buf, client->old_frags);
+		ClientReliable_FinishWrite(to);
 
-		ClientReliableWrite_Begin(to, svc_updatename, 3 + strlen(nam));
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_String(to, nam);
+		buf = ClientReliableWrite_StartWrite(to, 3 + strlen(nam));
+			MSG_WriteByte(buf, svc_updatename);
+			MSG_WriteByte(buf, i);
+			MSG_WriteString(buf, nam);
+		ClientReliable_FinishWrite(to);
+
 
 		top = atoi(InfoBuf_ValueForKey(&client->userinfo, "topcolor"));
 		bottom = atoi(InfoBuf_ValueForKey(&client->userinfo, "bottomcolor"));
@@ -1056,17 +1072,21 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			bottom = 13;
 		playercolor = top*16 + bottom;
 
-		ClientReliableWrite_Begin (to, svc_updatecolors, 3);
-		ClientReliableWrite_Byte (to, i);
-		ClientReliableWrite_Byte (to, playercolor);
+		buf = ClientReliableWrite_StartWrite(to, 3);
+			MSG_WriteByte(buf, svc_updatecolors);
+			MSG_WriteByte(buf, i);
+			MSG_WriteByte(buf, playercolor);
+		ClientReliable_FinishWrite(to);
 
 		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
 		{
 			char *s;
 			InfoBuf_ToString(&client->userinfo, info, sizeof(info), basicuserinfos, privateuserinfos, NULL, NULL, NULL);
 			s = va("//fui %i \"%s\"\n", i, info);
-			ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
-			ClientReliableWrite_String(to, s);
+			buf = ClientReliableWrite_StartWrite(to, 2 + strlen(s));
+				ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
+				ClientReliableWrite_String(to, s);
+			ClientReliable_FinishWrite(to);
 		}
 	}
 }

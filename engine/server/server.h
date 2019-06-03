@@ -1378,6 +1378,7 @@ void SV_ReplaceEntityFrame(client_t *cl, int framenum);
 //
 
 void ClientReliableCheckBlock(client_t *cl, int maxsize);
+sizebuf_t *ClientReliableWrite_StartWrite(client_t *cl, int maxsize);	//MUST be followed by a call to ClientReliable_FinishWrite before the next start
 void ClientReliable_FinishWrite(client_t *cl);
 void ClientReliableWrite_Begin(client_t *cl, int c, int maxsize);
 client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen);

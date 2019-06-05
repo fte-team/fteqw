@@ -585,7 +585,6 @@ static int multicasttype;
 static int requireextension;
 static qboolean ignoreprotocol;
 static int te_515sevilhackworkaround;
-extern qboolean ssqc_deprecated_warned;
 
 #define svc_setfrags 14
 #define svc_updatecolors 17

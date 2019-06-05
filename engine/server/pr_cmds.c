@@ -62,6 +62,9 @@ cvar_t	temp1 = CVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = CVAR("noexit", "0");
 extern cvar_t sv_specprint;
 
+//cvar_t	sv_aim = {"sv_aim", "0.93"};
+cvar_t	sv_aim = CVAR("sv_aim", "2");
+
 extern cvar_t pr_autocreatecvars;
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
 
@@ -74,39 +77,39 @@ cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH,
 #ifndef HAVE_LEGACY
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "1", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #else
-cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
+static cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #endif
-cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
+static cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
 
 extern cvar_t pr_sourcedir;
 cvar_t	pr_ssqc_progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
-cvar_t	pr_nonetaccess = CVARD("pr_nonetaccess", "0", "Block all direct access to network buffers (the writebyte builtin and friends will ignore the call).");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
+static cvar_t	pr_nonetaccess = CVARD("pr_nonetaccess", "0", "Block all direct access to network buffers (the writebyte builtin and friends will ignore the call).");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
-cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
+static cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
 
-cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "Only enables builtins if the extension they are part of was queried.");
+static cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "Only enables builtins if the extension they are part of was queried.");
 
 cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 
-cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
+static cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
 #ifndef HAVE_LEGACY
-cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "1", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
+static cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "1", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
 #else
-cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
+static cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
 #endif
-cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
+static cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
-cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
+static cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
 extern cvar_t sv_listen_dp;
 
-cvar_t sv_addon[MAXADDONS];
-char cvargroup_progs[] = "Progs variables";
+static cvar_t sv_addon[MAXADDONS];
+static char cvargroup_progs[] = "Progs variables";
 
-evalc_t evalc_idealpitch, evalc_pitch_speed;
+static evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 qboolean ssqc_deprecated_warned;
 int pr_teamfield;
-unsigned int h2infoplaque[2];	/*hexen2 stat*/
+static unsigned int h2infoplaque[2];	/*hexen2 stat*/
 
 static void PRSV_ClearThreads(void);
 void PR_fclose_progs(pubprogfuncs_t*);
@@ -129,7 +132,7 @@ typedef struct qcstate_s
 
 	struct qcstate_s *next;
 } qcstate_t;
-qcstate_t *qcthreads;
+static qcstate_t *qcthreads;
 
 typedef struct {
 	//for func finding and swapping.
@@ -150,7 +153,7 @@ typedef struct {
 } BuiltinList_t;
 builtin_t pr_builtin[1024];
 
-struct {
+static struct {
 	func_t ChatMessage;	//mvdsv parsing of 'say' commands
 	func_t UserCmd;	//mvdsv
 	func_t ConsoleCmd; //mvdsv
@@ -181,7 +184,7 @@ func_t SpectatorDisconnect;	//QW
 func_t SV_PlayerPhysicsQC;	//DP's DP_SV_PLAYERPHYSICS extension
 func_t EndFrameQC;	//a common extension
 
-globalptrs_t realpr_global_ptrs;
+static globalptrs_t realpr_global_ptrs;
 globalptrs_t *pr_global_ptrs = &realpr_global_ptrs;
 
 pubprogfuncs_t *svprogfuncs;
@@ -1520,7 +1523,7 @@ void QCLibTest(void)
 #endif
 */
 typedef char char32[32];
-char32 sv_addonname[MAXADDONS];
+static char32 sv_addonname[MAXADDONS];
 void PR_Init(void)
 {
 	int i;
@@ -1877,7 +1880,7 @@ void PR_SpawnInitialEntities(const char *file)
 }
 
 void SV_RegisterH2CustomTents(void);
-void Q_InitProgs(void)
+void Q_InitProgs(qboolean cinematic)
 {
 	int i, i2;
 	func_t f, f2;
@@ -1979,7 +1982,8 @@ void Q_InitProgs(void)
 	if (oldprnum < 0)
 	{
 		PR_LoadGlabalStruct(true);
-//		SV_Error("Couldn't open or compile progs\n");
+		if (cinematic)	//making this fatal, because it sucks to sit through a cinematic only to find the game isn't playable after.
+			SV_Error("No gamecode available. Try using the downloads menu.\n");
 		Con_Printf(CON_ERROR"Running without gamecode\n");
 	}
 
@@ -2724,7 +2728,7 @@ static int SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, fl
 
 
 
-int externcallsdepth;
+static int externcallsdepth;
 
 float PR_LoadAditionalProgs(char *s);
 static void QCBUILTIN PF_addprogs(pubprogfuncs_t *prinst, globalvars_t *pr_globals)
@@ -3847,8 +3851,8 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 
 //============================================================================
 
-pvsbuffer_t	checkpvsbuffer;
-vec3_t	checkorg;
+static pvsbuffer_t	checkpvsbuffer;
+static vec3_t	checkorg;
 extern cvar_t sv_nopvs;
 
 void PF_newcheckclient (pubprogfuncs_t *prinst, world_t *w)
@@ -4007,47 +4011,10 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	if (strcmp(str, "disconnect\n") == 0)
 	{
 		// so long and thanks for all the fish
-		if (cl->netchan.remote_address.type == NA_LOOPBACK)
-			return;	//don't drop the local client. It looks wrong.
-		cl->drop = true;
+		if (cl->netchan.remote_address.type != NA_LOOPBACK)	//don't drop the local client. It looks wrong.
+			cl->drop = true;
 		return;
 	}
-
-#ifdef HAVE_LEGACY
-	//this block is a hack to 'fix' nq mods that expect all clients to support nq commands - but we're a qw engine.
-	//FIXME: should buffer the entire command instead.
-	if (progstype != PROG_QW)
-	{
-		static qboolean expectingcolour;
-		if (!strncmp(str, "color ", 6)||!strncmp(str, ";color ", 7))	//okay, so this is a hack, but it fixes the qw scoreboard
-		{
-			expectingcolour = true;
-			if (!strcmp(str, "color ")||!strcmp(str, ";color "))
-				return;
-			else
-				str += 6;
-		}
-		// FIXME: this seems broken and color->teamname needs a common functions
-		if (expectingcolour)
-		{
-			int team = atoi(str);
-			char *tname;
-
-			expectingcolour = false;
-
-			switch(team)
-			{
-			case 4:		tname = "red";	break;
-			case 13:	tname = "blue";	break;
-			default:	tname = va("t%i", team);	break;	//good job our va has multiple buffers
-			}
-			PF_ForceInfoKey_Internal(entnum, "team", tname, strlen(tname));
-
-			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("color "));
-			ClientReliableWrite_String (cl, "color ");
-		}
-	}
-#endif
 
 	if (!(flags & STUFFCMD_DEMOONLY))
 	{
@@ -4877,8 +4844,6 @@ Pick a vector for the player to shoot along
 vector aim(entity, missilespeed)
 =============
 */
-//cvar_t	sv_aim = {"sv_aim", "0.93"};
-cvar_t	sv_aim = CVAR("sv_aim", "2");
 void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *check, *bestent;
@@ -7127,7 +7092,7 @@ float str2short (string str)
 
 static void QCBUILTIN PF_str2short (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = (float) LittleShort(*(short*)PR_GetStringOfs(prinst, OFS_PARM0));
+	G_FLOAT(OFS_RETURN) = LittleShort(*(const short*)PR_GetStringOfs(prinst, OFS_PARM0));
 }
 
 /*
@@ -7262,7 +7227,7 @@ static void QCBUILTIN PF_strstr (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		RETURN_TSTRING(p);
 }
 
-char readable2[256] =
+static char readable2[256] =
 {
 	'.', '_', '_', '_', '_', '.', '_', '_',
 	'_', '_', '\n', '_', '\n', '>', '.', '.',
@@ -7298,7 +7263,7 @@ char readable2[256] =
 	'x', 'y', 'z', '{', '|', '}', '~', '_'
 };
 
-void PR_CleanText(unsigned char *text)
+static void PR_CleanText(unsigned char *text)
 {
 	for ( ; *text; text++)
 		*text = readable2[*text];
@@ -8107,7 +8072,7 @@ enum
 
 	ce_max
 };
-int h2customtents[ce_max];
+static int h2customtents[ce_max];
 void SV_RegisterH2CustomTents(void)
 {
 	int i;
@@ -10322,7 +10287,7 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 #else
 	#define D(p,d) p,d
 #endif
-BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
+static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0,		0,	D("void()", "Some builtin that should never be called. Ends the game with some weird message.")},
 
 #ifndef SERVERONLY
@@ -11714,7 +11679,7 @@ void PR_SVExtensionList_f(void)
 	}
 }
 
-builtin_t *pr_builtins = pr_builtin;
+static builtin_t *pr_builtins = pr_builtin;
 int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.

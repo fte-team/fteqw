@@ -411,10 +411,15 @@ void GL_ForceDepthWritable(void)
 
 void GL_SetShaderState2D(qboolean is2d)
 {
+	shaderstate.depthrange = 0;	//force projection matrix info to get reset
 	shaderstate.updatetime = realtime;
 	shaderstate.force2d = is2d;
 	if (is2d)
+	{
 		memcpy(shaderstate.modelviewmatrix, r_refdef.m_view, sizeof(shaderstate.modelviewmatrix));
+		if (qglLoadMatrixf)
+			qglLoadMatrixf(r_refdef.m_view);
+	}
 	BE_SelectMode(BEM_STANDARD);
 
 
@@ -1306,7 +1311,8 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 #ifdef HAVE_MEDIA_DECODER
 	case T_GEN_VIDEOMAP:
 		t = Media_UpdateForShader(pass->cin);
-		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
+		if (!TEXLOADED(t))
+			t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
 		break;
 #endif
 

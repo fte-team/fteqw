@@ -119,6 +119,9 @@ cvar_t	net_fakeloss			= CVARFD("net_fakeloss",			"0", CVAR_CHEAT, "Simulates pac
 static cvar_t net_dns_ipv4		= CVARD("net_dns_ipv4",				"1", "If 0, disables dns resolution of names to ipv4 addresses (removing any associated error messages). Also hides ipv4 addresses in address:port listings.");
 static cvar_t net_dns_ipv6		= CVARD("net_dns_ipv6",				"1", "If 0, disables dns resolution of names to ipv6 addresses (removing any associated error messages). Also hides ipv6 addresses in address:port listings.");
 cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
+#if defined(HAVE_SSL)
+cvar_t	tls_ignorecertificateerrors	= CVARFD("tls_ignorecertificateerrors", "0", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOUNSAFEEXPAND|CVAR_NOSET, "This should NEVER be set to 1!");
+#endif
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
 cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables compatibility with qizmo's tcp connections serverside. Frankly, using sv_port_tcp without this is a bit pointless.");
@@ -1025,6 +1028,13 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 
 	if (!(*s) || !addresses)
 		return result;
+
+	//EVIL HACK!
+	//updates.tth uses a known self-signed certificate. its not meant to be used for browsers etc, and I cba to register dns stuff for it.
+	//besides, browsers/etc would just bitch about its cert, so w/e.
+	//redirect the dns to the base host without affecting http(s) hosts/certificates.
+	if (!strcmp(s, "updates.triptohell.info"))
+		s = "triptohell.info";
 
 	memset (sadr, 0, sizeof(*sadr));
 
@@ -7878,6 +7888,7 @@ void NET_Init (void)
 #endif
 #if defined(HAVE_SSL)
 	Cvar_Register(&net_enable_tls, "networking");
+	Cvar_Register(&tls_ignorecertificateerrors, "networking");
 #endif
 #ifdef HAVE_HTTPSV
 	Cvar_Register(&net_enable_http, "networking");

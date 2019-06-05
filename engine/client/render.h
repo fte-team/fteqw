@@ -298,7 +298,7 @@ typedef struct
 	qboolean	externalview;		/*draw external models and not viewmodels*/
 	int			recurse;			/*in a mirror/portal/half way through drawing something else*/
 	qboolean	forcevis;			/*if true, vis comes from the forcedvis field instead of recalculated*/
-	unsigned int	flipcull;		/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
+	unsigned int	flipcull;		/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0 - its implemented as a xor)*/
 	qboolean	useperspective;		/*not orthographic*/
 
 	stereomethod_t stereomethod;

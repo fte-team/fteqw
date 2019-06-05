@@ -2420,12 +2420,10 @@ Sets r_refdef view values
 */
 void CLQ2_CalcViewValues (int seat)
 {
-	extern cvar_t v_gunkick_q2;
 	int			i;
 	float		lerp, backlerp;
 	q2frame_t		*oldframe;
 	q2player_state_t	*ps, *ops;
-	extern cvar_t gl_cshiftenabled;
 	playerview_t *pv = &cl.playerview[seat];
 
 	r_refdef.areabitsknown = true;

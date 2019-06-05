@@ -817,7 +817,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	extern cvar_t allow_download_refpackages;
 	func_t f;
 	const char *file;
-	extern cvar_t pr_maxedicts;
 
 	gametype_e newgametype;
 
@@ -1142,7 +1141,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #endif
 	{
 		newgametype = GT_PROGS;	//let's just hope this loads.
-		Q_InitProgs();
+		Q_InitProgs(usecinematic);
 	}
 
 //	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//full q2 dll decision in one if statement

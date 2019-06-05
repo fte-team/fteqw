@@ -879,7 +879,7 @@ const char *presetexec[] =
 	"seta r_graphics 1;"
 	"seta r_renderscale 1;"
 
-	, // fast options
+	, // fast options (for deathmatch)
 	"gl_texturemode ln;"
 	"gl_texturemode2d n;"
 #ifdef MINIMAL
@@ -898,7 +898,7 @@ const char *presetexec[] =
 	"r_nolightdir 0;"
 	"seta gl_simpleitems 0;"
 
-	, //quakespasm-esque options.
+	, //quakespasm-esque options (for singleplayer faithful).
 	"r_part_density 1;"
 	"gl_polyblend 1;"
 	"r_dynamic 2;"
@@ -910,10 +910,7 @@ const char *presetexec[] =
 	"v_gunkick 1;"
 	"cl_rollangle 2.0;"
 	"cl_bob 0.02;"
-	//these things are perhaps a little extreme
-	"r_loadlit 0;"
 	"vid_hardwaregamma 1;"		//auto hardware gamma, for fast fullscreen and usable windowed.
-	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
 	"r_part_classic_expgrav 1;"	//vanillaery
 	"r_part_classic_opaque 1;"
 //	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
@@ -925,13 +922,15 @@ const char *presetexec[] =
 	"seta cl_deadbodyfilter 0;"
 	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"	//QS has cheaty viewpitch range. some maps require it.
 
-	, //vanilla-esque options.
+	, //vanilla-esque options (for purists).
 	"cl_fullpitch 0;maxpitch \"\";seta minpitch \"\";"	//quakespasm is not vanilla
 	"gl_texturemode nll;"		//yup, we went there.
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_nolerp 1;"
 	"cl_sbar 1;"
+	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
 	"v_viewmodel_quake 1;"
+	"r_loadlit 0;"
 	"gl_affinemodels 1;"
 	"r_softwarebanding 1;"		//ugly software banding.
 	"r_part_classic_square 1;"	//blocky baby!

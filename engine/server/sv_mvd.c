@@ -1388,7 +1388,6 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "disk", name);
 		break;
 	}
-	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
 	txtname = SV_MVDName2Txt(name);
 	if (sv_demotxt.value)
@@ -1436,7 +1435,7 @@ char *SV_Demo_CurrentOutput(void)
 		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE || d->desttype == DEST_THREADEDFILE)
 			return d->simplename;
 	}
-	return "QTV";
+	return "";
 }
 void SV_Demo_PrintOutputs(void)
 {
@@ -1679,6 +1678,8 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 
 	dest->nextdest = demo.dest;
 	demo.dest = dest;
+
+	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
 	SV_ClientProtocolExtensionsChanged(&demo.recorder);
 

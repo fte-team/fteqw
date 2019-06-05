@@ -4,7 +4,7 @@
 typedef struct
 {
 	qbyte	*data;
-	int		count;
+	size_t	count;
 } cblock_t;
 
 typedef struct cinematics_s
@@ -123,7 +123,8 @@ static void Huff1TableInit (cinematics_t *cin)
 		memset (cin->h_used,0,sizeof(cin->h_used));
 
 		// read a row of counts
-		VFS_READ (cin->cinematic_file, counts, sizeof(counts));
+		if (VFS_READ (cin->cinematic_file, counts, sizeof(counts)) != sizeof(counts))
+			Con_Printf("Huff1TableInit: read error\n");
 		for (j=0 ; j<256 ; j++)
 			cin->h_count[j] = counts[j];
 
@@ -274,7 +275,7 @@ static cblock_t Huff1Decompress (cinematics_t *cin, cblock_t in)
 
 	if (input - in.data != in.count && input - in.data != in.count+1)
 	{
-		Con_Printf ("Decompression overread by %i\n", (int)(input - in.data) - in.count);
+		Con_Printf ("Decompression overread by %i\n", (int)((input - in.data) - in.count));
 	}
 	out.count = out_p - out.data;
 
@@ -318,7 +319,8 @@ static qbyte *CIN_ReadNextFrame (cinematics_t *cin)
 	size = LittleLong(size);
 	if (size > sizeof(compressed) || size < 1)
 		Host_Error ("Bad compressed frame size");
-	VFS_READ (cin->cinematic_file, compressed, size);
+	if (VFS_READ (cin->cinematic_file, compressed, size) != size)
+		Con_Printf("CIN_ReadNextFrame: Failed reading video data\n");
 
 	// read sound. the number of samples per frame is not actually constant, despite a constant rate and fps...
 	// life is shit like that.
@@ -326,7 +328,8 @@ static qbyte *CIN_ReadNextFrame (cinematics_t *cin)
 	end = ((cin->cinematicframe+1)*cin->s_rate)/14;
 	count = end - start;
 
-	VFS_READ (cin->cinematic_file, samples, count*cin->s_width*cin->s_channels);
+	if (VFS_READ (cin->cinematic_file, samples, count*cin->s_width*cin->s_channels) != count*cin->s_width*cin->s_channels)
+		Con_Printf("CIN_ReadNextFrame: Failed reading audio data\n");
 
 	if (cin->s_width == 1)
 		COM_CharBias(samples, count*cin->s_channels);

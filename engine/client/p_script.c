@@ -7316,6 +7316,7 @@ static void PScript_DrawParticleTypes (void)
 								float m;
 								vec3_t vec={0.5, 0.5, 0.431};
 								model_t *model;
+								float rotangle;
 
 								ctx.entity = e;
 								if (!ctx.entity)
@@ -7338,7 +7339,9 @@ static void PScript_DrawParticleTypes (void)
 
 								VectorNormalize(vec);
 								CrossProduct(ctx.normal, vec, ctx.tangent1);
-								Matrix4x4_CM_Transform3(Matrix4x4_CM_NewRotation(frandom()*360, ctx.normal[0], ctx.normal[1], ctx.normal[2]), ctx.tangent1, ctx.tangent2);
+								rotangle = type->rotationstartmin+frandom()*type->rotationstartrand;
+								rotangle *= 180/M_PI; //gah! Matrix4x4_CM_NewRotation takes degrees but we already converted to radians.
+								Matrix4x4_CM_Transform3(Matrix4x4_CM_NewRotation(rotangle, ctx.normal[0], ctx.normal[1], ctx.normal[2]), ctx.tangent1, ctx.tangent2);
 								CrossProduct(ctx.normal, ctx.tangent2, ctx.tangent1);
 
 								VectorNormalize(ctx.tangent1);

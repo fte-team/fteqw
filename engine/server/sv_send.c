@@ -2803,6 +2803,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 	size_t bufferspace;
 
 	qboolean final;
+	sizebuf_t *buf;
 
 	if (client->protocol == SCP_QUAKE2)
 	{	//q2 gamecode is fully responsible for networking this via configstrings.
@@ -2830,13 +2831,14 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 				int playerslot = (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients;
 				s = va("//ui %i \"%s\" \"%s\"\n", playerslot, key, blobdata);
 			}
-			ClientReliableWrite_Begin(client, svc_stufftext, strlen(s)+2);
-			ClientReliableWrite_String(client, s);
+			buf = ClientReliable_StartWrite(client, 2+strlen(s));
+			MSG_WriteByte(buf, svc_stufftext);
+			MSG_WriteString(buf, s);
+			ClientReliable_FinishWrite(client);
 		}
-#ifdef MVD_RECORDING
-		else if (client == &demo.recorder)
+		else if (ISQWCLIENT(client))
 		{
-			sizebuf_t *buf = MVDWrite_Begin(dem_all, 0, 2+strlen(key)+1+strlen(blobdata)+1);
+			buf = ClientReliable_StartWrite(client, 2+strlen(key)+1+strlen(blobdata)+1);
 			if (info == &svs.info)
 				MSG_WriteByte(buf, svc_serverinfo);
 			else
@@ -2846,19 +2848,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 			}
 			MSG_WriteString(buf, key);
 			MSG_WriteString(buf, blobdata);
-		}
-#endif
-		else
-		{
-			if (info == &svs.info)
-				ClientReliableWrite_Begin(client, svc_serverinfo, 1+strlen(key)+1+strlen(blobdata)+1);
-			else
-			{
-				ClientReliableWrite_Begin(client, svc_setinfo, 2+strlen(key)+1+strlen(blobdata)+1);
-				ClientReliableWrite_Byte(client, (client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
-			}
-			ClientReliableWrite_String(client, key);
-			ClientReliableWrite_String(client, blobdata);
+			ClientReliable_FinishWrite(client);
 		}
 	}
 	else if (client->fteprotocolextensions2 & PEXT2_INFOBLOBS)
@@ -2884,27 +2874,14 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		sendsize = min(bufferspace, sendsize);
 		final = (bloboffset+sendsize >= blobsize);
 
-#ifdef MVD_RECORDING
-		if (client == &demo.recorder)
-		{
-			sizebuf_t *buf = MVDWrite_Begin(dem_all, 0, 8+strlen(enckey)+1+sendsize);
-			MSG_WriteByte(buf, svcfte_setinfoblob);
-			MSG_WriteByte(buf, pl); //special meaning to say that this is a partial update
-			MSG_WriteString(buf, enckey);
-			MSG_WriteLong(buf, (final?0x80000000:0)|bloboffset);
-			MSG_WriteShort(buf, sendsize);
-			SZ_Write(buf, blobdata+bloboffset, sendsize);
-		}
-		else
-#endif
-		{
-			ClientReliableWrite_Begin(client, svcfte_setinfoblob, 8+strlen(enckey)+1+sendsize);
-			ClientReliableWrite_Byte(client, pl); //special meaning to say that this is a partial update
-			ClientReliableWrite_String(client, enckey);
-			ClientReliableWrite_Long(client, (final?0x80000000:0)|bloboffset);
-			ClientReliableWrite_Short(client, sendsize);
-			ClientReliableWrite_SZ(client, blobdata+bloboffset, sendsize);
-		}
+		buf = ClientReliable_StartWrite(client, 8+strlen(enckey)+1+sendsize);
+		MSG_WriteByte(buf, svcfte_setinfoblob);
+		MSG_WriteByte(buf, pl); //special meaning to say that this is a partial update
+		MSG_WriteString(buf, enckey);
+		MSG_WriteLong(buf, (final?0x80000000:0)|bloboffset);
+		MSG_WriteShort(buf, sendsize);
+		SZ_Write(buf, blobdata+bloboffset, sendsize);
+		ClientReliable_FinishWrite(client);
 
 		if (!final)
 		{
@@ -2956,6 +2933,24 @@ void SV_UpdateToReliableMessages (void)
 			if (host_client->dp_pl)
 				*host_client->dp_pl = host_client->lossage;
 #endif
+
+			j = PROG_TO_EDICTINDEX(svprogfuncs, host_client->edict->xv->clientcamera);
+			if (j)
+			{
+				if ((unsigned int)j >= svprogfuncs->edicttable_length)
+					j = i+1;
+				if (j != host_client->clientcamera)
+				{
+					if (host_client->fteprotocolextensions & PEXT_VIEW2)
+					{
+						ClientReliableWrite_Begin(host_client, svc_setview, 4);
+						ClientReliableWrite_Entity(host_client, j);
+					}
+					if (j == i+1)
+						j = 0;	//self.
+					host_client->viewent = j;
+				}
+			}
 
 			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);
 #ifndef QCGC	//this optimisation doesn't really work with a QC instead of static string management

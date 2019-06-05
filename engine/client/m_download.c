@@ -165,6 +165,7 @@ typedef struct package_s {
 			DEP_FILECONFLICT,	//don't install if this file already exists.
 			DEP_REQUIRE,
 			DEP_RECOMMEND,	//like depend, but uninstalling will not bubble.
+			DEP_SUGGEST,	//like recommend, but will not force install (ie: only prevents auto-uninstall)
 //			DEP_MIRROR,
 //			DEP_FAILEDMIRROR,
 
@@ -900,6 +901,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 						PM_AddDep(p, DEP_FILECONFLICT, val);
 					else if (!strcmp(key, "recommend"))
 						PM_AddDep(p, DEP_RECOMMEND, val);
+					else if (!strcmp(key, "suggest"))
+						PM_AddDep(p, DEP_SUGGEST, val);
 					else if (!strcmp(key, "test"))
 						flags |= DPF_TESTING;
 					else if (!strcmp(key, "stale") && version==2)
@@ -1314,7 +1317,7 @@ static qboolean PM_HasDependant(package_t *package, unsigned int markflag)
 	{
 		if (o->flags & markflag)
 			for (dep = o->deps; dep; dep = dep->next)
-				if (dep->dtype == DEP_REQUIRE || dep->dtype == DEP_RECOMMEND)
+				if (dep->dtype == DEP_REQUIRE || dep->dtype == DEP_RECOMMEND || dep->dtype == DEP_SUGGEST)
 					if (!strcmp(package->name, dep->name))
 						return true;
 	}
@@ -3435,15 +3438,6 @@ static int MD_AddItemsToDownloadMenu(menu_t *m, int y, const char *pathprefix)
 						break;
 			if (!mo)
 			{
-				package_t *s;
-				for (s = availablepackages; s; s = s->next)
-				{
-					if (!strncmp(s->category, pathprefix, slash-path) || s->category[slash-path] != '/')
-						continue;
-					if (!(s->flags & DPF_ENABLED) != !(s->flags & DPF_MARKED))
-						break;
-				}
-
 				y += 8;
 				MC_AddBufferedText(m, 48, 320, y, path+prefixlen, false, true);
 				y += 8;

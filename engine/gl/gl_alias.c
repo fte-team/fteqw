@@ -2754,7 +2754,6 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	unsigned int orig_numvisedicts = cl_numvisedicts;
 //	unsigned int orig_numstrisidx = cl_numstrisidx;
 //	unsigned int orig_numstrisvert = cl_numstrisvert;
-	extern cvar_t chase_active;	//I fucking hate this cvar. die die die.
 	extern cvar_t r_ignoreentpvs; //legacy value is 1...
 
 	if (r_ignoreentpvs.ival)

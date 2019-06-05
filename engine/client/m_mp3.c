@@ -2590,6 +2590,8 @@ qboolean Media_ShowFilm(void)
 	if (videoshader)
 	{
 		cin_t *cin = R_ShaderGetCinematic(videoshader);
+		if (cin && cin->playstate == CINSTATE_INVALID)
+			Media_SetState(cin, CINSTATE_PLAY);	//err... wot? must have vid_reloaded or something
 		if (cin && cin->playstate == CINSTATE_ENDED)
 		{
 			Media_StopFilm(false);

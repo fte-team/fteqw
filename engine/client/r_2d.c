@@ -1291,7 +1291,6 @@ R_PolyBlend
 //bright flashes and stuff, game only, doesn't touch sbar
 void R2D_PolyBlend (void)
 {
-	extern cvar_t gl_cshiftborder;
 	float bordersize = gl_cshiftborder.value;
 
 	if (r_refdef.flags & RDF_NOWORLDMODEL)

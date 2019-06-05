@@ -5130,7 +5130,6 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 
 #ifdef HAVE_LEGACY
 	{
-		extern int pr_teamfield;
 		if (pr_teamfield)
 			((string_t *)ent->v)[pr_teamfield] = (string_t)(cl->team-svprogfuncs->stringtable);
 	}

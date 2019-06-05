@@ -40,3 +40,15 @@ void VQ2_AddLerpEntity(entity_t *in);
 void V_AddAxisEntity(entity_t *in);
 void CLQ1_AddShadow(entity_t *ent);
 int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b);
+
+extern qbyte gammatable[256];	//for texture gamma.
+extern qboolean gammaworks;
+
+extern cvar_t r_projection, ffov;
+extern cvar_t crosshair, crosshairalpha, crosshairsize, crosshaircolor, crosshairimage, cl_crossx, cl_crossy, crosshaircorrect;
+extern cvar_t v_viewheight;
+
+extern cvar_t v_gunkick_q2, gl_cshiftenabled, gl_cshiftborder;	//q2 logic needs some of these cvars.
+
+extern cvar_t v_contentblend; //for menus
+extern cvar_t chase_active;	//I fucking hate this cvar. die die die.

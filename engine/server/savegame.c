@@ -1364,22 +1364,6 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 //mapchange is true for Q2's map-change autosaves.
 void SV_Savegame (const char *savename, qboolean mapchange)
 {
-	extern cvar_t	nomonsters;
-	extern cvar_t	gamecfg;
-	extern cvar_t	scratch1;
-	extern cvar_t	scratch2;
-	extern cvar_t	scratch3;
-	extern cvar_t	scratch4;
-	extern cvar_t	savedgamecfg;
-	extern cvar_t	saved1;
-	extern cvar_t	saved2;
-	extern cvar_t	saved3;
-	extern cvar_t	saved4;
-	extern cvar_t	temp1;
-	extern cvar_t	noexit;
-	extern cvar_t	pr_maxedicts;
-
-
 	client_t *cl;
 	int clnum;
 	char	comment[(SAVEGAME_COMMENT_LENGTH+1)*2];

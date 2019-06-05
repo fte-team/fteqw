@@ -1155,7 +1155,7 @@ void CL_PredictMovePNum (int seat)
 
 	//if our network protocol doesn't have a concept of separate players, make sure our player states are updated from those entities
 	//fixme: use entity states instead of player states to avoid the extra work here
-	if (pv->nolocalplayer || nopred)
+	if (pv->nolocalplayer)
 	{
 		packet_entities_t *pe;
 		pe = &cl.inframes[fromframe & UPDATE_MASK].packet_entities;

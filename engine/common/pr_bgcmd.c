@@ -6754,6 +6754,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_SOLIDCORPSE"},
 	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
 	{"DP_SV_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
+	{"DP_SV_CLIENTCAMERA",				0,	NULL, {NULL}, "Works like svc_setview except also handles pvs."},
 	{"DP_SV_CLIENTCOLORS",				0,	NULL, {NULL}, "Provided only for compatibility with DP."},
 	{"DP_SV_CLIENTNAME",				0,	NULL, {NULL}, "Provided only for compatibility with DP."},
 	{"DP_SV_DRAWONLYTOCLIENT"},

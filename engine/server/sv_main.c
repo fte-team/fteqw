@@ -342,7 +342,7 @@ void VARGS SV_Error (char *error, ...)
 
 	SV_EndRedirect();
 
-	Con_Printf ("SV_Error: %s\n",string);
+	Con_Printf (CON_ERROR"SV_Error: %s\n",string);
 
 	if (sv.state)
 		SV_FinalMessage (va("server crashed: %s\n", string));
@@ -365,8 +365,10 @@ void VARGS SV_Error (char *error, ...)
 
 	if (!isDedicated)	//dedicated servers crash...
 	{
+		extern cvar_t cl_disconnectreason;
 		extern jmp_buf 	host_abort;
 		SCR_EndLoadingPlaque();
+		Cvar_Set(&cl_disconnectreason, va("SV_Error: %s", string));
 		inerror=false;
 		longjmp (host_abort, 1);
 	}
@@ -1012,32 +1014,32 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		if (ping > 0xffff)
 			ping = 0xffff;
 
-		buf = ClientReliableWrite_StartWrite(to, 4);
+		buf = ClientReliable_StartWrite(to, 4);
 			MSG_WriteByte(buf, svc_updatefrags);
 			MSG_WriteByte(buf, i);
 			MSG_WriteShort(buf, client->old_frags);
 		ClientReliable_FinishWrite(to);
 
-		buf = ClientReliableWrite_StartWrite(to, 4);
+		buf = ClientReliable_StartWrite(to, 4);
 			MSG_WriteByte(buf, svc_updateping);
 			MSG_WriteByte(buf, i);
 			MSG_WriteShort(buf, ping);
 		ClientReliable_FinishWrite(to);
 
-		buf = ClientReliableWrite_StartWrite(to, 3);
+		buf = ClientReliable_StartWrite(to, 3);
 			MSG_WriteByte(buf, svc_updatepl);
 			MSG_WriteByte(buf, i);
 			MSG_WriteByte(buf, client->lossage);
 		ClientReliable_FinishWrite(to);
 
-		buf = ClientReliableWrite_StartWrite(to, 6);
+		buf = ClientReliable_StartWrite(to, 6);
 			MSG_WriteByte(buf, svc_updateentertime);
 			MSG_WriteByte(buf, i);
 			MSG_WriteFloat(buf, realtime - client->connection_started);
 		ClientReliable_FinishWrite(to);
 
 		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, NULL, NULL);
-		buf = ClientReliableWrite_StartWrite(to, 7 + strlen(info));
+		buf = ClientReliable_StartWrite(to, 7 + strlen(info));
 			MSG_WriteByte(buf, svc_updateuserinfo);
 			MSG_WriteByte(buf, i);
 			MSG_WriteLong(buf, client->userid);
@@ -1049,13 +1051,13 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		int top, bottom, playercolor;
 		char *nam = InfoBuf_ValueForKey(&client->userinfo, "name");
 
-		buf = ClientReliableWrite_StartWrite(to, 4);
+		buf = ClientReliable_StartWrite(to, 4);
 			MSG_WriteByte(buf, svc_updatefrags);
 			MSG_WriteByte(buf, i);
 			MSG_WriteShort(buf, client->old_frags);
 		ClientReliable_FinishWrite(to);
 
-		buf = ClientReliableWrite_StartWrite(to, 3 + strlen(nam));
+		buf = ClientReliable_StartWrite(to, 3 + strlen(nam));
 			MSG_WriteByte(buf, svc_updatename);
 			MSG_WriteByte(buf, i);
 			MSG_WriteString(buf, nam);
@@ -1072,7 +1074,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			bottom = 13;
 		playercolor = top*16 + bottom;
 
-		buf = ClientReliableWrite_StartWrite(to, 3);
+		buf = ClientReliable_StartWrite(to, 3);
 			MSG_WriteByte(buf, svc_updatecolors);
 			MSG_WriteByte(buf, i);
 			MSG_WriteByte(buf, playercolor);
@@ -1083,7 +1085,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			char *s;
 			InfoBuf_ToString(&client->userinfo, info, sizeof(info), basicuserinfos, privateuserinfos, NULL, NULL, NULL);
 			s = va("//fui %i \"%s\"\n", i, info);
-			buf = ClientReliableWrite_StartWrite(to, 2 + strlen(s));
+			buf = ClientReliable_StartWrite(to, 2 + strlen(s));
 				ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
 				ClientReliableWrite_String(to, s);
 			ClientReliable_FinishWrite(to);

@@ -3145,6 +3145,12 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define Q3CFG "set v_gammainverted 0\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
+#ifdef HAVE_SSL
+#define UPDATEURL(g)	"https://updates.triptohell.info/downloadables.php?game=" #g
+#else
+#define UPDATEURL(g)	NULL
+#endif
+
 typedef struct {
 	const char *argname;	//used if this was used as a parameter.
 	const char *exename;	//used if the exe name contains this
@@ -3190,31 +3196,31 @@ const gamemode_info_t gamemode_info[] = {
 #ifdef HAVE_LEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//standard quake
-	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG,{"id1",	"qw",				"*fte"},	"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG,{"id1",	"qw",				"*fte"},	"Quake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
-	{"-afterquake",	NULL,		"FTE-Quake",{"id1/pak0.pak", "id1/quake.rc"},                 QCFG,{"id1",	"qw",				"*fte"},	"Quake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-afterquake",	NULL,		"FTE-Quake",{"id1/pak0.pak", "id1/quake.rc"},                 QCFG,{"id1",	"qw",				"*fte"},	"Quake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//netquake-specific quake that avoids qw/ with its nquake fuckups, and disables nqisms
-	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can. quakespasm is hopefully close enough...
-	{"-fitz",		NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset spasm\n",{"id1"},			"NetQuake", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-fitz",		NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset spasm\n",{"id1"},			"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can
-	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset tenebrae\n",{"id1","qw","*fte"},"Tenebrae", "https://triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset tenebrae\n",{"id1","qw","*fte"},"Tenebrae",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
 	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
 	//so just make these require the same files as good ol' quake.
-	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon"},
-	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity"},
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
+	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
 
 	//various quake-dependant non-standalone mods that require hacks
 	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
-	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth"},
-	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra"},
+	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
+	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
 	//various quake-based standalone mods.
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
 	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
-														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic"},
+														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
 //	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 //														 "base/qwprogs.dat",
 //														 "base/pak0.pak"},				DMFCFG,	{"base",								},	"Spark"},
@@ -3226,17 +3232,17 @@ const gamemode_info_t gamemode_info[] = {
 #ifdef HEXEN2
 	//hexen2's mission pack generally takes precedence if both are installed.
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
-														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP"},
-	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II"},
+														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP",						UPDATEURL(H2)},
+	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II",							UPDATEURL(H2)},
 #endif
 #if defined(Q2CLIENT) || defined(Q2SERVER)
-	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II"},
+	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
 	//mods of the above that should generally work.
 	{"-dday",		"dday",		"FTE-Quake2",			{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena"},
+	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3)},
 	//the rest are not supported in any real way. maps-only mostly, if that
 //	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
 //	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},

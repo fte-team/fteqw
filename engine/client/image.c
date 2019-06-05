@@ -3242,7 +3242,6 @@ void BoostGamma(qbyte *rgba, int width, int height, uploadfmt_t fmt)
 {
 	//note: should not be used where hardware gamma is supported.
 	int i;
-	extern qbyte gammatable[256];
 
 	switch(fmt)
 	{

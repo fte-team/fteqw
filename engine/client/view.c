@@ -32,7 +32,7 @@ cvar_t ffov = CVARFD("ffov", "", 0, "Allows you to set a specific field of view 
 #if defined(_WIN32) && !defined(MINIMAL)
 //amusing gimmick / easteregg.
 #include "winquake.h"
-cvar_t itburnsitburnsmakeitstop = CVARFD("itburnsitburnsmakeitstop", "0", CVAR_NOTFROMSERVER, "Ouch");
+static cvar_t itburnsitburnsmakeitstop = CVARFD("itburnsitburnsmakeitstop", "0", CVAR_NOTFROMSERVER, "Ouch");
 #endif
 
 /*
@@ -45,39 +45,53 @@ when crossing a water boudnary.
 */
 
 #ifdef SIDEVIEWS
-cvar_t	vsec_enabled[SIDEVIEWS] = {CVAR("v2_enabled", "2"),		CVAR("v3_enabled", "0"),	CVAR("v4_enabled", "0"),	CVAR("v5_enabled", "0")};
-cvar_t	vsec_x[SIDEVIEWS]		= {CVAR("v2_x", "0"),			CVAR("v3_x", "0.25"),		CVAR("v4_x", "0.5"),		CVAR("v5_x", "0.75")};
-cvar_t	vsec_y[SIDEVIEWS]		= {CVAR("v2_y", "0"),			CVAR("v3_y", "0"),			CVAR("v4_y", "0"),			CVAR("v5_y", "0")};
-cvar_t	vsec_scalex[SIDEVIEWS]	= {CVAR("v2_scalex", "0.25"),	CVAR("v3_scalex", "0.25"),	CVAR("v4_scalex", "0.25"),	CVAR("v5_scalex", "0.25")};
-cvar_t	vsec_scaley[SIDEVIEWS]	= {CVAR("v2_scaley", "0.25"),	CVAR("v3_scaley", "0.25"),	CVAR("v4_scaley", "0.25"),	CVAR("v5_scaley", "0.25")};
-cvar_t	vsec_yaw[SIDEVIEWS]		= {CVAR("v2_yaw", "180"),		CVAR("v3_yaw", "90"),		CVAR("v4_yaw", "270"),		CVAR("v5_yaw", "0")};
+static struct
+{
+	cvar_t enabled;
+	cvar_t x;
+	cvar_t y;
+	cvar_t scalex;
+	cvar_t scaley;
+	cvar_t yaw;
+} sideview[SIDEVIEWS] = {
+	{CVAR("v2_enabled", "2"),	CVAR("v2_x", "0"),		CVAR("v2_y", "0"),	CVAR("v2_scalex", "0.25"),	CVAR("v2_scaley", "0.25"), CVAR("v2_yaw", "180")},
+#if SIDEVIEWS > 1
+	{CVAR("v3_enabled", "2"),	CVAR("v3_x", "0.25"),	CVAR("v3_y", "0"),	CVAR("v3_scalex", "0.25"),	CVAR("v3_scaley", "0.25"), CVAR("v3_yaw", "90")},
+#endif
+#if SIDEVIEWS > 2
+	{CVAR("v4_enabled", "2"),	CVAR("v4_x", "0.5"),	CVAR("v4_y", "0"),	CVAR("v4_scalex", "0.25"),	CVAR("v4_scaley", "0.25"), CVAR("v4_yaw", "270")},
+#endif
+#if SIDEVIEWS > 3
+	{CVAR("v5_enabled", "2"),	CVAR("v5_x", "0.75"),	CVAR("v5_y", "0"),	CVAR("v5_scalex", "0.25"),	CVAR("v5_scaley", "0.25"), CVAR("v5_yaw", "0")},
+#endif
+};
 #endif
 
 cvar_t	cl_rollspeed			= CVARD("cl_rollspeed", "200", "Controls the speed required to reach cl_rollangle's tilt.");
-cvar_t	cl_rollangle			= CVARD("cl_rollangle", "2.0", "Controls the maximum view should tilt while strafing.");
-cvar_t	cl_rollalpha			= CVARD("cl_rollalpha", "20", "Controls the speed at which the view rolls according to sideways movement.");
-cvar_t	v_deathtilt				= CVARD("v_deathtilt", "1", "Specifies whether to tilt the view when dead.");
+static cvar_t	cl_rollangle			= CVARD("cl_rollangle", "2.0", "Controls the maximum view should tilt while strafing.");
+static cvar_t	cl_rollalpha			= CVARD("cl_rollalpha", "20", "Controls the speed at which the view rolls according to sideways movement.");
+static cvar_t	v_deathtilt				= CVARD("v_deathtilt", "1", "Specifies whether to tilt the view when dead.");
 
-cvar_t	cl_bob					= CVARD("cl_bob","0.02", "Controls how much the camera position should bob up down as the player runs around.");
-cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
-cvar_t	cl_bobup				= CVAR("cl_bobup","0.5");
+static cvar_t	cl_bob					= CVARD("cl_bob","0.02", "Controls how much the camera position should bob up down as the player runs around.");
+static cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
+static cvar_t	cl_bobup				= CVAR("cl_bobup","0.5");
 
-cvar_t	cl_bobmodel				= CVARD("cl_bobmodel", "0", "Controls whether the viewmodel should bob up and down as the player runs around.");
-cvar_t	cl_bobmodel_side		= CVAR("cl_bobmodel_side", "0.15");
-cvar_t	cl_bobmodel_up			= CVAR("cl_bobmodel_up", "0.06");
-cvar_t	cl_bobmodel_speed		= CVAR("cl_bobmodel_speed", "7");
+static cvar_t	cl_bobmodel				= CVARD("cl_bobmodel", "0", "Controls whether the viewmodel should bob up and down as the player runs around.");
+static cvar_t	cl_bobmodel_side		= CVAR("cl_bobmodel_side", "0.15");
+static cvar_t	cl_bobmodel_up			= CVAR("cl_bobmodel_up", "0.06");
+static cvar_t	cl_bobmodel_speed		= CVAR("cl_bobmodel_speed", "7");
 
-cvar_t	v_kicktime				= CVARD("v_kicktime", "0.5", "This controls how long viewangle changes from taking damage will last.");
-cvar_t	v_kickroll				= CVARD("v_kickroll", "0.6", "This controls part of the strength of viewangle changes from taking damage.");
-cvar_t	v_kickpitch				= CVARD("v_kickpitch", "0.6", "This controls part of the strength of viewangle changes from taking damage.");
+static cvar_t	v_kicktime				= CVARD("v_kicktime", "0.5", "This controls how long viewangle changes from taking damage will last.");
+static cvar_t	v_kickroll				= CVARD("v_kickroll", "0.6", "This controls part of the strength of viewangle changes from taking damage.");
+static cvar_t	v_kickpitch				= CVARD("v_kickpitch", "0.6", "This controls part of the strength of viewangle changes from taking damage.");
 
-cvar_t	v_iyaw_cycle			= CVAR("v_iyaw_cycle", "2");
-cvar_t	v_iroll_cycle			= CVAR("v_iroll_cycle", "0.5");
-cvar_t	v_ipitch_cycle			= CVAR("v_ipitch_cycle", "1");
-cvar_t	v_iyaw_level			= CVAR("v_iyaw_level", "0.3");
-cvar_t	v_iroll_level			= CVAR("v_iroll_level", "0.1");
-cvar_t	v_ipitch_level			= CVAR("v_ipitch_level", "0.3");
-cvar_t	v_idlescale				= CVARD("v_idlescale", "0", "Enable swishing of the view (whether idle or otherwise). Often used for concussion effects.");
+static cvar_t	v_iyaw_cycle			= CVAR("v_iyaw_cycle", "2");
+static cvar_t	v_iroll_cycle			= CVAR("v_iroll_cycle", "0.5");
+static cvar_t	v_ipitch_cycle			= CVAR("v_ipitch_cycle", "1");
+static cvar_t	v_iyaw_level			= CVAR("v_iyaw_level", "0.3");
+static cvar_t	v_iroll_level			= CVAR("v_iroll_level", "0.1");
+static cvar_t	v_ipitch_level			= CVAR("v_ipitch_level", "0.3");
+static cvar_t	v_idlescale				= CVARD("v_idlescale", "0", "Enable swishing of the view (whether idle or otherwise). Often used for concussion effects.");
 
 cvar_t	crosshair				= CVARF("crosshair", "1", CVAR_ARCHIVE);
 cvar_t	crosshaircolor			= CVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
@@ -89,43 +103,43 @@ cvar_t	crosshaircorrect		= CVARFD("crosshaircorrect", "0", CVAR_SEMICHEAT, "Move
 cvar_t	crosshairimage			= CVARD("crosshairimage", "", "Enables the use of an external/custom crosshair image");
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
-cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
+static cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
 cvar_t	gl_cshiftenabled		= CVARFD("gl_polyblend", "1", CVAR_ARCHIVE, "Controls whether temporary whole-screen colour changes should be honoured or not. Change gl_cshiftpercent if you want to adjust the intensity.\nThis does not affect v_cshift commands sent from the server.");
 cvar_t	gl_cshiftborder			= CVARD("gl_polyblend_edgesize", "128", "This constrains colour shifts to the edge of the screen, with the value specifying the size of those borders.");
 
-cvar_t	v_bonusflash			= CVARD("v_bonusflash", "1", "Controls the strength of temporary screen flashes when picking up items (gl_polyblend must be enabled).");
+static cvar_t	v_bonusflash			= CVARD("v_bonusflash", "1", "Controls the strength of temporary screen flashes when picking up items (gl_polyblend must be enabled).");
 
 cvar_t  v_contentblend			= CVARFD("v_contentblend", "1", CVAR_ARCHIVE, "Controls the strength of underwater colour tints (gl_polyblend must be enabled).");
-cvar_t	v_damagecshift			= CVARD("v_damagecshift", "1", "Controls the strength of damage-taken colour tints (gl_polyblend must be enabled).");
-cvar_t	v_quadcshift			= CVARD("v_quadcshift", "1", "Controls the strength of quad-damage colour tints (gl_polyblend must be enabled).");
-cvar_t	v_suitcshift			= CVARD("v_suitcshift", "1", "Controls the strength of envirosuit colour tints (gl_polyblend must be enabled).");
-cvar_t	v_ringcshift			= CVARD("v_ringcshift", "1", "Controls the strength of ring-of-invisibility colour tints (gl_polyblend must be enabled).");
-cvar_t	v_pentcshift			= CVARD("v_pentcshift", "1", "Controls the strength of pentagram-of-protection colour tints (gl_polyblend must be enabled).");
-cvar_t	v_gunkick				= CVARD("v_gunkick", "0", "Controls the strength of view angle changes when firing weapons.");
+static cvar_t	v_damagecshift			= CVARD("v_damagecshift", "1", "Controls the strength of damage-taken colour tints (gl_polyblend must be enabled).");
+static cvar_t	v_quadcshift			= CVARD("v_quadcshift", "1", "Controls the strength of quad-damage colour tints (gl_polyblend must be enabled).");
+static cvar_t	v_suitcshift			= CVARD("v_suitcshift", "1", "Controls the strength of envirosuit colour tints (gl_polyblend must be enabled).");
+static cvar_t	v_ringcshift			= CVARD("v_ringcshift", "1", "Controls the strength of ring-of-invisibility colour tints (gl_polyblend must be enabled).");
+static cvar_t	v_pentcshift			= CVARD("v_pentcshift", "1", "Controls the strength of pentagram-of-protection colour tints (gl_polyblend must be enabled).");
+static cvar_t	v_gunkick				= CVARD("v_gunkick", "0", "Controls the strength of view angle changes when firing weapons.");
 cvar_t	v_gunkick_q2			= CVARD("v_gunkick_q2", "1", "Controls the strength of view angle changes when firing weapons (in Quake2).");
-cvar_t	v_viewmodel_quake		= CVARD("r_viewmodel_quake", "0", "Controls whether to use weird viewmodel movements from vanilla quake.");	//name comes from MarkV.
+static cvar_t	v_viewmodel_quake		= CVARD("r_viewmodel_quake", "0", "Controls whether to use weird viewmodel movements from vanilla quake.");	//name comes from MarkV.
 
 cvar_t	v_viewheight			= CVARF("v_viewheight", "0", CVAR_ARCHIVE);
-cvar_t	v_projectionmode		= CVARF("v_projectionmode", "0", CVAR_ARCHIVE);
+static cvar_t	v_projectionmode		= CVARF("v_projectionmode", "0", CVAR_ARCHIVE);
 
-cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
+static cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
 
-cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
-cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
-cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
-cvar_t	scr_autoid_armour		= CVARD("scr_autoid_armor", "1", "Display armour as part of nametags (when known).");
-cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player's best weapon as part of their nametag (when known).");
-cvar_t	scr_autoid_teamcolour	= CVARD("scr_autoid_teamcolour", STRINGIFY(COLOR_BLUE), "The colour for the text on the nametags of team members.");
-cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY(COLOR_WHITE), "The colour for the text on the nametags of non-team members.");
+static cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
+static cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
+static cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
+static cvar_t	scr_autoid_armour		= CVARD("scr_autoid_armor", "1", "Display armour as part of nametags (when known).");
+static cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player's best weapon as part of their nametag (when known).");
+static cvar_t	scr_autoid_teamcolour	= CVARD("scr_autoid_teamcolour", STRINGIFY(COLOR_BLUE), "The colour for the text on the nametags of team members.");
+static cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY(COLOR_WHITE), "The colour for the text on the nametags of non-team members.");
 
 cvar_t	chase_active			= CVAR("chase_active", "0");
-cvar_t	chase_back				= CVAR("chase_back", "48");
-cvar_t	chase_up				= CVAR("chase_up", "24");
+static cvar_t	chase_back				= CVAR("chase_back", "48");
+static cvar_t	chase_up				= CVAR("chase_up", "24");
 
 
 extern cvar_t cl_chasecam;
 
-player_state_t		*view_message;
+static player_state_t		*view_message;
 
 /*
 ===============
@@ -206,8 +220,8 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 //=============================================================================
 
 
-cvar_t	v_centermove = CVAR("v_centermove", "0.15");
-cvar_t	v_centerspeed = CVAR("v_centerspeed","500");
+static cvar_t	v_centermove = CVAR("v_centermove", "0.15");
+static cvar_t	v_centerspeed = CVAR("v_centerspeed","500");
 
 
 void V_StartPitchDrift (playerview_t *pv)
@@ -325,12 +339,12 @@ void V_DriftPitch (playerview_t *pv)
 
 static void QDECL V_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
-cshift_t	cshift_empty = { {130,80,50}, 0 };
-cshift_t	cshift_water = { {130,80,50}, 128 };
-cshift_t	cshift_slime = { {0,25,5}, 150 };
-cshift_t	cshift_lava = { {255,80,0}, 150 };
+static cshift_t	cshift_empty = { {130,80,50}, 0 };
+static cshift_t	cshift_water = { {130,80,50}, 128 };
+static cshift_t	cshift_slime = { {0,25,5}, 150 };
+static cshift_t	cshift_lava = { {255,80,0}, 150 };
 
-cshift_t	cshift_server = { {130,80,50}, 0 };
+static cshift_t	cshift_server = { {130,80,50}, 0 };
 
 cvar_t		v_gamma = CVARFCD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
 cvar_t		v_gammainverted = CVARFCD("v_gammainverted", "0", CVAR_ARCHIVE, V_Gamma_Callback, "Boolean that controls whether the gamma should be inverted (like quake) or not.");
@@ -2248,9 +2262,9 @@ void V_RenderPlayerViews(playerview_t *pv)
 	}
 */
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
-	if (vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0
-		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2) 	//rearview if v2_enabled = 1 and not 2
-		|| (vsec_enabled[viewnum].value && pv->stats[STAT_VIEW2]&&viewnum==0)))			//v2 enabled if v2_enabled is non-zero
+	if (sideview[viewnum].scalex.value>0&&sideview[viewnum].scaley.value>0
+		&& ((sideview[viewnum].enabled.value && sideview[viewnum].enabled.value != 2) 	//rearview if v2_enabled = 1 and not 2
+		|| (sideview[viewnum].enabled.value && pv->stats[STAT_VIEW2]&&viewnum==0)))			//v2 enabled if v2_enabled is non-zero
 	{
 		vrect_t oldrect;
 		vec3_t oldangles;
@@ -2260,14 +2274,14 @@ void V_RenderPlayerViews(playerview_t *pv)
 		float ofx;
 		float ofy;
 
-		if (vsec_x[viewnum].value < 0)
-			vsec_x[viewnum].value = 0;
-		if (vsec_y[viewnum].value < 0)
-			vsec_y[viewnum].value = 0;
+		if (sideview[viewnum].x.value < 0)
+			sideview[viewnum].x.value = 0;
+		if (sideview[viewnum].y.value < 0)
+			sideview[viewnum].y.value = 0;
 
-		if (vsec_scalex[viewnum].value+vsec_x[viewnum].value > 1)
+		if (sideview[viewnum].scalex.value+sideview[viewnum].x.value > 1)
 			continue;
-		if (vsec_scaley[viewnum].value+vsec_y[viewnum].value > 1)
+		if (sideview[viewnum].scaley.value+sideview[viewnum].y.value > 1)
 			continue;
 
 		oldrect = r_refdef.vrect;
@@ -2276,10 +2290,10 @@ void V_RenderPlayerViews(playerview_t *pv)
 		ofx = r_refdef.fov_x;
 		ofy = r_refdef.fov_y;
 
-		r_refdef.vrect.x += r_refdef.vrect.width*vsec_x[viewnum].value;
-		r_refdef.vrect.y += r_refdef.vrect.height*vsec_y[viewnum].value;
-		r_refdef.vrect.width *= vsec_scalex[viewnum].value;
-		r_refdef.vrect.height *= vsec_scaley[viewnum].value;
+		r_refdef.vrect.x += r_refdef.vrect.width*sideview[viewnum].x.value;
+		r_refdef.vrect.y += r_refdef.vrect.height*sideview[viewnum].y.value;
+		r_refdef.vrect.width *= sideview[viewnum].scalex.value;
+		r_refdef.vrect.height *= sideview[viewnum].scaley.value;
 
 		r_refdef.fov_x = 0;
 		r_refdef.fov_y = 0;
@@ -2321,10 +2335,10 @@ void V_RenderPlayerViews(playerview_t *pv)
 #endif
 		{
 			//rotate the view, keeping pitch and roll.
-			r_refdef.viewangles[YAW] += vsec_yaw[viewnum].value;
-			r_refdef.viewangles[ROLL] += sin(vsec_yaw[viewnum].value / 180 * 3.14) * r_refdef.viewangles[PITCH];
-			r_refdef.viewangles[PITCH] *= -cos((vsec_yaw[viewnum].value / 180 * 3.14)+3.14);
-			if (vsec_enabled[viewnum].value!=2)
+			r_refdef.viewangles[YAW] += sideview[viewnum].yaw.value;
+			r_refdef.viewangles[ROLL] += sin(sideview[viewnum].yaw.value / 180 * 3.14) * r_refdef.viewangles[PITCH];
+			r_refdef.viewangles[PITCH] *= -cos((sideview[viewnum].yaw.value / 180 * 3.14)+3.14);
+			if (sideview[viewnum].enabled.value!=2)
 			{
 				V_EditExternalModels(pv->viewentity, NULL, 0);
 				R_RenderView ();
@@ -2571,12 +2585,12 @@ void V_Init (void)
 #define SECONDARYVIEWVARS "Secondary view vars"
 	for (i = 0; i < SIDEVIEWS; i++)
 	{
-		Cvar_Register (&vsec_enabled[i], SECONDARYVIEWVARS);
-		Cvar_Register (&vsec_x[i], SECONDARYVIEWVARS);
-		Cvar_Register (&vsec_y[i], SECONDARYVIEWVARS);
-		Cvar_Register (&vsec_scalex[i], SECONDARYVIEWVARS);
-		Cvar_Register (&vsec_scaley[i], SECONDARYVIEWVARS);
-		Cvar_Register (&vsec_yaw[i], SECONDARYVIEWVARS);
+		Cvar_Register (&sideview[i].enabled, SECONDARYVIEWVARS);
+		Cvar_Register (&sideview[i].x, SECONDARYVIEWVARS);
+		Cvar_Register (&sideview[i].y, SECONDARYVIEWVARS);
+		Cvar_Register (&sideview[i].scalex, SECONDARYVIEWVARS);
+		Cvar_Register (&sideview[i].scaley, SECONDARYVIEWVARS);
+		Cvar_Register (&sideview[i].yaw, SECONDARYVIEWVARS);
 	}
 #endif
 

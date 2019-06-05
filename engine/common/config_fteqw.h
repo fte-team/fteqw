@@ -59,7 +59,7 @@
 #define AVAIL_GZDEC				//.gz decompression
 #define AVAIL_ZLIB				//whether pk3s can be compressed or not.
 //#define AVAIL_BZLIB			//whether pk3s can use bz2 compression
-#define PACKAGE_DZIP				//.dzip support for smaller demos (which are actually more like pak files and can store ANY type of file)
+#define PACKAGE_DZIP			//.dzip support for smaller demos (which are actually more like pak files and can store ANY type of file)
 
 //Map formats
 #define Q1BSPS					//Quake1

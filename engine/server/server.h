@@ -483,7 +483,8 @@ typedef struct client_s
 	float			maxspeed;			// localized maxspeed
 	float			entgravity;			// localized ent gravity
 
-	int viewent;	//fake the entity positioning.
+	int viewent;		//fake the entity positioning.
+	int clientcamera;	//cache for dp_sv_clientcamera.
 
 	edict_t			*edict;				// EDICT_NUM(clientnum+1)
 //additional game modes use additional edict pointers. this ensures that references are crashes.
@@ -1378,7 +1379,7 @@ void SV_ReplaceEntityFrame(client_t *cl, int framenum);
 //
 
 void ClientReliableCheckBlock(client_t *cl, int maxsize);
-sizebuf_t *ClientReliableWrite_StartWrite(client_t *cl, int maxsize);	//MUST be followed by a call to ClientReliable_FinishWrite before the next start
+sizebuf_t *ClientReliable_StartWrite(client_t *cl, int maxsize);	//MUST be followed by a call to ClientReliable_FinishWrite before the next start
 void ClientReliable_FinishWrite(client_t *cl);
 void ClientReliableWrite_Begin(client_t *cl, int c, int maxsize);
 client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen);

@@ -33,8 +33,10 @@ void *SVQ2_GetGameAPI (void *parms)
 	void *iterator;
 	int o;
 	const char *gamename[] = {
-		"",
-		"",
+		"",	//binarydir/q2gameCPU_gamedir.ext
+		"",	//homedir/q2gameCPU_gamedir.ext
+		"",	//basedir/q2gameCPU_gamedir.ext
+		"",	//binarydir/libgame_gamedir.ext
 #ifdef _DEBUG
 		"debug/game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,
 #endif
@@ -44,7 +46,7 @@ void *SVQ2_GetGameAPI (void *parms)
 		"game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,
 		"game" ARCH_DL_POSTFIX,
 #if defined(__linux__)	//FTE doesn't provide gamecode. Borrow someone else's. Lets just hope that its installed.
-		"/usr/lib/yamagi-quake2/%s/game.so",
+//		"/usr/lib/yamagi-quake2/%s/game.so",
 #endif
 		NULL
 	};
@@ -68,6 +70,18 @@ void *SVQ2_GetGameAPI (void *parms)
 				Q_snprintfz(name, sizeof(name), "%sq2game"ARCH_CPU_POSTFIX"_%s"ARCH_DL_POSTFIX, host_parms.binarydir, gamepath);
 			}
 			else if (o == 1)
+			{	//nice and specific
+				if (!*com_homepath)
+					continue;
+				Q_snprintfz(name, sizeof(name), "%sq2game"ARCH_CPU_POSTFIX"_%s"ARCH_DL_POSTFIX, com_homepath, gamepath);
+			}
+			else if (o == 2)
+			{	//nice and specific
+				if (!*com_gamepath)
+					continue;
+				Q_snprintfz(name, sizeof(name), "%sq2game"ARCH_CPU_POSTFIX"_%s"ARCH_DL_POSTFIX, com_gamepath, gamepath);
+			}
+			else if (o == 3)
 			{	//because some people don't like knowing what cpu arch they're compiling for
 				if (!host_parms.binarydir)
 					continue;

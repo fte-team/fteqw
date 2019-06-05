@@ -191,6 +191,7 @@ qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
 void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 #endif
 extern cvar_t timeout;
+extern cvar_t tls_ignorecertificateerrors;	//evil evil evil.
 
 //============================================================================
 

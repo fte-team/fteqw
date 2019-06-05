@@ -97,7 +97,7 @@ client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen)
 	}
 }
 
-sizebuf_t *ClientReliableWrite_StartWrite(client_t *cl, int maxsize)
+sizebuf_t *ClientReliable_StartWrite(client_t *cl, int maxsize)
 {
 #ifdef MVD_RECORDING
 	if (cl == &demo.recorder)

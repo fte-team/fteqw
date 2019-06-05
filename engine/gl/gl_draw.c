@@ -561,15 +561,6 @@ void GL_Set2D (qboolean flipped)
 	/*flush that gl state*/
 	GL_ViewportUpdate();
 
-	if (qglLoadMatrixf)
-	{
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection_std);
-
-		qglMatrixMode(GL_MODELVIEW);
-		qglLoadMatrixf(r_refdef.m_view);
-	}
-
 	if (flipped)
 		r_refdef.flipcull = SHADER_CULL_FLIP;
 	else

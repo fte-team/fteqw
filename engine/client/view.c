@@ -120,7 +120,7 @@ cvar_t	v_gunkick_q2			= CVARD("v_gunkick_q2", "1", "Controls the strength of vie
 static cvar_t	v_viewmodel_quake		= CVARD("r_viewmodel_quake", "0", "Controls whether to use weird viewmodel movements from vanilla quake.");	//name comes from MarkV.
 
 cvar_t	v_viewheight			= CVARF("v_viewheight", "0", CVAR_ARCHIVE);
-static cvar_t	v_projectionmode		= CVARF("v_projectionmode", "0", CVAR_ARCHIVE);
+//static cvar_t	v_projectionmode		= CVARF("v_projectionmode", "0", CVAR_ARCHIVE);
 
 static cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
 
@@ -133,8 +133,8 @@ static cvar_t	scr_autoid_teamcolour	= CVARD("scr_autoid_teamcolour", STRINGIFY(C
 static cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY(COLOR_WHITE), "The colour for the text on the nametags of non-team members.");
 
 cvar_t	chase_active			= CVAR("chase_active", "0");
-static cvar_t	chase_back				= CVAR("chase_back", "48");
-static cvar_t	chase_up				= CVAR("chase_up", "24");
+cvar_t	chase_back				= CVAR("chase_back", "48");
+cvar_t	chase_up				= CVAR("chase_up", "24");
 
 
 extern cvar_t cl_chasecam;
@@ -344,7 +344,7 @@ static cshift_t	cshift_water = { {130,80,50}, 128 };
 static cshift_t	cshift_slime = { {0,25,5}, 150 };
 static cshift_t	cshift_lava = { {255,80,0}, 150 };
 
-static cshift_t	cshift_server = { {130,80,50}, 0 };
+//static cshift_t	cshift_server = { {130,80,50}, 0 };
 
 cvar_t		v_gamma = CVARFCD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
 cvar_t		v_gammainverted = CVARFCD("v_gammainverted", "0", CVAR_ARCHIVE, V_Gamma_Callback, "Boolean that controls whether the gamma should be inverted (like quake) or not.");

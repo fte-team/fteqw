@@ -2934,6 +2934,7 @@ void SV_UpdateToReliableMessages (void)
 				*host_client->dp_pl = host_client->lossage;
 #endif
 
+#ifdef PEXT_VIEW2
 			j = PROG_TO_EDICTINDEX(svprogfuncs, host_client->edict->xv->clientcamera);
 			if (j)
 			{
@@ -2951,6 +2952,7 @@ void SV_UpdateToReliableMessages (void)
 					host_client->viewent = j;
 				}
 			}
+#endif
 
 			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);
 #ifndef QCGC	//this optimisation doesn't really work with a QC instead of static string management

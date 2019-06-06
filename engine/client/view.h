@@ -51,4 +51,4 @@ extern cvar_t v_viewheight;
 extern cvar_t v_gunkick_q2, gl_cshiftenabled, gl_cshiftborder;	//q2 logic needs some of these cvars.
 
 extern cvar_t v_contentblend; //for menus
-extern cvar_t chase_active;	//I fucking hate this cvar. die die die.
+extern cvar_t chase_active, chase_back, chase_up;	//I fucking hate this cvar. die die die.

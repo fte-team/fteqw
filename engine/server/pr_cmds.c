@@ -99,7 +99,7 @@ static cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrea
 #endif
 static cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
-static cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
+//static cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
 extern cvar_t sv_listen_dp;
 
 static cvar_t sv_addon[MAXADDONS];
@@ -109,7 +109,9 @@ static evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 qboolean ssqc_deprecated_warned;
 int pr_teamfield;
+#ifdef HEXEN2
 static unsigned int h2infoplaque[2];	/*hexen2 stat*/
+#endif
 
 static void PRSV_ClearThreads(void);
 void PR_fclose_progs(pubprogfuncs_t*);
@@ -2727,8 +2729,6 @@ static int SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, fl
 #endif
 
 
-
-static int externcallsdepth;
 
 float PR_LoadAditionalProgs(char *s);
 static void QCBUILTIN PF_addprogs(pubprogfuncs_t *prinst, globalvars_t *pr_globals)
@@ -7262,12 +7262,12 @@ static char readable2[256] =
 	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
 	'x', 'y', 'z', '{', '|', '}', '~', '_'
 };
-
+/*
 static void PR_CleanText(unsigned char *text)
 {
 	for ( ; *text; text++)
 		*text = readable2[*text];
-}
+}*/
 
 /*
 ================
@@ -11679,7 +11679,6 @@ void PR_SVExtensionList_f(void)
 	}
 }
 
-static builtin_t *pr_builtins = pr_builtin;
 int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.

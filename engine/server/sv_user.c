@@ -2458,8 +2458,9 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 			ClientReliableWrite_String (host_client, host_client->downloadfn);
 		}
 
-
+#ifdef NQPROT
 		host_client->downloadstarted = false;
+#endif
 
 #if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 		SV_DownloadQueueNext(host_client);
@@ -3599,7 +3600,9 @@ void SV_BeginDownload_f(void)
 
 	Q_strncpyz(host_client->downloadfn, name, sizeof(host_client->downloadfn));
 	host_client->downloadcount = 0;
+#ifdef NQPROT
 	host_client->downloadstarted = false;
+#endif
 
 	host_client->downloadsize = VFS_GETLEN(host_client->download);
 
@@ -3668,7 +3671,9 @@ void SV_StopDownload_f(void)
 	else
 		SV_ClientPrintf(host_client, PRINT_HIGH, "Can't stop download - not downloading anything\n");
 
+#ifdef NQPROT
 	host_client->downloadstarted = false;
+#endif
 
 #if defined(HAVE_LEGACY) && defined(MVD_RECORDING)
 	SV_DownloadQueueNext(host_client);

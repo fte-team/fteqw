@@ -571,8 +571,10 @@ typedef struct client_s
 	qofs_t			downloadsize;		// total bytes
 	qofs_t			downloadcount;		// bytes sent
 
+#ifdef NQPROT
 	qofs_t			downloadacked;		//DP-specific
 	qofs_t			downloadstarted;	//DP-specific
+#endif
 
 	int				spec_track;			// entnum of player tracking
 

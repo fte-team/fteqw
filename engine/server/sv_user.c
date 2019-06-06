@@ -3599,6 +3599,7 @@ void SV_BeginDownload_f(void)
 
 	Q_strncpyz(host_client->downloadfn, name, sizeof(host_client->downloadfn));
 	host_client->downloadcount = 0;
+	host_client->downloadstarted = false;
 
 	host_client->downloadsize = VFS_GETLEN(host_client->download);
 

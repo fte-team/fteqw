@@ -4768,8 +4768,6 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 		largv[com_argc] = argv[com_argc];
 		if (!Q_strcmp ("-safe", argv[com_argc]))
 			safe = true;
-
-		printf("Arg %i: %s\n", com_argc, argv[com_argc]);
 	}
 
 	if (safe)

@@ -1076,6 +1076,9 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 
 void SetHookState(qboolean state)
 {
+	if (!sys_disableTaskSwitch.ival && !sys_disableWinKeys.ival)
+		state = false;
+
 	if (!state == !llkeyboardhook)	//not so types are comparable
 		return;
 

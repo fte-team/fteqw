@@ -114,7 +114,7 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 		echo "Skipping Cygwin options."
 	fi
 	read -n 1 -p "Build for Windows? [Y/n] " BUILD_WINDOWS && echo
-	read -n 1 -p "Build for Dos? [y/N] " BUILD_WINDOWS && echo
+	read -n 1 -p "Build for Dos? [y/N] " BUILD_DOS && echo
 	read -n 1 -p "Build for SDL? [y/N] " BUILD_SDL && echo
 	read -n 1 -p "Build for Android? [y/N] " BUILD_ANDROID && echo
 	read -n 1 -p "Build for Emscripten? [y/N] " BUILD_WEB && echo

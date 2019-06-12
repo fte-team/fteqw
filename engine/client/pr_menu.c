@@ -522,6 +522,9 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	px = Font_LineScaleWidth(buffer, end);
 	Font_EndString(NULL);
 
+	if (!size)	//for compat with dp, divide by 8 after... because weird.
+		px /= 8;
+
 	G_FLOAT(OFS_RETURN) = (px * vid.width) / vid.rotpixelwidth;
 }
 

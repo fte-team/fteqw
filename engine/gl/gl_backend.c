@@ -1183,7 +1183,7 @@ static void T_Gen_CurrentRender(int tmu)
 	if (vid.flags&VID_FP16)
 		fmt = GL_RGBA16F;
 	else if (vid.flags&VID_SRGB_CAPABLE)
-		fmt = GL_SRGB8;
+		fmt = GL_SRGB8_EXT;
 	else
 		fmt = GL_RGB;
 

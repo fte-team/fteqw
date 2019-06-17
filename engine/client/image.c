@@ -662,12 +662,17 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 			return NULL;
 
 		mul = tgaheader.bpp/8;
-		*format = (mul==4)?PTI_RGBA8:PTI_RGBX8;;
 //flip +convert to 32 bit
 		if (forceformat==PTI_L8)
+		{
+			*format = forceformat;
 			outrow = &initbuf[(int)(0)*tgaheader.width];
+		}
 		else
+		{
 			outrow = &initbuf[(int)(0)*tgaheader.width*mul];
+			*format = (mul==4)?PTI_RGBA8:PTI_RGBX8;
+		}
 		for (y = 0; y < tgaheader.height; y+=1)
 		{
 			if (flipped)
@@ -5885,6 +5890,32 @@ static void Image_4X16to8888(struct pendingtextureinfo *mips)
 	}
 }
 
+//R8,G8,B8,X8 (aligned) -> R8,G8,B8 (tightly packed)
+static void Image_32To24(struct pendingtextureinfo *mips)
+{
+	int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		qbyte *in = mips->mip[mip].data;
+		qbyte *out = mips->mip[mip].data;
+		unsigned int w = mips->mip[mip].width;
+		unsigned int h = mips->mip[mip].height;
+		unsigned int p = w*h;
+		if (!mips->mip[mip].needfree && !mips->extrafree)
+		{
+			mips->mip[mip].needfree = true;
+			mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*3);
+		}
+		while(p-->0)
+		{
+			*out++ = *in++;
+			*out++ = *in++;
+			*out++ = *in++;
+			in++;
+		}
+	}
+}
+
 //may operate in place
 static void Image_8_BGR_RGB_Swap(qbyte *data, unsigned int w, unsigned int h)
 {
@@ -6541,12 +6572,12 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	case PTI_ARGB1555:			return "ARGB1555";
 	case PTI_RGBA8:				return "RGBA8";
 	case PTI_RGBX8:				return "RGBX8";
-	case PTI_BGRA8:				return "RGBA8";
-	case PTI_BGRX8:				return "RGBX8";
+	case PTI_BGRA8:				return "BGRA8";
+	case PTI_BGRX8:				return "BGRX8";
 	case PTI_RGBA8_SRGB:		return "RGBA8_SRGB";
 	case PTI_RGBX8_SRGB:		return "RGBX8_SRGB";
-	case PTI_BGRA8_SRGB:		return "RGBA8_SRGB";
-	case PTI_BGRX8_SRGB:		return "RGBX8_SRGB";
+	case PTI_BGRA8_SRGB:		return "BGRA8_SRGB";
+	case PTI_BGRX8_SRGB:		return "BGRX8_SRGB";
 	case PTI_A2BGR10:			return "A2BGR10";
 	case PTI_E5BGR9:			return "E5BGR9";
 	case PTI_R16F:				return "R16F";
@@ -6948,6 +6979,12 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 	}
 
 	if ((mips->encoding == PTI_RGBX8 && sh_config.texfmt[PTI_BGRX8]) ||
+		(mips->encoding == PTI_BGRX8 && sh_config.texfmt[PTI_BGRX8]))
+	{
+		Image_32To24(mips);
+		mips->encoding = (mips->encoding == PTI_RGBX8)?PTI_RGB8:PTI_BGR8;
+	}
+	else if ((mips->encoding == PTI_RGBX8 && sh_config.texfmt[PTI_BGRX8]) ||
 		(mips->encoding == PTI_BGRX8 && sh_config.texfmt[PTI_RGBX8]) ||
 		(mips->encoding == PTI_RGBA8 && sh_config.texfmt[PTI_BGRA8]) ||
 		(mips->encoding == PTI_BGRA8 && sh_config.texfmt[PTI_RGBA8]))
@@ -8728,6 +8765,8 @@ image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, uns
 		case TF_HEIGHT8PAL:	//we don't care about the actual palette.
 			b *= 1;
 			break;
+//		case PTI_LLLX8:
+//		case PTI_LLLA8:
 		case TF_RGBX32:
 		case TF_RGBA32:
 		case TF_BGRX32:

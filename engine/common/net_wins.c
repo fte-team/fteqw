@@ -1030,11 +1030,12 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 		return result;
 
 	//EVIL HACK!
-	//updates.tth uses a known self-signed certificate. its not meant to be used for browsers etc, and I cba to register dns stuff for it.
+	//updates.tth uses a known self-signed certificate (to protect against dns hijacks like fteqw.com suffered).
+	//its not meant to be used for browsers etc, and I cba to register dns stuff for it.
 	//besides, browsers/etc would just bitch about its cert, so w/e.
 	//redirect the dns to the base host without affecting http(s) hosts/certificates.
 	if (!strcmp(s, "updates.triptohell.info"))
-		s = "triptohell.info";
+		s += 8;
 
 	memset (sadr, 0, sizeof(*sadr));
 

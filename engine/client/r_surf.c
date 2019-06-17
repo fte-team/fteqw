@@ -4162,13 +4162,13 @@ void Surf_NewMap (void)
 	CL_RegisterParticles();
 
 	Shader_DoReload();
-
 	if (cl.worldmodel)
 	{
 		if (cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
 		Mod_ParseInfoFromEntityLump(cl.worldmodel);
 	}
+	Shader_DoReload();
 
 	if (!pe)
 		Cvar_ForceCallback(&r_particlesystem);

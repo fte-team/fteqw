@@ -414,37 +414,37 @@ void M_Menu_SinglePlayer_f (void)
 				//yes, hexen2 has per-class names for the skill levels. because being weird and obtuse is kinda its forte
 				static char *skillnames[6][4] =
 				{
-					{
+					{	//generic/random
 						"Easy",
 						"Medium",
 						"Hard",
 						"Nightmare"
 					},
-					{
-						"Apprentice",
+					{	//barbarian
+						"Servant",	//string changed, because somehow the original is malicious. was: "Apprentice",
 						"Squire",
 						"Adept",
 						"Lord"
 					},
-					{
+					{	//paladin
 						"Gallant",
 						"Holy Avenger",
 						"Divine Hero",
 						"Legend"
 					},
-					{
+					{	//necromancer
 						"Sorcerer",
 						"Dark Servant",
 						"Warlock",
 						"Lich King"
 					},
-					{
+					{	//assassin
 						"Rogue",
 						"Cutthroat",
 						"Executioner",
 						"Widow Maker"
 					},
-					{
+					{	//demoness
 						"Larva",
 						"Spawn",
 						"Fiend",

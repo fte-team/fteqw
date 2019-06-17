@@ -991,7 +991,7 @@ const char *presetexec[] =
 	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"
-	"vid_hardwaregamma 6;"	//scene gamma
+	"vid_hardwaregamma 4;"	//scene gamma
 };
 
 typedef struct fpsmenuinfo_s

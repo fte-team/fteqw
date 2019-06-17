@@ -132,8 +132,11 @@ cvar_t	ezcompat_markup = CVARD("ezcompat_markup", "1", "Attempt compatibility wi
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
-cvar_t	pm_downloads_url = CVARFD("pm_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pkg_downloads_url = CVARFD("pkg_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
+cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+#ifdef HAVE_LEGACY
+cvar_t	pm_noround = CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
+#endif
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -4806,7 +4809,7 @@ static void COM_Version_f (void)
 {
 	Con_Printf("\n");
 	Con_Printf("^&F0%s\n", FULLENGINENAME);
-	Con_Printf("^[%s\\url\\%s^]\n", ENGINEWEBSITE, ENGINEWEBSITE);
+	Con_Printf("^4"ENGINEWEBSITE"\n");
 	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
@@ -5819,6 +5822,7 @@ void COM_Init (void)
 	Cvar_Register (&com_parseutf8, "Internationalisation");
 #ifdef HAVE_LEGACY
 	Cvar_Register (&ezcompat_markup, NULL);
+	Cvar_Register (&pm_noround, NULL);
 #endif
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;

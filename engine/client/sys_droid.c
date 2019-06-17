@@ -16,17 +16,8 @@
 #error ANDROID wasnt defined
 #endif
 
-#if 0
-//FIXME: remove the nativeactivity shit. android's standard NativeActivity class is buggy and basically fucked.
 #include <android/keycodes.h>
 #include <android/native_window_jni.h>
-// ANativeWindow_fromSurface((jobject)getSurfaceHolder().getSurface())
-#else
-//NOTE: This is apache 2.0, which means GPL3.0+ ONLY, no gpl2.
-#include <../../../../../sources/android/native_app_glue/android_native_app_glue.h>	//Fucking frameworks suck big hairy donkey balls.
-JNIEXPORT void ANativeActivity_onCreate(ANativeActivity* activity, void* savedState, size_t savedStateSize);
-#include <../../../../../sources/android/native_app_glue/android_native_app_glue.c>	//Fucking frameworks suck big hairy donkey balls.
-#endif
 
 #ifndef isDedicated
 #ifdef SERVERONLY
@@ -39,20 +30,28 @@ extern int r_blockvidrestart;
 float sys_dpi_x, sys_dpi_y;
 static void *sys_memheap;
 //static unsigned int vibrateduration;
+static char sys_binarydir[MAX_OSPATH];
 static char sys_basedir[MAX_OSPATH];
 static char sys_basepak[MAX_OSPATH];
 extern  jmp_buf 	host_abort;
 extern qboolean r_forceheadless;
 static qboolean r_forcevidrestart;
 ANativeWindow *sys_nativewindow;
-static struct android_app *android_app_state; //basically used only for errors.
 
 //cvar_t sys_vibrate = CVARFD("sys_vibrate", "1", CVAR_ARCHIVE, "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
-cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
-cvar_t sys_keepscreenon = CVARFD("sys_keepscreenon", "1", CVAR_ARCHIVE, "If set, the screen will never darken. This might cost some extra battery power, but then so will running a 3d engine.");	//to be toggled
+static cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
+static cvar_t sys_keepscreenon = CVARFD("sys_keepscreenon", "1", CVAR_ARCHIVE, "If set, the screen will never darken. This might cost some extra battery power, but then so will running a 3d engine.");	//to be toggled
 cvar_t sys_orientation = CVARFD("sys_orientation", "landscape", CVAR_ARCHIVE, "Specifies what angle to render quake at.\nValid values are: sensor (autodetect), landscape, portrait, reverselandscape, reverseportrait");
 extern cvar_t vid_conautoscale;
 void VID_Register(void);
+
+static qboolean sys_wantshutdown;
+static JavaVM* sys_javavm;
+static jobject *sys_activity;
+static jobject *sys_cursurface;	//surface we're currently trying to draw to
+static jobject *sys_newsurface;	//surface we're meant to be switching our gl context to
+static void *sys_mainthread;
+static void *sys_mainconditional;
 
 #undef LOGI
 #undef LOGW
@@ -390,52 +389,12 @@ static int mapkey(int androidkey)
 	return 0;
 }
 
-static int32_t engine_handle_input(struct android_app *app, AInputEvent *event)
+#if 0
+static void run_intent_url(void)
 {
-	switch(AInputEvent_getType(event))
-	{
-	case AINPUT_EVENT_TYPE_MOTION:
-	case AINPUT_EVENT_TYPE_KEY:
-		return 0;	//we handle these in the java code, so shouldn't ever see them.
-	}
-	return 0; //no idea what sort of event it is.
-}
-static void engine_handle_cmd(struct android_app *app, int32_t cmd)
-{
-	switch(cmd)
-	{
-	case APP_CMD_SAVE_STATE:
-		//FIXME: implement save-game-to-memory...
-		break;
-	case APP_CMD_INIT_WINDOW:
-		if (sys_nativewindow != app->window)
-		{
-			sys_nativewindow = app->window;	
-			r_forceheadless = (sys_nativewindow==NULL);
-
-			r_forcevidrestart = true;
-		}
-		break;
-	case APP_CMD_TERM_WINDOW:
-		r_forceheadless = true;
-		if (qrenderer && !r_forcevidrestart && sys_nativewindow)
-			R_RestartRenderer_f();
-		sys_nativewindow = NULL;
-		break;
-	case APP_CMD_GAINED_FOCUS:
-		vid.activeapp = true;
-		break;
-	case APP_CMD_LOST_FOCUS:
-		vid.activeapp = false;
-		break;
-	}
-}
-
-static void run_intent_url(struct android_app *app)
-{
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jobject intent = (*jni)->CallObjectMethod(jni, act, (*jni)->GetMethodID(jni, (*jni)->GetObjectClass(jni, act), "getIntent", "()Landroid/content/Intent;"));
 		if (intent)
@@ -463,16 +422,17 @@ static void run_intent_url(struct android_app *app)
 			}
 		}
 		//FIXME: do we need to release methodids/objects?
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 }
+#endif
 
-static qboolean read_apk_path(struct android_app *app, char *out, size_t outsize)
+static qboolean read_apk_path(char *out, size_t outsize)
 {
 	qboolean res = false;
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jstring result = (*jni)->CallObjectMethod(jni, act, (*jni)->GetMethodID(jni, (*jni)->GetObjectClass(jni, act), "getPackageCodePath", "()Ljava/lang/String;"));
 		const char *tmp = (*jni)->GetStringUTFChars(jni, result, NULL);
@@ -484,70 +444,70 @@ static qboolean read_apk_path(struct android_app *app, char *out, size_t outsize
 		}
 
 		//FIXME: do we need to release methodids/objects?
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 
 	return res;
 }
 
-static void setsoftkeyboard(struct android_app *app, int flags)
+static void setsoftkeyboard(int flags)
 {	//the NDK is unusably buggy when it comes to keyboards, so call into java.
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jmethodID func = (*jni)->GetMethodID(jni, (*jni)->GetObjectClass(jni, act), "showKeyboard", "(I)V" );
 		if (func)
 			(*jni)->CallVoidMethod(jni, act, func, flags);
 
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 }
-static void showMessageAndQuit(struct android_app *app, const char *errormsg)
+static void showMessageAndQuit(const char *errormsg)
 {	//no nice way to do this from native.
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jmethodID func = (*jni)->GetMethodID(jni, (*jni)->GetObjectClass(jni, act), "showMessageAndQuit", "(Ljava/lang/String;)V" );
 		if (func)
 			(*jni)->CallVoidMethod(jni, act, func, (*jni)->NewStringUTF(jni, errormsg));
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 }
-static void updateOrientation(struct android_app *app, const char *neworientation)
+static void updateOrientation(const char *neworientation)
 {	//no nice way to do this from native.
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jmethodID func = (*jni)->GetMethodID(jni, (*jni)->GetObjectClass(jni, act), "updateOrientation", "(Ljava/lang/String;)V" );
 		if (func)
 			(*jni)->CallVoidMethod(jni, act, func, (*jni)->NewStringUTF(jni, neworientation));
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 }
-static void updateScreenKeepOn(struct android_app *app, jboolean keepon)
+static void updateScreenKeepOn(jboolean keepon)
 {	//the NDK is unusably buggy when it comes to keyboards, so call into java.
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jmethodID func = (*jni)->GetMethodID(jni, (*jni)->GetObjectClass(jni, act), "updateScreenKeepOn", "(Z)V" );
 		if (func)
 			(*jni)->CallVoidMethod(jni, act, func, keepon);
 
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 }
 
-static void setCursorVisibility(struct android_app *app, jboolean visible)
+static void setCursorVisibility(jboolean visible)
 {	//this is meant to use the nvidia-added setCursorVisibility function
 	//but its fatal if it doesn't exist, and it doesn't seem to exist.
 #if 0
-	jobject act = app->activity->clazz;
+	jobject act = sys_activity;
 	JNIEnv *jni;
-	if (JNI_OK == (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &jni, NULL))
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &jni, NULL))
 	{
 		jobject inputManager = NULL;
 		jmethodID setvis = NULL;
@@ -559,7 +519,7 @@ static void setCursorVisibility(struct android_app *app, jboolean visible)
 		if (setvis)
 			(*jni)->CallVoidMethod(jni, inputManager, setvis, visible);
 
-		(*app->activity->vm)->DetachCurrentThread(app->activity->vm);
+		(*sys_javavm)->DetachCurrentThread(sys_javavm);
 	}
 #endif
 }
@@ -634,42 +594,14 @@ static void FTENativeActivity_axis(JNIEnv *env, jobject this, jint devid, jint a
 //{
 //	IN_Gyroscope(devid, pitch, yaw, roll);
 //}
-static JNINativeMethod methods[] = {
-	{"keypress",		"(IZII)V", 		FTENativeActivity_keypress},
-	{"mousepress",		"(II)V", 		FTENativeActivity_mousepress},
-	{"motion",			"(IIFFFF)V", 	FTENativeActivity_motion},
-	{"wantrelative",	"()Z", 			FTENativeActivity_wantrelative},	//so the java code knows if it should use (often buggy) relative mouse movement or (limited) abs cursor coords.
-	{"axis",			"(IIF)V", 		FTENativeActivity_axis},
-//	{"accelerometer",	"(IFFF)V",		FTENativeActivity_accelerometer},
-//	{"gyroscope",		"(IFFF)V",		FTENativeActivity_gyroscope},
-};
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
-{
-	JNIEnv *jni;
-	if (JNI_OK == (*vm)->GetEnv(vm, (void**)&jni, JNI_VERSION_1_2))
-	{
-		jclass naclass = (*jni)->FindClass(jni, "com/fteqw/FTENativeActivity");
-		if (naclass)
-		{
-			(*jni)->RegisterNatives(jni, naclass, methods, countof(methods));
-			return JNI_VERSION_1_2;
-		}
-	}
-	return -1;
-}
 
-void android_main(struct android_app *state)
+static int FTEDroid_MainThread(void *arg)
 {
-	static pthread_mutex_t onemainthread = PTHREAD_MUTEX_INITIALIZER;	//android likes spawning multiple 'main' threads
 	int osk = 0, wantgrabs = 0, t;
-	double ltime,ctime,tdelta;
-	pthread_mutex_lock(&onemainthread);
-	android_app_state = state;
-	state->userData = NULL;
-	state->onAppCmd = engine_handle_cmd;
-	state->onInputEvent = engine_handle_input;
+	double newtime,oldtime=Sys_DoubleTime(), time, sleeptime;
 	r_forceheadless = true;
 	sys_nativewindow = NULL;
+	vid.activeapp = true;
 
 	if (!host_initialized)
 	{
@@ -685,21 +617,15 @@ void android_main(struct android_app *state)
 		if (sys_memheap)
 			free(sys_memheap);
 		memset(&parms, 0, sizeof(parms));
+		parms.binarydir = sys_binarydir;
 		parms.basedir = sys_basedir;	/*filled in later*/
-		parms.argc = read_apk_path(state, sys_basepak, sizeof(sys_basepak))?3:1;
+		parms.argc = read_apk_path(sys_basepak, sizeof(sys_basepak))?3:1;
 		parms.argv = args;
 #ifdef CONFIG_MANIFEST_TEXT
 		parms.manifest = CONFIG_MANIFEST_TEXT;
 #endif
 		sys_dpi_x = 72;	//no idea
 		sys_dpi_y = 72;	//no idea
-
-#if 0	//google made this a fucking pain. 
-		Q_strncpyz(sys_basedir, getenv("EXTERNAL_STORAGE"), sizeof(sys_basedir));
-		Q_strncatz(sys_basedir, "/fte", sizeof(sys_basedir));
-#else	//so now users have to use some big long path to install stuff instead
-		Q_strncpyz(sys_basedir, state->activity->externalDataPath, sizeof(sys_basedir));
-#endif
 
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", sys_basepak, parms.basedir);
 
@@ -712,89 +638,121 @@ void android_main(struct android_app *state)
 	}
 	else
 		Sys_Printf("Restarting up!\n");
-	ltime = Sys_DoubleTime();
 
 	sys_orientation.modified = false;
-	updateOrientation(state, sys_orientation.string);
+	updateOrientation(sys_orientation.string);
 	sys_keepscreenon.modified = false;
-	updateScreenKeepOn(state, sys_keepscreenon.ival);
+	updateScreenKeepOn(sys_keepscreenon.ival);
 
-	run_intent_url(state);
-	if (state->savedState != NULL)
+//	run_intent_url();
+	/*if (state->savedState != NULL)
 	{	//oh look, we're pretending to already be running...
 		//oh.
-	}
+	}*/
 
-	for(;;)
+
+	//we're sufficiently done loading. let the ui thread resume.
+	Sys_LockConditional(sys_mainconditional);
+	Sys_ConditionSignal(sys_mainconditional);
+	Sys_UnlockConditional(sys_mainconditional);
+
+	while (!sys_wantshutdown)
 	{
-		int ident, events;
-		struct android_poll_source *source;
-		while((ident=ALooper_pollAll(vid.activeapp?0:250, NULL, &events, (void**)&source)) >= 0)
+		//handle things if the UI thread is blocking for us (video restarts)
+		Sys_LockConditional(sys_mainconditional);
+		if (r_forcevidrestart)
 		{
-			if (source != NULL)
-				source->process(state, source);
-
-			//FIXME: sensor crap
-
-			if (state->destroyRequested != 0)
+			ANativeWindow *oldwnd = NULL;
+			jobject oldsurf = NULL;
+			JNIEnv *env = NULL;
+			if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &env, NULL))
 			{
-				Sys_Printf("Shutdown requested\n");
-				Host_Shutdown ();
-				
-				pthread_mutex_unlock(&onemainthread);
-				return;
+				oldsurf = sys_cursurface;
+				sys_cursurface = (*env)->NewGlobalRef(env, sys_newsurface);
+
+				oldwnd = sys_nativewindow;
+				if (sys_cursurface)
+					sys_nativewindow = ANativeWindow_fromSurface(env, sys_cursurface);
+				else
+					sys_nativewindow = NULL;
+				ANativeWindow_acquire(sys_nativewindow);
 			}
+
+			r_forceheadless = r_forcevidrestart&1;
+			r_forcevidrestart = 0;
+			Sys_ConditionSignal(sys_mainconditional);	//let the java ui thread thread wake up now that we've got a handle to the new+old surfaces
+			Sys_UnlockConditional(sys_mainconditional);
+			LOGI("Video Restart...\n");
+			R_RestartRenderer_f();
+			LOGI("Video Restarted...\n");
+			//main thread can wake up now.
+
+			if (oldsurf)
+				(*env)->DeleteGlobalRef(env, oldsurf);
+			if (oldwnd)
+				ANativeWindow_release(oldwnd);
+			if (env)
+				(*sys_javavm)->DetachCurrentThread(sys_javavm);
+
+			continue;
 		}
-		if (host_initialized)
+
+		if (sys_nativewindow && vid.activeapp && !r_forcevidrestart)
 		{
-			if (r_forcevidrestart)
-			{
-				if (qrenderer)
-					R_RestartRenderer_f();
-				r_forcevidrestart = false;
-			}
-			if (sys_nativewindow)
-			{
-				ctime = Sys_DoubleTime();
-				tdelta = ctime-ltime;
-				ltime = ctime;
-				Host_Frame(tdelta);
-			}
-		}
+			// find time spent rendering last frame
+			newtime = Sys_DoubleTime ();
+			time = newtime - oldtime;
 
+			sleeptime = Host_Frame(time);
+			oldtime = newtime;
+
+			if (sleeptime)
+				Sys_Sleep(sleeptime);
+		}
+		else
+			sleeptime = 0.25;
+		Sys_UnlockConditional(sys_mainconditional);
 
 		t = 0;
-		if (Key_Dest_Has(kdm_console|kdm_message))
-			t |= ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT;
-		if (!Key_Dest_Has(~kdm_game) && cls.state == ca_disconnected)
-			t |= ANATIVEACTIVITY_SHOW_SOFT_INPUT_IMPLICIT;
-		if (sys_osk.ival)
-			t |= ANATIVEACTIVITY_SHOW_SOFT_INPUT_FORCED;
+		if (sys_osk.ival >= 0)
+		{
+			if (Key_Dest_Has(kdm_console|kdm_message))
+				t |= 1;
+			if (!Key_Dest_Has(~kdm_game) && cls.state == ca_disconnected)
+				t |= 1;
+			if (sys_osk.ival)
+				t |= 2;
+		}
 		if (osk != t)
 		{
-			setsoftkeyboard(state, t);
+			setsoftkeyboard(t);
 			osk = t;
 		}
 	
 		if (sys_orientation.modified)
 		{
 			sys_orientation.modified = false;
-			updateOrientation(state, sys_orientation.string);
+			updateOrientation(sys_orientation.string);
 		}
 	
 		if (sys_keepscreenon.modified)
 		{
 			sys_keepscreenon.modified = false;
-			updateScreenKeepOn(state, sys_keepscreenon.ival);
+			updateScreenKeepOn(sys_keepscreenon.ival);
 		}
 
 		t = FTENativeActivity_wantrelative(NULL,NULL);
 		if (wantgrabs != t)
 		{
 			wantgrabs = t;
-			setCursorVisibility(state, wantgrabs);
+			setCursorVisibility(wantgrabs);
 		}
+
+
+		if (sleeptime)
+			Sys_Sleep(sleeptime);
 	}
+	return 0;
 }
 
 static int secbase;
@@ -870,7 +828,7 @@ void Sys_Quit(void)
 #endif
 
 	LOGI("%s", "quitting");
-	showMessageAndQuit(android_app_state, "");
+	showMessageAndQuit("");
 
 	longjmp(host_abort, 1);
 	exit(0);
@@ -888,7 +846,7 @@ void Sys_Error (const char *error, ...)
 		strcpy(string, "no error");
 
 	LOGE("e: %s", string);
-	showMessageAndQuit(android_app_state, string);
+	showMessageAndQuit(string);
 
 	host_initialized = false;	//don't keep calling Host_Frame, because it'll screw stuff up more. Can't trust Host_Shutdown either. :(
 	vid.activeapp = false;		//make sure we don't busyloop.
@@ -954,6 +912,11 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	h = dlopen(va("%s.so", name), RTLD_LAZY|RTLD_LOCAL);
 	if (!h)
 		h = dlopen(name, RTLD_LAZY|RTLD_LOCAL);
+	if (!h)
+	{
+		Con_DLPrintf(2,"%s\n", dlerror());
+		return NULL;
+	}
 
 	if (h && funcs)
 	{
@@ -965,6 +928,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		}
 		if (funcs[i].name)
 		{
+			Con_DPrintf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
 			Sys_CloseLibrary(h);
 			h = NULL;
 		}
@@ -1162,3 +1126,142 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	return true; 
 }
 
+static jboolean FTENativeActivity_startup(JNIEnv *jni, jobject this, jstring externalDataPath, jstring libraryPath)
+{
+	const char *tmp;
+	if (sys_mainthread)
+		return false;
+	if (!sys_activity)
+	{
+		sys_activity = (*jni)->NewGlobalRef(jni, this);
+
+		tmp = (*jni)->GetStringUTFChars(jni, externalDataPath, NULL);
+		if (tmp)
+		{
+			Q_strncpyz(sys_basedir, tmp, sizeof(sys_basedir));
+			if (*sys_basedir && sys_basedir[strlen(sys_basedir)-1] != '/')
+				Q_strncatz(sys_basedir, "/", sizeof(sys_basedir));
+			(*jni)->ReleaseStringUTFChars(jni, externalDataPath, tmp);
+		}
+		else
+			*sys_basedir = 0;
+		tmp = (*jni)->GetStringUTFChars(jni, libraryPath, NULL);
+		if (tmp)
+		{
+			Q_strncpyz(sys_binarydir, tmp, sizeof(sys_binarydir));
+			if (*sys_binarydir && sys_binarydir[strlen(sys_binarydir)-1] != '/')
+				Q_strncatz(sys_binarydir, "/", sizeof(sys_binarydir));
+			(*jni)->ReleaseStringUTFChars(jni, libraryPath, tmp);
+		}
+		else
+			*sys_binarydir = 0;
+
+		LOGI("FTENativeActivity_startup: basedir=%s binarydir=%s\n", sys_basedir, sys_binarydir);
+
+		sys_wantshutdown = false;
+		sys_mainconditional = Sys_CreateConditional();
+		Sys_LockConditional(sys_mainconditional);
+		sys_mainthread = Sys_CreateThread("ftedroid", FTEDroid_MainThread, NULL, THREADP_NORMAL, -1);
+		if (sys_mainthread)
+			Sys_ConditionWait(sys_mainconditional);
+		Sys_UnlockConditional(sys_mainconditional);
+		return !!sys_mainthread;
+	}
+	LOGI("conflicting FTENativeActivity_startup. ignoring.\n");
+	return false;
+}
+
+static void FTENativeActivity_surfacechange(JNIEnv *env, jobject this, jboolean teardown, jboolean recreate, jobject surface)
+{
+	if (this == sys_activity)
+	{
+		LOGI("FTENativeActivity_surfacechange: inactive %p, active %p\n", this, sys_activity);
+		return;	//wasn't me...
+	}
+	LOGI("FTENativeActivity_surfacechange: %i %i %p\n", teardown, recreate, surface);
+
+//FIXME: if teardown&&recreate then this is a window RESIZE.
+//there shouldn't be a need to destroy the entire context but anbox crashes when simply moving the window if we early out here.
+//	if (teardown && recreate && (*env)->IsSameObject(env, surface, sys_newsurface))
+//		return;
+//	LOGI("FTENativeActivity_surfacechange: %i %i (%p==%p)==%i\n", teardown, recreate, surface, sys_newsurface, (*env)->IsSameObject(env, surface, sys_newsurface));
+
+	Sys_LockConditional(sys_mainconditional);
+	//get the main thread to let us know when its done...
+	if (qrenderer || (r_forceheadless && recreate))
+		r_forcevidrestart = recreate?2:1;
+	if (sys_newsurface)
+		(*env)->DeleteGlobalRef(env, sys_newsurface);
+	sys_newsurface = surface?(*env)->NewGlobalRef(env, surface):NULL;
+	//and wake up then	
+	Sys_ConditionWait(sys_mainconditional);
+	//and we're done...
+	Sys_UnlockConditional(sys_mainconditional);
+}
+static void FTENativeActivity_shutdown(JNIEnv *env, jobject this)
+{
+	if (this != sys_activity)
+	{
+		LOGI("FTENativeActivity_shutdown: inactive %p, active %p\n", this, sys_activity);
+		return;	//wasn't me...
+	}
+	LOGI("FTENativeActivity_shutdown\n");
+
+	sys_wantshutdown = true;
+	if (sys_mainthread)
+		Sys_WaitOnThread(sys_mainthread);
+	sys_mainthread = NULL;
+	if (sys_mainconditional)
+		Sys_DestroyConditional(sys_mainconditional);
+	sys_mainconditional = NULL;
+
+	(*env)->DeleteGlobalRef(env, sys_newsurface);
+	sys_newsurface = NULL;
+
+	(*env)->DeleteGlobalRef(env, sys_activity);
+	sys_activity = NULL;
+}
+
+//FIXME: we need a version of this that takes a byte array instead of a filename, for android's content gibberish.
+static void FTENativeActivity_openfile(JNIEnv *env, jobject this, jstring filename)
+{
+	const char *tmp = (*env)->GetStringUTFChars(env, filename, NULL);
+	if (tmp)
+	{
+		Sys_Printf("FTENativeActivity_openfile: %s\n", tmp);
+		Host_RunFile(tmp, strlen(tmp), NULL);
+		(*env)->ReleaseStringUTFChars(env, filename, tmp);
+	}
+}
+
+static JNINativeMethod methods[] = {
+	//
+	{"startup",			"(Ljava/lang/String;Ljava/lang/String;)Z",	FTENativeActivity_startup},			//creates our 'main' thread too
+	{"surfacechange",	"(ZZLandroid/view/Surface;)V",				FTENativeActivity_surfacechange},	//syncs
+	{"shutdown",		"()V",										FTENativeActivity_shutdown},		//joins 'main' thread.
+	{"openfile",		"(Ljava/lang/String;)V",					FTENativeActivity_openfile},
+
+	//inputs. these use our in_generic.c ringbuffer so don't need to sync at all
+	{"keypress",		"(IZII)V", 		FTENativeActivity_keypress},
+	{"mousepress",		"(II)V", 		FTENativeActivity_mousepress},
+	{"motion",			"(IIFFFF)V", 	FTENativeActivity_motion},
+	{"wantrelative",	"()Z", 			FTENativeActivity_wantrelative},	//so the java code knows if it should use (often buggy) relative mouse movement or (limited) abs cursor coords.
+	{"axis",			"(IIF)V", 		FTENativeActivity_axis},
+//	{"accelerometer",	"(IFFF)V",		FTENativeActivity_accelerometer},
+//	{"gyroscope",		"(IFFF)V",		FTENativeActivity_gyroscope},
+};
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
+{
+	JNIEnv *jni;
+	sys_javavm = vm;
+	if (JNI_OK == (*vm)->GetEnv(vm, (void**)&jni, JNI_VERSION_1_2))
+	{
+		jclass naclass = (*jni)->FindClass(jni, "com/fteqw/FTENativeActivity");
+		if (naclass)
+		{
+			(*jni)->RegisterNatives(jni, naclass, methods, countof(methods));
+			return JNI_VERSION_1_2;
+		}
+	}
+	return -1;
+}

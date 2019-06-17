@@ -1093,6 +1093,7 @@ void CL_ConnectionlessPacket (void);
 qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
 void CL_SetInfo (int pnum, const char *key, const char *value);
+void CL_SetInfoBlob (int pnum, const char *key, const char *value, size_t valuesize);
 
 void CL_BeginServerConnect(const char *host, int port, qboolean noproxy);
 char *CL_TryingToConnect(void);
@@ -1433,6 +1434,8 @@ void	 CSQC_MapEntityEdited(int modelindex, int idx, const char *newe);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(int seat);
 qboolean CSQC_CenterPrint(int seat, const char *cmd);
+void	 CSQC_ServerInfoChanged(void);
+void	 CSQC_PlayerInfoChanged(int player);
 qboolean CSQC_Parse_Damage(int seat, float save, float take, vec3_t source);
 qboolean CSQC_Parse_SetAngles(int seat, vec3_t newangles, qboolean wasdelta);
 void	 CSQC_Input_Frame(int seat, usercmd_t *cmd);
@@ -1460,6 +1463,8 @@ void	 CSQC_CvarChanged(cvar_t *var);
 #define CSQC_UnconnectedInit() false
 #define CSQC_UseGamecodeLoadingScreen() false
 #define CSQC_Parse_SetAngles(seat,newangles,wasdelta) false
+#define CSQC_ServerInfoChanged() false
+#define CSQC_PlayerInfoChanged(player) false
 #endif
 
 //

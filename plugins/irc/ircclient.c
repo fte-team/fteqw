@@ -950,6 +950,68 @@ static void magic_etghack(char *thestring)
 
 }
 
+static void IRC_TryNewNick(ircclient_t *irc, char *nickname)
+{
+	char *seedednick;
+
+	IRC_CvarUpdate();
+
+	if (irc->tlsmode == TLS_STARTING)
+	{
+		//don't submit any of this info here.
+		return;
+	}
+	if (irc->connecting)
+	{
+		if (irc->nicktries == 0)
+		{
+			irc->nicktries++;
+			if (*irc->primarynick && strcmp(nickname, irc->primarynick))
+			{
+				IRC_SetNick(irc, irc->primarynick);
+				return;
+			}
+		}
+		if (irc->nicktries == 1)
+		{
+			irc->nicktries++;
+			if (*irc_nick.string && strcmp(nickname, irc_nick.string))
+			{
+				IRC_SetNick(irc, irc_nick.string);
+				return;
+			}
+		}
+		if (irc->nicktries == 2)
+		{
+			irc->nicktries++;
+			if (*irc_altnick.string && strcmp(nickname, irc_altnick.string))
+			{
+				IRC_SetNick(irc, irc_altnick.string);
+				return;
+			}
+		}
+
+		if (++irc->nicktries == 10)
+		{
+			IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: Unable to obtain usable nickname\n");
+			return;
+		}
+
+		//panic and pick something at random
+		//IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: primary nickname in use. Attempting random nickname.\n");
+		if (*irc->primarynick && irc->nicktries < 7)
+			seedednick = va("%.6s%i", irc->primarynick, rand());
+		else if (*irc_nick.string && irc->nicktries < 8)
+			seedednick = va("%.6s%i", irc_nick.string, rand());
+		else if (*irc_altnick.string && irc->nicktries < 9)
+			seedednick = va("%.6s%i", irc_altnick.string, rand());
+		else
+			seedednick = va("%.6s%i", "FTE", rand());
+		seedednick[9] = 0; //'Each client is distinguished from other clients by a unique nickname having a maximum length of nine (9) characters'
+
+		IRC_SetNick(irc, seedednick);
+	}
+}
 
 //==================================================
 
@@ -1154,7 +1216,8 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	case 432: /* #define ERR_ERRONEUSNICKNAME 432 */
 	{
 		IRC_Printf(irc, DEFAULTCONSOLE, "Erroneous/invalid nickname given\n");
-		goto trynewnick;
+		IRC_TryNewNick(irc, "FTEUser");
+		return;
 	}
 	case 433: /* #define ERR_NICKNAMEINUSE    433 */
 	case 438:
@@ -1162,73 +1225,15 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	{
 		char *nickname = strtok(casevar[4], " ");
 		char *badnickname = ":Nickname";
-		char *seedednick;
 
 		if ( !strcasecmp(nickname,badnickname) ) // bug with ircd, the nickname actually shifts position.
 		{
 			nickname = strtok(casevar[3], " ");
 		}
 
-		IRC_CvarUpdate();
-
 //		IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: <%s> is already in use.\n",nickname);
 
-trynewnick:
-		if (irc->tlsmode == TLS_STARTING)
-		{
-			//don't submit any of this info here.
-			return;
-		}
-		if (irc->connecting)
-		{
-			if (irc->nicktries == 0)
-			{
-				irc->nicktries++;
-				if (*irc->primarynick && strcmp(nickname, irc->primarynick))
-				{
-					IRC_SetNick(irc, irc->primarynick);
-					return;
-				}
-			}
-			if (irc->nicktries == 1)
-			{
-				irc->nicktries++;
-				if (*irc_nick.string && strcmp(nickname, irc_nick.string))
-				{
-					IRC_SetNick(irc, irc_nick.string);
-					return;
-				}
-			}
-			if (irc->nicktries == 2)
-			{
-				irc->nicktries++;
-				if (*irc_altnick.string && strcmp(nickname, irc_altnick.string))
-				{
-					IRC_SetNick(irc, irc_altnick.string);
-					return;
-				}
-			}
-
-			if (++irc->nicktries == 10)
-			{
-				IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: Unable to obtain usable nickname\n");
-				return;
-			}
-
-			//panic and pick something at random
-			//IRC_Printf(irc, DEFAULTCONSOLE, COLOURRED "ERROR: primary nickname in use. Attempting random nickname.\n");
-			if (*irc->primarynick && irc->nicktries < 7)
-				seedednick = va("%.6s%i", irc->primarynick, rand());
-			else if (*irc_nick.string && irc->nicktries < 8)
-				seedednick = va("%.6s%i", irc_nick.string, rand());
-			else if (*irc_altnick.string && irc->nicktries < 9)
-				seedednick = va("%.6s%i", irc_altnick.string, rand());
-			else
-				seedednick = va("%.6s%i", "FTE", rand());
-			seedednick[9] = 0; //'Each client is distinguished from other clients by a unique nickname having a maximum length of nine (9) characters'
-
-			IRC_SetNick(irc, seedednick);
-		}
+		IRC_TryNewNick(irc, nickname);
 		return;
 	}
 	case 471: /* ERR_CHANNELISFULL */

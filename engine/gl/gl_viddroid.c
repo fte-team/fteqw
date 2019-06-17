@@ -76,7 +76,7 @@ void GLVID_DeInit(void)
 
 Sys_Printf("GLVID_DeInited\n");
 }
-static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
+/*static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
 {
 	struct
 	{
@@ -128,6 +128,7 @@ static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
 			Sys_Printf("%i.%s: UNKNOWN\n", (int)cfg, eglattrs[i].attrname);
 	}
 };
+*/
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
@@ -206,7 +207,7 @@ Sys_Printf("GLVID_Initing...\n");
 
 	Sys_Printf("Creating gles %i context\n", glesversion);
 
-	EGL_ShowConfig(sys_display, config);
+//	EGL_ShowConfig(sys_display, config);
 	
 	sys_surface = eglCreateWindowSurface(sys_display, config, sys_nativewindow, NULL);
 	if (!sys_surface)
@@ -233,7 +234,13 @@ Sys_Printf("GLVID_Initing...\n");
 		s++;
 	gl_major_version = atoi(s);
 	const char *driver;
-       	if (gl_major_version>=3)
+	if ((glesversion<=1) != (gl_major_version<=1))
+	{
+		Con_Printf(CON_ERROR "Requested gles %i context, but got incompatible %i instead.\n", glesversion, gl_major_version);
+		GLVID_DeInit();
+		return false;
+	}
+	if (gl_major_version>=3)
 		driver = "libGLESv3.so";
 	else if (gl_major_version>=2)
 		driver = "libGLESv2.so";

@@ -2630,7 +2630,13 @@ void Con_DrawConsole (int lines, qboolean noback)
 							float x = 0;
 //							float r = x+w->wnd_w-16;
 							const char *buttons[] = {"bck", "fwd", "rld", "home", "", ((w->linebuffered == Con_Navigate)?(char*)key_lines[edit_line]:url)};
-							const char *buttoncmds[] = {"cmd:back", "cmd:forward", "cmd:refresh", ENGINEWEBSITE, NULL, NULL};
+							const char *buttoncmds[] = {"cmd:back", "cmd:forward", "cmd:refresh",
+							#ifdef QUAKETC	//total conversions should have their own website.
+								ENGINEWEBSITE
+							#else			//otherwise use some more useful page, for quake mods.
+								"https://www.quakeworld.nu/wiki/Overview"
+							#endif
+								, NULL, NULL};
 							float tw;
 							int i, fl;
 

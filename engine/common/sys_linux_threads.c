@@ -79,11 +79,14 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	if (stacksize < PTHREAD_STACK_MIN*2)
-		stacksize = PTHREAD_STACK_MIN*2;
-	if (stacksize < PTHREAD_STACK_MIN+65536*16)
-		stacksize = PTHREAD_STACK_MIN+65536*16;
-	pthread_attr_setstacksize(&attr, stacksize);
+	if (stacksize != -1)
+	{
+		if (stacksize < PTHREAD_STACK_MIN*2)
+			stacksize = PTHREAD_STACK_MIN*2;
+		if (stacksize < PTHREAD_STACK_MIN+65536*16)
+			stacksize = PTHREAD_STACK_MIN+65536*16;
+		pthread_attr_setstacksize(&attr, stacksize);
+	}
 	if (pthread_create(thread, &attr, (pfunction_t)Sys_CreatedThread, qthread))
 	{
 		free(thread);

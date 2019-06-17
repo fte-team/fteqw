@@ -51,7 +51,7 @@ void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
 {
-	Shader_NeedReload(false);
+//	Shader_NeedReload(false);
 }
 void R_ForceSky_f(void)
 {
@@ -472,7 +472,7 @@ cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
 #ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
+cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
 cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
 cvar_t vk_debug								= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
 cvar_t vk_dualqueue							= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
@@ -1795,9 +1795,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 //		Skin_FlushAll();
 		Skin_FlushPlayers();
 
-#ifdef CSQC_DAT
-		CSQC_RendererRestarted();
-#endif
 	}
 	else
 	{
@@ -1808,6 +1805,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 #ifdef SKELETALOBJECTS
 	skel_reload();
+#endif
+#ifdef CSQC_DAT
+	Shader_DoReload();
+	CSQC_RendererRestarted();
 #endif
 
 	if (newr && qrenderer != QR_NONE)

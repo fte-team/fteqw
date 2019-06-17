@@ -5,17 +5,147 @@ import android.view.MotionEvent;
 import android.view.InputDevice;
 import android.view.WindowManager;
 
-public class FTENativeActivity extends android.app.NativeActivity
+public class FTENativeActivity extends android.app.Activity implements android.view.SurfaceHolder.Callback2, android.view.ViewTreeObserver.OnGlobalLayoutListener
 {
+	//Native functions and stuff
+	private native boolean startup(String externalDataPath, String libraryPath);
+	private native void openfile(String url);
+	private native void surfacechange(boolean teardown, boolean restart, android.view.Surface surface);
+	private native void shutdown();
+
 	private static native void keypress(int devid, boolean down, int androidkey, int unicode);
 	private static native void mousepress(int devid, int buttonbits);
 	private static native void motion(int devid, int action, float x, float y, float z, float size);
 	private static native boolean wantrelative();
 	private static native void axis(int devid, int axisid, float value);
-//	private static native void oncreate(String basedir, byte[] savedstate);
+//	private static native void oncreate(String bindir, String basedir, byte[] savedstate);
 	static
 	{
-		System.loadLibrary("ftedroid");
+		System.loadLibrary("ftedroid");	//registers the methods properly.
+	}
+
+	static class NativeContentView extends android.view.View
+	{
+		FTENativeActivity mActivity;
+		public NativeContentView(android.content.Context context)
+		{
+			super(context);
+		}
+		public NativeContentView(android.content.Context context, android.util.AttributeSet attrs)
+		{
+			super(context, attrs);
+		}
+	}
+	private NativeContentView mNativeContentView;
+
+//SurfaceHolder.Callback2 methods
+	public void surfaceRedrawNeeded(android.view.SurfaceHolder holder)
+	{	//we constantly redraw.
+	}
+	public void surfaceCreated(android.view.SurfaceHolder holder)
+	{
+//		surfacechange(false, true, holder.getSurface());
+	}
+	public void surfaceChanged(android.view.SurfaceHolder holder, int format, int width, int height)
+	{
+		surfacechange(true, true, holder.getSurface());
+	}
+	public void surfaceDestroyed(android.view.SurfaceHolder holder)
+	{
+		surfacechange(true, false, null);
+	}
+
+//OnGlobalLayoutListener methods
+    public void onGlobalLayout()
+	{
+/*		mNativeContentView.getLocationInWindow(mLocation);
+		int w = mNativeContentView.getWidth();
+		int h = mNativeContentView.getHeight();
+		if (mLocation[0] != mLastContentX || mLocation[1] != mLastContentY || w != mLastContentWidth || h != mLastContentHeight)
+		{
+			mLastContentX = mLocation[0];
+			mLastContentY = mLocation[1];
+			mLastContentWidth = w;
+			mLastContentHeight = h;
+			if (!mDestroyed) {
+				onContentRectChangedNative(mNativeHandle, mLastContentX,
+						mLastContentY, mLastContentWidth, mLastContentHeight);
+			}
+		}
+*/	}
+
+//Activity methods
+	@Override
+	protected void onCreate(android.os.Bundle savedInstanceState)
+	{
+		getWindow().takeSurface(this);
+		getWindow().setFormat(android.graphics.PixelFormat.RGB_565);
+		getWindow().setSoftInputMode(
+				WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
+				| WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+		mNativeContentView = new NativeContentView(this);
+		mNativeContentView.mActivity = this;
+		setContentView(mNativeContentView);
+		mNativeContentView.requestFocus();
+		mNativeContentView.getViewTreeObserver().addOnGlobalLayoutListener(this);
+
+//		byte[] nativeSavedState = savedInstanceState != null
+//			? savedInstanceState.getByteArray(KEY_NATIVE_SAVED_STATE) : null;
+		startup(getAbsolutePath(getExternalFilesDir(null)), getNativeLibraryDirectory());
+		handleIntent(getIntent());
+
+//		if (Build.VERSION.SDK_INT >= 19)
+//		{
+//			int flags = 0;
+//			flags |= 4096/*SYSTEM_UI_FLAG_IMMERSIVE_STICKY, api 19*/;
+//			flags |= 4/*SYSTEM_UI_FLAG_FULLSCREEN, api 16*/;
+//			flags |= 2/*SYSTEM_UI_FLAG_HIDE_NAVIGATION, api 14*/;			
+//			mNativeContentView.setSystemUiVisibility(flags); /*api 11*/
+//		}
+
+		super.onCreate(savedInstanceState);
+		//Needed because the InputQueue stuff blocks dispatchKeyEvent
+		getWindow().takeInputQueue(null);
+	}
+	
+	//random helpers
+	private void handleIntent(android.content.Intent intent)
+	{
+		String s = intent.getScheme();
+		if (s=="content")
+		{
+			android.database.Cursor cursor = this.getContentResolver().query(intent.getData(), null, null, null, null);
+			cursor.moveToFirst();   
+			String myloc = cursor.getString(0);
+			cursor.close();
+		}
+		else
+			openfile(intent.getDataString());
+	}
+	private static String getAbsolutePath(java.io.File file)
+	{
+		return (file != null) ? file.getAbsolutePath() : null;
+	}
+	public String getNativeLibraryDirectory()
+	{
+		android.content.Context context = getApplicationContext();
+		int sdk_level = android.os.Build.VERSION.SDK_INT;
+		if (sdk_level >= android.os.Build.VERSION_CODES.GINGERBREAD)
+		{
+			try
+			{
+				String secondary = (String) android.content.pm.ApplicationInfo.class.getField("nativeLibraryRootDir").get(context.getApplicationInfo());
+				return secondary;
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+			return null;
+		}
+		if (sdk_level >= android.os.Build.VERSION_CODES.DONUT)
+			return context.getApplicationInfo().dataDir + "/lib";
+		return "/data/data/" + context.getPackageName() + "/lib";
 	}
 
 	//called by C code on errors / quitting.
@@ -132,40 +262,6 @@ public class FTENativeActivity extends android.app.NativeActivity
 		});
 	}
 
-	@Override
-	protected void onCreate(android.os.Bundle savedInstanceState)
-	{
-/*		getWindow().takeSurface(this);
-		getWindow().setFormat(PixelFormat.RGB_565);
-		getWindow().setSoftInputMode(
-				WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
-				| WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-		mNativeContentView = new NativeContentView(this);
-		mNativeContentView.mActivity = this;
-		setContentView(mNativeContentView);
-		mNativeContentView.requestFocus();
-		mNativeContentView.getViewTreeObserver().addOnGlobalLayoutListener(this);
-
-		byte[] nativeSavedState = savedInstanceState != null
-			? savedInstanceState.getByteArray(KEY_NATIVE_SAVED_STATE) : null;
-		mNativeHandle = oncreate(
-				getAbsolutePath(getFilesDir()), getAbsolutePath(getObbDir()),
-				getAbsolutePath(getExternalFilesDir(null)),
-				Build.VERSION.SDK_INT, getAssets(), nativeSavedState);
-*/
-//		if (Build.VERSION.SDK_INT >= 19)
-//		{
-//			int flags = 0;
-//			flags |= 4096/*SYSTEM_UI_FLAG_IMMERSIVE_STICKY, api 19*/;
-//			flags |= 4/*SYSTEM_UI_FLAG_FULLSCREEN, api 16*/;
-//			flags |= 2/*SYSTEM_UI_FLAG_HIDE_NAVIGATION, api 14*/;			
-//			mNativeContentView.setSystemUiVisibility(flags); /*api 11*/
-//		}
-
-		super.onCreate(savedInstanceState);
-		//Needed because the InputQueue stuff blocks dispatchKeyEvent
-		getWindow().takeInputQueue(null);
-	}
 	@Override
 	public boolean dispatchKeyEvent(KeyEvent event)
 	{	//needed because AKeyEvent_getUnicode is missing completely.
@@ -374,11 +470,12 @@ public class FTENativeActivity extends android.app.NativeActivity
 
 
 	//launching stuff
-	/*private static native int unicodeKeyPress(int unicode);
+	private static native int unicodeKeyPress(int unicode);
 	@Override
-	void onNewIntent(Intent intent)
+	protected void onNewIntent(android.content.Intent intent)
 	{
+		handleIntent(intent);
 		super.onNewIntent(intent);
-	}*/
+	}
 }
 

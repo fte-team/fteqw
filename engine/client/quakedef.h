@@ -305,8 +305,8 @@ extern qboolean noclip_anglehack;
 extern	quakeparms_t host_parms;
 
 extern	cvar_t		fs_gamename;
-extern	cvar_t		pm_downloads_url;
-extern	cvar_t		pm_autoupdate;
+extern	cvar_t		pkg_downloads_url;
+extern	cvar_t		pkg_autoupdate;
 extern	cvar_t		com_protocolname;
 extern	cvar_t		com_protocolversion;
 extern	cvar_t		com_nogamedirnativecode;

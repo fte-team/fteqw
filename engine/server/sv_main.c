@@ -1038,7 +1038,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			MSG_WriteFloat(buf, realtime - client->connection_started);
 		ClientReliable_FinishWrite(to);
 
-		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, NULL, NULL);
+		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, &to->infosync, &client->userinfo);
 		buf = ClientReliable_StartWrite(to, 7 + strlen(info));
 			MSG_WriteByte(buf, svc_updateuserinfo);
 			MSG_WriteByte(buf, i);
@@ -1369,6 +1369,12 @@ static void SVC_InfoQ2 (void)
 	}
 
 	Netchan_OutOfBandPrint (NS_SERVER, &net_from, "info\n%s", string);
+}
+#endif
+
+#ifdef MVD_RECORDING
+static void SVC_QTVUsers (void)
+{
 }
 #endif
 
@@ -3927,12 +3933,14 @@ qboolean SV_ConnectionlessPacket (void)
 		if (SVC_ThrottleInfo())
 			SVC_DemoListRegex ();
 	}
+*/
+#ifdef MVD_RECORDING
 	else if (!strcmp(c,"qtvusers"))
 	{
 		if (SVC_ThrottleInfo())
 			SVC_QTVUsers ();
 	}
-*/
+#endif
 	else if (!PR_GameCodePacket(net_message.data+4))
 	{
 		static unsigned int lt;

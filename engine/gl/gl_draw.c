@@ -135,39 +135,39 @@ void GL_SetupFormats(void)
 	if (gl_config_gles)
 	{
 		//pre-3 gles doesn't support sized formats, and only a limited number of them too
-		glfmtc(PTI_RGB8,	0,					GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE,			tc_rgb);
-		glfmtc(PTI_RGBA8,	0,					GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,			tc_rgba8);
-		glfmt(PTI_L8A8,		0,					GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
-		glfmt(PTI_L8,		0,					GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
-//		glfmt(PTI_A8,		0,					GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
+		glfmtc(PTI_RGB8,	(ver>=3)?GL_RGB8:0,				GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE,			tc_rgb);
+		glfmtc(PTI_RGBA8,	(ver>=3)?GL_RGBA8:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,			tc_rgba8);
+		glfmt(PTI_L8A8,		(ver>=3)?GL_LUMINANCE8_ALPHA8:0,GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
+		glfmt(PTI_L8,		(ver>=3)?GL_LUMINANCE8:0,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
+//		glfmt(PTI_A8,		(ver>=3)?GL_LUMINANCE8:0,		GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
 
 		if (!gl_config.webgl_ie)
 		{	//these should work on all gles2+webgl1 devices, but microsoft doesn't give a shit.
-			glfmtc(PTI_RGB565,	GL_RGB,				GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,	tc_rgb);
-//			glfmtc(PTI_RGBA4444,GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,	tc_rgba8);
-//			glfmtc(PTI_RGBA5551,GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
+			glfmtc(PTI_RGB565,	(ver>=3)?GL_RGB565:0,			GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,	tc_rgb);
+//			glfmtc(PTI_RGBA4444,(ver>=3)?GL_RGBA4:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,	tc_rgba8);
+//			glfmtc(PTI_RGBA5551,(ver>=3)?GL_RGB555A1:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
 		}
 		if (GL_CheckExtension("GL_OES_texture_half_float"))
-			glfmtc(PTI_RGBA16F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES,		0);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
+			glfmtc(PTI_RGBA16F,	(ver>=3)?GL_RGBA16F:0,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES,		0);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
 		if (GL_CheckExtension("GL_OES_texture_float"))
-			glfmtc(PTI_RGBA32F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_FLOAT,				0);
+			glfmtc(PTI_RGBA32F,	(ver>=3)?GL_RGBA32F:0,			GL_RGBA,				GL_RGBA,				GL_FLOAT,				0);
 
 		if (GL_CheckExtension("GL_WEBGL_depth_texture"))
 		{	//24bit is okay with this one.
-			glfmt(PTI_DEPTH16,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
-			glfmt(PTI_DEPTH24,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT_24_8);
-			glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);
+			glfmt(PTI_DEPTH16,	(ver>=3)?GL_DEPTH_COMPONENT:0,GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
+			glfmt(PTI_DEPTH24,	(ver>=3)?GL_DEPTH_COMPONENT:0,GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT_24_8);
+			glfmt(PTI_DEPTH32,	(ver>=3)?GL_DEPTH_COMPONENT:0,GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);
 		}
 		else if (GL_CheckExtension("GL_OES_depth_texture") || GL_CheckExtension("GL_ANGLE_depth_texture"))
 		{	//16+32, not 24.
-			glfmt(PTI_DEPTH16,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
-			glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);
+			glfmt(PTI_DEPTH16,	(ver>=3)?GL_DEPTH_COMPONENT:0,GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
+			glfmt(PTI_DEPTH32,	(ver>=3)?GL_DEPTH_COMPONENT:0,GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);
 		}
 
 		if (GL_CheckExtension("GL_EXT_texture_format_BGRA8888"))
-			glfmtc(PTI_BGRA8,	GL_BGRA_EXT,		GL_BGRA_EXT,			GL_BGRA_EXT,			GL_UNSIGNED_BYTE,		tc_rgba8);
+			glfmtc(PTI_BGRA8,	/*(ver>=3)?GL_BGRA8_EXT:*/0,	GL_BGRA_EXT,			GL_BGRA_EXT,			GL_UNSIGNED_BYTE,		tc_rgba8);
 		if (GL_CheckExtension("GL_EXT_texture_type_2_10_10_10_REV"))
-			glfmtc(PTI_BGRA8,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_INT_2_10_10_10_REV,		tc_rgba8);
+			glfmtc(PTI_A2BGR10,	0,								GL_RGBA,				GL_RGBA,				GL_UNSIGNED_INT_2_10_10_10_REV,		tc_rgba8);
 	}
 	if (!gl_config_gles || ver >= 3.0)
 	{
@@ -642,7 +642,8 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	int nummips = mips->mipcount;
 	uploadfmt_t encoding = mips->encoding;
 	qboolean compress;
-
+	qboolean storage = true;
+	unsigned int bb, bw, bh;
 
 	if (gl_config.gles)
 	{
@@ -776,7 +777,12 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		ifmt = gl_config.formatinfo[encoding].sizedformat;
 
 	if (!ifmt)
-		return false;
+	{
+		ifmt = gl_config.formatinfo[encoding].internalformat;
+		if (!ifmt)
+			return false;	//dude, everything bad is happening today.
+		storage = false;	//no sized format means we can't use glTexStorageND
+	}
 
 	if (gl_config.formatinfo[encoding].swizzle_r != GL_RED || gl_config.formatinfo[encoding].swizzle_g != GL_GREEN ||
 		gl_config.formatinfo[encoding].swizzle_b != GL_BLUE || gl_config.formatinfo[encoding].swizzle_a != GL_ALPHA)
@@ -787,10 +793,34 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		qglTexParameteri(targ, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[encoding].swizzle_a);
 	}
 
+	Image_BlockSizeForEncoding(encoding, &bb, &bw, &bh);
+	switch(bb)
+	{
+	case 3:
+	default:
+		bb = 1;	//rows are completely unaligned
+		break;
+	case 1:
+	case 2:
+	case 4:
+	case 8:
+		break;	//rows are aligned naturally
+	case 16:
+	case 32:
+	case 64:
+		bb = 8;	//row alignment is capped to 8 by opengl, for some reason.
+		break;
+	}
+	if (gl_config.unpackalignment != bb)
+	{
+		gl_config.unpackalignment = bb;
+		qglPixelStorei(GL_UNPACK_ALIGNMENT, bb);
+	}
+
 	if (targ == GL_TEXTURE_3D || targ == GL_TEXTURE_2D_ARRAY)
 	{
 		//FIXME: support array textures properly
-		if (qglTexStorage3D)
+		if (qglTexStorage3D && storage)
 		{
 			if (tex->flags & IF_TEXTYPE)
 				qglTexStorage3D(targ, nummips/countof(cubeface), ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
@@ -821,7 +851,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	}
 	else
 	{
-		if (qglTexStorage2D)
+		if (qglTexStorage2D && storage)
 		{	//FIXME: destroy the old texture
 			if (tex->flags & IF_TEXTYPE)
 				qglTexStorage2D(targ, nummips/countof(cubeface), ifmt, mips->mip[0].width, mips->mip[0].height);

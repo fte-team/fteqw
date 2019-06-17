@@ -1068,7 +1068,9 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	if (!filehandle)
 	{
 		int nlen = strlen(fname)+1;
-		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+sizeof(*filehandle)+nlen > fs_hash_filebuckets->total)
+		int plen = sizeof(*filehandle)+nlen;
+		plen = (plen+__alignof(*filehandle)-1) & ~(__alignof(*filehandle)-1);
+		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+plen > fs_hash_filebuckets->total)
 		{
 			void *o = fs_hash_filebuckets;
 			fs_hash_filebuckets = Z_Malloc(65536);
@@ -1076,7 +1078,7 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 			fs_hash_filebuckets->prev = o;
 		}
 		filehandle = (fsbucket_t*)(fs_hash_filebuckets->data+fs_hash_filebuckets->used);
-		fs_hash_filebuckets->used += sizeof(*filehandle)+nlen;
+		fs_hash_filebuckets->used += plen;
 
 		if (!filehandle)
 			return;	//eep!
@@ -4526,7 +4528,7 @@ void FS_Shutdown(void)
 	fs_thread_mutex = NULL;
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
-	Cvar_SetEngineDefault(&pm_downloads_url, NULL);
+	Cvar_SetEngineDefault(&pkg_downloads_url, NULL);
 	Cvar_SetEngineDefault(&com_protocolname, NULL);
 }
 
@@ -5783,11 +5785,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			if (reloadconfigs)
 			{
 				Cvar_SetEngineDefault(&fs_gamename, man->formalname?man->formalname:"FTE");
-				Cvar_SetEngineDefault(&pm_downloads_url, man->downloadsurl?man->downloadsurl:"");
+				Cvar_SetEngineDefault(&pkg_downloads_url, man->downloadsurl?man->downloadsurl:"");
 				Cvar_SetEngineDefault(&com_protocolname, man->protocolname?man->protocolname:"FTE");
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
-				Cvar_ForceSet(&pm_downloads_url, pm_downloads_url.enginevalue);
+				Cvar_ForceSet(&pkg_downloads_url, pkg_downloads_url.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 #ifdef HAVE_CLIENT
 				vidrestart = false;
@@ -6475,8 +6477,8 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&fs_gamename, "Filesystem");
-	Cvar_Register(&pm_downloads_url, "Filesystem");
-	Cvar_Register(&pm_autoupdate, "Filesystem");
+	Cvar_Register(&pkg_downloads_url, "Filesystem");
+	Cvar_Register(&pkg_autoupdate, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&com_protocolversion, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");

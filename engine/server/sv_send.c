@@ -2821,6 +2821,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		if (!blobdata)
 			blobdata = "";
 
+Con_DLPrintf(2, "%s: info %u:%s\n", client->name, (info == &svs.info)?0:(unsigned int)((client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients), key);
 		if (ISNQCLIENT(client))
 		{	//except that nq never had any userinfo
 			const char *s;
@@ -2856,7 +2857,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 		char enckey[2048];
 		unsigned int pl;
 		if (info == &svs.info)
-			pl = 0;	//colourmaps being 1-based with these being 0-based means that only 0-254 are valid players, and 255 is unused, so lets use it for serverinfo blobs.
+			pl = 0;	//players are 1-based. 0 is used for serverinfo.
 		else
 			pl = 1+((client_t*)((char*)info-(char*)&((client_t*)NULL)->userinfo)-svs.clients);
 
@@ -2866,17 +2867,18 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 			return false;
 		}
 		if (!blobdata)
-			bloboffset = 0;	//wiped or something? I dunno, don't bug out though.y
+			bloboffset = 0;	//wiped or something? I dunno, don't bug out though.
 
 		sendsize = blobsize - bloboffset;
 		bufferspace = MAX_BACKBUFLEN - client->netchan.message.cursize;
-		bufferspace -= 8 - strlen(enckey) - 1;	//extra overhead
+		bufferspace -= 8 + strlen(enckey) + 1;	//extra overhead
 		sendsize = min(bufferspace, sendsize);
 		final = (bloboffset+sendsize >= blobsize);
 
+Con_DLPrintf(2, "%s: blob %u:%s@%u-%u\n", client->name, pl, key, (unsigned int)bloboffset, (unsigned int)(bloboffset+sendsize));
 		buf = ClientReliable_StartWrite(client, 8+strlen(enckey)+1+sendsize);
 		MSG_WriteByte(buf, svcfte_setinfoblob);
-		MSG_WriteByte(buf, pl); //special meaning to say that this is a partial update
+		MSG_WriteByte(buf, pl);
 		MSG_WriteString(buf, enckey);
 		MSG_WriteLong(buf, (final?0x80000000:0)|bloboffset);
 		MSG_WriteShort(buf, sendsize);
@@ -3415,7 +3417,7 @@ void SV_SendClientMessages (void)
 		if (c->num_backbuf)
 		{
 			// will it fit?
-			if (c->netchan.message.cursize + c->backbuf_size[0] <
+			if (c->netchan.message.cursize + c->backbuf_size[0] <=
 				c->netchan.message.maxsize)
 			{
 

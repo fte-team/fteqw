@@ -143,7 +143,7 @@ static const char *svc_qwstrings[] =
 	"svcfte_movepic",
 	"svcfte_updatepic",
 
-	"???",
+	"NEW PROTOCOL(73)",
 
 	"svcfte_effect",
 	"svcfte_effect2",
@@ -165,26 +165,26 @@ static const char *svc_qwstrings[] =
 	"svcfte_updateentities",
 	"svcfte_brushedit",
 	"svcfte_updateseats",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
-	"???",
+	"svcfte_setinfoblob",	//89
+	"NEW PROTOCOL(90)",
+	"NEW PROTOCOL(91)",
+	"NEW PROTOCOL(92)",
+	"NEW PROTOCOL(93)",
+	"NEW PROTOCOL(94)",
+	"NEW PROTOCOL(95)",
+	"NEW PROTOCOL(96)",
+	"NEW PROTOCOL(97)",
+	"NEW PROTOCOL(98)",
+	"NEW PROTOCOL(99)",
+	"NEW PROTOCOL(100)",
+	"NEW PROTOCOL(101)",
+	"NEW PROTOCOL(102)",
+	"NEW PROTOCOL(103)",
+	"NEW PROTOCOL(104)",
+	"NEW PROTOCOL(105)",
+	"NEW PROTOCOL(106)",
+	"NEW PROTOCOL(107)",
+	"NEW PROTOCOL(108)",
 };
 
 #ifdef NQPROT
@@ -286,7 +286,8 @@ static const char *svc_nqstrings[] =
 	"nqsvcfte_setangledelta(85)",	//85
 	"nqsvcfte_updateentities",	//86
 	"NEW PROTOCOL(87)",	//87
-	"NEW PROTOCOL(88)"	//88
+	"NEW PROTOCOL(88)",	//88
+	"svcfte_setinfoblob"//89
 };
 #endif
 
@@ -5236,6 +5237,8 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 	CL_NewTranslation (slot);
 #endif
 	Sbar_Changed ();
+
+	CSQC_PlayerInfoChanged(slot);
 }
 
 /*
@@ -5284,7 +5287,11 @@ static void CL_ParseSetInfoBlob (void)
 	key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
 
 	if (slot-- == 0)
+	{
 		InfoBuf_SyncReceive(&cl.serverinfo, key, keysize, val, valsize, offset, final);
+		if (final)
+			CL_CheckServerInfo();
+	}
 	else if (slot >= MAX_CLIENTS)
 		Con_Printf("INVALID SETINFO %i: %s=%s\n", slot, key, val);
 	else

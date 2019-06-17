@@ -1157,6 +1157,7 @@ static void T_Gen_CurrentRender(int tmu)
 	int vwidth, vheight;
 	int pwidth = vid.fbpwidth;
 	int pheight = vid.fbpheight;
+	GLenum fmt;
 	if (r_refdef.recurse)
 		return;
 
@@ -1178,6 +1179,14 @@ static void T_Gen_CurrentRender(int tmu)
 			vheight *= 2;
 		}
 	}
+
+	if (vid.flags&VID_FP16)
+		fmt = GL_RGBA16F;
+	else if (vid.flags&VID_SRGB_CAPABLE)
+		fmt = GL_SRGB8;
+	else
+		fmt = GL_RGB;
+
 	// copy the scene to texture
 	if (!TEXVALID(shaderstate.temptexture))
 	{
@@ -1185,12 +1194,7 @@ static void T_Gen_CurrentRender(int tmu)
 		qglGenTextures(1, &shaderstate.temptexture->num);
 	}
 	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
-	if (vid.flags&VID_FP16)
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0, 0, vwidth, vheight, 0);
-	else if (vid.flags&VID_SRGBAWARE)
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 0, 0, vwidth, vheight, 0);
-	else
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
+	qglCopyTexImage2D(GL_TEXTURE_2D, 0, fmt, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

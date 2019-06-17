@@ -5172,7 +5172,7 @@ void Media_Init(void)
 	Cmd_AddCommand("playclip", Media_PlayVideoWindowed_f);
 	Cmd_AddCommand("playvideo", Media_PlayFilm_f);
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
-	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
+	Cmd_AddCommand("cinematic", Media_PlayFilm_f);	//q3: name <1:hold, 2:loop>
 #endif
 
 	Cmd_AddCommand("music", Media_NamedTrack_f);

@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 movevars_t		movevars;
 playermove_t	pmove;
+extern cvar_t	pm_noround;	//evile.
 
 #define movevars_dpflags		MOVEFLAG_QWCOMPAT
 #define movevars_maxairspeed	30
@@ -1227,8 +1228,14 @@ static void PM_NudgePosition (void)
 	//base[i] = MSG_FromCoord(MSG_ToCoord(pmove.origin[i], movevars.coordsize), movevars.coordsize);
 	//but it has overflow issues, so do things the painful way instead.
 	//this stuff is so annoying because we're trying to avoid biasing the position towards 0. you'll see the effects of that if you use a low forwardspeed or low sv_gamespeed etc, but its also noticable with default settings too.
-	if (movevars.coordsize == 4)	//float precision on the network. no need to truncate.
+	if (
+#ifdef HAVE_LEGACY
+			pm_noround.ival ||
+#endif
+			movevars.coordsize == 4)	//float precision on the network. no need to truncate.
+	{
 		VectorCopy (pmove.origin, base);
+	}
 	else if (movevars.coordsize)	//1/8th precision, but don't truncate because that screws everything up.
 	{
 		for (i=0 ; i<3 ; i++)

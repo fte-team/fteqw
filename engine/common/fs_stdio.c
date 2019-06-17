@@ -316,7 +316,7 @@ static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t
 	if ((unsigned int)snprintf (netpath, sizeof(netpath), "%s/%s", sp->rootpath, filename) > sizeof(netpath)-1)
 		return FF_NOTFOUND;
 
-#ifdef ANDROID
+#if 0//def ANDROID
 	{
 		vfsfile_t *f = VFSSTDIO_Open(netpath, "rb", NULL);
 		if (!f)

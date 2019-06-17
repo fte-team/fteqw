@@ -128,6 +128,8 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_event,			"CSQC_Parse_Event");	\
 	globalfunction(parse_damage,		"CSQC_Parse_Damage");	\
 	globalfunction(parse_setangles,		"CSQC_Parse_SetAngles");	\
+	globalfunction(playerinfochanged,	"CSQC_PlayerInfoChanged");	\
+	globalfunction(serverinfochanged,	"CSQC_ServerInfoChanged");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(rendererrestarted,	"CSQC_RendererRestarted");	\
@@ -6511,6 +6513,10 @@ static struct {
 	{"getplayerkeyvalue",		PF_cs_getplayerkeystring,		348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
 	{"getplayerkeyfloat",		PF_cs_getplayerkeyfloat,		0},		// #348 string(float playernum, string keyname) getplayerkeyvalue
 	{"getplayerkeyblob",		PF_cs_getplayerkeyblob,			0},		// #0   int(float playernum, string keyname, optional void *outptr, int size) getplayerkeyblob
+	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
+	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
 
 	{"isdemo",					PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
 //350
@@ -7576,7 +7582,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			return false;
 		}
 
-		if (csqc_nogameaccess && !PR_FindFunction (csqcprogs, "CSQC_DrawHud", PR_ANY))
+		if (csqc_nogameaccess && !PR_FindFunction (csqcprogs, "CSQC_DrawHud", PR_ANY) && !PR_FindFunction (csqcprogs, "CSQC_DrawScores", PR_ANY))
 		{	//simple csqc module is not csqc. abort now.
 			CSQC_Shutdown();
 			Con_DPrintf("progs.dat is not suitable for SimpleCSQC - no CSQC_DrawHud\n");
@@ -8447,6 +8453,28 @@ static void CSQC_GameCommand_f(void)
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, Cmd_Args()));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.gamecommand);
+}
+
+void CSQC_PlayerInfoChanged(int player)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.playerinfochanged)
+		return;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = player;
+//	(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, keyname));
+	PR_ExecuteProgram (csqcprogs, csqcg.playerinfochanged);
+}
+void CSQC_ServerInfoChanged(void)
+{
+//	void *pr_globals;
+	if (!csqcprogs || !csqcg.serverinfochanged)
+		return;
+
+//	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+//	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, keyname));
+	PR_ExecuteProgram (csqcprogs, csqcg.serverinfochanged);
 }
 
 qboolean CSQC_ParseTempEntity(void)

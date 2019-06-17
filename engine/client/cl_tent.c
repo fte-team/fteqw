@@ -757,7 +757,9 @@ beam_t	*CL_NewBeam (int entity, int tag, tentmodels_t *btype)
 
 	return NULL;
 }
-#define STREAM_ATTACHED			16
+#define	STREAM_ATTACHTOPLAYER	1	//if owned by the viewentity then attach to camera (but don't for other entities).
+#define STREAM_JITTER			2	//moves up to 30qu forward/back (40qu per sec)
+#define STREAM_ATTACHED			16	//attach it to any entity's origin
 #define STREAM_TRANSLUCENT		32
 beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ numbers instead of 0 - 5
 {
@@ -847,7 +849,7 @@ beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//f
 	b->entity = ent;
 	b->info = &beamtypes[tent];
 	b->tag = -1;
-	b->bflags |= /*STREAM_ATTACHED|*/1;
+	b->bflags |= /*STREAM_ATTACHED|*/STREAM_ATTACHTOPLAYER;
 	b->endtime = cl.time + 0.2;
 	b->alpha = 1;
 	VectorCopy (start, b->start);
@@ -953,15 +955,15 @@ void CL_ParseStream (int type)
 	{
 	case TEH2_STREAM_LIGHTNING_SMALL:
 		info = &beamtypes[BT_H2LIGHTNING_SMALL];
-		flags |= 2;
+		flags |= STREAM_JITTER;
 		break;
 	case TEH2_STREAM_LIGHTNING:
 		info = &beamtypes[BT_H2LIGHTNING];
-		flags |= 2;
+		flags |= STREAM_JITTER;
 		break;
 	case TEH2_STREAM_ICECHUNKS:
 		info = &beamtypes[BT_H2ICECHUNKS];
-		flags |= 2;
+		flags |= STREAM_JITTER;
 		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, 0, 20);
 		break;
 	case TEH2_STREAM_SUNSTAFF1:
@@ -2832,7 +2834,7 @@ void CL_UpdateBeams (void)
 		lastrunningbeam = bnum;
 
 	// if coming from the player, update the start position
-		if ((b->bflags & 1) && b->entity > 0 && b->entity <= cl.allocated_client_slots)
+		if ((b->bflags & STREAM_ATTACHTOPLAYER) && b->entity > 0 && b->entity <= cl.allocated_client_slots)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
@@ -2981,7 +2983,7 @@ void CL_UpdateBeams (void)
 	// add new entities for the lightning
 		d = VectorNormalize(dist);
 
-		if(b->bflags & 2)
+		if(b->bflags & STREAM_JITTER)
 		{
 			offset = (int)(cl.time*40)%30;
 			for(i = 0; i < 3; i++)

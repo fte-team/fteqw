@@ -57,6 +57,7 @@ void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
 const GLubyte * (APIENTRY *qglGetString) (GLenum name);
 void (APIENTRY *qglHint) (GLenum target, GLenum mode);
 GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
+void (APIENTRY *qglPixelStorei) (GLenum pname, GLint param);
 void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
 void (APIENTRY *qglLineWidth) (GLfloat width);
 void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
@@ -679,6 +680,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qglBindProgramARB = NULL;
 	qglGenProgramsARB = NULL;
 */
+
+	if (gl_config.glversion >= (gl_config.gles?3:1.2))
+		qglDrawRangeElements = (void *)getglext("glDrawRangeElements");
+	else if (GL_CheckExtension("GL_EXT_draw_range_elements"))
+		qglDrawRangeElements = (void *)getglext("glDrawRangeElementsEXT");
+	else
+		qglDrawRangeElements = NULL;
+	if (qglDrawRangeElements == NULL)
+		qglDrawRangeElements = GL_DrawRangeElementsEmul;
 
 	gl_config.ext_packed_depth_stencil = GL_CheckExtension("GL_EXT_packed_depth_stencil");
 
@@ -3259,6 +3269,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglFinish			= (void *)getglcore("glFinish");
 	qglFlush			= (void *)getglcore("glFlush");
 	qglGenTextures		= (void *)getglcore("glGenTextures");
+	qglPixelStorei		= (void *)getglcore("glPixelStorei");
 	qglGetFloatv		= (void *)getglcore("glGetFloatv");
 	qglGetIntegerv		= (void *)getglcore("glGetIntegerv");
 	qglGetString		= (void *)getglcore("glGetString");
@@ -3300,10 +3311,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglColorPointer			= (void *)getglcore("glColorPointer");
 	qglEnableClientState	= (void *)getglcore("glEnableClientState");
 	qglDisableClientState	= (void *)getglcore("glDisableClientState");
-
-	qglDrawRangeElements	= (void *)getglext("glDrawRangeElements");
-	if (qglDrawRangeElements == 0)
-		qglDrawRangeElements = GL_DrawRangeElementsEmul;
 
 	qglMultiDrawElements	= (void *)getglext("glMultiDrawElements");	//since gl2
 

@@ -1771,7 +1771,7 @@ static texid_t Font_LoadFallbackConchars(void)
 		Font_CopyGlyph('|', 131, lump);
 		Font_CopyGlyph('>', 13, lump);
 	}
-	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = Image_GetTexture("charset", NULL, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, (void*)lump, NULL, width, height, PTI_RGBA8);
 	BZ_Free(lump);
 	return tex;
 }

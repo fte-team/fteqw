@@ -289,9 +289,15 @@ static plugin_t *Plug_Load(const char *file, int type)
 		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
 	}
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL, NULL);
+	{
+		Q_snprintfz(temp, sizeof(temp), "fteplug_%s_", file);
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
+	}
 	if (!newplug->vm && (type & PLUG_NATIVE))
-		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL, NULL);
+	{
+		Q_snprintfz(temp, sizeof(temp), "fteplug_%s", file);
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
+	}
 	if (!newplug->vm && (type & PLUG_QVM))
 		newplug->vm = VM_Create(NULL, NULL, file, Plug_SystemCallsVM);
 	if (!newplug->vm && (type & PLUG_NATIVE))

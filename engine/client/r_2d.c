@@ -45,6 +45,7 @@ struct
 {
 	lmalloc_t allocation;
 	qboolean dirty;
+	uploadfmt_t fmt;
 	int lastid;
 	unsigned int *data;
 	shader_t *shader;
@@ -480,8 +481,9 @@ apic_t *R2D_LoadAtlasedPic(const char *name)
 		{
 			atlas.lastid = atlasid;
 			if (atlas.dirty)
-				Image_Upload(atlas.tex, TF_BGRA32, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
+				Image_Upload(atlas.tex, atlas.fmt, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
 			atlas.tex = r_nulltex;
+			atlas.fmt = sh_config.texfmt[PTI_BGRA8]?PTI_BGRA8:PTI_RGBA8;
 			atlas.shader = NULL;
 			atlas.dirty = false;
 			if (atlas.data)	//clear atlas data instead of reallocating it.
@@ -515,25 +517,50 @@ apic_t *R2D_LoadAtlasedPic(const char *name)
 		out += apic->y * atlas.allocation.width;
 		apic->atlas = atlas.shader;
 
-		//pad above. extra casts because 64bit msvc is RETARDED.
-		out[-1 - (qintptr_t)atlas.allocation.width] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
-		for (x = 0; x < apic->width; x++)
-			out[x-(qintptr_t)atlas.allocation.width] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
-		out[x - (qintptr_t)atlas.allocation.width] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
-		for (y = 0; y < apic->height; y++)
+		if (atlas.fmt == PTI_BGRA8)
 		{
+			//pad above. extra casts because 64bit msvc is RETARDED.
+			out[-1 - (qintptr_t)atlas.allocation.width] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
+			for (x = 0; x < apic->width; x++)
+				out[x-(qintptr_t)atlas.allocation.width] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
+			out[x - (qintptr_t)atlas.allocation.width] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
+			for (y = 0; y < apic->height; y++)
+			{
+				out[-1] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
+				for (x = 0; x < apic->width; x++)
+					out[x] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
+				out[x] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
+				indata += x;
+				out += atlas.allocation.width;
+			}
+			//pad below
 			out[-1] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
 			for (x = 0; x < apic->width; x++)
 				out[x] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
 			out[x] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
-			indata += x;
-			out += atlas.allocation.width;
 		}
-		//pad below
-		out[-1] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
-		for (x = 0; x < apic->width; x++)
-			out[x] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
-		out[x] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
+		else
+		{
+			//pad above. extra casts because 64bit msvc is RETARDED.
+			out[-1 - (qintptr_t)atlas.allocation.width] = (indata[0] == 255)?0:d_8to24rgbtable[indata[0]];	//pad left
+			for (x = 0; x < apic->width; x++)
+				out[x-(qintptr_t)atlas.allocation.width] = (indata[x] == 255)?0:d_8to24rgbtable[indata[x]];
+			out[x - (qintptr_t)atlas.allocation.width] = (indata[x-1] == 255)?0:d_8to24rgbtable[indata[x-1]];	//pad right
+			for (y = 0; y < apic->height; y++)
+			{
+				out[-1] = (indata[0] == 255)?0:d_8to24rgbtable[indata[0]];	//pad left
+				for (x = 0; x < apic->width; x++)
+					out[x] = (indata[x] == 255)?0:d_8to24rgbtable[indata[x]];
+				out[x] = (indata[x-1] == 255)?0:d_8to24rgbtable[indata[x-1]];	//pad right
+				indata += x;
+				out += atlas.allocation.width;
+			}
+			//pad below
+			out[-1] = (indata[0] == 255)?0:d_8to24rgbtable[indata[0]];	//pad left
+			for (x = 0; x < apic->width; x++)
+				out[x] = (indata[x] == 255)?0:d_8to24rgbtable[indata[x]];
+			out[x] = (indata[x-1] == 255)?0:d_8to24rgbtable[indata[x-1]];	//pad right
+		}
 
 		//pinch inwards, for linear sampling
 		apic->sl = (apic->x+0.5)/(float)atlas.allocation.width;
@@ -593,7 +620,7 @@ void R2D_ImageAtlas(float x, float y, float w, float h, float s1, float t1, floa
 		return;
 	if (atlas.dirty)
 	{
-		Image_Upload(atlas.tex, TF_BGRA32, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
+		Image_Upload(atlas.tex, atlas.fmt, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
 		atlas.dirty = false;
 	}
 

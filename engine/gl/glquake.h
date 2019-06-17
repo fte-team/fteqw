@@ -251,6 +251,7 @@ typedef struct {
 	int ext_texture_filter_anisotropic;
 
 	struct glfmt_s formatinfo[PTI_MAX];
+	int unpackalignment;
 } gl_config_t;
 
 extern gl_config_t gl_config;

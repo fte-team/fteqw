@@ -1358,7 +1358,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 
 		deluxedest = dlm->lightmaps + (surf->light_t[map] * dlm->width + surf->light_s[map]) * dlm->pixbytes;
 
-		Surf_BuildDeluxMap(currentmodel, surf, deluxedest, lm, blocknormals);
+		Surf_BuildDeluxMap(currentmodel, surf, deluxedest, dlm, blocknormals);
 	}
 
 	if (lm->fmt != PTI_L8)

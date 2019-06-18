@@ -4505,7 +4505,7 @@ void SV_SetInfo_f (void)
 		SV_ClientPrintf(host_client, PRINT_HIGH, "setinfo: %s may not be changed mid-game\n", key);
 	else if (sv_userinfo_keylimit.ival >= 0 && host_client->userinfo.numkeys >= sv_userinfo_keylimit.ival && !offset && *val && !InfoBuf_FindKey(&host_client->userinfo, key, &k))	//when the limit is hit, allow people to freely change existing keys, but not new ones. they can also silently remove any that don't exist yet, too.
 		SV_ClientPrintf(host_client, PRINT_MEDIUM, "setinfo: userinfo is limited to %i keys. Ignoring setting %s\n", sv_userinfo_keylimit.ival, key);
-	else if (valsize && sv_userinfo_bytelimit.ival >= 0 && host_client->userinfo.totalsize-cursize+(keysize+2+valsize) >= sv_userinfo_bytelimit.ival)
+	else if (offset+valsize > cursize && sv_userinfo_bytelimit.ival >= 0 && host_client->userinfo.totalsize+(keysize+2+valsize) >= sv_userinfo_bytelimit.ival)
 	{
 		SV_ClientPrintf(host_client, PRINT_MEDIUM, "setinfo: userinfo is limited to %i bytes. Ignoring setting %s\n", sv_userinfo_bytelimit.ival, key);
 		if (offset)	//kill it if they're part way through sending one, so that they're not penalised by the presence of partials that will never complete.

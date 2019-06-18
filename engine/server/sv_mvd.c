@@ -33,7 +33,7 @@ void SV_MVDStop_f (void);
 
 static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t	sv_demoAutoRecord = CVARAD("sv_demoAutoRecord", "0", "cl_autodemo", "If set, automatically record demos.\n-1: record on client connection.\n1+: record once there's this many active players on the server.");
+cvar_t	sv_demoAutoRecord = CVARAD("sv_demoAutoRecord", "0", "cl_autodemo", "If set, automatically record demos.\n-1: record on client connection only.\n1+: record once there's this many active players on the server (or if connected to a remote server).");
 cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "", "If set, demo data will be flushed only periodically");
 cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
 cvar_t	sv_demoMaxDirSize = CVARD("sv_demoMaxDirSize", "100mb", "Maximum allowed serverside storage space for mvds. set to blank to remove the limit. New demos cannot be recorded once this size is reached.");	//so ktpro autorecords.

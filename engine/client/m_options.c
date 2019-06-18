@@ -232,8 +232,8 @@ void M_Menu_Options_f (void)
 	extern cvar_t sv_demoAutoRecord;
 	static const char *autorecordopts[] = {
 		"Off",
-		"Singleview",
-		"Multiview",
+		"Clientside Only",
+		"Prefer Serverside",
 		NULL
 	};
 	static const char *autorecordvals[] = {

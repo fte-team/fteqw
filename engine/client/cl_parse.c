@@ -943,6 +943,8 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 	if (cls.demorecording)
 	{
 		Con_TPrintf ("Unable to download %s in record mode.\n", filename);
+		if (sv_demoAutoRecord.ival)
+			Con_TPrintf ("Note that ^[%s\\cmd\\%s 0\\^] is enabled.\n", sv_demoAutoRecord.name, sv_demoAutoRecord.name);
 		return true;
 	}
 	//ZOID - can't download when playback

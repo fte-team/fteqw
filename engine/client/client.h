@@ -1463,8 +1463,8 @@ void	 CSQC_CvarChanged(cvar_t *var);
 #define CSQC_UnconnectedInit() false
 #define CSQC_UseGamecodeLoadingScreen() false
 #define CSQC_Parse_SetAngles(seat,newangles,wasdelta) false
-#define CSQC_ServerInfoChanged() false
-#define CSQC_PlayerInfoChanged(player) false
+#define CSQC_ServerInfoChanged()
+#define CSQC_PlayerInfoChanged(player)
 #endif
 
 //

@@ -6734,6 +6734,13 @@ void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname,
 				continue;	//this is saved via a cvar.
 		}
 
+		//blobs over a certain size cannot safely be parsed (due to Cmd_ExecuteString and com_token having limits)
+		//so just don't write them.
+		//if someone forces a write then the blob will get truncated.
+		//note that blobs are limited im size serverside anyway, so this is probably higher than it needs to be.
+		if (info->keys[k].size > 48000)
+			continue;
+
 		key = InfoBuf_EncodeString_Malloc(key, strlen(key));
 		val = InfoBuf_EncodeString_Malloc(val, info->keys[k].size);
 		if (!commandname)

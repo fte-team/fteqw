@@ -443,7 +443,7 @@ void Cbuf_ExecuteLevel (int level)
 {
 	int		i;
 	char	*text;
-	char	line[65536];
+	char	linebuf[65536], *line;
 	qboolean	comment;
 	int		quotes;
 
@@ -503,8 +503,10 @@ void Cbuf_ExecuteLevel (int level)
 				break;	// don't break if inside a quoted string
 		}
 
-		if (i >= sizeof(line))
-			i = sizeof(line)-1;
+		if (i >= sizeof(linebuf))
+			line = malloc(i+1);	//might leak if the command longjmps. :(
+		else
+			line = linebuf;
 		memcpy (line, text, i);
 		line[i] = 0;
 
@@ -523,6 +525,8 @@ void Cbuf_ExecuteLevel (int level)
 
 // execute the command line
 		Cmd_ExecuteString (line, level);
+		if (line != linebuf)
+			free(line);
 	}
 }
 
@@ -2682,7 +2686,7 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
-	char dest[8192];
+	char dest[65536];
 	Cmd_ExecLevel = level;
 
 	while (*text == ' ' || *text == '\n')

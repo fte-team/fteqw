@@ -2710,7 +2710,7 @@ static qbyte *ReadICOFile(const char *fname, qbyte *buf, int length, int *width,
 		size_t cc = img->wBitCount;
 		size_t px = (img->bWidth?img->bWidth:256) * (img->bHeight?img->bHeight:256);
 		if (!cc)	//if that was omitted, try and guess it based on raw image size. this is an over estimate.
-			cc = 8 * (bestimg->dwSize_low | (bestimg->dwSize_high<<16)) / px;
+			cc = 8 * (img->dwSize_low | (img->dwSize_high<<16)) / px;
 
 		if (!bestimg || cc > bestdepth || (cc == bestdepth && px > bestpixels))
 		{
@@ -9031,6 +9031,7 @@ void Image_List_f(void)
 		}
 		if (tex->subpath)
 			Con_Printf("^h(%s)^h", tex->subpath);
+		Con_DLPrintf(1, " %x", tex->flags);
 		
 		if (Image_LocateHighResTexture(tex, &loc, fname, sizeof(fname), &loadflags))
 		{

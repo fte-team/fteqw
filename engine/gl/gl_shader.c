@@ -2303,20 +2303,20 @@ static void Shader_HLSL11ProgramName (parsestate_t *ps, char **ptr)
 
 static void Shader_ReflectCube(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_CUBEMAP);
 	ps->s->defaulttextures->reflectcube = Shader_FindImage(ps, token, flags);
 }
 static void Shader_ReflectMask(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
 	ps->s->defaulttextures->reflectmask = Shader_FindImage(ps, token, flags);
 }
 
 static void Shader_DiffuseMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
 	ps->s->defaulttextures->base = Shader_FindImage(ps, token, flags);
 
@@ -2324,37 +2324,37 @@ static void Shader_DiffuseMap(parsestate_t *ps, char **ptr)
 }
 static void Shader_SpecularMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
 	ps->s->defaulttextures->specular = Shader_FindImage(ps, token, flags);
 }
 static void Shader_NormalMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_TRYBUMP|IF_NOSRGB);
 	ps->s->defaulttextures->bump = Shader_FindImage(ps, token, flags);
 }
 static void Shader_FullbrightMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
 	ps->s->defaulttextures->fullbright = Shader_FindImage(ps, token, flags);
 }
 static void Shader_UpperMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
 	ps->s->defaulttextures->upperoverlay = Shader_FindImage(ps, token, flags);
 }
 static void Shader_LowerMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
 	ps->s->defaulttextures->loweroverlay = Shader_FindImage(ps, token, flags);
 }
 static void Shader_DisplacementMap(parsestate_t *ps, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
+	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_NOSRGB);
 	ps->s->defaulttextures->displacement = Shader_FindImage(ps, token, flags);
 }
@@ -2375,7 +2375,7 @@ static void Shaderpass_QF_Material(parsestate_t *ps, char **ptr)
 	else
 		ps->pass->prog = Shader_FindGeneric(progname, qrenderer);
 
-	token = Shader_ParseString(ptr);
+	token = Shader_ParseSensString(ptr);
 	if (*token && strcmp(token, "-"))
 	{
 		flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
@@ -2393,7 +2393,7 @@ static void Shaderpass_QF_Material(parsestate_t *ps, char **ptr)
 	}
 
 	if (*token)
-		token = Shader_ParseString(ptr);
+		token = Shader_ParseSensString(ptr);
 	if (*token && strcmp(token, "-"))
 	{
 		flags = Shader_SetImageFlags (ps, NULL, &token, IF_TRYBUMP|IF_NOSRGB);
@@ -2401,7 +2401,7 @@ static void Shaderpass_QF_Material(parsestate_t *ps, char **ptr)
 	}
 
 	if (*token)
-		token = Shader_ParseString(ptr);
+		token = Shader_ParseSensString(ptr);
 	if (*token && strcmp(token, "-"))
 	{
 		flags = Shader_SetImageFlags (ps, NULL, &token, 0);
@@ -2906,7 +2906,7 @@ static void Shaderpass_Map (parsestate_t *ps, char **ptr)
 
 	pass->anim_frames[0] = r_nulltex;
 
-	token = Shader_ParseString (ptr);
+	token = Shader_ParseSensString (ptr);
 
 	flags = Shader_SetImageFlags (ps, pass, &token, 0);
 	if (!Shaderpass_MapGen(ps, pass, token))
@@ -3005,7 +3005,7 @@ static void Shaderpass_ClampMap (parsestate_t *ps, char **ptr)
 	int flags;
 	char *token;
 
-	token = Shader_ParseString (ptr);
+	token = Shader_ParseSensString (ptr);
 
 	flags = Shader_SetImageFlags (ps, pass, &token, IF_CLAMP);
 	if (!Shaderpass_MapGen(ps, pass, token))

@@ -2482,6 +2482,8 @@ Allow clients to change userinfo
 */
 void CL_SetInfo_f (void)
 {
+	char *key, *val;
+	size_t keysize, valsize;
 	cvar_t *var;
 	int pnum = CL_TargettedSplit(true);
 	if (Cmd_Argc() == 1)
@@ -2524,7 +2526,17 @@ void CL_SetInfo_f (void)
 		return;
 	}
 
-	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
+	key = Cmd_Argv(1);
+	val = Cmd_Argv(2);
+
+	key = InfoBuf_DecodeString(key, key+strlen(key), &keysize);
+	val = InfoBuf_DecodeString(val, val+strlen(val), &valsize);
+	if (keysize != strlen(key))
+		Con_Printf ("setinfo: ignoring key name with embedded null\n");
+	else
+		CL_SetInfoBlob(pnum, key, val, valsize);
+	Z_Free(key);
+	Z_Free(val);
 }
 
 #if 1//def _DEBUG

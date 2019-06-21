@@ -526,9 +526,10 @@ struct vfsfile_s;
 //standard return value is 0 on failure, or depth on success.
 int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
-char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
+const char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
 qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime);
-char *FS_GetPackageDownloadFilename(flocation_t *loc);
+const char *FS_GetPackageDownloadFilename(flocation_t *loc);	//returns only packages (or null)
+const char *FS_GetRootPackagePath(flocation_t *loc);			//favours packages, but falls back on gamedirs.
 
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
@@ -866,6 +867,11 @@ void IPLog_Add(const char *ip, const char *name);	//for associating player ip ad
 qboolean IPLog_Merge_File(const char *fname);
 #endif
 qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize);
+
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
+qboolean Log_CheckMapCompletion(const char *packagename, const char *mapname, float *besttime, float *fulltime, float *bestkills, float *bestsecrets);
+void Log_MapNowCompleted(void);
+#endif
 
 
 /*used by and for botlib and q3 gamecode*/

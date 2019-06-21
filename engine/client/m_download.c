@@ -1069,7 +1069,7 @@ void PM_EnumeratePlugins(void (*callback)(const char *name))
 			{
 				if (d->dtype == DEP_FILE)
 				{
-					if (!Q_strncasecmp(d->name, "fteplug_", 8))
+					if (!Q_strncasecmp(d->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 						callback(d->name);
 				}
 			}
@@ -1094,8 +1094,8 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 	char vmname[MAX_QPATH];
 	int len, l, a;
 	char *dot;
-	if (!strncmp(name, "fteplug_", 8))
-		Q_strncpyz(vmname, name+8, sizeof(vmname));
+	if (!strncmp(name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
+		Q_strncpyz(vmname, name+strlen(PLUGINPREFIX), sizeof(vmname));
 	else
 		Q_strncpyz(vmname, name, sizeof(vmname));
 	len = strlen(vmname);
@@ -1192,7 +1192,7 @@ static void PM_PreparePackageList(void)
 			char nat[MAX_OSPATH];
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
 			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
+			Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
 			if (foundone && !pluginpromptshown)
 			{
 				pluginpromptshown = true;
@@ -2076,7 +2076,7 @@ static void PM_PackageEnabled(package_t *p)
 		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
 			FS_ReloadPackFiles();
 #ifdef PLUGINS
-		if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, "fteplug_", 8))
+		if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 			Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
 #endif
 #ifdef MENU_DAT
@@ -2173,7 +2173,7 @@ static void PM_Download_Got(struct dl_download *dl)
 				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
 					FS_UnloadPackFiles();	//we reload them after
 #ifdef PLUGINS
-				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
+				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 					Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
 #endif
 
@@ -2509,7 +2509,7 @@ void PM_ApplyChanges(void)
 						reloadpacks = true;
 
 #ifdef PLUGINS		//when disabling/purging plugins, be sure to unload them first (unfortunately there might be some latency before this can actually happen).
-					if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, "fteplug_", 8))
+					if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 						Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
 #endif
 

@@ -3220,7 +3220,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		if (replacementname)
 		{
 #if 1
-			char *pakname = FS_GetPackageDownloadFilename(loc);
+			const char *pakname = FS_GetPackageDownloadFilename(loc);
 			if (pakname && strchr(pakname, '/'))
 			{
 				extern cvar_t allow_download_packages,allow_download_copyrighted;	//non authoritive, but should normally match.

@@ -261,6 +261,8 @@ EBUILTIN(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
 #endif
 EBUILTIN(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
 
+EBUILTIN(qboolean, MapLog_Query, (const char *packagename, const char *mapname, float *stats));
+
 #ifndef Q3_VM
 struct pubprogfuncs_s;
 EBUILTIN(struct pubprogfuncs_s*, PR_GetVMInstance, (int vmid/*0=ss,1=cs,2=m*/));

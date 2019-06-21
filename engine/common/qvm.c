@@ -106,7 +106,10 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 	if (binroot)
 	{
 		Con_DPrintf("Attempting to load native library: %s\n", name);
-
+#ifdef ANDROID
+		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+#else
 		if (!hVM && FS_NativePath(dllname_archpri, FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
@@ -116,27 +119,32 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 			hVM = Sys_LoadLibrary(fname, funcs);
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
+#endif
 
 		// run through the search paths
 		iterator = NULL;
 		while (!hVM && COM_IteratePaths(&iterator, NULL, 0, gpath, sizeof(gpath)))
 		{
+#ifndef ANDROID
 			if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
 			{
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
+#endif
 			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
 			{
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 
+#ifndef ANDROID
 			if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
 			{
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
+#endif
 			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
 			{
 				Con_DLPrintf(2, "Loading native: %s\n", fname);

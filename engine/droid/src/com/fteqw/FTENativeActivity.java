@@ -104,8 +104,6 @@ public class FTENativeActivity extends android.app.Activity implements android.v
 //		}
 
 		super.onCreate(savedInstanceState);
-		//Needed because the InputQueue stuff blocks dispatchKeyEvent
-		getWindow().takeInputQueue(null);
 	}
 	
 	//random helpers
@@ -134,7 +132,7 @@ public class FTENativeActivity extends android.app.Activity implements android.v
 		{
 			try
 			{
-				String secondary = (String) android.content.pm.ApplicationInfo.class.getField("nativeLibraryRootDir").get(context.getApplicationInfo());
+				String secondary = (String) android.content.pm.ApplicationInfo.class.getField("nativeLibraryDir").get(context.getApplicationInfo());
 				return secondary;
 			}
 			catch (Exception e)

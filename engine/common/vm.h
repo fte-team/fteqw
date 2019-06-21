@@ -49,6 +49,12 @@ void		Plug_SBar(playerview_t *pv);
 qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
 void		Plug_Tick(void);
 qboolean	Plugin_ExecuteString(void);
+
+#ifdef ANDROID
+#define PLUGINPREFIX "libplug_" //android is kinda annoying and only extracts specific files.
+#else
+#define PLUGINPREFIX "fteplug_" //this string defines what consitutes a plugin, as opposed to some other dll
+#endif
 #endif
 
 

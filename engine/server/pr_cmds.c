@@ -5925,6 +5925,10 @@ void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	sv.mapchangelocked = true;
 
+#ifdef HAVE_CLIENT
+	Log_MapNowCompleted();
+#endif
+
 #ifdef HEXEN2
 	if (progstype == PROG_H2)
 	{

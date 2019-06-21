@@ -728,6 +728,10 @@ void NPP_NQFlush(void)
 			}
 #endif
 
+#if defined(HAVE_CLIENT)
+			Log_MapNowCompleted();
+#endif
+
 			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 			{
 				if (cl->state == cs_spawned && ISQWCLIENT(cl))
@@ -1758,6 +1762,9 @@ void NPP_QWFlush(void)
 		break;
 		//ignore these.
 	case svc_intermission:
+#if defined(HAVE_CLIENT)
+		Log_MapNowCompleted();
+#endif
 //		if (writedest == &sv.reliable_datagram)
 		{
 			client_t *cl;

@@ -68,7 +68,7 @@ ifeq ($(PLUG_NATIVE_EXT),)
 endif
 ifeq ($(FTE_TARGET),droid)
 	#plugins get written to the tmp build dir, to avoid conflicts
-	PLUG_PREFIX=$(OUT_DIR)/m_droid-$(DROID_ARCH)/fteplug_
+	PLUG_PREFIX=$(OUT_DIR)/m_droid-$(DROID_ARCH)/libplug_
 	#don't bother with cpu arch postfixes. they'll be in separate directories anyway.
 	PLUG_NATIVE_EXT=.so
 	#libresolv has no public api on android...

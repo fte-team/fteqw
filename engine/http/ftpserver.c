@@ -66,7 +66,6 @@ SOCKET FTP_BeginListening(int aftype, int port)
 {
 	struct sockaddr_qstorage address;
 	unsigned long _true = true;
-	unsigned long _false = false;
 	int i;
 	SOCKET sock;
 
@@ -116,6 +115,7 @@ SOCKET FTP_BeginListening(int aftype, int port)
 		//2=ipv6 only
 		if (aftype == 0)
 		{
+			unsigned long _false = false;
 			if (0 > setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_false, sizeof(_false)))
 			{
 				//abort and do ipv4 only if hybrid sockets don't work.

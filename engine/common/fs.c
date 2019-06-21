@@ -1387,10 +1387,38 @@ fail:
 	return depth+1;
 }
 
+//returns the location's root package (or gamedir).
+//(aka: loc->search->purepath, but stripping contained nested packs)
+const char *FS_GetRootPackagePath(flocation_t *loc)
+{
+	searchpath_t *sp, *search;
+
+	for (sp = loc->search; ;)
+	{
+		for (search = com_searchpaths; search; search = search->next)
+		{
+			if (search != sp)
+				if (search->handle->GeneratePureCRC) //only consider files that have a pure hash. this excludes system paths
+					if (!strncmp(search->purepath, sp->purepath, strlen(search->purepath)))
+						if (sp->purepath[strlen(search->purepath)] == '/')	//also ensures that the path gets shorter, avoiding infinite loops as it fights between base+home dirs.
+							break;
+		}
+		if (search)
+			sp = search;
+		else
+			break;
+	}
+
+	//
+	if (sp)
+		return sp->purepath;
+	return NULL;
+}
+
 //returns the package/'gamedir/foo.pk3' filename to tell the client to download
 //unfortunately foo.pk3 may contain a 'bar.pk3' and downloading dir/foo.pk3/bar.pk3 won't work
 //so if loc->search is dir/foo.pk3/bar.pk3 find dir/foo.pk3 instead
-char *FS_GetPackageDownloadFilename(flocation_t *loc)
+const char *FS_GetPackageDownloadFilename(flocation_t *loc)
 {
 	searchpath_t *sp, *search;
 
@@ -1414,7 +1442,7 @@ char *FS_GetPackageDownloadFilename(flocation_t *loc)
 		return sp->purepath;
 	return NULL;
 }
-char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
+const char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
 {
 	char *ret;
 	if (!loc->search)
@@ -6197,6 +6225,12 @@ static void FS_ChangeMod_f(void)
 		{
 			Z_Free(fs_loadedcommand);
 			arg = va("map \"%s\"\n", Cmd_Argv(i++));
+			fs_loadedcommand = Z_StrDup(arg);
+		}
+		else if (!strcmp(arg, "spmap"))
+		{
+			Z_Free(fs_loadedcommand);
+			arg = va("deathmatch 0;coop 0;spmap \"%s\"\n", Cmd_Argv(i++));
 			fs_loadedcommand = Z_StrDup(arg);
 		}
 		else if (!strcmp(arg, "restart"))

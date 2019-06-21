@@ -1173,7 +1173,7 @@ static jboolean FTENativeActivity_startup(JNIEnv *jni, jobject this, jstring ext
 
 static void FTENativeActivity_surfacechange(JNIEnv *env, jobject this, jboolean teardown, jboolean recreate, jobject surface)
 {
-	if (this == sys_activity)
+	if (!(*env)->IsSameObject(env, this, sys_activity))
 	{
 		LOGI("FTENativeActivity_surfacechange: inactive %p, active %p\n", this, sys_activity);
 		return;	//wasn't me...
@@ -1200,7 +1200,7 @@ static void FTENativeActivity_surfacechange(JNIEnv *env, jobject this, jboolean 
 }
 static void FTENativeActivity_shutdown(JNIEnv *env, jobject this)
 {
-	if (this != sys_activity)
+	if (!(*env)->IsSameObject(env, this, sys_activity))
 	{
 		LOGI("FTENativeActivity_shutdown: inactive %p, active %p\n", this, sys_activity);
 		return;	//wasn't me...

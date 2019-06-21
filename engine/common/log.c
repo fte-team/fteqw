@@ -795,8 +795,164 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize)
 }
 #endif
 
+
+
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
+static struct maplog_entry
+{
+	struct maplog_entry *next;
+	float bestkills;
+	float bestsecrets;
+	float besttime;	 //updated when besttime<newtime (note: doesn't respond to user changelevels from the console...)
+	float fulltime; //updated when bestkills>=newkills
+	char name[1];
+} *maplog_enties;
+static void Log_MapsRead(void)
+{
+	struct maplog_entry *m, **link = &maplog_enties;
+	vfsfile_t *f;
+	static qboolean maplog_loaded;
+	char line[8192], *s;
+	if (maplog_loaded)
+		return;
+	maplog_loaded = true;
+	f = FS_OpenVFS("maptimes.txt", "rb", FS_ROOT);
+	if (!f)
+		return; //no info yet.
+	while (VFS_GETS(f, line, sizeof(line)))
+	{
+		s = line;
+		s = COM_Parse(s);
+		m = Z_Malloc(sizeof(*m) + strlen(com_token));
+		strcpy(m->name, com_token);
+
+		s = COM_Parse(s);
+		m->besttime = atof(com_token);
+		s = COM_Parse(s);
+		m->fulltime = atof(com_token);
+		s = COM_Parse(s);
+		m->bestkills = atof(com_token);
+		s = COM_Parse(s);
+		m->bestsecrets = atof(com_token);
+
+		*link = m;
+		link = &m->next;
+	}
+	VFS_CLOSE(f);
+}
+struct maplog_entry *Log_FindMap(const char *purepackage, const char *mapname)
+{
+	const char *name = va("%s/%s", purepackage, mapname);
+	struct maplog_entry *m;
+	Log_MapsRead();
+	for (m = maplog_enties; m; m = m->next)
+	{
+		if (!strcmp(m->name, name))
+			break;
+	}
+	return m;
+}
+static void Log_MapsDump(void)
+{
+	if (maplog_enties)
+	{
+		struct maplog_entry *m;
+		vfsfile_t *f = FS_OpenVFS("maptimes.txt", "wbp", FS_ROOT);
+		if (f)
+		{
+			for(m = maplog_enties; m; m = m->next)
+			{
+				VFS_PRINTF(f, "\"%s\" %.9g %.9g %.9g %.9g\n", m->name, m->besttime, m->fulltime, m->bestkills, m->bestsecrets);
+			}
+			VFS_CLOSE(f);
+		}
+	}
+}
+qboolean Log_CheckMapCompletion(const char *packagename, const char *mapname, float *besttime, float *fulltime, float *bestkills, float *bestsecrets)
+{
+	struct maplog_entry *m;
+	if (!packagename)
+	{
+		flocation_t loc;
+		if (!FS_FLocateFile(mapname, FSLF_DONTREFERENCE|FSLF_IGNORELINKS, &loc))
+			return false;	//no idea which package, don't guess.
+		packagename = FS_GetRootPackagePath(&loc);
+		if (!packagename)
+			return false;
+	}
+	m = Log_FindMap(packagename, mapname);
+	if (m)
+	{
+		*besttime = m->besttime;
+		*fulltime = m->fulltime;
+		*bestkills = m->bestkills;
+		*bestsecrets = m->bestsecrets;
+		return true;
+	}
+	return false;
+}
+void Log_MapNowCompleted(void)
+{
+	struct maplog_entry *m;
+	flocation_t loc;
+	float kills, secrets, oldprogress, newprogress, maptime;
+	const char *packagename;
+
+	//don't log it if its deathmatch/coop/cheating.
+	extern int sv_allow_cheats;
+	if (deathmatch.ival || coop.ival || sv_allow_cheats == 1)
+		return;
+
+	if (!FS_FLocateFile(sv.world.worldmodel->name, FSLF_DONTREFERENCE|FSLF_IGNORELINKS, &loc))
+	{
+		Con_Printf("completion log: unable to determine logical path for map\n");
+		return;	//don't know
+	}
+	packagename = FS_GetRootPackagePath(&loc);
+	if (!packagename)
+	{
+		Con_Printf("completion log: unable to determine logical path for map\n");
+		return;
+	}
+
+	m = Log_FindMap(packagename, sv.world.worldmodel->name);
+	if (!m)
+	{
+		m = Z_Malloc(sizeof(*m)+strlen(packagename)+strlen(sv.world.worldmodel->name)+2);
+		sprintf(m->name, "%s/%s", packagename, sv.world.worldmodel->name);
+
+		m->fulltime = m->besttime = INFINITY;
+		m->bestkills = m->bestsecrets = 0;
+		m->next = maplog_enties;
+		maplog_enties = m;
+	}
+
+	kills = pr_global_struct->killed_monsters;
+	secrets = pr_global_struct->found_secrets;
+	maptime = sv.world.physicstime;
+
+	newprogress = secrets*10+kills;
+	oldprogress = m->bestsecrets*10+m->bestkills;
+
+	//if they got a new time record, update.
+	if (maptime<m->besttime)
+		m->besttime = maptime;
+	//if they got a new kills record, update
+	if (newprogress > oldprogress || (newprogress==oldprogress && maptime<m->fulltime))
+	{
+		m->bestkills = kills;
+		m->bestsecrets = secrets;
+		m->fulltime = maptime;
+	}
+}
+#endif
+
 void Log_ShutDown(void)
 {
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
+	Log_MapsDump();
+#endif
+
 #ifdef IPLOG
 	if (iplog_autodump.ival)
 		IPLog_Dump("iplog.txt");

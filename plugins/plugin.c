@@ -170,6 +170,10 @@ BUILTINR(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
 BUILTINR(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
 #undef ARGNAMES
 
+#define ARGNAMES ,packagename,mapname,stats
+BUILTINR(qboolean, MapLog_Query, (const char *packagename, const char *mapname, float *stats));
+#undef ARGNAMES
+
 #ifndef Q3_VM
 #define ARGNAMES ,vmid
 BUILTINR(struct pubprogfuncs_s*, PR_GetVMInstance, (int vmid/*0=ss,1=cs,2=m*/));
@@ -526,6 +530,8 @@ static void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Con_GetConsoleString);
 	CHECKBUILTIN(Con_SetConsoleString);
 	CHECKBUILTIN(Con_POpen);
+
+	CHECKBUILTIN(MapLog_Query);
 }
 
 #ifndef Q3_VM

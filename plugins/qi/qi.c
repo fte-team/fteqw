@@ -25,10 +25,10 @@
 </file>
 */
 
-xmltree_t *thedatabase;
-qhandle_t dlcontext = -1;
+static xmltree_t *thedatabase;
+static qhandle_t dlcontext = -1;
 
-struct 
+static struct
 {
 	char namefilter[256];
 	int minrating;
@@ -215,6 +215,7 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 	xmltree_t *file;
 	const char *console = WINDOWNAME;
 	char descbuf[1024];
+	float donestats[4];
 	if (!QI_SetupWindow(console, forcedisplay))
 		return;
 
@@ -257,16 +258,19 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 		switch(atoi(type))
 		{
 		case 1:
-			type = "map";
+			type = "map";	//'single map file(s)'
 			break;
 		case 2:
-			type = "mod";
+			type = "mod";	//'Partial conversion'
+			break;
+		case 4:
+			type = "spd";	//'speedmapping'
 			break;
 		case 5:
-			type = "otr";
+			type = "otr";	//'misc files'
 			break;
 		default:
-			type = "???";
+			type = "???";	//no idea
 			break;
 		}
 
@@ -320,20 +324,26 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 			year += 2000;
 		else if (year < 1900)
 			year += 1900;
-		Q_snprintf(descbuf, sizeof(descbuf), "Id: %s\nAuthor: %s\nDate: %04u-%02u-%02u\nRating: %s\n\n", id, author, year, month, day, ratingtext);
+		Q_snprintf(descbuf, sizeof(descbuf), "^aId:^a %s\n^aAuthor(s):^a %s\n^aDate:^a %04u-%02u-%02u\n^aRating:^a %s\n\n", id, author, year, month, day, ratingtext);
 
 		QI_DeHTML(desc, descbuf + strlen(descbuf), sizeof(descbuf) - strlen(descbuf));
 		desc = descbuf;
 
+		Con_SubPrintf(console, "%s %s ^[^4%s: ^1%s\\tip\\%s\\tipimg\\"FILEIMAGEURL"\\id\\%s^]", type, ratingtext, id, XML_GetChildBody(file, "title", "<NO TITLE>"), desc, id, id);
 		for (startmapnum = 0; ; startmapnum++)
 		{
+			char bspfile[MAX_QPATH];
 			startmap = XML_ChildOfTree(tech, "startmap", startmapnum);
 			if (!startmap)
 				break;
-			Con_SubPrintf(console, "%s ^[%s (%s)\\tip\\%s\\tipimg\\"FILEIMAGEURL"\\id\\%s\\startmap\\%s^]\n", type, XML_GetChildBody(file, "title", "<NO TITLE>"), startmap->body, desc, id, id, startmap->body);
+
+			Q_snprintf(bspfile, sizeof(bspfile), "maps/%s.bsp", startmap->body);
+			if (BUILTINISVALID(MapLog_Query) && pMapLog_Query(va(FILEDOWNLOADURL, id), bspfile, donestats))
+				Con_SubPrintf(console, " ^[^2[%s, complete %.1f]\\tip\\^7^aBest Time:^a ^2%.9f^7\n^aCompletion Time:^a %.9f\n^aKills:^a %.9f\n^aSecrets:^a %.9f\n\n\n%s\\tipimg\\"FILEIMAGEURL"\\id\\%s\\startmap\\%s^]", startmap->body, donestats[0], donestats[0], donestats[1], donestats[2], donestats[3], desc, id, id, startmap->body);
+			else
+				Con_SubPrintf(console, " ^[^4[%s]\\tip\\%s\\tipimg\\"FILEIMAGEURL"\\id\\%s\\startmap\\%s^]", startmap->body, desc, id, id, startmap->body);
 		}
-		if (!startmapnum)
-			Con_SubPrintf(console, "%s ^[%s\\tip\\%s\\tipimg\\"FILEIMAGEURL"\\id\\%s^]\n", type, XML_GetChildBody(file, "title", "<NO TITLE>"), desc, id, id);
+		Con_SubPrintf(console, "\n");
 	}
 
 	Con_SubPrintf(console, "\nFilter:\n");
@@ -489,7 +499,7 @@ static void QI_RunMap(xmltree_t *qifile, const char *map)
 		map = "";
 
 
-	pCmd_AddText("fs_changemod map \"", false);
+	pCmd_AddText("fs_changemod spmap \"", false);
 	pCmd_AddText(map, false);
 	pCmd_AddText("\"", false);
 	QI_AddPackages(qifile);

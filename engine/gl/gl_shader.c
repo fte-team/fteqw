@@ -7866,42 +7866,34 @@ void R_RemapShader(const char *sourcename, const char *destname, float timeoffse
 {
 	shader_t *o;
 	shader_t *n;
+	int i;
 
-	//make sure all types of the shader are remapped properly.
-	//if there's a .shader file with it then it should 'just work'.
+	char cleansrcname[MAX_QPATH];
+	Q_strncpyz(cleansrcname, sourcename, sizeof(cleansrcname));
+	COM_CleanUpPath(cleansrcname);
 
-	o = R_LoadShader (sourcename, SUF_NONE, NULL, NULL);
-	n = R_LoadShader (destname, SUF_NONE, NULL, NULL);
-	if (o)
+	for (i = 0; i < r_numshaders; i++)
 	{
-		if (!n)
-			n = o;
-		o->remapto = n;
-		o->remaptime = timeoffset;	//this just feels wrong.
-	}
-
-	o = R_LoadShader (sourcename, SUF_2D, NULL, NULL);
-	n = R_LoadShader (destname, SUF_2D, NULL, NULL);
-	if (o)
-	{
-		if (!n)
-			n = o;
-		o->remapto = n;
-		o->remaptime = timeoffset;
-	}
-
-	o = R_LoadShader (sourcename, SUF_LIGHTMAP, NULL, NULL);
-	n = R_LoadShader (destname, SUF_LIGHTMAP, NULL, NULL);
-	if (o)
-	{
-		if (!n)
+		o = r_shaders[i];
+		if (o && o->uses)
 		{
-			n = R_LoadShader (destname, SUF_2D, NULL, NULL);
-			if (!n)
-				n = o;
+			if (!strcmp(o->name, cleansrcname))
+			{
+				n = R_LoadShader (destname, o->usageflags, NULL, NULL);
+				if (!n)
+				{	//if it isn't actually available on disk then don't care about usageflags, just find ANY that's already loaded.
+					// check the hash first
+					char cleandstname[MAX_QPATH];
+					Q_strncpyz(cleandstname, destname, sizeof(cleandstname));
+					COM_CleanUpPath(cleandstname);
+					n = Hash_Get(&shader_active_hash, cleandstname);
+					if (!n || !n->uses)
+						n = o;
+				}
+				o->remapto = n;
+				o->remaptime = timeoffset;	//this just feels wrong.
+			}
 		}
-		o->remapto = n;
-		o->remaptime = timeoffset;
 	}
 }
 

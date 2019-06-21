@@ -392,8 +392,24 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	};
 	size_t u;
 	char stripped[64];
+	char completed[256];
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
+
+	*completed = 0;
+#ifdef HAVE_CLIENT
+	{
+		float besttime, fulltime, kills, secrets;
+		if (Log_CheckMapCompletion(NULL, name, &besttime, &fulltime, &kills, &secrets))
+		{
+			if (kills || secrets)
+				Q_snprintfz(completed, sizeof(completed), "^7 - ^2best: ^1%.1f^2, full: ^1%.1f^2 (^1%.0f^2 kills, ^1%.0f^2 secrets)", besttime, fulltime, kills, secrets);
+			else
+				Q_snprintfz(completed, sizeof(completed), "^7 - ^2best: ^1%.1f^2", besttime);
+		}
+	}
+#endif
+
 	COM_StripExtension(name+5, stripped, sizeof(stripped)); 
 	for (u = 0; u < countof(levelshots); u++)
 	{
@@ -401,11 +417,11 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 		if (COM_FCheckExists(ls))
 		{
 			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", stripped, ls);
-			Con_Printf("^[[%s]\\map\\%s\\tipimg\\%s^]\n", stripped, stripped, ls);
+			Con_Printf("^[[%s]%s\\map\\%s\\tipimg\\%s^]\n", stripped, completed, stripped, ls);
 			return true;
 		}
 	}
-	Con_Printf("^[[%s]\\map\\%s^]\n", stripped, stripped);
+	Con_Printf("^[[%s]%s\\map\\%s^]\n", stripped, completed, stripped);
 	return true;
 }
 static int QDECL ShowMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)

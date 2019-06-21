@@ -614,7 +614,7 @@ static void SND_PaintChannel16_O4I1 (channel_t *ch, sfxcache_t *sc, int count, i
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + pos;
+		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;

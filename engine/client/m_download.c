@@ -215,6 +215,8 @@ static struct
 } downloadablelist[32];
 static int downloadablessequence;	//bumped any time any package is purged
 
+static void PM_WriteInstalledPackages(void);
+
 static void PM_FreePackage(package_t *p)
 {
 	struct packagedep_s *d;
@@ -1079,7 +1081,6 @@ void PM_EnumeratePlugins(void (*callback)(const char *name))
 #endif
 
 #ifdef PLUGINS
-static void PM_WriteInstalledPackages(void);
 static package_t *PM_FindPackage(const char *packagename);
 static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {

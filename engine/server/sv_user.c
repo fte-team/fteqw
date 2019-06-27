@@ -3368,7 +3368,9 @@ void SV_DemoDownload_f(void)
 				if (host_client->download)
 					VFS_CLOSE (host_client->download);
 				host_client->download = NULL;
+#ifdef NQPROT
 				host_client->downloadstarted = false;
+#endif
 			}
 #ifdef HAVE_LEGACY
 			SV_DownloadQueueClear(host_client);

@@ -722,6 +722,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FTE_ALIGN(a)
 #endif
 
+#if __STDC_VERSION__ >= 201112L
+	#include <stdalign.h>
+	#define fte_alignof(type) alignof(qintptr_t)
+#elif _MSC_VER
+	#define fte_alignof(type) __alignof(qintptr_t)
+#else
+	#define fte_alignof(type) sizeof(qintptr_t)
+#endif
+
 //fte_inline must only be used in headers, and requires one and ONLY one fte_inlinebody elsewhere.
 //fte_inlinebody must be used on a prototype OUTSIDE of a header.
 //fte_inlinestatic must not be used inside any headers at all.

@@ -671,7 +671,7 @@ void Q1BSP_CheckHullNodes(hull_t *hull)
 }
 
 
-static int Q1_ModelPointContents (mnode_t *node, vec3_t p)
+static int Q1_ModelPointContents (mnode_t *node, const vec3_t p)
 {
 	float d;
 	mplane_t *plane;
@@ -694,7 +694,7 @@ SV_HullPointContents
 
 ==================
 */
-static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
+static int Q1_HullPointContents (hull_t *hull, int num, const vec3_t p)
 {
 	float		d;
 	mclipnode_t	*node;
@@ -754,7 +754,7 @@ struct rhtctx_s
 	mclipnode_t	*clipnodes;
 	mplane_t	*planes;
 };
-static int Q1BSP_RecursiveHullTrace (struct rhtctx_s *ctx, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+static int Q1BSP_RecursiveHullTrace (struct rhtctx_s *ctx, int num, float p1f, float p2f, const vec3_t p1, const vec3_t p2, trace_t *trace)
 {
 	mclipnode_t	*node;
 	mplane_t	*plane;
@@ -873,7 +873,7 @@ reenter:
 	return rht_impact;
 }
 
-qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, vec3_t p1, vec3_t p2, unsigned int hitcontents, trace_t *trace)
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, const vec3_t p1, const vec3_t p2, unsigned int hitcontents, trace_t *trace)
 {
 	if (VectorEquals(p1, p2))
 	{
@@ -1222,7 +1222,7 @@ static void Q1BSP_InsertBrush(mnode_t *node, mbrush_t *brush, vec3_t bmins, vec3
 		}
 	}
 }
-static void Q1BSP_RecursiveBrushCheck (struct traceinfo_s *traceinfo, mnode_t *node, float p1f, float p2f, vec3_t p1, vec3_t p2)
+static void Q1BSP_RecursiveBrushCheck (struct traceinfo_s *traceinfo, mnode_t *node, float p1f, float p2f, const vec3_t p1, const vec3_t p2)
 {
 	mplane_t	*plane;
 	float		t1, t2;
@@ -1366,13 +1366,13 @@ static unsigned int Q1BSP_TranslateContents(int contents)
 	}
 }
 
-int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
+int Q1BSP_HullPointContents(hull_t *hull, const vec3_t p)
 {
 	return Q1BSP_TranslateContents(Q1_HullPointContents(hull, hull->firstclipnode, p));
 }
 
 #ifdef Q1BSPS
-unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
+unsigned int Q1BSP_PointContents(model_t *model, const vec3_t axis[3], const vec3_t point)
 {
 	int contents;
 	if (axis)
@@ -1513,7 +1513,7 @@ void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 	model->engineflags |= MDLF_HASBRUSHES;
 }
 
-hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t maxs, vec3_t offset)
+hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, const vec3_t mins, const vec3_t maxs, vec3_t offset)
 {
 	hull_t *hull;
 	vec3_t size;
@@ -1559,7 +1559,7 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t m
 	VectorSubtract (hull->clip_mins, mins, offset);
 	return hull;
 }
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, trace_t *trace)
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, trace_t *trace)
 {
 	hull_t *hull;
 	vec3_t start_l, end_l;
@@ -1779,7 +1779,7 @@ Server only functions
 static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
 
 //does the recursive work of Q1BSP_FatPVS
-static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, pvsbuffer_t *pvsbuffer)
+static void SV_Q1BSP_AddToFatPVS (model_t *mod, const vec3_t org, mnode_t *node, pvsbuffer_t *pvsbuffer)
 {
 	mplane_t	*plane;
 	float	d; 
@@ -1818,7 +1818,7 @@ Calculates a PVS that is the inclusive or of all leafs within 8 pixels of the
 given point.
 =============
 */
-static unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean add)
+static unsigned int Q1BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_t *pvsbuffer, qboolean add)
 {
 	if (pvsbuffer->buffersize < mod->pvsbytes)
 		pvsbuffer->buffer = BZ_Realloc(pvsbuffer->buffer, pvsbuffer->buffersize=mod->pvsbytes);
@@ -1829,9 +1829,11 @@ static unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *pvsbuff
 }
 
 #endif
-static qboolean Q1BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs)
+static qboolean Q1BSP_EdictInFatPVS(model_t *mod, const struct pvscache_s *ent, const qbyte *pvs, const int *areas)
 {
 	int i;
+
+	//if (areas)areas[0] is the area count... but q1bsp has no areas so we ignore it entirely.
 
 	if (ent->num_leafs < 0)
 		return true;	//it's in too many leafs for us to cope with. Just trivially accept it.
@@ -1850,7 +1852,7 @@ SV_FindTouchedLeafs
 Links the edict to the right leafs so we can get it's potential visability.
 ===============
 */
-static void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_t *node, float *mins, float *maxs)
+static void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_t *node, const float *mins, const float *maxs)
 {
 	mplane_t	*splitplane;
 	mleaf_t		*leaf;
@@ -1891,7 +1893,7 @@ static void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_
 	if (sides & 2)
 		Q1BSP_RFindTouchedLeafs (wm, ent, node->children[1], mins, maxs);
 }
-static void Q1BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, float *maxs)
+static void Q1BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, const float *mins, const float *maxs)
 {
 	ent->num_leafs = 0;
 	if (mins && maxs)
@@ -2085,7 +2087,7 @@ mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p)
 	return model->leafs + Q1BSP_LeafnumForPoint(model, p);
 }
 
-static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, vec3_t center, float radius, mnode_t *node, qbyte *out, qbyte *unionwith)
+static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, const vec3_t center, float radius, mnode_t *node, qbyte *out, qbyte *unionwith)
 {	//this is really for rtlights.
 	float		t1, t2;
 	mplane_t	*plane;
@@ -2129,7 +2131,7 @@ static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, vec3_t center, floa
 		continue;
 	}
 }
-static qbyte *Q1BSP_ClustersInSphere(model_t *mod, vec3_t center, float radius, pvsbuffer_t *pvsbuffer, qbyte *unionwith)
+static qbyte *Q1BSP_ClustersInSphere(model_t *mod, const vec3_t center, float radius, pvsbuffer_t *fte_restrict pvsbuffer, const qbyte *unionwith)
 {
 	if (!mod)
 		Sys_Error ("Mod_PointInLeaf: bad model");
@@ -2145,7 +2147,7 @@ static qbyte *Q1BSP_ClustersInSphere(model_t *mod, vec3_t center, float radius, 
 
 //returns the leaf number, which is used as a direct bit index into the pvs.
 //-1 for invalid
-static int Q1BSP_ClusterForPoint (model_t *model, vec3_t p)
+static int Q1BSP_ClusterForPoint (model_t *model, const vec3_t p, int *area)
 {
 	mnode_t		*node;
 	float		d;
@@ -2155,6 +2157,8 @@ static int Q1BSP_ClusterForPoint (model_t *model, vec3_t p)
 	{
 		Sys_Error ("Mod_PointInLeaf: bad model");
 	}
+	if (area)
+		*area = 0;	//no areas with q1bsp.
 	if (!model->nodes)
 		return -1;
 

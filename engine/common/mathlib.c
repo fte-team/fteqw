@@ -167,7 +167,7 @@ BoxOnPlaneSide
 Returns 1, 2, or 1 + 2
 ==================
 */
-int VARGS BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, mplane_t *p)
+int VARGS BoxOnPlaneSide (const vec3_t emins, const vec3_t emaxs, const mplane_t *p)
 {
 	float	dist1, dist2;
 	int		sides;
@@ -291,7 +291,7 @@ void VectorVectors(const vec3_t forward, vec3_t right, vec3_t up)
 	CrossProduct(right, forward, up);
 }
 
-void QDECL VectorAngles(float *forward, float *up, float *result, qboolean meshpitch)	//up may be NULL
+void QDECL VectorAngles(const float *forward, const float *up, float *result, qboolean meshpitch)	//up may be NULL
 {
 	float	yaw, pitch, roll;	
 
@@ -583,7 +583,7 @@ void QDECL R_ConcatTransforms (const float in1[3][4], const float in2[3][4], flo
 }
 
 //R_ConcatTransforms where there's no offset values, and a transposed axis
-void R_ConcatTransformsAxis (float in1[3][3], float in2[3][4], float out[3][4])
+void R_ConcatTransformsAxis (const float in1[3][3], const float in2[3][4], float out[3][4])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[1][0] * in2[1][0] +
 				in1[2][0] * in2[2][0];
@@ -1910,7 +1910,7 @@ vec_t QDECL VectorNormalize2 (const vec3_t v, vec3_t out)
 		
 	return length;
 }
-float ColorNormalize (vec3_t in, vec3_t out)
+float ColorNormalize (const vec3_t in, vec3_t out)
 {
 	float f = max (max (in[0], in[1]), in[2]);
 
@@ -1928,7 +1928,7 @@ float ColorNormalize (vec3_t in, vec3_t out)
 	return f;
 }
 
-void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
+void MakeNormalVectors (const vec3_t forward, vec3_t right, vec3_t up)
 {
 	float		d;
 

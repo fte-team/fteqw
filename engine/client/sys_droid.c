@@ -49,7 +49,9 @@ static qboolean sys_wantshutdown;
 static JavaVM* sys_javavm;
 static jobject *sys_activity;
 static jobject *sys_cursurface;	//surface we're currently trying to draw to
+static jobject *sys_cursholder; //silly android junk
 static jobject *sys_newsurface;	//surface we're meant to be switching our gl context to
+static jobject *sys_newsholder; //silly android junk
 static void *sys_mainthread;
 static void *sys_mainconditional;
 
@@ -663,10 +665,13 @@ static int FTEDroid_MainThread(void *arg)
 		if (r_forcevidrestart)
 		{
 			ANativeWindow *oldwnd = NULL;
+			jobject oldholder = NULL;
 			jobject oldsurf = NULL;
 			JNIEnv *env = NULL;
 			if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &env, NULL))
 			{
+				oldholder = sys_cursholder;
+				sys_cursholder = (*env)->NewGlobalRef(env, sys_newsholder);
 				oldsurf = sys_cursurface;
 				sys_cursurface = (*env)->NewGlobalRef(env, sys_newsurface);
 
@@ -687,10 +692,12 @@ static int FTEDroid_MainThread(void *arg)
 			LOGI("Video Restarted...\n");
 			//main thread can wake up now.
 
-			if (oldsurf)
-				(*env)->DeleteGlobalRef(env, oldsurf);
 			if (oldwnd)
 				ANativeWindow_release(oldwnd);
+			if (oldsurf)
+				(*env)->DeleteGlobalRef(env, oldsurf);
+			if (oldholder)
+				(*env)->DeleteGlobalRef(env, oldholder);
 			if (env)
 				(*sys_javavm)->DetachCurrentThread(sys_javavm);
 
@@ -752,6 +759,25 @@ static int FTEDroid_MainThread(void *arg)
 		if (sleeptime)
 			Sys_Sleep(sleeptime);
 	}
+
+	//don't permanently hold these when there's no active activity.
+	//(hopefully there's no gl context active right now...)
+	JNIEnv *env = NULL;
+	if (JNI_OK == (*sys_javavm)->AttachCurrentThread(sys_javavm, &env, NULL))
+	{
+		if (sys_nativewindow)
+			ANativeWindow_release(sys_nativewindow);
+		sys_nativewindow = NULL;
+		if (sys_cursurface)
+			(*env)->DeleteGlobalRef(env, sys_cursurface);
+		sys_cursurface = NULL;
+		if (sys_cursholder)
+			(*env)->DeleteGlobalRef(env, sys_cursholder);
+		sys_cursholder = NULL;
+		if (env)
+			(*sys_javavm)->DetachCurrentThread(sys_javavm);
+	}
+
 	return 0;
 }
 
@@ -1171,7 +1197,7 @@ static jboolean FTENativeActivity_startup(JNIEnv *jni, jobject this, jstring ext
 	return false;
 }
 
-static void FTENativeActivity_surfacechange(JNIEnv *env, jobject this, jboolean teardown, jboolean recreate, jobject surface)
+static void FTENativeActivity_surfacechange(JNIEnv *env, jobject this, jboolean teardown, jboolean recreate, jobject holder, jobject surface)
 {
 	if (!(*env)->IsSameObject(env, this, sys_activity))
 	{
@@ -1193,6 +1219,9 @@ static void FTENativeActivity_surfacechange(JNIEnv *env, jobject this, jboolean 
 	if (sys_newsurface)
 		(*env)->DeleteGlobalRef(env, sys_newsurface);
 	sys_newsurface = surface?(*env)->NewGlobalRef(env, surface):NULL;
+	if (sys_newsholder)
+		(*env)->DeleteGlobalRef(env, sys_newsholder);
+	sys_newsholder = holder?(*env)->NewGlobalRef(env, holder):NULL;
 	//and wake up then	
 	Sys_ConditionWait(sys_mainconditional);
 	//and we're done...
@@ -1217,6 +1246,9 @@ static void FTENativeActivity_shutdown(JNIEnv *env, jobject this)
 
 	(*env)->DeleteGlobalRef(env, sys_newsurface);
 	sys_newsurface = NULL;
+	
+	(*env)->DeleteGlobalRef(env, sys_newsholder);
+	sys_newsholder = NULL;
 
 	(*env)->DeleteGlobalRef(env, sys_activity);
 	sys_activity = NULL;
@@ -1237,7 +1269,7 @@ static void FTENativeActivity_openfile(JNIEnv *env, jobject this, jstring filena
 static JNINativeMethod methods[] = {
 	//
 	{"startup",			"(Ljava/lang/String;Ljava/lang/String;)Z",	FTENativeActivity_startup},			//creates our 'main' thread too
-	{"surfacechange",	"(ZZLandroid/view/Surface;)V",				FTENativeActivity_surfacechange},	//syncs
+	{"surfacechange",	"(ZZLandroid/view/SurfaceHolder;Landroid/view/Surface;)V",				FTENativeActivity_surfacechange},	//syncs
 	{"shutdown",		"()V",										FTENativeActivity_shutdown},		//joins 'main' thread.
 	{"openfile",		"(Ljava/lang/String;)V",					FTENativeActivity_openfile},
 

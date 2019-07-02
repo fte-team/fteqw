@@ -57,16 +57,16 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 extern void BuildLightMapGammaTable (float g, float c);
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
-static qboolean CM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
-static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
-static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
-static int CM_PointCluster (model_t *mod, vec3_t p);
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
+static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+static unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p);
+static int CM_PointCluster (model_t *mod, const vec3_t p, int *area);
 struct cminfo_s;
 static struct bihnode_s *CM_BuildBIH (model_t *mod, struct cminfo_s *prv);
 static unsigned int CM_PointContentsBIH (const struct bihnode_s *fte_restrict node, const vec3_t p);
 #endif
 
-float RadiusFromBounds (vec3_t mins, vec3_t maxs)
+float RadiusFromBounds (const vec3_t mins, const vec3_t maxs)
 {
 	int		i;
 	vec3_t	corner;
@@ -4236,8 +4236,6 @@ static void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 
 #endif
 
-void GLQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-
 /*
 ==================
 CM_LoadMap
@@ -4870,8 +4868,8 @@ mplane_t		box_planes[6];
 model_t			box_model;
 q2cbrush_t		box_brush;
 q2cbrushside_t	box_sides[6];
-static qboolean BM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
-static unsigned int BM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+static qboolean BM_NativeTrace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
+static unsigned int BM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
 {
 	unsigned int j;
 	q2cbrushside_t *brushside = box_sides;
@@ -4947,7 +4945,7 @@ To keep everything totally uniform, bounding boxes are turned into small
 BSP trees instead of being compared directly.
 ===================
 */
-static void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
+static void CM_SetTempboxSize (const vec3_t mins, const vec3_t maxs)
 {
 	box_planes[0].dist = maxs[0];
 	box_planes[1].dist = maxs[1];
@@ -4957,7 +4955,7 @@ static void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
 	box_planes[5].dist = -mins[2];
 }
 
-model_t *CM_TempBoxModel(vec3_t mins, vec3_t maxs)
+model_t *CM_TempBoxModel(const vec3_t mins, const vec3_t maxs)
 {
 	CM_SetTempboxSize(mins, maxs);
 	return &box_model;
@@ -4969,7 +4967,7 @@ CM_PointLeafnum_r
 
 ==================
 */
-static int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
+static int CM_PointLeafnum_r (model_t *mod, const vec3_t p, int num)
 {
 	float		d;
 	mnode_t		*node;
@@ -4993,18 +4991,23 @@ static int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
 	return -1 - num;
 }
 
-int CM_PointLeafnum (model_t *mod, vec3_t p)
+int CM_PointLeafnum (model_t *mod, const vec3_t p)
 {
 	if (!mod || mod->loadstate != MLS_LOADED)
 		return 0;		// sound may call this without map loaded
 	return CM_PointLeafnum_r (mod, p, 0);
 }
 
-static int CM_PointCluster (model_t *mod, vec3_t p)
+static int CM_PointCluster (model_t *mod, const vec3_t p, int *area)
 {
+	int leaf;
 	if (!mod || mod->loadstate != MLS_LOADED)
 		return 0;		// sound may call this without map loaded
-	return CM_LeafCluster(mod, CM_PointLeafnum_r (mod, p, 0));
+
+	leaf = CM_PointLeafnum_r (mod, p, 0);
+	if (area)
+		*area = CM_LeafArea(mod, leaf);
+	return CM_LeafCluster(mod, leaf);
 }
 
 /*
@@ -5016,7 +5019,7 @@ Fills in a list of all the leafs touched
 */
 int		leaf_count, leaf_maxcount;
 int		*leaf_list;
-float	*leaf_mins, *leaf_maxs;
+const float	*leaf_mins, *leaf_maxs;
 int		leaf_topnode;
 
 static void CM_BoxLeafnums_r (model_t *mod, int nodenum)
@@ -5057,7 +5060,7 @@ static void CM_BoxLeafnums_r (model_t *mod, int nodenum)
 	}
 }
 
-static int	CM_BoxLeafnums_headnode (model_t *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int headnode, int *topnode)
+static int	CM_BoxLeafnums_headnode (model_t *mod, const vec3_t mins, const vec3_t maxs, int *list, int listsize, int headnode, int *topnode)
 {
 	leaf_list = list;
 	leaf_count = 0;
@@ -5075,7 +5078,7 @@ static int	CM_BoxLeafnums_headnode (model_t *mod, vec3_t mins, vec3_t maxs, int 
 	return leaf_count;
 }
 
-int	CM_BoxLeafnums (model_t *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode)
+int	CM_BoxLeafnums (model_t *mod, const vec3_t mins, const vec3_t maxs, int *list, int listsize, int *topnode)
 {
 	return CM_BoxLeafnums_headnode (mod, mins, maxs, list,
 		listsize, mod->hulls[0].firstclipnode, topnode);
@@ -5089,7 +5092,7 @@ CM_PointContents
 
 ==================
 */
-int CM_PointContents (model_t *mod, vec3_t p)
+int CM_PointContents (model_t *mod, const vec3_t p)
 {
 	cminfo_t		*prv = (cminfo_t*)mod->meshinfo;
 	int				i, j, contents;
@@ -5146,7 +5149,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	return contents;
 }
 
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
 {
 	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	int	contents;
@@ -5210,7 +5213,7 @@ Handles offseting and rotation of the end points for moving and
 rotating entities
 ==================
 */
-int	CM_TransformedPointContents (model_t *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles)
+int	CM_TransformedPointContents (model_t *mod, const vec3_t p, int headnode, const vec3_t origin, const vec3_t angles)
 {
 	vec3_t		p_l;
 	vec3_t		temp;
@@ -6699,8 +6702,8 @@ static struct bihnode_s *CM_BuildBIH (model_t *mod, cminfo_t *prv)
 CM_BoxTrace
 ==================
 */
-static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
-						  vec3_t mins, vec3_t maxs, qboolean capsule,
+static trace_t		CM_BoxTrace (model_t *mod, const vec3_t start, const vec3_t end,
+						  const vec3_t mins, const vec3_t maxs, qboolean capsule,
 						  int brushmask)
 {
 	int		i;
@@ -6897,7 +6900,7 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
-static qboolean BM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
+static qboolean BM_NativeTrace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
 {
 	int i;
 	memset (trace, 0, sizeof(*trace));
@@ -6941,7 +6944,7 @@ static qboolean BM_NativeTrace(model_t *model, int forcehullnum, framestate_t *f
 	}
 	return trace->fraction != 1;
 }
-static qboolean CM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
 {
 	if (axis)
 	{
@@ -7200,7 +7203,7 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 	return buffer->buffer;
 }
 
-static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *result, qboolean merge)
+static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_t *result, qboolean merge)
 {
 	int	leafs[64];
 	int		i, j, count;
@@ -7249,7 +7252,7 @@ static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *res
 }
 
 static int		clientarea;
-unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboolean merge)
+unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *fte_restrict buffer, qboolean merge)
 {//fixme: this doesn't add areas
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
@@ -7258,21 +7261,29 @@ unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboole
 	return SV_Q2BSP_FatPVS (mod, org, buffer, merge);
 }
 
-qboolean Q23BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
+qboolean Q23BSP_EdictInFatPVS(model_t *mod, const pvscache_t *ent, const qbyte *pvs, const int *areas)
 {
 	int i,l;
 	int nullarea = (mod->fromgame == fg_quake2)?0:-1;
-	if (clientarea == ent->areanum)
+	if (areas)
 	{
-		if (clientarea == nullarea)
-			return false;
-	}
-	else  if (!CM_AreasConnected (mod, clientarea, ent->areanum))
-	{	// doors can legally straddle two areas, so
-		// we may need to check another one
-		if (ent->areanum2 == nullarea
-			|| !CM_AreasConnected (mod, clientarea, ent->areanum2))
-			return false;		// blocked by a door
+		for (i = 1; ; i++)
+		{
+			if (i > areas[0])
+				return false;	//none of the camera's areas could see the entity
+			if (areas[i] == ent->areanum)
+			{
+				if (areas[i] != nullarea)
+					break;
+				//else entity is fully outside the world, invisible to all...
+			}
+			else if (CM_AreasConnected (mod, areas[i], ent->areanum))
+				break;
+			// doors can legally straddle two areas, so
+			// we may need to check another one
+			else if (ent->areanum2 != nullarea && CM_AreasConnected (mod, areas[i], ent->areanum2))
+				break;
+		}
 	}
 
 	if (ent->num_leafs == -1)
@@ -7564,7 +7575,7 @@ Returns true if any leaf under headnode has a cluster that
 is potentially visible
 =============
 */
-qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, qbyte *visbits)
+qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, const qbyte *visbits)
 {
 	int		leafnum;
 	int		cluster;
@@ -7587,7 +7598,7 @@ qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, qbyte *visbits)
 	return CM_HeadnodeVisible(mod, node->childnum[1], visbits);
 }
 
-unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
+unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p)
 {
 	int pc;
 	pc = CM_PointContents (mod, p);

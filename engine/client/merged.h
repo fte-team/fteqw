@@ -170,6 +170,7 @@ enum mlverbosity_e
 	MLV_ERROR
 };
 
+extern struct model_s *mod_known; //for evil people that want to do evil indexing.
 const char *Mod_GetEntitiesString(struct model_s *mod);
 void Mod_SetEntitiesStringLen(struct model_s *mod, const char *str, size_t strsize);
 void Mod_SetEntitiesString(struct model_s *mod, const char *str, qboolean docopy);

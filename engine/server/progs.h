@@ -28,7 +28,6 @@ void SVQ1_CvarChanged(cvar_t *var);
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
 void PR_Deinit(void);	//server shutting down
-void PR_Shutdown(void);	//server quitting
 void PR_LoadGlabalStruct(qboolean muted);
 void Q_InitProgs(qboolean cinematic);
 void PR_SpawnInitialEntities(const char *file);

@@ -129,17 +129,17 @@ typedef struct {
 void		AddPointToBounds (const vec3_t v, vec3_t mins, vec3_t maxs);
 float		anglemod (float a);
 void		QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
-void		QDECL VectorAngles (float *forward, float *up, float *angles, qboolean meshpitch);	//up may be NULL
+void		QDECL VectorAngles (const float *forward, const float *up, float *angles, qboolean meshpitch);	//up may be NULL
 void VARGS	BOPS_Error (void);
-int VARGS	BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, struct mplane_s *plane);
+int VARGS	BoxOnPlaneSide (const vec3_t emins, const vec3_t emaxs, const struct mplane_s *plane);
 void		ClearBounds (vec3_t mins, vec3_t maxs);
-float		ColorNormalize (vec3_t in, vec3_t out);
+float		ColorNormalize (const vec3_t in, vec3_t out);
 void		CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross);
 void		FloorDivMod (double numer, double denom, int *quotient, int *rem);
 int			GreatestCommonDivisor (int i1, int i2);
 fixed16_t	Invert24To16 (fixed16_t val);
 vec_t		Length (const vec3_t v);
-void		MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
+void		MakeNormalVectors (const vec3_t forward, vec3_t right, vec3_t up);
 float		Q_rsqrt(float number);
 
 /*
@@ -205,7 +205,8 @@ int			Q_log2 (int val);
 void		R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
 void		R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
 void		QDECL R_ConcatTransforms (const matrix3x4 in1, const matrix3x4 in2, matrix3x4 out);
-void		R_ConcatTransformsAxis (float in1[3][3], float in2[3][4], float out[3][4]);
+void		R_ConcatTransformsAxis (const float in1[3][3], const float in2[3][4], float out[3][4]);
+void		PerpendicularVector(vec3_t dst, const vec3_t src);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
 void		RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
 int			VectorCompare (const vec3_t v1, const vec3_t v2);

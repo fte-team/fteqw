@@ -371,7 +371,7 @@ pubsubserver_t *Sys_ForkServer(void)
 	DL_DeThread();
 #endif
 #ifdef SQL
-	SQL_KillServers();	//FIXME: this is bad...
+	SQL_KillServers(NULL);	//FIXME: this is bad...
 #endif
 	//FIXME: we should probably use posix_atfork for those.
 

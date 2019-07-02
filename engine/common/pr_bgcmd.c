@@ -5,6 +5,9 @@
 #if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
 
 #include "pr_common.h"
+#ifdef SQL
+#include "sv_sql.h"
+#endif
 
 #include <ctype.h>
 
@@ -1122,26 +1125,28 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 	}
 }
 
-pvsbuffer_t qcpvs;
 //#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
 //note: this requires a correctly setorigined entity.
 void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *world = prinst->parms->user;
+	model_t *worldmodel = world->worldmodel;
 	float *viewpos = G_VECTOR(OFS_PARM0);
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM1);
+	int cluster;
+	int qcpvsarea[2];
+	qbyte *pvs;
 
-	if (!world->worldmodel || world->worldmodel->loadstate != MLS_LOADED)
+	if (!worldmodel || worldmodel->loadstate != MLS_LOADED)
 		G_FLOAT(OFS_RETURN) = false;
-	else if (!world->worldmodel->funcs.FatPVS)
+	else if (!worldmodel->funcs.FatPVS)
 		G_FLOAT(OFS_RETURN) = true;
 	else
 	{
-		//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
-		//and yeah, this is overkill what with the whole fat thing and all.
-		world->worldmodel->funcs.FatPVS(world->worldmodel, viewpos, &qcpvs, false);
-
-		G_FLOAT(OFS_RETURN) = world->worldmodel->funcs.EdictInFatPVS(world->worldmodel, &ent->pvsinfo, qcpvs.buffer);
+		qcpvsarea[0] = 1;
+		cluster = worldmodel->funcs.ClusterForPoint(worldmodel, viewpos, &qcpvsarea[1]);
+		pvs = worldmodel->funcs.ClusterPVS(worldmodel, cluster, NULL, PVM_FAST);
+		G_FLOAT(OFS_RETURN) = worldmodel->funcs.EdictInFatPVS(worldmodel, &ent->pvsinfo, pvs, qcpvsarea);
 	}
 }
 
@@ -6423,6 +6428,9 @@ void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 #endif
 #ifdef TEXTEDITOR
 	Editor_ProgsKilled(progs);
+#endif
+#ifdef SQL
+	SQL_KillServers(progs);
 #endif
 	tokenize_flush();
 }

@@ -2648,6 +2648,7 @@ void Surf_SetupFrame(void)
 		R_UpdateHDR(r_refdef.vieworg);
 	}
 
+	r_viewarea = 0;
 	viewcontents = 0;
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
@@ -2661,6 +2662,7 @@ void Surf_SetupFrame(void)
 	else if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 	{
 		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
+		r_viewarea = leaf->area;
 		viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, pvsorg);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
@@ -3210,6 +3212,7 @@ void Surf_DrawWorld (void)
 {
 	//surfvis vs entvis - the key difference is that surfvis is surfaces while entvis is volume. though surfvis should be frustum culled also for lighting. entvis doesn't care.
 	qbyte *surfvis, *entvis;
+	int areas[2];
 	RSpeedLocals();
 
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
@@ -3351,9 +3354,11 @@ void Surf_DrawWorld (void)
 
 				RSpeedEnd(RSPEED_WORLDNODE);
 
-				CL_LinkStaticEntities(entvis);
+				areas[0] = 1;
+				areas[1] = r_viewarea;
+				CL_LinkStaticEntities(entvis, areas);
 				TRACE(("dbg: calling R_DrawParticles\n"));
-				if (!r_refdef.recurse)
+				if (!r_refdef.recurse && !(r_refdef.flags & RDF_DISABLEPARTICLES))
 					P_DrawParticles ();
 
 				TRACE(("dbg: calling BE_DrawWorld\n"));
@@ -3471,11 +3476,14 @@ void Surf_DrawWorld (void)
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 
+		areas[0] = 1;
+		areas[1] = r_viewarea;
+		r_refdef.sceneareas = areas;
 		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		{
-			CL_LinkStaticEntities(entvis);
+			CL_LinkStaticEntities(entvis, r_refdef.sceneareas);
 			TRACE(("dbg: calling R_DrawParticles\n"));
-			if (!r_refdef.recurse)
+			if (!r_refdef.recurse && !(r_refdef.flags & RDF_DISABLEPARTICLES))
 				P_DrawParticles ();
 		}
 

@@ -852,23 +852,11 @@ void PR_Deinit(void)
 
 	World_Destroy(&sv.world);
 
-#ifdef SQL
-	SQL_KillServers();
-#endif
-
 	//clear out function pointers (so changing game modes cannot lead to confusions)
 	memset(&gfuncs, 0, sizeof(gfuncs));
 	SpectatorConnect = 0;
 	SpectatorThink = 0;
 	SpectatorDisconnect = 0;
-}
-
-void PR_Shutdown(void)
-{
-	PR_Deinit();
-#ifdef SQL
-	SQL_DeInit();
-#endif
 }
 
 void PR_LoadGlabalStruct(qboolean muted)
@@ -1988,10 +1976,6 @@ void Q_InitProgs(qboolean cinematic)
 			SV_Error("No gamecode available. Try using the downloads menu.\n");
 		Con_Printf(CON_ERROR"Running without gamecode\n");
 	}
-
-#ifdef SQL
-	SQL_KillServers(); // TODO: is this the best placement for this?
-#endif
 
 	if (oldprnum >= 0)
 		f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
@@ -3901,7 +3885,7 @@ void PF_newcheckclient (pubprogfuncs_t *prinst, world_t *w)
 		w->lastcheckpvs = NULL;
 	else
 	{
-		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, checkorg);
+		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, checkorg, NULL);
 		w->lastcheckpvs = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, &checkpvsbuffer, PVM_FAST);
 	}
 
@@ -3956,7 +3940,7 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 
 	if (w->lastcheckpvs)
 	{
-		clust = w->worldmodel->funcs.ClusterForPoint(w->worldmodel, view);
+		clust = w->worldmodel->funcs.ClusterForPoint(w->worldmodel, view, NULL);
 		if ( (clust<0) || !(w->lastcheckpvs[clust>>3] & (1<<(clust&7)) ) )
 		{
 			return 0;
@@ -6488,7 +6472,7 @@ void QCBUILTIN PF_sqlconnect (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	if (!driver[0])
 		driver = sql_driver.string;
 
-	G_FLOAT(OFS_RETURN) = SQL_NewServer(driver, paramstr);
+	G_FLOAT(OFS_RETURN) = SQL_NewServer(prinst, driver, paramstr);
 }
 
 void QCBUILTIN PF_sqldisconnect (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6497,7 +6481,7 @@ void QCBUILTIN PF_sqldisconnect (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			SQL_Disconnect(server);
@@ -6555,7 +6539,7 @@ void QCBUILTIN PF_sqlopenquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			queryrequest_t *qreq;
@@ -6597,7 +6581,7 @@ void QCBUILTIN PF_sqlclosequery (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			qreq = SQL_GetQueryRequest(server, G_FLOAT(OFS_PARM1));
@@ -6621,7 +6605,7 @@ void QCBUILTIN PF_sqlreadfield (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1), G_FLOAT(OFS_PARM2));
@@ -6653,7 +6637,7 @@ void QCBUILTIN PF_sqlreadfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			if (G_FLOAT(OFS_PARM2) < 0)
@@ -6729,7 +6713,7 @@ void QCBUILTIN PF_sqlreadblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(serveridx, false);
+		server = SQL_GetServer(prinst, serveridx, false);
 		if (server)
 		{
 			qres = SQL_GetQueryResult(server, queryidx, row);
@@ -6791,7 +6775,7 @@ void QCBUILTIN PF_sqlerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), true);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), true);
 		if (server)
 		{
 			if (svprogfuncs->callargc == 2)
@@ -6825,7 +6809,7 @@ void QCBUILTIN PF_sqlescape (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			toescape = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -6847,7 +6831,7 @@ void QCBUILTIN PF_sqlversion (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	if (SQL_Available())
 	{
-		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
+		server = SQL_GetServer(prinst, G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			RETURN_TSTRING(SQL_Info(server));

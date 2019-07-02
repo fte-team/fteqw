@@ -318,6 +318,7 @@ extern	vec3_t	r_origin;
 //
 extern	refdef_t	r_refdef;
 extern	unsigned int r_viewcontents;
+int r_viewarea;
 extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2
 extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
@@ -406,7 +407,7 @@ void R_InitFlashblends(void);
 #ifdef GLQUAKE
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 #endif
-void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 qboolean R_LoadRTLights(void);
 qboolean R_ImportRTLights(const char *entlump);
 

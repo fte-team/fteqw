@@ -230,42 +230,35 @@ typedef struct
 	qbyte *buffer;	//reallocated if needed.
 	size_t buffersize;
 } pvsbuffer_t;
-#if 1
-typedef char *pvsmerge_t;
-#define PVM_FAST ((char*)0)
-#define PVM_MERGE ((char*)1)
-#define PVM_REPLACE ((char*)2)
-#else
 typedef enum
 {
 	PVM_FAST,
 	PVM_MERGE,	//merge the pvs bits into the provided buffer
 	PVM_REPLACE,//return value is guarenteed to be the provided buffer.
 } pvsmerge_t;
-#endif
 
 typedef struct {
 	//model is being purged from memory.
 	void (*PurgeModel) (struct model_s *mod);
 
-	unsigned int (*PointContents)	(struct model_s *model, vec3_t axis[3], vec3_t p);
-	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+	unsigned int (*PointContents)	(struct model_s *model, const vec3_t axis[3], const vec3_t p);
+	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 
 	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
-	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
-	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
+	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 
-	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, struct pvscache_s *edict, qbyte *pvs);
-	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
+	unsigned int (*FatPVS)		(struct model_s *model, const vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge);
+	qboolean (*EdictInFatPVS)	(struct model_s *model, const struct pvscache_s *edict, const qbyte *pvs, const int *areas);	//areas[0] is the count of accepted areas, if valid.
+	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
-	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+	void (*LightPointValues)	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 
-	int	(*ClusterForPoint)		(struct model_s *model, vec3_t point);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
+	int	(*ClusterForPoint)		(struct model_s *model, const vec3_t point, int *areaout);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
 	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
-	qbyte *(*ClustersInSphere)	(struct model_s *model, vec3_t point, float radius, pvsbuffer_t *pvsbuffer, qbyte *unionwith);
+	qbyte *(*ClustersInSphere)	(struct model_s *model, const vec3_t point, float radius, pvsbuffer_t *pvsbuffer, const qbyte *fte_restrict unionwith);
 } modelfuncs_t;
 
 
@@ -571,8 +564,8 @@ size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes,
 void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, unsigned int surfflagmask, unsigned int surflagmatch, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx);
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
-void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, vec3_t p1, vec3_t p2, unsigned int hitcontents, struct trace_s *trace);
+void GLQ1BSP_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, const vec3_t p1, const vec3_t p2, unsigned int hitcontents, struct trace_s *trace);
 
 /*
 ==============================================================================
@@ -1077,7 +1070,7 @@ typedef struct model_s
 #endif	// __MODEL__
 
 
-float RadiusFromBounds (vec3_t mins, vec3_t maxs);
+float RadiusFromBounds (const vec3_t mins, const vec3_t maxs);
 
 
 //
@@ -1093,8 +1086,8 @@ void Terr_FinishTerrain(model_t *model);
 void Terr_PurgeTerrainModel(model_t *hm, qboolean lightmapsonly, qboolean lightmapreusable);
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force);	//call this after loading a bsp
 qboolean Terrain_LocateSection(const char *name, flocation_t *loc);	//used on servers to generate sections for download.
-qboolean Heightmap_Trace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentmask, struct trace_s *trace);
-unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);
+qboolean Heightmap_Trace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contentmask, struct trace_s *trace);
+unsigned int Heightmap_PointContents(model_t *model, const vec3_t axis[3], const vec3_t org);
 struct fragmentdecal_s;
 void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);
 qboolean Terr_DownloadedSection(char *fname);
@@ -1122,22 +1115,22 @@ void CM_InitBoxHull (void);
 void CM_Init(void);
 
 qboolean	CM_SetAreaPortalState (struct model_s *mod, int portalnum, qboolean open);
-qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, qbyte *visbits);
+qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, const qbyte *visbits);
 qboolean	VARGS CM_AreasConnected (struct model_s *mod, unsigned int area1, unsigned int area2);
 int		CM_ClusterBytes (struct model_s *mod);
 int		CM_LeafContents (struct model_s *mod, int leafnum);
 int		CM_LeafCluster (struct model_s *mod, int leafnum);
 int		CM_LeafArea (struct model_s *mod, int leafnum);
 int		CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, int area, qboolean merge);
-int		CM_PointLeafnum (struct model_s *mod, vec3_t p);
+int		CM_PointLeafnum (struct model_s *mod, const vec3_t p);
 qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
 qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster, pvsbuffer_t *buffer);
-int		CM_BoxLeafnums (struct model_s *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode);
-int		CM_PointContents (struct model_s *mod, vec3_t p);
-int		CM_TransformedPointContents (struct model_s *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles);
-int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
+int		CM_BoxLeafnums (struct model_s *mod, const vec3_t mins, const vec3_t maxs, int *list, int listsize, int *topnode);
+int		CM_PointContents (struct model_s *mod, const vec3_t p);
+int		CM_TransformedPointContents (struct model_s *mod, const vec3_t p, int headnode, const vec3_t origin, const vec3_t angles);
+int		CM_HeadnodeForBox (struct model_s *mod, const vec3_t mins, const vec3_t maxs);
 //struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
-struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
+struct model_s *CM_TempBoxModel(const vec3_t mins, const vec3_t maxs);
 
 //for gamecode to control portals/areas
 void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open);

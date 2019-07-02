@@ -138,7 +138,7 @@ qboolean World_BoxTrace(struct model_s *model, int hulloverride, int frame, vec3
 	VectorCopy (p2, trace->endpos);
 	return Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, p1, p2, against, trace);
 }
-qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	//bbox vs capsule (NYI)
 	//capsule vs capsule (NYI)
@@ -196,7 +196,7 @@ qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, framestate_
 	}
 	return false;
 }
-model_t *World_CapsuleForBox(vec3_t mins, vec3_t maxs)
+model_t *World_CapsuleForBox(const vec3_t mins, const vec3_t maxs)
 {
 	VectorCopy(mins, mod_capsule.mins);
 	VectorCopy(maxs, mod_capsule.maxs);
@@ -1068,7 +1068,7 @@ void WorldQ2_Q1BSP_LinkEdict(world_t *w, q2edict_t *ent)
 
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
-void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins, float *maxs)
+void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, const float *mins, const float *maxs)
 {
 #define MAX_TOTAL_ENT_LEAFS		128
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
@@ -1536,7 +1536,7 @@ int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int
 #endif
 
 #ifdef Q2SERVER
-float	*area_mins, *area_maxs;
+const float	*area_mins, *area_maxs;
 q2edict_t	**area_q2list;
 int		area_count, area_maxcount;
 int		area_type;
@@ -1598,7 +1598,7 @@ static void WorldQ2_AreaEdicts_r (areanode_t *node)
 		WorldQ2_AreaEdicts_r ( node->children[1] );
 }
 
-int VARGS WorldQ2_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, q2edict_t **list,
+int VARGS WorldQ2_AreaEdicts (world_t *w, const vec3_t mins, const vec3_t maxs, q2edict_t **list,
 	int maxcount, int areatype)
 {
 	area_mins = mins;

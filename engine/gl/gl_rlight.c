@@ -2301,7 +2301,7 @@ LIGHT SAMPLING
 mplane_t		*lightplane;
 vec3_t			lightspot;
 
-static void GLQ3_AddLatLong(qbyte latlong[2], vec3_t dir, float mag)
+static void GLQ3_AddLatLong(const qbyte latlong[2], vec3_t dir, float mag)
 {
 	float lat = (float)latlong[0] * (2 * M_PI)*(1.0 / 255.0);
 	float lng = (float)latlong[1] * (2 * M_PI)*(1.0 / 255.0);
@@ -2310,7 +2310,7 @@ static void GLQ3_AddLatLong(qbyte latlong[2], vec3_t dir, float mag)
 	dir[2] += mag * cos ( lat );
 }
 
-void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)cl.worldmodel->lightgrid;
 	int index[8];
@@ -2585,7 +2585,7 @@ int R_LightPoint (vec3_t p)
 
 #ifdef PEXT_LIGHTSTYLECOL
 
-static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, vec3_t start, vec3_t end)
+static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t start, const vec3_t end)
 {
 	static float l[6];
 	float *r;
@@ -2813,7 +2813,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, vec3_t start
 
 #endif
 
-void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	vec3_t		end;
 	float *r;

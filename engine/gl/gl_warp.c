@@ -131,24 +131,12 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	if (!r_refdef.skyroom_enabled || r_refdef.recurse >= R_MAX_RECURSE-1)
 		return false;
 
-	if (skyshader->numpasses)
-	{
-		shaderpass_t *pass = skyshader->passes;
-		if (pass->shaderbits & SBITS_ATEST_BITS)	//alphatests
-			;
-		else if (pass->shaderbits & SBITS_MASK_BITS)	//colormasks
-			;
-		else if ((pass->shaderbits & SBITS_BLEND_BITS) != 0 && (pass->shaderbits & SBITS_BLEND_BITS) != (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))	//blendfunc
-			;
-		else
-			return false;	//that shader looks like its opaque.
-	}
-
 	oldrefdef = r_refdef;
 	r_refdef.recurse+=1;
 
 	r_refdef.externalview = true;
 	r_refdef.skyroom_enabled = false;
+	r_refdef.flags |= RDF_DISABLEPARTICLES;
 
 	/*work out where the camera should be (use the same angles)*/
 	VectorCopy(r_refdef.skyroom_pos, r_refdef.vieworg);
@@ -231,8 +219,21 @@ qboolean R_DrawSkyChain (batch_t *batch)
 		skyboxtex = NULL;
 
 	if (R_DrawSkyroom(skyshader))
-	{
+	{	//don't obscure the skyroom if the sky shader is opaque.
+		qboolean opaque = false;
 		if (skyshader->numpasses)
+		{
+			shaderpass_t *pass = skyshader->passes;
+			if (pass->shaderbits & SBITS_ATEST_BITS)	//alphatests
+				;
+			else if (pass->shaderbits & SBITS_MASK_BITS)	//colormasks
+				;
+			else if ((pass->shaderbits & SBITS_BLEND_BITS) != 0 && (pass->shaderbits & SBITS_BLEND_BITS) != (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))	//blendfunc
+				;
+			else
+				opaque = true;	//that shader looks like its opaque.
+		}
+		if (!opaque)
 			GL_DrawSkySphere(batch, skyshader);
 	}
 	else if (skyboxtex && TEXVALID(*skyboxtex))

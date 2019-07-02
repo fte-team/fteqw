@@ -788,7 +788,7 @@ typedef struct
 
 typedef struct
 {
-	char shadername[64];
+	char shadername[OLD_MAX_QPATH];
 	int surfflags;
 	int contents;
 } dq3shader_t;
@@ -828,7 +828,7 @@ typedef struct
 
 struct Q3FOG
 {
-	char shadername[64] ; 	
+	char shadername[OLD_MAX_QPATH] ;
 	int brushnum;
 	int visibleside;
 };

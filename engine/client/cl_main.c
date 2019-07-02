@@ -637,7 +637,8 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	//fixme: we shouldn't cycle these so much
 	connectinfo.qport = qport.value;
-	Cvar_SetValue(&qport, (connectinfo.qport+1)&0xffff);
+	if (connectinfo.adr.type != NA_LOOPBACK)
+		Cvar_SetValue(&qport, (connectinfo.qport+1)&0xffff);
 
 	if (connectinfo.protocol == CP_QUAKE2 && (connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2 || connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO))
 		connectinfo.qport &= 0xff;
@@ -759,11 +760,16 @@ void CL_CheckForResend (void)
 		extern cvar_t dpcompat_nopreparse;
 #endif
 		extern cvar_t sv_guidhash;
+
+		if (connectinfo.time && realtime - connectinfo.time < 1.0)
+			return;
 		memset(&connectinfo, 0, sizeof(connectinfo));
+		connectinfo.time = realtime;
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		Cvar_ForceSet(&cl_servername, cls.servername);
 		if (!NET_StringToAdr(cls.servername, 0, &connectinfo.adr))
 			return;	//erk?
+
 		if (*cl_disconnectreason.string)
 			Cvar_Set(&cl_disconnectreason, "");
 		connectinfo.trying = true;
@@ -967,35 +973,35 @@ void CL_CheckForResend (void)
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
-				SVC_DirectConnect();
+				SVC_DirectConnect(0);
 			}
 			else if (connectinfo.subprotocol == CPNQ_BJP3)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), PROTOCOL_VERSION_BJP3), false, false);
 
-				SVC_DirectConnect();
+				SVC_DirectConnect(0);
 			}
 			else if (connectinfo.subprotocol == CPNQ_FITZ666)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), PROTOCOL_VERSION_FITZ), false, false);
 
-				SVC_DirectConnect();
+				SVC_DirectConnect(0);
 			}
 			else if (proquakeangles)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
-				SVC_DirectConnect();
+				SVC_DirectConnect(0);
 			}
 			else if (1)
 			{
 				net_from = connectinfo.adr;
 				Q_snprintfz(net_message.data, net_message.maxsize, "xxxxconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\0x%x\\name\\%s", SV_NewChallenge(), name.string);
 				Cmd_TokenizeString (net_message.data+4, false, false);
-				SVC_DirectConnect();
+				SVC_DirectConnect(0);
 			}
 			else
 				CL_ConnectToDarkPlaces("", &connectinfo.adr);
@@ -5954,7 +5960,17 @@ double Host_Frame (double time)
 
 #ifndef CLIENTONLY
 	if (isDedicated)	//someone changed it.
+	{
+		if (sv.state)
+		{
+			float ohft = host_frametime;
+			RSpeedRemark();
+			SV_Frame();
+			RSpeedEnd(RSPEED_SERVER);
+			host_frametime = ohft;
+		}
 		return 0;
+	}
 #endif
 
 	cls.framecount++;

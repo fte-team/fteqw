@@ -283,6 +283,7 @@ typedef struct
 	float		m_projection_view[16];	//projection matrix for the viewmodel. because people are weird.
 	float		m_view[16];
 	qbyte		*scenevis;			/*this is the vis that's currently being draw*/
+	int			*sceneareas;		/*this is the area info for the camera (should normally be count+one area, but could be two areas near an opaque water plane)*/
 
 	mplane_t	frustum[MAXFRUSTUMPLANES];
 	int			frustum_numworldplanes;	//all but far, which isn't culled because this wouldn't cover the entire screen.
@@ -324,7 +325,7 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
-void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode, qbyte *worldpvs);	//if dl, filters based upon the dlight.
+void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode, const qbyte *worldpvs, const int *worldareas);	//if dl, filters based upon the dlight.
 
 //gl_alias.c
 void R_GAliasFlushSkinCache(qboolean final);

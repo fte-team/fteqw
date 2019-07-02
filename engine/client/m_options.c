@@ -855,6 +855,7 @@ const char *presetexec[] =
 	"seta r_coronas 0;"
 	"seta r_shadow_realtime_dlight 0;"
 	"seta r_shadow_realtime_world 0;"
+	"seta r_shadow_realtime_dlight_shadows 1;"
 	"seta r_glsl_offsetmapping 0;"
 	"seta vid_hardwaregamma 3;"	//people benchmarking against other engines with fte using glsl gamma and the other not is annoying as fuck.
 //	"seta gl_detail 0;"

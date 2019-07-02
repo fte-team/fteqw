@@ -14,6 +14,24 @@
 //FIXME: deadlocks when both gw and ss both fill their pipe buffers.
 //FIXME: no networking for remote nodes.
 
+//The servers are arranged as a 'tree'.
+//There is only one root server, the one that used the 'mapcluster [startmap]' command.
+//  This is treated as a gateway, that clients connect to and then get redirected to one of the other servers.
+//  It may be a 'listen' server, with the server component offloaded to another process/thread.
+//  It may be a dedicated server started with the 'map' command (but not a listen server).
+//Additional 'leaf' servers are automatically started on the same host.
+//  Will be started automatically when a player tries to transfer to a new/unknown map.
+//	leaf sends a ccmd_serveraddress at init+mapchanges
+//  root sends a ccmd_acceptserver to tell the new leaf what it should be.
+
+//Transferring a player from one leaf to another:
+//  ccmd_transferplayer is sent to the root (which includes the player's parms)
+//  the root finds/creates the target server and sends it the ccmd_takeplayer message.
+//  destination tries to create a loadzombie and replies with ccmd_tookplayer (to accept or reject), which root forwards to the source
+//  source tells client to connect to the destination's address
+//  destination receives connection from client (or times out) and sends a ccmd_saveplayer(0) to the root, root sees the server change and sends ccmd_transferedplayer to the source.
+//  source knows that the player is no longer present (or aborts the transfer if it was a timeout, reenabling other transfers/retries).
+
 #ifdef SUBSERVERS
 
 #ifdef SQL
@@ -22,7 +40,7 @@
 
 extern cvar_t sv_serverip;
 
-void VARGS SV_RejectMessage(int protocol, char *format, ...);
+void VARGS SV_RejectMessage(enum serverprotocols_e protocol, char *format, ...);
 
 
 void MSV_UpdatePlayerStats(unsigned int playerid, unsigned int serverid, int numstats, float *stats);
@@ -43,7 +61,7 @@ typedef struct {
 static pubsubserver_t *subservers;
 static link_t clusterplayers;
 qboolean	isClusterSlave;
-unsigned int nextserverid;
+static unsigned int nextserverid;
 
 static clusterplayer_t *MSV_FindPlayerId(unsigned int playerid)
 {
@@ -104,8 +122,8 @@ pubsubserver_t *MSV_FindSubServer(unsigned int id)
 	return NULL;
 }
 
-vfsfile_t *msv_loop_to_ss;
-vfsfile_t *msv_loop_from_ss;
+static vfsfile_t *msv_loop_to_ss;
+static vfsfile_t *msv_loop_from_ss;
 static void MSV_Loop_Instruct(pubsubserver_t *ps, sizebuf_t *cmd)
 {
 	unsigned short size = cmd->cursize;
@@ -289,7 +307,7 @@ void MSV_MapCluster_f(void)
 		};
 
 		Con_Printf("Opening database \"%s\"\n", sqlparams[3]);
-		sv.logindatabase = SQL_NewServer("sqlite", sqlparams);
+		sv.logindatabase = SQL_NewServer(&sv, "sqlite", sqlparams);
 		if (sv.logindatabase == -1)
 #endif
 		{
@@ -1097,7 +1115,7 @@ void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver)
 
 #ifdef SQL
 #include "sv_sql.h"
-int pendinglookups = 0;
+static int pendinglookups = 0;
 struct logininfo_s
 {
 	netadr_t clientaddr;
@@ -1113,11 +1131,11 @@ void MSV_UpdatePlayerStats(unsigned int playerid, unsigned int serverid, int num
 {
 #ifdef SQL
 	queryrequest_t *req;
-	sqlserver_t *srv;
+	sqlserver_t *srv = SQL_GetServer(&sv, sv.logindatabase, false);
 	static char hex[16] = "0123456789abcdef";
 	char sql[2048], *sqle;
 	union{float *f;qbyte *b;} blob;
-	if (sv.logindatabase != -1)
+	if (srv)
 	{
 		Q_snprintfz(sql, sizeof(sql), "UPDATE accounts SET stats=x'");
 		sqle = sql+strlen(sql);
@@ -1128,9 +1146,7 @@ void MSV_UpdatePlayerStats(unsigned int playerid, unsigned int serverid, int num
 		}
 		Q_snprintfz(sqle, sizeof(sql)-(sqle-sql), "', serverid=%u WHERE playerid = %u;", serverid, playerid);
 
-		srv = SQL_GetServer(sv.logindatabase, false);
-		if (srv)
-			SQL_NewQuery(srv, SV_IgnoreSQLResult, sql, &req);
+		SQL_NewQuery(srv, SV_IgnoreSQLResult, sql, &req);
 	}
 #endif
 }
@@ -1199,81 +1215,121 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 #ifdef SQL
 qboolean MSV_ClusterLoginSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
 {
-	sqlserver_t *sql = SQL_GetServer(req->srvid, true);
+	sqlserver_t *sql = SQL_GetServer(&sv, req->srvid, true);
 	queryresult_t *res = SQL_GetQueryResult(sql, req->num, 0);
-	struct logininfo_s *info = req->user.thread;
+	svconnectinfo_t *info = req->user.thread;
 	char *s;
 	int playerid, serverid;
 	char *statsblob;
 	size_t blobsize;
 
-	res = SQL_GetQueryResult(sql, req->num, 0);
-	if (!res)
+	//we only expect one row. if its a continuation then don't bug out
+	if (!firstrow)
 	{
-		playerid = 0;
-		statsblob = NULL;
-		blobsize = 0;
-		serverid = 0;
+		res = SQL_GetQueryResult(sql, req->num, 0);
+		if (!res)
+		{
+			playerid = 0;
+			statsblob = NULL;
+			blobsize = 0;
+			serverid = 0;
+		}
+		else
+		{
+			s = SQL_ReadField(sql, res, 0, 0, true, NULL);
+			playerid = atoi(s);
+
+			statsblob = SQL_ReadField(sql, res, 0, 2, true, &blobsize);
+
+			s = SQL_ReadField(sql, res, 0, 1, true, NULL);
+			serverid = s?atoi(s):0;
+		}
+
+		net_from = info->adr;	//okay, that's a bit stupid, rewrite rejectmessage to accept an arg?
+		if (!playerid)
+			SV_RejectMessage(info->protocol, "Bad username or password.\n");
+		else if (sv.state == ss_clustermode)
+			MSV_ClusterLoginReply(NULL, serverid, playerid, Info_ValueForKey(info->userinfo, "name"), info->guid, &info->adr, statsblob, blobsize);
+		else
+			SV_DoDirectConnect(info);
+		Z_Free(info);
+		req->user.thread = NULL;
+		pendinglookups--;
 	}
-	else
-	{
-		s = SQL_ReadField(sql, res, 0, 0, true, NULL);
-		playerid = atoi(s);
-
-		statsblob = SQL_ReadField(sql, res, 0, 2, true, &blobsize);
-
-		s = SQL_ReadField(sql, res, 0, 1, true, NULL);
-		serverid = s?atoi(s):0;
-	}
-
-	net_from = info->clientaddr;	//okay, that's a bit stupid, rewrite rejectmessage to accept an arg?
-	if (!playerid)
-		SV_RejectMessage(SCP_QUAKEWORLD, "Bad username or password.\n");
-	else
-		MSV_ClusterLoginReply(NULL, serverid, playerid, info->name, info->guid, &info->clientaddr, statsblob, blobsize);
-	Z_Free(info);
-	pendinglookups--;
 	return false;
 }
 #endif
 
+qboolean MSV_IgnoreSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
+{
+	return false;
+}
+void MSV_OpenUserDatabase(void)
+{
+#if 0
+	sqlserver_t *sql;
+	const char *sqlparams[] =
+	{
+		"",
+		"",
+		"",
+		"login",
+	};
+
+	Con_Printf("Opening database \"%s\"\n", sqlparams[3]);
+	sv.logindatabase = SQL_NewServer(&sv, "sqlite", sqlparams);
+
+	//create a the accounts table, so we don't end up with unusable databases.
+	sql = SQL_GetServer(&sv, sv.logindatabase, false);
+	if (sql)
+	{
+		SQL_NewQuery(sql, MSV_IgnoreSQLResult,
+				"CREATE TABLE IF NOT EXISTS accounts("
+					"playerid INTEGER PRIMARY KEY,"
+					"name TEXT NOT NULL UNIQUE,"
+					"password TEXT,"
+					"serverid INTEGER,"
+					"parms BLOB,"
+					"parmstring TEXT"
+				");", NULL);
+	}
+#endif
+}
+
 //returns true to block entry to this server.
 extern int	nextuserid;
-qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
+qboolean MSV_ClusterLogin(svconnectinfo_t *info)
 {
-	if (sv.state != ss_clustermode)
-		return false;
-
 	/*if (!*guid)
 	{
 		SV_RejectMessage(SCP_QUAKEWORLD, "No guid info, please set cl_sendguid to 1.\n");
 		return false;
 	}*/
-
 #ifdef SQL
 	if (sv.logindatabase != -1)
 	{
 		char escname[64], escpasswd[64];
-		struct logininfo_s *info;
 		sqlserver_t *sql;
 		queryrequest_t *req;
 		if (pendinglookups > 10)
-			return true;
-		sql = SQL_GetServer(sv.logindatabase, false);
+			return true;	//don't spam requests if we're getting dos-spammed.
+		sql = SQL_GetServer(&sv, sv.logindatabase, false);
 		if (!sql)
-			return true;
-		SQL_Escape(sql, Info_ValueForKey(userinfo, "name"), escname, sizeof(escname)); 
-		SQL_Escape(sql, Info_ValueForKey(userinfo, "password"), escpasswd, sizeof(escpasswd));
-		if (SQL_NewQuery(sql, MSV_ClusterLoginSQLResult, va("SELECT playerid,serverid,stats FROM accounts WHERE name='%s' AND password='%s';", escname, escpasswd), &req) != -1)
+			return true;	//connection was killed? o.O
+		SQL_Escape(sql, Info_ValueForKey(info->userinfo, "name"), escname, sizeof(escname));
+		SQL_Escape(sql, Info_ValueForKey(info->userinfo, "password"), escpasswd, sizeof(escpasswd));
+		if (SQL_NewQuery(sql, MSV_ClusterLoginSQLResult, va("SELECT playerid,serverid,parms,parmstring FROM accounts WHERE name='%s' AND password='%s';", escname, escpasswd), &req) != -1)
 		{
 			pendinglookups++;
-			req->user.thread = info = Z_Malloc(sizeof(*info));
-			Q_strncpyz(info->guid, guid, sizeof(info->guid));
-			info->clientaddr = net_from;
+			req->user.thread = Z_Malloc(sizeof(*info));
+			memcpy(req->user.thread, info, sizeof(*info));
 		}
 	}
 	else
 #endif
+	if (sv.state != ss_clustermode)
+		return false;
+	else
 /*		if (0)
 	{
 		char tmpbuf[256];
@@ -1286,7 +1342,7 @@ qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
 		return true;
 	}
 	else*/
-		MSV_ClusterLoginReply(NULL, 0, ++nextuserid, Info_ValueForKey(userinfo, "name"), guid, &net_from, NULL, 0);
+		MSV_ClusterLoginReply(NULL, 0, ++nextuserid, Info_ValueForKey(info->userinfo, "name"), info->guid, &net_from, NULL, 0);
 	return true;
 }
 #endif

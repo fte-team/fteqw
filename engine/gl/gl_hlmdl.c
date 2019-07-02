@@ -25,8 +25,8 @@
   Nor will it work 100%
  */
 
-qboolean HLMDL_Trace		(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
-unsigned int HLMDL_Contents	(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+qboolean HLMDL_Trace		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
+unsigned int HLMDL_Contents	(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 
 void QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM)
 {
@@ -921,7 +921,7 @@ int HLMDL_GetAttachment(model_t *mod, int tagnum, float *resultmatrix)
 	return -1;
 }
 
-static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result)
+static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastbone, const framestate_t *fstate, float *result)
 {
 	int b, cbone, bgroup;
 
@@ -939,7 +939,7 @@ static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastb
 	}
 	return cbone;
 }
-int HLMDL_GetBoneData(model_t *mod, int firstbone, int lastbone, framestate_t *fstate, float *result)
+int HLMDL_GetBoneData(model_t *mod, int firstbone, int lastbone, const framestate_t *fstate, float *result)
 {
 	return HLMDL_GetBoneData_Internal(Mod_Extradata(mod), firstbone, lastbone, fstate, result);
 }
@@ -966,7 +966,7 @@ qboolean HLMDL_FrameInfoForNum(model_t *mod, int surfaceidx, int seqnum, char **
 
 
 
-qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean HLMDL_Trace		(model_t *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	hlmodel_t *hm = Mod_Extradata(model);
 	float *relbones;
@@ -1140,7 +1140,7 @@ nextbrush:
 
 	return trace->truefraction != 1;
 }
-unsigned int HLMDL_Contents	(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+unsigned int HLMDL_Contents	(model_t *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
 {
 	trace_t tr;
 	HLMDL_Trace(model, hulloverride, framestate, axis, p, p, mins, maxs, false, ~0, &tr);

@@ -2836,7 +2836,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			Terr_RebuildMesh(ctx->wmodel, s, x, y);
 		}
 
-		if (ctx->pvs && !ctx->wmodel->funcs.EdictInFatPVS(ctx->wmodel, &s->pvscache, ctx->pvs))
+		if (ctx->pvs && !ctx->wmodel->funcs.EdictInFatPVS(ctx->wmodel, &s->pvscache, ctx->pvs, NULL))
 			return;	//this section isn't in any visible bsp leafs
 
 		if (s->numents)
@@ -3200,7 +3200,7 @@ void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_
 
 #endif
 
-unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
+unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, const vec3_t org)
 {
 	float x, y;
 	float z, tz;
@@ -3283,7 +3283,7 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	return contents;
 }
 
-unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
+unsigned int Heightmap_PointContents(model_t *model, const vec3_t axis[3], const vec3_t org)
 {
 	heightmap_t *hm = model->terrain;
 	unsigned int cont;
@@ -3324,7 +3324,7 @@ unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
 
 	return cont;
 }
-unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t org, vec3_t mins, vec3_t maxs)
+unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t org, const vec3_t mins, const vec3_t maxs)
 {
 	heightmap_t *hm = model->terrain;
 	return Heightmap_PointContentsHM(hm, mins[2], org);
@@ -4000,7 +4000,7 @@ Why is recursion good?
 
 Obviously, we don't care all that much about 1
 */
-qboolean Heightmap_Trace(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean Heightmap_Trace(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t mataxis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	vec2_t pos;
 	vec2_t frac;
@@ -4271,7 +4271,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, framestate_t *
 	return trace->fraction < 1;
 }
 
-qboolean Heightmap_Trace_Test(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean Heightmap_Trace_Test(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t mataxis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	qboolean ret = Heightmap_Trace(model, hulloverride, framestate, mataxis, start, end, mins, maxs, capsule, against, trace);
 	
@@ -4301,7 +4301,7 @@ typedef struct
 	int id;
 	int min[3], max[3];
 } hmpvsent_t;
-unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean add)
+unsigned int Heightmap_FatPVS		(model_t *mod, const vec3_t org, pvsbuffer_t *fte_restrict pvsbuffer, qboolean add)
 {
 	//embed the org onto the pvs
 	hmpvs_t *hmpvs;
@@ -4314,12 +4314,12 @@ unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, pvsbuffer_t *pvsbuffer
 }
 
 #ifndef CLIENTONLY
-qboolean Heightmap_EdictInFatPVS	(model_t *mod, struct pvscache_s *edict, qbyte *pvsdata)
+qboolean Heightmap_EdictInFatPVS	(model_t *mod, const struct pvscache_s *edict, const qbyte *pvsdata, const int *areas)
 {
 	heightmap_t *hm = mod->terrain;
 	int o[3], i;
-	hmpvs_t *hmpvs = (hmpvs_t*)pvsdata;
-	hmpvsent_t *hmed = (hmpvsent_t*)edict;
+	const hmpvs_t *hmpvs = (const hmpvs_t*)pvsdata;
+	const hmpvsent_t *hmed = (const hmpvsent_t*)edict;
 
 	if (!hm->culldistance)
 		return true;
@@ -4338,7 +4338,7 @@ qboolean Heightmap_EdictInFatPVS	(model_t *mod, struct pvscache_s *edict, qbyte 
 	return DotProduct(o,o) < hm->culldistance;
 }
 
-void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, float *maxs)
+void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, const float *mins, const float *maxs)
 {
 	hmpvsent_t *hmed = (hmpvsent_t*)ent;
 
@@ -4347,7 +4347,7 @@ void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, flo
 }
 #endif
 
-void Heightmap_LightPointValues	(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void Heightmap_LightPointValues	(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	res_diffuse[0] = 128;
 	res_diffuse[1] = 128;
@@ -4373,8 +4373,10 @@ qbyte *Heightmap_ClusterPVS	(model_t *model, int num, pvsbuffer_t *buffer, pvsme
 //	static qbyte heightmappvs = 255;
 //	return &heightmappvs;
 }
-int	Heightmap_ClusterForPoint	(model_t *model, vec3_t point)
+int	Heightmap_ClusterForPoint	(model_t *model, const vec3_t point, int *area)
 {
+	if (*area)
+		*area = 0;
 	return -1;
 }
 

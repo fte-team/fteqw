@@ -217,6 +217,7 @@ typedef struct shaderpass_s {
 	shaderfunc_t rgbgen_func;
 
 	enum {
+		ALPHA_GEN_UNDEFINED,
 		ALPHA_GEN_ENTITY,
 		ALPHA_GEN_WAVE,
 		ALPHA_GEN_PORTAL,
@@ -990,9 +991,9 @@ void GLBE_PolyOffsetStencilShadow(qboolean foobar);
 void GLBE_PolyOffsetStencilShadow(void);
 #endif
 //Called from shadowmapping code into backend
-void GLBE_BaseEntTextures(qbyte *worldpvs);
-void D3D9BE_BaseEntTextures(qbyte *worldpvs);
-void D3D11BE_BaseEntTextures(qbyte *worldpvs);
+void GLBE_BaseEntTextures(const qbyte *worldpvs, const int *worldareas);
+void D3D9BE_BaseEntTextures(const qbyte *worldpvs, const int *worldareas);
+void D3D11BE_BaseEntTextures(const qbyte *worldpvs, const int *worldareas);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend

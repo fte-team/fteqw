@@ -2930,7 +2930,6 @@ void	Cmd_ExecuteString (const char *text, int level)
 	//a number of things check for seats if nothing else, and security says is safer to do this than to be in doubt.
 	int olev = Cmd_ExecLevel;
 	Cmd_ExecuteStringGlobalsAreEvil(text, level);
-	Cmd_ExecLevel = level;
 	Cmd_ExecLevel = olev;
 }
 

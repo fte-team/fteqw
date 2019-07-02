@@ -224,7 +224,7 @@ typedef struct modplugfuncs_s
 
 	void (QDECL *ConcatTransforms) (const float in1[3][4], const float in2[3][4], float out[3][4]);
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);
-	void (QDECL *VectorAngles)(float *forward, float *up, float *result, qboolean meshpitch);
+	void (QDECL *VectorAngles)(const float *forward, const float *up, float *result, qboolean meshpitch);
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 	void (QDECL *GenMatrixPosQuat4Scale)(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12]);
 

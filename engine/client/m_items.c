@@ -2126,7 +2126,14 @@ static int M_Main_AddExtraOptions(menu_t *mainm, int y)
 	else if (PM_CanInstall("qi"))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Get Quake Injector", "pkg reset; pkg add qi; pkg apply\n");	y += 20;}
 	if (Cmd_Exists("menu_download"))
-		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;}
+	{
+#ifdef WEBCLIENT
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;
+#else
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Packages      ", "menu_download\n");
+#endif
+		y += 20;
+	}
 
 	return y;
 }

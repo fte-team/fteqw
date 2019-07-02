@@ -1360,6 +1360,7 @@ typedef struct q1usercmd_s
 #define RDF_ANTIALIAS			(1u<<20)	//fxaa, or possibly even just fsaa
 #define RDF_RENDERSCALE			(1u<<21)
 #define RDF_SCENEGAMMA			(1u<<22)
+#define RDF_DISABLEPARTICLES	(1u<<23)	//mostly for skyrooms
 
 #define RDF_ALLPOSTPROC			(RDF_BLOOM|RDF_FISHEYE|RDF_WATERWARP|RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS|RDF_SCENEGAMMA)	//these flags require rendering to an fbo for the various different post-processing shaders.
 

@@ -313,15 +313,6 @@ int CG_GetGameState(gameState_t *gs)
 	return sizeof(gameState_t);
 }
 
-typedef struct {
-	int				serverTime;
-	int				angles[3];
-	int 			buttons;
-	qbyte			weapon;           // weapon
-	signed char	forwardmove, rightmove, upmove;
-} q3usercmd_t;
-#define CMD_BACKUP countof(cl.outframes)
-#define CMD_MASK (CMD_BACKUP-1)
 static int CGQ3_GetCurrentCmdNumber(void)
 {	//Q3 sequences are 1-based, so 1<=idx<=latestsequence are valid
 	//FTE's sequences are 0-based, so 0<=idx<latestsequence are valid
@@ -338,11 +329,11 @@ static qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 	if (cmdNumber >= cl.movesequence)
 		Host_EndGame("CLQ3_GetUserCmd: %i >= %i", cmdNumber, cl.movesequence);
 
-	if (cl.movesequence - (cmdNumber+1) > CMD_BACKUP)
+	if (cl.movesequence - (cmdNumber+1) > Q3CMD_BACKUP)
 		return false;
 
 	//note: frames and commands are desynced in q3.
-	cmd = &cl.outframes[(cmdNumber) & CMD_MASK].cmd[0];
+	cmd = &cl.outframes[(cmdNumber) & Q3CMD_MASK].cmd[0];
 	ucmd->angles[0] = cmd->angles[0];
 	ucmd->angles[1] = cmd->angles[1];
 	ucmd->angles[2] = cmd->angles[2];
@@ -359,31 +350,32 @@ static qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 static vm_t *cgvm;
 
 extern int keycatcher;
-char bigconfigstring[65536];
 
 qboolean CG_GetServerCommand(int cmdnum)
 {
+	static char bigconfigstring[65536];
+
 	//quote from cgame code:
 	// get the gamestate from the client system, which will have the
 	// new configstring already integrated
 
-	char *str = ccs.serverCommands[cmdnum & TEXTCMD_MASK];
+	char *str = ccs.serverCommands[cmdnum & Q3TEXTCMD_MASK];
 
 	Con_DPrintf("Dispaching %s\n", str);
 	Cmd_TokenizeString(str, false, false);
 
 	if (!strcmp(Cmd_Argv(0), "bcs0"))
-	{
+	{	//start
 		Q_snprintfz(bigconfigstring, sizeof(bigconfigstring), "cs %s \"%s", Cmd_Argv(1), Cmd_Argv(2));
 		return false;
 	}
 	if (!strcmp(Cmd_Argv(0), "bcs1"))
-	{
+	{	//continuation
 		Q_strncatz(bigconfigstring, Cmd_Argv(2), sizeof(bigconfigstring));
 		return false;
 	}
 	if (!strcmp(Cmd_Argv(0), "bcs2"))
-	{
+	{	//end
 		Q_strncatz(bigconfigstring, Cmd_Argv(2), sizeof(bigconfigstring));
 		Q_strncatz(bigconfigstring, "\"", sizeof(bigconfigstring));
 		Cmd_TokenizeString(bigconfigstring, false, false);
@@ -1154,9 +1146,8 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		VM_LONG(ret) = Sys_Milliseconds();
 		break;
 	case CG_REAL_TIME:
-		//really local time
-		VM_LONG(ret) = Sys_Milliseconds();
-		break;
+		VALIDATEPOINTER(arg[0], sizeof(q3time_t));
+		return Q3VM_GetRealtime(VM_POINTER(arg[0]));
 
 	case CG_SNAPVECTOR: // ( float *v )
 		VALIDATEPOINTER(arg[0], sizeof(vec3_t));

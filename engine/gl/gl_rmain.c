@@ -1068,7 +1068,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 				d += 0.1;	//an epsilon on the far side
 				VectorMA(point, d, plane.normal, point);
 
-				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point);
+				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point, NULL);
 				if (i == batch->firstmesh)
 					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, &newvis, PVM_REPLACE);
 				else
@@ -1145,7 +1145,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		{	//q3-style portal, where a single entity provides orientation+two origins
 			float d;
 			vec3_t paxis[3], porigin, vaxis[3], vorg;
-			void PerpendicularVector( vec3_t dst, const vec3_t src );
 
 			oplane = plane;
 

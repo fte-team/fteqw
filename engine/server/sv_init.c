@@ -20,6 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "pr_common.h"
+#ifdef SQL
+#include "sv_sql.h"
+#endif
 #ifndef CLIENTONLY
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);
@@ -798,6 +801,9 @@ void SV_WipeServerState(void)
 		for (i = 0; i < sizeof(sv.strings) / sizeof(sv.strings.ptrs[0]); i++)
 			Z_Free(ptrs[i]);
 	}
+#ifdef SQL
+	SQL_KillServers(&sv);
+#endif
 	memset (&sv, 0, sizeof(sv));
 	sv.logindatabase = -1;
 }
@@ -1102,6 +1108,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	}
 
 	sv.state = ss_loading;
+
+MSV_OpenUserDatabase();
 
 	sv.world.max_edicts = pr_maxedicts.value;
 	if (sv.world.max_edicts > MAX_EDICTS)

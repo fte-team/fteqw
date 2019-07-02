@@ -5478,7 +5478,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 				d += 0.1;	//an epsilon on the far side
 				VectorMA(point, d, plane.normal, point);
 
-				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point);
+				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point, NULL);
 				if (i == batch->firstmesh)
 					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, &newvis, PVM_REPLACE);
 				else
@@ -5790,10 +5790,10 @@ void VKBE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, int 
 
 #ifdef RTLIGHTS
 //FIXME: needs context for threading
-void VKBE_BaseEntTextures(qbyte *scenepvs)
+void VKBE_BaseEntTextures(const qbyte *scenepvs, const int *sceneareas)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, scenepvs);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, scenepvs, sceneareas);
 	VKBE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	VKBE_SelectEntity(&r_worldentity);
 }
@@ -6245,7 +6245,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 
 	shaderstate.curdlight = NULL;
 	//fixme: figure out some way to safely orphan this data so that we can throw the rest to a worker.
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis, r_refdef.sceneareas);
 
 	BE_UploadLightmaps(false);
 	if (r_refdef.scenevis)

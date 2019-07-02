@@ -10,7 +10,7 @@ public class FTENativeActivity extends android.app.Activity implements android.v
 	//Native functions and stuff
 	private native boolean startup(String externalDataPath, String libraryPath);
 	private native void openfile(String url);
-	private native void surfacechange(boolean teardown, boolean restart, android.view.Surface surface);
+	private native void surfacechange(boolean teardown, boolean restart, android.view.SurfaceHolder holder, android.view.Surface surface);
 	private native void shutdown();
 
 	private static native void keypress(int devid, boolean down, int androidkey, int unicode);
@@ -48,11 +48,11 @@ public class FTENativeActivity extends android.app.Activity implements android.v
 	}
 	public void surfaceChanged(android.view.SurfaceHolder holder, int format, int width, int height)
 	{
-		surfacechange(true, true, holder.getSurface());
+		surfacechange(true, true, holder, holder.getSurface());
 	}
 	public void surfaceDestroyed(android.view.SurfaceHolder holder)
 	{
-		surfacechange(true, false, null);
+		surfacechange(true, false, null, null);
 	}
 
 //OnGlobalLayoutListener methods

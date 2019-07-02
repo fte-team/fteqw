@@ -166,10 +166,14 @@ queryrequest_t *SQL_PullRequest(sqlserver_t *server, qboolean lock)
 	return qreq;
 }
 
-sqlserver_t **sqlservers;
-int sqlservercount;
-int sqlavailable;
-int sqlinited;
+struct
+{
+	void *owner;
+	sqlserver_t *handle;
+} *sqlservers;
+static int sqlservercount;
+static int sqlavailable;
+static int sqlinited;
 
 #ifdef USE_SQLITE
 //this is to try to sandbox sqlite so it can only edit the file its originally opened with.
@@ -506,15 +510,17 @@ int sql_serverworker(void *sref)
 	return 0;
 }
 
-sqlserver_t *SQL_GetServer (int serveridx, qboolean inactives)
+sqlserver_t *SQL_GetServer (void *owner, int serveridx, qboolean inactives)
 {
 	if (serveridx < 0 || serveridx >= sqlservercount)
 		return NULL;
-	if (!sqlservers[serveridx])
+	if (owner && sqlservers[serveridx].owner != owner)
 		return NULL;
-	if (!inactives && sqlservers[serveridx]->active == false)
+	if (!sqlservers[serveridx].handle)
 		return NULL;
-	return sqlservers[serveridx];
+	if (!inactives && sqlservers[serveridx].handle->active == false)
+		return NULL;
+	return sqlservers[serveridx].handle;
 }
 
 queryrequest_t *SQL_GetQueryRequest (sqlserver_t *server, int queryidx)
@@ -801,7 +807,7 @@ void SQL_CleanupServer(sqlserver_t *server)
 	Z_Free(server);
 }
 
-int SQL_NewServer(const char *driver, const char **paramstr)
+int SQL_NewServer(void *owner, const char *driver, const char **paramstr)
 {
 	sqlserver_t *server;
 	int serverref;
@@ -851,13 +857,13 @@ int SQL_NewServer(const char *driver, const char **paramstr)
 	{
 		serverref = 0;
 		sqlservercount = 1;
-		sqlservers = (sqlserver_t **)BZ_Malloc(sizeof(sqlserver_t *));
+		sqlservers = BZ_Malloc(sizeof(*sqlservers));
 	}
 	else
 	{
 		serverref = sqlservercount;
 		sqlservercount++;
-		sqlservers = (sqlserver_t **)BZ_Realloc(sqlservers, sizeof(sqlserver_t *) * sqlservercount);
+		sqlservers = BZ_Realloc(sqlservers, sizeof(*sqlservers) * sqlservercount);
 	}
 
 	// assemble server structure
@@ -883,7 +889,8 @@ int SQL_NewServer(const char *driver, const char **paramstr)
 		// string should be null-terminated due to Z_Malloc
 	}
 
-	sqlservers[serverref] = server;
+	sqlservers[serverref].owner = owner;
+	sqlservers[serverref].handle = server;
 
 	server->driver = (sqldrv_t)drvchoice;
 	server->querynum = 1;
@@ -944,11 +951,13 @@ int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, 
 		SQL_PushRequest(server, qreq);
 		Sys_ConditionSignal(server->requestcondv);
 
-		*reqout = qreq;
+		if (reqout)
+			*reqout = qreq;
 		return querynum;
 	}
 
-	*reqout = NULL;
+	if (reqout)
+		*reqout = NULL;
 	return -1;
 }
 
@@ -1079,7 +1088,7 @@ void SQL_Status_f(void)
 		queryrequest_t *qreq;
 		queryresult_t *qres;
 
-		sqlserver_t *server = sqlservers[i];
+		sqlserver_t *server = sqlservers[i].handle;
 
 		if (!server)
 			continue;
@@ -1168,7 +1177,7 @@ void SQL_Kill_f (void)
 		return;
 	}
 
-	server = SQL_GetServer(atoi(Cmd_Argv(1)), false);
+	server = SQL_GetServer(NULL, atoi(Cmd_Argv(1)), false);
 	if (server)
 	{
 		server->active = false;
@@ -1179,7 +1188,7 @@ void SQL_Kill_f (void)
 
 void SQL_Killall_f (void)
 {
-	SQL_KillServers();
+	SQL_KillServers(NULL);
 }
 
 void SQL_ServerCycle (void)
@@ -1188,7 +1197,7 @@ void SQL_ServerCycle (void)
 
 	for (i = 0; i < sqlservercount; i++)
 	{
-		sqlserver_t *server = sqlservers[i];
+		sqlserver_t *server = sqlservers[i].handle;
 		queryresult_t *qres;
 		queryrequest_t *qreq;
 
@@ -1244,7 +1253,7 @@ void SQL_ServerCycle (void)
 
 		if (server->terminated)
 		{
-			sqlservers[i] = NULL;
+			sqlservers[i].handle = NULL;
 			SQL_CleanupServer(server);
 			continue;
 		}
@@ -1294,28 +1303,36 @@ void SQL_Init(void)
 	Cvar_Register(&sql_defaultdb, SQLCVAROPTIONS);
 }
 
-void SQL_KillServers(void)
+void SQL_KillServers(void *owner)
 {
 	int i;
-	for (i = 0; i < sqlservercount; i++)
+	for (i = sqlservercount; i-- > 0; )
 	{
-		sqlserver_t *server = sqlservers[i];
-		sqlservers[i] = NULL;
-		if (!server)
-			continue;
-		SQL_CleanupServer(server);
+		if (!owner || sqlservers[i].owner == owner)
+		{
+			sqlserver_t *server = sqlservers[i].handle;
+			sqlservers[i].handle = NULL;
+			sqlservers[i].owner = NULL;
+			if (server)
+				SQL_CleanupServer(server);
+
+			if (sqlservercount == i+1)
+				sqlservercount--;
+		}
 	}
-	if (sqlservers)
-		Z_Free(sqlservers);
-	sqlservers = NULL;
-	sqlservercount = 0;
+	if (!sqlservercount)
+	{
+		if (sqlservers)
+			Z_Free(sqlservers);
+		sqlservers = NULL;
+	}
 }
 
 void SQL_DeInit(void)
 {
 	sqlavailable = 0;
 
-	SQL_KillServers();
+	SQL_KillServers(NULL);
 	sqlinited = false;
 
 #ifdef USE_MYSQL

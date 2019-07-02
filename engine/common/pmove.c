@@ -1291,7 +1291,7 @@ static void PM_NudgePosition (void)
 		VectorCopy (pmove.safeorigin, pmove.origin);
 	else
 		VectorCopy (base, pmove.origin);
-//	Com_DPrintf ("NudgePosition: stuck\n");
+//	Con_DPrintf ("NudgePosition: stuck\n");
 }
 
 /*

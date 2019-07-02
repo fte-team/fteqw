@@ -336,7 +336,7 @@ qboolean HLMDL_GetModelEvent(model_t *model, int animation, int eventidx, float 
 int HLMDL_GetNumBones(model_t *mod, qboolean tagstoo);
 int HLMDL_GetBoneParent(model_t *mod, int bonenum);
 const char *HLMDL_GetBoneName(model_t *mod, int bonenum);
-int HLMDL_GetBoneData(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
+int HLMDL_GetBoneData(model_t *model, int firstbone, int lastbone, const framestate_t *fstate, float *result);
 int HLMDL_GetAttachment(model_t *model, int tagnum, float *resultmatrix);
 
 #ifndef SERVERONLY

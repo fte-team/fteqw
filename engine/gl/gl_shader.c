@@ -3174,7 +3174,11 @@ static void Shaderpass_RGBGen (parsestate_t *ps, char **ptr)
 	else if (!Q_stricmp (token, "oneMinusEntity"))
 		pass->rgbgen = RGB_GEN_ONE_MINUS_ENTITY;
 	else if (!Q_stricmp (token, "vertex"))
+	{
 		pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
+		if (pass->alphagen == ALPHA_GEN_UNDEFINED)	//matches Q3, and is a perf gain, even if its inconsistent.
+			pass->alphagen = ALPHA_GEN_VERTEX;
+	}
 	else if (!Q_stricmp (token, "oneMinusVertex"))
 		pass->rgbgen = RGB_GEN_ONE_MINUS_VERTEX;
 	else if (!Q_stricmp (token, "lightingDiffuse"))
@@ -4524,7 +4528,7 @@ void Shader_Readpass (parsestate_t *ps)
 	pass->anim_frames[0] = r_nulltex;
 	pass->anim_numframes = 0;
 	pass->rgbgen = RGB_GEN_UNKNOWN;
-	pass->alphagen = ALPHA_GEN_IDENTITY;
+	pass->alphagen = ALPHA_GEN_UNDEFINED;
 	pass->tcgen = TC_GEN_UNSPECIFIED;
 	pass->numtcmods = 0;
 	pass->stagetype = ST_AMBIENT;
@@ -4553,6 +4557,9 @@ void Shader_Readpass (parsestate_t *ps)
 				break;
 		}
 	}
+
+	if (pass->alphagen == ALPHA_GEN_UNDEFINED)
+		pass->alphagen = ALPHA_GEN_IDENTITY;
 
 	//if there was no texgen, then its too late now.
 	if (!pass->numMergedPasses)

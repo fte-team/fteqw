@@ -2622,7 +2622,7 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 	{
 //		int oldents = cl_numvisedicts;
 //		cl_numvisedicts = 0;
-		r_refdef.scenevis  = NULL;
+		r_refdef.scenevis = NULL;
 		BE_DrawWorld(NULL);
 		cl_numstris = 0;
 //		cl_numvisedicts = oldents;
@@ -3277,7 +3277,7 @@ void CL_ClearLerpEntsParticleState(void)
 	}
 }
 
-void CL_LinkStaticEntities(void *pvs)
+void CL_LinkStaticEntities(void *pvs, int *areas)
 {
 	int i;
 	entity_t *ent;
@@ -3347,7 +3347,7 @@ void CL_LinkStaticEntities(void *pvs)
 		}
 
 		/*pvs test*/
-		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->ent.pvscache, pvs))
+		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->ent.pvscache, pvs, areas))
 			continue;
 
 
@@ -3376,6 +3376,43 @@ void CL_LinkStaticEntities(void *pvs)
 	}
 }
 
+//returns cos(angle)
+static float CompareAngles (const vec3_t angles1, const vec3_t angles2)
+{
+	float		angle;
+	vec3_t dir1, dir2;
+
+	angle = angles1[YAW] * (M_PI*2 / 360);
+	dir1[1] = sin(angle);
+	dir1[0] = cos(angle);
+	if (angles1[PITCH])
+	{
+		angle = angles1[PITCH] * (M_PI*2 / 360);
+		dir1[2] = -sin(angle);
+		angle = cos(angle);
+		dir1[0] *= angle;
+		dir1[1] *= angle;
+	}
+	else
+		dir1[2] = 0;
+
+	angle = angles2[YAW] * (M_PI*2 / 360);
+	dir2[1] = sin(angle);
+	dir2[0] = cos(angle);
+	if (angles2[PITCH])
+	{
+		angle = angles2[PITCH] * (M_PI*2 / 360);
+		dir2[2] = -sin(angle);
+		angle = cos(angle);
+		dir2[0] *= angle;
+		dir2[1] *= angle;
+	}
+	else
+		dir2[2] = 0;
+
+	return DotProduct(dir1,dir2);
+}
+
 /*
 ===============
 CL_LinkPacketEntities
@@ -3395,6 +3432,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	int					oldpnum, newpnum;
 	float				*snew__origin;
 	float				*sold__origin;
+	float				cos_theta;
 	int oldsequence;
 	extern cvar_t r_nolerp;
 
@@ -3520,14 +3558,17 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 
 			snew__origin = snew->u.q1.predorg;
 			sold__origin = sold->u.q1.predorg;
+			cos_theta = 1;	//don't cut off lerping when the player spins too fast.
 		}
 		else
 		{
 			snew__origin = snew->origin;
 			sold__origin = sold->origin;
+			cos_theta = CompareAngles(sold->angles, snew->angles);
 		}
+
 		VectorSubtract(snew__origin, sold__origin, move);
-		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex || ((sold->effects ^ snew->effects) & EF_TELEPORT_BIT))
+		if (DotProduct(move, move) > 200*200 || cos_theta < 0.707 || snew->modelindex != sold->modelindex || ((sold->effects ^ snew->effects) & EF_TELEPORT_BIT))
 		{
 			isnew = true;	//disable lerping (and indirectly trails)
 //			VectorClear(move);
@@ -3857,6 +3898,8 @@ void CL_LinkPacketEntities (void)
 	int modelflags;
 	struct itemtimer_s	*timer, **timerlink;
 	float timestep = cl.time-cl.lastlinktime;
+	extern cvar_t r_ignoreentpvs;
+	vec3_t absmin, absmax;
 	cl.lastlinktime = cl.time;
 	timestep = bound(0, timestep, 0.1);
 
@@ -3919,12 +3962,6 @@ void CL_LinkPacketEntities (void)
 		le = &cl.lerpents[state->number];
 
 		ent = &cl_visedicts[cl_numvisedicts];
-		ent->pvscache.num_leafs = 0;
-#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
-		ent->pvscache.areanum = 0;
-		ent->pvscache.areanum2 = 0;
-		ent->pvscache.headnode = 0;
-#endif
 
 		ent->rtype = RT_MODEL;
 		ent->playerindex = -1;
@@ -4096,6 +4133,24 @@ void CL_LinkPacketEntities (void)
 			model2 = cl.model_precache[state->modelindex2];
 		else
 			model2 = NULL;
+
+
+		if (r_ignoreentpvs.ival || !model)
+		{
+			ent->pvscache.num_leafs = 0;
+#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
+			ent->pvscache.areanum = 0;
+			ent->pvscache.areanum2 = 0;
+			ent->pvscache.headnode = 0;
+#endif
+		}
+		else
+		{
+			/*bsp model size*/
+			VectorAdd(model->mins, ent->origin, absmin);
+			VectorAdd(model->maxs, ent->origin, absmax);
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &ent->pvscache, absmin, absmax);
+		}
 
 		cl_numvisedicts++;
 

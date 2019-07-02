@@ -202,12 +202,22 @@ typedef struct frame_s {
 	int		serverTime;
 } q3frame_t;
 
+typedef struct {
+	int				serverTime;
+	int				angles[3];
+	int 			buttons;
+	qbyte			weapon;           // weapon
+	signed char	forwardmove, rightmove, upmove;
+} q3usercmd_t;
+#define Q3CMD_BACKUP 64		//number of q3usercmd_ts that the client can queue before acks
+#define Q3CMD_MASK	 (Q3CMD_BACKUP-1)
+
 #define Q3MAX_PARSE_ENTITIES 2048
 #define Q3PARSE_ENTITIES_MASK (Q3MAX_PARSE_ENTITIES-1)
 
 #define	MAX_STRING_CHARS	1024
-#define TEXTCMD_BACKUP		64					// size of reliable text commands buffer, must be power of two
-#define TEXTCMD_MASK		(TEXTCMD_BACKUP-1)
+#define Q3TEXTCMD_BACKUP	64			//number of reliable text commands that can be queued, must be power of two
+#define Q3TEXTCMD_MASK		(Q3TEXTCMD_BACKUP-1)
 
 #define MAX_Q3_CONFIGSTRINGS 1024
 #define CFGSTR_SYSINFO 1
@@ -238,8 +248,8 @@ typedef struct {
 
 	q3entityState_t baselines[MAX_GENTITIES];
 
-	char		clientCommands[TEXTCMD_BACKUP][MAX_STRING_CHARS];
-	char		serverCommands[TEXTCMD_BACKUP][MAX_STRING_CHARS];
+	char		clientCommands[Q3TEXTCMD_BACKUP][MAX_STRING_CHARS];
+	char		serverCommands[Q3TEXTCMD_BACKUP][MAX_STRING_CHARS];
 } ClientConnectionState_t;
 extern ClientConnectionState_t ccs;
 
@@ -299,7 +309,7 @@ typedef struct {
 typedef struct {
   glyphInfo_t glyphs [GLYPHS_PER_FONT];
   float glyphScale;
-  char name[MAX_QPATH];
+  char name[OLD_MAX_QPATH];
 } fontInfo_t;
 void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font);
 

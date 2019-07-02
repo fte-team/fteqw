@@ -885,6 +885,11 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			Cvar_LockFromServer(&r_telealpha, token);
 			Cvar_LockFromServer(&r_telestyle, "1");
 		}
+		else if (!strcmp("skyroom", key)) // for Quake mappers that lack the proper tools
+		{
+			extern cvar_t v_skyroom_origin;
+			Cvar_LockFromServer(&v_skyroom_origin, token);
+		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps
 		{
 			Q_strncpyz(skyname, token, sizeof(skyname));

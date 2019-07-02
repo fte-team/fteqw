@@ -2239,6 +2239,13 @@ static qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound, qboolean fo
 	return true;
 }
 
+void Media_Roq_GetSize(struct cin_s *cin, int *width, int *height, float *aspect)
+{
+	*width = cin->roq.roqfilm->width;
+	*height = cin->roq.roqfilm->height;
+	*aspect = (float)cin->roq.roqfilm->width/cin->roq.roqfilm->height;
+}
+
 static cin_t *Media_RoQ_TryLoad(char *name)
 {
 	cin_t *cin;
@@ -2251,6 +2258,7 @@ static cin_t *Media_RoQ_TryLoad(char *name)
 		cin = Z_Malloc(sizeof(cin_t));
 		cin->decodeframe = Media_Roq_DecodeFrame;
 		cin->shutdown = Media_Roq_Shutdown;
+		cin->getsize = Media_Roq_GetSize;
 
 		cin->roq.roqfilm = roqfilm;
 

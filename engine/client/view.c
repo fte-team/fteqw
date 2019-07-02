@@ -103,6 +103,8 @@ cvar_t	crosshaircorrect		= CVARFD("crosshaircorrect", "0", CVAR_SEMICHEAT, "Move
 cvar_t	crosshairimage			= CVARD("crosshairimage", "", "Enables the use of an external/custom crosshair image");
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
+cvar_t	v_skyroom_origin		= CVARD("r_skyroom_origin", "", "Specifies the center position of the skyroom's view. Skyrooms are drawn instead of skyboxes (typically with their own skybox around them). Entities in skyrooms will be drawn only when r_ignoreentpvs is 0. Can also be set with the _skyroom worldspawn key. This is overriden by csqc's VF_SKYROOM_CAMERA.");
+
 static cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
 cvar_t	gl_cshiftenabled		= CVARFD("gl_polyblend", "1", CVAR_ARCHIVE, "Controls whether temporary whole-screen colour changes should be honoured or not. Change gl_cshiftpercent if you want to adjust the intensity.\nThis does not affect v_cshift commands sent from the server.");
 cvar_t	gl_cshiftborder			= CVARD("gl_polyblend_edgesize", "128", "This constrains colour shifts to the edge of the screen, with the value specifying the size of those borders.");
@@ -1615,6 +1617,13 @@ void V_CalcRefdef (playerview_t *pv)
 		VectorMA(r_refdef.vieworg, v_gunkick.value, pv->punchorigin, r_refdef.vieworg);
 	}
 
+	if (*v_skyroom_origin.string)
+	{
+		r_refdef.skyroom_enabled = true;
+		r_refdef.skyroom_pos[0] = v_skyroom_origin.vec4[0];
+		r_refdef.skyroom_pos[1] = v_skyroom_origin.vec4[1];
+		r_refdef.skyroom_pos[2] = v_skyroom_origin.vec4[2];
+	}
 
 	if (chase_active.ival && cls.allow_cheats)	//cheat restriction might be lifted some time when any wallhacks are solved.
 	{
@@ -2572,6 +2581,7 @@ void V_Init (void)
 	Cvar_Register (&v_kickpitch, VIEWVARS);
 
 	Cvar_Register (&v_deathtilt, VIEWVARS);
+	Cvar_Register (&v_skyroom_origin, VIEWVARS);
 
 	Cvar_Register (&scr_autoid, VIEWVARS);
 	Cvar_Register (&scr_autoid_team, VIEWVARS);

@@ -1578,7 +1578,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb, NULL);
 		else
 		{
-			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin, NULL);	//FIXME: track the lights area
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 
 			if (cl.worldmodel->funcs.ClustersInSphere)
@@ -1649,7 +1649,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			sh_shadowframe++;
 
 			{
-				int cluster = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+				int cluster = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin, NULL);
 				if (cluster >= 0)
 					sh_shmesh->litleaves[cluster>>3] |= 1<<(cluster&7);
 			}
@@ -2237,7 +2237,7 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec3_t axis[3], vec4_t *planes, i
 
 //culling for the face happens in the caller.
 //these faces should thus match Sh_LightFrustumPlanes
-static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, float proj[16], qbyte *lightpvs)
+static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, float proj[16], const qbyte *lightpvs)
 {
 	vec3_t t1,t2,t3;
 	texture_t *tex;
@@ -2379,7 +2379,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		GLBE_BaseEntTextures(lightpvs);
+		GLBE_BaseEntTextures(lightpvs, NULL);
 
 		if (lighttype & LSHADER_ORTHO)
 			qglDisable(GL_DEPTH_CLAMP_ARB);
@@ -2387,17 +2387,17 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 #endif
 #ifdef D3D9QUAKE
 	case QR_DIRECT3D9:
-		D3D9BE_BaseEntTextures(lightpvs);
+		D3D9BE_BaseEntTextures(lightpvs, NULL);
 		break;
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
-		D3D11BE_BaseEntTextures(lightpvs);
+		D3D11BE_BaseEntTextures(lightpvs, NULL);
 		break;
 #endif
 #ifdef VKQUAKE
 	case QR_VULKAN:
-		VKBE_BaseEntTextures(lightpvs);
+		VKBE_BaseEntTextures(lightpvs, NULL);
 		break;
 #endif
 	}
@@ -2616,7 +2616,7 @@ qboolean Sh_GenerateShadowMap(dlight_t *l, int lighttype)
 		else
 		{
 			int clus;
-			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin, NULL);
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 			//FIXME: surely we can use the phs for this?
 
@@ -2732,12 +2732,12 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 		else
 		{
 			int clus;
-			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin, NULL);
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 			//FIXME: surely we can use the phs for this?
 			if (cl.worldmodel->funcs.ClustersInSphere)
 				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, l->origin, l->radius, &lvisb2, lvis);
-
+			//FIXME: check areas
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 			{
 				RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
@@ -2856,22 +2856,22 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs)
 			break;
 #ifdef GLQUAKE
 		case QR_OPENGL:
-			GLBE_BaseEntTextures(pvs);
+			GLBE_BaseEntTextures(pvs, NULL);
 			break;
 #endif
 #ifdef VKQUAKE
 		case QR_VULKAN:
-			VKBE_BaseEntTextures(pvs);
+			VKBE_BaseEntTextures(pvs, NULL);
 			break;
 #endif
 #ifdef D3D9QUAKE
 		case QR_DIRECT3D9:
-			D3D9BE_BaseEntTextures(pvs);
+			D3D9BE_BaseEntTextures(pvs, NULL);
 			break;
 #endif
 #ifdef D3D11QUAKE
 		case QR_DIRECT3D11:
-			D3D11BE_BaseEntTextures(pvs);
+			D3D11BE_BaseEntTextures(pvs, NULL);
 			break;
 #endif
 		}
@@ -3159,7 +3159,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 	}
 	else
 	{
-		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin, NULL);	//FIXME: check areas
 		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 //		if (cl.worldmodel->funcs.ClustersInSphere)
 //			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
@@ -3388,7 +3388,7 @@ qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis)
 		int clus;
 		qbyte *lvis;
 
-		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin, NULL);
 		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 //		if (cl.worldmodel->funcs.ClustersInSphere)
 //			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
@@ -3433,12 +3433,12 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, NULL);
 		else
 		{
-			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin, NULL);
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 		}
 
 		SHM_BuildShadowMesh(dl, lvis, SMT_SHADOWLESS);
-
+		//FIXME: check areas
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
 			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
@@ -3645,7 +3645,7 @@ void Sh_PreGenerateLights(void)
 					lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, NULL);
 				else
 				{	//other lights only want to use the source leaf's pvs (clamped by the sphere)
-					leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+					leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin, NULL);
 					lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, &lvisb, PVM_FAST);
 					if (cl.worldmodel->funcs.ClustersInSphere)
 						lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);

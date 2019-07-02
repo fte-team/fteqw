@@ -801,6 +801,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_QPATH		128			// max length of a quake game pathname
 #define	MAX_OSPATH		1024		// max length of a filesystem pathname (260 on windows, but needs to be longer for utf8)
+#define OLD_MAX_QPATH	64			// it was baked into various file formats, which is unfortunate.
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon
 

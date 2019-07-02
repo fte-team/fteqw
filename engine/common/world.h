@@ -361,14 +361,14 @@ typedef struct q2edict_s q2edict_t;
 
 void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent);
 void VARGS WorldQ2_UnlinkEdict(world_t *w, q2edict_t *ent);
-int VARGS WorldQ2_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, q2edict_t **list,
+int VARGS WorldQ2_AreaEdicts (world_t *w, const vec3_t mins, const vec3_t maxs, q2edict_t **list,
 	int maxcount, int areatype);
 trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hitcontentsmask, q2edict_t *passedict);
 #endif
 #if defined(Q2BSPS) || defined(Q3BSPS)
-unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboolean merge);
-qboolean Q23BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs);
-void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, float *maxs);
+unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *buffer, qboolean merge);
+qboolean Q23BSP_EdictInFatPVS(model_t *mod, const struct pvscache_s *ent, const qbyte *pvs, const int *areas);
+void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, const float *mins, const float *maxs);
 #endif
 
 

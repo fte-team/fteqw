@@ -448,6 +448,23 @@ enum
 #define STUFFCMD_BROADCAST    (   1<<2) // everyone sees it.
 #define STUFFCMD_UNRELIABLE   (   1<<3) // someone might not see it. oh well.
 
+enum serverprotocols_e
+{
+	SCP_BAD,	//don't send (a bot)
+	SCP_QUAKEWORLD,
+	SCP_QUAKE2,
+	SCP_QUAKE3,
+	//all the below are considered netquake clients.
+	SCP_NETQUAKE,
+	//bjp1, bjp2
+	SCP_BJP3,		//16bit angles,model+sound indexes. nothing else (assume raised ent limits too).
+	SCP_FITZ666,
+	//dp5
+	SCP_DARKPLACES6,
+	SCP_DARKPLACES7	//extra prediction stuff
+	//note, nq is nq+
+};
+
 typedef struct client_s
 {
 	client_conn_state_t	state;
@@ -660,21 +677,7 @@ typedef struct client_s
 	unsigned int	max_net_clients; /*max number of player slots supported by the client */
 	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 
-	enum {
-		SCP_BAD,	//don't send (a bot)
-		SCP_QUAKEWORLD,
-		SCP_QUAKE2,
-		SCP_QUAKE3,
-		//all the below are considered netquake clients.
-		SCP_NETQUAKE,
-		//bjp1, bjp2
-		SCP_BJP3,		//16bit angles,model+sound indexes. nothing else (assume raised ent limits too).
-		SCP_FITZ666,
-		//dp5
-		SCP_DARKPLACES6,
-		SCP_DARKPLACES7	//extra prediction stuff
-		//note, nq is nq+
-	} protocol;
+	enum serverprotocols_e protocol;
 	unsigned int	supportedprotocols;
 	qboolean proquake_angles_hack;	//expect 16bit client->server angles .
 
@@ -1145,7 +1148,29 @@ char *SV_PlayerPublicAddress(client_t *cl);
 
 qboolean SVC_GetChallenge (qboolean respond_dp);
 int SV_NewChallenge (void);
-client_t *SVC_DirectConnect(void);
+void SVC_DirectConnect(int expectedreliablesequence);
+typedef struct
+{
+	enum serverprotocols_e protocol;		//protocol used to talk to this client.
+#ifdef NQPROT
+	qboolean proquakeanglehack;				//specifies that the client will expect proquake angles if we give a proquake CCREP_ACCEPT response.
+	unsigned int expectedreliablesequence;	//required for nq connection cookies (like tcp's syn cookies).
+	unsigned int supportedprotocols;		//1<<SCP_* bitmask
+#endif
+	unsigned int ftepext1;
+	unsigned int ftepext2;
+//	unsigned int ezpext1;
+	int			qport;						//part of the qw protocol to avoid issues with buggy routers that periodically renumber cl2sv ports.
+#ifdef HUFFNETWORK
+	int			huffcrc;					//network compression stuff
+#endif
+	int			challenge;					//the challenge used at connect. remembered to make life harder for proxies.
+	int			mtu;						//allowed fragment size (also signifies that it supports fragmented qw packets)
+	char		userinfo[2048];				//random userinfo data. no blobs, obviously.
+	char		guid[128];					//user's guid data
+	netadr_t	adr;						//the address the connect request came from (so we can check passwords before accepting)
+} svconnectinfo_t;
+void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info);
 
 int SV_ModelIndex (const char *name);
 
@@ -1213,13 +1238,15 @@ void MSV_SubServerCommand_f(void);
 void MSV_SubServerCommand_f(void);
 void MSV_MapCluster_f(void);
 void SSV_Send(const char *dest, const char *src, const char *cmd, const char *msg);
-qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize);
+qboolean MSV_ClusterLogin(svconnectinfo_t *info);
 void MSV_PollSlaves(void);
 void MSV_Status(void);
+void MSV_OpenUserDatabase(void);
 #else
 #define SSV_UpdateAddresses() ((void)0)
-#define MSV_ClusterLogin(guid,info,infosize) false
+#define MSV_ClusterLogin(info) false
 #define SSV_IsSubServer() false
+#define MSV_OpenUserDatabase()
 #endif
 
 //

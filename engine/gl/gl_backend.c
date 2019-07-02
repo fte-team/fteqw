@@ -5583,12 +5583,12 @@ batch_t *GLBE_GetTempBatch(void)
 
 /*called from shadowmapping code*/
 #ifdef RTLIGHTS
-void GLBE_BaseEntTextures(qbyte *worldpvs)
+void GLBE_BaseEntTextures(const qbyte *worldpvs, const int *worldareas)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	batch_t **ob = shaderstate.mbatches;
 	shaderstate.mbatches = batches;
-	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, worldpvs);
+	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode, worldpvs, worldareas);
 	GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	GLBE_SelectEntity(&r_worldentity);
 	shaderstate.mbatches = ob;
@@ -6255,7 +6255,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 	}
 
 	//memset(batches, 0, sizeof(batches));
-	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis);
+	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD, r_refdef.scenevis, r_refdef.sceneareas);
 	R_GenDlightBatches(batches);
 	shaderstate.curentity = &r_worldentity;
 //	if (cl.paused || cls.state < ca_active)

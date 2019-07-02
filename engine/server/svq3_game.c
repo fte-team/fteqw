@@ -723,14 +723,6 @@ static qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_
 		 maxs1[0] >= mins2[0] && maxs1[1] >= mins2[1] && maxs1[2] >= mins2[2]);
 }
 
-typedef struct {
-	int				serverTime;
-	int				angles[3];
-	int 			buttons;
-	qbyte			weapon;           // weapon
-	signed char	forwardmove, rightmove, upmove;
-} q3usercmd_t;
-#define CMD_MASK Q3UPDATE_MASK
 static qboolean SVQ3_GetUserCmd(int clientnumber, q3usercmd_t *ucmd)
 {
 	usercmd_t *cmd;
@@ -768,7 +760,7 @@ void SVQ3_SendServerCommand(client_t *cl, char *str)
 	}
 
 	cl->server_command_sequence++;
-	Q_strncpyz(cl->server_commands[cl->server_command_sequence & TEXTCMD_MASK], str, sizeof(cl->server_commands[0]));
+	Q_strncpyz(cl->server_commands[cl->server_command_sequence & Q3TEXTCMD_MASK], str, sizeof(cl->server_commands[0]));
 }
 
 void SVQ3_SendConfigString(client_t *dest, int num, char *string)
@@ -839,7 +831,7 @@ static int SVQ3_BotGetConsoleMessage( int client, char *buf, int size )
 		return false;
 
 	cl->server_command_ack++;
-	index = cl->server_command_ack & TEXTCMD_MASK;
+	index = cl->server_command_ack & Q3TEXTCMD_MASK;
 
 	if ( !cl->server_commands[index][0] )
 		return false;
@@ -861,11 +853,55 @@ static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 	CMQ3_SetAreaPortalState(sv.world.worldmodel, se->areanum, se->areanum2, open);
 }
 
+static qboolean SV_InPVS(vec3_t p1, vec3_t p2)
+{
+	model_t *worldmodel = sv.world.worldmodel;
+
+	if (!worldmodel || worldmodel->loadstate != MLS_LOADED)
+		return false;	//still loading, don't give bad results.
+	else if (!worldmodel->funcs.FatPVS)
+		return true;	//no pvs info, assume everything is visible
+	else
+	{
+#if 1
+		int l1 = CM_PointLeafnum(worldmodel, p1);
+		int l2 = CM_PointLeafnum(worldmodel, p2);
+		int c1 = CM_LeafCluster(worldmodel, l1);
+		int c2 = CM_LeafCluster(worldmodel, l2);
+		qbyte *pvs;
+		if (c1 < 0 || c2 < 0)
+			return (c1<0);	//outside can see in, inside cannot (normally) see out.
+		pvs = CM_ClusterPVS(worldmodel, c1, NULL, PVM_FAST);
+		if (pvs[c2>>3] & (1<<(c2&7)))
+		{
+			int a1 = CM_LeafArea(worldmodel, l1);
+			int a2 = CM_LeafArea(worldmodel, l2);
+			if (CM_AreasConnected(worldmodel, a1, a2))
+				return true;
+		}
+		return false;
+#else
+		const qbyte *mask;
+		int c1 = worldmodel->funcs.ClusterForPoint(worldmodel, p1);
+		int c2 = worldmodel->funcs.ClusterForPoint(worldmodel, p2);
+		if (c1 < 0 || c2 < 0)
+			return true;	//one is outside of the world, so can see inside.
+		mask = worldmodel->funcs.ClusterPVS(worldmodel, c1, NULL, PVM_FAST);
+		if (mask[c2>>3] & (1<<(c2&7)))
+		{
+			//FIXME: check areas/portals too
+			return true;	//visible
+		}
+		return false;	//nope. :(
+#endif
+	}
+}
+
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
 static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret = 0;
-	switch(fn)
+	switch((q3ggameImport_t)fn)
 	{
 	case G_PRINT:		// ( const char *string );
 		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
@@ -946,16 +982,17 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 	case G_FS_FOPEN_FILE: //fopen
 		if ((int)arg[1] + 4 >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
-		VM_LONG(ret) = VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
+		ret = VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 
 	case G_FS_READ:	//fread
 		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
 
-		VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
+		ret = VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 	case G_FS_WRITE:	//fwrite
+		ret = VM_FWrite(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 	case G_FS_FCLOSE_FILE:	//fclose
 		VM_fclose(VM_LONG(arg[0]), 0);
@@ -1081,8 +1118,8 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		return !!mapentspointer;
 
 	case G_REAL_TIME:																			//	41
-		VM_FLOAT(ret) = realtime;
-		return ret;
+		VALIDATEPOINTER(arg[0], sizeof(q3time_t));
+		return Q3VM_GetRealtime(VM_POINTER(arg[0]));
 	case G_SNAPVECTOR:
 		{
 			float *fp = (float *)VM_POINTER( arg[0] );
@@ -1566,9 +1603,30 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 
 #endif
 
+	case G_IN_PVS:
+		return SV_InPVS(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+	case G_AREAS_CONNECTED:			Con_Printf("Q3Game: builtin %s is not implemented\n", "G_AREAS_CONNECTED");			return ret;
+	case G_DEBUG_POLYGON_CREATE:	Con_Printf("Q3Game: builtin %s is not implemented\n", "G_DEBUG_POLYGON_CREATE");	return ret;
+	case G_DEBUG_POLYGON_DELETE:	Con_Printf("Q3Game: builtin %s is not implemented\n", "G_DEBUG_POLYGON_DELETE");	return ret;
+	case G_IN_PVS_IGNORE_PORTALS:	Con_Printf("Q3Game: builtin %s is not implemented\n", "G_IN_PVS_IGNORE_PORTALS");	return ret;
+	case G_MATRIXMULTIPLY:			Con_Printf("Q3Game: builtin %s is not implemented\n", "G_MATRIXMULTIPLY");			return ret;
+	case G_ANGLEVECTORS:
+		VALIDATEPOINTER(arg[1], sizeof(vec3_t));
+		VALIDATEPOINTER(arg[2], sizeof(vec3_t));
+		VALIDATEPOINTER(arg[3], sizeof(vec3_t));
+		AngleVectors(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_POINTER(arg[3]));
+		break;
+	case G_PERPENDICULARVECTOR:		Con_Printf("Q3Game: builtin %s is not implemented\n", "G_PERPENDICULARVECTOR");		return ret;
+		VALIDATEPOINTER(arg[1], sizeof(vec3_t));
+		PerpendicularVector(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		break;
+	case G_FS_SEEK:					Con_Printf("Q3Game: builtin %s is not implemented\n", "G_FS_SEEK");					return ret;
+		return VM_FSeek(arg[0], arg[1], arg[2], 0);
+
+	//case G_DEFAULTCASEWARNINGDISABLE: NOT A REAL VALUE
 //	notimplemented:
 	default:
-		Con_Printf("builtin %i is not implemented\n", (int)fn);
+		Con_Printf("Q3Game: builtin %i is not known\n", (int)fn);
 	}
 	return ret;
 }
@@ -2709,7 +2767,7 @@ static void SVQ3_WriteServerCommandsToClient(client_t *client, sizebuf_t *msg)
 	{
 		MSG_WriteBits(msg, svcq3_serverCommand, 8);
 		MSG_WriteBits(msg, i, 32);
-		str = client->server_commands[i & TEXTCMD_MASK];
+		str = client->server_commands[i & Q3TEXTCMD_MASK];
 		len = strlen(str);
 		for (j = 0; j <= len; j++)
 			MSG_WriteBits(msg, str[j], 8);
@@ -2905,7 +2963,7 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 
 	// calculate bitmask
 	bitmask = (serverid ^ lastSequence ^ client->challenge) & 0xff;
-	string = client->server_commands[lastServerCommandNum & TEXTCMD_MASK];
+	string = client->server_commands[lastServerCommandNum & Q3TEXTCMD_MASK];
 
 #ifndef Q3_NOENCRYPT
 	// decrypt the packet
@@ -3003,7 +3061,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 		return; // was dropped
 
 	// calculate key for usercmd decryption
-	string = client->server_commands[client->server_command_ack & TEXTCMD_MASK];
+	string = client->server_commands[client->server_command_ack & Q3TEXTCMD_MASK];
 	key = client->last_sequence ^ fs_key ^ StringKey(string, 32);
 
 	// read delta sequenced usercmds
@@ -3219,8 +3277,8 @@ void SVQ3_ParseClientMessage(client_t *client)
 
 	// read last server command number client received
 	client->server_command_ack = MSG_ReadBits(32);
-	if( client->server_command_ack <= client->server_command_sequence - TEXTCMD_BACKUP )
-		client->server_command_ack = client->server_command_sequence - TEXTCMD_BACKUP + 1; //too old
+	if( client->server_command_ack <= client->server_command_sequence - Q3TEXTCMD_BACKUP )
+		client->server_command_ack = client->server_command_sequence - Q3TEXTCMD_BACKUP + 1; //too old
 	else if( client->server_command_ack > client->server_command_sequence )
 		client->server_command_ack = client->server_command_sequence;	//client is from the future? o.O make fatal?
 
@@ -3341,8 +3399,11 @@ void SVQ3_NewMapConnects(void)
 		if (svs.clients[i].state < cs_connected)
 			continue;
 
-		ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD);
-		if (ret || (gametype->value == 2 && svs.clients[i].protocol == SCP_BAD))
+		if (gametype->value == 2 && svs.clients[i].protocol == SCP_BAD)
+			ret = true;
+		else
+			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD);
+		if (ret)
 		{
 			SV_DropClient(&svs.clients[i]);
 		}
@@ -3461,6 +3522,7 @@ int SVQ3_AddBot(void)
 	cl->state = cs_spawned;
 	memset(&cl->netchan.remote_address, 0, sizeof(cl->netchan.remote_address));
 
+	GENTITY_FOR_NUM(cl-svs.clients)->s.number = cl-svs.clients;
 	return cl - svs.clients;
 }
 

@@ -8,9 +8,6 @@
 
 #include "clq3defs.h"
 
-#define CMD_BACKUP UPDATE_BACKUP
-#define CMD_MASK UPDATE_MASK
-
 #define SHOWSTRING(s) if(cl_shownet.value==2)Con_Printf ("%s\n", s);
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
 #define SHOWNET2(x, y) if(cl_shownet.value==2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
@@ -86,14 +83,14 @@ void CLQ3_ParseServerCommand(void)
 
 	ccs.lastServerCommandNum++;
 
-	if( number > ccs.lastServerCommandNum+TEXTCMD_MASK-1 )
+	if( number > ccs.lastServerCommandNum+Q3TEXTCMD_MASK-1 )
 	{
 		Con_Printf("Warning: Lost %i reliable serverCommands\n",
 			number - ccs.lastServerCommandNum );
 	}
 
 	// archive the command to be processed by cgame later
-	Q_strncpyz( ccs.serverCommands[number & TEXTCMD_MASK], string, sizeof( ccs.serverCommands[0] ) );
+	Q_strncpyz( ccs.serverCommands[number & Q3TEXTCMD_MASK], string, sizeof( ccs.serverCommands[0] ) );
 }
 
 /*
@@ -333,9 +330,9 @@ void CLQ3_ParseSnapshot(void)
 	// Find last usercmd server has processed and calculate snap.ping
 
 	snap.ping = 3;
-	for (i=cls.netchan.outgoing_sequence-1 ; i>cls.netchan.outgoing_sequence-CMD_BACKUP ; i--)
+	for (i=cls.netchan.outgoing_sequence-1 ; i>cls.netchan.outgoing_sequence-Q3CMD_BACKUP ; i--)
 	{
-		frame = &cl.outframes[i & CMD_MASK];
+		frame = &cl.outframes[i & Q3CMD_MASK];
 		if (frame->server_message_num == snap.deltaFrame)
 		{
 			snap.ping = Sys_Milliseconds() - frame->client_time;
@@ -641,7 +638,6 @@ void CLQ3_ParseGameState(void)
 
 }
 
-#define TEXTCMD_BACKUP 64
 void CLQ3_ParseServerMessage (void)
 {
 	int cmd;
@@ -661,9 +657,9 @@ void CLQ3_ParseServerMessage (void)
 
 	// read last client command number server received
 	ccs.lastClientCommandNum = MSG_ReadLong();
-	if( ccs.lastClientCommandNum <= ccs.numClientCommands - TEXTCMD_BACKUP )
+	if( ccs.lastClientCommandNum <= ccs.numClientCommands - Q3TEXTCMD_BACKUP )
 	{
-		ccs.lastClientCommandNum = ccs.numClientCommands - TEXTCMD_BACKUP + 1;
+		ccs.lastClientCommandNum = ccs.numClientCommands - Q3TEXTCMD_BACKUP + 1;
 	}
 	else if( ccs.lastClientCommandNum > ccs.numClientCommands )
 	{
@@ -749,7 +745,7 @@ qboolean CLQ3_Netchan_Process(void)
 
 	// calculate bitmask
 	bitmask = (sequence ^ cls.challenge) & 0xff;
-	string = ccs.clientCommands[lastClientCommandNum & TEXTCMD_MASK];
+	string = ccs.clientCommands[lastClientCommandNum & Q3TEXTCMD_MASK];
 
 #ifndef Q3_NOENCRYPT
 	// decrypt the packet
@@ -800,7 +796,7 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 
 	// calculate bitmask
 	bitmask = (lastSequence ^ serverid ^ cls.challenge) & 0xff;
-	string = ccs.serverCommands[lastServerCommandNum & TEXTCMD_MASK];
+	string = ccs.serverCommands[lastServerCommandNum & Q3TEXTCMD_MASK];
 
 #ifndef Q3_NOENCRYPT
 	// encrypt the packet
@@ -887,10 +883,10 @@ void VARGS CLQ3_SendClientCommand(const char *fmt, ...)
 	ccs.numClientCommands++;
 
 	// check if server will lose some of our clientCommands
-	if(ccs.numClientCommands - ccs.lastClientCommandNum >= TEXTCMD_BACKUP)
+	if(ccs.numClientCommands - ccs.lastClientCommandNum >= Q3TEXTCMD_BACKUP)
 		Host_EndGame("Client command overflow");
 
-	Q_strncpyz(ccs.clientCommands[ccs.numClientCommands & TEXTCMD_MASK], command, sizeof(ccs.clientCommands[0]));
+	Q_strncpyz(ccs.clientCommands[ccs.numClientCommands & Q3TEXTCMD_MASK], command, sizeof(ccs.clientCommands[0]));
 	Con_DPrintf("Sending %s\n", command);
 }
 
@@ -934,13 +930,13 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	if (Key_Dest_Has(~kdm_game) || (keycatcher&3))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
-	cl.outframes[cl.movesequence&CMD_MASK].cmd[0] = *cmd;
+	cl.outframes[cl.movesequence&Q3CMD_MASK].cmd[0] = *cmd;
 	cl.movesequence++;
 
 	//FIXME: q3 generates a new command every video frame, but a new packet at a more limited rate.
 	//FIXME: we should return here if its not yet time for a network frame.
 
-	frame = &cl.outframes[cls.netchan.outgoing_sequence & CMD_MASK];
+	frame = &cl.outframes[cls.netchan.outgoing_sequence & Q3CMD_MASK];
 	frame->cmd_sequence = cl.movesequence;
 	frame->server_message_num = ccs.serverMessageNum;
 	frame->server_time = cl.gametime;
@@ -960,7 +956,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	{
 		MSG_WriteBits(&msg, clcq3_clientCommand, 8);
 		MSG_WriteBits(&msg, i, 32);
-		string = ccs.clientCommands[i & TEXTCMD_MASK];
+		string = ccs.clientCommands[i & Q3TEXTCMD_MASK];
 		while(*string)
 			MSG_WriteBits(&msg, *string++, 8);
 		MSG_WriteBits(&msg, 0, 8);
@@ -969,12 +965,12 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	i = cls.netchan.outgoing_sequence;
 	i -= bound(0, cl_c2sdupe.ival, 5); //extra age, if desired
 	i--;
-	if (i < cls.netchan.outgoing_sequence-CMD_MASK)
-		i = cls.netchan.outgoing_sequence-CMD_MASK;
-	oldframe = &cl.outframes[i & CMD_MASK];
+	if (i < cls.netchan.outgoing_sequence-Q3CMD_MASK)
+		i = cls.netchan.outgoing_sequence-Q3CMD_MASK;
+	oldframe = &cl.outframes[i & Q3CMD_MASK];
 	cmdcount = cl.movesequence - oldframe->cmd_sequence;
-	if (cmdcount > CMD_MASK)
-		cmdcount = CMD_MASK;
+	if (cmdcount > Q3CMD_MASK)
+		cmdcount = Q3CMD_MASK;
 
 	// begin a client move command, if any
 	if (cmdcount)
@@ -989,7 +985,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		MSG_WriteBits(&msg, cmdcount, 8);
 
 		// calculate key
-		string = ccs.serverCommands[ccs.lastServerCommandNum & TEXTCMD_MASK];
+		string = ccs.serverCommands[ccs.lastServerCommandNum & Q3TEXTCMD_MASK];
 		key = ccs.fs_key ^ ccs.serverMessageNum ^ StringKey(string, 32);
 
 		//note that q3 uses timestamps so sequences are not important
@@ -997,7 +993,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		from = &nullcmd;
 		for (i = cl.movesequence-cmdcount; i < cl.movesequence; i++)
 		{
-			to = &cl.outframes[i&CMD_MASK].cmd[0];
+			to = &cl.outframes[i&Q3CMD_MASK].cmd[0];
 			MSG_Q3_WriteDeltaUsercmd( &msg, key, from, to );
 			from = to;
 		}

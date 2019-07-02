@@ -1238,9 +1238,6 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
 	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
-#ifndef MINIMAL
-	Cmd_AddCommandAD ("modelviewer", M_Menu_ModelViewer_f, M_Menu_ModelViewer_c, "View a model...");
-#endif
 
 #ifdef CL_MASTER
 	Cmd_AddCommand ("menu_slist", M_Menu_ServerList2_f);
@@ -1298,6 +1295,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_keys");
 	Cmd_RemoveCommand ("help");
 	Cmd_RemoveCommand ("menu_quit");
+	Cmd_RemoveCommand ("menu_mods");
 
 #ifdef CL_MASTER
 	Cmd_RemoveCommand ("menu_slist");
@@ -1325,6 +1323,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_lighting");
 	Cmd_RemoveCommand ("menu_textures");
 	Cmd_RemoveCommand ("menu_particles");
+	Cmd_RemoveCommand ("menu_network");
 
 
 	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab gives us main and not quit.
@@ -1377,6 +1376,9 @@ void M_Init (void)
 	//downloads menu needs sandboxing, so cannot be provided by qc.
 #ifdef PACKAGEMANAGER
 	Cmd_AddCommand ("menu_download", Menu_DownloadStuff_f);
+#endif
+#ifndef MINIMAL
+	Cmd_AddCommandAD ("modelviewer", M_Menu_ModelViewer_f, M_Menu_ModelViewer_c, "View a model...");
 #endif
 	//demo menu is allowed to see outside of the quakedir. you can't replicate that in qc's sandbox.
 	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);

@@ -400,7 +400,9 @@ typedef enum {
 	BOTLIB_PC_LOAD_SOURCE,
 	BOTLIB_PC_FREE_SOURCE,
 	BOTLIB_PC_READ_TOKEN,
-	BOTLIB_PC_SOURCE_FILE_AND_LINE
+	BOTLIB_PC_SOURCE_FILE_AND_LINE,
+
+	G_DEFAULTCASEWARNINGDISABLE //note: not an allowed index, just exists to prevent clang from warning about the default case.
 
 } q3ggameImport_t;
 

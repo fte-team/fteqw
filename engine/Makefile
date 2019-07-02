@@ -1006,7 +1006,7 @@ ifeq ($(FTE_TARGET),nacl)
 
 	CC=
 	CXX=
-	STRIP=
+	STRIP=@echo SKIP: strip
 	NACLLIBC=glibc
 	ifeq ($(NARCH),x86_32)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m32
@@ -1187,7 +1187,7 @@ ifeq ($(FTE_TARGET),vc)
 			JPEGLIB=libs/jpeg.lib
 		endif
 	endif
-	STRIP=@echo strip
+	STRIP=@echo SKIP: strip
 	EXEPOSTFIX=.exe
 
 	CC=PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
@@ -1640,7 +1640,7 @@ ifeq ($(FTE_TARGET),web)
 
 	#SV_LDFLAGS=
 
-	STRIP=echo
+	STRIP=@echo SKIP: strip
 	#GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) cd_null.o
 	#GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_web
@@ -1786,9 +1786,21 @@ DO_LD ?= $(DO_ECHO) $(LDCC) -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
+$(OUT_DIR)/$(EXE_NAME).db: $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
+	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
+
+ifeq (,$(findstring SKIP,$(STRIP)))
+#link to a .db file
+#then strip its debug data to the non-.db release binary
+_out-rel: $(ARCH_PREDEP)
+	@$(MAKE) $(OUT_DIR)/$(EXE_NAME).db EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"
+	@$(STRIP) $(STRIPFLAGS) $(OUT_DIR)/$(EXE_NAME).db -o $(OUT_DIR)/$(EXE_NAME)
+else
+#STRIP macro won't work, don't do the .db thing and don't expect strip -o to work.
 _out-rel: $(ARCH_PREDEP)
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"
-	$(STRIP) $(STRIPFLAGS) $(OUT_DIR)/$(EXE_NAME)
+	@echo not stripping $(OUT_DIR)/$(EXE_NAME)
+endif
 
 _out-dbg: $(ARCH_PREDEP)
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="$(OBJS)"

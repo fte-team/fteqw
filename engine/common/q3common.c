@@ -1722,4 +1722,26 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 	}
 }
 
+qint64_t Q3VM_GetRealtime(q3time_t *qtime)
+{      //this is useful mostly for saved games, or other weird stuff.
+	time_t t = time(NULL);
+	if (qtime)
+	{
+		struct tm *tm = localtime(&t);
+		if (tm)
+		{
+			qtime->tm_sec = tm->tm_sec;
+			qtime->tm_hour = tm->tm_hour;
+			qtime->tm_mday = tm->tm_mday;
+			qtime->tm_mon = tm->tm_mon;
+			qtime->tm_year = tm->tm_year;
+			qtime->tm_wday = tm->tm_wday;
+			qtime->tm_yday = tm->tm_yday;
+			qtime->tm_isdst = tm->tm_isdst;
+		}
+		else
+			memset(qtime, 0, sizeof(*qtime));
+	}
+	return t;
+}
 #endif

@@ -330,7 +330,7 @@ typedef struct dlight_s
 	float	coronascale;
 
 	unsigned int flags;
-	char	cubemapname[64];
+	char	cubemapname[MAX_QPATH];
 	char	*customstyle;
 
 	int coronaocclusionquery;
@@ -1370,7 +1370,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct m
 //
 void CL_SetSolidPlayers (void);
 void CL_SetUpPlayerPrediction(qboolean dopred);
-void CL_LinkStaticEntities(void *pvs);
+void CL_LinkStaticEntities(void *pvs, int *areas);
 void CL_TransitionEntities (void); /*call at the start of the frame*/
 void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);

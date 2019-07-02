@@ -6281,6 +6281,10 @@ void FS_ArbitraryFile_c(int argn, const char *partial, struct xcommandargcomplet
 	}
 }
 
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#elif !defined(NOSTDIO)
+#include <sys/stat.h>
+#endif
 static void COM_InitHomedir(ftemanifest_t *man)
 {
 	int i;

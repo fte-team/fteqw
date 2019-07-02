@@ -205,14 +205,14 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 		debuggerresume = -1;
 		fprintf(stdout, "qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 #ifndef SERVERONLY
 		INS_UpdateGrabs(false, false);
 #endif
 #endif
 		while(debuggerresume == -1 && !wantquit)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 			Sleep(10);
 #else
 			usleep(10*1000);
@@ -406,7 +406,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 #endif
 		debuggerresume = -1;
 		debuggerresumeline = *line;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 		if (debuggerwnd)
 			SetForegroundWindow((HWND)debuggerwnd);
 #endif
@@ -428,7 +428,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		}
 		while(debuggerresume == -1 && !wantquit)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 			Sleep(10);
 #else
 			usleep(10*1000);
@@ -436,7 +436,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			SV_GetConsoleCommands();
 		}
 #else
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 		INS_UpdateGrabs(false, false);
 #endif
 		if (reason)
@@ -445,7 +445,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			Con_Footerf(NULL, false, "^bDebugging");
 		while(debuggerresume == -1 && !wantquit)
 		{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 			Sleep(10);
 #else
 			usleep(10*1000);

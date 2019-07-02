@@ -4974,7 +4974,7 @@ static void COM_Version_f (void)
 #endif
 
 #ifdef HAVE_CLIENT
-	Con_Printf("image formats:");
+	Con_Printf("^3Image Formats:^7");
 	#ifdef IMAGEFMT_DDS
 		Con_Printf(" dds");
 	#endif
@@ -5022,7 +5022,7 @@ static void COM_Version_f (void)
 	#endif
 	Con_Printf("\n");
 
-	Con_Printf("VoiceChat:");
+	Con_Printf("^3VoiceChat:^7");
 	#if !defined(VOICECHAT)
 		Con_Printf(" disabled");
 	#else
@@ -5041,7 +5041,7 @@ static void COM_Version_f (void)
 	#endif
 	Con_Printf("\n");
 
-	Con_Printf("Audio Decoders:");
+	Con_Printf("^3Audio Decoders:^7");
 	#ifndef AVAIL_OGGVORBIS
 		Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
 	#elif defined(LIBVORBISFILE_STATIC)
@@ -5056,7 +5056,7 @@ static void COM_Version_f (void)
 #endif
 
 #ifdef SQL
-	Con_Printf("Databases:");
+	Con_Printf("^3Databases:^7");
 	#ifdef USE_MYSQL
 		Con_Printf(" mySQL^h(dynamic)");
 	#else
@@ -5070,7 +5070,7 @@ static void COM_Version_f (void)
 	Con_Printf("\n");
 #endif
 
-	Con_Printf("Misc:");
+	Con_Printf("^3Misc:^7");
 #ifdef SUBSERVERS
 	Con_Printf(" mapcluster");
 #else
@@ -5110,7 +5110,7 @@ static void COM_Version_f (void)
 	#endif
 #endif
 
-	Con_Printf("Games:");
+	Con_Printf("^3Games:^7");
 #if defined(Q3SERVER) && defined(Q3CLIENT)
 	#ifdef BOTLIB_STATIC
 		Con_Printf(" Quake3");
@@ -5168,6 +5168,37 @@ static void COM_Version_f (void)
 #endif
 #ifdef HAVE_SERVER
 	Con_Printf(" ssqc");
+#endif
+	Con_Printf("\n");
+
+	Con_Printf("^3Networking:^7");
+#ifdef WEBCLIENT
+	Con_Printf(" HTTPClient");
+#endif
+#ifdef HAVE_HTTPSV
+	Con_Printf(" HTTPServer");
+#endif
+#ifdef FTPSERVER
+	Con_Printf(" FTPServer");
+#endif
+#ifdef HAVE_TCP
+#ifdef TCPCONNECT
+	Con_Printf(" TCPConnect");
+#endif
+#else
+	Con_Printf(" ^h(disabled: TCP)");
+#endif
+#ifdef HAVE_GNUTLS             //on linux
+	Con_Printf(" GnuTLS");
+#endif
+#ifdef HAVE_OPENSSL          //on linux. hardlinked, so typically set only via the makefile.
+	Con_Printf(" OpenSSL");
+#endif
+#ifdef HAVE_WINSSPI            //on windows
+	Con_Printf(" WINSSPI");
+#endif
+#ifdef SUPPORT_ICE
+	Con_Printf(" ICE");
 #endif
 	Con_Printf("\n");
 }

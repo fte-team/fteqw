@@ -590,7 +590,11 @@ SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS?=-ggdb -g
 DEBUG_CFLAGS+=-DDEBUG
-RELEASE_CFLAGS?=-O3 -ffast-math $(CPUOPTIMIZATIONS)
+RELEASE_CFLAGS?=-O3 $(CPUOPTIMIZATIONS)
+#
+#note: RELEASE_CFLAGS used to contain -ffast-math
+#however, its use resulted in the player getting stuck etc, so be warned if you try re-enabling it.
+#
 
 ifeq ($(FTE_TARGET),vc)
 	#msvc doesn't do -dumpmachine.

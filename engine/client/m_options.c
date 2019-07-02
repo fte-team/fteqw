@@ -2886,7 +2886,7 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 	static const char *bppvalues[] = {"16", "24", NULL};
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 	extern int qwinvermaj, qwinvermin;
 	//on win8+, hide the 16bpp option - windows would just reject it.
 	int bppbias = ((qwinvermaj == 6 && qwinvermin >= 2) || qwinvermaj>6)?1:0;

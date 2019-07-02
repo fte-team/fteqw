@@ -1896,7 +1896,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->stereo = (r_stereo_method.ival == 1);
 	newr->srgb = vid_srgb.ival;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 	if (newr->bpp && newr->bpp < 24)
 	{
 		extern int qwinvermaj;

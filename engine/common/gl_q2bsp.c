@@ -6759,9 +6759,9 @@ static trace_t		CM_BoxTrace (model_t *mod, const vec3_t start, const vec3_t end,
 		float ext;
 		trace_shape = shape_iscapsule;
 		//determine the capsule sizes
-		trace_capsulesize[0] = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
-		trace_capsulesize[1] = maxs[2];
-		trace_capsulesize[2] = mins[2];
+		trace_capsulesize[0] = ((trace_maxs[0]-trace_mins[0]) + (trace_maxs[1]-trace_mins[1]))/4.0;
+		trace_capsulesize[1] = trace_maxs[2];
+		trace_capsulesize[2] = trace_mins[2];
 		//make sure the mins_z/maxs_z isn't screwed.
 //		if (trace_capsulesize[1]-trace_capsulesize[2] < trace_capsulesize[0])
 //			trace_capsulesize[1] = trace_capsulesize[0]+trace_capsulesize[2];

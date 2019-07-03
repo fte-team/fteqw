@@ -2241,6 +2241,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 		else
 			clients++;
 	}
+	if (controller->netchan.remote_address.type != NA_LOOPBACK)	//ignore limits for the local client (they could just tweak the cvar instead, but that's a hassle)
 	if ((asspec?spectators:clients) >= (asspec?maxspectators.ival:maxclients.ival))
 	{
 		SV_PrintToClient(controller, PRINT_HIGH, "Server full, cannot add new seat\n");

@@ -303,6 +303,79 @@ void INS_RawInput_DeInit(void);
 
 #endif
 
+#ifdef AVAIL_XINPUT
+static const int xinputjbuttons[] =
+{	//xinput->fte button mapping table
+	K_GP_DPAD_UP,
+	K_GP_DPAD_DOWN,
+	K_GP_DPAD_LEFT,
+	K_GP_DPAD_RIGHT,
+	K_GP_START,
+	K_GP_BACK,
+	K_GP_LEFT_THUMB,
+	K_GP_RIGHT_THUMB,
+
+	K_GP_LEFT_SHOULDER,
+	K_GP_RIGHT_SHOULDER,
+	K_GP_GUIDE,		//officially, this is 'reserved'
+	K_GP_UNKNOWN,	//reserved
+	K_GP_A,
+	K_GP_B,
+	K_GP_X,
+	K_GP_Y,
+
+	//not part of xinput specs, but used to treat the various axis as buttons.
+	K_GP_LEFT_THUMB_UP,
+	K_GP_LEFT_THUMB_DOWN,
+	K_GP_LEFT_THUMB_LEFT,
+	K_GP_LEFT_THUMB_RIGHT,
+	K_GP_RIGHT_THUMB_UP,
+	K_GP_RIGHT_THUMB_DOWN,
+	K_GP_RIGHT_THUMB_LEFT,
+	K_GP_RIGHT_THUMB_RIGHT,
+
+	K_GP_LEFT_TRIGGER,
+	K_GP_RIGHT_TRIGGER,
+};
+#endif
+static const int mmjbuttons[32] =
+{	//winmm->fte joystick button mapping table
+	K_JOY1,
+	K_JOY2,
+	K_JOY3,
+	K_JOY4,
+	//yes, aux1-4 skipped for compat with other quake engines.
+	K_AUX5,
+	K_AUX6,
+	K_AUX7,
+	K_AUX8,
+	K_AUX9,
+	K_AUX10,
+	K_AUX11,
+	K_AUX12,
+	K_AUX13,
+	K_AUX14,
+	K_AUX15,
+	K_AUX16,
+	K_AUX17,
+	K_AUX18,
+	K_AUX19,
+	K_AUX20,
+	K_AUX21,
+	K_AUX22,
+	K_AUX23,
+	K_AUX24,
+	K_AUX25,
+	K_AUX26,
+	K_AUX27,
+	K_AUX28,
+	//29-32 used for the pov stuff, so lets switch back to aux1-4 to avoid wastage
+	K_AUX1,
+	K_AUX2,
+	K_AUX3,
+	K_AUX4
+};
+
 // forward-referenced functions
 void INS_StartupJoystick (void);
 void INS_JoyMove (void);
@@ -1708,7 +1781,7 @@ static void INS_StartupJoystickId(unsigned int id)
 	}
 
 	// save the joystick's number of buttons and POV status
-	joy->numbuttons = jc.wNumButtons;
+	joy->numbuttons = min(countof(mmjbuttons), jc.wNumButtons);
 	joy->haspov = jc.wCaps & JOYCAPS_HASPOV;
 
 	// mark the joystick as available and advanced initialization not completed
@@ -1803,7 +1876,7 @@ void INS_StartupJoystick (void)
 				wjoy[joy_count].isxinput = true;
 				wjoy[joy_count].id = id;
 				wjoy[joy_count].devid = DEVID_UNSET;//id;
-				wjoy[joy_count].numbuttons = 18;	//xinput supports 16 buttons, we emulate two more with the two triggers.
+				wjoy[joy_count].numbuttons = countof(xinputjbuttons);	//xinput supports 16 buttons, we emulate two more with the two triggers.
 				joy_count++;
 
 				if (ERROR_DEVICE_NOT_AVAILABLE != pXInputGetState(id, &xistate))
@@ -1859,78 +1932,6 @@ void INS_Commands (void)
 	DWORD	buttonstate, povstate;
 	unsigned int idx;
 	struct wjoy_s *joy;
-
-	static const int xinputjbuttons[] =
-	{	
-		K_GP_DPAD_UP,
-		K_GP_DPAD_DOWN,
-		K_GP_DPAD_LEFT,
-		K_GP_DPAD_RIGHT,
-		K_GP_START,
-		K_GP_BACK,
-		K_GP_LEFT_THUMB,
-		K_GP_RIGHT_THUMB,
-
-		K_GP_LEFT_SHOULDER,
-		K_GP_RIGHT_SHOULDER,
-		K_GP_GUIDE,		//officially, this is 'reserved'
-		K_GP_UNKNOWN,	//reserved
-		K_GP_A,
-		K_GP_B,
-		K_GP_X,
-		K_GP_Y,
-
-		//not part of xinput specs, but used to treat the various axis as buttons.
-		K_GP_LEFT_THUMB_UP,
-		K_GP_LEFT_THUMB_DOWN,
-		K_GP_LEFT_THUMB_LEFT,
-		K_GP_LEFT_THUMB_RIGHT,
-		K_GP_RIGHT_THUMB_UP,
-		K_GP_RIGHT_THUMB_DOWN,
-		K_GP_RIGHT_THUMB_LEFT,
-		K_GP_RIGHT_THUMB_RIGHT,
-
-		K_GP_LEFT_TRIGGER,
-		K_GP_RIGHT_TRIGGER,
-	};
-	static const int mmjbuttons[32] =
-	{
-		K_JOY1,
-		K_JOY2,
-		K_JOY3,
-		K_JOY4,
-		//yes, aux1-4 skipped for compat with other quake engines.
-		K_AUX5,
-		K_AUX6,
-		K_AUX7,
-		K_AUX8,
-		K_AUX9,
-		K_AUX10,
-		K_AUX11,
-		K_AUX12,
-		K_AUX13,
-		K_AUX14,
-		K_AUX15,
-		K_AUX16,
-		K_AUX17,
-		K_AUX18,
-		K_AUX19,
-		K_AUX20,
-		K_AUX21,
-		K_AUX22,
-		K_AUX23,
-		K_AUX24,
-		K_AUX25,
-		K_AUX26,
-		K_AUX27,
-		K_AUX28,
-		//29-32 used for the pov stuff, so lets switch back to aux1-4 to avoid wastage
-		K_AUX1,
-		K_AUX2,
-		K_AUX3,
-		K_AUX4
-	};
-
 
 	for (idx = 0; idx < joy_count; idx++)
 	{

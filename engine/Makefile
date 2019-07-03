@@ -1,6 +1,6 @@
 CC=gcc
 WINDRES=windres
-STRIP?=echo strip
+STRIP?=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 

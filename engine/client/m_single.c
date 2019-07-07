@@ -330,6 +330,25 @@ void M_Menu_SinglePlayer_f (void)
 	static menuresel_t resel;
 #endif
 
+#if MAX_SPLITS > 1
+	static const char *splitopts[] =
+		{
+			"Single",
+			"Dual",
+			"Tripple",
+			"QUAD",
+			NULL
+		};
+	static const char *splitvals[] =
+		{
+			"0",
+			"1",
+			"2",
+			"3",
+			NULL
+		};
+#endif
+
 	Key_Dest_Add(kdm_emenu);
 
 #ifdef CLIENTONLY
@@ -351,13 +370,18 @@ void M_Menu_SinglePlayer_f (void)
 
 		//quake2 uses the 'newgame' alias, which controls the intro video and then start map.
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		va("closemenu; skill 0;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
-		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	va("closemenu; skill 1;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
-		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		va("closemenu; skill 2;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
+		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		va("closemenu; skill 0;deathmatch 0; set_calc coop ($cl_splitscreen>0);newgame\n"));
+		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	va("closemenu; skill 1;deathmatch 0; set_calc coop ($cl_splitscreen>0);newgame\n"));
+		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		va("closemenu; skill 2;deathmatch 0; set_calc coop ($cl_splitscreen>0);newgame\n"));
 #ifdef SAVEDGAMES
 		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 170, 80,	"Save Game", "menu_save\n");
 #endif
+
+#if MAX_SPLITS > 1
+		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 170, 96, "Splitscreen", &cl_splitscreen, splitopts, splitvals);
+#endif
+
 		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
 		return;
 #endif
@@ -483,6 +507,8 @@ void M_Menu_SinglePlayer_f (void)
 				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Save Game",	"menu_save\n");
 				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Load Game",	"menu_load\n");
 #endif
+
+				MC_AddCvarCombo(menu, 72, 170, y+=20, "Splitscreen", &cl_splitscreen, splitopts, splitvals);
 			}
 
 			menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
@@ -527,24 +553,6 @@ void M_Menu_SinglePlayer_f (void)
 	}
 	else
 	{
-#if MAX_SPLITS > 1
-		const char *opts[] =
-		{
-			"Single",
-			"Dual",
-			"Tripple",
-			"QUAD",
-			NULL
-		};
-		const char *vals[] =
-		{
-			"0",
-			"1",
-			"2",
-			"3",
-			NULL
-		};
-#endif
 		int width;
 		if (R_GetShaderSizes(p, &width, NULL, true) <= 0)
 			width = 232;
@@ -565,7 +573,7 @@ void M_Menu_SinglePlayer_f (void)
 #endif
 
 #if MAX_SPLITS > 1
-		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 72+width/2, 92, "", &cl_splitscreen, opts, vals);
+		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 72+width/2, 92, "", &cl_splitscreen, splitopts, splitvals);
 		MC_AddWhiteText(menu, 72, 0, 92, "^aSplitscreen", false);
 		b->common.height = 20;
 		b->common.width = width;

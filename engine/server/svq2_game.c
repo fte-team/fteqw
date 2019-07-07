@@ -908,15 +908,18 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	}
 
-	//stop q2 from crashing.
+	//Q2 gamecode depends upon maxclients being set+locked in order to know how many player slots there actually are. It crashes when its wrong.
 	if (!deathmatch.value && !coop.value)
-		maxclients.value = 1;
+		svq2_maxclients = 1;
 	else
-		maxclients.value = maxclients.ival;
-	if (maxclients.value > MAX_CLIENTS)
-		Cvar_SetValue(&maxclients, MAX_CLIENTS);
+		svq2_maxclients = maxclients.ival;
+	if (Cvar_VariableValue("cl_splitscreen"))
+		svq2_maxclients = max(svq2_maxclients, MAX_SPLITS);
+	if (svq2_maxclients > MAX_CLIENTS)
+		svq2_maxclients = MAX_CLIENTS;
+	if (svq2_maxclients != maxclients.value)
+		Cvar_SetValue(&maxclients, svq2_maxclients);
 
-	svq2_maxclients = maxclients.value;
 	maxclients.flags |= CVAR_LATCH;
 	deathmatch.flags |= CVAR_LATCH;
 	coop.flags |= CVAR_LATCH;

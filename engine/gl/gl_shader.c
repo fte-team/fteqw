@@ -1444,7 +1444,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			for(;;)
 			{
 				size_t len;
-				int i;
+				int i, j;
 				char *type, *idx, *next;
 				char *token = com_token;
 
@@ -1486,6 +1486,15 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 						i = prog->numsamplers;
 					if (prog->numsamplers < i+1)
 						prog->numsamplers = i+1;
+
+					/*for (j = 0; sh_defaultsamplers[j].name; j++)
+					{
+						if (!strcmp(token, sh_defaultsamplers[j].name+2))
+						{
+							Con_Printf("%s: %s is an internal texture name\n", name, token);
+							break;
+						}
+					}*/
 
 					//I really want to use layout(binding = %i) here, but its specific to the glsl version (which we don't really know yet)
 					Q_strlcatfz(prescript, &offset, sizeof(prescript), "#define s_%s s_t%u\nuniform %s%s s_%s;\n", token, i, strncmp(type, "sampler", 7)?"sampler":"", type, token);
@@ -3947,13 +3956,15 @@ qboolean Shader_Init (void)
 		}
 	}
 	
-	memset(wibuf, 0xff, sizeof(wibuf));
 	if (!qrenderer)
 		r_whiteimage = r_nulltex;
 	else
+	{
+		memset(wibuf, 0xff, sizeof(wibuf));
 		r_whiteimage = R_LoadTexture("$whiteimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
-	memset(wibuf, 0, sizeof(wibuf));
-	r_blackimage = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+		memset(wibuf, 0, sizeof(wibuf));
+		r_blackimage = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+	}
 
 	Shader_NeedReload(true);
 	Shader_DoReload();

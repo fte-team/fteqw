@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 #include <errno.h>
 
+qboolean sys_nounload;
 #ifndef HAVE_CLIENT
 double		host_frametime;
 double		realtime;				// without any filtering or bounding
@@ -5823,6 +5824,9 @@ void COM_Init (void)
 		BigFloat = FloatNoSwap;
 		LittleFloat = FloatSwap;
 	}
+
+	//random should be random from the start...
+	srand(time(0));
 
 #ifdef MULTITHREAD
 	Sys_ThreadsInit();

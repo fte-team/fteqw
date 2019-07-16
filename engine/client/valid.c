@@ -30,7 +30,7 @@ cvar_t allow_f_fakeshaft	= CVAR("allow_f_fakeshaft", "1");
 cvar_t allow_f_system		= CVAR("allow_f_system", "0");
 cvar_t allow_f_cmdline		= CVAR("allow_f_cmdline", "0");
 cvar_t auth_validateclients	= CVAR("auth_validateclients", "1");
-cvar_t ruleset			= CVARC("ruleset", "none", rulesetcallback);
+cvar_t ruleset			= CVARCD("ruleset", "none", rulesetcallback, "Known rulesets are:\nnone: no explicit rules, all 'minor cheats' are allowed.\nstrict: equivelent to the smackdown ruleset. Note that this will block certain graphical enhancements too.");
 
 
 #define SECURITY_INIT_BAD_CHECKSUM	1
@@ -369,7 +369,7 @@ typedef struct {
 	qboolean flagged;
 } ruleset_t;
 
-rulesetrule_t rulesetrules_strict[] = {
+static rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_shaders", "0"},	/*users can potentially create all sorts of wallhacks or spiked models with this*/
 	{"ruleset_allow_watervis", "0"}, /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
 	{"r_vertexlight", "0"},
@@ -395,7 +395,7 @@ rulesetrule_t rulesetrules_strict[] = {
 	{NULL}
 };
 
-rulesetrule_t rulesetrules_nqr[] = {
+static rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_larger_models", "0"},
 	{"ruleset_allow_watervis", "0"}, /*block seeing through turbs, as well as all our cool graphics stuff. apparently we're not allowed.*/
 	{"ruleset_allow_overlong_sounds", "0"},
@@ -438,7 +438,7 @@ void Validation_DelatchRulesets(void)
 		Con_DPrintf("Ruleset deactivated\n");
 }
 
-qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qboolean enforcechosenrulesets)
+static qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qboolean enforcechosenrulesets)
 {	//this code is more complex than it needs to be
 	//this allows for the ruleset code to print a ruleset name that is applied via the cvars, but not directly named by the user
 	cvar_t *var;
@@ -501,7 +501,7 @@ qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qbool
 		return false;
 }
 
-void Validation_OldRuleset(void)
+static void Validation_OldRuleset(void)
 {
 	char rsnames[1024];
 
@@ -511,7 +511,7 @@ void Validation_OldRuleset(void)
 		Cbuf_AddText("say No specific ruleset\n", RESTRICT_LOCAL);
 }
 
-void Validation_AllChecks(void)
+static void Validation_AllChecks(void)
 {
 	char servername[22];
 	char playername[16];

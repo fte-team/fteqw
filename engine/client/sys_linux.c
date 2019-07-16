@@ -65,8 +65,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #undef malloc
 
-int noconinput = 0;
-int nostdout = 0;
+static int noconinput = 0;
+static int nostdout = 0;
 
 int isPlugin;
 int sys_parentleft;
@@ -77,8 +77,6 @@ long	sys_parentwindow;
 qboolean sys_gracefulexit;
 
 qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
-
-char *basedir = "./";
 
 qboolean Sys_InitTerminal (void)	//we either have one or we don't.
 {
@@ -311,9 +309,10 @@ static void Sys_Register_File_Associations_f(void)
 
 	//we need to create some .desktop file first, so stuff knows how to start us up.
 	{
+		char iconsyspath[MAX_OSPATH];
 		char *exe = realpath(host_parms.argv[0], NULL);
 		char *basedir = realpath(com_gamepath, NULL);
-		char *iconname = fs_manifest->installation;
+		const char *iconname = fs_manifest->installation;
 		const char *desktopfile = 
 			"[Desktop Entry]\n"
 			"Type=Application\n"
@@ -329,6 +328,10 @@ static void Sys_Register_File_Associations_f(void)
 			;
 		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
 			iconname = "quake";
+
+		if (FS_NativePath("icon.png", FS_GAME, iconsyspath, sizeof(iconsyspath)))
+			iconname = iconsyspath;
+
 		desktopfile = va(desktopfile,
 					fs_manifest->formalname?fs_manifest->formalname:fs_manifest->installation,
 					exe, basedir, iconname);

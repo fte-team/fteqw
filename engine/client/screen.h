@@ -231,7 +231,7 @@ typedef enum uploadfmt
 #define PTI_EMULATED 	TF_INVALID:case TF_BGR24_FLIP:case TF_MIP4_P8:case TF_MIP4_SOLID8:case TF_MIP4_8PAL24:case TF_MIP4_8PAL24_T255:case TF_SOLID8:case TF_TRANS8:case TF_TRANS8_FULLBRIGHT:case TF_HEIGHT8:case TF_HEIGHT8PAL:case TF_H2_T7G1:case TF_H2_TRANS8_0:case TF_H2_T4A4:case TF_8PAL24:case TF_8PAL32:case PTI_LLLX8:case PTI_LLLA8
 } uploadfmt_t;
 
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta);
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, qintptr_t bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta);
 
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);
 
@@ -258,6 +258,7 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
 float Font_CharVHeight(struct font_s *font);
+int Font_CharPHeight(struct font_s *font);
 float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charflags, unsigned int codepoint);
 float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint);

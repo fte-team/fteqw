@@ -109,28 +109,28 @@ typedef enum
 	G_GETINFOKEY,
 	G_MULTICAST,		//35
 	G_DISABLEUPDATES,
-	G_WRITEBYTE,     
-	G_WRITECHAR,     
-	G_WRITESHORT,    
+	G_WRITEBYTE,
+	G_WRITECHAR,
+	G_WRITESHORT,
 	G_WRITELONG,		//40
-	G_WRITEANGLE,    
-	G_WRITECOORD,    
-	G_WRITESTRING,   
+	G_WRITEANGLE,
+	G_WRITECOORD,
+	G_WRITESTRING,
 	G_WRITEENTITY,
 	G_FLUSHSIGNON,		//45
 	g_memset,
-	g_memcpy,		
-	g_strncpy,		
-	g_sin,	
+	g_memcpy,
+	g_strncpy,
+	g_sin,
 	g_cos,				//50
-	g_atan2,	
-	g_sqrt,	
-	g_floor,	
-	g_ceil,	
+	g_atan2,
+	g_sqrt,
+	g_floor,
+	g_ceil,
 	g_acos,				//55
 	G_CMD_ARGC,
 	G_CMD_ARGV,
-	G_TraceBox,			//was G_TraceCapsule
+	G_TraceBox,			//was G_TraceCapsule, which is a misnomer.
 	G_FS_OpenFile,
 	G_FS_CloseFile,		//60
 	G_FS_ReadFile,
@@ -214,7 +214,7 @@ typedef enum
 
 typedef enum
 {
-	F_INT, 
+	F_INT,
 	F_FLOAT,
 	F_LSTRING,			// string on disk, pointer in memory, TAG_LEVEL
 //	F_GSTRING,			// string on disk, pointer in memory, TAG_GAME
@@ -817,7 +817,7 @@ static qintptr_t QVM_Remove_Ent (void *offset, quintptr_t mask, const qintptr_t 
 
 static qintptr_t QVM_Precache_Sound (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	return PF_precache_sound_Internal(svprogfuncs, VM_POINTER(arg[0]));
+	return PF_precache_sound_Internal(svprogfuncs, VM_POINTER(arg[0]), false);
 }
 static qintptr_t QVM_Precache_Model (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1786,7 +1786,7 @@ static qintptr_t QVM_uri_query (void *offset, quintptr_t mask, const qintptr_t *
 	const char *data = VM_POINTER(arg[4]);
 	size_t datasize = VM_LONG(arg[5]);
 	extern cvar_t pr_enable_uriget;
-	
+
 	if (!pr_enable_uriget.ival)
 	{
 		Con_Printf("QVM_uri_query(\"%s\"): %s disabled\n", url, pr_enable_uriget.name);
@@ -1856,6 +1856,29 @@ static qintptr_t QVM_pointerstat (void *offset, quintptr_t mask, const qintptr_t
 	return 0;
 }
 
+static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int a0 = VM_LONG(arg[0]);
+	unsigned int a1 = VM_LONG(arg[1]);
+	if (a0 < sv.world.num_edicts || a1 < sv.world.num_edicts)
+	{
+		pvscache_t *viewer = &q1qvmprogfuncs.edicttable[a0]->pvsinfo;
+		pvscache_t *viewee = &q1qvmprogfuncs.edicttable[a1]->pvsinfo;
+		if (viewer->num_leafs && viewee->num_leafs)
+		{
+			unsigned int i;
+			for (i = 0; i < viewer->num_leafs; i++)
+			{
+				int areas[] = {2,viewer->areanum, viewer->areanum2};
+				qbyte *pvs = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, viewer->leafnums[i], NULL, PVM_FAST);
+				if (sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, viewee, pvs, areas))
+					return true;	//viewer can see viewee
+			}
+		}
+	}
+	return 0;
+}
+
 static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr_t *arg);
 
 typedef qintptr_t (*traps_t) (void *offset, quintptr_t mask, const qintptr_t *arg);
@@ -1898,24 +1921,24 @@ traps_t bitraps[G_MAX] =
 	QVM_GetInfoKey,
 	QVM_Multicast,		//35
 	QVM_DisableUpdates,
-	QVM_WriteByte,     
-	QVM_WriteChar,     
-	QVM_WriteShort,    
+	QVM_WriteByte,
+	QVM_WriteChar,
+	QVM_WriteShort,
 	QVM_WriteLong,		//40
-	QVM_WriteAngle,    
-	QVM_WriteCoord,    
-	QVM_WriteString,   
+	QVM_WriteAngle,
+	QVM_WriteCoord,
+	QVM_WriteString,
 	QVM_WriteEntity,
 	QVM_FlushSignon,		//45
 	QVM_memset,
-	QVM_memcpy,		
-	QVM_strncpy,		
-	QVM_sin,	
+	QVM_memcpy,
+	QVM_strncpy,
+	QVM_sin,
 	QVM_cos,				//50
-	QVM_atan2,	
-	QVM_sqrt,	
-	QVM_floor,	
-	QVM_ceil,	
+	QVM_atan2,
+	QVM_sqrt,
+	QVM_floor,
+	QVM_ceil,
 	QVM_acos,				//55
 	QVM_Cmd_ArgC,
 	QVM_Cmd_ArgV,
@@ -1975,6 +1998,7 @@ struct
 	{"pointparticles",		QVM_pointparticles},
 	{"clientstat",			QVM_clientstat},	//csqc extension
 	{"pointerstat",			QVM_pointerstat},	//csqc extension
+	{"VisibleTo",			QVM_VisibleTo},		//alternative to mvdsv's visclients hack
 
 	//sql?
 	//model querying?
@@ -2072,7 +2096,7 @@ void Q1QVM_Shutdown(qboolean notifygame)
 				Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));
 			svs.clients[i].name = svs.clients[i].namebuf;
 		}
-		if (notifygame)
+		if (notifygame && gvars)
 			VM_Call(q1qvm, GAME_SHUTDOWN, 0, 0, 0);
 		VM_Destroy(q1qvm);
 		q1qvm = NULL;
@@ -2150,13 +2174,19 @@ qboolean PR_LoadQ1QVM(void)
 	qintptr_t limit;
 	extern cvar_t	pr_maxedicts;
 
+	const char *fname = pr_ssqc_progs.string;
+	if (!*fname)
+		fname = "qwprogs";
+
 	Q1QVM_Shutdown(true);
 
-	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, "qwprogs", syscallqvm);
+	q1qvm = VM_Create(fname, com_nogamedirnativecode.ival?NULL:syscallnative, fname, syscallqvm);
 	if (!q1qvm)
-		q1qvm = VM_Create("qwprogs", syscallnative, "qwprogs", NULL);
+		q1qvm = VM_Create(fname, syscallnative, fname, NULL);
 	if (!q1qvm)
 	{
+		if (com_nogamedirnativecode.ival && COM_FCheckExists(va("%s"ARCH_DL_POSTFIX, fname)))
+			Con_Printf(CON_WARNING"%s"ARCH_DL_POSTFIX" exists, but is blocked from loading due to known bugs in other engines. If this is from a safe source then either ^aset com_nogamedirnativecode 0^a or rename to eg %s%s_%s"ARCH_DL_POSTFIX"\n", fname, ((host_parms.binarydir && *host_parms.binarydir)?host_parms.binarydir:host_parms.basedir), fname, FS_GetGamedir(false));
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;
 		return false;
@@ -2238,7 +2268,7 @@ qboolean PR_LoadQ1QVM(void)
 		gdn = (gameDataN_t*)((char*)VM_MemoryBase(q1qvm) + ret);
 		gd.APIversion = gdn->APIversion;
 		gd.sizeofent = gdn->sizeofent;
-		
+
 		gd.ents = gdn->ents;
 		gd.global = gdn->global;
 		gd.fields = gdn->fields;
@@ -2384,6 +2414,7 @@ qboolean PR_LoadQ1QVM(void)
 		{
 			const char *fname = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, field[i].name);
 			emufields
+			Con_DPrintf("Extension field %s is not supported\n", fname);
 		}
 	}
 	else
@@ -2394,6 +2425,7 @@ qboolean PR_LoadQ1QVM(void)
 		{
 			const char *fname = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, field[i].name);
 			emufields
+			Con_DPrintf("Extension field %s is not supported\n", fname);
 		}
 	}
 #undef emufield
@@ -2490,7 +2522,7 @@ qboolean Q1QVM_GameConsoleCommand(void)
 
 	//FIXME: if an rcon command from someone on the server, mvdsv sets self to match the ip of that player
 	//this is not required (broken by proxies anyway) but is a nice handy feature
-	
+
 	pr_global_struct->time = sv.world.physicstime;
 	oldself = pr_global_struct->self;	//these are usually useless
 	oldother = pr_global_struct->other;	//but its possible that someone makes a mod that depends on the 'mod' command working via redirectcmd+co

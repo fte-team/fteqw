@@ -3726,9 +3726,9 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	if (pixw != 1 || pixh != 1)
 		return -1;	//compressed formats are unsupported
 	dfmt = PTI_BGRX8;
-        if (!sh_config.texfmt[dfmt])
+	if (!sh_config.texfmt[dfmt])
 		dfmt = PTI_RGBX8;
-        if (!sh_config.texfmt[dfmt])
+	if (!sh_config.texfmt[dfmt])
 		dfmt = PTI_RGB8;
 	Image_BlockSizeForEncoding(dfmt, &dpixbytes, &dpixw, &dpixh);
 

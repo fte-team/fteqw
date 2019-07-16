@@ -1130,13 +1130,13 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 							else if (bm->pixel_mode == FT_PIXEL_MODE_BGRA)
 							{
 								unsigned int *out = alloca(nw*nh*sizeof(*out));
-								Image_ResampleTexture((void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
+								Image_ResampleTexture(PTI_BGRA8, (void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
 								c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, nw, nh, nw*sizeof(*out));
 							}
 							else if (bm->pixel_mode == FT_PIXEL_MODE_GRAY)
 							{
 								unsigned char *out = alloca(nw*nh*sizeof(*out));
-								Image_ResampleTexture8((void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
+								Image_ResampleTexture(PTI_L8, (void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
 								c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, nw, nh, nw*sizeof(*out));
 							}
 							else
@@ -1204,7 +1204,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 						int ngh = f->charheight;
 						qbyte *out2 = alloca(ngw*ngh*4);
 						if (ngw&&ngh)
-							Image_ResampleTexture((unsigned int *)out, gw, gh, (unsigned int *)out2, ngw, ngh);
+							Image_ResampleTexture(PTI_RGBA8, out, gw, gh, out2, ngw, ngh);
 						c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA, out2, ngw, ngh, ngw*4); 
 						gw = ngw;
 					}
@@ -1263,7 +1263,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 							for (y = 0; y < gh; y++)
 								for (x = 0; x < gw; x++)
 									out1[x+y*gw] = out[x+y*gs];
-							Image_ResampleTexture((unsigned int *)out1, gw, gh, (unsigned int *)out2, ngw, ngh);
+							Image_ResampleTexture(PTI_RGBA8, out1, gw, gh, out2, ngw, ngh);
 						}
 						c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA, out2, ngw, ngh, ngw*4); 
 						gw = ngw;
@@ -2403,6 +2403,10 @@ void Font_EndString(struct font_s *font)
 int Font_CharHeight(void)
 {
 	return curfont->charheight;
+}
+int Font_CharPHeight(struct font_s *font)
+{
+	return font->charheight;
 }
 float Font_CharVHeight(struct font_s *font)
 {

@@ -843,9 +843,14 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 	}
 
 	//no control chars. use quake ones if so
-	if (!(flag & 4))
-		if (chara < 32 && chara != '\t')
-			chara |= 0xe000;
+	if (!(flag & 4) && !com_parseutf8.ival)
+	{
+		//ugly quake chars...
+		if (chara >= 32 && chara < 128)
+			;	//ascii-comptaible range
+		else
+			chara |= 0xe000;	//use quake glyphs (including for red text, unfortunately)
+	}
 
 	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);

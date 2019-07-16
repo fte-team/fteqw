@@ -38,8 +38,6 @@ int sv_max_staticentities;
 staticsound_state_t *sv_staticsounds;
 int sv_max_staticsounds;
 
-char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
-
 extern cvar_t	skill;
 extern cvar_t	sv_cheats;
 extern cvar_t	sv_bigcoords;

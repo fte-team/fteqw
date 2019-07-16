@@ -118,6 +118,7 @@ cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
 cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connection within the specified length of time .");
+cvar_t sv_use_dns			= CVARD("sv_use_dns", "", "Performs a reverse-dns lookup in order to report actual ip addresses of clients.");
 extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
@@ -160,7 +161,7 @@ cvar_t	fraglimit		= CVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
 cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
-cvar_t	sv_playerslots	= CVARAD("sv_playerslots",	"", 
+cvar_t	sv_playerslots	= CVARAD("sv_playerslots",	"",
 								 "maxplayers",		"Specify maximum number of player/spectator/bot slots, new value takes effect on the next map (this may result in players getting kicked). This should generally be set to maxclients+maxspectators. Leave blank for a default value.\nMaximum value of "STRINGIFY(MAX_CLIENTS)". Values above 16 will result in issues with vanilla NQ clients. Effective values other than 32 will result in issues with vanilla QW clients.");
 cvar_t	maxclients		= CVARAFD("maxclients",		"8",
 								 "sv_maxclients",			CVAR_SERVERINFO, "Specify the maximum number of players allowed on the server at once. Can be changed mid-map.");
@@ -275,6 +276,9 @@ void SV_Shutdown (void)
 	Plug_Shutdown(true);
 #endif
 	Mod_Shutdown(true);
+#ifdef PACKAGEMANAGER
+	PM_Shutdown();
+#endif
 	COM_DestroyWorkerThread();
 	FS_Shutdown();
 #ifdef PLUGINS
@@ -282,11 +286,8 @@ void SV_Shutdown (void)
 #endif
 	Cvar_Shutdown();
 	Cmd_Shutdown();
-#ifdef PACKAGEMANAGER
-	PM_Shutdown();
-#endif
 
-	
+
 	InfoBuf_Clear(&svs.info, true);
 	InfoBuf_Clear(&svs.localinfo, true);
 
@@ -353,7 +354,6 @@ void VARGS SV_Error (char *error, ...)
 	sv.spawned_observer_slots = 0;
 
 
-	SV_UnspawnServer();
 #ifndef SERVERONLY
 	if (cls.state)
 	{
@@ -367,12 +367,15 @@ void VARGS SV_Error (char *error, ...)
 		extern cvar_t cl_disconnectreason;
 		extern jmp_buf 	host_abort;
 		SCR_EndLoadingPlaque();
+		SV_UnspawnServer();
 		Cvar_Set(&cl_disconnectreason, va("SV_Error: %s", string));
 		inerror=false;
 		longjmp (host_abort, 1);
 	}
 #endif
 
+	sys_nounload = true;
+	SV_UnspawnServer();
 	SV_Shutdown ();
 
 	Sys_Error ("SV_Error: %s\n",string);
@@ -987,7 +990,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 	{
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
-			SV_FullClientUpdate(client, &svs.clients[i]); 
+			SV_FullClientUpdate(client, &svs.clients[i]);
 		}
 #ifdef MVD_RECORDING
 		if (sv.mvdrecording)
@@ -1286,7 +1289,7 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 		Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
 		Info_SetValueForKey(resp, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(response) - (resp-response));
 		resp += strlen(resp);
-		//now include the full/regular serverinfo 
+		//now include the full/regular serverinfo
 		resp += InfoBuf_ToString(&svs.info, resp, sizeof(response) - (resp-response), prioritykeys, ignorekeys, NULL, NULL, NULL);
 		*resp = 0;
 		//and any possibly-long qc status string
@@ -2131,20 +2134,23 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 
 //void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b);
-/*static void SV_UserDNSResolved(void *ctx, void *data, size_t idx, size_t uid)
+static void SV_UserDNSResolved(void *ctx, void *data, size_t idx, size_t uid)
 {
 	if (idx < svs.allocated_client_slots)
 	{
-		if (svs.clients[idx].userid == uid)
+		client_t *cl = &svs.clients[idx];
+		if (cl->userid == uid)
 		{
-			Z_Free(svs.clients[idx].reversedns);
-			svs.clients[idx].reversedns = data;
+			Z_Free(cl->reversedns);
+			cl->reversedns = data;
+			SV_LogPlayer(cl, va("dns %s", cl->reversedns));
 			return;
 		}
 	}
+	//client ran away before the dns completed
 	Con_DPrintf("stale dns lookup result: %s\n", (char*)data);
 	Z_Free(data);
-}*/
+}
 
 client_t *SV_AddSplit(client_t *controller, char *info, int id)
 {
@@ -2161,7 +2167,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 		SV_PrintToClient(controller, PRINT_HIGH, "Your client doesn't support splitscreen\n");
 		return NULL;
 	}
-	
+
 	for (curclients = 0, prev = cl = controller; cl; cl = cl->controlled)
 	{
 		prev = cl;
@@ -2705,7 +2711,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		temp.edict = ent;
 
 		{
-			const char *reject = SV_CheckRejectConnection(&info->adr, info->userinfo, info->protocol, info->ftepext1, info->ftepext2, info->guid);
+			const char *reject = SV_CheckRejectConnection(&info->adr, info->userinfo, info->protocol, info->ftepext1, info->ftepext2, info->ezpext1, info->guid);
 			if (reject)
 			{
 				SV_RejectMessage(info->protocol, "%s", reject);
@@ -2763,8 +2769,6 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	newcl->userinfo.ChangeCB = svs.info.ChangeCB;
 	newcl->userinfo.ChangeCTX = &svs.clients[i].userinfo;
 	InfoBuf_FromString(&newcl->userinfo, info->userinfo, false);
-
-//	NET_AdrToStringResolve(&adr, SV_UserDNSResolved, NULL, newcl-svs.clients, newcl->userid);
 
 	newcl->challenge = info->challenge;
 	newcl->zquake_extensions = atoi(InfoBuf_ValueForKey(&newcl->userinfo, "*z_ext"));
@@ -3051,6 +3055,10 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 #ifdef NQPROT
 	newcl->netchan.incoming_reliable_sequence = info->expectedreliablesequence;
 #endif
+
+	if (sv_use_dns.ival)
+		NET_AdrToStringResolve(&info->adr, SV_UserDNSResolved, NULL, newcl-svs.clients, newcl->userid);
+
 }
 
 /*
@@ -3085,6 +3093,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	info.mtu = 0;
 	info.ftepext1 = 0;
 	info.ftepext2 = 0;
+	info.ezpext1 = 0;
 	*info.guid = 0;
 
 	if (*Cmd_Argv(1) == '\\')
@@ -3232,7 +3241,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	else
 	{
 		//fte: connectN is no longer supported (multiple userinfos packed into a single packet was a bad idea when userinfos can be so large
-		if (atoi(Cmd_Argv(0)+7))
+		/*if (atoi(Cmd_Argv(0)+7))
 		{
 			int numssclients = atoi(Cmd_Argv(0)+7);
 			if (numssclients!=1)
@@ -3241,7 +3250,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				Con_TPrintf ("* rejected connect from old client\n");
 				return;
 			}
-		}
+		}*/
 
 		version = atoi(Cmd_Argv(1));
 		if (version >= 31 && version <= 34)
@@ -3373,6 +3382,13 @@ void SVC_DirectConnect(int expectedreliablesequence)
 			{
 				info.ftepext2 = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports 0x%x fte2 extensions\n", info.ftepext2);
+			}
+			break;
+		case PROTOCOL_VERSION_EZQUAKE1:
+			if (info.protocol == SCP_QUAKEWORLD)
+			{
+				info.ezpext1 = Q_atoi(Cmd_Argv(1));
+				Con_DPrintf("Client supports 0x%x ez1 extensions\n", info.ezpext1);
 			}
 			break;
 		case PROTOCOL_VERSION_HUFFMAN:
@@ -4938,6 +4954,8 @@ float SV_Frame (void)
 		svs.framenum = 0;
 
 	delay = sv_maxtic.value;
+	if (isDedicated && sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0)
+		delay = max(delay, 1);	//when idle, don't keep waking up for no reason
 
 // keep the random time dependent
 	rand ();
@@ -4953,7 +4971,7 @@ float SV_Frame (void)
 	}
 #endif
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active;
 	/*server is effectively paused in SP/coop if there are no clients/spectators*/
 	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && !deathmatch.ival)
@@ -5337,6 +5355,7 @@ void SV_InitLocal (void)
 #endif
 	sv_listen_qw.restriction = RESTRICT_MAX;	//no disabling this over rcon.
 	Cvar_Register (&sv_reconnectlimit,	cvargroup_servercontrol);
+	Cvar_Register (&sv_use_dns, cvargroup_servercontrol);
 	Cvar_Register (&fraglog_public,	cvargroup_servercontrol);
 
 	SVNET_RegisterCvars();

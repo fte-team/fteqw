@@ -1097,7 +1097,7 @@ extern	vfsfile_t	*sv_fraglogfile;
 //===========================================================
 
 void SV_AddDebugPolygons(void);
-const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
+const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, unsigned int ezpext1, char *guid);
 
 //
 //sv_ccmds.c
@@ -1159,7 +1159,7 @@ typedef struct
 #endif
 	unsigned int ftepext1;
 	unsigned int ftepext2;
-//	unsigned int ezpext1;
+	unsigned int ezpext1;
 	int			qport;						//part of the qw protocol to avoid issues with buggy routers that periodically renumber cl2sv ports.
 #ifdef HUFFNETWORK
 	int			huffcrc;					//network compression stuff

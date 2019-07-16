@@ -8,6 +8,8 @@
 
 //FIXME: instead of switching rendertargets and back, we should be using an alternative queue.
 
+#define PERMUTATION_BEM_FP16 (1u<<12)
+#define PERMUTATION_BEM_MULTISAMPLE (1u<<13)
 #define PERMUTATION_BEM_DEPTHONLY (1u<<14)
 #define PERMUTATION_BEM_WIREFRAME (1u<<15)
 
@@ -41,7 +43,7 @@ extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor
 extern cvar_t r_wireframe;
 extern cvar_t vk_stagingbuffers;
 
-unsigned int vk_usedynamicstaging;
+static unsigned int vk_usedynamicstaging;
 
 #ifdef RTLIGHTS
 static void VK_TerminateShadowMap(void);
@@ -53,10 +55,30 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 #define MAX_TMUS 32
 
 extern texid_t r_whiteimage, missing_texture_gloss, missing_texture_normal;
-texid_t r_blackimage;
+extern texid_t r_blackimage;
 
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
 void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour);
+
+#ifdef VK_EXT_debug_utils
+static void DebugSetName(VkObjectType objtype, uint64_t handle, const char *name)
+{
+	if (vkSetDebugUtilsObjectNameEXT)
+	{
+		VkDebugUtilsObjectNameInfoEXT info =
+		{
+			VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+			NULL,
+			objtype,
+			handle,
+			name?name:"UNNAMED"
+		};
+		vkSetDebugUtilsObjectNameEXT(vk.device, &info);
+	}
+}
+#else
+#define DebugSetName(t,h,n)
+#endif
 
 /*========================================== tables for deforms =====================================*/
 #define frand() (rand()*(1.0/RAND_MAX))
@@ -1069,11 +1091,13 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 	info.codeSize = blob->vertlength;
 	info.pCode = (uint32_t*)((char*)blob+blob->vertoffset);
 	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &vert));
+	DebugSetName(VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)vert, name);
 
 	info.flags = 0;
 	info.codeSize = blob->fraglength;
 	info.pCode = (uint32_t*)((char*)blob+blob->fragoffset);
 	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &frag));
+	DebugSetName(VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)frag, name);
 
 	prog->vert = vert;
 	prog->frag = frag;
@@ -1252,14 +1276,6 @@ void VKBE_Init(void)
 	r_worldentity.light_avg[2] = 1;
 
 	FTable_Init();
-
-	{
-		unsigned char bibuf[4*4*4] = {0};
-		if (!qrenderer)
-			r_blackimage = r_nulltex;
-		else
-			r_blackimage = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, bibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
-	}
 
 	shaderstate.depthonly = R_RegisterShader("depthonly", SUF_NONE, 
 				"{\n"
@@ -2828,7 +2844,10 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	}
 
 	ms.pSampleMask = NULL;
-	ms.rasterizationSamples = vk.multisamplebits;
+	if (permu & PERMUTATION_BEM_MULTISAMPLE)
+		ms.rasterizationSamples = vk.multisamplebits;
+	else
+		ms.rasterizationSamples = 1;
 //	ms.sampleShadingEnable = VK_TRUE;	//call the fragment shader multiple times, instead of just once per final pixel
 //	ms.minSampleShading = 0.25;
 	ds.depthTestEnable = (blendflags&SBITS_MISC_NODEPTHTEST)?VK_FALSE:VK_TRUE;
@@ -3017,7 +3036,12 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	pipeCreateInfo.pColorBlendState		= &cb;
 	pipeCreateInfo.pDynamicState		= &dyn;
 	pipeCreateInfo.layout				= p->layout;
-	pipeCreateInfo.renderPass			= (permu&PERMUTATION_BEM_DEPTHONLY)?vk.shadow_renderpass:vk.renderpass[0];
+	i = (permu&PERMUTATION_BEM_DEPTHONLY)?RP_DEPTHONLY:RP_FULLCLEAR;
+	if (permu&PERMUTATION_BEM_MULTISAMPLE)
+		i |= RP_MULTISAMPLE;
+	if (permu&PERMUTATION_BEM_FP16)
+		i |= RP_FP16;
+	pipeCreateInfo.renderPass			= VK_GetRenderPass(i);
 	pipeCreateInfo.subpass				= 0;
 	pipeCreateInfo.basePipelineHandle	= VK_NULL_HANDLE;
 	pipeCreateInfo.basePipelineIndex	= -1;	//used to create derivatives for pipelines created in the same call.
@@ -3025,6 +3049,7 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 //	pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
 
 	err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
+	DebugSetName(VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipe->pipeline, p->name);
 
 	if (err)
 	{	//valid err values are VK_ERROR_OUT_OF_HOST_MEMORY, VK_ERROR_OUT_OF_DEVICE_MEMORY, VK_ERROR_INVALID_SHADER_NV
@@ -3727,6 +3752,11 @@ void VKBE_SelectMode(backendmode_t mode)
 {
 	shaderstate.mode = mode;
 	shaderstate.modepermutation = 0;
+
+	if (vk.rendertarg->rpassflags & RP_MULTISAMPLE)
+		shaderstate.modepermutation |= PERMUTATION_BEM_MULTISAMPLE;
+	if (vk.rendertarg->rpassflags & RP_FP16)
+		shaderstate.modepermutation |= PERMUTATION_BEM_FP16;
 
 	switch(mode)
 	{
@@ -4637,6 +4667,7 @@ struct vkbe_rtpurge
 {
 	VkFramebuffer framebuffer;
 	vk_image_t colour;
+	vk_image_t mscolour;
 	vk_image_t depth;
 };
 static void VKBE_RT_Purge(void *ptr)
@@ -4644,33 +4675,39 @@ static void VKBE_RT_Purge(void *ptr)
 	struct vkbe_rtpurge *ctx = ptr;
 	vkDestroyFramebuffer(vk.device, ctx->framebuffer, vkallocationcb);
 	VK_DestroyVkTexture(&ctx->depth);
+	VK_DestroyVkTexture(&ctx->mscolour);
 	VK_DestroyVkTexture(&ctx->colour);
 }
 void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qboolean clear, unsigned int flags)
 {
 	//sooooo much work...
 	VkImageCreateInfo colour_imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+	VkImageCreateInfo mscolour_imginfo;
 	VkImageCreateInfo depth_imginfo;
 	struct vkbe_rtpurge *purge;
-	static VkClearValue clearvalues[2];
+	static VkClearValue clearvalues[3];
 
-	if (clear)
-		targ->restartinfo.renderPass = vk.renderpass[2];
-	else
-		targ->restartinfo.renderPass = vk.renderpass[1];	//don't care
-	targ->restartinfo.clearValueCount = 2;
+	targ->restartinfo.clearValueCount = 3;
 	targ->depthcleared = true;	//will be once its activated.
 
-	if (targ->width == width && targ->height == height && targ->q_colour.flags == flags)
+	if (targ->width == width && targ->height == height && targ->q_colour.flags == flags && (!(targ->rpassflags&RP_MULTISAMPLE))==(targ->mscolour.image==NULL))
+	{
+		if (clear || targ->firstuse)
+			targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
+		else
+			targ->restartinfo.renderPass = VK_GetRenderPass(RP_DEPTHCLEAR|targ->rpassflags);	//don't care
 		return;	//no work to do.
+	}
 
 	if (targ->framebuffer)
 	{	//schedule the old one to be destroyed at the end of the current frame. DIE OLD ONE, DIE!
 		purge = VK_AtFrameEnd(VKBE_RT_Purge, NULL, sizeof(*purge));
 		purge->framebuffer = targ->framebuffer; 
 		purge->colour = targ->colour;
+		purge->mscolour = targ->mscolour;
 		purge->depth = targ->depth;
 		memset(&targ->colour, 0, sizeof(targ->colour));
+		memset(&targ->mscolour, 0, sizeof(targ->mscolour));
 		memset(&targ->depth, 0, sizeof(targ->depth));
 		targ->framebuffer = VK_NULL_HANDLE;
 	}
@@ -4686,9 +4723,14 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 	targ->height = height;
 
 	if (width == 0 && height == 0)
+	{
+		targ->restartinfo.renderPass = NULL;
 		return;	//destroyed
+	}
+	targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
 
-	colour_imginfo.format = vk.backbufformat;
+	//colour buffer is always 1 sample. if multisampling then we have a hidden 'mscolour' image that is paired with the depth, resolvnig to the 'colour' image.
+	colour_imginfo.format = (targ->rpassflags&RP_FP16)?VK_FORMAT_R16G16B16A16_SFLOAT:vk.backbufformat;
 	colour_imginfo.flags = 0;
 	colour_imginfo.imageType = VK_IMAGE_TYPE_2D;
 	colour_imginfo.extent.width = width;
@@ -4706,15 +4748,19 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 	VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
 
 	depth_imginfo = colour_imginfo;
-	depth_imginfo.format = VK_FORMAT_D32_SFLOAT;
+	depth_imginfo.format = vk.depthformat;
 	depth_imginfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT;
+	if (targ->rpassflags&RP_MULTISAMPLE)
+	{
+		mscolour_imginfo = colour_imginfo;
+		depth_imginfo.samples = mscolour_imginfo.samples = vk.multisamplebits;
+		VkAssert(vkCreateImage(vk.device, &mscolour_imginfo, vkallocationcb, &targ->mscolour.image));
+		VK_AllocateBindImageMemory(&targ->mscolour, true);
+	}
 	VkAssert(vkCreateImage(vk.device, &depth_imginfo, vkallocationcb, &targ->depth.image));
 
 	VK_AllocateBindImageMemory(&targ->colour, true);
 	VK_AllocateBindImageMemory(&targ->depth, true);
-
-//		set_image_layout(vk.frame->cbuf, targ->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-//		set_image_layout(vk.frame->cbuf, targ->depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
 	{
 		VkImageViewCreateInfo ivci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -4733,6 +4779,14 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 		ivci.format = colour_imginfo.format;
 		ivci.image = targ->colour.image;
 		VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &targ->colour.view));
+
+		if (targ->rpassflags&RP_MULTISAMPLE)
+		{
+			ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			ivci.format = mscolour_imginfo.format;
+			ivci.image = targ->mscolour.image;
+			VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &targ->mscolour.view));
+		}
 
 		ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		ivci.format = depth_imginfo.format;
@@ -4771,8 +4825,8 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 		VkFramebufferCreateInfo fbinfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 		VkImageView attachments[3] = {targ->colour.view, targ->depth.view, targ->mscolour.view};
 		fbinfo.flags = 0;
-		fbinfo.renderPass = vk.renderpass[2];
-		fbinfo.attachmentCount = (vk.multisamplebits!=VK_SAMPLE_COUNT_1_BIT)?3:2;
+		fbinfo.renderPass = targ->restartinfo.renderPass;
+		fbinfo.attachmentCount = (targ->rpassflags&RP_MULTISAMPLE)?3:2;
 		fbinfo.pAttachments = attachments;
 		fbinfo.width = width;
 		fbinfo.height = height;
@@ -4826,9 +4880,9 @@ void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean c
 	for (f = 0; f < 6; f++)
 	{
 		if (clear)
-			targ->face[f].restartinfo.renderPass = vk.renderpass[2];
+			targ->face[f].restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->face[f].rpassflags);
 		else
-			targ->face[f].restartinfo.renderPass = vk.renderpass[1];	//don't care
+			targ->face[f].restartinfo.renderPass = VK_GetRenderPass(RP_DEPTHCLEAR|targ->face[f].rpassflags);	//don't care
 		targ->face[f].restartinfo.clearValueCount = 2;
 	}
 
@@ -4972,7 +5026,7 @@ void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean c
 			VkFramebufferCreateInfo fbinfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 			VkImageView attachments[2] = {targ->face[f].colour.view, targ->face[f].depth.view};
 			fbinfo.flags = 0;
-			fbinfo.renderPass = vk.renderpass[2];
+			fbinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->face[f].rpassflags);
 			fbinfo.attachmentCount = countof(attachments);
 			fbinfo.pAttachments = attachments;
 			fbinfo.width = size;
@@ -5033,12 +5087,14 @@ void VKBE_RT_Begin(struct vk_rendertarg *targ)
 	targ->prevtarg = vk.rendertarg;
 	vk.rendertarg = targ;
 
+	VKBE_SelectMode(shaderstate.mode);
+
 	vkCmdBeginRenderPass(vk.rendertarg->cbuf, &targ->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
 	//future reuse shouldn't clear stuff
 	if (targ->restartinfo.clearValueCount)
 	{
 		targ->depthcleared = true;
-		targ->restartinfo.renderPass = vk.renderpass[0];
+		targ->restartinfo.renderPass = VK_GetRenderPass(RP_RESUME|targ->rpassflags);
 		targ->restartinfo.clearValueCount = 0;
 	}
 
@@ -5080,6 +5136,8 @@ void VKBE_RT_End(struct vk_rendertarg *targ)
 	
 //		VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStageFlags semwaitstagemask, VkSemaphore semsignal, VkFence fencesignal, struct vkframe *presentframe, struct vk_fencework *fencedwork)
 #endif
+
+	VKBE_SelectMode(shaderstate.mode);
 }
 
 static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
@@ -5094,8 +5152,6 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 		return false;
 	if (shaderstate.mode != BEM_STANDARD && shaderstate.mode != BEM_DEPTHDARK)
 		return false;
-	if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
-		return false;	//multisample rendering can't deal with this.
 	oldbem = shaderstate.mode;
 	oldil = shaderstate.identitylighting;
 //	targ = vk.rendertarg;
@@ -5901,12 +5957,6 @@ static void VK_TerminateShadowMap(void)
 	struct shadowmaps_s *shad;
 	unsigned int sbuf, i;
 
-	if (vk.shadow_renderpass != VK_NULL_HANDLE)
-	{
-		vkDestroyRenderPass(vk.device, vk.shadow_renderpass, vkallocationcb);
-		vk.shadow_renderpass = VK_NULL_HANDLE;
-	}
-
 	for (sbuf = 0; sbuf < countof(shaderstate.shadow); sbuf++)
 	{
 		shad = &shaderstate.shadow[sbuf];
@@ -5945,7 +5995,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		unsigned int i;
 		VkFramebufferCreateInfo fbinfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 		VkImageCreateInfo imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-		imginfo.format = VK_FORMAT_D32_SFLOAT;
+		imginfo.format = vk.depthformat;
 		imginfo.flags = 0;
 		imginfo.imageType = VK_IMAGE_TYPE_2D;
 		imginfo.extent.width = width;
@@ -5974,48 +6024,8 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 			VkAssert(vkBindImageMemory(vk.device, shad->image, shad->memory, 0));
 		}
 
-		if (vk.shadow_renderpass == VK_NULL_HANDLE)
-		{
-			VkAttachmentReference depth_reference;
-			VkAttachmentDescription attachments[1] = {{0}};
-			VkSubpassDescription subpass = {0};
-			VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-
-			depth_reference.attachment = 0;
-			depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			attachments[depth_reference.attachment].format = imginfo.format;
-			attachments[depth_reference.attachment].samples = VK_SAMPLE_COUNT_1_BIT;
-			attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			attachments[depth_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			attachments[depth_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attachments[depth_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-			attachments[depth_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-
-			subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subpass.flags = 0;
-			subpass.inputAttachmentCount = 0;
-			subpass.pInputAttachments = NULL;
-			subpass.colorAttachmentCount = 0;
-			subpass.pColorAttachments = NULL;
-			subpass.pResolveAttachments = NULL;
-			subpass.pDepthStencilAttachment = &depth_reference;
-			subpass.preserveAttachmentCount = 0;
-			subpass.pPreserveAttachments = NULL;
-
-			rp_info.attachmentCount = countof(attachments);
-			rp_info.pAttachments = attachments;
-			rp_info.subpassCount = 1;
-			rp_info.pSubpasses = &subpass;
-			rp_info.dependencyCount = 0;
-			rp_info.pDependencies = NULL;
-
-			VkAssert(vkCreateRenderPass(vk.device, &rp_info, vkallocationcb, &vk.shadow_renderpass));
-		}
-
 		fbinfo.flags = 0;
-		fbinfo.renderPass = vk.shadow_renderpass;
+		fbinfo.renderPass = VK_GetRenderPass(RP_DEPTHONLY);
 		fbinfo.attachmentCount = 1;
 		fbinfo.width = width;
 		fbinfo.height = height;
@@ -6059,7 +6069,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 			}
 
 			shad->buf[i].qimage.vkimage = &shad->buf[i].vimage;
-			shad->buf[i].vimage.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+			shad->buf[i].vimage.layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			fbinfo.pAttachments = &shad->buf[i].vimage.view;
 			VkAssert(vkCreateFramebuffer(vk.device, &fbinfo, vkallocationcb, &shad->buf[i].framebuffer));
@@ -6086,7 +6096,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		imgbarrier.subresourceRange.layerCount = 1;
 		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 
 	{
@@ -6094,7 +6104,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		VkRenderPassBeginInfo rpass = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
 		clearval.depthStencil.depth = 1;
 		clearval.depthStencil.stencil = 0;
-		rpass.renderPass = vk.shadow_renderpass;
+		rpass.renderPass = VK_GetRenderPass(RP_DEPTHONLY);
 		rpass.framebuffer = shad->buf[sbuf].framebuffer;
 		rpass.renderArea.offset.x = 0;
 		rpass.renderArea.offset.y = 0;
@@ -6206,6 +6216,9 @@ void VKBE_BeginShadowmapFace(void)
 	wrekt.extent.width = viewport.width;
 	wrekt.extent.height = viewport.height;
 	vkCmdSetScissor(vk.rendertarg->cbuf, 0, 1, &wrekt);
+
+	//shadowmaps never multisample...
+	shaderstate.modepermutation &= ~(PERMUTATION_BEM_MULTISAMPLE|PERMUTATION_BEM_FP16);
 }
 #endif
 

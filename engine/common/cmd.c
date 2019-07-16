@@ -3616,10 +3616,22 @@ static void Cmd_toggle_f(void)
 	if (!v)
 		return;
 
-	if (v->value)
-		Cvar_Set(v, "0");
+	if (Cmd_Argc() >= 3)
+	{
+		const char *newval = Cmd_Argv(2);
+		const char *defval = (Cmd_Argc()>3)?Cmd_Argv(3):v->defaultstr;
+		if (!strcmp(newval, v->string))
+			Cvar_Set(v, defval);
+		else
+			Cvar_Set(v, newval);
+	}
 	else
-		Cvar_Set(v, "1");
+	{
+		if (v->value)
+			Cvar_Set(v, "0");
+		else
+			Cvar_Set(v, "1");
+	}
 }
 
 static void Cmd_Set_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
@@ -4220,7 +4232,7 @@ void Cmd_Init (void)
 //	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
-	Cmd_AddCommand ("toggle", Cmd_toggle_f);
+	Cmd_AddCommandAD ("toggle", Cmd_toggle_f, Cmd_Set_c, "Toggles a cvar between two values\ntoggle CVARNAME [newval [altval]]");
 	Cmd_AddCommandAD ("set", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist.");
 	Cmd_AddCommandAD ("setfl", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist. The third arg allows setting cvar flags and should be u, s, or a. This command should normally be used only inside default.cfg.");
 	Cmd_AddCommandAD ("set_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression.");

@@ -3689,7 +3689,7 @@ void Sh_CheckSettings(void)
 #ifdef VKQUAKE
 	case QR_VULKAN:
 		canshadowless = true;
-		cansmap = true;
+		cansmap = vk.multisamplebits==VK_SAMPLE_COUNT_1_BIT; //FIXME - we need to render shadowmaps without needing to restart the current scene.
 		canstencil = false;
 		break;
 #endif

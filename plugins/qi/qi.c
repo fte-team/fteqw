@@ -682,6 +682,8 @@ qintptr_t Plug_Init(qintptr_t *args)
 		Plug_Export("ConExecuteCommand", QI_ConExecuteCommand) &&
 		Plug_Export("ConsoleLink", QI_ConsoleLink))
 	{
+		if (!BUILTINISVALID(MapLog_Query))
+			Con_Printf("QI: Engine does not support map times\n");
 		pCmd_AddCommand("qi");
 		pCmd_AddCommand("quaddicted");
 		return true;

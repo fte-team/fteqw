@@ -586,7 +586,6 @@ qboolean NET_AddressSmellsFunny(netadr_t *a)
 	}
 }
 
-/*
 static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 {
 	netadr_t *n = data;
@@ -615,7 +614,6 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 	*(void**)(n+1) = resolved;
 	COM_AddWork(WG_LOADER, NET_AdrToStringDoResolve, ctx, n, a, b);
 }
-*/
 
 char	*NET_AdrToString (char *s, int len, netadr_t *a)
 {

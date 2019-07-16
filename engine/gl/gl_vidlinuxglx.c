@@ -199,6 +199,8 @@ static struct
 	int	 (*pXUngrabPointer)(Display *display, Time time);
 	int 	 (*pXWarpPointer)(Display *display, Window src_w, Window dest_w, int src_x, int src_y, unsigned int src_width, unsigned int src_height, int dest_x, int dest_y);
 	Status (*pXMatchVisualInfo)(Display *display, int screen, int depth, int class, XVisualInfo *vinfo_return);
+	XVisualInfo *(*pXGetVisualInfo)(Display *display, long vinfo_mask, XVisualInfo *vinfo_template, int *nitems_return);
+
 
 	qXErrorHandler (*pXSetErrorHandler)(XErrorHandler);
 
@@ -295,6 +297,7 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXUngrabPointer,		"XUngrabPointer"},
 		{(void**)&x11.pXWarpPointer,		"XWarpPointer"},
 		{(void**)&x11.pXMatchVisualInfo,		"XMatchVisualInfo"},
+		{(void**)&x11.pXGetVisualInfo,		"XGetVisualInfo"},
 		{NULL, NULL}
 	};
 
@@ -3156,6 +3159,7 @@ static void GLVID_Shutdown(void)
 #ifdef USE_EGL
 	case PSL_EGL:
 		EGL_Shutdown();
+		EGL_UnloadLibrary();
 		GL_ForgetPointers();
 		break;
 #endif
@@ -3244,7 +3248,7 @@ static struct
 	Cursor (*ImageLoadCursor) (Display *dpy, const XcursorImage *image);
 	void (*ImageDestroy) (XcursorImage *image);
 } xcursor;
-static void *X11VID_CreateCursorRGBA(const qbyte *rgbacursor, size_t w, size_t h, float hotx, float hoty)
+static void *X11VID_CreateCursorRGBA(const qbyte *rgbacursor, uploadfmt_t format, size_t w, size_t h, float hotx, float hoty)
 {
 	Cursor *cursor;
 	size_t x, y;
@@ -3256,9 +3260,27 @@ static void *X11VID_CreateCursorRGBA(const qbyte *rgbacursor, size_t w, size_t h
 	img->yhot = hoty;
 	dest = img->pixels;
 
-	for (y = 0; y < h; y++)
-		for (x = 0; x < w; x++, rgbacursor+=4)
-			*dest++ = (rgbacursor[3]<<24)|(rgbacursor[0]<<16)|(rgbacursor[1]<<8)|(rgbacursor[2]<<0);	//0xARGB
+	switch (format)
+	{
+	case PTI_BGRA8:
+	case PTI_BGRX8:
+		for (y = 0; y < h; y++)
+			for (x = 0; x < w; x++, rgbacursor+=4)
+				*dest++ = (rgbacursor[3]<<24)|(rgbacursor[2]<<16)|(rgbacursor[1]<<8)|(rgbacursor[0]<<0);	//0xARGB
+		break;	//supported...
+	case PTI_RGBA8:
+	case PTI_RGBX8:
+	case PTI_LLLA8:
+	case PTI_LLLX8:
+		for (y = 0; y < h; y++)
+			for (x = 0; x < w; x++, rgbacursor+=4)
+				*dest++ = (rgbacursor[3]<<24)|(rgbacursor[0]<<16)|(rgbacursor[1]<<8)|(rgbacursor[2]<<0);	//0xARGB
+		break;
+	default:
+		//panic... format wasn't supported. I hope we didn't spend ages resampling it...
+		xcursor.ImageDestroy(img);
+		return NULL;
+	}
 
 	cursor = Z_Malloc(sizeof(*cursor));
 	*cursor = xcursor.ImageLoadCursor(vid_dpy, img);
@@ -3282,15 +3304,16 @@ static void *X11VID_CreateCursor(const qbyte *imagedata, int width, int height, 
 		nh = height * scale;
 		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128) //don't go crazy.
 			return NULL;
-		nd = BZ_Malloc(nw*nh*4);
-		Image_ResampleTexture((unsigned int*)imagedata, width, height, (unsigned int*)nd, nw, nh);
+		nd = Image_ResampleTexture(format, imagedata, width, height, NULL, nw, nh);
+		if (!nd)
+			return NULL;	//resampling of that format didn't work for some reason...
 		width = nw;
 		height = nh;
-		r = X11VID_CreateCursorRGBA(nd, width, height, hotx, hoty);
+		r = X11VID_CreateCursorRGBA(nd, format, width, height, hotx, hoty);
 		BZ_Free(nd);
 	}
 	else
-		r = X11VID_CreateCursorRGBA(imagedata, width, height, hotx, hoty);
+		r = X11VID_CreateCursorRGBA(imagedata, format, width, height, hotx, hoty);
 
 	return r;
 }
@@ -3777,6 +3800,9 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	int width = info->width;	//can override these if vmode isn't available
 	int height = info->height;
 	int rate = info->rate;
+#if defined(USE_EGL)
+	EGLConfig eglcfg = 0;
+#endif
 #if defined(USE_EGL) || defined(VKQUAKE)
 	XVisualInfo vinfodef;
 #endif
@@ -3903,10 +3929,21 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 #ifdef GLQUAKE
 #ifdef USE_EGL
 	case PSL_EGL:
-		visinfo = &vinfodef;
-		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp?info->bpp:DefaultDepth(vid_dpy, scrnum), TrueColor, visinfo))
+		if (!EGL_InitDisplay(info, EGL_PLATFORM_X11_KHR, vid_dpy, (EGLNativeDisplayType)vid_dpy, &eglcfg))
 		{
-			Sys_Error("Couldn't choose visual for EGL\n");
+			Con_Printf("X11VID_Init: Unable to find suitable EGL config\n");
+			GLVID_Shutdown();
+			return false;
+		}
+		{
+			int num_visuals;
+			EGLint id;
+			if (!qeglGetConfigAttrib(egldpy, eglcfg, EGL_NATIVE_VISUAL_ID, &id))
+				Sys_Error("Couldn't choose visual for EGL\n");
+			vinfodef.visualid = id;
+			visinfo = x11.pXGetVisualInfo(vid_dpy, VisualIDMask, &vinfodef, &num_visuals);
+			if (!visinfo)
+				Sys_Error("Couldn't get visual info for EGL\n");
 		}
 		break;
 #endif
@@ -4049,7 +4086,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
-		if (!EGL_Init(info, palette, EGL_PLATFORM_X11_KHR, &vid_window, vid_dpy, (EGLNativeWindowType)vid_window, (EGLNativeDisplayType)vid_dpy))
+		if (!EGL_InitWindow(info, EGL_PLATFORM_X11_KHR, &vid_window, (EGLNativeWindowType)vid_window, eglcfg))
 		{
 			Con_Printf("Failed to create EGL context.\n");
 			GLVID_Shutdown();

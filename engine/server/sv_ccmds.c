@@ -379,6 +379,15 @@ static void SV_Give_f (void)
 }
 #endif
 
+
+#if defined(HAVE_LEGACY) && defined(HAVE_SERVER)
+static void SV_redundantcommand_f(void)
+{
+	if (cl_warncmd.ival)
+		Con_Printf("%s is obsolete, redundant, or otherwise outdated.\n", Cmd_Argv(0));
+}
+#endif
+
 static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	const char *levelshots[] =
@@ -2337,6 +2346,7 @@ void SV_Serverinfo_f (void)
 	{
 		Con_TPrintf ("Server info settings:\n");
 		InfoBuf_Print (&svs.info, "");
+		Con_Printf("[%u]\n", (unsigned int)svs.info.totalsize);
 		return;
 	}
 
@@ -2426,6 +2436,7 @@ static void SV_Localinfo_f (void)
 	{
 		Con_TPrintf ("Local info settings:\n");
 		InfoBuf_Print (&svs.localinfo, "");
+		Con_Printf("[%u]\n", (unsigned int)svs.localinfo.totalsize);
 		return;
 	}
 
@@ -3197,6 +3208,16 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
 	Cmd_AddCommand ("maplist", SV_MapList_f);
 	Cmd_AddCommand ("maps", SV_MapList_f);
+#if defined(HAVE_LEGACY) && defined(HAVE_SERVER)
+	Cmd_AddCommandD ("check_maps", SV_redundantcommand_f, "Obsolete, specific to ktpro. Modern mods should use search_begin instead.");
+	Cmd_AddCommandD ("sys_select_timeout", SV_redundantcommand_f, "Redundant - server will throttle according to tick rates instead.");
+	Cmd_AddCommandD ("sv_downloadchunksperframe", SV_redundantcommand_f, "Flawed - downloads instead proceed at the client's drate (or rate) setting instead of ignoring it entirely.");
+	Cmd_AddCommandD ("sv_speedcheck", SV_redundantcommand_f, "Obsolete - movetime is instead metered over time, instead of randomly kicking everyone due to dodgy timer hardware on the server.");
+	Cmd_AddCommandD ("sv_enableprofile", SV_redundantcommand_f, "Debug setting that is not implemented.");
+	Cmd_AddCommandD ("sv_progsname", SV_redundantcommand_f, "Use sv_progs instead.");
+	Cmd_AddCommandD ("download_map_url", SV_redundantcommand_f, "Redundant - individual maps will probably download faster than the user can open a browser at the given url.");
+	Cmd_AddCommandD ("sv_progtype", SV_redundantcommand_f, "Use sv_progs instead. Using to block .dll loading is insufficient with buggy clients around.");
+#endif
 
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 

@@ -105,21 +105,8 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 
 	if (binroot)
 	{
+		//load eg: basedir/module_gamedir_arch.ext
 		Con_DPrintf("Attempting to load native library: %s\n", name);
-#ifdef ANDROID
-		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
-			hVM = Sys_LoadLibrary(fname, funcs);
-#else
-		if (!hVM && FS_NativePath(dllname_archpri, FS_BINARYPATH, fname, sizeof(fname)))
-			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
-			hVM = Sys_LoadLibrary(fname, funcs);
-
-		if (!hVM && FS_NativePath(dllname_archpri, FS_ROOT, fname, sizeof(fname)))
-			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(dllname_anycpu, FS_ROOT, fname, sizeof(fname)))
-			hVM = Sys_LoadLibrary(fname, funcs);
-#endif
 
 		// run through the search paths
 		iterator = NULL;
@@ -151,9 +138,25 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 		}
+
+#ifdef ANDROID
+		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+#else
+		if (!hVM && FS_NativePath(dllname_archpri, FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+
+		if (!hVM && FS_NativePath(dllname_archpri, FS_ROOT, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+		if (!hVM && FS_NativePath(dllname_anycpu, FS_ROOT, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+#endif
 	}
 	else
 	{
+		//load eg: basedir/gamedir/module_arch.ext
 		Con_DPrintf("Attempting to load (unsafe) native library: %s\n", name);
 
 		// run through the search paths

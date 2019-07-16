@@ -26,6 +26,13 @@ void EGL_UnloadLibrary(void);
 qboolean EGL_LoadLibrary(char *driver);
 void EGL_Shutdown(void);
 void EGL_SwapBuffers (void);
-qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplatform, void *nwindow, void *ndpy, EGLNativeWindowType owindow, EGLNativeDisplayType odpy);
+
+qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNativeDisplayType dpyid, EGLConfig *outconfig);
+qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLNativeWindowType windowid, EGLConfig cfg);
+//qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplatform, void *nwindow, void *ndpy, EGLNativeWindowType owindow, EGLNativeDisplayType odpy);
+
+//once you've created an egl display and got an egl config, some windowing systems require querying said egl config to create the window properly.
+extern EGLDisplay egldpy;
+extern EGLBoolean	(EGLAPIENTRY *qeglGetConfigAttrib)(EGLDisplay dpy, EGLConfig config, EGLint attribute, EGLint *value);
 
 #endif

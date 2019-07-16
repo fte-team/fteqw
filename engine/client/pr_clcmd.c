@@ -182,6 +182,8 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_SEARCH:			return -code;
 
 	default:
+		if (code == -1)	//mod bug
+			return code;
 		if (code < 0)	//negative values are 'qc-native' keys, for stuff that the api lacks.
 			return -code;
 		if (code >= 0 && code < 128)	//ascii codes identical
@@ -344,7 +346,9 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 841:		return K_JOY_DOWN;
 	case 842:		return K_JOY_LEFT;
 	case 843:		return K_JOY_RIGHT;
-	default:		
+	default:
+		if (code == -1)	//mod bug
+			return -1;
 		if (code < 0)	//negative values are 'fte-native' keys, for stuff that the api lacks.
 			return -code;
 		if (code >= 0 && code < 128)

@@ -5800,15 +5800,17 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 		if (allowreloadconfigs)
 		{
-			for (i = 0; i < countof(conffile); i++)
-			{
-				FS_FLocateFile(conffile[i], FSLF_IFFOUND|FSLF_IGNOREPURE, &loc);
-				if (confpath[i] != (loc.search?loc.search->handle:NULL))
+			if (!reloadconfigs)
+				for (i = 0; i < countof(conffile); i++)
 				{
-					reloadconfigs = true;
-					Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+					FS_FLocateFile(conffile[i], FSLF_IFFOUND|FSLF_IGNOREPURE, &loc);
+					if (confpath[i] != (loc.search?loc.search->handle:NULL))
+					{
+						reloadconfigs = true;
+						Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+						break;
+					}
 				}
-			}
 
 			if (reloadconfigs)
 			{

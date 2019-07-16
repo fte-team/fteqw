@@ -68,6 +68,11 @@ qboolean GLSCR_UpdateScreen (void)
 
 	vid.numpages = 2 + vid_triplebuffer.value;
 
+	if (!scr_initialized || !con_initialized)
+	{
+		return false;                         // not initialized yet
+	}
+
 	R2D_Font_Changed();
 
 	if (vid_srgb.modified)
@@ -93,11 +98,6 @@ qboolean GLSCR_UpdateScreen (void)
 				vid.flags &= ~VID_SRGB_FB_LINEAR;
 			}
 		}
-	}
-
-	if (!scr_initialized || !con_initialized)
-	{
-		return false;                         // not initialized yet
 	}
 
 	if (scr_disabled_for_loading)
@@ -138,19 +138,16 @@ qboolean GLSCR_UpdateScreen (void)
 	{
 		Editor_Draw();
 		V_UpdatePalette (false);
-		Media_RecordFrame();
 		R2D_BrightenScreen();
+		Media_RecordFrame();
 
 		if (key_dest_mask & kdm_console)
 			Con_DrawConsole(vid.height/2, false);
 		else
 			Con_DrawConsole(0, false);
 		SCR_DrawCursor();
-		if (R2D_Flush)
-			R2D_Flush();
-		VID_SwapBuffers();
-		return true;
 	}
+	else
 #endif
 	if (Media_ShowFilm())
 	{
@@ -158,76 +155,71 @@ qboolean GLSCR_UpdateScreen (void)
 		V_UpdatePalette (false);
 		R2D_BrightenScreen();
 		Media_RecordFrame();
-		if (R2D_Flush)
-			R2D_Flush();
-		GL_Set2D (false);
-		VID_SwapBuffers();
-		return true;
 	}
-
-//
-// do 3D refresh drawing, and then update the screen
-//
-	SCR_SetUpToDrawConsole ();
-
-	noworld = false;
-	nohud = false;
-
-	if (r_clear.ival)
+	else
 	{
-		GL_ForceDepthWritable();
-		qglClearColor((r_clear.ival&1)?1:0, (r_clear.ival&2)?1:0, (r_clear.ival&4)?1:0, 1);
-		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		depthcleared = true;
-	}
+		//
+		// do 3D refresh drawing, and then update the screen
+		//
+		SCR_SetUpToDrawConsole ();
+
+		noworld = false;
+		nohud = false;
+
+		if (r_clear.ival)
+		{
+			GL_ForceDepthWritable();
+			qglClearColor((r_clear.ival&1)?1:0, (r_clear.ival&2)?1:0, (r_clear.ival&4)?1:0, 1);
+			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			depthcleared = true;
+		}
 
 #ifdef VM_CG
-	if (CG_Refresh())
-		nohud = true;
-	else
+		if (CG_Refresh())
+			nohud = true;
+		else
 #endif
 #ifdef CSQC_DAT
-		if (CSQC_DrawView())
-		nohud = true;
-	else
+			if (CSQC_DrawView())
+			nohud = true;
+		else
 #endif
-	{
-		if (uimenu != 1)
 		{
-			if (r_worldentity.model && cls.state == ca_active)
- 				V_RenderView (nohud);
-			else
+			if (uimenu != 1)
 			{
-				noworld = true;
+				if (r_worldentity.model && cls.state == ca_active)
+					V_RenderView (nohud);
+				else
+				{
+					noworld = true;
+				}
 			}
 		}
+
+		GL_Set2D (false);
+
+		scr_con_forcedraw = false;
+		if (noworld)
+		{
+			//draw the levelshot or the conback fullscreen
+			if (R2D_DrawLevelshot())
+				;
+			else if (scr_con_current != vid.height)
+				R2D_ConsoleBackground(0, vid.height, true);
+			else
+				scr_con_forcedraw = true;
+
+			nohud = true;
+		}
+
+		SCR_DrawTwoDimensional(uimenu, nohud);
+
+		V_UpdatePalette (false);
+		R2D_BrightenScreen();
+		Media_RecordFrame();
 	}
 
-	GL_Set2D (false);
-
-	scr_con_forcedraw = false;
-	if (noworld)
-	{
-		//draw the levelshot or the conback fullscreen
-		if (R2D_DrawLevelshot())
-			;
-		else if (scr_con_current != vid.height)
-			R2D_ConsoleBackground(0, vid.height, true);
-		else
-			scr_con_forcedraw = true;
-
-		nohud = true;
-	}		
-
-	SCR_DrawTwoDimensional(uimenu, nohud);
-
-	V_UpdatePalette (false);
-	R2D_BrightenScreen();
-
-	Media_RecordFrame();
-
 	RSpeedShow();
-
 	if (R2D_Flush)
 		R2D_Flush();
 

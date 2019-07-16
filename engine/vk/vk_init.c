@@ -74,8 +74,8 @@ static int VK_Submit_Thread(void *arg);
 #endif
 static void VK_Submit_DoWork(void);
 
-static void VK_DestroyRenderPass(void);
-static void VK_CreateRenderPass(void);
+static void VK_DestroyRenderPasses(void);
+VkRenderPass VK_GetRenderPass(int pass);
 static void VK_Shutdown_PostProc(void);
 		
 struct vulkaninfo_s vk;
@@ -139,6 +139,19 @@ char *VK_VKErrorToString(VkResult err)
 	case VK_ERROR_INVALID_SHADER_NV:		return "VK_ERROR_INVALID_SHADER_NV";
 	case VK_ERROR_OUT_OF_POOL_MEMORY_KHR:	return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
 	case VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR:	return "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR";
+
+#ifdef VK_EXT_image_drm_format_modifier
+    case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT:		return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
+#endif
+#ifdef VK_EXT_descriptor_indexing
+    case VK_ERROR_FRAGMENTATION_EXT:			return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
+#endif
+#ifdef VK_EXT_global_priority
+    case VK_ERROR_NOT_PERMITTED_EXT:			return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
+#endif
+#ifdef VK_EXT_buffer_device_address
+    case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT:	return "VK_ERROR_OUT_OF_POOL_MEMORY_KHR";
+#endif
 
 	//irrelevant parts of the enum
 	case VK_RESULT_RANGE_SIZE:
@@ -206,6 +219,9 @@ char *DebugAnnotObjectToString(VkObjectType t)
 	case VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX:	return "VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX";
 	case VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT:		return "VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT";
 	case VK_OBJECT_TYPE_VALIDATION_CACHE_EXT:			return "VK_OBJECT_TYPE_VALIDATION_CACHE_EXT";
+#ifdef VK_NV_ray_tracing
+	case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV:		return "VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV";
+#endif
 	case VK_OBJECT_TYPE_RANGE_SIZE:
     case VK_OBJECT_TYPE_MAX_ENUM:
 		break;
@@ -489,6 +505,7 @@ static qboolean VK_CreateSwapChain(void)
 	VkImageView attachments[3];
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 	VkSampleCountFlagBits oldms;
+	uint32_t rpassflags = 0;
 
 	VkFormat oldformat = vk.backbufformat;
 	VkFormat olddepthformat = vk.depthformat;
@@ -790,7 +807,7 @@ static qboolean VK_CreateSwapChain(void)
 
 		if (vk.backbufformat != swapinfo.imageFormat)
 		{
-			VK_DestroyRenderPass();
+			VK_DestroyRenderPasses();
 			reloadshaders = true;
 		}
 		vk.backbufformat = swapinfo.imageFormat;
@@ -865,25 +882,24 @@ static qboolean VK_CreateSwapChain(void)
 	oldms = vk.multisamplebits;
 
 	vk.multisamplebits = VK_SAMPLE_COUNT_1_BIT;
-#ifdef _DEBUG
 	if (vid_multisample.ival>1)
 	{
 		VkSampleCountFlags fl = vk.limits.framebufferColorSampleCounts & vk.limits.framebufferDepthSampleCounts;
-		Con_Printf("Warning: vulkan multisample does not work with rtlights or render targets etc etc\n");
+//		Con_Printf("Warning: vulkan multisample does not work with rtlights or render targets etc etc\n");
 		for (i = 1; i < 30; i++)
 			if ((fl & (1<<i)) && (1<<i) <= vid_multisample.ival)
 				vk.multisamplebits = (1<<i);
 	}
-#endif
+
+	rpassflags = RP_PRESENTABLE;
 
 	//destroy+recreate the renderpass if something changed that prevents them being compatible (this also requires rebuilding all the pipelines too, which sucks).
 	if (oldms != vk.multisamplebits || oldformat != vk.backbufformat || olddepthformat != vk.depthformat)
 	{
-		VK_DestroyRenderPass();
+		VK_DestroyRenderPasses();
 		reloadshaders = true;
 	}
 
-	VK_CreateRenderPass();
 	if (reloadshaders)
 	{
 		Shader_NeedReload(true);
@@ -894,11 +910,14 @@ static qboolean VK_CreateSwapChain(void)
 	attachments[1] = VK_NULL_HANDLE;	//depth
 	attachments[2] = VK_NULL_HANDLE;	//mscolour
 
-	fb_info.renderPass = vk.renderpass[0];
-	if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
+	if (rpassflags & RP_MULTISAMPLE)
 		fb_info.attachmentCount = 3;
 	else
+	{
+		rpassflags &= ~RP_PRESENTABLE;
 		fb_info.attachmentCount = 2;
+	}
+	fb_info.renderPass = VK_GetRenderPass(RP_FULLCLEAR|rpassflags);
 	fb_info.pAttachments = attachments;
 	fb_info.width = swapinfo.imageExtent.width;
 	fb_info.height = swapinfo.imageExtent.height;
@@ -948,7 +967,7 @@ static qboolean VK_CreateSwapChain(void)
 				depthinfo.extent.depth = 1;
 				depthinfo.mipLevels = 1;
 				depthinfo.arrayLayers = 1;
-				depthinfo.samples = vk.multisamplebits;
+				depthinfo.samples = (rpassflags & RP_MULTISAMPLE)?vk.multisamplebits:VK_SAMPLE_COUNT_1_BIT;
 				depthinfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 				depthinfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 				depthinfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -984,7 +1003,7 @@ static qboolean VK_CreateSwapChain(void)
 		}
 
 		//if we're using multisampling, create the intermediate multisample texture that we're actually going to render to.
-		if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
+		if (rpassflags & RP_MULTISAMPLE)
 		{
 			//mscolour image
 			{
@@ -1047,6 +1066,7 @@ static qboolean VK_CreateSwapChain(void)
 	vid.pixelwidth = swapinfo.imageExtent.width;
 	vid.pixelheight = swapinfo.imageExtent.height;
 	R2D_Console_Resize();
+
 	return true;
 }
 
@@ -1127,7 +1147,7 @@ void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 	for (i = 0; i < countof(vk.mipcap); i++)
 		vk.mipcap[i] = mipcap[i];
 	vk.lodbias = lodbias;
-	vk.max_anistophy = bound(1.0, anis, vk.max_anistophy_limit);
+	vk.max_anistophy = bound(1.0, anis, vk.limits.maxSamplerAnisotropy);
 
 	while(imagelist)
 	{
@@ -1562,6 +1582,7 @@ void *VK_FencedBegin(void (*passed)(void *work), size_t worksize)
 	cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	cbai.commandBufferCount = 1;
 	VkAssert(vkAllocateCommandBuffers(vk.device, &cbai, &w->cbuf));
+	DebugSetName(VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)w->cbuf, "VK_FencedBegin");
 	cmdinf.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	cmdinf.pInheritanceInfo = &cmdinh;
 	vkBeginCommandBuffer(w->cbuf, &cmdinf);
@@ -1996,7 +2017,7 @@ void VK_Set2D(void)
 		VkClearValue	clearvalues[1];
 		clearvalues[0].depthStencil.depth = 1.0;
 		clearvalues[0].depthStencil.stencil = 0;
-		rpiinfo.renderPass = vk.renderpass[1];
+		rpiinfo.renderPass = VK_GetRenderPass(RP_CLEARDEPTH);
 		rpiinfo.renderArea.offset.x = r_refdef.pxrect.x;
 		rpiinfo.renderArea.offset.y = r_refdef.pxrect.y;
 		rpiinfo.renderArea.extent.width = r_refdef.pxrect.width;
@@ -2503,10 +2524,13 @@ void	VK_R_RenderView				(void)
 
 		if (R_CanBloom())
 			r_refdef.flags |= RDF_BLOOM;
+
+		if (vid_hardwaregamma.ival == 4 && (v_gamma.value!=1||v_contrast.value!=1||v_contrastboost.value!=1||v_brightness.value!=0))
+			r_refdef.flags |= RDF_SCENEGAMMA;
 	}
 
-	if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)	//these are unsupported right now.
-		r_refdef.flags &= ~(RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS|RDF_BLOOM);
+//	if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)	//these are unsupported right now.
+//		r_refdef.flags &= ~(RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS|RDF_BLOOM);
 
 	//
 	// figure out the viewport
@@ -2534,7 +2558,7 @@ void	VK_R_RenderView				(void)
 		r_refdef.pxrect.maxheight = vid.pixelheight;
 	}
 
-	if (renderscale != 1.0)
+	if (renderscale != 1.0 || vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
 	{
 		r_refdef.flags |= RDF_RENDERSCALE;
 		if (renderscale < 0)
@@ -2551,11 +2575,16 @@ void	VK_R_RenderView				(void)
 	//FIXME: if we're meant to be using msaa, render the scene to an msaa target and then resolve.
 
 	postproc_buf = 0;
-	if (r_refdef.flags & (RDF_ALLPOSTPROC|RDF_RENDERSCALE))
+	if (r_refdef.flags & (RDF_ALLPOSTPROC|RDF_RENDERSCALE|RDF_SCENEGAMMA))
 	{
 		r_refdef.pxrect.x = 0;
 		r_refdef.pxrect.y = 0;
 		rt = &postproc[postproc_buf++%countof(postproc)];
+		rt->rpassflags = 0;
+		if (vk.multisamplebits!=VK_SAMPLE_COUNT_1_BIT)
+			rt->rpassflags |= RP_MULTISAMPLE;
+		if (r_refdef.flags&RDF_SCENEGAMMA)	//if we're doing scenegamma here, use an fp16 target for extra precision
+			rt->rpassflags |= RP_FP16;
 		VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height, false, (r_renderscale.value < 0)?RT_IMAGEFLAGS-IF_LINEAR+IF_NEAREST:RT_IMAGEFLAGS);
 	}
 	else
@@ -2631,6 +2660,40 @@ void	VK_R_RenderView				(void)
 		if (!vk.scenepp_waterwarp)
 			VK_Init_PostProc();
 		//FIXME: chain renderpasses as required.
+
+		if (r_refdef.flags & RDF_SCENEGAMMA)
+		{
+			shader_t *s = R_RegisterShader("fte_scenegamma", 0,
+				"{\n"
+					"program defaultgammacb\n"
+					"affine\n"
+					"{\n"
+						"map $sourcecolour\n"
+						"nodepthtest\n"
+					"}\n"
+				"}\n"
+				);
+
+			r_refdef.flags &= ~RDF_SCENEGAMMA;
+			vk.sourcecolour = &rt->q_colour;
+			if (r_refdef.flags & RDF_ALLPOSTPROC)
+			{
+				rt = &postproc[postproc_buf++];
+				rt->rpassflags = 0;
+				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
+			}
+			else
+				rt = rtscreen;
+			if (rt != rtscreen)
+				VKBE_RT_Begin(rt);
+			R2D_ImageColours (v_gammainverted.ival?v_gamma.value:(1/v_gamma.value), v_contrast.value, v_brightness.value, v_contrastboost.value);
+			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, s);
+			R2D_ImageColours (1, 1, 1, 1);
+			R2D_Flush();
+			if (rt != rtscreen)
+				VKBE_RT_End(rt);
+		}
+
 		if (r_refdef.flags & RDF_WATERWARP)
 		{
 			r_refdef.flags &= ~RDF_WATERWARP;
@@ -2638,6 +2701,7 @@ void	VK_R_RenderView				(void)
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
+				rt->rpassflags = 0;
 				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
@@ -2656,6 +2720,7 @@ void	VK_R_RenderView				(void)
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
+				rt->rpassflags = 0;
 				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
@@ -2675,6 +2740,7 @@ void	VK_R_RenderView				(void)
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
+				rt->rpassflags = 0;
 				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
@@ -3132,6 +3198,7 @@ VkCommandBuffer VK_AllocFrameCBuf(void)
 		cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cbai.commandBufferCount = frame->maxcbufs - frame->numcbufs;
 		VkAssert(vkAllocateCommandBuffers(vk.device, &cbai, frame->cbufs+frame->numcbufs));
+		DebugSetName(VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)frame->cbufs[frame->numcbufs], "VK_AllocFrameCBuf");
 	}
 	return frame->cbufs[frame->numcbufs++];
 }
@@ -3192,11 +3259,23 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		else
 		{
 			//friendly wait
-			VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX);
-			if (err)
+			int failures = 0;
+			for(;;)
 			{
-				if (err == VK_ERROR_DEVICE_LOST)
+				VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, 1000000000);
+
+				if (err == VK_SUCCESS)
+					break;
+				else if (err == VK_TIMEOUT)
+				{
+					if (++failures == 5)
+						Sys_Error("waiting for fence for over 5 seconds. Assuming bug.");
+					continue;
+				}
+				else if (err == VK_ERROR_DEVICE_LOST)
 					Sys_Error("Vulkan device lost");
+				else if (err != VK_ERROR_OUT_OF_HOST_MEMORY && err != VK_ERROR_OUT_OF_DEVICE_MEMORY)
+					Sys_Error("vkWaitForFences returned unspecified result: %s", VK_VKErrorToString(err));
 				return false;
 			}
 		}
@@ -3250,7 +3329,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 //	vkCmdWriteTimestamp(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+0);
 
-	if (vk.multisamplebits == VK_SAMPLE_COUNT_1_BIT)
+	if (!(vk.rendertarg->rpassflags & RP_PRESENTABLE))
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
@@ -3271,7 +3350,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 			imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			vk.frame->backbuf->firstuse = false;
 		}
 		vk.rendertarg->colour.layout = imgbarrier.newLayout;
 		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
@@ -3295,6 +3373,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	}
 
 	{
+		int rp = vk.frame->backbuf->rpassflags;
 		VkClearValue	clearvalues[3];
 		extern cvar_t r_clear;
 		VkRenderPassBeginInfo rpbi = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -3308,7 +3387,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		clearvalues[1].depthStencil.depth = 1.0;
 		clearvalues[1].depthStencil.stencil = 0;
 
-		if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
+		if (rp & RP_MULTISAMPLE)
 		{
 			clearvalues[2].color.float32[0] = !!(r_clear.ival & 1);
 			clearvalues[2].color.float32[1] = !!(r_clear.ival & 2);
@@ -3319,10 +3398,10 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		else
 			rpbi.clearValueCount = 2;
 
-		if (r_clear.ival)
-			rpbi.renderPass = vk.renderpass[2];
+		if (r_clear.ival || vk.frame->backbuf->firstuse)
+			rpbi.renderPass = VK_GetRenderPass(RP_FULLCLEAR|rp);
 		else
-			rpbi.renderPass = vk.renderpass[1];	//may still clear
+			rpbi.renderPass = VK_GetRenderPass(RP_DEPTHCLEAR|rp);
 		rpbi.framebuffer = vk.frame->backbuf->framebuffer;
 		rpbi.renderArea.offset.x = 0;
 		rpbi.renderArea.offset.y = 0;
@@ -3336,10 +3415,11 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 		rpbi.clearValueCount = 0;
 		rpbi.pClearValues = NULL;
-		rpbi.renderPass = vk.renderpass[0];
+		rpbi.renderPass = VK_GetRenderPass(RP_RESUME|rp);
 		vk.rendertarg->restartinfo = rpbi;
 		vk.rendertarg->depthcleared = true;
 	}
+	vk.frame->backbuf->firstuse = false;
 	return true;
 }
 
@@ -3495,7 +3575,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		vkCmdCopyImageToBuffer(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
 	}*/
 
-	if (vk.multisamplebits == VK_SAMPLE_COUNT_1_BIT)
+	if (!(vk.frame->backbuf->rpassflags & RP_PRESENTABLE))
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
@@ -3553,7 +3633,7 @@ void	VKBE_RenderToTextureUpdate2d(qboolean destchanged)
 {
 }
 
-static void VK_DestroyRenderPass(void)
+static void VK_DestroyRenderPasses(void)
 {
 	int i;
 	for (i = 0; i < countof(vk.renderpass); i++)
@@ -3565,112 +3645,127 @@ static void VK_DestroyRenderPass(void)
 		}
 	}
 }
-static void VK_CreateRenderPass(void)
+VkRenderPass VK_GetRenderPass(int pass)
 {
-	int pass;
 	int numattachments;
-static	VkAttachmentReference color_reference;
-static	VkAttachmentReference depth_reference;
-static	VkAttachmentReference resolve_reference;
-static	VkAttachmentDescription attachments[3] = {{0}};
-static	VkSubpassDescription subpass = {0};
-static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+	static	VkAttachmentReference color_reference;
+	static	VkAttachmentReference depth_reference;
+	static	VkAttachmentReference resolve_reference;
+	static	VkAttachmentDescription attachments[3] = {{0}};
+	static	VkSubpassDescription subpass = {0};
+	static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
 
 //two render passes are compatible for piplines when they match exactly except for:
 //initial and final layouts in attachment descriptions.
 //load and store operations in attachment descriptions.
 //image layouts in attachment references.
 
+	if (vk.multisamplebits == VK_SAMPLE_COUNT_1_BIT)
+		pass &= ~RP_MULTISAMPLE;	//no difference
 
-	for (pass = 0; pass < 3; pass++)
+	if (vk.renderpass[pass] != VK_NULL_HANDLE)
+		return vk.renderpass[pass];	//already built
+
+	numattachments = 0;
+	if ((pass&3)==RP_DEPTHONLY)
+		color_reference.attachment = ~(uint32_t)0;	//no colour buffer...
+	else
+		color_reference.attachment = numattachments++;
+	depth_reference.attachment = numattachments++;
+	resolve_reference.attachment = ~(uint32_t)0;
+	if ((pass & RP_MULTISAMPLE) && color_reference.attachment != ~(uint32_t)0)
+	{	//if we're using multisample, then render to a third texture, with a resolve to the original colour texture.
+		resolve_reference.attachment = color_reference.attachment;
+		color_reference.attachment = numattachments++;
+	}
+
+	color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	resolve_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	if (color_reference.attachment != ~(uint32_t)0)
 	{
-		if (vk.renderpass[pass] != VK_NULL_HANDLE)
-			continue;
-
-		numattachments = 0;
-		if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
-		{
-			resolve_reference.attachment = numattachments++;
-			depth_reference.attachment = numattachments++;
-			color_reference.attachment = numattachments++;
-		}
-		else
-		{
-			color_reference.attachment = numattachments++;
-			depth_reference.attachment = numattachments++;
-			resolve_reference.attachment = ~(uint32_t)0;
-		}
-
-		color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		resolve_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		attachments[color_reference.attachment].format = vk.backbufformat;
-		attachments[color_reference.attachment].samples = vk.multisamplebits;
+		attachments[color_reference.attachment].format = (pass&RP_FP16)?VK_FORMAT_R16G16B16A16_SFLOAT:vk.backbufformat;
+		attachments[color_reference.attachment].samples = (pass & RP_MULTISAMPLE)?vk.multisamplebits:VK_SAMPLE_COUNT_1_BIT;
 //		attachments[color_reference.attachment].loadOp = pass?VK_ATTACHMENT_LOAD_OP_LOAD:VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[color_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		attachments[color_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[color_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[color_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		attachments[color_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
 
+	if (depth_reference.attachment != ~(uint32_t)0)
+	{
 		attachments[depth_reference.attachment].format = vk.depthformat;
-		attachments[depth_reference.attachment].samples = vk.multisamplebits;
+		attachments[depth_reference.attachment].samples = (pass & RP_MULTISAMPLE)?vk.multisamplebits:VK_SAMPLE_COUNT_1_BIT;
 //		attachments[depth_reference.attachment].loadOp = pass?VK_ATTACHMENT_LOAD_OP_LOAD:VK_ATTACHMENT_LOAD_OP_CLEAR;
 		attachments[depth_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;//VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[depth_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[depth_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		attachments[depth_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		if (resolve_reference.attachment != ~(uint32_t)0)
-		{
-			attachments[resolve_reference.attachment].format = vk.backbufformat;
-			attachments[resolve_reference.attachment].samples = VK_SAMPLE_COUNT_1_BIT;
-			attachments[resolve_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attachments[resolve_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			attachments[resolve_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attachments[resolve_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			attachments[resolve_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			attachments[resolve_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		}
-
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.flags = 0;
-		subpass.inputAttachmentCount = 0;
-		subpass.pInputAttachments = NULL;
-		subpass.colorAttachmentCount = 1;
-		subpass.pColorAttachments = &color_reference;
-		subpass.pResolveAttachments = (resolve_reference.attachment != ~(uint32_t)0)?&resolve_reference:NULL;
-		subpass.pDepthStencilAttachment = &depth_reference;
-		subpass.preserveAttachmentCount = 0;
-		subpass.pPreserveAttachments = NULL;
-
-		rp_info.attachmentCount = numattachments;
-		rp_info.pAttachments = attachments;
-		rp_info.subpassCount = 1;
-		rp_info.pSubpasses = &subpass;
-		rp_info.dependencyCount = 0;
-		rp_info.pDependencies = NULL;
-
-		if (pass == 0)
-		{	//nothing cleared, both are just re-loaded.
-			attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-			attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		}
-		else if (pass == 1)
-		{	//depth cleared, colour is whatever.
-			attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		}
-		else
-		{	//both cleared
-			attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		}
-
-		VkAssert(vkCreateRenderPass(vk.device, &rp_info, vkallocationcb, &vk.renderpass[pass]));
 	}
+
+	if (resolve_reference.attachment != ~(uint32_t)0)
+	{
+		attachments[resolve_reference.attachment].format = vk.backbufformat;
+		attachments[resolve_reference.attachment].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachments[resolve_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachments[resolve_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachments[resolve_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachments[resolve_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachments[resolve_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachments[resolve_reference.attachment].finalLayout = (pass&RP_PRESENTABLE)?VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.flags = 0;
+	subpass.inputAttachmentCount = 0;
+	subpass.pInputAttachments = NULL;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &color_reference;
+	subpass.pResolveAttachments = (resolve_reference.attachment != ~(uint32_t)0)?&resolve_reference:NULL;
+	subpass.pDepthStencilAttachment = &depth_reference;
+	subpass.preserveAttachmentCount = 0;
+	subpass.pPreserveAttachments = NULL;
+
+	rp_info.attachmentCount = numattachments;
+	rp_info.pAttachments = attachments;
+	rp_info.subpassCount = 1;
+	rp_info.pSubpasses = &subpass;
+	rp_info.dependencyCount = 0;
+	rp_info.pDependencies = NULL;
+
+	switch(pass&3)
+	{
+	case RP_RESUME:
+		//nothing cleared, both are just re-loaded.
+		attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		break;
+	case RP_DEPTHCLEAR:
+		//depth cleared, colour is whatever.
+		attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		break;
+	case RP_FULLCLEAR:
+		//both cleared
+		attachments[color_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		break;
+	case RP_DEPTHONLY:
+		attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//		attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	}
+
+	VkAssert(vkCreateRenderPass(vk.device, &rp_info, vkallocationcb, &vk.renderpass[pass]));
+	DebugSetName(VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)vk.renderpass[pass], va("RP%i", pass));
+	return vk.renderpass[pass];
 }
 
 void VK_DoPresent(struct vkframe *theframe)
@@ -4031,7 +4126,6 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	vk.triplebuffer = info->triplebuffer;
 	vk.vsync = info->wait;
 	vk.dopresent = dopresent?dopresent:VK_DoPresent;
-	vk.max_anistophy_limit = 1.0;
 	memset(&sh_config, 0, sizeof(sh_config));
 
 
@@ -4063,6 +4157,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		vkEnumerateInstanceExtensionProperties(NULL, &count, ext);
 		for (i = 0; i < count && extensions_count < countof(extensions); i++)
 		{
+			Con_DLPrintf(2, " vki: %s\n", ext[i].extensionName);
 #ifdef VK_EXT_debug_utils
 			if (!strcmp(ext[i].extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME))
 				havedebugutils = true;
@@ -4424,11 +4519,13 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	}
 
 	{
-		uint32_t extcount = 0;
+		uint32_t extcount = 0, i;
 		VkExtensionProperties *ext;
 		vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &extcount, NULL);
 		ext = malloc(sizeof(*ext)*extcount);
 		vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &extcount, ext);
+		for (i = 0; i < extcount; i++)
+			Con_DLPrintf(2, " vkd: %s\n", ext[i].extensionName);
 		while (extcount --> 0)
 		{
 			for (e = 0; e < countof(knowndevexts); e++)
@@ -4694,7 +4791,7 @@ void VK_Shutdown(void)
 
 	if (vk.cmdpool)
 		vkDestroyCommandPool(vk.device, vk.cmdpool, vkallocationcb);
-	VK_DestroyRenderPass();
+	VK_DestroyRenderPasses();
 
 	if (vk.pipelinecache)
 	{

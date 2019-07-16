@@ -1107,10 +1107,10 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	return Sys_EnumerateFiles2(truepath, strlen(gpath)+1, match, func, parm, spath);
 }
 
-
-
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
+	if (sys_nounload)
+		return;
 	dlclose((void*)lib);
 }
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)

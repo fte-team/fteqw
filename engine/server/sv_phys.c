@@ -2596,6 +2596,8 @@ qboolean SV_Physics (void)
 	}
 
 	maxtics = sv_limittics.ival;
+	if (sv.spawned_observer_slots==0&&sv.spawned_client_slots==0)
+		maxtics = 1;	//no players on the server. let timings slide
 
 // don't bother running a frame if sys_ticrate seconds haven't passed
 	while (1)

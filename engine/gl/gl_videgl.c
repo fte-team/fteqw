@@ -2,6 +2,17 @@
 #if defined(GLQUAKE) && defined(USE_EGL)
 #include "gl_videgl.h"
 
+//EGL_KHR_gl_colorspace
+#ifndef EGL_GL_COLORSPACE_KHR
+#define EGL_GL_COLORSPACE_KHR 0x309D
+#endif
+#ifndef EGL_GL_COLORSPACE_SRGB_KHR
+#define EGL_GL_COLORSPACE_SRGB_KHR 0x3089
+#endif
+#ifndef EGL_GL_COLORSPACE_LINEAR_KHR
+#define EGL_GL_COLORSPACE_LINEAR_KHR 0x308A
+#endif
+
 extern cvar_t vid_vsync;
 
 EGLContext eglctx = EGL_NO_CONTEXT;
@@ -13,15 +24,16 @@ static dllhandle_t *eslibrary;
 
 static EGLint		(EGLAPIENTRY *qeglGetError)(void);
 
-static EGLDisplay	(EGLAPIENTRY *qeglGetPlatformDisplay)(EGLenum platform, void *native_display, const EGLint *attrib_list);
+static EGLDisplay	(EGLAPIENTRY *qeglGetPlatformDisplay)(EGLenum platform, void *native_display, const EGLAttrib *attrib_list);
 static EGLDisplay	(EGLAPIENTRY *qeglGetDisplay)(EGLNativeDisplayType display_id);
 static EGLBoolean	(EGLAPIENTRY *qeglInitialize)(EGLDisplay dpy, EGLint *major, EGLint *minor);
 static EGLBoolean	(EGLAPIENTRY *qeglTerminate)(EGLDisplay dpy);
 
 static EGLBoolean	(EGLAPIENTRY *qeglGetConfigs)(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config);
 static EGLBoolean	(EGLAPIENTRY *qeglChooseConfig)(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config);
+EGLBoolean	(EGLAPIENTRY *qeglGetConfigAttrib)(EGLDisplay dpy, EGLConfig config, EGLint attribute, EGLint *value);
 
-static EGLSurface	(EGLAPIENTRY *qeglCreatePlatformWindowSurface)(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLint *attrib_list);
+static EGLSurface	(EGLAPIENTRY *qeglCreatePlatformWindowSurface)(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLAttrib *attrib_list);
 static EGLSurface	(EGLAPIENTRY *qeglCreateWindowSurface)(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list);
 static EGLBoolean	(EGLAPIENTRY *qeglDestroySurface)(EGLDisplay dpy, EGLSurface surface);
 static EGLBoolean	(EGLAPIENTRY *qeglQuerySurface)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value);
@@ -44,6 +56,7 @@ static dllfunction_t qeglfuncs[] =
 
 	{(void*)&qeglGetConfigs, "eglGetConfigs"},
 	{(void*)&qeglChooseConfig, "eglChooseConfig"},
+	{(void*)&qeglGetConfigAttrib, "eglGetConfigAttrib"},
 
 	{(void*)&qeglCreateWindowSurface, "eglCreateWindowSurface"},
 	{(void*)&qeglDestroySurface, "eglDestroySurface"},
@@ -156,7 +169,7 @@ qboolean EGL_LoadLibrary(char *driver)
 #endif
 	if (!eslibrary)
 		Sys_Printf("unable to load some libGL\n");
-	
+
 	Sys_Printf("Attempting to dlopen libEGL... ");
 	egllibrary = Sys_LoadLibrary("libEGL", qeglfuncs);
 	if (!egllibrary)
@@ -243,10 +256,10 @@ void EGL_Shutdown(void)
 
 	for (i = 0; i < countof(eglattrs); i++)
 	{
-		if (qeglGetContifAttrib(egldpy, cfg, eglattrs[i].attr, &val))
-			Con_DPrintf("%i.%s: %i\n", cfg, eglattrs[i].attrname, val);
+		if (qeglGetConfigAttrib(egldpy, cfg, eglattrs[i].attr, &val))
+			Con_DPrintf("%p.%s: %i\n", cfg, eglattrs[i].attrname, val);
 		else
-			Con_DPrintf("%i.%s: UNKNOWN\n", cfg, eglattrs[i].attrname);
+			Con_DPrintf("%p.%s: UNKNOWN\n", cfg, eglattrs[i].attrname);
 	}
 }*/
 
@@ -273,15 +286,15 @@ void EGL_SwapBuffers (void)
 	qeglSwapBuffers(egldpy, eglsurf);
 	/* TODO: check result? */
 	TRACE(("EGL_SwapBuffers done\n"));
-
-	Con_Printf("EGL_SwapBuffers\n");
 }
 
-qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, void *nwindow, void *ndpy, EGLNativeWindowType windowid, EGLNativeDisplayType dpyid)
+
+
+qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNativeDisplayType dpyid, EGLConfig *outconfig)
 {
-	EGLint numconfig;
-	EGLConfig cfg;
-	EGLint major, minor;
+	EGLint numconfig=0;
+	EGLConfig cfg=0;
+	EGLint major=0, minor=0;
 	EGLint attrib[] =
 	{
 		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -295,17 +308,6 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 		EGL_BLUE_SIZE, 1,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_NONE
-	};
-	EGLint wndattrib[] =
-	{
-//		EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_LINEAR_KHR,
-
-		EGL_NONE
-	};
-	EGLint contextattr[] =
-	{
-		EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
-		EGL_NONE, EGL_NONE
 	};
 
 /*	if (!EGL_LoadLibrary(""))
@@ -354,7 +356,6 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 		Con_Printf(CON_ERROR "EGL: can't choose config!\n");
 		return false;
 	}
-	
 	if (!numconfig)
 	{
 		Con_Printf(CON_ERROR "EGL: no configs!\n");
@@ -362,11 +363,38 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 	}
 
 //	EGL_ShowConfig(egldpy, cfg);
+	*outconfig = cfg;
+	return true;
+}
+
+qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLNativeWindowType windowid, EGLConfig cfg)
+{
+	EGLint contextattr[] =
+	{
+		EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
+		EGL_NONE, EGL_NONE
+	};
 
 	if (qeglCreatePlatformWindowSurface)
+	{
+		EGLAttrib wndattrib[] =
+		{
+//			EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR,
+
+			EGL_NONE
+		};
 		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, info->srgb?wndattrib:NULL);
+	}
 	else
+	{
+		EGLint wndattrib[] =
+		{
+//			EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR,
+
+			EGL_NONE
+		};
 		eglsurf = qeglCreateWindowSurface(egldpy, cfg, windowid, info->srgb?wndattrib:NULL);
+	}
 	if (eglsurf == EGL_NO_SURFACE)
 	{
 		int err = qeglGetError();
@@ -376,7 +404,7 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 			Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: %s\n", EGL_GetErrorString(err));
 		return false;
 	}
-	
+
 	eglctx = qeglCreateContext(egldpy, cfg, EGL_NO_SURFACE, contextattr);
 	if (eglctx == EGL_NO_CONTEXT)
 	{
@@ -389,7 +417,7 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 		Con_Printf(CON_ERROR "EGL: can't make current!\n");
 		return false;
 	}
-	
+
 	if (eglplat == EGL_PLATFORM_WAYLAND_KHR)
 	{	//if we don't do this, only the first frame will get displayed, and we'll lock up
 		qeglSwapInterval = NULL;
@@ -400,5 +428,6 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, v
 
 	return true;
 }
+
 #endif
 

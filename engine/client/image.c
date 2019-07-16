@@ -789,7 +789,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 	return NULL;
 }
 
-qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
+qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, qintptr_t bytestride, int width, int height, enum uploadfmt fmt)
 {
 	qboolean success = false;
 	size_t c, i;
@@ -844,20 +844,20 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 		if (ipx == opx && !rgb)
 		{	//can just directly write it
 			//bgr24, bgra24
-			c = width*height*opx;
+			c = (size_t)width*height*opx;
 
 			VFS_WRITE(vfs, header, sizeof(header));
 			VFS_WRITE(vfs, rgb_buffer, c);
 		}
 		else
 		{
-			qbyte *fte_restrict rgb_out = malloc(width*opx*height);
+			qbyte *fte_restrict rgb_out = malloc((size_t)width*opx*height);
 
 			//no need to swap alpha, and if we're just swapping alpha will be fine in-place.
 			if (rgb)
 			{	//rgb24, rgbx32, rgba32
 				// compact, and swap
-				c = width*height;
+				c = (size_t)width*height;
 				for (i=0 ; i<c ; i++)
 				{
 					rgb_out[i*opx+2] = rgb_buffer[i*ipx+0];
@@ -868,7 +868,7 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_rest
 			else
 			{	//(bgr24), bgrx32, (bgra32)
 				// compact
-				c = width*height;
+				c = (size_t)width*height;
 				for (i=0 ; i<c ; i++)
 				{
 					rgb_out[i*opx+0] = rgb_buffer[i*ipx+0];
@@ -1255,7 +1255,7 @@ error:
 
 
 #ifndef NPFTE
-static int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata)
+static int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, qintptr_t bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata)
 {
 	char name[MAX_OSPATH];
 	int i;
@@ -1924,7 +1924,7 @@ METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
 	longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-static qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int stride, int screenwidth, int screenheight, enum uploadfmt fmt, unsigned int writemeta)
+static qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, qintptr_t stride, int screenwidth, int screenheight, enum uploadfmt fmt, unsigned int writemeta)
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
@@ -2550,7 +2550,7 @@ static qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	return ReadRawBMPFile(buf + 14, length-14, width, height, OffsetofBMPBits - 14);
 }
 
-qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt)
+qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, qintptr_t instride, int width, int height, uploadfmt_t fmt)
 {
 	int y;
 	bmpheader_t h;
@@ -5407,17 +5407,11 @@ static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, 
 GL_ResampleTexture
 ================
 */
-void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight)
+static void Image_ResampleTexture32Nearest (const unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight)
 {
 	int		i, j;
-	unsigned	*inrow;
+	const unsigned	*inrow;
 	unsigned	frac, fracstep;
-
-	if (gl_lerpimages.ival)
-	{
-		Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);
-		return;
-	}
 
 	fracstep = inwidth*0x10000/outwidth;
 	for (i=0 ; i<outheight ; i++, out += outwidth)
@@ -5446,17 +5440,11 @@ void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *o
 	}
 }
 
-void Image_ResampleTexture8 (unsigned char *in, int inwidth, int inheight, unsigned char *out,  int outwidth, int outheight)
+static void Image_ResampleTexture8Nearest (const unsigned char *in, int inwidth, int inheight, unsigned char *out,  int outwidth, int outheight)
 {
 	int		i, j;
-	unsigned	char *inrow;
+	const unsigned	char *inrow;
 	unsigned	frac, fracstep;
-
-	/*if (gl_lerpimages.ival)
-	{
-		Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);
-		return;
-	}*/
 
 	fracstep = inwidth*0x10000/outwidth;
 	for (i=0 ; i<outheight ; i++, out += outwidth)
@@ -5484,17 +5472,11 @@ void Image_ResampleTexture8 (unsigned char *in, int inwidth, int inheight, unsig
 		}
 	}
 }
-void Image_ResampleTexture16 (unsigned short *in, int inwidth, int inheight, unsigned short *out,  int outwidth, int outheight)
+static void Image_ResampleTexture16Nearest (const unsigned short *in, int inwidth, int inheight, unsigned short *out,  int outwidth, int outheight)
 {
 	int		i, j;
-	unsigned	short *inrow;
+	const unsigned	short *inrow;
 	unsigned	frac, fracstep;
-
-	/*if (gl_lerpimages.ival)
-	{
-		Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);
-		return;
-	}*/
 
 	fracstep = inwidth*0x10000/outwidth;
 	for (i=0 ; i<outheight ; i++, out += outwidth)
@@ -5520,6 +5502,72 @@ void Image_ResampleTexture16 (unsigned short *in, int inwidth, int inheight, uns
 			frac -= fracstep;
 			out[j+0] = inrow[frac>>16];
 		}
+	}
+}
+
+//returns out on success. if out is null then returns a new BZ_Malloced buffer
+void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight)
+{
+	switch(format)
+	{
+	case PTI_INVALID:
+	default:
+		return NULL;
+	//we don't care about byte order etc, just channels+sizes.
+	case PTI_LLLX8:
+	case PTI_LLLA8:
+	case PTI_RGBA8:
+	case PTI_RGBX8:
+	case PTI_BGRA8:
+	case PTI_BGRX8:
+	case PTI_RGBA8_SRGB:
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:
+		if (!out)
+			out = BZ_Malloc(((outwidth+3)&~3)*outheight*4);
+		if (gl_lerpimages.ival)
+			Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);	//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
+		else
+			Image_ResampleTexture32Nearest(in, inwidth, inheight, out, outwidth, outheight);
+		return out;
+	case PTI_R32F:
+	case PTI_A2BGR10:
+	case PTI_E5BGR9:
+		if (!out)
+			out = BZ_Malloc(((outwidth+3)&~3)*outheight*4);
+		Image_ResampleTexture32Nearest(in, inwidth, inheight, out, outwidth, outheight);
+		return out;
+	case PTI_P8:
+	case PTI_L8:
+	case PTI_R8:
+	case PTI_L8_SRGB:
+	case PTI_R8_SNORM:
+		if (!out)
+			out = BZ_Malloc((outwidth+3)*outheight);
+		Image_ResampleTexture8Nearest(in, inwidth, inheight, out, outwidth, outheight);
+		return out;
+	case PTI_RG8:
+	case PTI_RG8_SNORM:
+	case PTI_L8A8:
+	case PTI_L8A8_SRGB:
+	case PTI_R16:
+	case PTI_R16F:
+	case PTI_RGB565:
+	case PTI_RGBA4444:
+	case PTI_ARGB4444:
+	case PTI_RGBA5551:
+	case PTI_ARGB1555:
+		if (!out)
+			out = BZ_Malloc((outwidth+3)*outheight*2);
+		Image_ResampleTexture16Nearest(in, inwidth, inheight, out, outwidth, outheight);
+		return out;
+	case PTI_RGB8:
+	case PTI_BGR8:
+	case PTI_RGBA16:
+	case PTI_RGBA16F:
+	case PTI_RGBA32F:
+		return NULL;	//fixmes
 	}
 }
 
@@ -7700,48 +7748,19 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			mips->mip[0].data = rgbadata;
 		else
 		{
-			switch(mips->encoding)
+			mips->mip[0].data = Image_ResampleTexture(mips->encoding, rgbadata, imgwidth, imgheight, NULL, mips->mip[0].width, mips->mip[0].height);
+			if (mips->mip[0].data)
 			{
-			case PTI_LLLX8:
-			case PTI_RGBA8:
-			case PTI_RGBX8:
-			case PTI_BGRA8:
-			case PTI_BGRX8:
-			case PTI_RGBA8_SRGB:
-			case PTI_RGBX8_SRGB:
-			case PTI_BGRA8_SRGB:
-			case PTI_BGRX8_SRGB:
-				mips->mip[0].data = BZ_Malloc(((mips->mip[0].width+3)&~3)*mips->mip[0].height*4);
-				//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
-				Image_ResampleTexture(rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
 				if (freedata)
 					BZ_Free(rgbadata);
 				freedata = true;
-				break;
-			case PTI_L8:
-			case PTI_L8_SRGB:
-				mips->mip[0].data = BZ_Malloc(mips->mip[0].width*mips->mip[0].height);
-				//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
-				Image_ResampleTexture8((void*)rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
-				if (freedata)
-					BZ_Free(rgbadata);
-				freedata = true;
-				break;
-			case PTI_L8A8:
-			case PTI_L8A8_SRGB:
-				mips->mip[0].data = BZ_Malloc(mips->mip[0].width*mips->mip[0].height*2);
-				//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
-				Image_ResampleTexture16((void*)rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
-				if (freedata)
-					BZ_Free(rgbadata);
-				freedata = true;
-				break;
-			default:	//scaling not supported...
+			}
+			else
+			{	//rescaling unsupported
 				mips->mip[0].data = rgbadata;
 				mips->mip[0].width = imgwidth;
 				mips->mip[0].height = imgheight;
 				mips->mip[0].depth = 1;
-				break;
 			}
 		}
 	}
@@ -9419,7 +9438,7 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta)
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, qintptr_t bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta)
 {
 	char ext[8];
 	void *nbuffers[2];
@@ -9443,7 +9462,7 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 
 	COM_FileExtension(filename, ext, sizeof(ext));
 
-	#ifdef AVAIL_PNGLIB
+#ifdef AVAIL_PNGLIB
 	if (!Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "pns"))
 	{
 		//png can do bgr+rgb
@@ -9473,9 +9492,9 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 		int y, x, s;
 		qbyte *src, *dest;
 		qbyte *srcbuf = buffer[0], *dstbuf;
-		if (fmt == TF_RGB24 || fmt == TF_RGBA32 || fmt == TF_RGBX32)
+		if (fmt == TF_RGB24 || fmt == TF_RGBA32 || fmt == TF_RGBX32 || fmt == PTI_LLLA8 || fmt == PTI_LLLX8)
 		{
-			dstbuf = malloc(width*height);
+			dstbuf = malloc((intptr_t)width*height);
 			s = (fmt == TF_RGB24)?3:4;
 			// convert in-place to eight bit
 			for (y = 0; y < height; y++)
@@ -9491,7 +9510,7 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 		}
 		else if (fmt == TF_BGR24 || fmt == TF_BGRA32 || fmt == TF_BGRX32)
 		{
-			dstbuf = malloc(width*height);
+			dstbuf = malloc((intptr_t)width*height);
 			s = (fmt == TF_BGR24)?3:4;
 			// convert in-place to eight bit
 			for (y = 0; y < height; y++)

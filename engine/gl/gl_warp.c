@@ -119,29 +119,49 @@ void R_DrawFastSky(batch_t *batch)
 void R_RenderScene (void);
 qboolean R_DrawSkyroom(shader_t *skyshader)
 {
-#ifdef GLQUAKE
 	float vmat[16];
 	refdef_t oldrefdef;
 
-	if (qrenderer != QR_OPENGL)
-		return false;	//FIXME
 	if (r_viewcluster == -1)
 		return false;	//don't draw the skyroom if the camera is outside.
 
+	if (r_fastsky.value)
+		return false;	//skyrooms can be expensive.
 	if (!r_refdef.skyroom_enabled || r_refdef.recurse >= R_MAX_RECURSE-1)
 		return false;
 
 	oldrefdef = r_refdef;
 	r_refdef.recurse+=1;
 
-	r_refdef.externalview = true;
+	r_refdef.externalview = true;	//an out-of-body experience...
 	r_refdef.skyroom_enabled = false;
+	r_refdef.forcevis = false;
 	r_refdef.flags |= RDF_DISABLEPARTICLES;
+	r_refdef.flags &= ~RDF_SKIPSKY;
+	r_refdef.forcedvis = NULL;
+	r_refdef.areabitsknown = false;	//recalculate areas clientside.
 
 	/*work out where the camera should be (use the same angles)*/
 	VectorCopy(r_refdef.skyroom_pos, r_refdef.vieworg);
 	VectorCopy(r_refdef.skyroom_pos, r_refdef.pvsorigin);
-	Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+
+	if (developer.ival)
+		if (r_worldentity.model->funcs.PointContents(r_worldentity.model, NULL, r_refdef.skyroom_pos) & FTECONTENTS_SOLID)
+			Con_DPrintf("Skyroom position %.1f %.1f %.1f in solid\n", r_refdef.skyroom_pos[0], r_refdef.skyroom_pos[1], r_refdef.skyroom_pos[2]);
+
+	/*if (cl.skyrotate)
+	{
+		vec3_t axis[3];
+		float ang = cl.skyrotate * cl.time;
+		if (!cl.skyaxis[0]&&!cl.skyaxis[1]&&!cl.skyaxis[2])
+			VectorSet(cl.skyaxis, 0,0,1);
+		RotatePointAroundVector(axis[0], cl.skyaxis, vpn, ang);
+		RotatePointAroundVector(axis[1], cl.skyaxis, vright, ang);
+		RotatePointAroundVector(axis[2], cl.skyaxis, vup, ang);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, axis[0], axis[1], axis[2], r_refdef.vieworg);
+	}
+	else*/
+		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 	R_SetFrustum (r_refdef.m_projection_std, vmat);
 
 	//now determine the stuff the backend will use.
@@ -159,16 +179,7 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
-	GLBE_SelectEntity(&r_worldentity);
-	GL_ForceDepthWritable();
-	qglClear(GL_DEPTH_BUFFER_BIT);
-
-	currententity = NULL;
-
 	return true;
-#else
-	return false;
-#endif
 }
 
 /*
@@ -208,7 +219,6 @@ qboolean R_DrawSkyChain (batch_t *batch)
 		if (skyshader->prog)	//glsl is expected to do the whole skybox/warpsky thing itself, with no assistance from this legacy code.
 		{
 			//if the first pass is transparent in some form, then be prepared to give it a skyroom behind.
-			R_DrawSkyroom(skyshader);
 			return false;	//draw as normal...
 		}
 	}
@@ -218,7 +228,7 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	else
 		skyboxtex = NULL;
 
-	if (R_DrawSkyroom(skyshader))
+	if (r_refdef.flags & RDF_SKIPSKY)
 	{	//don't obscure the skyroom if the sky shader is opaque.
 		qboolean opaque = false;
 		if (skyshader->numpasses)

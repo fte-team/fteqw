@@ -2572,6 +2572,15 @@ static void SCR_ScreenShot_Mega_f(void)
 		return;
 	}
 
+	if (strcmp(Cmd_Argv(0), "screenshot_mega"))
+	{	//screenshot_360, screenshot_stereo etc probably don't want to capture mega screenshots
+		//so default to something more realistic instead.
+		if (!fbwidth)
+			fbwidth = vid.pixelwidth;
+		if (!fbheight)
+			fbheight = vid.pixelheight;
+	}
+
 	if (!fbwidth)
 		fbwidth = sh_config.texture2d_maxsize;
 	fbwidth = bound(1, fbwidth, sh_config.texture2d_maxsize);

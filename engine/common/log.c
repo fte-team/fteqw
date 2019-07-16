@@ -12,10 +12,10 @@ cvar_t		log_enable[LOG_TYPES]	= {	CVARF("log_enable", "0", CVAR_NOTFROMSERVER),
 										CVARF("log_enable_players", "0", CVAR_NOTFROMSERVER),
 										CVARF("log_enable_rcon", "1", CVAR_NOTFROMSERVER)
 								};
-cvar_t		log_name[LOG_TYPES] = { CVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
+cvar_t		log_name[LOG_TYPES] = { CVARFC("log_name", "qconsole", CVAR_NOTFROMSERVER, Log_Name_Callback),
 									CVARFC("log_name_players", "players", CVAR_NOTFROMSERVER, Log_Name_Callback),
 									CVARFC("log_name_rcon", "rcon", CVAR_NOTFROMSERVER, Log_Name_Callback)};
-cvar_t		log_dir_var = CVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
+cvar_t		log_dir_var = CVARAFC("log_dir", "", "sv_logdir", CVAR_NOTFROMSERVER, Log_Dir_Callback);
 cvar_t		log_readable = CVARFD("log_readable", "7", CVAR_NOTFROMSERVER, "Bitfield describing what to convert/strip. If 0, exact byte representation will be used.\n&1: Dequakify text.\n&2: Strip special markup.\n&4: Strip ansi control codes.");
 cvar_t		log_developer = CVARFD("log_developer", "0", CVAR_NOTFROMSERVER, "Enables logging of console prints when set to 1. Otherwise unimportant messages will not fill up your log files.");
 cvar_t		log_rotate_files = CVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
@@ -47,7 +47,7 @@ static void QDECL Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 	{
 		Con_Printf(CON_NOTICE "%s forced to default due to invalid characters.\n", var->name);
 		// recursion is avoided by assuming the default value is sane
-		Cvar_ForceSet(var, var->defaultstr);
+		Cvar_ForceSet(var, var->enginevalue);
 	}
 
 	if (!strncmp(var->string, "./", 2)||!strncmp(var->string, ".\\", 2))
@@ -72,7 +72,7 @@ static void QDECL Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 	{
 		Con_Printf(CON_NOTICE "%s forced to default due to invalid characters.\n", var->name);
 		// recursion is avoided by assuming the default value is sane
-		Cvar_ForceSet(var, var->defaultstr);
+		Cvar_ForceSet(var, var->enginevalue);
 	}
 }
 
@@ -89,27 +89,13 @@ void Log_String (logtype_t lognum, const char *s)
 	conchar_t cline[2048], *c;
 	unsigned int u, flags;
 
-	f = NULL;
-	switch(lognum)
-	{
-	case LOG_CONSOLE:
-		f = "qconsole";
-		break;
-	case LOG_PLAYER:
-		f = "players";
-		break;
-	case LOG_RCON:
-		f = "rcon";
-		break;
-	default:
-		return;
-	}
-
 	if (!log_enable[lognum].value)
 		return;
 
 	if (log_name[lognum].string[0])
 		f = log_name[lognum].string;
+	else
+		f = log_name[lognum].enginevalue;
 
 	if (!f)
 		return;
@@ -268,24 +254,39 @@ void SV_LogPlayer(client_t *cl, char *msg)
 #endif
 
 
-
-
+#ifdef HAVE_LEGACY
+static struct {
+	const char *commandname;
+	const char *desc;
+} legacylog[] =
+{
+	{"logfile",		""},
+	{"logplayers",	" players"},
+	{"logrcon",		" frags"},
+};
 
 void Log_Logfile_f (void)
 {
-	if (log_enable[LOG_CONSOLE].value)
+	size_t logtype;
+	const char *cmd = Cmd_Argv(0);
+	for (logtype = 0; logtype < countof(legacylog); logtype++)
+		if (!Q_strcasecmp(legacylog[logtype].commandname, cmd))
+			break;
+
+	if (log_enable[logtype].value)
 	{
-		Cvar_SetValue(&log_enable[LOG_CONSOLE], 0);
-		Con_Printf("Logging disabled.\n");
+		Cvar_SetValue(&log_enable[logtype], 0);
+		Con_Printf("Logging%s disabled.\n", legacylog[logtype].desc);
 	}
 	else
 	{
-		char *f;
+		const char *f;
 		char syspath[MAX_OSPATH];
 
-		f = "qconsole";
-		if (log_name[LOG_CONSOLE].string[0])
-			f = log_name[LOG_CONSOLE].string;
+		if (log_name[logtype].string[0])
+			f = log_name[logtype].string;
+		else
+			f = log_name[logtype].enginevalue;
 
 		if (*log_dir)
 			f = va("%s/%s.log", log_dir, f);
@@ -293,10 +294,10 @@ void Log_Logfile_f (void)
 			f = va("%s.log", f);
 
 		if (FS_NativePath(f, log_root, syspath, sizeof(syspath)))
-			Con_Printf("%s", va("Logging to %s\n", syspath));
+			Con_Printf("%s", va("Logging%s to %s\n", legacylog[logtype].desc, syspath));
 		else
-			Con_Printf("%s", va("Logging to %s\n", f));
-		Cvar_SetValue(&log_enable[LOG_CONSOLE], 1);
+			Con_Printf("%s", va("Logging%s to %s\n", legacylog[logtype].desc, f));
+		Cvar_SetValue(&log_enable[logtype], 1);
 	}
 
 }
@@ -338,6 +339,7 @@ void SV_Fraglogfile_f (void)
 	Con_TPrintf ("Logging frags to %s.\n", name);
 }
 */
+#endif
 
 #ifdef IPLOG
 /*for fuck sake, why can people still not write simple files. proquake is writing binary files as text ones. this function is to try to deal with that fuckup*/
@@ -626,7 +628,7 @@ static void IPLog_Merge_f(void)
 {
 	const char *fname = Cmd_Argv(1);
 	if (!IPLog_Merge_File(fname))
-		Con_Printf("unable to read %s\n", fname);
+		Con_Printf("unable to read iplog \"%s\" for merging\n", fname);
 }
 #endif
 
@@ -975,9 +977,16 @@ void Log_Init(void)
 	// register cvars
 	for (i = 0; i < LOG_TYPES; i++)
 	{
+#ifdef CLIENTONLY
+		if (i != LOG_CONSOLE)
+			continue;
+#endif
 		Cvar_Register (&log_enable[i], CONLOGGROUP);
 		Cvar_Register (&log_name[i], CONLOGGROUP);
 		log_newline[i] = true;
+#ifdef HAVE_LEGACY
+		Cmd_AddCommand(legacylog[i].commandname, IPLog_Merge_f);
+#endif
 	}
 	Cvar_Register (&log_dir_var, CONLOGGROUP);
 	Cvar_Register (&log_readable, CONLOGGROUP);
@@ -986,8 +995,6 @@ void Log_Init(void)
 	Cvar_Register (&log_rotate_files, CONLOGGROUP);
 	Cvar_Register (&log_dosformat, CONLOGGROUP);
 	Cvar_Register (&log_timestamps, CONLOGGROUP);
-
-	Cmd_AddCommand("logfile", Log_Logfile_f);
 
 #ifdef IPLOG
 	Cmd_AddCommandD("identify", IPLog_Identify_f, "Looks up a player's ip to see if they're using a different name");

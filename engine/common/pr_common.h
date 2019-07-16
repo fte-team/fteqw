@@ -555,7 +555,7 @@ void QCBUILTIN PF_ExecuteCommand  (pubprogfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_setspawnparms (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_precache_vwep_model(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 int PF_checkclient_Internal (pubprogfuncs_t *prinst);
-int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s);
+int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly);
 int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly);
 void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m);
 char *PF_infokey_Internal (int entnum, const char *value);

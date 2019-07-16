@@ -246,7 +246,7 @@ struct vk_rendertarg
 	uint32_t width;
 	uint32_t height;
 
-	qboolean multisample;
+	uint32_t rpassflags;
 	qboolean depthcleared;	//starting a new gameview needs cleared depth relative to other views, but the first probably won't.
 
 	VkRenderPassBeginInfo restartinfo;
@@ -315,8 +315,7 @@ extern struct vulkaninfo_s
 	int filterpic[3];
 	int mipcap[2];
 	float lodbias;
-	float max_anistophy;
-	float max_anistophy_limit;
+	float max_anistophy;	//limits.maxSamplerAnistrophy
 
 	struct vk_mempool_s
 	{
@@ -375,8 +374,14 @@ extern struct vulkaninfo_s
 	struct vk_frameend *frameendjobs;
 	uint32_t backbuf_count;
 
-	VkRenderPass shadow_renderpass;	//clears depth etc.
-	VkRenderPass renderpass[3];	//reload-both(resume prior renderpass), clear-depth-dontcare-colour(gl_clear==0), clear-both(cl_clear!=0)
+#define RP_RESUME		0
+#define RP_DEPTHCLEAR	1	//
+#define RP_FULLCLEAR	2
+#define RP_DEPTHONLY	3	//shadowmaps (clears depth)
+#define RP_MULTISAMPLE	(1u<<2)
+#define RP_PRESENTABLE	(1u<<3)
+#define RP_FP16			(1u<<4)
+	VkRenderPass renderpass[1u<<5];
 	VkSwapchainKHR swapchain;
 	uint32_t bufferidx;
 
@@ -525,6 +530,7 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 qboolean	VK_SCR_UpdateScreen			(void);
 
 void	VKBE_RenderToTextureUpdate2d(qboolean destchanged);
+VkRenderPass VK_GetRenderPass(int pass);
 
 //improved rgb get that calls the callback when the data is actually available. used for video capture.
 void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, qintptr_t bytestride, size_t width, size_t height, enum uploadfmt fmt));

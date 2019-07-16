@@ -597,8 +597,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
-void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
-void Image_ResampleTexture8 (unsigned char *in, int inwidth, int inheight, unsigned char *out,  int outwidth, int outheight);
+void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);
 
 void BoostGamma(qbyte *rgba, int width, int height, uploadfmt_t fmt);
 void SaturateR8G8B8(qbyte *data, int size, float sat);

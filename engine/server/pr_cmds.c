@@ -82,7 +82,7 @@ static cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATC
 static cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
 
 extern cvar_t pr_sourcedir;
-cvar_t	pr_ssqc_progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
+cvar_t	pr_ssqc_progs = CVARAFD("sv_progs", "", "progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER, "Specifies the filename of the gamecode to use serverside. Empty means autodetect - typically loading either progs or qwprogs depending on gamedir priority, then based upon deathmatch settings.");
 static cvar_t	pr_nonetaccess = CVARD("pr_nonetaccess", "0", "Block all direct access to network buffers (the writebyte builtin and friends will ignore the call).");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
 static cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
@@ -99,6 +99,7 @@ static cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrea
 #endif
 static cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
+static cvar_t dpcompat_precachesoundhack = CVARD("dpcompat_precachesoundhack", "0", "Changes the behaviour of only the ssqc's precache_sound to return a precache index. precache_model and csqc's precaches are unchanged.");
 //static cvar_t dpcompat_traceontouch = CVARD("dpcompat_traceontouch", "0", "Report trace plane etc when an entity touches another.");
 extern cvar_t sv_listen_dp;
 
@@ -1568,6 +1569,7 @@ void PR_Init(void)
 	Cvar_Register (&pr_ssqc_progs, cvargroup_progs);
 	Cvar_Register (&pr_compatabilitytest, cvargroup_progs);
 
+	Cvar_Register (&dpcompat_precachesoundhack, cvargroup_progs);
 	Cvar_Register (&dpcompat_nopreparse, cvargroup_progs);
 	Cvar_Register (&pr_nonetaccess, cvargroup_progs);
 	Cvar_Register (&pr_overridebuiltins, cvargroup_progs);
@@ -4347,7 +4349,7 @@ static void QCBUILTIN PF_precache_file (pubprogfuncs_t *prinst, struct globalvar
 	FS_FLocateFile(s, FSLF_IFFOUND, NULL);
 }
 
-int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
+int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly)
 {
 	int		i;
 
@@ -4362,6 +4364,8 @@ int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 	{
 		if (!sv.strings.sound_precache[i])
 		{
+			if (queryonly)
+				return 0;
 #ifdef VM_Q1
 			if (svs.gametype == GT_Q1QVM)
 				sv.strings.sound_precache[i] = s;
@@ -4389,18 +4393,30 @@ int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 		if (!strcmp(sv.strings.sound_precache[i], s))
 			return i;
 	}
-	PR_BIError (prinst, "PF_precache_sound: overflow");
+	if (!queryonly)
+		PR_BIError (prinst, "PF_precache_sound: overflow");
 	return 0;
 }
 static void QCBUILTIN PF_precache_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*s;
+	int idx;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 
-	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+	idx = PF_precache_sound_Internal(prinst, s, false);
 
-	PF_precache_sound_Internal(prinst, s);
+	if (dpcompat_precachesoundhack.ival)
+		G_FLOAT(OFS_RETURN) = idx;	//returns the index as a float.
+	else
+		G_INT(OFS_RETURN) = G_INT(OFS_PARM0);	//returns the filename as a string.
+}
+static void QCBUILTIN PF_getsoundindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
+	qboolean queryonly = (svprogfuncs->callargc >= 2)?G_FLOAT(OFS_PARM1):false;
+
+	G_FLOAT(OFS_RETURN) = PF_precache_sound_Internal(prinst, s, queryonly);
 }
 
 int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly)
@@ -4459,7 +4475,8 @@ int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean 
 			return i;
 		}
 	}
-	PR_BIError (prinst, "PF_precache_model: overflow");
+	if (!queryonly)
+		PR_BIError (prinst, "PF_precache_model: overflow");
 	return 0;
 }
 static void QCBUILTIN PF_precache_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7442,7 +7459,7 @@ static void QCBUILTIN PF_clientcommand (pubprogfuncs_t *prinst, struct globalvar
 
 
 
-const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid)
+const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, unsigned int ezpext1, char *guid)
 {
 	char addrstr[256];
 	char clfeatures[4096], *bp;
@@ -7532,6 +7549,19 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 			Info_SetValueForKey(clfeatures, "PEXT2_VOICECHAT", "1", sizeof(clfeatures));
 		if (pext2 & PEXT2_REPLACEMENTDELTAS)
 			Info_SetValueForKey(clfeatures, "PEXT2_REPLACEMENTDELTAS", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_MAXPLAYERS)
+			Info_SetValueForKey(clfeatures, "PEXT2_MAXPLAYERS", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_PREDINFO)
+			Info_SetValueForKey(clfeatures, "PEXT2_PREDINFO", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_NEWSIZEENCODING)
+			Info_SetValueForKey(clfeatures, "PEXT2_NEWSIZEENCODING", "1", sizeof(clfeatures));
+		if (pext2 & PEXT2_INFOBLOBS)
+			Info_SetValueForKey(clfeatures, "PEXT2_INFOBLOBS", "1", sizeof(clfeatures));
+
+		if (ezpext1 & EZPEXT1_FLOATENTCOORDS)
+			Info_SetValueForKey(clfeatures, "EZPEXT1_FLOATENTCOORDS", "1", sizeof(clfeatures));
+		if (ezpext1 & EZPEXT1_SETANGLEREASON)
+			Info_SetValueForKey(clfeatures, "EZPEXT1_SETANGLEREASON", "1", sizeof(clfeatures));
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, addrstr);
@@ -10663,6 +10693,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"findlist_radius",	PF_FindListRadius,	0,		0,		0,		0,		D("entity*(vector pos, float radius)", "Return a list of entities with the given string field set to the given value.")},
 //	{"traceboxptr",		PF_TraceBox,		0,		0,		0,		0,		D("typedef struct {\nfloat allsolid;\nfloat startsolid;\nfloat fraction;\nfloat truefraction;\nentity ent;\nvector endpos;\nvector plane_normal;\nfloat plane_dist;\nint surfaceflags;\nint contents;\n} trace_t;\nvoid(trace_t *trace, vector start, vector mins, vector maxs, vector end, float nomonsters, entity forent)", "Like regular tracebox, except doesn't doesn't use any evil globals.")},
 
+	{"getsoundindex",	PF_getsoundindex,	0,		0,		0,		0,		D("float(string soundname, float queryonly)", "Provides a way to query if a sound is already precached or not. The return value can also be checked for <=255 to see if it'll work over any network protocol. The sound index can also be used for writebyte hacks, but this is discouraged - use SOUNDFLAG_UNICAST instead.")},
 	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200,	D("float(string modelname, optional float queryonly)", "Acts as an alternative to precache_model(foo);setmodel(bar, foo); return bar.modelindex;\nIf queryonly is set and the model was not previously precached, the builtin will return 0 without needlessly precaching the model.")},
 	{"externcall",		PF_externcall,		0,		0,		0,		201,	D("__variant(float prnum, string funcname, ...)", "Directly call a function in a different/same progs by its name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	D("float(string progsname)", "Loads an additional .dat file into the current qcvm. The returned handle can be used with any of the externcall/externset/externvalue builtins.\nThere are cvars that allow progs to be loaded automatically.")},

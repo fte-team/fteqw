@@ -58,6 +58,7 @@ typedef struct {
 	char *name;
 } dllfunction_t;
 typedef void dllhandle_t;	//typically used as void*
+extern qboolean sys_nounload;	//blocks Sys_CloseLibrary. set before stack trace fatal shutdowns.
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs);
 void Sys_CloseLibrary(dllhandle_t *lib);
 void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname);

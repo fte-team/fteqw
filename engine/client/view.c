@@ -104,6 +104,7 @@ cvar_t	crosshairimage			= CVARD("crosshairimage", "", "Enables the use of an ext
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
 cvar_t	v_skyroom_origin		= CVARD("r_skyroom_origin", "", "Specifies the center position of the skyroom's view. Skyrooms are drawn instead of skyboxes (typically with their own skybox around them). Entities in skyrooms will be drawn only when r_ignoreentpvs is 0. Can also be set with the _skyroom worldspawn key. This is overriden by csqc's VF_SKYROOM_CAMERA.");
+cvar_t	v_skyroom_orientation	= CVARD("r_skyroom_orientation", "", "Specifies the orientation and spin of the skyroom.");
 
 static cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
 cvar_t	gl_cshiftenabled		= CVARFD("gl_polyblend", "1", CVAR_ARCHIVE, "Controls whether temporary whole-screen colour changes should be honoured or not. Change gl_cshiftpercent if you want to adjust the intensity.\nThis does not affect v_cshift commands sent from the server.");
@@ -1520,6 +1521,7 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.flags = 0;
 
 	r_refdef.skyroom_enabled = false;
+	r_refdef.firstvisedict = 0;	//just in case.
 
 	r_refdef.areabitsknown = false;
 
@@ -2582,6 +2584,7 @@ void V_Init (void)
 
 	Cvar_Register (&v_deathtilt, VIEWVARS);
 	Cvar_Register (&v_skyroom_origin, VIEWVARS);
+	Cvar_Register (&v_skyroom_orientation, VIEWVARS);
 
 	Cvar_Register (&scr_autoid, VIEWVARS);
 	Cvar_Register (&scr_autoid_team, VIEWVARS);

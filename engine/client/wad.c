@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // wad.c
 
 #include "quakedef.h"
+#include "shader.h"
 
 void *wadmutex;
 
@@ -921,6 +922,16 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			}
 		}
 	}
+
+	if (cl.skyrotate)
+	{
+		if (cl.skyaxis[0]||cl.skyaxis[1]||cl.skyaxis[2])
+			Cvar_Set(&r_skybox_orientation, va("%g %g %g %g", cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2], cl.skyrotate));
+		else
+			Cvar_Set(&r_skybox_orientation, va("0 0 1 %g", cl.skyrotate));
+	}
+	else
+		Cvar_Set(&r_skybox_orientation, "");
 
 	if (wmodel)
 	{

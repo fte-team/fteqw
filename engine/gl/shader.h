@@ -1026,4 +1026,6 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedSphere(shader_t *shader, float radius, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a);
+
+extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_skybox_orientation;
 #endif

@@ -708,6 +708,7 @@ void NPP_NQFlush(void)
 	case svc_intermission:
 //		if (writedest == &sv.reliable_datagram)
 		{
+			sizebuf_t *msg;
 			client_t *cl;
 			int i;
 #ifdef HEXEN2
@@ -739,42 +740,43 @@ void NPP_NQFlush(void)
 #ifdef HEXEN2
 					if (h2finale)
 					{
-						ClientReliableCheckBlock(cl, 6 + strlen(h2title) + 3 + strlen(h2finale) + 1);
-						ClientReliableWrite_Byte(cl, svc_finale);
+						msg = ClientReliable_StartWrite(cl, 6 + strlen(h2title) + 3 + strlen(h2finale) + 1);
+						MSG_WriteByte(msg, svc_finale);
 
-						ClientReliableWrite_Byte(cl, '/');
-						ClientReliableWrite_Byte(cl, 'F');
-						ClientReliableWrite_Byte(cl, 'f');	//hexen2-style finale
+						MSG_WriteByte(msg, '/');
+						MSG_WriteByte(msg, 'F');
+						MSG_WriteByte(msg, 'f');	//hexen2-style finale
 
-						ClientReliableWrite_Byte(cl, '/');
-						ClientReliableWrite_Byte(cl, 'I');
-						ClientReliableWrite_SZ(cl, h2title, strlen(h2title));
-						ClientReliableWrite_Byte(cl, ':');	//image
+						MSG_WriteByte(msg, '/');
+						MSG_WriteByte(msg, 'I');
+						SZ_Write(msg, h2title, strlen(h2title));
+						MSG_WriteByte(msg, ':');	//image
 
-						ClientReliableWrite_Byte(cl, '/');
-						ClientReliableWrite_Byte(cl, 'P');	//image should be a background.
+						MSG_WriteByte(msg, '/');
+						MSG_WriteByte(msg, 'P');	//image should be a background.
 
-						ClientReliableWrite_String(cl, h2finale);
+						MSG_WriteString(msg, h2finale);
 					}
 					else
 #endif
 						if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 					{	//special intermission mode to leave the view attached to the viewentity (as required for nq - especially rogue's finale) instead of hacking it to some specific point
-						ClientReliableCheckBlock(cl, 5);
-						ClientReliableWrite_Byte(cl, svc_finale);
-						ClientReliableWrite_String(cl, "/FI");
+						msg = ClientReliable_StartWrite(cl, 5);
+						MSG_WriteByte(msg, svc_finale);
+						MSG_WriteString(msg, "/FI");
 					}
 					else
 					{
-						ClientReliableCheckBlock(cl, 16);
-						ClientReliableWrite_Byte(cl, svc_intermission);
-						ClientReliableWrite_Coord(cl, cl->edict->v->origin[0]);
-						ClientReliableWrite_Coord(cl, cl->edict->v->origin[1]);
-						ClientReliableWrite_Coord(cl, cl->edict->v->origin[2]+cl->edict->v->view_ofs[2]);
-						ClientReliableWrite_Angle(cl, cl->edict->v->angles[0]);
-						ClientReliableWrite_Angle(cl, cl->edict->v->angles[1]);
-						ClientReliableWrite_Angle(cl, cl->edict->v->angles[2]);
+						msg = ClientReliable_StartWrite(cl, 23);
+						MSG_WriteByte(msg, svc_intermission);
+						MSG_WriteCoord(msg, cl->edict->v->origin[0]);
+						MSG_WriteCoord(msg, cl->edict->v->origin[1]);
+						MSG_WriteCoord(msg, cl->edict->v->origin[2]+cl->edict->v->view_ofs[2]);
+						MSG_WriteAngle(msg, cl->edict->v->angles[0]);
+						MSG_WriteAngle(msg, cl->edict->v->angles[1]);
+						MSG_WriteAngle(msg, cl->edict->v->angles[2]);
 					}
+					ClientReliable_FinishWrite(cl);
 				}
 			}
 			bufferlen = 0;
@@ -937,8 +939,9 @@ void NPP_NQFlush(void)
 		if (!requireextension || cldest->fteprotocolextensions & requireextension)
 		if (bufferlen && ISQWCLIENT(cldest))
 		{
-			ClientReliableCheckBlock(cldest, bufferlen);
-			ClientReliableWrite_SZ(cldest, buffer, bufferlen);
+			sizebuf_t *msg = ClientReliable_StartWrite(cldest, bufferlen);
+			SZ_Write(msg, buffer, bufferlen);
+			ClientReliable_FinishWrite(cldest);
 		}
 		cldest = NULL;
 	}
@@ -2004,8 +2007,9 @@ void NPP_QWFlush(void)
 		if (!requireextension || cldest->fteprotocolextensions & requireextension)
 		if (bufferlen && !ISQWCLIENT(cldest))
 		{
-			ClientReliableCheckBlock(cldest, bufferlen);
-			ClientReliableWrite_SZ(cldest, buffer, bufferlen);
+			sizebuf_t *msg = ClientReliable_StartWrite(cldest, bufferlen);
+			SZ_Write(msg, buffer, bufferlen);
+			ClientReliable_FinishWrite(cldest);
 		}
 		cldest = NULL;
 	}

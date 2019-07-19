@@ -57,7 +57,6 @@ void R_ForceSky_f(void)
 {
 	if (Cmd_Argc() < 2)
 	{
-		extern cvar_t r_skyboxname;
 		if (*r_skyboxname.string)
 			Con_Printf("Current user skybox is %s\n", r_skyboxname.string);
 		else if (*cl.skyname)
@@ -195,6 +194,7 @@ cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= CVARFC ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
+cvar_t r_skybox_orientation					= CVARFD ("r_glsl_skybox_orientation", "0 0 0 0", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
 cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM|CVAR_RENDERERLATCH|CVAR_ARCHIVE, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 qboolean r_softwarebanding;
 cvar_t r_speeds								= CVAR ("r_speeds", "0");
@@ -832,6 +832,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_skyfog, GRAPHICALNICETIES);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
+	Cvar_Register (&r_skybox_orientation, GRAPHICALNICETIES);
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 

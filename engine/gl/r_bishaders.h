@@ -4595,6 +4595,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu FOG\n"
 "!!samps reflectcube\n"
 "!!cvardf r_skyfog=0.5\n"
+"!!cvard4 r_glsl_skybox_orientation=0 0 0 0\n"
 "#include \"sys/defs.h\"\n"
 "#include \"sys/fog.h\"\n"
 
@@ -4602,10 +4603,26 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "varying vec3 pos;\n"
 "#ifdef VERTEX_SHADER\n"
+"mat3 rotateAroundAxis(vec4 axis) //xyz axis, with angle in w\n"
+"{\n"
+"#define skyang axis.w*(3.14/180.0)*e_time\n"
+"axis.xyz = normalize(axis.xyz);\n"
+"float s = sin(skyang);\n"
+"float c = cos(skyang);\n"
+"float oc = 1.0 - c;\n"
+
+"return mat3(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s,\n"
+"oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s,\n"
+"oc * axis.z * axis.x - axis.y * s, oc * axis.y * axis.z + axis.x * s, oc * axis.z * axis.z + c);\n"
+"};\n"
 "void main ()\n"
 "{\n"
 "pos = v_position.xyz - e_eyepos;\n"
 "pos.y = -pos.y;\n"
+
+"if (r_glsl_skybox_orientation.xyz != vec3(0.0))\n"
+"pos = pos*rotateAroundAxis(r_glsl_skybox_orientation);\n"
+
 "gl_Position = ftetransform();\n"
 "}\n"
 "#endif\n"

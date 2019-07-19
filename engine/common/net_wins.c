@@ -85,16 +85,18 @@ FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 #endif
 
 #if defined(_WIN32)
-	int (WINAPI *pgetaddrinfo) (
+	#define getaddrinfo pgetaddrinfo
+	#define freeaddrinfo pfreeaddrinfo
+	#define getnameinfo pgetnameinfo
+
+	static int (WSAAPI *getaddrinfo) (
 	  const char* nodename,
 	  const char* servname,
 	  const struct addrinfo* hints,
 	  struct addrinfo** res
 	);
-	void (WSAAPI *pfreeaddrinfo) (struct addrinfo*);
-#else
-	#define pgetaddrinfo getaddrinfo
-	#define pfreeaddrinfo freeaddrinfo
+	static void (WSAAPI *freeaddrinfo) (struct addrinfo*);
+	static int (WSAAPI *getnameinfo) (const struct sockaddr *addr, socklen_t addrlen, char *host, socklen_t hostlen, char *serv, socklen_t servlen, int flags);
 #endif
 
 #if defined(HAVE_IPV4) && defined(HAVE_SERVER)
@@ -586,6 +588,7 @@ qboolean NET_AddressSmellsFunny(netadr_t *a)
 	}
 }
 
+#if _POSIX_C_SOURCE >= 200112L || defined(getnameinfo)
 static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 {
 	netadr_t *n = data;
@@ -598,7 +601,11 @@ static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 	else
 	{
 		ssz = NetadrToSockadr(n, &s);
-		if (getnameinfo((struct sockaddr *)&s, ssz, adrstring, NI_MAXHOST, NULL, 0, NI_NUMERICSERV|NI_DGRAM))
+		if (
+		#ifdef getnameinfo
+			!getnameinfo ||
+		#endif
+			getnameinfo((struct sockaddr *)&s, ssz, adrstring, NI_MAXHOST, NULL, 0, NI_NUMERICSERV|NI_DGRAM))
 		{
 			NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
 		}
@@ -614,6 +621,14 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 	*(void**)(n+1) = resolved;
 	COM_AddWork(WG_LOADER, NET_AdrToStringDoResolve, ctx, n, a, b);
 }
+#else
+void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b)
+{
+	char adrstring[NI_MAXHOST];
+	NET_BaseAdrToString(adrstring, countof(adrstring), adr);
+	resolved(ctx, Z_StrDup(adrstring), a, b);
+}
+#endif
 
 char	*NET_AdrToString (char *s, int len, netadr_t *a)
 {
@@ -1156,10 +1171,10 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	else
 #endif
 #ifdef HAVE_IPV6
-#ifdef pgetaddrinfo
-	if (1)
+#ifdef getaddrinfo
+	if (getaddrinfo)
 #else
-	if (pgetaddrinfo)
+	if (1)
 #endif
 	{
 		struct addrinfo *addrinfo = NULL;
@@ -1209,7 +1224,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 					len = sizeof(dupbase)-1;
 				strncpy(dupbase, s+1, len);
 				dupbase[len] = '\0';
-				error = pgetaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
+				error = getaddrinfo(dupbase, (port[1] == ':')?port+2:NULL, &udp6hint, &addrinfo);
 			}
 		}
 		else
@@ -1227,12 +1242,12 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 					len = sizeof(dupbase)-1;
 				strncpy(dupbase, s, len);
 				dupbase[len] = '\0';
-				error = pgetaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
+				error = getaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 			}
 			else
 				error = EAI_NONAME;
 			if (error)	//failed, try string with no port.
-				error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
+				error = getaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 		}
 
 		restime = Sys_DoubleTime()-restime;
@@ -1273,7 +1288,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 #endif
 			}
 		}
-		pfreeaddrinfo (addrinfo);
+		freeaddrinfo (addrinfo);
 
 		for (i = 0; i < result; i++)
 		{
@@ -1299,7 +1314,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	else
 #endif
 	{
-#if defined(HAVE_IPV4) && !defined(pgetaddrinfo) && !defined(HAVE_IPV6)
+#if defined(HAVE_IPV4) && defined(getaddrinfo) && !defined(HAVE_IPV6)
 		char	copy[128];
 		char	*colon;
 
@@ -3051,7 +3066,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 					found++;
 				}
 			}
-			pfreeaddrinfo(result);
+			freeaddrinfo(result);
 
 			/*if none found, fill in the 0.0.0.0 or whatever*/
 			if (!found && maxaddresses)
@@ -7864,6 +7879,7 @@ void NET_Init (void)
 		{
 			{(void**)&pgetaddrinfo, "getaddrinfo"},
 			{(void**)&pfreeaddrinfo, "freeaddrinfo"},
+			{(void**)&pgetnameinfo, "getnameinfo"},
 			{NULL, NULL}
 		};
 		Sys_LoadLibrary("ws2_32.dll", fncs);

@@ -308,7 +308,7 @@ static void S_Shutdown_f(void);
 */
 static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
 static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
-static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
+//static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
 static cvar_t s_al_speedofsound = CVARFCD("s_al_speedofsound", "343.3",0,OnChangeALSettings, "Configures the speed of sound, in game units per second. This affects doppler.");
 static cvar_t s_al_dopplerfactor = CVARFCD("s_al_dopplerfactor", "1.0",0,OnChangeALSettings, "Multiplies the strength of doppler effects.");
 static cvar_t s_al_distancemodel = CVARFCD("s_al_distancemodel", legacyval("2","0"),0,OnChangeALSettings, "Controls how sounds fade with distance.\n0: Inverse (most realistic)\n1: Inverse Clamped\n2: Linear (Quake-like)\n3: Linear Clamped\n4: Exponential\n5: Exponential Clamped\n6: None");
@@ -499,7 +499,7 @@ static void QDECL OpenAL_CvarInit(void)
 {
 	Cvar_Register(&s_al_debug, SOUNDVARS);
 	Cvar_Register(&s_al_use_reverb, SOUNDVARS);
-	Cvar_Register(&s_al_max_distance, SOUNDVARS);
+//	Cvar_Register(&s_al_max_distance, SOUNDVARS);
 	Cvar_Register(&s_al_dopplerfactor, SOUNDVARS);
 	Cvar_Register(&s_al_distancemodel, SOUNDVARS);
 	Cvar_Register(&s_al_reference_distance, SOUNDVARS);
@@ -620,7 +620,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	//alcMakeContextCurrent
 
 #ifdef FTE_TARGET_WEB
-	if (firefoxstaticsounds && chan->dist_mult >= 3.0 / sound_nominal_clip_dist)
+	if (firefoxstaticsounds && chan->dist_mult >= 3.0 / snd_nominaldistance.value)
 		sfx = NULL;
 #endif
 

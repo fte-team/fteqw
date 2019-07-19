@@ -294,7 +294,7 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
 extern int				snd_speed;
 
-extern vec_t sound_nominal_clip_dist;
+extern cvar_t snd_nominaldistance;
 
 extern	cvar_t loadas8bit;
 extern	cvar_t bgmvolume;

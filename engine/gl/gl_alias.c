@@ -2791,7 +2791,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	}
 
 	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
+	for (i=r_refdef.firstvisedict ; i<cl_numvisedicts ; i++)
 	{
 		ent = &cl_visedicts[i];
 

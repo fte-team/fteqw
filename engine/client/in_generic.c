@@ -76,12 +76,12 @@ void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 static cvar_t	joy_advaxis[6] =
 {
 #define ADVAXISDESC (const char *)"Provides a way to remap each joystick/controller axis.\nShould be set to one of: moveforward, moveback, lookup, lookdown, turnleft, turnright, moveleft, moveright, moveup, movedown, rollleft, rollright"
-	CVARCD("joyadvaxisx", "moveright", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisy", "moveforward", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisz", "", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisr", "turnright", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisu", "lookup", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisv", "", joyaxiscallback, ADVAXISDESC)
+	CVARCD("joyadvaxisx", "moveright", joyaxiscallback, ADVAXISDESC),	//left rightwards axis
+	CVARCD("joyadvaxisy", "moveforward", joyaxiscallback, ADVAXISDESC),	//left downwards axis
+	CVARCD("joyadvaxisz", "", joyaxiscallback, ADVAXISDESC),			//typically left trigger (use it as a button)
+	CVARCD("joyadvaxisr", "turnright", joyaxiscallback, ADVAXISDESC),	//right rightwards axis
+	CVARCD("joyadvaxisu", "lookup", joyaxiscallback, ADVAXISDESC),		//right downwards axis
+	CVARCD("joyadvaxisv", "", joyaxiscallback, ADVAXISDESC)				//typically right trigger
 };
 static cvar_t	joy_advaxisscale[6] =
 {

@@ -44,7 +44,6 @@ cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loa
 cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.\nBecause most shaders made for DP are by people who _clearly_ have no idea what the heck they're doing, you'll typically need the '2' setting.");
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
-extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
 extern cvar_t r_tessellation;
@@ -1444,7 +1443,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			for(;;)
 			{
 				size_t len;
-				int i, j;
+				int i;
 				char *type, *idx, *next;
 				char *token = com_token;
 

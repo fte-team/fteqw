@@ -3062,7 +3062,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		return;	//FIXME: uses glBegin
 
 	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
+	for (i=r_refdef.firstvisedict ; i<cl_numvisedicts ; i++)
 	{
 		ent = &cl_visedicts[i];
 

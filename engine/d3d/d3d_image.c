@@ -29,6 +29,8 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	qboolean swap = false;
 	unsigned int blockwidth, blockheight, blockbytes;
 
+	//NOTE: d3d9 formats are written as little-endian packed formats, so RR GG BB AA -> 0xAABBGGRR
+	//whereas fte formats vary depending on whether they're packed or byte-aligned.
 	switch(mips->encoding)
 	{
 	case PTI_L8_SRGB:
@@ -54,13 +56,13 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 		break;
 	case PTI_RGBA8_SRGB:
 	case PTI_RGBA8:
-//		fmt = D3DFMT_A8B8G8R8;	/*how do we check 
+//		fmt = D3DFMT_A8B8G8R8;	//not supported by most drivers, for some reason. we need to emulate it with some swapping
 		fmt = D3DFMT_A8R8G8B8;
 		swap = true;
 		break;
 	case PTI_RGBX8_SRGB:
 	case PTI_RGBX8:
-//		fmt = D3DFMT_X8B8G8R8;
+//		fmt = D3DFMT_X8B8G8R8;	//not supported by most drivers, for some reason. we need to emulate it with some swapping
 		fmt = D3DFMT_X8R8G8B8;
 		swap = true;
 		break;
@@ -95,6 +97,7 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 
 	//bc4-7 not supported on d3d9.
 	//etc2 have no chance.
+	//astc? lul!
 
 	case PTI_EMULATED:	//no idea
 	default:

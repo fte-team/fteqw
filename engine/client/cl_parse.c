@@ -4347,24 +4347,37 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i == Q2CS_SKY)
 		R_SetSky(s);
-	else if (i == Q2CS_SKYAXIS)
+	else if (i == Q2CS_SKYAXIS || i == Q2CS_SKYROTATE)
 	{
-		s = COM_Parse(s);
-		if (s)
+		if (i == Q2CS_SKYROTATE)
+			cl.skyrotate = atof(s);
+		else
 		{
-			cl.skyaxis[0] = atof(com_token);
 			s = COM_Parse(s);
 			if (s)
 			{
-				cl.skyaxis[1] = atof(com_token);
+				cl.skyaxis[0] = atof(com_token);
 				s = COM_Parse(s);
 				if (s)
-					cl.skyaxis[2] = atof(com_token);
+				{
+					cl.skyaxis[1] = atof(com_token);
+					s = COM_Parse(s);
+					if (s)
+						cl.skyaxis[2] = atof(com_token);
+				}
 			}
 		}
+
+		if (cl.skyrotate)
+		{
+			if (cl.skyaxis[0]||cl.skyaxis[1]||cl.skyaxis[2])
+				Cvar_Set(&r_skybox_orientation, va("%g %g %g %g", cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2], cl.skyrotate));
+			else
+				Cvar_Set(&r_skybox_orientation, va("0 0 1 %g", cl.skyrotate));
+		}
+		else
+			Cvar_Set(&r_skybox_orientation, "");
 	}
-	else if (i == Q2CS_SKYROTATE)
-		cl.skyrotate = atof(s);
 	else if (i == Q2CS_STATUSBAR)
 	{
 		Q_strncpyz(cl.q2statusbar, s, sizeof(cl.q2statusbar));

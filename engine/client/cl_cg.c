@@ -1300,6 +1300,7 @@ int CG_Refresh(void)
 	if (!cgvm)
 		return false;
 
+	r_refdef.skyroom_enabled = false;
 	time = cl.time*1000;
 	VM_Call(cgvm, CG_DRAW_ACTIVE_FRAME, time, 0, false);
 

@@ -4614,7 +4614,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "return mat3(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s,\n"
 "oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s,\n"
 "oc * axis.z * axis.x - axis.y * s, oc * axis.y * axis.z + axis.x * s, oc * axis.z * axis.z + c);\n"
-"};\n"
+"}\n"
 "void main ()\n"
 "{\n"
 "pos = v_position.xyz - e_eyepos;\n"

@@ -20,7 +20,7 @@ mat3 rotateAroundAxis(vec4 axis) //xyz axis, with angle in w
 	return mat3(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s,
 			oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s,
 			oc * axis.z * axis.x - axis.y * s, oc * axis.y * axis.z + axis.x * s, oc * axis.z * axis.z + c);
-};
+}
 void main ()
 {
 	pos = v_position.xyz - e_eyepos;

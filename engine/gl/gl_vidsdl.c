@@ -64,8 +64,76 @@ void *GLVID_CreateCursor			(const qbyte *imagedata, int width, int height, uploa
 {
 	SDL_Cursor *curs;
 	SDL_Surface *surf;
+	Uint32 r,g,b,a;
 	if (!imagedata)
 		return NULL;
+	switch(format)
+	{
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+	case PTI_LLLX8:
+	case PTI_RGBX8:
+		r = 0xff000000;
+		g = 0x00ff0000;
+		b = 0x0000ff00;
+		a = 0x00000000;
+		break;
+	case PTI_LLLA8:
+	case PTI_RGBA8:
+		r = 0xff000000;
+		g = 0x00ff0000;
+		b = 0x0000ff00;
+		a = 0x000000ff;
+		break;
+	case PTI_BGRX8:
+		b = 0xff000000;
+		g = 0x00ff0000;
+		r = 0x0000ff00;
+		a = 0x00000000;
+		break;
+	case PTI_BGRA8:
+		b = 0xff000000;
+		g = 0x00ff0000;
+		r = 0x0000ff00;
+		a = 0x000000ff;
+		break;
+#else
+	case PTI_LLLX8:
+	case PTI_RGBX8:
+		r = 0x000000ff;
+		g = 0x0000ff00;
+		b = 0x00ff0000;
+		a = 0x00000000;
+		break;
+	case PTI_LLLA8:
+	case PTI_RGBA8:
+		r = 0x000000ff;
+		g = 0x0000ff00;
+		b = 0x00ff0000;
+		a = 0xff000000;
+		break;
+	case PTI_BGRX8:
+		b = 0x000000ff;
+		g = 0x0000ff00;
+		r = 0x00ff0000;
+		a = 0x00000000;
+		break;
+	case PTI_BGRA8:
+		b = 0x000000ff;
+		g = 0x0000ff00;
+		r = 0x00ff0000;
+		a = 0xff000000;
+		break;
+#endif
+	case PTI_A2BGR10:
+		r = 0x000003ff;
+		g = 0x000ffc00;
+		b = 0x3ff00000;
+		a = 0xc0000000;
+		break;
+
+	default:
+		return NULL;
+	}
 
 	if (scale != 1)
 	{
@@ -75,10 +143,10 @@ void *GLVID_CreateCursor			(const qbyte *imagedata, int width, int height, uploa
 		nh = height * scale;
 		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128)	//don't go crazy.
 			return NULL;
-		nd = BZ_Malloc(nw*nh*4);
-		Image_ResampleTexture((unsigned int*)imagedata, width, height, (unsigned int*)nd, nw, nh);
 
-		surf = SDL_CreateRGBSurfaceFrom(nd, nw, nh, 32, nw*4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+		nd = Image_ResampleTexture(format, imagedata, width, height, NULL, nw, nh);
+
+		surf = SDL_CreateRGBSurfaceFrom(nd, nw, nh, 32, nw*4, r, g, b, a);
 		curs = SDL_CreateColorCursor(surf, hotx, hoty);
 		SDL_FreeSurface(surf);
 
@@ -86,7 +154,7 @@ void *GLVID_CreateCursor			(const qbyte *imagedata, int width, int height, uploa
 	}
 	else
 	{
-		surf = SDL_CreateRGBSurfaceFrom((void*)imagedata, width, height, 32, width*4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+		surf = SDL_CreateRGBSurfaceFrom((void*)imagedata, width, height, 32, width*4, r, g, b, a);
 		curs = SDL_CreateColorCursor(surf, hotx, hoty);
 		SDL_FreeSurface(surf);
 	}

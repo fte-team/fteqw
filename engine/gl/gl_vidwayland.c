@@ -639,7 +639,7 @@ void *WL_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t
 	enum wl_shm_format shmfmt;
 	int pbytes;
 	struct wl_shm_pool *pool;
-	struct wl_buffer *buffer;
+	struct wl_buffer *buffer = NULL;
 	qbyte *outdata;
 	size_t size;
 	const char *xdg_runtime_dir = getenv ("XDG_RUNTIME_DIR");
@@ -707,7 +707,8 @@ void *WL_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t
 		c->height = height;
 		return c;
 	}
-	pwl_buffer_destroy(buffer);	//don't need to track that any more
+	if (buffer)
+		pwl_buffer_destroy(buffer);	//don't need to track that any more
 	return NULL;
 }
 qboolean WL_SetCursor(void *cursor)
@@ -1018,7 +1019,7 @@ static void WL_keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uin
 	else
 		qkey = 0;
 	if (!qkey)
-		Con_Printf("WLScancode %#x has no mapping\n", key);
+		Con_DPrintf("WLScancode %#x has no mapping\n", key);
 
 	if (d->xkb_context)
 	{
@@ -1027,6 +1028,8 @@ static void WL_keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uin
 			xkb_keysym_t keysym = pxkb_state_key_get_one_sym (d->xkb_state, key+8);
 			ukey = pxkb_keysym_to_utf32 (keysym);
 		}
+		else
+			ukey = 0;
 	}
 	else
 	{
@@ -1044,10 +1047,7 @@ static void WL_keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uin
 			ukey = 0;
 	}
 
-	if (state)
-		IN_KeyEvent(0, 1, qkey, ukey);
-	else
-		IN_KeyEvent(0, 0, qkey, 0);
+	IN_KeyEvent(0, (state==WL_KEYBOARD_KEY_STATE_PRESSED)?1:0, qkey, 0);
 }
 
 static void WL_keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)

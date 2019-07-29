@@ -129,7 +129,7 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		}
 
 #ifdef ANDROID
-		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_NativePath(va("%s" ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 #else
 

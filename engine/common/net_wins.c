@@ -624,7 +624,7 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 #else
 void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b)
 {
-	char adrstring[NI_MAXHOST];
+	char adrstring[512];
 	NET_BaseAdrToString(adrstring, countof(adrstring), adr);
 	resolved(ctx, Z_StrDup(adrstring), a, b);
 }

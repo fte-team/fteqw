@@ -366,9 +366,10 @@ void CLQ3_ParseDownload(void)
 	}
 
 	if (dl->size == (unsigned int)-1)
-	{
+	{	//the only downloads we should be getting is pk3s.
+		//if they're advertised-but-failing then its probably due to permissions rather than file-not-found
 		s = MSG_ReadString();
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_SERVERCVAR);
 		Host_EndGame("%s", s);
 		return;
 	}
@@ -398,7 +399,7 @@ void CLQ3_ParseDownload(void)
 	{
 		if (!DL_Begun(dl))
 		{
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 			return;
 		}
 	}

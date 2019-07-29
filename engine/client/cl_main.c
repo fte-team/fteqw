@@ -3047,6 +3047,7 @@ void CL_ConnectionlessPacket (void)
 		int candtls = 0;	//0=no,1=optional,2=mandatory
 #endif
 		char guidhash[256];
+		*guidhash = 0;
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
@@ -4090,6 +4091,8 @@ void CL_Download_f (void)
 	if (!strnicmp(url, "qw://", 5) || !strnicmp(url, "q2://", 5))
 	{
 		url += 5;
+		if (*url == '/')	//a conforming url should always have a host section, an empty one is simply three slashes.
+			url++;
 	}
 
 	if (!*localname)
@@ -4146,14 +4149,14 @@ void CL_DownloadSize_f(void)
 	if (!strcmp(size, "e"))
 	{
 		Con_Printf("Download of \"%s\" failed. Not found.\n", rname);
-		CL_DownloadFailed(rname, NULL);
+		CL_DownloadFailed(rname, NULL, DLFAIL_SERVERFILE);
 	}
 	else if (!strcmp(size, "p"))
 	{
 		if (cls.download && stricmp(cls.download->remotename, rname))
 		{
 			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
-			CL_DownloadFailed(rname, NULL);
+			CL_DownloadFailed(rname, NULL, DLFAIL_SERVERCVAR);
 		}
 	}
 	else if (!strcmp(size, "r"))
@@ -4163,7 +4166,7 @@ void CL_DownloadSize_f(void)
 		if (!CL_AllowArbitaryDownload(rname, redirection))
 			return;
 
-		dl = CL_DownloadFailed(rname, NULL);
+		dl = CL_DownloadFailed(rname, NULL, DLFAIL_REDIRECTED);
 		Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 		CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 	}

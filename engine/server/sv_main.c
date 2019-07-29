@@ -2796,13 +2796,13 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		if (newcl->zquake_extensions & (Z_EXT_PF_SOLID|Z_EXT_PF_ONGROUND))
 		{
 			if (newcl->fteprotocolextensions & PEXT_HULLSIZE)
-				Con_TPrintf("%s: ignoring ezquake hullsize extension (conflicts with z_ext_pf_onground).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+				Con_TPrintf("%s: ezquake - ignoring hullsize extension (conflicts with z_ext_pf_onground).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 			if (newcl->fteprotocolextensions & PEXT_SCALE)
-				Con_TPrintf("%s: ignoring ezquake scale extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+				Con_TPrintf("%s: ezquake - ignoring scale extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 			if (newcl->fteprotocolextensions & PEXT_FATNESS)
-				Con_TPrintf("%s: ignoring ezquake fatness extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+				Con_TPrintf("%s: ezquake - ignoring fatness extension (conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 			if (newcl->fteprotocolextensions & PEXT_TRANS)
-				Con_TPrintf("%s: ignoring ezquake transparency extension (buggy on players, conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+				Con_TPrintf("%s: ezquake - ignoring transparency extension (buggy on players, conflicts with z_ext_pf_solid).\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 			newcl->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
 		}
 	}

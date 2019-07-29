@@ -76,11 +76,6 @@ struct vm_s {
 qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
-	char dllname_archpri[MAX_OSPATH];	//id compatible
-#ifdef ARCH_ALTCPU_POSTFIX
-	char dllname_archsec[MAX_OSPATH];	//id compatible
-#endif
-	char dllname_anycpu[MAX_OSPATH];//simple
 	dllhandle_t *hVM;
 
 	char fname[MAX_OSPATH*2];
@@ -93,12 +88,6 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		{(void*)vmMain, "vmMain"},
 		{NULL, NULL},
 	};
-
-	snprintf(dllname_archpri, sizeof(dllname_archpri), "%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name);
-#ifdef ARCH_ALTCPU_POSTFIX
-	snprintf(dllname_archsec, sizeof(dllname_archsec), "%s"ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX, name);
-#endif
-	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s" ARCH_DL_POSTFIX, name);
 
 	hVM=NULL;
 	*fname = 0;
@@ -143,14 +132,19 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 #else
-		if (!hVM && FS_NativePath(dllname_archpri, FS_BINARYPATH, fname, sizeof(fname)))
+
+		if (!hVM && FS_NativePath(va("%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_NativePath(va("%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+		if (!hVM && FS_NativePath(va("%s" ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 
-		if (!hVM && FS_NativePath(dllname_archpri, FS_ROOT, fname, sizeof(fname)))
+		if (!hVM && FS_NativePath(va("%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(dllname_anycpu, FS_ROOT, fname, sizeof(fname)))
+		if (!hVM && FS_NativePath(va("%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+		if (!hVM && FS_NativePath(va("%s" ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 #endif
 	}
@@ -165,7 +159,13 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		{
 			if (!hVM)
 			{
-				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_archpri);
+				snprintf (fname, sizeof(fname), "%s%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
+				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
+			if (!hVM)
+			{
+				snprintf (fname, sizeof(fname), "%s%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
@@ -173,7 +173,13 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 #ifdef ARCH_ALTCPU_POSTFIX
 			if (!hVM)
 			{
-				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_archsec);
+				snprintf (fname, sizeof(fname), "%s%s_"ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
+				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
+			if (!hVM)
+			{
+				snprintf (fname, sizeof(fname), "%s%s"ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
@@ -181,7 +187,7 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 
 			if (!hVM)
 			{
-				snprintf (fname, sizeof(fname), "%s%s", gpath, dllname_anycpu);
+				snprintf (fname, sizeof(fname), "%s%s"ARCH_DL_POSTFIX, gpath, name);
 				Con_DLPrintf(2, "Loading native: %s\n", fname);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}

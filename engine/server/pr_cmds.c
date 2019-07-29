@@ -503,6 +503,20 @@ static void ASMCALL ThinkTimeOp (pubprogfuncs_t *prinst, edict_t *ed, float var)
 static int SV_ParticlePrecache_Add(const char *pname);
 static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *keyname, const char *value)
 {
+	if (!strcmp(keyname, "traileffect"))
+	{
+		foo->xv->traileffectnum = SV_ParticlePrecache_Add(value);
+		return true;
+	}
+	if (!strcmp(keyname, "emiteffect"))
+	{
+		foo->xv->emiteffectnum = SV_ParticlePrecache_Add(value);
+		return true;
+	}
+
+	if (*keyname == '_')
+		keyname++;
+
 #ifdef HEXEN2
 	/*Worldspawn only fields...*/
 	if (NUM_FOR_EDICT(inst, foo) == 0)
@@ -522,19 +536,17 @@ static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *k
 	}
 #endif
 
-	if (!strcmp(keyname, "traileffect"))
-	{
-		foo->xv->traileffectnum = SV_ParticlePrecache_Add(value);
-		return true;
-	}
-	if (!strcmp(keyname, "emiteffect"))
-	{
-		foo->xv->emiteffectnum = SV_ParticlePrecache_Add(value);
-		return true;
-	}
-
 	if (!strcmp(keyname, "sky") || !strcmp(keyname, "fog"))
 		return true;	//these things are handled in the client, so don't warn if they're used.
+
+	if (!strcmp(keyname, "skyroom"))
+	{
+		value = COM_Parse(value);sv.skyroom_pos[0] = atof(com_token);
+		value = COM_Parse(value);sv.skyroom_pos[1] = atof(com_token);
+		value = COM_Parse(value);sv.skyroom_pos[2] = atof(com_token);
+		sv.skyroom_pos_known = true;
+		return true;
+	}
 
 	//don't spam warnings about missing fields if we failed to load the progs.
 	if (!svs.numprogs)
@@ -9816,6 +9828,8 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		Con_Printf("runplayerphysics called on read-only entity\n");
 		return;
 	}
+
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
 
 	if (pr_global_ptrs->clientcommandframe)
 		pmove.sequence = *pr_global_ptrs->clientcommandframe;

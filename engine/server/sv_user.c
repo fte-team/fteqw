@@ -7052,6 +7052,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		return;
 	}
 
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
+
 	host_frametime = ucmd->msec * 0.001;
 	host_frametime *= sv.gamespeed;
 	if (host_frametime > 0.1)

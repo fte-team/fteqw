@@ -564,12 +564,14 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	COM_FileExtension(localname, ext, sizeof(ext));
 	if (!stricmp(ext, "dll") || !stricmp(ext, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
+		CL_DownloadFailed(filename, NULL, DLFAIL_UNTRIED);
 		Con_Printf("Denying download of \"%s\"\n", filename);
 		return false;
 	}
 
 	if (!(flags & DLLF_USEREXPLICIT) && !cl_downloads.ival)
 	{
+		CL_DownloadFailed(filename, NULL, DLFAIL_CLIENTCVAR);
 		if (flags & DLLF_VERBOSE)
 			Con_Printf("cl_downloads setting prevents download of \"%s\"\n", filename);
 		return false;
@@ -581,7 +583,10 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 #ifdef NQPROT
 		if (!webdl && cls.protocol == CP_NETQUAKE)
 			if (!cl_dp_serverextension_download)
+			{
+				CL_DownloadFailed(filename, NULL, DLFAIL_UNSUPPORTED);
 				return false;
+			}
 #endif
 
 		for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
@@ -701,7 +706,10 @@ static void CL_WebDownloadFinished(struct dl_download *dl)
 {
 	if (dl->status == DL_FAILED)
 	{
-		CL_DownloadFailed(dl->url, &dl->qdownload);
+		if (dl->replycode == 404)	//regular file-not-found
+			CL_DownloadFailed(dl->url, &dl->qdownload, DLFAIL_SERVERFILE);
+		else	//other stuff is PROBABLY 403forbidden, but lets blame the server's config if its a tls issue etc.
+			CL_DownloadFailed(dl->url, &dl->qdownload, DLFAIL_SERVERCVAR);
 		if (dl->qdownload.flags & DLLF_ALLOWWEB)	//re-enqueue it if allowed, but this time not from the web server.
 			CL_EnqueDownload(dl->qdownload.localname, dl->qdownload.localname, dl->qdownload.flags & ~DLLF_ALLOWWEB);
 	}
@@ -745,7 +753,7 @@ static void CL_SendDownloadStartRequest(char *filename, char *localname, unsigne
 			cls.download = &wdl->qdownload;
 		}
 		else
-			CL_DownloadFailed(filename, NULL);
+			CL_DownloadFailed(filename, NULL, DLFAIL_CLIENTCVAR);
 		return;
 	}
 #endif
@@ -813,6 +821,8 @@ void CL_DownloadFinished(qdownload_t *dl)
 	else
 	{
 		CL_CheckModelResources(filename);
+
+		Mod_FileWritten(filename);
 		if (!cl.sendprespawn)
 		{
 /*
@@ -827,6 +837,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 				}
 			}
 */
+
 			for (i = 0; i < MAX_PRECACHE_MODELS; i++)	//go and load this model now.
 			{
 				if (!strcmp(cl.model_name[i], filename))
@@ -1707,7 +1718,43 @@ void CL_RequestNextDownload (void)
 
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
-			Con_Printf("\n\n-------------\n" CON_ERROR "Couldn't download \"%s\" - cannot fully connect\n", cl.worldmodel?cl.worldmodel->name:"unknown");
+			downloadlist_t *dl = NULL;
+			const char *worldname = cl.worldmodel?cl.worldmodel->name:"unknown";
+			if (cl.worldmodel)
+				for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
+					if (!strcmp(dl->rname, cl.worldmodel->name))
+						break;
+			Con_Printf("\n\n-------------\n");
+			switch (dl?dl->failreason:DLFAIL_UNTRIED)
+			{
+			case DLFAIL_UNSUPPORTED:
+				Con_Printf(CON_ERROR "Download of \"%s\" not supported on this server - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_CORRUPTED:
+				Con_Printf(CON_ERROR "Download of \"%s\" corrupt/failed - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_CLIENTCVAR:
+				Con_Printf(CON_ERROR "Downloading of \"%s\" blocked by clientside cvars - tweak cl_download* before retrying\n", worldname);
+				break;
+			case DLFAIL_CLIENTFILE:
+				Con_Printf(CON_ERROR "Disk error downloading \"%s\" - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_SERVERCVAR:
+				Con_Printf(CON_ERROR "Download of \"%s\" denied by server - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_SERVERFILE:
+				Con_Printf(CON_ERROR "Download of \"%s\" unavailable - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_REDIRECTED:
+				Con_Printf(CON_ERROR "Redirection failure downloading \"%s\" - cannot fully connect\n", worldname);
+				break;
+			case DLFAIL_UNTRIED:
+				if (COM_FCheckExists(worldname))
+					Con_Printf(CON_ERROR "Couldn't load \"%s\" - corrupt? - cannot fully connect\n", worldname);
+				else
+					Con_Printf(CON_ERROR "Couldn't find \"%s\" - cannot fully connect\n", worldname);
+				break;
+			}
 #ifdef HAVE_MEDIA_ENCODER
 			if (cls.demoplayback && Media_Capturing())
 			{
@@ -1838,7 +1885,7 @@ static char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
-downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl)
+downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason)
 {
 	//add this to our failed list. (so we don't try downloading it again...)
 	downloadlist_t *failed, **link, *dl;
@@ -1846,6 +1893,7 @@ downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl)
 	failed->next = cl.faileddownloads;
 	cl.faileddownloads = failed;
 	Q_strncpyz(failed->rname, name, sizeof(failed->rname));
+	failed->failreason = failreason;
 
 	//if this is what we're currently downloading, close it up now.
 	//don't do this if we're just marking the file as unavailable for download.
@@ -2148,10 +2196,12 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		if (flag < 0)
 		{
+			enum dlfailreason_e failreason;
 			if (flag == DLERR_REDIRECTFILE)
 			{
 				if (CL_AllowArbitaryDownload(dl->remotename, svname))
 				{
+					failreason = DLFAIL_REDIRECTED;
 					Con_Printf("Download of \"%s\" redirected to \"%s\"\n", dl->remotename, svname);
 					if (!strncmp(svname, "package/", 8))
 					{
@@ -2182,20 +2232,32 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 						}
 					}
 					else if (CL_CheckOrEnqueDownloadFile(svname, NULL, 0))
+					{
 						Con_Printf("However, \"%s\" already exists. You may need to delete it.\n", svname);
+						failreason = DLFAIL_CLIENTFILE;
+					}
 				}
 				svname = dl->remotename;
 			}
 			else if (flag == DLERR_UNKNOWN)
+			{
 				Con_Printf("Server reported an error when downloading file \"%s\"\n", svname);
+				failreason = DLFAIL_CORRUPTED;
+			}
 			else if (flag == DLERR_PERMISSIONS)
+			{
 				Con_Printf("Server permissions deny downloading file \"%s\"\n", svname);
+				failreason = DLFAIL_SERVERCVAR;
+			}
 			else //if (flag == DLERR_FILENOTFOUND)
+			{
 				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
+				failreason = DLFAIL_SERVERFILE;
+			}
 
 			if (dl)
 			{
-				CL_DownloadFailed(svname, dl);
+				CL_DownloadFailed(svname, dl, failreason);
 
 				CL_RequestNextDownload();
 			}
@@ -2233,7 +2295,7 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		if (!DL_Begun(dl))
 		{
-			CL_DownloadFailed(svname, dl);
+			CL_DownloadFailed(svname, dl, DLFAIL_CLIENTFILE);
 			return;
 		}
 
@@ -2578,7 +2640,7 @@ static void CL_ParseDownload (qboolean zlib)
 		Con_DPrintf("Download for %s redirected to %s\n", requestedname, name);
 		/*quakeforge http download redirection*/
 		if (dl)
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_REDIRECTED);
 		//FIXME: find some safe way to do this and actually test it. we should already know the local name, but we might have gained a .gz or something (this is quakeforge after all).
 //		CL_CheckOrEnqueDownloadFile(name, localname, DLLF_IGNOREFAILED);
 		return;
@@ -2603,7 +2665,7 @@ static void CL_ParseDownload (qboolean zlib)
 		Con_TPrintf ("File not found.\n");
 
 		if (dl)
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_SERVERFILE);
 		return;
 	}
 
@@ -2615,7 +2677,7 @@ static void CL_ParseDownload (qboolean zlib)
 		{
 			msg_readcount += size;
 			Con_TPrintf ("Failed to open %s\n", dl->tempname);
-			CL_DownloadFailed(dl->remotename, dl);
+			CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 			CL_RequestNextDownload ();
 			return;
 		}
@@ -2835,7 +2897,7 @@ static void CLDP_ParseDownloadBegin(char *s)
 	dl->size = size;
 	if (!DL_Begun(dl))
 	{
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 		return;
 	}
 
@@ -2884,7 +2946,7 @@ static void CLDP_ParseDownloadFinished(char *s)
 	else
 	{
 		Con_Printf("Download failed: unable to check CRC of download\n");
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 		return;
 	}
 
@@ -2892,13 +2954,13 @@ static void CLDP_ParseDownloadFinished(char *s)
 	if (size != atoi(Cmd_Argv(1)))
 	{
 		Con_Printf("Download failed: wrong file size\n");
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CORRUPTED);
 		return;
 	}
 	if (runningcrc != atoi(Cmd_Argv(2)))
 	{
 		Con_Printf("Download failed: wrong crc\n");
-		CL_DownloadFailed(dl->remotename, dl);
+		CL_DownloadFailed(dl->remotename, dl, DLFAIL_CORRUPTED);
 		return;
 	}
 
@@ -3085,7 +3147,7 @@ static void CLQW_ParseServerData (void)
 	{
 		//if we didn't actually start downloading it yet, cancel the current download.
 		//this is to avoid qizmo not responding to the download command, resulting in hanging downloads that cause the client to then be unable to connect anywhere simply because someone's skin was set.
-		CL_DownloadFailed(cls.download->remotename, cls.download);
+		CL_DownloadFailed(cls.download->remotename, cls.download, DLFAIL_CORRUPTED);
 	}
 
 	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
@@ -6368,7 +6430,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		else if (cls.protocol == CP_NETQUAKE && !strcmp(stufftext, "stopdownload"))						//download command reported failure. safe to request the next.
 		{
 			if (cls.download)
-				CL_DownloadFailed(cls.download->remotename, cls.download);
+				CL_DownloadFailed(cls.download->remotename, cls.download, DLFAIL_CORRUPTED);
 		}
 
 		//DP servers use these to report the correct csprogs.dat file+version to use.

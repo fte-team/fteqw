@@ -921,6 +921,7 @@ const char *presetexec[] =
 	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
 	"cl_gibfilter 0;"
 	"seta cl_deadbodyfilter 0;"
+	"gl_texture_anisotropic_filtering 4;"
 	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"	//QS has cheaty viewpitch range. some maps require it.
 
 	, //vanilla-esque options (for purists).
@@ -982,7 +983,6 @@ const char *presetexec[] =
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
 	"r_deluxemapping 2;"
-	"gl_texture_anisotropic_filtering 4;"
 
 	, // realtime options
 	"r_bloom 1;"
@@ -3495,15 +3495,15 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 				vec3_t dir;
 				float f;
 
-				VectorAdd(v1, ent.origin, v1);
-				VectorAdd(v2, ent.origin, v2);
-				VectorAdd(tr.endpos, ent.origin, tr.endpos);
+				VectorMA(ent.origin, ent.scale, v1, v1);
+				VectorMA(ent.origin, ent.scale, v2, v2);
+				VectorMA(ent.origin, ent.scale, tr.endpos, tr.endpos);
 
 				VectorSubtract(tr.endpos, v1, dir);
 				f = DotProduct(dir, tr.plane.normal) * -2;
 				VectorMA(dir, f, tr.plane.normal, v2);
 				VectorAdd(v2, tr.endpos, v2);
-			
+
 				CLQ1_DrawLine(s, v1, tr.endpos, 0, 1, 0, 1);
 				CLQ1_DrawLine(s, tr.endpos, v2, 1, 0, 0, 1);
 			}
@@ -3545,14 +3545,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			Mod_GetTag(ent.model, b, &ent.framestate, boneinfo);
 			//fixme: no axis transform
 			VectorSet(start, boneinfo[3], boneinfo[7], boneinfo[11]);
-			VectorAdd(start, ent.origin, start);
+			VectorMA(ent.origin, ent.scale, start, start);
 
 			if (p)
 			{
 				Mod_GetTag(ent.model, p, &ent.framestate, boneinfo);
 				//fixme: no axis transform
 				VectorSet(end, boneinfo[3], boneinfo[7], boneinfo[11]);
-				VectorAdd(end, ent.origin, end);
+				VectorMA(ent.origin, ent.scale, end, end);
 				CLQ1_DrawLine(lineshader, start, end, 1, (b-1 == mods->boneidx)?0:1, 1, 1);
 			}
 			if (b-1 == mods->boneidx)
@@ -3567,7 +3567,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		}
 	}
 
-	V_AddEntity(&ent);
+	V_AddAxisEntity(&ent);
 
 	R_RenderView();
 
@@ -3670,6 +3670,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #ifdef SKELETALMODELS
 						"numbones: %i\n"
 #endif
+						"minlod: %g\n"
+						"maxlod: %g%s\n"
 						, ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
 						contents,
 						inf->csurface.flags,
@@ -3679,6 +3681,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #ifdef SKELETALMODELS
 						,inf->numbones
 #endif
+						,inf->mindist,inf->maxdist,inf->maxdist?"":" (infinite)"
 						)
 					, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 			}

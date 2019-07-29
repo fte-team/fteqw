@@ -181,6 +181,7 @@ extern qboolean Mod_PurgeModel					(struct model_s	*mod, enum mod_purge_e ptype)
 extern struct model_s *Mod_FindName				(const char *name);	//find without loading. needload should be set.
 extern struct model_s *Mod_ForName				(const char *name, enum mlverbosity_e verbosity);	//finds+loads
 extern struct model_s *Mod_LoadModel			(struct model_s *mod, enum mlverbosity_e verbose);	//makes sure a model is loaded
+extern void Mod_FileWritten						(const char *filename);
 extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
 extern void	Mod_TouchModel						(const char *name);
 extern const char *Mod_FixName					(const char *modname, const char *worldname);	//remaps the name appropriately

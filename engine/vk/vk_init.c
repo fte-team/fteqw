@@ -2059,12 +2059,15 @@ void VK_Set2D(void)
 static void VK_Shutdown_PostProc(void)
 {
 	unsigned int i;
-	for (i = 0; i < countof(postproc); i++)
-		VKBE_RT_Gen(&postproc[i], 0, 0, true, RT_IMAGEFLAGS);
+	if (vk.device)
+	{
+		for (i = 0; i < countof(postproc); i++)
+			VKBE_RT_Gen(&postproc[i], 0, 0, true, RT_IMAGEFLAGS);
+		VK_R_BloomShutdown();
+	}
 
 	vk.scenepp_waterwarp = NULL;
 	vk.scenepp_antialias = NULL;
-	VK_R_BloomShutdown();
 }
 static void VK_Init_PostProc(void)
 {

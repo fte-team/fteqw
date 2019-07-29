@@ -3868,10 +3868,15 @@ void SV_AddCameraEntity(pvscamera_t *cameras, edict_t *ent, vec3_t viewofs)
 			return;	//don't add the same ent multiple times (.view2 or portals that can see themselves through other portals).
 	}
 
-	if (viewofs)
-		VectorAdd (ent->v->origin, viewofs, org);
+	if (ent)
+	{
+		if (viewofs)
+			VectorAdd (ent->v->origin, viewofs, org);
+		else
+			VectorCopy (ent->v->origin, org);
+	}
 	else
-		VectorCopy (ent->v->origin, org);
+		VectorCopy (viewofs, org);
 
 	sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, org, &area);
 	for (i = 1; ; i++)
@@ -3912,6 +3917,10 @@ void SV_Snapshot_SetupPVS(client_t *client, pvscamera_t *camera)
 		if (client->edict->xv->view2)
 			SV_AddCameraEntity(camera, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2), NULL);
 	}
+
+	//hack for skyrooms, open up the pvs.
+	if (sv.skyroom_pos_known)
+		SV_AddCameraEntity(camera, NULL, sv.skyroom_pos);
 }
 
 void SV_Snapshot_Clear(packet_entities_t *pack)

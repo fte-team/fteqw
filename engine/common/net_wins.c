@@ -134,9 +134,9 @@ cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary dat
 #endif
 #ifdef HAVE_HTTPSV
 #ifdef SV_MASTER
-cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
+cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept inbound http clients, potentially serving large files which could distrupt gameplay (This does not affect outgoing http(s) requests).");
 #else
-cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
+cvar_t	net_enable_http			= CVARD("net_enable_http",			"0", "If enabled, tcp ports will accept inbound http clients, potentially serving large files which could distrupt gameplay (This does not affect outgoing http(s) requests).");
 #endif
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"0", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");

@@ -976,6 +976,21 @@ const char *Mod_FixName(const char *modname, const char *worldname)
 	}
 	return modname;
 }
+
+//Called when the given file was (re)written.
+//
+void Mod_FileWritten (const char *filename)
+{
+	int		i;
+	model_t	*mod;
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+		if (!strcmp (mod->publicname, filename) )
+		{
+			if (mod->loadstate != MLS_NOTLOADED)
+				Mod_PurgeModel(mod, MP_RESET);
+		}
+}
+
 /*
 ==================
 Mod_FindName
@@ -1262,6 +1277,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 //
 // load the file
 //
+	mod->maxlod = 0;
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->publicname, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
@@ -2293,6 +2309,7 @@ static void Mod_ShowEnt_f(void)
 static void Mod_SaveEntFile_f(void)
 {
 	char fname[MAX_QPATH];
+	char nname[MAX_OSPATH];
 	model_t *mod = NULL;
 	char *n = Cmd_Argv(1);
 	const char *ents;
@@ -2333,6 +2350,8 @@ static void Mod_SaveEntFile_f(void)
 	}
 
 	COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents));
+	if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
+		Con_Printf("Wrote %s\n", nname);
 }
 
 /*

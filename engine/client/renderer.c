@@ -255,11 +255,11 @@ cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-");
 cvar_t scr_viewsize							= CVARFC("viewsize", "100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 
 #ifdef ANDROID
-cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "2",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+cvar_t vid_conautoscale						= CVARAF ("vid_conautoscale", "2",
+												"scr_conscale"/*qs*/ /*"vid_conscale"ez*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 #else
-cvar_t vid_conautoscale						= CVARFD ("vid_conautoscale", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Changes the 2d scale, including hud, console, and fonts. To specify an explicit font size, divide the desired 'point' size by 8 to get the scale. High values will be clamped to maintain at least a 320*200 virtual size.");
+cvar_t vid_conautoscale						= CVARAFD ("vid_conautoscale", "0",
+												"scr_conscale"/*qs*/ /*"vid_conscale"ez*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Changes the 2d scale, including hud, console, and fonts. To specify an explicit font size, divide the desired 'point' size by 8 to get the scale. High values will be clamped to maintain at least a 320*200 virtual size.");
 #endif
 cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
 												CVAR_ARCHIVE);
@@ -407,8 +407,8 @@ cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
-cvar_t gl_texture_anisotropic_filtering		= CVARFCD("gl_texture_anisotropic_filtering", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+cvar_t gl_texture_anisotropic_filtering		= CVARAFCD("gl_texture_anisotropy", "4",
+												"gl_texture_anisotropic_filtering"/*old*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback, "Allows for higher quality textures on surfaces that slope away from the camera (like the floor). Set to 16 or something. Only supported with trilinear filtering.");
 cvar_t gl_texturemode						= CVARFCD("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE, Image_TextureMode_Callback,
@@ -430,6 +430,8 @@ cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of 
 cvar_t r_portaldrawplanes					= CVARD  ("r_portaldrawplanes", "0", "Draw front and back planes in portals. Debug feature.");
 cvar_t r_portalonly							= CVARD  ("r_portalonly", "0", "Don't draw things which are not portals. Debug feature.");
 cvar_t r_noaliasshadows						= CVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
+cvar_t r_lodscale							= CVARFD ("r_lodscale", "5", CVAR_ARCHIVE, "Scales the level-of-detail reduction on models (for those that have lod).");
+cvar_t r_lodbias							= CVARFD ("r_lodbias", "0", CVAR_ARCHIVE, "Biases the level-of-detail on models (for those that have lod).");
 cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
@@ -536,6 +538,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_portaldrawplanes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_portalonly, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
+
+	Cvar_Register (&r_lodscale, GRAPHICALNICETIES);
+	Cvar_Register (&r_lodbias, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);

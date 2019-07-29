@@ -288,13 +288,6 @@ static plugin_t *Plug_Load(const char *file, int type)
 		COM_StripExtension(file, temp, sizeof(temp));
 		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
 	}
-#ifndef ANDROID
-	if (!newplug->vm && (type & PLUG_NATIVE))
-	{
-		Q_snprintfz(temp, sizeof(temp), PLUGINPREFIX"%s_", file);
-		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL, NULL);
-	}
-#endif
 	if (!newplug->vm && (type & PLUG_NATIVE))
 	{
 		Q_snprintfz(temp, sizeof(temp), PLUGINPREFIX"%s", file);

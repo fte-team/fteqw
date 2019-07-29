@@ -39,7 +39,7 @@ typedef struct
 
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
 extern cvar_t r_noaliasshadows;
-
+extern cvar_t r_lodscale, r_lodbias;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
@@ -715,24 +715,12 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			galiascolourmapped_t *cm;
 			char hashname[512];
 
-			if (plskin)
-			{
-				snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, plskin->name, surfnum);
-				skinname = hashname;
-			}
-			else if (surfnum)
-			{
-				snprintf(hashname, sizeof(hashname), "%s$%i", model->name, surfnum);
-				skinname = hashname;
-			}
-			else
-				skinname = model->name;
-
 			if (!skincolourmapped.numbuckets)
 			{
-				void *buckets = BZ_Malloc(Hash_BytesForBuckets(256));
-				memset(buckets, 0, Hash_BytesForBuckets(256));
-				Hash_InitTable(&skincolourmapped, 256, buckets);
+				int bucketcount = 256;
+				void *buckets = BZ_Malloc(Hash_BytesForBuckets(bucketcount));
+				memset(buckets, 0, Hash_BytesForBuckets(bucketcount));
+				Hash_InitTable(&skincolourmapped, bucketcount, buckets);
 			}
 
 			if (!inf->numskins)
@@ -779,7 +767,26 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					bc = 0xfe000000;
 					generateupperlower = true;
 				}
+				if (!skins || !skins->numframes || !skins->frame[subframe].texels)
+				{	//no top/bottom colourmapping possible here. don't cache a million different values.
+					tc = 0xfe000000;
+					bc = 0xfe000000;
+					generateupperlower = true;
+				}
 			}
+
+			if (plskin)
+			{
+				snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, plskin->name, surfnum);
+				skinname = hashname;
+			}
+			else if (surfnum)
+			{
+				snprintf(hashname, sizeof(hashname), "%s$%i", model->name, surfnum);
+				skinname = hashname;
+			}
+			else
+				skinname = model->name;
 
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
@@ -1685,6 +1692,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	batch_t *b;
 	int surfnum, j;
 	shadersort_t sort;
+	float lod;
 
 	texnums_t *skin;
 
@@ -1732,8 +1740,39 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	inf = Mod_Extradata (clmodel);
 
+	if (clmodel->maxlod)
+	{
+		vec3_t v;
+		float z;
+
+		VectorSubtract(e->origin, r_refdef.vieworg, v);
+		z = DotProduct(v, vpn);
+		if (z < -clmodel->radius)
+			return;		//furthest extent of bounding sphere is nearer than the near clip plane, and thus completely invisible
+		else if (z < 0)
+			lod = 0;	//nearer than the camera, use the highest lod
+		else
+		{
+			//if the ent is in the middle of the screen, then the right edge of its sphere is at what percentage of the width of the screen...?
+
+			//simplified Matrix4x4_CM_Transform4
+			float coverage = (r_refdef.m_projection_std[5]*clmodel->radius + r_refdef.m_projection_std[ 9]*-z + r_refdef.m_projection_std[13]) /
+							 (r_refdef.m_projection_std[7]*clmodel->radius + r_refdef.m_projection_std[11]*-z + r_refdef.m_projection_std[15]);
+			lod = 1-(coverage*r_lodscale.value);
+			lod = bound(0, lod, 1);	//so lodbias is a little more reliable.
+			lod *= clmodel->maxlod;
+			lod += r_lodbias.value;
+			lod = max(0, lod);	//never nearer than 0, the min value check wouldn't cope.
+		}
+	}
+	else
+		lod = 0;
+
 	for(surfnum=0; inf; inf=inf->nextsurf, surfnum++)
 	{
+		if (lod < inf->mindist || (inf->maxdist && lod >= inf->maxdist))
+			continue;
+
 		regshader = GL_ChooseSkin(inf, clmodel, surfnum, e, &skin);
 		if (!regshader)
 			continue;

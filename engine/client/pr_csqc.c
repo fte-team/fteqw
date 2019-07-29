@@ -3570,6 +3570,8 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	if (!cl.worldmodel)
 		return;	//urm..
 
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
+
 	//debugging field
 	pmove.sequence = *csqcg.clientcommandframe;
 

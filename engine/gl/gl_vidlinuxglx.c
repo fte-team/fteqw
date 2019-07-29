@@ -3220,15 +3220,13 @@ static Cursor CreateNullCursor(Display *display, Window root)
 	Pixmap cursormask;
 	XGCValues xgc;
 	GC gc;
-	XColor dummycolour;
+	XColor dummycolour = {0};
 	Cursor cursor;
 
 	cursormask = x11.pXCreatePixmap(display, root, 1, 1, 1/*depth*/);
 	xgc.function = GXclear;
 	gc =  x11.pXCreateGC(display, cursormask, GCFunction, &xgc);
 	x11.pXFillRectangle(display, cursormask, gc, 0, 0, 1, 1);
-	dummycolour.pixel = 0;
-	dummycolour.red = 0;
 	dummycolour.flags = 04;
 	cursor = x11.pXCreatePixmapCursor(display, cursormask, cursormask,
 		&dummycolour,&dummycolour, 0,0);

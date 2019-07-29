@@ -170,6 +170,9 @@ typedef struct
 	qbyte		h2cdtrack;
 #endif
 
+	vec3_t		skyroom_pos;	//parsed from world._skyroom
+	qboolean	skyroom_pos_known;
+
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
 	int			spawned_client_slots; //number of PLAYER slots which are active (ie: putclientinserver was called)
 	int			spawned_observer_slots;

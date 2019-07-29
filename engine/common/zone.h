@@ -83,6 +83,13 @@ Zone block
 
 */
 
+#if 0//defined(_DEBUG) && defined(__linux__) && !defined(ANDROID)
+	#include <valgrind/memcheck.h>
+#else
+	#define VALGRIND_MAKE_MEM_UNDEFINED(ptr,sz)	//as an alternative to memzero..
+	#define VALGRIND_MAKE_MEM_NOACCESS(ptr,sz)
+#endif
+
 void Memory_Init (void);
 void Memory_DeInit(void);
 

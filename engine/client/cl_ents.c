@@ -5641,6 +5641,9 @@ void CL_SetSolidEntities (void)
 	physent_t			*pent;
 	model_t				*mod;
 
+	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
+	pmove.world = &csqc_world;
+
 	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	pmove.physents[0].model = cl.worldmodel;
 	VectorClear (pmove.physents[0].origin);

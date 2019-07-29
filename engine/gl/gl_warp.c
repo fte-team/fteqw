@@ -124,7 +124,6 @@ void R_DrawFastSky(batch_t *batch)
 //2) or if r_ignoreentpvs==1 we must mask depth and waste a whole load of batches drawing invisible ents in the sky
 extern cvar_t r_ignoreentpvs;
 
-void R_RenderScene (void);
 qboolean R_DrawSkyroom(shader_t *skyshader)
 {
 	float vmat[16];
@@ -183,8 +182,7 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	VectorCopy(r_refdef.vieworg, r_origin);
 
 	Surf_SetupFrame();
-	//FIXME: just call Surf_DrawWorld instead?
-	R_RenderScene();
+	Surf_DrawWorld ();
 
 	r_refdef = oldrefdef;
 

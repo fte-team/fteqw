@@ -4690,7 +4690,7 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 	targ->restartinfo.clearValueCount = 3;
 	targ->depthcleared = true;	//will be once its activated.
 
-	if (targ->width == width && targ->height == height && targ->q_colour.flags == flags && (!(targ->rpassflags&RP_MULTISAMPLE))==(targ->mscolour.image==NULL))
+	if (targ->width == width && targ->height == height && targ->q_colour.flags == flags && (!(targ->rpassflags&RP_MULTISAMPLE))==(targ->mscolour.image==VK_NULL_HANDLE))
 	{
 		if (clear || targ->firstuse)
 			targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
@@ -4724,7 +4724,7 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 
 	if (width == 0 && height == 0)
 	{
-		targ->restartinfo.renderPass = NULL;
+		targ->restartinfo.renderPass = VK_NULL_HANDLE;
 		return;	//destroyed
 	}
 	targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);

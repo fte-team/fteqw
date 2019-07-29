@@ -2199,9 +2199,9 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 			enum dlfailreason_e failreason;
 			if (flag == DLERR_REDIRECTFILE)
 			{
+				failreason = DLFAIL_REDIRECTED;
 				if (CL_AllowArbitaryDownload(dl->remotename, svname))
 				{
-					failreason = DLFAIL_REDIRECTED;
 					Con_Printf("Download of \"%s\" redirected to \"%s\"\n", dl->remotename, svname);
 					if (!strncmp(svname, "package/", 8))
 					{

@@ -392,6 +392,7 @@ ifeq ($(FTE_TARGET),dos)
 	#at least from dos.
 	CC=i586-pc-msdosdjgpp-gcc
 	CXX=i586-pc-msdosdjgpp-g++
+	STRIP=i586-pc-msdosdjgpp-strip
 	CFLAGS+=-DNO_ZLIB
 endif
 
@@ -400,6 +401,7 @@ ifeq ($(FTE_TARGET),linux32)
 	FTE_TARGET=linux
 	CC=gcc -m32
 	CXX=g++ -m32
+	STRIP=strip
 	BITS=32
 endif
 ifeq ($(FTE_TARGET),linuxarmhf)
@@ -407,12 +409,14 @@ ifeq ($(FTE_TARGET),linuxarmhf)
 	FTE_TARGET=linux
 	CC=arm-linux-gnueabihf-gcc -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
 	CXX=arm-linux-gnueabihf-g++ -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
+	STRIP=arm-linux-gnueabihf-strip
 	BITS=armhf
 endif
 ifeq ($(FTE_TARGET),linuxarm64)
 	FTE_TARGET=linux
 	CC=aarch64-linux-gnu-gcc
 	CXX=aarch64-linux-gnu-g++
+	STRIP=aarch64-linux-gnu-strip
 	BITS=arm64
 	USE_SPEEX=0 #fails to compile due to neon asm, I'm just going to disable it (will still soft-link).
 endif
@@ -424,9 +428,11 @@ ifeq ($(FTE_TARGET),linuxx32)
 ifneq ($(shell which x86_64-linux-gnux32-gcc 2> /dev/null),)
 	CC=x86_64-linux-gnux32-gcc
 	CXX=x86_64-linux-gnux32-g++
+	STRIP=x86_64-linux-gnux32-strip
 else
 	CC=gcc -mx32
 	CXX=g++ -mx32
+	STRIP=strip
 endif
 	BITS=x32
 endif
@@ -434,6 +440,7 @@ ifeq ($(FTE_TARGET),linux64)
 	FTE_TARGET=linux
 	CC=gcc -m64
 	CXX=g++ -m64
+	STRIP=strip
 	BITS=64
 endif
 ifeq ($(FTE_TARGET),cygwin)

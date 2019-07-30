@@ -1364,8 +1364,8 @@ ifeq ($(FTE_TARGET),bsd)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../$(EXE_NAME)
 	MCL_EXE_NAME=../$(EXE_NAME)-cl
-	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include -DMULTITHREAD
+	M_LDFLAGS= -L/usr/local/lib -L/usr/X11R6/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -DMULTITHREAD
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 

@@ -628,7 +628,7 @@ static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_
 	int i, contid;
 	const char *cname;
 
-	if (!c2c->sid)
+	if (!*c2c->sid)
 		return;
 
 	if (strcmp(c2c->with, from) || strcmp(c2c->sid, sid))

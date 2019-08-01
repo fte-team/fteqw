@@ -2659,7 +2659,7 @@ static shaderkey_t shaderkeys[] =
 //	{"albedomap",			Shader_DiffuseMap,			"fte"},	//rgb(a)
 //	{"loweruppermap",		Shader_LowerUpperMap,		"fte"}, //r=lower, g=upper (team being more important than personal colours, this allows the texture to gracefully revert to red-only)
 	//{"normalmap",			Shader_NormalMap,			"fte"},	//xy-h
-//	{"omrmap",				Shader_SpecularMap,			"fte"},	//r=occlusion, g=metalness, b=roughness.
+//	{"ormmap",				Shader_SpecularMap,			"fte"},	//r=occlusion, g=metalness, b=roughness.
 	//{"glowmap",			Shader_FullbrightMap,		"fte"}, //rgb
 
 	/*program stuff at the material level is an outdated practise.*/

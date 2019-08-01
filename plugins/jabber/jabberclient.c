@@ -1112,7 +1112,7 @@ static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen,
 	Q_snprintf(X, sizeof(X), "%s:%s:", username, realm);
 	if (ctx->password_hash_size == 16 && !strcmp(X, ctx->password_validity))
 		memcpy(Y, ctx->password_hash, 16);	//use the hashed password, instead of the (missing) plain one
-	else if (ctx->password_plain)
+	else if (*ctx->password_plain)
 	{
 		Q_strlcpy(ctx->password_validity, X, sizeof(ctx->password_validity));
 
@@ -2769,7 +2769,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	jcl->sasl.allowauth_plaintls		= atoi(XML_GetChildBody(acc, "allowauth_plain_tls",		"1"));	//required 1 for googletalk, otherwise I'd set it to 0.
 	jcl->sasl.allowauth_digestmd5	= atoi(XML_GetChildBody(acc, "allowauth_digest_md5",	"1"));
 	jcl->sasl.allowauth_scramsha1	= atoi(XML_GetChildBody(acc, "allowauth_scram_sha_1",	"1"));
-	jcl->sasl.allowauth_oauth2		= atoi(XML_GetChildBody(acc, "allowauth_oauth2",		jcl->sasl.oauth2.saslmethod?"1":"0"));
+	jcl->sasl.allowauth_oauth2		= atoi(XML_GetChildBody(acc, "allowauth_oauth2",		*jcl->sasl.oauth2.saslmethod?"1":"0"));
 
 	jcl->savepassword	= atoi(XML_GetChildBody(acc, "savepassword",	"0"));
 

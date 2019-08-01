@@ -54,6 +54,7 @@
 #define DECOMPRESS_ETC2
 #define DECOMPRESS_RGTC
 #define DECOMPRESS_S3TC
+#define DECOMPRESS_BPTC			//bc6+bc7
 #define NOBUILTINMENUS
 #define NOLEGACY
 #define AVAIL_DINPUT

@@ -119,6 +119,12 @@ ENDIF()
 
 IF(CMAKE_C_COMPILER_ID MATCHES "Clang")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pointer-sign")
+
+	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+	ELSE()
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+	ENDIF()
 endif()
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes")			#
@@ -133,7 +139,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wcast-align -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 	ENDIF()

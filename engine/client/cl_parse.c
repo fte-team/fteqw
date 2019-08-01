@@ -3237,7 +3237,7 @@ static void CLQW_ParseServerData (void)
 	str = MSG_ReadString ();
 	Con_DPrintf("Server is using gamedir \"%s\"\n", str);
 	if (!*str)
-		str = "qw";
+		str = "qw";	//FIXME: query active manifest's basegamedir
 
 #ifndef CLIENTONLY
 	if (!sv.state)

@@ -102,7 +102,8 @@
 #define AVAIL_FREETYPE			//for truetype font rendering
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
 //#define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
-#define DECOMPRESS_RGTC			//bc4+bc5
+//#define DECOMPRESS_RGTC			//bc4+bc5
+//#define DECOMPRESS_BPTC			//bc6+bc7
 
 // Game/Gamecode Support
 #define CSQC_DAT

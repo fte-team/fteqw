@@ -73,13 +73,15 @@ cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "",	"sv_maxpitch", CVAR_SERVERINFO, "
 
 cvar_t	sv_cmdlikercon	= CVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= CVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
-cvar_t cmd_gamecodelevel	= CVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));	//execution level which gamecode is told about (for unrecognised commands)
+cvar_t cmd_gamecodelevel	= CVARF("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL), CVAR_NOTFROMSERVER);	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", 0, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
 
 #ifdef HAVE_LEGACY
-cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
+static cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
+static cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
+static cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "999999999", "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
 #endif
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
@@ -301,6 +303,42 @@ void SV_New_f (void)
 		host_client->drop = true;
 		return;
 	}
+
+#ifdef HAVE_LEGACY
+	{
+		//be prepared to recognise client versions, in order to block known-buggy extensions.
+		const char *s;
+		int ver;
+		s = InfoBuf_ValueForKey(&host_client->userinfo, "*client");
+		if (!strncmp(s, "ezQuake", 7))
+		{
+			s += 7;
+			COM_Parse(s);
+			ver = atoi(com_token);
+
+			//this should actually have been resolved now, but for future use...
+			if ((host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && pext_ezquake_nochunks.ival)
+			{
+				host_client->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
+				SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of chunked downloads is blocked on this server.\n");
+			}
+			if ((host_client->zquake_extensions & (Z_EXT_PF_SOLID|Z_EXT_PF_ONGROUND)) && ver < pext_ezquake_verfortrans.ival)
+			{
+				if (host_client->fteprotocolextensions & PEXT_HULLSIZE)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_HULLSIZE conflicts with zquake extensions.\n");
+				if (host_client->fteprotocolextensions & PEXT_SCALE)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_SCALE conflicts with zquake extensions.\n");
+				if (host_client->fteprotocolextensions & PEXT_FATNESS)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_FATNESS conflicts with zquake extensions.\n");
+				if (host_client->fteprotocolextensions & PEXT_TRANS)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS is buggy. Disabling.\n");
+				host_client->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
+			}
+		}
+
+		//its not that I'm singling out ezquake or anything, but it has too many people using outdated versions that its hard to ignore.
+	}
+#endif
 
 	ClientReliableCheckBlock(host_client, 800);	//okay, so it might be longer, but I'm too lazy to work out the real size.
 
@@ -8687,6 +8725,8 @@ void SV_UserInit (void)
 
 #ifdef HAVE_LEGACY
 	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
+	Cvar_Register (&pext_ezquake_nochunks, cvargroup_servercontrol);
+	Cvar_Register (&pext_ezquake_verfortrans, cvargroup_servercontrol);
 #endif
 }
 

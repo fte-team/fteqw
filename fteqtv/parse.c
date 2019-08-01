@@ -255,6 +255,23 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	tv->map.trackplayer = -1;
 
 	ReadString(m, tv->map.gamedir, sizeof(tv->map.gamedir));
+#define DEFAULTGAMEDIR "qw"
+	if (strchr(tv->map.gamedir, ':'))	//nuke any multiple gamedirs - we need to read maps which would fail if its not a valid single path.
+		*strchr(tv->map.gamedir, ';') = 0;
+	if (!*tv->map.gamedir)
+		strcpy(tv->map.gamedir, DEFAULTGAMEDIR);
+	if (!*tv->map.gamedir
+		|| *tv->map.gamedir == '.'
+		|| !strcmp(tv->map.gamedir, ".")
+		|| strstr(tv->map.gamedir, "..")
+		|| strstr(tv->map.gamedir, "/")
+		|| strstr(tv->map.gamedir, "\\")
+		|| strstr(tv->map.gamedir, ":")
+		)
+	{
+		QTV_Printf(tv, "Ignoring unsafe gamedir: \"%s\"\n", tv->map.gamedir);
+		strcpy(tv->map.gamedir, DEFAULTGAMEDIR);
+	}
 
 	if (tv->usequakeworldprotocols)
 		tv->map.thisplayer = ReadByte(m)&~128;
@@ -492,7 +509,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	{
 		Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 		if (!tv->controller)
-			SendClientCommand(tv, text);
+			SendClientCommand(tv, "%s", text);
 	}
 	else
 	{
@@ -895,7 +912,7 @@ static void ParseEntityDelta(sv_t *tv, netmsg_t *m, const entity_state_t *old, e
 	if (flags & UX_ALPHA)
 		new->alpha = ReadByte(m);
 	if (flags & UX_FATNESS)
-		/*new->fatness =*/ (signed char)ReadByte(m);
+		/*new->fatness = (signed char)*/ReadByte(m);
 	if (flags & UX_DRAWFLAGS)
 		/*new->hexen2flags =*/ ReadByte(m);
 	if (flags & UX_ABSLIGHT)

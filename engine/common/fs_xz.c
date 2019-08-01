@@ -421,7 +421,7 @@ static inline uint32_t get_unaligned_le32(const uint8_t *buf)
 }
 #endif
 
-#ifndef get_unaligned_be32
+/*#ifndef get_unaligned_be32
 static inline uint32_t get_unaligned_be32(const uint8_t *buf)
 {
 	return (uint32_t)(buf[0] << 24)
@@ -449,7 +449,7 @@ static inline void put_unaligned_be32(uint32_t val, uint8_t *buf)
 	buf[2] = (uint8_t)(val >> 8);
 	buf[3] = (uint8_t)val;
 }
-#endif
+#endif*/
 
 /*
  * Use get_unaligned_le32() also for aligned access for simplicity. On

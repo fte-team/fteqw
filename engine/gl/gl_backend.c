@@ -166,6 +166,7 @@ struct {
 
 		float identitylighting;	//set to how bright world lighting should be (reduced by realtime_world_lightmaps)
 		float identitylightmap;	//set to how bright lightmaps should be (reduced by overbrights+realtime_world_lightmaps)
+		polyoffset_t polyoffset; //mode-specific polygon offsets...
 
 		texid_t temptexture; //$current
 		texid_t fogtexture;
@@ -228,12 +229,8 @@ static void BE_PolyOffset(void)
 		po.unit += r_polygonoffset_submodel_offset.value;
 	}
 #endif
-	if (shaderstate.mode == BEM_DEPTHONLY)
-	{
-		extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
-		po.factor += r_polygonoffset_shadowmap_factor.value;
-		po.unit += r_polygonoffset_shadowmap_offset.value;
-	}
+	po.factor += shaderstate.polyoffset.factor;
+	po.unit += shaderstate.polyoffset.unit;
 
 #ifndef FORCESTATE
 	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
@@ -3998,6 +3995,7 @@ qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 //Note: Be cautious about using BEM_LIGHT here, as it won't select the light.
 void GLBE_SelectMode(backendmode_t mode)
 {
+	extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 	extern int gldepthfunc;
 
 //	shaderstate.lastuniform = 0;
@@ -4007,6 +4005,8 @@ void GLBE_SelectMode(backendmode_t mode)
 	{
 		shaderstate.mode = mode;
 		shaderstate.flags = 0;
+		shaderstate.polyoffset.factor = 0;
+		shaderstate.polyoffset.unit = 0;
 		switch (mode)
 		{
 		default:
@@ -4023,6 +4023,8 @@ void GLBE_SelectMode(backendmode_t mode)
 				);
 			break;
 		case BEM_DEPTHONLY:
+			shaderstate.polyoffset.factor = r_polygonoffset_shadowmap_factor.value;
+			shaderstate.polyoffset.unit = r_polygonoffset_shadowmap_offset.value;
 #ifndef GLSLONLY
 			if (!gl_config_nofixedfunc)
 			{
@@ -6343,11 +6345,17 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 		{
 			shaderstate.identitylighting = 0;
 			shaderstate.identitylightmap = 0;
+			r_refdef.flipcull = SHADER_CULL_FLIP;
 			BE_SelectMode(BEM_DEPTHDARK);
-			qglLineWidth (bound(0.1, r_outline_width.value, 2000.0));
+			shaderstate.polyoffset.unit = -25;
+			shaderstate.polyoffset.factor = -0.05;
+
+			qglEnable(GL_POLYGON_OFFSET_LINE);
+			qglLineWidth (bound(0.1, r_outline_width.value, 3.0));
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 			BE_SelectMode(BEM_STANDARD);
+			qglDisable(GL_POLYGON_OFFSET_LINE);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			qglLineWidth (1);
 		}

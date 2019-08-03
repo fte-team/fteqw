@@ -569,7 +569,10 @@ void M_Menu_Audio_f (void)
 	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_doppler;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
 #ifdef VOICECHAT
-	extern cvar_t snd_voip_capturedevice, snd_voip_play, snd_voip_send, snd_voip_test, snd_voip_micamp, snd_voip_vad_threshhold, snd_voip_ducking, snd_voip_noisefilter, snd_voip_codec;
+	extern cvar_t snd_voip_capturedevice, snd_voip_play, snd_voip_send, snd_voip_test, snd_voip_micamp, snd_voip_vad_threshhold, snd_voip_ducking, snd_voip_codec;
+#ifdef HAVE_SPEEX
+	extern cvar_t snd_voip_noisefilter;
+#endif
 #endif
 
 	static const char *soundqualityoptions[] = {
@@ -691,7 +694,9 @@ void M_Menu_Audio_f (void)
 		MB_COMBOCVAR("Activation Mode", snd_voip_send, voipsendoptions, voipsendvalue, NULL),
 		MB_SLIDER("Act. Threshhold", snd_voip_vad_threshhold, 0, 30, 1, NULL),
 		MB_CHECKBOXCVAR("Audio Ducking", snd_voip_ducking, 0),
+#ifdef HAVE_SPEEX
 		MB_CHECKBOXCVAR("Noise Cancelation", snd_voip_noisefilter, 0),
+#endif
 		MB_COMBOCVAR("Codec", snd_voip_codec, voipcodecoptions, voipcodecvalue, NULL),
 #endif
 

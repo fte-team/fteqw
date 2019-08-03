@@ -110,13 +110,13 @@ typedef enum uploadfmt
 	PTI_R8_SNORM,
 	PTI_RG8_SNORM,	//might be useful for normalmaps
 	//big formats
-	PTI_R16,
-	PTI_RGBA16,
+	PTI_R16,		//useful for heightmaps
+	PTI_RGBA16,		//if people use 16bit pngs, people get 16 bits per channel textures. muppets.
 	//floating point formats
 	PTI_R16F,
 	PTI_R32F,
-	PTI_RGBA16F,
-	PTI_RGBA32F,
+	PTI_RGBA16F,	//consider using e5bgr9
+	PTI_RGBA32F,	//usually overkill
 	//packed/misaligned formats: these are specified in native endian order (high bits listed first because that's how things are represented in hex), so may need byte swapping...
 	PTI_A2BGR10,	//mostly for rendertargets, might also be useful for overbight lightmaps.
 	PTI_E5BGR9,		//mostly for fancy lightmaps
@@ -134,7 +134,7 @@ typedef enum uploadfmt
 	PTI_BC2_RGBA_SRGB,
 	PTI_BC3_RGBA,	//maybe add a bc3 normalmapswizzle type for d3d9?
 	PTI_BC3_RGBA_SRGB,
-	PTI_BC4_R8,
+	PTI_BC4_R8,		//greyscale, kinda
 	PTI_BC4_R8_SNORM,
 	PTI_BC5_RG8,	//useful for normalmaps
 	PTI_BC5_RG8_SNORM,	//useful for normalmaps

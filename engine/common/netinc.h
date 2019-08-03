@@ -113,6 +113,10 @@
 	#ifdef IPPROTO_IPV6
 			#define HAVE_IPV6
 	#endif
+
+	#ifndef SOCK_CLOEXEC
+		#define SOCK_CLOEXEC 0
+	#endif
 #else
 	#include <sys/time.h>
 	#include <sys/types.h>
@@ -159,6 +163,10 @@
 //	#endif
 
 	#define SOCKET int
+
+	#ifndef SOCK_CLOEXEC
+		#define SOCK_CLOEXEC 0
+	#endif
 #endif
 
 #if defined(_WIN32)
@@ -380,9 +388,5 @@ int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize);	//d
 vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded
 #endif
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
-
-/*#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC naught
-#endif*/
 
 #endif //NETINC_INCLUDED

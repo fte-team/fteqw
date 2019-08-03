@@ -6341,24 +6341,28 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 #endif
 		}
 
+#ifndef GLSLONLY
 		if (r_outline.ival && !r_wireframe.ival && qglPolygonMode && qglLineWidth)
 		{
+			int oc = r_refdef.flipcull;
 			shaderstate.identitylighting = 0;
 			shaderstate.identitylightmap = 0;
-			r_refdef.flipcull = SHADER_CULL_FLIP;
-			BE_SelectMode(BEM_DEPTHDARK);
-			shaderstate.polyoffset.unit = -25;
-			shaderstate.polyoffset.factor = -0.05;
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+			GLBE_SelectMode(BEM_DEPTHDARK);
+			shaderstate.polyoffset.unit = 1;
+			shaderstate.polyoffset.factor = 1;
 
 			qglEnable(GL_POLYGON_OFFSET_LINE);
 			qglLineWidth (bound(0.1, r_outline_width.value, 3.0));
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
-			BE_SelectMode(BEM_STANDARD);
+			GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_OPAQUE+1);
+			r_refdef.flipcull = oc;
+			GLBE_SelectMode(BEM_STANDARD);
 			qglDisable(GL_POLYGON_OFFSET_LINE);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			qglLineWidth (1);
 		}
+#endif
 
 		shaderstate.identitylighting = 1;
 

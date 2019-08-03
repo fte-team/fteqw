@@ -21,6 +21,7 @@ struct relight_ctx_s
 	unsigned int nummodels;
 	model_t *models[2048];
 
+	float minlight;
 	qboolean skiplit;	//lux only
 	qboolean shadows;
 	mentity_t *entities;
@@ -45,7 +46,7 @@ struct relight_ctx_s
 
 #define scaledist 1
 #define rangescale 0.5
-#define extrasamples 0
+#define extrasamples 1
 #define scalecos 0.5
 
 
@@ -262,6 +263,10 @@ void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qbool
 
 		ctx->num_entities++;
 	}
+
+	if (ctx->num_entities)
+		if (ctx->entities[0].light)
+			ctx->minlight = ctx->entities[0].light;
 
 	for (mapent = ctx->entities; mapent < &ctx->entities[ctx->num_entities]; mapent++)
 	{
@@ -704,9 +709,7 @@ FixMinlight
 static void FixMinlight (llightinfo_t *l)
 {
 	int		i, j;
-	float	minlight;
-	
-	minlight = 0;
+	float	minlight = l->ctx->minlight;
 
 // if minlight is set, there must be a style 0 light map
 	if (!minlight)
@@ -744,13 +747,38 @@ static void FixMinlight (llightinfo_t *l)
 	}
 }
 
+static unsigned int PackE5BRG9(vec3_t rgb)
+{	//5 bits exponent, 3*9 bits of mantissa. no sign bit.
+	int e = 0;
+	float m = max(max(rgb[0], rgb[1]), rgb[2]);
+	float scale;
+	unsigned int hdr;
+
+	if (m >= 0.5)
+	{	//positive exponent
+		while (m >= (1<<(e)) && e < 30-15)	//don't do nans.
+			e++;
+	}
+	else
+	{	//negative exponent...
+		while (m < 1/(1<<-e) && e > -15)	//don't do denormals.
+			e--;
+	}
+
+	scale = pow(2, e-9);
+	hdr = ((e+15)<<27);
+	hdr |= bound(0, (int)(rgb[0]/scale + 0.5), 0x1ff)<<0;
+	hdr |= bound(0, (int)(rgb[1]/scale + 0.5), 0x1ff)<<9;
+	hdr |= bound(0, (int)(rgb[2]/scale + 0.5), 0x1ff)<<18;
+	return hdr;
+}
 
 /*
 ============
 LightFace
 ============
 */
-void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_styles[MAXQ1LIGHTMAPS], qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_styles[MAXQ1LIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
 {
 	int		s, t;
 	int		i,c,ch;
@@ -761,6 +789,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 	int		lightmapsize;
 	byte	*out;
 #endif
+	unsigned int *expout;
 	qbyte	*rgbout;
 	qbyte	*dulout;
 	vec3_t	*light, *norm;
@@ -771,7 +800,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 //
 // some surfaces don't need lightmaps
 //	
-	if (!surf_rgbsamples)
+	if (!surf_rgbsamples && !surf_expsamples)
 		return;
 
 //	memset (l, 0, sizeof(*l));
@@ -840,21 +869,28 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 	if (runningrgblightdatabase)
 	{
 		out = GetFakeFileSpace(&f->lightofs, lightmapsize);
+		expout = NULL;
 		rgbout = runningrgblightdatabase + f->lightofs*3;
 		dulout = runninglightnormbase + f->lightofs*3;
 	}
 	else
 	{
 		out = GetFileSpace (&f->lightofs, lightmapsize);
-
+		expout = NULL;
 		rgbout = GetRGBFileSpace (f->lightofs, lightmapsize);
 		dulout = GetNormFileSpace (f->lightofs, lightmapsize);
 	}
 #else
 	if (!ctx->skiplit)
+	{
+		expout = surf_expsamples;
 		rgbout = surf_rgbsamples;
+	}
 	else
+	{
+		expout = NULL;
 		rgbout = NULL;
+	}
 	if (l->ctx->models[0]->deluxdata)
 	{
 		dulout = surf_deluxesamples;
@@ -906,6 +942,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 						wnorm[ch] = norm[c][ch];
 					}
 					total *= rangescale;	// scale before clamping
+					temp[ch] = total/0x80;	// quake bsps store logical light values between 0 and 2 for overbrights. normalise it appropriately.
 #ifndef UTILITY
 //					if (total > *rgbout)	//sorry - for qw
 //						total = *rgbout;
@@ -919,6 +956,8 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 						*rgbout++ = total;
 					mean += total;
 				}
+				if (expout)
+					*expout++ = PackE5BRG9(temp);
 #ifdef UTILITY
 				*out++ = mean/3;
 #endif
@@ -961,6 +1000,9 @@ void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int f
 		return;
 
 	LightCalcFaceExtents(ctx->models[0], f, exactmins, exactmaxs, texmins, texsize);
-	LightPlane(ctx, threadctx, f->styles, f->samples, f->samples - ctx->models[0]->lightdata + ctx->models[0]->deluxdata, plane, f->texinfo->vecs, exactmins, exactmaxs, texmins, texsize, 1<<f->lmshift);
+	if (ctx->models[0]->lightmaps.fmt == LM_E5BGR9)
+		LightPlane(ctx, threadctx, f->styles, (unsigned int*)f->samples, NULL, 3*(f->samples - ctx->models[0]->lightdata)/4 + ctx->models[0]->deluxdata, plane, f->texinfo->vecs, exactmins, exactmaxs, texmins, texsize, 1<<f->lmshift);
+	else
+		LightPlane(ctx, threadctx, f->styles, NULL, f->samples, f->samples - ctx->models[0]->lightdata + ctx->models[0]->deluxdata, plane, f->texinfo->vecs, exactmins, exactmaxs, texmins, texsize, 1<<f->lmshift);
 }
 #endif

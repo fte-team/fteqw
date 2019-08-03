@@ -5275,6 +5275,12 @@ static galiasinfo_t *Mod_LoadQ3ModelLod(model_t *mod, int *surfcount, void *buff
 			indexes[i*3+0] = LittleLong(intris[i].indexes[0]);
 			indexes[i*3+1] = LittleLong(intris[i].indexes[1]);
 			indexes[i*3+2] = LittleLong(intris[i].indexes[2]);
+
+			if (indexes[i*3+0] >= numverts || indexes[i*3+1] >= numverts || indexes[i*3+2] >= numverts)
+			{
+				Con_Printf(CON_WARNING "Warning: surface %s has invalid vertex indexes\n", galias->surfacename);
+				indexes[i*3+0] = indexes[i*3+1] = indexes[i*3+2] = 0;
+			}
 		}
 
 		//figure out where we're putting the pose data

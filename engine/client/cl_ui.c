@@ -1665,7 +1665,9 @@ void UI_Stop (void)
 		//note that q3 checks every frame. we only check when the ui is closed.
 		if (Cvar_UnsavedArchive())
 			Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
+#if defined(CL_MASTER)
 		MasterInfo_WriteServers();
+#endif
 	}
 }
 

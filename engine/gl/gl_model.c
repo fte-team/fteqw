@@ -429,8 +429,16 @@ void Mod_Think (void)
 				f = FS_OpenVFS(filename, "wb", FS_GAME);
 				if (f)
 				{
-					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
-					VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
+					if (lightmodel->lightmaps.fmt == LM_E5BGR9)
+					{
+						VFS_WRITE(f, "QLIT\x01\0\x01\0", 8);
+						VFS_WRITE(f, lightmodel->lightdata, numlightdata*4);
+					}
+					else
+					{
+						VFS_WRITE(f, "QLIT\1\0\0\0", 8);
+						VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
+					}
 					VFS_CLOSE(f);
 				}
 				else
@@ -1889,10 +1897,10 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			litsize = 0;
 		}
 
-		if (litdata && litsize >= 8)
+		if (litdata)
 		{	//validate it, if we loaded one.
 			int litver = LittleLong(*(int *)&litdata[4]);
-			if (litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
+			if (litsize < 8 || litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
 			{
 				litdata = NULL;
 				Con_Printf("lit \"%s\" isn't a lit\n", litname);
@@ -1915,7 +1923,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 					expdata = litdata+8;	//header+version
 				litdata = NULL;
 			}
-			else if (litver == 2 && overrides)
+			else if (litver == 2 && overrides && litsize > sizeof(qlit2_t))
 			{
 				qlit2_t *ql2 = (qlit2_t*)litdata;
 				unsigned int *offsets = (unsigned int*)(ql2+1);
@@ -1931,6 +1939,11 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 				{
 					litdata = NULL;
 					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
+				}
+				else if (litsize != sizeof(qlit2_t)+ql2->numsurfs*4+ql2->lmsize*6)
+				{
+					litdata = NULL;
+					Con_Printf("lit \"%s\" is truncated. Ignored.\n", litname);
 				}
 				else
 				{
@@ -1958,7 +1971,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 
 		exptmp = littmp = false;
-		if (!litdata)
+		if (!litdata && !expdata)
 		{
 			int size;
 			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
@@ -1976,7 +1989,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		else if (!inhibitvalidation)
 		{
-			if (lumdata)
+			if (lumdata && litdata)
 			{
 				float prop;
 				int i;
@@ -2060,7 +2073,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		else
 		{
-			if (luxdata[0] == 'Q' && luxdata[1] == 'L' && luxdata[2] == 'I' && luxdata[3] == 'T')
+			if (luxsz < 8 || (luxdata[0] == 'Q' && luxdata[1] == 'L' && luxdata[2] == 'I' && luxdata[3] == 'T'))
 			{
 				if (LittleLong(*(int *)&luxdata[4]) == 1)
 					luxdata+=8;
@@ -2082,9 +2095,9 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #ifdef RUNTIMELIGHTING
 	if ((loadmodel->type == mod_brush && loadmodel->fromgame == fg_quake) || loadmodel->type == mod_heightmap)
 	{	//we only support a couple of formats. :(
-		if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
+		if (!lightmodel && r_loadlits.value == 2 && ((!litdata&&!expdata) || (!luxdata && r_deluxemapping)))
 		{
-			writelitfile = !litdata;
+			writelitfile = !litdata&&!expdata;
 			numlightdata = l->filelen;
 			lightmodel = loadmodel;
 			relitsurface = 0;
@@ -2103,20 +2116,37 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	}
 
 	/*if we're relighting, make sure there's the proper lit data to be updated*/
-	if (lightmodel == loadmodel && !litdata)
+	if (lightmodel == loadmodel && !litdata && !expdata)
 	{
 		int i;
-		litdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
-		littmp = false;
-		if (lumdata)
+		unsigned int *ergb;
+
+		if (r_loadlits.ival >= 3)
 		{
-			for (i = 0; i < samples; i++)
+			ergb = ZG_Malloc(&loadmodel->memgroup, samples*4);
+			expdata = (qbyte*)ergb;
+			littmp = false;
+			if (lumdata)
 			{
-				litdata[i*3+0] = lumdata[i];
-				litdata[i*3+1] = lumdata[i];
-				litdata[i*3+2] = lumdata[i];
+				for (i = 0; i < samples; i++)
+					ergb[i] = 15<<27 | lumdata[i]<<18 | lumdata[i]<<9 << lumdata[i]<<0;
+				lumdata = NULL;
 			}
-			lumdata = NULL;
+		}
+		else
+		{
+			litdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
+			littmp = false;
+			if (lumdata)
+			{
+				for (i = 0; i < samples; i++)
+				{
+					litdata[i*3+0] = lumdata[i];
+					litdata[i*3+1] = lumdata[i];
+					litdata[i*3+2] = lumdata[i];
+				}
+				lumdata = NULL;
+			}
 		}
 	}
 	/*if we're relighting, make sure there's the proper lux data to be updated*/

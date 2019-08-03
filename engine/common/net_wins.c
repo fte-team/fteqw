@@ -18,8 +18,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // net_wins.c
-struct sockaddr;
-
 #include "quakedef.h"
 #include "netinc.h"
 #include <stddef.h>
@@ -266,6 +264,10 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 void SockadrToNetadr (struct sockaddr_qstorage *s, int sizeofsockaddr, netadr_t *a)
 {
+#ifndef HAVE_PACKET
+	memset(a, 0, sizeof(*a));
+	a->type = NA_INVALID;
+#else
 	a->scopeid = 0;
 	a->connum = 0;
 	a->prot = NP_DGRAM;
@@ -336,6 +338,7 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, int sizeofsockaddr, netadr_t 
 		a->type = NA_INVALID;
 		break;
 	}
+#endif
 }
 char	*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a, size_t sizeofa)
 {
@@ -588,7 +591,7 @@ qboolean NET_AddressSmellsFunny(netadr_t *a)
 	}
 }
 
-#if _POSIX_C_SOURCE >= 200112L || defined(getnameinfo)
+#if (_POSIX_C_SOURCE >= 200112L || defined(getnameinfo)) && defined(HAVE_PACKET)
 static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 {
 	netadr_t *n = data;
@@ -1042,6 +1045,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	if (!(*s) || !addresses)
 		return result;
 
+#ifdef WEBCLIENT
 	//EVIL HACK!
 	//updates.tth uses a known self-signed certificate (to protect against dns hijacks like fteqw.com suffered).
 	//its not meant to be used for browsers etc, and I cba to register dns stuff for it.
@@ -1049,6 +1053,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	//redirect the dns to the base host without affecting http(s) hosts/certificates.
 	if (!strcmp(s, "updates.triptohell.info"))
 		s += 8;
+#endif
 
 	memset (sadr, 0, sizeof(*sadr));
 

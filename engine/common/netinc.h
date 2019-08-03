@@ -5,10 +5,10 @@
 #ifndef HAVE_PACKET
 
 #ifndef _XBOX
-	struct sockaddr
-	{
-		short  sa_family;
-	};
+//	struct sockaddr
+//	{
+//		short  sa_family;
+//	};
 
 	#define ntohs BigShort
 	#define htons BigShort
@@ -381,8 +381,8 @@ vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peer
 #endif
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 
-#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC 0
-#endif
+/*#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC naught
+#endif*/
 
 #endif //NETINC_INCLUDED

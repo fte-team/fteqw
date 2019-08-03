@@ -7937,16 +7937,23 @@ static void Image_DecompressFormat(struct pendingtextureinfo *mips)
 	{
 		for (mip = 0; mip < mips->mipcount; mip++)
 		{
+			size_t sz;
 			void *out;
 			if (decodefunc64)
+			{
+				sz = sizeof(pixel64_t);
 				out = Image_Block_Decode64(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc64, mips->encoding);
+			}
 			else
+			{
+				sz = sizeof(pixel32_t);
 				out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
+			}
 			if (mips->mip[mip].needfree)
 				BZ_Free(mips->mip[mip].data);
 			mips->mip[mip].data = out;
 			mips->mip[mip].needfree = true;
-			mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height*sizeof(*out);
+			mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height*sz;
 		}
 		if (mips->extrafree)
 			BZ_Free(mips->extrafree);	//might as well free this now, as nothing is poking it any more.

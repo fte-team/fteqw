@@ -138,6 +138,7 @@ static net_masterlist_t net_masterlist[] = {
 	{MP_QUAKE3,		CVARC("net_q3master4", "", Net_Masterlist_Callback)},
 #endif
 
+#ifdef HAVE_PACKET
 #ifndef QUAKETC
 	//engine-specified/maintained master lists (so users can be lazy and update the engine without having to rewrite all their configs).
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", "qwmaster.ocrana.de:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
@@ -193,6 +194,7 @@ static net_masterlist_t net_masterlist[] = {
 	{MP_QUAKE3,		CVARFC("net_q3masterextra5",	"master.maverickservers.com:27950",				CVAR_NOSAVE, Net_Masterlist_Callback),	"US: Maverickservers.com"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra6",	"dpmaster.deathmask.net:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: DeathMask.net"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra8",	"master3.idsoftware.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: id Software Quake III Master"},
+#endif
 #endif
 
 	{MP_UNSPECIFIED, CVAR(NULL, NULL)}
@@ -3609,14 +3611,17 @@ void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_
 #ifdef Q3CLIENT
 static void NetQ3_LocalServers_f(void)
 {
+#if defined(CL_MASTER)
 	netadr_t na;
 	MasterInfo_Refresh(true);
 
 	if (NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na))
 		NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
+#endif
 }
 static void NetQ3_GlobalServers_f(void)
 {
+#if defined(CL_MASTER)
 	size_t masternum = atoi(Cmd_Argv(1));
 	int protocol = atoi(Cmd_Argv(2));
 	char *keywords;
@@ -3645,6 +3650,7 @@ static void NetQ3_GlobalServers_f(void)
 		for (i = 0; i < n; i++)
 			NET_SendPollPacket (strlen(str), str, adr[i]);
 	}
+#endif
 }
 #endif
 void Net_Master_Init(void)

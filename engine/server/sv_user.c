@@ -310,10 +310,10 @@ void SV_New_f (void)
 		const char *s;
 		int ver;
 		s = InfoBuf_ValueForKey(&host_client->userinfo, "*client");
-		if (!strncmp(s, "ezQuake", 7))
+		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
 		{
-			s += 7;
-			COM_Parse(s);
+			COM_Parse(s);	//skip name-of-fork
+			COM_Parse(s);	//tokenize the version
 			ver = atoi(com_token);
 
 			//this should actually have been resolved now, but for future use...

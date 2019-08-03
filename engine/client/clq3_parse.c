@@ -1009,6 +1009,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 
 void CLQ3_SendAuthPacket(netadr_t *gameserver)
 {
+#ifdef HAVE_PACKET
 	char data[2048];
 	sizebuf_t msg;
 
@@ -1045,6 +1046,7 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 				Con_Printf("    failed\n");
 		}
 	}
+#endif
 }
 
 void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)

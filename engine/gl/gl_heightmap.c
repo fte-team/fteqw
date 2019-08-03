@@ -4375,7 +4375,7 @@ qbyte *Heightmap_ClusterPVS	(model_t *model, int num, pvsbuffer_t *buffer, pvsme
 }
 int	Heightmap_ClusterForPoint	(model_t *model, const vec3_t point, int *area)
 {
-	if (*area)
+	if (area)
 		*area = 0;
 	return -1;
 }
@@ -5669,7 +5669,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 				dorelight = false;
 				br->faces[j].relight = false;
-				LightPlane (hm->relightcontext, hm->lightthreadmem, styles, br->faces[j].lightdata, NULL, br->planes[j], br->faces[j].stdir, exactmins, exactmaxs, br->faces[j].lmbias, texsize, br->faces[j].lmscale);	//special version that doesn't know what a face is or anything.
+				LightPlane (hm->relightcontext, hm->lightthreadmem, styles, NULL, br->faces[j].lightdata, NULL, br->planes[j], br->faces[j].stdir, exactmins, exactmaxs, br->faces[j].lmbias, texsize, br->faces[j].lmscale);	//special version that doesn't know what a face is or anything.
 				br->faces[j].relit = true;
 			}
 			if (br->faces[j].relit && br->faces[j].lightmap >= 0)

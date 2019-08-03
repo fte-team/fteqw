@@ -157,7 +157,7 @@
 
 // Other Audio Options
 #define VOICECHAT
-#define HAVE_SPEEX            //Support the speex codec.
+//#define HAVE_SPEEX				//Support the speex codec.
 #define HAVE_OPUS               //Support the opus codec.
 #define HAVE_MEDIA_DECODER		//can play cin/roq, more with plugins
 #define HAVE_MEDIA_ENCODER		//capture/capturedemo work.

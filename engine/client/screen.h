@@ -150,7 +150,7 @@ typedef enum uploadfmt
 	PTI_ETC2_RGB8_SRGB,
 	PTI_ETC2_RGB8A1_SRGB,
 	PTI_ETC2_RGB8A8_SRGB,
-	PTI_EAC_R11,	//no idea what this might be used for, whatever
+	PTI_EAC_R11,	//might be useful for overlays, with swizzles.
 	PTI_EAC_R11_SNORM,	//no idea what this might be used for, whatever
 	PTI_EAC_RG11,	//useful for normalmaps (calculate blue)
 	PTI_EAC_RG11_SNORM,	//useful for normalmaps (calculate blue)

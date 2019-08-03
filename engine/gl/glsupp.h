@@ -933,7 +933,10 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #endif
 
 #ifndef GL_LINE
-#define GL_LINE     0x1B01
+#define GL_LINE								0x1B01
+#endif
+#ifndef GL_POLYGON_OFFSET_LINE
+#define GL_POLYGON_OFFSET_LINE				0x2A02
 #endif
 
 #ifndef GL_SAMPLES_PASSED_ARB

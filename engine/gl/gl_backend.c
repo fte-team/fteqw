@@ -935,7 +935,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 		shaderstate.lastuniform = shaderstate.allblackshader.glsl.handle;
 
 		GL_SelectEBO(ibo);
-		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
+		qglDrawRangeElements(GL_TRIANGLES, 0, numverts - 1, numindicies, GL_INDEX_TYPE, indicies);
 	}
 	else
 	{
@@ -944,7 +944,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 
 		//draw cached world shadow mesh
 		GL_SelectEBO(ibo);
-		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
+		qglDrawRangeElements(GL_TRIANGLES, 0, numverts - 1, numindicies, GL_INDEX_TYPE, indicies);
 	}
 	RQuantAdd(RQUANT_DRAWS, 1);
 	RQuantAdd(RQUANT_SHADOWINDICIES, numindicies);
@@ -3105,7 +3105,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 		{
 			GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
 			mesh = shaderstate.meshes[0];
-			qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + mesh->vbofirstelement);
+			qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes - 1, mesh->numindexes, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + mesh->vbofirstelement);
 			RQuantAdd(RQUANT_DRAWS, 1);
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, mesh->numindexes);
 			return;
@@ -3140,7 +3140,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 				for (starti = 0; starti < mesh->numindexes; )
 					ilst[endi++] = mesh->vbofirstvert + mesh->indexes[starti++];
 			}
-			qglDrawRangeElements(batchtype, startv, endv, endi, GL_INDEX_TYPE, ilst);
+			qglDrawRangeElements(batchtype, startv, endv - 1, endi, GL_INDEX_TYPE, ilst);
 			RQuantAdd(RQUANT_DRAWS, 1);
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi);
 		}
@@ -3263,7 +3263,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 					break;
 				}
 			}
-			qglDrawRangeElements(batchtype, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
+			qglDrawRangeElements(batchtype, startv, endv - 1, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
 			RQuantAdd(RQUANT_DRAWS, 1);
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi-starti);
  		}

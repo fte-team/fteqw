@@ -982,7 +982,6 @@ int main (int c, const char **v)
 	if (readlink("/proc/self/exe", bindir, sizeof(bindir)-1) > 0)
 	{
 		*COM_SkipPath(bindir) = 0;
-		Sys_Printf("Binary is located at \"%s\"\n", bindir);
 		parms.binarydir = bindir;
 	}
 /*#elif defined(__bsd__)
@@ -990,7 +989,6 @@ int main (int c, const char **v)
 	if (readlink("/proc/self/file", bindir, sizeof(bindir)-1) > 0)
 	{
 		*COM_SkipPath(bindir) = 0;
-		Sys_Printf("Binary is located at "%s"\n", bindir);
 		parms.binarydir = bindir;
 	}
 */
@@ -1017,6 +1015,29 @@ int main (int c, const char **v)
 
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;
+
+	if (parms.binarydir)
+		Sys_Printf("Binary is located at \"%s\"\n", bindir);
+
+#ifndef CLIENTONLY
+	if (isDedicated)    //compleate denial to switch to anything else - many of the client structures are not initialized.
+	{
+		float delay;
+
+		SV_Init (&parms);
+
+		delay = SV_Frame();
+
+		while (1)
+		{
+			if (!isDedicated)
+				Sys_Error("Dedicated was cleared");
+			NET_Sleep(delay, false);
+			delay = SV_Frame();
+		}
+	}
+#endif
+
 
 	Host_Init(&parms);
 
@@ -1150,3 +1171,4 @@ qboolean Sys_RunInstaller(void)
 	return false;
 }
 #endif
+

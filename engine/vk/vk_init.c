@@ -3230,6 +3230,21 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	while (vk.aquirenext == vk.aquirelast)
 	{	//we're still waiting for the render thread to increment acquirelast.
 		//shouldn't really happen, but can if the gpu is slow.
+		if (vk.neednewswapchain)
+		{       //the render thread is is likely to have died... don't loop until infinity.
+			if (vk.submitthread)
+			{
+				//signal its condition, in case its sleeping, so we don't wait for infinity
+				Sys_LockConditional(vk.submitcondition);
+				Sys_ConditionSignal(vk.submitcondition);
+				Sys_UnlockConditional(vk.submitcondition);
+
+				//now wait+clean up the thread
+				Sys_WaitOnThread(vk.submitthread);
+				vk.submitthread = NULL;
+			}
+			return false;
+		}
 		Sys_Sleep(0);	//o.O
 #ifdef _WIN32
 		Sys_SendKeyEvents();

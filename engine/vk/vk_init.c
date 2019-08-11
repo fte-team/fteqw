@@ -3231,7 +3231,8 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	{	//we're still waiting for the render thread to increment acquirelast.
 		//shouldn't really happen, but can if the gpu is slow.
 		if (vk.neednewswapchain)
-		{       //the render thread is is likely to have died... don't loop until infinity.
+		{	//the render thread is is likely to have died... don't loop until infinity.
+#ifdef MULTITHREAD
 			if (vk.submitthread)
 			{
 				//signal its condition, in case its sleeping, so we don't wait for infinity
@@ -3243,6 +3244,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 				Sys_WaitOnThread(vk.submitthread);
 				vk.submitthread = NULL;
 			}
+#endif
 			return false;
 		}
 		Sys_Sleep(0);	//o.O

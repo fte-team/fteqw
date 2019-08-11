@@ -1347,7 +1347,8 @@ endif
 ifeq ($(FTE_TARGET),bsd)
 	#mostly uses the linux stuff.
 	#oss, X, etc.
-
+	CC=cc
+	CXX=c++
 	SV_DIR=sv_bsd
 	SV_EXE_NAME=../$(EXE_NAME)-sv$(BITS)
 	SV_LDFLAGS=-lpthread

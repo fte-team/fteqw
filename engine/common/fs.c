@@ -821,8 +821,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "vmt")
 			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg")|| !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
 				 !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf") || !Q_strcasecmp(link, "psd") ||
+				 !Q_strcasecmp(link, "astc")|| !Q_strcasecmp(link, "htga")||
 				 !Q_strcasecmp(link, "pbm") || !Q_strcasecmp(link, "ppm") || !Q_strcasecmp(link, "pgm") || !Q_strcasecmp(link, "pam") || !Q_strcasecmp(link, "pfm") || !Q_strcasecmp(link, "hdr") )
 		{
 			//FIXME: image replacements are getting in the way here.
@@ -1731,9 +1732,10 @@ static vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
 {
 	flocation_t loc;
-	char *last;
 	int i;
 	char cleanname[MAX_QPATH];
+	char *last;
+	qboolean wasbase;	//to handle out-of-order base/game dirs.
 
 	if (relativeto == FS_SYSTEM)
 	{
@@ -1794,12 +1796,16 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 
 	case FS_BASEGAMEONLY:	// fte/
 		last = NULL;
+		wasbase = true;
 		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
 			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
 			{
 				if (!strcmp(fs_manifest->gamepath[i].path, "*"))
 					continue;
+				if (fs_manifest->gamepath[i].base && !wasbase)
+					continue;
+				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 				if (*last == '*')
 					last++;
@@ -1814,12 +1820,16 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		break;
 	case FS_PUBGAMEONLY:	// $gamedir/ or qw/ but not fte/
 		last = NULL;
+		wasbase = true;
 		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
 			if (fs_manifest && fs_manifest->gamepath[i].path)
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
+				if (fs_manifest->gamepath[i].base && !wasbase)
+					continue;
+				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 			}
 		}
@@ -1838,6 +1848,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
+				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 			}
 		}

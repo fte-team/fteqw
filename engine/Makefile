@@ -1375,9 +1375,12 @@ ifeq ($(FTE_TARGET),bsd)
 
 	#openbsd has a special library for oss emulation.
 	ifeq ($(shell uname -s),OpenBSD)
-		GL_LDFLAGS+= -lossaudio
-		VK_LDFLAGS+= -lossaudio
-		M_LDFLAGS+= -lossaudio
+		GL_LDFLAGS+= -lossaudio -lfreetype
+		VK_LDFLAGS+= -lossaudio -lfreetype
+		M_LDFLAGS+= -lossaudio -lfreetype
+		M_CFLAGS+= -DFREETYPE_STATIC
+		VK_CFLAGS+= -DFREETYPE_STATIC
+		GL_CFLAGS+= -DFREETYPE_STATIC
 	endif
 
 	ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))

@@ -1719,16 +1719,45 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		cmd = Cmd_Argv(0);
 		if (!stricmp(cmd, "enablejoint"))
 		{
-			int idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
+			int idx;
 			int enable = atoi(Cmd_Argv(2));
-			sko->world->rbe->RagEnableJoint(&sko->joint[idx], enable);
-			G_FLOAT(OFS_RETURN) = 1;
+			if (!sko->doll)
+			{
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				if (!doll || !rag_instanciate(sko, doll, emat, wed))
+				{
+					Con_Printf("enablejoint: doll not instanciated yet\n");
+					return;
+				}
+			}
+			idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
+	
+			if (idx >= 0)
+			{
+				sko->world->rbe->RagEnableJoint(&sko->joint[idx], enable);
+				G_FLOAT(OFS_RETURN) = 1;
+			}
+			else
+			{
+				Con_Printf("enablejoint: %s is not defined as a ragdoll joint\n", Cmd_Argv(1));
+				G_FLOAT(OFS_RETURN) = 0;
+			}
 			return;
 		}
 		else if (!stricmp(cmd, "animatebody"))
 		{
-			int body = rag_finddollbody(sko->doll, Cmd_Argv(1));
+			int body;
 			float strength = atof(Cmd_Argv(2));
+			if (!sko->doll)
+			{
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				if (!doll || !rag_instanciate(sko, doll, emat, wed))
+				{
+					Con_Printf("animatebody: doll not instanciated yet\n");
+					return;
+				}
+			}	
+			body = rag_finddollbody(sko->doll, Cmd_Argv(1));
 			if (body >= 0)
 			{
 				if (sko->body[body].animstrength)
@@ -1737,6 +1766,8 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				if (sko->body[body].animstrength)
 					sko->numanimated++;
 			}
+			else
+				Con_Printf("animatebody: %s is not defined as a ragdoll body\n", Cmd_Argv(1));
 			G_FLOAT(OFS_RETURN) = sko->numanimated;
 			return;
 		}
@@ -1744,6 +1775,15 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			float strength = atof(Cmd_Argv(1));
 			int i;
+			if (!sko->doll)
+			{
+				skel_copy_toabs(sko, psko?psko:sko, 0, sko->numbones);
+				if (!doll || !rag_instanciate(sko, doll, emat, wed))
+				{
+					Con_Printf("animate: doll not instanciated yet\n");
+					return;
+				}
+			}
 			sko->numanimated = 0;
 
 			for (i = 0; i < sko->numbodies; i++)
@@ -1763,9 +1803,9 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			return;
 		}
 		else if (!stricmp(cmd, "doll"))
-			doll = rag_loaddoll(sko->model, Cmd_Argv(1), sko->numbones);
+			doll = sko->model?rag_loaddoll(sko->model, Cmd_Argv(1), sko->numbones):NULL;
 		else if (!stricmp(cmd, "dollstring"))
-			doll = rag_createdollfromstring(sko->model, "", sko->numbones, ragname);
+			doll = sko->model?rag_createdollfromstring(sko->model, "", sko->numbones, ragname):NULL;
 		else if (!stricmp(cmd, "cleardoll"))
 			doll = NULL;
 		else
@@ -1805,6 +1845,12 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		rag_animate(sko, doll, emat);
 	}
 
+	if (psko == sko)
+	{
+		Con_Printf("PF_skel_ragedit: cannot use the same skeleton for animation source\n");
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
 	rag_derive(sko, psko, emat);
 	G_FLOAT(OFS_RETURN) = 1;
 #endif

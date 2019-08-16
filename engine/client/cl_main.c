@@ -777,7 +777,7 @@ void CL_CheckForResend (void)
 		connectinfo.istransfer = false;
 		connectinfo.adr.prot = NP_DGRAM;
 
-		NET_InitClient(true);
+		NET_InitClient(sv.state != ss_clustermode);
 
 		cls.state = ca_disconnected;
 		switch (svs.gametype)

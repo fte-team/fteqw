@@ -2294,7 +2294,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			{
 				if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command)+100 > cls.netchan.message.maxsize)
 					break;
-				if (!strncmp(clientcmdlist->command, "spawn", 5) && cls.userinfosync.numkeys)
+				if (!strncmp(clientcmdlist->command, "spawn", 5) && cls.userinfosync.numkeys && cl.haveserverinfo)
 					break;	//HACK: don't send the spawn until all pending userinfos have been flushed.
 				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);

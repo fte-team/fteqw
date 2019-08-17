@@ -4956,6 +4956,7 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 		{"VF_RT_DESTCOLOUR7",	219, ev_string, ev_float, ev_vector},
 		{"VF_ENVMAP",			220, ev_string},
 		{"VF_USERDATA",			221, ev_pointer, ev_integer},
+		{"VF_SKYROOM_CAMERA",	222, ev_vector}
 	};
 
 	char temp[256];

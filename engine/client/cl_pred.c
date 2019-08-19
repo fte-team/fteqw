@@ -495,7 +495,7 @@ void CL_CalcCrouch (playerview_t *pv)
 	VectorCopy (pv->simorg, pv->oldorigin);
 
 
-	if (pv->onground && orgz - pv->oldz)// > 0)
+	if (pv->onground && orgz - pv->oldz)
 	{
 		if (pv->oldz > orgz)
 		{	//stepping down should be a little faster than stepping up.
@@ -509,7 +509,7 @@ void CL_CalcCrouch (playerview_t *pv)
 				if (pv->crouchspeed > -160*2)
 				{
 					pv->extracrouch = orgz - pv->oldz + host_frametime * 400 + 15;
-//					pv->extracrouch = max(pv->extracrouch, -5);
+					pv->extracrouch = max(pv->extracrouch, -5);
 				}
 				pv->crouchspeed = -160*2;
 			}
@@ -519,9 +519,11 @@ void CL_CalcCrouch (playerview_t *pv)
 				pv->oldz = orgz;
 
 			if (pv->oldz > orgz + 15 - pv->extracrouch)
-				pv->oldz = orgz + 15 - pv->extracrouch;
-			pv->extracrouch += host_frametime * 400;
-			pv->extracrouch = min(pv->extracrouch, 0);
+				pv->oldz = orgz + 15 + pv->extracrouch;
+			if (pv->extracrouch < -host_frametime*400)
+				pv->extracrouch += host_frametime * 400;
+			else if (pv->extracrouch < 0)
+				pv->extracrouch = 0;
 		}
 		else
 		{
@@ -545,10 +547,12 @@ void CL_CalcCrouch (playerview_t *pv)
 		
 
 //			if (orgz - pv->oldz > 15 + pv->extracrouch)
-			if (pv->oldz < orgz - 15 - pv->extracrouch)
+			if (pv->oldz < orgz - 15 + pv->extracrouch)
 				pv->oldz = orgz - 15 - pv->extracrouch;
-			pv->extracrouch -= host_frametime * 200;
-			pv->extracrouch = max(pv->extracrouch, 0);
+			if (pv->extracrouch >= host_frametime * 200)
+				pv->extracrouch -= host_frametime * 200;
+			else if (pv->extracrouch > 0)
+				pv->extracrouch = 0;
 		}
 
 		pv->crouch = pv->oldz - orgz;

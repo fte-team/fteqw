@@ -3396,7 +3396,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 #ifdef RAGDOLL
 	if (mods->flop)
 		ent.framestate.g[FS_REG].frame[0] |= 0x8000;
-	if (ent.model->dollinfo)
+	if (ent.model->dollinfo && mods->ragworld.rbe)
 	{
 		float rate = 1.0/60;
 		rag_doallanimations(&mods->ragworld);
@@ -3978,8 +3978,9 @@ void M_Menu_ModelViewer_f(void)
 #endif
 	mv->ragworld.num_edicts = 1;
 	mv->ragworld.edicts->v->solid = SOLID_BBOX;
-	VectorSet(mv->ragworld.edicts->v->mins, -1000, -1000, -101);
+	VectorSet(mv->ragworld.edicts->v->mins, -1000, -1000, -1000);
 	VectorSet(mv->ragworld.edicts->v->maxs, 1000, 1000, -100);
+	mv->ragworld.edicts->xv->dimension_hit = mv->ragworld.edicts->xv->dimension_solid = 0xff;
 
 	mv->ragworld.worldmodel = Mod_ForName("", MLV_SILENT);
 	World_RBE_Start(&mv->ragworld);
@@ -4025,19 +4026,15 @@ typedef struct
 		char *gamedir;
 	} *mod;
 	size_t nummods;
-	int y;
 } modmenu_t;
 
 static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	modmenu_t *mods = c->dptr;
-	int i, ym;
-	c->common.height = vid.height - y;
-	ym = y+c->common.height;
+	int i = c->dint;
+	c->common.width = vid.width - x - 16;
 
-	mods->y = y;
-
-	if (!mods->nummods)
+	if (!mods->nummods && !i)
 	{
 		float scale[] = {8,8};
 		R_DrawTextField(0, y, vid.width, vid.height - y,
@@ -4055,22 +4052,21 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 		return;
 	}
 
-	for (i = 0; y+8 <= ym && i < mods->nummods; y+=8, i++)
+	if (i < 0 || i > mods->nummods)
+		return;
+	if (mods->mod[i].manifest)
 	{
-		if (mods->mod[i].manifest)
-		{
-			if (mousecursor_y >= y && mousecursor_y < y+8)
-				Draw_AltFunString(x, y, mods->mod[i].manifest->formalname);
-			else
-				Draw_FunString(x, y, mods->mod[i].manifest->formalname);
-		}
+		if (mousecursor_y >= y && mousecursor_y < y+8)
+			Draw_AltFunString(x, y, mods->mod[i].manifest->formalname);
 		else
-		{
-			if (mousecursor_y >= y && mousecursor_y < y+8)
-				Draw_AltFunString(x, y, mods->mod[i].gamedir);
-			else
-				Draw_FunString(x, y, mods->mod[i].gamedir);
-		}
+			Draw_FunString(x, y, mods->mod[i].manifest->formalname);
+	}
+	else
+	{
+		if (mousecursor_y >= y && mousecursor_y < y+8)
+			Draw_AltFunString(x, y, mods->mod[i].gamedir);
+		else
+			Draw_FunString(x, y, mods->mod[i].gamedir);
 	}
 }
 static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
@@ -4081,7 +4077,7 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsi
 	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
-		i = (mousecursor_y - mods->y)/8;
+		i = c->dint;
 		if (i < 0 || i > mods->nummods)
 			return false;
 		man = mods->mod[i].manifest;
@@ -4175,6 +4171,7 @@ void M_Menu_Mods_f (void)
 	modmenu_t mods;
 	menucustom_t *c;
 	menu_t *menu;
+	size_t i;
 	extern qboolean com_homepathenabled;
 
 	memset(&mods, 0, sizeof(mods));
@@ -4196,11 +4193,18 @@ void M_Menu_Mods_f (void)
 		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 	}
 
-	c = MC_AddCustom(menu, 64, 32, menu->data, 0, NULL);
-	menu->cursoritem = (menuoption_t*)c;
-	c->draw = Mods_Draw;
-	c->key = Mods_Key;
-	menu->remove = Mods_Remove;
+	MC_AddFrameStart(menu, 32);
+	for (i = 0; i < mods.nummods || i<1; i++)
+	{
+		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, NULL);
+		if (!menu->cursoritem)
+			menu->cursoritem = (menuoption_t*)c;
+		c->common.height = 8;
+		c->draw = Mods_Draw;
+		c->key = Mods_Key;
+		menu->remove = Mods_Remove;
+	}
+	MC_AddFrameEnd(menu, 32+i*8);
 }
 
 #if 0

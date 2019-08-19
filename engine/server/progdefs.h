@@ -480,6 +480,7 @@ typedef struct
 	char name[32];
 //	unsigned int disablebits;
 	qboolean draw:1;
+	qboolean startenabled:1;
 
 	//ode info
 	int type;

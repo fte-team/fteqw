@@ -117,7 +117,7 @@ static void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, 
 	galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model, &maxbones);
 	if (!boneinfo)
 		return;
-	endbone = min(endbone, maxbones-1);
+	endbone = min(endbone, maxbones);
 	if (skelobjsrc->type == SKEL_ABSOLUTE)
 	{
 		if (skelobjsrc != skelobjdst)
@@ -334,6 +334,7 @@ static dollcreatectx_t *rag_createdoll(model_t *mod, const char *fname, int numb
 	ctx->defbody.orient = false;
 
 	memset(&ctx->defjoint, 0, sizeof(ctx->defjoint));
+	ctx->defjoint.startenabled = true;
 	ctx->defjoint.axis[1] = 1;
 	ctx->defjoint.axis2[2] = 1;
 	ctx->defjoint.ERP = 0.2;	//use ODE defaults
@@ -418,9 +419,9 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			if (!ctx->errors++)
 			{
 				if (ctx->joint->body2 == ctx->joint->body1)
-					Con_Printf("^[Joint \"%s\" joints body \"%s\" to itself\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
+					Con_Printf("^[Joint \"%s\" joins body \"%s\" to itself\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 				else
-					Con_Printf("^[Joint \"%s\" joints invalid body \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
+					Con_Printf("^[Joint \"%s\" joins invalid body \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 			}
 			return true;
 		}
@@ -527,6 +528,8 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 	}
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "draw"))
 		ctx->joint->draw = atoi(val);
+	else if (ctx->joint && argc == 2 && !stricmp(cmd, "enabled"))
+		ctx->joint->startenabled = atoi(val)?true:false;
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "ERP"))
 		ctx->joint->ERP = atof(val);
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "ERP2"))
@@ -1293,6 +1296,8 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 		VectorNormalize2(j->axis2, aaa2[2]);
 
 		sko->world->rbe->RagCreateJoint(sko->world, &sko->joint[i], j, body1, body2, aaa2);
+
+		sko->world->rbe->RagEnableJoint(&sko->joint[i], j->startenabled);
 	}
 
 	//now the joints have all their various properties, move the bones to their real positions.

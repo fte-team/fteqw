@@ -135,18 +135,21 @@ class QCFilterCallback : public btOverlapFilterCallback
 		//owners don't collide (unless one is world, obviouslyish)
 		if (collides)
 		{
-			btRigidBody *b1 = (btRigidBody*)proxy0->m_clientObject;
-			btRigidBody *b2 = (btRigidBody*)proxy1->m_clientObject;
+			auto b1 = (btRigidBody*)proxy0->m_clientObject;
+			auto b2 = (btRigidBody*)proxy1->m_clientObject;
 			//don't let two qc-controlled entities collide in Bullet, that's the job of quake.
 			if (b1->isStaticOrKinematicObject() && b2->isStaticOrKinematicObject())
 				return false;
-			wedict_t *e1 = (wedict_t*)b1->getUserPointer();
-			wedict_t *e2 = (wedict_t*)b2->getUserPointer();
-			if ((e1->v->solid == SOLID_TRIGGER && e2->v->solid != SOLID_BSP) ||
-				(e2->v->solid == SOLID_TRIGGER && e1->v->solid != SOLID_BSP))
-				return false;	//triggers only collide with bsp objects.
-			if (e1->entnum && e2->entnum)
-				collides = e1->v->owner != e2->entnum && e2->v->owner != e1->entnum;
+			auto e1 = (wedict_t*)b1->getUserPointer();
+			auto e2 = (wedict_t*)b2->getUserPointer();
+			if (e1&&e2)
+			{
+				if ((e1->v->solid == SOLID_TRIGGER && e2->v->solid != SOLID_BSP) ||
+					(e2->v->solid == SOLID_TRIGGER && e1->v->solid != SOLID_BSP))
+					return false;	//triggers only collide with bsp objects.
+				if (e1->entnum && e2->entnum)
+					collides = e1->v->owner != e2->entnum && e2->v->owner != e1->entnum;
+			}
 		}
 
 		return collides;
@@ -155,8 +158,8 @@ class QCFilterCallback : public btOverlapFilterCallback
 
 static void QDECL World_Bullet_End(world_t *world)
 {
-	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
-	world->rbe = NULL;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	world->rbe = nullptr;
 	delete ctx->dworld;
 	delete ctx->solver;
 	delete ctx->collisionconfig;
@@ -176,7 +179,7 @@ static void QDECL World_Bullet_RemoveJointFromEntity(world_t *world, wedict_t *e
 
 static void QDECL World_Bullet_RemoveFromEntity(world_t *world, wedict_t *ed)
 {
-	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
 	btRigidBody *body;
 	btCollisionShape *geom;
 	if (!ed->rbe.physics)
@@ -201,115 +204,6 @@ static void QDECL World_Bullet_RemoveFromEntity(world_t *world, wedict_t *ed)
 		BZ_Free(ed->rbe.massbuf);
 	ed->rbe.massbuf = NULL;
 }
-
-static void World_Bullet_Frame_BodyToEntity(world_t *world, wedict_t *ed)
-{
-	return;
-
-#if 0
-	model_t *model;
-	const float *avel;
-	const float *o;
-	const float *r; // for some reason dBodyGetRotation returns a [3][4] matrix
-	const float *vel;
-	btRigidBody *body = (btRigidBody*)ed->rbe.body.body;
-	int movetype;
-	float bodymatrix[16];
-	float entitymatrix[16];
-	vec3_t angles;
-	vec3_t avelocity;
-	vec3_t forward, left, up;
-	vec3_t origin;
-	vec3_t spinvelocity;
-	vec3_t velocity;
-	if (!body)
-		return;
-
-	movetype = (int)ed->v->movetype;
-	if (movetype != MOVETYPE_PHYSICS)
-	{
-		switch((int)ed->xv->jointtype)
-		{
-			// TODO feed back data from physics
-			case JOINTTYPE_POINT:
-				break;
-			case JOINTTYPE_HINGE:
-				break;
-			case JOINTTYPE_SLIDER:
-				break;
-			case JOINTTYPE_UNIVERSAL:
-				break;
-			case JOINTTYPE_HINGE2:
-				break;
-			case JOINTTYPE_FIXED:
-				break;
-		}
-		return;
-	}
-	// store the physics engine data into the entity
-
-	btTransform trans;
-	body->getMotionState()->getWorldTransform(trans);
-//	o = dBodyGetPosition(body);
-//	r = dBodyGetRotation(body);
-//	vel = dBodyGetLinearVel(body);
-//	avel = dBodyGetAngularVel(body);
-//	VectorCopy(o, origin);
-//	forward[0] = r[0];
-//	forward[1] = r[4];
-//	forward[2] = r[8];
-//	left[0] = r[1];
-//	left[1] = r[5];
-//	left[2] = r[9];
-//	up[0] = r[2];
-//	up[1] = r[6];
-//	up[2] = r[10];
-	vel = body->getLinearVelocity();
-	avel = body->getAngularVelocity();
-	VectorCopy(vel, velocity);
-	VectorCopy(avel, spinvelocity);
-	trans.getBasis().getOpenGLSubMatrix(bodymatrix);
-	foo Matrix4x4_RM_FromVectors(bodymatrix, forward, left, up, origin);
-	foo Matrix4_Multiply(ed->rbe.offsetimatrix, bodymatrix, entitymatrix);
-	foo Matrix3x4_RM_ToVectors(entitymatrix, forward, left, up, origin);
-
-	VectorAngles(forward, up, angles);
-	angles[0]*=-1;
-
-	avelocity[PITCH] = RAD2DEG(spinvelocity[PITCH]);
-	avelocity[YAW] = RAD2DEG(spinvelocity[ROLL]);
-	avelocity[ROLL] = RAD2DEG(spinvelocity[YAW]);
-
-	if (ed->v->modelindex)
-	{
-		model = world->Get_CModel(world, ed->v->modelindex);
-		if (!model || model->type == mod_alias)
-		{
-			angles[PITCH] *= -1;
-			avelocity[PITCH] *= -1;
-		}
-	}
-
-	VectorCopy(origin, ed->v->origin);
-	VectorCopy(velocity, ed->v->velocity);
-	//VectorCopy(forward, ed->xv->axis_forward);
-	//VectorCopy(left, ed->xv->axis_left);
-	//VectorCopy(up, ed->xv->axis_up);
-	//VectorCopy(spinvelocity, ed->xv->spinvelocity);
-	VectorCopy(angles, ed->v->angles);
-	VectorCopy(avelocity, ed->v->avelocity);
-
-	// values for BodyFromEntity to check if the qc modified anything later
-	VectorCopy(origin, ed->rbe.origin);
-	VectorCopy(velocity, ed->rbe.velocity);
-	VectorCopy(angles, ed->rbe.angles);
-	VectorCopy(avelocity, ed->rbe.avelocity);
-//	ed->rbe.gravity = (qboolean)dBodyGetGravityMode(body);
-
-	World_LinkEdict(world, ed, true);
-#endif
-}
-
 
 static bool NegativeMeshPitch(world_t *world, wedict_t *ent)
 {
@@ -340,10 +234,10 @@ static btTransform transformFromQuake(world_t *world, wedict_t *ent)
 
 static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 {
-	bulletcontext_t *rbe = (bulletcontext_t*)world->rbe;
-	btTypedConstraint *j = NULL;
-	btRigidBody *b1 = NULL;
-	btRigidBody *b2 = NULL;
+	auto rbe = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	btTypedConstraint *j = nullptr;
+	btRigidBody *b1 = nullptr;
+	btRigidBody *b2 = nullptr;
 	int movetype = 0;
 	int jointtype = 0;
 	int enemy = 0, aiment = 0;
@@ -352,8 +246,8 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	vec_t Stop;
 //	vec_t Vel;
 	vec3_t forward;
-	movetype = (int)ed->v->movetype;
-	jointtype = (int)ed->xv->jointtype;
+	movetype = ed->v->movetype;
+	jointtype = ed->xv->jointtype;
 	enemy = ed->v->enemy;
 	aiment = ed->v->aiment;
 	btVector3 origin(ed->v->origin[0], ed->v->origin[1], ed->v->origin[2]);
@@ -407,7 +301,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	{
 		j = (btTypedConstraint*)ed->rbe.joint.joint;
 		rbe->dworld->removeConstraint(j);
-		ed->rbe.joint.joint = NULL;
+		ed->rbe.joint.joint = nullptr;
 		delete j;
 	}
 	if (!jointtype)
@@ -427,7 +321,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	VectorCopy(ed->v->angles, ed->rbe.joint_angles);
 	VectorCopy(movedir, ed->rbe.joint_movedir);
 
-	rbefuncs->AngleVectors(ed->v->angles, forward, NULL, NULL);
+	rbefuncs->AngleVectors(ed->v->angles, forward, nullptr, nullptr);
 
 	//Con_Printf("making new joint %i\n", (int) (ed - prog->edicts));
 	switch(jointtype)
@@ -530,7 +424,7 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		break;
 	case 0:
 	default:
-		j = NULL;
+		j = nullptr;
 		break;
 	}
 
@@ -546,9 +440,9 @@ static void MatToTransform(const float *mat, btTransform &tr)
 {
 	tr.setBasis(btMatrix3x3(
 		mat[0], mat[1], mat[2],
-		mat[3], mat[4], mat[5],
-		mat[6], mat[7], mat[8]));
-	tr.setOrigin(btVector3(mat[9], mat[10], mat[11]));
+		mat[4], mat[5], mat[6],
+		mat[8], mat[9], mat[10]));
+	tr.setOrigin(btVector3(mat[3], mat[7], mat[11]));
 }
 static void MatFromTransform(float *mat, const btTransform &tr)
 {
@@ -560,31 +454,32 @@ static void MatFromTransform(float *mat, const btTransform &tr)
 	mat[0] = r0[0];
 	mat[1] = r0[1];
 	mat[2] = r0[2];
-	mat[3] = r1[0];
-	mat[4] = r1[1];
-	mat[5] = r1[2];
-	mat[6] = r2[0];
-	mat[7] = r2[1];
-	mat[8] = r2[2];
-	mat[9] = o[0];
-	mat[10] = o[1];
-	mat[11] = o[2];
+	mat[3] =o[0];
+	mat[4] = r1[0];
+	mat[5] = r1[1];
+	mat[6] = r1[2];
+	mat[7] =o[1];
+	mat[8] = r2[0];
+	mat[9] = r2[1];
+	mat[10]= r2[2];
+	mat[11]=o[2];
 }
 static qboolean QDECL World_Bullet_RagMatrixToBody(rbebody_t *bodyptr, float *mat)
 {	//mat is a 4*3 matrix
 	btTransform tr;
-	btRigidBody *body = (btRigidBody*)bodyptr->body;
+	auto body = reinterpret_cast<btRigidBody*>(bodyptr->body);
 	MatToTransform(mat, tr);
 	body->setWorldTransform(tr);
 	return qtrue;
 }
 static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *bodyptr, rbebodyinfo_t *bodyinfo, float *mat, wedict_t *ent)
 {
-	btRigidBody *body = NULL;
-	btCollisionShape *geom = NULL;
+	btRigidBody *body = nullptr;
+	btCollisionShape *geom = nullptr;
 	float radius;
+	float threshold;
 //	float length;
-	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
 //	int axisindex;
 	ctx->hasextraobjs = true;
 
@@ -630,10 +525,13 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 		Con_DPrintf("World_Bullet_RagCreateBody: unsupported geomshape %i\n", bodyinfo->geomshape);
 	case GEOMTYPE_BOX:
 		geom = new btBoxShape(btVector3(bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]) * 0.5);
+		radius = sqrt(DotProduct(bodyinfo->dimensions,bodyinfo->dimensions));
+		threshold = min(bodyinfo->dimensions[0], min(bodyinfo->dimensions[1], bodyinfo->dimensions[2]));
 		break;
 
 	case GEOMTYPE_SPHERE:
-		geom = new btSphereShape(bodyinfo->dimensions[0] * 0.5f);
+		threshold = radius = bodyinfo->dimensions[0] * 0.5f;
+		geom = new btSphereShape(radius);
 		break;
 
 	case GEOMTYPE_CAPSULE:
@@ -642,6 +540,8 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 	case GEOMTYPE_CAPSULE_Z:
 		radius = (bodyinfo->dimensions[0]+bodyinfo->dimensions[1]) * 0.5f;
 		geom = new btCapsuleShapeZ(radius, bodyinfo->dimensions[2]);
+		threshold = min(radius, bodyinfo->dimensions[2]*0.5);
+		radius = max(radius, bodyinfo->dimensions[2]*0.5);
 		break;
 
 	case GEOMTYPE_CYLINDER:
@@ -650,6 +550,8 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 	case GEOMTYPE_CYLINDER_Z:
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
 		geom = new btCylinderShapeZ(btVector3(radius, radius, bodyinfo->dimensions[2])*0.5);
+		threshold = min(radius, bodyinfo->dimensions[2]*0.5);
+		radius = max(radius, bodyinfo->dimensions[2]*0.5);
 		break;
 	}
 	bodyptr->geom = geom;
@@ -657,20 +559,21 @@ static qboolean QDECL World_Bullet_RagCreateBody(world_t *world, rbebody_t *body
 	//now create the body too
 
 	btVector3 fallInertia(0, 0, 0);
-	((btCollisionShape*)geom)->calculateLocalInertia(bodyinfo->mass, fallInertia);
-	btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(bodyinfo->mass, NULL, (btCollisionShape*)geom, fallInertia);
+	geom->calculateLocalInertia(bodyinfo->mass, fallInertia);
+	btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(bodyinfo->mass, nullptr, geom, fallInertia);
 	MatToTransform(mat, fallRigidBodyCI.m_startWorldTransform);
 	body = new btRigidBody(fallRigidBodyCI);
 	body->setUserPointer(ent);
-	bodyptr->body = (void*)body;
+	bodyptr->body = reinterpret_cast<void*>(body);
 
 	//motion threshhold should be speed/physicsframerate.
 	//FIXME: recalculate...
-	body->setCcdMotionThreshold((bodyinfo->dimensions[0]+bodyinfo->dimensions[1]+bodyinfo->dimensions[2])*(4/3));
+	body->setCcdMotionThreshold(threshold/64);
 	//radius should be the body's radius
-	body->setCcdSweptSphereRadius((bodyinfo->dimensions[0]+bodyinfo->dimensions[1]+bodyinfo->dimensions[2])*(0.5/3));
 
-	ctx->dworld->addRigidBody(body, ent->xv->dimension_solid, ent->xv->dimension_hit);
+	body->setCcdSweptSphereRadius(radius);
+
+	ctx->dworld->addRigidBody(body, ent?ent->xv->dimension_solid:~0, ent?ent->xv->dimension_hit:~0);
 
 	return qtrue;
 }
@@ -766,47 +669,77 @@ static void QDECL World_Bullet_RagMatrixFromJoint(rbejoint_t *joint, rbejointinf
 
 static void QDECL World_Bullet_RagMatrixFromBody(world_t *world, rbebody_t *bodyptr, float *mat)
 {
-//	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
-	btRigidBody *body = (btRigidBody*)bodyptr->body;
+	//auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	auto body = reinterpret_cast<btRigidBody*>(bodyptr->body);
 	MatFromTransform(mat, body->getCenterOfMassTransform());
 }
 static void QDECL World_Bullet_RagEnableJoint(rbejoint_t *joint, qboolean enabled)
 {
-/*
-	if (enabled)
-		dJointEnable(joint->ode_joint);
-	else
-		dJointDisable(joint->ode_joint);
-*/
+	auto j = reinterpret_cast<btTypedConstraint*>(joint->joint);
+	j->setEnabled(enabled);
 }
 static void QDECL World_Bullet_RagCreateJoint(world_t *world, rbejoint_t *joint, rbejointinfo_t *info, rbebody_t *body1, rbebody_t *body2, vec3_t aaa2[3])
 {
-/*
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	btTypedConstraint *j;
+	btVector3 org(aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+	btVector3 axis1(aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+	btVector3 axis2(aaa2[2][0], aaa2[2][1], aaa2[2][2]);
+	auto rb1 = reinterpret_cast<btRigidBody*>(body1->body);
+	auto rb2 = reinterpret_cast<btRigidBody*>(body2->body);
+
 	switch(info->type)
 	{
-		case JOINTTYPE_POINT:
-			joint->ode_joint = dJointCreateBall(world->rbe.world, 0);
-			break;
-		case JOINTTYPE_HINGE:
-			joint->ode_joint = dJointCreateHinge(world->rbe.world, 0);
-			break;
-		case JOINTTYPE_SLIDER:
-			joint->ode_joint = dJointCreateSlider(world->rbe.world, 0);
-			break;
-		case JOINTTYPE_UNIVERSAL:
-			joint->ode_joint = dJointCreateUniversal(world->rbe.world, 0);
-			break;
-		case JOINTTYPE_HINGE2:
-			joint->ode_joint = dJointCreateHinge2(world->rbe.world, 0);
-			break;
-		case JOINTTYPE_FIXED:
-			joint->ode_joint = dJointCreateFixed(world->rbe.world, 0);
-			break;
-		default:
-			joint->ode_joint = NULL;
-			break;
+	case JOINTTYPE_POINT:
+		{
+			auto point = new btPoint2PointConstraint(*rb1, *rb2, rb1->getWorldTransform().getOrigin()-org, rb2->getWorldTransform().getOrigin()-org);
+//			point->setParam(BT_P2P_FLAGS_ERP, info->ERP);
+//			point->setParam(BT_P2P_FLAGS_CFM, info->CFM);
+			j = point;
+		}
+		break;
+	case JOINTTYPE_HINGE:
+		{
+			auto hinge = new btHingeConstraint(*rb1, *rb2, org, org, axis1, axis2);
+			hinge->setLimit(info->LoStop, info->HiStop /*other stuff!*/);
+//			hinge->setParam(BT_HINGE_FLAGS_CFM_NORM, info->CFM);
+//			hinge->setParam(BT_HINGE_FLAGS_CFM_STOP, info->CFM2);
+//			hinge->setParam(BT_HINGE_FLAGS_ERP_NORM, info->ERP);
+//			hinge->setParam(BT_HINGE_FLAGS_ERP_STOP, info->ERP2);
+			j = hinge;
+		}
+		break;
+//	case JOINTTYPE_SLIDER:
+//		j = btSliderConstraint(rb1, rb2, tr1, tr2, false);
+//		break;
+	case JOINTTYPE_UNIVERSAL:
+		{
+			auto uni = new btUniversalConstraint(*rb1, *rb2, org, axis1, axis2);
+//			uni->setParam(BT_6DOF_FLAGS_CFM_NORM, info->CFM);
+//			uni->setParam(BT_6DOF_FLAGS_CFM_STOP, info->CFM2);
+//			uni->setParam(BT_6DOF_FLAGS_ERP_STOP, info->ERP);
+			uni->setUpperLimit(info->HiStop, info->HiStop2);
+			uni->setLowerLimit(info->LoStop, info->LoStop2);
+			j = uni;
+		}
+		break;
+	case JOINTTYPE_HINGE2:
+		{
+			auto hinge2 = new btHinge2Constraint(*rb1, *rb2, org, axis1, axis2);
+			hinge2->setUpperLimit(info->HiStop);
+			hinge2->setLowerLimit(info->LoStop);
+			j = hinge2;
+		}
+		break;
+//	case JOINTTYPE_FIXED:
+//		j = btFixedConstraint(rb1, rb2, tr1, tr2);
+//		break;
+	default:
+		Con_Printf("Bullet: joint type %i not supported\n", info->type);
+		j = nullptr;
+		break;
 	}
-	if (joint->ode_joint)
+/*	if (joint->ode_joint)
 	{
 		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
 //		dJointSetData(joint->ode_joint, NULL);
@@ -876,16 +809,19 @@ static void QDECL World_Bullet_RagCreateJoint(world_t *world, rbejoint_t *joint,
 		}
 	}
 */
+	if (j)
+		ctx->dworld->addConstraint(j, true);
+	joint->joint = reinterpret_cast<void*>(j);
 }
 
 static void QDECL World_Bullet_RagDestroyBody(world_t *world, rbebody_t *bodyptr)
 {
-	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
-	btRigidBody *body = (btRigidBody*)bodyptr->body;
-	btCollisionShape *geom = (btCollisionShape*)bodyptr->geom;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	auto body = reinterpret_cast<btRigidBody*>(bodyptr->body);
+	auto geom = reinterpret_cast<btCollisionShape*>(bodyptr->geom);
 
-	bodyptr->body = NULL;
-	bodyptr->geom = NULL;
+	bodyptr->body = nullptr;
+	bodyptr->geom = nullptr;
 
 	if (body)
 	{
@@ -898,11 +834,14 @@ static void QDECL World_Bullet_RagDestroyBody(world_t *world, rbebody_t *bodyptr
 
 static void QDECL World_Bullet_RagDestroyJoint(world_t *world, rbejoint_t *joint)
 {
-/*
-	if (joint->ode_joint)
-		dJointDestroy(joint->ode_joint);
-	joint->ode_joint = NULL;
-*/
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	auto j = reinterpret_cast<btTypedConstraint*>(joint->joint);
+	if (j)
+	{
+		ctx->dworld->removeConstraint(j);
+		delete j;
+	}
+	joint->joint = nullptr;
 }
 
 //bullet gives us a handy way to get/set motion states. we can cheesily update entity fields this way.
@@ -980,8 +919,8 @@ public:
 
 static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
-	bulletcontext_t *ctx = (bulletcontext_t*)world->rbe;
-	btRigidBody *body = NULL;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	btRigidBody *body = nullptr;
 //	btScalar mass;
 	float test;
 //	void *dataID;
@@ -1013,16 +952,16 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 //	vec_t spinlimit;
 	qboolean gravity;
 
-	geomtype = (int)ed->xv->geomtype;
-	solid = (int)ed->v->solid;
-	movetype = (int)ed->v->movetype;
+	geomtype = ed->xv->geomtype;
+	solid = ed->v->solid;
+	movetype = ed->v->movetype;
 	scale = ed->xv->scale?ed->xv->scale:1;
 	modelindex = 0;
-	model = NULL;
+	model = nullptr;
 
 	if (!geomtype)
 	{
-		switch((int)ed->v->solid)
+		switch(solid)
 		{
 		case SOLID_NOT:				geomtype = GEOMTYPE_NONE;		break;
 		case SOLID_TRIGGER:			geomtype = GEOMTYPE_NONE;		break;
@@ -1039,11 +978,11 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	switch(geomtype)
 	{
 	case GEOMTYPE_TRIMESH:
-		modelindex = (int)ed->v->modelindex;
+		modelindex = ed->v->modelindex;
 		model = world->Get_CModel(world, modelindex);
 		if (!model || model->loadstate != MLS_LOADED)
 		{
-			model = NULL;
+			model = nullptr;
 			modelindex = 0;
 		}
 		if (model)
@@ -1122,7 +1061,7 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		{
 		case GEOMTYPE_TRIMESH:
 //			foo Matrix4x4_Identity(ed->rbe.offsetmatrix);
-			geom = NULL;
+			geom = nullptr;
 			if (!model)
 			{
 				Con_Printf("entity %i (classname %s) has no model\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
@@ -1283,7 +1222,7 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	}
 	else
 	{
-		if (ed->rbe.body.body == NULL)
+		if (ed->rbe.body.body == nullptr)
 		{
 			btRigidBody::btRigidBodyConstructionInfo rbci(ed->rbe.mass, new QCMotionState(ed,world), (btCollisionShape*)ed->rbe.body.geom, btVector3(0, 0, 0));
 			body = new btRigidBody(rbci);
@@ -1432,7 +1371,7 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 //		r[1][2] = up[1];
 //		r[2][2] = up[2];
 
-		QCMotionState *ms = (QCMotionState*)body->getMotionState();
+		auto ms = (QCMotionState*)body->getMotionState();
 		ms->ReloadMotionState();
 		body->setMotionState(ms);
 		body->setLinearVelocity(btVector3(velocity[0], velocity[1], velocity[2]));
@@ -1616,7 +1555,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 
 static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gravity)
 {
-	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
 	if (world->rbe_hasphysicsents || ctx->hasextraobjs)
 	{
 		int iters;
@@ -1631,23 +1570,23 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 		// copy physics properties from entities to physics engine
 		for (i = 0;i < world->num_edicts;i++)
 		{
-			ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
+			ed = WEDICT_NUM_PB(world->progs, i);
 			if (!ED_ISFREE(ed))
 				World_Bullet_Frame_BodyFromEntity(world, ed);
 		}
 		// oh, and it must be called after all bodies were created
 		for (i = 0;i < world->num_edicts;i++)
 		{
-			ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
+			ed = WEDICT_NUM_PB(world->progs, i);
 			if (!ED_ISFREE(ed))
 				World_Bullet_Frame_JointFromEntity(world, ed);
 		}
 		while(ctx->cmdqueuehead)
 		{
-			rbecommandqueue_t *cmd = ctx->cmdqueuehead;
+			auto cmd = ctx->cmdqueuehead;
 			ctx->cmdqueuehead = cmd->next;
 			if (!cmd->next)
-				ctx->cmdqueuetail = NULL;
+				ctx->cmdqueuetail = nullptr;
 			World_Bullet_RunCmd(world, cmd);
 			Z_Free(cmd);
 		}
@@ -1676,23 +1615,12 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 
 		// clear the JointGroup now that we're done with it
 //		dJointGroupEmpty(world->rbe.contactgroup);
-
-		if (world->rbe_hasphysicsents)
-		{
-			// copy physics properties from physics engine to entities
-			for (i = 1;i < world->num_edicts;i++)
-			{
-				ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
-				if (!ED_ISFREE(ed))
-					World_Bullet_Frame_BodyToEntity(world, ed);
-			}
-		}
 	}
 }
 
 static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 {
-	btRigidBody *body = (btRigidBody*)(cmd->edict->rbe.body.body);
+	auto body = (btRigidBody*)(cmd->edict->rbe.body.body);
 	switch(cmd->command)
 	{
 	case RBECMD_ENABLE:
@@ -1725,15 +1653,15 @@ static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 
 static void QDECL World_Bullet_PushCommand(world_t *world, rbecommandqueue_t *val)
 {
-	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
-	rbecommandqueue_t *cmd = (rbecommandqueue_t*)BZ_Malloc(sizeof(*cmd));
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	auto cmd = (rbecommandqueue_t*)BZ_Malloc(sizeof(rbecommandqueue_t));
 	world->rbe_hasphysicsents = qtrue;	//just in case.
 	memcpy(cmd, val, sizeof(*cmd));
-	cmd->next = NULL;
+	cmd->next = nullptr;
 	//add on the end of the queue, so that order is preserved.
 	if (ctx->cmdqueuehead)
 	{
-		rbecommandqueue_t *ot = ctx->cmdqueuetail;
+		auto ot = ctx->cmdqueuetail;
 		ot->next = ctx->cmdqueuetail = cmd;
 	}
 	else
@@ -1742,8 +1670,8 @@ static void QDECL World_Bullet_PushCommand(world_t *world, rbecommandqueue_t *va
 
 static void QDECL World_Bullet_TraceEntity(world_t *world, wedict_t *ed, vec3_t start, vec3_t end, trace_t *trace)
 {
-	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
-	btCollisionShape *shape = (btCollisionShape*)ed->rbe.body.geom;
+	auto ctx = reinterpret_cast<bulletcontext_t*>(world->rbe);
+	auto shape = (btCollisionShape*)ed->rbe.body.geom;
 
 //btCollisionAlgorithm
 	class myConvexResultCallback : public btCollisionWorld::ConvexResultCallback
@@ -1764,7 +1692,7 @@ static void QDECL World_Bullet_TraceEntity(world_t *world, wedict_t *ed, vec3_t 
 			return 0;
 		}
 	} result;
-	result.m_impactent = NULL;
+	result.m_impactent = nullptr;
 	result.m_closestHitFraction = trace->fraction;
 
 	btTransform from(btMatrix3x3(1, 0, 0, 0, 1, 0, 0, 0, 1), btVector3(start[0], start[1], start[2]));
@@ -1785,14 +1713,14 @@ static void QDECL World_Bullet_TraceEntity(world_t *world, wedict_t *ed, vec3_t 
 
 static void QDECL World_Bullet_Start(world_t *world)
 {
-	struct bulletcontext_s *ctx;
+	bulletcontext_t *ctx;
 	if (world->rbe)
 		return;	//no thanks, we already have one. somehow.
 
 	if (!physics_bullet_enable->value)
 		return;
 
-	ctx = (struct bulletcontext_s*)BZ_Malloc(sizeof(*ctx));
+	ctx = reinterpret_cast<bulletcontext_t*>(BZ_Malloc(sizeof(*ctx)));
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->gworld = world;
 	ctx->funcs.End						= World_Bullet_End;
@@ -1869,7 +1797,7 @@ static bool World_Bullet_DoInit(void)
 {
 	if (!rbefuncs || !rbefuncs->RegisterPhysicsEngine)
 	{
-		rbefuncs = NULL;
+		rbefuncs = nullptr;
 		Con_Printf("Bullet plugin failed: Engine doesn't support physics engine plugins.\n");
 	}
 	else if (!rbefuncs->RegisterPhysicsEngine("Bullet", World_Bullet_Start))

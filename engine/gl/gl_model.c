@@ -2095,7 +2095,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #ifdef RUNTIMELIGHTING
 	if ((loadmodel->type == mod_brush && loadmodel->fromgame == fg_quake) || loadmodel->type == mod_heightmap)
 	{	//we only support a couple of formats. :(
-		if (!lightmodel && r_loadlits.value == 2 && ((!litdata&&!expdata) || (!luxdata && r_deluxemapping)))
+		if (!lightmodel && r_loadlits.value >= 2 && ((!litdata&&!expdata) || (!luxdata && r_deluxemapping)))
 		{
 			writelitfile = !litdata&&!expdata;
 			numlightdata = l->filelen;

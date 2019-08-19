@@ -180,7 +180,11 @@ cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "
 cvar_t r_hdr_irisadaptation_maxvalue		= CVAR	("r_hdr_irisadaptation_maxvalue", "4");
 cvar_t r_hdr_irisadaptation_fade_down		= CVAR	("r_hdr_irisadaptation_fade_down", "0.5");
 cvar_t r_hdr_irisadaptation_fade_up			= CVAR	("r_hdr_irisadaptation_fade_up", "0.1");
-cvar_t r_loadlits							= CVARF	("r_loadlit", "1", CVAR_ARCHIVE);
+#ifdef RUNTIMELIGHTING
+cvar_t r_loadlits							= CVARFD("r_loadlit", "1", CVAR_ARCHIVE, "Whether to load lit files.\n0: Do not load external rgb lightmap data.\n1: Load but don't generate.\n2: Generate ldr lighting (if none found).\n3: Generate hdr lighting (if none found).\nNote that regeneration of lightmap data may be unreliable if the map was made for more advanced lighting tools.\nDeluxemap information will also be generated, as appropriate.");
+#else
+cvar_t r_loadlits							= CVARFD("r_loadlit", "1", CVAR_ARCHIVE, "Whether to load lit files.");
+#endif
 cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= CVARD	("r_netgraph", "0", "Displays a graph of packet latency. A value of 2 will give additional info about what sort of data is being received from the server.");

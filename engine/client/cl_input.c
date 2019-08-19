@@ -359,7 +359,7 @@ static void IN_DoPostSelect(void)
 }
 //The weapon command autoselects a prioritised weapon like multi-arg impulse does.
 //however, it potentially makes the switch only on the next +attack.
-static void IN_Weapon (void)
+void IN_Weapon (void)
 {
 	int newimp;
 	int pnum = CL_TargettedSplit(false);
@@ -412,7 +412,7 @@ static void IN_Weapon (void)
 
 //+fire 8 7 [keycode]
 //does impulse 8 or 7 (according to held weapons) along with a +attack
-static void IN_FireDown(void)
+void IN_FireDown(void)
 {
 	int pnum = CL_TargettedSplit(false);
 	int k;
@@ -460,7 +460,7 @@ static void IN_DoWeaponHide(void)
 	}
 }
 //-fire should trigger an impulse 1 or something.
-static void IN_FireUp(void)
+void IN_FireUp(void)
 {
 	int k;
 	int impulse;
@@ -813,6 +813,16 @@ void CL_GatherButtons (usercmd_t *cmd, int pnum)
 	cmd->buttons |= bits;
 }
 
+void CL_ClearPendingCommands(void)
+{
+	size_t seat, i;
+	memset(&cl_pendingcmd, 0, sizeof(cl_pendingcmd));
+	for (seat = 0; seat < countof(cl_pendingcmd); seat++)
+	{
+		for (i=0 ; i<3 ; i++)
+			cl_pendingcmd[seat].angles[i] = ((int)(cl.playerview[seat].viewangles[i]*65536.0/360)&65535);
+	}
+}
 /*
 ================
 CL_AdjustAngles
@@ -1331,8 +1341,8 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 #ifdef CSQC_DAT
 		CSQC_Input_Frame(seat, cmd);
 #endif
-		memset(&cl_pendingcmd[seat], 0, sizeof(cl_pendingcmd[seat]));
 	}
+	CL_ClearPendingCommands();
 
 	//inputs are only sent once we receive an entity.
 	if (cls.signon == 4)
@@ -1761,7 +1771,6 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 
 		cl.outframes[i].senttime = realtime;
 		cl.outframes[i].latency = -1;
-		memset(&cl_pendingcmd[seat], 0, sizeof(cl_pendingcmd[seat]));
 
 		if (cmd->buttons)
 			cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
@@ -1776,6 +1785,7 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 				seq_hash);
 		}
 	}
+	CL_ClearPendingCommands();
 
 	if (cl.sendprespawn || !cls.protocol_q2)
 		buf->cursize = 0;	//tastyspleen.net is alergic.
@@ -1843,8 +1853,8 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 		if (!runningindepphys)
 			CSQC_Input_Frame(plnum, cmd);
 #endif
-		memset(&cl_pendingcmd[plnum], 0, sizeof(cl_pendingcmd[plnum]));
 	}
+	CL_ClearPendingCommands();
 
 	cmd = &cl.outframes[curframe].cmd[0];
 	if (cmd->cursor_screen[0] || cmd->cursor_screen[1] || cmd->cursor_entitynumber ||
@@ -2369,7 +2379,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		case CP_QUAKE3:
 			msecs -= (double)msecstouse;
 			CLQ3_SendCmd(&cl_pendingcmd[0]);
-			memset(&cl_pendingcmd[0], 0, sizeof(cl_pendingcmd[0]));
+			CL_ClearPendingCommands();
 
 			//don't bank too much, because that results in banking speedcheats
 			if (msecs > 200)
@@ -2590,13 +2600,6 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-mlook",		IN_MLookUp);
 
 #ifdef QUAKESTATS
-	//for pseudo-compat with ezquake.
-	//this stuff is kinda hacky and exploits instand weapon switching to basically try to cheat.
-	//for some reason this crap is standard, so not a cheat, despite obviously being a cheat.
-	Cmd_AddCommandD("weapon",		IN_Weapon, "Configures weapon priorities for the next +attack as an alternative for the impulse command");
-	Cmd_AddCommandD("+fire",		IN_FireDown, "'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.");
-	Cmd_AddCommand ("-fire",		IN_FireUp);
-
 	Cvar_Register (&cl_weaponhide, inputnetworkcvargroup);
 	Cvar_Register (&cl_weaponhide_preference, inputnetworkcvargroup);
 	Cvar_Register (&cl_weaponpreselect, inputnetworkcvargroup);

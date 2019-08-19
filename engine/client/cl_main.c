@@ -1604,6 +1604,54 @@ void CL_ResetFog(int ftype)
 	*/
 }
 
+static void CL_ReconfigureCommands(int newgame)
+{
+	static int oldgame;
+	extern void SCR_SizeUp_f (void);	//cl_screen
+	extern void SCR_SizeDown_f (void);	//cl_screen
+	extern void IN_Weapon (void);		//cl_input
+	extern void IN_FireDown (void);		//cl_input
+	extern void IN_FireUp (void);		//cl_input
+	extern void CL_Say_f (void);
+	extern void CL_SayTeam_f (void);
+	static const struct
+	{
+		const char *name;
+		void (*func) (void);
+		const char *description;
+		unsigned int problemgames; //1<<CP_*
+	} problemcmds[] =
+#define Q1 ((1u<<CP_QUAKEWORLD)|(1u<<CP_NETQUAKE))
+#define Q2 (1u<<CP_QUAKE2)
+#define Q3 (1u<<CP_QUAKE3)
+	{
+		{"sizeup",		SCR_SizeUp_f,	"Increase viewsize",	Q3},
+		{"sizedown",	SCR_SizeDown_f,	"Decrease viewsize",	Q3},
+
+		{"weapon",		IN_Weapon,		"Configures weapon priorities for the next +attack as an alternative for the impulse command", ~Q1},
+		{"+fire",		IN_FireDown,	"'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.", ~Q1},
+		{"-fire",		IN_FireUp,		NULL, ~Q1},
+
+		{"say",			CL_Say_f,		NULL, Q3},
+		{"say_team",	CL_SayTeam_f,	NULL, Q3},
+	};
+#undef Q1
+#undef Q2
+#undef Q3
+
+	size_t i;
+
+	newgame = 1<<newgame;
+	for (i = 0; i < countof(problemcmds); i++)
+	{
+		if ((problemcmds[i].problemgames & newgame) && !(problemcmds[i].problemgames & oldgame))
+			Cmd_RemoveCommand(problemcmds[i].name);
+		if (!(problemcmds[i].problemgames & newgame) && (problemcmds[i].problemgames & oldgame))
+			Cmd_AddCommandD(problemcmds[i].name, problemcmds[i].func, problemcmds[i].description);
+	}
+	oldgame = newgame;
+}
+
 /*
 =====================
 CL_ClearState
@@ -1624,6 +1672,8 @@ void CL_ClearState (qboolean gamestart)
 #define tolocalserver false
 #define SV_UnspawnServer()
 #endif
+
+	CL_ReconfigureCommands(cls.protocol);
 
 	CL_UpdateWindowTitle();
 

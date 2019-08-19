@@ -168,10 +168,7 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 #endif
 
 
-#ifdef FTEPLUGIN
-#define qfalse false
-#define qtrue true
-#else
+#ifndef FTEPLUGIN
 #ifdef __cplusplus
 typedef enum {qfalse, qtrue} qboolean;
 #else

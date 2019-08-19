@@ -115,12 +115,12 @@ typedef unsigned char 		qbyte;
 
 #ifdef __cplusplus
 typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
+//#define true qtrue
+//#define false qfalse
+#else
+typedef enum {qfalse, qtrue}	qboolean;
 #define true qtrue
 #define false qfalse
-#else
-typedef enum {false, true}	qboolean;
-#define qtrue true
-#define qfalse false
 #endif
 
 #define STRINGIFY2(s) #s

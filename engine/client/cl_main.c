@@ -1609,9 +1609,11 @@ static void CL_ReconfigureCommands(int newgame)
 	static int oldgame;
 	extern void SCR_SizeUp_f (void);	//cl_screen
 	extern void SCR_SizeDown_f (void);	//cl_screen
+#ifdef QUAKESTATS
 	extern void IN_Weapon (void);		//cl_input
 	extern void IN_FireDown (void);		//cl_input
 	extern void IN_FireUp (void);		//cl_input
+#endif
 	extern void CL_Say_f (void);
 	extern void CL_SayTeam_f (void);
 	static const struct
@@ -1627,11 +1629,11 @@ static void CL_ReconfigureCommands(int newgame)
 	{
 		{"sizeup",		SCR_SizeUp_f,	"Increase viewsize",	Q3},
 		{"sizedown",	SCR_SizeDown_f,	"Decrease viewsize",	Q3},
-
+#ifdef QUAKESTATS
 		{"weapon",		IN_Weapon,		"Configures weapon priorities for the next +attack as an alternative for the impulse command", ~Q1},
 		{"+fire",		IN_FireDown,	"'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.", ~Q1},
 		{"-fire",		IN_FireUp,		NULL, ~Q1},
-
+#endif
 		{"say",			CL_Say_f,		NULL, Q3},
 		{"say_team",	CL_SayTeam_f,	NULL, Q3},
 	};

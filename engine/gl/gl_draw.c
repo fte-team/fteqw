@@ -353,7 +353,7 @@ void GL_SetupFormats(void)
 			glfmtb(PTI_EAC_RG11_SNORM,		GL_COMPRESSED_SIGNED_RG11_EAC);
 	}
 
-	if (GL_CheckExtension("GL_KHR_texture_compression_astc_ldr") || (gl_config_gles && gl_config.glversion >= 3.2))
+	if (GL_CheckExtension("GL_KHR_texture_compression_astc_ldr") || (gl_config_gles && gl_config.glversion >= 3.2) || GL_CheckExtension("GL_ARB_ES3_2_compatibility"))
 	{	//astc ldr profile is a core part of gles 3.2
 		glfmtb(PTI_ASTC_4X4,			GL_COMPRESSED_RGBA_ASTC_4x4_KHR);
 		glfmtb(PTI_ASTC_4X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR);

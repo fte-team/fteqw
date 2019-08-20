@@ -665,40 +665,43 @@ static struct
 	XRRScreenResources	*res;		//all the resources on the system (including modes etc)
 	XRROutputInfo 		**outputs;	//list of info for all outputs
 	XRROutputInfo		*output;	//the output device that we're using
-	RRCrtc			crtc;		//the output device's screen that we're focusing on (modes and gamma)
-	XRRCrtcInfo		*crtcinfo;	//the info to restore
+	RRCrtc				crtc;		//the output device's screen that we're focusing on (modes and gamma)
+	XRRCrtcInfo			*crtcinfo;	//the info to restore
 	XRRModeInfo 		*crtcmode;	//the mode we want to use
 	XRRCrtcGamma		*origgamma;
 
-//	Status			(*pGetScreenSizeRange)	(Display *dpy, Window window, int *minwidth, int *minheight, int *maxwidth, int *maxheight);
-//	void			(*pSetScreenSize)	(Display *dpy, Window window, int width, int height, int mmwidth, int mmheight);
+//	Status				(*pGetScreenSizeRange)	(Display *dpy, Window window, int *minwidth, int *minheight, int *maxwidth, int *maxheight);
+//	void				(*pSetScreenSize)		(Display *dpy, Window window, int width, int height, int mmwidth, int mmheight);
 	XRRScreenResources	*(*pGetScreenResources)	(Display *dpy, Window window);
-	void			*(*pFreeScreenResources)(XRRScreenResources *);
-	XRROutputInfo 		*(*pGetOutputInfo)	(Display *dpy, XRRScreenResources *resources, RROutput output);
-	void			*(*pFreeOutputInfo)	(XRROutputInfo *outputinfo);
-	XRRCrtcInfo 		*(*pGetCrtcInfo)	(Display *dpy, XRRScreenResources *resources, RRCrtc crtc);
-	void			*(*pFreeCrtcInfo)	(XRRCrtcInfo *crtcinfo);
-	Status 			(*pSetCrtcConfig)	(Display *dpy, XRRScreenResources *resources, RRCrtc crtc, Time timestamp, int x, int y, RRMode mode, Rotation rotation, RROutput *output, int noutputs);
-	XRRCrtcGamma *		(*pGetCrtcGamma)	(Display *dpy, RRCrtc crtc);
-	void			(*pFreeGamma)		(XRRCrtcGamma *gamma);
-	void			(*pSetCrtcGamma)	(Display *dpy, RRCrtc crtc, XRRCrtcGamma *gamma);
+	void				*(*pFreeScreenResources)(XRRScreenResources *);
+	XRROutputInfo 		*(*pGetOutputInfo)		(Display *dpy, XRRScreenResources *resources, RROutput output);
+	void				*(*pFreeOutputInfo)		(XRROutputInfo *outputinfo);
+	XRRCrtcInfo 		*(*pGetCrtcInfo)		(Display *dpy, XRRScreenResources *resources, RRCrtc crtc);
+	void				*(*pFreeCrtcInfo)		(XRRCrtcInfo *crtcinfo);
+	Status				(*pSetCrtcConfig)		(Display *dpy, XRRScreenResources *resources, RRCrtc crtc, Time timestamp, int x, int y, RRMode mode, Rotation rotation, RROutput *output, int noutputs);
+	XRRCrtcGamma *		(*pGetCrtcGamma)		(Display *dpy, RRCrtc crtc);
+	void				(*pFreeGamma)			(XRRCrtcGamma *gamma);
+	void				(*pSetCrtcGamma)		(Display *dpy, RRCrtc crtc, XRRCrtcGamma *gamma);
+
+	//v1.3 has non-0 primary monitors.
+	RROutput			(*pGetOutputPrimary)	(Display *dpy, Window window);
 } xrandr;
 static qboolean XRandR_Init(void)
 {
 	static dllfunction_t xrandr_functable[] =
 	{
-		{(void**)&xrandr.pQueryExtension,		"XRRQueryExtension"},
-		{(void**)&xrandr.pQueryVersion,			"XRRQueryVersion"},
+		{(void**)&xrandr.pQueryExtension,				"XRRQueryExtension"},
+		{(void**)&xrandr.pQueryVersion,					"XRRQueryVersion"},
 
 		//1.0
-		{(void**)&xrandr.pGetScreenInfo,		"XRRGetScreenInfo"},
-		{(void**)&xrandr.pConfigTimes,			"XRRConfigTimes"},
-		{(void**)&xrandr.pConfigSizes,			"XRRConfigSizes"},
-		{(void**)&xrandr.pConfigRates,			"XRRConfigRates"},
+		{(void**)&xrandr.pGetScreenInfo,				"XRRGetScreenInfo"},
+		{(void**)&xrandr.pConfigTimes,					"XRRConfigTimes"},
+		{(void**)&xrandr.pConfigSizes,					"XRRConfigSizes"},
+		{(void**)&xrandr.pConfigRates,					"XRRConfigRates"},
 		{(void**)&xrandr.pConfigCurrentConfiguration,	"XRRConfigCurrentConfiguration"},
-		{(void**)&xrandr.pConfigCurrentRate,		"XRRConfigCurrentRate"},
+		{(void**)&xrandr.pConfigCurrentRate,			"XRRConfigCurrentRate"},
 		//1.1
-		{(void**)&xrandr.pSetScreenConfigAndRate,	"XRRSetScreenConfigAndRate"},
+		{(void**)&xrandr.pSetScreenConfigAndRate,		"XRRSetScreenConfigAndRate"},
 
 		{NULL, NULL}
 	};
@@ -744,6 +747,8 @@ static qboolean XRandR_Init(void)
 				    	)
 					xrandr.canmodechange12 = true;
 			}
+			if (xrandr.vmajor > 1 || (xrandr.vmajor == 1 && xrandr.vminor >= 3))
+				xrandr.pGetOutputPrimary		= Sys_GetAddressForName(xrandr.lib, "XRRGetOutputPrimary");
 
 			//FIXME: query monitor sizes and calculate dpi for vid.dpy_[x|y]
 			return true;
@@ -880,7 +885,7 @@ static void XRandR_Shutdown(void)
 }
 static qboolean XRandR_FindOutput(const char *name)
 {
-	XRROutputInfo *primary = NULL;
+	RROutput p;
 	int i;
 	if (!xrandr.canmodechange12)
 		return false;
@@ -894,6 +899,12 @@ static qboolean XRandR_FindOutput(const char *name)
 		for (i = 0; i < xrandr.res->noutput; i++)
 			xrandr.outputs[i] = xrandr.pGetOutputInfo(vid_dpy, xrandr.res, xrandr.res->outputs[i]);
 	}
+	if (xrandr.pGetOutputPrimary)
+		p = xrandr.pGetOutputPrimary(vid_dpy, DefaultRootWindow(vid_dpy));
+	else if (xrandr.res->noutput)
+		p = xrandr.res->outputs[0];
+	else
+		p = 0;
 	xrandr.output = NULL;
 	xrandr.crtc = None;
 	if (xrandr.origgamma)
@@ -909,19 +920,17 @@ static qboolean XRandR_FindOutput(const char *name)
 	{
 		if (xrandr.outputs[i]->connection != RR_Connected || !xrandr.outputs[i]->ncrtc)
 			continue;	//not usable...
-		if (!primary || (xrandr.outputs[i]->npreferred && !primary->npreferred))
-			primary = xrandr.outputs[i];
+		if (!xrandr.output && xrandr.res->outputs[i] == p)
+			xrandr.output = xrandr.outputs[i];
 		if (*name && !strncmp(xrandr.outputs[i]->name, name, xrandr.outputs[i]->nameLen))
 		{	//this is the one they asked for
 			xrandr.output = xrandr.outputs[i];
 			break;
 		}
 	}
-	if (!xrandr.output)
-		xrandr.output = primary;
 	if (xrandr.output)
 	{
-		xrandr.crtc = xrandr.output->crtcs[0];
+		xrandr.crtc = xrandr.output->crtc;
 		xrandr.crtcinfo = xrandr.pGetCrtcInfo(vid_dpy, xrandr.res, xrandr.crtc);
 		if (xrandr.crtcinfo)
 		{
@@ -943,7 +952,7 @@ static qboolean XRandr_PickScreen(const char *devicename, int *x, int *y, int *w
 		*y = c->y;
 		*width = c->width;
 		*height = c->height;
-		Con_Printf("Found monitor %s %ix%i +%i,%i\n", xrandr.output->name, c->width, c->height, c->x, c->y);
+		Con_Printf("Found monitor %s %ix%i %i,%i\n", xrandr.output->name, c->width, c->height, c->x, c->y);
 		return true;
 	}
 	return false;

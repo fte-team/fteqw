@@ -159,7 +159,7 @@ static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 		}
 	}
 }
-cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
+cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: clientside choice.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
 #endif
 
 #ifdef HAVE_CLIENT
@@ -372,6 +372,8 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 	if (a->type != b->type)
 	{
 		int i;
+		if (a->port != b->port)
+			return false;
 		if (a->type == NA_IP && b->type == NA_IPV6)
 		{
 			for (i = 0; i < 10; i++)
@@ -7193,6 +7195,28 @@ int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_gener
 	return found;
 }
 
+static enum addressscope_e NET_ClassifyAddressipv4(int ip, char **outdesc)
+{
+	int scope = ASCOPE_NET;
+	char *desc = NULL;
+	if ((ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
+		scope = ASCOPE_LINK, desc = "link-local";
+	else if ((ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
+		scope = ASCOPE_LAN, desc = "private";
+	else if ((ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
+		scope = ASCOPE_HOST, desc = "localhost";
+	else if ((ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
+		scope = ASCOPE_LAN, desc = "private";
+	else if ((ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
+		scope = ASCOPE_LAN, desc = "private";
+	else if ((ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
+		scope = ASCOPE_LAN, desc = "CGNAT";
+	else if (ip == BigLong(0x00000000))	//0.0.0.0/32
+		scope = ASCOPE_LAN, desc = "any";
+
+	*outdesc = desc;
+	return scope;
+}
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 {
 	int scope = ASCOPE_NET;
@@ -7217,24 +7241,15 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 			scope = ASCOPE_HOST, desc = "localhost";
 		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) == 0)	//::
 			scope = ASCOPE_NET, desc = "any";
+		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) == 0)	//::ffff:x.y.z.w
+		{
+			scope = NET_ClassifyAddressipv4(*(int*)(adr->address.ip6+12), &desc);
+			if (!desc)
+				desc = "vp-mapped";
+		}
 	}
 	else if (adr->type == NA_IP)
-	{
-		if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
-			scope = ASCOPE_LINK, desc = "link-local";
-		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
-			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
-			scope = ASCOPE_HOST, desc = "localhost";
-		else if ((*(int*)adr->address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
-			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
-			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
-			scope = ASCOPE_LAN, desc = "CGNAT";
-		else if (*(int*)adr->address.ip == BigLong(0x00000000))	//0.0.0.0/32
-			scope = ASCOPE_LAN, desc = "any";
-	}
+		scope = NET_ClassifyAddressipv4(*(int*)adr->address.ip, &desc);
 	if (outdesc)
 		*outdesc = desc;
 	return scope;

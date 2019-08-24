@@ -387,6 +387,16 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate)
 	return false;
 }
 
+int Netchan_CanBytes (netchan_t *chan, int rate)
+{
+	const double slop = 0.25;
+	if (chan->remote_address.type == NA_LOOPBACK)
+		return 0x7fffffff;	//don't ever drop packets due to possible routing problems when there is no routing.
+	if (!rate)
+		return 0x7fffffff;
+	return ((realtime+slop)-chan->cleartime)*rate;
+}
+
 void Netchan_Block (netchan_t *chan, int bytes, int rate)
 {
 	if (rate)
@@ -582,6 +592,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	unsigned	w1, w2;
 	int			i;
 	neterr_t e;
+
+	int dupes = chan->dupe;
+	int availbytes = Netchan_CanBytes(chan, rate);
 
 #ifdef NQPROT
 	if (chan->isnqprotocol)
@@ -789,10 +802,11 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #endif
 	{
 		int hsz = 10 + ((chan->sock == NS_CLIENT)?chan->qportsize:0); /*header size, if fragmentation is in use*/
+		dupes = min(chan->dupe, availbytes / send.cursize);
 
 		if ((!chan->pext_fragmentation))// || send.cursize < ((chan->mtu - hsz)&~7))
 		{	//vanilla sends
-			for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
+			for (i = -1; i < dupes && e == NETERR_SENT; i++)
 				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
 			send.cursize += send.cursize * i;
 
@@ -809,6 +823,8 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		{	//fte's fragmentaton protocol
 			int offset = 0, no;
 			qboolean more;
+			int outbytes = 0;
+			int fragbytes;
 
 			/*FIXME: splurge over a number of frames, if we have an outgoing reliable*/
 
@@ -842,9 +858,11 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 				if (e == NETERR_SENT)
 				{
-					for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
+					for (i = -1; i < dupes && e == NETERR_SENT; i++)
 					{
-						e = NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
+						fragbytes = (no - offset) + hsz;
+						e = NET_SendPacket (chan->sock, fragbytes, send.data + offset, &chan->remote_address);
+						outbytes += fragbytes;
 						if (e == NETERR_MTU && !offset && chan->mtu > 560)
 						{
 							chan->mtu -= 16;
@@ -857,6 +875,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				}
 				offset = no;
 			} while(more);
+			send.cursize = outbytes;
 		}
 	}
 
@@ -939,8 +958,8 @@ qboolean Netchan_Process (netchan_t *chan)
 	reliable_message = sequence >> 31;
 	reliable_ack = sequence_ack >> 31;
 
-	sequence &= ~(1<<31);	
-	sequence_ack &= ~(1<<31);	
+	sequence &= ~(1u<<31);
+	sequence_ack &= ~(1u<<31);
 
 	if (showpackets.value)
 		Con_Printf ("%f %s <-- s=%i(%i) a=%i(%i) %i%s\n"

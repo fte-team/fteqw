@@ -91,6 +91,7 @@ void R_NetGraph (void)
 	int		a, x, i;
 	float y;
 	float pi, po, bi, bo;
+	int errorbar;
 
 	vec2_t p[4];
 	vec2_t tc[4];
@@ -120,10 +121,10 @@ void R_NetGraph (void)
 		for (a=0 ; a<NET_TIMINGS ; a++)
 		{
 			i = (cl.movesequence-a) & NET_TIMINGSMASK;
-			if (packet_latency[i] != 10000)
+//			if (packet_latency[i] != 10000)
 				last = packet_latency[i];
-			else if (last >= 0)
-				last = -last;
+//			else if (last >= 0)
+//				last = -last;
 			R_LineGraph (NET_TIMINGS-1-a, last);
 		}
 	}
@@ -188,6 +189,7 @@ void R_NetGraph (void)
 	Vector2Set(p[3], 0,0);
 	Vector4Set(rgba[2], 0,0,0,0);
 	Vector4Set(rgba[3], 0,0,0,0);
+	errorbar = 1; //first is discontinuous
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
 		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);
@@ -196,13 +198,22 @@ void R_NetGraph (void)
 		Vector2Set(p[2+0], x+a,		y+(1-ngraph[a].height)*NET_GRAPHHEIGHT);
 		Vector2Set(p[2+1], x+a,		y+NET_GRAPHHEIGHT);
 
-		Vector2Set(tc[2+0], x/(float)NET_TIMINGS,		(1-ngraph[a].height));
-		Vector2Set(tc[2+1], x/(float)NET_TIMINGS,		1);
+		Vector2Set(tc[2+0], a/(float)NET_TIMINGS,		(1-ngraph[a].height));
+		Vector2Set(tc[2+1], a/(float)NET_TIMINGS,		1);
 		Vector4Set(rgba[2+0], ((ngraph[a].col>>0)&0xff)/255.0, ((ngraph[a].col>>8)&0xff)/255.0, ((ngraph[a].col>>16)&0xff)/255.0, ((ngraph[a].col>>24)&0xff)/255.0);
 		Vector4Copy(rgba[2+0], rgba[2+1]);
 
-		if (a)
-			R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
+		if (ngraph[a].height==1)
+			errorbar = 2;	//this one and the following should be discontiguous
+		if (errorbar --> 0)
+		{	//if this is a full-height bar, break the smooth curve and just make it discontinuous
+			p[0][1] = p[3][1];
+			p[1][1] = p[2][1];
+			Vector4Copy(rgba[3], rgba[0]);
+			Vector4Copy(rgba[2], rgba[1]);
+		}
+
+		R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
 	}
 #endif
 }

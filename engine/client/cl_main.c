@@ -2686,25 +2686,31 @@ void CL_Packet_f (void)
 	}
 
 
-	if (Cmd_FromGamecode())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
-	{						//unfortunatly, 50% of servers are badly configured.
+	if (Cmd_FromGamecode())	//some mvdsv servers stuffcmd a packet command which lets them know which ip the client is from.
+	{						//unfortunatly, 50% of servers are badly configured resulting in them poking local services that THEY MUST NOT HAVE ACCESS TO.
+		char *addrdesc;
+		char *realdesc;
 		if (cls.demoplayback)
 		{
 			Con_DPrintf ("Not sending realip packet from demo\n");
 			return;
 		}
 
-		if (adr.type == NA_IP)
-			if ((adr.address.ip[0] == 127 && adr.address.ip[1] == 0 && adr.address.ip[2] == 0 && adr.address.ip[3] == 1) ||
-				(adr.address.ip[0] == 0   && adr.address.ip[1] == 0 && adr.address.ip[2] == 0 && adr.address.ip[3] == 0))
+		if (!NET_CompareAdr(&adr, &cls.netchan.remote_address))
+		{
+			if (NET_ClassifyAddress(&adr, &addrdesc) < ASCOPE_LAN)
 			{
-				adr.address.ip[0] = cls.netchan.remote_address.address.ip[0];
-				adr.address.ip[1] = cls.netchan.remote_address.address.ip[1];
-				adr.address.ip[2] = cls.netchan.remote_address.address.ip[2];
-				adr.address.ip[3] = cls.netchan.remote_address.address.ip[3];
-				adr.port = cls.netchan.remote_address.port;
-				Con_Printf (CON_WARNING "Server is broken. Trying to send to server instead.\n");
+				if (NET_ClassifyAddress(&cls.netchan.remote_address, &realdesc) < ASCOPE_LAN)
+				{	//this isn't necessarily buggy... but its still a potential exploit so we need to block it regardless.
+					Con_Printf (CON_WARNING "Ignoring buggy %s realip request for %s server.\n", addrdesc, realdesc);
+				}
+				else
+				{
+					adr = cls.netchan.remote_address;
+					Con_Printf (CON_WARNING "Ignoring buggy %s realip request, sending to %s server instead.\n", addrdesc, realdesc);
+				}
 			}
+		}
 
 		cls.realserverip = adr;
 		Con_DPrintf ("Sending realip packet\n");

@@ -279,6 +279,30 @@ static qboolean JSON_Equals(json_t *t, const char *child, const char *expected)
 	return false;
 }
 #include <inttypes.h>
+static quintptr_t JSON_GetUInteger(json_t *t, const char *child, unsigned int fallback)
+{
+	if (child)
+		t = JSON_FindChild(t, child);
+	if (t)
+	{	//copy it to another buffer. can probably skip that tbh.
+		char tmp[MAX_QPATH];
+		char *trail;
+		size_t l = t->bodyend-t->bodystart;
+		quintptr_t r;
+		if (l > MAX_QPATH-1)
+			l = MAX_QPATH-1;
+		memcpy(tmp, t->bodystart, l);
+		tmp[l] = 0;
+		if (!strcmp(tmp, "false"))	//special cases, for booleans
+			return 0u;
+		if (!strcmp(tmp, "true"))	//special cases, for booleans
+			return 1u;
+		r = (quintptr_t)strtoull(tmp, &trail, 0);
+		if (!*trail)
+			return r;
+	}
+	return fallback;
+}
 static qintptr_t JSON_GetInteger(json_t *t, const char *child, int fallback)
 {
 	if (child)
@@ -286,7 +310,9 @@ static qintptr_t JSON_GetInteger(json_t *t, const char *child, int fallback)
 	if (t)
 	{	//copy it to another buffer. can probably skip that tbh.
 		char tmp[MAX_QPATH];
+		char *trail;
 		size_t l = t->bodyend-t->bodystart;
+		qintptr_t r;
 		if (l > MAX_QPATH-1)
 			l = MAX_QPATH-1;
 		memcpy(tmp, t->bodystart, l);
@@ -295,7 +321,9 @@ static qintptr_t JSON_GetInteger(json_t *t, const char *child, int fallback)
 			return 0;
 		if (!strcmp(tmp, "true"))	//special cases, for booleans
 			return 1;
-		return (qintptr_t)strtoll(tmp, NULL, 0);
+		r = (qintptr_t)strtoll(tmp, &trail, 0);
+		if (!*trail)
+			return r;
 	}
 	return fallback;
 }
@@ -588,7 +616,7 @@ static struct gltf_buffer *GLTF_GetBufferData(gltf_t *gltf, int bufferidx)
 {
 	json_t *b = JSON_FindIndexedChild(gltf->r, "buffers", bufferidx);
 	json_t *uri = JSON_FindChild(b, "uri");
-	size_t length = JSON_GetInteger(b, "byteLength", 0);
+	size_t length = JSON_GetUInteger(b, "byteLength", 0);
 	struct gltf_buffer *out;
 
 //	JSON_WarnIfChild(b, "name");
@@ -649,9 +677,9 @@ static qboolean GLTF_GetBufferViewData(gltf_t *gltf, int bufferview, struct gltf
 	buf = GLTF_GetBufferData(gltf, JSON_GetInteger(bv, "buffer", 0));
 	if (!buf)
 		return false;
-	offset = JSON_GetInteger(bv, "byteOffset", 0);
+	offset = JSON_GetUInteger(bv, "byteOffset", 0);
 	view->data = (char*)buf->data + offset;
-	view->length = JSON_GetInteger(bv, "byteLength", 0);	//required
+	view->length = JSON_GetUInteger(bv, "byteLength", 0);	//required
 	view->bytestride = JSON_GetInteger(bv, "byteStride", 0);
 	if (offset + view->length > buf->length)
 		return false;
@@ -691,7 +719,7 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, int accessorid, struct gltf_acces
 
 	if (!GLTF_GetBufferViewData(gltf, JSON_GetInteger(a, "bufferView", 0), &bv))
 		return false;
-	offset = JSON_GetInteger(a, "byteOffset", 0);
+	offset = JSON_GetUInteger(a, "byteOffset", 0);
 	if (offset > bv.length)
 		return false;
 	out->length = bv.length - offset;

@@ -374,8 +374,31 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 					break;
 
 				case AV_SAMPLE_FMT_FLTP:
-					auddatasize /= channels;
-					channels = 1;
+					//FIXME: support float audio internally.
+					{
+						float *in[2] = {(float*)ctx->pAFrame->data[0],(float*)ctx->pAFrame->data[1]};
+						signed short *out = (void*)auddata;
+						int v;
+						unsigned int i, c;
+						unsigned int frames = ctx->pAFrame->nb_samples;
+						if (channels > 2)
+							channels = 2;
+						for (i = 0; i < frames; i++)
+						{
+							for (c = 0; c < channels; c++)
+							{
+								v = (short)(in[c][i]*32767);
+								if (v < -32767)
+									v = -32767;
+								else if (v > 32767)
+									v = 32767;
+								*out++ = v;
+							}
+						}
+						width = sizeof(*out);
+						auddatasize = frames*width*channels;
+					}
+					break;
 				case AV_SAMPLE_FMT_FLT:
 					//FIXME: support float audio internally.
 					{
@@ -395,6 +418,7 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 						auddatasize/=2;
 						width = 2;
 					}
+					break;
 
 				case AV_SAMPLE_FMT_DBLP:
 					auddatasize /= channels;

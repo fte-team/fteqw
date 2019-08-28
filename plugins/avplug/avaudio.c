@@ -127,6 +127,7 @@ static void S_AV_ReadFrame(struct avaudioctx *ctx)
 			auddatasize/=2;
 			width = 2;
 		}
+		break;
 
 	case AV_SAMPLE_FMT_DBLP:
 		auddatasize /= channels;

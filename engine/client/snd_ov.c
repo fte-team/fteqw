@@ -199,10 +199,10 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 			if (dec->failed || start+length <= dec->decodedbytestart + dec->decodedbytecount)
 				break;
 
-			if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
+			if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 4096)	//expand if needed. 4096 seems to be the recommended size.
 			{
 		//		Con_Printf("Expand buffer\n");
-				dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + outspeed;
+				dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + max(outspeed, 4096); //over allocate, because we can.
 				dec->decodedbuffer = BZ_Realloc(dec->decodedbuffer, dec->decodedbufferbytes);
 			}
 
@@ -225,9 +225,10 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 			else
 			{
 				double scale = dec->srcspeed / (double)outspeed;
-				int decodesize = ceil((dec->decodedbufferbytes-dec->decodedbytecount) * scale);
-				/*round down...*/
-				decodesize &= ~(2 * dec->srcchannels - 1);
+				int decodesize = dec->decodedbufferbytes-dec->decodedbytecount; //bytes available
+				decodesize /= 2*dec->srcchannels; //convert bytes to frames
+				decodesize = floor(decodesize * scale); //round down, so that the SND_ResampleStream won't overflow the target buffer.
+				decodesize *= 2*dec->srcchannels; //convert from frames back to bytes
 				if (decodesize > dec->tempbufferbytes)
 				{
 					dec->tempbuffer = BZ_Realloc(dec->tempbuffer, decodesize);
@@ -259,8 +260,9 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 					2,
 					dec->srcchannels,
 					snd_linearresample_stream.ival);
-
-				bytesread = (int)floor(bytesread / scale) & ~(2 * dec->srcchannels - 1);
+				bytesread /= 2*dec->srcchannels;	//convert bytes to frames
+				bytesread = bytesread / scale;		//calculate the same ammount that SND_ResampleStream will have splurged (we should probably make the output count explicit).
+				bytesread *= 2*dec->srcchannels;	//convert frames to bytes
 			}
 
 			dec->decodedbytecount += bytesread;

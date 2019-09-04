@@ -3040,7 +3040,6 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 
 static void VK_PaintScreen(void)
 {
-	int uimenu;
 	qboolean nohud;
 	qboolean noworld;
 
@@ -3088,12 +3087,6 @@ static void VK_PaintScreen(void)
 	}
 */
 
-#ifdef VM_UI
-	uimenu = UI_MenuState();
-#else
-	uimenu = 0;
-#endif
-
 #ifdef TEXTEDITOR
 	if (editormodal)
 	{
@@ -3112,16 +3105,6 @@ static void VK_PaintScreen(void)
 		return;
 	}
 #endif
-	if (Media_ShowFilm())
-	{
-		M_Draw(0);
-		V_UpdatePalette (false);
-		R2D_BrightenScreen();
-#if defined(_WIN32) && defined(GLQUAKE)
-		Media_RecordFrame();
-#endif
-		return;
-	}
 
 //
 // do 3D refresh drawing, and then update the screen
@@ -3131,25 +3114,23 @@ static void VK_PaintScreen(void)
 	noworld = false;
 	nohud = false;
 
-#ifdef VM_CG
-	if (CG_Refresh())
+	if (topmenu && topmenu->isopaque)
 		nohud = true;
-	else
+#ifdef VM_CG
+	else if (CG_Refresh())
+		nohud = true;
 #endif
 #ifdef CSQC_DAT
-		if (CSQC_DrawView())
+	else if (CSQC_DrawView())
 		nohud = true;
-	else
 #endif
+	else
 	{
-		if (uimenu != 1)
+		if (r_worldentity.model && cls.state == ca_active)
+			V_RenderView (nohud);
+		else
 		{
-			if (r_worldentity.model && cls.state == ca_active)
- 				V_RenderView (nohud);
-			else
-			{
-				noworld = true;
-			}
+			noworld = true;
 		}
 	}
 
@@ -3175,7 +3156,7 @@ static void VK_PaintScreen(void)
 		nohud = true;
 	}
 
-	SCR_DrawTwoDimensional(uimenu, nohud);
+	SCR_DrawTwoDimensional(nohud);
 
 	V_UpdatePalette (false);
 	R2D_BrightenScreen();

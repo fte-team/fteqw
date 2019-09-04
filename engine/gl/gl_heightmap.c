@@ -12,7 +12,7 @@ See gl_terrain.h for terminology, networking notes, etc.
 
 #include "gl_terrain.h"
 
-static terrainfuncs_t terrainfuncs;
+static plugterrainfuncs_t terrainfuncs;
 struct patchvert_s
 {
 	vec3_t v;
@@ -6534,7 +6534,9 @@ void CL_Parse_BrushEdit(void)
 				else
 					mod->entityinfo[idx].keyvals = NULL;
 
+#ifdef CSQC_DAT
 				CSQC_MapEntityEdited(modelindex, idx, data);
+#endif
 			}
 		}
 	}
@@ -8442,8 +8444,10 @@ void Mod_Terrain_Reload_f(void)
 		Terr_PurgeTerrainModel(mod, false, true);
 }
 
-terrainfuncs_t *QDECL Terr_GetTerrainFuncs(void)
+plugterrainfuncs_t *Terr_GetTerrainFuncs(size_t structsize)
 {
+	if (structsize != sizeof(plugterrainfuncs_t))
+		return NULL;
 #ifdef SERVERONLY
 	return NULL;	//dedicated server builds have all the visual stuff stripped, which makes APIs too inconsistent. Generate then save. Or fix up the API...
 #else

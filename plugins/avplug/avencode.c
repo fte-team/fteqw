@@ -27,6 +27,8 @@
 #define AV_ERROR_MAX_STRING_SIZE 64
 #endif
 
+static plugfsfuncs_t *filefuncs;
+
 /*
 Most of the logic in here came from here:
 http://svn.gnumonks.org/tags/21c3-video/upstream/ffmpeg-0.4.9-pre1/output_example.c
@@ -669,7 +671,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	if (!(fmt->flags & AVFMT_NOFILE))
 	{
 		//okay, this is annoying, but I'm too lazy to figure out the issue I was having with avio stuff.
-		if (!pFS_NativePath(streamname, FS_GAMEONLY, ctx->abspath, sizeof(ctx->abspath)))
+		if (!filefuncs->NativePath(streamname, FS_GAMEONLY, ctx->abspath, sizeof(ctx->abspath)))
 		{
 			Con_Printf("Couldn't find system path for '%s'\n", streamname);
 			AVEnc_End(ctx);
@@ -747,10 +749,10 @@ static media_encoder_funcs_t encoderfuncs =
 };
 
 
-qintptr_t AVEnc_ExecuteCommand(qintptr_t *args)
+qboolean AVEnc_ExecuteCommand(qboolean isinsecure)
 {
 	char cmd[256];
-	pCmd_Argv(0, cmd, sizeof(cmd));
+	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 /*
 	if (!strcmp(cmd, ENCODERNAME"_configure"))
 	{
@@ -770,38 +772,38 @@ menutext 0 24 "Cancel"
 */
 	if (!strcmp(cmd, ENCODERNAME"_nvidia"))
 	{
-		pCvar_SetString("capturedriver", ENCODERNAME);	//be sure to use our encoder
-		pCvar_SetString(ENCODERNAME"_videocodec", "h264_nvenc");
-		pCvar_SetString("capturerate", "60");	//we should be able to cope with it, and the default of 30 sucks
-		pCvar_SetString("capturedemowidth", "1920");	//force a specific size, some codecs need multiples of 16 or whatever.
-		pCvar_SetString("capturedemoheight", "1080");	//so this avoids issues with various video codecs.
+		cvarfuncs->SetString("capturedriver", ENCODERNAME);	//be sure to use our encoder
+		cvarfuncs->SetString(ENCODERNAME"_videocodec", "h264_nvenc");
+		cvarfuncs->SetString("capturerate", "60");	//we should be able to cope with it, and the default of 30 sucks
+		cvarfuncs->SetString("capturedemowidth", "1920");	//force a specific size, some codecs need multiples of 16 or whatever.
+		cvarfuncs->SetString("capturedemoheight", "1080");	//so this avoids issues with various video codecs.
 
-		pCvar_SetString("capturesound", "1");
-		pCvar_SetString("capturesoundchannels", "2");
-		pCvar_SetString("capturesoundbits", "16");
+		cvarfuncs->SetString("capturesound", "1");
+		cvarfuncs->SetString("capturesoundchannels", "2");
+		cvarfuncs->SetString("capturesoundbits", "16");
 
 		Con_Printf(ENCODERNAME": now configured for nvidia's hardware encoder\n");
 		Con_Printf(ENCODERNAME": use ^[/capture foo.mp4^] or ^[/capturedemo foo.mvd foo.mkv^] commands to begin capturing\n");
 	}
 	if (!strcmp(cmd, ENCODERNAME"_defaults"))
 	{	//most formats will end up using the x264 encoder or something
-		pCvar_SetString(ENCODERNAME"_format_force", "");
-		pCvar_SetString(ENCODERNAME"_videocodec", "");
-		pCvar_SetString(ENCODERNAME"_videobitrate", "");
-		pCvar_SetString(ENCODERNAME"_videoforcewidth", "");
-		pCvar_SetString(ENCODERNAME"_videoforceheight", "");
-		pCvar_SetString(ENCODERNAME"_videopreset", "veryfast");
-		pCvar_SetString(ENCODERNAME"_video_crf", "");
-		pCvar_SetString(ENCODERNAME"_audiocodec", "");
-		pCvar_SetString(ENCODERNAME"_audiobitrate", "");
+		cvarfuncs->SetString(ENCODERNAME"_format_force", "");
+		cvarfuncs->SetString(ENCODERNAME"_videocodec", "");
+		cvarfuncs->SetString(ENCODERNAME"_videobitrate", "");
+		cvarfuncs->SetString(ENCODERNAME"_videoforcewidth", "");
+		cvarfuncs->SetString(ENCODERNAME"_videoforceheight", "");
+		cvarfuncs->SetString(ENCODERNAME"_videopreset", "veryfast");
+		cvarfuncs->SetString(ENCODERNAME"_video_crf", "");
+		cvarfuncs->SetString(ENCODERNAME"_audiocodec", "");
+		cvarfuncs->SetString(ENCODERNAME"_audiobitrate", "");
 
-		pCvar_SetString("capturedriver", ENCODERNAME);
-		pCvar_SetString("capturerate", "30");
-		pCvar_SetString("capturedemowidth", "0");
-		pCvar_SetString("capturedemoheight", "0");
-		pCvar_SetString("capturesound", "1");
-		pCvar_SetString("capturesoundchannels", "2");
-		pCvar_SetString("capturesoundbits", "16");
+		cvarfuncs->SetString("capturedriver", ENCODERNAME);
+		cvarfuncs->SetString("capturerate", "30");
+		cvarfuncs->SetString("capturedemowidth", "0");
+		cvarfuncs->SetString("capturedemoheight", "0");
+		cvarfuncs->SetString("capturesound", "1");
+		cvarfuncs->SetString("capturesoundchannels", "2");
+		cvarfuncs->SetString("capturesoundbits", "16");
 
 		Con_Printf(ENCODERNAME": capture settings reset to "ENCODERNAME" defaults\n");
 		Con_Printf(ENCODERNAME": Note that some codecs may have restrictions on video sizes\n");
@@ -812,32 +814,27 @@ menutext 0 24 "Cancel"
 
 qboolean AVEnc_Init(void)
 {
-	CHECKBUILTIN(FS_NativePath);
-	if (!BUILTINISVALID(FS_NativePath))
-	{
-		Con_Printf(ENCODERNAME": Engine too old\n");
-		return false;
-	}
-	if (!pPlug_ExportNative("Media_VideoEncoder", &encoderfuncs))
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	if (!cvarfuncs || !cmdfuncs || !filefuncs || !plugfuncs->ExportInterface("Media_VideoEncoder", &encoderfuncs, sizeof(encoderfuncs)))
 	{
 		Con_Printf(ENCODERNAME": Engine doesn't support media encoder plugins\n");
 		return false;
 	}
 
-	ffmpeg_format_force		= pCvar_GetNVFDG(ENCODERNAME"_format_force",		"",				0, "Forces the output container format. If blank, will guess based upon filename extension.", ENCODERNAME);
-	ffmpeg_videocodec		= pCvar_GetNVFDG(ENCODERNAME"_videocodec",			"",				0, "Forces which video encoder to use. If blank, guesses based upon container defaults.\nCommon names are libx264 (software), x264_nvenc (hardware accelerated)", ENCODERNAME);
-	ffmpeg_videobitrate		= pCvar_GetNVFDG(ENCODERNAME"_videobitrate",		"",				0, "Specifies the target video bitrate", ENCODERNAME);
-	ffmpeg_videoforcewidth	= pCvar_GetNVFDG(ENCODERNAME"_videoforcewidth",		"",				0, "Rescales the input video width. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
-	ffmpeg_videoforceheight	= pCvar_GetNVFDG(ENCODERNAME"_videoforceheight",	"",				0, "Rescales the input video height. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
-	ffmpeg_videopreset		= pCvar_GetNVFDG(ENCODERNAME"_videopreset",			"veryfast",		0, "Specifies which codec preset to use, for codecs that support such presets.", ENCODERNAME);
-	ffmpeg_video_crf		= pCvar_GetNVFDG(ENCODERNAME"_video_crf",			"",				0, "Specifies the 'Constant Rate Factor' codec setting.\nA value of 0 is 'lossless', a value of 51 is 'worst quality posible', a value of 23 is default.", ENCODERNAME);
-	ffmpeg_audiocodec		= pCvar_GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
-	ffmpeg_audiobitrate		= pCvar_GetNVFDG(ENCODERNAME"_audiobitrate",		"",				0, "Specifies the target audio bitrate", ENCODERNAME);
+	ffmpeg_format_force		= cvarfuncs->GetNVFDG(ENCODERNAME"_format_force",		"",				0, "Forces the output container format. If blank, will guess based upon filename extension.", ENCODERNAME);
+	ffmpeg_videocodec		= cvarfuncs->GetNVFDG(ENCODERNAME"_videocodec",			"",				0, "Forces which video encoder to use. If blank, guesses based upon container defaults.\nCommon names are libx264 (software), x264_nvenc (hardware accelerated)", ENCODERNAME);
+	ffmpeg_videobitrate		= cvarfuncs->GetNVFDG(ENCODERNAME"_videobitrate",		"",				0, "Specifies the target video bitrate", ENCODERNAME);
+	ffmpeg_videoforcewidth	= cvarfuncs->GetNVFDG(ENCODERNAME"_videoforcewidth",		"",				0, "Rescales the input video width. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
+	ffmpeg_videoforceheight	= cvarfuncs->GetNVFDG(ENCODERNAME"_videoforceheight",	"",				0, "Rescales the input video height. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
+	ffmpeg_videopreset		= cvarfuncs->GetNVFDG(ENCODERNAME"_videopreset",			"veryfast",		0, "Specifies which codec preset to use, for codecs that support such presets.", ENCODERNAME);
+	ffmpeg_video_crf		= cvarfuncs->GetNVFDG(ENCODERNAME"_video_crf",			"",				0, "Specifies the 'Constant Rate Factor' codec setting.\nA value of 0 is 'lossless', a value of 51 is 'worst quality posible', a value of 23 is default.", ENCODERNAME);
+	ffmpeg_audiocodec		= cvarfuncs->GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
+	ffmpeg_audiobitrate		= cvarfuncs->GetNVFDG(ENCODERNAME"_audiobitrate",		"",				0, "Specifies the target audio bitrate", ENCODERNAME);
 
-	if (Plug_Export("ExecuteCommand", AVEnc_ExecuteCommand))
+	if (plugfuncs->ExportFunction("ExecuteCommand", AVEnc_ExecuteCommand))
 	{
-//		pCmd_AddCommand(ENCODERNAME"_configure");
-		pCmd_AddCommand(ENCODERNAME"_nvidia");
+//		cmdfuncs->AddCommand(ENCODERNAME"_configure");
+		cmdfuncs->AddCommand(ENCODERNAME"_nvidia");
 	}
 
 	return true;

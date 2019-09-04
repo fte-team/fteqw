@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // release version
 #define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 6
+#define FTE_VER_MINOR 7
 
 #if defined(__APPLE__) && defined(__MACH__)
 	#define MACOSX
@@ -562,7 +562,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_UI
 #endif
 
-#if defined(VM_Q1) || defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)
+#if defined(VM_Q1) || defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER)
 	#define VM_ANY
 #endif
 

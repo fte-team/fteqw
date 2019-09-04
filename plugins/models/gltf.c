@@ -1,10 +1,11 @@
 #ifndef GLQUAKE
-#define GLQUAKE	//this is shit.
+//#define GLQUAKE	//this is shit.
 #endif
 #include "quakedef.h"
 #include "../plugin.h"
 #include "com_mesh.h"
-extern modplugfuncs_t *modfuncs;
+extern plugmodfuncs_t *modfuncs;
+extern plugfsfuncs_t *filefuncs;
 
 #ifdef SKELETALMODELS
 #define GLTFMODELS
@@ -355,6 +356,21 @@ static double JSON_GetIndexedFloat(json_t *t, unsigned int idx, double fallback)
 	Q_snprintf(idxname, sizeof(idxname), "%u", idx);
 	return JSON_GetFloat(t, idxname, fallback);
 }
+static const char *JSON_GetString(json_t *t, const char *child, char *buffer, size_t buffersize, const char *fallback)
+{
+	if (child)
+		t = JSON_FindChild(t, child);
+	if (t)
+	{	//copy it to another buffer. can probably skip that tbh.
+		size_t l = t->bodyend-t->bodystart;
+		if (l > buffersize-1)
+			l = buffersize-1;
+		memcpy(buffer, t->bodystart, l);
+		buffer[l] = 0;
+		return buffer;
+	}
+	return fallback;
+}
 
 static void JSON_GetPath(json_t *t, qboolean ignoreroot, char *buffer, size_t buffersize)
 {
@@ -510,6 +526,13 @@ static size_t JSON_ReadBody(json_t *t, char *out, size_t outsize)
 	return t->bodyend-t->bodystart;
 }
 
+
+
+
+
+
+
+
 //glTF 1.0 and 2.0 differ in that 1 uses names and 2 uses indexes. There's also some significant differences with materials.
 //we only support 2.0
 
@@ -523,6 +546,11 @@ struct gltf_buffer
 	qboolean malloced;
 	void *data;
 	size_t length;
+};
+struct galiasbone_gltf_s
+{	//stored in galiasinfo_t->ctx
+	double rmatrix[16];			//gah
+	double quat[4], scale[3], trans[3];	//annoying smeg
 };
 typedef struct gltf_s
 {
@@ -538,11 +566,7 @@ typedef struct gltf_s
 		int camera;
 		double amatrix[16];
 		double inverse[16];
-		struct
-		{
-			double rmatrix[16];			//gah
-			double quat[4], scale[3], trans[3];	//annoying smeg
-		} rel;
+		struct galiasbone_gltf_s rel;
 
 		struct {
 			struct gltf_accessor *input;
@@ -644,7 +668,7 @@ static struct gltf_buffer *GLTF_GetBufferData(gltf_t *gltf, int bufferidx)
 			char filename[MAX_QPATH];
 			JSON_ReadBody(uri, uritext, sizeof(uritext));
 			GLTF_RelativePath(gltf->mod->name, uritext, filename, sizeof(filename));
-			f = modfuncs->OpenVFS(filename, "rb", FS_GAME);
+			f = filefuncs->OpenVFS(filename, "rb", FS_GAME);
 			if (f)
 			{
 				out->length = VFS_GETLEN(f);
@@ -775,8 +799,8 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, int accessorid, struct gltf_acces
 	maxs = JSON_FindChild(a, "max");
 	for (j = 0; j < (out->type>>8)*(out->type&0xff); j++)
 	{	//'must' be set in various situations.
-		out->mins[j] = JSON_GetIndexedInteger(mins, j, 0); 
-		out->maxs[j] = JSON_GetIndexedInteger(maxs, j, 0);
+		out->mins[j] = JSON_GetIndexedFloat(mins, j, 0);
+		out->maxs[j] = JSON_GetIndexedFloat(maxs, j, 0);
 	}
 
 //	JSON_WarnIfChild(a, "sparse");
@@ -1125,29 +1149,61 @@ static texid_t GLTF_LoadTexture(gltf_t *gltf, int texture, unsigned int flags)
 	JSON_FlagAsUsed(sampler, "name");
 	JSON_FlagAsUsed(sampler, "extensions");
 
-	(void)minFilter;
 	switch(magFilter)
 	{
 	default:
 		break;
 	case 9728: //NEAREST
 		flags |= IF_NOMIPMAP|IF_NEAREST;
+		if (minFilter != 9728)
+			if (gltf->warnlimit --> 0)
+				Con_Printf(CON_WARNING"%s: mixed min/mag filters\n", gltf->mod->name);
 		break;
+	case 9986: // NEAREST_MIPMAP_LINEAR
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: mixed mag/mip filters\n", gltf->mod->name);
+		//fallthrough
+	case 9984: // NEAREST_MIPMAP_NEAREST
+		flags |= IF_NEAREST;
+		if (minFilter != 9728)
+			if (gltf->warnlimit --> 0)
+				Con_Printf(CON_WARNING"%s: mixed min/mag filters\n", gltf->mod->name);
+		break;
+
 	case 9729: //LINEAR
 		flags |= IF_NOMIPMAP|IF_LINEAR;
-		break;
-	case 9984: // NEAREST_MIPMAP_NEAREST
-	case 9986: // NEAREST_MIPMAP_LINEAR
-		flags |= IF_NEAREST;
+		if (minFilter != 9729)
+			if (gltf->warnlimit --> 0)
+				Con_Printf(CON_WARNING"%s: mixed min/mag filters\n", gltf->mod->name);
 		break;
 	case 9985: // LINEAR_MIPMAP_NEAREST
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: mixed mag/mip filters\n", gltf->mod->name);
+		//fallthrough
 	case 9987: // LINEAR_MIPMAP_LINEAR
 		flags |= IF_LINEAR;
+		if (minFilter != 9729)
+			if (gltf->warnlimit --> 0)
+				Con_Printf(CON_WARNING"%s: mixed min/mag filters\n", gltf->mod->name);
 		break;
 	}
-
-	if (wrapS == 33071 || wrapT == 33071)
+	if (wrapS == 10497 && wrapT == 10497)	//REPEAT
+		;
+	else if (wrapS == 33071 && wrapT == 33071)	//CLAMP_TO_EDGE
 		flags |= IF_CLAMP;
+	else if (wrapS == 33648 && wrapT == 33648)	//MIRRORED_REPEAT
+	{
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: MIRRORED_REPEAT wrap mode not supported\n", gltf->mod->name);
+	}
+	else
+	{
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: unsupported/mixed texture wrap modes %i,%i\n", gltf->mod->name, wrapS, wrapT);
+
+		if (wrapS == 33071 || wrapT == 33071)
+			flags |= IF_CLAMP;
+	}
 
 	flags |= IF_NOREPLACE;
 
@@ -1164,6 +1220,8 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	char alphaCutoffmodifier[128];
 	json_t *mat = JSON_FindIndexedChild(gltf->r, "materials", material);
 	galiasskin_t *ret;
+	char tmp[64];
+	const char *t;
 
 	json_t *nam, *unlit, *pbrsg, *pbrmr, *blinn;
 
@@ -1175,12 +1233,19 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 
 	doubleSided = JSON_GetInteger(mat, "doubleSided", false);
 	alphaCutoff = JSON_GetFloat(mat, "alphaCutoff", 0.5);
-	if (JSON_Equals(mat, "alphaMode", "MASK"))
+	t = JSON_GetString(mat, "alphaMode", tmp, sizeof(tmp), "OPAQUE");
+	if (!strcmp(t, "MASK"))
 		alphaMode = 1;
-	else if (JSON_Equals(mat, "alphaMode", "BLEND"))
+	else if (!strcmp(t, "BLEND"))
 		alphaMode = 2;
-	else //if (JSON_Equals(mat, "alphaMode", "OPAQUE"))
+	else if (!strcmp(t, "OPAQUE"))
 		alphaMode = 0;
+	else
+	{
+		alphaMode = 0;
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: unsupported alphaMode: %s\n", gltf->mod->name, t);
+	}
 
 	ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret));
 	ret->numframes = 1;
@@ -1271,13 +1336,16 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	}
 	else if (pbrsg)
 	{	//if this extension was used, then we can use rgb gloss instead of metalness stuff.
+		int occ = JSON_GetInteger(mat, "occlusionTexture.index", -1);	//.r
 		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, JSON_GetInteger(pbrsg, "diffuseTexture.index", -1), 0);
 		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, JSON_GetInteger(pbrsg, "specularGlossinessTexture.index", -1), 0);
+		if (occ != -1)
+			ret->frame->texnums.occlusion = GLTF_LoadTexture(gltf, occ, IF_NOSRGB);
 
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin#SG#VC#NOOCCLUDE%s\n"
+				"program defaultskin#SG#VC%s%s\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -1289,6 +1357,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"bemode rtlight rtlight_sg\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
+			(occ!=-1)?"#OCCLUDE":"",
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
@@ -1299,7 +1368,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 			JSON_GetFloat(pbrsg, "specularFactor.0", 1),
 				JSON_GetFloat(pbrsg, "specularFactor.1", 1),
 				JSON_GetFloat(pbrsg, "specularFactor.2", 1),
-			JSON_GetFloat(pbrsg, "glossinessFactor", 1)*32,	//this is fucked.
+			JSON_GetFloat(pbrsg, "glossinessFactor", 1),
 			JSON_GetFloat(mat, "emissiveFactor.0", 0),
 				JSON_GetFloat(mat, "emissiveFactor.1", 0),
 				JSON_GetFloat(mat, "emissiveFactor.2", 0)
@@ -1315,12 +1384,9 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 		occ = JSON_GetInteger(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index", occ);
 		mrt = JSON_GetInteger(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index", mrt);
 
-		if (occ != mrt && occ != -1)	//if its -1 then the mrt should have an unused channel set to 1. however, this isn't guarenteed...
-		{
-			occ = -1;	//not supported. fixme: support some weird loadtexture channel merging stuff
-			if (gltf->warnlimit --> 0)
-				Con_Printf(CON_WARNING"%s: Separate occlusion and metallicRoughness textures are not supported\n", gltf->mod->name);
-		}
+		//ideally we use the ORM.r for the occlusion map, but some people just love being annoying.
+		if (occ != mrt && occ != -1)
+			ret->frame->texnums.occlusion = GLTF_LoadTexture(gltf, occ, IF_NOSRGB);
 
 		//note: extensions.MSFT_packing_normalRoughnessMetallic.normalRoughnessMetallicTexture.index gives rg=normalxy, b=roughness, .a=metalic
 		//(would still need an ao map, and probably wouldn't work well as bc3 either)
@@ -1343,7 +1409,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"bemode rtlight rtlight_orm\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
-			(occ==-1)?"#NOOCCLUDE":"",
+			(occ==-1)?"#NOOCCLUDE":((occ!=mrt)?"#OCCLUDE":""),
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
@@ -1781,23 +1847,58 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], 
 
 struct gltf_animsampler
 {
-	struct gltf_accessor input;
-	struct gltf_accessor output;
+	enum {
+		AINTERP_LINEAR,	//(s)lerp
+		AINTERP_STEP,	//round down
+		AINTERP_CUBICSPLINE, //3 outputs per input, requires at least two inputs. messy.
+	} interptype;
+	struct gltf_accessor input;	//timestamps
+	struct gltf_accessor output;	//values
 };
+static void GLTF_Animation_Persist(gltf_t *gltf, struct gltf_accessor *accessor)
+{
+	model_t *mod = gltf->mod;
+	qbyte *newdata = modfuncs->ZG_Malloc(&mod->memgroup, accessor->length);
+	memcpy(newdata, accessor->data, accessor->length);
+	accessor->data = newdata;
+}
 static struct gltf_animsampler GLTF_AnimationSampler(gltf_t *gltf, json_t *samplers, int sampleridx, int elems)
 {
+	int outsperinput=1;
 	struct gltf_animsampler r;
 	json_t *sampler = JSON_FindIndexedChild(samplers, NULL, sampleridx);
+
+	char t[32];
+	const char *lerptype = JSON_GetString(sampler, "interpolation", t, sizeof(t), "LINEAR");
+	if (!strcmp(lerptype, "LINEAR"))
+		r.interptype = AINTERP_LINEAR;
+	else if (!strcmp(lerptype, "STEP"))
+		r.interptype = AINTERP_STEP;
+	else if (!strcmp(lerptype, "CUBICSPLINE"))
+	{
+		outsperinput = 3;
+		r.interptype = AINTERP_CUBICSPLINE;
+	}
+	else
+	{
+		Con_Printf("Unknown interpolation type %s\n", lerptype);
+		r.interptype = AINTERP_LINEAR;
+	}
 
 	GLTF_GetAccessor(gltf, JSON_GetInteger(sampler, "input", -1), &r.input);
 	GLTF_GetAccessor(gltf, JSON_GetInteger(sampler, "output", -1), &r.output);
 
-	if (!r.input.data || !r.output.data || r.input.count != r.output.count)
+	if (!r.input.data || !r.output.data || r.input.count*outsperinput != r.output.count)
 		memset(&r, 0, sizeof(r));
+	else
+	{
+		GLTF_Animation_Persist(gltf, &r.input);
+		GLTF_Animation_Persist(gltf, &r.output);
+	}
 	return r;
 }
 
-static float Anim_GetTime(struct gltf_accessor *in, int index)
+static float Anim_GetTime(const struct gltf_accessor *in, int index)
 {
 	//read the input sampler (to get timestamps)
 	switch(in->componentType)
@@ -1815,11 +1916,11 @@ static float Anim_GetTime(struct gltf_accessor *in, int index)
 	case 5126: //FLOAT
 		return *(float*)((qbyte*)in->data + in->bytestride*index);
 	default:
-		Con_Printf("Unsupported input component type\n");
+		Con_Printf("Unsupported input component type %i\n", in->componentType);
 		return 0;
 	}
 }
-static void Anim_GetVal(struct gltf_accessor *in, int index, float *result, int elems)
+static void Anim_GetVal(const struct gltf_accessor *in, int index, float *result, int elems)
 {
 	//read the input sampler (to get timestamps)
 	switch(in->componentType)
@@ -1849,58 +1950,136 @@ static void Anim_GetVal(struct gltf_accessor *in, int index, float *result, int 
 			result[elems] = ((float*)((qbyte*)in->data + in->bytestride*index))[elems];
 		break;
 	default:
-		Con_Printf("Unsupported output component type\n");
+		Con_Printf("Unsupported output component type %i\n", in->componentType);
 		break;
 	}
 }
-static void LerpAnimData(gltf_t *gltf, struct gltf_animsampler *samp, float time, float *result, int elems)
+static void QuaternionSlerp_(const vec4_t p, const vec4_t q, float t, vec4_t qt)
 {
-	float t1, t2;
-	float w1, w2;
-	float v1[4], v2[4];
-	int f1 = 0, f2, c;
+	int i;
+	float omega, cosom, sinom, sclp, sclq;
+	vec4_t flipped;
 
-	struct gltf_accessor *in = &samp->input;
-	struct gltf_accessor *out = &samp->output;
+	// decide if one of the quaternions is backwards
+	float a = 0;
+	float b = 0;
+	for (i = 0; i < 4; i++) {
+		a += (p[i]-q[i])*(p[i]-q[i]);
+		b += (p[i]+q[i])*(p[i]+q[i]);
+	}
+	if (a > b) {
+		for (i = 0; i < 4; i++) {
+			flipped[i] = -q[i];
+		}
+		q = flipped;
+	}
 
-	t1 = t2 = Anim_GetTime(in, f1);
-	for (f2 = 1; f2 < in->count; f2++)
+	cosom = p[0]*q[0] + p[1]*q[1] + p[2]*q[2] + p[3]*q[3];
+
+	if ((1.0 + cosom) > 0.00000001) {
+		if ((1.0 - cosom) > 0.00000001) {
+			omega = acos( cosom );
+			sinom = sin( omega );
+			sclp = sin( (1.0 - t)*omega) / sinom;
+			sclq = sin( t*omega ) / sinom;
+		}
+		else {
+			sclp = 1.0 - t;
+			sclq = t;
+		}
+		for (i = 0; i < 4; i++) {
+			qt[i] = sclp * p[i] + sclq * q[i];
+		}
+	}
+	else {
+		qt[0] = -p[1];
+		qt[1] = p[0];
+		qt[2] = -p[3];
+		qt[3] = p[2];
+		sclp = sin( (1.0 - t) * 0.5 * M_PI);
+		sclq = sin( t * 0.5 * M_PI);
+		for (i = 0; i < 4; i++) {
+			qt[i] = sclp * p[i] + sclq * qt[i];
+		}
+	}
+}
+static void LerpAnimData(const struct gltf_animsampler *samp, float time, float *result, int elems)
+{
+	float t0, t1;
+	float w0, w1;
+	float v0[4], v1[4];
+	int f0, f1, c;
+
+	const struct gltf_accessor *in = &samp->input;
+	const struct gltf_accessor *out = &samp->output;
+
+	t0 = t1 = Anim_GetTime(in, f1=f0=0);
+	while (time > t1 && f1 < in->count-1)
 	{
-		t2 = Anim_GetTime(in, f2);
-		if (t2 > time)
-			break;	//now have before and after
-		t1 = t2;
-		f1 = f2;
+		t0 = t1;
+		f0 = f1;
+		f1++;
+		t1 = Anim_GetTime(in, f1);
 	}
 
-	if (time <= t1)
-	{	//if before the first time, clamp it.
-		w1 = 1;
-		w2 = 0;
-	}
-	else if (time >= t2)
-	{	//if after tha last frame we could find, clamp it to the last.
-		w1 = 0;
-		w2 = 1;
-	}
-	else
-	{	//assume linear
-		w2 = (time-t1)/(t2-t1);
-//		if (1)	//step it. it'll still get lerped though. :(
-//			w2 = (w2>0.5)?1:0;
-		w1 = 1-w2;
-	}
-
-	if (w1 >= 1)
-		Anim_GetVal(out, f1, result, elems);
-	else if (w2 >= 1)
-		Anim_GetVal(out, f2, result, elems);
-	else
+	if (samp->interptype == AINTERP_CUBICSPLINE)
 	{
-		Anim_GetVal(out, f1, v1, elems);
-		Anim_GetVal(out, f2, v2, elems);
+		float step=t1-t0;
+		float t=bound(0, (time-t0)/step, 1);
+		float tt=t*t, ttt=tt*t;
+		//Hermite spline factors
+		float m0 = (2*ttt - 3*tt + 1);
+		float mb = (ttt - 2*tt + t)*step;
+		float m1 = (-2*ttt + 3*tt);
+		float ma = (ttt - tt)*step;
+		float a[4], b[4];
+
+		//get the relevant tangents+sample values
+		//<quote>When used with CUBICSPLINE interpolation, tangents (ak, bk) and values (vk) are grouped within keyframes:
+		//a1,a2,...an,v1,v2,...vn,b1,b2,...bn</quote>
+		//so ignore that and use avb,avb,avb groups...
+		Anim_GetVal(out, f1*3+0, a, elems);
+		Anim_GetVal(out, f0*3+1, v0, elems);
+		Anim_GetVal(out, f1*3+1, v1, elems);
+		Anim_GetVal(out, f0*3+2, b, elems);
+
+		//and compute the spline.
 		for (c = 0; c < elems; c++)
-			result[c] = v1[c]*w1 + w2*v2[c];
+			result[c] = m0*v0[c] + mb*b[c] + m1*v1[c] + ma*a[c];
+
+		//quats must be normalized.
+		if (elems == 4)
+		{
+			float len = sqrt(DotProduct4(result,result));
+			Vector4Scale(result, 1/len, result);
+		}
+		return;
+	}
+	else if (time <= t0)			//if before the first time, clamp it.
+		w1 = 0;
+	else if (time >= t1)	//if after tha last frame we could find, clamp it to the last.
+		w1 = 1;
+	else if (samp->interptype == AINTERP_LINEAR)
+		w1 = (time-t0)/(t1-t0);
+	else //if (samp->interptype == AINTERP_STEP)
+		w1 = 0;
+
+	if (w1 <= 0)
+		Anim_GetVal(out, f0, result, elems);
+	else if (w1 >= 1)
+		Anim_GetVal(out, f1, result, elems);
+	else
+	{
+		Anim_GetVal(out, f0, v0, elems);
+		Anim_GetVal(out, f1, v1, elems);
+		if (elems == 4)
+			QuaternionSlerp_(v0, v1, w1, result);
+		else
+		{
+			w0 = 1-w1;
+			for (c = 0; c < elems; c++)
+				result[c] = v0[c]*w0 + w1*v1[c];
+		}
 	}
 }
 
@@ -1953,6 +2132,63 @@ static void GLTF_RewriteBoneTree(gltf_t *gltf)
 	}
 }
 
+struct galiasanimation_gltf_s
+{	//stored in galiasanimation_t->boneofs
+	float duration;
+	struct
+	{
+		struct gltf_animsampler rot,scale,trans;
+	} bone[1];
+};
+static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanimation_t *anim, float time, float *bonematrix, int numbones)
+{
+	const struct galiasbone_gltf_s *defbone = surf->ctx;
+	int j = 0, l;
+	const struct galiasanimation_gltf_s *a = anim->boneofs;
+
+	if (anim->loop && time >= a->duration)
+		time = time - a->duration*floor(time/a->duration);
+
+	for (j = 0; j < numbones; j++, bonematrix+=12)
+	{
+		float scale[3];
+		float rot[4];
+		float trans[3];
+		//eww, weird inheritance crap.
+		if (a->bone[j].rot.input.data || a->bone[j].scale.input.data || a->bone[j].trans.input.data)
+		{
+			VectorCopy(defbone[j].scale, scale);
+			Vector4Copy(defbone[j].quat, rot);
+			VectorCopy(defbone[j].trans, trans);
+
+			if (a->bone[j].rot.input.data)
+				LerpAnimData(&a->bone[j].rot, time, rot, 4);
+			if (a->bone[j].scale.input.data)
+				LerpAnimData(&a->bone[j].scale, time, scale, 3);
+			if (a->bone[j].trans.input.data)
+				LerpAnimData(&a->bone[j].trans, time, trans, 3);
+			//figure out the bone matrix...
+			modfuncs->GenMatrixPosQuat4Scale(trans, rot, scale, bonematrix);
+		}
+		else
+		{	//nothing animated, use what we calculated earlier.
+			for (l = 0; l < 12; l++)
+				bonematrix[l] = defbone[j].rmatrix[l];
+		}
+		if (surf->ofsbones[j].parent < 0)
+		{	//rotate any root bones from gltf to quake's orientation.
+			float fnar[12];
+			static float toquake[12]={
+				0,0,GLTFSCALE, 0,
+				GLTFSCALE,0,0, 0,
+				0,GLTFSCALE,0, 0};
+			memcpy(fnar, bonematrix, sizeof(fnar));
+			modfuncs->ConcatTransforms((void*)toquake, (void*)fnar, (void*)bonematrix);
+		}
+	}
+	return bonematrix - j*12;
+}
+
 //okay, so gltf is some weird scene thing.
 //mostly there should be some default scene, so we'll just use that.
 //we do NOT supported nested nodes right now...
@@ -1982,6 +2218,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 	galiasanimation_t *framegroups = NULL;
 	unsigned int numframegroups = 0;
 	float *baseframe;
+	struct galiasbone_gltf_s *gltfbone;
 	memset(&gltf, 0, sizeof(gltf));
 	gltf.bonemap = malloc(sizeof(*gltf.bonemap)*MAX_BONES);
 	gltf.bones = malloc(sizeof(*gltf.bones)*MAX_BONES);
@@ -2088,6 +2325,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 
 		GLTF_RewriteBoneTree(&gltf);
 
+		gltfbone = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*gltfbone)*gltf.numbones);
 		bone = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*bone)*gltf.numbones);
 		baseframe = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(float)*12*gltf.numbones);
 		for (j = 0; j < gltf.numbones; j++)
@@ -2103,16 +2341,13 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				baseframe[j*12+k] = gltf.bones[j].amatrix[k];
 				bone[j].inverse[k] = gltf.bones[j].inverse[k];
 			}
+			gltfbone[j] = gltf.bones[j].rel;
 		}
 
 		for(anim = JSON_FindIndexedChild(gltf.r, "animations", 0); anim; anim = anim->sibling)
 			numframegroups++;
 		if (numframegroups)
 		{
-			struct
-			{
-				struct gltf_animsampler rot,scale,trans;
-			} *b = malloc(sizeof(*b)*gltf.numbones);
 			framegroups = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*framegroups)*numframegroups);
 			for (k = 0; k < numframegroups; k++)
 			{
@@ -2120,9 +2355,9 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				json_t *anim = JSON_FindIndexedChild(gltf.r, "animations", k);
 				json_t *chan;
 				json_t *samps = JSON_FindChild(anim, "samplers");
-				int f, l;
+//				int f, l;
 				float maxtime = 0;
-				memset(b, 0, sizeof(*b)*gltf.numbones);
+				struct galiasanimation_gltf_s *a = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*a)+sizeof(a->bone[0])*(gltf.numbones-1));
 
 				if (!JSON_ReadBody(JSON_FindChild(anim, "name"), fg->name, sizeof(fg->name)))
 				{
@@ -2152,11 +2387,11 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 					s = GLTF_AnimationSampler(&gltf, samps, sampler, 4);
 					maxtime = max(maxtime, s.input.maxs[0]);
 					if (JSON_Equals(path, NULL, "rotation"))
-						b[bone].rot = s;
+						a->bone[bone].rot = s;
 					else if (JSON_Equals(path, NULL, "scale"))
-						b[bone].scale = s;
+						a->bone[bone].scale = s;
 					else if (JSON_Equals(path, NULL, "translation"))
-						b[bone].trans = s;
+						a->bone[bone].trans = s;
 					else if (gltf.warnlimit --> 0)
 					{	//these are unsupported
 						if (JSON_Equals(path, NULL, "weights"))	//morph weights
@@ -2166,6 +2401,8 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 					}
 				}
 
+				a->duration = maxtime;
+
 				//TODO: make a guess at the framerate according to sampler intervals
 				fg->rate = 60;
 				fg->numposes = max(1, maxtime*fg->rate);
@@ -2173,6 +2410,9 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 					fg->rate = fg->numposes/maxtime;	//fix up the rate so we hit the exact end of the animation (so it doesn't have to be quite so exact).
 
 				fg->skeltype = SKEL_RELATIVE;
+				fg->GetRawBones = GLTF_AnimateBones;
+				fg->boneofs = a;
+#if 0
 				fg->boneofs = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*fg->boneofs)*12*gltf.numbones*fg->numposes);
 
 				for (f = 0; f < fg->numposes; f++)
@@ -2192,11 +2432,11 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 							VectorCopy(gltf.bones[j].rel.trans, trans);
 
 							if (b[j].rot.input.data)
-								LerpAnimData(&gltf, &b[j].rot, time, rot, 4);
+								LerpAnimData(&b[j].rot, time, rot, 4);
 							if (b[j].scale.input.data)
-								LerpAnimData(&gltf, &b[j].scale, time, scale, 3);
+								LerpAnimData(&b[j].scale, time, scale, 3);
 							if (b[j].trans.input.data)
-								LerpAnimData(&gltf, &b[j].trans, time, trans, 3);
+								LerpAnimData(&b[j].trans, time, trans, 3);
 							//figure out the bone matrix...
 							modfuncs->GenMatrixPosQuat4Scale(trans, rot, scale, bonematrix);
 						}
@@ -2214,8 +2454,8 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 						}
 					}
 				}
+#endif
 			}
-			free(b);
 		}
 
 		for(surf = mod->meshinfo; surf; surf = surf->nextsurf)
@@ -2223,6 +2463,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			surf->shares_bones = 0;
 			surf->numbones = gltf.numbones;
 			surf->ofsbones = bone;
+			surf->ctx = gltfbone;
 			surf->baseframeofs = baseframe;
 			surf->ofsanimations = framegroups;
 			surf->numanimations = numframegroups;

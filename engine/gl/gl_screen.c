@@ -59,7 +59,6 @@ needs almost the entire 256k of stack space!
 void SCR_DrawCursor(void);
 qboolean GLSCR_UpdateScreen (void)
 {
-	int uimenu;
 	qboolean nohud;
 	qboolean noworld;
 	extern cvar_t vid_srgb;
@@ -127,11 +126,6 @@ qboolean GLSCR_UpdateScreen (void)
 	Shader_DoReload();
 
 	qglDisable(GL_SCISSOR_TEST);
-#ifdef VM_UI
-	uimenu = UI_MenuState();
-#else
-	uimenu = 0;
-#endif
 
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -149,14 +143,6 @@ qboolean GLSCR_UpdateScreen (void)
 	}
 	else
 #endif
-	if (Media_ShowFilm())
-	{
-		M_Draw(0);
-		V_UpdatePalette (false);
-		R2D_BrightenScreen();
-		Media_RecordFrame();
-	}
-	else
 	{
 		//
 		// do 3D refresh drawing, and then update the screen
@@ -174,25 +160,23 @@ qboolean GLSCR_UpdateScreen (void)
 			depthcleared = true;
 		}
 
-#ifdef VM_CG
-		if (CG_Refresh())
+		if (topmenu && topmenu->isopaque)
 			nohud = true;
-		else
+#ifdef VM_CG
+		else if (CG_Refresh())
+			nohud = true;
 #endif
 #ifdef CSQC_DAT
-			if (CSQC_DrawView())
+		else if (CSQC_DrawView())
 			nohud = true;
-		else
 #endif
+		else
 		{
-			if (uimenu != 1)
+			if (r_worldentity.model && cls.state == ca_active)
+				V_RenderView (nohud);
+			else
 			{
-				if (r_worldentity.model && cls.state == ca_active)
-					V_RenderView (nohud);
-				else
-				{
-					noworld = true;
-				}
+				noworld = true;
 			}
 		}
 
@@ -212,7 +196,7 @@ qboolean GLSCR_UpdateScreen (void)
 			nohud = true;
 		}
 
-		SCR_DrawTwoDimensional(uimenu, nohud);
+		SCR_DrawTwoDimensional(nohud);
 
 		V_UpdatePalette (false);
 		R2D_BrightenScreen();

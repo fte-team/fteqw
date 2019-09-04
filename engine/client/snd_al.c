@@ -127,6 +127,7 @@ static AL_API void (AL_APIENTRY *palSourceQueueBuffers)(ALuint source, ALsizei n
 static AL_API void (AL_APIENTRY *palSourceUnqueueBuffers)(ALuint source, ALsizei n, ALuint* buffers);
 
 //for extensions like efx
+static AL_API ALboolean (AL_APIENTRY *palIsExtensionPresent)(const ALchar *fextame);
 static AL_API void*(AL_APIENTRY *palGetProcAddress)(const ALchar *fname);
 
 #define AL_NONE                                   0
@@ -288,6 +289,10 @@ static AL_API ALvoid (AL_APIENTRY *palEffectf)(ALuint effect, ALenum param, ALfl
 static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, const ALfloat *pflValues);
 #endif
 
+//AL_EXT_float32
+#define AL_FORMAT_MONO_FLOAT32                      0x10010
+#define AL_FORMAT_STEREO_FLOAT32                    0x10011
+
 #define SOUNDVARS SDRVNAME" variables"
 
 
@@ -342,6 +347,10 @@ typedef struct
 	ALfloat ListenVel[3];	// Velocity of the listener.
 	ALfloat ListenOri[6];	// Orientation of the listener. (first 3 elements are "at", second 3 are "up")
 
+#ifdef MIXER_F32
+	qboolean canfloataudio;
+#endif
+
 	int cureffect;
 	ALuint effectslot;			//the global reverb slot
 	size_t numeffecttypes;
@@ -384,7 +393,7 @@ static void PrintALError(char *string)
 	Con_Printf("OpenAL - %s: %x: %s\n",string,err,text);
 }
 
-static qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
+static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache_t *sc, float volume)
 {
 	unsigned int fmt;
 	unsigned int size;
@@ -421,6 +430,22 @@ static qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float vol
 			size = sc->length*2;
 		}
 		break;
+#ifdef MIXER_F32
+	case 4:
+		if (!oali->canfloataudio)
+			return false;
+		if (sc->numchannels == 2)
+		{
+			fmt = AL_FORMAT_STEREO_FLOAT32;
+			size = sc->length*8;
+		}
+		else
+		{
+			fmt = AL_FORMAT_MONO_FLOAT32;
+			size = sc->length*4;
+		}
+		break;
+#endif
 	default:
 		return false;
 	}
@@ -461,6 +486,20 @@ static qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float vol
 			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
 			free(tmp);
 		}
+#ifdef MIXER_F32
+		else if (sc->width == 4)
+		{
+			float *tmp = malloc(size);
+			float *src = (float*)sc->data;
+			int i;
+			for (i = 0; i < (size>>1); i++)
+			{
+				tmp[i] = src[i]*volume;	//signed. oversaturation isn't my problem
+			}
+			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+			free(tmp);
+		}
+#endif
 	}
 	else
 	{
@@ -476,7 +515,7 @@ static qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float vol
 			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
 			free(tmp);
 		}
-		else if (sc->width == 2)
+		else if (sc->width == 2 || sc->width == 4)
 		{
 #if 0
 			short *tmp = malloc(size);
@@ -762,7 +801,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 						{
 							//build a buffer with it and queue it up.
 							//buffer will be purged later on when its unqueued
-							OpenAL_LoadCache(&buf, &sbuf, max(1,cvolume));
+							OpenAL_LoadCache(oali, &buf, &sbuf, max(1,cvolume));
 							palSourceQueueBuffers(src, 1, &buf);
 						}
 						else
@@ -774,7 +813,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 							silence.data = NULL;
 							silence.length = 0.1 * silence.speed;
 							silence.soundoffset = 0;
-							OpenAL_LoadCache(&buf, &silence, 1);
+							OpenAL_LoadCache(oali, &buf, &silence, 1);
 							palSourceQueueBuffers(src, 1, &buf);
 						}
 						queuedbufs++;
@@ -803,7 +842,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 							silence.data = NULL;
 							silence.length = 0.1 * silence.speed;
 							silence.soundoffset = 0;
-							OpenAL_LoadCache(&buf, &silence, 1);
+							OpenAL_LoadCache(oali, &buf, &silence, 1);
 							palSourceQueueBuffers(src, 1, &buf);
 							queuedbufs++;
 						}
@@ -828,7 +867,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			{
 				if (!sfx->decoder.buf)
 					return;
-				if (!OpenAL_LoadCache(&sfx->openal_buffer, sfx->decoder.buf, 1))
+				if (!OpenAL_LoadCache(oali, &sfx->openal_buffer, sfx->decoder.buf, 1))
 					return;
 				palSourcei(src, AL_BUFFER, sfx->openal_buffer);
 			}
@@ -1016,6 +1055,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{(void*)&palSpeedOfSound, "alSpeedOfSound"},
 		{(void*)&palDistanceModel, "alDistanceModel"},
 
+		{(void*)&palIsExtensionPresent, "alIsExtensionPresent"},
 		{(void*)&palGetProcAddress, "alGetProcAddress"},
 		{(void*)&palGetSourcei, "alGetSourcei"},
 		{(void*)&palSourceQueueBuffers, "alSourceQueueBuffers"},
@@ -1383,6 +1423,9 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 	sc->Submit = OpenAL_Submit;
 	sc->GetDMAPos = OpenAL_GetDMAPos;
 
+#ifdef MIXER_F32
+	oali->canfloataudio = palIsExtensionPresent("AL_EXT_float32");
+#endif
 
 	sc->inactive_sound = true;
 	sc->selfpainting = true;

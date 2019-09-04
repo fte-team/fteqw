@@ -56,9 +56,19 @@ client compat:
 		otherwise works.
 */
 
-#include "../plugin.h"
-#include <time.h>
 #include "xmpp.h"
+#include <time.h>
+
+static plugsubconsolefuncs_t *confuncs;
+static plug2dfuncs_t *drawfuncs;	//needed for avatars.
+plugnetfuncs_t *netfuncs;
+plugfsfuncs_t *filefuncs;
+static plugclientfuncs_t *clientfuncs;	//for more accurate presence info.
+static struct
+{
+	int width;
+	int height;
+} pvid;
 
 //#define USE_GOOGLE_MAIL_NOTIFY
 
@@ -72,11 +82,11 @@ client compat:
 #ifdef JINGLE
 icefuncs_t *piceapi;
 #endif
-qboolean jclient_needreadconfig;
-qboolean jclient_updatebuddylist;
-jclient_t *jclient_action_cl;
-buddy_t *jclient_action_buddy;
-enum
+static qboolean jclient_needreadconfig;
+static qboolean jclient_updatebuddylist;
+static jclient_t *jclient_action_cl;
+static buddy_t *jclient_action_buddy;
+static enum
 {
 	ACT_NONE,
 	ACT_OAUTH,
@@ -101,13 +111,13 @@ enum
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
-void (*Con_TrySubPrint)(const char *conname, const char *message);
-void Fallback_ConPrint(const char *conname, const char *message)
+static qboolean (*Con_TrySubPrint)(const char *conname, const char *message);
+qboolean Fallback_ConPrint(const char *conname, const char *message)
 {
-	pCon_Print(message);
+	plugfuncs->Print(message);
+	return true;
 }
 
-void XMPP_ConversationPrintf(const char *context, const char *title, char *format, ...);
 void Con_SubPrintf(const char *subname, const char *format, ...)
 {
 	va_list		argptr;
@@ -698,10 +708,10 @@ qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)
 #endif
 
 
-char base64[((4096+3)*4/3)+1];
-unsigned int base64_len;	//current output length
-unsigned int base64_cur;	//current pending value
-unsigned int base64_bits;//current pending bits
+static char base64[((4096+3)*4/3)+1];
+static unsigned int base64_len;	//current output length
+static unsigned int base64_cur;	//current pending value
+static unsigned int base64_bits;//current pending bits
 char Base64_From64(int byt)
 {
 	if (byt >= 0 && byt < 26)
@@ -737,7 +747,7 @@ void Base64_Byte(unsigned int byt)
 
 void Base64_Add(const char *s, int len)
 {
-	unsigned char *us = (unsigned char *)s;
+	const unsigned char *us = (const unsigned char *)s;
 	while(len-->0)
 		Base64_Byte(*us++);
 }
@@ -839,7 +849,7 @@ void JCL_Command(int accid, char *consolename);
 void JCL_LoadConfig(void);
 void JCL_WriteConfig(void);
 
-struct {
+static struct {
 	char *names;
 	unsigned int cap;
 } capnames[] =
@@ -856,92 +866,85 @@ struct {
 	{NULL}
 };
 
-
-qintptr_t JCL_ExecuteCommand(qintptr_t *args)
+qboolean JCL_ExecuteCommand(qboolean isinsecure)
 {
 	char cmd[256];
-	pCmd_Argv(0, cmd, sizeof(cmd));
+	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, COMMANDPREFIX) || !strcmp(cmd, COMMANDPREFIX2) || !strcmp(cmd, COMMANDPREFIX3))
 	{
-		if (!args[0] || pCmd_Argc() == 1)
+		if (!isinsecure || cmdfuncs->Argc() == 1)
 			JCL_Command(0, "");
 		return true;
 	}
 	if (!strncmp(cmd, COMMANDPREFIX, strlen(COMMANDPREFIX)))
 	{
-		if (!args[0] || pCmd_Argc() == 1)
+		if (!isinsecure || cmdfuncs->Argc() == 1)
 			JCL_Command(atoi(cmd+strlen(COMMANDPREFIX)), "");
 		return true;
 	}
 	return false;
 }
 
-qintptr_t JCL_ConsoleLink(qintptr_t *args);
-qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args);
-qintptr_t JCL_ConExecuteCommand(qintptr_t *args);
+qboolean JCL_ConsoleLink(void);
+qboolean JCL_ConsoleLinkMouseOver(float x, float y);
+int JCL_ConExecuteCommand(qboolean isinsecure);
 
-qintptr_t JCL_Frame(qintptr_t *args);
-qintptr_t JCL_Shutdown(qintptr_t *args);
+void JCL_Frame(double realtime, double gametime);
+void JCL_Shutdown(void);
 
-static qintptr_t QDECL JCL_UpdateVideo(qintptr_t *args)
+static void QDECL JCL_UpdateVideo(int width, int height)
 {
-	pvid.width = args[0];
-	pvid.height = args[1];
+	pvid.width = width;
+	pvid.height = height;
 
 	//FIXME: clear/reload images.
-
-	return true;
 }
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
 	jclient_needreadconfig = true;
 
-	if (	Plug_Export("Tick", JCL_Frame) &&
-		Plug_Export("Shutdown", JCL_Shutdown) &&
-		Plug_Export("ExecuteCommand", JCL_ExecuteCommand))
+	if (plugfuncs->ExportFunction("Tick", JCL_Frame) &&
+		plugfuncs->ExportFunction("Shutdown", JCL_Shutdown) &&
+		plugfuncs->ExportFunction("ExecuteCommand", JCL_ExecuteCommand))
 	{
-		if (!BUILTINISVALID(Net_SetTLSClient))
-			Con_Printf("XMPP Plugin Loaded ^1without^7 TLS\n");	//most servers REQUIRE tls now
-		else
-			Con_Printf("XMPP Plugin Loaded. For help, use: ^[/"COMMANDPREFIX" /help^]\n");
+		Con_Printf("XMPP Plugin Loaded. For help, use: ^[/"COMMANDPREFIX" /help^]\n");
 
-		Plug_Export("UpdateVideo", JCL_UpdateVideo);
-		Plug_Export("ConsoleLink", JCL_ConsoleLink);
-		Plug_Export("ConsoleLinkMouseOver", JCL_ConsoleLinkMouseOver);
+		plugfuncs->ExportFunction("UpdateVideo", JCL_UpdateVideo);
+		plugfuncs->ExportFunction("ConsoleLink", JCL_ConsoleLink);
+		plugfuncs->ExportFunction("ConsoleLinkMouseOver", JCL_ConsoleLinkMouseOver);
 
-		if (!Plug_Export("ConExecuteCommand", JCL_ConExecuteCommand))
+		if (!plugfuncs->ExportFunction("ConExecuteCommand", JCL_ConExecuteCommand))
 		{
 			Con_Printf("XMPP plugin in single-console mode\n");
 			Con_TrySubPrint = Fallback_ConPrint;
 		}
 		else
-			Con_TrySubPrint = pCon_SubPrint;
+			Con_TrySubPrint = confuncs->SubPrint;
 
-		pCmd_AddCommand(COMMANDPREFIX);
-		pCmd_AddCommand(COMMANDPREFIX2);
-		pCmd_AddCommand(COMMANDPREFIX3);
+		cmdfuncs->AddCommand(COMMANDPREFIX);
+		cmdfuncs->AddCommand(COMMANDPREFIX2);
+		cmdfuncs->AddCommand(COMMANDPREFIX3);
 
-		pCmd_AddCommand(COMMANDPREFIX"0");
-		pCmd_AddCommand(COMMANDPREFIX"1");
-		pCmd_AddCommand(COMMANDPREFIX"2");
-		pCmd_AddCommand(COMMANDPREFIX"3");
-		pCmd_AddCommand(COMMANDPREFIX"4");
-		pCmd_AddCommand(COMMANDPREFIX"5");
-		pCmd_AddCommand(COMMANDPREFIX"6");
-		pCmd_AddCommand(COMMANDPREFIX"7");
+		cmdfuncs->AddCommand(COMMANDPREFIX"0");
+		cmdfuncs->AddCommand(COMMANDPREFIX"1");
+		cmdfuncs->AddCommand(COMMANDPREFIX"2");
+		cmdfuncs->AddCommand(COMMANDPREFIX"3");
+		cmdfuncs->AddCommand(COMMANDPREFIX"4");
+		cmdfuncs->AddCommand(COMMANDPREFIX"5");
+		cmdfuncs->AddCommand(COMMANDPREFIX"6");
+		cmdfuncs->AddCommand(COMMANDPREFIX"7");
 
 		//flags&1 == archive
-		pCvar_Register("xmpp_nostatus",				"0", 0, "xmpp");
-		pCvar_Register("xmpp_showstatusupdates",	"0", 0, "xmpp");
-		pCvar_Register("xmpp_autoacceptjoins",		"0", 0, "xmpp");
-		pCvar_Register("xmpp_autoacceptinvites",	"0", 0, "xmpp");
-		pCvar_Register("xmpp_autoacceptvoice",		"0", 0, "xmpp");
-		pCvar_Register("xmpp_debug",				"0", 0, "xmpp");
+		cvarfuncs->Register("xmpp_nostatus",			"0", 0, "xmpp");
+		cvarfuncs->Register("xmpp_showstatusupdates",	"0", 0, "xmpp");
+		cvarfuncs->Register("xmpp_autoacceptjoins",		"0", 0, "xmpp");
+		cvarfuncs->Register("xmpp_autoacceptinvites",	"0", 0, "xmpp");
+		cvarfuncs->Register("xmpp_autoacceptvoice",		"0", 0, "xmpp");
+		cvarfuncs->Register("xmpp_debug",				"0", 0, "xmpp");
 
 #ifdef JINGLE
-		if (BUILTINISVALID(Plug_GetNativePointer))
-			piceapi = pPlug_GetNativePointer(ICE_API_CURRENT);
+		piceapi = plugfuncs->GetEngineInterface(ICE_API_CURRENT, sizeof(*piceapi));
 #endif
 
 		return 1;
@@ -964,9 +967,9 @@ qintptr_t Plug_Init(qintptr_t *args)
 //meaning \0s are valid.
 //but never used cos it breaks strings
 
-jclient_t *jclients[8];
-int jclient_curtime;
-int jclient_poketime;
+static jclient_t *jclients[8];
+static int jclient_curtime;
+static int jclient_poketime;
 
 typedef struct saslmethod_s
 {
@@ -1106,17 +1109,20 @@ static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen,
 
 	if (!*realm)
 		Q_strlcpy(realm, ctx->domain, sizeof(realm));
-	Q_snprintf(digesturi, sizeof(digesturi), "xmpp/%s", realm);
+	if (Q_snprintf(digesturi, sizeof(digesturi), "xmpp/%s", realm) >= sizeof(digesturi))
+		return -1;
 
 
-	Q_snprintf(X, sizeof(X), "%s:%s:", username, realm);
+	if (Q_snprintf(X, sizeof(X), "%s:%s:", username, realm) >= sizeof(X))
+		return -1;
 	if (ctx->password_hash_size == 16 && !strcmp(X, ctx->password_validity))
 		memcpy(Y, ctx->password_hash, 16);	//use the hashed password, instead of the (missing) plain one
 	else if (*ctx->password_plain)
 	{
 		Q_strlcpy(ctx->password_validity, X, sizeof(ctx->password_validity));
 
-		Q_snprintf(X, sizeof(X), "%s:%s:%s", username, realm, ctx->password_plain);
+		if (Q_snprintf(X, sizeof(X), "%s:%s:%s", username, realm, ctx->password_plain) < sizeof(X))
+			return -1;
 		MD5_ToBinary(X, strlen(X), Y, sizeof(Y));
 
 		ctx->password_hash_size = 16;
@@ -1127,13 +1133,21 @@ static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen,
 
 	memcpy(A1, Y, 16);
 	if (*authzid)
-		Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s:%s", nonce, cnonce, authzid);
+	{
+		if (Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s:%s", nonce, cnonce, authzid) >= sizeof(A1)-16)
+			return -1;
+	}
 	else
-		Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s", nonce, cnonce);
-	Q_snprintf(A2, sizeof(A2), "%s:%s", "AUTHENTICATE", digesturi);
+	{
+		if (Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s", nonce, cnonce) >= sizeof(A1)-16)
+			return -1;
+	}
+	if (Q_snprintf(A2, sizeof(A2), "%s:%s", "AUTHENTICATE", digesturi) >= sizeof(A2))
+		return -1;
 	MD5_ToHex(A1, strlen(A1+16)+16, HA1, sizeof(HA1));
 	MD5_ToHex(A2, strlen(A2), HA2, sizeof(HA2));
-	Q_snprintf(KD, sizeof(KD), "%s:%s:%s:%s:%s:%s", HA1, nonce, nc, cnonce, qop, HA2);
+	if (Q_snprintf(KD, sizeof(KD), "%s:%s:%s:%s:%s:%s", HA1, nonce, nc, cnonce, qop, HA2) >= sizeof(KD))
+		return -1;
 	MD5_ToHex(KD, strlen(KD), Z, sizeof(Z));
 
 	if (*authzid)
@@ -1167,8 +1181,8 @@ static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, ha
 		if (ctx->issecure)
 		{
 			bindingdata.len = sizeof(bindingdata.buf);
-			if (BUILTINISVALID(Net_GetTLSBinding))
-				bs = pNet_GetTLSBinding(ctx->socket, bindingdata.buf, &bindingdata.len);
+			if (netfuncs)
+				bs = netfuncs->GetTLSBinding(ctx->socket, bindingdata.buf, &bindingdata.len);
 			else
 				bs = -1;
 		}
@@ -1199,7 +1213,7 @@ static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, ha
 
 		//FIXME: this should be more random, to validate that the server actually knows our password too
 		//we can't really do anything until we've already signed in, so why bother?
-		t = pSys_Milliseconds();
+		t = plugfuncs->GetMilliseconds();
 		Base64_Add((void*)&t, sizeof(t));
 		Base64_Add("0123456789abcdef", 16);
 		Base64_Add((void*)&jclient_curtime, sizeof(jclient_curtime));
@@ -1475,19 +1489,22 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 				host,
 				(unsigned)strlen(body));
 
-		sock = pNet_TCPConnect(host, 443);
-		pNet_SetTLSClient(sock, host);
-		pNet_Send(sock, header, strlen(header));
-		pNet_Send(sock, body, strlen(body));
-		while(1)
+		sock = netfuncs->TCPConnect(host, 443);
+		if (netfuncs->SetTLSClient(sock, host) >= 0)
 		{
-			l = pNet_Recv(sock, result+rl, sizeof(result)-rl);
-			if (l < 0)
-				break;
-			else
-				rl += l;
+			netfuncs->Send(sock, header, strlen(header));
+			netfuncs->Send(sock, body, strlen(body));
+			while(1)
+			{
+				//FIXME: infinite loop!
+				l = netfuncs->Recv(sock, result+rl, sizeof(result)-rl);
+				if (l < 0)
+					break;
+				else
+					rl += l;
+			}
 		}
-		pNet_Close(sock);
+		netfuncs->Close(sock);
 		result[rl] = 0;
 
 		Con_Printf("Got %s\n", result);
@@ -1549,20 +1566,23 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 			resource, host, (unsigned)strlen(body));
 
 		Con_Printf("XMPP: Requesting access token\n");
-		sock = pNet_TCPConnect(host, 443);
-		pNet_SetTLSClient(sock, host);
-		pNet_Send(sock, header, strlen(header));
-		pNet_Send(sock, body, strlen(body));
-		while(1)
+		sock = netfuncs->TCPConnect(host, 443);
+		if (netfuncs->SetTLSClient(sock, host) >= 0)
 		{
-			l = pNet_Recv(sock, result+rl, sizeof(result)-rl);
-			if (l < 0)
-				break;
-			else
-				rl += l;
+			netfuncs->Send(sock, header, strlen(header));
+			netfuncs->Send(sock, body, strlen(body));
+			while(1)
+			{
+				//FIXME: infinite loop!
+				l = netfuncs->Recv(sock, result+rl, sizeof(result)-rl);
+				if (l < 0)
+					break;
+				else
+					rl += l;
+			}
 		}
 		result[rl] = 0;
-		pNet_Close(sock);
+		netfuncs->Close(sock);
 
 		//should contain something like:
 		//{
@@ -1621,19 +1641,22 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 			resource, host, (unsigned)strlen(body));
 
 		Con_Printf("XMPP: Refreshing access token\n");
-		sock = pNet_TCPConnect(host, 443);
-		pNet_SetTLSClient(sock, host);
-		pNet_Send(sock, header, strlen(header));
-		pNet_Send(sock, body, strlen(body));
-		while(1)
+		sock = netfuncs->TCPConnect(host, 443);
+		if (netfuncs->SetTLSClient(sock, host) >= 0)
 		{
-			l = pNet_Recv(sock, result+rl, sizeof(result)-rl);
-			if (l < 0)
-				break;
-			else
-				rl += l;
+			netfuncs->Send(sock, header, strlen(header));
+			netfuncs->Send(sock, body, strlen(body));
+			while(1)
+			{
+				//FIXME: infinite loop!
+				l = netfuncs->Recv(sock, result+rl, sizeof(result)-rl);
+				if (l < 0)
+					break;
+				else
+					rl += l;
+			}
 		}
-		pNet_Close(sock);
+		netfuncs->Close(sock);
 		result[rl] = 0;
 
 		l = strstr(result, "\r\n\r\n")-result;
@@ -1684,7 +1707,7 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 }
 
 //in descending priority order
-saslmethod_t saslmethods[] =
+static saslmethod_t saslmethods[] =
 {
 //	{"SCRAM-SHA-512-PLUS",	sasl_scramsha512plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
 //	{"SCRAM-SHA-256-PLUS",	sasl_scramsha256plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
@@ -1784,7 +1807,7 @@ char *TrimResourceFromJid(char *jid)
 	return NULL;
 }
 
-qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
+qboolean JCL_ConsoleLinkMouseOver(float x, float y)
 {
 	jclient_t *jcl;
 //	char text[256];
@@ -1796,11 +1819,9 @@ qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
 	int i;
 	buddy_t *b, *me = NULL;
 	bresource_t *br;
-	float x = *(float*)&args[0];
-	float y = *(float*)&args[1];
 
-//	pCmd_Argv(0, text, sizeof(text));
-	pCmd_Argv(1, link, sizeof(link));
+//	cmdfuncs->Argv(0, text, sizeof(text));
+	cmdfuncs->Argv(1, link, sizeof(link));
 
 	JCL_Info_ValueForKey(link, "xmpp", who, sizeof(who));
 	JCL_Info_ValueForKey(link, "xmppact", what, sizeof(what));
@@ -1820,7 +1841,7 @@ qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
 
 	if (jcl->status != JCL_ACTIVE)
 	{
-		pDraw_String(x, y, "^&C0You are currently offline");
+		drawfuncs->String(x, y, "^&C0You are currently offline");
 		return true;
 	}
 
@@ -1860,7 +1881,7 @@ qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
 		return false;
 	JCL_FindBuddy(jcl, jcl->fulljid, &me, NULL, true);
 
-	if ((jcl->enabledcapabilities & CAP_AVATARS) && BUILTINISVALID(Draw_LoadImageData))
+	if ((jcl->enabledcapabilities & CAP_AVATARS) && drawfuncs)
 	{
 		if (b->vcardphotochanged && b->friended && !jcl->avatarupdate)
 		{
@@ -1874,29 +1895,29 @@ qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
 			//96 just feels far too large for a game that was origionally running at a resolution of 320*200.
 			//FIXME: we should proably respect the image's aspect ratio...
 #define IMGSIZE 96/2
-			pDraw_Image (x, y, IMGSIZE, IMGSIZE, 0, 0, 1, 1, b->image);
+			drawfuncs->Image (x, y, IMGSIZE, IMGSIZE, 0, 0, 1, 1, b->image);
 			x += IMGSIZE+8;
 		}
 	}
 
-	pDraw_String(x, y, va("^&F0%s ^2%s", actiontext, b->name));
+	drawfuncs->String(x, y, va("^&F0%s ^2%s", actiontext, b->name));
 	y+=8;
-	pDraw_String(x, y, va("^&F0%s", b->accountdomain));
+	drawfuncs->String(x, y, va("^&F0%s", b->accountdomain));
 	y+=8;
 	if (br)
 	{
-		pDraw_String(x, y, va("^&F0  %s", br->resource));
+		drawfuncs->String(x, y, va("^&F0  %s", br->resource));
 		y+=8;
 	}
 	if (b == me)
-		pDraw_String(x, y, "^&90" "You");
+		drawfuncs->String(x, y, "^&90" "You");
 	else if (!b->friended)
-		pDraw_String(x, y, "^&C0" "Unknown");
+		drawfuncs->String(x, y, "^&C0" "Unknown");
 	y+=8;
 
 	return true;
 }
-qintptr_t JCL_ConsoleLink(qintptr_t *args)
+qboolean JCL_ConsoleLink(void)
 {
 	jclient_t *jcl;
 	char link[256];
@@ -1905,8 +1926,8 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 	char which[256];
 	int i;
 	buddy_t *b = NULL;
-//	pCmd_Argv(0, text, sizeof(text));
-	pCmd_Argv(1, link, sizeof(link));
+//	cmdfuncs->Argv(0, text, sizeof(text));
+	cmdfuncs->Argv(1, link, sizeof(link));
 
 	JCL_Info_ValueForKey(link, "xmpp", who, sizeof(who));
 	JCL_Info_ValueForKey(link, "xmppact", what, sizeof(what));
@@ -2009,8 +2030,8 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 	{
 		if (jcl)
 		{
-			pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your friend's account name");
+			confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+			confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your friend's account name");
 			jclient_action_cl = jcl;
 			jclient_action_buddy = NULL;
 			jclient_action = ACT_ADDFRIEND;
@@ -2046,48 +2067,48 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 	}
 	else if (!strcmp(what, "newaccount"))
 	{
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your XMPP account name\neg: example@"EXAMPLEDOMAIN);
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your XMPP account name\neg: example@"EXAMPLEDOMAIN);
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_NEWACCOUNT;
 	}
 	else if (!strcmp(what, "setausername"))
 	{
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your user name");
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your user name");
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_SETAUSERNAME;
 	}
 	else if (!strcmp(what, "setadomain"))
 	{
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter the domain for which your account is valid");
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter the domain for which your account is valid");
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_SETADOMAIN;
 	}
 	else if (!strcmp(what, "setaserver"))
 	{
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter the server to connect to.");
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter the server to connect to.");
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_SETASERVER;
 	}
 	else if (!strcmp(what, "setaresource"))
 	{
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter some resource name.");
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter some resource name.");
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_SETARESOURCE;
 	}
 	else if (!strcmp(what, "setapassword"))
 	{
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your XMPP account name\neg: example@"EXAMPLEDOMAIN);
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your XMPP account name\neg: example@"EXAMPLEDOMAIN);
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_SETAPASSWORD;
@@ -2153,7 +2174,7 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 				Q_strlcat(footer, link, sizeof(footer));
 			}
 
-			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", footer);
+			confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", footer);
 		}
 	}
 	else if (!strcmp(what, "buddyopts"))
@@ -2179,7 +2200,7 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 			}
 			Q_snprintf(footer, sizeof(footer), "\n%s\n%s\n%s", chatlink, unfriend, realias);
 
-			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", footer);
+			confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", footer);
 		}
 	}
 	else if (!strcmp(what, "unfriend"))
@@ -2217,8 +2238,8 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		JCL_FindBuddy(jcl, *who?who:jcl->defaultdest, &b, NULL, false);
 		if (b)
 		{
-			pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter what you want to see them as");
+			confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+			confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter what you want to see them as");
 			jclient_action_cl = jcl;
 			jclient_action_buddy = b;
 			jclient_action = ACT_SETBALIAS;
@@ -2238,18 +2259,16 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 				if (b->btype != BT_CHATROOM)
 					b->defaultresource = br;
 
-				if (BUILTINISVALID(Con_SetConsoleFloat))
+				if (confuncs)
 				{
-					pCon_SetConsoleString(f, "title", b->name);
-					pCon_SetConsoleFloat(f, "iswindow", true);
-					pCon_SetConsoleFloat(f, "forceutf8", true);
-					pCon_SetConsoleFloat(f, "wnd_w", 256);
-					pCon_SetConsoleFloat(f, "wnd_h", 320);
+					confuncs->SetConsoleString(f, "title", b->name);
+					confuncs->SetConsoleFloat(f, "iswindow", true);
+					confuncs->SetConsoleFloat(f, "forceutf8", true);
+					confuncs->SetConsoleFloat(f, "wnd_w", 256);
+					confuncs->SetConsoleFloat(f, "wnd_h", 320);
 				}
-				else if (BUILTINISVALID(Con_SubPrint))
-					pCon_SubPrint(f, "");
-				if (BUILTINISVALID(Con_SetActive))
-					pCon_SetActive(f);
+				if (confuncs)
+					confuncs->SetActive(f);
 			}
 		}
 		return true;
@@ -2347,21 +2366,21 @@ void XMPP_AddFriend(jclient_t *jcl, const char *account, const char *nick)
 		JCL_AddClientMessagef(jcl, "<presence to='%s' type='subscribed'/>", jid);
 }
 jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, char *password);
-qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
+int JCL_ConExecuteCommand(qboolean isinsecure)
 {
 	buddy_t *b;
 	char consolename[256];
 	jclient_t *jcl;
 	int i;
 
-	pCmd_Argv(0, consolename, sizeof(consolename));
+	cmdfuncs->Argv(0, consolename, sizeof(consolename));
 
 	if (!strcmp(consolename, BUDDYLISTTITLE))
 	{
 		char args[512];
-		pCmd_Args(args, sizeof(args));
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", false);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "");
+		cmdfuncs->Args(args, sizeof(args));
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", false);
+		confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "");
 		jclient_updatebuddylist = true;
 
 		//FIXME: validate that the client is still active.
@@ -2386,18 +2405,18 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 			{
 				if (jclients[i])
 					continue;
-				jclients[i] = JCL_Connect(i, "", BUILTINISVALID(Net_SetTLSClient)?1:0, args, "");
+				jclients[i] = JCL_Connect(i, "", 1, args, "");
 				break;
 			}
 			if (i == sizeof(jclients)/sizeof(jclients[0]))
-				pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Too many accounts open");
+				confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Too many accounts open");
 			else if (!jclients[i])
-				pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Unable to create account");
+				confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Unable to create account");
 			else
 			{	//now ask for a password instantly. because oauth2 is basically unusable.
 				jclients[i]->status = JCL_INACTIVE;
-				pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-				pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter password");
+				confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+				confuncs->SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter password");
 				jclient_action_cl = jclients[i];
 				jclient_action_buddy = NULL;
 				jclient_action = ACT_SETAPASSWORD;
@@ -2434,8 +2453,8 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 			Q_strncpyz(jclient_action_buddy->name, args, sizeof(jclient_action_buddy->name));
 			if (jclient_action_buddy->btype == BT_ROSTER)
 				JCL_SendIQf(jclient_action_cl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", jclient_action_buddy->accountdomain, jclient_action_buddy->name);
-			if (BUILTINISVALID(Con_SetConsoleString))
-				pCon_SetConsoleString(jclient_action_buddy->accountdomain, "title", jclient_action_buddy->name);
+			if (confuncs)
+				confuncs->SetConsoleString(jclient_action_buddy->accountdomain, "title", jclient_action_buddy->name);
 			break;
 		}
 		jclient_action = ACT_NONE;
@@ -2479,7 +2498,7 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 	if (!jcl || !jcl->outbuflen || jcl->socket == -1)
 		return;
 
-	sent = pNet_Send(jcl->socket, jcl->outbuf + jcl->outbufpos, jcl->outbuflen);	//FIXME: This needs rewriting to cope with errors.
+	sent = netfuncs->Send(jcl->socket, jcl->outbuf + jcl->outbufpos, jcl->outbuflen);	//FIXME: This needs rewriting to cope with errors.
 	if (sent > 0)
 	{
 		//and print it on some subconsole if we're debugging
@@ -2487,7 +2506,7 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 		{
 			char t = jcl->outbuf[jcl->outbufpos+sent];
 			jcl->outbuf[jcl->outbufpos+sent] = 0;
-			XMPP_ConversationPrintf("xmppout", "xmppout", "^3%s\n", jcl->outbuf + jcl->outbufpos);
+			XMPP_ConversationPrintf("xmppout", "xmppout", false, "^3%s\n", jcl->outbuf + jcl->outbufpos);
 			jcl->outbuf[jcl->outbufpos+sent] = t;
 		}
 
@@ -2578,23 +2597,22 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 		//jcl->tlsconnect requires an explicit hostname, so should not be able to take this path.
 		char srv[256];
 		char srvserver[256];
-		Q_snprintf(srv, sizeof(srv), "_xmpp-client._tcp.%s", jcl->domain);
-		if (NET_DNSLookup_SRV(srv, srvserver, sizeof(srvserver)))
+		if (Q_snprintf(srv, sizeof(srv), "_xmpp-client._tcp.%s", jcl->domain) < sizeof(srv) && NET_DNSLookup_SRV(srv, srvserver, sizeof(srvserver)))
 		{
 			Con_DPrintf("XMPP: Trying to connect to %s (%s)\n", jcl->domain, srvserver);
-			jcl->socket = pNet_TCPConnect(srvserver, jcl->serverport);	//port is should already be part of the srvserver name
+			jcl->socket = netfuncs->TCPConnect(srvserver, jcl->serverport);	//port is should already be part of the srvserver name
 		}
 		else
 		{
 			//SRV lookup failed. attempt to just use the domain directly.
 			Con_DPrintf("XMPP: Trying to connect to %s\n", jcl->domain);
-			jcl->socket = pNet_TCPConnect(jcl->domain, jcl->serverport);	//port is only used if the url doesn't contain one. It's a default.
+			jcl->socket = netfuncs->TCPConnect(jcl->domain, jcl->serverport);	//port is only used if the url doesn't contain one. It's a default.
 		}
 	}
 	else
 	{
 		Con_DPrintf("XMPP: Trying to connect to %s\n", jcl->domain);
-		jcl->socket = pNet_TCPConnect(serveraddr, jcl->serverport);	//port is only used if the url doesn't contain one. It's a default.
+		jcl->socket = netfuncs->TCPConnect(serveraddr, jcl->serverport);	//port is only used if the url doesn't contain one. It's a default.
 	}
 
 	//not yet blocking. So no frequent attempts please...
@@ -2607,7 +2625,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 
 	jcl->issecure = false;
 	if (jcl->forcetls==2)
-		if (pNet_SetTLSClient(jcl->socket, jcl->certificatedomain)>=0)
+		if (netfuncs->SetTLSClient(jcl->socket, jcl->certificatedomain)>=0)
 			jcl->issecure = true;
 
 	jcl->status = JCL_AUTHING;
@@ -2694,7 +2712,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	jclient_t *jcl;
 	xmltree_t *oauth2;
 	xmltree_t *features;
-	char oauthname[256];
+	char oauthname[512];
 	struct buddyinfo_s *bi;
 	int bn;
 
@@ -2747,7 +2765,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	if (!*jcl->resource)
 	{	//the default resource matches the game that they're trying to play.
 		char gamename[64], *res, *o;
-		if (pCvar_GetString("fs_gamename", gamename, sizeof(gamename)))
+		if (cvarfuncs->GetString("fs_gamename", gamename, sizeof(gamename)))
 		{
 			//strip out any weird chars (namely whitespace)
 			for (o = gamename, res = gamename; *res; )
@@ -2881,7 +2899,7 @@ jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, ch
 	if (!res || !*res)
 	{
 		//the default resource matches the game that they're trying to play.
-		if (pCvar_GetString("fs_gamename", gamename, sizeof(gamename)))
+		if (cvarfuncs->GetString("fs_gamename", gamename, sizeof(gamename)))
 		{
 			//strip out any weird chars (namely whitespace)
 			char *o;
@@ -2896,6 +2914,7 @@ jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, ch
 		}
 	}
 
+/*
 	if (forcetls>0)
 	{
 		if (!BUILTINISVALID(Net_SetTLSClient))
@@ -2904,6 +2923,7 @@ jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, ch
 			return NULL;
 		}
 	}
+*/
 
 	domain = strchr(account, '@');
 	if (domain)
@@ -2965,7 +2985,7 @@ void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 			JCL_ForgetBuddyResource(jcl, b, bres);
 			if (jclient_action_buddy == b)
 			{
-				pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", false);
+				confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", false);
 				jclient_action = ACT_NONE;
 				jclient_action_buddy = NULL;
 				jclient_action_cl = NULL;
@@ -2987,7 +3007,7 @@ struct stringprep_range
 	unsigned int cp_max;
 	unsigned int remap[2];
 };
-struct stringprep_range stringprep_A1[] =
+static struct stringprep_range stringprep_A1[] =
 {
 	{0x0234,0x024F},
 	{0x02AE,0x02AF},
@@ -3018,7 +3038,7 @@ struct stringprep_range stringprep_A1[] =
 	{0x05F5,0x060B},
 	{0x0600,~0},	//FIXME rest of A.1 (utf)
 };
-struct stringprep_range stringprep_B1[] =
+static struct stringprep_range stringprep_B1[] =
 {
 	{0x00AD},
 	{0x034F},
@@ -3048,14 +3068,14 @@ struct stringprep_range stringprep_B1[] =
 	{0xFE0F},
 	{0xFEFF},
 };
-struct stringprep_range stringprep_B2[] =
+static struct stringprep_range stringprep_B2[] =
 {
 	{0x0041, 0x005A,	{0x0061}},
 	{0x00B5, 0x00B5,	{0x03BC}},
 	{0x00C0, 0x00DE,	{0x00E0}},
 	{0x00DF, 0,			{0x0073, 0x0073}},
 };
-struct stringprep_range stringprep_C1[] =
+static struct stringprep_range stringprep_C1[] =
 {
 	//C1.1
 	{0x0020},
@@ -3065,7 +3085,7 @@ struct stringprep_range stringprep_C1[] =
 	{0x1680},
 	//FIXME... utf
 };
-struct stringprep_range stringprep_C2[] =
+static struct stringprep_range stringprep_C2[] =
 {
 	//C.2.1
 	{0x0000, 0x001F},
@@ -3075,13 +3095,13 @@ struct stringprep_range stringprep_C2[] =
 	//FIXME... utf
 	{0x06DD, ~0},
 };
-struct stringprep_range stringprep_C3[] =
+static struct stringprep_range stringprep_C3[] =
 {
 	{0xE000, 0xF8FF},
 	{0xF0000, 0xFFFFD},
 	{0x100000, 0x10FFFD},
 };
-struct stringprep_range stringprep_C4[] =
+static struct stringprep_range stringprep_C4[] =
 {
 	{0xFDD0, 0xFDEF},
 	{0xFFFE, 0xFFFF},
@@ -3102,11 +3122,11 @@ struct stringprep_range stringprep_C4[] =
 	{0xFFFFE, 0xFFFFF},
 	{0x10FFFE, 0x10FFFF},
 };
-struct stringprep_range stringprep_C5[] =
+static struct stringprep_range stringprep_C5[] =
 {
 	{0xD800, 0xDFFF},
 };
-struct stringprep_range stringprep_C6[] =
+static struct stringprep_range stringprep_C6[] =
 {
 	{0xFFF9},
 	{0xFFFA},
@@ -3114,11 +3134,11 @@ struct stringprep_range stringprep_C6[] =
 	{0xFFFC},
 	{0xFFFD},
 };
-struct stringprep_range stringprep_C7[] =
+static struct stringprep_range stringprep_C7[] =
 {
 	{0x2FF0, 0x2FFB},
 };
-struct stringprep_range stringprep_C8[] =
+static struct stringprep_range stringprep_C8[] =
 {
 	{0x0340},
 	{0x0341},
@@ -3136,14 +3156,14 @@ struct stringprep_range stringprep_C8[] =
 	{0x206E},
 	{0x206F},
 };
-struct stringprep_range stringprep_C9[] =
+static struct stringprep_range stringprep_C9[] =
 {
 	{0xE0001},
 	{0xE0001},
 	{0xE0020, 0xE007F},
 };
 
-static struct stringprep_range *StringPrep_InRange(unsigned int codepoint, struct stringprep_range *range, size_t slots)
+static struct stringprep_range *StringPrep_InRange_(unsigned int codepoint, struct stringprep_range *range, size_t slots)
 {
 	int i;
 	for (i = 0; i < slots; i++)
@@ -3163,7 +3183,7 @@ static struct stringprep_range *StringPrep_InRange(unsigned int codepoint, struc
 	}
 	return NULL;
 }
-#define StringPrep_InRange(cp,r) StringPrep_InRange(cp,r,sizeof(r)/sizeof(r[0]))
+#define StringPrep_InRange(cp,r) StringPrep_InRange_(cp,r,sizeof(r)/sizeof(r[0]))
 
 static qboolean JCL_NamePrep(const char *in, size_t insize, char *out, size_t outsize)
 {
@@ -3515,7 +3535,7 @@ static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 }
 static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
-	char myself[256];
+	char myself[512];
 	char photodata[65536];
 	xmltree_t *vc, *photo, *photobinval;
 	const char *nickname;
@@ -3565,7 +3585,7 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 		photo = XML_ChildOfTree(vc, "PHOTO", 0);
 		photobinval = XML_ChildOfTree(photo, "BINVAL", 0);
 
-		if ((jcl->enabledcapabilities & CAP_AVATARS) && BUILTINISVALID(Draw_LoadImageData))
+		if ((jcl->enabledcapabilities & CAP_AVATARS) && drawfuncs)
 		{
 			if (photobinval)
 			{
@@ -3575,7 +3595,7 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 				//xep-0153: If the <TYPE/> is something other than image/gif, image/jpeg, or image/png, it SHOULD be ignored.
 				if (strcmp(photomime, "image/png") && strcmp(photomime, "image/jpeg") && strcmp(photomime, "image/gif"))
 					photomime = "";
-				b->image = pDraw_LoadImageData(va("xmpp/%s.png", b->accountdomain), photomime, photodata, photosize);
+				b->image = drawfuncs->LoadImageData(va("xmpp/%s.png", b->accountdomain), photomime, photodata, photosize);
 				Con_DPrintf("vcard photo updated from %s\n", from);
 
 				for (bi = jcl->buddyinfo; bi; bi = bi->next)
@@ -3615,7 +3635,7 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 			}
 			else
 			{
-				b->image = pDraw_LoadImageData(va("xmpp/%s.png", b->accountdomain), "", NULL, 0);
+				b->image = drawfuncs->LoadImageData(va("xmpp/%s.png", b->accountdomain), "", NULL, 0);
 				Con_DPrintf("vcard photo invalidated from %s\n", from);
 			}
 		}
@@ -3911,8 +3931,8 @@ static void buildcaps(jclient_t *jcl, char *out, int outlen)
 }
 static int qsortcaps(const void *va, const void *vb)
 {
-	char *a = *(char**)va;
-	char *b = *(char**)vb;
+	char *const a = *(char*const *)va;
+	char *const b = *(char*const *)vb;
 	return strcmp(a, b);
 }
 char *buildcapshash(jclient_t *jcl)
@@ -4262,14 +4282,14 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 				if (*pwd)
 				{
 					char rcon_password[64];
-					pCvar_GetString("rcon_password", rcon_password, sizeof(rcon_password));
+					cvarfuncs->GetString("rcon_password", rcon_password, sizeof(rcon_password));
 					if (*rcon_password && !strcmp(JCL_Info_ValueForKey(infostring, "password", pwd, sizeof(pwd)), rcon_password))
 					{
 						Q_strlcpy(jcl->rcon_peer, from, sizeof(jcl->rcon_peer));
 						if (jcl->rcon_pipe >= 0)
-							pFS_Close(jcl->rcon_pipe);
-						if (BUILTINISVALID(Con_POpen))
-							jcl->rcon_pipe = pCon_POpen(NULL, 0);
+							filefuncs->Close(jcl->rcon_pipe);
+						if (confuncs)
+							jcl->rcon_pipe = confuncs->POpen(NULL);
 
 						if (jcl->rcon_pipe < 0)
 							canceled = "Unable to read console";
@@ -4420,7 +4440,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 		XML_ConPrintTree(tree, "", 0);
 	}
 }
-void XMPP_ConversationPrintf(const char *context, const char *title, char *format, ...)
+void XMPP_ConversationPrintf(const char *context, const char *title, qboolean takefocus, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -4429,13 +4449,13 @@ void XMPP_ConversationPrintf(const char *context, const char *title, char *forma
 	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	if (*context && BUILTINISVALID(Con_GetConsoleFloat) && pCon_GetConsoleFloat(context, "iswindow") < true)
+	if (*context && confuncs && confuncs->GetConsoleFloat(context, "iswindow") < true)
 	{
-		pCon_SetConsoleFloat(context, "iswindow", true);
-		pCon_SetConsoleFloat(context, "forceutf8", true);
-		pCon_SetConsoleFloat(context, "wnd_w", 256);
-		pCon_SetConsoleFloat(context, "wnd_h", 320);
-		pCon_SetConsoleString(context, "title", title);
+		confuncs->SetConsoleFloat(context, "iswindow", true);
+		confuncs->SetConsoleFloat(context, "forceutf8", true);
+		confuncs->SetConsoleFloat(context, "wnd_w", 256);
+		confuncs->SetConsoleFloat(context, "wnd_h", 320);
+		confuncs->SetConsoleString(context, "title", title);
 	}
 	Con_TrySubPrint(context, string);
 }
@@ -4498,7 +4518,7 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				}
 				else
 				{
-					if (BUILTINISVALID(Con_SetConsoleString))
+					if (confuncs)
 						showicon = b->accountdomain;
 					f = b->name;
 					if (br)
@@ -4545,23 +4565,23 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			if (ot)
 			{
 				if (reason)
-					XMPP_ConversationPrintf(ctx, f, "^1Error: %s (%s): ", reason, f);
+					XMPP_ConversationPrintf(ctx, f, false, "^1Error: %s (%s): ", reason, f);
 				else
-					XMPP_ConversationPrintf(ctx, f, "^1error sending message to %s: ", f);
+					XMPP_ConversationPrintf(ctx, f, false, "^1error sending message to %s: ", f);
 				if (f)
 				{
 					if (!strncmp(ot->body, "/me ", 4))
-						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7%s\r", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), ot->body+3);
+						XMPP_ConversationPrintf(ctx, f, false, "* ^2%s^7%s\r", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), ot->body+3);
 					else
-						XMPP_ConversationPrintf(ctx, f, "%s\r", ot->body);
+						XMPP_ConversationPrintf(ctx, f, false, "%s\r", ot->body);
 				}
 			}
 			else
 			{
 				if (reason)
-					XMPP_ConversationPrintf(ctx, f, "^1Error: %s (%s)\r", reason, f);
+					XMPP_ConversationPrintf(ctx, f, false, "^1Error: %s (%s)\r", reason, f);
 				else
-					XMPP_ConversationPrintf(ctx, f, "error sending message to %s\r", f);
+					XMPP_ConversationPrintf(ctx, f, false, "error sending message to %s\r", f);
 			}
 			return;
 		}
@@ -4572,31 +4592,31 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
 			{
 				unparsable = false;
-				XMPP_ConversationPrintf(ctx, f, "%s is typing\r", f);
+				XMPP_ConversationPrintf(ctx, f, false, "%s is typing\r", f);
 			}
 			ot = XML_ChildOfTree(tree, "paused", 0);
 			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
 			{
 				unparsable = false;
-				XMPP_ConversationPrintf(ctx, f, "%s has stopped typing\r", f);
+				XMPP_ConversationPrintf(ctx, f, false, "%s has stopped typing\r", f);
 			}
 			ot = XML_ChildOfTree(tree, "inactive", 0);
 			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
 			{
 				unparsable = false;
-				XMPP_ConversationPrintf(ctx, f, "\r", f);
+				XMPP_ConversationPrintf(ctx, f, false, "\r", f);
 			}
 			ot = XML_ChildOfTree(tree, "active", 0);
 			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
 			{
 				unparsable = false;
-				XMPP_ConversationPrintf(ctx, f, "\r", f);
+				XMPP_ConversationPrintf(ctx, f, false, "\r", f);
 			}
 			ot = XML_ChildOfTree(tree, "gone", 0);
 			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
 			{
 				unparsable = false;
-				XMPP_ConversationPrintf(ctx, f, "%s has gone away\r", f);
+				XMPP_ConversationPrintf(ctx, f, false, "%s has gone away\r", f);
 			}
 		}
 
@@ -4607,11 +4627,9 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			if (jclient_poketime < jclient_curtime)	//throttle these.
 			{
 				jclient_poketime = jclient_curtime + 10*1000;
-				XMPP_ConversationPrintf(ctx, f, "%s is an attention whore.\n", f);
-				if (BUILTINISVALID(Con_SetActive))
-					pCon_SetActive(ctx);
-				if (BUILTINISVALID(LocalSound))
-					pLocalSound("misc/talk.wav");
+				XMPP_ConversationPrintf(ctx, f, true, "%s is an attention whore.\n", f);
+				if (drawfuncs)
+					drawfuncs->LocalSound("misc/talk.wav", 256, 1);
 			}
 		}
 		
@@ -4629,9 +4647,9 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 
 			unparsable = false;
 			if (sent)
-				XMPP_ConversationPrintf(ctx, f, COL_NAME_US"You"COL_TEXT_US" have set the topic to: %s\n", ot->body);
+				XMPP_ConversationPrintf(ctx, f, false, COL_NAME_US"You"COL_TEXT_US" have set the topic to: %s\n", ot->body);
 			else
-				XMPP_ConversationPrintf(ctx, f, COL_NAME_THEM"%s"COL_TEXT_THEM" has set the topic to: %s\n", f, ot->body);
+				XMPP_ConversationPrintf(ctx, f, false, COL_NAME_THEM"%s"COL_TEXT_THEM" has set the topic to: %s\n", f, ot->body);
 		}
 
 		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/pubsub#event", "event", 0);
@@ -4696,11 +4714,9 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 					JCL_GenLink(jcl, link, sizeof(link), "mucjoin", f, NULL, password, "%s", f);
 //					ctx = who;
 					if (reason)
-						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s: %s.\n", who, link, reason);
+						XMPP_ConversationPrintf(ctx, f, true, "* ^2%s^7 has invited you to join %s: %s.\n", who, link, reason);
 					else
-						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s.\n", who, link);
-					if (BUILTINISVALID(Con_SetActive))
-						pCon_SetActive(ctx);
+						XMPP_ConversationPrintf(ctx, f, true, "* ^2%s^7 has invited you to join %s.\n", who, link);
 				}
 				return; //ignore any body/jabber:x:conference
 			}
@@ -4719,19 +4735,17 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			if (sent)
 			{
 				if (reason)
-					XMPP_ConversationPrintf(ctx, f, "* You have invited ^2%s^7 to join %s: %s.\n", f, link, reason);
+					XMPP_ConversationPrintf(ctx, f, true, "* You have invited ^2%s^7 to join %s: %s.\n", f, link, reason);
 				else
-					XMPP_ConversationPrintf(ctx, f, "* You have invited ^2%s^7 to join %s.\n", f, link);
+					XMPP_ConversationPrintf(ctx, f, true, "* You have invited ^2%s^7 to join %s.\n", f, link);
 			}
 			else
 			{
 				if (reason)
-					XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s: %s.\n", f, link, reason);
+					XMPP_ConversationPrintf(ctx, f, true, "* ^2%s^7 has invited you to join %s: %s.\n", f, link, reason);
 				else
-					XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s.\n", f, link);
+					XMPP_ConversationPrintf(ctx, f, true, "* ^2%s^7 has invited you to join %s.\n", f, link);
 			}
-			if (BUILTINISVALID(Con_SetActive))
-				pCon_SetActive(ctx);
 			return;	//ignore any body
 		}
 
@@ -4744,30 +4758,30 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				if (sent)
 				{
 					if (!strncmp(ot->body, "/me ", 4))
-						XMPP_ConversationPrintf(ctx, f, "* "COL_NAME_US"%s"COL_TEXT_US"%s\n", jcl->localalias, ot->body+3);
+						XMPP_ConversationPrintf(ctx, f, false, "* "COL_NAME_US"%s"COL_TEXT_US"%s\n", jcl->localalias, ot->body+3);
 					else if (showicon)
-						XMPP_ConversationPrintf(ctx, f, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]"COL_NAME_US"%s"COL_TEXT_US":\v%s\n", jcl->barejid, jcl->localalias, ot->body);
+						XMPP_ConversationPrintf(ctx, f, false, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]"COL_NAME_US"%s"COL_TEXT_US":\v%s\n", jcl->barejid, jcl->localalias, ot->body);
 					else
-						XMPP_ConversationPrintf(ctx, f, COL_NAME_US"%s"COL_TEXT_US": %s\n", jcl->localalias, ot->body);
+						XMPP_ConversationPrintf(ctx, f, false, COL_NAME_US"%s"COL_TEXT_US": %s\n", jcl->localalias, ot->body);
 				}
 				else
 				{
 					if (!strncmp(ot->body, "/me ", 4))
-						XMPP_ConversationPrintf(ctx, f, "* "COL_NAME_THEM"%s"COL_TEXT_THEM"%s\n", f, ot->body+3);
+						XMPP_ConversationPrintf(ctx, f, false, "* "COL_NAME_THEM"%s"COL_TEXT_THEM"%s\n", f, ot->body+3);
 					else if (showicon)
-						XMPP_ConversationPrintf(ctx, f, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_THEM"\\w\\32\\h\\32^]"COL_NAME_THEM"%s"COL_TEXT_THEM":\v%s\n", showicon, f, ot->body);
+						XMPP_ConversationPrintf(ctx, f, false, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_THEM"\\w\\32\\h\\32^]"COL_NAME_THEM"%s"COL_TEXT_THEM":\v%s\n", showicon, f, ot->body);
 					else
-						XMPP_ConversationPrintf(ctx, f, COL_NAME_THEM"%s"COL_TEXT_THEM": %s\n", f, ot->body);
+						XMPP_ConversationPrintf(ctx, f, false, COL_NAME_THEM"%s"COL_TEXT_THEM": %s\n", f, ot->body);
 				}
 			}
 			else
 			{	
 				if (!sent)
-					XMPP_ConversationPrintf(ctx, f, "NOTICE: %s\n", ot->body);
+					XMPP_ConversationPrintf(ctx, f, false, "NOTICE: %s\n", ot->body);
 			}
 
-			if (BUILTINISVALID(LocalSound))
-				pLocalSound("misc/talk.wav");
+			if (drawfuncs)
+				drawfuncs->LocalSound("misc/talk.wav", 256, 1);
 		}
 
 		if (unparsable)
@@ -4775,7 +4789,7 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			unparsable = false;
 			if (jcl->streamdebug)
 			{
-				XMPP_ConversationPrintf(ctx, f, "Received a message without a body\n");
+				XMPP_ConversationPrintf(ctx, f, false, "Received a message without a body\n");
 				XML_ConPrintTree(tree, "", 0);
 			}
 		}
@@ -5254,9 +5268,9 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 				//332=shutdown
 				JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", bres->resource);
 				if (type && !strcmp(type, "unavailable"))
-					XMPP_ConversationPrintf(buddy->name, buddy->name, "%s has left the conversation\n", bres->resource);
+					XMPP_ConversationPrintf(buddy->name, buddy->name, false, "%s has left the conversation\n", bres->resource);
 				else if (strcmp(oldbstatus, bres->bstatus))
-					XMPP_ConversationPrintf(buddy->name, buddy->name, "%s is now %s\n", startconvo, bres->bstatus);
+					XMPP_ConversationPrintf(buddy->name, buddy->name, false, "%s is now %s\n", startconvo, bres->bstatus);
 			}
 			else
 			{
@@ -5264,23 +5278,23 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 				char *title = buddy->name;
 
 				//if we're not currently talking with them, put the status update into the main console instead (which will probably then get dropped).
-				if (!BUILTINISVALID(Con_GetConsoleFloat) || pCon_GetConsoleFloat(conv, "iswindow") != true)
+				if (!confuncs || confuncs->GetConsoleFloat(conv, "iswindow") != true)
 					conv = "";
 
 				if (bres->servertype == 2)
 				{
 					char joinlink[512];
 					JCL_GenLink(jcl, joinlink, sizeof(joinlink), "join", from, NULL, NULL, "Playing Quake - %s", bres->server);
-					XMPP_ConversationPrintf(conv, title, "%s is now %s\n", startconvo, joinlink);
+					XMPP_ConversationPrintf(conv, title, false, "%s is now %s\n", startconvo, joinlink);
 				}
 				else if (bres->servertype == 1)
-					XMPP_ConversationPrintf(conv, title, "%s is now ^[[Playing Quake - %s]\\observe\\%s^]\n", startconvo, bres->server, bres->server);
-				else if ((pCvar_GetFloat("xmpp_showstatusupdates")||*conv) && (strcmp(oldbstatus, bres->bstatus) || strcmp(oldfstatus, bres->fstatus)))
+					XMPP_ConversationPrintf(conv, title, false, "%s is now ^[[Playing Quake - %s]\\observe\\%s^]\n", startconvo, bres->server, bres->server);
+				else if ((cvarfuncs->GetFloat("xmpp_showstatusupdates")||*conv) && (strcmp(oldbstatus, bres->bstatus) || strcmp(oldfstatus, bres->fstatus)))
 				{
 					if (*bres->fstatus)
-						XMPP_ConversationPrintf(conv, title, "%s is now %s: %s\n", startconvo, bres->bstatus, bres->fstatus);
+						XMPP_ConversationPrintf(conv, title, false, "%s is now %s: %s\n", startconvo, bres->bstatus, bres->fstatus);
 					else
-						XMPP_ConversationPrintf(conv, title, "%s is now %s\n", startconvo, bres->bstatus);
+						XMPP_ConversationPrintf(conv, title, false, "%s is now %s\n", startconvo, bres->bstatus);
 				}
 			}
 
@@ -5308,7 +5322,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	int ret;
 	qboolean unparsable;
 
-	ret = pNet_Recv(jcl->socket, jcl->bufferedinmessage+jcl->bufferedinammount, sizeof(jcl->bufferedinmessage)-1 - jcl->bufferedinammount);
+	ret = netfuncs->Recv(jcl->socket, jcl->bufferedinmessage+jcl->bufferedinammount, sizeof(jcl->bufferedinmessage)-1 - jcl->bufferedinammount);
 	if (ret == 0)
 	{
 		if (!jcl->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
@@ -5318,7 +5332,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	{
 		*error = "Socket Error";
 		if (jcl->socket != -1)
-			pNet_Close(jcl->socket);
+			netfuncs->Close(jcl->socket);
 		jcl->socket = -1;
 		return JCL_KILL;
 	}
@@ -5374,9 +5388,9 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 		{
 			char t = jcl->bufferedinmessage[pos];
 			jcl->bufferedinmessage[pos] = 0;
-			XMPP_ConversationPrintf("xmppin", "xmppin", jcl->bufferedinmessage);
+			XMPP_ConversationPrintf("xmppin", "xmppin", false, "%s", jcl->bufferedinmessage);
 			if (tree)
-				XMPP_ConversationPrintf("xmppin", "xmppin", "\n");
+				XMPP_ConversationPrintf("xmppin", "xmppin", false, "\n");
 			jcl->bufferedinmessage[pos] = t;
 		}
 
@@ -5419,8 +5433,8 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	{
 		char t = jcl->bufferedinmessage[pos];
 		jcl->bufferedinmessage[pos] = 0;
-		XMPP_ConversationPrintf("xmppin", "xmppin", jcl->bufferedinmessage);
-		XMPP_ConversationPrintf("xmppin", "xmppin", "\n");
+		XMPP_ConversationPrintf("xmppin", "xmppin", false, "%s", jcl->bufferedinmessage);
+		XMPP_ConversationPrintf("xmppin", "xmppin", false, "\n");
 		jcl->bufferedinmessage[pos] = t;
 	}
 
@@ -5441,7 +5455,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 
 	if (jcl->streamdebug == 1)
 	{
-		XMPP_ConversationPrintf("xmppin", "xmppin", "");
+		XMPP_ConversationPrintf("xmppin", "xmppin", false, "");
 		XML_ConPrintTree(tree, "xmppin", 0);
 	}
 
@@ -5450,8 +5464,12 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	unparsable = true;
 	if (!strcmp(tree->name, "features"))
 	{
-		Q_snprintf(jcl->barejid, sizeof(jcl->barejid), "%s@%s", jcl->username, jcl->domain);
-		Q_snprintf(jcl->fulljid, sizeof(jcl->fulljid), "%s@%s/%s", jcl->username, jcl->domain, jcl->resource);
+		if (Q_snprintf(jcl->barejid, sizeof(jcl->barejid), "%s@%s", jcl->username, jcl->domain) >= sizeof(jcl->barejid) ||
+			Q_snprintf(jcl->fulljid, sizeof(jcl->fulljid), "%s@%s/%s", jcl->username, jcl->domain, jcl->resource) >= sizeof(jcl->fulljid))
+		{
+			XML_Destroy(tree);
+			return JCL_KILL;
+		}
 		if ((ot=XML_ChildOfTree(tree, "bind", 0)))
 		{
 			unparsable = false;
@@ -5469,7 +5487,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 
 		if (unparsable)
 		{
-			if ((!jcl->issecure) && BUILTINISVALID(Net_SetTLSClient) && XML_ChildOfTree(tree, "starttls", 0) != NULL && jcl->forcetls >= 0)
+			if ((!jcl->issecure) && XML_ChildOfTree(tree, "starttls", 0) != NULL && jcl->forcetls >= 0)
 			{
 				Con_DPrintf("XMPP: Attempting to switch to TLS\n");
 				JCL_AddClientMessageString(jcl, "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls' />");
@@ -5485,15 +5503,8 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 				qboolean needpass = false;
 				if (jcl->forcetls > 0 && !jcl->issecure)
 				{
-					if (BUILTINISVALID(Net_SetTLSClient))
-					{
-						*error = "Unable to switch to TLS. You are probably being man-in-the-middle attacked.";
-						XML_ConPrintTree(tree, "", 0);
-					}
-					else
-					{
-						*error = "Unable to switch to TLS. Your engine does not provide the feature. You can use the xmpp /autoconnect command to register your account instead, as this does not enforce the use of tls (but does still use it in case your future engine versions support it).";
-					}
+					*error = "Unable to switch to TLS. You are probably being man-in-the-middle attacked.";
+					XML_ConPrintTree(tree, "", 0);
 					XML_Destroy(tree);
 					return JCL_KILL;
 				}
@@ -5594,16 +5605,9 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 		jcl->bufferedinammount = 0;
 		jcl->instreampos = 0;
 
-		if (!BUILTINISVALID(Net_SetTLSClient))
-		{
-			*error = "proceed without TLS";
-			XML_Destroy(tree);
-			return JCL_KILL;
-		}
-
 		//when using srv records, the certificate must match the user's domain, rather than merely the hostname of the server.
 		//if you want to match the hostname of the server, use (oldstyle) tlsconnect directly instead.
-		if (pNet_SetTLSClient(jcl->socket, jcl->certificatedomain)<0)
+		if (netfuncs->SetTLSClient(jcl->socket, jcl->certificatedomain)<0)
 		{
 			*error = "failed to switch to TLS";
 			XML_Destroy(tree);
@@ -5765,7 +5769,7 @@ void JCL_CloseConnection(jclient_t *jcl, const char *reason, qboolean reconnect)
 	jcl->outbufmax = 0;
 
 	if (jcl->socket != -1)
-		pNet_Close(jcl->socket);
+		netfuncs->Close(jcl->socket);
 	jcl->socket = -1;
 	jcl->status = JCL_DEAD;
 	Q_strncpyz(jcl->errormsg, reason, sizeof(jcl->errormsg));
@@ -5797,20 +5801,20 @@ void JCL_GeneratePresence(jclient_t *jcl, qboolean force)
 	serveraddr[0] = 0;
 	servermap[0] = 0;
 
-	if (!pCvar_GetFloat("xmpp_nostatus"))
+	if (!cvarfuncs->GetFloat("xmpp_nostatus"))
 	{
-		if (pCvar_GetFloat("sv.state"))
+		if (cvarfuncs->GetFloat("sv.state"))
 		{
-			pCvar_GetString("sv.mapname", servermap, sizeof(servermap));
+			cvarfuncs->GetString("sv.mapname", servermap, sizeof(servermap));
 		}
 		else
 		{
-			if (!pCvar_GetString("cl_serveraddress", serveraddr, sizeof(serveraddr)))
+			if (!cvarfuncs->GetString("cl_serveraddress", serveraddr, sizeof(serveraddr)))
 				serveraddr[0] = 0;
-			if (BUILTINISVALID(CL_GetStats))
+			if (clientfuncs)
 			{
 				//if we can't get any stats, its because we're not actually on the server.
-				if (!pCL_GetStats(0, &dummystat, 1))
+				if (!clientfuncs->GetStats(0, &dummystat, 1))
 					serveraddr[0] = 0;
 			}
 		}
@@ -5900,26 +5904,26 @@ static void JCL_RegenerateBuddyList(qboolean force)
 
 	jclient_updatebuddylist = false;
 
-	if (!BUILTINISVALID(Con_GetConsoleFloat))
+	if (!confuncs)
 		return;
 
 	//only redraw the window if it actually exists. if they closed it, then don't mess things up.
-	if (!force && pCon_GetConsoleFloat(console, "iswindow") <= 0)
+	if (!force && confuncs->GetConsoleFloat(console, "iswindow") <= 0)
 		return;
 
-	if (pCon_GetConsoleFloat(console, "iswindow") != true)
+	if (confuncs->GetConsoleFloat(console, "iswindow") != true)
 	{
-		pCon_SetConsoleFloat(console, "iswindow", true);
-		pCon_SetConsoleFloat(console, "forceutf8", true);
-		pCon_SetConsoleFloat(console, "linebuffered", false);
-		pCon_SetConsoleFloat(console, "wnd_x", pvid.width - 256);
-		pCon_SetConsoleFloat(console, "wnd_y", true);
-		pCon_SetConsoleFloat(console, "wnd_w", 256);
-		pCon_SetConsoleFloat(console, "wnd_h", pvid.height);
+		confuncs->SetConsoleFloat(console, "iswindow", true);
+		confuncs->SetConsoleFloat(console, "forceutf8", true);
+		confuncs->SetConsoleFloat(console, "linebuffered", false);
+		confuncs->SetConsoleFloat(console, "wnd_x", pvid.width - 256);
+		confuncs->SetConsoleFloat(console, "wnd_y", true);
+		confuncs->SetConsoleFloat(console, "wnd_w", 256);
+		confuncs->SetConsoleFloat(console, "wnd_h", pvid.height);
 	}
-	pCon_SetConsoleFloat(console, "linecount", 0);	//clear it
+	confuncs->SetConsoleFloat(console, "linecount", 0);	//clear it
 	if (force)
-		pCon_SetActive(console);
+		confuncs->SetActive(console);
 
 	for (i = 0; i < sizeof(jclients)/sizeof(jclients[0]); i++)
 	{
@@ -6040,7 +6044,7 @@ static void JCL_RegenerateBuddyList(qboolean force)
 						{
 							char photodata[65536];
 							unsigned int photosize = bi->image?Base64_Decode(photodata, sizeof(photodata), bi->image, strlen(bi->image)):0;
-							b->image = pDraw_LoadImageData(va("xmpp/%s.png", b->accountdomain), bi->imagemime, photodata, photosize);
+							b->image = drawfuncs->LoadImageData(va("xmpp/%s.png", b->accountdomain), bi->imagemime, photodata, photosize);
 							b->vcardphotochanged = false;
 						}
 						else if (!*b->vcardphotohash)
@@ -6280,10 +6284,10 @@ static void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 //functions above this line allow connections to multiple servers.
 //it is just the control functions that only allow one server.
 
-qintptr_t JCL_Frame(qintptr_t *args)
+void JCL_Frame(double realtime, double gametime)
 {
 	int i;
-	jclient_curtime = args[0];
+	jclient_curtime = realtime;
 	if (jclient_needreadconfig)
 	{
 		JCL_LoadConfig();
@@ -6340,7 +6344,7 @@ qintptr_t JCL_Frame(qintptr_t *args)
 						if (jcl->rcon_pipe >= 0)
 						{
 							char rcondata[64000];
-							int rconsize = pNet_Recv(jcl->rcon_pipe, rcondata, sizeof(rcondata)-1);
+							int rconsize = netfuncs->Recv(jcl->rcon_pipe, rcondata, sizeof(rcondata)-1);
 							if (rconsize > 0)
 							{
 								char *ls, *le;
@@ -6358,7 +6362,7 @@ qintptr_t JCL_Frame(qintptr_t *args)
 							else if (rconsize < 0)
 							{
 								JCL_AddClientMessagef(jcl, "<message to='%s'><body>%s</body></message>", jcl->rcon_peer, "RCON ERROR");
-								pFS_Close(jcl->rcon_pipe);
+								filefuncs->Close(jcl->rcon_pipe);
 								jcl->rcon_pipe = -1;
 							}
 						}
@@ -6372,7 +6376,6 @@ qintptr_t JCL_Frame(qintptr_t *args)
 			JCL_IQTimeouts(jcl);
 		}
 	}
-	return 0;
 }
 
 void JCL_WriteConfig(void)
@@ -6477,14 +6480,14 @@ void JCL_WriteConfig(void)
 		}
 	}
 
-	pFS_Open("**plugconfig", &config, 2);
+	filefuncs->Open("**plugconfig", &config, 2);
 	if (config >= 0)
 	{
 		char *s = XML_GenerateString(m, true);
-		pFS_Write(config, s, strlen(s));
+		filefuncs->Write(config, s, strlen(s));
 		free(s);
 
-		pFS_Close(config);
+		filefuncs->Close(config);
 	}
 	XML_Destroy(m);
 }
@@ -6497,13 +6500,13 @@ void JCL_LoadConfig(void)
 		qhandle_t config;
 		char *buf;
 		qboolean oldtls;
-		len = pFS_Open("**plugconfig", &config, 1);
+		len = filefuncs->Open("**plugconfig", &config, 1);
 		if (len >= 0)
 		{
 			buf = malloc(len+1);
 			buf[len] = 0;
-			pFS_Read(config, buf, len);
-			pFS_Close(config);
+			filefuncs->Read(config, buf, len);
+			filefuncs->Close(config);
 
 			if (len && *buf != '<')
 			{//legacy code, to be removed
@@ -6548,7 +6551,7 @@ void JCL_LoadConfig(void)
 }
 
 //on shutdown, write config and close connections.
-qintptr_t JCL_Shutdown(qintptr_t *args)
+void JCL_Shutdown(void)
 {
 	jclient_t *jcl;
 	int i;
@@ -6562,7 +6565,6 @@ qintptr_t JCL_Shutdown(qintptr_t *args)
 
 //	if (_CrtDumpMemoryLeaks())
 //		OutputDebugStringA("Leaks detected\n");
-	return true;
 }
 
 void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
@@ -6607,11 +6609,11 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 	if (b->btype == BT_CHATROOM && !br)
 		return;
 	if (!strncmp(msg, "/me ", 4))
-		XMPP_ConversationPrintf(con, title, "* "COL_NAME_US"%s^7"COL_TEXT_US"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
-	else if (b->btype == BT_ROSTER && BUILTINISVALID(Con_SetConsoleString))
-		XMPP_ConversationPrintf(con, title, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]"COL_NAME_US"%s^7:\v"COL_TEXT_US"%s\n", jcl->barejid, jcl->localalias, msg);
+		XMPP_ConversationPrintf(con, title, false, "* "COL_NAME_US"%s^7"COL_TEXT_US"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
+	else if (b->btype == BT_ROSTER && confuncs)
+		XMPP_ConversationPrintf(con, title, false, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]"COL_NAME_US"%s^7:\v"COL_TEXT_US"%s\n", jcl->barejid, jcl->localalias, msg);
 	else
-		XMPP_ConversationPrintf(con, title, COL_NAME_US"%s^7: "COL_TEXT_US"%s\n", jcl->localalias, msg);
+		XMPP_ConversationPrintf(con, title, false, COL_NAME_US"%s^7: "COL_TEXT_US"%s\n", jcl->localalias, msg);
 }
 void JCL_AttentionMessage(jclient_t *jcl, char *to, char *msg)
 {
@@ -6722,14 +6724,14 @@ void XMPP_Menu_Password(jclient_t *acc)
 	if (!jclient_action)
 	{
 		JCL_RegenerateBuddyList(true);
-		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		confuncs->SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
 		jclient_action_cl = acc;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_SETAPASSWORD;
 	}
 
 	/*
-	pCmd_AddText("conmenu\n"
+	cmdfuncs->AddText("conmenu\n"
 				"{\n"
 					"menuclear\n"
 					"if (option == \"SignIn\")\n"
@@ -6740,18 +6742,18 @@ void XMPP_Menu_Password(jclient_t *acc)
 				"}\n", false);
 
 	y = 36;
-	pCmd_AddText(va("menutext 48 %i \"^sXMPP Sign In\"\n", y), false); y+=16;
-	pCmd_AddText(va("menutext 48 %i \"^sPlease provide your password for\"\n", y), false); y+=16;
-	pCmd_AddText(va("menueditpriv 48 %i \"%s@%s\" \"example\"\n", y, acc->username, acc->domain), false);y+=16;
-	pCmd_AddText(va("set _t1 0\nmenucheck 48 %i \"Save Password\" _t1 1\n", y), false); y+=16;
-	pCmd_AddText(va("menutext 48 %i \"Sign In\" SignIn\n", y), false);
-	pCmd_AddText(va("menutext 256 %i \"Cancel\" cancel\n", y), false);
+	cmdfuncs->AddText(va("menutext 48 %i \"^sXMPP Sign In\"\n", y), false); y+=16;
+	cmdfuncs->AddText(va("menutext 48 %i \"^sPlease provide your password for\"\n", y), false); y+=16;
+	cmdfuncs->AddText(va("menueditpriv 48 %i \"%s@%s\" \"example\"\n", y, acc->username, acc->domain), false);y+=16;
+	cmdfuncs->AddText(va("set _t1 0\nmenucheck 48 %i \"Save Password\" _t1 1\n", y), false); y+=16;
+	cmdfuncs->AddText(va("menutext 48 %i \"Sign In\" SignIn\n", y), false);
+	cmdfuncs->AddText(va("menutext 256 %i \"Cancel\" cancel\n", y), false);
 	*/
 }
 void XMPP_Menu_Connect(void)
 {
 	int y;
-	pCmd_AddText("conmenu\n"
+	cmdfuncs->AddText("conmenu\n"
 				"{\n"
 					"menuclear\n"
 					"if (option == \"SignIn\")\n"
@@ -6759,12 +6761,12 @@ void XMPP_Menu_Connect(void)
 				"}\n", false);
 
 	y = 36;
-	pCmd_AddText(va("menutext 48 %i \"^sXMPP Sign In\"\n", y), false); y+=16;
-	pCmd_AddText(va("menueditpriv 48 %i \"Username\" \"example\"\n", y), false);y+=16;
-	pCmd_AddText(va("menueditpriv 48 %i \"Domain\" \""EXAMPLEDOMAIN"\"\n", y), false);y+=16;
-	pCmd_AddText(va("menueditpriv 48 %i \"Resource\" \"\"\n", y), false);y+=32;
-	pCmd_AddText(va("menutext 48 %i \"Sign In\" SignIn\n", y), false);
-	pCmd_AddText(va("menutext 256 %i \"Cancel\" cancel\n", y), false);
+	cmdfuncs->AddText(va("menutext 48 %i \"^sXMPP Sign In\"\n", y), false); y+=16;
+	cmdfuncs->AddText(va("menueditpriv 48 %i \"Username\" \"example\"\n", y), false);y+=16;
+	cmdfuncs->AddText(va("menueditpriv 48 %i \"Domain\" \""EXAMPLEDOMAIN"\"\n", y), false);y+=16;
+	cmdfuncs->AddText(va("menueditpriv 48 %i \"Resource\" \"\"\n", y), false);y+=32;
+	cmdfuncs->AddText(va("menutext 48 %i \"Sign In\" SignIn\n", y), false);
+	cmdfuncs->AddText(va("menutext 256 %i \"Cancel\" cancel\n", y), false);
 }
 
 void JCL_Command(int accid, char *console)
@@ -6780,7 +6782,7 @@ void JCL_Command(int accid, char *console)
 		return;
 	jcl = jclients[accid];
 
-	pCmd_Args(imsg, sizeof(imsg));
+	cmdfuncs->Args(imsg, sizeof(imsg));
 
 	msg = imsg;
 	for (i = 0; i < 6; i++)
@@ -6963,19 +6965,10 @@ void JCL_Command(int accid, char *console)
 		else if (!strcmp(arg[0]+1, "help")) 
 		{
 			Con_TrySubPrint(console, "^[/" COMMANDPREFIX " /connect USERNAME@DOMAIN/RESOURCE [PASSWORD] [XMPPSERVER]^]\n");
-			if (BUILTINISVALID(Net_SetTLSClient))
-			{
-				Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com^] (using oauth2)\n");
-				Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com mypassword^] (warning: password will be saved locally in plain text)\n");
-//				Con_TrySubPrint(console, "eg for facebook: ^[/" COMMANDPREFIX " /connect myusername@chat.facebook.com mypassword chat.facebook.com^]\n");
-//				Con_TrySubPrint(console, "eg for msn: ^[/" COMMANDPREFIX " /connect myusername@messanger.live.com mypassword^]\n");
-			}
-			else
-			{	//if we don't have tls support, we can still connect to google with oauth2
-				//no idea about other networks.
-				//however, the regular 'connect' command will insist on tls, so make sure the helpful command displayed is different
-				Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /autoconnect myusername@gmail.com^] (using oauth2)\n");
-			}
+			Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com^] (using oauth2)\n");
+			Con_TrySubPrint(console, "eg for gmail: ^[/" COMMANDPREFIX " /connect myusername@gmail.com mypassword^] (warning: password will be saved locally in plain text)\n");
+//			Con_TrySubPrint(console, "eg for facebook: ^[/" COMMANDPREFIX " /connect myusername@chat.facebook.com mypassword chat.facebook.com^]\n");
+//			Con_TrySubPrint(console, "eg for msn: ^[/" COMMANDPREFIX " /connect myusername@messanger.live.com mypassword^]\n");
 			Con_TrySubPrint(console, "Note that this info will be used the next time you start quake.\n");
 
 			//small note:
@@ -7009,13 +7002,13 @@ void JCL_Command(int accid, char *console)
 			//just clears the current console.
 			if (*console)
 			{
-				pCon_Destroy(console);
+				confuncs->Destroy(console);
 				Con_SubPrintf(console, "");
-				if (BUILTINISVALID(Con_SetActive))
-					pCon_SetActive(console);
+				if (confuncs)
+					confuncs->SetActive(console);
 			}
 			else
-				pCmd_AddText("\nclear\n", true);
+				cmdfuncs->AddText("\nclear\n", true);
 		}
 		else if (!jcl)
 		{
@@ -7169,8 +7162,7 @@ void JCL_Command(int accid, char *console)
 			char roomserverhandle[512];
 			buddy_t *b;
 			bresource_t *r;
-			Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", arg[1], arg[2], arg[3]);
-			if (JCL_FindBuddy(jcl, roomserverhandle, &b, &r, false))
+			if (Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", arg[1], arg[2], arg[3]) < sizeof(roomserverhandle) && JCL_FindBuddy(jcl, roomserverhandle, &b, &r, false))
 			{
 				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", roomserverhandle);
 				JCL_ForgetBuddy(jcl, b, NULL);
@@ -7234,7 +7226,7 @@ void JCL_Command(int accid, char *console)
 			{
 				if (!*console)
 				{
-					if (BUILTINISVALID(Con_GetConsoleFloat))
+					if (confuncs)
 						JCL_RegenerateBuddyList(true);
 					else
 						JCL_PrintBuddyList(console, jcl, false);
@@ -7249,7 +7241,7 @@ void JCL_Command(int accid, char *console)
 		}
 		else
 		{
-			if (!*msg && BUILTINISVALID(Con_GetConsoleFloat))
+			if (!*msg && confuncs)
 				JCL_RegenerateBuddyList(true);
 			else
 				Con_TrySubPrint(console, "Not connected. For help, type \"^[/" COMMANDPREFIX " /help^]\"\n");

@@ -1081,10 +1081,10 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_KEY_GETCATCHER:
-		VM_LONG(ret) = keycatcher;
+		VM_LONG(ret) = Q3_GetKeyCatcher();
 		break;
 	case CG_KEY_SETCATCHER:
-		keycatcher = VM_LONG(arg[0]);
+		Q3_SetKeyCatcher(VM_LONG(arg[0]));
 		break;
 
 	case CG_GETGLCONFIG:
@@ -1313,7 +1313,7 @@ int CG_Refresh(void)
 
 void CG_Stop (void)
 {
-	keycatcher &= ~2;
+	Q3_SetKeyCatcher(Q3_GetKeyCatcher()&~2);
 	if (cgvm)
 	{
 		VM_Call(cgvm, CG_SHUTDOWN);
@@ -1380,7 +1380,8 @@ void CG_Command_f(void)
 
 qboolean CG_KeyPress(int key, int unicode, int down)
 {
-	if (!cgvm || !(keycatcher&8))
+	int catcher = Q3_GetKeyCatcher();
+	if (!cgvm || !(catcher&8))
 		return false;
 	return VM_Call(cgvm, CG_KEY_EVENT, key, down);
 }

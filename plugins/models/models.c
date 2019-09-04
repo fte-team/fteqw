@@ -4,7 +4,8 @@
 #include "quakedef.h"
 #include "../plugin.h"
 #include "com_mesh.h"
-modplugfuncs_t *modfuncs;
+plugmodfuncs_t *modfuncs;
+plugfsfuncs_t *filefuncs;
 
 //#define ASEMODELS	//FIXME: TEST TEST TEST. shold be working iiuc
 //#define LWOMODELS	//not working
@@ -812,21 +813,39 @@ static qboolean QDECL Mod_LoadLWOModel (struct model_s *mod, void *buffer, size_
 }
 #endif
 
-qboolean QDECL Mod_LoadGLTFModel (struct model_s *mod, void *buffer, size_t fsize);
-qboolean QDECL Mod_LoadGLBModel (struct model_s *mod, void *buffer, size_t fsize);
+extern qboolean QDECL Mod_LoadGLTFModel (struct model_s *mod, void *buffer, size_t fsize);
+extern qboolean QDECL Mod_LoadGLBModel (struct model_s *mod, void *buffer, size_t fsize);
+extern void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh);
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Mod_ExecuteCommand(qboolean isinsecure)
 {
-	CHECKBUILTIN(Mod_GetPluginModelFuncs);
-
-	if (BUILTINISVALID(Mod_GetPluginModelFuncs))
+	char tok[128];
+	cmdfuncs->Argv(0, tok, sizeof(tok));
+	if (!strcmp(tok, "exportiqm"))
 	{
-		modfuncs = pMod_GetPluginModelFuncs(sizeof(modplugfuncs_t));
-		if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
-			modfuncs = NULL;
+		model_t *mod;
+		cmdfuncs->Argv(1, tok, sizeof(tok));
+		mod = modfuncs->GetModel(tok, true);
+		if (!mod || mod->type != mod_alias || !mod->meshinfo)
+			Con_Printf("Couldn't load \"%s\"\n", tok);
+		else
+		{
+			cmdfuncs->Argv(2, tok, sizeof(tok));
+			Mod_ExportIQM(tok, mod->flags, mod->meshinfo);
+		}
+		return true;
 	}
+	return false;
+}
 
-	if (modfuncs)
+qboolean Plug_Init(void)
+{
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
+	if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
+		modfuncs = NULL;
+
+	if (modfuncs && filefuncs)
 	{
 #ifdef ASEMODELS
 		modfuncs->RegisterModelFormatText("ASE models (ase)", "*3DSMAX_ASCIIEXPORT", Mod_LoadASEModel);
@@ -838,6 +857,9 @@ qintptr_t Plug_Init(qintptr_t *args)
 		modfuncs->RegisterModelFormatText("glTF2 models (glTF)", ".gltf", Mod_LoadGLTFModel);
 		modfuncs->RegisterModelFormatMagic("glTF2 models (glb)", (('F'<<24)+('T'<<16)+('l'<<8)+'g'), Mod_LoadGLBModel);
 #endif
+
+		plugfuncs->ExportFunction("ExecuteCommand", Mod_ExecuteCommand);
+		cmdfuncs->AddCommand("exportiqm");
 		return true;
 	}
 	return false;

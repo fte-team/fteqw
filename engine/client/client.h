@@ -1232,7 +1232,7 @@ int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcos
 float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
 const char *Key_KeynumToString (int keynum, int modifier);
 int Key_StringToKeynum (const char *str, int *modifier);
-char *Key_GetBinding(int keynum, int bindmap, int modifier);
+const char *Key_GetBinding(int keynum, int bindmap, int modifier);
 void Key_GetBindMap(int *bindmaps);
 void Key_SetBindMap(int *bindmaps);
 
@@ -1530,7 +1530,7 @@ char*		TP_EnemyTeam (void);
 void		TP_ExecTrigger (char *s, qboolean indemos);
 qboolean	TP_FilterMessage (char *s);
 void		TP_Init(void);
-char*		TP_LocationName (vec3_t location);
+char*		TP_LocationName (const vec3_t location);
 char*		TP_MapName (void);
 void		TP_NewMap (void);
 void		TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
@@ -1682,7 +1682,6 @@ typedef enum
 	CINSTATE_FLUSHED,	//video will restart from beginning
 } cinstates_t;
 /*media playing system*/
-qboolean Media_PlayingFullScreen(void);
 qboolean Media_PlayFilm(char *name, qboolean enqueue);
 qboolean Media_StopFilm(qboolean all);
 struct cin_s *Media_StartCin(char *name);
@@ -1701,8 +1700,6 @@ cinstates_t Media_GetState(cin_t *cin);
 const char *Media_Send_GetProperty(cin_t *cin, const char *key);
 
 #else
-#define Media_Playing() false
-#define Media_PlayingFullScreen() false
 #define Media_PlayFilm(n,e) false
 #define Media_StopFilm(a) (void)true
 #endif

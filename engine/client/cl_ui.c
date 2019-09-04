@@ -5,7 +5,7 @@
 #include "cl_master.h"
 #include "shader.h"
 
-int keycatcher;
+static int keycatcher;
 
 #define TT_STRING					1			// string
 #define TT_LITERAL					2			// literal
@@ -29,6 +29,25 @@ typedef struct {
 static script_t *scripts;
 static int maxscripts;
 static unsigned int ui_width, ui_height;	//to track when it needs to be restarted (the api has no video mode changed event)
+static menu_t uimenu;
+
+void Q3_SetKeyCatcher(int newcatcher)
+{
+	int delta = newcatcher^keycatcher;
+	keycatcher = newcatcher;
+	if (delta & 2)
+	{
+		uimenu.isopaque = false; //no surprises.
+		if (newcatcher&2)
+			Menu_Push(&uimenu, false);
+		else
+			Menu_Unlink(&uimenu);
+	}
+}
+int Q3_GetKeyCatcher(void)
+{
+	return keycatcher;
+}
 #define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-\""
 void StripCSyntax (char *s)
 {
@@ -271,11 +290,6 @@ typedef float m3by3_t[3][3];
 #endif
 
 static vm_t *uivm;
-
-static char *scr_centerstring;
-
-char *Get_Q2ConfigString(int i);
-
 
 #define MAX_PINGREQUESTS 32
 
@@ -1049,7 +1063,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			VM_LONG(ret) = keycatcher;
 		break;
 	case UI_KEY_SETCATCHER:
-		keycatcher = VM_LONG(arg[0]);
+		Q3_SetKeyCatcher(VM_LONG(arg[0]));
 		break;
 
 	case UI_GETGLCONFIG:	//get glconfig
@@ -1388,41 +1402,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			Q_strncpyz(vi->renderername, q_renderername, sizeof(vi->renderername));
 		}
 		break;
-	case UI_GET_STRING:
-		{
-			char *str = NULL;
-			switch (arg[0])
-			{
-			case SID_Q2STATUSBAR:
-				str = cl.q2statusbar;
-				break;
-			case SID_Q2LAYOUT:
-				str = cl.q2layout;
-				break;
-			case SID_CENTERPRINTTEXT:
-				str = scr_centerstring;
-				break;
-			case SID_SERVERNAME:
-				str = cls.servername;
-				break;
-
-			default:
-				str = Get_Q2ConfigString(arg[0]);
-				break;
-			}
-			if (!str)
-				return -1;
-
-			if (arg[1] + arg[2] >= mask || VM_POINTER(arg[1]) < offset)
-				return -1;	//out of bounds.
-
-			if (strlen(str)>= arg[2])
-				return -1;
-
-			strcpy(VM_POINTER(arg[1]), str);	//already made sure buffer is big enough
-
-			return strlen(str);
-		}
 */
 
 	case UI_PC_ADD_GLOBAL_DEFINE:
@@ -1504,29 +1483,11 @@ static qintptr_t EXPORT_FN UI_SystemCallsNative(qintptr_t arg, ...)
 	return UI_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
-qboolean UI_DrawStatusBar(int scores)
+static void UI_Release(menu_t *m)
 {
-	return false;
-/*
-	if (!uivm)
-		return false;
-
-	return VM_Call(uivm, UI_DRAWSTATUSBAR, scores);
-*/
+	keycatcher &= ~2;
 }
-
-qboolean UI_DrawIntermission(void)
-{
-	return false;
-/*
-	if (!uivm)
-		return false;
-
-	return VM_Call(uivm, UI_INTERMISSION);
-*/
-}
-
-void UI_DrawMenu(void)
+static void UI_DrawMenu(menu_t *m)
 {
 	if (uivm)
 	{
@@ -1537,66 +1498,12 @@ void UI_DrawMenu(void)
 			VM_Call(uivm, UI_INIT);
 		}
 		VM_Call(uivm, UI_REFRESH, (int)(realtime * 1000));
+
+
+		uimenu.isopaque = VM_Call(uivm, UI_IS_FULLSCREEN);
 	}
 }
-
-qboolean UI_CenterPrint(char *text, qboolean finale)
-{
-	scr_centerstring = text;
-	return false;
-/*
-	if (!uivm)
-		return false;
-
-	return VM_Call(uivm, UI_STRINGCHANGED, SID_CENTERPRINTTEXT);
-*/
-}
-
-qboolean UI_Q2LayoutChanged(void)
-{
-	return false;
-/*
-	if (!uivm)
-		return false;
-
-	return VM_Call(uivm, UI_STRINGCHANGED, SID_CENTERPRINTTEXT);
-*/
-}
-
-void UI_StringChanged(int num)
-{
-/*	if (uivm)
-		VM_Call(uivm, UI_STRINGCHANGED, num);
-*/
-}
-
-void UI_Reset(void)
-{
-	keycatcher &= ~2;
-
-	if (qrenderer == QR_NONE)	//no renderer loaded
-		UI_Stop();
-	else if (uivm)
-		VM_Call(uivm, UI_INIT);
-}
-
-int UI_MenuState(void)
-{
-	if (Key_Dest_Has(kdm_gmenu) || Key_Dest_Has(kdm_emenu))
-	{	//engine's menus take precedence over q3's ui
-		return false;
-	}
-	if (!uivm)
-		return false;
-	if (VM_Call(uivm, UI_IS_FULLSCREEN))
-		return 2;
-	else if (keycatcher&2)
-		return 3;
-	else
-		return 0;
-}
-
-qboolean UI_KeyPress(int key, int unicode, qboolean down)
+qboolean UI_KeyPress(struct menu_s *m, qboolean isdown, unsigned int devid, int key, int unicode)
 {
 	extern qboolean	keydown[K_MAX];
 	extern int		keyshift[K_MAX];		// key to map to if shift held down in console
@@ -1607,13 +1514,8 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 //		return false;
 	if (!(keycatcher&2))
 	{
-		if (key == K_ESCAPE && down)
+		if (key == K_ESCAPE && isdown)
 		{
-			if (Media_PlayingFullScreen())
-			{
-				Media_StopFilm(true);
-			}
-
 			UI_OpenMenu();
 			return true;
 		}
@@ -1625,35 +1527,39 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 	if (key < K_BACKSPACE && key >= ' ')
 		key |= 1024;
 
-	/*result = */VM_Call(uivm, UI_KEY_EVENT, key, down);
-/*
-	if (!keycatcher && !cls.state && key == K_ESCAPE && down)
-	{
-		M_Menu_Main_f();
-		return true;
-	}*/
-
+	/*result = */VM_Call(uivm, UI_KEY_EVENT, key, isdown);
 	return true;
-
-//	return result;
 }
 
-qboolean UI_MousePosition(float xpos, float ypos)
-{
-	if (uivm && (keycatcher&2))
+static qboolean UI_MousePosition(struct menu_s *m, qboolean abs, unsigned int devid, float x, float y)
+{	//q3ui is a peice of poo and only accepts relative mouse movements.
+	//which it then clamps arbitrarily
+	//which means we can't use hardware cursors
+	//which results in clumsyness when switching between q3ui and everything else.
+
+	if (uivm && !abs)
 	{
-		int px, py;
-		px = (xpos);//*640/(int)vid.width;
-		py = (ypos);//*480/(int)vid.height;
+		int px = x, py = y;
 		VM_Call(uivm, UI_MOUSE_EVENT, px, py);
 		return true;
 	}
 	return false;
 }
 
+void UI_Reset(void)
+{
+	Menu_Unlink(&uimenu);
+
+	if (qrenderer == QR_NONE)	//no renderer loaded
+		UI_Stop();
+	else if (uivm)
+		VM_Call(uivm, UI_INIT);
+}
+
 void UI_Stop (void)
 {
-	keycatcher &= ~2;
+	Menu_Unlink(&uimenu);
+
 	if (uivm)
 	{
 		VM_Call(uivm, UI_SHUTDOWN);
@@ -1682,6 +1588,11 @@ void UI_Start (void)
 
 	for (i = 0; i < MAX_PINGREQUESTS; i++)
 		ui_pings[i].adr.type = NA_INVALID;
+
+	uimenu.drawmenu = UI_DrawMenu;
+	uimenu.mousemove = UI_MousePosition;
+	uimenu.keyevent = UI_KeyPress;
+	uimenu.release = UI_Release;
 
 	ui_width = vid.width;
 	ui_height = vid.height;

@@ -405,7 +405,7 @@ void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr
 {
 	int bindmap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
 	int modifier = (prinst->callargc > 2)?G_FLOAT(OFS_PARM2):0;
-	char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)), bindmap, modifier);
+	const char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)), bindmap, modifier);
 	RETURN_TSTRING(binding);
 }
 void QCBUILTIN PF_cl_setkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -472,7 +472,7 @@ void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	if (prinst->callargc>1)
 	{
-		struct key_cursor_s *m = &key_customcursor[(world->keydestmask==kdm_game)?kc_game:kc_menu];
+		struct key_cursor_s *m = &key_customcursor[(world->keydestmask==kdm_game)?kc_game:kc_menuqc];
 		Q_strncpyz(m->name, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(m->name));
 		m->hotspot[0] = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+0):0;
 		m->hotspot[1] = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+1):0;

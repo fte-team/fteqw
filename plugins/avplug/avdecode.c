@@ -1,6 +1,9 @@
 #include "../plugin.h"
 #include "../engine.h"
 
+static plugfsfuncs_t *filefuncs;
+static plugaudiofuncs_t *audiofuncs;
+
 //#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
@@ -24,12 +27,6 @@
 
 #define DECODERNAME "ffmpeg"
 
-#define PASSFLOAT(f) *(int*)&(f)
-
-#define ARGNAMES ,sourceid, data, speed, samples, channels, width, PASSFLOAT(volume)
-BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume))
-#undef ARGNAMES
-
 /*should probably try threading this, though I suppose it should be the engine doing that.*/
 /*timing is based upon the start time. this means overflow issues with rtsp etc*/
 
@@ -37,7 +34,7 @@ struct decctx
 {
 	unsigned int width, height;
 
-	qhandle_t file;
+	vfsfile_t *file;
 	int64_t fileofs;
 	int64_t filelen;
 	AVFormatContext *pFormatCtx;
@@ -92,7 +89,7 @@ static int AVIO_Read(void *opaque, uint8_t *buf, int buf_size)
 {
 	struct decctx *ctx = opaque;
 	int ammount;
-	ammount = pFS_Read(ctx->file, buf, buf_size);
+	ammount = VFS_READ(ctx->file, buf, buf_size);
 	if (ammount > 0)
 		ctx->fileofs += ammount;
 	return ammount;
@@ -117,7 +114,7 @@ static int64_t AVIO_Seek(void *opaque, int64_t offset, int whence)
 	case AVSEEK_SIZE:
 		return ctx->filelen;
 	}
-	pFS_Seek(ctx->file, ctx->fileofs & 0xffffffff, ctx->fileofs>>32);
+	VFS_SEEK(ctx->file, ctx->fileofs);
 	return ctx->fileofs;
 }
 
@@ -139,8 +136,8 @@ static void AVDec_Destroy(void *vctx)
 	// Close the video file
 	avformat_close_input(&ctx->pFormatCtx);
 
-	if (ctx->file >= 0)
-		pFS_Close(ctx->file);
+	if (ctx->file)
+		VFS_CLOSE(ctx->file);
 
 	free(ctx);
 }
@@ -154,17 +151,17 @@ static void *AVDec_Create(const char *medianame)
 	qboolean useioctx = false;
 
 	/*always respond to av: media prefixes*/
-	if (!strncmp(medianame, "av:", 3))
+	if (!strncmp(medianame, "av:", 3) || !strncmp(medianame, "ff:", 3))
 	{
 		medianame = medianame + 3;
 		useioctx = true;
 	}
-	else if (!strncmp(medianame, "avs:", 4))
+	else if (!strncmp(medianame, "avs:", 4) || !strncmp(medianame, "ffs:", 4))
 	{
 		medianame = medianame + 4;
 		//let avformat do its own avio context stuff
 	}
-	else if (strchr(medianame, ':'))	//block other types of url.
+	else if (strchr(medianame, ':'))	//block other types of url/prefix.
 		return NULL;
 	else //if (!strcasecmp(extension, ".roq") || !strcasecmp(extension, ".roq"))
 		return NULL;	//roq+cin should be played back via the engine instead.
@@ -173,7 +170,7 @@ static void *AVDec_Create(const char *medianame)
 	memset(ctx, 0, sizeof(*ctx));
 
 	ctx->lasttime = -1;
-	ctx->file = -1;
+	ctx->file = NULL;
 	if (useioctx)
 	{
 		// Create internal Buffer for FFmpeg:
@@ -181,14 +178,15 @@ static void *AVDec_Create(const char *medianame)
 		char *pBuffer = av_malloc(iBufSize);
 		AVIOContext *ioctx;
 
-		ctx->filelen = pFS_Open(medianame, &ctx->file, 1);
-		if (ctx->filelen < 0)
+		ctx->file = filefuncs->OpenVFS(medianame, "rb", FS_GAME);
+		if (!ctx->file)
 		{
 			Con_Printf("Unable to open %s\n", medianame);
 			free(ctx);
 			av_free(pBuffer);
 			return NULL;
 		}
+		ctx->filelen = VFS_GETLEN(ctx->file);
 
 		ioctx = avio_alloc_context(pBuffer, iBufSize, 0, ctx, AVIO_Read, 0, AVIO_Seek);
 		ctx->pFormatCtx = avformat_alloc_context();
@@ -317,6 +315,8 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 	int64_t curtime;
 
 	curtime = (mediatime * ctx->denum) / ctx->num;
+
+	nosound |= !audiofuncs;
 	
 	while (1)
 	{
@@ -374,18 +374,33 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 					break;
 
 				case AV_SAMPLE_FMT_FLTP:
-					//FIXME: support float audio internally.
+					if (channels == 2)
 					{
+#ifdef MIXER_F32
+						float *l = (float*)ctx->pAFrame->data[0], *r = (float*)ctx->pAFrame->data[1], *t;
+						unsigned int i;
+						unsigned int frames = ctx->pAFrame->nb_samples;
+						width = sizeof(*t);
+						auddatasize = frames*width*channels;
+						t = malloc(auddatasize);
+						for (i = 0; i < frames; i++)
+						{
+							t[2*i+0] = l[i];
+							t[2*i+1] = r[i];
+						}
+						audiofuncs->RawAudio(-1, t, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
+						free(t);
+						continue;
+#else
+						//note that we can only reformat in place because we are NOT outputting floats.
 						float *in[2] = {(float*)ctx->pAFrame->data[0],(float*)ctx->pAFrame->data[1]};
 						signed short *out = (void*)auddata;
 						int v;
 						unsigned int i, c;
 						unsigned int frames = ctx->pAFrame->nb_samples;
-						if (channels > 2)
-							channels = 2;
 						for (i = 0; i < frames; i++)
 						{
-							for (c = 0; c < channels; c++)
+							for (c = 0; c < 2; c++)
 							{
 								v = (short)(in[c][i]*32767);
 								if (v < -32767)
@@ -397,10 +412,17 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 						}
 						width = sizeof(*out);
 						auddatasize = frames*width*channels;
+						break;
+#endif
 					}
-					break;
+
+					auddatasize /= channels;
+					channels = 1;
+					//fallthrough, using just the first channel as mono
 				case AV_SAMPLE_FMT_FLT:
-					//FIXME: support float audio internally.
+#ifdef MIXER_F32
+					width = 4;
+#else
 					{
 						float *in = (void*)auddata;
 						signed short *out = (void*)auddata;
@@ -418,8 +440,8 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 						auddatasize/=2;
 						width = 2;
 					}
+#endif
 					break;
-
 				case AV_SAMPLE_FMT_DBLP:
 					auddatasize /= channels;
 					channels = 1;
@@ -443,7 +465,7 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 					}
 					break;
 				}
-				pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
+				audiofuncs->RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
 			}
 		}
 
@@ -561,7 +583,7 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 						}
 						break;
 					}
-					pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
+					audiofuncs->RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
 				}
 			}
 			packet.data = odata;
@@ -608,7 +630,7 @@ static void AVDec_Rewind(void *vctx)
 
 /*
 //avcodec has no way to shut down properly.
-static qintptr_t AVDec_Shutdown(qintptr_t *args)
+static qboolean AVDec_Shutdown(void)
 {
 	return 0;
 }
@@ -632,14 +654,14 @@ static media_decoder_funcs_t decoderfuncs =
 
 qboolean AVDec_Init(void)
 {
-	if (!pPlug_ExportNative("Media_VideoDecoder", &decoderfuncs))
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	audiofuncs = plugfuncs->GetEngineInterface(plugaudiofuncs_name, sizeof(*audiofuncs));
+	if (!filefuncs ||
+		!plugfuncs->ExportInterface("Media_VideoDecoder", &decoderfuncs, sizeof(decoderfuncs)))
 	{
 		Con_Printf(DECODERNAME": Engine doesn't support media decoder plugins\n");
 		return false;
 	}
-
-	CHECKBUILTIN(S_RawAudio);
-	CHECKBUILTIN(FS_Seek);
 
 	return true;
 }

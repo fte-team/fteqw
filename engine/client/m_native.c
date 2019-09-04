@@ -8,6 +8,55 @@ extern unsigned int r2d_be_flags;
 #include "shader.h"
 #include "cl_master.h"
 
+//static void MN_Menu_VideoReset(struct menu_s *m);
+//static void MN_Menu_Released(struct menu_s *m);
+static qboolean MN_Menu_KeyEvent(struct menu_s *m, qboolean isdown, unsigned int devid, int key, int unicode)
+{
+	if (mn_entry && mn_entry->InputEvent)
+	{
+		void *nctx = (m->ctx==libmenu)?NULL:m->ctx;
+		struct menu_inputevent_args_s ev = {isdown?MIE_KEYDOWN:MIE_KEYUP, devid};
+		ev.key.scancode = key;
+		ev.key.charcode = unicode;
+		return mn_entry->InputEvent(nctx, ev);
+	}
+	return false;
+}
+static qboolean MN_Menu_MouseMove(struct menu_s *m, qboolean abs, unsigned int devid, float x, float y)
+{
+	if (mn_entry && mn_entry->InputEvent)
+	{
+		void *nctx = (m->ctx==libmenu)?NULL:m->ctx;
+		struct menu_inputevent_args_s ev = {abs?MIE_MOUSEABS:MIE_MOUSEDELTA, devid};
+		ev.mouse.delta[0] = x;
+		ev.mouse.delta[1] = y;
+		ev.mouse.screen[0] = mousecursor_x;
+		ev.mouse.screen[1] = mousecursor_y;
+		return mn_entry->InputEvent(nctx, ev);
+	}
+	return false;
+}
+static qboolean MN_Menu_JoyAxis(struct menu_s *m, unsigned int devid, int axis, float val)
+{
+	if (mn_entry && mn_entry->InputEvent)
+	{
+		void *nctx = (m->ctx==libmenu)?NULL:m->ctx;
+		struct menu_inputevent_args_s ev = {MIE_JOYAXIS, devid};
+		ev.axis.axis = axis;
+		ev.axis.val = val;
+		return mn_entry->InputEvent(nctx, ev);
+	}
+	return false;
+}
+static void MN_Menu_DrawMenu(struct menu_s *m)
+{
+	void *nctx = (m->ctx==libmenu)?NULL:m->ctx;
+	if (mn_entry && mn_entry->Draw)
+		mn_entry->Draw(nctx, host_frametime);
+	else
+		Menu_Unlink(m);
+}
+
 static int MN_CheckExtension(const char *extname)
 {
 	unsigned int i;
@@ -149,42 +198,60 @@ static void MN_DrawResetClipArea(void)
 		R2D_Flush();
 	BE_Scissor(NULL);
 }
-static qboolean MN_SetKeyDest(qboolean focused)
+static void MN_PushMenu(void *ctx)
 {
-	qboolean ret = Key_Dest_Has(kdm_nmenu);
-	if (ret == focused)
-		return false;
-	if (focused)
-	{
-		if (key_dest_absolutemouse & kdm_nmenu)
-		{	//we're activating the mouse cursor now... make sure the position is actually current.
-			//FIXME: we should probably get the input code to do this for us when switching cursor modes.
-			struct menu_inputevent_args_s ev = {MIE_MOUSEABS, -1};
-			ev.mouse.screen[0] = (mousecursor_x * vid.width) / vid.pixelwidth;
-			ev.mouse.screen[1] = (mousecursor_y * vid.height) / vid.pixelheight;
-			mn_entry->InputEvent(ev);
-		}
-		Key_Dest_Add(kdm_nmenu);
+	menu_t *m;
+	if (!ctx)
+		ctx = libmenu;	//to match kill
+	m = Menu_FindContext(ctx);
+	if (!m)
+	{	//not created yet.
+		m = Z_Malloc(sizeof(*m));
+		m->ctx = ctx;
+
+//		m->videoreset	= MN_Menu_VideoReset;
+//		m->release		= MN_Menu_Released;
+		m->keyevent		= MN_Menu_KeyEvent;
+		m->mousemove	= MN_Menu_MouseMove;
+		m->joyaxis		= MN_Menu_JoyAxis;
+		m->drawmenu		= MN_Menu_DrawMenu;
 	}
-	else
-		Key_Dest_Remove(kdm_nmenu);
-	return true;
+	m->cursor = &key_customcursor[kc_nativemenu];
+	Menu_Push(m, false);
+
+	if (ctx == libmenu)
+		ctx = NULL;
+	if (m->cursor)
+	{	//we're activating the mouse cursor now... make sure the position is actually current.
+		//FIXME: we should probably get the input code to do this for us when switching cursor modes.
+		struct menu_inputevent_args_s ev = {MIE_MOUSEABS, -1};
+		ev.mouse.screen[0] = mousecursor_x;
+		ev.mouse.screen[1] = mousecursor_y;
+		mn_entry->InputEvent(ctx, ev);
+	}
 }
-static int MN_GetKeyDest(void)
+static qboolean MN_IsMenuPushed(void *ctx)
 {
-	if (Key_Dest_Has(kdm_nmenu))
-	{
-		if (Key_Dest_Has_Higher(kdm_nmenu))
-			return -1;
-		return 1;
-	}
-	return 0;
+	menu_t *m;
+	if (!ctx)
+		ctx = libmenu;	//to match kill
+	m = Menu_FindContext(ctx);
+	return !!m;
+}
+static void MN_KillMenu(void *ctx)
+{
+	menu_t *m;
+	if (!ctx)
+		ctx = libmenu;	//don't allow null contexts, because that screws up any other menus.
+	m = Menu_FindContext(ctx);
+	if (m)
+		Menu_Unlink(m);
 }
 static int MN_SetMouseTarget(const char *cursorname, float hot_x, float hot_y, float scale)
 {
 	if (cursorname)
 	{
-		struct key_cursor_s *m = &key_customcursor[kc_nmenu];
+		struct key_cursor_s *m = &key_customcursor[kc_nativemenu];
 		if (scale <= 0)
 			scale = 1;
 		if (!strcmp(m->name, cursorname) || m->hotspot[0] != hot_x || m->hotspot[1] != hot_y || m->scale != scale)
@@ -195,10 +262,7 @@ static int MN_SetMouseTarget(const char *cursorname, float hot_x, float hot_y, f
 			m->scale = scale;
 			m->dirty = true;
 		}
-		key_dest_absolutemouse |= kdm_nmenu;
 	}
-	else
-		key_dest_absolutemouse &= ~kdm_nmenu;
 	return true;
 }
 
@@ -300,7 +364,6 @@ static void MN_RenderScene(menuscene_t *scene)
 
 void MN_Shutdown(void)
 {
-	Key_Dest_Remove(kdm_nmenu);
 	if (mn_entry)
 	{
 		mn_entry->Shutdown(MI_INIT);
@@ -367,8 +430,9 @@ qboolean MN_Init(void)
 		MN_RenderScene,
 
 		// Menu specific stuff
-		MN_SetKeyDest,
-		MN_GetKeyDest,
+		MN_PushMenu,
+		MN_IsMenuPushed,
+		MN_KillMenu,
 		MN_SetMouseTarget,
 		Key_KeynumToString,
 		Key_StringToKeynum,
@@ -419,8 +483,6 @@ qboolean MN_Init(void)
 	if (libmenu)
 	{
 		imports.engine_version = version_string();
-
-		key_dest_absolutemouse |= kdm_nmenu;
 
 		mn_entry = pGetMenuAPI (&imports); 
 		if (mn_entry && mn_entry->api_version >= NATIVEMENU_API_VERSION_MIN && mn_entry->api_version <= NATIVEMENU_API_VERSION_MAX)

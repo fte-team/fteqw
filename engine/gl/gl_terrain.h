@@ -396,7 +396,7 @@ typedef struct heightmap_s
 	qboolean brushesedited;
 } heightmap_t;
 
-typedef struct terrainfuncs_s
+typedef struct plugterrainfuncs_s
 {
 	void			*(QDECL *GenerateWater)			(hmsection_t *s, float maxheight);
 	qboolean		 (QDECL *InitLightmap)			(hmsection_t *s, qboolean initialise);
@@ -407,5 +407,6 @@ typedef struct terrainfuncs_s
 	void			 (QDECL *FinishedSection)		(hmsection_t *s, qboolean success);
 
 	qboolean		 (QDECL *AutogenerateSection)(heightmap_t *hm, int sx, int sy, unsigned int tgsflags);	//replace this if you want to make a terrain generator.
-} terrainfuncs_t;
+#define plugterrainfuncs_name "Terrain"
+} plugterrainfuncs_t;
 #endif

@@ -564,7 +564,6 @@ extern const size_t lightthreadctxsize;
 
 extern struct model_s		*currentmodel;
 
-qboolean Media_ShowFilm(void);
 void Media_CaptureDemoEnd(void);
 void Media_RecordFrame (void);
 qboolean Media_PausedDemo (qboolean fortiming);

@@ -2842,6 +2842,7 @@ static void CLDP_ParseDownloadBegin(char *s)
 
 	if (!dl || strcmp(fname, dl->remotename))
 	{
+#ifdef CSQC_DAT
 		if (cls.demoplayback && !dl && cl_dp_csqc_progssize && size == cl_dp_csqc_progssize && !strcmp(fname, cl_dp_csqc_progsname))
 		{	//its somewhat common for demos to contain a copy of the csprogs, so that the same version is available when trying to play the demo back.
 			extern cvar_t cl_download_csprogs, cl_nocsqc;
@@ -2857,6 +2858,7 @@ static void CLDP_ParseDownloadBegin(char *s)
 				return;	//silently ignore it
 		}
 		else
+#endif
 		{
 			Con_Printf("Warning: server started sending a file we did not request. Ignoring.\n");
 			return;
@@ -4512,10 +4514,6 @@ static void CLQ2_ParseConfigString (void)
 				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", map_checksum, serverchecksum);
 		}
 	}
-
-#ifdef VM_UI
-	UI_StringChanged(i);
-#endif
 }
 #endif
 
@@ -5720,21 +5718,20 @@ static void CL_MuzzleFlash (int entnum)
 
 	if (P_RunParticleEffectType(org, axis[0], 1, pt_muzzleflash))
 	{
+		extern cvar_t r_muzzleflash_colour;
+		extern cvar_t r_muzzleflash_fade;
+
 		dl = CL_AllocDlight (dlightkey);
 		VectorMA (org, 15, axis[0], dl->origin);
 		memcpy(dl->axis, axis, sizeof(dl->axis));
 
-		dl->radius = 200 + (rand()&31);
 		dl->minlight = 32;
 		dl->die = cl.time + 0.1;
-		dl->color[0] = 1.5;
-		dl->color[1] = 1.3;
-		dl->color[2] = 1.0;
 
-		dl->channelfade[0] = 1.5;
-		dl->channelfade[1] = 0.75;
-		dl->channelfade[2] = 0.375;
-		dl->decay = 1000;
+		VectorCopy(r_muzzleflash_colour.vec4, dl->color);
+		dl->radius = r_muzzleflash_colour.vec4[3] + (rand()&31);
+		VectorCopy(r_muzzleflash_fade.vec4, dl->channelfade);
+		dl->decay = r_muzzleflash_fade.vec4[3];
 #ifdef RTLIGHTS
 		dl->lightcolourscales[2] = 4;
 #endif
@@ -7531,9 +7528,6 @@ isilegible:
 		case svcq2_layout:
 			s = MSG_ReadString ();
 			Q_strncpyz (cl.q2layout[seat], s, sizeof(cl.q2layout[seat]));
-#ifdef VM_UI
-			UI_Q2LayoutChanged();
-#endif
 			break;
 		case svcq2_inventory:
 			CLQ2_ParseInventory(seat);

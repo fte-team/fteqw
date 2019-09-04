@@ -2,6 +2,11 @@
 #include <assert.h>
 #include <ctype.h>
 
+extern plug2dfuncs_t *drawfuncs;
+extern plugfsfuncs_t *filefuncs;
+extern plugclientfuncs_t *clientfuncs;
+extern pluginputfuncs_t *inputfuncs;
+
 //ezquake sucks. I'd fix these, but that'd make diffs more messy.
 #ifdef __GNUC__
 	#pragma GCC diagnostic ignored "-Wold-style-definition"
@@ -14,12 +19,12 @@
 #define qbool qboolean
 #define Com_Printf Con_Printf
 #define Com_DPrintf Con_DPrintf
-#define Cvar_Find(n) pCvar_GetNVFDG(n,NULL,0,NULL,NULL)
-#define Cvar_SetValue(var,val) pCvar_SetFloat(var->name,val)
-#define Cvar_Set(var,val) pCvar_SetString(var->name,val)
-#define Cmd_Argc pCmd_Argc
-#define Cbuf_AddText(x) pCmd_AddText(x,false)
-#define Sys_Error(x) pSys_Error(x)
+#define Cvar_Find(n) cvarfuncs->GetNVFDG(n,NULL,0,NULL,NULL)
+#define Cvar_SetValue(var,val) cvarfuncs->SetFloat(var->name,val)
+#define Cvar_Set(var,val) cvarfuncs->SetString(var->name,val)
+#define Cmd_Argc cmdfuncs->Argc
+#define Cbuf_AddText(x) cmdfuncs->AddText(x,false)
+#define Sys_Error(x) plugfuncs->Error(x)
 #define Q_calloc calloc
 #define Q_malloc malloc
 #define Q_strdup strdup
@@ -99,7 +104,7 @@ void Draw_Fill(float x, float y, float w, float h, qbyte pal);
 const char *ColorNameToRGBString (const char *newval);
 byte *StringToRGB(const char *str);
 
-#define Draw_String					pDraw_String
+#define Draw_String					drawfuncs->String
 
 void Draw_EZString(float x, float y, char *str, float scale, qboolean red);
 #define Draw_Alt_String(x,y,s)			Draw_EZString(x,y,s,8,true)
@@ -138,7 +143,7 @@ void Replace_In_String(char *string, size_t strsize, char leadchar, int patterns
 #define Utils_RegExpMatch(regexp,term) (true)
 
 #define clamp(v,min,max) v=bound(min,v,max)
-#define strlen_color(line) (pDraw_StringWidth(8, 0, line)/8.0)
+#define strlen_color(line) (drawfuncs->StringWidth(8, 0, line)/8.0)
 
 #define TIMETYPE_CLOCK 0
 #define TIMETYPE_GAMECLOCK 1
@@ -159,10 +164,6 @@ void UI_PrintTextBlock();
 void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r, byte g, byte b, byte a);
 void Draw_AlphaLineRGB(float x1, float y1, float x2, float y2, float width, byte r, byte g, byte b, byte a);
 void Draw_Polygon(int x, int y, vec3_t *vertices, int num_vertices, qbool fill, byte r, byte g, byte b, byte a);
-
-//glue
-EBUILTIN(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
-
 
 #undef sb_lines	//just in case.
 #ifndef SBAR_HEIGHT

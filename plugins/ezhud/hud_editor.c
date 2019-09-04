@@ -2438,7 +2438,7 @@ void HUD_Editor_Toggle_f(void)
 	{
 		// Start HUD Editor.
 
-		pMenu_Control(MENU_GRAB);
+		inputfuncs->SetMenuFocus(true, "", 0, 0, 0);
 		HUD_Editor_SetMode(hud_editmode_normal);
 
 		// Set planmode by default.
@@ -2452,7 +2452,7 @@ void HUD_Editor_Toggle_f(void)
 	{
 		// Exit the HUD Editor.
 
-		pMenu_Control(MENU_CLEAR);
+		inputfuncs->SetMenuFocus(false, "", 0, 0, 0);
 		HUD_Editor_SetMode(hud_editmode_off);
 		scr_cursor_icon = NULL;
 
@@ -2760,10 +2760,10 @@ void HUD_Editor_Init(void)
 	Cmd_AddCommand("hud_editor", HUD_Editor_Toggle_f);
 
 	// Register variables.
-	hud_editor_allowresize	= pCvar_GetNVFDG("hud_editor_allowresize",	"1", 0, NULL, "hud");
-	hud_editor_allowmove	= pCvar_GetNVFDG("hud_editor_allowmove",	"1", 0, NULL, "hud");
-	hud_editor_allowplace	= pCvar_GetNVFDG("hud_editor_allowplace",	"1", 0, NULL, "hud");
-	hud_editor_allowalign	= pCvar_GetNVFDG("hud_editor_allowalign",	"1", 0, NULL, "hud");
+	hud_editor_allowresize	= cvarfuncs->GetNVFDG("hud_editor_allowresize",	"1", 0, NULL, "hud");
+	hud_editor_allowmove	= cvarfuncs->GetNVFDG("hud_editor_allowmove",	"1", 0, NULL, "hud");
+	hud_editor_allowplace	= cvarfuncs->GetNVFDG("hud_editor_allowplace",	"1", 0, NULL, "hud");
+	hud_editor_allowalign	= cvarfuncs->GetNVFDG("hud_editor_allowalign",	"1", 0, NULL, "hud");
 
 	// Load HUD editor cursor icons.
 	hud_editor_move_icon = SCR_LoadCursorImage("gfx/hud_move_icon");

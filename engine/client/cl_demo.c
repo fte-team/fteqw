@@ -547,8 +547,7 @@ qboolean CL_GetDemoMessage (void)
 		{	//start the timer only once we are connected.
 			//make sure everything is loaded, to avoid stalls
 
-			if (Key_Dest_Has(kdm_gmenu))
-				MP_Toggle(0);
+			Menu_PopAll();
 			COM_WorkerFullSync();
 
 			cls.td_starttime = Sys_DoubleTime();
@@ -556,7 +555,6 @@ qboolean CL_GetDemoMessage (void)
 
 			//force the console up, we're done loading.
 			Key_Dest_Remove(kdm_console);
-			Key_Dest_Remove(kdm_emenu);
 			scr_con_current = 0;
 		}
 
@@ -2619,7 +2617,7 @@ void CL_QTVPoll (void)
 	qboolean streamavailable = false;
 	qboolean saidheader = false;
 #ifndef NOBUILTINMENUS
-	menu_t *sourcesmenu = NULL;
+	emenu_t *sourcesmenu = NULL;
 #endif
 	int sourcenum = 0;
 
@@ -2794,7 +2792,6 @@ void CL_QTVPoll (void)
 				//now put it on a menu
 				if (!sourcesmenu)
 				{
-					Key_Dest_Add(kdm_emenu);
 					sourcesmenu = M_CreateMenu(0);
 
 					MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");

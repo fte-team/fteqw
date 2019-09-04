@@ -1,4 +1,7 @@
 #include "../plugin.h"
+static plugsubconsolefuncs_t *confuncs;
+static plugfsfuncs_t *filefuncs;
+static plugclientfuncs_t *clientfuncs;
 
 #include "../jabber/xml.h"
 
@@ -36,7 +39,18 @@ static struct
 	int type;
 } filters;
 
-static void Con_SubPrintf(const char *subname, char *format, ...)
+static struct
+{
+	int width;
+	int height;
+} pvid;
+static void QDECL QI_UpdateVideo(int width, int height)
+{
+	pvid.width = width;
+	pvid.height = height;
+}
+
+void Con_SubPrintf(const char *subname, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[8192];
@@ -45,48 +59,47 @@ static void Con_SubPrintf(const char *subname, char *format, ...)
 	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	pCon_SubPrint(subname, string);
+	confuncs->SubPrint(subname, string);
 }
 
 
-static qintptr_t QI_Shutdown(qintptr_t *args)
+static void QI_Shutdown(void)
 {
 	if (dlcontext != -1)
 	{	//we're still downloading something? :o
-		pFS_Close(dlcontext);
+		filefuncs->Close(dlcontext);
 		dlcontext = -1;
 	}
 	if (thedatabase)
 		XML_Destroy(thedatabase);
 	thedatabase = NULL;
-	return false;
 }
 
 static qboolean QI_SetupWindow(const char *console, qboolean force)
 {
-	if (!BUILTINISVALID(Con_GetConsoleFloat))
+	if (!confuncs)
 		return false;
 
 	//only redraw the window if it actually exists. if they closed it, then don't mess things up.
-	if (!force && pCon_GetConsoleFloat(console, "iswindow") <= 0)
+	if (!force && confuncs->GetConsoleFloat(console, "iswindow") <= 0)
 		return false;
 
-	if (pCon_GetConsoleFloat(console, "iswindow") != true)
+	if (confuncs->GetConsoleFloat(console, "iswindow") != true)
 	{
-		pCon_SetConsoleString(console, "title", WINDOWTITLE);
-		pCon_SetConsoleFloat(console, "iswindow", true);
-		pCon_SetConsoleFloat(console, "forceutf8", true);
-		pCon_SetConsoleFloat(console, "linebuffered", false);
-		pCon_SetConsoleFloat(console, "maxlines", 16384);	//the line limit is more a sanity thing than anything else. so long as we explicitly clear before spamming more, then its not an issue...
-		pCon_SetConsoleFloat(console, "wnd_x", 8);
-		pCon_SetConsoleFloat(console, "wnd_y", 8);
-		pCon_SetConsoleFloat(console, "wnd_w", pvid.width-16);
-		pCon_SetConsoleFloat(console, "wnd_h", pvid.height-16);
-		pCon_SetConsoleString(console, "footer", "");
+		confuncs->SetConsoleString(console, "title", WINDOWTITLE);
+		confuncs->SetConsoleFloat(console, "iswindow", true);
+		confuncs->SetConsoleFloat(console, "forceutf8", true);
+		confuncs->SetConsoleFloat(console, "linebuffered", false);
+		confuncs->SetConsoleFloat(console, "maxlines", 16384);	//the line limit is more a sanity thing than anything else. so long as we explicitly clear before spamming more, then its not an issue...
+		confuncs->SetConsoleFloat(console, "wnd_x", 8);
+		confuncs->SetConsoleFloat(console, "wnd_y", 8);
+		confuncs->SetConsoleFloat(console, "wnd_w", pvid.width-16);
+		confuncs->SetConsoleFloat(console, "wnd_h", pvid.height-16);
+		confuncs->SetConsoleString(console, "footer", "");
 	}
-	pCon_SetConsoleFloat(console, "linecount", 0);	//clear it
+	confuncs->SetConsoleFloat(console, "linecount", 0);	//clear it
 	if (force)
-		pCon_SetActive(console);
+		confuncs->SetActive(console);
 	return true;
 }
 static void QI_DeHTML(const char *in, char *out, size_t outsize)
@@ -338,10 +351,10 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 				break;
 
 			Q_snprintf(bspfile, sizeof(bspfile), "maps/%s.bsp", startmap->body);
-			if (BUILTINISVALID(MapLog_Query) && pMapLog_Query(va(FILEDOWNLOADURL, id), bspfile, donestats))
-				Con_SubPrintf(console, " ^[^2[%s, complete %.1f]\\tip\\^7^aBest Time:^a ^2%.9f^7\n^aCompletion Time:^a %.9f\n^aKills:^a %.9f\n^aSecrets:^a %.9f\n\n\n%s\\tipimg\\"FILEIMAGEURL"\\id\\%s\\startmap\\%s^]", startmap->body, donestats[0], donestats[0], donestats[1], donestats[2], donestats[3], desc, id, id, startmap->body);
+			if (clientfuncs && clientfuncs->MapLog_Query(va(FILEDOWNLOADURL, id), bspfile, donestats))
+				Con_SubPrintf(console, " ^[^2[%s, complete %.1f]\\tip\\^7^aBest Time:^a ^2%.9f^7\n^aCompletion Time:^a %.9f\n^aKills:^a %.9f\n^aSecrets:^a %.9f\n\n\n%s"/*"\\tipimg\\"FILEIMAGEURL*/"\\id\\%s\\startmap\\%s^]", startmap->body, donestats[0], donestats[0], donestats[1], donestats[2], donestats[3], desc, /*id,*/ id, startmap->body);
 			else
-				Con_SubPrintf(console, " ^[^4[%s]\\tip\\%s\\tipimg\\"FILEIMAGEURL"\\id\\%s\\startmap\\%s^]", startmap->body, desc, id, id, startmap->body);
+				Con_SubPrintf(console, " ^[^4[%s]\\tip\\%s"/*"\\tipimg\\"FILEIMAGEURL*/"\\id\\%s\\startmap\\%s^]", startmap->body, desc, /*id,*/ id, startmap->body);
 		}
 		Con_SubPrintf(console, "\n");
 	}
@@ -483,7 +496,7 @@ static void QI_AddPackages(xmltree_t *qifile)
 
 
 	Q_snprintf(extra, sizeof(extra), " package \""FILEDOWNLOADURL"\" prefix \"%s\"", id, clean);
-	pCmd_AddText(extra, false);
+	cmdfuncs->AddText(extra, false);
 }
 static void QI_RunMap(xmltree_t *qifile, const char *map)
 {
@@ -499,15 +512,15 @@ static void QI_RunMap(xmltree_t *qifile, const char *map)
 		map = "";
 
 
-	pCmd_AddText("fs_changemod spmap \"", false);
-	pCmd_AddText(map, false);
-	pCmd_AddText("\"", false);
+	cmdfuncs->AddText("fs_changemod spmap \"", false);
+	cmdfuncs->AddText(map, false);
+	cmdfuncs->AddText("\"", false);
 	QI_AddPackages(qifile);
 //	Con_Printf("Command: %s\n", cmd);
-	pCmd_AddText("\n", false);
+	cmdfuncs->AddText("\n", false);
 }
 
-static qintptr_t QI_ConsoleLink(qintptr_t *args)
+static qboolean QDECL QI_ConsoleLink(void)
 {
 	xmltree_t *file;
 	char *map;
@@ -515,14 +528,14 @@ static qintptr_t QI_ConsoleLink(qintptr_t *args)
 	char *e;
 	char text[2048];
 	char link[8192];
-	pCmd_Argv(0, text, sizeof(text));
-	pCmd_Argv(1, link, sizeof(link));
+	cmdfuncs->Argv(0, text, sizeof(text));
+	cmdfuncs->Argv(1, link, sizeof(link));
 
 	if (!strcmp(text, "Change Filter") && !*link)
 	{
 		const char *console = WINDOWNAME;
-		pCon_SetConsoleFloat(console, "linebuffered", true);
-		pCon_SetConsoleString(console, "footer", "Please enter filter:");
+		confuncs->SetConsoleFloat(console, "linebuffered", true);
+		confuncs->SetConsoleString(console, "footer", "Please enter filter:");
 		return true;
 	}
 	if (!strcmp(text, "Maps") && !*link)
@@ -580,38 +593,38 @@ static qintptr_t QI_ConsoleLink(qintptr_t *args)
 	}
 	return false;
 }
-static qintptr_t QI_Tick(qintptr_t *args)
+static void QDECL QI_Tick(double realtime, double gametime)
 {
 	if (dlcontext != -1)
 	{
-		unsigned int flen;
-		if (pFS_GetLen(dlcontext, &flen, NULL))
+		qofs_t flen;
+		if (filefuncs->GetLen(dlcontext, &flen))
 		{
 			int ofs = 0;
 			char *file;
 			qboolean archive = true;
 			if (flen == 0)
 			{
-				pFS_Close(dlcontext);
-				flen = pFS_Open("**plugconfig", &dlcontext, 1);
+				filefuncs->Close(dlcontext);
+				flen = filefuncs->Open("**plugconfig", &dlcontext, 1);
 				if (dlcontext == -1)
 				{	
 					QI_RefreshMapList(false);
-					return false;
+					return;
 				}
 				archive = false;
 			}
 			file = malloc(flen+1);
 			file[flen] = 0;
-			pFS_Read(dlcontext, file, flen);
-			pFS_Close(dlcontext);
+			filefuncs->Read(dlcontext, file, flen);
+			filefuncs->Close(dlcontext);
 			if (archive)
 			{
-				pFS_Open("**plugconfig", &dlcontext, 2);
+				filefuncs->Open("**plugconfig", &dlcontext, 2);
 				if (dlcontext != -1)
 				{
-					pFS_Write(dlcontext, file, flen);
-					pFS_Close(dlcontext);
+					filefuncs->Write(dlcontext, file, flen);
+					filefuncs->Close(dlcontext);
 				}
 			}
 			dlcontext = -1;
@@ -628,42 +641,46 @@ static qintptr_t QI_Tick(qintptr_t *args)
 //			XML_ConPrintTree(thedatabase, "quadicted_xml", 0);
 		}
 	}
-	return false;
 }
 
-static qintptr_t QI_ConExecuteCommand(qintptr_t *args)
+static int QDECL QI_ConExecuteCommand(qboolean isinsecure)
 {
 	char console[256];
 	char filter[256];
-	pCmd_Argv(0, console, sizeof(console));
-	pCmd_Args(filter, sizeof(filter));
+	if (isinsecure)
+		return false;
+
+	cmdfuncs->Argv(0, console, sizeof(console));
+	cmdfuncs->Args(filter, sizeof(filter));
 	QI_UpdateFilter(filter);
 
 	QI_RefreshMapList(true);
-	pCon_SetConsoleFloat(console, "linebuffered", false);
-	pCon_SetConsoleString(console, "footer", "");
+	confuncs->SetConsoleFloat(console, "linebuffered", false);
+	confuncs->SetConsoleString(console, "footer", "");
 	return true;
 }
 
-static qintptr_t QI_ExecuteCommand(qintptr_t *args)
+static qboolean QI_ExecuteCommand(qboolean isinsecure)
 {
 	char cmd[256];
-	pCmd_Argv(0, cmd, sizeof(cmd));
+	if (isinsecure)
+		return false;
+	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, "qi") || !strcmp(cmd, "quaddicted"))
 	{
-		if (pCmd_Argc() > 1)
+		if (cmdfuncs->Argc() > 1)
 		{
-			pCmd_Args(cmd, sizeof(cmd));
+			cmdfuncs->Args(cmd, sizeof(cmd));
 			QI_UpdateFilter(cmd);
 		}
 		else if (QI_SetupWindow(WINDOWNAME, false))
 		{
-			pCon_SetActive(WINDOWNAME);
+			confuncs->SetActive(WINDOWNAME);
 			return true;
 		}
 
 		if (!thedatabase && dlcontext == -1)
-			pFS_Open(DATABASEURL, &dlcontext, 1);
+			filefuncs->Open(DATABASEURL, &dlcontext, 1);
 
 		QI_RefreshMapList(true);
 		return true;
@@ -671,22 +688,27 @@ static qintptr_t QI_ExecuteCommand(qintptr_t *args)
 	return false;
 }
 
-extern void (*Con_TrySubPrint)(const char *conname, const char *message);
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
-	filters.minrating = filters.maxrating = -1;
-	Con_TrySubPrint = pCon_SubPrint;
-	if (Plug_Export("Tick", QI_Tick) &&
-		Plug_Export("Shutdown", QI_Shutdown) &&
-		Plug_Export("ExecuteCommand", QI_ExecuteCommand) &&
-		Plug_Export("ConExecuteCommand", QI_ConExecuteCommand) &&
-		Plug_Export("ConsoleLink", QI_ConsoleLink))
+	confuncs = plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	clientfuncs = plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));
+
+	if (confuncs && filefuncs && clientfuncs)
 	{
-		if (!BUILTINISVALID(MapLog_Query))
-			Con_Printf("QI: Engine does not support map times\n");
-		pCmd_AddCommand("qi");
-		pCmd_AddCommand("quaddicted");
-		return true;
+		filters.minrating = filters.maxrating = -1;
+		plugfuncs->ExportFunction("UpdateVideo", QI_UpdateVideo);
+		if (plugfuncs->ExportFunction("Tick", QI_Tick) &&
+			plugfuncs->ExportFunction("Shutdown", QI_Shutdown) &&
+			plugfuncs->ExportFunction("ExecuteCommand", QI_ExecuteCommand) &&
+			plugfuncs->ExportFunction("ConExecuteCommand", QI_ConExecuteCommand) &&
+			plugfuncs->ExportFunction("ConsoleLink", QI_ConsoleLink))
+		{
+			cmdfuncs->AddCommand("qi");
+			cmdfuncs->AddCommand("quaddicted");
+			return true;
+		}
 	}
+	//else not available in dedicated servers
 	return false;
 }

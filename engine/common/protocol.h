@@ -1778,7 +1778,7 @@ typedef struct q1usercmd_s
 // unused
 #define E5_UNUSED30 (1<<30)
 // bits2 > 0
-#define E5_EXTEND4 (1<<31)
+#define E5_EXTEND4 (1u<<31)
 
 #define E5_ALLUNUSED (E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
 #define E5_SERVERPRIVATE (E5_EXTEND1|E5_EXTEND2|E5_EXTEND3|E5_EXTEND4)

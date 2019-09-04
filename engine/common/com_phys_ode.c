@@ -29,10 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef FTEPLUGIN
 #define FTEENGINE
 #define FTEPLUGIN
-#define pCvar_Register Cvar_Get
-#define pCvar_GetFloat(x) Cvar_FindVar(x)->value
-#define Sys_Errorf Sys_Error
-#define pSys_Error(p) Sys_Errorf("%s",p)
 #define Plug_Init Plug_ODE_Init
 #endif
 
@@ -66,17 +62,6 @@ static int VectorCompare (const vec3_t v1, const vec3_t v2)
 }
 
 #endif
-
-
-#define ARGNAMES ,name,funcs
-static BUILTINR(dllhandle_t *, Sys_LoadLibrary, (const char *name,dllfunction_t *funcs));
-#undef ARGNAMES
-#define ARGNAMES ,hdl
-static BUILTIN(void, Sys_CloseLibrary, (dllhandle_t *hdl));
-#undef ARGNAMES
-#define ARGNAMES ,version
-static BUILTINR(rbeplugfuncs_t*, RBE_GetPluginFuncs, (int version));
-#undef ARGNAMES
 
 static rbeplugfuncs_t *rbefuncs;
 cvar_t r_meshpitch;
@@ -1288,29 +1273,29 @@ static qboolean World_ODE_Init(void)
 	};
 #endif
 
-	physics_ode_quadtree_depth					= pCvar_GetNVFDG("physics_ode_quadtree_depth",					"5",	0,	"desired subdivision level of quadtree culling space",				"ODE Physics Library");
-	physics_ode_contactsurfacelayer				= pCvar_GetNVFDG("physics_ode_contactsurfacelayer",				"0",	0,	"allows objects to overlap this many units to reduce jitter",		"ODE Physics Library");
-	physics_ode_worldquickstep					= pCvar_GetNVFDG("physics_ode_worldquickstep",					"1",	0,	"use dWorldQuickStep rather than dWorldStep",						"ODE Physics Library");
-	physics_ode_worldquickstep_iterations		= pCvar_GetNVFDG("physics_ode_worldquickstep_iterations",		"20",	0,	"parameter to dWorldQuickStep",										"ODE Physics Library");
-	physics_ode_contact_mu						= pCvar_GetNVFDG("physics_ode_contact_mu",						"1",	0,	"contact solver mu parameter - friction pyramid approximation 1 (see ODE User Guide)",	"ODE Physics Library");
-	physics_ode_contact_erp						= pCvar_GetNVFDG("physics_ode_contact_erp",						"0.96",	0,	"contact solver erp parameter - Error Restitution Percent (see ODE User Guide)",		"ODE Physics Library");
-	physics_ode_contact_cfm						= pCvar_GetNVFDG("physics_ode_contact_cfm",						"0",	0,	"contact solver cfm parameter - Constraint Force Mixing (see ODE User Guide)",			"ODE Physics Library");
-	physics_ode_world_damping					= pCvar_GetNVFDG("physics_ode_world_damping",					"1",	0,	"enabled damping scale (see ODE User Guide), this scales all damping values, be aware that behavior depends of step type",	"ODE Physics Library");
-	physics_ode_world_damping_linear			= pCvar_GetNVFDG("physics_ode_world_damping_linear",			"-1",0,	"world linear damping scale (see ODE User Guide); use defaults when set to -1",			"ODE Physics Library");
-	physics_ode_world_damping_linear_threshold	= pCvar_GetNVFDG("physics_ode_world_damping_linear_threshold",	"-1",	0,	"world linear damping threshold (see ODE User Guide); use defaults when set to -1",		"ODE Physics Library");
-	physics_ode_world_damping_angular			= pCvar_GetNVFDG("physics_ode_world_damping_angular",			"-1",0,	"world angular damping scale (see ODE User Guide); use defaults when set to -1",		"ODE Physics Library");
-	physics_ode_world_damping_angular_threshold	= pCvar_GetNVFDG("physics_ode_world_damping_angular_threshold",	"-1",	0,	"world angular damping threshold (see ODE User Guide); use defaults when set to -1",	"ODE Physics Library");
-	physics_ode_world_erp						= pCvar_GetNVFDG("physics_ode_world_erp",						"-1",	0,	"world solver erp parameter - Error Restitution Percent (see ODE User Guide); use defaults when set to -1",			"ODE Physics Library");
-	physics_ode_world_cfm						= pCvar_GetNVFDG("physics_ode_world_cfm",						"-1",	0,	"world solver cfm parameter - Constraint Force Mixing (see ODE User Guide); not touched when -1",					"ODE Physics Library");
-	physics_ode_iterationsperframe				= pCvar_GetNVFDG("physics_ode_iterationsperframe",				"4",	0,	"divisor for time step, runs multiple physics steps per frame",														"ODE Physics Library");
-	physics_ode_movelimit						= pCvar_GetNVFDG("physics_ode_movelimit",						"0.5",	0,	"clamp velocity if a single move would exceed this percentage of object thickness, to prevent flying through walls","ODE Physics Library");
-	physics_ode_spinlimit						= pCvar_GetNVFDG("physics_ode_spinlimit",						"10000",0,	"reset spin velocity if it gets too large",																			"ODE Physics Library");
-	physics_ode_autodisable						= pCvar_GetNVFDG("physics_ode_autodisable",						"1",	0,	"automatic disabling of objects which dont move for long period of time, makes object stacking a lot faster",		"ODE Physics Library");
-	physics_ode_autodisable_steps				= pCvar_GetNVFDG("physics_ode_autodisable_steps",				"10",	0,	"how many steps object should be dormant to be autodisabled",		"ODE Physics Library");
-	physics_ode_autodisable_time				= pCvar_GetNVFDG("physics_ode_autodisable_time",					"0",	0,	"how many seconds object should be dormant to be autodisabled",		"ODE Physics Library");
-	physics_ode_autodisable_threshold_linear	= pCvar_GetNVFDG("physics_ode_autodisable_threshold_linear",		"0.2",	0,	"body will be disabled if it's linear move below this value",		"ODE Physics Library");
-	physics_ode_autodisable_threshold_angular	= pCvar_GetNVFDG("physics_ode_autodisable_threshold_angular",	"0.3",	0,	"body will be disabled if it's angular move below this value",		"ODE Physics Library");
-	physics_ode_autodisable_threshold_samples	= pCvar_GetNVFDG("physics_ode_autodisable_threshold_samples",	"5",	0,	"average threshold with this number of samples",					"ODE Physics Library");
+	physics_ode_quadtree_depth					= cvarfuncs->GetNVFDG("physics_ode_quadtree_depth",					"5",	0,	"desired subdivision level of quadtree culling space",				"ODE Physics Library");
+	physics_ode_contactsurfacelayer				= cvarfuncs->GetNVFDG("physics_ode_contactsurfacelayer",				"0",	0,	"allows objects to overlap this many units to reduce jitter",		"ODE Physics Library");
+	physics_ode_worldquickstep					= cvarfuncs->GetNVFDG("physics_ode_worldquickstep",					"1",	0,	"use dWorldQuickStep rather than dWorldStep",						"ODE Physics Library");
+	physics_ode_worldquickstep_iterations		= cvarfuncs->GetNVFDG("physics_ode_worldquickstep_iterations",		"20",	0,	"parameter to dWorldQuickStep",										"ODE Physics Library");
+	physics_ode_contact_mu						= cvarfuncs->GetNVFDG("physics_ode_contact_mu",						"1",	0,	"contact solver mu parameter - friction pyramid approximation 1 (see ODE User Guide)",	"ODE Physics Library");
+	physics_ode_contact_erp						= cvarfuncs->GetNVFDG("physics_ode_contact_erp",						"0.96",	0,	"contact solver erp parameter - Error Restitution Percent (see ODE User Guide)",		"ODE Physics Library");
+	physics_ode_contact_cfm						= cvarfuncs->GetNVFDG("physics_ode_contact_cfm",						"0",	0,	"contact solver cfm parameter - Constraint Force Mixing (see ODE User Guide)",			"ODE Physics Library");
+	physics_ode_world_damping					= cvarfuncs->GetNVFDG("physics_ode_world_damping",					"1",	0,	"enabled damping scale (see ODE User Guide), this scales all damping values, be aware that behavior depends of step type",	"ODE Physics Library");
+	physics_ode_world_damping_linear			= cvarfuncs->GetNVFDG("physics_ode_world_damping_linear",			"-1",0,	"world linear damping scale (see ODE User Guide); use defaults when set to -1",			"ODE Physics Library");
+	physics_ode_world_damping_linear_threshold	= cvarfuncs->GetNVFDG("physics_ode_world_damping_linear_threshold",	"-1",	0,	"world linear damping threshold (see ODE User Guide); use defaults when set to -1",		"ODE Physics Library");
+	physics_ode_world_damping_angular			= cvarfuncs->GetNVFDG("physics_ode_world_damping_angular",			"-1",0,	"world angular damping scale (see ODE User Guide); use defaults when set to -1",		"ODE Physics Library");
+	physics_ode_world_damping_angular_threshold	= cvarfuncs->GetNVFDG("physics_ode_world_damping_angular_threshold",	"-1",	0,	"world angular damping threshold (see ODE User Guide); use defaults when set to -1",	"ODE Physics Library");
+	physics_ode_world_erp						= cvarfuncs->GetNVFDG("physics_ode_world_erp",						"-1",	0,	"world solver erp parameter - Error Restitution Percent (see ODE User Guide); use defaults when set to -1",			"ODE Physics Library");
+	physics_ode_world_cfm						= cvarfuncs->GetNVFDG("physics_ode_world_cfm",						"-1",	0,	"world solver cfm parameter - Constraint Force Mixing (see ODE User Guide); not touched when -1",					"ODE Physics Library");
+	physics_ode_iterationsperframe				= cvarfuncs->GetNVFDG("physics_ode_iterationsperframe",				"4",	0,	"divisor for time step, runs multiple physics steps per frame",														"ODE Physics Library");
+	physics_ode_movelimit						= cvarfuncs->GetNVFDG("physics_ode_movelimit",						"0.5",	0,	"clamp velocity if a single move would exceed this percentage of object thickness, to prevent flying through walls","ODE Physics Library");
+	physics_ode_spinlimit						= cvarfuncs->GetNVFDG("physics_ode_spinlimit",						"10000",0,	"reset spin velocity if it gets too large",																			"ODE Physics Library");
+	physics_ode_autodisable						= cvarfuncs->GetNVFDG("physics_ode_autodisable",						"1",	0,	"automatic disabling of objects which dont move for long period of time, makes object stacking a lot faster",		"ODE Physics Library");
+	physics_ode_autodisable_steps				= cvarfuncs->GetNVFDG("physics_ode_autodisable_steps",				"10",	0,	"how many steps object should be dormant to be autodisabled",		"ODE Physics Library");
+	physics_ode_autodisable_time				= cvarfuncs->GetNVFDG("physics_ode_autodisable_time",					"0",	0,	"how many seconds object should be dormant to be autodisabled",		"ODE Physics Library");
+	physics_ode_autodisable_threshold_linear	= cvarfuncs->GetNVFDG("physics_ode_autodisable_threshold_linear",		"0.2",	0,	"body will be disabled if it's linear move below this value",		"ODE Physics Library");
+	physics_ode_autodisable_threshold_angular	= cvarfuncs->GetNVFDG("physics_ode_autodisable_threshold_angular",	"0.3",	0,	"body will be disabled if it's angular move below this value",		"ODE Physics Library");
+	physics_ode_autodisable_threshold_samples	= cvarfuncs->GetNVFDG("physics_ode_autodisable_threshold_samples",	"5",	0,	"average threshold with this number of samples",					"ODE Physics Library");
 
 #ifdef ODE_DYNAMIC
 	// Load the DLL
@@ -2753,12 +2738,12 @@ static void QDECL World_ODE_Start(world_t *world)
 	memset(ctx, 0, sizeof(*ctx));
 	world->rbe = &ctx->pub;
 
-	r_meshpitch.value = pCvar_GetFloat("r_meshpitch");
+	r_meshpitch.value = cvarfuncs->GetFloat("r_meshpitch");
 
 	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
 	VectorSubtract(world->worldmodel->maxs, center, extents);
 	ctx->dworld = dWorldCreate();
-	ctx->space = dQuadTreeSpaceCreate(NULL, center, extents, bound(1, pCvar_GetFloat("physics_ode_quadtree_depth"), 10));
+	ctx->space = dQuadTreeSpaceCreate(NULL, center, extents, bound(1, cvarfuncs->GetFloat("physics_ode_quadtree_depth"), 10));
 	ctx->contactgroup = dJointGroupCreate(0);
 
 	ctx->pub.End					= World_ODE_End;
@@ -2836,36 +2821,26 @@ static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 	}
 }
 
-static qintptr_t QDECL Plug_ODE_Shutdown(qintptr_t *args)
+static void QDECL Plug_ODE_Shutdown(void)
 {
 	if (rbefuncs)
 		rbefuncs->UnregisterPhysicsEngine("ODE");
 	World_ODE_Shutdown();
-	return 0;
 }
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
-	CHECKBUILTIN(RBE_GetPluginFuncs);
 #ifndef ODE_STATIC
 	CHECKBUILTIN(Sys_LoadLibrary);
 	CHECKBUILTIN(Sys_CloseLibrary);
 #endif
 
-	if (BUILTINISVALID(RBE_GetPluginFuncs))
-	{
-		rbefuncs = pRBE_GetPluginFuncs(sizeof(rbeplugfuncs_t));
-		if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
-			rbefuncs = NULL;
-	}
+	rbefuncs = plugfuncs->GetEngineInterface("RBE", sizeof(rbeplugfuncs_t));
+	if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
+		rbefuncs = NULL;
 	if (!rbefuncs)
 	{
 		Con_Printf("ODE plugin failed: Engine does not support external rigid body engines.\n");
-		return false;
-	}
-	if (!BUILTINISVALID(Cvar_GetNVFDG))
-	{
-		Con_Printf("ODE plugin failed: Engine too old.\n");
 		return false;
 	}
 #ifndef ODE_STATIC
@@ -2888,7 +2863,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 			rbefuncs->UnregisterPhysicsEngine("ODE");
 			return false;
 		}
-		Plug_Export("Shutdown", Plug_ODE_Shutdown);
+		plugfuncs->ExportFunction("Shutdown", Plug_ODE_Shutdown);
 		return true;
 	}
 	return false;

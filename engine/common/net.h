@@ -62,7 +62,7 @@ typedef enum {
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
 
-typedef struct
+typedef struct netadr_s
 {
 	netadrtype_t	type;
 	netproto_t		prot;

@@ -147,14 +147,14 @@ void HUD_InitSbarImages(void)
 	sb_ibar = Draw_CacheWadPic("ibar");
 }
 
-vmnetinfo_t *GetNetworkInfo(void)
+plugnetinfo_t *GetNetworkInfo(void)
 {
-	static vmnetinfo_t ni;
+	static plugnetinfo_t ni;
 	static int uc;
-	if (uc != host_screenupdatecount && BUILTINISVALID(GetNetworkInfo))
+	if (uc != host_screenupdatecount)
 	{
 		uc = host_screenupdatecount;
-		pGetNetworkInfo(&ni, sizeof(ni));
+		clientfuncs->GetNetworkInfo(&ni, sizeof(ni));
 	}
 	return &ni;
 }
@@ -393,7 +393,7 @@ void SCR_HUD_DrawFPS(hud_t *hud)
 
     if (HUD_PrepareDraw(hud, strlen(st)*8, 8, &x, &y))
     {
-		vmnetinfo_t *netinfo = GetNetworkInfo();
+		plugnetinfo_t *netinfo = GetNetworkInfo();
 		if (netinfo->capturing == 2)	//don't show fps if its locked to something anyway.
 			return;
 
@@ -418,7 +418,7 @@ void SCR_HUD_DrawVidLag(hud_t *hud)
 	char st[128];
 	static cvar_t *hud_vidlag_style = NULL;
 
-	vmnetinfo_t *netinfo = GetNetworkInfo();
+	plugnetinfo_t *netinfo = GetNetworkInfo();
 	static double old_lag;
 
 	if (netinfo->vlatency)
@@ -462,7 +462,7 @@ void SCR_HUD_DrawMouserate(hud_t *hud)
 	char st[80];	// string buffer
 	double t;		// current time
 	static double lastframetime;	// last refresh
-	vmnetinfo_t *netinfo = GetNetworkInfo();
+	plugnetinfo_t *netinfo = GetNetworkInfo();
 
     static cvar_t *hud_mouserate_title = NULL,
 		*hud_mouserate_interval,
@@ -655,7 +655,7 @@ static void SCR_HUD_DrawPing(hud_t *hud)
     int width, height;
     int x, y;
     char buf[512];
-	vmnetinfo_t *netinfo = GetNetworkInfo();
+	plugnetinfo_t *netinfo = GetNetworkInfo();
 
     static cvar_t
 		*hud_ping_period = NULL,
@@ -823,12 +823,12 @@ static void SCR_HUD_DrawNotify(hud_t* hud)
 
 	if (HUD_PrepareDraw(hud, width, height, &x, &y))
 	{
-		pCvar_SetFloat("con_notify_x",		(float)x / vid.width);
-		pCvar_SetFloat("con_notify_y",		(float)y / vid.height);
-		pCvar_SetFloat("con_notify_w",		(float)width / vid.width);
-		pCvar_SetFloat("con_numnotifylines",(int)(height/(8*hud_notify_scale->value) + 0.01));
-		pCvar_SetFloat("con_notifytime",	(float)hud_notify_time->ival);
-		pCvar_SetFloat("con_textsize",		8.0 * hud_notify_scale->value);
+		cvarfuncs->SetFloat("con_notify_x",		(float)x / vid.width);
+		cvarfuncs->SetFloat("con_notify_y",		(float)y / vid.height);
+		cvarfuncs->SetFloat("con_notify_w",		(float)width / vid.width);
+		cvarfuncs->SetFloat("con_numnotifylines",(int)(height/(8*hud_notify_scale->value) + 0.01));
+		cvarfuncs->SetFloat("con_notifytime",	(float)hud_notify_time->ival);
+		cvarfuncs->SetFloat("con_textsize",		8.0 * hud_notify_scale->value);
 //		SCR_DrawNotify(x, y, hud_notify_scale->value, hud_notify_time->ival, hud_notify_rows->ival, hud_notify_cols->ival);
 	}
 }
@@ -926,7 +926,7 @@ void SCR_HUD_DrawDemoClock(hud_t *hud)
 //
 // network statistics
 //
-static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
+static void SCR_NetStats(int x, int y, float period, plugnetinfo_t *netinfo)
 {
     char line[128];
     double t;
@@ -1002,7 +1002,7 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
         clamp(bandwidth_out, 0, 99999);
         clamp(bandwidth_all, 0, 99999);
 
-        with_delta = !pCvar_GetFloat("cl_nodelta");
+        with_delta = !cvarfuncs->GetFloat("cl_nodelta");
     }
 
     Draw_Alt_String(x+36, y, "latency");
@@ -1068,7 +1068,7 @@ static void SCR_HUD_DrawNetStats(hud_t *hud)
     int width, height;
     int x, y;
 
-	vmnetinfo_t *netinfo = GetNetworkInfo();
+	plugnetinfo_t *netinfo = GetNetworkInfo();
 
     static cvar_t *hud_net_period = NULL;
 
@@ -2314,7 +2314,7 @@ void Draw_AMFStatLoss (int stat, hud_t* hud) {
 	else
 		alpha = 0;
 
-	pDraw_Colour4f(1,1,1,alpha);
+	drawfuncs->Colour4f(1,1,1,alpha);
 	{
 		static cvar_t *scale[2] = {NULL}, *style[2], *digits[2], *align[2];
 		if (scale[elem] == NULL)  // first time called
@@ -2327,7 +2327,7 @@ void Draw_AMFStatLoss (int stat, hud_t* hud) {
 		SCR_HUD_DrawNum (hud, abs(*vxdmgcnt), 1,
             scale[elem]->value, style[elem]->value, digits[elem]->ival, align[elem]->string);
 	}
-	pDraw_Colour4f(1,1,1,1);
+	drawfuncs->Colour4f(1,1,1,1);
 }
 
 static void SCR_HUD_DrawHealthDamage(hud_t *hud)
@@ -2476,11 +2476,11 @@ static void SCR_HUD_NetProblem (hud_t *hud) {
 	static cvar_t *scale = NULL;
 	int x, y;
 	extern qbool hud_editor;
-	vmnetinfo_t *netinfo = GetNetworkInfo();
+	plugnetinfo_t *netinfo = GetNetworkInfo();
 
 	float picwidth = 64;
 	float picheight = 64;
-	pDraw_ImageSize((intptr_t)sb_net, &picwidth, &picheight);
+	drawfuncs->ImageSize((intptr_t)sb_net, &picwidth, &picheight);
 
 	if(scale == NULL)
 		scale = HUD_FindVar(hud, "scale");
@@ -2524,7 +2524,7 @@ void SCR_HUD_DrawGroup(hud_t *hud, int width, int height, mpic_t *pic, int pic_s
 	float picwidth = 64;
 	float picheight = 64;
 
-	if (pic && pDraw_ImageSize((intptr_t)pic, &picwidth, &picheight) <= 0)
+	if (pic && drawfuncs->ImageSize((intptr_t)pic, &picwidth, &picheight) <= 0)
 	{
 		pic = NULL;
 		picwidth = 64;
@@ -2650,7 +2650,7 @@ void SCR_HUD_LoadGroupPic(cvar_t *var, mpic_t **hud_pic, char *oldval)
 	if (!(temp_pic = Draw_CachePicSafe(pic_path, false, true)))
 	{
 		Com_Printf("Couldn't load picture %s for hud group.\n", newpic);
-		pCvar_SetString(var->name, "");
+		cvarfuncs->SetString(var->name, "");
 		return;
 	}
 
@@ -3305,7 +3305,7 @@ int TeamFrags_DrawExtraSpecInfo(int num, int px, int py, int width, int height, 
 {
 	float rl_width, rl_height;
 	mpic_t *pic = sb_weapons[0][5];
-	pDraw_ImageSize((intptr_t)pic, &rl_width, &rl_height);
+	drawfuncs->ImageSize((intptr_t)pic, &rl_width, &rl_height);
 
 	// Only allow this for spectators.
 	if (!(cls.demoplayback || cl.spectator)
@@ -3415,7 +3415,7 @@ static int Frags_DrawExtraSpecInfo(player_info_t *info,
 	int		health_spacing = 1;
 	int		weapon_width = 24;
 
-	pDraw_ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
+	drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
 
 	// Only allow this for spectators.
 	if (!(cls.demoplayback || cl.spectator))
@@ -3686,7 +3686,7 @@ void SCR_HUD_DrawFrags(hud_t *hud)
 
 	mpic_t *rl_picture = sb_weapons[0][5];
 	float rl_width, rl_height;
-	pDraw_ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
+	drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
 
     if (hud_frags_cell_width == NULL)    // first time
     {
@@ -4116,7 +4116,7 @@ void SCR_HUD_DrawTeamFrags(hud_t *hud)
 
 	mpic_t *rl_picture = sb_weapons[0][5];
 	float rl_width, rl_height;
-	pDraw_ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
+	drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
 
     if (hud_teamfrags_cell_width == 0)    // first time
     {
@@ -4720,31 +4720,31 @@ void HUD_AutoLoad_MVD(int autoload) {
 		{
 			// Save old cfg_save values so that we don't screw the users
 			// settings when saving the temp config.
-			int old_cmdline = pCvar_GetFloat("cfg_save_cmdline");
-			int old_cvars	= pCvar_GetFloat("cfg_save_cvars");
-			int old_cmds	= pCvar_GetFloat("cfg_save_cmds");
-			int old_aliases = pCvar_GetFloat("cfg_save_aliases");
-			int old_binds	= pCvar_GetFloat("cfg_save_binds");
+			int old_cmdline = cvarfuncs->GetFloat("cfg_save_cmdline");
+			int old_cvars	= cvarfuncs->GetFloat("cfg_save_cvars");
+			int old_cmds	= cvarfuncs->GetFloat("cfg_save_cmds");
+			int old_aliases = cvarfuncs->GetFloat("cfg_save_aliases");
+			int old_binds	= cvarfuncs->GetFloat("cfg_save_binds");
 
 			autohud.old_fov = (int) scr_fov->value;
 			autohud.old_multiview = (int) cl_multiview->value;
 			autohud.old_newhud = (int) scr_newHud->value;
 
 			// Make sure everything current settings are saved.
-			pCvar_SetFloat("cfg_save_cmdline",	1);
-			pCvar_SetFloat("cfg_save_cvars",	1);
-			pCvar_SetFloat("cfg_save_cmds",		1);
-			pCvar_SetFloat("cfg_save_aliases",	1);
-			pCvar_SetFloat("cfg_save_binds",	1);
+			cvarfuncs->SetFloat("cfg_save_cmdline",	1);
+			cvarfuncs->SetFloat("cfg_save_cvars",	1);
+			cvarfuncs->SetFloat("cfg_save_cmds",		1);
+			cvarfuncs->SetFloat("cfg_save_aliases",	1);
+			cvarfuncs->SetFloat("cfg_save_binds",	1);
 
 			// Save a temporary config.
 			DumpConfig(TEMPHUD_NAME".cfg");
 
-			pCvar_SetFloat("cfg_save_cmdline",	old_cmdline);
-			pCvar_SetFloat("cfg_save_cvars",	old_cvars);
-			pCvar_SetFloat("cfg_save_cmds",		old_cmds);
-			pCvar_SetFloat("cfg_save_aliases",	old_aliases);
-			pCvar_SetFloat("cfg_save_binds",	old_binds);
+			cvarfuncs->SetFloat("cfg_save_cmdline",	old_cmdline);
+			cvarfuncs->SetFloat("cfg_save_cvars",	old_cvars);
+			cvarfuncs->SetFloat("cfg_save_cmds",		old_cmds);
+			cvarfuncs->SetFloat("cfg_save_aliases",	old_aliases);
+			cvarfuncs->SetFloat("cfg_save_binds",	old_binds);
 		}
 
 		// load MVD HUD config
@@ -4778,9 +4778,9 @@ void HUD_AutoLoad_MVD(int autoload) {
 
 		Com_DPrintf("Unloading MVD Hud\n");
 		// load stored settings
-		pCvar_SetFloat(scr_fov->name, autohud.old_fov);
-		pCvar_SetFloat(cl_multiview->name, autohud.old_multiview);
-		pCvar_SetFloat(scr_newHud->name, autohud.old_newhud);
+		cvarfuncs->SetFloat(scr_fov->name, autohud.old_fov);
+		cvarfuncs->SetFloat(cl_multiview->name, autohud.old_multiview);
+		cvarfuncs->SetFloat(scr_newHud->name, autohud.old_newhud);
 		//Cmd_TokenizeString("exec "TEMPHUD_FULLPATH);
 		Cmd_TokenizeString("cfg_load "TEMPHUD_FULLPATH);
 		Cmd_Exec_f();
@@ -5373,7 +5373,7 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 //	if ( CURRVIEW != 1 && CURRVIEW != 0)
 //		return;
 
-	slots_num = pGetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival);
+	slots_num = clientfuncs->GetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival?-1:0);
 
 	// fill data we require to draw teaminfo
 	for ( maxloc = maxname = i = 0; i < slots_num; i++ ) {
@@ -5537,7 +5537,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 				case 1:
 					if(!width_only) {
 						if (Has_Both_RL_and_LG(ti_cl->items)) {
-							char *weap_str = pCvar_GetNVFDG("tp_name_rlg", "rlg", 0, NULL, NULL)->string;
+							char *weap_str = cvarfuncs->GetNVFDG("tp_name_rlg", "rlg", 0, NULL, NULL)->string;
 							char weap_white_stripped[32];
 							Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
 							Draw_ColoredString (x, y, weap_white_stripped, false);
@@ -6362,13 +6362,8 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 		strcpy(ownfragtext, "Own Frags");
 		age = 0;
 	}
-	else if (BUILTINISVALID(GetTrackerOwnFrags))
-		age = pGetTrackerOwnFrags(0, ownfragtext, sizeof(ownfragtext));
 	else
-	{
-		strcpy(ownfragtext, "Engine does not support OwnFrags");
-		age = 0;
-	}
+		age = clientfuncs->GetTrackerOwnFrags(0, ownfragtext, sizeof(ownfragtext));
 	width = strlen(ownfragtext)*8;
 
 	width *= hud_ownfrags_scale->value;
@@ -6388,9 +6383,9 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
 		return;
 
-	pDraw_Colour4f(1, 1, 1, alpha);
+	drawfuncs->Colour4f(1, 1, 1, alpha);
 	Draw_SString(x, y, ownfragtext, hud_ownfrags_scale->value);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 
 #ifdef QUAKEHUD
@@ -6415,10 +6410,7 @@ static void SCR_HUD_DrawWeaponStats(hud_t *hud)
 
 	int ws;
 	struct wstats_s wstats[16];
-	if (BUILTINISVALID(GetWeaponStats))
-		ws = pGetWeaponStats(-1, wstats, countof(wstats));
-	else
-		ws = 0;
+	ws = clientfuncs->GetWeaponStats(-1, wstats, countof(wstats));
 
 	if (hud_editor)
 	{
@@ -6507,8 +6499,7 @@ void SCR_HUD_DrawKeys(hud_t *hud)
 	float scale;
 
 	memset(&b, 0, sizeof(b));
-	if (BUILTINISVALID(GetLastInputFrame))
-		pGetLastInputFrame(0, &b);
+	clientfuncs->GetLastInputFrame(0, &b);
 
 	if (!vscale) {
 		vscale = HUD_FindVar(hud, "scale");
@@ -7714,24 +7705,24 @@ void CommonDraw_Init(void)
 	HUD_InitSbarImages();
 
 	// variables
-	hud_planmode		= pCvar_GetNVFDG("hud_planmode", "0", 0, NULL, "ezhud");
-	hud_tp_need			= pCvar_GetNVFDG("hud_tp_need", "0", 0, NULL, "ezhud");
-	hud_digits_trim		= pCvar_GetNVFDG("hud_digits_trim", "1", 0, NULL, "ezhud");
-	mvd_autohud			= pCvar_GetNVFDG("mvd_autohud", "0", 0, NULL, "ezhud");
-	cl_weaponpreselect	= pCvar_GetNVFDG("cl_weaponpreselect", "0", 0, NULL, "ezhud");
-	cl_multiview		= pCvar_GetNVFDG("cl_multiview", "0", 0, NULL, "ezhud");
+	hud_planmode		= cvarfuncs->GetNVFDG("hud_planmode", "0", 0, NULL, "ezhud");
+	hud_tp_need			= cvarfuncs->GetNVFDG("hud_tp_need", "0", 0, NULL, "ezhud");
+	hud_digits_trim		= cvarfuncs->GetNVFDG("hud_digits_trim", "1", 0, NULL, "ezhud");
+	mvd_autohud			= cvarfuncs->GetNVFDG("mvd_autohud", "0", 0, NULL, "ezhud");
+	cl_weaponpreselect	= cvarfuncs->GetNVFDG("cl_weaponpreselect", "0", 0, NULL, "ezhud");
+	cl_multiview		= cvarfuncs->GetNVFDG("cl_multiview", "0", 0, NULL, "ezhud");
 
 
-	tp_need_health		= pCvar_GetNVFDG("tp_need_health",	"50",		0, NULL, "ezhud");
-	tp_need_ra			= pCvar_GetNVFDG("tp_need_ra",		"50",		0, NULL, "ezhud");
-	tp_need_ya			= pCvar_GetNVFDG("tp_need_ya",		"50",		0, NULL, "ezhud");
-	tp_need_ga			= pCvar_GetNVFDG("tp_need_ga",		"50",		0, NULL, "ezhud");
-	tp_weapon_order		= pCvar_GetNVFDG("tp_weapon_order",	"78654321",	0, NULL, "ezhud");
-	tp_need_weapon		= pCvar_GetNVFDG("tp_need_weapon",	"35687",	0, NULL, "ezhud");
-	tp_need_shells		= pCvar_GetNVFDG("tp_need_shells",	"10",		0, NULL, "ezhud");
-	tp_need_nails		= pCvar_GetNVFDG("tp_need_nails",	"40",		0, NULL, "ezhud");
-	tp_need_rockets		= pCvar_GetNVFDG("tp_need_rockets",	"5",		0, NULL, "ezhud");
-	tp_need_cells		= pCvar_GetNVFDG("tp_need_cells",	"20",		0, NULL, "ezhud");
+	tp_need_health		= cvarfuncs->GetNVFDG("tp_need_health",	"50",		0, NULL, "ezhud");
+	tp_need_ra			= cvarfuncs->GetNVFDG("tp_need_ra",		"50",		0, NULL, "ezhud");
+	tp_need_ya			= cvarfuncs->GetNVFDG("tp_need_ya",		"50",		0, NULL, "ezhud");
+	tp_need_ga			= cvarfuncs->GetNVFDG("tp_need_ga",		"50",		0, NULL, "ezhud");
+	tp_weapon_order		= cvarfuncs->GetNVFDG("tp_weapon_order",	"78654321",	0, NULL, "ezhud");
+	tp_need_weapon		= cvarfuncs->GetNVFDG("tp_need_weapon",	"35687",	0, NULL, "ezhud");
+	tp_need_shells		= cvarfuncs->GetNVFDG("tp_need_shells",	"10",		0, NULL, "ezhud");
+	tp_need_nails		= cvarfuncs->GetNVFDG("tp_need_nails",	"40",		0, NULL, "ezhud");
+	tp_need_rockets		= cvarfuncs->GetNVFDG("tp_need_rockets",	"5",		0, NULL, "ezhud");
+	tp_need_cells		= cvarfuncs->GetNVFDG("tp_need_cells",	"20",		0, NULL, "ezhud");
 
     // init HUD STAT table
     for (i=0; i < MAX_CL_STATS; i++)

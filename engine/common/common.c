@@ -7615,7 +7615,7 @@ void SV_FlushRedirect (void);
 
 vfsfile_t *con_pipe;
 #ifdef HAVE_SERVER
-vfsfile_t *Con_POpen(char *conname)
+vfsfile_t *Con_POpen(const char *conname)
 {
 	if (!conname || !*conname)
 	{

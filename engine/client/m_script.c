@@ -6,9 +6,9 @@
 #ifndef NOBUILTINMENUS
 
 int selectitem;
-menu_t *menu_script;
+emenu_t *menu_script;
 
-void M_Script_Option (menu_t *menu, char *optionvalue, qboolean isexplicit)
+void M_Script_Option (emenu_t *menu, char *optionvalue, qboolean isexplicit)
 {
 	menuoption_t *mo;
 	char *scriptname = menu->data;
@@ -50,14 +50,14 @@ void M_Script_Option (menu_t *menu, char *optionvalue, qboolean isexplicit)
 	Cbuf_AddText("\n", execlevel);
 }
 
-void M_Script_Remove (menu_t *menu)
+void M_Script_Remove (emenu_t *menu)
 {
 	if (menu == menu_script)
 		menu_script = NULL;
 
 	M_Script_Option(menu, "cancel", false);
 }
-qboolean M_Script_Key (int key, menu_t *menu)
+qboolean M_Script_Key (int key, emenu_t *menu)
 {
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_edit)
 		return false;
@@ -90,9 +90,7 @@ void M_MenuS_Clear_f (void)
 void M_MenuS_Script_f (void)	//create a menu.
 {
 	int items;
-	menu_t *oldmenu;
 	char *alias = Cmd_Argv(1);
-	Key_Dest_Add(kdm_emenu);
 
 	selectitem = 0;
 	items=0;
@@ -113,14 +111,7 @@ void M_MenuS_Script_f (void)	//create a menu.
 		M_MenuS_Clear_f();
 	}
 
-	oldmenu = topmenu;
-
 	menu_script = M_CreateMenu(0);
-	if (oldmenu)
-	{
-		M_HideMenu(oldmenu);	//bring to front
-		M_AddMenu(oldmenu);
-	}
 	menu_script->remove = M_Script_Remove;
 	menu_script->key = M_Script_Key;
 	

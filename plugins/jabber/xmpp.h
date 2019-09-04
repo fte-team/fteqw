@@ -1,4 +1,6 @@
 #include "../plugin.h"
+extern plugnetfuncs_t *netfuncs;
+extern plugfsfuncs_t *filefuncs;
 
 #include "xml.h"
 
@@ -339,7 +341,7 @@ void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres);
 //quake functionality
 void JCL_GenLink(jclient_t *jcl, char *out, int outlen, const char *action, const char *context, const char *contextres, const char *sid, const char *txtfmt, ...);
 void Con_SubPrintf(const char *subname, const char *format, ...);
-void XMPP_ConversationPrintf(const char *context, const char *title, char *format, ...);
+void XMPP_ConversationPrintf(const char *context, const char *title, qboolean takefocus, char *format, ...);
 
 //jingle functions
 void JCL_Join(jclient_t *jcl, const char *target, const char *sid, qboolean allow, int protocol);

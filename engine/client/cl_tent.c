@@ -240,8 +240,8 @@ typedef struct
 	trailstate_t *trailstate;
 } explosion_t;
 
-explosion_t	*cl_explosions;
-int			cl_explosions_max;
+static explosion_t	*cl_explosions;
+static int			cl_explosions_max;
 
 static int explosions_running;
 static int beams_running;
@@ -271,16 +271,23 @@ static tentmodels_t beamtypes[] =
 };
 
 
-sfx_t			*cl_sfx_wizhit;
+static sfx_t			*cl_sfx_wizhit;
 sfx_t			*cl_sfx_knighthit;
-sfx_t			*cl_sfx_tink1;
-sfx_t			*cl_sfx_ric1;
-sfx_t			*cl_sfx_ric2;
-sfx_t			*cl_sfx_ric3;
+static sfx_t			*cl_sfx_tink1;
+static sfx_t			*cl_sfx_ric1;
+static sfx_t			*cl_sfx_ric2;
+static sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
 cvar_t	cl_expsprite = CVARFD("cl_expsprite", "1", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not (which is problematic when played with the qw protocol).");
 cvar_t  r_explosionlight = CVARFC("r_explosionlight", "1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
+static cvar_t  r_explosionlight_colour = CVARF("r_explosionlight_colour", "4.0 2.0 0.5", CVAR_ARCHIVE);
+static cvar_t  r_explosionlight_fade = CVARF("r_explosionlight_fade", "0.784 0.92 0.48", CVAR_ARCHIVE);
+cvar_t  r_dimlight_colour = CVARF("r_dimlight_colour", "2.0 1.0 0.5 200", CVAR_ARCHIVE);
+cvar_t  r_brightlight_colour = CVARF("r_brightlight_colour", "2.0 1.0 0.5 400", CVAR_ARCHIVE);
+cvar_t  r_rocketlight_colour = CVARF("r_rocketlight_colour", "2.0 1.0 0.25 200", CVAR_ARCHIVE);
+cvar_t  r_muzzleflash_colour = CVARF("r_muzzleflash_colour", "1.5 1.3 1.0 200", CVAR_ARCHIVE);
+cvar_t  r_muzzleflash_fade = CVARF("r_muzzleflash_fade", "1.5 0.75 0.375 1000", CVAR_ARCHIVE);
 cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
 static cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
 static cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
@@ -412,6 +419,13 @@ void CL_InitTEnts (void)
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
 	Cvar_Register (&cl_beam_trace, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
+	Cvar_Register (&r_explosionlight_colour, "Temporary entity control");
+	Cvar_Register (&r_explosionlight_fade, "Temporary entity control");
+	Cvar_Register (&r_muzzleflash_colour, "Temporary entity control");
+	Cvar_Register (&r_muzzleflash_fade, "Temporary entity control");
+	Cvar_Register (&r_dimlight_colour, "Temporary entity control");
+	Cvar_Register (&r_brightlight_colour, "Temporary entity control");
+	Cvar_Register (&r_rocketlight_colour, "Temporary entity control");
 	Cvar_Register (&cl_legacystains, "Temporary entity control");
 	Cvar_Register (&cl_shaftlight, "Temporary entity control");
 
@@ -1379,12 +1393,8 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 0.75;
 			dl->decay = dl->radius*2;
 
-			dl->color[0] = 4.0;
-			dl->color[1] = 2.0;
-			dl->color[2] = 0.5;
-			dl->channelfade[0] = 0.784;
-			dl->channelfade[1] = 0.92;
-			dl->channelfade[2] = 0.48;
+			VectorCopy(r_explosionlight_colour.vec4, dl->color);
+			VectorCopy(r_explosionlight_fade.vec4, dl->channelfade);
 		}
 
 

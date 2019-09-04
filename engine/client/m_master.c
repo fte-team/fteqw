@@ -32,7 +32,7 @@ static int serverpreview;
 extern cvar_t slist_writeserverstxt;
 extern cvar_t slist_cacheinfo;
 
-static void CalcFilters(menu_t *menu);
+static void CalcFilters(emenu_t *menu);
 
 void M_Serverlist_Init(void)
 {
@@ -104,7 +104,7 @@ static void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboo
 		*x -= xlen + 8;
 }
 
-static void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
+static void SL_TitlesDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 {
 	int sf = Master_GetSortField();
 	int mx = mousecursor_x;
@@ -128,7 +128,7 @@ static void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	SL_DrawColumnTitle(NULL, y, x, mx, "hostname ", (sf==SLKEY_NAME), clr, &filldraw);
 }
 
-static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key, unsigned int unicode)
+static qboolean SL_TitlesKey (menucustom_t *ths, emenu_t *menu, int key, unsigned int unicode)
 {
 	int x;
 	int mx = mousecursor_x/8;
@@ -255,7 +255,7 @@ static servertypes_t flagstoservertype(int flags)
 	}
 }
 
-static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
+static void SL_ServerDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *si;
@@ -305,7 +305,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	}
 }
 void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode);
-static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned int unicode)
+static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigned int unicode)
 {
 	static int lastclick;
 	int curtime;
@@ -375,7 +375,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	}
 	return false;
 }
-static void SL_PreDraw	(menu_t *menu)
+static void SL_PreDraw	(emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	Master_CheckPollSockets();
@@ -409,7 +409,7 @@ static void SL_PreDraw	(menu_t *menu)
 	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumAlive(), Master_TotalCount());
 }
 qboolean NET_SendPollPacket(int len, void *data, netadr_t to);
-static void SL_PostDraw	(menu_t *menu)
+static void SL_PostDraw	(emenu_t *menu)
 {
 	static char *helpstrings[] =
 	{
@@ -725,7 +725,7 @@ static void SL_PostDraw	(menu_t *menu)
 		}
 	}
 }
-static qboolean SL_Key	(int key, menu_t *menu)
+static qboolean SL_Key	(int key, emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
@@ -916,7 +916,7 @@ dojoin:
 	return true;
 }
 
-static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
+static void SL_ServerPlayer (int x, int y, menucustom_t *ths, emenu_t *menu)
 {
 	if (selectedserver.inuse)
 	{
@@ -941,7 +941,7 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 	}
 }
 
-static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
+static void SL_SliderDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 {
 	extern qboolean	keydown[K_MAX];
 	serverlist_t *info = (serverlist_t*)(menu + 1);
@@ -1013,7 +1013,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 			info->sliderpressed = false;
 	}
 }
-static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key, unsigned int unicode)
+static qboolean SL_SliderKey (menucustom_t *ths, emenu_t *menu, int key, unsigned int unicode)
 {
 	if (key == K_MOUSE1)
 	{
@@ -1043,7 +1043,7 @@ static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	return false;
 }
 
-static void CalcFilters(menu_t *menu)
+static void CalcFilters(emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	info->filtermodcount = sb_filtertext.modified;
@@ -1070,7 +1070,7 @@ static void CalcFilters(menu_t *menu)
 	Master_SortServers();
 }
 
-static qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
+static qboolean SL_ReFilter (menucheck_t *option, emenu_t *menu, chk_set_t set)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	switch(set)
@@ -1097,7 +1097,7 @@ static qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
 	return true;
 }
 
-static void SL_Remove	(menu_t *menu)
+static void SL_Remove	(emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
@@ -1108,7 +1108,7 @@ static void SL_Remove	(menu_t *menu)
 	Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
 }
 
-static qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
+static qboolean SL_DoRefresh (menuoption_t *opt, emenu_t *menu, int key)
 {
 	if (key == K_MOUSE1 || key == K_MOUSE1 || key == K_ENTER || key == K_KP_ENTER)
 	{
@@ -1122,7 +1122,7 @@ static qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
 void M_Menu_ServerList2_f(void)
 {
 	int i, y, x;
-	menu_t *menu;
+	emenu_t *menu;
 	menucustom_t *cust;
 	serverlist_t *info;
 	qboolean descending;
@@ -1138,7 +1138,6 @@ void M_Menu_ServerList2_f(void)
 	serverpreview = false;	//in case it was lingering.
 
 	Key_Dest_Remove(kdm_console);
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
 	menu->predraw = SL_PreDraw;
@@ -1262,7 +1261,7 @@ void M_Menu_ServerList2_f(void)
 
 static float quickconnecttimeout;
 
-static void M_QuickConnect_PreDraw(menu_t *menu)
+static void M_QuickConnect_PreDraw(emenu_t *menu)
 {
 	serverinfo_t *best = NULL;
 	serverinfo_t *s;
@@ -1318,21 +1317,21 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 	}
 }
 
-static qboolean M_QuickConnect_Key	(int key, menu_t *menu)
+static qboolean M_QuickConnect_Key	(int key, emenu_t *menu)
 {
 	return false;
 }
 
-static void M_QuickConnect_Remove	(menu_t *menu)
+static void M_QuickConnect_Remove	(emenu_t *menu)
 {
 }
 
-static qboolean M_QuickConnect_Cancel (menuoption_t *opt, menu_t *menu, int key)
+static qboolean M_QuickConnect_Cancel (menuoption_t *opt, emenu_t *menu, int key)
 {
 	return false;
 }
 
-static void M_QuickConnect_DrawStatus (int x, int y, menucustom_t *ths, menu_t *menu)
+static void M_QuickConnect_DrawStatus (int x, int y, menucustom_t *ths, emenu_t *menu)
 {
 	Draw_FunString(x, y, va("Polling, %i secs\n", (int)(quickconnecttimeout - Sys_DoubleTime() + 0.9)));
 }
@@ -1340,9 +1339,7 @@ static void M_QuickConnect_DrawStatus (int x, int y, menucustom_t *ths, menu_t *
 void M_QuickConnect_f(void)
 {
 	menucustom_t *cust;
-	menu_t *menu;
-
-	Key_Dest_Add(kdm_emenu);
+	emenu_t *menu;
 
 	MasterInfo_Refresh(false);
 	isrefreshing = true;

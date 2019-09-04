@@ -900,7 +900,6 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	outframe_t *frame, *oldframe;
 	int cmdcount, key;
 	usercmd_t *to, *from;
-	extern int keycatcher;
 	extern cvar_t cl_nodelta, cl_c2sdupe;
 
 	//reuse the q1 array
@@ -928,7 +927,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		cmd->upmove = 100;
 		cmd->buttons &= ~2;
 	}
-	if (Key_Dest_Has(~kdm_game) || (keycatcher&3))
+	if (Key_Dest_Has(~kdm_game))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
 	cl.outframes[cl.movesequence&Q3CMD_MASK].cmd[0] = *cmd;

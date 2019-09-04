@@ -794,33 +794,50 @@ static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, 
 #endif
 
 //highest priority is last.
-static S_LoadSound_t AudioInputPlugins[10] =
+static struct
+{
+	S_LoadSound_t loadfunc;
+	void *module;
+} AudioInputPlugins[10] =
 {
 #ifdef FTE_TARGET_WEB
-	S_LoadBrowserFile,
+	{S_LoadBrowserFile},
 #endif
 #ifdef AVAIL_OGGVORBIS
-	S_LoadOVSound,
+	{S_LoadOVSound},
 #endif
-	S_LoadWavSound,
+	{S_LoadWavSound},
 #ifdef PACKAGE_DOOMWAD
-	S_LoadDoomSound,
-//	S_LoadDoomSpeakerSound,
+	{S_LoadDoomSound},
+//	{S_LoadDoomSpeakerSound},
 #endif
 };
 
-qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)
+qboolean S_RegisterSoundInputPlugin(void *module, S_LoadSound_t loadfnc)
 {
 	int i;
 	for (i = 0; i < sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0]); i++)
 	{
-		if (!AudioInputPlugins[i])
+		if (!AudioInputPlugins[i].loadfunc)
 		{
-			AudioInputPlugins[i] = loadfnc;
+			AudioInputPlugins[i].module = module;
+			AudioInputPlugins[i].loadfunc = loadfnc;
 			return true;
 		}
 	}
 	return false;
+}
+void S_UnregisterSoundInputModule(void *module)
+{	//unregister all sound handlers for the given module.
+	int i;
+	for (i = 0; i < sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0]); i++)
+	{
+		if (AudioInputPlugins[i].module == module)
+		{
+			AudioInputPlugins[i].module = NULL;
+			AudioInputPlugins[i].loadfunc = NULL;
+		}
+	}
 }
 
 static void S_LoadedOrFailed (void *ctx, void *ctxdata, size_t a, size_t b)
@@ -941,9 +958,9 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t forcedecode, siz
 
 	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
 	{
-		if (AudioInputPlugins[i])
+		if (AudioInputPlugins[i].loadfunc)
 		{
-			if (AudioInputPlugins[i](s, data, filesize, snd_speed, forcedecode))
+			if (AudioInputPlugins[i].loadfunc(s, data, filesize, snd_speed, forcedecode))
 			{
 				//wake up the main thread in case it decided to wait for us.
 				COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_LOADED, 0);

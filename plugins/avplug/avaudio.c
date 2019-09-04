@@ -4,6 +4,7 @@
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 
+static size_t activedecoders;
 static cvar_t *ffmpeg_audiodecoder, *pdeveloper;
 
 #define HAVE_DECOUPLED_API (LIBAVCODEC_VERSION_MAJOR>57 || (LIBAVCODEC_VERSION_MAJOR==57&&LIBAVCODEC_VERSION_MINOR>=36))
@@ -56,6 +57,8 @@ static void S_AV_Purge(sfx_t *s)
 	//file storage will be cleared here too
 	free(ctx);
 
+	if (s->decoder.ended)
+		activedecoders--;
 	memset(&s->decoder, 0, sizeof(s->decoder));
 }
 static void S_AV_ReadFrame(struct avaudioctx *ctx)
@@ -329,15 +332,18 @@ static qboolean QDECL S_LoadAVSound (sfx_t *s, qbyte *data, size_t datalen, int 
 
 	if (!ffmpeg_audiodecoder)
 		return false;
-	if (!ffmpeg_audiodecoder->value /* && *ffmpeg_audiodecoder.string */)
+	if (!ffmpeg_audiodecoder->ival /* && *ffmpeg_audiodecoder.string */)
 		return false;
 
 
 	if (!data || !datalen)
 		return false;
 
+	//ignore it if it looks like a wav file. that means we don't need to figure out how to calculate loopstart.
+	//FIXME: this also blocks playing the audio from avi files too!
 	if (datalen >= 4 && !strncmp(data, "RIFF", 4))
-		return false;	//ignore it if it looks like a wav file. that means we don't need to figure out how to calculate loopstart.
+		return false;
+
 //	if (strcasecmp(COM_GetFileExtension(s->name), "wav"))	//don't do .wav - I've no idea how to read the loopstart tag with ffmpeg.
 //		return false;
 
@@ -402,20 +408,28 @@ static qboolean QDECL S_LoadAVSound (sfx_t *s, qbyte *data, size_t datalen, int 
 			s->decoder.purge = S_AV_Purge;
 			s->decoder.decodedata = S_AV_Locate;
 			s->decoder.querydata = S_AV_Query;
+			activedecoders++;
 			return true;
 		}
 	}
 	S_AV_Purge(s);
 	return false;
 }
+qboolean AVAudio_MayUnload(void)
+{
+	return activedecoders==0;
+}
 static qboolean AVAudio_Init(void)
 {
-	if (!pPlug_ExportNative("S_LoadSound", S_LoadAVSound))
+	if (!plugfuncs->ExportFunction("MayUnload", AVAudio_MayUnload) ||
+		!plugfuncs->ExportFunction("S_LoadSound", S_LoadAVSound))
 	{
-		Con_Printf("avplug: Engine doesn't support audio decoder plugins\n");
+		Con_Printf("ffmpeg: Engine doesn't support audio decoder plugins\n");
 		return false;
 	}
-	ffmpeg_audiodecoder = pCvar_GetNVFDG("ffmpeg_audiodecoder_wip", "0", 0, "Enables the use of ffmpeg's decoder for pure audio files.", "ffmpeg");
+	ffmpeg_audiodecoder = cvarfuncs->GetNVFDG("ffmpeg_audiodecoder_wip", "1", 0, "Enables the use of ffmpeg's decoder for pure audio files.", "ffmpeg");
+	if (!ffmpeg_audiodecoder->ival)
+		Con_Printf("ffmpeg: audio decoding disabled, use \"set %s 1\" to enable ffmpeg audio decoding\n", ffmpeg_audiodecoder->name);
 	return true;
 }
 
@@ -427,14 +441,14 @@ static void AVLogCallback(void *avcl, int level, const char *fmt, va_list vl)
 	char		string[1024];
 	Q_vsnprintf (string, sizeof(string), fmt, vl);
 	if (pdeveloper && pdeveloper->ival)
-		pCon_Print(string);
+		Con_Printf("%s", string);
 #endif
 }
 
 //get the encoder/decoders to register themselves with the engine, then make sure avformat/avcodec have registered all they have to give.
 qboolean AVEnc_Init(void);
 qboolean AVDec_Init(void);
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
 	qboolean okay = false;
 
@@ -448,7 +462,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 		avcodec_register_all();
 #endif
 
-		pdeveloper = pCvar_GetNVFDG("developer", "0", 0, "Developer spam.", "ffmpeg");
+		pdeveloper = cvarfuncs->GetNVFDG("developer", "0", 0, "Developer spam.", "ffmpeg");
 		av_log_set_level(AV_LOG_WARNING);
 		av_log_set_callback(AVLogCallback);
 	}

@@ -9262,7 +9262,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 				Q_strncpyz(bestname, fname, bestnamesize);
 				bestdepth = depth;
 				*bestloc = loc;
-				bestflags = 0;
+				*bestflags = 0;
 			}
 #endif
 
@@ -9324,7 +9324,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 								Q_strncpyz(bestname, fname, bestnamesize);
 								bestdepth = depth;
 								*bestloc = loc;
-								bestflags = 0;
+								*bestflags = 0;
 							}
 						}
 					}
@@ -9343,7 +9343,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 							Q_strncpyz(bestname, fname, bestnamesize);
 							bestdepth = depth;
 							*bestloc = loc;
-							bestflags = 0;
+							*bestflags = 0;
 						}
 					}
 				}
@@ -9408,7 +9408,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 					Q_strncpyz(bestname, fname, bestnamesize);
 					bestdepth = depth;
 					*bestloc = loc;
-					bestflags = 0;
+					*bestflags = 0;
 				}
 			}
 		}

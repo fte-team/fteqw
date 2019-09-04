@@ -787,9 +787,9 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize)
 
 			//FIXME: display some sort of fingerprint
 			if (!l)
-				M_Menu_Prompt(CertLog_Add_Prompted, ctx, va("%s\nServer certificate is\nself-signed", hostname), "Trust", NULL, "Disconnect");
+				Menu_Prompt(CertLog_Add_Prompted, ctx, va("%s\nServer certificate is\nself-signed", hostname), "Trust", NULL, "Disconnect");
 			else
-				M_Menu_Prompt(CertLog_Add_Prompted, ctx, va("%s\n^1Server certificate HAS CHANGED\nZomg\n^bFlee in Terror", hostname), "ReTrust", NULL, "Disconnect");
+				Menu_Prompt(CertLog_Add_Prompted, ctx, va("%s\n^1Server certificate HAS CHANGED\nZomg\n^bFlee in Terror", hostname), "ReTrust", NULL, "Disconnect");
 		}
 		return false;	//can't connect yet...
 	}

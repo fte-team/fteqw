@@ -11,6 +11,7 @@
 //http://www.zezula.net/en/mpq/main.html
 //http://www.wc3c.net/tools/specs/QuantamMPQFormat.txt
 
+size_t activempqcount; //number of active archives. we can't unload the dll while we still have files open.
 #ifdef MULTITHREAD
 threading_t *threading;
 #define Sys_CreateMutex threading->CreateMutex
@@ -273,6 +274,7 @@ static void	MPQ_ClosePath(searchpathfuncs_t *handle)
 	free(mpq->hashdata);
 	free(mpq->listfile);
 	free(mpq);
+	activempqcount--;
 }
 static unsigned int MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
 {
@@ -517,7 +519,7 @@ static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc, con
 			);
 	}*/
 
-	
+	activempqcount++;
 	mpq->references = 1;
 	mpq->mutex = Sys_CreateMutex();
 
@@ -886,7 +888,12 @@ static vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const
 	return &f->funcs;
 }
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean MPQ_MayShutdown(void)
+{
+	return activempqcount==0;
+}
+
+qboolean Plug_Init(void)
 {
 	mpq_init_cryptography();
 
@@ -902,14 +909,14 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 	//we can't cope with being closed randomly. files cannot be orphaned safely.
 	//so ask the engine to ensure we don't get closed before everything else is.
-	pPlug_ExportNative("UnsafeClose", NULL);
+	pPlug_ExportFunction("MayShutdown", NULL);
 
-	if (!pPlug_ExportNative("FS_RegisterArchiveType_mpq", MPQ_OpenArchive))
+	if (!pPlug_ExportFunction("FS_RegisterArchiveType_mpq", MPQ_OpenArchive))
 	{
 		Con_Printf("mpq: Engine doesn't support filesystem plugins\n");
 		return false;
 	}
-	if (!pPlug_ExportNative("FS_RegisterArchiveType_MPQ", MPQ_OpenArchive))
+	if (!pPlug_ExportFunction("FS_RegisterArchiveType_MPQ", MPQ_OpenArchive))
 	{
 		Con_Printf("mpq: Engine doesn't support filesystem plugins\n");
 		return false;

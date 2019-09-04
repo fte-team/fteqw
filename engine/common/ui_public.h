@@ -127,15 +127,6 @@ typedef enum {
 // overlayed over whatever the cgame has drawn.
 // a GetClientState syscall will be made to get the current strings
 
-
-/*
-	UI_DRAWSTATUSBAR	= 500,
-	UI_MOUSE_POS,
-	UI_INTERMISSION,
-	UI_FINALE,
-	UI_STRINGCHANGED,	//parma is the string id
-	UI_NEWSERVER	//indicates that all the strings have changed.
-*/
 } uiExport_t;
 
 typedef enum {

@@ -1198,7 +1198,7 @@ static void PM_PreparePackageList(void)
 			{
 				pluginpromptshown = true;
 #ifndef SERVERONLY
-				M_Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\nto enable them.", "View", NULL, "Disable");
+				Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\nto enable them.", "View", NULL, "Disable");
 #endif
 			}
 		}
@@ -1758,12 +1758,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 #ifdef DOWNLOADMENU
 			if (!isDedicated)
 			{
-				if (Key_Dest_Has(kdm_emenu))
-					Key_Dest_Remove(kdm_emenu);
-#ifdef MENU_DAT
-				if (Key_Dest_Has(kdm_gmenu))
-					MP_Toggle(0);
-#endif
+				Menu_PopAll();
 				Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
 			}
 			else
@@ -2717,7 +2712,7 @@ static void PM_PromptApplyChanges(void)
 	//lock it down, so noone can make any changes while this prompt is still displayed
 	if (pkg_updating)
 	{
-		M_Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, "An update is already in progress\nPlease wait\n", NULL, NULL, "Cancel");
+		Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, "An update is already in progress\nPlease wait\n", NULL, NULL, "Cancel");
 		return;
 	}
 	pkg_updating = true;
@@ -2725,7 +2720,7 @@ static void PM_PromptApplyChanges(void)
 
 	strcpy(text, "Really decline the following\nrecommendedpackages?\n\n");
 	if (PM_DeclinedPackages(text+strlen(text), sizeof(text)-strlen(text)))
-		M_Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel");
+		Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel");
 	else
 	{
 		strcpy(text, "Apply the following changes?\n\n");
@@ -2737,7 +2732,7 @@ static void PM_PromptApplyChanges(void)
 #endif
 		}
 		else
-			M_Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, text, "Apply", NULL, "Cancel");
+			Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, text, "Apply", NULL, "Cancel");
 	}
 }
 #endif
@@ -3105,7 +3100,7 @@ typedef struct {
 	qboolean populated;
 } dlmenu_t;
 
-static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	package_t *p;
 	char *n;
@@ -3217,7 +3212,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 	}
 }
 
-static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
+static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	extern qboolean	keydown[];
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
@@ -3329,7 +3324,7 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 }
 
 #ifdef WEBCLIENT
-static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	char *settings[] = 
 	{
@@ -3345,7 +3340,7 @@ static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct men
 //	else
 		Draw_FunString (x, y, text);
 }
-static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
+static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
@@ -3360,7 +3355,7 @@ static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct menu_s *m, int
 	return false;
 }
 
-static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct menu_s *m,int key)
+static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct emenu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
@@ -3371,7 +3366,7 @@ static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct menu_s *m,in
 }
 #endif
 
-qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
+qboolean MD_PopMenu (union menuoption_s *mo,struct emenu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
@@ -3381,7 +3376,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 	return false;
 }
 
-static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
+static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct emenu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
@@ -3391,7 +3386,7 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int k
 	return false;
 }
 
-static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int key)
+static qboolean MD_RevertUpdates (union menuoption_s *mo,struct emenu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
@@ -3401,7 +3396,7 @@ static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int ke
 	return false;
 }
 
-static int MD_AddItemsToDownloadMenu(menu_t *m, int y, const char *pathprefix)
+static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 {
 	char path[MAX_QPATH];
 	package_t *p;
@@ -3471,7 +3466,7 @@ static int MD_AddItemsToDownloadMenu(menu_t *m, int y, const char *pathprefix)
 }
 
 #include "shader.h"
-static void MD_Download_UpdateStatus(struct menu_s *m)
+static void MD_Download_UpdateStatus(struct emenu_s *m)
 {
 	dlmenu_t *info = m->data;
 	int i, y;
@@ -3621,15 +3616,13 @@ static void MD_Download_UpdateStatus(struct menu_s *m)
 
 void Menu_DownloadStuff_f (void)
 {
-	menu_t *menu;
+	emenu_t *menu;
 	dlmenu_t *info;
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(dlmenu_t));
 	info = menu->data;
 
-	menu->persist = true;
+	menu->menu.persist = true;
 	menu->predraw = MD_Download_UpdateStatus;
 	info->downloadablessequence = downloadablessequence;
 

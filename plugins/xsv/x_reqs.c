@@ -107,7 +107,7 @@ void XR_QueryExtension (xclient_t *cl, xReq *request)
 	else
 #endif
 	{
-		Con_Printf("Extension %s not supported\n", extname);
+		Con_Printf("x11sv plugin: Extension %s not supported\n", extname);
 		rep.major_opcode	= 0;
 		rep.present			= false;
 		rep.first_event		= 0;
@@ -383,7 +383,7 @@ void XR_GetProperty (xclient_t *cl, xReq *request)
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.property.window			= req->window;
 		ev.u.property.atom				= req->property;
-		ev.u.property.time				= pSys_Milliseconds();
+		ev.u.property.time				= plugfuncs->GetMilliseconds();
 		ev.u.property.state				= PropertyDelete;
 
 		ev.u.property.pad1				= 0;
@@ -488,7 +488,7 @@ void XR_ChangeProperty (xclient_t *cl, xReq *request)
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.property.window			= req->window;
 		ev.u.property.atom				= req->property;
-		ev.u.property.time				= pSys_Milliseconds();
+		ev.u.property.time				= plugfuncs->GetMilliseconds();
 		ev.u.property.state				= PropertyNewValue;
 
 		ev.u.property.pad1				= 0;
@@ -526,7 +526,7 @@ void XR_DeleteProperty(xclient_t *cl, xReq *request)
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.property.window			= req->window;
 		ev.u.property.atom				= req->property;
-		ev.u.property.time				= pSys_Milliseconds();
+		ev.u.property.time				= plugfuncs->GetMilliseconds();
 		ev.u.property.state				= PropertyDelete;
 
 		ev.u.property.pad1				= 0;
@@ -3799,6 +3799,18 @@ void XR_UngrabPointer (xclient_t *cl, xReq *request)
 	X_EvalutateCursorOwner(NotifyUngrab);
 }
 
+void XR_SetClipRectangles (xclient_t *cl, xReq *request)
+{
+	xSetClipRectanglesReq *req = (xSetClipRectanglesReq*)request;
+	xgcontext_t *gc;
+	if (XS_GetResource(req->gc, (void**)&gc) != x_gcontext)
+	{
+		X_SendError(cl, BadGC, req->gc, X_FreeGC, 0);
+		return;
+	}
+	Con_DPrintf("XR_SetClipRectangles is not implemented\n");
+}
+
 void XR_NoOperation (xclient_t *cl, xReq *request)
 {
 }
@@ -3871,6 +3883,8 @@ void X_InitRequests(void)
 	XRequests[X_PolyText16] = XR_PolyText;
 	XRequests[X_ImageText8] = XR_PolyText;
 	XRequests[X_ImageText16] = XR_PolyText;
+
+	XRequests[X_SetClipRectangles] = XR_SetClipRectangles;
 
 	XRequests[X_ConfigureWindow] = XR_ConfigureWindow;
 	XRequests[X_ReparentWindow] = XR_ReparentWindow;

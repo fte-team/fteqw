@@ -3,6 +3,11 @@
 #include "hud.h"
 #include "hud_editor.h"
 
+plug2dfuncs_t *drawfuncs;
+plugclientfuncs_t *clientfuncs;
+plugfsfuncs_t *filefuncs;
+pluginputfuncs_t *inputfuncs;
+
 int sb_lines;
 float scr_con_current;
 int sb_showteamscores;
@@ -12,12 +17,18 @@ float alphamul;
 
 cvar_t *scr_newHud;
 
+static void QDECL EZHud_UpdateVideo(int width, int height)
+{
+	vid.width = width;
+	vid.height = height;
+}
+
 char *Cmd_Argv(int arg)
 {
 	static char buf[4][128];
 	if (arg >= 4)
 		return "";
-	pCmd_Argv(arg, buf[arg], sizeof(buf[arg]));
+	cmdfuncs->Argv(arg, buf[arg], sizeof(buf[arg]));
 	return buf[arg];
 }
 
@@ -29,15 +40,15 @@ void Draw_SetOverallAlpha(float a)
 }
 void Draw_AlphaFillRGB(float x, float y, float w, float h, qbyte r, qbyte g, qbyte b, qbyte a)
 {
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
-	pDraw_Fill(x, y, w, h);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
+	drawfuncs->Fill(x, y, w, h);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void Draw_Fill(float x, float y, float w, float h, qbyte pal)
 {
-	pDraw_Colourpa(pal, alphamul);
-	pDraw_Fill(x, y, w, h);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colourpa(pal, alphamul);
+	drawfuncs->Fill(x, y, w, h);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 const char *ColorNameToRGBString (const char *newval)
 {
@@ -62,10 +73,10 @@ void Draw_TextBox (int x, int y, int width, int lines)
 {
 }
 
-char *TP_LocationName (vec3_t location)
+char *TP_LocationName (const vec3_t location)
 {
 	static char locname[256];
-	pGetLocationName(location, locname, sizeof(locname));
+	clientfuncs->GetLocationName(location, locname, sizeof(locname));
 	return locname;
 }
 
@@ -74,75 +85,75 @@ void Draw_SPic(float x, float y, mpic_t *pic, float scale)
 {
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
-	pDraw_ImageSize(image, &w, &h);
-	pDraw_Image(x, y, w*scale, h*scale, 0, 0, 1, 1, image);
+	drawfuncs->ImageSize(image, &w, &h);
+	drawfuncs->Image(x, y, w*scale, h*scale, 0, 0, 1, 1, image);
 }
 void Draw_SSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float scale)
 {
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
-	pDraw_ImageSize(image, &w, &h);
-	pDraw_Image(x, y, (s2-s1)*scale, (t2-t1)*scale, s1/w, t1/h, s2/w, t2/h, image);
+	drawfuncs->ImageSize(image, &w, &h);
+	drawfuncs->Image(x, y, (s2-s1)*scale, (t2-t1)*scale, s1/w, t1/h, s2/w, t2/h, image);
 }
 void Draw_EZString(float x, float y, char *str, float scale, qboolean red)
 {
 	unsigned int flags = 0;
 	if (red)
 		flags |= 1;
-	pDraw_StringH(x, y, scale, flags, str);
+	drawfuncs->StringH(x, y, scale, flags, str);
 }
 
 #define Draw_STransPic Draw_SPic
 void Draw_Character(float x, float y, unsigned int ch)
 {
-	pDraw_Character(x, y, 0xe000|ch);
+	drawfuncs->Character(x, y, 0xe000|ch);
 }
 void Draw_SCharacter(float x, float y, unsigned int ch, float scale)
 {
-	pDraw_CharacterH(x, y, 8*scale, 0, 0xe000|ch);
+	drawfuncs->CharacterH(x, y, 8*scale, 0, 0xe000|ch);
 }
 
 void SCR_DrawWadString(float x, float y, float scale, char *str)
 {
-	pDraw_String(x, y, str);	//FIXME
+	drawfuncs->String(x, y, str);	//FIXME
 }
 
 void Draw_SAlphaSubPic2(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float sw, float sh, float alpha)
 {
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
-	pDraw_ImageSize(image, &w, &h);
-	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
-	pDraw_Image(x, y, (s2-s1)*sw, (t2-t1)*sh, s1/w, t1/h, s2/w, t2/h, image);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->ImageSize(image, &w, &h);
+	drawfuncs->Colour4f(1, 1, 1, alpha * alphamul);
+	drawfuncs->Image(x, y, (s2-s1)*sw, (t2-t1)*sh, s1/w, t1/h, s2/w, t2/h, image);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 
 void Draw_AlphaFill(float x, float y, float w, float h, unsigned int pal, float alpha)
 {
 	if (pal >= 256)
-		pDraw_Colour4f(((pal>>16)&0xff)/255.0, ((pal>>8)&0xff)/255.0, ((pal>>0)&0xff)/255.0, alpha * alphamul);
+		drawfuncs->Colour4f(((pal>>16)&0xff)/255.0, ((pal>>8)&0xff)/255.0, ((pal>>0)&0xff)/255.0, alpha * alphamul);
 	else
-		pDraw_Colourpa(pal, alpha * alphamul);
-	pDraw_Fill(x, y, w, h);
-	pDraw_Colour4f(1, 1, 1, 1);
+		drawfuncs->Colourpa(pal, alpha * alphamul);
+	drawfuncs->Fill(x, y, w, h);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void Draw_AlphaPic(float x, float y, mpic_t *pic, float alpha)
 {
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
-	pDraw_ImageSize(image, &w, &h);
-	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
-	pDraw_Image(x, y, w, h, 0, 0, 1, 1, image);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->ImageSize(image, &w, &h);
+	drawfuncs->Colour4f(1, 1, 1, alpha * alphamul);
+	drawfuncs->Image(x, y, w, h, 0, 0, 1, 1, image);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void Draw_AlphaSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float alpha)
 {
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
-	pDraw_ImageSize(image, &w, &h);
-	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
-	pDraw_Image(x, y, s2-s1, t2-t1, s1/w, t1/h, s2/w, t2/h, image);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->ImageSize(image, &w, &h);
+	drawfuncs->Colour4f(1, 1, 1, alpha * alphamul);
+	drawfuncs->Image(x, y, s2-s1, t2-t1, s1/w, t1/h, s2/w, t2/h, image);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void SCR_HUD_DrawBar(int direction, int value, float max_value, float *rgba, int x, int y, int width, int height)
 {
@@ -154,33 +165,33 @@ void SCR_HUD_DrawBar(int direction, int value, float max_value, float *rgba, int
 	else// left-right
 		amount = Q_rint(fabs((width * value) / max_value));
 
-	pDraw_Colour4f(rgba[0]/255.0, rgba[1]/255.0, rgba[2]/255.0, rgba[3]/255.0 * alphamul);
+	drawfuncs->Colour4f(rgba[0]/255.0, rgba[1]/255.0, rgba[2]/255.0, rgba[3]/255.0 * alphamul);
 	if(direction == 0)
 		// left->right
-		pDraw_Fill(x, y, amount, height);
+		drawfuncs->Fill(x, y, amount, height);
 	else if (direction == 1)
 		// right->left
-		pDraw_Fill(x + width - amount, y, amount, height);
+		drawfuncs->Fill(x + width - amount, y, amount, height);
 	else if (direction == 2)
 		// down -> up
-		pDraw_Fill(x, y + height - amount, width, amount);
+		drawfuncs->Fill(x, y + height - amount, width, amount);
 	else
 		// up -> down
-		pDraw_Fill(x, y, width, amount);
-	pDraw_Colour4f(1, 1, 1, 1);
+		drawfuncs->Fill(x, y, width, amount);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 
 void Draw_Polygon(int x, int y, vec3_t *vertices, int num_vertices, qbool fill, byte r, byte g, byte b, byte a)
 {
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
-//	pDraw_Line(x1, y1, x2, y1);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
+//	drawfuncs->Line(x1, y1, x2, y1);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void Draw_ColoredString3(float x, float y, const char *str, clrinfo_t *clr, int huh, int wut)
 {
-	pDraw_Colour4f(clr->c[0]/255.0, clr->c[1]/255.0, clr->c[2]/255.0, clr->c[3]/255.0 * alphamul);
-	pDraw_String(x, y, str);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colour4f(clr->c[0]/255.0, clr->c[1]/255.0, clr->c[2]/255.0, clr->c[3]/255.0 * alphamul);
+	drawfuncs->String(x, y, str);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void UI_PrintTextBlock(void)
 {
@@ -191,29 +202,29 @@ void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r
 	float x2 = x+w;
 	float y1 = y;
 	float y2 = y+h;
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
-	pDraw_Line(x1, y1, x2, y1);
-	pDraw_Line(x2, y1, x2, y2);
-	pDraw_Line(x1, y2, x2, y2);
-	pDraw_Line(x1, y1, x1, y2);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
+	drawfuncs->Line(x1, y1, x2, y1);
+	drawfuncs->Line(x2, y1, x2, y2);
+	drawfuncs->Line(x1, y2, x2, y2);
+	drawfuncs->Line(x1, y1, x1, y2);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 void Draw_AlphaLineRGB(float x1, float y1, float x2, float y2, float width, byte r, byte g, byte b, byte a)
 {
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
-	pDraw_Line(x1, y1, x2, y2);
-	pDraw_Colour4f(1, 1, 1, 1);
+	drawfuncs->Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
+	drawfuncs->Line(x1, y1, x2, y2);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 }
 
 mpic_t *Draw_CachePicSafe(const char *name, qbool crash, qbool ignorewad)
 {
 	if (!*name)
 		return NULL;
-	return (mpic_t*)(qintptr_t)pDraw_LoadImage(name, false);
+	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(name, false);
 }
 mpic_t *Draw_CacheWadPic(const char *name)
 {
-	return (mpic_t*)(qintptr_t)pDraw_LoadImage(name, true);
+	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(name, true);
 }
 
 mpic_t *SCR_LoadCursorImage(char *cursorimage)
@@ -488,15 +499,15 @@ void SCR_DrawSmallClock(int x, int y, int style, int blink, float scale, const c
 void EZHud_UseNquake_f(void)
 {
 	const char *hudstr = builtin_hud_nquake;
-	pCmd_AddText(hudstr, true); 
+	cmdfuncs->AddText(hudstr, true);
 }
 
-struct 
+static struct
 {
 	xcommand_t cmd;
 	const char *name;
 } concmds[128];
-int numconcmds;
+static int numconcmds;
 qboolean Cmd_AddCommand	(const char *funcname, xcommand_t function)
 {
 	if (numconcmds < sizeof(concmds)/sizeof(concmds[0]))
@@ -504,17 +515,17 @@ qboolean Cmd_AddCommand	(const char *funcname, xcommand_t function)
 		concmds[numconcmds].cmd = function;
 		concmds[numconcmds].name = funcname;
 		numconcmds++;
-		pCmd_AddCommand(funcname);
+		cmdfuncs->AddCommand(funcname);
 		return true;
 	}
 	Con_Printf("ezhud: too many console commands\n");
 	return false;
 };
-qintptr_t EZHud_ExecuteCommand(qintptr_t *args)
+static qboolean QDECL EZHud_ExecuteCommand(qboolean isinsecure)
 {
 	char buffer[128];
 	int i;
-	pCmd_Argv(0, buffer, sizeof(buffer));
+	cmdfuncs->Argv(0, buffer, sizeof(buffer));
 	for (i = 0; i < numconcmds; i++)
 	{
 		if (!strcmp(buffer, concmds[i].name))
@@ -537,17 +548,17 @@ double vid_vsync_lag;
 
 vrect_t scr_vrect;
 
-qintptr_t EZHud_Tick(qintptr_t *args)
+void EZHud_Tick(double realtime, double gametime)
 {
 	static float lasttime, lasttime_min = 99999;
 	static int framecount;
 
 	//realtime(ms), realtime(secs), servertime
 	float oldtime = cls.realtime;
-	cls.realtime = *(float*)&args[1];
+	cls.realtime = realtime;
 	cls.frametime = cls.realtime - oldtime;
 
-	cl.time = *(float*)&args[2];
+	cl.time = gametime;
 
 	if (cls.realtime - lasttime > 1)
 	{
@@ -564,8 +575,6 @@ qintptr_t EZHud_Tick(qintptr_t *args)
 			cls.min_fps = cls.fps;
 	}
 	framecount++;
-
-	return 1;
 }
 char *findinfo(char *info, char *findkey)
 {
@@ -612,25 +621,25 @@ float infofloat(char *info, char *findkey, float def)
 		return atof(value);
 	return def;
 }
-qintptr_t EZHud_Draw(qintptr_t *args)
+int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewheight, int showscores)
 {
 	char serverinfo[4096];
 	char val[64];
 	int i;
-	cl.splitscreenview = args[0];
-	scr_vrect.x = args[1];
-	scr_vrect.y = args[2];
-	scr_vrect.width = args[3];
-	scr_vrect.height = args[4];
-	sb_showscores = args[5] & 1;
-	sb_showteamscores = args[5] & 2;
+	cl.splitscreenview = seat;
+	scr_vrect.x = viewx;
+	scr_vrect.y = viewy;
+	scr_vrect.width = viewwidth;
+	scr_vrect.height = viewheight;
+	sb_showscores = showscores & 1;
+	sb_showteamscores = showscores & 2;
 
-	pCL_GetStats(0, cl.stats, sizeof(cl.stats)/sizeof(cl.stats[0]));
+	clientfuncs->GetStats(0, cl.stats, sizeof(cl.stats)/sizeof(cl.stats[0]));
 	for (i = 0; i < 32; i++)
-		pGetPlayerInfo(i, &cl.players[i]);
+		clientfuncs->GetPlayerInfo(i, &cl.players[i]);
 
-	pGetLocalPlayerNumbers(cl.splitscreenview, 1, &cl.playernum, &cl.tracknum);
-	pGetServerInfo(cl.serverinfo, sizeof(serverinfo));
+	clientfuncs->GetLocalPlayerNumbers(cl.splitscreenview, 1, &cl.playernum, &cl.tracknum);
+	clientfuncs->GetServerInfo(cl.serverinfo, sizeof(serverinfo));
 	cl.deathmatch = infofloat(cl.serverinfo, "deathmatch", 0);
 	cl.teamplay = infofloat(cl.serverinfo, "teamplay", 0);
 	cl.intermission = infofloat(cl.serverinfo, "intermission", 0);
@@ -640,8 +649,6 @@ qintptr_t EZHud_Draw(qintptr_t *args)
 	cl.countdown = !strcmp(val, "countdown");
 	cl.matchstart = infofloat(cl.serverinfo, "matchstart", 0);
 	cls.state = ca_active;
-	vid.width = pvid.width;
-	vid.height = pvid.height;
 
 	infostring(cl.serverinfo, "demotype", val, sizeof(val));
 	cls.mvdplayback = !strcmp(val, "mvd");
@@ -652,7 +659,7 @@ qintptr_t EZHud_Draw(qintptr_t *args)
 		static cvar_t *pscr_viewsize = NULL;
 		int size;
 		if (!pscr_viewsize)
-			pscr_viewsize = pCvar_GetNVFDG("viewsize", "100", 0, NULL, NULL);
+			pscr_viewsize = cvarfuncs->GetNVFDG("viewsize", "100", 0, NULL, NULL);
 		size = cl.intermission ? 120 : pscr_viewsize->value;
 		if (size >= 120)
 			sb_lines = 0;           // no status bar at all
@@ -686,14 +693,12 @@ float cursor_y;
 float mouse_x;
 float mouse_y;
 mpic_t	*scr_cursor_icon	= NULL;
-qintptr_t EZHud_MenuEvent(qintptr_t *args)
+qboolean QDECL EZHud_MenuEvent(int eventtype, int keyparam, int unicodeparm, float mousecursor_x, float mousecursor_y, float vidwidth, float vidheight)
 {
-	int eventtype = args[0];
-	int param = args[1];
-	mouse_x += args[2] - cursor_x;	//FIXME: the hud editor should NOT need this sort of thing
-	mouse_y += args[3] - cursor_y;
-	cursor_x = args[2];
-	cursor_y = args[3];
+	mouse_x += mousecursor_x - cursor_x;	//FIXME: the hud editor should NOT need this sort of thing
+	mouse_y += mousecursor_y - cursor_y;
+	cursor_x = mousecursor_x;
+	cursor_y = mousecursor_y;
 
 	HUD_Editor_MouseEvent(cursor_x, cursor_y);
 
@@ -708,33 +713,39 @@ qintptr_t EZHud_MenuEvent(qintptr_t *args)
 		mouse_y = 0;
 		break;
 	case 1:
-		if (param < K_MAX)
-			keydown[param] = true;
-		HUD_Editor_Key(param, 0, true);
+		if (keyparam < K_MAX)
+			keydown[keyparam] = true;
+		HUD_Editor_Key(keyparam, 0, true);
 		break;
 	case 2:
-		if (param < K_MAX)
-			keydown[param] = false;
-		HUD_Editor_Key(param, 0, false);
+		if (keyparam < K_MAX)
+			keydown[keyparam] = false;
+		HUD_Editor_Key(keyparam, 0, false);
 		break;
 	}
 	return 1;
 }
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
-	if (BUILTINISVALID(Cvar_GetNVFDG) &&
-		BUILTINISVALID(Draw_ImageSize) &&
-		BUILTINISVALID(GetTeamInfo) &&
-		Plug_Export("SbarBase", EZHud_Draw) &&
-		Plug_Export("MenuEvent", EZHud_MenuEvent) &&
-		Plug_Export("Tick", EZHud_Tick) &&
-		Plug_Export("ExecuteCommand", EZHud_ExecuteCommand))
+	drawfuncs = plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
+	clientfuncs = plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));
+	filefuncs =  plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	inputfuncs = plugfuncs->GetEngineInterface(pluginputfuncs_name, sizeof(*inputfuncs));
+
+	plugfuncs->ExportFunction("UpdateVideo", EZHud_UpdateVideo);
+
+	if (cvarfuncs && drawfuncs && clientfuncs && filefuncs && inputfuncs &&
+		plugfuncs->ExportFunction("SbarBase", EZHud_Draw) &&
+		plugfuncs->ExportFunction("MenuEvent", EZHud_MenuEvent) &&
+		plugfuncs->ExportFunction("Tick", EZHud_Tick) &&
+		plugfuncs->ExportFunction("ExecuteCommand", EZHud_ExecuteCommand))
 	{
 		Cmd_AddCommand("ezhud_nquake", EZHud_UseNquake_f);
 		HUD_Init();
 		HUD_Editor_Init();
-		return 1;
+		return true;
 	}
+	Con_Printf("EZHud: Unable to initiailise\n");
 	return false;
 }

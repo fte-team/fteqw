@@ -2,6 +2,9 @@
 #define _Q3DEFS_H_
 #define PROTOCOL_VERSION_Q3 68
 
+void Q3_SetKeyCatcher(int newcatcher);
+int Q3_GetKeyCatcher(void);
+
 int StringKey( const char *string, int length );
 
 typedef struct {

@@ -12,13 +12,12 @@ extern cvar_t maxclients;
 void M_Menu_MultiPlayer_f (void)
 {
 	menubutton_t *b;
-	menu_t *menu;
+	emenu_t *menu;
 	mpic_t *p;
 	int mgt;
 	static menuresel_t resel;
 
 	p = NULL;
-	Key_Dest_Add(kdm_emenu);
 
 	mgt = M_GameType();
 
@@ -133,7 +132,7 @@ typedef struct {
 	int tiwidth, tiheight;
 	qbyte translationimage[128*128];
 } setupmenu_t;
-qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key)
+qboolean ApplySetupMenu (union menuoption_s *option,struct emenu_s *menu, int key)
 {
 	char bot[64], top[64];
 	setupmenu_t *info = menu->data;
@@ -218,7 +217,7 @@ static unsigned int hsvtorgb(float inh, float s, float v)
 	return 0xff000000 | (r<<16)|(g<<8)|(b<<0);
 };
 
-qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int key)
+qboolean SetupMenuColour (union menuoption_s *option,struct emenu_s *menu, int key)
 {
 	extern qboolean	keydown[K_MAX];
 	setupmenu_t *info = menu->data;
@@ -312,7 +311,7 @@ void q2skin_destroy(q2skinsearch_t *s)
 	BZ_Free(s);
 }
 
-qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, int key, unsigned int unicode)
+qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct emenu_s *menu, int key, unsigned int unicode)
 {
 	setupmenu_t *info = menu->data;
 	q2skinsearch_t *s = Z_Malloc(sizeof(*s));
@@ -340,7 +339,7 @@ qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, i
 	q2skin_destroy(s);
 	return true;
 }
-void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
+void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, emenu_t *menu)
 {
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
@@ -364,7 +363,7 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		R2D_ScalePic (x, y-8, w, h, p);
 }
 
-void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
+void MSetup_TransDraw (int x, int y, menucustom_t *option, emenu_t *menu)
 {
 	unsigned int translationTable[256];
 	setupmenu_t *info = menu->data;
@@ -431,7 +430,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 void M_Menu_Setup_f (void)
 {
 	setupmenu_t *info;
-	menu_t *menu;
+	emenu_t *menu;
 	menucustom_t *ci;
 	menubutton_t *b;
 	static menuresel_t resel;
@@ -446,7 +445,6 @@ void M_Menu_Setup_f (void)
 			NULL
 		};
 		menucustom_t *cu;
-		Key_Dest_Add(kdm_emenu);
 
 		menu = M_CreateMenu(sizeof(setupmenu_t));
 		info = menu->data;
@@ -469,8 +467,6 @@ void M_Menu_Setup_f (void)
 		return;
 	}
 #endif
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(setupmenu_t));
 	info = menu->data;
@@ -563,7 +559,7 @@ static const char *numplayeroptions[] = {
 	NULL
 };
 
-qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key)
+qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int key)
 {
 	newmultimenu_t *info = menu->data;
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
@@ -652,12 +648,10 @@ void M_Menu_GameOptions_f (void)
 		NULL
 	};
 	newmultimenu_t *info;
-	menu_t *menu;
+	emenu_t *menu;
 	int y = 40;
 	int mgt;
 	int players;
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(newmultimenu_t));
 	info = menu->data;
@@ -757,13 +751,12 @@ void M_Menu_Teamplay_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu_t *menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Locations_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -792,13 +785,12 @@ void M_Menu_Teamplay_Locations_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Needs_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -819,13 +811,12 @@ void M_Menu_Teamplay_Needs_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -840,13 +831,12 @@ void M_Menu_Teamplay_Items_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 224, y);
 }
 
 void M_Menu_Teamplay_Items_Armor_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -863,13 +853,12 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Weapons_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -888,13 +877,12 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Powerups_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -916,13 +904,12 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -939,13 +926,12 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -957,13 +943,12 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 {
-	menu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -985,7 +970,7 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 		MB_END()
 	};
 	static menuresel_t resel;
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
@@ -1026,7 +1011,6 @@ void M_Menu_Network_f (void)
 	static const char *smoothingvalues[] = {"0", "1", "2", NULL};
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
 	extern cvar_t cl_predict_players, cl_predict_smooth, cl_predict_extrapolate;
-	menu_t *menu;
 	static menuresel_t resel;
 	int y;
 	menubulk_t bulk[] =
@@ -1050,7 +1034,7 @@ void M_Menu_Network_f (void)
 #endif
 		MB_END()
 	};
-	menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 #endif

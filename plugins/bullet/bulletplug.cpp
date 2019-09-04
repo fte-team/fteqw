@@ -84,14 +84,10 @@ static cvar_t *pr_meshpitch;
 
 void World_Bullet_Init(void)
 {
-	physics_bullet_enable					= pCvar_GetNVFDG("physics_bullet_enable",					"1",	0, "", "Bullet");
-	physics_bullet_maxiterationsperframe	= pCvar_GetNVFDG("physics_bullet_maxiterationsperframe",	"10",	0, "FIXME: should be 1 when CCD is working properly.", "Bullet");
-	physics_bullet_framerate				= pCvar_GetNVFDG("physics_bullet_framerate",				"60",	0, "Bullet physics run at a fixed framerate in order to preserve numerical stability (interpolation is used to smooth out the result). Higher framerates are of course more demanding.", "Bullet");
-	pr_meshpitch							= pCvar_GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
-}
-
-void World_Bullet_Shutdown(void)
-{
+	physics_bullet_enable					= cvarfuncs->GetNVFDG("physics_bullet_enable",					"1",	0, "", "Bullet");
+	physics_bullet_maxiterationsperframe	= cvarfuncs->GetNVFDG("physics_bullet_maxiterationsperframe",	"10",	0, "FIXME: should be 1 when CCD is working properly.", "Bullet");
+	physics_bullet_framerate				= cvarfuncs->GetNVFDG("physics_bullet_framerate",				"60",	0, "Bullet physics run at a fixed framerate in order to preserve numerical stability (interpolation is used to smooth out the result). Higher framerates are of course more demanding.", "Bullet");
+	pr_meshpitch							= cvarfuncs->GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
 }
 
 typedef struct bulletcontext_s
@@ -1786,11 +1782,10 @@ static void QDECL World_Bullet_Start(world_t *world)
 	*/
 }
 
-static qintptr_t QDECL World_Bullet_Shutdown(qintptr_t *args)
+static void QDECL World_Bullet_Shutdown(void)
 {
 	if (rbefuncs)
 		rbefuncs->UnregisterPhysicsEngine("Bullet");
-	return 0;
 }
 
 static bool World_Bullet_DoInit(void)
@@ -1810,23 +1805,14 @@ static bool World_Bullet_DoInit(void)
 	return false;
 }
 
-#define ARGNAMES ,version
-static BUILTINR(rbeplugfuncs_t*, RBE_GetPluginFuncs, (int version));
-#undef ARGNAMES
-
-extern "C" qintptr_t Plug_Init(qintptr_t *args)
+extern "C" qboolean Plug_Init(void)
 {
-	CHECKBUILTIN(RBE_GetPluginFuncs);
+	rbefuncs = (rbeplugfuncs_t*)plugfuncs->GetEngineInterface("RBE", sizeof(*rbefuncs));
+	if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
+		rbefuncs = nullptr;
 
-	if (BUILTINISVALID(RBE_GetPluginFuncs))
-	{
-		rbefuncs = pRBE_GetPluginFuncs(sizeof(rbeplugfuncs_t));
-		if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
-			rbefuncs = NULL;
-	}
-
-	Plug_Export("Shutdown", World_Bullet_Shutdown);
-	return World_Bullet_DoInit();
+	plugfuncs->ExportFunction("Shutdown", (funcptr_t)World_Bullet_Shutdown);
+	return World_Bullet_DoInit()?qtrue:qfalse;
 }
 
 

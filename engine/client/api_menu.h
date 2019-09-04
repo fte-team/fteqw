@@ -64,6 +64,7 @@ struct menu_inputevent_args_s
 		MIE_KEYUP		= 1,
 		MIE_MOUSEDELTA	= 2,
 		MIE_MOUSEABS	= 3,
+		MIE_JOYAXIS		= 4,
 	} eventtype;
 	unsigned int devid;
 	union
@@ -78,6 +79,11 @@ struct menu_inputevent_args_s
 			float delta[2];
 			float screen[2]; //virtual coords
 		} mouse;
+		struct
+		{
+			unsigned int axis;
+			float val;
+		} axis;
 	};
 };
 
@@ -159,9 +165,10 @@ typedef struct {
 	void (*renderscene)			(menuscene_t *scene);
 
 	// Menu specific stuff
-	qboolean (*setkeydest)			(qboolean focused);	//returns whether it changed.
-	int (*getkeydest)				(void);				//returns 0 if unfocused, -1 if active-but-unfocused, 1 if focused-and-active.
-	int (*setmousetarget)			(const char *cursorname, float hot_x, float hot_y, float scale);	//forces absolute mouse coords whenever cursorname isn't NULL
+	void (*pushmenu)				(void *ctx);	//will have key focus.
+	qboolean (*ismenupushed)		(void *ctx);	//reports if its still pushed (but not necessarily the active one!).
+	void (*killmenu)				(void *ctx);	//force-removes a menu.
+	int (*setmousecursor)			(const char *cursorname, float hot_x, float hot_y, float scale);	//forces absolute mouse coords whenever cursorname isn't NULL
 	const char *(*keynumtostring)	(int keynum, int modifier);
 	int (*stringtokeynum)			(const char *key, int *modifier);
 	int (*findkeysforcommand)		(int bindmap, const char *command, int *out_scancodes, int *out_modifiers, int keycount);
@@ -185,11 +192,13 @@ typedef struct {
 
 	void	(*Init)				(mintreason_t reason, float vwidth, float vheight, int pwidth, int pheight);
 	void	(*Shutdown)			(mintreason_t reason);
-	void	(*Draw)				(double frametime);
-	void	(*DrawLoading)		(double frametime);
+	void	(*DrawLoading)		(double frametime);	//pure loading screen.
 	void	(*Toggle)			(int wantmode);
-	int		(*InputEvent)		(struct menu_inputevent_args_s ev);
 	qboolean(*ConsoleCommand)	(const char *cmdline, int argc, char const*const*argv);
+
+	void	(*Draw)				(void *ctx, double frametime);					//draws a menu.
+	qboolean(*InputEvent)		(void *ctx, struct menu_inputevent_args_s ev);	//return true to prevent the engine handling it (ie: because you already did).
+	void	(*Closed)			(void *ctx);									//a pushed menu was closed.
 } menu_export_t;
 
 #ifndef NATIVEEXPORT

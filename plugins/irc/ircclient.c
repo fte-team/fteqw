@@ -9,6 +9,10 @@
 
 
 #include "../plugin.h"
+static plugsubconsolefuncs_t *confuncs;
+static plugfsfuncs_t *filefuncs;
+static plugnetfuncs_t *netfuncs;
+static plug2dfuncs_t *drawfuncs;
 #include <time.h>
 #include <ctype.h>
 #include "../../engine/common/netinc.h"
@@ -64,10 +68,22 @@ static char casevar[9][1000]; //numbered_command
 #define COMMANDNAME "irc"
 #define RELEASE __DATE__
 
-static void (*Con_TrySubPrint)(const char *subname, const char *text);
-static void Con_FakeSubPrint(const char *subname, const char *text)
+static struct
 {
-	pCon_Print(text);
+	int width;
+	int height;
+} pvid;
+static void QDECL IRC_UpdateVideo(int width, int height)
+{
+	pvid.width = width;
+	pvid.height = height;
+}
+
+static qboolean (*Con_TrySubPrint)(const char *subname, const char *text);
+static qboolean Con_FakeSubPrint(const char *subname, const char *text)
+{
+	plugfuncs->Print(text);
+	return true;
 }
 
 //porting zone:
@@ -248,14 +264,14 @@ static void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *for
 	
 		lwr[i] = '\0';
 
-		if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
+		if (confuncs && confuncs->GetConsoleFloat(lwr, "iswindow") < true)
 		{
-			pCon_SetConsoleString(lwr, "title", *channame?channame:irc->server);
-			pCon_SetConsoleString(lwr, "prompt", va("[^1%s^7]: ", irc->nick));
-			pCon_SetConsoleFloat(lwr, "iswindow", 2);
-			pCon_SetConsoleFloat(lwr, "forceutf8", true);
-			pCon_SetConsoleFloat(lwr, "wnd_w", 256);
-			pCon_SetConsoleFloat(lwr, "wnd_h", 320);
+			confuncs->SetConsoleString(lwr, "title", *channame?channame:irc->server);
+			confuncs->SetConsoleString(lwr, "prompt", va("[^1%s^7]: ", irc->nick));
+			confuncs->SetConsoleFloat(lwr, "iswindow", 2);
+			confuncs->SetConsoleFloat(lwr, "forceutf8", true);
+			confuncs->SetConsoleFloat(lwr, "wnd_w", 256);
+			confuncs->SetConsoleFloat(lwr, "wnd_h", 320);
 
 			//lame, but whatever.
 			if (next_window_x + 256 > pvid.width)
@@ -265,13 +281,13 @@ static void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *for
 				if (next_window_y + 320 > pvid.height)
 					next_window_y = 0;
 			}
-			pCon_SetConsoleFloat(lwr, "wnd_x", next_window_x);
-			pCon_SetConsoleFloat(lwr, "wnd_y", next_window_y);
+			confuncs->SetConsoleFloat(lwr, "wnd_x", next_window_x);
+			confuncs->SetConsoleFloat(lwr, "wnd_y", next_window_y);
 			next_window_x += 256;
 		}
 
-		if (BUILTINISVALID(Con_SetConsoleString))
-			pCon_SetConsoleString(lwr, "footer", string);
+		if (confuncs)
+			confuncs->SetConsoleString(lwr, "footer", string);
 	}
 }
 static qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
@@ -291,7 +307,7 @@ static qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
 	
 		lwr[i] = '\0';
 
-		if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
+		if (confuncs && confuncs->GetConsoleFloat(lwr, "iswindow") < true)
 			return false;
 	}
 	return true;
@@ -310,7 +326,7 @@ static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format
 	va_end (argptr);
 
 	if (!irc)
-		pCon_Print(string);
+		plugfuncs->Print(string);
 	else
 	{
 		Q_strlcpy(lwr, irc->id, sizeof(lwr));
@@ -324,14 +340,14 @@ static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format
 	
 		lwr[i] = '\0';
 
-		if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
+		if (confuncs && confuncs->GetConsoleFloat(lwr, "iswindow") < true)
 		{
-			pCon_SetConsoleString(lwr, "title", *channame?channame:irc->server);
-			pCon_SetConsoleString(lwr, "prompt", va("[^1%s^7]: ", irc->nick));
-			pCon_SetConsoleFloat(lwr, "iswindow", 2);
-			pCon_SetConsoleFloat(lwr, "forceutf8", true);
-			pCon_SetConsoleFloat(lwr, "wnd_w", 256);
-			pCon_SetConsoleFloat(lwr, "wnd_h", 320);
+			confuncs->SetConsoleString(lwr, "title", *channame?channame:irc->server);
+			confuncs->SetConsoleString(lwr, "prompt", va("[^1%s^7]: ", irc->nick));
+			confuncs->SetConsoleFloat(lwr, "iswindow", 2);
+			confuncs->SetConsoleFloat(lwr, "forceutf8", true);
+			confuncs->SetConsoleFloat(lwr, "wnd_w", 256);
+			confuncs->SetConsoleFloat(lwr, "wnd_h", 320);
 
 			//lame, but whatever.
 			if (next_window_x + 256 > pvid.width)
@@ -341,12 +357,12 @@ static void IRC_Printf(ircclient_t *irc, const char *subname, const char *format
 				if (next_window_y + 320 > pvid.height)
 					next_window_y = 0;
 			}
-			pCon_SetConsoleFloat(lwr, "wnd_x", next_window_x);
-			pCon_SetConsoleFloat(lwr, "wnd_y", next_window_y);
+			confuncs->SetConsoleFloat(lwr, "wnd_x", next_window_x);
+			confuncs->SetConsoleFloat(lwr, "wnd_y", next_window_y);
 			next_window_x += 256;
 		}
 		if (!*string)
-			pCon_SetActive(lwr);
+			confuncs->SetActive(lwr);
 
 		Con_TrySubPrint(lwr, string);
 	}
@@ -362,7 +378,7 @@ static void IRC_InitCvars(void)
 	for (i=0; cvarlist[i]; i++)
 	{
 		v = cvarlist[i];
-		v->handle = pCvar_Register(v->name, v->string, v->flags, v->group);
+		v->handle = cvarfuncs->Register(v->name, v->string, v->flags, v->group);
 	}
 }
 
@@ -373,71 +389,77 @@ static int IRC_CvarUpdate(void) // perhaps void instead?
 	for (i=0; cvarlist[i]; i++)
 	{
 		v = cvarlist[i];
-		v->modificationcount = pCvar_Update(v->handle, &v->modificationcount, v->string, &v->value);
+		cvarfuncs->Update(v->handle, &v->modificationcount, v->string, sizeof(v->string), &v->value);
 	}
 	return 0;
 }
 
 void IRC_Command(ircclient_t *ircclient, char *dest, char *args);
-qintptr_t IRC_ExecuteCommand(qintptr_t *args);
-qintptr_t IRC_ConExecuteCommand(qintptr_t *args);
-qintptr_t IRC_Frame(qintptr_t *args);
-qintptr_t IRC_ConsoleLink(qintptr_t *args);
+qboolean IRC_ExecuteCommand(qboolean isinsecure);
+int IRC_ConExecuteCommand(qboolean isinsecure);
+void IRC_Frame(double realtime, double gametime);
+qboolean IRC_ConsoleLink(void);
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
-	if (	Plug_Export("Tick", IRC_Frame) &&
-		Plug_Export("ExecuteCommand", IRC_ExecuteCommand))
-	{
-		pCmd_AddCommand(COMMANDNAME);
+	confuncs = plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	netfuncs = plugfuncs->GetEngineInterface(plugnetfuncs_name, sizeof(*netfuncs));
+	drawfuncs = plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
+	piceapi = plugfuncs->GetEngineInterface(ICE_API_CURRENT, sizeof(*piceapi));
+	plugfuncs->ExportFunction("UpdateVideo", IRC_UpdateVideo);
 
-		Plug_Export("ConsoleLink", IRC_ConsoleLink);
-		if (!Plug_Export("ConExecuteCommand", IRC_ConExecuteCommand))
+	if (netfuncs &&
+		filefuncs &&
+		plugfuncs->ExportFunction("Tick", IRC_Frame) &&
+		plugfuncs->ExportFunction("ExecuteCommand", IRC_ExecuteCommand))
+	{
+		cmdfuncs->AddCommand(COMMANDNAME);
+
+		plugfuncs->ExportFunction("ConsoleLink", IRC_ConsoleLink);
+		if (!confuncs || !plugfuncs->ExportFunction("ConExecuteCommand", IRC_ConExecuteCommand))
 			Con_TrySubPrint = Con_FakeSubPrint;
 		else
-			Con_TrySubPrint = pCon_SubPrint;
+			Con_TrySubPrint = confuncs->SubPrint;
 
 		reloadconfig = true;
 		IRC_InitCvars();
-
-		if (BUILTINISVALID(Plug_GetNativePointer))
-			piceapi = pPlug_GetNativePointer(ICE_API_CURRENT);
 
 		return true;
 	}
 	else
 	{
-		pCon_Print("IRC Client Plugin failed\n");
+		plugfuncs->Print("IRC Client Plugin failed\n");
 	}
 	return false;
 }
 
 
 
-qintptr_t IRC_ExecuteCommand(qintptr_t *args)
+qboolean IRC_ExecuteCommand(qboolean isinsecure)
 {
 	char cmd[256];
-	pCmd_Argv(0, cmd, sizeof(cmd));
+	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, COMMANDNAME))
 	{
 		ircclient_t *ircclient = ircclients;
 		char imsg[8192];
-		pCmd_Args(imsg, sizeof(imsg));
+		cmdfuncs->Args(imsg, sizeof(imsg));
 		//FIXME: select an irc network more inteligently
 		IRC_Command(ircclient, ircclient?ircclient->defaultdest:"", imsg);
 		return true;
 	}
 	return false;
 }
-qintptr_t IRC_ConExecuteCommand(qintptr_t *args)
+int IRC_ConExecuteCommand(qboolean isinsecure)
 {
 	char buffer[256];
 	char imsg[8192];
 	ircclient_t *ircclient;
 	//FIXME: select the right network
 
-	pCmd_Argv(0, buffer, sizeof(buffer));
-	pCmd_Args(imsg, sizeof(imsg));
+	cmdfuncs->Argv(0, buffer, sizeof(buffer));
+	cmdfuncs->Args(imsg, sizeof(imsg));
 
 	//buffer is something like: irc53:#foo
 	for (ircclient = ircclients; ircclient; ircclient = ircclient->next)
@@ -576,7 +598,7 @@ static qboolean IRC_Establish(ircclient_t *irc)
 	irc->bufferedinammount = 0;
 	irc->quitting = false;
 
-	irc->socket = pNet_TCPConnect(irc->server, 6667);	//port is only used if the url doesn't contain one. It's a default.
+	irc->socket = netfuncs->TCPConnect(irc->server, 6667);	//port is only used if the url doesn't contain one. It's a default.
 
 	//not yet blocking. So no frequent attempts please...
 	//non blocking prevents connect from returning worthwhile sensible value.
@@ -588,9 +610,9 @@ static qboolean IRC_Establish(ircclient_t *irc)
 
 	if (irc->tlsmode == TLS_INITIAL)
 	{
-		if (pNet_SetTLSClient(irc->socket, irc->server) < 0)
+		if (netfuncs->SetTLSClient(irc->socket, irc->server) < 0)
 		{
-			pNet_Close(irc->socket);
+			netfuncs->Close(irc->socket);
 			irc->socket = invalid_handle;
 			return false;
 		}
@@ -614,14 +636,14 @@ static qboolean IRC_Establish(ircclient_t *irc)
 static void IRC_ParseConfig(void)
 {
 	qhandle_t config;
-	int len = pFS_Open("**plugconfig", &config, 1);
+	int len = filefuncs->Open("**plugconfig", &config, 1);
 	if (len >= 0)
 	{
 		char *buf = malloc(len+1);
 		char *msg = buf;
 		buf[len] = 0;
-		pFS_Read(config, buf, len);
-		pFS_Close(config);
+		filefuncs->Read(config, buf, len);
+		filefuncs->Close(config);
 
 		while (msg && *msg)
 		{
@@ -668,7 +690,7 @@ static void IRC_WriteConfig(void)
 	if (irc_config.value == 0)
 		return;
 
-	pFS_Open("**plugconfig", &config, 2);
+	filefuncs->Open("**plugconfig", &config, 2);
 	if (config >= 0)
 	{
 		ircclient_t *irc;
@@ -677,10 +699,10 @@ static void IRC_WriteConfig(void)
 			char *s = va("\"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n", irc->server, irc->autochannels, irc->primarynick, irc->pwd, irc->realname, irc->hostname, irc->username);
 			if (irc->quitting || !irc->persist)
 				continue;
-			pFS_Write(config, s, strlen(s));
+			filefuncs->Write(config, s, strlen(s));
 		}
 
-		pFS_Close(config);
+		filefuncs->Close(config);
 	}
 }
 static void IRC_MakeDefault(ircclient_t *irc)
@@ -1286,7 +1308,7 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	}
 	case 670: /* RPL_STARTTLS */
 	{
-		pNet_SetTLSClient(irc->socket, irc->server);
+		netfuncs->SetTLSClient(irc->socket, irc->server);
 		irc->tlsmode = TLS_START;
 		irc->nicktries = 0;
 		IRC_SetPass(irc, irc->pwd);
@@ -1297,7 +1319,7 @@ static void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars
 	case 691: /* ERR_STARTTLS */
 	{
 		IRC_Printf(irc, DEFAULTCONSOLE, COLOURYELLOW "STARTTLS Failed: %s\n", casevar[3]);
-		pNet_Close(irc->socket);
+		netfuncs->Close(irc->socket);
 		irc->socket = invalid_handle;
 		return;
 	}
@@ -1706,7 +1728,7 @@ static void IRC_ICE_Authorise(ircclient_t *irc, const char *with, enum iceproto_
 	IRC_Printf(irc, announce, "Connection is already terminated\n");
 }
 
-qintptr_t IRC_ConsoleLink(qintptr_t *args)
+qboolean IRC_ConsoleLink(void)
 {
 	ircclient_t *irc;
 	char link[256];
@@ -1716,9 +1738,9 @@ qintptr_t IRC_ConsoleLink(qintptr_t *args)
 	char whobuf[256];
 	char which[512];
 	enum iceproto_e type;
-//	pCmd_Argv(0, text, sizeof(text));
-	pCmd_Argv(1, link, sizeof(link));
-	pCmd_Argv(2, which, sizeof(which));
+//	cmdfuncs->Argv(0, text, sizeof(text));
+	cmdfuncs->Argv(1, link, sizeof(link));
+	cmdfuncs->Argv(2, which, sizeof(which));
 
 	Plug_Info_ValueForKey(link, "act", what, sizeof(what));
 	who = Plug_Info_ValueForKey(link, "who", whobuf, sizeof(whobuf));
@@ -1863,7 +1885,7 @@ static int IRC_ClientFrame(ircclient_t *irc)
 
 	int i = 1;
 
-	ret = pNet_Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);
+	ret = netfuncs->Recv(irc->socket, irc->bufferedinmessage+irc->bufferedinammount, sizeof(irc->bufferedinmessage)-1 - irc->bufferedinammount);
 	if (ret == 0)
 	{
 		if (!irc->bufferedinammount)	//if we are half way through a message, read any possible conjunctions.
@@ -2037,8 +2059,8 @@ static int IRC_ClientFrame(ircclient_t *irc)
 
 		//message takes the form :FROM PRIVMSG TO :MESSAGE
 
-		if (BUILTINISVALID(LocalSound))
-			pLocalSound ("misc/talk.wav");
+		if (drawfuncs)
+			drawfuncs->LocalSound ("misc/talk.wav", 256, 1);
 
 		if ((!strcasecmp(var[4]+1, "\1VERSION\1")) && (!strncmp(var[2], "PRIVMSG ", 7)))
 		{
@@ -2087,7 +2109,8 @@ static int IRC_ClientFrame(ircclient_t *irc)
 			*exc = '\0';
 
 			//a link to interact with the sender
-			Q_snprintf(link, sizeof(link), "^["COLOURGREEN"%s\\act\\user\\who\\%s^]", prefix, prefix);
+			if (Q_snprintf(link, sizeof(link), "^["COLOURGREEN"%s\\act\\user\\who\\%s^]", prefix, prefix) >= sizeof(link))
+				Q_snprintf(link, sizeof(link), "%s", prefix);
 
 			if (!strncmp(col, "\001", 1))
 			{
@@ -2178,13 +2201,13 @@ static int IRC_ClientFrame(ircclient_t *irc)
 			*exc = '\0';
 			//fixme: print this in all channels as appropriate.
 			IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN "%s changes name to %s\n", prefix, col+1);
-			if (BUILTINISVALID(Con_RenameSub))
+			if (confuncs)
 			{
 				char oldname[256];
 				char newname[256];
 				Q_snprintf(oldname, sizeof(oldname), irc->id, prefix);
 				Q_snprintf(newname, sizeof(newname), irc->id, col+1);
-				pCon_RenameSub(oldname, newname);	//if we were pming to them, rename accordingly.
+				confuncs->RenameSub(oldname, newname);	//if we were pming to them, rename accordingly.
 			}
 		}
 		else IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN ":%s%s\n", prefix, msg+6);
@@ -2377,7 +2400,7 @@ static int IRC_ClientFrame(ircclient_t *irc)
 //functions above this line allow connections to multiple servers.
 //it is just the control functions that only allow one server.
 
-qintptr_t IRC_Frame(qintptr_t *args)
+void IRC_Frame(double realtime, double gametime)
 {
 	ircclient_t *ircclient;
 	if (reloadconfig)
@@ -2395,7 +2418,7 @@ qintptr_t IRC_Frame(qintptr_t *args)
 			stat = IRC_ClientFrame(ircclient);
 			if (ircclient->bufferedoutammount)
 			{
-				int flushed = pNet_Send(ircclient->socket, ircclient->bufferedoutmessage, ircclient->bufferedoutammount);	//FIXME: This needs rewriting to cope with errors+throttle.
+				int flushed = netfuncs->Send(ircclient->socket, ircclient->bufferedoutmessage, ircclient->bufferedoutammount);	//FIXME: This needs rewriting to cope with errors+throttle.
 				if (flushed > 0)
 				{
 					memmove(ircclient->bufferedoutmessage, ircclient->bufferedoutmessage+flushed, ircclient->bufferedoutammount - flushed);
@@ -2407,7 +2430,7 @@ qintptr_t IRC_Frame(qintptr_t *args)
 			stat = IRC_KILL;
 		if (stat == IRC_KILL)
 		{
-			pNet_Close(ircclient->socket);
+			netfuncs->Close(ircclient->socket);
 			ircclient->socket = invalid_handle;
 			IRC_Printf(ircclient, DEFAULTCONSOLE, "Disconnected from irc\n^[[Reconnect]\\act\\reconnect^]\n");
 			break;	//lazy
@@ -2415,7 +2438,6 @@ qintptr_t IRC_Frame(qintptr_t *args)
 		else
 			IRC_ICE_Frame(ircclient);
 	}
-	return 0;
 }
 
 void IRC_Command(ircclient_t *ircclient, char *dest, char *args)
@@ -2458,7 +2480,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest, char *args)
 			if (!*nick)
 				Q_strlcpy(nick, irc_nick.string, sizeof(nick));
 			if (!*nick)
-				pCvar_GetString("name", nick, sizeof(nick));
+				cvarfuncs->GetString("name", nick, sizeof(nick));
 
 			ircclient = IRC_FindAccount(server);
 			if (ircclient)
@@ -2497,7 +2519,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest, char *args)
 		{
 			msg = COM_Parse(msg, token, sizeof(token));
 			if (!ircclient)	//not yet connected.
-				pCvar_SetString(irc_nick.name, token);
+				cvarfuncs->SetString(irc_nick.name, token);
 			else
 			{
 				if (!handleisvalid(ircclient->socket))
@@ -2511,7 +2533,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest, char *args)
 		else if (!strcmp(token+1, "user"))
 		{
 			msg = COM_Parse(msg, token, sizeof(token));
-			pCvar_SetString(irc_username.name, token);
+			cvarfuncs->SetString(irc_username.name, token);
 			if (ircclient)
 				IRC_SetUser(ircclient, token);
 

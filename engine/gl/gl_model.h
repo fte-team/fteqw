@@ -1079,8 +1079,8 @@ float RadiusFromBounds (const vec3_t mins, const vec3_t maxs);
 //
 #ifdef TERRAIN
 void Terr_Init(void);
-struct terrainfuncs_s;
-struct terrainfuncs_s *QDECL Terr_GetTerrainFuncs(void);
+struct plugterrainfuncs_s;
+struct plugterrainfuncs_s *Terr_GetTerrainFuncs(size_t structsize);
 void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
 void Terr_FreeModel(model_t *mod);
 void Terr_FinishTerrain(model_t *model);

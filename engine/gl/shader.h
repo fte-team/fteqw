@@ -272,6 +272,7 @@ typedef struct shaderpass_s {
 		T_GEN_REFLECTCUBE,	//dpreflectcube
 		T_GEN_REFLECTMASK,	//dpreflectcube mask
 		T_GEN_DISPLACEMENT,	//displacement texture (probably half-float or something so higher precision than normalmap.a)
+		T_GEN_OCCLUSION,	//occlusion mask (instead of baking it into the texture itself, required for correct pbr)
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 

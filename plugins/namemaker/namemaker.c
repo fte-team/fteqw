@@ -1,54 +1,80 @@
 #include "../plugin.h"
 
-int K_UPARROW;
-int K_DOWNARROW;
-int K_LEFTARROW;
-int K_RIGHTARROW;
-int K_ESCAPE;
-int K_MOUSE1;
-int K_MOUSE2;
-int K_HOME;
-int K_SHIFT;
-int K_MWHEELDOWN;
-int K_MWHEELUP;
-int K_PAGEUP;
-int K_PAGEDOWN;
-int K_BACKSPACE;
+extern plugcorefuncs_t *plugfuncs;
+extern plugcmdfuncs_t *cmdfuncs;
+extern plugcvarfuncs_t *cvarfuncs;
+static plug2dfuncs_t *drawfuncs;
+static pluginputfuncs_t *inputfuncs;
 
-qhandle_t con_chars;
-qhandle_t pic_cursor;
+static int K_UPARROW;
+static int K_DOWNARROW;
+static int K_LEFTARROW;
+static int K_RIGHTARROW;
+static int K_ESCAPE;
+static int K_ENTER;
+static int K_KP_ENTER;
+static int K_MOUSE1;
+static int K_MOUSE2;
+static int K_HOME;
+static int K_SHIFT;
+static int K_MWHEELDOWN;
+static int K_MWHEELUP;
+static int K_PAGEUP;
+static int K_PAGEDOWN;
+static int K_BACKSPACE;
 
-float drawscalex;
-float drawscaley;
+static qhandle_t con_chars;
+static qhandle_t pic_cursor;
 
-unsigned char namebuffer[256];
-int insertpos;
-unsigned int currenttime;
+static float drawscalex;
+static float drawscaley;
 
-void LoadPics(void)
+static unsigned char namebuffer[256];
+static int insertpos;
+
+static void LoadPics(void)
 {
 	char buffer[256];
 
 //main bar (add cvars later)
-	con_chars = Draw_LoadImage("conchars", false);
-	Cvar_GetString("cl_cursor", buffer, sizeof(buffer));
+	con_chars = drawfuncs->LoadImage("gfx/conchars.lmp", false);
+	cvarfuncs->GetString("cl_cursor", buffer, sizeof(buffer));
 	if (*buffer)
-		pic_cursor = Draw_LoadImage(buffer, false);
+		pic_cursor = drawfuncs->LoadImage(buffer, false);
 	else
-		pic_cursor = NULL;
+		pic_cursor = 0;
 }
 
-void DrawChar(unsigned int c, int x, int y)
+static void DrawChar(unsigned int c, int x, int y)
 {
-static float size = 1.0f/16.0f;
+	static const float size = 1.0f/16.0f;
 	float s1 = size * (c&15);
 	float t1 = size * (c>>4);
-	Draw_Image((float)x*drawscalex, y*drawscaley, 16*drawscalex, 16*drawscaley, s1, t1, s1+size, t1+size, con_chars);
+//	drawfuncs->Character(x, y, 0xe000|c);
+	drawfuncs->Image((float)x*drawscalex, y*drawscaley, 16*drawscalex, 16*drawscaley, s1, t1, s1+size, t1+size, con_chars);
 }
 
-void InsertChar(int newchar)
+static qboolean AllowedChar(int c)
+{
+	//normalise away any unicode chars...
+	if (c >= 0xe000 && c <= 0xe0ff)
+		c &= 0xff;
+
+	if (c < 0x00 || c > 0xff)
+		return false;	//not a byte
+
+	if (c == 0)		return false;	//block null chars
+	if (c == '\\')	return false;	//invalid in infokeys
+	if (c == '\"')	return false;	//breaks string escapes
+	if (c == 255)	return false;	//block this byte, as it causes illegible server messages in vanilla
+
+	return true;	//other chars are okay.
+}
+static void InsertChar(int newchar)
 {
 	int oldlen;
+	if (!AllowedChar(newchar))
+		return;
 
 	oldlen = strlen(namebuffer);
 	if (oldlen + 1 == sizeof(namebuffer))
@@ -60,14 +86,17 @@ void InsertChar(int newchar)
 	namebuffer[insertpos++] = newchar;
 }
 
-void KeyPress(int key, int mx, int my)
+static void KeyPress(int key, int unicode, int mx, int my)
 {
-	int newchar;
 	int oldlen;
-	if (key == K_ESCAPE)
+	if (!key)
+		; //invalid keys...
+	else if (key == K_ESCAPE)
+		inputfuncs->SetMenuFocus(false, NULL, 0, 0, 0); //release input focus
+	else if (key == K_ENTER || key == K_KP_ENTER)
 	{
-		Menu_Control(0);
-		Cvar_SetString("name", (char*)namebuffer);
+		inputfuncs->SetMenuFocus(false, NULL, 0, 0, 0); //release input focus
+		cvarfuncs->SetString("name", (char*)namebuffer);
 	}
 	else if (key == K_MOUSE1)
 	{
@@ -75,10 +104,10 @@ void KeyPress(int key, int mx, int my)
 		my -= 16;
 		mx /= (480-16)/16;
 		my /= (480-16)/16;
+		if (mx < 0 || my < 0 || mx >= 16 || my >= 16)
+			return; //outside the grid
 
-		newchar = (int)mx + (int)my * 16;
-
-		InsertChar(newchar);
+		InsertChar(mx + my*16);
 	}
 	else if (key == K_MOUSE2 || key == K_BACKSPACE)
 	{
@@ -101,38 +130,35 @@ void KeyPress(int key, int mx, int my)
 	}
 	else if (key == K_SHIFT)
 		return;
-	else if (key > 0 && key < 255)
-		InsertChar(key);
+	else if ((unicode >= 0x20 && unicode <= 0x7f) || (unicode >= 0xe000 && unicode <= 0xe0ff))
+		InsertChar(unicode);
 }
 
-int Plug_MenuEvent(int *args)
+static qboolean QDECL Plug_MenuEvent(int eventtype, int param, int unicode, float mousecursor_x, float mousecursor_y, float vidwidth, float vidheight)
 {
 	int i;
-	float cbias;
-	drawscalex = vid.width/640.0f;
-	drawscaley = vid.height/480.0f;
+	quintptr_t currenttime;
+	drawscalex = vidwidth/640.0f;
+	drawscaley = vidheight/480.0f;
 
-	args[2]=(int)(args[2]/drawscalex);
-	args[3]=(int)(args[3]/drawscaley);
+	mousecursor_x /= drawscalex;
+	mousecursor_y /= drawscaley;
 
-	switch(args[0])
+	switch(eventtype)
 	{
 	case 0:	//draw
+		currenttime = plugfuncs->GetMilliseconds();
 
-		Draw_Colour4f(1,1,1,1);
+		drawfuncs->Colour4f(1,1,1,1);
 
-		Draw_Image(((640 - (480-16))/2)*drawscalex, 16*drawscaley, (480-16)*drawscalex, (480-16)*drawscaley, 0, 0, 1, 1, con_chars);
+		drawfuncs->Image(((640 - (480-16))/2)*drawscalex, 16*drawscaley, (480-16)*drawscalex, (480-16)*drawscaley, 0, 0, 1, 1, con_chars);
 
 		for (i = 0; namebuffer[i]; i++)
 			DrawChar(namebuffer[i], i*16, 0);
 		DrawChar(10 + (((currenttime/250)&1)==1), insertpos*16, 0);
-
-		cbias = Cvar_GetFloat("cl_cursorbias");
-		if (!pic_cursor || Draw_Image((float)(args[2]-cbias)*drawscalex, (float)(args[3]-cbias)*drawscaley, (float)32*drawscalex, (float)32*drawscaley, 0, 0, 1, 1, pic_cursor) <= 0)
-			DrawChar('+', args[2]-4, args[3]-4);
 		break;
 	case 1:	//keydown
-		KeyPress(args[1], args[2], args[3]);
+		KeyPress(param, unicode, mousecursor_x, mousecursor_y);
 		break;
 	case 2:	//keyup
 		break;
@@ -145,51 +171,49 @@ int Plug_MenuEvent(int *args)
 	return 0;
 }
 
-int Plug_Tick(int *args)
-{
-	currenttime = args[0];
-	return true;
-}
-
-int Plug_ExecuteCommand(int *args)
+static qboolean Plug_ExecuteCommand(qboolean isinsecure)
 {
 	char cmd[256];
-	Cmd_Argv(0, cmd, sizeof(cmd));
+	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp("namemaker", cmd))
 	{
-		Menu_Control(1);
-		Cvar_GetString("name", (char*)namebuffer, sizeof(namebuffer));
+		inputfuncs->SetMenuFocus(true, NULL, 0, 0, 0); //grab input focus
+		cvarfuncs->GetString("name", (char*)namebuffer, sizeof(namebuffer));
 		insertpos = strlen(namebuffer);
 		return 1;
 	}
 	return 0;
 }
 
-int Plug_Init(int *args)
+qboolean Plug_Init(void)
 {
-	if (Plug_Export("Tick", Plug_Tick) &&
-//		Plug_Export("SbarBase", UI_StatusBar) &&
-//		Plug_Export("SbarOverlay", UI_ScoreBoard) &&
-		Plug_Export("ExecuteCommand", Plug_ExecuteCommand) &&
-		Plug_Export("MenuEvent", Plug_MenuEvent))
+	drawfuncs = plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
+	inputfuncs = plugfuncs->GetEngineInterface(pluginputfuncs_name, sizeof(*inputfuncs));
+	if (drawfuncs && inputfuncs &&
+//		plugfuncs->ExportFunction("SbarBase", UI_StatusBar) &&
+//		plugfuncs->ExportFunction("SbarOverlay", UI_ScoreBoard) &&
+		plugfuncs->ExportFunction("ExecuteCommand", Plug_ExecuteCommand) &&
+		plugfuncs->ExportFunction("MenuEvent", Plug_MenuEvent))
 	{
 
-		K_UPARROW		= Key_GetKeyCode("uparrow");
-		K_DOWNARROW		= Key_GetKeyCode("downarrow");
-		K_LEFTARROW		= Key_GetKeyCode("leftarrow");
-		K_RIGHTARROW	= Key_GetKeyCode("rightarrow");
-		K_ESCAPE		= Key_GetKeyCode("escape");
-		K_HOME			= Key_GetKeyCode("home");
-		K_MOUSE1		= Key_GetKeyCode("mouse1");
-		K_MOUSE2		= Key_GetKeyCode("mouse2");
-		K_MWHEELDOWN	= Key_GetKeyCode("mwheeldown");
-		K_MWHEELUP		= Key_GetKeyCode("mwheelup");
-		K_SHIFT			= Key_GetKeyCode("shift");
-		K_PAGEUP		= Key_GetKeyCode("pgup");
-		K_PAGEDOWN		= Key_GetKeyCode("pgdn");
-		K_BACKSPACE		= Key_GetKeyCode("backspace");
+		K_UPARROW		= inputfuncs->GetKeyCode("uparrow", NULL);
+		K_DOWNARROW		= inputfuncs->GetKeyCode("downarrow", NULL);
+		K_LEFTARROW		= inputfuncs->GetKeyCode("leftarrow", NULL);
+		K_RIGHTARROW	= inputfuncs->GetKeyCode("rightarrow", NULL);
+		K_ESCAPE		= inputfuncs->GetKeyCode("escape", NULL);
+		K_ENTER			= inputfuncs->GetKeyCode("enter", NULL);
+		K_KP_ENTER		= inputfuncs->GetKeyCode("kp_enter", NULL);
+		K_HOME			= inputfuncs->GetKeyCode("home", NULL);
+		K_MOUSE1		= inputfuncs->GetKeyCode("mouse1", NULL);
+		K_MOUSE2		= inputfuncs->GetKeyCode("mouse2", NULL);
+		K_MWHEELDOWN	= inputfuncs->GetKeyCode("mwheeldown", NULL);
+		K_MWHEELUP		= inputfuncs->GetKeyCode("mwheelup", NULL);
+		K_SHIFT			= inputfuncs->GetKeyCode("shift", NULL);
+		K_PAGEUP		= inputfuncs->GetKeyCode("pgup", NULL);
+		K_PAGEDOWN		= inputfuncs->GetKeyCode("pgdn", NULL);
+		K_BACKSPACE		= inputfuncs->GetKeyCode("backspace", NULL);
 
-		Cmd_AddCommand("namemaker");
+		cmdfuncs->AddCommand("namemaker");
 
 		LoadPics();
 

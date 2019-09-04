@@ -1009,6 +1009,7 @@ typedef struct
 	int			lerpcount;	//number of pose+frac entries.
 	float		frac[FRAME_BLENDS*2];	//weight of this animation (1 if lerpcount is 1)
 	float		*pose[FRAME_BLENDS*2];	//pointer to the raw frame data for bone 0.
+	void		*needsfree[FRAME_BLENDS*2];
 } skellerps_t;
 static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestateregion_s *fs, int numbones, const galiasinfo_t *inf)
 {
@@ -1043,6 +1044,26 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestate
 			}
 
 			g = &inf->ofsanimations[frame];
+
+			if (lerps->skeltype == SKEL_IDENTITY)
+				lerps->skeltype = g->skeltype;
+			else if (lerps->skeltype != g->skeltype)
+			{
+				dropweight += fs->lerpweight[b];
+				continue;	//oops, can't cope with mixed blend types
+			}
+
+			if (g->GetRawBones)
+			{
+				lerps->frac[l] = fs->lerpweight[b];
+				lerps->needsfree[l] = BZ_Malloc(sizeof(float)*12*numbones);
+				lerps->pose[l] = g->GetRawBones(inf, g, time, lerps->needsfree[l], numbones);
+				if (lerps->pose[l])
+					l++;
+				else
+					dropweight += lerps->frac[l];
+				continue;
+			}
 			if (!g->numposes)
 			{
 				dropweight += fs->lerpweight[b];
@@ -1068,14 +1089,6 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestate
 				frame2=bound(0, frame2, g->numposes-1);
 			}
 
-			if (lerps->skeltype == SKEL_IDENTITY)
-				lerps->skeltype = g->skeltype;
-			else if (lerps->skeltype != g->skeltype)
-			{
-				dropweight += fs->lerpweight[b];
-				continue;	//oops, can't cope with mixed blend types
-			}
-
 			if (frame1 == frame2)
 				mlerp = 0;
 			else if (r_noframegrouplerp.ival)
@@ -1084,13 +1097,15 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestate
 			if (lerps->frac[l]>0)
 			{
 				totalweight += lerps->frac[l];
-				lerps->pose[l++] = g->boneofs + numbones*12*frame1;
+				lerps->needsfree[l] = NULL;
+				lerps->pose[l++] = (float*)g->boneofs + numbones*12*frame1;
 			}
 			lerps->frac[l] = (mlerp)*fs->lerpweight[b];
 			if (lerps->frac[l]>0)
 			{
 				totalweight += lerps->frac[l];
-				lerps->pose[l++] = g->boneofs + numbones*12*frame2;
+				lerps->needsfree[l] = NULL;
+				lerps->pose[l++] = (float*)g->boneofs + numbones*12*frame2;
 			}
 		}
 	}
@@ -1157,6 +1172,7 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, const framestate_t *fstate, 
 				if (!inf->baseframeofs)
 					continue;	//nope, not happening.
 				lerps->skeltype = SKEL_ABSOLUTE;
+				lerps->needsfree[0] = NULL;
 				lerps->frac[0] = 1;
 				lerps->pose[0] = inf->baseframeofs;
 				lerps->lerpcount = 1;
@@ -1186,32 +1202,34 @@ static int Alias_BlendBoneData(galiasinfo_t *inf, framestate_t *fstate, float *r
 
 	for (lerp = lerps; numgroups--; lerp++)
 	{
-		if (lerp[0].skeltype != skeltype)
-			continue;	//egads, its buggy. should probably convert.
-
-		bone = lerp->firstbone;
-		endbone = lerp->endbone;
-		if (lerp->lerpcount == 1 && lerp->frac[0] == 1)
-			memcpy(result+bone*12, lerp->pose[0]+bone*12, (endbone-bone)*12*sizeof(float));
-		else
+		if (lerp->skeltype == skeltype)
 		{
-			//set up the identity matrix
-			for (; bone < endbone; bone++)
+			bone = lerp->firstbone;
+			endbone = lerp->endbone;
+			if (lerp->lerpcount == 1 && lerp->frac[0] == 1)
+				memcpy(result+bone*12, lerp->pose[0]+bone*12, (endbone-bone)*12*sizeof(float));
+			else
 			{
-				pose = result + 12*bone;
-				//set up the per-bone transform matrix
-				matrix = lerps->pose[0] + bone*12;
-				for (k = 0;k < 12;k++)
-					pose[k] = matrix[k] * lerp->frac[0];
-				for (b = 1;b < lerp->lerpcount;b++)
+				//set up the identity matrix
+				for (; bone < endbone; bone++)
 				{
-					matrix = lerps->pose[b] + bone*12;
-
+					pose = result + 12*bone;
+					//set up the per-bone transform matrix
+					matrix = lerps->pose[0] + bone*12;
 					for (k = 0;k < 12;k++)
-						pose[k] += matrix[k] * lerp->frac[b];
+						pose[k] = matrix[k] * lerp->frac[0];
+					for (b = 1;b < lerp->lerpcount;b++)
+					{
+						matrix = lerps->pose[b] + bone*12;
+
+						for (k = 0;k < 12;k++)
+							pose[k] += matrix[k] * lerp->frac[b];
+					}
 				}
 			}
 		}
+		for (k = 0; k < lerp->lerpcount; k++)
+			BZ_Free(lerp->needsfree[k]);
 	}
 	return endbone;
 }
@@ -1225,6 +1243,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 	skellerps_t lerps[FS_COUNT], *lerp;
 	size_t numgroups;
 	size_t bone, endbone;
+	const float *ret;
 
 	lerps[0].skeltype = SKEL_IDENTITY; //just in case.
 #ifdef SKELETALOBJECTS
@@ -1235,6 +1254,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 		lerps[0].endbone = framestate->bonecount;
 		lerps[0].pose[0] = framestate->bonestate;
 		lerps[0].frac[0] = 1;
+		lerps[0].needsfree[0] = NULL;
 		lerps[0].lerpcount = 1;
 		numgroups = 1;
 	}
@@ -1246,7 +1266,11 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 
 	//try to return data in-place.
 	if (numgroups==1 && lerps[0].lerpcount == 1)
-		return Alias_ConvertBoneData(lerps[0].skeltype, lerps[0].pose[0], min(lerps[0].endbone, inf->numbones), inf->ofsbones, targettype, targetbuffer, targetbufferalt, maxbufferbones);
+	{
+		ret = Alias_ConvertBoneData(lerps[0].skeltype, lerps[0].pose[0], min(lerps[0].endbone, inf->numbones), inf->ofsbones, targettype, targetbuffer, targetbufferalt, maxbufferbones);
+		BZ_Free(lerps[0].needsfree[0]);
+		return ret;
+	}
 
 	for (lerp = lerps; numgroups--; lerp++)
 	{
@@ -1265,6 +1289,8 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 					for (k = 0; k < 12; k++)	//please please unroll!
 						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]);
 				}
+				BZ_Free(lerp->needsfree[0]);
+				BZ_Free(lerp->needsfree[1]);
 			}
 			break;
 		case 3:
@@ -1278,6 +1304,9 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 					for (k = 0; k < 12; k++)	//please please unroll!
 						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]) + (pose3[k]*frac3);
 				}
+				BZ_Free(lerp->needsfree[0]);
+				BZ_Free(lerp->needsfree[1]);
+				BZ_Free(lerp->needsfree[2]);
 			}
 			break;
 		case 4:
@@ -1291,6 +1320,10 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 					for (k = 0; k < 12; k++)	//please please unroll!
 						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]) + (pose3[k]*frac3) + (frac4*pose4[k]);
 				}
+				BZ_Free(lerp->needsfree[0]);
+				BZ_Free(lerp->needsfree[1]);
+				BZ_Free(lerp->needsfree[2]);
+				BZ_Free(lerp->needsfree[3]);
 			}
 			break;
 		case 0:
@@ -1316,6 +1349,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 							for (k = 0; k < 12; k++)
 								out[k] += (pose[k]*frac);
 					}
+					BZ_Free(lerp->needsfree[i]);
 				}
 			}
 			break;
@@ -4609,6 +4643,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 
 				lerps[0].pose[0] = fstate->bonestate;
 				lerps[0].frac[0] = 1;
+				lerps[0].needsfree[0] = 0;
 				lerps[0].lerpcount = 1;
 				lerps[0].firstbone = 0;
 				lerps[0].endbone = fstate->bonecount;
@@ -4625,6 +4660,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			{
 				lerps[0].pose[0] = inf->baseframeofs;
 				lerps[0].frac[0] = 1;
+				lerps[0].needsfree[0] = 0;
 				lerps[0].lerpcount = 1;
 				lerps[0].firstbone = 0;
 				lerps[0].endbone = inf->numbones;
@@ -4660,7 +4696,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 				if (lerp->skeltype == SKEL_ABSOLUTE)
 				{
 					memcpy(result, m, sizeof(tempmatrix));
-					return true;
+					break;
 				}
 
 				memcpy(tempmatrix, result, sizeof(tempmatrix));
@@ -4669,6 +4705,9 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 				tagnum = bone[tagnum].parent;
 			}
 
+			for (b = 0; b < numbonegroups; lerp++, b++)
+				for (k = 0; k < lerps[b].lerpcount; k++)
+					BZ_Free(lerps[b].needsfree[k]);
 			return true;
 		}
 #endif

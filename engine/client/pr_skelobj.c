@@ -965,7 +965,7 @@ void skel_info_f(void)
 	{
 		if (skelobjects[i].world)
 		{
-#ifndef SERVERONLY
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 			extern world_t csqc_world;
 #endif
 			Con_Printf("doll %i:\n", i);
@@ -973,7 +973,7 @@ void skel_info_f(void)
 			if (skelobjects[i].world == &sv.world)
 				Con_Printf(" SSQC\n");
 #endif
-#ifndef SERVERONLY
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 			if (skelobjects[i].world == &csqc_world)
 				Con_Printf(" CSQC\n");
 #endif

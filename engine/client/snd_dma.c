@@ -4196,6 +4196,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	double speedfactor;
 	qbyte *newcache;
 	streaming_t *s, *free=NULL;
+
 	for (s = s_streamers, i = 0; i < MAX_RAW_SOURCES; i++, s++)
 	{
 		if (!s->inuse)

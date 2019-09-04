@@ -94,7 +94,7 @@ IF(NOT PNG_FOUND)
 	MESSAGE(WARNING "libpng library NOT available. Good luck with screenshots.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_PNG)
 ENDIF()
-	
+
 FIND_PACKAGE(Freetype)
 IF(FREETYPE_FOUND)
 	INCLUDE_DIRECTORIES( ${FREETYPE_INCLUDE_DIRS} )
@@ -708,7 +708,6 @@ ELSE()
 	FIND_PACKAGE(Bullet)
 	IF (BULLET_FOUND)
 		ADD_LIBRARY(bullet MODULE
-			plugins/qvm_api.c
 			plugins/plugin.c
 			plugins/bullet/bulletplug.cpp
 		)
@@ -850,7 +849,22 @@ ELSE()
 		SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
 	ELSE()
 		FIND_PACKAGE(Qt5Widgets)
-		IF (Qt5Widgets_FOUND)
+
+		FIND_PATH(QSCINTILLA_INCLUDE_DIR
+			NAMES Qsci/qsciglobal.h
+			PATHS ${Qt5Widgets_INCLUDE_DIRS}
+			PATH_SUFFIXES Qsci
+		)
+		FIND_LIBRARY(QSCINTILLA_LIBRARY
+			NAMES qscintilla2_qt5
+			PATHS
+				${QT_LIBRARY_DIR}
+				/usr/local/lib
+				/usr/local/lib/qt5
+				/usr/lib
+		)
+
+		IF (QSCINTILLA_INCLUDE_DIR AND QSCINTILLA_LIBRARY AND Qt5Widgets_FOUND)
 			ADD_EXECUTABLE(fteqccgui
 				engine/qclib/qccguiqt.cpp
 				engine/qclib/qccguistuff.c
@@ -864,10 +878,12 @@ ELSE()
 				engine/qclib/packager.c
 				engine/qclib/qcd_main.c
 			)
-			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS})
+			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS} ${QSCINTILLA_INCLUDE_DIR})
 			SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};${Qt5Widgets_COMPILE_DEFINITIONS}")
 			SET_PROPERTY(TARGET fteqccgui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-			TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${Qt5Widgets_LIBRARIES} qscintilla2_qt5)
+			TARGET_LINK_LIBRARIES(fteqccgui ${ZLIB_LIBRARIES} ${Qt5Widgets_LIBRARIES} ${QSCINTILLA_LIBRARY})
+		ELSE()
+			MESSAGE(WARNING "qscintilla/qt5widgets library not detected, no fteqccgui for you")
 			SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
 		ENDIF()
 	ENDIF()
@@ -875,7 +891,6 @@ ENDIF()
 
 #Quake Injector Alike plugin
 ADD_LIBRARY(qi MODULE
-	plugins/qvm_api.c
 	plugins/plugin.c
 		plugins/qi/qi.c
 	plugins/emailnot/md5.c
@@ -892,7 +907,6 @@ FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
 FIND_LIBRARY(LIBODE_LIBRARY ode)
 IF (LIBODE_INCLUDE_DIR)
 	ADD_LIBRARY(ode MODULE
-		plugins/qvm_api.c
 		plugins/plugin.c
 		engine/common/com_phys_ode.c
 		engine/common/mathlib.c
@@ -907,7 +921,6 @@ ENDIF()
 
 #EzQuake Hud port plugin
 ADD_LIBRARY(ezhud MODULE
-	plugins/qvm_api.c
 	plugins/plugin.c
 	plugins/ezhud/ezquakeisms.c
 	plugins/ezhud/hud.c
@@ -920,9 +933,30 @@ SET_TARGET_PROPERTIES(ezhud PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 TARGET_LINK_LIBRARIES(ezhud m)
 SET(INSTALLTARGS ${INSTALLTARGS} ezhud)
 
+#NameMaker string generation plugin
+ADD_LIBRARY(namemaker MODULE
+	plugins/plugin.c
+	plugins/namemaker/namemaker.c
+)
+SET_TARGET_PROPERTIES(namemaker PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES}")
+SET_TARGET_PROPERTIES(namemaker PROPERTIES PREFIX "fteplug_")
+SET_TARGET_PROPERTIES(namemaker PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(namemaker m)
+SET(INSTALLTARGS ${INSTALLTARGS} namemaker)
+
+#Terrain Generation plugin
+ADD_LIBRARY(terrorgen MODULE
+	plugins/plugin.c
+	plugins/terrorgen/terragen.c
+)
+SET_TARGET_PROPERTIES(terrorgen PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+SET_TARGET_PROPERTIES(terrorgen PROPERTIES PREFIX "fteplug_")
+SET_TARGET_PROPERTIES(terrorgen PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+TARGET_LINK_LIBRARIES(terrorgen m)
+SET(INSTALLTARGS ${INSTALLTARGS} terrorgen)
+
 #IRC client plugin
 ADD_LIBRARY(irc MODULE
-	plugins/qvm_api.c
 	plugins/plugin.c
 	plugins/irc/ircclient.c
 )
@@ -934,10 +968,10 @@ SET(INSTALLTARGS ${INSTALLTARGS} irc)
 
 #model formats plugin
 ADD_LIBRARY(models MODULE
-	plugins/qvm_api.c
 	plugins/plugin.c
 	plugins/models/models.c
 	plugins/models/gltf.c
+	plugins/models/exportiqm.c
 )
 SET_TARGET_PROPERTIES(models PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(models PROPERTIES PREFIX "fteplug_")
@@ -945,20 +979,22 @@ SET_TARGET_PROPERTIES(models PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 TARGET_LINK_LIBRARIES(models m)
 SET(INSTALLTARGS ${INSTALLTARGS} models)
 
-#x11 server plugin (note: for displaying other programs)
-ADD_LIBRARY(x11 MODULE
-	plugins/qvm_api.c
-	plugins/plugin.c
-	plugins/xsv/m_x.c
-	plugins/xsv/x_reqs.c
-	plugins/xsv/x_res.c
-	engine/qclib/hash.c
-)
-SET_TARGET_PROPERTIES(x11 PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-SET_TARGET_PROPERTIES(x11 PROPERTIES PREFIX "fteplug_")
-SET_TARGET_PROPERTIES(x11 PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
-TARGET_LINK_LIBRARIES(x11 m)
-SET(INSTALLTARGS ${INSTALLTARGS} x11)
+IF(0)
+	#x11 server plugin (note: for displaying other programs)
+	#not stable enough, and probably won't ever be
+	ADD_LIBRARY(x11sv MODULE
+		plugins/plugin.c
+		plugins/xsv/m_x.c
+		plugins/xsv/x_reqs.c
+		plugins/xsv/x_res.c
+		engine/qclib/hash.c
+	)
+	SET_TARGET_PROPERTIES(x11sv PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+	SET_TARGET_PROPERTIES(x11sv PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(x11sv PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	TARGET_LINK_LIBRARIES(x11sv m)
+	SET(INSTALLTARGS ${INSTALLTARGS} x11sv)
+ENDIF()
 
 #ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
 FIND_PATH(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
@@ -972,7 +1008,6 @@ IF((AVFORMAT_INCLUDE_DIR) AND (AVSWSCALE_INCLUDE_DIR))
 	FIND_LIBRARY(AVSWSCALE_LIBRARY swscale)
 
 	ADD_LIBRARY(ffmpeg MODULE
-		plugins/qvm_api.c
 		plugins/plugin.c
 		plugins/avplug/avaudio.c
 		plugins/avplug/avdecode.c
@@ -988,10 +1023,11 @@ ELSE()
 	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
 ENDIF()
 
+#TODO: cef plugin
+
 IF(NOT ANDROID)
 	#XMPP/jabber client plugin
 	ADD_LIBRARY(xmpp MODULE
-		plugins/qvm_api.c
 		plugins/plugin.c
 		plugins/jabber/jabberclient.c
 		plugins/jabber/xml.c
@@ -1016,5 +1052,3 @@ INSTALL(TARGETS ${INSTALLTARGS}
 	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}${FTE_INSTALL_BINDIR}"
 	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
 )
-
-#cef plugin

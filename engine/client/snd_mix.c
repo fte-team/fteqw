@@ -157,6 +157,14 @@ static void SND_PaintChannel16_O8I1	(channel_t *ch, sfxcache_t *sc, int count, i
 static void SND_PaintChannel8_O2I2	(channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate);
 static void SND_PaintChannel16_O2I2	(channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate);
 
+#ifdef MIXER_F32
+static void SND_PaintChannel32F_O2I1(channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate);
+static void SND_PaintChannel32F_O4I1(channel_t *ch, sfxcache_t *sc, int count, int rate);
+static void SND_PaintChannel32F_O6I1(channel_t *ch, sfxcache_t *sc, int count, int rate);
+static void SND_PaintChannel32F_O8I1(channel_t *ch, sfxcache_t *sc, int count, int rate);
+static void SND_PaintChannel32F_O2I2(channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate);
+#endif
+
 //NOTE: MAY NOT CALL SYS_ERROR
 void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 {
@@ -329,6 +337,21 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						else
 							SND_PaintChannel16_O8I1(ch, scache, count, rate);
 					}
+#ifdef MIXER_F32
+					else if (scache->width == 4)
+					{
+						if (scache->numchannels==2)
+							SND_PaintChannel32F_O2I2(ch, scache, ltime-sc->paintedtime, count, rate);
+						else if (sc->sn.numchannels <= 2)
+							SND_PaintChannel32F_O2I1(ch, scache, ltime-sc->paintedtime, count, rate);
+						else if (sc->sn.numchannels <= 4)
+							SND_PaintChannel32F_O4I1(ch, scache, count, rate);
+						else if (sc->sn.numchannels <= 6)
+							SND_PaintChannel32F_O6I1(ch, scache, count, rate);
+						else
+							SND_PaintChannel32F_O8I1(ch, scache, count, rate);
+					}
+#endif
 					ltime += count;
 					ch->pos += rate * count;
 				}
@@ -720,4 +743,214 @@ static void SND_PaintChannel16_O8I1 (channel_t *ch, sfxcache_t *sc, int count, i
 		}
 	}
 }
+
+#ifdef MIXER_F32
+static void SND_PaintChannel32F_O2I1 (channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate)
+{
+	float data;
+	int left, right;
+	int leftvol, rightvol;
+	float *sfx;
+	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
+
+	leftvol = ch->vol[0]*128;
+	rightvol = ch->vol[1]*128;
+
+	if (rate != (1<<PITCHSHIFT))
+	{
+		sfx = (float *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			float frac = pos&((1<<PITCHSHIFT)-1);
+			data = sfx[pos>>PITCHSHIFT] * (1-frac) + sfx[(pos>>PITCHSHIFT)+1] * frac;
+			pos += rate;
+			paintbuffer[starttime+i].s[0] += (leftvol * data);
+			paintbuffer[starttime+i].s[1] += (rightvol * data);
+		}
+	}
+	else
+	{
+		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		for (i=0 ; i<count ; i++)
+		{
+			data = sfx[i];
+			left = (data * leftvol);
+			right = (data * rightvol);
+			paintbuffer[starttime+i].s[0] += left;
+			paintbuffer[starttime+i].s[1] += right;
+		}
+	}
+}
+
+static void SND_PaintChannel32F_O2I2 (channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate)
+{
+	float leftvol, rightvol;
+	float *sfx;
+	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
+
+	leftvol = ch->vol[0]*128;
+	rightvol = ch->vol[1]*128;
+
+	if (rate != (1<<PITCHSHIFT))
+	{
+		float l, r;
+		sfx = (float *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			l = sfx[(pos>>(PITCHSHIFT-1))&~1];
+			r = sfx[(pos>>(PITCHSHIFT-1))|1];
+			pos += rate;
+			paintbuffer[starttime+i].s[0] += (l * leftvol);
+			paintbuffer[starttime+i].s[1] += (r * rightvol);
+		}
+	}
+	else
+	{
+		sfx = (float *)sc->data + (pos>>PITCHSHIFT)*2;
+		for (i=0 ; i<count ; i++)
+		{
+			paintbuffer[starttime+i].s[0] += (*sfx++ * leftvol);
+			paintbuffer[starttime+i].s[1] += (*sfx++ * rightvol);
+		}
+	}
+}
+
+static void SND_PaintChannel32F_O4I1 (channel_t *ch, sfxcache_t *sc, int count, int rate)
+{
+	int vol[4];
+	float *sfx;
+	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
+
+	vol[0] = ch->vol[0]*128;
+	vol[1] = ch->vol[1]*128;
+	vol[2] = ch->vol[2]*128;
+	vol[3] = ch->vol[3]*128;
+
+	if (rate != (1<<PITCHSHIFT))
+	{
+		float data;
+		sfx = (float *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			data = sfx[pos>>PITCHSHIFT];
+			pos += rate;
+			paintbuffer[i].s[0] += (vol[0] * data);
+			paintbuffer[i].s[1] += (vol[1] * data);
+			paintbuffer[i].s[2] += (vol[2] * data);
+			paintbuffer[i].s[3] += (vol[3] * data);
+		}
+	}
+	else
+	{
+		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		for (i=0 ; i<count ; i++)
+		{
+			paintbuffer[i].s[0] += (sfx[i] * vol[0]);
+			paintbuffer[i].s[1] += (sfx[i] * vol[1]);
+			paintbuffer[i].s[2] += (sfx[i] * vol[2]);
+			paintbuffer[i].s[3] += (sfx[i] * vol[3]);
+		}
+	}
+}
+
+static void SND_PaintChannel32F_O6I1 (channel_t *ch, sfxcache_t *sc, int count, int rate)
+{
+	int vol[6];
+	float *sfx;
+	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
+
+	vol[0] = ch->vol[0]*128;
+	vol[1] = ch->vol[1]*128;
+	vol[2] = ch->vol[2]*128;
+	vol[3] = ch->vol[3]*128;
+	vol[4] = ch->vol[4]*128;
+	vol[5] = ch->vol[5]*128;
+
+	if (rate != (1<<PITCHSHIFT))
+	{
+		float data;
+		sfx = (float *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			data = sfx[pos>>PITCHSHIFT];
+			pos += rate;
+			paintbuffer[i].s[0] += (vol[0] * data);
+			paintbuffer[i].s[1] += (vol[1] * data);
+			paintbuffer[i].s[2] += (vol[2] * data);
+			paintbuffer[i].s[3] += (vol[3] * data);
+			paintbuffer[i].s[4] += (vol[4] * data);
+			paintbuffer[i].s[5] += (vol[5] * data);
+		}
+	}
+	else
+	{
+		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		for (i=0 ; i<count ; i++)
+		{
+			paintbuffer[i].s[0] += (sfx[i] * vol[0]);
+			paintbuffer[i].s[1] += (sfx[i] * vol[1]);
+			paintbuffer[i].s[2] += (sfx[i] * vol[2]);
+			paintbuffer[i].s[3] += (sfx[i] * vol[3]);
+			paintbuffer[i].s[4] += (sfx[i] * vol[4]);
+			paintbuffer[i].s[5] += (sfx[i] * vol[5]);
+		}
+	}
+}
+
+static void SND_PaintChannel32F_O8I1 (channel_t *ch, sfxcache_t *sc, int count, int rate)
+{
+	int vol[8];
+	float *sfx;
+	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
+
+	//input is +/- 1, output is +/- 32767. ch->vol is 0-255, so we just need to scale up by an extra 128
+	vol[0] = ch->vol[0]*128;
+	vol[1] = ch->vol[1]*128;
+	vol[2] = ch->vol[2]*128;
+	vol[3] = ch->vol[3]*128;
+	vol[4] = ch->vol[4]*128;
+	vol[5] = ch->vol[5]*128;
+	vol[6] = ch->vol[6]*128;
+	vol[7] = ch->vol[7]*128;
+
+	if (rate != (1<<PITCHSHIFT))
+	{
+		float data;
+		sfx = (float *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			data = sfx[pos>>PITCHSHIFT];
+			pos += rate;
+			paintbuffer[i].s[0] += (vol[0] * data);
+			paintbuffer[i].s[1] += (vol[1] * data);
+			paintbuffer[i].s[2] += (vol[2] * data);
+			paintbuffer[i].s[3] += (vol[3] * data);
+			paintbuffer[i].s[4] += (vol[4] * data);
+			paintbuffer[i].s[5] += (vol[5] * data);
+			paintbuffer[i].s[6] += (vol[6] * data);
+			paintbuffer[i].s[7] += (vol[7] * data);
+		}
+	}
+	else
+	{
+		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		for (i=0 ; i<count ; i++)
+		{
+			paintbuffer[i].s[0] += (sfx[i] * vol[0]);
+			paintbuffer[i].s[1] += (sfx[i] * vol[1]);
+			paintbuffer[i].s[2] += (sfx[i] * vol[2]);
+			paintbuffer[i].s[3] += (sfx[i] * vol[3]);
+			paintbuffer[i].s[4] += (sfx[i] * vol[4]);
+			paintbuffer[i].s[5] += (sfx[i] * vol[5]);
+			paintbuffer[i].s[6] += (sfx[i] * vol[6]);
+			paintbuffer[i].s[7] += (sfx[i] * vol[7]);
+		}
+	}
+}
+#endif
 #endif

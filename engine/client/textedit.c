@@ -232,9 +232,9 @@ static void Con_Editor_DeleteSelection(console_t *con)
 				n = Con_EditorMerge(con, con->selstartline, n);
 			}
 		}
+		con->userline = con->selstartline;
+		con->useroffset = con->selstartoffset;
 	}
-	con->userline = con->selstartline;
-	con->useroffset = con->selstartoffset;
 }
 static void Con_Editor_DoPaste(void *ctx, char *utf8)
 {
@@ -850,7 +850,7 @@ qboolean Con_Editor_Close(console_t *con, qboolean force)
 	{
 		if (!strncmp(con->title, "MODIFIED: ", 10))
 		{
-			M_Menu_Prompt(Con_Editor_CloseCallback, con, va("Save changes?\n%s\n", con->name), "Yes", "No", "Cancel");
+			Menu_Prompt(Con_Editor_CloseCallback, con, va("Save changes?\n%s\n", con->name), "Yes", "No", "Cancel");
 			return false;
 		}
 	}

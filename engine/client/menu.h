@@ -91,13 +91,37 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 }
 */
 
-#ifdef PLUGINS
-extern struct plugin_s *menuplug;
-#endif
-#ifndef NOBUILTINMENUS
-extern struct menu_s *topmenu;
-#endif
 void M_DrawTextBox (int x, int y, int width, int lines);
+
+//menus can have all sorts of implementation.
+//however, to avoid a cacophony of ugly blends, these are always mutually exclusive - only one type of menu will be at the top and only that one will be drawn.
+//if you want windows etc you can implement that inside a single one of these.
+//each menu subsystem can implement this and then provide its own widgets.
+typedef struct menu_s {
+	struct menu_s *prev;
+
+	void *ctx;	//for finding a specific menu
+	void (*videoreset)	(struct menu_s *);	//called after a video mode switch / shader reload.
+	void (*release)		(struct menu_s *);	//
+	qboolean (*keyevent)(struct menu_s *, qboolean isdown, unsigned int devid, int key, int unicode);	//true if key was handled
+	qboolean (*mousemove)(struct menu_s *, qboolean abs, unsigned int devid, float x, float y);
+	qboolean (*joyaxis)	(struct menu_s *, unsigned int devid, int axis, float val);
+	void (*drawmenu)	(struct menu_s *);
+	struct key_cursor_s *cursor; //NULL for relative motion
+	qboolean isopaque;	//guarentees an opaque background
+	qboolean persist;	//try really hard to not kill this.
+} menu_t;
+extern menu_t *topmenu;		//the currently visible menu.
+extern menu_t *promptmenu;	//the currently visible prompt (separate from menus, so they always appear over the top of consoles too, they also always show the menu underneath)
+void Menu_KeyEvent(qboolean down, int qdeviceid, int key, int unicode);
+void Menu_Draw(void);
+void Prompts_Draw(void);
+void Menu_PopAll(void); //attempts to pop all menus (this is for map starts, some might linger)
+void Menu_Unlink(menu_t *menu);
+void Menu_Push(menu_t *menu, qboolean prompt);
+menu_t *Menu_FindContext(void *ctx);
+
+void Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel);
 
 #ifndef NOBUILTINMENUS
 
@@ -107,16 +131,12 @@ void M_DrawTextBox (int x, int y, int width, int lines);
 void M_Init (void);
 void M_Reinit(void);
 void M_Shutdown(qboolean total);
-void M_Keydown (int key, int unicode);
-void M_Keyup (int key, int unicode);
-void M_Draw (int uimenu);
 void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 void M_Menu_Installer (void);	//given an embedded manifest, this displays an install menu for said game.
 mpic_t	*M_CachePic (char *path);
 void M_Menu_Quit_f (void);
-void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel);
-
-struct menu_s;
+void menufixme(void); //REMOVE REMOVE REMOVE
+typedef struct emenu_s emenu_t;
 
 
 typedef enum {
@@ -161,7 +181,7 @@ typedef struct {
 	const char *text;
 	const char *command;
 	qboolean rightalign;
-	qboolean (*key) (union menuoption_s *option, struct menu_s *, int key);
+	qboolean (*key) (union menuoption_s *option, struct emenu_s *, int key);
 } menubutton_t;
 
 #define MAX_EDIT_LENGTH 256
@@ -196,7 +216,7 @@ typedef struct menucheck_s {
 	cvar_t *var;
 	int bits;
 	float value;
-	qboolean (*func) (struct menucheck_s *option, struct menu_s *menu, chk_set_t set);
+	qboolean (*func) (struct menucheck_s *option, struct emenu_s *menu, chk_set_t set);
 } menucheck_t;
 
 typedef struct {
@@ -210,8 +230,8 @@ typedef struct menucustom_s {
 	menucommon_t common;
 	void *dptr;
 	int dint;
-	void (*draw) (int x, int y, struct menucustom_s *, struct menu_s *);
-	qboolean (*key) (struct menucustom_s *, struct menu_s *, int key, unsigned int unicode);
+	void (*draw) (int x, int y, struct menucustom_s *, struct emenu_s *);
+	qboolean (*key) (struct menucustom_s *, struct emenu_s *, int key, unsigned int unicode);
 } menucustom_t;
 
 typedef struct {
@@ -229,9 +249,9 @@ typedef struct {
 	menucommon_t common;
 
 	int captionwidth;
-	const char *caption;
-	const char **options;
-	const char **values;
+	char const*caption;
+	char const*const*options;
+	char const*const*values;
 	cvar_t *cvar;
 	int numoptions;
 	int selectedoption;
@@ -276,7 +296,9 @@ typedef struct menuresel_s	//THIS STRUCT MUST BE STATICALLY ALLOCATED.
 	int x, y;
 } menuresel_t;
 
-typedef struct menu_s {
+struct emenu_s {
+	menu_t menu;
+
 	int xpos;
 	int ypos;
 	int width;
@@ -286,16 +308,14 @@ typedef struct menu_s {
 	menuresel_t *reselection;	//stores some info to restore selection properly.
 
 	qboolean iszone;
-	qboolean exclusive;
-	qboolean persist;	//persists despite menuqc/engine changes etc
 
 	void *data;	//typecast
 
-	void (*reset)		(struct menu_s *);	//called after a video mode switch / shader reload.
-	void (*remove)		(struct menu_s *);
-	qboolean (*key)		(int key, struct menu_s *);	//true if key was handled
-	void (*predraw)		(struct menu_s *);
-	void (*postdraw)	(struct menu_s *);
+	void (*reset)		(struct emenu_s *);	//called after a video mode switch / shader reload.
+	void (*remove)		(struct emenu_s *);
+	qboolean (*key)		(int key, struct emenu_s *);	//true if key was handled
+	void (*predraw)		(struct emenu_s *);
+	void (*postdraw)	(struct emenu_s *);
 	menuoption_t *options;
 
 	menuoption_t *selecteditem;
@@ -304,39 +324,36 @@ typedef struct menu_s {
 	menutooltip_t *tooltip;
 	double tooltiptime;
 
-	struct menu_s *prev;
-	struct menu_s *next;
-
 	int cursorpos;
 	menuoption_t *cursoritem;
-} menu_t;
+};
 
-menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign, qboolean red);
-menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign);
-menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign);
-menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip);
-menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
-menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
-menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, int height, char *picname);
-menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname);
-menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *resel, int x, int y);
-menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, int y);
-menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta);
-menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int cvarbitmask);
-menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
-menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const char *text, const char *command);
-menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command);
+menutext_t *MC_AddBufferedText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign, qboolean red);
+menutext_t *MC_AddRedText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign);
+menutext_t *MC_AddWhiteText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign);
+menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip);
+menubox_t *MC_AddBox(emenu_t *menu, int x, int y, int width, int height);
+menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height, char *picname);
+menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, char *picname);
+menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, char *picname);
+menupicture_t *MC_AddCursor(emenu_t *menu, menuresel_t *resel, int x, int y);
+menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, int y);
+menuslider_t *MC_AddSlider(emenu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta);
+menucheck_t *MC_AddCheckBox(emenu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int cvarbitmask);
+menucheck_t *MC_AddCheckBoxFunc(emenu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, emenu_t *menu, chk_set_t set), int bits);
+menubutton_t *MC_AddConsoleCommand(emenu_t *menu, int lhs, int rhs, int y, const char *text, const char *command);
+menubutton_t *MC_AddConsoleCommandQBigFont(emenu_t *menu, int x, int y, const char *text, const char *command);
 mpic_t *QBigFontWorks(void);
-menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command);
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...);
-menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
-menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue);
-menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
-menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def);
-menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip);
-menuframe_t *MC_AddFrameStart(menu_t *menu, int y);	//call before items are added
-menuframe_t *MC_AddFrameEnd(menu_t *menu, int y);	//and call AFTER that stuff with the same y.
+menubutton_t *MC_AddConsoleCommandHexen2BigFont(emenu_t *menu, int x, int y, const char *text, const char *command);
+menubutton_t *VARGS MC_AddConsoleCommandf(emenu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...);
+menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int));
+menucombo_t *MC_AddCombo(emenu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue);
+menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
+menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, char *text, char *def);
+menuedit_t *MC_AddEditCvar(emenu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
+menucustom_t *MC_AddCustom(emenu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip);
+menuframe_t *MC_AddFrameStart(emenu_t *menu, int y);	//call before items are added
+menuframe_t *MC_AddFrameEnd(emenu_t *menu, int y);	//and call AFTER that stuff with the same y.
 
 typedef struct menubulk_s {
 	menutype_t type;
@@ -346,12 +363,12 @@ typedef struct menubulk_s {
 	char *consolecmd; // console command
 	cvar_t *cvar; // check box, slider
 	int flags; // check box
-	qboolean (*func) (struct menucheck_s *option, struct menu_s *menu, chk_set_t set); // check box
+	qboolean (*func) (struct menucheck_s *option, struct emenu_s *menu, chk_set_t set); // check box
 	float min; // slider
 	float max; // slider
 	float delta; // slider
 	qboolean rightalign; // text
-	qboolean (*command) (union menuoption_s *, struct menu_s *, int); // command
+	qboolean (*command) (union menuoption_s *, struct emenu_s *, int); // command
 	char *cvarname; // edit cvar
 	const char **options; // combo
 	const char **values; // cvar combo
@@ -379,21 +396,17 @@ typedef struct menubulk_s {
 #define MB_SPACING(space) 											{mt_text, 2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
 #define MB_END() 													{mt_text, -1}
 
-int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y);
+int MC_AddBulk(emenu_t *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y);
 
 
 
-menu_t *M_Options_Title(int *y, int infosize);	/*Create a menu with the default options titlebar*/
-menu_t *M_CreateMenu (int extrasize);
-menu_t *M_CreateMenuInfront (int extrasize);
-void M_AddMenu (menu_t *menu);
-void M_HideMenu (menu_t *menu);
-void M_RemoveMenu (menu_t *menu);
+emenu_t *M_Options_Title(int *y, int infosize);	/*Create a menu with the default options titlebar*/
+emenu_t *M_CreateMenu (int extrasize);
+void M_RemoveMenu (emenu_t *menu);
 void M_RemoveAllMenus (qboolean leaveprompts);
 void M_ReloadMenus(void);
 
-void M_Complex_Key(int key, int unicode);
-void M_Complex_Draw(void);
+void M_Complex_Key(emenu_t *currentmenu, int key, int unicode);
 void M_Script_Init(void);
 void M_Serverlist_Init(void);
 
@@ -463,18 +476,14 @@ void M_UnbindCommand (const char *command);
 #else
 //no builtin menu code.
 //stubs
-#define M_Menu_Prompt(cb,ctx,messages,optionyes,optionno,optioncancel) (cb)(ctx,-1)
 //#define M_Shutdown(t) MP_Shutdown()
 
 void M_Init (void);
 void M_Reinit(void);
 void M_Shutdown(qboolean total);
-void M_Keydown (int key, int unicode);
-void M_Keyup (int key, int unicode);
-void M_Draw (int uimenu);
 #endif
 int M_FindKeysForCommand (int bindmap, int pnum, const char *command, int *keylist, int *keymods, int keycount);
-int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount);
+int QDECL M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount);
 void M_ToggleMenu_f (void);
 
 #ifdef MENU_DAT
@@ -485,11 +494,6 @@ qboolean MP_Toggle(int mode);
 void MP_Draw(void);
 qboolean MP_UsingGamecodeLoadingScreen(void);
 void MP_RegisterCvarsAndCmds(void);
-qboolean MP_Keydown(int key, int unicode, unsigned int devid);
-void MP_Keyup(int key, int unicode, unsigned int devid);
-qboolean MP_MouseMove(float x, float y, unsigned int devid);
-qboolean MP_MousePosition(float x, float y, unsigned int devid);
-qboolean MP_JoystickAxis(int axis, float value, unsigned int devid);
 int MP_BuiltinValid(const char *name, int num);
 qboolean MP_ConsoleCommand(const char *cmdtext);
 int MP_GetServerCategory(int index);
@@ -509,3 +513,32 @@ qboolean MN_Init(void);
 #define MGT_HEXEN2 1
 #define MGT_QUAKE2 2
 int M_GameType(void);
+
+
+
+
+
+//plugin functions
+#ifdef PLUGINS
+qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
+qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
+void		Plug_Command_f(void);
+int			Plug_ConnectionlessClientPacket(char *buffer, int size);
+qboolean	Plug_ConsoleLink(char *text, char *info, const char *consolename);
+qboolean	Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info);
+void		Plug_DrawReloadImages(void);
+void		Plug_Initialise(qboolean fromgamedir);
+void		Plug_Shutdown(qboolean preliminary);
+qboolean	Plug_Menu_Event(int eventtype, int keyparam, int unicodeparam);
+void		Plug_ResChanged(void);
+void		Plug_SBar(playerview_t *pv);
+qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
+void		Plug_Tick(void);
+qboolean	Plugin_ExecuteString(void);
+
+#ifdef ANDROID
+#define PLUGINPREFIX "libplug_" //android is kinda annoying and only extracts specific files.
+#else
+#define PLUGINPREFIX "fteplug_" //this string defines what consitutes a plugin, as opposed to some other dll
+#endif
+#endif

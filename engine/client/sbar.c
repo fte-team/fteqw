@@ -2224,13 +2224,6 @@ qboolean Sbar_ShouldDraw (playerview_t *pv)
 		return false;
 #endif
 
-#ifdef VM_UI
-	if (UI_DrawStatusBar((pv->sb_showscores?1:0) + (pv->sb_showteamscores?2:0))>0)
-		return false;
-	if (UI_MenuState())
-		return false;
-#endif
-
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	if ((sb_updates >= vid.numpages) && !headsup)
 		return false;
@@ -3803,11 +3796,6 @@ Sbar_IntermissionOverlay
 */
 void Sbar_IntermissionOverlay (playerview_t *pv)
 {
-#ifdef VM_UI
-	if (UI_DrawIntermission()>0)
-		return;
-#endif
-
 	Sbar_Start();
 
 	if (!cls.deathmatch)

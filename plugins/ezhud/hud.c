@@ -796,22 +796,22 @@ void HUD_Export_f(void)
 	char fname[64];
 	char fdesc[256];
 
-	pCmd_Argv(1, fname, sizeof(fname));
-	pCmd_Argv(2, fdesc, sizeof(fdesc));
+	cmdfuncs->Argv(1, fname, sizeof(fname));
+	cmdfuncs->Argv(2, fdesc, sizeof(fdesc));
 
 	if (!*fdesc)
 		snprintf(fdesc, sizeof(fdesc), "%s", fname);
 
 	snprintf(line, sizeof(line), "configs/hud_%s.cfg", fname);
 
-	if (pFS_Open(line, &handle, 2) < 0)
+	if (filefuncs->Open(line, &handle, 2) < 0)
 		Com_Printf("Couldn't open %s\n", line);
 	else
 	{
 		//FIXME: should print the result of an flocate, but plugins are not really aware of that stuff.
 		Com_Printf("Writing %s\n", line);
 		snprintf(line, sizeof(line), "//desc:%s\n\n//hud cvar settings, for use with FTEQW's ezhud plugin.\n", fdesc);
-		pFS_Write(handle, line, strlen(line));
+		filefuncs->Write(handle, line, strlen(line));
 
 		for (hud = hud_huds; hud; hud = hud->next)
 		{
@@ -820,11 +820,11 @@ void HUD_Export_f(void)
 				var = hud->params[i];
 				//fixme: deal with " and \n
 				snprintf(line, sizeof(line), "set %s \"%s\"\n", var->name, var->string);
-				pFS_Write(handle, line, strlen(line));
+				filefuncs->Write(handle, line, strlen(line));
 			}
 		}
 
-		pFS_Close(handle);
+		filefuncs->Close(handle);
 	}
 }
 
@@ -1168,7 +1168,7 @@ cvar_t * HUD_CreateVar(char *hud_name, char *subvar, char *value)
 
     snprintf (buf, sizeof (buf), "hud_%s_%s", hud_name, subvar);
 
-	return pCvar_GetNVFDG(buf, value, 0, NULL, "ezhud");
+	return cvarfuncs->GetNVFDG(buf, value, 0, NULL, "ezhud");
 }
 
 //

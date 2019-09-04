@@ -1075,7 +1075,7 @@ static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
 	BZ_Free(data);
 }
 
-vfsfile_t *Con_POpen(char *conname)
+vfsfile_t *Con_POpen(const char *conname)
 {
 	if (!conname || !*conname)
 	{

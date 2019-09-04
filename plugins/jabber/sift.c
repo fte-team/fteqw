@@ -20,14 +20,14 @@ void XMPP_FT_Frame(jclient_t *jcl)
 			if (ft->nexthost > 0)
 			{
 				ft->nexthost--;
-				ft->stream = pNet_TCPConnect(ft->streamhosts[ft->nexthost].host, ft->streamhosts[ft->nexthost].port);
+				ft->stream = netfuncs->TCPConnect(ft->streamhosts[ft->nexthost].host, ft->streamhosts[ft->nexthost].port);
 				if (ft->stream == -1)
 					continue;
 
 				ft->streamstatus = STRM_AUTH;
 
 				//'authenticate' with socks5 proxy. tell it that we only support 'authless'.
-				pNet_Send(ft->stream, "\x05\x01\x00", 3);
+				netfuncs->Send(ft->stream, "\x05\x01\x00", 3);
 			}
 			else
 			{
@@ -47,13 +47,13 @@ void XMPP_FT_Frame(jclient_t *jcl)
 			int len;
 			if (ft->streamstatus == STRM_ACTIVE)
 			{
-				len = pNet_Recv(ft->stream, data, sizeof(data)-1);
+				len = netfuncs->Recv(ft->stream, data, sizeof(data)-1);
 				if (len > 0)
-					pFS_Write(ft->file, data, len);
+					filefuncs->Write(ft->file, data, len);
 			}
 			else
 			{
-				len = pNet_Recv(ft->stream, data, sizeof(data)-1);
+				len = netfuncs->Recv(ft->stream, data, sizeof(data)-1);
 				if (len > 0)
 				{
 					if (ft->streamstatus == STRM_AUTH)
@@ -74,7 +74,7 @@ void XMPP_FT_Frame(jclient_t *jcl)
 
 							//connect with hostname(3).
 							req = va("\x05\x01%c\x03""%c%s%c%c", 0, (int)strlen(domain), domain, 0, 0);
-							pNet_Send(ft->stream, req, strlen(domain)+7);
+							netfuncs->Send(ft->stream, req, strlen(domain)+7);
 							ft->streamstatus = STRM_AUTHED;
 						}
 						else
@@ -84,7 +84,7 @@ void XMPP_FT_Frame(jclient_t *jcl)
 					{
 						if (data[0] == 0x05 && data[1] == 0x00)
 						{
-							if (pFS_Open(ft->fname, &ft->file, 2) < 0)
+							if (filefuncs->Open(ft->fname, &ft->file, 2) < 0)
 							{
 								len = -1;
 								JCL_AddClientMessagef(jcl, "<iq id='%s' to='%s' type='error'/>", ft->iqid, ft->with);
@@ -108,18 +108,18 @@ void XMPP_FT_Frame(jclient_t *jcl)
 
 			if (len == -1)
 			{
-				pNet_Close(ft->stream);
+				netfuncs->Close(ft->stream);
 				ft->stream = -1;
 				if (ft->streamstatus == STRM_ACTIVE)
 				{
 					int size;
 					if (ft->file != -1)
-						pFS_Close(ft->file);
+						filefuncs->Close(ft->file);
 					ft->file = -1;
 
-					size = pFS_Open(ft->fname, &ft->file, 1);
+					size = filefuncs->Open(ft->fname, &ft->file, 1);
 					if (ft->file != -1)
-						pFS_Close(ft->file);
+						filefuncs->Close(ft->file);
 					if (size == ft->size)
 					{
 						Con_Printf("File Transfer Completed\n");
@@ -174,7 +174,7 @@ void XMPP_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept)
 		}
 
 		if (ft->file != -1)
-			pFS_Close(ft->file);
+			filefuncs->Close(ft->file);
 		*link = ft->next;
 		free(ft);
 	}
@@ -222,7 +222,7 @@ static qboolean XMPP_FT_IBBChunked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq
 				char *base64;
 				char rawbuf[4096];
 				int sz;
-				sz = pFS_Read(ft->file, rawbuf, ft->blocksize);
+				sz = filefuncs->Read(ft->file, rawbuf, ft->blocksize);
 				Base64_Add(rawbuf, sz);
 				base64 = Base64_Finish();
 
@@ -256,7 +256,7 @@ static qboolean XMPP_FT_IBBChunked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq
 
 			//errored
 			if (ft->file != -1)
-				pFS_Close(ft->file);
+				filefuncs->Close(ft->file);
 			*link = ft->next;
 			free(ft);
 			return true;
@@ -278,7 +278,7 @@ static qboolean XMPP_FT_IBBBegun(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 				Con_Printf("%s aborted %s\n", ft->with, ft->fname);
 				//errored
 				if (ft->file != -1)
-					pFS_Close(ft->file);
+					filefuncs->Close(ft->file);
 				*link = ft->next;
 				free(ft);
 			}
@@ -307,7 +307,7 @@ qboolean XMPP_FT_OfferAcked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 				Con_Printf("%s doesn't want %s\n", ft->with, ft->fname);
 				//errored
 				if (ft->file != -1)
-					pFS_Close(ft->file);
+					filefuncs->Close(ft->file);
 				*link = ft->next;
 				free(ft);
 			}
@@ -338,18 +338,20 @@ void XMPP_FT_SendFile(jclient_t *jcl, const char *console, const char *to, const
 	ft = malloc(sizeof(*ft));
 	memset(ft, 0, sizeof(*ft));
 	ft->stream = -1;
-	ft->next = jcl->ft;
-	jcl->ft = ft;
 	ft->allowed = true;
 	ft->transmitting = true;
 	ft->blocksize = 4096;
 	Q_strlcpy(ft->fname, fname, sizeof(ft->fname));
-	Q_snprintf(ft->sid, sizeof(ft->sid), "%x%s", rand(), ft->fname);
+	if (Q_snprintf(ft->sid, sizeof(ft->sid), "%x%s", rand(), ft->fname) >= sizeof(ft->sid))
+		/*doesn't matter so long as its unique*/;
 	Q_strlcpy(ft->md5hash, "", sizeof(ft->md5hash));
-	ft->size = pFS_Open(ft->fname, &ft->file, 1);
+	ft->size = filefuncs->Open(ft->fname, &ft->file, 1);
 	ft->with = strdup(to);
 	ft->method = FT_IBB;
 	ft->begun = false;
+
+	ft->next = jcl->ft;
+	jcl->ft = ft;
 
 	//generate an offer.
 	xsi = XML_CreateNode(NULL, "si", "http://jabber.org/protocol/si", "");
@@ -463,7 +465,7 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, const char *iqfrom, const char *iqid
 					}
 					else
 					{	//it looks okay
-						pFS_Open(ft->fname, &ft->file, 2);
+						filefuncs->Open(ft->fname, &ft->file, 2);
 						ft->method = FT_IBB;
 						ft->blocksize = blocksize;
 						ft->begun = true;
@@ -490,7 +492,7 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, const char *iqfrom, const char *iqid
 				{
 					int size;
 					if (ft->file != -1)
-						pFS_Close(ft->file);
+						filefuncs->Close(ft->file);
 					if (ft->transmitting)
 					{
 						if (ft->eof)
@@ -500,9 +502,9 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, const char *iqfrom, const char *iqid
 					}
 					else
 					{
-						size = pFS_Open(ft->fname, &ft->file, 1);
+						size = filefuncs->Open(ft->fname, &ft->file, 1);
 						if (ft->file != -1)
-							pFS_Close(ft->file);
+							filefuncs->Close(ft->file);
 						if (size == ft->size)
 							Con_Printf("Received file \"%s\" successfully\n", ft->fname);
 						else
@@ -534,7 +536,7 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, const char *iqfrom, const char *iqid
 				blocksize = Base64_Decode(block, sizeof(block), ot->body, strlen(ot->body));
 				if (blocksize && blocksize <= ft->blocksize)
 				{
-					pFS_Write(ft->file, block, blocksize);
+					filefuncs->Write(ft->file, block, blocksize);
 					JCL_AddClientMessagef(jcl, "<iq id='%s' to='%s' type='result'/>", iqid, iqfrom);
 					return true;
 				}

@@ -139,7 +139,7 @@ static void M_ScanSaves (void)
 		M_ScanSave(i, va("s%i", i-SAVEFIRST_STANDARD), true);
 }
 
-static void M_Menu_LoadSave_UnloadShaders(menu_t *menu)
+static void M_Menu_LoadSave_UnloadShaders(emenu_t *menu)
 {
 	loadsavemenuinfo_t *info = menu->data;
 	if (info->picshader)
@@ -150,7 +150,7 @@ static void M_Menu_LoadSave_UnloadShaders(menu_t *menu)
 	}
 }
 
-static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_t *menu)
+static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, emenu_t *menu)
 {
 	loadsavemenuinfo_t *info = menu->data;
 	int slot;
@@ -225,7 +225,7 @@ static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_
 void M_Menu_Save_f (void)
 {
 	menuoption_t *op = NULL;
-	menu_t *menu;
+	emenu_t *menu;
 	int		i;
 
 	if (!sv.state)
@@ -233,8 +233,6 @@ void M_Menu_Save_f (void)
 
 	if (cl.intermissionmode != IM_NONE)
 		return;
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
@@ -272,12 +270,10 @@ void M_Menu_Save_f (void)
 void M_Menu_Load_f (void)
 {
 	menuoption_t *op = NULL;
-	menu_t *menu;
+	emenu_t *menu;
 	int		i;
 	char time[64];
 
-	Key_Dest_Add(kdm_emenu);
-	
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
 	menu->remove = M_Menu_LoadSave_UnloadShaders;
@@ -323,7 +319,7 @@ void M_Menu_Load_f (void)
 extern cvar_t cl_splitscreen;
 void M_Menu_SinglePlayer_f (void)
 {
-	menu_t *menu;
+	emenu_t *menu;
 #ifndef CLIENTONLY
 	menubutton_t *b;
 	mpic_t *p;
@@ -348,8 +344,6 @@ void M_Menu_SinglePlayer_f (void)
 			NULL
 		};
 #endif
-
-	Key_Dest_Add(kdm_emenu);
 
 #ifdef CLIENTONLY
 	menu = M_CreateMenu(0);
@@ -617,7 +611,7 @@ typedef struct {
 	demoitem_t *items;
 } demomenu_t;
 
-static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
+static void M_DemoDraw(int x, int y, menucustom_t *control, emenu_t *menu)
 {
 	extern qboolean	keydown[K_MAX];
 	char *text;
@@ -699,8 +693,8 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 		item = item->next;
 	}
 }
-static void ShowDemoMenu (menu_t *menu, const char *path);
-static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned int unicode)
+static void ShowDemoMenu (emenu_t *menu, const char *path);
+static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigned int unicode)
 {
 	demomenu_t *info = menu->data;
 	demoitem_t *it;
@@ -944,13 +938,13 @@ static void M_Demo_Flush (demomenu_t *info)
 	info->firstitem = NULL;
 }
 
-static void M_Demo_Remove (menu_t *menu)
+static void M_Demo_Remove (emenu_t *menu)
 {
 	demomenu_t *info = menu->data;
 	M_Demo_Flush(info);
 }
 
-static void ShowDemoMenu (menu_t *menu, const char *path)
+static void ShowDemoMenu (emenu_t *menu, const char *path)
 {
 	demomenu_t *info = menu->data;
 
@@ -1071,10 +1065,9 @@ void M_Menu_Demos_f (void)
 	};
 	size_t u;
 	demomenu_t *info;
-	menu_t *menu;
+	emenu_t *menu;
 	static demoloc_t mediareenterloc = {FS_GAME, "demos/"};
 
-	Key_Dest_Add(kdm_emenu);
 	Key_Dest_Remove(kdm_console);
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
@@ -1131,10 +1124,8 @@ void M_Menu_Demos_f (void)
 void M_Menu_MediaFiles_f (void)
 {
 	demomenu_t *info;
-	menu_t *menu;
+	emenu_t *menu;
 	static demoloc_t mediareenterloc = {FS_GAME};
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;

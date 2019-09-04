@@ -817,9 +817,8 @@ void SV_Map_f (void)
 	}
 #endif
 
-#if defined(MENU_DAT) && !defined(SERVERONLY)
-	if (Key_Dest_Has(kdm_gmenu))
-		MP_Toggle(0);
+#ifdef HAVE_CLIENT
+	Menu_PopAll();
 #endif
 
 	if (preserveplayers && svprogfuncs)

@@ -35,6 +35,8 @@ extern	cvar_t	cl_item_bobbing;
 
 extern	cvar_t	r_rocketlight;
 extern	cvar_t	r_lightflicker;
+extern	cvar_t	r_dimlight_colour;
+extern	cvar_t	r_brightlight_colour;
 extern	cvar_t	cl_r2g;
 extern	cvar_t	r_powerupglow;
 extern	cvar_t	v_powerupshell;
@@ -1396,7 +1398,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 #ifdef NQPROT
 void DP5_ParseDelta(entity_state_t *s, packet_entities_t *pack)
 {
-	int bits;
+	unsigned int bits;
 
 	if (cl_shownet.ival >= 3)
 		Con_Printf("%3i:     Update %i", msg_readcount, s->number);
@@ -3992,17 +3994,13 @@ void CL_LinkPacketEntities (void)
 
 			if (state->effects & EF_BRIGHTLIGHT)
 			{
-				radius = max(radius,400);
-				colour[0] += 2.0;
-				colour[1] += 1.0;
-				colour[2] += 0.5;
+				radius = max(radius,r_dimlight_colour.vec4[3]);
+				VectorAdd(colour, r_dimlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_DIMLIGHT)
 			{
-				radius = max(radius,200);
-				colour[0] += 2.0;
-				colour[1] += 1.0;
-				colour[2] += 0.5;
+				radius = max(radius,r_dimlight_colour.vec4[3]);
+				VectorAdd(colour, r_dimlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_BLUE)
 			{
@@ -4415,12 +4413,8 @@ void CL_LinkPacketEntities (void)
 			if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))
 			{
 				float rad = 0;
-				vec3_t dclr;
-
-				dclr[0] = 2.0;
-				dclr[1] = 1.0;
-				dclr[2] = 0.25;
-				rad = 200;
+				extern cvar_t r_rocketlight_colour;
+				rad = r_rocketlight_colour.vec4[3];
 				rad += r_lightflicker.value?((flicker + state->number)&31):0;
 
 				dl = CL_AllocDlight (state->number);
@@ -4430,7 +4424,7 @@ void CL_LinkPacketEntities (void)
 				if (modelflags & MF_ROCKET)
 					dl->origin[2] += 1; // is this even necessary
 				dl->radius = rad * r_rocketlight.value;
-				VectorCopy(dclr, dl->color);
+				VectorCopy(r_rocketlight_colour.vec4, dl->color);
 			}
 		}
 	}
@@ -4856,7 +4850,7 @@ void CLQW_ParsePlayerinfo (void)
 
 #ifdef PEXT_SCALE
 	if ((flags & PF_SCALE) && (cls.fteprotocolextensions & PEXT_SCALE))
-		state->scale = (float)MSG_ReadByte()/50;
+		state->scale = MSG_ReadByte()/50.0;
 #endif
 #ifdef PEXT_TRANS
 	if ((flags & PF_TRANS) && (cls.fteprotocolextensions & PEXT_TRANS))
@@ -4864,7 +4858,7 @@ void CLQW_ParsePlayerinfo (void)
 #endif
 #ifdef PEXT_FATNESS
 	if ((flags & PF_FATNESS) && (cls.fteprotocolextensions & PEXT_FATNESS))
-		state->fatness = (float)MSG_ReadChar();
+		state->fatness = MSG_ReadChar();
 #endif
 #ifdef PEXT_HULLSIZE
 	if ((cls.fteprotocolextensions & PEXT_HULLSIZE) && (flags & PF_HULLSIZE_Z))
@@ -5642,7 +5636,9 @@ void CL_SetSolidEntities (void)
 	model_t				*mod;
 
 	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
+#ifdef CSQC_DAT
 	pmove.world = &csqc_world;
+#endif
 
 	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	pmove.physents[0].model = cl.worldmodel;

@@ -13,6 +13,8 @@ extern "C" {
 #include "model_hl.h"
 #endif
 
+struct galiasinfo_s; //per-surface info.
+
 #ifdef NONSKELETALMODELS
 //a single pose within an animation (note: always refered to via a framegroup, even if there's only one frame in that group).
 typedef struct
@@ -43,12 +45,13 @@ typedef struct galiasevent_s
 } galiasevent_t;
 
 //a frame group (aka: animation)
-typedef struct
+typedef struct galiasanimation_s
 {
 #ifdef SKELETALMODELS
 	skeltype_t skeltype;	//for models with transforms, states that bones need to be transformed from their parent.
 							//this is actually bad, and can result in bones shortening as they interpolate.
-	float *boneofs;	//numposes*12*numbones
+	float *(QDECL *GetRawBones)(const struct galiasinfo_s *mesh, const struct galiasanimation_s *a, float time, float *bonematrixstorage, int numbones);
+	void *boneofs;	//numposes*12*numbones
 #endif
 	qboolean loop;
 	int numposes;
@@ -208,6 +211,8 @@ typedef struct galiasinfo_s
 	FTE_DEPRECATED int numtags;
 	FTE_DEPRECATED md3tag_t *ofstags;
 #endif
+
+	void *ctx;				//loader-specific stuff. must be ZG_Malloced if it lasts beyond the loader.
 	unsigned int warned;	//passed around at load time, so we don't spam warnings
 } galiasinfo_t;
 
@@ -215,36 +220,36 @@ struct terrainfuncs_s;
 typedef struct modplugfuncs_s
 {
 	int version;
+
+	//format handling
 	int (QDECL *RegisterModelFormatText)(const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 	int (QDECL *RegisterModelFormatMagic)(const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 	void (QDECL *UnRegisterModelFormat)(int idx);
 	void (QDECL *UnRegisterAllModelFormats)(void);
 
+	//util
 	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, size_t size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
+	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
 
+	//matrix maths
 	void (QDECL *ConcatTransforms) (const float in1[3][4], const float in2[3][4], float out[3][4]);
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);
 	void (QDECL *VectorAngles)(const float *forward, const float *up, float *result, qboolean meshpitch);
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 	void (QDECL *GenMatrixPosQuat4Scale)(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12]);
 
-	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
+	//bone stuff
 	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 
-	struct terrainfuncs_s *(QDECL *GetTerrainFuncs)(void);
-	void *reserved2;
+	//texturing
 	image_t *(QDECL *GetTexture)(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
-	vfsfile_t *(QDECL *OpenVFS)(const char *filename, const char *mode, enum fs_relative relativeto);
 	void (QDECL *AccumulateTextureVectors)(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms);
 	void (QDECL *NormaliseTextureVectors)(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms);
-	void *unused5;
-	void *unused6;
-	void *unused7;
-	void *unused8;
-	void *unused9;
-	void *unused10;
-} modplugfuncs_t;
-#define MODPLUGFUNCS_VERSION 2
+
+	model_t *(QDECL *GetModel)(const char *identifier, enum mlverbosity_e verbosity);
+#define plugmodfuncs_name "Models"
+} plugmodfuncs_t;
+#define MODPLUGFUNCS_VERSION 1
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);

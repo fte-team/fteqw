@@ -943,7 +943,7 @@ void SCR_DrawCursor(void)
 	char *newc;
 	int prydoncursornum = 0;
 	extern qboolean cursor_active;
-	int cmod = kc_console;
+	struct key_cursor_s *kcurs;
 	void *oldcurs = NULL;
 
 	if (cursor_active && cl_prydoncursor.ival > 0)
@@ -951,48 +951,54 @@ void SCR_DrawCursor(void)
 	else if (!Key_MouseShouldBeFree())
 		return;
 
+	if ((key_dest_mask & key_dest_absolutemouse & kdm_prompt))
+	{
+		if (promptmenu&&promptmenu->cursor)
+			kcurs = promptmenu->cursor;
+		else
+			kcurs = &key_customcursor[kc_console];
+	}
 	//choose the cursor based upon the module that has primary focus
-	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_cwindows))
-		cmod = kc_console;
-	else if ((key_dest_mask & key_dest_absolutemouse & kdm_emenu))
-		cmod = kc_console;
-	else if ((key_dest_mask & key_dest_absolutemouse & kdm_gmenu))
-		cmod = kc_menu;
-#ifdef MENU_NATIVECODE
-	else if ((key_dest_mask & key_dest_absolutemouse & kdm_nmenu))
-		cmod = kc_nmenu;
-#endif
+	else if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_cwindows))
+		kcurs = &key_customcursor[kc_console];
+	else if ((key_dest_mask & key_dest_absolutemouse & kdm_menu))
+	{
+		if (topmenu&&topmenu->cursor)
+			kcurs = topmenu->cursor;
+		else
+			kcurs = &key_customcursor[kc_console];
+	}
 	else// if (key_dest_mask & key_dest_absolutemouse)
-		cmod = prydoncursornum?kc_console:kc_game;
+		kcurs = &key_customcursor[prydoncursornum?kc_console:kc_game];
 
-	if (cmod == kc_console)
+	if (kcurs == &key_customcursor[kc_console])
 	{
 		if (!*cl_cursor.string || prydoncursornum>1)
 			newc = va("gfx/prydoncursor%03i.lmp", prydoncursornum);
 		else
 			newc = cl_cursor.string;
-		if (strcmp(key_customcursor[kc_console].name, newc) || key_customcursor[kc_console].hotspot[0] != cl_cursorbiasx.value || key_customcursor[kc_console].hotspot[1] != cl_cursorbiasy.value || key_customcursor[kc_console].scale != cl_cursorscale.value)
+		if (strcmp(kcurs->name, newc) || kcurs->hotspot[0] != cl_cursorbiasx.value || kcurs->hotspot[1] != cl_cursorbiasy.value || kcurs->scale != cl_cursorscale.value)
 		{
-			key_customcursor[kc_console].dirty = true;
-			Q_strncpyz(key_customcursor[cmod].name, newc, sizeof(key_customcursor[cmod].name));
-			key_customcursor[kc_console].hotspot[0] = cl_cursorbiasx.value;
-			key_customcursor[kc_console].hotspot[1] = cl_cursorbiasy.value;
-			key_customcursor[kc_console].scale = cl_cursorscale.value;
+			kcurs->dirty = true;
+			Q_strncpyz(kcurs->name, newc, sizeof(kcurs->name));
+			kcurs->hotspot[0] = cl_cursorbiasx.value;
+			kcurs->hotspot[1] = cl_cursorbiasy.value;
+			kcurs->scale = cl_cursorscale.value;
 		}
 	}
 
-	if (key_customcursor[cmod].dirty)
+	if (kcurs->dirty)
 	{
-		if (key_customcursor[cmod].scale <= 0 || !*key_customcursor[cmod].name)
+		if (kcurs->scale <= 0 || !*kcurs->name)
 		{
-			key_customcursor[cmod].hotspot[0] = cl_cursorbiasx.value;
-			key_customcursor[cmod].hotspot[1] = cl_cursorbiasy.value;
-			key_customcursor[cmod].scale = cl_cursorscale.value;
+			kcurs->hotspot[0] = cl_cursorbiasx.value;
+			kcurs->hotspot[1] = cl_cursorbiasy.value;
+			kcurs->scale = cl_cursorscale.value;
 		}
 
-		key_customcursor[cmod].dirty = false;
-		oldcurs = key_customcursor[cmod].handle;
-		if (rf->VID_CreateCursor && strcmp(key_customcursor[cmod].name, "none"))
+		kcurs->dirty = false;
+		oldcurs = kcurs->handle;
+		if (rf->VID_CreateCursor && strcmp(kcurs->name, "none"))
 		{
 			image_t dummytex;
 			flocation_t loc;
@@ -1003,16 +1009,16 @@ void SCR_DrawCursor(void)
 			void *filedata = NULL;
 			int filelen = 0, width, height;
 
-			key_customcursor[cmod].handle = NULL;
+			kcurs->handle = NULL;
 
 			memset(&dummytex, 0, sizeof(dummytex));
 			dummytex.flags = IF_NOREPLACE;	//no dds files
 			*bestname = 0;
 
 			//first try the named image, if possible
-			if (!filedata && *key_customcursor[cmod].name)
+			if (!filedata && *kcurs->name)
 			{
-				dummytex.ident = key_customcursor[cmod].name;
+				dummytex.ident = kcurs->name;
 				if (Image_LocateHighResTexture(&dummytex, &loc, bestname, sizeof(bestname), &bestflags))
 					filelen = FS_LoadFile(bestname, &filedata);
 			}
@@ -1050,7 +1056,7 @@ void SCR_DrawCursor(void)
 #undef W
 #undef B
 				};
-				key_customcursor[cmod].handle = rf->VID_CreateCursor(lamecursor, 8, 15, PTI_LLLA8, 0, 0, 1);	//try the fallback
+				kcurs->handle = rf->VID_CreateCursor(lamecursor, 8, 15, PTI_LLLA8, 0, 0, 1);	//try the fallback
 			}
 			else if (!filedata)
 				FS_FreeFile(filedata);	//format not okay, just free it.
@@ -1088,18 +1094,18 @@ void SCR_DrawCursor(void)
 						format = (format==PTI_LLLX8)?PTI_LLLA8:PTI_RGBA8;
 					}
 
-					key_customcursor[cmod].handle = rf->VID_CreateCursor(rgbadata, width, height, format, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
+					kcurs->handle = rf->VID_CreateCursor(rgbadata, width, height, format, kcurs->hotspot[0], kcurs->hotspot[1], kcurs->scale);	//try the fallback
 					BZ_Free(rgbadata);
 				}
 			}
 		}
 		else
-			key_customcursor[cmod].handle = NULL;
+			kcurs->handle = NULL;
 	}
 
-	if (scr_curcursor != key_customcursor[cmod].handle)
+	if (scr_curcursor != kcurs->handle)
 	{
-		scr_curcursor = key_customcursor[cmod].handle;
+		scr_curcursor = kcurs->handle;
 		rf->VID_SetCursor(scr_curcursor);
 	}
 	if (oldcurs)
@@ -1109,16 +1115,16 @@ void SCR_DrawCursor(void)
 		return;
 	//system doesn't support a hardware cursor, so try to draw a software one.
 
-	if (!strcmp(key_customcursor[cmod].name, "none"))
+	if (!strcmp(kcurs->name, "none"))
 		return;
 
-	p = R2D_SafeCachePic(key_customcursor[cmod].name);
+	p = R2D_SafeCachePic(kcurs->name);
 	if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
 		p = R2D_SafeCachePic("gfx/cursor.lmp");
 	if (p && R_GetShaderSizes(p, NULL, NULL, false))
 	{
 		R2D_ImageColours(1, 1, 1, 1);
-		R2D_Image(mousecursor_x-key_customcursor[cmod].hotspot[0], mousecursor_y-key_customcursor[cmod].hotspot[1], p->width*cl_cursorscale.value, p->height*cl_cursorscale.value, 0, 0, 1, 1, p);
+		R2D_Image(mousecursor_x-kcurs->hotspot[0], mousecursor_y-kcurs->hotspot[1], p->width*cl_cursorscale.value, p->height*cl_cursorscale.value, 0, 0, 1, 1, p);
 	}
 	else
 	{
@@ -1905,7 +1911,7 @@ void SCR_DrawPause (void)
 		return;
 #endif
 
-	if (Key_Dest_Has(kdm_emenu) || Key_Dest_Has(kdm_gmenu))
+	if (Key_Dest_Has(kdm_menu))
 		return;
 
 	pic = R2D_SafeCachePic ("gfx/pause.lmp");
@@ -2305,7 +2311,7 @@ void SCR_SetUpToDrawConsole (void)
 //		Key_Dest_Add(kdm_console);
 		scr_con_target = scr_con_current = vid.height * fullscreenpercent;
 	}
-	else if (!startuppending && !Key_Dest_Has(kdm_emenu|kdm_gmenu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+	else if (!startuppending && !Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_prompt|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !CSQC_UnconnectedOkay(false))
 	{
 		//go fullscreen if we're not doing anything
 		if (con_curwindow && !cls.state && !scr_drawloading && !Key_Dest_Has(kdm_console))
@@ -2314,7 +2320,7 @@ void SCR_SetUpToDrawConsole (void)
 			scr_con_target = 0; // not looking at an normal console
 		}
 #ifdef VM_UI
-		else if (UI_MenuState() || UI_OpenMenu())
+		else if (UI_OpenMenu())
 			scr_con_current = scr_con_target = 0;	//force instantly hidden.
 #endif
 		else
@@ -2329,7 +2335,7 @@ void SCR_SetUpToDrawConsole (void)
 					{
 						if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
 							SCR_SetLoadingStage(LS_CONNECTION);
-						else if (!Key_Dest_Has(kdm_emenu) && !startuppending)	//don't force anything until the startup stuff has been done
+						else if (!Key_Dest_Has(kdm_menu) && !startuppending)	//don't force anything until the startup stuff has been done
 							M_ToggleMenu_f();
 					}
 				}
@@ -2396,7 +2402,7 @@ void SCR_DrawConsole (qboolean noback)
 {
 	if (!scr_con_current)
 	{
-		if (!Key_Dest_Has(kdm_console|kdm_gmenu|kdm_emenu))
+		if (!Key_Dest_Has(kdm_console|kdm_menu))
 			Con_DrawNotify ();      // only draw notify in game
 	}
 	Con_DrawConsole (scr_con_current, noback);
@@ -3326,7 +3332,7 @@ void SCR_TileClear (int skipbottom)
 
 
 // The 2d refresh stuff.
-void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
+void SCR_DrawTwoDimensional(qboolean nohud)
 {
 	qboolean consolefocused = !!Key_Dest_Has(kdm_console|kdm_cwindows);
 	RSpeedMark();
@@ -3386,18 +3392,13 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	if (!consolefocused)
 		SCR_DrawConsole (false);
 
-#ifdef MENU_DAT
-	MP_Draw();
-#endif
-#ifdef MENU_NATIVECODE
-	if (mn_entry)
-		mn_entry->Draw(host_frametime);
-#endif
-	M_Draw (uimenu);
+	Menu_Draw();
 
 	//but if the console IS focused, then always show it infront.
 	if (consolefocused)
 		SCR_DrawConsole (false);
+
+	Prompts_Draw();
 
 	SCR_DrawCursor();
 	SCR_DrawSimMTouchCursor();

@@ -1198,15 +1198,16 @@ const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 	{"s_reflectcube",	1u<<9},
 	{"s_reflectmask",	1u<<10},
 	{"s_displacement",	1u<<11},
-	{"s_lightmap",		1u<<12},
-	{"s_deluxemap",		1u<<13},
+	{"s_occlusion",		1u<<12},
+	{"s_lightmap",		1u<<13},
+	{"s_deluxemap",		1u<<14},
 #if MAXRLIGHTMAPS > 1
-	{"s_lightmap1",		1u<<14},
-	{"s_lightmap2",		1u<<15},
-	{"s_lightmap3",		1u<<16},
-	{"s_deluxemap1",	1u<<17},
-	{"s_deluxemap2",	1u<<18},
-	{"s_deluxemap3",	1u<<19},
+	{"s_lightmap1",		1u<<15},
+	{"s_lightmap2",		1u<<16},
+	{"s_lightmap3",		1u<<17},
+	{"s_deluxemap1",	1u<<18},
+	{"s_deluxemap2",	1u<<19},
+	{"s_deluxemap3",	1u<<20},
 #else
 	{"s_lightmap1",		0},
 	{"s_lightmap2",		0},
@@ -4341,16 +4342,17 @@ void Shader_FixupProgPasses(parsestate_t *ps, shaderpass_t *pass)
 		{T_GEN_REFLECTCUBE,		0},						//9
 		{T_GEN_REFLECTMASK,		0},						//10
 		{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
+		{T_GEN_OCCLUSION,		0},						//12
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
 //			{T_GEN_RIPPLEMAP,		SHADER_HASRIPPLEMAP},	//
 
 		//batch
-		{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//12
-		{T_GEN_DELUXMAP,		0},						//13
-		//more lightmaps								//14,15,16
-		//mode deluxemaps								//17,18,19
+		{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//13
+		{T_GEN_DELUXMAP,		0},						//14
+		//more lightmaps								//15,16,17
+		//mode deluxemaps								//18,19,20
 	};
 
 #ifdef HAVE_MEDIA_DECODER
@@ -5464,16 +5466,17 @@ done:;
 			{T_GEN_REFLECTCUBE,		0},						//9
 			{T_GEN_REFLECTMASK,		0},						//10
 			{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
+			{T_GEN_OCCLUSION,		0},						//12
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
 //			{T_GEN_RIPPLEMAP,		SHADER_HASRIPPLEMAP},	//
 
 			//batch
-			{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//12
-			{T_GEN_DELUXMAP,		0},						//13
-			//more lightmaps								//14,15,16
-			//mode deluxemaps								//17,18,19
+			{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//13
+			{T_GEN_DELUXMAP,		0},						//14
+			//more lightmaps								//15,16,17
+			//mode deluxemaps								//18,19,20
 		};
 
 #ifdef HAVE_MEDIA_DECODER
@@ -7465,6 +7468,7 @@ static char *Shader_DecomposeSubPass(char *o, shader_t *s, shaderpass_t *p, qboo
 	case T_GEN_REFLECTCUBE:		Shader_DecomposeSubPassMap(o, s, "map $reflectcube", s->defaulttextures[0].reflectcube); break;
 	case T_GEN_REFLECTMASK:		Shader_DecomposeSubPassMap(o, s, "map $reflectmask", s->defaulttextures[0].reflectmask); break;
 	case T_GEN_DISPLACEMENT:	Shader_DecomposeSubPassMap(o, s, "map $displacement", s->defaulttextures[0].displacement); break;
+	case T_GEN_OCCLUSION:		Shader_DecomposeSubPassMap(o, s, "map $occlusion", s->defaulttextures[0].occlusion); break;
 	case T_GEN_CURRENTRENDER:	sprintf(o, "map $currentrender "); break;
 	case T_GEN_SOURCECOLOUR:	sprintf(o, "map $sourcecolour"); break;
 	case T_GEN_SOURCEDEPTH:		sprintf(o, "map $sourcedepth"); break;

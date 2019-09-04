@@ -254,7 +254,7 @@ void Con_ToggleConsole_Force(void);
 int Con_ExecuteLine(console_t *con, const char *line);	//takes normal console commands
 int Con_Navigate(console_t *con, const char *line);		//special webbrowser hacks
 
-vfsfile_t *Con_POpen(char *conname);
+vfsfile_t *Con_POpen(const char *conname);
 void Con_CycleConsole (void);
 int Con_IsActive (console_t *con);
 void Con_Destroy (console_t *con);

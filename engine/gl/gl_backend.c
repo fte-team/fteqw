@@ -1288,6 +1288,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		else
 			t = r_whiteimage;
 		break;
+	case T_GEN_OCCLUSION:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->occlusion))
+			t = shaderstate.curtexnums->occlusion;
+		else
+			t = r_whiteimage;
+		break;
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
 		break;

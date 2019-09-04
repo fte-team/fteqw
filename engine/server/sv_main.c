@@ -3060,6 +3060,9 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	info.expectedreliablesequence = expectedreliablesequence;
 #endif
 
+#ifdef HUFFNETWORK
+	info.huffcrc = 0;
+#endif
 	info.mtu = 0;
 	info.ftepext1 = 0;
 	info.ftepext2 = 0;
@@ -3109,7 +3112,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 			Info_SetValueForKey(userinfo, "name", "UnnamedQ3", sizeof(userinfo));
 
 #ifdef HUFFNETWORK
-		huffcrc = HUFFCRC_QUAKE3;
+		info.huffcrc = HUFFCRC_QUAKE3;
 #endif
 #endif
 	}

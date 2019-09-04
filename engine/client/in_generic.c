@@ -126,7 +126,7 @@ static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat contro
 
 
 #define EVENTQUEUELENGTH 1024
-struct eventlist_s
+static struct eventlist_s
 {
 	enum
 	{
@@ -166,8 +166,8 @@ struct eventlist_s
 		} gyro;
 	};
 } eventlist[EVENTQUEUELENGTH];
-volatile int events_avail; /*volatile to make sure the cc doesn't try leaving these cached in a register*/
-volatile int events_used;
+static volatile int events_avail; /*volatile to make sure the cc doesn't try leaving these cached in a register*/
+static volatile int events_used;
 
 static struct eventlist_s *in_newevent(void)
 {
@@ -182,7 +182,7 @@ static void in_finishevent(void)
 }
 
 #define MAXPOINTERS 8
-struct mouse_s
+static struct mouse_s
 {
 	enum
 	{
@@ -202,11 +202,11 @@ struct mouse_s
 	unsigned int updates;	//tracks updates per second
 	qboolean updated;
 } ptr[MAXPOINTERS];
-int touchcursor = -1;	//the cursor follows whichever finger was most recently pressed in preference to any mouse also on the same system
+static int touchcursor = -1;	//the cursor follows whichever finger was most recently pressed in preference to any mouse also on the same system
 
 #define MAXJOYAXIS 6
 #define MAXJOYSTICKS 8
-struct joy_s
+static struct joy_s
 {
 	unsigned int qdeviceid;
 	float axis[MAXJOYAXIS];
@@ -466,11 +466,9 @@ void IN_Commands(void)
 		case IEV_JOYAXIS:
 			if (ev->devid < MAXJOYSTICKS && ev->joy.axis < MAXJOYAXIS)
 			{
-#ifdef MENU_DAT
-				if (MP_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
+				if (topmenu && topmenu->joyaxis && topmenu->joyaxis(topmenu, ev->devid, ev->joy.axis, ev->joy.value))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
 				else
-#endif
 #ifdef CSQC_DAT
 				if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
@@ -659,19 +657,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	mousemove_y += my;
 
 	if (Key_MouseShouldBeFree())
-	{
 		mx=my=0;
-	}
-	else
-	{
-#ifdef VM_UI
-		if (UI_MousePosition(mx, my))
-		{
-			mx = 0;
-			my = 0;
-		}
-#endif
-	}
 
 	if (mouse->type == M_TOUCH)
 	{
@@ -744,28 +730,12 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			mouse->updated = false;
 			if (!runningindepphys)
 			{
-#ifdef MENU_NATIVECODE
-				if (mn_entry)
-				{
-					struct menu_inputevent_args_s ev = {MIE_MOUSEABS, mouse->qdeviceid};
-					ev.mouse.delta[0] = mx;
-					ev.mouse.delta[1] = my;
-					ev.mouse.screen[0] = (mouse->oldpos[0] * vid.width) / vid.pixelwidth;
-					ev.mouse.screen[1] = (mouse->oldpos[1] * vid.width) / vid.pixelwidth;
-					if (mn_entry->InputEvent(ev))
-					{
-						mx = 0;
-						my = 0;
-					}
-				}
-#endif
-#ifdef MENU_DAT
-				if (MP_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+				if ((promptmenu && promptmenu->mousemove && promptmenu->mousemove(topmenu, true, mouse->qdeviceid, mouse->oldpos[0], mouse->oldpos[1])) ||
+					(topmenu && topmenu->mousemove && topmenu->mousemove(topmenu, true, mouse->qdeviceid, mouse->oldpos[0], mouse->oldpos[1])))
 				{
 					mx = 0;
 					my = 0;
 				}
-#endif
 #ifdef CSQC_DAT
 				if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
 				{
@@ -778,30 +748,13 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	}
 	else
 	{
-#ifdef MENU_NATIVECODE
-		if (mn_entry && Key_Dest_Has(kdm_nmenu) && (mx || my))
-		{
-			struct menu_inputevent_args_s ev = {MIE_MOUSEABS, mouse->qdeviceid};
-			ev.mouse.delta[0] = mx;
-			ev.mouse.delta[1] = my;
-			ev.mouse.screen[0] = (mouse->oldpos[0] * vid.width) / vid.pixelwidth;
-			ev.mouse.screen[1] = (mouse->oldpos[1] * vid.height) / vid.pixelheight;
-			if (mn_entry->InputEvent(ev))
-			{
-				mx = 0;
-				my = 0;
-			}
-		}
-#endif
-#ifdef MENU_DAT
-		if (Key_Dest_Has(kdm_gmenu))
+		if (Key_Dest_Has(kdm_menu))
 		if (mx || my)
-		if (!runningindepphys && MP_MouseMove(mx, my, mouse->qdeviceid))
+		if (!runningindepphys && topmenu && topmenu->mousemove && topmenu->mousemove(topmenu, false, mouse->qdeviceid, mx, my))
 		{
 			mx = 0;
 			my = 0;
 		}
-#endif
 
 #ifdef CSQC_DAT
 		if (mx || my)

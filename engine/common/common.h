@@ -576,6 +576,7 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_BINARYPATH,	//for dlls and stuff
+	FS_LIBRARYPATH,	//for system dlls and stuff
 	FS_ROOT,		//./ (effective -homedir if enabled, otherwise effective -basedir arg)
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
 

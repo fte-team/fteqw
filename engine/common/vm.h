@@ -31,33 +31,6 @@ void *VM_MemoryBase(vm_t *vm);
 quintptr_t VM_MemoryMask(vm_t *vm);
 
 
-
-//plugin functions
-#ifdef PLUGINS
-qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
-qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
-void		Plug_Command_f(void);
-int			Plug_ConnectionlessClientPacket(char *buffer, int size);
-qboolean	Plug_ConsoleLink(char *text, char *info, const char *consolename);
-qboolean	Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info);
-void		Plug_DrawReloadImages(void);
-void		Plug_Initialise(qboolean fromgamedir);
-void		Plug_Shutdown(qboolean preliminary);
-qboolean	Plug_Menu_Event(int eventtype, int param);
-void		Plug_ResChanged(void);
-void		Plug_SBar(playerview_t *pv);
-qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
-void		Plug_Tick(void);
-qboolean	Plugin_ExecuteString(void);
-
-#ifdef ANDROID
-#define PLUGINPREFIX "libplug_" //android is kinda annoying and only extracts specific files.
-#else
-#define PLUGINPREFIX "fteplug_" //this string defines what consitutes a plugin, as opposed to some other dll
-#endif
-#endif
-
-
 #define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
 #define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
 char *VMQ3_StringFromHandle(int handle);
@@ -72,16 +45,8 @@ void UI_Start (void);
 void UI_Stop (void);
 qboolean UI_OpenMenu(void);
 void UI_Restart_f(void);
-qboolean UI_Q2LayoutChanged(void);
-void UI_StringChanged(int num);
-qboolean UI_MousePosition(float xpos, float ypos);
-int UI_MenuState(void);
-qboolean UI_KeyPress(int key, int unicode, qboolean down);
+int UI_IsFullscreen(void);
 void UI_Reset(void);
-void UI_DrawMenu(void);
-qboolean UI_DrawStatusBar(int scores);
-qboolean UI_DrawIntermission(void);
-int UI_MenuState(void);
 
 //sans botlib
 struct pc_token_s;

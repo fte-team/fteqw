@@ -5536,7 +5536,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			M_Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel");
 			return;
 		}
 		if (f->flags & HRF_OPENED)
@@ -5636,7 +5636,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			M_Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
 			return;
 		}
 	}
@@ -5645,7 +5645,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			M_Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
 			return;
 		}
 	}
@@ -5878,20 +5878,12 @@ double Host_Frame (double time)
 	if (startuppending)
 		CL_StartCinematicOrMenu();
 
-#ifdef PLUGINS
-	Plug_Tick();
-#endif
-	NET_Tick();
-
 	if (cl.paused)
 		cl.gametimemark += time;
 
 	//if we're at a menu/console/thing
-	idle = Key_Dest_Has_Higher(kdm_gmenu);
-#ifdef VM_UI
-	idle |= UI_MenuState() != 0;
-#endif
-	idle = ((cls.state == ca_disconnected) || cl.paused) && !idle;	//idle if we're disconnected/paused and not at a menu
+	idle = !Key_Dest_Has_Higher(kdm_menu);
+	idle = ((cls.state == ca_disconnected) || cl.paused) && idle;	//idle if we're disconnected/paused and not at a menu
 	idle |= !vid.activeapp; //always idle when tabbed out
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
@@ -5923,6 +5915,11 @@ double Host_Frame (double time)
 			return idlesec - (realtime - oldrealtime);
 		}
 	}
+
+#ifdef PLUGINS
+	Plug_Tick();
+#endif
+	NET_Tick();
 
 /*
 	if (cl_maxfps.value)
@@ -6285,7 +6282,7 @@ void CL_StartCinematicOrMenu(void)
 #endif
 	}
 
-	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
 		TP_ExecTrigger("f_startup", true);
 		Cbuf_Execute ();
@@ -6293,7 +6290,7 @@ void CL_StartCinematicOrMenu(void)
 
 	//and any startup cinematics
 #ifdef HAVE_MEDIA_DECODER
-	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
 		int ol_depth;
 		int idcin_depth;
@@ -6324,20 +6321,20 @@ void CL_StartCinematicOrMenu(void)
 	}
 #endif
 
-	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername && !Media_PlayingFullScreen())
+	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
-		if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_emenu))
+		if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_menu))
 		{
 #ifndef NOBUILTINMENUS
-			if (!cls.state && !Key_Dest_Has(kdm_emenu) && !*FS_GetGamedir(false))
+			if (!cls.state && !Key_Dest_Has(kdm_menu) && !*FS_GetGamedir(false))
 				M_Menu_Mods_f();
 #endif
-			if (!cls.state && !Key_Dest_Has(kdm_emenu) && cl_demoreel.ival)
+			if (!cls.state && !Key_Dest_Has(kdm_menu) && cl_demoreel.ival)
 			{
 				cls.demonum = 0;
 				CL_NextDemo();
 			}
-			if (!cls.state && !Key_Dest_Has(kdm_emenu))
+			if (!cls.state && !Key_Dest_Has(kdm_menu))
 				//if we're (now) meant to be using csqc for menus, make sure that its running.
 				if (!CSQC_UnconnectedInit())
 					M_ToggleMenu_f();

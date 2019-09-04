@@ -65,8 +65,6 @@ cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specu
 cvar_t r_shadow_playershadows				= CVARD ("r_shadow_playershadows", "1", "Controls the presence of shadows on the local player.");
 cvar_t r_shadow_shadowmapping				= CVARFD ("r_shadow_shadowmapping", "1", CVAR_ARCHIVE, "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
-extern cvar_t r_shadow_shadowmapping_nearclip;
-extern cvar_t r_shadow_shadowmapping_bias;
 cvar_t r_sun_dir							= CVARD ("r_sun_dir", "0.2 0.5 0.8", "Specifies the direction that crepusular rays appear along");
 cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Specifies the colour of sunlight that appears in the form of crepuscular rays.");
 

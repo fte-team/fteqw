@@ -128,7 +128,6 @@ cvar_t media_hijackwinamp = CVAR("media_hijackwinamp", "0");
 #endif
 
 int selectedoption=-1;
-static int mouseselectedoption=-1;
 int numtracks;
 int nexttrack=-1;
 mediatrack_t *tracks;
@@ -136,6 +135,7 @@ mediatrack_t *tracks;
 char media_iofilename[MAX_OSPATH]="";
 
 #if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
+static int mouseselectedoption=-1;
 void Media_LoadTrackNames (char *listname);
 void Media_SaveTrackNames (char *listname);
 int loadedtracknames;
@@ -920,6 +920,8 @@ void Media_RemoveTrack(const char *fname)
 		}
 	}
 }
+
+#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
 void M_Media_Add_f (void)
 {
 	char *fname = Cmd_Argv(1);
@@ -947,8 +949,6 @@ void M_Media_Remove_f (void)
 }
 
 
-#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
-
 void Media_LoadTrackNames (char *listname);
 
 #define MEDIA_MIN	-7
@@ -960,7 +960,7 @@ void Media_LoadTrackNames (char *listname);
 #define MEDIA_SHUFFLE -2
 #define MEDIA_REPEAT -1
 
-void M_Media_Draw (menu_t *menu)
+void M_Media_Draw (emenu_t *menu)
 {
 	mediatrack_t *track;
 	int y;
@@ -1145,7 +1145,7 @@ void Com_CompleateOSFileName(char *name)
 		strcpy(name, compleatenamename);
 }
 
-qboolean M_Media_Key (int key, menu_t *menu)
+qboolean M_Media_Key (int key, emenu_t *menu)
 {
 	int dir;
 	if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
@@ -1347,11 +1347,10 @@ qboolean M_Media_Key (int key, menu_t *menu)
 
 void M_Menu_Media_f (void)
 {
-	menu_t *menu;
+	emenu_t *menu;
 	if (!loadedtracknames)
 		Media_LoadTrackNames("sound/media.m3u");
 
-	Key_Dest_Add(kdm_emenu);
 	menu = M_CreateMenu(0);
 
 //	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
@@ -1668,7 +1667,8 @@ struct cin_s
 	qbyte *framedata;	//Z_Malloced buffer
 };
 
-shader_t *videoshader;
+static menu_t videomenu;	//to capture keys+draws+etc. a singleton - multiple videos will be queued instead of simultaneous.
+static shader_t *videoshader;
 
 //////////////////////////////////////////////////////////////////////////////////
 //AVI Support (windows)
@@ -2412,11 +2412,6 @@ static cin_t *Media_Cin_TryLoad(char *name)
 //Quake2 CIN Support
 //////////////////////////////////////////////////////////////////////////////////
 
-qboolean Media_PlayingFullScreen(void)
-{
-	return videoshader!=NULL;
-}
-
 void Media_ShutdownCin(cin_t *cin)
 {
 	if (!cin)
@@ -2473,12 +2468,75 @@ cin_t *Media_StartCin(char *name)
 	return cin;
 }
 
-struct pendingfilms_s
+static struct pendingfilms_s
 {
 	struct pendingfilms_s *next;
 	char name[1];
 } *pendingfilms;
-qboolean Media_BeginNextFilm(void)
+
+static void MediaView_DrawFilm(menu_t *m)
+{
+	if (videoshader)
+	{
+		cin_t *cin = R_ShaderGetCinematic(videoshader);
+		if (cin && cin->playstate == CINSTATE_INVALID)
+			Media_SetState(cin, CINSTATE_PLAY);	//err... wot? must have vid_reloaded or something
+		if (cin && cin->playstate == CINSTATE_ENDED)
+			Media_StopFilm(false);
+		else if (cin)
+		{
+			int cw, ch;
+			float aspect;
+			if (cin->cursormove)
+				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
+			if (cin->setsize)
+				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
+
+			//FIXME: should have a proper aspect ratio setting. RoQ files are always power of two, which makes things ugly.
+			if (cin->getsize)
+				cin->getsize(cin, &cw, &ch, &aspect);
+			else
+			{
+				cw = 4;
+				ch = 3;
+			}
+
+			R2D_Letterbox(0, 0, vid.fbvwidth, vid.fbvheight, videoshader, cw, ch);
+
+			SCR_SetUpToDrawConsole();
+			if  (scr_con_current)
+				SCR_DrawConsole (false);
+		}
+	}
+	else if (!videoshader)
+		Menu_Unlink(m);
+}
+static qboolean MediaView_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int key, int unicode)
+{
+	if (isdown && key == K_ESCAPE)
+	{
+		Media_StopFilm(false);	//skip to the next.
+		return true;
+	}
+	Media_Send_KeyEvent(NULL, key, unicode, !isdown);
+	return true;
+}
+static qboolean MediaView_MouseMove(menu_t *m, qboolean isabs, unsigned int devid, float x, float y)
+{
+	cin_t *cin;
+	cin = R_ShaderGetCinematic(videoshader);
+	if (!cin || !cin->cursormove)
+		return false;
+	if (isabs)
+		cin->cursormove(cin, x, y);
+	return true;
+}
+static void MediaView_StopFilm(menu_t *m)
+{	//display is going away for some reason. might as well kill them all
+	Media_StopFilm(true);
+}
+
+static qboolean Media_BeginNextFilm(void)
 {
 	cin_t *cin;
 	char sname[MAX_QPATH];
@@ -2513,6 +2571,19 @@ qboolean Media_BeginNextFilm(void)
 		videoshader = NULL;
 	}
 	Z_Free(p);
+
+	if (videoshader)
+	{
+		videomenu.cursor = NULL;
+		videomenu.release = MediaView_StopFilm;
+		videomenu.drawmenu = MediaView_DrawFilm;
+		videomenu.mousemove = MediaView_MouseMove;
+		videomenu.keyevent = MediaView_KeyEvent;
+		videomenu.isopaque = true;
+		Menu_Push(&videomenu, false);
+	}
+	else
+		Menu_Unlink(&videomenu);
 	return !!videoshader;
 }
 qboolean Media_StopFilm(qboolean all)
@@ -2580,57 +2651,12 @@ qboolean Media_PlayFilm(char *name, qboolean enqueue)
 #endif
 		SCR_EndLoadingPlaque();
 
-		if (Key_Dest_Has(kdm_emenu))
-			Key_Dest_Remove(kdm_emenu);
-#ifdef MENU_DAT
-		if (Key_Dest_Has(kdm_gmenu))
-			MP_Toggle(0);
-#endif
 		if (!Key_Dest_Has(kdm_console))
 			scr_con_current=0;
 		return true;
 	}
 	else
 		return false;
-}
-qboolean Media_ShowFilm(void)
-{
-	if (videoshader)
-	{
-		cin_t *cin = R_ShaderGetCinematic(videoshader);
-		if (cin && cin->playstate == CINSTATE_INVALID)
-			Media_SetState(cin, CINSTATE_PLAY);	//err... wot? must have vid_reloaded or something
-		if (cin && cin->playstate == CINSTATE_ENDED)
-		{
-			Media_StopFilm(false);
-		}
-		else if (cin)
-		{
-			int cw, ch;
-			float aspect;
-			if (cin->cursormove)
-				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
-			if (cin->setsize)
-				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
-
-			//FIXME: should have a proper aspect ratio setting. RoQ files are always power of two, which makes things ugly.
-			if (cin->getsize)
-				cin->getsize(cin, &cw, &ch, &aspect);
-			else
-			{
-				cw = 4;
-				ch = 3;
-			}
-
-			R2D_Letterbox(0, 0, vid.fbvwidth, vid.fbvheight, videoshader, cw, ch);
-
-			SCR_SetUpToDrawConsole();
-			if  (scr_con_current)
-				SCR_DrawConsole (false);
-			return true;
-		}
-	}
-	return false;
 }
 
 #ifndef SERVERONLY
@@ -2852,8 +2878,6 @@ void Media_PlayVideoWindowed_f (void)
 
 	Con_SetActive(con);
 }
-#else
-qboolean Media_ShowFilm(void){return false;}
 #endif	//HAVE_MEDIA_DECODER
 
 
@@ -4116,12 +4140,9 @@ void Media_RecordDemo_f(void)
 	//FIXME: make sure it loaded okay
 	Media_RecordFilm(videoname, true);
 	scr_con_current=0;
-	Key_Dest_Remove(kdm_console|kdm_emenu);
 
-#ifdef MENU_DAT
-	if (Key_Dest_Has(kdm_gmenu))
-		MP_Toggle(0);
-#endif
+	Menu_PopAll();
+	Key_Dest_Remove(kdm_console);
 
 	if (!currentcapture_funcs)
 		CL_Stopdemo_f();	//capturing failed for some reason
@@ -5123,9 +5144,9 @@ void Media_Init(void)
 	#endif
 	Cvar_Register(&media_shuffle,	"Media player things");
 	Cvar_Register(&media_repeat,	"Media player things");
-	Cmd_AddCommand ("media_add", M_Media_Add_f);
-	Cmd_AddCommand ("media_remove", M_Media_Remove_f);
 	#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
+		Cmd_AddCommand ("media_add", M_Media_Add_f);
+		Cmd_AddCommand ("media_remove", M_Media_Remove_f);
 		Cmd_AddCommand ("menu_media", M_Menu_Media_f);
 	#endif
 #endif

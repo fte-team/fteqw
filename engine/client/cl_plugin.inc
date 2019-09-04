@@ -1,66 +1,111 @@
 //included directly from plugin.c
 //this is the client-only things.
 
-
-
-
-
-
-plugin_t *menuplug;	//plugin that has the current menu
 static plugin_t *protocolclientplugin;
 
 
-
-static qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void PlugMenu_Close(menu_t *m)
 {
-	if (qrenderer == QR_NONE)
-		return 0;
+	Z_Free(m);
+}
+static qboolean PlugMenu_Event(menu_t *m, int eventtype, int keyparam, int unicodeparam)	//eventtype = draw/keydown/keyup, param = time/key
+{
+	plugin_t *oc=currentplug;
+	qboolean ret;
 
-	switch(VM_LONG(arg[0]))
+	currentplug = m->ctx;
+	ret = currentplug->menufunction(eventtype, keyparam, unicodeparam, mousecursor_x, mousecursor_y, vid.width, vid.height);
+	currentplug=oc;
+	return ret;
+}
+static qboolean PlugMenu_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int key, int unicode)
+{
+	return PlugMenu_Event(m, isdown?1:2, key, unicode);
+}
+static void PlugMenu_Draw(menu_t *m)
+{
+	PlugMenu_Event (m, 0, (realtime*1000), 0);
+}
+static qboolean QDECL Plug_SetMenuFocus (qboolean wantkeyfocus, const char *cursorname, float hot_x, float hot_y, float scale) //null cursorname=relmouse, set/empty cursorname=absmouse
+{
+	menu_t *m;
+	if (qrenderer == QR_NONE)
+		return false;
+
+	m = Menu_FindContext(currentplug);
+
+	if (wantkeyfocus)
 	{
-	case 0:	//take away all menus
-	case 1:
-		if (menuplug)
+		if (!m)
 		{
-			plugin_t *oldplug = currentplug;
-			currentplug = menuplug;
-			Plug_Menu_Event(3, 0);
-			menuplug = NULL;
-			currentplug = oldplug;
+			m = Z_Malloc(sizeof(*m));
+			m->ctx = currentplug;
+			m->cursor = &key_customcursor[kc_plugin];
+			m->release = PlugMenu_Close;
+			m->keyevent = PlugMenu_KeyEvent;
+			m->drawmenu = PlugMenu_Draw;
+			Menu_Push(m, false);
 		}
-		if (VM_LONG(arg[0]) != 1)
-			return 1;
-		//give us menu control
-		menuplug = currentplug;
-		Key_Dest_Add(kdm_emenu);
-		return 1;
-	case 2: //weather it's us or not.
-		return currentplug == menuplug && Key_Dest_Has(kdm_emenu);
-	case 3:	//weather a menu is active
-		return !!Key_Dest_Has(kdm_emenu|kdm_gmenu);
-	default:
-		return 0;
 	}
-}
+	else if (m)
+		Menu_Unlink(m);
 
-static qintptr_t VARGS Plug_Key_GetKeyCode(void *offset, quintptr_t mask, const qintptr_t *arg)
+	if (wantkeyfocus)
+	{
+		struct key_cursor_s *mc = &key_customcursor[kc_plugin];
+
+		if (cursorname)
+		{
+			if (scale <= 0)
+				scale = 1;
+			if (strcmp(cursorname, mc->name) || mc->hotspot[0] != hot_x || mc->hotspot[1] != hot_y || mc->scale != scale)
+			{
+				Q_strncpyz(mc->name, cursorname, sizeof(mc->name));
+				mc->hotspot[0] = hot_x;
+				mc->hotspot[1] = hot_y;
+				mc->scale = scale;
+				mc->dirty = true;
+			}
+		}
+	}
+	return true;
+}
+static qboolean QDECL Plug_HasMenuFocus(void)
 {
-	int modifier;
-	return Key_StringToKeynum(VM_POINTER(arg[0]), &modifier);
+	return topmenu&&topmenu->ctx==currentplug && Key_Dest_Has(kdm_menu);
 }
 
-
-
-
-static qintptr_t VARGS Plug_SCR_CenterPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
+static int QDECL Plug_Key_GetKeyCode(const char *keyname, int *modifier)
 {
-	if (qrenderer == QR_NONE)
-		return 0;
-
-	SCR_CenterPrint(0, VM_POINTER(arg[0]), true);
-	return 0;
+	int modifier_;
+	if (!modifier)
+		modifier = &modifier_;
+	return Key_StringToKeynum(keyname, modifier);
+}
+static const char *QDECL Plug_Key_GetKeyName(int keycode, int modifier)
+{
+	return Key_KeynumToString(keycode, modifier);
 }
 
+const char *QDECL Plug_Key_GetKeyBind(int bindmap, int keynum, int modifier)
+{
+	return Key_GetBinding(keynum, bindmap, modifier);
+}
+void QDECL Plug_Key_SetKeyBind(int bindmap, int keycode, int modifier, const char *newbinding)
+{
+	if (bindmap && !modifier)
+		modifier = (bindmap-1) | KEY_MODIFIER_ALTBINDMAP;
+	Key_SetBinding (keycode, modifier, newbinding, RESTRICT_LOCAL);
+}
+
+/*
+
+static void QDECL Plug_SCR_CenterPrint(int seat, const char *text)
+{
+	if (qrenderer != QR_NONE)
+		SCR_CenterPrint(seat, text, true);
+}
+*/
 
 
 
@@ -68,16 +113,46 @@ typedef struct {
 	//Make SURE that the engine has resolved all cvar pointers into globals before this happens.
 	plugin_t *plugin;
 	char name[64];
-	int type;
+	int type;	//cache, wad, shader, raw
 	char *script;
 	mpic_t *pic;
 } pluginimagearray_t;
-int pluginimagearraylen;
+size_t pluginimagearraylen;
 pluginimagearray_t *pluginimagearray;
 
 #include "shader.h"
 
-static qintptr_t VARGS Plug_Draw_LoadImage(char *name, int type, char *script)
+static void Plug_Draw_UnloadImage(qhandle_t image)
+{
+	size_t i = image-1;
+	if (i < 0 || i >= pluginimagearraylen)
+		return;
+	if (pluginimagearray[i].plugin == currentplug)
+	{
+		pluginimagearray[i].plugin = 0;
+		if (pluginimagearray[i].pic)
+			R_UnloadShader(pluginimagearray[i].pic);
+		pluginimagearray[i].pic = NULL;
+		pluginimagearray[i].name[0] = '\0';
+	}
+}
+static void Plug_FreePlugImages(plugin_t *plug)
+{
+	size_t i;
+	for (i = 0; i < pluginimagearraylen; i++)
+	{
+		if (pluginimagearray[i].plugin == plug)
+		{
+			pluginimagearray[i].plugin = 0;
+			if (pluginimagearray[i].pic)
+				R_UnloadShader(pluginimagearray[i].pic);
+			pluginimagearray[i].pic = NULL;
+			pluginimagearray[i].name[0] = '\0';
+		}
+	}
+}
+
+static qhandle_t Plug_Draw_LoadImage(const char *name, int type, const char *script)
 {
 	int i;
 
@@ -128,20 +203,13 @@ static qintptr_t VARGS Plug_Draw_LoadImage(char *name, int type, char *script)
 	return i + 1;
 }
 
-static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qhandle_t QDECL Plug_Draw_LoadImageData(const char *name, const char *mimetype, void *codeddata, size_t datalength)
 {
-	qintptr_t ret = 0;
-	char *name = VM_POINTER(arg[0]);
-//	char *mimetype = VM_POINTER(arg[1]);
-	void *codeddata = VM_POINTER(arg[2]);
-	unsigned int datalength = VM_LONG(arg[3]);
+	qhandle_t ret = 0;
 	image_t *t;
 	qbyte *rgbdata;
 	unsigned int width, height;
 	uploadfmt_t format;
-
-	if (VM_OOB(arg[2], arg[3]))
-		return 0;
 		
 	if ((rgbdata = ReadRawImageFile(codeddata, datalength, &width, &height, &format, false, name)))
 	{
@@ -160,16 +228,12 @@ static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, co
 	}
 	return ret;
 }
-static qintptr_t VARGS Plug_Draw_LoadImageShader(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qhandle_t QDECL Plug_Draw_LoadImageShader(const char *name, const char *script)
 {
-	char *name = VM_POINTER(arg[0]);
-	char *script = VM_POINTER(arg[1]);
 	return Plug_Draw_LoadImage(name, 2, script);
 }
-static qintptr_t VARGS Plug_Draw_LoadImagePic(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qhandle_t QDECL Plug_Draw_LoadImagePic(const char *name, qboolean type)
 {
-	char *name = VM_POINTER(arg[0]);
-	int type = arg[1];
 	if (type != 0 && type != 1)
 		return 0;
 	return Plug_Draw_LoadImage(name, type, NULL);
@@ -192,36 +256,19 @@ void Plug_DrawReloadImages(void)
 	}
 }
 
-static void Plug_FreePlugImages(plugin_t *plug)
-{
-	int i;
-	for (i = 0; i < pluginimagearraylen; i++)
-	{
-		if (pluginimagearray[i].plugin == plug)
-		{
-			pluginimagearray[i].plugin = 0;
-			pluginimagearray[i].pic = NULL;
-			pluginimagearray[i].name[0] = '\0';
-		}
-	}
-}
-
 //int R2D_ImageSize (qhandle_t image, float *w, float *h)
-static qintptr_t VARGS Plug_Draw_ImageSize(void *offset, quintptr_t mask, const qintptr_t *arg)
+static int QDECL Plug_Draw_ImageSize(qhandle_t image, float *w, float *h)
 {
-	float *w = VM_POINTER(arg[1]), *h = VM_POINTER(arg[2]);
 	int iw, ih, ret;
 	mpic_t *pic;
 	int i;
 	
-	if (VM_OOB(arg[1], sizeof(*w)) || VM_OOB(arg[2], sizeof(*w)))
-		return -1;
 	*w = 0;
 	*h = 0;
 	if (qrenderer == QR_NONE)
 		return 0;
 
-	i = VM_LONG(arg[0]);
+	i = image;
 	if (i <= 0 || i > pluginimagearraylen)
 		return -1;	// you fool
 	i = i - 1;
@@ -245,15 +292,14 @@ static qintptr_t VARGS Plug_Draw_ImageSize(void *offset, quintptr_t mask, const 
 	return ret;
 }
 
-//int R2D_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
-static qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *arg)
+static int QDECL Plug_Draw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
 {
 	mpic_t *pic;
 	int i;
 	if (qrenderer == QR_NONE)
 		return 0;
 
-	i = VM_LONG(arg[8]);
+	i = image;
 	if (i <= 0 || i > pluginimagearraylen)
 		return -1;	// you fool
 	i = i - 1;
@@ -271,35 +317,28 @@ static qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qint
 			return -1;
 	}
 
-	R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
+	R2D_Image(x, y, w, h, s1, t1, s2, t2, pic);
 	return 1;
 }
 //x1,y1,x2,y2
-static qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_Line(float x1, float y1, float x2, float y2)
 {
-	R2D_Line(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), NULL);
-	return 1;
+	R2D_Line(x1,y1, x2,y2, NULL);
 }
-static qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_Character(float x, float y, unsigned int character)
 {
-	int x, y;
+	int px, py;
 	if (qrenderer == QR_NONE)
-		return 0;
-	Font_BeginString(font_default, arg[0], arg[1], &x, &y);
-	Font_DrawChar(x, y, CON_WHITEMASK, 0xe000 | (unsigned int)arg[2]);
+		return;
+	Font_BeginString(font_default, x, y, &px, &py);
+	Font_DrawChar(x, y, CON_WHITEMASK, character);
 	Font_EndString(font_default);
-	return 0;
 }
-static qintptr_t VARGS Plug_Draw_CharacterH(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_CharacterH(float x, float y, float h, unsigned int flags, unsigned int charc)
 {
-	float x = VM_FLOAT(arg[0]);
-	float y = VM_FLOAT(arg[1]);
-	float h = VM_FLOAT(arg[2]);
-	unsigned int flags = VM_LONG(arg[3]);
-	unsigned int charc = VM_LONG(arg[4]);
 	conchar_t cmask = CON_WHITEMASK;
 	if (qrenderer == QR_NONE)
-		return 0;
+		return;
 	if (flags & 1)
 		cmask |= CON_2NDCHARSETTEXT;
 	if (!(flags & 2))
@@ -307,18 +346,17 @@ static qintptr_t VARGS Plug_Draw_CharacterH(void *offset, quintptr_t mask, const
 	Font_BeginScaledString(font_default, x, y, h, h, &x, &y);
 	Font_DrawScaleChar(x, y, cmask, charc);
 	Font_EndString(font_default);
-	return 0;
 }
-static qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_String(float x, float y, const char *string)
 {
 	int ipx, px, py;
 	conchar_t buffer[2048], *str;
 	unsigned int codeflags, codepoint;
 	if (qrenderer == QR_NONE)
-		return 0;
-	COM_ParseFunString(CON_WHITEMASK, VM_POINTER(arg[2]), buffer, sizeof(buffer), false);
+		return;
+	COM_ParseFunString(CON_WHITEMASK, string, buffer, sizeof(buffer), false);
 	str = buffer;
-	Font_BeginString(font_default, VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), &px, &py);
+	Font_BeginString(font_default, x, y, &px, &py);
 	ipx = px;
 	while(*str)
 	{
@@ -331,21 +369,15 @@ static qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qin
 			px = Font_DrawChar(px, py, codeflags, codepoint);
 	}
 	Font_EndString(font_default);
-	return 0;
 }
-static qintptr_t VARGS Plug_Draw_StringH(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_StringH(float x, float y, float h, unsigned int flags, const char *instr)
 {
-	float x = VM_FLOAT(arg[0]);
-	float y = VM_FLOAT(arg[1]);
-	float h = VM_FLOAT(arg[2]);
-	unsigned int flags = VM_LONG(arg[3]);
-	char *instr = VM_POINTER(arg[4]);
 	float ipx;
 	conchar_t buffer[2048], *str, cmask = CON_WHITEMASK;
 	unsigned int codeflags, codepoint;
 	unsigned int parseflags = 0;
 	if (qrenderer == QR_NONE)
-		return 0;
+		return;
 	if (flags & 1)
 		cmask |= CON_2NDCHARSETTEXT;
 	if (flags & 2)
@@ -365,15 +397,10 @@ static qintptr_t VARGS Plug_Draw_StringH(void *offset, quintptr_t mask, const qi
 			x = Font_DrawScaleChar(x, y, codeflags, codepoint);
 	}
 	Font_EndString(font_default);
-	return 0;
 }
 
-static qintptr_t VARGS Plug_Draw_StringWidth(void *offset, quintptr_t mask, const qintptr_t *arg)
+static float QDECL Plug_Draw_StringWidth(float h, unsigned int flags, const char *instr)
 {
-	qintptr_t ret;
-	float h = VM_FLOAT(arg[0]);
-	unsigned int flags = VM_LONG(arg[1]);
-	char *instr = VM_POINTER(arg[2]);
 	conchar_t buffer[2048], *str, cmask = CON_WHITEMASK;
 	unsigned int parseflags = 0;
 	float px,py;
@@ -390,87 +417,49 @@ static qintptr_t VARGS Plug_Draw_StringWidth(void *offset, quintptr_t mask, cons
 	Font_EndString(NULL);
 	
 	//put it back in virtual space
-	VM_FLOAT(ret) = (px*(float)vid.width) / (float)vid.rotpixelwidth;
-	return ret;
+	return (px*(float)vid.width) / (float)vid.rotpixelwidth;
 }
 
-static qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_Fill(float x, float y, float width, float height)
 {
-	float x, y, width, height;
-	if (qrenderer == QR_NONE)
-		return 0;
-	x = VM_FLOAT(arg[0]);
-	y = VM_FLOAT(arg[1]);
-	width = VM_FLOAT(arg[2]);
-	height = VM_FLOAT(arg[3]);
-
-	R2D_FillBlock(x, y, width, height);
-	return 0;
+	if (qrenderer != QR_NONE)
+		R2D_FillBlock(x, y, width, height);
 }
-static qintptr_t VARGS Plug_Draw_ColourP(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_ColourP(int palcol, float a)
 {
-	int p = VM_LONG(arg[0]);
-	if (p<0 || p>255)
-		return false;
-
-	R2D_ImagePaletteColour(p, 1);
-	return 1;
+	if (palcol>=0 && palcol<=255)
+		R2D_ImagePaletteColour(palcol, a);
 }
-static qintptr_t VARGS Plug_Draw_ColourPA(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_Draw_Colour4f(float r, float g, float b, float a)
 {
-	int p = VM_LONG(arg[0]);
-	float a = VM_FLOAT(arg[1]);
-	if (p<0 || p>255)
-		return false;
-
-	R2D_ImagePaletteColour(p, a);
-	return 1;
+	R2D_ImageColours(r,g,b,a);
 }
-static qintptr_t VARGS Plug_Draw_Colour3f(void *offset, quintptr_t mask, const qintptr_t *arg)
+
+
+
+
+
+
+
+
+
+static void QDECL Plug_LocalSound(const char *soundname, int channel, float volume)
 {
-	R2D_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
-	return 1;
-}
-static qintptr_t VARGS Plug_Draw_Colour4f(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	R2D_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-	return 1;
+	if (qrenderer != QR_NONE)
+		S_LocalSound(soundname);
 }
 
 
 
-
-
-
-
-
-
-static qintptr_t VARGS Plug_LocalSound(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	if (qrenderer == QR_NONE)
-		return false;
-
-	S_LocalSound(VM_POINTER(arg[0]));
-	return 0;
-}
-
-
-
-static qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t *arg)
+static int QDECL Plug_CL_GetStats(int pnum, unsigned int *stats, int maxstats)
 {
 	int i = 0;
-	int pnum = VM_LONG(arg[0]);
-	unsigned int *stats = VM_POINTER(arg[1]);
-	int pluginstats = VM_LONG(arg[2]);
 	int max;
-
-	if (VM_OOB(arg[1], arg[2]*4))
-		return 0;
 
 	if (qrenderer == QR_NONE || !cls.state)
 		return 0;
 
-	max = pluginstats;
+	max = maxstats;
 	if (max > MAX_CL_STATS)
 		max = MAX_CL_STATS;
 	if (pnum < 0)
@@ -491,48 +480,28 @@ static qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qin
 	}
 
 	max = i;
-	for (; i < pluginstats; i++)	//plugin has too many stats (wow)
+	for (; i < maxstats; i++)	//plugin has too many stats (wow)
 		stats[i] = 0;					//fill the rest.
 	return max;
 }
 
-#define PLUGMAX_SCOREBOARDNAME 64
-typedef struct {
-	int topcolour;
-	int bottomcolour;
-	int frags;
-	char name[PLUGMAX_SCOREBOARDNAME];
-	int ping;
-	int pl;
-	float activetime;
-	int userid;
-	int spectator;
-	char userinfo[1024];
-	char team[8];
-} vmplugclientinfo_t;
-
-static qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_GetPlayerInfo(int playernum, plugclientinfo_t *out)
 {
-	int i, pt;
-	vmplugclientinfo_t *out;
+	int i;
 
-	if (VM_OOB(arg[1], sizeof(vmplugclientinfo_t)))
-		return -1;
-	if (VM_LONG(arg[0]) < -1 || VM_LONG(arg[0] ) >= MAX_CLIENTS)
-		return -2;
+	if (playernum < -cl.splitclients || playernum >= MAX_CLIENTS)
+		return;
 
-	i = VM_LONG(arg[0]);
-	out = VM_POINTER(arg[1]);
+	i = playernum;
 	if (out)
 	{
 		if (i < 0)
 		{
-			if (i >= -(int)MAX_SPLITS)
-				i = cl.playerview[-i-1].playernum;
+			i = cl.playerview[-i-1].playernum;
 			if (i < 0)
 			{
 				memset(out, 0, sizeof(*out));
-				return 0;
+				return;
 			}	
 		}
 		out->bottomcolour = cl.players[i].rbottomcolor;
@@ -547,47 +516,25 @@ static qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const q
 		InfoBuf_ToString(&cl.players[i].userinfo, out->userinfo, sizeof(out->userinfo), basicuserinfos, NULL, NULL, NULL, NULL);
 		Q_strncpyz(out->team, cl.players[i].team, sizeof(out->team));
 	}
-
-	pt = Cam_TrackNum(&cl.playerview[0]);
-	if (pt < 0)
-		return (cl.playerview[0].playernum == i);
-	else
-		return pt == i;
 }
 
-static qintptr_t VARGS Plug_LocalPlayerNumber(void *offset, quintptr_t mask, const qintptr_t *arg)
+static size_t QDECL Plug_GetLocalPlayerNumbers(size_t first, size_t count, int *playernums, int *spectracks)
 {
-	return cl.playerview[0].playernum;
-}
-static qintptr_t VARGS Plug_GetLocalPlayerNumbers(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	int i;
-	int	first = VM_LONG(arg[0]);
-	int	count = VM_LONG(arg[1]);
-	int *playernums = VM_POINTER(arg[2]);
-	int *spectracks = VM_POINTER(arg[3]);
+	size_t i;
 	if (count < 0 || count > 1000) count = 0;
-	if (VM_OOB(arg[2], sizeof(*playernums)*count) || VM_OOB(arg[3], sizeof(*playernums)*count))
-		return false;
-	if (first < 0) first = 0;
 	if (first > cl.splitclients) first = cl.splitclients;
 	if (first+count > cl.splitclients) count = cl.splitclients-first;
 	for (i = 0; i < count; i++)
 	{
-		playernums[i] = cl.playerview[i].playernum;
-		spectracks[i] = Cam_TrackNum(&cl.playerview[i]);
+		playernums[i] = cl.playerview[first+i].playernum;
+		spectracks[i] = Cam_TrackNum(&cl.playerview[first+i]);
 	}
 	return count;
 }
 
-static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_GetServerInfo(char *outptr, size_t outlen)
 {
-	char *outptr = VM_POINTER(arg[0]);
-	unsigned int outlen = VM_LONG(arg[1]);
 	extern float demtime;
-
-	if (VM_OOB(arg[0], outlen))
-		return false;
 
 	InfoBuf_ToString(&cl.serverinfo, outptr, outlen, NULL, NULL, NULL, NULL, NULL);
 	Q_strncatz(outptr, va("\\intermission\\%i", cl.intermissionmode), outlen);
@@ -621,69 +568,26 @@ static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const q
 	else
 #endif
 		Q_strncatz(outptr, va("\\matchstart\\%f", cl.matchgametimestart), outlen);
-
-	return true;
 }
 
-static qintptr_t VARGS Plug_SetUserInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_SetUserInfo(int seat, const char *key, const char *value)
 {
-	char *key = VM_POINTER(arg[0]);
-	char *value = VM_POINTER(arg[1]);
-
-	CL_SetInfo(0, key, value);
-
-	return true;
+	CL_SetInfo(seat, key, value);
 }
 
-typedef struct {
-	int seats;
-	struct
-	{
-		float s_avg;
-		float s_mn;
-		float s_mx;
-		float ms_stddev;
-		float fr_avg;
-		int fr_mn;
-		int fr_mx;
-	} ping;
-	struct
-	{	//decimals
-		float dropped;
-		float choked;
-		float invalid;
-	} loss;
-	float mlatency;
-	float mrate;
-	float vlatency;
-	float vrate;
-	vec3_t speed;	//player speed
-	
-	struct
-	{
-		float in_pps;
-		float in_bps;
-		float out_pps;
-		float out_bps;
-	} clrate;
-	struct
-	{
-		float in_pps;
-		float in_bps;
-		float out_pps;
-		float out_bps;
-	} svrate;
-	int capturing;
-} vmnetinfo_t;
-#define has(x) (((quintptr_t)&((vmnetinfo_t*)NULL)->x + sizeof(((vmnetinfo_t*)NULL)->x)) <= outlen)
-//aka: misc other hud timing crap
-static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_GetLastInputFrame(int seat, usercmd_t *outcmd)
 {
-	vmnetinfo_t *outptr = VM_POINTER(arg[0]);
-	unsigned int outlen = VM_LONG(arg[1]);
-	if (VM_OOB(arg[0], outlen))
+	unsigned int curframe = (cl.movesequence-1u) & UPDATE_MASK;
+	if (!cl.movesequence || seat < 0 || seat >= cl.splitclients)
 		return false;
+	*outcmd = cl.outframes[curframe].cmd[seat];
+	return true;
+}
 
+#define has(x) (((quintptr_t)&((plugnetinfo_t*)NULL)->x + sizeof(((plugnetinfo_t*)NULL)->x)) <= outlen)
+//aka: misc other hud timing crap
+static size_t QDECL Plug_GetNetworkInfo(plugnetinfo_t *outptr, size_t outlen)
+{
 	if (has(capturing))
 	{
 #ifdef HAVE_MEDIA_ENCODER
@@ -718,71 +622,47 @@ static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const 
 #endif
 	}
 	
-	return sizeof(vmnetinfo_t);
+	return min(outlen,sizeof(*outptr));
 }
 #undef has
 
 #ifdef QUAKEHUD
-static qintptr_t VARGS Plug_GetTrackerOwnFrags(void *offset, quintptr_t mask, const qintptr_t *arg)
+static float QDECL Plug_GetTrackerOwnFrags(int seat, char *outptr, size_t outlen)
 {
-	int ret;
-	int seat = VM_LONG(arg[0]);
-	char *outptr = VM_POINTER(arg[1]);
-	size_t outlen = VM_LONG(arg[2]);
-	if (VM_OOB(arg[1], outlen) || !outlen)
-		VM_FLOAT(ret) = 0;
+	if (!outlen)
+		return 0;
 	else
-		VM_FLOAT(ret) = Stats_GetLastOwnFrag(seat, outptr, outlen);
-	return ret;
+		return Stats_GetLastOwnFrag(seat, outptr, outlen);
 }
 #endif
 
-static qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const qintptr_t *arg)
+static void QDECL Plug_GetLocationName(const float *locpoint, char *outbuffer, size_t bufferlen)
 {
-	float *locpoint = VM_POINTER(arg[0]);
-	char *locname = VM_POINTER(arg[1]);
-	unsigned int locnamelen = VM_LONG(arg[2]);
-	char *result;
-
-	if (VM_OOB(arg[1], locnamelen))
-		return 0;
-
-	result = TP_LocationName(locpoint);
-	Q_strncpyz(locname, result, locnamelen);
-	return VM_LONG(arg[1]);
+	const char *result = TP_LocationName(locpoint);
+	Q_strncpyz(outbuffer, result, bufferlen);
 }
 
 #ifdef QUAKEHUD
-typedef struct
+static size_t QDECL Plug_GetTeamInfo(teamplayerinfo_t *players, size_t maxplayers, qboolean showenemies, int seat)
 {
-	unsigned int client;
-	unsigned int items;
-	float armor;
-	float health;
-	vec3_t org;
-	char nick[16];
-} teamplayerinfo_t;
-static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	teamplayerinfo_t *players = VM_POINTER(arg[0]);
-	size_t maxplayers = VM_LONG(arg[1]);
-	qboolean showenemies = VM_LONG(arg[2]);
-	qboolean showself = VM_LONG(arg[3]);
 	int count = 0;
 	int i;
 	int self;
 	lerpents_t		*le;
 	player_info_t	*pl;
 
-	if (VM_OOB(arg[0], maxplayers*sizeof(*players)))
-		return 0;
 	maxplayers = min(maxplayers, cl.allocated_client_slots);
 	
 	Cvar_Get("ti", "1", CVAR_USERINFO, "Hacks because ktx sucks. Must be 1 in order to receive team information in ktx.");
 	
-	self = cl.playerview[0].playernum;
-	if (cl.playerview[0].cam_state != CAM_FREECAM)
-		self = cl.playerview[0].cam_spec_track;
+	if (seat >= 0)
+	{
+		self = cl.playerview[seat].playernum;
+		if (cl.playerview[seat].cam_state != CAM_FREECAM)
+			self = cl.playerview[seat].cam_spec_track;
+	}
+	else
+		self = -1;
 	
 	for (i = 0; i < cl.allocated_client_slots && maxplayers > 0; i++)
 	{
@@ -790,7 +670,7 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 			continue;
 		if (cl.players[i].spectator)	//shoo!
 			continue;
-		if (i == self && !showself)
+		if (i == self)
 			continue;
 		if (!showenemies && strcmp(cl.players[i].team, cl.players[self].team))
 			continue;
@@ -807,9 +687,9 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 		}
 		else if (i == self)
 		{	//oh hey look, its me.
-			players->items = cl.playerview[0].stats[STAT_ITEMS];
-			players->armor = cl.playerview[0].statsf[STAT_ARMOR];
-			players->health = cl.playerview[0].statsf[STAT_HEALTH];
+			players->items = cl.playerview[seat].stats[STAT_ITEMS];
+			players->armor = cl.playerview[seat].statsf[STAT_ARMOR];
+			players->health = cl.playerview[seat].statsf[STAT_HEALTH];
 			Q_strncpyz(players->nick, "", sizeof(players->nick));
 		}
 		else if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -841,19 +721,12 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 		count++;
 	}
 	
-	return VM_LONG(count);
+	return count;
 }
 #endif
 #ifdef QUAKEHUD
-static qintptr_t VARGS Plug_GetWeaponStats(void *offset, quintptr_t mask, const qintptr_t *arg)
+static int QDECL Plug_GetWeaponStats(int self, struct wstats_s *result, size_t maxresults)
 {
-	int self = VM_LONG(arg[0]);
-	struct wstats_s *result = VM_POINTER(arg[1]);
-	size_t maxresults = VM_LONG(arg[2]);
-
-	if (VM_OOB(arg[0], maxresults*sizeof(*result)))
-		return 0;
-	
 	//FIXME: we should support some way to clear this to 0 again, other than nosave.
 	Cvar_Get("wpsx", "1", CVAR_USERINFO|CVAR_NOSAVE, "Hacks because ktx sucks. Must be 1 in order to receive weapon stats information in ktx.");
 
@@ -870,14 +743,12 @@ static qintptr_t VARGS Plug_GetWeaponStats(void *offset, quintptr_t mask, const 
 	if (maxresults > countof(cl.players[self].weaponstats))
 		maxresults = countof(cl.players[self].weaponstats);
 	memcpy(result, cl.players[self].weaponstats, sizeof(*result) * maxresults);
-	return VM_LONG(maxresults);
+	return maxresults;
 }
 #endif
 
-static qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_SubPrint(const char *name, const char *text)
 {
-	char *name = VM_POINTER(arg[0]);
-	char *text = VM_POINTER(arg[1]);
 	console_t *con;
 	if (!name)
 		name = "";
@@ -887,7 +758,7 @@ static qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qi
 		if (!*name)
 		{
 			Con_Printf("%s", text);
-			return 1;
+			return true;
 		}
 		return false;
 	}
@@ -913,78 +784,66 @@ static qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qi
 
 	Con_PrintCon(con, text, con->parseflags);
 
-	return 1;
+	return true;
 }
-static qintptr_t VARGS Plug_Con_RenameSub(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_RenameSub(const char *oldname, const char *newname)
 {
-	char *name = VM_POINTER(arg[0]);
 	console_t *con;
 	if (qrenderer == QR_NONE)
 		return false;
-	con = Con_FindConsole(name);
+	con = Con_FindConsole(oldname);
 	if (!con)
-		return 0;
+		return false;
 
-	Q_strncpyz(con->name, name, sizeof(con->name));
+	Q_strncpyz(con->name, newname, sizeof(con->name));
 
-	return 1;
+	return true;
 }
-static qintptr_t VARGS Plug_Con_IsActive(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_IsActive(const char *conname)
 {
-	char *name = VM_POINTER(arg[0]);
 	console_t *con;
 	if (qrenderer == QR_NONE)
 		return false;
-	con = Con_FindConsole(name);
+	con = Con_FindConsole(conname);
 	if (!con)
 		return false;
 
 	return Con_IsActive(con);
 }
-static qintptr_t VARGS Plug_Con_SetActive(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_SetActive(const char *conname)
 {
-	char *name = VM_POINTER(arg[0]);
 	console_t *con;
 	if (qrenderer == QR_NONE)
 		return false;
-	con = Con_FindConsole(name);
+	con = Con_FindConsole(conname);
 	if (!con)
-		con = Con_Create(name, 0);
+		con = Con_Create(conname, 0);
 
 	Con_SetActive(con);
 	return true;
 }
-static qintptr_t VARGS Plug_Con_Destroy(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_Destroy(const char *conname)
 {
-	char *name = VM_POINTER(arg[0]);
 	console_t *con;
 	if (qrenderer == QR_NONE)
 		return false;
-	con = Con_FindConsole(name);
+	con = Con_FindConsole(conname);
 	if (!con)
 		return false;
 
 	Con_Destroy(con);
 	return true;
 }
-static qintptr_t VARGS Plug_Con_NameForNum(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_NameForNum(qintptr_t connum, char *outconname, size_t connamesize)
 {
-	char num = VM_LONG(arg[0]);
-	char *buffer = VM_POINTER(arg[1]);
-	int buffersize = VM_LONG(arg[2]);
-	if (VM_OOB(arg[1], buffersize) || buffersize < 1)
-		return false;
 	if (qrenderer == QR_NONE)
 		return false;
 
-	return Con_NameForNum(num, buffer, buffersize);
+	return Con_NameForNum(connum, outconname, connamesize);
 }
 
-static qintptr_t VARGS Plug_Con_GetConsoleFloat(void *offset, quintptr_t mask, const qintptr_t *arg)
+static float QDECL Plug_Con_GetConsoleFloat(const char *conname, const char *attrib)
 {
-	char *conname = VM_POINTER(arg[0]);
-	char *attrib = VM_POINTER(arg[1]);
-	int retbuf;
 	float ret;
 	console_t *con = Con_FindConsole(conname);
 	ret = -1;
@@ -1021,22 +880,18 @@ static qintptr_t VARGS Plug_Con_GetConsoleFloat(void *offset, quintptr_t mask, c
 	else if (!strcmp(attrib, "linecount"))
 		ret = con->linecount;
 
-	VM_FLOAT(retbuf) = ret;
-	return retbuf;
+	return ret;
 }
 
-static qintptr_t VARGS Plug_Con_SetConsoleFloat(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_SetConsoleFloat(const char *conname, const char *attrib, float val)
 {
-	char *conname = VM_POINTER(arg[0]);
-	char *attrib = VM_POINTER(arg[1]);
-	float val = VM_FLOAT(arg[2]);
 	console_t *con = Con_FindConsole(conname);
 
 	if (!con)
 	{
 		con = Con_Create(conname, 0);
 		if (!con)
-			return -1;
+			return false;
 		con->userdata = currentplug;
 		con->linebuffered = Plug_SubConsoleCommand;
 	}
@@ -1094,26 +949,19 @@ static qintptr_t VARGS Plug_Con_SetConsoleFloat(void *offset, quintptr_t mask, c
 			con->parseflags = pfl;
 		}
 		else
-			return -1;
+			return false;
 	}
 	else
-		return -1;
+		return false;
 	return true;
 }
 
-static qintptr_t VARGS Plug_Con_GetConsoleString(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_GetConsoleString(const char *conname, const char *attrib, char *value, size_t size)
 {
-	const char *conname = VM_POINTER(arg[0]);
-	const char *attrib = VM_POINTER(arg[1]);
-	char *value = VM_POINTER(arg[2]);
-	size_t size = VM_LONG(arg[3]);
 	console_t *con = Con_FindConsole(conname);
-	
-	if (VM_OOB(arg[2], arg[3]))
-		return 0;
 
 	if (!con)
-		return 0;
+		return false;
 	else if (!strcmp(attrib, "footer"))
 		;
 	else if (!strcmp(attrib, "title"))
@@ -1135,25 +983,24 @@ static qintptr_t VARGS Plug_Con_GetConsoleString(void *offset, quintptr_t mask, 
 		else
 			Q_strncpyz(value, con->backimage, size);
 	}
-	return 0;
+	else
+		return false;
+	return true;
 }
-static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, const qintptr_t *arg)
+static qboolean QDECL Plug_Con_SetConsoleString(const char *conname, const char *attrib, const char *value)
 {
-	const char *conname = VM_POINTER(arg[0]);
-	const char *attrib = VM_POINTER(arg[1]);
-	const char *value = VM_POINTER(arg[2]);
 	console_t *con = Con_FindConsole(conname);
 
 	if (!con)
 	{
 		con = Con_Create(conname, 0);
 		if (!con)
-			return -1;
+			return false;
 		con->userdata = currentplug;
 		con->linebuffered = Plug_SubConsoleCommand;
 	}
 	if (!con)
-		return 0;
+		return false;
 	else if (!strcmp(attrib, "footer"))
 		Con_Footerf(con, false, "%s", value);
 	else if (!strcmp(attrib, "title"))
@@ -1179,156 +1026,22 @@ static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, 
 			con->backshader = NULL;
 	}
 	else
-		return -1;
-	return 0;
-}
-
-static qintptr_t VARGS Plug_S_RawAudio(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	int sourceid = VM_LONG(arg[0]);
-	qbyte *data = VM_POINTER(arg[1]);
-	int speed = VM_LONG(arg[2]);
-	int samples = VM_LONG(arg[3]);
-	int channels = VM_LONG(arg[4]);
-	int width = VM_LONG(arg[5]);
-	int volume = VM_FLOAT(arg[6]);
-	
-	int datasize = samples * channels * width;
-	
-	if (VM_OOB(arg[1], datasize) || datasize < 1)
 		return false;
-		
+	return true;
+}
+
+static void QDECL Plug_S_RawAudio(int sourceid, void *data, int speed, int samples, int channels, int width, float volume)
+{
 	S_RawAudio(sourceid, data, speed, samples, channels, width, volume);
-	return 0;
-}
-
-#include "com_mesh.h"
-
-#ifdef SKELETALMODELS
-static int QDECL Plug_RegisterModelFormatText(const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
-{
-	void *module = currentplug;
-	return Mod_RegisterModelFormatText(module, formatname, magictext, load);
-}
-static int QDECL Plug_RegisterModelFormatMagic(const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
-{
-	void *module = currentplug;
-	return Mod_RegisterModelFormatMagic(module, formatname, magic, load);
-}
-static void QDECL Plug_UnRegisterModelFormat(int idx)
-{
-	void *module = currentplug;
-	Mod_UnRegisterModelFormat(module, idx);
-}
-static void QDECL Plug_UnRegisterAllModelFormats(void)
-{
-	void *module = currentplug;
-	Mod_UnRegisterAllModelFormats(module);
-}
-#endif
-static qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-#ifdef SKELETALMODELS
-	static modplugfuncs_t funcs =
-	{
-		MODPLUGFUNCS_VERSION,
-		
-		Plug_RegisterModelFormatText,
-		Plug_RegisterModelFormatMagic,
-		Plug_UnRegisterModelFormat,
-		Plug_UnRegisterAllModelFormats,
-		ZG_Malloc,
-
-		R_ConcatTransforms,
-		Matrix3x4_Invert_Simple,
-		VectorAngles,
-		AngleVectors,
-		GenMatrixPosQuat4Scale,
-		COM_StripExtension,
-		Alias_ForceConvertBoneData,
-#ifdef TERRAIN
-		Terr_GetTerrainFuncs,
-#else
-		NULL,
-#endif
-		NULL,
-		Image_GetTexture,
-		FS_OpenVFS,
-		Mod_AccumulateTextureVectors,
-		Mod_NormaliseTextureVectors,
-	};
-	if (VM_LONG(arg[0]) >= sizeof(funcs))
-		return (qintptr_t)&funcs;
-	else
-#endif
-		return 0;
-}
-
-static void Plug_Client_Init(void)
-{
-	Plug_RegisterBuiltin("CL_GetStats",				Plug_CL_GetStats, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Menu_Control",			Plug_Menu_Control, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Key_GetKeyCode",			Plug_Key_GetKeyCode, PLUG_BIF_NEEDSRENDERER);
-
-	Plug_RegisterBuiltin("Draw_LoadImageData",		Plug_Draw_LoadImageData, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_LoadImageShader",	Plug_Draw_LoadImageShader, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImagePic, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_ImageSize",			Plug_Draw_ImageSize, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_CharacterH",			Plug_Draw_CharacterH, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_String",				Plug_Draw_String, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_StringH",			Plug_Draw_StringH, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_StringWidth",		Plug_Draw_StringWidth, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Colourpa",			Plug_Draw_ColourPA, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, PLUG_BIF_NEEDSRENDERER);
-
-	Plug_RegisterBuiltin("Con_SubPrint",			Plug_Con_SubPrint, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_RenameSub",			Plug_Con_RenameSub, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_IsActive",			Plug_Con_IsActive, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_SetActive",			Plug_Con_SetActive, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_Destroy",				Plug_Con_Destroy, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_NameForNum",			Plug_Con_NameForNum, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_GetConsoleFloat",		Plug_Con_GetConsoleFloat, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_SetConsoleFloat",		Plug_Con_SetConsoleFloat, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_GetConsoleString",	Plug_Con_GetConsoleString, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Con_SetConsoleString",	Plug_Con_SetConsoleString, PLUG_BIF_NEEDSRENDERER);
-
-	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
-
-#ifdef QUAKEHUD
-	Plug_RegisterBuiltin("GetTeamInfo",				Plug_GetTeamInfo, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetWeaponStats",			Plug_GetWeaponStats, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetTrackerOwnFrags",		Plug_GetTrackerOwnFrags, PLUG_BIF_NEEDSRENDERER);
-#endif
-	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetLocalPlayerNumbers",	Plug_GetLocalPlayerNumbers, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("GetNetworkInfo",			Plug_GetNetworkInfo, PLUG_BIF_NEEDSRENDERER);
-	
-	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
-	
-	Plug_RegisterBuiltin("Mod_GetPluginModelFuncs",	Plug_Mod_GetPluginModelFuncs, PLUG_BIF_NEEDSRENDERER|PLUG_BIF_DLLONLY);
 }
 
 static void Plug_Client_Close(plugin_t *plug)
 {
+	menu_t *m = Menu_FindContext(currentplug);
 	Plug_FreePlugImages(plug);
 
-
-	if (menuplug == plug)
-	{
-		menuplug = NULL;
-		Key_Dest_Remove(kdm_emenu);
-	}
+	if (m)
+		Menu_Unlink(m);
 	if (protocolclientplugin == plug)
 	{
 		protocolclientplugin = NULL;

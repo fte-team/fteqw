@@ -611,6 +611,8 @@ xfont_t *XS_CreateFont(int id, xclient_t *owner, char *fontname)
 		fread(in, len, 1, f);
 		fclose(f);
 	}
+	else
+		memset(in, 0, len);
 	out = newfont->data;
 
 	for (i = 0; i < width*height; i++)

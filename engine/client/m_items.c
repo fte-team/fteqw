@@ -78,16 +78,16 @@ void Draw_TextBox (int x, int y, int width, int lines)
 
 #ifndef NOBUILTINMENUS
 
-int omousex;
-int omousey;
-qboolean mousemoved;
-qboolean bindingactive;
+static int omousex;
+static int omousey;
+static qboolean mousemoved;
+static qboolean bindingactive;
 extern cvar_t cl_cursor;
 extern cvar_t cl_cursorsize;
 extern cvar_t cl_cursorbias;
 extern cvar_t m_preset_chosen;
-menu_t *topmenu;
-menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old);
+extern menu_t *topmenu;
+menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old);
 
 #ifdef HEXEN2
 //this function is so fucked up.
@@ -266,7 +266,7 @@ int maxdots;
 int mindot;
 int dotofs;
 
-static void MenuTooltipChange(menu_t *menu, const char *text)
+static void MenuTooltipChange(emenu_t *menu, const char *text)
 {
 	unsigned int MAX_CHARS=1024;
 	menutooltip_t *mtt;
@@ -329,7 +329,7 @@ static qboolean MI_Selectable(menuoption_t *op)
 	}
 }
 
-static qboolean M_MouseMoved(menu_t *menu)
+static qboolean M_MouseMoved(emenu_t *menu)
 {
 	int ypos = menu->ypos, framescroll = 0;
 	menuoption_t *option;
@@ -393,7 +393,7 @@ static qboolean M_MouseMoved(menu_t *menu)
 	return true;
 }
 
-static void M_CheckMouseMove(void)
+static void M_CheckMouseMove(emenu_t *m)
 {
 	if (omousex != (int)mousecursor_x || omousey != (int)mousecursor_y)
 		mousemoved = true;
@@ -403,7 +403,7 @@ static void M_CheckMouseMove(void)
 	omousey = mousecursor_y;
 
 	if (mousemoved)
-		M_MouseMoved(topmenu);
+		M_MouseMoved(m);
 }
 
 static float M_DrawScrollbar(int x, int y, int width, int height, float frac, qboolean mgrabbed)
@@ -461,7 +461,7 @@ static float M_DrawScrollbar(int x, int y, int width, int height, float frac, qb
 	return frac;
 }
 
-static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
+static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *menu)
 {
 	int i;
 	mpic_t *p;
@@ -479,7 +479,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		if (option->common.ishidden)
 			continue;
 
-		if (menu == topmenu && menu->mouseitem == option)
+		if (&menu->menu == topmenu && menu->mouseitem == option)
 		{
 			float alphamax = 0.5, alphamin = 0.2;
 			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
@@ -763,11 +763,8 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 	}
 }
 
-static void MenuDraw(menu_t *menu)
+static void MenuDraw(emenu_t *menu)
 {
-	if (!menu->exclusive && menu->prev)	//popup menus draw the one underneath them
-		MenuDraw(menu->prev);
-
 	if (!menu->dontexpand)
 		menu->xpos = ((vid.width - 320)>>1);
 	if (menu->predraw)
@@ -831,7 +828,7 @@ static void MenuDraw(menu_t *menu)
 }
 
 
-menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign)
+menutext_t *MC_AddWhiteText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign)
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t) + (text?strlen(text):0)+1);
 	n->common.type = mt_text;
@@ -851,7 +848,7 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *t
 	return n;
 }
 
-menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign, qboolean red)
+menutext_t *MC_AddBufferedText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign, qboolean red)
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t) + strlen(text)+1);
 	n->common.type = mt_text;
@@ -871,7 +868,7 @@ menutext_t *MC_AddBufferedText(menu_t *menu, int lhs, int rhs, int y, const char
 	return n;
 }
 
-menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign)
+menutext_t *MC_AddRedText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign)
 {
 	menutext_t *n;
 	n = MC_AddWhiteText(menu, lhs, rhs, y, text, rightalign);
@@ -879,7 +876,7 @@ menutext_t *MC_AddRedText(menu_t *menu, int lhs, int rhs, int y, const char *tex
 	return n;
 }
 
-menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip)
+menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip)
 {
 	menubind_t *n = Z_Malloc(sizeof(*n) + strlen(caption)+1 + strlen(command)+1 + (tooltip?strlen(tooltip)+1:0));
 	n->common.type = mt_bind;
@@ -905,7 +902,7 @@ menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption,
 	return n;
 }
 
-menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, int height, char *picname)
+menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, char *picname)
 {
 	char selname[MAX_QPATH];
 	menupicture_t *n;
@@ -934,7 +931,7 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, int height, c
 	return n;
 }
 
-menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname)
+menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height, char *picname)
 {
 	menupicture_t *n;
 	if (qrenderer == QR_NONE)
@@ -957,7 +954,7 @@ menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, 
 	return n;
 }
 
-menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname)
+menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, char *picname)
 {
 	int x;
 	int width;
@@ -984,7 +981,7 @@ menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picnam
 	return MC_AddPicture(menu, x, y, width, height, picname);
 }
 
-menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, int y)
+menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, int y)
 {
 	menuoption_t *n = Z_Malloc(sizeof(menucommon_t));
 	if (reselection)
@@ -1017,7 +1014,7 @@ menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, i
 	return n;
 }
 
-menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y)
+menupicture_t *MC_AddCursor(emenu_t *menu, menuresel_t *reselection, int x, int y)
 {
 	int i;
 	menupicture_t *n = Z_Malloc(sizeof(menupicture_t));
@@ -1089,7 +1086,7 @@ menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y
 	return n;
 }
 
-menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *def)
+menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, char *text, char *def)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	n->slim = false;
@@ -1110,7 +1107,7 @@ menuedit_t *MC_AddEdit(menu_t *menu, int cx, int ex, int y, char *text, char *de
 	return n;
 }
 
-menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean isslim)
+menuedit_t *MC_AddEditCvar(emenu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean isslim)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	cvar_t *cvar;
@@ -1139,7 +1136,7 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int cx, int ex, int y, char *text, char
 	return n;
 }
 
-menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
+menubox_t *MC_AddBox(emenu_t *menu, int x, int y, int width, int height)
 {
 	menubox_t *n = Z_Malloc(sizeof(menubox_t));
 	n->common.type = mt_box;
@@ -1154,7 +1151,7 @@ menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
 	return n;
 }
 
-menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip)
+menucustom_t *MC_AddCustom(emenu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip)
 {
 	menucustom_t *n = Z_Malloc(sizeof(menucustom_t) + (tooltip?strlen(tooltip)+1:0));
 	n->common.type = mt_custom;
@@ -1170,7 +1167,7 @@ menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *dptr, int dint, con
 	return n;
 }
 
-menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int bits)
+menucheck_t *MC_AddCheckBox(emenu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int bits)
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
@@ -1200,7 +1197,7 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *tex
 	menu->options = (menuoption_t *)n;
 	return n;
 }
-menuframe_t *MC_AddFrameStart(menu_t *menu, int y)
+menuframe_t *MC_AddFrameStart(emenu_t *menu, int y)
 {
 	menuframe_t *n = Z_Malloc(sizeof(menuframe_t));
 	n->common.type = mt_framestart;
@@ -1214,7 +1211,7 @@ menuframe_t *MC_AddFrameStart(menu_t *menu, int y)
 	menu->options = (menuoption_t *)n;
 	return n;
 }
-menuframe_t *MC_AddFrameEnd(menu_t *menu, int y)
+menuframe_t *MC_AddFrameEnd(emenu_t *menu, int y)
 {
 	menuframe_t *n = Z_Malloc(sizeof(menuframe_t));
 	n->common.type = mt_frameend;
@@ -1228,7 +1225,7 @@ menuframe_t *MC_AddFrameEnd(menu_t *menu, int y)
 	menu->options = (menuoption_t *)n;
 	return n;
 }
-menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits)
+menucheck_t *MC_AddCheckBoxFunc(emenu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, emenu_t *menu, chk_set_t set), int bits)
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
@@ -1249,7 +1246,7 @@ menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char 
 }
 
 //delta may be 0
-menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta)
+menuslider_t *MC_AddSlider(emenu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta)
 {
 	menuslider_t *n = Z_Malloc(sizeof(menuslider_t)+strlen(text)+1);
 	n->common.type = mt_slider;
@@ -1285,7 +1282,7 @@ menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text
 	return n;
 }
 
-menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue)
+menucombo_t *MC_AddCombo(emenu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue)
 {
 	int numopts;
 	int optlen;
@@ -1344,7 +1341,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *captio
 
 	return n;
 }
-menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values)
+menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values)
 {
 	int numopts;
 	int optlen;
@@ -1389,8 +1386,8 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *ca
 	n->caption = optbuf;
 	optbuf += strlen(optbuf)+1;
 
-	n->options = (const char **)newops;
-	n->values = (const char **)newvalues;
+	n->options = (char const*const*)newops;
+	n->values = (char const*const*)newvalues;
 	n->cvar = cvar;
 
 //	if (!(cvar->flags & CVAR_ARCHIVE))
@@ -1421,7 +1418,7 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *ca
 	return n;
 }
 
-menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const char *text, const char *command)
+menubutton_t *MC_AddConsoleCommand(emenu_t *menu, int lhs, int rhs, int y, const char *text, const char *command)
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_button;
@@ -1441,7 +1438,7 @@ menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const 
 	return n;
 }
 
-menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command)
+menubutton_t *MC_AddConsoleCommandQBigFont(emenu_t *menu, int x, int y, const char *text, const char *command)
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_qbuttonbigfont;
@@ -1460,7 +1457,7 @@ menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const cha
 	return n;
 }
 #ifdef HEXEN2
-menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command)
+menubutton_t *MC_AddConsoleCommandHexen2BigFont(emenu_t *menu, int x, int y, const char *text, const char *command)
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_hexen2buttonbigfont;
@@ -1479,7 +1476,7 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, cons
 	return n;
 }
 #endif
-menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int))
+menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int))
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t));
 	n->common.type = mt_button;
@@ -1498,7 +1495,7 @@ menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, q
 	return n;
 }
 
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...)
+menubutton_t *VARGS MC_AddConsoleCommandf(emenu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -1598,7 +1595,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 		Cvar_SetValue(option->var, option->current);
 }
 
-void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
+void MC_CheckBox_Key(menucheck_t *option, emenu_t *menu, int key)
 {
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_GP_A && key != K_GP_B && key != K_LEFTARROW && key != K_KP_LEFTARROW && key != K_GP_DPAD_LEFT && key != K_RIGHTARROW && key != K_KP_LEFTARROW && key != K_GP_DPAD_RIGHT && key != K_MWHEELUP && key != K_MWHEELDOWN && key != K_MOUSE1)
 		return;
@@ -1686,61 +1683,73 @@ changed:
 	}
 }
 
-void M_AddMenu (menu_t *menu)
+static qboolean menu_mousedown;
+extern menu_t *menu_script;
+static void M_Draw (menu_t *menu)
 {
-	menu->prev = topmenu;
-	if (topmenu)
-		topmenu->next = menu;
-	menu->next = NULL;
-	topmenu = menu;
+	emenu_t *m = (emenu_t*)menu;
+	qboolean stillactive = false;
 
-	menu->exclusive = true;
-}
-menu_t *M_CreateMenu (int extrasize)
-{
-	menu_t *menu;
-	menu = Z_Malloc(sizeof(menu_t)+extrasize);
-	menu->iszone=true;
-	menu->data = menu+1;
-
-	M_AddMenu(menu);
-
-	return menu;
-}
-menu_t *M_CreateMenuInfront (int extrasize)
-{
-	menu_t *menu;
-	menu = Z_Malloc(sizeof(menu_t)+extrasize);
-	menu->iszone=true;
-	menu->data = menu+1;
-
-	M_AddMenu(menu);
-	menu->xpos = ((vid.width - 320)>>1);
-	menu->exclusive = false;
-
-	return menu;
-}
-void M_HideMenu (menu_t *menu)
-{
-	if (menu == topmenu)
+	if (!Key_Dest_Has(kdm_menu))
 	{
-		topmenu = menu->prev;
-		if (topmenu)
-			topmenu->next = NULL;
-		menu->prev = NULL;
+		M_RemoveAllMenus(false);
+		menu_mousedown = false;
+		return;
+	}
+	if ((!menu_script || scr_con_current))
+	{
+		if (m->selecteditem && m->selecteditem->common.type == mt_slider && (m->selecteditem->slider.var == &v_gamma || m->selecteditem->slider.var == &v_contrast))
+			/*no menu tint if we're trying to adjust gamma*/;
+		else
+			R2D_FadeScreen ();
+	}
+
+	R2D_ImageColours(1, 1, 1, 1);
+
+	if (m)
+	{
+		M_CheckMouseMove(m);
+
+		MenuDraw(m);
+		stillactive = true;
+	}
+
+	if (!stillactive)
+		Key_Dest_Remove(kdm_menu);
+}
+
+static qboolean M_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int key, int unicode)
+{
+	emenu_t *menu = (emenu_t*)m;
+	if (isdown)
+	{
+		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
+		{
+			if (menu->mouseitem && menu->mouseitem->common.type == mt_frameend)
+				menu->mouseitem->frame.mousedown = true;
+			else
+				menu_mousedown = true;
+		}
+		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
+			;	//modifiers are sent on up events instead.
+		else
+			M_Complex_Key (menu, key, unicode);
+		return true; //eat all keys...
 	}
 	else
 	{
-		menu_t *prev;
-		prev = menu->next;
-		if (prev)
-			prev->prev = menu->prev;
-		if (menu->prev)
-			menu->prev->next = menu;
+		if (key == K_MOUSE1 && menu_mousedown)
+			M_Complex_Key (menu, key, unicode);
+		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
+			M_Complex_Key (menu, key, unicode);
+		menu_mousedown = false;
+		return false;
 	}
 }
-void M_RemoveMenu (menu_t *menu)
+
+void M_Release (menu_t *m)
 {
+	emenu_t *menu = (emenu_t*)m;
 	menuoption_t *op, *oop;
 	if (menu->reselection)
 	{
@@ -1750,21 +1759,6 @@ void M_RemoveMenu (menu_t *menu)
 
 	if (menu->remove)
 		menu->remove(menu);
-	if (menu == topmenu)
-	{
-		topmenu = menu->prev;
-		if (topmenu)
-			topmenu->next = NULL;
-	}
-	else
-	{
-		menu_t *prev;
-		prev = menu->next;
-		if (prev)
-			prev->prev = menu->prev;
-		if (menu->prev)
-			menu->prev->next = menu;
-	}
 
 	op = menu->options;
 	while(op)
@@ -1789,14 +1783,41 @@ void M_RemoveMenu (menu_t *menu)
 	}
 }
 
+emenu_t *M_CreateMenu (int extrasize)
+{
+	emenu_t *menu;
+	menu = Z_Malloc(sizeof(emenu_t)+extrasize);
+	menu->iszone=true;
+	menu->data = menu+1;
+
+	menu->menu.cursor = &key_customcursor[kc_console];
+	/*void (*videoreset)	(struct menu_s *);	//called after a video mode switch / shader reload.
+	void (*release)		(struct menu_s *);	//
+	qboolean (*keyevent)(struct menu_s *, qboolean isdown, unsigned int devid, int key, int unicode);	//true if key was handled
+	qboolean (*mousemove)(struct menu_s *, qboolean abs, unsigned int devid, float x, float y);
+	qboolean (*joyaxis)	(struct menu_s *, unsigned  int devid, int axis, float val);
+	void (*drawmenu)	(struct menu_s *);
+	*/
+	menu->menu.drawmenu = M_Draw;
+	menu->menu.keyevent = M_KeyEvent;
+	menu->menu.release = M_Release;
+	Menu_Push(&menu->menu, false);
+
+	return menu;
+}
+void M_RemoveMenu (emenu_t *menu)
+{
+	Menu_Unlink((menu_t*)menu);
+}
+
 void M_ReloadMenus(void)
 {
 	menu_t *m;
 
 	for (m = topmenu; m; m = m->prev)
 	{
-		if (m->reset)
-			m->reset(m);
+		if (m->videoreset)
+			m->videoreset(m);
 	}
 }
 
@@ -1807,10 +1828,10 @@ void M_RemoveAllMenus (qboolean leaveprompts)
 	for (link = &topmenu; *link; )
 	{
 		m = *link;
-		if ((m->persist || !m->exclusive) && leaveprompts)
+		if (m->persist && leaveprompts)
 			link = &m->prev;
 		else
-			M_RemoveMenu(m);
+			Menu_Unlink(m);
 	}
 
 }
@@ -1818,23 +1839,10 @@ void M_MenuPop_f (void)
 {
 	if (!topmenu)
 		return;
-	M_RemoveMenu(topmenu);
+	Menu_Unlink(topmenu);
 }
 
-void M_Complex_Draw(void)
-{
-	if (!topmenu)
-	{
-		Key_Dest_Remove(kdm_emenu);
-		return;
-	}
-
-	M_CheckMouseMove();
-
-	MenuDraw(topmenu);
-}
-
-menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)
+menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op = m->options;
 	while(op->common.next)
@@ -1846,7 +1854,7 @@ menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)
 	}
 	return op;
 }
-menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
+menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op;
 
@@ -1877,7 +1885,7 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 	}
 }
 
-menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
+menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op;
 
@@ -1904,13 +1912,12 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 	}
 }
 
-void M_Complex_Key(int key, int unicode)
+void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 {
-	menu_t *currentmenu = topmenu;
 	if (!currentmenu)
 		return;	//erm...
 
-	M_CheckMouseMove();
+	M_CheckMouseMove(currentmenu);
 
 	if (currentmenu->key)
 		if (currentmenu->key(key, currentmenu))
@@ -2095,8 +2102,7 @@ void M_Complex_Key(int key, int unicode)
 
 
 
-extern int m_save_demonum;
-qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
+qboolean MC_Main_Key (int key, emenu_t *menu)	//here purly to restart demos.
 {
 	if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
 	{
@@ -2106,14 +2112,11 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 		if (con_stayhidden.ival && cls.state == ca_disconnected)
 			if (!CL_TryingToConnect())
 				return true;
-
-		Key_Dest_Remove(kdm_emenu);
-		return true;
 	}
 	return false;
 }
 
-static int M_Main_AddExtraOptions(menu_t *mainm, int y)
+static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 {
 	if (Cmd_AliasExist("mod_menu", RESTRICT_LOCAL))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-14s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;}
@@ -2142,7 +2145,7 @@ void M_Menu_Main_f (void)
 {
 	extern cvar_t m_helpismedia;
 	menubutton_t *b;
-	menu_t *mainm = NULL;
+	emenu_t *mainm = NULL;
 	mpic_t *p;
 	static menuresel_t resel;
 	int y;
@@ -2198,7 +2201,6 @@ void M_Menu_Main_f (void)
 		if (R_GetShaderSizes(R2D_SafeCachePic("pics/m_main_quit"), NULL, NULL, true) > 0)
 		{
 			int itemheight = 32;
-			Key_Dest_Add(kdm_emenu);
 
 			mainm = M_CreateMenu(0);
 			mainm->key = MC_Main_Key;
@@ -2251,7 +2253,6 @@ void M_Menu_Main_f (void)
 		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
 		if (R_GetShaderSizes(p, NULL, NULL, true) > 0)
 		{
-			Key_Dest_Add(kdm_emenu);
 			mainm = M_CreateMenu(0);
 			mainm->key = MC_Main_Key;
 
@@ -2293,7 +2294,6 @@ void M_Menu_Main_f (void)
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (R_GetShaderSizes(p, NULL, NULL, true) > 0)
 		{
-			Key_Dest_Add(kdm_emenu);
 			mainm = M_CreateMenu(0);
 			mainm->key = MC_Main_Key;
 			MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
@@ -2328,7 +2328,6 @@ void M_Menu_Main_f (void)
 		R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (R_GetShaderSizes(p, &width, NULL, true) > 0)
 		{
-			Key_Dest_Add(kdm_emenu);
 			mainm = M_CreateMenu(0);
 
 			mainm->key = MC_Main_Key;
@@ -2379,7 +2378,6 @@ void M_Menu_Main_f (void)
 
 	if (!mainm)
 	{
-		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 		MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
 
@@ -2398,7 +2396,7 @@ void M_Menu_Main_f (void)
 		M_Menu_Preset_f();
 }
 
-int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)
+int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)
 {
 	int selectedy = y;
 	menuoption_t *selected = NULL;

@@ -72,8 +72,7 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 	//for msn, live.com has one, messanger.live.com has one, but messenger.live.com does NOT. seriously, the typo has more services.  wtf microsoft?
 	//google doesn't provide a stun srv entry
 	//facebook doesn't provide a stun srv entry
-	Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", jcl->domain);
-	if (NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
+	if (Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", jcl->domain) < sizeof(stunhost) && NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
 		piceapi->ICE_Set(ice, "stunip", stunhost);
 	else
 	{
@@ -581,10 +580,10 @@ void JCL_Join(jclient_t *jcl, const char *target, const char *sid, qboolean allo
 
 				JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
 				JCL_GenLink(jcl, hanguplink, sizeof(hanguplink), "jdeny", target, NULL, c2c->sid, "%s", "Hang Up");
-				XMPP_ConversationPrintf(b->accountdomain, b->name, "%s %s %s.\n",  protocol==ICEP_VOICE?"Calling":"Requesting session with", convolink, hanguplink);
+				XMPP_ConversationPrintf(b->accountdomain, b->name, false, "%s %s %s.\n",  protocol==ICEP_VOICE?"Calling":"Requesting session with", convolink, hanguplink);
 			}
 			else
-				XMPP_ConversationPrintf(b->accountdomain, b->name, "That session has expired.\n");
+				XMPP_ConversationPrintf(b->accountdomain, b->name, false, "That session has expired.\n");
 		}
 		else if (c2c->creator)
 		{
@@ -592,16 +591,16 @@ void JCL_Join(jclient_t *jcl, const char *target, const char *sid, qboolean allo
 			//resend initiate if they've not acked it... I dunno...
 			JCL_JingleSend(jcl, c2c, "session-initiate");
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			XMPP_ConversationPrintf(b->accountdomain, b->name, "Restarting session with %s.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Restarting session with %s.\n", convolink);
 		}
 		else if (c2c->accepted)
-			XMPP_ConversationPrintf(b->accountdomain, b->name, "That session was already accepted.\n");
+			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "That session was already accepted.\n");
 		else
 		{
 			char convolink[512];
 			JCL_JingleSend(jcl, c2c, "session-accept");
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			XMPP_ConversationPrintf(b->accountdomain, b->name, "Accepting session from %s.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Accepting session from %s.\n", convolink);
 		}
 	}
 	else
@@ -611,10 +610,10 @@ void JCL_Join(jclient_t *jcl, const char *target, const char *sid, qboolean allo
 			char convolink[512];
 			JCL_JingleSend(jcl, c2c, "session-terminate");
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			XMPP_ConversationPrintf(b->accountdomain, b->name, "Terminating session with %s.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Terminating session with %s.\n", convolink);
 		}
 		else
-			XMPP_ConversationPrintf(b->accountdomain, b->name, "That session has already expired.\n");
+			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "That session has already expired.\n");
 	}
 }
 
@@ -853,9 +852,8 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 				JCL_GenLink(jcl, denylink, sizeof(denylink), "jdeny", from, NULL, sid, "%s", "Reject");
 
 				//show a prompt for it, send the reply when the user decides.
-				XMPP_ConversationPrintf(b->accountdomain, b->name,
+				XMPP_ConversationPrintf(b->accountdomain, b->name, true,
 						"%s %s. %s %s\n", convolink, offer, authlink, denylink);
-				pCon_SetActive(b->name);
 				return true;
 			}
 			else
@@ -965,7 +963,7 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, co
 		{
 			char convolink[512];
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, from, NULL, NULL, "%s", b->name);
-			XMPP_ConversationPrintf(b->accountdomain, b->name, "%s does not support any compatible codecs, and is unable to call you.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "%s does not support any compatible codecs, and is unable to call you.\n", convolink);
 
 			if (c2c->content[c].ice)
 				piceapi->ICE_Close(c2c->content[c].ice);
@@ -1001,14 +999,14 @@ static qboolean JCL_JingleHandleSessionTerminate(jclient_t *jcl, xmltree_t *tree
 	int c;
 	if (!c2c)
 	{
-		XMPP_ConversationPrintf(b->accountdomain, b->name, "Received session-terminate without an active session\n");
+		XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Received session-terminate without an active session\n");
 		return false;
 	}
 
 	if (reason && reason->child)
-		XMPP_ConversationPrintf(b->accountdomain, b->name, "Session ended: %s\n", reason->child->name);
+		XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Session ended: %s\n", reason->child->name);
 	else
-		XMPP_ConversationPrintf(b->accountdomain, b->name, "Session ended\n");
+		XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Session ended\n");
 
 	//unlink it
 	for (link = &jcl->c2c; *link; link = &(*link)->next)
@@ -1059,7 +1057,7 @@ static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, c
 		{
 			return false;
 		}
-		XMPP_ConversationPrintf(b->accountdomain, b->name, "Session Accepted!\n");
+		XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Session Accepted!\n");
 //			XML_ConPrintTree(tree, 0);
 
 		JCL_JingleParsePeerPorts(jcl, c2c, tree, from, XML_GetParameter(tree, "sid", ""));
@@ -1305,12 +1303,12 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, const char *from, cons
 			{
 				switch(c2c->content[c].mediatype)
 				{
-				case ICEP_INVALID:																			break;
-				case ICEP_VOICE:	voice = true; 	doprompt |= !pCvar_GetFloat("xmpp_autoacceptvoice");	break;
-				case ICEP_VIDEO:	video = true; 	doprompt |= !pCvar_GetFloat("xmpp_autoacceptvoice");	break;
-				case ICEP_QWSERVER: server = true; 	doprompt |= !pCvar_GetFloat("xmpp_autoacceptjoins");	break;
-				case ICEP_QWCLIENT: client = true; 	doprompt |= !pCvar_GetFloat("xmpp_autoacceptinvites");	break;
-				default:							doprompt |= true;										break;
+				case ICEP_INVALID:																				break;
+				case ICEP_VOICE:	voice = true; 	doprompt |= !cvarfuncs->GetFloat("xmpp_autoacceptvoice");	break;
+				case ICEP_VIDEO:	video = true; 	doprompt |= !cvarfuncs->GetFloat("xmpp_autoacceptvoice");	break;
+				case ICEP_QWSERVER: server = true; 	doprompt |= !cvarfuncs->GetFloat("xmpp_autoacceptjoins");	break;
+				case ICEP_QWCLIENT: client = true; 	doprompt |= !cvarfuncs->GetFloat("xmpp_autoacceptinvites");	break;
+				default:							doprompt |= true;											break;
 				}
 			}
 
@@ -1351,13 +1349,12 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, const char *from, cons
 				JCL_GenLink(jcl, denylink, sizeof(denylink), "jdeny", from, NULL, sid, "%s", "Reject");
 
 				//show a prompt for it, send the reply when the user decides.
-				XMPP_ConversationPrintf(b->accountdomain, b->name,
+				XMPP_ConversationPrintf(b->accountdomain, b->name, true,
 						"%s %s. %s %s\n", convolink, offer, authlink, denylink);
-				pCon_SetActive(b->accountdomain);
 			}
 			else
 			{
-				XMPP_ConversationPrintf(b->accountdomain, b->name, "Auto-accepting session from %s\n", convolink);
+				XMPP_ConversationPrintf(b->accountdomain, b->name, false, "Auto-accepting session from %s\n", convolink);
 				JCL_Join(jcl, from, sid, true, ICEP_INVALID);
 			}
 		}

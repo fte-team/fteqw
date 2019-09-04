@@ -110,12 +110,10 @@ qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h)
 extern qboolean forcesaveprompt;
 extern cvar_t pr_debugger;
 
-menu_t *M_Options_Title(int *y, int infosize)
+emenu_t *M_Options_Title(int *y, int infosize)
 {
-	struct menu_s *menu;
+	struct emenu_s *menu;
 	*y = 32;
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(infosize);
 
@@ -140,7 +138,7 @@ menu_t *M_Options_Title(int *y, int infosize)
 }
 
 //these are awkward/strange
-qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_t set)
+qboolean M_Options_AlwaysRun (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
 	if (M_GameType() == MGT_QUAKE2)
 	{
@@ -171,7 +169,7 @@ qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_
 		}
 	}
 }
-qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_set_t set)
+qboolean M_Options_InvertMouse (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
 	if (set == CHK_CHECKED)
 		return m_pitch.value < 0;
@@ -341,7 +339,7 @@ void M_Menu_Options_f (void)
 		// removed singleplayer cheats (move this to single player menu)
 		MB_END()
 	};
-	menu_t *menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
 	int framey = y;
 
@@ -383,7 +381,7 @@ typedef struct {
 	soundcardinfo_t *card;
 } audiomenuinfo_t;
 
-qboolean M_Audio_Key (int key, struct menu_s *menu)
+qboolean M_Audio_Key (int key, struct emenu_s *menu)
 {
 	int i;
 	audiomenuinfo_t *info = menu->data;
@@ -432,7 +430,7 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 	return false;
 }
 
-void M_Audio_StartSound (struct menu_s *menu)
+void M_Audio_StartSound (struct emenu_s *menu)
 {
 	int i;
 	vec3_t org;
@@ -477,9 +475,7 @@ void M_Menu_Audio_Speakers_f (void)
 {
 	int i;
 	audiomenuinfo_t *info;
-	menu_t *menu;
-
-	Key_Dest_Add(kdm_emenu);
+	emenu_t *menu;
 
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
 	info = menu->data;
@@ -505,7 +501,7 @@ struct audiomenuinfo
 	char **capdevdescs;
 #endif
 };
-void M_Menu_Audio_Remove(menu_t *menu)
+void M_Menu_Audio_Remove(emenu_t *menu)
 {
 	int i;
 	struct audiomenuinfo *info = menu->data;
@@ -524,7 +520,7 @@ void M_Menu_Audio_Remove(menu_t *menu)
 	Z_Free(info->capdevdescs);
 #endif
 }
-struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
+struct audiomenuinfo *M_Menu_Audio_Setup(emenu_t *menu)
 {
 #ifdef VOICECHAT
 	extern cvar_t snd_voip_capturedevice_opts;
@@ -564,7 +560,7 @@ struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
 void M_Menu_Audio_f (void)
 {
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(struct audiomenuinfo));
+	emenu_t *menu = M_Options_Title(&y, sizeof(struct audiomenuinfo));
 	struct audiomenuinfo *info = M_Menu_Audio_Setup(menu);
 	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_doppler;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
@@ -720,7 +716,7 @@ void M_Menu_Audio_f (void)
 
 void M_Menu_Particles_f (void)
 {
-	menu_t *menu;
+	emenu_t *menu;
 	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_grenadetrail, r_rockettrail, r_part_rain_quantity, r_particledesc, r_particle_tracelimit, r_part_contentswitch, r_bloodstains;
 //	extern cvar_t r_part_sparks_trifan, r_part_sparks_textured, r_particlesystem;
 
@@ -1022,7 +1018,7 @@ static void ApplyPreset (int presetnum)
 void M_Menu_Preset_f (void)
 {
 	extern cvar_t cfg_save_auto;
-	menu_t *menu;
+	emenu_t *menu;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -1214,7 +1210,7 @@ void FPS_Preset_f (void)
 		Con_Printf("%s\n", presetname[i]);
 }
 
-qboolean M_PresetApply (union menuoption_s *op, struct menu_s *menu, int key)
+qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
 
@@ -1267,7 +1263,7 @@ void M_Menu_FPS_f (void)
 	static const char *values_0_1_2[] = {"0", "1", "2", NULL};
 	static const char *values_0_1[] = {"0", "1", NULL};
 
-	menu_t *menu;
+	emenu_t *menu;
 	fpsmenuinfo_t *info;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
@@ -1327,7 +1323,7 @@ void M_Menu_Render_f (void)
 	static const char *cshiftopts[] = {"Off", "Fullscreen", "Edges", NULL};
 	static const char *cshiftvalues[] = {"0", "1", "2", NULL};
 
-	menu_t *menu;
+	emenu_t *menu;
 	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint, r_fxaa, r_graphics;
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
@@ -1459,7 +1455,7 @@ void M_Menu_Textures_f (void)
 		MB_COMBOCVAR("Max Texture Size", gl_max_size, texturesizeoptions, texturesizeoptions, NULL),
 		MB_END()
 	};
-	menu_t *menu = M_Options_Title(&y, 0);
+	emenu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
 	MC_AddFrameStart(menu, y);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
@@ -1471,7 +1467,7 @@ typedef struct {
 	menucombo_t *dlightcombo;
 } lightingmenuinfo_t;
 
-qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
@@ -1686,7 +1682,7 @@ void M_Menu_Lighting_f (void)
 	};
 
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
+	emenu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
 
 	int lightselect, dlightselect;
 
@@ -1934,7 +1930,7 @@ static const char *mapoptions_q2[] =
 #endif
 #endif
 
-qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerinfo_t *info = menu->data;
 
@@ -1988,7 +1984,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	singleplayerinfo_t *info;
 	int cursorpositionY;
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(*info));
+	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
@@ -2053,7 +2049,7 @@ menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerq2info_t;
 
-qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerq2info_t *info = menu->data;
 
@@ -2102,7 +2098,7 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	extern cvar_t host_mapname;
 	#endif
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(*info));
+	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
@@ -2176,7 +2172,7 @@ menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerh2info_t;
 
-qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerh2info_t *info = menu->data;
 
@@ -2384,7 +2380,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	#endif
 	extern cvar_t host_mapname;
 	int y;
-	menu_t *menu = M_Options_Title(&y, sizeof(*info));
+	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
@@ -2565,7 +2561,7 @@ typedef struct {
 	menucombo_t *res2dsize[ASPECT_RATIOS];
 } videomenuinfo_t;
 
-void CheckCustomMode(struct menu_s *menu)
+void CheckCustomMode(struct emenu_s *menu)
 {
 	int i, sel;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
@@ -2658,7 +2654,7 @@ int M_MatchModes(int width, int height, int *outres)
 	return ratio;
 }
 
-qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
+qboolean M_VideoApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
@@ -2986,11 +2982,10 @@ void M_Menu_Video_f (void)
 	int y;
 	int resmodechoice, res2dmodechoice;
 	int reschoices[ASPECT_RATIOS], res2dchoices[ASPECT_RATIOS];
-	menu_t *menu;
+	emenu_t *menu;
 
 	//not calling M_Options_Title because of quake2's different banner.
 	y = 32;
-	Key_Dest_Add(kdm_emenu);
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
 	switch(M_GameType())
 	{
@@ -3252,7 +3247,7 @@ static unsigned int tobit(unsigned int bitmask)
 	}
 	return 0;
 }
-static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	static playerview_t pv;
 	entity_t ent;
@@ -3813,7 +3808,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		break;
 	}
 }
-static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
+static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	modelview_t *mods = c->dptr;
 
@@ -3927,7 +3922,7 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 }
 
 #ifdef RAGDOLL
-void M_Modelviewer_Shutdown(struct menu_s *menu)
+void M_Modelviewer_Shutdown(struct emenu_s *menu)
 {
 	modelview_t *mv = menu->data;
 	rag_removedeltaent(&mv->ragent);
@@ -3949,9 +3944,7 @@ void M_Menu_ModelViewer_f(void)
 {
 	modelview_t *mv;
 	menucustom_t *c;
-	menu_t *menu;
-
-	Key_Dest_Add(kdm_emenu);
+	emenu_t *menu;
 
 	menu = M_CreateMenu(sizeof(*mv));
 	mv = menu->data;
@@ -4028,7 +4021,7 @@ typedef struct
 	size_t nummods;
 } modmenu_t;
 
-static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
+static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	modmenu_t *mods = c->dptr;
 	int i = c->dint;
@@ -4069,7 +4062,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 			Draw_FunString(x, y, mods->mod[i].gamedir);
 	}
 }
-static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
+static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	modmenu_t *mods = c->dptr;
 	int i;
@@ -4102,7 +4095,7 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsi
 
 	return false;
 }
-static void Mods_Remove	(struct menu_s *m)
+static void Mods_Remove	(struct emenu_s *m)
 {
 	modmenu_t *mods = m->data;
 	int i;
@@ -4170,7 +4163,7 @@ void M_Menu_Mods_f (void)
 {
 	modmenu_t mods;
 	menucustom_t *c;
-	menu_t *menu;
+	emenu_t *menu;
 	size_t i;
 	extern qboolean com_homepathenabled;
 
@@ -4182,8 +4175,6 @@ void M_Menu_Mods_f (void)
 	Sys_EnumerateFiles(com_gamepath, "*", Mods_AddGamedir, &mods, NULL);
 
 	//FIXME: sort by mtime?
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(modmenu_t));
 	*(modmenu_t*)menu->data = mods;

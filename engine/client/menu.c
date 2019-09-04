@@ -22,7 +22,153 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #include "cl_master.h"
 
-qboolean menu_mousedown;
+menu_t *topmenu;
+menu_t *promptmenu;
+
+void Menu_KeyEvent(qboolean isdown, int deviceid, int key, int unicode)
+{
+	if (promptmenu && promptmenu->keyevent)
+		promptmenu->keyevent(promptmenu, isdown, deviceid, key, unicode);
+	else if (topmenu && topmenu->keyevent)
+		topmenu->keyevent(topmenu, isdown, deviceid, key, unicode);
+	else if (isdown)
+		Key_Dest_Remove(kdm_menu);	//it doesn't want it then...
+}
+static void Menu_UpdateFocus(void)
+{
+	if (!promptmenu || !promptmenu->keyevent)
+		Key_Dest_Remove(kdm_prompt);	//can't take key presses, so don't take keys.
+	if (promptmenu && promptmenu->cursor)
+		key_dest_absolutemouse |= kdm_prompt;
+	else
+		key_dest_absolutemouse &= ~kdm_prompt;
+
+	if (!topmenu || !topmenu->keyevent)
+		Key_Dest_Remove(kdm_menu);	//can't take key presses, so don't take keys.
+	if (topmenu && topmenu->cursor)
+		key_dest_absolutemouse |= kdm_menu;
+	else
+		key_dest_absolutemouse &= ~kdm_menu;
+}
+qboolean Menu_IsLinked(menu_t *menu)
+{
+	menu_t *link;
+	for (link = topmenu; link; link = link->prev)
+	{
+		if (menu == link)
+			return true;
+	}
+	return false;
+}
+menu_t *Menu_FindContext(void *ctx)
+{
+	menu_t *link;
+	for (link = promptmenu; link; link = link->prev)
+	{
+		if (link->ctx == ctx)
+			return link;
+	}
+	for (link = topmenu; link; link = link->prev)
+	{
+		if (link->ctx == ctx)
+			return link;
+	}
+	return NULL;
+}
+void Menu_Unlink(menu_t *menu)
+{
+	menu_t **link;
+	for (link = &promptmenu; *link; link = &(*link)->prev)
+	{
+		if (menu == *link)
+		{
+			*link = menu->prev;
+			if (menu->release)
+				menu->release(menu);
+
+			Menu_UpdateFocus();
+			return;
+		}
+	}
+	for (link = &topmenu; *link; link = &(*link)->prev)
+	{
+		if (menu == *link)
+		{
+			*link = menu->prev;
+			if (menu->release)
+				menu->release(menu);
+
+			Menu_UpdateFocus();
+			return;
+		}
+	}
+}
+void Menu_Push(menu_t *menu, qboolean prompt)
+{
+	if (!Menu_IsLinked(menu))
+	{	//only link once.
+		if (prompt)
+		{
+			menu->prev = promptmenu;
+			promptmenu = menu;
+		}
+		else
+		{
+			menu->prev = topmenu;
+			topmenu = menu;
+		}
+	}
+	if (menu == promptmenu)
+	{
+		Key_Dest_Add(kdm_prompt);
+		Menu_UpdateFocus();
+	}
+	if (menu == topmenu)
+	{
+		Key_Dest_Add(kdm_menu);
+		Menu_UpdateFocus();
+	}
+}
+void Menu_PopAll(void)
+{
+	qboolean popped = false;
+	menu_t **link, *menu;
+	for (link = &topmenu; *link;)
+	{
+		menu = *link;
+		if (menu->persist)
+			link = &(*link)->prev;
+		else
+		{
+			*link = menu->prev;
+			menu->prev = NULL;
+			if (menu->release)
+				menu->release(menu);
+			popped = true;
+		}
+	}
+
+	if (popped)
+		Menu_UpdateFocus();
+}
+
+void Menu_Draw(void)
+{
+#ifdef MENU_DAT
+	//shitty always-drawn crap
+	MP_Draw();
+#endif
+
+	//draw whichever menu has focus
+	if (topmenu && topmenu->drawmenu)
+		topmenu->drawmenu(topmenu);
+}
+void Prompts_Draw(void)
+{
+	//prompts always appear over the top of everything else, particuarly other menus.
+	if (promptmenu && promptmenu->drawmenu)
+		promptmenu->drawmenu(promptmenu);
+}
 
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 {
@@ -105,7 +251,7 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
 
-int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount)
+int QDECL M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount)
 {
 	int		count;
 	int		j, m;
@@ -203,13 +349,11 @@ M_ToggleMenu_f
 */
 void M_ToggleMenu_f (void)
 {	
-#ifndef NOBUILTINMENUS
 	if (topmenu)
 	{
-		Key_Dest_Add(kdm_emenu);
+		Key_Dest_Add(kdm_menu);
 		return;
 	}
-#endif
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(-1, "togglemenu"))
@@ -264,6 +408,200 @@ void M_Restart_f(void)
 }
 
 
+//=============================================================================
+/* Various callback-based prompts */
+
+typedef struct
+{
+	menu_t m;
+	void (*callback)(void *, int);
+	void *ctx;
+
+	int lines;
+	const char *messages;
+	const char *buttons[3];
+	int kbutton, mbutton;
+} promptmenu_t;
+static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned int devid, int key, int unicode)
+{
+	promptmenu_t *m = (promptmenu_t*)gm;
+	int action;
+	void (*callback)(void *, int) = m->callback;
+	void *ctx = m->ctx;
+	extern qboolean keydown[];
+
+	if (!isdown != (key==K_MOUSE1))
+		return false;	//don't care about releases, unless mouse1.
+
+	if (key == 'n' || key == 'N')
+		action = 1;
+	else if (key == 'y' || key == 'Y')
+		action = 0;
+	else if (key==K_RIGHTARROW || key==K_GP_DPAD_RIGHT || key==K_DOWNARROW || key==K_GP_DPAD_DOWN || (key == K_TAB && !keydown[K_LSHIFT] && !keydown[K_RSHIFT]))
+	{
+		for(;;)
+		{
+			m->kbutton++;
+			if (m->kbutton >= 3)
+				m->kbutton -= 3;
+			if (m->buttons[m->kbutton])
+				break;
+		}
+		return true;
+	}
+	else if (key == K_LEFTARROW || key == K_GP_DPAD_LEFT || key==K_UPARROW || key==K_GP_DPAD_UP || key==K_TAB)
+	{
+		for(;;)
+		{
+			m->kbutton--;
+			if (m->kbutton < 0)
+				m->kbutton += 3;
+			if (m->buttons[m->kbutton])
+				break;
+		}
+		return true;
+	}
+	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
+		action = -1;
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_GP_A)
+	{
+		if (key == K_MOUSE1)
+			action = m->mbutton;
+		else
+			action = m->kbutton;
+
+		if (action == -1)	//nothing focused
+			return false;
+		if (action == 2)	//convert buttons to actions...
+			action = -1;
+	}
+	else
+		return false; // no idea what that is
+
+	m->callback = NULL;	//so the remove handler can't fire.
+	Menu_Unlink(&m->m);
+	if (callback)
+		callback(ctx, action);
+
+	return true;
+}
+static void Prompt_Draw(struct menu_s *g)
+{
+	promptmenu_t *m = (promptmenu_t*)g;
+	int x = 64;
+	int y = 76;
+	int w = 224;
+	int h = m->lines*8+16;
+	int i;
+	const char *msg = m->messages;
+	int bx[4];
+
+	x = ((vid.width-w)>>1);
+
+	Draw_TextBox(x-8, y, w/8, h/8);
+	y+=8;
+	for (i = 0; i < m->lines; i++, msg = msg+strlen(msg)+1)
+	{
+		Draw_FunStringWidth(x, y, msg, w, 2, false);
+		y+=8;
+	}
+	y+=8;
+	m->mbutton = -1;
+	bx[0] = x;
+	bx[1] = x+w/3;
+	bx[2] = x+w-w/3;
+	bx[3] = x+w;
+	if (mousecursor_y >= y && mousecursor_y <= y+8)
+	{
+		for (i = 0; i < 3; i++)
+		{
+			if (m->buttons[i] && mousecursor_x >= bx[i] && mousecursor_x < bx[i+1])
+				m->mbutton = i;
+		}
+	}
+	for (i = 0; i < 3; i++)
+	{
+		if (m->buttons[i])
+		{
+			if (m->mbutton == i)
+			{
+				float alphamax = 0.5, alphamin = 0.2;
+				R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
+				R2D_FillBlock(bx[i], y, bx[i+1]-bx[i], 8);
+				R2D_ImageColours(1,1,1,1);
+			}
+			Draw_FunStringWidth(bx[i], y, m->buttons[i], bx[i+1]-bx[i], 2, m->kbutton==i);
+		}
+	}
+}
+static void Prompt_Release(struct menu_s *gm)
+{
+	promptmenu_t *m = (promptmenu_t*)gm;
+	void (*callback)(void *, int) = m->callback;
+	void *ctx = m->ctx;
+	m->callback = NULL;
+
+	if (callback)
+		callback(ctx, -1);
+	Z_Free(m);
+}
+void Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel)
+{
+	promptmenu_t *m;
+	char *t;
+
+	m = (promptmenu_t*)Z_Malloc(sizeof(*m) + strlen(messages)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+7);
+
+	m->m.cursor = &key_customcursor[kc_console];
+	/*void (*videoreset)	(struct menu_s *);	//called after a video mode switch / shader reload.
+	void (*release)		(struct menu_s *);	//
+	qboolean (*keyevent)(struct menu_s *, qboolean isdown, unsigned int devid, int key, int unicode);	//true if key was handled
+	qboolean (*mousemove)(struct menu_s *, qboolean abs, unsigned int devid, float x, float y);
+	qboolean (*joyaxis)	(struct menu_s *, unsigned  int devid, int axis, float val);
+	void (*drawmenu)	(struct menu_s *);
+	*/
+	m->m.drawmenu = Prompt_Draw;
+	m->m.keyevent = Prompt_MenuKeyEvent;
+	m->m.release = Prompt_Release;
+	m->mbutton = -1;
+	m->kbutton = -1;
+	Menu_Push(&m->m, true);
+
+	m->callback = callback;
+	m->ctx = ctx;
+
+	t = (char*)(m+1);
+	if (optionyes)
+	{
+		m->buttons[0] = t;
+		strcpy(t, optionyes);
+		t += strlen(t)+1;
+	}
+	if (optionno)
+	{
+		m->buttons[1] = t;
+		strcpy(t, optionno);
+		t += strlen(t)+1;
+	}
+	if (optioncancel)
+	{
+		m->buttons[2] = t;
+		strcpy(t, optioncancel);
+		t += strlen(t)+1;
+	}
+
+	m->messages = t;
+	strcpy(t, messages);
+
+	for(messages = t; t;)
+	{
+		t = strchr(t, '\n');
+		if (t)
+			*t++ = 0;
+		m->lines++;
+	}
+}
+
 #ifndef NOBUILTINMENUS
 
 void M_Menu_Audio_f (void);
@@ -271,10 +609,6 @@ void M_Menu_Demos_f (void);
 void M_Menu_Mods_f (void);
 void M_Menu_ModelViewer_f(void);
 void M_Menu_ModelViewer_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
-
-extern menu_t *menu_script;
-
-qboolean	m_recursiveDraw;
 
 void M_ConfigureNetSubsystem(void);
 
@@ -378,14 +712,11 @@ void M_BuildTranslationTable(unsigned int pc, unsigned int top, unsigned int bot
 
 //=============================================================================
 
-int m_save_demonum;
-
 void M_CloseMenu_f (void)
 {
-	if (!Key_Dest_Has(kdm_emenu))
+	if (!Key_Dest_Has(kdm_menu))
 		return;
 	M_RemoveAllMenus(false);
-	Key_Dest_Remove(kdm_emenu);
 }
 
 //=============================================================================
@@ -517,13 +848,11 @@ int		bind_grab;
 void M_Menu_Keys_f (void)
 {
 	int y;
-	menu_t *menu;
+	emenu_t *menu;
 	vfsfile_t *bindslist;
 #if MAX_SPLITS > 1
 	extern cvar_t cl_splitscreen;
 #endif
-
-	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(0);
 	switch(M_GameType())
@@ -658,7 +987,7 @@ struct
 	{"gfx/menu/help%02i.lmp",1}		//hexen2
 };
 
-void M_Help_Draw (menu_t *m)
+void M_Help_Draw (emenu_t *m)
 {
 	int i;
 	mpic_t *pic = NULL;
@@ -690,7 +1019,7 @@ void M_Help_Draw (menu_t *m)
 		R2D_ScalePic ((vid.width-width)/2, (vid.height-height)/2, width, height, pic);
 	}
 }
-qboolean M_Help_Key (int key, menu_t *m)
+qboolean M_Help_Key (int key, emenu_t *m)
 {
 	switch (key)
 	{
@@ -726,8 +1055,7 @@ qboolean M_Help_Key (int key, menu_t *m)
 void M_Menu_Help_f (void)
 {
 	int i;
-	menu_t *helpmenu = M_CreateMenu(0);
-	Key_Dest_Add(kdm_emenu);
+	emenu_t *helpmenu = M_CreateMenu(0);
 
 	helpmenu->predraw = M_Help_Draw;
 	helpmenu->key = M_Help_Key;
@@ -748,226 +1076,53 @@ void M_Menu_Help_f (void)
 	}
 }
 
-
-//=============================================================================
-/* Various callback-based prompts */
-
-typedef struct
-{
-	menu_t m;
-	void (*callback)(void *, int);
-	void *ctx;
-	menubutton_t *b_yes;
-	menubutton_t *b_no;
-	menubutton_t *b_cancel;
-} promptmenu_t;
-static qboolean M_Menu_Prompt_Button (union menuoption_s *b,struct menu_s *gm, int key)
-{
-	int action;
-	promptmenu_t *m = (promptmenu_t*)gm;
-	void (*callback)(void *, int) = m->callback;
-	void *ctx = m->ctx;
-
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
-		return true;
-
-	if (b == (menuoption_t*)m->b_yes)
-		action = 0;
-	else if (b == (menuoption_t*)m->b_no)
-		action = 1;
-	else //if (b == (menuoption_t*)m->b_cancel)
-		action = -1;
-	m->callback = NULL;
-
-	M_RemoveMenu(&m->m);
-
-	if (callback)
-		callback(ctx, action);
-	return true;
-}
-static void M_Menu_Prompt_Cancel (struct menu_s *gm)
-{
-	promptmenu_t *m = (promptmenu_t*)gm;
-	void (*callback)(void *, int) = m->callback;
-	void *ctx = m->ctx;
-	m->callback = NULL;
-
-	if (callback)
-		callback(ctx, -1);
-}
-void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel)
-{
-	promptmenu_t *m;
-	char *t;
-	int y;
-	int x = 64, w = 224;
-
-	Key_Dest_Add(kdm_emenu);
-
-	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(messages)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+6);
-	m->callback =  callback;
-	m->ctx = ctx;
-	m->m.remove = M_Menu_Prompt_Cancel;
-
-	t = (char*)(m+1);
-	if (optionyes)
-	{
-		strcpy(t, optionyes);
-		optionyes = t;
-		t += strlen(t)+1;
-	}
-	if (optionno)
-	{
-		strcpy(t, optionno);
-		optionno = t;
-		t += strlen(t)+1;
-	}
-	if (optioncancel)
-	{
-		strcpy(t, optioncancel);
-		optioncancel = t;
-		t += strlen(t)+1;
-	}
-
-	y = 76;
-	y += 8;	//top border
-	strcpy(t, messages);
-
-	for(messages = t; t; y += 8)
-	{
-		messages = t;
-		t = strchr(messages, '\n');
-		if (t)
-			*t++ = 0;
-		if (*messages)
-			MC_AddWhiteText(&m->m, x, x+w, y, messages, 2);
-	}
-
-	y += 8;	//blank space
-
-	if (optionyes)
-	{
-		m->b_yes	= MC_AddCommand(&m->m, x, x+70, y, optionyes,		M_Menu_Prompt_Button);
-		m->b_yes->rightalign = 2;
-	}
-	if (optionno)
-	{
-		m->b_no		= MC_AddCommand(&m->m, x+w/3, x+(2*w)/3, y, optionno,		M_Menu_Prompt_Button);
-		m->b_no->rightalign = 2;	//actually center align
-	}
-	if (optioncancel)
-	{
-		m->b_cancel	= MC_AddCommand(&m->m, x+(2*w)/3, x+w, y, optioncancel,	M_Menu_Prompt_Button);
-		m->b_cancel->rightalign = 2;
-	}
-	y += 8; //footer
-
-	y += 8;	//bottom border
-
-	m->m.selecteditem = (menuoption_t *)m->b_cancel;
-
-	MC_AddBox (&m->m, x-8, 76, (w/8), (y-76)/8);
-}
-
 //=============================================================================
 /* QUIT MENU */
 
-int		msgNumber;
-int		m_quit_prevstate;
-qboolean	wasInMenus;
-
-char *quitMessage [] =
+static char *quitMessage [] =
 {
 /* .........1.........2.... */
-  "  Are you gonna quit    ",
-  "  this game just like   ",
-  "   everything else?     ",
-  "                        ",
+	"Are you gonna quit\n"
+	"this game just like\n"
+	"everything else?",
 
-  " Milord, methinks that  ",
-  "   thou art a lowly     ",
-  " quitter. Is this true? ",
-  "                        ",
+	"Milord, methinks that\n"
+	"thou art a lowly\n"
+	"quitter. Is this true?",
 
-  " Do I need to bust your ",
-  "  face open for trying  ",
-  "        to quit?        ",
-  "                        ",
+	"Do I need to bust your\n"
+	"face open for trying\n"
+	"to quit?",
 
-  " Man, I oughta smack you",
-  "   for trying to quit!  ",
-  "     Press Y to get     ",
-  "      smacked out.      ",
+	"Man, I oughta smack you\n"
+	"for trying to quit!\n"
+	"Press Y to get\n"
+	"smacked out.",
 
-  " Press Y to quit like a ",
-  "   big loser in life.   ",
-  "  Press N to stay proud ",
-  "    and successful!     ",
+	"Press Y to quit like a\n"
+	"big loser in life.\n"
+	"Press N to stay proud\n"
+	"and successful!",
 
-  "   If you press Y to    ",
-  "  quit, I will summon   ",
-  "  Satan all over your   ",
-  "      hard drive!       ",
+	"If you press Y to\n"
+	"quit, I will summon\n"
+	"Satan all over your\n"
+	"hard drive!",
 
-  "  Um, Asmodeus dislikes ",
-  " his children trying to ",
-  " quit. Press Y to return",
-  "   to your Tinkertoys.  ",
+	"Um, Asmodeus dislikes\n"
+	"his children trying to\n"
+	"quit. Press Y to return\n"
+	"to your Tinkertoys.",
 
-  "  If you quit now, I'll ",
-  "  throw a blanket-party ",
-  "   for you next time!   ",
-  "                        "
+	"If you quit now, I'll\n"
+	"throw a blanket-party\n"
+	"for you next time!",
 };
-/*
-void OldM_Menu_Quit_f (void)
-{
-	if (m_state == m_quit)
-		return;
-	wasInMenus = (key_dest == key_menu);
-	key_dest = key_menu;
-	m_quit_prevstate = m_state;
-	m_state = m_quit;
-	m_entersound = true;
-	msgNumber = rand()&7;
-}
 
 
-void M_Quit_Key (int key)
-{
-	switch (key)
-	{
-	case K_ESCAPE:
-	case 'n':
-	case 'N':
-		if (wasInMenus)
-		{
-			m_state = m_quit_prevstate;
-			m_entersound = true;
-		}
-		else
-			key_dest = key_game;
-		break;
 
-	case 'Y':
-	case 'y':
-		key_dest = key_console;
-		CL_Disconnect ();
-		Sys_Quit ();
-		break;
-
-	default:
-		break;
-	}
-
-}
-
-void M_Quit_Draw (void)
-{
-#define VSTR(x) #x
-#define VSTR2(x) VSTR(x)
-	char *cmsg[] = {
-//    0123456789012345678901234567890123456789
+/*	char *cmsg[] = {
+//   0123456789012345678901234567890123456789
 	"0            QuakeWorld",
 	"1          version " VSTR2(VERSION),
 	"1modified by Forethought Entertainment",
@@ -990,108 +1145,28 @@ void M_Quit_Draw (void)
 	"0NIN(r) is a registered trademark",
 	"0licensed to Nothing Interactive, Inc.",
 	"0All rights reserved. Press y to exit",
-	NULL };
-	char **p;
-	int y;
-
-	if (wasInMenus)
-	{
-		m_state = m_quit_prevstate;
-		m_recursiveDraw = true;
-		M_Draw ();
-		m_state = m_quit;
-	}
-#if 1
-	M_DrawTextBox (0, 0, 38, 23);
-	y = 12;
-	for (p = cmsg; *p; p++, y += 8) {
-		if (**p == '0')
-			M_PrintWhite (16, y, *p + 1);
-		else
-			M_Print (16, y,	*p + 1);
-	}
-#else
-	M_DrawTextBox (56, 76, 24, 4);
-	M_Print (64, 84,  quitMessage[msgNumber*4+0]);
-	M_Print (64, 92,  quitMessage[msgNumber*4+1]);
-	M_Print (64, 100, quitMessage[msgNumber*4+2]);
-	M_Print (64, 108, quitMessage[msgNumber*4+3]);
-#endif
-}
-*/
-qboolean MC_Quit_Key (int key, menu_t *menu)
-{
-	switch (key)
-	{
-	case K_ESCAPE:
-	case K_GP_BACK:
-	case 'n':
-	case 'N':
-		M_RemoveMenu(menu);
-		break;
-
-	case 'q':
-	case 'Q':
-	case 'Y':
-	case 'y':
-		M_RemoveMenu(menu);
-		Key_Dest_Add(kdm_console);
-		CL_Disconnect (NULL);
-		Sys_Quit ();
-		break;
-
-	default:
-		return false;
-	}
-
-	return true;
-}
+	NULL };*/
 
 void Cmd_WriteConfig_f(void);
-qboolean MC_SaveQuit_Key (int key, menu_t *menu)
+static void M_Menu_DoQuit(void *ctx, int option)
 {
-	switch (key)
-	{
-	case 'o':
-	case 'O':
-	case K_ESCAPE:
-	case K_GP_BACK:
-	case K_MOUSE2:
-		M_RemoveMenu(menu);
-		break;
-
-	case 'q':
-	case 'Q':
-	case 'n':
-	case 'N':
-		M_RemoveMenu(menu);
-#ifndef FTE_TARGET_WEB
-		CL_Disconnect (NULL);
-		Sys_Quit ();
-#endif
-		break;
-
-	case 'Y':
-	case 'y':
-		M_RemoveMenu(menu);
-		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
-#ifndef FTE_TARGET_WEB
-		CL_Disconnect (NULL);
-		Sys_Quit ();
-#endif
-		break;
-
-	default:
-		return false;
-	}
-
-	return true;
+	if (option == 0)	//'yes - quit'
+		Cmd_ExecuteString("menu_quit force\n", RESTRICT_LOCAL);
+//	else if (option == 1)	//'no - don't quit'
+//	else if (option == -1)	//'cancel - don't quit'
+}
+static void M_Menu_DoQuitSave(void *ctx, int option)
+{
+	if (option == 0)	//'yes - save-and-quit'
+		Cmd_ExecuteString("menu_quit forcesave\n", RESTRICT_LOCAL);
+	else if (option == 1)	//'no - nosave-and-quit'
+		Cmd_ExecuteString("menu_quit force\n", RESTRICT_LOCAL);
+//	else if (option == -1)	//'cancel - don't quit'
 }
 
 //quit menu
 void M_Menu_Quit_f (void)
 {
-	menu_t *quitmenu;
 	int mode;
 	extern cvar_t cfg_save_auto;
 	char *arg = Cmd_Argv(1);
@@ -1133,58 +1208,10 @@ void M_Menu_Quit_f (void)
 #endif
 		break;
 	case 2:
-		Key_Dest_Add(kdm_emenu);
-		Key_Dest_Remove(kdm_console);
-
-		quitmenu = M_CreateMenuInfront(0);
-		quitmenu->key = MC_SaveQuit_Key;
-
-		MC_AddWhiteText(quitmenu, 64, 256, 84,	 "You have unsaved settings ", 2);
-		MC_AddWhiteText(quitmenu, 64, 256, 92,	 "    Would you like to     ", 2);
-		MC_AddWhiteText(quitmenu, 64, 256, 100,	 "      save them now?      ", 2);
-
-		quitmenu->selecteditem = (menuoption_t *)
-#ifdef FTE_TARGET_WEB
-		MC_AddConsoleCommand    (quitmenu, 64, 0, 116, "Yes",							"cfg_save; menupop\n");
-		MC_AddConsoleCommand    (quitmenu, 224,0, 116,                     "Cancel",	"menupop\n");
-#else
-		MC_AddConsoleCommand    (quitmenu, 64, 0, 116, "Yes",							"menu_quit forcesave\n");
-		MC_AddConsoleCommand    (quitmenu, 144,0, 116,           "No",					"menu_quit force\n");
-		MC_AddConsoleCommand    (quitmenu, 224,0, 116,                     "Cancel",	"menupop\n");
-#endif
-
-		MC_AddBox (quitmenu, 56, 76, 25, 5);
+		Menu_Prompt (M_Menu_DoQuitSave, NULL, "You have unsaved settings\nWould you like to\nsave them now?", "Yes", "No", "Cancel");
 		break;
 	case 1:
-		Key_Dest_Add(kdm_emenu);
-		Key_Dest_Remove(kdm_console);
-
-		quitmenu = M_CreateMenuInfront(0);
-		quitmenu->key = MC_Quit_Key;
-
-
-#ifdef FTE_TARGET_WEB
-
-//		MC_AddWhiteText(quitmenu, 64, 256, 84,	 "                          ", 2);
-		MC_AddWhiteText(quitmenu, 64, 256, 92,	 " There is nothing to save ", 2);
-//		MC_AddWhiteText(quitmenu, 64, 256, 100,	 "                          ", 2);
-
-		quitmenu->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommand    (quitmenu, 120, 0, 116,        "Oh",			       "menupop\n");
-#else
-		{
-			int		i = rand()&7;
-			MC_AddWhiteText(quitmenu, 64, 256, 84, quitMessage[i*4+0], 2);
-			MC_AddWhiteText(quitmenu, 64, 256, 92, quitMessage[i*4+1], 2);
-			MC_AddWhiteText(quitmenu, 64, 256, 100, quitMessage[i*4+2], 2);
-			MC_AddWhiteText(quitmenu, 64, 256, 108, quitMessage[i*4+3], 2);
-		}
-
-		quitmenu->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommand    (quitmenu, 100, 0, 116,        "Quit",			       "menu_quit force\n");
-		MC_AddConsoleCommand    (quitmenu, 194, 0, 116,                   "Cancel",        "menupop\n");
-#endif
-		MC_AddBox (quitmenu, 56, 76, 24, 5);
+		Menu_Prompt (M_Menu_DoQuit, NULL, quitMessage[rand()%countof(quitMessage)], "Quit", NULL, "Cancel");
 		break;
 	}
 }
@@ -1434,118 +1461,6 @@ void M_Init (void)
 }
 #endif
 
-
-void M_Draw (int uimenu)
-{
-	qboolean stillactive = false;
-
-	if (uimenu)
-	{
-		if (uimenu == 2)
-			R2D_FadeScreen ();
-#ifdef VM_UI
-		UI_DrawMenu();
-#endif
-	}
-
-#ifndef NOBUILTINMENUS
-	if (!Key_Dest_Has(kdm_emenu))
-	{
-		M_RemoveAllMenus(false);
-		menu_mousedown = false;
-		return;
-	}
-#endif
-
-#ifndef NOBUILTINMENUS
-	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
-	{
-		if (topmenu && topmenu->selecteditem && topmenu->selecteditem->common.type == mt_slider && (topmenu->selecteditem->slider.var == &v_gamma || topmenu->selecteditem->slider.var == &v_contrast))
-			/*no menu tint if we're trying to adjust gamma*/;
-		else
-			R2D_FadeScreen ();
-	}
-	else
-	{
-		m_recursiveDraw = false;
-	}
-#endif
-
-	R2D_ImageColours(1, 1, 1, 1);
-
-#ifdef PLUGINS
-	if (menuplug)
-	{
-		Plug_Menu_Event (0, (int)(realtime*1000));
-		stillactive = true;
-	}
-#endif
-
-#ifndef NOBUILTINMENUS
-	if (topmenu)
-	{
-		M_Complex_Draw ();
-		stillactive = true;
-	}
-#endif
-	if (!stillactive)
-		Key_Dest_Remove(kdm_emenu);
-}
-
-
-void M_Keydown (int key, int unicode)
-{
-#ifndef NOBUILTINMENUS
-	if (topmenu)
-	{
-		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
-		{
-			if (topmenu->mouseitem && topmenu->mouseitem->common.type == mt_frameend)
-				topmenu->mouseitem->frame.mousedown = true;
-			else
-				menu_mousedown = true;
-		}
-		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
-			;	//modifiers are sent on up events instead.
-		else
-			M_Complex_Key (key, unicode);
-		return;
-	}
-#endif
-
-#ifdef PLUGINS
-	if (menuplug)
-	{
-		Plug_Menu_Event (1, key);
-		return;
-	}
-#endif
-
-	Key_Dest_Remove(kdm_emenu);
-}
-
-
-void M_Keyup (int key, int unicode)
-{
-#ifndef NOBUILTINMENUS
-	if (topmenu)
-	{
-		if (key == K_MOUSE1 && menu_mousedown)
-			M_Complex_Key (key, unicode);
-		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
-			M_Complex_Key (key, unicode);
-		menu_mousedown = false;
-		return;
-	}
-#endif
-#ifdef PLUGINS
-	if (menuplug)
-	{
-		Plug_Menu_Event (2, key);
-		return;
-	}
-#endif
-}
 
 // Generic function to choose which game menu to draw
 int M_GameType (void)

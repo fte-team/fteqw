@@ -1762,6 +1762,13 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			{
 				if (con->redirect && con->redirect(con, unicode, key))
 					return true;
+#ifdef HAVE_MEDIA_DECODER
+				if (con->backshader && R_ShaderGetCinematic(con->backshader))
+				{
+					Media_Send_KeyEvent(R_ShaderGetCinematic(con->backshader), rkey, unicode, 0);
+					return true;
+				}
+#endif
 				if (Key_IsTouchScreen() || con->mousecursor[0] > ((con->flags & CONF_ISWINDOW)?con->wnd_w-16:vid.width)-8)
 				{	//just scroll the console up/down
 					con->buttonsdown = CB_SCROLL;
@@ -2100,7 +2107,7 @@ void Key_Message (int key, int unicode)
 //============================================================================
 
 //for qc
-char *Key_GetBinding(int keynum, int bindmap, int modifier)
+const char *Key_GetBinding(int keynum, int bindmap, int modifier)
 {
 	char *key = NULL;
 	if (keynum < 0 || keynum >= K_MAX)
@@ -2596,8 +2603,8 @@ void Key_Init (void)
 	}
 	key_linepos = 0;
 
-	key_dest_mask = kdm_game;
-	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_cwindows | kdm_emenu;
+	Key_Dest_Add(kdm_game);
+	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_cwindows | kdm_menu;
 
 //
 // init ascii characters in console mode
@@ -2700,14 +2707,6 @@ qboolean Key_MouseShouldBeFree(void)
 	if (key_dest_absolutemouse & key_dest_mask)
 		return true;
 
-#ifdef VM_UI
-	if (UI_MenuState())
-		return false;
-#endif
-
-	if (Media_PlayingFullScreen())
-		return true;
-
 	if (cl_prydoncursor.ival)
 		return true;
 
@@ -2786,7 +2785,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 
 	//yes, csqc is allowed to steal the escape key.
 	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
-		!Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
+		!Key_Dest_Has(~kdm_game))
 	{
 #ifdef CSQC_DAT
 		if (CSQC_KeyPress(key, unicode, down, devid))	//give csqc a chance to handle it.
@@ -2810,70 +2809,38 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 //
 	if (key == K_ESCAPE)
 	{
-#ifdef VM_UI
-#ifdef TEXTEDITOR
-		if (!Key_Dest_Has(~kdm_game) && !Key_Dest_Has(kdm_console))
-#endif
+		if (!Key_Dest_Has(~kdm_game))
 		{
-			if (down && Media_PlayingFullScreen())
-			{
-				Media_StopFilm(false);
-				return;
-			}
-			if (UI_KeyPress(key, unicode, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
-				return;
-		}
+#ifdef VM_UI
+//			if (UI_KeyPress(key, unicode, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
+//				return;
 #endif
+		}
 
 		if (!down)
 		{
-#ifdef MENU_DAT
-			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_console|kdm_cwindows))
-				MP_Keyup (key, unicode, devid);
-#endif
-#ifdef MENU_NATIVECODE
-			if (mn_entry)
-			{
-				struct menu_inputevent_args_s ev = {MIE_KEYUP, devid};
-				ev.key.scancode = key;
-				ev.key.charcode = unicode;
-				mn_entry->InputEvent(ev);
-			}
-#endif
+			if (Key_Dest_Has(kdm_prompt) || (Key_Dest_Has(kdm_menu) && !Key_Dest_Has(kdm_console|kdm_cwindows)))
+				Menu_KeyEvent (false, devid, key, unicode);
 			return;
 		}
 
-		if (Key_Dest_Has(kdm_console))
+		if (Key_Dest_Has(kdm_prompt))
+			Menu_KeyEvent (true, devid, key, unicode);
+		else if (Key_Dest_Has(kdm_console))
 		{
 			Key_Dest_Remove(kdm_console);
 			Key_Dest_Remove(kdm_cwindows);
-			if (!cls.state && !Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
+			if (!cls.state && !Key_Dest_Has(~kdm_game))
 				M_ToggleMenu_f ();
 		}
 		else if (Key_Dest_Has(kdm_cwindows))
 		{
 			Key_Dest_Remove(kdm_cwindows);
-			if (!cls.state && !Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
+			if (!cls.state && !Key_Dest_Has(~kdm_game))
 				M_ToggleMenu_f ();
 		}
-		else if (Key_Dest_Has(kdm_emenu))
-			M_Keydown (key, unicode);
-#ifdef MENU_NATIVECODE
-		else if (Key_Dest_Has(kdm_nmenu))
-		{
-			if (mn_entry)
-			{
-				struct menu_inputevent_args_s ev = {MIE_KEYDOWN, devid};
-				ev.key.scancode = key;
-				ev.key.charcode = unicode;
-				mn_entry->InputEvent(ev);
-			}
-		}
-#endif
-#ifdef MENU_DAT
-		else if (Key_Dest_Has(kdm_gmenu))
-			MP_Keydown (key, unicode, devid);
-#endif
+		else if (Key_Dest_Has(kdm_menu))
+			Menu_KeyEvent (true, devid, key, unicode);
 		else if (Key_Dest_Has(kdm_message))
 		{
 			Key_Dest_Remove(kdm_message);
@@ -2882,16 +2849,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			chat_bufferpos = 0;
 		}
 		else
-		{
-			if (Media_PlayingFullScreen())
-			{
-				Media_StopFilm(true);
-				if (!cls.state)
-					M_ToggleMenu_f ();
-			}
-			else
-				M_ToggleMenu_f ();
-		}
+			M_ToggleMenu_f ();
 		return;
 	}
 
@@ -2924,25 +2882,8 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 				Key_ConsoleRelease(con, key, unicode);
 			}
 		}
-		if (Key_Dest_Has(kdm_emenu))
-			M_Keyup (key, unicode);
-#ifdef MENU_NATIVECODE
-		if (Key_Dest_Has(kdm_nmenu) && mn_entry)
-		{
-			struct menu_inputevent_args_s ev = {MIE_KEYUP, devid};
-			ev.key.scancode = key;
-			ev.key.charcode = unicode;
-			mn_entry->InputEvent(ev);
-		}
-#endif
-#ifdef MENU_DAT
-		if (Key_Dest_Has(kdm_gmenu))
-			MP_Keyup (key, unicode, devid);
-#endif
-#ifdef HAVE_MEDIA_DECODER
-		if (Media_PlayingFullScreen())
-			Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
-#endif
+		if (Key_Dest_Has(kdm_menu|kdm_prompt))
+			Menu_KeyEvent (false, devid, key, unicode);
 
 		uc = releasecommand[key][devid%MAX_INDEVS];
 		if (uc)	//this wasn't down, so don't crash on bad commands.
@@ -2980,6 +2921,16 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		}
 	}
 
+	//prompts get the first chance
+	if (Key_Dest_Has(kdm_prompt))
+	{
+		if (key < K_F1 || key > K_F15)
+		{	//function keys don't get intercepted by the menu...
+			Menu_KeyEvent (true, devid, key, unicode);
+			return;
+		}
+	}
+
 //
 // if not a consolekey, send to the interpreter no matter what mode is
 //
@@ -2999,49 +2950,16 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			Key_Dest_Remove(kdm_cwindows);
 
 	}
-#ifdef HAVE_MEDIA_DECODER
-	if (Media_PlayingFullScreen())
-	{
-		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
-		return;
-	}
-#endif
-#ifdef VM_UI
-	if (!Key_Dest_Has(~kdm_game) || !down)
-	{
-		if (UI_KeyPress(key, unicode, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
-			return;
-	}
-#endif
 
-	if (Key_Dest_Has(kdm_emenu))
+	//menus after console stuff
+	if (Key_Dest_Has(kdm_menu))
 	{
 		if (key < K_F1 || key > K_F15)
 		{	//function keys don't get intercepted by the menu...
-			M_Keydown (key, unicode);
+			Menu_KeyEvent (true, devid, key, unicode);
 			return;
 		}
 	}
-#ifdef MENU_NATIVECODE
-	if (Key_Dest_Has(kdm_nmenu))
-	{
-		if (mn_entry)
-		{
-			struct menu_inputevent_args_s ev = {down?MIE_KEYDOWN:MIE_KEYUP, devid};
-			ev.key.scancode = key;
-			ev.key.charcode = unicode;
-			if (mn_entry->InputEvent(ev))
-				return;
-		}
-	}
-#endif
-#ifdef MENU_DAT
-	if (Key_Dest_Has(kdm_gmenu))
-	{
-		if (MP_Keydown (key, unicode, devid))
-			return;
-	}
-#endif
 	if (Key_Dest_Has(kdm_message))
 	{
 		Key_Message (key, unicode);

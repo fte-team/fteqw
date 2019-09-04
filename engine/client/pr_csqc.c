@@ -2474,7 +2474,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 			SCR_TileClear (0);
 #endif
 
-		if (!Key_Dest_Has(kdm_emenu|kdm_gmenu|kdm_cwindows))
+		if (!Key_Dest_Has(kdm_menu|kdm_cwindows))
 		{
 			if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
 			{
@@ -6459,27 +6459,27 @@ static struct {
 //	{"?",	PF_Fixme,		313},					// #313
 
 //2d (immediate) operations
-	{"drawtextfield",			PF_CL_DrawTextField,  0/*314*/},
-	{"drawline",				PF_CL_drawline,				315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
-	{"iscachedpic",				PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
-	{"precache_pic",			PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
-	{"r_uploadimage",			PF_CL_uploadimage,			0},
-	{"r_readimage",				PF_CL_readimage,			0},
-	{"drawgetimagesize",		PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
-	{"freepic",					PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
+	{"drawtextfield",			PF_CL_DrawTextField,			0/*314*/},
+	{"drawline",				PF_CL_drawline,					315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
+	{"iscachedpic",				PF_CL_is_cached_pic,			316},		// #316 float(string name) iscachedpic (EXT_CSQC)
+	{"precache_pic",			PF_CL_precache_pic,				317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
+	{"r_uploadimage",			PF_CL_uploadimage,				0},
+	{"r_readimage",				PF_CL_readimage,				0},
+	{"drawgetimagesize",		PF_CL_drawgetimagesize,			318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
+	{"freepic",					PF_CL_free_pic,					319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
-	{"drawcharacter",			PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
-	{"drawrawstring",			PF_CL_drawrawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
-	{"drawpic",					PF_CL_drawpic,				322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
-	{"drawrotpic",				PF_CL_drawrotpic,			0},
-	{"drawfill",				PF_CL_drawfill,				323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
+	{"drawcharacter",			PF_CL_drawcharacter,			320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",			PF_CL_drawrawstring,			321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",					PF_CL_drawpic,					322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrotpic",				PF_CL_drawrotpic,				0},
+	{"drawfill",				PF_CL_drawfill,					323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
 	{"drawsetcliparea",			PF_CL_drawsetcliparea,			324},	// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
-	{"drawresetcliparea",		PF_CL_drawresetcliparea,	325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
+	{"drawresetcliparea",		PF_CL_drawresetcliparea,		325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
 
-	{"drawstring",				PF_CL_drawcolouredstring,						326},	// #326
-	{"stringwidth",				PF_CL_stringwidth,					327},	// #327 EXT_CSQC_'DARKPLACES'
-	{"drawsubpic",				PF_CL_drawsubpic,						328},	// #328 EXT_CSQC_'DARKPLACES'
-	{"drawrotsubpic",			PF_CL_drawrotsubpic,						0},
+	{"drawstring",				PF_CL_drawcolouredstring,		326},	// #326
+	{"stringwidth",				PF_CL_stringwidth,				327},	// #327 EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",				PF_CL_drawsubpic,				328},	// #328 EXT_CSQC_'DARKPLACES'
+	{"drawrotsubpic",			PF_CL_drawrotsubpic,			0},
 //	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
 
 //330
@@ -8177,7 +8177,7 @@ qboolean CSQC_DrawView(void)
 			G_FLOAT(OFS_PARM0) = vid.width;
 			G_FLOAT(OFS_PARM1) = vid.height;
 		}
-		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu|kdm_gmenu|kdm_cwindows) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
+		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_menu|kdm_cwindows) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 
 		if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
 			PR_ExecuteProgram(csqcprogs, csqcg.f_updateviewloading);

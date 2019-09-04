@@ -233,7 +233,7 @@ typedef enum uploadfmt
 
 qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, qintptr_t bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta);
 
-void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);
+void SCR_DrawTwoDimensional(qboolean nohud);
 
 enum
 {

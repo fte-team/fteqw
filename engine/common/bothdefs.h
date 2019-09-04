@@ -783,6 +783,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FTE_UNREACHABLE Sys_Error("Unreachable reached: %s %i\n", __FILE__, __LINE__)
 #endif
 
+#ifdef _WIN32
+	//Windows-specific...
+	#define stricmp _stricmp
+	#define strnicmp _strnicmp
+#else
+	//Posix
+	#define stricmp strcasecmp
+	#define strnicmp strncasecmp
+#endif
+
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 #define CACHE_SIZE	32		// used to align key data structures

@@ -322,33 +322,47 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_EAC_R11_SNORM:
 	case PTI_EAC_RG11:
 	case PTI_EAC_RG11_SNORM:
-	case PTI_ASTC_4X4:			//not invented here...
+	case PTI_ASTC_4X4_LDR:			//not invented here...
+	case PTI_ASTC_5X4_LDR:
+	case PTI_ASTC_5X5_LDR:
+	case PTI_ASTC_6X5_LDR:
+	case PTI_ASTC_6X6_LDR:
+	case PTI_ASTC_8X5_LDR:
+	case PTI_ASTC_8X6_LDR:
+	case PTI_ASTC_10X5_LDR:
+	case PTI_ASTC_10X6_LDR:
+	case PTI_ASTC_8X8_LDR:
+	case PTI_ASTC_10X8_LDR:
+	case PTI_ASTC_10X10_LDR:
+	case PTI_ASTC_12X10_LDR:
+	case PTI_ASTC_12X12_LDR:
+	case PTI_ASTC_4X4_HDR:
+	case PTI_ASTC_5X4_HDR:
+	case PTI_ASTC_5X5_HDR:
+	case PTI_ASTC_6X5_HDR:
+	case PTI_ASTC_6X6_HDR:
+	case PTI_ASTC_8X5_HDR:
+	case PTI_ASTC_8X6_HDR:
+	case PTI_ASTC_10X5_HDR:
+	case PTI_ASTC_10X6_HDR:
+	case PTI_ASTC_8X8_HDR:
+	case PTI_ASTC_10X8_HDR:
+	case PTI_ASTC_10X10_HDR:
+	case PTI_ASTC_12X10_HDR:
+	case PTI_ASTC_12X12_HDR:
 	case PTI_ASTC_4X4_SRGB:
-	case PTI_ASTC_5X4:
 	case PTI_ASTC_5X4_SRGB:
-	case PTI_ASTC_5X5:
 	case PTI_ASTC_5X5_SRGB:
-	case PTI_ASTC_6X5:
 	case PTI_ASTC_6X5_SRGB:
-	case PTI_ASTC_6X6:
 	case PTI_ASTC_6X6_SRGB:
-	case PTI_ASTC_8X5:
 	case PTI_ASTC_8X5_SRGB:
-	case PTI_ASTC_8X6:
 	case PTI_ASTC_8X6_SRGB:
-	case PTI_ASTC_10X5:
 	case PTI_ASTC_10X5_SRGB:
-	case PTI_ASTC_10X6:
 	case PTI_ASTC_10X6_SRGB:
-	case PTI_ASTC_8X8:
 	case PTI_ASTC_8X8_SRGB:
-	case PTI_ASTC_10X8:
 	case PTI_ASTC_10X8_SRGB:
-	case PTI_ASTC_10X10:
 	case PTI_ASTC_10X10_SRGB:
-	case PTI_ASTC_12X10:
 	case PTI_ASTC_12X10_SRGB:
-	case PTI_ASTC_12X12:
 	case PTI_ASTC_12X12_SRGB:
 #ifdef FTE_TARGET_WEB
 	case PTI_WHOLEFILE:			//basically webgl only...

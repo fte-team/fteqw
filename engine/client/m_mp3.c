@@ -5158,7 +5158,7 @@ void Media_Init(void)
 	Cvar_Register(&tts_mode, "Gimmicks");
 #endif
 #ifdef AVAIL_MP3_ACM
-	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
+	S_RegisterSoundInputPlugin(NULL, S_LoadMP3Sound);
 #endif
 
 

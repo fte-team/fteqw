@@ -175,9 +175,7 @@ qboolean GLSCR_UpdateScreen (void)
 			if (r_worldentity.model && cls.state == ca_active)
 				V_RenderView (nohud);
 			else
-			{
 				noworld = true;
-			}
 		}
 
 		GL_Set2D (false);

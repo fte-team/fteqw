@@ -176,7 +176,7 @@ typedef struct {
 struct wstats_s;
 
 
-#define F(t, n, args) t (QDECL *n) args;
+#define F(t, n, args) t (QDECL *n) args
 
 typedef struct	//core stuff
 {

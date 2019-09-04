@@ -138,6 +138,57 @@ char	*va(const char *format, ...)	//Identical in function to the one in Quake, t
 	return string;	
 }
 
+#ifdef _WIN32
+// don't use these functions in MSVC8
+#if (_MSC_VER < 1400)
+int QDECL linuxlike_snprintf(char *buffer, int size, const char *format, ...)
+{
+#undef _vsnprintf
+	int ret;
+	va_list		argptr;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	va_start (argptr, format);
+	ret = _vsnprintf (buffer,size, format,argptr);
+	va_end (argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+int QDECL linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
+{
+#undef _vsnprintf
+	int ret;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	ret = _vsnprintf (buffer,size, format,argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+#else
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...)
+{
+	int ret;
+	va_list		argptr;
+
+	va_start (argptr, format);
+	ret = vsnprintf_s (buffer,size, _TRUNCATE, format,argptr);
+	va_end (argptr);
+
+	return ret;
+}
+#endif
+#endif
+
 void Con_Printf(const char *format, ...)
 {
 	va_list		argptr;

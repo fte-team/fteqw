@@ -58,6 +58,18 @@ typedef unsigned char qbyte;
 #pragma warning(disable : 4267)
 #endif
 
+#ifndef stricmp
+#ifdef _WIN32
+	//Windows-specific...
+	#define stricmp _stricmp
+	#define strnicmp _strnicmp
+#else
+	//Posix
+	#define stricmp strcasecmp
+	#define strnicmp strncasecmp
+#endif
+#endif
+
 //extern progfuncs_t *progfuncs;
 typedef struct sharedvar_s
 {

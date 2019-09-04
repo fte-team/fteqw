@@ -711,7 +711,7 @@ static qboolean QDECL SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, i
 #define H2MP_PROGHEADER_CRC	26905	//hexen2 mission pack uses slightly different defs... *sigh*...
 #define H2DEMO_PROGHEADER_CRC	14046	//I'm guessing this is from the original release or something
 
-pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
+pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc, const char *filename)
 {
 	progstype_t modtype;
 	if (crc == QW_PROGHEADER_CRC)
@@ -734,7 +734,10 @@ pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc
 		progstype = modtype;
 	//if the new one differs from the main module, reject it, unless it has crc 0, which we'll allow as a universal mutator (good luck guessing the correct arguments, but hey).
 	if (progstype != modtype && crc != 0)
+	{
+		Con_Printf("Unable to load \"%s\" due to mismatched gametype/progdefs\n", filename);
 		return false;
+	}
 	return true;
 }
 static void *PDECL SSQC_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size, pbool issource)

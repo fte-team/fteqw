@@ -682,9 +682,11 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
 #endif /* GL_EXT_texture_sRGB */
 
+#ifndef GL_RGB9_E5
+#define GL_RGB9_E5                        0x8C3D	/*opengl 3.0*/
+#endif
 #ifndef GL_RG
 #define GL_RG                             0x8227
-#define GL_RGB9_E5                        0x8C3D	/*opengl 3.0*/
 #define GL_R8                             0x8229	/*opengl 3.0*/
 #define GL_R16                            0x822A	/*opengl 3.0*/
 #define GL_RG8                            0x822B	/*opengl 3.0*/
@@ -811,7 +813,9 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #endif
 
 
-
+#ifndef GL_EXT_texture_compression_astc_decode_mode
+#define GL_TEXTURE_ASTC_DECODE_PRECISION_EXT	0x8F69
+#endif
 
 #ifndef GL_EXT_framebuffer_object
 #define GL_INVALID_FRAMEBUFFER_OPERATION_EXT 0x0506

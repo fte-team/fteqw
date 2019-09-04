@@ -681,8 +681,12 @@ static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
 		func->type = SHADER_FUNC_INVERSESAWTOOTH;
 	else if (!Q_stricmp (token, "noise"))
 		func->type = SHADER_FUNC_NOISE;
-	else if (!Q_stricmp (token, "distanceramp"))	//QFusion
+	else
 	{
+		if (!Q_stricmp (token, "distanceramp"))	//QFusion
+			;
+		else
+			Con_Printf("Shader_ParseFunc: %s: unknown func %s\n", shader->name, token);
 		func->type = SHADER_FUNC_CONSTANT;	//not supported...
 		Shader_ParseFloat (shader, ptr, 0);
 		Shader_ParseFloat (shader, ptr, 0);

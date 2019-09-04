@@ -3052,13 +3052,18 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("redirect to %s\n", data);
 			if (NET_StringToAdr(data, PORT_DEFAULTSERVER, &adr))
 			{
-				data = "\xff\xff\xff\xffgetchallenge\n";
-
 				if (NET_CompareAdr(&connectinfo.adr, &net_from))
 				{
-					connectinfo.istransfer = true;
-					connectinfo.adr = adr;
-					NET_SendPacket (cls.sockets, strlen(data), data, &adr);
+					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &connectinfo.adr))
+						Con_Printf ("Unable to redirect to %s\n", data);
+					else
+					{
+						connectinfo.istransfer = true;
+						connectinfo.adr = adr;
+
+						data = "\xff\xff\xff\xffgetchallenge\n";
+						NET_SendPacket (cls.sockets, strlen(data), data, &adr);
+					}
 				}
 			}
 			return;

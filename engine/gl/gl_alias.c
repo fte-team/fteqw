@@ -1770,6 +1770,8 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	for(surfnum=0; inf; inf=inf->nextsurf, surfnum++)
 	{
+		if (!inf->numindexes)
+			continue;
 		if (lod < inf->mindist || (inf->maxdist && lod >= inf->maxdist))
 			continue;
 

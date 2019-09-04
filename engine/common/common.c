@@ -5228,7 +5228,7 @@ static void COM_ErrorMe_f(void)
 #ifdef LOADERTHREAD
 static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue);
 cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
-static cvar_t worker_count = CVARFCD("worker_count", "0", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
+static cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
 static cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
 
 #define WORKERTHREADS 16	//max
@@ -5475,7 +5475,9 @@ static int COM_WorkerThread(void *arg)
 				thread->request = WR_NONE;
 				thread->ackseq = com_workeracksequence;
 				Sys_UnlockConditional(com_workercondition[group]);
+				Sys_LockConditional(com_workercondition[WG_MAIN]);
 				Sys_ConditionBroadcast(com_workercondition[WG_MAIN]); //try to wake up whoever wanted us to ack them
+				Sys_UnlockConditional(com_workercondition[WG_MAIN]);
 				Sys_LockConditional(com_workercondition[group]);
 				continue;
 			}

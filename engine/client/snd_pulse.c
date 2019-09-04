@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#ifdef HAVE_MIXER
+#if defined(HAVE_MIXER) && defined(MULTITHREAD)
 
 #if 0
 #include <pulse/simple.h>

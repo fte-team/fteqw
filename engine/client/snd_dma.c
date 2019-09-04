@@ -3143,12 +3143,13 @@ float S_GetChannelLevel(int entnum, int entchannel)
 			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
 			{
 				ssamplepos_t spos = sc->GetChannelPos?sc->GetChannelPos(sc, &sc->channel[i]):(sc->channel[i].pos>>PITCHSHIFT);
-				if (sc->channel[i].sfx->decoder.decodedata)scache = sc->channel[i].sfx->decoder.decodedata(sc->channel[i].sfx, &scachebuf, spos, 1);
+				if (sc->channel[i].sfx->decoder.decodedata)
+					scache = sc->channel[i].sfx->decoder.decodedata(sc->channel[i].sfx, &scachebuf, spos, 1);
 				else 
 					scache = NULL;
-
 				if (!scache)
 					scache = sc->channel[i].sfx->decoder.buf;
+
 				if (scache && spos >= scache->soundoffset && spos < scache->soundoffset+scache->length)
 				{
 					spos -= scache->soundoffset;

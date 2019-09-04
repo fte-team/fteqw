@@ -4432,7 +4432,377 @@ static qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 #endif
 
+#ifdef MODELFMT_MDX
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Kingpin model loading
+//basically md2, but with toggleable subobjects and object bounding boxes (fixme: use those for hitmesh instead of the mesh itself)
+
+typedef struct
+{
+	float		scale[3];	// multiply qbyte verts by this
+	float		translate[3];	// then add this
+	char		name[16];	// frame name from grabbing
+	dtrivertx_t	verts[1];	// variable sized
+} dmdxframe_t;
+
+typedef struct
+{
+	int cmd;
+	int obj;
+	struct dmdxcommandvert_s
+	{
+		float s, t;
+		int origvert;
+	} vert[1];
+} dmdxcommand_t;
+
+typedef struct
+{
+   int magic;
+   int version;
+   int skinWidth;
+   int skinHeight;
+   int frameSize;
+   int numSkins;
+   int numVertices;
+   int numTriangles_Unusable;
+   int numGlCommands;
+   int numFrames;
+   int numSfxDefines_Unsupported;
+   int numSfxEntries_Unsupported;
+   int numSubObjects;
+   int offsetSkins;
+   int offsetTriangles_Unusable;
+   int offsetFrames;
+   int offsetGlCommands;
+   int offsetVertexInfo_Whatever;
+   int offsetSfxDefines_Unsupported;
+   int offsetSfxEntries_Unsupported;
+   int offsetBBoxFrames_HitmeshInstead;
+   int offsetMaybeST_Bugged;
+   int offsetEnd;
+} dmdxheader_t;
+
+#define MDX_IDENT ('I'<<0)+('D'<<8)+('P'<<16)+('X'<<24)
+#define MDX_VERSION 4
+
+#define Q2NUMVERTEXNORMALS	162
+extern vec3_t	bytedirs[Q2NUMVERTEXNORMALS];
+
+#ifndef SERVERONLY
+static void MDX_LoadSkins(galiasinfo_t *galias, model_t *mod, dmdxheader_t *pinmodel, char *skins)
+{
+	int i;
+	skinframe_t *frames;
+	galiasskin_t *outskin = galias->ofsskins;
+
+	for (i = 0; i < LittleLong(pinmodel->numSkins); i++, outskin++)
+	{
+		frames = ZG_Malloc(&mod->memgroup, sizeof(*frames));
+		outskin->frame = frames;
+		outskin->numframes=1;
+
+		COM_CleanUpPath(skins);	//blooming tanks.
+		Q_strncpyz(frames->shadername, skins, sizeof(frames->shadername));
+
+		outskin->skinwidth = 0;
+		outskin->skinheight = 0;
+		outskin->skinspeed = 0;
+
+		skins += MD2MAX_SKINNAME;
+	}
+	galias->numskins = LittleLong(pinmodel->numSkins);
+}
+#endif
+
+#define MDX_MAX_TRIANGLES 4096
+#define MDX_MAX_VERTS MDX_MAX_TRIANGLES*3
+static int MDX_MatchVert(struct dmdxcommandvert_s *list, int *count, struct dmdxcommandvert_s *newvert)
+{
+	int i;
+	for (i = 0; i < *count; i++)
+	{
+		if (list[i].origvert == newvert->origvert &&
+			list[i].s == newvert->s &&
+			list[i].t == newvert->t)
+			return i;	//its a dupe!
+	}
+	if (i == MDX_MAX_VERTS)
+		return 0;
+	list[i] = *newvert;
+	*count+=1;
+	return i;
+}
+
+static qboolean QDECL Mod_LoadKingpinModel (model_t *mod, void *buffer, size_t fsize)
+{
+#ifndef SERVERONLY
+	vec2_t *st_array;
+	vec3_t *normals;
+#endif
+	dmdxheader_t *pinmodel;
+
+	int version;
+	int i, j, subobj;
+	index_t *indexes;
+
+	vec3_t min;
+	vec3_t max;
+
+	galiaspose_t *pose;
+	galiasanimation_t *poutframe;
+	dmdxframe_t *pinframe;
+	int framesize;
+	vecV_t *verts;
+	dmdxcommand_t *pincmd, *pincmdend;
+
+	struct dmdxcommandvert_s tmpvert[MDX_MAX_VERTS];
+	int numverts;
+	struct
+	{
+		int newidx[3];
+	} tri[MDX_MAX_TRIANGLES];
+	int numtri;
+
+	int size;
+	galiasinfo_t *galias, *root;
+
+	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
+
+	pinmodel = (dmdxheader_t *)buffer;
+
+	if (fsize < sizeof(*pinmodel))
+	{
+		Con_Printf (CON_ERROR "%s is truncated\n", mod->name);
+		return false;
+	}
+	version = LittleLong (pinmodel->version);
+	if (version != MDX_VERSION)
+	{
+		Con_Printf (CON_ERROR "%s has wrong version number (%i should be %i)\n",
+				 mod->name, version, MDX_VERSION);
+		return false;
+	}
+	if (LittleLong(pinmodel->offsetEnd) != fsize)
+	{
+		Con_Printf (CON_ERROR "%s is truncated\n", mod->name);
+		return false;
+	}
+
+	if (LittleLong(pinmodel->numFrames) < 1 ||
+		LittleLong(pinmodel->numSkins) < 0 ||
+		LittleLong(pinmodel->numTriangles_Unusable) < 1 ||
+		LittleLong(pinmodel->numVertices) < 3 ||
+		LittleLong(pinmodel->skinHeight) < 1 ||
+		LittleLong(pinmodel->skinWidth) < 1 ||
+		LittleLong(pinmodel->numSubObjects) < 1)
+	{
+		Con_Printf(CON_ERROR "Model %s has an invalid quantity\n", mod->name);
+		return false;
+	}
+
+	mod->flags = 0;
+
+	mod->numframes = LittleLong(pinmodel->numFrames);
+
+	size = sizeof(galiasinfo_t)*pinmodel->numSubObjects
+		+ LittleLong(pinmodel->numFrames)*sizeof(galiasanimation_t)*pinmodel->numSubObjects
+#ifndef SERVERONLY
+		+ LittleLong(pinmodel->numSkins)*sizeof(galiasskin_t)
+#endif
+		;
+
+	root = galias = ZG_Malloc(&mod->memgroup, size);
+
+#ifndef SERVERONLY
+//skins
+	galias->ofsskins = (galiasskin_t*)((galiasanimation_t*)(galias+pinmodel->numSubObjects) + LittleLong(pinmodel->numFrames)*pinmodel->numSubObjects);
+	MDX_LoadSkins(galias, mod, pinmodel, ((char *)pinmodel+LittleLong(pinmodel->offsetSkins)));
+#else
+	galias->numskins = LittleLong(pinmodel->numSkins);
+#endif
+
+	ClearBounds (mod->mins, mod->maxs);
+	for (subobj = 0; subobj < pinmodel->numSubObjects; subobj++)
+	{
+		galias = &root[subobj];
+		Mod_DefaultMesh(galias, mod->name, subobj);
+		galias->ofsanimations = (galiasanimation_t*)(root+pinmodel->numSubObjects) + subobj*pinmodel->numFrames;
+		galias->ofsskins = root->ofsskins;
+		galias->numskins = root->numskins;
+		galias->shares_verts = subobj;
+		if (subobj > 0)
+			root[subobj-1].nextsurf = galias;
+
+		//process the strips+fans, and split the verts into the appropriate submesh
+		pincmd = (dmdxcommand_t *)((char *)pinmodel + LittleLong(pinmodel->offsetGlCommands));
+		pincmdend = (dmdxcommand_t *)((char *)pinmodel + LittleLong(pinmodel->offsetGlCommands) + LittleLong(pinmodel->numGlCommands)*4);
+		numverts = 0;
+		numtri = 0;
+		while (pincmd < pincmdend)
+		{
+			int n = LittleLong(pincmd->cmd);
+			if (!n)
+				break; //no more commands
+			if (n < 0)
+			{	//fan club
+				n = -n;
+				if (n > 2 && LittleLong(pincmd->obj) == subobj)
+				{
+					int first = MDX_MatchVert(tmpvert, &numverts, &pincmd->vert[0]);
+					int prev = MDX_MatchVert(tmpvert, &numverts, &pincmd->vert[1]);
+					for (i = 2; i < n && numtri < countof(tri); i++)
+					{
+						tri[numtri].newidx[0] = first;
+						tri[numtri].newidx[1] = prev;
+						tri[numtri].newidx[2] = prev = MDX_MatchVert(tmpvert, &numverts, &pincmd->vert[i]);
+						numtri++;
+					}
+				}
+			}
+			else
+			{	//stripper
+				if (n > 2 && LittleLong(pincmd->obj) == subobj)
+				{
+					int first = MDX_MatchVert(tmpvert, &numverts, &pincmd->vert[0]);
+					int prev = MDX_MatchVert(tmpvert, &numverts, &pincmd->vert[1]);
+					for (i = 2; i < n && numtri < countof(tri); i++)
+					{
+						tri[numtri].newidx[2] = MDX_MatchVert(tmpvert, &numverts, &pincmd->vert[i]);
+						if (i&1)
+						{
+							tri[numtri].newidx[0] = prev;
+							tri[numtri].newidx[1] = first;
+						}
+						else
+						{
+							tri[numtri].newidx[0] = first;
+							tri[numtri].newidx[1] = prev;
+						}
+						first = prev;
+						prev = tri[numtri].newidx[2];
+
+						if (tri[numtri].newidx[0] == tri[numtri].newidx[1] ||
+							tri[numtri].newidx[0] == tri[numtri].newidx[2] ||
+							tri[numtri].newidx[1] == tri[numtri].newidx[2])
+							continue;	//degenerate... I doubt we'll see any though.
+						numtri++;
+					}
+				}
+			}
+			pincmd = (dmdxcommand_t*)&pincmd->vert[n];
+		}
+		for (i = 0; i < numverts; i++)
+		{	//might as well byteswap that stuff now...
+			tmpvert[i].origvert = LittleLong(tmpvert[i].origvert);
+			tmpvert[i].s = LittleFloat(tmpvert[i].s);
+			tmpvert[i].t = LittleFloat(tmpvert[i].t);
+		}
+
+		galias->numverts = numverts;
+		galias->numindexes = numtri*3;
+		indexes = ZG_Malloc(&mod->memgroup, galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = indexes;
+
+		for (i = 0; i < numtri; i++, indexes+=3)
+		{
+			indexes[0] = tri[i].newidx[0];
+			indexes[1] = tri[i].newidx[1];
+			indexes[2] = tri[i].newidx[2];
+		}
+
+		// s and t vertices
+#ifndef SERVERONLY
+		st_array = ZG_Malloc(&mod->memgroup, sizeof(*st_array)*(numverts));
+		galias->ofs_st_array = st_array;
+
+		for (j=0 ; j<numverts; j++)
+		{
+			st_array[j][0] = tmpvert[j].s;
+			st_array[j][1] = tmpvert[j].t;
+		}
+#endif
+
+		//frames
+		poutframe = galias->ofsanimations;
+		framesize = LittleLong (pinmodel->frameSize);
+
+		size = sizeof(galiaspose_t) + sizeof(vecV_t)*numverts;
+#ifndef SERVERONLY
+		size += 3*sizeof(vec3_t)*numverts;
+#endif
+		size *= pinmodel->numFrames;
+		pose = (galiaspose_t *)ZG_Malloc(&mod->memgroup, size);
+		verts = (vecV_t*)(pose+pinmodel->numFrames);
+#ifndef SERVERONLY
+		normals = (vec3_t*)(verts+pinmodel->numFrames*numverts);
+#endif
+
+		for (i=0 ; i<LittleLong(pinmodel->numFrames) ; i++)
+		{
+			poutframe->poseofs = pose;
+			poutframe->numposes = 1;
+			galias->numanimations++;
+
+#ifndef SERVERONLY
+			pose->ofsnormals = normals;
+			pose->ofssvector = &normals[galias->numverts];
+			pose->ofstvector = &normals[galias->numverts*2];
+#endif
+
+			pinframe = ( dmdxframe_t * )( ( qbyte * )pinmodel + LittleLong (pinmodel->offsetFrames) + i * framesize );
+			Q_strncpyz(poutframe->name, pinframe->name, sizeof(poutframe->name));
+
+			for (j=0 ; j<3 ; j++)
+			{
+				pose->scale[j] = LittleFloat (pinframe->scale[j]);
+				pose->scale_origin[j] = LittleFloat (pinframe->translate[j]);
+			}
+
+			pose->ofsverts = verts;
+			for (j=0 ; j<numverts; j++)
+			{
+				// verts are all 8 bit, so no swapping needed
+				verts[j][0] = pose->scale_origin[0]+pose->scale[0]*pinframe->verts[tmpvert[j].origvert].v[0];
+				verts[j][1] = pose->scale_origin[1]+pose->scale[1]*pinframe->verts[tmpvert[j].origvert].v[1];
+				verts[j][2] = pose->scale_origin[2]+pose->scale[2]*pinframe->verts[tmpvert[j].origvert].v[2];
+#ifndef SERVERONLY
+				VectorCopy(bytedirs[pinframe->verts[tmpvert[j].origvert].lightnormalindex], normals[j]);
+#endif
+			}
+
+			VectorCopy ( pose->scale_origin, min );
+			VectorMA ( pose->scale_origin, 255, pose->scale, max );
+
+			AddPointToBounds ( min, mod->mins, mod->maxs );
+			AddPointToBounds ( max, mod->mins, mod->maxs );
+
+			poutframe++;
+			pose++;
+			verts += numverts;
+#ifndef SERVERONLY
+			normals += numverts*3;
+#endif
+		}
+
+		Mod_CompileTriangleNeighbours(mod, galias);
+		Mod_BuildTextureVectors(galias);
+	}
+
+	mod->radius = RadiusFromBounds(mod->mins, mod->maxs);
+	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
+
+	mod->meshinfo = root;
+	mod->numframes = root->numanimations;
+	mod->type = mod_alias;
+
+	mod->funcs.NativeTrace = Mod_Trace;
+
+	return true;
+}
+#endif
 
 
 
@@ -8806,6 +9176,9 @@ void Alias_Register(void)
 #endif
 #ifdef MD2MODELS
 	Mod_RegisterModelFormatMagic(NULL, "Quake2 Model (md2)",				MD2IDALIASHEADER,						Mod_LoadQ2Model);
+#endif
+#ifdef MODELFMT_MDX
+	Mod_RegisterModelFormatMagic(NULL, "Kingpin Model (mdx)",				MDX_IDENT,								Mod_LoadKingpinModel);
 #endif
 #ifdef MD3MODELS
 	Mod_RegisterModelFormatMagic(NULL, "Quake3 Model (md3)",				MD3_IDENT,								Mod_LoadQ3Model);

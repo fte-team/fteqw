@@ -36,7 +36,6 @@ qboolean vid_isfullscreen;
 
 #define GLRENDEREROPTIONS	"GL Renderer Options" //fixme: often used for generic cvars that apply to more than just gl...
 #define D3DRENDEREROPTIONS	"D3D Renderer Options"
-#define VKRENDEREROPTIONS	"Vulkan-Specific Renderer Options"
 
 unsigned int	d_8to24rgbtable[256];
 unsigned int	d_8to24srgbtable[256];
@@ -239,7 +238,7 @@ cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
 cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
-cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.\n");
+cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
@@ -455,7 +454,7 @@ cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefm
 cvar_t r_glsl_turbscale_reflect				= CVARFD  ("r_glsl_turbscale_reflect", "1", CVAR_ARCHIVE, "Controls the strength of the water reflection ripples (used by the altwater glsl code).");
 cvar_t r_glsl_turbscale_refract				= CVARFD  ("r_glsl_turbscale_refract", "1", CVAR_ARCHIVE, "Controls the strength of the underwater ripples (used by the altwater glsl code).");
 
-cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.\n");
+cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.");
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
@@ -477,21 +476,6 @@ extern cvar_t gl_dither;
 cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
-#ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
-cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
-cvar_t vk_debug								= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
-cvar_t vk_dualqueue							= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
-cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
-cvar_t vk_waitfence							= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
-cvar_t vk_usememorypools					= CVARFD("vk_usememorypools",			"",	CVAR_VIDEOLATCH, "Allocates memory pools for sub allocations. Vulkan has a limit to the number of memory allocations allowed so this should always be enabled, however at this time FTE is unable to reclaim pool memory, and would require periodic vid_restarts to flush them.");
-cvar_t vk_nv_glsl_shader					= CVARFD("vk_loadglsl",					"", CVAR_VIDEOLATCH, "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
-cvar_t vk_khr_get_memory_requirements2		= CVARFD("vk_khr_get_memory_requirements2", "", CVAR_VIDEOLATCH, "Enable extended memory info querires");
-cvar_t vk_khr_dedicated_allocation			= CVARFD("vk_khr_dedicated_allocation",	"", CVAR_VIDEOLATCH, "Flag vulkan memory allocations as dedicated, where applicable.");
-cvar_t vk_khr_push_descriptor				= CVARFD("vk_khr_push_descriptor",		"", CVAR_VIDEOLATCH, "Enables better descriptor streaming.");
-cvar_t vk_amd_rasterization_order			= CVARFD("vk_amd_rasterization_order",	"",	CVAR_VIDEOLATCH, "Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
-#endif
-
 #ifdef D3D9QUAKE
 cvar_t d3d9_hlsl							= CVAR("d3d_hlsl", "1");
 #endif
@@ -506,6 +490,8 @@ void GLD3DRenderer_Init(void)
 #endif
 
 #if defined(GLQUAKE)
+extern cvar_t gl_blacklist_texture_compression;
+extern cvar_t gl_blacklist_generatemipmap;
 void GLRenderer_Init(void)
 {
 	//gl-specific video vars
@@ -567,6 +553,8 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_shaderblobs, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_blacklist_texture_compression, "gl blacklists");
+	Cvar_Register (&gl_blacklist_generatemipmap,		"gl blacklists");
 //	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
 //	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
@@ -1023,19 +1011,7 @@ void Renderer_Init(void)
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #endif
 #ifdef VKQUAKE
-	Cvar_Register (&vk_stagingbuffers,			VKRENDEREROPTIONS);
-	Cvar_Register (&vk_submissionthread,		VKRENDEREROPTIONS);
-	Cvar_Register (&vk_debug,					VKRENDEREROPTIONS);
-	Cvar_Register (&vk_dualqueue,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_busywait,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_waitfence,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_usememorypools,			VKRENDEREROPTIONS);
-
-	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_get_memory_requirements2,VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
-	Cvar_Register (&vk_amd_rasterization_order,	VKRENDEREROPTIONS);
+	VK_RegisterVulkanCvars();
 #endif
 
 // misc
@@ -1870,6 +1846,7 @@ void R_ReloadRenderer_f (void)
 		BZ_Free(portalblob);
 	}
 #endif
+	Con_DPrintf("vid_reload time: %f\n", Sys_DoubleTime() - time);
 }
 
 static int R_PriorityForRenderer(rendererinfo_t *r)

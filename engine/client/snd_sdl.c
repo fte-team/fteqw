@@ -128,13 +128,13 @@ static qboolean SSDL_InitAudio(void)
 #endif
 
 	if (!inited)
-		if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
-		{
+	{
+		if(0==SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
+			inited = true;
+		else
 			Con_Printf("Couldn't initialize SDL audio subsystem (%s)\n", SDL_GetError());
-			return false;
-		}
-	inited = true;
-	return true;
+	}
+	return inited;
 }
 #else
 #define SDL_VERSION_ATLEAST(x,y,z) 0

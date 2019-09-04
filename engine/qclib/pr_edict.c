@@ -2743,7 +2743,7 @@ retry:
 	if (!trysleft)	//the progs exists, let's just be happy about it.
 		externs->Printf("Progs is out of date and uncompilable\n");
 
-	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, prinst.pr_typecurrent, pr_progs->crc))
+	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, prinst.pr_typecurrent, pr_progs->crc, filename))
 	{
 //		externs->Printf ("%s system vars have been modified, progdefs.h is out of date\n", filename);
 		PRHunkFree(progfuncs, hmark);

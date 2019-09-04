@@ -50,6 +50,7 @@ void (APIENTRY *qglEnable) (GLenum cap);
 void (APIENTRY *qglFinish) (void);
 void (APIENTRY *qglFlush) (void);
 void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
+void (APIENTRY *qglGenerateMipmap)(GLenum target);
 void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
 GLenum (APIENTRY *qglGetError) (void);
 void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
@@ -862,6 +863,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			gl_config.arb_texture_compression = true;
 	}
 #endif
+
+	gl_config.astc_decodeprecision = GL_CheckExtension("GL_EXT_texture_compression_astc_decode_mode");
 /*
 	if (GL_CheckExtension("GL_EXT_depth_bounds_test"))
 		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsEXT");
@@ -3348,6 +3351,11 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	memset(&sh_config, 0, sizeof(sh_config));
 
 	GL_CheckExtensions (getglfunction);
+
+	if (gl_config.glversion >= 3.0)
+		qglGenerateMipmap	= (void *)getglext("glGenerateMipmap");
+	else
+		qglGenerateMipmap = NULL;
 
 #ifndef FTE_TARGET_WEB
 	if (!gl_config.gles)

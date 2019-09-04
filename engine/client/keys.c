@@ -673,8 +673,38 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 
 	if (con->buttonsdown == CB_SCROLL || con->buttonsdown == CB_SCROLL_R)
 	{
+		float lineheight = Font_CharVHeight(font_console);
 		//left-mouse.
 		//scroll the console with the mouse. trigger links on release.
+		con->displayscroll += (con->mousecursor[1] - con->mousedown[1])/lineheight;
+		con->mousedown[1] = con->mousecursor[1];
+		while (con->displayscroll > con->display->numlines)
+		{
+			if (con->display->older)
+			{
+				con->displayscroll -= con->display->numlines;
+				con->display = con->display->older;
+			}
+			else
+			{
+				con->displayscroll = con->display->numlines;
+				break;
+			}
+		}
+		while (con->displayscroll <= 0)
+		{
+			if (con->display->newer)
+			{
+				con->display = con->display->newer;
+				con->displayscroll += con->display->numlines;
+			}
+			else
+			{
+				con->displayscroll = 0;
+				break;
+			}
+		}
+		/*
 		while (con->mousecursor[1] - con->mousedown[1] > 8 && con->display->older)
 		{
 			con->mousedown[1] += 8;
@@ -685,7 +715,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 			con->mousedown[1] -= 8;
 			con->display = con->display->newer;
 		}
-
+*/
 		*sx = con->mousecursor[0];
 		*sy = con->mousecursor[1];
 		*ex = con->mousecursor[0];
@@ -1585,9 +1615,23 @@ qboolean Key_EntryLine(console_t *con, unsigned char **line, int lineoffset, int
 		Sys_Clipboard_PasteText(CBT_SELECTION, Key_ConsolePaste, line);
 		return true;
 	}
-	if (((unicode=='V' || unicode=='v' || unicode==22) && ctrl) || (shift && key == K_INS))
+	if (((unicode=='V' || unicode=='v' || unicode==22/*sync*/) && ctrl) || (shift && key == K_INS))
 	{	//ctrl+v to paste from the windows-style clipboard.
 		Sys_Clipboard_PasteText(CBT_CLIPBOARD, Key_ConsolePaste, line);
+		return true;
+	}
+
+	if ((unicode=='X' || unicode=='x' || unicode==24/*cancel*/) && ctrl)
+	{	//cut - copy-to-clipboard-and-delete
+		Sys_SaveClipboard(CBT_CLIPBOARD, *line);
+		(*line)[lineoffset] = 0;
+		*linepos = strlen(*line);
+		return true;
+	}
+	if ((unicode=='U' || unicode=='u' || unicode==21/*nak*/) && ctrl)
+	{	//clear line
+		(*line)[lineoffset] = 0;
+		*linepos = strlen(*line);
 		return true;
 	}
 
@@ -1820,14 +1864,16 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			i = 8;
 		if (!con->display)
 			return true;
-		if (con->display == con->current)
-			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
+//		if (con->display == con->current)
+//			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
 		if (con->display->older != NULL)
 		{
-			while (i-->0)
+			con->displayscroll += i;
+			while (con->displayscroll >= con->display->numlines)
 			{
 				if (con->display->older == NULL)
 					break;
+				con->displayscroll -= con->display->numlines;
 				con->display = con->display->older;
 				con->display->time = realtime;
 			}
@@ -1845,15 +1891,20 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			return true;
 		if (con->display->newer != NULL)
 		{
-			while (i-->0)
+			con->displayscroll -= i;
+			while (con->displayscroll < 0)
 			{
 				if (con->display->newer == NULL)
 					break;
 				con->display = con->display->newer;
 				con->display->time = realtime;
+				con->displayscroll += con->display->numlines;
 			}
 			if (con->display->newer && con->display->newer == con->current)
+			{
 				con->display = con->current;
+				con->displayscroll = 0;
+			}
 			return true;
 		}
 	}
@@ -1862,6 +1913,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	{
 		if (con->display != con->oldest)
 		{
+			con->displayscroll = 0;
 			con->display = con->oldest;
 			return true;
 		}
@@ -1871,6 +1923,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	{
 		if (con->display != con->current)
 		{
+			con->displayscroll = 0;
 			con->display = con->current;
 			return true;
 		}

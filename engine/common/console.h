@@ -170,8 +170,9 @@ typedef struct console_s
 	conline_t *oldest;
 	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
-	int		cr;
+	int		cr;				// last char printed was a carrage return so the next char printed will wipe the line.
 	conline_t *display;		// bottom of console displays this line
+	float	displayscroll;	// to try to handle smoother scrolling.
 	int		displayoffset;	// horizontal offset
 	int		vislines;		// pixel lines
 	int		linesprinted;	// for notify times
@@ -194,9 +195,9 @@ typedef struct console_s
 	conline_t	*footerline;	//temp text at the bottom of the console
 	conline_t	*selstartline, *selendline;
 	unsigned int	selstartoffset, selendoffset;
-	int mousedown[2];	//x,y position that the current buttons were clicked.
+	float mousedown[2];	//x,y position that the current buttons were clicked.
 	unsigned int buttonsdown;
-	int mousecursor[2];	//x,y
+	float mousecursor[2];	//x,y
 	float mousedowntime;	//time mouse1 last went down, to detect double-clicks
 
 	struct console_s *next;

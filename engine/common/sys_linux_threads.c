@@ -275,9 +275,6 @@ void Sys_Sleep (double seconds)
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/wait.h>
-#define STDIN 0
-#define STDOUT 1
-#define STDERR 2
 
 typedef struct slaveserver_s
 {
@@ -386,10 +383,10 @@ pubsubserver_t *Sys_ForkServer(void)
 
 	if (!pid)
 	{	//this is the child
-		dup2(toslave[0], STDIN);
+		dup2(toslave[0], STDIN_FILENO);
 		close(toslave[1]);
 		close(toslave[0]);
-		dup2(tomaster[1], STDOUT);
+		dup2(tomaster[1], STDOUT_FILENO);
 
 		isClusterSlave = true;
 
@@ -459,9 +456,9 @@ pubsubserver_t *Sys_ForkServer(void)
 	posix_spawn_file_actions_addclose(&action, toslave[1]);
 	posix_spawn_file_actions_addclose(&action, tomaster[0]);
 
-	posix_spawn_file_actions_adddup2(&action, toslave[0],	STDIN);
-	posix_spawn_file_actions_adddup2(&action, tomaster[1],	STDOUT);
-//	posix_spawn_file_actions_adddup2(&action, tomaster[1],	STDERR);
+	posix_spawn_file_actions_adddup2(&action, toslave[0],	STDIN_FILENO);
+	posix_spawn_file_actions_adddup2(&action, tomaster[1],	STDOUT_FILENO);
+//	posix_spawn_file_actions_adddup2(&action, tomaster[1],	STDERR_FILENO);
 
 	posix_spawn_file_actions_addclose(&action, toslave[0]);
 	posix_spawn_file_actions_addclose(&action, tomaster[1]);
@@ -481,7 +478,7 @@ pubsubserver_t *Sys_ForkServer(void)
 
 void Sys_InstructMaster(sizebuf_t *cmd)
 {
-	write(STDOUT, cmd->data, cmd->cursize);
+	write(STDOUT_FILENO, cmd->data, cmd->cursize);
 
 	//FIXME: handle partial writes.
 }
@@ -490,6 +487,16 @@ void SSV_CheckFromMaster(void)
 {
 	static char inbuffer[1024];
 	static int inbufsize;
+
+#if defined(__linux__) && defined(_DEBUG)
+	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+	if (!(fl & FNDELAY))
+	{
+		fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+		Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
+	}
+#endif
+
 	for(;;)
 	{
 		if(inbufsize >= 2)
@@ -517,7 +524,7 @@ void SSV_CheckFromMaster(void)
 		}
 
 		{
-			ssize_t avail = read(STDIN, inbuffer+inbufsize, sizeof(inbuffer)-inbufsize);
+			ssize_t avail = read(STDIN_FILENO, inbuffer+inbufsize, sizeof(inbuffer)-inbufsize);
 			if (!avail)
 			{	//eof
 				SV_FinalMessage("Cluster shut down\n");

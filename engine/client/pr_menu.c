@@ -2686,11 +2686,11 @@ void MP_CvarChanged(cvar_t *var)
 	}
 }
 
-pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
+pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc, const char *filename)
 {
 	if (crc == 10020)
 		return true;	//its okay
-	Con_Printf("progs crc is invalid for menuqc\n");
+	Con_Printf("progs crc is invalid for %s\n", filename);
 	return false;
 }
 

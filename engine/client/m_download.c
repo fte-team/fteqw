@@ -2,6 +2,7 @@
 //provides both a package manager and downloads menu.
 //FIXME: block downloads of exe/dll/so/etc if not an https url (even if inside zips). also block such files from package lists over http.
 #include "quakedef.h"
+#include "shader.h"
 
 #ifdef PACKAGEMANAGER
 	#if !defined(NOBUILTINMENUS) && !defined(SERVERONLY)
@@ -161,15 +162,16 @@ typedef struct package_s {
 		struct packagedep_s *next;
 		enum
 		{
-			DEP_CONFLICT,
+			DEP_CONFLICT,		//don't install if we have the named package installed.
 			DEP_FILECONFLICT,	//don't install if this file already exists.
-			DEP_REQUIRE,
-			DEP_RECOMMEND,	//like depend, but uninstalling will not bubble.
-			DEP_SUGGEST,	//like recommend, but will not force install (ie: only prevents auto-uninstall)
+			DEP_REQUIRE,		//don't install unless we have the named package installed.
+			DEP_RECOMMEND,		//like depend, but uninstalling will not bubble.
+			DEP_SUGGEST,		//like recommend, but will not force install (ie: only prevents auto-uninstall)
+			DEP_NEEDFEATURE,	//requires a specific feature to be available (typically controlled via a cvar)
 //			DEP_MIRROR,
 //			DEP_FAILEDMIRROR,
 
-			DEP_FILE
+			DEP_FILE			//a file that will be installed
 		} dtype;
 		char name[1];
 	} *deps;
@@ -549,6 +551,57 @@ static void PM_InsertPackage(package_t *p)
 	numpackages++;
 }
 
+static qboolean PM_CheckFeature(const char *feature, const char **featurename, const char **concommand)
+{
+#ifdef HAVE_CLIENT
+	extern cvar_t r_replacemodels;
+#endif
+	*featurename = NULL;
+	*concommand = NULL;
+#ifdef HAVE_CLIENT
+	//check for compressed texture formats, to warn when not supported.
+	if (!strcmp(feature, "bc1") || !strcmp(feature, "bc2") || !strcmp(feature, "bc3") || !strcmp(feature, "s3tc"))
+		return *featurename="S3 Texture Compression", sh_config.hw_bc>=1;
+	if (!strcmp(feature, "bc4") || !strcmp(feature, "bc5") || !strcmp(feature, "rgtc"))
+		return *featurename="Red/Green Texture Compression", sh_config.hw_bc>=2;
+	if (!strcmp(feature, "bc6") || !strcmp(feature, "bc7") || !strcmp(feature, "bptc"))
+		return *featurename="Block Partitioned Texture Compression", sh_config.hw_bc>=3;
+	if (!strcmp(feature, "etc1"))
+		return *featurename="Ericson Texture Compression, Original", sh_config.hw_etc>=1;
+	if (!strcmp(feature, "etc2") || !strcmp(feature, "eac"))
+		return *featurename="Ericson Texture Compression, Revision 2", sh_config.hw_etc>=2;
+	if (!strcmp(feature, "astcldr") || !strcmp(feature, "astc"))
+		return *featurename="Adaptive Scalable Texture Compression (LDR)", sh_config.hw_astc>=1;
+	if (!strcmp(feature, "astchdr"))
+		return *featurename="Adaptive Scalable Texture Compression (HDR)", sh_config.hw_astc>=2;
+
+	if (!strcmp(feature, "24bit"))
+		return *featurename="24bit Textures", *concommand="seta gl_load24bit 1\n", gl_load24bit.ival;
+	if (!strcmp(feature, "md3"))
+		return *featurename="Replacement Models", *concommand="seta r_replacemodels md3 md2\n", !!strstr(r_replacemodels.string, "md3");
+	if (!strcmp(feature, "rtlights"))
+		return *featurename="Realtime Dynamic Lights", *concommand="seta r_shadow_realtime_dlight 1\n", r_shadow_realtime_dlight.ival||r_shadow_realtime_world.ival;
+	if (!strcmp(feature, "rtworld"))
+		return *featurename="Realtime World Lights", *concommand="seta r_shadow_realtime_dlight 1\nseta r_shadow_realtime_world 1\n", r_shadow_realtime_world.ival;
+#endif
+
+	return false;
+}
+static qboolean PM_CheckPackageFeatures(package_t *p)
+{
+	struct packagedep_s *dep;
+	const char *featname, *enablecmd;
+
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype == DEP_NEEDFEATURE)
+		{
+			if (!PM_CheckFeature(dep->name, &featname, &enablecmd))
+				return false;
+		}
+	}
+	return true;
+}
 
 static qboolean PM_CheckFile(const char *filename, enum fs_relative base)
 {
@@ -916,6 +969,8 @@ static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *ur
 						PM_AddDep(p, DEP_RECOMMEND, val);
 					else if (!strcmp(key, "suggest"))
 						PM_AddDep(p, DEP_SUGGEST, val);
+					else if (!strcmp(key, "need"))
+						PM_AddDep(p, DEP_NEEDFEATURE, val);
 					else if (!strcmp(key, "test"))
 						flags |= DPF_TESTING;
 					else if (!strcmp(key, "stale") && version==2)
@@ -1486,7 +1541,12 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 			{
 				d = PM_FindPackage(dep->name);
 				if (d)
-					PM_MarkPackage(d, DPF_AUTOMARKED);
+				{
+					if (dep->dtype == DEP_RECOMMEND && !PM_CheckPackageFeatures(d))
+						Con_DPrintf("Skipping recommendation \"%s\"\n", dep->name);
+					else
+						PM_MarkPackage(d, DPF_AUTOMARKED);
+				}
 				else
 					Con_DPrintf("Couldn't find dependancy \"%s\"\n", dep->name);
 			}
@@ -1995,6 +2055,11 @@ static void PM_WriteInstalledPackages(void)
 					Q_strncatz(buf, " ", sizeof(buf));
 					COM_QuotedConcat(va("recommend=%s", dep->name), buf, sizeof(buf));
 				}
+				else if (dep->dtype == DEP_NEEDFEATURE)
+				{
+					Q_strncatz(buf, " ", sizeof(buf));
+					COM_QuotedConcat(va("need=%s", dep->name), buf, sizeof(buf));
+				}
 			}
 
 			if (p->flags & DPF_TESTING)
@@ -2022,6 +2087,31 @@ static void PM_WriteInstalledPackages(void)
 		char native[MAX_OSPATH];
 		FS_NativePath(ef->name, e->fsroot, native, sizeof(native));
 		Sys_SetUpdatedBinary(native);
+	}
+}
+
+//package has been downloaded and installed, but some packages need to be enabled
+//(plugins might have other dll dependancies, so this can only happen AFTER the entire package was extracted)
+static void PM_PackageEnabled(package_t *p)
+{
+	char ext[8];
+	struct packagedep_s *dep;
+	FS_FlushFSHashFull();
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype != DEP_FILE)
+			continue;
+		COM_FileExtension(dep->name, ext, sizeof(ext));
+		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+			FS_ReloadPackFiles();
+#ifdef PLUGINS
+		if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
+			Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
+#endif
+#ifdef MENU_DAT
+		if (!Q_strcasecmp(dep->name, "menu.dat"))
+			Cmd_ExecuteString("menu_restart\n", RESTRICT_LOCAL);
+#endif
 	}
 }
 
@@ -2055,31 +2145,6 @@ static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, 
 		}
 	}
 	return 1;
-}
-
-//package has been downloaded and installed, but some packages need to be enabled
-//(plugins might have other dll dependancies, so this can only happen AFTER the entire package was extracted)
-static void PM_PackageEnabled(package_t *p)
-{
-	char ext[8];
-	struct packagedep_s *dep;
-	FS_FlushFSHashFull();
-	for (dep = p->deps; dep; dep = dep->next)
-	{
-		if (dep->dtype != DEP_FILE)
-			continue;
-		COM_FileExtension(dep->name, ext, sizeof(ext));
-		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-			FS_ReloadPackFiles();
-#ifdef PLUGINS
-		if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
-			Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
-#endif
-#ifdef MENU_DAT
-		if (!Q_strcasecmp(dep->name, "menu.dat"))
-			Cmd_ExecuteString("menu_restart\n", RESTRICT_LOCAL);
-#endif
-	}
 }
 
 static void PM_StartADownload(void);
@@ -2334,10 +2399,10 @@ int PM_IsApplying(qboolean listsonly)
 	return count;
 }
 
+#ifdef WEBCLIENT
 //looks for the next package that needs downloading, and grabs it
 static void PM_StartADownload(void)
 {
-#ifdef WEBCLIENT
 	vfsfile_t *tmpfile;
 	char *temp;
 	package_t *p;
@@ -2466,8 +2531,8 @@ static void PM_StartADownload(void)
 
 	//clear the updating flag once there's no more activity needed
 	pkg_updating = downloading;
-#endif
 }
+#endif
 //'just' starts doing all the things needed to remove/install selected packages
 void PM_ApplyChanges(void)
 {
@@ -2611,8 +2676,45 @@ void PM_ApplyChanges(void)
 		if ((p->flags&DPF_MARKED) && !(p->flags&DPF_ENABLED) && !p->download)
 			p->trymirrors = ~0u;
 	}
-#endif
 	PM_StartADownload();	//and try to do those downloads.
+#else
+	for (p = availablepackages; p; p=p->next)
+	{
+		if ((p->flags&DPF_MARKED) && !(p->flags&DPF_ENABLED))
+		{	//flagged for a (re?)download
+			int i;
+			struct packagedep_s *dep;
+			for (i = 0; i < countof(p->mirror); i++)
+				if (p->mirror[i])
+					break;
+			for (dep = p->deps; dep; dep=dep->next)
+				if (dep->dtype == DEP_FILE)
+					break;
+			if (!dep && i == countof(p->mirror))
+			{	//this appears to be a meta package with no download
+				//just directly install it.
+				p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT);
+				p->flags |= DPF_ENABLED;
+
+				Con_Printf("Enabled meta package %s\n", p->name);
+				PM_WriteInstalledPackages();
+				PM_PackageEnabled(p);
+			}
+
+			if ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p))
+			{	//its in our cache directory, so lets just use that
+				p->flags |= DPF_ENABLED;
+
+				Con_Printf("Enabled cached package %s\n", p->name);
+				PM_WriteInstalledPackages();
+				PM_PackageEnabled(p);
+				continue;
+			}
+			else
+				p->flags &= ~DPF_MARKED;
+		}
+	}
+#endif
 }
 
 #if defined(M_Menu_Prompt) || defined(SERVERONLY)
@@ -3202,8 +3304,12 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 
 		if (p->flags & DPF_TESTING)	//hide testing updates 
 			n = va("^h%s", n);
-//			if (!(p->flags & (DPF_ENABLED|DPF_MARKED|DPF_PRESENT))
-//				continue;
+
+		if (!PM_CheckPackageFeatures(p))
+			Draw_FunStringWidth(0, y, "!", x+8, true, true);
+
+//		if (!(p->flags & (DPF_ENABLED|DPF_MARKED|DPF_PRESENT))
+//			continue;
 
 //		if (&m->selecteditem->common == &c->common)
 //			Draw_AltFunString (x+48, y, n);
@@ -3404,6 +3510,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 	char *slash;
 	menuoption_t *mo;
 	int prefixlen = strlen(pathprefix);
+	struct packagedep_s *dep;
 
 	//add all packages in this dir
 	for (p = availablepackages; p; p = p->next)
@@ -3420,10 +3527,26 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 				desc = va("^aauthor: ^a%s\n^alicense: ^a%s\n^awebsite: ^a%s\n%s", p->author?p->author:"^hUnknown^h", p->license?p->license:"^hUnknown^h", p->website?p->website:"^hUnknown^h", p->description);
 			else
 				desc = p->description;
+
+			for (dep = p->deps; dep; dep = dep->next)
+			{
+				if (dep->dtype == DEP_NEEDFEATURE)
+				{
+					const char *featname, *enablecmd;
+					if (!PM_CheckFeature(dep->name, &featname, &enablecmd))
+					{
+						if (enablecmd)
+							desc = va("^aDisabled: ^a%s\n%s", featname, desc);
+						else
+							desc = va("^aUnavailable: ^a%s\n%s", featname, desc);
+					}
+				}
+			}
+
 			c = MC_AddCustom(m, 0, y, p, downloadablessequence, desc);
 			c->draw = MD_Draw;
 			c->key = MD_Key;
-			c->common.width = 320;
+			c->common.width = 320-16;
 			c->common.height = 8;
 			y += 8;
 

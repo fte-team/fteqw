@@ -195,7 +195,7 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 
 //q3 mustn't mask sky (breaks q3map2's invisible skyportals), whereas q1 must (or its a cheat). halflife doesn't normally expect masking.
 //we also MUST mask any sky inside skyrooms, or you'll see all the entities outside of the skyroom through the room's own sky (q3map2 skyportals are hopefully irrelevant in this case).
-#define SKYMUSTBEMASKED (r_worldentity.model->fromgame != fg_quake3 || ((r_refdef.flags & RDF_DISABLEPARTICLES) && !r_ignoreentpvs.ival))
+#define SKYMUSTBEMASKED (r_worldentity.model->fromgame != fg_quake3 || ((r_refdef.flags & RDF_DISABLEPARTICLES) && r_ignoreentpvs.ival))
 
 /*
 =================

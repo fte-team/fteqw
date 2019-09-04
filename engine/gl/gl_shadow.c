@@ -2939,7 +2939,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		//front face
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), surf->mesh->xyz_array);
 		qglDrawArrays(GL_POLYGON, 0, surf->mesh->numvertexes);
-//		qglDrawRangeElements(GL_TRIANGLES, 0, surf->mesh->numvertexes, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
+//		qglDrawRangeElements(GL_TRIANGLES, 0, surf->mesh->numvertexes-1, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
 		RQuantAdd(RQUANT_SHADOWINDICIES, surf->mesh->numvertexes);
 
 		for (v = 0; v < surf->mesh->numvertexes; v++)

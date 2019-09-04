@@ -212,7 +212,7 @@ typedef struct progexterns_s {
 	int (VARGS *DPrintf)				(const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error)				(const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Abort)					(char *, ...) LIKEPRINTF(1);
-	pbool (PDECL *CheckHeaderCrc)		(pubprogfuncs_t *inst, progsnum_t idx, int crc);
+	pbool (PDECL *CheckHeaderCrc)		(pubprogfuncs_t *inst, progsnum_t idx, int crc, const char *filename);
 
 	void (PDECL *entspawn)				(struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	pbool (PDECL *entcanfree)			(struct edict_s *ent);	//return true to stop ent from being freed

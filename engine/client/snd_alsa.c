@@ -202,6 +202,46 @@ static qboolean Alsa_InitAlsa(void)
 {
 	static qboolean tried;
 	static qboolean alsaworks;
+
+	static dllfunction_t funcs[] =
+	{
+		{(void**)&psnd_pcm_open,							"snd_pcm_open"},
+		{(void**)&psnd_pcm_close,							"snd_pcm_close"},
+		{(void**)&psnd_config_update_free_global,			"snd_config_update_free_global"},
+		{(void**)&psnd_strerror,							"snd_strerror"},
+		{(void**)&psnd_pcm_hw_params_any,					"snd_pcm_hw_params_any"},
+		{(void**)&psnd_pcm_hw_params_set_access,			"snd_pcm_hw_params_set_access"},
+		{(void**)&psnd_pcm_hw_params_set_format,			"snd_pcm_hw_params_set_format"},
+		{(void**)&psnd_pcm_hw_params_set_channels,			"snd_pcm_hw_params_set_channels"},
+		{(void**)&psnd_pcm_hw_params_set_rate_near,			"snd_pcm_hw_params_set_rate_near"},
+		{(void**)&psnd_pcm_hw_params_set_period_size_near,	"snd_pcm_hw_params_set_period_size_near"},
+		{(void**)&psnd_pcm_hw_params,						"snd_pcm_hw_params"},
+		{(void**)&psnd_pcm_sw_params_current,				"snd_pcm_sw_params_current"},
+		{(void**)&psnd_pcm_sw_params_set_start_threshold,	"snd_pcm_sw_params_set_start_threshold"},
+		{(void**)&psnd_pcm_sw_params_set_stop_threshold,	"snd_pcm_sw_params_set_stop_threshold"},
+		{(void**)&psnd_pcm_sw_params,						"snd_pcm_sw_params"},
+		{(void**)&psnd_pcm_hw_params_get_buffer_size,		"snd_pcm_hw_params_get_buffer_size"},
+		{(void**)&psnd_pcm_avail_update,					"snd_pcm_avail_update"},
+		{(void**)&psnd_pcm_state,							"snd_pcm_state"},
+		{(void**)&psnd_pcm_start,							"snd_pcm_start"},
+		{(void**)&psnd_pcm_recover,							"snd_pcm_recover"},
+		{(void**)&psnd_pcm_set_params,						"snd_pcm_set_params"},
+		{(void**)&psnd_pcm_hw_params_sizeof,				"snd_pcm_hw_params_sizeof"},
+		{(void**)&psnd_pcm_sw_params_sizeof,				"snd_pcm_sw_params_sizeof"},
+		{(void**)&psnd_pcm_hw_params_set_buffer_size_near,	"snd_pcm_hw_params_set_buffer_size_near"},
+
+		{(void**)&psnd_pcm_mmap_begin,						"snd_pcm_mmap_begin"},
+		{(void**)&psnd_pcm_mmap_commit,						"snd_pcm_mmap_commit"},
+
+		{(void**)&psnd_pcm_writei,							"snd_pcm_writei"},
+		{(void**)&psnd_pcm_prepare,							"snd_pcm_prepare"},
+
+		{(void**)&psnd_device_name_hint,					"snd_device_name_hint"},
+		{(void**)&psnd_device_name_get_hint,				"snd_device_name_get_hint"},
+		{(void**)&psnd_device_name_free_hint,				"snd_device_name_free_hint"},
+		{NULL,NULL}
+	};
+
 	if (tried)
 		return alsaworks;
 	tried = true;
@@ -211,80 +251,13 @@ static qboolean Alsa_InitAlsa(void)
 		return false;
 
 	// Try alternative names of libasound, sometimes it is not linked correctly.
-	alsasharedobject = dlopen("libasound.so.2", RTLD_LAZY|RTLD_LOCAL);
+	alsasharedobject = Sys_LoadLibrary("libasound.so.2", funcs);
 	if (!alsasharedobject)
-	{
-		alsasharedobject = dlopen("libasound.so", RTLD_LAZY|RTLD_LOCAL);
-		if (!alsasharedobject)
-		{
-			return false;
-		}
-	}
+		alsasharedobject = Sys_LoadLibrary("libasound.so", funcs);
+	if (!alsasharedobject)
+		return false;
 
-
-	psnd_pcm_open							= dlsym(alsasharedobject, "snd_pcm_open");
-	psnd_pcm_close							= dlsym(alsasharedobject, "snd_pcm_close");
-	psnd_config_update_free_global			= dlsym(alsasharedobject, "snd_config_update_free_global");
-	psnd_strerror							= dlsym(alsasharedobject, "snd_strerror");
-	psnd_pcm_hw_params_any					= dlsym(alsasharedobject, "snd_pcm_hw_params_any");
-	psnd_pcm_hw_params_set_access			= dlsym(alsasharedobject, "snd_pcm_hw_params_set_access");
-	psnd_pcm_hw_params_set_format			= dlsym(alsasharedobject, "snd_pcm_hw_params_set_format");
-	psnd_pcm_hw_params_set_channels			= dlsym(alsasharedobject, "snd_pcm_hw_params_set_channels");
-	psnd_pcm_hw_params_set_rate_near		= dlsym(alsasharedobject, "snd_pcm_hw_params_set_rate_near");
-	psnd_pcm_hw_params_set_period_size_near	= dlsym(alsasharedobject, "snd_pcm_hw_params_set_period_size_near");
-	psnd_pcm_hw_params						= dlsym(alsasharedobject, "snd_pcm_hw_params");
-	psnd_pcm_sw_params_current				= dlsym(alsasharedobject, "snd_pcm_sw_params_current");
-	psnd_pcm_sw_params_set_start_threshold	= dlsym(alsasharedobject, "snd_pcm_sw_params_set_start_threshold");
-	psnd_pcm_sw_params_set_stop_threshold	= dlsym(alsasharedobject, "snd_pcm_sw_params_set_stop_threshold");
-	psnd_pcm_sw_params						= dlsym(alsasharedobject, "snd_pcm_sw_params");
-	psnd_pcm_hw_params_get_buffer_size		= dlsym(alsasharedobject, "snd_pcm_hw_params_get_buffer_size");
-	psnd_pcm_avail_update					= dlsym(alsasharedobject, "snd_pcm_avail_update");
-	psnd_pcm_state							= dlsym(alsasharedobject, "snd_pcm_state");
-	psnd_pcm_start							= dlsym(alsasharedobject, "snd_pcm_start");
-	psnd_pcm_recover						= dlsym(alsasharedobject, "snd_pcm_recover");
-	psnd_pcm_set_params						= dlsym(alsasharedobject, "snd_pcm_set_params");
-	psnd_pcm_hw_params_sizeof				= dlsym(alsasharedobject, "snd_pcm_hw_params_sizeof");
-	psnd_pcm_sw_params_sizeof				= dlsym(alsasharedobject, "snd_pcm_sw_params_sizeof");
-	psnd_pcm_hw_params_set_buffer_size_near = dlsym(alsasharedobject, "snd_pcm_hw_params_set_buffer_size_near");
-
-	psnd_pcm_mmap_begin						= dlsym(alsasharedobject, "snd_pcm_mmap_begin");
-	psnd_pcm_mmap_commit					= dlsym(alsasharedobject, "snd_pcm_mmap_commit");
-
-	psnd_pcm_writei							= dlsym(alsasharedobject, "snd_pcm_writei");
-	psnd_pcm_prepare						= dlsym(alsasharedobject, "snd_pcm_prepare");
-
-	psnd_device_name_hint					= dlsym(alsasharedobject, "snd_device_name_hint");
-	psnd_device_name_get_hint				= dlsym(alsasharedobject, "snd_device_name_get_hint");
-	psnd_device_name_free_hint				= dlsym(alsasharedobject, "snd_device_name_free_hint");
-
-	alsaworks = psnd_pcm_open
-		&& psnd_pcm_close
-		&& psnd_config_update_free_global
-		&& psnd_strerror
-		&& psnd_pcm_hw_params_any
-		&& psnd_pcm_hw_params_set_access
-		&& psnd_pcm_hw_params_set_format
-		&& psnd_pcm_hw_params_set_channels
-		&& psnd_pcm_hw_params_set_rate_near
-		&& psnd_pcm_hw_params_set_period_size_near
-		&& psnd_pcm_hw_params
-		&& psnd_pcm_sw_params_current
-		&& psnd_pcm_sw_params_set_start_threshold
-		&& psnd_pcm_sw_params_set_stop_threshold
-		&& psnd_pcm_sw_params
-		&& psnd_pcm_hw_params_get_buffer_size
-		&& psnd_pcm_avail_update
-		&& psnd_pcm_state
-		&& psnd_pcm_start
-		&& psnd_pcm_hw_params_sizeof
-		&& psnd_pcm_sw_params_sizeof
-		&& psnd_pcm_hw_params_set_buffer_size_near
-		&& psnd_pcm_mmap_begin
-		&& psnd_pcm_mmap_commit
-		&& psnd_pcm_writei && psnd_pcm_prepare
-		&& psnd_device_name_hint && psnd_device_name_get_hint && psnd_device_name_free_hint
-		;
-
+	alsaworks = true;
 	return alsaworks;
 }
 

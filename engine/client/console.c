@@ -33,7 +33,7 @@ console_t	*con_chat;			// points to a chat console
 #define Font_ScreenWidth() (vid.pixelwidth)
 
 static int Con_DrawProgress(int left, int right, int y);
-static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, int selactive, int selsx, int selex, int selsy, int seley, float lineagelimit);
+static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscroll, int sx, int ex, int y, int top, int selactive, int selsx, int selex, int selsy, int seley, float lineagelimit);
 
 #ifdef QTERM
 #include <windows.h>
@@ -971,7 +971,7 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 			con->current->newer = reuse;
 			con->current = reuse;
 			con->current->length = 0;
-			if (con->display == con->current->older)
+			if (con->display == con->current->older && con->displayscroll==0)
 				con->display = con->current;
 			break;
 		default:
@@ -980,6 +980,8 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 				con->current->length = 0;
 				con->cr = false;
 			}
+			if (!con->current->numlines)
+				con->current->numlines = 1;
 
 			if (!con->current->length && con_timestamps.ival && !(parseflags & PFS_CENTERED))
 			{
@@ -1394,7 +1396,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	{
 		if (con->footerline)
 		{
-			y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
+			y = Con_DrawConsoleLines(con, con->footerline, 0, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
 		}
 		return y;	//fixme: draw any unfinished lines of the current console instead.
 	}
@@ -1553,7 +1555,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	/*if its getting completed to something, show some help about the command that is going to be used*/
 	if (con->footerline)
 	{
-		y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
+		y = Con_DrawConsoleLines(con, con->footerline, 0, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
 	}
 
 	/*just above that, we have the tab completion list*/
@@ -1601,7 +1603,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		}
 
 		if (con->completionline->length)
-			y = Con_DrawConsoleLines(con, con->completionline, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
+			y = Con_DrawConsoleLines(con, con->completionline, 0, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
 	}
 
 	return y;
@@ -2079,9 +2081,21 @@ int Con_DrawAlternateConsoles(int lines)
 	return y;
 }
 
+static void Con_DrawImageClip(float x, float y, float w, float h, float bottom, shader_t *pic)
+{
+	if (bottom < y+h)
+	{
+		if (bottom <= y)
+			return;
+		R2D_Image(x,y,w,bottom-y,0,0,1,(bottom-y)/h,pic);
+	}
+	else
+		R2D_Image(x,y,w,h,0,0,1,1,pic);
+}
+
 //draws the conline_t list bottom-up within the width of the screen until the top of the screen is reached.
 //if text is selected, the selstartline globals will be updated, so make sure the lines persist or check them.
-static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, int selactive, int selsx, int selex, int selsy, int seley, float lineagelimit)
+static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscroll, int sx, int ex, int y, int top, int selactive, int selsx, int selex, int selsy, int seley, float lineagelimit)
 {
 	int linecount;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
@@ -2090,16 +2104,27 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	int charh = Font_CharHeight();
 	unsigned int codeflags, codepoint;
 	float alphaval = 1;
+	float chop;
+
+	chop = displayscroll * Font_CharHeight();
 
 	if (l != con->completionline)
 	if (l != con->footerline)
 	if (l != con->current)
 	{
-		y -= 8;
+		y -= Font_CharHeight();
 	// draw arrows to show the buffer is backscrolled
 		for (x = sx ; x<ex; )
 			x = (Font_DrawChar (x, y, CON_WHITEMASK, '^')-x)*4+x;
+
+		if (chop)
+		{
+			y -= Font_CharHeight();
+			chop += 2*Font_CharHeight();
+		}
 	}
+
+	y += chop;
 
 	if (selactive != -1)
 	{
@@ -2199,6 +2224,31 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				{
 					char *imgname;
 					linkinfo[linkinfolen] = 0;
+
+					imgname = Info_ValueForKey(linkinfo, "imgptr");
+					if (*imgname)
+					{
+						pic = R2D_SafeCachePic("tiprawimg");
+						pic->defaulttextures->base = Image_TextureIsValid(strtoull(imgname, NULL, 0));
+						if (pic && pic->defaulttextures->base)
+						{
+							if (!pic->defaulttextures->base->width || !pic->defaulttextures->base->height || !TEXLOADED(pic->defaulttextures->base))
+								picw = pich = 64;
+							else if (pic->defaulttextures->base->width > pic->defaulttextures->base->height)
+							{
+								picw = 64;
+								pich = (64.0*pic->defaulttextures->base->height)/pic->defaulttextures->base->width;
+							}
+							else
+							{
+								picw = (64.0*pic->defaulttextures->base->width)/pic->defaulttextures->base->height;
+								pich = 64;
+							}
+							break;
+						}
+					}
+
+
 					imgname = Info_ValueForKey(linkinfo, "img");
 					if (*imgname)
 					{
@@ -2305,23 +2355,27 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			if (texth > pich)
 			{
 				texth = pich + (texth-pich)/2;
-				R2D_Image(sx*szx, (y-texth)*szy, picw*szx, pich*szy, 0, 0, 1, 1, pic);
+				Con_DrawImageClip(sx*szx, (y-texth)*szy, picw*szx, pich*szy, (y-chop+Font_CharHeight())*szy, pic);
 				pich = 0;	//don't pad the text...
 			}
 			else
 			{
-				R2D_Image(sx*szx, (y-pich)*szy, picw*szx, pich*szy, 0, 0, 1, 1, pic);
+				Con_DrawImageClip(sx*szx, (y-pich)*szy, picw*szx, pich*szy, (y-chop+Font_CharHeight())*szy, pic);
 				pich -= texth;
 				y-= pich/2;	//skip some space above and below the text block, to keep the text and image aligned.
+
+				if (chop)
+					chop -= pich/2;
 			}
 			if (R2D_Flush)
 				R2D_Flush();
 
 //			if (selsx < picw && selex < picw)
 
+			l->numlines = ceil((texth+pich)/Font_CharHeight());
 		}
-
-		l->numlines = linecount;
+		else
+			l->numlines = linecount;
 
 		while(linecount-- > 0)
 		{
@@ -2329,6 +2383,15 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			e = ends[linecount];
 
 			y -= Font_CharHeight();
+
+			if (chop)
+			{
+				chop -= Font_CharHeight();
+				if (chop < 0)
+					chop = 0;
+				else
+					continue;
+			}
 
 			if (top && y < top)
 				break;
@@ -2526,6 +2589,8 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				break;
 		}
 		y -= pich/2;
+		if (chop)
+			chop -= pich/2;
 		if (y < top)
 			break;
 	}
@@ -2799,7 +2864,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		l = con_current->display;
 
-		y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley, 0);
+		y = Con_DrawConsoleLines(con_current, l, con_current->displayscroll, sx, ex, y, top, selactive, selsx, selex, selsy, seley, 0);
 
 		if (!haveprogress && lines == vid.height)
 		{
@@ -3163,7 +3228,7 @@ void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, f
 
 	if (!con->display)
 		con->display = con->current;
-	Con_DrawConsoleLines(con, con->display, x, sx, sy, y, selactive, selsx, selex, selsy, seley, lineagelimit);
+	Con_DrawConsoleLines(con, con->display, con->displayscroll, x, sx, sy, y, selactive, selsx, selex, selsy, seley, lineagelimit);
 
 	Font_EndString(font);
 }

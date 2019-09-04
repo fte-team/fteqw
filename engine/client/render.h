@@ -423,6 +423,7 @@ enum imageflags
 	IF_NOGAMMA			= 1<<9,		/*do not apply texture-based gamma*/
 	IF_3DMAP			= 1<<10,	/*waning - don't test directly*/
 	IF_CUBEMAP			= 1<<11,	/*waning - don't test directly*/
+	IF_2DARRAY				= IF_3DMAP|IF_CUBEMAP,
 	IF_TEXTYPE				= (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
 	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP			= 1<<12,	//allow the use of d_mipcap
@@ -593,7 +594,7 @@ void RQ_Shutdown(void);
 
 void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
+void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);

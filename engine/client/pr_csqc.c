@@ -727,7 +727,8 @@ static void QCBUILTIN PF_cs_remove (pubprogfuncs_t *prinst, struct globalvars_s 
 		return;
 	}
 
-	pe->DelinkTrailstate(&ed->trailstate);
+	if (pe)
+		pe->DelinkTrailstate(&ed->trailstate);
 	World_UnlinkEdict((wedict_t*)ed);
 	ED_Free (prinst, (void*)ed);
 }
@@ -7362,7 +7363,7 @@ void ASMCALL CSQC_ThinkTimeOp(pubprogfuncs_t *progs, edict_t *ed, float var)
 	vars->nextthink = *w->g.time+var;
 }
 
-pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
+pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc, const char *filename)
 {
 	if (!num)
 	{

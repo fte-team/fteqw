@@ -3686,7 +3686,7 @@ uploadfmt_t Surf_LightmapMode(model_t *model)
 			fmt = PTI_RGBA32F;
 		else if (sh_config.texfmt[PTI_A2BGR10] && rgb)
 			fmt = PTI_A2BGR10;
-		else if (sh_config.texfmt[PTI_L8] && !rgb && !r_deluxemapping)
+		else if (sh_config.texfmt[PTI_L8] && !rgb && !r_deluxemapping && r_dynamic.ival<=0)
 			fmt = PTI_L8;
 		else if (sh_config.texfmt[PTI_BGRX8])
 			fmt = PTI_BGRX8;

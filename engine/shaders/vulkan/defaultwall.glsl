@@ -8,8 +8,8 @@
 !!samps diffuse normalmap specular fullbright lightmap
 !!samps deluxmap reflectmask reflectcube
 !!argb vertexlit=0
-!!samps paletted 1
-!!argb eightbit=0
+//!!samps =EIGHTBIT paletted 1
+//!!argb eightbit=0
 !!argf mask=1.0
 !!argb masklt=false
 !!permu FOG
@@ -114,7 +114,7 @@ void main ()
 			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb;
 		}
 #else
-		if (arg_eightbit)
+		/*if (arg_eightbit)
 		{
 			//optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 			//don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
@@ -122,7 +122,7 @@ void main ()
 			vec2 nearestlm0 = floor(lm0 * 256.0*8.0)/(256.0*8.0);
 			lightmaps = (texture2D(s_lightmap, nearestlm0) * e_lmscale).rgb;
 		}
-		else
+		else*/
 			lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 		//modulate by the  bumpmap dot light
 		if (DELUXE)
@@ -165,7 +165,7 @@ void main ()
 		gl_FragColor.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
 	}
 
-	if (arg_eightbit)
+	/*if (arg_eightbit)
 	{
 		//FIXME: with this extra flag, half the permutations are redundant.
 		lightmaps *= 0.5;	//counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.
@@ -175,7 +175,7 @@ void main ()
 		gl_FragColor.g = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.g)).g;	//its not very softwarey, but re-palettizing is ugly.
 		gl_FragColor.b = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.b)).b;	//without lits, it should be identical.
 	}
-	else
+	else*/
 	{
 		//now we have our diffuse+specular terms, modulate by lightmap values.
 		gl_FragColor.rgb *= lightmaps.rgb;

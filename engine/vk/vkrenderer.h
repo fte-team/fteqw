@@ -280,6 +280,7 @@ extern struct vulkaninfo_s
 	qboolean		khr_dedicated_allocation;		//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
 	qboolean		khr_push_descriptor;			//more efficient descriptor streaming
 	qboolean		amd_rasterization_order;		//allows primitives to draw in any order
+	qboolean		ext_astc_decode_mode;			//small perf boost
 
 	VkInstance instance;
 	VkDevice device;

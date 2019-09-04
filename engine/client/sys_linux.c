@@ -99,7 +99,7 @@ qboolean isDedicated;
 
 #if 1
 static int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
-static void ApplyColour(unsigned int chrflags)
+static void ApplyColour(FILE *out, unsigned int chrflags)
 {
 	static int oldflags = CON_WHITEMASK;
 	int bg, fg;
@@ -108,10 +108,10 @@ static void ApplyColour(unsigned int chrflags)
 		return;
 	oldflags = chrflags;
 
-	printf("\e[0;"); // reset
+	fprintf(out, "\e[0;"); // reset
 
 	if (chrflags & CON_BLINKTEXT)
-		printf("5;"); // set blink
+		fprintf(out, "5;"); // set blink
 
 	bg = (chrflags & CON_BGMASK) >> CON_BGSHIFT;
 	fg = (chrflags & CON_FGMASK) >> CON_FGSHIFT;
@@ -124,12 +124,12 @@ static void ApplyColour(unsigned int chrflags)
 	{
 		if (fg & 0x8) // intensive bit set for foreground
 		{
-			printf("1;"); // set bold/intensity ansi flag
+			fprintf(out, "1;"); // set bold/intensity ansi flag
 			fg &= 0x7; // strip intensive bit
 		}
 
 		// set foreground and background colors
-		printf("3%i;4%im", ansiremap[fg], ansiremap[bg]);
+		fprintf(out, "3%i;4%im", ansiremap[fg], ansiremap[bg]);
 	}
 	else
 	{
@@ -137,22 +137,22 @@ static void ApplyColour(unsigned int chrflags)
 		{
 		//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
 		case COLOR_BLACK:
-			printf("7m"); // set inverse
+			fprintf(out, "7m"); // set inverse
 			break;
 		case COLOR_GREY:
-			printf("1;30m"); // treat as dark grey
+			fprintf(out, "1;30m"); // treat as dark grey
 			break;
 		case COLOR_WHITE:
-			printf("m"); // set nothing else
+			fprintf(out, "m"); // set nothing else
 			break;
 		default:
 			if (fg & 0x8) // intensive bit set for foreground
 			{
-				printf("1;"); // set bold/intensity ansi flag
+				fprintf(out, "1;"); // set bold/intensity ansi flag
 				fg &= 0x7; // strip intensive bit
 			}
 
-			printf("3%im", ansiremap[fg]); // set foreground
+			fprintf(out, "3%im", ansiremap[fg]); // set foreground
 			break;
 		}
 	}
@@ -167,9 +167,16 @@ void Sys_Printf (char *fmt, ...)
 	conchar_t       *c, *e;
 	wchar_t		w;
 	unsigned int codeflags, codepoint;
+	FILE *out = stdout;
 
 	if (nostdout)
+	{
+#ifdef _DEBUG
+		out = stderr;
+#else
 		return;
+#endif
+	}
 
 	va_start (argptr,fmt);
 	vsnprintf (text,sizeof(text)-1, fmt,argptr);
@@ -188,26 +195,26 @@ void Sys_Printf (char *fmt, ...)
 
 		if ((codeflags&CON_RICHFORECOLOUR) || (codepoint == '\n' && (codeflags&CON_NONCLEARBG)))
 			codeflags = CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
-		ApplyColour(codeflags);
+		ApplyColour(out, codeflags);
 		w = codepoint;
 		if (w >= 0xe000 && w < 0xe100)
 		{
 			/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
 			if ((w & 0x7f) > 0x20)
-				putc(w&0x7f, stdout);
+				putc(w&0x7f, out);
 			else if (w & 0x80)
 			{
 				static char tab[32] = "---#@.@@@@ # >.." "[]0123456789.---";
-				putc(tab[w&31], stdout);
+				putc(tab[w&31], out);
 			}
 			else
 			{
 				static char tab[32] = ".####.#### # >.." "[]0123456789.---";
-				putc(tab[w&31], stdout);
+				putc(tab[w&31], out);
 			}
 		}
 		else if (w < ' ' && w != '\t' && w != '\r' && w != '\n')
-			putc('?', stdout);	//don't let anyone print escape codes or other things that could crash an xterm.
+			putc('?', out);	//don't let anyone print escape codes or other things that could crash an xterm.
 		else
 		{
 			/*putwc doesn't like me. force it in utf8*/
@@ -215,20 +222,20 @@ void Sys_Printf (char *fmt, ...)
 			{
 				if (w > 0x800)
 				{
-					putc(0xe0 | ((w>>12)&0x0f), stdout);
-					putc(0x80 | ((w>>6)&0x3f), stdout);
+					putc(0xe0 | ((w>>12)&0x0f), out);
+					putc(0x80 | ((w>>6)&0x3f), out);
 				}
 				else
-					putc(0xc0 | ((w>>6)&0x1f), stdout);
-				putc(0x80 | (w&0x3f), stdout);
+					putc(0xc0 | ((w>>6)&0x1f), out);
+				putc(0x80 | (w&0x3f), out);
 			}
 			else
-				putc(w, stdout);
+				putc(w, out);
 		}
 	}
 
-	ApplyColour(CON_WHITEMASK);
-	fflush(stdout);
+	ApplyColour(out, CON_WHITEMASK);
+	fflush(out);
 }
 #else
 void Sys_Printf (char *fmt, ...)
@@ -736,9 +743,9 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 
 	lib = NULL;
 	if (!lib)
-		lib = dlopen (name, RTLD_LAZY);
+		lib = dlopen (name, RTLD_LOCAL|RTLD_LAZY);
 	if (!lib && !strstr(name, ".so"))
-		lib = dlopen (va("%s.so", name), RTLD_LAZY);
+		lib = dlopen (va("%s.so", name), RTLD_LOCAL|RTLD_LAZY);
 	if (!lib)
 	{
 		Con_DLPrintf(2,"%s\n", dlerror());
@@ -884,6 +891,17 @@ char *Sys_ConsoleInput(void)
 	if (noconinput)
 		return NULL;
 
+#if defined(__linux__) && defined(_DEBUG)
+	{
+		int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+		if (!(fl & FNDELAY))
+		{
+			fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+			Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
+		}
+	}
+#endif
+
 //	if (!qrenderer)
 	{
 		if (!fgets(text, sizeof(text), stdin))
@@ -1001,7 +1019,7 @@ int main (int c, const char **v)
 		noconinput = COM_CheckParm("-noconinput");
 #ifndef __DJGPP__
 	if (!noconinput)
-		fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
+		fcntl(STDIN_FILENO, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
 #endif
 
 #ifndef CLIENTONLY

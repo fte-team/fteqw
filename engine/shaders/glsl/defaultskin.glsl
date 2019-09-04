@@ -13,6 +13,7 @@
 !!cvardf r_tessellation_level=5
 !!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube
 !!samps =EIGHTBIT paletted 1
+!!samps =OCCLUDE occlusion
 //!!permu VC			// adds rgba vertex colour multipliers
 //!!permu SPECULAR		// auto-added when gl_specular>0
 //!!permu OFFSETMAPPING	// auto-added when r_glsl_offsetmapping is set
@@ -21,6 +22,7 @@
 //!!permu SG			// specularmap is rgb:F0, a:Roughness (instead of exponent)
 //!!permu PBR			// an attempt at pbr logic (enabled from ORM or SG)
 //!!permu NOOCCLUDE		// ignores the use of ORM's occlusion... yeah, stupid.
+//!!permu OCCLUDE		// use an explicit occlusion texturemap (separate from roughness+metalness).
 //!!permu EIGHTBIT		// uses software-style paletted colourmap lookups
 //!!permu ALPHATEST		// if defined, this is the required alpha level (more versatile than doing it at the q3shader level)
 
@@ -329,12 +331,12 @@ void main ()
 			#define ambientrgb (specrgb+col.rgb)
 			vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);
 			col.rgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);
-		#elif defined(SG) //pbr-style specular+glossiness
+		#elif defined(SG) //pbr-style specular+glossiness, without occlusion
 			//occlusion needs to be baked in. :(
 			#define roughness (1.0-specs.a)
 			#define gloss (specs.a)
 			#define specrgb specs.rgb
-			#define ambientrgb (specs.rgb+col.rgb)
+			#define ambientrgb (specrgb+col.rgb)
 		#else	//blinn-phong
 			#define roughness (1.0-specs.a)
 			#define gloss specs.a
@@ -378,7 +380,9 @@ void main ()
 		col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
 	#endif
 
-#if defined(occlusion) && !defined(NOOCCLUDE)
+#ifdef OCCLUDE
+	col.rgb *= texture2D(s_occlusion, tc).r;	
+#elif defined(occlusion) && !defined(NOOCCLUDE)
 	col.rgb *= occlusion;
 #endif
 	col *= light * e_colourident;

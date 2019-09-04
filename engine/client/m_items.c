@@ -479,7 +479,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 		if (option->common.ishidden)
 			continue;
 
-		if (&menu->menu == topmenu && menu->mouseitem == option)
+		if (&menu->menu == topmenu && menu->mouseitem == option && option->common.type != mt_frameend)
 		{
 			float alphamax = 0.5, alphamin = 0.2;
 			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);

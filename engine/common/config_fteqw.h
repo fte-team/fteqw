@@ -83,11 +83,13 @@
 #define PSKMODELS				//unreal's interchange format. Undesirable in terms of load times.
 #define HALFLIFEMODELS			//horrible format that doesn't interact well with the rest of FTE's code. Unusable tools (due to license reasons).
 #define INTERQUAKEMODELS		//Preferred model format, at least from an idealism perspective.
+#define MODELFMT_MDX			//kingpin's format (for hitboxes+geomsets).
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
 
 //Image formats
 #define IMAGEFMT_KTX			//Khronos TeXture. common on gles3 devices for etc2 compression
 #define IMAGEFMT_PKM			//file format generally written by etcpack or android's etc1tool. doesn't support mips.
+#define IMAGEFMT_ASTC			//lame simple header around a single astc image. not needed for astc in ktx files etc. its better to use ktx files.
 #define IMAGEFMT_PBM			//pbm/ppm/pgm/pfm family formats.
 #define IMAGEFMT_PSD			//baselayer only.
 #define IMAGEFMT_HDR			//an RGBE format.
@@ -104,6 +106,7 @@
 #define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
 #define DECOMPRESS_RGTC			//bc4+bc5
 #define DECOMPRESS_BPTC			//bc6+bc7
+#define DECOMPRESS_ASTC			//ASTC, for drivers that don't support it properly.
 
 // Game/Gamecode Support
 #define CSQC_DAT

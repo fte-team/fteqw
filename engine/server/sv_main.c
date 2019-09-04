@@ -1132,7 +1132,7 @@ static void SVC_Status (void)
 	int		ping;
 	int		top, bottom;
 	char frags[64];
-	char *skin, *team, *botpre;
+	char *skin, *team, *botpre, *specpre;
 
 	int slots=0;
 
@@ -1170,6 +1170,7 @@ static void SVC_Status (void)
 			else
 				botpre = "";
 
+			specpre = "";
 			if (cl->spectator)
 			{	//silly mvdsv stuff
 				if (displayflags & STATUS_SPECTATORS_AS_PLAYERS)
@@ -1181,7 +1182,7 @@ static void SVC_Status (void)
 				{
 					ping = -ping;
 					sprintf(frags, "%i", -9999);
-					name  = va("\\s\\%s", name);
+					specpre = "\\s\\";
 				}
 			}
 			else
@@ -1189,15 +1190,15 @@ static void SVC_Status (void)
 
 			if (displayflags & STATUS_SHOWTEAMS)
 			{
-				Con_Printf ("%i %s %i %i \"%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
+				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
 					frags, (int)(realtime - cl->connection_started)/60,
-					ping, botpre, name, skin, top, bottom, team);
+					ping, specpre, botpre, name, skin, top, bottom, team);
 			}
 			else
 			{
-				Con_Printf ("%i %s %i %i \"%s%s\" \"%s\" %i %i\n", cl->userid,
+				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i\n", cl->userid,
 					frags, (int)(realtime - cl->connection_started)/60,
-					ping, botpre, name, skin, top, bottom);
+					ping, specpre, botpre, name, skin, top, bottom);
 			}
 		}
 		else

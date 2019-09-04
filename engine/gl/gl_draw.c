@@ -35,6 +35,8 @@ extern cvar_t		gl_picmip2d;
 extern cvar_t		gl_compress;
 extern cvar_t		gl_smoothcrosshair;
 extern cvar_t		gl_texturemode, gl_texture_anisotropic_filtering;
+cvar_t		gl_blacklist_texture_compression = CVARFD("gl_blacklist_texture_compression", "0", CVAR_RENDERERLATCH, "When enabled, blocks recognition of all compressed-texture formats. Does NOT block support for gl3 texture types like e5bgr9 nor rgba16f.");
+cvar_t		gl_blacklist_generatemipmap = CVARFD("gl_blacklist_generatemipmap", "1", CVAR_RENDERERLATCH, "Self-generate mipmaps, instead of letting the graphics driver do it.");
 
 float	gl_anisotropy_factor;
 
@@ -83,6 +85,10 @@ void GL_SetupFormats(void)
 	float ver = gl_config.glversion;
 	qboolean srgb = (gl_config.glversion >= (gl_config_gles?3.0:2.1)) || GL_CheckExtension("GL_EXT_texture_sRGB");
 
+	memset(&gl_config.formatinfo, 0, sizeof(gl_config.formatinfo));
+	memset(&sh_config.texfmt, 0, sizeof(sh_config.texfmt));
+	sh_config.hw_bc = sh_config.hw_etc = sh_config.hw_astc = 0;
+
 	if (gl_config_gles && ver >= 3.0 && ver <= 3.3)
 		ver = 3.3;	//treat gles3.0 as desktop 3.3, they're roughly equivelent in feature set.
 
@@ -90,7 +96,7 @@ void GL_SetupFormats(void)
 		bc1=bc2=bc3=true;
 	if ((!gl_config_gles && ver >= 3.0) || GL_CheckExtension("GL_ARB_texture_compression_rgtc") || GL_CheckExtension("GL_EXT_texture_compression_rgtc"))
 		bc45 = true;
-	if ((!gl_config.gles && ver >= 4.2) || GL_CheckExtension("GL_ARB_texture_compression_bptc"))
+	if ((!gl_config_gles && ver >= 4.2) || GL_CheckExtension("GL_ARB_texture_compression_bptc") || GL_CheckExtension("GL_EXT_texture_compression_bptc"))
 		bc67 = true;
 
 	if (bc45)
@@ -118,6 +124,15 @@ void GL_SetupFormats(void)
 	bc1 |= GL_CheckExtension("GL_EXT_texture_compression_dxt1");
 	bc2 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt3");	//WARNING: can only use these if mip0 is a multiple of 4
 	bc3 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt5");
+
+#ifdef FTE_TARGET_WEB
+	if (GL_CheckExtension("GL_WEBGL_compressed_texture_s3tc"))
+		bc1 = bc2 = bc3 = true;
+	if (GL_CheckExtension("GL_WEBGL_compressed_texture_s3tc"))
+		bc1 = bc2 = bc3 = true;
+#endif
+
+
 
 	/*else if (sh_config.texfmt[PTI_ETC2_RGB8A8])
 	{	//these are probably a bad choice...
@@ -271,6 +286,27 @@ void GL_SetupFormats(void)
 		}
 	}
 
+	//provide a cvar for ignoring all texture compression extensions.
+	//this is more so that I can debug fallbacks.
+	if (gl_blacklist_texture_compression.ival)
+	{
+		Con_Printf("gl_blacklist_texture_compression: driver/hardware texture compression is "CON_WARNING"blocked"CON_DEFAULT".\n");
+		return;
+	}
+
+	if (bc1&&bc2&&bc3)
+	{
+		if (bc45)
+		{
+			if (bc67)
+				sh_config.hw_bc = 3;
+			else
+				sh_config.hw_bc = 2;
+		}
+		else
+			sh_config.hw_bc = 1;
+	}
+
 	//block compresion formats.
 	if (bc1)
 	{
@@ -309,12 +345,14 @@ void GL_SetupFormats(void)
 		glfmtb(PTI_BC7_RGBA_SRGB,		GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB);
 	}
 
+	if (gl_config_gles && gl_config.glversion >= 3.0 && !sh_config.hw_bc)
+		sh_config.hw_etc = 2;	//assume that mobile chips have actual support. the bc1 check prevents this from being true on desktop chips.
 #ifdef FTE_TARGET_WEB
-	if (GL_CheckExtension("WEBGL_compressed_texture_etc"))
-#else
-	if ((gl_config.gles && gl_config.glversion >= 3.0) || (!gl_config.gles && (gl_config.glversion >= 4.3 || GL_CheckExtension("GL_ARB_ES3_compatibility"))))
+	else if (GL_CheckExtension("GL_WEBGL_compressed_texture_etc"))
+		sh_config.hw_etc = 2;	//full etc2+eac
 #endif
-	{
+	if (sh_config.hw_etc>=2 || (!gl_config_gles && (gl_config.glversion >= 4.3 || GL_CheckExtension("GL_ARB_ES3_compatibility"))))
+	{	//note that desktop drivers will not necessarily support these in hardware, but are required to at least pretend that they do.
 		glfmtb(PTI_ETC1_RGB8,			GL_COMPRESSED_RGB8_ETC2);
 		glfmtb(PTI_ETC2_RGB8,			GL_COMPRESSED_RGB8_ETC2);
 		glfmtb(PTI_ETC2_RGB8A1,			GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2);
@@ -351,38 +389,72 @@ void GL_SetupFormats(void)
 			glfmtb(PTI_EAC_RG11,			GL_COMPRESSED_RG11_EAC);
 		if (GL_CheckExtension("GL_OES_compressed_EAC_RG11_signed_texture"))
 			glfmtb(PTI_EAC_RG11_SNORM,		GL_COMPRESSED_SIGNED_RG11_EAC);
+
+		if (gl_config.formatinfo[PTI_ETC2_RGB8].internalformat && gl_config.formatinfo[PTI_EAC_RG11].internalformat &&
+			gl_config.formatinfo[PTI_ETC2_RGB8A1].internalformat && gl_config.formatinfo[PTI_ETC2_RGB8A8].internalformat)
+			sh_config.hw_etc = 2;
+		else if (gl_config.formatinfo[PTI_ETC2_RGB8].internalformat || gl_config.formatinfo[PTI_ETC1_RGB8].internalformat)
+			sh_config.hw_etc = 1;
 	}
 
-	if (GL_CheckExtension("GL_KHR_texture_compression_astc_ldr") || (gl_config_gles && gl_config.glversion >= 3.2) || GL_CheckExtension("GL_ARB_ES3_2_compatibility"))
+	if (GL_CheckExtension("GL_OES_texture_compression_astc"))
+		sh_config.hw_astc = 3;	//3d textures
+	else if (GL_CheckExtension("GL_KHR_texture_compression_astc_hdr"))
+		sh_config.hw_astc = 2;	//hdr textures
+	else if (GL_CheckExtension("GL_KHR_texture_compression_astc_ldr"))
+		sh_config.hw_astc = 1;	//ldr textures only.
+#ifdef FTE_TARGET_WEB
+	else if (GL_CheckExtension("GL_WEBGL_compressed_texture_astc"))
+		sh_config.hw_astc = 1;	//need to use js getSupportedProfiles() to find the profiles, which is outside of our scope
+#endif
+	if (sh_config.hw_astc || (gl_config_gles && gl_config.glversion >= 3.2) || GL_CheckExtension("GL_ARB_ES3_2_compatibility"))
 	{	//astc ldr profile is a core part of gles 3.2
-		glfmtb(PTI_ASTC_4X4,			GL_COMPRESSED_RGBA_ASTC_4x4_KHR);
+		//note that this does not necessarily mean the hardware itself supports it.
+		glfmtb(PTI_ASTC_4X4_LDR,		GL_COMPRESSED_RGBA_ASTC_4x4_KHR);
+		glfmtb(PTI_ASTC_5X4_LDR,		GL_COMPRESSED_RGBA_ASTC_5x4_KHR);
+		glfmtb(PTI_ASTC_5X5_LDR,		GL_COMPRESSED_RGBA_ASTC_5x5_KHR);
+		glfmtb(PTI_ASTC_6X5_LDR,		GL_COMPRESSED_RGBA_ASTC_6x5_KHR);
+		glfmtb(PTI_ASTC_6X6_LDR,		GL_COMPRESSED_RGBA_ASTC_6x6_KHR);
+		glfmtb(PTI_ASTC_8X5_LDR,		GL_COMPRESSED_RGBA_ASTC_8x5_KHR);
+		glfmtb(PTI_ASTC_8X6_LDR,		GL_COMPRESSED_RGBA_ASTC_8x6_KHR);
+		glfmtb(PTI_ASTC_10X5_LDR,		GL_COMPRESSED_RGBA_ASTC_10x5_KHR);
+		glfmtb(PTI_ASTC_10X6_LDR,		GL_COMPRESSED_RGBA_ASTC_10x6_KHR);
+		glfmtb(PTI_ASTC_8X8_LDR,		GL_COMPRESSED_RGBA_ASTC_8x8_KHR);
+		glfmtb(PTI_ASTC_10X8_LDR,		GL_COMPRESSED_RGBA_ASTC_10x8_KHR);
+		glfmtb(PTI_ASTC_10X10_LDR,		GL_COMPRESSED_RGBA_ASTC_10x10_KHR);
+		glfmtb(PTI_ASTC_12X10_LDR,		GL_COMPRESSED_RGBA_ASTC_12x10_KHR);
+		glfmtb(PTI_ASTC_12X12_LDR,		GL_COMPRESSED_RGBA_ASTC_12x12_KHR);
 		glfmtb(PTI_ASTC_4X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR);
-		glfmtb(PTI_ASTC_5X4,			GL_COMPRESSED_RGBA_ASTC_5x4_KHR);
 		glfmtb(PTI_ASTC_5X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR);
-		glfmtb(PTI_ASTC_5X5,			GL_COMPRESSED_RGBA_ASTC_5x5_KHR);
 		glfmtb(PTI_ASTC_5X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR);
-		glfmtb(PTI_ASTC_6X5,			GL_COMPRESSED_RGBA_ASTC_6x5_KHR);
 		glfmtb(PTI_ASTC_6X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR);
-		glfmtb(PTI_ASTC_6X6,			GL_COMPRESSED_RGBA_ASTC_6x6_KHR);
 		glfmtb(PTI_ASTC_6X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR);
-		glfmtb(PTI_ASTC_8X5,			GL_COMPRESSED_RGBA_ASTC_8x5_KHR);
 		glfmtb(PTI_ASTC_8X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR);
-		glfmtb(PTI_ASTC_8X6,			GL_COMPRESSED_RGBA_ASTC_8x6_KHR);
 		glfmtb(PTI_ASTC_8X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR);
-		glfmtb(PTI_ASTC_10X5,			GL_COMPRESSED_RGBA_ASTC_10x5_KHR);
 		glfmtb(PTI_ASTC_10X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR);
-		glfmtb(PTI_ASTC_10X6,			GL_COMPRESSED_RGBA_ASTC_10x6_KHR);
 		glfmtb(PTI_ASTC_10X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR);
-		glfmtb(PTI_ASTC_8X8,			GL_COMPRESSED_RGBA_ASTC_8x8_KHR);
 		glfmtb(PTI_ASTC_8X8_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR);
-		glfmtb(PTI_ASTC_10X8,			GL_COMPRESSED_RGBA_ASTC_10x8_KHR);
 		glfmtb(PTI_ASTC_10X8_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR);
-		glfmtb(PTI_ASTC_10X10,			GL_COMPRESSED_RGBA_ASTC_10x10_KHR);
 		glfmtb(PTI_ASTC_10X10_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR);
-		glfmtb(PTI_ASTC_12X10,			GL_COMPRESSED_RGBA_ASTC_12x10_KHR);
 		glfmtb(PTI_ASTC_12X10_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR);
-		glfmtb(PTI_ASTC_12X12,			GL_COMPRESSED_RGBA_ASTC_12x12_KHR);
 		glfmtb(PTI_ASTC_12X12_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR);
+	}
+	if (sh_config.hw_astc >= 2)
+	{	//astc hdr profile uses the same texture formats, which is kinda annoying...
+		glfmtb(PTI_ASTC_4X4_HDR,		GL_COMPRESSED_RGBA_ASTC_4x4_KHR);
+		glfmtb(PTI_ASTC_5X4_HDR,		GL_COMPRESSED_RGBA_ASTC_5x4_KHR);
+		glfmtb(PTI_ASTC_5X5_HDR,		GL_COMPRESSED_RGBA_ASTC_5x5_KHR);
+		glfmtb(PTI_ASTC_6X5_HDR,		GL_COMPRESSED_RGBA_ASTC_6x5_KHR);
+		glfmtb(PTI_ASTC_6X6_HDR,		GL_COMPRESSED_RGBA_ASTC_6x6_KHR);
+		glfmtb(PTI_ASTC_8X5_HDR,		GL_COMPRESSED_RGBA_ASTC_8x5_KHR);
+		glfmtb(PTI_ASTC_8X6_HDR,		GL_COMPRESSED_RGBA_ASTC_8x6_KHR);
+		glfmtb(PTI_ASTC_10X5_HDR,		GL_COMPRESSED_RGBA_ASTC_10x5_KHR);
+		glfmtb(PTI_ASTC_10X6_HDR,		GL_COMPRESSED_RGBA_ASTC_10x6_KHR);
+		glfmtb(PTI_ASTC_8X8_HDR,		GL_COMPRESSED_RGBA_ASTC_8x8_KHR);
+		glfmtb(PTI_ASTC_10X8_HDR,		GL_COMPRESSED_RGBA_ASTC_10x8_KHR);
+		glfmtb(PTI_ASTC_10X10_HDR,		GL_COMPRESSED_RGBA_ASTC_10x10_KHR);
+		glfmtb(PTI_ASTC_12X10_HDR,		GL_COMPRESSED_RGBA_ASTC_12x10_KHR);
+		glfmtb(PTI_ASTC_12X12_HDR,		GL_COMPRESSED_RGBA_ASTC_12x12_KHR);
 	}
 }
 
@@ -414,6 +486,7 @@ void GLDraw_Init (void)
 		vid.flags &= ~VID_SRGBAWARE;
 
 
+	sh_config.can_genmips = qglGenerateMipmap && !gl_blacklist_generatemipmap.ival;
 	//figure out which extra features we can support on these drivers.
 	r_deluxemapping = r_deluxemapping_cvar.ival;
 	r_lightprepass = r_lightprepass_cvar.ival && sh_config.progs_supported;
@@ -644,6 +717,8 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	qboolean compress;
 	qboolean storage = true;
 	unsigned int bb, bw, bh;
+	int levels = 0, genlevels;
+	int layers = 1;
 
 	if (gl_config.gles)
 	{
@@ -662,16 +737,26 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	default:
 	case 0:
 		targ = GL_TEXTURE_2D;
+		layers = 1;
 		break;
 	case 1:
 		targ = GL_TEXTURE_3D;
+		layers = 1;
 		break;
 	case 2:
 		targ = GL_TEXTURE_CUBE_MAP_ARB;
+		layers = 1*6;
 		break;
 	case 3:
 		targ = GL_TEXTURE_2D_ARRAY;
+		layers = 1; //TODO
 		break;
+	}
+	genlevels = levels = mips->mipcount / layers;
+	if (!(tex->flags & IF_NOMIPMAP) && sh_config.can_genmips && gl_config.formatinfo[encoding].type && genlevels == 1 && mips->mip[0].data && mips->encoding != PTI_P8)
+	{
+		while ((mips->mip[0].width>>genlevels) || (mips->mip[0].height>>genlevels))
+			genlevels++;
 	}
 
 	GL_MTBind(0, targ, tex);
@@ -689,6 +774,10 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			qglGenTextures(1, &tex->num);
 		GL_MTBind(0, targ, tex);
 	}
+
+	//this is annoying.
+	if (mips->encoding >= PTI_ASTC_4X4_LDR && mips->encoding <= PTI_ASTC_12X12_LDR && gl_config.astc_decodeprecision)
+		qglTexParameteri(targ, GL_TEXTURE_ASTC_DECODE_PRECISION_EXT, GL_RGBA8);
 
 	if (tex->flags&IF_CLAMP)
 	{
@@ -739,13 +828,13 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		{
 			if (tex->flags & IF_MIPCAP)
 			{
-				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(nummips-1, gl_mipcap_min));
-				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(nummips-1, gl_mipcap_max));
+				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(genlevels-1, gl_mipcap_min));
+				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(genlevels-1, gl_mipcap_max));
 			}
 			else
 			{
 				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, 0);
-				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, nummips-1);
+				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, genlevels-1);
 			}
 		}
 	}
@@ -822,10 +911,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		//FIXME: support array textures properly
 		if (qglTexStorage3D && storage)
 		{
-			if (tex->flags & IF_TEXTYPE)
-				qglTexStorage3D(targ, nummips/countof(cubeface), ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
-			else
-				qglTexStorage3D(targ, nummips, ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
+			qglTexStorage3D(targ, genlevels, ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
 
 			for (i = 0; i < nummips; i++)
 			{
@@ -848,15 +934,15 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 					qglCompressedTexImage3D		(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, 0,								mips->mip[i].datasize,							mips->mip[i].data);
 			}
 		}
+
+		if (genlevels > levels)
+			qglGenerateMipmap(targ);
 	}
 	else
 	{
 		if (qglTexStorage2D && storage)
 		{	//FIXME: destroy the old texture
-			if (tex->flags & IF_TEXTYPE)
-				qglTexStorage2D(targ, nummips/countof(cubeface), ifmt, mips->mip[0].width, mips->mip[0].height);
-			else
-				qglTexStorage2D(targ, nummips, ifmt, mips->mip[0].width, mips->mip[0].height);
+			qglTexStorage2D(targ, genlevels, ifmt, mips->mip[0].width, mips->mip[0].height);
 		
 			for (i = 0; i < nummips; i++)
 			{
@@ -902,6 +988,9 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			}
 		}
 
+		if (genlevels > levels)
+			qglGenerateMipmap(targ);
+
 #ifdef IMAGEFMT_KTX
 		if (compress && gl_compress.ival>1 && gl_config.formatinfo[encoding].type)
 		{
@@ -944,33 +1033,33 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			case GL_COMPRESSED_SIGNED_R11_EAC:					out.encoding = PTI_EAC_R11_SNORM;		break;
 			case GL_COMPRESSED_RG11_EAC:						out.encoding = PTI_EAC_RG11;			break;
 			case GL_COMPRESSED_SIGNED_RG11_EAC:					out.encoding = PTI_EAC_RG11_SNORM;		break;
-			case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:				out.encoding = PTI_ASTC_4X4;			break;
+			case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:				out.encoding = PTI_ASTC_4X4_HDR;		break;	//play it safe and assume hdr.
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR:		out.encoding = PTI_ASTC_4X4_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:				out.encoding = PTI_ASTC_5X4;			break;
+			case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:				out.encoding = PTI_ASTC_5X4_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR:		out.encoding = PTI_ASTC_5X4_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:				out.encoding = PTI_ASTC_5X5;			break;
+			case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:				out.encoding = PTI_ASTC_5X5_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR:		out.encoding = PTI_ASTC_5X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:				out.encoding = PTI_ASTC_6X5;			break;
+			case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:				out.encoding = PTI_ASTC_6X5_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR:		out.encoding = PTI_ASTC_6X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:				out.encoding = PTI_ASTC_6X6;			break;
+			case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:				out.encoding = PTI_ASTC_6X6_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR:		out.encoding = PTI_ASTC_6X6_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:				out.encoding = PTI_ASTC_8X5;			break;
+			case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:				out.encoding = PTI_ASTC_8X5_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR:		out.encoding = PTI_ASTC_8X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:				out.encoding = PTI_ASTC_8X6;			break;
+			case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:				out.encoding = PTI_ASTC_8X6_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR:		out.encoding = PTI_ASTC_8X6_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:				out.encoding = PTI_ASTC_10X5;			break;
+			case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:				out.encoding = PTI_ASTC_10X5_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR:		out.encoding = PTI_ASTC_10X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:				out.encoding = PTI_ASTC_10X6;			break;
+			case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:				out.encoding = PTI_ASTC_10X6_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR:		out.encoding = PTI_ASTC_10X6_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:				out.encoding = PTI_ASTC_8X8;			break;
+			case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:				out.encoding = PTI_ASTC_8X8_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR:		out.encoding = PTI_ASTC_8X8_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:				out.encoding = PTI_ASTC_10X8;			break;
+			case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:				out.encoding = PTI_ASTC_10X8_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR:		out.encoding = PTI_ASTC_10X8_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:				out.encoding = PTI_ASTC_10X10;			break;
+			case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:				out.encoding = PTI_ASTC_10X10_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR:		out.encoding = PTI_ASTC_10X10_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:				out.encoding = PTI_ASTC_12X10;			break;
+			case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:				out.encoding = PTI_ASTC_12X10_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR:		out.encoding = PTI_ASTC_12X10_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:				out.encoding = PTI_ASTC_12X12;			break;
+			case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:				out.encoding = PTI_ASTC_12X12_HDR;		break;
 			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:		out.encoding = PTI_ASTC_12X12_SRGB;		break;
 			}
 

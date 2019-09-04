@@ -2194,6 +2194,8 @@ neterr_t NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *t
 {
 	int		i;
 	loopback_t	*loop;
+	if (!length && !data)	//NET_EnsureRoute tests.
+		return NETERR_SENT;
 
 	sock &= 1;
 

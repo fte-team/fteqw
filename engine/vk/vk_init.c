@@ -6,18 +6,45 @@
 #include "renderque.h"	//is anything still using this?
 
 extern qboolean vid_isfullscreen;
-extern cvar_t vk_submissionthread;
-extern cvar_t vk_debug;
-extern cvar_t vk_dualqueue;
-extern cvar_t vk_busywait;
-extern cvar_t vk_waitfence;
-extern cvar_t vk_nv_glsl_shader;
-extern cvar_t vk_khr_get_memory_requirements2;
-extern cvar_t vk_khr_dedicated_allocation;
-extern cvar_t vk_khr_push_descriptor;
-extern cvar_t vk_amd_rasterization_order;
-extern cvar_t vk_usememorypools;
+
+cvar_t vk_stagingbuffers						= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
+static cvar_t vk_submissionthread				= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
+static cvar_t vk_debug							= CVARFD("vk_debug",					"0", CVAR_VIDEOLATCH, "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
+static cvar_t vk_dualqueue						= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH, "Attempt to use a separate queue for presentation. Blank for default.");
+static cvar_t vk_busywait						= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
+static cvar_t vk_waitfence						= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
+static cvar_t vk_usememorypools					= CVARFD("vk_usememorypools",			"",	CVAR_VIDEOLATCH, "Allocates memory pools for sub allocations. Vulkan has a limit to the number of memory allocations allowed so this should always be enabled, however at this time FTE is unable to reclaim pool memory, and would require periodic vid_restarts to flush them.");
+static cvar_t vk_nv_glsl_shader					= CVARFD("vk_loadglsl",					"", CVAR_VIDEOLATCH, "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
+static cvar_t vk_khr_get_memory_requirements2	= CVARFD("vk_khr_get_memory_requirements2", "", CVAR_VIDEOLATCH, "Enable extended memory info querires");
+static cvar_t vk_khr_dedicated_allocation		= CVARFD("vk_khr_dedicated_allocation",	"", CVAR_VIDEOLATCH, "Flag vulkan memory allocations as dedicated, where applicable.");
+static cvar_t vk_khr_push_descriptor			= CVARFD("vk_khr_push_descriptor",		"", CVAR_VIDEOLATCH, "Enables better descriptor streaming.");
+static cvar_t vk_amd_rasterization_order		= CVARFD("vk_amd_rasterization_order",	"",	CVAR_VIDEOLATCH, "Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
+#ifdef VK_EXT_astc_decode_mode
+static cvar_t vk_ext_astc_decode_mode			= CVARFD("vk_ext_astc_decode_mode",		"",	CVAR_VIDEOLATCH, "Enables reducing texture cache sizes for LDR ASTC-compressed textures.");
+#endif
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
+
+
+void VK_RegisterVulkanCvars(void)
+{
+#define VKRENDEREROPTIONS	"Vulkan-Specific Renderer Options"
+	Cvar_Register (&vk_stagingbuffers,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_submissionthread,		VKRENDEREROPTIONS);
+	Cvar_Register (&vk_debug,					VKRENDEREROPTIONS);
+	Cvar_Register (&vk_dualqueue,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_busywait,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_waitfence,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_usememorypools,			VKRENDEREROPTIONS);
+
+	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_get_memory_requirements2,VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
+	Cvar_Register (&vk_amd_rasterization_order,	VKRENDEREROPTIONS);
+#ifdef VK_EXT_astc_decode_mode
+	Cvar_Register (&vk_ext_astc_decode_mode,	VKRENDEREROPTIONS);
+#endif
+}
 void R2D_Console_Resize(void);
 
 extern qboolean		scr_con_forcedraw;
@@ -1299,7 +1326,10 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	vk_image_t ret;
 	VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
 	VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-	VkFormat format = VK_FORMAT_UNDEFINED;;
+	VkFormat format = VK_FORMAT_UNDEFINED;
+#ifdef VK_EXT_astc_decode_mode
+	VkImageViewASTCDecodeModeEXT astcmode;
+#endif
 
 	ret.width = width;
 	ret.height = height;
@@ -1370,34 +1400,65 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_EAC_RG11:			format = VK_FORMAT_EAC_R11G11_UNORM_BLOCK;		break;
 	case PTI_EAC_RG11_SNORM:	format = VK_FORMAT_EAC_R11G11_SNORM_BLOCK;		break;
 
-	case PTI_ASTC_4X4:			format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;		break;
+	case PTI_ASTC_4X4_LDR:		format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;		break;
 	case PTI_ASTC_4X4_SRGB:		format = VK_FORMAT_ASTC_4x4_SRGB_BLOCK;			break;
-	case PTI_ASTC_5X4:			format = VK_FORMAT_ASTC_5x4_UNORM_BLOCK;		break;
+	case PTI_ASTC_5X4_LDR:		format = VK_FORMAT_ASTC_5x4_UNORM_BLOCK;		break;
 	case PTI_ASTC_5X4_SRGB:		format = VK_FORMAT_ASTC_5x4_SRGB_BLOCK;			break;
-	case PTI_ASTC_5X5:			format = VK_FORMAT_ASTC_5x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_5X5_LDR:		format = VK_FORMAT_ASTC_5x5_UNORM_BLOCK;		break;
 	case PTI_ASTC_5X5_SRGB:		format = VK_FORMAT_ASTC_5x5_SRGB_BLOCK;			break;
-	case PTI_ASTC_6X5:			format = VK_FORMAT_ASTC_6x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_6X5_LDR:		format = VK_FORMAT_ASTC_6x5_UNORM_BLOCK;		break;
 	case PTI_ASTC_6X5_SRGB:		format = VK_FORMAT_ASTC_6x5_SRGB_BLOCK;			break;
-	case PTI_ASTC_6X6:			format = VK_FORMAT_ASTC_6x6_UNORM_BLOCK;		break;
+	case PTI_ASTC_6X6_LDR:		format = VK_FORMAT_ASTC_6x6_UNORM_BLOCK;		break;
 	case PTI_ASTC_6X6_SRGB:		format = VK_FORMAT_ASTC_6x6_SRGB_BLOCK;			break;
-	case PTI_ASTC_8X5:			format = VK_FORMAT_ASTC_8x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_8X5_LDR:		format = VK_FORMAT_ASTC_8x5_UNORM_BLOCK;		break;
 	case PTI_ASTC_8X5_SRGB:		format = VK_FORMAT_ASTC_8x5_SRGB_BLOCK;			break;
-	case PTI_ASTC_8X6:			format = VK_FORMAT_ASTC_8x6_UNORM_BLOCK;		break;
+	case PTI_ASTC_8X6_LDR:		format = VK_FORMAT_ASTC_8x6_UNORM_BLOCK;		break;
 	case PTI_ASTC_8X6_SRGB:		format = VK_FORMAT_ASTC_8x6_SRGB_BLOCK;			break;
-	case PTI_ASTC_8X8:			format = VK_FORMAT_ASTC_8x8_UNORM_BLOCK;		break;
+	case PTI_ASTC_8X8_LDR:		format = VK_FORMAT_ASTC_8x8_UNORM_BLOCK;		break;
 	case PTI_ASTC_8X8_SRGB:		format = VK_FORMAT_ASTC_8x8_SRGB_BLOCK;			break;
-	case PTI_ASTC_10X5:			format = VK_FORMAT_ASTC_10x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X5_LDR:		format = VK_FORMAT_ASTC_10x5_UNORM_BLOCK;		break;
 	case PTI_ASTC_10X5_SRGB:	format = VK_FORMAT_ASTC_10x5_SRGB_BLOCK;		break;
-	case PTI_ASTC_10X6:			format = VK_FORMAT_ASTC_10x6_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X6_LDR:		format = VK_FORMAT_ASTC_10x6_UNORM_BLOCK;		break;
 	case PTI_ASTC_10X6_SRGB:	format = VK_FORMAT_ASTC_10x6_SRGB_BLOCK;		break;
-	case PTI_ASTC_10X8:			format = VK_FORMAT_ASTC_10x8_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X8_LDR:		format = VK_FORMAT_ASTC_10x8_UNORM_BLOCK;		break;
 	case PTI_ASTC_10X8_SRGB:	format = VK_FORMAT_ASTC_10x8_SRGB_BLOCK;		break;
-	case PTI_ASTC_10X10:		format = VK_FORMAT_ASTC_10x10_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X10_LDR:	format = VK_FORMAT_ASTC_10x10_UNORM_BLOCK;		break;
 	case PTI_ASTC_10X10_SRGB:	format = VK_FORMAT_ASTC_10x10_SRGB_BLOCK;		break;
-	case PTI_ASTC_12X10:		format = VK_FORMAT_ASTC_12x10_UNORM_BLOCK;		break;
+	case PTI_ASTC_12X10_LDR:	format = VK_FORMAT_ASTC_12x10_UNORM_BLOCK;		break;
 	case PTI_ASTC_12X10_SRGB:	format = VK_FORMAT_ASTC_12x10_SRGB_BLOCK;		break;
-	case PTI_ASTC_12X12:		format = VK_FORMAT_ASTC_12x12_UNORM_BLOCK;		break;
+	case PTI_ASTC_12X12_LDR:	format = VK_FORMAT_ASTC_12x12_UNORM_BLOCK;		break;
 	case PTI_ASTC_12X12_SRGB:	format = VK_FORMAT_ASTC_12x12_SRGB_BLOCK;		break;
+#ifdef VK_EXT_texture_compression_astc_hdr
+	case PTI_ASTC_4X4_HDR:		format = VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_5X4_HDR:		format = VK_FORMAT_ASTC_5x4_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_5X5_HDR:		format = VK_FORMAT_ASTC_5x5_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_6X5_HDR:		format = VK_FORMAT_ASTC_6x5_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_6X6_HDR:		format = VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_8X5_HDR:		format = VK_FORMAT_ASTC_8x5_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_8X6_HDR:		format = VK_FORMAT_ASTC_8x6_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_8X8_HDR:		format = VK_FORMAT_ASTC_8x8_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_10X5_HDR:		format = VK_FORMAT_ASTC_10x5_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_10X6_HDR:		format = VK_FORMAT_ASTC_10x6_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_10X8_HDR:		format = VK_FORMAT_ASTC_10x8_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_10X10_HDR:	format = VK_FORMAT_ASTC_10x10_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_12X10_HDR:	format = VK_FORMAT_ASTC_12x10_SFLOAT_BLOCK_EXT;	break;
+	case PTI_ASTC_12X12_HDR:	format = VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK_EXT;	break;
+#else	//better than crashing.
+	case PTI_ASTC_4X4_HDR:		format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;	break;
+	case PTI_ASTC_5X4_HDR:		format = VK_FORMAT_ASTC_5x4_UNORM_BLOCK;	break;
+	case PTI_ASTC_5X5_HDR:		format = VK_FORMAT_ASTC_5x5_UNORM_BLOCK;	break;
+	case PTI_ASTC_6X5_HDR:		format = VK_FORMAT_ASTC_6x5_UNORM_BLOCK;	break;
+	case PTI_ASTC_6X6_HDR:		format = VK_FORMAT_ASTC_6x6_UNORM_BLOCK;	break;
+	case PTI_ASTC_8X5_HDR:		format = VK_FORMAT_ASTC_8x5_UNORM_BLOCK;	break;
+	case PTI_ASTC_8X6_HDR:		format = VK_FORMAT_ASTC_8x6_UNORM_BLOCK;	break;
+	case PTI_ASTC_8X8_HDR:		format = VK_FORMAT_ASTC_8x8_UNORM_BLOCK;	break;
+	case PTI_ASTC_10X5_HDR:		format = VK_FORMAT_ASTC_10x5_UNORM_BLOCK;	break;
+	case PTI_ASTC_10X6_HDR:		format = VK_FORMAT_ASTC_10x6_UNORM_BLOCK;	break;
+	case PTI_ASTC_10X8_HDR:		format = VK_FORMAT_ASTC_10x8_UNORM_BLOCK;	break;
+	case PTI_ASTC_10X10_HDR:	format = VK_FORMAT_ASTC_10x10_UNORM_BLOCK;	break;
+	case PTI_ASTC_12X10_HDR:	format = VK_FORMAT_ASTC_12x10_UNORM_BLOCK;	break;
+	case PTI_ASTC_12X12_HDR:	format = VK_FORMAT_ASTC_12x12_UNORM_BLOCK;	break;
+#endif
 
 	//depth formats
 	case PTI_DEPTH16:			format = VK_FORMAT_D16_UNORM;					break;
@@ -1473,7 +1534,8 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
 		viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
 		break;
-	case PTI_L8:	//must be an R8 texture
+	case PTI_L8:		//must be an R8 texture
+	case PTI_L8_SRGB:	//must be an R8 texture
 		viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 		viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
 		viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
@@ -1491,6 +1553,35 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 		break;
+
+#ifdef VK_EXT_astc_decode_mode
+	case PTI_ASTC_4X4:	//set these to use rgba8 decoding, because we know they're not hdr and the format is basically 8bit anyway.
+	case PTI_ASTC_5X4:	//we do NOT do this for the hdr, as that would cause data loss.
+	case PTI_ASTC_5X5:	//we do NOT do this for sRGB because its pointless.
+	case PTI_ASTC_6X5:
+	case PTI_ASTC_6X6:
+	case PTI_ASTC_8X5:
+	case PTI_ASTC_8X6:
+	case PTI_ASTC_8X8:
+	case PTI_ASTC_10X5:
+	case PTI_ASTC_10X6:
+	case PTI_ASTC_10X8:
+	case PTI_ASTC_10X10:
+	case PTI_ASTC_12X10:
+	case PTI_ASTC_12X12:
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		if (vk.ext_astc_decode_mode)
+		{
+			astcmode.pNext = viewInfo.pNext;
+			astcmode.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_ASTC_DECODE_MODE_EXT;
+			astcmode.decodeMode = VK_FORMAT_R8G8B8A8_UNORM;
+			viewInfo.pNext = &astcmode;
+		}
+		break;
+#endif
 	}
 	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	viewInfo.subresourceRange.baseMipLevel = 0;
@@ -3994,7 +4085,9 @@ void VK_CheckTextureFormats(void)
 		{PTI_ARGB1555,			VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA16F,			VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
 		{PTI_RGBA32F,			VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
-		{PTI_P8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_L8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_L8A8,				VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_L8_SRGB,			VK_FORMAT_R8_SRGB,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_R8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RG8,				VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_R8_SNORM,			VK_FORMAT_R8_SNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
@@ -4036,34 +4129,51 @@ void VK_CheckTextureFormats(void)
 		{PTI_EAC_R11_SNORM,		VK_FORMAT_EAC_R11_SNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_EAC_RG11,			VK_FORMAT_EAC_R11G11_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_EAC_RG11_SNORM,	VK_FORMAT_EAC_R11G11_SNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_4X4,			VK_FORMAT_ASTC_4x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_4X4_LDR,		VK_FORMAT_ASTC_4x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X4_LDR,		VK_FORMAT_ASTC_5x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X5_LDR,		VK_FORMAT_ASTC_5x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X5_LDR,		VK_FORMAT_ASTC_6x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X6_LDR,		VK_FORMAT_ASTC_6x6_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X5_LDR,		VK_FORMAT_ASTC_8x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X6_LDR,		VK_FORMAT_ASTC_8x6_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X8_LDR,		VK_FORMAT_ASTC_8x8_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X5_LDR,		VK_FORMAT_ASTC_10x5_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X6_LDR,		VK_FORMAT_ASTC_10x6_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X8_LDR,		VK_FORMAT_ASTC_10x8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X10_LDR,	VK_FORMAT_ASTC_10x10_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X10_LDR,	VK_FORMAT_ASTC_12x10_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X12_LDR,	VK_FORMAT_ASTC_12x12_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_4X4_SRGB,		VK_FORMAT_ASTC_4x4_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_5X4,			VK_FORMAT_ASTC_5x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_5X4_SRGB,		VK_FORMAT_ASTC_5x4_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_5X5,			VK_FORMAT_ASTC_5x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_5X5_SRGB,		VK_FORMAT_ASTC_5x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_6X5,			VK_FORMAT_ASTC_6x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_6X5_SRGB,		VK_FORMAT_ASTC_6x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_6X6,			VK_FORMAT_ASTC_6x6_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_6X6_SRGB,		VK_FORMAT_ASTC_6x6_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_8X5,			VK_FORMAT_ASTC_8x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_8X5_SRGB,		VK_FORMAT_ASTC_8x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_8X6,			VK_FORMAT_ASTC_8x6_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_8X6_SRGB,		VK_FORMAT_ASTC_8x6_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_8X8,			VK_FORMAT_ASTC_8x8_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_8X8_SRGB,		VK_FORMAT_ASTC_8x8_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_10X5,			VK_FORMAT_ASTC_10x5_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_10X5_SRGB,	VK_FORMAT_ASTC_10x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_10X6,			VK_FORMAT_ASTC_10x6_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_10X6_SRGB,	VK_FORMAT_ASTC_10x6_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_10X8,			VK_FORMAT_ASTC_10x8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_10X8_SRGB,	VK_FORMAT_ASTC_10x8_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_10X10,		VK_FORMAT_ASTC_10x10_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_10X10_SRGB,	VK_FORMAT_ASTC_10x10_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_12X10,		VK_FORMAT_ASTC_12x10_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_12X10_SRGB,	VK_FORMAT_ASTC_12x10_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ASTC_12X12,		VK_FORMAT_ASTC_12x12_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_12X12_SRGB,	VK_FORMAT_ASTC_12x12_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+
+#ifdef VK_EXT_texture_compression_astc_hdr
+		{PTI_ASTC_4X4_HDR,		VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X4_HDR,		VK_FORMAT_ASTC_5x4_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X5_HDR,		VK_FORMAT_ASTC_5x5_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X5_HDR,		VK_FORMAT_ASTC_6x5_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X6_HDR,		VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X5_HDR,		VK_FORMAT_ASTC_8x5_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X6_HDR,		VK_FORMAT_ASTC_8x6_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X8_HDR,		VK_FORMAT_ASTC_8x8_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X5_HDR,		VK_FORMAT_ASTC_10x5_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X6_HDR,		VK_FORMAT_ASTC_10x6_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X8_HDR,		VK_FORMAT_ASTC_10x8_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X10_HDR,	VK_FORMAT_ASTC_10x10_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X10_HDR,	VK_FORMAT_ASTC_12x10_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X12_HDR,	VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK_EXT,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+#endif
 	};
 	unsigned int i;
 	VkPhysicalDeviceProperties props;
@@ -4083,6 +4193,15 @@ void VK_CheckTextureFormats(void)
 		if ((fmt.optimalTilingFeatures & need) == need)
 			sh_config.texfmt[texfmt[i].pti] = true;
 	}
+
+	if (sh_config.texfmt[PTI_BC1_RGBA] && sh_config.texfmt[PTI_BC2_RGBA] && sh_config.texfmt[PTI_BC3_RGBA] && sh_config.texfmt[PTI_BC5_RG8] && sh_config.texfmt[PTI_BC7_RGBA])
+		sh_config.hw_bc = 3;
+	if (sh_config.texfmt[PTI_ETC2_RGB8] && sh_config.texfmt[PTI_ETC2_RGB8A1] && sh_config.texfmt[PTI_ETC2_RGB8A8] && sh_config.texfmt[PTI_EAC_RG11])
+		sh_config.hw_etc = 2;
+	if (sh_config.texfmt[PTI_ASTC_4X4_LDR])
+		sh_config.hw_astc = 1;	//the core vulkan formats refer to the ldr profile. hdr is a separate extension, which is still not properly specified..
+	if (sh_config.texfmt[PTI_ASTC_4X4_HDR])
+		sh_config.hw_astc = 2;	//the core vulkan formats refer to the ldr profile. hdr is a separate extension, which is still not properly specified..
 }
 
 //initialise the vulkan instance, context, device, etc.
@@ -4115,6 +4234,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		{&vk.khr_dedicated_allocation,		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,		&vk_khr_dedicated_allocation,	true, NULL, NULL},
 		{&vk.khr_push_descriptor,			VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,			&vk_khr_push_descriptor,		true, NULL, NULL},
 		{&vk.amd_rasterization_order,		VK_AMD_RASTERIZATION_ORDER_EXTENSION_NAME,		&vk_amd_rasterization_order,	false, NULL, NULL},
+#ifdef VK_EXT_astc_decode_mode
+		{&vk.ext_astc_decode_mode,			VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME,			&vk_ext_astc_decode_mode,		true,  NULL, NULL},
+#endif
 	};
 	size_t e;
 

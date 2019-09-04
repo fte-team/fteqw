@@ -4,6 +4,8 @@
 //It doesn't implement all validation checks, either.
 //Do NOT use this code to validate any encoders...
 
+//Based upon documentation here: https://www.khronos.org/registry/OpenGL/extensions/OES/OES_texture_compression_astc.txt
+
 #ifndef ASTC_PUBLIC
 #define ASTC_PUBLIC
 #endif
@@ -371,21 +373,29 @@ static void ASTC_Decode(unsigned char *in, unsigned char *out, int count, unsign
 				block[1] = ASTC_readbits2(in, &offset, bits);
 				t |= ASTC_readbits2(in, &offset, 2)<<2;
 			}
+			else
+				block[1] = 0;
 			if (count > 2)
 			{
 				block[2] = ASTC_readbits2(in, &offset, bits);
 				t |= ASTC_readbits2(in, &offset, 1)<<4;
 			}
+			else
+				block[2] = 0;
 			if (count > 3)
 			{
 				block[3] = ASTC_readbits2(in, &offset, bits);
 				t |= ASTC_readbits2(in, &offset, 2)<<5;
 			}
+			else
+				block[3] = 0;
 			if (count > 4)
 			{
 				block[4] = ASTC_readbits2(in, &offset, bits);
 				t |= ASTC_readbits2(in, &offset, 1)<<7;
 			}
+			else
+				block[4] = 0;
 
 			//okay, we read the block, now figure out the trits and pack them into the high part of the result
 			if ((t&0x1c) == 0x1c)
@@ -447,11 +457,15 @@ static void ASTC_Decode(unsigned char *in, unsigned char *out, int count, unsign
 				block[1] = ASTC_readbits2(in, &offset, bits);
 				t |= ASTC_readbits2(in, &offset, 2)<<3;
 			}
+			else
+				block[1] = 0;
 			if (count > 2)
 			{
 				block[2] = ASTC_readbits2(in, &offset, bits);
 				t |= ASTC_readbits2(in, &offset, 2)<<5;
 			}
+			else
+				block[2] = 0;
 
 			//okay, we read the block, now figure out the trits and pack them into the high part of the result
 			if ((t&6)==6 && !(t&0x60))

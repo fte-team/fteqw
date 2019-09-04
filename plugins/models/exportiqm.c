@@ -217,9 +217,9 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 	struct iqmvertexarray *ovarr;
 	struct iqmtriangle *otri;
 	struct iqmmesh *omesh;
-	struct iqmjoint2 *ojoint;
-	struct iqmanim *oanim;
-	struct iqmpose2 *opose;
+	struct iqmjoint2 *ojoint = NULL;
+	struct iqmanim *oanim = NULL;
+	struct iqmpose2 *opose = NULL;
 	struct
 	{
 		float min[10], max[10], scale[10];
@@ -235,9 +235,9 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 	vec3_t *onorm = NULL;
 	vec4_t *otang = NULL;
 	vec2_t *ost;
-	bone_vec4_t *oboneidx;
-	byte_vec4_t *oboneweight;
-	unsigned short *oposedata;
+	bone_vec4_t *oboneidx = NULL;
+	byte_vec4_t *oboneweight = NULL;
+	unsigned short *oposedata = NULL;
 	struct iqmheader hdr = {IQM_MAGIC, IQM_VERSION2}, *oh;
 	hdr.flags = flags;
 	hdr.num_vertexarrays = 4;

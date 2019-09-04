@@ -134,13 +134,14 @@ qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
 
-typedef struct threading_s
+typedef struct
 {
 	void *(QDECL *CreateMutex)(void);
 	qboolean (QDECL *LockMutex)(void *mutex);
 	qboolean (QDECL *UnlockMutex)(void *mutex);
 	void (QDECL *DestroyMutex)(void *mutex);
-} threading_t;
+#define plugthreadfuncs_name "Threading"
+} plugthreadfuncs_t;
 
 //to try to catch leaks more easily.
 #ifdef USE_MSVCRT_DEBUG

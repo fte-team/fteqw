@@ -430,7 +430,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 	void *ctx = m->ctx;
 	extern qboolean keydown[];
 
-	if (!isdown != (key==K_MOUSE1))
+	if ((!isdown) != (key==K_MOUSE1))
 		return false;	//don't care about releases, unless mouse1.
 
 	if (key == 'n' || key == 'N')

@@ -5373,7 +5373,7 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 //	if ( CURRVIEW != 1 && CURRVIEW != 0)
 //		return;
 
-	slots_num = clientfuncs->GetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival?-1:0);
+	slots_num = clientfuncs->GetTeamInfo?clientfuncs->GetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival?-1:0):0;
 
 	// fill data we require to draw teaminfo
 	for ( maxloc = maxname = i = 0; i < slots_num; i++ ) {
@@ -6362,8 +6362,10 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 		strcpy(ownfragtext, "Own Frags");
 		age = 0;
 	}
-	else
+	else if (clientfuncs->GetTrackerOwnFrags)
 		age = clientfuncs->GetTrackerOwnFrags(0, ownfragtext, sizeof(ownfragtext));
+	else
+		age = 999999;
 	width = strlen(ownfragtext)*8;
 
 	width *= hud_ownfrags_scale->value;
@@ -6410,7 +6412,7 @@ static void SCR_HUD_DrawWeaponStats(hud_t *hud)
 
 	int ws;
 	struct wstats_s wstats[16];
-	ws = clientfuncs->GetWeaponStats(-1, wstats, countof(wstats));
+	ws = clientfuncs->GetWeaponStats?clientfuncs->GetWeaponStats(-1, wstats, countof(wstats)):0;
 
 	if (hud_editor)
 	{

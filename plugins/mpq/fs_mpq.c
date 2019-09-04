@@ -11,13 +11,13 @@
 //http://www.zezula.net/en/mpq/main.html
 //http://www.wc3c.net/tools/specs/QuantamMPQFormat.txt
 
-size_t activempqcount; //number of active archives. we can't unload the dll while we still have files open.
+static size_t activempqcount; //number of active archives. we can't unload the dll while we still have files open.
 #ifdef MULTITHREAD
-threading_t *threading;
-#define Sys_CreateMutex threading->CreateMutex
-#define Sys_LockMutex threading->LockMutex
-#define Sys_UnlockMutex threading->UnlockMutex
-#define Sys_DestroyMutex threading->DestroyMutex
+static plugthreadfuncs_t *threading;
+#define Sys_CreateMutex if(threading)threading->CreateMutex
+#define Sys_LockMutex if(threading)threading->LockMutex
+#define Sys_UnlockMutex if(threading)threading->UnlockMutex
+#define Sys_DestroyMutex if(threading)threading->DestroyMutex
 #endif
 
 typedef unsigned long long ofs_t;
@@ -735,7 +735,7 @@ static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread
 				{
 					f->sectortab = malloc((numsects+1) * sizeof(*f->sectortab));
 					if (!f->sectortab)
-						pSys_Error("out of memory");
+						plugfuncs->Error("out of memory");
 					Sys_LockMutex(f->archive->mutex);
 					VFS_SEEK(f->archive->file, f->archiveoffset);
 					VFS_READ(f->archive->file, f->sectortab, (numsects+1) * sizeof(*f->sectortab));
@@ -749,11 +749,11 @@ static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread
 
 				cdata = malloc(rawsize);
 				if (!cdata)
-					pSys_Error("out of memory");
+					plugfuncs->Error("out of memory");
 				if (!f->buffer)
 					f->buffer = malloc(f->archive->sectorsize);
 				if (!f->buffer)
-					pSys_Error("out of memory");
+					plugfuncs->Error("out of memory");
 				Sys_LockMutex(f->archive->mutex);
 				VFS_SEEK(f->archive->file, f->archiveoffset + f->sectortab[sectidx]);
 				VFS_READ(f->archive->file, cdata, rawsize);
@@ -898,25 +898,19 @@ qboolean Plug_Init(void)
 	mpq_init_cryptography();
 
 #ifdef MULTITHREAD
-	if (CHECKBUILTIN(Sys_GetThreadingFuncs))
-		threading = pSys_GetThreadingFuncs(sizeof(*threading));
-	if (!threading)
-	{
-		Con_Printf("mpq: Engine doesn't support threading\n");
-		return false;
-	}
+	threading = plugfuncs->GetEngineInterface("Threading", sizeof(*threading));
 #endif
 
 	//we can't cope with being closed randomly. files cannot be orphaned safely.
 	//so ask the engine to ensure we don't get closed before everything else is.
-	pPlug_ExportFunction("MayShutdown", NULL);
+	plugfuncs->ExportFunction("MayShutdown", NULL);
 
-	if (!pPlug_ExportFunction("FS_RegisterArchiveType_mpq", MPQ_OpenArchive))
+	if (!plugfuncs->ExportFunction("FS_RegisterArchiveType_mpq", MPQ_OpenArchive))
 	{
 		Con_Printf("mpq: Engine doesn't support filesystem plugins\n");
 		return false;
 	}
-	if (!pPlug_ExportFunction("FS_RegisterArchiveType_MPQ", MPQ_OpenArchive))
+	if (!plugfuncs->ExportFunction("FS_RegisterArchiveType_MPQ", MPQ_OpenArchive))
 	{
 		Con_Printf("mpq: Engine doesn't support filesystem plugins\n");
 		return false;

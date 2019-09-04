@@ -243,12 +243,9 @@ typedef struct	//q1 client/network info
 {
 	F(int,		GetStats,			(int seat, unsigned int *stats, int maxstats));
 	F(void,		GetPlayerInfo,		(int seat, plugclientinfo_t *info));
-	F(size_t,	GetTeamInfo,		(teamplayerinfo_t *clients, size_t maxclients, qboolean showenemies, int seat));
-	F(int,		GetWeaponStats,		(int player, struct wstats_s *result, size_t maxresults));
 	F(size_t,	GetNetworkInfo,		(plugnetinfo_t *ni, size_t sizeofni));
 	F(size_t,	GetLocalPlayerNumbers,(size_t firstseat, size_t numseats, int *playernums, int *spectracks));
 	F(void,		GetLocationName,	(const float *pos, char *outbuffer, size_t bufferlen));
-	F(float,	GetTrackerOwnFrags,	(int seat, char *text, size_t textsize));
 	F(qboolean,	GetLastInputFrame,	(int seat, usercmd_t *outcmd));
 	F(void,		GetServerInfo,		(char *info, size_t infolen));
 
@@ -257,6 +254,10 @@ typedef struct	//q1 client/network info
 
 	//FIXME: does this belong here?
 	F(qboolean,	MapLog_Query,		(const char *packagename, const char *mapname, float *stats));
+
+	F(size_t,	GetTeamInfo,		(teamplayerinfo_t *clients, size_t maxclients, qboolean showenemies, int seat));
+	F(int,		GetWeaponStats,		(int player, struct wstats_s *result, size_t maxresults));
+	F(float,	GetTrackerOwnFrags,	(int seat, char *text, size_t textsize));
 #define plugclientfuncs_name "Client"
 } plugclientfuncs_t;
 

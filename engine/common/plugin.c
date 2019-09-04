@@ -802,9 +802,11 @@ static qhandle_t QDECL Plug_Net_TCPConnect(const char *remoteip, int remoteport)
 
 
 void Plug_Net_Close_Internal(qhandle_t handle);
-#ifdef HAVE_SSL
 static int QDECL Plug_Net_SetTLSClient(qhandle_t handle, const char *certhostname)
 {
+#ifndef HAVE_SSL
+	return -1;
+#else
 	pluginstream_t *stream;
 	if (handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
@@ -825,10 +827,14 @@ static int QDECL Plug_Net_SetTLSClient(qhandle_t handle, const char *certhostnam
 		return -1;
 	}
 	return 0;
+#endif
 }
 
 static int QDECL Plug_Net_GetTLSBinding(qhandle_t handle, char *outbinddata, int *outbinddatalen)
 {
+#ifndef HAVE_SSL
+	return -1;
+#else
 	pluginstream_t *stream;
 	size_t sz;
 	int r;
@@ -848,8 +854,8 @@ static int QDECL Plug_Net_GetTLSBinding(qhandle_t handle, char *outbinddata, int
 	r = TLS_GetChannelBinding(stream->vfs, outbinddata, &sz);
 	*outbinddatalen = sz;
 	return r;
-}
 #endif
+}
 #endif
 
 #ifdef WEBCLIENT
@@ -1843,16 +1849,22 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		{
 			Plug_CL_GetStats,
 			Plug_GetPlayerInfo,
-			Plug_GetTeamInfo,
-			Plug_GetWeaponStats,
 			Plug_GetNetworkInfo,
 			Plug_GetLocalPlayerNumbers,
 			Plug_GetLocationName,
-			Plug_GetTrackerOwnFrags,
 			Plug_GetLastInputFrame,
 			Plug_GetServerInfo,
 			Plug_SetUserInfo,
 			Plug_MapLog_Query,
+#ifdef QUAKEHUD
+			Plug_GetTeamInfo,
+			Plug_GetWeaponStats,
+			Plug_GetTrackerOwnFrags,
+#else
+			NULL,
+			NULL,
+			NULL,
+#endif
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1930,9 +1942,9 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 	}
 #endif
 #ifdef MULTITHREAD
-	if (!strcmp(interfacename, "Threading"))
+	if (!strcmp(interfacename, plugthreadfuncs_name))
 	{
-		static threading_t funcs =
+		static plugthreadfuncs_t funcs =
 		{
 			Sys_CreateMutex,
 			Sys_LockMutex,

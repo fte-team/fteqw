@@ -14,7 +14,7 @@
 static size_t activempqcount; //number of active archives. we can't unload the dll while we still have files open.
 #ifdef MULTITHREAD
 static plugthreadfuncs_t *threading;
-#define Sys_CreateMutex if(threading)threading->CreateMutex
+#define Sys_CreateMutex() (threading?threading->CreateMutex():NULL)
 #define Sys_LockMutex if(threading)threading->LockMutex
 #define Sys_UnlockMutex if(threading)threading->UnlockMutex
 #define Sys_DestroyMutex if(threading)threading->DestroyMutex

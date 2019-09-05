@@ -632,7 +632,7 @@ void CL_CalcClientTime(void)
 		//q3 always drifts.
 		//nq+qw code can drift
 		//default is to drift in demos+SP but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1))) && cls.demoplayback != DPB_MVD))
+		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
 		{	//no drift logic
 			float f;
 			f = cl.gametime - cl.oldgametime;

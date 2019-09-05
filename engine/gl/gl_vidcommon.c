@@ -3335,6 +3335,11 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		qglBindBufferARB	= (void *)getglext("glBindBuffer");
 	if (!qglBindBufferARB)
 		qglBindBufferARB	= GL_BindBufferARBStub;
+
+	if (gl_config.glversion >= 3.0)
+		qglGenerateMipmap	= (void *)getglext("glGenerateMipmap");
+	else
+		qglGenerateMipmap = NULL;
 #endif
 
 	if (!qglGetString)
@@ -3351,11 +3356,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	memset(&sh_config, 0, sizeof(sh_config));
 
 	GL_CheckExtensions (getglfunction);
-
-	if (gl_config.glversion >= 3.0)
-		qglGenerateMipmap	= (void *)getglext("glGenerateMipmap");
-	else
-		qglGenerateMipmap = NULL;
 
 #ifndef FTE_TARGET_WEB
 	if (!gl_config.gles)

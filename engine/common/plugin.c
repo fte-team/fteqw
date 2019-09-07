@@ -541,7 +541,7 @@ static qboolean QDECL Plug_Cvar_GetString(const char *name, char *outbuffer, qui
 	if (!strcmp(name, "sv.mapname"))
 	{
 #ifdef CLIENTONLY
-		Q_strncpyz(ret, "", retsize);
+		Q_strncpyz(outbuffer, "", sizeofbuffer);
 #else
 		Q_strncpyz(outbuffer, svs.name, sizeofbuffer);
 #endif
@@ -1855,7 +1855,11 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_GetLastInputFrame,
 			Plug_GetServerInfo,
 			Plug_SetUserInfo,
+#if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
 			Plug_MapLog_Query,
+#else
+			NULL,
+#endif
 #ifdef QUAKEHUD
 			Plug_GetTeamInfo,
 			Plug_GetWeaponStats,

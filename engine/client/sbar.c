@@ -2839,16 +2839,18 @@ void Sbar_Draw (playerview_t *pv)
 	sbar_rect = r_refdef.grect;
 
 	sbarwidth = 320;
-	if (minidmoverlay && r_refdef.grect.width >= 640 && cl.teamplay)
+	if (minidmoverlay && sbar_rect.width >= 640 && cl.teamplay)
 		sbarwidth += 320;
-	else if (minidmoverlay && r_refdef.grect.width >= 512)
+	else if (minidmoverlay && sbar_rect.width >= 512)
 		sbarwidth += 192;
 	else
 		minidmoverlay = 0;
 
 	if (scr_centersbar.ival)
 	{
-		float ofs = (sbar_rect.width - sbarwidth)/2;
+		float ofs = (sbar_rect.width - 320)/2;
+		if (ofs > sbar_rect.width-sbarwidth)
+			ofs = sbar_rect.width-sbarwidth;
 		sbar_rect.x += ofs;
 		sbar_rect.width -= ofs;
 		sbar_rect_left = -ofs;
@@ -2960,7 +2962,7 @@ void Sbar_Draw (playerview_t *pv)
 				Sbar_DrawInventory (pv);
 			else if (cl_sbar.ival)
 				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
-			if ((!headsup || sbar_rect.width<512) && cl.deathmatch && hud_miniscores_show->ival)
+			if (!headsup && minidmoverlay)
 				Sbar_DrawFrags (pv);
 		}
 

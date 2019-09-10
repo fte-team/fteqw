@@ -253,8 +253,8 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(tag_entity,NULL)\
 	comfieldfloat(tag_index,NULL)\
 	comfieldfloat(skeletonindex,"This object serves as a container for the skeletal bone states used to override the animation data.")		/*FTE_CSQC_SKELETONOBJECTS*/\
-	comfieldvector(colormod,"Provides a colour tint for the entity.")\
-	comfieldvector(glowmod,NULL)\
+	comfieldvector(colormod,"Provides a colour tint for the entity (does not affect fullbrights).")\
+	comfieldvector(glowmod,"Scaler for an entity's fullbright textures.")\
 	comfieldvector(gravitydir,"Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings.")\
 	comfieldfunction(camera_transform,".vector(vector org, vector ang)", "Provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc.")\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
@@ -294,9 +294,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.")/*DP_ENT_VIEWMODEL*/\
 	comfieldentity(exteriormodeltoclient,"This entity will be invisible to the player named by this field, except in mirrors or mirror-like surfaces, where it will be visible as normal. It may still cast shadows as normal, and generate lights+particles, depending on client settings. Does not affect how other players see the entity.")\
 	svextqcfield_clientcamera\
-	comfieldfloat(glow_size,NULL)\
-	comfieldfloat(glow_color,NULL)\
-	comfieldfloat(glow_trail,NULL)\
+	comfieldfloat(glow_size,"Some outdated particle trail thing.")\
+	comfieldfloat(glow_color,"Some outdated particle trail thing.")\
+	comfieldfloat(glow_trail,"Some outdated particle trail thing.")\
 	comfieldfloat(traileffectnum,"This should be set to the result of particleeffectnum, in order to attach a custom trail effect to an entity as it moves.")/*DP_ENT_TRAILEFFECTNUM*/\
 	comfieldfloat(emiteffectnum,"This should be set to the result of particleeffectnum, in order to continually spawn particles in the direction that this entity faces.")/*DP_ENT_TRAILEFFECTNUM*/\
 	/*comfieldfloat(baseframe,"Specifies the current frame(group) to use for the lower (numerically) bones of a skeletal model. The basebone field specifies the bone where the regular frame field takes over.")*/	/*FTESS_QC_BASEFRAME*/\
@@ -350,9 +350,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(entnum,"This is the number of the entity that the ssqc is using.")		\
 	comfieldfloat(frame2,"This is typically the old frame of the entity. if lerpfrac is 1, .frame will be ignored and .frame2 will be used solely. lerpfrac 0.5 will give an even 50/50 blend.")		/*EXT_CSQC_1*/\
 	comfieldfloat(frame2time,".frame2 equivelent of frame1time.")	/*EXT_CSQC_1*/\
-	comfieldfloat(lerpfrac,"The weight of .frame2. A value of 0 means the entity will animate using only .frame, while 1 would exclusively be .frame2. As this value is incremented, more of frame2 will be used. If you wish to use .frame2 as the 'old' frame, it is generally recommended to start this field with the value 1, to decrement it by frametime, and when it drops below 0 add 1 to it and update .frame2 and .frame to lerp into the new frame.")	/*EXT_CSQC_1*/\
+	comfieldfloat(lerpfrac,"The weight of .frame2 (with the weight of .frame being inferred). A value of 0 normally means the entity will animate using only .frame, while 1 would exclusively be .frame2. As this value is incremented, more of frame2 will be used. If you wish to use .frame2 as the 'old' frame, it is generally recommended to start this field with the value 1, to decrement it by frametime, and when it drops below 0 add 1 to it and update .frame2 and .frame to lerp into the new frame.")	/*EXT_CSQC_1*/\
 	frame34fields	\
-	comfieldfloat(renderflags,NULL)\
+	comfieldfloat(renderflags,"Matches to the RF_* flags, read during addentity/addentities.")\
 	comfieldfloat(forceshader,"Contains a shader handle used to replace all surfaces upon the entity.")/*FTE_CSQC_SHADERS*/\
 							\
 	comfieldfloat(baseframe2,"See basebone")	/*FTE_CSQC_BASEFRAME*/\

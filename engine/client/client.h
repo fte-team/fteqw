@@ -343,7 +343,7 @@ typedef struct dlight_s
 	struct {
 		float updatetime;
 	} face [6];
-	int style;	//multiply by style values if > 0
+	int style;	//multiply by style values if >= 0 && < MAX_LIGHTSTYLES
 	float	fov; //spotlight
 	float	nearclip; //for spotlights...
 	struct dlight_s *next;
@@ -1060,9 +1060,12 @@ typedef struct
 extern	entity_state_t *cl_baselines;
 extern	static_entity_t		*cl_static_entities;
 extern	unsigned int	cl_max_static_entities;
-extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
+extern	lightstyle_t	*cl_lightstyle;
+extern	size_t			cl_max_lightstyles;
 extern	dlight_t		*cl_dlights;
 extern	size_t cl_maxdlights;
+
+extern	int				d_lightstylevalue[MAX_NET_LIGHTSTYLES];
 
 extern size_t rtlights_first, rtlights_max;
 extern int cl_baselines_count;

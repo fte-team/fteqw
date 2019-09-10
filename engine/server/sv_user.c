@@ -38,7 +38,7 @@ void QDECL SV_NQPhysicsUpdate(cvar_t *var, char *oldvalue)
 {
 	if (!strcmp(var->string, "auto") || !strcmp(var->string, ""))
 	{	//prediction requires nq physics, so use it by default in multiplayer.
-		if (progstype == PROG_QW || (!isDedicated &&  sv.allocated_client_slots > 1))
+		if (progstype <= PROG_QW || (!isDedicated &&  sv.allocated_client_slots > 1))
 			var->ival = 0;
 		else
 			var->ival = 1;
@@ -1855,7 +1855,7 @@ void SVQW_Spawn_f (void)
 #endif
 
 // send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	for (i=0 ; i<sv.maxlightstyles ; i++)
 	{
 #ifdef SERVER_DEMO_PLAYBACK
 		if (sv.democausesreconnect)
@@ -1869,31 +1869,7 @@ void SVQW_Spawn_f (void)
 		}
 		else
 #endif
-		{
-			if (i >= MAX_STANDARDLIGHTSTYLES)
-				if (!sv.strings.lightstyles[i])
-					continue;
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.lightstylecolours[i][0]!=1||sv.lightstylecolours[i][1]!=1||sv.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
-			{
-				ClientReliableWrite_Begin (host_client, svcfte_lightstylecol,
-					10 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
-				ClientReliableWrite_Byte (host_client, (char)i);
-				ClientReliableWrite_Char (host_client, 0x87);
-				ClientReliableWrite_Short (host_client, sv.lightstylecolours[i][0]*1024);
-				ClientReliableWrite_Short (host_client, sv.lightstylecolours[i][1]*1024);
-				ClientReliableWrite_Short (host_client, sv.lightstylecolours[i][2]*1024);
-				ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
-			}
-			else
-#endif
-			{
-				ClientReliableWrite_Begin (host_client, svc_lightstyle,
-					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
-				ClientReliableWrite_Byte (host_client, (char)i);
-				ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
-			}
-		}
+		SV_SendLightstyle(host_client, NULL, i, true);
 	}
 
 #ifdef HLSERVER
@@ -5683,16 +5659,8 @@ static void SVNQ_Spawn_f (void)
 #endif
 
 // send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-	{
-		if (i >= MAX_STANDARDLIGHTSTYLES && host_client->protocol != SCP_DARKPLACES7)
-			break;	//dp7 clients support more lightstyles.
-
-		ClientReliableWrite_Begin (host_client, svc_lightstyle,
-			3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
-		ClientReliableWrite_Byte (host_client, (char)i);
-		ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
-	}
+	for (i=0 ; i<sv.maxlightstyles ; i++)
+		SV_SendLightstyle(host_client, NULL, i, true);
 
 	// set up the edict
 	ent = host_client->edict;

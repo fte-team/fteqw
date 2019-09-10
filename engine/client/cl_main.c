@@ -234,7 +234,8 @@ client_state_t	cl;
 entity_state_t	*cl_baselines;
 static_entity_t *cl_static_entities;
 unsigned int    cl_max_static_entities;
-lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
+lightstyle_t	*cl_lightstyle;
+size_t			cl_max_lightstyles;
 dlight_t		*cl_dlights;
 size_t	cl_maxdlights; /*size of cl_dlights array*/
 
@@ -1814,9 +1815,9 @@ void CL_ClearState (qboolean gamestart)
 
 // clear other arrays
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
-	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
-	for (i = 0; i < MAX_LIGHTSTYLES; i++)
-		R_UpdateLightStyle(i, NULL, 1, 1, 1);
+	Z_Free(cl_lightstyle);
+	cl_lightstyle = NULL;
+	cl_max_lightstyles = 0;
 
 	rtlights_first = rtlights_max = RTL_FIRST;
 

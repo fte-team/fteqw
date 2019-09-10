@@ -1156,7 +1156,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		l->rebuildcache = true;
 		break;
 	case lfield_style:
-		l->style = G_FLOAT(OFS_PARM2)+1;
+		l->style = G_FLOAT(OFS_PARM2);
 		break;
 	case lfield_angles:
 		VectorCopy(G_VECTOR(OFS_PARM2), l->angles);
@@ -1248,7 +1248,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN) = l->flags;
 		break;
 	case lfield_style:
-		G_FLOAT(OFS_RETURN) = l->style-1;
+		G_FLOAT(OFS_RETURN) = l->style;
 		break;
 	case lfield_angles:
 		VectorCopy(l->angles, G_VECTOR(OFS_RETURN));
@@ -4336,7 +4336,7 @@ static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvar
 	if (prinst->callargc >= 3)	//fte is a quakeworld engine
 		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 
-	if ((unsigned)stnum >= MAX_LIGHTSTYLES)
+	if ((unsigned)stnum >= cl_max_lightstyles)
 	{
 		Con_Printf ("PF_cs_lightstyle: stnum > MAX_LIGHTSTYLES");
 		return;
@@ -4348,7 +4348,7 @@ static void QCBUILTIN PF_getlightstyle (pubprogfuncs_t *prinst, struct globalvar
 {
 	unsigned int stnum = G_FLOAT(OFS_PARM0);
 
-	if (stnum >= MAX_LIGHTSTYLES)
+	if (stnum >= cl_max_lightstyles)
 	{
 		VectorSet(G_VECTOR(OFS_PARM1), 0, 0, 0);
 		G_INT(OFS_RETURN) = 0;
@@ -4366,13 +4366,13 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 	unsigned int stnum = G_FLOAT(OFS_PARM0);
 	int value;	//could be float, but that would exceed the precision of R_AnimateLight
 
-	if (stnum >= MAX_LIGHTSTYLES)
+	if (stnum >= MAX_NET_LIGHTSTYLES)
 	{
 		Con_Printf ("PF_getlightstyle: stnum > MAX_LIGHTSTYLES");
 		return;
 	}
 
-	if (!cl_lightstyle[stnum].length)
+	if (stnum < cl_max_lightstyles || !cl_lightstyle[stnum].length)
 		value = ('m'-'a')*22 * r_lightstylescale.value;
 	else if (cl_lightstyle[stnum].map[0] == '=')
 		value = atof(cl_lightstyle[stnum].map+1)*256*r_lightstylescale.value;

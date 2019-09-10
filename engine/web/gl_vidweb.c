@@ -262,7 +262,7 @@ int VID_ShouldSwitchToFullscreen(void)
 	//this is confounded by escape bringing up the menu. <ESC>GRR IT CHANGED MODE!<options>WTF IT CHANGED AGAIN FUCKING PIECE OF SHIT!.
 	//annoying, but that's web browsers for you. the best thing we can do is to not regrab until they next click while actually back in the game.
 	extern cvar_t vid_fullscreen;
-	return !!vid_fullscreen.value && (!Key_Dest_Has(kdm_console | kdm_cwindows | kdm_emenu) || !Key_MouseShouldBeFree());
+	return !!vid_fullscreen.value && !Key_MouseShouldBeFree();
 }
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {

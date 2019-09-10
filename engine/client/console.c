@@ -607,13 +607,31 @@ Con_ToggleConsole_f
 */
 void Con_ToggleConsole_Force(void)
 {
+	console_t *con = Con_GetMain();
+
 	SCR_EndLoadingPlaque();
 	Key_ClearTyping ();
 
-	if (Key_Dest_Has(kdm_console))
-		Key_Dest_Remove(kdm_console);
+	if (con->flags & CONF_ISWINDOW)
+	{
+		if (con_curwindow == con && Key_Dest_Has(kdm_cwindows))
+		{
+			con_curwindow = NULL;
+			Key_Dest_Remove(kdm_cwindows);
+		}
+		else
+		{
+			con_curwindow = con;
+			Key_Dest_Add(kdm_cwindows);
+		}
+	}
 	else
-		Key_Dest_Add(kdm_console);
+	{
+		if (Key_Dest_Has(kdm_console))
+			Key_Dest_Remove(kdm_console);
+		else
+			Key_Dest_Add(kdm_console);
+	}
 }
 void Con_ToggleConsole_f (void)
 {

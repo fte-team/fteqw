@@ -1047,6 +1047,7 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->spawnchance = 1;
 	ptype->dl_time = 0;
+	ptype->dl_lightstyle = -1;
 	VectorSet(ptype->dl_rgb, 1, 1, 1);
 	ptype->dl_corona_intensity = 0.25;
 	ptype->dl_corona_scale = 0.5;
@@ -2225,7 +2226,7 @@ parsefluid:
 		else if (!strcmp(var, "lightcubemap"))
 			ptype->dl_cubemapnum = atoi(value);
 		else if (!strcmp(var, "lightstyle"))
-			ptype->dl_lightstyle = bound(0, atoi(value)+1, 256);
+			ptype->dl_lightstyle = atoi(value);
 		else if (!strcmp(var, "lightscales"))
 		{	//ambient diffuse specular
 			ptype->dl_scales[0] = atof(value);
@@ -2584,7 +2585,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("lighttime %g\n", ptype->dl_time), outstrlen);
 			Q_strncatz(outstr, va("lightshadows %g\n", (ptype->flags & PT_NODLSHADOW)?0.0f:1.0f), outstrlen);
 			Q_strncatz(outstr, va("lightcubemap %i\n", ptype->dl_cubemapnum), outstrlen);
-			Q_strncatz(outstr, va("lightstyle %i\n", ptype->dl_lightstyle-1), outstrlen);
+			Q_strncatz(outstr, va("lightstyle %i\n", ptype->dl_lightstyle), outstrlen);
 			Q_strncatz(outstr, va("lightcorona %g %g\n", ptype->dl_corona_intensity, ptype->dl_corona_scale), outstrlen);
 			Q_strncatz(outstr, va("lightscales %g %g %g\n", ptype->dl_scales[0], ptype->dl_scales[1], ptype->dl_scales[2]), outstrlen);
 		}
@@ -4431,8 +4432,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 			dl->flags |= LFLAG_NOSHADOWS;
 		if (ptype->dl_cubemapnum)
 			Q_snprintfz(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
-		if (ptype->dl_lightstyle > 0)
-			dl->style = ptype->dl_lightstyle;
+		dl->style = ptype->dl_lightstyle;
 	}
 	if (ptype->numsounds)
 	{

@@ -322,7 +322,6 @@ extern	unsigned int r_viewcontents;
 int r_viewarea;
 extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2
 extern	texture_t	*r_notexture_mip;
-extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 extern	texid_t	netgraphtexture;	// netgraph texture
 extern	shader_t *netgraphshader;

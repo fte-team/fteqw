@@ -1952,7 +1952,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 					//surface code needs to know the overrides.
 					overrides->offsets = offsets;
 					overrides->extents = extents;
-					overrides->styles = styles;
+					overrides->styles8 = styles;
+					overrides->stylesperface = 4;
 					overrides->shifts = shifts;
 
 					//we're now using this amount of data.
@@ -2178,12 +2179,25 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			if (size != loadmodel->numsurfaces * sizeof(int))
 				overrides->offsets = NULL;
 		}
-		if (!overrides->styles)
-		{
+		if (!overrides->styles8 && !overrides->styles16)
+		{	//16bit per-face lightmap styles index
 			int size;
-			overrides->styles = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
-			if (size != loadmodel->numsurfaces * sizeof(qbyte)*MAXQ1LIGHTMAPS)
-				overrides->styles = NULL;
+			overrides->styles16 = BSPX_FindLump(bspx, mod_base, "LMSTYLE16", &size);
+			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
+			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
+				overrides->styles16 = NULL;
+			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
+		}
+		if (!overrides->styles8 && !overrides->styles16)
+		{	//16bit per-face lightmap styles index
+			int size;
+			overrides->styles8 = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
+			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
+			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
+				overrides->styles8 = NULL;
+			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
 		}
 	}
 
@@ -4042,8 +4056,8 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->firstedge = LittleLong(inl->firstedge);
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
-			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-				out->styles[i] = inl->styles[i];
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i >= countof(inl->styles) || inl->styles[i]>=MAX_NET_LIGHTSTYLES || inl->styles[i]==255)?INVALID_LIGHTSTYLE:inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
 		}
@@ -4054,8 +4068,8 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
-			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-				out->styles[i] = ins->styles[i];
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i >= countof(ins->styles) || ins->styles[i]>=MAX_NET_LIGHTSTYLES || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;
 		}
@@ -4081,9 +4095,19 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->lmshift = lmshift;
 		if (overrides.offsets)
 			lofs = overrides.offsets[surfnum];
-		if (overrides.styles)
-			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
-				out->styles[i] = overrides.styles[surfnum*4+i];
+		if (overrides.styles16)
+		{
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:overrides.styles16[surfnum*overrides.stylesperface+i];
+		}
+		else if (overrides.styles8)
+		{
+			for (i=0 ; i<countof(out->styles) ; i++)
+				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:((overrides.styles8[surfnum*overrides.stylesperface+i]==255)?~0u:overrides.styles8[surfnum*overrides.stylesperface+i]);
+		}
+		for (i=0 ; i<countof(out->styles) && out->styles[i] != INVALID_LIGHTSTYLE; i++)
+			if (loadmodel->lightmaps.maxstyle < out->styles[i])
+				loadmodel->lightmaps.maxstyle = out->styles[i];
 
 		CalcSurfaceExtents (loadmodel, out);
 		if (lofs != (unsigned int)-1)

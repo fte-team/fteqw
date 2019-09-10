@@ -297,7 +297,7 @@ struct pendingtextureinfo
 		PTI_2D,
 		PTI_3D,
 		PTI_CUBEMAP,	//mips are packed (to make d3d11 happy)
-		PTI_2D_ARRAY,	//looks like a 3d texture, but depth doesn't change.
+		PTI_2D_ARRAY,	//looks like a 3d texture, but depth doesn't change with mips.
 		PTI_CUBEMAP_ARRAY,	//looks like PTI_2D_ARRAY, with depth*6
 	} type;
 

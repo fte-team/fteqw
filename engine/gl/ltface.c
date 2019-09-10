@@ -778,7 +778,7 @@ static unsigned int PackE5BRG9(vec3_t rgb)
 LightFace
 ============
 */
-void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_styles[MAXQ1LIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstyleindex_t surf_styles[MAXQ1LIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
 {
 	int		s, t;
 	int		i,c,ch;
@@ -827,7 +827,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 
 	i = 0;
 #ifndef UTILITY
-	for (; surf_styles[i] != 255 && i < MAXQ1LIGHTMAPS; i++)
+	for (; surf_styles[i] != INVALID_LIGHTSTYLE && i < MAXQ1LIGHTMAPS; i++)
 	{
 		l->lightstyles[i] = surf_styles[i];
 		memset(&l->lightmaps[i], 0, sizeof(l->lightmaps[i][0])*l->numsurfpt);
@@ -836,7 +836,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 #endif
 	l->numlightstyles = i;
 	for ( ; i<MAXQ1LIGHTMAPS ; i++)
-		l->lightstyles[i] = 255;
+		l->lightstyles[i] = INVALID_LIGHTSTYLE;
 	
 //
 // cast all lights

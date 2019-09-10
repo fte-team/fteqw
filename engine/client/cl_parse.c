@@ -1750,7 +1750,18 @@ void CL_RequestNextDownload (void)
 				break;
 			case DLFAIL_UNTRIED:
 				if (COM_FCheckExists(worldname))
-					Con_Printf(CON_ERROR "Couldn't load \"%s\" - corrupt? - cannot fully connect\n", worldname);
+				{
+					if (!cl.worldmodel)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - worldmodel not set - cannot fully connect\n", worldname);
+					else if (cl.worldmodel->loadstate == MLS_FAILED)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - corrupt? - cannot fully connect\n", worldname);
+					else if (cl.worldmodel->loadstate == MLS_LOADING)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - still loading - cannot fully connect\n", worldname);
+					else if (cl.worldmodel->loadstate == MLS_NOTLOADED)
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - worldmodel not loaded - cannot fully connect\n", worldname);
+					else
+						Con_Printf(CON_ERROR "Couldn't load \"%s\" - corrupt? - cannot fully connect\n", worldname);
+				}
 				else
 					Con_Printf(CON_ERROR "Couldn't find \"%s\" - cannot fully connect\n", worldname);
 				break;
@@ -6415,6 +6426,15 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			InfoBuf_SetStarKey(&cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2));
 			CL_CheckServerInfo();
 		}
+		else if (!strncmp(stufftext, "//ls ", 5))	//for extended lightstyles
+		{
+			vec3_t rgb;
+			Cmd_TokenizeString(stufftext+2, false, false);
+			rgb[0] = ((Cmd_Argc()>3)?atof(Cmd_Argv(3)):1);
+			rgb[1] = ((Cmd_Argc()>5)?atof(Cmd_Argv(4)):rgb[0]);
+			rgb[2] = ((Cmd_Argc()>5)?atof(Cmd_Argv(5)):rgb[0]);
+			R_UpdateLightStyle(atoi(Cmd_Argv(1)), Cmd_Argv(2), rgb[0], rgb[1], rgb[2]);
+		}
 
 #ifdef NQPROT
 		//DP's download protocol
@@ -7019,7 +7039,7 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_lightstyle:
 			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
+			if (i >= MAX_NET_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 			R_UpdateLightStyle(i, MSG_ReadString(), 1, 1, 1);
 			break;
@@ -7027,18 +7047,18 @@ void CLQW_ParseServerMessage (void)
 		case svcfte_lightstylecol:
 			if (!(cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL))
 				Host_EndGame("PEXT_LIGHTSTYLECOL is meant to be disabled\n");
-			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
-				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 			{
 				int bits;
 				vec3_t rgb;
+				i = MSG_ReadByte ();
 				bits = MSG_ReadByte();
+				if (bits & 0x40)
+					i |= MSG_ReadByte()<<8;	//high bits of style index.
 				if (bits & 0x80)
 				{
-					rgb[0] = MSG_ReadShort()/1024.0;
-					rgb[1] = MSG_ReadShort()/1024.0;
-					rgb[2] = MSG_ReadShort()/1024.0;
+					rgb[0] = (bits&1)?MSG_ReadShort()/1024.0:0;
+					rgb[1] = (bits&2)?MSG_ReadShort()/1024.0:0;
+					rgb[2] = (bits&4)?MSG_ReadShort()/1024.0:0;
 				}
 				else
 				{
@@ -7046,6 +7066,9 @@ void CLQW_ParseServerMessage (void)
 					rgb[1] = (bits&2)?1:0;
 					rgb[2] = (bits&4)?1:0;
 				}
+
+				if (i >= MAX_NET_LIGHTSTYLES)
+					Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
 				R_UpdateLightStyle(i, MSG_ReadString(), rgb[0], rgb[1], rgb[2]);
 			}
 			break;
@@ -8159,7 +8182,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svc_lightstyle:
 			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
+			if (i >= MAX_NET_LIGHTSTYLES)
 			{
 				Con_Printf("svc_lightstyle: %i >= MAX_LIGHTSTYLES\n", i);
 				MSG_ReadString();

@@ -68,6 +68,11 @@ void R_ForceSky_f(void)
 		R_SetSky(Cmd_Argv(1));
 	}
 }
+static void QDECL R_Lightmap_Format_Changed(struct cvar_s *var, char *oldvalue)
+{
+	if (qrenderer)
+		Surf_BuildLightmaps();
+}
 
 #ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
 cvar_t vid_vsync							= CVARAF  ("vid_vsync", "1",
@@ -231,7 +236,7 @@ cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2")
 
 cvar_t r_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_average is enabled.");
 cvar_t r_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE, "Determine lightmap values based upon the center of the polygon. This will give a more buggy look, quite probably.");
-cvar_t r_lightmap_format					= CVARFD ("r_lightmap_format", "", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
+cvar_t r_lightmap_format					= CVARFCD ("r_lightmap_format", "", CVAR_ARCHIVE, R_Lightmap_Format_Changed, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
 
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",

@@ -1492,6 +1492,104 @@ void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const
 	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, velocity, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs, chflags);
 }
 
+
+
+void SV_SendLightstyle(client_t *cl, sizebuf_t *forcemsg, int style, qboolean initial)
+{
+	sizebuf_t *msg;
+	const char *stylestring = (style < sv.maxlightstyles)?sv.lightstyles[style].str:NULL;
+	float *stylecolor = (style < sv.maxlightstyles)?sv.lightstyles[style].colours:vec3_origin;
+	int flags = 0;
+	int sz;
+
+	//don't crash old clients unless there's a good reason to do so.
+	//new clients are expected to reinitialise their styles to empty on map changes.
+	if (style >= MAX_STANDARDLIGHTSTYLES && initial && !stylestring)
+		return;
+
+	if (style > 255)
+		flags |= 0x40;
+	if (stylestring && (stylecolor[0]!=1||stylecolor[1]!=1||stylecolor[2]!=1))
+	{
+		if (stylecolor[0]!=0)
+		{
+			flags |= 1;
+			if (stylecolor[0]!=1)
+				flags |= 0x80|7;
+		}
+		if (stylecolor[1]!=0)
+		{
+			flags |= 2;
+			if (stylecolor[1]!=1)
+				flags |= 0x80|7;
+		}
+		if (stylecolor[2]!=0)
+		{
+			flags |= 4;
+			if (stylecolor[2]!=1)
+				flags |= 0x80|7;
+		}
+	}
+	else
+		flags |= 7;
+	//flags |= 0x08;
+	//flags |= 0x10;
+	//flags |= 0x20;
+
+	if (!(cl->fteprotocolextensions & PEXT_LIGHTSTYLECOL))
+	{	//if they don't support it then just drop the extra colours, so long as it still makes sense.
+		if ((flags & ~0x87u) || (ISNQCLIENT(cl) && !ISDPCLIENT(cl) && !cl->fteprotocolextensions2))
+		{
+			char *text = va("//ls %i \"%s\" %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+			if (forcemsg)
+				msg = forcemsg;
+			else
+				msg = ClientReliable_StartWrite(cl, 2+strlen(text));
+			MSG_WriteByte (msg, svc_stufftext);
+			MSG_WriteString (msg, text);
+			if (!forcemsg)
+				ClientReliable_FinishWrite(cl);
+			return;	//erk, can't handle this!
+		}
+		flags = 7;
+	}
+
+	if (forcemsg)
+		msg = forcemsg;
+	else
+	{
+		sz = 2;
+		if (flags != 7)
+			sz+=1;
+		if (flags & 0x40)
+			sz+=1;
+		if (flags & 0x80u)
+			sz+=3*2;	//rough overestimate
+		sz += (stylestring?strlen(stylestring):0) + 1;
+		msg = ClientReliable_StartWrite(cl, sz);
+	}
+
+	MSG_WriteByte(msg, (flags != 7)?svcfte_lightstylecol:svc_lightstyle);
+	MSG_WriteByte (msg, style&0xffu);
+	if (flags != 7)
+		MSG_WriteByte(msg, flags);
+	if (flags & 0x40)	//16bit style indexes
+		MSG_WriteByte (msg, style>>8);
+	if (flags & 0x80u)
+	{	//rich style tints
+		if (flags & 1)
+			MSG_WriteShort (msg, bound(-0x7fff, stylecolor[0]*1024, 0x7fff));
+		if (flags & 2)
+			MSG_WriteShort (msg, bound(-0x7fff, stylecolor[1]*1024, 0x7fff));
+		if (flags & 4)
+			MSG_WriteShort (msg, bound(-0x7fff, stylecolor[2]*1024, 0x7fff));
+	}
+	MSG_WriteString (msg, stylestring);
+
+	if (!forcemsg)
+		ClientReliable_FinishWrite(cl);
+}
+
 /*
 ===============================================================================
 

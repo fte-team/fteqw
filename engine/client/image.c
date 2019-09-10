@@ -513,6 +513,9 @@ void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t
 						red = *data++;
 						alphabyte = *data++;
 						break;
+					default:
+						blue = green = red = alphabyte = 255;
+						break;
 					}
 
 					if (*format!=PTI_L8)	//keep colours
@@ -4153,7 +4156,11 @@ typedef struct {
 	unsigned int dwFlags;
 	unsigned int dwFourCC;
 
-	unsigned int unk[5];
+	unsigned int bitcount;
+	unsigned int redmask;
+	unsigned int greenmask;
+	unsigned int bluemask;
+	unsigned int alphamask;
 } ddspixelformat;
 
 typedef struct {
@@ -4205,7 +4212,29 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	if (nummips < 1)
 		nummips = 1;
 
-	if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
+	if (!(fmtheader.ddpfPixelFormat.dwFlags & 4))
+	{
+#define IsPacked(bits,r,g,b,a)	fmtheader.ddpfPixelFormat.bitcount==bits&&fmtheader.ddpfPixelFormat.redmask==r&&fmtheader.ddpfPixelFormat.greenmask==g&&fmtheader.ddpfPixelFormat.bluemask==b&&fmtheader.ddpfPixelFormat.alphamask==a
+		if (IsPacked(24, 0xff0000, 0x00ff00, 0x0000ff, 0))
+			encoding = PTI_BGR8;
+		else if (IsPacked(24, 0x000000, 0x00ff00, 0xff0000, 0))
+			encoding = PTI_RGB8;
+		else if (IsPacked(32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000))
+			encoding = PTI_BGRA8;
+		else if (IsPacked(32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
+			encoding = PTI_RGBA8;
+		else if (IsPacked(32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0))
+			encoding = PTI_BGRX8;
+		else if (IsPacked(32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0))
+			encoding = PTI_RGBX8;
+		else
+		{
+			Con_Printf("Unsupported non-fourcc dds in %s\n", fname);
+			return NULL;
+		}
+#undef IsPacked
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
 	{
 		encoding = PTI_BC1_RGBA;	//alpha or not? Assume yes, and let the drivers decide.
 //		pad = 8;

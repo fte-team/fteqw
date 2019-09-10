@@ -1573,30 +1573,19 @@ Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble, lightmapoverrides_t *overrides)
+static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lightofsisdouble, bspx_header_t *bspx)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
 	int			i, count, surfnum;
 	int			planenum, side;
 	int			ti;
+	int			style;
 
 	unsigned short lmshift, lmscale;
 	char buf[64];
-
-	if (overrides->offsets)
-		lmshift = overrides->defaultshift;
-	else
-	{
-		lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
-		if (!lmscale)
-			lmshift = LMSHIFT_DEFAULT;
-		else
-		{
-			for(lmshift = 0; lmscale > 1; lmshift++)
-				lmscale >>= 1;
-		}
-	}
+	lightmapoverrides_t overrides = {0};
+	overrides.defaultshift = LMSHIFT_DEFAULT;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -1609,6 +1598,21 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 
 	mod->surfaces = out;
 	mod->numsurfaces = count;
+
+	Mod_LoadLighting(mod, bspx, mod_base, lightlump, lightofsisdouble, &overrides);
+	if (overrides.offsets)
+		lmshift = overrides.defaultshift;
+	else
+	{
+		lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
+		if (!lmscale)
+			lmshift = LMSHIFT_DEFAULT;
+		else
+		{
+			for(lmshift = 0; lmscale > 1; lmshift++)
+				lmscale >>= 1;
+		}
+	}
 
 	for ( surfnum=0 ; surfnum<count ; surfnum++, in++, out++)
 	{
@@ -1642,23 +1646,58 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 		}
 #endif
 
-		if (overrides->shifts)
-			out->lmshift = overrides->shifts[surfnum];
+		if (overrides.shifts)
+			out->lmshift = overrides.shifts[surfnum];
 		else
 			out->lmshift = lmshift;
 		CalcSurfaceExtents (mod, out);
-		if (overrides->extents)
+		if (overrides.extents)
 		{
-			out->extents[0] = overrides->extents[surfnum*2+0];
-			out->extents[1] = overrides->extents[surfnum*2+1];
+			out->extents[0] = overrides.extents[surfnum*2+0];
+			out->extents[1] = overrides.extents[surfnum*2+1];
 		}
 
 	// lighting info
-
-		for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-			out->styles[i] = in->styles[i];
-		if (overrides->offsets)
-			i = overrides->offsets[surfnum];
+		if (overrides.styles16)
+		{
+			for (i=0 ; i<overrides.stylesperface ; i++)
+			{
+				style = overrides.styles16[surfnum*overrides.stylesperface+i];
+				if (style == 0xffff)
+					style = INVALID_LIGHTSTYLE;
+				else if (mod->lightmaps.maxstyle < style)
+					mod->lightmaps.maxstyle = style;
+				out->styles[i] = style;
+			}
+		}
+		else if (overrides.styles8)
+		{
+			for (i=0 ; i<overrides.stylesperface ; i++)
+			{
+				style = overrides.styles8[surfnum*overrides.stylesperface+i];
+				if (style == 0xff)
+					style = INVALID_LIGHTSTYLE;
+				else if (mod->lightmaps.maxstyle < style)
+					mod->lightmaps.maxstyle = style;
+				out->styles[i] = style;
+			}
+		}
+		else
+		{
+			for (i=0 ; i<4 ; i++)
+			{
+				style = in->styles[i];
+				if (style == 0xff)
+					style = INVALID_LIGHTSTYLE;
+				else if (mod->lightmaps.maxstyle < style)
+					mod->lightmaps.maxstyle = style;
+				out->styles[i] = style;
+			}
+		}
+		for ( ; i<MAXQ1LIGHTMAPS ; i++)
+			out->styles[i] = INVALID_LIGHTSTYLE;
+		if (overrides.offsets)
+			i = overrides.offsets[surfnum];
 		else
 			i = LittleLong(in->lightofs);
 		if (i == -1)
@@ -1678,12 +1717,6 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboo
 				out->extents[i] = 16384;
 				out->texturemins[i] = -8192;
 			}
-		}
-
-		if (overrides->extents)
-		{
-			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-				out->styles[i] = overrides->extents[surfnum*4+i];
 		}
 	}
 
@@ -4631,22 +4664,18 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 #ifndef SERVERONLY
 		default:
 			{
-				lightmapoverrides_t overrides = {0};
-				overrides.defaultshift = LMSHIFT_DEFAULT;
 				// load into heap
 				noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
 				if (header.version == BSPVERSION_Q2W)
 					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, bspx, mod_base, &header.lumps[19]);
 				noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
 				noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
-				if (noerrors)
-					Mod_LoadLighting							(mod, bspx, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, &overrides);
 				noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
 				noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
 				noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
 				if (noerrors)
 					Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
-				noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W, &overrides);
+				noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, bspx);
 				noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
 				noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
 				noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);

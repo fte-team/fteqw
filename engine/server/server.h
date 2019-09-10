@@ -158,12 +158,16 @@ typedef struct
 			const char	*model_precache[MAX_PRECACHE_MODELS];	// NULL terminated
 			const char	*particle_precache[MAX_SSPARTICLESPRE];	// NULL terminated
 			const char	*sound_precache[MAX_PRECACHE_SOUNDS];	// NULL terminated
-			const char	*lightstyles[MAX_LIGHTSTYLES];
 		};
 		const char *ptrs[1];
 	} strings;
 	qboolean	stringsalloced;	//if true, we need to free the string pointers safely rather than just memsetting them to 0
-	vec3_t		lightstylecolours[MAX_LIGHTSTYLES];
+	struct
+	{
+		const char	*str; //double dynamic. urgh, but allows it to be nice and long.
+		vec3_t		colours;
+	} *lightstyles;
+	size_t maxlightstyles;	//limited to MAX_NET_LIGHTSTYLES
 
 #ifdef HEXEN2
 	char		h2miditrack[MAX_QPATH];
@@ -1304,6 +1308,7 @@ void SV_ClearQCStats(void);
 
 void SV_SendClientMessages (void);
 
+void SV_SendLightstyle(client_t *cl, sizebuf_t *forcemsg, int style, qboolean initial);
 void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);

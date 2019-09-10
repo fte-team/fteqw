@@ -2878,6 +2878,33 @@ void PM_Command_f(void)
 		Con_Printf("%s may not be used from gamecode\n", Cmd_Argv(0));
 		return;
 	}
+
+	if (!strcmp(act, "sources") || !strcmp(act, "addsource"))
+	{
+#ifdef WEBCLIENT
+		if (Cmd_Argc() == 2)
+		{
+			int i;
+			for (i = 0; i < numdownloadablelists; i++)
+				Con_Printf("%s %s\n", downloadablelist[i].url, downloadablelist[i].save?"(explicit)":"(implicit)");
+			Con_Printf("<%i sources>\n", numdownloadablelists);
+		}
+		else
+		{
+			PM_AddSubList(Cmd_Argv(2), "", true, true);
+			PM_WriteInstalledPackages();
+		}
+#endif
+	}
+	else if (!strcmp(act, "remsource"))
+	{
+#ifdef WEBCLIENT
+		PM_RemSubList(Cmd_Argv(2));
+		PM_WriteInstalledPackages();
+#endif
+	}
+	else
+	{
 	
 	if (!loadedinstalled)
 		PM_UpdatePackageList(false, false);
@@ -2888,6 +2915,8 @@ void PM_Command_f(void)
 		{
 			const char *status;
 			char *markup;
+			if ((p->flags & DPF_HIDDEN) && !(p->flags & (DPF_MARKED|DPF_ENABLED|DPF_PURGE|DPF_CACHED)))
+				continue;
 			if (p->flags & DPF_ENABLED)
 				markup = S_COLOR_GREEN;
 			else if (p->flags & DPF_CORRUPT)
@@ -3001,28 +3030,6 @@ void PM_Command_f(void)
 		}
 		Con_Printf("<end of list>\n");
 	}
-#ifdef WEBCLIENT
-	else if (!strcmp(act, "sources") || !strcmp(act, "addsource"))
-	{
-		if (Cmd_Argc() == 2)
-		{
-			int i;
-			for (i = 0; i < numdownloadablelists; i++)
-				Con_Printf("%s %s\n", downloadablelist[i].url, downloadablelist[i].save?"(explicit)":"(implicit)");
-			Con_Printf("<%i sources>\n", numdownloadablelists);
-		}
-		else
-		{
-			PM_AddSubList(Cmd_Argv(2), "", true, true);
-			PM_WriteInstalledPackages();
-		}
-	}
-#endif
-	else if (!strcmp(act, "remsource"))
-	{
-		PM_RemSubList(Cmd_Argv(2));
-		PM_WriteInstalledPackages();
-	}
 	else if (!strcmp(act, "apply"))
 	{
 		Con_Printf("Applying package changes\n");
@@ -3128,6 +3135,7 @@ void PM_Command_f(void)
 	}
 	else
 		Con_Printf("%s: Unknown action %s\nShould be one of list, show, search, upgrade, revert, add, rem, del, changes, apply, sources, addsource, remsource\n", Cmd_Argv(0), act);
+	}
 }
 
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)

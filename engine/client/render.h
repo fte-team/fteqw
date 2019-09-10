@@ -531,7 +531,9 @@ typedef struct
 {
 	unsigned int *offsets;
 	unsigned short *extents;
-	unsigned char *styles;
+	unsigned char *styles8;
+	unsigned short *styles16;
+	unsigned int stylesperface;
 	unsigned char *shifts;
 	unsigned char defaultshift;
 } lightmapoverrides_t;
@@ -555,7 +557,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);
 struct relight_ctx_s;
 struct llightinfo_s;
 void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int surfnum);	//version that is aware of bsp trees
-void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, qbyte surf_styles[4], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, lightstyleindex_t surf_styles[4], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows, qboolean skiplit);
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles);
 void LightShutdown(struct relight_ctx_s *ctx, struct model_s *mod);
@@ -587,6 +589,7 @@ void R_RegisterRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
 void R_UpdateHDR(vec3_t org);
 void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, float g, float b);
+void R_BumpLightstyles(unsigned int maxstyle);	//bumps the cl_max_lightstyles array size, if needed.
 struct texture_s *R_TextureAnimation (int frame, struct texture_s *base);	//mostly deprecated, only lingers for rtlights so world only.
 struct texture_s *R_TextureAnimation_Q2 (struct texture_s *base);	//mostly deprecated, only lingers for rtlights so world only.
 void RQ_Init(void);

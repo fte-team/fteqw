@@ -1825,30 +1825,8 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	}
 
 // send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-	{
-		if (i >= MAX_STANDARDLIGHTSTYLES)
-			if (!sv.strings.lightstyles[i])
-				continue;
-#ifdef PEXT_LIGHTSTYLECOL
-		if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.lightstylecolours[i][0]!=1||sv.lightstylecolours[i][1]!=1||sv.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
-		{
-			MSG_WriteByte (&buf, svcfte_lightstylecol);
-			MSG_WriteByte (&buf, (unsigned char)i);
-			MSG_WriteByte (&buf, 0x87);
-			MSG_WriteShort(&buf, sv.lightstylecolours[i][0]*1024);
-			MSG_WriteShort(&buf, sv.lightstylecolours[i][1]*1024);
-			MSG_WriteShort(&buf, sv.lightstylecolours[i][2]*1024);
-			MSG_WriteString (&buf, sv.strings.lightstyles[i]);
-		}
-		else
-#endif
-		{
-			MSG_WriteByte (&buf, svc_lightstyle);
-			MSG_WriteByte (&buf, (unsigned char)i);
-			MSG_WriteString (&buf, sv.strings.lightstyles[i]);
-		}
-	}
+	for (i=0 ; i<sv.maxlightstyles || i < MAX_STANDARDLIGHTSTYLES; i++)
+		SV_SendLightstyle(&demo.recorder, &buf, i, true);
 
 	//invalidate stats+players somehow
 	for (i = 0; i < MAX_CLIENTS; i++)

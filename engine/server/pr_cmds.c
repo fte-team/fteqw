@@ -107,6 +107,7 @@ static cvar_t sv_addon[MAXADDONS];
 static char cvargroup_progs[] = "Progs variables";
 
 static evalc_t evalc_idealpitch, evalc_pitch_speed;
+static void PR_Lightstyle_f(void);
 
 qboolean ssqc_deprecated_warned;
 int pr_teamfield;
@@ -859,11 +860,14 @@ void PR_Deinit(void)
 		sv.world.progs = NULL;
 		svprogfuncs=NULL;
 
-		for (i = 0; i < MAX_LIGHTSTYLES; i++)
+		for (i = 0; i < sv.maxlightstyles; i++)
 		{
-			BZ_Free((void*)sv.strings.lightstyles[i]);
-			sv.strings.lightstyles[i] = NULL;
+			BZ_Free((void*)sv.lightstyles[i].str);
+			sv.lightstyles[i].str = NULL;
 		}
+		BZ_Free(sv.lightstyles);
+		sv.lightstyles = NULL;
+		sv.maxlightstyles = 0;
 	}
 
 	World_Destroy(&sv.world);
@@ -1546,6 +1550,8 @@ void PR_Init(void)
 
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
 	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
+
+	Cmd_AddCommand ("sv_lightstyle", PR_Lightstyle_f);
 
 /*
 #ifdef _DEBUG
@@ -4649,7 +4655,7 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	client_t	*client;
 	int			j;
 
-	if (style < 0 || style >= MAX_LIGHTSTYLES)
+	if (style < 0 || style >= MAX_NET_LIGHTSTYLES)
 	{
 		Con_Printf("WARNING: Bad lightstyle %i.\n", style);
 		return;
@@ -4657,14 +4663,16 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	if (strlen(val) >= 64)
 		Con_Printf("WARNING: Style string is longer than standard (%i). Some clients could crash.\n", 63);
 
+	if (style+1 > sv.maxlightstyles)
+		Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, style+1, sizeof(*sv.lightstyles));
 
 // change the string in sv
-	if (sv.strings.lightstyles[style])
-		BZ_Free((void*)sv.strings.lightstyles[style]);
-	sv.strings.lightstyles[style] = Z_StrDup(val);
+	if (sv.lightstyles[style].str)
+		BZ_Free((void*)sv.lightstyles[style].str);
+	sv.lightstyles[style].str = Z_StrDup(val);
 
 #ifdef PEXT_LIGHTSTYLECOL
-	VectorCopy(rgb, sv.lightstylecolours[style]);
+	VectorCopy(rgb, sv.lightstyles[style].colours);
 #endif
 
 // send message to all clients on this server
@@ -4675,58 +4683,13 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	{
 		if (client->controller)
 			continue;
-		if ( client->state == cs_spawned )
-		{
-			if (style >= MAX_STANDARDLIGHTSTYLES)	//only bug out clients if the styles are needed
-				if (!*val)
-					continue;
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
-			{
-				ClientReliableWrite_Begin (client, svcfte_lightstylecol, 3+6+strlen(val)+1);
-				ClientReliableWrite_Byte (client, style);
-				ClientReliableWrite_Char (client, 0x87);
-				ClientReliableWrite_Short (client, rgb[0]*1024);
-				ClientReliableWrite_Short (client, rgb[1]*1024);
-				ClientReliableWrite_Short (client, rgb[2]*1024);
-				ClientReliableWrite_String (client, val);
-			}
-			else
-#endif
-			{
-				ClientReliableWrite_Begin (client, svc_lightstyle, strlen(val)+3);
-				ClientReliableWrite_Byte (client, style);
-				ClientReliableWrite_String (client, val);
-			}
-		}
+		if (client->state == cs_spawned)
+			SV_SendLightstyle(client, NULL, style, false);
 	}
 
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)
-	{
-		if (style < MAX_STANDARDLIGHTSTYLES || *val)
-		{
-			sizebuf_t *msg = MVDWrite_Begin(dem_all, 0, 3+6+strlen(val)+1);
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
-			{
-				MSG_WriteByte (msg, svcfte_lightstylecol);
-				MSG_WriteByte (msg, style);
-				MSG_WriteChar (msg, 0x87);
-				MSG_WriteShort (msg, rgb[0]*1024);
-				MSG_WriteShort (msg, rgb[1]*1024);
-				MSG_WriteShort (msg, rgb[2]*1024);
-				MSG_WriteString (msg, val);
-			}
-			else
-#endif
-			{
-				MSG_WriteByte (msg, svc_lightstyle);
-				MSG_WriteByte (msg, style);
-				MSG_WriteString (msg, val);
-			}
-		}
-	}
+		SV_SendLightstyle(&demo.recorder, NULL, style, true);
 #endif
 }
 
@@ -4754,35 +4717,65 @@ static void QCBUILTIN PF_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s
 	PF_applylightstyle(style, val, rgb);
 }
 
+static void PR_Lightstyle_f(void)
+{
+	int style = atoi(Cmd_Argv(1));
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
+		Con_TPrintf ("not supported in the current game mode.\n");
+	else if (!SV_MayCheat())
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
+	else if (Cmd_Argc() <= 2)
+	{
+		if (style >= 0 && style < sv.maxlightstyles && Cmd_Argc() >= 2)
+			Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+		else for (style = 0; style < sv.maxlightstyles; style++)
+			if (sv.lightstyles[style].str)
+				Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+	}
+	else
+	{
+		vec3_t rgb = {1,1,1};
+		if (Cmd_Argc() > 5)
+		{
+			rgb[0] = atof(Cmd_Argv(3));
+			rgb[1] = atof(Cmd_Argv(4));
+			rgb[2] = atof(Cmd_Argv(5));
+		}
+		else if (Cmd_Argc() > 3)
+			rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(3));
+		PF_applylightstyle(style, Cmd_Argv(2), rgb);
+	}
+}
+
 static void QCBUILTIN PF_getlightstyle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int		style = G_FLOAT(OFS_PARM0);
 
-	if (style >= countof(sv.strings.lightstyles))
+	if (style >= sv.maxlightstyles)
 	{
 		VectorSet(G_VECTOR(OFS_PARM1), 0, 0, 0);
 		G_INT(OFS_RETURN) = 0;
 	}
 	else
 	{
-		VectorCopy(sv.lightstylecolours[style], G_VECTOR(OFS_PARM1));
-		if (!sv.strings.lightstyles[style])
+		VectorCopy(sv.lightstyles[style].colours, G_VECTOR(OFS_PARM1));
+		if (!sv.lightstyles[style].str)
 			G_INT(OFS_RETURN) = 0;
 		else
-			RETURN_TSTRING(sv.strings.lightstyles[style]);
+			RETURN_TSTRING(sv.lightstyles[style].str);
 	}
 }
 static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int		style = G_FLOAT(OFS_PARM0);
 	int value;
-	if (!sv.strings.lightstyles[style])
+	if (style >= sv.maxlightstyles || !sv.lightstyles[style].str)
 		value = ('m'-'a')*22;
-	else if (sv.strings.lightstyles[style][0] == '=')
-		value = atof(sv.strings.lightstyles[style]+1)*256;
+	else if (sv.lightstyles[style].str[0] == '=')
+		value = atof(sv.lightstyles[style].str+1)*256;
 	else
-		value = sv.strings.lightstyles[style][max(0,(int)(sv.time*10)) % strlen(sv.strings.lightstyles[style])] - 'a';
-	VectorScale(sv.lightstylecolours[style], value*(1.0/256), G_VECTOR(OFS_RETURN));
+		value = sv.lightstyles[style].str[max(0,(int)(sv.time*10)) % strlen(sv.lightstyles[style].str)] - 'a';
+	VectorScale(sv.lightstyles[style].colours, value*(1.0/256), G_VECTOR(OFS_RETURN));
 }
 
 #ifdef HEXEN2
@@ -4790,12 +4783,12 @@ static void QCBUILTIN PF_lightstylevalue (pubprogfuncs_t *prinst, struct globalv
 {
 	int style;
 	style = G_FLOAT(OFS_PARM0);
-	if(style < 0 || style >= MAX_LIGHTSTYLES || !sv.strings.lightstyles[style])
+	if(style < 0 || style >= sv.maxlightstyles || !sv.lightstyles[style].str || !*sv.lightstyles[style].str)
 	{
 		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}
-	G_FLOAT(OFS_RETURN) = *sv.strings.lightstyles[style] - 'a';
+	G_FLOAT(OFS_RETURN) = *sv.lightstyles[style].str - 'a';
 }
 
 static void QCBUILTIN PF_lightstylestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

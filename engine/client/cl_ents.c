@@ -187,6 +187,7 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[2] = 1;
 	dl->corona = bound(0, 1 * 0.25, 1);
 	dl->coronascale = bound(0, r_flashblendscale.value, 1);
+	dl->style = -1;
 #ifdef RTLIGHTS
 	dl->lightcolourscales[0] = r_shadow_realtime_dlight_ambient.value;
 	dl->lightcolourscales[1] = r_shadow_realtime_dlight_diffuse.value;
@@ -3788,16 +3789,21 @@ void CL_TransitionEntities (void)
 		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
 	}
 
-	//force our emulated time to as late as we can, if we're not using interpolation, which has the effect of disabling all interpolation
 	if (cl.demonudge < 0)
-	{
+	{	//demo playback allows nudging to earlier frames, generally only when paused though...
 		servertime = cl.inframes[(cls.netchan.incoming_sequence+cl.demonudge)&UPDATE_MASK].packet_entities.servertime;
 		nolerp = true;
 	}
 	else if (nolerp)
+	{
+		//force our emulated time to as late as we can, if we're not using interpolation, which has the effect of disabling all interpolation
 		servertime = cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
+	}
 	else
+	{
+		//otherwise go for the latest frame we can.
 		servertime = cl.servertime;
+	}
 
 //	servertime -= 0.1;
 
@@ -3812,7 +3818,7 @@ void CL_TransitionEntities (void)
 	packnew = &cl.inframes[newf].packet_entities;
 	packold = &cl.inframes[oldf].packet_entities;
 	if (packnew->servertime == packold->servertime)
-		frac = 1; //lerp totally into the new
+		frac = 1; //lerp totally into the new (avoid any division-by-0 issues here)
 	else
 		frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
 

@@ -1580,7 +1580,7 @@ static int CL_Record_Lightstyles(sizebuf_t *buf, int seq)
 {
 	unsigned int i;
 // send all current light styles
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	for (i=0 ; i<cl_max_lightstyles ; i++)
 	{
 		if (i >= MAX_STANDARDLIGHTSTYLES)
 			if (!*cl_lightstyle[i].map)

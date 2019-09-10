@@ -239,7 +239,7 @@ typedef struct
 #else
 #define	MAXRLIGHTMAPS	1	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
 #endif
-#define MAXQ1LIGHTMAPS	4
+#define MAXQ1LIGHTMAPS	16
 typedef struct
 {
 	short		planenum;
@@ -250,7 +250,7 @@ typedef struct
 	short		texinfo;
 
 // lighting info
-	qbyte		styles[MAXQ1LIGHTMAPS];
+	qbyte		styles[4];
 	int			lightofs;		// start of [numstyles*surfsize] samples
 } dsface_t;
 typedef struct
@@ -263,7 +263,7 @@ typedef struct
 	int			texinfo;
 
 // lighting info
-	qbyte		styles[MAXQ1LIGHTMAPS];
+	qbyte		styles[4];
 	int			lightofs;		// start of [numstyles*surfsize] samples
 } dlface_t;
 

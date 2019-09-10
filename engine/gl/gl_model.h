@@ -140,7 +140,7 @@ typedef struct batch_s
 	image_t		*envmap;
 
 	short lightmap[MAXRLIGHTMAPS];	/*used for shader lightmap textures*/
-	unsigned char lmlightstyle[MAXRLIGHTMAPS];
+	lightstyleindex_t lmlightstyle[MAXRLIGHTMAPS];
 	unsigned char vtlightstyle[MAXRLIGHTMAPS];
 
 	unsigned int maxmeshes;	/*not used by backend*/
@@ -444,7 +444,7 @@ typedef struct msurface_s
 
 //static lighting
 	int			lightmaptexturenums[MAXRLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
-	qbyte		styles[MAXQ1LIGHTMAPS];
+	lightstyleindex_t	styles[MAXQ1LIGHTMAPS];
 	qbyte		vlstyles[MAXRLIGHTMAPS];
 	int			cached_light[MAXQ1LIGHTMAPS];	// values currently used in lightmap
 	int			cached_colour[MAXQ1LIGHTMAPS];	// values currently used in lightmap
@@ -1026,6 +1026,7 @@ typedef struct model_s
 		int width;				//x size of lightmaps
 		int height;				//y size of lightmaps
 		int surfstyles;			//numbers of style per surface.
+		int maxstyle;			//highest (valid) style used (cl_max_lightstyles must be 1+ higher).
 		enum {
 			//vanilla used byte values, with 255 being a value of about 2.
 			//float/hdr formats use 1 to mean 1, however.

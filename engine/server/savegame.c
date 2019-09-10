@@ -97,20 +97,24 @@ pbool PDECL SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const 
 	{	//lightstyle N "STYLESTRING" 1 1 1
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
 		idx = atoi(token);
-		if (idx >= countof(sv.strings.lightstyles))
-			return false;	//unsupported index.
+		if (idx >= sv.maxlightstyles)
+		{
+			if (idx >= MAX_NET_LIGHTSTYLES)
+				return false; //unsupported index.
+			Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, idx+1, sizeof(*sv.lightstyles));
+		}
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 
-		if (sv.strings.lightstyles[idx])
-			Z_Free((char*)sv.strings.lightstyles[idx]);
-		sv.strings.lightstyles[idx] = Z_StrDup(token);
-		sv.lightstylecolours[idx][0] = sv.lightstylecolours[idx][1] = sv.lightstylecolours[idx][2] = 1.0;
+		if (sv.lightstyles[idx].str)
+			Z_Free((char*)sv.lightstyles[idx].str);
+		sv.lightstyles[idx].str = Z_StrDup(token);
+		sv.lightstyles[idx].colours[0] = sv.lightstyles[idx].colours[1] = sv.lightstyles[idx].colours[2] = 1.0;
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		sv.lightstylecolours[idx][0] = atof(token);
+		sv.lightstyles[idx].colours[0] = atof(token);
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		sv.lightstylecolours[idx][1] = atof(token);
+		sv.lightstyles[idx].colours[1] = atof(token);
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		sv.lightstylecolours[idx][2] = atof(token);
+		sv.lightstyles[idx].colours[2] = atof(token);
 	}
 	else if (!strcmp(token, "model_precache") || !strcmp(token, "model"))
 	{	//model_precache N "MODELNAME"
@@ -352,18 +356,21 @@ static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 // load the light styles
 
 	lstyles = 64;
+	if (lstyles > sv.maxlightstyles)
+		Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, lstyles, sizeof(*sv.lightstyles));
 	for (i=0 ; i<lstyles ; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
-		if (sv.strings.lightstyles[i])
-			Z_Free((char*)sv.strings.lightstyles[i]);
-		sv.strings.lightstyles[i] = Z_StrDup(str);
+		if (sv.lightstyles[i].str)
+			Z_Free((char*)sv.lightstyles[i].str);
+		sv.lightstyles[i].str = Z_StrDup(str);
+		sv.lightstyles[i].colours[0] = sv.lightstyles[i].colours[1] = sv.lightstyles[i].colours[2] = 1;
 	}
-	for (; i < MAX_LIGHTSTYLES; i++)
+	for (; i < sv.maxlightstyles; i++)
 	{
-		if (sv.strings.lightstyles[i])
-			Z_Free((char*)sv.strings.lightstyles[i]);
-		sv.strings.lightstyles[i] = NULL;
+		if (sv.lightstyles[i].str)
+			Z_Free((char*)sv.lightstyles[i].str);
+		sv.lightstyles[i].str = NULL;
 	}
 
 	//model names are pointers to vm-accessible memory. as that memory is going away, we need to destroy and recreate, which requires preserving them.
@@ -564,8 +571,8 @@ static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 // write the light styles (only 64 are saved in legacy saved games)
 	for (i=0 ; i < 64; i++)
 	{
-		if (sv.strings.lightstyles[i] && *sv.strings.lightstyles[i])
-			VFS_PRINTF(f, "%s\n", sv.strings.lightstyles[i]);
+		if (i < sv.maxlightstyles && sv.lightstyles[i].str && *sv.lightstyles[i].str)
+			VFS_PRINTF(f, "%s\n", sv.lightstyles[i].str);
 		else
 			VFS_PRINTF(f,"m\n");
 	}
@@ -584,10 +591,10 @@ static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 	*/
 	VFS_PUTS(f, "/*\n");
 	VFS_PUTS(f, "// FTE extended savegame\n");
-	for (i=0 ; i < countof(sv.strings.lightstyles); i++)
-	{	//yes, repeat styles 0-63 again, for some reason, but only list ones that are not empty.
-		if (sv.strings.lightstyles[i])
-			VFS_PRINTF(f, "sv.lightstyles %i %s\n", i, sv.strings.lightstyles[i]);
+	for (i=0 ; i < sv.maxlightstyles; i++)
+	{	//yes, repeat styles 0-63 again, but only list ones that are not empty.
+		if (sv.lightstyles[i].str)
+			VFS_PRINTF(f, "sv.lightstyles %i %s\n", i, sv.lightstyles[i].str);
 	}
 	for (i=1 ; i < countof(sv.strings.model_precache); i++)
 	{
@@ -931,27 +938,28 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		// load the light styles
 		VFS_GETS(f, str, sizeof(str));
 		numstyles = atoi(str);
-		if (numstyles > MAX_LIGHTSTYLES)
+		if (numstyles > MAX_NET_LIGHTSTYLES)
 		{
 			VFS_CLOSE (f);
 			Con_Printf ("load failed - invalid number of lightstyles\n");
 			return false;
 		}
-		for (i = 0; i<MAX_LIGHTSTYLES ; i++)
+		for (i = 0; i<sv.maxlightstyles ; i++)
 		{
-			if (sv.strings.lightstyles[i])
-				BZ_Free((void*)sv.strings.lightstyles[i]);
-			sv.strings.lightstyles[i] = NULL;
+			if (sv.lightstyles[i].str)
+				BZ_Free((void*)sv.lightstyles[i].str);
+			sv.lightstyles[i].str = NULL;
 		}
+		Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, numstyles, sizeof(*sv.lightstyles));
 
 		for (i=0 ; i<numstyles ; i++)
 		{
 			VFS_GETS(f, str, sizeof(str));
-			sv.strings.lightstyles[i] = Z_StrDup(str);
+			sv.lightstyles[i].str = Z_StrDup(str);
 		}
-		for ( ; i<MAX_LIGHTSTYLES ; i++)
+		for ( ; i<sv.maxlightstyles ; i++)
 		{
-			sv.strings.lightstyles[i] = Z_StrDup("");
+			sv.lightstyles[i].str = Z_StrDup("");
 		}
 
 		modelpos = VFS_TELL(f);
@@ -1270,10 +1278,10 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f, "%f\n", sv.time);
 
 // write the light styles
-		VFS_PRINTF (f, "%i\n",MAX_LIGHTSTYLES);
-		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+		VFS_PRINTF (f, "%u\n",(unsigned)sv.maxlightstyles);
+		for (i=0 ; i<sv.maxlightstyles ; i++)
 		{
-			VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]?sv.strings.lightstyles[i]:"");
+			VFS_PRINTF (f, "%s\n", sv.lightstyles[i].str?sv.lightstyles[i].str:"");
 		}
 
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
@@ -1310,9 +1318,9 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 	if (version >= CACHEGAME_VERSION_VERBOSE)
 	{
 		char buf[8192];
-		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-			if (sv.strings.lightstyles[i])
-				VFS_PRINTF (f, "lightstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.lightstylecolours[i][0], sv.lightstylecolours[i][1], sv.lightstylecolours[i][2]);
+		for (i=0 ; i<sv.maxlightstyles ; i++)
+			if (sv.lightstyles[i].str)
+				VFS_PRINTF (f, "lightstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.lightstyles[i].str, buf, sizeof(buf), false), sv.lightstyles[i].colours[0], sv.lightstyles[i].colours[1], sv.lightstyles[i].colours[2]);
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
 				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
@@ -1562,6 +1570,8 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 			V_RenderView (false);
 			okay = true;
 		}
+		if (R2D_Flush)
+			R2D_Flush();
 
 		//okay, we drew something, we're good to save a screeny.
 		if (okay)

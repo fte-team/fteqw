@@ -77,14 +77,12 @@ static rbeplugfuncs_t *rbefuncs;
 
 static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd);
 
-static cvar_t *physics_bullet_enable;
 static cvar_t *physics_bullet_maxiterationsperframe;
 static cvar_t *physics_bullet_framerate;
 static cvar_t *pr_meshpitch;
 
 void World_Bullet_Init(void)
 {
-	physics_bullet_enable					= cvarfuncs->GetNVFDG("physics_bullet_enable",					"1",	0, "", "Bullet");
 	physics_bullet_maxiterationsperframe	= cvarfuncs->GetNVFDG("physics_bullet_maxiterationsperframe",	"10",	0, "FIXME: should be 1 when CCD is working properly.", "Bullet");
 	physics_bullet_framerate				= cvarfuncs->GetNVFDG("physics_bullet_framerate",				"60",	0, "Bullet physics run at a fixed framerate in order to preserve numerical stability (interpolation is used to smooth out the result). Higher framerates are of course more demanding.", "Bullet");
 	pr_meshpitch							= cvarfuncs->GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
@@ -1712,9 +1710,6 @@ static void QDECL World_Bullet_Start(world_t *world)
 	bulletcontext_t *ctx;
 	if (world->rbe)
 		return;	//no thanks, we already have one. somehow.
-
-	if (!physics_bullet_enable->value)
-		return;
 
 	ctx = reinterpret_cast<bulletcontext_t*>(BZ_Malloc(sizeof(*ctx)));
 	memset(ctx, 0, sizeof(*ctx));

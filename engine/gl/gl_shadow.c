@@ -3791,11 +3791,11 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 		colour[0] = dl->color[0];
 		colour[1] = dl->color[1];
 		colour[2] = dl->color[2];
-		if (dl->style)
+		if (dl->style>=0 && dl->style<cl_max_lightstyles)
 		{
-			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[0] *= cl_lightstyle[dl->style].colours[0] * d_lightstylevalue[dl->style]/255.0f;
+			colour[1] *= cl_lightstyle[dl->style].colours[1] * d_lightstylevalue[dl->style]/255.0f;
+			colour[2] *= cl_lightstyle[dl->style].colours[2] * d_lightstylevalue[dl->style]/255.0f;
 		}
 		else
 		{
@@ -3924,11 +3924,11 @@ void Sh_DrawLights(qbyte *vis)
 			colour[1] *= strength;
 			colour[2] *= strength;
 		}
-		if (dl->style)
+		if (dl->style>=0 && dl->style < cl_max_lightstyles)
 		{
-			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
-			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[0] *= cl_lightstyle[dl->style].colours[0] * d_lightstylevalue[dl->style]/255.0f;
+			colour[1] *= cl_lightstyle[dl->style].colours[1] * d_lightstylevalue[dl->style]/255.0f;
+			colour[2] *= cl_lightstyle[dl->style].colours[2] * d_lightstylevalue[dl->style]/255.0f;
 		}
 		else
 		{

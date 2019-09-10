@@ -28,12 +28,24 @@ extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 extern cvar_t r_hdr_irisadaptation, r_hdr_irisadaptation_multiplier, r_hdr_irisadaptation_minvalue, r_hdr_irisadaptation_maxvalue, r_hdr_irisadaptation_fade_down, r_hdr_irisadaptation_fade_up;
 
 int	r_dlightframecount;
-int		d_lightstylevalue[256];	// 8.8 fraction of base light value
+int		d_lightstylevalue[MAX_NET_LIGHTSTYLES];	// 8.8 fraction of base light value
 
+void R_BumpLightstyles(unsigned int maxstyle)
+{
+	int style = cl_max_lightstyles;
+	if (maxstyle >= style)
+	{
+		Z_ReallocElements((void**)&cl_lightstyle, &cl_max_lightstyles, maxstyle+1, sizeof(*cl_lightstyle));
+		for (; style < cl_max_lightstyles; style++)
+			VectorSet(cl_lightstyle[style].colours, 1,1,1);
+	}
+}
 void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, float g, float b)
 {
-	if (style >= MAX_LIGHTSTYLES)
+	if (style >= MAX_NET_LIGHTSTYLES)
 		return;
+
+	R_BumpLightstyles(style);
 
 	if (!stylestring)
 		stylestring = "";
@@ -109,7 +121,7 @@ void R_AnimateLight (void)
 	i = (int)f;
 	f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
 
-	for (j=0 ; j<MAX_LIGHTSTYLES ; j++)
+	for (j=0 ; j<cl_max_lightstyles ; j++)
 	{
 		int v1, v2, vd;
 		if (!cl_lightstyle[j].length)
@@ -301,9 +313,9 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscal
 		rad *= a;
 		rad *= 0.33;
 	}
-	if (light->style)
+	if (light->style>=0 && light->style < countof(d_lightstylevalue))
 	{
-		colscale *= d_lightstylevalue[light->style-1]/255.0f;
+		colscale *= d_lightstylevalue[light->style]/255.0f;
 	}
 
 	VectorSubtract (light->origin, r_origin, v);
@@ -527,11 +539,11 @@ void R_GenDlightMesh(struct batch_s *batch)
 	int lightflags = batch->surf_count;
 
 	VectorCopy(l->color, colour);
-	if (l->style)
+	if (l->style>=0 && l->style < cl_max_lightstyles)
 	{
-		colour[0] *= cl_lightstyle[l->style-1].colours[0] * d_lightstylevalue[l->style-1]/255.0f;
-		colour[1] *= cl_lightstyle[l->style-1].colours[1] * d_lightstylevalue[l->style-1]/255.0f;
-		colour[2] *= cl_lightstyle[l->style-1].colours[2] * d_lightstylevalue[l->style-1]/255.0f;
+		colour[0] *= cl_lightstyle[l->style].colours[0] * d_lightstylevalue[l->style]/255.0f;
+		colour[1] *= cl_lightstyle[l->style].colours[1] * d_lightstylevalue[l->style]/255.0f;
+		colour[2] *= cl_lightstyle[l->style].colours[2] * d_lightstylevalue[l->style]/255.0f;
 	}
 	else
 	{
@@ -1127,7 +1139,7 @@ qboolean R_ImportRTLights(const char *entlump)
 			dl->flags |= LFLAG_REALTIMEMODE;
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_FLASHBLEND:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
-			dl->style = style+1;
+			dl->style = style;
 			VectorCopy(colourscales, dl->lightcolourscales);
 
 			//handle spotlights.
@@ -1348,7 +1360,7 @@ qboolean R_LoadRTLights(void)
 			else
 				dl->cubetexture = r_nulltex;
 
-			dl->style = style+1;
+			dl->style = style;
 			dl->customstyle = (*customstyle)?Z_StrDup(customstyle):NULL;
 		}
 		file = end+1;
@@ -1402,7 +1414,7 @@ static void R_SaveRTLights_f(void)
 			"%i",
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
 			light->radius, light->color[0], light->color[1], light->color[2],
-			light->style-1);
+			light->style);
 		if (ver > 0)
 			VFS_PRINTF(f, " \"%s\" %f %f %f %f", light->cubemapname, light->corona, ang[0], ang[1], ang[2]);
 		if (ver > 1)
@@ -1457,7 +1469,7 @@ void R_StaticEntityToRTLight(int i)
 	dl->flags |= (state->lightpflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 	if (state->lightpflags & PFLAGS_CORONA)
 		dl->corona = 1;
-	dl->style = state->lightstyle+1;
+	dl->style = state->lightstyle;
 	if (state->lightpflags & PFLAGS_FULLDYNAMIC)
 	{
 		dl->lightcolourscales[0] = r_editlights_import_ambient.value;
@@ -1612,7 +1624,7 @@ static int R_EditLight(dlight_t *dl, const char *cmd, int argc, const char *x, c
 	else if (!strcmp(cmd, "radiusscale") || !strcmp(cmd, "sizescale"))
 		dl->radius *= atof(x);
 	else if (!strcmp(cmd, "style"))
-		dl->style = atoi(x)+1;	//fte's styles are internally 1-based, with 0 being a null style that ignores lightstyles entirely, which admittedly isn't often used.
+		dl->style = atoi(x);
 	else if (!strcmp(cmd, "stylestring"))
 	{
 		Z_Free(dl->customstyle);
@@ -1690,7 +1702,7 @@ void R_EditLights_DrawInfo(void)
 				,dl->origin[0],dl->origin[1],dl->origin[2]
 				,dl->angles[0],dl->angles[1],dl->angles[2]
 				,dl->color[0],dl->color[1],dl->color[2]
-				,dl->radius, dl->corona, dl->style-1, dl->customstyle?dl->customstyle:"---"
+				,dl->radius, dl->corona, dl->style, dl->customstyle?dl->customstyle:"---"
 				,((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"), dl->cubemapname, dl->coronascale
 				,dl->lightcolourscales[0], dl->lightcolourscales[1], dl->lightcolourscales[2]
 				,((dl->flags&LFLAG_NORMALMODE)?"yes":"no"), ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no")
@@ -1878,7 +1890,7 @@ static void R_EditLights_Edit_f(void)
 		Con_Printf("Colour       : ^[%f %f %f\\type\\r_editlights_edit avel %g %g %g^]\n", dl->color[0],dl->color[1],dl->color[2], dl->color[0],dl->color[1],dl->color[2]);
 		Con_Printf("Radius       : ^[%f\\type\\r_editlights_edit radius %g^]\n", dl->radius, dl->radius);
 		Con_Printf("Corona       : ^[%f\\type\\r_editlights_edit corona %g^]\n", dl->corona, dl->corona);
-		Con_Printf("Style        : ^[%i\\type\\r_editlights_edit style %i^]\n", dl->style-1, dl->style-1);
+		Con_Printf("Style        : ^[%i\\type\\r_editlights_edit style %i^]\n", dl->style, dl->style);
 		Con_Printf("Style String : ^[%s\\type\\r_editlights_edit stylestring %s^]\n", dl->customstyle?dl->customstyle:"---", dl->customstyle?dl->customstyle:"");
 		Con_Printf("Shadows      : ^[%s\\type\\r_editlights_edit shadows %s^]\n", ((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"), ((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"));
 		Con_Printf("Cubemap      : ^[\"%s\"\\type\\r_editlights_edit cubemap \"%s\"^]\n", dl->cubemapname, dl->cubemapname);
@@ -1968,7 +1980,7 @@ static void R_EditLights_Spawn_f(void)
 	VectorCopy(r_editlights_cursor, dl->origin);
 	dl->radius = 200;
 
-	dl->style = 1;	//0... gah. match DP's results.
+	dl->style = 0;	//styled, but mostly static (we could use -1, but mneh).
 	dl->lightcolourscales[0] = 0;
 	dl->lightcolourscales[1] = 1;
 	dl->lightcolourscales[2] = 1;
@@ -2161,7 +2173,7 @@ static char *r_editlights_current_style(void)
 		return "";
 	dl = &cl_dlights[i];
 
-	Q_snprintfz (macro_buf, sizeof(macro_buf), "%i", dl->style-1);
+	Q_snprintfz (macro_buf, sizeof(macro_buf), "%i", dl->style);
 	return macro_buf;
 }
 static char *r_editlights_current_shadows(void)
@@ -2509,7 +2521,7 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 			{
 			case LM_E5BGR9:
 				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
-				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 				{
 					unsigned int l = *(unsigned int*)lightmap;
 					scale = d_lightstylevalue[surf->styles[maps]];
@@ -2522,7 +2534,7 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 				break;
 			case LM_RGB8:
 				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					r += max3(lightmap[0],lightmap[1],lightmap[2]) * scale;
@@ -2531,7 +2543,7 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 				break;
 			case LM_L8:
 				lightmap += dt * ((surf->extents[0]>>surf->lmshift)+1) + ds;
-				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					r += *lightmap * scale;
@@ -2683,7 +2695,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<4;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						unsigned int lm = *(unsigned int*)lightmap;
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
@@ -2708,7 +2720,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
@@ -2731,7 +2743,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
@@ -2758,7 +2770,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 				{
 				case LM_E5BGR9:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						unsigned int lm = *(unsigned int*)lightmap;
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
@@ -2774,7 +2786,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 					break;
 				case LM_RGB8:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
@@ -2788,7 +2800,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 					break;
 				case LM_L8:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 

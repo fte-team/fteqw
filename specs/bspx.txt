@@ -28,7 +28,7 @@ This is equivelent to the information stored in a .lit file (sans header), and m
 Presence of this lump permits omitting the regular mono lightmap to save space, but doing so will harm compatibility.
 
 LIGHTING_E5BGR9:
-(applies to fte)
+(applies to fte, parsed by qss only as a fallback)
 This is a more advanced alternative to RGBLIGHTING.
 Each luxel is a E5BGR9 int32 packed value (ie: on little-endian machines, the exponent is the high 5 bits), resulting in what is effectively a memory-efficient floating point rgb value.
 This lightmap format virtually removes all oversaturation limits, and promises greater precision in dark areas too.
@@ -38,7 +38,7 @@ Lighting values are always assumed to be linear.
 
 LIGHTINGDIR:
 (applies to fte)
-This lump contains surface-space light directions (read: deluxemap), equivelent to fte's .lux file, or dp's .dlit files (sans header).
+This lump contains averaged surface-space light directions (read: deluxemap), equivelent to fte's .lux file, or dp's .dlit files (sans header).
 (as unorm values, these need to be biased before use).
 If bumpmaps or specular maps are not available then the effects of this may not be significant/noticable.
 
@@ -55,7 +55,13 @@ This allows a bsp to contain both scaled surfaces and unscaled ones, without loo
 
 LMSTYLE:
 (applies to fte, qss)
-This replaces the four lightstyle indexes of each surface lump entry. Should only be used in conjunction with LMSHIFT.
+This replaces the four lightstyle indexes of each surface lump entry. Normally only makes sense when used in conjunction with LMSHIFT.
+
+LMSTYLE16:
+(applies to fte, qss)
+An upgrade for the LMSTYLE lump, potentially giving up to 65k lightstyles.
+Additionally, the number of styles per face is variable, and must be inferred by the lump size vs surface count.
+Both of these tweeks make it useful even without LMSHIFT.
 
 VERTEXNORMALS:
 (applies to fte)

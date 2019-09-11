@@ -947,7 +947,7 @@ public:
 				return false;	//some other file that we're not interested in
 		}
 
-		s->annotate(linenum-1, s->annotation(linenum) + line + "\n", 0);
+		s->annotate(linenum-1, s->annotation(linenum-1) + line + "\n", 0);
 		return true;
 	}
 

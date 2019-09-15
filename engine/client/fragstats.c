@@ -106,6 +106,8 @@ int Stats_GetCaptures(int playernum)
 qboolean Stats_HaveFlags(int showtype)
 {
 	int i;
+	if (showtype)
+		return fragstats.readcaps;
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (fragstats.clienttotals[i].caps ||

@@ -1434,7 +1434,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		//look for known extensions first, to try to avoid issues with specific formats
 		for(i = 0; i < countof(modelloaders); i++)
 		{
-			if (modelloaders[i].load && modelloaders[i].ident && *modelloaders[i].ident == '.' && !Q_strcasecmp(modelloaders[i].ident+1, ext))
+			if (modelloaders[i].load && modelloaders[i].ident && *modelloaders[i].ident == '.' && !Q_strcasecmp(modelloaders[i].ident, COM_GetFileExtension(mod->name, NULL)))
 				break;
 		}
 		//now look to see if we can find one with the right magic header

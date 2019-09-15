@@ -84,6 +84,7 @@
 #define HALFLIFEMODELS			//horrible format that doesn't interact well with the rest of FTE's code. Unusable tools (due to license reasons).
 #define INTERQUAKEMODELS		//Preferred model format, at least from an idealism perspective.
 #define MODELFMT_MDX			//kingpin's format (for hitboxes+geomsets).
+#define MODELFMT_OBJ			//lame mesh-only format that needs far too much processing and even lacks a proper magic identifier too
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
 
 //Image formats

@@ -1225,7 +1225,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 	mesh->indexes += model->geomset[bodypart].alternatives[bodyidx].submesh[meshidx].firstindex;
 	mesh->numindexes = model->geomset[bodypart].alternatives[bodyidx].submesh[meshidx].numindexes;
 
-	if (gpubones)
+	if (gpubones && model->header->numbones < sh_config.max_gpu_bones)
 	{	//get the backend to do the skeletal stuff (read: glsl)
 		for(v = 0; v < mesh->numvertexes; v++)
 		{	//should really come up with a better way to deal with this, like rect textures.

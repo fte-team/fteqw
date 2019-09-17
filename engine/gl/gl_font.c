@@ -1191,9 +1191,12 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 							}
 							else
 							{
-								out[(x+y*gw)*4+0] = pal[*in*3+0];
-								out[(x+y*gw)*4+1] = pal[*in*3+1];
-								out[(x+y*gw)*4+2] = pal[*in*3+2];
+								qbyte val;
+								val = max(pal[*in*3+0], pal[*in*3+1]);
+								val = max(val, pal[*in*3+2]);
+								out[(x+y*gw)*4+0] =
+								out[(x+y*gw)*4+1] =
+								out[(x+y*gw)*4+2] = val;
 								out[(x+y*gw)*4+3] = 0xff;
 							}
 						}

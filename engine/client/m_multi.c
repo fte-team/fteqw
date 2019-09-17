@@ -1010,7 +1010,7 @@ void M_Menu_Network_f (void)
 	};
 	static const char *smoothingvalues[] = {"0", "1", "2", NULL};
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
-	extern cvar_t cl_predict_players, cl_predict_smooth, cl_predict_extrapolate;
+	extern cvar_t cl_predict_players, cl_lerp_smooth, cl_predict_extrapolate;
 	static menuresel_t resel;
 	int y;
 	menubulk_t bulk[] =
@@ -1025,7 +1025,7 @@ void M_Menu_Network_f (void)
 		MB_CHECKBOXCVARTIP("Redirect Download", cl_download_redirection, 0, "Whether the client will ignore download redirection from servers"),
 		MB_CHECKBOXCVARTIP("Download CSQC", cl_download_csprogs, 0, "Whether to allow the client to download CSQC (client-side QuakeC) progs from servers"),
 		MB_SPACING(4),
-		MB_COMBOCVAR("Network Smoothing", cl_predict_smooth, smoothingopts, smoothingvalues, "Smoother gameplay comes at the cost of higher latency. Which do you favour?"),
+		MB_COMBOCVAR("Network Smoothing", cl_lerp_smooth, smoothingopts, smoothingvalues, "Smoother gameplay comes at the cost of higher latency. Which do you favour?"),
 		MB_CHECKBOXCVARTIP("Extrapolate Prediction", cl_predict_extrapolate, 0, "Extrapolate local player movement beyond the frames already sent to the server"),
 		MB_CHECKBOXCVARTIP("Predict Other Players", cl_predict_players, 0, "Toggle player prediction"),
 		MB_CHECKBOXCVARTIP("Solid Players", cl_solid_players, 0, "When running/clipping into other players, ON make it appear they are solid, OFF will make it appear like running into a marshmellon."),

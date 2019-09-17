@@ -21,10 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 
 cvar_t	cl_predict_extrapolate = CVARD("cl_predict_extrapolate", "", "If 1, enables prediction based upon partial input frames which can change over time resulting in a swimmy feel but does not need to interpolate. If 0, prediction will stay in the past and thus use only completed frames. Interpolation will then be used to smooth movement.\nThis cvar only applies when video and input frames are independant (ie: cl_netfps is set).");
-cvar_t	cl_predict_timenudge = CVARD("cl_predict_timenudge", "0", "A debug feature. You should normally leave this as 0. Nudges local player prediction into the future if positive (resulting in extrapolation), or into the past if negative (resulting in laggy interpolation). Value is in seconds, so small decimals are required. This cvar applies even if input frames are tied to video frames.");
-cvar_t	cl_predict_smooth = CVARD("cl_lerp_smooth", "2", "If 2, will act as 1 when playing demos/singleplayer and otherwise act as if set to 0 (ie: deathmatch).\nIf 1, interpolation will run in the past, resulting in really smooth movement at the cost of latency (even on bunchy german ISDNs).\nIf 0, interpolation will be based upon packet arrival times and may judder due to packet loss.");
+static cvar_t	cl_predict_timenudge = CVARD("cl_predict_timenudge", "0", "A debug feature. You should normally leave this as 0. Nudges local player prediction into the future if positive (resulting in extrapolation), or into the past if negative (resulting in laggy interpolation). Value is in seconds, so small decimals are required. This cvar applies even if input frames are tied to video frames.");
+cvar_t	cl_lerp_smooth = CVARD("cl_lerp_smooth", "2", "If 2, will act as 1 when playing demos/singleplayer and otherwise act as if set to 0 (ie: deathmatch).\nIf 1, interpolation will run in the past, resulting in really smooth movement at the cost of latency (even on bunchy german ISDNs).\nIf 0, interpolation will be based upon packet arrival times and may judder due to packet loss.");
+static cvar_t	cl_lerp_driftbias = CVARD("cl_lerp_driftbias", "0", "Additional bias, can be set to a negative value to hold interpolation in the past.");
+static cvar_t	cl_lerp_driftfrac = CVARD("cl_lerp_driftfrac", "0", "Proportion of the latest time vs the older time to favour drifting towards.");
 cvar_t	cl_nopred = CVARD("cl_nopred","0", "Disables clientside movement prediction.");
-cvar_t	cl_pushlatency = CVAR("pushlatency","-999");
+static cvar_t	cl_pushlatency = CVAR("pushlatency","-999");
 
 extern float	pm_airaccelerate;
 
@@ -632,7 +634,7 @@ void CL_CalcClientTime(void)
 		//q3 always drifts.
 		//nq+qw code can drift
 		//default is to drift in demos+SP but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
+		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
 		{	//no drift logic
 			float f;
 			f = cl.gametime - cl.oldgametime;
@@ -650,6 +652,8 @@ void CL_CalcClientTime(void)
 
 			max = cl.gametime;
 			min = cl.oldgametime;
+			FloatInterpolate(min, cl_lerp_driftfrac.value, max, min);
+			min += cl_lerp_driftbias.value;
 			if (max < min)
 				max = min;
 
@@ -664,7 +668,7 @@ void CL_CalcClientTime(void)
 			else
 				cl.servertime = 0;
 
-			if (cl.servertime > max)
+			if (cl.servertime > min)
 			{
 				if (cl.servertime > max)
 				{
@@ -1445,5 +1449,8 @@ void CL_InitPrediction (void)
 	Cvar_Register (&cl_nopred,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_extrapolate,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_timenudge,	cl_predictiongroup);
-	Cvar_Register (&cl_predict_smooth,	cl_predictiongroup);
+	Cvar_Register (&cl_lerp_smooth,	cl_predictiongroup);
+
+	Cvar_Register (&cl_lerp_driftbias,	cl_predictiongroup);
+	Cvar_Register (&cl_lerp_driftfrac,	cl_predictiongroup);
 }

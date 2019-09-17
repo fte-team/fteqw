@@ -21,8 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	QW_SERVER
 
-#define	MAX_SIGNON_BUFFERS	16
-
 typedef enum {
 	ss_dead,			// no map loaded
 	ss_clustermode,
@@ -229,9 +227,8 @@ typedef struct
 	// multiple signon messages are kept
 	// fte only stores writebyted stuff in here. everything else is regenerated based upon the client's extensions.
 	sizebuf_t	signon;
-	int			num_signon_buffers;
-	int			signon_buffer_size[MAX_SIGNON_BUFFERS];
-	qbyte		signon_buffers[MAX_SIGNON_BUFFERS][MAX_DATAGRAM];
+	int			used_signon_space;
+	qbyte		signon_buffer[MAX_OVERALLMSGLEN]; //flushed after every 512 bytes (two leading bytes says the size of the buffer).
 
 	qboolean gamedirchanged;
 
@@ -1261,7 +1258,7 @@ void MSV_OpenUserDatabase(void);
 //
 void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic);
 void SV_UnspawnServer (void);
-void SV_FlushSignon (void);
+void SV_FlushSignon (qboolean force);
 void SV_UpdateMaxPlayers(int newmax);
 
 void SV_FilterImpulseInit(void);

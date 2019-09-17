@@ -4863,7 +4863,12 @@ void Shader_Programify (parsestate_t *ps)
 	{
 		pass = &s->passes[i];
 		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE || pass->rgbgen == RGB_GEN_ENTITY_LIGHTING_DIFFUSE)
-			modellighting = pass;
+		{
+			if (s->usageflags & SUF_LIGHTMAP)
+				lightmap = pass;
+			else
+				modellighting = pass;
+		}
 		else if (pass->rgbgen == RGB_GEN_ENTITY)
 			modellighting = pass;
 		else if (pass->rgbgen == RGB_GEN_VERTEX_LIGHTING || pass->rgbgen == RGB_GEN_VERTEX_EXACT)

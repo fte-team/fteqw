@@ -541,7 +541,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	if (to == MULTICAST_INIT)
 	{
 		//we only have one signon buffer. make sure you don't put non-identical protocols in the buffer
-		SV_FlushSignon();
+		SV_FlushSignon(false);
 		SZ_Write (&sv.signon, sv.multicast.data, sv.multicast.cursize);
 
 		//and send to players that are already on

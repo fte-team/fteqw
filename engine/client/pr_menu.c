@@ -689,6 +689,57 @@ void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s 
 	G_FLOAT(OFS_RETURN) = 1;
 }
 
+#ifdef HAVE_LEGACY
+/*fuck sake, why does no one give a shit about existing extension?!? seriously this stuff is pissing me off*/
+void QCBUILTIN PF_CL_drawrotpic_dp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pivot = G_VECTOR(OFS_PARM0);
+	const char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float *mins = G_VECTOR(OFS_PARM3);
+	float angle = (G_FLOAT(OFS_PARM4) * M_PI)/180;
+	float *rgb = G_VECTOR(OFS_PARM5);
+	float alpha = G_FLOAT(OFS_PARM6);
+	int flag = prinst->callargc >= 8?(int) G_FLOAT(OFS_PARM7):0;
+
+	vec3_t maxs;
+
+	vec2_t points[4];
+	vec2_t tcoords[4];
+	vec2_t saxis;
+	vec2_t taxis;
+
+	mpic_t *p;
+
+	VectorSubtract(size, mins, maxs);
+
+	p = R2D_SafeCachePic(picname);
+	if (!p)
+		p = R2D_SafePicFromWad(picname);
+
+	saxis[0] = cos(angle);
+	saxis[1] = sin(angle);
+	taxis[0] = -sin(angle);
+	taxis[1] = cos(angle);
+
+	Vector2MA(pivot, mins[0], saxis, points[0]); Vector2MA(points[0], mins[1], taxis, points[0]);
+	Vector2MA(pivot, maxs[0], saxis, points[1]); Vector2MA(points[1], mins[1], taxis, points[1]);
+	Vector2MA(pivot, maxs[0], saxis, points[2]); Vector2MA(points[2], maxs[1], taxis, points[2]);
+	Vector2MA(pivot, mins[0], saxis, points[3]); Vector2MA(points[3], maxs[1], taxis, points[3]);
+
+	Vector2Set(tcoords[0], 0, 0);
+	Vector2Set(tcoords[1], 1, 0);
+	Vector2Set(tcoords[2], 1, 1);
+	Vector2Set(tcoords[3], 0, 1);
+
+	r2d_be_flags = PF_SelectDPDrawFlag(prinst, flag);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image2dQuad((const vec2_t*)points, (const vec2_t*)tcoords, NULL, p);
+	r2d_be_flags = 0;
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+#endif
 
 
 void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1417,7 +1468,11 @@ void QCBUILTIN PF_clientstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (isDedicated)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
-		G_FLOAT(OFS_RETURN) = cls.state >= ca_connected ? 2 : 1;	//fit in with netquake	 (we never run a menu.dat dedicated)
+	{
+		//fit in with netquake	 (we never run a menu.dat dedicated)
+		//we return 2 for trying to connect, to avoid bugs with certain menuqc mods
+		G_FLOAT(OFS_RETURN) = (cls.state >= ca_connected||CL_TryingToConnect()) ? 2 : 1;
+	}
 }
 
 //too specific to the prinst's builtins.
@@ -2312,7 +2367,10 @@ static struct {
 	{"drawsubpic",				PF_CL_drawsubpic,			469},
 	{"drawrotsubpic",			PF_CL_drawrotsubpic,		0},
 	{"drawtextfield",			PF_CL_DrawTextField,		0},
-															//470
+
+#ifdef HAVE_LEGACY
+	{"drawrotpic_dp",			PF_CL_drawrotpic_dp,		470},
+#endif
 //MERGES WITH CLIENT+SERVER BUILTIN MAPPINGS BELOW
 	{"asin",					PF_asin,					471},
 	{"acos",					PF_acos,					472},
@@ -2612,6 +2670,7 @@ void MP_Shutdown (void)
 	if (!menu_world.progs)
 		return;
 
+	menuqc.release = NULL; //don't notify
 	Menu_Unlink(&menuqc);
 /*
 	{
@@ -2798,6 +2857,7 @@ qboolean MP_Init (void)
 	menuqc.keyevent = MP_KeyEvent;
 	menuqc.joyaxis = MP_JoystickAxis;
 	menuqc.release = MP_TryRelease;
+	menuqc.persist = true; //don't bother trying to kill it...
 
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)

@@ -2768,7 +2768,7 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = cl.worldmodel?World_PointContents(w, v):FTECONTENTS_EMPTY;
+	cont = cl.worldmodel?World_PointContentsWorldOnly(w, v):FTECONTENTS_EMPTY;
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -2786,13 +2786,14 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 static int CS_FindModel(const char *name, int *free)
 {
 	int i;
+	const char *fixedname;
 
 	*free = 0;
 
 	if (!name || !*name)
 		return 0;
 
-	name = Mod_FixName(name, csqc_world.worldmodel->name);
+	fixedname = Mod_FixName(name, csqc_world.worldmodel->publicname);
 
 	for (i = 1; i < MAX_CSMODELS; i++)
 	{
@@ -2801,7 +2802,7 @@ static int CS_FindModel(const char *name, int *free)
 			*free = -i;
 			break;
 		}
-		if (!strcmp(cl.model_csqcname[i], name))
+		if (!strcmp(cl.model_csqcname[i], fixedname))
 			return -i;
 	}
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
@@ -2908,16 +2909,14 @@ static int PF_cs_PrecacheModel_Internal(pubprogfuncs_t *prinst, const char *mode
 	if (!*modelname)
 		return 0;
 
-	fixedname = Mod_FixName(modelname, csqc_world.worldmodel->publicname);
-
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
 		if (!*cl.model_name[i])
 			break;
-		if (!strcmp(cl.model_name[i], fixedname))
+		if (!strcmp(cl.model_name[i], modelname))
 		{
 			if (!cl.model_precache[i])
-				cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);
+				cl.model_precache[i] = Mod_ForName(Mod_FixName(modelname, csqc_world.worldmodel->publicname), MLV_WARN);
 			break;
 		}
 	}
@@ -6481,7 +6480,9 @@ static struct {
 	{"stringwidth",				PF_CL_stringwidth,				327},	// #327 EXT_CSQC_'DARKPLACES'
 	{"drawsubpic",				PF_CL_drawsubpic,				328},	// #328 EXT_CSQC_'DARKPLACES'
 	{"drawrotsubpic",			PF_CL_drawrotsubpic,			0},
-//	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
+#ifdef HAVE_LEGACY
+	{"drawrotpic_dp",			PF_CL_drawrotpic_dp,			329},
+#endif
 
 //330
 	{"getstati",				PF_cs_getstati,					330},	// #330 float(float stnum) getstati (EXT_CSQC)

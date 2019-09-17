@@ -1176,7 +1176,7 @@ static qintptr_t QVM_WriteEntity (void *offset, quintptr_t mask, const qintptr_t
 }
 static qintptr_t QVM_FlushSignon (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	SV_FlushSignon ();
+	SV_FlushSignon (false);
 	return 0;
 }
 static qintptr_t QVM_memset (void *offset, quintptr_t mask, const qintptr_t *arg)

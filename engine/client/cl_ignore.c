@@ -89,12 +89,12 @@ char *Player_MyName (void)
 
 
 
-cvar_t		ignore_spec				= CVAR("ignore_spec", "0");
+cvar_t		ignore_spec				= CVARD("ignore_spec", "0", "0: Never ignore spectators.\n1: Ignore spectators only when playing.\n2: Always ignore spectators even when spectating.");
 cvar_t		ignore_qizmo_spec		= CVAR("ignore_qizmo_spec", "0");
 cvar_t		ignore_mode				= CVAR("ignore_mode", "0");
 cvar_t		ignore_flood_duration	= CVARD("ignore_flood_duration", "4", "Time limit for inbound messages to be considered duplicates.");
 cvar_t		ignore_flood			= CVARD("ignore_flood", "0", "Provides a way to reduce inbound spam from flooding out your chat (dupe messages are ignored).\n0: No inbound flood protection.\n1: Duplicate non-team messages will be filtered.\n2: ALL duplicate messages will be filtered");
-cvar_t		ignore_opponents		= CVAR("ignore_opponents", "0");
+cvar_t		ignore_opponents		= CVARD("ignore_opponents", "0", "0: Don't ignore chat from enemies.\n1: Always ignore chat from opponents (note: can also ignore f_ruleset checks).\n2: Ignore chat from opponents only during a match (requires servers that actually reports match state).\n");
 
 char ignoreteamlist[MAX_TEAMIGNORELIST][16 + 1];
 
@@ -597,7 +597,7 @@ qboolean Ignore_Message(const char *sendername, const char *s, int flags)
 
 	if (ignore_opponents.ival && (
 				(int) ignore_opponents.ival == 1 ||
-				(cls.state >= ca_connected && /*!cl.standby &&*/ !cls.demoplayback && !pv->spectator) // match?
+				(cls.state >= ca_connected && cl.matchstate == MATCH_INPROGRESS && !cls.demoplayback && !pv->spectator) // match?
 				) && 
 			flags == 1 && !pv->spectator && slot != pv->playernum &&
 			(!cl.teamplay || strcmp(cl.players[slot].team, cl.players[pv->playernum].team))

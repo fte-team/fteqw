@@ -55,7 +55,7 @@ struct
 
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
-extern cvar_t gl_font;
+extern cvar_t gl_font, con_textfont;
 extern cvar_t gl_screenangle;
 extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
@@ -135,6 +135,7 @@ qbyte GetPaletteIndexNoFB(int red, int green, int blue)
 
 void R2D_Shutdown(void)
 {
+	Cvar_Unhook(&con_textfont);
 	Cvar_Unhook(&gl_font);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&gl_screenangle);
@@ -393,6 +394,7 @@ void R2D_Init(void)
 		);
 
 
+	Cvar_Hook(&con_textfont, R2D_Font_Callback);
 	Cvar_Hook(&gl_font, R2D_Font_Callback);
 	Cvar_Hook(&vid_conautoscale, R2D_Conautoscale_Callback);
 	Cvar_Hook(&gl_screenangle, R2D_ScreenAngle_Callback);
@@ -1057,14 +1059,17 @@ int R2D_Font_ListSystemFonts(const char *fname, qofs_t fsize, time_t modtime, vo
 void R2D_Font_Changed(void)
 {
 	float tsize;
+	const char *con_font_name = con_textfont.string;
 	if (!con_textsize.modified)
 		return;
+	if (!*con_font_name)
+		con_font_name = gl_font.string;
 	con_textsize.modified = false;
 
 	if (con_textsize.value < 0)
-		tsize = (-con_textsize.value * vid.height) / vid.pixelheight;
+		tsize = (-con_textsize.value * vid.height) / vid.pixelheight;	//size defined in physical pixels
 	else
-		tsize = con_textsize.value;
+		tsize = con_textsize.value;	//size defined in virtual pixels.
 	if (!tsize)
 		tsize = 8;
 
@@ -1151,9 +1156,9 @@ void R2D_Font_Changed(void)
 	if (!font_default && *gl_font.string)
 		font_default = Font_LoadFont("", 8);
 
-	if (tsize != 8)
+	if (tsize != 8 || strcmp(gl_font.string, con_font_name))
 	{
-		font_console = Font_LoadFont(gl_font.string, tsize);
+		font_console = Font_LoadFont(con_font_name, tsize);
 		if (!font_console)
 			font_console = Font_LoadFont("", tsize);
 	}

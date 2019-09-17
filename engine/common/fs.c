@@ -556,6 +556,10 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		Z_Free(man->defaultexec);
 		man->defaultexec = Z_StrDup(Cmd_Argv(1));
 	}
+	else if (!Q_strcasecmp(cmd, "-bind") || !Q_strcasecmp(cmd, "-set") || !Q_strcasecmp(cmd, "-seta") || !Q_strcasecmp(cmd, "-alias"))
+	{
+		Z_StrCat(&man->defaultexec, va("%s %s\n", Cmd_Argv(0)+1, Cmd_Args()));
+	}
 	else if (!Q_strcasecmp(cmd, "bind") || !Q_strcasecmp(cmd, "set") || !Q_strcasecmp(cmd, "seta") || !Q_strcasecmp(cmd, "alias"))
 	{
 		Z_StrCat(&man->defaultoverrides, va("%s %s\n", Cmd_Argv(0), Cmd_Args()));
@@ -810,7 +814,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		}
 		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") ||
 				 !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") ||
-				 !Q_strcasecmp(link, "mdx") || !Q_strcasecmp(link, "md2") ||
+				 !Q_strcasecmp(link, "mdx") || !Q_strcasecmp(link, "md2") || !Q_strcasecmp(link, "obj") ||
 				 !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
 		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
@@ -6405,11 +6409,17 @@ static void COM_InitHomedir(ftemanifest_t *man)
 		{
 			wchar_t wfolder[MAX_PATH];
 			char folder[MAX_OSPATH];
-			// 0x5 == CSIDL_PERSONAL
-			if (dSHGetFolderPathW(NULL, 0x5, NULL, 0, wfolder) == S_OK)
+			if (dSHGetFolderPathW(NULL, 0x5/*CSIDL_PERSONAL*/, NULL, 0, wfolder) == S_OK)
 			{
 				narrowen(folder, sizeof(folder), wfolder);
 				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Games/%s/", folder, HOMESUBDIR);
+			}
+			//at some point, microsoft (in their infinitesimal wisdom) decided that 'CSIDL_PERSONAL' should mean 'CSIDL_GIVEITALLTOMICROSOFT'
+			//so use the old/CSIDL_NOTACTUALLYPERSONAL path by default for compat, but if there's nothing there then switch to CSIDL_LOCAL_APPDATA instead
+			if ((!*com_homepath||!GetFileAttributesU(com_homepath)) && dSHGetFolderPathW(NULL, 0x1c/*CSIDL_LOCAL_APPDATA*/, NULL, 0, wfolder) == S_OK)
+			{
+				narrowen(folder, sizeof(folder), wfolder);
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/%s/", folder, HOMESUBDIR);
 			}
 		}
 //		if (shfolder)

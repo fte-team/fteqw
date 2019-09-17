@@ -5770,6 +5770,9 @@ static char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 		if (!cls.demoplayback)
 			Sys_ServerActivity();	//chat always flashes the screen..
 
+		if (Ignore_Message((*player)->name, s, flags))
+			return NULL;
+
 		//check f_ stuff
 		if (*player && (!strncmp(s, "f_", 2)|| !strncmp(s, "q_", 2)))
 		{

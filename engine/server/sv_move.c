@@ -88,7 +88,7 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 		{
 			start[a0] = x ? maxs[a0] : mins[a0];
 			start[a1] = y ? maxs[a1] : mins[a1];
-			if (!(World_PointContents (world, start) & FTECONTENTS_SOLID))
+			if (!(World_PointContentsWorldOnly (world, start) & FTECONTENTS_SOLID))
 				goto realcheck;
 		}
 
@@ -195,7 +195,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 
 			if (trace.fraction == 1)
 			{
-				if ( (eflags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
+				if ( (eflags & FL_SWIM) && !(World_PointContentsWorldOnly(world, trace.endpos) & FTECONTENTS_FLUID))
 					continue;	// swim monster left water
 	
 				VectorCopy (trace.endpos, ent->v->origin);

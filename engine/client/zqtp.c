@@ -66,11 +66,25 @@ qboolean suppress;
 #define Q_rint(f) ((int)((f)+0.5))
 
 // callbacks used for TP cvars
+
+#ifdef QWSKINS
 static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL TP_TeamColor_CB (struct cvar_s *var, char *oldvalue);
+static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
+#define TP_SKIN_CVARS	\
+	TP_CVARAC(cl_teamskin,		"", teamskin, TP_SkinCvar_Callback);	\
+	TP_CVARAC(cl_enemyskin,		"", enemyskin, TP_SkinCvar_Callback);	\
+	TP_CVARC(enemycolor,		"off", TP_EnemyColor_CB);	\
+	TP_CVARC(teamcolor,			"off", TP_TeamColor_CB);
+#else
+#define TP_SKIN_CVARS
+#endif
+
 
 //a list of all the cvars
 //this is down to the fact that I keep defining them but forgetting to register. :/
 #define TP_CVARS \
+	TP_SKIN_CVARS \
 	TP_CVAR(cl_fakename,		"");	\
 	TP_CVAR(cl_parseSay,		"1");	\
 	TP_CVAR(cl_parseFunChars,		"1");	\
@@ -78,8 +92,6 @@ static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 	TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
 	TP_CVAR(tp_forceTriggers,		"0");	\
 	TP_CVAR(tp_loadlocs,		"1");	\
-	TP_CVARAC(cl_teamskin,		"", teamskin, TP_SkinCvar_Callback);	\
-	TP_CVARAC(cl_enemyskin,		"", enemyskin, TP_SkinCvar_Callback);	\
 	TP_CVAR(tp_soundtrigger,		"~");	\
 										\
 	TP_CVAR(tp_name_none,		"");	\
@@ -2050,88 +2062,54 @@ static void TP_Colourise_f (void)
 	}
 }
 
-static void TP_TeamColor_f (void)
+static void TP_TeamColor_CB (struct cvar_s *var, char *oldvalue)
 {
 	unsigned int	top, bottom;
 	int	i;
-
-	if (Cmd_Argc() == 1)
-	{
-
-		Com_Printf ("\"teamcolor\" is \"");
-		if (cl_teamtopcolor == ~0)
-			Com_Printf ("off");
-		else
-			Com_Printf (cl_teamtopcolor>=16?"0x%06x":"%i", cl_teamtopcolor&0x00ffffff);
-		if (cl_teamtopcolor != cl_teambottomcolor)
-		{
-			if (cl_teambottomcolor == ~0)
-				Com_Printf (" off");
-			else
-				Com_Printf (cl_teambottomcolor>=16?" 0x%06x":" %i", cl_teambottomcolor&0x00ffffff);
-		}
-		Com_Printf ("\"\n");
-		return;
-	}
-
-	top = TP_ForceColour(Cmd_Argv(1));
-	if (Cmd_Argc() == 2)
+	char *n = COM_Parse(var->string);
+	top = TP_ForceColour(com_token);
+	COM_Parse(n);
+	if (!*com_token)
 		bottom = top;
 	else {
-		bottom = TP_ForceColour(Cmd_Argv(2));
+		bottom = TP_ForceColour(com_token);
 	}
 
-//	if (top != cl_teamtopcolor || bottom != cl_teambottomcolor)
-	{
-		cl_teamtopcolor = top;
-		cl_teambottomcolor = bottom;
+	cl_teamtopcolor = top;
+	cl_teambottomcolor = bottom;
 
-		if (qrenderer != QR_NONE)	//make sure we have the renderer initialised...
-			for (i = 0; i < cl.allocated_client_slots; i++)
-				CL_NewTranslation(i);
-	}
+	if (qrenderer != QR_NONE)	//make sure we have the renderer initialised...
+		for (i = 0; i < cl.allocated_client_slots; i++)
+			CL_NewTranslation(i);
 }
 
-static void TP_EnemyColor_f (void)
+static void TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue)
 {
 	unsigned int	top, bottom;
 	int	i;
-
-	if (Cmd_Argc() == 1)
-	{
-		Com_Printf ("\"enemycolor\" is \"");
-		if (cl_enemytopcolor == ~0)
-			Com_Printf ("off");
-		else
-			Com_Printf (cl_enemytopcolor>=16?"0x%06x":"%i", cl_enemytopcolor&0x00ffffff);
-		if (cl_enemytopcolor != cl_enemybottomcolor)
-		{
-			if (cl_enemybottomcolor == ~0)
-				Com_Printf (" off");
-			else
-				Com_Printf (cl_enemybottomcolor>=16?" 0x%06x":" %i", cl_enemybottomcolor&0x00ffffff);
-		}
-		Com_Printf ("\"\n");
-		return;
-	}
-
-	top = TP_ForceColour(Cmd_Argv(1));
-	if (Cmd_Argc() == 2)
+	char *n = COM_Parse(var->string);
+	top = TP_ForceColour(com_token);
+	COM_Parse(n);
+	if (!*com_token)
 		bottom = top;
 	else {
-		bottom = TP_ForceColour(Cmd_Argv(2));
+		bottom = TP_ForceColour(com_token);
 	}
 
-//	if (top != cl_enemytopcolor || bottom != cl_enemybottomcolor)
-	{
-		cl_enemytopcolor = top;
-		cl_enemybottomcolor = bottom;
+	cl_enemytopcolor = top;
+	cl_enemybottomcolor = bottom;
 
-		if (qrenderer != QR_NONE)	//make sure we have the renderer initialised...
-			for (i = 0; i < cl.allocated_client_slots; i++)
-				CL_NewTranslation(i);
-	}
+	if (qrenderer != QR_NONE)	//make sure we have the renderer initialised...
+		for (i = 0; i < cl.allocated_client_slots; i++)
+			CL_NewTranslation(i);
 }
+
+
+static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue)
+{
+	Skin_FlushPlayers();
+}
+
 #endif
 
 //===================================================================
@@ -3681,11 +3659,6 @@ static void TP_MsgFilter_f (void)
 	}
 }
 
-static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue)
-{
-	Skin_FlushPlayers();
-}
-
 void TP_Init (void)
 {
 #define TEAMPLAYVARS	"Teamplay Variables"
@@ -3703,8 +3676,6 @@ void TP_Init (void)
 	Cmd_AddCommand ("filter", TP_MsgFilter_f);
 	Cmd_AddCommand ("msg_trigger", TP_MsgTrigger_f);
 #ifdef QWSKINS
-	Cmd_AddCommand ("teamcolor", TP_TeamColor_f);
-	Cmd_AddCommand ("enemycolor", TP_EnemyColor_f);
 	Cmd_AddCommand ("colourise", TP_Colourise_f);	//uk
 	Cmd_AddCommand ("colorize", TP_Colourise_f);	//us
 	//Cmd_AddCommand ("colorise", TP_Colourise_f);	//piss off both.

@@ -4828,7 +4828,7 @@ static void QCBUILTIN PF_pointcontents (pubprogfuncs_t *prinst, struct globalvar
 
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = World_PointContents(w, v);
+	cont = World_PointContentsWorldOnly(w, v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)

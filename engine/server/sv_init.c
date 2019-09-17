@@ -118,19 +118,26 @@ int SV_SafeModelIndex (char *name)
 SV_FlushSignon
 
 Moves to the next signon buffer if needed
+This stops any chunk from getting too large, hopefully, but if the worst happens then hopefully network fragmentation will work.
 ================
 */
-void SV_FlushSignon (void)
-{
-	if (sv.signon.cursize < sv.signon.maxsize - 512)
-		return;
+void SV_FlushSignon (qboolean force)
+{	//flush only when it gets too big.
+	if (sv.signon.cursize < MAX_DATAGRAM - 512)
+	{
+		if (!force || !sv.signon.cursize)
+			return;
+	}
 
-	if (sv.num_signon_buffers == MAX_SIGNON_BUFFERS-1)
-		SV_Error ("sv.num_signon_buffers == MAX_SIGNON_BUFFERS-1");
+	if (sv.signon.cursize)
+	{
+		sv.signon.data[-2] = (sv.signon.cursize>>0)&0xff;
+		sv.signon.data[-1] = (sv.signon.cursize>>8)&0xff;
+		sv.used_signon_space += 2+sv.signon.cursize;
+	}
 
-	sv.signon_buffer_size[sv.num_signon_buffers-1] = sv.signon.cursize;
-	sv.signon.data = sv.signon_buffers[sv.num_signon_buffers];
-	sv.num_signon_buffers++;
+	sv.signon.data = sv.signon_buffer + sv.used_signon_space+2;
+	sv.signon.maxsize = sizeof(sv.signon_buffer) - (sv.used_signon_space+2);
 	sv.signon.cursize = 0;
 	sv.signon.prim = svs.netprim;
 }
@@ -784,10 +791,10 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	sv.master.data = sv.master_buf;
 	sv.master.prim = msg_nullnetprim;
 
-	sv.signon.maxsize = sizeof(sv.signon_buffers[0]);
-	sv.signon.data = sv.signon_buffers[0];
+	sv.signon.data = sv.signon_buffer+2;
+	sv.used_signon_space = 0;
 	sv.signon.prim = svs.netprim;
-	sv.num_signon_buffers = 1;
+	sv.signon.maxsize = sizeof(sv.signon_buffer)-sv.used_signon_space;
 }
 
 void SV_WipeServerState(void)
@@ -1612,7 +1619,8 @@ MSV_OpenUserDatabase();
 #ifdef Q2SERVER
 	SVQ2_BuildBaselines();
 #endif
-	sv.signon_buffer_size[sv.num_signon_buffers-1] = sv.signon.cursize;
+
+	SV_FlushSignon(true);
 
 	// all spawning is completed, any further precache statements
 	// or prog writes to the signon message are errors
@@ -1679,7 +1687,7 @@ MSV_OpenUserDatabase();
 #endif
 			)
 		{
-			if (sv.num_signon_buffers > 1 || sv.signon.cursize)
+			if (sv.used_signon_space || sv.signon.cursize)
 				Con_Printf("Cannot auto-enable extended coords as the init buffer was used\n");
 			else
 			{

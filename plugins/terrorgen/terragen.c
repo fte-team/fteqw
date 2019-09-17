@@ -11,6 +11,7 @@ FIXME: no way to speciffy which gen plugin to use for a particular map
 #include "com_mesh.h"
 #include "gl_terrain.h"
 
+#ifdef TERRAIN
 #define GENHIGHTSCALE 1024.0
 
 static plugterrainfuncs_t *terr;
@@ -277,3 +278,9 @@ qboolean Plug_Init(void)
 	terr->AutogenerateSection = TerrorGen_GenerateBlock;
 	return true;
 }
+#else
+qboolean Plug_Init(void)
+{
+	return false;
+}
+#endif

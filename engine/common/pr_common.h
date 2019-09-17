@@ -404,6 +404,9 @@ void QCBUILTIN PF_CL_stringwidth (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawrotpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#ifdef HAVE_LEGACY
+void QCBUILTIN PF_CL_drawrotpic_dp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#endif
 void QCBUILTIN PF_CL_findfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 #if defined(CSQC_DAT) && !defined(SERVERONLY)

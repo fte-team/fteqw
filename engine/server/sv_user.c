@@ -1461,24 +1461,32 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 	if (client->prespawn_stage == PRESPAWN_SIGNON_BUF)
 	{
+		int nextsize;
 		while (client->netchan.message.cursize < maxsize)
 		{
-			if (client->prespawn_idx >= sv.num_signon_buffers)
+			if (client->prespawn_idx >= sv.used_signon_space)
 			{
 				client->prespawn_stage++;
 				client->prespawn_idx = 0;
 				break;
 			}
 
-			if (client->netchan.message.cursize+sv.signon_buffer_size[client->prespawn_idx]+30 < client->netchan.message.maxsize)
+			nextsize = sv.signon_buffer[client->prespawn_idx] | (sv.signon_buffer[client->prespawn_idx+1]<<8);
+			if (client->netchan.message.cursize+nextsize+30 <= client->netchan.message.maxsize)
 			{
-				SZ_Write (&client->netchan.message,
-					sv.signon_buffers[client->prespawn_idx],
-					sv.signon_buffer_size[client->prespawn_idx]);
+				SZ_Write (&client->netchan.message, sv.signon_buffer+client->prespawn_idx+2, nextsize);
+				client->prespawn_idx+=2+nextsize;
+			}
+			else if (!client->netchan.message.cursize && nextsize+30 > client->netchan.message.maxsize)
+			{	//signon data is meant to be split up into smallish chunks to avoid network fragmentation.
+				//but sometimes a single blob is too large (eg: gamecode not using MSG_MULTICAST and just writing 16k in one splurge)
+				//fteqw and nq protocols can cope, vanilla qw cannot, so we do need to warn. the alternative is to kick.
+				SV_PrintToClient(client, PRINT_HIGH, va("\x01" "Dropping %i bytes of signon data\n", nextsize));
+				client->prespawn_idx+=2+nextsize;
+				break;
 			}
 			else
 				break;
-			client->prespawn_idx++;
 		}
 	}
 
@@ -8996,6 +9004,80 @@ static void SV_WaterMove (void)
 		velocity[i] += accelspeed * wishvel[i];
 }
 
+
+static void SV_LadderMove (void)
+{
+	int		i;
+	vec3_t	wishvel;
+	float	speed, newspeed, wishspeed, addspeed, accelspeed;
+	float scale;
+	float maxspeed;
+
+//
+// user intentions
+//
+	AngleVectors (sv_player->v->v_angle, forward, right, up);
+
+	for (i=0 ; i<3 ; i++)
+		wishvel[i] = forward[i]*cmd.forwardmove + right[i]*cmd.sidemove;
+	wishvel[2] += cmd.upmove;
+
+	wishspeed = Length(wishvel);
+//	val = GetEdictFieldValue(sv_player, "scale", &scalecache);
+//	if (!val || !val->_float)
+		scale = 1;
+//	else
+//		scale = val->_float;
+
+//	val = GetEdictFieldValue(sv_player, "maxspeed", &maxspeedcache);
+//	if (val && val->_float)
+//		maxspeed = sv_maxspeed.value*val->_float;
+//	else
+		maxspeed = host_client->maxspeed;
+	if (wishspeed > maxspeed*scale)
+	{
+		VectorScale (wishvel, maxspeed/wishspeed, wishvel);
+		wishspeed = maxspeed*scale;
+	}
+	wishspeed *= 0.7;
+
+//
+// water friction
+//
+	speed = Length (velocity);
+	if (speed)
+	{
+//		val = GetEdictFieldValue(sv_player, "friction", &frictioncache);
+//		if (val&&val->_float)
+//			newspeed = speed - host_frametime * speed * sv_friction.value*val->_float;
+//		else
+			newspeed = speed - host_frametime * speed * sv_friction.value;
+		if (newspeed < 0)
+			newspeed = 0;
+		VectorScale (velocity, newspeed/speed, velocity);
+	}
+	else
+		newspeed = 0;
+
+//
+// water acceleration
+//
+	if (!wishspeed)
+		return;
+
+	addspeed = wishspeed - newspeed;
+	if (addspeed <= 0)
+		return;
+
+	VectorNormalize (wishvel);
+	accelspeed = sv_accelerate.value * wishspeed * host_frametime;
+	if (accelspeed > addspeed)
+		accelspeed = addspeed;
+
+	for (i=0 ; i<3 ; i++)
+		velocity[i] += accelspeed * wishvel[i];
+}
+
 static void SV_WaterJump (void)
 {
 	if (sv.time > sv_player->v->teleport_time
@@ -9087,14 +9169,12 @@ void SV_ClientThink (void)
 //
 // walk
 //
-	if ( (sv_player->v->waterlevel >= 2)
-	&& (sv_player->v->movetype != MOVETYPE_NOCLIP) )
-	{
+	if ( (sv_player->v->waterlevel >= 2) && (sv_player->v->movetype != MOVETYPE_NOCLIP) )
 		SV_WaterMove ();
-		return;
-	}
-
-	SV_AirMove ();
+	else if (((int)sv_player->xv->pmove_flags&PMF_LADDER) && (sv_player->v->movetype != MOVETYPE_NOCLIP) )
+		SV_LadderMove();
+	else
+		SV_AirMove ();
 }
 
 #endif

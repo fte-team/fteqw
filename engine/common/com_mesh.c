@@ -9287,7 +9287,7 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 
 	size_t numverts = 0;
 	size_t maxverts = 0;
-	struct objvert *vert = NULL, defaultvert={{-1,-1,-1}};
+	struct objvert *vert = NULL, defaultvert={{-1,-1,-2}};
 
 	size_t numelems = 0;
 	size_t maxelems = 0;
@@ -9351,11 +9351,10 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 				if(!isspace(c[1])) continue;
 				while(isalpha(*c)) c++;
 				while(isspace(*c)) c++;
-				int key = strtol(c, &c, 10);
 
 				//make sure that these verts are not merged, ensuring that they get smoothed.
 				//different texture coords will still have discontinuities though.
-				defaultvert.attrib[2] = -2-key;
+				defaultvert.attrib[2] = -1-strtol(c, &c, 10);
 				break;
 			}
 			case 'f':
@@ -9425,7 +9424,7 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 					{
 						if (vert[cur].attrib[0] == vkey.attrib[0] &&
 							vert[cur].attrib[1] == vkey.attrib[1] &&
-							vert[cur].attrib[2] == vkey.attrib[2])
+							vert[cur].attrib[2] == vkey.attrib[2] && vkey.attrib[2]!=-1)
 							break;
 					}
 					if (cur == numverts)

@@ -541,8 +541,10 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 
 		if (m->ofs_skel_xyz)
 			ivert = m->ofs_skel_xyz;
+#ifdef NONSKELETALMODELS
 		else if (m->numanimations && m->ofsanimations->numposes)
 			ivert = m->ofsanimations->poseofs->ofsverts;
+#endif
 		else
 			ivert = NULL;
 		if (ivert)
@@ -588,12 +590,14 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 				isdir = m->ofs_skel_svect;
 				itdir = m->ofs_skel_tvect;
 			}
+#ifdef NONSKELETALMODELS
 			else if (m->numanimations && m->ofsanimations->numposes)
 			{
 				inorm = m->ofsanimations->poseofs->ofsnormals;
 				isdir = m->ofsanimations->poseofs->ofssvector;
 				itdir = m->ofsanimations->poseofs->ofstvector;
 			}
+#endif
 			else
 			{
 				inorm = NULL;

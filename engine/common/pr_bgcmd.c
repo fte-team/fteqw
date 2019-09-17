@@ -2904,6 +2904,8 @@ void QCBUILTIN PF_WasFreed (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	wedict_t	*ent;
 	ent = G_WEDICT(prinst, OFS_PARM0);
+	if (!ent)
+		PR_BIError(prinst, "PF_WasFreed: invalid entity");
 	G_FLOAT(OFS_RETURN) = ED_ISFREE(ent);
 }
 
@@ -2920,7 +2922,12 @@ void QCBUILTIN PF_edict_for_num(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	unsigned int num = G_FLOAT(OFS_PARM0);
 	if (num >= w->num_edicts)
 		RETURN_EDICT(prinst, w->edicts);
-	G_INT(OFS_RETURN) = num;	//just directly store it. if its not spawned yet we'll need to catch that elsewhere anyway.
+	else
+	{
+		G_INT(OFS_RETURN) = num;	//just directly store it. if its not spawned yet we'll need to catch that elsewhere anyway.
+		if (G_WEDICT(prinst, OFS_RETURN))
+			RETURN_EDICT(prinst, w->edicts);	//hoi! it wasn't valid!
+	}
 }
 
 /*

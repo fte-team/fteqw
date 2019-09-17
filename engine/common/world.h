@@ -331,7 +331,8 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node);
 #define World_TouchAllLinks(w,e) World_TouchLinks(w,e,(w)->areanodes)
 #endif
 
-int World_PointContents (world_t *w, vec3_t p);
+int World_PointContentsWorldOnly (world_t *w, vec3_t p);
+int World_PointContentsAllBSPs (world_t *w, vec3_t p);
 // returns the CONTENTS_* value from the world at the given point.
 // does not check any entities at all
 

@@ -4953,73 +4953,106 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 		return NULL;
 
 	version = (vtf->major<<16)|vtf->minor;
-	if (version >= 0x00070003)
-		return NULL;	//we don't support the whole resources thing.
+	if (version > 0x00070005)
+	{
+		Con_Printf("%s: VTF version %i.%i is not supported\n", fname, vtf->major, vtf->minor);
+		return NULL;
+	}
 
 	lrfmt = (vtf->lowresfmt_misaligned[0]<<0)|(vtf->lowresfmt_misaligned[1]<<16)|(vtf->lowresfmt_misaligned[2]<<16)|(vtf->lowresfmt_misaligned[3]<<24);
 	vmffmt = vtf->imgformat;
 
-	if (vtf->lowreswidth && vtf->lowresheight)
-		Image_BlockSizeForEncoding(ImageVTF_VtfToFTE(lrfmt), &bb, &bw, &bh);
-	else
-		bb=bw=bh=1;
-	datasize = ((vtf->lowreswidth+bw-1)/bw) * ((vtf->lowresheight+bh-1)/bh) * bb;
-
-	mips = Z_Malloc(sizeof(*mips));
-	mips->type = (vtf->flags & 0x4000)?PTI_CUBEMAP:PTI_2D;
-
-	mips->extrafree = filedata;
-	filedata += vtf->headersize;	//skip the header
-	filedata += datasize;			//and skip the low-res image too.
-
-	mips->encoding = ImageVTF_VtfToFTE(vmffmt);
-	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
-
-	miplevels = vtf->mipmapcount;
-	frames = 1;//vtf->numframes;
-	faces = ((mips->type==PTI_CUBEMAP)?6:1);	//no cubemaps yet.
-
-	mips->mipcount = miplevels * frames * faces;
-	while (mips->mipcount > countof(mips->mip))
+	mips = NULL;
+	if (version >= 0x00070003)
 	{
-		if (miplevels > 1)
-			miplevels--;
-		else
-			frames--;
-		mips->mipcount = miplevels * frames * faces;
-	}
-	if (!mips->mipcount)
-	{
-		Z_Free(mips);
-		return NULL;
-	}
-	for (miplevel = vtf->mipmapcount; miplevel-- > 0;)
-	{	//smallest to largest, which is awkward.
-		w = vtf->width>>miplevel;
-		h = vtf->height>>miplevel;
-		if (!w)
-			w = 1;
-		if (!h)
-			h = 1;
-		datasize = ((w+bw-1)/bw) * ((h+bh-1)/bh) * bb;
-		for (frame = 0; frame < vtf->numframes; frame++)
+		int i;
+		struct
 		{
-			for (face = 0; face < faces; face++)
+			unsigned int rtype;
+			unsigned int rdata; //usually an offset.
+		} *restable = (void*)(filedata+sizeof(*vtf));
+		for (i = 0; i < vtf->numresources; i++, restable++)
+		{
+			if ((restable->rtype & 0x00ffffff) == 0x30)
 			{
-				if (miplevel < miplevels && face < faces)
+				mips = Z_Malloc(sizeof(*mips));
+				mips->extrafree = filedata;
+				filedata += restable->rdata;
+				break;
+			}
+			//other unknown resource types.
+		}
+	}
+	if (!mips)
+	{
+		mips = Z_Malloc(sizeof(*mips));
+		mips->extrafree = filedata;
+
+		//skip the header
+		filedata += vtf->headersize;
+		//and skip the low-res image too.
+		if (vtf->lowreswidth && vtf->lowresheight)
+			Image_BlockSizeForEncoding(ImageVTF_VtfToFTE(lrfmt), &bb, &bw, &bh);
+		else
+			bb=bw=bh=1;
+		datasize = ((vtf->lowreswidth+bw-1)/bw) * ((vtf->lowresheight+bh-1)/bh) * bb;
+		filedata += datasize;
+	}
+
+	//now handle the high-res image
+	if (mips)
+	{
+		mips->type = (vtf->flags & 0x4000)?PTI_CUBEMAP:PTI_2D;
+
+		mips->encoding = ImageVTF_VtfToFTE(vmffmt);
+		Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
+
+		miplevels = vtf->mipmapcount;
+		frames = 1;//vtf->numframes;
+		faces = ((mips->type==PTI_CUBEMAP)?6:1);	//no cubemaps yet.
+
+		mips->mipcount = miplevels * frames * faces;
+		while (mips->mipcount > countof(mips->mip))
+		{
+			if (miplevels > 1)
+				miplevels--;
+			else
+				frames--;
+			mips->mipcount = miplevels * frames * faces;
+		}
+		if (!mips->mipcount)
+		{
+			Z_Free(mips);
+			return NULL;
+		}
+		for (miplevel = vtf->mipmapcount; miplevel-- > 0;)
+		{	//smallest to largest, which is awkward.
+			w = vtf->width>>miplevel;
+			h = vtf->height>>miplevel;
+			if (!w)
+				w = 1;
+			if (!h)
+				h = 1;
+			datasize = ((w+bw-1)/bw) * ((h+bh-1)/bh) * bb;
+			for (frame = 0; frame < vtf->numframes; frame++)
+			{
+				for (face = 0; face < faces; face++)
 				{
-					img = face+miplevel*faces + frame*miplevels*faces;
-					if (img >= countof(mips->mip))
-						break;	//erk?
-					if (filedata + datasize > end)
-						break;	//no more data here...
-					mips->mip[img].width = w;
-					mips->mip[img].height = h;
-					mips->mip[img].depth = 1;
-					mips->mip[img].data = filedata;
-					mips->mip[img].datasize = datasize;
+					if (miplevel < miplevels && face < faces)
+					{
+						img = face+miplevel*faces + frame*miplevels*faces;
+						if (img >= countof(mips->mip))
+							break;	//erk?
+						if (filedata + datasize > end)
+							break;	//no more data here...
+						mips->mip[img].width = w;
+						mips->mip[img].height = h;
+						mips->mip[img].depth = 1;
+						mips->mip[img].data = filedata;
+						mips->mip[img].datasize = datasize;
+					}
+					filedata += datasize;
 				}
-				filedata += datasize;
 			}
 		}
 	}
@@ -10063,6 +10096,10 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 #ifdef IMAGEFMT_DDS
 					if (!mips)
 						mips = Image_ReadDDSFile(tex->flags, altname, buf, fsize);
+#endif
+#ifdef IMAGEFMT_VTF
+					if (!mips)
+						mips = Image_ReadVTFFile(tex->flags, altname, buf, fsize);
 #endif
 					if (!mips)
 						BZ_Free(buf);

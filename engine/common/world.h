@@ -376,7 +376,7 @@ void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, const float *
 /*sv_move.c*/
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)
 qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up);
-qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *prinst, trace_t *trace));
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(pubprogfuncs_t *inst, trace_t *trace));
 qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist);
 qboolean World_GetEntGravityAxis(wedict_t *ent, vec3_t axis[3]);
 #endif

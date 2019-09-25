@@ -50,10 +50,11 @@ typedef struct
 
 	double		state_time;		// not the same as the packet time,
 								// because player commands come asyncronously
+
 	usercmd_t	command;		// last command for prediction
 
 	vec3_t		origin;
-	vec3_t		predorigin;		// pre-predicted pos
+	vec3_t		predorigin;		// pre-predicted pos for other players (allowing us to just lerp when active)
 	vec3_t		viewangles;		// only for demos, not from server
 	vec3_t		velocity;
 	int			weaponframe;
@@ -75,15 +76,15 @@ typedef struct
 	int			flags;			// dead, gib, etc
 
 	int			pm_type;
-	float		waterjumptime;
-	qboolean	onground;
-	qboolean	jump_held;
-	int			jump_msec;		// hack for fixing bunny-hop flickering on non-ZQuake servers
-	vec3_t		szmins, szmaxs;
-	vec3_t		gravitydir;
 
-	float lerpstarttime;
-	int oldframe;
+	vec3_t		szmins, szmaxs;
+
+	//maybe-propagated... use the networked value if available.
+	float		waterjumptime;	//never networked...
+	qboolean	onground;	//networked with Z_EXT_PF_ONGROUND||replacementdeltas
+	qboolean	jump_held;	//networked with Z_EXT_PM_TYPE
+	int			jump_msec;	// hack for fixing bunny-hop flickering on non-ZQuake servers
+	vec3_t		gravitydir;	//networked with replacementdeltas
 } player_state_t;
 
 
@@ -685,6 +686,20 @@ struct playerview_s
 	qboolean	onground;
 	float		viewheight;
 	int			waterlevel;		//for smartjump
+
+	//for values that are propagated from one frame to the next
+	//the next frame will always predict from the one we're tracking, where possible.
+	//these values should all regenerate naturally from networked state (misses should be small/rare and fade when the physics catches up).
+	struct playerpredprop_s
+	{
+		float		waterjumptime;
+		qboolean	onground;
+		vec3_t		gravitydir;
+		qboolean	jump_held;
+		int			jump_msec;		// hack for fixing bunny-hop flickering on non-ZQuake servers
+
+		int			sequence;
+	} prop;
 
 #ifdef Q2CLIENT
 	vec3_t predicted_origin;

@@ -1479,6 +1479,9 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_RGB8:				format = VK_FORMAT_R8G8B8_UNORM;				break;
 	case PTI_BGR8:				format = VK_FORMAT_B8G8R8_UNORM;				break;
 
+	case PTI_RGB8_SRGB:			format = VK_FORMAT_R8G8B8_SRGB;					break;
+	case PTI_BGR8_SRGB:			format = VK_FORMAT_B8G8R8_SRGB;					break;
+
 	//unsupported 'formats'
 	case PTI_MAX:
 #ifdef FTE_TARGET_WEB
@@ -1518,7 +1521,20 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 
 	viewInfo.flags = 0;
 	viewInfo.image = ret.image;
-	viewInfo.viewType = (ret.type==PTI_CUBEMAP)?VK_IMAGE_VIEW_TYPE_CUBE:VK_IMAGE_VIEW_TYPE_2D;
+	switch(ret.type)
+	{
+	default:
+		return ret;
+	case PTI_CUBEMAP:
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+		break;
+	case PTI_2D:
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		break;
+	case PTI_2D_ARRAY:
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+		break;
+	}
 	viewInfo.format = format;
 	switch(encoding)
 	{
@@ -1783,12 +1799,27 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	uint32_t blockbytes;
 	uint32_t layers;
 	uint32_t mipcount = mips->mipcount;
-	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)// && mips->type != PTI_2D_ARRAY)
+	switch(mips->type)
+	{
+	case PTI_2D:
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 1)
+			return false;
+		layers = 1;
+		break;
+	case PTI_2D_ARRAY:
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth == 0)
+			return false;
+		layers = 1;
+		break;
+	case PTI_CUBEMAP:	//unfortunately, these use separate layers (yay gl compat)
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 1)
+			return false;
+		layers = 6;
+		break;
+	default:
 		return false;
-	if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0)
-		return false;
+	}
 
-	layers = (mips->type == PTI_CUBEMAP)?6:1;
 	layers *= mips->mip[0].depth;
 
 	if (layers == 1 && mipcount > 1)
@@ -1895,8 +1926,8 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	{
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
-
-		bci.size += blockswidth*blocksheight*blockbytes;
+		uint32_t blocksdepth = (mips->mip[i].depth+1-1) / 1;
+		bci.size += blockswidth*blocksheight*blocksdepth*blockbytes;
 	}
 	bci.flags = 0;
 	bci.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -1931,26 +1962,36 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
+		uint32_t blocksdepth = (mips->mip[i].depth+1-1) / 1;
 
 		if (mips->mip[i].data)
-			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight);
+			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight*blocksdepth);
 		else
-			memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight);
+			memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight*blocksdepth);
 
 		//queue up a buffer->image copy for this mip
 		region.bufferOffset = bci.size;
 		region.bufferRowLength = blockswidth*blockwidth;
 		region.bufferImageHeight = blocksheight*blockheight;
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = i%(mipcount/layers);
-		region.imageSubresource.baseArrayLayer = i/(mipcount/layers);
-		region.imageSubresource.layerCount = 1;
+		if (mips->type == PTI_CUBEMAP)
+		{
+			region.imageSubresource.mipLevel = i%(mipcount/layers);
+			region.imageSubresource.baseArrayLayer = i/(mipcount/layers);
+			region.imageSubresource.layerCount = mips->mip[i].depth;
+		}
+		else
+		{
+			region.imageSubresource.mipLevel = i;
+			region.imageSubresource.baseArrayLayer = 0;
+			region.imageSubresource.layerCount = mips->mip[i].depth;
+		}
 		region.imageOffset.x = 0;
 		region.imageOffset.y = 0;
 		region.imageOffset.z = 0;
-		region.imageExtent.width = mips->mip[i].width;//blockswidth*blockwidth;
-		region.imageExtent.height = mips->mip[i].height;//blocksheight*blockheight;
-		region.imageExtent.depth = 1;
+		region.imageExtent.width = mips->mip[i].width;
+		region.imageExtent.height = mips->mip[i].height;
+		region.imageExtent.depth = mips->mip[i].depth;
 
 		vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -4826,9 +4867,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	}
 
 	
-	sh_config.progpath = NULL;
+	sh_config.progpath = "vulkan/%s.fvb";
 	sh_config.blobpath = "spirv";
-	sh_config.shadernamefmt = NULL;//".spv";
+	sh_config.shadernamefmt = NULL;//"_vulkan";
 
 	if (vk.nv_glsl_shader)
 	{

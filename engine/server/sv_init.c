@@ -1107,7 +1107,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		if (svprogfuncs)	//we don't want the q1 stuff anymore.
 		{
-			svprogfuncs->CloseProgs(svprogfuncs);
+			svprogfuncs->Shutdown(svprogfuncs);
 			sv.world.progs = svprogfuncs = NULL;
 		}
 	}

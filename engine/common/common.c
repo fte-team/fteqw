@@ -2117,7 +2117,7 @@ const char *COM_GetFileExtension (const char *in, const char *term)
 	if (!term)
 		term = in + strlen(in);
 
-	for (dot = term; dot >= in && *dot != '/' && *dot != '\\'; dot--)
+	for (dot = term-1; dot >= in && *dot != '/' && *dot != '\\'; dot--)
 	{
 		if (*dot == '.')
 			return dot;
@@ -4975,53 +4975,7 @@ static void COM_Version_f (void)
 #endif
 
 #ifdef HAVE_CLIENT
-	Con_Printf("^3Image Formats:^7");
-	#ifdef IMAGEFMT_DDS
-		Con_Printf(" dds");
-	#endif
-	#ifdef IMAGEFMT_KTX
-		Con_Printf(" ktx");
-	#endif
-	Con_Printf(" tga");
-	#if defined(AVAIL_PNGLIB)
-		Con_Printf(" png");
-		#ifdef DYNAMIC_LIBPNG
-				Con_Printf("^h(dynamic, %s)", PNG_LIBPNG_VER_STRING);
-		#else
-			Con_Printf("^h(%s)", PNG_LIBPNG_VER_STRING);
-		#endif
-	#else
-		Con_DPrintf(" ^h(disabled: png)");
-	#endif
-	#ifdef IMAGEFMT_BMP
-		Con_Printf(" bmp+ico");
-	#endif
-	#if defined(AVAIL_JPEGLIB)
-		Con_Printf(" jpeg");
-		#ifdef DYNAMIC_LIBJPEG
-			Con_Printf("^h(dynamic, %i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
-		#else
-			Con_Printf("^h(%i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
-		#endif
-	#else
-		Con_DPrintf(" ^h(disabled: jpeg)");
-	#endif
-	#ifdef IMAGEFMT_PBM
-		Con_Printf(" pfm+pbm+pgm+ppm"/*"+pam"*/);
-	#endif
-	#ifdef IMAGEFMT_PSD
-		Con_Printf(" psd");
-	#endif
-	#ifdef IMAGEFMT_HDR
-		Con_Printf(" hdr");
-	#endif
-	#ifdef IMAGEFMT_PKM
-		Con_Printf(" pkm");
-	#endif
-	#ifdef IMAGEFMT_PCX
-		Con_Printf(" pcx");
-	#endif
-	Con_Printf("\n");
+	Image_PrintInputFormatVersions();
 
 	Con_Printf("^3VoiceChat:^7");
 	#if !defined(VOICECHAT)

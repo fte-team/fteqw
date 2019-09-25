@@ -880,6 +880,7 @@ const char *presetexec[] =
 	"seta cl_fullpitch 1;seta maxpitch \"\";seta minpitch \"\";"	//mimic quakespasm where possible.
 	"seta r_graphics 1;"
 	"seta r_renderscale 1;"
+	"seta gl_texture_anisotropic_filtering 0;"
 
 	, // fast options (for deathmatch)
 	"gl_texturemode ln;"

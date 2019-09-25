@@ -131,25 +131,26 @@ void Menu_Push(menu_t *menu, qboolean prompt)
 }
 void Menu_PopAll(void)
 {
-	qboolean popped = false;
-	menu_t **link, *menu;
-	for (link = &topmenu; *link;)
+	menu_t **menus, *menu;
+	size_t count, i;
+	//first loop to count them
+	for (count = 0, menu = topmenu; menu; menu = menu->prev)
 	{
-		menu = *link;
 		if (menu->persist)
-			link = &(*link)->prev;
-		else
-		{
-			*link = menu->prev;
-			menu->prev = NULL;
-			if (menu->release)
-				menu->release(menu);
-			popped = true;
-		}
+			continue;
+		count++;
 	}
-
-	if (popped)
-		Menu_UpdateFocus();
+	menus = alloca(sizeof(*menus)*count);
+	//second loop to track them
+	for (i = 0, menu = topmenu; i < count && menu; menu = menu->prev)
+	{
+		if (menu->persist)
+			continue;
+		menus[i++] = menu;
+	}
+	//third link to actually unlink them safely without unlinking multiple times etc (grr menuqc mods re-grabbing focus when closing)
+	for (i = 0; i < count; i++)
+		Menu_Unlink(menus[i]);
 }
 
 void Menu_Draw(void)

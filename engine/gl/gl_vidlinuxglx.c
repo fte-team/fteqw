@@ -2484,8 +2484,6 @@ static void install_grabs(void)
 {
 	if (!mouse_grabbed)
 	{
-		Con_DLPrintf(2, "Grabbing mouse\n");
-		mouse_grabbed = true;
 		//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
 		//the grab is purely to constrain the pointer to the window
 		if (GrabSuccess != x11.pXGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
@@ -2495,7 +2493,13 @@ static void install_grabs(void)
 					vid_window,
 					None,
 					CurrentTime))
+		{
 			Con_Printf("Pointer grab failed\n");
+			return;
+		}
+
+		Con_DLPrintf(2, "Grabbed mouse\n");
+		mouse_grabbed = true;
 
 		if (x11_input_method == XIM_DGA)
 		{
@@ -2637,7 +2641,7 @@ static void GetEvent(void)
 						default:button = 0; break;
 						}
 						if (button)
-				                        IN_KeyEvent(*qdev, (event.xcookie.evtype==XI_RawButtonPress), button, 0);
+							IN_KeyEvent(*qdev, (event.xcookie.evtype==XI_RawButtonPress), button, 0);
 					}
 					break;
 				case XI_RawMotion:

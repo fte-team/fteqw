@@ -729,13 +729,6 @@ void R_ToggleFullscreen_f(void)
 
 void Renderer_Init(void)
 {
-	#ifdef AVAIL_JPEGLIB
-		LibJPEG_Init();
-	#endif
-	#ifdef AVAIL_PNGLIB
-		LibPNG_Init();
-	#endif
-
 	currentrendererstate.renderer = NULL;
 	qrenderer = QR_NONE;
 
@@ -843,8 +836,12 @@ void Renderer_Init(void)
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 
+#ifdef IMAGEFMT_TGA
 	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
+#endif
+#ifdef IMAGEFMT_PCX
 	Cvar_Register(&r_dodgypcxfiles, "Hacky bug workarounds");
+#endif
 	Cvar_Register(&r_dodgymiptex, "Hacky bug workarounds");
 	r_imageextensions.enginevalue = r_defaultimageextensions;
 	Cvar_Register(&r_imageextensions, GRAPHICALNICETIES);

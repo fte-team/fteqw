@@ -276,7 +276,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 			}
 			if (!progfuncs->funcs.fieldadjust && engineofs>=0)
 				if ((unsigned)engineofs/4 != prinst.field[i].ofs)
-					Sys_Error("Field %s at wrong offset", name);
+					externs->Sys_Error("Field %s at wrong offset", name);
 
 			if (prinst.field[i].progsofs == -1)
 				prinst.field[i].progsofs = progsofs;
@@ -324,7 +324,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 		}
 #endif
 		if (engineofs&3)
-			Sys_Error("field %s is %i&3", name, (int)engineofs);
+			externs->Sys_Error("field %s is %i&3", name, (int)engineofs);
 		prinst.field[fnum].ofs = ofs = engineofs/4;
 	}
 	else
@@ -372,7 +372,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 			prinst.fields_size = (ofs+type_size[type])*4;
 
 	if (prinst.max_fields_size && prinst.fields_size > prinst.max_fields_size)
-		Sys_Error("Allocated too many additional fields after ents were inited.");
+		externs->Sys_Error("Allocated too many additional fields after ents were inited.");
 
 #ifdef MAPPING_DEBUG
 	externs->Printf("Field %s %i -> %i\n", name, prinst.field[fnum].progsofs,prinst.field[fnum].ofs);
@@ -499,14 +499,14 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 
 			//oh well, must be a parameter.
 			if (*(int *)&pr_globals[gd[num].ofs])
-				Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", gd[num].s_name+stringtable, *(int *)&pr_globals[gd[num].ofs]);
+				externs->Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", gd[num].s_name+stringtable, *(int *)&pr_globals[gd[num].ofs]);
 		}
 		return;
 	default:
-		Sys_Error("Bad bits");
+		externs->Sys_Error("Bad bits");
 		break;
 	}
-	Sys_Error("Should be unreachable");	
+	externs->Sys_Error("Should be unreachable");
 }
 
 void QC_AddFieldGlobal(pubprogfuncs_t *ppf, int *globdata)

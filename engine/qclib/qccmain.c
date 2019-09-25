@@ -1527,7 +1527,7 @@ static pbool QCC_WriteData (int crc)
 		outputsttype = PST_QTEST;
 		break;
 	default:
-		Sys_Error("invalid progs type chosen!");
+		externs->Sys_Error("invalid progs type chosen!");
 	}
 
 
@@ -1670,7 +1670,7 @@ static pbool QCC_WriteData (int crc)
 		}
 		break;
 	default:
-		Sys_Error("structtype error");
+		externs->Sys_Error("structtype error");
 		funcdata = NULL;
 		funcdatasize = 0;
 	}
@@ -2144,7 +2144,7 @@ strofs = (strofs+3)&~3;
 		}
 		break;
 	default:
-		Sys_Error("structtype error");
+		externs->Sys_Error("structtype error");
 	}
 
 	progs.ofs_functions = SafeSeek (h, 0, SEEK_CUR);
@@ -2292,7 +2292,7 @@ strofs = (strofs+3)&~3;
 			SafeWrite (h, fields16, numfielddefs*sizeof(QCC_ddef16_t));
 		break;
 	default:
-		Sys_Error("structtype error");
+		externs->Sys_Error("structtype error");
 	}
 
 	progs.ofs_globals = SafeSeek (h, 0, SEEK_CUR);

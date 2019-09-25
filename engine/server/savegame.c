@@ -1541,7 +1541,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 
 	VFS_CLOSE(f);
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	//try to save screenshots automagically.
 	Q_snprintfz(comment, sizeof(comment), "saves/%s/screeny.%s", savename, "tga");//scr_sshot_type.string);
 	savefilename = comment;
@@ -1549,53 +1549,27 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	if (cls.state == ca_active && qrenderer > QR_NONE && qrenderer != QR_VULKAN/*FIXME*/)
 	{
 		int stride;
-		int width;
-		int height;
-		void *rgbbuffer;
+		int width = vid.pixelwidth;
+		int height = vid.pixelheight;
 		image_t *img;
-
-		//poke the various modes into redrawing the screen (without huds), to avoid any menus or console drawn over the top of the current backbuffer.
-		//FIXME: clear-to-black first
-		qboolean okay = false;
-#ifdef VM_CG
-		if (!okay && CG_Refresh())
-			okay = true;
-#endif
-#ifdef CSQC_DAT
-		if (!okay && CSQC_DrawView())
-			okay = true;
-#endif
-		if (!okay && r_worldentity.model)
+		uploadfmt_t format;
+		void *rgbbuffer = SCR_ScreenShot_Capture(width, height, &stride, &format, false);
+		if (rgbbuffer)
 		{
-			V_RenderView (false);
-			okay = true;
-		}
-		if (R2D_Flush)
-			R2D_Flush();
+//			extern cvar_t	scr_sshot_type;
+			SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, format, false);
+			BZ_Free(rgbbuffer);
 
-		//okay, we drew something, we're good to save a screeny.
-		if (okay)
-		{
-			enum uploadfmt fmt;
-			rgbbuffer = VID_GetRGBInfo(&stride, &width, &height, &fmt);
-			if (rgbbuffer)
+			//if any menu code has the shader loaded, we want to avoid them using a cache.
+			//hopefully the menu code will unload as it goes, because these screenshots could be truely massive, as they're taken at screen resolution.
+			//should probably use a smaller fbo or something, but whatever.
+			img = Image_FindTexture(va("saves/%s/screeny.%s", savename, "tga"), NULL, 0);
+			if (img)
 			{
-//				extern cvar_t	scr_sshot_type;
-				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt, false);
-				BZ_Free(rgbbuffer);
-	
-
-				//if any menu code has the shader loaded, we want to avoid them using a cache.
-				//hopefully the menu code will unload as it goes, because these screenshots could be truely massive, as they're taken at screen resolution.
-				//should probably use a smaller fbo or something, but whatever.
-				img = Image_FindTexture(va("saves/%s/screeny.%s", savename, "tga"), NULL, 0);
-				if (img)
+				if (Image_UnloadTexture(img))
 				{
-					if (Image_UnloadTexture(img))
-					{
-						//and then reload it so that any shaders using it don't get confused
-						Image_GetTexture(va("saves/%s/screeny.%s", savename, "tga"), NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
-					}
+					//and then reload it so that any shaders using it don't get confused
+					Image_GetTexture(va("saves/%s/screeny.%s", savename, "tga"), NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
 				}
 			}
 		}

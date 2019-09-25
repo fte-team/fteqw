@@ -425,7 +425,7 @@ enum imageflags
 	IF_CUBEMAP			= 1<<11,	/*waning - don't test directly*/
 	IF_2DARRAY				= IF_3DMAP|IF_CUBEMAP,
 	IF_TEXTYPE				= (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
-	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2-7=cubeface*/
+	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2=cubeface, 3=array*/
 	IF_MIPCAP			= 1<<12,	//allow the use of d_mipcap
 	IF_PREMULTIPLYALPHA	= 1<<13,	//rgb *= alpha
 
@@ -468,6 +468,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
 void Image_Shutdown(void);
+void Image_PrintInputFormatVersions(void); //for version info
 qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
 qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
 void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);

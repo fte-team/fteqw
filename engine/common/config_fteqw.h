@@ -95,12 +95,19 @@
 #define IMAGEFMT_PSD			//baselayer only.
 #define IMAGEFMT_HDR			//an RGBE format.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
+#define IMAGEFMT_TGA			//somewhat mandatory
+#define IMAGEFMT_LMP			//mandatory for quake
+#define IMAGEFMT_PNG			//common in quakeworld, useful for screenshots.
+#define IMAGEFMT_JPG			//common in quake3, useful for screenshots.
+//#define IMAGEFMT_GIF			//for the luls. loads as a texture2DArray
 //#define IMAGEFMT_BLP			//legacy crap
 #define IMAGEFMT_BMP			//windows bmp. yuck. also includes .ico for the luls
 #define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
+#define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
 //#define IMAGEFMT_VTF			//hl2 image format
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 #define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
+//#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
 #define PACKAGE_TEXWAD			//quake's image wad support
 #define AVAIL_FREETYPE			//for truetype font rendering
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).

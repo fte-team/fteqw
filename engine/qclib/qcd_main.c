@@ -46,12 +46,12 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const 
 	int i;
 	if (method == 0)	//copy
 	{
-		if (complen != len) Sys_Error("lengths do not match");
+		if (complen != len) externs->Sys_Error("lengths do not match");
 		memcpy(buffer, info, len);		
 	}
 	else if (method == 1)	//xor encryption
 	{
-		if (complen != len) Sys_Error("lengths do not match");
+		if (complen != len) externs->Sys_Error("lengths do not match");
 		for (i = 0; i < len; i++)
 			buffer[i] = ((const char*)info)[i] ^ 0xA5;
 	}
@@ -84,13 +84,13 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const 
 		else
 			inflateInit(&strm);
 		if (Z_STREAM_END != inflate(&strm, Z_FINISH))	//decompress it in one go.
-			Sys_Error("Failed block decompression\n");
+			externs->Sys_Error("Failed block decompression\n");
 		inflateEnd(&strm);
 	}
 #endif
 	//add your decryption/decompression routine here.
 	else
-		Sys_Error("Bad file encryption routine\n");
+		externs->Sys_Error("Bad file encryption routine\n");
 
 
 	return buffer;
@@ -165,13 +165,13 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, const char *in, int h
 		deflateEnd(&strm);
 		return i;
 #endif
-		Sys_Error("ZLIB compression not supported in this build");
+		externs->Sys_Error("ZLIB compression not supported in this build");
 		return 0;
 	}
 	//add your compression/decryption routine here.
 	else
 	{
-		Sys_Error("Wierd method");
+		externs->Sys_Error("Wierd method");
 		return 0;
 	}
 }

@@ -99,6 +99,8 @@ typedef enum uploadfmt
 	PTI_BGRX8_SRGB,	//no alpha channel
 	PTI_RGB8,		//24bit packed format. generally not supported
 	PTI_BGR8,		//24bit packed format. generally not supported
+	PTI_RGB8_SRGB,	//24bit packed format. generally not supported
+	PTI_BGR8_SRGB,	//24bit packed format. generally not supported
 	PTI_L8,			//8bit format. luminance gets flooded to all RGB channels. might be supported using swizzles.
 	PTI_L8A8,		//16bit format. L=luminance. might be supported using swizzles.
 	PTI_L8_SRGB,	//8bit format. luminance gets flooded to all RGB channels. might be supported using swizzles.

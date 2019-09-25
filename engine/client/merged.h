@@ -131,6 +131,7 @@ extern void	(*VID_DeInit)							(void);
 extern char *(*VID_GetRGBInfo)						(int *stride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt); //if stride is negative, then the return value points to the last line intead of the first. this allows it to be freed normally.
 extern void	(*VID_SetWindowCaption)					(const char *msg);
 
+extern void *SCR_ScreenShot_Capture					(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt, qboolean no2d);
 extern void SCR_Init								(void);
 extern void SCR_DeInit								(void);
 extern qboolean (*SCR_UpdateScreen)					(void);

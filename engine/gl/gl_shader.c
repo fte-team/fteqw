@@ -736,6 +736,11 @@ static int Shader_SetImageFlags(parsestate_t *parsestate, shaderpass_t *pass, ch
 			*name+=6;
 			flags = (flags&~IF_TEXTYPE) | IF_CUBEMAP;
 		}
+		else if (!Q_strnicmp(*name, "$2darray:", 9))
+		{
+			*name+=9;
+			flags = (flags&~IF_TEXTYPE) | IF_2DARRAY;
+		}
 		else if (!Q_strnicmp(*name, "$srgb:", 6))
 		{
 			*name+=6;

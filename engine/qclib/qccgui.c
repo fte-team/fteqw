@@ -3810,7 +3810,7 @@ DWORD WINAPI threadwrapper(void *args)
 				MessageBox(mainwindow, "Access Denied", "Cannot Start Engine", 0);
 				break;
 			default:
-				MessageBox(mainwindow, qcva("gla: %x", hr), "Cannot Start Engine", 0);
+				MessageBox(mainwindow, qcva("gla: %x", (unsigned)hr), "Cannot Start Engine", 0);
 				break;
 			}
 			hadstatus = true;	//don't warn about other stuff

@@ -563,7 +563,7 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 	prstack_t *st;
 
 	if (pr_depth <= 0)
-		Sys_Error ("prog stack underflow");
+		externs->Sys_Error ("prog stack underflow");
 
 	// up stack
 	st = &pr_stack[--pr_depth];
@@ -666,7 +666,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, const char *name, eval_t 
 			return NULL;
 		break;
 	default:
-		Sys_Error("Bad struct type in ED_FindLocalOrGlobal");
+		externs->Sys_Error("Bad struct type in ED_FindLocalOrGlobal");
 		def32 = NULL;
 	}
 
@@ -1102,7 +1102,7 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 		}
 		break;
 	default:
-		Sys_Error("Bad struct type");
+		externs->Sys_Error("Bad struct type");
 		snum = 0;
 	}
 	prinst.debugstatement = snum;
@@ -1195,7 +1195,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 								op = ((dstatement32_t*)cp->statements + i)->op;
 								break;
 							default:
-								Sys_Error("Bad structtype");
+								externs->Sys_Error("Bad structtype");
 								op = 0;
 							}
 							switch (flag)
@@ -1237,7 +1237,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 								((dstatement32_t*)cp->statements + i)->op = op;
 								break;
 							default:
-								Sys_Error("Bad structtype");
+								externs->Sys_Error("Bad structtype");
 								op = 0;
 							}
 							if (ret)	//if its set, only set one breakpoint statement, not all of them.
@@ -1269,7 +1269,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 						op = ((dstatement32_t*)cp->statements + i)->op;
 						break;
 					default:
-						Sys_Error("Bad structtype");
+						externs->Sys_Error("Bad structtype");
 					}
 					switch (flag)
 					{
@@ -1310,7 +1310,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 						((dstatement32_t*)cp->statements + i)->op = op;
 						break;
 					default:
-						Sys_Error("Bad structtype");
+						externs->Sys_Error("Bad structtype");
 					}
 					break;
 				}
@@ -1782,7 +1782,7 @@ static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 				return;
 			continue;
 		default:
-			Sys_Error("PR_ExecuteProgram - bad structtype");
+			externs->Sys_Error("PR_ExecuteProgram - bad structtype");
 		}
 	}
 }

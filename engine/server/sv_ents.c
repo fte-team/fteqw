@@ -3212,6 +3212,8 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			state->u.q1.pmovetype = ent->v->movetype;
 			if (state->u.q1.pmovetype && ((int)ent->v->flags & FL_ONGROUND) && (client->zquake_extensions&Z_EXT_PF_ONGROUND))
 				state->u.q1.pmovetype |= 0x80;
+			if (state->u.q1.pmovetype && ((int)cl->jump_held) && (client->zquake_extensions&Z_EXT_PM_TYPE))
+				state->u.q1.pmovetype |= 0x40;
 			if (cl != client && client)
 			{	/*only generate movement values if the client doesn't already know them...*/
 				state->u.q1.movement[0] = ent->xv->movement[0];

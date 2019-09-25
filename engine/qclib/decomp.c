@@ -664,7 +664,7 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 		}
 	}
 	else
-		Sys_Error("Unrecognised progs version");
+		externs->Sys_Error("Unrecognised progs version");
 
 	numfunctions = progs.numfunctions;
 	functions = (dfunction_t*)(buf+progs.ofs_functions);

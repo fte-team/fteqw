@@ -784,6 +784,7 @@ COM_Dir_f
 static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	searchpath_t	*s;
+	const char *ext;
 	char link[512];
 	char *colour;
 	flocation_t loc;
@@ -806,43 +807,56 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 	else if (loc.search->handle == spath)
 	{
 		colour = "^2";
-		COM_FileExtension(name, link, sizeof(link));
-		if ((!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "map") || !Q_strcasecmp(link, "hmp")) && !strncmp(name, "maps/", 5) && strncmp(name, "maps/b_", 7))
+
+		ext = COM_GetFileExtension(name, NULL);
+		if (!Q_strcasecmp(ext, ".gz"))
+			ext = COM_GetFileExtension(name, ext);
+		if (*ext == '.')
+		{
+			ext++;
+			if (strchr(ext, '.'))
+			{
+				COM_StripAllExtensions(ext, link, sizeof(link));
+				ext = link;
+			}
+		}
+
+		if ((!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "map") || !Q_strcasecmp(ext, "hmp")) && !strncmp(name, "maps/", 5) && strncmp(name, "maps/b_", 7))
 		{
 			Q_snprintfz(link, sizeof(link), "\\tip\\Change Map\\map\\%s", name+5);
 			colour = "^4";	//disconnects
 		}
-		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") ||
-				 !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") ||
-				 !Q_strcasecmp(link, "mdx") || !Q_strcasecmp(link, "md2") || !Q_strcasecmp(link, "obj") ||
-				 !Q_strcasecmp(link, "md5anim") || !Q_strcasecmp(link, "gltf") || !Q_strcasecmp(link, "glb") || !Q_strcasecmp(link, "ase") || !Q_strcasecmp(link, "lwo"))
+		else if (!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm") ||
+				 !Q_strcasecmp(ext, "vvm") || !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "md5mesh") ||
+				 !Q_strcasecmp(ext, "mdx") || !Q_strcasecmp(ext, "md2") || !Q_strcasecmp(ext, "obj") ||
+				 !Q_strcasecmp(ext, "md5anim") || !Q_strcasecmp(ext, "gltf") || !Q_strcasecmp(ext, "glb") || !Q_strcasecmp(ext, "ase") || !Q_strcasecmp(ext, "lwo"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
-		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
-			|| !Q_strcasecmp(link, "cfg") || !Q_strcasecmp(link, "rc")
-			|| !Q_strcasecmp(link, "txt") || !Q_strcasecmp(link, "log")
-			|| !Q_strcasecmp(link, "ent") || !Q_strcasecmp(link, "rtlights")
-			|| !Q_strcasecmp(link, "glsl") || !Q_strcasecmp(link, "hlsl")
-			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups")
-			|| !Q_strcasecmp(link, "vmt")
+		else if (!Q_strcasecmp(ext, "qc") || !Q_strcasecmp(ext, "src") || !Q_strcasecmp(ext, "qh") || !Q_strcasecmp(ext, "h") || !Q_strcasecmp(ext, "c")
+			|| !Q_strcasecmp(ext, "cfg") || !Q_strcasecmp(ext, "rc")
+			|| !Q_strcasecmp(ext, "txt") || !Q_strcasecmp(ext, "log")
+			|| !Q_strcasecmp(ext, "ent") || !Q_strcasecmp(ext, "rtlights")
+			|| !Q_strcasecmp(ext, "glsl") || !Q_strcasecmp(ext, "hlsl")
+			|| !Q_strcasecmp(ext, "shader") || !Q_strcasecmp(ext, "framegroups")
+			|| !Q_strcasecmp(ext, "vmt")
 			)
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg")|| !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "ico") ||
-				 !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds") || !Q_strcasecmp(link, "ktx") || !Q_strcasecmp(link, "vtf") || !Q_strcasecmp(link, "psd") ||
-				 !Q_strcasecmp(link, "astc")|| !Q_strcasecmp(link, "htga")||
-				 !Q_strcasecmp(link, "pbm") || !Q_strcasecmp(link, "ppm") || !Q_strcasecmp(link, "pgm") || !Q_strcasecmp(link, "pam") || !Q_strcasecmp(link, "pfm") || !Q_strcasecmp(link, "hdr") )
+		else if (!Q_strcasecmp(ext, "tga") || !Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "jpg") || !Q_strcasecmp(ext, "jpeg")|| !Q_strcasecmp(ext, "lmp") || !Q_strcasecmp(ext, "ico") ||
+				 !Q_strcasecmp(ext, "pcx") || !Q_strcasecmp(ext, "bmp") || !Q_strcasecmp(ext, "dds") || !Q_strcasecmp(ext, "ktx") || !Q_strcasecmp(ext, "vtf") || !Q_strcasecmp(ext, "psd") ||
+				 !Q_strcasecmp(ext, "astc")|| !Q_strcasecmp(ext, "htga")|| !Q_strcasecmp(ext, "exr") ||
+				 !Q_strcasecmp(ext, "pbm") || !Q_strcasecmp(ext, "ppm") || !Q_strcasecmp(ext, "pgm") || !Q_strcasecmp(ext, "pam") || !Q_strcasecmp(ext, "pfm") || !Q_strcasecmp(ext, "hdr") )
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
 			colour = "^6";	//shown on mouseover
 		}
-		else if (!Q_strcasecmp(link, "qwd") || !Q_strcasecmp(link, "dem") || !Q_strcasecmp(link, "mvd") || !Q_strcasecmp(link, "dm2"))
+		else if (!Q_strcasecmp(ext, "qwd") || !Q_strcasecmp(ext, "dem") || !Q_strcasecmp(ext, "mvd") || !Q_strcasecmp(ext, "dm2"))
 		{
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Demo\\demo\\%s", name);
 			colour = "^4";	//disconnects
 		}
-		else if (!Q_strcasecmp(link, "roq") || !Q_strcasecmp(link, "cin") || !Q_strcasecmp(link, "avi") || !Q_strcasecmp(link, "mp4") || !Q_strcasecmp(link, "mkv"))
+		else if (!Q_strcasecmp(ext, "roq") || !Q_strcasecmp(ext, "cin") || !Q_strcasecmp(ext, "avi") || !Q_strcasecmp(ext, "mp4") || !Q_strcasecmp(ext, "mkv"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Film\\film\\%s", name);
-		else if (!Q_strcasecmp(link, "wav") || !Q_strcasecmp(link, "ogg") || !Q_strcasecmp(link, "mp3") || !Q_strcasecmp(link, "opus") || !Q_strcasecmp(link, "flac"))
+		else if (!Q_strcasecmp(ext, "wav") || !Q_strcasecmp(ext, "ogg") || !Q_strcasecmp(ext, "mp3") || !Q_strcasecmp(ext, "opus") || !Q_strcasecmp(ext, "flac"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Audio\\playaudio\\%s", name);
 		else
 		{

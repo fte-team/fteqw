@@ -92,16 +92,25 @@ typedef struct
 	char value[4];
 } tempstr_t;
 
+#if defined(QCGC) && defined(MULTITHREAD)
+//	#define THREADEDGC
+#endif
+
 //FIXME: the defines hidden inside this structure are evil.
 typedef struct prinst_s
  {
 	//temp strings are GCed, and can be created by engine, builtins, or just by ent parsing code.
 	tempstr_t **tempstrings;
 	unsigned int maxtempstrings;
+#ifdef THREADEDGC
+	unsigned int nexttempstring;
+	unsigned int livetemps;	//increased on alloc, decremented after sweep
+	struct qcgccontext_s *gccontext;
+#elif defined(QCGC)
 	unsigned int numtempstrings;
-#ifdef QCGC
 	unsigned int nexttempstring;
 #else
+	unsigned int numtempstrings;
 	unsigned int numtempstringsstack;
 #endif
 
@@ -235,8 +244,8 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define sv_edicts (*externs->sv_edicts)
 
 #define PR_DPrintf externs->DPrintf
-#define printf syntax error
-#define Sys_Error externs->Sys_Error
+//#define printf syntax error
+//#define Sys_Error externs->Sys_Error
 
 int PRHunkMark(progfuncs_t *progfuncs);
 void PRHunkFree(progfuncs_t *progfuncs, int mark);
@@ -364,12 +373,6 @@ typedef struct progstate_s
 	struct jitstate *jit;
 #endif
 } progstate_t;
-
-typedef struct extensionbuiltin_s {
-	char *name;
-	builtin_t func;
-	struct extensionbuiltin_s *prev;
-} extensionbuiltin_t;
 
 //============================================================================
 

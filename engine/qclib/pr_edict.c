@@ -48,7 +48,7 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num, pbool object, un
 			progfuncs->funcs.AddressableFree(&progfuncs->funcs, e->fields);
 		e->fields = progfuncs->funcs.AddressableAlloc(&progfuncs->funcs, fields_size);
 		if (!e->fields)
-			Sys_Error ("ED_Alloc: Unable to allocate more field space");
+			externs->Sys_Error ("ED_Alloc: Unable to allocate more field space");
 		e->fieldsize = fields_size;
 
 //		e->fields = PRAddressableExtend(progfuncs, NULL, fields_size, 0);
@@ -98,7 +98,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 				return (struct edict_s *)e;
 			}
 		}
-		Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
+		externs->Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
 	}
 
 	//define this to wastefully allocate extra ents, to test network capabilities.
@@ -146,7 +146,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 			char *buf;
 			buf = PR_SaveEnts(&progfuncs->funcs, NULL, &size, 0, 0);
 			progfuncs->funcs.parms->WriteFile("edalloc.dump", buf, size);
-			Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
+			externs->Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
 		}
 	}
 
@@ -358,7 +358,7 @@ unsigned int ED_FindGlobalOfs (progfuncs_t *progfuncs, char *name)
 		d32 = ED_FindGlobal32(progfuncs, name);
 		return d32?d32->ofs:0;
 	}
-	Sys_Error("ED_FindGlobalOfs - bad struct type");
+	externs->Sys_Error("ED_FindGlobalOfs - bad struct type");
 	return 0;
 }
 
@@ -457,7 +457,7 @@ unsigned int *ED_FindGlobalOfsFromProgs (progfuncs_t *progfuncs, progstate_t *ps
 			return NULL;
 		return &def32->ofs;
 	}
-	Sys_Error("ED_FindGlobalOfsFromProgs - bad struct type");
+	externs->Sys_Error("ED_FindGlobalOfsFromProgs - bad struct type");
 	return 0;
 }
 
@@ -933,7 +933,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 		strcat (line," ");
 		return line;
 	}
-	Sys_Error("Bad struct type in PR_GlobalString");
+	externs->Sys_Error("Bad struct type in PR_GlobalString");
 	return "";
 }
 
@@ -960,7 +960,7 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 			nameofs = def32->s_name;
 		break;
 	default:
-		Sys_Error("Bad struct type in PR_GlobalStringNoContents");
+		externs->Sys_Error("Bad struct type in PR_GlobalStringNoContents");
 	}
 
 	if (nameofs)
@@ -1624,7 +1624,7 @@ add32:
 		}
 		break;
 	default:
-		Sys_Error("Bad struct type in SaveEnts");
+		externs->Sys_Error("Bad struct type in SaveEnts");
 	}
 
 	return buf;
@@ -2023,7 +2023,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			datastart = file;
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
-				Sys_Error("Progs loading found %s, not '{'", qcc_token);
+				externs->Sys_Error("Progs loading found %s, not '{'", qcc_token);
 			if (!resethunk)
 				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs, false, 0);
 			else
@@ -2032,7 +2032,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 				if (!ed)
 				{
-					Sys_Error("Edict was not allocated\n");
+					externs->Sys_Error("Edict was not allocated\n");
 					ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
 				}
 			}
@@ -2050,7 +2050,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			num = atoi(qcc_token);
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
-				Sys_Error("Progs loading found %s, not '{'", qcc_token);
+				externs->Sys_Error("Progs loading found %s, not '{'", qcc_token);
 
 
 			filename[0] = '\0';
@@ -2060,7 +2060,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			{
 				file = QCC_COM_Parse(file);	//read the key
 				if (!file)
-					Sys_Error("EOF in progs block");
+					externs->Sys_Error("EOF in progs block");
 
 				if (!strcmp("filename", qcc_token))	//check key get and save values
 					{file = QCC_COM_Parse(file); strcpy(filename, qcc_token);}
@@ -2071,7 +2071,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				else if (qcc_token[0] == '}')	//end of block
 					break;
 				else
-					Sys_Error("Bad key \"%s\" in progs block", qcc_token);
+					externs->Sys_Error("Bad key \"%s\" in progs block", qcc_token);
 			}
 
 			PR_ReallyLoadProgs(progfuncs, filename, &pr_progstate[num], true);
@@ -2113,7 +2113,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
-				Sys_Error("Globals loading found \'%s\', not '{'", qcc_token);
+				externs->Sys_Error("Globals loading found \'%s\', not '{'", qcc_token);
 
 			PR_SwitchProgs(progfuncs, num);
 			while (1)
@@ -2122,7 +2122,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				if (qcc_token[0] == '}')
 					break;
 				else if (!qcc_token[0] || !file)
-					Sys_Error("EOF when parsing global values");
+					externs->Sys_Error("EOF when parsing global values");
 
 				switch(current_progstate->structtype)
 				{
@@ -2153,7 +2153,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 					}
 					break;
 				default:
-					Sys_Error("Bad struct type in LoadEnts");
+					externs->Sys_Error("Bad struct type in LoadEnts");
 				}
 			}
 			PR_SwitchProgs(progfuncs, 0);
@@ -2171,13 +2171,13 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
-				Sys_Error("Progs loading found %s, not '{'", qcc_token);
+				externs->Sys_Error("Progs loading found %s, not '{'", qcc_token);
 
 			while(1)
 			{
 				file = QCC_COM_Parse(file);	//read the key
 				if (!file)
-					Sys_Error("EOF in general block");
+					externs->Sys_Error("EOF in general block");
 
 				if (!strcmp("maxprogs", qcc_token))	//check key get and save values
 					{file = QCC_COM_Parse(file); prinst.maxprogs = atoi(qcc_token);}
@@ -2192,7 +2192,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				else if (qcc_token[0] == '}')	//end of block
 					break;
 				else
-					Sys_Error("Bad key \"%s\" in general block", qcc_token);
+					externs->Sys_Error("Bad key \"%s\" in general block", qcc_token);
 			}
 
 			if (oldglobals)
@@ -2237,7 +2237,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 						if (qcc_token[0] == '}')
 							break;
 						else if (!qcc_token[0] || !file)
-							Sys_Error("EOF when parsing global values");
+							externs->Sys_Error("EOF when parsing global values");
 
 						switch(current_progstate->structtype)
 						{
@@ -2268,7 +2268,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 							}
 							break;
 						default:
-							Sys_Error("Bad struct type in LoadEnts");
+							externs->Sys_Error("Bad struct type in LoadEnts");
 						}
 					}
 				}
@@ -2318,7 +2318,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 		else if (extendedterm && extendedterm(ppf, ctx, &datastart))
 			file = datastart;
 		else
-			Sys_Error("Bad entity lump: '%s' not recognised (last ent was %i)", qcc_token, ed?ed->entnum:0);
+			externs->Sys_Error("Bad entity lump: '%s' not recognised (last ent was %i)", qcc_token, ed?ed->entnum:0);
 	}
 	if (resethunk)
 	{
@@ -2434,7 +2434,7 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, size_
 		return NULL;
 
 	if (strcmp(qcc_token, "{"))
-		Sys_Error("Restore Ent with no opening brace");
+		externs->Sys_Error("Restore Ent with no opening brace");
 
 	if (!ed)
 		ent = (edictrun_t *)ED_Alloc(&progfuncs->funcs, false, 0);
@@ -2589,7 +2589,6 @@ PR_LoadProgs
 int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain)
 {
 	unsigned int		i, j, type;
-//	extensionbuiltin_t *eb;
 //	float	fl;
 //	int len;
 //	int num;
@@ -2789,7 +2788,7 @@ retry:
 				len=sizeof(dstatement32_t)*pr_progs->numstatements;
 				break;
 			default:
-				Sys_Error("Bad struct type");
+				externs->Sys_Error("Bad struct type");
 				len = 0;
 			}
 			s = PRHunkAlloc(progfuncs, len, "dstatements");
@@ -2808,7 +2807,7 @@ retry:
 				len=sizeof(ddef32_t)*pr_progs->numglobaldefs;
 				break;
 			default:
-				Sys_Error("Bad struct type");
+				externs->Sys_Error("Bad struct type");
 				len = 0;
 			}
 			s = PRHunkAlloc(progfuncs, len, "dglobaldefs");
@@ -2827,7 +2826,7 @@ retry:
 				len=sizeof(ddef32_t)*pr_progs->numglobaldefs;
 				break;
 			default:
-				Sys_Error("Bad struct type");
+				externs->Sys_Error("Bad struct type");
 				len = 0;
 			}
 			s = PRHunkAlloc(progfuncs, len, "progfieldtable");
@@ -2937,7 +2936,7 @@ retry:
 	current_progstate->edict_size = pr_progs->entityfields * 4 + externs->edictsize;
 
 	if (sizeof(mfunction_t) > sizeof(qtest_function_t))
-		Sys_Error("assumption no longer works");
+		externs->Sys_Error("assumption no longer works");
 
 // byte swap the lumps
 	switch(current_progstate->structtype)
@@ -2983,7 +2982,7 @@ retry:
 		}
 		break;
 	default:
-		Sys_Error("Bad struct type");
+		externs->Sys_Error("Bad struct type");
 	}
 
 	//actual global values
@@ -3147,7 +3146,7 @@ retry:
 		}
 		break;
 	default:
-		Sys_Error("Bad struct type");
+		externs->Sys_Error("Bad struct type");
 	}
 
 //ifstring fixes arn't performed anymore.
@@ -3217,7 +3216,7 @@ retry:
 	{
 		isfriked = true;
 		if (current_progstate->structtype != PST_DEFAULT)
-			Sys_Error("Decompiling a bigprogs");
+			externs->Sys_Error("Decompiling a bigprogs");
 		return true;
 	}
 */
@@ -3397,9 +3396,9 @@ retry:
 				d32 = ED_FindGlobal32(progfuncs, s);
 				d2 = ED_FindGlobalOfsFromProgs(progfuncs, &pr_progstate[0], s, ev_function);
 				if (!d2)
-					Sys_Error("Runtime-linked function %s was not found in existing progs", s);
+					externs->Sys_Error("Runtime-linked function %s was not found in existing progs", s);
 				if (!d32)
-					Sys_Error("Couldn't find def for \"%s\"", s);
+					externs->Sys_Error("Couldn't find def for \"%s\"", s);
 				((int *)glob)[d32->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
 
 				s+=strlen(s)+1;
@@ -3407,7 +3406,7 @@ retry:
 		}
 		break;
 	default:
-		Sys_Error("Bad struct type");
+		externs->Sys_Error("Bad struct type");
 	}
 
 	if ((isfriked && prinst.pr_typecurrent))	//friked progs only allow one file.
@@ -3502,7 +3501,7 @@ struct edict_s *PDECL QC_EDICT_NUM(pubprogfuncs_t *ppf, unsigned int n)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if (n >= prinst.maxedicts)
-		Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
+		externs->Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
 
 	return (struct edict_s*)prinst.edicttable[n];
 }
@@ -3512,6 +3511,6 @@ unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *ppf, struct edict_s *e)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *er = (edictrun_t*)e;
 	if (!er || er->entnum >= prinst.maxedicts)
-		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%p)", e);
+		externs->Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%p)", e);
 	return er->entnum;
 }

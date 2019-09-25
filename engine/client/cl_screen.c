@@ -2498,10 +2498,25 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 	int width, height;
 	void *buf;
 	qboolean okay = false;
+	qboolean usefbo;
+	qboolean oldwarndraw = r_refdef.warndraw;
 
-	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
-	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1, RT_IMAGEFLAGS);
-	BE_RenderToTextureUpdate2d(true);
+	if (fbwidth == vid.fbpwidth && fbheight == vid.fbpheight && qrenderer != QR_VULKAN)
+		usefbo = false;
+	else if (qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
+		usefbo = true;
+	else
+		return NULL;
+
+	if (usefbo)
+	{
+		r_refdef.warndraw = true;
+		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
+		/*vid.framebuffer =*/R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1, RT_IMAGEFLAGS);
+		BE_RenderToTextureUpdate2d(true);
+	}
+	else
+		r_refdef.warndraw = false;
 
 	R2D_FillBlock(0, 0, vid.fbvwidth, vid.fbvheight);
 
@@ -2512,7 +2527,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 #ifdef CSQC_DAT
 	if (!okay && CSQC_DrawView())
 		okay = true;
-//	if (!*r_refdef.rt_destcolour[0].texname)
+	if (usefbo)// && !*r_refdef.rt_destcolour[0].texname)
 	{	//csqc protects its own. lazily.
 		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
 		BE_RenderToTextureUpdate2d(true);
@@ -2523,6 +2538,9 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 		V_RenderView (no2d);
 		okay = true;
 	}
+	if (R2D_Flush)
+		R2D_Flush();
+
 	//fixme: add a way to get+save the depth values too
 	if (!okay)
 	{
@@ -2533,9 +2551,14 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 	else
 		buf = VID_GetRGBInfo(stride, &width, &height, fmt);
 
-	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0, RT_IMAGEFLAGS);
-	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
-	BE_RenderToTextureUpdate2d(true);
+	if (usefbo)
+	{
+		R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0, RT_IMAGEFLAGS);
+		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
+		BE_RenderToTextureUpdate2d(true);
+	}
+
+	r_refdef.warndraw = oldwarndraw;
 
 	if (!buf || width != fbwidth || height != fbheight)
 	{
@@ -3431,8 +3454,6 @@ void SCR_Init (void)
 	Cmd_AddCommandD ("screenshot_cubemap",SCR_ScreenShot_Cubemap_f, "screenshot_cubemap <name> [size]\nTakes 6 screenshots forming a single cubemap.");
 	Cmd_AddCommandD ("envmap",SCR_ScreenShot_Cubemap_f, "Legacy name for the screenshot_cubemap command.");	//legacy 
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
-	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
-	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
 
 	scr_net = R2D_SafePicFromWad ("net");
 	scr_turtle = R2D_SafePicFromWad ("turtle");
@@ -3473,7 +3494,5 @@ void SCR_DeInit (void)
 		Cmd_RemoveCommand ("screenshot_360");
 		Cmd_RemoveCommand ("screenshot_cubemap");
 		Cmd_RemoveCommand ("envmap");
-		Cmd_RemoveCommand ("sizeup");
-		Cmd_RemoveCommand ("sizedown");
 	}
 }

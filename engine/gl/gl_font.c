@@ -1753,11 +1753,10 @@ static texid_t Font_LoadFallbackConchars(void)
 	texid_t tex;
 	int width, height;
 	unsigned int i;
-	qbyte *lump;
 	uploadfmt_t format;
-	lump = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, &format, false, PTI_INVALID);
+	qbyte *lump = ReadRawImageFile(default_conchar, sizeof(default_conchar), &width, &height, &format, false, "conchars");
 	if (!lump || (format != PTI_RGBX8 && format != PTI_RGBA8 && format != PTI_LLLX8))
-		Sys_Error("Corrupt internal drawchars (%i)", format);
+		return r_nulltex;
 	/*convert greyscale to alpha*/
 	for (i = 0; i < width*height; i++)
 	{

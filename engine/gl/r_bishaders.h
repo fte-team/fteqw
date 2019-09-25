@@ -2958,6 +2958,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvardf r_tessellation_level=5\n"
 "!!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube\n"
 "!!samps =EIGHTBIT paletted 1\n"
+"!!samps =OCCLUDE occlusion\n"
 //!!permu VC			// adds rgba vertex colour multipliers
 //!!permu SPECULAR		// auto-added when gl_specular>0
 //!!permu OFFSETMAPPING	// auto-added when r_glsl_offsetmapping is set
@@ -2966,6 +2967,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //!!permu SG			// specularmap is rgb:F0, a:Roughness (instead of exponent)
 //!!permu PBR			// an attempt at pbr logic (enabled from ORM or SG)
 //!!permu NOOCCLUDE		// ignores the use of ORM's occlusion... yeah, stupid.
+//!!permu OCCLUDE		// use an explicit occlusion texturemap (separate from roughness+metalness).
 //!!permu EIGHTBIT		// uses software-style paletted colourmap lookups
 //!!permu ALPHATEST		// if defined, this is the required alpha level (more versatile than doing it at the q3shader level)
 
@@ -3274,12 +3276,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define ambientrgb (specrgb+col.rgb)\n"
 "vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);\n"
 "col.rgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);\n"
-"#elif defined(SG) //pbr-style specular+glossiness\n"
+"#elif defined(SG) //pbr-style specular+glossiness, without occlusion\n"
 //occlusion needs to be baked in. :(
 "#define roughness (1.0-specs.a)\n"
 "#define gloss (specs.a)\n"
 "#define specrgb specs.rgb\n"
-"#define ambientrgb (specs.rgb+col.rgb)\n"
+"#define ambientrgb (specrgb+col.rgb)\n"
 "#else //blinn-phong\n"
 "#define roughness (1.0-specs.a)\n"
 "#define gloss specs.a\n"
@@ -3323,7 +3325,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
 "#endif\n"
 
-"#if defined(occlusion) && !defined(NOOCCLUDE)\n"
+"#ifdef OCCLUDE\n"
+"col.rgb *= texture2D(s_occlusion, tc).r; \n"
+"#elif defined(occlusion) && !defined(NOOCCLUDE)\n"
 "col.rgb *= occlusion;\n"
 "#endif\n"
 "col *= light * e_colourident;\n"

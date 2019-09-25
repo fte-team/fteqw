@@ -197,6 +197,12 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_BGR8:
 //		tdesc.Format = DXGI_FORMAT_B8G8R8_UNORM;
 		break;
+	case PTI_RGB8_SRGB:
+//		tdesc.Format = DXGI_FORMAT_R8G8B8_SRGB;
+		break;
+	case PTI_BGR8_SRGB:
+//		tdesc.Format = DXGI_FORMAT_B8G8R8_SRGB;
+		break;
 	case PTI_RGBA8:
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		break;

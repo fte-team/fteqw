@@ -855,8 +855,8 @@ void PR_Deinit(void)
 
 		PR_Common_Shutdown(svprogfuncs, false);
 		World_Destroy(&sv.world);
-		if (svprogfuncs->CloseProgs)
-			svprogfuncs->CloseProgs(svprogfuncs);
+		if (svprogfuncs->Shutdown)
+			svprogfuncs->Shutdown(svprogfuncs);
 		sv.world.progs = NULL;
 		svprogfuncs=NULL;
 

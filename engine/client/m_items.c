@@ -1923,7 +1923,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 		if (currentmenu->key(key, currentmenu))
 			return;
 
-	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN || key == K_GP_A || key == K_GP_B || key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP || key == K_TAB))
+	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN || key == K_GP_A || key == K_GP_B || key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP || key == K_TAB || key == K_MWHEELUP || key == K_MWHEELDOWN))
 		if (currentmenu->selecteditem->custom.key)
 			if (currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key, unicode))
 				return;

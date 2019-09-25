@@ -7082,7 +7082,7 @@ void CSQC_Shutdown(void)
 		PR_ReleaseFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
 		World_Destroy(&csqc_world);
-		csqcprogs->CloseProgs(csqcprogs);
+		csqcprogs->Shutdown(csqcprogs);
 		csqc_world.progs = csqcprogs = NULL;
 	}
 	else

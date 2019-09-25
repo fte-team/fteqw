@@ -1876,7 +1876,7 @@ void QCC_PR_LexString (void)
 						QCC_PR_ParseWarning(WARN_MACROINSTRING, "Macro expansion in string");
 
 						if (len+strlen(cnst) >= sizeof(pr_token)-1)
-							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 
 						strcpy(pr_token+len, cnst);
 						len+=strlen(cnst);
@@ -1941,7 +1941,7 @@ forceutf8:
 
 				//error if needed
 				if (len+bytecount >= sizeof(pr_token))
-					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 
 				//output it.
 				if (bytecount == 1)
@@ -1974,7 +1974,7 @@ forcequake:
 
 forcebyte:
 				if (len >= sizeof(pr_token)-1)
-					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_token)-1);
+					QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 				pr_token[len] = c;
 				len++;
 			}
@@ -1982,7 +1982,7 @@ forcebyte:
 	}
 
 	if (len > sizeof(pr_immediate_string)-1)
-		QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %i", sizeof(pr_immediate_string)-1);
+		QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_immediate_string)-1);
 
 	pr_token[len] = 0;
 	pr_token_type = tt_immediate;

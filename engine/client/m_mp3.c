@@ -1647,9 +1647,10 @@ struct cin_s
 #endif
 
 	struct {
-		qbyte *filmimage;	//rgba
-		int imagewidth;
-		int imageheight;
+		qbyte		*data;
+		uploadfmt_t	format;
+		int			width;
+		int			height;
 	} image;
 
 	struct {
@@ -2276,14 +2277,14 @@ static cin_t *Media_RoQ_TryLoad(char *name)
 #ifndef MINIMAL
 static void Media_Static_Shutdown(struct cin_s *cin)
 {
-	BZ_Free(cin->image.filmimage);
-	cin->image.filmimage = NULL;
+	BZ_Free(cin->image.data);
+	cin->image.data = NULL;
 }
 
 static qboolean Media_Static_DecodeFrame (cin_t *cin, qboolean nosound, qboolean forcevideo, double mediatime, void (QDECL *uploadtexture)(void *ctx, uploadfmt_t fmt, int width, int height, void *data, void *palette), void *ctx)
 {
 	if (forcevideo)
-		uploadtexture(ctx, TF_RGBA32, cin->image.imagewidth, cin->image.imageheight, cin->image.filmimage, NULL);
+		uploadtexture(ctx, cin->image.format, cin->image.width, cin->image.height, cin->image.data, NULL);
 	return true;
 }
 
@@ -2313,21 +2314,10 @@ static cin_t *Media_Static_TryLoad(char *name)
 				return NULL;
 		}
 
-		if ((staticfilmimage = ReadPCXFile(file, fsize, &imagewidth, &imageheight)) ||	//convert to 32 rgba if not corrupt
-			(staticfilmimage = ReadTargaFile(file, fsize, &imagewidth, &imageheight, &format, false, PTI_RGBA8)) ||
-#ifdef AVAIL_JPEGLIB
-			(staticfilmimage = ReadJPEGFile(file, fsize, &imagewidth, &imageheight)) ||
-#endif
-#ifdef AVAIL_PNGLIB
-			(staticfilmimage = ReadPNGFile(fullname, file, fsize, &imagewidth, &imageheight, &format)) ||
-#endif
-			0)
+		staticfilmimage = ReadRawImageFile(file, fsize, &imagewidth, &imageheight, &format, false, fullname);
+		FS_FreeFile(file); //done with the file now
+		if (!staticfilmimage)
 		{
-			FS_FreeFile(file);	//got image data
-		}
-		else
-		{
-			FS_FreeFile(file);	//got image data
 			Con_Printf("Static cinematic format not supported.\n");	//not supported format
 			return NULL;
 		}
@@ -2336,9 +2326,10 @@ static cin_t *Media_Static_TryLoad(char *name)
 		cin->decodeframe = Media_Static_DecodeFrame;
 		cin->shutdown = Media_Static_Shutdown;
 
-		cin->image.filmimage = staticfilmimage;
-		cin->image.imagewidth = imagewidth;
-		cin->image.imageheight = imageheight;
+		cin->image.data = staticfilmimage;
+		cin->image.format = format;
+		cin->image.width = imagewidth;
+		cin->image.height = imageheight;
 
 		return cin;
 	}

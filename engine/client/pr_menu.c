@@ -1465,14 +1465,15 @@ void QCBUILTIN PF_isdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 //float	clientstate(void)  = #62;
 void QCBUILTIN PF_clientstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (isDedicated)
-		G_FLOAT(OFS_RETURN) = 0;
+	//menuqc was originally implemented in DP, so these return values follow NQ norms.
+	if (isDedicated)	//unreachable
+		G_FLOAT(OFS_RETURN) = 0/*nq ca_dedicated*/;
+	else if (	cls.state >= ca_connected	//we're on a server
+			||	CL_TryingToConnect()		//or we're trying to connect (avoids bugs with certain menuqc mods)
+			||	sv_state>=ss_loading	)	//or we're going to connect to ourselves once we get our act together
+		G_FLOAT(OFS_RETURN) = 2/*nq ca_connected*/;
 	else
-	{
-		//fit in with netquake	 (we never run a menu.dat dedicated)
-		//we return 2 for trying to connect, to avoid bugs with certain menuqc mods
-		G_FLOAT(OFS_RETURN) = (cls.state >= ca_connected||CL_TryingToConnect()) ? 2 : 1;
-	}
+		G_FLOAT(OFS_RETURN) = 1/*nq ca_disconnected*/;
 }
 
 //too specific to the prinst's builtins.
@@ -2688,7 +2689,7 @@ void MP_Shutdown (void)
 		PR_ExecuteProgram(menu_world.progs, temp);
 
 	PR_Common_Shutdown(menu_world.progs, false);
-	menu_world.progs->CloseProgs(menu_world.progs);
+	menu_world.progs->Shutdown(menu_world.progs);
 	memset(&menu_world, 0, sizeof(menu_world));
 	PR_ReleaseFonts(kdm_menu);
 
@@ -2857,7 +2858,6 @@ qboolean MP_Init (void)
 	menuqc.keyevent = MP_KeyEvent;
 	menuqc.joyaxis = MP_JoystickAxis;
 	menuqc.release = MP_TryRelease;
-	menuqc.persist = true; //don't bother trying to kill it...
 
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)

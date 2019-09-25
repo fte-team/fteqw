@@ -172,15 +172,27 @@
 #undef AVAIL_FREETYPE	// for truetype font rendering
 #undef SERVER_DEMO_PLAYBACK	//outdated crap
 
-//FIXME
+//FIXME: Stuff that Spike has added that eukara needs to decide whether to use or not.
 #define HAVE_OPUS
 //#define HAVE_OPENSSL
 //#define IMAGEFMT_HDR
 //#define IMAGEFMT_PBM
 //#define IMAGEFMT_PSD
+#define IMAGEFMT_TGA
+#define IMAGEFMT_LMP
+//#define IMAGEFMT_PNG
+//#define IMAGEFMT_JPG
+//#define IMAGEFMT_GIF
+//#define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
+//#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
 //#define IPLOG
 //#define AVAIL_BOTLIB
 //#define AVAIL_BZLIB
+//#define DECOMPRESS_ASTC
+//#define IMAGEFMT_ASTC
+//#define HAVE_HTTPSV
+//#define MODELFMT_MDX
+//#define MODELFMT_OBJ
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

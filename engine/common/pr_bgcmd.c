@@ -589,15 +589,15 @@ int PR_DPrintf (const char *fmt, ...)
 string_t PR_TempString(pubprogfuncs_t *prinst, const char *str)
 {
 	char *tmp;
-	if (!prinst->tempstringbase)
+	if (!prinst->user.tempstringbase)
 		return prinst->TempString(prinst, str);
 
 	if (!str || !*str)
 		return 0;
 
-	if (prinst->tempstringnum == MAX_TEMPSTRS)
-		prinst->tempstringnum = 0;
-	tmp = prinst->tempstringbase + (prinst->tempstringnum++)*MAXTEMPBUFFERLEN;
+	if (prinst->user.tempstringnum == MAX_TEMPSTRS)
+		prinst->user.tempstringnum = 0;
+	tmp = prinst->user.tempstringbase + (prinst->user.tempstringnum++)*MAXTEMPBUFFERLEN;
 
 	Q_strncpyz(tmp, str, MAXTEMPBUFFERLEN);
 	return tmp - prinst->stringtable;
@@ -613,10 +613,10 @@ void PF_InitTempStrings(pubprogfuncs_t *prinst)
 	pr_tempstringsize.flags |= CVAR_NOSET;
 
 	if (pr_tempstringcount.value >= 2)
-		prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS, false);
+		prinst->user.tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS, false);
 	else
-		prinst->tempstringbase = 0;
-	prinst->tempstringnum = 0;
+		prinst->user.tempstringbase = 0;
+	prinst->user.tempstringnum = 0;
 }
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
@@ -2925,7 +2925,7 @@ void QCBUILTIN PF_edict_for_num(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	else
 	{
 		G_INT(OFS_RETURN) = num;	//just directly store it. if its not spawned yet we'll need to catch that elsewhere anyway.
-		if (G_WEDICT(prinst, OFS_RETURN))
+		if (!G_WEDICT(prinst, OFS_RETURN))
 			RETURN_EDICT(prinst, w->edicts);	//hoi! it wasn't valid!
 	}
 }

@@ -156,7 +156,7 @@
 #define HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 
-//FIXME
+//FIXME: Stuff that Spike has added that Eukara needs to decide whether to keep or not.
 #define HAVE_OPUS
 //#define HAVE_SPEEX
 //#define HAVE_OPENSSL
@@ -174,6 +174,18 @@
 //#define USE_INTERNAL_ODE
 //#define USE_INTERNAL_BULLET
 //#define MENU_NATIVECODE
+//#define DECOMPRESS_ASTC
+//#define HAVE_HTTPSV
+//#define IMAGEFMT_ASTC
+//#define IMAGEFMT_JPG
+//#define IMAGEFMT_GIF
+//#define IMAGEFMT_PNG
+#define IMAGEFMT_TGA
+#define IMAGEFMT_LMP
+//#define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
+//#define MODELFMT_MDX
+//#define MODELFMT_OBJ
+//#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
 
 
 #ifdef COMPILE_OPTS

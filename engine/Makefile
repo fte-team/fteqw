@@ -27,17 +27,17 @@ MAKE:=$(MAKE) SVNREVISION=$(SVNREVISION)
 
 
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
-JPEGVER=9b
+JPEGVER=9c
 ZLIBVER=1.2.11
-PNGVER=1.6.34
-OGGVER=1.3.3
+PNGVER=1.6.37
+OGGVER=1.3.4
 VORBISVER=1.3.6
-SDL2VER=2.0.7
+SDL2VER=2.0.10
 SCINTILLAVER=373
-OPUSVER=1.3
+OPUSVER=1.3.1
 SPEEXVER=1.2.0
-SPEEXDSPVER=1.2rc3
-FREETYPEVER=2.9
+SPEEXDSPVER=1.2.0
+FREETYPEVER=2.10.1
 BULLETVER=2.87
 
 #only limited forms of cross-making is supported

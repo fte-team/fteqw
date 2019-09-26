@@ -134,17 +134,17 @@ char *r_defaultimageextensions =
 	#endif
 #endif
 
-#ifdef IMAGEFMT_GIF
+#if defined(IMAGEFMT_GIF) && !defined(FTE_TARGET_WEB)
 	#pragma message("IMAGEFMT_GIF requires AVAIL_STBI")
 	#undef IMAGEFMT_GIF
 #endif
-#if defined(IMAGEFMT_PNG) && !defined(AVAIL_PNGLIB)
+#if defined(IMAGEFMT_PNG) && !defined(AVAIL_PNGLIB) && !defined(FTE_TARGET_WEB)
 	#pragma message("IMAGEFMT_PNG requires AVAIL_PNGLIB or AVAIL_STBI")
 	#undef IMAGEFMT_PNG
 #elif defined(AVAIL_PNGLIB)
 	#undef AVAIL_PNGLIB
 #endif
-#if defined(IMAGEFMT_JPG) && !defined(AVAIL_JPEGLIB)
+#if defined(IMAGEFMT_JPG) && !defined(AVAIL_JPEGLIB) && !defined(FTE_TARGET_WEB)
 	#pragma message("IMAGEFMT_JPG requires AVAIL_JPEGLIB or AVAIL_STBI")
 	#undef IMAGEFMT_JPG
 #elif defined(AVAIL_JPEGLIB)

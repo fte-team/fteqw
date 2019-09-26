@@ -2503,8 +2503,10 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 
 	if (fbwidth == vid.fbpwidth && fbheight == vid.fbpheight && qrenderer != QR_VULKAN)
 		usefbo = false;
+#ifdef GLQUAKE
 	else if (qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
 		usefbo = true;
+#endif
 	else
 		return NULL;
 

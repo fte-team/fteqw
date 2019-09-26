@@ -1470,7 +1470,10 @@ void QCBUILTIN PF_clientstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		G_FLOAT(OFS_RETURN) = 0/*nq ca_dedicated*/;
 	else if (	cls.state >= ca_connected	//we're on a server
 			||	CL_TryingToConnect()		//or we're trying to connect (avoids bugs with certain menuqc mods)
-			||	sv_state>=ss_loading	)	//or we're going to connect to ourselves once we get our act together
+#ifndef CLIENTONLY
+			||	sv.state>=ss_loading
+#endif
+				)	//or we're going to connect to ourselves once we get our act together
 		G_FLOAT(OFS_RETURN) = 2/*nq ca_connected*/;
 	else
 		G_FLOAT(OFS_RETURN) = 1/*nq ca_disconnected*/;

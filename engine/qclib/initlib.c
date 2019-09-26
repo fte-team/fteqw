@@ -1336,8 +1336,6 @@ static void PR_FreeAllTemps			(progfuncs_t *progfuncs)
 
 #elif defined(QCGC)
 
-#include "quakedef.h"
-
 pbool PR_RunGC			(progfuncs_t *progfuncs)
 {
 	unsigned int p;

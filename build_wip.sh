@@ -26,7 +26,7 @@ PLUGINS_WINDOWS="avplug ode qi ezhud xmpp irc"
 THREADS="-j 4"
 
 TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
-TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
+TARGETS_WINDOWS="sv-rel m-rel qcc-rel qccgui-scintilla qccgui-dbg m-dbg sv-dbg plugins-dbg plugins-rel"
 TARGETS_WEB="gl-rel"
 
 ########### NaCL stuff

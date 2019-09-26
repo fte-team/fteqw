@@ -44,45 +44,22 @@ fte_inlinebody float M_LinearToSRGB(float x, float mag);
 // These 4 libraries required for the version command
 
 #if defined(MINGW)
-	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
-		#include "./mingw-libs/png.h"
-	#endif
 	#ifdef AVAIL_ZLIB
 		#include "./mingw-libs/zlib.h"
-	#endif
-	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		#define JPEG_API VARGS
-		//#include "./mingw-libs/jversion.h"
-		#include "./mingw-libs/jpeglib.h"
 	#endif
 	#ifdef FTE_SDL
 		#include <SDL.h>
 	#endif
 #elif defined(_WIN32)
-	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
-		#include "png.h"
-	#endif
 	#ifdef AVAIL_ZLIB
 		#include "zlib.h"
-	#endif
-	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		#define JPEG_API VARGS
-		//#include "jversion.h"
-		#include "jpeglib.h"
 	#endif
 	#ifdef FTE_SDL
 		#include <SDL.h>
 	#endif
 #else
-	#if defined(AVAIL_PNGLIB) && !defined(SERVERONLY)
-		#include <png.h>
-	#endif
 	#ifdef AVAIL_ZLIB
 		#include <zlib.h>
-	#endif
-	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		//#include <jversion.h>
-		#include <jpeglib.h>
 	#endif
 	#ifdef FTE_SDL
 		#include <SDL.h>

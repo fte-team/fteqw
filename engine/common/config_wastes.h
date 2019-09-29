@@ -201,6 +201,12 @@
 #ifndef AVAIL_ZLIB
 -DNO_ZLIB	//disable zlib
 #endif
+#ifdef AVAIL_PNGLIB
+-DLINK_PNG
+#endif
+#ifdef AVAIL_JPEGLIB
+-DLINK_JPEG
+#endif
 
 #ifdef USE_INTERNAL_BULLET	//makefile will respond to this by trying to link bullet into the engine itself, instead of as a plugin.
 -DLINK_INTERNAL_BULLET

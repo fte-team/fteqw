@@ -191,7 +191,7 @@ static image_t *imagelist;
 #ifndef LIBPNG_STATIC
 #define DYNAMIC_LIBPNG
 #endif
-#ifndef LIBPNG_STATIC
+#ifndef LIBJPEG_STATIC
 #define DYNAMIC_LIBJPEG
 #endif
 

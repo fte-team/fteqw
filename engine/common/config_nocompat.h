@@ -202,6 +202,12 @@
 #ifndef AVAIL_ZLIB
 //-DNO_ZLIB	//disable zlib
 #endif
+#ifdef AVAIL_PNGLIB
+-DLINK_PNG
+#endif
+#ifdef AVAIL_JPEGLIB
+-DLINK_JPEG
+#endif
 
 //-DNO_OPUS
 //-DNO_SPEEX	//disable static speex

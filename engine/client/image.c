@@ -180,8 +180,12 @@ static image_t *imagelist;
 #if defined(IMAGEFMT_JPG) && !defined(AVAIL_JPEGLIB) && !defined(FTE_TARGET_WEB)
 	#pragma message("IMAGEFMT_JPG requires AVAIL_JPEGLIB or AVAIL_STBI")
 	#undef IMAGEFMT_JPG
-#elif defined(IMAGEFMT_PNG) && defined(AVAIL_JPEGLIB)
+#elif !defined(IMAGEFMT_JPG) && defined(AVAIL_JPEGLIB)
 	#undef AVAIL_JPEGLIB
+#endif
+
+#if defined(IMAGEFMT_EXR) && defined(FTE_TARGET_WEB)
+	#undef IMAGEFMT_EXR
 #endif
 
 #ifndef LIBPNG_STATIC
@@ -1373,7 +1377,7 @@ qboolean LibPNG_Init(void)
 			char *libnames[] =
 			{
 			#ifdef _WIN32
-				va("libpng%i", PNG_LIBPNG_VER_DLLNUM)
+				"libpng" STRINGIFY(PNG_LIBPNG_VER_DLLNUM)
 			#else
 				//linux...
 				//lsb uses 'libpng12.so' specifically, so make sure that works.
@@ -5454,6 +5458,10 @@ void Image_PrintInputFormatVersions(void)
 		#ifdef STBI_ONLY_PNM
 			Con_Printf(" pnm"S_COLOR_TRANS"(stbi)");
 		#endif
+	#endif
+
+	#ifdef IMAGEFMT_LMP
+		Con_Printf(" lmp");
 	#endif
 
 	Con_Printf("\n");

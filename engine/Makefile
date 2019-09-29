@@ -2298,9 +2298,15 @@ httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
 IQM_OBJECTS=../iqm/iqm.cpp
 $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
-	$(CC) -o $@ $(IQM_OBJECTS) -lstdc++ -lm
+	$(CC) -o $@ $(IQM_OBJECTS) -lstdc++ -lm -Os
 iqm-rel: $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX)
 iqm: iqm-rel
+
+IMGTOOL_OBJECTS=../imgtool.c client/image.c
+$(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
+	$(CC) -o $@ $(IMGTOOL_OBJECTS) -lstdc++ -lm -Os $(BASE_INCLUDES) -DIMGTOOL -ldl
+imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
+imgtool: imgtool-rel
 
 MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
 $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)

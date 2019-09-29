@@ -113,7 +113,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#ifdef MASTERONLY
+#ifdef IMGTOOL
+	#undef WEBCLIENT
+	#undef LOADERTHREAD
+#elif defined(MASTERONLY)
 	#define SV_MASTER
 	#undef SUBSERVERS
 	#undef PLUGINS
@@ -415,7 +418,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define SQL
 #endif
 
-#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NPFTE))
+#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NPFTE) || defined(NO_ZLIB))
 	//gzip needs zlib to work (pk3s can still contain non-compressed files)
 	#undef AVAIL_GZDEC
 #endif

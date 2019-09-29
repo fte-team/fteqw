@@ -107,9 +107,14 @@ ifeq (,$(findstring DNO_VORBISFILE,$(FTE_CONFIG_EXTRA)))
 endif
 ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
 	LINK_FREETYPE=1
+	LINK_ZLIB=1
 	LINK_PNG=1
 endif
+ifneq (,$(findstring DLINK_JPEG,$(FTE_CONFIG_EXTRA)))
+	LINK_JPEG=1
+endif
 ifneq (,$(findstring DLINK_PNG,$(FTE_CONFIG_EXTRA)))
+	LINK_ZLIB=1
 	LINK_PNG=1
 endif
 ifneq (,$(findstring -Os,$(FTE_CONFIG_EXTRA)))
@@ -555,14 +560,14 @@ BASELDFLAGS ?= -lm -ldl -lpthread
 
 ifeq (win,$(findstring cyg,$(FTE_TARGET))$(findstring win,$(FTE_TARGET)))
 	BASELDFLAGS=-lm
-	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
+#	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
 
-	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
-		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
-	endif
+#	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
+#		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
+#	endif
 
-	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
-	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
+#	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
+#	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
 endif
 
 #try to statically link
@@ -572,7 +577,6 @@ ifeq ($(COMPILE_SYS),Darwin)
 		OGGVORBISLDFLAGS = $(shell pkg-config vorbisfile --variable=libdir)/libvorbisfile.a $(shell pkg-config vorbis --variable=libdir)/libvorbis.a $(shell pkg-config ogg --variable=libdir)/libogg.a
 	endif
 endif
-IMAGELDFLAGS ?= -lpng -ljpeg
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 VISIBILITY_FLAGS?=
 
@@ -923,8 +927,16 @@ ifeq (1,$(LINK_FREETYPE))
 	CLIENTLDDEPS+=-lfreetype
 endif
 ifeq (1,$(LINK_PNG))
-	CLIENTLIBFLAGS+=-DAVAIL_PNG
+	CLIENTLIBFLAGS+=-DLIBPNG_STATIC
 	CLIENTLDDEPS+=-lpng
+endif
+ifeq (1,$(LINK_JPEG))
+	CLIENTLIBFLAGS+=-DLIBJPEG_STATIC
+	CLIENTLDDEPS+=-ljpeg
+endif
+ifeq (1,$(LINK_ZLIB))
+	CLIENTLIBFLAGS+=-DZLIB_STATIC
+	CLIENTLDDEPS+=-lz
 endif
 ifeq (1,$(strip $(INTERNAL_BULLET)))
 	COMMON_OBJS+=com_phys_bullet.o
@@ -1270,7 +1282,6 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 		BITS=64
 	endif
 	QCC_DIR=winqcc$(BITS)
-	QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 
 	BASELDFLAGS=
 
@@ -1287,7 +1298,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
-	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lws2_32 -lwinmm
+	SV_LDFLAGS=-lws2_32 -lwinmm
 	SV_DIR=sv_mingw$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
@@ -1334,6 +1345,13 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	MINGL_EXE_NAME=../fteminglqw$(BITS)$(EXEPOSTFIX)
 	MINGL_DIR=mingl_mgw$(BITS)
 
+	ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
+		SV_LDFLAGS+=-lz
+		GL_LDFLAGS+=-lz
+		VK_LDFLAGS+=-lz
+		M_LDFLAGS+=-lz
+		QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
+	endif
 	ifeq ($(NOCOMPAT),1)
 		SV_EXE_NAME=../engine-sv$(BITS)$(EXEPOSTFIX)
 		GL_EXE_NAME=../engine-gl$(BITS)$(EXEPOSTFIX)
@@ -1487,7 +1505,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
 	endif
 
-	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit -lz -lpng -ljpeg
+	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidcocoa.mo gl_vidmacos.o sys_linux.o cd_null.o snd_macos.o sys_linux_threads.o
 
 	GL_EXE_NAME=../$(EXE_NAME)-macosx-gl$(EXTENSION)$(BITS)

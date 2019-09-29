@@ -473,8 +473,8 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
 void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);
 const char *Image_FormatName(uploadfmt_t encoding);
-
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
+struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);
 
 #ifdef D3D8QUAKE
 void		D3D8_Set2D (void);
@@ -499,8 +499,6 @@ texid_t R_LoadReplacementTexture(const char *name, const char *subpath, unsigned
 texid_tf R_LoadHiResTexture(const char *name, const char *subpath, unsigned int flags);
 texid_tf R_LoadBumpmapTexture(const char *name, const char *subpath);
 void R_LoadNumberedLightTexture(struct dlight_s *dl, int cubetexnum);
-
-qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);
 
 extern	texid_t	particletexture;
 extern	texid_t particlecqtexture;
@@ -599,11 +597,12 @@ void RQ_Shutdown(void);
 void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
-qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
-void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);
 
+qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);
+void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);
+void Image_ReadExternalAlpha(qbyte *rgbadata, size_t imgwidth, size_t imgheight, const char *fname, uploadfmt_t *format);
 void BoostGamma(qbyte *rgba, int width, int height, uploadfmt_t fmt);
 void SaturateR8G8B8(qbyte *data, int size, float sat);
 void AddOcranaLEDsIndexed (qbyte *image, int h, int w);

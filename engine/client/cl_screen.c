@@ -1066,33 +1066,8 @@ void SCR_DrawCursor(void)
 				FS_FreeFile(filedata);
 				if (rgbadata)
 				{	//image loaded properly, yay
-					if ((format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(bestname, ':'))
-					{	//people seem to insist on using jpgs, which don't have alpha.
-						//so screw over the alpha channel if needed.
-						unsigned int alpha_width, alpha_height, p;
-						char aname[MAX_QPATH];
-						unsigned char *alphadata;
-						char *alph;
-						size_t alphsize;
-						char ext[8];
-						COM_StripExtension(bestname, aname, sizeof(aname));
-						COM_FileExtension(bestname, ext, sizeof(ext));
-						Q_strncatz(aname, "_alpha.", sizeof(aname));
-						Q_strncatz(aname, ext, sizeof(aname));
-						alphsize = FS_LoadFile(aname, (void**)&alph);
-						if (alph)
-						{
-							if ((alphadata = ReadRawImageFile(alph, alphsize, &alpha_width, &alpha_height, &format, true, aname)))
-							{
-								if (alpha_width == width && alpha_height == height)
-									for (p = 0; p < alpha_width*alpha_height; p++)
-										rgbadata[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
-								BZ_Free(alphadata);
-							}
-							FS_FreeFile(alph);
-						}
-						format = (format==PTI_LLLX8)?PTI_LLLA8:PTI_RGBA8;
-					}
+					if ((format==PTI_BGRX8 || format==PTI_RGBX8 || format==PTI_LLLX8) && !strchr(bestname, ':'))
+						Image_ReadExternalAlpha(rgbadata, width, height, bestname, &format);
 
 					kcurs->handle = rf->VID_CreateCursor(rgbadata, width, height, format, kcurs->hotspot[0], kcurs->hotspot[1], kcurs->scale);	//try the fallback
 					BZ_Free(rgbadata);

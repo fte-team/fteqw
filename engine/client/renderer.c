@@ -282,7 +282,7 @@ cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of colour bits to request from the renedering context");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
-cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "1",
+cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "2",
 												CVAR_ARCHIVE|CVAR_VIDEOLATCH);
 cvar_t vid_height							= CVARFD ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");

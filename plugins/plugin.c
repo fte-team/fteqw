@@ -226,11 +226,14 @@ void Sys_Errorf(const char *format, ...)
 	plugfuncs->Error(string);
 }
 
+#ifdef __cplusplus
+extern "C"
+#endif
 qboolean NATIVEEXPORT FTEPlug_Init(plugcorefuncs_t *corefuncs)
 {
 	plugfuncs = corefuncs;
-	cmdfuncs = plugfuncs->GetEngineInterface(plugcmdfuncs_name, sizeof(*cmdfuncs));
-	cvarfuncs = plugfuncs->GetEngineInterface(plugcvarfuncs_name, sizeof(*cvarfuncs));
+	cmdfuncs = (plugcmdfuncs_t*)plugfuncs->GetEngineInterface(plugcmdfuncs_name, sizeof(*cmdfuncs));
+	cvarfuncs = (plugcvarfuncs_t*)plugfuncs->GetEngineInterface(plugcvarfuncs_name, sizeof(*cvarfuncs));
 
 	return Plug_Init();
 }

@@ -2287,7 +2287,7 @@ METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
 	longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-static qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, qintptr_t stride, int screenwidth, int screenheight, enum uploadfmt fmt, unsigned int writemeta)
+qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, qintptr_t stride, int screenwidth, int screenheight, enum uploadfmt fmt, unsigned int writemeta)
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;

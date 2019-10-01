@@ -1665,16 +1665,17 @@ typedef struct
 		char	*stringdata;
 	};
 } pf_hashentry_t;
+#define FIRSTTABLE 1
 static pf_hashtab_t *pf_hashtab;
 static size_t pf_hash_maxtables;
 static pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
 //static pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
 static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 {
-	idx -= 1;
+	idx -= FIRSTTABLE;
 	if (idx >= 0 && (unsigned)idx < pf_hash_maxtables && pf_hashtab[idx].prinst)
 		return &pf_hashtab[idx];
-	else if (idx == -1)
+	else if (idx == 0-FIRSTTABLE)
 	{
 		if (!pf_peristanthashtab.tab.numbuckets)
 		{
@@ -1898,7 +1899,7 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 	pf_hashtab[i].prinst = prinst;
 	pf_hashtab[i].bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
 	Hash_InitTable(&pf_hashtab[i].tab, numbuckets, pf_hashtab[i].bucketmem);
-	G_FLOAT(OFS_RETURN) = i + 1;
+	G_FLOAT(OFS_RETURN) = i + FIRSTTABLE;
 }
 
 void pf_hash_savegame(void)	//write the persistant table to a saved game.

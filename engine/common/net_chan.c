@@ -595,6 +595,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 	int dupes = chan->dupe;
 	int availbytes = Netchan_CanBytes(chan, rate);
+	availbytes = max(0, availbytes); //make sure it can't go negative (clientside doesn't check rate limits much)
 
 #ifdef NQPROT
 	if (chan->isnqprotocol)

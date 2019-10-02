@@ -4945,11 +4945,22 @@ static void COM_Version_f (void)
 #endif
 
 	//print out which libraries are disabled
-#ifndef AVAIL_ZLIB
-	Con_Printf("zlib disabled\n");
-#else
-	Con_Printf("zlib: %s\n", ZLIB_VERSION);
+	Con_Printf("^3Compression:^7\n");
+#ifdef AVAIL_ZLIB
+	Con_Printf(" zlib^h("
+#ifdef ZLIB_STATIC
+			"static, "
 #endif
+			"%s)^h", ZLIB_VERSION);
+#endif
+#ifdef AVAIL_BZLIB
+	Con_Printf(" bzlib"
+		#ifdef BZLIB_STATIC
+			"^h(static)^h"
+		#endif
+		);
+#endif
+	Con_Printf("\n");
 
 #ifdef HAVE_CLIENT
 	Image_PrintInputFormatVersions();

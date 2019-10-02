@@ -1144,7 +1144,7 @@ void P_ParticleEffect_f(void)
 				if (!ptype->loaded)
 				{
 					if (part_type[parenttype].assoc != P_INVALID)
-						Con_Printf("warning: assoc on particle chain %s overridden\n", var+1);
+						Con_Printf("warning: assoc on particle chain \"%s.%s\" overridden\n", part_type[parenttype].config, part_type[parenttype].name);
 					part_type[parenttype].assoc = ptype - part_type;
 					break;
 				}

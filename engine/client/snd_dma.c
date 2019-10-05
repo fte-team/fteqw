@@ -130,6 +130,7 @@ cvar_t snd_doppler_max			= CVARAFD(	"s_doppler_max", "2",
 											"snd_doppler_max", CVAR_ARCHIVE,
 											"Highest allowed doppler scale, to avoid things getting too weird.");
 cvar_t snd_playbackrate			= CVARFD(	"snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
+cvar_t snd_ignoregamespeed		= CVARFD(	"snd_ignoregamespeed", "0", 0, "When set, allows sounds to desynchronise with game time or demo speeds.");
 
 cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
 											"snd_linearresample", 0);
@@ -2303,6 +2304,7 @@ void S_Init (void)
 	Cvar_Register(&snd_buffersize,		"Sound controls");
 	Cvar_Register(&snd_samplebits,		"Sound controls");
 	Cvar_Register(&snd_playbackrate,	"Sound controls");
+	Cvar_Register(&snd_ignoregamespeed,	"Sound controls");
 	Cvar_Register(&snd_doppler,			"Sound controls");
 	Cvar_Register(&snd_doppler_min,		"Sound controls");
 	Cvar_Register(&snd_doppler_max,		"Sound controls");
@@ -2886,10 +2888,12 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 		return;
 	}
 
+	ratemul *= snd_playbackrate.value;
+	if (!snd_ignoregamespeed.ival)
+		ratemul *= (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
+
 	if (ratemul <= 0)
 		ratemul = 1;
-
-	ratemul *= snd_playbackrate.value * (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
 
 	vol = fvol*255;
 

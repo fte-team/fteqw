@@ -906,19 +906,22 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #endif
 
 #ifndef GL_TEXTURE_LOD_BIAS
-#define GL_TEXTURE_LOD_BIAS               0x8501	//gl1.4
+#define GL_TEXTURE_LOD_BIAS				0x8501	//gl1.4
 #endif
 
 #ifndef GL_RGBA16
-#define GL_RGBA16				0x805B	//gl1.1, but not in gles.
+#define GL_RGBA16						0x805B	//gl1.1, but not in gles.
 #endif
 #ifndef GL_RGBA16F
-#define GL_RGBA16F                      0x881A
-#define GL_RGBA32F                      0x8814
+#define GL_RGBA16F						0x881A
+#define GL_RGBA32F						0x8814
+#endif
+#ifndef GL_RGB32F
+#define GL_RGB32F						0x8815
 #endif
 #ifndef GL_R16F
-#define GL_R16F                           0x822D
-#define GL_R32F                           0x822E
+#define GL_R16F							0x822D
+#define GL_R32F							0x822E
 #endif
 
 #ifndef GL_RED

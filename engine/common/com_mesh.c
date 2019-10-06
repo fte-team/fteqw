@@ -7700,7 +7700,7 @@ static void IQM_ImportArrayF(const qbyte *fte_restrict base, const struct iqmver
 	case IQM_HALF:
 #ifdef __F16C__
 		{	//x86 intrinsics
-			const unsigned short *in = (const qbyte*)(base+offset);
+			const unsigned short *in = (const unsigned short*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)

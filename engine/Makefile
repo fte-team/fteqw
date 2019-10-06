@@ -2283,7 +2283,7 @@ libs-$(ARCH)/libspeexdsp.a:
 
 libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && bash && cp -r include/* ../)
+	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz

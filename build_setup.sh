@@ -197,17 +197,15 @@ function debianpackages {
 	do
 		dpkg -s $i 2>&1 >> /dev/null
 		if [ $? -eq 1 ]; then
+			echo "Package missing: $i"
 			ret=$false
 		fi
 	done
 
 	if [ $ret == $false ]; then
-		if [ $UID -eq 0 ]; then
-			apt-get install --no-install-recommends $@
-			ret=$true
-		else
-			echo "Packages not installed. Rerun script as root to easily install dependancies, or manually install."
-		fi
+		echo "Packages are not installed. Press enter to continue (or ctrl+c and install)."
+		read
+		ret=$true
 	fi
 	return $ret
 }
@@ -234,8 +232,8 @@ function otherpackages {
 
 if [ $UID -eq 0 ] && [ ! -z `which apt-get` ]; then
 	#because multiarch requires separate packages for some things, we'll need to set that up now (in case noone did that yet)
-	dpkg --add-architecture i386
-	apt-get update
+#	dpkg --add-architecture i386
+#	apt-get update
 fi
 
 #generic crap. much of this is needed to set up and decompress dependancies and stuff.

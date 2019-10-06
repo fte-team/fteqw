@@ -58,6 +58,8 @@ void R_SetSky(const char *sky)
 	const char *shadername;
 	extern cvar_t r_skyboxname;
 	Q_strncpyz(cl.skyname, sky, sizeof(cl.skyname));
+	if (qrenderer <= QR_NONE)
+		return;	//not ready yet...
 	if (*r_skyboxname.string)	//override it with the user's preference
 		sky = r_skyboxname.string;
 

@@ -4905,7 +4905,7 @@ void CL_Init (void)
 
 	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
-	Cmd_AddCommand ("skygroup", CL_Skygroup_f);
+	Cmd_AddCommandD ("skygroup", CL_Skygroup_f, "Provides a way to associate a skybox name with a series of maps, so that the requested skybox will override on a per-map basis.");
 //
 //  Windows commands
 //

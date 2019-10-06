@@ -34,25 +34,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qboolean r_pushdepth;
 #endif
 
-extern cvar_t r_ambient;
+extern cvar_t		r_ambient;
 
-static vec3_t			modelorg;	/*set before recursively entering the visible surface finder*/
+static vec3_t		modelorg;	/*set before recursively entering the visible surface finder*/
 
-model_t		*currentmodel;
+model_t				*currentmodel;
 
-size_t			maxblocksize;
-vec3_t			*blocknormals;
-unsigned		*blocklights;
+static size_t		maxblocksize;
+static vec3_t		*blocknormals;
+static unsigned		*blocklights;
 
 lightmapinfo_t **lightmap;
 int numlightmaps;
-static const float rgb9e5tab[32] = {	//multipliers for the 9-bit mantissa, according to the biased mantissa
-	//aka: pow(2, biasedexponent - bias-bits) where bias is 15 and bits is 9
-	1.0/(1<<24),	1.0/(1<<23),	1.0/(1<<22),	1.0/(1<<21),	1.0/(1<<20),	1.0/(1<<19),	1.0/(1<<18),	1.0/(1<<17),
-	1.0/(1<<16),	1.0/(1<<15),	1.0/(1<<14),	1.0/(1<<13),	1.0/(1<<12),	1.0/(1<<11),	1.0/(1<<10),	1.0/(1<<9),
-	1.0/(1<<8),		1.0/(1<<7),		1.0/(1<<6),		1.0/(1<<5),		1.0/(1<<4),		1.0/(1<<3),		1.0/(1<<2),		1.0/(1<<1),
-	1.0,			1.0*(1<<1),		1.0*(1<<2),		1.0*(1<<3),		1.0*(1<<4),		1.0*(1<<5),		1.0*(1<<6),		1.0*(1<<7),
-};
+extern const float rgb9e5tab[32];
 
 extern mleaf_t		*r_vischain;		// linked list of visible leafs
 

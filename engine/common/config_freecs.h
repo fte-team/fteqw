@@ -163,6 +163,7 @@
 //#define IMAGEFMT_HDR
 //#define IMAGEFMT_PBM
 //#define IMAGEFMT_PSD
+//#define IMAGEFMT_XCF			//flattens, most of the time
 //#define IMAGEFMT_VTF
 //#define IPLOG
 //#define MVD_RECORDING

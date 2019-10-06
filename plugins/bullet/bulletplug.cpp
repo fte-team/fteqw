@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define Plug_Init Plug_Bullet_Init
 #pragma comment(lib,"../../plugins/bullet/libs/bullet_dbg.lib")
 #endif
-
+#include "quakedef.h"
 #include "../plugin.h"
 #include "../engine.h"
 

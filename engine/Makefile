@@ -2003,7 +2003,7 @@ endif
 plugins-dbg:
 	@-mkdir -p $(DEBUG_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" CCX="$(CC) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(DEBUG_CFLAGS))" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS))" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" CCX="$(CC) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(DEBUG_CFLAGS))" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins:
@@ -2011,7 +2011,7 @@ plugins:
 plugins-rel:
 	@-mkdir -p $(RELEASE_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" CCX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(RELEASE_CFLAGS))" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS))" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" CCX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(RELEASE_CFLAGS))" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins-rel:
@@ -2281,9 +2281,9 @@ libs-$(ARCH)/libspeexdsp.a:
 	test -f speexdsp-$(SPEEXDSPVER).tar.gz || wget http://downloads.xiph.org/releases/speex/speexdsp-$(SPEEXDSPVER).tar.gz
 	-test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
 
-libs-$(ARCH)/libfreetype.a: libs-$(ARCH)/libpng.a
+libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/ ../)
+	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && bash && cp -r include/* ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz

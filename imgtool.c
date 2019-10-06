@@ -3,6 +3,7 @@
 #undef stderr
 #define stderr stdout
 
+#include <limits.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -97,7 +98,7 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 	}
 	free(t);
 }
-qboolean Sys_remove (const char *path)
+qboolean FS_Remove (const char *path, enum fs_relative relativeto)
 {
 	//remove is part of c89.
 	if (remove(path) == -1)
@@ -293,7 +294,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags);
 int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, qintptr_t bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata);
 qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, qintptr_t bytestride, int width, int height, enum uploadfmt fmt);
 
-static qboolean ImgTool_ASTCToLDR(uploadfmt_t fmt)
+static enum uploadfmt ImgTool_ASTCToLDR(uploadfmt_t fmt)
 {
 	if (fmt >= PTI_ASTC_FIRST && fmt <= PTI_ASTC_LAST)
 	{
@@ -302,6 +303,8 @@ static qboolean ImgTool_ASTCToLDR(uploadfmt_t fmt)
 		if (fmt >= PTI_ASTC_4X4_SRGB)
 			return (fmt-PTI_ASTC_4X4_SRGB)+PTI_ASTC_4X4_LDR;
 	}
+	if (fmt == PTI_BC1_RGB)
+		return PTI_BC1_RGBA;
 	return fmt;
 }
 #ifdef _WIN32
@@ -330,7 +333,7 @@ static void FS_MakeTempName(char *out, size_t outsize, char *prefix, char *suffi
 	close(mkstemps(out, strlen(suffix)));	//bsd4.3/posix1-2001
 }
 #endif
-static void ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, struct pendingtextureinfo *mips)
+static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, struct pendingtextureinfo *mips)
 {
 	struct pendingtextureinfo tmp, *ret;
 	size_t m;
@@ -343,6 +346,10 @@ static void ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, 
 	int bb,bw,bh;
 	qboolean canktx = false;
 	uploadfmt_t targfmt = args->newpixelformat;
+
+	//force it to bc1 if bc2 or bc3 with no alpha channel.
+	if ((targfmt == PTI_BC2_RGBA || targfmt == PTI_BC3_RGBA) && !Image_FormatHasAlpha(mips->encoding))
+		targfmt = PTI_BC1_RGB;
 
 	if (targfmt >= PTI_ASTC_FIRST && targfmt <= PTI_ASTC_LAST)
 	{
@@ -361,8 +368,12 @@ static void ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, 
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc4");
 	else if (targfmt == PTI_BC5_RG8)
 		Q_snprintfz(command, sizeof(command), "nvcompress -bc5");
+	else if (targfmt == PTI_BC6_RGB_SFLOAT || targfmt == PTI_BC6_RGB_UFLOAT)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc6");
+	else if (targfmt == PTI_BC7_RGBA)
+		Q_snprintfz(command, sizeof(command), "nvcompress -bc7");
 	else
-		return;
+		return false;
 	if (canktx)
 		FS_MakeTempName(raw, sizeof(raw), "itr", ".ktx");
 	else
@@ -382,6 +393,8 @@ static void ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, 
 		Q_strncatz(command, " -srgb", sizeof(command));
 	if (targfmt >= PTI_ASTC_4X4_HDR && targfmt <= PTI_ASTC_12X12_HDR)
 		Q_strncatz(command, " -hdr", sizeof(command));
+	if (targfmt >= PTI_BC1_RGB && targfmt <= PTI_BC7_RGBA_SRGB && (strstr(inname, "_n.")||strstr(inname, "_norm.")))
+		Q_strncatz(command, " -normal", sizeof(command));	//looks like a normalmap... tweak metrics to favour normalised results.
 	Q_strncatz(command, ">> /dev/null", sizeof(command));
 
 	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
@@ -389,10 +402,13 @@ static void ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, 
 	{
 		tmp.mip[0] = mips->mip[m];
 		tmp.mip[0].needfree = false;
+		(void)tmp;
 
 		if (canktx)
 		{
+#ifdef IMAGEFMT_KTX
 			if (!Image_WriteKTXFile(raw, FS_SYSTEM, &tmp))
+#endif
 				break;
 		}
 		else
@@ -426,11 +442,12 @@ static void ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inname, 
 		//do not warn for astc files, their block sizes are too weird.
 		Image_BlockSizeForEncoding(targfmt, &bb, &bw, &bh);
 		if (mips->mip[0].width%bw || mips->mip[0].height%bh)
-			Con_Printf("%s: d3d warning: %i*%i is not a multiple of %i*%i\n", inname, mips->mip[0].width, mips->mip[0].height, bw, bh);
+			Con_Printf("%s: mip0 of %i*%i is not a multiple of %i*%i (d3d warning)\n", inname, mips->mip[0].width, mips->mip[0].height, bw, bh);
 	}
 
-	Sys_remove(raw);
-	Sys_remove(comp);
+	FS_Remove(raw, FS_SYSTEM);
+	FS_Remove(comp, FS_SYSTEM);
+	return true;
 }
 
 const char *COM_GetFileExtension (const char *in, const char *term)
@@ -453,11 +470,15 @@ static void ImgTool_Convert(struct opts_s *args, const char *inname, const char 
 	size_t fsize;
 	struct pendingtextureinfo *in;
 	const char *outext = COM_GetFileExtension(outname, NULL);
+	qboolean allowcompressed = false;
+
+	if (!strcmp(outext, ".dds") || !strcmp(outext, ".ktx"))
+		allowcompressed = true;
 
 	indata = FS_LoadMallocFile(inname, &fsize);
 	if (indata)
 	{
-		in = Image_LoadMipsFromMemory(args->flags, inname, inname, indata, fsize);
+		in = Image_LoadMipsFromMemory(args->flags|(allowcompressed?0:IF_NOMIPMAP), inname, inname, indata, fsize);
 		if (in)
 		{
 			printf("%s: %s, %i*%i, %i mips\n", inname, Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
@@ -468,8 +489,8 @@ static void ImgTool_Convert(struct opts_s *args, const char *inname, const char 
 				if (!(args->flags & IF_NOMIPMAP) && in->mipcount == 1)
 					Image_GenerateMips(in, args->flags);
 
-				if (args->newpixelformat != PTI_INVALID)
-					ImgTool_ConvertPixelFormat(args, inname, in);
+				if (args->newpixelformat != PTI_INVALID && allowcompressed && ImgTool_ConvertPixelFormat(args, inname, in))
+					printf("\t(Converted to %s)\n", Image_FormatName(in->encoding));
 			}
 
 			if (!in->mipcount)
@@ -478,28 +499,40 @@ static void ImgTool_Convert(struct opts_s *args, const char *inname, const char 
 				return;
 			}
 
-			if (!strcmp(outext, ".ktx"))
+			if (0)
+				;
+#ifdef IMAGEFMT_KTX
+			else if (!strcmp(outext, ".ktx"))
 				Image_WriteKTXFile(outname, FS_SYSTEM, in);
+#endif
+#ifdef IMAGEFMT_DDS
 			else if (!strcmp(outext, ".dds"))
 				Image_WriteDDSFile(outname, FS_SYSTEM, in);
+#endif
 			else
 			{
 				int bb,bw,bh;
 				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
 				if (args->mipnum < in->mipcount)
 				{
-					if (!strcmp(outext, ".png"))
+					if (0)
+						;
+#ifdef IMAGEFMT_PNG
+					else if (!strcmp(outext, ".png"))
 					{
 #ifdef AVAIL_PNGLIB
 						if (!Image_WritePNG(outname, FS_SYSTEM, 0, &in->mip[args->mipnum].data, 1, in->mip[args->mipnum].width*bb, in->mip[args->mipnum].width, in->mip[args->mipnum].height, in->encoding, false))
 #endif
 							Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
 					}
+#endif
+#ifdef IMAGEFMT_TGA
 					else if (!strcmp(outext, ".tga"))
 					{
 						if (!WriteTGA(outname, FS_SYSTEM, in->mip[args->mipnum].data, in->mip[args->mipnum].width*bb, in->mip[args->mipnum].width, in->mip[args->mipnum].height, in->encoding))
 							Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
 					}
+#endif
 					else
 						Con_Printf("%s: Unknown output file format\n", outname);
 				}
@@ -543,25 +576,77 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 	fflush(stdout);
 }
 
-#ifdef _WIN32
-static void ImgTool_TreeConvert(struct opts_s *args, const char *srcpath, const char *destpath)
+struct filelist_s
 {
-	Con_Printf("ImgTool_TreeConvert not implemented on windows.\n");
+	const char **exts;
+	size_t numfiles;
+	struct {
+		char *name;
+		size_t baselen; //length up to but not including the filename extension.
+	} *file;
+	size_t maxfiles; //to avoid reallocs
+};
+static void FileList_Release(struct filelist_s *list)
+{
+	size_t i;
+	for (i = 0; i < list->numfiles; i++)
+		free(list->file[i].name);
+	free(list->file);
+	list->numfiles = 0;
+	list->maxfiles = 0;
+}
+static void FileList_Add(struct filelist_s *list, char *fname)
+{
+	size_t i;
+	size_t baselen;
+	const char *ext = COM_GetFileExtension(fname, NULL);
+	for (i = 0; ; i++)
+	{
+		if (!list->exts[i])
+			return;	//extension wasn't in the list.
+		if (!strcmp(list->exts[i], ext))
+			break;	//one of the accepted extensions
+	}
+	baselen = ext?ext-fname:strlen(fname);
+	for (i = 0; i < list->numfiles; i++)
+	{
+		if (list->file[i].baselen == baselen && !strncasecmp(list->file[i].name, fname, baselen))
+		{
+			Con_Printf("Ignoring dupe file %s (using %s)\n", fname, list->file[i].name);
+			return; //file already listed, but maybe with a different extension
+		}
+	}
+	if (i == list->maxfiles)
+	{
+		list->maxfiles += 64;
+		list->file = realloc(list->file, sizeof(*list->file)*list->maxfiles);
+	}
+	list->file[i].name = strdup(fname);
+	list->file[i].baselen = baselen;
+	list->numfiles++;
+}
+#ifdef _WIN32
+static void ImgTool_TreeScan(struct filelist_s *list, const char *basepath, const char *subpath)
+{
+	Con_Printf("ImgTool_TreeScan not implemented on windows.\n");
 }
 #else
 #include <dirent.h>
 #include <fnmatch.h>
-static void ImgTool_TreeConvert(struct opts_s *args, const char *srcpath, const char *destpath)
+static void ImgTool_TreeScan(struct filelist_s *list, const char *basepath, const char *subpath)
 {
 	DIR *dir;
 	char file[MAX_OSPATH];
-	char dest[MAX_OSPATH];
 	struct dirent *ent;
 
-	dir = opendir(srcpath);
+	if (subpath && *subpath)
+		Q_snprintfz(file, sizeof(file), "%s/%s", basepath, subpath);
+	else
+		Q_snprintfz(file, sizeof(file), "%s", basepath);
+	dir = opendir(file);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir %s\n", srcpath);
+		Con_Printf("Failed to open dir %s\n", file);
 		return;
 	}
 	for (;;)
@@ -573,43 +658,200 @@ static void ImgTool_TreeConvert(struct opts_s *args, const char *srcpath, const 
 			continue;
 		else if (ent->d_type == DT_DIR)
 		{
-			Q_snprintfz(file, sizeof(file), "%s/%s", srcpath, ent->d_name);
-			Q_snprintfz(dest, sizeof(dest), "%s/%s", destpath, ent->d_name);
-			Con_Printf("Recurse %s -> %s\n", file, dest);
-			ImgTool_TreeConvert(args, file, dest);
+			if (!subpath)
+				continue;
+			if (*subpath)
+				Q_snprintfz(file, sizeof(file), "%s/%s", subpath, ent->d_name);
+			else
+				Q_snprintfz(file, sizeof(file), "%s", ent->d_name);
+			ImgTool_TreeScan(list, basepath, file);
 		}
 		else if (ent->d_type == DT_REG)
 		{
-			const char *ext = COM_GetFileExtension(ent->d_name, NULL);
-			if (!strcmp(ext, ".png")||!strcmp(ext, ".bmp")||!strcmp(ext, ".tga")||!strcmp(ext, ".jpg")||!strcmp(ext, ".exr")||!strcmp(ext, ".hdr"))
-			{
-				struct stat statsrc, statdst;
-				Q_snprintfz(file, sizeof(file), "%s/%s", srcpath, ent->d_name);
-				Q_snprintfz(dest, sizeof(dest), "%s/%s", destpath, ent->d_name);
-				Q_snprintfz(dest+strlen(dest)-strlen(ext), sizeof(dest)-(strlen(dest)-strlen(ext)), ".ktx");
-
-				if (stat(file, &statsrc) < 0)
-				{
-					Con_Printf("stat(\"%s\") failed...\n", file);
-					continue;
-				}
-				if (stat(dest, &statdst) < 0)
-					statdst.st_mtim.tv_sec = INT_MIN; //make it look old
-				if (statdst.st_mtim.tv_sec <= statsrc.st_mtim.tv_sec)
-				{
-					Con_Printf("Image file %s -> %s\n", file, dest);
-					FS_CreatePath(dest, FS_SYSTEM);
-					ImgTool_Convert(args, file, dest);
-				}
-				else
-					Con_Printf("Unmodified image file %s -> %s\n", file, dest);
-			}
+			if (subpath && *subpath)
+				Q_snprintfz(file, sizeof(file), "%s/%s", subpath, ent->d_name);
+			else
+				Q_snprintfz(file, sizeof(file), "%s", ent->d_name);
+			FileList_Add(list, file);
 		}
 	}
 	closedir(dir);
-	return;
 }
 #endif
+static void ImgTool_TreeConvert(struct opts_s *args, const char *srcpath, const char *destpath)
+{
+	size_t newfiles=0, skippedfiles=0, processedfiles=0;
+	char file[MAX_OSPATH];
+	char dest[MAX_OSPATH];
+	const char *exts[] = {".png", ".bmp", ".tga", ".jpg", ".exr", ".hdr", NULL};
+	struct filelist_s list = {exts};
+	size_t i, destlen = strlen(destpath)+1;
+	ImgTool_TreeScan(&list, srcpath, "");
+
+	if (!list.numfiles)
+		Con_Printf("No suitable files found in directory: %s\n", srcpath);
+
+	for (i = 0; i < list.numfiles; i++)
+	{
+		struct stat statsrc, statdst;
+		Q_snprintfz(file, sizeof(file), "%s/%s", srcpath, list.file[i].name);
+		Q_snprintfz(dest, sizeof(dest), "%s/%s", destpath, list.file[i].name);
+		Q_snprintfz(dest+destlen+list.file[i].baselen, sizeof(dest)-destlen-list.file[i].baselen, ".dds");
+
+		if (stat(file, &statsrc) < 0)
+		{
+			Con_Printf("stat(\"%s\") failed...\n", file);
+			continue;
+		}
+		if (stat(dest, &statdst) < 0)
+		{
+			statdst.st_mtim.tv_sec = INT_MIN; //make it look old
+			newfiles++;
+		}
+		if (statdst.st_mtim.tv_sec <= statsrc.st_mtim.tv_sec)
+		{
+			processedfiles++;
+//			Con_Printf("Image file %s -> %s\n", file, dest);
+			FS_CreatePath(dest, FS_SYSTEM);
+			ImgTool_Convert(args, file, dest);
+		}
+		else
+		{
+			skippedfiles++;
+//			Con_Printf("Unmodified image file %s -> %s\n", file, dest);
+		}
+	}
+	Con_Printf("found: %u, processed: %u, skipped: %u, new: %u\n", (unsigned int)list.numfiles, (unsigned int)processedfiles, (unsigned int)skippedfiles, (unsigned int)newfiles);
+	FileList_Release(&list);
+	return;
+}
+
+
+
+
+
+
+/*
+typedef struct
+{
+   long offset;                 	// Position of the entry in WAD
+   long dsize;                  	// Size of the entry in WAD file
+   long size;                   	// Size of the entry in memory
+   char type;                   	// type of entry
+   char cmprs;                  	// Compression. 0 if none.
+   short dummy;                 	// Not used
+   char name[16];               	// we use only first 8
+} wad2entry_t;
+typedef struct
+{
+   char magic[4]; 			//should be WAD2
+   long num;				//number of entries
+   long offset;				//location of directory
+} wad2_t;
+static void ImgTool_WadConvert(struct opts_s *args, const char *srcpath, const char *destpath)
+{
+	char file[MAX_OSPATH];
+	const char *exts[] = {".png", ".bmp", ".tga", ".jpg", ".exr", ".hdr", NULL};
+	struct filelist_s list = {exts};
+	size_t i, u;
+	vfsfile_t *f;
+	char *inname;
+	qbyte *indata;
+	size_t fsize;
+	wad2_t wad2;
+	wad2entry_t *wadentries = NULL, *entry;
+	size_t maxentries;
+	miptex_t mip;
+	ImgTool_TreeScan(&list, srcpath, NULL);
+
+	f = FS_OpenVFS(destpath, "wb", FS_SYSTEM);
+	wad2.magic[0] = 'W';
+	wad2.magic[1] = 'A';
+	wad2.magic[2] = 'D';
+	wad2.magic[3] = '3';	//wad3 instead of 2, so we can include a palette for tools to validate against
+	VFS_WRITE(f, &wad2, 12);
+
+	//try to decompress everything to a nice friendly palletizable range.
+	for (u = 1; u < countof(sh_config.texfmt); u++)
+		sh_config.texfmt[u] = (u==PTI_RGBA8)||(u==PTI_RGBX8)||(u==PTI_P8);
+
+	for (i = 0; i < list.numfiles; i++)
+	{
+		Q_snprintfz(file, sizeof(file), "%s/%s", srcpath, list.file[i].name);
+		inname = list.file[i].name;
+		if (list.file[i].baselen > 15)
+		{
+			Con_Printf("Path too long for wad - %s\n", inname);
+			continue;
+		}
+		indata = FS_LoadMallocFile(file, &fsize);
+		if (indata)
+		{
+			struct pendingtextureinfo *in = Image_LoadMipsFromMemory(args->flags|IF_PALETTIZE, inname, file, indata, fsize);
+			Image_GenerateMips(in, args->flags);
+			if (in)
+			{
+				if (in->mipcount == 1)
+					Image_GenerateMips(in, args->flags);
+
+				if (!in->mipcount)
+				{
+					printf("%s: unable to load any mips\n", inname);
+					continue;
+				}
+			}
+			if (args->mipnum >= in->mipcount)
+			{
+				printf("%s: not enough mips\n", inname);
+				continue;
+			}
+			if ((in->mip[args->mipnum].width|in->mip[args->mipnum].height) & 15)
+				printf("%s(%i): WARNING: not multiple of 16 - %i*%i\n", inname, args->mipnum, in->mip[args->mipnum].width, in->mip[args->mipnum].height);
+
+			if (wad2.num == maxentries)
+			{
+				maxentries += 64;
+				wadentries = realloc(wadentries, sizeof(*wadentries)*maxentries);
+			}
+			entry = &wadentries[wad2.num++];
+			Q_strncpyz(entry->name, inname, 16);
+			entry->name[list.file[i].baselen] = 0; //kill any .tga
+			entry->type = TYP_MIPTEX;
+			entry->cmprs = 0;
+			entry->dummy = 0;
+			entry->offset = VFS_TELL(f);
+
+			memcpy(mip.name, entry->name, sizeof(mip.name));
+			mip.width = in->mip[args->mipnum].width;
+			mip.height = in->mip[args->mipnum].height;
+			mip.offsets[0] = in->mip[args->mipnum+0].datasize?sizeof(mip):0;
+			mip.offsets[1] = in->mip[args->mipnum+1].datasize?mip.offsets[args->mipnum+0]+in->mip[args->mipnum+0].datasize:0;
+			mip.offsets[2] = in->mip[args->mipnum+2].datasize?mip.offsets[args->mipnum+1]+in->mip[args->mipnum+1].datasize:0;
+			mip.offsets[3] = in->mip[args->mipnum+3].datasize?mip.offsets[args->mipnum+2]+in->mip[args->mipnum+2].datasize:0;
+
+			VFS_WRITE(f, &mip, sizeof(mip));
+			VFS_WRITE(f, in->mip[args->mipnum+0].data, in->mip[args->mipnum+0].datasize);
+			VFS_WRITE(f, in->mip[args->mipnum+1].data, in->mip[args->mipnum+1].datasize);
+			VFS_WRITE(f, in->mip[args->mipnum+2].data, in->mip[args->mipnum+2].datasize);
+			VFS_WRITE(f, in->mip[args->mipnum+3].data, in->mip[args->mipnum+3].datasize);
+			if (wad2.magic[3] == '3')
+			{
+				VFS_WRITE(f, "\x00\x01", 2);
+				VFS_WRITE(f, host_basepal, 256*3);
+			}
+
+			entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
+		}
+	}
+	wad2.offset = VFS_TELL(f);
+	VFS_WRITE(f, wadentries, sizeof(*wadentries)*wad2.num);
+	VFS_SEEK(f, 0);
+	VFS_WRITE(f, &wad2, sizeof(wad2));
+	VFS_CLOSE(f);
+
+	FileList_Release(&list);
+}
+*/
 
 int main(int argc, const char **argv)
 {
@@ -617,7 +859,8 @@ int main(int argc, const char **argv)
 	{
 		mode_info,
 		mode_convert,
-		mode_autotree
+		mode_autotree,
+		mode_genwad
 	} mode = mode_info;
 	size_t u, f;
 	struct opts_s args;
@@ -652,9 +895,10 @@ int main(int argc, const char **argv)
 showhelp:
 				Con_Printf("show info : %s -i *.ktx\n", argv[0]);
 				Con_Printf("compress  : %s --astc_6x6_ldr [--nomips] in.png out.ktx [in2.png out2.ktx]\n", argv[0]);
-				Con_Printf("compress  : %s --bc3_rgba [--nomips] in.png out.dds\n", argv[0]);
-				Con_Printf("convert   : %s -c in.exr out.dds\n", argv[0]);
-				Con_Printf("decompress: %s -d [--exportmip 0] [--nomips] in.ktx out.png\n", argv[0]);
+				Con_Printf("compress  : %s --bc3_rgba [--premul] [--nomips] in.png out.dds\n\tConvert pixel format (to bc3 aka dxt5) before writing to output file.\n", argv[0]);
+				Con_Printf("convert   : %s --convert in.exr out.dds\n\tConvert to different file format, while trying to preserve pixel formats.\n", argv[0]);
+				Con_Printf("decompress: %s --decompress [--exportmip 0] [--nomips] in.ktx out.png\n\tDecompresses any block-compressed pixel data.\n", argv[0]);
+//				Con_Printf("gen wad   : %s --genwad [--exportmip 2] srcdir out.wad\n", argv[0]);
 //				Con_Printf("auto      : %s --astc_6x6_ldr -r _postfix.png srcdir destdir\n", argv[0]);
 
 				Image_PrintInputFormatVersions();
@@ -667,13 +911,15 @@ showhelp:
 						Con_Printf(" --%-15s %.2fbpp (requires astcenc)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
 					else if (f==PTI_BC1_RGB||f==PTI_BC1_RGBA||f==PTI_BC2_RGBA||f==PTI_BC3_RGBA||f==PTI_BC4_R8||f==PTI_BC5_RG8)
 						Con_Printf(" --%-15s %.2fbpp (requires nvcompress)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
+					else if (f==PTI_BC6_RGB_UFLOAT || f==PTI_BC6_RGB_SFLOAT || f==PTI_BC7_RGBA)
+						Con_Printf(" --%-15s %.2fbpp (requires nvcompress 2.1+)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
 				}
 				break;
 			}
 			else if (!strcmp(argv[u], "-c") || !strcmp(argv[u], "--convert"))
 				mode = mode_convert;
 			else if (!strcmp(argv[u], "-d") || !strcmp(argv[u], "--decompress"))
-			{
+			{	//remove any (weird) gpu formats
 				for (f = PTI_BC1_RGB; f < PTI_ASTC_LAST; f++)
 					sh_config.texfmt[f] = false;
 				mode = mode_convert;
@@ -682,10 +928,16 @@ showhelp:
 				mode = mode_autotree;
 			else if (!strcmp(argv[u], "-i") || !strcmp(argv[u], "--info"))
 				mode = mode_info;
+			else if (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad"))
+				mode = mode_genwad;
 			else if (!strcmp(argv[u], "--nomips")	)
 				args.flags |= IF_NOMIPMAP;
 			else if (!strcmp(argv[u], "--mips"))
 				args.flags &= ~IF_NOMIPMAP;
+			else if (!strcmp(argv[u], "--premul")	)
+				args.flags |= IF_PREMULTIPLYALPHA;
+			else if (!strcmp(argv[u], "--nopremul"))
+				args.flags &= ~IF_PREMULTIPLYALPHA;
 			else if (!strcmp(argv[u], "--exportmip"))
 			{
 				char *e = "erk";
@@ -734,6 +986,14 @@ showhelp:
 				if (u+1 < argc)
 				{
 					ImgTool_TreeConvert(&args, argv[u], argv[u+1]);
+					u++;
+				}
+			}
+			else if (mode == mode_genwad)
+			{
+				if (u+1 < argc)
+				{
+					//ImgTool_WadConvert(&args, argv[u], argv[u+1]);
 					u++;
 				}
 			}

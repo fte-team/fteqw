@@ -178,6 +178,7 @@
 //#define IMAGEFMT_HDR
 //#define IMAGEFMT_PBM
 //#define IMAGEFMT_PSD
+//#define IMAGEFMT_XCF			//flattens, most of the time
 #define IMAGEFMT_TGA
 #define IMAGEFMT_LMP
 //#define IMAGEFMT_PNG

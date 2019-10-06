@@ -163,9 +163,12 @@ void GL_SetupFormats(void)
 //			glfmtc(PTI_RGBA5551,(ver>=3)?GL_RGB555A1:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
 		}
 		if (GL_CheckExtension("GL_OES_texture_half_float"))
-			glfmtc(PTI_RGBA16F,	(ver>=3)?GL_RGBA16F:0,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES,		0);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
+			glfmt(PTI_RGBA16F,	(ver>=3)?GL_RGBA16F:0,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
 		if (GL_CheckExtension("GL_OES_texture_float"))
-			glfmtc(PTI_RGBA32F,	(ver>=3)?GL_RGBA32F:0,			GL_RGBA,				GL_RGBA,				GL_FLOAT,				0);
+		{
+			glfmt(PTI_RGBA32F,	(ver>=3)?GL_RGBA32F:0,			GL_RGBA,				GL_RGBA,				GL_FLOAT);
+			glfmt(PTI_RGB32F,	(ver>=3)?GL_RGB32F:0,			GL_RGB,					GL_RGB,					GL_FLOAT);
+		}
 
 		if (GL_CheckExtension("GL_WEBGL_depth_texture"))
 		{	//24bit is okay with this one.
@@ -236,6 +239,8 @@ void GL_SetupFormats(void)
 		}
 		if (ver >= 3.0 || GL_CheckExtension("GL_EXT_texture_shared_exponent"))
 			glfmt(PTI_E5BGR9,		GL_RGB9_E5,			GL_RGB9_E5,				GL_RGB,					GL_UNSIGNED_INT_5_9_9_9_REV);
+		if (ver >= 3.0 || GL_CheckExtension("GL_EXT_packed_float"))
+			glfmt(PTI_B10G11R11F,	GL_R11F_G11F_B10F,	GL_R11F_G11F_B10F,	GL_RGB,					GL_UNSIGNED_INT_10F_11F_11F_REV);
 		if (ver >= 3.0 || GL_CheckExtension("GL_EXT_packed_pixels"))	//so gl1.2 then.
 			glfmt(PTI_A2BGR10,		GL_RGB10_A2,		GL_RGB10_A2,			GL_RGBA,				GL_UNSIGNED_INT_2_10_10_10_REV);
 		if (ver >= 3.0 || GL_CheckExtension("GL_ARB_texture_rg"))
@@ -260,6 +265,8 @@ void GL_SetupFormats(void)
 
 			glfmtc(PTI_RGBA16F,		GL_RGBA16F,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT,		0);
 			glfmtc(PTI_RGBA32F,		GL_RGBA32F,			GL_RGBA,				GL_RGBA,				GL_FLOAT,			0);
+
+			glfmt(PTI_RGB32F,		GL_RGB32F,			GL_RGB,					GL_RGB,					GL_FLOAT);
 		}
 		if (ver >= 1.2 && !gl_config_gles)
 		{

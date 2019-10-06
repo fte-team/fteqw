@@ -93,6 +93,7 @@
 #define IMAGEFMT_ASTC			//lame simple header around a single astc image. not needed for astc in ktx files etc. its better to use ktx files.
 #define IMAGEFMT_PBM			//pbm/ppm/pgm/pfm family formats.
 #define IMAGEFMT_PSD			//baselayer only.
+#define IMAGEFMT_XCF			//flattens, most of the time
 #define IMAGEFMT_HDR			//an RGBE format.
 #define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 #define IMAGEFMT_TGA			//somewhat mandatory

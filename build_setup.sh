@@ -33,8 +33,8 @@ ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative 
 
 THREADS="-j 4"
 
-TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
-TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
+TARGETS_LINUX="qcc-rel rel dbg plugins-rel plugins-dbg" #gl-rel vk-rel 
+TARGETS_WINDOWS="sv-rel m-rel qcc-rel qccgui-scintilla qccgui-dbg m-dbg sv-dbg plugins-dbg plugins-rel" #gl-rel vk-rel mingl-rel d3d-rel 
 
 
 PLUGINS_DROID="qi ezhud irc"
@@ -382,7 +382,7 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 	#linux distros vary too much with various dependancies and versions and such, so we might as well pre-build our own copies of certain libraries. this really only needs to be done once, but its safe to retry anyway.
 	cd $SVNROOT/engine
 	if [ "$BUILD_LINUXx86" == "y" ]; then
-		echo "Making libraries (x86)..."
+		echo "Making libraries (linux x86)..."
 		make FTE_TARGET=linux32 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
 	if [ "$BUILD_LINUXx64" == "y" ]; then
@@ -396,6 +396,12 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 	if [ "$BUILD_LINUXarmhf" == "y" ]; then
 		echo "Making libraries (linux armhf)..."
 		make FTE_TARGET=linuxarmhf makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WINDOWS" == "y" ]; then
+		echo "Making libraries (linux armhf)..."
+		make FTE_TARGET=win32 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
+		echo "Making libraries (linux armhf)..."
+		make FTE_TARGET=win64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
 	if [ "$BUILD_WINDOWS" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win32)..."

@@ -2140,6 +2140,7 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 	case 11: return PTI_RGB565;
 	case 12: return PTI_RGBA4444;
 	case 13: return PTI_RG8;
+	case 14: return PTI_RGB32F;
 
 	default:return PTI_INVALID;
 	}

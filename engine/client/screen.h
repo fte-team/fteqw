@@ -117,11 +117,13 @@ typedef enum uploadfmt
 	//floating point formats
 	PTI_R16F,
 	PTI_R32F,
+	PTI_RGB32F,		//so qc can just use vectors for rgb. not really recommended.
 	PTI_RGBA16F,	//consider using e5bgr9 or bc6/astc
 	PTI_RGBA32F,	//usually overkill
 	//packed/misaligned formats: these are specified in native endian order (high bits listed first because that's how things are represented in hex), so may need byte swapping...
 	PTI_A2BGR10,	//mostly for rendertargets, might also be useful for overbight lightmaps.
 	PTI_E5BGR9,		//mostly for fancy lightmaps
+	PTI_B10G11R11F,	//unshared exponents
 	PTI_RGB565,		//16bit alphaless format.
 	PTI_RGBA4444,	//16bit format (gl)
 	PTI_ARGB4444,	//16bit format (d3d)

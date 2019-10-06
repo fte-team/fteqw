@@ -10842,7 +10842,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"crossproduct",	PF_crossproduct,	0,		0,		0,		0,		D("#define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))\nvector(vector v1, vector v2)", "Small helper function to calculate the crossproduct of two vectors.")},
 	{"pushmove", 		PF_pushmove, 		0, 		0,		0, 		0, 		"float(entity pusher, vector move, vector amove)"},
 #ifdef TERRAIN
-	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
+	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("__variant(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
 
 #define qcbrushface					\
 	"typedef struct\n{\n"			\
@@ -10924,8 +10924,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension.")},// (EXT_CSQC)
-	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, void *pixeldata, optional int datasize, optional int format)", "Updates a texture with the specified rgba data. Will be created if needed. If blobsize is specified then the image is decoded (eg .ktx or .dds data) instead of being raw R8G8B8A data. You'll typically want shaderforname to also generate a shader to use the texture.")},
-	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw R8G8B8A pixel data. Should not be used for dds or ktx etc formats. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
+	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, void *pixeldata, optional int datasize, optional int format)", "Updates a texture with the specified rgba data (uploading it to the gpu). Will be created if needed. If datasize is specified then the image is decoded (eg .ktx or .dds data) instead of being raw R8G8B8A data. You'll typically want shaderforname to also generate a shader to use the texture.")},
+	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw R8G8B8A8 pixel data. Should not be used for dds or ktx etc formats. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
 	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
 //320
@@ -12544,6 +12544,7 @@ void PR_DumpPlatform_f(void)
 		{"IMGFMT_R5G6B5",		"const float", CS|MENU, D("Packed 16-bit colour pixel format."), 11},
 		{"IMGFMT_R4G4B4A4",		"const float", CS|MENU, D("Packed 16-bit colour pixel format, with alpha"), 12},
 		{"IMGFMT_R8G8",			"const float", CS|MENU, D("16-bit two-channel pixel format."), 13},
+		{"IMGFMT_R32G32B32F",	"const float", CS|MENU, D("A pixel format that matches QC's vector type."), 14},
 
 		{"RF_VIEWMODEL",		"const float", CS, D("Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob."), CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, D("Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible."), CSQCRF_EXTERNALMODEL},

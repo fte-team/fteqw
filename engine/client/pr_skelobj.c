@@ -929,7 +929,7 @@ void skel_generateragdoll_f(void)
 
 	//FIXME: only write out the bodies specified as arguments, and with no //
 	for (i = 0; i < numbones; i++)
-		VFS_PUTS(f, va("//body b_%s %s\n", bones[i].name, bones[i].name));
+		VFS_PUTS(f, va("//body \"b_%s\" \"%s\"\n", bones[i].name, bones[i].name));
 	VFS_PUTS(f, "\n");
 
 	VFS_PUTS(f, "updatejoint default\n");

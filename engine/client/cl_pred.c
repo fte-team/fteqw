@@ -1080,6 +1080,7 @@ void CL_PredictMovePNum (int seat)
 
 	if (nopred)
 	{
+		lerpangles = false;
 		//match interpolation info
 		from.frame = ((char*)cl.previouspackentities - (char*)&cl.inframes[0].packet_entities) / sizeof(inframe_t);
 		from.time = cl.inframes[from.frame & UPDATE_MASK].packet_entities.servertime;

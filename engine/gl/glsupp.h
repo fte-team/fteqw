@@ -696,6 +696,11 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_RG8_SNORM                      0x8F95	/*opengl 3.1*/
 #endif
 
+#ifndef GL_R11F_G11F_B10F
+#define GL_R11F_G11F_B10F				  0x8C3A
+#define GL_UNSIGNED_INT_10F_11F_11F_REV	  0x8C3B
+#endif
+
 #ifndef GL_TEXTURE_SWIZZLE_R
 #define GL_TEXTURE_SWIZZLE_R              0x8E42
 #define GL_TEXTURE_SWIZZLE_G              0x8E43

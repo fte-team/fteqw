@@ -641,6 +641,7 @@ struct shader_s
 		SHADER_NODLIGHT			= 1 << 15,	//from surfaceflags
 		SHADER_HASLIGHTMAP		= 1 << 16,
 		SHADER_HASTOPBOTTOM		= 1 << 17,
+		SHADER_HASREFLECTCUBE	= 1 << 18,	//shader has a T_GEN_REFLECTCUBE pass (otherwise we can skip surf envmaps for better batching)
 //		SHADER_STATICDATA		= 1 << 18,	//set if true: no deforms, no tcgen, rgbgen=identitylighting, alphagen=identity, tmu0=st + tmu1=lm(if available) for every pass, no norms
 		SHADER_HASREFLECT		= 1 << 19,	//says that we need to generate a reflection image first
 		SHADER_HASREFRACT		= 1 << 20,	//says that we need to generate a refraction image first

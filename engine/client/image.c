@@ -4024,6 +4024,7 @@ static qboolean XCF_CombineLayer(struct xcf_s *f)
 					case 3: Vector4Set(px, in[0], in[1], in[2],  0xff);	break;
 					case 2: Vector4Set(px, in[0], in[0], in[0], in[1]);	break;
 					case 1: Vector4Set(px, in[0], in[0], in[0],  0xff);	break;
+					default:
 					case 0: Vector4Set(px,  0xff,  0xff,  0xff,  0xff);	break;
 					}
 					if (applylayermask)

@@ -584,7 +584,7 @@ void Plug_Command_f(void)
 		if (!plugincommandarray[i].plugin)
 			continue;	//don't check commands who's owners died.
 
-		if (stricmp(plugincommandarray[i].command, cmd))	//not the right command
+		if (Q_strcasecmp(plugincommandarray[i].command, cmd))	//not the right command
 			continue;
 
 		currentplug = plugincommandarray[i].plugin;

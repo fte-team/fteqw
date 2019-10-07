@@ -5,6 +5,7 @@
 #include "shader.h"
 
 extern cvar_t r_decal_noperpendicular;
+extern cvar_t mod_loadsurfenvmaps;
 
 /*
 Decal functions
@@ -2428,6 +2429,10 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 	menvmap_t *out;
 	int count;
 	denvmap_t *in = BSPX_FindLump(bspx, mod_base, "ENVMAP", &count);
+	mod->envmaps = NULL;
+	mod->numenvmaps = 0;
+	if (!mod_loadsurfenvmaps.ival)
+		return;
 	if (count%sizeof(*in))
 		return;	//erk
 	count /= sizeof(*in);

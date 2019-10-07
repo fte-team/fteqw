@@ -230,11 +230,11 @@ function otherpackages {
 
 #Note: only the native linux-sdl target can be compiled, as libSDL[2]-dev doesn't support multiarch properly, and we depend upon it instead of building from source (thus ensuring it has whatever distro stuff needed... though frankly that should be inside the .so instead of the headers).
 
-if [ $UID -eq 0 ] && [ ! -z `which apt-get` ]; then
+#if [ $UID -eq 0 ] && [ ! -z `which apt-get` ]; then
 	#because multiarch requires separate packages for some things, we'll need to set that up now (in case noone did that yet)
 #	dpkg --add-architecture i386
 #	apt-get update
-fi
+#fi
 
 #generic crap. much of this is needed to set up and decompress dependancies and stuff.
 debianpackages subversion make automake libtool p7zip-full zip ca-certificates || otherpackages z7 make svn || exit

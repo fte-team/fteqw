@@ -2805,6 +2805,7 @@ static qboolean Shaderpass_MapGen (parsestate_t *ps, shaderpass_t *pass, char *t
 	}
 	else if (!Q_stricmp (tname, "$reflectcube"))
 	{
+		shader->flags |= SHADER_HASREFLECTCUBE;
 		pass->texgen = T_GEN_REFLECTCUBE;
 	}
 	else if (!Q_stricmp (tname, "$reflectmask"))
@@ -4348,7 +4349,7 @@ void Shader_FixupProgPasses(parsestate_t *ps, shaderpass_t *pass)
 		{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
 		{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//7
 		{T_GEN_PALETTED,		SHADER_HASPALETTED},	//8
-		{T_GEN_REFLECTCUBE,		0},						//9
+		{T_GEN_REFLECTCUBE,		SHADER_HASREFLECTCUBE},	//9
 		{T_GEN_REFLECTMASK,		0},						//10
 		{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 		{T_GEN_OCCLUSION,		0},						//12

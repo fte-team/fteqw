@@ -190,6 +190,11 @@ static void Mod_TextureList_f(void)
 	char *body;
 	char editname[MAX_OSPATH];
 	int preview = (Cmd_Argc()==1)?8:atoi(Cmd_Argv(1));
+
+	int s;
+	batch_t *batch;
+	unsigned int batchcount;
+
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
 		if (shownmodelname)
@@ -206,6 +211,18 @@ static void Mod_TextureList_f(void)
 				tx = mod->textures[i];
 				if (!tx)
 					continue;	//happens on e1m2
+
+				batchcount = 0;
+				for (s = 0; s < SHADER_SORT_COUNT; s++)
+				{
+					for (batch = mod->batches[s]; batch; batch = batch->next)
+					{
+						if (batch->texture == tx)
+							batchcount++;
+					}
+				}
+	//			if (!batchcount)
+//					continue; //not actually used...
 
 				if (!shownmodelname)
 				{
@@ -232,9 +249,9 @@ static void Mod_TextureList_f(void)
 						Con_Printf("^[\\img\\%s\\imgtype\\%i\\s\\%i\\tip\\{%s^]", tx->shader->name, tx->shader->usageflags, preview, body);
 				}
 				if (*editname)
-					Con_Printf("  ^[%s\\edit\\%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]\n", tx->name, editname, tx->name, tx->shader->usageflags, body);
+					Con_Printf("  ^[%s\\edit\\%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^] (%u batches)\n", tx->name, editname, tx->name, tx->shader->usageflags, body, batchcount);
 				else
-					Con_Printf("  ^[%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^]\n", tx->name, tx->shader->name, tx->shader->usageflags, body);
+					Con_Printf("  ^[%s\\tipimg\\%s\\tipimgtype\\%i\\tip\\{%s^] (%u batches)\n", tx->name, tx->shader->name, tx->shader->usageflags, body, batchcount);
 				count++;
 			}
 		}
@@ -2861,6 +2878,7 @@ static int Mod_Batches_Generate(model_t *mod)
 	int sortid;
 	batch_t *batch, *lbatch = NULL;
 	vec4_t plane;
+	image_t *envmap;
 
 	int merge = mod->lightmaps.merge;
 	if (!merge)
@@ -2877,6 +2895,7 @@ static int Mod_Batches_Generate(model_t *mod)
 	{
 		surf = mod->surfaces + mod->firstmodelsurface + i;
 		shader = surf->texinfo->texture->shader;
+		envmap = surf->envmap;
 
 		if (surf->flags & SURF_NODRAW)
 		{
@@ -2884,6 +2903,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			sortid = shader->sort;
 			VectorClear(plane);
 			plane[3] = 0;
+			envmap = NULL;
 		}
 		else if (shader)
 		{
@@ -2908,6 +2928,9 @@ static int Mod_Batches_Generate(model_t *mod)
 				VectorClear(plane);
 				plane[3] = 0;
 			}
+
+			if (!(shader->flags & SHADER_HASREFLECTCUBE))
+				envmap = NULL;
 		}
 		else
 		{
@@ -2928,7 +2951,7 @@ static int Mod_Batches_Generate(model_t *mod)
 					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
 					lbatch->fog == surf->fog &&
-					lbatch->envmap == surf->envmap))
+					lbatch->envmap == envmap))
 			batch = lbatch;
 		else
 		{
@@ -2946,7 +2969,7 @@ static int Mod_Batches_Generate(model_t *mod)
 							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
 							batch->fog == surf->fog &&
-							batch->envmap == surf->envmap)
+							batch->envmap == envmap)
 					break;
 			}
 		}
@@ -2983,7 +3006,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			batch->next = mod->batches[sortid];
 			batch->ent = &r_worldentity;
 			batch->fog = surf->fog;
-			batch->envmap = surf->envmap;
+			batch->envmap = envmap;
 			Vector4Copy(plane, batch->plane);
 
 			mod->batches[sortid] = batch;

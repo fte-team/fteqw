@@ -4548,11 +4548,6 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	}
 	return false;
 }
-#else
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
-{	//this system probably has no steam installs...
-	return false;
-}
 #endif
 
 qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)

@@ -359,6 +359,7 @@ cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
 cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "1", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE|CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
+cvar_t mod_loadsurfenvmaps					= CVARD ("r_loadsurfenvmaps", "1", "Load local reflection environment-maps, where available. These are normally defined via env_cubemap entities dotted around the place.");
 qboolean r_deluxemapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
@@ -599,6 +600,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_lightmap_nearest, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lightmap_average, GLRENDEREROPTIONS);
+	Cvar_Register (&mod_loadsurfenvmaps, GLRENDEREROPTIONS);
 }
 #endif
 

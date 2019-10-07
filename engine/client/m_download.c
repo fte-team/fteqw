@@ -664,6 +664,7 @@ static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qb
 		numdownloadablelists++;
 	}
 }
+#ifdef WEBCLIENT
 static void PM_RemSubList(const char *url)
 {
 	int i;
@@ -675,6 +676,7 @@ static void PM_RemSubList(const char *url)
 		}
 	}
 }
+#endif
 
 static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, const char *prefix)
 {

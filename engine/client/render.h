@@ -476,6 +476,7 @@ const char *Image_FormatName(uploadfmt_t encoding);
 qboolean Image_FormatHasAlpha(uploadfmt_t encoding);
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);
+void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename);
 
 #ifdef D3D8QUAKE
 void		D3D8_Set2D (void);

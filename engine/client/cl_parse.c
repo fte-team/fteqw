@@ -3233,12 +3233,12 @@ static void CLQW_ParseServerData (void)
 
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
-		cls.netchan.netprim.coordsize = 4;
+		cls.netchan.netprim.coordtype = COORDTYPE_FLOAT_32;
 		cls.netchan.netprim.anglesize = 2;
 	}
 	else
 	{
-		cls.netchan.netprim.coordsize = 2;
+		cls.netchan.netprim.coordtype = COORDTYPE_FIXED_13_3;
 		cls.netchan.netprim.anglesize = 1;
 	}
 	cls.netchan.message.prim = cls.netchan.netprim;
@@ -3478,7 +3478,7 @@ static void CLQ2_ParseServerData (void)
 //	int cflag;
 
 	memset(&cls.netchan.netprim, 0, sizeof(cls.netchan.netprim));
-	cls.netchan.netprim.coordsize = 2;
+	cls.netchan.netprim.coordtype = COORDTYPE_FIXED_13_3;
 	cls.netchan.netprim.anglesize = 1;
 	cls.fteprotocolextensions = 0;
 	cls.fteprotocolextensions2 = 0;
@@ -3513,7 +3513,7 @@ static void CLQ2_ParseServerData (void)
 		i = MSG_ReadLong ();
 
 		if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
-			cls.netchan.netprim.coordsize = 4;
+			cls.netchan.netprim.coordtype = COORDTYPE_FLOAT_32;
 	}
 	cls.protocol_q2 = i;
 
@@ -3669,7 +3669,7 @@ static void CLNQ_ParseProtoVersion(void)
 		break;
 	}
 
-	netprim.coordsize = 2;
+	netprim.coordtype = COORDTYPE_FIXED_13_3;
 	netprim.anglesize = 1;
 
 	cls.protocol_nq = CPNQ_ID;
@@ -3706,17 +3706,19 @@ static void CLNQ_ParseProtoVersion(void)
 		if (fl & RMQFL_FLOATANGLE)
 			netprim.anglesize = 4;
 		if (fl & RMQFL_24BITCOORD)
-			netprim.coordsize = 3;
+			netprim.coordtype = COORDTYPE_FIXED_16_8;
+		if (fl & RMQFL_INT32COORD)
+			netprim.coordtype = COORDTYPE_FIXED_28_4;
 		if (fl & RMQFL_FLOATCOORD)
-			netprim.coordsize = 4;
-		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_FLOATCOORD|RMQFL_EDICTSCALE))
+			netprim.coordtype = COORDTYPE_FLOAT_32;
+		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_INT32COORD|RMQFL_FLOATCOORD|RMQFL_EDICTSCALE))
 			Con_Printf("WARNING: Server is using unsupported RMQ extensions\n");
 	}
 	else if (protover == PROTOCOL_VERSION_DP5)
 	{
 		//darkplaces5
 		cls.protocol_nq = CPNQ_DP5;
-		netprim.coordsize = 4;
+		netprim.coordtype = COORDTYPE_FLOAT_32;
 		netprim.anglesize = 2;
 
 		Con_DPrintf("DP5 protocols\n");
@@ -3725,7 +3727,7 @@ static void CLNQ_ParseProtoVersion(void)
 	{
 		//darkplaces6 (it's a small difference from dp5)
 		cls.protocol_nq = CPNQ_DP6;
-		netprim.coordsize = 4;
+		netprim.coordtype = COORDTYPE_FLOAT_32;
 		netprim.anglesize = 2;
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
@@ -3736,7 +3738,7 @@ static void CLNQ_ParseProtoVersion(void)
 	{
 		//darkplaces7 (it's a small difference from dp5)
 		cls.protocol_nq = CPNQ_DP7;
-		netprim.coordsize = 4;
+		netprim.coordtype = COORDTYPE_FLOAT_32;
 		netprim.anglesize = 2;
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
@@ -3770,8 +3772,8 @@ static void CLNQ_ParseProtoVersion(void)
 	{
 		if (netprim.anglesize < 2)
 			netprim.anglesize = 2;
-		if (netprim.coordsize < 4)
-			netprim.coordsize = 4;
+		if (netprim.coordtype < COORDTYPE_FLOAT_32)
+			netprim.coordtype = COORDTYPE_FLOAT_32;
 	}
 	cls.netchan.message.prim = cls.netchan.netprim = netprim;
 	MSG_ChangePrimitives(netprim);

@@ -655,12 +655,12 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 // send an update
 	bits = 0;
 
-	if (msg->prim.coordsize == 2)
+	if (msg->prim.coordtype != COORDTYPE_FLOAT_32)
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			coordd[i] = MSG_ToCoord(to->origin[i], msg->prim.coordsize);
-			if (MSG_ToCoord(from->origin[i], msg->prim.coordsize).b4 != coordd[i].b4)
+			coordd[i] = MSG_ToCoord(to->origin[i], msg->prim.coordtype);
+			if (MSG_ToCoord(from->origin[i], msg->prim.coordtype).b4 != coordd[i].b4)
 				bits |= U_ORIGIN1<<i;
 			else
 				to->origin[i] = from->origin[i];
@@ -670,7 +670,7 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			coordd[i] = MSG_ToCoord(to->origin[i], msg->prim.coordsize);
+			coordd[i] = MSG_ToCoord(to->origin[i], msg->prim.coordtype);
 			if (to->origin[i] != from->origin[i])
 				bits |= U_ORIGIN1<<i;
 		}
@@ -834,15 +834,15 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	if (bits & U_EFFECTS)
 		MSG_WriteByte (msg, to->effects&0x00ff);
 	if (bits & U_ORIGIN1)
-		SZ_Write(msg, &coordd[0], msg->prim.coordsize);
+		SZ_Write(msg, &coordd[0], msg->prim.coordtype&0xf);
 	if (bits & U_ANGLE1)
 		SZ_Write(msg, &angled[0], msg->prim.anglesize);
 	if (bits & U_ORIGIN2)
-		SZ_Write(msg, &coordd[1], msg->prim.coordsize);
+		SZ_Write(msg, &coordd[1], msg->prim.coordtype&0xf);
 	if (bits & U_ANGLE2)
 		SZ_Write(msg, &angled[1], msg->prim.anglesize);
 	if (bits & U_ORIGIN3)
-		SZ_Write(msg, &coordd[2], msg->prim.coordsize);
+		SZ_Write(msg, &coordd[2], msg->prim.coordtype&0xf);
 	if (bits & U_ANGLE3)
 		SZ_Write(msg, &angled[2], msg->prim.anglesize);
 

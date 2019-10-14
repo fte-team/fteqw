@@ -724,12 +724,12 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	//determine basic primitive sizes.
 	if (bigcoords)
 	{
-		svs.netprim.coordsize = 4;
+		svs.netprim.coordtype = COORDTYPE_FLOAT_32;
 		svs.netprim.anglesize = 2;
 	}
 	else
 	{
-		svs.netprim.coordsize = 2;
+		svs.netprim.coordtype = COORDTYPE_FIXED_13_3;
 		svs.netprim.anglesize = 1;
 	}
 

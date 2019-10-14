@@ -2342,7 +2342,7 @@ void CL_CheckServerInfo(void)
 		if (!(movevars.flags&MOVEFLAG_VALID))
 			movevars.flags = (movevars.flags&~MOVEFLAG_QWEDGEBOX) | (*s?0:MOVEFLAG_QWEDGEBOX);
 	}
-	movevars.coordsize = cls.netchan.netprim.coordsize; 
+	movevars.coordtype = cls.netchan.netprim.coordtype;
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)

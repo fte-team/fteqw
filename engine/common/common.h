@@ -152,13 +152,18 @@ typedef enum {qfalse, qtrue}	qboolean;
 
 struct netprim_s
 {
-	qbyte coordsize;
+	qbyte coordtype;	//low 4 bits are the size, upper 4 are disambiguation...
+		#define COORDTYPE_UNDEFINED		0			//invalid
+		#define COORDTYPE_FIXED_13_3	2			//vanilla/etc
+		#define COORDTYPE_FIXED_16_8	3			//rmq
+		#define COORDTYPE_FIXED_28_4	4			//rmq, pointless
+		#define COORDTYPE_FLOAT_32		(4|0x80)	//fte/dp/rmq
 	qbyte anglesize;
-#define NPQ2_ANG16				(1u<<0)
-#define NPQ2_SOLID32			(1u<<1)
-#define NPQ2_R1Q2_UCMD			(1u<<2)
-
 	qbyte flags;
+		#define NPQ2_ANG16				(1u<<0)
+		#define NPQ2_SOLID32			(1u<<1)
+		#define NPQ2_R1Q2_UCMD			(1u<<2)
+
 	qbyte pad;
 };
 //============================================================================

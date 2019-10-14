@@ -122,7 +122,7 @@ typedef struct {
 	qboolean slidyslopes;
 	int stepheight;
 
-	qbyte coordsize;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.
+	qbyte coordtype;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.
 
 	unsigned int	flags;
 } movevars_t;

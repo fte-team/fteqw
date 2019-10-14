@@ -946,34 +946,47 @@ void MSG_WriteString (sizebuf_t *sb, const char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
-float MSG_FromCoord(coorddata c, int bytes)
+float MSG_FromCoord(coorddata c, int type)
 {
-	switch(bytes)
+	switch(type)
 	{
-	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
+	case COORDTYPE_FIXED_13_3:	//encode 1/8th precision, giving -4096 to 4096 map sizes
 		return LittleShort(c.b2)/8.0f;
-	case 3:
+	case COORDTYPE_FIXED_16_8:
 		return LittleShort(c.b2) + (((unsigned char*)c.b)[2] * (1/255.0)); /*FIXME: RMQe uses 255, should be 256*/
-	case 4:
+	case COORDTYPE_FIXED_28_4:
+		return LittleLong(c.b4)/16.0f;
+	case COORDTYPE_FLOAT_32:
 		return LittleFloat(c.f);
 	default:
 		Sys_Error("MSG_ToCoord: not a sane coordsize");
 		return 0;
 	}
 }
-coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (char*)&ret;
+coorddata MSG_ToCoord(float f, int type)	//return value should be treated as (char*)&ret;
 {
 	coorddata r;
-	switch(bytes)
+	switch(type)
 	{
-	case 2:
+	case COORDTYPE_FIXED_13_3:
 		r.b4 = 0;
 		if (f >= 0)
 			r.b2 = LittleShort((short)(f*8+0.5f));
 		else
 			r.b2 = LittleShort((short)(f*8-0.5f));
 		break;
-	case 4:
+	case COORDTYPE_FIXED_16_8:
+		r.b2 = LittleShort((short)f);
+		r.b[2] = (int)(f*255)%255;
+		r.b[3] = 0;
+		break;
+	case COORDTYPE_FIXED_28_4:
+		if (f >= 0)
+			r.b4 = LittleLong((short)(f*16+0.5f));
+		else
+			r.b4 = LittleLong((short)(f*16-0.5f));
+		break;
+	case COORDTYPE_FLOAT_32:
 		r.f = LittleFloat(f);
 		break;
 	default:
@@ -1016,8 +1029,8 @@ coorddata MSG_ToAngle(float f, int bytes)	//return value is NOT byteswapped.
 
 void MSG_WriteCoord (sizebuf_t *sb, float f)
 {
-	coorddata i = MSG_ToCoord(f, sb->prim.coordsize);
-	SZ_Write (sb, (void*)&i, sb->prim.coordsize);
+	coorddata i = MSG_ToCoord(f, sb->prim.coordtype);
+	SZ_Write (sb, (void*)&i, sb->prim.coordtype&0xf);
 }
 /*static void MSG_WriteCoord24 (sizebuf_t *sb, float f)
 {
@@ -1682,10 +1695,10 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
-	if (!net_message.prim.coordsize)
-		net_message.prim.coordsize = 2;
-	MSG_ReadData(&c, net_message.prim.coordsize);
-	return MSG_FromCoord(c, net_message.prim.coordsize);
+	if (net_message.prim.coordtype == COORDTYPE_UNDEFINED)
+		net_message.prim.coordtype = COORDTYPE_FIXED_13_3;
+	MSG_ReadData(&c, net_message.prim.coordtype&0xf);
+	return MSG_FromCoord(c, net_message.prim.coordtype);
 }
 /*static float MSG_ReadCoord24 (void)
 {

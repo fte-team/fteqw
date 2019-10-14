@@ -239,6 +239,7 @@ void SV_New_f (void)
 	int			playernum;
 	int splitnum;
 	client_t *split;
+	unsigned int fteext1;	//reported to client
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -296,10 +297,25 @@ void SV_New_f (void)
 			gamedir = "";
 	}
 
-	if (svs.netprim.coordsize > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+	fteext1 = host_client->fteprotocolextensions;
+	switch(svs.netprim.coordtype)
 	{
-		SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine - "ENGINEWEBSITE"\n");
-		Con_Printf("%s does not support bigcoords\n", host_client->name);
+	case COORDTYPE_FLOAT_32:
+		fteext1 |= PEXT_FLOATCOORDS;
+		if (!(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+		{
+			SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine - "ENGINEWEBSITE"\n");
+			Con_Printf("%s does not support bigcoords\n", host_client->name);
+			host_client->drop = true;
+			return;
+		}
+		break;
+	case COORDTYPE_FIXED_13_3:
+		fteext1 &= ~PEXT_FLOATCOORDS;
+		break;
+	default:
+		SV_ClientPrintf(host_client, 2, "Unsupported coord type\n");
+		Con_Printf("%s unsupported coord type\n", host_client->name);
 		host_client->drop = true;
 		return;
 	}
@@ -344,13 +360,10 @@ void SV_New_f (void)
 
 	// send the serverdata
 	ClientReliableWrite_Byte (host_client, ISQ2CLIENT(host_client)?svcq2_serverdata:svc_serverdata);
-	if (host_client->fteprotocolextensions)//let the client know
+	if (fteext1)//let the client know
 	{
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE1);
-		if (svs.netprim.coordsize == 2)	//we're not using float orgs on this level.
-			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
-		else
-			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions|PEXT_FLOATCOORDS);
+		ClientReliableWrite_Long (host_client, fteext1);
 	}
 	if (host_client->fteprotocolextensions2)//let the client know
 	{
@@ -565,7 +578,7 @@ void SVNQ_New_f (void)
 	protmain = PROTOCOL_VERSION_NQ;
 	protfl = 0;
 	//force floatcoords as required.
-	if (sv.nqdatagram.prim.coordsize >= 4)
+	if (sv.nqdatagram.prim.coordtype == COORDTYPE_FLOAT_32)
 		protext1 |= PEXT_FLOATCOORDS;
 	else
 		protext1 &= ~PEXT_FLOATCOORDS;
@@ -606,11 +619,19 @@ void SVNQ_New_f (void)
 	case SCP_FITZ666:
 		SV_LogPlayer(host_client, "new (NQ)");
 		if (host_client->protocol == SCP_FITZ666 ||
-			sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2)
+			sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordtype != COORDTYPE_FIXED_13_3)
 		{
-			protfl =
-					((sv.nqdatagram.prim.coordsize==4)?RMQFL_FLOATCOORD:0) |
-					((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
+			protfl = ((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
+			switch(sv.nqdatagram.prim.coordtype)
+			{
+			case COORDTYPE_FLOAT_32:	protfl |= RMQFL_FLOATCOORD;	break;
+			case COORDTYPE_FIXED_28_4:	protfl |= RMQFL_INT32COORD;	break;
+			case COORDTYPE_FIXED_16_8:	protfl |= RMQFL_24BITCOORD;	break;
+			case COORDTYPE_FIXED_13_3:	protfl |= 0;	break;
+			default:
+				host_client->drop = true;
+				break;
+			}
 			host_client->protocol = SCP_FITZ666; /*mneh, close enough, the rmq stuff is just modifiers*/
 
 			if (protfl)
@@ -7117,7 +7138,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 		movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
-		movevars.coordsize = host_client->netchan.netprim.coordsize;
+		movevars.coordtype = host_client->netchan.netprim.coordtype;
 		movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*pm_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 
 		for (i=0 ; i<3 ; i++)
@@ -7363,7 +7384,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 	movevars.edgefriction = *pm_edgefriction.string?pm_edgefriction.value:2;
-	movevars.coordsize = host_client->netchan.netprim.coordsize;
+	movevars.coordtype = host_client->netchan.netprim.coordtype;
 	movevars.flags				= MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|(*pm_edgefriction.string?0:MOVEFLAG_QWEDGEBOX);
 
 // should already be folded into host_client->maxspeed

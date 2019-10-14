@@ -3593,7 +3593,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.safeorigin_known = false;
 	pmove.capsule = false;	//FIXME
 
-	movevars.coordsize = cls.netchan.message.prim.coordsize;
+	movevars.coordtype = cls.netchan.message.prim.coordtype;
 	if (ent->xv->gravity)
 		movevars.entgravity = ent->xv->gravity;
 	else if (csqc_playerseat >= 0 && cl.playerview[csqc_playerseat].playernum+1 == ent->xv->entnum)
@@ -7466,7 +7466,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.flyfriction = 4;//*pm_flyfriction.string?pm_flyfriction.value:4;
 		movevars.edgefriction = 2;//*pm_edgefriction.string?pm_edgefriction.value:2;
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
-		movevars.coordsize = 4;
+		movevars.coordtype = COORDTYPE_FLOAT_32;
 		movevars.flags = MOVEFLAG_NOGRAVITYONGROUND;
 	}
 

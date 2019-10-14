@@ -1748,7 +1748,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteByte (&buf, svc_serverdata);
 
 	//fix up extensions to match sv_bigcoords correctly. sorry for old clients not working.
-	if (buf.prim.coordsize == 4)
+	if (buf.prim.coordtype == COORDTYPE_FLOAT_32)
 		demo.recorder.fteprotocolextensions |= PEXT_FLOATCOORDS;
 	else
 		demo.recorder.fteprotocolextensions &= ~PEXT_FLOATCOORDS;

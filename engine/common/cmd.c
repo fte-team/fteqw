@@ -3791,6 +3791,8 @@ static void Cmd_set_f(void)
 			Con_Printf ("variable %s is readonly\n", var->name);
 			return;
 		}
+		if (var->flags & CVAR_NOUNSAFEEXPAND)
+			forceflags &= ~(CVAR_USERINFO|CVAR_SERVERINFO);
 
 		if (Cmd_FromGamecode())
 		{

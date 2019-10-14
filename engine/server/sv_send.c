@@ -1612,9 +1612,9 @@ void SV_FindModelNumbers (void)
 	{
 		if (!sv.strings.model_precache[i])
 			break;
-		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl") && sv.multicast.prim.coordsize == 2)
+		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl") && sv.multicast.prim.coordtype == COORDTYPE_FIXED_13_3)
 			sv_nailmodel = i;
-		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl") && sv.multicast.prim.coordsize == 2)
+		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl") && sv.multicast.prim.coordtype == COORDTYPE_FIXED_13_3)
 			sv_supernailmodel = i;
 		if (!strcmp(sv.strings.model_precache[i],"progs/player.mdl"))
 			sv_playermodel = i;

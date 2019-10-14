@@ -1232,11 +1232,11 @@ static void PM_NudgePosition (void)
 #ifdef HAVE_LEGACY
 			pm_noround.ival ||
 #endif
-			movevars.coordsize == 4)	//float precision on the network. no need to truncate.
+			movevars.coordtype == COORDTYPE_FLOAT_32)	//float precision on the network. no need to truncate.
 	{
 		VectorCopy (pmove.origin, base);
 	}
-	else if (movevars.coordsize)	//1/8th precision, but don't truncate because that screws everything up.
+	else if (movevars.coordtype == COORDTYPE_FIXED_13_3)	//1/8th precision, but don't truncate because that screws everything up.
 	{
 		for (i=0 ; i<3 ; i++)
 		{

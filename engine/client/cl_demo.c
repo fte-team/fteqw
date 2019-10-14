@@ -1366,10 +1366,14 @@ void CLNQ_WriteServerData(sizebuf_t *buf)	//for demo recording
 		protfl |= RMQFL_SHORTANGLE;
 	if (cls.netchan.message.prim.anglesize == 4)
 		protfl |= RMQFL_FLOATANGLE;
-	if (cls.netchan.message.prim.coordsize == 3)
-		protfl |= RMQFL_24BITCOORD;
-	if (cls.netchan.message.prim.coordsize == 4)
-		protfl |= RMQFL_FLOATCOORD;
+	switch(cls.netchan.message.prim.coordtype)
+	{
+	case COORDTYPE_FLOAT_32:	 protfl |= RMQFL_FLOATCOORD;	break;
+	case COORDTYPE_FIXED_28_4:	 protfl |= RMQFL_INT32COORD;	break;
+	case COORDTYPE_FIXED_16_8:	 protfl |= RMQFL_24BITCOORD;	break;
+	default:	//err?
+	case COORDTYPE_FIXED_13_3:	break;
+	}
 	switch(cls.protocol_nq)
 	{
 	default:

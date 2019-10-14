@@ -5361,7 +5361,7 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
-	if (developer.ival && sv.reliable_datagram.prim.coordsize == 2)
+	if (developer.ival && sv.reliable_datagram.prim.coordtype == COORDTYPE_FIXED_13_3)
 	{
 		int v = G_FLOAT(OFS_PARM1)*8;
 		if (v > 32767)
@@ -6151,7 +6151,7 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				value = "bjp3";
 				break;
 			case SCP_FITZ666:
-				if (svs.clients[entnum-1].netchan.netprim.coordsize != 2)
+				if (svs.clients[entnum-1].netchan.netprim.coordtype != COORDTYPE_FIXED_13_3)
 					value = "rmq999";
 				else
 					value = "fitz666";
@@ -9878,11 +9878,11 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 #endif
 	if (client)
 	{
-		movevars.coordsize = client->netchan.netprim.coordsize;
+		movevars.coordtype = client->netchan.netprim.coordtype;
 		client->lastruncmd = sv.time*1000;
 	}
 	else
-		movevars.coordsize = svs.netprim.coordsize;
+		movevars.coordtype = svs.netprim.coordtype;
 
 	pmove.numtouch = 0;
 	pmove.world = &sv.world;

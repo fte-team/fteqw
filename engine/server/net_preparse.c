@@ -881,17 +881,18 @@ void NPP_NQFlush(void)
 			{	//for old clients, use a te_explosion.
 				//for clients that support it, use a TEQW_EXPLOSIONNOSPRITE
 				vec3_t org;
+				int coordsize = (destprim->coordtype&0xf);
 				coorddata cd;
 				if (sv.multicast.cursize + bufferlen > sv.multicast.maxsize)
 					SV_FlushBroadcasts();
 				SZ_Write(&sv.multicast, buffer, bufferlen);
 
-				memcpy(&cd, &buffer[2+destprim->coordsize*0], destprim->coordsize);
-				org[0] = MSG_FromCoord(cd, destprim->coordsize);
-				memcpy(&cd, &buffer[2+destprim->coordsize*1], destprim->coordsize);
-				org[1] = MSG_FromCoord(cd, destprim->coordsize);
-				memcpy(&cd, &buffer[2+destprim->coordsize*2], destprim->coordsize);
-				org[2] = MSG_FromCoord(cd, destprim->coordsize);
+				memcpy(&cd, &buffer[2+coordsize*0], coordsize);
+				org[0] = MSG_FromCoord(cd, coordsize);
+				memcpy(&cd, &buffer[2+coordsize*1], coordsize);
+				org[1] = MSG_FromCoord(cd, coordsize);
+				memcpy(&cd, &buffer[2+coordsize*2], coordsize);
+				org[2] = MSG_FromCoord(cd, coordsize);
 
 				requireextension = PEXT_TE_BULLET;
 				SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, 0, requireextension);
@@ -908,13 +909,14 @@ void NPP_NQFlush(void)
 			if (writedest == &sv.datagram || writedest == &sv.multicast)
 			{
 				vec3_t org;
+				int coordsize = (destprim->coordtype&0xf);
 				coorddata cd;
-				memcpy(&cd, &buffer[2+destprim->coordsize*0], destprim->coordsize);
-				org[0] = MSG_FromCoord(cd, destprim->coordsize);
-				memcpy(&cd, &buffer[2+destprim->coordsize*1], destprim->coordsize);
-				org[1] = MSG_FromCoord(cd, destprim->coordsize);
-				memcpy(&cd, &buffer[2+destprim->coordsize*2], destprim->coordsize);
-				org[2] = MSG_FromCoord(cd, destprim->coordsize);
+				memcpy(&cd, &buffer[2+coordsize*0], coordsize);
+				org[0] = MSG_FromCoord(cd, coordsize);
+				memcpy(&cd, &buffer[2+coordsize*1], coordsize);
+				org[1] = MSG_FromCoord(cd, coordsize);
+				memcpy(&cd, &buffer[2+coordsize*2], coordsize);
+				org[2] = MSG_FromCoord(cd, coordsize);
 
 				buffer[1] = TEQW_QWEXPLOSION;					//use a generic crappy explosion
 				SZ_Write(&sv.multicast, buffer, bufferlen-2);	//trim the two trailing colour bytes
@@ -963,14 +965,15 @@ void NPP_NQFlush(void)
 		if (multicastpos)
 		{
 			vec3_t org;
+			int coordsize = (destprim->coordtype&0xf);
 			coorddata cd;
 
-			memcpy(&cd, &buffer[multicastpos+destprim->coordsize*0], destprim->coordsize);
-			org[0] = MSG_FromCoord(cd, destprim->coordsize);
-			memcpy(&cd, &buffer[multicastpos+destprim->coordsize*1], destprim->coordsize);
-			org[1] = MSG_FromCoord(cd, destprim->coordsize);
-			memcpy(&cd, &buffer[multicastpos+destprim->coordsize*2], destprim->coordsize);
-			org[2] = MSG_FromCoord(cd, destprim->coordsize);
+			memcpy(&cd, &buffer[multicastpos+coordsize*0], coordsize);
+			org[0] = MSG_FromCoord(cd, coordsize);
+			memcpy(&cd, &buffer[multicastpos+coordsize*1], coordsize);
+			org[1] = MSG_FromCoord(cd, coordsize);
+			memcpy(&cd, &buffer[multicastpos+coordsize*2], coordsize);
+			org[2] = MSG_FromCoord(cd, coordsize);
 
 			SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, requireextension, 0);
 		}
@@ -1231,7 +1234,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 #endif
 			break;
 		case svc_sound:
-			protocollen = 5+destprim->coordsize*3;
+			protocollen = 5+(destprim->coordtype&0xf)*3;
 			if (data & NQSND_VOLUME)
 				protocollen++;
 			if (data & NQSND_ATTENUATION)
@@ -1254,7 +1257,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_LIGHTNING3:
 				multicastpos=4;
 				multicasttype=MULTICAST_PHS;
-				protocollen = destprim->coordsize*6+sizeof(short)+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(short)+sizeof(qbyte)*2;
 				break;
 			case TENQ_NQGUNSHOT:
 				multicastpos=3;
@@ -1263,19 +1266,19 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				//emit it here and we don't need to remember to play with temp_entity later
 				NPP_AddData(&data, sizeof(qbyte));
 				data = 1;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*3;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*3;
 				break;
 			case TENQ_NQEXPLOSION:
 			case TE_SPIKE:
 			case TE_SUPERSPIKE:
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*2;
 				break;
 			case TE_LAVASPLASH:
 				multicastpos=2;
 				multicasttype=MULTICAST_ALL;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*2;
 				break;
 			case TE_TAREXPLOSION:
 			case TE_WIZSPIKE:
@@ -1283,25 +1286,25 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_TELEPORT:
 				multicastpos=2;
 				multicasttype=MULTICAST_PVS;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*2;
 				break;
 			case TE_EXPLOSION3_NEH:
-				protocollen = sizeof(qbyte) + destprim->coordsize*6;
+				protocollen = sizeof(qbyte) + (destprim->coordtype&0xf)*6;
 				ignoreprotocol = true;
 				break;
 			case TENQ_EXPLOSION2:
-				protocollen = sizeof(qbyte)*4 + destprim->coordsize*3;
+				protocollen = sizeof(qbyte)*4 + (destprim->coordtype&0xf)*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
 			case TE_EXPLOSIONSMALL2:
 				data = TEQW_QWEXPLOSION;
-				protocollen = sizeof(qbyte)*2 + destprim->coordsize*3;
+				protocollen = sizeof(qbyte)*2 + (destprim->coordtype&0xf)*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
 			case TEQW_RAILTRAIL:
-				protocollen = destprim->coordsize*6+sizeof(qbyte)*1;
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(qbyte)*1;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
@@ -1313,42 +1316,42 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TEH2_STREAM_ICECHUNKS:
 			case TEH2_STREAM_GAZE:
 			case TEH2_STREAM_FAMINE:
-				protocollen = destprim->coordsize*6+sizeof(short)+sizeof(qbyte)*(2+2);
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(short)+sizeof(qbyte)*(2+2);
 				multicastpos = 8;
 				multicasttype=MULTICAST_PHS;
 				break;
 			case TEH2_STREAM_COLORBEAM:
-				protocollen = destprim->coordsize*6+sizeof(short)+sizeof(qbyte)*(3+2);
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(short)+sizeof(qbyte)*(3+2);
 				multicastpos = 8;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_FLAMEJET:	//TE_FLAMEJET
-				protocollen = destprim->coordsize*6 +sizeof(qbyte)*3;
+				protocollen = (destprim->coordtype&0xf)*6 +sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PVS;
 				break;
 
 			case TEDP_TEI_G3:
-				protocollen = destprim->coordsize*9+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*9+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_SMOKE:
-				protocollen = destprim->coordsize*6+sizeof(qbyte)*3;
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_TEI_BIGEXPLOSION:
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_TEI_PLASMAHIT:
-				protocollen = destprim->coordsize*6+sizeof(qbyte)*3;
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
@@ -1402,7 +1405,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			if (progstype == PROG_TENEBRAE)
 			{
 				//svc, coord6, byte, long, long, effectname
-				if (bufferlen >= sizeof(qbyte)*2+destprim->coordsize*6+sizeof(int)*2 && !data)
+				if (bufferlen >= sizeof(qbyte)*2+(destprim->coordtype&0xf)*6+sizeof(int)*2 && !data)
 					protocollen = bufferlen;
 				break;
 			}
@@ -1415,7 +1418,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			if (progstype == PROG_TENEBRAE)
 			{
 				//svc, coord3, byte, effectname
-				if (bufferlen >= sizeof(qbyte)*2+destprim->coordsize*3 && !data)
+				if (bufferlen >= sizeof(qbyte)*2+(destprim->coordtype&0xf)*3 && !data)
 					protocollen = bufferlen;
 				break;
 			}
@@ -1574,7 +1577,7 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 		PR_StackTrace(svprogfuncs, false);
 	}
 
-	if (destprim->coordsize==4)
+	if (destprim->coordtype==COORDTYPE_FLOAT_32)
 	{
 		float dataf = in;
 
@@ -1791,7 +1794,7 @@ void NPP_QWFlush(void)
 					ClientReliableWrite_Byte(cl, svc_intermission);
 
 					i = 1;
-					if (destprim->coordsize == 4)
+					if (destprim->coordtype==COORDTYPE_FLOAT_32)
 					{
 						org[0] = NPP_ReadFloat(buffer+i+0);
 						org[1] = NPP_ReadFloat(buffer+i+4);
@@ -1969,7 +1972,7 @@ void NPP_QWFlush(void)
 				NPP_AddData(&svc, sizeof(qbyte));
 				for (i = 0; i < 3; i++)
 				{
-					if (destprim->coordsize == 4)
+					if (destprim->coordtype==COORDTYPE_FLOAT_32)
 						NPP_AddData(&org[i], sizeof(float));
 					else
 					{
@@ -2026,14 +2029,15 @@ void NPP_QWFlush(void)
 		{
 			int qwsize;
 			vec3_t org;
+			int coordsize = (destprim->coordtype&0xf);
 			coorddata cd;
 
-			memcpy(&cd, &buffer[multicastpos+destprim->coordsize*0], destprim->coordsize);
-			org[0] = MSG_FromCoord(cd, destprim->coordsize);
-			memcpy(&cd, &buffer[multicastpos+destprim->coordsize*1], destprim->coordsize);
-			org[1] = MSG_FromCoord(cd, destprim->coordsize);
-			memcpy(&cd, &buffer[multicastpos+destprim->coordsize*2], destprim->coordsize);
-			org[2] = MSG_FromCoord(cd, destprim->coordsize);
+			memcpy(&cd, &buffer[multicastpos+coordsize*0], coordsize);
+			org[0] = MSG_FromCoord(cd, coordsize);
+			memcpy(&cd, &buffer[multicastpos+coordsize*1], coordsize);
+			org[1] = MSG_FromCoord(cd, coordsize);
+			memcpy(&cd, &buffer[multicastpos+coordsize*2], coordsize);
+			org[2] = MSG_FromCoord(cd, coordsize);
 
 			qwsize = sv.multicast.cursize;
 			sv.multicast.cursize = 0;
@@ -2140,7 +2144,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 1;
 			break;
 		case svc_intermission:
-			protocollen = 1 + destprim->coordsize*3 + destprim->anglesize*3;
+			protocollen = 1 + (destprim->coordtype&0xf)*3 + destprim->anglesize*3;
 			break;
 		case svc_finale:
 			nullterms = 1;
@@ -2210,13 +2214,13 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_LIGHTNING3:
 				multicastpos=4;
 				multicasttype=MULTICAST_PHS;
-				protocollen = destprim->coordsize*6+sizeof(short)+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*6+sizeof(short)+sizeof(qbyte)*2;
 				break;
 			case TEQW_QWBLOOD:		//needs to be converted to a particle
 			case TEQW_QWGUNSHOT:	//needs qbyte 2 removed
 				multicastpos=3;
 				multicasttype=MULTICAST_PVS;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*3;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*3;
 				break;
 			case TEQW_LIGHTNINGBLOOD:
 			case TEQW_QWEXPLOSION:
@@ -2224,7 +2228,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_SUPERSPIKE:
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS_R;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*2;
 				break;
 			case TE_TAREXPLOSION:
 			case TE_WIZSPIKE:
@@ -2233,12 +2237,12 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_TELEPORT:
 				multicastpos=2;
 				multicasttype=MULTICAST_PVS;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*2;
 				break;
 			case TEQW_RAILTRAIL:
 				multicastpos=1;
 				multicasttype=MULTICAST_PVS;
-				protocollen = destprim->coordsize*3+sizeof(qbyte)*1;
+				protocollen = (destprim->coordtype&0xf)*3+sizeof(qbyte)*1;
 				break;
 			default:
 				protocollen = sizeof(buffer);
@@ -2321,7 +2325,7 @@ void NPP_QWWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 }
 void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
-	if (destprim->coordsize==4)
+	if (destprim->coordtype==COORDTYPE_FLOAT_32)
 	{
 		NPP_QWWriteFloat(dest, in);
 	}

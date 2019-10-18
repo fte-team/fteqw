@@ -726,20 +726,30 @@ static int Shader_SetImageFlags(parsestate_t *parsestate, shaderpass_t *pass, ch
 			*name += 8;
 			flags |= IF_PREMULTIPLYALPHA;
 		}
-		else if (!Q_strnicmp(*name, "$3d:", 4))
+		else if (!Q_strnicmp(*name, "$2d:", 4))
 		{
 			*name+=4;
-			flags = (flags&~IF_TEXTYPE) | IF_3DMAP;
-		}
-		else if (!Q_strnicmp(*name, "$cube:", 6))
-		{
-			*name+=6;
-			flags = (flags&~IF_TEXTYPE) | IF_CUBEMAP;
+			flags = (flags&~IF_TEXTYPEMASK) | IF_TEXTYPE_2D;
 		}
 		else if (!Q_strnicmp(*name, "$2darray:", 9))
 		{
 			*name+=9;
-			flags = (flags&~IF_TEXTYPE) | IF_2DARRAY;
+			flags = (flags&~IF_TEXTYPEMASK) | IF_TEXTYPE_2D_ARRAY;
+		}
+		else if (!Q_strnicmp(*name, "$3d:", 4))
+		{
+			*name+=4;
+			flags = (flags&~IF_TEXTYPEMASK) | IF_TEXTYPE_3D;
+		}
+		else if (!Q_strnicmp(*name, "$cube:", 6))
+		{
+			*name+=6;
+			flags = (flags&~IF_TEXTYPEMASK) | IF_TEXTYPE_CUBE;
+		}
+		else if (!Q_strnicmp(*name, "$cubearray:", 11))
+		{
+			*name+=11;
+			flags = (flags&~IF_TEXTYPEMASK) | IF_TEXTYPE_CUBE_ARRAY;
 		}
 		else if (!Q_strnicmp(*name, "$srgb:", 6))
 		{
@@ -1390,7 +1400,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	int cvartypes[64];
 	size_t cvarcount = 0, i;
 	extern cvar_t gl_specular, gl_specular_power;
-	qboolean cantess;	//not forced.
+	qboolean cantess = false;	//not forced.
 	char prescript[8192];
 	size_t offset = 0;
 #endif
@@ -2322,7 +2332,7 @@ static void Shader_HLSL11ProgramName (parsestate_t *ps, char **ptr)
 static void Shader_ReflectCube(parsestate_t *ps, char **ptr)
 {
 	char *token = Shader_ParseSensString(ptr);
-	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_CUBEMAP);
+	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_TEXTYPE_CUBE);
 	ps->s->defaulttextures->reflectcube = Shader_FindImage(ps, token, flags);
 }
 static void Shader_ReflectMask(parsestate_t *ps, char **ptr)
@@ -2930,16 +2940,19 @@ static void Shaderpass_Map (parsestate_t *ps, char **ptr)
 	flags = Shader_SetImageFlags (ps, pass, &token, 0);
 	if (!Shaderpass_MapGen(ps, pass, token))
 	{
-		switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+		switch((flags & IF_TEXTYPEMASK) >> IF_TEXTYPESHIFT)
 		{
-		case 0:
+		case PTI_2D:
 			pass->texgen = T_GEN_SINGLEMAP;
 			break;
-		case 1:
+		case PTI_3D:
 			pass->texgen = T_GEN_3DMAP;
 			break;
-		default:
+		case PTI_CUBE:
 			pass->texgen = T_GEN_CUBEMAP;
+			break;
+		default:
+			pass->texgen = T_GEN_SINGLEMAP;
 			break;
 		}
 
@@ -3033,22 +3046,23 @@ static void Shaderpass_ClampMap (parsestate_t *ps, char **ptr)
 			pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (ps, token, flags);
 
-		switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+		switch((flags & IF_TEXTYPEMASK) >> IF_TEXTYPESHIFT)
 		{
-		case 0:
+		default:
+		case PTI_2D:
 			pass->texgen = T_GEN_SINGLEMAP;
 			break;
-		case 1:
+		case PTI_3D:
 			pass->texgen = T_GEN_3DMAP;
 			break;
-		default:
+		case PTI_CUBE:
 			pass->texgen = T_GEN_CUBEMAP;
 			break;
 		}
 
 		if (!TEXVALID(pass->anim_frames[0]))
 		{
-			if (flags & (IF_3DMAP | IF_CUBEMAP))
+			if ((flags & IF_TEXTYPEMASK)!=IF_TEXTYPE_2D)
 				pass->anim_frames[0] = r_nulltex;
 			else
 				pass->anim_frames[0] = missing_texture;
@@ -3767,7 +3781,7 @@ static void Shaderpass_CubeMap(parsestate_t *ps, char **ptr)
 	if (pass->tcgen == TC_GEN_UNSPECIFIED)
 		pass->tcgen = TC_GEN_SKYBOX;
 	pass->texgen = T_GEN_CUBEMAP;
-	pass->anim_frames[0] = Shader_FindImage(ps, token, IF_CUBEMAP);
+	pass->anim_frames[0] = Shader_FindImage(ps, token, IF_TEXTYPE_CUBE);
 
 	if (!TEXVALID(pass->anim_frames[0]))
 	{
@@ -7380,7 +7394,7 @@ static void Shader_DecomposeSubPassMap(char *o, shader_t *s, char *name, texid_t
 			(flags&IF_NOPICMIP)?" nopicmip":"",
 			(flags&IF_NOALPHA)?" noalpha":"",
 			(flags&IF_NOGAMMA)?" noalpha":"",
-			(flags&IF_TEXTYPE)?" non-2d":"",
+			(flags&IF_TEXTYPEMASK)?" non-2d":"",
 			(flags&IF_MIPCAP)?"":" nomipcap",
 			(flags&IF_PREMULTIPLYALPHA)?" premultiply":"",
 

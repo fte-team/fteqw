@@ -4695,15 +4695,53 @@ typedef struct
 } ktxheader_t;
 qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips)
 {
+	unsigned int bb,bw,bh;
 	vfsfile_t *file;
 	ktxheader_t header = {{0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A}, 0x04030201/*endianness*/,
 		0/*type*/, 1/*typesize*/, 0/*format*/, 0/*internalformat*/,
 		0/*base*/, mips->mip[0].width, mips->mip[0].height, 0/*depth*/,
-		0/*array elements*/, (mips->type==PTI_CUBEMAP)?6:1, mips->mipcount, 0/*kvdatasize*/};
+		0/*array elements*/, 1, mips->mipcount, 0/*kvdatasize*/};
 	size_t mipnum;
-	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)
+	if (mips->type==PTI_CUBE_ARRAY)
+	{
+		if (!mips->mip[0].depth || mips->mip[0].depth % 6)
+		{
+			Con_Printf("Image_WriteKTXFile: malformed cube\n");
+			return false;	//malformed...
+		}
+		header.numberoffaces = 6;
+		header.numberofarrayelements = mips->mip[0].depth/6;
+	}
+	else if (mips->type==PTI_CUBE)
+	{
+		if (mips->mip[0].depth != 6)
+		{
+			Con_Printf("Image_WriteKTXFile: malformed cube\n");
+			return false;	//malformed...
+		}
+		header.numberofarrayelements = 0;
+		header.numberoffaces = 6;
+	}
+	else if (mips->type==PTI_2D_ARRAY)
+	{
+		if (!mips->mip[0].depth)
+			return false;
+		header.numberofarrayelements = mips->mip[0].depth;
+	}
+	else if (mips->type == PTI_3D)
+		header.pixeldepth = mips->mip[0].depth;
+	else if (mips->type == PTI_2D)
+	{
+		if (mips->mip[0].depth != 1)
+			return false;
+	}
+	else
+	{
+		Con_Printf("Image_WriteKTXFile: unsupported texture type\n");
 		return false;
-	header.numberofmipmaplevels /= header.numberoffaces;
+	}
+
+	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
 
 	switch(mips->encoding)
 	{
@@ -4836,16 +4874,46 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 		return false;
 	VFS_WRITE(file, &header, sizeof(header));
 
-	for (mipnum = 0; mipnum < mips->mipcount; mipnum++)
+	for (mipnum = 0; mipnum < mips->mipcount; )
 	{
-		unsigned int pad = 0;
-		unsigned int sz = mips->mip[mipnum].datasize;
-		if (!(mipnum % header.numberoffaces))
-			VFS_WRITE(file, &sz, 4);
-
-		VFS_WRITE(file, mips->mip[mipnum].data, sz);
-		if ((sz & 3) && mips->type == PTI_CUBEMAP)
-			VFS_WRITE(file, &pad, 4-(sz&3));
+		unsigned int sz;
+		//translate to blocks
+		unsigned int browbytes = bb * ((mips->mip[mipnum].width+bw-1)/bh);
+		unsigned int padbytes = (browbytes&3)?4-(browbytes&3):0;
+		unsigned int brows = (mips->mip[mipnum].height+bh-1)/bh;
+		unsigned int blayers = (mips->mip[mipnum].depth+1-1)/1;
+		if (mips->mip[mipnum].datasize != browbytes*brows*blayers)
+		{	//should probably be a sys_error
+			Con_Printf("WriteKTX mip %u missized\n", (unsigned)mipnum);
+			VFS_CLOSE(file);
+			return false;
+		}
+		switch(mips->type)
+		{
+		case PTI_2D:
+		case PTI_2D_ARRAY:
+		case PTI_CUBE:
+		case PTI_CUBE_ARRAY:
+			sz = (browbytes+padbytes) * brows;
+			break;
+		case PTI_3D:
+			sz = (browbytes+padbytes) * brows * blayers;
+			break;
+		}
+		VFS_WRITE(file, &sz, 4);
+		brows *= blayers;
+		if (padbytes)
+		{
+			unsigned int pad = 0, y;
+			for (y = 0; y < brows; y++)
+			{
+				VFS_WRITE(file, mips->mip[mipnum].data + browbytes*y, browbytes);
+				VFS_WRITE(file, &pad, 4-(browbytes&3));
+			}
+		}
+		else
+			VFS_WRITE(file, mips->mip[mipnum].data, browbytes*brows);
+		mipnum++;
 	}
 
 	VFS_CLOSE(file);
@@ -4859,10 +4927,9 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	int mipnum;
 	int face;
 	int datasize;
-	unsigned int w, h, d;
+	unsigned int w, h, d, f, l, browbytes,padbytes,y,rows;
 	struct pendingtextureinfo *mips;
 	int encoding = TF_INVALID;
-	qbyte *in;
 	qbyte *fileend = filedata + filesize;
 
 	unsigned int blockwidth, blockheight, blockbytes;
@@ -4875,12 +4942,15 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	if (nummips < 1)
 		nummips = 1;
 
-	if (header->numberofarrayelements != 0)
-		return NULL;	//don't support array textures
+//	if (header->numberofarrayelements != 0)
+//		return NULL;	//don't support array textures
 	if (header->numberoffaces == 1)
 		;	//non-cubemap
 	else if (header->numberoffaces == 6)
 	{
+		if (header->numberofarrayelements != 0)
+			return NULL;	//don't support array textures
+
 		if (header->pixeldepth != 0)
 			return NULL;
 //		if (header->numberofmipmaplevels != 1)
@@ -4888,8 +4958,8 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	}
 	else
 		return NULL;	//don't allow weird cubemaps
-	if (header->pixeldepth && header->pixelwidth != header->pixeldepth && header->pixelheight != header->pixeldepth)
-		return NULL;	//we only support 3d textures where width+height+depth are the same. too lazy to change it now.
+//	if (header->pixeldepth && header->pixelwidth != header->pixeldepth && header->pixelheight != header->pixeldepth)
+//		return NULL;	//we only support 3d textures where width+height+depth are the same. too lazy to change it now.
 
 	/*FIXME: validate format+type for non-compressed formats*/
 	switch(header->glinternalformat)
@@ -5037,10 +5107,10 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 		if (header->numberofarrayelements)
 		{
 			header->pixeldepth = header->numberofarrayelements*6;
-			mips->type = PTI_CUBEMAP_ARRAY;
+			mips->type = PTI_CUBE_ARRAY;
 		}
 		else
-			mips->type = PTI_CUBEMAP;
+			mips->type = PTI_CUBE;
 	}
 	else
 	{
@@ -5067,48 +5137,59 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
 
 	w = header->pixelwidth;
-	h = header->pixelheight;
-	d = header->pixeldepth;
-
-	//fixme: if (w+blockwidth-1)/blockwidth)*blockbytes MUST be a multiple of 4.
-	//we need to de-pad it otherwise.
+	h = max(1, header->pixelheight);
+	d = max(1, header->pixeldepth);
+	f = max(1, header->numberoffaces);
+	l = max(1, header->numberofarrayelements);
 
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
 		datasize = *(int*)filedata;
 		filedata += 4;
 
-		if (datasize != blockbytes * ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight))
+		browbytes = blockbytes * ((w+blockwidth-1)/blockwidth);
+		padbytes = (browbytes & 3)?4-(browbytes&3):0;
+		rows = ((h+blockheight-1)/blockheight)*d;
+		if (datasize != (browbytes+padbytes) * rows)
 		{
-			Con_Printf("%s: mip %i does not match expected size\n", fname, mipnum);
+			Con_Printf("%s: mip %i does not match expected size (%u, required %u)\n", fname, mipnum, datasize, (browbytes+padbytes) * rows);
 			break;
 		}
 
-		if (filedata + datasize*header->numberoffaces > fileend)
+		if (filedata + datasize*f*l > fileend)
 		{
 			Con_Printf("%s: truncation at mip %i\n", fname, mipnum);
 			break;
 		}
 
-		for (face = 0; face < header->numberoffaces; face++)
-		{
-			if (mips->mipcount >= countof(mips->mip))
-				break;
-			mips->mip[mips->mipcount].data = in = filedata;
-			mips->mip[mips->mipcount].datasize = datasize;
-			mips->mip[mips->mipcount].width = w;
-			mips->mip[mips->mipcount].height = h;
-			mips->mip[mips->mipcount].depth = d;
-			mips->mipcount++;
+		if (mips->mipcount >= countof(mips->mip))
+			break;
+		mips->mip[mips->mipcount].width = w;
+		mips->mip[mips->mipcount].height = h;
+		mips->mip[mips->mipcount].depth = d*l*f;
 
-			filedata += datasize;
-			if ((datasize & 3) && mips->type == PTI_CUBEMAP)
-				filedata += 4-(datasize&3);
+		if (padbytes)
+		{
+			//gah
+			rows *= l*f;
+			mips->mip[mips->mipcount].needfree = true;
+			mips->mip[mips->mipcount].datasize = browbytes * rows;
+			mips->mip[mips->mipcount].data = BZ_Malloc(mips->mip[mips->mipcount].datasize);
+			for (y = 0; y < rows; y++)
+				memcpy(mips->mip[mips->mipcount].data + y*browbytes, filedata + y*browbytes+padbytes, browbytes);
 		}
+		else
+		{
+			mips->mip[mips->mipcount].datasize = datasize * l*f;
+			mips->mip[mips->mipcount].data = filedata;
+		}
+		mips->mipcount++;
+
+		filedata += datasize *l*f;
+
 		w = max(1, w>>1);
 		h = max(1, h>>1);
-		if (mips->type == PTI_3D)
-			d = max(1, d>>1);
+		d = max(1, d>>1);
 	}
 
 	if (!mips->mipcount)
@@ -5311,11 +5392,12 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	int mipnum;
 	int datasize;
 //	int pad;
-	unsigned int w, h;
+	unsigned int w, h, d;
 	unsigned int blockwidth, blockheight, blockbytes;
 	struct pendingtextureinfo *mips;
 	int encoding;
 	int layers = 1, layer;
+	int ttype;
 
 	ddsheader fmtheader;
 	dds10header_t fmt10header;
@@ -5327,7 +5409,8 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	if (fmtheader.dwSize != sizeof(fmtheader))
 		return NULL;	//corrupt/different version
 	memset(&fmt10header, 0, sizeof(fmt10header));
-	fmt10header.arraysize = 1;
+
+	fmt10header.arraysize = (fmtheader.ddsCaps[1] & 0x200)?6:1; //cubemaps need 6 faces...
 
 	nummips = fmtheader.dwMipMapCount;
 	if (nummips < 1)
@@ -5348,6 +5431,8 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 			encoding = PTI_BGRX8;
 		else if (IsPacked(32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0))
 			encoding = PTI_RGBX8;
+		else if (IsPacked(32, 0x000003ff, 0x000ffc00, 0x3ff00000, 0xc0000000))
+			encoding = PTI_A2BGR10;
 		else
 		{
 			Con_Printf("Unsupported non-fourcc dds in %s\n", fname);
@@ -5569,32 +5654,54 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 
 	if ((fmtheader.ddsCaps[1] & 0x200) && (fmtheader.ddsCaps[1] & 0xfc00) != 0xfc00)
 		return NULL;	//cubemap without all 6 faces defined.
-	if (fmtheader.ddsCaps[1] & 0x200000)
-		return NULL;	//3d texture. fte internally interleaves layers on the x axis. I'll bet dds does not.
 
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
 	if (!blockbytes)
 		return NULL;	//werid/unsupported
 
-	mips = Z_Malloc(sizeof(*mips));
-	mips->mipcount = 0;
 	if (fmtheader.ddsCaps[1] & 0x200)
 	{
-		layers = 6;
-		mips->type = PTI_CUBEMAP;
+		if (fmt10header.arraysize % 6)	//weird number of faces.
+			return NULL;
+
+		if (fmt10header.arraysize == 6)
+		{
+			ttype = PTI_CUBE;
+			fmtheader.dwDepth = 6;
+		}
+		else
+		{
+			ttype = PTI_CUBE_ARRAY;
+			fmtheader.dwDepth = fmt10header.arraysize;
+		}
 	}
 	else if (fmtheader.ddsCaps[1] & 0x200000)
-		mips->type = PTI_3D;
+	{
+		if (fmt10header.arraysize != 1)	//no 2d arrays
+			return NULL;
+		ttype = PTI_3D;
+	}
 	else
-		mips->type = PTI_2D;
+	{
+		if (fmt10header.arraysize == 1)
+			ttype = PTI_2D;
+		else
+			ttype = PTI_2D_ARRAY;
+		fmtheader.dwDepth = fmt10header.arraysize;
+	}
+
+	mips = Z_Malloc(sizeof(*mips));
+	mips->mipcount = 0;
+	mips->type = ttype;
 	mips->extrafree = filedata;
 	mips->encoding = encoding;
 
 	filedata += 4+fmtheader.dwSize;
 
-	datasize = fmtheader.dwPitchOrLinearSize;
 	w = fmtheader.dwWidth;
 	h = fmtheader.dwHeight;
+	d = fmtheader.dwDepth;
+
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
 		if (mips->mipcount >= countof(mips->mip))
@@ -5602,7 +5709,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 
 //		if (datasize < 8)
 //			datasize = pad;
-		datasize = ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight) * blockbytes;
+		datasize = ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight) * (d) * blockbytes;
 
 		for (layer = 0; layer < layers; layer++)
 		{
@@ -5610,7 +5717,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 			mips->mip[mips->mipcount].datasize = datasize;
 			mips->mip[mips->mipcount].width = w;
 			mips->mip[mips->mipcount].height = h;
-			mips->mip[mips->mipcount].depth = 1;
+			mips->mip[mips->mipcount].depth = d;
 			mips->mipcount++;
 			filedata += datasize;
 		}
@@ -5630,7 +5737,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	ddsheader h9={0};
 
 	unsigned int blockbytes, blockwidth, blockheight;
-	unsigned int arraysize = (mips->type==PTI_CUBEMAP||mips->type==PTI_CUBEMAP_ARRAY)?6:1;
+	unsigned int arraysize;
 
 	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
@@ -5652,40 +5759,62 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	}
 	if (mips->mipcount > 1)
 		h9.dwFlags |= 0x20000;	//MIPMAPCOUNT
-	h9.dwHeight = mips->mip[0].height;
 	h9.dwWidth = mips->mip[0].width;
-	h9.dwDepth = 0;
-	h9.dwMipMapCount = mips->mipcount/arraysize;
+	h9.dwHeight = mips->mip[0].height;
+	h9.dwDepth = mips->mip[0].depth;
+
 	h9.ddpfPixelFormat.dwSize = 32;
 	h9.ddpfPixelFormat.dwFlags = 4/*DDPF_FOURCC*/;
 	h9.ddpfPixelFormat.dwFourCC = ('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24);
 	h9.ddsCaps[0] = 0x1000;		//TEXTURE
 	if (mips->mipcount > 1)
 		h9.ddsCaps[0] |= 0x8;		//COMPLEX
-	if (mips->mipcount > arraysize)
-		h9.ddsCaps[0] |= 0x400000;	//MIPMAP
 	h9.ddsCaps[1] = 0;
 	h10.miscflag = 0;
-	h10.arraysize = arraysize;
 	h10.miscflags2 = 0;
+	h9.dwMipMapCount = mips->mipcount;
 
+	arraysize = mips->mip[0].depth;
 	switch(mips->type)
 	{
 	case PTI_3D:
+		arraysize = 1;
 		h9.ddsCaps[1] |= 0x200000;	//VOLUME
 		h10.resourcetype = 4;	//3d
 		break;
-	case PTI_CUBEMAP:
-	case PTI_CUBEMAP_ARRAY:
-		h9.ddsCaps[1] |= 0x200|0xfc00;		//CUBEMAP+faces
+	case PTI_CUBE_ARRAY:
+		if (mips->mip[0].depth <= 1)	//in dds arraysize=1 is NOT an array, leaving us with an ambiguity issue
+			return false;
+		h9.dwDepth = 1;
 		h10.resourcetype = 3;	//2d
-		h10.miscflag = 4;//DDS_RESOURCE_MISC_TEXTURECUBE - otherwise they're basicaly just 2d_arrays
+		h9.ddsCaps[1] |= 0x200|0xfc00;		//CUBEMAP+faces
+		h10.miscflag |= 4;//DDS_RESOURCE_MISC_TEXTURECUBE - otherwise they're basicaly just 2d_arrays
+		break;
+	case PTI_CUBE:
+		if (mips->mip[0].depth != 6)	//wut?!?
+			return false;
+		h9.dwDepth = 1;
+		h10.resourcetype = 3;	//2d
+		h9.ddsCaps[1] |= 0x200|0xfc00;		//CUBEMAP+faces
+		h10.miscflag |= 4;//DDS_RESOURCE_MISC_TEXTURECUBE - otherwise they're basicaly just 2d_arrays
+		break;
+	case PTI_2D_ARRAY:
+		if (mips->mip[0].depth <= 1)	//in dds arraysize=1 is NOT an array, leaving us with an ambiguity issue
+			return false;
+		h9.dwDepth = 1;
+		h10.resourcetype = 3;	//2d
 		break;
 	case PTI_2D:
-	case PTI_2D_ARRAY:
+		if (mips->mip[0].depth != 1)	//wut?!?
+			return false;
+		h9.dwDepth = 1;
 		h10.resourcetype = 3;	//2d
 		break;
 	}
+	if (h9.dwMipMapCount > 1)
+		h9.ddsCaps[0] |= 0x400000;	//MIPMAP
+
+	h10.arraysize = arraysize;
 
 	h10.dxgiformat = 0;
 
@@ -5765,7 +5894,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_RGBA8:				h10.dxgiformat = 28/*DXGI_FORMAT_R8G8B8A8_UNORM*/; break;
 	case PTI_BGRA8_SRGB:		h10.dxgiformat = 91/*DXGI_FORMAT_B8G8R8A8_UNORM_SRGB*/; break;
 	case PTI_RGBA8_SRGB:		h10.dxgiformat = 29/*DXGI_FORMAT_R8G8B8A8_UNORM_SRGB*/; break;
-	case PTI_L8:				return false;	//unsupported
+	case PTI_L8:				return false;	//unsupported, should fall back on dx9 formats.
 	case PTI_L8A8:				return false;	//unsupported
 	case PTI_L8_SRGB:			return false;	//unsupported
 	case PTI_L8A8_SRGB:			return false;	//unsupported
@@ -5783,7 +5912,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_A2BGR10:			h10.dxgiformat = 24/*DXGI_FORMAT_R10G10B10A2_UNORM*/; break;
 	case PTI_E5BGR9:			h10.dxgiformat = 67/*DXGI_FORMAT_R9G9B9E5_SHAREDEXP*/; break;
 	case PTI_B10G11R11F:		h10.dxgiformat = 26/*DXGI_FORMAT_R11G11B10_FLOAT*/; break;
-	case PTI_P8:
+	case PTI_P8:				return false;	//unsupported, technically R8_UNORM but would load back in wrongly.
 	case PTI_R8:				h10.dxgiformat = 61/*DXGI_FORMAT_R8_UNORM*/; break;
 	case PTI_RG8:				h10.dxgiformat = 49/*DXGI_FORMAT_R8G8_UNORM*/; break;
 	case PTI_R8_SNORM:			h10.dxgiformat = 63/*DXGI_FORMAT_R8_SNORM*/; break;
@@ -5809,15 +5938,17 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_MAX:
 		return false;
 
-//	default:
-//		return;
+#ifndef _DEBUG
+	default:	//don't enable in debug builds, so we get warnings for any cases being missed.
+		return false;
+#endif
 	}
 
 	//truncate the mip chain if they're dodgy sizes.
 	for (mipnum = 1; mipnum < h9.dwMipMapCount; mipnum++)
 	{
-		size_t m = mipnum*arraysize;
-		size_t p = (mipnum-1)*arraysize;
+		size_t m = mipnum;
+		size_t p = (mipnum-1);
 		if (mips->mip[m].width != max(1,(mips->mip[p].width)>>1) ||
 			mips->mip[m].height != max(1,(mips->mip[p].height)>>1))
 		{
@@ -5836,14 +5967,14 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	VFS_WRITE(file, &h9, sizeof(h9));
 	VFS_WRITE(file, &h10, sizeof(h10));
 
-	//our internal state uses a0m0, a1m0, a0m1, a1m1
+	//our internal state uses width*height*layers for each mip level (gl-friendly).
 	//DDS requires a0m0, a0m1, a1m0, a1m1, so reorder with two nested loops
 	for (a = 0; a < arraysize; a++)
 	{
 		for (mipnum = 0; mipnum < h9.dwMipMapCount; mipnum++)
 		{
-			size_t m = a + mipnum*arraysize;
-			VFS_WRITE(file, mips->mip[m].data, mips->mip[m].datasize);
+			size_t sz = mips->mip[mipnum].datasize / arraysize;
+			VFS_WRITE(file, mips->mip[mipnum].data + sz*a, sz);
 		}
 	}
 
@@ -6025,13 +6156,13 @@ static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, const ch
 //many of these look like dupes, not really sure how they're meant to work. probably legacy.
 typedef enum {
 	VMF_INVALID=-1,
-//	VMF_RGBA8=0,
+	VMF_RGBA8=0,
 //	VMF_ABGR8=1,
 	VMF_RGB8=2,
 	VMF_BGR8=3,
 //	VMF_RGB565=4,
-//	VMF_I8=5,
-//	VMF_IA8=6,
+	VMF_I8=5,
+	VMF_IA8=6,
 //	VMF_P8=7,
 //	VMF_A8=8,
 //	VMF_RGB8_BS=9,
@@ -6068,6 +6199,8 @@ static uploadfmt_t ImageVTF_VtfToFTE(fmtfmt_t f)
 		return PTI_BC3_RGBA;
 	case VMF_RGB8:
 		return PTI_RGB8;
+	case VMF_RGBA8:
+		return PTI_RGBA8;
 	case VMF_BGR8:
 		return PTI_BGR8;
 	case VMF_BGRA8:
@@ -6078,6 +6211,10 @@ static uploadfmt_t ImageVTF_VtfToFTE(fmtfmt_t f)
 		return PTI_RGBA16F;
 	case VMF_UV88:
 		return PTI_RG8;
+	case VMF_I8:
+		return PTI_L8;
+	case VMF_IA8:
+		return PTI_L8A8;
 	case VMF_INVALID:
 		return PTI_INVALID;
 
@@ -6180,23 +6317,23 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 	//now handle the high-res image
 	if (mips)
 	{
-		mips->type = (vtf->flags & 0x4000)?PTI_CUBEMAP:PTI_2D;
+		mips->type = (vtf->flags & 0x4000)?PTI_CUBE:PTI_2D;
 
 		mips->encoding = ImageVTF_VtfToFTE(vmffmt);
 		Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
 
 		miplevels = vtf->mipmapcount;
 		frames = 1;//vtf->numframes;
-		faces = ((mips->type==PTI_CUBEMAP)?6:1);	//no cubemaps yet.
+		faces = ((mips->type==PTI_CUBE)?6:1);	//no cubemaps yet.
 
-		mips->mipcount = miplevels * frames * faces;
+		mips->mipcount = miplevels * frames;
 		while (mips->mipcount > countof(mips->mip))
 		{
 			if (miplevels > 1)
 				miplevels--;
 			else
 				frames--;
-			mips->mipcount = miplevels * frames * faces;
+			mips->mipcount = miplevels * frames;
 		}
 		if (!mips->mipcount)
 		{
@@ -6214,23 +6351,20 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 			datasize = ((w+bw-1)/bw) * ((h+bh-1)/bh) * bb;
 			for (frame = 0; frame < vtf->numframes; frame++)
 			{
-				for (face = 0; face < faces; face++)
+				if (miplevel < miplevels)
 				{
-					if (miplevel < miplevels && face < faces)
-					{
-						img = face+miplevel*faces + frame*miplevels*faces;
-						if (img >= countof(mips->mip))
-							break;	//erk?
-						if (filedata + datasize > end)
-							break;	//no more data here...
-						mips->mip[img].width = w;
-						mips->mip[img].height = h;
-						mips->mip[img].depth = 1;
-						mips->mip[img].data = filedata;
-						mips->mip[img].datasize = datasize;
-					}
-					filedata += datasize;
+					img = miplevel + frame*miplevels;
+					if (img >= countof(mips->mip))
+						break;	//erk?
+					if (filedata + datasize > end)
+						break;	//no more data here...
+					mips->mip[img].width = w;
+					mips->mip[img].height = h;
+					mips->mip[img].depth = faces;
+					mips->mip[img].data = filedata;
+					mips->mip[img].datasize = datasize*faces;
 				}
+				filedata += datasize*faces;
 			}
 		}
 	}
@@ -7569,9 +7703,7 @@ static void Image_Tr_8888toLuminence(struct pendingtextureinfo *mips, int channe
 		qbyte l, a;
 		qbyte *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		unsigned short tmp;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
@@ -7599,9 +7731,7 @@ static void Image_Tr_8888to565(struct pendingtextureinfo *mips, int bgra)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned short *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		unsigned short tmp;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
@@ -7642,9 +7772,7 @@ static void Image_Tr_8888to1555(struct pendingtextureinfo *mips, int bgra)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned short *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		unsigned short tmp;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
@@ -7685,9 +7813,7 @@ static void Image_Tr_8888to5551(struct pendingtextureinfo *mips, int bgra)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned short *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		unsigned short tmp;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
@@ -7728,9 +7854,7 @@ static void Image_Tr_8888to4444(struct pendingtextureinfo *mips, int bgra)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned short *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		unsigned short tmp;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
@@ -7771,9 +7895,7 @@ static void Image_Tr_8888toARGB4444(struct pendingtextureinfo *mips, int bgra)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned short *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		unsigned short tmp;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
@@ -7814,9 +7936,7 @@ static void Image_Tr_4X16to8888(struct pendingtextureinfo *mips, int unused)
 	{
 		unsigned short *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h*4;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth*4;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -7839,9 +7959,7 @@ static void Image_Tr_E5BGR9ToByte(struct pendingtextureinfo *mips, int bgr)
 	{
 		unsigned int *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -7868,9 +7986,7 @@ static void Image_Tr_E5BGR9ToFloat(struct pendingtextureinfo *mips, int dummy)
 	{
 		unsigned int *in = mips->mip[mip].data;
 		float *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -7898,9 +8014,7 @@ static void Image_Tr_FloatToE5BGR9(struct pendingtextureinfo *mips, int dummy)
 		float *in = mips->mip[mip].data;
 		unsigned int *out = mips->mip[mip].data;
 		float *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p);
 		mips->mip[mip].datasize = p*sizeof(*out);
@@ -7937,9 +8051,7 @@ static void Image_Tr_PackedToFloat(struct pendingtextureinfo *mips, int dummy)
 		unsigned int *in = mips->mip[mip].data;
 		float *out = mips->mip[mip].data;
 		void *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
 		mips->mip[mip].datasize = p*sizeof(*out)*4;
@@ -7963,9 +8075,7 @@ static void Image_Tr_FloatToPacked(struct pendingtextureinfo *mips, int dummy)
 		float *in = mips->mip[mip].data;
 		unsigned int *out = mips->mip[mip].data;
 		float *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p);
 		mips->mip[mip].datasize = p*sizeof(*out);
@@ -7989,9 +8099,7 @@ static void Image_Tr_HalfToByte(struct pendingtextureinfo *mips, int channels)
 		int v;
 		unsigned short *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h*abs(channels);
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth*abs(channels);
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -8033,9 +8141,7 @@ static void Image_Tr_RGB32FToFloat(struct pendingtextureinfo *mips, int dummy)
 		float *in = mips->mip[mip].data;
 		float *out = mips->mip[mip].data;
 		float *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
 		mips->mip[mip].datasize = p*sizeof(*out)*4;
@@ -8059,9 +8165,7 @@ static void Image_Tr_HalfToFloat(struct pendingtextureinfo *mips, int channels)
 		float *in = mips->mip[mip].data;
 		float *out = mips->mip[mip].data;
 		float *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
 		mips->mip[mip].datasize = p*sizeof(*out)*4;
@@ -8079,9 +8183,7 @@ static void Image_Tr_FloatToHalf(struct pendingtextureinfo *mips, int channels)
 	{
 		float *in = mips->mip[mip].data;
 		unsigned short *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h*channels;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth*channels;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -8104,9 +8206,7 @@ static void Image_Tr_FloatToByte(struct pendingtextureinfo *mips, int channels)
 		int v;
 		float *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h*abs(channels);
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth*abs(channels);
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -8149,9 +8249,7 @@ static void Image_Tr_DropBytes(struct pendingtextureinfo *mips, int srcbitsdstbi
 	{
 		qbyte *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -8176,9 +8274,7 @@ static void Image_Tr_RG8ToRGXX8(struct pendingtextureinfo *mips, int dummy)
 		qbyte *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
 		void *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
 		mips->mip[mip].datasize = p*sizeof(*out)*4;
@@ -8201,9 +8297,7 @@ static void Image_Tr_8To10(struct pendingtextureinfo *mips, int dummy)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned int *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -8228,9 +8322,7 @@ static void Image_Tr_10To8(struct pendingtextureinfo *mips, int dummy)
 	{
 		unsigned int *in = mips->mip[mip].data, v;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -8258,9 +8350,7 @@ static void Image_Tr_Swap8888(struct pendingtextureinfo *mips, int dummy)
 		qbyte rb, g, br, a;
 		qbyte *in = mips->mip[mip].data;
 		qbyte *out = mips->mip[mip].data;
-		unsigned int w = mips->mip[mip].width;
-		unsigned int h = mips->mip[mip].height;
-		unsigned int p = w*h;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		if (!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
@@ -10187,14 +10277,14 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	return "Unknown";
 }
 
-static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t srcfmt), uploadfmt_t encoding)
+static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int w, int h, int d, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t srcfmt), uploadfmt_t encoding)
 {
 #define TMPBLOCKSIZE 16u
 	pixel32_t *ret, *out;
 	pixel32_t tmp[TMPBLOCKSIZE*TMPBLOCKSIZE];
-	int x, y, i, j;
+	int x, y, z, i, j;
 	int sizediff;
-	int rows, columns;
+	int rows, columns, layers;
 
 	unsigned int blockbytes, blockwidth, blockheight;
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
@@ -10202,7 +10292,7 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int 
 	if (blockwidth > TMPBLOCKSIZE || blockheight > TMPBLOCKSIZE)
 		Sys_Error("Image_Block_Decode only supports up to %u*%u blocks.\n", TMPBLOCKSIZE,TMPBLOCKSIZE);
 
-	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight);
+	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight)*d;
 	if (sizediff)
 	{
 		Con_Printf("Image_Block_Decode: %s data size is %u, expected %u\n\n", Image_FormatName(encoding), (unsigned int)insize, (unsigned int)(insize-sizediff));
@@ -10210,56 +10300,60 @@ static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, size_t insize, int 
 			return NULL;
 	}
 
-	ret = out = BZ_Malloc(w*h*sizeof(*out));
+	ret = out = BZ_Malloc(w*h*d*sizeof(*out));
 
 	rows = h/blockheight;
 	rows *= blockheight;
 	columns = w/blockwidth;
 	columns *= blockwidth;
-	for (y = 0; y < rows; y+=blockheight, out += w*(blockheight-1))
+	layers = d;
+	for (z = 0; z < layers; z++)
 	{
-		for (x = 0; x < columns; x+=blockwidth, in+=blockbytes, out+=blockwidth)
-			decodeblock(in, out, w, encoding);
-		if (w%blockwidth)
+		for (y = 0; y < rows; y+=blockheight, out += w*(blockheight-1))
 		{
-			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
-			for (i = 0; x < w; x++, out++, i++)
+			for (x = 0; x < columns; x+=blockwidth, in+=blockbytes, out+=blockwidth)
+				decodeblock(in, out, w, encoding);
+			if (w%blockwidth)
 			{
-				for (j = 0; j < blockheight; j++)
-					out[w*j] = tmp[i+TMPBLOCKSIZE*j];
+				decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
+				for (i = 0; x < w; x++, out++, i++)
+				{
+					for (j = 0; j < blockheight; j++)
+						out[w*j] = tmp[i+TMPBLOCKSIZE*j];
+				}
+				in+=blockbytes;
 			}
-			in+=blockbytes;
 		}
-	}
-	if (h%blockheight)
-	{	//now walk along the bottom of the image
-		h %= blockheight;
-		for (x = 0; x < w; )
-		{
-			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
-			i = 0;
-			do
+		if (h%blockheight)
+		{	//now walk along the bottom of the image
+			h %= blockheight;
+			for (x = 0; x < w; )
 			{
-				if (x == w)
-					break;
-				for (y = 0; y < h; y++)
-					out[w*y] = tmp[i+TMPBLOCKSIZE*y];
-				out++;
-				i++;
-			} while (++x % blockwidth);
-			in+=blockbytes;
+				decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
+				i = 0;
+				do
+				{
+					if (x == w)
+						break;
+					for (y = 0; y < h; y++)
+						out[w*y] = tmp[i+TMPBLOCKSIZE*y];
+					out++;
+					i++;
+				} while (++x % blockwidth);
+				in+=blockbytes;
+			}
 		}
 	}
 	return ret;
 }
-static pixel64_t *Image_Block_Decode64(qbyte *fte_restrict in, size_t insize, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel64_t *fte_restrict out, int w, uploadfmt_t srcfmt), uploadfmt_t encoding)
+static pixel64_t *Image_Block_Decode64(qbyte *fte_restrict in, size_t insize, int w, int h, int d, void(*decodeblock)(qbyte *fte_restrict in, pixel64_t *fte_restrict out, int w, uploadfmt_t srcfmt), uploadfmt_t encoding)
 {
 #define TMPBLOCKSIZE 16u
 	pixel64_t *ret, *out;
 	pixel64_t tmp[TMPBLOCKSIZE*TMPBLOCKSIZE];
-	int x, y, i, j;
+	int x, y, z, i, j;
 	int sizediff;
-	int rows, columns;
+	int rows, columns, layers;
 
 	unsigned int blockbytes, blockwidth, blockheight;
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
@@ -10267,7 +10361,7 @@ static pixel64_t *Image_Block_Decode64(qbyte *fte_restrict in, size_t insize, in
 	if (blockwidth > TMPBLOCKSIZE || blockheight > TMPBLOCKSIZE)
 		Sys_Error("Image_Block_Decode only supports up to %u*%u blocks.\n", TMPBLOCKSIZE,TMPBLOCKSIZE);
 
-	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight);
+	sizediff = insize - blockbytes*((w+blockwidth-1)/blockwidth)*((h+blockheight-1)/blockheight)*d;
 	if (sizediff)
 	{
 		Con_Printf("Image_Block_Decode: %s data size is %u, expected %u\n\n", Image_FormatName(encoding), (unsigned int)insize, (unsigned int)(insize-sizediff));
@@ -10275,44 +10369,48 @@ static pixel64_t *Image_Block_Decode64(qbyte *fte_restrict in, size_t insize, in
 			return NULL;
 	}
 
-	ret = out = BZ_Malloc(w*h*sizeof(*out));
+	ret = out = BZ_Malloc(w*h*d*sizeof(*out));
 
 	rows = h/blockheight;
 	rows *= blockheight;
 	columns = w/blockwidth;
 	columns *= blockwidth;
-	for (y = 0; y < rows; y+=blockheight, out += w*(blockheight-1))
+	layers = d;
+	for (z = 0; z < layers; z++)
 	{
-		for (x = 0; x < columns; x+=blockwidth, in+=blockbytes, out+=blockwidth)
-			decodeblock(in, out, w, encoding);
-		if (w%blockwidth)
+		for (y = 0; y < rows; y+=blockheight, out += w*(blockheight-1))
 		{
-			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
-			for (i = 0; x < w; x++, out++, i++)
+			for (x = 0; x < columns; x+=blockwidth, in+=blockbytes, out+=blockwidth)
+				decodeblock(in, out, w, encoding);
+			if (w%blockwidth)
 			{
-				for (j = 0; j < blockheight; j++)
-					out[w*j] = tmp[i+TMPBLOCKSIZE*j];
+				decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
+				for (i = 0; x < w; x++, out++, i++)
+				{
+					for (j = 0; j < blockheight; j++)
+						out[w*j] = tmp[i+TMPBLOCKSIZE*j];
+				}
+				in+=blockbytes;
 			}
-			in+=blockbytes;
 		}
-	}
-	if (h%blockheight)
-	{	//now walk along the bottom of the image
-		h %= blockheight;
-		for (x = 0; x < w; )
-		{
-			decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
-			i = 0;
-			do
+		if (h%blockheight)
+		{	//now walk along the bottom of the image
+			h %= blockheight;
+			for (x = 0; x < w; )
 			{
-				if (x == w)
-					break;
-				for (y = 0; y < h; y++)
-					out[w*y] = tmp[i+TMPBLOCKSIZE*y];
-				out++;
-				i++;
-			} while (++x % blockwidth);
-			in+=blockbytes;
+				decodeblock(in, tmp, TMPBLOCKSIZE, encoding);
+				i = 0;
+				do
+				{
+					if (x == w)
+						break;
+					for (y = 0; y < h; y++)
+						out[w*y] = tmp[i+TMPBLOCKSIZE*y];
+					out++;
+					i++;
+				} while (++x % blockwidth);
+				in+=blockbytes;
+			}
 		}
 	}
 	return ret;
@@ -10562,12 +10660,12 @@ static qboolean Image_DecompressFormat(struct pendingtextureinfo *mips, const ch
 			if (decodefunc64)
 			{
 				sz = sizeof(pixel64_t);
-				out = Image_Block_Decode64(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc64, mips->encoding);
+				out = Image_Block_Decode64(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, mips->mip[mip].depth, decodefunc64, mips->encoding);
 			}
 			else
 			{
 				sz = sizeof(pixel32_t);
-				out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
+				out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].datasize, mips->mip[mip].width, mips->mip[mip].height, mips->mip[mip].depth, decodefunc, mips->encoding);
 			}
 			if (mips->mip[mip].needfree)
 				BZ_Free(mips->mip[mip].data);
@@ -10679,9 +10777,6 @@ static struct
 void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename)
 {
 	int mip;
-
-	if (mips->type != PTI_2D)
-		return;	//blurgh
 
 	if (flags & IF_PALETTIZE)
 	{
@@ -11852,7 +11947,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 		}
 
 		mips = Z_Malloc(sizeof(*mips));
-		mips->type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
+		mips->type = (flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 		if (Image_GenMip0(mips, flags, rgbadata, NULL, imgwidth, imgheight, format, true))
 		{
 			Image_GenerateMips(mips, flags);
@@ -11867,7 +11962,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 	{
 		struct pendingtextureinfo *mips;
 		mips = Z_Malloc(sizeof(*mips));
-		mips->type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
+		mips->type = (flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 		mips->mipcount = 1;
 		mips->encoding = PTI_WHOLEFILE;
 		mips->extrafree = NULL;
@@ -11888,6 +11983,67 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 	return NULL;
 }
 
+void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, int *inoutheight, int pixelbytes, qboolean flipx, qboolean flipy, qboolean flipd)
+{
+	int x, y, b;
+	qbyte *outb;
+	const qbyte *inb, *inr;
+	int inwidth = *inoutwidth;
+	int inheight = *inoutheight;
+	int rowstride = inwidth;
+	int colstride = 1;
+
+	//simply return if no operation
+	if (!flipx && !flipy && !flipd)
+		memcpy(outbuffer, inbuffer, inwidth*inheight*pixelbytes);
+	else
+	{
+		inr = inbuffer;
+		outb = outbuffer;
+
+		if (flipy)
+		{
+			inr += (inwidth*inheight-inwidth)*pixelbytes;//start on the bottom row
+			rowstride *= -1;	//and we need to move up instead
+		}
+		if (flipx)
+		{
+			colstride *= -1;	//move backwards
+			inr += (inwidth-1)*pixelbytes;	//start at the end of the row
+		}
+		if (flipd)
+		{
+			//switch the dimensions
+			int tmp = inwidth;
+			inwidth = inheight;
+			inheight = tmp;
+			//make sure the caller gets the new dimensions
+			*inoutwidth = inwidth;
+			*inoutheight = inheight;
+			//switch the strides
+			tmp = colstride;
+			colstride = rowstride;
+			rowstride = tmp;
+		}
+
+		colstride *= pixelbytes;
+		rowstride *= pixelbytes;
+
+		//rows->rows, columns->columns
+		for (y = 0; y < inheight; y++)
+		{
+			inb = inr;	//reset the input after each row, so we have truely independant row+column strides
+			inr += rowstride;
+			for (x = 0; x < inheight; x++)
+			{
+				for (b = 0; b < pixelbytes; b++)
+					*outb++ = inb[b];
+				inb += colstride;
+			}
+		}
+	}
+	return outbuffer;
+}
 #if !defined(NPFTE) && !defined(IMGTOOL)
 static int tex_extensions_count;
 #define tex_extensions_max 15
@@ -11914,62 +12070,6 @@ static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue)
 		Q_snprintfz(tex_extensions[tex_extensions_count].name, sizeof(tex_extensions[tex_extensions_count].name), "");
 		tex_extensions_count++;
 	}
-}
-static void *R_FlipImage32(void *in, int *inoutwidth, int *inoutheight, qboolean flipx, qboolean flipy, qboolean flipd)
-{
-	int x, y;
-	unsigned int *in32, *inr, *out32;
-	void *out;
-	int inwidth = *inoutwidth;
-	int inheight = *inoutheight;
-	int rowstride = inwidth;
-	int colstride = 1;
-
-	//simply return if no operation
-	if (!flipx && !flipy && !flipd)
-		return in;
-
-	inr = in;
-	out32 = out = BZ_Malloc(inwidth*inheight*4);
-
-	if (flipy)
-	{
-		inr += inwidth*inheight-inwidth;//start on the bottom row
-		rowstride *= -1;	//and we need to move up instead
-	}
-	if (flipx)
-	{
-		colstride *= -1;	//move backwards
-		inr += inwidth-1;	//start at the end of the row
-	}
-	if (flipd)
-	{
-		//switch the dimensions
-		int tmp = inwidth;
-		inwidth = inheight;
-		inheight = tmp;
-		//make sure the caller gets the new dimensions
-		*inoutwidth = inwidth;
-		*inoutheight = inheight;
-		//switch the strides
-		tmp = colstride;
-		colstride = rowstride;
-		rowstride = tmp;
-	}
-
-	//rows->rows, columns->columns
-	for (y = 0; y < inheight; y++)
-	{
-		in32 = inr;	//reset the input after each row, so we have truely independant row+column strides
-		inr += rowstride;
-		for (x = 0; x < inheight; x++)
-		{
-			*out32++ = *in32;
-			in32 += colstride;
-		}
-	}
-	BZ_Free(in);
-	return out;
 }
 static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, char *subpath, unsigned int texflags)
 {
@@ -12008,18 +12108,13 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 		}
 	};
 	int i, j, e;
-	struct pendingtextureinfo *mips;
+	struct pendingtextureinfo *mips = NULL;
 	char fname[MAX_QPATH];
 	size_t filesize;
 	int width, height;
 	uploadfmt_t format;
 	char *nextprefix, *prefixend;
 	size_t prefixlen;
-	mips = Z_Malloc(sizeof(*mips));
-	mips->type = PTI_CUBEMAP;
-	mips->mipcount = 6;
-	mips->encoding = PTI_RGBA8;
-	mips->extrafree = NULL;
 
 	for (i = 0; i < 6; i++)
 	{
@@ -12050,23 +12145,35 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 				if (buf)
 				{
 					qboolean needsflipping = cmscheme[j][i].flipx||cmscheme[j][i].flipy||cmscheme[j][i].flipd;
-					if ((data = ReadRawImageFile(buf, filesize, &width, &height, &format, needsflipping, fname)))
+					if ((data = ReadRawImageFile(buf, filesize, &width, &height, &format, true, fname)))
 					{
 						extern cvar_t vid_hardwaregamma;
 						int bb,bw,bh;
 						Image_BlockSizeForEncoding(format, &bb, &bw, &bh);
 						if (needsflipping && (bb!=4 || bw!=1 || bh!=1))
 							;
-						else if (width == height && (!i || width == mips->mip[0].width))	//cubemaps must be square and all the same size (npot is fine though)
+						else if (width == height && (!mips || width == mips->mip[0].width))	//cubemaps must be square and all the same size (npot is fine though)
 						{	//(skies have a fallback for invalid sizes, but it'll run a bit slower)
+
+							if (!mips)
+							{
+								mips = Z_Malloc(sizeof(*mips));
+								mips->type = PTI_CUBE;
+								mips->mipcount = 1;
+								mips->encoding = PTI_RGBA8;
+								mips->extrafree = NULL;
+								mips->mip[0].datasize = width*height*4*6;
+								mips->mip[0].data = BZ_Malloc(mips->mip[0].datasize);
+								mips->mip[0].width = width;
+								mips->mip[0].height = height;
+								mips->mip[0].depth = 6;;
+								mips->mip[0].needfree = true;
+							}
+
 							if (!(texflags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 								BoostGamma(data, width, height, format);
-							mips->mip[i].data = R_FlipImage32(data, &width, &height, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
-							mips->mip[i].datasize = (width+(bw-1))/bw * (height+(bh-1))/bh * bb;
-							mips->mip[i].width = width;
-							mips->mip[i].height = height;
-							mips->mip[i].depth = 1;
-							mips->mip[i].needfree = true;
+							Image_FlipImage(data, mips->mip[0].data + i*width*height*bb, &width, &height, bb, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
+							BZ_Free(data);
 
 							BZ_Free(buf);
 							goto nextface;
@@ -12109,7 +12216,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 {
 	struct pendingtextureinfo *mips;
 	mips = Z_Malloc(sizeof(*mips));
-	mips->type = (flags&IF_TEXTYPE)>>IF_TEXTYPESHIFT;
+	mips->type = (flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 
 	if (!Image_GenMip0(mips, flags, rawdata, palettedata, imgwidth, imgheight, fmt, true))
 	{
@@ -12408,10 +12515,12 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	int imgwidth;
 	int imgheight;
 	uploadfmt_t format;
+	int ttype = (tex->flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 
-	if ((tex->flags & IF_TEXTYPE) == IF_CUBEMAP)
+	if (ttype == PTI_CUBE)
 	{	//cubemaps require special handling because they are (normally) 6 files instead of 1.
-		//the exception is single-file dds cubemaps, but we don't support those.
+		//the exception is single-file dds/ktx/etc cubemaps.
+		//FIXME: handle via Image_LocateHighResTexture.
 		for(altname = tex->ident;altname;altname = nextalt)
 		{
 			struct pendingtextureinfo *mips = NULL;
@@ -12865,7 +12974,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 		return;
 
 	mips.extrafree = NULL;
-	mips.type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
+	mips.type = (flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 	if (!Image_GenMip0(&mips, flags, data, palette, width, height, fmt, false))
 		return;
 	Image_GenerateMips(&mips, flags);
@@ -13203,7 +13312,7 @@ void R_LoadNumberedLightTexture(dlight_t *dl, int cubetexnum)
 	if (!gl_load24bit.ival)
 		dl->cubetexture = r_nulltex;
 	else
-		dl->cubetexture = Image_GetTexture(dl->cubemapname, NULL, IF_CUBEMAP, NULL, NULL, 0, 0, TF_INVALID);
+		dl->cubetexture = Image_GetTexture(dl->cubemapname, NULL, IF_TEXTYPE_CUBE, NULL, NULL, 0, 0, TF_INVALID);
 }
 #endif
 

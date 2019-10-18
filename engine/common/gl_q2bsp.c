@@ -7196,7 +7196,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t
 		}
 		else
 		{
-			if (merge != PVM_REPLACE)
+			if (merge != PVM_MERGE)
 				memset (buffer->buffer, 0, (mod->numclusters+7)>>3);
 		}
 		return buffer->buffer;

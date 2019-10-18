@@ -1798,8 +1798,9 @@ void CL_ClearState (qboolean gamestart)
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
-	CL_ResetFog(0);
-	CL_ResetFog(1);
+	CL_ResetFog(FOGTYPE_AIR);
+	CL_ResetFog(FOGTYPE_WATER);
+	CL_ResetFog(FOGTYPE_SKYROOM);
 
 	cl.protocol_qw = PROTOCOL_VERSION_QW;	//until we get an svc_serverdata
 	cl.allocated_client_slots = QWMAX_CLIENTS;
@@ -4341,12 +4342,14 @@ void CL_Fog_f(void)
 {
 	int ftype;
 	if (!Q_strcasecmp(Cmd_Argv(0), "waterfog"))
-		ftype = 1;
+		ftype = FOGTYPE_WATER;
+	else if (!Q_strcasecmp(Cmd_Argv(0), "skyroomfog"))
+		ftype = FOGTYPE_SKYROOM;
 	else //fog
-		ftype = 0;
+		ftype = FOGTYPE_AIR;
 	if ((cl.fog_locked && !Cmd_FromGamecode() && !cls.allow_cheats) || Cmd_Argc() <= 1)
 	{
-		static const char *fognames[]={"fog","waterfog"};
+		static const char *fognames[FOGTYPE_COUNT]={"fog","waterfog","skyroomfog"};
 		if (Cmd_ExecLevel != RESTRICT_INSECURE)
 			Con_Printf("Current %s %f (r:%f g:%f b:%f, a:%f bias:%f)\n", fognames[ftype], cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
 	}
@@ -4905,6 +4908,7 @@ void CL_Init (void)
 
 	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
+	Cmd_AddCommandD ("skyroomfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommandD ("skygroup", CL_Skygroup_f, "Provides a way to associate a skybox name with a series of maps, so that the requested skybox will override on a per-map basis.");
 //
 //  Windows commands

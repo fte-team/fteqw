@@ -333,19 +333,24 @@ static void ImgTool_SetupPalette(void)
 static void ImgTool_FreeMips(struct pendingtextureinfo *mips)
 {
 	size_t i;
-	for (i = 0; i < mips->mipcount; i++)
-		if (mips->mip[i].needfree)
-			BZ_Free(mips->mip[i].data);
-	if (mips->extrafree)
-		BZ_Free(mips->extrafree);
-	BZ_Free(mips);
+	if (mips)
+	{
+		for (i = 0; i < mips->mipcount; i++)
+			if (mips->mip[i].needfree)
+				BZ_Free(mips->mip[i].data);
+		if (mips->extrafree)
+			BZ_Free(mips->extrafree);
+		BZ_Free(mips);
+	}
 }
 
 sh_config_t sh_config;
 viddef_t vid;
+static const char *imagetypename[] = {"2D", "3D", "Cube", "2DArray", "CubemapArray", "INVALID", "INVALID", "INVALID", "INVALID", "INVALID"};
 
 struct opts_s
 {
+	int textype;
 	unsigned int flags;			//image flags to use (affects how textures get interpreted a little)
 	unsigned int mipnum;		//when exporting to a mipless format, this is the mip level that is actually written. default 0.
 	uploadfmt_t newpixelformat;	//try to convert to this pixel format on export.
@@ -407,6 +412,7 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 	int bb,bw,bh;
 	qboolean canktx = false;
 	uploadfmt_t targfmt = args->newpixelformat;
+	int d,l, layers;
 
 	//force it to bc1 if bc2 or bc3 with no alpha channel.
 	if ((targfmt == PTI_BC2_RGBA || targfmt == PTI_BC3_RGBA) && !Image_FormatHasAlpha(mips->encoding))
@@ -503,38 +509,74 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
 	for (m = 0; m < mips->mipcount; m++)
 	{
-		tmp.mip[0] = mips->mip[m];
-		tmp.mip[0].needfree = false;
-		(void)tmp;
-
-		if (canktx)
+		qbyte *srcdata = mips->mip[m].data;
+		size_t srcsize = mips->mip[m].datasize;
+		if (mips->type == PTI_3D)
 		{
-#ifdef IMAGEFMT_KTX
-			if (!Image_WriteKTXFile(raw, FS_SYSTEM, &tmp))
-#endif
-				break;
+			layers = 1;
+			d = mips->mip[m].depth;
+			tmp.type = PTI_2D;
 		}
 		else
 		{
-#ifdef AVAIL_PNGLIB
-			if (!Image_WritePNG(raw, FS_SYSTEM, 0, &mips->mip[m].data, 1, mips->mip[m].width*bb, mips->mip[m].width, mips->mip[m].height, mips->encoding, false))
-#endif
-				break;
+			layers = mips->mip[m].depth;
+			d = 1;
+			tmp.type = PTI_2D;
 		}
-
-		system(command);
-
-		fdata = FS_LoadMallocFile(comp, &fsize);
-		ret = Image_LoadMipsFromMemory(IF_NOMIPMAP, comp, comp, fdata, fsize);
-		if (ret &&	ret->mip[0].width == mips->mip[m].width &&
-					ret->mip[0].height == mips->mip[m].height &&
-					ret->mip[0].depth == mips->mip[m].depth &&
-					ImgTool_ASTCToLDR(ret->encoding) == ImgTool_ASTCToLDR(targfmt))
+		for (l = 0; l < layers; l++)
 		{
-			mips->mip[m] = ret->mip[0];
-			continue;
+			Con_DPrintf("Compressing %s mip %u, layer %u\n", inname, (unsigned)m, l);
+			tmp.mip[0] = mips->mip[m];
+			tmp.mip[0].needfree = false;
+			tmp.mip[0].depth = d;
+			tmp.mip[0].datasize = srcsize/layers;
+			tmp.mip[0].data = srcdata + l * tmp.mip[0].datasize;
+			(void)tmp;
+
+			if (canktx)
+			{
+	#ifdef IMAGEFMT_KTX
+				if (!Image_WriteKTXFile(raw, FS_SYSTEM, &tmp))
+	#endif
+					break;
+			}
+			else
+			{
+	#ifdef AVAIL_PNGLIB
+				if (!Image_WritePNG(raw, FS_SYSTEM, 0, &tmp.mip[0].data, 1, tmp.mip[0].width*bb, tmp.mip[0].width, tmp.mip[0].height, tmp.encoding, false))
+	#endif
+					break;
+			}
+
+			system(command);
+
+			fdata = FS_LoadMallocFile(comp, &fsize);
+			ret = Image_LoadMipsFromMemory(IF_NOMIPMAP, comp, comp, fdata, fsize);
+			if (ret &&	ret->mip[0].width == mips->mip[m].width &&
+						ret->mip[0].height == mips->mip[m].height &&
+						ret->mip[0].depth == d &&
+						ImgTool_ASTCToLDR(ret->encoding) == ImgTool_ASTCToLDR(targfmt))
+			{
+				if (layers == 1)	//just copy it over. FIXME: memory leak
+					mips->mip[m] = ret->mip[0];
+				else
+				{
+					if (!l)
+					{
+						mips->mip[m].datasize = ret->mip[0].datasize * layers;
+						mips->mip[m].data = BZ_Malloc(mips->mip[m].datasize);
+						mips->mip[m].needfree = true;
+					}
+					else if (ret->mip[0].datasize != mips->mip[m].datasize/layers)
+						break;	//erk..?
+					memcpy(mips->mip[m].data + l * ret->mip[0].datasize, ret->mip[0].data, ret->mip[0].datasize);
+				}
+				continue;
+			}
+			break;
 		}
-		break;
+		if (l != layers)
+			break;
 	}
 
 	mips->encoding = targfmt;
@@ -567,139 +609,357 @@ const char *COM_GetFileExtension (const char *in, const char *term)
 	}
 	return "";
 }
-static void ImgTool_Convert(struct opts_s *args, const char *inname, const char *outname)
+static struct pendingtextureinfo *ImgTool_Read(struct opts_s *args, const char *inname)
 {
 	qbyte *indata;
-	size_t fsize, k;
+	size_t fsize;
 	struct pendingtextureinfo *in;
+	indata = FS_LoadMallocFile(inname, &fsize);
+	if (!indata)
+		printf("%s: unable to read\n", inname);
+	else
+	{
+		in = Image_LoadMipsFromMemory(args->flags, inname, inname, indata, fsize);
+		if (!in)
+		{
+			printf("%s: unsupported format\n", inname);
+			BZ_Free(indata);
+		}
+		else
+		{
+			printf("%s: %s %s, %i*%i, %i mips\n", inname, imagetypename[in->type], Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
+			return in;
+		}
+	}
+	return NULL;
+}
+static struct pendingtextureinfo *ImgTool_Combine(struct opts_s *args, const char **namelist, unsigned int filecount)
+{
+	struct pendingtextureinfo *r, *t;
+	unsigned int i;
+	unsigned int layers = 0;
+	unsigned int j = 0;
+
+	struct
+	{
+		const char *fname;
+		struct pendingtextureinfo *in;
+	} *srcs, *tmpsrcs;
+
+	if (args->textype == PTI_3D)
+		args->flags |= IF_NOMIPMAP;	//generate any mipmaps after...
+
+	srcs = alloca(sizeof(*srcs)*filecount);
+	for (i = 0, j = 0; i < filecount; i++)
+	{
+		srcs[j].in = t = ImgTool_Read(args, namelist[i]);
+		if (srcs[j].in)
+		{
+			if (!j)
+			{
+				//get the image loader to massage pixel formats...
+				memset(sh_config.texfmt, 0, sizeof(sh_config.texfmt));
+				sh_config.texfmt[srcs[j].in->encoding] = true;
+			}
+			else if (!t->mipcount || !t->mip[0].data)
+			{
+				Con_Printf("%s: no valid image data\n", namelist[i]);
+				ImgTool_FreeMips(srcs[j].in);
+				continue;
+			}
+			else if (t->encoding != srcs[0].in->encoding)
+			{
+				Con_Printf("%s: mismatched pixel format, (%s not %s) cannot combine\n", namelist[i], Image_FormatName(t->encoding), Image_FormatName(srcs[0].in->encoding));
+				ImgTool_FreeMips(srcs[j].in);
+				continue;
+			}
+			else if (t->type == PTI_CUBE && t->mip[0].depth != 6)
+			{
+				Con_Printf("%s: incorrect cubemap data\n", namelist[i]);
+				ImgTool_FreeMips(srcs[j].in);
+				continue;
+			}
+			else if (srcs[0].in->mip[0].width != t->mip[0].width || srcs[0].in->mip[0].height != t->mip[0].height)
+			{
+				Con_Printf("%s: incorrect image size\n", namelist[i]);
+				ImgTool_FreeMips(srcs[j].in);
+				continue;
+			}
+			else if (t->mip[0].depth == 0)
+			{
+				Con_Printf("%s: no layers\n", namelist[i]);
+				ImgTool_FreeMips(srcs[j].in);
+				continue;
+			}
+			layers += t->mip[0].depth;
+			srcs[j++].fname = namelist[i];
+		}
+	}
+	filecount = j;
+
+	//FIXME: reorder input images to handle ft/bk/lt/rt/up/dn, and flip+rotate+etc to match quake
+
+	if (args->textype == PTI_CUBE)
+	{
+		int facetype[6];
+		static const struct {qboolean flipx, flipy, flipd;} skyboxflips[] ={
+			{true,  false, true},
+			{false, true,  true},
+			{true,  true,  false},
+			{false, false, false},
+			{true,  false, true},
+			{true,  false, true}
+		};
+		for (i = 0; i < 6; i++)
+			facetype[i] = 0;
+		for (i = 0; i < filecount; i++)
+		{
+			const char *ex = COM_GetFileExtension(srcs[i].fname, NULL);
+			if (ex && ex-srcs[i].fname > 2 && srcs[i].in->mip[0].depth == 1)
+			{
+				if (!strncasecmp(ex-2, "rt", 2))
+					facetype[0] = -i-1;
+				else if (!strncasecmp(ex-2, "lf", 2))
+					facetype[1] = -i-1;
+				else if (!strncasecmp(ex-2, "ft", 2))
+					facetype[2] = -i-1;
+				else if (!strncasecmp(ex-2, "bk", 2))
+					facetype[3] = -i-1;
+				else if (!strncasecmp(ex-2, "up", 2))
+					facetype[4] = -i-1;
+				else if (!strncasecmp(ex-2, "dn", 2))
+					facetype[5] = -i-1;
+
+				else if (!strncasecmp(ex-2, "px", 2))
+					facetype[0] = i+1;
+				else if (!strncasecmp(ex-2, "nx", 2))
+					facetype[1] = i+1;
+				else if (!strncasecmp(ex-2, "py", 2))
+					facetype[2] = i+1;
+				else if (!strncasecmp(ex-2, "ny", 2))
+					facetype[3] = i+1;
+				else if (!strncasecmp(ex-2, "pz", 2))
+					facetype[4] = i+1;
+				else if (!strncasecmp(ex-2, "nz", 2))
+					facetype[5] = i+1;
+			}
+		}
+		if (facetype[0] && facetype[1] && facetype[2] && facetype[3] && facetype[4] && facetype[5])
+		{
+			Con_Printf("Reordering images to match cubemap\n");
+			tmpsrcs = alloca(sizeof(*tmpsrcs)*filecount);
+			memcpy(tmpsrcs, srcs, sizeof(*tmpsrcs)*filecount);
+			for (i = 0; i < 6; i++)
+			{
+				if (facetype[i] < 0)
+				{	//flip to match legacy skyboxes
+					unsigned bb,bw,bh;
+					srcs[i] = tmpsrcs[-facetype[i]-1];
+					t = srcs[i].in;
+					Image_BlockSizeForEncoding(t->encoding, &bb,&bw,&bh);
+					if (bw == 1 && bh == 1)
+					{
+						for (j = 0; j < t->mipcount; j++)
+						{
+							void *data = Image_FlipImage(t->mip[j].data, BZ_Malloc(t->mip[j].datasize), &t->mip[j].width, &t->mip[j].height, bb, skyboxflips[i].flipx, skyboxflips[i].flipy, skyboxflips[i].flipd);
+							if (t->mip[j].needfree)
+								Z_Free(t->mip[j].data);
+							t->mip[j].data = data;
+							t->mip[j].needfree = true;
+						}
+					}
+				}
+				else
+					srcs[i] = tmpsrcs[facetype[i]-1];
+			}
+		}
+		else
+			Con_Printf("WARNING: Cubemap ordering unknown!\n");
+	}
+
+	if (!filecount)
+		Con_Printf("no valid input files\n");
+	else if (!layers)
+		Con_Printf("Images must have at least one layer\n");
+	else if (args->textype == PTI_2D && layers != 1)
+		Con_Printf("2D images must have one layer exactly, sorry\n");
+	else if (args->textype == PTI_CUBE && layers != 6)
+		Con_Printf("Cubemaps must have 6 layers exactly\n");
+	else if (args->textype == PTI_CUBE_ARRAY && layers % 6)
+		Con_Printf("Cubemap arrays must have a multiple of 6 layers exactly\n");
+	else
+	{
+		t = srcs[0].in;
+		r = Z_Malloc(sizeof(*t));
+		r->type = args->textype;
+		r->extrafree = NULL;
+		r->encoding = t->encoding;
+
+		if (args->textype == PTI_3D)
+			r->mipcount = 1;
+		else
+			r->mipcount = t->mipcount;
+		for (j = 0; j < t->mipcount; j++)
+		{
+			r->mip[j].datasize = t->mip[j].datasize*layers;
+			r->mip[j].width = t->mip[j].width;
+			r->mip[j].height = t->mip[j].height;
+			r->mip[j].depth = 0;
+			r->mip[j].needfree = true;
+			r->mip[j].data = BZ_Malloc(r->mip[j].datasize);
+		}
+
+		for (i = 0, j = 0; i < filecount; i++)
+		{
+			t = srcs[i].in;
+			if (!t)
+			{
+				ImgTool_FreeMips(r);
+				return NULL;
+			}
+
+			for (j = 0; j < r->mipcount; j++)
+			{
+				if (r->mip[j].width != t->mip[j].width || r->mip[j].height != t->mip[j].height || t->mip[j].depth != 1)
+				{
+					Con_Printf("%s: mismatched mipmap sizes\n", namelist[i]);
+					continue;
+				}
+				memcpy(r->mip[j].data + t->mip[j].datasize*r->mip[j].depth, t->mip[j].data, t->mip[j].datasize);
+				r->mip[j].depth++;
+			}
+		}
+
+		for (i = 0; i < filecount; i++)
+			ImgTool_FreeMips(srcs[i].in);
+
+		printf("%s: %s %s, %i*%i, %i mips\n", "combined", imagetypename[r->type], Image_FormatName(r->encoding), r->mip[0].width, r->mip[0].height, r->mipcount);
+		return r;
+	}
+
+	for (i = 0; i < filecount; i++)
+		ImgTool_FreeMips(srcs[i].in);
+	return NULL;
+}
+static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, const char *inname, const char *outname)
+{
+	size_t k;
 	const char *outext = COM_GetFileExtension(outname, NULL);
 	qboolean allowcompressed = false;
 
 	if (!strcmp(outext, ".dds") || !strcmp(outext, ".ktx"))
 		allowcompressed = true;
 
-	indata = FS_LoadMallocFile(inname, &fsize);
-	if (indata)
+	if (in)
 	{
-		in = Image_LoadMipsFromMemory(args->flags|(allowcompressed?0:IF_NOMIPMAP), inname, inname, indata, fsize);
-		if (in)
+		if (!(args->flags & IF_NOMIPMAP) && in->mipcount == 1)
+			Image_GenerateMips(in, args->flags);
+
+		if (args->mipnum >= in->mipcount)
 		{
-			printf("%s: %s, %i*%i, %i mips\n", inname, Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
+			ImgTool_FreeMips(in);
+			Con_Printf("%s: Requested output mip number was out of bounds %i >= %i\n", outname, args->mipnum, in->mipcount);
+			return;
+		}
+		for (k = 0; k < args->mipnum; k++)
+		{
+			if (in->mip[k].needfree)
+				BZ_Free(in->mip[k].data);
+		}
+		in->mipcount -= k;
+		memmove(in->mip, &in->mip[k], sizeof(in->mip[0])*in->mipcount);
 
-			if (!(args->flags & IF_NOMIPMAP) && in->mipcount == 1)
-				Image_GenerateMips(in, args->flags);
+		if (args->newpixelformat != PTI_INVALID && (args->newpixelformat < PTI_BC1_RGB || allowcompressed) && ImgTool_ConvertPixelFormat(args, inname, in))
+			printf("\t(Converted to %s)\n", Image_FormatName(in->encoding));
 
-			if (args->mipnum >= in->mipcount)
-			{
-				ImgTool_FreeMips(in);
-				Con_Printf("%s: Requested output mip number was out of bounds %i >= %i\n", outname, args->mipnum, in->mipcount);
-				return;
-			}
-			for (k = 0; k < args->mipnum; k++)
-			{
-				if (in->mip[k].needfree)
-					BZ_Free(in->mip[k].data);
-			}
-			in->mipcount -= k;
-			memmove(in->mip, &in->mip[k], sizeof(in->mip[0])*in->mipcount);
+		if (!in->mipcount)
+		{
+			ImgTool_FreeMips(in);
+			printf("%s: unable to convert any mips\n", inname);
+			return;
+		}
 
-			if (args->newpixelformat != PTI_INVALID && (args->newpixelformat < PTI_BC1_RGB || allowcompressed) && ImgTool_ConvertPixelFormat(args, inname, in))
-				printf("\t(Converted to %s)\n", Image_FormatName(in->encoding));
-
-			if (!in->mipcount)
-			{
-				ImgTool_FreeMips(in);
-				printf("%s: unable to convert any mips\n", inname);
-				return;
-			}
-
-			if (0)
-				;
+		if (0)
+			;
 #ifdef IMAGEFMT_KTX
-			else if (!strcmp(outext, ".ktx"))
+		else if (!strcmp(outext, ".ktx"))
+		{
+			if (!Image_WriteKTXFile(outname, FS_SYSTEM, in))
+				Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
+		}
+#endif
+#ifdef IMAGEFMT_DDS
+		else if (!strcmp(outext, ".dds"))
+		{
+			if (!Image_WriteDDSFile(outname, FS_SYSTEM, in))
+				Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
+		}
+#endif
+		else
+		{
+			int bb,bw,bh;
+
+			if (in->type != PTI_2D)
+				Con_Printf("%s: Unable to write %s file to 2d image format\n", outname, imagetypename[in->type]);
+#ifdef IMAGEFMT_PNG
+			else if (!strcmp(outext, ".png"))
 			{
-				if (!Image_WriteKTXFile(outname, FS_SYSTEM, in))
+#ifdef AVAIL_PNGLIB
+				//force the format, because we can.
+				for (k = 0; k < PTI_MAX; k++)
+					sh_config.texfmt[k] =
+							(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
+							(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
+							(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
+							(k == PTI_RGBA16) ||
+							(k == PTI_L8) || (k == PTI_L8A8) ||
+							/*(k == PTI_L16) ||*/
+							(k == PTI_BGR8) || (k == PTI_BGR8) ||
+							0;
+				if (!sh_config.texfmt[in->encoding])
+				{
+					Image_ChangeFormat(in, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, outname);
+					printf("\t(Exporting as %s)\n", Image_FormatName(in->encoding));
+				}
+				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
+				if (!Image_WritePNG(outname, FS_SYSTEM, 0, &in->mip[0].data, 1, in->mip[0].width*bb, in->mip[0].width, in->mip[0].height, in->encoding, false))
+#endif
 					Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
 			}
 #endif
-#ifdef IMAGEFMT_DDS
-			else if (!strcmp(outext, ".dds"))
+#ifdef IMAGEFMT_TGA
+			else if (!strcmp(outext, ".tga"))
 			{
-				if (!Image_WriteDDSFile(outname, FS_SYSTEM, in))
+				for (k = 0; k < PTI_MAX; k++)
+					sh_config.texfmt[k] =
+							(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
+							(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
+							(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
+							(k == PTI_RGBA16F) || (k == PTI_R16F) ||	//half-float tgas is a format extension, but allow it.
+							(k == PTI_L8) || (k == PTI_L8A8) ||
+							/*(k == PTI_L16) ||*/
+							(k == PTI_BGR8) || (k == PTI_BGR8) ||
+							0;
+				if (!sh_config.texfmt[in->encoding])
+				{
+					Image_ChangeFormat(in, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, outname);
+					printf("\t(Exporting as %s)\n", Image_FormatName(in->encoding));
+				}
+				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
+				if (!WriteTGA(outname, FS_SYSTEM, in->mip[0].data, in->mip[0].width*bb, in->mip[0].width, in->mip[0].height, in->encoding))
 					Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
 			}
 #endif
 			else
-			{
-				int bb,bw,bh;
-
-				if (0)
-					;
-#ifdef IMAGEFMT_PNG
-				else if (!strcmp(outext, ".png"))
-				{
-#ifdef AVAIL_PNGLIB
-					//force the format, because we can.
-					for (k = 0; k < PTI_MAX; k++)
-						sh_config.texfmt[k] =
-								(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
-								(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
-								(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
-								(k == PTI_RGBA16) ||
-								(k == PTI_L8) || (k == PTI_L8A8) ||
-								/*(k == PTI_L16) ||*/
-								(k == PTI_BGR8) || (k == PTI_BGR8) ||
-								0;
-					if (!sh_config.texfmt[in->encoding])
-					{
-						Image_ChangeFormat(in, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, inname);
-						printf("\t(Exporting as %s)\n", Image_FormatName(in->encoding));
-					}
-					Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
-					if (!Image_WritePNG(outname, FS_SYSTEM, 0, &in->mip[0].data, 1, in->mip[0].width*bb, in->mip[0].width, in->mip[0].height, in->encoding, false))
-#endif
-						Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
-				}
-#endif
-#ifdef IMAGEFMT_TGA
-				else if (!strcmp(outext, ".tga"))
-				{
-					for (k = 0; k < PTI_MAX; k++)
-						sh_config.texfmt[k] =
-								(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
-								(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
-								(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
-								(k == PTI_RGBA16F) || (k == PTI_R16F) ||	//half-float tgas is a format extension, but allow it.
-								(k == PTI_L8) || (k == PTI_L8A8) ||
-								/*(k == PTI_L16) ||*/
-								(k == PTI_BGR8) || (k == PTI_BGR8) ||
-								0;
-					if (!sh_config.texfmt[in->encoding])
-					{
-						Image_ChangeFormat(in, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, inname);
-						printf("\t(Exporting as %s)\n", Image_FormatName(in->encoding));
-					}
-					Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
-					if (!WriteTGA(outname, FS_SYSTEM, in->mip[0].data, in->mip[0].width*bb, in->mip[0].width, in->mip[0].height, in->encoding))
-						Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
-				}
-#endif
-				else
-					Con_Printf("%s: Unknown output file format\n", outname);
-			}
-
-//			printf("%s: %s, %i*%i, %i mips\n", outname, Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
-
-//			for (m = 0; m < in->mipcount; m++)
-//				printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
-
-			ImgTool_FreeMips(in);
+				Con_Printf("%s: Unknown output file format\n", outname);
 		}
-		else
-			printf("%s: unsupported format\n", inname);
+
+		printf("%s: %s %s, %i*%i, %i mips\n", outname, imagetypename[in->type], Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
+		for (k = 0; k < in->mipcount; k++)
+			printf("\t%u: %i*%i*%i, %u\n", (unsigned)k, in->mip[k].width, in->mip[k].height, in->mip[k].depth, (unsigned)in->mip[k].datasize);
+
+		ImgTool_FreeMips(in);
 	}
-	else
-		printf("%s: unable to read\n", inname);
 	fflush(stdout);
 }
 static void ImgTool_Info(struct opts_s *args, const char *inname)
@@ -718,7 +978,7 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 			printf("%s: unsupported format\n", inname);
 		else
 		{
-			printf("%s: %s, %i*%i, %i mips\n", inname, Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
+			printf("%s: %s %s, %i*%i, %i mips\n", inname, imagetypename[in->type], Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height, in->mipcount);
 			for (m = 0; m < in->mipcount; m++)
 				printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
 
@@ -865,7 +1125,7 @@ static void ImgTool_TreeConvert(struct opts_s *args, const char *srcpath, const 
 			processedfiles++;
 //			Con_Printf("Image file %s -> %s\n", file, dest);
 			FS_CreatePath(dest, FS_SYSTEM);
-			ImgTool_Convert(args, file, dest);
+			ImgTool_Convert(args, ImgTool_Read(args, file), file, dest);
 		}
 		else
 		{
@@ -1062,13 +1322,16 @@ int main(int argc, const char **argv)
 		mode_genwad3,
 	} mode = mode_info;
 	size_t u, f;
+	qboolean nomoreopts = false;
 	struct opts_s args;
+	size_t files = 0;
 	for (u = 1; u < countof(sh_config.texfmt); u++)
 		sh_config.texfmt[u] = true;
 
 	args.flags = 0;
 	args.newpixelformat = PTI_INVALID;
 	args.mipnum = 0;
+	args.textype = -1;
 
 	sh_config.texture2d_maxsize = 1u<<31;
 	sh_config.texture3d_maxsize = 1u<<31;
@@ -1088,9 +1351,11 @@ int main(int argc, const char **argv)
 
 	for (u = 1; u < argc; u++)
 	{
-		if (*argv[u] == '-')
+		if (*argv[u] == '-' && !nomoreopts)
 		{
-			if (!strcmp(argv[u], "-?") || !strcmp(argv[u], "--help"))
+			if (!strcmp(argv[u], "--"))
+				nomoreopts = true;
+			else if (!strcmp(argv[u], "-?") || !strcmp(argv[u], "--help"))
 			{
 showhelp:
 				Con_Printf("show info : %s -i *.ktx\n", argv[0]);
@@ -1135,26 +1400,36 @@ showhelp:
 //					else
 //						Con_DPrintf(" --%-16s %5.3g-bpp (unsupported)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
 				}
-				break;
+				return EXIT_SUCCESS;
 			}
-			else if (!strcmp(argv[u], "-c") || !strcmp(argv[u], "--convert"))
+			else if (!files && (!strcmp(argv[u], "-c") || !strcmp(argv[u], "--convert")))
 				mode = mode_convert;
-			else if (!strcmp(argv[u], "-d") || !strcmp(argv[u], "--decompress"))
+			else if (!files && (!strcmp(argv[u], "-d") || !strcmp(argv[u], "--decompress")))
 			{	//remove any (weird) gpu formats
 				for (f = PTI_BC1_RGB; f < PTI_ASTC_LAST; f++)
 					sh_config.texfmt[f] = false;
 				mode = mode_convert;
 			}
-			else if (!strcmp(argv[u], "-r") || !strcmp(argv[u], "--auto"))
+			else if (!files && (!strcmp(argv[u], "-r") || !strcmp(argv[u], "--auto")))
 				mode = mode_autotree;
-			else if (!strcmp(argv[u], "-i") || !strcmp(argv[u], "--info"))
+			else if (!files && (!strcmp(argv[u], "-i") || !strcmp(argv[u], "--info")))
 				mode = mode_info;
-			else if (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad3"))
+			else if (!files && (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad3")))
 				mode = mode_genwad3;
-			else if (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad2"))
+			else if (!files && (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad2")))
 				mode = mode_genwad2;
-			else if (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwadx"))
+			else if (!files && (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwadx")))
 				mode = mode_genwadx;
+			else if (!strcmp(argv[u], "--2d"))
+				args.textype = PTI_2D;
+			else if (!strcmp(argv[u], "--3d"))
+				args.textype = PTI_3D;
+			else if (!strcmp(argv[u], "--cube"))
+				args.textype = PTI_CUBE;
+			else if (!strcmp(argv[u], "--2darray"))
+				args.textype = PTI_2D_ARRAY;
+			else if (!strcmp(argv[u], "--cubearray"))
+				args.textype = PTI_CUBE_ARRAY;
 			else if (!strcmp(argv[u], "--nomips")	)
 				args.flags |= IF_NOMIPMAP;
 			else if (!strcmp(argv[u], "--mips"))
@@ -1193,36 +1468,36 @@ showhelp:
 				Con_Printf("Unknown arg %s\n", argv[u]);
 				goto showhelp;
 			}
+			argv[u] = NULL;
 		}
 		else
-		{
-			if (mode == mode_info)
-				ImgTool_Info(&args, argv[u]);
-			else if (mode == mode_convert)
-			{
-				if (u+1 < argc)
-				{
-					ImgTool_Convert(&args, argv[u], argv[u+1]);
-					u++;
-				}
-			}
-			else if (mode == mode_autotree)
-			{
-				if (u+1 < argc)
-				{
-					ImgTool_TreeConvert(&args, argv[u], argv[u+1]);
-					u++;
-				}
-			}
-			else if (mode == mode_genwad2 || mode == mode_genwad3 || mode == mode_genwadx)
-			{
-				if (u+1 < argc)
-				{
-					ImgTool_WadConvert(&args, argv[u], argv[u+1], mode-mode_genwadx);
-					u++;
-				}
-			}
-		}
+			argv[files++] = argv[u];
 	}
-	return 0;
+
+	if (mode == mode_info)
+	{	//just print info about each listed file.
+		for (u = 0; u < files; u++)
+			ImgTool_Info(&args, argv[u]);
+	}
+	else if (mode == mode_convert && files > 1 && args.textype>=0)	//overwrite input
+	{
+		files--;
+		ImgTool_Convert(&args, ImgTool_Combine(&args, argv, files), "combined", argv[files]);
+	}
+	else if (mode == mode_convert && files == 1 && args.textype<0)	//overwrite input
+		ImgTool_Convert(&args, ImgTool_Read(&args, argv[u]), argv[u], argv[u]);
+	else if (mode == mode_convert && !(files&1) && args.textype<0)	//list of pairs
+	{
+		//-c src1 dst1 src2 dst2
+		for (u = 0; u+1 < files; u+=2)
+			ImgTool_Convert(&args, ImgTool_Read(&args, argv[u]), argv[u], argv[u+1]);
+	}
+	else if (mode == mode_autotree && files == 2)
+		ImgTool_TreeConvert(&args, argv[0], argv[1]);
+	else if ((mode == mode_genwad2 || mode == mode_genwad3 || mode == mode_genwadx) && files == 2)
+		ImgTool_WadConvert(&args, argv[0], argv[1], mode-mode_genwadx);
+	else
+		return EXIT_FAILURE;
+
+	return EXIT_SUCCESS;
 }

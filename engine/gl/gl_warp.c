@@ -76,7 +76,7 @@ void R_SetSky(const char *sky)
 		{
 			texnums_t tex;
 			memset(&tex, 0, sizeof(tex));
-			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_CUBEMAP|IF_CLAMP);
+			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_TEXTYPE_CUBE|IF_CLAMP);
 			if (tex.reflectcube->width)
 			{
 				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\ndepthwrite\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
@@ -153,6 +153,12 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	r_refdef.flags &= ~RDF_SKIPSKY;
 	r_refdef.forcedvis = NULL;
 	r_refdef.areabitsknown = false;	//recalculate areas clientside.
+
+	if (cl.fog[FOGTYPE_SKYROOM].density)
+	{
+		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[FOGTYPE_SKYROOM], realtime, &cl.fog[FOGTYPE_SKYROOM]);
+		r_refdef.globalfog.density/=64;
+	}
 
 	/*work out where the camera should be (use the same angles)*/
 	VectorCopy(r_refdef.skyroom_pos, r_refdef.vieworg);

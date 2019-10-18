@@ -37,3 +37,4 @@ struct v2f
 		return t_t0.Sample(s_t0, inp.tc) * inp.vcol;
 	}
 #endif
+

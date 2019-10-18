@@ -1217,6 +1217,19 @@ reeval:
 		OPC->_float = (OPA->_float / OPB->_int);
 		break;
 
+	case OP_MOD_I:
+		OPC->_int = (OPA->_int % OPB->_int);
+		break;
+	case OP_MOD_F:
+		OPC->_float = OPA->_float - OPB->_float*(int)(OPA->_float/OPB->_float);
+		break;
+	case OP_MOD_V:
+		OPC->_vector[0] = OPA->_vector[0] - OPB->_vector[0]*(int)(OPA->_vector[0]/OPB->_vector[0]);
+		OPC->_vector[1] = OPA->_vector[1] - OPB->_vector[1]*(int)(OPA->_vector[1]/OPB->_vector[1]);
+		OPC->_vector[2] = OPA->_vector[2] - OPB->_vector[2]*(int)(OPA->_vector[2]/OPB->_vector[2]);
+		break;
+
+
 	case OP_AND_I:
 		OPC->_int = (OPA->_int && OPB->_int);
 		break;

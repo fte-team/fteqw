@@ -295,11 +295,12 @@ struct pendingtextureinfo
 {
 	enum
 	{
-		PTI_2D,
-		PTI_3D,
-		PTI_CUBEMAP,	//mips are packed (to make d3d11 happy)
-		PTI_2D_ARRAY,	//looks like a 3d texture, but depth doesn't change with mips.
-		PTI_CUBEMAP_ARRAY,	//looks like PTI_2D_ARRAY, with depth*6
+		//formats are all w*h*(d||l)
+		PTI_2D,			//w*h*1
+		PTI_3D,			//w*h*d - only format which actually changes mip depths
+		PTI_CUBE,		//w*h*6
+		PTI_2D_ARRAY,	//w*h*layers
+		PTI_CUBE_ARRAY,	//w*h*(layers*6)
 	} type;
 
 	uploadfmt_t encoding;	//0

@@ -4523,6 +4523,7 @@ template<int md16> bool writemdl(const char *filename)
 void help(bool exitstatus = EXIT_SUCCESS)
 {
 	fprintf(exitstatus != EXIT_SUCCESS ? stderr : stdout,
+"-- FTE's Fork of Lee Salzman's iqm exporter --\n"
 "Usage:\n"
 "\n"
 "./iqm cmdfile.cmd\n"

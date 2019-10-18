@@ -1664,6 +1664,7 @@ void Plug_List_f(void)
 	char rootpath[MAX_OSPATH];
 	unsigned int u;
 	plugin_t *plug;
+	Con_Printf("Loaded plugins:\n");
 	for (plug = plugs; plug; plug = plug->next)
 		Con_Printf("^[^2%s\\type\\plug_close %s\\^]: loaded\n", plug->filename, plug->name);
 
@@ -1674,6 +1675,7 @@ void Plug_List_f(void)
 		while ((mssuck=strchr(binarypath, '\\')))
 			*mssuck = '/';
 #endif
+		Con_Printf("Scanning for plugins at %s:\n", binarypath);
 		Sys_EnumerateFiles(binarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
 	}
 	if (FS_NativePath("", FS_ROOT, rootpath, sizeof(rootpath)))
@@ -1684,7 +1686,10 @@ void Plug_List_f(void)
 			*mssuck = '/';
 #endif
 		if (strcmp(binarypath, rootpath))
+		{
+			Con_Printf("Scanning for plugins at %s:\n", rootpath);
 			Sys_EnumerateFiles(rootpath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, rootpath, NULL);
+		}
 	}
 
 	for (u = 0; staticplugins[u].name; u++)

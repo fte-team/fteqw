@@ -5624,7 +5624,7 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
 
 		if (*r_refdef.nearenvmap.texname)
-			shaderstate.tex_reflectcube = Image_GetTexture(r_refdef.nearenvmap.texname, NULL, IF_CUBEMAP, NULL, NULL, 0, 0, TF_INVALID);
+			shaderstate.tex_reflectcube = Image_GetTexture(r_refdef.nearenvmap.texname, NULL, IF_TEXTYPE_CUBE, NULL, NULL, 0, 0, TF_INVALID);
 		else
 			shaderstate.tex_reflectcube = r_nulltex;
 	}
@@ -5844,7 +5844,7 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 
 	for (i = 0; i < mrt; i++)
 	{
-		if ((destcol[i]->flags & IF_TEXTYPE) == IF_CUBEMAP)
+		if ((destcol[i]->flags & IF_TEXTYPEMASK) == IF_TEXTYPE_CUBE)
 		{
 			//fixme: we should probably support whole-cubemap rendering for shadowmaps or something.
 			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT+i, GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + layer, destcol[i]->num, 0);

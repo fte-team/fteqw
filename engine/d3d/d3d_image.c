@@ -106,12 +106,16 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	if (fmt == D3DFMT_UNKNOWN)
 		return false;
 
+	if (mips->type != ((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT))
+		return false;
+
 	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
 	if (!pD3DDev9)
 		return false;	//can happen on errors
-	if (mips->type == PTI_CUBEMAP)
+	if (mips->type == PTI_CUBE)
 	{
+		unsigned int face;
 		IDirect3DCubeTexture9 *dt;
 		if (FAILED(IDirect3DDevice9_CreateCubeTexture(pD3DDev9, mips->mip[0].width, mips->mipcount/6, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
 			return false;
@@ -119,39 +123,42 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 
 		for (i = 0; i < mips->mipcount; i++)
 		{
-			IDirect3DCubeTexture9_GetLevelDesc(dt, i/6, &desc);
+			IDirect3DCubeTexture9_GetLevelDesc(dt, i, &desc);
 
 			if (mips->mip[i].height != desc.Height || mips->mip[i].width != desc.Width)
 			{
 				IDirect3DCubeTexture9_Release(dt);
 				return false;
 			}
-
-			IDirect3DCubeTexture9_LockRect(dt, i%6, i/6, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
-			//can't do it in one go. pitch might contain padding or be upside down.
 			if (!mips->mip[i].data)
-				;
-			else if (swap)
-			{	//only works for blockbytes=4
-				size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
-				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
-				{
-					for (x = 0; x < rowbytes; x+=4)
+				continue;
+
+			for (face = 0, in = mips->mip[i].data; face < mips->mip[i].depth; face++)
+			{
+				IDirect3DCubeTexture9_LockRect(dt, face, i, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
+				//can't do it in one go. pitch might contain padding or be upside down.
+				if (swap)
+				{	//only works for blockbytes=4
+					size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
+					for (y = 0, out = lock.pBits; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
 					{
-						out[x+0] = in[x+2];
-						out[x+1] = in[x+1];
-						out[x+2] = in[x+0];
-						out[x+3] = in[x+3];
+						for (x = 0; x < rowbytes; x+=4)
+						{
+							out[x+0] = in[x+2];
+							out[x+1] = in[x+1];
+							out[x+2] = in[x+0];
+							out[x+3] = in[x+3];
+						}
 					}
 				}
+				else
+				{
+					size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
+					for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
+						memcpy(out, in, rowbytes);
+				}
+				IDirect3DCubeTexture9_UnlockRect(dt, i%6, i/6);
 			}
-			else
-			{
-				size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
-				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
-					memcpy(out, in, rowbytes);
-			}
-			IDirect3DCubeTexture9_UnlockRect(dt, i%6, i/6);
 		}
 	}
 	else if (mips->type == PTI_2D)

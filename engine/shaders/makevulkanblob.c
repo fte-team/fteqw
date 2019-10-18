@@ -246,11 +246,11 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 					//batch
 					else if (!strcasecmp(arg, "lightmap"))
 						blob->defaulttextures |= 1u<<12;
-					else if (!strcasecmp(arg, "deluxmap"))
+					else if (!strcasecmp(arg, "deluxemap") || !strcasecmp(arg, "deluxmap"))
 						blob->defaulttextures |= 1u<<13;
 					else if (!strcasecmp(arg, "lightmaps"))
 						blob->defaulttextures |= 1u<<12 | 1u<<14 | 1u<<15 | 1u<<16;
-					else if (!strcasecmp(arg, "deluxmaps"))
+					else if (!strcasecmp(arg, "deluxemaps") || !strcasecmp(arg, "deluxmaps"))
 						blob->defaulttextures |= 1u<<13 | 1u<<17 | 1u<<18 | 1u<<19;
 
 					//shader pass
@@ -310,7 +310,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 
 				//batch
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
-				"uniform sampler2D s_deluxmap;\n#define s_deluxmap0 s_deluxmap\n",
+				"uniform sampler2D s_deluxemap;\n#define s_deluxemap0 s_deluxemap\n",
 				"uniform sampler2D s_lightmap1;\n",
 				"uniform sampler2D s_lightmap2;\n",
 				"uniform sampler2D s_lightmap3;\n",
@@ -320,6 +320,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 			};
 			int binding = 2;
 			inheader = 0;
+			fprintf(temp, "#define s_deluxmap s_deluxemap\n");
 			fprintf(temp, "#define OFFSETMAPPING (cvar_r_glsl_offsetmapping>0)\n");
 			fprintf(temp, "#define SPECULAR (cvar_gl_specular>0)\n");
 			fprintf(temp, "#ifdef FRAGMENT_SHADER\n");

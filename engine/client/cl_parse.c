@@ -8205,16 +8205,16 @@ void CLNQ_ParseServerMessage (void)
 		//case svcneh_fog:
 			if (CPNQ_IS_BJP || cls.protocol_nq == CPNQ_NEHAHRA)
 			{
-				CL_ResetFog(0);
+				CL_ResetFog(FOGTYPE_AIR);
 				if (MSG_ReadByte())
 				{
-					cl.fog[0].density = MSG_ReadFloat();
-					cl.fog[0].colour[0] = SRGBf(MSG_ReadByte()/255.0f);
-					cl.fog[0].colour[1] = SRGBf(MSG_ReadByte()/255.0f);
-					cl.fog[0].colour[2] = SRGBf(MSG_ReadByte()/255.0f);
-					cl.fog[0].time += 0.25;	//change fairly fast, but not instantly
+					cl.fog[FOGTYPE_AIR].density = MSG_ReadFloat();
+					cl.fog[FOGTYPE_AIR].colour[0] = SRGBf(MSG_ReadByte()/255.0f);
+					cl.fog[FOGTYPE_AIR].colour[1] = SRGBf(MSG_ReadByte()/255.0f);
+					cl.fog[FOGTYPE_AIR].colour[2] = SRGBf(MSG_ReadByte()/255.0f);
+					cl.fog[FOGTYPE_AIR].time += 0.25;	//change fairly fast, but not instantly
 				}
-				cl.fog_locked = !!cl.fog[0].density;
+				cl.fog_locked = !!cl.fog[FOGTYPE_AIR].density;
 			}
 			else
 			{
@@ -8338,13 +8338,13 @@ void CLNQ_ParseServerMessage (void)
 			Cmd_ExecuteString("bf", RESTRICT_SERVER);
 			break;
 		case svcfitz_fog:
-			CL_ResetFog(0);
-			cl.fog[0].density = MSG_ReadByte()/255.0f;
-			cl.fog[0].colour[0] = SRGBf(MSG_ReadByte()/255.0f);
-			cl.fog[0].colour[1] = SRGBf(MSG_ReadByte()/255.0f);
-			cl.fog[0].colour[2] = SRGBf(MSG_ReadByte()/255.0f);
-			cl.fog[0].time += ((unsigned short)MSG_ReadShort()) / 100.0;
-			cl.fog_locked = !!cl.fog[0].density;
+			CL_ResetFog(FOGTYPE_AIR);
+			cl.fog[FOGTYPE_AIR].density = MSG_ReadByte()/255.0f;
+			cl.fog[FOGTYPE_AIR].colour[0] = SRGBf(MSG_ReadByte()/255.0f);
+			cl.fog[FOGTYPE_AIR].colour[1] = SRGBf(MSG_ReadByte()/255.0f);
+			cl.fog[FOGTYPE_AIR].colour[2] = SRGBf(MSG_ReadByte()/255.0f);
+			cl.fog[FOGTYPE_AIR].time += ((unsigned short)MSG_ReadShort()) / 100.0;
+			cl.fog_locked = !!cl.fog[FOGTYPE_AIR].density;
 			break;
 		case svcfitz_spawnbaseline2:
 			i = MSGCL_ReadEntity ();

@@ -276,20 +276,28 @@ void GL_SetupFormats(void)
 			glfmtc(PTI_ARGB4444,	GL_RGBA4,			GL_RGBA,				GL_BGRA_EXT,			GL_UNSIGNED_SHORT_4_4_4_4_REV,	tc_srgba8);
 			glfmtc(PTI_ARGB1555,	GL_RGB5_A1,			GL_RGBA,				GL_BGRA_EXT,			GL_UNSIGNED_SHORT_1_5_5_5_REV,	tc_rgba1);
 		}
-		if (gl_config_gles || ver > 4.1)	//rgb565 was a gles thing, desktop gl just has a 555 internal format despite the 565 data...
+		if (gl_config_gles || ver >= 4.1)	//rgb565 was a gles thing, desktop gl just has a 555 internal format despite the 565 data...
 			glfmtc(PTI_RGB565,	GL_RGB565,			GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,		tc_rgb);
 		else
 			glfmtc(PTI_RGB565,	GL_RGB5,			GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,		tc_rgb);
 		glfmt(PTI_RGB8,			GL_RGB8,			GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE);
 		if (!gl_config_nofixedfunc)
 		{	//if we have fixed function, then we still have proper support. the driver can emulate with swizzles if it wants.
-			glfmtc(PTI_L8,		GL_LUMINANCE8,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE,	tc_ru);
-			glfmtc(PTI_L8A8,	GL_LUMINANCE8_ALPHA8,GL_LUMINANCE_ALPHA,	GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE,	tc_rgu);
+			glfmtc(PTI_L8,		GL_LUMINANCE8,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE,	0);
+			glfmtc(PTI_L8A8,	GL_LUMINANCE8_ALPHA8,GL_LUMINANCE_ALPHA,	GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE,	0);
+			if (ver >= 2.1)
+			{
+				glfmtc(PTI_L8,	GL_SLUMINANCE8_EXT,		GL_SLUMINANCE_EXT,			GL_LUMINANCE,			GL_UNSIGNED_BYTE,	0);
+				glfmtc(PTI_L8A8,GL_SLUMINANCE8_ALPHA8_EXT,GL_SLUMINANCE_ALPHA_EXT,	GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE,	0);
+			}
 		}
 		else if (ver >= 3.3)
 		{	//can emulate them with swizzles.
 			glfmtsw(PTI_L8,		GL_R8,				GL_RED,					GL_RED,					GL_UNSIGNED_BYTE,	tc_ru,	GL_RED, GL_RED, GL_RED, GL_ONE);
 			glfmtsw(PTI_L8A8,	GL_RG8,				GL_RG,					GL_RG,					GL_UNSIGNED_BYTE,	tc_rgu,	GL_RED, GL_RED, GL_RED, GL_GREEN);
+			if (GL_CheckExtension("GL_EXT_texture_sRGB_R8"))
+				glfmtsw(PTI_L8_SRGB,GL_SR8_EXT,		GL_RED,					GL_RED,					GL_UNSIGNED_BYTE,	0,	GL_RED, GL_RED, GL_RED, GL_ONE);
+			//can't do PTI_L8A8_SRGB with RG - either its all linear or the alpha is srgb, both are wrong.
 		}
 	}
 
@@ -717,7 +725,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB,
 		GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB
 	};
-	int targ, targface;
+	int targ;
 	int i, j, ifmt;
 	int nummips = mips->mipcount;
 	uploadfmt_t encoding = mips->encoding;
@@ -725,7 +733,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	qboolean storage = true;
 	unsigned int bb, bw, bh;
 	int levels = 0, genlevels;
-	int layers = 1;
+	int ttype = (tex->flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 
 	if (gl_config.gles)
 	{
@@ -739,27 +747,30 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			encoding = PTI_BGRA8;
 	}
 
-	switch((tex->flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+	if (ttype != mips->type)
+		return false;
+
+	switch(ttype)
 	{
 	default:
-	case 0:
+		return false;
+	case PTI_2D:
 		targ = GL_TEXTURE_2D;
-		layers = 1;
 		break;
-	case 1:
+	case PTI_3D:
 		targ = GL_TEXTURE_3D;
-		layers = 1;
 		break;
-	case 2:
+	case PTI_CUBE:
 		targ = GL_TEXTURE_CUBE_MAP_ARB;
-		layers = 1*6;
 		break;
-	case 3:
+	case PTI_CUBE_ARRAY:
+		targ = GL_TEXTURE_CUBE_MAP_ARRAY_ARB;
+		break;
+	case PTI_2D_ARRAY:
 		targ = GL_TEXTURE_2D_ARRAY;
-		layers = 1; //TODO
 		break;
 	}
-	genlevels = levels = mips->mipcount / layers;
+	genlevels = levels = mips->mipcount;
 	if (!(tex->flags & IF_NOMIPMAP) && sh_config.can_genmips && gl_config.formatinfo[encoding].type && genlevels == 1 && mips->mip[0].data && mips->encoding != PTI_P8)
 	{
 		while ((mips->mip[0].width>>genlevels) || (mips->mip[0].height>>genlevels))
@@ -811,7 +822,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_REPEAT);
 	}
 
-	if (targ == GL_TEXTURE_2D && nummips > 1)
+	if (ttype != PTI_3D && nummips > 1)
 	{	//npot mipmapped textures are awkward.
 		//opengl floors.
 		for (i = 1; i < nummips; i++)
@@ -867,7 +878,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		compress = !!gl_compress.ival;
 	else
 		compress = false;
-	if (compress & gl_config.formatinfo[encoding].cformat)
+	if (compress && gl_config.formatinfo[encoding].cformat)
 		ifmt = gl_config.formatinfo[encoding].cformat;
 	else
 		ifmt = gl_config.formatinfo[encoding].sizedformat;
@@ -913,9 +924,47 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		qglPixelStorei(GL_UNPACK_ALIGNMENT, bb);
 	}
 
-	if (targ == GL_TEXTURE_3D || targ == GL_TEXTURE_2D_ARRAY)
+	if (ttype == PTI_CUBE)
 	{
-		//FIXME: support array textures properly
+		if (qglTexStorage2D && storage)
+		{
+			qglTexStorage2D(targ, genlevels, ifmt, mips->mip[0].width, mips->mip[0].height);
+			for (i = 0; i < nummips; i++)
+			{
+				size_t sz = mips->mip[i].datasize / mips->mip[i].depth;
+				if (!mips->mip[i].data)	//already specified by gltexstorage, don't bother wiping it or anything.
+					continue;
+				for (j = 0; j < min(6, mips->mip[i].depth); j++)
+				{
+					if (gl_config.formatinfo[encoding].type)
+						qglTexSubImage2D			(cubeface[j], i, 0, 0, mips->mip[i].width, mips->mip[i].height, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data + sz*j);
+					else
+						qglCompressedTexSubImage2D	(cubeface[j], i, 0, 0, mips->mip[i].width, mips->mip[i].height,	ifmt,																	sz, mips->mip[i].data + sz*j);
+				}
+			}
+		}
+		else
+		{
+			for (i = 0; i < nummips; i++)
+			{
+				size_t sz = mips->mip[i].datasize / mips->mip[i].depth;
+				if (!mips->mip[i].data)	//already specified by gltexstorage, don't bother wiping it or anything.
+					continue;
+				for (j = 0; j < min(6, mips->mip[i].depth); j++)
+				{
+					if (gl_config.formatinfo[encoding].type)
+						qglTexImage2D			(cubeface[j], i, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data + sz*j);
+					else
+						qglCompressedTexImage2D	(cubeface[j], i, ifmt, mips->mip[i].width, mips->mip[i].height,	0,                                                                         sz, mips->mip[i].data + sz*j);
+				}
+			}
+		}
+
+		if (genlevels > levels)
+			qglGenerateMipmap(targ);
+	}
+	else if (ttype == PTI_3D || ttype == PTI_2D_ARRAY || ttype == PTI_CUBE_ARRAY)
+	{
 		if (qglTexStorage3D && storage)
 		{
 			qglTexStorage3D(targ, genlevels, ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
@@ -945,147 +994,134 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		if (genlevels > levels)
 			qglGenerateMipmap(targ);
 	}
-	else
+	else if (ttype == PTI_2D)
 	{
 		if (qglTexStorage2D && storage)
-		{	//FIXME: destroy the old texture
+		{
 			qglTexStorage2D(targ, genlevels, ifmt, mips->mip[0].width, mips->mip[0].height);
-		
 			for (i = 0; i < nummips; i++)
 			{
-				if (tex->flags & IF_TEXTYPE)
-				{	//cubemap face
-					targface = cubeface[i%countof(cubeface)];
-					j = i/countof(cubeface);
-				}
-				else
-				{	//2d
-					targface = targ;
-					j = i;
-				}
-
 				if (!mips->mip[i].data)	//already specified by gltexstorage, don't bother wiping it or anything.
 					continue;
 
 				if (gl_config.formatinfo[encoding].type)
-					qglTexSubImage2D			(targface, j, 0, 0, mips->mip[i].width, mips->mip[i].height, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data);
+					qglTexSubImage2D			(targ, i, 0, 0, mips->mip[i].width, mips->mip[i].height, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data);
 				else
-					qglCompressedTexSubImage2D	(targface, j, 0, 0, mips->mip[i].width, mips->mip[i].height,								ifmt, mips->mip[i].datasize,				 mips->mip[i].data);
+					qglCompressedTexSubImage2D	(targ, i, 0, 0, mips->mip[i].width, mips->mip[i].height,								ifmt, mips->mip[i].datasize,				 mips->mip[i].data);
 			}
 		}
 		else
 		{
 			for (i = 0; i < nummips; i++)
 			{
-				if (tex->flags & IF_TEXTYPE)
-				{	//cubemap face
-					targface = cubeface[i%countof(cubeface)];
-					j = i/countof(cubeface);
-				}
-				else
-				{	//2d
-					targface = targ;
-					j = i;
-				}
-
 				if (gl_config.formatinfo[encoding].type)
-					qglTexImage2D				(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
+					qglTexImage2D				(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
 				else
-					qglCompressedTexImage2D		(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0,								mips->mip[i].datasize,							mips->mip[i].data);
+					qglCompressedTexImage2D		(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, 0,								mips->mip[i].datasize,							mips->mip[i].data);
 			}
 		}
 
 		if (genlevels > levels)
 			qglGenerateMipmap(targ);
+	}
+	else
+	{
+		//erk!
+	}
 
 #ifdef IMAGEFMT_KTX
-		if (compress && gl_compress.ival>1 && gl_config.formatinfo[encoding].type)
+	if (compress && gl_compress.ival>1 && gl_config.formatinfo[encoding].type)
+	{
+		GLint fmt;
+		GLint csize;
+		struct pendingtextureinfo out = {mips->type};
+		out.type = mips->type;
+		out.mipcount = mips->mipcount;
+		out.encoding = 0;
+		out.extrafree = NULL;
+
+		qglGetTexLevelParameteriv(targ, 0, GL_TEXTURE_INTERNAL_FORMAT, &fmt);
+
+		switch(fmt)
 		{
-			GLint fmt;
-			GLint csize;
-			struct pendingtextureinfo out = {mips->type};
-			out.type = mips->type;
-			out.mipcount = mips->mipcount;
-			out.encoding = 0;
-			out.extrafree = NULL;
+		case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGB;				break;
+		case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGBA;			break;
+		case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:				out.encoding = PTI_BC2_RGBA;			break;
+		case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:				out.encoding = PTI_BC3_RGBA;			break;
+		case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGB_SRGB;		break;
+		case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:		out.encoding = PTI_BC1_RGBA_SRGB;		break;
+		case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:		out.encoding = PTI_BC2_RGBA_SRGB;		break;
+		case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:		out.encoding = PTI_BC3_RGBA_SRGB;		break;
+		case GL_COMPRESSED_RED_RGTC1:						out.encoding = PTI_BC4_R8;				break;
+		case GL_COMPRESSED_SIGNED_RED_RGTC1:				out.encoding = PTI_BC4_R8_SNORM;		break;
+		case GL_COMPRESSED_RG_RGTC2:						out.encoding = PTI_BC5_RG8;				break;
+		case GL_COMPRESSED_SIGNED_RG_RGTC2:					out.encoding = PTI_BC5_RG8_SNORM;		break;
+		case GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_UFLOAT;		break;
+		case GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_SFLOAT;		break;
+		case GL_COMPRESSED_RGBA_BPTC_UNORM_ARB:				out.encoding = PTI_BC7_RGBA;			break;
+		case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB:		out.encoding = PTI_BC7_RGBA_SRGB;		break;
+		case GL_ETC1_RGB8_OES:								out.encoding = PTI_ETC1_RGB8;			break;
+		case GL_COMPRESSED_RGB8_ETC2:						out.encoding = PTI_ETC2_RGB8;			break;
+		case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:	out.encoding = PTI_ETC2_RGB8A1;			break;
+		case GL_COMPRESSED_RGBA8_ETC2_EAC:					out.encoding = PTI_ETC2_RGB8A8;			break;
+		case GL_COMPRESSED_SRGB8_ETC2:						out.encoding = PTI_ETC2_RGB8_SRGB;		break;
+		case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:	out.encoding = PTI_ETC2_RGB8A1_SRGB;	break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:			out.encoding = PTI_ETC2_RGB8A8_SRGB;	break;
+		case GL_COMPRESSED_R11_EAC:							out.encoding = PTI_EAC_R11;				break;
+		case GL_COMPRESSED_SIGNED_R11_EAC:					out.encoding = PTI_EAC_R11_SNORM;		break;
+		case GL_COMPRESSED_RG11_EAC:						out.encoding = PTI_EAC_RG11;			break;
+		case GL_COMPRESSED_SIGNED_RG11_EAC:					out.encoding = PTI_EAC_RG11_SNORM;		break;
+		case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:				out.encoding = PTI_ASTC_4X4_HDR;		break;	//play it safe and assume hdr.
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR:		out.encoding = PTI_ASTC_4X4_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:				out.encoding = PTI_ASTC_5X4_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR:		out.encoding = PTI_ASTC_5X4_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:				out.encoding = PTI_ASTC_5X5_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR:		out.encoding = PTI_ASTC_5X5_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:				out.encoding = PTI_ASTC_6X5_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR:		out.encoding = PTI_ASTC_6X5_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:				out.encoding = PTI_ASTC_6X6_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR:		out.encoding = PTI_ASTC_6X6_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:				out.encoding = PTI_ASTC_8X5_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR:		out.encoding = PTI_ASTC_8X5_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:				out.encoding = PTI_ASTC_8X6_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR:		out.encoding = PTI_ASTC_8X6_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:				out.encoding = PTI_ASTC_10X5_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR:		out.encoding = PTI_ASTC_10X5_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:				out.encoding = PTI_ASTC_10X6_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR:		out.encoding = PTI_ASTC_10X6_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:				out.encoding = PTI_ASTC_8X8_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR:		out.encoding = PTI_ASTC_8X8_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:				out.encoding = PTI_ASTC_10X8_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR:		out.encoding = PTI_ASTC_10X8_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:				out.encoding = PTI_ASTC_10X10_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR:		out.encoding = PTI_ASTC_10X10_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:				out.encoding = PTI_ASTC_12X10_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR:		out.encoding = PTI_ASTC_12X10_SRGB;		break;
+		case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:				out.encoding = PTI_ASTC_12X12_HDR;		break;
+		case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:		out.encoding = PTI_ASTC_12X12_SRGB;		break;
+		}
 
-			qglGetTexLevelParameteriv(targ, 0, GL_TEXTURE_INTERNAL_FORMAT, &fmt);
-
-			switch(fmt)
+		if (out.encoding)
+		{
+			for (i = 0; i < nummips; i++)
 			{
-			case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGB;				break;
-			case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGBA;			break;
-			case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:				out.encoding = PTI_BC2_RGBA;			break;
-			case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:				out.encoding = PTI_BC3_RGBA;			break;
-			case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGB_SRGB;		break;
-			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:		out.encoding = PTI_BC1_RGBA_SRGB;		break;
-			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:		out.encoding = PTI_BC2_RGBA_SRGB;		break;
-			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:		out.encoding = PTI_BC3_RGBA_SRGB;		break;
-			case GL_COMPRESSED_RED_RGTC1:						out.encoding = PTI_BC4_R8;				break;
-			case GL_COMPRESSED_SIGNED_RED_RGTC1:				out.encoding = PTI_BC4_R8_SNORM;		break;
-			case GL_COMPRESSED_RG_RGTC2:						out.encoding = PTI_BC5_RG8;				break;
-			case GL_COMPRESSED_SIGNED_RG_RGTC2:					out.encoding = PTI_BC5_RG8_SNORM;		break;
-			case GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_UFLOAT;		break;
-			case GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_SFLOAT;		break;
-			case GL_COMPRESSED_RGBA_BPTC_UNORM_ARB:				out.encoding = PTI_BC7_RGBA;			break;
-			case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB:		out.encoding = PTI_BC7_RGBA_SRGB;		break;
-			case GL_ETC1_RGB8_OES:								out.encoding = PTI_ETC1_RGB8;			break;
-			case GL_COMPRESSED_RGB8_ETC2:						out.encoding = PTI_ETC2_RGB8;			break;
-			case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:	out.encoding = PTI_ETC2_RGB8A1;			break;
-			case GL_COMPRESSED_RGBA8_ETC2_EAC:					out.encoding = PTI_ETC2_RGB8A8;			break;
-			case GL_COMPRESSED_SRGB8_ETC2:						out.encoding = PTI_ETC2_RGB8_SRGB;		break;
-			case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:	out.encoding = PTI_ETC2_RGB8A1_SRGB;	break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:			out.encoding = PTI_ETC2_RGB8A8_SRGB;	break;
-			case GL_COMPRESSED_R11_EAC:							out.encoding = PTI_EAC_R11;				break;
-			case GL_COMPRESSED_SIGNED_R11_EAC:					out.encoding = PTI_EAC_R11_SNORM;		break;
-			case GL_COMPRESSED_RG11_EAC:						out.encoding = PTI_EAC_RG11;			break;
-			case GL_COMPRESSED_SIGNED_RG11_EAC:					out.encoding = PTI_EAC_RG11_SNORM;		break;
-			case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:				out.encoding = PTI_ASTC_4X4_HDR;		break;	//play it safe and assume hdr.
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR:		out.encoding = PTI_ASTC_4X4_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:				out.encoding = PTI_ASTC_5X4_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR:		out.encoding = PTI_ASTC_5X4_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:				out.encoding = PTI_ASTC_5X5_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR:		out.encoding = PTI_ASTC_5X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:				out.encoding = PTI_ASTC_6X5_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR:		out.encoding = PTI_ASTC_6X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:				out.encoding = PTI_ASTC_6X6_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR:		out.encoding = PTI_ASTC_6X6_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:				out.encoding = PTI_ASTC_8X5_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR:		out.encoding = PTI_ASTC_8X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:				out.encoding = PTI_ASTC_8X6_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR:		out.encoding = PTI_ASTC_8X6_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:				out.encoding = PTI_ASTC_10X5_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR:		out.encoding = PTI_ASTC_10X5_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:				out.encoding = PTI_ASTC_10X6_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR:		out.encoding = PTI_ASTC_10X6_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:				out.encoding = PTI_ASTC_8X8_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR:		out.encoding = PTI_ASTC_8X8_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:				out.encoding = PTI_ASTC_10X8_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR:		out.encoding = PTI_ASTC_10X8_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:				out.encoding = PTI_ASTC_10X10_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR:		out.encoding = PTI_ASTC_10X10_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:				out.encoding = PTI_ASTC_12X10_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR:		out.encoding = PTI_ASTC_12X10_SRGB;		break;
-			case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:				out.encoding = PTI_ASTC_12X12_HDR;		break;
-			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:		out.encoding = PTI_ASTC_12X12_SRGB;		break;
-			}
-
-			if (out.encoding)
-			{
-				for (i = 0; i < nummips; i++)
+				if (ttype == PTI_CUBE)
+				{	//gl's cubemaps are annoying
+					qglGetTexLevelParameteriv(cubeface[0], i, GL_TEXTURE_COMPRESSED_IMAGE_SIZE_ARB, &csize);
+					if (!csize)
+						break;	//some kind of error. the gpu didn't store it?
+					out.mip[i].datasize = csize;
+					out.mip[i].data = BZ_Malloc(csize*6);
+					out.mip[i].needfree = true;
+					out.mip[i].width = mips->mip[i].width;
+					out.mip[i].height = mips->mip[i].height;
+					out.mip[i].depth = 6;
+					for (j = 0; j < 6; j++)
+						qglGetCompressedTexImage(targ, j, out.mip[i].data + csize*j);
+				}
+				else
 				{
-					if (tex->flags & IF_TEXTYPE)
-					{	//cubemap face
-						targface = cubeface[i%countof(cubeface)];
-						j = i/countof(cubeface);
-					}
-					else
-					{	//2d
-						targface = targ;
-						j = i;
-					}
-
-					qglGetTexLevelParameteriv(targface, j, GL_TEXTURE_COMPRESSED_IMAGE_SIZE_ARB, &csize);
+					qglGetTexLevelParameteriv(targ, i, GL_TEXTURE_COMPRESSED_IMAGE_SIZE_ARB, &csize);
 					if (!csize)
 						break;	//some kind of error. the gpu didn't store it?
 					out.mip[i].datasize = csize;
@@ -1094,21 +1130,21 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 					out.mip[i].width = mips->mip[i].width;
 					out.mip[i].height = mips->mip[i].height;
 					out.mip[i].depth = mips->mip[i].depth;
-					qglGetCompressedTexImage(targ, j, out.mip[i].data);
+					qglGetCompressedTexImage(targ, i, out.mip[i].data);
 				}
-
-				if (i)
-				{
-					out.mipcount = i;
-					Image_WriteKTXFile(va("textures/%s.ktx", tex->ident), FS_GAMEONLY, &out);
-				}
-				while (i-- > 0)
-					if (out.mip[i].needfree)
-						BZ_Free(out.mip[i].data);
 			}
+
+			if (i)
+			{
+				out.mipcount = i;
+				Image_WriteKTXFile(va("textures/%s.ktx", tex->ident), FS_GAMEONLY, &out);
+			}
+			while (i-- > 0)
+				if (out.mip[i].needfree)
+					BZ_Free(out.mip[i].data);
 		}
-#endif
 	}
+#endif
 
 	return true;
 }
@@ -1138,17 +1174,25 @@ void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 	{
 		if (img->status != TEX_LOADED)
 			continue;
-		switch((img->flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+		switch((img->flags & IF_TEXTYPEMASK) >> IF_TEXTYPESHIFT)
 		{
-		case 0:
+		case PTI_2D:
 			targ = GL_TEXTURE_2D;
 			break;
-		case 1:
+		case PTI_3D:
 			targ = GL_TEXTURE_3D;
 			break;
-		default:
+		case PTI_CUBE:
 			targ = GL_TEXTURE_CUBE_MAP_ARB;
 			break;
+		case PTI_CUBE_ARRAY:
+			targ = GL_TEXTURE_CUBE_MAP_ARRAY_ARB;
+			break;
+		case PTI_2D_ARRAY:
+			targ = GL_TEXTURE_2D_ARRAY;
+			break;
+		default:
+			continue;
 		}
 
 		GL_MTBind(0, targ, img);

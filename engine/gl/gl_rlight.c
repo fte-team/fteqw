@@ -1356,7 +1356,7 @@ qboolean R_LoadRTLights(void)
 
 			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));
 			if (*dl->cubemapname)
-				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 			else
 				dl->cubetexture = r_nulltex;
 
@@ -1634,7 +1634,7 @@ static int R_EditLight(dlight_t *dl, const char *cmd, int argc, const char *x, c
 	{
 		Q_strncpyz(dl->cubemapname, x, sizeof(dl->cubemapname));
 		if (*dl->cubemapname)
-			dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+			dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 		else
 			dl->cubetexture = r_nulltex;
 	}
@@ -2077,7 +2077,7 @@ static void R_EditLights_PasteInfo_f(void)
 
 	//just in case its from a different map...
 	if (*dl->cubemapname)
-		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 	else
 		dl->cubetexture = r_nulltex;
 }

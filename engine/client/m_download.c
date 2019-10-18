@@ -750,15 +750,6 @@ static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *ur
 				else
 					subprefix = com_token;
 
-#if defined(HAVE_LEGACY) && defined(WEBCLIENT)
-				//hack. I'm trying to retire the self-signed cert on [fte.]triptohell.info
-				if (!strcmp(url, "https://triptohell.info/downloadables.php") || !strcmp(url, "https://fte.triptohell.info/downloadables.php"))
-				{
-					Q_strncpyz(url, "https://updates.triptohell.info/downloadables.php", sizeof(url));
-					forcewrite = true;
-				}
-#endif
-
 				PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, (parseflags&DPF_TRUSTED));
 				continue;
 			}

@@ -621,6 +621,15 @@ typedef struct {
 	entity_state_t *entstate;
 } lerpents_t;
 
+enum
+{
+	FOGTYPE_AIR,
+	FOGTYPE_WATER,
+	FOGTYPE_SKYROOM,
+
+	FOGTYPE_COUNT
+};
+
 //state associated with each player 'seat' (one for each splitscreen client)
 //note that this doesn't include networking inputlog info.
 struct playerview_s
@@ -908,9 +917,9 @@ typedef struct
 	float skyrotate;
 	vec3_t skyaxis;
 
-	qboolean	fog_locked;
-	fogstate_t	fog[2];	//0 = air, 1 = water. if water has no density fall back on air.
-	fogstate_t	oldfog[2];
+	qboolean	fog_locked;			//FIXME: make bitmask
+	fogstate_t	fog[FOGTYPE_COUNT];	//0 = air, 1 = water. if water has no density fall back on air.
+	fogstate_t	oldfog[FOGTYPE_COUNT];
 
 	char		levelname[40];	// for display on solo scoreboard
 	char		*windowtitle;	// fully overrides the window caption.

@@ -860,6 +860,13 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			Cbuf_AddText(key, RESTRICT_INSECURE);
 			Cbuf_AddText("\n", RESTRICT_INSECURE);
 		}
+		else if (!strcmp("skyroomfog", key))	//q1 extension. FIXME: should be made temporary.
+		{
+			memcpy(key, "skyroomfog ", 11);
+			Q_strncpyz(key+11, token, sizeof(key)-11);
+			Cbuf_AddText(key, RESTRICT_INSECURE);
+			Cbuf_AddText("\n", RESTRICT_INSECURE);
+		}
 		else if (!strncmp("cvar_", key, 5)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
 		{
 			cvar_t *var = Cvar_FindVar(key+5);

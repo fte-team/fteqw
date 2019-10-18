@@ -2829,55 +2829,6 @@ static void SCR_ScreenShot_VR_f(void)
 	VectorClear(r_refdef.eyeoffset);
 }
 
-//flips an image so that the result is always top-down
-static void *SCR_ScreenShot_FixStride(void *buffer, unsigned int fbwidth, unsigned int fbheight, int *stride, uploadfmt_t fmt, qboolean horizontalflip, qboolean verticalflip)
-{
-	unsigned int bb, bw, bh;
-	Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
-	if (bw == 1 && bh == 1)
-	{
-		if (horizontalflip)
-		{
-			int y, x, p;
-			char *bad = buffer;
-			char *in = buffer, *out;
-			buffer = out = BZ_Malloc(fbwidth*fbheight*bb);
-			if (*stride < 0)
-				in += fbwidth*bb*(fbheight-1);
-			for (y = 0; y < fbheight; y++, in += *stride, out += fbwidth*bb)
-			{
-				for (x = 0; x < fbwidth*bb; x+=bb)
-				{
-					for (p = 0; p < bb; p++)
-						out[x+p] = in[(fbwidth-1)*bb-x+p];
-				}
-			}
-			BZ_Free(bad);
-			*stride = fbwidth*bb;
-		}
-		if (verticalflip && bh == 1)
-			*stride = -*stride;
-
-		if (*stride != fbwidth*bw)
-		{
-			unsigned int y;
-			char *tofree = buffer;
-			char *out = BZ_Malloc(fbwidth*fbheight*bb);
-			char *in = buffer;
-			buffer = out;
-			if (*stride < 0)
-				in += fbwidth*bb*(fbheight-1);	//the memory pointer always starts at the lowest address regardless of bottom-up state.
-			for (y = 0; y < fbheight; y++, in += *stride, out += fbwidth*bb)
-			{
-				memcpy(out, in, fbwidth*bb);
-			}
-			BZ_Free(tofree);
-			*stride = fbwidth*bb;
-		}
-	}
-	return buffer;
-}
-
 void SCR_ScreenShot_Cubemap_f(void)
 {
 	void *buffer;
@@ -2889,6 +2840,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 	int i, firstside;
 	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
 	vec3_t oldangles;
+	void *facedata;
 	struct pendingtextureinfo mips;
 	static const struct
 	{
@@ -2946,83 +2898,83 @@ void SCR_ScreenShot_Cubemap_f(void)
 	if (!strcmp(ext, ".ktx") || !strcmp(ext, ".dds"))
 	{
 		qboolean fail = false;
-		mips.type = PTI_CUBEMAP;
+		mips.type = PTI_CUBE;
 		mips.encoding = 0;
 		mips.extrafree = NULL;
 		mips.mipcount = 6;
 
+		bb=0;
 		for (i = 0; i < 6; i++)
 		{
 			VectorCopy(sides[i].angle, cl.playerview->simangles);
 			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
-			mips.mip[i].data = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true);
-			if (!mips.mip[i].data)
-				fail = true;
+			facedata = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true);
+			if (!facedata)
+				break;
 			if (!i)
+			{
+				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+				if (bw != 1 || bh != 1)
+				{	//erk, no block compression here...
+					BZ_Free(facedata);
+					break;	//zomgwtfbbq
+				}
+				mips.mip[0].datasize = bb*((fbwidth+bw-1)/bw)*((fbheight+bh-1)/bh);
+				mips.mip[0].width = fbwidth;
+				mips.mip[0].height = fbheight;
+				mips.mip[0].depth = 6;
+				mips.mip[0].datasize *= mips.mip[0].depth;
+				mips.mip[0].data = BZ_Malloc(mips.mip[0].datasize);
+				mips.mip[0].needfree = true;
+
 				mips.encoding = fmt;
+			}
 			else if (fmt != mips.encoding || fbwidth != mips.mip[0].width || fbheight != mips.mip[0].height)
-				fail = true;	//zomgwtfbbq
-
-			mips.mip[i].data = SCR_ScreenShot_FixStride(mips.mip[i].data, fbwidth, fbheight, &stride, fmt, sides[i].horizontalflip, sides[i].verticalflip);
-			Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
-
-			mips.mip[i].datasize = bb*((fbwidth+bw-1)/bw)*((fbheight+bh-1)/bh);
-			mips.mip[i].width = fbwidth;
-			mips.mip[i].height = fbheight;
-			mips.mip[i].depth = 0;
-			mips.mip[i].needfree = true;
-		}
-
-		/*FIXME:
-		while (!fail && (w > 1 || h > 1))
-		{	//warning: d3d is different
-			w = max(1,w>>1);
-			h = max(1,h>>1);
-			if (mips.mipcount+6 > countof(mips.mip))
-				break;	//erk! how big was the original image?!?
-
-			for (i = 0; i < 6; i++)
 			{
-				mips.mip[mips.mipcount] = GenerateMip(mips.mip[mips.mipcount-6]);
-				mips.mipcount++;
+				BZ_Free(facedata);
+				break;	//zomgwtfbbq
 			}
-		}
-		*/
 
-		Q_snprintfz(filename, sizeof(filename), "textures/%s", fname);
-		COM_DefaultExtension (filename, ext, sizeof(filename));
+			Image_FlipImage(facedata, mips.mip[0].data + i*mips.mip[0].datasize/6, &fbwidth, &fbheight, bb, sides[i].horizontalflip, sides[i].verticalflip, false);
+			BZ_Free(facedata);
+		}
+		if (i == 6)
+		{
+			Q_snprintfz(filename, sizeof(filename), "textures/%s", fname);
+			COM_DefaultExtension (filename, ext, sizeof(filename));
 #ifdef IMAGEFMT_KTX
-		COM_DefaultExtension (filename, ".ktx", sizeof(filename));
+			COM_DefaultExtension (filename, ".ktx", sizeof(filename));
 #endif
 #ifdef IMAGEFMT_DDS
-		COM_DefaultExtension (filename, ".dds", sizeof(filename));
+			COM_DefaultExtension (filename, ".dds", sizeof(filename));
 #endif
-		ext = COM_GetFileExtension(filename, NULL);
-		if (fail)
-			Con_Printf("Unable to generate cubemap data\n");
+			ext = COM_GetFileExtension(filename, NULL);
+			if (fail)
+				Con_Printf("Unable to generate cubemap data\n");
 #ifdef IMAGEFMT_DDS
-		else if (!strcmp(ext, ".dds"))
-		{
-			if (Image_WriteDDSFile(filename, FS_GAMEONLY, &mips))
+			else if (!strcmp(ext, ".dds"))
 			{
-				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-				Con_Printf ("Wrote %s\n", sysname);
+				if (Image_WriteDDSFile(filename, FS_GAMEONLY, &mips))
+				{
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf ("Wrote %s\n", sysname);
+				}
 			}
-		}
 #endif
 #ifdef IMAGEFMT_KTX
-		else if (!strcmp(ext, ".ktx"))
-		{
-			if (Image_WriteKTXFile(filename, FS_GAMEONLY, &mips))
+			else if (!strcmp(ext, ".ktx"))
 			{
-				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-				Con_Printf ("Wrote %s\n", sysname);
+				if (Image_WriteKTXFile(filename, FS_GAMEONLY, &mips))
+				{
+					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					Con_Printf ("Wrote %s\n", sysname);
+				}
 			}
-		}
 #endif
-		else
-			Con_Printf ("%s: Unknown format %s\n", Cmd_Argv(0), filename);
+			else
+				Con_Printf ("%s: Unknown format %s\n", Cmd_Argv(0), filename);
+		}
 		while (i-- > 0)
 			if (mips.mip[i].needfree)
 				BZ_Free(mips.mip[i].data);

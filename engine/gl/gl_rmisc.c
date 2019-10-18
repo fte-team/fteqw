@@ -81,7 +81,7 @@ texid_t GenerateNormalisationCubeMap(void)
 
 	int i, j;
 	
-	normalisationCubeMap = Image_CreateTexture("normalisationcubemap", NULL, IF_CUBEMAP);
+	normalisationCubeMap = Image_CreateTexture("normalisationcubemap", NULL, IF_TEXTYPE_CUBE);
 	qglGenTextures(1, &normalisationCubeMap->num);
 	GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 

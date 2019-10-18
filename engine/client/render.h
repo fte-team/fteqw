@@ -205,7 +205,6 @@ typedef struct
 	float glslpad1;		//w_fog[1].z
 	float glslpad2;		//w_fog[1].w
 
-//	float alpha;
 //	float start;
 //	float end;
 //	float height;
@@ -421,15 +420,16 @@ enum imageflags
 	IF_NOPICMIP			= 1<<7,
 	IF_NOALPHA			= 1<<8,		/*hint rather than requirement*/
 	IF_NOGAMMA			= 1<<9,		/*do not apply texture-based gamma*/
-	IF_3DMAP			= 1<<10,	/*waning - don't test directly*/
-	IF_CUBEMAP			= 1<<11,	/*waning - don't test directly*/
-	IF_2DARRAY				= IF_3DMAP|IF_CUBEMAP,
-	IF_TEXTYPE				= (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
-	IF_TEXTYPESHIFT			= 10,	/*0=2d, 1=3d, 2=cubeface, 3=array*/
-	IF_MIPCAP			= 1<<12,	//allow the use of d_mipcap
-	IF_PREMULTIPLYALPHA	= 1<<13,	//rgb *= alpha
+	IF_TEXTYPEMASK			= (1<<10) | (1<<11) | (1<<12), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
+#define IF_TEXTYPESHIFT		10
+#define IF_TEXTYPE_2D (PTI_2D<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_3D (PTI_3D<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_CUBE (PTI_CUBE<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_2D_ARRAY (PTI_2D_ARRAY<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_CUBE_ARRAY (PTI_CUBE_ARRAY<<IF_TEXTYPESHIFT)
+	IF_MIPCAP			= 1<<13,	//allow the use of d_mipcap
+	IF_PREMULTIPLYALPHA	= 1<<14,	//rgb *= alpha
 
-	IF_UNUSED14			= 1<<14,	//
 	IF_UNUSED15			= 1<<15,	//
 	IF_UNUSED16			= 1<<16,	//
 	IF_UNUSED17			= 1<<17,	//
@@ -477,6 +477,7 @@ qboolean Image_FormatHasAlpha(uploadfmt_t encoding);
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);
 void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename);
+void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, int *inoutheight, int pixelbytes, qboolean flipx, qboolean flipy, qboolean flipd);
 
 #ifdef D3D8QUAKE
 void		D3D8_Set2D (void);

@@ -2939,7 +2939,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 		}
 	}
 
-	if (cl_numstris)
+	if (cl_numstris && !(r_refdef.flags & RDF_DISABLEPARTICLES))
 		BE_GenPolyBatches(batches);
 
 	while(orig_numstris < cl_numstris)

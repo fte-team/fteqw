@@ -1675,8 +1675,9 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 {
 	switch(pass->texgen)
 	{
+#ifndef _DEBUG
 	default:
-
+#endif
 	case T_GEN_DIFFUSE:
 		return shaderstate.curtexnums->base;
 	case T_GEN_NORMALMAP:
@@ -1695,6 +1696,22 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 		return shaderstate.curtexnums->loweroverlay;
 	case T_GEN_FULLBRIGHT:
 		return shaderstate.curtexnums->fullbright;
+	case T_GEN_PALETTED:
+		return shaderstate.curtexnums->paletted;
+	case T_GEN_REFLECTCUBE:
+		if (TEXLOADED(shaderstate.curtexnums->reflectcube))
+			return shaderstate.curtexnums->reflectcube;
+		else if (shaderstate.curbatch->envmap)
+			return shaderstate.curbatch->envmap;
+		else
+			return r_nulltex;	//FIXME
+	case T_GEN_REFLECTMASK:
+		return shaderstate.curtexnums->reflectmask;
+	case T_GEN_OCCLUSION:
+		return shaderstate.curtexnums->occlusion;
+	case T_GEN_DISPLACEMENT:
+		return shaderstate.curtexnums->displacement;
+
 	case T_GEN_ANIMMAP:
 		return pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
 	case T_GEN_3DMAP:
@@ -1755,7 +1772,18 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 
 	case T_GEN_SOURCECUBE:	//used for render-to-texture targets
 		return r_nulltex;
+
+	case T_GEN_GBUFFER0:
+	case T_GEN_GBUFFER1:
+	case T_GEN_GBUFFER2:
+	case T_GEN_GBUFFER3:
+	case T_GEN_GBUFFER4:
+	case T_GEN_GBUFFER5:
+	case T_GEN_GBUFFER6:
+	case T_GEN_GBUFFER7:
+		return r_nulltex;
 	}
+	return r_nulltex;
 }
 
 static void T_Gen_CurrentRender(void)
@@ -2208,7 +2236,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 		else
 		{	//we can't use the vbo due to gaps that we don't want to have to deal with
 			//we can at least ensure that the data is written in one go to aid cpu cache.
-			vec4_t *map;
+			vec4_t *fte_restrict map;
 			unsigned int mno;
 			map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), buffer, offset);
 			if (m->colors4f_array[0])
@@ -2240,7 +2268,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 	}
 	else
 	{
-		vec4_t *map;
+		vec4_t *fte_restrict map;
 		unsigned int mno;
 		map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), buffer, offset);
 		for (mno = 0; mno < shaderstate.nummeshes; mno++)
@@ -3166,6 +3194,7 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 		VkWriteDescriptorSet descs[MAX_TMUS], *desc = descs;
 		VkDescriptorImageInfo imgs[MAX_TMUS], *img = imgs;
 		unsigned int i;
+		texid_t t;
 		//why do I keep wanting to write 'desk'? its quite annoying.
 
 		//light / scene
@@ -3192,7 +3221,15 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 		if (p->defaulttextures & (1u<<8))
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->paletted, r_blackimage, set, descs, desc++, img++);
 		if (p->defaulttextures & (1u<<9))
-			BE_SetupTextureDescriptor(shaderstate.curtexnums->reflectcube, r_blackimage, set, descs, desc++, img++);
+		{
+			if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->reflectcube))
+				t = shaderstate.curtexnums->reflectcube;
+			else if (shaderstate.curbatch->envmap)
+				t = shaderstate.curbatch->envmap;
+			else
+				t = r_nulltex;	//FIXME
+			BE_SetupTextureDescriptor(t, r_blackimage, set, descs, desc++, img++);
+		}
 		if (p->defaulttextures & (1u<<10))
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->reflectmask, r_whiteimage, set, descs, desc++, img++);
 		if (p->defaulttextures & (1u<<11))
@@ -3361,7 +3398,7 @@ static void BE_DrawMeshChain_Internal(void)
 		}
 		else
 		{
-			index_t *map;
+			index_t *fte_restrict map;
 			VkBuffer buf;
 			unsigned int i;
 			VkDeviceSize offset;
@@ -3385,7 +3422,7 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 	else
 	{	/*we're going to be using dynamic array stuff here, so generate an index array list that has no vertex gaps*/
-		index_t *map;
+		index_t *fte_restrict map;
 		VkBuffer buf;
 		unsigned int i;
 		VkDeviceSize offset;
@@ -3422,7 +3459,7 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 	else
 	{
-		vecV_t *map;
+		vecV_t *fte_restrict map;
 		const mesh_t *m;
 		unsigned int mno;
 		unsigned int i;
@@ -3508,16 +3545,13 @@ static void BE_DrawMeshChain_Internal(void)
 		}
 		else
 		{
-			vec2_t *map;
-			vec2_t *lmmap;
 			const mesh_t *m;
 			unsigned int mno;
 			unsigned int i;
 
 			if (shaderstate.meshlist[0]->normals_array[0])
 			{
-				vec4_t *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_NORM], &vertexoffsets[VK_BUFF_NORM]);
+				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_NORM], &vertexoffsets[VK_BUFF_NORM]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3533,8 +3567,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->snormals_array[0])
 			{
-				vec4_t *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_SDIR], &vertexoffsets[VK_BUFF_SDIR]);
+				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_SDIR], &vertexoffsets[VK_BUFF_SDIR]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3550,8 +3583,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->tnormals_array[0])
 			{
-				vec4_t *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_TDIR], &vertexoffsets[VK_BUFF_TDIR]);
+				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_TDIR], &vertexoffsets[VK_BUFF_TDIR]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3567,8 +3599,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->colors4f_array[0])
 			{
-				vec4_t *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3578,8 +3609,7 @@ static void BE_DrawMeshChain_Internal(void)
 			}
 			else if (shaderstate.meshlist[0]->colors4b_array)
 			{
-				vec4_t *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3592,8 +3622,7 @@ static void BE_DrawMeshChain_Internal(void)
 			}
 			else
 			{	//FIXME: use some predefined buffer
-				vec4_t *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				for (i = 0; i < vertcount; i++)
 				{
 					Vector4Set(map[i], 1, 1, 1, 1);
@@ -3602,8 +3631,8 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->lmst_array[0])
 			{
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
-				lmmap = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_LMTC], &vertexoffsets[VK_BUFF_LMTC]);
+				vec2_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+				vec2_t *fte_restrict lmmap = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_LMTC], &vertexoffsets[VK_BUFF_LMTC]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3615,7 +3644,7 @@ static void BE_DrawMeshChain_Internal(void)
 			}
 			else
 			{
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+				vec2_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -4329,13 +4358,13 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 
 
 //also updates the entity constant buffer
-static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
+static void BE_RotateForEntity (const entity_t *fte_restrict e, const model_t *fte_restrict mod)
 {
 	int i;
 	float modelmatrix[16];
 	float *m = modelmatrix;
 	float *proj;
-	vkcbuf_entity_t *cbe = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
+	vkcbuf_entity_t *fte_restrict cbe = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
 	shaderstate.ubo_entity.range = sizeof(*cbe);
 
 	shaderstate.curentity = e;
@@ -5877,7 +5906,7 @@ struct vk_shadowbuffer *VKBE_GenerateShadowBuffer(vecV_t *verts, int numverts, i
 	if (istemp)
 	{
 		struct vk_shadowbuffer *buf = &tempbuf;
-		void *map;
+		void *fte_restrict map;
 
 		map = VKBE_AllocateBufferSpace(DB_VBO, sizeof(*verts)*numverts, &buf->vbuffer, &buf->voffset);
 		memcpy(map, verts, sizeof(*verts)*numverts);
@@ -5893,7 +5922,7 @@ struct vk_shadowbuffer *VKBE_GenerateShadowBuffer(vecV_t *verts, int numverts, i
 		//FIXME: these buffers should really be some subsection of a larger buffer
 		struct vk_shadowbuffer *buf = BZ_Malloc(sizeof(*buf));
 		struct stagingbuf vbuf;
-		void *map;
+		void *fte_restrict map;
 		buf->isstatic = true;
 
 		map = VKBE_CreateStagingBuffer(&vbuf, sizeof(*verts) * numverts, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);

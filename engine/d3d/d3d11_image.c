@@ -36,92 +36,21 @@ void    D3D11_DestroyTexture (texid_t tex)
 	tex->ptr = NULL;
 }
 
-#if 0
-static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int datawidth, int dataheight, unsigned int flags)
-{
-	int x, y;
-	unsigned int *dest;
-//	unsigned char swapbuf[4];
-//	unsigned char swapbuf2[4];
-	D3D11_MAPPED_SUBRESOURCE lock;
-
-	D3D11_TEXTURE2D_DESC desc;
-	if (!tex)
-		return;
-
-	desc.Width = 0;
-	desc.Height = 0;
-	ID3D11Texture2D_GetDesc(tex, &desc);
-#if 0
-	if (width == desc.Width && height == desc.Height)
-	{
-		ID3D11DeviceContext_UpdateSubresource(d3ddevctx, (ID3D11Resource*)tex, 0, NULL, data, width*4, width*height*4);
-		return;
-	}
-
-	Con_Printf("Wrong size!\n");
-	return;
-#else
-	if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)tex, 0, D3D11_MAP_WRITE_DISCARD, 0, &lock)))
-	{
-		Con_Printf("Dynamic texture update failed\n");
-		return;
-	}
-
-	if (datawidth == desc.Width && dataheight == desc.Height)
-	{
-		for (y = 0; y < dataheight; y++)
-		{
-			dest = (unsigned int *)((char *)lock.pData + lock.RowPitch*y);
-			for (x = 0; x < datawidth; x++)
-			{
-			//	*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf = data[x];
-			//	swapbuf[0] = swapbuf2[2];
-			//	swapbuf[2] = swapbuf2[0];
-				dest[x] = data[x];//*(unsigned int*)swapbuf;
-			}
-			data += datawidth;
-		}
-	}
-	else
-	{
-		int x, y;
-		int iny;
-		unsigned int *row, *inrow;
-
-		for (y = 0; y < desc.Height; y++)
-		{
-			row = (unsigned int*)((char *)lock.pData + lock.RowPitch*y);
-			iny = (y * dataheight) / desc.Height;
-			inrow = data + datawidth*iny;
-			for (x = 0; x < desc.Width; x++)
-			{
-				//*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf =  inrow[(x * width)/desc.Width];
-				//swapbuf[0] = swapbuf2[2];
-				//swapbuf[2] = swapbuf2[0];
-				row[x] = inrow[(x * datawidth)/desc.Width];//*(unsigned int*)swapbuf;
-			}
-		}
-	}
-
-	ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)tex, 0);
-#endif
-}
-#endif
-
 qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mips)
 {
 	unsigned int blockbytes, blockwidth, blockheight;
 	HRESULT hr;
 	D3D11_TEXTURE2D_DESC tdesc = {0};
-	D3D11_SUBRESOURCE_DATA subresdesc[sizeof(mips->mip) / sizeof(mips->mip[0])];
-	int i;
+	D3D11_SUBRESOURCE_DATA *subresdesc;
+	int i, layer;
 
 	if (!sh_config.texfmt[mips->encoding])
 	{
 		Con_Printf("Texture encoding %i not supported by d3d11\n", mips->encoding);
 		return false;
 	}
+	if (mips->type != (tex->flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT)
+		return false;
 
 	tdesc.Width = mips->mip[0].width;
 	tdesc.Height = mips->mip[0].height;
@@ -141,7 +70,7 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 		tdesc.CPUAccessFlags = 0;
 	}
 
-	if (mips->type == PTI_CUBEMAP)
+	if (mips->type == PTI_CUBE)
 	{
 		tdesc.ArraySize *= 6;
 		tdesc.MiscFlags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
@@ -391,19 +320,26 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 
 	if (!mips->mip[0].data)
 	{
+		subresdesc = alloca(sizeof(*subresdesc));
 		subresdesc[0].pSysMem = NULL;
+		subresdesc[0].SysMemPitch = 0;
+		subresdesc[0].SysMemSlicePitch = 0;
 		//one mip, but no data. happens with rendertargets
 		tdesc.MipLevels = 1;
 	}
 	else
 	{
-		for (i = 0; i < mips->mipcount; i++)
+		subresdesc = alloca(tdesc.ArraySize*mips->mipcount);
+		for (layer = 0; layer < tdesc.ArraySize; layer++)
 		{
-			subresdesc[i].pSysMem = mips->mip[i].data;
-			subresdesc[i].SysMemPitch = ((mips->mip[i].width+blockwidth-1)/blockwidth) * blockbytes;
-			subresdesc[i].SysMemSlicePitch = mips->mip[i].datasize;
+			for (i = 0; i < mips->mipcount; i++)
+			{
+				subresdesc[i+layer*mips->mipcount].SysMemPitch = ((mips->mip[i].width+blockwidth-1)/blockwidth) * blockbytes;
+				subresdesc[i+layer*mips->mipcount].SysMemSlicePitch = subresdesc[i].SysMemPitch * ((mips->mip[i].width+blockheight-1)/blockheight);
+				subresdesc[i+layer*mips->mipcount].pSysMem = mips->mip[i].data + subresdesc[i+layer*mips->mipcount].SysMemSlicePitch*layer;
+			}
 		}
-		tdesc.MipLevels = i/tdesc.ArraySize;
+		tdesc.MipLevels = mips->mipcount;
 	}
 
 	D3D11_DestroyTexture(tex);
@@ -437,6 +373,7 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 	default:
 	case PTI_A2BGR10:
 	case PTI_E5BGR9:
+	case PTI_B10G11R11F:
 	case PTI_RGBA16F:
 	case PTI_RGBA32F:
 		mips.encoding = lm->fmt;

@@ -43,3 +43,4 @@ struct v2f
 		return texcolor * inp.vcol;
 	}
 #endif
+

@@ -5706,6 +5706,10 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		}
 		if (!man)
 		{
+#ifdef _WIN32
+			if (!fixedbasedir)
+				Sys_Error("No recognised game data found in working directory.\n");
+#endif
 			man = FS_Manifest_Parse(NULL,
 				"FTEManifestVer 1\n"
 				"game \"\"\n"

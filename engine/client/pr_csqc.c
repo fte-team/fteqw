@@ -1179,7 +1179,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		s = PR_GetStringOfs(prinst, OFS_PARM2);
 		Q_strncpyz(l->cubemapname, s, sizeof(l->cubemapname));
 		if (*l->cubemapname)
-			l->cubetexture = R_LoadReplacementTexture(l->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+			l->cubetexture = R_LoadReplacementTexture(l->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 		else
 			l->cubetexture = r_nulltex;
 		break;
@@ -1366,7 +1366,7 @@ static void PF_R_DynamicLight_AddInternal(pubprogfuncs_t *prinst, struct globalv
 	dl->style = style;
 	Q_strncpyz(dl->cubemapname, cubemapname, sizeof(dl->cubemapname));
 	if (*dl->cubemapname)
-		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
+		dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_TEXTYPE_CUBE, NULL, 0, 0, TF_INVALID);
 	else
 		dl->cubetexture = r_nulltex;
 

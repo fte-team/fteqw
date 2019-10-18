@@ -895,6 +895,8 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 		sh_config.texfmt[PTI_A2BGR10] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D) && !!(support & D3D11_FORMAT_SUPPORT_RENDER_TARGET);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R9G9B9E5_SHAREDEXP, &support)))
 		sh_config.texfmt[PTI_E5BGR9] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R11G11B10_FLOAT, &support)))
+		sh_config.texfmt[PTI_B10G11R11F] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R16G16B16A16_FLOAT, &support)))
 		sh_config.texfmt[PTI_RGBA16F] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D) && !!(support & D3D11_FORMAT_SUPPORT_RENDER_TARGET);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R32G32B32A32_FLOAT, &support)))

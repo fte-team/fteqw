@@ -1495,7 +1495,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	if (format == VK_FORMAT_UNDEFINED)	//no default case means warnings for unsupported formats above.
 		Sys_Error("VK_CreateTexture2DArray: Unsupported image encoding: %u(%s)\n", encoding, Image_FormatName(encoding));
 
-	ici.flags = (ret.type==PTI_CUBEMAP)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
+	ici.flags = (ret.type==PTI_CUBE)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
 	ici.imageType = VK_IMAGE_TYPE_2D;
 	ici.format = format;
 	ici.extent.width = width;
@@ -1527,7 +1527,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	{
 	default:
 		return ret;
-	case PTI_CUBEMAP:
+	case PTI_CUBE:
 		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
 		break;
 	case PTI_2D:
@@ -1806,23 +1806,20 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	case PTI_2D:
 		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 1)
 			return false;
-		layers = 1;
 		break;
 	case PTI_2D_ARRAY:
 		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth == 0)
 			return false;
-		layers = 1;
 		break;
-	case PTI_CUBEMAP:	//unfortunately, these use separate layers (yay gl compat)
-		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 1)
+	case PTI_CUBE:
+		if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0 || mips->mip[0].depth != 6)
 			return false;
-		layers = 6;
 		break;
 	default:
 		return false;
 	}
 
-	layers *= mips->mip[0].depth;
+	layers = mips->mip[0].depth;
 
 	if (layers == 1 && mipcount > 1)
 	{	//npot mipmapped textures are awkward.
@@ -1880,7 +1877,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 			imgbarrier.image = target.image;
 			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = mipcount/layers;
+			imgbarrier.subresourceRange.levelCount = mipcount;
 			imgbarrier.subresourceRange.baseArrayLayer = 0;
 			imgbarrier.subresourceRange.layerCount = layers;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1910,7 +1907,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 			imgbarrier.image = target.image;
 			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = mipcount/layers;
+			imgbarrier.subresourceRange.levelCount = mipcount;
 			imgbarrier.subresourceRange.baseArrayLayer = 0;
 			imgbarrier.subresourceRange.layerCount = layers;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1976,18 +1973,9 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		region.bufferRowLength = blockswidth*blockwidth;
 		region.bufferImageHeight = blocksheight*blockheight;
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		if (mips->type == PTI_CUBEMAP)
-		{
-			region.imageSubresource.mipLevel = i%(mipcount/layers);
-			region.imageSubresource.baseArrayLayer = i/(mipcount/layers);
-			region.imageSubresource.layerCount = mips->mip[i].depth;
-		}
-		else
-		{
-			region.imageSubresource.mipLevel = i;
-			region.imageSubresource.baseArrayLayer = 0;
-			region.imageSubresource.layerCount = mips->mip[i].depth;
-		}
+		region.imageSubresource.mipLevel = i;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = mips->mip[i].depth;
 		region.imageOffset.x = 0;
 		region.imageOffset.y = 0;
 		region.imageOffset.z = 0;
@@ -2011,7 +1999,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		imgbarrier.image = target.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		imgbarrier.subresourceRange.baseMipLevel = 0;
-		imgbarrier.subresourceRange.levelCount = mipcount/layers;
+		imgbarrier.subresourceRange.levelCount = mipcount;
 		imgbarrier.subresourceRange.baseArrayLayer = 0;
 		imgbarrier.subresourceRange.layerCount = layers;
 		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -2639,7 +2627,7 @@ void	VK_R_RenderView				(void)
 
 	if (!r_refdef.globalfog.density)
 	{
-		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[1].density)?1:0;
+		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
 		r_refdef.globalfog.density /= 64;	//FIXME
 	}
@@ -4120,6 +4108,7 @@ void VK_CheckTextureFormats(void)
 		{PTI_BGRX8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
 		{PTI_E5BGR9,			VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_B10G11R11F,		VK_FORMAT_B10G11R11_UFLOAT_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_A2BGR10,			VK_FORMAT_A2B10G10R10_UNORM_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RGB565,			VK_FORMAT_R5G6B5_UNORM_PACK16,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA4444,			VK_FORMAT_R4G4B4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},

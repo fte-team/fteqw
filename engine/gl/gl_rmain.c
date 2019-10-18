@@ -1671,7 +1671,7 @@ qboolean R_RenderScene_Cubemap(void)
 	{
 		if (!TEXVALID(scenepp_postproc_cube))
 		{
-			scenepp_postproc_cube = Image_CreateTexture("***fish***", NULL, IF_CUBEMAP|IF_RENDERTARGET|IF_CLAMP|IF_LINEAR);
+			scenepp_postproc_cube = Image_CreateTexture("***fish***", NULL, IF_TEXTYPE_CUBE|IF_RENDERTARGET|IF_CLAMP|IF_LINEAR);
 			qglGenTextures(1, &scenepp_postproc_cube->num);
 		}
 		else
@@ -1910,7 +1910,7 @@ void GLR_RenderView (void)
 
 	if (!r_refdef.globalfog.density)
 	{
-		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[1].density)?1:0;
+		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
 		r_refdef.globalfog.density /= 64;	//FIXME
 	}

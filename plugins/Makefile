@@ -6,6 +6,7 @@ PLUG_LDFLAGS= -static-libgcc
 PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
 	BITS=32
 	PLUG_LDFLAGS_DL=
+	CMAKERULES=$(OUT_DIR)/toolchain_$(FTE_TARGET).cmake
 endif
 ifeq ($(FTE_TARGET),win64)
 	PLUG_NATIVE_EXT=_x64.dll
@@ -13,6 +14,7 @@ PLUG_LDFLAGS=-Wl,--support-old-code -static-libgcc
 PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
 	BITS=64
 	PLUG_LDFLAGS_DL=
+	CMAKERULES=$(OUT_DIR)/toolchain_$(FTE_TARGET).cmake
 endif
 
 PLUG_PREFIX=$(OUT_DIR)/fteplug_
@@ -211,24 +213,42 @@ $(PLUG_PREFIX)ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
 	$(CC) -flto -s $(BASE_CFLAGS) $(CFLAGS) -Os -DFTEPLUGIN -DODE_STATIC -o $@ -shared $(PLUG_CFLAGS) -I$(ODE_BASE)ode-$(ODE_VER)/include $(ODE_FILES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -static-libgcc `$(CC) -print-file-name=libstdc++.a` -lpthread
 #NATIVE_PLUGINS+=ode
 
+ifneq ($(CMAKERULES),)
+BULLET_CFLAGS+=-static-libstdc++
+PLUG_CMAKE+= -DCMAKE_TOOLCHAIN_FILE="$(CMAKERULES)" 
+$(CMAKERULES):
+	echo "set(CMAKE_SYSTEM_NAME Windows)" > $@
+	echo "set(TOOLCHAIN_PREFIX `$(CC) -dumpmachine`)" >> $@
+	# cross compilers to use for C, C++ and Fortran
+	echo "set(CMAKE_C_COMPILER $(CC))" >> $@
+	echo "set(CMAKE_CXX_COMPILER $(CXX))" >> $@
+	echo "set(CMAKE_RC_COMPILER $${TOOLCHAIN_PREFIX}-windres)" >> $@
+	# target environment on the build host system
+	echo "set(CMAKE_FIND_ROOT_PATH /usr/$${TOOLCHAIN_PREFIX})" >> $@
+	# modify default behavior of FIND_XXX() commands
+	echo "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" >> $@
+	echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> $@
+	echo "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> $@
+endif
 
 BULLET_VER=2.87
 BULLET_URL=https://github.com/bulletphysics/bullet3/archive/$(BULLET_VER).tar.gz
 BULLET_BASE=$(OUT_DIR)/../bullet3-$(BULLET_VER)_$(FTE_TARGET)/
 BULLET_LIBS=	\
-	$(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletDynamics/libBulletDynamics.a		\
-	$(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletCollision/libBulletCollision.a	\
-	$(BULLET_BASE)bullet3-$(BULLET_VER)/src/LinearMath/libLinearMath.a
-BULLET_CFLAGS=-I$(BULLET_BASE)bullet3-$(BULLET_VER)/src
+	$(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libBulletDynamics.a		\
+	$(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libBulletCollision.a	\
+	$(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libLinearMath.a
+BULLET_CFLAGS+=-I$(BULLET_BASE)bullet3-$(BULLET_VER)/src
 $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz:
 	mkdir -p $(BULLET_BASE)
 	wget -N $(BULLET_URL) -O $@
 
-BULLET_LIB=$(BULLET_BASE)bullet3-$(BULLET_VER)/src/LinearMath/libLinearMath.a
-$(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletDynamics/libBulletDynamics.a $(BULLET_BASE)bullet3-$(BULLET_VER)/src/BulletCollision/libBulletCollision.a: $(BULLET_LIB)
-$(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz
+BULLET_LIB=$(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libLinearMath.a
+$(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libBulletDynamics.a $(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libBulletCollision.a: $(BULLET_LIB)
+$(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz $(CMAKERULES)
 	mkdir -p $(BULLET_BASE) && cd $(BULLET_BASE) && tar xvfz $<
-	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(PLUG_CMAKE) . && $(MAKE) LinearMath BulletDynamics BulletCollision
+	rm $(BULLET_BASE)bullet3-$(BULLET_VER)/build3/cmake/FindPythonLibs.cmake	#cmake is a pile of shite and fails at cross compiling. oh well, we didn't want any python stuff anyway.
+	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(PLUG_CMAKE) -DBUILD_DEMOS:BOOL=OFF -DBUILD_EXTRAS:BOOL=OFF -DLIBRARY_OUTPUT_PATH=$(BULLET_BASE)bullet3-$(BULLET_VER)/lib . && $(MAKE) LinearMath BulletDynamics BulletCollision
 #./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
 
 

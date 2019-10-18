@@ -327,11 +327,11 @@ static void QDECL Plug_Draw_Line(float x1, float y1, float x2, float y2)
 }
 static void QDECL Plug_Draw_Character(float x, float y, unsigned int character)
 {
-	int px, py;
+	float px, py;
 	if (qrenderer == QR_NONE)
 		return;
-	Font_BeginString(font_default, x, y, &px, &py);
-	Font_DrawChar(x, y, CON_WHITEMASK, character);
+	Font_BeginScaledString(font_default, x, y, 8, 8, &px, &py);
+	Font_DrawScaleChar(px, py, CON_WHITEMASK, character);
 	Font_EndString(font_default);
 }
 static void QDECL Plug_Draw_CharacterH(float x, float y, float h, unsigned int flags, unsigned int charc)
@@ -489,21 +489,19 @@ static void QDECL Plug_GetPlayerInfo(int playernum, plugclientinfo_t *out)
 {
 	int i;
 
-	if (playernum < -cl.splitclients || playernum >= MAX_CLIENTS)
+	//queries for the local seats
+	if (playernum < 0)
+		playernum = cl.playerview[-playernum-1].playernum;
+
+	if (playernum < 0 || playernum >= MAX_CLIENTS)
+	{
+		memset(out, 0, sizeof(*out));
 		return;
+	}
 
 	i = playernum;
 	if (out)
 	{
-		if (i < 0)
-		{
-			i = cl.playerview[-i-1].playernum;
-			if (i < 0)
-			{
-				memset(out, 0, sizeof(*out));
-				return;
-			}	
-		}
 		out->bottomcolour = cl.players[i].rbottomcolor;
 		out->topcolour = cl.players[i].rtopcolor;
 		out->frags = cl.players[i].frags;

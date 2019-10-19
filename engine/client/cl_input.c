@@ -151,7 +151,7 @@ static kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 static kbutton_t	in_use, in_jump, in_attack;
 static kbutton_t	in_rollleft, in_rollright, in_up, in_down;
 
-static kbutton_t	in_button[16+1-3];
+static kbutton_t	in_button[19+1];
 
 #define IN_IMPULSECACHE 32
 static int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
@@ -564,8 +564,8 @@ static void IN_JumpUp (void)
 	KeyUp(&in_jump);
 }
 
-static void IN_ButtonNDown(void) {KeyDown(&in_button[atoi(Cmd_Argv(0)+7)-3], NULL);}
-static void IN_ButtonNUp(void) {KeyUp(&in_button[atoi(Cmd_Argv(0)+7)-3]);}
+static void IN_ButtonNDown(void) {KeyDown(&in_button[atoi(Cmd_Argv(0)+7)], NULL);}
+static void IN_ButtonNUp(void) {KeyUp(&in_button[atoi(Cmd_Argv(0)+7)]);}
 
 float in_rotate;
 static void IN_Rotate_f (void) {in_rotate += atoi(Cmd_Argv(1));}
@@ -613,9 +613,9 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 	for (b = 0; b < countof(in_button); b++)
 	{
 		if ((in_button[b].state[s]&1) && (in_button[b].down[s][0]==-1 || in_button[b].down[s][1]==-1))
-			VFS_PRINTF(f, "+button%i\n", b+3);
+			VFS_PRINTF(f, "+button%i\n", b);
 		else
-			VFS_PRINTF(f, "-button%i\n", b+3);
+			VFS_PRINTF(f, "-button%i\n", b);
 	}
 	for (s = 1; s < MAX_SPLITS; s++)
 	{
@@ -630,9 +630,9 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 		for (b = 0; b < countof(in_button); b++)
 		{
 			if ((in_button[b].state[s]&1) && (in_button[b].down[s][0]==-1 || in_button[b].down[s][1]==-1))
-				VFS_PRINTF(f, "+p%i button%i\n", s, b+3);
+				VFS_PRINTF(f, "+p%i button%i\n", s, b);
 			else
-				VFS_PRINTF(f, "-p%i button%i\n", s, b+3);
+				VFS_PRINTF(f, "-p%i button%i\n", s, b);
 		}
 	}
 
@@ -782,34 +782,56 @@ cvar_t	cl_pitchspeed = CVAR("cl_pitchspeed","150");
 cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
-#define GATHERBIT(bname,bit) if (bname.state[pnum] & 3)	{bits |=   (1u<<(bit));} bname.state[pnum]	&= ~2;
+#define GATHERBIT(bname,bit)	if (bname.state[pnum] & 3)	{bits |=   (1u<<(bit));} bname.state[pnum]	&= ~2;
+#define UNUSEDBUTTON(bnum)		if (in_button[bnum].state[pnum] & 3)	{Con_Printf("+button%i is not supported on this protocol\n", pnum); } in_button[bnum].state[pnum]	&= ~3;
 void CL_GatherButtons (usercmd_t *cmd, int pnum)
 {
 	unsigned int bits = 0;
 	GATHERBIT(in_attack,		0);
-	GATHERBIT(in_jump,			1);
-	GATHERBIT(in_button[3-3],	2);
-	GATHERBIT(in_button[4-3],	3);
-	GATHERBIT(in_button[5-3],	4);
-	GATHERBIT(in_button[6-3],	5);
-	GATHERBIT(in_button[7-3],	6);
-	GATHERBIT(in_button[8-3],	7);
+#ifdef Q3CLIENT
+	if (cls.protocol==CP_QUAKE3)
+	{	//quake3's buttons are nice and simple, buttonN -> bit|=(1<<N)
+		int i;
+		for (i = 0; i < countof(in_button); i++)
+		{
+			GATHERBIT(in_button[i],		i);
+		}
+//		bits |= 1<<1;	//rtcw talking
+//		bits |= 1<<4;	//rtcw walking
+//		bits |= 1<<7;	//rtcw any key
+		cmd->buttons = bits;
+		return;
+	}
+#endif
+
+	//quakec's numbered buttons make no sense and have no sane relation to bit numbers
+	GATHERBIT(in_button[0],		0);
+	UNUSEDBUTTON(1);				//officially, qc's button1 field is unusable (although qw folds button3 over to it)
+	GATHERBIT(in_button[2],		1);	GATHERBIT(in_jump,			1);
+	GATHERBIT(in_button[3],		2);
+	GATHERBIT(in_button[4],		3);
+	GATHERBIT(in_button[5],		4);
+	GATHERBIT(in_button[6],		5);
+	GATHERBIT(in_button[7],		6);
+	GATHERBIT(in_button[8],		7);
 
 	//these are fucked, as required for dpcompat.
 	GATHERBIT(in_use,			(cls.protocol==CP_QUAKEWORLD)?4:8);
-	if (Key_Dest_Has(~kdm_game))	//game is the lowest priority, anything else will take focus away. we consider that to mean 'chat' (although it could be menus).
-		bits |= (1u<<9);
-	if (cursor_active)				//prydon cursor stuff.
-		bits |= (1u<<10);
-	GATHERBIT(in_button[9-3],	11);
-	GATHERBIT(in_button[10-3],	12);
-	GATHERBIT(in_button[11-3],	13);
-	GATHERBIT(in_button[12-3],	14);
-	GATHERBIT(in_button[13-3],	15);
+	bits |= (Key_Dest_Has(~kdm_game))	?(1u<<9):0;		//game is the lowest priority, anything else will take focus away. we consider that to mean 'chat' (although it could be menus).
+	bits |= (cursor_active)				?(1u<<10):0;	//prydon cursor stuff.
+	GATHERBIT(in_button[9],		11);
+	GATHERBIT(in_button[10],	12);
+	GATHERBIT(in_button[11],	13);
+	GATHERBIT(in_button[12],	14);
+	GATHERBIT(in_button[13],	15);
 
-	GATHERBIT(in_button[14-3],	16);
-	GATHERBIT(in_button[15-3],	17);
-	GATHERBIT(in_button[16-3],	18);
+	GATHERBIT(in_button[14],	16);
+	GATHERBIT(in_button[15],	17);
+	GATHERBIT(in_button[16],	18);
+	UNUSEDBUTTON(17);
+	UNUSEDBUTTON(18);
+	UNUSEDBUTTON(19);
+//	UNUSEDBUTTON(20);
 	cmd->buttons |= bits;
 }
 
@@ -1952,9 +1974,12 @@ static void CL_SendUserinfoUpdate(void)
 	if (cls.protocol == CP_QUAKE3)
 	{	//q3 sends it all in one go
 		char userinfo[2048];
-		InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
-		CLQ3_SendClientCommand("userinfo \"%s\"", userinfo);
 		InfoSync_Strip(&cls.userinfosync, info);	//can't track this stuff. all or nothing.
+		if (info == &cls.userinfo[0])
+		{
+			InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
+			CLQ3_SendClientCommand("userinfo \"%s\"", userinfo);
+		}
 		return;
 	}
 #endif
@@ -1963,11 +1988,14 @@ static void CL_SendUserinfoUpdate(void)
 	{
 		char userinfo[2048];
 		InfoSync_Strip(&cls.userinfosync, info);	//can't track this stuff. all or nothing.
-		InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
+		if (info == &cls.userinfo[0])
+		{
+			InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
 
-		MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-		SZ_Write(&cls.netchan.message, pl, strlen(pl));
-		MSG_WriteString (&cls.netchan.message, userinfo);
+			MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
+			SZ_Write(&cls.netchan.message, pl, strlen(pl));
+			MSG_WriteString (&cls.netchan.message, userinfo);
+		}
 		return;
 	}
 #endif
@@ -2610,8 +2638,8 @@ void CL_InitInput (void)
 	for (i = 0; i < countof(in_button); i++)
 	{
 		static char bcmd[countof(in_button)][2][10];
-		Q_snprintfz(bcmd[i][0], sizeof(bcmd[sp][0]), "+button%i", i+3);
-		Q_snprintfz(bcmd[i][1], sizeof(bcmd[sp][1]), "-button%i", i+3);
+		Q_snprintfz(bcmd[i][0], sizeof(bcmd[sp][0]), "+button%i", i);
+		Q_snprintfz(bcmd[i][1], sizeof(bcmd[sp][1]), "-button%i", i);
 		Cmd_AddCommandD(bcmd[i][0],		IN_ButtonNDown, "This auxilliary command has mod-specific behaviour (often none).");
 		Cmd_AddCommand (bcmd[i][1],		IN_ButtonNUp);
 	}

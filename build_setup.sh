@@ -113,7 +113,8 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 	else
 		echo "Skipping Cygwin options."
 	fi
-	read -n 1 -p "Build for Windows? [Y/n] " BUILD_WINDOWS && echo
+	read -n 1 -p "Build for Windows x86? [Y/n] " BUILD_WIN32 && echo
+	read -n 1 -p "Build for Windows x86_64? [Y/n] " BUILD_WIN64 && echo
 	read -n 1 -p "Build for Dos? [y/N] " BUILD_DOS && echo
 	read -n 1 -p "Build for SDL? [y/N] " BUILD_SDL && echo
 	read -n 1 -p "Build for Android? [y/N] " BUILD_ANDROID && echo
@@ -131,7 +132,8 @@ BUILD_LINUXx64=${BUILD_LINUXx64:-y}
 BUILD_LINUXx32=${BUILD_LINUXx32:-n}
 BUILD_LINUXarmhf=${BUILD_LINUXarmhf:-n}
 BUILD_CYGWIN=${BUILD_CYGWIN:-n}
-BUILD_WINDOWS=${BUILD_WINDOWS:-y}
+BUILD_WIN32=${BUILD_WIN32:-y}
+BUILD_WIN64=${BUILD_WIN64:-y}
 BUILD_DOS=${BUILD_DOS:-n}
 BUILD_MSVC=${BUILD_MSVC:-n}
 BUILD_SDL=${BUILD_SDL:-n}
@@ -160,7 +162,8 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_LINUXx32=\"$BUILD_LINUXx32\""		>>$FTECONFIG
 	echo "BUILD_LINUXarmhf=\"$BUILD_LINUXarmhf\""		>>$FTECONFIG
 	echo "BUILD_CYGWIN=\"$BUILD_CYGWIN\""			>>$FTECONFIG
-	echo "BUILD_WINDOWS=\"$BUILD_WINDOWS\""			>>$FTECONFIG
+	echo "BUILD_WIN32=\"$BUILD_WIN32\""			>>$FTECONFIG
+	echo "BUILD_WIN64=\"$BUILD_WIN64\""			>>$FTECONFIG
 	echo "BUILD_DOS=\"$BUILD_DOS\""				>>$FTECONFIG
 	echo "BUILD_MSVC=\"$BUILD_MSVC\""			>>$FTECONFIG
 	echo "BUILD_ANDROID=\"$BUILD_ANDROID\""			>>$FTECONFIG
@@ -270,7 +273,7 @@ if [ "$BUILD_SDL" == "y" ]; then
 	debianpackages libSDL1.2-dev libSDL2-dev libspeex-dev libspeexdsp-dev || otherpackages || exit
 fi
 
-if [ "$BUILD_WINDOWS" == "y" ]; then
+if [ "$BUILD_WIN32" == "y" ] || [ "$BUILD_WIN64" == "y" ]; then
 	#for building windows targets
 	#python is needed to configure scintilla properly.
 	debianpackages mingw-w64 python || otherpackages x86_64-w64-mingw32-gcc python || exit
@@ -395,15 +398,19 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Making libraries (linux armhf)..."
 		make FTE_TARGET=linuxarmhf makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WINDOWS" == "y" ]; then
-		echo "Making libraries (linux armhf)..."
+	if [ "$BUILD_WIN32" == "y" ]; then
+		echo "Making libraries (win32)..."
 		make FTE_TARGET=win32 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
-		echo "Making libraries (linux armhf)..."
+	fi
+	if [ "$BUILD_WIN64" == "y" ]; then
+		echo "Making libraries (win64)..."
 		make FTE_TARGET=win64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WINDOWS" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
+	if [ "$BUILD_WIN32" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WIN64" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win64)..."
 		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null
 	fi
@@ -415,9 +422,11 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Prebuilding ODE library (linux x86_64)..."
 		make FTE_TARGET=linux64 plugins-rel NATIVE_PLUGINS=ode CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WINDOWS" == "y" ]; then
+	if [ "$BUILD_WIN32" == "y" ]; then
 		echo "Obtaining ffmpeg library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_WIN64" == "y" ]; then
 		echo "Obtaining ffmpeg library (win64)..."
 		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
 	fi

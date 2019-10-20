@@ -1088,7 +1088,6 @@ endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
 ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
-	LIBS_DIR=./libs
 	DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
 
 	ifneq (,$(findstring win64,$(FTE_TARGET)))
@@ -1296,7 +1295,6 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	QTV_LDFLAGS=-lws2_32 -lwinmm
 
-	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=-lws2_32 -lwinmm
 	SV_DIR=sv_mingw$(BITS)
@@ -1601,8 +1599,6 @@ ifeq ($(FTE_TARGET),cyg)
 	M_CFLAGS=$(GLCFLAGS) $(CLIENTLIBFLAGS) -DUSE_LIBTOOL
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin
-
-	LIBS_DIR = $(BASE_DIR)/libs
 
 	MINGL_EXE_NAME=../$(EXE_NAME)-cyg-mingl$(EXEPOSTFIX)
 	MINGL_DIR=mingl_cygwin

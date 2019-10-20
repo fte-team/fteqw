@@ -1520,7 +1520,10 @@ qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *h
 	struct pngerr errctx;
 
 	if (!LibPNG_Init())
+	{
+		Con_Printf("libpng not loaded\n");
 		return NULL;
+	}
 
 	memcpy(header, buf, 8);
 
@@ -1533,21 +1536,25 @@ error:
 		if (rowpointers)
 			BZ_Free(rowpointers);
 		qpng_destroy_read_struct(&png, &pnginfo, NULL);
+		Con_Printf("libpng error\n");
 		return NULL;
 	}
 
 	if (qpng_sig_cmp(header, 0, 8))
 	{
+		Con_Printf("libpng signature mismatch\n");	//we already checked the first four bytes so this shouldn't be spammy
 		return NULL;
 	}
 
 	if (!(png = qpng_create_read_struct(PNG_LIBPNG_VER_STRING, &errctx, png_onerror, png_onwarning)))
 	{
+		Con_Printf("png_create_read_struct failed\n");	//we already checked the first four bytes so this shouldn't be spammy
 		return NULL;
 	}
 
 	if (!(pnginfo = qpng_create_info_struct(png)))
 	{
+		Con_Printf("png_create_info_struct failed\n");	//we already checked the first four bytes so this shouldn't be spammy
 		qpng_destroy_read_struct(&png, &pnginfo, NULL);
 		return NULL;
 	}
@@ -1911,16 +1918,11 @@ err:
 #ifdef AVAIL_JPEGLIB
 #define XMD_H	//fix for mingw
 
-#if defined(MINGW)
-	#define JPEG_API VARGS
-	#include "./mingw-libs/jpeglib.h"
-	#include "./mingw-libs/jerror.h"
-#elif defined(_WIN32)
+#if defined(_MSC_VER)
 	#define JPEG_API VARGS
 	#include "jpeglib.h"
 	#include "jerror.h"
 #else
-//	#include <jinclude.h>
 	#include <jpeglib.h>
 	#include <jerror.h>
 #endif

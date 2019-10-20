@@ -43,14 +43,7 @@ fte_inlinebody float M_LinearToSRGB(float x, float mag);
 
 // These 4 libraries required for the version command
 
-#if defined(MINGW)
-	#ifdef AVAIL_ZLIB
-		#include "./mingw-libs/zlib.h"
-	#endif
-	#ifdef FTE_SDL
-		#include <SDL.h>
-	#endif
-#elif defined(_WIN32)
+#if defined(_MSC_VER)
 	#ifdef AVAIL_ZLIB
 		#include "zlib.h"
 	#endif

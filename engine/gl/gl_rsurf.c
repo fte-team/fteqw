@@ -78,7 +78,7 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	int s;
 	unsigned int vaostatic = 0;
 
-	if (!qglGenBuffersARB)
+	if (!qglGenBuffersARB || !vsize || !elementsize)
 		return false;
 
 	qglGenBuffersARB(1+(elementsize>0), vbos);

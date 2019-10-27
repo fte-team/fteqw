@@ -140,7 +140,7 @@ if [ "$BUILD_LINUXx86" != "n" ]; then
 	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx64" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_LINUXx64" build "Linux 64-bit" linux_amd64 FTE_TARGET=linux64 LDFLAGS="-Llibs/64" CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
+	NATIVE_PLUGINS="$PLUGINS_LINUXx64" build "Linux 64-bit" linux_amd64 FTE_TARGET=linux64 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx32" != "n" ]; then
 # 	CFLAGS="-DNO_JPEG"
@@ -177,20 +177,20 @@ if [ "$BUILD_DOS" == "y" ]; then
 fi
 if [ "$BUILD_WEB" != "n" ]; then
 	source $EMSDK/emsdk_env.sh >> /dev/null
-	build "Emscripten" web FTE_TARGET=web $TARGETS_WEB CC=emcc
+	LTO= build "Emscripten" web FTE_TARGET=web $TARGETS_WEB CC=emcc
 fi
-if [ "$BUILD_LINUX" != "n" ] && [ "$BUILD_SDL" != "n" ] && [ "$(uname -m)" != "x86_64" ]; then
-	build "Linux 32-bit (SDL)" linux_x86_sdl FTE_TARGET=SDL BITS=32 LTO=1
+if [ "$BUILD_SDL_LINUXx86" == "y" ]; then
+	build "Linux 32-bit (SDL)" linux_x86_sdl FTE_TARGET=SDL2 BITS=32 $TARGETS_SDL
 fi
-if [ "$BUILD_LINUX" != "n" ] && [ "$BUILD_SDL" != "n" ] && [ "$(uname -m)" == "x86_64" ]; then
-	build "Linux 64-bit (SDL)" linux_amd64_sdl FTE_TARGET=SDL BITS=64 LDFLAGS="-Llibs/64" LTO=1
+if [ "$BUILD_SDL_LINUXx64" == "y" ]; then
+	build "Linux 64-bit (SDL)" linux_amd64_sdl FTE_TARGET=SDL2 BITS=64 $TARGETS_SDL
 fi
-if [ "$BUILD_WIN32" != "n" ] && [ "$BUILD_SDL" != "n" ]; then
-	build "Windows 32-bit (SDL)" win32_sdl FTE_TARGET=win32_SDL gl-rel mingl-rel
-	CFLAGS="$WARNINGLEVEL -DNOLEGACY -DOMIT_QCC" build "Windows 32-bit nocompat" nocompat FTE_TARGET=win32 LTO=1 NOCOMPAT=1 BOTLIB_CFLAGS="" BOTLIB_OBJS="" gl-rel m-rel -k
+if [ "$BUILD_SDL_WIN32" == "y" ]; then
+	build "Windows 32-bit (SDL)" win32_sdl FTE_TARGET=win32_SDL $TARGETS_SDL
+#	CFLAGS="$WARNINGLEVEL -DNOLEGACY -DOMIT_QCC" build "Windows 32-bit nocompat" nocompat FTE_TARGET=win32 LTO=1 NOCOMPAT=1 BOTLIB_CFLAGS="" BOTLIB_OBJS="" $TARGETS_SDL
 fi
-if [ "$BUILD_WIN64" != "n" ] && [ "$BUILD_SDL" != "n" ]; then
-	build "Windows 64-bit (SDL)" win64_sdl FTE_TARGET=win64_SDL LDFLAGS="-L./libs/mingw64-libs/" gl-rel mingl-rel
+if [ "$BUILD_SDL_WIN64" == "y" ]; then
+	build "Windows 64-bit (SDL)" win64_sdl FTE_TARGET=win64_SDL $TARGETS_SDL
 fi
 if [ "$BUILD_NACL" != "n" ]; then
 	#non-pnacl is supported ONLY in chrome's store crap, but pnacl works anywhere.
@@ -217,9 +217,9 @@ if [ "$BUILD_WIN32" != "n" ]; then
 	else
 		rm -f $BUILDFOLDER/win32/3rdparty.zip
 	fi
-	if [ "$BUILD_SDL" != "n" ]; then
-		cp $SVNROOT/engine/libs/SDL2-2.0.1/i686-w64-mingw32/bin/SDL2.dll $BUILDFOLDER/win32_sdl
-	fi
+#	if [ "$BUILD_SDL_WIN32" != "n" ]; then
+#		cp $SVNROOT/engine/libs/SDL2-2.0.1/i686-w64-mingw32/bin/SDL2.dll $BUILDFOLDER/win32_sdl
+#	fi
 fi
 if [ "$BUILD_WIN64" != "n" ]; then
 	if [ -e "$BASE/3rdparty/win64/3rdparty.zip" ]; then
@@ -227,9 +227,9 @@ if [ "$BUILD_WIN64" != "n" ]; then
 	else
 		rm -f $BUILDFOLDER/win64/3rdparty.zip
 	fi
-	if [ "$BUILD_SDL" != "n" ]; then
-		cp $SVNROOT/engine/libs/SDL2-2.0.1/x86_64-w64-mingw32/bin/SDL2.dll $BUILDFOLDER/win64_sdl
-	fi
+#	if [ "$BUILD_SDL_WIN64" != "n" ]; then
+#		cp $SVNROOT/engine/libs/SDL2-2.0.1/x86_64-w64-mingw32/bin/SDL2.dll $BUILDFOLDER/win64_sdl
+#	fi
 fi
 if [ -e "$HOME/nocompat_readme.html" ]; then
 	cp $HOME/nocompat_readme.html $BUILDFOLDER/nocompat/README.html
@@ -327,18 +327,21 @@ fi
 if [ "$BUILD_WIN32" != "n" ] && [ "$BUILD_WIN64" != "n" ]; then
 	echo Archiving output
 	SVNVER=$(svnversion $SVNROOT)
-	cd $BUILDFOLDER/
-	zip -q -9 $ARCHIVEFOLDER/win_fteqw_$SVNVER.zip win32/fteglqw.exe win32/fteqwsv.exe win32/fteqccgui.exe win32/debug/fteglqw.exe win64/fteqw.exe win64/debug/fteglqw.exe
+	if [ -e $ARCHIVEFOLDER ]; then
+		cd $BUILDFOLDER/
+		zip -q -9 $ARCHIVEFOLDER/win_fteqw_$SVNVER.zip win32/fteglqw.exe win32/fteqwsv.exe win32/fteqccgui.exe win32/debug/fteglqw.exe win64/fteqw.exe win64/debug/fteglqw.exe
+	fi
 
-
-	cd $BUILDFOLDER/win32/
-	zip -q -j -9 $BUILDFOLDER/fteqw_for_windows.zip fteglqw.exe fteqwsv.exe fteqccgui.exe fteplug_qi_x86.dll fteplug_xmpp_x86.dll fteplug_irc_x86.dll fteplug_ezhud_x86.dll
-	cd $HOME/3rdparty_win32/
-	zip -q -9 $BUILDFOLDER/fteqw_for_windows.zip ogg.dll vorbis.dll vorbisfile.dll freetype6.dll zlib1.dll
-	mkdir -p $BASE/tmp/fte
-	cd $BASE/tmp/
-	cp $BUILDFOLDER/csaddon/menu.dat fte
-	zip -q -9 $BUILDFOLDER/fteqw_for_windows.zip fte/menu.dat
+	if [ -e $BUILDFOLDER/fteqw_for_windows.zip ]; then
+		cd $BUILDFOLDER/win32/
+		zip -q -j -9 $BUILDFOLDER/fteqw_for_windows.zip fteglqw.exe fteqwsv.exe fteqccgui.exe fteplug_qi_x86.dll fteplug_xmpp_x86.dll fteplug_irc_x86.dll fteplug_ezhud_x86.dll
+		cd $HOME/3rdparty_win32/
+		zip -q -9 $BUILDFOLDER/fteqw_for_windows.zip ogg.dll vorbis.dll vorbisfile.dll freetype6.dll zlib1.dll
+		mkdir -p $BASE/tmp/fte
+		cd $BASE/tmp/
+		cp $BUILDFOLDER/csaddon/menu.dat fte
+		zip -q -9 $BUILDFOLDER/fteqw_for_windows.zip fte/menu.dat
+	fi
 
 	#~/afterquake/updatemini.sh
 fi

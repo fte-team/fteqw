@@ -115,8 +115,20 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 	fi
 	read -n 1 -p "Build for Windows x86? [Y/n] " BUILD_WIN32 && echo
 	read -n 1 -p "Build for Windows x86_64? [Y/n] " BUILD_WIN64 && echo
-	read -n 1 -p "Build for Dos? [y/N] " BUILD_DOS && echo
-	read -n 1 -p "Build for SDL? [y/N] " BUILD_SDL && echo
+	BUILD_DOS=n
+	if [ "$(uname -o)" == "Cygwin" ]; then
+		read -n 1 -p "Build for Dos? [y/N] " BUILD_DOS && echo
+	fi
+	BUILD_SDL_LINUXx86=n
+	BUILD_SDL_LINUXx64=n
+	BUILD_SDL_WIN32=n
+	BUILD_SDL_WIN64=n
+	if [ "$(uname -sm)" == "Linux i686" ]; then
+		read -n 1 -p "Build for Linux x86 SDL? [y/N] " BUILD_SDL_LINUXx32 && echo
+	fi
+	if [ "$(uname -sm)" == "Linux x86_64" ]; then
+		read -n 1 -p "Build for Linux x86_64 SDL? [y/N] " BUILD_SDL_LINUXx64 && echo
+	fi
 	read -n 1 -p "Build for Android? [y/N] " BUILD_ANDROID && echo
 	read -n 1 -p "Build for Emscripten? [y/N] " BUILD_WEB && echo
 	if [ 0 -ne 0 ]; then

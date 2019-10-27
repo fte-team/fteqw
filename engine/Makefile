@@ -325,7 +325,7 @@ ifeq ($(FTE_TARGET),droid)
 
 	CC:=$(TOOLCHAIN)gcc --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
 	CXX:=$(TOOLCHAIN)g++ --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
-	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lm -lz
+	DO_LD=+$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lm -lz
 	LD:=$(TOOLCHAIN)ld
 	AR:=$(TOOLCHAIN)ar
 	STRIP=$(TOOLCHAIN)strip
@@ -515,14 +515,14 @@ ALL_CXXFLAGS=$(subst -Wno-pointer-sign,,$(ALL_CFLAGS))
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
 	LTO_CC= -E
-	LTO_LD= -flto -fwhole-program -x c
+	LTO_LD= -flto=jobserver -fwhole-program -x c
 	LTO_END=ltoxnone
 	LTO_START=ltoxc
 endif
 #proper/consistant link-time optimisations (requires gcc 4.5+ or so)
 ifneq ($(LTO),)
-	LTO_CC=-flto -fvisibility=hidden
-	LTO_LD=-flto
+	LTO_CC=-flto=jobserver -fvisibility=hidden
+	LTO_LD=-flto=jobserver
 endif
 
 #DO_ECHO=@echo $< && 
@@ -594,7 +594,7 @@ endif
 
 SDL_INCLUDES=
 #-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL
-BASE_INCLUDES=-I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. -I$(LIBS_DIR) 
+BASE_INCLUDES=-I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. 
 BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) $(BASE_INCLUDES) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) $(BOTLIB_CFLAGS) $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
@@ -1109,17 +1109,17 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 		VK_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
-		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
+		SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
+		QCC_LDFLAGS=
 	else
 		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
 		VK_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
 		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
-		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
-		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
+		SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
+		QCC_LDFLAGS=
 	endif
 	
-	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK)
+	GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK)
 	
 	GLB_DIR=gl_mgw_sdl$(BITS)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
@@ -1135,16 +1135,16 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
 #with d3d...
 	#MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	#M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(CLIENTLIBFLAGS) $(DX7SDK)
+	#M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 #without d3d...
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(CLIENTLIBFLAGS) $(DX7SDK)
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(BOTLIB_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) $(CLIENTLIBFLAGS) $(DX7SDK)
+	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
 	D3DB_DIR=sdl_d3d_mgw$(BITS)
 	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 
@@ -1152,7 +1152,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	VKCL_OBJS=$(VKQUAKE_OBJS) $(BOTLIB_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
 	VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
-	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) $(CLIENTLIBFLAGS) $(DX7SDK)
+	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
 	VKB_DIR=sdl_vk_mgw$(BITS)
 	VKCL_DIR=sdl_vkcl_mgw$(BITS)
 	
@@ -1802,7 +1802,10 @@ $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 $(OUT_DIR)/quakedef.h.gch : quakedef.h
 	$(CC) -x c $(ALL_CFLAGS) -o $@ -c $<
 PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
+
+ifneq ($(OUT_DIR),)
 ALL_CFLAGS+=-I$(OUT_DIR)
+endif
 
 #addprefix is to add the ./release/server/ part of the object name
 #foreach is needed as the OBJS is a list of variable names containing object lists.
@@ -1811,7 +1814,7 @@ ALL_CFLAGS+=-I$(OUT_DIR)
 #or at least I hope he does. It makes no sence to mortals.
 
 LDCC ?=$(CC)
-DO_LD ?= $(DO_ECHO) $(LDCC) -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS)
+DO_LD ?= +$(DO_ECHO) $(LDCC) -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
@@ -1950,7 +1953,7 @@ m-dbg:
 m-profile:
 	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 
-.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg httpserver
+.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg httpserver iqm imgtool
 
 
 _qcc-tmp: $(REQDIR)
@@ -1958,11 +1961,11 @@ _qcc-tmp: $(REQDIR)
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" LTO= OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" LTO= OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.
@@ -1980,7 +1983,8 @@ scintilla$(BITS)_static:
 	@$(MAKE) reldir OUT_DIR=$(RELEASE_DIR)/$(QCC_DIR)scin
 	@$(MAKE) $(RELEASE_DIR)/scintilla$(BITS).a VPATH="$(SCINTILLA_DIRS)" CFLAGS="$(SCINTILLA_INC) -DDISABLE_D2D -DSTATIC_BUILD -DSCI_LEXER -std=c++11" OUT_DIR=$(RELEASE_DIR)/$(QCC_DIR)scin WCFLAGS="$(WCFLAGS) -Os" WARNINGFLAGS=
 qccgui-scintilla: scintilla$(BITS)_static
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	#LTO bugs out on WinMain for some reason, so try to disable it for this target.
+	@LTO= $(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 ifdef windir
 debugdir:
@@ -2300,7 +2304,7 @@ iqm: iqm-rel
 
 IMGTOOL_OBJECTS=../imgtool.c client/image.c
 $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
-	$(CC) -o $@ $(IMGTOOL_OBJECTS) -lstdc++ -lm -Os $(BASE_INCLUDES) -DIMGTOOL -ldl
+	$(CC) -o $@ $(IMGTOOL_OBJECTS) -lstdc++ -lm -Os $(ALL_CFLAGS) -DIMGTOOL $(BASELDFLAGS)
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 
@@ -2330,10 +2334,10 @@ QTV_OBJECTS=	\
 $(RELEASE_DIR)/qtv$(BITS)$(EXEPOSTFIX): $(QTV_OBJECTS)
 	$(CC) -o $@ $? -lstdc++ -lm $(BASE_INCLUDES) $(QTV_LDFLAGS)
 qtv-rel:
-	$(MAKE) $(RELEASE_DIR)/qtv$(BITS)$(EXEPOSTFIX) VPATH="$(BASE_DIR)/../fteqtv:$(VPATH)"
+	@$(MAKE) $(RELEASE_DIR)/qtv$(BITS)$(EXEPOSTFIX) VPATH="$(BASE_DIR)/../fteqtv:$(VPATH)"
 qtv: qtv-rel
 
-utils: httpserver iqm master qtv-rel
+utils: httpserver iqm imgtool master qtv-rel
 
 prefix ?= /usr/local
 exec_prefix ?= $(prefix)

@@ -1117,10 +1117,10 @@ static void ImgTool_TreeConvert(struct opts_s *args, const char *srcpath, const 
 		}
 		if (stat(dest, &statdst) < 0)
 		{
-			statdst.st_mtim.tv_sec = INT_MIN; //make it look old
+			statdst.st_mtime = INT_MIN; //make it look old
 			newfiles++;
 		}
-		if (statdst.st_mtim.tv_sec <= statsrc.st_mtim.tv_sec)
+		if (statdst.st_mtime <= statsrc.st_mtime)
 		{
 			processedfiles++;
 //			Con_Printf("Image file %s -> %s\n", file, dest);

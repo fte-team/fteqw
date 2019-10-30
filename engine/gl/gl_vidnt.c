@@ -1032,8 +1032,8 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 		if (mon != INVALID_HANDLE_VALUE)
 			GetDpiForMonitor(mon, 0, &vid.dpi_x, &vid.dpi_y);
 		*/
-		wwidth = (wwidth*vid.dpi_x)/96;
-		wheight = (wheight*vid.dpi_y)/96;
+//		wwidth = (wwidth*vid.dpi_x)/96;
+//		wheight = (wheight*vid.dpi_y)/96;
 	}
 
 	WindowRect = centerrect(pleft, ptop, pwidth, pheight, wwidth, wheight);
@@ -1112,7 +1112,7 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 #endif
 	}
 
-	ShowWindow (dibwindow, SW_SHOWDEFAULT);
+	ShowWindow (dibwindow, SW_SHOWNORMAL);
 	SetFocus(dibwindow);
 
 //	ShowWindow (dibwindow, SW_SHOWDEFAULT);
@@ -1515,7 +1515,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		if (modestate == MS_FULLWINDOW)
 			ShowWindow (dibwindow, SW_SHOWMAXIMIZED);
 		else
-			ShowWindow (dibwindow, SW_SHOWDEFAULT);
+			ShowWindow (dibwindow, SW_SHOWNORMAL);
 
 		if (!GL_Init(info, getglfunc))
 			return false;

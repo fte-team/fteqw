@@ -1970,10 +1970,59 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client));
 	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client));
 	client->ezprotocolextensions1  &= Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
+	client->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
 		client->fteprotocolextensions2 &= ~PEXT2_REPLACEMENTDELTAS;	//baseline issues
+
+#ifdef HAVE_LEGACY
+	if (ISQWCLIENT(client))
+	{
+		//be prepared to recognise client versions, in order to block known-buggy extensions.
+		const char *s;
+		int ver;
+		extern cvar_t pext_ezquake_nochunks;
+		extern cvar_t pext_ezquake_verfortrans;
+		s = InfoBuf_ValueForKey(&client->userinfo, "*client");
+		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
+		{
+			COM_Parse(s);	//skip name-of-fork
+			COM_Parse(s);	//tokenize the version
+			ver = atoi(com_token);
+
+			//this should actually have been resolved now, but for future use...
+			if ((client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && pext_ezquake_nochunks.ival)
+			{
+				client->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
+				SV_PrintToClient(client, PRINT_HIGH, "ezQuake's implementation of chunked downloads is blocked on this server.\n");
+			}
+
+			//client fails to read the extra byte when PF_EXTRA_PFS is set, instead checking for the 18th bit in a 16-bit (signed) variable.
+			if ((client->fteprotocolextensions & PEXT_TRANS) && ver < pext_ezquake_verfortrans.ival)
+			{
+				SV_PrintToClient(client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS is buggy. Disabling.\n");
+				client->fteprotocolextensions &= ~PEXT_TRANS;
+			}
+			//in order to simultaneously support PF_SOLID+Z_EXT_PF_SOLID and PF_HULLSIZE_Z+Z_EXT_PF_ONGROUND, I had to redefine the protocol when both were enabled.
+			//ezquake does not understand the change.
+			if ((client->zquake_extensions & (Z_EXT_PF_ONGROUND|Z_EXT_PF_SOLID)) && ver < pext_ezquake_verfortrans.ival)
+			{
+				if (client->fteprotocolextensions & PEXT_HULLSIZE)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_HULLSIZE conflicts with zquake extensions.\n");
+				if (client->fteprotocolextensions & PEXT_SCALE)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_SCALE conflicts with zquake extensions.\n");
+				if (client->fteprotocolextensions & PEXT_FATNESS)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_FATNESS conflicts with zquake extensions.\n");
+				if (client->fteprotocolextensions & PEXT_TRANS)
+					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS conflicts with zquake extensions.\n");
+				client->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
+			}
+		}
+
+		//its not that I'm singling out ezquake or anything, but it has too many people using outdated versions that its hard to ignore.
+	}
+#endif
 
 	//
 	client->maxmodels = 256;

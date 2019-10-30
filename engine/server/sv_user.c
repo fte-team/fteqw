@@ -80,8 +80,8 @@ cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", 
 
 #ifdef HAVE_LEGACY
 static cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
-static cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
-static cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "999999999", "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
+cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
+cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "999999999", "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
 #endif
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
@@ -319,42 +319,6 @@ void SV_New_f (void)
 		host_client->drop = true;
 		return;
 	}
-
-#ifdef HAVE_LEGACY
-	{
-		//be prepared to recognise client versions, in order to block known-buggy extensions.
-		const char *s;
-		int ver;
-		s = InfoBuf_ValueForKey(&host_client->userinfo, "*client");
-		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
-		{
-			COM_Parse(s);	//skip name-of-fork
-			COM_Parse(s);	//tokenize the version
-			ver = atoi(com_token);
-
-			//this should actually have been resolved now, but for future use...
-			if ((host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && pext_ezquake_nochunks.ival)
-			{
-				host_client->fteprotocolextensions &= ~PEXT_CHUNKEDDOWNLOADS;
-				SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of chunked downloads is blocked on this server.\n");
-			}
-			if ((host_client->zquake_extensions & (Z_EXT_PF_SOLID|Z_EXT_PF_ONGROUND)) && ver < pext_ezquake_verfortrans.ival)
-			{
-				if (host_client->fteprotocolextensions & PEXT_HULLSIZE)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_HULLSIZE conflicts with zquake extensions.\n");
-				if (host_client->fteprotocolextensions & PEXT_SCALE)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_SCALE conflicts with zquake extensions.\n");
-				if (host_client->fteprotocolextensions & PEXT_FATNESS)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_FATNESS conflicts with zquake extensions.\n");
-				if (host_client->fteprotocolextensions & PEXT_TRANS)
-					SV_PrintToClient(host_client, PRINT_HIGH, "ezQuake's implementation of PEXT_TRANS is buggy. Disabling.\n");
-				host_client->fteprotocolextensions &= ~(PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS);
-			}
-		}
-
-		//its not that I'm singling out ezquake or anything, but it has too many people using outdated versions that its hard to ignore.
-	}
-#endif
 
 	ClientReliableCheckBlock(host_client, 800);	//okay, so it might be longer, but I'm too lazy to work out the real size.
 
@@ -1094,6 +1058,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{	//nq does not normally get serverinfo sent to it.
 					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
+					Info_SetValueForStarKey(buffer, "*z_ext", va("%i", client->zquake_extensions), sizeof(buffer)); //should already be in there, so this should only ever make it shorter.
 					ClientReliableWrite_Begin(client, svc_stufftext, 20 + i);
 					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", buffer) );
 				}

@@ -1374,7 +1374,7 @@ ifeq ($(FTE_TARGET),bsd)
 	GL_EXE_NAME=../$(EXE_NAME)-gl
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl
 	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include 
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 
@@ -1382,7 +1382,7 @@ ifeq ($(FTE_TARGET),bsd)
 	M_EXE_NAME=../$(EXE_NAME)
 	MCL_EXE_NAME=../$(EXE_NAME)-cl
 	M_LDFLAGS= -L/usr/local/lib -L/usr/X11R6/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -DMULTITHREAD
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2 -DMULTITHREAD
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 

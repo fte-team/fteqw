@@ -1535,11 +1535,15 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 //		if (verbose == MLV_ERROR)	//if its fatal on failure (ie: world), do it on the main thread and block to wait for it.
 //			Mod_LoadModelWorker(mod, MLV_WARN, 0);
 //		else
-		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
-			Mod_LoadModelWorker(mod, NULL, verbose, 0);
+//		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
+//			Mod_LoadModelWorker(mod, NULL, verbose, 0);
 //			COM_AddWork(WG_MAIN, Mod_LoadModelWorker, mod, NULL, verbose, 0);
-		else
+//		else
 			COM_AddWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);
+
+		//block until its loaded, if we care.
+		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 	}
 
 	if (verbose == MLV_ERROR)
@@ -2410,9 +2414,13 @@ static void Mod_SaveEntFile_f(void)
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 
-	COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents));
-	if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
-		Con_Printf("Wrote %s\n", nname);
+	if (COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents)))
+	{
+		if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
+			Con_Printf("Wrote %s\n", nname);
+	}
+	else
+		Con_Printf("Write failed\n");
 }
 
 /*
@@ -2883,8 +2891,17 @@ static int Mod_Batches_Generate(model_t *mod)
 	int merge = mod->lightmaps.merge;
 	if (!merge)
 		merge = 1;
-	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
-	mod->lightmaps.count /= merge;
+	if (mod->lightmaps.deluxemapping)
+	{
+		mod->lightmaps.count = ((mod->lightmaps.count+1)/2+merge-1) & ~(merge-1);
+		mod->lightmaps.count /= merge;
+		mod->lightmaps.count *= 2;
+	}
+	else
+	{
+		mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
+		mod->lightmaps.count /= merge;
+	}
 	mod->lightmaps.height *= merge;
 
 	mod->numbatches = 0;
@@ -4080,7 +4097,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
 			for (i=0 ; i<countof(out->styles) ; i++)
-				out->styles[i] = (i >= countof(inl->styles) || inl->styles[i]>=MAX_NET_LIGHTSTYLES || inl->styles[i]==255)?INVALID_LIGHTSTYLE:inl->styles[i];
+				out->styles[i] = (i >= countof(inl->styles) || (lightstyleindex_t)inl->styles[i]>=INVALID_LIGHTSTYLE|| inl->styles[i]==255)?INVALID_LIGHTSTYLE:inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
 		}
@@ -4092,7 +4109,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
 			for (i=0 ; i<countof(out->styles) ; i++)
-				out->styles[i] = (i >= countof(ins->styles) || ins->styles[i]>=MAX_NET_LIGHTSTYLES || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
+				out->styles[i] = (i >= countof(ins->styles) || (lightstyleindex_t)ins->styles[i]>=INVALID_LIGHTSTYLE || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;
 		}
@@ -4126,7 +4143,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 		else if (overrides.styles8)
 		{
 			for (i=0 ; i<countof(out->styles) ; i++)
-				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:((overrides.styles8[surfnum*overrides.stylesperface+i]==255)?~0u:overrides.styles8[surfnum*overrides.stylesperface+i]);
+				out->styles[i] = (i>=overrides.stylesperface)?INVALID_LIGHTSTYLE:((overrides.styles8[surfnum*overrides.stylesperface+i]==255)?INVALID_LIGHTSTYLE:overrides.styles8[surfnum*overrides.stylesperface+i]);
 		}
 		for (i=0 ; i<countof(out->styles) && out->styles[i] != INVALID_LIGHTSTYLE; i++)
 			if (loadmodel->lightmaps.maxstyle < out->styles[i])

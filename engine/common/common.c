@@ -1025,11 +1025,6 @@ void MSG_WriteCoord (sizebuf_t *sb, float f)
 	coorddata i = MSG_ToCoord(f, sb->prim.coordtype);
 	SZ_Write (sb, (void*)&i, sb->prim.coordtype&0xf);
 }
-/*static void MSG_WriteCoord24 (sizebuf_t *sb, float f)
-{
-	coorddata i = MSG_ToCoord(f, 3);
-	SZ_Write (sb, (void*)&i, 3);
-}*/
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
@@ -1693,17 +1688,11 @@ float MSG_ReadCoord (void)
 	MSG_ReadData(&c, net_message.prim.coordtype&0xf);
 	return MSG_FromCoord(c, net_message.prim.coordtype);
 }
-/*static float MSG_ReadCoord24 (void)
-{
-	coorddata c = {{0}};
-	MSG_ReadData(&c, 3);
-	return MSG_FromCoord(c, 3);
-}*/
 float MSG_ReadCoordFloat (void)
 {
 	coorddata c = {{0}};
-	MSG_ReadData(&c, 4);
-	return MSG_FromCoord(c, 4);
+	MSG_ReadData(&c, COORDTYPE_FLOAT_32&0xf);
+	return MSG_FromCoord(c, COORDTYPE_FLOAT_32);
 }
 
 void MSG_ReadPos (vec3_t pos)

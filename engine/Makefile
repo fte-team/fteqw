@@ -1809,7 +1809,7 @@ $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 
 #enables use of precompiled headers in gcc 3.4 onwards.
 $(OUT_DIR)/quakedef.h.gch : quakedef.h
-	$(CC) -x c $(ALL_CFLAGS) -o $@ -c $<
+	$(CC) -x c-header $(ALL_CFLAGS) -o $@ -c $<
 PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 
 ifneq ($(OUT_DIR),)

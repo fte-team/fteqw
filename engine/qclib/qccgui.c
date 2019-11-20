@@ -1749,7 +1749,7 @@ void GenericMenu(WPARAM wParam)
 
 	case IDM_ABOUT:
 #if defined(SVNREVISION) && defined(SVNDATE)
-		MessageBox(NULL, "FTE QuakeC Compiler "STRINGIFY(SVNREVISION)" ("SVNDATE")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
+		MessageBox(NULL, "FTE QuakeC Compiler "STRINGIFY(SVNREVISION)" ("STRINGIFY(SVNDATE)")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
 #elif defined(SVNREVISION)
 		MessageBox(NULL, "FTE QuakeC Compiler "STRINGIFY(SVNREVISION)" ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
 #else

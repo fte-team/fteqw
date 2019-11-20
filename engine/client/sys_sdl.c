@@ -317,6 +317,74 @@ void Sys_Quit (void)
 //SDL provides no file enumeration facilities.
 #if defined(_WIN32)
 #include <windows.h>
+//outlen is the size of out in _BYTES_.
+wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8)
+{
+	size_t outlen;
+	wchar_t *ret = out;
+	//utf-8 to utf-16, not ucs-2.
+	unsigned int codepoint;
+	int error;
+	outlen = outbytes/sizeof(wchar_t);
+	if (!outlen)
+		return L"";
+	outlen--;
+	while (*utf8)
+	{
+		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
+		if (error || codepoint > 0x10FFFFu)
+			codepoint = 0xFFFDu;
+		if (codepoint > 0xffff)
+		{
+			if (outlen < 2)
+				break;
+			outlen -= 2;
+			codepoint -= 0x10000u;
+			*out++ = 0xD800 | (codepoint>>10);
+			*out++ = 0xDC00 | (codepoint&0x3ff);
+		}
+		else
+		{
+			if (outlen < 1)
+				break;
+			outlen -= 1;
+			*out++ = codepoint;
+		}
+	}
+	*out = 0;
+	return ret;
+}
+char *narrowen(char *out, size_t outlen, wchar_t *wide)
+{
+	char *ret = out;
+	int bytes;
+	unsigned int codepoint;
+	if (!outlen)
+		return "";
+	outlen--;
+	//utf-8 to utf-16, not ucs-2.
+	while (*wide)
+	{
+		codepoint = *wide++;
+		if (codepoint >= 0xD800u && codepoint <= 0xDBFFu)
+		{ //handle utf-16 surrogates
+			if (*wide >= 0xDC00u && *wide <= 0xDFFFu)
+			{
+				codepoint = (codepoint&0x3ff)<<10;
+				codepoint |= *wide++ & 0x3ff;
+			}
+			else
+				codepoint = 0xFFFDu;
+		}
+		bytes = utf8_encode(out, codepoint, outlen);
+		if (bytes <= 0)
+			break;
+		out += bytes;
+		outlen -= bytes;
+	}
+	*out = 0;
+	return ret;
+}
 static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	qboolean go;

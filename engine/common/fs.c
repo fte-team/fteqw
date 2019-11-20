@@ -266,6 +266,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->rtcbroker = Z_StrDup(oldm->rtcbroker);
 	if (oldm->basedir)
 		newm->basedir = Z_StrDup(oldm->basedir);
+	if (oldm->mainconfig)
+		newm->mainconfig = Z_StrDup(oldm->mainconfig);
 	newm->homedirtype = oldm->homedirtype;
 
 	for (i = 0; i < sizeof(newm->gamepath) / sizeof(newm->gamepath[0]); i++)
@@ -302,6 +304,8 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 		Con_Printf("game %s\n", COM_QuotedString(man->installation, buffer, sizeof(buffer), false));
 	if (man->formalname)
 		Con_Printf("name %s\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer), false));
+	if (man->mainconfig)
+		Con_Printf("mainconfig %s\n", COM_QuotedString(man->mainconfig, buffer, sizeof(buffer), false));
 	if (man->downloadsurl)
 		Con_Printf("downloadsurl %s\n", COM_QuotedString(man->downloadsurl, buffer, sizeof(buffer), false));
 	if (man->installupd)
@@ -6670,7 +6674,7 @@ static qboolean FS_GetBestHomeDir(ftemanifest_t *manifest)
 	return false;
 }
 #elif defined(NOSTDIO)
-static qboolean FS_GetBestHomeDir(void)
+static qboolean FS_GetBestHomeDir(ftemanifest_t *man)
 {	//no studio? webgl port? no file system access = no homedirs!
 	return false;
 }

@@ -435,7 +435,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 	}
 	return go;
 }
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	char fullmatch[MAX_OSPATH];
 	int start;

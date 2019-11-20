@@ -1297,7 +1297,11 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 	if (gl_specular.value)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value));
 	if (r_fakeshadows)
-		Q_strlcatfz(defines, &offset, sizeof(defines), "#define FAKESHADOWS\n%s", gl_config.arb_shadow?"#define USE_ARB_SHADOW\n":"");
+		Q_strlcatfz(defines, &offset, sizeof(defines), "#define FAKESHADOWS\n%s",
+#ifdef GLQUAKE
+				gl_config.arb_shadow?"#define USE_ARB_SHADOW\n":
+#endif
+				"");
 
 	for (n = 0; n < countof(permutations); n++)
 	{

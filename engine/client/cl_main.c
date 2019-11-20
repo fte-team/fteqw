@@ -364,7 +364,7 @@ void CL_UpdateWindowTitle(void)
 	}
 }
 
-#ifdef __linux__
+#ifdef __GLIBC__
 #include <malloc.h>
 #endif
 void CL_MakeActive(char *gamename)
@@ -413,7 +413,7 @@ void CL_MakeActive(char *gamename)
 	else
 		TP_ExecTrigger("f_spawn", false);
 
-#ifdef __linux__
+#ifdef __GLIBC__
 	malloc_trim(0);
 #endif
 }

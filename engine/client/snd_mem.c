@@ -943,6 +943,9 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t forcedecode, siz
 				}
 			}
 		}
+
+		if (data)
+			Validation_FileLoaded(name, data, filesize);
 	}
 
 	if (!data)

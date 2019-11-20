@@ -3678,8 +3678,8 @@ static void *ReadPSDFile(qbyte *buf, size_t len, const char *fname, int *outwidt
 struct xcf_s
 {
 	const qbyte *filestart;
-	size_t filesize;
-	size_t offset;
+	qofs_t filesize;
+	qofs_t offset;
 
 	unsigned int version;
 	qbyte compression;
@@ -3692,7 +3692,7 @@ struct xcf_s
 	size_t *layeroffsets;
 	qbyte *flat;
 };
-static unsigned int XCF_ReadData(struct xcf_s *f, qbyte *out, size_t len)
+static size_t XCF_ReadData(struct xcf_s *f, qbyte *out, size_t len)
 {
 	size_t avail;
 	if (f->offset >= f->filesize)
@@ -3731,7 +3731,7 @@ static float XCF_ReadFloat(struct xcf_s *f)
 	u.u = (w[0]<<24)|(w[1]<<16)|(w[2]<<8)|(w[3]<<0);
 	return u.f;
 }
-static size_t XCF_ReadOffset(struct xcf_s *f)
+static qofs_t XCF_ReadOffset(struct xcf_s *f)
 {	//XCF is natively big-endian.
 	qbyte w[8];
 	size_t h, l;
@@ -3740,7 +3740,7 @@ static size_t XCF_ReadOffset(struct xcf_s *f)
 		XCF_ReadData(f, w, sizeof(w));
 		h = (w[0]<<24)|(w[1]<<16)|(w[2]<<8)|(w[3]<<0);
 		l = (w[4]<<24)|(w[5]<<16)|(w[6]<<8)|(w[7]<<0);
-		return (h<<32)|l;
+		return qofs_Make(l, h);
 	}
 	return XCF_Read32(f);
 }
@@ -3878,7 +3878,7 @@ static struct xcf_heirachy_s XCF_ReadHeirachy(struct xcf_s *f)
 {
 	struct xcf_heirachy_s ctx;
 	uint32_t x, y, lw, lh;
-	size_t ofs, tofs;
+	qofs_t ofs, tofs;
 	if (!f->offset)
 	{
 		memset(&ctx, 0, sizeof(ctx));
@@ -4593,6 +4593,58 @@ static void Image_LoadTexture_Failed(void *ctx, void *data, size_t a, size_t b)
 	texid_t tex = ctx;
 	tex->status = TEX_FAILED;
 }
+static void Image_FixupImageSize(texid_t tex, unsigned int w, unsigned int h)
+{
+	tex->width = w;
+	tex->height = h;
+
+	//ezhud breaks without this. I assume other things will too. this is why you shouldn't depend upon querying an image's size.
+	if (!strncmp(tex->ident, "gfx/", 4))
+	{
+		size_t lumpsize;
+		qbyte lumptype;
+		qpic_t *pic = W_GetLumpName(tex->ident+4, &lumpsize, &lumptype);
+		if (pic && lumptype == TYP_QPIC && lumpsize >= 8)
+		{
+			w = LittleLong(pic->width);
+			h = LittleLong(pic->height);
+			if (lumpsize == 8 + w*h)
+			{
+				tex->width = w;
+				tex->height = h;
+			}
+		}
+		else
+		{
+			vfsfile_t *f;
+			const char *ext = COM_GetFileExtension(tex->ident, NULL);
+			if (!strcmp(ext, ".lmp"))
+				f = FS_OpenVFS(tex->ident, "rb", FS_GAME);
+			else if (!*ext)
+			{
+				char nname[MAX_QPATH+4];
+				Q_snprintfz(nname, sizeof(nname), "%s.lmp", tex->ident);
+				f = FS_OpenVFS(nname, "rb", FS_GAME);
+			}
+			else
+				f = NULL;
+			if (f)
+			{
+				unsigned int wh[2];
+				size_t size = VFS_GETLEN(f);
+				VFS_READ(f, wh, 8);
+				VFS_CLOSE(f);
+
+				if (size == 8+wh[0]*wh[1])
+				{
+					tex->width = wh[0];
+					tex->height = wh[1];
+				}
+			}
+		}
+	}
+	//FIXME: check loaded wad files too.
+}
 static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 {
 	int i;
@@ -4657,20 +4709,6 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 	if (mips->extrafree)
 		BZ_Free(mips->extrafree);
 	BZ_Free(mips);
-
-	//ezhud breaks without this. I assume other things will too. this is why you shouldn't depend upon querying an image's size.
-	if (!strncmp(tex->ident, "gfx/", 4))
-	{
-		size_t lumpsize;
-		qbyte lumptype;
-		qpic_t *pic = W_GetLumpName(tex->ident+4, &lumpsize, &lumptype);
-		if (pic && lumptype == TYP_QPIC && lumpsize == 8 + pic->width*pic->height)
-		{
-			tex->width = pic->width;
-			tex->height = pic->height;
-		}
-	}
-	//FIXME: check loaded wad files too.
 }
 #endif
 
@@ -6632,6 +6670,86 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 	return NULL;
 }
 
+static void Image_MipMap1X8 (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
+{
+	int		i, j;
+	qbyte	*inrow;
+
+	int rowwidth = inwidth;	//rowwidth is the byte width of the input
+	inrow = in;
+
+	//mips round down, except for when the input is 1. which bugs out.
+	if (inwidth <= 1 && inheight <= 1)
+		out[0] = in[0];
+	else if (inheight <= 1)
+	{
+		//single row, don't peek at the next
+		for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
+			out[0] = (in[0] + in[1])>>1;
+	}
+	else if (inwidth <= 1)
+	{
+		//single colum, peek only at this pixel
+		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+			for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
+				out[0] = (in[0] + in[rowwidth+0])>>1;
+	}
+	else
+	{
+		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+			for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
+				out[0] = (in[0] + in[1] + in[rowwidth+0] + in[rowwidth+1])>>2;
+	}
+}
+
+static void Image_MipMap2X8 (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
+{
+	int		i, j;
+	qbyte	*inrow;
+
+	int rowwidth = inwidth*2;	//rowwidth is the byte width of the input
+	inrow = in;
+
+	//mips round down, except for when the input is 1. which bugs out.
+	if (inwidth <= 1 && inheight <= 1)
+	{
+		out[0] = in[0];
+		out[1] = in[1];
+	}
+	else if (inheight <= 1)
+	{
+		//single row, don't peek at the next
+		for (in = inrow, j=0 ; j<outwidth ; j++, out+=2, in+=4)
+		{
+			out[0] = (in[0] + in[2])>>1;
+			out[1] = (in[1] + in[3])>>1;
+		}
+	}
+	else if (inwidth <= 1)
+	{
+		//single colum, peek only at this pixel
+		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+		{
+			for (in = inrow, j=0 ; j<outwidth ; j++, out+=2, in+=4)
+			{
+				out[0] = (in[0] + in[rowwidth+0])>>1;
+				out[1] = (in[1] + in[rowwidth+1])>>1;
+			}
+		}
+	}
+	else
+	{
+		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+		{
+			for (in = inrow, j=0 ; j<outwidth ; j++, out+=2, in+=4)
+			{
+				out[0] = (in[0] + in[2] + in[rowwidth+0] + in[rowwidth+2])>>2;
+				out[1] = (in[1] + in[3] + in[rowwidth+1] + in[rowwidth+3])>>2;
+			}
+		}
+	}
+}
+
 static void Image_MipMap3X8 (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
 {
 	int		i, j;
@@ -6990,38 +7108,6 @@ static void Image_MipMap4X32F (float *in, int inwidth, int inheight, float *out,
 	}
 }
 
-static void Image_MipMap1X8 (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
-{
-	int		i, j;
-	qbyte	*inrow;
-
-	int rowwidth = inwidth;	//rowwidth is the byte width of the input
-	inrow = in;
-
-	//mips round down, except for when the input is 1. which bugs out.
-	if (inwidth <= 1 && inheight <= 1)
-		out[0] = in[0];
-	else if (inheight <= 1)
-	{
-		//single row, don't peek at the next
-		for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
-			out[0] = (in[0] + in[1])>>1;
-	}
-	else if (inwidth <= 1)
-	{
-		//single colum, peek only at this pixel
-		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
-			for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
-				out[0] = (in[0] + in[rowwidth+0])>>1;
-	}
-	else
-	{
-		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
-			for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
-				out[0] = (in[0] + in[1] + in[rowwidth+0] + in[rowwidth+1])>>2;
-	}
-}
-
 static qbyte Image_BlendPalette_2(qbyte a, qbyte b)
 {
 	return a;
@@ -7101,6 +7187,9 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 		}
 		return;
 	case PTI_R8:
+	case PTI_R8_SNORM:
+	case PTI_L8:
+	case PTI_L8_SRGB:
 		for (mip = mips->mipcount; mip < 32; mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
@@ -7117,6 +7206,29 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 			mips->mip[mip].needfree = true;
 
 			Image_MipMap1X8(mips->mip[mip-1].data, mips->mip[mip-1].width, mips->mip[mip-1].height, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height);
+			mips->mipcount = mip+1;
+		}
+		return;	
+	case PTI_RG8:
+	case PTI_RG8_SNORM:
+	case PTI_L8A8:
+	case PTI_L8A8_SRGB:
+		for (mip = mips->mipcount; mip < 32; mip++)
+		{
+			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
+			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
+			mips->mip[mip].depth = 1;
+			if (mips->mip[mip].width < 1 && mips->mip[mip].height < 1)
+				break;
+			if (mips->mip[mip].width < 1)
+				mips->mip[mip].width = 1;
+			if (mips->mip[mip].height < 1)
+				mips->mip[mip].height = 1;
+			mips->mip[mip].datasize = mips->mip[mip].width * mips->mip[mip].height * 2;
+			mips->mip[mip].data = BZ_Malloc(mips->mip[mip].datasize);
+			mips->mip[mip].needfree = true;
+
+			Image_MipMap2X8(mips->mip[mip-1].data, mips->mip[mip-1].width, mips->mip[mip-1].height, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height);
 			mips->mipcount = mip+1;
 		}
 		return;
@@ -7195,7 +7307,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 				mips->mip[mip].width = 1;
 			if (mips->mip[mip].height < 1)
 				mips->mip[mip].height = 1;
-			mips->mip[mip].datasize = mips->mip[mip].width * mips->mip[mip].height * sizeof(qbyte)*4;
+			mips->mip[mip].datasize = mips->mip[mip].width * mips->mip[mip].height * sizeof(qbyte)*3;
 			mips->mip[mip].data = BZ_Malloc(mips->mip[mip].datasize);
 			mips->mip[mip].needfree = true;
 
@@ -7693,6 +7805,28 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 
 static void Image_Tr_NoTransform(struct pendingtextureinfo *mips, int dummy)
 {
+}
+
+//may operate in place
+static void Image_Tr_RGBX8toPaletted(struct pendingtextureinfo *mips, int dummy)
+{
+	unsigned int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		qbyte *in = mips->mip[mip].data;
+		qbyte *out = mips->mip[mip].data;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		unsigned short tmp;
+		if (!mips->mip[mip].needfree && !mips->extrafree)
+		{
+			mips->mip[mip].needfree = true;
+			mips->mip[mip].data = out = BZ_Malloc(sizeof(tmp)*p);
+		}
+		mips->mip[mip].datasize = p*sizeof(*out);
+
+		for(; p-->0; in += 4)
+			*out++ = GetPaletteIndexNoFB(in[0], in[1], in[2]);
+	}
 }
 
 //may operate in place
@@ -10775,49 +10909,15 @@ static struct
 	{PTI_RGBA32F,	PTI_RGB32F,		Image_Tr_DropBytes, (16<<16)|12, true},
 
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
+	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted},
 };
-void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename)
+void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformats, uploadfmt_t origfmt, const char *imagename)
 {
-	int mip;
-
-	if (flags & IF_PALETTIZE)
-	{
-		Image_DecompressFormat(mips, NULL);	//force-decompress it, so that we can palettise it.
-		if (mips->encoding == PTI_RGBX8 || mips->encoding == PTI_RGBA8)
-		{
-			mips->encoding = PTI_P8;
-			for (mip = 0; mip < mips->mipcount; mip++)
-			{
-				unsigned int i;
-				unsigned char *out;
-				unsigned char *in;
-				void *needfree = NULL;
-
-				in = mips->mip[mip].data;
-				if (!in)
-					continue;
-				if (mips->mip[mip].needfree)
-					out = in;
-				else
-				{
-					needfree = in;
-					out = BZ_Malloc(mips->mip[mip].width*mips->mip[mip].height*sizeof(*out));
-					mips->mip[mip].data = out;
-				}
-				mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height;
-				mips->mip[mip].needfree = true;
-
-				for (i = 0; i < mips->mip[mip].width*mips->mip[mip].height; i++, in+=4)
-					out[i] = GetPaletteIndexNoFB(in[0], in[1], in[2]);
-
-				if (needfree)
-					BZ_Free(needfree);
-			}
-		}
-	}
+	if (!allowedformats)
+		allowedformats = sh_config.texfmt;
 
 	//if that format isn't supported/desired, try converting it.
-	if (sh_config.texfmt[mips->encoding])
+	if (allowedformats[mips->encoding])
 	{
 		if (mips->encoding >= PTI_ASTC_FIRST && mips->encoding <= PTI_ASTC_LAST)
 			return;	//ignore texture_allow_block_padding for astc.
@@ -10837,7 +10937,7 @@ void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, upl
 
 	//when the format can't be used, decompress it if its one of those awkward compressed formats.
 	Image_DecompressFormat(mips, imagename);
-	if (sh_config.texfmt[mips->encoding])
+	if (allowedformats[mips->encoding])
 		return;	//okay, that got it.
 
 
@@ -10849,7 +10949,7 @@ void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, upl
 		{
 			if (formattransforms[i].src == src)
 			{
-				if (sh_config.texfmt[formattransforms[i].dest])
+				if (allowedformats[formattransforms[i].dest])
 				{
 					if (formattransforms[i].onebitalpha && !onebitokay)
 					{
@@ -10873,7 +10973,7 @@ void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, upl
 				for (j = 0; j < countof(formattransforms); j++)
 				{
 					if (formattransforms[j].src == formattransforms[i].dest)
-						if (sh_config.texfmt[formattransforms[j].dest])
+						if (allowedformats[formattransforms[j].dest])
 						{
 							first = i;
 							sec = j;
@@ -10896,9 +10996,21 @@ void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, upl
 			mips->encoding = formattransforms[sec].dest;
 		}
 
-		if (sh_config.texfmt[mips->encoding])
+		if (allowedformats[mips->encoding])
 			return;	//okay, that got it.
 	}
+}
+
+static void Image_ChangeFormatFlags(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename)
+{
+	if (flags & IF_PALETTIZE)
+	{
+		qboolean p8only[PTI_MAX] = {0};
+		p8only[PTI_P8] = true;
+		Image_ChangeFormat(mips, p8only, origfmt, imagename);
+	}
+	else
+		Image_ChangeFormat(mips, sh_config.texfmt, origfmt, imagename);
 }
 
 //resamples and depalettes as required
@@ -11315,7 +11427,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 		for (i = 0; i < imgwidth * imgheight; i++)
 		{
-			static const int ColorIndex[16] = {0, 31, 47, 63, 79, 95, 111, 127, 143, 159, 175, 191, 199, 207, 223, 231};
+			static const int ColorIndex[16] = {0x00, 0x1f, 0x2f, 0x3f, 0x4f, 0x5f, 0x6f, 0x7f, 0x8f, 0x9f, 0xaf, 0xbf, 0xc7, 0xcf, 0xdf, 0xe7};
 			static const unsigned ColorPercent[16] = {25, 51, 76, 102, 114, 127, 140, 153, 165, 178, 191, 204, 216, 229, 237, 247};
 			qbyte p = ((qbyte*)rawdata)[i];
 			rgbadata[i] = d_8to24rgbtable[ColorIndex[p>>4]] & 0x00ffffff;
@@ -11912,7 +12024,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 			memmove(mips->mip, mips->mip+i, sizeof(*mips->mip)*mips->mipcount);
 		}
 
-		Image_ChangeFormat(mips, flags, TF_INVALID, fname);
+		Image_ChangeFormatFlags(mips, flags, TF_INVALID, fname);
 		return mips;
 	}
 
@@ -11953,7 +12065,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 		if (Image_GenMip0(mips, flags, rgbadata, NULL, imgwidth, imgheight, format, true))
 		{
 			Image_GenerateMips(mips, flags);
-			Image_ChangeFormat(mips, flags, format, fname);
+			Image_ChangeFormatFlags(mips, flags, format, fname);
 			BZ_Free(filedata);
 			return mips;
 		}
@@ -12230,11 +12342,9 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 		return false;
 	}
 	Image_GenerateMips(mips, flags);
-	Image_ChangeFormat(mips, flags, fmt, tex->ident);
+	Image_ChangeFormatFlags(mips, flags, fmt, tex->ident);
 
-	tex->width = imgwidth;
-	tex->height = imgheight;
-
+	Image_FixupImageSize(tex, imgwidth, imgheight);
 	if (flags & IF_NOWORKER)
 		Image_LoadTextureMips(tex, mips, 0, 0);
 	else
@@ -12252,8 +12362,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 		BZ_Free(tex->fallbackdata);
 		tex->fallbackdata = NULL;
 
-		tex->width = mips->mip[0].width;
-		tex->height = mips->mip[0].height;
+		Image_FixupImageSize(tex, mips->mip[0].width, mips->mip[0].height);
 		if ((flags & IF_NOWORKER) || Sys_IsMainThread())
 			Image_LoadTextureMips(tex, mips, 0, 0);
 		else
@@ -12606,9 +12715,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 
 			if (mips)
 			{
-				tex->width = mips->mip[0].width;
-				tex->height = mips->mip[0].height;
-
+				Image_FixupImageSize(tex, mips->mip[0].width, mips->mip[0].height);
 				if (tex->flags & IF_NOWORKER)
 					Image_LoadTextureMips(tex, mips, 0, 0);
 				else
@@ -12980,7 +13087,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	if (!Image_GenMip0(&mips, flags, data, palette, width, height, fmt, false))
 		return;
 	Image_GenerateMips(&mips, flags);
-	Image_ChangeFormat(&mips, flags, fmt, tex->ident);
+	Image_ChangeFormatFlags(&mips, flags, fmt, tex->ident);
 	rf->IMG_LoadTextureMips(tex, &mips);
 	tex->format = fmt;
 	tex->width = width;
@@ -13148,7 +13255,8 @@ void Image_List_f(void)
 			failed++;
 			continue;
 		}
-		Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (size_t)tex);
+		if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D)
+			Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (size_t)tex);
 		if (tex->subpath)
 			Con_Printf("^h(%s)^h", tex->subpath);
 		Con_DLPrintf(1, " %x", tex->flags);
@@ -13160,10 +13268,10 @@ void Image_List_f(void)
 			while((bullshit=strchr(defuck, '\\')))
 				*bullshit = '/';
 
-//			if ((tex->flags&(IF_CLAMP|IF_PALETTIZE)) == 0)
+			if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D || tex->format == PTI_P8)
 				Con_Printf("^[%s\\tip\\%s/%s\\tipimgptr\\%#"PRIxSIZE"^]: ", tex->ident, defuck, fname, (size_t)tex);
-//			else
-//				Con_Printf("^[%s\\tip\\%s/%s^]: ", tex->ident, defuck, fname);
+			else
+				Con_Printf("^[%s\\tip\\%s/%s^]: ", tex->ident, defuck, fname);
 		}
 		else
 		{
@@ -13324,6 +13432,7 @@ void Image_Shutdown(void)
 	image_t *tex;
 	int i = 0, j = 0;
 	Cmd_RemoveCommand("r_imagelist");
+	Cmd_RemoveCommand("r_imageformats");
 	while (imagelist)
 	{
 		tex = imagelist;

@@ -1186,6 +1186,7 @@ void Mod_UnRegisterAllModelFormats(void *module)
 	}
 }
 
+//main thread. :(
 void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 {
 	qboolean previouslyfailed;

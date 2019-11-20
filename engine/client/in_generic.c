@@ -790,7 +790,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 
 	if (m_accel.value)
 	{
-		if (m_accel_style.ival)
+		if (m_accel_style.ival && frametime)
 		{
 			float accelsens = sensitivity.value*in_sensitivityscale;
 			float mousespeed = (sqrt (mx * mx + my * my)) / (1000.0f * (float) frametime);

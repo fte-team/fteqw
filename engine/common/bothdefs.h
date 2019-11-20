@@ -177,7 +177,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FULLENGINENAME "FTE Quake"	//the posh name for the engine
 #endif
 #ifndef ENGINEWEBSITE
-	#define ENGINEWEBSITE "^8http://^4fte.triptohell.info"	//url for program
+	#define ENGINEWEBSITE "^8http://^4fte^8.^4triptohell^8.^4info"	//url for program
 #endif
 
 #if !defined(_WIN32) || defined(WINRT)

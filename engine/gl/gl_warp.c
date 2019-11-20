@@ -131,7 +131,6 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	float vmat[16];
 	refdef_t oldrefdef;
 //	extern cvar_t r_ignoreentpvs; //legacy value is 1...
-	extern cvar_t v_skyroom_orientation;
 
 	if (r_viewcluster == -1)
 		return false;	//don't draw the skyroom if the camera is outside.
@@ -168,16 +167,16 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 		if (r_worldentity.model->funcs.PointContents(r_worldentity.model, NULL, r_refdef.skyroom_pos) & FTECONTENTS_SOLID)
 			Con_DPrintf("Skyroom position %.1f %.1f %.1f in solid\n", r_refdef.skyroom_pos[0], r_refdef.skyroom_pos[1], r_refdef.skyroom_pos[2]);
 
-	if (*v_skyroom_orientation.string)
+	if (r_refdef.skyroom_spin[3])
 	{
 		vec3_t axis[3];
-		float ang = v_skyroom_orientation.vec4[3] * cl.time;
-		if (!v_skyroom_orientation.vec4[0]&&!v_skyroom_orientation.vec4[1]&&!v_skyroom_orientation.vec4[2])
-			VectorSet(v_skyroom_orientation.vec4, 0,0,1);
-		VectorNormalize(v_skyroom_orientation.vec4);
-		RotatePointAroundVector(axis[0], v_skyroom_orientation.vec4, vpn, ang);
-		RotatePointAroundVector(axis[1], v_skyroom_orientation.vec4, vright, ang);
-		RotatePointAroundVector(axis[2], v_skyroom_orientation.vec4, vup, ang);
+		float ang = r_refdef.skyroom_spin[3];
+		if (!r_refdef.skyroom_spin[0]&&!r_refdef.skyroom_spin[1]&&!r_refdef.skyroom_spin[2])
+			VectorSet(r_refdef.skyroom_spin, 0,0,1);
+		VectorNormalize(r_refdef.skyroom_spin);
+		RotatePointAroundVector(axis[0], r_refdef.skyroom_spin, vpn, ang);
+		RotatePointAroundVector(axis[1], r_refdef.skyroom_spin, vright, ang);
+		RotatePointAroundVector(axis[2], r_refdef.skyroom_spin, vup, ang);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, axis[0], axis[1], axis[2], r_refdef.vieworg);
 	}
 	else

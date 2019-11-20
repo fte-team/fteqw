@@ -576,7 +576,7 @@ static int minortype;
 #endif
 static int protocollen;
 
-static qbyte buffer[MAX_QWMSGLEN];
+static qbyte buffer[MAX_OVERALLMSGLEN];
 static int bufferlen;
 static int nullterms;
 
@@ -1026,7 +1026,10 @@ void NPP_NQCheckDest(int dest)
 void NPP_AddData(const void *data, int len)
 {
 	if (bufferlen+len > sizeof(buffer))
-		Sys_Error("Preparse buffer was filled\n");
+	{
+		bufferlen = 0;
+		SV_Error("Preparse buffer was filled\n");
+	}
 	memcpy(buffer+bufferlen, data, len);
 	bufferlen+=len;
 }

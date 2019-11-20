@@ -292,6 +292,7 @@ typedef struct
 	float		hdr_value;
 
 	vec3_t		skyroom_pos;		/*the camera position for sky rooms*/
+	vec4_t		skyroom_spin;		/*the camera spin for sky rooms*/
 	qboolean	skyroom_enabled;	/*whether a skyroom position is defined*/
 	int			firstvisedict;		/*so we can skip visedicts in skies*/
 
@@ -476,7 +477,7 @@ const char *Image_FormatName(uploadfmt_t encoding);
 qboolean Image_FormatHasAlpha(uploadfmt_t encoding);
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);
-void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename);
+void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformats, uploadfmt_t origfmt, const char *imagename);
 void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, int *inoutheight, int pixelbytes, qboolean flipx, qboolean flipy, qboolean flipd);
 
 #ifdef D3D8QUAKE
@@ -650,6 +651,8 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 extern	cvar_t	r_deluxemapping_cvar;
 extern	qboolean r_deluxemapping;
+extern	qboolean r_fakeshadows; //enables the use of ortho model-only shadows
+extern	float	r_blobshadows;
 extern	cvar_t r_softwarebanding_cvar;
 extern	qboolean r_softwarebanding;
 extern	cvar_t r_lightprepass_cvar;

@@ -152,6 +152,20 @@ static void Plug_FreePlugImages(plugin_t *plug)
 	}
 }
 
+//called before shaders get flushed, to avoid issues later.
+void Plug_FreeAllImages(void)
+{
+	size_t i;
+	for (i = 0; i < pluginimagearraylen; i++)
+	{
+		if (pluginimagearray[i].pic)
+		{
+			R_UnloadShader(pluginimagearray[i].pic);
+			pluginimagearray[i].pic = NULL;
+		}
+	}
+}
+
 static qhandle_t Plug_Draw_LoadImage(const char *name, int type, const char *script)
 {
 	int i;

@@ -1779,7 +1779,7 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 				if (developer.value)
 				{
 					int argcount;
-					progfuncs->GetFunctionInfo(progfuncs, f, &argcount, NULL, spawnfuncname, sizeof(spawnfuncname));
+					progfuncs->GetFunctionInfo(progfuncs, f, &argcount, NULL, NULL, spawnfuncname, sizeof(spawnfuncname));
 					if (argcount != 0)
 						Con_Printf("Spawn function %s defined with unsatisfied arguments\n", spawnfuncname);
 				}
@@ -6980,7 +6980,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	char *funcname = NULL;
 	int args;
 	int builtinno;
-	if (prinst->GetFunctionInfo(prinst, funcref, &args, &builtinno, funcname, sizeof(funcname)))
+	if (prinst->GetFunctionInfo(prinst, funcref, &args, NULL, &builtinno, funcname, sizeof(funcname)))
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
@@ -10321,12 +10321,12 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifndef SERVERONLY
 	//begin menu-only 'standard'
 	{"checkextension",	PF_Fixme,			0,		0,		0,		1,	D("float(string ext)", "Checks if the named extension is supported by the running engine.")},
-	{"error",			PF_Fixme,			0,		0,		0,		2,	"void(string err,...)"},
-	{"objerror",		PF_Fixme,			0,		0,		0,		3,	"void(string err,...)"},
-	{"print",			PF_Fixme,			0,		0,		0,		4,	"void(string text,...)"},
+	{"error",			PF_Fixme,			0,		0,		0,		2,	D("void(string err,...)", "Fatal error that will trigger a crash-to-console that users will actually notice.")},
+	{"objerror",		PF_Fixme,			0,		0,		0,		3,	D("void(string err,...)", "For some reason this has been redefined as non-fatal, and as it won't force the user to look at the console it'll generally be ignored completely so really what's the point? Other than as a convoluted way to remove(self) that is.")},
+	{"print",			PF_Fixme,			0,		0,		0,		4,	D("void(string text,...)", "Hello, world. Shoves junk on the console. Hopefully people will bother to read it, maybe.")},
 	{"bprint",			PF_Fixme,			0,		0,		0,		5,	"void(string text,...)"},
 	{"msprint",			PF_Fixme,			0,		0,		0,		6,	"void(float clientnum, string text,...)"},
-	{"cprint",			PF_Fixme,			0,		0,		0,		7,	"void(string text,...)"},
+	{"cprint",			PF_Fixme,			0,		0,		0,		7,	D("void(string text,...)", "Tries to show the given message in the centre of the screen, assuming that its not obscured by menus. Oh hey look, you're calling it in menuqc!")},
 	{"normalize",		PF_Fixme,			0,		0,		0,		8,	"vector(vector)"},
 	{"vlen",			PF_Fixme,			0,		0,		0,		9,	"float(vector)"},
 	{"vectoyaw",		PF_Fixme,			0,		0,		0,		10,	"float(vector)"},
@@ -10347,11 +10347,11 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findfloat",		PF_Fixme,			0,		0,		0,		25,	"entity(entity start, .__variant field, __variant match)"},
 	{"findchain",		PF_Fixme,			0,		0,		0,		26,	"entity(.string field, string match)"},
 	{"findchainfloat",	PF_Fixme,			0,		0,		0,		27,	"entity(.__variant field, __variant match)"},
-	{"precache_file",	PF_Fixme,			0,		0,		0,		28,	"string(string file)"},
+	{"precache_file",	PF_Fixme,			0,		0,		0,		28,	D("string(string file)", "Attempts to download the named file from the current server, if it isn't found locally. Not very useful as menuqc is normally meant to work before joining servers too.")},
 	{"precache_sound",	PF_Fixme,			0,		0,		0,		29,	"string(string sample)"},
-	{"coredump",		PF_Fixme,			0,		0,		0,		30,	"void()"},
-	{"traceon",			PF_Fixme,			0,		0,		0,		31,	"void()"},
-	{"traceoff",		PF_Fixme,			0,		0,		0,		32,	"void()"},
+	{"coredump",		PF_Fixme,			0,		0,		0,		30,	D("void()", "Takes a dump, writing the qcvm's state to disk. There are normally easier ways to debug, but I suppose this one still beats print spam.")},
+	{"traceon",			PF_Fixme,			0,		0,		0,		31,	D("void()", "Enables single-stepping. Its generally easier to just set a breakpoint.")},
+	{"traceoff",		PF_Fixme,			0,		0,		0,		32,	D("void()", "Disables single-stepping. Which sucks if you started said singlestepping outside of qc.")},
 	{"eprint",			PF_Fixme,			0,		0,		0,		33,	"void(entity)"},
 	{"rint",			PF_Fixme,			0,		0,		0,		34,	"float(float)"},
 	{"floor",			PF_Fixme,			0,		0,		0,		35,	"float(float)"},
@@ -10361,12 +10361,12 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cos",				PF_Fixme,			0,		0,		0,		39,	"float(float)"},
 	{"sqrt",			PF_Fixme,			0,		0,		0,		40,	"float(float)"},
 	{"randomvector",	PF_Fixme,			0,		0,		0,		41,	"vector()"},
-	{"registercvar",	PF_Fixme,			0,		0,		0,		42,	"float(string name, string value, float flags)"},
+	{"registercvar",	PF_Fixme,			0,		0,		0,		42,	D("float(string name, string value, float flags)", "Creates the cvar if it didn't already exist. This presents issues for setting those cvars via startup configs of course, and autocvars are easier but I suppose they don't get any flags (which are ignored anyway, of course).")},
 	{"min",				PF_Fixme,			0,		0,		0,		43,	"float(float,...)"},
 	{"max",				PF_Fixme,			0,		0,		0,		44,	"float(float,...)"},
 	{"bound",			PF_Fixme,			0,		0,		0,		45,	"float(float min,float value,float max)"},
 	{"pow",				PF_Fixme,			0,		0,		0,		46,	"float(float,float)"},
-	{"copyentity",		PF_Fixme,			0,		0,		0,		47,	"void(entity src, entity dst)"},
+	{"copyentity",		PF_Fixme,			0,		0,		0,		47,	D("void(entity src, entity dst)", "Copies all entity fields from one entity into another (forgetting any that were previously set on the destination).")},
 	{"fopen",			PF_Fixme,			0,		0,		0,		48,	"filestream(string filename, float mode)"},
 	{"fclose",			PF_Fixme,			0,		0,		0,		49,	"void(filestream fhandle)"},
 	{"fgets",			PF_Fixme,			0,		0,		0,		50,	"string(filestream fhandle)"},
@@ -10375,36 +10375,36 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strcat",			PF_Fixme,			0,		0,		0,		53,	"string(string, optional string, optional string, optional string, optional string, optional string, optional string, optional string)"},
 	{"substring",		PF_Fixme,			0,		0,		0,		54,	"string(string s, float start, float length)"},
 	{"stov",			PF_Fixme,			0,		0,		0,		55,	"vector(string)"},
-	{"strzone",			PF_Fixme,			0,		0,		0,		56,	"string(string)"},
-	{"strunzone",		PF_Fixme,			0,		0,		0,		57,	"void(string)"},
-	{"tokenize",		PF_Fixme,			0,		0,		0,		58,	"float(string)"},
-	{"argv",			PF_Fixme,			0,		0,		0,		59,	"string(float)"},
-	{"isserver",		PF_Fixme,			0,		0,		0,		60,	"float()"},
-	{"clientcount",		PF_Fixme,			0,		0,		0,		61,	"float()"},
-	{"clientstate",		PF_Fixme,			0,		0,		0,		62,	"float()"},
-	{"clientcommand",	PF_Fixme,			0,		0,		0,		63,	"void(float client, string s)"},
-	{"changelevel",		PF_Fixme,			0,		0,		0,		64,	"void(string map)"},
-	{"localsound",		PF_Fixme,			0,		0,		0,		65,	"void(string sample, optional float channel, optional float volume)"},
-	{"getmousepos",		PF_Fixme,			0,		0,		0,		66,	"vector()"},
+	{"strzone",			PF_Fixme,			0,		0,		0,		56,	D("string(string)", "Exists in FTE for compat only, no different from strcat.")},
+	{"strunzone",		PF_Fixme,			0,		0,		0,		57,	D("void(string)", "Exists in FTE for compat only, does nothing.")},
+	{"tokenize",		PF_Fixme,			0,		0,		0,		58,	D("float(string)", "Splits up the given string into its different components (what constitutes a token separator is not well defined and has been hacked about with over the years so have fun with that), returning the number of tokens that were found. Call argv(0 through ret-1) to retrieve each individual token. Take care to not use this recursively.")},
+	{"argv",			PF_Fixme,			0,		0,		0,		59,	D("string(float)", "Returns one of the tokens found via tokenize (and equivelent builtins).")},
+	{"isserver",		PF_Fixme,			0,		0,		0,		60,	D("float()", "Returns true if the local engine is running a server, and thus cvars and localcmds are shared with said server.")},
+	{"clientcount",		PF_Fixme,			0,		0,		0,		61,	D("float()", "Returns the maximum number of players on the server. Useless if its a remote server, so its a kinda useless builtin really.")},
+	{"clientstate",		PF_Fixme,			0,		0,		0,		62,	D("float()", "Tells you whether the client is actually connected to anything. 0 for a dedicated server (but dedicated servers don't normally run menuqc anyway), 2 if connecting or connected to a server (but not necessarily spawned+active), 1 for sitting around idle without trying to connect to anything yet.")},
+	{"clientcommand",	PF_Fixme,			0,		0,		0,		63,	D("void(float client, string s)", "Fakes a 'cmd foo' message from the specified player to the local server, and also bypasses ssqc handling of it greatly limiting the use of this builtin."), true},
+	{"changelevel",		PF_Fixme,			0,		0,		0,		64,	D("void(string map)", "Not really any different from a localcmd, but with proper string escapes.")},
+	{"localsound",		PF_Fixme,			0,		0,		0,		65,	D("void(string sample, optional float channel, optional float volume)", "Plays a sound, locally. precaching is optional, but recommended.")},
+	{"getmousepos",		PF_Fixme,			0,		0,		0,		66,	D("vector()", "Obsolete. Return values depend upon the current cursor mode. Implement Menu_InputEvent instead, so you can handle deltas as-is or absolutes if that's all the OS can provide.")},
 	{"gettime",			PF_Fixme,			0,		0,		0,		67,	"float(optional float timetype)"},
-	{"loadfromdata",	PF_Fixme,			0,		0,		0,		68,	"void(string data)"},
-	{"loadfromfile",	PF_Fixme,			0,		0,		0,		69,	"void(string data)"},
+	{"loadfromdata",	PF_Fixme,			0,		0,		0,		68,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
+	{"loadfromfile",	PF_Fixme,			0,		0,		0,		69,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"mod",				PF_Fixme,			0,		0,		0,		70,	"float(float val, float m)"},
-	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	"string(string name)"},
-	{"crash",			PF_Fixme,			0,		0,		0,		72,	"void()"},
-	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	"void()"},
+	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	D("string(string name)", "Returns the value of a cvar, as a string.")},
+	{"crash",			PF_Fixme,			0,		0,		0,		72,	D("void()", "Demonstrates that no program is bug free.")},
+	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	D("void()", "Prints out the QC's stack, for console-based error reports.")},
 	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, float caseinsensitive, float quiet)"},
 	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(searchhandle handle)"},
 	{"search_getfilename",PF_Fixme,			0,		0,		0,		77,	"string(searchhandle handle, float num)"},
 	{"etof",			PF_Fixme,			0,		0,		0,		79,	"float(entity)"},
 	{"ftoe",			PF_Fixme,			0,		0,		0,		80,	"entity(float)"},
-	{"validstring",		PF_Fixme,			0,		0,		0,		81,	"float(string)"},
-	{"altstr_count",	PF_Fixme,			0,		0,		0, 		82,	"float(string str)"},
-	{"altstr_prepare",	PF_Fixme,			0,		0,		0, 		83,	"string(string str)"},
-	{"altstr_get",		PF_Fixme,			0,		0,		0,		84,	"string(string str, float num)"},
-	{"altstr_set",		PF_Fixme,			0,		0,		0, 		85,	"string(string str, float num, string set) "},
-	{"altstr_ins",		PF_Fixme,			0,		0,		0,		86,	"string(string str, float num, string set)"},
+	{"validstring",		PF_Fixme,			0,		0,		0,		81,	D("float(string)", "Returns true if str isn't null. In case 'if [not](str)' was configured to test for empty instead of null.")},
+	{"altstr_count",	PF_Fixme,			0,		0,		0, 		82,	D("float(string str)", "Reports how many single-quotes there were in the string, divided by 2.")},
+	{"altstr_prepare",	PF_Fixme,			0,		0,		0, 		83,	D("string(string str)", "Adds markup to escape only single-quotes. Does not add any.")},
+	{"altstr_get",		PF_Fixme,			0,		0,		0,		84,	D("string(string str, float num)", "Gets the Nth single-quoted token in the input.")},
+	{"altstr_set",		PF_Fixme,			0,		0,		0, 		85,	D("string(string str, float num, string setval)", "Changes the Nth single-quoted token. The setval argument must not contain any single-quotes (use altstr_prepare to ensure this).")},
+	{"altstr_ins",		PF_Fixme,			0,		0,		0,		86,	D("string(string str, float num, string set)", NULL), true},
 	{"findflags",		PF_Fixme,			0,		0,		0,		87,	"entity(entity start, .float field, float match)"},
 	{"findchainflags",	PF_Fixme,			0,		0,		0,		88,	"entity(.float field, float match)"},
 	{"mcvar_defstring",	PF_Fixme,			0,		0,		0,		89,	"string(string name)" STUB},
@@ -10909,7 +10909,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	//gonna expose these to ssqc as a debugging extension
 	{"R_BeginPolygon",	PF_R_PolygonBegin,0,0,		0,		306,	D("void(string texturename, optional float flags, optional float is2d)", "Specifies the shader to use for the following polygons, along with optional flags.\nIf is2d, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects.")},// (EXT_CSQC_???)
 	{"R_PolygonVertex",	PF_R_PolygonVertex,0,0,		0,		307,	D("void(vector org, vector texcoords, vector rgb, float alpha)", "Specifies a polygon vertex with its various properties.")},// (EXT_CSQC_???)
-	{"R_EndPolygon",	PF_R_PolygonEnd,0,	0,		0,		308,	D("void()", "Ends the current polygon. At least 3 verticies must have been specified. You do not need to call beginpolygon if you wish to draw another polygon with the same shader.")},
+	{"R_EndPolygon",	PF_R_PolygonEnd,0,	0,		0,		308,	D("void()", "Ends the current polygon. At least 3 verticies must have been specified. You do not need to call beginpolygon again if you wish to draw another polygon with the same shader.")},
+	{"R_EndPolygonRibbon",PF_Fixme,	0,		0,		0,		0,		D("void(float radius, vector texcoordbias)", "Ends the current primitive and duplicates each vertex sideways into a ribbon. The texcoordbias will be added to each duplicated vertex allowing for regular 2d textures. At least 2 verticies must have been specified. You do not need to call beginpolygon again if you wish to draw another polygon with the same shader.")},
 
 	{"getproperty",		PF_Fixme,	0,		0,		0,		309,	D("#define getviewprop getproperty\n__variant(float property)", "Retrieve a currently-set (typically view) property, allowing you to read the current viewport or other things. Due to cheat protection, certain values may be unretrievable.")},// (EXT_CSQC_1)
 
@@ -10969,7 +10970,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
 	{"getcursormode",	PF_Fixme,	0,		0,		0,		0,		D("float(float effective)", "Reports the cursor mode this module previously attempted to use. If 'effective' is true, reports the cursor mode currently active (if was overriden by a different module which has precidence, for instance, or if there is only a touchscreen and no mouse).")},
-	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods.")},	// #344 This is a DP extension
+	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent instead for such things in csqc mods.")},	// #344 This is a DP extension
+	{"setmousepos",		PF_Fixme,	0,		0,		0,		0,		D("void(vector newpos)", "Warps the mouse cursor to the given location. Should normally only be done following setcursormode(TRUE,...). The warp MAY be visible through *_InputEvent, but normally be seen as an IE_ABSMOUSE event anyway. Not all systems support cursor warping (or even cursors), so this is a hint only and you should not depend upon it.")},
 
 	{"getinputstate",	PF_Fixme,	0,		0,		0,		345,	D("float(float inputsequencenum)", "Looks up an input frame from the log, setting the input_* globals accordingly.\nThe sequence number range used for prediction should normally be servercommandframe < sequence <= clientcommandframe.\nThe sequence equal to clientcommandframe will change between input frames.")},// (EXT_CSQC)
 	{"setsensitivityscaler",PF_Fixme,0,		0,		0,		346,	D("void(float sens)", "Temporarily scales the player's mouse sensitivity based upon something like zoom, avoiding potential cvar saving and thus corruption.")},// (EXT_CSQC)
@@ -12036,7 +12038,7 @@ void PR_DumpPlatform_f(void)
 #undef comfieldstring
 #undef comfieldfunction
 
-		{"URI_Get_Callback",		"void(float reqid, float responsecode, string resourcebody)",	QW|NQ|CS|MENU, "Called as an eventual result of the uri_get builtin."},
+		{"URI_Get_Callback",		"void(float reqid, float responsecode, string resourcebody, int resourcebytes)",	QW|NQ|CS|MENU, "Called as an eventual result of the uri_get builtin."},
 		{"SpectatorConnect",		"void()", QW|NQ, "Called when a spectator joins the game."},
 		{"SpectatorDisconnect",		"void()", QW|NQ, "Called when a spectator disconnects from the game."},
 		{"SpectatorThink",			"void()", QW|NQ, "Called each frame for each spectator."},
@@ -12751,7 +12753,13 @@ void PR_DumpPlatform_f(void)
 					"-Faccessors - use accessors instead of basic types via defines\n"
 					"-O          - write to a different qc file\n"
 					"*/\n"
-					, FULLENGINENAME, STRINGIFY(SVNREVISION), __DATE__, Cmd_Argv(0), Cmd_Args());
+					, FULLENGINENAME, STRINGIFY(SVNREVISION),
+					#ifdef SVNDATE
+					STRINGIFY(SVNDATE)
+					#else
+					__DATE__
+					#endif
+					, Cmd_Argv(0), Cmd_Args());
 
 	VFS_PRINTF(f, "#pragma noref 1\n");
 	VFS_PRINTF(f, "//#pragma flag enable logicops\n");

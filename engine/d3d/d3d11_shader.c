@@ -482,7 +482,11 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, struct programpermu_s *perm
 		consts++;
 
 		defines[consts].Name = "ENGINE_"DISTRIBUTION;
-		defines[consts].Definition = __DATE__;
+#ifdef SVNREVISION
+		defines[consts].Definition = STRINGIFY(SVNREVISION);
+#else
+		defines[consts].Definition = "0";
+#endif
 		consts++;
 
 		tmp = Z_Malloc(64);

@@ -122,13 +122,14 @@ typedef enum uploadfmt
 	PTI_RGBA32F,	//usually overkill
 	//packed/misaligned formats: these are specified in native endian order (high bits listed first because that's how things are represented in hex), so may need byte swapping...
 	PTI_A2BGR10,	//mostly for rendertargets, might also be useful for overbight lightmaps.
-	PTI_E5BGR9,		//mostly for fancy lightmaps
 	PTI_B10G11R11F,	//unshared exponents
 	PTI_RGB565,		//16bit alphaless format.
 	PTI_RGBA4444,	//16bit format (gl)
 	PTI_ARGB4444,	//16bit format (d3d)
 	PTI_RGBA5551,	//16bit alpha format (gl).
 	PTI_ARGB1555,	//16bit alpha format (d3d).
+#define PTI_FIRSTCOMPRESSED PTI_E5BGR9
+	PTI_E5BGR9,		//mostly for fancy lightmaps (technically compressed, with a block size of 1...)
 	//(desktop/tegra) compressed formats
 	PTI_BC1_RGB,		/*4bpp*/
 	PTI_BC1_RGB_SRGB,	/*4bpp*/
@@ -271,7 +272,7 @@ void Font_Init(void);
 void Font_Shutdown(void);
 int Font_RegisterTrackerImage(const char *image);	//returns a unicode char value that can be used to embed the char within a line of text.
 qboolean Font_TrackerValid(unsigned int imid);
-struct font_s *Font_LoadFont(const char *fontfilename, float height);
+struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -279,6 +280,7 @@ void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
 float Font_CharVHeight(struct font_s *font);
 int Font_CharPHeight(struct font_s *font);
+int Font_GetTrueHeight(struct font_s *font);
 float Font_CharScaleHeight(void);
 int Font_CharWidth(unsigned int charflags, unsigned int codepoint);
 float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint);

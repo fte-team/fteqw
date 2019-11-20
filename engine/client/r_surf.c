@@ -3764,6 +3764,7 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	if (deluxe && (count & 1))
 	{
 		deluxe = false;
+//		count+=1;
 		Con_Print("WARNING: Deluxemapping with odd number of lightmaps\n");
 	}
 
@@ -4189,6 +4190,11 @@ void Surf_NewMap (void)
 	char *s;
 #endif
 	int		i;
+
+	//evil haxx
+	r_dynamic.ival = r_dynamic.value;
+	if (r_dynamic.ival > 0 && cl.worldmodel->fromgame == fg_quake3) //quake3 has no lightmaps, disable r_dynamic
+		r_dynamic.ival = 0;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
 	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);

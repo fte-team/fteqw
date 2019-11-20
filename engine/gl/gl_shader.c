@@ -1097,6 +1097,8 @@ static void Shader_SurfaceParm (parsestate_t *ps, char **ptr)
 		shader->flags |= SHADER_HASPALETTED;
 	else if (!Q_stricmp(token, "hastop") || !Q_stricmp(token, "hasbottom") || !Q_stricmp(token, "hastopbottom"))
 		shader->flags |= SHADER_HASTOPBOTTOM;
+	else
+		Con_DLPrintf(2, "Shader %s, Unknown surface parm \"%s\"\n", ps->s->name, token);	//note that there are game-specific names used to override mod surfaceflags+contents
 }
 
 static void Shader_Sort (parsestate_t *ps, char **ptr)
@@ -1105,7 +1107,12 @@ static void Shader_Sort (parsestate_t *ps, char **ptr)
 	char *token;
 
 	token = Shader_ParseString ( ptr );
-	if ( !Q_stricmp( token, "portal" ) )
+	if (r_forceprogramify.ival >= 2)
+	{
+		Con_DPrintf("Shader %s, ignoring 'sort %s'\n", ps->s->name, token);
+		return;	//dp ignores 'sort' entirely.
+	}
+	else if ( !Q_stricmp( token, "portal" ) )
 		shader->sort = SHADER_SORT_PORTAL;
 	else if( !Q_stricmp( token, "sky" ) )
 		shader->sort = SHADER_SORT_SKY;
@@ -1289,6 +1296,8 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define MAX_GPU_BONES %i\n", sh_config.max_gpu_bones);
 	if (gl_specular.value)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value));
+	if (r_fakeshadows)
+		Q_strlcatfz(defines, &offset, sizeof(defines), "#define FAKESHADOWS\n%s", gl_config.arb_shadow?"#define USE_ARB_SHADOW\n":"");
 
 	for (n = 0; n < countof(permutations); n++)
 	{
@@ -1362,6 +1371,8 @@ qboolean Com_PermuOrFloatArgument(const char *shadername, char *arg, size_t argl
 	size_t p;
 	//load-time-only permutations...
 	if (arglen == 8 && !strncmp("SPECULAR", arg, arglen) && gl_specular.value)
+		return true;
+	if (arglen == 11 && !strncmp("FAKESHADOWS", arg, arglen) && r_fakeshadows)
 		return true;
 	if ((arglen==5||arglen==6) && !strncmp("DELUXE", arg, arglen) && r_deluxemapping && Shader_PermutationEnabled(PERMUTATION_BUMPMAP))
 		return true;
@@ -2697,6 +2708,7 @@ static shaderkey_t shaderkeys[] =
 	{"reflect",				Shader_DP_Reflect,			"dp"},
 	{"refract",				Shader_DP_Refract,			"dp"},
 	{"offsetmapping",		Shader_DP_OffsetMapping,	"dp"},
+	{"shadow",				NULL,						"dp"},
 	{"noshadow",			NULL,						"dp"},
 	{"polygonoffset",		NULL,						"dp"},
 	{"glossintensitymod",	Shader_DP_GlossScale,		"dp"},	//scales r_shadow_glossintensity(=1), aka: gl_specular
@@ -4249,6 +4261,20 @@ void Shader_Reset(shader_t *s)
 	Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 }
 
+static void Shader_Regenerate(parsestate_t *ps, const char *shortname)
+{
+	Shader_Reset(ps->s);
+
+	if (!strcmp(shortname, "textures/common/clip") || !strcmp(shortname, "textures/common/nodraw") || !strcmp(shortname, "common/nodraw"))
+		Shader_DefaultScript(ps, shortname,
+			"{\n"
+				"surfaceparm nodraw\n"
+				"surfaceparm nodlight\n"
+			"}\n");
+	else
+		ps->s->generator(ps, shortname, ps->s->genargs);
+}
+
 void Shader_Shutdown (void)
 {
 	int i;
@@ -5098,27 +5124,35 @@ void Shader_Finish (parsestate_t *ps)
 
 	if (!s->numpasses && s->sort != SHADER_SORT_PORTAL && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
 	{
-		pass = &s->passes[s->numpasses++];
-		pass = &s->passes[0];
-		pass->tcgen = TC_GEN_BASE;
-		if (TEXVALID(s->defaulttextures->base))
-			pass->texgen = T_GEN_DIFFUSE;
+		if (r_forceprogramify.ival >= 2)
+		{
+			Con_DPrintf("Shader %s with no passes, forcing nodraw\n", s->name);
+			s->flags |= SHADER_NODRAW;
+		}
 		else
 		{
-			pass->texgen = T_GEN_SINGLEMAP;
-			TEXASSIGN(pass->anim_frames[0], R_LoadHiResTexture(s->name, NULL, IF_NOALPHA));
-			if (!TEXVALID(pass->anim_frames[0]))
+			pass = &s->passes[s->numpasses++];
+			pass = &s->passes[0];
+			pass->tcgen = TC_GEN_BASE;
+			if (TEXVALID(s->defaulttextures->base))
+				pass->texgen = T_GEN_DIFFUSE;
+			else
 			{
-				Con_Printf("Shader %s failed to load default texture\n", s->name);
-				pass->anim_frames[0] = missing_texture;
+				pass->texgen = T_GEN_SINGLEMAP;
+				TEXASSIGN(pass->anim_frames[0], R_LoadHiResTexture(s->name, NULL, IF_NOALPHA));
+				if (!TEXVALID(pass->anim_frames[0]))
+				{
+					Con_Printf("Shader %s failed to load default texture\n", s->name);
+					pass->anim_frames[0] = missing_texture;
+				}
+				Con_Printf("Shader %s with no passes and no surfaceparm nodraw, inserting pass\n", s->name);
 			}
-			Con_Printf("Shader %s with no passes and no surfaceparm nodraw, inserting pass\n", s->name);
+			pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
+			pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
+			pass->alphagen = ALPHA_GEN_IDENTITY;
+			pass->numMergedPasses = 1;
+			Shader_SetBlendmode(pass, NULL);
 		}
-		pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
-		pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
-		pass->alphagen = ALPHA_GEN_IDENTITY;
-		pass->numMergedPasses = 1;
-		Shader_SetBlendmode(pass, NULL);
 	}
 
 	if (!Q_stricmp (s->name, "flareShader"))
@@ -5454,6 +5488,7 @@ done:;
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc add\n"
+						"nodepth\n"
 					"}\n"
 				"}\n");
 		}
@@ -5468,6 +5503,29 @@ done:;
 			if (s->passes[0].shaderbits & SBITS_ATEST_BITS)	//mimic DP's limited alphafunc support
 				s->passes[0].shaderbits = (s->passes[0].shaderbits & ~SBITS_ATEST_BITS) | SBITS_ATEST_GE128;
 			s->passes[0].shaderbits &= ~SBITS_DEPTHFUNC_BITS;	//DP ignores this too.
+			if (s->flags & SHADER_CULL_BACK)	//DP has no back-face culling
+				s->flags = (s->flags&~SHADER_CULL_BACK)|SHADER_CULL_FRONT;
+
+			//disable rtlight stuff when blended.
+			if ((s->passes[0].shaderbits & SBITS_SRCBLEND_BITS)==SBITS_SRCBLEND_ONE && (s->passes[0].shaderbits & SBITS_DSTBLEND_BITS)==SBITS_DSTBLEND_ZERO)
+				;	//replace
+			else if ((s->passes[0].shaderbits & SBITS_SRCBLEND_BITS)==SBITS_SRCBLEND_ONE && (s->passes[0].shaderbits & SBITS_DSTBLEND_BITS)==SBITS_DSTBLEND_ONE)
+				s->flags |= SHADER_NOSHADOWS;	//add-ignore-alpha
+			else if ((s->passes[0].shaderbits & SBITS_SRCBLEND_BITS)==SBITS_SRCBLEND_SRC_ALPHA && (s->passes[0].shaderbits & SBITS_DSTBLEND_BITS)==SBITS_DSTBLEND_ONE)
+				s->flags |= SHADER_NOSHADOWS;	//add-with-alpha
+			else if ((s->passes[0].shaderbits & SBITS_SRCBLEND_BITS)==SBITS_SRCBLEND_SRC_ALPHA && (s->passes[0].shaderbits & SBITS_DSTBLEND_BITS)==SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA)
+				s->flags |= SHADER_NOSHADOWS;	//blended
+			else
+				s->flags |= SHADER_NOSHADOWS|SHADER_NODLIGHT;	//erk...
+
+			if (s->passes[0].numtcmods>1)
+			{	//reverse the order of tcmods (dp uses a texture matrix which it concats in reverse order)
+				tcmod_t		tmp[SHADER_MAX_TC_MODS];
+				int j;
+				memcpy(tmp, s->passes[0].tcmods, sizeof(*tmp)*s->passes[0].numtcmods);
+				for (j = 0; j < s->passes[0].numtcmods; j++)
+					s->passes[0].tcmods[j] = tmp[s->passes[0].numtcmods-1-j];
+			}
 		}
 		Shader_Programify(ps);
 	}
@@ -7240,16 +7298,7 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 
 		if (s->generator)
 		{
-			Shader_Reset(s);
-
-			if (!strcmp(shortname, "textures/common/clip"))
-				Shader_DefaultScript(&ps, cleanname,
-					"{\n"
-						"surfaceparm nodraw\n"
-						"surfaceparm nodlight\n"
-					"}\n");
-			else
-				s->generator(&ps, cleanname, s->genargs);
+			Shader_Regenerate(&ps, shortname);
 			return s;
 		}
 		else
@@ -7607,9 +7656,7 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 	if (!parsename && s->generator)
 	{
 		oldsort = s->sort;
-		Shader_Reset(s);
-
-		s->generator(&ps, shortname, s->genargs);
+		Shader_Regenerate(&ps, shortname);
 
 		if (s->sort != oldsort)
 			resort = true;
@@ -7825,10 +7872,7 @@ void Shader_DoReload(void)
 		if (s->generator)
 		{
 			oldsort = s->sort;
-			Shader_Reset(s);
-
-			s->generator(&ps, shortname, s->genargs);
-
+			Shader_Regenerate(&ps, shortname);
 			if (s->sort != oldsort)
 				resort = true;
 		}

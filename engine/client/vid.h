@@ -51,8 +51,8 @@ typedef struct {
 	int wait;	//-1 = default, 0 = off, 1 = on, 2 = every other
 	int multisample;	//for opengl antialiasing (which requires context stuff)
 	int triplebuffer;
-	char subrenderer[MAX_QPATH];
-	char devicename[MAX_QPATH];
+	char subrenderer[MAX_QPATH];	//external driver
+	char devicename[MAX_QPATH];		//device name (usually monitor)
 	struct rendererinfo_s *renderer;
 } rendererstate_t;
 #ifndef SERVERONLY
@@ -113,6 +113,9 @@ typedef struct
 	size_t			ime_caret;
 	float			ime_position[2];	//where to display any ime popups (virtual coords)
 	qboolean		ime_allow;			//enable the ime (ie: at the console or messagemode)
+
+	qboolean		forcecursor;
+	float			forcecursorpos[2];	//in physical pixels
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state

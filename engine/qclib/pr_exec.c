@@ -1609,7 +1609,7 @@ static int PR_NoDebugVM(progfuncs_t *fte_restrict progfuncs)
 	strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
 	ofs = strlen(stack);
 	PR_SaveCallStack (progfuncs, stack, &ofs, sizeof(stack));
-	PR_RunError (&progfuncs->funcs, stack);
+	PR_RunError (&progfuncs->funcs, "%s", stack);
 	return -1;
 }
 #endif

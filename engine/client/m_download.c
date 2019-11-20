@@ -13,32 +13,7 @@
 #ifdef PACKAGEMANAGER
 #include "fs.h"
 
-//whole load of extra args for the downloads menu (for the downloads menu to handle engine updates).
-#if defined(VKQUAKE) && !defined(SERVERONLY)
-#define PHPVK "&vk=1"
-#else
-#define PHPVK
-#endif
-#if defined(GLQUAKE) && !defined(SERVERONLY)
-#define PHPGL "&gl=1"
-#else
-#define PHPGL
-#endif
-#if defined(D3DQUAKE) && !defined(SERVERONLY)
-#define PHPD3D "&d3d=1"
-#else
-#define PHPD3D
-#endif
-#ifdef MINIMAL
-#define PHPMIN "&min=1"
-#else
-#define PHPMIN
-#endif
-#ifdef HAVE_LEGACY
-#define PHPLEG "&leg=1&test=1"
-#else
-#define PHPLEG "&leg=0&test=1"
-#endif
+//some extra args for the downloads menu (for the downloads menu to handle engine updates).
 #if defined(_DEBUG) || defined(DEBUG)
 #define PHPDBG "&dbg=1"
 #else
@@ -48,11 +23,10 @@
 #define SVNREVISION -
 #endif
 #define SVNREVISIONSTR STRINGIFY(SVNREVISION)
-#define DOWNLOADABLESARGS "ver=" SVNREVISIONSTR PHPVK PHPGL PHPD3D PHPMIN PHPLEG PHPDBG "&arch="PLATFORM "_" ARCH_CPU_POSTFIX
+#define DOWNLOADABLESARGS PHPDBG
 
 
 
-extern cvar_t pm_autoupdate;
 extern cvar_t pm_downloads_url;
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).
 
@@ -194,10 +168,9 @@ static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
-#ifdef PLUGINS
 static qboolean pluginpromptshown;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
-#endif
 #ifdef WEBCLIENT
+static int allowphonehome = -1;	//if autoupdates are disabled, make sure we get (temporary) permission before phoning home for available updates. (-1=unknown, 0=no, 1=yes)
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 static qboolean pkg_updating;	//when flagged, further changes are blocked until completion.
 #else
@@ -1221,6 +1194,20 @@ void PM_PluginDetected(void *ctx, int status)
 #endif
 #endif
 
+#ifndef SERVERONLY
+void PM_AutoUpdateQuery(void *ctx, int status)
+{
+	if (status == -1)
+		return; //'Later'
+	if (status == 1)
+		Cvar_ForceSet(&pkg_autoupdate, "0"); //'Disable'
+	else
+		Cvar_ForceSet(&pkg_autoupdate, "1"); //'Enable'
+	PM_WriteInstalledPackages();
+	Menu_Download_Update();
+}
+#endif
+
 static void PM_PreparePackageList(void)
 {
 	//figure out what we've previously installed.
@@ -1251,6 +1238,13 @@ static void PM_PreparePackageList(void)
 			}
 		}
 #endif
+		if (!pluginpromptshown && pkg_autoupdate.ival < 0 && numdownloadablelists)
+		{
+			pluginpromptshown = true;
+#ifndef SERVERONLY
+			Menu_Prompt(PM_AutoUpdateQuery, NULL, "Would you like to\nenable update checks?", "Enable", "Disable", "Later");
+#endif
+		}
 	}
 }
 
@@ -1821,6 +1815,22 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	}
 }
 #endif
+#ifndef SERVERONLY
+static void PM_UpdatePackageList(qboolean autoupdate, int retry);
+static void PM_AllowPackageListQuery_Callback(void *ctx, int opt)
+{
+	unsigned int i;
+	allowphonehome = (opt==0);
+
+	//something changed, let it download now.
+	for (i = 0; i < numdownloadablelists; i++)
+	{
+		if (downloadablelist[i].received == -2)
+			downloadablelist[i].received = 0;
+	}
+	PM_UpdatePackageList(false, 0);
+}
+#endif
 //retry 1==
 static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 {
@@ -1841,15 +1851,32 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 #else
 	doautoupdate |= autoupdate;
 
+#ifdef SERVERONLY
+	allowphonehome = true; //erk.
+#else
+	if (pkg_autoupdate.ival >= 1)
+		allowphonehome = true;
+	else if (allowphonehome == -1)
+	{
+		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope");
+		return;
+	}
+#endif
+
 	//kick off the initial tier of list-downloads.
 	for (i = 0; i < numdownloadablelists; i++)
 	{
-		if (downloadablelist[i].received)
+		if (downloadablelist[i].received && allowphonehome>=0)
 			continue;
 		autoupdate = false;
 		if (downloadablelist[i].curdl)
 			continue;
 
+		if (allowphonehome<=0)
+		{
+			downloadablelist[i].received = -2;
+			continue;
+		}
 		downloadablelist[i].curdl = HTTP_CL_Get(va("%s%s"DOWNLOADABLESARGS, downloadablelist[i].url, strchr(downloadablelist[i].url,'?')?"&":"?"), NULL, PM_ListDownloaded);
 		if (downloadablelist[i].curdl)
 		{
@@ -1881,7 +1908,6 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 	}
 #endif
 }
-
 
 
 
@@ -3579,7 +3605,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 			if (!mo)
 			{
 				y += 8;
-				MC_AddBufferedText(m, 48, 320, y, path+prefixlen, false, true);
+				MC_AddBufferedText(m, 48, 320-16, y, path+prefixlen, false, true);
 				y += 8;
 				Q_strncatz(path, "/", sizeof(path));
 				y = MD_AddItemsToDownloadMenu(m, y, path);
@@ -3690,20 +3716,20 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 		info->populated = true;
 		MC_AddFrameStart(m, 48);
 		y = 48;
-		b = MC_AddCommand(m, 48, 170, y, "Apply", MD_ApplyDownloads);
+		b = MC_AddCommand(m, 48, 320-16, y, "Apply", MD_ApplyDownloads);
 		b->rightalign = false;
 		b->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
 		y+=8;
-		d = b = MC_AddCommand(m, 48, 170, y, "Back", MD_PopMenu);
+		d = b = MC_AddCommand(m, 48, 320-16, y, "Back", MD_PopMenu);
 		b->rightalign = false;
 		y+=8;
 #ifdef WEBCLIENT
-		b = MC_AddCommand(m, 48, 170, y, "Mark Updates", MD_MarkUpdatesButton);
+		b = MC_AddCommand(m, 48, 320-16, y, "Mark Updates", MD_MarkUpdatesButton);
 		b->rightalign = false;
 		b->common.tooltip = "Select any updated versions of packages that are already installed.";
 		y+=8;
 #endif
-		b = MC_AddCommand(m, 48, 170, y, "Revert Updates", MD_RevertUpdates);
+		b = MC_AddCommand(m, 48, 320-16, y, "Revert Updates", MD_RevertUpdates);
 		b->rightalign = false;
 		b->common.tooltip = "Reset selection to only those packages that are currently installed.";
 		y+=8;
@@ -3711,7 +3737,7 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 		c = MC_AddCustom(m, 48, y, p, 0, NULL);
 		c->draw = MD_AutoUpdate_Draw;
 		c->key = MD_AutoUpdate_Key;
-		c->common.width = 320;
+		c->common.width = 320-48-16;
 		c->common.height = 8;
 		y += 8;
 #endif
@@ -3761,7 +3787,7 @@ void Menu_DownloadStuff_f (void)
 //should only be called AFTER the filesystem etc is inited.
 void Menu_Download_Update(void)
 {
-	if (!pkg_autoupdate.ival)
+	if (pkg_autoupdate.ival <= 0)
 		return;
 
 	PM_UpdatePackageList(true, 2);

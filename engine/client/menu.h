@@ -497,6 +497,8 @@ void MP_RegisterCvarsAndCmds(void);
 int MP_BuiltinValid(const char *name, int num);
 qboolean MP_ConsoleCommand(const char *cmdtext);
 int MP_GetServerCategory(int index);
+#else
+#define MP_UsingGamecodeLoadingScreen() false
 #endif
 
 #ifdef MENU_NATIVECODE
@@ -535,6 +537,7 @@ void		Plug_SBar(playerview_t *pv);
 qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
 void		Plug_Tick(void);
 qboolean	Plugin_ExecuteString(void);
+void		Plug_FreeAllImages(void);
 
 #ifdef ANDROID
 #define PLUGINPREFIX "libplug_" //android is kinda annoying and only extracts specific files.

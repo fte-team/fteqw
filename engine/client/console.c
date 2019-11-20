@@ -580,8 +580,13 @@ void Con_History_Load(void)
 }
 void Con_History_Save(void)
 {
-	vfsfile_t *file = FS_OpenVFS("conhistory.txt", "wb", FS_ROOT);
+	vfsfile_t *file;
 	int line;
+
+	if (!FS_GameIsInitialised())
+		return;
+
+	file = FS_OpenVFS("conhistory.txt", "wb", FS_ROOT);
 	if (file)
 	{
 		line = edit_line - CON_EDIT_LINES_MASK;
@@ -2958,7 +2963,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 							shader = R2D_SafeCachePic("tiprawimg");
 							shader->defaulttextures->base = Image_TextureIsValid(strtoull(key, NULL, 0));
 						}
-						if (shader && shader->defaulttextures->base)
+						if (shader && shader->defaulttextures->base && shader->defaulttextures->base->status == TEX_LOADED && ((shader->defaulttextures->base->flags&IF_TEXTYPEMASK) == (PTI_2D<<IF_TEXTYPESHIFT)))
 						{
 							shader->width = shader->defaulttextures->base->width;
 							shader->height = shader->defaulttextures->base->height;
@@ -2973,6 +2978,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 								shader->height = 240;
 							}
 						}
+						else
+							shader = NULL;
 						key = Info_ValueForKey(info, "modelviewer");
 						if (*key)
 						{

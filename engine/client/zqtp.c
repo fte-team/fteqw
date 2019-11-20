@@ -71,6 +71,8 @@ qboolean suppress;
 static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 static void QDECL TP_TeamColor_CB (struct cvar_s *var, char *oldvalue);
 static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
+//cvar_t enemyforceskins = CVARD("enemyforceskins", "0", "0: Read the skin as-is.\n1: Use the player's name instead of their skin setting.\n2: Use their userid (probably too unreliable).3: Use a per-team player index.\n");
+//cvar_t teamforceskins = CVARD("enemyforceskins", "0", "0: Read the skin as-is.\n1: Use the player's name instead of their skin setting.\n2: Use their userid (probably too unreliable).3: Use a per-team player index.\n");
 #define TP_SKIN_CVARS	\
 	TP_CVARAC(cl_teamskin,		"", teamskin, TP_SkinCvar_Callback);	\
 	TP_CVARAC(cl_enemyskin,		"", enemyskin, TP_SkinCvar_Callback);	\

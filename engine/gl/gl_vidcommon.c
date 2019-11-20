@@ -1916,7 +1916,7 @@ static const char *glsl_hdrs[] =
 		,
 	"sys/pcf.h",
 			//!!cvardf r_glsl_pcf
-			"#ifndef PCF\n"
+			"#if !defined(PCF) && !defined(FAKESHADOWS)\n"
 				"#define ShadowmapFilter(smap,proj) 1.0\n"	//s_shadowmap generally. returns a scaler to say how much light should be used for this pixel.
 			"#else\n"
 				"#ifndef r_glsl_pcf\n"
@@ -1936,7 +1936,7 @@ static const char *glsl_hdrs[] =
 					//bias it. don't bother figuring out which side or anything, its not needed
 					//l_projmatrix contains the light's projection matrix so no other magic needed
 					"return ((cubeproj.yxz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
-				"#elif defined(ORTHO)\n"
+				"#elif defined(ORTHO) || defined(FAKESHADOWS)\n"
 					//the light's origin is in the center of the 'cube', projecting from one side to the other, so don't bias the z.
 					"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 				//"#elif defined(CUBESHADOW)\n"
@@ -2010,14 +2010,13 @@ static const char *glsl_hdrs[] =
 						"float s = 0.0;\n"
 						"#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
 							"s += dosamp(0.0, 0.0);\n"
-							"return s;\n"
 						"#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9\n"
 							"s += dosamp(-1.0, 0.0);\n"
 							"s += dosamp(0.0, -1.0);\n"
 							"s += dosamp(0.0, 0.0);\n"
 							"s += dosamp(0.0, 1.0);\n"
 							"s += dosamp(1.0, 0.0);\n"
-							"return s/5.0;\n"
+							"s/=5.0;\n"
 						"#else\n"
 							"s += dosamp(-1.0, -1.0);\n"
 							"s += dosamp(-1.0, 0.0);\n"
@@ -2028,8 +2027,21 @@ static const char *glsl_hdrs[] =
 							"s += dosamp(1.0, -1.0);\n"
 							"s += dosamp(1.0, 0.0);\n"
 							"s += dosamp(1.0, 1.0);\n"
-							"return s/9.0;\n"
+							"s/=9.0;\n"
 						"#endif\n"
+						"#if defined(FAKESHADOWS)||defined(ORTHO)\n"	//no cascaded shadow maps, so just fade shadows to 1 near the various edges of the shadow maps
+							"float d = shadowcoord.z;\n"
+							"d = max(d, shadowcoord.x);\n"
+							"d = max(d, 1.0-shadowcoord.x);\n"
+							"d = max(d, shadowcoord.y);\n"
+							"d = max(d, 1.0-shadowcoord.y);\n"
+							"if (d > 0.7)\n"
+								"s = mix(s, 1.0, min(1.0,10.0*(d-0.7)));\n"
+						"#endif\n"
+						"#ifdef FAKESHADOWS\n"
+							"s = s*0.5+0.5;\n" //don't be completely black
+						"#endif\n"
+						"return s;\n"
 					"#endif\n"
 #endif
 				"}\n"

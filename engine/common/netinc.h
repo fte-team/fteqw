@@ -382,6 +382,7 @@ void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 
+void *TLS_GetKnownCertificate(const char *certname, size_t *size);
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
 int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize);	//datasize should be preinitialised to the max length allowed. -1 for not implemented. 0 for peer problems. 1 for success
 #ifdef HAVE_PACKET

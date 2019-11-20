@@ -3259,19 +3259,23 @@ static void VK_PaintScreen(void)
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
-		extern char levelshotname[];
-
 		//draw the levelshot or the conback fullscreen
-		if (*levelshotname)
-		{
-			shader_t *pic = R2D_SafeCachePic (levelshotname);
-			int w,h;
-			if (!R_GetShaderSizes(pic, &w, &h, true))
-				w = h = 1;
-			R2D_Letterbox(0, 0, vid.width, vid.height, pic, w, h);
-		}
+		if (R2D_DrawLevelshot())
+			;
 		else if (scr_con_current != vid.height)
-			R2D_ConsoleBackground(0, vid.height, true);
+		{
+#ifdef HAVE_LEGACY
+			extern cvar_t dpcompat_console;
+			if (dpcompat_console.ival)
+			{
+				R2D_ImageColours(0,0,0,1);
+				R2D_FillBlock(0, 0, vid.width, vid.height);
+				R2D_ImageColours(1,1,1,1);
+			}
+			else
+#endif
+				R2D_ConsoleBackground(0, vid.height, true);
+		}
 		else
 			scr_con_forcedraw = true;
 

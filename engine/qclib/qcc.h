@@ -47,6 +47,11 @@ extern progfuncs_t *qccprogfuncs;
 #endif
 #endif
 
+#ifndef STRINGIFY
+#define STRINGIFY2(s) #s
+#define STRINGIFY(s) STRINGIFY2(s)
+#endif
+
 void *qccHunkAlloc(size_t mem);
 void qccClearHunk(void);
 

@@ -123,7 +123,7 @@ typedef struct cvar_group_s
 
 //freestyle
 #define CVAR_POINTER		(1<<5)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_UNUSED			(1<<6)  //the default string was malloced/needs to be malloced, free on unregister
+//#define CVAR_UNUSED			(1<<6)  //the default string was malloced/needs to be malloced, free on unregister
 #define CVAR_NOTFROMSERVER	(1<<7)	//cvar cannot be set by gamecode. the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
 #define CVAR_USERCREATED	(1<<8)	//write a 'set' or 'seta' in front of the var name.
 #define CVAR_CHEAT			(1<<9)	//latch to the default, unless cheats are enabled.

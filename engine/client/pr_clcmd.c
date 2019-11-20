@@ -461,6 +461,19 @@ void QCBUILTIN PF_cl_setwindowcaption(pubprogfuncs_t *prinst, struct globalvars_
 	}
 }
 
+void QCBUILTIN PF_cl_setmousepos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	float *pos = G_VECTOR(OFS_PARM0);
+
+	if (key_dest_absolutemouse & world->keydestmask)
+	{
+		vid.forcecursor = true;
+		vid.forcecursorpos[0] = (pos[0] * vid.pixelwidth) / vid.width;
+		vid.forcecursorpos[1] = (pos[1] * vid.pixelheight) / vid.height;
+	}
+}
+
 //#343
 void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -654,12 +667,17 @@ void QCBUILTIN PF_cs_media_getproperty (pubprogfuncs_t *prinst, struct globalvar
 }
 void QCBUILTIN PF_cs_media_getstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	cinstates_t ret = CINSTATE_INVALID;
-	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-	if (cin)
-		ret = Media_GetState(cin);
+	if (prinst->callargc>0)
+	{
+		const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+		cin_t *cin;
+		cin = R_ShaderFindCinematic(shader);
+		if (cin)
+			ret = Media_GetState(cin);
+	}
+	else
+		ret = Media_GetState(NULL);
 
 	G_FLOAT(OFS_RETURN) = ret;
 }
@@ -911,8 +929,8 @@ void QCBUILTIN PF_cl_SetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr
 {
 	int bm[2] =
 	{
-		G_FLOAT(OFS_PARM0+0),
-		G_FLOAT(OFS_PARM0+1)
+		G_VECTOR(OFS_PARM0)[0],
+		G_VECTOR(OFS_PARM0)[1]
 	};
 	Key_SetBindMap(bm);
 	G_FLOAT(OFS_RETURN) = 1;

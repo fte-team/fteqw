@@ -110,6 +110,8 @@ struct {
 	unsigned int owner;	//kdm_foo. whoever has an interest in this font. font is purged when this becomes 0.
 	char slotname[16];
 	char facename[MAX_OSPATH];
+	float scale; //poop
+	int outline; //argh
 	int sizes;
 	int size[FONT_SIZES];
 	struct font_s *font[FONT_SIZES];
@@ -209,6 +211,8 @@ void PR_ReleaseFonts(unsigned int purgeowner)
 		fontslot[i].sizes = 0;
 		fontslot[i].slotname[0] = '\0';
 		fontslot[i].facename[0] = '\0';
+		fontslot[i].scale = 1;
+		fontslot[i].outline = 0;
 	}
 }
 void PR_ReloadFonts(qboolean reload)
@@ -236,7 +240,7 @@ void PR_ReloadFonts(qboolean reload)
 		{	//otherwise load it.
 			for (j = 0; j < fontslot[i].sizes; j++)
 			{
-				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j]);
+				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j], fontslot[i].scale, fontslot[i].outline);
 			}
 		}
 	}
@@ -248,6 +252,7 @@ void QCBUILTIN PF_CL_findfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 }
 void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern cvar_t r_font_postprocess_outline;
 	const char *slotname = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *facename = PR_GetStringOfs(prinst, OFS_PARM1);
 	const char *sizestr = PR_GetStringOfs(prinst, OFS_PARM2);
@@ -272,7 +277,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 
 	//if its changed, purge it.
-	if (stricmp(fontslot[slotnum].slotname, slotname) || stricmp(fontslot[slotnum].facename, facename))
+	if (stricmp(fontslot[slotnum].slotname, slotname) || stricmp(fontslot[slotnum].facename, facename) || !fontslot[slotnum].sizes)
 	{
 		Q_strncpyz(fontslot[slotnum].slotname, slotname, sizeof(fontslot[slotnum].slotname));
 		Q_strncpyz(fontslot[slotnum].facename, facename, sizeof(fontslot[slotnum].facename));
@@ -282,14 +287,41 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				Font_Free(fontslot[slotnum].font[i]);
 			fontslot[slotnum].font[i] = NULL;
 		}
+		fontslot[slotnum].sizes = 0;
 		fontslot[slotnum].owner = 0;
+		fontslot[slotnum].scale = 1;
+		fontslot[slotnum].outline = r_font_postprocess_outline.ival;
 	}
 	fontslot[slotnum].owner |= world->keydestmask;
 
 	while(*sizestr)
 	{
 		sizestr = COM_Parse(sizestr);
+		if (!strncmp(com_token, "scale=", 6))
+		{
+			fontslot[slotnum].scale = atof(com_token+6);
+			continue;
+		}
+		if (!strncmp(com_token, "outline=", 8))
+		{
+			fontslot[slotnum].outline = atoi(com_token+8);
+			continue;
+		}
+		if (!strncmp(com_token, "blur=", 5))
+		{
+			//fontslot[slotnum].blur = atoi(com_token+5);
+			continue;
+		}
+		if (!strncmp(com_token, "voffset=", 8))
+		{
+			//com_token+8 unused.
+			continue;
+		}
+
 		sz = atoi(com_token);
+		if (!sz)
+			continue;	//o.O
+
 		for (i = 0; i < fontslot[slotnum].sizes; i++)
 		{
 			if (fontslot[slotnum].size[i] == sz)
@@ -300,33 +332,45 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			if (i >= FONT_SIZES)
 				break;
 			fontslot[slotnum].size[i] = sz;
-			if (qrenderer == QR_NONE)
-				fontslot[slotnum].font[i] = NULL;
-			else
-				fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i]);
+			fontslot[slotnum].font[i] = NULL;
 			fontslot[slotnum].sizes++;
 		}
 	}
+
+	if (qrenderer > QR_NONE)
+	{
+		for (i = 0; i < fontslot[slotnum].sizes; i++)
+			fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline);
+	}
+
 	G_FLOAT(OFS_RETURN) = slotnum;
 }
 
 #ifdef HAVE_LEGACY
 void CL_LoadFont_f(void)
 {
+	extern cvar_t r_font_postprocess_outline;
 	//console command for compat with dp/debug.
 	if (Cmd_Argc() == 1)
 	{
 		int i, j;
+		int th;
 		for (i = 0; i < FONT_SLOTS; i++)
 		{
 			if (fontslot[i].sizes)
 			{
-				Con_Printf("%s: %s (", fontslot[i].slotname, fontslot[i].facename);
+				Con_Printf("%s[%i]: %s (", fontslot[i].slotname, i, fontslot[i].facename);
 				for (j = 0; j < fontslot[i].sizes; j++)
 				{
 					if (j)
 						Con_Printf(", ");
 					Con_Printf("%i", fontslot[i].size[j]);
+					if (fontslot[i].font[j])
+					{
+						th = Font_GetTrueHeight(fontslot[i].font[j]);
+						if (th != Font_CharPHeight(fontslot[i].font[j]))
+							Con_Printf("[%g]", ((float)th*vid.height)/vid.pixelheight);
+					}
 				}
 				Con_Printf(")\n");
 			}
@@ -339,7 +383,7 @@ void CL_LoadFont_f(void)
 		char *slotname = Cmd_Argv(1);
 		char *facename = Cmd_Argv(2);
 		int sizenum = 3;
-		extern cvar_t dpcompat_console, gl_font;
+		extern cvar_t dpcompat_console, gl_font, con_textfont;
 
 		//loadfont slot face size1 size2...
 
@@ -378,6 +422,9 @@ void CL_LoadFont_f(void)
 				fontslot[slotnum].font[i] = NULL;
 			}
 			fontslot[slotnum].owner = 0;
+			fontslot[slotnum].scale = 1;
+			fontslot[slotnum].sizes = 0;
+			fontslot[slotnum].outline = r_font_postprocess_outline.ival;	//locked in at definition, so different fonts can have different settings even with vid_reload going on.
 		}
 		if (!*facename)
 			return;
@@ -389,11 +436,23 @@ void CL_LoadFont_f(void)
 			int sz;
 			if (!strcmp(a, "scale"))
 			{
+				fontslot[slotnum].scale = atof(Cmd_Argv(sizenum++));
+				continue;
+			}
+			if (!strcmp(a, "outline"))
+			{
+				fontslot[slotnum].outline = atoi(Cmd_Argv(sizenum++));
+				continue;
+			}
+			if (!strcmp(a, "blur"))
+			{
+				//fontslot[slotnum].blur = atoi(Cmd_Argv(sizenum++));
 				sizenum++;
 				continue;
 			}
 			if (!strcmp(a, "voffset"))
 			{
+//				fontslot[slotnum].voffset = atof(Cmd_Argv(sizenum++));
 				sizenum++;
 				continue;
 			}
@@ -411,16 +470,21 @@ void CL_LoadFont_f(void)
 				if (i >= FONT_SIZES)
 					break;
 				fontslot[slotnum].size[i] = sz;
-				if (qrenderer == QR_NONE)
-					fontslot[slotnum].font[i] = NULL;
-				else
-					fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i]);
+				fontslot[slotnum].font[i] = NULL;
 				fontslot[slotnum].sizes++;
 			}
 		}
 
+		if (qrenderer > QR_NONE)
+		{
+			for (i = 0; i < fontslot[slotnum].sizes; i++)
+				fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline);
+		}
+
 		//FIXME: slotnum0==default is problematic.
-		if (dpcompat_console.ival && (slotnum == 1 || (slotnum == 0 && !*gl_font.string)))
+		if (dpcompat_console.ival && slotnum == 1)
+			Cvar_Set(&con_textfont, facename);
+		if (dpcompat_console.ival && slotnum == 0)
 			Cvar_Set(&gl_font, facename);
 	}
 }
@@ -1300,7 +1364,7 @@ static struct
 {
 	func_t init;
 	func_t shutdown;
-	func_t draw;
+	func_t draw;	qboolean fuckeddrawsizes;
 	func_t drawloading;
 	func_t keydown;
 	func_t keyup;
@@ -1500,7 +1564,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	char *funcname = NULL;
 	int args;
 	int builtinno;
-	if (prinst->GetFunctionInfo(prinst, funcref, &args, &builtinno, funcname, sizeof(funcname)))
+	if (prinst->GetFunctionInfo(prinst, funcref, &args, NULL, &builtinno, funcname, sizeof(funcname)))
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
@@ -2282,7 +2346,7 @@ static struct {
 	{"argescape",				PF_argescape,				295},
 															//gap
 	{"clearscene",				PF_m_clearscene,			300},
-															//no addentities
+//	{"addentities",				PF_Fixme,					301},
 	{"addentity",				PF_m_addentity,				302},//FIXME: needs setmodel, origin, angles, colormap(eep), frame etc, skin, 
 #ifdef CSQC_DAT
 	{"setproperty",				PF_R_SetViewFlag,			303},//should be okay to share
@@ -2310,15 +2374,28 @@ static struct {
 	{"getkeybind",				PF_cl_getkeybind,			342},
 	{"setcursormode",			PF_cl_setcursormode,		343},
 	{"getcursormode",			PF_cl_getcursormode,		0},	
-															//gap
+	{"setmousepos",				PF_cl_setmousepos,			0},
+//	{NULL,						PF_Fixme,					344},
+//	{NULL,						PF_Fixme,					345},
+//	{NULL,						PF_Fixme,					346},
+//	{NULL,						PF_Fixme,					347},
+//	{NULL,						PF_Fixme,					348},
 	{"isdemo",					PF_isdemo,					349},
+//	{NULL,						PF_Fixme,					350},
+//	{NULL,						PF_Fixme,					351},
 	{"registercommand",			PF_menu_registercommand,	352},
-															//gap
+	{"wasfreed",				PF_WasFreed,				353},
+//	{NULL,						PF_Fixme,					354},
+#ifdef HAVE_MEDIA_DECODER
+	{"videoplaying",			PF_cs_media_getstate,		355},
+#endif
 	{"findfont",				PF_CL_findfont,				356},
 	{"loadfont",				PF_CL_loadfont,				357},
 															//gap
 //	{"dynamiclight_get",		PF_R_DynamicLight_Get,		372},
 //	{"dynamiclight_set",		PF_R_DynamicLight_Set,		373},
+//	{NULL,						PF_Fixme,					374},
+//	{NULL,						PF_Fixme,					375},
 	{"setcustomskin",			PF_m_setcustomskin,			376},
 															//gap
 	{"memalloc",				PF_memalloc,				384},
@@ -2336,6 +2413,15 @@ static struct {
 	{"setwindowcaption",		PF_cl_setwindowcaption,		0},
 	{"cvars_haveunsaved",		PF_cvars_haveunsaved,		0},
 															//gap
+//	{"writebyte,				PF_Fixme,					401},
+//	{"writechar,				PF_Fixme,					402},
+//	{"writeshort,				PF_Fixme,					403},
+//	{"writelong,				PF_Fixme,					404},
+//	{"writeangle,				PF_Fixme,					405},
+//	{"writecoord,				PF_Fixme,					406},
+//	{"writestring,				PF_Fixme,					407},
+//	{"writeentity,				PF_Fixme,					408},
+															//gap
 	{"buf_create",				PF_buf_create,				440},
 	{"buf_del",					PF_buf_del,					441},
 	{"buf_getsize",				PF_buf_getsize,				442},
@@ -2346,7 +2432,7 @@ static struct {
 	{"bufstr_set",				PF_bufstr_set,				447},
 	{"bufstr_add",				PF_bufstr_add,				448},
 	{"bufstr_free",				PF_bufstr_free,				449},
-															//450
+//	{NULL,						PF_Fixme,					450},
 	{"iscachedpic",				PF_CL_is_cached_pic,		451},
 	{"precache_pic",			PF_CL_precache_pic,			452},
 	{"free_pic",				PF_CL_free_pic,				453},
@@ -2365,7 +2451,7 @@ static struct {
 	{"cin_getstate",			PF_cs_media_getstate,		464},
 	{"cin_restart",				PF_cs_media_restart, 		465},
 #endif
-	{"drawline",				PF_drawline,				466},
+	{"drawline",				PF_CL_drawline,				466},
 	{"drawstring",				PF_CL_drawcolouredstring,	467},
 	{"stringwidth",				PF_CL_stringwidth,			468},
 	{"drawsubpic",				PF_CL_drawsubpic,			469},
@@ -2388,10 +2474,10 @@ static struct {
 	{"strtolower",				PF_strtolower,				480},
 	{"strtoupper",				PF_strtoupper,				481},
 	{"cvar_defstring",			PF_cvar_defstring,			482},
-															//483
+//	{NULL,						PF_Fixme,					483},
 	{"strreplace",				PF_strreplace,				484},
 	{"strireplace",				PF_strireplace,				485},
-															//486
+//	{NULL,						PF_Fixme,					486},
 #ifdef HAVE_MEDIA_DECODER
 	{"gecko_create",			PF_cs_media_create,			487},
 	{"gecko_destroy",			PF_cs_media_destroy,		488},
@@ -2400,7 +2486,7 @@ static struct {
 	{"gecko_mousemove",			PF_cs_media_mousemove,		491},
 	{"gecko_resize",			PF_cs_media_resize,			492},
 	{"gecko_get_texture_extent",PF_cs_media_get_texture_extent,493},
-	{"gecko_getproperty",		PF_cs_media_getproperty},
+	{"gecko_getproperty",		PF_cs_media_getproperty,	0},
 #endif
 	{"crc16",					PF_crc16,					494},
 	{"cvar_type",				PF_cvar_type,				495},
@@ -2411,6 +2497,8 @@ static struct {
 	{"entityfieldtype",			PF_entityfieldtype,			498},
 	{"getentityfieldstring",	PF_getentityfieldstring,	499},
 	{"putentityfieldstring",	PF_putentityfieldstring,	500},
+//	{NULL,						PF_Fixme,					501},
+//	{NULL,						PF_Fixme,					502},
 	{"whichpack",				PF_whichpack,				503},
 															//gap
 	{"uri_escape",				PF_uri_escape,				510},
@@ -2425,10 +2513,12 @@ static struct {
 	{"cvar_description",		PF_cvar_description,		518},
 															//gap
 	{"log",						PF_Logarithm,				532},
-															//gap
+//	{"getsoundtime",			PF_Fixme,					533},
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
+//	{"bufstr_find",				PF_Fixme,					537},
+//	{"matchpattern",			PF_Fixme,					538},
 															//gap
 	{"setkeydest",				PF_cl_setkeydest,			601},
 	{"getkeydest",				PF_cl_getkeydest,			602},
@@ -2462,7 +2552,8 @@ static struct {
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 	{"getgamedirinfo",			PF_cl_getgamedirinfo,		626},
 	{"sprintf",					PF_sprintf,					627},
-															//gap
+//	{NULL,						PF_Fixme,					628},
+//	{NULL,						PF_Fixme,					629},
 	{"setkeybind",				PF_cl_setkeybind,			630},
 	{"getbindmaps",				PF_cl_GetBindMap,			631},
 	{"setbindmaps",				PF_cl_SetBindMap,			632},
@@ -2471,8 +2562,10 @@ static struct {
 	{"crypto_getencryptlevel",	PF_crypto_getencryptlevel,	635},
 	{"crypto_getmykeyfp",		PF_crypto_getmykeyfp,		636},
 	{"crypto_getmyidfp",		PF_crypto_getmyidfp,		637},
+//	{NULL,						PF_Fixme,					638},
 	{"digest_hex",				PF_digest_hex,				639},
 	{"digest_ptr",				PF_digest_ptr,				0},
+//	{NULL,						PF_Fixme,					640},
 	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
 
 
@@ -2665,6 +2758,8 @@ static qboolean MP_KeyEvent(menu_t *menu, qboolean isdown, unsigned int devid, i
 }
 static void MP_TryRelease(menu_t *m)
 {
+	if (inmenuprogs)
+		return;	//if the qc asked for it, the qc probably already knows about it. don't recurse.
 	MP_Toggle(0);
 }
 
@@ -2916,7 +3011,13 @@ qboolean MP_Init (void)
 
 		mpfuncs.init = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
 		mpfuncs.shutdown = PR_FindFunction(menu_world.progs, "m_shutdown", PR_ANY);
-		mpfuncs.draw = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
+		{
+			int args = 0;
+			qbyte *argsizes = NULL;
+			mpfuncs.draw = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
+			menu_world.progs->GetFunctionInfo(menu_world.progs, mpfuncs.draw, &args, &argsizes, NULL, NULL, 0);
+			mpfuncs.fuckeddrawsizes = (args == 2 && argsizes[0] == 1 && argsizes[1] == 1);
+		}
 		mpfuncs.drawloading = PR_FindFunction(menu_world.progs, "m_drawloading", PR_ANY);
 		mpfuncs.inputevent = PR_FindFunction(menu_world.progs, "Menu_InputEvent", PR_ANY);
 		mpfuncs.keydown = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
@@ -3085,21 +3186,36 @@ void MP_Draw(void)
 
 	inmenuprogs++;
 	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
-	((float *)pr_globals)[OFS_PARM0+0] = vid.width;
-	((float *)pr_globals)[OFS_PARM0+1] = vid.height;
-	((float *)pr_globals)[OFS_PARM0+2] = 0;
-	((float *)pr_globals)[OFS_PARM1+0] = vid.height;	//dp compat, ish
+
 	if (scr_drawloading||scr_disabled_for_loading)
 	{	//don't draw the menu if we're meant to be drawing a loading screen
 		//the menu should provide a special function if it wants to draw custom loading screens. this is for compat with old/dp/lazy/crappy menus.
 		if (mpfuncs.drawloading)
 		{
+			((float *)pr_globals)[OFS_PARM0+0] = vid.width;
+			((float *)pr_globals)[OFS_PARM0+1] = vid.height;
+			((float *)pr_globals)[OFS_PARM0+2] = 0;
+
 			((float *)pr_globals)[OFS_PARM1] = scr_disabled_for_loading;
 			PR_ExecuteProgram(menu_world.progs, mpfuncs.drawloading);
 		}
 	}
 	else if (mpfuncs.draw)
+	{
+		if (mpfuncs.fuckeddrawsizes)
+		{	//pass useless sizes in two args if its a dp menu
+			((float *)pr_globals)[OFS_PARM0] = vid.pixelwidth;
+			((float *)pr_globals)[OFS_PARM1] = vid.pixelheight;
+		}
+		else
+		{	//pass useful sizes in a 1-arg vector if its an fte menu.
+			((float *)pr_globals)[OFS_PARM0+0] = vid.width;
+			((float *)pr_globals)[OFS_PARM0+1] = vid.height;
+			((float *)pr_globals)[OFS_PARM0+2] = 0;
+		}
+
 		PR_ExecuteProgram(menu_world.progs, mpfuncs.draw);
+	}
 	inmenuprogs--;
 }
 

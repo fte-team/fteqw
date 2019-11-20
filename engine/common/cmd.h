@@ -22,6 +22,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //===========================================================================
 
+/*FIXME: rewrite this to use something like the following
+typedef struct
+{
+   	qbyte level:8;
+	qbyte seat:4;		//for splitscreen binds etc
+	qbyte pad:2;
+	qbyte insecure:1;	//from gamecode, untrusted configs, stuffed binds, etc. flagged for many reasons.
+	qbyte cvarlatch:1;	//latches cvars so the user cannot change them till next map. should be RESTRICT_LOCAL to avoid users cheating by restrict-to-block server commands.
+} cmdpermissions_t;
+typedef struct
+{
+	cbuf_t *cbuf; //exec etc inserts into this
+	cmdpermissions_t p; //access rights
+} cmdstate_t;
+void Cbuf_AddText(const char *text, qboolean addnl, qboolean insert, const cmdstate_t *cstate); //null for local?
+char *Cbuf_GetNext(cmdpermissions_t permissions, qboolean ignoresemicolon);
+void Cbuf_Execute(cbuf_t *cbuf);
+void Cmd_ExecuteString (const char *text, const cmdstate_t *cstate);
+
+//rcon can use a private cbuf, allowing it to parse properly despite level changes
+//cbuf must internally track cmdpermissions_t of different blocks. inserstions/additions may merge, others force \n termination (network can do its own buffering).
+
+typedef void (*xcommand_t) (const cmdstate_t *cstate);
+*/
+
 /*
 
 Any number of commands can be added in a frame, from several different sources.
@@ -168,11 +193,11 @@ void Cmd_Args_Set(const char *newargs, size_t len);
 
 #define RESTRICT_MAX RESTRICT_MAX_USER
 
-#define RESTRICT_LOCAL	RESTRICT_MAX
-#define RESTRICT_INSECURE	RESTRICT_MAX+1
-#define RESTRICT_SERVER	RESTRICT_MAX+2
+#define RESTRICT_LOCAL	RESTRICT_MAX		//commands typed at the console
+#define RESTRICT_INSECURE	RESTRICT_MAX+1	//commands from csqc or untrusted sources (really should be a separate flag, requires cbuf rewrite)
+#define RESTRICT_SERVER	RESTRICT_MAX+2		//commands from ssqc (untrusted, but allowed to lock cvars)
 #define RESTRICT_RCON	rcon_level.ival
-#define RESTRICT_PROGS	RESTRICT_MAX-2
+//#define RESTRICT_SSQC	RESTRICT_MAX-2
 
 #define Cmd_FromGamecode() (Cmd_ExecLevel>=RESTRICT_SERVER)	//cheat provention. block cheats if its not fromgamecode
 #define Cmd_IsInsecure() (Cmd_ExecLevel>=RESTRICT_INSECURE)	//prevention from the server from breaking/crashing/wiping us. if this returns true, block file access etc.

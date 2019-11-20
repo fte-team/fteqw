@@ -204,6 +204,9 @@ static struct
 
 	qXErrorHandler (*pXSetErrorHandler)(XErrorHandler);
 
+	int (*pXGrabServer)(Display *display);
+	int (*pXUngrabServer)(Display *display);
+
 #define XI_RESOURCENAME "FTEQW"
 #define XI_RESOURCECLASS "FTEQW"
 	char *(*pXSetLocaleModifiers)(char *modifier_list);
@@ -290,14 +293,18 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXSetSelectionOwner,	"XSetSelectionOwner"},
 		{(void**)&x11.pXSetWMNormalHints,	"XSetWMNormalHints"},
 		{(void**)&x11.pXSetWMProtocols,		"XSetWMProtocols"},
-		{(void**)&x11.pXStoreName,		"XStoreName"},
-		{(void**)&x11.pXSync,			"XSync"},
+		{(void**)&x11.pXStoreName,			"XStoreName"},
+		{(void**)&x11.pXSync,				"XSync"},
 		{(void**)&x11.pXUndefineCursor,		"XUndefineCursor"},
 		{(void**)&x11.pXUngrabKeyboard,		"XUngrabKeyboard"},
 		{(void**)&x11.pXUngrabPointer,		"XUngrabPointer"},
 		{(void**)&x11.pXWarpPointer,		"XWarpPointer"},
-		{(void**)&x11.pXMatchVisualInfo,		"XMatchVisualInfo"},
+		{(void**)&x11.pXMatchVisualInfo,	"XMatchVisualInfo"},
 		{(void**)&x11.pXGetVisualInfo,		"XGetVisualInfo"},
+
+		{(void**)&x11.pXGrabServer,			"XGrabServer"},
+		{(void**)&x11.pXUngrabServer,		"XUngrabServer"},
+
 		{NULL, NULL}
 	};
 
@@ -541,7 +548,7 @@ static void VMODE_SelectMode(int *width, int *height, float rate)
 #endif
 
 #ifdef USE_XRANDR
-#if 0
+#if 1
 	#include <X11/extensions/Xrandr.h>
 #else
 	//stuff to avoid dependancies
@@ -621,6 +628,22 @@ static void VMODE_SelectMode(int *width, int *height, float rate)
 		unsigned short  *green;
 		unsigned short  *blue;
 	} XRRCrtcGamma;
+
+	typedef struct _XRRPanning {
+		Time            timestamp;
+		unsigned int left;
+		unsigned int top;
+		unsigned int width;
+		unsigned int height;
+		unsigned int track_left;
+		unsigned int track_top;
+		unsigned int track_width;
+		unsigned int track_height;
+		int          border_left;
+		int          border_top;
+		int          border_right;
+		int          border_bottom;
+	} XRRPanning;
 #endif
 static struct
 {
@@ -671,7 +694,7 @@ static struct
 	XRRCrtcGamma		*origgamma;
 
 //	Status				(*pGetScreenSizeRange)	(Display *dpy, Window window, int *minwidth, int *minheight, int *maxwidth, int *maxheight);
-//	void				(*pSetScreenSize)		(Display *dpy, Window window, int width, int height, int mmwidth, int mmheight);
+	void				(*pSetScreenSize)		(Display *dpy, Window window, int width, int height, int mmwidth, int mmheight);
 	XRRScreenResources	*(*pGetScreenResources)	(Display *dpy, Window window);
 	void				*(*pFreeScreenResources)(XRRScreenResources *);
 	XRROutputInfo 		*(*pGetOutputInfo)		(Display *dpy, XRRScreenResources *resources, RROutput output);
@@ -685,6 +708,16 @@ static struct
 
 	//v1.3 has non-0 primary monitors.
 	RROutput			(*pGetOutputPrimary)	(Display *dpy, Window window);
+	Status				(*pSetPanning)			(Display *dpy, XRRScreenResources *resources, RRCrtc crtc, XRRPanning *panning);	//we need this just in case.
+	XRRPanning *		(*pGetPanning)			(Display *dpy, XRRScreenResources *resources, RRCrtc crtc);
+	void				(*pFreePanning)			(XRRPanning *panning);
+	int pan[4];			//for restoring panning. pan region the screen may move to
+	int pantrack[4];	//screen region where the mouse may be for the mouse to be tracked in
+	int panborder[4];	//border region of crtc for panning to take place in. typically >=0...
+
+	int nvidiabug;	//nvidia completely ignores panning requests, which fucks over fullscreen gameplay. we have to work around it by shrinking the screen which doesn't work with multiple displays (and risks fucking over everything else)
+	int origscreenwidth,  origscreenwidthmm;
+	int origscreenheight, origscreenheightmm;
 } xrandr;
 static qboolean XRandR_Init(void)
 {
@@ -741,6 +774,8 @@ static qboolean XRandR_Init(void)
 				xrandr.pFreeGamma		= Sys_GetAddressForName(xrandr.lib, "XRRFreeGamma");
 				xrandr.pSetCrtcGamma		= Sys_GetAddressForName(xrandr.lib, "XRRSetCrtcGamma");
 
+				xrandr.pSetScreenSize		= Sys_GetAddressForName(xrandr.lib, "XRRSetScreenSize");
+
 				if (	xrandr.pGetScreenResources && xrandr.pFreeScreenResources && xrandr.pFreeOutputInfo
 				    &&	xrandr.pGetCrtcInfo && xrandr.pFreeCrtcInfo && xrandr.pSetCrtcConfig
 				    &&	xrandr.pGetCrtcGamma && xrandr.pFreeGamma && xrandr.pSetCrtcGamma
@@ -748,7 +783,19 @@ static qboolean XRandR_Init(void)
 					xrandr.canmodechange12 = true;
 			}
 			if (xrandr.vmajor > 1 || (xrandr.vmajor == 1 && xrandr.vminor >= 3))
+			{
 				xrandr.pGetOutputPrimary		= Sys_GetAddressForName(xrandr.lib, "XRRGetOutputPrimary");
+				xrandr.pSetPanning				= Sys_GetAddressForName(xrandr.lib, "XRRSetPanning");
+				xrandr.pGetPanning				= Sys_GetAddressForName(xrandr.lib, "XRRGetPanning");
+				xrandr.pFreePanning				= Sys_GetAddressForName(xrandr.lib, "XRRFreePanning");
+			}
+
+			xrandr.nvidiabug = false; //hopeful...
+			{
+				int op, firstev, firsterr;
+				if (x11.pXQueryExtension(vid_dpy, "NV-CONTROL", &op, &firstev, &firsterr))
+					xrandr.nvidiabug = true; //our dreams are so cruely shattered.
+			}
 
 			//FIXME: query monitor sizes and calculate dpi for vid.dpy_[x|y]
 			return true;
@@ -816,10 +863,41 @@ static void XRandR_RevertMode(void)
 		XRRCrtcInfo *c = xrandr.crtcinfo;
 		if (c)
 		{
+			x11.pXGrabServer(vid_dpy);
+			if (xrandr.nvidiabug == 1)
+			{
+				if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, None, c->rotation, NULL, 0))
+					xrandr.pSetScreenSize(vid_dpy, DefaultRootWindow(vid_dpy), xrandr.origscreenwidth, xrandr.origscreenheight, xrandr.origscreenwidthmm, xrandr.origscreenheightmm);
+			}
+
 			if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, c->mode, c->rotation, c->outputs, c->noutput))
+			{
+				if (xrandr.pSetPanning)
+				{	//and try to reset panning back to its original values.
+					XRRPanning panning;
+					panning.timestamp		= c->timestamp;
+					panning.left			= xrandr.pan[0];
+					panning.top				= xrandr.pan[1];
+					panning.width			= xrandr.pan[2];
+					panning.height			= xrandr.pan[3];
+					panning.track_left		= xrandr.pantrack[0];
+					panning.track_top		= xrandr.pantrack[1];
+					panning.track_width		= xrandr.pantrack[2];
+					panning.track_height	= xrandr.pantrack[3];
+					panning.border_left		= xrandr.panborder[0];
+					panning.border_top		= xrandr.panborder[1];
+					panning.border_right	= xrandr.panborder[2];
+					panning.border_bottom	= xrandr.panborder[3];
+					if (Success != xrandr.pSetPanning(vid_dpy, xrandr.res, xrandr.crtc, &panning))
+						Con_Printf("Revert panning configuration failed\n");
+					else
+						Con_DPrintf("Panning configuration succeeded\n");
+				}
 				Con_DPrintf("Reverted mode\n");
+			}
 			else
 				Con_Printf("Couldn't revert XRandR mode!\n");
+			x11.pXUngrabServer(vid_dpy);
 		}
 		else
 		{
@@ -829,8 +907,9 @@ static void XRandR_RevertMode(void)
 		fullscreenflags &= ~FULLSCREEN_XRANDRACTIVE;
 	}
 }
-static void XRandR_ApplyMode(void)
+static qboolean XRandR_ApplyMode(void)
 {
+	qboolean ret = false;
 	Time config_timestamp;
 	if (!(fullscreenflags & FULLSCREEN_XRANDRACTIVE))
 	{
@@ -839,10 +918,54 @@ static void XRandR_ApplyMode(void)
 		{
 			if (xrandr.crtcmode)
 			{
+				x11.pXGrabServer(vid_dpy);
+				if (xrandr.nvidiabug == 1)
+				{
+					/*	nvidia's drivers are a bit shite and behave differently from every other driver
+						unlike other drivers they force panning enabled (and refuse to disable it), which then bugs out in SDL and Wine too.
+						(specifically, the panning width+height values are recalculated (completely ignoring any passed args), but left+top are not, the tracking+border areas are preserved but affect nothing)
+						the workaround is to:
+							lock the server (so other programs don't bug out too much),
+							disable the screen (for the next step to work),
+							change the virtual size to one that won't cause a problem with panning,
+							re-enable the screen with the desired video mode,
+							and unlock the server again.
+						This will not help with multimonitor setups, xrandr video mode switches are disabled entirely there.
+					*/
+					int screen_width = c->x + xrandr.crtcmode->width;
+					int screen_height = c->y + xrandr.crtcmode->height;
+					if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, None, c->rotation, NULL, 0))
+						xrandr.pSetScreenSize(vid_dpy, DefaultRootWindow(vid_dpy), screen_width, screen_height, (screen_width*xrandr.origscreenwidthmm)/xrandr.origscreenwidth, (screen_height*xrandr.origscreenheightmm)/xrandr.origscreenheight);
+				}
 				if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, xrandr.crtcmode->id, c->rotation, c->outputs, c->noutput))
+				{
+					if (xrandr.pSetPanning)
+					{	//disable panning, in case panning was previously enabled via exterior means
+						XRRPanning panning;
+						panning.timestamp = c->timestamp;
+						panning.left = c->x;
+						panning.top = c->y;
+						panning.width = panning.height = 0; //disables panning - "but RRSetScreenSize will silently enable panning if the screen size is increased. This does not happen if set to 0."
+
+						//set the tracking area inside of the border area, to make doubly sure
+						panning.track_left = c->x + 1;
+						panning.track_top = c->y + 1;
+						panning.track_width = xrandr.crtcmode->width-2;
+						panning.track_height = xrandr.crtcmode->height-2;
+						panning.border_left = panning.border_top = panning.border_right = panning.border_bottom = -16384; //border area is the region of this screen in which panning might be triggered.
+						if (Success != xrandr.pSetPanning(vid_dpy, xrandr.res, xrandr.crtc, &panning))
+							Con_Printf("Panning configuration failed\n");
+						else
+							Con_DPrintf("Panning configuration succeeded\n");
+					}
+
 					Con_DPrintf("Applied mode\n");
+					ret = true;
+				}
 				else
 					Con_Printf("Couldn't apply mode\n");
+
+				x11.pXUngrabServer(vid_dpy);
 			}
 		}
 		else
@@ -852,6 +975,7 @@ static void XRandR_ApplyMode(void)
 		}
 		fullscreenflags |= FULLSCREEN_XRANDRACTIVE;
 	}
+	return ret;
 }
 
 static void XRandR_Shutdown(void)
@@ -974,17 +1098,58 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 			fullscreenflags |= FULLSCREEN_DESKTOP;
 			Con_Printf("XRRSetCrtcConfig not needed\n");
 		}
-		else if (xrandr.crtcmode && Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, c->timestamp, c->x, c->y, xrandr.crtcmode->id, c->rotation, c->outputs, c->noutput))
-		{
-			*x = c->x;
-			*y = c->y;
-			*width = xrandr.crtcmode->width;
-			*height = xrandr.crtcmode->height;
-			fullscreenflags |= FULLSCREEN_XRANDR | FULLSCREEN_XRANDRACTIVE;
-			Con_Printf("XRRSetCrtcConfig succeeded\n");
-		}
-		else
+		else if (!xrandr.crtcmode)
 			Con_Printf("XRRSetCrtcConfig failed\n");
+		else
+		{
+			xrandr.origscreenwidth = DisplayWidth(vid_dpy, scrnum);
+			xrandr.origscreenheight = DisplayHeight(vid_dpy, scrnum);
+			xrandr.origscreenwidthmm = DisplayWidthMM(vid_dpy, scrnum);
+			xrandr.origscreenheightmm = DisplayHeightMM(vid_dpy, scrnum);
+
+			if (xrandr.pGetPanning)
+			{
+				XRRPanning *panning = xrandr.pGetPanning(vid_dpy, xrandr.res, xrandr.crtc);
+				if (panning)
+				{
+					xrandr.pan[0] = panning->left?panning->left:c->x;	//apparently some drivers can be buggy and forget left+top when panning was previously disabled, snappnig them to the wrong place when re-enabled.
+					xrandr.pan[1] = panning->top?panning->top:c->y;
+					xrandr.pan[2] = panning->width;
+					xrandr.pan[3] = panning->height;
+					xrandr.pantrack[0] = panning->track_left;
+					xrandr.pantrack[1] = panning->track_top;
+					xrandr.pantrack[2] = panning->track_width;
+					xrandr.pantrack[3] = panning->track_height;
+					xrandr.panborder[0] = panning->border_left;
+					xrandr.panborder[1] = panning->border_top;
+					xrandr.panborder[2] = panning->border_right;
+					xrandr.panborder[3] = panning->border_bottom;
+					xrandr.pFreePanning(panning);
+				}
+			}
+
+			if (xrandr.nvidiabug && (c->x != 0 || c->y != 0 || c->noutput>1))
+			{
+				Con_Printf("Nvidia and multimonitor detected. XRandR cannot be used safely under in this situation.\n");
+				xrandr.crtcmode = NULL;
+			}
+			else
+			{
+				if (xrandr.nvidiabug)
+					Con_Printf(CON_ERROR "Attempting NVIDIA panning workaround. Try 'xrandr --output foo --auto' to fix if this goes south..\n");
+
+				fullscreenflags |= FULLSCREEN_XRANDR;
+				if (XRandR_ApplyMode())
+				{	//worked
+					*x = c->x;
+					*y = c->y;
+					*width = xrandr.crtcmode->width;
+					*height = xrandr.crtcmode->height;
+				}
+				else
+					fullscreenflags &= ~FULLSCREEN_XRANDR;
+			}
+		}
 	}
 	else if (xrandr.canmodechange11)
 	{
@@ -2509,7 +2674,7 @@ static void install_grabs(void)
 		{
 			x11.pXWarpPointer(vid_dpy, None, vid_window,
 						 0, 0, 0, 0,
-						 vid.width / 2, vid.height / 2);
+						 vid.pixelwidth / 2, vid.pixelheight / 2);
 		}
 
 //		x11.pXSync(vid_dpy, True);
@@ -2530,6 +2695,21 @@ static void uninstall_grabs(void)
 		x11.pXUngrabPointer(vid_dpy, CurrentTime);
 
 //		x11.pXSync(vid_dpy, True);
+
+		if (!vid.forcecursor)
+		{
+			vid.forcecursor = true;
+			vid.forcecursorpos[0] = vid.pixelwidth/2;
+			vid.forcecursorpos[1] = vid.pixelheight/2;
+		}
+	}
+
+	if (vid.forcecursor)
+	{
+		vid.forcecursor = false;
+		x11.pXWarpPointer(vid_dpy, vid_window, vid_window,
+						 0, 0, vid.pixelwidth, vid.pixelheight,
+						 vid.forcecursorpos[0], vid.forcecursorpos[1]);
 	}
 }
 
@@ -3552,21 +3732,25 @@ static void X_StoreIcon(Window wnd)
 	Atom propname = x11.pXInternAtom(vid_dpy, "_NET_WM_ICON", false);
 	Atom proptype = x11.pXInternAtom(vid_dpy, "CARDINAL", false);
 
-	size_t filesize;
+	size_t filesize = 0;
 	qbyte *filedata = NULL;
-#ifdef AVAIL_PNGLIB
+#ifdef IMAGEFMT_PNG
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.png", &filesize);
 #endif
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.tga", &filesize);
-#ifdef AVAIL_JPEGLIB
+#ifdef IMAGEFMT_JPG
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.jpg", &filesize);
 #endif
 #ifdef IMAGEFMT_BMP
 	if (!filedata)
 		filedata = FS_LoadMallocFile("icon.ico", &filesize);
+#endif
+#ifdef HAVE_LEGACY
+	if (!filedata)
+		filedata = FS_LoadMallocFile("darkplaces-icon.tga", &filesize);
 #endif
 	if (filedata)
 	{
@@ -3885,6 +4069,10 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 
 	scrnum = DefaultScreen(vid_dpy);
 	vid_root = RootWindow(vid_dpy, scrnum);
+
+#define MILLIMETRESPERINCH 25.4	//sigh, why did we go for dpi?
+	vid.dpi_x = DisplayWidth(vid_dpy, scrnum) * (MILLIMETRESPERINCH / DisplayWidthMM(vid_dpy, scrnum));
+	vid.dpi_y = DisplayHeight(vid_dpy, scrnum) * (MILLIMETRESPERINCH / DisplayHeightMM(vid_dpy, scrnum));
 
 	fullscreenflags = 0;
 

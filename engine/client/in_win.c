@@ -627,7 +627,12 @@ static void INS_DeactivateMouse (void)
 
 			ClipCursor (NULL);
 			ReleaseCapture ();
-			SetCursorPos(window_rect.left+mousecursor_x, window_rect.top+mousecursor_y);
+			if (!vid.forcecursor)
+			{
+				vid.forcecursor = true;
+				vid.forcecursorpos[0] = mousecursor_x;
+				vid.forcecursorpos[1] = mousecursor_y;
+			}
 		}
 
 		mouseactive = false;
@@ -729,6 +734,14 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 		INS_ActivateMouse();
 	else
 		INS_DeactivateMouse();
+
+
+	if (vid.forcecursor && !mouseactive)
+	{
+		vid.forcecursor = false;
+		if (activeapp)
+			SetCursorPos(window_rect.left+vid.forcecursorpos[0], window_rect.top+vid.forcecursorpos[1]);
+	}
 }
 
 

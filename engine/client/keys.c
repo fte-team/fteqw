@@ -49,7 +49,7 @@ int		key_count;			// incremented every key event
 
 int		key_bindmaps[2];
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
-qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];
+qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];	//should be a struct, but not due to 7 bytes wasted per on 64bit machines
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
 int		keyshift[K_MAX];		// key to map to if shift held down in console
 int		key_repeats[K_MAX];	// if > 1, it is autorepeating
@@ -1273,74 +1273,166 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 #endif
 }
 
-const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
-{
-	static const struct
-	{
-		const char *pattern;
-		const char *repl;
-	} emoji[] =
-	{
-		//https://www.webpagefx.com/tools/emoji-cheat-sheet/
-//		{":)",				"\xE2\x98\xBA"},
+static qbyte *emojidata = NULL;
+static const qbyte *builtinemojidata =
+//		"\x02\x03" ":)"				"\xE2\x98\xBA"
 
 #ifdef QUAKEHUD
-		{":sg:",			"\xEE\x84\x82"},
-		{":ssg:",			"\xEE\x84\x83"},
-		{":ng:",			"\xEE\x84\x84"},
-		{":sng:",			"\xEE\x84\x85"},
-		{":gl:",			"\xEE\x84\x86"},
-		{":rl:",			"\xEE\x84\x87"},
-		{":lg:",			"\xEE\x84\x88"},
+	"\x04\x03" ":sg:"			"\xEE\x84\x82"
+	"\x05\x03" ":ssg:"			"\xEE\x84\x83"
+	"\x04\x03" ":ng:"			"\xEE\x84\x84"
+	"\x05\x03" ":sng:"			"\xEE\x84\x85"
+	"\x04\x03" ":gl:"			"\xEE\x84\x86"
+	"\x04\x03" ":rl:"			"\xEE\x84\x87"
+	"\x04\x03" ":lg:"			"\xEE\x84\x88"
 
-		{":sg2:",			"\xEE\x84\x92"},
-		{":ssg2:",			"\xEE\x84\x93"},
-		{":ng2:",			"\xEE\x84\x94"},
-		{":sng2:",			"\xEE\x84\x95"},
-		{":gl2:",			"\xEE\x84\x96"},
-		{":rl2:",			"\xEE\x84\x97"},
-		{":lg2:",			"\xEE\x84\x98"},
+	"\x05\x03" ":sg2:"			"\xEE\x84\x92"
+	"\x06\x03" ":ssg2:"			"\xEE\x84\x93"
+	"\x05\x03" ":ng2:"			"\xEE\x84\x94"
+	"\x06\x03" ":sng2:"			"\xEE\x84\x95"
+	"\x05\x03" ":gl2:"			"\xEE\x84\x96"
+	"\x05\x03" ":rl2:"			"\xEE\x84\x97"
+	"\x05\x03" ":lg2:"			"\xEE\x84\x98"
 
-		{":shells:",		"\xEE\x84\xA0"},
-		{":nails:",			"\xEE\x84\xA1"},
-		{":rocket:",		"\xEE\x84\xA2"},
-		{":cells:",			"\xEE\x84\xA3"},
-		{":ga:",			"\xEE\x84\xA4"},
-		{":ya:",			"\xEE\x84\xA5"},
-		{":ra:",			"\xEE\x84\xA6"},
+	"\x08\x03" ":shells:"		"\xEE\x84\xA0"
+	"\x07\x03" ":nails:"		"\xEE\x84\xA1"
+	"\x08\x03" ":rocket:"		"\xEE\x84\xA2"
+	"\x07\x03" ":cells:"		"\xEE\x84\xA3"
+	"\x04\x03" ":ga:"			"\xEE\x84\xA4"
+	"\x04\x03" ":ya:"			"\xEE\x84\xA5"
+	"\x04\x03" ":ra:"			"\xEE\x84\xA6"
 
-		{":key1:",			"\xEE\x84\xB0"},
-		{":key2:",			"\xEE\x84\xB1"},
-		{":ring:",			"\xEE\x84\xB2"},
-		{":pent:",			"\xEE\x84\xB3"},
-		{":suit:",			"\xEE\x84\xB4"},
-		{":quad:",			"\xEE\x84\xB5"},
-		{":sigil1:",		"\xEE\x84\xB6"},
-		{":sigil2:",		"\xEE\x84\xB7"},
-		{":sigil3:",		"\xEE\x84\xB8"},
-		{":sigil4:",		"\xEE\x84\xB9"},
+	"\x06\x03" ":key1:"			"\xEE\x84\xB0"
+	"\x06\x03" ":key2:"			"\xEE\x84\xB1"
+	"\x06\x03" ":ring:"			"\xEE\x84\xB2"
+	"\x06\x03" ":pent:"			"\xEE\x84\xB3"
+	"\x06\x03" ":suit:"			"\xEE\x84\xB4"
+	"\x06\x03" ":quad:"			"\xEE\x84\xB5"
+	"\x08\x03" ":sigil1:"		"\xEE\x84\xB6"
+	"\x08\x03" ":sigil2:"		"\xEE\x84\xB7"
+	"\x08\x03" ":sigil3:"		"\xEE\x84\xB8"
+	"\x08\x03" ":sigil4:"		"\xEE\x84\xB9"
 
-		{":face1:",			"\xEE\x85\x80"},
-		{":face_p1:",		"\xEE\x85\x81"},
-		{":face2:",			"\xEE\x85\x82"},
-		{":face_p2:",		"\xEE\x85\x83"},
-		{":face3:",			"\xEE\x85\x84"},
-		{":face_p3:",		"\xEE\x85\x85"},
-		{":face4:",			"\xEE\x85\x86"},
-		{":face_p4:",		"\xEE\x85\x87"},
-		{":face5:",			"\xEE\x85\x88"},
-		{":face_p5:",		"\xEE\x85\x89"},
-		{":face_invis:",	"\xEE\x85\x8A"},
-		{":face_invul2:",	"\xEE\x85\x8B"},
-		{":face_inv2:",		"\xEE\x85\x8C"},
-		{":face_quad:",		"\xEE\x85\x8D"},
+	"\x07\x03" ":face1:"		"\xEE\x85\x80"
+	"\x09\x03" ":face_p1:"		"\xEE\x85\x81"
+	"\x07\x03" ":face2:"		"\xEE\x85\x82"
+	"\x09\x03" ":face_p2:"		"\xEE\x85\x83"
+	"\x07\x03" ":face3:"		"\xEE\x85\x84"
+	"\x09\x03" ":face_p3:"		"\xEE\x85\x85"
+	"\x07\x03" ":face4:"		"\xEE\x85\x86"
+	"\x09\x03" ":face_p4:"		"\xEE\x85\x87"
+	"\x07\x03" ":face5:"		"\xEE\x85\x88"
+	"\x09\x03" ":face_p5:"		"\xEE\x85\x89"
+	"\x0c\x03" ":face_invis:"	"\xEE\x85\x8A"
+	"\x0d\x03" ":face_invul2:"	"\xEE\x85\x8B"
+	"\x0b\x03" ":face_inv2:"	"\xEE\x85\x8C"
+	"\x0b\x03" ":face_quad:"	"\xEE\x85\x8D"
 #endif
-	};
+	"";
+static void Key_LoadEmojiList(void)
+{
+	qbyte line[1024];
+	char nam[64];
+	char rep[64];
+	vfsfile_t *f;
+	char *json = FS_MallocFile("emoji.json", FS_GAME, NULL);	//https://unicodey.com/emoji-data/emoji.json
+
+	emojidata = Z_StrDup(builtinemojidata);
+	if (json)
+	{
+		char *unified;
+		for (unified = json; (unified = strstr(unified, ",\"unified\":\"")); )
+		{
+			int i = 0;
+			char *t;
+			char *sn;
+			unsigned int u;
+			unified += 12;
+			t = unified;
+			//do
+			//{
+				u = strtol(t, &t, 16);
+				i += utf8_encode(rep+i, u, countof(rep)-i);
+			//} while (i < countof(rep) && *t++ == '-');
+			if (*t!='\"')
+				continue;
+			rep[i] = 0;
+
+			sn = strstr(unified, "\"short_names\":[");
+			if (sn)
+			{
+				sn += 15;
+				while (sn && *sn == '\"')
+				{
+					sn = COM_ParseTokenOut(sn, NULL, nam+1, sizeof(nam)-1, NULL);
+					nam[0] = ':';
+					Q_strncatz(nam, ":", sizeof(nam));
+					line[0] = strlen(nam);
+					line[1] = strlen(rep);
+					strcpy(line+2, nam);
+					strcpy(line+2+line[0], rep);
+					Z_StrCat((char**)&emojidata, line);
+				}
+			}
+		}
+		FS_FreeFile(json);
+	}
+
+	f = FS_OpenVFS("emoji.lst", "rb", FS_GAME);
+	if (f)
+	{
+		qbyte line[1024];
+		char nam[64];
+		char rep[64];
+		while (VFS_GETS(f, line, sizeof(line)))
+		{
+			COM_ParseTokenOut(COM_ParseTokenOut(line, NULL, nam, sizeof(nam), NULL), NULL, rep, sizeof(rep), NULL);
+			if (!*nam || !*rep)
+				continue;	//next line then, I guess.
+			line[0] = strlen(nam);
+			line[1] = strlen(rep);
+			strcpy(line+2, nam);
+			strcpy(line+2+line[0], rep);
+			Z_StrCat((char**)&emojidata, line);
+		}
+		VFS_CLOSE(f);
+	}
+}
+void Key_EmojiCompletion_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	char guess[256];
+	char repl[256];
+	size_t ofs, len;
+	if (!emojidata)
+		Key_LoadEmojiList();
+	len = strlen(partial);
+	for (ofs = 0; emojidata[ofs]; )
+	{
+		if (len <= emojidata[ofs+0])
+			if (!strncmp(partial, &emojidata[ofs+2], len))
+			{
+				memcpy(guess, &emojidata[ofs+2], emojidata[ofs+0]);
+				guess[emojidata[ofs+0]] = 0;
+
+				memcpy(repl, &emojidata[ofs+2]+emojidata[ofs+0], emojidata[ofs+1]);
+				repl[emojidata[ofs+1]] = 0;
+				ctx->cb(guess, NULL, NULL, ctx);
+			}
+		ofs += 2+emojidata[ofs+0]+emojidata[ofs+1];
+	}
+}
+
+const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
+{
 	char *estart = strchr(in, ':');
-	size_t i;
+	size_t ofs;
 	char *out = buffer, *outend = buffer+buffersize-1;
 	if (!estart)
 		return in;
+
+	if (!emojidata)
+		Key_LoadEmojiList();
+
 	for(; estart; )
 	{
 		if (out + (estart-in) >= outend)
@@ -1349,21 +1441,22 @@ const char *Key_Demoji(char *buffer, size_t buffersize, const char *in)
 		out += estart-in;
 		in = estart;
 
-		for (i = 0; i < countof(emoji); i++)
+		for (ofs = 0; emojidata[ofs]; )
 		{
-			if (!strncmp(in, emoji[i].pattern, strlen(emoji[i].pattern)))
+			if (!strncmp(in, &emojidata[ofs+2], emojidata[ofs+0]))
 				break;	//its this one!
+			ofs += 2+emojidata[ofs+0]+emojidata[ofs+1];
 		}
-		if (i < countof(emoji))
+		if (emojidata[ofs])
 		{
-			if (out + strlen(emoji[i].repl) >= outend)
+			if (out + emojidata[ofs+1] >= outend)
 			{
 				in = "";	//no half-emoji
 				break;
 			}
-			in += strlen(emoji[i].pattern);
-			memcpy(out, emoji[i].repl, strlen(emoji[i].repl));
-			out += strlen(emoji[i].repl);
+			in += emojidata[ofs+0];
+			memcpy(out, &emojidata[ofs+2]+emojidata[ofs+0], emojidata[ofs+1]);
+			out += emojidata[ofs+1];
 			estart = strchr(in, ':');
 		}
 		else
@@ -2194,6 +2287,7 @@ the K_* names are matched up.
 */
 int Key_StringToKeynum (const char *str, int *modifier)
 {
+	int k;
 	keyname_t	*kn;
 
 	if (!strnicmp(str, "std_", 4) || !strnicmp(str, "std+", 4))
@@ -2237,21 +2331,27 @@ int Key_StringToKeynum (const char *str, int *modifier)
 #if 0//def _WIN32
 		return VkKeyScan(str[0]);
 #else
-		return str[0];
+		k = str[0];
+//		return str[0];
 #endif
 	}
-
-	if (!strncmp(str, "K_", 2))
-		str+=2;
-
-	for (kn=keynames ; kn->name ; kn++)
+	else
 	{
-		if (!Q_strcasecmp(str,kn->name))
-			return kn->keynum;
+		if (!strncmp(str, "K_", 2))
+			str+=2;
+
+		for (kn=keynames ; kn->name ; kn++)
+		{
+			if (!Q_strcasecmp(str,kn->name))
+				return kn->keynum;
+		}
+		k = atoi(str);
 	}
-	if (atoi(str))	//assume ascii code. (prepend with a 0 if needed)
+	if (k)	//assume ascii code. (prepend with a 0 if needed)
 	{
-		return atoi(str);
+		if (k >= 'A' && k <= 'Z')
+			k += 'a'-'A';
+		return k;
 	}
 	return -1;
 }
@@ -2548,14 +2648,28 @@ void Key_Bind_f (void)
 			char *alias = Cmd_AliasExist(keybindings[b][modifier], RESTRICT_LOCAL);
 			char quotedbind[2048];
 			char quotedalias[2048];
+			char leveldesc[1024];
+			if (bindcmdlevel[b][modifier] != level)
+			{
+				if (Cmd_ExecLevel > RESTRICT_SERVER)
+					Q_snprintfz(leveldesc, sizeof(leveldesc), ", for seat %i", Cmd_ExecLevel - RESTRICT_SERVER-1);
+				else if (Cmd_ExecLevel == RESTRICT_SERVER)
+					Q_snprintfz(leveldesc, sizeof(leveldesc), ", bound by server");
+				else if (bindcmdlevel[b][modifier]>=RESTRICT_INSECURE)
+					Q_snprintfz(leveldesc, sizeof(leveldesc), ", bound by insecure source");
+				else
+					Q_snprintfz(leveldesc, sizeof(leveldesc), ", at level %i", bindcmdlevel[b][modifier]);
+			}
+			else
+				*leveldesc = 0;
 			COM_QuotedString(keybindings[b][modifier], quotedbind, sizeof(quotedbind), false);
 			if (alias)
 			{
 				COM_QuotedString(alias, quotedalias, sizeof(quotedalias), false);
-				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = ^[\"%s\"\\type\\alias %s %s^]\n", Cmd_Argv(1), Cmd_Argv(1), quotedbind, keybindings[b][modifier], keybindings[b][modifier], quotedalias);
+				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = ^[\"%s\"\\type\\alias %s %s^]%s\n", Cmd_Argv(1), Cmd_Argv(1), quotedbind, keybindings[b][modifier], keybindings[b][modifier], quotedalias, leveldesc);
 			}
 			else
-				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = \"%s\"\n", Cmd_Argv(1), keybindings[b][modifier], Cmd_Argv(1), keybindings[b][modifier] );
+				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = \"%s\"%s\n", Cmd_Argv(1), keybindings[b][modifier], Cmd_Argv(1), keybindings[b][modifier], leveldesc);
 		}
 		else
 			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );

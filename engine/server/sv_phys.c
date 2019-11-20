@@ -464,7 +464,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 		if (-DotProduct(gravitydir, trace.plane.normal) > 0.7)
 		{
 			blocked |= 1;		// floor
-			if (((wedict_t *)trace.ent)->v->solid == SOLID_BSP)
+			if (((wedict_t *)trace.ent)->v->solid == SOLID_BSP || dpcompat_noretouchground.ival)
 			{
 				ent->v->flags =	(int)ent->v->flags | FL_ONGROUND;
 				ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);

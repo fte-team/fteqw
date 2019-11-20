@@ -509,6 +509,9 @@ SV_LinkEdict
 */
 void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 {
+	vec_t *mins;
+	vec_t *maxs;
+
 #ifdef USEAREAGRID
 	World_UnlinkEdict (ent);	// unlink from old position
 #else
@@ -524,11 +527,31 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	if (ED_ISFREE(ent))
 		return;
 
+	mins = ent->v->mins;
+	maxs = ent->v->maxs;
+	if (!ent->v->solid)
+		ent->solidsize = ES_SOLID_BSP;
+	else
+	{
+		model_t *mod;
+		if (ent->v->solid == SOLID_BSP)
+			mod = w->Get_CModel(w, ent->v->modelindex);
+		else
+			mod = NULL;
+		if (mod && mod->type == mod_brush)
+		{
+			mins = mod->mins;
+			maxs = mod->maxs;
+			ent->solidsize = ES_SOLID_BSP;
+		}
+		else
+			ent->solidsize = COM_EncodeSize(mins, maxs);
+	}
+
 // set the abs box
 	if (ent->v->solid == SOLID_BSP && 
 	(ent->v->angles[0] || ent->v->angles[1] || ent->v->angles[2]) )
 	{	// expand for rotation
-
 #if 1
 		int i;
 		float v;
@@ -537,10 +560,10 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		max = 0;
 		for (i=0 ; i<3 ; i++)
 		{
-			v =fabs( ent->v->mins[i]);
+			v =fabs( mins[i]);
 			if (v > max)
 				max = v;
-			v =fabs( ent->v->maxs[i]);
+			v =fabs( maxs[i]);
 			if (v > max)
 				max = v;
 		}
@@ -560,13 +583,13 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 
 		AngleVectors(ent->v->angles, f,r,u);
 
-		mn[0] = DotProduct(ent->v->mins, f);
-		mn[1] = -DotProduct(ent->v->mins, r);
-		mn[2] = DotProduct(ent->v->mins, u);
+		mn[0] = DotProduct(mins, f);
+		mn[1] = -DotProduct(mins, r);
+		mn[2] = DotProduct(mins, u);
 
-		mx[0] = DotProduct(ent->v->maxs, f);
-		mx[1] = -DotProduct(ent->v->maxs, r);
-		mx[2] = DotProduct(ent->v->maxs, u);
+		mx[0] = DotProduct(maxs, f);
+		mx[1] = -DotProduct(maxs, r);
+		mx[2] = DotProduct(maxs, u);
 		for (i = 0; i < 3; i++)
 		{
 			if (mn[i] < mx[i])
@@ -584,8 +607,8 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 	else
 	{
-		VectorAdd (ent->v->origin, ent->v->mins, ent->v->absmin);	
-		VectorAdd (ent->v->origin, ent->v->maxs, ent->v->absmax);
+		VectorAdd (ent->v->origin, mins, ent->v->absmin);
+		VectorAdd (ent->v->origin, maxs, ent->v->absmax);
 	}
 
 	//some fancy things can mean the ent's aabb is larger than its collision box.
@@ -597,21 +620,6 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	if (ent->xv->skeletonindex)
 		skel_updateentbounds(w, ent);
 #endif
-
-	if (!ent->v->solid)
-		ent->solidsize = ES_SOLID_BSP;
-	else
-	{
-		model_t *mod;
-		if (ent->v->solid == SOLID_BSP)
-			mod = w->Get_CModel(w, ent->v->modelindex);
-		else
-			mod = NULL;
-		if (mod && mod->type == mod_brush)
-			ent->solidsize = ES_SOLID_BSP;
-		else
-			ent->solidsize = COM_EncodeSize(ent->v->mins, ent->v->maxs);
-	}
 
 //
 // to make items easier to pick up and allow them to be grabbed off

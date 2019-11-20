@@ -35,7 +35,7 @@ FTEMANIFEST 1
 Specifies the actual version of the manifest file, and what the file actually is. Only valid as the first line. The version number is included for potential future use. Version 1 is the current version.
 
 GAME quake
-This specifies the code-name of the game upon which your mod is based.
+This specifies the code-name of the game upon which your mod is based (and MAY be used to generate homedir paths, so must not contain weird chars).
 Standalone games should pick their own string to use here.
 Mods for one of the games that FTE intrinsically understands may be automatically located via the system registry for an existing installation. This is useful when the fmf file has been downloaded and opened via a web browser.
 Known game name (namely: quake, quake2, quake3, hexen2) may imply other settings if they were not otherwise specified.
@@ -96,6 +96,9 @@ When updating a manifest, the engine will ignore the new manifest if its minver 
 MAXVER FTE 4778
 The manifest should not be used if the engine parsing it is a higher version than this. See minver for argument info.
 I'm not sure how useful this will actually be, but it is included for completeness.
+
+MAINCONFIG "fte.cfg"
+Isolates fte's config files from those of other engines that might be running this mod. Set to "config.cfg" to annoy users with endless conflicts.
 
 
 Console Commands:

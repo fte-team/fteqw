@@ -65,8 +65,13 @@ cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specu
 cvar_t r_shadow_playershadows				= CVARD ("r_shadow_playershadows", "1", "Controls the presence of shadows on the local player.");
 cvar_t r_shadow_shadowmapping				= CVARFD ("r_shadow_shadowmapping", "1", CVAR_ARCHIVE, "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
+static cvar_t r_shadow_shadowmapping_depthbits		= CVARD ("r_shadow_shadowmapping_depthbits", "16", "Shadowmap depth bits. 16, 24, or 32.");
 cvar_t r_sun_dir							= CVARD ("r_sun_dir", "0.2 0.5 0.8", "Specifies the direction that crepusular rays appear along");
 cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Specifies the colour of sunlight that appears in the form of crepuscular rays.");
+
+static cvar_t r_shadows_fakedistance		= CVARD("r_shadows_fakedistance", "1024", "The radius to use for fake shadows.");
+static cvar_t r_shadows_throwdirection		= CVARD("r_shadows_throwdirection", "0 0 -1", "The direction to throw the fake shadows in. Should ideally be opposite to r_sun_dir, but that just shows how fake these things actually are.");
+static cvar_t r_shadows_focus				= CVARD("r_shadows_focus", "0 0 0", "Offset for the center of the fake-shadows volume.");
 
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs);
 
@@ -2235,7 +2240,7 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec3_t axis[3], vec4_t *planes, i
 
 //culling for the face happens in the caller.
 //these faces should thus match Sh_LightFrustumPlanes
-static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, float proj[16], const qbyte *lightpvs)
+static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, int txsize, float proj[16], const qbyte *lightpvs)
 {
 	vec3_t t1,t2,t3;
 	texture_t *tex;
@@ -2303,19 +2308,19 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 
 	if (lighttype & (LSHADER_SPOT|LSHADER_ORTHO))
 	{
-		r_refdef.pxrect.x = (SHADOWMAP_SIZE-smsize)/2;
+		r_refdef.pxrect.x = (txsize-smsize)/2;
 		r_refdef.pxrect.width = smsize;
 		r_refdef.pxrect.height = smsize;
-		r_refdef.pxrect.y = (SHADOWMAP_SIZE-smsize)/2;
-		r_refdef.pxrect.maxheight = SHADOWMAP_SIZE;
+		r_refdef.pxrect.y = (txsize-smsize)/2;
+		r_refdef.pxrect.maxheight = txsize;
 	}
 	else
 	{
-		r_refdef.pxrect.x = (face%3 * SHADOWMAP_SIZE) + (SHADOWMAP_SIZE-smsize)/2;
+		r_refdef.pxrect.x = (face%3 * txsize) + (txsize-smsize)/2;
 		r_refdef.pxrect.width = smsize;
 		r_refdef.pxrect.height = smsize;
-		r_refdef.pxrect.y = (((face<3)*SHADOWMAP_SIZE) + (SHADOWMAP_SIZE-smsize)/2);
-		r_refdef.pxrect.maxheight = SHADOWMAP_SIZE*2;
+		r_refdef.pxrect.y = (((face<3)*txsize) + (txsize-smsize)/2);
+		r_refdef.pxrect.maxheight = txsize*2;
 	}
 
 	R_SetFrustum(proj, r_refdef.m_view);
@@ -2338,14 +2343,16 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 		if (lighttype & LSHADER_ORTHO)
 			qglEnable(GL_DEPTH_CLAMP_ARB);
 		GL_CullFace(SHADER_CULL_FRONT);
-		GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], smesh->verts, smesh->numindicies, smesh->vebo[1], smesh->indicies);
+		if (smesh)
+			GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], smesh->verts, smesh->numindicies, smesh->vebo[1], smesh->indicies);
 		break;
 #endif
 #ifdef VKQUAKE
 	case QR_VULKAN:
 		//FIXME: generate a single commandbuffer (requires full separation of viewprojection matrix)
 		VKBE_BeginShadowmapFace();
-		VKBE_RenderShadowBuffer(smesh->vkbuffer);
+		if (smesh)
+			VKBE_RenderShadowBuffer(smesh->vkbuffer);
 		break;
 #endif
 #ifdef D3D11QUAKE
@@ -2353,11 +2360,13 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 		//opengl render targets are upside down - our code kinda assumes gl
 		r_refdef.pxrect.y = r_refdef.pxrect.maxheight -(r_refdef.pxrect.y+r_refdef.pxrect.height);
 		D3D11BE_BeginShadowmapFace();
-		D3D11BE_RenderShadowBuffer(smesh->numverts, smesh->d3d11_vbuffer, smesh->numindicies, smesh->d3d11_ibuffer);
+		if (smesh)
+			D3D11BE_RenderShadowBuffer(smesh->numverts, smesh->d3d11_vbuffer, smesh->numindicies, smesh->d3d11_ibuffer);
 		break;
 #endif
 	default:
 		//FIXME: should be able to merge batches between textures+lightmaps.
+		if (smesh)
 		for (tno = 0; tno < smesh->numbatches; tno++)
 		{
 			if (!smesh->batches[tno].count)
@@ -2426,29 +2435,50 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 */
 }
 
-qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvis, int smsize)
+qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvis, int smsize, int txsize)
 {
 	int restorefbo = 0;
 	int f,lf;
 	float oprojs[16], oprojv[16], oview[16];
 	pxrect_t oprect;
 	shadowmesh_t *smesh;
-	qboolean isspot = !!(lighttype & (LSHADER_SPOT|LSHADER_ORTHO));
 	int sidevisible;
 	int oldflip = r_refdef.flipcull;
 	int oldexternalview = r_refdef.externalview;
+	int twidth;
+	int theight;
+	int smapidx;
+	uploadfmt_t fmt;
 
-	if (isspot)
+	if (r_shadow_shadowmapping_depthbits.ival >= 32 && sh_config.texfmt[PTI_DEPTH32])
+		fmt = PTI_DEPTH32;
+	else if (r_shadow_shadowmapping_depthbits.ival >= 24 && sh_config.texfmt[PTI_DEPTH24])
+		fmt = PTI_DEPTH24;
+	else if (r_shadow_shadowmapping_depthbits.ival >= 24 && sh_config.texfmt[PTI_DEPTH24_8])
+		fmt = PTI_DEPTH24_8;
+	else
+		fmt = PTI_DEPTH16;
+
+	if (lighttype & (LSHADER_SPOT|LSHADER_ORTHO))
 	{	//spotlights only face forwards. which is side 4. which is annoying.
 		f = 4;
 		lf = f+1;
 		sidevisible = 1<<f;
+		twidth = theight = txsize;
+
+		if (lighttype & LSHADER_FAKESHADOWS)
+			smapidx = 2;
+		else
+			smapidx = 1;
 	}
 	else
 	{
 		f = 0;
 		lf = 6;
 		sidevisible = (1<<6)-1;
+		twidth = txsize*3;
+		theight = txsize*2;
+		smapidx = 0;
 	}
 	if (R_CullSphere(l->origin, 0))
 	{	//if the light's center isn't onscreen, cull individual faces
@@ -2492,7 +2522,10 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 	memcpy(oprojv, r_refdef.m_projection_view, sizeof(oprojv));
 	memcpy(oview, r_refdef.m_view, sizeof(oview));
 	oprect = r_refdef.pxrect;
-	smesh = SHM_BuildShadowMesh(l, lvis, (lighttype & LSHADER_ORTHO)?SMT_ORTHO:SMT_SHADOWMAP);
+	if (lighttype & LSHADER_FAKESHADOWS)
+		smesh = NULL;
+	else
+		smesh = SHM_BuildShadowMesh(l, lvis, (lighttype & LSHADER_ORTHO)?SMT_ORTHO:SMT_SHADOWMAP);
 
 	if (lighttype & LSHADER_SPOT)
 		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov, l->fov, l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value, l->radius, false);
@@ -2517,20 +2550,20 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 		return false;
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		if (!GLBE_BeginShadowMap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2)), &restorefbo))
+		if (!GLBE_BeginShadowMap(smapidx, twidth, theight, fmt, &restorefbo))
 			return false;
 		break;
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
-		if (!D3D11_BeginShadowMap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2))))
+		if (!D3D11_BeginShadowMap(smapidx, twidth, theight))
 			return false;
 		break;
 #endif
 
 #ifdef VKQUAKE
 	case QR_VULKAN:
-		if (!VKBE_BeginShadowmap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2))))
+		if (!VKBE_BeginShadowmap(smapidx, twidth, theight))
 			return false;
 		break;
 #endif
@@ -2544,7 +2577,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 		if (sidevisible & (1u<<f))
 		{
 			RQuantAdd(RQUANT_SHADOWSIDES, 1);
-			Sh_GenShadowFace(l, axis, lighttype, smesh, f, smsize, r_refdef.m_projection_std, lvis);
+			Sh_GenShadowFace(l, axis, lighttype, smesh, f, smsize, txsize, r_refdef.m_projection_std, lvis);
 		}
 	}
 
@@ -2672,9 +2705,111 @@ qboolean Sh_GenerateShadowMap(dlight_t *l, int lighttype)
 	}
 
 	//fixme: light rotation
-	if (!Sh_GenShadowMap(l, lighttype, l->axis, lvis, smsize))
+	if (!Sh_GenShadowMap(l, lighttype, l->axis, lvis, smsize, SHADOWMAP_SIZE))
 		return false;	//didn't need to do anything
 	return true;
+}
+
+void Sh_OrthoAlignToFrustum(dlight_t *dl, int smsize)
+{
+	vec3_t neworg;
+	double dot;
+	double scale;
+	int i;
+	//there's 1 sample every dl->radius/(smsize*2)
+	//fixme: fit to frustum
+	VectorMA(r_origin, dl->radius/3, vpn, neworg);
+	VectorMA(neworg, -r_shadows_focus.vec4[2], vpn, neworg);
+	VectorMA(neworg, -r_shadows_focus.vec4[0], vright, neworg);
+	VectorMA(neworg, -r_shadows_focus.vec4[1], vup, neworg);
+	scale = dl->radius/(smsize*2);
+	for (i = 0; i < 3; i++)
+	{
+		dot = DotProduct_Double(neworg, dl->axis[i]);
+		dot /= scale;
+		dot = round(dot)-dot;
+		dot *= scale;
+		VectorMA(neworg, dot, dl->axis[i], neworg); //realign it on this axis.
+	}
+	VectorCopy(neworg, dl->origin);
+}
+qboolean r_fakeshadows;
+static dlight_t r_fakelight;
+void Sh_GenerateFakeShadows(void)	//generates shadowmaps and selects the dlight, but does not actually render any lighting. the lightmapped-wall etc glsl must filter by itself if it wants to accept shadows.
+{
+	dlight_t *l = &r_fakelight;
+	vec3_t mins, maxs;
+	srect_t rect;
+	int smsize;
+	int texwidth, texheight;
+
+	if (*r_shadows_throwdirection.string)
+		VectorCopy(r_shadows_throwdirection.vec4, l->axis[0]);
+	else
+		VectorNegate(r_sun_dir.vec4, l->axis[0]);
+	VectorNormalize(l->axis[0]);
+	VectorVectors(l->axis[0], l->axis[1], l->axis[2]);
+	VectorNegate(l->axis[1], l->axis[1]);
+
+	smsize = SHADOWMAP_SIZE*4;	//spot lights or ortho lights can just use the full thing.
+	Sh_OrthoAlignToFrustum(l, smsize);
+	l->rebuildcache = true;
+
+	l->radius = r_shadows_fakedistance.value;
+	l->flags = LFLAG_SHADOWMAP|LFLAG_ORTHO;
+
+	if (R_CullSphere(l->origin, l->radius))
+	{
+		RQuantAdd(RQUANT_RTLIGHT_CULL_FRUSTUM, 1);
+		return;	//this should be the more common case
+	}
+
+	mins[0] = l->origin[0] - l->radius;
+	mins[1] = l->origin[1] - l->radius;
+	mins[2] = l->origin[2] - l->radius;
+
+	maxs[0] = l->origin[0] + l->radius;
+	maxs[1] = l->origin[1] + l->radius;
+	maxs[2] = l->origin[2] + l->radius;
+
+	if (Sh_ScissorForBox(mins, maxs, &rect))
+	{
+		RQuantAdd(RQUANT_RTLIGHT_CULL_SCISSOR, 1);
+		return;
+	}
+
+	texwidth = smsize;
+	texheight = smsize;
+
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		GLBE_SetupForShadowMap(l, texwidth, texheight, (smsize) / (float)texwidth);
+		break;
+#endif
+#ifdef D3D11QUAKE
+	case QR_DIRECT3D11:
+		D3D11BE_SetupForShadowMap(l, texwidth, texheight, (smsize) / (float)texwidth);
+		break;
+#endif
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		VKBE_SetupForShadowMap(l, texwidth, texheight, (smsize) / (float)texwidth);
+		break;
+#endif
+	default:
+		(void)texwidth;
+		(void)texheight;
+		break;
+	}
+
+	if (!BE_SelectDLight(l, vec3_origin, l->axis, LSHADER_SMAP|LSHADER_ORTHO))
+		return;
+	if (!Sh_GenShadowMap(l, LSHADER_SMAP|LSHADER_ORTHO|LSHADER_FAKESHADOWS, l->axis, NULL, smsize, texwidth))
+		return;
+
+	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 }
 
 static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qbyte *vvis)
@@ -2800,7 +2935,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 
 	if (!BE_SelectDLight(l, colour, axis, lighttype))
 		return;
-	if (!Sh_GenShadowMap(l, lighttype, axis, lvis, smsize))
+	if (!Sh_GenShadowMap(l, lighttype, axis, lvis, smsize, SHADOWMAP_SIZE))
 		return;
 
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
@@ -3618,7 +3753,8 @@ void Sh_PreGenerateLights(void)
 		}
 	}
 
-	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
+	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:0)
+			| (r_shadow_realtime_dlight.value?LFLAG_NORMALMODE:0);
 
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
 	{
@@ -3675,6 +3811,7 @@ void Com_ParseVector(char *str, vec3_t out)
 
 void Sh_CheckSettings(void)
 {
+	extern cvar_t r_shadows;
 	qboolean canstencil = false, cansmap = false, canshadowless = false;
 	r_shadow_shadowmapping.ival = r_shadow_shadowmapping.value;
 	r_shadow_realtime_world.ival = r_shadow_realtime_world.value;
@@ -3763,6 +3900,14 @@ void Sh_CheckSettings(void)
 	{
 		//both shadow methods available.
 	}
+
+	cansmap = cansmap && (r_shadows.ival==2);
+	if (r_fakeshadows != cansmap)
+	{
+		r_fakeshadows = cansmap;
+		Shader_NeedReload(false);
+	}
+	r_blobshadows = r_fakeshadows?0:r_shadows.value;	//force it off the hacky way.
 }
 
 void Sh_CalcPointLight(vec3_t point, vec3_t light)
@@ -3776,7 +3921,8 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 	unsigned int ignoreflags;
 
 	vec3_t norm, impact;
-	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
+	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:0)
+			| (r_shadow_realtime_dlight.value?LFLAG_NORMALMODE:0);
 
 	VectorClear(light);
 	if (ignoreflags)
@@ -3818,16 +3964,6 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 	}
 }
 
-void Sh_OrthoAlignToFrustum(dlight_t *dl)
-{
-	vec3_t neworg;
-	//there's 1 sample every dl->radius/(SHADOWMAP_SIZE*2)
-	//fixme: fit to frustum
-	VectorMA(r_origin, dl->radius/3, vpn, neworg);
-	VectorCopy(neworg, dl->origin);
-}
-
-int drawdlightnum;
 void Sh_DrawLights(qbyte *vis)
 {
 	vec3_t rotated[3];
@@ -3836,18 +3972,20 @@ void Sh_DrawLights(qbyte *vis)
 	dlight_t *dl;
 	int i;
 	unsigned int ignoreflags;
+	extern cvar_t r_shadows;
 
 	if (r_shadow_realtime_world.modified ||
 		r_shadow_realtime_world_shadows.modified ||
 		r_shadow_realtime_dlight.modified ||
 		r_shadow_realtime_dlight_shadows.modified ||
-		r_shadow_shadowmapping.modified)
+		r_shadow_shadowmapping.modified || r_shadows.modified)
 	{
 		r_shadow_realtime_world.modified =
 		r_shadow_realtime_world_shadows.modified =
 		r_shadow_realtime_dlight.modified =
 		r_shadow_realtime_dlight_shadows.modified =
 		r_shadow_shadowmapping.modified =
+		r_shadows.modified =
 				false;
 		Sh_CheckSettings();
 		//make sure the lighting is reloaded
@@ -3862,7 +4000,8 @@ void Sh_DrawLights(qbyte *vis)
 		return;
 	}
 
-	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
+	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:0)
+				| (r_shadow_realtime_dlight.value?LFLAG_NORMALMODE:0);
 
 //	if (r_refdef.recurse)
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
@@ -3958,14 +4097,13 @@ void Sh_DrawLights(qbyte *vis)
 		else
 			axis = dl->axis;
 
-		drawdlightnum++;
 		if (dl->flags & LFLAG_ORTHO)
 		{
 			vec3_t saveorg = {dl->origin[0], dl->origin[1], dl->origin[2]};
 			vec3_t saveaxis[3];
 			memcpy(saveaxis, dl->axis, sizeof(saveaxis));
 			memcpy(dl->axis, axis, sizeof(saveaxis));
-			Sh_OrthoAlignToFrustum(dl);
+			Sh_OrthoAlignToFrustum(dl, SHADOWMAP_SIZE);
 			dl->rebuildcache = true;
 			Sh_DrawShadowMapLight(dl, colour, axis, NULL);
 			VectorCopy(saveorg, dl->origin);
@@ -4029,8 +4167,6 @@ void Sh_DrawLights(qbyte *vis)
 //	if (developer.value)
 //	Con_Printf("%i lights drawn, %i frustum culled, %i pvs culled, %i scissor culled\n", bench.numlights, bench.numfrustumculled, bench.numpvsculled, bench.numscissorculled);
 //	memset(&bench, 0, sizeof(bench));
-
-	drawdlightnum = -1;
 }
 #endif
 
@@ -4071,5 +4207,9 @@ void Sh_RegisterCvars(void)
 	Cvar_Register (&r_shadow_shadowmapping_bias,		REALTIMELIGHTING);
 	Cvar_Register (&r_sun_dir,							REALTIMELIGHTING);
 	Cvar_Register (&r_sun_colour,						REALTIMELIGHTING);
+	Cvar_Register (&r_shadows_fakedistance,				REALTIMELIGHTING);
+	Cvar_Register (&r_shadows_throwdirection,			REALTIMELIGHTING);
+	Cvar_Register (&r_shadows_focus,					REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_shadowmapping_depthbits,	REALTIMELIGHTING);
 #endif
 }

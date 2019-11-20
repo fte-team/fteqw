@@ -66,7 +66,12 @@ static char casevar[9][1000]; //numbered_command
 #define CURRENTCONSOLE "" // need to make this the current console
 #define DEFAULTCONSOLE ""
 #define COMMANDNAME "irc"
-#define RELEASE __DATE__
+
+#if defined(SVNREVISION)
+	#define RELEASE STRINGIFY(SVNREVISION)
+#else
+	#define RELEASE __DATE__
+#endif
 
 static struct
 {

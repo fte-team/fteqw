@@ -2541,6 +2541,7 @@ void SV_UserCmdMVDList_f (void)
 
 void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 {
+//#define EMBEDGAME
 	mvddest_t *d;
 	dir_t	*dir;
 	file_t	*list;
@@ -2557,6 +2558,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 					".mydiv { width: 20%%; height: 100%%; padding: 0px; margin: 0px; border: 0px solclass #aaaaaa; float:left; }"
 					".game { width: 80%%; height: 100%%; padding: 0px; margin: 0px; border: 0px solclass #aaaaaa; float:left; }"
 				"</style>"
+#ifdef EMBEDGAME
 				"<script>"
 					"function playdemo(demo)"
 					"{"
@@ -2564,6 +2566,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 						"thegame.postMessage({cmd:'playdemo',url:demo}, '*');"
 					"}"
 				"</script>"
+#endif
 			"</head>"
 			"<body>"
 			"<div class='mydiv'>\n"
@@ -2588,7 +2591,11 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 		{
 			char datetime[64];
 			strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localtime(&list->mtime));
+#ifdef EMBEDGAME
 			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %uk <a href='javascript:void(0)' onclick='playdemo(\"%s\")'>play</a> %s<br/>\n", i, list->name, list->name, (unsigned int)(list->size/1024), list->name, datetime);
+#else
+			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %uk %s<br/>\n", i, list->name, list->name, (unsigned int)(list->size/1024), datetime);
+#endif
 		}
 	}
 
@@ -2606,13 +2613,15 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 
 	VFS_PRINTF(pipe,
 				"</div>"
+#ifdef EMBEDGAME
 				"<div class='game'>"
 					"<iframe name='thegame'"	//the name of the game is... thegame!
 						" src='"ENGINEWEBSITE"/quake' allowfullscreen=true"
 						" frameborder='0' scrolling='no' marginheight='0' marginwidth='0' width='100%%' height='100%%'"
 						" onerror=\"alert('Failed to load engine')\">"
-				"</iframe>"
+					"</iframe>"
 				"</div>"
+#endif
 			"</body>\n"
 		"</html>\n");
 

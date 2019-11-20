@@ -298,6 +298,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->mappings[skin->nummappings].needsfree = false;
 				skin->nummappings++;
 			}
 		}
@@ -398,6 +399,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				skin->mappings[skin->nummappings].shader = R_RegisterCustom (shadername, 0, Shader_DefaultSkin, NULL);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->mappings[skin->nummappings].needsfree = false;
 				skin->nummappings++;
 			}
 		}

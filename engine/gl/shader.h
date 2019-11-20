@@ -570,11 +570,13 @@ enum
 	LSHADER_SPOT=1u<<2,		//filter based upon a single spotlight shadowmap
 #ifdef LFLAG_ORTHO
 	LSHADER_ORTHO=1u<<3,	//uses a parallel projection(ortho) matrix, with the light source being an entire plane instead of a singular point. which is weird. read: infinitely far away sunlight
-	LSHADER_MODES=1u<<4
+	LSHADER_MODES=1u<<4,
 #else
 	LSHADER_ORTHO=0,	//so bitmasks return false
-	LSHADER_MODES=1u<<3
+	LSHADER_MODES=1u<<3,
 #endif
+
+	LSHADER_FAKESHADOWS=1u<<10,	//special 'light' type that isn't a light but still needs a shadowmap. ignores world+bsp shadows.
 };
 enum
 {
@@ -875,7 +877,7 @@ void GLBE_FBO_Pop(int oldfbo);
 void GLBE_FBO_Destroy(fbostate_t *state);
 int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int colourbuffers, texid_t destdepth, int width, int height, int layer);
 
-qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo);
+qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *restorefbo);
 void GLBE_EndShadowMap(int restorefbo);
 void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale);
 
@@ -1001,6 +1003,7 @@ void D3D11BE_BaseEntTextures(const qbyte *worldpvs, const int *worldareas);
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis);
+void Sh_GenerateFakeShadows(void);
 void Sh_CheckSettings(void);
 void SH_FreeShadowMesh(struct shadowmesh_s *sm);
 //frees all memory

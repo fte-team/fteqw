@@ -3979,7 +3979,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	case 1:
 		cl.sendprespawn = true;
 		SCR_SetLoadingFile("loading data");
-		CL_RequestNextDownload();
+		CL_RequestNextDownload();	//this sucks, but sometimes mods send csqc-specific messages to us before things are properly inited. if we start doing stuff now then we can minimize the chances of dodgy mods screwing with us. FIXME: warn about receiving csqc messages before begin.
 		break;
 
 	case 2:

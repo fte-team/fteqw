@@ -1146,7 +1146,7 @@ void CL_ParseTEnt (void)
 		if (type < countof(te_names))
 			Con_Printf("  te_%s\n", te_names[type]);
 		else
-			Con_Printf("  te_%i\n", type);
+			Con_Printf("  te_unknown_%i\n", type);
 	}
 
 	switch (type)

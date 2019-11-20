@@ -104,7 +104,7 @@ cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "A
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
 cvar_t	pkg_downloads_url = CVARFD("pkg_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "-1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 #ifdef HAVE_LEGACY
 cvar_t	pm_noround = CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
 #endif
@@ -4785,10 +4785,14 @@ static void COM_Version_f (void)
 	Con_Printf("^4"ENGINEWEBSITE"\n");
 	Con_Printf("%s\n", version_string());
 
+#if defined(SVNREVISION) && defined(SVNDATE)
+	Con_Printf("SVN Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+#else
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
 #ifdef SVNREVISION
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))
 		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
+#endif
 #endif
 #ifdef CONFIG_FILE_NAME
 	Con_Printf("Build config: %s\n\n", COM_SkipPath(STRINGIFY(CONFIG_FILE_NAME)));
@@ -7503,12 +7507,14 @@ char *version_string(void)
 	{
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+#elif defined(SVNREVISION) && defined(SVNDATE)
+		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
 #else
-#if defined(SVNREVISION)
+	#if defined(SVNREVISION)
 		if (strcmp(STRINGIFY(SVNREVISION), "-"))
-			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
+			Q_snprintfz(s, sizeof(s), "%s SVN %s %s", DISTRIBUTION, STRINGIFY(SVNREVISION), __DATE__);
 		else
-#endif
+	#endif
 		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
 #endif
 		done = true;

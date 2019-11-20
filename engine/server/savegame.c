@@ -1553,7 +1553,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		int height = vid.pixelheight;
 		image_t *img;
 		uploadfmt_t format;
-		void *rgbbuffer = SCR_ScreenShot_Capture(width, height, &stride, &format, false);
+		void *rgbbuffer = SCR_ScreenShot_Capture(width, height, &stride, &format, false, false);
 		if (rgbbuffer)
 		{
 //			extern cvar_t	scr_sshot_type;

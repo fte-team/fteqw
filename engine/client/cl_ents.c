@@ -46,6 +46,7 @@ extern	cvar_t	r_torch;
 extern  cvar_t r_shadows;
 extern	cvar_t	r_showbboxes;
 extern	cvar_t gl_simpleitems;
+float r_blobshadows;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -3087,7 +3088,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	scenetris_t *t;
 	cl_adddecal_ctx_t ctx;
 
-	if (!r_shadows.value || !ent->model || (ent->model->type != mod_alias && ent->model->type != mod_halflife))
+	if (!r_blobshadows || !ent->model || (ent->model->type != mod_alias && ent->model->type != mod_halflife))
 		return;
 
 	s = R_RegisterShader("shadowshader", SUF_NONE,
@@ -3148,7 +3149,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	}
 
 	ctx.t = t;
-	Vector4Set(ctx.rgbavalue, 0, 0, 0, r_shadows.value);
+	Vector4Set(ctx.rgbavalue, 0, 0, 0, r_blobshadows);
 	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
 	if (!t->numidx)
 		cl_numstris--;
@@ -4151,8 +4152,33 @@ void CL_LinkPacketEntities (void)
 		else
 		{
 			/*bsp model size*/
-			VectorAdd(model->mins, ent->origin, absmin);
-			VectorAdd(model->maxs, ent->origin, absmax);
+			if (model->type == mod_brush && (state->angles[0]||state->angles[1]||state->angles[2]))
+			{
+				int i;
+				float v;
+				float max;
+				//q2 method, works best with origin brushes.
+				max = 0;
+				for (i=0 ; i<3 ; i++)
+				{
+					v =fabs( model->mins[i]);
+					if (v > max)
+						max = v;
+					v =fabs( model->maxs[i]);
+					if (v > max)
+						max = v;
+				}
+				for (i=0 ; i<3 ; i++)
+				{
+					absmin[i] = ent->origin[i] - max;
+					absmax[i] = ent->origin[i] + max;
+				}
+			}
+			else
+			{
+				VectorAdd(model->mins, ent->origin, absmin);
+				VectorAdd(model->maxs, ent->origin, absmax);
+			}
 			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &ent->pvscache, absmin, absmax);
 		}
 

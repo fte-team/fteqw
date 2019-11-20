@@ -56,6 +56,7 @@ struct
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font, con_textfont;
+extern cvar_t r_font_postprocess_outline;
 extern cvar_t gl_screenangle;
 extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
@@ -137,6 +138,7 @@ void R2D_Shutdown(void)
 {
 	Cvar_Unhook(&con_textfont);
 	Cvar_Unhook(&gl_font);
+	Cvar_Unhook(&r_font_postprocess_outline);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&gl_screenangle);
 	Cvar_Unhook(&vid_conheight);
@@ -195,6 +197,10 @@ void R2D_Shutdown(void)
 
 	Z_Free(atlas.data);
 	memset(&atlas, 0, sizeof(atlas));
+
+#ifdef PLUGINS
+	Plug_FreeAllImages();
+#endif
 }
 
 /*
@@ -396,6 +402,7 @@ void R2D_Init(void)
 
 	Cvar_Hook(&con_textfont, R2D_Font_Callback);
 	Cvar_Hook(&gl_font, R2D_Font_Callback);
+	Cvar_Hook(&r_font_postprocess_outline, R2D_Font_Callback);
 	Cvar_Hook(&vid_conautoscale, R2D_Conautoscale_Callback);
 	Cvar_Hook(&gl_screenangle, R2D_ScreenAngle_Callback);
 	Cvar_Hook(&vid_conheight, R2D_Conheight_Callback);
@@ -1107,9 +1114,9 @@ void R2D_Font_Changed(void)
 		LOGFONTW lf = {0};
 		CHOOSEFONTW cf = {sizeof(cf)};
 		extern HWND	mainwindow;
-		font_default = Font_LoadFont("", 8);
+		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);
 		if (tsize != 8)
-			font_console = Font_LoadFont("", tsize);
+			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival);
 		if (!font_console)
 			font_console = font_default;
 
@@ -1152,15 +1159,15 @@ void R2D_Font_Changed(void)
 #endif
 	}
 
-	font_default = Font_LoadFont(gl_font.string, 8);
+	font_default = Font_LoadFont(gl_font.string, 8, 1, r_font_postprocess_outline.ival);
 	if (!font_default && *gl_font.string)
-		font_default = Font_LoadFont("", 8);
+		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);
 
 	if (tsize != 8 || strcmp(gl_font.string, con_font_name))
 	{
-		font_console = Font_LoadFont(con_font_name, tsize);
+		font_console = Font_LoadFont(con_font_name, tsize, 1, r_font_postprocess_outline.ival);
 		if (!font_console)
-			font_console = Font_LoadFont("", tsize);
+			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival);
 	}
 	if (!font_console)
 		font_console = font_default;

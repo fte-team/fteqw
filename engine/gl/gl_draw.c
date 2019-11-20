@@ -518,7 +518,8 @@ void GLDraw_Init (void)
 
 	if (scr_showloading.ival)
 	{
-		mpic_t *pic = R2D_SafeCachePic ("gfx/loading.lmp");
+		extern cvar_t scr_loadingscreen_picture;
+		mpic_t *pic = R2D_SafeCachePic (scr_loadingscreen_picture.string);
 		if (pic && R_GetShaderSizes(pic, NULL, NULL, true))
 		{	//if its too big for the screen, letterbox it.
 			qglClearColor(0, 0, 0, 1);

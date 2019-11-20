@@ -243,7 +243,7 @@ cvar_t	scr_loadingrefresh = CVARD("scr_loadingrefresh", "0", "Force redrawing of
 cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
 //things to configure the legacy loading screen
 cvar_t	scr_loadingscreen_picture = CVAR("scr_loadingscreen_picture", "gfx/loading");
-cvar_t	scr_loadingscreen_aspect = CVARD("scr_loadingscreen_aspect", "0", "Controls the aspect of levelshot images.\n0: Use source image's aspect.\n1: Force 4:3 aspect (ignore image's aspect), for best q3 compat.\n2: Ignore aspect considerations and just smear it over the entire screen.");
+cvar_t	scr_loadingscreen_aspect = CVARD("scr_loadingscreen_aspect", "0", "Controls the aspect of levelshot images.\n0: Use source image's aspect.\n1: Force 4:3 aspect (ignore image's aspect), for best q3 compat.\n2: Ignore aspect considerations and just smear it over the entire screen.\n-1: Disable levelshot use.");
 cvar_t	scr_loadingscreen_scale = CVAR("scr_loadingscreen_scale", "1");
 cvar_t	scr_loadingscreen_scale_limit = CVAR("scr_loadingscreen_scale_limit", "2");
 
@@ -2001,7 +2001,7 @@ void SCR_DrawLoading (qboolean opaque)
 		int qdepth = COM_FDepthFile(qname, true);
 		int h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
 
-		if (!(qdepth < h2depth || h2depth > FDEPTH_MISSING))
+		if (qdepth < h2depth && h2depth != FDEPTH_MISSING)
 		{	//hexen2 files.
 			//hexen2 has some fancy sliders built into its graphics in specific places. so this is messy.
 			pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
@@ -2225,7 +2225,7 @@ void SCR_ImageName (const char *mapname)
 	strcpy(levelshotname, "levelshots/");
 	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
 
-	if (qrenderer)
+	if (qrenderer && scr_loadingscreen_aspect.ival >= 0)
 	{
 		R_LoadHiResTexture(levelshotname, NULL, IF_NOWORKER|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
 
@@ -2468,7 +2468,7 @@ static void SCR_ScreenShot_f (void)
 		Con_Printf (CON_ERROR "Couldn't get colour buffer for screenshot\n");
 }
 
-void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt, qboolean no2d)
+void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt, qboolean no2d, qboolean hdr)
 {
 	int width, height;
 	void *buf;
@@ -2489,7 +2489,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 	{
 		r_refdef.warndraw = true;
 		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
-		/*vid.framebuffer =*/R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1, RT_IMAGEFLAGS);
+		/*vid.framebuffer =*/R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, (hdr&&sh_config.texfmt[PTI_RGBA16F])?PTI_RGBA16F:PTI_RGBA8, RT_IMAGEFLAGS);
 		BE_RenderToTextureUpdate2d(true);
 	}
 	else
@@ -2639,7 +2639,7 @@ static void SCR_ScreenShot_Mega_f(void)
 				r_refdef.stereomethod = STEREO_LEFTONLY;
 		}
 
-		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride[buf], &fmt[buf], false);
+		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride[buf], &fmt[buf], false, false);
 		width[buf] = fbwidth;
 		height[buf] = fbheight;
 
@@ -2754,7 +2754,7 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] = sin(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[1] = cos(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt, true);
+		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt, true, false);
 		switch(fmt)
 		{
 		case TF_BGRA32:
@@ -2788,7 +2788,7 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] *= -1;
 		r_refdef.eyeoffset[1] *= -1;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt, true);
+		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt, true, false);
 		switch(fmt)
 		{
 		case TF_BGRA32:
@@ -2901,7 +2901,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 		mips.type = PTI_CUBE;
 		mips.encoding = 0;
 		mips.extrafree = NULL;
-		mips.mipcount = 6;
+		mips.mipcount = 1;
 
 		bb=0;
 		for (i = 0; i < 6; i++)
@@ -2909,7 +2909,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 			VectorCopy(sides[i].angle, cl.playerview->simangles);
 			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
-			facedata = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true);
+			facedata = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, true);
 			if (!facedata)
 				break;
 			if (!i)
@@ -2941,6 +2941,10 @@ void SCR_ScreenShot_Cubemap_f(void)
 		}
 		if (i == 6)
 		{
+			qboolean pixelformats[PTI_MAX] = {0};
+			pixelformats[PTI_E5BGR9] = true;
+			Image_ChangeFormat(&mips, pixelformats, mips.encoding, fname);
+
 			Q_snprintfz(filename, sizeof(filename), "textures/%s", fname);
 			COM_DefaultExtension (filename, ext, sizeof(filename));
 #ifdef IMAGEFMT_KTX
@@ -2975,9 +2979,8 @@ void SCR_ScreenShot_Cubemap_f(void)
 			else
 				Con_Printf ("%s: Unknown format %s\n", Cmd_Argv(0), filename);
 		}
-		while (i-- > 0)
-			if (mips.mip[i].needfree)
-				BZ_Free(mips.mip[i].data);
+		if (mips.mip[0].needfree)
+			BZ_Free(mips.mip[0].data);
 	}
 	else
 	{
@@ -2986,7 +2989,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 			VectorCopy(sides[i].angle, cl.playerview->simangles);
 			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
-			buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true);
+			buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, false);
 			if (buffer)
 			{
 				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);

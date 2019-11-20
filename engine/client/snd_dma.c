@@ -72,10 +72,11 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
+cvar_t mastervolume				= CVARFD(	"mastervolume", "1", CVAR_ARCHIVE, "Additional multiplier for all other sounds.");
 cvar_t bgmvolume				= CVARAFD(	"musicvolume", "0.3", "bgmvolume", CVAR_ARCHIVE,
 											"Volume level for background music.");
 cvar_t volume					= CVARAFD(	"volume", "0.7", /*q3*/"s_volume",CVAR_ARCHIVE,
-											"Main volume level for all engine sound.");
+											"Volume level for game sounds (does not affect music, voice, or cinematics).");
 
 cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
 											"Disable all sound from the engine. Cannot be overriden by configs or anything if set via the -nosound commandline argument.");
@@ -1174,6 +1175,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 
 	voicevolumemod = s_voip.lastspoke_any > realtime?snd_voip_ducking.value:1;
+	voicevolumemod *= mastervolume.value;
 
 	if (!voipsendenable || (voipcodec != s_voip.enccodec && s_voip.cdriver))
 	{
@@ -2287,6 +2289,7 @@ void S_Init (void)
 	Cmd_AddCommand("soundcontrol", S_Control_f);
 
 	Cvar_Register(&nosound,				"Sound controls");
+	Cvar_Register(&mastervolume,		"Sound controls");
 	Cvar_Register(&volume,				"Sound controls");
 	Cvar_Register(&precache,			"Sound controls");
 	Cvar_Register(&loadas8bit,			"Sound controls");
@@ -2651,7 +2654,7 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 	int seat;
 
 	if (ch->flags & CF_CL_ABSVOLUME)
-		volscale = 1;
+		volscale = mastervolume.value;
 	else
 		volscale = volume.value * voicevolumemod;
 
@@ -2778,7 +2781,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 
 	//sounds with absvolume ignore all volume etc cvars+settings
 	if (ch->flags & CF_CL_ABSVOLUME)
-		volscale = 1;
+		volscale = mastervolume.value;
 	else
 		volscale = volume.value * voicevolumemod;
 
@@ -2877,7 +2880,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	int		skip;
 	int		absstartpos = updateonly?target_chan->pos:0;
 	extern cvar_t cl_demospeed;
-	int chanupdatetype = true;
+	chanupdatereason_t chanupdatetype = updateonly?CUR_UPDATE:CUR_EVERYTHING;
 
 	if (!sfx)
 		sfx = target_chan->sfx;
@@ -2899,7 +2902,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 
 // spatialize
 	if (target_chan->sfx != sfx)
-		chanupdatetype = true;
+		chanupdatetype |= CUR_SOUNDCHANGE;
 	memset (target_chan, 0, sizeof(*target_chan));
 	if (!origin)
 	{
@@ -2942,12 +2945,6 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	}
 
 	target_chan->sfx = sfx;
-
-	if (updateonly && sc->ChannelUpdate)
-	{
-		chanupdatetype = 2;
-		absstartpos = 0;
-	}
 
 	target_chan->rate = ((1<<PITCHSHIFT) * ratemul); //*sfx->rate/sc->sn.speed;
 	if (target_chan->rate < 1)	/*make sure the rate won't crash us*/
@@ -3209,7 +3206,7 @@ static void S_StopSoundCard(soundcardinfo_t *sc, int entnum, int entchannel)
 		{
 			sc->channel[i].sfx = NULL;
 			if (sc->ChannelUpdate)
-				sc->ChannelUpdate(sc, &sc->channel[i], true);
+				sc->ChannelUpdate(sc, &sc->channel[i], CUR_EVERYTHING);
 			if (entchannel)
 				break;
 		}
@@ -3255,7 +3252,7 @@ void S_StopAllSounds(qboolean clear)
 				}
 
 				if (sc->ChannelUpdate)
-					sc->ChannelUpdate(sc, &sc->channel[i], true);
+					sc->ChannelUpdate(sc, &sc->channel[i], CUR_EVERYTHING);
 			}
 		}
 
@@ -3346,7 +3343,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		SND_Spatialize (scard, ss);
 
 		if (scard->ChannelUpdate)
-			scard->ChannelUpdate(scard, ss, true);
+			scard->ChannelUpdate(scard, ss, CUR_EVERYTHING);
 	}
 
 	S_UnlockMixer();
@@ -3376,7 +3373,7 @@ void S_Music_Clear(sfx_t *onlyifsample)
 			sc->channel[i].sfx = NULL;
 
 			if (sc->ChannelUpdate)
-				sc->ChannelUpdate(sc, &sc->channel[i], true);
+				sc->ChannelUpdate(sc, &sc->channel[i], CUR_EVERYTHING);
 
 			if (s && s->decoder.ended && !S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 				s->decoder.ended(s);
@@ -3437,7 +3434,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 
 	for (i = MUSIC_FIRST; i < MUSIC_STOP; i++)
 	{
-		qboolean changed = false;
+		chanupdatereason_t changed = false;
 		chan = &sc->channel[i];
 		if (!chan->sfx)
 		{
@@ -3448,7 +3445,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 				chan->sfx = newmusic;
 				chan->rate = 1<<PITCHSHIFT;
 				chan->pos = (int)(time * sc->sn.speed) * chan->rate;
-				changed = true;
+				changed = CUR_EVERYTHING;
 
 				chan->master_vol = bound(0, 1, 255);
 				chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
@@ -3474,7 +3471,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 					chan->sfx = NULL;
 
 					if (sc->ChannelUpdate)
-						sc->ChannelUpdate(sc, chan, true);
+						sc->ChannelUpdate(sc, chan, CUR_EVERYTHING);
 
 					if (s && s->decoder.ended && !S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 						s->decoder.ended(s);
@@ -3555,7 +3552,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = bound(0, chan->master_vol * (volume.value*voicevolumemod), 255);
 
 		if (sc->ChannelUpdate)
-			sc->ChannelUpdate(sc, chan, (oldvol == 0) ^ (sc->ambientlevels[i] == 0));
+			sc->ChannelUpdate(sc, chan, ((oldvol == 0) ^ (sc->ambientlevels[i] == 0))?CUR_EVERYTHING:CUR_SPACIALISEONLY);
 	}
 #endif
 }
@@ -3701,7 +3698,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 			SND_Spatialize(sc, c);
 
 			if (c->sfx)
-				sc->ChannelUpdate(sc, c, false);
+				sc->ChannelUpdate(sc, c, CUR_SPACIALISEONLY);
 		}
 		else
 		{	//merge with any other ents, if we can
@@ -3725,7 +3722,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 			{
 				c->sfx = sfx;
 				if (sc->ChannelUpdate)
-					sc->ChannelUpdate(sc, c, true);
+					sc->ChannelUpdate(sc, c, CUR_EVERYTHING);
 			}
 		}
 	}
@@ -3769,7 +3766,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 			{
 				ch->sfx = NULL;
 				if (sc->ChannelUpdate)
-					sc->ChannelUpdate(sc, ch, true);
+					sc->ChannelUpdate(sc, ch, CUR_EVERYTHING);
 			}
 			ch->vol[0] = ch->vol[1] = ch->vol[2] = ch->vol[3] = ch->vol[4] = ch->vol[5] = 0;
 			continue;
@@ -3779,7 +3776,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 		{
 			if (ch->flags & CF_FOLLOW)
 				SND_Spatialize(sc, ch);	//update it a little
-			sc->ChannelUpdate(sc, ch, false);
+			sc->ChannelUpdate(sc, ch, CUR_SPACIALISEONLY);
 			continue;
 		}
 
@@ -4341,7 +4338,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 					si->channel[i].pos = 0;
 				si->channel[i].master_vol = 255 * volume;
 				if (si->ChannelUpdate)
-					si->ChannelUpdate(si, &si->channel[i], false);
+					si->ChannelUpdate(si, &si->channel[i], CUR_SPACIALISEONLY);
 				break;
 			}
 		if (i == si->total_chans)	//this one wasn't playing.
@@ -4360,7 +4357,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				SND_Spatialize(si, c);
 
 				if (si->ChannelUpdate)
-					si->ChannelUpdate(si, c, true);
+					si->ChannelUpdate(si, c, CUR_EVERYTHING);
 			}
 		}
 	}

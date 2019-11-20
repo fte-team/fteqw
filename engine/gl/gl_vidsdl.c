@@ -169,12 +169,147 @@ void GLVID_DestroyCursor			(void *cursor)
 {
 	SDL_FreeCursor(cursor);
 }
+
+static void GLVID_SetIcon				(void)
+{
+	SDL_Surface *iconsurf = NULL;
+	size_t filesize = 0;
+	qbyte *filedata = NULL;
+	qbyte *imagedata = NULL;
+
+	#ifdef IMAGEFMT_PNG
+	if (!filedata)
+		filedata = FS_LoadMallocFile("icon.png", &filesize);
+	#endif
+	if (!filedata)
+		filedata = FS_LoadMallocFile("icon.tga", &filesize);
+	#ifdef IMAGEFMT_JPG
+	if (!filedata)
+		filedata = FS_LoadMallocFile("icon.jpg", &filesize);
+	#endif
+	#ifdef IMAGEFMT_BMP
+	if (!filedata)
+		filedata = FS_LoadMallocFile("icon.ico", &filesize);
+	#endif
+	#ifdef HAVE_LEGACY
+	if (!filedata)
+		filedata = FS_LoadMallocFile("darkplaces-icon.tga", &filesize);
+	#endif
+
+	if (filedata)
+	{
+		int imagewidth, imageheight;
+		uploadfmt_t format = PTI_INVALID;
+		imagedata = ReadRawImageFile(filedata, filesize, &imagewidth, &imageheight, &format, true, "icon.*");
+		Z_Free(filedata);
+
+		if (imagedata)
+		{
+			/* hopefully SDL can resize as appropriate
+			qbyte *resized = Image_ResampleTexture(format, imagedata, imagewidth, imageheight, NULL, 64, 64);
+			if (resized)
+			{
+				Z_Free(imagedata);
+				imagedata = resized;
+				imagewidth = 64;
+				imageheight = 64;
+			}*/
+			switch(format)
+			{
+			case PTI_LLLA8:		//fallthrough
+			case PTI_RGBA8:		iconsurf = SDL_CreateRGBSurfaceFrom(imagedata, imagewidth, imageheight, 32, 4*imagewidth, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000); break;
+			case PTI_LLLX8:		//fallthrough
+			case PTI_RGBX8:		iconsurf = SDL_CreateRGBSurfaceFrom(imagedata, imagewidth, imageheight, 32, 4*imagewidth, 0x000000FF, 0x0000FF00, 0x00FF0000, 0x00000000); break;
+			case PTI_BGRA8:		iconsurf = SDL_CreateRGBSurfaceFrom(imagedata, imagewidth, imageheight, 32, 4*imagewidth, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000); break;
+			case PTI_BGRX8:		iconsurf = SDL_CreateRGBSurfaceFrom(imagedata, imagewidth, imageheight, 32, 4*imagewidth, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000); break;
+			case PTI_A2BGR10:	iconsurf = SDL_CreateRGBSurfaceFrom(imagedata, imagewidth, imageheight, 32, 4*imagewidth, 0x3FF00000, 0x000FFC00, 0x000003FF, 0xC0000000); break;
+			default:	//others shouldn't happen.
+				break;
+			}
+		}
+	}
+
+	if (!iconsurf)
+	{
+		#include "fte_eukara64.h"
+//		#include "bymorphed.h"
+		iconsurf = SDL_CreateRGBSurfaceFrom((void*)icon.pixel_data, icon.width, icon.height, 32, 4*icon.width, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);	//RGBA byte order on a little endian machine, at least...
+	}
+	SDL_SetWindowIcon(sdlwindow, iconsurf);
+	SDL_FreeSurface(iconsurf);
+	Z_Free(imagedata);
+}
+
+//converts an output device name/number to an index.
+//So we can use eg VGA-0 on linux and get the proper device.
+static int SDLVID_GetVideoDevice(const char *devicename)
+{
+	char *end;
+	int display = strtol(devicename, &end, 0);
+	if (*end)
+	{	//okay, so its not purely a number. scan by name
+		display = SDL_GetNumVideoDisplays();
+		if (display)
+		{
+			while (display --> 0)
+			{
+				const char *dname = SDL_GetDisplayName(display);
+				if (dname && !Q_strcasecmp(dname, devicename))
+					break;
+			}
+		}
+	}
+	else
+	{
+		if (display < 0 || display >= SDL_GetNumVideoDisplays())
+			display = 0;
+	}
+	return display;
+}
+static qboolean SDLVID_GetVideoMode(rendererstate_t *info, int *display, SDL_DisplayMode *mode)
+{
+	SDL_DisplayMode targ;
+	*display = SDLVID_GetVideoDevice(info->devicename);
+	if (info->fullscreen != 1)
+		return false;
+	targ.w = info->width;
+	targ.h = info->height;
+	if (info->bpp == 30)
+		targ.format = SDL_PIXELFORMAT_ARGB2101010;
+	else
+		targ.format = SDL_PIXELFORMAT_UNKNOWN;
+	targ.driverdata = NULL;
+	targ.refresh_rate = info->rate;
+
+	if (SDL_GetClosestDisplayMode(*display, &targ, mode))
+	{
+		info->width = targ.w;
+		info->height = targ.h;
+		return true;	//yay
+	}
+	return false;	//fail
+}
+
+static void	SDLVID_EnumerateVideoModes (const char *driver, const char *output, void (*cb) (int w, int h))
+{
+	SDL_DisplayMode modeinfo;
+	int modes, m;
+	int display = SDLVID_GetVideoDevice(output);
+	modes = SDL_GetNumDisplayModes(display);
+	for (m = 0; m < modes; m++)
+	{
+		if (0==SDL_GetDisplayMode(display, m, &modeinfo))
+			cb(modeinfo.w, modeinfo.h);
+	}
+}
 #endif
 
 
 static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qrenderer_t qrenderer)
 {
 	int flags = 0;
+	int display = -1;
+	SDL_DisplayMode modeinfo, *usemode;
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
 #if !defined(FTE_TARGET_WEB) && SDL_MAJOR_VERSION < 2
@@ -267,22 +402,58 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		break;
 #endif
 	}
-	if (info->fullscreen)
-		flags |= SDL_WINDOW_FULLSCREEN;
-	else
-		flags |= SDL_WINDOW_RESIZABLE;
+	flags |= SDL_WINDOW_RESIZABLE;
 	flags |= SDL_WINDOW_INPUT_GRABBED;
-	flags |= SDL_WINDOW_SHOWN;
 	#if SDL_PATCHLEVEL >= 1
 		flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 	#endif
-	sdlwindow = SDL_CreateWindow(FULLENGINENAME, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, info->width, info->height, flags);
+
+	usemode = NULL;
+	if (SDLVID_GetVideoMode(info, &display, &modeinfo))
+		usemode = &modeinfo;
+	rf->VID_EnumerateVideoModes = SDLVID_EnumerateVideoModes;
+
+	sdlwindow = SDL_CreateWindow(FULLENGINENAME, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display), info->width, info->height, flags);
 	if (!sdlwindow)
 	{
 		Con_Printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
 		return false;
 	}
+
+	SDL_SetWindowMinimumSize(sdlwindow, 320, 200);
+
+	if (usemode)
+	{
+		SDL_SetWindowDisplayMode(sdlwindow, usemode);
+		SDL_SetWindowFullscreen(sdlwindow, SDL_WINDOW_FULLSCREEN);
+	}
+	else if (info->fullscreen)
+		SDL_SetWindowFullscreen(sdlwindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+	SDL_ShowWindow(sdlwindow);
+
+#ifdef __linux__
+	if (usemode)
+	{	//try to work around an nvidia bug.
+		//if the user pans then they might get stuck with x11 at the wrong resolution, so try to back out if it would fail.
+		int w, h;
+		SDL_GetWindowSize(sdlwindow, &w, &h);
+		Sys_SendKeyEvents();
+		SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
+		if (w != vid.pixelwidth || h != vid.pixelheight)
+		{
+			Con_Printf(CON_ERROR "Video mode change didn't stick (Nvidia bug?). Resorting to fullscreen-desktop mode.\n");
+			SDL_SetWindowFullscreen(sdlwindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+			SDL_ShowWindow(sdlwindow);
+		}
+	}
+#endif
+
+#if SDL_PATCHLEVEL >= 4
+	SDL_GetDisplayDPI(display, NULL, &vid.dpi_x, &vid.dpi_y);
+#endif
+
 	CL_UpdateWindowTitle();
+	GLVID_SetIcon();
 
 	switch(qrenderer)
 	{
@@ -329,13 +500,6 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	}
 #endif
 
-	{
-		SDL_Surface *iconsurf;
-		#include "bymorphed.h"
-		iconsurf = SDL_CreateRGBSurfaceFrom((void*)icon.pixel_data, icon.width, icon.height, 32, 4*icon.height, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);	//RGBA byte order on a little endian machine, at least...
-		SDL_SetWindowIcon(sdlwindow, iconsurf);
-		SDL_FreeSurface(iconsurf);
-	}
 #else
 	SDL_GetGammaRamp(intitialgammaramps[0], intitialgammaramps[1], intitialgammaramps[2]);
 	if (info->fullscreen)
@@ -415,6 +579,7 @@ void GLVID_DeInit (void)
 
 #if SDL_MAJOR_VERSION >= 2
 	SDL_SetWindowGammaRamp(sdlwindow, NULL, NULL, NULL);
+
 	switch(qrenderer)
 	{
 #ifdef OPENGL_SDL
@@ -424,7 +589,6 @@ void GLVID_DeInit (void)
 #endif
 #ifdef VULKAN_SDL
 	case QR_VULKAN:
-		
 		break;
 #endif
 	default:

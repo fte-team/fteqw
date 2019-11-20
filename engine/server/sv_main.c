@@ -2553,6 +2553,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 	name = Info_ValueForKey (info->userinfo, "name");
 
+	/*
 	if (sv.world.worldmodel && info->protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (info->userinfo, "iknow")))
 	{
 		if (sv.world.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
@@ -2581,6 +2582,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		}
 #endif
 	}
+	*/
 
 	SV_FixupName(name, temp.namebuf, sizeof(temp.namebuf));
 	name = temp.namebuf;
@@ -5109,7 +5111,7 @@ float SV_Frame (void)
 // get packets
 	isidle = !SV_ReadPackets (&delay);
 
-	if (pr_imitatemvdsv.ival)
+	if (pr_imitatemvdsv.ival || dpcompat_nopreparse.ival)
 	{
 		Cbuf_Execute ();
 		if (sv.state < ss_active)	//whoops...
@@ -5196,7 +5198,7 @@ float SV_Frame (void)
 			}
 
 // process console commands
-			if (!pr_imitatemvdsv.value)
+			if (!(pr_imitatemvdsv.value || dpcompat_nopreparse.ival))
 				Cbuf_Execute ();
 		}
 
@@ -5714,7 +5716,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 		}
 
-		if (!cl->drop && strncmp(val, cl->name, sizeof(cl->namebuf)-1) && cl->state > cs_zombie)
+		if (!cl->drop && strncmp(newname, cl->name, sizeof(cl->namebuf)-1) && cl->state > cs_zombie)
 		{
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
 			{
@@ -5989,9 +5991,7 @@ void SV_Init (quakeparms_t *parms)
 			Sys_Quit();
 #endif
 
-		Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
-
-		Con_Printf ("%s\n", version_string());
+		Con_Printf ("Exe: %s\n", version_string());
 
 		Con_TPrintf ("======== %s Initialized ========\n", *fs_gamename.string?fs_gamename.string:"Nothing");
 

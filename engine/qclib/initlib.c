@@ -607,7 +607,7 @@ static struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *
 	return (struct entvars_s *)edvars(ed);
 }
 
-static pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, int *builtinnum, char *funcname, size_t funcnamesize)
+static pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, qbyte **argsizes, int *builtinnum, char *funcname, size_t funcnamesize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 
@@ -627,6 +627,8 @@ static pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *arg
 		f = pr_progstate[pnum].functions + fnum;
 		if (args)
 			*args = f->numparms;
+		if (argsizes)
+			*argsizes = f->parm_size;
 		if (builtinnum)
 			*builtinnum = -f->first_statement;
 		if (funcname)

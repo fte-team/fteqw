@@ -20,6 +20,7 @@ static char *cvargroup_progs = "Progs variables";
 cvar_t utf8_enable = CVARD("utf8_enable", "0", "When 1, changes the qc builtins to act upon codepoints instead of bytes. Do not use unless com_parseutf8 is also set.");
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods. It is better for mods to use FL_FINDABLE_NONSOLID instead.");
+cvar_t sv_gameplayfix_findradiusdistancetobox = CVARD("sv_gameplayfix_findradiusdistancetobox", "0", "When 1, findradius checks to the nearest part of the entity instead of only its origin, making it find slightly more entities.");
 cvar_t sv_gameplayfix_droptofloorstartsolid = CVARD("sv_gameplayfix_droptofloorstartsolid", "0", "When droptofloor fails, this causes a second attemp, but with traceline instead.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 #ifdef HAVE_LEGACY
@@ -76,6 +77,7 @@ void PF_Common_RegisterCvars(void)
 
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_findradiusdistancetobox, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_droptofloorstartsolid, cvargroup_progs);
 	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
@@ -1484,20 +1486,20 @@ void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	int ret = 0;
-	cvar_t *v;
-
-	v = Cvar_FindVar(str);	//this builtin MUST NOT create cvars implicitly, otherwise there would be no way to test if it exists.
-	if (v && !(v->flags & CVAR_NOUNSAFEEXPAND))
+	cvar_t *v = Cvar_FindVar(str);	//this builtin MUST NOT create cvars implicitly, otherwise there would be no way to test if it exists.
+	if (v)
 	{
 		ret |= 1; // CVAR_EXISTS
 		if(v->flags & CVAR_ARCHIVE)
 			ret |= 2; // CVAR_TYPE_SAVED
-		if(v->flags & CVAR_NOTFROMSERVER)
+		if(v->flags & (CVAR_NOTFROMSERVER|CVAR_NOUNSAFEEXPAND))
 			ret |= 4; // CVAR_TYPE_PRIVATE
 		if(!(v->flags & CVAR_USERCREATED))
 			ret |= 8; // CVAR_TYPE_ENGINE
 		if (v->description)
 			ret |= 16; // CVAR_TYPE_HASDESCRIPTION
+		if (v->flags & CVAR_NOSET)
+			ret |= 32; // CVAR_TYPE_READONLY
 	}
 	G_FLOAT(OFS_RETURN) = ret;
 }
@@ -1550,6 +1552,7 @@ void QCBUILTIN PF_cvar_setf (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *name, *value;
+	int flags = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
 	value = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	if (Cvar_FindVar(value))
@@ -1562,8 +1565,10 @@ void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		else
 			value = "";
 
+		flags &= CVAR_ARCHIVE;
+
 	// archive?
-		if (Cvar_Get(name, value, CVAR_USERCREATED, "QC created vars"))
+		if (Cvar_Get(name, value, CVAR_USERCREATED|flags, "QC created vars"))
 			G_FLOAT(OFS_RETURN) = 1;
 		else
 			G_FLOAT(OFS_RETURN) = 0;
@@ -2186,19 +2191,19 @@ void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_INT(OFS_RETURN) = 0;	//EOF
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
-		PR_BIError(prinst, "PF_fgets: File out of range\n");
+		PF_Warningf(prinst, "PF_fgets: File out of range (%g)\n", G_FLOAT(OFS_PARM0));
 		return;	//out of range
 	}
 
 	if (!pf_fopen_files[fnum].prinst)
 	{
-		PR_BIError(prinst, "PF_fgets: File is not open\n");
+		PF_Warningf(prinst, "PF_fgets: File is not open\n");
 		return;	//not open
 	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
 	{
-		PR_BIError(prinst, "PF_fgets: File is from wrong instance\n");
+		PF_Warningf(prinst, "PF_fgets: File is from wrong instance\n");
 		return;	//this just isn't ours.
 	}
 
@@ -2984,10 +2989,21 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		for (i=0 ; i<numents ; i++)
 		{
 			ent = nearent[i];
-			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
+			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.ival)
 				continue;
-			for (j=0 ; j<3 ; j++)
-				eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
+			if (sv_gameplayfix_findradiusdistancetobox.ival)
+			{
+				for (j=0 ; j<3 ; j++)
+				{
+					eorg[j] = org[j] - ent->v->origin[j];
+					eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+				}
+			}
+			else
+			{
+				for (j=0 ; j<3 ; j++)
+					eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
+			}
 			if (DotProduct(eorg,eorg) > rad)
 				continue;
 
@@ -3005,8 +3021,19 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 				continue;
 			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 				continue;
-			for (j=0 ; j<3 ; j++)
-				eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
+			if (sv_gameplayfix_findradiusdistancetobox.ival)
+			{
+				for (j=0 ; j<3 ; j++)
+				{
+					eorg[j] = org[j] - ent->v->origin[j];
+					eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+				}
+			}
+			else
+			{
+				for (j=0 ; j<3 ; j++)
+					eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
+			}
 			if (DotProduct(eorg,eorg) > rad)
 				continue;
 
@@ -4168,11 +4195,11 @@ void QCBUILTIN PF_buf_copy  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		strbuflist[bufto].strings[i] = strbuflist[buffrom].strings[i]?Z_StrDup(strbuflist[buffrom].strings[i]):NULL;
 }
 static int PF_buf_sort_sortprefixlen;
-static int QDECL PF_buf_sort_ascending(const void *a, const void *b)
+static int QDECL PF_buf_sort_ascending_prefix(const void *a, const void *b)
 {
 	return strncmp(*(char**)a, *(char**)b, PF_buf_sort_sortprefixlen);
 }
-static int QDECL PF_buf_sort_descending(const void *b, const void *a)
+static int QDECL PF_buf_sort_descending_prefix(const void *b, const void *a)
 {
 	return strncmp(*(char**)a, *(char**)b, PF_buf_sort_sortprefixlen);
 }
@@ -4208,9 +4235,9 @@ void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	//no nulls now, sort it.
 	PF_buf_sort_sortprefixlen = sortprefixlen;	//eww, a global. burn in hell.
 	if (backwards)	//z first
-		qsort(strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_descending);
+		qsort(strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_descending_prefix);
 	else	//a first
-		qsort(strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_ascending);
+		qsort(strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_ascending_prefix);
 }
 // #445 string(float bufhandle, string glue) buf_implode (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_implode  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4269,18 +4296,18 @@ void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if ((unsigned int)bufno >= strbufmax)
 	{
-		RETURN_CSTRING("");
+		G_INT(OFS_RETURN) = 0;
 		return;
 	}
 	if (strbuflist[bufno].prinst != prinst)
 	{
-		RETURN_CSTRING("");
+		G_INT(OFS_RETURN) = 0;
 		return;
 	}
 
 	if (index >= strbuflist[bufno].used)
 	{
-		RETURN_CSTRING("");
+		G_INT(OFS_RETURN) = 0;
 		return;
 	}
 
@@ -4391,6 +4418,10 @@ void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	strbuflist[bufno].strings[index] = NULL;
 }
 
+static int QDECL PF_buf_sort_ascending(const void *a, const void *b)
+{
+	return strcmp(*(char**)a, *(char**)b);
+}
 void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
@@ -4400,6 +4431,9 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	cvar_group_t	*grp;
 	cvar_t	*var;
 	extern cvar_group_t *cvar_groups;
+	int plen = strlen(pattern), alen = strlen(antipattern);
+	qboolean pwc = strchr(pattern, '*')||strchr(pattern, '?'),
+			 awc = strchr(antipattern, '*')||strchr(antipattern, '?');
 
 	if (bufno >= strbufmax)
 		return;
@@ -4410,19 +4444,22 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	for (i = 0; i < strbuflist[bufno].used; i++)
 		Z_Free(strbuflist[bufno].strings[i]);
 	Z_Free(strbuflist[bufno].strings);
+	strbuflist[bufno].strings = NULL;
 	strbuflist[bufno].used = strbuflist[bufno].allocated = 0;
 
 	//ignore name2, no point listing it twice.
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (var=grp->cvars ; var ; var=var->next)
 		{
-			if (pattern && wildcmp(pattern, var->name))
+			if (plen && (pwc?wildcmp(pattern, var->name):strncmp(var->name, pattern, plen)))
 				continue;
-			if (antipattern && !wildcmp(antipattern, var->name))
+			if (alen && (awc?!wildcmp(antipattern, var->name):!strncmp(var->name, antipattern, alen)))
 				continue;
 
 			PF_bufstr_add_internal(bufno, var->name, true);
 		}
+
+	qsort(strbuflist[bufno].strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_ascending);
 }
 
 //directly reads a file into a stringbuffer
@@ -4693,15 +4730,16 @@ static void PR_uri_get_callback2(int iarg, void *data)
 			G_FLOAT(OFS_PARM0) = id;
 			G_FLOAT(OFS_PARM1) = (replycode!=200)?replycode:0;	//for compat with DP, we change any 200s to 0.
 			G_INT(OFS_PARM2) = 0;
+			G_INT(OFS_PARM3) = 0;
 
 			if (ctx->file)
 			{
 				len = VFS_GETLEN(ctx->file);
-				buffer = malloc(len+1);
-				buffer[len] = 0;
-				VFS_READ(ctx->file, buffer, len);
-				G_INT(OFS_PARM2) = PR_TempString(prinst, buffer);
-				free(buffer);
+				G_INT(OFS_PARM2) = prinst->AllocTempString(prinst, &buffer, len+1);
+				len = VFS_READ(ctx->file, buffer, len);
+				if (len < 0)
+					buffer[len] = 0;
+				G_INT(OFS_PARM3) = len;
 			}
 
 			PR_ExecuteProgram(prinst, func);
@@ -4749,7 +4787,7 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	if (!pr_enable_uriget.ival)
 	{
-		Con_Printf("PF_uri_get(\"%s\",%g): %s disabled\n", url, id, pr_enable_uriget.name);
+		Con_Printf("%s: blocking \"%s\"\n", pr_enable_uriget.name, url);
 		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}

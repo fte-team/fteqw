@@ -6,7 +6,7 @@
 !!cvarf gl_specular=0.3
 !!cvarb r_fog_exp2=true
 !!samps diffuse normalmap specular fullbright lightmap
-!!samps deluxmap reflectmask reflectcube
+!!samps deluxemap reflectmask reflectcube
 !!argb vertexlit=0
 //!!samps =EIGHTBIT paletted 1
 //!!argb eightbit=0
@@ -101,10 +101,10 @@ void main ()
 #ifdef LIGHTSTYLED
 		if (DELUXE)
 		{
-			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);
-			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxmap1, lm1).rgb-0.5);
-			lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxmap2, lm2).rgb-0.5);
-			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxmap3, lm3).rgb-0.5);
+			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxemap0, lm0).rgb-0.5);
+			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxemap1, lm1).rgb-0.5);
+			lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxemap2, lm2).rgb-0.5);
+			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxemap3, lm3).rgb-0.5);
 		}
 		else
 		{
@@ -127,7 +127,7 @@ void main ()
 		//modulate by the  bumpmap dot light
 		if (DELUXE)
 		{
-			vec3 delux = 2.0*(texture2D(s_deluxmap, lm0).rgb-0.5);
+			vec3 delux = 2.0*(texture2D(s_deluxemap, lm0).rgb-0.5);
 			lightmaps *= 1.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
 			lightmaps *= dot(norm, delux);
 		}
@@ -142,7 +142,7 @@ void main ()
 		if (DELUXE)
 		{
 //not lightstyled...
-			halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_deluxmap0, lm0).rgb-0.5));	//this norm should be the deluxemap info instead
+			halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_deluxemap0, lm0).rgb-0.5));	//this norm should be the deluxemap info instead
 		}
 		else
 		{

@@ -1,7 +1,55 @@
+static string() PrepareVideoModes =
+{
+	string s = _("\"0x0\" \"Default\"");
+	
+	for (float i = 0; ; i++)
+	{
+		vector m = getresolution(i);
+		if (!m_x || !m_y)
+			break;
+		s = sprintf("%s \"%dx%d\" \"%d x %d\"", s, m_x, m_y, m_x, m_y);
+	}
+	return s;
+};
+
+class options_video : mitem_exmenu
+{
+	string videomode;
+	void() options_video =
+	{
+		videomode = strcat(super::get("vid_width"), "x", super::get("vid_height"));
+	};
+
+	virtual float(string key) isvalid =
+	{
+		if (key == "vid_mode")
+			return super::isvalid("vid_width") && super::isvalid("vid_height");
+		return super::isvalid(key);
+	};
+	virtual string(string key) get =
+	{
+		if (key == "vid_mode")
+			return videomode;
+		return super::get(key);
+	};
+	virtual void(string key, string newval) set =
+	{
+		if (key == "vid_mode")
+		{
+			videomode = newval;
+			tokenizebyseparator(newval, "x");
+			super::set("vid_width", argv(0));
+			super::set("vid_height", argv(1));
+		}
+		else
+			super::set(key, newval);
+	};
+};
+
 nonstatic void(mitem_desktop desktop) M_Options_Video =
 {
 	mitem_exmenu m;
-	m = spawn(mitem_exmenu, item_text:_("Video Options"), item_flags:IF_SELECTABLE, item_command:"m_options");
+	m = spawn(options_video, item_text:_("Video Options"), item_flags:IF_SELECTABLE, item_command:"m_options");
 	desktop.add(m, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, '0 0', '0 0');
 	desktop.item_focuschange(m, IF_KFOCUSED);
 	m.totop();
@@ -42,24 +90,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 																		"4	\"4x\" "
 																		),	fl, [0, pos], [0, 8]); pos += 8;
 
-	//as far as video mode selections go, this is shite.
-	//should probably have an aspect+modes option instead, but that makes the combo really messy. especially as that would be two cvars.
-	fr.add(menuitemcombo_spawn(_("Video Width"),	"vid_width",					'280 8', _(
-																		"0	\"Default\" "
-																		"640	\"640\" "
-																		"800	\"800\" "
-																		"1024	\"1024\" "
-																		"1280 \"1280\" "
-																		"1920	\"1920\" "
-																		)),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Video Height"),	"vid_height",					'280 8', _(
-																		"0	\"Default\" "
-																		"480	\"480\" "
-																		"600	\"600\" "
-																		"768	\"768\" "
-																		"720 \"720\" "
-																		"1080	\"1080\" "
-																		)),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcombo_spawn(_("Video Mode"),		"vid_mode",		'280 8', PrepareVideoModes()), fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcombo_spawn(_("Video Zoom"),	"vid_conautoscale",					'280 8', _(
 																		"0	\"Default\" "
 																		"1.5	\"x1.5\" "
@@ -67,8 +98,10 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 																		"4	\"x4\" "
 																		)),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcombo_spawn(_("Colour Depth"),	dp("vid_bitsperpixel", "vid_bpp"),	'280 8', _(
-																		"16	\"16bit\" "
-																		"32	\"24bit\" "	//alpha doesn't count.
+																		"16	\"16bit\" " //r5g6b5, or so. unsupported on win10.
+																		"24	\"24bit\" "	//rgba8 - we don't count the alpha.
+																		"30	\"30bit\" "	//rgb10a2 - we don't count the alpha. unsupported on nvidia.
+																		"48	\"48bit\" "	//half-floats - we don't count the alpha. unsupported on nvidia.
 																		)),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcombo_spawn(_("Refresh Rate"),	"vid_displayfrequency",			'280 8', _(
 																		"0	\"Default\" "

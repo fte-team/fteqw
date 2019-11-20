@@ -521,7 +521,7 @@ static struct {
 	{112,	"fgets",		&type_string, {&type_float,&type_string},									"string(float fhandle)"},
 	{113,	"fputs",		NULL, {&type_float,&type_string},											"void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},
 	{114,	"strlen",		&type_float, {&type_string},												"float(string s)"},
-	{115,	"strcat",		&type_string, {&type_string,&type_string},									"string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},
+	{115,	"strcat",		&type_string, {&type_string,&type_string,&type_string,&type_string,&type_string,&type_string,&type_string,&type_string},"string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},
 	{116,	"substring",	&type_string, {&type_string,&type_float,&type_float},						"string(string s, float start, float length)"},
 	{117,	"stov",			&type_vector, {&type_string},												"vector(string s)"},
 	{118,	"strzone",		&type_string, {&type_string},												"string(string s, ...)"},
@@ -967,6 +967,33 @@ char *DecompileAgressiveType(dfunction_t *df, dstatement_t *last, gofs_t ofs)
 	return NULL;	//got to start of function... shouldn't really happen.
 }
 
+static unsigned int DecompileBuiltin(dfunction_t *df)
+{
+	unsigned int bi, i;
+	if (df->first_statement > 0)
+		return 0;	//not a builtin.
+	bi = -df->first_statement;
+	//okay, so this is kinda screwy, different mods have different sets of builtins, and a load of fte's are #0 too
+	//so just try to match by name first... lots of scanning. :(
+	if (df->s_name>0)
+	{
+		char *biname = strings + df->s_name;
+		for (i = 0; i < (sizeof(builtins)/sizeof(builtins[0])); i++)
+		{
+			if (!builtins[i].name)
+				continue;
+			if (!strcmp(builtins[i].name, biname))
+			{	//okay, this one matched.
+				bi = i;
+				break;
+			}
+		}
+	}
+	if (bi >= (sizeof(builtins)/sizeof(builtins[0])))
+		return 0; //unknown.
+	return bi;
+}
+
 char *DecompileReturnType(dfunction_t *df)
 {
 	dstatement_t *ds;
@@ -978,9 +1005,10 @@ char *DecompileReturnType(dfunction_t *df)
 
 	if (df->first_statement <= 0)
 	{
-		if (df->first_statement > -(int)(sizeof(builtins)/sizeof(builtins[0])))
-			if (builtins[-df->first_statement].returns)
-				return type_names[(*builtins[-df->first_statement].returns)->type];
+		unsigned int bi = DecompileBuiltin(df);
+		if (bi)
+			if (builtins[bi].returns)
+				return type_names[(*builtins[bi].returns)->type];
 
 		return "void";	//no returns statements found
 	}
@@ -1070,8 +1098,9 @@ void DecompileCalcProfiles(void)
 
 		if (df->first_statement <= 0) 
 		{
-			if (-df->first_statement <= sizeof(builtins)/sizeof(builtins[0]) && builtins[-df->first_statement].text)
-				QC_snprintfz(fname, sizeof(fname), "%s %s", builtins[-df->first_statement].text, strings + functions[i].s_name);
+			unsigned int bi = DecompileBuiltin(df);
+			if (bi && builtins[bi].text)
+				QC_snprintfz(fname, sizeof(fname), "%s %s", builtins[bi].text, strings + functions[i].s_name);
 			else
 			{
 				QC_snprintfz(fname, sizeof(fname), "__variant(...) %s", strings + functions[i].s_name);
@@ -1872,11 +1901,12 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 					int pn;
 					dfunction_t *cf;
 					QCC_ddef_t *def;
+					int bi = DecompileBuiltin(df);
 					fn = ((int*)pr_globals)[k->a];
 					cf = &functions[fn];
-					if (cf->first_statement<=0 && cf->first_statement > -(signed)(sizeof(builtins)/sizeof(builtins[0])))	//builtins don't have this info.
+					if (bi)	//builtins don't have this info.
 					{
-						QCC_type_t **p = builtins[-cf->first_statement].params[(s->b-ofs_parms[0])/ofs_size];
+						QCC_type_t **p = builtins[bi].params[(s->b-ofs_parms[0])/ofs_size];
 						parmtype = p?*p:NULL;
 					}
 					else
@@ -2407,7 +2437,8 @@ char *DecompileValueString(etype_t type, void *val)
 			if (*(float *)val > 999999 || *(float *)val < -999999) // ugh
 				QC_snprintfz(line, sizeof(line), "%.f", *(float *)val);
 			else if ((!(*(int*)val & 0x7f800000) || (*(int*)val & 0x7f800000)==0x7f800000) && (*(int*)val & 0x7fffffff))
-				QC_snprintfz(line, sizeof(line), "%%%i", *(int*)val);
+				//QC_snprintfz(line, sizeof(line), "%%%i", *(int*)val);
+				QC_snprintfz(line, sizeof(line), "/*%di*/%s", *(int*)val, DecompileString(*(int *)val));
 			else if ((*(float *)val < 0.001) && (*(float *)val > 0))
 				QC_snprintfz(line, sizeof(line), "%.6f", *(float *)val);
 			else			

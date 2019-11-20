@@ -1188,6 +1188,7 @@ void CL_PredictMovePNum (int seat)
 		}
 		if (i == pe->num_entities && pv->nolocalplayer)
 		{
+			return;	//no player, nothing makes sense any more.
 			from.state = &nullstate;
 			nopred = true;
 		}

@@ -311,6 +311,7 @@ qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int
 qboolean Key_MouseShouldBeFree(void);
 
 const char *Key_Demoji(char *buffer, size_t buffersize, const char *in);	//strips out :smile: stuff.
+void Key_EmojiCompletion_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 #endif
 #endif
 

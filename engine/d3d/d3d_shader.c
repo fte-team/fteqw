@@ -289,7 +289,11 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, struct programpermu_s
 		consts++;
 
 		defines[consts].Name = "ENGINE_"DISTRIBUTION;
-		defines[consts].Definition = __DATE__;
+#ifdef SVNREVISION
+		defines[consts].Definition = STRINGIFY(SVNREVISION);
+#else
+		defines[consts].Definition = "0";
+#endif
 		consts++;
 
 		for (defbufe = defbuf; *precompilerconstants; precompilerconstants++)

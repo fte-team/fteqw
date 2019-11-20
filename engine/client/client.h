@@ -309,7 +309,7 @@ typedef struct
 #define LFLAG_ORTHO			(1<<11)	//sun-style -light
 
 #define LFLAG_INTERNAL		(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND)	//these are internal to FTE, and never written to disk (ie: .rtlights files shouldn't contain these)
-#define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
+#define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE)
 
 typedef struct dlight_s
 {
@@ -1619,7 +1619,7 @@ void	Validation_FlushFileList(void);
 void	Validation_CheckIfResponse(char *text);
 void	Validation_DelatchRulesets(void);
 void	InitValidation(void);
-void	Validation_IncludeFile(char *filename, char *file, int filelen);
+void	Validation_FileLoaded(const char *filename, const qbyte *filedata, size_t filesize);
 void	Validation_Auto_Response(int playernum, char *s);
 
 extern	qboolean f_modified_particles;

@@ -27,7 +27,7 @@ float(string fontname, string fontmaps, string sizes, float slot, optional float
 void() mitem_desktop::mitem_desktop =
 {
 #define menu_font_win 		autocvar(menu_font_win, "cour")
-#define menu_font		autocvar(menu_font, "")
+#define menu_font		autocvar(menu_font, "cour")
 #define menu_font_fallback	autocvar(gl_font, "")
 	queryscreensize();
 
@@ -40,7 +40,7 @@ void() mitem_desktop::mitem_desktop =
 			fontname = menu_font_win;
 		else if (menu_font != "")
 			fontname = menu_font;
-		drawfont = loadfont("", fontname, "8 12 16", -1);
+		drawfont = loadfont("", fontname, "8 12 16 outline=1", -1);
 	}
 
 	item_text = "desktop";

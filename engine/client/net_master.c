@@ -505,6 +505,9 @@ void SV_Master_Heartbeat (void)
 	if (realtime-interval - svs.last_heartbeat < interval)
 		return;		// not time to send yet
 
+	if ((sv.allocated_client_slots == 1) && !isDedicated)
+		return;		//don't heartbeat in single-player, we don't even have a public socket open!
+
 	svs.last_heartbeat = realtime-interval;
 
 	svs.heartbeat_sequence++;

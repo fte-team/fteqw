@@ -443,20 +443,21 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 	{
 		if (mips->encoding != targfmt)
 		{
+			qboolean forceformats[PTI_MAX];
 			for (m = 0; m < PTI_MAX; m++)
-				sh_config.texfmt[m] = (m == targfmt);
-			Image_ChangeFormat(mips, args->flags, PTI_INVALID, inname);
+				forceformats[m] = (m == targfmt);
+			Image_ChangeFormat(mips, forceformats, PTI_INVALID, inname);
 			if (mips->encoding == targfmt)
 				return true;
 
 			//switch to common formats...
 			for (m = 0; m < PTI_MAX; m++)
-				sh_config.texfmt[m] = (m == targfmt) || (m==PTI_RGBA8);
-			Image_ChangeFormat(mips, args->flags, PTI_INVALID, inname);
+				forceformats[m] = (m == targfmt) || (m==PTI_RGBA8);
+			Image_ChangeFormat(mips, forceformats, PTI_INVALID, inname);
 			//and try again...
 			for (m = 0; m < PTI_MAX; m++)
-				sh_config.texfmt[m] = (m == targfmt);
-			Image_ChangeFormat(mips, args->flags, PTI_INVALID, inname);
+				forceformats[m] = (m == targfmt);
+			Image_ChangeFormat(mips, forceformats, PTI_INVALID, inname);
 
 			return (mips->encoding == targfmt);
 		}
@@ -488,9 +489,10 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 
 	if (!canktx)
 	{
+		qboolean allowformats[PTI_MAX];
 		//make sure the source pixel format is acceptable if we're forced to write a png
 		for (m = 0; m < PTI_MAX; m++)
-			sh_config.texfmt[m] =
+			allowformats[m] =
 					(m == PTI_RGBA8) || (m == PTI_RGBX8) ||
 					(m == PTI_BGRA8) || (m == PTI_BGRX8) ||
 					(m == PTI_LLLA8) || (m == PTI_LLLX8) ||
@@ -499,11 +501,7 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 					/*(m == PTI_L16) ||*/
 					(m == PTI_BGR8) || (m == PTI_BGR8) ||
 					0;
-		Image_ChangeFormat(mips, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, inname);
-
-		//make sure we properly read whatever is given back to us
-		for (m = 1; m < countof(sh_config.texfmt); m++)
-			sh_config.texfmt[m] = true;
+		Image_ChangeFormat(mips, allowformats, PTI_INVALID, inname);
 	}
 
 	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
@@ -905,9 +903,10 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 			else if (!strcmp(outext, ".png"))
 			{
 #ifdef AVAIL_PNGLIB
+				qboolean outformats[PTI_MAX];
 				//force the format, because we can.
 				for (k = 0; k < PTI_MAX; k++)
-					sh_config.texfmt[k] =
+					outformats[k] =
 							(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
 							(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
 							(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
@@ -918,7 +917,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 							0;
 				if (!sh_config.texfmt[in->encoding])
 				{
-					Image_ChangeFormat(in, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, outname);
+					Image_ChangeFormat(in, outformats, PTI_INVALID, outname);
 					printf("\t(Exporting as %s)\n", Image_FormatName(in->encoding));
 				}
 				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
@@ -930,8 +929,9 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 #ifdef IMAGEFMT_TGA
 			else if (!strcmp(outext, ".tga"))
 			{
+				qboolean outformats[PTI_MAX];
 				for (k = 0; k < PTI_MAX; k++)
-					sh_config.texfmt[k] =
+					outformats[k] =
 							(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
 							(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
 							(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
@@ -940,9 +940,9 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 							/*(k == PTI_L16) ||*/
 							(k == PTI_BGR8) || (k == PTI_BGR8) ||
 							0;
-				if (!sh_config.texfmt[in->encoding])
+				if (!outformats[in->encoding])
 				{
-					Image_ChangeFormat(in, args->flags&~IF_PREMULTIPLYALPHA, PTI_INVALID, outname);
+					Image_ChangeFormat(in, outformats, PTI_INVALID, outname);
 					printf("\t(Exporting as %s)\n", Image_FormatName(in->encoding));
 				}
 				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
@@ -1173,6 +1173,8 @@ static void ImgTool_WadConvert(struct opts_s *args, const char *srcpath, const c
 	wad2entry_t *wadentries = NULL, *entry;
 	size_t maxentries = 0;
 	miptex_t mip;
+	qboolean wadpixelformats[PTI_MAX] = {0};
+	wadpixelformats[PTI_P8] = true;
 	ImgTool_TreeScan(&list, srcpath, NULL);
 
 	f = FS_OpenVFS(destpath, "wb", FS_SYSTEM);
@@ -1253,7 +1255,7 @@ static void ImgTool_WadConvert(struct opts_s *args, const char *srcpath, const c
 				Con_Printf("%s(%i): WARNING: miptex height is not a not multiple of 16 - %i*%i\n", inname, args->mipnum, in->mip[0].width, in->mip[0].height);
 
 			if (in->encoding != PTI_P8)
-				Image_ChangeFormat(in, IF_PALETTIZE, (*inname=='{')?TF_TRANS8:PTI_INVALID, inname);
+				Image_ChangeFormat(in, wadpixelformats, (*inname=='{')?TF_TRANS8:PTI_INVALID, inname);
 			if (in->encoding != PTI_P8)
 			{	//erk! we failed to palettize...
 				ImgTool_FreeMips(in);

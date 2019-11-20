@@ -103,8 +103,36 @@ cvar_t	crosshaircorrect		= CVARFD("crosshaircorrect", "0", CVAR_SEMICHEAT, "Move
 cvar_t	crosshairimage			= CVARD("crosshairimage", "", "Enables the use of an external/custom crosshair image");
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
-cvar_t	v_skyroom_origin		= CVARD("r_skyroom_origin", "", "Specifies the center position of the skyroom's view. Skyrooms are drawn instead of skyboxes (typically with their own skybox around them). Entities in skyrooms will be drawn only when r_ignoreentpvs is 0. Can also be set with the _skyroom worldspawn key. This is overriden by csqc's VF_SKYROOM_CAMERA.");
-cvar_t	v_skyroom_orientation	= CVARD("r_skyroom_orientation", "", "Specifies the orientation and spin of the skyroom.");
+static qboolean v_skyroom_set;
+static vec4_t v_skyroom_origin;
+static vec4_t v_skyroom_orientation;
+static void QDECL V_Skyroom_Changed(struct cvar_s *var, char *oldvalue)
+{
+	char tok[64];
+	char *line = var->string;
+	if (*line)
+		v_skyroom_set = true;
+	else
+		v_skyroom_set = false;
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_origin[0] = atof(tok);
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_origin[1] = atof(tok);
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_origin[2] = atof(tok);
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_origin[3] = atof(tok);
+
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_orientation[3] = atof(tok);
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_orientation[0] = atof(tok);
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_orientation[1] = atof(tok);
+	line = COM_ParseTokenOut(line, NULL, tok, sizeof(tok), NULL);
+	v_skyroom_orientation[2] = atof(tok);
+}
+cvar_t	v_skyroom		= CVARFCD("skyroom", "", CVAR_SEMICHEAT, V_Skyroom_Changed, "Specifies the center position of the skyroom's view. Skyrooms are drawn instead of skyboxes (typically with their own skybox around them). Entities in skyrooms will be drawn only when r_ignoreentpvs is 0. Can also be set with the _skyroom worldspawn key. This is overriden by csqc's VF_SKYROOM_CAMERA.");
 
 static cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
 cvar_t	gl_cshiftenabled		= CVARFD("gl_polyblend", "1", CVAR_ARCHIVE, "Controls whether temporary whole-screen colour changes should be honoured or not. Change gl_cshiftpercent if you want to adjust the intensity.\nThis does not affect v_cshift commands sent from the server.");
@@ -349,7 +377,7 @@ static cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 //static cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = CVARFCD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
+cvar_t		v_gamma = CVARAFCD("gamma", "1.0", "v_gamma", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
 cvar_t		v_gammainverted = CVARFCD("v_gammainverted", "0", CVAR_ARCHIVE, V_Gamma_Callback, "Boolean that controls whether the gamma should be inverted (like quake) or not.");
 cvar_t		v_contrast = CVARAFCD("contrast", "1.0", "v_contrast", CVAR_ARCHIVE, V_Gamma_Callback, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
 cvar_t		v_contrastboost = CVARFCD("v_contrastboost", "1.0", CVAR_ARCHIVE, V_Gamma_Callback, "Amplifies contrast in dark areas");
@@ -1619,12 +1647,12 @@ void V_CalcRefdef (playerview_t *pv)
 		VectorMA(r_refdef.vieworg, v_gunkick.value, pv->punchorigin, r_refdef.vieworg);
 	}
 
-	if (*v_skyroom_origin.string)
+	if (v_skyroom_set)
 	{
 		r_refdef.skyroom_enabled = true;
-		r_refdef.skyroom_pos[0] = v_skyroom_origin.vec4[0];
-		r_refdef.skyroom_pos[1] = v_skyroom_origin.vec4[1];
-		r_refdef.skyroom_pos[2] = v_skyroom_origin.vec4[2];
+		VectorMA(v_skyroom_origin, v_skyroom_origin[3], r_refdef.vieworg, r_refdef.skyroom_pos);
+		Vector4Copy(v_skyroom_orientation, r_refdef.skyroom_spin);
+		r_refdef.skyroom_spin[3] *= cl.time;
 	}
 
 	if (chase_active.ival && cls.allow_cheats)	//cheat restriction might be lifted some time when any wallhacks are solved.
@@ -2577,14 +2605,14 @@ void V_Init (void)
 	Cvar_Register (&cl_bobmodel_side, VIEWVARS);
 	Cvar_Register (&cl_bobmodel_up, VIEWVARS);
 	Cvar_Register (&cl_bobmodel_speed, VIEWVARS);
+	Cvar_Register (&v_viewmodel_quake, VIEWVARS);
 
 	Cvar_Register (&v_kicktime, VIEWVARS);
 	Cvar_Register (&v_kickroll, VIEWVARS);
 	Cvar_Register (&v_kickpitch, VIEWVARS);
 
 	Cvar_Register (&v_deathtilt, VIEWVARS);
-	Cvar_Register (&v_skyroom_origin, VIEWVARS);
-	Cvar_Register (&v_skyroom_orientation, VIEWVARS);
+	Cvar_Register (&v_skyroom, VIEWVARS);
 
 	Cvar_Register (&scr_autoid, VIEWVARS);
 	Cvar_Register (&scr_autoid_team, VIEWVARS);

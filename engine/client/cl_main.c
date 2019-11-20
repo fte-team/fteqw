@@ -364,6 +364,9 @@ void CL_UpdateWindowTitle(void)
 	}
 }
 
+#ifdef __linux__
+#include <malloc.h>
+#endif
 void CL_MakeActive(char *gamename)
 {
 	extern int fs_finds;
@@ -409,6 +412,10 @@ void CL_MakeActive(char *gamename)
 		TP_ExecTrigger("f_spawndemo", true);
 	else
 		TP_ExecTrigger("f_spawn", false);
+
+#ifdef __linux__
+	malloc_trim(0);
+#endif
 }
 /*
 ==================
@@ -1802,6 +1809,7 @@ void CL_ClearState (qboolean gamestart)
 	CL_ResetFog(FOGTYPE_WATER);
 	CL_ResetFog(FOGTYPE_SKYROOM);
 
+	cl.gamespeed = 1;
 	cl.protocol_qw = PROTOCOL_VERSION_QW;	//until we get an svc_serverdata
 	cl.allocated_client_slots = QWMAX_CLIENTS;
 #ifndef CLIENTONLY
@@ -4896,10 +4904,10 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
-	Cmd_AddCommand ("say", CL_Say_f);
-	Cmd_AddCommand ("me", CL_SayMe_f);
-	Cmd_AddCommand ("sayone", CL_Say_f);
-	Cmd_AddCommand ("say_team", CL_SayTeam_f);
+	Cmd_AddCommandAD ("say", CL_Say_f, Key_EmojiCompletion_c, NULL);
+	Cmd_AddCommandAD ("me", CL_SayMe_f, Key_EmojiCompletion_c, NULL);
+	Cmd_AddCommandAD ("sayone", CL_Say_f, Key_EmojiCompletion_c, NULL);
+	Cmd_AddCommandAD ("say_team", CL_SayTeam_f, Key_EmojiCompletion_c, NULL);
 #ifdef CLIENTONLY
 	Cmd_AddCommand ("serverinfo", NULL);
 #else
@@ -5892,9 +5900,9 @@ double Host_Frame (double time)
 		cl.gametimemark += time;
 
 	//if we're at a menu/console/thing
-	idle = !Key_Dest_Has_Higher(kdm_menu);
-	idle = ((cls.state == ca_disconnected) || cl.paused) && idle;	//idle if we're disconnected/paused and not at a menu
-	idle |= !vid.activeapp; //always idle when tabbed out
+//	idle = !Key_Dest_Has_Higher(kdm_menu);
+//	idle = ((cls.state == ca_disconnected) || cl.paused) && idle;	//idle if we're disconnected/paused and not at a menu
+	idle = !vid.activeapp; //always idle when tabbed out
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
 	//should smooth out a few things, and increase download speeds.
@@ -6453,8 +6461,6 @@ void CL_ExecInitialConfigs(char *resetcommand)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		else //if (cfg <= def && cfg!=0x7fffffff)
 			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-//		else
-//			Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
 		if (def!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
@@ -6521,7 +6527,7 @@ void Host_FinishLoading(void)
 		SV_ArgumentOverrides();
 	#endif
 
-		Con_Printf ("\n%s\n", version_string());
+		Con_Printf ("\nEngine: %s\n", version_string());
 
 		Con_DPrintf("This program is free software; you can redistribute it and/or "
 					"modify it under the terms of the GNU General Public License "

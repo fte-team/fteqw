@@ -1,6 +1,11 @@
 #include "quakedef.h"
 
 //#define FORCESTATE
+#ifdef _DEBUG
+#define DRAWCALL(f) if (developer.ival==-1) Con_Printf(f " (shader %s, ent %i)\n", shaderstate.curshader->name, (shaderstate.curbatch && shaderstate.curbatch->ent)?shaderstate.curbatch->ent->keynum:0)
+#else
+#define DRAWCALL(f)
+#endif
 
 void DumpGLState(void);
 
@@ -34,7 +39,7 @@ extern texid_t scenepp_postproc_cube;
 extern texid_t r_whiteimage;
 
 #ifdef GLQUAKE
-static texid_t shadowmap[2];
+static texid_t shadowmap[3];
 static int shadow_fbo_id;
 static int shadow_fbo_depth_num;
 #endif
@@ -49,6 +54,7 @@ static const char LIGHTPASS_SHADER[] = "\
 \
 	{\n\
 		map $diffuse\n\
+		nodepth\n\
 		blendfunc add\n\
 	}\n\
 	{\n\
@@ -947,6 +953,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts - 1, numindicies, GL_INDEX_TYPE, indicies);
 	}
 	RQuantAdd(RQUANT_DRAWS, 1);
+	DRAWCALL("GLBE_RenderShadowBuffer");
 	RQuantAdd(RQUANT_SHADOWINDICIES, numindicies);
 	shaderstate.dummyvbo.indicies.gl.vbo = 0;
 	shaderstate.sourcevbo = NULL;
@@ -1075,15 +1082,20 @@ void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float sha
 }
 
 int GLBE_BeginRenderBuffer_DepthOnly(texid_t depthtexture);
-qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo)
+qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *restorefbo)
 {
 	if (!gl_config.ext_framebuffer_objects)
 		return false;
 
-	if (!TEXVALID(shadowmap[id]))
+	if (!TEXVALID(shadowmap[id]) || shadowmap[id]->width != w || shadowmap[id]->height != h || shadowmap[id]->format != encoding)
 	{
-		uploadfmt_t encoding = PTI_DEPTH16;
-		texid_t tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
+		texid_t tex;
+		if (shadowmap[id])
+			Image_DestroyTexture(shadowmap[id]);
+		tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
+		tex->width = w;
+		tex->height = h;
+		tex->format = encoding;
 		qglGenTextures(1, &tex->num);
 		GL_MTBind(0, GL_TEXTURE_2D, tex);
 #ifdef SHADOWDBG_COLOURNOTDEPTH
@@ -1113,6 +1125,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
 			qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
 		}
+		tex->status = TEX_LOADED;
 	}
 	shaderstate.curshadowmap = shadowmap[id];
 
@@ -1517,7 +1530,7 @@ void GLBE_DestroyFBOs(void)
 		shadow_fbo_id = 0;
 		shadow_fbo_depth_num = 0;
 	}
-	for (i = 0; i < 2; i++)
+	for (i = 0; i < countof(shadowmap); i++)
 	{
 		if (shadowmap[i])
 		{
@@ -2450,7 +2463,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			mid[1] = 0.25*(src[0][1] + src[1][1] + src[2][1] + src[3][1]);
 			mid[2] = 0.25*(src[0][2] + src[1][2] + src[2][2] + src[3][2]);
 			VectorSubtract(src[0], mid, d);
-			radius = VectorLength(d);
+			radius = VectorLength(d) * 0.707;
 
 			mid2[0] = 0.25*(st[0][0] + st[1][0] + st[2][0] + st[3][0]);
 			mid2[1] = 0.25*(st[0][1] + st[1][1] + st[2][1] + st[3][1]);
@@ -3113,6 +3126,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			mesh = shaderstate.meshes[0];
 			qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes - 1, mesh->numindexes, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + mesh->vbofirstelement);
 			RQuantAdd(RQUANT_DRAWS, 1);
+			DRAWCALL("BE_SubmitMeshChain 1");
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, mesh->numindexes);
 			return;
 		}
@@ -3148,6 +3162,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			}
 			qglDrawRangeElements(batchtype, startv, endv - 1, endi, GL_INDEX_TYPE, ilst);
 			RQuantAdd(RQUANT_DRAWS, 1);
+			DRAWCALL("BE_SubmitMeshChain N");
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi);
 		}
 		return;
@@ -3186,6 +3201,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			{
 				qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
 				RQuantAdd(RQUANT_DRAWS, drawcount);
+				DRAWCALL("BE_SubmitMeshChain MultiDraw");
 				drawcount = 0;
 			}
 			counts[drawcount] = endi-starti;
@@ -3195,6 +3211,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 		}
 		qglMultiDrawElements(batchtype, counts, GL_INDEX_TYPE, indicies, drawcount);
 		RQuantAdd(RQUANT_DRAWS, drawcount);
+		DRAWCALL("BE_SubmitMeshChain MultiDraw");
 	}
 #if 0 //def FTE_TARGET_WEB
 	else if (shaderstate.meshcount > 1)
@@ -3271,6 +3288,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			}
 			qglDrawRangeElements(batchtype, startv, endv - 1, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
 			RQuantAdd(RQUANT_DRAWS, 1);
+			DRAWCALL("BE_SubmitMeshChain Fallback");
 			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi-starti);
  		}
 /*
@@ -6273,8 +6291,6 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 //	else
 //		shaderstate.updatetime = cl.servertime;
 
-	GLBE_SelectEntity(&r_worldentity);
-
 	BE_UpdateLightmaps();
 	if (worldbatches)
 	{
@@ -6320,11 +6336,16 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 #ifdef RTLIGHTS
 		if (r_lightprepass)
 		{
+			GLBE_SelectEntity(&r_worldentity);
 			GLBE_DrawLightPrePass();
 		}
 		else
 #endif
 		{
+			if (r_fakeshadows)
+				Sh_GenerateFakeShadows();
+			GLBE_SelectEntity(&r_worldentity);
+
 			if (shaderstate.identitylighting == 0)
 				BE_SelectMode(BEM_DEPTHDARK);
 			else
@@ -6401,6 +6422,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 	}
 	else
 	{
+		GLBE_SelectEntity(&r_worldentity);
 		GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 
 #ifdef GL_LINE	//no gles

@@ -1105,11 +1105,12 @@ static char *quitMessage [] =
 	"Press N to stay proud\n"
 	"and successful!",
 
-	"If you press Y to\n"
+	//this is a vanilla message... but I'm having enough issues with false-positives in malware scanners right now that I really don't want to risk an already-suspicious actual hunam seeing stuff like this... :)
+/*	"If you press Y to\n"
 	"quit, I will summon\n"
 	"Satan all over your\n"
 	"hard drive!",
-
+*/
 	"Um, Asmodeus dislikes\n"
 	"his children trying to\n"
 	"quit. Press Y to return\n"

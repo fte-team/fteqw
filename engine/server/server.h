@@ -1110,14 +1110,15 @@ char *SV_BannedReason (netadr_t *a);
 void SV_EvaluatePenalties(client_t *cl);
 void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *reason);
 
+//note: not all penalties are actually penalties, but they can still expire.
 #define BAN_BAN			(1u<<0)	//user is banned from the server
-#define	BAN_PERMIT		(1u<<1)	//user can evade block bans or filterban
+#define	BAN_PERMIT		(1u<<1)	//+user can evade block bans or filterban
 #define	BAN_CUFF		(1u<<2)	//can't shoot/use impulses
-#define	BAN_MUTE		(1u<<3)	//can't use say/say_team
+#define	BAN_MUTE		(1u<<3)	//can't use say/say_team/voip
 #define	BAN_CRIPPLED	(1u<<4)	//can't move
 #define	BAN_DEAF		(1u<<5)	//can't see say/say_team
 #define	BAN_LAGGED		(1u<<6)	//given an extra 200ms
-#define BAN_VIP			(1u<<7)	//mods might give the user special rights, via the *VIP infokey. the engine itself currently does not do anything but track it.
+#define BAN_VIP			(1u<<7)	//+mods might give the user special rights, via the *VIP infokey. the engine itself currently does not do anything but track it.
 #define BAN_BLIND		(1u<<8)	//player's pvs is wiped.
 #define BAN_SPECONLY	(1u<<9) //player is forced to spectate
 #define BAN_STEALTH		(1u<<10)//player is not told of their bans
@@ -1129,7 +1130,8 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 #define BAN_USER6		(1u<<16)//mod-specified
 #define BAN_USER7		(1u<<17)//mod-specified
 #define BAN_USER8		(1u<<18)//mod-specified
-#define BAN_MAPPER		(1u<<19)//player is allowed to use the brush/entity editing clc.
+#define BAN_MAPPER		(1u<<19)//+player is allowed to use the brush/entity editing clc.
+#define BAN_VMUTE		(1u<<20)//can't use voip (but can still use other forms of chat)
 
 #define BAN_NOLOCALHOST	(BAN_BAN|BAN_PERMIT|BAN_SPECONLY)	//any attempt to ban localhost is denied, but you can vip, lag, cripple, etc them.
 

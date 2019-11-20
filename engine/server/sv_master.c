@@ -711,10 +711,7 @@ void SV_Init (struct quakeparms_s *parms)
 	Cvar_ForceCallback(&sv_masterport);
 	Cvar_ForceCallback(&sv_masterport_tcp);
 
-
-	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
-
-	Con_Printf ("%s\n", version_string());
+	Con_Printf ("Exe: %s\n", version_string());
 
 	Con_TPrintf ("======== %s Initialized ========\n", "FTEMaster");
 }

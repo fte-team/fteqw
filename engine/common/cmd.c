@@ -666,54 +666,57 @@ static void Cmd_Exec_f (void)
 	{
 		f = Cmd_Argv(1);
 		if (!*f)
-			f = "fte";
+			f = fs_manifest->mainconfig;
+		if (!*f)
+			f = "config";
 		snprintf(name, sizeof(name)-5, "configs/%s", f);
 		COM_DefaultExtension(name, ".cfg", sizeof(name));
 	}
 	else
 	{
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
-#ifndef QUAKETC
-		//fte writes to a different config file from that specified by the quake.rc, to avoid conflicts.
-		//so make sure that fte's settings override those from whatever other engine that wrote the legacy config.cfg file.
-		if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg"))
+		if (*fs_manifest->mainconfig && Q_strcasecmp("config.cfg", fs_manifest->mainconfig) && Q_strcasecmp("q3config.cfg", fs_manifest->mainconfig))
 		{
-			int cfgdepth = COM_FDepthFile(name, true);
-			int defdepth = COM_FDepthFile("default.cfg", true);
-			Cbuf_InsertText("exec fte.cfg", Cmd_ExecLevel, true);
-			if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
+			//fte writes to a different config file from that specified by the quake.rc, to avoid conflicts.
+			//so make sure that fte's settings override those from whatever other engine that wrote the legacy config.cfg file.
+			if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg"))
 			{
-				if (cl_warncmd.ival)
+				int cfgdepth = COM_FDepthFile(name, true);
+				int defdepth = COM_FDepthFile("default.cfg", true);
+				Cbuf_InsertText(va("exec %s", fs_manifest->mainconfig), Cmd_ExecLevel, true);
+				if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
 				{
-					char fulldefault[MAX_OSPATH];
-					char fullconfig[MAX_OSPATH];
-					*fulldefault = *fullconfig = 0;
-					FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
-					FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
-					Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
+					if (cl_warncmd.ival)
+					{
+						char fulldefault[MAX_OSPATH];
+						char fullconfig[MAX_OSPATH];
+						*fulldefault = *fullconfig = 0;
+						FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
+						FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
+						Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
+					}
+					return;
 				}
-				return;
+			}
+			else if (!strcmp(name, fs_manifest->mainconfig))
+			{
+				int cfgdepth = COM_FDepthFile(name, true);
+				int defdepth = COM_FDepthFile("default.cfg", true);
+				if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
+				{
+					if (cl_warncmd.ival)
+					{
+						char fulldefault[MAX_OSPATH];
+						char fullconfig[MAX_OSPATH];
+						*fulldefault = *fullconfig = 0;
+						FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
+						FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
+						Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
+					}
+					return;
+				}
 			}
 		}
-		else if (!strcmp(name, "fte.cfg"))
-		{
-			int cfgdepth = COM_FDepthFile(name, true);
-			int defdepth = COM_FDepthFile("default.cfg", true);
-			if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
-			{
-				if (cl_warncmd.ival)
-				{
-					char fulldefault[MAX_OSPATH];
-					char fullconfig[MAX_OSPATH];
-					*fulldefault = *fullconfig = 0;
-					FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
-					FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
-					Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
-				}
-				return;
-			}
-		}
-#endif
 	}
 
 	if (!strncmp(name, "../", 3) || !strncmp(name, "..\\", 3) || !strncmp(name, "./", 2) || !strncmp(name, ".\\", 2))
@@ -760,7 +763,7 @@ static void Cmd_Exec_f (void)
 		s+=3;
 	}
 
-	if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg") || !strcmp(name, "fte.cfg"))
+	if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg") || !strcmp(name, fs_manifest->mainconfig))
 	{
 		//if the config is from id1 and the default.cfg was from some mod, make sure the default.cfg overrides the config.
 		//we won't just exec the default instead, because we can at least retain things which are not specified (ie: a few binds)
@@ -1352,6 +1355,7 @@ void Alias_WipeStuffedAliases(void)
 
 void Cvar_List_f (void);
 void Cvar_Reset_f (void);
+void Cvar_ResetAll_f(void);
 void Cvar_LockDefaults_f(void);
 void Cvar_PurgeDefaults_f(void);
 
@@ -2694,7 +2698,7 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 	if (dpcompat_console.ival && !strncmp(text, "alias", 5) && (text[5] == ' ' || text[5] == '\t'))
 		;	//certain commands don't get pre-expanded in dp. evil hack. quote them to pre-expand anyway. double evil.
 	else
-		text = Cmd_ExpandString(text, dest, sizeof(dest), &level, !Cmd_IsInsecure()?true:false, true);
+		text = Cmd_ExpandString(text, dest, sizeof(dest), &level, true/*!Cmd_IsInsecure()?true:false*/, true);
 	Cmd_TokenizeString (text, (level == RESTRICT_LOCAL&&!dpcompat_console.ival)?true:false, false);
 
 // execute the command line
@@ -3950,20 +3954,10 @@ static void Cmd_WriteConfig_f(void)
 	char sysname[MAX_OSPATH];
 	qboolean all = true;
 
-	if (Cmd_IsInsecure() && Cmd_Argc() > 1)
-	{
-		Con_Printf ("%s not allowed\n", Cmd_Argv(0));
-		return;
-	}
-
 	filename = Cmd_Argv(1);
 	if (!*filename)
 	{
-#ifdef QUAKETC
-		snprintf(fname, sizeof(fname), "config.cfg");
-#else
-		snprintf(fname, sizeof(fname), "fte.cfg");
-#endif
+		Q_strncpyz(fname, fs_manifest->mainconfig, sizeof(fname));
 
 #if defined(CL_MASTER) && defined(HAVE_CLIENT)
 		MasterInfo_WriteServers();
@@ -3973,8 +3967,32 @@ static void Cmd_WriteConfig_f(void)
 
 		all = cfg_save_all.ival;
 	}
+	else if (!Q_strcasecmp(Cmd_Argv(0), "saveconfig"))
+	{
+		//dpcompat: this variation allows writing to any path. at least force the extension.
+		snprintf(fname, sizeof(fname), "%s", filename);
+		COM_RequireExtension(fname, ".cfg", sizeof(fname));
+
+		if (Cmd_IsInsecure() && strncmp(fname, "data/", 5))
+		{
+			Con_Printf ("%s %s: not allowed\n", Cmd_Argv(0), Cmd_Args());
+			return;
+		}
+
+		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));
+		FS_CreatePath(fname, FS_BASEGAMEONLY);
+		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
+
+		all = cfg_save_all.ival;// || !*cfg_save_all.string;
+	}
 	else
 	{
+		if (Cmd_IsInsecure())
+		{
+			Con_Printf ("%s %s: not allowed\n", Cmd_Argv(0), Cmd_Args());
+			return;
+		}
+
 		if (strstr(filename, ".."))
 		{
 			Con_Printf (CON_ERROR "Couldn't write config %s\n",filename);
@@ -4212,6 +4230,7 @@ void Cmd_Init (void)
 // register our commands
 //
 	Cmd_AddCommandAD ("cfg_save",Cmd_WriteConfig_f, Cmd_Exec_c, NULL);
+	Cmd_AddCommandAD ("saveconfig",Cmd_WriteConfig_f, Cmd_Exec_c, NULL);	//for dpcompat
 
 	Cmd_AddCommandAD ("cfg_load",Cmd_Exec_f, Cmd_Exec_c, NULL);
 	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
@@ -4256,6 +4275,9 @@ void Cmd_Init (void)
 	Cmd_AddCommandD ("cvarwatch", Cvar_Watch_f, "Prints a notification when the named cvar is changed. Also displays the start/end of configs. Alternatively, use '-watch foo' on the commandline.");
 	Cmd_AddCommand ("cvar_lockdefaults", Cvar_LockDefaults_f);
 	Cmd_AddCommandD ("cvar_purgedefaults", Cvar_PurgeDefaults_f, "Resets all cvar defaults to back to the engine's default. Does not change their active value.");
+	Cmd_AddCommandD ("cvar_resettodefaults_nosaveonly", Cvar_ResetAll_f, "Resets all unsaved cvars to the mod's default value.");
+	Cmd_AddCommandD ("cvar_resettodefaults_saveonly", Cvar_ResetAll_f, "Resets all saved cvars to the mod's default value (without changing unsaved cvars).");
+	Cmd_AddCommandD ("cvar_resettodefaults_all", Cvar_ResetAll_f, "Resets all cvars to the mod's default value.");
 
 	Cmd_AddCommandD ("apropos", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");
 	Cmd_AddCommandD ("find", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");

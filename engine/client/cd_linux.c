@@ -126,7 +126,7 @@ void CDAudio_Play(int track)
 
 	playing = true;
 
-	if (!bgmvolume.value)
+	if (!bgmvolume.value || !mastervolume.value)
 		CDAudio_Pause ();
 }
 

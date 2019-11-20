@@ -19,9 +19,18 @@ else
 endif
 
 ifeq ($(SVNREVISION),)
-	SVNREVISION:=-DSVNREVISION=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR) || echo -)
+    SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
+    SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
+
+    SVNREVISION=
+ifneq (,$(SVN_VERSION))
+    SVNREVISION+=-DSVNREVISION=$(SVN_VERSION)
 endif
-MAKE:=$(MAKE) SVNREVISION=$(SVNREVISION)
+ifneq (M,$(findstring M,$(SVN_VERSION)))
+    SVNREVISION+=-DSVNDATE=$(SVN_DATE)
+endif
+endif
+MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)"
 
 #WHOAMI:=$(shell whoami)
 

@@ -30,9 +30,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MAX_INFO_KEY 64
 
+#if defined(SVNREVISION) && defined(SVNDATE)
+	#define QTVBUILD STRINGIFY(SVNREVISION)", "STRINGIFY(SVNDATE)
+#elif defined(SVNREVISION)
+	#define QTVBUILD STRINGIFY(SVNREVISION)", "__DATE__
+#else
+	#define QTVBUILD __DATE__
+#endif
+
 //I apologise for this if it breaks your formatting or anything
 #define HELPSTRING "\
-FTEQTV proxy commands: (build "__DATE__")\n\
+FTEQTV proxy commands: (build "QTVBUILD")\n\
 ----------------------\n\
 connect, qtv, addserver\n\
   connect to a MVD stream (TCP)\n\

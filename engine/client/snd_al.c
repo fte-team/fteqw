@@ -311,6 +311,7 @@ static void S_Info(void);
 
 static void S_Shutdown_f(void);
 */
+static cvar_t s_al_disable = CVARD("s_al_disable", "0", "When set, prevents initialisation of openal. Audio ouput can then fall back to platfrm-specific output which doesn't have any of the miscilaneous openal limitations or bugs.");
 static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
 static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
 //static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
@@ -536,6 +537,7 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 
 static void QDECL OpenAL_CvarInit(void)
 {
+	Cvar_Register(&s_al_disable, SOUNDVARS);
 	Cvar_Register(&s_al_debug, SOUNDVARS);
 	Cvar_Register(&s_al_use_reverb, SOUNDVARS);
 //	Cvar_Register(&s_al_max_distance, SOUNDVARS);
@@ -638,7 +640,7 @@ static ssamplepos_t OpenAL_GetChannelPos(soundcardinfo_t *sc, channel_t *chan)
 }
 
 //schanged says the sample has changed, otherwise its merely moved around a little, maybe changed in volume, but nothing that will restart it.
-static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned int schanged)
+static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdatereason_t schanged)
 {
 	oalinfo_t *oali = sc->handle;
 	ALuint src;
@@ -682,12 +684,12 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			}
 		}
 		oali->source[chnum] = src;
-		schanged = true;	//should normally be true anyway, but hey
+		schanged |= CUR_EVERYTHING;	//should normally be true anyway, but hey
 	}
 
 	PrintALError("pre start sound");
 
-	if (schanged==true && src)
+	if ((schanged&CUR_SOUNDCHANGE) && src)
 		palSourceStop(src);
 
 	//reclaim any queued buffers
@@ -710,7 +712,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			palGetSourcei(src, AL_SOURCE_STATE, &buf);
 			if (buf != AL_PLAYING)
 			{
-				schanged = true;
+				schanged |= CUR_EVERYTHING;
 				if(sfx->loopstart != -1)
 					chan->pos = sfx->loopstart<<PITCHSHIFT;
 				else if (chan->flags & CF_FORCELOOP)
@@ -741,6 +743,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	cvolume = chan->master_vol/255.0f;
 	if (!(chan->flags & CF_CL_ABSVOLUME))
 		cvolume *= volume.value*voicevolumemod;
+	else
+		cvolume *= mastervolume.value;
 
 	//openal doesn't support loopstart (entire sample loops or not at all), so if we're meant to skip the first half then we need to stream it.
 	stream = sfx->decoder.decodedata || sfx->loopstart > 0;
@@ -823,7 +827,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 
 						palGetSourcei(src, AL_SOURCE_STATE, &buf);
 						if (buf != AL_PLAYING)
-							schanged = true;
+							schanged = CUR_EVERYTHING;
 					}
 					else
 					{
@@ -900,7 +904,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 
 	if (schanged)
 	{
-		if (schanged == 2 && chan->pos)
+		if (schanged == CUR_UPDATE && chan->pos)
 		{	//complex update, but not restart. pos contains an offset, rather than an absolute time.
 			int cursample;
 			palGetSourcei(src, AL_SAMPLE_OFFSET, &cursample);
@@ -995,7 +999,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		}
 
 	/*and start it up again*/
-		if (schanged != 2)
+		if (schanged != CUR_UPDATE)
 			palSourcePlay(src);
 	}
 
@@ -1030,6 +1034,8 @@ static qboolean OpenAL_InitLibrary(void)
 #endif
 
 #ifdef OPENAL_STATIC
+	if (s_al_disable.ival)
+		return false;
 	return true;
 #else
 	static dllfunction_t openalfuncs[] =
@@ -1072,6 +1078,8 @@ static qboolean OpenAL_InitLibrary(void)
 		{NULL}
 	};
 
+	if (s_al_disable.ival)
+		return false;
 	if (COM_CheckParm("-noopenal"))
 		return false;
 

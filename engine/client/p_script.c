@@ -169,7 +169,7 @@ typedef struct skytriblock_s
 //this is the required render state for each particle
 //dynamic per-particle stuff isn't important. only static state.
 typedef struct {
-	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_CDECAL, PT_UDECAL, PT_INVISIBLE} type;
+	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_VBEAM, PT_CDECAL, PT_UDECAL, PT_INVISIBLE} type;
 
 	blendmode_t blendmode;
 	shader_t *shader;
@@ -946,6 +946,12 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			{
 				/*untextured beams get a single continuous blob*/
 				ptype->looks.shader = R_RegisterShader(va("beam%s", namepostfix), SUF_NONE, defaultshader);
+				TEXASSIGNF(tn.base, beamtexture);
+			}
+			else if (ptype->looks.type == PT_VBEAM)
+			{
+				/*untextured beams get a single continuous blob*/
+				ptype->looks.shader = R_RegisterShader(va("vbeam%s", namepostfix), SUF_NONE, defaultshader);
 				TEXASSIGNF(tn.base, beamtexture);
 			}
 			else if (ptype->looks.type == PT_SPARKFAN)
@@ -1942,6 +1948,8 @@ parsefluid:
 		{
 			if (!strcmp(value, "beam"))
 				ptype->looks.type = PT_BEAM;
+			else if (!strcmp(value, "vbeam"))
+				ptype->looks.type = PT_BEAM;
 			else if (!strcmp(value, "spark") || !strcmp(value, "linespark"))
 				ptype->looks.type = PT_SPARK;
 			else if (!strcmp(value, "sparkfan") || !strcmp(value, "trianglefan"))
@@ -2279,7 +2287,7 @@ parsefluid:
 
 	FinishParticleType(ptype);
 
-	if (ptype->looks.type == PT_BEAM && !setbeamlen)
+	if ((ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM) && !setbeamlen)
 		ptype->rotationstartmin = 1/128.0;
 }
 
@@ -2323,6 +2331,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			break;
 		case PT_BEAM:
 			Q_strncatz(outstr, "type beam\n", outstrlen);
+			break;
+		case PT_VBEAM:
+			Q_strncatz(outstr, "type vbeam\n", outstrlen);
 			break;
 		case PT_CDECAL:
 			if (ptype->surfflagmatch || ptype->surfflagmask)
@@ -2792,7 +2803,7 @@ static void FinishParticleType(part_type_t *ptype)
 		ptype->looks.type = PT_SPARK;
 	if (ptype->looks.type == PT_SPARK && !r_part_sparks.ival)
 		ptype->looks.type = PT_INVISIBLE;
-	if (ptype->looks.type == PT_BEAM && r_part_beams.ival <= 0)
+	if ((ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM) && r_part_beams.ival <= 0)
 		ptype->looks.type = PT_INVISIBLE;
 	
 	if (ptype->rampmode && !ptype->ramp)
@@ -2836,6 +2847,19 @@ static void FinishEffectinfoParticleType(part_type_t *ptype, qboolean blooddecal
 		ptype->scaledelta *= 2*2*ptype->looks.stretch;	//fixme: this feels wrong, the results look correct though. hrmph.
 		ptype->looks.stretch = 1;
 	}
+	else if (ptype->looks.type == PT_BEAM || ptype->looks.type == PT_VBEAM)
+	{	//ignore what the particle says and just spawn it from a to b. don't accept mid-segment randomness.
+		if (ptype->t1 == 0 && ptype->t2 == 1)
+			ptype->looks.type = PT_VBEAM;
+		else
+			ptype->looks.type = PT_BEAM;
+		ptype->count = 0;
+		ptype->countextra = 2;
+		ptype->countrand = 0;
+		ptype->countspacing = 10000;
+		ptype->scale *= 0.5;
+	}
+
 	if (blooddecalonimpact)	//DP blood particles generate decals unconditionally (and prevent blood from bouncing)
 		ptype->clipbounce = -2;
 	if (ptype->looks.type == PT_TEXTUREDSPARK)
@@ -2864,10 +2888,15 @@ static void P_ImportEffectInfo(char *config, char *line)
 	part_type_t *ptype = NULL;
 	int parenttype;
 	char arg[8][1024];
-	int args = 0;
+	int args;
 	qboolean blooddecalonimpact = false;	//tracked separately because it needs to override another field
 
-	float teximages[256][4];
+
+	struct
+	{
+		float tc[4];
+		char imgname[128];
+	} teximages[256];
 
 	{
 		int i;
@@ -2876,37 +2905,64 @@ static void P_ImportEffectInfo(char *config, char *line)
 		//default assumes 8*8 grid, but we allow more
 		for (i = 0; i < 256; i++)
 		{
-			teximages[i][0] = 1/8.0 * (i & 7);
-			teximages[i][1] = 1/8.0 * (1+(i & 7));
-			teximages[i][2] = 1/8.0 * (1+(i>>3));
-			teximages[i][3] = 1/8.0 * (i>>3);
+			teximages[i].tc[0] = 1/8.0 * (i & 7);
+			teximages[i].tc[1] = 1/8.0 * (1+(i & 7));
+			teximages[i].tc[2] = 1/8.0 * (1+(i>>3));
+			teximages[i].tc[3] = 1/8.0 * (i>>3);
+			strcpy(teximages[i].imgname, "particles/particlefont");
 		}
+
+		//and this one needs to be subject to a hack. ho hum.
+		teximages[60].tc[0] = 0;
+		teximages[60].tc[1] = 1;
+		teximages[60].tc[2] = 0;
+		teximages[60].tc[3] = 1;
+		strcpy(teximages[60].imgname, "particles/nexbeam");
 
 		file = FS_OpenVFS("particles/particlefont.txt", "rb", FS_GAME);
 		if (file)
 		{
 			while (VFS_GETS(file, linebuf, sizeof(linebuf)))
 			{
-				line = COM_StringParse(linebuf, arg[0], sizeof(arg[0]), false, false);	
-				line = COM_StringParse(line, arg[1], sizeof(arg[1]), false, false);	
-				line = COM_StringParse(line, arg[2], sizeof(arg[2]), false, false);	
-				line = COM_StringParse(line, arg[3], sizeof(arg[3]), false, false);	
-				line = COM_StringParse(line, arg[4], sizeof(arg[4]), false, false);	
-
+				args = 0;
+				line = COM_StringParse(linebuf, arg[args], sizeof(arg[args]), false, false);
 				if (line)
 				{
-					i = atoi(arg[0]);
-					teximages[i][0] = atof(arg[1]);
-					teximages[i][1] = atof(arg[3]);
-					teximages[i][2] = atof(arg[4]);
-					teximages[i][3] = atof(arg[2]);
+					for (args++; args < countof(arg); args++)
+					{
+						line = COM_StringParse(line, arg[args], sizeof(arg[args]), false, false);
+						if (!line)
+							break;
+					}
 				}
+
+				i = atoi(arg[0]);
+				if (i >= countof(teximages))
+					Con_Printf("particles/particlefont.txt: index too high - %i>=%u\n", i, (unsigned)countof(teximages));
+				else if (args == 2)
+				{
+					teximages[i].tc[0] = 0;
+					teximages[i].tc[1] = 1;
+					teximages[i].tc[2] = 0;
+					teximages[i].tc[3] = 1;
+					Q_strncpyz(teximages[i].imgname, arg[1], sizeof(teximages[i].imgname));
+				}
+				else if (args >= 5 && args <= 6)
+				{
+					teximages[i].tc[0] = atof(arg[1]);	//s1
+					teximages[i].tc[1] = atof(arg[3]);	//s2
+					teximages[i].tc[2] = atof(arg[4]);	//t1
+					teximages[i].tc[3] = atof(arg[2]);	//t2
+					Q_strncpyz(teximages[i].imgname, (args>=6)?arg[5]:"particles/particlefont", sizeof(teximages[i].imgname));
+				}
+				else
+					Con_Printf("particles/particlefont.txt: unsupported argument count - %i\n", args);
 			}
 			VFS_CLOSE(file);
 		}
 	}
 
-	for (;;)
+	for (args = 0;;)
 	{
 		if (!*line)
 			break;
@@ -2964,7 +3020,6 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->alpharand = 1;
 			ptype->alphachange = -1;
 			ptype->die = 9999;
-			strcpy(ptype->texname, "particles/particlefont");
 			ptype->rgb[0] = 1;
 			ptype->rgb[1] = 1;
 			ptype->rgb[2] = 1;
@@ -2983,10 +3038,11 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->dl_time = 0;
 
 			i = 63; //default texture is 63.
-			ptype->s1 = teximages[i][0];
-			ptype->s2 = teximages[i][1];
-			ptype->t1 = teximages[i][2];
-			ptype->t2 = teximages[i][3];
+			Q_strncpyz(ptype->texname, teximages[i].imgname, sizeof(ptype->texname));
+			ptype->s1 = teximages[i].tc[0];
+			ptype->s2 = teximages[i].tc[1];
+			ptype->t1 = teximages[i].tc[2];
+			ptype->t2 = teximages[i].tc[3];
 			ptype->texsstride = 0;
 			ptype->randsmax = 1;
 		}
@@ -3064,20 +3120,28 @@ static void P_ImportEffectInfo(char *config, char *line)
 				ptype->looks.premul = 2;
 				ptype->flurry = 32;	//may not still be valid later, but at least it would be an obvious issue with the original.
 			}
+			else if (!strcmp(arg[1], "entityparticle"))
+			{
+				ptype->die = 0;
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_PREMUL;//BM_BLEND;
+				ptype->looks.premul = 1;
+			}
 			else
 			{
 				Con_Printf("effectinfo type %s not supported\n", arg[1]);
 			}
 		}
 		else if (!strcmp(arg[0], "tex") && args == 3)
-		{
+		{	//assume that all textures will be packed into the same texture and on the same line...
 			int mini = atoi(arg[1]);
 			int maxi = atoi(arg[2]);
-			ptype->s1 = teximages[mini][0];
-			ptype->s2 = teximages[mini][1];
-			ptype->t1 = teximages[mini][2];
-			ptype->t2 = teximages[mini][3];
-			ptype->texsstride = teximages[(mini+1)&(sizeof(teximages)/sizeof(teximages[0])-1)][0] - teximages[mini][0];
+			Q_strncpyz(ptype->texname, teximages[mini].imgname, sizeof(ptype->texname));
+			ptype->s1 = teximages[mini].tc[0];
+			ptype->s2 = teximages[mini].tc[1];
+			ptype->t1 = teximages[mini].tc[2];
+			ptype->t2 = teximages[mini].tc[3];
+			ptype->texsstride = teximages[(mini+1)&(sizeof(teximages)/sizeof(teximages[0])-1)].tc[0] - teximages[mini].tc[0];
 			ptype->randsmax = (maxi - mini);
 			if (ptype->randsmax < 1)
 				ptype->randsmax = 1;
@@ -4137,7 +4201,7 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t a
 	{
 	case SM_UNICIRCLE:
 		m = pmax;
-		if (ptype->looks.type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 			m--;
 
 		if (m < 1)
@@ -4769,7 +4833,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		{
 		case SM_UNICIRCLE:
 			m = pcount;
-			if (ptype->looks.type == PT_BEAM)
+			if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 				m--;
 
 			if (m < 1)
@@ -4843,7 +4907,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			if (!free_particles)
 				break;
 			p = free_particles;
-			if (ptype->looks.type == PT_BEAM)
+			if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 			{
 				if (!free_beams)
 					break;
@@ -5137,7 +5201,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		}
 
 		// update beam list
-		if (ptype->looks.type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 		{
 			if (b)
 			{
@@ -5672,7 +5736,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		}
 
 		p = free_particles;
-		if (ptype->looks.type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 		{
 			if (!free_beams)
 			{
@@ -5950,7 +6014,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		ts->state1.lastdist = len;
 
 		// update beamseg list
-		if (ptype->looks.type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 		{
 			if (b)
 			{
@@ -5986,7 +6050,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 			}
 		}
 	}
-	else if (ptype->looks.type == PT_BEAM)
+	else if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
 	{
 		if (b)
 		{
@@ -6423,6 +6487,73 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 	}
 }
 
+
+static void GL_DrawParticleVBeam(int count, beamseg_t **blist, plooks_t *type)
+{
+	beamseg_t *b;
+	vec3_t v;
+	vec3_t cr;
+	beamseg_t *c;
+	particle_t *p;
+	particle_t *q;
+	float ts;
+
+	while(count--)
+	{
+		b = *blist++;
+
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, 0);
+			pscriptmesh.numvertexes = 0;
+		}
+
+		c = b->next;
+
+		q = c->p;
+		if (!q)
+			continue;
+		p = b->p;
+
+//		q->rgba[3] = 1;
+//		p->rgba[3] = 1;
+
+		VectorSubtract(r_refdef.vieworg, q->org, v);
+		VectorNormalize(v);
+		CrossProduct(c->dir, v, cr);
+		VectorNormalize(cr);
+		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
+		Vector4Copy(q->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(q->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], p->s2, p->t2);
+		VectorMA(q->org, -q->scale, cr, pscriptverts[pscriptmesh.numvertexes+0]);
+		VectorMA(q->org, q->scale, cr, pscriptverts[pscriptmesh.numvertexes+1]);
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		VectorNormalize(v);
+		CrossProduct(b->dir, v, cr); // replace with old p->dir?
+		VectorNormalize(cr);
+		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
+		(void)ts;
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t2);
+		VectorMA(p->org, p->scale, cr, pscriptverts[pscriptmesh.numvertexes+2]);
+		VectorMA(p->org, -p->scale, cr, pscriptverts[pscriptmesh.numvertexes+3]);
+
+		pscriptmesh.numvertexes += 4;
+	}
+
+	if (pscriptmesh.numvertexes)
+	{
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, 0);
+		pscriptmesh.numvertexes = 0;
+	}
+}
 static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 {
 	beamseg_t *b;
@@ -6981,6 +7112,9 @@ static void PScript_DrawParticleTypes (void)
 			break;
 		case PT_BEAM:
 			bdraw = GL_DrawParticleBeam;
+			break;
+		case PT_VBEAM:
+			bdraw = GL_DrawParticleVBeam;
 			break;
 		case PT_CDECAL:
 			break;

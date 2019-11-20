@@ -1243,6 +1243,7 @@ static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program rtlight\n\
 	{\n\
+		nodepth\n\
 		blendfunc add\n\
 	}\n\
 }";
@@ -6355,14 +6356,14 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 	}
 
 	R_RenderDlights ();
+
+	shaderstate.identitylighting = 1;
+	BE_RotateForEntity(&r_worldentity, NULL);
+
 	if (r_refdef.recurse)
 		RQ_RenderBatch();
 	else
 		RQ_RenderBatchClear();
-
-	shaderstate.identitylighting = 1;
-
-	BE_RotateForEntity(&r_worldentity, NULL);
 }
 
 void VKBE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)

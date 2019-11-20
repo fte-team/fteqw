@@ -34,6 +34,7 @@ cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "1", r_meshpitch_callback, "Sp
 #else
 cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "-1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, Quake compatibility requires -1.");
 #endif
+cvar_t dpcompat_skinfiles					= CVARD	("dpcompat_skinfiles", "0", "When set, uses a nodraw shader for any unmentioned surfaces.");
 
 #ifdef HAVE_CLIENT
 static void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
@@ -71,6 +72,7 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 			mod->tainted = (crc != 6967);
 		}
 	}
+	Validation_FileLoaded(mod->publicname, buffer, buffersize);
 #endif
 }
 
@@ -3170,7 +3172,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 				{
 					if (!f->defaultshader)
 					{
-						if (ai->csurface.flags & 0x80)	//nodraw
+						if ((ai->csurface.flags & 0x80) || dpcompat_skinfiles.ival)	//nodraw
 							f->shader = R_RegisterShader(f->shadername, SUF_NONE,	"{\nsurfaceparm nodraw\nsurfaceparm nodlight\nsurfaceparm nomarks\nsurfaceparm noshadows\n}\n");
 						else
 							f->shader = R_RegisterSkin(f->shadername, mod->name);
@@ -7207,7 +7209,7 @@ static qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t
 	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
 	for (i = 0; i < header->num_meshs; i++, mesh++)
 	{
-		m = &root[i];
+			m = &root[i];
 		Mod_DefaultMesh(m, mesh->shadername, i);
 		if (i < header->num_meshs-1)
 			m->nextsurf = &root[i+1];
@@ -9528,5 +9530,9 @@ void Alias_Register(void)
 #endif
 #ifdef MODELFMT_OBJ
 	Mod_RegisterModelFormatText(NULL, "Wavefront Object (obj)",						".obj",									Mod_LoadObjModel);
+#endif
+
+#ifndef SERVERONLY
+	Cvar_Register(&dpcompat_skinfiles, NULL);
 #endif
 }

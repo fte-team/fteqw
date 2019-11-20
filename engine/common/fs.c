@@ -34,10 +34,12 @@ cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
 cvar_t fs_game = CVARFCD("game", "", CVAR_NOSAVE|CVAR_NORESET, fs_game_callback, "Provided for Q2 compat.");
 cvar_t fs_gamedir = CVARFD("fs_gamedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
 cvar_t fs_basedir = CVARFD("fs_basedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
+cvar_t dpcompat_ignoremodificationtimes = CVARAFD("fs_packageprioritisation", "1", "dpcompat_ignoremodificationtimes", CVAR_NOUNSAFEEXPAND|CVAR_NOSAVE, "Favours the package that is:\n0: Most recently modified\n1: Is alphabetically last (favour z over a, 9 over 0).");
 int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
 void COM_CheckRegistered (void);
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname);
 
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 {
@@ -264,13 +266,13 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->rtcbroker = Z_StrDup(oldm->rtcbroker);
 	if (oldm->basedir)
 		newm->basedir = Z_StrDup(oldm->basedir);
-	newm->disablehomedir = oldm->disablehomedir;
+	newm->homedirtype = oldm->homedirtype;
 
 	for (i = 0; i < sizeof(newm->gamepath) / sizeof(newm->gamepath[0]); i++)
 	{
 		if (oldm->gamepath[i].path)
 			newm->gamepath[i].path = Z_StrDup(oldm->gamepath[i].path);
-		newm->gamepath[i].base = oldm->gamepath[i].base;
+		newm->gamepath[i].flags = oldm->gamepath[i].flags;
 	}
 	for (i = 0; i < sizeof(newm->package) / sizeof(newm->package[0]); i++)
 	{
@@ -319,10 +321,16 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 	{
 		if (man->gamepath[i].path)
 		{
-			if (man->gamepath[i].base)
-				Con_Printf("basegame %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer), false));
+			size_t bufsize = strlen(man->gamepath[i].path) + 16;
+			char *str = Z_Malloc(bufsize);
+			if (man->gamepath[i].flags & GAMEDIR_PRIVATE)
+				Q_strncatz(str, "*", bufsize);
+			Q_strncatz(str, man->gamepath[i].path, bufsize);
+
+			if (man->gamepath[i].flags & GAMEDIR_BASEGAME)
+				Con_Printf("basegame %s\n", COM_QuotedString(str, buffer, sizeof(buffer), false));
 			else
-				Con_Printf("gamedir %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer), false));
+				Con_Printf("gamedir %s\n", COM_QuotedString(str, buffer, sizeof(buffer), false));
 		}
 	}
 
@@ -355,7 +363,7 @@ static void FS_Manifest_PurgeGamedirs(ftemanifest_t *man)
 	int i;
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 	{
-		if (man->gamepath[i].path && !man->gamepath[i].base)
+		if (man->gamepath[i].path && !(man->gamepath[i].flags&GAMEDIR_BASEGAME))
 		{
 			Z_Free(man->gamepath[i].path);
 			man->gamepath[i].path = NULL;
@@ -378,6 +386,12 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath)
 
 	if (syspath)
 		man->updatefile = Z_StrDup(syspath);	//this should be a system path.
+
+#ifdef QUAKETC
+	man->mainconfig = Z_StrDup("config.cfg");
+#else
+	man->mainconfig = Z_StrDup("fte.cfg");
+#endif
 	return man;
 }
 
@@ -494,6 +508,33 @@ mirror:
 	return false;
 }
 
+static qboolean FS_GamedirIsOkay(const char *path)
+{
+	if (!*path || strchr(path, '\n') || strchr(path, '\r') || !strcmp(path, ".") || !strcmp(path, "..") || strchr(path, ':') || strchr(path, '/') || strchr(path, '\\') || strchr(path, '$'))
+	{
+		Con_Printf("Illegal path specified: %s\n", path);
+		return false;
+	}
+
+	//don't allow leading dots, hidden files are evil.
+	//don't allow complex paths. those are evil too.
+	if (!*path || *path == '.' || !strcmp(path, ".") || strstr(path, "..") || strstr(path, "/")
+		|| strstr(path, "\\") || strstr(path, ":") )
+	{
+		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", path);
+		return false;
+	}
+
+	//some gamedirs should never be used for actual games/mods. Reject them.
+	if (!Q_strncasecmp(path, "downloads", 9) || !Q_strncasecmp(path, "docs", 4) || !Q_strncasecmp(path, "help", 4))
+	{
+		Con_Printf ("Gamedir should not be \"%s\"\n", path);
+		return false;
+	}
+
+	return true;
+}
+
 //parse Cmd_Argv tokens into the manifest.
 static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 {
@@ -551,6 +592,11 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		Z_Free(man->protocolname);
 		man->protocolname = Z_StrDup(Cmd_Argv(1));
 	}
+	else if (!Q_strcasecmp(cmd, "mainconfig"))
+	{
+		Z_Free(man->mainconfig);
+		man->mainconfig = Z_StrDup(Cmd_Argv(1));
+	}
 	else if (!Q_strcasecmp(cmd, "defaultexec"))
 	{
 		Z_Free(man->defaultexec);
@@ -574,35 +620,66 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		Z_Free(man->updateurl);
 		man->updateurl = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(cmd, "disablehomedir"))
+	else if (!Q_strcasecmp(cmd, "disablehomedir") || !Q_strcasecmp(cmd, "homedirmode"))
 	{
-		man->disablehomedir = !!atoi(Cmd_Argv(1));
+		char *arg = Cmd_Argv(1);
+		if (!Q_strcasecmp(arg, "auto"))
+			man->homedirtype = MANIFEST_HOMEDIRWHENREADONLY;
+		else if (!*arg || atoi(arg))
+			man->homedirtype = MANIFEST_NOHOMEDIR;
+		else if (!atoi(arg) || !Q_strcasecmp(arg, "force"))
+			man->homedirtype = MANIFEST_FORCEHOMEDIR;
+		else if (!Q_strcasecmp(arg, "never"))
+			man->homedirtype = MANIFEST_NOHOMEDIR;
 	}
 	else if (!Q_strcasecmp(cmd, "basegame") || !Q_strcasecmp(cmd, "gamedir"))
 	{
 		int i;
 		char *newdir = Cmd_Argv(1);
 
-		//reject various evil path arguments.
-		if (!*newdir || strchr(newdir, '\n') || strchr(newdir, '\r') || !strcmp(newdir, ".") || !strcmp(newdir, "..") || strchr(newdir, ':') || strchr(newdir, '/') || strchr(newdir, '\\') || strchr(newdir, '$'))
+		for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 		{
-			Con_Printf("Illegal path specified: %s\n", newdir);
-		}
-		else
-		{
-			for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
+			if (!man->gamepath[i].path)
 			{
-				if (!man->gamepath[i].path)
-				{
-					man->gamepath[i].base = !Q_strcasecmp(cmd, "basegame");
+				man->gamepath[i].flags = GAMEDIR_DEFAULTFLAGS;
+				if (!Q_strcasecmp(cmd, "basegame"))
+					man->gamepath[i].flags |= GAMEDIR_BASEGAME;
+
+				if (*newdir == '*')
+				{	//*dir makes the dir 'private' and not networked.
+					newdir++;
+					man->gamepath[i].flags |= GAMEDIR_PRIVATE;
+					if (!*newdir)
+					{	//a single asterisk means load packages from the basedir (but not other files). This is for doom compat.
+						man->gamepath[i].flags |= GAMEDIR_USEBASEDIR;
+						man->gamepath[i].flags |= GAMEDIR_READONLY;	//must also be readonly, just in case.
+						man->gamepath[i].path = Z_StrDup(newdir);
+						break;
+					}
+				}
+				if (!strncmp(newdir, "steam:", 6))
+				{	//"steam:Subdir/gamedir"
+					char *sl = strchr(newdir+6, '/');
+					if (!sl)
+						break;	//malformed steam link
+					man->gamepath[i].flags |= GAMEDIR_STEAMGAME;
+					*sl = 0;
+					if (!FS_GamedirIsOkay(sl+1))
+						break;
+					*sl = '/';
 					man->gamepath[i].path = Z_StrDup(newdir);
 					break;
 				}
+
+				if (!FS_GamedirIsOkay(newdir))
+					break;
+				man->gamepath[i].path = Z_StrDup(newdir);
+				break;
 			}
-			if (i == sizeof(man->gamepath) / sizeof(man->gamepath[0]))
-			{
-				Con_Printf("Too many game paths specified in manifest\n");
-			}
+		}
+		if (i == sizeof(man->gamepath) / sizeof(man->gamepath[0]))
+		{
+			Con_Printf("Too many game paths specified in manifest\n");
 		}
 	}
 	//FIXME: these should generate package-manager entries.
@@ -731,11 +808,17 @@ static void COM_PathLine(searchpath_t *s)
 		(s->flags & SPF_WRITABLE)?"^[(w)\\tip\\Writable\\desc\\We can probably write here^]":"",
 		(s->handle->GeneratePureCRC)?va("^[(h)\\tip\\Hash: %x^]", s->handle->GeneratePureCRC(s->handle, 0, 0)):"");
 }
+qboolean FS_GameIsInitialised(void)
+{
+	if (!com_searchpaths && !com_purepaths)
+		return false;
+	return true;
+}
 static void COM_Path_f (void)
 {
 	searchpath_t	*s;
 
-	if (!com_searchpaths && !com_purepaths)
+	if (!FS_GameIsInitialised())
 	{
 		Con_Printf("File system not initialised\n");
 		Con_Printf("gamedirfile: \"%s\"\n", gamedirfile);
@@ -1818,19 +1901,13 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 
 	case FS_BASEGAMEONLY:	// fte/
 		last = NULL;
-		wasbase = true;
 		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
-			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
+			if (fs_manifest && (fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME) && fs_manifest->gamepath[i].path)
 			{
-				if (!strcmp(fs_manifest->gamepath[i].path, "*"))
+				if (fs_manifest->gamepath[i].flags & GAMEDIR_SPECIAL)
 					continue;
-				if (fs_manifest->gamepath[i].base && !wasbase)
-					continue;
-				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
-				if (*last == '*')
-					last++;
 			}
 		}
 		if (!last)
@@ -1847,11 +1924,12 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		{
 			if (fs_manifest && fs_manifest->gamepath[i].path)
 			{
-				if (*fs_manifest->gamepath[i].path == '*')
+				qboolean isbase = fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME;
+				if (fs_manifest->gamepath[i].flags&(GAMEDIR_PRIVATE|GAMEDIR_SPECIAL))
 					continue;
-				if (fs_manifest->gamepath[i].base && !wasbase)
+				if (isbase && !wasbase)
 					continue;
-				wasbase = fs_manifest->gamepath[i].base;
+				wasbase = isbase;
 				last = fs_manifest->gamepath[i].path;
 			}
 		}
@@ -1866,11 +1944,10 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		last = NULL;
 		for (i = 0; i < countof(fs_manifest->gamepath); i++)
 		{
-			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
+			if (fs_manifest && (fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME) && fs_manifest->gamepath[i].path)
 			{
-				if (*fs_manifest->gamepath[i].path == '*')
+				if (fs_manifest->gamepath[i].flags&(GAMEDIR_PRIVATE|GAMEDIR_SPECIAL))
 					continue;
-				wasbase = fs_manifest->gamepath[i].base;
 				last = fs_manifest->gamepath[i].path;
 			}
 		}
@@ -2536,7 +2613,7 @@ static int QDECL FS_SortWildDataFiles(const void *va, const void *vb)
 	const char *na=qsortsucks+a->nameofs, *nb=qsortsucks+b->nameofs;
 
 	//sort by modification time...
-	if (a->mtime != b->mtime && a->mtime && b->mtime)
+	if (a->mtime != b->mtime && a->mtime && b->mtime && !dpcompat_ignoremodificationtimes.ival)
 		return a->mtime > b->mtime;
 
 	//then fall back and sort by name
@@ -3279,7 +3356,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 //#define RMQCFG "sv_bigcoords 1\n"
 
 #ifdef HAVE_SSL
-#define UPDATEURL(g)	"https://updates.triptohell.info/downloadables.php?game=" #g
+#define UPDATEURL(g)	"/downloadables.php?game=" #g
 #else
 #define UPDATEURL(g)	NULL
 #endif
@@ -3879,6 +3956,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	searchpath_t	*next;
 	int i, j;
 	int orderkey;
+	unsigned int fl;
 
 	COM_AssertMainThread("FS_ReloadPackFilesFlags");
 	COM_WorkerFullSync();
@@ -3915,23 +3993,9 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	for (i = 0; i < countof(fs_manifest->gamepath); i++)
 	{
 		char *dir = fs_manifest->gamepath[i].path;
-		if (dir && fs_manifest->gamepath[i].base)
+		if (dir && (fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME))
 		{
-			//don't allow leading dots, hidden files are evil.
-			//don't allow complex paths. those are evil too.
-			if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
-				|| strstr(dir, "\\") || strstr(dir, ":") )
-			{
-				Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
-				continue;
-			}
-
-			//some gamedirs should never be used...
-			if (!Q_strncasecmp(dir, "downloads", 9) || !Q_strncasecmp(dir, "docs", 4) || !Q_strncasecmp(dir, "help", 4))
-			{
-				Con_Printf ("Gamedir should not be \"%s\"\n", dir);
-				continue;
-			}
+			//paths should be validated before here, when parsing the manifest.
 			
 #ifdef NQPROT
 			//vanilla NQ uses a slightly different protocol when started with -rogue or -hipnotic (and by extension -quoth).
@@ -3940,9 +4004,14 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				standard_quake = false;
 #endif
 
-			//paths equal to '*' actually result in loading packages without an actual gamedir. note that this does not imply that we can write anything.
-			if (!strcmp(dir, "*"))
-			{
+			fl = SPF_EXPLICIT;
+			if (!(fs_manifest->gamepath[i].flags&GAMEDIR_READONLY))
+				fl |= SPF_WRITABLE;
+			if (fs_manifest->gamepath[i].flags&GAMEDIR_PRIVATE)
+				fl |= SPF_PRIVATE;
+
+			if (fs_manifest->gamepath[i].flags&GAMEDIR_USEBASEDIR)
+			{	//for doom - loading packages without an actual gamedir. note that this does not imply that we can write anything.
 				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, NULL, com_gamepath, com_gamepath, "");
 				searchpath_t *search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 				search->flags = 0;
@@ -3950,19 +4019,26 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				Q_strncpyz(search->purepath, "", sizeof(search->purepath));
 				Q_strncpyz(search->logicalpath, com_gamepath, sizeof(search->logicalpath));
 
-				FS_AddDataFiles(&oldpaths, search->purepath, search->logicalpath, search, SPF_EXPLICIT, reloadflags);
+				FS_AddDataFiles(&oldpaths, search->purepath, search->logicalpath, search, fl, reloadflags);
 
 				handle->ClosePath(handle);
 				Z_Free(search);
 			}
-			else if (*dir == '*')
+			else if (fs_manifest->gamepath[i].flags&GAMEDIR_STEAMGAME)
 			{
-				//paths with a leading * are private, and not announced to clients that ask what the current gamedir is.
-				FS_AddGameDirectory(&oldpaths, dir+1, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|SPF_WRITABLE);
+				char steamdir[MAX_OSPATH];
+				char *sl;
+				dir += 6;
+				sl = strchr(dir, '/');
+				if (*sl)
+				{
+					if (Sys_SteamHasFile(steamdir, sizeof(steamdir), dir, ""))
+						FS_AddSingleGameDirectory(&oldpaths, /*pure*/dir, steamdir, reloadflags, SPF_COPYPROTECTED|(fl&~SPF_WRITABLE));
+				}
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, dir, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
+				FS_AddGameDirectory(&oldpaths, dir, reloadflags, fl);
 			}
 		}
 	}
@@ -3976,7 +4052,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	for (i = 0; i < countof(fs_manifest->gamepath); i++)
 	{
 		char *dir = fs_manifest->gamepath[i].path;
-		if (dir && !fs_manifest->gamepath[i].base)
+		if (dir && !(fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME))
 		{
 			//don't allow leading dots, hidden files are evil.
 			//don't allow complex paths. those are evil too.
@@ -3990,7 +4066,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			for (j = 0; j < countof(fs_manifest->gamepath); j++)
 			{
 				char *dir2 = fs_manifest->gamepath[j].path;
-				if (dir2 && fs_manifest->gamepath[j].base && !strcmp(dir, dir2))
+				if (dir2 && (fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME) && !strcmp(dir, dir2))
 					break;
 			}
 			if (j < countof(fs_manifest->gamepath))
@@ -4521,31 +4597,38 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #if defined(__linux__) || defined(__unix__) || defined(__apple__)
 #include <sys/stat.h>
 
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
 {
 	/*
 	Find where Valve's Steam distribution platform is installed.
 	Then take a look at that location for the relevent installed app.
 	*/
+	//FIXME: we ought to parse steamapps/libraryfolders.vdf (json) and read the "1" etc for games installed on different drives. default drive only for now.
 	FILE *f;
 
-	char *ev = getenv("HOME");
-	if (ev && *ev)
+	char *userhome = getenv("HOME");
+	if (userhome && *userhome)
 	{
-		Q_snprintfz(basepath, basepathlen, "%s/.steam/steam/SteamApps/common/%s", ev, steamdir);
+		Q_snprintfz(basepath, basepathlen, "%s/.steam/steam/steamapps/common/%s", userhome, steamdir);
 		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
 		{
 			fclose(f);
 			return true;
 		}
 
-		Q_snprintfz(basepath, basepathlen, "%s/.local/share/Steam/SteamApps/common/%s", ev, steamdir);
+		//steam apparently used to be more standard, or something? FIXME: yet still not xdg? no idea.
+		Q_snprintfz(basepath, basepathlen, "%s/.local/share/Steam/SteamApps/common/%s", userhome, steamdir);
 		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
 		{
 			fclose(f);
 			return true;
 		}
 	}
+	return false;
+}
+#else
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
+{
 	return false;
 }
 #endif
@@ -5708,7 +5791,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 #ifdef _WIN32
 			if (!fixedbasedir)
-				Sys_Error("No recognised game data found in working directory.\n");
+				Sys_Error("No recognised game data found in working directory:\n%s", com_gamepath);
 #endif
 			man = FS_Manifest_Parse(NULL,
 				"FTEManifestVer 1\n"
@@ -5763,7 +5846,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				//if there's no base dirs, edit the manifest to give it its default ones.
 				for (j = 0; j < sizeof(man->gamepath) / sizeof(man->gamepath[0]); j++)
 				{
-					if (man->gamepath[j].path && man->gamepath[j].base)
+					if (man->gamepath[j].path && (man->gamepath[j].flags&GAMEDIR_BASEGAME))
 						break;
 				}
 				if (j == sizeof(man->gamepath) / sizeof(man->gamepath[0]))
@@ -5778,7 +5861,25 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 				if (!man->downloadsurl && gamemode_info[i].downloadsurl)
 				{
-					Cmd_TokenizeString(va("downloadsurl \"%s\"", gamemode_info[i].downloadsurl), false, false);
+#ifndef FTE_TARGET_WEB
+					if (*gamemode_info[i].downloadsurl == '/')
+					{
+						conchar_t musite[256], *e;
+						char site[256];
+						char *oldprefix = "http://fte.";
+						char *newprefix = "https://updates.";
+						e = COM_ParseFunString(CON_WHITEMASK, ENGINEWEBSITE, musite, sizeof(musite), false);
+						COM_DeFunString(musite, e, site, sizeof(site), true, true);
+						if (!strncmp(site, oldprefix, strlen(oldprefix)))
+						{
+							memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix));
+							memcpy(site, newprefix, strlen(newprefix));
+						}
+						Cmd_TokenizeString(va("downloadsurl \"%s%s\"", site, gamemode_info[i].downloadsurl), false, false);
+					}
+					else
+#endif
+						Cmd_TokenizeString(va("downloadsurl \"%s\"", gamemode_info[i].downloadsurl), false, false);
 					FS_Manifest_ParseTokens(man);
 				}
 				if (!man->protocolname)
@@ -5838,10 +5939,6 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	{
 		qboolean oldhome = com_homepathenabled;
 		COM_InitHomedir(man);
-		com_homepathenabled = com_homepathusable;
-
-		if (man->disablehomedir && !COM_CheckParm("-usehome"))
-			com_homepathenabled = false;
 
 		if (com_homepathenabled != oldhome)
 		{
@@ -6394,19 +6491,16 @@ void FS_ArbitraryFile_c(int argn, const char *partial, struct xcommandargcomplet
 	}
 }
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
-#elif !defined(NOSTDIO)
-#include <sys/stat.h>
-#endif
-static void COM_InitHomedir(ftemanifest_t *man)
-{
-	int i;
-	qboolean usehome;
-
-	//FIXME: this should come from the manifest, as fte_GAME or something
+//FIXME: this should come from the manifest, as fte_GAME or something
 #ifdef _WIN32
-	#define HOMESUBDIR FULLENGINENAME
+	//windows gets formal names...
+	#ifdef GAME_FULLNAME
+		#define HOMESUBDIR GAME_FULLNAME
+	#else
+		#define HOMESUBDIR FULLENGINENAME
+	#endif
 #else
+	//unix gets short names...
 	#ifdef GAME_SHORTNAME
 		#define HOMESUBDIR GAME_SHORTNAME
 	#else
@@ -6414,168 +6508,252 @@ static void COM_InitHomedir(ftemanifest_t *man)
 	#endif
 #endif
 
-	usehome = false;
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+//so this is kinda screwy
+//"CSIDL_LOCAL_APPDATA/FTE Quake" is what we switched to, but we only use it if the other home dirs don't exist
+//"CSIDL_PERSONAL(My Documents)/My Games/FTE Quake" is what we used to use... but personal now somehow means upload-to-internet in a nicely insecure we-own-all-your-data kind of way...
+//"%USERPROFILE%/My Documents/My Games/FTE Quake" is an attempt to fall back to the earlier lame path if everything else fails
+//"%USERPROFILE%/Saved Games/FTE Quake" is what we probably should be using. I don't know who comes up with these random paths. We have updates+downloads+etc as well as just saves, so we prioritise localdata instead (stuff that you do NOT want microsoft to upload to the internet all the time).
+#include <shlobj.h>
+static qboolean FS_GetBestHomeDir(ftemanifest_t *manifest)
+{	//win32 sucks.
+	qboolean usehome = false;
+	HRESULT (WINAPI *dSHGetFolderPathW) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, wchar_t *pszPath) = NULL;
+	HRESULT (WINAPI *dSHGetKnownFolderPath) (const GUID *const rfid, DWORD dwFlags, HANDLE hToken, PWSTR *ppszPath) = NULL;
+	dllfunction_t funcs[] =
+	{
+		{(void**)&dSHGetFolderPathW, "SHGetFolderPathW"},
+		{NULL,NULL}
+	};
+	dllfunction_t funcsvista[] =
+	{
+		{(void**)&dSHGetKnownFolderPath, "SHGetKnownFolderPath"},
+		{NULL,NULL}
+	};
+	DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
+
+	enum
+	{
+		WINHOME_LOCALDATA,
+		WINHOME_SAVEDGAMES,
+		WINHOME_DOCUMENTS,
+		WINHOME_COUNT
+	};
+
+	struct
+	{
+		char path[MAX_OSPATH];
+	} homedir[WINHOME_COUNT];
+	int i;
+
+	/*HMODULE shfolder =*/ Sys_LoadLibrary("shfolder.dll", funcs);
+	/*HMODULE shfolder =*/ Sys_LoadLibrary("shell32.dll", funcsvista);
+
+	if (dSHGetKnownFolderPath)
+	{
+		wchar_t *wide;
+		static const GUID qFOLDERID_SavedGames = {0x4c5c32ff, 0xbb9d, 0x43b0, {0xb5, 0xb4, 0x2d, 0x72, 0xe5, 0x4e, 0xaa, 0xa4}};
+		#define qKF_FLAG_CREATE 0x00008000
+		if (SUCCEEDED(dSHGetKnownFolderPath(&qFOLDERID_SavedGames, qKF_FLAG_CREATE, NULL, &wide)))
+		{
+			narrowen(homedir[WINHOME_SAVEDGAMES].path, sizeof(homedir[WINHOME_SAVEDGAMES].path), wide);
+			CoTaskMemFree(wide);
+		}
+	}
+
+	if (dSHGetFolderPathW)
+	{
+		wchar_t wfolder[MAX_PATH];
+		if (dSHGetFolderPathW(NULL, 0x5/*CSIDL_PERSONAL*/, NULL, 0, wfolder) == S_OK)
+		{
+			narrowen(homedir[WINHOME_DOCUMENTS].path, sizeof(homedir[WINHOME_DOCUMENTS].path), wfolder);
+			Q_strncatz(homedir[WINHOME_DOCUMENTS].path, "/My Games", sizeof(homedir[WINHOME_DOCUMENTS].path));
+		}
+		//at some point, microsoft (in their infinitesimal wisdom) decided that 'CSIDL_PERSONAL' should mean 'CSIDL_GIVEITALLTOMICROSOFT'
+		//so use the old/CSIDL_NOTACTUALLYPERSONAL path by default for compat, but if there's nothing there then switch to CSIDL_LOCAL_APPDATA instead
+		if (dSHGetFolderPathW(NULL, 0x1c/*CSIDL_LOCAL_APPDATA*/, NULL, 0, wfolder) == S_OK)
+		{
+			narrowen(homedir[WINHOME_LOCALDATA].path, sizeof(homedir[WINHOME_LOCALDATA].path), wfolder);
+		}
+	}
+	if (!*homedir[WINHOME_DOCUMENTS].path)
+	{	//guess. sucks for non-english people.
+		char *ev = getenv("USERPROFILE");
+		if (ev)
+			Q_snprintfz(homedir[WINHOME_DOCUMENTS].path, sizeof(homedir[WINHOME_DOCUMENTS].path), "%s/My Documents/My Games/%s/", ev, HOMESUBDIR);
+	}
+//	if (shfolder)
+//		FreeLibrary(shfolder);
+
+
+	for(i = 0; i < countof(homedir); i++)
+	{
+		char formal[MAX_OSPATH];
+		char informal[MAX_OSPATH];
+		if (!*homedir[i].path)
+			continue; //erk, don't know, not valid/known on this system.
+		if (!manifest || !manifest->formalname || (/*legacy compat hack case*/ !strcmp(manifest->formalname, "Quake") && strstr(HOMESUBDIR, "Quake")))
+		{
+			Q_snprintfz(formal, sizeof(formal), "%s/%s/", homedir[i].path, HOMESUBDIR); //'FTE Quake' or something hardcoded.
+			*informal = 0;
+		}
+		else
+		{
+			if (		strchr(manifest->formalname, '(') ||	//ugly
+						strchr(manifest->formalname, '[') ||	//ugly
+						strchr(manifest->formalname, '.') ||	//ugly
+						strchr(manifest->formalname, '\"') ||	//ugly (and invalid)
+						strchr(manifest->formalname, '|') ||	//invalid
+						strchr(manifest->formalname, '<') ||	//invalid
+						strchr(manifest->formalname, '>') ||	//invalid
+						strchr(manifest->formalname, '\\') ||	//long paths
+						strchr(manifest->formalname, '/') ||	//long paths
+						strchr(manifest->formalname, ':') ||	//alternative data stream separator
+						strchr(manifest->formalname, '*') ||	//wildcard
+						strchr(manifest->formalname, '?'))		//wildcard
+				*formal = 0;	//don't use filenames with awkward chars...
+			else
+				Q_snprintfz(formal, sizeof(formal), "%s/%s/", homedir[i].path, manifest->formalname);		//'Quake' / 'The Wastes' / etc
+			Q_snprintfz(informal, sizeof(informal), "%s/%s/", homedir[i].path, manifest->installation);	//'quake' / 'wastes' / etc
+		}
+		if (*formal && GetFileAttributesU(formal)!=INVALID_FILE_ATTRIBUTES) //path exists, use it.
+		{
+			Q_strncpyz(com_homepath, formal, sizeof(com_homepath));
+			break;
+		}
+		else if (*informal && GetFileAttributesU(informal)!=INVALID_FILE_ATTRIBUTES) //path exists, use it.
+		{
+			Q_strncpyz(com_homepath, informal, sizeof(com_homepath));
+			break;
+		}
+		else if (!*com_homepath)
+		{
+			if (!*informal)
+				Q_strncpyz(com_homepath, formal, sizeof(com_homepath));
+			else
+				Q_strncpyz(com_homepath, informal, sizeof(com_homepath));
+			continue;	//keep looking, we might still find one that actually exists.
+		}
+	}
+
+#ifdef NPFTE
+	if (!*com_homepath)
+		Q_snprintfz(com_homepath, sizeof(com_homepath), "/%s/", HOMESUBDIR);
+	//as a browser plugin, always use their home directory
+	return true;
+#else
+	/*would it not be better to just check to see if we have write permission to the basedir?*/
+	if (winver >= 0x6) // Windows Vista and above
+		usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
+	else if (winver >= 0x5) // Windows 2000/XP/2003
+		usehome = true;	//might as well follow this logic. We use .manifest stuff to avoid getting redirected to obscure locations, so access rights is all that is relevant, not whether we're an admin or not.
+#endif
+
+	if (usehome && manifest)
+	{
+		DWORD homeattr = GetFileAttributesU(com_homepath);
+		DWORD baseattr = GetFileAttributesU(com_gamepath);
+		if (homeattr != INVALID_FILE_ATTRIBUTES && (homeattr & FILE_ATTRIBUTE_DIRECTORY))
+			return true; //okay something else already created it. continue using it.
+		if (baseattr != INVALID_FILE_ATTRIBUTES && (baseattr & FILE_ATTRIBUTE_DIRECTORY))
+		{	//windows has an _access function, but it doesn't actually bother to check if you're allowed to access it, so its utterly pointless.
+			//instead try to append nothing to some file that'll probably exist anyway.
+			//this MAY fail if another program has it open. windows sucks.
+			vfsfile_t *writetest = VFSOS_Open("conhistory.txt", "a");
+			if (!writetest)
+				return true; //basedir isn't writable, we'll need our home! use it by default.
+			VFS_CLOSE(writetest);
+		}
+		//else don't use it (unless -usehome, anyway)
+	}
+
+	return false;
+}
+#elif defined(NOSTDIO)
+static qboolean FS_GetBestHomeDir(void)
+{	//no studio? webgl port? no file system access = no homedirs!
+	return false;
+}
+#else
+#include <sys/stat.h>
+static qboolean FS_GetBestHomeDir(ftemanifest_t *man)
+{
+	qboolean usehome = false;
+
+	//on unix, we use environment settings.
+	//if $HOME/.fte/ exists then we use that because of legacy reasons.
+	//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
+	//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
+	//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
+	char *ev = getenv("FTEHOME");
+	if (ev && *ev)
+	{
+		if (ev[strlen(ev)-1] == '/')
+			Q_strncpyz(com_homepath, ev, sizeof(com_homepath));
+		else
+			Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/", ev);
+		usehome = true; // always use home on unix unless told not to
+		ev = NULL;
+	}
+	else
+		ev = getenv("HOME");
+	if (ev && *ev)
+	{
+		const char *xdghome;
+		char oldhome[MAX_OSPATH];
+		char newhome[MAX_OSPATH];
+		struct stat s;
+		char *installation	= (man && man->installation && *man->installation)?man->installation:HOMESUBDIR;
+		usehome				= (man && man->installation && *man->installation)?true:false; //use it if we're running a game, otherwise don't bother if we're still loading.
+
+		xdghome = getenv("XDG_DATA_HOME");
+		if (!xdghome || !*xdghome)
+			xdghome = va("%s/.local/share", ev);
+		if (xdghome[strlen(xdghome)-1] == '/')
+			Q_snprintfz(newhome, sizeof(newhome), "%s%s/", xdghome, installation);
+		else
+			Q_snprintfz(newhome, sizeof(newhome), "%s/%s/", xdghome, installation);
+
+		if (ev[strlen(ev)-1] == '/')
+			Q_snprintfz(oldhome, sizeof(oldhome), "%s.%s/", ev, installation);
+		else
+			Q_snprintfz(oldhome, sizeof(oldhome), "%s/.%s/", ev, installation);
+
+		if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
+			Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
+		else
+			Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
+	}
+
+	if (usehome && man)
+	{
+		struct stat statbuf;
+		if (stat(com_homepath, &statbuf) >= 0 && (statbuf.st_mode & S_IFMT)==S_IFDIR)
+			return true; //okay something else already created it. continue using it.
+		if (access(com_gamepath, W_OK) < 0)
+			return true; //baesdir isn't writable, we'll need our home! use it by default.
+		//else don't use it (unless -usehome, anyway)
+	}
+	return false;
+}
+#endif
+static void COM_InitHomedir(ftemanifest_t *man)
+{
+	int i;
 
 	//assume the home directory is the working directory.
 	*com_homepath = '\0';
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
-	{	//win32 sucks.
-		HRESULT (WINAPI *dSHGetFolderPathW) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, wchar_t *pszPath) = NULL;
-		dllfunction_t funcs[] =
-		{
-			{(void**)&dSHGetFolderPathW, "SHGetFolderPathW"},
-			{NULL,NULL}
-		};
-		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
-		/*HMODULE shfolder =*/ Sys_LoadLibrary("shfolder.dll", funcs);
-
-		if (dSHGetFolderPathW)
-		{
-			wchar_t wfolder[MAX_PATH];
-			char folder[MAX_OSPATH];
-			if (dSHGetFolderPathW(NULL, 0x5/*CSIDL_PERSONAL*/, NULL, 0, wfolder) == S_OK)
-			{
-				narrowen(folder, sizeof(folder), wfolder);
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Games/%s/", folder, HOMESUBDIR);
-			}
-			//at some point, microsoft (in their infinitesimal wisdom) decided that 'CSIDL_PERSONAL' should mean 'CSIDL_GIVEITALLTOMICROSOFT'
-			//so use the old/CSIDL_NOTACTUALLYPERSONAL path by default for compat, but if there's nothing there then switch to CSIDL_LOCAL_APPDATA instead
-			if ((!*com_homepath||!GetFileAttributesU(com_homepath)) && dSHGetFolderPathW(NULL, 0x1c/*CSIDL_LOCAL_APPDATA*/, NULL, 0, wfolder) == S_OK)
-			{
-				narrowen(folder, sizeof(folder), wfolder);
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/%s/", folder, HOMESUBDIR);
-			}
-		}
-//		if (shfolder)
-//			FreeLibrary(shfolder);
-
-		if (!*com_homepath)
-		{
-			char *ev = getenv("USERPROFILE");
-			if (ev)
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Documents/My Games/%s/", ev, HOMESUBDIR);
-		}
-
-#ifdef NPFTE
-		if (!*com_homepath)
-			Q_snprintfz(com_homepath, sizeof(com_homepath), "/%s/", HOMESUBDIR);
-		//as a browser plugin, always use their home directory
-		usehome = true;
-#else
-		/*would it not be better to just check to see if we have write permission to the basedir?*/
-		if (winver >= 0x6) // Windows Vista and above
-			usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
-		else if (winver >= 0x5) // Windows 2000/XP/2003
-		{
-			HMODULE advapi32;
-			BOOL (WINAPI *dCheckTokenMembership) (HANDLE TokenHandle, PSID SidToCheck, PBOOL IsMember) = NULL;
-			dllfunction_t funcs[] =
-			{
-				{(void**)&dCheckTokenMembership, "CheckTokenMembership"},
-				{NULL,NULL}
-			};
-			advapi32 = Sys_LoadLibrary("advapi32.dll", funcs);
-			if (advapi32)
-			{
-				if (dCheckTokenMembership)
-				{
-					// on XP systems, only use a home directory by default if we're a limited user or if we're on a network
-					BOOL isadmin, isonnetwork;
-					SID_IDENTIFIER_AUTHORITY ntauth = {SECURITY_NT_AUTHORITY};
-					PSID adminSID, networkSID;
-
-					isadmin = AllocateAndInitializeSid(&ntauth,
-						2,
-						SECURITY_BUILTIN_DOMAIN_RID,
-						DOMAIN_ALIAS_RID_ADMINS,
-						0, 0, 0, 0, 0, 0,
-						&adminSID);
-
-					// just checking the network rid should be close enough to matching domain logins
-					isonnetwork = AllocateAndInitializeSid(&ntauth,
-						1,
-						SECURITY_NETWORK_RID,
-						0, 0, 0, 0, 0, 0, 0,
-						&networkSID);
-
-					if (isadmin && !dCheckTokenMembership(0, adminSID, &isadmin))
-						isadmin = 0;
-
-					if (isonnetwork && !dCheckTokenMembership(0, networkSID, &isonnetwork))
-						isonnetwork = 0;
-
-					usehome = isonnetwork || !isadmin;
-
-					FreeSid(networkSID);
-					FreeSid(adminSID);
-				}
-
-				Sys_CloseLibrary(advapi32);
-			}
-		}
-#endif
-	}
-#elif !defined(NOSTDIO)
-	{
-		//on unix, we use environment settings.
-		//if $HOME/.fte/ exists then we use that because of legacy reasons.
-		//but if it doesn't exist then we use $XDG_DATA_HOME/.fte instead
-		//we used to use $HOME/.#HOMESUBDIR/ but this is now only used if it actually exists AND the new path doesn't.
-		//new installs use $XDG_DATA_HOME/#HOMESUBDIR/ instead
-		char *ev = getenv("FTEHOME");
-		if (ev && *ev)
-		{
-			if (ev[strlen(ev)-1] == '/')
-				Q_strncpyz(com_homepath, ev, sizeof(com_homepath));
-			else
-				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/", ev);
-			usehome = true; // always use home on unix unless told not to
-			ev = NULL;
-		}
-		else
-			ev = getenv("HOME");
-		if (ev && *ev)
-		{
-			const char *xdghome;
-			char oldhome[MAX_OSPATH];
-			char newhome[MAX_OSPATH];
-			struct stat s;
-
-			xdghome = getenv("XDG_DATA_HOME");
-			if (!xdghome || !*xdghome)
-				xdghome = va("%s/.local/share", ev);
-			if (man && man->installation)
-			{
-				if (xdghome[strlen(xdghome)-1] == '/')
-					Q_snprintfz(com_homepath, sizeof(com_homepath), "%s%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
-				else
-					Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/%s/", xdghome, *man->installation?man->installation:HOMESUBDIR);
-			}
-			else
-			{
-				if (xdghome[strlen(xdghome)-1] == '/')
-					Q_snprintfz(newhome, sizeof(newhome), "%s%s/", xdghome, HOMESUBDIR);
-				else
-					Q_snprintfz(newhome, sizeof(newhome), "%s/%s/", xdghome, HOMESUBDIR);
-
-				if (ev[strlen(ev)-1] == '/')
-					Q_snprintfz(oldhome, sizeof(oldhome), "%s.%s/", ev, HOMESUBDIR);
-				else
-					Q_snprintfz(oldhome, sizeof(oldhome), "%s/.%s/", ev, HOMESUBDIR);
-
-				if (stat(newhome, &s) == -1 && stat(oldhome, &s) != -1)
-					Q_strncpyz(com_homepath, oldhome, sizeof(com_homepath));
-				else
-					Q_strncpyz(com_homepath, newhome, sizeof(com_homepath));
-			}
-			usehome = true; // always use home on unix unless told not to
-		}
-	}
-#endif
-
-	com_homepathusable = usehome;
+	if (man && (strstr(man->installation, "..") || strchr(man->installation, '/') || strchr(man->installation, '\\')))
+		com_homepathusable = false; //don't even try to generate a relative homedir.
+	else
+		com_homepathusable = FS_GetBestHomeDir(man);
 	com_homepathenabled = false;
+
+	if (man && man->homedirtype == MANIFEST_NOHOMEDIR)
+		com_homepathusable = false;
+	else if (man && man->homedirtype == MANIFEST_FORCEHOMEDIR)
+		com_homepathusable = true;
 
 	i = COM_CheckParm("-homedir");
 	if (i && i+1<com_argc)
@@ -6591,7 +6769,6 @@ static void COM_InitHomedir(ftemanifest_t *man)
 		com_homepathusable = false;
 
 	com_homepathenabled = com_homepathusable;
-
 }
 
 /*
@@ -6616,6 +6793,7 @@ void COM_InitFilesystem (void)
 	Cmd_AddCommandAD("dir", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
 	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
 	Cmd_AddCommandAD("flocate", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
+	Cmd_AddCommandAD("which", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
 
 
 //
@@ -6632,6 +6810,7 @@ void COM_InitFilesystem (void)
 
 
 	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
+	Cvar_Register(&dpcompat_ignoremodificationtimes, "Filesystem");
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&fs_gamename, "Filesystem");
 	Cvar_Register(&pkg_downloads_url, "Filesystem");

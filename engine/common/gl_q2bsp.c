@@ -5309,9 +5309,25 @@ static void CM_FinalizeBrush(q2cbrush_t *brush)
 	}
 	for (i = 0; i < brush->numsides; i++)
 	{
-		j = Fragment_ClipPlaneToBrush(verts, countof(verts), planes, sizeof(planes[0]), brush->numsides, planes[i]);
-		while (j-- > 0)
-			AddPointToBounds(verts[j], brush->absmins, brush->absmaxs);
+		//most brushes are axial, which can save some a little loadtime
+		if (planes[i][0] == 1)
+			brush->absmaxs[0] = planes[i][3];
+		else if (planes[i][1] == 1)
+			brush->absmaxs[1] = planes[i][3];
+		else if (planes[i][2] == 1)
+			brush->absmaxs[2] = planes[i][3];
+		else if (planes[i][0] == -1)
+			brush->absmins[0] = -planes[i][3];
+		else if (planes[i][1] == -1)
+			brush->absmins[1] = -planes[i][3];
+		else if (planes[i][2] == -1)
+			brush->absmins[2] = -planes[i][3];
+		else
+		{
+			j = Fragment_ClipPlaneToBrush(verts, countof(verts), planes, sizeof(planes[0]), brush->numsides, planes[i]);
+			while (j-- > 0)
+				AddPointToBounds(verts[j], brush->absmins, brush->absmaxs);
+		}
 	}
 }
 

@@ -2048,14 +2048,16 @@ void GLR_RenderView (void)
 
 		fmt = PTI_RGBA8;
 		if (r_hdr_framebuffer.ival < 0)
-		{
+		{	//cvar change handler will set ival negative if it matches a known format name, doesn't mean its supported.
 			fmt = -r_hdr_framebuffer.ival;
-			if (!sh_config.texfmt[fmt])
+			if (fmt >= PTI_FIRSTCOMPRESSED || !sh_config.texfmt[fmt])
 				fmt = PTI_RGB565;
 		}
 		else if ((r_refdef.flags&RDF_SCENEGAMMA)||(vid.flags&(VID_SRGBAWARE|VID_FP16))||r_hdr_framebuffer.ival)
 		{	//gamma ramps really need higher colour precision, otherwise the entire thing looks terrible.
-			if (sh_config.texfmt[PTI_RGBA16F])
+			if (sh_config.texfmt[PTI_B10G11R11F])
+				fmt = PTI_B10G11R11F;
+			else if (sh_config.texfmt[PTI_RGBA16F])
 				fmt = PTI_RGBA16F;
 			else if (sh_config.texfmt[PTI_A2BGR10])
 				fmt = PTI_A2BGR10;

@@ -317,113 +317,209 @@ void Sys_Quit (void)
 //SDL provides no file enumeration facilities.
 #if defined(_WIN32)
 #include <windows.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
+	qboolean go;
+
 	HANDLE r;
-	WIN32_FIND_DATA fd;	
-	char apath[MAX_OSPATH];
-	char apath2[MAX_OSPATH];
-	char file[MAX_OSPATH];
-	char *s;
-	int go;
-	if (!gpath)
-		return 0;
-//	strcpy(apath, match);
-	Q_snprintfz(apath, sizeof(apath), "%s/%s", gpath, match);
-	for (s = apath+strlen(apath)-1; s> apath; s--)
+	WIN32_FIND_DATAW fd;
+	int nest = neststart;	//neststart refers to just after a /
+	qboolean wild = false;
+
+	while(match[nest] && match[nest] != '/')
 	{
-		if (*s == '/')			
-			break;
+		if (match[nest] == '?' || match[nest] == '*')
+			wild = true;
+		nest++;
 	}
-	*s = '\0';
-
-	//this is what we ask windows for.
-	Q_snprintfz(file, sizeof(file), "%s/*.*", apath);
-
-	//we need to make apath contain the path in match but not gpath
-	Q_strncpyz(apath2, match, sizeof(apath));
-	match = s+1;
-	for (s = apath2+strlen(apath2)-1; s> apath2; s--)
+	if (match[nest] == '/')
 	{
-		if (*s == '/')			
-			break;
-	}
-	*s = '\0';
-	if (s != apath2)
-		strcat(apath2, "/");
+		char submatch[MAX_OSPATH];
+		char tmproot[MAX_OSPATH];
 
-	r = FindFirstFile(file, &fd);
-	if (r==(HANDLE)-1)
-		return 1;
-    go = true;
-	do
-	{
-		if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
-		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+		if (!wild)
+			return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
+
+		if (nest-neststart+1> MAX_OSPATH)
+			return 1;
+		memcpy(submatch, match+neststart, nest - neststart);
+		submatch[nest - neststart] = 0;
+		nest++;
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
 		{
-			if (wildcmp(match, fd.cFileName))
-			{
-				Q_snprintfz(file, sizeof(file), "%s%s/", apath2, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, 0, parm, spath);
-			}
+			wchar_t wroot[MAX_OSPATH];
+			r = FindFirstFileExW(widen(wroot, sizeof(wroot), tmproot), FindExInfoStandard, &fd, FindExSearchNameMatch, NULL, 0);
 		}
-		else
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
 		{
-			if (wildcmp(match, fd.cFileName))
+			char utf8[MAX_OSPATH];
+			char file[MAX_OSPATH];
+			narrowen(utf8, sizeof(utf8), fd.cFileName);
+			if (*utf8 == '.');	//don't ever find files with a name starting with '.'
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 			{
-				Q_snprintfz(file, sizeof(file), "%s%s", apath2, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, 0, parm, spath);
+				if (wildcmp(submatch, utf8))
+				{
+					int newnest;
+					if (strlen(tmproot) + strlen(utf8) + strlen(match+nest) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, utf8);
+						newnest = strlen(file);
+						strcpy(file+newnest, match+nest);
+						go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
+					}
+				}
 			}
-		}
+		} while(FindNextFileW(r, &fd) && go);
+		FindClose(r);
 	}
-	while(FindNextFile(r, &fd) && go);
-	FindClose(r);
+	else
+	{
+		const char *submatch = match + neststart;
+		char tmproot[MAX_OSPATH];
 
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		{
+			wchar_t wroot[MAX_OSPATH];
+			r = FindFirstFileExW(widen(wroot, sizeof(wroot), tmproot), FindExInfoStandard, &fd, FindExSearchNameMatch, NULL, 0);
+		}
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			char utf8[MAX_OSPATH];
+			char file[MAX_OSPATH];
+
+			narrowen(utf8, sizeof(utf8), fd.cFileName);
+			if (*utf8 == '.')
+				;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), 0, parm, spath);
+					}
+				}
+			}
+			else
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), 0, parm, spath);
+					}
+				}
+			}
+		} while(FindNextFileW(r, &fd) && go);
+		FindClose(r);
+	}
 	return go;
+}
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+{
+	char fullmatch[MAX_OSPATH];
+	int start;
+	if (strlen(gpath) + strlen(match) + 2 > MAX_OSPATH)
+		return 1;
+
+	strcpy(fullmatch, gpath);
+	start = strlen(fullmatch);
+	if (start && fullmatch[start-1] != '/')
+		fullmatch[start++] = '/';
+	fullmatch[start] = 0;
+	strcat(fullmatch, match);
+	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm, spath);
 }
 #elif defined(linux) || defined(__unix__) || defined(__MACH__)
 #include <dirent.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+#include <errno.h>
+static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
-	char apath[MAX_OSPATH];
 	char file[MAX_OSPATH];
-	char truepath[MAX_OSPATH];
-	char *s;
+	const char *s;
 	struct dirent *ent;
 	struct stat st;
+	const char *wild;
+	const char *apath = truepath+apathofs;
 
-//printf("path = %s\n", gpath);
-//printf("match = %s\n", match);
-
-	if (!gpath)
-		gpath = "";
-	*apath = '\0';
-
-	Q_strncpyz(apath, match, sizeof(apath));
-	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	//if there's a * in a system path, then we need to scan its parent directory to figure out what the * expands to.
+	//we can just recurse quicklyish to try to handle it.
+	wild = strchr(apath, '*');
+	if (!wild)
+		wild = strchr(apath, '?');
+	if (wild)
 	{
-		if (*s == '/')
+		char subdir[MAX_OSPATH];
+		for (s = wild+1; *s && *s != '/'; s++)
+			;
+		while (wild > truepath)
 		{
-			s[1] = '\0';
-			match += s - apath+1;
-			break;
+			if (*(wild-1) == '/')
+				break;
+			wild--;
 		}
+		memcpy(file, truepath, wild-truepath);
+		file[wild-truepath] = 0;
+
+		dir = opendir(file);
+		memcpy(subdir, wild, s-wild);
+		subdir[s-wild] = 0;
+		if (dir)
+		{
+			do
+			{
+				ent = readdir(dir);
+				if (!ent)
+					break;
+				if (*ent->d_name != '.')
+				{
+#ifdef _DIRENT_HAVE_D_TYPE
+					if (ent->d_type != DT_DIR && ent->d_type != DT_UNKNOWN)
+						continue;
+#endif
+					if (wildcmp(subdir, ent->d_name))
+					{
+						memcpy(file, truepath, wild-truepath);
+						Q_snprintfz(file+(wild-truepath), sizeof(file)-(wild-truepath), "%s%s", ent->d_name, s);
+						if (!Sys_EnumerateFiles2(file, apathofs, match, func, parm, spath))
+						{
+							closedir(dir);
+							return false;
+						}
+					}
+				}
+			} while(1);
+			closedir(dir);
+		}
+		return true;
 	}
-	if (s < apath)	//didn't find a '/'
-		*apath = '\0';
-
-	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
 
 
-//printf("truepath = %s\n", truepath);
-//printf("gamepath = %s\n", gpath);
-//printf("apppath = %s\n", apath);
-//printf("match = %s\n", match);
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_DPrintf("Failed to open dir %s\n", truepath);
+		Con_DLPrintf((errno==ENOENT)?2:1, "Failed to open dir %s\n", truepath);
 		return true;
 	}
 	do
@@ -443,6 +539,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 					if (!func(file, st.st_size, st.st_mtime, parm, spath))
 					{
+//						Con_DPrintf("giving up on search after finding %s\n", file);
 						closedir(dir);
 						return false;
 					}
@@ -453,9 +550,35 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 		}
 	} while(1);
 	closedir(dir);
-
 	return true;
 }
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+{
+	char apath[MAX_OSPATH];
+	char truepath[MAX_OSPATH];
+	char *s;
+
+	if (!gpath)
+		gpath = "";
+	*apath = '\0';
+
+	Q_strncpyz(apath, match, sizeof(apath));
+	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	{
+		if (*s == '/')
+		{
+			s[1] = '\0';
+			match += s - apath+1;
+			break;
+		}
+	}
+	if (s < apath)	//didn't find a '/'
+		*apath = '\0';
+
+	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
+	return Sys_EnumerateFiles2(truepath, strlen(gpath)+1, match, func, parm, spath);
+}
+
 #else
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, void *), void *parm, void *spath)
 {

@@ -75,32 +75,75 @@ enum
 	ASPECT2D_CUSTOM,
 };
 
+
+typedef struct {
+	unsigned int w, h;
+} ftevidmode_t;
+static ftevidmode_t *vidmodes;
+static size_t nummodes;
+void VidMode_Clear(void)
+{
+	BZ_Free(vidmodes);
+	vidmodes = NULL;
+	nummodes = 0;
+}
+void VidMode_Add(int w, int h)
+{
+	size_t m;
+	for (m = 0; m < nummodes; m++)
+	{
+		if (vidmodes[m].w == w && vidmodes[m].h == h)
+			return;
+	}
+	Z_ReallocElements((void**)&vidmodes, &nummodes, nummodes+1, sizeof(*vidmodes));
+	vidmodes[m].w = w;
+	vidmodes[m].h = h;
+}
+static int QDECL VidMode_Sort(const void *v1, const void *v2)
+{
+	const ftevidmode_t *m1 = v1, *m2 = v2;
+	int n1 = m1->w, n2=m2->w;	//sort by width
+	if (n1 == n2)
+		n1 = m1->h, n2=m2->h;	//then by height
+	if (n1 == n2)
+		return 0;				//then give up and consider equal... which shouldn't happen.
+	if (n1 > n2)
+		return 1;
+	return -1;
+}
 qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h)
 {
-	int i;
-
-	for (i = 0; i < 4; i++)
+	int a;
+	extern cvar_t vid_devicename;
+	if (!nummodes)
 	{
-		const char **v = resaspects[i];
-		while (*v && num)
+		VidMode_Clear();
+
+		if (rf->VID_EnumerateVideoModes)
+			rf->VID_EnumerateVideoModes("", vid_devicename.string, VidMode_Add);
+
+		if (!nummodes)
 		{
-			v++;
-			num--;
-		}
-		if (*v)
-		{
-			const char *c = *v;
-			const char *s = strchr(c, 'x');
-			if (s)
+			for (a = 0; a < countof(resaspects); a++)
 			{
-				*w = atoi(c);
-				*h = atoi(s + 1);
-				return true;
+				const char **v = resaspects[a];
+				for (; *v; v++)
+				{
+					const char *c = *v;
+					const char *s = strchr(c, 'x');
+					if (s)
+						VidMode_Add(atoi(c), atoi(s+1));
+				}
 			}
-			return false;
 		}
+		qsort(vidmodes, nummodes, sizeof(*vidmodes), VidMode_Sort);
 	}
-	return false;
+
+	if (num < 0 || num >= nummodes)
+		return false;
+	*w = vidmodes[num].w;
+	*h = vidmodes[num].h;
+	return true;
 }
 
 
@@ -2616,7 +2659,8 @@ void CheckCustomMode(struct emenu_s *menu)
 		info->res2dsize[sel]->common.ishidden = false;
 }
 
-int M_MatchModes(int width, int height, int *outres)
+//return value is aspect group, *outres is the mode index inside that aspect.
+static int M_MatchModes(int width, int height, int *outres)
 {
 	int i;
 	int ratio = -1;
@@ -3332,7 +3376,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
-	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
+	ent.customskin = Mod_RegisterSkinFile(va("%s_%i.skin", mods->modelname, ent.skinnum));
 
 	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
 	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;

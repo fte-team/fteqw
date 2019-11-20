@@ -7,7 +7,9 @@
 !!permu BUMP
 !!permu SPECULAR
 !!permu REFLECTCUBEMASK
+!!permu FAKESHADOWS
 !!cvarf r_glsl_offsetmapping_scale
+!!cvardf r_glsl_pcf
 !!cvardf r_tessellation_level=5
 !!samps diffuse
 !!samps !EIGHTBIT =FULLBRIGHT fullbright
@@ -20,6 +22,7 @@
 !!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3
 !!samps =DELUXE deluxmap
 !!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3
+!!samps =FAKESHADOWS shadowmap
 
 #if defined(ORM) || defined(SG)
     #define PBR
@@ -52,6 +55,10 @@
 		#else
 			varying vec2 lm0;
 		#endif
+	#endif
+
+	#ifdef FAKESHADOWS	
+		varying vec4 vtexprojcoord;
 	#endif
 #endif
 
@@ -89,11 +96,17 @@ void main ()
 	lm3 = v_lmcoord4;
 #endif
 #endif
-	gl_Position = ftetransform();
 
 #ifdef TESS
 	vertex = v_position;
 	normal = v_normal;
+#endif
+
+#ifdef FAKESHADOWS	
+	gl_Position = ftetransform();
+	vtexprojcoord = (l_cubematrix*vec4(v_position.xyz, 1.0));
+#else
+	gl_Position = ftetransform();
 #endif
 }
 #endif
@@ -239,6 +252,7 @@ void main()
 #define s_colourmap	s_t0
 
 #include "sys/pbr.h"
+#include "sys/pcf.h"
 
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"
@@ -305,7 +319,7 @@ void main ()
 			vec3 deluxe = (texture2D(s_deluxemap, lm0).rgb-0.5);
 			#ifdef BUMPMODELSPACE
 				deluxe = normalize(deluxe*invsurface);
-	#else
+			#else
 				deluxe = normalize(deluxe);
 				lightmaps *= 2.0 / max(0.25, deluxe.z);	//counter the darkening from deluxemaps
 			#endif
@@ -384,6 +398,12 @@ void main ()
 
 //entity modifiers
 	col *= e_colourident;
+
+#ifdef FAKESHADOWS
+	/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
+	col.rgb *= ShadowmapFilter(s_shadowmap, vtexprojcoord);
+	//col.g = ShadowmapFilter(s_shadowmap, vtexprojcoord);
+#endif
 
 #if defined(MASK)
 #if defined(MASKLT)

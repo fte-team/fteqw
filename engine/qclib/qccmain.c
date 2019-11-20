@@ -76,6 +76,7 @@ pbool	compressoutput;
 
 pbool newstylesource;
 char		destfile[1024];		//the file we're going to output to
+pbool		destfile_explicit;		//destfile was override on the commandline, don't let qc change it.
 
 QCC_eval_t		*qcc_pr_globals;
 unsigned int	numpr_globals;
@@ -423,11 +424,13 @@ struct {
 
 static const char *QCC_VersionString(void)
 {
-#ifdef SVNVERSION
-	if (strcmp(SVNVERSION, "-"))
-		return "FTEQCC: " STRINGIFY(SVNVERSION) " (" __DATE__")";
-#endif
+#if defined(SVNREVISION) && defined(SVNDATE)
+	return "FTEQCC: " STRINGIFY(SVNREVISION) " (" STRINGIFY(SVNDATE) ")";
+#elif defined(SVNREVISION)
+	return "FTEQCC: " STRINGIFY(SVNREVISION) " (" __DATE__")";
+#else
 	return "FTEQCC: " __DATE__;
+#endif
 }
 
 /*
@@ -4008,10 +4011,12 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 		{	//explicit output file
 			i++;
 			strcpy(destfile, myargv[i]);
+			destfile_explicit = true;
 		}
 		else if ( !strncmp(myargv[i], "-o", 2) )
 		{	//explicit output file
 			strcpy(destfile, myargv[i]+2);
+			destfile_explicit = true;
 		}
 		else if ( !strcmp(myargv[i], "-qc") )
 			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is experimental", myargv[i]);	//compile without linking. output cannot be read by engines.
@@ -4995,7 +5000,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 			strcpy(sourcefileslist[numsourcefiles++], qccmprogsdat);
 			currentsourcefile = 0;
 		}
-		else if (currentsourcefile == numsourcefiles)
+		else if (currentsourcefile == numsourcefiles || (currentsourcefile && destfile_explicit))
 		{
 			//no more.
 			qcc_compileactive = false;

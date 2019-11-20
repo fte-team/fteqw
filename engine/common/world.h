@@ -228,14 +228,6 @@ struct world_s
 	areagridlink_t	*gridareas;		//[gridsize[0]*gridsize[1]]
 	areagridlink_t	jumboarea;		//node containing ents too large to fit.
 	areagridlink_t	portallist;
-#else
-	areanode_t		portallist;
-#endif
-
-#if defined(Q2SERVER) || !defined(USEAREAGRID)
-	areanode_t		*areanodes;
-	int				areanodedepth;
-	int				numareanodes;
 #endif
 
 	double		physicstime;		// the last time global physics were run
@@ -272,6 +264,15 @@ struct world_s
 #ifdef USERBE
 	qboolean rbe_hasphysicsents;
 	rigidbodyengine_t *rbe;
+#endif
+
+#if defined(Q2SERVER) || !defined(USEAREAGRID)
+	areanode_t		*areanodes;
+	int				areanodedepth;
+	int				numareanodes;
+#ifndef USEAREAGRID
+	areanode_t		portallist;
+#endif
 #endif
 
 #ifdef ENGINE_ROUTING

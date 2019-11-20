@@ -304,7 +304,7 @@ void SV_New_f (void)
 		fteext1 |= PEXT_FLOATCOORDS;
 		if (!(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
 		{
-			SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine - "ENGINEWEBSITE"\n");
+			SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine\n");
 			Con_Printf("%s does not support bigcoords\n", host_client->name);
 			host_client->drop = true;
 			return;
@@ -663,13 +663,10 @@ void SVNQ_New_f (void)
 
 #ifdef OFFICIAL_RELEASE
 	Q_snprintfz(build, sizeof(build), "v%i.%02i", FTE_VER_MAJOR, FTE_VER_MINOR);
+#elif defined(SVNREVISION)
+	Q_snprintfz(build, sizeof(build), "SVN %s", STRINGIFY(SVNREVISION));
 #else
-#if defined(SVNREVISION)
-	if (strcmp(STRINGIFY(SVNREVISION), "-"))
-		Q_snprintfz(build, sizeof(build), "SVN %s", STRINGIFY(SVNREVISION));
-	else
-#endif
-		Q_snprintfz(build, sizeof(build), "%s", __DATE__);
+	Q_snprintfz(build, sizeof(build), "%s", __DATE__);
 #endif
 
 	gamedir = InfoBuf_ValueForKey (&svs.info, "*gamedir");
@@ -2033,7 +2030,10 @@ void SV_Begin_Core(client_t *split)
 			if (eval)
 			{
 				char buf[256];
-				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, NET_AdrToString(buf, sizeof(buf), &split->netchan.remote_address), false);
+				if (split->netchan.remote_address.type == NA_LOOPBACK)
+					svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, "local", false);	//sigh...
+				else
+					svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, NET_AdrToString(buf, sizeof(buf), &split->netchan.remote_address), false);
 			}
 		}
 #endif
@@ -2684,7 +2684,7 @@ void SV_VoiceReadPacket(void)
 	bytes = MSG_ReadShort();
 	ring = &voice.ring[voice.write & (VOICE_RING_SIZE-1)];
 	//voice data does not get echoed to the sender unless sv_voip_echo is on too, which is rarely the case, so no worries about leaking the mute+deaf talking-to-yourself thing
-	if (bytes > sizeof(ring->data) || (host_client->penalties & BAN_MUTE) || !sv_voip.ival)
+	if (bytes > sizeof(ring->data) || (host_client->penalties & (BAN_MUTE|BAN_VMUTE)) || !sv_voip.ival)
 	{
 		MSG_ReadSkip(bytes);
 		return;

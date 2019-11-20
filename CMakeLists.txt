@@ -25,7 +25,20 @@ EXECUTE_PROCESS(COMMAND
 )
 
 IF (NOT "${FTE_REVISON}" STREQUAL "")
-	SET(FTE_REVISON SVNREVISION=${FTE_REVISON})
+	MESSAGE(STATUS "FTE SVN Revision ${FTE_REVISON}")
+	IF(FTE_REVISON MATCHES "M")
+		MESSAGE(STATUS "--- PRIVATE CHANGES DETECTED ---")
+		SET(FTE_REVISON SVNREVISION=${FTE_REVISON})
+	ELSE()
+		MESSAGE(STATUS "No local changes")
+		EXECUTE_PROCESS(COMMAND
+			svn info --show-item last-changed-date --no-newline
+			WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+			OUTPUT_VARIABLE FTE_DATE
+		)
+
+		SET(FTE_REVISON SVNREVISION="${FTE_REVISON}" SVNDATE="${FTE_DATE}")
+	ENDIF()
 ENDIF()
 
 #plugins need visibility hidden in order to avoid conflicts with function names that match the engine.
@@ -981,7 +994,7 @@ ADD_LIBRARY(irc MODULE
 	plugins/plugin.c
 	plugins/irc/ircclient.c
 )
-SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+SET_TARGET_PROPERTIES(irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_REVISON};${FTE_LIB_DEFINES}")
 SET_TARGET_PROPERTIES(irc PROPERTIES PREFIX "fteplug_")
 SET_TARGET_PROPERTIES(irc PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 TARGET_LINK_LIBRARIES(irc m)
@@ -1072,4 +1085,39 @@ SET(FTE_INSTALL_BINDIR games CACHE STRING "Binary dir to install to.")
 INSTALL(TARGETS ${INSTALLTARGS}
 	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}${FTE_INSTALL_BINDIR}"
 	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
+)
+
+ADD_CUSTOM_TARGET(menusys ALL
+	VERBATIM
+	COMMAND fteqcc -srcfile "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
+	BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
+	SOURCES
+		quakec/menusys/menu.src
+		quakec/menusys/menusys/mitems.qc
+		quakec/menusys/menusys/mitems_common.qc
+		quakec/menusys/menusys/mitem_desktop.qc
+		quakec/menusys/menusys/mitem_exmenu.qc
+		quakec/menusys/menusys/mitem_edittext.qc
+		quakec/menusys/menusys/mitem_tabs.qc
+		quakec/menusys/menusys/mitem_colours.qc
+		quakec/menusys/menusys/mitem_checkbox.qc
+		quakec/menusys/menusys/mitem_slider.qc
+		quakec/menusys/menusys/mitem_combo.qc
+		quakec/menusys/menusys/mitem_bind.qc
+		quakec/menusys/menusys/mitem_spinnymodel.qc
+		quakec/menusys/menu/loadsave.qc
+		quakec/menusys/menu/newgame.qc
+		quakec/menusys/menu/options_basic.qc
+		quakec/menusys/menu/options_effects.qc
+		quakec/menusys/menu/options_keys.qc
+		quakec/menusys/menu/options.qc
+		quakec/menusys/menu/presets.qc
+		quakec/menusys/menu/servers.qc
+		quakec/menusys/menu/main.qc
+		quakec/menusys/menu/options_audio.qc
+		quakec/menusys/menu/options_configs.qc
+		quakec/menusys/menu/options_hud.qc
+		quakec/menusys/menu/options_particles.qc
+		quakec/menusys/menu/options_video.qc
+		quakec/menusys/menu/quit.qc
 )

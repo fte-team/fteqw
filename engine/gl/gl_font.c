@@ -15,7 +15,7 @@
 
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(const char *fontfilename, float height);
+struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -43,6 +43,8 @@ extern unsigned int r2d_be_flags;
 #ifdef AVAIL_FREETYPE
 #include <ft2build.h>
 #include FT_FREETYPE_H 
+struct fontface_s;
+int Font_ChangeFTSize(struct fontface_s *qface, int pixelheight);
 
 #ifndef FT_LOAD_COLOR
 #define FT_LOAD_COLOR (1L<<20)
@@ -257,8 +259,8 @@ typedef struct fontface_s
 #ifdef AVAIL_FREETYPE
 	struct
 	{
-		int activeheight;	//needs reconfiguring when different sizes are used
-		int actualsize;		//sometimes that activeheight isn't usable. :(
+		int activeheight;	//needs reconfiguring when different sizes are used (so the same face can be used at multiple different sizes
+		int actualsize;		//sometimes that activeheight isn't usable and we need to manually rescale. :(
 		FT_Face face;
 		void *membuf;
 	} ft;
@@ -300,7 +302,10 @@ typedef struct font_s
 	char name[MAX_OSPATH];
 
 	texid_t singletexture;
-	unsigned short charheight;
+	unsigned short charheight;		//requested height (space between lines)
+	unsigned short truecharheight;	//what you actually got, for compat with dp's lets-use-the-wrong-size-for-double-padding-between-lines thing.
+	float scale;	//some sort of poop
+	short outline;
 
 	unsigned short faces;
 	fontface_t *face[MAX_FACES];
@@ -353,7 +358,7 @@ static avec4_t	font_foretint;
 
 static struct font_s *curfont;
 static float curfont_scale[2];
-static qboolean curfont_scaled;
+//static qboolean curfont_scaled;
 
 extern cvar_t r_font_linear;
 
@@ -625,13 +630,21 @@ static struct charcache_s *Font_CopyChar(font_t *f, unsigned int oldcharidx, uns
 //loads a new image into a given character slot for the given font.
 //note: make sure it doesn't already exist or things will get cyclic
 //alphaonly says if its a greyscale image. false means rgba.
-static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT_Pixel_Mode pixelmode, void *data, unsigned int bmw, unsigned int bmh, unsigned int pitch)
-{
+static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT_Pixel_Mode pixelmode, void *data, unsigned int bmw, unsigned int bmh, unsigned int pitch){
 	int x, y;
 	union byte_vec4_u *out;
 	struct charcache_s *c = Font_GetCharStore(f, charidx);
 	int pad = 0;
 #define BORDERCOLOUR 0
+
+#define MAXOUTLINE 4
+
+	int outline = min(f->outline, MAXOUTLINE);
+
+	if (!bmw || !bmh)
+		outline = 0;
+
+	pad+=outline;
 	
 	if (fontplanes.texnum[0]->flags & IF_LINEAR)
 		pad += 1;	//pad the image data to avoid sampling outside
@@ -789,6 +802,49 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 
 		c->flags = CHARF_FORCEWHITE;	//private glyph colours
 	}
+
+	if (outline)
+	{
+		int bytes = (pixelmode == FT_PIXEL_MODE_GRAY)?1:4;
+		qbyte *alpha = (char*)data + bytes-1 - pitch*bmh;
+
+		static int filter_outline;
+		static unsigned char filter_highest[MAXOUTLINE*2+1][MAXOUTLINE*2+1];
+		if (outline != filter_outline)
+		{
+			filter_outline = outline;
+			for (y = -outline; y <= outline; y++)
+				for (x = -outline; x <= outline; x++)
+					filter_highest[outline+y][outline+x] = bound(0, (outline + 1 - sqrt(x*x + y*y))*255+.5, 255);
+		}
+
+		//expand it to out full(ish) size
+
+		alpha -= pitch*outline + bytes*outline;
+		out = &fontplanes.plane[c->bmx+((int)c->bmy-outline)*PLANEHEIGHT];
+		for (y = -outline; y < (int)bmh+outline; y++, out += PLANEWIDTH)
+			for (x = -outline; x < (int)bmw+outline; x++)
+			{
+				int xn, x1 = max(outline-x, 0), x2 = min(2*outline, (int)bmw-1-x+outline);
+				int yn, y1 = max(outline-y, 0), y2 = min(2*outline, (int)bmh-1-y+outline);
+				int v, m = out[x].rgba[3]*255;
+				for (yn = y1; yn <= y2; yn++)
+					for (xn = x1; xn <= x2; xn++)
+					{
+						v = filter_highest[yn][xn] * alpha[(xn+x)*bytes+(yn+y)*pitch];
+						m = max(m, v);
+					}
+				//out[x].c = 0;
+				out[x].rgba[3] = m/255;
+			}
+
+
+		c->bmx -= outline;
+		c->bmy -= outline;
+		c->bmw += outline*2;
+		c->bmh += outline*2;
+	}
+
 	fontplanes.planechanged = true;
 	return c;
 }
@@ -1082,29 +1138,8 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 
 				if (qface->ft.activeheight != f->charheight)
 				{
-					qface->ft.activeheight = f->charheight;
-					if (FT_HAS_FIXED_SIZES(face) && !FT_IS_SCALABLE(face))
-					{	//freetype doesn't like scaling these for us, so we have to pick a usable size ourselves.
-						FT_Int best = 0, s;
-						int bestheight = 0, h;
-						for (s = 0; s < qface->ft.face->num_fixed_sizes; s++)
-						{
-							h = qface->ft.face->available_sizes[s].height;
-							//always try to pick the smallest size that is also >= our target size
-							if ((h > bestheight && bestheight < f->charheight) || (h >= f->charheight && h < bestheight))
-							{
-								bestheight = h;
-								best = s;
-							}
-						}
-						qface->ft.actualsize = qface->ft.face->available_sizes[best].height;
-						pFT_Select_Size(face, best);
-					}
-					else
-					{
-						pFT_Set_Pixel_Sizes(face, 0, f->charheight);
-						qface->ft.actualsize = f->charheight;
-					}
+					if (!Font_ChangeFTSize(qface, f->charheight))
+						return NULL;	//some sort of error.
 				}
 				if (charidx == 0xfffe || pFT_Get_Char_Index(face, charidx))	//ignore glyph 0 (undefined)
 					if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER|FT_LOAD_COLOR) == 0)
@@ -1157,7 +1192,10 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 							{
 								c->advance = slot->advance.x >> 6;
 								c->left = slot->bitmap_left;
-								c->top = f->charheight*3/4 - slot->bitmap_top;
+								/*if(1)
+									c->top = f->truecharheight - slot->bitmap_top;
+								else*/
+									c->top = f->charheight*3/4 - slot->bitmap_top;
 								return c;
 							}
 						}
@@ -1414,6 +1452,57 @@ qboolean Font_LoadHorizontalFont(struct font_s *f, int fheight, const char *font
 }
 
 #ifdef AVAIL_FREETYPE
+extern cvar_t dpcompat_smallerfonts;
+int Font_ChangeFTSize(fontface_t *qface, int pixelheight)
+{
+	FT_Face face = qface->ft.face;
+	qface->ft.activeheight = pixelheight;
+#ifdef HAVE_LEGACY
+	if (dpcompat_smallerfonts.ival)
+	{	//sizes specified include extra spacing in dp, giving extra padding somewhere.
+		int s = pixelheight;
+		for(s = pixelheight; s; s--)
+		{
+			if (0==pFT_Set_Pixel_Sizes(face, 0, s))
+				if (face->size->metrics.height>>6 <= pixelheight)
+					break;
+		}
+
+		if (!s)
+		{
+			qface->ft.activeheight = 0; //something invalid
+			qface->ft.actualsize = qface->ft.activeheight;
+			return 0;
+		}
+		qface->ft.actualsize = qface->ft.activeheight;
+		return s;
+	}
+	else
+#endif
+		if (FT_HAS_FIXED_SIZES(face) && !FT_IS_SCALABLE(face))
+	{	//freetype doesn't like scaling these for us, so we have to pick a usable size ourselves.
+		FT_Int best = 0, s;
+		int bestheight = 0, h;
+		for (s = 0; s < qface->ft.face->num_fixed_sizes; s++)
+		{
+			h = qface->ft.face->available_sizes[s].height;
+			//always try to pick the smallest size that is also >= our target size
+			if ((h > bestheight && bestheight < pixelheight) || (h >= pixelheight && h < bestheight))
+			{
+				bestheight = h;
+				best = s;
+			}
+		}
+		qface->ft.actualsize = qface->ft.face->available_sizes[best].height;
+		pFT_Select_Size(face, best);
+	}
+	else
+	{
+		pFT_Set_Pixel_Sizes(face, 0, pixelheight);
+		qface->ft.actualsize = pixelheight;
+	}
+	return pixelheight;
+}
 qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfilename)
 {
 	fontface_t *qface;
@@ -1436,6 +1525,8 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		if (!strcmp(qface->name, fontfilename) && qface->ft.face)
 		{
 			qface->refs++;
+			if (!f->faces)
+				f->truecharheight = Font_ChangeFTSize(qface, f->charheight);
 			f->face[f->faces++] = qface;
 			return true;
 		}
@@ -1487,7 +1578,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 	}
 
 	error = FT_Err_Cannot_Open_Resource;
-	if (FS_FLocateFile(fontfilename, FSLF_IFFOUND, &loc) || FS_FLocateFile(va("%s.ttf", fontfilename), FSLF_IFFOUND, &loc))
+	if (FS_FLocateFile(fontfilename, FSLF_IFFOUND, &loc) || FS_FLocateFile(va("%s.ttf", fontfilename), FSLF_IFFOUND, &loc) || FS_FLocateFile(va("%s.otf", fontfilename), FSLF_IFFOUND, &loc))
 	{
 		if (*loc.rawname && !loc.offset)
 		{
@@ -1555,31 +1646,30 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 #endif
 	if (!error)
 	{
-		if (FT_HAS_FIXED_SIZES(face) && !FT_IS_SCALABLE(face))
-		{
-			height = 0;	//will need to rescale manually I guess
-			error = pFT_Select_Size(face, 0);
-		}
-		else
-			error = pFT_Set_Pixel_Sizes(face, 0, height);
-		if (!error)
-		{
-			/*success!*/
-			qface = Z_Malloc(sizeof(*qface));
+		int trueheight;
+		/*success!*/
+		qface = Z_Malloc(sizeof(*qface));
+		qface->ft.face = face;
+		qface->ft.activeheight = qface->ft.actualsize = 0;//height;
+		qface->ft.membuf = fbase;
+		qface->refs++;
+		Q_strncpyz(qface->name, fontfilename, sizeof(qface->name));
+
+		trueheight = Font_ChangeFTSize(qface, f->charheight);
+		if (trueheight)
+		{	//okay, we can use it, link it in.
 			qface->flink = &faces;
 			qface->fnext = *qface->flink;
 			*qface->flink = qface;
 			if (qface->fnext)
 				qface->fnext->flink = &qface->fnext;
-			qface->ft.face = face;
-			qface->ft.activeheight = qface->ft.actualsize = height;
-			qface->ft.membuf = fbase;
-			qface->refs++;
-			Q_strncpyz(qface->name, fontfilename, sizeof(qface->name));
 
+			if (!f->faces)
+				f->truecharheight = trueheight;
 			f->face[f->faces++] = qface;
 			return true;
 		}
+		Z_Free(qface);
 	}
 	if (error && error != FT_Err_Cannot_Open_Resource)
 		Con_Printf("Freetype error: %i\n", error);
@@ -1864,7 +1954,7 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
+struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scale, int outline)
 {
 	struct font_s *f;
 	int i = 0;
@@ -1887,7 +1977,10 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 		*parms++ = 0;
 
 	f = Z_Malloc(sizeof(*f));
+	f->outline = outline;
+	f->scale = scale;
 	f->charheight = height;
+	f->truecharheight = height;
 	Q_strncpyz(f->name, fontfilename, sizeof(f->name));
 
 	switch(M_GameType())
@@ -2105,7 +2198,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight)
 		}
 		else
 		{
-			f->alt = Font_LoadFont(aname, vheight);
+			f->alt = Font_LoadFont(aname, vheight, scale, outline);
 			if (f->alt)
 			{
 				VectorCopy(f->alt->tint, f->alttint);
@@ -2360,7 +2453,7 @@ void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 
 	curfont_scale[0] = curfont->charheight;
 	curfont_scale[1] = curfont->charheight;
-	curfont_scaled = false;
+//	curfont_scaled = false;
 }
 void Font_Transform(float vx, float vy, int *px, int *py)
 {
@@ -2384,13 +2477,15 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 	*px = (int)*px;
 	*py = (int)*py;
 
-	if ((int)(szx * vid.rotpixelheight/vid.height) == curfont->charheight && (int)(szy * vid.rotpixelheight/vid.height) == curfont->charheight)
+/*	if ((int)(szx * vid.rotpixelheight/vid.height) == curfont->charheight && (int)(szy * vid.rotpixelheight/vid.height) == curfont->charheight)
 		curfont_scaled = false;
 	else
 		curfont_scaled = true;
-
+*/
 	curfont_scale[0] = (szx * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
 	curfont_scale[1] = (szy * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
+	curfont_scale[0] *= curfont->scale;
+	curfont_scale[1] *= curfont->scale;
 }
 
 void Font_EndString(struct font_s *font)
@@ -2409,6 +2504,10 @@ int Font_CharHeight(void)
 int Font_CharPHeight(struct font_s *font)
 {
 	return font->charheight;
+}
+int Font_GetTrueHeight(struct font_s *font)	//Char[P]Height lies for compat with DP.
+{
+	return font->truecharheight;
 }
 float Font_CharVHeight(struct font_s *font)
 {

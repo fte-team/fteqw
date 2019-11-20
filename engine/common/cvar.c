@@ -183,6 +183,7 @@ void Cvar_List_f (void)
 	char *var, *search, *gsearch;
 	int gnum, i, num = 0;
 	int listflags = 0, cvarflags = 0;
+	int total = 0;
 	char strtmp[512];
 	static char *cvarlist_help =
 "cvarlist list all cvars matching given parameters\n"
@@ -380,6 +381,7 @@ showhelp:
 
 			// print cvar name
 			Con_Printf("%s", cmd->name);
+			total++;
 
 			// print current value
 			if (listflags & CLF_VALUES)
@@ -428,6 +430,9 @@ showhelp:
 		if (!(listflags & CLF_RAW) && gnum)
 			Con_Printf("\n");
 	}
+
+	if (search && !strcmp(search, "*"))
+		Con_Printf("%i cvars\n", total);
 }
 
 //default values are meant to be constants.
@@ -482,6 +487,38 @@ void Cvar_PurgeDefaults_f(void)
 			{
 				Cvar_DefaultFree(cmd->defaultstr);
 				cmd->defaultstr = cmd->enginevalue;
+			}
+		}
+	}
+}
+
+void Cvar_ResetAll_f(void)
+{
+	cvar_group_t *grp;
+	cvar_t *var;
+	unsigned int bitmask;		//the bits to care about
+	unsigned int bitmaskvalue;	//must match this value
+	char *cmd = Cmd_Argv(0);
+	if (!Q_strcasecmp(cmd, "cvar_resettodefaults_saveonly"))
+		bitmask = CVAR_NORESET|CVAR_NOSET|CVAR_SAVE, bitmaskvalue = CVAR_SAVE;
+	else if (!Q_strcasecmp(cmd, "cvar_resettodefaults_nosaveonly"))
+		bitmask = CVAR_NORESET|CVAR_NOSET|CVAR_SAVE, bitmaskvalue = 0;
+	else	//others...
+		bitmask = CVAR_NORESET|CVAR_NOSET, bitmaskvalue = 0;
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		for (var=grp->cvars ; var ; var=var->next)
+		{
+			if (!var->enginevalue)
+				continue;	//can't reset the cvar's default if its an engine cvar.
+			if ((var->flags & bitmask) != bitmaskvalue)
+				continue;
+
+			if (var->defaultstr != var->enginevalue)
+			{
+				Cvar_DefaultFree(var->defaultstr);
+				var->defaultstr = var->enginevalue;
 			}
 		}
 	}

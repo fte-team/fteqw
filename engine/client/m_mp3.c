@@ -176,7 +176,7 @@ float media_fadeouttime;
 sfx_t *Media_NextTrack(int musicchannelnum, float *starttime)
 {
 	sfx_t *s = NULL;
-	if (bgmvolume.value <= 0)
+	if (bgmvolume.value <= 0 || mastervolume.value <= 0)
 		return NULL;
 
 	if (media_fadeout)
@@ -2816,6 +2816,10 @@ void Media_SetState(cin_t *cin, cinstates_t newstate)
 }
 cinstates_t Media_GetState(cin_t *cin)
 {
+	if (!cin)
+		cin = R_ShaderGetCinematic(videoshader);
+	if (!cin)
+		return CINSTATE_INVALID;
 	return cin->playstate;
 }
 

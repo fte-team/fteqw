@@ -4345,6 +4345,10 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 {
 	return false;
 }
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
+{
+	return false;
+}
 #elif defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 #include "winquake.h"
 #ifdef MINGW

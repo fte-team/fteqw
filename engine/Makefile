@@ -1305,7 +1305,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	QTV_LDFLAGS=-lws2_32 -lwinmm
 
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
-	SV_LDFLAGS=-lws2_32 -lwinmm
+	SV_LDFLAGS=-lws2_32 -lwinmm -lole32
 	SV_DIR=sv_mingw$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)

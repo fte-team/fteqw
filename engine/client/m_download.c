@@ -1815,7 +1815,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	}
 }
 #endif
-#ifndef SERVERONLY
+#if defined(HAVE_CLIENT) && defined(WEBCLIENT)
 static void PM_UpdatePackageList(qboolean autoupdate, int retry);
 static void PM_AllowPackageListQuery_Callback(void *ctx, int opt)
 {
@@ -1851,9 +1851,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 #else
 	doautoupdate |= autoupdate;
 
-#ifdef SERVERONLY
-	allowphonehome = true; //erk.
-#else
+#ifdef HAVE_CLIENT
 	if (pkg_autoupdate.ival >= 1)
 		allowphonehome = true;
 	else if (allowphonehome == -1)
@@ -1861,6 +1859,8 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope");
 		return;
 	}
+#else
+	allowphonehome = true; //erk.
 #endif
 
 	//kick off the initial tier of list-downloads.

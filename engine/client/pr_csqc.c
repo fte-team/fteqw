@@ -8215,8 +8215,10 @@ qboolean CSQC_DrawView(void)
 	}
 	else
 	{
+#ifdef USERBE
 		if (csqc_world.rbe)
 			maxtic = mintic;	//physics engines need a fixed tick rate.
+#endif
 		while(1)
 		{
 			host_frametime = cl.servertime - csqc_world.physicstime;

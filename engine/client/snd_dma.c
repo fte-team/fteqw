@@ -2878,7 +2878,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	int		vol;
 	int		ch_idx;
 	int		skip;
-	int		absstartpos = updateonly?target_chan->pos:0;
+	int		absstartpos = updateonly?sc->GetChannelPos?sc->GetChannelPos(sc, target_chan)<<PITCHSHIFT:target_chan->pos:0;
 	extern cvar_t cl_demospeed;
 	chanupdatereason_t chanupdatetype = updateonly?CUR_UPDATE:CUR_EVERYTHING;
 

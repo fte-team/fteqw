@@ -1298,6 +1298,8 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	ifeq ($(FTE_TARGET),win32)
 		BASELDFLAGS=-Wl,--large-address-aware
 	endif
+	#Note: for deterministic builds, the following line disables timestamps for import/export tables. This is UNSAFE if there are any PE files bound to the compiled PE file. Our plugin dlls are dynamically loaded so this should not be an issue for us.
+	BASELDFLAGS+=-Wl,--no-insert-timestamp
 
 	BASELDFLAGS+=-lcomctl32
 	EXEPOSTFIX=.exe

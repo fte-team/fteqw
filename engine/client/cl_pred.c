@@ -668,7 +668,9 @@ void CL_CalcClientTime(void)
 			else
 				cl.servertime = 0;
 
-			if (cl.servertime > min)
+			if (!cl.oldgametime)
+				cl.servertime = max; //map start (or reload/connect or something). snap to current.
+			else if (cl.servertime > min)
 			{
 				if (cl.servertime > max)
 				{

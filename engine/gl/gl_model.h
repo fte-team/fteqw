@@ -330,8 +330,8 @@ typedef struct texture_s
 	struct shader_s	*shader;
 	char		*partname;				//parsed from the worldspawn entity
 
-	int			anim_total;				// total tenths in sequence ( 0 = no)
-	int			anim_min, anim_max;		// time for this frame min <=time< max
+	unsigned int	anim_total;				// total tenths in sequence ( 0 = no)
+	unsigned int	anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
 

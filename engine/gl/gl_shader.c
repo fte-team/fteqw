@@ -5336,6 +5336,8 @@ done:;
 		pass = s->passes+i;
 		if (!(pass->shaderbits & (SBITS_BLEND_BITS|SBITS_MASK_BITS)))
 		{
+			if (pass->texgen == T_GEN_LIGHTMAP && r_forceprogramify.ival==2)
+				continue;	//pretend its blended.
 			break;
 		}
 	}

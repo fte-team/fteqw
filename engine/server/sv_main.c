@@ -5780,6 +5780,22 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	}
 #endif
 
+	val = InfoBuf_ValueForKey (&cl->userinfo, "noaim");
+	if (atoi(val) > 0)
+		cl->autoaimdot = 2; //disable, ignoring sv_aim
+	else
+	{
+		val = InfoBuf_ValueForKey (&cl->userinfo, "aim");
+		if (*val)
+		{
+			cl->autoaimdot = atof(val);
+			if (cl->autoaimdot > 1)
+				cl->autoaimdot = cos(cl->autoaimdot * M_PI/180);//interpret it as an accepted angle in degrees
+		}
+		else
+			cl->autoaimdot = sv_aim.value;
+	}
+
 	// msg command
 	val = InfoBuf_ValueForKey (&cl->userinfo, "msg");
 	if (strlen(val))

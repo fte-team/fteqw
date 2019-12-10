@@ -3595,7 +3595,7 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.\n");
 		break;
 	default:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones, probably buggy (sys)defs.qc\n");
 		break;
 	}
 
@@ -4810,7 +4810,11 @@ pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 	*/
 
 	time(&long_time);
-	strftime(QCC_copyright, sizeof(QCC_copyright),  "Compiled [%Y/%m/%d]. ", localtime( &long_time ));
+	strftime(QCC_copyright, sizeof(QCC_copyright),  "Compiled [%Y/%m/%d]"
+#ifdef SVNREVISION
+			", by fteqcc "STRINGIFY(SVNREVISION)
+#endif
+			". ", localtime( &long_time ));
 	(void)QC_strlcat(QCC_copyright, QCC_VersionString(), sizeof(QCC_copyright));
 	for (p = 0; p < 5; p++)
 		strcpy(QCC_Packname[p], "");

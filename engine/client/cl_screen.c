@@ -2936,7 +2936,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 				break;	//zomgwtfbbq
 			}
 
-			Image_FlipImage(facedata, mips.mip[0].data + i*mips.mip[0].datasize/6, &fbwidth, &fbheight, bb, sides[i].horizontalflip, sides[i].verticalflip, false);
+			Image_FlipImage(facedata, (qbyte*)mips.mip[0].data + i*mips.mip[0].datasize/6, &fbwidth, &fbheight, bb, sides[i].horizontalflip, sides[i].verticalflip, false);
 			BZ_Free(facedata);
 		}
 		if (i == 6)

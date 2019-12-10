@@ -525,6 +525,7 @@ typedef struct client_s
 										// extracted from userinfo
 	char			guid[64]; /*+2 for split+pad*/
 	int				messagelevel;		// for filtering printed messages
+	int				autoaimdot;			//smallest dotproduct allowed for autoaim
 #ifdef HAVE_LEGACY
 	float			*dp_ping;
 	float			*dp_pl;

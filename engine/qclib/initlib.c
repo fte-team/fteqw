@@ -876,7 +876,7 @@ static struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 	if ((unsigned)progs >= (unsigned)prinst.maxedicts)
 	{
 		externs->Printf("Bad entity index %i\n", progs);
-		if (pr_depth)
+		if (prinst.pr_depth)
 		{
 			PR_StackTrace (ppf, false);
 //			progfuncs->funcs.pr_trace += 1;

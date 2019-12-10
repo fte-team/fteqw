@@ -187,7 +187,7 @@ void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed)
 
 	if (e->ereftype == ER_FREE)	//this happens on start.bsp where an onlyregistered trigger killtargets itself (when all of this sort die after 1 trigger anyway).
 	{
-		if (pr_depth)
+		if (prinst.pr_depth)
 			externs->Printf("Tried to free free entity within %s\n", pr_xfunction->s_name+progfuncs->funcs.stringtable);
 		else
 			externs->Printf("Engine tried to free free entity\n");
@@ -1699,7 +1699,7 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_
 
 	progs = -1;
 
-	if (pr_depth == 0)
+	if (prinst.pr_depth == 0)
 	{
 		AddS ("<NO STACK>\n");
 		return buf;
@@ -1707,10 +1707,10 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_
 
 	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
 
-	pr_stack[pr_depth].f = pr_xfunction;
-	for (i=pr_depth ; i>0 ; i--)
+	prinst.pr_stack[prinst.pr_depth].f = pr_xfunction;
+	for (i=prinst.pr_depth ; i>0 ; i--)
 	{
-		f = pr_stack[i].f;
+		f = prinst.pr_stack[i].f;
 
 		if (!f)
 		{
@@ -1718,9 +1718,9 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_
 		}
 		else
 		{
-			if (pr_stack[i].progsnum != progs)
+			if (prinst.pr_stack[i].progsnum != progs)
 			{
-				progs = pr_stack[i].progsnum;
+				progs = prinst.pr_stack[i].progsnum;
 
 				sprintf(buffer, "//%i %s\n", progs, pr_progstate[progs].filename);
 				AddS (buffer);
@@ -1754,7 +1754,7 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_
 			}
 			AddS ("\t}\n");
 
-			if (i == pr_depth)
+			if (i == prinst.pr_depth)
 				globalbase = prinst.localstack + prinst.localstack_used - f->locals;
 			else
 				globalbase -= f->locals;

@@ -37,7 +37,7 @@
 
 
 
-#define QCFAULT return (pr_xstatement=(st-pr_statements)-1),PR_HandleFault
+#define QCFAULT return (prinst.pr_xstatement=(st-pr_statements)-1),PR_HandleFault
 #define EVAL_FLOATISTRUE(ev) ((ev)->_int & 0x7fffffff) //mask away sign bit. This avoids using denormalized floats.
 
 #ifdef __GNUC__
@@ -55,7 +55,7 @@
 	errorif (prinst.watch_ptr && prinst.watch_ptr->_int != prinst.watch_old._int)
 	{
 		//this will fire on the next instruction after the variable got changed.
-		pr_xstatement = s;
+		prinst.pr_xstatement = s;
 		if (current_progstate->linenums)
 			externs->Printf("Watch point hit in %s:%u, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), current_progstate->linenums[s-1], prinst.watch_name);
 		else
@@ -142,7 +142,7 @@ reeval:
 	case OP_DIV_F:
 /*		errorif (OPB->_float == 0)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			externs->Printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 			PR_StackTrace (&progfuncs->funcs, 1);
 			OPC->_float = 0.0;
@@ -154,7 +154,7 @@ reeval:
 		tmpf = OPB->_float;
 /*		errorif (!tmpf)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			externs->Printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 			PR_StackTrace (&progfuncs->funcs, 1);
 		}
@@ -427,7 +427,7 @@ reeval:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_ADDRESS references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			break;
 		}
 		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
@@ -446,7 +446,7 @@ reeval:
 #endif
 				fdef_t *f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
 				if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):"??", f?f->name:"??"))
-					return pr_xstatement;
+					return prinst.pr_xstatement;
 				OPC->_int = ~0;
 				break;
 			}
@@ -457,7 +457,7 @@ reeval:
 		errorif (ed->ereftype == ER_FREE)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "assignment to free entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			break;
 		}
 #endif
@@ -467,7 +467,7 @@ reeval:
 		errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_ADDRESS references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			OPC->_int = 0;
 			break;
 		}
@@ -487,7 +487,7 @@ reeval:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			OPC->_int = 0;
 			break;
 		}
@@ -499,7 +499,7 @@ reeval:
 		if (ed->ereftype == ER_FREE)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			OPC->_int = 0;
 		}
 		else
@@ -509,7 +509,7 @@ reeval:
 			errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
 			{
 				if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-					return pr_xstatement;
+					return prinst.pr_xstatement;
 				OPC->_int = 0;
 				break;
 			}
@@ -522,7 +522,7 @@ reeval:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD_V references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			OPC->_vector[0] = 0;
 			OPC->_vector[1] = 0;
 			OPC->_vector[2] = 0;
@@ -536,7 +536,7 @@ reeval:
 		if (ed->ereftype == ER_FREE)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-				return pr_xstatement;
+				return prinst.pr_xstatement;
 			OPC->_vector[0] = 0;
 			OPC->_vector[1] = 0;
 			OPC->_vector[2] = 0;
@@ -548,7 +548,7 @@ reeval:
 			errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
 			{
 				if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-					return pr_xstatement;
+					return prinst.pr_xstatement;
 				OPC->_int = 0;
 				break;
 			}
@@ -633,7 +633,7 @@ reeval:
 			int newpr;
 			unsigned int fnum;
 			RUNAWAYCHECK();
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 
 			if (op > OP_CALL8)
 				progfuncs->funcs.callargc = op - (OP_CALL1H-1);
@@ -738,7 +738,7 @@ reeval:
 */
 		s = PR_LeaveFunction (progfuncs);
 		st = &pr_statements[s];		
-		if (pr_depth == prinst.exitdepth)
+		if (prinst.pr_depth == prinst.exitdepth)
 		{		
 			return -1;		// all done
 		}
@@ -950,7 +950,7 @@ reeval:
 		i = OPB->_float;
 		errorif((unsigned)i > (unsigned)((eval_t *)&glob[st->a-1])->_int)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError(&progfuncs->funcs, "array index out of bounds: %s[%d] (max %d)", PR_GlobalStringNoContents(progfuncs, st->a), i, ((eval_t *)&glob[st->a-1])->_int);
 		}
 		OPC->_int = ((eval_t *)&glob[st->a + i])->_int;
@@ -959,7 +959,7 @@ reeval:
 		i = OPB->_float;
 		errorif((unsigned)i > (unsigned)((eval_t *)&glob[st->a-1])->_int)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError(&progfuncs->funcs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}
 		ptr = (eval_t *)&glob[st->a + i*3];
@@ -993,7 +993,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1003,7 +1003,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1019,7 +1019,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1037,7 +1037,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1047,7 +1047,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1067,7 +1067,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1077,7 +1077,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1092,7 +1092,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1105,7 +1105,7 @@ reeval:
 		i = OPB->_int;
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
 		}
 		ptr = QCPOINTERM(i);
@@ -1266,7 +1266,7 @@ reeval:
 		//this instruction is not implemented due to the weirdness of it.
 		//its theoretically a more powerful load... but untyped?
 		//or is it meant to be an LEA instruction (that could simply be switched with OP_GLOAD_I)
-		pr_xstatement = st-pr_statements;
+		prinst.pr_xstatement = st-pr_statements;
 		PR_RunError (&progfuncs->funcs, "OP_GADDRESS not implemented (found in %s)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		break;
 	case OP_GLOAD_I:
@@ -1277,7 +1277,7 @@ reeval:
 	case OP_GLOAD_FNC:
 		errorif (OPA->_int < 0 || OPA->_int*4 >= current_progstate->globals_size)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPA->_int, current_progstate->globals_size);
 		}
 		ptr = ((eval_t *)&glob[OPA->_int]);
@@ -1286,7 +1286,7 @@ reeval:
 	case OP_GLOAD_V:
 		errorif (OPA->_int < 0 || (OPA->_int+2)*4 >= current_progstate->globals_size)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPA->_int, current_progstate->globals_size);
 		}
 		ptr = ((eval_t *)&glob[OPA->_int]);
@@ -1302,7 +1302,7 @@ reeval:
 	case OP_GSTOREP_FNC:
 		errorif (OPB->_int < 0 || OPB->_int*4 >= current_progstate->globals_size)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, (unsigned)prinst.addressableused);
 		}
 		ptr = ((eval_t *)&glob[OPB->_int]);
@@ -1311,7 +1311,7 @@ reeval:
 	case OP_GSTOREP_V:
 		errorif (OPB->_int < 0 || (OPB->_int+2)*4 >= current_progstate->globals_size)
 		{
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, (unsigned)prinst.addressableused);
 		}
 		ptr = ((eval_t *)&glob[OPB->_int]);
@@ -1338,7 +1338,7 @@ reeval:
 		if (prinst.spushed + prinst.localstack_used >= LOCALSTACK_SIZE)
 		{
 			prinst.spushed = 0;
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError(&progfuncs->funcs, "Progs pushed too much");
 		}
 		break;
@@ -1347,7 +1347,7 @@ reeval:
 		if (pr_spushed < 0)
 		{
 			pr_spushed = 0;
-			pr_xstatement = st-pr_statements;
+			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError(progfuncs, "Progs poped more than it pushed");
 		}
 		break;
@@ -1357,18 +1357,18 @@ reeval:
 		{
 			op &= ~OP_BIT_BREAKPOINT;
 			s = st-pr_statements;
-			if (pr_xstatement != s)
+			if (prinst.pr_xstatement != s)
 			{
-				pr_xstatement = s;
+				prinst.pr_xstatement = s;
 				externs->Printf("Break point hit in %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 				s = ShowStep(progfuncs, s, NULL, false);
 				st = &pr_statements[s];	//let the user move execution
-				pr_xstatement = s = st-pr_statements;
+				prinst.pr_xstatement = s = st-pr_statements;
 				op = st->op & ~OP_BIT_BREAKPOINT;
 			}
 			goto reeval;	//reexecute
 		}
-		pr_xstatement = st-pr_statements;
+		prinst.pr_xstatement = st-pr_statements;
 		PR_RunError (&progfuncs->funcs, "Bad opcode %i", st->op);
 	}
 }

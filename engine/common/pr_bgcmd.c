@@ -2512,6 +2512,87 @@ void PF_fcloseall (pubprogfuncs_t *prinst)
 	PF_buf_shutdown(prinst);	//might as well put this here
 }
 
+void QCBUILTIN PF_fcopy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *srcname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *dstname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *fallbackread, *fallbackwrite;
+	vfsfile_t *src, *dst;
+	char buffer[65536];
+	int sz;
+	G_FLOAT(OFS_RETURN) = -1;
+	if (QC_FixFileName(srcname, &srcname, &fallbackread))
+	{
+		if (QC_FixFileName(dstname, &dstname, &fallbackwrite))
+		{
+			src = FS_OpenVFS(srcname, "rb", FS_GAME);
+			if (!src)
+				src = FS_OpenVFS(fallbackread, "rb", FS_GAME);
+			if (src)
+			{
+				dst = FS_OpenVFS(srcname, "wbp", FS_GAMEONLY);	//lets mark it as persistent. this is probably profile data after all.
+				if (dst)
+				{
+					while ((sz = VFS_READ(src, buffer, sizeof(buffer)))>0)
+					{
+						if (sz != VFS_WRITE(dst, buffer, sz))
+							G_FLOAT(OFS_RETURN) = -3;	//weird errors...
+					}
+					G_FLOAT(OFS_RETURN) = 0;	//success...
+					VFS_CLOSE(dst);
+				}
+				else
+					G_FLOAT(OFS_RETURN) = -2;	//output failure
+				VFS_CLOSE(src);
+			}
+		}
+	}
+}
+void QCBUILTIN PF_frename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *srcname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *dstname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *fallbackread, *fallbackwrite; //not actually used, but present because QC_FixFileName wants a fallback
+	G_FLOAT(OFS_RETURN) = -1; //some kind of dodgy path problem
+	if (QC_FixFileName(srcname, &srcname, &fallbackread))
+		if (QC_FixFileName(dstname, &dstname, &fallbackwrite))
+		{
+			if (FS_Rename(srcname, dstname, FS_GAMEONLY))
+				G_FLOAT(OFS_RETURN) = 0;
+			else
+				G_FLOAT(OFS_RETURN) = -5; //random, but whatever
+		}
+}
+void QCBUILTIN PF_fremove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *fname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *fallbackread; //not actually used, but present because QC_FixFileName wants a fallback
+	G_FLOAT(OFS_RETURN) = -1; //some kind of dodgy path problem
+	if (QC_FixFileName(fname, &fname, &fallbackread))
+	{
+		if (FS_Remove(fname, FS_GAMEONLY))
+			G_FLOAT(OFS_RETURN) = 0;
+		else
+			G_FLOAT(OFS_RETURN) = -5; //random, but whatever
+	}
+}
+void QCBUILTIN PF_fexists (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *srcname = PR_GetStringOfs(prinst, OFS_PARM0);
+	flocation_t loc;
+
+	int depth = FS_FLocateFile(srcname, FSLF_DEPTH_INEXPLICIT, &loc);
+
+	if (depth == 1)
+		G_FLOAT(OFS_RETURN) = true;		//exists and should be in the writable path.
+	else
+		G_FLOAT(OFS_RETURN) = false;	//doesn't exist / not writable / etc, should match wrath.
+}
+void QCBUILTIN PF_rmtree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *fname = PR_GetStringOfs(prinst, OFS_PARM0);
+	Con_Printf("rmtree(\"%s\"): rmtree is not implemented at this\n", fname);
+}
 
 //DP_QC_WHICHPACK
 void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

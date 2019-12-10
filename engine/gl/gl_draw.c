@@ -938,9 +938,9 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				for (j = 0; j < min(6, mips->mip[i].depth); j++)
 				{
 					if (gl_config.formatinfo[encoding].type)
-						qglTexSubImage2D			(cubeface[j], i, 0, 0, mips->mip[i].width, mips->mip[i].height, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data + sz*j);
+						qglTexSubImage2D			(cubeface[j], i, 0, 0, mips->mip[i].width, mips->mip[i].height, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, (qbyte*)mips->mip[i].data + sz*j);
 					else
-						qglCompressedTexSubImage2D	(cubeface[j], i, 0, 0, mips->mip[i].width, mips->mip[i].height,	ifmt,																	sz, mips->mip[i].data + sz*j);
+						qglCompressedTexSubImage2D	(cubeface[j], i, 0, 0, mips->mip[i].width, mips->mip[i].height,	ifmt,																	sz, (qbyte*)mips->mip[i].data + sz*j);
 				}
 			}
 		}
@@ -954,9 +954,9 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				for (j = 0; j < min(6, mips->mip[i].depth); j++)
 				{
 					if (gl_config.formatinfo[encoding].type)
-						qglTexImage2D			(cubeface[j], i, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data + sz*j);
+						qglTexImage2D			(cubeface[j], i, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, (qbyte*)mips->mip[i].data + sz*j);
 					else
-						qglCompressedTexImage2D	(cubeface[j], i, ifmt, mips->mip[i].width, mips->mip[i].height,	0,                                                                         sz, mips->mip[i].data + sz*j);
+						qglCompressedTexImage2D	(cubeface[j], i, ifmt, mips->mip[i].width, mips->mip[i].height,	0,                                                                         sz, (qbyte*)mips->mip[i].data + sz*j);
 				}
 			}
 		}
@@ -1118,7 +1118,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 					out.mip[i].height = mips->mip[i].height;
 					out.mip[i].depth = 6;
 					for (j = 0; j < 6; j++)
-						qglGetCompressedTexImage(targ, j, out.mip[i].data + csize*j);
+						qglGetCompressedTexImage(targ, j, (qbyte*)out.mip[i].data + csize*j);
 				}
 				else
 				{

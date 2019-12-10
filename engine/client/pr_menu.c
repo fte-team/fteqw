@@ -2567,6 +2567,19 @@ static struct {
 	{"digest_ptr",				PF_digest_ptr,				0},
 //	{NULL,						PF_Fixme,					640},
 	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
+//	{NULL,						PF_Fixme,					642},
+//	{NULL,						PF_Fixme,					643},
+//	{NULL,						PF_Fixme,					644},
+//	{NULL,						PF_Fixme,					645},
+//	{NULL,						PF_Fixme,					646},
+//	{NULL,						PF_Fixme,					647},
+//	{NULL,						PF_Fixme,					648},
+//	{NULL,						PF_Fixme,					649},
+	{"fcopy",					PF_fcopy,					650},
+	{"frename",					PF_frename,					651},
+	{"fremove",					PF_fremove,					652},
+	{"fexists",					PF_fexists,					653},
+	{"rmtree",					PF_rmtree,					654},
 
 
 	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
@@ -2849,6 +2862,11 @@ pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc, c
 	if (crc == 10020)
 		return true;	//its okay
 	Con_Printf("progs crc is invalid for %s\n", filename);
+	if (crc == 12776)
+	{	//whoever wrote wrath fucked up.
+		Con_Printf("(please correct .src include orders)\n");
+		return true;
+	}
 	return false;
 }
 

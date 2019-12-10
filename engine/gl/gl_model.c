@@ -2822,8 +2822,8 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 static void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
 {
 	texture_t *base = batch->texture;
-	int		reletive;
-	int		count;
+	unsigned int	relative;
+	int				count;
 
 	if (batch->ent->framestate.g[FS_REG].frame[0])
 	{
@@ -2833,10 +2833,10 @@ static void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
 
 	if (base->anim_total)
 	{
-		reletive = (int)(cl.time*10) % base->anim_total;
+		relative = (unsigned int)(cl.time*10) % base->anim_total;
 
 		count = 0;
-		while (base->anim_min > reletive || base->anim_max <= reletive)
+		while (base->anim_min > relative || base->anim_max <= relative)
 		{
 			base = base->anim_next;
 			if (!base)

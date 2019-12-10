@@ -567,7 +567,7 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 					}
 					else if (ret->mip[0].datasize != mips->mip[m].datasize/layers)
 						break;	//erk..?
-					memcpy(mips->mip[m].data + l * ret->mip[0].datasize, ret->mip[0].data, ret->mip[0].datasize);
+					memcpy((qbyte*)mips->mip[m].data + l * ret->mip[0].datasize, ret->mip[0].data, ret->mip[0].datasize);
 				}
 				continue;
 			}
@@ -823,7 +823,7 @@ static struct pendingtextureinfo *ImgTool_Combine(struct opts_s *args, const cha
 					Con_Printf("%s: mismatched mipmap sizes\n", namelist[i]);
 					continue;
 				}
-				memcpy(r->mip[j].data + t->mip[j].datasize*r->mip[j].depth, t->mip[j].data, t->mip[j].datasize);
+				memcpy((qbyte*)r->mip[j].data + t->mip[j].datasize*r->mip[j].depth, t->mip[j].data, t->mip[j].datasize);
 				r->mip[j].depth++;
 			}
 		}

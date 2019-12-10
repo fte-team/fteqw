@@ -97,7 +97,7 @@ static cvar_t	joy_anglesens[3] =
 {
 #define ANGLESENSDESC "Scaler value for the controller when it is at its most extreme value"
 	CVARD("joypitchsensitivity", "0.5", ANGLESENSDESC),
-	CVARD("joyyawsensitivity", "-1.0", ANGLESENSDESC),
+	CVARD("joyyawsensitivity", "1.0", ANGLESENSDESC),
 	CVARD("joyrollsensitivity", "1.0", ANGLESENSDESC)
 };
 static cvar_t	joy_movesens[3] =

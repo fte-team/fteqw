@@ -4405,6 +4405,11 @@ void CL_Fog_f(void)
 
 		if (Cmd_FromGamecode())
 			cl.fog_locked = !!cl.fog[ftype].density;
+
+#ifdef HAVE_LEGACY
+		if (cl.fog[ftype].colour[0] > 1 || cl.fog[ftype].colour[1] > 1 || cl.fog[ftype].colour[2] > 1)
+			Con_DPrintf(CON_WARNING "Fog is oversaturated. This can result in compatibility issues.\n");
+#endif
 	}
 }
 

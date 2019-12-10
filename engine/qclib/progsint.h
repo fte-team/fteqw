@@ -150,9 +150,7 @@ typedef struct prinst_s
 	//call stack
 #define	MAX_STACK_DEPTH		1024	//insanely high value requried for xonotic.
 	prstack_t pr_stack[MAX_STACK_DEPTH];
-#define pr_stack prinst.pr_stack
 	int pr_depth;
-#define pr_depth prinst.pr_depth
 	int spushed;
 
 	//locals
@@ -170,7 +168,6 @@ typedef struct prinst_s
 	mfunction_t	*pr_xfunction;	//active function
 #define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;			//active statement
-#define pr_xstatement prinst.pr_xstatement
 
 //pr_edict.c
 	evalc_t spawnflagscache;

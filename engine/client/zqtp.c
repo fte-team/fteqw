@@ -1735,6 +1735,9 @@ static void TP_MsgTrigger_f (void)
 	char	*name;
 	msg_trigger_t	*trig;
 
+	if (Cmd_IsInsecure())
+		return;
+
 	c = Cmd_Argc();
 
 	if (c > 5) {

@@ -336,7 +336,7 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 			{
 				subresdesc[i+layer*mips->mipcount].SysMemPitch = ((mips->mip[i].width+blockwidth-1)/blockwidth) * blockbytes;
 				subresdesc[i+layer*mips->mipcount].SysMemSlicePitch = subresdesc[i].SysMemPitch * ((mips->mip[i].width+blockheight-1)/blockheight);
-				subresdesc[i+layer*mips->mipcount].pSysMem = mips->mip[i].data + subresdesc[i+layer*mips->mipcount].SysMemSlicePitch*layer;
+				subresdesc[i+layer*mips->mipcount].pSysMem = (qbyte*)mips->mip[i].data + subresdesc[i+layer*mips->mipcount].SysMemSlicePitch*layer;
 			}
 		}
 		tdesc.MipLevels = mips->mipcount;

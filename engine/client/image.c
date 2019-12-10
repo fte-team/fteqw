@@ -2649,6 +2649,7 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 		|| pcx->version != 5
 		|| pcx->encoding != 1
 		|| pcx->bits_per_pixel != 8
+		|| pcx->color_planes != 1
 		|| swidth >= 1024
 		|| sheight >= 1024)
 	{
@@ -4890,7 +4891,7 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_RGBA5551:			header.glinternalformat = 0x8057/*GL_RGB5_A1*/;				header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x1908/*GL_RGBA*/;			header.gltype = 0x8034/*GL_UNSIGNED_SHORT_5_5_5_1*/;		header.gltypesize = 2; break;
 	case PTI_ARGB1555:			header.glinternalformat = 0x8057/*GL_RGB5_A1*/;				header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x80E1/*GL_BGRA*/;			header.gltype = 0x8366/*GL_UNSIGNED_SHORT_1_5_5_5_REV*/;	header.gltypesize = 2; break;
 	case PTI_DEPTH16:			header.glinternalformat = 0x81A5/*GL_DEPTH_COMPONENT16*/;	header.glbaseinternalformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.glformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.gltype = 0x1403/*GL_UNSIGNED_SHORT*/;				header.gltypesize = 2; break;
-	case PTI_DEPTH24:			header.glinternalformat = 0x81A6/*GL_DEPTH_COMPONENT24*/;	header.glbaseinternalformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.glformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.gltype = 0x1405/*GL_UNSIGNED_INT*/;					header.gltypesize = 4; break;
+	case PTI_DEPTH24:			header.glinternalformat = 0x81A6/*GL_DEPTH_COMPONENT24*/;	header.glbaseinternalformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.glformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.gltype = 0x1405/*GL_UNSIGNED_INT*/;					header.gltypesize = 3; break;
 	case PTI_DEPTH32:			header.glinternalformat = 0x81A7/*GL_DEPTH_COMPONENT32*/;	header.glbaseinternalformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.glformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.gltype = 0x1406/*GL_FLOAT*/;							header.gltypesize = 4; break;
 	case PTI_DEPTH24_8:			header.glinternalformat = 0x88F0/*GL_DEPTH24_STENCIL8*/;	header.glbaseinternalformat = 0x84F9/*GL_DEPTH_STENCIL*/;	header.glformat = 0x84F9/*GL_DEPTH_STENCIL*/;	header.gltype = 0x84FA/*GL_UNSIGNED_INT_24_8*/;				header.gltypesize = 4; break;
 
@@ -4947,7 +4948,7 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 			unsigned int pad = 0, y;
 			for (y = 0; y < brows; y++)
 			{
-				VFS_WRITE(file, mips->mip[mipnum].data + browbytes*y, browbytes);
+				VFS_WRITE(file, (qbyte*)mips->mip[mipnum].data + browbytes*y, browbytes);
 				VFS_WRITE(file, &pad, 4-(browbytes&3));
 			}
 		}
@@ -4959,39 +4960,50 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	VFS_CLOSE(file);
 	return true;
 }
+
+#define LongSwap(i) (((i&0xff000000) >> 24)|((i&0x00ff0000) >> 8)|((i&0x0000ff00) << 8)|((i&0x000000ff) << 24))
+#define ShortSwap(i) (((i&0xff00) >> 8)|((i&0x00ff) << 8))
 static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	static const char magic[12] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
-	ktxheader_t *header;
+	ktxheader_t header;
 	int nummips;
 	int mipnum;
 	int face;
 	int datasize;
-	unsigned int w, h, d, f, l, browbytes,padbytes,y,rows;
+	unsigned int w, h, d, f, l, browbytes,padbytes,y,x,rows;
 	struct pendingtextureinfo *mips;
 	int encoding = TF_INVALID;
-	qbyte *fileend = filedata + filesize;
+	const qbyte *fileend = filedata + filesize;
 
 	unsigned int blockwidth, blockheight, blockbytes;
 
-	if (filesize < sizeof(magic) || memcmp(filedata, magic, sizeof(magic)))
+	if (filesize < sizeof(ktxheader_t) || memcmp(filedata, magic, sizeof(magic)))
 		return NULL;	//not a ktx file
 
-	header = (ktxheader_t*)filedata;
-	nummips = header->numberofmipmaplevels;
+	header = *(const ktxheader_t*)filedata;
+	if (header.endianness == 0x01020304)
+	{	//swap the rest of the header.
+		for (w = offsetof(ktxheader_t, endianness); w < sizeof(ktxheader_t); w+=sizeof(int))
+			((int*)&header)[w/sizeof(int)] = LongSwap(((int*)&header)[w/sizeof(int)]);
+	}
+	else if (header.endianness != 0x04030201)
+		return NULL;
+
+	nummips = header.numberofmipmaplevels;
 	if (nummips < 1)
 		nummips = 1;
 
 //	if (header->numberofarrayelements != 0)
 //		return NULL;	//don't support array textures
-	if (header->numberoffaces == 1)
+	if (header.numberoffaces == 1)
 		;	//non-cubemap
-	else if (header->numberoffaces == 6)
+	else if (header.numberoffaces == 6)
 	{
-		if (header->numberofarrayelements != 0)
+		if (header.numberofarrayelements != 0)
 			return NULL;	//don't support array textures
 
-		if (header->pixeldepth != 0)
+		if (header.pixeldepth != 0)
 			return NULL;
 //		if (header->numberofmipmaplevels != 1)
 //			return false;	//only allow cubemaps that have no mips
@@ -5002,7 +5014,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 //		return NULL;	//we only support 3d textures where width+height+depth are the same. too lazy to change it now.
 
 	/*FIXME: validate format+type for non-compressed formats*/
-	switch(header->glinternalformat)
+	switch(header.glinternalformat)
 	{
 	case 0x8D64/*GL_ETC1_RGB8_OES*/:							encoding = PTI_ETC1_RGB8;			break;
 	case 0x9270/*GL_COMPRESSED_R11_EAC*/:						encoding = PTI_EAC_R11;				break;
@@ -5061,9 +5073,9 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x93DD/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR*/:	encoding = PTI_ASTC_12X12_SRGB;		break;
 	case 0x80E1/*GL_BGRA_EXT*/:									encoding = PTI_BGRA8;				break;	//not even an internal format
 	case 0x1908/*GL_RGBA*/:
-	case 0x8058/*GL_RGBA8*/:									encoding = (header->glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8:PTI_RGBA8;			break;	//unsized types shouldn't really be here
+	case 0x8058/*GL_RGBA8*/:									encoding = (header.glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8:PTI_RGBA8;			break;	//unsized types shouldn't really be here
 	case 0x805B/*GL_RGBA16*/:									encoding = PTI_RGBA16;				break;
-	case 0x8C43/*GL_SRGB8_ALPHA8*/:								encoding = (header->glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8_SRGB:PTI_RGBA8_SRGB;	break;
+	case 0x8C43/*GL_SRGB8_ALPHA8*/:								encoding = (header.glformat==0x80E1/*GL_BGRA*/)?PTI_BGRA8_SRGB:PTI_RGBA8_SRGB;	break;
 	case 0x8040/*GL_LUMINANCE8*/:								encoding = PTI_L8;					break;
 	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:						encoding = PTI_L8A8;				break;
 	case 0x881A/*GL_RGBA16F_ARB*/:								encoding = PTI_RGBA16F;				break;
@@ -5083,9 +5095,9 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 
 	case 0x8C40/*GL_SRGB*/:
 	case 0x8C41/*GL_SRGB8*/:
-		if (header->glformat==0x80E1/*GL_BGRA*/)
+		if (header.glformat==0x80E1/*GL_BGRA*/)
 			encoding = PTI_BGRX8_SRGB;
-		else if (header->glformat==0x1908/*GL_RGBA*/)
+		else if (header.glformat==0x1908/*GL_RGBA*/)
 			encoding = PTI_RGBX8_SRGB;
 		break;
 
@@ -5094,41 +5106,41 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x8C3D/*GL_RGB9_E5*/:
 	case 0x8D62/*GL_RGB565*/:
 	case 0x8C3A/*GL_R11F_G11F_B10F*/:
-		if (header->glformat == 0x80E0/*GL_BGR*/)
+		if (header.glformat == 0x80E0/*GL_BGR*/)
 			encoding = PTI_BGR8;
-		else if (header->glformat == 0x80E1/*GL_BGRA*/)
+		else if (header.glformat == 0x80E1/*GL_BGRA*/)
 			encoding = PTI_BGRX8;
-		else if (header->glformat == 0x1907/*GL_RGB*/)
+		else if (header.glformat == 0x1907/*GL_RGB*/)
 		{
-			if (header->gltype == 0x8C3B/*GL_UNSIGNED_INT_10F_11F_11F_REV*/)
+			if (header.gltype == 0x8C3B/*GL_UNSIGNED_INT_10F_11F_11F_REV*/)
 				encoding = PTI_B10G11R11F;
-			else if (header->gltype == 0x8C3E/*GL_UNSIGNED_INT_5_9_9_9_REV*/)
+			else if (header.gltype == 0x8C3E/*GL_UNSIGNED_INT_5_9_9_9_REV*/)
 				encoding = PTI_E5BGR9;
-			else if (header->gltype == 0x8363/*GL_UNSIGNED_SHORT_5_6_5*/)
+			else if (header.gltype == 0x8363/*GL_UNSIGNED_SHORT_5_6_5*/)
 				encoding = PTI_RGB565;
 			else
 				encoding = PTI_RGB8;
 		}
-		else if (header->glformat == 0x1908/*GL_RGBA*/)
+		else if (header.glformat == 0x1908/*GL_RGBA*/)
 			encoding = PTI_RGBX8;
 		else
 			encoding = PTI_RGB8;
 		break;
 	case 0x8056/*GL_RGBA4*/:
 	case 0x8057/*GL_RGB5_A1*/:
-		if (header->glformat == 0x1908/*GL_RGBA*/ && header->gltype == 0x8034/*GL_UNSIGNED_SHORT_5_5_5_1*/)
+		if (header.glformat == 0x1908/*GL_RGBA*/ && header.gltype == 0x8034/*GL_UNSIGNED_SHORT_5_5_5_1*/)
 			encoding = PTI_RGBA5551;
-		else if (header->glformat == 0x80E1/*GL_BGRA*/ && header->gltype == 0x8366/*GL_UNSIGNED_SHORT_1_5_5_5_REV*/)
+		else if (header.glformat == 0x80E1/*GL_BGRA*/ && header.gltype == 0x8366/*GL_UNSIGNED_SHORT_1_5_5_5_REV*/)
 			encoding = PTI_ARGB1555;
-		else if (header->glformat == 0x1908/*GL_RGBA*/ && header->gltype == 0x8033/*GL_UNSIGNED_SHORT_4_4_4_4*/)
+		else if (header.glformat == 0x1908/*GL_RGBA*/ && header.gltype == 0x8033/*GL_UNSIGNED_SHORT_4_4_4_4*/)
 			encoding = PTI_RGBA4444;
-		else if (header->glformat == 0x80E1/*GL_BGRA*/ && header->gltype == 0x8365/*GL_UNSIGNED_SHORT_4_4_4_4_REV*/)
+		else if (header.glformat == 0x80E1/*GL_BGRA*/ && header.gltype == 0x8365/*GL_UNSIGNED_SHORT_4_4_4_4_REV*/)
 			encoding = PTI_ARGB4444;
 		break;
 	}
 	if (encoding == TF_INVALID)
 	{
-		Con_Printf("Unsupported ktx internalformat %x in %s\n", header->glinternalformat, fname);
+		Con_Printf("Unsupported ktx internalformat %x in %s\n", header.glinternalformat, fname);
 		return NULL;
 	}
 
@@ -5140,13 +5152,13 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 
 	mips = Z_Malloc(sizeof(*mips));
 	mips->mipcount = 0;
-	if (header->pixeldepth)
+	if (header.pixeldepth)
 		mips->type = PTI_3D;
-	else if (header->numberoffaces==6)
+	else if (header.numberoffaces==6)
 	{
-		if (header->numberofarrayelements)
+		if (header.numberofarrayelements)
 		{
-			header->pixeldepth = header->numberofarrayelements*6;
+			header.pixeldepth = header.numberofarrayelements*6;
 			mips->type = PTI_CUBE_ARRAY;
 		}
 		else
@@ -5154,38 +5166,41 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	}
 	else
 	{
-		if (header->numberofarrayelements)
+		if (header.numberofarrayelements)
 		{
-			header->pixeldepth = header->numberofarrayelements;
+			header.pixeldepth = header.numberofarrayelements;
 			mips->type = PTI_2D_ARRAY;
 		}
 		else
 		{
-			header->pixeldepth = 1;
+			header.pixeldepth = 1;
 			mips->type = PTI_2D;
 		}
 	}
 	mips->extrafree = filedata;
 	mips->encoding = encoding;
 
-	filedata += sizeof(*header);			//skip the header...
-	filedata += header->bytesofkeyvaluedata;	//skip the keyvalue stuff
+	filedata += sizeof(header);			//skip the header...
+	filedata += header.bytesofkeyvaluedata;	//skip the keyvalue stuff
 
-	if (nummips * header->numberoffaces > countof(mips->mip))
-		nummips = countof(mips->mip) / header->numberoffaces;
+	if (nummips * header.numberoffaces > countof(mips->mip))
+		nummips = countof(mips->mip) / header.numberoffaces;
 
 	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
 
-	w = header->pixelwidth;
-	h = max(1, header->pixelheight);
-	d = max(1, header->pixeldepth);
-	f = max(1, header->numberoffaces);
-	l = max(1, header->numberofarrayelements);
+	w = header.pixelwidth;
+	h = max(1, header.pixelheight);
+	d = max(1, header.pixeldepth);
+	f = max(1, header.numberoffaces);
+	l = max(1, header.numberofarrayelements);
 
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
 		datasize = *(int*)filedata;
 		filedata += 4;
+
+		if (header.endianness == 0x01020304)
+			datasize = LongSwap(datasize);
 
 		browbytes = blockbytes * ((w+blockwidth-1)/blockwidth);
 		padbytes = (browbytes & 3)?4-(browbytes&3):0;
@@ -5208,15 +5223,31 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 		mips->mip[mips->mipcount].height = h;
 		mips->mip[mips->mipcount].depth = d*l*f;
 
-		if (padbytes)
-		{
-			//gah
+		if (padbytes || header.endianness == 0x01020304)
+		{	//gah.
+			//the ktx format is 4-byte aligned. our internal representation is tightly packed (consistent with everything but gl).
+			//in the case of byteswapping, any data types should work out okay (no misaligned stuff).
 			rows *= l*f;
 			mips->mip[mips->mipcount].needfree = true;
 			mips->mip[mips->mipcount].datasize = browbytes * rows;
 			mips->mip[mips->mipcount].data = BZ_Malloc(mips->mip[mips->mipcount].datasize);
-			for (y = 0; y < rows; y++)
-				memcpy(mips->mip[mips->mipcount].data + y*browbytes, filedata + y*browbytes+padbytes, browbytes);
+			if (header.gltypesize == 4 && header.endianness == 0x01020304)
+			{
+				for (y = 0; y < rows; y++)
+					for (x = 0; x < browbytes>>2; x++)
+						((int*)((qbyte*)mips->mip[mips->mipcount].data + y*browbytes))[x] = LongSwap(((int*)filedata + y*browbytes+padbytes)[x]);
+			}
+			else if (header.gltypesize == 2 && header.endianness == 0x01020304)
+			{
+				for (y = 0; y < rows; y++)
+					for (x = 0; x < browbytes>>1; x++)
+						((short*)((qbyte*)mips->mip[mips->mipcount].data + y*browbytes))[x] = ShortSwap(((short*)filedata + y*browbytes+padbytes)[x]);
+			}
+			else
+			{	//erk, panic...
+				for (y = 0; y < rows; y++)
+					memcpy((qbyte*)mips->mip[mips->mipcount].data + y*browbytes, filedata + y*browbytes+padbytes, browbytes);
+			}
 		}
 		else
 		{
@@ -5241,7 +5272,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 #ifdef ASTC_WITH_HDRTEST
 	if (encoding >= PTI_ASTC_4X4_LDR && encoding <= PTI_ASTC_12X12_LDR)
 	{
-		for (face = 0; face < header->numberoffaces; face++)
+		for (face = 0; face < header.numberoffaces; face++)
 		{
 			if (ASTC_BlocksAreHDR(mips->mip[face].data, mips->mip[face].datasize, blockwidth, blockheight, 1))
 			{	//convert it to one of the hdr formats if we can.
@@ -6014,7 +6045,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 		for (mipnum = 0; mipnum < h9.dwMipMapCount; mipnum++)
 		{
 			size_t sz = mips->mip[mipnum].datasize / arraysize;
-			VFS_WRITE(file, mips->mip[mipnum].data + sz*a, sz);
+			VFS_WRITE(file, (qbyte*)mips->mip[mipnum].data + sz*a, sz);
 		}
 	}
 
@@ -12286,7 +12317,7 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 
 							if (!(texflags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 								BoostGamma(data, width, height, format);
-							Image_FlipImage(data, mips->mip[0].data + i*width*height*bb, &width, &height, bb, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
+							Image_FlipImage(data, (qbyte*)mips->mip[0].data + i*width*height*bb, &width, &height, bb, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
 							BZ_Free(data);
 
 							BZ_Free(buf);

@@ -61,10 +61,6 @@ typedef struct sfx_s
 	qboolean syspath:1; //if the sound is still relevent
 
 	int loopstart;	//-1 or sample index to begin looping at once the sample ends
-
-#ifdef AVAIL_OPENAL
-	unsigned int	openal_buffer;
-#endif
 } sfx_t;
 
 // !!! if this is changed, it much be changed in asm_i386.h too !!!

@@ -154,6 +154,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes")			#
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-definition")		#k&r c is weird and can't cope with 64bit types.
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-declaration")		#
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wpointer-arith")				#void* stuff
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wvla")							#msvc doesn't support vla
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wdeclaration-after-statement")	#msvc doesn't allow defs after statements, and they're so very tempting...
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wc++-compat")	#lul

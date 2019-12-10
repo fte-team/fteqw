@@ -63,7 +63,8 @@ cvar_t	noexit = CVAR("noexit", "0");
 extern cvar_t sv_specprint;
 
 //cvar_t	sv_aim = {"sv_aim", "0.93"};
-cvar_t	sv_aim = CVAR("sv_aim", "2");
+cvar_t	sv_aim = CVARD("sv_aim", "2", "The value should be cos(angle), where angle is the greatest allowed angle from which to deviate from the direction the shot would have been along. Values >1 thus disable auto-aim. This can be overridden with setinfo aim 0.73.");
+cvar_t	sv_maxaim = CVARD("sv_maxaim", "22", "The maximum acceptable angle for autoaiming.");
 
 extern cvar_t pr_autocreatecvars;
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
@@ -4859,34 +4860,29 @@ void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t	start, dir, end, bestdir;
 	int		i, j;
 	trace_t	tr;
-	float	dist, bestdist = sv_aim.value;
-	char	*noaim;
+	float	dist, bestdist;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
 //	speed = G_FLOAT(OFS_PARM1);
 
-	VectorCopy (ent->v->origin, start);
-	start[2] += 20;
 
-// noaim option
+	//figure out the angle we're allowed to aim at
 	i = NUM_FOR_EDICT(prinst, ent);
 	if (i>0 && i<sv.allocated_client_slots)
-	{
-		noaim = InfoBuf_ValueForKey (&svs.clients[i-1].userinfo, "noaim");
-		if (atoi(noaim) > 0)
-		{
-			VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
-			return;
-		}
-
-		noaim = InfoBuf_ValueForKey (&svs.clients[i-1].userinfo, "aim");
-		if (noaim)
-		{
-			dist = atof(noaim);
-			if (dist > 0)
-				bestdist = dist;
-		}
+		bestdist = svs.clients[i-1].autoaimdot;
+	else
+		bestdist = sv_aim.value;
+	if (bestdist >= 1)
+	{	//autoaim disabled, early out and just aim straight
+		VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
+		return;
 	}
+	dist = cos(sv_maxaim.value);
+	bestdist = max(bestdist, dist);
+
+
+	VectorCopy (ent->v->origin, start);
+	start[2] += ent->v->view_ofs[2]; //the view position is at 22, but the gun position is normally at 16.
 
 // try sending a trace straight
 	VectorCopy (P_VEC(v_forward), dir);
@@ -10471,7 +10467,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"pointcontents",	PF_pointcontents,	41,		41,		41,		0,	D("float(vector pos)", "Checks the given point to see what is there. Returns one of the SOLID_* constants. Just because a spot is empty does not mean that the player can stand there due to the size of the player - use tracebox for such tests.")},
 //	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
 	{"fabs",			PF_fabs,			43,		43,		43,		0,	D("float(float)", "Removes the sign of the float, making it positive if it is negative.")},
-	{"aim",				PF_aim,				44,		44,		44,		0,	D("vector(entity player, float missilespeed)", "Returns a direction vector (specifically v_forward on error). This builtin attempts to guess what pitch angle to fire projectiles at for people that don't know about mouselook. Does not affect yaw angles.")},	//44
+	{"aim",				PF_aim,				44,		44,		44,		0,	D("vector(entity player, float missilespeed)", "Returns a tweaked copy of the v_forward vector (must be set! ie: makevectors(player.v_angle) ). This is important for keyboard users (that don't want to have to look up/down the whole time), as well as joystick users (who's aim is otherwise annoyingly imprecise). Only the upwards component of the result will differ from the value of v_forward. The builtin will select the enemy closest to the crosshair within the angle of acos(sv_aim).")},	//44
 	{"cvar",			PF_cvar,			45,		45,		45,		0,	D("float(string)", "Returns the numeric value of the named cvar")},
 	{"localcmd",		PF_localcmd,		46,		46,		46,		0,	D("void(string, ...)", "Adds the string to the console command queue. Commands will not be executed immediately, but rather at the start of the following frame.")},
 	{"nextent",			PF_nextent,			47,		47,		47,		0,	D("entity(entity)", "Returns the following entity. Skips over removed entities. Returns world when passed the last valid entity.")},
@@ -11326,6 +11322,14 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"float(float i)"	STUB},
 
 	//end dp extras
+
+	//wrath extras...
+	{"fcopy",			PF_fcopy,			0,		0,		0,		650,	D("float(string src, string dst)",	"Equivelent to fopen+fread+fwrite+fclose from QC (ie: reads from $gamedir/data/ or $gamedir, but always writes to $gamedir/data/ )")},
+	{"frename",			PF_frename,			0,		0,		0,		651,	D("float(string src, string dst)",	"Renames the file, returning 0 on success. Both paths are relative to the data/ subdir.")},
+	{"fremove",			PF_fremove,			0,		0,		0,		652,	D("float(string fname)",	"Deletes the named file - path is relative to data/ subdir, like fopen's FILE_WRITE. Returns 0 on success.")},
+	{"fexists",			PF_fexists,			0,		0,		0,		653,	D("float(string fname)",	"Use whichpack instead. Returns true if it exists inside the default writable path.")},
+	{"rmtree",			PF_rmtree,			0,		0,		0,		654,	D("float(string path)",		"Dangerous, but sandboxed to data/")},
+	//end wrath extras
 
 	{"getrmqeffectsversion",PF_Ignore,		0,		0,		0,		666,	"float()" STUB},
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin

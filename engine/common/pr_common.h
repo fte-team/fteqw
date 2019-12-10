@@ -338,6 +338,12 @@ void QCBUILTIN PF_strireplace (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_randomvector (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void QCBUILTIN PF_fcopy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_frename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fremove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fexists (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_rmtree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

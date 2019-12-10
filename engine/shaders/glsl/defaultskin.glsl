@@ -399,6 +399,15 @@ void main ()
 #ifdef ALPHATEST
     if (!(col.a ALPHATEST))
         discard;
+#elif defined(MASK)
+	#if defined(MASKLT)
+		if (col.a < MASK)
+			discard;
+	#else
+		if (col.a >= MASK)
+			discard;
+	#endif
+    col.a = 1.0;    //alpha blending AND alpha testing usually looks stupid, plus it screws up our fog.
 #endif
 
 	gl_FragColor = fog4(col);

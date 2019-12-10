@@ -1086,27 +1086,42 @@ console.log("onerror: " + _url);
 		//match emscripten's openal support.
 		if (!buf)
 			return;
-		buf = buf - 1;
+		
+		var albuf = ctx.buffers[buf];
+		ctx.buffers[buf] = null; //alIsBuffer will report it as invalid now
 
 		var ctx = AL.currentContext || AL.currentCtx;
 		try
 		{
 			//its async, so it needs its own copy of an arraybuffer
 			var abuf = new ArrayBuffer(datasize);
-			new Uint8Array(abuf).set(HEAPU8.subarray(dataptr, dataptr+datasize));
-			AL.currentContext.ctx.decodeAudioData(abuf, function(buffer)
-			{
-				ctx.buf[buf] = buffer;
-			}, function()
-			{
-				console.log("Audio Callback failed!");
-			});
+			Uint8Array(abuf).set(HEAPU8.subarray(dataptr, dataptr+datasize));
+			AL.currentContext.ctx.decodeAudioData(abuf,
+					function(buffer)
+					{
+						//Warning: This depends upon emscripten's specific implementation of alBufferData
+						albuf.bytesPerSample = 2;
+						albuf.channels = 1;
+						albuf.length = 1;
+						albuf.frequency = 11025;
+						albuf.audioBuf = buffer;
+
+						ctx.buffers[buf] = albuf;	//and its valid again!
+					},
+					function()
+					{
+						console.log("Audio Callback failed!");
+						ctx.buffers[buf] = albuf;
+					}
+				);
 		}
 		catch (e)
 		{
 			console.log("unable to decode audio data");
 			console.log(e);
+			ctx.buffers[buf] = albuf;
 		}
+		return id;
 	},
 
 	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize, fname)

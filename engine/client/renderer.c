@@ -2480,8 +2480,8 @@ Returns the proper texture for a given time and base texture
 */
 texture_t *R_TextureAnimation (int frame, texture_t *base)
 {
-	int		reletive;
-	int		count;
+	unsigned int	relative;
+	int				count;
 
 	if (frame)
 	{
@@ -2492,10 +2492,10 @@ texture_t *R_TextureAnimation (int frame, texture_t *base)
 	if (!base->anim_total)
 		return base;
 
-	reletive = (int)(cl.time*10) % base->anim_total;
+	relative = (unsigned int)(cl.time*10) % base->anim_total;
 
 	count = 0;
-	while (base->anim_min > reletive || base->anim_max <= reletive)
+	while (base->anim_min > relative || base->anim_max <= relative)
 	{
 		base = base->anim_next;
 		if (!base)
@@ -3041,7 +3041,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 
 	//do far plane
 	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.globalfog.density && r_refdef.globalfog.alpha>=1 && r_fog_cullentities.ival && !r_refdef.globalfog.depthbias)
+	if (r_refdef.globalfog.density && r_refdef.globalfog.alpha>=1 && (r_fog_cullentities.ival&&r_skyfog.value>=1) && !r_refdef.globalfog.depthbias)
 	{
 		float culldist;
 		float fog;

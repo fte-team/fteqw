@@ -9281,8 +9281,8 @@ static galiasinfo_t *Obj_FinishFace(model_t *mod, galiasinfo_t *m, struct objatt
 
 static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 {
-	struct objbuf_s f = {buffer, buffer+fsize};
-	struct objattrib_s attrib[3] = {{},{},{}};
+	struct objbuf_s f = {buffer, (qbyte*)buffer+fsize};
+	struct objattrib_s attrib[3] = {{0},{0},{0}};
 	char buf[512];
 	char *meshname = NULL, *matname = NULL;
 	galiasinfo_t *m = NULL, **link = (galiasinfo_t**)&mod->meshinfo;
@@ -9362,7 +9362,7 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 			case 'f':
 			{
 				size_t i, v = 0;
-				struct objvert vkey={};
+				struct objvert vkey={0};
 				index_t first=0, prev=0, cur=0;
 
 				//only generate a new mesh if something actually changed.

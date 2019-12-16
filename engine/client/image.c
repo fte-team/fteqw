@@ -4971,7 +4971,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	int mipnum;
 	int face;
 	int datasize;
-	unsigned int w, h, d, f, l, browbytes,padbytes,y,x,rows;
+	unsigned int *swap, w, h, d, f, l, browbytes,padbytes,y,x,rows;
 	struct pendingtextureinfo *mips;
 	int encoding = TF_INVALID;
 	const qbyte *fileend = filedata + filesize;
@@ -4984,8 +4984,8 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	header = *(const ktxheader_t*)filedata;
 	if (header.endianness == 0x01020304)
 	{	//swap the rest of the header.
-		for (w = offsetof(ktxheader_t, endianness); w < sizeof(ktxheader_t); w+=sizeof(int))
-			((int*)&header)[w/sizeof(int)] = LongSwap(((int*)&header)[w/sizeof(int)]);
+		for (swap = &header.endianness; swap < (unsigned int*)(&header+1); swap++)
+			*swap = LongSwap(*swap);
 	}
 	else if (header.endianness != 0x04030201)
 		return NULL;

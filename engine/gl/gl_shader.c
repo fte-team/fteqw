@@ -225,6 +225,7 @@ typedef struct shaderparsestate_s
 	shader_t *s;		//the shader we're parsing
 	shaderpass_t *pass;	//the pass we're currently parsing
 	char *ptr;			//the src file pointer we're at
+	char *sourcename;	//the name of the shader file being read (or '<code>')
 
 	const char *forcedshader;
 	unsigned int parseflags;	//SPF_*
@@ -283,9 +284,9 @@ void *shader_active_hash_mem;
 //static char		r_skyboxname[MAX_QPATH];
 //static float	r_skyheight;
 
-char *Shader_Skip( char *ptr );
+static char *Shader_Skip(const char *file, const char *shadername, char *ptr);
 static qboolean Shader_Parsetok(parsestate_t *ps, shaderkey_t *keys, char *token);
-static void Shader_ParseFunc(shader_t *shader, char **args, shaderfunc_t *func);
+static void Shader_ParseFunc(parsestate_t *ps, const char *functype, char **args, shaderfunc_t *func);
 static void Shader_MakeCache(const char *path, unsigned int parseflags);
 static qboolean Shader_LocateSource(char *name, char **buf, size_t *bufsize, size_t *offset, shadercachefile_t **sourcefile);
 static void Shader_ReadShader(parsestate_t *ps, char *shadersource, shadercachefile_t *sourcefile);
@@ -664,8 +665,9 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 	return allokay;
 }
 
-static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
+static void Shader_ParseFunc (parsestate_t *ps, const char *functype, char **ptr, shaderfunc_t *func)
 {
+	shader_t *shader = ps->s;
 	char *token;
 
 	token = Shader_ParseString (ptr);
@@ -686,7 +688,7 @@ static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
 		if (!Q_stricmp (token, "distanceramp"))	//QFusion
 			;
 		else
-			Con_Printf("Shader_ParseFunc: %s: unknown func %s\n", shader->name, token);
+			Con_Printf("%s: %s: unknown %s \"%s\"\n", ps->sourcename, shader->name, functype, token);
 		func->type = SHADER_FUNC_CONSTANT;	//not supported...
 		Shader_ParseFloat (shader, ptr, 0);
 		Shader_ParseFloat (shader, ptr, 0);
@@ -943,7 +945,7 @@ static void Shader_DeformVertexes (parsestate_t *ps, char **ptr)
 		deformv->args[0] = Shader_ParseFloat (shader, ptr, 0);
 		if (deformv->args[0])
 			deformv->args[0] = 1.0f / deformv->args[0];
-		Shader_ParseFunc (shader, ptr, &deformv->func );
+		Shader_ParseFunc (ps, "deformvertexes wave", ptr, &deformv->func );
 	}
 	else if ( !Q_stricmp (token, "normal") )
 	{
@@ -960,7 +962,7 @@ static void Shader_DeformVertexes (parsestate_t *ps, char **ptr)
 	{
 		deformv->type = DEFORMV_MOVE;
 		Shader_ParseVector (shader, ptr, deformv->args );
-		Shader_ParseFunc (shader, ptr, &deformv->func );
+		Shader_ParseFunc (ps, "deformvertexes move", ptr, &deformv->func );
 	}
 	else if ( !Q_stricmp (token, "autosprite") )
 	{
@@ -3216,7 +3218,7 @@ static void Shaderpass_RGBGen (parsestate_t *ps, char **ptr)
 	else if (!Q_stricmp (token, "wave"))
 	{
 		pass->rgbgen = RGB_GEN_WAVE;
-		Shader_ParseFunc (shader, ptr, &pass->rgbgen_func);
+		Shader_ParseFunc (ps, "rgbGen wave", ptr, &pass->rgbgen_func);
 	}
 	else if (!Q_stricmp(token, "entity"))
 		pass->rgbgen = RGB_GEN_ENTITY;
@@ -3287,7 +3289,7 @@ static void Shaderpass_AlphaGen (parsestate_t *ps, char **ptr)
 	{
 		pass->alphagen = ALPHA_GEN_WAVE;
 
-		Shader_ParseFunc (shader, ptr, &pass->alphagen_func);
+		Shader_ParseFunc (ps, "alphaGen wave", ptr, &pass->alphagen_func);
 	}
 	else if ( !Q_stricmp (token, "lightingspecular"))
 	{
@@ -3536,7 +3538,7 @@ static void Shaderpass_TcMod (parsestate_t *ps, char **ptr)
 	{
 		shaderfunc_t func;
 
-		Shader_ParseFunc(shader, ptr, &func);
+		Shader_ParseFunc(ps, "tcmod stretch", ptr, &func);
 
 		tcmod->args[0] = func.type;
 		for (i = 1; i < 5; ++i)
@@ -4151,7 +4153,7 @@ static void Shader_MakeCache(const char *path, unsigned int parseflags)
 
 		if (Shader_LocateSource(token, NULL, NULL, NULL, NULL))
 		{
-			ptr = Shader_Skip ( ptr );
+			ptr = Shader_Skip (path, token, ptr);
 			continue;
 		}
 
@@ -4165,7 +4167,7 @@ static void Shader_MakeCache(const char *path, unsigned int parseflags)
 
 		shader_hash[key] = cache;
 
-		ptr = Shader_Skip ( ptr );
+		ptr = Shader_Skip (path, cache->name, ptr);
 	} while ( ptr );
 }
 
@@ -4194,7 +4196,7 @@ static qboolean Shader_LocateSource(char *name, char **buf, size_t *bufsize, siz
 	return false;
 }
 
-char *Shader_Skip ( char *ptr )
+static char *Shader_Skip(const char *file, const char *shadername, char *ptr)
 {
 	char *tok;
 	int brace_count;
@@ -4215,7 +4217,10 @@ char *Shader_Skip ( char *ptr )
 		tok = COM_ParseExt (&ptr, true, true);
 
 		if ( !tok[0] )
+		{
+			Con_Printf("%s: unexpected EOF parsing %s\n", file, shadername);
 			return NULL;
+		}
 
 		if (tok[0] == '{')
 		{
@@ -7062,9 +7067,13 @@ static void Shader_ReadShader(parsestate_t *ps, char *shadersource, shadercachef
 	{
 		ps->forcedshader = *sourcefile->forcedshadername?sourcefile->forcedshadername:NULL;
 		ps->parseflags = sourcefile->parseflags;
+		ps->sourcename = sourcefile->name;
 	}
 	else
+	{
 		ps->parseflags = 0;
+		ps->sourcename = "<code>";
+	}
 	ps->specularexpscale = 1;
 	ps->specularvalscale = 1;
 	ps->ptr = shadersource;

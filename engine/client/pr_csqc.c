@@ -3249,6 +3249,16 @@ static void QCBUILTIN PF_ReadFloat(pubprogfuncs_t *prinst, struct globalvars_s *
 	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadFloat();
 }
+static void QCBUILTIN PF_ReadInt(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadInt is not valid at this time");
+		G_INT(OFS_RETURN) = -1;
+		return;
+	}
+	G_INT(OFS_RETURN) = MSG_ReadLong();
+}
 
 static void QCBUILTIN PF_ReadString(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6698,6 +6708,7 @@ static struct {
 	{"readangle",				PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
 	{"readstring",				PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
 	{"readfloat",				PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
+	{"readint",					PF_ReadInt,						0},		// #0 string() readint
 	{"readentitynum",			PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
 
 //	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)

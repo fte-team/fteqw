@@ -5176,7 +5176,7 @@ void Media_Init(void)
 	#endif
 
 	Cmd_AddCommandD("capture", Media_RecordFilm_f, "Captures realtime action to a named video file. Check the capture* cvars to control driver/codecs/rates.");
-	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "Capture a nemed demo to a named video file. Demo capturing can be performed offscreen, allowing arbitrary video sizes, or smooth captures on underpowered hardware.");
+	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "capuuredemo foo.dem foo.avi - Captures a named demo to a named video file.\nDemo capturing is performed offscreen when possible, allowing arbitrary video sizes or smooth captures on underpowered hardware.");
 	Cmd_AddCommandD("capturestop", Media_StopRecordFilm_f, "Aborts the current video capture.");
 	Cmd_AddCommandD("capturepause", Media_CapturePause_f, "Pauses the video capture, allowing you to avoid capturing uninteresting parts. This is a toggle, so reuse the same command to resume capturing again.");
 

@@ -984,6 +984,37 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 
 	if (*var->string)
 		conback = R_RegisterPic(var->string, NULL);
+#ifdef HAVE_LEGACY
+	else if (Cvar_FindVar("scr_conalphafactor"))
+	{	//dp bullshit
+		conback = R_RegisterShader("gfx/conback", SUF_2D,
+			"{\n"
+				"nomipmaps\n"
+				"{\n"
+					"map gfx/conback\n"
+					"rgbgen const $scr_conbrightness\n"
+					"alphagen const $scr_conalphafactor\n"
+					"tcmod scroll $scr_conscroll_x $scr_conscroll_y\n"
+					"blendfunc blend\n"
+				"}\n"
+				"{\n"
+					"map gfx/conback2\n"
+					"rgbgen const $scr_conbrightness\n"
+					"alphagen const $scr_conalpha2factor\n"
+					"tcmod scroll $scr_conscroll2_x $scr_conscroll2_y\n"
+					"blendfunc blend\n"
+				"}\n"
+				"{\n"
+					"map gfx/conback3\n"
+					"rgbgen const $scr_conbrightness\n"
+					"alphagen const $scr_conalpha3factor\n"
+					"tcmod scroll $scr_conscroll3_x $scr_conscroll3_y\n"
+					"blendfunc blend\n"
+				"}\n"
+			"}\n");
+	}
+#endif
+
 	if (!R_GetShaderSizes(conback, NULL, NULL, true))
 	{
 		conback = R_RegisterCustom("console", SUF_2D, NULL, NULL);	//quake3

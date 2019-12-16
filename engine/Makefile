@@ -598,7 +598,7 @@ ifeq ($(FTE_TARGET),vc)
 	GNUC_FUNCS=
 else
 	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing #-Wcast-align
-	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
+#	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
 SDL_INCLUDES=

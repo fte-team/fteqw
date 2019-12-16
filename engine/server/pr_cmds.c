@@ -5304,6 +5304,56 @@ void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	}
 }
 
+void QCBUILTIN PF_WriteInt (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteLong(&csqcmsgbuffer, G_INT(OFS_PARM1));
+		return;
+	}
+
+	if (pr_nonetaccess.value)
+		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
+#ifdef NETPREPARSE
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
+	{
+		NPP_NQWriteLong(dest, G_INT(OFS_PARM1));
+		return;
+	}
+#ifdef NQPROT
+	else
+	{
+		NPP_QWWriteLong(dest, G_INT(OFS_PARM1));
+		return;
+	}
+#endif
+#endif
+
+	if (dest == MSG_ONE)
+	{
+		client_t *cl = Write_GetClient();
+		if (!cl)
+			return;
+		ClientReliableCheckBlock(cl, 4);
+		ClientReliableWrite_Long(cl, G_INT(OFS_PARM1));
+	}
+	else
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteLong (NQWriteDest(dest), G_INT(OFS_PARM1));
+		else
+			MSG_WriteLong (QWWriteDest(dest), G_INT(OFS_PARM1));
+	}
+}
+
 void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
@@ -8875,7 +8925,7 @@ static void QCBUILTIN PF_Fork(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	PR_CreateThread(prinst, 1, sv.time + sleeptime, false);
 
-	PRSV_RunThreads();
+//	PRSV_RunThreads();
 
 	G_FLOAT(OFS_RETURN) = 0;
 }
@@ -10477,13 +10527,13 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	D("vector(vector fwd, optional vector up)", "Returns the angles (+x=UP) required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning.")},
 
 	{"WriteByte",		PF_WriteByte,		52,		52,		52,		0,	D("void(float to, float val)", "Writes a single byte into a network message buffer. Typically you will find a more correct alternative to writing arbitary data. 'to' should be one of the MSG_* constants. MSG_ONE must have msg_entity set first.")},	//52
-	{"WriteChar",		PF_WriteChar,		53,		53,		53,		0,	"void(float to, float val)"},	//53
-	{"WriteShort",		PF_WriteShort,		54,		54,		54,		0,	"void(float to, float val)"},	//54
-	{"WriteLong",		PF_WriteLong,		55,		55,		55,		0,	"void(float to, float val)"},	//55
-	{"WriteCoord",		PF_WriteCoord,		56,		56,		56,		0,	"void(float to, float val)"},	//56
-	{"WriteAngle",		PF_WriteAngle,		57,		57,		57,		0,	"void(float to, float val)"},	//57
-	{"WriteString",		PF_WriteString,		58,		58,		58,		0,	"void(float to, string val)"},	//58
-	{"WriteEntity",		PF_WriteEntity,		59,		59,		59,		0,	"void(float to, entity val)"},	//59
+	{"WriteChar",		PF_WriteChar,		53,		53,		53,		0,	D("void(float to, float val)", "Writes a signed value between -128 and 127.")},	//53
+	{"WriteShort",		PF_WriteShort,		54,		54,		54,		0,	D("void(float to, float val)", "Writes a signed value between -32768 and 32767. As an exception, values up to 65535 will not trigger warnings (but readshort will read the result as negative!)")},	//54
+	{"WriteLong",		PF_WriteLong,		55,		55,		55,		0,	D("void(float to, float val)", "Writes a signed 32bit integer. Note that the input argument being of float type limits the resulting integer to a mere 24 consecutive bits of validity. Use WriteInt if you want to write an entire 32bit int without data loss.")},	//55
+	{"WriteCoord",		PF_WriteCoord,		56,		56,		56,		0,	D("void(float to, float val)", "Writes a single value suitable for a map coordinate axis. The precision is not strictly specified but is assumed to be of at least 13.3 fixed-point precision (ie: +/-4k with 1/8th precision).")},	//56
+	{"WriteAngle",		PF_WriteAngle,		57,		57,		57,		0,	D("void(float to, float val)", "Writes a single value suitable for an angle axis. The precision is not strictly specified but is assumed to be 8bit, giving 256 notches instead of the assumed 360 range passed in.")},	//57
+	{"WriteString",		PF_WriteString,		58,		58,		58,		0,	D("void(float to, string val)", "Writes a variable-length null terminated string. There are length limits. The codepage is not translated, so be sure that client+server agree on whether utf-8 is being used or not (or just stick to ascii+markup).")},	//58
+	{"WriteEntity",		PF_WriteEntity,		59,		59,		59,		0,	D("void(float to, entity val)", "Writes the index of the specified entity (the network data size is not specified). This can be read clientside using the readentitynum builtin, with caveats.")},	//59
 
 #if !defined(QUAKETC) && defined(NETPREPARSE)
 	{"swritebyte",		PF_qtSingle_WriteByte,			0,		0,		0,		0,	D("void(float val)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ONE target."), true},	//52
@@ -10871,7 +10921,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #endif
 
 	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void(optional entity ent, optional vector neworigin)", "Triggers a touch events between self and every SOLID_TRIGGER entity that it is in contact with. This should typically just be the triggers touch functions. Also optionally updates the origin of the moved entity.")},//
-	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
+	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	D("void(float buf, float fl)", "Writes a full 32bit float without any data conversions at all, for full precision.")},//
+	{"WriteInt",		PF_WriteInt,		0,		0,		0,		0,		D("void(float buf, int fl)", "Equivelent to WriteLong, but doesn't truncate to a float first before converting back to an int.")},//
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	D("float(entity skelent, string dollcmd, float animskel)", "Updates the skeletal object attached to the entity according to its origin and other properties.\nif animskel is non-zero, the ragdoll will animate towards the bone state in the animskel skeletal object, otherwise they will pick up the model's base pose which may not give nice results.\nIf dollcmd is not set, the ragdoll will update (this should be done each frame).\nIf the doll is updated without having a valid doll, the model's default .doll will be instanciated.\ncommands:\n doll foo.doll : sets up the entity to use the named doll file\n dollstring TEXT : uses the doll file directly embedded within qc, with that extra prefix.\n cleardoll : uninstanciates the doll without destroying the skeletal object.\n animate 0.5 : specifies the strength of the ragdoll as a whole \n animatebody somebody 0.5 : specifies the strength of the ragdoll on a specific body (0 will disable ragdoll animations on that body).\n enablejoint somejoint 1 : enables (or disables) a joint. Disabling joints will allow the doll to shatter.")}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	D("float*(float skel)", "Map the bones in VM memory. They can then be accessed via pointers. Each bone is 12 floats, the four vectors interleaved (sadly).")},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	D("void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)", "Sets the world position of a bone within the given entity's attached skeletal object. The world position is dependant upon the owning entity's position. If no orientation argument is specified, v_forward+v_right+v_up are used for the orientation instead. If 1 is specified, it is understood as angles. If 3 are specified, they are the forawrd/right/up vectors to use.")},
@@ -10996,20 +11047,22 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setserverkey",	PF_setserverkey,0,	0,		0,		0,		D("void(string key, void *ptr, optional int size)", "Changes the server's serverinfo.")},//
 	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
-	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
+	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high) ('cour' requires mscorefonts installed in linux). Additionally you can add \"outline=1\" as an extra token in the sizes string, to have more readable outlined fonts.")},
+
 	//358
 	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	D("void(string evname, string evargs, ...)", "Invoke CSEv_evname_evargs in ssqc. evargs must be a string of initials refering to the types of the arguments to pass. v=vector, e=entity(.entnum field is sent), f=float, i=int. 6 arguments max - you can get more if you pack your floats into vectors.")},// (EXT_CSQC_1)
 
-	{"readbyte",		PF_Fixme,	0,		0,		0,		360,	"float()"},// (EXT_CSQC)
-	{"readchar",		PF_Fixme,	0,		0,		0,		361,	"float()"},// (EXT_CSQC)
-	{"readshort",		PF_Fixme,	0,		0,		0,		362,	"float()"},// (EXT_CSQC)
-	{"readlong",		PF_Fixme,	0,		0,		0,		363,	"float()"},// (EXT_CSQC)
-	{"readcoord",		PF_Fixme,	0,		0,		0,		364,	"float()"},// (EXT_CSQC)
+	{"readbyte",		PF_Fixme,	0,		0,		0,		360,	D("float()", "Reads an unsigned 8-bit value, pair with WriteByte.")},// (EXT_CSQC)
+	{"readchar",		PF_Fixme,	0,		0,		0,		361,	D("float()", "Reads a signed 8-bit value. Paired with WriteChar.")},// (EXT_CSQC)
+	{"readshort",		PF_Fixme,	0,		0,		0,		362,	D("float()", "Reads a signed 16-bit value. Paired with WriteShort.")},// (EXT_CSQC)
+	{"readlong",		PF_Fixme,	0,		0,		0,		363,	D("float()", "Reads a signed 32-bit value. Paired with WriteLong or WriteInt.")},// (EXT_CSQC)
+	{"readcoord",		PF_Fixme,	0,		0,		0,		364,	D("float()", "Reads a value matching the unspecified precision written ONLY by WriteCoord.")},// (EXT_CSQC)
 
-	{"readangle",		PF_Fixme,	0,		0,		0,		365,	"float()"},// (EXT_CSQC)
-	{"readstring",		PF_Fixme,	0,		0,		0,		366,	"string()"},// (EXT_CSQC)
-	{"readfloat",		PF_Fixme,	0,		0,		0,		367,	"float()"},// (EXT_CSQC)
-	{"readentitynum",	PF_Fixme,	0,		0,		0,		368,	"float()"},// (EXT_CSQC)
+	{"readangle",		PF_Fixme,	0,		0,		0,		365,	D("float()", "Reads a value matching the unspecified precision written ONLY by WriteAngle.")},// (EXT_CSQC)
+	{"readstring",		PF_Fixme,	0,		0,		0,		366,	D("string()", "Reads a null-terminated string.")},// (EXT_CSQC)
+	{"readfloat",		PF_Fixme,	0,		0,		0,		367,	D("float()", "Reads a float without any truncation nor conversions. Data MUST have originally been written with WriteFloat.")},// (EXT_CSQC)
+	{"readint",			PF_Fixme,	0,		0,		0,		0,		D("int()", "Reads a 32bit int without any conversions to float, otherwise interchangable with readlong.")},// (EXT_CSQC)
+	{"readentitynum",	PF_Fixme,	0,		0,		0,		368,	D("float()", "Reads the serverside index of an entity, paired with WriteEntity. There may be nothing else known about the entity yet, so the result typically needs to be saved as-is and re-looked up each frame. This can be done via getentity(NUM, GE_*) for non-csqc ents, or findentity(world,entnum,NUM) - both of which can fail due to latency.")},// (EXT_CSQC)
 
 //	{"readserverentitystate",PF_Fixme,0,	0,		0,		369,	"void(float flags, float simtime)"},// (EXT_CSQC_1)
 //	{"readsingleentitystate",PF_Fixme,0,	0,		0,		370},

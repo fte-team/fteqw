@@ -327,7 +327,7 @@ static void S_Info(void);
 
 static void S_Shutdown_f(void);
 */
-static cvar_t s_al_disable = CVARD("s_al_disable", "0", "When set, prevents initialisation of openal. Audio ouput can then fall back to platfrm-specific output which doesn't have any of the miscilaneous openal limitations or bugs.");
+static cvar_t s_al_disable = CVARD("s_al_disable", "0", "0: OpenAL works (generally as the highest priority).\n1: OpenAL will be used only when a specific device is selected.\n2: Don't allow ANY use of OpenAl.\nWith OpenAL disabled, audio ouput will fall back to platform-specific output, avoiding miscilaneous third-party openal limitation bugs.");
 static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
 static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
 //static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
@@ -1086,7 +1086,7 @@ static qboolean OpenAL_InitLibrary(void)
 #endif
 
 #ifdef OPENAL_STATIC
-	if (s_al_disable.ival)
+	if (s_al_disable.ival > 1)
 		return false;
 	return true;
 #else
@@ -1131,7 +1131,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{NULL}
 	};
 
-	if (s_al_disable.ival)
+	if (s_al_disable.ival > 1)
 		return false;
 	if (COM_CheckParm("-noopenal"))
 		return false;
@@ -1159,15 +1159,22 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 
 	if (!OpenAL_InitLibrary())
 	{
-		if (devname)
-			Con_Printf(SDRVNAME" library is not installed\n");
-		else 
-			Con_DPrintf(SDRVNAME" library is not installed\n");
+		if (!s_al_disable.ival)
+		{
+			if (devname)
+				Con_Printf(SDRVNAME" library is not installed\n");
+			else
+				Con_DPrintf(SDRVNAME" library is not installed\n");
+		}
 		return false;
 	}
 
 	if (!devname || !*devname)
+	{
+		if (s_al_disable.ival)
+			return false;	//no default device
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
+	}
 	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
 	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
 
@@ -1608,7 +1615,11 @@ static void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
 		return NULL; //enumerate nothing if al is disabled
 
 	if (!device || !*device)
+	{
+		if (s_al_disable.ival)
+			return NULL;	//no default device
 		device = palcGetString(NULL, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
+	}
 
 	return palcCaptureOpenDevice(device, samplerate, AL_FORMAT_MONO16, 0.5*samplerate);
 }

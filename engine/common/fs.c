@@ -606,11 +606,11 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		Z_Free(man->defaultexec);
 		man->defaultexec = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(cmd, "-bind") || !Q_strcasecmp(cmd, "-set") || !Q_strcasecmp(cmd, "-seta") || !Q_strcasecmp(cmd, "-alias"))
+	else if (!Q_strcasecmp(cmd, "-bind") || !Q_strcasecmp(cmd, "-set") || !Q_strcasecmp(cmd, "-seta") || !Q_strcasecmp(cmd, "-alias") || !Q_strncasecmp(cmd, "-", 1))
 	{
 		Z_StrCat(&man->defaultexec, va("%s %s\n", Cmd_Argv(0)+1, Cmd_Args()));
 	}
-	else if (!Q_strcasecmp(cmd, "bind") || !Q_strcasecmp(cmd, "set") || !Q_strcasecmp(cmd, "seta") || !Q_strcasecmp(cmd, "alias"))
+	else if (!Q_strcasecmp(cmd, "bind") || !Q_strcasecmp(cmd, "set") || !Q_strcasecmp(cmd, "seta") || !Q_strcasecmp(cmd, "alias") || !Q_strncasecmp(cmd, "+", 1))
 	{
 		Z_StrCat(&man->defaultoverrides, va("%s %s\n", Cmd_Argv(0), Cmd_Args()));
 	}
@@ -3354,9 +3354,9 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
 #define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
-#define Q2CFG "set v_gammainverted 1\nset com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\n"
+#define Q2CFG "set v_gammainverted 1\nset com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "set v_gammainverted 0\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\n"
+#define Q3CFG "set v_gammainverted 0\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\nsv_port "STRINGIFY(PORT_Q3SERVER)"\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
 #ifdef HAVE_SSL
@@ -3433,8 +3433,8 @@ const gamemode_info_t gamemode_info[] = {
 	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
 	//various quake-based standalone mods.
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
-	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
-														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
+//	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
+//														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
 //	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 //														 "base/qwprogs.dat",
 //														 "base/pak0.pak"},				DMFCFG,	{"base",								},	"Spark"},

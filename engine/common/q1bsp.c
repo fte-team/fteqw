@@ -1574,8 +1574,21 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, const framestate_t *frame
 		traceinfo.trace.allsolid = false;
 		VectorCopy(mins, traceinfo.mins);
 		VectorCopy(maxs, traceinfo.maxs);
-		VectorCopy(start, traceinfo.start);
-		VectorCopy(end, traceinfo.end);
+
+		if (axis)
+		{
+			traceinfo.start[0] = DotProduct(start, axis[0]);
+			traceinfo.start[1] = DotProduct(start, axis[1]);
+			traceinfo.start[2] = DotProduct(start, axis[2]);
+			traceinfo.end[0] = DotProduct(end, axis[0]);
+			traceinfo.end[1] = DotProduct(end, axis[1]);
+			traceinfo.end[2] = DotProduct(end, axis[2]);
+		}
+		else
+		{
+			VectorCopy(start, traceinfo.start);
+			VectorCopy(end, traceinfo.end);
+		}
 		traceinfo.capsule = capsule;
 
 		if (traceinfo.capsule)
@@ -1603,7 +1616,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, const framestate_t *frame
 		traceinfo.maxs[2] = traceinfo.radius;
 */
 		traceinfo.solidcontents = hitcontentsmask;
-		Q1BSP_RecursiveBrushCheck(&traceinfo, model->rootnode, 0, 1, start, end);
+		Q1BSP_RecursiveBrushCheck(&traceinfo, model->rootnode, 0, 1, traceinfo.start, traceinfo.end);
 		memcpy(trace, &traceinfo.trace, sizeof(trace_t));
 		if (trace->fraction < 1)
 		{
@@ -1613,6 +1626,17 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, const framestate_t *frame
 			if (f < 0)
 				f = 0;
 			trace->fraction = f;
+
+			if (axis)
+			{
+				vec3_t iaxis[3];
+				vec3_t norm;
+				Matrix3x3_RM_Invert_Simple((const void *)axis, iaxis);
+				VectorCopy(trace->plane.normal, norm);
+				trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
+				trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
+				trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
+			}
 		}
 		VectorInterpolate(start, trace->fraction, end, trace->endpos);
 		return trace->fraction != 1;

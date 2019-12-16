@@ -647,7 +647,7 @@ void Sys_Shutdown (void)
 {
 }
 
-#if defined(__linux__) && defined(__GNUC__)
+#if defined(__linux__) && defined(__GLIBC__)
 #include <execinfo.h>
 #ifdef __i386__
 #include <ucontext.h>
@@ -937,7 +937,7 @@ int main(int argc, char *argv[])
 
 
 
-#if defined(__linux__) && defined(__GNUC__)
+#if defined(__linux__) && defined(__GLIBC__)
 	if (!COM_CheckParm("-nodumpstack"))
 	{
 		struct sigaction act;

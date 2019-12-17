@@ -226,7 +226,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 
 
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER < 1900
 #define Q_vsnprintf _vsnprintf
 #else
 #define Q_vsnprintf vsnprintf

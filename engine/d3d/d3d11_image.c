@@ -329,7 +329,7 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	}
 	else
 	{
-		subresdesc = alloca(tdesc.ArraySize*mips->mipcount);
+		subresdesc = alloca(tdesc.ArraySize*mips->mipcount*sizeof(*subresdesc));
 		for (layer = 0; layer < tdesc.ArraySize; layer++)
 		{
 			for (i = 0; i < mips->mipcount; i++)

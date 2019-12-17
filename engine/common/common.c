@@ -4923,6 +4923,11 @@ static void COM_Version_f (void)
 	else if (_MSC_VER == 1400) { Con_Printf("Visual C++ 2005, version 8.0\n"); }
 	else if (_MSC_VER == 1500) { Con_Printf("Visual C++ 2008, version 9.0\n"); }
 	else if (_MSC_VER == 1600) { Con_Printf("Visual C++ 2010, version 10.0\n"); }
+	else if (_MSC_VER == 1700) { Con_Printf("Visual C++ 2012, version 11.0\n"); }
+	else if (_MSC_VER == 1800) { Con_Printf("Visual C++ 2013, version 12.0\n"); }
+	else if (_MSC_VER == 1900) { Con_Printf("Visual C++ 2015, version 14.0\n"); }
+	else if (_MSC_VER >= 1910 && _MSC_VER < 1920) { Con_Printf("Visual C++ 2017, version 14.1x\n"); }
+	else if (_MSC_VER >= 1920 && _MSC_VER < 1930) { Con_Printf("Visual C++ 2019, version 14.2x\n"); }
 	else
 	{
 #ifdef _MSC_BUILD

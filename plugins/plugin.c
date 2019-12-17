@@ -104,7 +104,7 @@ char *Plug_Info_ValueForKey (const char *s, const char *key, char *out, size_t o
 	return oout;
 }
 
-#if defined(_MSC_VER) && _MSC_VER < 2015
+#if defined(_MSC_VER) && _MSC_VER < 1900
 int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list argptr)
 {
 	int r = _vsnprintf (buffer, maxlen-1, format, argptr);
@@ -174,7 +174,7 @@ int QDECL linuxlike_vsnprintf(char *buffer, int size, const char *format, va_lis
 
 	return ret;
 }
-#else
+#elif (_MSC_VER < 1900)
 int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...)
 {
 	int ret;

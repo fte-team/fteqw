@@ -254,13 +254,15 @@ extern "C" {
 
 
 #ifdef _WIN32
-	#if (_MSC_VER >= 1400)
-		//with MSVC 8, use MS extensions
+	#if (_MSC_VER >= 1900)
+		// MSVC 14 has standardized snprintf functions, hurrah!
+	#elif (_MSC_VER >= 1400)
+		//with MSVC 8, use MS extensions. return values are still wrong.
 		#define snprintf linuxlike_snprintf_vc8
 		int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 		#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
 	#else
-		//msvc crap
+		//msvc crap. return values are wrong but at least we can null terminate it safely.
 		#define snprintf linuxlike_snprintf
 		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 		#define vsnprintf linuxlike_vsnprintf
@@ -272,6 +274,13 @@ extern "C" {
 		//but mingw has some defines elsewhere and makes gcc moan
 		#define _vsnprintf unsafe_vsnprintf
 		#define _snprintf unsafe_snprintf
+
+		#ifndef strcasecmp
+			#define strcasecmp _stricmp
+		#endif
+		#ifndef strncasecmp
+			#define strncasecmp _strnicmp
+		#endif
 	#endif
 #endif
 

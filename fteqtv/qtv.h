@@ -53,7 +53,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <stdio.h>
 /*work around fucked MSVC functions. we use our own for these*/
-#if _MSC_VER >= 1300
+#if _MSC_VER >= 1300 && _MSC_VER < 1900
 	#include <string.h>
 	#ifndef _CRT_SECURE_NO_WARNINGS
 		#define _CRT_SECURE_NO_WARNINGS
@@ -70,8 +70,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#ifdef IPPROTO_IPV6
 		#include <ws2tcpip.h>
 	#else
-		#define	IPPROTO_IPV6
+		#define	IPPROTO_IPV6 41
+		#ifndef EAI_NONAME
 		#define EAI_NONAME 8
+		#endif
 		struct ip6_scope_id
 		{
 			union

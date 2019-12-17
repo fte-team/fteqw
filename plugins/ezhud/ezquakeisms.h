@@ -33,8 +33,6 @@ extern pluginputfuncs_t *inputfuncs;
 #define Q_atoi atoi
 #define strlcpy Q_strlcpy
 #define strlcat Q_strlcat
-#undef snprintf
-#define snprintf Q_snprintf
 
 #undef mpic_t
 #define mpic_t void

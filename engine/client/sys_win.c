@@ -1528,7 +1528,6 @@ void Sys_Init (void)
 {
 //	LARGE_INTEGER	PerformanceFreq;
 //	unsigned int	lowpart, highpart;
-	OSVERSIONINFO	vinfo;
 
 	Sys_QueryDesktopParameters();
 
@@ -1594,28 +1593,33 @@ void Sys_Init (void)
 	// NT gets 18ms resolution
 	timeBeginPeriod( 1 );
 
-	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
-
 #if _MSC_VER >= 1600 //msvc2010 runtime does not work on 9x any more. get rid of the deprecation warnings in later versions.
 	WinNT = true;
+
+	qwinvermaj = 6;	//Hack: assume 6.2 (aka win8). this will block 16bit colour depths.
+	qwinvermin = 2;
 #else
-	if (!GetVersionEx (&vinfo))
-		Sys_Error ("Couldn't get OS info");
-
-	if ((vinfo.dwMajorVersion < 4) ||
-		(vinfo.dwPlatformId == VER_PLATFORM_WIN32s))
 	{
-		Sys_Error (FULLENGINENAME " requires at least Win95 or NT 4.0");
+		OSVERSIONINFO	vinfo;
+		vinfo.dwOSVersionInfoSize = sizeof(vinfo);
+		if (!GetVersionEx (&vinfo))
+			Sys_Error ("Couldn't get OS info");
+
+		if ((vinfo.dwMajorVersion < 4) ||
+			(vinfo.dwPlatformId == VER_PLATFORM_WIN32s))
+		{
+			Sys_Error (FULLENGINENAME " requires at least Win95 or NT 4.0");
+		}
+
+		if (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT)
+			WinNT = true;
+		else
+			WinNT = false;
+
+		qwinvermaj = vinfo.dwMajorVersion;
+		qwinvermin = vinfo.dwMinorVersion;
 	}
-
-	if (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT)
-		WinNT = true;
-	else
-		WinNT = false;
 #endif
-
-	qwinvermaj = vinfo.dwMajorVersion;
-	qwinvermin = vinfo.dwMinorVersion;
 }
 
 

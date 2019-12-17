@@ -3870,15 +3870,15 @@ nextchan:
 }
 struct xcf_heirachy_s
 {
-	uint32_t width;
-	uint32_t height;
-	uint32_t bpp;
+	quint32_t width;
+	quint32_t height;
+	quint32_t bpp;
 	qbyte	*data;
 };
 static struct xcf_heirachy_s XCF_ReadHeirachy(struct xcf_s *f)
 {
 	struct xcf_heirachy_s ctx;
-	uint32_t x, y, lw, lh;
+	quint32_t x, y, lw, lh;
 	qofs_t ofs, tofs;
 	if (!f->offset)
 	{
@@ -3927,8 +3927,8 @@ static struct xcf_heirachy_s XCF_ReadChannel(struct xcf_s *f)
 {
 	struct xcf_heirachy_s h;
 	char name[1024];
-	uint32_t width = XCF_Read32(f);
-	uint32_t height = XCF_Read32(f);
+	quint32_t width = XCF_Read32(f);
+	quint32_t height = XCF_Read32(f);
 	unsigned int proptype, propsize;
 	XCF_ReadString(f, name, sizeof(name));
 	for(;;)
@@ -3991,11 +3991,11 @@ static qboolean XCF_CombineLayer(struct xcf_s *f)
 	unsigned int proptype, propsize;
 	size_t width, height, type, heirachyoffset, layermaskoffset;
 	char name[1024];
-	uint32_t applylayermask = false;
-	int32_t blendmode = 0;
+	quint32_t applylayermask = false;
+	qint32_t blendmode = 0;
 	qboolean unsupported = false;
-	uint32_t x,y, ofsx=0,ofsy=0;
-	uint32_t visible = true;
+	quint32_t x,y, ofsx=0,ofsy=0;
+	quint32_t visible = true;
 	float opacity = 1;
 	width = XCF_Read32(f);
 	height = XCF_Read32(f);
@@ -9943,7 +9943,7 @@ static void Image_Decode_ASTC_HDR_HF_Block(qbyte *fte_restrict in, pixel64_t *ft
 /*static unsigned int RGB16F_to_E5BGR9(unsigned short Cr, unsigned short Cg, unsigned short Cb)
 {
 	int Re,Ge,Be, Rex,Gex,Bex, Xm, Xe;
-	uint32_t rshift, gshift, bshift, expo;
+	quint32_t rshift, gshift, bshift, expo;
 	int Rm, Gm, Bm;
 
 	if( Cr > 0x7c00 ) Cr = 0; else if( Cr == 0x7c00 ) Cr = 0x7bff;

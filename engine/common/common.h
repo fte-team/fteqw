@@ -95,7 +95,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef _MSC_VER
-	#if _MSC_VER >= 1310
+	#if _MSC_VER >= 1900
+		// MSVC 14 supports these
+	#elif _MSC_VER >= 1310
 		#define strtoull _strtoui64
 		#define strtoll _strtoi64
 	#else

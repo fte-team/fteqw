@@ -35,6 +35,10 @@
 #		define strcasecmp stricmp
 #		define strncasecmp strnicmp
 #	endif
+#	if defined(_MSC_VER) && _MSC_VER >= 1900
+#		define Q_vsnprintf vsnprintf
+#		define Q_snprintf snprintf
+#	endif
 #else
 #	define stricmp strcasecmp
 #	define strnicmp strncasecmp

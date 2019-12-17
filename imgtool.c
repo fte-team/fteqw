@@ -374,6 +374,7 @@ static enum uploadfmt ImgTool_ASTCToLDR(uploadfmt_t fmt)
 	return fmt;
 }
 #ifdef _WIN32
+#include <io.h>
 #include <fcntl.h>
 static void FS_MakeTempName(char *out, size_t outsize, char *prefix, char *suffix)
 {
@@ -1040,6 +1041,7 @@ static void FileList_Add(struct filelist_s *list, char *fname)
 #ifdef _WIN32
 static void ImgTool_TreeScan(struct filelist_s *list, const char *basepath, const char *subpath)
 {
+	(void)FileList_Add;
 	Con_Printf("ImgTool_TreeScan not implemented on windows.\n");
 }
 #else

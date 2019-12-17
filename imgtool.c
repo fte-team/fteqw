@@ -266,7 +266,9 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
 {
 #ifdef _WIN32
+#undef _vsnprintf
 	_vsnprintf (dest, size, fmt, argptr);
+#define _vsnprintf unsafe_vsnprintf
 #else
 	#ifdef _DEBUG
 		if ((size_t)vsnprintf (dest, size, fmt, argptr) > size-1)

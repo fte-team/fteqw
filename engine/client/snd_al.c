@@ -50,34 +50,35 @@ We also have no doppler with WebAudio.
 #define AL_APIENTRY
 #endif
 
-#define palGetError		alGetError
-#define palSourcef		alSourcef
-#define palSourcei		alSourcei
-#define palSourcePlayv	alSourcePlayv
-#define palSourceStopv	alSourceStopv
-#define palSourcePlay		alSourcePlay
-#define palSourceStop		alSourceStop
-#define palDopplerFactor	alDopplerFactor
-#define palGenBuffers		alGenBuffers
-#define palIsBuffer		alIsBuffer
-#define palBufferData		alBufferData
-#define palDeleteBuffers	alDeleteBuffers
-#define palListenerfv		alListenerfv
-#define palSourcefv		alSourcefv
-#define palGetString		alGetString
-#define palGenSources		alGenSources
-#define palListenerf		alListenerf
-#define palDeleteBuffers	alDeleteBuffers
-#define palDeleteSources	alDeleteSources
-#define palSpeedOfSound	alSpeedOfSound
-#define palDistanceModel	alDistanceModel
-#define palGetSourcei		alGetSourcei
+#define palGetError				alGetError
+#define palSourcef				alSourcef
+#define palSourcei				alSourcei
+#define palSourcePlayv			alSourcePlayv
+#define palSourceStopv			alSourceStopv
+#define palSourcePlay			alSourcePlay
+#define palSourceStop			alSourceStop
+#define palDopplerFactor		alDopplerFactor
+#define palGenBuffers			alGenBuffers
+#define palIsBuffer				alIsBuffer
+#define palBufferData			alBufferData
+#define palDeleteBuffers		alDeleteBuffers
+#define palListenerfv			alListenerfv
+#define palSourcefv				alSourcefv
+#define palGetString			alGetString
+#define palGenSources			alGenSources
+#define palIsSource				alIsSource
+#define palListenerf			alListenerf
+#define palDeleteBuffers		alDeleteBuffers
+#define palDeleteSources		alDeleteSources
+#define palSpeedOfSound			alSpeedOfSound
+#define palDistanceModel		alDistanceModel
+#define palGetSourcei			alGetSourcei
 #define palSourceQueueBuffers	alSourceQueueBuffers
 #define palSourceUnqueueBuffers	alSourceUnqueueBuffers
 
 
-#define palcOpenDevice		alcOpenDevice
-#define palcCloseDevice		alcCloseDevice
+#define palcOpenDevice			alcOpenDevice
+#define palcCloseDevice			alcCloseDevice
 #define palcCreateContext		alcCreateContext
 #define palcDestroyContext		alcDestroyContext
 #define palcMakeContextCurrent	alcMakeContextCurrent

@@ -824,9 +824,9 @@ qboolean AVEnc_Init(void)
 	ffmpeg_format_force		= cvarfuncs->GetNVFDG(ENCODERNAME"_format_force",		"",				0, "Forces the output container format. If blank, will guess based upon filename extension.", ENCODERNAME);
 	ffmpeg_videocodec		= cvarfuncs->GetNVFDG(ENCODERNAME"_videocodec",			"",				0, "Forces which video encoder to use. If blank, guesses based upon container defaults.\nCommon names are libx264 (software), x264_nvenc (hardware accelerated)", ENCODERNAME);
 	ffmpeg_videobitrate		= cvarfuncs->GetNVFDG(ENCODERNAME"_videobitrate",		"",				0, "Specifies the target video bitrate", ENCODERNAME);
-	ffmpeg_videoforcewidth	= cvarfuncs->GetNVFDG(ENCODERNAME"_videoforcewidth",		"",				0, "Rescales the input video width. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
+	ffmpeg_videoforcewidth	= cvarfuncs->GetNVFDG(ENCODERNAME"_videoforcewidth",	"",				0, "Rescales the input video width. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
 	ffmpeg_videoforceheight	= cvarfuncs->GetNVFDG(ENCODERNAME"_videoforceheight",	"",				0, "Rescales the input video height. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
-	ffmpeg_videopreset		= cvarfuncs->GetNVFDG(ENCODERNAME"_videopreset",			"veryfast",		0, "Specifies which codec preset to use, for codecs that support such presets.", ENCODERNAME);
+	ffmpeg_videopreset		= cvarfuncs->GetNVFDG(ENCODERNAME"_videopreset",		"veryfast",		0, "Specifies which codec preset to use, for codecs that support such presets.", ENCODERNAME);
 	ffmpeg_video_crf		= cvarfuncs->GetNVFDG(ENCODERNAME"_video_crf",			"",				0, "Specifies the 'Constant Rate Factor' codec setting.\nA value of 0 is 'lossless', a value of 51 is 'worst quality posible', a value of 23 is default.", ENCODERNAME);
 	ffmpeg_audiocodec		= cvarfuncs->GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
 	ffmpeg_audiobitrate		= cvarfuncs->GetNVFDG(ENCODERNAME"_audiobitrate",		"",				0, "Specifies the target audio bitrate", ENCODERNAME);
@@ -835,6 +835,7 @@ qboolean AVEnc_Init(void)
 	{
 //		cmdfuncs->AddCommand(ENCODERNAME"_configure");
 		cmdfuncs->AddCommand(ENCODERNAME"_nvidia");
+		cmdfuncs->AddCommand(ENCODERNAME"_defaults");
 	}
 
 	return true;

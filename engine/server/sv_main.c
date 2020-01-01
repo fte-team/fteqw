@@ -5367,7 +5367,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_resetparms,	cvargroup_servercontrol);
 
 	if (isDedicated)
-		sv_public.string = "1";
+		sv_public.enginevalue = "1";
 
 	Cvar_Register (&sv_guidhash,	cvargroup_servercontrol);
 	Cvar_Register (&sv_serverip,	cvargroup_servercontrol);

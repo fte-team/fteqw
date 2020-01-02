@@ -2213,7 +2213,15 @@ qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrela
 		return false;
 
 	FS_CreatePath(newf, newrelativeto);
-	return Sys_Rename(oldfullname, newfullname);
+	if (Sys_Rename(oldfullname, newfullname))
+	{
+		if (oldrelativeto >= FS_GAME)
+			FS_FlushFSHashRemoved(oldf);
+		if (newrelativeto >= FS_GAME)
+			FS_FlushFSHashWritten(newf);
+		return true;
+	}
+	return false;
 }
 qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto)
 {
@@ -2226,7 +2234,13 @@ qboolean FS_Remove(const char *fname, enum fs_relative relativeto)
 	if (!FS_NativePath(fname, relativeto, fullname, sizeof(fullname)))
 		return false;
 
-	return Sys_remove (fullname);
+	if (Sys_remove (fullname))
+	{
+		if (relativeto >= FS_GAME)
+			FS_FlushFSHashRemoved(fname);
+		return true;
+	}
+	return false;
 }
 //create a path for the given filename (dir-only must have trailing slash)
 void FS_CreatePath(const char *pname, enum fs_relative relativeto)

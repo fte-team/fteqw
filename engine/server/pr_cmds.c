@@ -8859,6 +8859,7 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 void PRSV_RunThreads(void)
 {
 	struct globalvars_s *pr_globals;
+	edict_t *ed;
 
 	qcstate_t *state = qcthreads, *next;
 	qcthreads = NULL;
@@ -8875,9 +8876,19 @@ void PRSV_RunThreads(void)
 		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
 			pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, state->self));
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, state->other));
-			G_FLOAT(OFS_RETURN) = state->returnval;
+			//restore the thread's self variable, if applicable.
+			ed = PROG_TO_EDICT(svprogfuncs, state->self);
+			if (ed->xv->uniquespawnid != state->selfid)
+				ed = svprogfuncs->edicttable[0];
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ed);
+
+			//restore the thread's other variable, if applicable
+			ed = PROG_TO_EDICT(svprogfuncs, state->other);
+			if (ed->xv->uniquespawnid != state->otherid)
+				ed = svprogfuncs->edicttable[0];
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ed);
+
+			G_FLOAT(OFS_RETURN) = state->returnval;	//return value of fork or sleep
 
 			svprogfuncs->RunThread(svprogfuncs, state->thread);
 			svprogfuncs->parms->memfree(state->thread);

@@ -289,7 +289,8 @@ static void SV_EmitDeltaEntIndex(sizebuf_t *msg, unsigned int entnum, qboolean r
 void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 {
 #ifdef PEXT_CSQC
-	qbyte messagebuffer[MAX_DATAGRAM];
+	static float throttle;
+	qbyte messagebuffer[MAX_OVERALLMSGLEN];
 	int en;
 	int currentsequence = client->netchan.outgoing_sequence;
 	globalvars_t *pr_globals;
@@ -388,8 +389,12 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
 		{
+			//FIXME: don't overflow MAX_DATAGRAM... unless its too big anyway...
 			if (msg->cursize + csqcmsgbuffer.cursize+5 >= msg->maxsize)
 			{
+				//warn when the message is larger than the user's max size..
+				if (csqcmsgbuffer.cursize+5 > msg->maxsize)
+					Con_ThrottlePrintf(&throttle, 0, "CSQC update of entity %i(%s) is larger than user %s's maximum datagram size (%u > %u).\n", entnum, PR_GetString(svprogfuncs, ent->v->classname), client->name, csqcmsgbuffer.cursize, msg->maxsize-5);
 				if (csqcmsgbuffer.cursize < 32)
 					break;
 				continue;

@@ -4279,9 +4279,9 @@ static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
 		FS_CreateBasedir(path);
 
 #ifdef _WIN32
-		GetModuleFileName(NULL, exepath, sizeof(exepath));
+		GetModuleFileNameW(NULL, exepath, sizeof(exepath));
 		FS_NativePath(va("%s.exe", fs_manifest->installation), FS_ROOT, newexepath, sizeof(newexepath));
-		CopyFile(exepath, newexepath, FALSE);
+		CopyFileW(exepath, newexepath, FALSE);
 
 //		SetHookState(false);
 		Host_Shutdown ();
@@ -4290,8 +4290,13 @@ static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
 //		_execv(newexepath, host_parms.argv);
 		{
 			PROCESS_INFORMATION childinfo;
-			STARTUPINFO startinfo = {sizeof(startinfo)};
-			CreateProcess(newexepath, va("\"%s\" +sys_register_file_associations %s", newexepath, COM_Parse(GetCommandLineA())), NULL, NULL, FALSE, 0, NULL, path, &startinfo, &childinfo);
+			STARTUPINFOW startinfo = {sizeof(startinfo)};
+			memset(&childinfo, 0, sizeof(childinfo));
+			if (CreateProcessW(newexepath, va("\"%s\" +sys_register_file_associations %s", newexepath, COM_Parse(GetCommandLineW())), NULL, NULL, FALSE, 0, NULL, path, &startinfo, &childinfo))
+			{
+				CloseHandle(childinfo.hProcess);
+				CloseHandle(childinfo.hThread);
+			}
 		}
 		exit(1);
 #elif 0

@@ -847,6 +847,7 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		//FIXME: how to deal with race conditions with multiple servers on the same host?
 		//delay till the first connection? we at least write both files at the sameish time.
 		//even so they might get different certs the first time the server(s) run.
+		//TODO: implement a lockfile
 		gnutls_x509_privkey_t key;
 		gnutls_x509_crt_t cert;
 		char serial[64];

@@ -352,7 +352,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
 #endif
 //		Host_EndGame("Reloading QC");
-		debuggerresume = DEBUG_TRACE_ABORT;
+		debuggerresume = DEBUG_TRACE_ABORTERROR;
 	}
 	else if (!strncmp(text, "qcbreakpoint ", 13))
 	{
@@ -390,7 +390,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 	if (isPlugin >= 2)
 	{
 		if (wantquit)
-			return DEBUG_TRACE_ABORT;
+			return DEBUG_TRACE_ABORTERROR;
 		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
 		{
 			if (!*filename)
@@ -398,7 +398,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			else
 				Con_Printf("Unable to debug, please provide line number info\n");
 			if (fatal)
-				return DEBUG_TRACE_ABORT;
+				return DEBUG_TRACE_ABORTERROR;
 			return DEBUG_TRACE_OFF;
 		}
 #ifdef SERVERONLY
@@ -475,7 +475,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		debuggerinstance = NULL;
 		debuggerfile = NULL;
 		if (wantquit)
-			return DEBUG_TRACE_ABORT;
+			return DEBUG_TRACE_ABORTERROR;
 		return debuggerresume;
 	}
 //#endif
@@ -484,7 +484,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 	return QCLibEditor(prinst, filename, line, statement, firststatement, reason, fatal);
 #else
 	if (fatal)
-		return DEBUG_TRACE_ABORT;
+		return DEBUG_TRACE_ABORTERROR;
 	return DEBUG_TRACE_OFF;	//get lost
 #endif
 }

@@ -1793,7 +1793,7 @@ typedef struct
 	size_t structsize;
 	const char *drivername;
 	const char *description;
-	const char *defaultextension;
+	const char *extensions;
 	void *(VARGS *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
 	void (VARGS *capture_video) (void *ctx, int frame, void *data, int stride, int width, int height, enum uploadfmt fmt);
 	void (VARGS *capture_audio) (void *ctx, void *data, int bytes);

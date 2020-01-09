@@ -2756,7 +2756,7 @@ void Win7_TaskListInit(void)
 #endif
 #define SVNREVISIONSTR STRINGIFY(SVNREVISION)
 
-#ifndef NOLEGACY
+#if 0//ndef NOLEGACY
 	#if defined(SVNREVISION) && !defined(MINIMAL)
 		#if defined(OFFICIAL_RELEASE)
 			#define UPD_BUILDTYPE "rel"
@@ -2806,14 +2806,63 @@ void Win7_TaskListInit(void)
 
 #ifdef HAVEAUTOUPDATE
 //this is for legacy reasons. old builds stored a 'pending' name in the registry for the 'frontend' to rename+use
-void Sys_SetUpdatedBinary(const char *binary)
+qboolean Sys_SetUpdatedBinary(const char *newbinary)
 {
+/* //legacy crap, completely redundant when we're replacing the original binary
 #ifdef UPD_BUILDTYPE
 	//downloads menu has provided a new binary to use
-	MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, binary, strlen(binary)+1);
+	MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, newbinary, strlen(newbinary)+1);
 #endif
+*/
+	wchar_t newbinaryw[MAX_OSPATH];
+	wchar_t enginebinary[MAX_OSPATH];
+	wchar_t enginebinarybackup[MAX_OSPATH+4];
+	size_t len;
+	static qboolean alreadymoved = false;
+
+	//windows is annoying. we can't delete a file that's in use (no orphaning)
+	//we can normally rename it to something else before writing a new file with the original name.
+	//then delete the old file later (sadly only on reboot)
+
+	//because microsoft suck.
+	widen(newbinaryw, sizeof(newbinaryw), newbinary);
+	//get the binary name
+	GetModuleFileNameW(NULL, enginebinary, countof(enginebinary)-1);
+#ifdef HAVE_LEGACY
+	//--fromfrontend was removed for r5596.
+	//it had two args - launcher version and launcher filename, so that if the user manually updated then it'd use the more recent build.
+	//replace the original launcher instead.
+	{
+		int arg = COM_CheckParm("--fromfrontend");
+		if (arg)
+			widen(enginebinary, sizeof(enginebinary), com_argv[arg+2]);
+	}
+#endif
+	//generate the temp name
+	memcpy(enginebinarybackup, enginebinary, sizeof(enginebinary));
+	len = wcslen(enginebinarybackup);
+	if (len > 4 && !_wcsicmp(enginebinarybackup+len-4, L".exe"))
+		len -= 4;	//swap its extension over, if we can.
+	wcscpy(enginebinarybackup+len, L".bak");
+
+	//can fail if we don't have write access. can fail for a few other reasons.
+	if (alreadymoved || MoveFileExW(enginebinary, enginebinarybackup, MOVEFILE_REPLACE_EXISTING))
+	{
+		//can fail if windows is bugging out again
+		if (CopyFileW(newbinaryw, enginebinary, FALSE))
+		{	//delete the old one eventually, when we can.
+			if (!DeleteFileW(enginebinarybackup))	//if we can directly delete it... sadly this will normally fail but lets try it anyway. maybe it'll get opened with SHARE_DELETE some time!
+				MoveFileExW(enginebinarybackup, NULL, MOVEFILE_DELAY_UNTIL_REBOOT);	//schedule it to delete if we can't do it from the start.
+			alreadymoved = true; //if we already moved it, don't try to delete-by-overwrite the current binary, just delete it...
+			return true;	//yay! it worked!
+		}
+		if (!alreadymoved)
+			MoveFileExW(enginebinarybackup, enginebinary, 0);
+	}
+	alreadymoved = false;
+	return false;
 }
-qboolean Sys_EngineCanUpdate(void)
+qboolean Sys_EngineMayUpdate(void)
 {
 	char *e;
 
@@ -2833,11 +2882,13 @@ qboolean Sys_EngineCanUpdate(void)
 
 	return true;
 }
+/*
 qboolean Sys_EngineWasUpdated(char *newbinary)
 {
-	wchar_t wide1[2048];
-	wchar_t widefe[MAX_OSPATH];
+	wchar_t launchbinary[2048];
+	wchar_t launcherbinary[MAX_OSPATH];
 	wchar_t wargs[8192];
+	wchar_t rev[2048];
 	PROCESS_INFORMATION childinfo;
 	STARTUPINFOW startinfo = {sizeof(startinfo)};
 
@@ -2848,18 +2899,25 @@ qboolean Sys_EngineWasUpdated(char *newbinary)
 	if (!Sys_EngineCanUpdate())
 		return false;
 
+	memset(&childinfo, 0, sizeof(childinfo));
 	startinfo.dwFlags = STARTF_USESTDHANDLES;
 	startinfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
 	startinfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 	startinfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
 
-	GetModuleFileNameW(NULL, widefe, countof(widefe)-1);
-	_snwprintf(wargs, countof(wargs), L"%s --fromfrontend \"%s\" \"%s\"", GetCommandLineW(), widen(wide1, sizeof(wide1), SVNREVISIONSTR), widefe);
-	if (CreateProcessW(widen(wide1, sizeof(wide1), newbinary), wargs, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+	GetModuleFileNameW(NULL, launcherbinary, countof(launcherbinary)-1);
+	widen(launchbinary, sizeof(launchbinary), newbinary);
+	_snwprintf(wargs, countof(wargs), L"%s --fromfrontend \"%s\" \"%s\"", GetCommandLineW(), widen(rev, sizeof(rev), SVNREVISIONSTR), launcherbinary);
+	if (CreateProcessW(launchbinary, wargs, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+	{
+		CloseHandle(childinfo.hProcess);
+		CloseHandle(childinfo.hThread);
 		return true;	//it started up, we need to die now.
+	}
 
 	return false;	//failure!
 }
+*/
 #endif
 
 #include "shellapi.h"

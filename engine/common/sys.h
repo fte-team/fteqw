@@ -186,13 +186,13 @@ void NPQTV_Sys_MainLoop(void);
 int StartLocalServer(int close);
 
 #define HAVEAUTOUPDATE
-void Sys_SetUpdatedBinary(const char *fname);	//legacy, so old build can still deal with updates properly
-qboolean Sys_EngineCanUpdate(void);				//says whether the system code is able to invoke new binaries properly
-qboolean Sys_EngineWasUpdated(char *newbinary);	//invoke the given system-path binary
+qboolean Sys_SetUpdatedBinary(const char *fname);	//legacy, so old build can still deal with updates properly
+qboolean Sys_EngineMayUpdate(void);				//says whether the system code is able to invoke new binaries properly
+//qboolean Sys_EngineWasUpdated(char *newbinary);	//invoke the given system-path binary
 #else
-#define Sys_EngineCanUpdate() false
-#define Sys_SetUpdatedBinary(n)
-#define Sys_EngineWasUpdated(n) false
+#define Sys_EngineMayUpdate() false
+#define Sys_SetUpdatedBinary(n) false
+//#define Sys_EngineWasUpdated(n) false
 #endif
 
 void Sys_Init (void);

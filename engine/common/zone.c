@@ -520,7 +520,7 @@ void *QDECL ZG_Malloc(zonegroup_t *ctx, size_t size)
 #endif
 	newm->next = ctx->first;
 	ctx->first = newm;
-	ctx->bytes += size;
+	ctx->totalbytes += size;
 	return(void*)(newm+1);
 }
 void ZG_FreeGroup(zonegroup_t *ctx)
@@ -532,7 +532,7 @@ void ZG_FreeGroup(zonegroup_t *ctx)
 		ctx->first = old->next;
 		BZ_Free(old);
 	}
-	ctx->bytes = 0;
+	ctx->totalbytes = 0;
 }
 
 //============================================================================

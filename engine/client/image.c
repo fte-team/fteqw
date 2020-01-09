@@ -1833,7 +1833,7 @@ err:
 		qpng_set_bgr(png_ptr);
 	qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, chanbits, colourtype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
-#ifdef PNG_TEXT_SUPPORTED
+#if defined(PNG_TEXT_SUPPORTED) && defined(PNG_ITXT_COMPRESSION_NONE)
 	if (writemetadata)
 	{
 		char blob[8192];
@@ -7838,6 +7838,32 @@ static void Image_Tr_NoTransform(struct pendingtextureinfo *mips, int dummy)
 {
 }
 
+static void Image_Tr_PalettedtoRGBX8(struct pendingtextureinfo *mips, int dummy)
+{
+	unsigned int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		qbyte *in = mips->mip[mip].data;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		qbyte *out = BZ_Malloc(sizeof(*out)*4*p);
+		void *newdata = out;
+
+		while(p-->0)
+		{
+			unsigned int l = *in++;
+			*out++ = host_basepal[l*3+0];
+			*out++ = host_basepal[l*3+1];
+			*out++ = host_basepal[l*3+2];
+			*out++ = (l==255)?255:0;
+		}
+		if (mips->mip[mip].needfree)
+			BZ_Free(mips->mip[mip].data);
+		mips->mip[mip].needfree = true;
+		mips->mip[mip].data = newdata;
+		mips->mip[mip].datasize = sizeof(*out)*4*p;
+	}
+}
+
 //may operate in place
 static void Image_Tr_RGBX8toPaletted(struct pendingtextureinfo *mips, int dummy)
 {
@@ -10941,6 +10967,7 @@ static struct
 
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
 	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted},
+	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8},
 };
 void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformats, uploadfmt_t origfmt, const char *imagename)
 {

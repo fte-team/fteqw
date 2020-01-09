@@ -7145,7 +7145,7 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 {
 	float *point[3];
 	int i, x, y;
-	qboolean valve220 = true;
+	const qboolean valve220 = true;
 
 	VFS_PRINTF(file, "\n{");
 	if (br->patch)
@@ -7646,8 +7646,9 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			//hexen2:( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname soffset toffset rotation sscale tscale utterlypointless
 			//Valve: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
 			//fte  : ( px py pz pd ) texname [sx sy sz sd] [tx ty tz td] 0 1 1
-			//q3   : ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) common/caulk common/caulk rotation sscale tscale detailcontents unused unused
-			//doom3: brushdef3 { ( px py pz pd ) ( ( x y z ) ( x y z ) ) texture detailcontents unused unused }
+			//q3   : ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname common/caulk rotation sscale tscale detailcontents unused unused
+			//q3bp : brushDef { ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) ( ( x y o ) ( x y o ) ) texname detailcontents unused unused } //generate tangent+bitangent from the normal to generate base texcoords, then transform by the given 2*3 matrix. I prefer valve's way - it rotates more cleanly.
+			//doom3: brushDef3 { ( px py pz pd ) ( ( x y z ) ( x y z ) ) texname detailcontents unused unused }
 			brushtex_t *bt;
 			vec3_t d1,d2;
 			vec3_t points[3];

@@ -1070,7 +1070,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 	if (editormodal || (stepasm && !statement))
 	{
 		if (fatal)
-			return DEBUG_TRACE_ABORT;
+			return DEBUG_TRACE_ABORTERROR;
 		return DEBUG_TRACE_OFF;	//whoops
 	}
 
@@ -1082,7 +1082,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		if (!stepasm && *filename)
 			Con_Printf("Set %s to trace\n", pr_debugger.name);
 		if (fatal)
-			return DEBUG_TRACE_ABORT;
+			return DEBUG_TRACE_ABORTERROR;
 		return DEBUG_TRACE_OFF;	//get lost
 	}
 
@@ -1103,7 +1103,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		if (!line)
 		{	//please don't crash
 			if (fatal)
-				return DEBUG_TRACE_ABORT;
+				return DEBUG_TRACE_ABORTERROR;
 			return DEBUG_TRACE_OFF;	//whoops
 		}
 
@@ -1185,7 +1185,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		else
 		{
 			if (fatal)
-				return DEBUG_TRACE_ABORT;
+				return DEBUG_TRACE_ABORTERROR;
 			return DEBUG_TRACE_OFF;	//whoops
 		}
 	}

@@ -3049,7 +3049,7 @@ char *COM_ParseStringSetSep (const char *data, char sep, char *out, size_t outsi
 			return (char*)data;
 		}
 		c = *data++;
-		if (c == ';')
+		if (c == sep)
 			break;
 		out[len++] = c;
 	}

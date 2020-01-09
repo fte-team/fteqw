@@ -122,7 +122,7 @@ void BZ_Free(void *ptr);
 typedef struct zonegroup_s
 {
 	void *first;
-	int bytes;
+	int totalbytes;	//combined size of all mallocs in this group
 } zonegroup_t;
 void *QDECL ZG_Malloc(zonegroup_t *ctx, size_t size);
 void *ZG_MallocNamed(zonegroup_t *ctx, size_t size, char *file, int line);

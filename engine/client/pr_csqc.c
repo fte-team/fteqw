@@ -7066,7 +7066,8 @@ static int PDECL PR_CSQC_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercr
 			break;
 		}
 	}
-	Con_DPrintf("Unknown csqc builtin: %s\n", builtinname);
+	if (!csqc_nogameaccess)
+		Con_DPrintf("Unknown csqc builtin: %s\n", builtinname);
 	return 0;
 }
 
@@ -7890,7 +7891,7 @@ void CSQC_RendererRestarted(void)
 	if (csqcg.rendererrestarted)
 	{
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-		(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, rf->description));
+		(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, rf->description));
 		PR_ExecuteProgram(csqcprogs, csqcg.rendererrestarted);
 	}
 	//in case it drew to any render targets.

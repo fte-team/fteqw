@@ -73,7 +73,8 @@ enum {
 	DEBUG_TRACE_INTO,		//debug into functions
 	DEBUG_TRACE_OVER,		//switch debugging off while executing child functions (and back on afterwards)
 	DEBUG_TRACE_OUT,		//keep running until the end of the current function (trigger single-stepping again at that point)
-	DEBUG_TRACE_ABORT,		//give up with an endgame.
+	DEBUG_TRACE_ABORTERROR,	//give up with an endgame.
+//	DEBUG_TRACE_ABORTSTACK,	//stop executing, without any errors.
 	DEBUG_TRACE_NORESUME	//line number or something changed, but we should still be sitting at the debugger.
 };
 

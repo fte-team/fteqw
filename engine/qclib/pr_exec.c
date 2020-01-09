@@ -295,7 +295,7 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 		return;
 
 	line = current_progstate->linenums[prinst.pr_xstatement];
-	for (st = pr_xfunction->first_statement; st16[st].op != OP_DONE; st++)
+	for (st = prinst.pr_xfunction->first_statement; st16[st].op != OP_DONE; st++)
 	{
 		if (current_progstate->linenums[st] < line - 2 || current_progstate->linenums[st] > line + 2)
 			continue;	//don't go crazy with this.
@@ -314,7 +314,7 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			if (!ent || !fld)
 				continue;
 			//all this extra code to avoid printing dupes...
-			for (st2 = st-1; st2 >= pr_xfunction->first_statement; st2--)
+			for (st2 = st-1; st2 >= prinst.pr_xfunction->first_statement; st2--)
 			{
 				if (current_progstate->linenums[st2] < line - 2 || current_progstate->linenums[st2] > line + 2)
 					continue;
@@ -384,13 +384,13 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 	progfuncs->funcs.debug_trace = -10;	//PR_StringToNative(+via PR_ValueString) has various error conditions that we want to mute instead of causing recursive errors.
 
 	//point this to the function's locals
-	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
+	globalbase = (int *)pr_globals + prinst.pr_xfunction->parm_start + prinst.pr_xfunction->locals;
 
 	for (i=prinst.pr_depth ; i>0 ; i--)
 	{
 		if (i == prinst.pr_depth)
 		{
-			f = pr_xfunction;
+			f = prinst.pr_xfunction;
 			st = prinst.pr_xstatement;
 			prnum = prinst.pr_typecurrent;
 		}
@@ -511,7 +511,7 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 	}
 	st = &prinst.pr_stack[prinst.pr_depth++];
 	st->s = prinst.pr_xstatement;
-	st->f = pr_xfunction;
+	st->f = prinst.pr_xfunction;
 	st->progsnum = progsnum;
 	st->pushed = prinst.spushed;
 	st->stepping = progfuncs->funcs.debug_trace;
@@ -548,7 +548,7 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 		}
 	}
 
-	pr_xfunction = f;
+	prinst.pr_xfunction = f;
 	return f->first_statement - 1;	// offset the s++
 }
 
@@ -569,13 +569,13 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 	st = &prinst.pr_stack[--prinst.pr_depth];
 
 // restore locals from the stack
-	c = pr_xfunction->locals;
+	c = prinst.pr_xfunction->locals;
 	prinst.localstack_used -= c;
 	if (prinst.localstack_used < 0)
 		PR_RunError (&progfuncs->funcs, "PR_ExecuteProgram: locals stack underflow\n");
 
 	for (i=0 ; i < c ; i++)
-		((int *)pr_globals)[pr_xfunction->parm_start + i] = prinst.localstack[prinst.localstack_used+i];
+		((int *)pr_globals)[prinst.pr_xfunction->parm_start + i] = prinst.localstack[prinst.localstack_used+i];
 
 	PR_SwitchProgsParms(progfuncs, st->progsnum);
 	prinst.spushed = st->pushed;
@@ -588,14 +588,14 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 		prclocks_t cycles;
 		cycles = Sys_GetClock() - st->timestamp;
 		if (cycles > prinst.profilingalert)
-			externs->Printf("QC call to %s took over a second\n", PR_StringToNative(&progfuncs->funcs,pr_xfunction->s_name));
-		pr_xfunction->profiletime += cycles;
-		pr_xfunction = st->f;
+			externs->Printf("QC call to %s took over a second\n", PR_StringToNative(&progfuncs->funcs,prinst.pr_xfunction->s_name));
+		prinst.pr_xfunction->profiletime += cycles;
+		prinst.pr_xfunction = st->f;
 		if (prinst.pr_depth)
-			pr_xfunction->profilechildtime += cycles;
+			prinst.pr_xfunction->profilechildtime += cycles;
 	}
 	else
-		pr_xfunction = st->f;
+		prinst.pr_xfunction = st->f;
 
 	prinst.localstack_used -= prinst.spushed;
 	return st->s;
@@ -617,15 +617,15 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, const char *name, eval_t 
 	case PST_DEFAULT:
 	case PST_KKQWSV:
 		//this gets parms fine, but not locals
-		if (pr_xfunction)
-		for (i = 0; i < pr_xfunction->locals; i++)
+		if (prinst.pr_xfunction)
+		for (i = 0; i < prinst.pr_xfunction->locals; i++)
 		{
-			def16 = ED_GlobalAtOfs16(progfuncs, pr_xfunction->parm_start+i);
+			def16 = ED_GlobalAtOfs16(progfuncs, prinst.pr_xfunction->parm_start+i);
 			if (!def16)
 				continue;
 			if (!strcmp(def16->s_name+progfuncs->funcs.stringtable, name))
 			{
-				*val = (eval_t *)&cp->globals[pr_xfunction->parm_start+i];
+				*val = (eval_t *)&cp->globals[prinst.pr_xfunction->parm_start+i];
 
 				//we need something like this for functions that are not the top layer
 	//			*val = (eval_t *)&localstack[localstack_used-pr_xfunction->numparms*4];
@@ -646,15 +646,15 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, const char *name, eval_t 
 	case PST_QTEST:
 	case PST_FTE32:
 		//this gets parms fine, but not locals
-		if (pr_xfunction)
-		for (i = 0; i < pr_xfunction->numparms; i++)
+		if (prinst.pr_xfunction)
+		for (i = 0; i < prinst.pr_xfunction->numparms; i++)
 		{
-			def32 = ED_GlobalAtOfs32(progfuncs, pr_xfunction->parm_start+i);
+			def32 = ED_GlobalAtOfs32(progfuncs, prinst.pr_xfunction->parm_start+i);
 			if (!def32)
 				continue;
 			if (!strcmp(def32->s_name+progfuncs->funcs.stringtable, name))
 			{
-				*val = (eval_t *)&cp->globals[pr_xfunction->parm_start+i];
+				*val = (eval_t *)&cp->globals[prinst.pr_xfunction->parm_start+i];
 
 				//we need something like this for functions that are not the top layer
 	//			*val = (eval_t *)&localstack[localstack_used-pr_xfunction->numparms*4];
@@ -1081,7 +1081,7 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 {
 	int pn = prinst.pr_typecurrent;
 	int snum;
-	const mfunction_t *f = pr_xfunction;
+	const mfunction_t *f = prinst.pr_xfunction;
 
 	switch(current_progstate->structtype)
 	{
@@ -1333,7 +1333,7 @@ static const char *lastfile = NULL;
 
 	int pn = prinst.pr_typecurrent;
 	int i;
-	const mfunction_t *f = pr_xfunction;
+	const mfunction_t *f = prinst.pr_xfunction;
 	int faultline;
 	int debugaction;
 	prinst.pr_xstatement = statement;
@@ -1342,7 +1342,7 @@ static const char *lastfile = NULL;
 	{
 		PR_PrintStatement(progfuncs, statement);
 		if (fatal)
-			progfuncs->funcs.debug_trace = DEBUG_TRACE_ABORT;
+			progfuncs->funcs.debug_trace = DEBUG_TRACE_ABORTERROR;
 		return statement;
 	}
 
@@ -1418,7 +1418,7 @@ static const char *lastfile = NULL;
 
 			if (debugaction == DEBUG_TRACE_NORESUME)
 				continue;
-			else if(debugaction == DEBUG_TRACE_ABORT)
+			else if(debugaction == DEBUG_TRACE_ABORTERROR)
 				progfuncs->funcs.parms->Abort ("%s", fault?fault:"Debugger Abort");
 			else if (debugaction == DEBUG_TRACE_OFF)
 			{
@@ -1464,7 +1464,7 @@ int PR_HandleFault (pubprogfuncs_t *ppf, char *error, ...)
 	if (resumestatement == 0)
 	{
 		PR_AbortStack(ppf);
-		return prinst.continuestatement;
+		return -1;
 //		ppf->parms->Abort ("%s", string);
 	}
 	return resumestatement;
@@ -1754,7 +1754,6 @@ static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 //		prinst->watch_ptr = NULL;
 	}
 
-	prinst.continuestatement = -1;
 #ifdef QCJIT
 	if (current_progstate->jit)
 	{
@@ -1913,7 +1912,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	for (i = 0,localsoffset=0; i < ed; i++)
 	{
 		if (i+1 == prinst.pr_depth)
-			f = pr_xfunction;
+			f = prinst.pr_xfunction;
 		else
 			f = prinst.pr_stack[i+1].f;
 		localsoffset += f->locals;	//this is where it crashes
@@ -1926,7 +1925,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 		thread->fstack[i-ed].statement = prinst.pr_stack[i].s;
 
 		if (i+1 == prinst.pr_depth)
-			f = pr_xfunction;
+			f = prinst.pr_xfunction;
 		else
 			f = prinst.pr_stack[i+1].f;
 		localsoffset += f->locals;
@@ -1936,7 +1935,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	for (i = prinst.pr_depth - 1; i >= ed ; i--)
 	{
 		if (i+1 == prinst.pr_depth)
-			f = pr_xfunction;
+			f = prinst.pr_xfunction;
 		else
 			f = prinst.pr_stack[i+1].f;
 		localsoffset -= f->locals;
@@ -1950,7 +1949,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	for (i = ed; i < prinst.pr_depth ; i++)	//we need to get the locals back to how they were.
 	{
 		if (i+1 == prinst.pr_depth)
-			f = pr_xfunction;
+			f = prinst.pr_xfunction;
 		else
 			f = prinst.pr_stack[i+1].f;
 
@@ -1963,7 +1962,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	thread->lstackused = localsoffset - baselocalsoffset;
 
 	thread->xstatement = prinst.pr_xstatement;
-	thread->xfunction = pr_xfunction - current_progstate->functions;
+	thread->xfunction = prinst.pr_xfunction - current_progstate->functions;
 	thread->xprogs = prinst.pr_typecurrent;
 
 	return thread;
@@ -1973,9 +1972,10 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	mfunction_t	*f, *oldf;
-	int		i,l,ls;
+	int		i,l,ls, olds;
 	progsnum_t initial_progs;
 	int		oldexitdepth;
+	int		*glob;
 
 	int s;
 #ifndef QCGC
@@ -2006,7 +2006,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 	{
 		if (prinst.pr_depth == prinst.exitdepth)
 		{
-			prinst.pr_stack[prinst.pr_depth].f = pr_xfunction;
+			prinst.pr_stack[prinst.pr_depth].f = prinst.pr_xfunction;
 			prinst.pr_stack[prinst.pr_depth].s = prinst.pr_xstatement;
 			prinst.pr_stack[prinst.pr_depth].progsnum = initial_progs;
 		}
@@ -2018,13 +2018,19 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 		}
 
 		if (i+1 == thread->fstackdepth)
+		{
 			f = &pr_cp_functions[fnum];
+			glob = (int*)pr_globals;
+		}
 		else
+		{
 			f = pr_progstate[thread->fstack[i+1].progsnum].functions + thread->fstack[i+1].fnum;
+			glob = (int*)pr_progstate[thread->fstack[i+1].progsnum].globals;
+		}
 		for (l = 0; l < f->locals; l++)
 		{
-			prinst.localstack[prinst.localstack_used++] = ((int *)pr_globals)[f->parm_start + l];
-			((int *)pr_globals)[f->parm_start + l] = thread->lstack[ls++];
+			prinst.localstack[prinst.localstack_used++] = glob[f->parm_start + l];
+			glob[f->parm_start + l] = thread->lstack[ls++];
 		}
 
 		prinst.pr_depth++;
@@ -2048,8 +2054,9 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 
 
 //	PR_EnterFunction (progfuncs, f, initial_progs);
-	oldf = pr_xfunction;
-	pr_xfunction = f;
+	oldf = prinst.pr_xfunction;
+	olds = prinst.pr_xstatement;
+	prinst.pr_xfunction = f;
 	s = thread->xstatement;
 
 #ifndef QCGC
@@ -2065,15 +2072,16 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 #endif
 
 	prinst.exitdepth = oldexitdepth;
-	pr_xfunction = oldf;
+	prinst.pr_xfunction = oldf;
+	prinst.pr_xstatement = olds;
 }
 
 void	PDECL PR_AbortStack			(pubprogfuncs_t *ppf)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	while(prinst.pr_depth > prinst.exitdepth+1)
+	while(prinst.pr_depth > prinst.exitdepth)
 		PR_LeaveFunction(progfuncs);
-	prinst.continuestatement = 0;
+	prinst.pr_xstatement = -1;	//should make the loop abort.
 }
 
 pbool	PDECL PR_GetBuiltinCallInfo	(pubprogfuncs_t *ppf, int *builtinnum, char *function, size_t sizeoffunction)

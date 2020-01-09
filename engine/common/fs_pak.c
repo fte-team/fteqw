@@ -374,8 +374,8 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 		for (j=0 ; j<sizeof(info) ; j++)
 			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
 */
-		strcpy (newfiles[i].name, info.name);
-		newfiles[i].name[MAX_QPATH-1] = 0; //paranoid
+		memcpy(newfiles[i].name, info.name, sizeof(info.name));
+		newfiles[i].name[min(sizeof(info.name), MAX_QPATH-1)] = 0; //paranoid
 		COM_CleanUpPath(newfiles[i].name);	//blooming tanks.
 		newfiles[i].filepos = LittleLong(info.filepos);
 		newfiles[i].filelen = LittleLong(info.filelen);

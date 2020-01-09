@@ -536,9 +536,9 @@ pubsubserver_t *Sys_ForkServer(void)
 
 	memset(&startinfo, 0, sizeof(startinfo));
 	startinfo.cb = sizeof(startinfo);
-	startinfo.hStdInput = NULL;
-	startinfo.hStdError = NULL;
-	startinfo.hStdOutput = NULL;
+	startinfo.hStdInput = INVALID_HANDLE_VALUE;
+	startinfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+	startinfo.hStdOutput = INVALID_HANDLE_VALUE;
 	startinfo.dwFlags |= STARTF_USESTDHANDLES;
 
 	//create pipes for the stdin/stdout.

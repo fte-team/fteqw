@@ -3974,14 +3974,41 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 				currentcapture_funcs = pluginencodersfunc[i];
 	}
 	if (!currentcapture_funcs)
-	{
+	{	//try to find one based upon the explicit extension given.
+		char captext[8];
+		const char *outext = COM_GetFileExtension(recordingname, NULL);
+
 		for (i = 0; i < countof(pluginencodersfunc); i++)
 		{
-			if (pluginencodersfunc[i])
+			if (pluginencodersfunc[i] && pluginencodersfunc[i]->extensions)
 			{
-				currentcapture_funcs = pluginencodersfunc[i];
-//				break;
+				const char *t = pluginencodersfunc[i]->extensions;
+				while (*t)
+				{
+					t = COM_ParseStringSetSep (t, ';', captext, sizeof(captext));
+					if (wildcmp(captext, outext))
+					{	//matches the wildcard...
+						currentcapture_funcs = pluginencodersfunc[i];
+						break;
+					}
+				}
 			}
+		}
+	}
+	if (!currentcapture_funcs)
+	{	//otherwise just find the first valid one that's in a plugin.
+		for (i = 0; i < countof(pluginencodersfunc); i++)
+		{
+			if (pluginencodersfunc[i] && pluginencodersfunc[i]->extensions && pluginencodersplugin[i])
+				currentcapture_funcs = pluginencodersfunc[i];
+		}
+	}
+	if (!currentcapture_funcs)
+	{	//otherwise just find the first valid one that's from anywhere...
+		for (i = 0; i < countof(pluginencodersfunc); i++)
+		{
+			if (pluginencodersfunc[i] && pluginencodersfunc[i]->extensions)
+				currentcapture_funcs = pluginencodersfunc[i];
 		}
 	}
 	if (capturesound.ival)
@@ -4042,8 +4069,11 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 		{	//extensions are evil, but whatever.
 			//make sure there is actually an extension there, and don't break if they try overwriting a known demo format...
 			COM_StripExtension(recordingname, fname, sizeof(fname));
-			if (currentcapture_funcs->defaultextension)
-				Q_strncatz(fname, currentcapture_funcs->defaultextension, sizeof(fname));
+			if (currentcapture_funcs->extensions)
+			{
+				COM_ParseStringSetSep (currentcapture_funcs->extensions, ';', ext, sizeof(ext));
+				Q_strncatz(fname, ext, sizeof(fname));
+			}
 			recordingname = fname;
 		}
 

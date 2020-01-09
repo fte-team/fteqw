@@ -118,9 +118,9 @@ static void Mod_MemList_f(void)
 	int total = 0;
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
-		if (mod->memgroup.bytes)
-			Con_Printf("%s: %i bytes\n", mod->name, mod->memgroup.bytes);
-		total += mod->memgroup.bytes;
+		if (mod->memgroup.totalbytes)
+			Con_Printf("%s: %i bytes\n", mod->name, mod->memgroup.totalbytes);
+		total += mod->memgroup.totalbytes;
 	}
 	Con_Printf("Total: %i bytes\n", total);
 }

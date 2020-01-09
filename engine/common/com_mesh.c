@@ -5870,7 +5870,7 @@ static qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 				char lodname[MAX_QPATH];
 				memcpy(basename, mod->name, ext-mod->name);
 				basename[ext-mod->name] = 0;
-				Q_snprintfz(lodname, sizeof(lodname), "%s_%i.%s", basename, lod, ext);
+				Q_snprintfz(lodname, sizeof(lodname), "%s_%i%s", basename, lod, ext);
 				f = FS_LoadMallocFile(lodname, &s);
 				if (!f)
 					break;

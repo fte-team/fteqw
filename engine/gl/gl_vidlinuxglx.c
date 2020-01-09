@@ -80,7 +80,9 @@ static qboolean XVK_SetupSurface_XCB(void);
 #endif
 
 #define USE_VMODE
-#define USE_XRANDR
+#ifndef NO_X11_RANDR
+	#define USE_XRANDR
+#endif
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
@@ -4214,7 +4216,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	else
 #endif
 #ifdef USE_VMODE
-	if (!xrandr.origgamma && vm.pXF86VidModeGetGammaRampSize)
+	if (vm.pXF86VidModeGetGammaRampSize)
 	{
 		int rampsize = 256;
 		vm.pXF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);

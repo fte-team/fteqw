@@ -468,7 +468,7 @@ void APIENTRY GL_ClientActiveTextureStub(GLenum texid)
 
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
-void GL_CheckExtensions (void *(*getglfunction) (char *name))
+static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 {
 	qboolean webgl = false;
 	unsigned int gl_major_version = 0;
@@ -533,6 +533,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	//yes, I know, this can't cope with minor versions of 10+... I don't care yet.
 	gl_config.glversion += gl_major_version + (gl_minor_version/10.f);
+
+#if GL_INDEX_TYPE == GL_UNSIGNED_INT
+	if (gl_config_gles && gl_config.glversion < 3.0)
+	{	//opengles 1 and 2 do NOT support 32bit indexes. desktop gl always does but es supports it starting with gles3.0
+		Con_Printf ("Support for OpenGL ES 3.0 is required.\n");
+		return false;
+	}
+#endif
 
 	/*gl3 adds glGetStringi instead, as core, with the old form require GL_ARB_compatibility*/
 	if (gl_major_version >= 3 && qglGetStringi) /*warning: wine fails to export qglGetStringi*/
@@ -1355,6 +1363,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGenVertexArrays = NULL;
 		qglBindVertexArray = NULL;
 	}
+	return true;	//all okay.
 }
 
 static const char *glsl_hdrs[] =
@@ -3367,7 +3376,8 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 
 	memset(&sh_config, 0, sizeof(sh_config));
 
-	GL_CheckExtensions (getglfunction);
+	if (!GL_CheckExtensions (getglfunction))
+		return false;
 
 #ifndef FTE_TARGET_WEB
 	if (!gl_config.gles)

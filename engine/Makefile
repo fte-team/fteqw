@@ -579,13 +579,6 @@ ifeq (win,$(findstring cyg,$(FTE_TARGET))$(findstring win,$(FTE_TARGET)))
 #	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
 endif
 
-#try to statically link
-ifeq ($(COMPILE_SYS),Darwin)
-	ifneq (,$(findstring SDL,$(FTE_TARGET)))
-		IMAGELDFLAGS = $(shell pkg-config libpng --variable=libdir)/libpng.a $(shell pkg-config libjpeg --variable=libdir)/libjpeg.a
-		OGGVORBISLDFLAGS = $(shell pkg-config vorbisfile --variable=libdir)/libvorbisfile.a $(shell pkg-config vorbis --variable=libdir)/libvorbis.a $(shell pkg-config ogg --variable=libdir)/libogg.a
-	endif
-endif
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 VISIBILITY_FLAGS?=
 
@@ -640,6 +633,18 @@ ARCHLIBS=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
 #incase our compiler doesn't support it (mingw)
 ifeq ($(shell LANG=c $(CC) -rdynamic 2>&1 | grep unrecognized),)
 	DEBUG_CFLAGS+= -rdynamic
+endif
+
+PKGCONFIG=$(ARCH)-pkg-config
+ifeq ($(shell which $(PKGCONFIG) 2> /dev/null),)
+	PKGCONFIG=/bin/true #don't end up using eg /usr/include when cross-compiling. makelibs is a valid workaround.
+endif
+#try to statically link
+ifeq ($(COMPILE_SYS),Darwin)
+	ifneq (,$(findstring SDL,$(FTE_TARGET)))
+		IMAGELDFLAGS := $(shell $(PKGCONFIG) libpng --variable=libdir)/libpng.a $(shell $(PKGCONFIG) libjpeg --variable=libdir)/libjpeg.a
+		OGGVORBISLDFLAGS := $(shell $(PKGCONFIG) vorbisfile --variable=libdir)/libvorbisfile.a $(shell $(PKGCONFIG) vorbis --variable=libdir)/libvorbis.a $(shell $(PKGCONFIG) ogg --variable=libdir)/libogg.a
+	endif
 endif
 
 PROFILE_CFLAGS=-pg
@@ -935,6 +940,8 @@ ifeq (1,$(LINK_FREETYPE))
 	CLIENTLIBFLAGS+=-DFREETYPE_STATIC
 	CLIENTLDDEPS+=-lfreetype
 endif
+FREETYPE_CFLAGS:=$(shell $(PKGCONFIG) freetype --cflags --silence-errors)
+ALL_CFLAGS+=$(FREETYPE_CFLAGS)
 ifeq (1,$(LINK_PNG))
 	CLIENTLIBFLAGS+=-DLIBPNG_STATIC
 	CLIENTLDDEPS+=-lpng
@@ -2264,13 +2271,13 @@ libs-$(ARCH)/libjpeg.a:
 	test -f jpegsrc.v$(JPEGVER).tar.gz || wget http://www.ijg.org/files/jpegsrc.v$(JPEGVER).tar.gz
 	-test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
 
-libs-$(ARCH)/libz.a:
+libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
 	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h ../ )
+	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
 
-libs-$(ARCH)/libpng.a: libs-$(ARCH)/libz.a
+libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc: libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
-	-test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp png*.h ../ )
+	-test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp libpng.pc png*.h ../ )
 
 libs-$(ARCH)/libogg.a:
 	test -f libogg-$(OGGVER).tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-$(OGGVER).tar.gz
@@ -2292,9 +2299,9 @@ libs-$(ARCH)/libspeexdsp.a:
 	test -f speexdsp-$(SPEEXDSPVER).tar.gz || wget http://downloads.xiph.org/releases/speex/speexdsp-$(SPEEXDSPVER).tar.gz
 	-test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
 
-libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a
+libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
+	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && PKG_CONFIG_LIBDIR=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH) CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-zlib=yes --with-png=yes --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
@@ -2309,13 +2316,15 @@ httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
 IQM_OBJECTS=../iqm/iqm.cpp
 $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
-	$(CC) -o $@ $(IQM_OBJECTS) -lstdc++ -lm -Os
+	$(CC) -o $@ $(IQM_OBJECTS) -static -lstdc++ -lm -Os
 iqm-rel: $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX)
 iqm: iqm-rel
+iqmtool: iqm-rel
 
 IMGTOOL_OBJECTS=../imgtool.c client/image.c
-$(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
-	$(CC) -o $@ $(IMGTOOL_OBJECTS) -lstdc++ -lm -Os $(ALL_CFLAGS) -DIMGTOOL $(BASELDFLAGS)
+$(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)
+	$(CC) -o $@ $(IMGTOOL_OBJECTS) -lstdc++ -lm -Os $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIMGTOOL $(BASELDFLAGS) $(CLIENTLDDEPS)
+
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 

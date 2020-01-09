@@ -191,6 +191,7 @@ static struct
 static int downloadablessequence;	//bumped any time any package is purged
 
 static void PM_WriteInstalledPackages(void);
+static void PM_PreparePackageList(void);
 
 static void PM_FreePackage(package_t *p)
 {
@@ -651,9 +652,10 @@ static void PM_RemSubList(const char *url)
 }
 #endif
 
-static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, const char *prefix)
+static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *url, const char *prefix)
 {
 	char line[65536];
+	size_t l;
 	package_t *p;
 	struct packagedep_s *dep;
 	char *sl;
@@ -681,14 +683,25 @@ static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *ur
 
 	do
 	{
-		if (!VFS_GETS(f, line, sizeof(line)-1))
-			break;
-		while((sl=strchr(line, '\n')))
-			*sl = '\0';
-		while((sl=strchr(line, '\r')))
-			*sl = '\0';
+		for (l = 0;*f;)
+		{
+			if (*f == '\r' || *f == '\n')
+			{
+				if (f[0] == '\r' && f[1] == '\n')
+					f++;
+				f++;
+				break;
+			}
+			if (l < sizeof(line)-1)
+				line[l++] = *f;
+			else
+				line[0] = 0;
+			f++;
+		}
+		line[l] = 0;
+
 		Cmd_TokenizeString (line, false, false);
-	} while (!Cmd_Argc());
+	} while (!Cmd_Argc() && *f);
 
 	if (strcmp(Cmd_Argv(0), "version"))
 		return forcewrite;	//it's not the right format.
@@ -700,14 +713,24 @@ static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *ur
 		return forcewrite;	//it's not the right version.
 	}
 
-	while(1)
+	while(*f)
 	{
-		if (!VFS_GETS(f, line, sizeof(line)-1))
-			break;
-		while((sl=strchr(line, '\n')))
-			*sl = '\0';
-		while((sl=strchr(line, '\r')))
-			*sl = '\0';
+		for (l = 0;*f;)
+		{
+			if (*f == '\r' || *f == '\n')
+			{
+				if (f[0] == '\r' && f[1] == '\n')
+					f++;
+				f++;
+				break;
+			}
+			if (l < sizeof(line)-1)
+				line[l++] = *f;
+			else
+				line[0] = 0;
+			f++;
+		}
+		line[l] = 0;
 
 		tokstart = COM_StringParse (line, com_token, sizeof(com_token), false, false);
 		if (*com_token)
@@ -1038,7 +1061,7 @@ static qboolean PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *ur
 			{
 				if (!Q_strcasecmp(p->arch, THISENGINE))
 				{
-					if (!Sys_EngineCanUpdate())
+					if (!Sys_EngineMayUpdate())
 						p->flags |= DPF_HIDDEN;
 					else
 						p->flags |= DPF_ENGINE;
@@ -1084,6 +1107,9 @@ void PM_EnumeratePlugins(void (*callback)(const char *name))
 {
 	package_t *p;
 	struct packagedep_s *d;
+
+	PM_PreparePackageList();
+
 	for (p = availablepackages; p; p = p->next)
 	{
 		if ((p->flags & DPF_ENABLED) && (p->flags & DPF_PLUGIN))
@@ -1213,13 +1239,14 @@ static void PM_PreparePackageList(void)
 	//figure out what we've previously installed.
 	if (!loadedinstalled)
 	{
-		vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
+		size_t sz = 0;
+		char *f = FS_MallocFile(INSTALLEDFILES, FS_ROOT, &sz);
 		loadedinstalled = true;
 		if (f)
 		{
 			if (PM_ParsePackageList(f, DPF_FORGETONUNINSTALL|DPF_ENABLED, NULL, ""))
 				PM_WriteInstalledPackages();
-			VFS_CLOSE(f);
+			BZ_Free(f);
 		}
 
 #ifdef PLUGINS
@@ -1490,6 +1517,8 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 				o->flags &= ~DPF_MARKED;
 				replacing = true;
 			}
+			else if (o->flags & DPF_ENGINE)
+				PM_UnmarkPackage(o, DPF_MARKED);	//engine updates are mutually exclusive, unmark the existing one (you might have old ones cached, but they shouldn't be enabled).
 			else
 			{	//two packages with the same filename are always mutually incompatible, but with totally separate dependancies etc.
 				qboolean remove = false;
@@ -1733,35 +1762,55 @@ static void PM_PrintChanges(void)
 #ifdef WEBCLIENT
 static void PM_ListDownloaded(struct dl_download *dl)
 {
-	int i;
-	vfsfile_t *f;
-	f = dl->file;
-	dl->file = NULL;
+	size_t listidx = dl->user_num;
+	size_t sz = 0;
+	char *f = NULL;
+	if (dl->file)
+	{
+		sz = VFS_GETLEN(dl->file);
+		f = BZ_Malloc(sz+1);
+		if (f)
+		{
+			f[sz] = 0;
+			if (sz != VFS_READ(dl->file, f, sz))
+			{	//err... weird...
+				BZ_Free(f);
+				f = NULL;
+			}
+			if (strlen(f) != sz)
+			{	//don't allow mid-file nulls.
+				BZ_Free(f);
+				f = NULL;
+			}
+		}
+	}
 
-	i = dl->user_num;
-
-	if (dl != downloadablelist[i].curdl)
+	if (dl != downloadablelist[listidx].curdl)
 	{
 		//this request looks stale.
-		VFS_CLOSE(f);
+		BZ_Free(f);
 		return;
 	}
-	downloadablelist[i].curdl = NULL;
+	downloadablelist[listidx].curdl = NULL;
+
+	//FIXME: validate a signature!
 
 	if (f)
 	{
-		downloadablelist[i].received = 1;
-		PM_ParsePackageList(f, 0, dl->url, downloadablelist[i].prefix);
-		VFS_CLOSE(f);
+		downloadablelist[listidx].received = 1;
+		PM_ParsePackageList(f, 0, dl->url, downloadablelist[listidx].prefix);
+		BZ_Free(f);
 	}
 	else
-		downloadablelist[i].received = -1;
+		downloadablelist[listidx].received = -1;
 
 	if (!doautoupdate && !domanifestinstall)
 		return;	//don't spam this.
-	for (i = 0; i < numdownloadablelists; i++)
+
+	//check if we're still waiting
+	for (listidx = 0; listidx < numdownloadablelists; listidx++)
 	{
-		if (!downloadablelist[i].received)
+		if (!downloadablelist[listidx].received)
 			break;
 	}
 /*
@@ -1798,7 +1847,9 @@ static void PM_ListDownloaded(struct dl_download *dl)
 		}
 	}
 */
-	if ((doautoupdate || domanifestinstall == MANIFEST_SECURITY_DEFAULT) && i == numdownloadablelists)
+
+	//if our downloads finished and we want to shove it in the user's face then do so now.
+	if ((doautoupdate || domanifestinstall == MANIFEST_SECURITY_DEFAULT) && listidx == numdownloadablelists)
 	{
 		if (PM_MarkUpdates())
 		{
@@ -1937,8 +1988,8 @@ static void PM_WriteInstalledPackages(void)
 	char buf[65536];
 	int i;
 	char *s;
-	package_t *p, *e = NULL;
-	struct packagedep_s *dep, *ef = NULL;
+	package_t *p;
+	struct packagedep_s *dep;
 	vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "wb", FS_ROOT);
 	if (!f)
 	{
@@ -2048,11 +2099,6 @@ static void PM_WriteInstalledPackages(void)
 				{
 					Q_strncatz(buf, " ", sizeof(buf));
 					COM_QuotedConcat(va("file=%s", dep->name), buf, sizeof(buf));
-					if ((p->flags & DPF_ENABLED) && (p->flags & DPF_ENGINE) && (!e || strcmp(e->version, p->version) < 0))
-					{
-						e = p;
-						ef = dep;
-					}
 				}
 				else if (dep->dtype == DEP_REQUIRE)
 				{
@@ -2100,13 +2146,6 @@ static void PM_WriteInstalledPackages(void)
 	}
 
 	VFS_CLOSE(f);
-
-	if (ef)
-	{
-		char native[MAX_OSPATH];
-		FS_NativePath(ef->name, e->fsroot, native, sizeof(native));
-		Sys_SetUpdatedBinary(native);
-	}
 }
 
 //package has been downloaded and installed, but some packages need to be enabled
@@ -2115,6 +2154,9 @@ static void PM_PackageEnabled(package_t *p)
 {
 	char ext[8];
 	struct packagedep_s *dep;
+#ifdef HAVEAUTOUPDATE
+	struct packagedep_s *ef = NULL;
+#endif
 	FS_FlushFSHashFull();
 	for (dep = p->deps; dep; dep = dep->next)
 	{
@@ -2131,7 +2173,32 @@ static void PM_PackageEnabled(package_t *p)
 		if (!Q_strcasecmp(dep->name, "menu.dat"))
 			Cmd_ExecuteString("menu_restart\n", RESTRICT_LOCAL);
 #endif
+#ifdef HAVEAUTOUPDATE
+		if (p->flags & DPF_ENGINE)
+			ef = dep;
+#endif
 	}
+
+#ifdef HAVEAUTOUPDATE
+	//this is an engine update (with installed file) and marked.
+	if (ef && (p->flags & DPF_MARKED))
+	{
+		char native[MAX_OSPATH];
+		package_t *othr;
+		//make sure there's no more recent build that's also enabled...
+		for (othr = availablepackages; othr ; othr=othr->next)
+		{
+			if ((othr->flags & DPF_ENGINE) && (othr->flags & DPF_MARKED) && othr->flags & (DPF_PRESENT|DPF_ENABLED) && othr != p)
+				if (strcmp(p->version, othr->version) >= 0)
+					return;
+		}
+
+		if (FS_NativePath(ef->name, p->fsroot, native, sizeof(native)) && Sys_SetUpdatedBinary(native))
+			Menu_Prompt(NULL, NULL, "Engine binary updated.\nRestart to use.", NULL, NULL, NULL);
+		else
+			Menu_Prompt(NULL, NULL, "Engine update failed.\nManual update required.", NULL, NULL, NULL);
+	}
+#endif
 }
 
 #ifdef WEBCLIENT

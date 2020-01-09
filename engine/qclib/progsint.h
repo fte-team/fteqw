@@ -160,13 +160,11 @@ typedef struct prinst_s
 
 	//step-by-step debug state
 	int debugstatement;
-	int continuestatement;
 	int exitdepth;
 
 	pbool profiling;
 	prclocks_t profilingalert;	//one second, in cpu clocks
 	mfunction_t	*pr_xfunction;	//active function
-#define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;			//active statement
 
 //pr_edict.c

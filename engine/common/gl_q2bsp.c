@@ -3199,12 +3199,16 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 		out->light_s[0] = LittleLong(in->lightmap_x);
 		out->light_t[0] = LittleLong(in->lightmap_y);
-		out->styles[0] = 255;
+		out->styles[0] = INVALID_LIGHTSTYLE;
+		out->vlstyles[0] = 255;
 		for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
 		{
-			out->styles[sty] = 255;
+			out->styles[sty] = INVALID_LIGHTSTYLE;
+			out->vlstyles[sty] = 255;
 			out->lightmaptexturenums[sty] = -1;
 		}
+		for (;  sty < MAXQ1LIGHTMAPS; sty++)
+			out->styles[sty] = INVALID_LIGHTSTYLE;
 		out->lmshift = LMSHIFT_DEFAULT;
 		//fixme: determine texturemins from lightmap_origin
 		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<out->lmshift;
@@ -3315,11 +3319,14 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
 			out->light_s[j] = LittleLong(in->lightmap_offs[0][j]);
 			out->light_t[j] = LittleLong(in->lightmap_offs[1][j]);
-			out->styles[j] = in->lm_styles[j];
+			out->styles[j] = (in->lm_styles[j]!=255)?in->lm_styles[j]:INVALID_LIGHTSTYLE;
+			out->vlstyles[j] = in->vt_styles[j];
 
 			if (mod->lightmaps.count < out->lightmaptexturenums[j]+1)
 				mod->lightmaps.count = out->lightmaptexturenums[j]+1;
 		}
+		for (;  j < MAXQ1LIGHTMAPS; j++)
+			out->styles[j] = INVALID_LIGHTSTYLE;
 		if (facetype == MST_FLARE)
 			out->texinfo = mod->texinfo + mod->numtexinfo*2;
 		else if (out->lightmaptexturenums[0]<0 || r_vertexlight.value)

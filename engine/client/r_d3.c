@@ -236,9 +236,9 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				b[surf].lightmap[2] = -1;
 				b[surf].lightmap[3] = -1;
 				b[surf].lmlightstyle[0] = 0;
-				b[surf].lmlightstyle[1] = 255;
-				b[surf].lmlightstyle[2] = 255;
-				b[surf].lmlightstyle[3] = 255;
+				b[surf].lmlightstyle[1] = INVALID_LIGHTSTYLE;
+				b[surf].lmlightstyle[2] = INVALID_LIGHTSTYLE;
+				b[surf].lmlightstyle[3] = INVALID_LIGHTSTYLE;
 
 				data = COM_ParseOut(data, token, sizeof(token));
 				b[surf].shader = R_RegisterShader_Vertex(token);

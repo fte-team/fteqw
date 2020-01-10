@@ -730,7 +730,8 @@ reeval:
 		s = PR_LeaveFunction (progfuncs);
 		st = &pr_statements[s];		
 		if (prinst.pr_depth == prinst.exitdepth)
-		{		
+		{
+			prinst.pr_xstatement = s;
 			return -1;		// all done
 		}
 		return s;

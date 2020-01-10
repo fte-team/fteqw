@@ -326,6 +326,6 @@ NATIVE_PLUGINS+=ezhud
 
 $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/models.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
-#NATIVE_PLUGINS+=models
+NATIVE_PLUGINS+=models
 
 all: $(foreach FOO,$(NATIVE_PLUGINS), $(PLUG_PREFIX)$(FOO)$(PLUG_NATIVE_EXT))

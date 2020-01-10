@@ -42,7 +42,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "ezquakeisms.h"
 #include "hud.h"
 
-//#define WITH_PNG
+//#define WITH_PNG	//more WITH_RADAR than anything else.
 
 #define draw_disc draw_disc2
 

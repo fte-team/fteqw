@@ -116,17 +116,19 @@ static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, i
 	int forcewidth = ffmpeg_videoforcewidth->value;
 	int forceheight = ffmpeg_videoforceheight->value;
 
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 48, 101)
+	st = avformat_new_stream(ctx->fc, NULL);
+	if (!st)
+		return NULL;
+	st->id = ctx->fc->nb_streams-1;
+	c = avcodec_alloc_context3(codec);
+#else
 	st = avformat_new_stream(ctx->fc, codec);
 	if (!st)
 		return NULL;
 
-	st->id = ctx->fc->nb_streams-1;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 101)
 	c = st->codec;
-#else
-	c = avcodec_alloc_context3(codec);
-	if(avcodec_parameters_to_context(c, st->codecpar))
-		return NULL;
+	st->id = ctx->fc->nb_streams-1;
 #endif
 	ctx->video_codec = c;
 	c->codec_id = codec->id;
@@ -165,7 +167,6 @@ static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, i
 		av_opt_set(c->priv_data, "preset", ffmpeg_videopreset->string, AV_OPT_SEARCH_CHILDREN);
 	if (*ffmpeg_video_crf->string)
 		av_opt_set(c->priv_data, "crf", ffmpeg_video_crf->string, AV_OPT_SEARCH_CHILDREN);
-
 
 	return st;
 }
@@ -301,18 +302,22 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *sampl
 	AVStream *st;
 	int bitrate = ffmpeg_audiobitrate->value;
 
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 101)
 	st = avformat_new_stream(ctx->fc, codec);
 	if (!st)
 		return NULL;
 
-	st->id = ctx->fc->nb_streams-1;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 101)
 	c = st->codec;
 #else
+	st = avformat_new_stream(ctx->fc, NULL);
+	if (!st)
+		return NULL;
+
 	c = avcodec_alloc_context3(codec);
 	if(avcodec_parameters_to_context(c, st->codecpar))
 		return NULL;
 #endif
+	st->id = ctx->fc->nb_streams-1;
 	ctx->audio_codec = c;
 	c->codec_id = codec->id;
 	c->codec_type = codec->type;
@@ -645,6 +650,16 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		ctx->video_outbuf = av_malloc(ctx->video_outbuf_size);
 		if (!ctx->video_outbuf)
 			ctx->video_outbuf_size = 0;
+
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 48, 101)
+		//copy the avcodec parameters over to avformat
+		err = avcodec_parameters_from_context(ctx->video_st->codecpar, c);
+		if(err < 0)
+		{
+			AVEnc_End(ctx);
+			return NULL;
+		}
+#endif
 	}
 	if (ctx->audio_st)
 	{
@@ -717,9 +732,6 @@ static void AVEnc_End (void *vctx)
 	}
 #endif
 
-	close_video(ctx);
-	close_audio(ctx);
-
 	//don't write trailers if this is an error case and we never even wrote the headers.
 	if (ctx->doneheaders)
 	{
@@ -728,12 +740,15 @@ static void AVEnc_End (void *vctx)
 			Con_Printf("Finished writing %s\n", ctx->abspath);
 	}
 
+	close_video(ctx);
+	close_audio(ctx);
+
 	for(i = 0; i < ctx->fc->nb_streams; i++)
 		av_freep(&ctx->fc->streams[i]);
 //	if (!(fmt->flags & AVFMT_NOFILE))
 		avio_close(ctx->fc->pb);
 	av_free(ctx->audio_outbuf);
-	av_free(ctx->fc);
+	avformat_free_context(ctx->fc);
 	free(ctx);
 }
 static media_encoder_funcs_t encoderfuncs =
@@ -741,7 +756,7 @@ static media_encoder_funcs_t encoderfuncs =
 	sizeof(media_encoder_funcs_t),
 	"ffmpeg",
 	"Use ffmpeg's various codecs. Various settings are configured with the "ENCODERNAME"_* cvars.",
-	".mp4",
+	".mp4;.*",
 	AVEnc_Begin,
 	AVEnc_Video,
 	AVEnc_Audio,

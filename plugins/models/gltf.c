@@ -1,5 +1,5 @@
 #ifndef GLQUAKE
-//#define GLQUAKE	//this is shit.
+#define GLQUAKE	//this is shit, but ensures index sizes come out the right size
 #endif
 #include "quakedef.h"
 #include "../plugin.h"
@@ -7,9 +7,37 @@
 extern plugmodfuncs_t *modfuncs;
 extern plugfsfuncs_t *filefuncs;
 
+#if MAX_INDICIES == 0xffffu
+#warning 16bit indexes
+#else
+#warning 32bit indexes
+#endif
+
 #ifdef SKELETALMODELS
 #define GLTFMODELS
 #endif
+
+/*Limitations:
+	materials:
+		material names (when present) are assumed to be either globally unique, or the material attributes must match those of all other materials with the same name.
+		texture modes (like clamp) must match on both axis (either both clamp or both wrap, no mixing)
+		mirrored-repeat not supported
+		mip-mag-mip filters must match (all linear, or all nearest)
+	animations:
+		input framerates are not well-defined. this can result in issues when converting to other formats (especially with stepping anims).
+		morph targets are not supported.
+		total nodes(+joints) must be < MAX_BONES, and ideally <MAX_GPU_BONES too but it is sufficient for that to be per-mesh.
+	meshes:
+		multiple texture coord sets are not supported.
+		additional colours/weights attributes are not supported.
+		multiple meshes with the same material will not be merged.
+	scene:
+		cameras can be parsed, but are not necessarily useful as they are not exposed to the gamecode.
+	extensions:
+		no KHR_draco_mesh_compression
+		unknown extensions will result in warning spam for each occurence.
+		gltf1 is NOT supported, only gltf2.
+*/
 
 
 //'The units for all linear distances are meters.'
@@ -536,9 +564,6 @@ static size_t JSON_ReadBody(json_t *t, char *out, size_t outsize)
 //glTF 1.0 and 2.0 differ in that 1 uses names and 2 uses indexes. There's also some significant differences with materials.
 //we only support 2.0
 
-//articulated models are handled by loading them as skeletal (should probably optimise the engine for this usecase)
-//we don't support skeletal models either right now.
-
 //buffers are raw blobs that can come from multiple different sources
 struct gltf_buffer
 {
@@ -820,6 +845,7 @@ static void GLTF_AccessorToTangents(gltf_t *gltf, vec3_t *norm, vec3_t **sdir, v
 	char *in = a->data;
 
 	size_t v, c;
+	float side;
 	*sdir = os;
 	*tdir = ot;
 	if ((a->type&0xff) != 4)
@@ -833,9 +859,37 @@ static void GLTF_AccessorToTangents(gltf_t *gltf, vec3_t *norm, vec3_t **sdir, v
 		memset(os, 0, sizeof(*os) * outverts);
 		memset(ot, 0, sizeof(*ot) * outverts);
 		break;
-//	case 5120:	//BYTE
-//	case 5121:	//UNSIGNED_BYTE
-//	case 5122: //SHORT
+	case 5120: //BYTE	KHR_mesh_quantization (always normalized)
+		for (v = 0; v < outverts; v++)
+		{
+			for (c = 0; c < 3; c++)
+				os[v][c] = max(-1.0, ((signed char*)in)[c] / 127.0);	//negative values are larger, but we want to allow 1.0
+			side = max(-1.0, ((signed char*)in)[3] / 127.0);
+
+			//bitangent = cross(normal, tangent.xyz) * tangent.w
+			ot[v][0] = (norm[v][1]*os[v][2] - norm[v][2]*os[v][1]) * side;
+			ot[v][1] = (norm[v][2]*os[v][0] - norm[v][0]*os[v][2]) * side;
+			ot[v][2] = (norm[v][0]*os[v][1] - norm[v][1]*os[v][0]) * side;
+
+			in += a->bytestride;
+		}
+		break;
+//	case 5121: //UNSIGNED_BYTE
+	case 5122: //SHORT	KHR_mesh_quantization (always normalized)
+		for (v = 0; v < outverts; v++)
+		{
+			for (c = 0; c < 3; c++)
+				os[v][c] = max(-1.0, ((signed short*)in)[c] / 32767.0);
+			side = max(-1.0, ((signed short*)in)[3] / 32767.0);
+
+			//bitangent = cross(normal, tangent.xyz) * tangent.w
+			ot[v][0] = (norm[v][1]*os[v][2] - norm[v][2]*os[v][1]) * side;
+			ot[v][1] = (norm[v][2]*os[v][0] - norm[v][0]*os[v][2]) * side;
+			ot[v][2] = (norm[v][0]*os[v][1] - norm[v][1]*os[v][0]) * side;
+
+			in += a->bytestride;
+		}
+		break;
 //	case 5123: //UNSIGNED_SHORT
 //	case 5125: //UNSIGNED_INT
 	case 5126: //FLOAT
@@ -843,17 +897,19 @@ static void GLTF_AccessorToTangents(gltf_t *gltf, vec3_t *norm, vec3_t **sdir, v
 		{
 			for (c = 0; c < 3; c++)
 				os[v][c] = ((float*)in)[c];
+			side = ((float*)in)[3];
 
 			//bitangent = cross(normal, tangent.xyz) * tangent.w
-			ot[v][0] = (norm[v][1]*os[v][2] - norm[v][2]*os[v][1]) * ((float*)in)[3];
-			ot[v][1] = (norm[v][2]*os[v][0] - norm[v][0]*os[v][2]) * ((float*)in)[3];
-			ot[v][2] = (norm[v][0]*os[v][1] - norm[v][1]*os[v][0]) * ((float*)in)[3];
+			ot[v][0] = (norm[v][1]*os[v][2] - norm[v][2]*os[v][1]) * side;
+			ot[v][1] = (norm[v][2]*os[v][0] - norm[v][0]*os[v][2]) * side;
+			ot[v][2] = (norm[v][0]*os[v][1] - norm[v][1]*os[v][0]) * side;
 
 			in += a->bytestride;
 		}
 		break;
 	}
 }
+
 static void *GLTF_AccessorToDataF(gltf_t *gltf, size_t outverts, unsigned int outcomponents, struct gltf_accessor *a)
 {
 	float *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
@@ -872,58 +928,133 @@ static void *GLTF_AccessorToDataF(gltf_t *gltf, size_t outverts, unsigned int ou
 		memset(ret, 0, sizeof(*ret) * outcomponents * outverts);
 		break;
 	case 5120:	//BYTE
-		while(outverts --> 0)
+		if (!a->normalized)
+		{	//KHR_mesh_quantization
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((signed char*)in)[c];
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
+		}
+		else
 		{
-			for (c = 0; c < ic; c++)
-				o[c] = max(-1.0, ((char*)in)[c] / 127.0);	//negative values are larger, but we want to allow 1.0
-			for (; c < outcomponents; c++)
-				o[c] = 0;
-			o += outcomponents;
-			in += a->bytestride;
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = max(-1.0, ((signed char*)in)[c] / 127.0);	//negative values are larger, but we want to allow 1.0
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
 		}
 		break;
 	case 5121:	//UNSIGNED_BYTE
-		while(outverts --> 0)
+		if (!a->normalized)
+		{	//KHR_mesh_quantization
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((unsigned char*)in)[c];
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
+		}
+		else
 		{
-			for (c = 0; c < ic; c++)
-				o[c] = ((unsigned char*)in)[c] / 255.0;
-			for (; c < outcomponents; c++)
-				o[c] = 0;
-			o += outcomponents;
-			in += a->bytestride;
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((unsigned char*)in)[c] / 255.0;
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
 		}
 		break;
 	case 5122: //SHORT
-		while(outverts --> 0)
+		if (!a->normalized)
+		{	//KHR_mesh_quantization
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((signed short*)in)[c];
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
+		}
+		else
 		{
-			for (c = 0; c < ic; c++)
-				o[c] = max(-1.0, ((signed short*)in)[c] / 32767.0);	//negative values are larger, but we want to allow 1.0
-			for (; c < outcomponents; c++)
-				o[c] = 0;
-			o += outcomponents;
-			in += a->bytestride;
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = max(-1.0, ((signed short*)in)[c] / 32767.0);	//negative values are larger, but we want to allow 1.0
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
 		}
 		break;
 	case 5123: //UNSIGNED_SHORT
-		while(outverts --> 0)
+		if (!a->normalized)
+		{	//KHR_mesh_quantization
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((unsigned short*)in)[c];
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
+		}
+		else
 		{
-			for (c = 0; c < ic; c++)
-				o[c] = ((unsigned short*)in)[c] / 65535.0;
-			for (; c < outcomponents; c++)
-				o[c] = 0;
-			o += outcomponents;
-			in += a->bytestride;
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((unsigned short*)in)[c] / 65535.0;
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
 		}
 		break;
 	case 5125: //UNSIGNED_INT
-		while(outverts --> 0)
+		if (!a->normalized)
+		{	//?!?!?!?!
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((unsigned int*)in)[c];
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
+		}
+		else
 		{
-			for (c = 0; c < ic; c++)
-				o[c] = ((unsigned int*)in)[c] / (double)~0u;	//stupid format to use. will be lossy.
-			for (; c < outcomponents; c++)
-				o[c] = 0;
-			o += outcomponents;
-			in += a->bytestride;
+			while(outverts --> 0)
+			{
+				for (c = 0; c < ic; c++)
+					o[c] = ((unsigned int*)in)[c] / (double)~0u;	//stupid format to use. will be lossy.
+				for (; c < outcomponents; c++)
+					o[c] = 0;
+				o += outcomponents;
+				in += a->bytestride;
+			}
 		}
 		break;
 	case 5126: //FLOAT
@@ -997,15 +1128,18 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 	if (ic > outcomponents)
 		ic = outcomponents;
 	o = ret;
+	if (a->normalized)
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"GLTF_AccessorToDataBone: %s: normalised input\n", gltf->mod->name);
 	switch(a->componentType)
 	{
 	default:
 		if (gltf->warnlimit --> 0)
-			Con_Printf(CON_WARNING"GLTF_AccessorToDataUB: %s: glTF2 unsupported componentType (%i)\n", gltf->mod->name, a->componentType);
+			Con_Printf(CON_WARNING"GLTF_AccessorToDataBone: %s: glTF2 unsupported componentType (%i)\n", gltf->mod->name, a->componentType);
 	case 0:
 		memset(ret, 0, sizeof(*ret) * outcomponents * outverts);
 		break;
-//	case 5120:	//BYTE
+	case 5120:	//BYTE - should not be negative, so ignore sign bit
 	case 5121:	//UNSIGNED_BYTE
 		while(outverts --> 0)
 		{
@@ -1021,7 +1155,7 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 			in += a->bytestride;
 		}
 		break;
-	case 5122: //SHORT
+	case 5122: //SHORT - should not be negative, so ignore sign bit
 	case 5123: //UNSIGNED_SHORT
 		while(outverts --> 0)
 		{
@@ -1256,8 +1390,10 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 		JSON_ReadBody(nam, ret->frame->shadername, sizeof(ret->frame->shadername));
 	else if (mat)
 		JSON_GetPath(mat, false, ret->frame->shadername, sizeof(ret->frame->shadername));
+	else if (material == -1)	//explicit invalid material
+		Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%s", gltf->mod->name);
 	else
-		Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%i", material);
+		Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%.100s/%i", gltf->mod->name, material);
 
 	if (alphaMode == 1)
 		Q_snprintf(alphaCutoffmodifier, sizeof(alphaCutoffmodifier), "#ALPHATEST=>%f", alphaCutoff);
@@ -1374,8 +1510,9 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				JSON_GetFloat(mat, "emissiveFactor.2", 0)
 			);
 	}
-	else if (pbrmr)
+	else// if (pbrmr)
 	{	//this is the standard lighting model for gltf2
+		//'When not specified, all the default values of pbrMetallicRoughness apply'
 		int albedo = JSON_GetInteger(pbrmr, "baseColorTexture.index", -1);	//.rgba
 		int mrt = JSON_GetInteger(pbrmr, "metallicRoughnessTexture.index", -1);	//.r = unused, .g = roughness, .b = metalic, .a = unused
 		int occ = JSON_GetInteger(mat, "occlusionTexture.index", -1);	//.r
@@ -2197,16 +2334,18 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 	static struct
 	{
 		const char *name;
-		qboolean supported;	//unsupported extensions don't really need to be listed, but they do prevent warnings from unkown-but-used extensions
+		qboolean supported;	//unsupported extensions don't really need to be listed, but they do prevent warnings from unknown-but-used extensions
+		qboolean draft;		//true when our implementation is probably buggy on account of the spec maybe changing.
 	} extensions[] =
 	{
-		{"KHR_materials_pbrSpecularGlossiness",		true},
-//draft	{"KHR_materials_cmnBlinnPhong",				true},
-		{"KHR_materials_unlit",						true},
-		{"KHR_texture_transform",					false},
-		{"KHR_draco_mesh_compression",				false},
-		{"MSFT_texture_dds",						true},
-		{"MSFT_packing_occlusionRoughnessMetallic", true},
+		{"KHR_materials_pbrSpecularGlossiness",		true,   false},
+//		{"KHR_materials_cmnBlinnPhong",				true,   true},
+		{"KHR_materials_unlit",						true,	false},
+		{"KHR_texture_transform",					false,	true},	//probably not fatal
+		{"KHR_draco_mesh_compression",				false,	true},	//probably fatal
+		{"KHR_mesh_quantization",					true,	true},
+		{"MSFT_texture_dds",						true,	false},
+		{"MSFT_packing_occlusionRoughnessMetallic", true,	false},
 	};
 	gltf_t gltf;
 	int pos=0, j, k;
@@ -2267,6 +2406,8 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			}
 			if (j==countof(extensions) || !extensions[j].supported)
 				Con_Printf(CON_WARNING "%s: gltf2 extension \"%s\" not known\n", mod->name, extname);
+			else if (extensions[j].draft)
+				Con_Printf(CON_WARNING "%s: gltf2 extension \"%s\" follows draft implementation, and may be non-standard/buggy\n", mod->name, extname);
 		}
 
 		VectorClear(mod->maxs);

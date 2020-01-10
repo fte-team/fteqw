@@ -1538,7 +1538,7 @@ void SV_SendLightstyle(client_t *cl, sizebuf_t *forcemsg, int style, qboolean in
 
 	if (!(cl->fteprotocolextensions & PEXT_LIGHTSTYLECOL))
 	{	//if they don't support it then just drop the extra colours, so long as it still makes sense.
-		if ((flags & ~0x87u) || (ISNQCLIENT(cl) && !ISDPCLIENT(cl) && !cl->fteprotocolextensions2))
+		if ((flags & ~0x87u) && (ISNQCLIENT(cl) && !ISDPCLIENT(cl) && cl->fteprotocolextensions2))
 		{
 			char *text = va("//ls %i \"%s\" %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
 			if (forcemsg)
@@ -1551,7 +1551,9 @@ void SV_SendLightstyle(client_t *cl, sizebuf_t *forcemsg, int style, qboolean in
 				ClientReliable_FinishWrite(cl);
 			return;	//erk, can't handle this!
 		}
-		flags = 7;
+		if (style >= ((cl->fteprotocolextensions2||ISDPCLIENT(cl))?255:64))
+			return; //client probably doesn't support this lightstyle.
+		flags = 7;	//force vanilla protocol as fallback.
 	}
 
 	if (forcemsg)

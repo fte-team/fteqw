@@ -1552,7 +1552,7 @@ void PR_Init(void)
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
 	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
 
-	Cmd_AddCommand ("sv_lightstyle", PR_Lightstyle_f);
+	Cmd_AddCommandD ("sv_lightstyle", PR_Lightstyle_f, "Overrides lightstyles from the server's console, mostly for debug use.");
 
 /*
 #ifdef _DEBUG
@@ -4721,30 +4721,52 @@ static void QCBUILTIN PF_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s
 static void PR_Lightstyle_f(void)
 {
 	int style = atoi(Cmd_Argv(1));
-	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
-		Con_TPrintf ("not supported in the current game mode.\n");
-	else if (!SV_MayCheat())
+
+	if (!SV_MayCheat())
 		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
-	else if (Cmd_Argc() <= 2)
+	else switch(svs.gametype)
 	{
-		if (style >= 0 && style < sv.maxlightstyles && Cmd_Argc() >= 2)
-			Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
-		else for (style = 0; style < sv.maxlightstyles; style++)
-			if (sv.lightstyles[style].str)
-				Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
-	}
-	else
-	{
-		vec3_t rgb = {1,1,1};
-		if (Cmd_Argc() > 5)
+	default:
+		Con_TPrintf ("not supported in the current game mode.\n");
+		break;
+#ifdef Q2SERVER
+	case GT_QUAKE2:
+		if (Cmd_Argc() <= 2)
 		{
-			rgb[0] = atof(Cmd_Argv(3));
-			rgb[1] = atof(Cmd_Argv(4));
-			rgb[2] = atof(Cmd_Argv(5));
+			if ((unsigned)style < (unsigned)Q2MAX_LIGHTSTYLES && Cmd_Argc() >= 2)
+				Con_Printf ("Style %i: %s\n", style, sv.strings.configstring[Q2CS_LIGHTS+style]);
+			else for (style = 0; style < Q2MAX_LIGHTSTYLES; style++)
+				if (sv.strings.configstring[Q2CS_LIGHTS+style])
+					Con_Printf("Style %i: %s\n", style, sv.strings.configstring[Q2CS_LIGHTS+style]);
 		}
-		else if (Cmd_Argc() > 3)
-			rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(3));
-		PF_applylightstyle(style, Cmd_Argv(2), rgb);
+		else if ((unsigned)style < (unsigned)Q2MAX_LIGHTSTYLES)
+			PFQ2_Configstring (Q2CS_LIGHTS+style, Cmd_Argv(2));
+		break;
+#endif
+	case GT_PROGS:
+	case GT_Q1QVM:
+		if (Cmd_Argc() <= 2)
+		{
+			if (style >= 0 && style < sv.maxlightstyles && Cmd_Argc() >= 2)
+				Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+			else for (style = 0; style < sv.maxlightstyles; style++)
+				if (sv.lightstyles[style].str)
+					Con_Printf("Style %i: %s %g %g %g\n", style, sv.lightstyles[style].str, sv.lightstyles[style].colours[0], sv.lightstyles[style].colours[1], sv.lightstyles[style].colours[2]);
+		}
+		else
+		{
+			vec3_t rgb = {1,1,1};
+			if (Cmd_Argc() > 5)
+			{
+				rgb[0] = atof(Cmd_Argv(3));
+				rgb[1] = atof(Cmd_Argv(4));
+				rgb[2] = atof(Cmd_Argv(5));
+			}
+			else if (Cmd_Argc() > 3)
+				rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(3));
+			PF_applylightstyle(style, Cmd_Argv(2), rgb);
+		}
+		break;
 	}
 }
 

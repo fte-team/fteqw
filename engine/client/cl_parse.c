@@ -4461,7 +4461,7 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
 	{
-		R_UpdateLightStyle(i, s, 1, 1, 1);
+		R_UpdateLightStyle(i-Q2CS_LIGHTS, s, 1, 1, 1);
 	}
 	else if (i == Q2CS_CDTRACK)
 	{

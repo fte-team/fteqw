@@ -161,10 +161,8 @@ static void Mod_BatchList_f(void)
 					else if (batch->lightmap[1] >= 0)
 						Con_Printf("^2 lm=(%i:%i %i:%i)", batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1]);
 					else
-						if (batch->lightmap[1] >= 0)
-#else
-						if (batch->lmlightstyle[0] != 255)
 #endif
+						if (batch->lmlightstyle[0] != INVALID_LIGHTSTYLE)
 						Con_Printf("^2 lm=(%i:%i)", batch->lightmap[0], batch->lmlightstyle[0]);
 					else
 						Con_Printf("^2 lm=%i", batch->lightmap[0]);
@@ -3255,7 +3253,7 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
 			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
-			batch->lmlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
+			batch->lmlightstyle[sty] = INVALID_LIGHTSTYLE;//don't do special backend rendering of lightstyles.
 			batch->vtlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
 		}
 

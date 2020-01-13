@@ -742,7 +742,8 @@ typedef enum
 	VF_ENVMAP			= 220,	//cubemap image for reflectcube
 	VF_USERDATA			= 221,
 	VF_SKYROOM_CAMERA	= 222,
-	VF_PIXELPSCALE		= 223, //[dpi_x, dpi_y, dpi_y/dpi_x]
+	VF_PIXELPSCALE		= 223,	//[dpi_x, dpi_y, dpi_y/dpi_x]
+	VF_PROJECTIONOFFSET	= 224,	//allows for off-axis projections.
 } viewflags;
 
 /*FIXME: this should be changed*/

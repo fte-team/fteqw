@@ -6522,7 +6522,9 @@ void Host_FinishLoading(void)
 			return;
 		}
 
+#ifdef PLUGINS
 		Plug_Initialise(true);
+#endif
 
 		Con_History_Load();
 

@@ -7,12 +7,6 @@
 extern plugmodfuncs_t *modfuncs;
 extern plugfsfuncs_t *filefuncs;
 
-#if MAX_INDICIES == 0xffffu
-#warning 16bit indexes
-#else
-#warning 32bit indexes
-#endif
-
 #ifdef SKELETALMODELS
 #define GLTFMODELS
 #endif

@@ -211,6 +211,7 @@ cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= CVARD	("r_netgraph", "0", "Displays a graph of packet latency. A value of 2 will give additional info about what sort of data is being received from the server.");
 extern cvar_t r_lerpmuzzlehack;
+extern cvar_t mod_h2holey_bugged;
 cvar_t r_nolerp								= CVARF	("r_nolerp", "0", CVAR_ARCHIVE);
 cvar_t r_noframegrouplerp					= CVARF	("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 cvar_t r_nolightdir							= CVARF	("r_nolightdir", "0", CVAR_ARCHIVE);
@@ -555,6 +556,9 @@ void GLRenderer_Init(void)
 
 #ifdef PSKMODELS
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
+#endif
+#ifdef MD1MODELS
+	Cvar_Register (&mod_h2holey_bugged, GLRENDEREROPTIONS);
 #endif
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noframegrouplerp, GLRENDEREROPTIONS);

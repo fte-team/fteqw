@@ -599,6 +599,11 @@ void R_SetupGL (float stereooffset, int i)
 					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
 					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
 				}
+
+				r_refdef.m_projection_std[8] += r_refdef.projectionoffset[0];
+				r_refdef.m_projection_std[9] += r_refdef.projectionoffset[1];
+				r_refdef.m_projection_view[8] += r_refdef.projectionoffset[0];
+				r_refdef.m_projection_view[9] += r_refdef.projectionoffset[1];
 			}
 			else
 			{

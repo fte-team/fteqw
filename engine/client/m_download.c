@@ -1239,7 +1239,7 @@ static void PM_PreparePackageList(void)
 	//figure out what we've previously installed.
 	if (!loadedinstalled)
 	{
-		size_t sz = 0;
+		qofs_t sz = 0;
 		char *f = FS_MallocFile(INSTALLEDFILES, FS_ROOT, &sz);
 		loadedinstalled = true;
 		if (f)

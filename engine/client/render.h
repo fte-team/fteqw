@@ -262,6 +262,7 @@ typedef struct
 	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
 	vec3_t		headaxis[3];		/*this is for head mounted displays. this is relative to the view*/
 	vec3_t		eyeoffset;			/*world space, for vr screenies*/
+	vec2_t		projectionoffset;	/*for off-centre rendering*/
 
 	float		fov_x, fov_y, afov;
 	float		fovv_x, fovv_y;	//viewmodel fovs

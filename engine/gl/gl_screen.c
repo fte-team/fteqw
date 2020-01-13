@@ -297,8 +297,6 @@ char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum up
 	}*/
 	else if (gl_config.gles || (*truewidth&3))
 	{
-		qbyte *p;
-
 		//gles:
 		//Only two format/type parameter pairs are accepted.
 		//GL_RGBA/GL_UNSIGNED_BYTE is always accepted, and the other acceptable pair can be discovered by querying GL_IMPLEMENTATION_COLOR_READ_FORMAT and GL_IMPLEMENTATION_COLOR_READ_TYPE.
@@ -306,20 +304,10 @@ char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum up
 		//desktopgl:
 		//total line byte length must be aligned to GL_PACK_ALIGNMENT. by reading rgba instead of rgb, we can ensure the line is a multiple of 4 bytes.
 
+		*fmt = PTI_RGBA8;
 		ret = BZ_Malloc((*truewidth)*(*trueheight)*4);
 		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGBA, GL_UNSIGNED_BYTE, ret);
-		*bytestride = *truewidth*-3;
-
-		*fmt = PTI_RGB8;
-		c = (*truewidth)*(*trueheight);
-		p = ret;
-		for (i = 1; i < c; i++)
-		{
-			p[i*3+0]=p[i*4+0];
-			p[i*3+1]=p[i*4+1];
-			p[i*3+2]=p[i*4+2];
-		}
-		ret = BZ_Realloc(ret, (*truewidth)*(*trueheight)*3);
+		*bytestride = *truewidth*-4;
 	}
 #if 1//def _DEBUG
 	else if (!gl_config.gles && sh_config.texfmt[PTI_BGRA8])

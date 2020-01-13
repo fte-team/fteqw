@@ -523,7 +523,7 @@ static qboolean FS_GamedirIsOkay(const char *path)
 	//don't allow leading dots, hidden files are evil.
 	//don't allow complex paths. those are evil too.
 	if (!*path || *path == '.' || !strcmp(path, ".") || strstr(path, "..") || strstr(path, "/")
-		|| strstr(path, "\\") || strstr(path, ":") )
+		|| strstr(path, "\\") || strstr(path, ":") || strstr(path, "\""))
 	{
 		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", path);
 		return false;
@@ -2252,6 +2252,7 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 	COM_CreatePath(fullname);
 }
 
+//FIXME: why is this qofs_t and not size_t?!?
 void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *filesize)
 {
 	vfsfile_t *f;
@@ -2264,9 +2265,15 @@ void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *f
 	len = VFS_GETLEN(f);
 	if (filesize)
 		*filesize = len;
+	if (len >= ~(size_t)0)
+	{
+		VFS_CLOSE(f);
+		Con_Printf(CON_ERROR"File %s: too large\n", filename);
+		return NULL;
+	}
 
 	buf = (qbyte*)BZ_Malloc(len+1);
-	if (!buf)
+	if (!buf)	//this could be a soft error, but I don't want to have to deal with users reporting misc unrelated issues (and frankly most malloc failures are due to OOB writes)
 		Sys_Error ("FS_MallocFile: out of memory loading %s", filename);
 
 	((qbyte *)buf)[len] = 0;
@@ -3269,10 +3276,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	if (!fs_manifest)
 		FS_ChangeGame(NULL, true, false);
 
-	//don't allow leading dots, hidden files are evil.
-	//don't allow complex paths. those are evil too.
-	if (*dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
-		|| strstr(dir, "\\") || strstr(dir, ":") || strstr(dir, "\"") )
+	//we do allow empty here, for base.
+	if (*dir && !FS_GamedirIsOkay(dir))
 	{
 		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
 		return;
@@ -3352,8 +3357,9 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*ezquake cheats and compat*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
 /*quake requires a few settings for compatibility*/
-#define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8"
-#define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
+#define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
+#define QUAKESPASMSUCKS "mod_h2holey_bugged 1\n"
+#define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT QUAKESPASMSUCKS
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//-nohome\ncfg_save_auto 1\n" QCFG "sv_nqplayerphysics 1\ncl_loopbackprotocol auto\ncl_sbar 1\nplug_sbar 0\nsv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.

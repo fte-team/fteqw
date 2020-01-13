@@ -3044,6 +3044,8 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 		}
 		else
 		{
+			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
+			//this of course means that precache_model+setmodel doesn't stall.
 			if (mod && mod->type != mod_alias)
 			{
 				while(mod->loadstate == MLS_LOADING)
@@ -3052,9 +3054,9 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 				VectorCopy (mod->mins, e->v->mins);
 				VectorCopy (mod->maxs, e->v->maxs);
 				VectorSubtract (mod->maxs, mod->mins, e->v->size);
-				World_LinkEdict (&sv.world, (wedict_t*)e, false);
 			}
-			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
+			//but do relink, because stuff bugs out otherwise.
+			World_LinkEdict (&sv.world, (wedict_t*)e, false);
 		}
 	}
 }
@@ -12622,6 +12624,7 @@ void PR_DumpPlatform_f(void)
 		{"VF_ENVMAP",			"const float", CS|MENU, D("The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything."), VF_ENVMAP},
 		{"VF_USERDATA",			"const float", CS|MENU, D("Pointer (and byte size) to an array of vec4s. This data is then globally visible to all glsl via the w_user uniform."), VF_USERDATA},
 		{"VF_SKYROOM_CAMERA",	"const float", CS, D("Controls the camera position of the skyroom (which will be drawn underneath transparent sky surfaces). This should move slightly with the real camera, but not so much that the skycamera enters walls. Requires a skyshader with a blend mode on the first pass (or no passes)."), VF_SKYROOM_CAMERA},
+		{"VF_PROJECTIONOFFSET",	"const float", CS|MENU, D("vec2 horizontal+vertical offset for the projection matrix, for weird off-centre rendering."), VF_PROJECTIONOFFSET},
 
 		{"IMGFMT_R8G8B8A8",		"const float", CS|MENU, D("Typical 32bit rgba pixel format."), 1},
 		{"IMGFMT_R16G16B16A16F","const float", CS|MENU, D("Half-Float pixel format. Requires gl3 support."), 2},

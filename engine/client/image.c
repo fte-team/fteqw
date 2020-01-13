@@ -1750,13 +1750,13 @@ int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compressi
 	case PTI_L8:
 		havepad = false;
 		colourtype = PNG_COLOR_TYPE_GRAY;
-		chanbits = 16;
+		chanbits = 8;
 		bgr = false;
 		break;
 	case PTI_L8A8:
 		havepad = false;
 		colourtype = PNG_COLOR_TYPE_GRAY_ALPHA;
-		chanbits = 16;
+		chanbits = 8;
 		bgr = false;
 		break;
 
@@ -11246,13 +11246,17 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 			for (i = 0; i < imgwidth * imgheight; i++)
 			{
-				if (((qbyte*)rawdata)[i] == 0xff || ((qbyte*)rawdata)[i] == 0)
-				{//fixme: blend non-0xff neighbours. no, just use premultiplied alpha instead, where it matters.
+				qbyte px = ((qbyte*)rawdata)[i];
+				//Note: The proper value here is 0.
+				//However, hexen2 has a bug that ALSO treats 255 the same way, but ONLY in the GL version.
+				//So allow both.
+				if (px == 0xff || px == 0)
+				{//fixme: blend opaque neighbours? no, just use premultiplied alpha instead, where it matters.
 					rgbadata[i] = 0;
 					mips->encoding = PTI_RGBA8;
 				}
 				else
-					rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
+					rgbadata[i] = d_8to24rgbtable[px];
 			}
 			if (freedata)
 				BZ_Free(rawdata);

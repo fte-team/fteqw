@@ -1143,7 +1143,7 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 				for (colon1 = line+strlen(line)-1; *colon1 <= ' ' && colon1>=line; colon1--)
 					*colon1 = '\0';
 				if (!strncmp(line, "warning: ", 9))
-					memmove(line, line+9, sizeof(line));
+					memmove(line, line+9, sizeof(line)-9);
 				colon1=line;
 				do
 				{
@@ -2474,7 +2474,8 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 
 		if (dwell)
 		{
-			strncpy(tooltip_variable, term, sizeof(tooltip_variable)-1);
+			strncpy(tooltip_variable, term, sizeof(tooltip_variable));
+			tooltip_variable[sizeof(tooltip_variable)-1] = 0;
 			tooltip_position = pos;
 			tooltip_editor = editor;
 
@@ -6291,9 +6292,11 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 
 						oldlen = strlen(filename);
 						newlen = strlen(i.pszText);
+						if (oldlen + newlen + 2 > sizeof(filename))
+							break;	//don't overflow.
 						memmove(filename+newlen+1, filename, oldlen+1);
 						filename[newlen] = '/';
-						strncpy(filename, i.pszText, newlen);
+						memcpy(filename, i.pszText, newlen);
 					}
 					EditFile(filename, -1, false);
 					break;

@@ -5330,6 +5330,7 @@ void CL_LinkPlayers (void)
 #ifdef PEXT_SCALE
 		ent->scale = state->scale;
 #endif
+		ent->glowmod[0] = ent->glowmod[1] = ent->glowmod[2] = 1;
 		ent->shaderRGBAf[0] = state->colourmod[0]/32.0f;
 		ent->shaderRGBAf[1] = state->colourmod[1]/32.0f;
 		ent->shaderRGBAf[2] = state->colourmod[2]/32.0f;
@@ -5538,9 +5539,8 @@ void CL_LinkViewModel(void)
 	ent.angles[1] = cl_gunangley.value;
 	ent.angles[2] = cl_gunanglez.value;
 
-	ent.shaderRGBAf[0] = 1;
-	ent.shaderRGBAf[1] = 1;
-	ent.shaderRGBAf[2] = 1;
+	ent.glowmod[0] = ent.glowmod[1] = ent.glowmod[2] = 1;
+	ent.shaderRGBAf[0] = ent.shaderRGBAf[1] = ent.shaderRGBAf[2] = 1;
 	ent.shaderRGBAf[3] = alpha;
 	if (alpha != 1)
 	{

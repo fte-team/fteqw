@@ -11,6 +11,7 @@ plugfsfuncs_t *filefuncs;
 //#define LWOMODELS	//not working
 #ifdef SKELETALMODELS
 #define GLTFMODELS	//FIXME: not yet working properly.
+extern qboolean Plug_GLTF_Init(void);
 #endif
 
 #ifdef ASEMODELS
@@ -821,6 +822,7 @@ qboolean Mod_ExecuteCommand(qboolean isinsecure)
 {
 	char tok[128];
 	cmdfuncs->Argv(0, tok, sizeof(tok));
+#ifndef SERVERONLY
 	if (!strcmp(tok, "exportiqm"))
 	{
 		model_t *mod;
@@ -835,6 +837,7 @@ qboolean Mod_ExecuteCommand(qboolean isinsecure)
 		}
 		return true;
 	}
+#endif
 	return false;
 }
 
@@ -854,8 +857,7 @@ qboolean Plug_Init(void)
 		modfuncs->RegisterModelFormatMagic("LWO models (lwo)", (('M'<<24)+('R'<<16)+('O'<<8)+'F'), Mod_LoadLWOModel);
 #endif
 #ifdef GLTFMODELS
-		modfuncs->RegisterModelFormatText("glTF2 models (glTF)", ".gltf", Mod_LoadGLTFModel);
-		modfuncs->RegisterModelFormatMagic("glTF2 models (glb)", (('F'<<24)+('T'<<16)+('l'<<8)+'g'), Mod_LoadGLBModel);
+		Plug_GLTF_Init();
 #endif
 
 		plugfuncs->ExportFunction("ExecuteCommand", Mod_ExecuteCommand);

@@ -186,6 +186,7 @@
 //#define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
 //#define MODELFMT_MDX
 //#define MODELFMT_OBJ
+//#define MODELFMT_GLTF			//khronos 'transmission format'. .gltf or .glb extension. PBR. Version 2 only, for now.
 //#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
 
 

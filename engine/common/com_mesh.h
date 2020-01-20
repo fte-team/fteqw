@@ -1,3 +1,6 @@
+#ifndef COM_MESH_H
+#define COM_MESH_H
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -91,7 +94,6 @@ typedef struct
 //we can't be bothered with animating skins.
 //We'll load up to four of them but after that you're on your own
 #ifndef SERVERONLY
-
 typedef struct
 {
 	shader_t *shader;
@@ -100,7 +102,7 @@ typedef struct
 	char shadername[MAX_QPATH];
 	texnums_t texnums;
 } skinframe_t;
-typedef struct
+struct galiasskin_s
 {
 	int skinwidth;
 	int skinheight;
@@ -108,7 +110,7 @@ typedef struct
 	int numframes;
 	skinframe_t *frame;
 	char name[MAX_QPATH];
-} galiasskin_t;
+};
 
 typedef struct
 {
@@ -121,9 +123,8 @@ typedef struct
 	unsigned int subframe;
 	bucket_t bucket;
 } galiascolourmapped_t;
-#else
-typedef void galiasskin_t;
 #endif
+typedef struct galiasskin_s galiasskin_t;
 
 typedef struct
 {
@@ -277,3 +278,4 @@ void R_Generate_Mesh_ST_Vectors(mesh_t *mesh);
 #ifdef __cplusplus
 };
 #endif
+#endif //COM_MESH_H

@@ -9,6 +9,13 @@
 
 #ifdef PLUGINS
 
+#ifdef MODELFMT_GLTF
+	#define Q_snprintf Q_snprintfz
+	#define Q_strlcpy Q_strncpyz
+	#define Q_strlcat Q_strncatz
+	#include "../plugins/models/gltf.c"
+#endif
+
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
 cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only via explicit plug_load commands\n1: Load built-in plugins and those selected via the package manager\n2: Scan for misc plugins, loading all that can be found, but not built-ins.\n3: Scan for plugins, and then load any built-ins");
 
@@ -23,6 +30,9 @@ static struct
 #endif
 #if defined(USE_INTERNAL_ODE)
 	{"ODE_internal", Plug_ODE_Init},
+#endif
+#if defined(MODELFMT_GLTF)
+	{"GLTF", Plug_GLTF_Init},
 #endif
 	{NULL}
 };
@@ -236,6 +246,7 @@ static plugin_t *Plug_Load(const char *file)
 				Con_DPrintf("Activated module %s\n", file);
 				newplug->lib = NULL;
 
+				Q_strncpyz(newplug->filename, staticplugins[u].name, sizeof(newplug->filename));
 				currentplug = newplug;
 				success = staticplugins[u].initfunction();
 				break;
@@ -1614,6 +1625,7 @@ int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void 
 	//lots of awkward logic so we hide modules for other cpus.
 	size_t nl = strlen(fname);
 	size_t u;
+	char *arch_ext = ARCH_DL_POSTFIX;
 	static const char *knownarch[] =
 	{
 		"x32", "x64", "amd64", "x86",	//various x86 ABIs
@@ -1625,9 +1637,14 @@ int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void 
 	while ((mssuck=strchr(fname, '\\')))
 		*mssuck = '/';
 #endif
-	if (nl >= strlen(ARCH_DL_POSTFIX) && !Q_strcasecmp(fname+nl-strlen(ARCH_DL_POSTFIX), ARCH_DL_POSTFIX))
+	if (!parm)
 	{
-		nl -= strlen(ARCH_DL_POSTFIX);
+		parm = "";
+		arch_ext = "";	//static plugins have no extension.
+	}
+	if (nl >= strlen(arch_ext) && !Q_strcasecmp(fname+nl-strlen(arch_ext), arch_ext))
+	{
+		nl -= strlen(arch_ext);
 		for (u = 0; u < countof(knownarch); u++)
 		{
 			size_t al = strlen(knownarch[u]);
@@ -1664,9 +1681,17 @@ void Plug_List_f(void)
 	char rootpath[MAX_OSPATH];
 	unsigned int u;
 	plugin_t *plug;
+
 	Con_Printf("Loaded plugins:\n");
 	for (plug = plugs; plug; plug = plug->next)
 		Con_Printf("^[^2%s\\type\\plug_close %s\\^]: loaded\n", plug->filename, plug->name);
+
+	if (staticplugins[0].name)
+	{
+		Con_DPrintf("Internal plugins:\n");
+		for (u = 0; staticplugins[u].name; u++)
+			Plug_List_Print(staticplugins[u].name, 0, 0, NULL, NULL);
+	}
 
 	if (FS_NativePath("", FS_BINARYPATH, binarypath, sizeof(binarypath)))
 	{
@@ -1675,7 +1700,7 @@ void Plug_List_f(void)
 		while ((mssuck=strchr(binarypath, '\\')))
 			*mssuck = '/';
 #endif
-		Con_Printf("Scanning for plugins at %s:\n", binarypath);
+		Con_DPrintf("Scanning for plugins at %s:\n", binarypath);
 		Sys_EnumerateFiles(binarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
 	}
 	if (FS_NativePath("", FS_ROOT, rootpath, sizeof(rootpath)))
@@ -1687,13 +1712,12 @@ void Plug_List_f(void)
 #endif
 		if (strcmp(binarypath, rootpath))
 		{
-			Con_Printf("Scanning for plugins at %s:\n", rootpath);
+			Con_DPrintf("Scanning for plugins at %s:\n", rootpath);
 			Sys_EnumerateFiles(rootpath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, rootpath, NULL);
 		}
 	}
 
-	for (u = 0; staticplugins[u].name; u++)
-		Plug_List_Print(staticplugins[u].name, 0, 0, "", NULL);
+	//should probably check downloadables too.
 }
 
 void Plug_Shutdown(qboolean preliminary)

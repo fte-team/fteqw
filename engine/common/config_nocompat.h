@@ -85,6 +85,7 @@
 #define INTERQUAKEMODELS		//Preferred model format, at least from an idealism perspective.
 //#define MODELFMT_MDX			//kingpin's format (for hitboxes+geomsets).
 //#define MODELFMT_OBJ			//lame mesh-only format that needs far too much processing and even lacks a proper magic identifier too
+//#define MODELFMT_GLTF			//khronos 'transmission format'. .gltf or .glb extension. PBR. Version 2 only, for now.
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
 
 //Image formats

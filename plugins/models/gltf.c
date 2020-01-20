@@ -4,8 +4,8 @@
 #include "quakedef.h"
 #include "../plugin.h"
 #include "com_mesh.h"
-extern plugmodfuncs_t *modfuncs;
-extern plugfsfuncs_t *filefuncs;
+static plugmodfuncs_t *modfuncs;
+static plugfsfuncs_t *filefuncs;
 
 #ifdef SKELETALMODELS
 #define GLTFMODELS
@@ -76,10 +76,13 @@ static void JSON_Orphan(json_t *t)
 }
 static void JSON_Destroy(json_t *t)
 {
-	while(t->child)
-		JSON_Destroy(t->child);
-	JSON_Orphan(t);
-	free(t);
+	if (t)
+	{
+		while(t->child)
+			JSON_Destroy(t->child);
+		JSON_Orphan(t);
+		free(t);
+	}
 }
 
 //node creation
@@ -127,22 +130,142 @@ static json_t *JSON_CreateNode(json_t *parent, const char *namestart, const char
 //node parsing
 static void JSON_SkipWhite(const char *msg, int *pos, int max)
 {
-	while (*pos < max && (
-		msg[*pos] == ' ' ||
-		msg[*pos] == '\t' ||
-		msg[*pos] == '\r' ||
-		msg[*pos] == '\n'
-		))
-		*pos+=1;
+	while (*pos < max)
+	{
+		//if its simple whitespace then keep skipping over it
+		if (msg[*pos] == ' ' ||
+			msg[*pos] == '\t' ||
+			msg[*pos] == '\r' ||
+			msg[*pos] == '\n' )
+		{
+			*pos+=1;
+			continue;
+		}
+
+		//BEGIN NON-STANDARD - Note that comments are NOT part of json, but people insist on using them anyway (c-style, like javascript).
+		else if (msg[*pos] == '/' && *pos+1 < max)
+		{
+			if (msg[*pos+1] == '/')
+			{	//C++ style single-line comments that continue till the next line break
+				*pos+=2;
+				while (*pos < max)
+				{
+					if (msg[*pos] == '\r' || msg[*pos] == '\n')
+						break;	//ends on first line break (the break is then whitespace will will be skipped naturally)
+					*pos+=1;	//not yet
+				}
+				continue;
+			}
+			else if (msg[*pos+1] == '*')
+			{	/*C style multi-line comment*/
+				*pos+=2;
+				while (*pos+1 < max)
+				{
+					if (msg[*pos] == '*' && msg[*pos+1] == '/')
+					{
+						*pos+=2;	//skip past the terminator ready for whitespace or trailing comments directly after
+						break;
+					}
+					*pos+=1;	//not yet
+				}
+				continue;
+			}
+		}
+		//END NON-STANDARD
+		break;	//not whitespace/comment/etc.
+	}
 }
+//writes the body to a null-terminated string, handling escapes as needed.
+//returns required body length (without terminator) (NOTE: return value is not escape-aware, so this is an over-estimate).
+static size_t JSON_ReadBody(json_t *t, char *out, size_t outsize)
+{
+//	size_t bodysize;
+	if (!t)
+	{
+		if (out)
+			*out = 0;
+		return 0;
+	}
+	if (out && outsize)
+	{
+		char *outend = out+outsize-1;	//compensate for null terminator
+		const char *in = t->bodystart;
+		while (in < t->bodyend && out < outend)
+		{
+			if (*in == '\\')
+			{
+				if (++in < t->bodyend)
+				{
+					switch(*in++)
+					{
+					case '\"':	*out++ = '\"'; break;
+					case '\\':	*out++ = '\\'; break;
+					case '/':	*out++ =  '/'; break;	//json is not C...
+					case 'b':	*out++ = '\b'; break;
+					case 'f':	*out++ = '\f'; break;
+					case 'n':	*out++ = '\n'; break;
+					case 'r':	*out++ = '\r'; break;
+					case 't':	*out++ = '\t'; break;
+//					case 'u':
+//						out += utf8_encode(out, code, outend-out);
+//						break;
+					default:
+						//unknown escape. will warn when actually reading it.
+						*out++ = '\\';
+						if (out < outend)
+							*out++ = in[-1];
+						break;
+					}
+				}
+				else
+					*out++ = '\\';	//error...
+			}
+			else
+				*out++ = *in++;
+		}
+		*out = 0;
+	}
+	return t->bodyend-t->bodystart;
+}
+
 static qboolean JSON_ParseString(char const*msg, int *pos, int max, char const**start, char const** end)
 {
 	if (*pos < max && msg[*pos] == '\"')
-	{
+	{	//quoted string
+		//FIXME: no handling of backslash followed by one of "\/bfnrtu
 		*pos+=1;
 		*start = msg+*pos;
-		while (*pos < max && msg[*pos] != '\"')
-			*pos+=1;
+		while (*pos < max)
+		{
+			if (msg[*pos] == '\"')
+				break;
+			if (msg[*pos] == '\\')
+			{	//escapes are expanded elsewhere, we're just skipping over them here.
+				switch(msg[*pos+1])
+				{
+				case '\"':
+				case '\\':
+				case '/':
+				case 'b':
+				case 'f':
+				case 'n':
+				case 'r':
+				case 't':
+					*pos+=2;
+					break;
+				case 'u':
+					*pos+=2;
+					//*pos+=4; //4 hex digits, not escapes so just wait till later before parsing them properly.
+					break;
+				default:
+					//unknown escape. will warn when actually reading it.
+					*pos+=1;
+					break;
+				}
+			}
+			else
+				*pos+=1;
+		}
 		if (*pos < max && msg[*pos] == '\"')
 		{
 			*end = msg+*pos;
@@ -151,7 +274,7 @@ static qboolean JSON_ParseString(char const*msg, int *pos, int max, char const**
 		}
 	}
 	else
-	{
+	{	//name
 		*start = msg+*pos;
 		while (*pos < max
 			&& msg[*pos] != ' '
@@ -258,6 +381,7 @@ static json_t *JSON_Parse(json_t *t, const char *namestart, const char *nameend,
 	return NULL;
 }
 
+//we don't understand arrays here (we just treat them as tables) so eg "foo.0.bar" to find t->foo[0]->bar
 static json_t *JSON_FindChild(json_t *t, const char *child)
 {
 	if (t)
@@ -384,11 +508,7 @@ static const char *JSON_GetString(json_t *t, const char *child, char *buffer, si
 		t = JSON_FindChild(t, child);
 	if (t)
 	{	//copy it to another buffer. can probably skip that tbh.
-		size_t l = t->bodyend-t->bodystart;
-		if (l > buffersize-1)
-			l = buffersize-1;
-		memcpy(buffer, t->bodystart, l);
-		buffer[l] = 0;
+		JSON_ReadBody(t, buffer, buffersize);
 		return buffer;
 	}
 	return fallback;
@@ -461,7 +581,7 @@ static unsigned int FromBase64(char c)
 		return 63;
 	return 64;
 }
-//fancy parsing of content
+//fancy parsing of content. NOTE: doesn't bother to handle escape codes, which shouldn't be present (\u for ascii chars is horribly wasteful).
 static void *JSON_MallocDataURI(json_t *t, size_t *outlen)
 {
 	size_t bl = t->bodyend-t->bodystart;
@@ -527,27 +647,6 @@ static void *JSON_MallocDataURI(json_t *t, size_t *outlen)
 	}
 	return NULL;
 }
-
-static size_t JSON_ReadBody(json_t *t, char *out, size_t outsize)
-{
-	size_t bodysize;
-	if (!t)
-	{
-		if (out)
-			*out = 0;
-		return 0;
-	}
-	if (out)
-	{
-		bodysize = t->bodyend-t->bodystart;
-		if (bodysize > outsize-1)
-			bodysize = outsize-1;
-		memcpy(out, t->bodystart, bodysize);
-		out[bodysize] = 0;
-	}
-	return t->bodyend-t->bodystart;
-}
-
 
 
 
@@ -1217,6 +1316,7 @@ void TransformArrayA(vec3_t *data, size_t vcount, double matrix[])
 		data++;
 	}
 }
+#ifndef SERVERONLY
 static texid_t GLTF_LoadImage(gltf_t *gltf, int imageidx, unsigned int flags)
 {
 	size_t size;
@@ -1567,6 +1667,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	Q_strlcpy(ret->name, ret->frame->shadername, sizeof(ret->name));
 	return ret;
 }
+#endif
 static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double pmatrix[])
 {
 	model_t *mod = gltf->mod;
@@ -1580,7 +1681,6 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 
 	for(prim = JSON_FindIndexedChild(mesh, "primitives", 0); prim; prim = prim->sibling)
 	{
-		int mat  = JSON_GetInteger(prim, "material", -1);
 		int mode  = JSON_GetInteger(prim, "mode", 4);
 		json_t *attr = JSON_FindChild(prim, "attributes");
 		struct gltf_accessor tc_0, tc_1, norm, tang, vpos, col0, idx, sidx, swgt;
@@ -1721,8 +1821,10 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 			}
 		}
 
+#ifndef SERVERONLY
 		surf->numskins = 1;
-		surf->ofsskins = GLTF_LoadMaterial(gltf, mat, surf->ofs_rgbaub||surf->ofs_rgbaf);
+		surf->ofsskins = GLTF_LoadMaterial(gltf, JSON_GetInteger(prim, "material", -1), surf->ofs_rgbaub||surf->ofs_rgbaf);
+#endif
 
 		if (!tang.data)
 		{
@@ -2660,6 +2762,22 @@ qboolean QDECL Mod_LoadGLBModel (struct model_s *mod, void *buffer, size_t fsize
 		return false;
 	
 	return GLTF_LoadModel(mod, json, jsonlen, bin, binlen);
+}
+
+qboolean Plug_GLTF_Init(void)
+{
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
+	if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
+		modfuncs = NULL;
+
+	if (modfuncs && filefuncs)
+	{
+		modfuncs->RegisterModelFormatText("glTF2 models (glTF)", ".gltf", Mod_LoadGLTFModel);
+		modfuncs->RegisterModelFormatMagic("glTF2 models (glb)", (('F'<<24)+('T'<<16)+('l'<<8)+'g'), Mod_LoadGLBModel);
+		return true;
+	}
+	return false;
 }
 #endif
 

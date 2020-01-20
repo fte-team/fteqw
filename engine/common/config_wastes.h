@@ -194,6 +194,7 @@
 //#define HAVE_HTTPSV
 //#define MODELFMT_MDX
 //#define MODELFMT_OBJ
+//#define MODELFMT_GLTF			//khronos 'transmission format'. .gltf or .glb extension. PBR. Version 2 only, for now.
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

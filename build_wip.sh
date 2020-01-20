@@ -39,6 +39,45 @@ else
 	echo "WARNING: $FTECONFIG does not exist yet."
 fi
 
+if [ "$BUILD_CLEAN" == "n" ]; then
+	NOUPDATE="y"
+fi
+
+#check args (and override config as desired)
+while [[ $# -gt 0 ]]
+do
+	case $1 in
+	-r)
+		SVN_REV_ARG="-r $2"
+		NOUPDATE=
+		shift
+		;;
+	-j)
+		THREADS="-j $2"
+		shift
+		;;
+	-help|--help)
+		echo "  -r VER       Specifies the SVN revision to update to"
+		echo "  -j THREADS   Specifies how many jobs to make with"
+		echo "  --help       This text"
+		exit 0
+		;;
+	-build|--build)
+		TARGET="FTE_CONFIG=$2"
+		shift
+		;;
+	--noupdate)
+		NOUPDATE="y"
+		;;
+	*)
+		echo "Unknown option $1"
+		;;
+	esac
+	shift
+done
+
+MAKEARGS="$THREADS $TARGET"
+
 export NACL_SDK_ROOT
 
 ########### Emscripten / Web Stuff
@@ -84,14 +123,14 @@ fi
 mkdir -p $BUILDLOGFOLDER
 if [ ! -d $SVNROOT ]; then
 	#just in case...
-	svn checkout https://svn.code.sf.net/p/fteqw/code/trunk $SVNROOT
+	svn checkout https://svn.code.sf.net/p/fteqw/code/trunk $SVNROOT $SVN_REV_ARG
 fi
 
 cd $SVNROOT/
 
-if [ "$BUILD_CLEAN" != "n" ]; then
+if [ "$NOUPDATE" != "y" ]; then
 	echo "SVN Update"
-	svn update
+	svn update $SVN_REV_ARG
 fi
 
 cd engine
@@ -109,8 +148,8 @@ function build {
 	fi
 	echo -n "Making $NAME... "
 	date > $BUILDLOGFOLDER/$DEST.txt
-	echo make $THREADS $* >> $BUILDLOGFOLDER/$DEST.txt 2>&1
-	make $THREADS $* >> $BUILDLOGFOLDER/$DEST.txt 2>&1
+	echo make $MAKEARGS $* >> $BUILDLOGFOLDER/$DEST.txt 2>&1
+	make $MAKEARGS $* >> $BUILDLOGFOLDER/$DEST.txt 2>&1
 	if [ $? -eq 0 ]; then
 		BUILDEND=$(date +%s)
 		BUILDTIME=$(( $BUILDEND - $BUILDSTART ))

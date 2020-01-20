@@ -89,6 +89,46 @@ else
 	fi
 fi
 
+
+
+if [ "$BUILD_CLEAN" == "n" ]; then
+	NOUPDATE="y"
+fi
+
+#check args (and override config as desired)
+while [[ $# -gt 0 ]]
+do
+	case $1 in
+	-r)
+		SVN_REV_ARG="-r $2"
+		NOUPDATE=
+		shift
+		;;
+	-j)
+		THREADS="-j $2"
+		shift
+		;;
+	-help|--help)
+		echo "  -r VER       Specifies the SVN revision to update to"
+		echo "  -j THREADS   Specifies how many jobs to make with"
+		echo "  --help       This text"
+		exit 0
+		;;
+	-build|--build)
+		TARGET="FTE_CONFIG=$2"
+		shift
+		;;
+	--noupdate)
+		NOUPDATE="y"
+		;;
+	*)
+		echo "Unknown option $1"
+		;;
+	esac
+	shift
+done
+
+
 if [ "$REUSE_CONFIG" != "y" ]; then
 	#linux compiles are native-only, so don't bug out on cygwin which lacks a cross compiler.
 	BUILD_LINUXx86=n
@@ -139,6 +179,7 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 	read -n 1 -p "Build for NaCL? [y/N] " BUILD_NACL && echo
 fi
 
+BUILD_CLEAN=${BUILD_CLEAN:-y}
 BUILD_LINUXx86=${BUILD_LINUXx86:-y}
 BUILD_LINUXx64=${BUILD_LINUXx64:-y}
 BUILD_LINUXx32=${BUILD_LINUXx32:-n}
@@ -168,6 +209,8 @@ if [ "$UID" != "0" ]; then
 	echo "NACLROOT=\"$NACLROOT\""				>>$FTECONFIG
 	echo "NACL_SDK_ROOT=\"$NACLROOT/nacl_sdk/$NACLSDKVERSION\""	>>$FTECONFIG
 	echo "NACLSDKVERSION=\"$NACLSDKVERSION\""		>>$FTECONFIG
+
+	echo "BUILD_CLEAN=\"$BUILD_CLEAN\""		>>$FTECONFIG
 
 	echo "BUILD_LINUXx86=\"$BUILD_LINUXx86\""		>>$FTECONFIG
 	echo "BUILD_LINUXx64=\"$BUILD_LINUXx64\""		>>$FTECONFIG
@@ -381,13 +424,15 @@ if [ "$BUILD_NACL" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ];
 fi
 
 
-#initial checkout of fte's svn
 if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
-	if [ ! -d $SVNROOT ]; then
-		svn checkout https://svn.code.sf.net/p/fteqw/code/trunk $SVNROOT
-	else
-		cd $SVNROOT
-		svn up
+	#initial checkout of fte's svn
+	if [ "$NOUPDATE"!="n" ]; then
+		if [ ! -d $SVNROOT ]; then
+			svn checkout https://svn.code.sf.net/p/fteqw/code/trunk $SVNROOT $SVN_REV_ARG
+		else
+			cd $SVNROOT
+			svn up $SVN_REV_ARG
+		fi
 	fi
 
 	#FIXME: there may be race conditions when compiling.
@@ -449,3 +494,4 @@ fi
 
 echo "Setup script complete."
 echo "When you run build_wip.sh output will be written to $BUILDFOLDER/*"
+

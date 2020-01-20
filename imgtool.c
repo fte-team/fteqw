@@ -1736,7 +1736,7 @@ showhelp:
 		ImgTool_Convert(&args, ImgTool_Combine(&args, argv, files), "combined", argv[files]);
 	}
 	else if (mode == mode_convert && files == 1 && args.textype<0)	//overwrite input
-		ImgTool_Convert(&args, ImgTool_Read(&args, argv[u]), argv[u], argv[u]);
+		ImgTool_Convert(&args, ImgTool_Read(&args, argv[0]), argv[0], NULL);
 	else if (mode == mode_convert && !(files&1) && args.textype<0)	//list of pairs
 	{
 		//-c src1 dst1 src2 dst2

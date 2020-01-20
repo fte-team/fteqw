@@ -1027,7 +1027,7 @@ qboolean M_Help_Key (int key, emenu_t *m)
 	case K_ESCAPE:
 	case K_GP_BACK:
 	case K_MOUSE2:
-		M_Menu_Main_f ();
+		M_RemoveMenu(m);
 		return true;
 
 	case K_UPARROW:

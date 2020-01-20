@@ -13,10 +13,14 @@ VPATH=../engine/common
 
 OBJS = netchan.o parse.o msg.o qw.o source.o bsp.o rcon.o mdfour.o crc.o control.o forward.o pmove.o menu.o httpsv.o sha1.o
 
+#I hate this big long list.
+INCLUDES=-I../engine/common -I../engine/client -I../engine/server -I../engine/qclib -I../engine/gl
+REVISION:=-DSVNREVISION=$(shell svnversion)
+
 all: qtv
 
 %.o: %.c
-	$(CC) $(SPIKEISALAZYBUGGERCFLAGS) $(CFLAGS) $< -c -o $@
+	$(CC) $(SPIKEISALAZYBUGGERCFLAGS) $(CFLAGS) $(INCLUDES) $(REVISION) $< -c -o $@
 
 libqtvc:
 	$(MAKE) -C libqtvc CC="$(CC)" CFLAGS="$(CFLAGS) $(SPIKEISALAZYBUGGERCFLAGS)" AR="$(AR)" RANLIB="$(RANLIB)"

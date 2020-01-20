@@ -990,9 +990,10 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 void SV_SendUpstream(sv_t *qtv, netmsg_t *nm)
 {
 	char size[2];
+	int ffs = nm->cursize+2;	//qq fucked up and made his upstream inconsistent with downstream. ffs.
 
-	size[0] = (nm->cursize&0x00ff)>>0;
-	size[1] = (nm->cursize&0xff00)>>8;
+	size[0] = (ffs&0x00ff)>>0;
+	size[1] = (ffs&0xff00)>>8;
 	Net_QueueUpstream(qtv, 2, size);
 	Net_QueueUpstream(qtv, nm->cursize, nm->data);
 	Net_WriteUpstream(qtv);	//try and flush it

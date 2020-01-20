@@ -197,7 +197,7 @@ void Cluster_BuildAvailableDemoList(cluster_t *cluster)
 			closedir(dir);
 		}
 		else
-			Sys_Printf(cluster, "Couldn't open dir for demo listings\n");
+			Sys_Printf(cluster, "Couldn't open dir %s for demo listings\n", cluster->demodir);
 	}
 #endif
 

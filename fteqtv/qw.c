@@ -158,15 +158,31 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 {
 	movevars_t movevars;
 	WriteByte(msg, svc_serverdata);
-	if (viewer->pext1)
-	{
-		WriteLong(msg, PROTOCOL_VERSION_FTE);
-		WriteLong(msg, viewer->pext1);
+	if (viewer)
+	{	//its for an actual viewer, tailor the extensions...
+		if (viewer->pext1)
+		{
+			WriteLong(msg, PROTOCOL_VERSION_FTE);
+			WriteLong(msg, viewer->pext1);
+		}
+		if (viewer->pext2)
+		{
+			WriteLong(msg, PROTOCOL_VERSION_FTE2);
+			WriteLong(msg, viewer->pext2);
+		}
 	}
-	if (viewer->pext2)
-	{
-		WriteLong(msg, PROTOCOL_VERSION_FTE2);
-		WriteLong(msg, viewer->pext2);
+	else
+	{	//we're just forwarding, use the same extensions our source used.
+		if (tv->pext1)
+		{
+			WriteLong(msg, PROTOCOL_VERSION_FTE);
+			WriteLong(msg, tv->pext1);
+		}
+		if (tv->pext2)
+		{
+			WriteLong(msg, PROTOCOL_VERSION_FTE2);
+			WriteLong(msg, tv->pext2);
+		}
 	}
 	WriteLong(msg, PROTOCOL_VERSION);
 	WriteLong(msg, servercount);
@@ -3107,10 +3123,73 @@ tuiadmin:
 	}
 }
 
-void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean noupwards)
+static void QTV_DoSay(cluster_t *cluster, sv_t *qtv, const char *viewername, char *message)
 {
 	char buf[1024];
 	netmsg_t msg;
+	viewer_t *ov;
+
+	if (cluster->notalking)
+		return;
+
+	if (qtv)
+		SV_SayToUpstream(qtv, message);
+
+	for (ov = cluster->viewers; ov; ov = ov->next)
+	{
+		if (ov->server != qtv)
+			continue;
+
+		InitNetMsg(&msg, buf, sizeof(buf));
+
+		WriteByte(&msg, svc_print);
+
+		if (ov->netchan.isnqprotocol)
+		{
+			WriteByte(&msg, 1);
+			WriteByte(&msg, '[');
+			WriteString2(&msg, "QTV");
+			WriteByte(&msg, ']');
+		}
+		else
+		{
+			if (ov->conmenussupported)
+			{
+				WriteByte(&msg, 2);	//PRINT_HIGH
+				WriteByte(&msg, 91+128);
+				WriteString2(&msg, "QTV");
+				WriteByte(&msg, 93+128);
+				WriteString2(&msg, "^5");
+			}
+			else
+			{
+				WriteByte(&msg, 2);	//PRINT_HIGH
+				WriteByte(&msg, 91+128);
+				WriteString2(&msg, "QTV");
+				WriteByte(&msg, 93+128);
+				WriteByte(&msg, 0);
+
+				WriteByte(&msg, svc_print);
+				WriteByte(&msg, 3);	//PRINT_CHAT
+
+			}
+		}
+
+		WriteString2(&msg, viewername);
+		WriteString2(&msg, ": ");
+//		WriteString2(&msg, "\x8d ");
+		if (ov->conmenussupported)
+			WriteString2(&msg, "^s");
+		WriteString2(&msg, message);
+		WriteString(&msg, "\n");
+
+		SendBufferToViewer(ov, msg.data, msg.cursize, true);
+	}
+}
+
+void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean noupwards)
+{
+	char buf[1024];
 
 	if (message[strlen(message)-1] == '\"')
 		message[strlen(message)-1] = '\0';
@@ -3257,8 +3336,6 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	}
 	else
 	{
-		viewer_t *ov;
-
 		// If the current viewer is the player, pass on the say_team
 		if (qtv && qtv->controller == v)
 		{
@@ -3266,62 +3343,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			return;
 		}
 
-		if (cluster->notalking)
-			return;
-
-		if (v->server)
-			SV_SayToUpstream(v->server, message);
-
-		for (ov = cluster->viewers; ov; ov = ov->next)
-		{
-			if (ov->server != v->server)
-				continue;
-
-			InitNetMsg(&msg, buf, sizeof(buf));
-
-			WriteByte(&msg, svc_print);
-
-			if (ov->netchan.isnqprotocol)
-			{
-				WriteByte(&msg, 1);
-				WriteByte(&msg, '[');
-				WriteString2(&msg, "QTV");
-				WriteByte(&msg, ']');
-			}
-			else
-			{
-				if (ov->conmenussupported)
-				{
-					WriteByte(&msg, 2);	//PRINT_HIGH
-					WriteByte(&msg, 91+128);
-					WriteString2(&msg, "QTV");
-					WriteByte(&msg, 93+128);
-					WriteString2(&msg, "^5");
-				}
-				else
-				{
-					WriteByte(&msg, 2);	//PRINT_HIGH
-					WriteByte(&msg, 91+128);
-					WriteString2(&msg, "QTV");
-					WriteByte(&msg, 93+128);
-					WriteByte(&msg, 0);
-
-					WriteByte(&msg, svc_print);
-					WriteByte(&msg, 3);	//PRINT_CHAT
-
-				}
-			}
-
-			WriteString2(&msg, v->name);
-			WriteString2(&msg, ": ");
-//			WriteString2(&msg, "\x8d ");
-			if (ov->conmenussupported)
-				WriteString2(&msg, "^s");
-			WriteString2(&msg, message);
-			WriteString(&msg, "\n");
-
-			SendBufferToViewer(ov, msg.data, msg.cursize, true);
-		}
+		QTV_DoSay(cluster, v->server, v->name, message);
 	}
 }
 

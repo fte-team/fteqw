@@ -144,6 +144,7 @@ void Fwd_ParseCommands(cluster_t *cluster, oproxy_t *prox)
 			break;
 
 		packetlength = prox->inbuffer[0] + (prox->inbuffer[1]<<8);
+		packetlength -= 2;	//qqshka's inconsistent-upstream-sizes stupidity.
 		if (packetlength+2 > prox->inbuffersize)
 			break;
 
@@ -471,7 +472,7 @@ void Prox_SendInitialPlayers(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 
 		for (j = 0 ; j < 3 ; j++)
 			if (flags & (DF_ORIGIN << j))
-				WriteShort (msg, qtv->map.players[i].current.origin[j]);
+				WriteCoord (msg, qtv->map.players[i].current.origin[j], qtv->pext1);
 
 		for (j = 0 ; j < 3 ; j++)
 			if (flags & (DF_ANGLES << j))

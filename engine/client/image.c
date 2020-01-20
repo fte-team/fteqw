@@ -5434,7 +5434,7 @@ typedef struct {
 	unsigned int greenmask;
 	unsigned int bluemask;
 	unsigned int alphamask;
-} ddspixelformat;
+} ddspixelformat_t;
 
 typedef struct {
 	unsigned int dwSize;
@@ -5445,10 +5445,10 @@ typedef struct {
 	unsigned int dwDepth;
 	unsigned int dwMipMapCount;
 	unsigned int dwReserved1[11];
-	ddspixelformat ddpfPixelFormat;
+	ddspixelformat_t ddpfPixelFormat;
 	unsigned int ddsCaps[4];
 	unsigned int dwReserved2;
-} ddsheader;
+} ddsheader_t;
 typedef struct {
 	unsigned int dxgiformat;
 	unsigned int resourcetype; //0=unknown, 1=buffer, 2=1d, 3=2d, 4=3d
@@ -5462,7 +5462,6 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	int nummips;
 	int mipnum;
 	int datasize;
-//	int pad;
 	unsigned int w, h, d;
 	unsigned int blockwidth, blockheight, blockbytes;
 	struct pendingtextureinfo *mips;
@@ -5470,7 +5469,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	int layers = 1, layer;
 	int ttype;
 
-	ddsheader fmtheader;
+	ddsheader_t fmtheader;
 	dds10header_t fmt10header;
 
 	if (filesize < sizeof(fmtheader) || *(int*)filedata != (('D'<<0)|('D'<<8)|('S'<<16)|(' '<<24)))
@@ -5504,62 +5503,78 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 			encoding = PTI_RGBX8;
 		else if (IsPacked(32, 0x000003ff, 0x000ffc00, 0x3ff00000, 0xc0000000))
 			encoding = PTI_A2BGR10;
+		else if (IsPacked(16, 0xf800, 0x07e0, 0x001f, 0))
+			encoding = PTI_RGB565;
+		else if (IsPacked(16, 0xf800, 0x07c0, 0x003e, 0x0001))
+			encoding = PTI_RGBA5551;
+		else if (IsPacked(16, 0x7c00, 0x03e0, 0x001f, 0x8000))
+			encoding = PTI_ARGB1555;
+		else if (IsPacked(16, 0xf000, 0x0f00, 0x00f0, 0x000f))
+			encoding = PTI_RGBA4444;
+		else if (IsPacked(16, 0x0f00, 0x00f0, 0x000f, 0xf000))
+			encoding = PTI_ARGB4444;
+		else if (IsPacked( 8, 0x000000ff, 0x00000000, 0x00000000, 0x00000000))
+			encoding = (fmtheader.ddpfPixelFormat.dwFlags&0x20000)?PTI_L8:PTI_R8;
+		else if (IsPacked(16, 0x000000ff, 0x00000000, 0x00000000, 0x0000ff00))
+			encoding = PTI_L8A8;
 		else
 		{
 			Con_Printf("Unsupported non-fourcc dds in %s\n", fname);
+			Con_Printf(" bits: %u\n", fmtheader.ddpfPixelFormat.bitcount);
+			Con_Printf("  red: %08x\n", fmtheader.ddpfPixelFormat.redmask);
+			Con_Printf("green: %08x\n", fmtheader.ddpfPixelFormat.greenmask);
+			Con_Printf(" blue: %08x\n", fmtheader.ddpfPixelFormat.bluemask);
+			Con_Printf("alpha: %08x\n", fmtheader.ddpfPixelFormat.alphamask);
+			Con_Printf(" used: %08x\n", fmtheader.ddpfPixelFormat.redmask^fmtheader.ddpfPixelFormat.greenmask^fmtheader.ddpfPixelFormat.bluemask^fmtheader.ddpfPixelFormat.alphamask);
 			return NULL;
 		}
 #undef IsPacked
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
-	{
 		encoding = PTI_BC1_RGBA;	//alpha or not? Assume yes, and let the drivers decide.
-//		pad = 8;
-	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('2'<<24)))	//dx3 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 //			return false;
 		encoding = PTI_BC2_RGBA;
-//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('3'<<24)))
 	{
 //		if (tex->flags & IF_PREMULTIPLYALPHA)
 //			return false;
 		encoding = PTI_BC2_RGBA;
-//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('4'<<24)))	//dx5 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 //			return false;
-
 		encoding = PTI_BC3_RGBA;
-//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('5'<<24)))
 	{
 //		if (tex->flags & IF_PREMULTIPLYALPHA)
 //			return false;
-
 		encoding = PTI_BC3_RGBA;
-//		pad = 8;
 	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('A'<<0)|('T'<<8)|('I'<<16)|('1'<<24))
+		||   *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('4'<<16)|('U'<<24)))
+		encoding = PTI_BC4_R8;
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('A'<<0)|('T'<<8)|('I'<<16)|('2'<<24))
+		||   *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('5'<<16)|('U'<<24)))
+		encoding = PTI_BC5_RG8;
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('4'<<16)|('S'<<24)))
+		encoding = PTI_BC4_R8_SNORM;
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('5'<<16)|('S'<<24)))
+		encoding = PTI_BC5_RG8_SNORM;
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('E'<<0)|('T'<<8)|('C'<<16)|('2'<<24)))
-	{
 		encoding = PTI_ETC2_RGB8;
-//		pad = 8;
-	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24)))
 	{
 		//this has some weird extra header with dxgi format types.
 		memcpy(&fmt10header, filedata+4+fmtheader.dwSize, sizeof(fmt10header));
 		fmtheader.dwSize += sizeof(fmt10header);
-//		pad = 8;
 		switch(fmt10header.dxgiformat)
 		{
-
 		case 0x0/*DXGI_FORMAT_UNKNOWN*/:				encoding = PTI_INVALID;			break;
 		case 0x1/*DXGI_FORMAT_R32G32B32A32_TYPELESS*/:	encoding = PTI_INVALID;			break;
 		case 0x2/*DXGI_FORMAT_R32G32B32A32_FLOAT*/:		encoding = PTI_RGBA32F;			break;
@@ -5805,7 +5820,8 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	size_t mipnum;
 	size_t a;
 	dds10header_t h10={0};
-	ddsheader h9={0};
+	ddsheader_t h9={0};
+	int *endian;
 
 	unsigned int blockbytes, blockwidth, blockheight;
 	unsigned int arraysize;
@@ -5813,6 +5829,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
 	h9.dwSize = sizeof(h9);
+	h9.ddpfPixelFormat.dwSize = sizeof(h9.ddpfPixelFormat);
 	h9.dwFlags = 0;
 	h9.dwFlags |= 1;			//CAPS
 	h9.dwFlags |= 2;			//HEIGHT
@@ -5835,8 +5852,6 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	h9.dwDepth = mips->mip[0].depth;
 
 	h9.ddpfPixelFormat.dwSize = 32;
-	h9.ddpfPixelFormat.dwFlags = 4/*DDPF_FOURCC*/;
-	h9.ddpfPixelFormat.dwFourCC = ('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24);
 	h9.ddsCaps[0] = 0x1000;		//TEXTURE
 	if (mips->mipcount > 1)
 		h9.ddsCaps[0] |= 0x8;		//COMPLEX
@@ -5889,10 +5904,195 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 
 	h10.dxgiformat = 0;
 
+#define DX9FOURCC(a,b,c,d)		h9.ddpfPixelFormat.dwFlags=4/*DDPF_FOURCC*/,	\
+								h9.ddpfPixelFormat.dwFourCC=(a<<0)|(b<<8)|(c<<16)|(d<<24)
+#define DX9FMT(bits,r,g,b,a,fl) h9.ddpfPixelFormat.dwFlags=fl,		\
+								h9.ddpfPixelFormat.bitcount=bits,	\
+								h9.ddpfPixelFormat.redmask=r,		\
+								h9.ddpfPixelFormat.greenmask=g,		\
+								h9.ddpfPixelFormat.bluemask=b,		\
+								h9.ddpfPixelFormat.alphamask=a
+#define DX9RGB			0x40
+#define DX9RGBA			(0x40|0x1)
+#define DX9LUM			0x20000
+#define DX9LUMALPHA		(0x20000|0x1)
 	switch(mips->encoding)
 	{
-	case PTI_ETC1_RGB8:
-	case PTI_ETC2_RGB8:
+//	case PTI_INVALID:			h10.dxgiformat = 0x0/*DXGI_FORMAT_UNKNOWN*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x1/*DXGI_FORMAT_R32G32B32A32_TYPELESS*/;	break;
+	case PTI_RGBA32F:			h10.dxgiformat = 0x2/*DXGI_FORMAT_R32G32B32A32_FLOAT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x3/*DXGI_FORMAT_R32G32B32A32_UINT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x4/*DXGI_FORMAT_R32G32B32A32_SINT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x5/*DXGI_FORMAT_R32G32B32_TYPELESS*/;		break;
+	case PTI_RGB32F:			h10.dxgiformat = 0x6/*DXGI_FORMAT_R32G32B32_FLOAT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x7/*DXGI_FORMAT_R32G32B32_UINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x8/*DXGI_FORMAT_R32G32B32_SINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x9/*DXGI_FORMAT_R16G16B16A16_TYPELESS*/;	break;
+	case PTI_RGBA16F:			h10.dxgiformat = 0xa/*DXGI_FORMAT_R16G16B16A16_FLOAT*/;		break;
+	case PTI_RGBA16:			h10.dxgiformat = 0xb/*DXGI_FORMAT_R16G16B16A16_UNORM*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0xc/*DXGI_FORMAT_R16G16B16A16_UINT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0xd/*DXGI_FORMAT_R16G16B16A16_SNORM*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0xe/*DXGI_FORMAT_R16G16B16A16_SINT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0xf/*DXGI_FORMAT_R32G32_TYPELESS*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x10/*DXGI_FORMAT_R32G32_FLOAT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x11/*DXGI_FORMAT_R32G32_UINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x12/*DXGI_FORMAT_R32G32_SINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x13/*DXGI_FORMAT_R32G8X24_TYPELESS*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x14/*DXGI_FORMAT_D32_FLOAT_S8X24_UINT*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x15/*DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS*/;break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x16/*DXGI_FORMAT_X32_TYPELESS_G8X24_UINT*/;break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x17/*DXGI_FORMAT_R10G10B10A2_TYPELESS*/;	break;
+	case PTI_A2BGR10:			h10.dxgiformat = 0x18/*DXGI_FORMAT_R10G10B10A2_UNORM*/;		DX9FMT(32,0x000003ff,0x000ffc00,0x03ff0000,0xc0000000,DX9RGBA);	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x19/*DXGI_FORMAT_R10G10B10A2_UINT*/;		break;
+	case PTI_B10G11R11F:		h10.dxgiformat = 0x1a/*DXGI_FORMAT_R11G11B10_FLOAT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x1b/*DXGI_FORMAT_R8G8B8A8_TYPELESS*/;		break;
+	case PTI_RGBA8:				h10.dxgiformat = 0x1c/*DXGI_FORMAT_R8G8B8A8_UNORM*/;		DX9FMT(32,0x000000ff,0x0000ff00,0x00ff0000,0xff000000,DX9RGBA);	break;
+	case PTI_RGBX8_SRGB:		//fall through...
+	case PTI_RGBA8_SRGB:		h10.dxgiformat = 0x1d/*DXGI_FORMAT_R8G8B8A8_UNORM_SRGB*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x1e/*DXGI_FORMAT_R8G8B8A8_UINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x1f/*DXGI_FORMAT_R8G8B8A8_SNORM*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x20/*DXGI_FORMAT_R8G8B8A8_SINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x21/*DXGI_FORMAT_R16G16_TYPELESS*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x22/*DXGI_FORMAT_R16G16_FLOAT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x23/*DXGI_FORMAT_R16G16_UNORM*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x24/*DXGI_FORMAT_R16G16_UINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x25/*DXGI_FORMAT_R16G16_SNORM*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x26/*DXGI_FORMAT_R16G16_SINT*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x27/*DXGI_FORMAT_R32_TYPELESS*/;			break;
+	case PTI_DEPTH32:			h10.dxgiformat = 0x28/*DXGI_FORMAT_D32_FLOAT*/;				break;
+	case PTI_R32F:				h10.dxgiformat = 0x29/*DXGI_FORMAT_R32_FLOAT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x2a/*DXGI_FORMAT_R32_UINT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x2b/*DXGI_FORMAT_R32_SINT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x2c/*DXGI_FORMAT_R24G8_TYPELESS*/;		break;
+	case PTI_DEPTH24_8:			h10.dxgiformat = 0x2d/*DXGI_FORMAT_D24_UNORM_S8_UINT*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x2e/*DXGI_FORMAT_R24_UNORM_X8_TYPELESS*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x2f/*DXGI_FORMAT_X24_TYPELESS_G8_UINT*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x30/*DXGI_FORMAT_R8G8_TYPELESS*/;			break;
+	case PTI_RG8:				h10.dxgiformat = 0x31/*DXGI_FORMAT_R8G8_UNORM*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x32/*DXGI_FORMAT_R8G8_UINT*/;				break;
+	case PTI_RG8_SNORM:			h10.dxgiformat = 0x33/*DXGI_FORMAT_R8G8_SNORM*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x34/*DXGI_FORMAT_R8G8_SINT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x35/*DXGI_FORMAT_R16_TYPELESS*/;			break;
+	case PTI_R16F:				h10.dxgiformat = 0x36/*DXGI_FORMAT_R16_FLOAT*/;				break;
+	case PTI_DEPTH16:			h10.dxgiformat = 0x37/*DXGI_FORMAT_D16_UNORM*/;				break;
+	case PTI_R16:				h10.dxgiformat = 0x38/*DXGI_FORMAT_R16_UNORM*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x39/*DXGI_FORMAT_R16_UINT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x3a/*DXGI_FORMAT_R16_SNORM*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x3b/*DXGI_FORMAT_R16_SINT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x3c/*DXGI_FORMAT_R8_TYPELESS*/;			break;
+	case PTI_R8:				h10.dxgiformat = 0x3d/*DXGI_FORMAT_R8_UNORM*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x3e/*DXGI_FORMAT_R8_UINT*/;				break;
+	case PTI_R8_SNORM:			h10.dxgiformat = 0x3f/*DXGI_FORMAT_R8_SNORM*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x40/*DXGI_FORMAT_R8_SINT*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x41/*DXGI_FORMAT_A8_UNORM*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x42/*DXGI_FORMAT_R1_UNORM*/;				break;
+	case PTI_E5BGR9:			h10.dxgiformat = 0x43/*DXGI_FORMAT_R9G9B9E5_SHAREDEXP*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x44/*DXGI_FORMAT_R8G8_B8G8_UNORM*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x45/*DXGI_FORMAT_G8R8_G8B8_UNORM*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x46/*DXGI_FORMAT_BC1_TYPELESS*/;			break;
+	case PTI_BC1_RGB:			//fall through...
+	case PTI_BC1_RGBA:			h10.dxgiformat = 0x47/*DXGI_FORMAT_BC1_UNORM*/;				DX9FOURCC('D','X','T','1'); break;
+	case PTI_BC1_RGB_SRGB:		//fall through...
+	case PTI_BC1_RGBA_SRGB:		h10.dxgiformat = 0x48/*DXGI_FORMAT_BC1_UNORM_SRGB*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x49/*DXGI_FORMAT_BC2_TYPELESS*/;			break;
+	case PTI_BC2_RGBA:			h10.dxgiformat = 0x4a/*DXGI_FORMAT_BC2_UNORM*/;				DX9FOURCC('D','X','T','3'); break;
+	case PTI_BC2_RGBA_SRGB:		h10.dxgiformat = 0x4b/*DXGI_FORMAT_BC2_UNORM_SRGB*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x4c/*DXGI_FORMAT_BC3_TYPELESS*/;			break;
+	case PTI_BC3_RGBA:			h10.dxgiformat = 0x4d/*DXGI_FORMAT_BC3_UNORM*/;				DX9FOURCC('D','X','T','5'); break;
+	case PTI_BC3_RGBA_SRGB:		h10.dxgiformat = 0x4e/*DXGI_FORMAT_BC3_UNORM_SRGB*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x4f/*DXGI_FORMAT_BC4_TYPELESS*/;			break;
+	case PTI_BC4_R8:			h10.dxgiformat = 0x50/*DXGI_FORMAT_BC4_UNORM*/;				/*DX9FOURCC('B','C','4','U');*/ DX9FOURCC('A','T','I','1'); break;
+	case PTI_BC4_R8_SNORM:		h10.dxgiformat = 0x51/*DXGI_FORMAT_BC4_SNORM*/;				DX9FOURCC('B','C','4','S'); break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x52/*DXGI_FORMAT_BC5_TYPELESS*/;			break;
+	case PTI_BC5_RG8:			h10.dxgiformat = 0x53/*DXGI_FORMAT_BC5_UNORM*/;				/*DX9FOURCC('B','C','5','U');*/ DX9FOURCC('A','T','I','2'); break;
+	case PTI_BC5_RG8_SNORM:		h10.dxgiformat = 0x54/*DXGI_FORMAT_BC5_SNORM*/;				DX9FOURCC('B','C','5','S'); break;
+	case PTI_RGB565:			h10.dxgiformat = 0x55/*DXGI_FORMAT_B5G6R5_UNORM*/;			DX9FMT(16,    0xf800,    0x07e0,    0x001f,    0x0000,DX9RGB);	break;
+	case PTI_ARGB1555:			h10.dxgiformat = 0x56/*DXGI_FORMAT_B5G5R5A1_UNORM*/;		DX9FMT(16,    0x7c00,    0x03e0,    0x001f,    0x8000,DX9RGBA);	break;
+	case PTI_BGRA8:				h10.dxgiformat = 0x57/*DXGI_FORMAT_B8G8R8A8_UNORM*/;		DX9FMT(32,0x00ff0000,0x0000ff00,0x000000ff,0xff000000,DX9RGBA);	break;
+	case PTI_BGRX8:				h10.dxgiformat = 0x58/*DXGI_FORMAT_B8G8R8X8_UNORM*/;		DX9FMT(32,0x00ff0000,0x0000ff00,0x000000ff,0x00000000,DX9RGB);	break;	//WARNING: buggy in gimp (ends up alpha=0)
+//	case PTI_INVALID:			h10.dxgiformat = 0x59/*DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORbreak;
+//	case PTI_INVALID:			h10.dxgiformat = 0x5a/*DXGI_FORMAT_B8G8R8A8_TYPELESS*/;		break;
+	case PTI_BGRA8_SRGB:		h10.dxgiformat = 0x5b/*DXGI_FORMAT_B8G8R8A8_UNORM_SRGB*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x5c/*DXGI_FORMAT_B8G8R8X8_TYPELESS*/;		break;
+	case PTI_BGRX8_SRGB:		h10.dxgiformat = 0x5d/*DXGI_FORMAT_B8G8R8X8_UNORM_SRGB*/;	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x5e/*DXGI_FORMAT_BC6H_TYPELESS*/;			break;
+	case PTI_BC6_RGB_UFLOAT:	h10.dxgiformat = 0x5f/*DXGI_FORMAT_BC6H_UF16*/;				break;
+	case PTI_BC6_RGB_SFLOAT:	h10.dxgiformat = 0x60/*DXGI_FORMAT_BC6H_SF16*/;				break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x61/*DXGI_FORMAT_BC7_TYPELESS*/;			break;
+	case PTI_BC7_RGBA:			h10.dxgiformat = 0x62/*DXGI_FORMAT_BC7_UNORM*/;				break;
+	case PTI_BC7_RGBA_SRGB:		h10.dxgiformat = 0x63/*DXGI_FORMAT_BC7_UNORM_SRGB*/;		break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x64/*DXGI_FORMAT_AYUV*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x65/*DXGI_FORMAT_Y410*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x66/*DXGI_FORMAT_Y416*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x67/*DXGI_FORMAT_NV12*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x68/*DXGI_FORMAT_P010*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x69/*DXGI_FORMAT_P016*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x6a/*DXGI_FORMAT_420_OPAQUE*/;			break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x6b/*DXGI_FORMAT_YUY2*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x6c/*DXGI_FORMAT_Y210*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x6d/*DXGI_FORMAT_Y216*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x6e/*DXGI_FORMAT_NV11*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x6f/*DXGI_FORMAT_AI44*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x70/*DXGI_FORMAT_IA44*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x71/*DXGI_FORMAT_P8*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x72/*DXGI_FORMAT_A8P8*/;					break;
+	case PTI_ARGB4444:			h10.dxgiformat = 0x73/*DXGI_FORMAT_B4G4R4A4_UNORM*/;		DX9FMT(16,0x00000f00,0x000000f0,0x0000000f,0x0000f000,DX9RGB);	break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x82/*DXGI_FORMAT_P208*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x83/*DXGI_FORMAT_V208*/;					break;
+//	case PTI_INVALID:			h10.dxgiformat = 0x84/*DXGI_FORMAT_V408*/;					break;
+	case PTI_ASTC_4X4_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_4X4_LDR:		h10.dxgiformat = 0x86/*DXGI_FORMAT_ASTC_4X4_UNORM*/;		break;
+	case PTI_ASTC_4X4_SRGB:		h10.dxgiformat = 0x87/*DXGI_FORMAT_ASTC_4X4_SRGB*/;			break;
+	case PTI_ASTC_5X4_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_5X4_LDR:		h10.dxgiformat = 0x8a/*DXGI_FORMAT_ASTC_5X4_UNORM*/;		break;
+	case PTI_ASTC_5X4_SRGB:		h10.dxgiformat = 0x8b/*DXGI_FORMAT_ASTC_5X4_SRGB*/;			break;
+	case PTI_ASTC_5X5_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_5X5_LDR:		h10.dxgiformat = 0x8e/*DXGI_FORMAT_ASTC_5X5_UNORM*/;		break;
+	case PTI_ASTC_5X5_SRGB:		h10.dxgiformat = 0x8f/*DXGI_FORMAT_ASTC_5X5_SRGB*/;			break;
+	case PTI_ASTC_6X5_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_6X5_LDR:		h10.dxgiformat = 0x92/*DXGI_FORMAT_ASTC_6X5_UNORM*/;		break;
+	case PTI_ASTC_6X5_SRGB:		h10.dxgiformat = 0x93/*DXGI_FORMAT_ASTC_6X5_SRGB*/;			break;
+	case PTI_ASTC_6X6_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_6X6_LDR:		h10.dxgiformat = 0x96/*DXGI_FORMAT_ASTC_6X6_UNORM*/;		break;
+	case PTI_ASTC_6X6_SRGB:		h10.dxgiformat = 0x97/*DXGI_FORMAT_ASTC_6X6_SRGB*/;			break;
+	case PTI_ASTC_8X5_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_8X5_LDR:		h10.dxgiformat = 0x9a/*DXGI_FORMAT_ASTC_8X5_UNORM*/;		break;
+	case PTI_ASTC_8X5_SRGB:		h10.dxgiformat = 0x9b/*DXGI_FORMAT_ASTC_8X5_SRGB*/;			break;
+	case PTI_ASTC_8X6_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_8X6_LDR:		h10.dxgiformat = 0x9e/*DXGI_FORMAT_ASTC_8X6_UNORM*/;		break;
+	case PTI_ASTC_8X6_SRGB:		h10.dxgiformat = 0x9f/*DXGI_FORMAT_ASTC_8X6_SRGB*/;			break;
+	case PTI_ASTC_8X8_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_8X8_LDR:		h10.dxgiformat = 0xa2/*DXGI_FORMAT_ASTC_8X8_UNORM*/;		break;
+	case PTI_ASTC_8X8_SRGB:		h10.dxgiformat = 0xa3/*DXGI_FORMAT_ASTC_8X8_SRGB*/;			break;
+	case PTI_ASTC_10X5_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_10X5_LDR:		h10.dxgiformat = 0xa6/*DXGI_FORMAT_ASTC_10X5_UNORM*/;		break;
+	case PTI_ASTC_10X5_SRGB:	h10.dxgiformat = 0xa7/*DXGI_FORMAT_ASTC_10X5_SRGB*/;		break;
+	case PTI_ASTC_10X6_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_10X6_LDR:		h10.dxgiformat = 0xaa/*DXGI_FORMAT_ASTC_10X6_UNORM*/;		break;
+	case PTI_ASTC_10X6_SRGB:	h10.dxgiformat = 0xab/*DXGI_FORMAT_ASTC_10X6_SRGB*/;		break;
+	case PTI_ASTC_10X8_HDR:		//hdr allows more endpoint modes.
+	case PTI_ASTC_10X8_LDR:		h10.dxgiformat = 0xae/*DXGI_FORMAT_ASTC_10X8_UNORM*/;		break;
+	case PTI_ASTC_10X8_SRGB:	h10.dxgiformat = 0xaf/*DXGI_FORMAT_ASTC_10X8_SRGB*/;		break;
+	case PTI_ASTC_10X10_HDR:	//hdr allows more endpoint modes.
+	case PTI_ASTC_10X10_LDR:	h10.dxgiformat = 0xb2/*DXGI_FORMAT_ASTC_10X10_UNORM*/;		break;
+	case PTI_ASTC_10X10_SRGB:	h10.dxgiformat = 0xb3/*DXGI_FORMAT_ASTC_10X10_SRGB*/;		break;
+	case PTI_ASTC_12X10_HDR:	//hdr allows more endpoint modes.
+	case PTI_ASTC_12X10_LDR:	h10.dxgiformat = 0xb6/*DXGI_FORMAT_ASTC_12X10_UNORM*/;		break;
+	case PTI_ASTC_12X10_SRGB:	h10.dxgiformat = 0xb7/*DXGI_FORMAT_ASTC_12X10_SRGB*/;		break;
+	case PTI_ASTC_12X12_HDR:	//hdr allows more endpoint modes.
+	case PTI_ASTC_12X12_LDR:	h10.dxgiformat = 0xba/*DXGI_FORMAT_ASTC_12X12_UNORM*/;		break;
+	case PTI_ASTC_12X12_SRGB:	h10.dxgiformat = 0xbb/*DXGI_FORMAT_ASTC_12X12_SRGB*/;		break;
+
+	case PTI_RGBX8:				DX9FMT(32,0x000000ff,0x0000ff00,0x00ff0000,0x00000000,DX9RGB);	break;	//WARNING: buggy in gimp (ends up alpha=0)
+	case PTI_RGB8:				DX9FMT(24,0x000000ff,0x0000ff00,0x00ff0000,0x00000000,DX9RGB);	break;
+	case PTI_BGR8:				DX9FMT(24,0x00ff0000,0x0000ff00,0x000000ff,0x00000000,DX9RGB);	break;
+	case PTI_L8:				DX9FMT(8,0x000000ff,0x00000000,0x00000000,0x00000000,DX9LUM);	break;
+	case PTI_L8A8:				DX9FMT(16,0x000000ff,0x00000000,0x00000000,0x0000ff00,DX9LUMALPHA);	break;
+	case PTI_RGBA5551:			DX9FMT(16,0x0000f800,0x000007c0,0x0000003e,0x00000001,DX9RGBA);	break;	//WARNING: buggy in gimp (ends up greyscale)
+	case PTI_RGBA4444:			DX9FMT(16,0x0000f000,0x00000f00,0x000000f0,0x0000000f,DX9RGBA);	break;	//WARNING: buggy in gimp (ends up greyscale)
+
+	case PTI_ETC1_RGB8:			//fall through (etc2 is backwards compatible)
+	case PTI_ETC2_RGB8:			DX9FOURCC('E','T','C','2');	break;	//not an official format, but we can understand it
 	case PTI_ETC2_RGB8_SRGB:
 	case PTI_ETC2_RGB8A1:
 	case PTI_ETC2_RGB8A1_SRGB:
@@ -5901,106 +6101,14 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_EAC_R11:
 	case PTI_EAC_R11_SNORM:
 	case PTI_EAC_RG11:
-	case PTI_EAC_RG11_SNORM:
-	case PTI_ASTC_4X4_LDR:
-	case PTI_ASTC_5X4_LDR:
-	case PTI_ASTC_5X5_LDR:
-	case PTI_ASTC_6X5_LDR:
-	case PTI_ASTC_6X6_LDR:
-	case PTI_ASTC_8X5_LDR:
-	case PTI_ASTC_8X6_LDR:
-	case PTI_ASTC_10X5_LDR:
-	case PTI_ASTC_10X6_LDR:
-	case PTI_ASTC_8X8_LDR:
-	case PTI_ASTC_10X8_LDR:
-	case PTI_ASTC_10X10_LDR:
-	case PTI_ASTC_12X10_LDR:
-	case PTI_ASTC_12X12_LDR:
-	case PTI_ASTC_4X4_SRGB:
-	case PTI_ASTC_5X4_SRGB:
-	case PTI_ASTC_5X5_SRGB:
-	case PTI_ASTC_6X5_SRGB:
-	case PTI_ASTC_6X6_SRGB:
-	case PTI_ASTC_8X5_SRGB:
-	case PTI_ASTC_8X6_SRGB:
-	case PTI_ASTC_10X5_SRGB:
-	case PTI_ASTC_10X6_SRGB:
-	case PTI_ASTC_8X8_SRGB:
-	case PTI_ASTC_10X8_SRGB:
-	case PTI_ASTC_10X10_SRGB:
-	case PTI_ASTC_12X10_SRGB:
-	case PTI_ASTC_12X12_SRGB:
-	case PTI_ASTC_4X4_HDR:
-	case PTI_ASTC_5X4_HDR:
-	case PTI_ASTC_5X5_HDR:
-	case PTI_ASTC_6X5_HDR:
-	case PTI_ASTC_6X6_HDR:
-	case PTI_ASTC_8X5_HDR:
-	case PTI_ASTC_8X6_HDR:
-	case PTI_ASTC_10X5_HDR:
-	case PTI_ASTC_10X6_HDR:
-	case PTI_ASTC_8X8_HDR:
-	case PTI_ASTC_10X8_HDR:
-	case PTI_ASTC_10X10_HDR:
-	case PTI_ASTC_12X10_HDR:
-	case PTI_ASTC_12X12_HDR:	return false;	//unsupported
-	case PTI_BC1_RGB:
-	case PTI_BC1_RGBA:			h10.dxgiformat = 71/*DXGI_FORMAT_BC1_UNORM*/; break;
-	case PTI_BC1_RGB_SRGB:
-	case PTI_BC1_RGBA_SRGB:		h10.dxgiformat = 72/*DXGI_FORMAT_BC1_UNORM_SRGB*/; break;
-	case PTI_BC2_RGBA:			h10.dxgiformat = 74/*DXGI_FORMAT_BC2_UNORM*/; break;
-	case PTI_BC2_RGBA_SRGB:		h10.dxgiformat = 75/*DXGI_FORMAT_BC2_UNORM_SRGB*/; break;
-	case PTI_BC3_RGBA:			h10.dxgiformat = 77/*DXGI_FORMAT_BC3_UNORM*/; break;
-	case PTI_BC3_RGBA_SRGB:		h10.dxgiformat = 78/*DXGI_FORMAT_BC3_UNORM_SRGB*/; break;
-	case PTI_BC4_R8_SNORM:		h10.dxgiformat = 81/*DXGI_FORMAT_BC4_SNORM*/; break;
-	case PTI_BC4_R8:			h10.dxgiformat = 80/*DXGI_FORMAT_BC4_UNORM*/; break;
-	case PTI_BC5_RG8_SNORM:		h10.dxgiformat = 84/*DXGI_FORMAT_BC5_SNORM*/; break;
-	case PTI_BC5_RG8:			h10.dxgiformat = 83/*DXGI_FORMAT_BC5_UNORM*/; break;
-	case PTI_BC6_RGB_UFLOAT:	h10.dxgiformat = 95/*DXGI_FORMAT_BC6H_UF16*/; break;
-	case PTI_BC6_RGB_SFLOAT:	h10.dxgiformat = 96/*DXGI_FORMAT_BC6H_SF16*/; break;
-	case PTI_BC7_RGBA:			h10.dxgiformat = 98/*DXGI_FORMAT_BC7_UNORM*/; break;
-	case PTI_BC7_RGBA_SRGB:		h10.dxgiformat = 99/*DXGI_FORMAT_BC7_UNORM_SRGB*/; break;
+	case PTI_EAC_RG11_SNORM:	return false;	//unsupported
 
-	case PTI_BGRA8:				h10.dxgiformat = 87/*DXGI_FORMAT_B8G8R8A8_UNORM*/; break;
-	case PTI_RGBA8:				h10.dxgiformat = 28/*DXGI_FORMAT_R8G8B8A8_UNORM*/; break;
-	case PTI_BGRA8_SRGB:		h10.dxgiformat = 91/*DXGI_FORMAT_B8G8R8A8_UNORM_SRGB*/; break;
-	case PTI_RGBA8_SRGB:		h10.dxgiformat = 29/*DXGI_FORMAT_R8G8B8A8_UNORM_SRGB*/; break;
-	case PTI_L8:				return false;	//unsupported, should fall back on dx9 formats.
-	case PTI_L8A8:				return false;	//unsupported
 	case PTI_L8_SRGB:			return false;	//unsupported
 	case PTI_L8A8_SRGB:			return false;	//unsupported
-	case PTI_RGB8:				return false;	//unsupported
-	case PTI_BGR8:				return false;	//unsupported
 	case PTI_RGB8_SRGB:			return false;	//unsupported
 	case PTI_BGR8_SRGB:			return false;	//unsupported
-	case PTI_R16:				h10.dxgiformat = 56/*DXGI_FORMAT_R16_UNORM*/; break;
-	case PTI_RGBA16:			h10.dxgiformat = 11/*DXGI_FORMAT_R16G16B16A16_UNORM*/; break;
-	case PTI_R16F:				h10.dxgiformat = 54/*DXGI_FORMAT_R16_FLOAT*/; break;
-	case PTI_R32F:				h10.dxgiformat = 41/*DXGI_FORMAT_R32_FLOAT*/; break;
-	case PTI_RGBA16F:			h10.dxgiformat = 10/*DXGI_FORMAT_R16G16B16A16_FLOAT*/; break;
-	case PTI_RGBA32F:			h10.dxgiformat = 2/*DXGI_FORMAT_R32G32B32A32_FLOAT*/; break;
-	case PTI_RGB32F:			h10.dxgiformat = 6/*DXGI_FORMAT_R32G32B32_FLOAT*/; break;
-	case PTI_A2BGR10:			h10.dxgiformat = 24/*DXGI_FORMAT_R10G10B10A2_UNORM*/; break;
-	case PTI_E5BGR9:			h10.dxgiformat = 67/*DXGI_FORMAT_R9G9B9E5_SHAREDEXP*/; break;
-	case PTI_B10G11R11F:		h10.dxgiformat = 26/*DXGI_FORMAT_R11G11B10_FLOAT*/; break;
+	case PTI_DEPTH24:			return false;	//unsupported, should fall back on dx9 formats.
 	case PTI_P8:				return false;	//unsupported, technically R8_UNORM but would load back in wrongly.
-	case PTI_R8:				h10.dxgiformat = 61/*DXGI_FORMAT_R8_UNORM*/; break;
-	case PTI_RG8:				h10.dxgiformat = 49/*DXGI_FORMAT_R8G8_UNORM*/; break;
-	case PTI_R8_SNORM:			h10.dxgiformat = 63/*DXGI_FORMAT_R8_SNORM*/; break;
-	case PTI_RG8_SNORM:			h10.dxgiformat = 51/*DXGI_FORMAT_R8G8_SNORM*/; break;
-	case PTI_BGRX8:				h10.dxgiformat = 88/*DXGI_FORMAT_B8G8R8X8_UNORM*/; break;
-	case PTI_RGBX8:				return false;	//unsupported
-	case PTI_BGRX8_SRGB:		h10.dxgiformat = 93/*DXGI_FORMAT_B8G8R8X8_UNORM_SRGB*/; break;
-	case PTI_RGBX8_SRGB:		return false; //unsupported
-	case PTI_RGB565:			h10.dxgiformat = 85/*DXGI_FORMAT_B5G6R5_UNORM*/; break;
-	case PTI_RGBA4444:			return false;	//unsupported
-	case PTI_ARGB4444:			h10.dxgiformat = 115/*DXGI_FORMAT_B4G4R4A4_UNORM*/; break;
-	case PTI_RGBA5551:			return false;	//unsupported
-	case PTI_ARGB1555:			h10.dxgiformat = 86/*DXGI_FORMAT_B5G5R5A1_UNORM*/; break;
-	case PTI_DEPTH16:			h10.dxgiformat = 55/*DXGI_FORMAT_D16_UNORM*/; break;
-	case PTI_DEPTH24:			return false; //unsupported
-	case PTI_DEPTH32:			h10.dxgiformat = 40/*DXGI_FORMAT_D32_FLOAT*/; break;
-	case PTI_DEPTH24_8:			h10.dxgiformat = 45/*DXGI_FORMAT_D24_UNORM_S8_UINT*/; break;
 
 #ifdef FTE_TARGET_WEB
 	case PTI_WHOLEFILE:
@@ -6010,8 +6118,8 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 		return false;
 
 #ifndef _DEBUG
-	default:	//don't enable in debug builds, so we get warnings for any cases being missed.
-		return false;
+//	default:	//don't enable in debug builds, so we get warnings for any cases being missed.
+	//	return false;
 #endif
 	}
 
@@ -6031,12 +6139,29 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	if (strchr(filename, '*') || strchr(filename, ':'))
 		return false;
 
+	if (h9.ddpfPixelFormat.dwFlags && h10.arraysize == 1)
+		h10.dxgiformat = 0;	//skip the dx10 header if we can express it as bitmasks. this generally gives better support in external tools (especially gimp)
+	else if (h10.dxgiformat)
+	{
+		h9.ddpfPixelFormat.dwFlags = 0;	//don't get confused. always one or the other.
+		DX9FOURCC('D','X','1','0');
+	}
+	else
+		return false;	//legacy-only arrays are not supported.
+
 	file = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
 	if (!file)
 		return false;
 	VFS_WRITE(file, "DDS ", 4);
+	for (endian = (int*)&h9; endian < (int*)(&h9+1); endian++)
+		*endian = LittleLong(*endian);
 	VFS_WRITE(file, &h9, sizeof(h9));
-	VFS_WRITE(file, &h10, sizeof(h10));
+	if (h10.dxgiformat)
+	{
+		for (endian = (int*)&h10; endian < (int*)(&h10+1); endian++)
+			*endian = LittleLong(*endian);
+		VFS_WRITE(file, &h10, sizeof(h10));
+	}
 
 	//our internal state uses width*height*layers for each mip level (gl-friendly).
 	//DDS requires a0m0, a0m1, a1m0, a1m1, so reorder with two nested loops
@@ -8040,6 +8165,63 @@ static void Image_Tr_8888to5551(struct pendingtextureinfo *mips, int bgra)
 	}
 }
 
+static void Image_Tr_RGBA5551to8888(struct pendingtextureinfo *mips, int dummy)
+{	//expands
+	unsigned int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		unsigned short *in = mips->mip[mip].data;
+		unsigned char *out = mips->mip[mip].data;
+		void *dofree = mips->mip[mip].needfree?in:NULL;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		mips->mip[mip].needfree = true;
+		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
+		mips->mip[mip].datasize = p*sizeof(*out)*4;
+		while(p-->0)
+		{
+			unsigned short l = *in++;
+			unsigned char r = (l>> 11)&0x1f;
+			unsigned char g = (l>> 6)&0x1f;
+			unsigned char b = (l>> 1)&0x1f;
+			unsigned char a = (l>> 0)&0x1;
+			*out++ = (r<<3)|(r>>2);
+			*out++ = (g<<3)|(g>>2);
+			*out++ = (b<<3)|(b>>2);
+			*out++ = a * 0xff;
+		}
+		BZ_Free(dofree);
+	}
+}
+static void Image_Tr_ARGB1555to8888(struct pendingtextureinfo *mips, int dummy)
+{	//expands
+	unsigned int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		unsigned short *in = mips->mip[mip].data;
+		unsigned char *out = mips->mip[mip].data;
+		void *dofree = mips->mip[mip].needfree?in:NULL;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		mips->mip[mip].needfree = true;
+		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
+		mips->mip[mip].datasize = p*sizeof(*out)*4;
+		while(p-->0)
+		{
+			unsigned short l = *in++;
+			unsigned char r = (l>> 0)&0x1f;
+			unsigned char g = (l>> 5)&0x1f;
+			unsigned char b = (l>>10)&0x1f;
+			unsigned char a = (l>>15)&0x1;
+			*out++ = (r<<3)|(r>>2);
+			*out++ = (g<<3)|(g>>2);
+			*out++ = (b<<3)|(b>>2);
+			*out++ = a * 0xff;
+		}
+		BZ_Free(dofree);
+	}
+}
+
+
+
 static void Image_Tr_8888to4444(struct pendingtextureinfo *mips, int bgra)
 {
 	unsigned int mip;
@@ -8122,6 +8304,53 @@ static void Image_Tr_8888toARGB4444(struct pendingtextureinfo *mips, int bgra)
 	}
 }
 
+static void Image_Tr_4444to8888(struct pendingtextureinfo *mips, int dummy)
+{	//expands
+	unsigned int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		unsigned short *in = mips->mip[mip].data;
+		unsigned char *out = mips->mip[mip].data;
+		void *dofree = mips->mip[mip].needfree?in:NULL;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		mips->mip[mip].needfree = true;
+		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
+		mips->mip[mip].datasize = p*sizeof(*out)*4;
+		while(p-->0)
+		{
+			unsigned short l = *in++;
+			*out++ = ((l>>12)&0xf) * 0x11;
+			*out++ = ((l>> 8)&0xf) * 0x11;
+			*out++ = ((l>> 4)&0xf) * 0x11;
+			*out++ = ((l>> 0)&0xf) * 0x11;
+		}
+		BZ_Free(dofree);
+	}
+}
+static void Image_Tr_ARGB4444to8888(struct pendingtextureinfo *mips, int dummy)
+{	//expands
+	unsigned int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		unsigned short *in = mips->mip[mip].data;
+		unsigned char *out = mips->mip[mip].data;
+		void *dofree = mips->mip[mip].needfree?in:NULL;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		mips->mip[mip].needfree = true;
+		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
+		mips->mip[mip].datasize = p*sizeof(*out)*4;
+		while(p-->0)
+		{
+			unsigned short l = *in++;
+			*out++ = ((l>> 0)&0xf) * 0x11;
+			*out++ = ((l>> 4)&0xf) * 0x11;
+			*out++ = ((l>> 8)&0xf) * 0x11;
+			*out++ = ((l>>12)&0xf) * 0x11;
+		}
+		BZ_Free(dofree);
+	}
+}
+
 static void Image_Tr_4X16to8888(struct pendingtextureinfo *mips, int unused)
 {
 	unsigned int mip;
@@ -8172,6 +8401,7 @@ static void Image_Tr_E5BGR9ToByte(struct pendingtextureinfo *mips, int bgr)
 		}
 	}
 }
+//expands the data so must always realloc
 static void Image_Tr_E5BGR9ToFloat(struct pendingtextureinfo *mips, int dummy)
 {
 	unsigned int mip;
@@ -8180,7 +8410,7 @@ static void Image_Tr_E5BGR9ToFloat(struct pendingtextureinfo *mips, int dummy)
 		unsigned int *in = mips->mip[mip].data;
 		float *out = mips->mip[mip].data;
 		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
-		if (!mips->mip[mip].needfree && !mips->extrafree)
+		if (1)//!mips->mip[mip].needfree && !mips->extrafree)
 		{
 			mips->mip[mip].needfree = true;
 			mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*4*p);
@@ -8429,6 +8659,24 @@ static void Image_Tr_FloatToByte(struct pendingtextureinfo *mips, int channels)
 				*out++ = bound(0, v, 255);
 			}
 		}
+	}
+}
+
+static void Image_Tr_ByteToFloat(struct pendingtextureinfo *mips, int channels)
+{	//expands
+	int mip;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		qbyte *in = mips->mip[mip].data;
+		float *out = mips->mip[mip].data;
+		void *dofree = mips->mip[mip].needfree?in:NULL;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth*channels;
+		mips->mip[mip].needfree = true;
+		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p);
+		mips->mip[mip].datasize = p*sizeof(*out);
+		while(p-->0)
+			*out++ = *in++/255.0;
+		BZ_Free(dofree);
 	}
 }
 
@@ -10935,8 +11183,14 @@ static struct
 	{PTI_RGBX8,		PTI_RGB565,		Image_Tr_8888to565,	false,	true},
 	{PTI_BGRX8,		PTI_RGB565,		Image_Tr_8888to565,	true,	true},
 
+	{PTI_RGBA5551,	PTI_RGBA8,		Image_Tr_RGBA5551to8888,	false},
+	{PTI_ARGB1555,	PTI_RGBA8,		Image_Tr_ARGB1555to8888,	false},
+	{PTI_RGBA4444,	PTI_RGBA8,		Image_Tr_4444to8888,		false},
+	{PTI_ARGB4444,	PTI_RGBA8,		Image_Tr_ARGB4444to8888,	false},
+
 	{PTI_A2BGR10,	PTI_RGBA8,		Image_Tr_10To8},
 	{PTI_RGBA8,		PTI_A2BGR10,	Image_Tr_8To10,		false,	true},
+	{PTI_RGBA8,		PTI_RGBA32F,	Image_Tr_ByteToFloat,	4},
 
 	//24bit formats are probably slow
 	{PTI_LLLX8,		PTI_RGB8,		Image_Tr_DropBytes, (4<<16)|3},
@@ -10957,6 +11211,8 @@ static struct
 	{PTI_BGRA8,		PTI_RGB565,		Image_Tr_8888to565,	true,	true},
 	{PTI_RGBX8,		PTI_L8,			Image_Tr_8888toLuminence,		1,	true},
 	{PTI_RGBA8,		PTI_L8A8,		Image_Tr_8888toLuminence,		2,	true},
+	{PTI_RGBX8,		PTI_RGBA8,		Image_Tr_NoTransform},
+	{PTI_BGRX8,		PTI_BGRA8,		Image_Tr_NoTransform},
 
 	{PTI_RGBX8,		PTI_R8,			Image_Tr_DropBytes, (4<<16)|1, true},
 	{PTI_RGBX8,		PTI_RG8,		Image_Tr_DropBytes, (4<<16)|2, true},	//for small normalmaps (b can be inferred, a isn't available so avoid offsetmapping)

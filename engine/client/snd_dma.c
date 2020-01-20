@@ -2632,7 +2632,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 	if (oldest == -1)
 		return NULL;
 
-	if (sc->channel[oldest].sfx)
+	//if (sc->channel[oldest].sfx)
 		sc->channel[oldest].sfx = NULL;
 
 	if (sc->total_chans <= oldest)
@@ -2891,11 +2891,12 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 		return;
 	}
 
+	if (!ratemul)	//rate of 0
+		ratemul = 1;
 	ratemul *= snd_playbackrate.value;
 	if (!snd_ignoregamespeed.ival)
 		ratemul *= (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
-
-	if (ratemul <= 0)
+	if (ratemul <= 0)	//in case the user set the cvars weirdly
 		ratemul = 1;
 
 	vol = fvol*255;

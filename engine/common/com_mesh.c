@@ -3072,12 +3072,13 @@ void Mod_LoadAliasShaders(model_t *mod)
 	char alttexpath[MAX_QPATH];
 	uploadfmt_t skintranstype;
 	char *slash;
+#ifdef MD1MODELS
 #ifdef HEXEN2
-	if( mod->flags & MFH2_TRANSPARENT )
+	if (mod->flags & MFH2_TRANSPARENT)
 		skintranstype = TF_H2_T7G1;	//hexen2
 	else
 #endif
-	 if(mod->flags & MFH2_HOLEY)
+		if (mod->flags & MFH2_HOLEY)
 	{
 		//in hexen2, the official value is 0.
 		//hexen2's GL renderer ONLY also has a bug that ADDITIONALLY translates index 255. this is the 'normal' behaviour.
@@ -3085,10 +3086,11 @@ void Mod_LoadAliasShaders(model_t *mod)
 		skintranstype = mod_h2holey_bugged.ival?TF_TRANS8:TF_H2_TRANS8_0;	//hexen2
 	}
 #ifdef HEXEN2
-	else if(mod->flags & MFH2_SPECIAL_TRANS)
+	else if (mod->flags & MFH2_SPECIAL_TRANS)
 		skintranstype = TF_H2_T4A4;	//hexen2
 #endif
 	else
+#endif
 		skintranstype = TF_SOLID8;
 
 	COM_FileBase(mod->name, basename, sizeof(basename));

@@ -860,18 +860,18 @@ void CL_AdjustAngles (int pnum, double frametime)
 	if (in_speed.state[pnum] & 1)
 	{
 		if (ruleset_allow_frj.ival)
-			speed = frametime * cl_anglespeedkey.value;
+			speed = cl_anglespeedkey.value;
 		else
-			speed = frametime * bound(-2, cl_anglespeedkey.value, 2);
+			speed = bound(-2, cl_anglespeedkey.value, 2);
 	}
 	else
-		speed = frametime;
+		speed = 1;
 
 	if (in_rotate && pnum==0 && !(cl.fpd & FPD_LIMIT_YAW))
 	{
 		quant = in_rotate;
 		if (!cl_instantrotate.ival)
-			quant *= speed;
+			quant *= speed*frametime;
 		in_rotate -= quant;
 		if (ruleset_allow_frj.ival)
 			cl.playerview[pnum].viewanglechange[YAW] += quant;
@@ -879,34 +879,38 @@ void CL_AdjustAngles (int pnum, double frametime)
 
 	if (!(in_strafe.state[pnum] & 1))
 	{
-		quant = cl_yawspeed.value;
+		quant = cl_yawspeed.value*speed;
 		if ((cl.fpd & FPD_LIMIT_YAW) || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
-		cl.playerview[pnum].viewanglechange[YAW] -= speed*quant * CL_KeyState (&in_right, pnum, false);
-		cl.playerview[pnum].viewanglechange[YAW] += speed*quant * CL_KeyState (&in_left, pnum, false);
+		quant *= frametime;
+		cl.playerview[pnum].viewanglechange[YAW] -= quant * CL_KeyState (&in_right, pnum, false);
+		cl.playerview[pnum].viewanglechange[YAW] += quant * CL_KeyState (&in_left, pnum, false);
 	}
 	if (in_klook.state[pnum] & 1)
 	{
 		V_StopPitchDrift (&cl.playerview[pnum]);
-		quant = cl_pitchspeed.value;
+		quant = cl_pitchspeed.value*speed;
 		if ((cl.fpd & FPD_LIMIT_PITCH) || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
-		cl.playerview[pnum].viewanglechange[PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum, false);
-		cl.playerview[pnum].viewanglechange[PITCH] += speed*quant * CL_KeyState (&in_back, pnum, false);
+		quant *= frametime;
+		cl.playerview[pnum].viewanglechange[PITCH] -= quant * CL_KeyState (&in_forward, pnum, false);
+		cl.playerview[pnum].viewanglechange[PITCH] += quant * CL_KeyState (&in_back, pnum, false);
 	}
 
-	quant = cl_rollspeed.value;
-	cl.playerview[pnum].viewanglechange[ROLL] -= speed*quant * CL_KeyState (&in_rollleft, pnum, false);
-	cl.playerview[pnum].viewanglechange[ROLL] += speed*quant * CL_KeyState (&in_rollright, pnum, false);
+	quant = cl_rollspeed.value*speed;
+	quant *= frametime;
+	cl.playerview[pnum].viewanglechange[ROLL] -= quant * CL_KeyState (&in_rollleft, pnum, false);
+	cl.playerview[pnum].viewanglechange[ROLL] += quant * CL_KeyState (&in_rollright, pnum, false);
 	
 	up = CL_KeyState (&in_lookup, pnum, false);
 	down = CL_KeyState(&in_lookdown, pnum, false);
 
-	quant = cl_pitchspeed.value;
+	quant = cl_pitchspeed.value*speed;
 	if ((cl.fpd & FPD_LIMIT_PITCH) || !ruleset_allow_frj.ival)
 		quant = bound(-700, quant, 700);
-	cl.playerview[pnum].viewanglechange[PITCH] -= speed*cl_pitchspeed.ival * up;
-	cl.playerview[pnum].viewanglechange[PITCH] += speed*cl_pitchspeed.ival * down;
+	quant *= frametime;
+	cl.playerview[pnum].viewanglechange[PITCH] -= quant * up;
+	cl.playerview[pnum].viewanglechange[PITCH] += quant * down;
 
 	if (up || down)
 		V_StopPitchDrift (&cl.playerview[pnum]);	

@@ -15,7 +15,7 @@
 #define GAME_SHORTNAME		"wastes"
 #define GAME_FULLNAME		FULLENGINENAME
 #define GAME_BASEGAMES		GAME_SHORTNAME
-#define GAME_PROTOCOL		"FTE-TW"
+#define GAME_PROTOCOL		"The-Wastes"
 #define GAME_DEFAULTPORT	23000
 //#define GAME_IDENTIFYINGFILES	NULL	//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL	NULL	//url for the package manger to update from
@@ -159,8 +159,8 @@
 #undef HLSERVER
 #undef FTPSERVER
 //#undef CLIENTONLY	//leave this up to the makefiles.
-#undef HAVE_GNUTLS	//linux tls/dtls support
-#undef HAVE_WINSSPI	//windows tls/dtls support
+#define HAVE_GNUTLS	//linux tls/dtls support
+#define HAVE_WINSSPI	//windows tls/dtls support
 #undef HAVE_JUKEBOX	//includes built-in jukebox crap
 #undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
 #undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
@@ -174,7 +174,7 @@
 
 //FIXME: Stuff that Spike has added that eukara needs to decide whether to use or not.
 #define HAVE_OPUS
-//#define HAVE_OPENSSL
+#undef HAVE_OPENSSL
 //#define IMAGEFMT_HDR
 //#define IMAGEFMT_PBM
 //#define IMAGEFMT_PSD

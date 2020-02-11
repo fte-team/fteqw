@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PACKET_HEADER	8
 
+#define ANTISTUNBIAS 0x40000000	//adding this to sequences in the header ensures that we our packets will not get confused for stun or rtp packets.
+
 /*
 
 packet header
@@ -224,6 +226,8 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 
 		if (mask & PEXT2_REPLACEMENTDELTAS)
 			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
+
+		mask |= PEXT2_STUNAWARE;
 
 		if (fornq)
 		{
@@ -736,6 +740,12 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	w1 = chan->outgoing_sequence | (send_reliable<<31);
 	w2 = chan->incoming_sequence | (chan->incoming_reliable_sequence<<31);
 
+	if (chan->pext_stunaware)
+	{
+		w1 = BigLong(w1+ANTISTUNBIAS);
+		w2 = BigLong(w2);
+	}
+
 	chan->outgoing_sequence++;
 
 	MSG_WriteLong (&send, w1);
@@ -944,6 +954,15 @@ qboolean Netchan_Process (netchan_t *chan)
 	MSG_BeginReading (chan->netprim);
 	sequence = MSG_ReadLong ();
 	sequence_ack = MSG_ReadLong ();
+
+	if (chan->pext_stunaware)
+	{
+		sequence = BigLong(sequence);
+		if (!(sequence&ANTISTUNBIAS))
+			return false;
+		sequence -= ANTISTUNBIAS;
+		sequence_ack = BigLong(sequence_ack);
+	}
 
 	// skip over the qport if we are a server (its handled elsewhere)
 #ifndef CLIENTONLY

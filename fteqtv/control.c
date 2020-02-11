@@ -313,7 +313,7 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 		{
 			char buffer[8192];
 			char *result;
-			cluster->inputlength = read (0, cluster->commandinput, sizeof(cluster->commandinput));
+			cluster->inputlength = read (STDIN, cluster->commandinput, sizeof(cluster->commandinput));
 			if (cluster->inputlength >= 1)
 			{
 				cluster->commandinput[cluster->inputlength-1] = 0;        // rip off the /n and terminate

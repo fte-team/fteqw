@@ -911,6 +911,7 @@ const char *presetexec[] =
 	"seta cl_nolerp 1;"
 	"seta r_lerpmuzzlehack 0;"
 	"seta v_gunkick 0;"
+	"seta r_shadows 0;"
 	"seta v_viewmodel_quake 0;"
 	"seta cl_rollangle 0;"
 	"seta cl_bob 0;"

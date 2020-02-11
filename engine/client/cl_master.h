@@ -35,14 +35,15 @@ enum masterprotocol_e
 #define SS_PROXY		(1<<7u)
 
 #define PING_DEAD		0xffff	//default ping value to denote servers that are not responding.
-#define PING_MAX		0xfffe	//default ping value to denote servers that are not responding.
+#define PING_UNKNOWN	0xfffe	//these servers are considered up, but we can't query them directly so can't determine the final ping from here.
+#define PING_MAX		0xfffd	//highest 'valid' ping value.
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
 enum mastertype_e
 {
 	MT_BAD,			//this would be an error
-	MT_MASTERHTTPJSON,
+//	MT_MASTERHTTPJSON,
 	MT_MASTERHTTP,
 	MT_MASTERUDP,
 	MT_BCAST,
@@ -127,6 +128,7 @@ typedef struct serverinfo_s
 {
 	char name[64];	//hostname.
 	netadr_t adr;
+	char brokerid[64]; //'rtc[s]://adr//brokerid'
 
 	short special;	//flags
 	short protocol;
@@ -191,6 +193,7 @@ extern struct selectedserver_s
 {
 	qboolean inuse;
 	netadr_t adr;
+	char	brokerid[64];
 	float	refreshtime;
 	int		lastplayer;
 	char	lastrule[64];
@@ -224,8 +227,7 @@ qboolean CL_QueryServers(void);
 int Master_CheckPollSockets(void);
 void MasterInfo_Shutdown(void);
 void MasterInfo_WriteServers(void);
-void MasterInfo_Request(master_t *mast);
-serverinfo_t *Master_InfoForServer (netadr_t *addr);
+serverinfo_t *Master_InfoForServer (netadr_t *addr, const char *brokerid);
 serverinfo_t *Master_InfoForNum (int num);
 unsigned int Master_TotalCount(void);
 unsigned int Master_NumPolled(void);	//progress indicator
@@ -234,6 +236,7 @@ void Master_SetupSockets(void);
 void MasterInfo_Refresh(qboolean doreset);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);
+char *Master_ServerToString (char *s, int len, serverinfo_t *a);	//like NET_AdrToString, but handles more complex addresses.
 
 hostcachekey_t Master_KeyForName(const char *keyname);
 float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum);

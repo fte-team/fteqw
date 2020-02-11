@@ -262,6 +262,7 @@ typedef struct	//q1 client/network info
 	F(size_t,	GetTeamInfo,		(teamplayerinfo_t *clients, size_t maxclients, qboolean showenemies, int seat));
 	F(int,		GetWeaponStats,		(int player, struct wstats_s *result, size_t maxresults));
 	F(float,	GetTrackerOwnFrags,	(int seat, char *text, size_t textsize));
+	F(void,		GetPredInfo,		(int seat, vec3_t outvel));
 #define plugclientfuncs_name "Client"
 } plugclientfuncs_t;
 

@@ -669,9 +669,10 @@ int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewhe
 			sb_lines = 24 + 16 + 8;
 	}
 
+	clientfuncs->GetPredInfo(seat, cl.simvel);
+
 
 	//cl.faceanimtime
-	//cl.simvel
 	//cl.item_gettime
 
 	//cls.state;
@@ -679,8 +680,6 @@ int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewhe
 	//cls.fps;
 	////cls.realtime;
 	////cls.trueframetime;
-	//cls.mvdplayback;
-	//cls.demoplayback;
 
 	host_screenupdatecount++;
 	HUD_Draw();

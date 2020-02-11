@@ -2458,7 +2458,7 @@ void CLQ2_CalcViewValues (int seat)
 		for (i=0 ; i<3 ; i++)
 		{
 			pv->simorg[i] = pv->predicted_origin[i] + ops->viewoffset[i] 
-				+ cl.lerpfrac * (ps->viewoffset[i] - ops->viewoffset[i])
+				+ lerp * (ps->viewoffset[i] - ops->viewoffset[i])
 				- backlerp * pv->prediction_error[i];
 		}
 

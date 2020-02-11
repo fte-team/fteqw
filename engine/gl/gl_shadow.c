@@ -2328,6 +2328,9 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 	if (lighttype & LSHADER_ORTHO)
 		r_refdef.frustum_numplanes = 4;	//kill the near clip plane - we allow ANYTHING nearer through.
 
+	if (lighttype & LSHADER_FAKESHADOWS)
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
+
 #ifdef SHADOWDBG_COLOURNOTDEPTH
 	BE_SelectMode(BEM_STANDARD);
 #else
@@ -2806,10 +2809,7 @@ void Sh_GenerateFakeShadows(void)	//generates shadowmaps and selects the dlight,
 
 	if (!BE_SelectDLight(l, vec3_origin, l->axis, LSHADER_SMAP|LSHADER_ORTHO))
 		return;
-	if (!Sh_GenShadowMap(l, LSHADER_SMAP|LSHADER_ORTHO|LSHADER_FAKESHADOWS, l->axis, NULL, smsize, texwidth))
-		return;
-
-	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
+	Sh_GenShadowMap(l, LSHADER_SMAP|LSHADER_ORTHO|LSHADER_FAKESHADOWS, l->axis, NULL, smsize, texwidth);
 }
 
 static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qbyte *vvis)

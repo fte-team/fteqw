@@ -297,6 +297,7 @@ struct
 {
 	unsigned int startms;
 	netadr_t adr;
+	char brokername[64];
 } ui_pings[MAX_PINGREQUESTS];
 
 #define UITAGNUM 2452
@@ -879,11 +880,14 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 					if (ui_pings[i].adr.type == NA_INVALID)
 					{
 						serverinfo_t *info;
+						const char *p = NULL;
 						COM_Parse(cmdtext + 5);
 						ui_pings[i].startms = Sys_Milliseconds();
-						if (NET_StringToAdr(com_token, 0, &ui_pings[i].adr))
+						if (NET_StringToAdr2(com_token, 0, &ui_pings[i].adr, 1, &p))
 						{
-							info = Master_InfoForServer(&ui_pings[i].adr);
+							if (p && *p=='/')
+								p++;
+							info = Master_InfoForServer(&ui_pings[i].adr, p);
 							if (info)
 							{
 								info->special |= SS_KEEPINFO;
@@ -891,6 +895,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 								Master_QueryServer(info);
 							}
 						}
+						Q_strncpyz(ui_pings[i].brokername, p?p:"", sizeof(ui_pings[i].brokername));
 						break;
 					}
 			}
@@ -1159,13 +1164,16 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *buf = VM_POINTER(arg[1]);
 			size_t bufsize = VM_LONG(arg[2]);
 			int *ping = VM_POINTER(arg[3]);
-			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr);
-			NET_AdrToString(buf, bufsize, &ui_pings[i].adr);
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr, ui_pings[i].brokername);
+			if (info)
+				Master_ServerToString(buf, bufsize, info);
+			else
+				NET_AdrToString(buf, bufsize, &ui_pings[i].adr);
 
-			if (info && (info->status & SRVSTATUS_ALIVE) && info->moreinfo)
+			if (info && /*(info->status & SRVSTATUS_ALIVE) &&*/ info->moreinfo)
 			{
 				VM_LONG(ret) = true;
-				*ping = info->ping;
+				*ping = (info->ping == PING_UNKNOWN)?1:info->ping;
 				break;
 			}
 			i = Sys_Milliseconds()-ui_pings[i].startms;
@@ -1188,8 +1196,8 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *buf = VM_POINTER(arg[1]);
 			size_t bufsize = VM_LONG(arg[2]);
 			char *adr;
-			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr);
-			if (info && (info->status & SRVSTATUS_ALIVE) && info->moreinfo)
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr, ui_pings[i].brokername);
+			if (info && /*(info->status & SRVSTATUS_ALIVE) &&*/ info->moreinfo)
 			{
 				adr = info->moreinfo->info;
 				if (!adr)
@@ -1269,7 +1277,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
 			if (info)
 			{
-				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr);
+				adr = Master_ServerToString(adrbuf, sizeof(adrbuf), info);
 				if (strlen(adr) < VM_LONG(arg[3]))
 				{
 					strcpy(buf, adr);

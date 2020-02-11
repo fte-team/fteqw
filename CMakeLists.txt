@@ -829,6 +829,7 @@ ELSE()
 		ADD_EXECUTABLE(ftemaster
 			${FTESV_ARCH_FILES}
 			engine/server/sv_master.c
+			engine/common/net_ice.c		#for the stun responses.
 			engine/common/net_wins.c
 			engine/common/cvar.c
 			engine/common/cmd.c

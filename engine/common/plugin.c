@@ -1515,7 +1515,7 @@ void Plug_Close(plugin_t *plug)
 		prev->next = plug->next;
 	}
 
-	if (!com_workererror)
+	if (!com_workererror && plug->lib)
 		Con_DPrintf("Closing plugin %s\n", plug->name);
 
 	//ensure any active contexts provided by the plugin are closed (stuff with destroy callbacks)
@@ -1893,7 +1893,9 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_GetTeamInfo,
 			Plug_GetWeaponStats,
 			Plug_GetTrackerOwnFrags,
+			Plug_GetPredInfo,
 #else
+			NULL,
 			NULL,
 			NULL,
 			NULL,

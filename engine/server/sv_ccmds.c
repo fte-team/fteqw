@@ -1950,7 +1950,7 @@ static void SV_Status_f (void)
 		extern cvar_t net_enable_tls;
 	#endif
 	#ifdef HAVE_HTTPSV
-		extern cvar_t net_enable_http, net_enable_webrtcbroker, net_enable_websockets;
+		extern cvar_t net_enable_http, net_enable_rtcbroker, net_enable_websockets;
 	#endif
 	extern cvar_t net_enable_qizmo, net_enable_qtv;
 #endif
@@ -2013,6 +2013,7 @@ static void SV_Status_f (void)
 		Con_Printf("client types     :%s\n", sv_listen_qw.ival?" Q2":"");
 		break;
 #endif
+
 	default:
 		Con_Printf("client types     :%s", sv_listen_qw.ival?" QW":"");
 #ifdef NQPROT
@@ -2027,7 +2028,9 @@ static void SV_Status_f (void)
 		else if (net_enable_dtls.ival)
 			Con_Printf(" DTLS");
 #endif
+		Con_Printf("\n");
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
+		Con_Printf("tcp services     :");
 #if defined(HAVE_SSL)
 		if (net_enable_tls.ival)
 			Con_Printf(" TLS");
@@ -2035,8 +2038,8 @@ static void SV_Status_f (void)
 #ifdef HAVE_HTTPSV
 		if (net_enable_http.ival)
 			Con_Printf(" HTTP");
-		if (net_enable_webrtcbroker.ival)
-			Con_Printf(" WebRTC");
+		if (net_enable_rtcbroker.ival)
+			Con_Printf(" RTC");
 		if (net_enable_websockets.ival)
 			Con_Printf(" WS");
 #endif

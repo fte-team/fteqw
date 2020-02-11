@@ -131,7 +131,6 @@ extern player_t *mplayers;
 
 void CL_QueryServers(void);
 int NET_CheckPollSockets(void);
-void MasterInfo_Request(master_t *mast);
 serverinfo_t *Master_InfoForServer (struct sockaddr_in addr);
 serverinfo_t *Master_InfoForNum (int num);
 int Master_TotalCount(void);

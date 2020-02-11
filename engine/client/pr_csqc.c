@@ -719,13 +719,13 @@ static void QCBUILTIN PF_cs_remove (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	if (!ed->entnum)
 	{
-		Con_Printf("Unable to remove the world. Try godmode.");
+		Con_Printf("Unable to remove the world. Try godmode.\n");
 		PR_StackTrace (prinst, false);
 		return;
 	}
 	if (ed->readonly)
 	{
-		Con_Printf("Entity %i is readonly.", ed->entnum);
+		Con_Printf("Entity %i is readonly.\n", ed->entnum);
 		return;
 	}
 
@@ -733,6 +733,35 @@ static void QCBUILTIN PF_cs_remove (pubprogfuncs_t *prinst, struct globalvars_s 
 		pe->DelinkTrailstate(&ed->trailstate);
 	World_UnlinkEdict((wedict_t*)ed);
 	ED_Free (prinst, (void*)ed);
+}
+static void QCBUILTIN PF_cs_removeinstant (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ed;
+
+	ed = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+
+	if (ED_ISFREE(ed))
+	{
+		csqc_deprecated("Tried removing free entity");
+		return;
+	}
+
+	if (!ed->entnum)
+	{
+		Con_Printf("Unable to remove the world. Try godmode.\n");
+		PR_StackTrace (prinst, false);
+		return;
+	}
+	if (ed->readonly)
+	{
+		Con_Printf("Entity %i is readonly.\n", ed->entnum);
+		return;
+	}
+
+	if (pe)
+		pe->DelinkTrailstate(&ed->trailstate);
+	World_UnlinkEdict((wedict_t*)ed);
+	prinst->EntFree(prinst, (void*)ed, true);
 }
 
 static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2243,6 +2272,11 @@ nogameaccess:
 		*r = r_refdef.useperspective;
 		break;
 
+	case VF_PROJECTIONOFFSET:
+		r[0] = r_refdef.projectionoffset[0];
+		r[1] = r_refdef.projectionoffset[1];
+		break;
+
 	case VF_SCREENVSIZE:
 		r[0] = vid.width;
 		r[1] = vid.height;
@@ -2456,6 +2490,11 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	case VF_PERSPECTIVE:
 		r_refdef.useperspective = *p;
+		break;
+
+	case VF_PROJECTIONOFFSET:
+		r_refdef.projectionoffset[0] = p[0];
+		r_refdef.projectionoffset[1] = p[1];
 		break;
 
 	case VF_RT_DESTCOLOUR0:
@@ -3649,6 +3688,12 @@ static void cs_get_input_state (usercmd_t *cmd)
 		VectorCopy(csqcg.input_cursor_impact, cmd->cursor_impact);
 	if (csqcg.input_cursor_entitynumber)
 		cmd->cursor_entitynumber = *csqcg.input_cursor_entitynumber;
+}
+
+//sets implicit pause (only works when singleplayer)
+static void QCBUILTIN PF_cl_setpause (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	cl.implicitpause = !!G_FLOAT(OFS_PARM0);
 }
 
 //get the input commands, and stuff them into some globals.
@@ -6327,6 +6372,7 @@ static struct {
 	{"vectoyaw",				PF_vectoyaw,	13},			// #13 float(vector v) vectoyaw (QUAKE)
 	{"spawn",					PF_Spawn,	14},				// #14 entity() spawn (QUAKE)
 	{"remove",					PF_cs_remove,	15},			// #15 void(entity e) remove (QUAKE)
+	{"removeinstant",			PF_cs_removeinstant,	0},
 	{"traceline",				PF_cs_traceline,	16},		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
 	{"checkclient",				PF_NoCSQC,	17},				// #17 entity() checkclient (QUAKE) (don't support)
 	{"find",					PF_FindString,	18},			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
@@ -6944,6 +6990,7 @@ static struct {
 
 	{"loadfromdata",			PF_loadfromdata,			529},
 	{"loadfromfile",			PF_loadfromfile,			530},
+	{"setpause",				PF_cl_setpause,				531},
 	{"log",						PF_Logarithm,				532},
 
 	{"stopsound",				PF_stopsound,				0},

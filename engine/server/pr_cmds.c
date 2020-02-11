@@ -4288,9 +4288,27 @@ static void QCBUILTIN PF_Remove (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		return;	//yeah, alright, so this is hacky.
 	}
 
-	ED_Free (prinst, ed);
+	prinst->EntFree (prinst, ed, false);
 }
+static void QCBUILTIN PF_RemoveInstant (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t	*ed;
 
+	ed = G_EDICT(prinst, OFS_PARM0);
+
+	if (ED_ISFREE(ed))
+	{
+		ED_CanFree(ed);	//fake it
+		if (developer.value)
+		{
+			Con_Printf("Tried removing free entity at:\n");
+			PR_StackTrace(prinst, false);
+		}
+		return;	//yeah, alright, so this is hacky.
+	}
+
+	prinst->EntFree (prinst, ed, true);
+}
 
 
 /*
@@ -10511,7 +10529,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vlen",			PF_vlen,			12,		12,		12,		0,	D("float(vector v)", "Returns the square root of the dotproduct of a vector with itself. Or in other words the length of a distance vector, in quake units.")},
 	{"vectoyaw",		PF_vectoyaw,		13,		13,		13,		0,	D("float(vector v, optional entity reference)", "Given a direction vector, returns the yaw angle in which that direction vector points. If an entity is passed, the yaw angle will be relative to that entity's gravity direction.")},
 	{"spawn",			PF_Spawn,			14,		14,		14,		0,	D("entity()", "Adds a brand new entity into the world! Hurrah, you're now a parent!")},
-	{"remove",			PF_Remove,			15,		15,		15,		0,	D("void(entity e)", "Destroys the given entity and clears some limited fields (including model, modelindex, solid, classname). Any references to the entity following the call are an error. After two seconds, the entity will be reused, in the interim you can unfortunatly still read its fields to see if the reference is no longer valid.")},
+	{"remove",			PF_Remove,			15,		15,		15,		0,	D("void(entity e)", "Destroys the given entity and clears some limited fields (including model, modelindex, solid, classname). Any references to the entity following the call are an error. After half a second the entity will be reused, in the interim you can unfortunatly still read its fields to see if the reference is no longer valid.")},
+	{"removeinstant",	PF_RemoveInstant,	0,		0,		0,		0,	D("void(entity e)", "Same thing as the regular remove builtin, but bypasses the half-second rule. The entity slot may be reused instantly. Be CERTAIN that you have no lingering references, because if they're followed they will end up poking an entirely different type of entity! So only use this where you're sure its safe.")},
 	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	D("void(vector v1, vector v2, float flags, entity ent)", "Traces a thin line through the world from v1 towards v2.\nWill not collide with ent, ent.owner, or any entity who's owner field refers to ent.\nThe passed entity will also be used to determine whether to use a capsule trace, the contents that the trace should impact, and a couple of other extra fields that define the trace.\nThere are no side effects beyond the trace_* globals being written.\nflags&MOVE_NOMONSTERS will not impact on non-bsp entities.\nflags&MOVE_MISSILE will impact with increased size.\nflags&MOVE_HITMODEL will impact upon model meshes, instead of their bounding boxes.\nflags&MOVE_TRIGGERS will also stop on triggers\nflags&MOVE_EVERYTHING will stop if it hits anything, even non-solid entities.\nflags&MOVE_LAGGED will backdate entity positions for the purposes of this builtin according to the indicated player ent's latency, to provide lag compensation.")},
 	{"checkclient",		PF_checkclient,		17,		17,		17,		0,	D("entity()", "Returns one of the player entities. The returned player will change periodically.")},
 	{"find",			PF_FindString,		18,		18,		18,		0,	D("entity(entity start, .string fld, string match)", "Scan for the next entity with a given field set to the given 'match' value. start should be either world, or the previous entity that was found. Returns world on failure/if there are no more.\nIf you have many many entities then you may find that hashtables will give more performance (but requires extra upkeep).")},

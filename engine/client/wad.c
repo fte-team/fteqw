@@ -470,10 +470,17 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 		p = W_GetLumpName(name+4, &lumpsize, &lumptype);
 		if (p)
 		{
-			if (/*lumptype == TYP_QPIC && */!strcmp(name+4, "conchars") && lumpsize==128*128)
+			if (/*lumptype == TYP_MIPTEX && */!strcmp(name+4, "conchars") && (lumpsize==128*128
+#ifdef HAVE_LEGACY
+							|| (lumptype == TYP_QPIC&&lumpsize==8+128*128)
+#endif
+							))
 			{	//conchars has no header.
 				qbyte *lump = (qbyte*)p;
 				extern cvar_t con_ocranaleds;
+
+				if (lumpsize==8+128*128)
+					Con_Printf(CON_WARNING"WARNING: gfx.wad conchars lump has incorrect lump size.\n");
 
 				if (con_ocranaleds.ival)
 				{

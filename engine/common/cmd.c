@@ -4262,7 +4262,7 @@ void Cmd_Init (void)
 #endif
 	Cmd_AddCommandAD ("seta", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist. Also forces the archive flag so that the cvar will always be written into any saved configs.");
 	Cmd_AddCommandAD ("seta_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression. Also forces the archive flag so that the cvar will always be written into any saved configs.");
-	Cmd_AddCommand ("vstr", Cmd_Vstr_f);
+	Cmd_AddCommandD ("vstr", Cmd_Vstr_f, "Executes the string value of the cvar, much like if it were an alias. For compatibility with q3.");
 	Cmd_AddCommandAD ("inc", Cvar_Inc_f, Cmd_Set_c, "Adds a value to the named cvar. Use a negative value if you wish to decrease the cvar's value.");
 	//FIXME: Add seta some time.
 	Cmd_AddCommand ("if", Cmd_if_f);

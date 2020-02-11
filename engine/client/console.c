@@ -1887,8 +1887,8 @@ static int Con_DrawProgress(int left, int right, int y)
 {
 	conchar_t			dlbar[1024], *chr;
 	unsigned char	progresspercenttext[128];
-	char *progresstext = NULL;
-	char *txt;
+	const char *progresstext = NULL;
+	const char *txt;
 	int x, tw;
 	int i;
 	int barwidth, barleft;
@@ -1937,14 +1937,9 @@ static int Con_DrawProgress(int left, int right, int y)
 		}
 	}
 #ifdef RUNTIMELIGHTING
-	else if (lightmodel)
+	else if ((progresstext=RelightGetProgress(&progresspercent)))
 	{
-		if (relitsurface < lightmodel->numsurfaces)
-		{
-			progresstext = "light";
-			progresspercent = (relitsurface*100.0f) / lightmodel->numsurfaces;
-			sprintf(progresspercenttext, " %02d%%", (int)progresspercent);
-		}
+		sprintf(progresspercenttext, " %02d%%", (int)progresspercent);
 	}
 #endif
 

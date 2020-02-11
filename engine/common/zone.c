@@ -195,6 +195,7 @@ void *ZF_Malloc(size_t size)
 	return ret;
 #elif defined(__linux__)
 	void *ret = NULL;
+
 	if (!posix_memalign(&ret, max(sizeof(float)*4, sizeof(void*)), size))
 		memset(ret, 0, size);
 	return ret;

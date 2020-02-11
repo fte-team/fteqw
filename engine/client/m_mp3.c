@@ -1854,7 +1854,7 @@ static cin_t *Media_WinAvi_TryLoad(char *name)
 				if(qAVIStreamReadFormat(cin->avi.pavisound, qAVIStreamStart(cin->avi.pavisound), pChunk, &lSize))
 				{
 				   // error
-					Con_Printf("Failiure reading sound info\n");
+					Con_Printf("Failure reading sound info\n");
 				}
 				cin->avi.pWaveFormat = (LPWAVEFORMATEX)pChunk;
 			}

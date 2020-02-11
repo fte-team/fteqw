@@ -726,7 +726,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 		int nailcount;
 
 		char gamedir[MAX_QPATH];
-		char mapname[256];
+		char mapname[256];	//world.message
 		movevars_t movevars;
 		int cdtrack;
 		entity_t entity[MAX_ENTITIES];
@@ -809,6 +809,7 @@ struct cluster_s {
 	qboolean nobsp;
 	qboolean allownqclients;	//nq clients require no challenge
 	qboolean nouserconnects;	//prohibit users from connecting to new streams.
+	qboolean reverseallowed;	//demos can be submitted from servers via 'qtvreverse' without needing to keep idle connections live.
 	int anticheattime;	//intial connection buffer delay (set high to block specing enemies)
 	int tooslowdelay;	//if stream ran out of data, stop parsing for this long
 

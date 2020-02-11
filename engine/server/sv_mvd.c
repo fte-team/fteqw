@@ -61,6 +61,9 @@ cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 void SV_WriteRecordMVDMessage (sizebuf_t *msg);
+#ifdef TCPCONNECT
+void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen);
+#endif
 
 
 static struct
@@ -83,6 +86,15 @@ int demomsgto;
 static char demomsgbuf[MAX_OVERALLMSGLEN];
 
 static mvddest_t *singledest;	//used when a stream is starting up so redundant data doesn't get dumped into other streams
+static struct reversedest_s
+{
+	struct reversedest_s *next;
+	qtvpendingstate_t info;
+	vfsfile_t *stream;
+	char inbuffer[2048];
+	int inbuffersize;
+	double timeout;
+} *reversedest;	//used when a reverse stream is starting up
 
 static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream, const char *info);
 qboolean SV_MVD_Record (mvddest_t *dest);
@@ -253,12 +265,17 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	char password[256] = "";
 	char userinfo[1024];
 	enum {
+		//MUST BE ORDERED HIGHEST-PRIORITY-LAST
 		QTVAM_NONE,
 		QTVAM_PLAIN,
+#ifdef TCPCONNECT
 //		QTVAM_CCITT,	//16bit = ddos it
 		QTVAM_MD4,		//fucked
-//		QTVAM_MD5,		//no hash implemented
-		QTVAM_SHA1,
+//		QTVAM_MD5,		//fucked, no hash implemented
+		QTVAM_SHA1,		//fucked too nowadays
+//		QTVAM_SHA2_256,	//no hash implemented
+//		QTVAM_SHA2_512,	//no hash implemented
+#endif
 	} authmethod = QTVAM_NONE;
 
 	start = headerstart;
@@ -329,9 +346,10 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				int thisauth;
 				start = COM_ParseToken(start, NULL);
 				if (!strcmp(com_token, "NONE"))
-					thisauth = QTVAM_PLAIN;
+					thisauth = QTVAM_NONE;
 				else if (!strcmp(com_token, "PLAIN"))
 					thisauth = QTVAM_PLAIN;
+#ifdef TCPCONNECT
 //				else if (!strcmp(com_token, "CCIT"))
 //					thisauth = QTVAM_CCITT;
 				else if (!strcmp(com_token, "MD4"))
@@ -340,6 +358,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 //					thisauth = QTVAM_MD5;
 				else if (!strcmp(com_token, "SHA1"))
 					thisauth = QTVAM_SHA1;
+#endif
 				else
 				{
 					thisauth = QTVAM_NONE;
@@ -391,7 +410,10 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		p->hasauthed = true;	//no password, no need to auth.
 	else if (*password)
 	{
-		switch (authmethod)
+		if (!*p->challenge && authmethod>QTVAM_PLAIN)
+			e =	("QTVSV 1\n"
+				 "PERROR: Challenge wasn't given...\n\n");
+		else switch (authmethod)
 		{
 		case QTVAM_NONE:
 			e = ("QTVSV 1\n"
@@ -400,6 +422,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		case QTVAM_PLAIN:
 			p->hasauthed = !strcmp(qtv_password.string, password);
 			break;
+#ifdef TCPCONNECT
 		/*case QTVAM_CCITT:
 			{
 				unsigned short ushort_result;
@@ -414,9 +437,9 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				char hash[512];
 				int md4sum[4];
 
-				snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+				Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
 				Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
-				sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
+				Q_snprintfz(hash, sizeof(hash), "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
 				p->hasauthed = !strcmp(password, hash);
 			}
 			break;
@@ -425,16 +448,17 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				char hash[512];
 				int digest[5];
 
-				snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+				Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
 				SHA1((char*)digest, sizeof(digest), hash, strlen(hash));
-				sprintf(hash, "%08X%08X%08X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
+				Q_snprintfz(hash, sizeof(hash), "%08X%08X%08X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
 				p->hasauthed = !strcmp(password, hash);
 			}
 			break;
 //		case QTVAM_MD5:
+#endif
 		default:
 			e = ("QTVSV 1\n"
-				 "PERROR: FTEQWSV bug detected.\n\n");
+				 "PERROR: server bug detected.\n\n");
 			break;
 		}
 		if (!p->hasauthed && !e)
@@ -461,34 +485,32 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		case QTVAM_PLAIN:
 			p->hasauthed = !strcmp(qtv_password.string, password);
 			break;
-
-			if (0)
-			{
+#ifdef TCPCONNECT
 		/*case QTVAM_CCITT:
-					e =	("QTVSV 1\n"
-						"AUTH: CCITT\n"
-						"CHALLENGE: ");
-			}
-			else if (0)
-			{*/
+			e =	("QTVSV 1\n"
+				"AUTH: CCITT\n"
+				"CHALLENGE: ");
+			goto hashedpassword;*/
 		case QTVAM_MD4:
-					e =	("QTVSV 1\n"
-						"AUTH: MD4\n"
-						"CHALLENGE: ");
-			}
-			else
-			{
+			e =	("QTVSV 1\n"
+				"AUTH: MD4\n"
+				"CHALLENGE: ");
+			goto hashedpassword;
 		/*case QTVAM_MD5:
-					e =	("QTVSV 1\n"
-						"AUTH: MD5\n"
-						"CHALLENGE: ");
-			}
-			else
-			{*/
+			e =	("QTVSV 1\n"
+				"AUTH: MD5\n"
+				"CHALLENGE: ");
+			goto hashedpassword;*/
 		case QTVAM_SHA1:
-					e =	("QTVSV 1\n"
-						"AUTH: SHA1\n"
-						"CHALLENGE: ");
+			e =	("QTVSV 1\n"
+				"AUTH: SHA1\n"
+				"CHALLENGE: ");
+			goto hashedpassword;
+hashedpassword:
+			{
+				char tmp[32];
+				Sys_RandomBytes(tmp, sizeof(tmp));
+				tobase64(p->challenge, sizeof(p->challenge), tmp, sizeof(tmp));
 			}
 
 			VFS_WRITE(clientstream, e, strlen(e));
@@ -496,15 +518,15 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 			e = "\n\n";
 			VFS_WRITE(clientstream, e, strlen(e));
 			return QTV_RETRY;
-
+#endif
 		default:
 			e = ("QTVSV 1\n"
-				 "PERROR: FTEQWSV bug detected.\n\n");
+				 "PERROR: server bug detected.\n\n");
 			break;
 		}
 	}
 
-	if (*qtv_maxstreams.string)
+	if (*qtv_maxstreams.string && !p->isreverse)
 	{
 		int count = 0;
 		mvddest_t *dest;
@@ -2128,10 +2150,80 @@ void SV_MVD_AutoRecord (void)
 	}
 }
 
+void SV_MVD_CheckReverse(void)
+{
+	struct reversedest_s *rd, **link;
+	enum qtvstatus_e s;
+	int len;
+	for (link = &reversedest; *link; link = &rd->next)
+	{
+		rd = *link;
+		if (realtime > rd->timeout)
+			len = -1;
+		else
+			len = VFS_READ(rd->stream, rd->inbuffer+rd->inbuffersize, sizeof(rd->inbuffer)-1-rd->inbuffersize);
+		if (len < 0)
+			s = QTV_ERROR;
+		else if (!len)
+			continue; //keep waiting...
+		else
+		{
+			rd->inbuffersize += len;
+			rd->inbuffer[rd->inbuffersize] = 0;
+			if (rd->inbuffersize >= 3 && strncmp(rd->inbuffer, "QTV", 3))
+				s = QTV_ERROR;	//not qtv server...
+			else
+			{
+				char *e = strstr(rd->inbuffer, "\n\n");
+				if (e)
+					s = SV_MVD_GotQTVRequest(rd->stream, rd->inbuffer, rd->inbuffer+rd->inbuffersize, &rd->info);
+				else
+					continue; //not nuff data yet
+			}
+		}
+		switch(s)
+		{
+		case QTV_RETRY:	//need to parse new stuff.
+			continue;
+		case QTV_ACCEPT:
+			rd->stream = NULL;
+			//fallthrough
+		case QTV_ERROR:
+			if (rd->stream)
+				VFS_CLOSE(rd->stream);
+			*link = rd->next;
+			Z_Free(rd);
+			return;
+		}
+	}
+}
+
 void SV_MVD_QTVReverse_f (void)
 {
 #if 1//ndef HAVE_TCP
-	Con_Printf ("%s is not supported in this build\n", Cmd_Argv(0));
+//	Con_Printf ("%s is not supported in this build\n", Cmd_Argv(0));
+
+	const char *ip = Cmd_Argv(1);
+	vfsfile_t *f;
+	const char *msg =	"QTV\n"
+						"VERSION: 1\n"
+						"REVERSE\n"
+						"\n";
+	struct reversedest_s *rd;
+	if (sv.state<ss_loading)
+		return;
+
+	f = FS_OpenTCP(ip, 27599);
+	if (!f)
+		return;
+
+	VFS_WRITE(f, msg, strlen(msg));
+
+	rd = Z_Malloc(sizeof(*rd));
+	rd->stream = f;
+	rd->info.isreverse = true;
+	rd->timeout = realtime + 10;
+	reversedest = rd;
 #else
 	char *ip;
 	if (sv.state != ss_active)

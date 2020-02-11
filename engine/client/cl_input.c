@@ -64,10 +64,8 @@ int CL_TargettedSplit(qboolean nowrap)
 	int mod;
 
 	//explicitly targetted at some seat number from the server
-	if (Cmd_ExecLevel > RESTRICT_SERVER)
-		return Cmd_ExecLevel - RESTRICT_SERVER-1;
-	if (Cmd_ExecLevel == RESTRICT_SERVER)
-		return 0;
+	if (Cmd_ExecLevel >= RESTRICT_SERVER)
+		return Cmd_ExecLevel - RESTRICT_SERVER;
 
 	//locally executed command.
 	if (nowrap)
@@ -531,31 +529,32 @@ static void IN_UseDown (void) {KeyDown(&in_use, NULL);}
 static void IN_UseUp (void) {KeyUp(&in_use);}
 static void IN_JumpDown (void)
 {
-	qboolean condition;
-
-
+	qboolean up;
 	int pnum = CL_TargettedSplit(false);
 	playerview_t *pv = &cl.playerview[pnum];
 
 
-	condition = (cls.state == ca_active && cl_smartjump.ival && !prox_inmenu.ival);
+	up = (cls.state == ca_active && cl_smartjump.ival && !prox_inmenu.ival);
+	if (!up)
+		up = false;
 #ifdef Q2CLIENT
-	if (condition && cls.protocol == CP_QUAKE2)
-		KeyDown(&in_up, &in_down);
-	else
+	else if (cls.protocol == CP_QUAKE2)
+		up = true;	//always smartjump in q2.
 #endif
+	else if (pv->spectator && pv->cam_state != CAM_FREECAM)
+		up = false;	//if we're tracking, don't confuse stuff.
 #ifdef QUAKESTATS
-		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !pv->spectator && 
-			(cls.protocol==CP_NETQUAKE || cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[pv->playernum].messagenum == cl.validsequence)
-			&& cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
-	)
-		KeyDown(&in_up, &in_down);
-	else
+	else if (!pv->spectator && pv->stats[STAT_HEALTH] <= 0)
+		up = false;	//don't ever 'swim' when dead.
+	else if (pv->pmovetype == PM_FLY || pv->pmovetype == PM_6DOF || pv->pmovetype == PM_SPECTATOR || pv->pmovetype == PM_OLD_SPECTATOR)
+		up = true;	//fling/spectating
+	else if ((pv->pmovetype == PM_NORMAL || pv->pmovetype == PM_WALLWALK) && pv->waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1)))
+		up = true;	//swimming. TF only (silently) smartjumps when NOT moving.
 #endif
-		if (condition && pv->spectator && pv->cam_state == CAM_FREECAM)
-		KeyDown(&in_up, &in_down);
 	else
-		KeyDown(&in_jump, &in_down);
+		up = false;
+
+	KeyDown((up?&in_up:&in_jump), &in_down);
 }
 static void IN_JumpUp (void)
 {

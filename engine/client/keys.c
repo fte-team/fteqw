@@ -1209,7 +1209,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 	if ((key == K_MOUSE1 && con->buttonsdown == CB_SCROLL) || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
 	{
 		con->buttonsdown = CB_NONE;
-		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
+		if (fabs(con->mousedown[0] - con->mousecursor[0]) < 5 && fabs(con->mousedown[1] - con->mousecursor[1]) < 5)
 		{
 			buffer = Con_CopyConsole(con, false, false, false);
 			Con_Footerf(con, false, "");
@@ -2652,7 +2652,7 @@ void Key_Bind_f (void)
 			if (bindcmdlevel[b][modifier] != level)
 			{
 				if (Cmd_ExecLevel > RESTRICT_SERVER)
-					Q_snprintfz(leveldesc, sizeof(leveldesc), ", for seat %i", Cmd_ExecLevel - RESTRICT_SERVER-1);
+					Q_snprintfz(leveldesc, sizeof(leveldesc), ", for seat %i", Cmd_ExecLevel - RESTRICT_SERVER);
 				else if (Cmd_ExecLevel == RESTRICT_SERVER)
 					Q_snprintfz(leveldesc, sizeof(leveldesc), ", bound by server");
 				else if (bindcmdlevel[b][modifier]>=RESTRICT_INSECURE)

@@ -226,7 +226,7 @@ struct icecandinfo_s
 {
 	char candidateid[64];
 	char addr[64];		//v4/v6/fqdn. fqdn should prefer ipv6
-	int port;
+	int port;			//native endian...
 	int transport;		//0=udp. other values not supported
 	int foundation;		//to figure out...
 	int component;		//1-based. allows rtp+rtcp in a single ICE... we only support one.
@@ -289,8 +289,8 @@ extern icefuncs_t iceapi;
 typedef struct ftenet_generic_connection_s {
 	char name[MAX_QPATH];
 
-	int (*GetLocalAddresses)(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
-	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *newadr);
+	int (*GetLocalAddresses)(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, const char **adrparams, int maxaddresses);
+	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *addressstring, netadr_t *newadr);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
 	neterr_t (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
@@ -376,11 +376,33 @@ void ICE_Tick(void);
 qboolean ICE_WasStun(ftenet_connections_t *col);
 void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int type);
 void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrno, int type);
+ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+enum icemsgtype_s
+{	//shared by rtcpeers+broker
+	ICEMSG_PEERDROP=0,	//other side dropped connection
+	ICEMSG_GREETING=1,	//master telling us our unique game name
+	ICEMSG_NEWPEER=2,	//relay established, send an offer now.
+	ICEMSG_OFFER=3,		//peer's initial details
+	ICEMSG_CANDIDATE=4,	//candidate updates. may arrive late as new ones are discovered.
+	ICEMSG_ACCEPT=5,	//go go go (response from offer)
+	ICEMSG_SERVERINFO=6,//server->broker (for advertising the server properly)
+	ICEMSG_SERVERUPDATE=7,//broker->browser (for querying available server lists)
+};
+
+enum websocketpackettype_e
+{	//websocket packet types, used by both our tcp/http/broker/etc server and our ice client.
+	WS_PACKETTYPE_CONTINUATION=0,
+	WS_PACKETTYPE_TEXTFRAME=1,
+	WS_PACKETTYPE_BINARYFRAME=2,
+	WS_PACKETTYPE_CLOSE=8,
+	WS_PACKETTYPE_PING=9,
+	WS_PACKETTYPE_PONG=10,
+};
 
 ftenet_connections_t *FTENET_CreateCollection(qboolean listen);
 void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
-int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
+int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, const char **adrparams, int maxaddresses);
 
 void *TLS_GetKnownCertificate(const char *certname, size_t *size);
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);

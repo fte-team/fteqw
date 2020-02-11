@@ -862,7 +862,8 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		printf("pending drop\n");
 		if (pend->srcfile)
 			fclose(pend->srcfile);
-		closesocket(pend->sock);
+		if (pend->sock != INVALID_SOCKET)
+			closesocket(pend->sock);
 		free(pend);
 		cluster->numproxies--;
 		return true;
@@ -1088,24 +1089,30 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					{	//this is actually a server trying to connect to us
 						//start up a new stream
 
-						//FIXME: does this work?
-#if 0	//left disabled until properly tested
-						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, AD_REVERSECONNECT, false, 0);
+						if (cluster->reverseallowed)
+						{
+							qtv = QTV_NewServerConnection(cluster, 0, "reverse"/*server*/, "", true, AD_REVERSECONNECT, false, 0);
 
-						Net_ProxySendString(cluster, pend, QTVSVHEADER);
-						Net_ProxySendString(cluster, pend, "REVERSED\n");
-						Net_ProxySendString(cluster, pend, "VERSION: 1\n");
-						Net_ProxySendString(cluster, pend, "\n");
+							Net_ProxySendString(cluster, pend, QTVSVHEADER);
+							Net_ProxySendString(cluster, pend, "VERSION: 1\n");
+							Net_ProxySendString(cluster, pend, "REVERSED\n");
+							Net_ProxySendString(cluster, pend, "\n");
 
-						//switch over the socket to the actual source connection rather than the pending
-						Net_TryFlushProxyBuffer(cluster, pend); //flush anything... this isn't ideal, but should be small enough
-						qtv->sourcesock = pend->sock;
-						pend->sock = 0;
+							//switch over the socket to the actual source connection rather than the pending
+							Net_TryFlushProxyBuffer(cluster, pend); //flush anything... this isn't ideal, but should be small enough
+							qtv->sourcesock = pend->sock;
+							pend->sock = INVALID_SOCKET;
 
-						memcpy(qtv->buffer, pend->inbuffer + headersize, pend->inbuffersize - headersize);
-						qtv->parsingqtvheader = true;
-						return false;
-#endif
+							memcpy(qtv->buffer, pend->inbuffer + headersize, pend->inbuffersize - headersize);
+							qtv->parsingqtvheader = true;
+							return false;
+						}
+						else
+						{
+							Net_ProxySendString(cluster, pend, QTVSVHEADER
+																"PERROR: Reverse connections are disabled on this proxy\n");
+							pend->flushing = true;
+						}
 					}
 					else if (!ustrcmp(s, "RECEIVE"))
 					{	//a client connection request without a source

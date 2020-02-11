@@ -108,9 +108,21 @@ cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks down
 
 extern cvar_t sv_allow_splitscreen;
 
+#ifdef SUPPORT_ICE
+static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (var->ival == 2)
+		FTENET_AddToCollection(svs.sockets, var->name, "/", NA_INVALID, NP_RTC_TLS);
+	else
+		FTENET_AddToCollection(svs.sockets, var->name, "", NA_INVALID, NP_INVALID);
+}
+cvar_t sv_public			= CVARCD("sv_public", "0", SV_Public_Callback, "-1: Fully blocks all inbound connections.\n0: Disable subscribing to master servers (for private lan-only games).\n1: Subscribe to public master servers. Your IP address will be listed publicly. Make sure your Router/NAT+Firewall are set to allow inbound connections.\n2: Subscribe to a broker master, allowing firewall hole punching.");
+#else
+cvar_t sv_public			= CVARD("sv_public", "0", "-1: Fully blocks all inbound connections.\n0: Disable subscribing to master servers (for private lan-only games).\n1: Subscribe to public master servers. Your IP address will be listed publicly. Make sure your Router/NAT+Firewall are set to allow inbound connections.");
+#endif
+
 cvar_t sv_guidhash			= CVARD("sv_guidkey", "", "If set, clients will calculate their GUID values against this string instead of the server's IP address. This allows consistency between multiple servers (for stats tracking), but do NOT treat the client's GUID as something that is secure.");
 cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
-cvar_t sv_public			= CVARD("sv_public", "0", "Controls whether the server will publically advertise itself to master servers or not. Additionally, if set to -1, will block all new connection requests even on lan.");
 cvar_t sv_listen_qw			= CVARAFD("sv_listen_qw", "1", "sv_listen", 0, "Specifies whether normal clients are allowed to connect.");
 cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
 cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
@@ -118,7 +130,7 @@ cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
 cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connection within the specified length of time .");
-cvar_t sv_use_dns			= CVARD("sv_use_dns", "", "Performs a reverse-dns lookup in order to report actual ip addresses of clients.");
+cvar_t sv_use_dns			= CVARD("sv_use_dns", "", "Performs a reverse-dns lookup in order to report more info about where clients are connecting from.");
 extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
@@ -2502,7 +2514,9 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	newcl->userid = ++nextuserid;
 	newcl->fteprotocolextensions = info->ftepext1;
 	newcl->fteprotocolextensions2 = info->ftepext2;
+	newcl->ezprotocolextensions1 = info->ezpext1;
 	newcl->protocol = info->protocol;
+	newcl->pextknown = info->ftepext1||info->ftepext2;
 	Q_strncpyz(newcl->guid, info->guid, sizeof(newcl->guid));
 
 //	Con_TPrintf("%s:%s:connect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
@@ -2838,6 +2852,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 #endif
 		newcl->netchan.compresstable = NULL;
 	newcl->netchan.pext_fragmentation = info->mtu?true:false;
+	newcl->netchan.pext_stunaware = !!(info->ftepext2&PEXT2_STUNAWARE);
 	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
 	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
 	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
@@ -4509,7 +4524,10 @@ qboolean SV_ReadPackets (float *delay)
 		if (svs.gametype == GT_QUAKE3)
 		{
 			received++;
-			SVQ3_HandleClient();
+			if (SVQ3_HandleClient())
+				;
+			else if (NET_WasSpecialPacket(svs.sockets))
+				continue;
 			continue;
 		}
 #endif
@@ -4997,7 +5015,7 @@ float SV_Frame (void)
 #endif
 
 #ifdef HAVE_CLIENT
-	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active;
+	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active && !cl.implicitpause;
 	/*server is effectively paused in SP/coop if there are no clients/spectators*/
 	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && !deathmatch.ival)
 		isidle = true;
@@ -5110,6 +5128,8 @@ float SV_Frame (void)
 
 // get packets
 	isidle = !SV_ReadPackets (&delay);
+	if (isDedicated)
+		NET_Tick();
 
 	if (pr_imitatemvdsv.ival || dpcompat_nopreparse.ival)
 	{
@@ -5186,8 +5206,6 @@ float SV_Frame (void)
 		if (isDedicated)
 #endif
 		{
-			NET_Tick();
-
 			if (sv.framenum != 1)
 			{
 #ifndef SERVERONLY
@@ -5372,6 +5390,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_guidhash,	cvargroup_servercontrol);
 	Cvar_Register (&sv_serverip,	cvargroup_servercontrol);
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
+	sv_public.restriction = RESTRICT_MAX;	//no disabling this over rcon.
 	Cvar_Register (&sv_listen_qw,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_nq,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_dp,	cvargroup_servercontrol);

@@ -951,7 +951,7 @@ void Cam_SetModAutoTrack(int userid)
 	Con_Printf("//at: invalid userid\n");
 }
 
-void Cam_TrackCrosshairedPlayer(playerview_t *pv)
+/*static void Cam_TrackCrosshairedPlayer(playerview_t *pv)
 {
 	inframe_t *frame;
 	player_state_t *player;
@@ -978,11 +978,11 @@ void Cam_TrackCrosshairedPlayer(playerview_t *pv)
 		}
 	}
 //	Con_Printf("Track %i? %f\n", best, bestdot);
-	if (best != -1)	//did we actually get someone?
+	if (best > .707)	//did we actually get someone?
 	{
 		Cam_Lock(pv, best);
 	}
-}
+}*/
 
 void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 {
@@ -1091,8 +1091,8 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		pv->cam_oldbuttons &= ~BUTTON_ATTACK;
 		if (pv->cam_state == CAM_FREECAM && autotrackmode == TM_USER)
 		{
-			if ((cmd->buttons & BUTTON_JUMP) && !(pv->cam_oldbuttons & BUTTON_JUMP))
-				Cam_TrackCrosshairedPlayer(pv);
+//			if ((cmd->buttons & BUTTON_JUMP) && !(pv->cam_oldbuttons & BUTTON_JUMP))
+//				Cam_TrackCrosshairedPlayer(pv);
 			pv->cam_oldbuttons = (pv->cam_oldbuttons&~BUTTON_JUMP) | (cmd->buttons & BUTTON_JUMP);
 			return;
 		}

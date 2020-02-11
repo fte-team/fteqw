@@ -281,7 +281,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 		}
 		else if (thisone == info->scrollpos + (int)(mousecursor_y-info->servers_top)/8 && mousecursor_x < x)
 			R2D_ImageColours(SRGBA((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, sb_alpha.value));
-		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr))
+		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr) && !strcmp(si->brokerid, selectedserver.brokerid))
 			R2D_ImageColours(SRGBA(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, sb_alpha.value));
 		else
 		{
@@ -299,8 +299,8 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->numhumans, si->maxplayers), 5*8, false, false); x-=6*8;}
 		if (sb_showmap.value)		{Draw_FunStringWidth((x-8*8), y, si->map, 8*8, false, false); x-=9*8;}
 		if (sb_showgamedir.value)	{Draw_FunStringWidth((x-8*8), y, si->gamedir, 8*8, false, false); x-=9*8;}
-		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, va("%i", si->ping), 3*8, false, false); x-=4*8;}
-		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, NET_AdrToString(adr, sizeof(adr), &si->adr), 21*8, false, false); x-=22*8;}
+		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, *si->brokerid?"---":va("%i", si->ping), 3*8, false, false); x-=4*8;}
+		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, Master_ServerToString(adr, sizeof(adr), si), 21*8, false, false); x-=22*8;}
 		Draw_FunStringWidth(0, y, si->name, x, false, false);
 	}
 }
@@ -431,7 +431,7 @@ static void SL_PostDraw	(emenu_t *menu)
 
 	if (serverpreview)
 	{
-		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
 		int h = 0;
 		int w = 240;
 		if (server && selectedserver.refreshtime < realtime)
@@ -520,7 +520,7 @@ static void SL_PostDraw	(emenu_t *menu)
 			y += 8;
 			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "status"), w, 2, false);
 			y += 8;
-			Draw_FunStringWidth (x, y, NET_AdrToString(buf, sizeof(buf), &server->adr), w, 2, false);
+			Draw_FunStringWidth (x, y, Master_ServerToString(buf, sizeof(buf), server), w, 2, false);
 			y += 8;
 
 			Draw_FunStringWidth (x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", w, 2, false);
@@ -532,7 +532,7 @@ static void SL_PostDraw	(emenu_t *menu)
 				for (prox = server; prox; prox = prox->prevpeer)
 				{
 					Draw_FunStringWidth (x, y, va("%i", prox->cost), 32-8, true, false);
-					Draw_FunStringWidth (x + 32, y, NET_AdrToString(buf, sizeof(buf), &prox->adr), w/2 - 8 - 32, true, false);
+					Draw_FunStringWidth (x + 32, y, Master_ServerToString(buf, sizeof(buf), prox), w/2 - 8 - 32, true, false);
 					Draw_FunStringWidth (x + w/2, y, prox->name, w/2, false, false);
 					y += 8;
 				}
@@ -641,7 +641,7 @@ static void SL_PostDraw	(emenu_t *menu)
 			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, "Please wait", 200, 2, false);
 		}
 
-		if ((server->special & SS_PROTOCOLMASK) == SS_QUAKEWORLD)
+		if (server && (server->special & SS_PROTOCOLMASK) == SS_QUAKEWORLD)
 		{
 			int lx = vid.width/2 - w/2;
 			int y = vid.height/2 - h/2 - 4 + h;
@@ -732,7 +732,7 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 	if (serverpreview)
 	{
 		char buf[64];
-		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
 		extern qboolean	keydown[];
 		qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
 
@@ -772,7 +772,7 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 			if (--serverpreview < 1)
 				serverpreview = 4;
 
-			if (serverpreview == 4)
+			if (serverpreview == 4 && server)
 				Master_FindRoute(server->adr);
 			return true;
 		}
@@ -781,13 +781,14 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 			if (++serverpreview > 4)
 				serverpreview = 1;
 
-			if (serverpreview == 4)
+			if (serverpreview == 4 && server)
 				Master_FindRoute(server->adr);
 			return true;
 		}
 		else if (key == 'b' && serverpreview != 4)
 		{
-			Master_FindRoute(server->adr);
+			if (server)
+				Master_FindRoute(server->adr);
 			serverpreview = 4;
 		}
 		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)	//join
@@ -810,13 +811,13 @@ dojoin:
 				Cbuf_AddText("connect ", RESTRICT_LOCAL);
 
 			//output the server's address
-			Cbuf_AddText(va("%s", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			Cbuf_AddText(va("%s", Master_ServerToString(buf, sizeof(buf), server)), RESTRICT_LOCAL);
 			if (serverpreview == 4 || key == 'b')
 			{	//and postfix it with routing info if we're going for a proxied route.
 				if (serverpreview != 4)
 					Master_FindRoute(server->adr);
 				for (server = server->prevpeer; server; server = server->prevpeer)
-					Cbuf_AddText(va("@%s", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+					Cbuf_AddText(va("@%s", Master_ServerToString(buf, sizeof(buf), server)), RESTRICT_LOCAL);
 			}
 			Cbuf_AddText("\n", RESTRICT_LOCAL);
 
@@ -826,7 +827,7 @@ dojoin:
 		}
 		else if (server && key == 'c' && ctrldown)	//copy to clip
 		{
-			Sys_SaveClipboard(CBT_CLIPBOARD, NET_AdrToString(buf, sizeof(buf), &server->adr));
+			Sys_SaveClipboard(CBT_CLIPBOARD, Master_ServerToString(buf, sizeof(buf), server));
 			return true;
 		}
 		else if (server && (key == 'v' || key == 'c'))	//say to current server
@@ -840,11 +841,11 @@ dojoin:
 			while((s = strchr(safename, '\n')))
 				*s = ' ';
 			if (key == 'c')
-				Sys_SaveClipboard(CBT_CLIPBOARD, va("%s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)));
+				Sys_SaveClipboard(CBT_CLIPBOARD, va("%s - %s\n", server->name, Master_ServerToString(buf, sizeof(buf), server)));
 			else if (ctrldown)
-				Cbuf_AddText(va("say_team %s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("say_team %s - %s\n", server->name, Master_ServerToString(buf, sizeof(buf), server)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("say %s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("say %s - %s\n", server->name, Master_ServerToString(buf, sizeof(buf), server)), RESTRICT_LOCAL);
 			return true;
 		}
 		//eat (nearly) all keys
@@ -1303,9 +1304,9 @@ static void M_QuickConnect_PreDraw(emenu_t *menu)
 			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i/%i, ping %ims)\n", best->name, best->gamedir, best->numhumans, best->players, best->maxplayers, best->ping);
 
 			if ((best->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("nqconnect %s\n", Master_ServerToString(adr, sizeof(adr), best)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("join %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("join %s\n", Master_ServerToString(adr, sizeof(adr), best)), RESTRICT_LOCAL);
 
 			M_ToggleMenu_f();
 			return;

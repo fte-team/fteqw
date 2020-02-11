@@ -19,7 +19,10 @@ typedef struct mentity_s {
 struct relight_ctx_s
 {
 	unsigned int nummodels;
-	model_t *models[2048];
+	model_t *models[2048];	//0 is the worldmodel and must be valid
+
+	qboolean parsed;	//ents have been parsed okay.
+	qboolean loaded;	//needed models are all loaded.
 
 	float minlight;
 	qboolean skiplit;	//lux only
@@ -27,6 +30,8 @@ struct relight_ctx_s
 	mentity_t *entities;
 	unsigned int num_entities;
 	unsigned int max_entities;
+	size_t lightmapsamples;
+	unsigned long nextface;
 };
 
 
@@ -120,19 +125,8 @@ static void ParseEpair (mentity_t *mapent, char *key, char *value)
 	}
 }
 
-void LightShutdown(struct relight_ctx_s *ctx, model_t *mod)
+void LightShutdown(struct relight_ctx_s *ctx)
 {
-	qboolean stillheld = false;
-	unsigned int i;
-	for (i = 0; i < ctx->nummodels; i++)
-	{
-		if (ctx->models[i] == mod)
-			ctx->models[i] = NULL;
-		if (ctx->models[i])
-			stillheld = true;
-	}
-	if (stillheld)
-		return;
 	Z_Free(ctx->entities);
 	Z_Free(ctx);
 }
@@ -979,7 +973,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstylein
 		}
 	}
 }
-void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int facenum)
+static void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int facenum)
 {
 	dface_t *f = ctx->models[0]->surfaces + facenum;
 	vec4_t plane;
@@ -1004,5 +998,244 @@ void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int f
 		LightPlane(ctx, threadctx, f->styles, (unsigned int*)f->samples, NULL, 3*(f->samples - ctx->models[0]->lightdata)/4 + ctx->models[0]->deluxdata, plane, f->texinfo->vecs, exactmins, exactmaxs, texmins, texsize, 1<<f->lmshift);
 	else
 		LightPlane(ctx, threadctx, f->styles, NULL, f->samples, f->samples - ctx->models[0]->lightdata + ctx->models[0]->deluxdata, plane, f->texinfo->vecs, exactmins, exactmaxs, texmins, texsize, 1<<f->lmshift);
+}
+
+
+
+#if defined(MULTITHREAD)
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__linux__)
+#include <unistd.h>
+#endif
+static void *relightthread[8];
+static unsigned int relightthreads;
+static volatile qboolean wantrelight;
+static struct relight_ctx_s *lightcontext;
+
+static int RelightThread(void *ctx)
+{
+	int surf;
+	struct relight_ctx_s *lightcontext = ctx;
+	model_t *lightmodel = lightcontext->models[0];
+	void *threadctx = malloc(lightthreadctxsize);
+	while (wantrelight)
+	{
+#ifdef _WIN32
+		surf = InterlockedIncrement(&lightcontext->nextface);
+#elif defined(__GNUC__)
+		surf = __sync_add_and_fetch(&lightcontext->nextface, 1);
+#else
+		surf = relitsurface++;
+#endif
+		if (surf >= lightmodel->numsurfaces)
+			break;
+		LightFace(lightcontext, threadctx, surf);
+		lightmodel->surfaces[surf].cached_dlight = -1;	//invalidate it (slightly racey buy w/e
+	}
+	free(threadctx);
+	return 0;
+}
+#else
+static void *lightmainthreadctx;
+#endif
+
+void RelightTerminate(model_t *mod)
+{
+	model_t *lightmodel;
+	size_t u;
+	if (!lightcontext)
+		return;
+
+	//if one of the models we're using is being purged then we have to abort the relight to avoid caching partial results (especially if its the model we're actually relighting)
+	if (mod)
+	{
+		for (u = 0; u < lightcontext->nummodels; u++)
+			if (lightcontext->models[u] == mod)
+				break;
+	}
+	else
+		u = 0;
+
+	if (u < lightcontext->nummodels)
+	{
+		lightmodel = lightcontext->models[0];
+
+#ifdef MULTITHREAD
+		wantrelight = false;
+		if (relightthreads)
+		{
+			int i;
+			wantrelight = false;
+			for (i = 0; i < relightthreads; i++)
+			{
+				Sys_WaitOnThread(relightthread[i]);
+				relightthread[i] = NULL;
+			}
+			relightthreads = 0;
+		}
+#else
+		free(lightmainthreadctx);
+		lightmainthreadctx = NULL;
+#endif
+
+		if (lightcontext->nextface >= lightmodel->numsurfaces)
+		{
+			vfsfile_t *f;
+			char filename[MAX_QPATH];
+
+			if (lightmodel->deluxdata)
+			{
+				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
+				COM_DefaultExtension(filename, ".lux", sizeof(filename));
+				f = FS_OpenVFS(filename, "wb", FS_GAME);
+				if (f)
+				{
+					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
+					VFS_WRITE(f, lightmodel->deluxdata, lightcontext->lightmapsamples*3);
+					VFS_CLOSE(f);
+				}
+				else
+					Con_Printf("Unable to write \"%s\"\n", filename);
+			}
+
+			if (!lightcontext->skiplit)	//the user might already have a lit file (don't overwrite it).
+			{
+				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
+				COM_DefaultExtension(filename, ".lit", sizeof(filename));
+
+				f = FS_OpenVFS(filename, "wb", FS_GAME);
+				if (f)
+				{
+					if (lightmodel->lightmaps.fmt == LM_E5BGR9)
+					{
+						VFS_WRITE(f, "QLIT\x01\0\x01\0", 8);
+						VFS_WRITE(f, lightmodel->lightdata, lightcontext->lightmapsamples*4);
+					}
+					else
+					{
+						VFS_WRITE(f, "QLIT\1\0\0\0", 8);
+						VFS_WRITE(f, lightmodel->lightdata, lightcontext->lightmapsamples*3);
+					}
+					VFS_CLOSE(f);
+				}
+				else
+					Con_Printf("Unable to write \"%s\"\n", filename);
+			}
+		}
+		else
+			Con_Printf("Relighting aborted before completion\n");
+
+		LightShutdown(lightcontext);
+		lightcontext = NULL;
+	}
+}
+
+qboolean RelightSetup (model_t *model, size_t lightsamples, qboolean generatelit)
+{
+	Sys_LockMutex(com_resourcemutex);	//models can be loaded on different threads, so no race conditions please.
+	if (!lightcontext)
+	{
+		lightcontext = LightStartup(NULL, model, true, !generatelit);
+		lightcontext->lightmapsamples = lightsamples;
+		Sys_UnlockMutex(com_resourcemutex);
+		return true;
+	}
+	Sys_UnlockMutex(com_resourcemutex);
+
+	return false;
+}
+
+const char *RelightGetProgress(float *progress)
+{
+	char filename[MAX_QPATH];
+	if (!lightcontext)
+		return NULL;
+	*progress = (lightcontext->nextface*100.0f) / lightcontext->models[0]->numsurfaces;
+
+	COM_StripExtension(lightcontext->models[0]->name, filename, sizeof(filename));
+	COM_DefaultExtension(filename, lightcontext->skiplit?".lux":".lit", sizeof(filename));
+	return va("%s", filename);
+}
+
+void RelightThink (void)
+{
+	if (lightcontext)
+	{
+		model_t *lightmodel = lightcontext->models[0];
+
+		if (!lightcontext->loaded)
+		{	//make sure everything finished loading properly before we start poking things.
+			size_t u;
+			if (!lightcontext->parsed)
+			{
+				if (lightcontext->models[0]->loadstate != MLS_LOADED)
+					return;	//not ready yet...
+
+				LightReloadEntities(lightcontext, Mod_GetEntitiesString(lightmodel), false);
+				lightcontext->parsed = true;
+			}
+
+			for (u = 0; u < lightcontext->nummodels; u++)
+				if (lightcontext->models[u]->loadstate != MLS_LOADED)
+					return;
+			lightcontext->loaded = true;
+		}
+
+#ifdef MULTITHREAD
+		if (!relightthreads)
+		{
+			int i;
+#if defined(_WIN32) && !defined(WINRT)
+			HANDLE me = GetCurrentProcess();
+			DWORD_PTR proc, sys;
+			/*count cpus*/
+			GetProcessAffinityMask(me, &proc, &sys);
+			relightthreads = 0;
+			for (i = 0; i < sizeof(proc)*8; i++)
+				if (proc & ((size_t)1u<<i))
+					relightthreads++;
+			/*subtract 1*/
+			if (relightthreads <= 1)
+				relightthreads = 1;
+			else
+				relightthreads--;
+#elif defined(__GNUC__)
+	#ifdef __linux__
+			relightthreads = sysconf(_SC_NPROCESSORS_ONLN)-1;
+			if (relightthreads < 1)
+				relightthreads = 1;
+	#else
+			relightthreads = 2;	//erm, lets hope...
+	#endif
+#else
+			/*can't do atomics*/
+			relightthreads = 1;
+#endif
+			if (relightthreads > sizeof(relightthread)/sizeof(relightthread[0]))
+				relightthreads = sizeof(relightthread)/sizeof(relightthread[0]);
+			wantrelight = true;
+			for (i = 0; i < relightthreads; i++)
+				relightthread[i] = Sys_CreateThread("relight", RelightThread, lightcontext, THREADP_NORMAL, 0);
+		}
+		if (lightcontext->nextface < lightmodel->numsurfaces)
+		{
+			return;
+		}
+#else
+		if (!lightmainthreadctx)
+			lightmainthreadctx = malloc(lightthreadctxsize);
+		LightFace(lightcontext, lightmainthreadctx, relitsurface);
+		lightmodel->surfaces[relitsurface].cached_dlight = -1;
+
+		relitsurface++;
+#endif
+		if (lightcontext->nextface >= lightmodel->numsurfaces)
+		{
+			Con_Printf("Finished lighting %s\n", lightmodel->name);
+
+			RelightTerminate(lightmodel);
+		}
+	}
 }
 #endif

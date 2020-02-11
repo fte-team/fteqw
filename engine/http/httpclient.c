@@ -828,7 +828,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			con->file = dl->file;
 		con->state = HC_GETTING;
 		dl->status = DL_ACTIVE;
-		//Fall through
+		goto firstread;	//oh noes! an evil goto! this is the easiest way to avoid the 'return' here when no data follows a 0-byte download
 	case HC_GETTING:
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
@@ -851,6 +851,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		con->bufferused+=ammount;
 
+firstread:
 		if (con->chunking)
 		{
 			//9\r\n
@@ -1053,7 +1054,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 		netadr_t adr = {0};
 		//fixme: support more than one address possibility?
 		//https uses a different default port
-		if (NET_StringToAdr2(con->server, https?443:80, &adr, 1))
+		if (NET_StringToAdr2(con->server, https?443:80, &adr, 1, NULL))
 			con->sock = TCP_OpenStream(&adr);
 		con->stream = FS_OpenTCPSocket(con->sock, true, con->server);
 	}

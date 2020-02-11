@@ -978,6 +978,7 @@ void SSV_UpdateAddresses(void)
 	netadr_t	addr[64];
 	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
 	unsigned int	flags[sizeof(addr)/sizeof(addr[0])];
+	const char *params[sizeof(addr)/sizeof(addr[0])];
 	int			count;
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN];
@@ -986,7 +987,7 @@ void SSV_UpdateAddresses(void)
 	if (!SSV_IsSubServer() && !msv_loop_from_ss)
 		return;
 
-	count = NET_EnumerateAddresses(svs.sockets, con, flags, addr, sizeof(addr)/sizeof(addr[0]));
+	count = NET_EnumerateAddresses(svs.sockets, con, flags, addr, params, sizeof(addr)/sizeof(addr[0]));
 
 	if (*sv_serverip.string)
 	{
@@ -994,7 +995,7 @@ void SSV_UpdateAddresses(void)
 		{
 			if (addr[i].type == NA_IP)
 			{
-				NET_StringToAdr2(sv_serverip.string, BigShort(addr[i].port), &addr[0], sizeof(addr)/sizeof(addr[0]));
+				NET_StringToAdr2(sv_serverip.string, BigShort(addr[i].port), &addr[0], sizeof(addr)/sizeof(addr[0]), NULL);
 				count = 1;
 				break;
 			}

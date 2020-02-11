@@ -188,9 +188,6 @@ extern void	Mod_TouchModel						(const char *name);
 extern const char *Mod_FixName					(const char *modname, const char *worldname);	//remaps the name appropriately
 const char *Mod_ParseWorldspawnKey				(struct model_s *mod, const char *key, char *buffer, size_t sizeofbuffer);
 
-extern long relitsurface;
-extern struct model_s *lightmodel;
-extern void	Mod_Think							(void);
 extern qboolean Mod_GetModelEvent				(struct model_s *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata);
 extern int Mod_SkinNumForName					(struct model_s *model, int surfaceidx, const char *name);
 extern int Mod_FrameNumForName					(struct model_s *model, int surfaceidx, const char *name);
@@ -295,21 +292,21 @@ struct pendingtextureinfo
 {
 	enum
 	{
-		//formats are all w*h*(d||l)
-		PTI_2D,			//w*h*1
-		PTI_3D,			//w*h*d - only format which actually changes mip depths
-		PTI_CUBE,		//w*h*6
-		PTI_2D_ARRAY,	//w*h*layers
-		PTI_CUBE_ARRAY,	//w*h*(layers*6)
+		//formats are all w*h*d (where depth has limitations according to type)
+		PTI_2D,			//w*h*1 - depth MUST be 1
+		PTI_3D,			//w*h*d - we can't generate 3d mips
+		PTI_CUBE,		//w*h*6 - depth MUST be 6 (faces must be tightly packed)
+		PTI_2D_ARRAY,	//w*h*layers - depth is =layers
+		PTI_CUBE_ARRAY,	//w*h*(layers*6) - depth is =(layers*6).
 	} type;
 
-	uploadfmt_t encoding;	//0
-	void *extrafree;
+	uploadfmt_t encoding;	//PTI_* formats
+	void *extrafree;		//avoids some memcpys
 	int mipcount;
 	struct
 	{
 		void *data;
-		size_t datasize;
+		size_t datasize; //ceil(width/blockwidth)*ceil(height/blockheight)*ceil(depth/blockdepth)*blocksize - except that blockdepth is always considered 1 for now.
 		int width;
 		int height;
 		int depth;

@@ -614,7 +614,7 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 		{
 			if (wildcmp(match, ent->d_name))
 			{
-				Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name);
+				Q_snprintfz(file, sizeof(file), "%s%s", truepath, ent->d_name);
 
 				if (stat(file, &st) == 0)
 				{
@@ -628,7 +628,7 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 					}
 				}
 				else
-					printf("Stat failed for \"%s\"\n", file);
+					Con_DPrintf("Stat failed for \"%s\"\n", file);	//can happen with dead symlinks
 			}
 		}
 	} while(1);
@@ -640,6 +640,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	char apath[MAX_OSPATH];
 	char truepath[MAX_OSPATH];
 	char *s;
+	int  suboffset;
 
 	if (!gpath)
 		gpath = "";
@@ -658,8 +659,15 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	if (s < apath)	//didn't find a '/'
 		*apath = '\0';
 
-	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
-	return Sys_EnumerateFiles2(truepath, strlen(gpath)+1, match, func, parm, spath);
+	suboffset = strlen(gpath);
+	if (suboffset + 1 + strlen(apath) >= sizeof(truepath))
+		return false;	//overflow...
+	memcpy(truepath, gpath, suboffset);
+	if (suboffset && truepath[suboffset-1] != '/')
+		truepath[suboffset++] = '/';
+	Q_strncpyz(truepath+suboffset, apath, sizeof(truepath)-suboffset);
+
+	return Sys_EnumerateFiles2(truepath, suboffset, match, func, parm, spath);
 }
 
 int secbase;

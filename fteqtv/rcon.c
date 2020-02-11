@@ -712,6 +712,13 @@ void Cmd_Late(cmdctxt_t *ctx)
 	ctx->cluster->lateforward = !!atoi(Cmd_Argv(ctx, 1));
 	Cmd_Printf(ctx, "late forwarding set\n");
 }
+void Cmd_ReverseAllowed(cmdctxt_t *ctx)
+{
+	if (Cmd_Argc(ctx) >= 2)
+		ctx->cluster->reverseallowed = !!atoi(Cmd_Argv(ctx, 1));
+	Cmd_Printf(ctx, "reverse connections are %s\n", ctx->cluster->reverseallowed?"enabled":"disabled");
+}
+
 void Cmd_Talking(cmdctxt_t *ctx)
 {
 	if (Cmd_Argc(ctx) < 2)

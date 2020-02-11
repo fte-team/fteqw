@@ -2328,10 +2328,13 @@ $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 
-MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
+MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
 $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
-	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl
+	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS)
+$(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
+	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
 master-rel: $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
+master-dbg: $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master: master-rel
 
 QTV_OBJECTS=	\

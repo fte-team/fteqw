@@ -460,12 +460,12 @@ static void QDECL Q1QVMPF_ClearEdict(pubprogfuncs_t *pf, edict_t *e)
 	Q1QVMED_ClearEdict(e, true);
 }
 
-static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e)
+static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e, qboolean instant)
 {
 	if (!ED_CanFree(e))
 		return;
 	e->ereftype = ER_FREE;
-	e->freetime = sv.time;
+	e->freetime = instant?0:sv.time;
 }
 
 static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t extrasize)
@@ -811,7 +811,7 @@ static qintptr_t QVM_Remove_Ent (void *offset, quintptr_t mask, const qintptr_t 
 {
 	if (arg[0] >= sv.world.max_edicts)
 		return false;
-	Q1QVMPF_EntRemove(svprogfuncs, q1qvmprogfuncs.edicttable[arg[0]]);
+	Q1QVMPF_EntRemove(svprogfuncs, q1qvmprogfuncs.edicttable[arg[0]], false);
 	return true;
 }
 

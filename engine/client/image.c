@@ -7320,10 +7320,12 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 
 	switch(mips->encoding)
 	{
+	case TF_TRANS8:
+	case TF_H2_TRANS8_0:
 	case PTI_P8:
 		if (sh_config.can_mipcap)
 			return;	//if we can cap mips, do that. it'll save lots of expensive lookups and uglyness.
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7346,7 +7348,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 	case PTI_R8_SNORM:
 	case PTI_L8:
 	case PTI_L8_SRGB:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7369,7 +7371,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 	case PTI_RG8_SNORM:
 	case PTI_L8A8:
 	case PTI_L8A8_SRGB:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7389,7 +7391,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 		}
 		return;
 	case PTI_RGBA32F:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7409,7 +7411,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 		}
 		break;
 	case PTI_RGBA16F:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7429,7 +7431,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 		}
 		break;
 	case PTI_RGBA16:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7452,7 +7454,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 	case PTI_BGR8_SRGB:
 	case PTI_RGB8:
 	case PTI_BGR8:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7479,7 +7481,7 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 	case PTI_RGBX8:
 	case PTI_BGRA8:
 	case PTI_BGRX8:
-		for (mip = mips->mipcount; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < countof(mips->mip); mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -7963,15 +7965,16 @@ static void Image_Tr_NoTransform(struct pendingtextureinfo *mips, int dummy)
 {
 }
 
-static void Image_Tr_PalettedtoRGBX8(struct pendingtextureinfo *mips, int dummy)
+static void Image_Tr_PalettedtoRGBX8(struct pendingtextureinfo *mips, int alphapix)
 {
 	unsigned int mip;
 	for (mip = 0; mip < mips->mipcount; mip++)
 	{
 		qbyte *in = mips->mip[mip].data;
 		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
-		qbyte *out = BZ_Malloc(sizeof(*out)*4*p);
-		void *newdata = out;
+		qbyte *out;
+		size_t datasize = sizeof(*out)*4*p;
+		void *newdata = out = BZ_Malloc(datasize);
 
 		while(p-->0)
 		{
@@ -7979,13 +7982,13 @@ static void Image_Tr_PalettedtoRGBX8(struct pendingtextureinfo *mips, int dummy)
 			*out++ = host_basepal[l*3+0];
 			*out++ = host_basepal[l*3+1];
 			*out++ = host_basepal[l*3+2];
-			*out++ = (l==255)?255:0;
+			*out++ = (l==alphapix)?0:255;
 		}
 		if (mips->mip[mip].needfree)
 			BZ_Free(mips->mip[mip].data);
 		mips->mip[mip].needfree = true;
 		mips->mip[mip].data = newdata;
-		mips->mip[mip].datasize = sizeof(*out)*4*p;
+		mips->mip[mip].datasize = datasize;
 	}
 }
 
@@ -10711,7 +10714,24 @@ const char *Image_FormatName(uploadfmt_t fmt)
 #ifdef FTE_TARGET_WEB
 	case PTI_WHOLEFILE:			return "Whole File";
 #endif
-	case PTI_EMULATED:
+	case TF_INVALID:			return "INVALID";
+	case TF_BGR24_FLIP:			return "BGR24_FLIP";
+	case TF_MIP4_P8:			return "MIP4_P8";
+	case TF_MIP4_SOLID8:		return "MIP4_SOLID8";
+	case TF_MIP4_8PAL24:		return "MIP4_8PAL24";
+	case TF_MIP4_8PAL24_T255:	return "MIP4_8PAL24_T255";
+	case TF_SOLID8:				return "SOLID8";
+	case TF_TRANS8:				return "TRANS8_255";
+	case TF_TRANS8_FULLBRIGHT:	return "TRANS8_FULLBRIGHT";
+	case TF_HEIGHT8:			return "HEIGHT8";
+	case TF_HEIGHT8PAL:			return "HEIGHT8PAL";
+	case TF_H2_T7G1:			return "H2_T7G1";
+	case TF_H2_TRANS8_0:		return "TRANS8_0";
+	case TF_H2_T4A4:			return "H2_T4A4";
+	case TF_8PAL24:				return "8PAL24";
+	case TF_8PAL32:				return "8PAL32";
+	case PTI_LLLX8:				return "LLLX8";
+	case PTI_LLLA8:				return "LLLA8";
 	case PTI_MAX:
 		break;
 	}
@@ -11223,7 +11243,9 @@ static struct
 
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
 	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted},
-	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8},
+	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
+	{TF_H2_TRANS8_0,PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 0},
+	{TF_TRANS8,		PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 255},
 };
 void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformats, uploadfmt_t origfmt, const char *imagename)
 {

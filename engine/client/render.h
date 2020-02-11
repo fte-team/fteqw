@@ -546,7 +546,6 @@ void Mod_LoadLighting (struct model_s *loadmodel, bspx_header_t *bspx, qbyte *mo
 
 struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
 
-void Mod_Think (void);
 void Mod_NowLoadExternal(struct model_s *loadmodel);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
@@ -560,12 +559,16 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);
 #ifdef RUNTIMELIGHTING
 struct relight_ctx_s;
 struct llightinfo_s;
-void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int surfnum);	//version that is aware of bsp trees
 void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, lightstyleindex_t surf_styles[4], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows, qboolean skiplit);
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles);
-void LightShutdown(struct relight_ctx_s *ctx, struct model_s *mod);
+void LightShutdown(struct relight_ctx_s *ctx);
 extern const size_t lightthreadctxsize;
+
+qboolean RelightSetup (struct model_s *model, size_t lightsamples, qboolean generatelit);
+void RelightThink (void);
+const char *RelightGetProgress(float *progress);	//reports filename and progress
+void RelightTerminate(struct model_s *mod);	//NULL acts as a wildcard
 #endif
 
 

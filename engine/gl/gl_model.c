@@ -83,32 +83,7 @@ void Mod_SortShaders(model_t *mod);
 void Mod_LoadAliasShaders(model_t *mod);
 
 #ifdef RUNTIMELIGHTING
-model_t *lightmodel;
-static struct relight_ctx_s *lightcontext;
-static int numlightdata;
-static qboolean writelitfile;
-
-long relitsurface;
-#ifndef MULTITHREAD
-static void Mod_UpdateLightmap(int snum)
-{
-	msurface_t *s;	
-	if (lightmodel)
-	{
-//		int i;
-//		for (s = lightmodel->surfaces,i=0; i < lightmodel->numsurfaces; i++,s++)
-//			s->cached_dlight = -1;
-
-		if (snum < lightmodel->numsurfaces)
-		{
-			s = lightmodel->surfaces + snum;
-			s->cached_dlight = -1;
-		}
-		else
-			Con_Printf("lit non-existant surface\n");
-	}
-}
-#endif
+extern model_t *lightmodel;
 #endif
 
 static void Mod_MemList_f(void)
@@ -303,167 +278,6 @@ static void Mod_BlockTextureColour_f (void)
 	}
 }
 #endif
-
-
-#ifdef RUNTIMELIGHTING
-#if defined(MULTITHREAD)
-#ifdef _WIN32
-#include <windows.h>
-#elif defined(__linux__)
-#include <unistd.h>
-#endif
-static void *relightthread[8];
-static unsigned int relightthreads;
-static volatile qboolean wantrelight;
-
-static int RelightThread(void *arg)
-{
-	int surf;
-	void *threadctx = malloc(lightthreadctxsize);
-	while (wantrelight)
-	{
-#ifdef _WIN32
-		surf = InterlockedIncrement(&relitsurface);
-#elif defined(__GNUC__)
-		surf = __sync_add_and_fetch(&relitsurface, 1);
-#else
-		surf = relitsurface++;
-#endif
-		if (surf >= lightmodel->numsurfaces)
-			break;
-		LightFace(lightcontext, threadctx, surf);
-		lightmodel->surfaces[surf].cached_dlight = -1;
-	}
-	free(threadctx);
-	return 0;
-}
-#else
-static void *lightmainthreadctx;
-#endif
-#endif
-
-void Mod_Think (void)
-{
-#ifdef RUNTIMELIGHTING
-	if (lightmodel)
-	{
-#ifdef MULTITHREAD
-		if (!relightthreads)
-		{
-			int i;
-#if defined(_WIN32) && !defined(WINRT)
-			HANDLE me = GetCurrentProcess();
-			DWORD_PTR proc, sys;
-			/*count cpus*/
-			GetProcessAffinityMask(me, &proc, &sys);
-			relightthreads = 0;
-			for (i = 0; i < sizeof(proc)*8; i++)
-				if (proc & ((size_t)1u<<i))
-					relightthreads++;
-			/*subtract 1*/
-			if (relightthreads <= 1)
-				relightthreads = 1;
-			else
-				relightthreads--;
-#elif defined(__GNUC__)
-	#ifdef __linux__
-			relightthreads = sysconf(_SC_NPROCESSORS_ONLN)-1;
-			if (relightthreads < 1)
-				relightthreads = 1;
-	#else
-			relightthreads = 2;	//erm, lets hope...
-	#endif
-#else
-			/*can't do atomics*/
-			relightthreads = 1;
-#endif
-			if (relightthreads > sizeof(relightthread)/sizeof(relightthread[0]))
-				relightthreads = sizeof(relightthread)/sizeof(relightthread[0]);
-			wantrelight = true;
-			for (i = 0; i < relightthreads; i++)
-				relightthread[i] = Sys_CreateThread("relight", RelightThread, lightmodel, THREADP_NORMAL, 0);
-		}
-		if (relitsurface < lightmodel->numsurfaces)
-		{
-			return;
-		}
-#else
-		if (!lightmainthreadctx)
-			lightmainthreadctx = malloc(lightthreadctxsize);
-		LightFace(lightcontext, lightmainthreadctx, relitsurface);
-		Mod_UpdateLightmap(relitsurface);
-
-		relitsurface++;
-#endif
-		if (relitsurface >= lightmodel->numsurfaces)
-		{
-			vfsfile_t *f;
-			char filename[MAX_QPATH];
-			Con_Printf("Finished lighting %s\n", lightmodel->name);
-
-#ifdef MULTITHREAD
-			if (relightthreads)
-			{
-				int i;
-				wantrelight = false;
-				for (i = 0; i < relightthreads; i++)
-				{
-					Sys_WaitOnThread(relightthread[i]);
-					relightthread[i] = NULL;
-				}
-				relightthreads = 0;
-			}
-#else
-			free(lightmainthreadctx);
-			lightmainthreadctx = NULL;
-#endif
-
-			LightShutdown(lightcontext, lightmodel);
-			lightcontext = NULL;
-
-			if (lightmodel->deluxdata)
-			{
-				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
-				COM_DefaultExtension(filename, ".lux", sizeof(filename));
-				f = FS_OpenVFS(filename, "wb", FS_GAME);
-				if (f)
-				{
-					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
-					VFS_WRITE(f, lightmodel->deluxdata, numlightdata*3);
-					VFS_CLOSE(f);
-				}
-				else
-					Con_Printf("Unable to write \"%s\"\n", filename);
-			}
-
-			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
-			{
-				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
-				COM_DefaultExtension(filename, ".lit", sizeof(filename));
-
-				f = FS_OpenVFS(filename, "wb", FS_GAME);
-				if (f)
-				{
-					if (lightmodel->lightmaps.fmt == LM_E5BGR9)
-					{
-						VFS_WRITE(f, "QLIT\x01\0\x01\0", 8);
-						VFS_WRITE(f, lightmodel->lightdata, numlightdata*4);
-					}
-					else
-					{
-						VFS_WRITE(f, "QLIT\1\0\0\0", 8);
-						VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
-					}
-					VFS_CLOSE(f);
-				}
-				else
-					Con_Printf("Unable to write \"%s\"\n", filename);
-			}
-			lightmodel = NULL;
-		}
-	}
-#endif
-}
 
 void Mod_RebuildLightmaps (void)
 {
@@ -663,20 +477,7 @@ static int mod_datasequence;
 void Mod_ClearAll (void)
 {
 #ifdef RUNTIMELIGHTING
-#ifdef MULTITHREAD
-	int		i;
-	wantrelight = false;
-	for (i = 0; i < relightthreads; i++)
-	{
-		Sys_WaitOnThread(relightthread[i]);
-		relightthread[i] = NULL;
-	}
-	relightthreads = 0;
-#else
-	free(lightmainthreadctx);
-	lightmainthreadctx = NULL;
-#endif
-	lightmodel = NULL;
+	RelightTerminate(NULL);
 #endif
 
 	mod_datasequence++;
@@ -692,23 +493,7 @@ qboolean Mod_PurgeModel(model_t	*mod, enum mod_purge_e ptype)
 	}
 
 #ifdef RUNTIMELIGHTING
-	if (lightmodel == mod)
-	{
-#ifdef MULTITHREAD
-		int		i;
-		wantrelight = false;
-		for (i = 0; i < relightthreads; i++)
-		{
-			Sys_WaitOnThread(relightthread[i]);
-			relightthread[i] = NULL;
-		}
-		relightthreads = 0;
-#else
-		free(lightmainthreadctx);
-		lightmainthreadctx = NULL;
-#endif
-		lightmodel = NULL;
-	}
+	RelightTerminate(mod);
 #endif
 
 #ifdef TERRAIN
@@ -1793,6 +1578,9 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	qbyte *lumdata = NULL; //l8
 	qbyte *out;
 	unsigned int samples;
+#ifdef RUNTIMELIGHTING
+	qboolean relighting = false;
+#endif
 
 	extern cvar_t gl_overbright;
 	loadmodel->lightmaps.fmt = LM_L8;
@@ -2116,28 +1904,23 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #ifdef RUNTIMELIGHTING
 	if ((loadmodel->type == mod_brush && loadmodel->fromgame == fg_quake) || loadmodel->type == mod_heightmap)
 	{	//we only support a couple of formats. :(
-		if (!lightmodel && r_loadlits.value >= 2 && ((!litdata&&!expdata) || (!luxdata && r_deluxemapping)))
+		if (r_loadlits.value >= 2 && ((!litdata&&!expdata) || (!luxdata && r_deluxemapping)))
 		{
-			writelitfile = !litdata&&!expdata;
-			numlightdata = l->filelen;
-			lightmodel = loadmodel;
-			relitsurface = 0;
+			relighting = RelightSetup(loadmodel, l->filelen, !litdata&&!expdata);
 		}
-		else if (!lightmodel && r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
+		else if (r_deluxemapping_cvar.value>1 && r_deluxemapping && !luxdata
 #ifdef RTLIGHTS
 			&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
 #endif
 			)
 		{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
-			writelitfile = false;
-			numlightdata = l->filelen;
-			lightmodel = loadmodel;
-			relitsurface = 0;
+
+			relighting = RelightSetup(loadmodel, l->filelen, false);
 		}
 	}
 
 	/*if we're relighting, make sure there's the proper lit data to be updated*/
-	if (lightmodel == loadmodel && !litdata && !expdata)
+	if (relighting && !litdata && !expdata)
 	{
 		int i;
 		unsigned int *ergb;
@@ -2171,7 +1954,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 	}
 	/*if we're relighting, make sure there's the proper lux data to be updated*/
-	if (lightmodel == loadmodel && r_deluxemapping && !luxdata)
+	if (relighting && r_deluxemapping && !luxdata)
 	{
 		int i;
 		luxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
@@ -5609,14 +5392,6 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		}
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 	}
-#ifdef RUNTIMELIGHTING
-	TRACE(("LoadBrushModel %i\n", __LINE__));
-	if (lightmodel == mod)
-	{
-		lightcontext = LightStartup(NULL, lightmodel, true, !writelitfile);
-		LightReloadEntities(lightcontext, Mod_GetEntitiesString(lightmodel), false);
-	}
-#endif
 TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (!isDedicated)
 		Mod_FixupMinsMaxs(mod);

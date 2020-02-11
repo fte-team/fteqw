@@ -1659,6 +1659,21 @@ static void QCBUILTIN PF_Remove_ (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	ED_Free (prinst, (void*)ed);
 }
+static void QCBUILTIN PF_RemoveInstant (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	menuedict_t *ed;
+
+	ed = (void*)G_EDICT(prinst, OFS_PARM0);
+
+	if (ed->ereftype == ER_FREE)
+	{
+		Con_DPrintf("Tried removing free entity\n");
+		PR_StackTrace(prinst, false);
+		return;
+	}
+
+	prinst->EntFree(prinst, (void*)ed, true);
+}
 
 static void QCBUILTIN PF_CopyEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2238,6 +2253,7 @@ static struct {
 
 	{"spawn",					PF_Spawn,					22},
 	{"remove",					PF_Remove_,					23},
+	{"removeinstant",			PF_RemoveInstant,			0},
 	{"find",					PF_FindString,				24},
 	{"findfloat",				PF_FindFloat,				25},
 	{"findentity",				PF_FindFloat,				25},

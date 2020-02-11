@@ -91,7 +91,12 @@ nonstatic void(mitem_desktop desktop) M_NewGame =
 	m.addm(banner, [(160-banner.item_size_x)*0.5, pos-32], [(160+banner.item_size_x)*0.5, pos-8]);
 
 	m.addm(menuitemeditt_spawn(_("Hostname"), 		"hostname", '280 8'), 					[-160, pos], [160, pos+8]); pos += 8;
-	m.addm(menuitemcheck_spawn(_("Public"),			"sv_public", 					'280 8'),	[-160, pos], [160, pos+8]); pos += 8;
+	m.addm(menuitemcombo_spawn(_("Public"),			"sv_public",				'280 8', _(
+																			"-1	\"Reject All (Splitscreen)\" "
+																			"0	\"Private (Manual IP Sharing)\" "
+																			"1	\"Public (Manual Config)\" "
+																			"2	\"Public (Holepunch)\" "
+																			)),	[-160, pos], [160, pos+8]); pos += 8;
 	m.addm(menuitemcombo_spawn(_("Max Clients"),	"maxclients",				'280 8', _(
 																			"2	\"Two\" "
 																			"3	\"Three\" "

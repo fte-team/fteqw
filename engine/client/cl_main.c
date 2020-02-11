@@ -102,7 +102,7 @@ cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
 cvar_t	cl_lerp_maxinterval = CVARD("cl_lerp_maxinterval", "0.3", "Maximum interval between keyframes, in seconds. Larger values can result in entities drifting very slowly when they move sporadically.");
-cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "1", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
+cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "0", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
 cvar_t	cl_predict_players			= CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
 cvar_t	cl_predict_players_frac		= CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
 cvar_t	cl_predict_players_latency	= CVARD("cl_predict_players_latency", "1.0", "Push the player back according to your latency, to give a smooth consistent simulation of the server.");
@@ -206,6 +206,7 @@ cvar_t	host_mapname			= CVARAF("mapname", "",
 #define RULESETADVICE " You should not normally change this cvar from its permissive default, instead impose limits on yourself only through the 'ruleset' cvar."
 cvar_t	ruleset_allow_playercount			= CVARD("ruleset_allow_playercount", "1", "Specifies whether teamplay triggers that count nearby players are allowed in the current ruleset."RULESETADVICE);
 cvar_t	ruleset_allow_frj					= CVARD("ruleset_allow_frj", "1", "Specifies whether Forward-Rocket-Jump scripts are allowed in the current ruleset. If 0, limits on yaw speed will be imposed so they cannot be scripted."RULESETADVICE);
+												//FIXME: rename ruleset_allow_frj to allow_scripts to match ezquake - 0: block multiple commands in binds, 1: cap angle speed changes, 2: vanilla quake
 cvar_t	ruleset_allow_semicheats			= CVARD("ruleset_allow_semicheats", "1", "If 0, this blocks a range of cvars that are marked as semi-cheats. Such cvars will be locked to their empty/0 value."RULESETADVICE);
 cvar_t	ruleset_allow_packet				= CVARD("ruleset_allow_packet", "1", "If 0, network packets sent via the 'packet' command will be blocked. This makes scripting timers a little harder."RULESETADVICE);
 cvar_t	ruleset_allow_particle_lightning	= CVARD("ruleset_allow_particle_lightning", "1", "A setting of 0 blocks using the particle system to replace lightning gun trails. This prevents making the trails thinner thus preventing them from obscuring your view of your enemies."RULESETADVICE);
@@ -264,9 +265,9 @@ unsigned int cl_maxstris;
 
 static struct
 {
-	qboolean		trying;
-	qboolean		istransfer;		//ignore the user's desired server (don't change connect.adr).
-	netadr_t		adr;			//address that we're trying to transfer to. FIXME: support multiple resolved addresses, eg both ::1 AND 127.0.0.1
+	qboolean			trying;
+	qboolean			istransfer;		//ignore the user's desired server (don't change connect.adr).
+	netadr_t			adr;			//address that we're trying to transfer to. FIXME: support multiple resolved addresses, eg both ::1 AND 127.0.0.1
 #ifdef HAVE_DTLS
 	enum
 	{
@@ -276,19 +277,20 @@ static struct
 		DTLS_ACTIVE
 	} dtlsupgrade;
 #endif
-	int				mtu;
-	unsigned int	compresscrc;
-	int				protocol;		//nq/qw/q2/q3. guessed based upon server replies
-	int				subprotocol;	//the monkeys are trying to eat me.
-	unsigned int	fteext1;
-	unsigned int	fteext2;
-	unsigned int	ezext1;
-	int				qport;
-	int				challenge;		//tracked as part of guesswork based upon what replies we get.
-	double			time;			//for connection retransmits
-	int				defaultport;
-	int				tries;			//increased each try, every fourth trys nq connect packets.
-	unsigned char	guid[64];
+	int					mtu;
+	unsigned int		compresscrc;
+	int					protocol;		//nq/qw/q2/q3. guessed based upon server replies
+	int					subprotocol;	//the monkeys are trying to eat me.
+	unsigned int		fteext1;
+	unsigned int		fteext2;
+	unsigned int		ezext1;
+	int					qport;
+	int					challenge;		//tracked as part of guesswork based upon what replies we get.
+	double				time;			//for connection retransmits
+	int					defaultport;
+	int					tries;			//increased each try, every fourth trys nq connect packets.
+	unsigned char		guid[64];
+//	qbyte				fingerprint[5*4];	//sha1 hash of accepted dtls certs
 } connectinfo;
 
 quakeparms_t host_parms;
@@ -1033,22 +1035,6 @@ void CL_CheckForResend (void)
 	if (startuppending || r_blockvidrestart)
 		return;	//don't send connect requests until we've actually initialised fully. this isn't a huge issue, but makes the startup prints a little more sane.
 
-	/*
-#ifdef NQPROT
-	if (connect_type)
-	{
-		if (!connect_time || !(realtime - connect_time < 5.0))
-		{
-			connect_time = realtime;
-			NQ_BeginConnect(cls.servername);
-			NQ_ContinueConnect(cls.servername);
-		}
-		else
-			NQ_ContinueConnect(cls.servername);
-		return;
-	}
-#endif
-	*/
 	if (connectinfo.time && realtime - connectinfo.time < 5.0)
 		return;
 
@@ -1228,6 +1214,7 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 	connectinfo.trying = true;
 	connectinfo.defaultport = port;
 	connectinfo.protocol = CP_UNKNOWN;
+
 	SCR_SetLoadingStage(LS_CONNECTION);
 	CL_CheckForResend();
 }
@@ -1276,11 +1263,9 @@ void CL_Transfer_f(void)
 	memset(&connectinfo, 0, sizeof(connectinfo));
 	if (NET_StringToAdr(server, 0, &connectinfo.adr))
 	{
-		if (cls.state)
-		{
-			connectinfo.istransfer = true;
-			Q_strncpyz(connectinfo.guid, oldguid, sizeof(oldguid));	//retain the same guid on transfers
-		}
+		connectinfo.istransfer = true;
+		Q_strncpyz(connectinfo.guid, oldguid, sizeof(oldguid));	//retain the same guid on transfers
+
 		Cvar_Set(&cl_disconnectreason, "Transferring....");
 		connectinfo.trying = true;
 		connectinfo.defaultport = cl_defaultport.value;
@@ -2161,7 +2146,7 @@ void CL_Color_f (void)
 	if (top == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
-		Cbuf_AddText(va("p%i cmd setinfo topcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
+		Cbuf_AddText(va("p%i cmd setinfo topcolor \"%s\"\n", pnum+1, num), Cmd_ExecLevel);
 //	else if (server_owns_colour)
 //		Cvar_LockFromServer(&topcolor, num);
 	else
@@ -2170,7 +2155,7 @@ void CL_Color_f (void)
 	if (bottom == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
-		Cbuf_AddText(va("p%i cmd setinfo bottomcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
+		Cbuf_AddText(va("p%i cmd setinfo bottomcolor \"%s\"\n", pnum+1, num), Cmd_ExecLevel);
 	else if (server_owns_colour)
 		Cvar_LockFromServer(&bottomcolor, num);
 	else
@@ -2535,6 +2520,8 @@ void CL_SetInfoBlob (int pnum, const char *key, const char *value, size_t values
 			return;
 		}
 	}
+	else if (pnum < 0 || pnum >= MAX_SPLITS)
+		return;
 
 	InfoBuf_SetStarBlobKey(&cls.userinfo[pnum], key, value, valuesize);
 }
@@ -2960,6 +2947,7 @@ void CL_Reconnect_f (void)
 	}
 
 	CL_Disconnect(NULL);
+	connectinfo.tries = 0;	//re-ensure routes.
 	CL_BeginServerReconnect();
 }
 
@@ -3141,6 +3129,13 @@ void CL_ConnectionlessPacket (void)
 #endif
 
 		Con_TPrintf ("challenge\n");
+
+		if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+		{
+			if (connectinfo.adr.prot != NP_RTC_TCP && connectinfo.adr.prot != NP_RTC_TLS)
+				Con_Printf("Challenge from wrong server, ignoring\n");
+			return;
+		}
 
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
@@ -3589,6 +3584,7 @@ client_connect:	//fixme: make function
 				cls.netchan.qportsize = 1;
 		}
 		cls.netchan.pext_fragmentation = connectinfo.mtu?true:false;
+		cls.netchan.pext_stunaware = !!(connectinfo.fteext2&PEXT2_STUNAWARE);
 		if (connectinfo.mtu >= 64)
 		{
 			cls.netchan.mtu = connectinfo.mtu;
@@ -3906,6 +3902,10 @@ void CL_ReadPackets (void)
 				,NET_AdrToString(adr, sizeof(adr), &net_from));
 			continue;
 		}
+
+		if (cls.netchan.pext_stunaware)	//should be safe to do this here.
+			if (NET_WasSpecialPacket(cls.sockets))
+				continue;
 
 		switch(cls.protocol)
 		{
@@ -4450,6 +4450,7 @@ void CL_Status_f(void)
 	char adr[128];
 	float pi, po, bi, bo;
 	NET_PrintAddresses(cls.sockets);
+	NET_PrintConnectionsStatus(cls.sockets);
 	if (NET_GetRates(cls.sockets, &pi, &po, &bi, &bo))
 		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 
@@ -5954,7 +5955,9 @@ double Host_Frame (double time)
 		return;			// framerate is too high
 
 	*/
-	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
+#ifdef RUNTIMELIGHTING
+	RelightThink();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
+#endif
 
 #ifndef CLIENTONLY
 	if (sv.state && cls.state != ca_active)

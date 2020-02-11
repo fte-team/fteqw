@@ -560,6 +560,7 @@ void MSG_WriteBits(sizebuf_t *msg, int value, int bits)
 
 
 #define	MAX_PACKETLEN			1400
+#define STUNDEMULTIPLEX_MASK	0x40000000	//stun requires that we set this bit to avoid surprises, and ignore packets without it.
 #define FRAGMENT_MASK			0x80000000
 #define FRAGMENTATION_TRESHOLD	(MAX_PACKETLEN-100)
 qboolean Netchan_ProcessQ3 (netchan_t *chan)
@@ -574,6 +575,15 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	// Get sequence number
 	MSG_BeginReading(msg_nullnetprim);
 	sequence = MSG_ReadBits(32);
+
+	if (chan->pext_stunaware)
+	{
+		sequence = BigLong(sequence);
+		if (sequence & STUNDEMULTIPLEX_MASK)
+			sequence-= STUNDEMULTIPLEX_MASK;
+		else
+			return false;
+	}
 
 	// Read the qport if we are a server
 	if (chan->sock == NS_SERVER)
@@ -710,13 +720,20 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_PACKETLEN];
 	int			fragmentLength;
+
+	int sequence = chan->outgoing_sequence | FRAGMENT_MASK;
+	if (chan->pext_stunaware)
+	{
+		sequence+= STUNDEMULTIPLEX_MASK;
+		sequence = BigLong(sequence);
+	}
 	
 	// Write the packet header
 	memset(&send, 0, sizeof(send));
 	send.packing = SZ_RAWBYTES;
 	send.maxsize = sizeof(send_buf);
 	send.data = send_buf;
-	MSG_WriteLong( &send, chan->outgoing_sequence | FRAGMENT_MASK );
+	MSG_WriteLong( &send, sequence );
 #ifndef SERVERONLY
 	// Send the qport if we are a client
 	if( chan->sock == NS_CLIENT )
@@ -773,6 +790,7 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_OVERALLMSGLEN+6];
 	char		adr[MAX_ADR_SIZE];
+	int			sequence;
 	
 	// Check for message overflow
 	if( length > MAX_OVERALLMSGLEN )
@@ -808,6 +826,13 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 		memcpy( chan->reliable_buf, data, length );
 		Netchan_TransmitNextFragment( chan );
 		return;
+	}
+
+	sequence = chan->outgoing_sequence;
+	if (chan->pext_stunaware)
+	{
+		sequence+= STUNDEMULTIPLEX_MASK;
+		sequence = BigLong(sequence);
 	}
 
 	// Write the packet header

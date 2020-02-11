@@ -1184,7 +1184,7 @@ void QTV_StatusResponse(cluster_t *cluster, char *msg, netadr_t *from)
 	strlcpy(sv->map.serverinfo, msg, sizeof(sv->map.serverinfo));
 	QTV_UpdatedServerInfo(sv);
 
-	Info_ValueForKey(sv->map.serverinfo, "map", sv->map.mapname, sizeof(sv->map.mapname));
+//	Info_ValueForKey(sv->map.serverinfo, "map", sv->map.mapname, sizeof(sv->map.mapname));
 	Info_ValueForKey(sv->map.serverinfo, "*gamedir", sv->map.gamedir, sizeof(sv->map.gamedir));
 	if (!*sv->map.gamedir)
 		strlcpy(sv->map.gamedir, "qw", sizeof(sv->map.gamedir));

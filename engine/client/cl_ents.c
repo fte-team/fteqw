@@ -4646,17 +4646,17 @@ void CLQW_ParsePlayerinfo (void)
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
-		player_state_t	*prevstate, dummy;
+		player_state_t	dummy;
 		if (!cl.parsecount || info->prevcount > cl.parsecount || cl.parsecount - info->prevcount >= UPDATE_BACKUP - 1)
 		{
 			memset(&dummy, 0, sizeof(dummy));
-			prevstate = &dummy;
+			oldstate = &dummy;
 		}
 		else
 		{
-			prevstate = &cl.inframes[info->prevcount & UPDATE_MASK].playerstate[num];
+			oldstate = &cl.inframes[info->prevcount & UPDATE_MASK].playerstate[num];
 		}
-		memcpy(state, prevstate, sizeof(player_state_t));
+		memcpy(state, oldstate, sizeof(player_state_t));
 		info->prevcount = cl.parsecount;
 
 #ifdef QUAKESTATS
@@ -4689,7 +4689,7 @@ void CLQW_ParsePlayerinfo (void)
 			}
 		}
 
-		VectorSubtract(state->origin, prevstate->origin, dist);
+		VectorSubtract(state->origin, oldstate->origin, dist);
 		VectorScale(dist, 1/(cl.inframes[parsecountmod].packet_entities.servertime - cl.inframes[oldparsecountmod].packet_entities.servertime), state->velocity);
 		VectorCopy (state->origin, state->predorigin);
 

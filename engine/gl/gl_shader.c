@@ -5380,7 +5380,7 @@ done:;
 
 			Shader_SetBlendmode (pass, i?pass-1:NULL);
 
-			if (pass->blendmode == PBM_ADD)
+			if (pass->blendmode == PBM_ADD && !s->defaulttextures->fullbright)
 				s->defaulttextures->fullbright = pass->anim_frames[0];
 		}
 

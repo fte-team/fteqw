@@ -3612,7 +3612,6 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 	galiasskin_t *outskin = galias->ofsskins;
 	const char *slash;
 	unsigned int texflags;
-	const char *defaultshader = NULL;
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)
@@ -3664,7 +3663,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 			{
 			default:	//urk
 			case TF_SOLID8:
-				frames[0].defaultshader = defaultshader;
+				frames[0].defaultshader = NULL;	//default skin...
 				break;
 			case TF_H2_T7G1:
 				frames[0].defaultshader =
@@ -3682,6 +3681,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 			case TF_H2_TRANS8_0:
 				frames[0].defaultshader =
 					"{\n"
+//						"program defaultskin#MASK=0.5#MASKLT\n"
 						"{\n"
 							"map $diffuse\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
@@ -3690,11 +3690,26 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 							"alphagen entity\n"
 							"depthwrite\n"
 						"}\n"
+						"{\n"
+							"map $loweroverlay\n"
+							"rgbgen bottomcolor\n"
+							"blendfunc gl_src_alpha gl_one\n"
+						"}\n"
+						"{\n"
+							"map $upperoverlay\n"
+							"rgbgen topcolor\n"
+							"blendfunc gl_src_alpha gl_one\n"
+						"}\n"
+						"{\n"
+							"map $fullbright\n"
+							"blendfunc add\n"
+						"}\n"
 					"}\n";
 				break;
 			case TF_H2_T4A4:
 				frames[0].defaultshader =
 					"{\n"
+//						"program defaultskin\n"
 						"cull disable\n"
 						"{\n"
 							"map $diffuse\n"
@@ -3702,6 +3717,20 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 							"alphagen entity\n"
 							"rgbgen lightingDiffuse\n"
 							"depthwrite\n"
+						"}\n"
+						"{\n"
+							"map $loweroverlay\n"
+							"rgbgen bottomcolor\n"
+							"blendfunc gl_src_alpha gl_one\n"
+						"}\n"
+						"{\n"
+							"map $upperoverlay\n"
+							"rgbgen topcolor\n"
+							"blendfunc gl_src_alpha gl_one\n"
+						"}\n"
+						"{\n"
+							"map $fullbright\n"
+							"blendfunc add\n"
 						"}\n"
 					"}\n";
 				break;

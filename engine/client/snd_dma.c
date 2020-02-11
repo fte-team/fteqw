@@ -3435,7 +3435,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 
 	for (i = MUSIC_FIRST; i < MUSIC_STOP; i++)
 	{
-		chanupdatereason_t changed = false;
+		chanupdatereason_t changed = CUR_SPACIALISEONLY;
 		chan = &sc->channel[i];
 		if (!chan->sfx)
 		{
@@ -4217,6 +4217,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	double speedfactor;
 	qbyte *newcache;
 	streaming_t *s, *free=NULL;
+
+	if (!sound_started)
+		return;
 
 	for (s = s_streamers, i = 0; i < MAX_RAW_SOURCES; i++, s++)
 	{

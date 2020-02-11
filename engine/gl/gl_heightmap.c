@@ -2211,7 +2211,7 @@ void Terr_FreeModel(model_t *mod)
 		}
 #ifdef RUNTIMELIGHTING
 		if (hm->relightcontext)
-			LightShutdown(hm->relightcontext, mod);
+			LightShutdown(hm->relightcontext);
 		if (hm->lightthreadmem && !hm->inheritedlightthreadmem)
 			BZ_Free(hm->lightthreadmem);
 #endif

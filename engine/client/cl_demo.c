@@ -2632,7 +2632,8 @@ void CL_QTVPoll (void)
 	qboolean init_numviewers = false;
 	qboolean iseztv = false;
 	char srchost[256];
-
+	char auth[64];
+	char challenge[128];
 
 	if (!qtvrequest)
 		return;
@@ -2706,6 +2707,8 @@ void CL_QTVPoll (void)
 	}
 	s[1] = '\0';	//make sure its null terminated before the data payload
 	s = qtvrequestbuffer;
+
+	*auth = *challenge = 0;
 	for (e = s; *e; )
 	{
 		if (*e == '\r')
@@ -2735,6 +2738,14 @@ void CL_QTVPoll (void)
 			{	//printable error
 				Con_Printf("Demo%s is available\n", colon);
 			}
+			else if (!strcmp(s, "AUTH"))
+			{
+				while (*colon && *(unsigned char*)colon <= ' ')
+					colon++;
+				Q_strncpyz(auth, colon, sizeof(auth));
+			}
+			else if (!strcmp(s, "CHALLENGE"))
+				Q_strncpyz(challenge, colon, sizeof(challenge));
 
 			//generic sourcelist responce
 			else if (!strcmp(s, "ASOURCE"))
@@ -2829,6 +2840,14 @@ void CL_QTVPoll (void)
 		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
 		return;
 	}
+
+	if (!strcmp(auth, "NONE"))
+		;
+//	else if (!strcmp(auth, "PLAIN"))
+//	else if (!strcmp(auth, "MD4"))
+//	else if (!strcmp(auth, "SHA1"))
+	else if (*auth)
+		Con_Printf("Server requires unsupported auth method: %s\n", auth);
 
 	SCR_SetLoadingStage(LS_NONE);
 	VFS_CLOSE(qtvrequest);
@@ -3013,6 +3032,7 @@ void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name)
 	VFS_CLOSE(f);
 }
 
+#include "netinc.h"
 void CL_QTVPlay_f (void)
 {
 	qboolean raw=0;
@@ -3021,11 +3041,11 @@ void CL_QTVPlay_f (void)
 	char *host;
 	char msg[4096];
 	int msglen=0;
-//	char *password;
+	char *password;
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("Usage: qtvplay [stream@]hostname[:port] [password]\n");
+		Con_Printf("Usage: qtvplay [stream@][tls://]hostname[:port] [password]\n");
 		return;
 	}
 
@@ -3047,8 +3067,23 @@ void CL_QTVPlay_f (void)
 	connrequest = strchrrev(connrequest, '@');
 	if (connrequest)
 		host = connrequest+1;
-	Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
-	newf = FS_OpenTCP(qtvhostname, 27599);
+#ifdef HAVE_SSL
+	if (!strncmp(host, "tls://", 6))
+	{
+		char *colon;
+		Q_strncpyz(qtvhostname, host+6, sizeof(qtvhostname));
+		colon = strchr(qtvhostname, ':');
+		newf = FS_OpenTCP(qtvhostname, 27599);
+		if (colon) *colon = 0;
+		newf = FS_OpenSSL(qtvhostname, newf, false);
+		if (colon) *colon = ':';
+	}
+	else
+#endif
+	{
+		Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
+		newf = FS_OpenTCP(qtvhostname, 27599);
+	}
 
 	if (!newf)
 	{
@@ -3063,7 +3098,7 @@ void CL_QTVPlay_f (void)
 	else
 		host = NULL;
 
-//	password = Cmd_Argv(2);
+	password = Cmd_Argv(2);
 
 	if (qtvcl_forceversion1.ival)
 	{
@@ -3078,6 +3113,33 @@ void CL_QTVPlay_f (void)
 					"VERSION: 1.1\n");
 	}
 	msglen += strlen(msg+msglen);
+
+	if (password)
+	{
+#if 0
+		//just send it directly, we can't handle the tripple handshake for the challenge info
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+					"AUTH: PLAIN\n"
+					"PASSWORD: %s\n"
+					, password);
+#else
+		//report supported auth methods to the server. it'll pick one and send us a challenge.
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+//					"AUTH: SHA1\n"
+//					"AUTH: MD4\n"
+//					"AUTH: CCITT\n"
+					"AUTH: PLAIN\n");
+#endif
+		msglen += strlen(msg+msglen);
+	}
+	else
+	{
+	//include supported auth methods, so server can pick one (and give suitable challenge in its response)
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+					"AUTH: NONE\n"
+					"");
+		msglen += strlen(msg+msglen);
+	}
 
 	if (raw)
 	{

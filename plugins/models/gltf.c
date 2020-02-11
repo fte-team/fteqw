@@ -1,4 +1,4 @@
-#ifndef GLQUAKE
+#if !defined(GLQUAKE) && !defined(FTEENGINE)
 #define GLQUAKE	//this is shit, but ensures index sizes come out the right size
 #endif
 #include "quakedef.h"

@@ -155,13 +155,16 @@ cvar_t	v_viewheight			= CVARF("v_viewheight", "0", CVAR_ARCHIVE);
 
 static cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
 
+#ifdef QUAKESTATS
 static cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
-static cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
+static cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "2", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
 static cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
 static cvar_t	scr_autoid_armour		= CVARD("scr_autoid_armor", "1", "Display armour as part of nametags (when known).");
 static cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player's best weapon as part of their nametag (when known).");
+static cvar_t	scr_autoid_weapon_mask	= CVARD("scr_autoid_weapon_mask", "126", "Mask of bits for weapon icons to actually show.\n+1: Shotgun.\n+2: Super Shotgun.\n+4: Nail Gun.\n+8: Super Nail Gun.\n+16: Grenade Launcher.\n+32: Rocket Launcher.\n+64: Lightning\nShowing only RL and GL is 96\n");
 static cvar_t	scr_autoid_teamcolour	= CVARD("scr_autoid_teamcolour", STRINGIFY(COLOR_BLUE), "The colour for the text on the nametags of team members.");
 static cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY(COLOR_WHITE), "The colour for the text on the nametags of non-team members.");
+#endif
 
 cvar_t	chase_active			= CVAR("chase_active", "0");
 cvar_t	chase_back				= CVAR("chase_back", "48");
@@ -1768,6 +1771,7 @@ static qboolean SCR_VRectForPlayer(vrect_t *vrect, int pnum, unsigned maxseats)
 
 void Draw_ExpandedString(struct font_s *font, float x, float y, conchar_t *str);
 
+#ifdef QUAKESTATS
 static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 {
 	conchar_t buffer[256];
@@ -1795,7 +1799,6 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		{1, 0.4, 0, 1},
 		{1, 1, 1, 1}
 	};
-#ifdef QUAKESTATS
 	static vec4_t armourcolours[] =
 	{
 		{25, 170, 0, 0.2},
@@ -1817,7 +1820,6 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		&tp_name_rl,
 		&tp_name_lg
 	};
-#endif
 	struct font_s *font = font_default;
 
 	VectorCopy(org, tagcenter);
@@ -1848,7 +1850,6 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	x = center[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 	y = (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y;
 
-#ifdef QUAKESTATS
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		health = pl->statsf[STAT_HEALTH];
@@ -1858,7 +1859,6 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		haveinfo = true;
 	}
 	else
-#endif
 	{
 		health = pl->tinfo.health;
 		armour = pl->tinfo.armour;
@@ -1897,16 +1897,18 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		h += 8;
 		y -= 8;
 		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
-		R2D_FillBlock(x - barwidth*0.5 + barwidth * frac, y, barwidth * (1-frac), 8);
+		R2D_FillBlock(x - barwidth*0.5 + barwidth * frac, y, barwidth * (1-frac), 4);
 		r++;
 		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
-		R2D_FillBlock(x - barwidth*0.5, y, barwidth * frac, 8);
+		R2D_FillBlock(x - barwidth*0.5, y, barwidth * frac, 4);
 	}
 
 	if (health <= 0)	//armour+weapons are not relevant when dead
+	{
+		R2D_ImageColours(1, 1, 1, 1);
 		return;
+	}
 
-#ifdef QUAKESTATS
 	if (scr_autoid_armour.ival)
 	{
 		//display armour bar above that
@@ -1919,30 +1921,56 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		else r = -1;
 		if (r >= 0)
 		{
-			h += 8;
-			y -= 8;
+			h += 5;
+			y -= 5;
 			armour = bound(0, armour, health);
 			barwidth = 32;
 			R2D_ImageColours(armourcolours[r][0], armourcolours[r][1], armourcolours[r][2], armourcolours[r][3]*alpha);
-			R2D_FillBlock(x - barwidth*0.5 + barwidth * armour/(float)health, y, barwidth * (health-armour)/(float)health, 8);
+			R2D_FillBlock(x - barwidth*0.5 + barwidth * armour/(float)health, y, barwidth * (health-armour)/(float)health, 4);
 			r++;
 			R2D_ImageColours(armourcolours[r][0], armourcolours[r][1], armourcolours[r][2], armourcolours[r][3]*alpha);
-			R2D_FillBlock(x - barwidth*0.5, y, barwidth * armour/(float)health, 8);
+			R2D_FillBlock(x - barwidth*0.5, y, barwidth * armour/(float)health, 4);
 		}
 	}
 
+	R2D_ImageColours(1, 1, 1, 1);
 	if (scr_autoid_weapon.ival)
 	{
-		if (h < 8)
-			h = 8;
-		y += (h-8)/2;
-
 		for (r = countof(wbitnames)-1; r>=0; r--)
 			if (items & (1<<r))
 				break;
-		R2D_ImageColours(1, 1, 1, 1);
-		if (r >= 0)
+		if (r >= 0 && (scr_autoid_weapon_mask.ival&(1<<1)))
 		{
+			if (scr_autoid_weapon.ival==1)
+			{
+				extern apic_t *sb_weapons[7][8];
+				float w = 0;
+				if (r < 8 && sb_weapons[0][r])
+				{
+
+					if (h < 16)
+					{
+						y-= 16-h;
+						h = 16;
+					}
+					y += (h-16)/2;
+
+					if (sb_weapons[0][r]->width)
+						w = sb_weapons[0][r]->width;
+					else
+						w = sb_weapons[0][r]->atlas->width;
+					R2D_ImageAtlas(x-barwidth*.5-24-4, y, 24, 16, 0, 0, 24/w, 1, sb_weapons[0][r]);
+					return;
+				}
+			}
+
+			if (h < 8)
+			{
+				y-= 8-h;
+				h = 8;
+			}
+			y += (h-8)/2;
+
 			len = COM_ParseFunString(textflags, wbitnames[r]->string, buffer, sizeof(buffer), false) - buffer;
 			if (textflags & CON_HALFALPHA)
 			{
@@ -1953,17 +1981,15 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 			if (len && (buffer[0] & CON_CHARMASK) == '{' && (buffer[len-1] & CON_CHARMASK) == '}')
 			{	//these are often surrounded by {} to make them white in chat messages, and recoloured.
 				buffer[len-1] = 0;
-				Draw_ExpandedString(font, x + barwidth*0.5 + 4, y, buffer+1);
+				len = 1;
 			}
 			else
-				Draw_ExpandedString(font, x + barwidth*0.5 + 4, y, buffer);
+				len = 0;
+			Draw_ExpandedString(font, x + barwidth*0.5 + 4, y, buffer+len);
 		}
 	}
-#else
-	(void)items;
-	(void)armour;
-#endif
 }
+#endif
 
 #include "pr_common.h"
 msurface_t *Mod_GetSurfaceNearPoint(model_t *model, vec3_t point);
@@ -1974,10 +2000,12 @@ extern cvar_t r_showshaders, r_showfields, r_projection;
 void R_DrawNameTags(void)
 {
 	int i;
+#ifdef QUAKESTATS
 	lerpents_t *le;
 	qboolean isteam;
 	char *ourteam;
 	int ourcolour;
+#endif
 
 	if (r_projection.ival)	//we don't actually know how to transform the points unless the projection is coded in advance. and it isn't.
 		return;
@@ -2184,6 +2212,7 @@ void R_DrawNameTags(void)
 		}
 	}
 
+#ifdef QUAKESTATS
 	if (cls.protocol == CP_QUAKE2)
 		return;	//FIXME: q2 has its own ent logic, which messes stuff up here.
 
@@ -2203,6 +2232,7 @@ void R_DrawNameTags(void)
 		ourcolour = cl.players[r_refdef.playerview->playernum].rbottomcolor;
 	}
 
+	pmove.skipent = r_refdef.playerview->playernum+1;
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (!*cl.players[i].name)
@@ -2247,6 +2277,7 @@ void R_DrawNameTags(void)
 
 		SCR_DrawAutoID(nametagorg[i], &cl.players[i], isteam);
 	}
+#endif
 }
 
 void R2D_PolyBlend (void);
@@ -2615,13 +2646,16 @@ void V_Init (void)
 	Cvar_Register (&v_deathtilt, VIEWVARS);
 	Cvar_Register (&v_skyroom, VIEWVARS);
 
+#ifdef QUAKESTATS
 	Cvar_Register (&scr_autoid, VIEWVARS);
 	Cvar_Register (&scr_autoid_team, VIEWVARS);
 	Cvar_Register (&scr_autoid_health, VIEWVARS);
 	Cvar_Register (&scr_autoid_armour, VIEWVARS);
 	Cvar_Register (&scr_autoid_weapon, VIEWVARS);
+	Cvar_Register (&scr_autoid_weapon_mask, VIEWVARS);
 	Cvar_Register (&scr_autoid_teamcolour, VIEWVARS);
 	Cvar_Register (&scr_autoid_enemycolour, VIEWVARS);
+#endif
 
 #ifdef SIDEVIEWS
 #define SECONDARYVIEWVARS "Secondary view vars"

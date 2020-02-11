@@ -56,6 +56,8 @@ typedef enum {
 	NP_WS,
 	NP_WSS,
 	NP_NATPMP,	//server-only scheme for registering public ports.
+	NP_RTC_TCP,
+	NP_RTC_TLS,	//really need a better way to do this than two copies of every protocol...
 
 	NP_INVALID
 } netproto_t;
@@ -164,8 +166,8 @@ char		*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a, size_
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 size_t		NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhint, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
 #define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,NA_INVALID,a,f,z,1)>0)
-size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount);
-#define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1)
+size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount, const char **pathstart);
+#define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1,NULL)
 qboolean	NET_PortToAdr (netadrtype_t adrfamily, netproto_t adrprot, const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 
@@ -211,6 +213,7 @@ typedef struct
 	qbyte		nqunreliableonly;	//nq can't cope with certain reliables some times. if 2, we have a reliable that result in a block (that should be sent). if 1, we are blocking. if 0, we can send reliables freely. if 3, then we just want to ignore clc_moves
 #endif
 	qboolean	pext_fragmentation;	//fte's packet fragmentation extension, to avoid issues with low mtus.
+	qboolean	pext_stunaware;		//prevent the two lead-bits of packets from being either 0(stun), so stray stun packets cannot mess things up for us.
 	struct netprim_s netprim;
 	int			mtu;				//the path mtu, if known
 	int			dupe;				//how many times to dupe packets

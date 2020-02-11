@@ -1400,6 +1400,11 @@ static struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enu
 }
 static void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
 {
+	//'+'	propose  ('hey, can I call you please?')
+	//'='	offer    ('these are my details')
+	//'*'	finalise ('this is what I'm going to use')
+	//'-'	reject   ('get lost, I don't want to talk to you any more')
+	//'%'	candiate ('try this address')
 	//I was originally using colons to separate terms, but switched to slashes to avoid smilies for irc clients that print unknown CTCP messages.
 	char message[1024];
 	struct icecandinfo_s *c;

@@ -990,9 +990,6 @@ int watchdogthreadfunction(void *arg)
 }
 #endif
 
-int *debug;
-
-
 #ifndef SERVERONLY
 
 #if (_WIN32_WINNT < 0x0400)
@@ -1012,7 +1009,16 @@ int *debug;
 	#endif
 #endif
 
-HHOOK llkeyboardhook;
+static struct
+{
+	HHOOK llkeyboardhook;
+
+	//windows hooks can be used for code injection etc.
+	//hide these symbols from shitty exports scanners so we don't look like the keylogger that we aren't. Note the 'vid.activeapp' requirement below - we are not a keylogger, we only see a limited set of keys and only when we already have focus.
+	HHOOK (WINAPI *pSetWindowsHookEx) (int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWORD dwThreadId);	//W and A versions have the same signature.
+	LRESULT (WINAPI *pCallNextHookEx) (HHOOK hhk, int nCode, WPARAM wParam, LPARAM lParam);
+	WINBOOL (WINAPI *pUnhookWindowsHookEx) (HHOOK hhk);
+} winkeys;
 
 cvar_t	sys_disableWinKeys = CVAR("sys_disableWinKeys", "0");
 cvar_t	sys_disableTaskSwitch = CVARF("sys_disableTaskSwitch", "0", CVAR_NOTFROMSERVER);	// please don't encourage people to use this...
@@ -1071,7 +1077,7 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 	default:
 		break;
 	}
-	return CallNextHookEx (llkeyboardhook, nCode, wParam, lParam);
+	return winkeys.pCallNextHookEx (winkeys.llkeyboardhook, nCode, wParam, lParam);
 }
 
 void SetHookState(qboolean state)
@@ -1079,16 +1085,27 @@ void SetHookState(qboolean state)
 	if (!sys_disableTaskSwitch.ival && !sys_disableWinKeys.ival)
 		state = false;
 
-	if (!state == !llkeyboardhook)	//not so types are comparable
+	if (!state == !winkeys.llkeyboardhook)	//not so types are comparable
 		return;
-
-	if (llkeyboardhook)
+	if (!winkeys.pSetWindowsHookEx)
 	{
-		UnhookWindowsHookEx(llkeyboardhook);
-		llkeyboardhook = NULL;
+		HMODULE dll = LoadLibraryA("user32.dll");
+		if (!dll)
+			return;
+		winkeys.pSetWindowsHookEx		= (void*)GetProcAddress(dll, WinNT?"SetWindowsHookExW":"SetWindowsHookExA");
+		winkeys.pCallNextHookEx			= (void*)GetProcAddress(dll, "CallNextHookEx");
+		winkeys.pUnhookWindowsHookEx	= (void*)GetProcAddress(dll, "UnhookWindowsHookEx");
+		if (!winkeys.pSetWindowsHookEx)
+			return;
+	}
+
+	if (winkeys.llkeyboardhook)
+	{
+		winkeys.pUnhookWindowsHookEx(winkeys.llkeyboardhook);
+		winkeys.llkeyboardhook = NULL;
 	}
 	if (state)
-		llkeyboardhook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
+		winkeys.llkeyboardhook = winkeys.pSetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
 }
 
 #endif

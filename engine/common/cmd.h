@@ -25,18 +25,53 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /*FIXME: rewrite this to use something like the following
 typedef struct
 {
-   	qbyte level:8;
-	qbyte seat:4;		//for splitscreen binds etc
-	qbyte pad:2;
-	qbyte insecure:1;	//from gamecode, untrusted configs, stuffed binds, etc. flagged for many reasons.
-	qbyte cvarlatch:1;	//latches cvars so the user cannot change them till next map. should be RESTRICT_LOCAL to avoid users cheating by restrict-to-block server commands.
-} cmdpermissions_t;
+   	qbyte groups:27;
+   	qbyte cvarlatch:1;	//latches cvars so the user cannot change them till next map. should be RESTRICT_LOCAL to avoid users cheating by restrict-to-block server commands.
+	qbyte seat:4;		//for splitscreen binds etc. 1 based! 0 uses in_forceseat/first.
+} cmdaccess_t;
+enum {
+//core groups
+	CAG_OWNER		= 1<<0,	//commands that came from the keyboard (or stdin).
+	CAG_MENUQC		= 1<<1,	//menuqc (mostly allowed to do stuff - but often also has CAG_DOWNLOADED)
+	CAG_CSQC		= 1<<2,	//csqc localcmds, nearly always has CAG_DOWNLOADED, so a load of denies
+	CAG_SSQC		= 1<<3,	//ssqc localcmds, able to poke quite a lot of things, generally unrestricted.
+	CAG_SERVER		= 1<<4,	//ssqc stuffcmds, typically same access as csqc
+//special groups:
+	CAG_DOWNLOADED	= 1<<5,	//for execs that read from a downloaded(untrusted) package. also flagged by qc modules if they were from such packages (so usually included from csqc).
+	CAG_SCRIPT		= 1<<6,	//added for binds (with more than one command), or for aliases/configs. exists for +lookdown's denies (using explicit checks, to avoid cheat bypasses).
+//custom groups:
+	CAG_RCON		= 1<<7,	//commands that came from rcon.
+
+//groups of groups, for default masks or special denies
+	CAG_DEFAULTALLOW = CAG_OWNER|CAG_MENUQC|CAG_CSQC|CAG_SSQC|CAG_SERVER|CAG_RCON,
+	CAG_INSECURE	= CAG_DOWNLOADED|CAG_SERVER|CAG_CSQC,	//csqc included mostly for consistency.
+
+	//	userN: defaults to no commands
+	//	vip: BAN_VIP users
+	//	mapper: BAN_MAPPER users
+};
+
+	//stuff can be accessed when:
+	//	if ((command.allows&cbuf.groups) && !(command.denies&cbuf.groups)) accessisallowed;
+	//cvars:
+	//	separate allow-read, deny-read, allow-write, deny-write masks (set according to the older flags, to keep things simple)
+	//aliases:
+	//	alias execution ors in the group(s) that created it (and 'script'). some execution chains could end up with a LOT of groups... FIXME: is that a problem? just don't put potentially restricted things in aliases?
+	//binds:
+	//	also ors the creator's group - no `bind w doevil` and waiting.
+	//multiple cbufs:
+	//	ssqc still has a dedicated cbuf, so that wait commands cause THAT cbuf to wait, not others.
+	//	rcon+readcmd have a separate cbuf, to try to isolate prints
+	//seats:
+	//	there's no security needed between seats, but server should maybe be blocked from seat switching commands (acting only as asserts), to catch bugs.
+	//
+	//'p2 nameofalias' sets seat to 2, overriding in_forceseat.
+	//+lookup etc is blocked when allow_scripts==0 and indirect is set.
 typedef struct
 {
-	cbuf_t *cbuf; //exec etc inserts into this
 	cmdpermissions_t p; //access rights
 } cmdstate_t;
-void Cbuf_AddText(const char *text, qboolean addnl, qboolean insert, const cmdstate_t *cstate); //null for local?
+void Cbuf_AddText(const char *text, qboolean addnl, qboolean insert); //null for local? all commands must be \n terminated.
 char *Cbuf_GetNext(cmdpermissions_t permissions, qboolean ignoresemicolon);
 void Cbuf_Execute(cbuf_t *cbuf);
 void Cmd_ExecuteString (const char *text, const cmdstate_t *cstate);
@@ -193,9 +228,10 @@ void Cmd_Args_Set(const char *newargs, size_t len);
 
 #define RESTRICT_MAX RESTRICT_MAX_USER
 
-#define RESTRICT_LOCAL	RESTRICT_MAX		//commands typed at the console
-#define RESTRICT_INSECURE	RESTRICT_MAX+1	//commands from csqc or untrusted sources (really should be a separate flag, requires cbuf rewrite)
-#define RESTRICT_SERVER	RESTRICT_MAX+2		//commands from ssqc (untrusted, but allowed to lock cvars)
+#define RESTRICT_LOCAL		(RESTRICT_MAX)		//commands typed at the console
+#define RESTRICT_INSECURE	(RESTRICT_MAX+1)	//commands from csqc or untrusted sources (really should be a separate flag, requires cbuf rewrite)
+#define RESTRICT_SERVER		(RESTRICT_MAX+2)		//commands from ssqc (untrusted, but allowed to lock cvars)
+#define RESTRICT_SERVERSEAT(x) (RESTRICT_SERVER+x)
 #define RESTRICT_RCON	rcon_level.ival
 //#define RESTRICT_SSQC	RESTRICT_MAX-2
 

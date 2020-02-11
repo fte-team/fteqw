@@ -6238,7 +6238,7 @@ static void CL_ParsePrint(char *msg, int level)
 	}
 	else
 		strcat(printtext, msg);	//safe due to size on if.
-	while((msg = strchr(printtext, '\n')))
+	while((msg = strchr(printtext, '\n')) || (msg = strchr(printtext, '\r')))
 	{
 		n = msg[1];
 		msg[1] = 0;
@@ -6399,6 +6399,7 @@ static void CL_ParseTeamInfo(void)
 static char stufftext[4096];
 static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
 {
+	int cbuflevel;
 #ifdef NQPROT
 	if (!*stufftext && *msg == 1 && !cls.allow_csqc)
 	{
@@ -6411,7 +6412,8 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 	while((msg = strchr(stufftext, '\n')))
 	{
 		*msg = '\0';
-		Con_DLPrintf((cls.state==ca_active)?1:2, "stufftext: %s\n", stufftext);
+		cbuflevel = RESTRICT_SERVERSEAT(destsplit);
+		Con_DLPrintf((cls.state==ca_active)?1:2, "stufftext%i: %s\n", destsplit, stufftext);
 		if (!strncmp(stufftext, "fullserverinfo ", 15) || !strncmp(stufftext, "//fullserverinfo ", 17))
 		{
 			Cmd_TokenizeString(stufftext+2, false, false);
@@ -6532,9 +6534,9 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 				Q_strncatz(newdemo, Cmd_Argv(1), sizeof(newdemo));
 			}
 
-			Cbuf_AddText ("playdemo ", RESTRICT_SERVER+destsplit);
-			Cbuf_AddText (COM_QuotedString(newdemo, temp, sizeof(temp), false), RESTRICT_SERVER+destsplit);
-			Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+			Cbuf_AddText ("playdemo ", cbuflevel);
+			Cbuf_AddText (COM_QuotedString(newdemo, temp, sizeof(temp), false), cbuflevel);
+			Cbuf_AddText ("\n", cbuflevel);
 		}
 #ifdef CSQC_DAT
 		else if (CSQC_StuffCmd(destsplit, stufftext, msg))
@@ -6546,20 +6548,20 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			COM_Parse(stufftext + 11);
 			if (Cmd_Exists(com_token))
 			{
-				Cbuf_AddText ("cmd cmdsupported ", RESTRICT_SERVER+destsplit);
-				Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
-				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+				Cbuf_AddText ("cmd cmdsupported ", cbuflevel);
+				Cbuf_AddText (com_token, cbuflevel);
+				Cbuf_AddText ("\n", cbuflevel);
 			}
 		}
 		else if (!strncmp(stufftext, "//exectrigger ", 14))		//so that mods can add whatever 'alias grabbedarmour' or whatever triggers that users might want to script responses for, without errors about unknown commands
 		{
 			COM_Parse(stufftext + 14);
-			if (Cmd_AliasExist(com_token, RESTRICT_SERVER))
-				Cmd_ExecuteString(com_token, RESTRICT_SERVER);	//do this NOW so that it's done before any models or anything are loaded
+			if (Cmd_AliasExist(com_token, cbuflevel))
+				Cmd_ExecuteString(com_token, cbuflevel);	//do this NOW so that it's done before any models or anything are loaded
 		}
 		else if (!strncmp(stufftext, "//set ", 6))				//equivelent to regular set, except non-spammy if it doesn't exist, and happens instantly without extra latency.
 		{
-			Cmd_ExecuteString(stufftext+2, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
+			Cmd_ExecuteString(stufftext+2, cbuflevel);	//do this NOW so that it's done before any models or anything are loaded
 		}
 		else if (!strncmp(stufftext, "//at ", 5))				//ktx autotrack hints
 		{
@@ -6635,9 +6637,9 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		else
 		{
 			if (!strncmp(stufftext, "cmd ", 4))
-				Cbuf_AddText (va("p%i ", destsplit+1), RESTRICT_SERVER+destsplit);	//without this, in_forceseat can break directed cmds.
-			Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
-			Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+				Cbuf_AddText (va("p%i ", destsplit+1), cbuflevel);	//without this, in_forceseat can break directed cmds.
+			Cbuf_AddText (stufftext, cbuflevel);
+			Cbuf_AddText ("\n", cbuflevel);
 		}
 		msg++;
 

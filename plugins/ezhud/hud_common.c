@@ -1104,7 +1104,291 @@ static void SCR_HUD_DrawNetStats(hud_t *hud)
 //
 // speed-o-meter
 //
-#ifdef HAXX
+
+#define SPEED_TAG_LENGTH		2
+#define SPEED_OUTLINE_SPACING	SPEED_TAG_LENGTH
+#define SPEED_FILL_SPACING		SPEED_OUTLINE_SPACING + 1
+#define SPEED_WHITE				10
+#define SPEED_TEXT_ONLY			1
+
+#define	SPEED_TEXT_ALIGN_NONE	0
+#define SPEED_TEXT_ALIGN_CLOSE	1
+#define SPEED_TEXT_ALIGN_CENTER	2
+#define SPEED_TEXT_ALIGN_FAR	3
+
+// FIXME: hud-only now, can/should be moved
+void SCR_DrawHUDSpeed (
+	int x, int y, int width, int height,
+	int type,
+	float tick_spacing,
+	float opacity,
+	int vertical,
+	int vertical_text,
+	int text_align,
+	byte color_stopped,
+	byte color_normal,
+	byte color_fast,
+	byte color_fastest,
+	byte color_insane,
+	int style,
+	float scale
+)
+{
+	byte color_offset;
+	byte color1, color2;
+	int player_speed;
+	vec_t *velocity;
+
+	if (scr_con_current == vid.height) {
+		return;     // console is full screen
+	}
+
+	// Get the velocity.
+//	if (cl.players[cl.playernum].spectator && Cam_TrackNum() >= 0) {
+//		velocity = cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK].playerstate[Cam_TrackNum()].velocity;
+//	}
+//	else {
+		velocity = cl.simvel;
+//	}
+
+	// Calculate the speed
+	if (!type)
+	{
+		// Based on XY.
+		player_speed = sqrt(velocity[0]*velocity[0]
+						  + velocity[1]*velocity[1]);
+	}
+	else
+	{
+		// Based on XYZ.
+		player_speed = sqrt(velocity[0]*velocity[0]
+						  + velocity[1]*velocity[1]
+						  + velocity[2]*velocity[2]);
+	}
+
+	// Calculate the color offset for the "background color".
+	if (vertical) {
+		color_offset = height * (player_speed % 500) / 500;
+	}
+	else {
+		color_offset = width * (player_speed % 500) / 500;
+	}
+
+	// Set the color based on the speed.
+	switch (player_speed / 500)
+	{
+		case 0:
+			color1 = color_stopped;
+			color2 = color_normal;
+			break;
+		case 1:
+			color1 = color_normal;
+			color2 = color_fast;
+			break;
+		case 2:
+			color1 = color_fast;
+			color2 = color_fastest;
+			break;
+		default:
+			color1 = color_fastest;
+			color2 = color_insane;
+			break;
+	}
+
+	// Draw tag marks.
+	if (tick_spacing > 0.0 && style != SPEED_TEXT_ONLY)
+	{
+		float f;
+
+		for(f = tick_spacing; f < 1.0; f += tick_spacing)
+		{
+			if(vertical)
+			{
+				// Left.
+				Draw_AlphaFill(x,				// x
+					y + (int)(f * height),	// y
+					SPEED_TAG_LENGTH,		// Width
+					1,						// Height
+					SPEED_WHITE,			// Color
+					opacity);				// Opacity
+
+				// Right.
+				Draw_AlphaFill(x + width - SPEED_TAG_LENGTH + 1,
+					y + (int)(f * height),
+					SPEED_TAG_LENGTH,
+					1,
+					SPEED_WHITE,
+					opacity);
+			}
+			else
+			{
+				// Above.
+				Draw_AlphaFill(x + (int)(f * width),
+					y,
+					1,
+					SPEED_TAG_LENGTH,
+					SPEED_WHITE,
+					opacity);
+
+				// Below.
+				Draw_AlphaFill(x + (int)(f * width),
+					y + height - SPEED_TAG_LENGTH + 1,
+					1,
+					SPEED_TAG_LENGTH,
+					SPEED_WHITE,
+					opacity);
+			}
+		}
+	}
+
+	//
+	// Draw outline.
+	//
+	if (style != SPEED_TEXT_ONLY)
+	{
+		if(vertical)
+		{
+			// Left.
+			Draw_AlphaFill(x + SPEED_OUTLINE_SPACING,
+				y,
+				1,
+				height,
+				SPEED_WHITE,
+				opacity);
+
+			// Right.
+			Draw_AlphaFill(x + width - SPEED_OUTLINE_SPACING,
+				y,
+				1,
+				height,
+				SPEED_WHITE,
+				opacity);
+		}
+		else
+		{
+			// Above.
+			Draw_AlphaFill(x,
+				y + SPEED_OUTLINE_SPACING,
+				width,
+				1,
+				SPEED_WHITE,
+				opacity);
+
+			// Below.
+			Draw_AlphaFill(x,
+				y + height - SPEED_OUTLINE_SPACING,
+				width,
+				1,
+				SPEED_WHITE,
+				opacity);
+		}
+	}
+
+	//
+	// Draw fill.
+	//
+	if (style != SPEED_TEXT_ONLY)
+	{
+		if(vertical)
+		{
+			// Draw the right color (slower).
+			Draw_AlphaFill (x + SPEED_FILL_SPACING,
+				y,
+				width - (2 * SPEED_FILL_SPACING),
+				height - color_offset,
+				color1,
+				opacity);
+
+			// Draw the left color (faster).
+			Draw_AlphaFill (x + SPEED_FILL_SPACING,
+				y + height - color_offset,
+				width - (2 * SPEED_FILL_SPACING),
+				color_offset,
+				color2,
+				opacity);
+		}
+		else
+		{
+			// Draw the right color (slower).
+			Draw_AlphaFill (x + color_offset,
+				y + SPEED_FILL_SPACING,
+				width - color_offset,
+				height - (2 * SPEED_FILL_SPACING),
+				color1,
+				opacity);
+
+			// Draw the left color (faster).
+			Draw_AlphaFill (x,
+				y + SPEED_FILL_SPACING,
+				color_offset,
+				height - (2 * SPEED_FILL_SPACING),
+				color2,
+				opacity);
+		}
+	}
+
+	// Draw the speed text.
+	if(vertical && vertical_text)
+	{
+		int i = 1;
+		int len = 0;
+
+		// Align the text accordingly.
+		switch(text_align)
+		{
+			case SPEED_TEXT_ALIGN_NONE:		return;
+			case SPEED_TEXT_ALIGN_FAR:		y = y + height - 4*8; break;
+			case SPEED_TEXT_ALIGN_CENTER:	y = Q_rint(y + height/2.0 - 16); break;
+			case SPEED_TEXT_ALIGN_CLOSE:
+			default: break;
+		}
+
+		len = strlen(va("%d", player_speed));
+
+		// 10^len
+		while(len > 0)
+		{
+			i *= 10;
+			len--;
+		}
+
+		// Write one number per row.
+		for(; i > 1; i /= 10)
+		{
+			int next;
+			next = (i/10);
+
+			// Really make sure we don't try division by zero :)
+			if(next <= 0)
+			{
+				break;
+			}
+
+			Draw_SString(Q_rint(x + width/2.0 - 4 * scale), y, va("%1d", (player_speed % i) / next), scale);
+			y += 8;
+		}
+	}
+	else
+	{
+		// Align the text accordingly.
+		switch(text_align)
+		{
+			case SPEED_TEXT_ALIGN_FAR:
+				x = x + width - 4 * 8 * scale;
+				break;
+			case SPEED_TEXT_ALIGN_CENTER:
+				x = Q_rint(x + width / 2.0 - 2 * 8 * scale);
+				break;
+			case SPEED_TEXT_ALIGN_CLOSE:
+			case SPEED_TEXT_ALIGN_NONE:
+			default:
+				break;
+		}
+
+		Draw_SString(x, Q_rint(y + height/2.0 - 4 * scale), va("%4d", player_speed), scale);
+	}
+}
+
 static void SCR_HUD_DrawSpeed(hud_t *hud)
 {
     int width, height;
@@ -1123,7 +1407,8 @@ static void SCR_HUD_DrawSpeed(hud_t *hud)
 		*hud_speed_vertical,
 		*hud_speed_vertical_text,
 		*hud_speed_text_align,
-		*hud_speed_style;
+		*hud_speed_style,
+		*hud_speed_scale;
 
     if (hud_speed_xyz == NULL)    // first time
     {
@@ -1141,6 +1426,7 @@ static void SCR_HUD_DrawSpeed(hud_t *hud)
 		hud_speed_vertical_text	= HUD_FindVar(hud, "vertical_text");
 		hud_speed_text_align	= HUD_FindVar(hud, "text_align");
 		hud_speed_style			= HUD_FindVar(hud, "style");
+		hud_speed_scale			= HUD_FindVar(hud, "scale");
     }
 
 	width = max(0, hud_speed_width->value);
@@ -1160,10 +1446,10 @@ static void SCR_HUD_DrawSpeed(hud_t *hud)
 			hud_speed_color_fast->value,
 			hud_speed_color_fastest->value,
 			hud_speed_color_insane->value,
-			hud_speed_style->ival);
+			hud_speed_style->ival,
+			hud_speed_scale->value);
 	}
 }
-#endif
 
 #define	HUD_SPEED2_ORIENTATION_UP		0
 #define	HUD_SPEED2_ORIENTATION_DOWN		1
@@ -7688,7 +7974,6 @@ static void SCR_HUD_DrawNotImplemented(hud_t *hud)
 
 	Draw_SString(x, y, line1, 1);
 }
-#define SCR_HUD_DrawSpeed SCR_HUD_DrawNotImplemented
 #define SCR_HUD_DrawTeamHoldBar SCR_HUD_DrawNotImplemented
 #define SCR_HUD_DrawTeamHoldInfo SCR_HUD_DrawNotImplemented
 #define SCR_HUD_DrawItemsClock SCR_HUD_DrawNotImplemented
@@ -7848,6 +8133,7 @@ void CommonDraw_Init(void)
 		"vertical_text", "1",
 		"text_align", "1",
 		"style", "0",
+		"scale", "1",
 		NULL);
 
     // Init speed2 (half circle thingie).

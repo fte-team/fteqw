@@ -179,7 +179,7 @@ Marks the edict as free
 FIXME: walk all entities and NULL out references to this entity
 =================
 */
-void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed)
+void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed, pbool instant)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e = (edictrun_t *)ed;
@@ -201,7 +201,7 @@ void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed)
 			return;
 
 	e->ereftype = ER_FREE;
-	e->freetime = (float)*externs->gametime;
+	e->freetime = instant?0:(float)*externs->gametime;
 
 /*
 	ed->v.model = 0;

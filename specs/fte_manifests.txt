@@ -15,6 +15,7 @@ FTEMANIFEST 1
 GAME quake
 NAME "In The Shadows"
 PROTOCOLNAME ITShadows
+RTCBROKER "tls://master.frag-net.com:27950"
 DEFAULTEXEC ""
 //UPDATEURL "http://example.com/mods/its.fmf"
 BASEGAME id1
@@ -25,7 +26,8 @@ GAMEDIR shadows
 //this is a major pain for systems where there is no official installer (read: fte's webgl port, or android... or win64).
 //its pak0 can be downloaded from sock's public server
 ARCHIVEDPACKAGE shadows/pak0.pak "0xb1768147" "shadows/pak0.pak" "http://simonoc.com/files/maps/sp/its_demo_v1_1.zip"
-
+-seta cl_forwardspeed 400
++bind w +forward
 
 
 
@@ -46,11 +48,24 @@ This specifies what the game should be referred to by various console prints etc
 
 PROTOCOLNAME "foo"
 This is how the game/mod should be identified to master servers. A unique value here helps prevent servers from other games being listed, as well as preventing other games from seeing this game/mod.
-FIXME: engine support for this should be improved.
+This should be reasonably human readable - master servers might show it publically. This actually gets written into the com_protocolname cvar. You should use the com_protocolversion cvar in your default.cfg if you want to exclude older versions, avoiding annoying numbers etc.
+
+RTCBROKER "url"
+This should be a tls:// or tcp:// address that tells the engine where it can find a running instance of an 'ftemaster' program.
+The broker program is used to allow client and target server to exchange address and port information in order to punch holes through NATs and Firewalls, allowing users to play without having to configure any of those monstrosities.
 
 DEFAULTEXEC ""
 If specified, this is inserted before the game's normal default.cfg file, and can be used to override the engine's default cvar settings for mods where the default.cfg was originally written for a different engine (and thus omits certain settings). This should only be used for games where the default.cfg itself is not replacable. Standalone mods should not need to specify this, and should instead just put everything in the mod's default.cfg file.
 For recognised games, the engine will automatically assume usable defaults, but its possible that a mod depends upon a setting that I overlooked.
+This is obsolete, other than to disable the built-in overrides for known games. See the following - and + prefixes for easier usage.
+
+-set foo bar
+The text following a leading minus are commands that are included before the mod's default.cfg, allowing to override engine behaviour without breaking mods that require a specific value. This mechanism is quite handy for mimicing other engines.
+Any commands may be used, but its best to limit yourself to set/seta/setfl, alias, and bind.
+
++set foo bar
+The text following a leading plus are commands that are included AFTER the mod's default.cfg, allowing you to stomp all over defaults that were stupid and flawed (or just outdated). This is useful for making quake's default settings and binds usable, but its generally better to just provide a new default.cfg instead.
+Any commands may be used, but its best to limit yourself to set/seta/setfl, alias, and bind.
 
 BASEGAME "id1"
 Multiple basegame lines can be specified. These are the core subdirectories that should always be loaded, even if the gamedir command was used to load a different mod.
@@ -70,6 +85,12 @@ If non-zero, the game/mod will not attempt to use any directory within the user'
 UPDATEURL "http://example.com/foo.fmf"
 This command gives the url from which to update the manifest file from. The updated manifest *MUST* contain the same url for the update to be accepted. Because of this, you should ensure that it is has a url that will be valid for as long as your mod will be relevent.
 This replaces just the manifest, but because the manifest file specifies a list of packages that should be used, a new set of packages can be downloaded automatically, and this is the true power of the update url.
+
+DOWNLOADSURL "https://updates.triptohell.info/downloadables.php?game=Q1"
+This command tells the engine where it can obtain a list of available packages. The user is able to enable/disable as they desire.
+
+INSTALL "package1;package2"
+This command tells the engine which packages should be 'strongly encouraged' onto the user (ie: the user will be prompted to install them if they're missing). Naturally this should not be abused, however the user is better able to see what is happening (they must still accept installation).
 
 PACKAGE "id1/pak0.pak" 0x4f069cac "http://mirror1.example.com/qsw106_pak0.pak" "http://mirror2.example.com/qsw106_pak0.pak"
 WARNING: be sure to respect third-party copyrights.

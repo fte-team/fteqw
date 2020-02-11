@@ -533,6 +533,7 @@ void M_Menu_GameOptions_f (void)
 
 typedef struct {
 	menuedit_t *hostnameedit;
+	menucombo_t *publicgame;
 	menucombo_t *deathmatch;
 	menucombo_t *numplayers;
 	menucombo_t *teamplay;
@@ -582,6 +583,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 	Cbuf_AddText(va("skill %i\n", info->skill->selectedoption), RESTRICT_LOCAL);
 	Cbuf_AddText(va("timelimit %i\n", info->timelimit->selectedoption*5), RESTRICT_LOCAL);
 	Cbuf_AddText(va("fraglimit %i\n", info->fraglimit->selectedoption*10), RESTRICT_LOCAL);
+	Cbuf_AddText(va("sv_public %i\n", info->publicgame->selectedoption-1), RESTRICT_LOCAL);
 	Cbuf_AddText(va("map \"%s\"\n", info->mapnameedit->text), RESTRICT_LOCAL);
 
 	if (info->rundedicated->value)
@@ -647,6 +649,14 @@ void M_Menu_GameOptions_f (void)
 		"100 frags",
 		NULL
 	};
+	static const char *publicoptions[] = {
+		"Disabled",
+		"Private/LAN",
+		"Public (Manual)",
+		"Public (Holepunch)",
+		NULL
+	};
+	extern cvar_t sv_public;
 	newmultimenu_t *info;
 	emenu_t *menu;
 	int y = 40;
@@ -677,7 +687,10 @@ void M_Menu_GameOptions_f (void)
 	menu->selecteditem = (menuoption_t*)
 	MC_AddCommand						(menu, 64, 160, y,	"Start game", MultiBeginGame);y+=16;
 
-	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,	"Hostname", name.string);y+=16;
+	y+=4;
+	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=16;
+	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			"Public", publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
+	y+=4;
 
 	for (players = 0; players < sizeof(numplayeroptions)/ sizeof(numplayeroptions[0]); players++)
 	{

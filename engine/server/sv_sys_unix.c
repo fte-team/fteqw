@@ -1069,7 +1069,7 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 
 					if (!func(file, st.st_size, st.st_mtime, parm, spath))
 					{
-						Con_DPrintf("giving up on search after finding %s\n", file);
+//						Con_DPrintf("giving up on search after finding %s\n", file);
 						closedir(dir);
 						return false;
 					}

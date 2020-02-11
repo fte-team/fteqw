@@ -105,7 +105,7 @@ struct pubprogfuncs_s
 	void	(PDECL *PrintEdict)					(pubprogfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
 
 	struct edict_s	*(PDECL *EntAlloc)			(pubprogfuncs_t *prinst, pbool object, size_t extrasize);
-	void	(PDECL *EntFree)					(pubprogfuncs_t *prinst, struct edict_s *ed);
+	void	(PDECL *EntFree)					(pubprogfuncs_t *prinst, struct edict_s *ed, pbool instant);
 
 	struct edict_s	*(PDECL *EdictNum)			(pubprogfuncs_t *prinst, unsigned int n);		//get the nth edict
 	unsigned int		(PDECL *NumForEdict)	(pubprogfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
@@ -279,7 +279,7 @@ typedef union eval_s
 #define PR_RegisterFieldVar(pf,type,name,reqofs,qcofs)		(*pf->RegisterFieldVar)		(pf,type,name,reqofs,qcofs)
 
 #define ED_Alloc(pf,isobj,extsize)							(*pf->EntAlloc)				(pf, isobj, extsize)
-#define ED_Free(pf, ed)										(*pf->EntFree)				(pf, ed)
+#define ED_Free(pf, ed)										(*pf->EntFree)				(pf, ed, false)
 #define ED_Clear(pf, ed)									(*pf->EntClear)				(pf, ed)
 
 #define PR_LoadEnts(pf, s, ctx, entcb, extcb)				(*pf->load_ents)			(pf, s, ctx, entcb, extcb)

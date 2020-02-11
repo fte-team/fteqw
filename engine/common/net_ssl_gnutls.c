@@ -634,9 +634,14 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 		//(e_again or e_intr)
 		if (!qgnutls_error_is_fatal(err))
 			return 0;
-
-		//certificate errors etc
-		qgnutls_perror (err);
+		if (developer.ival)
+		{
+			if (err == GNUTLS_E_FATAL_ALERT_RECEIVED)
+				;	//peer doesn't like us.
+			else
+				//we didn't like the peer.
+				qgnutls_perror (err);
+		}
 
 		SSL_Close(&file->funcs);
 //		Con_Printf("%s: abort\n", file->certname);
@@ -658,6 +663,9 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 			return read;
 	}
 
+	if (!bytestoread)	//gnutls doesn't like this.
+		return -1;
+
 	read = qgnutls_record_recv(file->session, buffer, bytestoread);
 	if (read < 0)
 	{
@@ -675,7 +683,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 			return 0;	//caller is expected to try again later, no real need to loop here, just in case it repeats (eg E_AGAIN)
 		else
 		{
-			Con_Printf("TLS Read Error %i (bufsize %i)\n", read, bytestoread);
+			Con_Printf("TLS Read Warning %i (bufsize %i)\n", read, bytestoread);
 			return -1;
 		}
 	}
@@ -702,7 +710,7 @@ static int QDECL SSL_Write(struct vfsfile_s *f, const void *buffer, int bytestow
 			return 0;
 		else
 		{
-			Con_Printf("TLS Send Error %i (%i bytes)\n", written, bytestowrite);
+			Con_Printf("TLS Send Warning %i (%i bytes)\n", written, bytestowrite);
 			return -1;
 		}
 	}
@@ -738,8 +746,8 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 		return -1;
 	}
 	qgnutls_transport_set_errno(file->session, done<0?errno:0);
-	if (done < 0)
-		return 0;
+//	if (done < 0)
+//		return 0;
 	return done;
 }
 static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
@@ -753,10 +761,10 @@ static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 		return -1;
 	}
 	qgnutls_transport_set_errno(file->session, done<0?errno:0);
-	if (done < 0)
-	{
-		return 0;
-	}
+//	if (done < 0)
+//	{
+//		return 0;
+//	}
 	return done;
 }
 
@@ -1058,6 +1066,15 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 
 	if (!isserver)
 		qgnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
+	/*else
+	{
+		size_t size = sizeof(newf->certname);
+		unsigned int type = GNUTLS_NAME_DNS;
+		int err;
+		err=qgnutls_server_name_get(newf->session, newf->certname, &size, &type, 0);
+		if (err!=GNUTLS_E_SUCCESS)
+			*newf->certname = 0;
+	}*/
 
 	qgnutls_session_set_ptr(newf->session, newf);
 

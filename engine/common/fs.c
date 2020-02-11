@@ -396,6 +396,8 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath)
 #else
 	man->mainconfig = Z_StrDup("fte.cfg");
 #endif
+
+	man->rtcbroker = Z_StrDup("tls://master.frag-net.com:27950");	//This is eukara's server. fixme: this really ought to be a cvar instead.
 	return man;
 }
 
@@ -3358,7 +3360,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
 /*quake requires a few settings for compatibility*/
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
-#define QUAKESPASMSUCKS "mod_h2holey_bugged 1\n"
+#define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
 #define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT QUAKESPASMSUCKS
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//-nohome\ncfg_save_auto 1\n" QCFG "sv_nqplayerphysics 1\ncl_loopbackprotocol auto\ncl_sbar 1\nplug_sbar 0\nsv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\n"
@@ -3470,13 +3472,13 @@ const gamemode_info_t gamemode_info[] = {
 	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II",							UPDATEURL(H2)},
 #endif
 #if defined(Q2CLIENT) || defined(Q2SERVER)
-	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
+	{"-quake2",		"q2",		"Quake2",				{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
 	//mods of the above that should generally work.
-	{"-dday",		"dday",		"FTE-Quake2",			{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
+	{"-dday",		"dday",		"Quake2",				{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3)},
+	{"-quake3",		"q3",		"Quake3",				{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3)},
 	//the rest are not supported in any real way. maps-only mostly, if that
 //	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
 //	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
@@ -5897,12 +5899,14 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 						char *oldprefix = "http://fte.";
 						char *newprefix = "https://updates.";
 						e = COM_ParseFunString(CON_WHITEMASK, ENGINEWEBSITE, musite, sizeof(musite), false);
-						COM_DeFunString(musite, e, site, sizeof(site), true, true);
+						COM_DeFunString(musite, e, site, sizeof(site)-1, true, true);
+						printf("site: %s\n", site);
 						if (!strncmp(site, oldprefix, strlen(oldprefix)))
 						{
-							memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix));
+							memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix)+1);
 							memcpy(site, newprefix, strlen(newprefix));
 						}
+						printf("site: %s\n", site);
 						Cmd_TokenizeString(va("downloadsurl \"%s%s\"", site, gamemode_info[i].downloadsurl), false, false);
 					}
 					else

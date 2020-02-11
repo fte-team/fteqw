@@ -646,6 +646,11 @@ static float QDECL Plug_GetTrackerOwnFrags(int seat, char *outptr, size_t outlen
 	else
 		return Stats_GetLastOwnFrag(seat, outptr, outlen);
 }
+static void QDECL Plug_GetPredInfo(int seat, vec3_t outvel)
+{
+	if ((unsigned)seat < MAX_SPLITS)
+		VectorCopy(cl.playerview[seat].simvel, outvel);
+}
 #endif
 
 static void QDECL Plug_GetLocationName(const float *locpoint, char *outbuffer, size_t bufferlen)

@@ -239,7 +239,7 @@ void SV_New_f (void)
 	int			playernum;
 	int splitnum;
 	client_t *split;
-	unsigned int fteext1;	//reported to client
+	unsigned int fteext1, fteext2;	//reported to client
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -298,6 +298,7 @@ void SV_New_f (void)
 	}
 
 	fteext1 = host_client->fteprotocolextensions;
+	fteext2 = host_client->fteprotocolextensions2;
 	switch(svs.netprim.coordtype)
 	{
 	case COORDTYPE_FLOAT_32:
@@ -319,6 +320,7 @@ void SV_New_f (void)
 		host_client->drop = true;
 		return;
 	}
+	fteext2 &= ~PEXT2_STUNAWARE;	//don't complicate demos.
 
 	ClientReliableCheckBlock(host_client, 800);	//okay, so it might be longer, but I'm too lazy to work out the real size.
 
@@ -329,10 +331,10 @@ void SV_New_f (void)
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE1);
 		ClientReliableWrite_Long (host_client, fteext1);
 	}
-	if (host_client->fteprotocolextensions2)//let the client know
+	if (fteext2)//let the client know
 	{
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE2);
-		ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions2);
+		ClientReliableWrite_Long (host_client, fteext2);
 	}
 	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION_QW);
 	ClientReliableWrite_Long (host_client, svs.spawncount);
@@ -340,7 +342,7 @@ void SV_New_f (void)
 		ClientReliableWrite_Byte (host_client, 0);
 	ClientReliableWrite_String (host_client, gamedir);
 
-	if (host_client->fteprotocolextensions2 & PEXT2_MAXPLAYERS)
+	if (fteext2 & PEXT2_MAXPLAYERS)
 	{
 		/*is this a sane way to do it? or should we split the spectator thing off entirely?*/
 		ClientReliableWrite_Byte (host_client, sv.allocated_client_slots);
@@ -546,6 +548,7 @@ void SVNQ_New_f (void)
 		protext1 |= PEXT_FLOATCOORDS;
 	else
 		protext1 &= ~PEXT_FLOATCOORDS;
+	protext2 &= ~PEXT2_STUNAWARE;	//always clear this, don't confuse demos.
 
 	op = host_client->protocol;
 	if (host_client->supportedprotocols)
@@ -3892,18 +3895,12 @@ void SV_Say (qboolean team)
 
 	if (strlen(text)+strlen(p)+2 >= sizeof(text)-10)
 	{
-		SV_ClientTPrintf(host_client, PRINT_CHAT, "buffer overflow protection: failiure\n");
+		SV_ClientTPrintf(host_client, PRINT_CHAT, "buffer overflow protection: failure\n");
 		return;
 	}
 	if (svprogfuncs)
 		if (PR_QCChat(p, team))	//true if handled.
 			return;
-
-	if (strstr(p, "password"))
-	{
-		Z_Free(host_client->centerprintstring);
-		host_client->centerprintstring = Z_StrDup("big brother is watching you");
-	}
 
 	Q_strcat(text, p);
 
@@ -3983,6 +3980,9 @@ void SV_Say (qboolean team)
 	}
 #ifdef MVD_RECORDING
 	sv.mvdrecording = mvdrecording;
+
+	if (strstr(p, "password"))	//just a friendly reminder.
+		SV_ClientPrintf(host_client, PRINT_HIGH, "DON'T SHARE PASSWORDS HERE, YOU MUPPET!\r");
 
 	if (!sv.mvdrecording || !cls)
 		return;

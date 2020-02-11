@@ -35,6 +35,7 @@ cvar_t scr_scoreboard_newstyle = CVARD("scr_scoreboard_newstyle", "1", "Display 
 cvar_t scr_scoreboard_showfrags = CVARD("scr_scoreboard_showfrags", "0", "Display kills+deaths+teamkills, as determined by fragfile.dat-based conprint parsing. These may be inaccurate if you join mid-game.");
 cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Display flag caps+touches on the scoreboard, where our fragfile.dat supports them.\n0: off\n1: on\n2: on only if someone appears to have interacted with a flag.");
 cvar_t scr_scoreboard_fillalpha = CVARD("scr_scoreboard_fillalpha", "0.7", "Transparency amount for newstyle scoreboard.");
+cvar_t scr_scoreboard_backgroundalpha = CVARD("scr_scoreboard_backgroundalpha", "0.5", "Further multiplier for the background alphas.");
 cvar_t scr_scoreboard_teamscores = CVARD("scr_scoreboard_teamscores", "1", "Makes +showscores act as +showteamscores. Because reasons.");
 cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the scoreboard, sort players by their team BEFORE their personal score.");
 cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1");
@@ -91,7 +92,7 @@ static apic_t		*sb_ibar;
 static apic_t		*sb_sbar;
 static apic_t		*sb_scorebar;
 
-static apic_t		*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
+       apic_t		*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
 static apic_t		*sb_ammo[4];
 static apic_t		*sb_sigil[4];
 static apic_t		*sb_armor[3];
@@ -972,6 +973,7 @@ static apic_t *Sbar_PicFromWad(char *name)
 void Sbar_Flush (void)
 {
 	sbar_loaded = false;
+	memset(sb_weapons, 0, sizeof(sb_weapons));
 }
 void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 {
@@ -980,6 +982,8 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	qbyte	lumptype;
 	if (sbar_loaded)
 		return;
+
+	memset(sb_weapons, 0, sizeof(sb_weapons));
 
 	sbar_loaded = true;
 
@@ -1138,6 +1142,7 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showflags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_fillalpha, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_backgroundalpha, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_teamscores, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_teamsort, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
@@ -3023,7 +3028,7 @@ void Sbar_IntermissionNumber (float x, float y, int num, int digits, int color, 
 
 #define COL_TEAM_LOWAVGHIGH	COLUMN("low/avg/high", 12*8, {sprintf (num, "%3i/%3i/%3i", plow, pavg, phigh); Draw_FunString ( x, y, num); })
 #define COL_TEAM_TEAM		COLUMN("team", 4*8, 		{Draw_FunStringWidth ( x, y, tm->team, 4*8, false, false); \
-		if (!strncmp(cl.players[trackplayer].team, tm->team, 16))\
+		if (ourteam)\
 		{\
 			Draw_FunString ( x - 1*8, y, "^Ue010");\
 			Draw_FunString ( x + 4*8, y, "^Ue011");\
@@ -3056,6 +3061,8 @@ void Sbar_TeamOverlay (playerview_t *pv)
 	int rank_width = 320-32*2;
 	int startx;
 	int trackplayer;
+
+	qboolean ourteam;
 
 	if (!pv)
 		pv = &cl.playerview[0];
@@ -3146,11 +3153,14 @@ void Sbar_TeamOverlay (playerview_t *pv)
 		k = teamsort[i];
 		tm = teams + k;
 
+		ourteam = !strncmp(cl.players[trackplayer].team, tm->team, 16);
+
 		if (scr_scoreboard_newstyle.ival)
 		{
 			// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
 			// TODO: Alpha values on the background
 			int background_color;
+			float backalpha;
 
 			if (!(strcmp("red", tm->team)))
 				background_color = 4; // forced red
@@ -3159,7 +3169,11 @@ void Sbar_TeamOverlay (playerview_t *pv)
 			else
 				background_color = tm->bottomcolour;
 
-			Sbar_FillPCDark (startx - 2, y, rank_width - 3, 8, background_color, scr_scoreboard_fillalpha.value);
+			backalpha = scr_scoreboard_backgroundalpha.value*scr_scoreboard_fillalpha.value;
+			if (ourteam)
+				backalpha *= 1.7;
+
+			Sbar_FillPCDark (startx - 2, y, rank_width - 3, 8, background_color, backalpha);
 
 			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
 			R2D_FillBlock (startx - 3, y, 1, 8); // Electro - Border - Left
@@ -3275,8 +3289,7 @@ ping time frags name
 		Font_BeginString(font_default, x+24, y, &cx, &cy);				\
 		Font_DrawChar(cx, cy, CON_WHITEMASK, num[2] | 0xe000);			\
 																		\
-		if ((pv->cam_state == CAM_FREECAM && k == pv->playernum) ||		\
-			(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track))	\
+		if (isme)														\
 		{																\
 			Font_BeginString(font_default, x, y, &cx, &cy);				\
 			Font_DrawChar(cx, cy, CON_WHITEMASK, 16 | 0xe000);			\
@@ -3335,9 +3348,11 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 	int				skip = 10;
 	int showcolumns;
 	int startx, rank_width;
+	qboolean		isme;
 
 	vrect_t		gr = r_refdef.grect;
 	int namesize = (cl.teamplay ? 12*8 : 16*8);
+	float backalpha;
 
 	if (!pv)
 		return;
@@ -3525,6 +3540,8 @@ if (showcolumns & (1<<COLUMN##title)) \
 		y += skip;
 		if (y > vid.height-10)
 			break;
+		isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
+				(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
 
 		// Electro's scoreboard eyecandy: Moved this up here for usage with the row background color
 		top = Sbar_TopColour(s);
@@ -3532,6 +3549,10 @@ if (showcolumns & (1<<COLUMN##title)) \
 
 		if (scr_scoreboard_newstyle.ival)
 		{
+			backalpha = scr_scoreboard_backgroundalpha.value*scr_scoreboard_fillalpha.value;
+			if (isme)
+				backalpha *= 1.7;
+
 			// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
 			// TODO: Alpha values on the background
 			if ((cl.teamplay) && (!s->spectator))
@@ -3549,13 +3570,13 @@ if (showcolumns & (1<<COLUMN##title)) \
 				else
 					background_color = bottom;
 
-				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color, scr_scoreboard_fillalpha.value);
+				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color, backalpha);
 			}
 			else if (S_Voip_Speaking(k))
-				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00, scr_scoreboard_fillalpha.value);
+				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00, backalpha);
 			else
 			{
-				R2D_ImagePaletteColour (2, scr_scoreboard_fillalpha.value);
+				R2D_ImagePaletteColour (2, backalpha);
 				R2D_FillBlock (startx - 2, y, rank_width - 3, skip);
 			}
 
@@ -3594,6 +3615,8 @@ if (showcolumns & (1<<COLUMN##title)) \
 		y += skip;
 		if (y > vid.height-10)
 			break;
+		isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
+				(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
 
 		x = startx;
 #define COLUMN(title, width, code, fills) \

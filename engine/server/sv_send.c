@@ -3674,6 +3674,7 @@ void SV_SendClientMessages (void)
 
 #ifdef MVD_RECORDING
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
+void SV_MVD_CheckReverse(void);
 
 void DemoWriteQTVTimePad(int msecs);
 #define Max(a, b) ((a>b)?a:b)
@@ -3691,6 +3692,8 @@ void SV_SendMVDMessage(void)
 	extern		cvar_t sv_demoPings;
 //	extern		cvar_t	sv_demoMaxSize;
 	sizebuf_t *dmsg;
+
+	SV_MVD_CheckReverse();
 
 	if (!sv.mvdrecording)
 		return;

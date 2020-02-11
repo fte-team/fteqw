@@ -486,16 +486,7 @@ void CL_CalcCrouch (playerview_t *pv)
 		return;
 	}
 
-/*fixme: this helps lifts with cl_nopred, but seems to harm ramps slightly, might just be my imagination. I guess we need to check last frame too.
-	//check if we moved in the x/y axis. if we didn't then we're on a vertically moving platform and shouldn't be crouching.
-	VectorMA(pv->oldorigin, pv->oldz-orgz, pv->gravitydir, pv->oldorigin);
-	VectorSubtract(pv->simorg, pv->oldorigin, delta);
-	if (Length(delta)<0.001)
-		pv->oldz = orgz;
-*/
-
 	VectorCopy (pv->simorg, pv->oldorigin);
-
 
 	if (pv->onground && orgz - pv->oldz)
 	{

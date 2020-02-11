@@ -760,7 +760,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 	}
 
 	/*just wanted to stop it?*/
-	if (!sfx || chan->master_vol == 0)
+	if (!sfx)
 	{
 		if (src)
 		{

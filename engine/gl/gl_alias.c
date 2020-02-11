@@ -1391,7 +1391,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			VectorAdd(e->origin, center, center);
 			#else
 			VectorCopy(e->origin, center);
-			center[2] += 8;
+			center[2] += 24;
 			#endif
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, center, shadelight, ambientlight, lightdir);
 		}

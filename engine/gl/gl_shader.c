@@ -6561,6 +6561,39 @@ void Shader_DefaultBSPQ2(parsestate_t *ps, const char *shortname, const void *ar
 		char tmpbuffer[2048];
 		Shader_DefaultScript(ps, shortname, Shader_DefaultBSPWater(ps, shortname, tmpbuffer, sizeof(tmpbuffer)));
 	}
+	else if (Shader_FloatArgument(ps->s, "FLOW"))
+	{
+		if (Shader_FloatArgument(ps->s, "ALPHA")) {
+			Shader_DefaultScript(ps, shortname,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"alphagen const $#ALPHA\n"
+							"tcmod scroll -1 0\n"
+							"blendfunc blend\n"
+						"}\n"
+					"}\n"
+				);
+		} else {
+			Shader_DefaultScript(ps, shortname,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod scroll -1 0\n"
+					"}\n"
+					"{\n"
+						"map $lightmap\n"
+						"if gl_overbright > 1\n"
+						"blendfunc gl_dst_color gl_src_color\n"
+						"else\n"
+						"blendfunc gl_dst_color gl_zero\n"
+						"endif\n"
+						"depthfunc equal\n"
+					"}\n"
+				"}\n"
+				);
+		}
+	}
 	else if (Shader_FloatArgument(ps->s, "ALPHA"))//   !strncmp(shortname, "trans/", 6))
 	{
 		Shader_DefaultScript(ps, shortname,

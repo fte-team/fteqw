@@ -655,7 +655,9 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 extern	cvar_t	r_deluxemapping_cvar;
 extern	qboolean r_deluxemapping;
+#ifdef RTLIGHTS
 extern	qboolean r_fakeshadows; //enables the use of ortho model-only shadows
+#endif
 extern	float	r_blobshadows;
 extern	cvar_t r_softwarebanding_cvar;
 extern	qboolean r_softwarebanding;

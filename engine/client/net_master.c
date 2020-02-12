@@ -3597,6 +3597,7 @@ static void NetQ3_LocalServers_f(void)
 }
 static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const char *keywords)
 {
+#ifdef WEBCLIENT
 	if (masternum == countof(net_masterlist))
 	{
 		const char *url;
@@ -3613,6 +3614,7 @@ static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const ch
 		if (dl)
 			dl->isquery = true;
 	}
+#endif
 	if (masternum >= countof(net_masterlist))
 		return; //erk
 	if (net_masterlist[masternum].protocol == MP_QUAKE3)

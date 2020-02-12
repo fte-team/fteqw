@@ -4,6 +4,9 @@
 #include "quakedef.h"
 #include "../plugin.h"
 #include "com_mesh.h"
+
+#ifdef SKELETALMODELS
+
 extern plugmodfuncs_t *modfuncs;
 extern plugfsfuncs_t *filefuncs;
 
@@ -662,3 +665,4 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 	free(poseinfo);
 #undef hdr
 }
+#endif

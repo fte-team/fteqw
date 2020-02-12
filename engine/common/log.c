@@ -984,7 +984,7 @@ void Log_Init(void)
 		Cvar_Register (&log_enable[i], CONLOGGROUP);
 		Cvar_Register (&log_name[i], CONLOGGROUP);
 		log_newline[i] = true;
-#ifdef HAVE_LEGACY
+#ifdef IPLOG
 		Cmd_AddCommand(legacylog[i].commandname, IPLog_Merge_f);
 #endif
 	}

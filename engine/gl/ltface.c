@@ -1,5 +1,4 @@
 #include "quakedef.h"
-
 #ifdef RUNTIMELIGHTING
 
 typedef struct mentity_s {
@@ -1002,6 +1001,7 @@ static void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx
 
 
 
+static struct relight_ctx_s *lightcontext;
 #if defined(MULTITHREAD)
 #ifdef _WIN32
 #include <windows.h>
@@ -1011,7 +1011,6 @@ static void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx
 static void *relightthread[8];
 static unsigned int relightthreads;
 static volatile qboolean wantrelight;
-static struct relight_ctx_s *lightcontext;
 
 static int RelightThread(void *ctx)
 {
@@ -1225,10 +1224,10 @@ void RelightThink (void)
 #else
 		if (!lightmainthreadctx)
 			lightmainthreadctx = malloc(lightthreadctxsize);
-		LightFace(lightcontext, lightmainthreadctx, relitsurface);
-		lightmodel->surfaces[relitsurface].cached_dlight = -1;
+		LightFace(lightcontext, lightmainthreadctx, lightcontext->nextface);
+		lightmodel->surfaces[lightcontext->nextface].cached_dlight = -1;
 
-		relitsurface++;
+		lightcontext->nextface++;
 #endif
 		if (lightcontext->nextface >= lightmodel->numsurfaces)
 		{

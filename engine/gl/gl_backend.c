@@ -6347,8 +6347,10 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 		else
 #endif
 		{
+#ifdef RTLIGHTS
 			if (r_fakeshadows)
 				Sh_GenerateFakeShadows();
+#endif
 			GLBE_SelectEntity(&r_worldentity);
 
 			if (shaderstate.identitylighting == 0)

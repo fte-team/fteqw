@@ -822,7 +822,7 @@ qboolean Mod_ExecuteCommand(qboolean isinsecure)
 {
 	char tok[128];
 	cmdfuncs->Argv(0, tok, sizeof(tok));
-#ifndef SERVERONLY
+#if !defined(SERVERONLY) && defined(SKELETALMODELS)
 	if (!strcmp(tok, "exportiqm"))
 	{
 		model_t *mod;

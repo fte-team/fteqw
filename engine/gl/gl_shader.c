@@ -6550,6 +6550,7 @@ void Shader_DefaultBSPQ2(parsestate_t *ps, const char *shortname, const void *ar
 	{
 		Shader_DefaultScript(ps, shortname,
 				"{\n"
+					"sort sky\n"
 					"surfaceparm nodlight\n"
 					"skyparms - - -\n"
 				"}\n"

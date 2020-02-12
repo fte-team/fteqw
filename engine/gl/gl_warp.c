@@ -79,7 +79,12 @@ void R_SetSky(const char *sky)
 			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_TEXTYPE_CUBE|IF_CLAMP);
 			if (tex.reflectcube->width)
 			{
-				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\ndepthwrite\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
+				/* FIXME: Q2/HL require the skybox to not draw over geometry, shouldn't we force it? --eukara */
+				if (cls.allow_skyboxes) {
+					forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
+				} else {
+					forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\ndepthwrite\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
+				}
 				R_BuildDefaultTexnums(&tex, forcedsky, IF_WORLDTEX);
 				return;
 			}

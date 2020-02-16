@@ -967,13 +967,13 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 	}
 
 	if (size > 1.0*1024*1024*1024)
-		Con_Printf(U8("^[%s%s%s^] \t(%#.3ggb) (%s)\n"), colour, name, link, size/(1024.0*1024*1024), s?s->logicalpath:"??");
+		Con_Printf(U8("(%#.3ggb) ^[%s%s%s^] \t^h(%s)\n"), size/(1024.0*1024*1024), colour, name, link, s?s->logicalpath:"??");
 	else if (size > 1.0*1024*1024)
-		Con_Printf(U8("^[%s%s%s^] \t(%#.3gmb) (%s)\n"), colour, name, link, size/(1024.0*1024), s?s->logicalpath:"??");
+		Con_Printf(U8("(%#.3gmb) ^[%s%s%s^] \t^h(%s)\n"), size/(1024.0*1024), colour, name, link, s?s->logicalpath:"??");
 	else if (size > 1.0*1024)
-		Con_Printf(U8("^[%s%s%s^] \t(%#.3gkb) (%s)\n"), colour, name, link, size/1024.0, s?s->logicalpath:"??");
+		Con_Printf(U8("(%#.3gkb) ^[%s%s%s^] \t^h(%s)\n"), size/1024.0, colour, name, link, s?s->logicalpath:"??");
 	else
-		Con_Printf(U8("^[%s%s%s^] \t(%ub) (%s)\n"), colour, name, link, (unsigned int)size, s?s->logicalpath:"??");
+		Con_Printf(U8("(%5ub) ^[%s%s%s^] \t^h(%s)\n"), (unsigned int)size, colour, name, link, s?s->logicalpath:"??");
 	return 1;
 }
 
@@ -5900,13 +5900,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 						char *newprefix = "https://updates.";
 						e = COM_ParseFunString(CON_WHITEMASK, ENGINEWEBSITE, musite, sizeof(musite), false);
 						COM_DeFunString(musite, e, site, sizeof(site)-1, true, true);
-						printf("site: %s\n", site);
 						if (!strncmp(site, oldprefix, strlen(oldprefix)))
 						{
 							memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix)+1);
 							memcpy(site, newprefix, strlen(newprefix));
 						}
-						printf("site: %s\n", site);
 						Cmd_TokenizeString(va("downloadsurl \"%s%s\"", site, gamemode_info[i].downloadsurl), false, false);
 					}
 					else
@@ -6823,6 +6821,7 @@ void COM_InitFilesystem (void)
 	Cmd_AddCommand("fs_showmanifest", FS_ShowManifest_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 	Cmd_AddCommandAD("dir", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
+	Cmd_AddCommandAD("ls", COM_Dir_f,			FS_ArbitraryFile_c, "Displays filesystem listings. Accepts wildcards."); //q3 like
 	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
 	Cmd_AddCommandAD("flocate", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommandAD("which", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.

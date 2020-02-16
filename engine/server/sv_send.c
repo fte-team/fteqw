@@ -3166,14 +3166,23 @@ void SV_UpdateToReliableMessages (void)
 						continue;
 					if (client->controller)
 						continue;
-					ClientReliableWrite_Begin(client, svc_updatefrags, 4);
-					ClientReliableWrite_Byte(client, i);
+					switch(client->protocol)
+					{
+					case SCP_BAD:	//bots
+					case SCP_QUAKE2:
+					case SCP_QUAKE3:
+						break;
+					default:
+						ClientReliableWrite_Begin(client, svc_updatefrags, 4);
+						ClientReliableWrite_Byte(client, i);
 #ifdef NQPROT
-					if (ISNQCLIENT(client) && host_client->spectator == 1)
-						ClientReliableWrite_Short(client, -999);
-					else
+						if (ISNQCLIENT(client) && host_client->spectator == 1)
+							ClientReliableWrite_Short(client, -999);
+						else
 #endif
-						ClientReliableWrite_Short(client, curfrags);
+							ClientReliableWrite_Short(client, curfrags);
+						break;
+					}
 				}
 
 #ifdef MVD_RECORDING

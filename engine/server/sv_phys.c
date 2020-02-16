@@ -2559,8 +2559,6 @@ qboolean SV_Physics (void)
 		//they might just be a bit lagged. they will at least be as smooth as other players are.
 
 		usercmd_t ucmd;
-		static int old_bot_time;	//I hate using floats for timers.
-		int newbottime, ms;
 		client_t *oldhost;
 		edict_t *oldplayer;
 
@@ -2573,34 +2571,30 @@ qboolean SV_Physics (void)
 			Q1QVM_StartFrame(true);
 		}
 #endif
-
-		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
-		if (1 || host_frametime >= 1 / 72.0f)
+		if (1)
 		{
 			memset(&ucmd, 0, sizeof(ucmd));
-			newbottime = Sys_Milliseconds();
-			ms = newbottime - old_bot_time;
-			old_bot_time = newbottime;
-			for (i = 1; i <= sv.allocated_client_slots; i++)
+			for (i = 0; i < sv.allocated_client_slots; i++)
 			{
-				if (svs.clients[i-1].state > cs_zombie && svs.clients[i-1].protocol == SCP_BAD)
+				if (svs.clients[i].state > cs_zombie && svs.clients[i].protocol == SCP_BAD && svs.clients[i].msecs >= 1000/77)
 				{	//then this is a bot
 					oldhost = host_client;
 					oldplayer = sv_player;
-					host_client = &svs.clients[i-1];
+					host_client = &svs.clients[i];
 					host_client->isindependant = true;
 					sv_player = host_client->edict;
+					host_client->localtime = sv.time;
 
 					SV_PreRunCmd();
 
 					if (svs.gametype == GT_Q1QVM)
 					{
-						ucmd = svs.clients[i-1].lastcmd;
-						ucmd.msec = ms;
+						ucmd = svs.clients[i].lastcmd;
+						ucmd.msec = svs.clients[i].msecs;
 					}
 					else
 					{
-						ucmd.msec = ms;
+						ucmd.msec = svs.clients[i].msecs;
 						ucmd.angles[0] = (short)(sv_player->v->v_angle[0] * (65535/360.0f));
 						ucmd.angles[1] = (short)(sv_player->v->v_angle[1] * (65535/360.0f));
 						ucmd.angles[2] = (short)(sv_player->v->v_angle[2] * (65535/360.0f));
@@ -2608,18 +2602,18 @@ qboolean SV_Physics (void)
 						ucmd.sidemove = sv_player->xv->movement[1];
 						ucmd.upmove = sv_player->xv->movement[2];
 						ucmd.buttons = (sv_player->v->button0?1:0) | (sv_player->v->button2?2:0);
-
-						svs.clients[i-1].lastcmd = ucmd;	//allow the other clients to predict this bot.
 					}
+					ucmd.msec = min(ucmd.msec, 250);
 
 					SV_RunCmd(&ucmd, false);
 					SV_PostRunCmd();
+
+					host_client->lastcmd = ucmd;	//allow the other clients to predict this bot.
 
 					host_client = oldhost;
 					sv_player = oldplayer;
 				}
 			}
-			old_bot_time = Sys_Milliseconds();
 		}
 	}
 

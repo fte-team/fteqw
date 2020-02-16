@@ -7174,9 +7174,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 	if (host_client->state && host_client->protocol != SCP_BAD)
 	{
-		sv_player->xv->movement[0] = ucmd->forwardmove * host_frametime;
-		sv_player->xv->movement[1] = ucmd->sidemove * host_frametime;
-		sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
+		sv_player->xv->movement[0] = ucmd->forwardmove;
+		sv_player->xv->movement[1] = ucmd->sidemove;
+		sv_player->xv->movement[2] = ucmd->upmove;
 	}
 
 	WPhys_CheckVelocity(&sv.world, (wedict_t*)sv_player);
@@ -7284,18 +7284,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			ucmd->angles[1] = (int)(sv_player->v->v_angle[1] * (65535/360.0f));
 			ucmd->angles[2] = (int)(sv_player->v->v_angle[2] * (65535/360.0f));
 
-			if (host_frametime)
-			{
-				ucmd->forwardmove = sv_player->xv->movement[0] / host_frametime;
-				ucmd->sidemove = sv_player->xv->movement[1] / host_frametime;
-				ucmd->upmove = sv_player->xv->movement[2] / host_frametime;
-			}
-			else
-			{
-				ucmd->forwardmove = 0;
-				ucmd->sidemove = 0;
-				ucmd->upmove = 0;
-			}
+			ucmd->forwardmove = sv_player->xv->movement[0];
+			ucmd->sidemove = sv_player->xv->movement[1];
+			ucmd->upmove = sv_player->xv->movement[2];
 		}
 	}
 

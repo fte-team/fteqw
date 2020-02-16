@@ -607,9 +607,10 @@ void M_Menu_GameOptions_f (void)
 		NULL
 	};
 	static const char *teamplayoptions[] = {
-		"off",
-		"friendly fire",
-		"no friendly fire",
+		"off",				//no teams at all
+		"no self+team fire",	//don't hurt same-team (with bugs in coop)
+		"friendly fire",	//scoreboard shows teams, gamecode doesn't care
+		"no team fire (qw-only)",	//like 1, except you still hurt yourself.
 		NULL
 	};
 	static const char *skilloptions[] = {

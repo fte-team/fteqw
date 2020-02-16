@@ -2203,6 +2203,10 @@ ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(qboolean isserver, c
 */
 	newcon = Z_Malloc(sizeof(*newcon));
 
+	if (!strncmp(address, "ice://", 6)||!strncmp(address, "rtc://", 6))
+		address+=6;
+	else if (!strncmp(address, "ices://", 7)||!strncmp(address, "rtcs://", 7))
+		address+=7;
 	if (address == path && *path=='/' && fs_manifest->rtcbroker)
 	{
 		if (!strncmp(fs_manifest->rtcbroker, "tls://", 6) || !strncmp(fs_manifest->rtcbroker, "tcp://", 6))
@@ -2213,10 +2217,6 @@ ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(qboolean isserver, c
 	}
 	else
 	{
-		if (!strncmp(address, "ice://", 6)||!strncmp(address, "rtc://", 6))
-			address+=6;
-		else if (!strncmp(address, "ices://", 7)||!strncmp(address, "rtcs://", 7))
-			address+=7;
 		Q_strncpyz(newcon->brokername, address, sizeof(newcon->brokername));	//name is for prints only.
 		if (path && *path == '/' && path-address < sizeof(newcon->brokername))
 		{

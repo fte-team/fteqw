@@ -1981,7 +1981,7 @@ qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 			return true;
 
 		if (er == NET_ENETUNREACH)
-			Con_Printf("NET_SendPollPacket Warning: unreachable: %s\n", NET_AdrToString(buf, sizeof(buf), &to));
+			Con_DPrintf("NET_SendPollPacket Warning: unreachable: %s\n", NET_AdrToString(buf, sizeof(buf), &to));
 		else
 #ifdef _WIN32
 		if (er == NET_EADDRNOTAVAIL)
@@ -2350,7 +2350,7 @@ static void MasterInfo_ProcessHTTPInfo(serverinfo_t *srv, const char *info)
 	char adrbuf[MAX_ADR_SIZE];
 	if (info && (!(srv->status & SRVSTATUS_ALIVE) || srv->ping == PING_UNKNOWN))
 	{
-		if (srv->adr.prot == NP_RTC_TCP || srv->adr.prot == NP_RTC_TCP)
+		if (srv->adr.prot == NP_RTC_TLS || srv->adr.prot == NP_RTC_TCP)
 		{
 			srv->sends = 0;	//no point pinging it, it won't work.
 			srv->ping = PING_UNKNOWN;
@@ -2399,8 +2399,12 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 	}
 	else
 	{
+#ifdef Q3CLIENT
 		NET_StringToAdr("/", PORT_ICEBROKER, &brokeradr);
 		protocoltype = MP_QUAKE3;
+#else
+		return;
+#endif
 	}
 
 	if (!file)

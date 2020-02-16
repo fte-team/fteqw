@@ -2269,7 +2269,7 @@ void CL_ParseTrailParticles(void)
 
 	effectindex = CL_TranslateParticleFromServer(effectindex);
 
-	if (entityindex && (unsigned int)entityindex < MAX_EDICTS)
+	if (entityindex>0 && (unsigned int)entityindex < cl.maxlerpents)
 		ts = &cl.lerpents[entityindex].trailstate;
 	else
 		ts = NULL;

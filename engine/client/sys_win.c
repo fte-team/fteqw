@@ -1017,7 +1017,7 @@ static struct
 	//hide these symbols from shitty exports scanners so we don't look like the keylogger that we aren't. Note the 'vid.activeapp' requirement below - we are not a keylogger, we only see a limited set of keys and only when we already have focus.
 	HHOOK (WINAPI *pSetWindowsHookEx) (int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWORD dwThreadId);	//W and A versions have the same signature.
 	LRESULT (WINAPI *pCallNextHookEx) (HHOOK hhk, int nCode, WPARAM wParam, LPARAM lParam);
-	WINBOOL (WINAPI *pUnhookWindowsHookEx) (HHOOK hhk);
+	BOOL (WINAPI *pUnhookWindowsHookEx) (HHOOK hhk);
 } winkeys;
 
 cvar_t	sys_disableWinKeys = CVAR("sys_disableWinKeys", "0");

@@ -275,7 +275,7 @@ if [ -e "$HOME/nocompat_readme.html" ]; then
 fi
 
 #this really should use the native cpu type... until then we use 32bit in case anyone's still using a 32bit kernel.
-if [ "$BUILD_LINUXx32" != "n" ]; then
+if [ "$BUILD_LINUXx86" != "n" ]; then
 	echo "--- QC builds ---"
 	rm -rf $QCCBUILDFOLDER 2>&1
 	mkdir -p $QCCBUILDFOLDER

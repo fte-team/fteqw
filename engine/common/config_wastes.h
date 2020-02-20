@@ -169,7 +169,7 @@
 #undef PACKAGEMANAGER			//Allows the user to enable/disable/download packages and plugins.
 #undef HEADLESSQUAKE
 #undef WAYLANDQUAKE
-#undef AVAIL_FREETYPE	// for truetype font rendering
+#define AVAIL_FREETYPE	// for truetype font rendering
 #undef SERVER_DEMO_PLAYBACK	//outdated crap
 
 //FIXME: Stuff that Spike has added that eukara needs to decide whether to use or not.
@@ -208,6 +208,9 @@
 #endif
 #ifdef AVAIL_JPEGLIB
 -DLINK_JPEG
+#endif
+#ifdef AVAIL_FREETYPE
+-DLINK_FREETYPE
 #endif
 
 #ifdef USE_INTERNAL_BULLET	//makefile will respond to this by trying to link bullet into the engine itself, instead of as a plugin.

@@ -11349,6 +11349,93 @@ static void Image_ChangeFormatFlags(struct pendingtextureinfo *mips, unsigned in
 		Image_ChangeFormat(mips, sh_config.texfmt, origfmt, imagename);
 }
 
+//operates in place...
+void Image_Premultiply(struct pendingtextureinfo *mips)
+{
+	//works for rgba or bgra
+	int i;
+	switch(mips->encoding)
+	{
+	case PTI_RGBA32F:
+		{
+			float *fte_restrict premul = (float*)mips->mip[0].data;
+			for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
+			{
+				premul[0] = (premul[0] * premul[3]);
+				premul[1] = (premul[1] * premul[3]);
+				premul[2] = (premul[2] * premul[3]);
+			}
+		}
+		break;
+	case PTI_RGBA16F:
+		{
+			unsigned short *fte_restrict premul = (unsigned short*)mips->mip[0].data;
+			for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
+			{
+				float a = HalfToFloat(premul[3]);
+				premul[0] = FloatToHalf(HalfToFloat(premul[0]) * a);
+				premul[1] = FloatToHalf(HalfToFloat(premul[1]) * a);
+				premul[2] = FloatToHalf(HalfToFloat(premul[2]) * a);
+			}
+		}
+		break;
+	case PTI_RGBA16:
+		{
+			unsigned short *fte_restrict premul = (unsigned short*)mips->mip[0].data;
+			for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
+			{
+				premul[0] = (premul[0] * premul[3])>>16;
+				premul[1] = (premul[1] * premul[3])>>16;
+				premul[2] = (premul[2] * premul[3])>>16;
+			}
+		}
+		break;
+	case PTI_A2BGR10:
+		{
+			unsigned int *fte_restrict premul = (unsigned int*)mips->mip[0].data, r,g,b,a;
+			for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++)
+			{
+				a =   (*premul>>30)&0x3;
+				b = (((*premul>>20)&0x3ff)*a)>>2;
+				g = (((*premul>>10)&0x3ff)*a)>>2;
+				r = (((*premul>> 0)&0x3ff)*a)>>2;
+				*premul++ = (a<<30)|(b<<20)|(g<<20)|(r<<0);
+			}
+		}
+		break;
+	case PTI_LLLX8:	//FIXME: why the Xs?
+	case PTI_LLLA8:
+	case PTI_RGBA8:
+	case PTI_RGBX8:
+	case PTI_BGRA8:
+	case PTI_BGRX8:
+	case PTI_RGBA8_SRGB:	//fixme: what's the correct multiplication for srgb?
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:
+		{
+			qbyte *fte_restrict premul = (qbyte*)mips->mip[0].data;
+			for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
+			{
+				premul[0] = (premul[0] * premul[3])>>8;
+				premul[1] = (premul[1] * premul[3])>>8;
+				premul[2] = (premul[2] * premul[3])>>8;
+			}
+		}
+		break;
+	case PTI_L8A8:
+	case PTI_L8A8_SRGB:
+		{
+			qbyte *fte_restrict premul = (qbyte*)mips->mip[0].data;
+			for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=2)
+				premul[0] = (premul[0] * premul[1])>>8;
+			break;
+		}
+	default:
+		break;	//format not known, so no idea how to premultiply it. bc2/3 might already be premultiplied or not...
+	}
+}
+
 //resamples and depalettes as required
 //ALWAYS frees rawdata, even on failure (but never mips).
 static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flags, void *rawdata, void *palettedata, int imgwidth, int imgheight, uploadfmt_t fmt, qboolean freedata)
@@ -12091,90 +12178,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	}
 
 	if (flags & IF_PREMULTIPLYALPHA)
-	{
-		//works for rgba or bgra
-		int i;
-		switch(mips->encoding)
-		{
-		case PTI_RGBA32F:
-			{
-				float *fte_restrict premul = (float*)mips->mip[0].data;
-				for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
-				{
-					premul[0] = (premul[0] * premul[3]);
-					premul[1] = (premul[1] * premul[3]);
-					premul[2] = (premul[2] * premul[3]);
-				}
-			}
-			break;
-		case PTI_RGBA16F:
-			{
-				unsigned short *fte_restrict premul = (unsigned short*)mips->mip[0].data;
-				for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
-				{
-					float a = HalfToFloat(premul[3]);
-					premul[0] = FloatToHalf(HalfToFloat(premul[0]) * a);
-					premul[1] = FloatToHalf(HalfToFloat(premul[1]) * a);
-					premul[2] = FloatToHalf(HalfToFloat(premul[2]) * a);
-				}
-			}
-			break;
-		case PTI_RGBA16:
-			{
-				unsigned short *fte_restrict premul = (unsigned short*)mips->mip[0].data;
-				for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
-				{
-					premul[0] = (premul[0] * premul[3])>>16;
-					premul[1] = (premul[1] * premul[3])>>16;
-					premul[2] = (premul[2] * premul[3])>>16;
-				}
-			}
-			break;
-		case PTI_A2BGR10:
-			{
-				unsigned int *fte_restrict premul = (unsigned int*)mips->mip[0].data, r,g,b,a;
-				for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++)
-				{
-					a =   (*premul>>30)&0x3;
-					b = (((*premul>>20)&0x3ff)*a)>>2;
-					g = (((*premul>>10)&0x3ff)*a)>>2;
-					r = (((*premul>> 0)&0x3ff)*a)>>2;
-					*premul++ = (a<<30)|(b<<20)|(g<<20)|(r<<0);
-				}
-			}
-			break;
-		case PTI_LLLX8:	//FIXME: why the Xs?
-		case PTI_LLLA8:
-		case PTI_RGBA8:
-		case PTI_RGBX8:
-		case PTI_BGRA8:
-		case PTI_BGRX8:
-		case PTI_RGBA8_SRGB:	//fixme: what's the correct multiplication for srgb?
-		case PTI_RGBX8_SRGB:
-		case PTI_BGRA8_SRGB:
-		case PTI_BGRX8_SRGB:
-			{
-				qbyte *fte_restrict premul = (qbyte*)mips->mip[0].data;
-				for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
-				{
-					premul[0] = (premul[0] * premul[3])>>8;
-					premul[1] = (premul[1] * premul[3])>>8;
-					premul[2] = (premul[2] * premul[3])>>8;
-				}
-			}
-			break;
-		case PTI_L8A8:
-		case PTI_L8A8_SRGB:
-			{
-				qbyte *fte_restrict premul = (qbyte*)mips->mip[0].data;
-				for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=2)
-					premul[0] = (premul[0] * premul[1])>>8;
-				break;
-			}
-		default:
-			break;	//format not known, so no idea how to premultiply it. bc2/3 might already be premultiplied or not...
-		}
-	}
+		Image_Premultiply(mips);
 
 	mips->mip[0].needfree = freedata;
 	return true;

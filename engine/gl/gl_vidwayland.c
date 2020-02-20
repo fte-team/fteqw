@@ -247,8 +247,10 @@ static struct wdisplay_s
 #endif
 
 	//stupid csd crap to work around shitty wayland servers
+	int truewidth;	//not really needed, but present for consistency
 	int trueheight;
 	int csdsize;
+	char *csdcaption;
 	qboolean hasssd;	//probably false on gnome.
 	int mousex,mousey;
 
@@ -488,7 +490,7 @@ void xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel
 {
 	if (!width || !height)
 	{
-		width = vid.pixelwidth;
+		width = w.truewidth;
 		height = w.trueheight;
 	}
 
@@ -497,8 +499,9 @@ void xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel
 		pwl_egl_window_resize(w.enwindow, width, height, 0, 0);
 #endif
 
+	w.truewidth = width;
 	w.trueheight = height;
-	if (vid.pixelwidth != width || vid.pixelheight != w.trueheight-w.csdsize)
+	if (vid.pixelwidth != width || vid.pixelheight != height-w.csdsize)
 	{
 		vid.pixelwidth = width;
 		vid.pixelheight = w.trueheight-w.csdsize;
@@ -538,11 +541,12 @@ static void WL_shell_handle_configure(void *data, struct wl_shell_surface *shell
 		pwl_egl_window_resize(w.enwindow, width, height, 0, 0);
 #endif
 
+	w.truewidth = width;
 	w.trueheight = height;
-	if (vid.pixelwidth != width || vid.pixelheight != w.trueheight-w.csdsize)
+	if (vid.pixelwidth != width || vid.pixelheight != height-w.csdsize)
 	{
 		vid.pixelwidth = width;
-		vid.pixelheight = w.trueheight-w.csdsize;
+		vid.pixelheight = height-w.csdsize;
 		Cvar_ForceCallback(&vid_conautoscale);
 	}
 }
@@ -645,47 +649,70 @@ void *WL_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t
 	const char *xdg_runtime_dir = getenv ("XDG_RUNTIME_DIR");
 	int fd;
 	struct cursorinfo_s *c;
+	static qboolean allowfmts[PTI_MAX] = {[PTI_BGRX8]=true, [PTI_BGRA8]=true};	//FIXME: populate via wl_shm_add_listener instead of using formats that we THINK will work.
+	struct pendingtextureinfo mips = {};
 
 	if (!w.shm)
 		return NULL;	//can't shm the image to the server
 
-	switch(format)
+	mips.mipcount = 1;
+	mips.type = PTI_2D;
+	mips.encoding = format;
+	mips.extrafree = NULL;
+
+	mips.mip[0].width = width*scale;
+	mips.mip[0].height = height*scale;
+	mips.mip[0].depth = 1;
+	mips.mip[0].data = Image_ResampleTexture(format, imagedata, width, height, NULL, mips.mip[0].width, mips.mip[0].height);
+	mips.mip[0].needfree = true;
+	mips.mip[0].datasize = 0;
+	if (!allowfmts[mips.encoding])
+		Image_ChangeFormat(&mips, allowfmts, format, "cursor");
+	if (!allowfmts[mips.encoding])
+		return NULL;	//failure...
+
+	switch(mips.encoding)
 	{	//fte favours byte orders, while packed formats are ordered as hex numbers would be
+		//wayland formats are as hex (explicitly little-endian, so byteswapped)
+	case PTI_RGBA8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_ABGR8888;	break;
+	case PTI_RGBX8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_XBGR8888;	break;
 	case PTI_LLLA8: //just fall through
-	case PTI_RGBA8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_ARGB8888;	break;
-	case PTI_RGBX8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_XRGB8888;	break;
-	case PTI_BGRA8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_ABGR8888;	break;
-	case PTI_BGRX8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_XBGR8888;	break;
+	case PTI_BGRA8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_ARGB8888;	break;
+	case PTI_LLLX8: //just fall through
+	case PTI_BGRX8:	pbytes = 4; shmfmt = WL_SHM_FORMAT_XRGB8888;	break;
 	case PTI_RGB8:	pbytes = 3; shmfmt = WL_SHM_FORMAT_BGR888;		break;
 	case PTI_BGR8:	pbytes = 3; shmfmt = WL_SHM_FORMAT_RGB888;		break;
+
 	case PTI_RGB565:pbytes = 2; shmfmt = WL_SHM_FORMAT_RGB565;		break;
 	case PTI_A2BGR10:pbytes= 4; shmfmt = WL_SHM_FORMAT_ABGR2101010;	break;
 	case PTI_L8:
 	default:
-		Con_Printf("WL_CreateCursor: Unsupported format\n");
-		return NULL;	//failure
+		Sys_Error("WL_CreateCursor: converted to unsupported pixel format %i", format);
+		return NULL;	//failure. can't convert from that format.
 	}
 
+	Image_Premultiply(&mips);
+
 	fd = open (xdg_runtime_dir, __O_TMPFILE|O_RDWR|O_EXCL, 0600);
-	size = width * height * pbytes;
+	size = mips.mip[0].width * mips.mip[0].height * pbytes;
 	if (fd >= 0)
 	{
 		ftruncate (fd, size);
 		outdata = mmap (NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 		if (outdata)
 		{
-			memcpy(outdata, imagedata, width*height*pbytes);
+			memcpy(outdata, mips.mip[0].data, mips.mip[0].width*mips.mip[0].height*pbytes);
 			pool = pwl_shm_create_pool (w.shm, fd, size);
 			if (pool)
 			{
-				buffer = pwl_shm_pool_create_buffer (pool, 0, width, height, width*pbytes, shmfmt);
+				buffer = pwl_shm_pool_create_buffer (pool, 0, mips.mip[0].width, mips.mip[0].height, mips.mip[0].width*pbytes, shmfmt);
 				if (buffer)
 				{
 					surf = pwl_compositor_create_surface(w.compositor);
 					if (surf)
 					{	//yay! something worked for once!
 						pwl_surface_attach(surf, buffer, 0, 0);
-						pwl_surface_damage(surf, 0, 0, width, height);
+						pwl_surface_damage(surf, 0, 0, mips.mip[0].width, mips.mip[0].height);
 						pwl_surface_commit(surf);
 					}
 					//can't destroy the buffer too early
@@ -703,12 +730,16 @@ void *WL_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t
 		c->buf = buffer;
 		c->hot_x = hotx;
 		c->hot_y = hoty;
-		c->width = width;
-		c->height = height;
+		c->width = mips.mip[0].width;
+		c->height = mips.mip[0].height;
 		return c;
 	}
 	if (buffer)
 		pwl_buffer_destroy(buffer);	//don't need to track that any more
+
+	//free it conversions required it.
+	if (mips.mip[0].needfree)
+		Z_Free(mips.mip[0].data);
 	return NULL;
 }
 qboolean WL_SetCursor(void *cursor)
@@ -1047,7 +1078,7 @@ static void WL_keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uin
 			ukey = 0;
 	}
 
-	IN_KeyEvent(0, (state==WL_KEYBOARD_KEY_STATE_PRESSED)?1:0, qkey, 0);
+	IN_KeyEvent(0, (state==WL_KEYBOARD_KEY_STATE_PRESSED)?1:0, qkey, ukey);
 }
 
 static void WL_keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)
@@ -1271,7 +1302,7 @@ static void WL_SwapBuffers(void)
 			R2D_ImageColours(0.05, 0.05, 0.1, 1);
 			R2D_FillBlock(0, 0, vid.pixelwidth, w.csdsize);
 			R2D_ImageColours(1, 1, 1, 1);
-			Draw_FunStringWidth(0, 4, "FTE QuakeWorld", vid.pixelwidth, 2, vid.activeapp);
+			Draw_FunStringWidth(0, 4, w.csdcaption, vid.pixelwidth, 2, vid.activeapp);
 			vid.width=vw;
 			vid.height=vh;
 			vid.rotpixelwidth=rw;
@@ -1307,7 +1338,10 @@ static void WL_SwapBuffers(void)
 		break;
 	}
 
-	w.absmouse = !vid.activeapp || Key_MouseShouldBeFree() || !w.relative_pointer || !in_windowed_mouse.value;
+	//if the game wants absolute mouse positions...
+	w.absmouse = !vid.activeapp || Key_MouseShouldBeFree() || !in_windowed_mouse.value;
+	//and force it on if we're lacking one of the plethora of extensions that were needed to get the damn thing actually usable.
+	w.absmouse |= !w.relative_pointer || !w.locked_pointer;
 	if (!w.absmouse && !w.locked_pointer && w.pointer_constraints)
 	{
 		w.locked_pointer = zwp_pointer_constraints_v1_lock_pointer(w.pointer_constraints, w.surface, w.pointer, NULL, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT);
@@ -1489,16 +1523,20 @@ static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 			pwl_shell_surface_set_toplevel(w.ssurface);
 	}
 #endif
+
+	w.truewidth = info->width?info->width:640;
+	w.trueheight = info->height?info->height:480;
 pwl_display_roundtrip(w.display);
+
 	{
 		struct wl_region *region = pwl_compositor_create_region(w.compositor);
-		pwl_region_add(region, 0, 0, info->width, info->height);
+		pwl_region_add(region, 0, 0, w.truewidth, w.trueheight);
 		pwl_surface_set_opaque_region(w.surface, region);
-		//FIXME: leaks region?
+		//FIXME: leaks region...
+		//pwl_region_destroy(region);
 	}
 pwl_display_roundtrip(w.display);
-	vid.pixelwidth = info->width;
-	w.trueheight = info->height;
+	vid.pixelwidth = w.truewidth;
 	vid.pixelheight = w.trueheight-w.csdsize;
 
 	vid.activeapp = true;
@@ -1525,7 +1563,7 @@ pwl_display_roundtrip(w.display);
 	case QR_OPENGL:
 		{
 			EGLConfig cfg;
-			w.enwindow = pwl_egl_window_create(w.surface, info->width, info->height);
+			w.enwindow = pwl_egl_window_create(w.surface, w.truewidth, w.trueheight);
 			if (!EGL_InitDisplay(info, EGL_PLATFORM_WAYLAND_KHR, w.display, (EGLNativeDisplayType)w.display, &cfg))
 			{
 				Con_Printf("couldn't find suitable EGL config\n");
@@ -1570,6 +1608,7 @@ static void WL_DeInit(void)
 		pwl_display_roundtrip(w.display);
 		pwl_display_disconnect(w.display);
 	}
+	Z_Free(w.csdcaption);
 	memset(&w, 0, sizeof(w));
 }
 static qboolean WL_ApplyGammaRamps(unsigned int gammarampsize, unsigned short *ramps)
@@ -1587,6 +1626,8 @@ static void WL_SetCaption(const char *text)
 	if (w.ssurface)
 		pwl_shell_surface_set_title(w.ssurface, text);
 #endif
+
+	Z_StrDupPtr(&w.csdcaption, text);
 }
 
 static int WL_GetPriority(void)

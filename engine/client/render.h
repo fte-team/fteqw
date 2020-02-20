@@ -479,6 +479,7 @@ qboolean Image_FormatHasAlpha(uploadfmt_t encoding);
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);
 void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformats, uploadfmt_t origfmt, const char *imagename);
+void Image_Premultiply(struct pendingtextureinfo *mips);
 void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, int *inoutheight, int pixelbytes, qboolean flipx, qboolean flipy, qboolean flipd);
 
 #ifdef D3D8QUAKE

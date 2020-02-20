@@ -328,29 +328,32 @@ char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum up
 
 	if (gammaworks && r2d_canhwgamma)
 	{
-		if (*fmt == PTI_BGRA8 || *fmt == PTI_BGRX8 || *fmt == PTI_BGR8)
+		extern qbyte		gammatable[256];
+		int pxsize = 4;
+		c = (*truewidth)*(*trueheight);
+		switch(*fmt)
 		{
-			int pxsize = (*fmt == PTI_BGR8)?3:4;
-			c = (*truewidth)*(*trueheight)*pxsize;
+		case PTI_RGB8:
+		case PTI_BGR8:
+			pxsize = 3;
+			//fallthrough
+		case PTI_LLLA8:
+		case PTI_LLLX8:
+		case PTI_RGBA8:
+		case PTI_RGBX8:
+		case PTI_BGRA8:
+		case PTI_BGRX8:
+			//pxsize is 4 (or 3 if we fell through above)
+			c*=pxsize;
 			for (i=0 ; i<c ; i+=pxsize)
 			{
-				extern qbyte		gammatable[256];
-				ret[i+0] = gammatable[ret[i+2]];
-				ret[i+1] = gammatable[ret[i+1]];
-				ret[i+2] = gammatable[ret[i+0]];
-			}
-		}
-		else if (*fmt == PTI_RGBA8 || *fmt == PTI_RGBX8 || *fmt == PTI_RGB8)
-		{
-			int pxsize = (*fmt == PTI_RGB8)?3:4;
-			c = (*truewidth)*(*trueheight)*pxsize;
-			for (i=0 ; i<c ; i+=pxsize)
-			{
-				extern qbyte		gammatable[256];
 				ret[i+0] = gammatable[ret[i+0]];
 				ret[i+1] = gammatable[ret[i+1]];
 				ret[i+2] = gammatable[ret[i+2]];
 			}
+			break;
+		default:
+			break;	//some kind of bug.
 		}
 	}
 	

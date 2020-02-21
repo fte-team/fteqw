@@ -14,7 +14,7 @@
 /* FS rebranding */
 #define GAME_SHORTNAME		"wastes"
 #define GAME_FULLNAME		FULLENGINENAME
-#define GAME_BASEGAMES		GAME_SHORTNAME
+#define GAME_BASEGAMES		"logos","wastes"
 #define GAME_PROTOCOL		"The-Wastes"
 #define GAME_DEFAULTPORT	23000
 //#define GAME_IDENTIFYINGFILES	NULL	//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.

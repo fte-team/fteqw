@@ -2916,6 +2916,7 @@ static void Mod_Batches_SplitLightmaps(model_t *mod, int lmmerge)
 		{
 			batch->lightmap[sty] = (surf->lightmaptexturenums[sty]>=0)?lmscale*(surf->lightmaptexturenums[sty]/lmmerge):surf->lightmaptexturenums[sty];
 			batch->lmlightstyle[sty] = surf->styles[sty];
+			batch->vtlightstyle[sty] = surf->vlstyles[sty];
 		}
 
 		for (j = 1; j < batch->maxmeshes; j++)

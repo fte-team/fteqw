@@ -578,8 +578,10 @@ void GLBE_UploadAllLightmaps(void)
 		}
 
 		//for completeness.
+		lm->lightmap_texture->format = lm->fmt;
 		lm->lightmap_texture->width = lm->width;
 		lm->lightmap_texture->height = lm->height;
+		lm->lightmap_texture->depth = 1;
 		lm->lightmap_texture->status = TEX_LOADED;
 	}
 }

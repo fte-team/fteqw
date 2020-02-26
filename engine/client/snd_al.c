@@ -885,7 +885,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 						else //we don't want to play anything more.
 							break;
 						if (!queuedbufs)
-						{	//queue 0.1 secs if we're starting/resetting a new stream this is to try to cover up discintinuities caused by packetloss or whatever
+						{	//queue 0.1 secs if we're starting/resetting a new stream this is to try to cover up discontinuities caused by packetloss or whatever
 							sfxcache_t silence;
 							silence.speed = snd_speed;
 							silence.width = 2;

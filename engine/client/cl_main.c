@@ -743,6 +743,12 @@ char *CL_TryingToConnect(void)
 	return cls.servername;
 }
 
+#ifdef NQPROT
+static void CL_NullReadPacket(void)
+{	//just drop it all
+}
+#endif
+
 /*
 =================
 CL_CheckForResend
@@ -972,9 +978,10 @@ void CL_CheckForResend (void)
 			NET_AdrToString(data, sizeof(data), &connectinfo.adr);
 
 			/*eat up the server's packets, to clear any lingering loopback packets (like disconnect commands... yes this might cause packetloss for other clients)*/
-			while(NET_GetPacket (svs.sockets, 0) >= 0)
-			{
-			}
+			svs.sockets->ReadGamePacket = CL_NullReadPacket;
+			NET_ReadPackets(svs.sockets);
+			svs.sockets->ReadGamePacket = SV_ReadPacket;
+
 			net_message.packing = SZ_RAWBYTES;
 			net_message.cursize = 0;
 			MSG_BeginReading(net_message.prim);
@@ -3814,6 +3821,134 @@ void CLNQ_ConnectionlessPacket(void)
 
 void CL_MVDUpdateSpectator (void);
 void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset);
+
+void CL_ReadPacket(void)
+{
+	if (!qrenderer)
+		return;
+
+#ifdef HAVE_DTLS
+	if (*(int *)net_message.data != -1)
+		if (NET_DTLS_Decode(cls.sockets))
+			if (!net_message.cursize)
+				return;
+#endif
+
+#ifdef NQPROT
+	if (cls.demoplayback == DPB_NETQUAKE)
+	{
+		MSG_BeginReading (cls.netchan.netprim);
+		cls.netchan.last_received = realtime;
+		CLNQ_ParseServerMessage ();
+
+		if (!cls.demoplayback)
+			CL_NextDemo();
+		return;
+	}
+#endif
+#ifdef Q2CLIENT
+	if (cls.demoplayback == DPB_QUAKE2)
+	{
+		MSG_BeginReading (cls.netchan.netprim);
+		cls.netchan.last_received = realtime;
+		CLQ2_ParseServerMessage ();
+		return;
+	}
+#endif
+	//
+	// remote command packet
+	//
+	if (*(int *)net_message.data == -1)
+	{
+		CL_ConnectionlessPacket ();
+		return;
+	}
+
+	if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
+	{
+		char adr[MAX_ADR_SIZE];
+		Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
+		return;
+	}
+
+	if (cls.state == ca_disconnected)
+	{	//connect to nq servers, but don't get confused with sequenced packets.
+		if (NET_WasSpecialPacket(cls.sockets))
+			return;
+#ifdef NQPROT
+		CLNQ_ConnectionlessPacket ();
+#endif
+		return;	//ignore it. We arn't connected.
+	}
+
+	//
+	// packet from server
+	//
+	if (!cls.demoplayback &&
+		!NET_CompareAdr (&net_from, &cls.netchan.remote_address))
+	{
+		char adr[MAX_ADR_SIZE];
+		if (NET_WasSpecialPacket(cls.sockets))
+			return;
+		Con_DPrintf ("%s:sequenced packet from wrong server\n"
+			,NET_AdrToString(adr, sizeof(adr), &net_from));
+		return;
+	}
+
+	if (cls.netchan.pext_stunaware)	//should be safe to do this here.
+		if (NET_WasSpecialPacket(cls.sockets))
+			return;
+
+	switch(cls.protocol)
+	{
+	case CP_NETQUAKE:
+#ifdef NQPROT
+		if(NQNetChan_Process(&cls.netchan))
+		{
+			MSG_ChangePrimitives(cls.netchan.netprim);
+			CL_WriteDemoMessage (&net_message, msg_readcount);
+			CLNQ_ParseServerMessage ();
+		}
+#endif
+		break;
+	case CP_PLUGIN:
+		break;
+	case CP_QUAKE2:
+#ifdef Q2CLIENT
+		if (!Netchan_Process(&cls.netchan))
+			return;		// wasn't accepted for some reason
+		CLQ2_ParseServerMessage ();
+		break;
+#endif
+	case CP_QUAKE3:
+#ifdef Q3CLIENT
+		CLQ3_ParseServerMessage();
+#endif
+		break;
+	case CP_QUAKEWORLD:
+		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		{
+			MSG_BeginReading(cls.netchan.netprim);
+			cls.netchan.last_received = realtime;
+			cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
+		}
+		else if (!Netchan_Process(&cls.netchan))
+			return;		// wasn't accepted for some reason
+
+		CL_WriteDemoMessage (&net_message, msg_readcount);
+
+		if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
+		{	//server should not be responding to packets we have not sent yet
+			Con_DPrintf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
+			cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
+		}
+		MSG_ChangePrimitives(cls.netchan.netprim);
+		CLQW_ParseServerMessage ();
+		break;
+	case CP_UNKNOWN:
+		break;
+	}
+}
 /*
 =================
 CL_ReadPackets
@@ -3821,145 +3956,14 @@ CL_ReadPackets
 */
 void CL_ReadPackets (void)
 {
-	char	adr[MAX_ADR_SIZE];
-
-	if (!qrenderer)
-		return;
-
-//	while (NET_GetPacket ())
-	for(;;)
+	if	(cls.demoplayback != DPB_NONE)
 	{
-		if (!CL_GetMessage())
-#ifndef HAVE_DTLS
-			break;
-#else
-		{
-			NET_DTLS_Timeouts(cls.sockets);
-			break;
-		}
-
-		if (*(int *)net_message.data != -1)
-			if (NET_DTLS_Decode(cls.sockets))
-				if (!net_message.cursize)
-					continue;
-#endif
-
-#ifdef NQPROT
-		if (cls.demoplayback == DPB_NETQUAKE)
-		{
-			MSG_BeginReading (cls.netchan.netprim);
-			cls.netchan.last_received = realtime;
-			CLNQ_ParseServerMessage ();
-
-			if (!cls.demoplayback)
-				CL_NextDemo();
-			continue;
-		}
-#endif
-#ifdef Q2CLIENT
-		if (cls.demoplayback == DPB_QUAKE2)
-		{
-			MSG_BeginReading (cls.netchan.netprim);
-			cls.netchan.last_received = realtime;
-			CLQ2_ParseServerMessage ();
-			continue;
-		}
-#endif
-		//
-		// remote command packet
-		//
-		if (*(int *)net_message.data == -1)
-		{
-			CL_ConnectionlessPacket ();
-			continue;
-		}
-
-		if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
-		{
-			Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
-			continue;
-		}
-
-		if (cls.state == ca_disconnected)
-		{	//connect to nq servers, but don't get confused with sequenced packets.
-			if (NET_WasSpecialPacket(cls.sockets))
-				continue;
-#ifdef NQPROT
-			CLNQ_ConnectionlessPacket ();
-#endif
-			continue;	//ignore it. We arn't connected.
-		}
-
-		//
-		// packet from server
-		//
-		if (!cls.demoplayback &&
-			!NET_CompareAdr (&net_from, &cls.netchan.remote_address))
-		{
-			if (NET_WasSpecialPacket(cls.sockets))
-				continue;
-			Con_DPrintf ("%s:sequenced packet from wrong server\n"
-				,NET_AdrToString(adr, sizeof(adr), &net_from));
-			continue;
-		}
-
-		if (cls.netchan.pext_stunaware)	//should be safe to do this here.
-			if (NET_WasSpecialPacket(cls.sockets))
-				continue;
-
-		switch(cls.protocol)
-		{
-		case CP_NETQUAKE:
-#ifdef NQPROT
-			if(NQNetChan_Process(&cls.netchan))
-			{
-				MSG_ChangePrimitives(cls.netchan.netprim);
-				CL_WriteDemoMessage (&net_message, msg_readcount);
-				CLNQ_ParseServerMessage ();
-			}
-#endif
-			break;
-		case CP_PLUGIN:
-			break;
-		case CP_QUAKE2:
-#ifdef Q2CLIENT
-			if (!Netchan_Process(&cls.netchan))
-				continue;		// wasn't accepted for some reason
-			CLQ2_ParseServerMessage ();
-			break;
-#endif
-		case CP_QUAKE3:
-#ifdef Q3CLIENT
-			CLQ3_ParseServerMessage();
-#endif
-			break;
-		case CP_QUAKEWORLD:
-			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
-			{
-				MSG_BeginReading(cls.netchan.netprim);
-				cls.netchan.last_received = realtime;
-				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
-			}
-			else if (!Netchan_Process(&cls.netchan))
-				continue;		// wasn't accepted for some reason
-
-			CL_WriteDemoMessage (&net_message, msg_readcount);
-
-			if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
-			{	//server should not be responding to packets we have not sent yet
-				Con_DPrintf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
-				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
-			}
-			MSG_ChangePrimitives(cls.netchan.netprim);
-			CLQW_ParseServerMessage ();
-			break;
-		case CP_UNKNOWN:
-			break;
-		}
-
-//		if (cls.demoplayback && cls.state >= ca_active && !CL_DemoBehind())
-//			return;
+		while(CL_GetDemoMessage())
+			CL_ReadPacket();
 	}
+	else
+		NET_ReadPackets(cls.sockets);
+	NET_DTLS_Timeouts(cls.sockets);
 
 	//
 	// check timeout

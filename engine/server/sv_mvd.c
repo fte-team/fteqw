@@ -85,6 +85,8 @@ int demomsgtype;
 int demomsgto;
 static char demomsgbuf[MAX_OVERALLMSGLEN];
 
+static void SV_MVD_Stopped(void);
+
 static mvddest_t *singledest;	//used when a stream is starting up so redundant data doesn't get dumped into other streams
 static struct reversedest_s
 {
@@ -557,7 +559,8 @@ hashedpassword:
 	{
 		if (p->hasauthed == true)
 		{
-			SV_MVD_Record(SV_MVD_InitStream(clientstream, userinfo));
+			if (!SV_MVD_Record(SV_MVD_InitStream(clientstream, userinfo)))
+				return QTV_ERROR;
 			return QTV_ACCEPT;
 		}
 	}
@@ -573,7 +576,8 @@ hashedpassword:
 			e = NULL;
 			dst = SV_MVD_InitStream(clientstream, userinfo);
 			dst->droponmapchange = p->isreverse;
-			SV_MVD_Record(dst);
+			if (!SV_MVD_Record(dst))
+				return QTV_ERROR;
 			return QTV_ACCEPT;
 		}
 		else
@@ -1531,7 +1535,7 @@ void SV_MVDStop (enum mvdclosereason_e reason, qboolean mvdonly)
 		// stop and remove
 
 		if (!demo.dest)
-			sv.mvdrecording = false;
+			SV_MVD_Stopped();
 
 		if (reason == MVD_CLOSE_DISCONNECTED)
 			SV_BroadcastPrintf (PRINT_CHAT, "QTV disconnected\n");
@@ -1554,7 +1558,7 @@ void SV_MVDStop (enum mvdclosereason_e reason, qboolean mvdonly)
 	DestCloseAllFlush(reason, mvdonly);
 
 	if (!demo.dest)	//might still be streaming qtv.
-		sv.mvdrecording = false;
+		SV_MVD_Stopped();
 
 	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), "");
 }
@@ -1707,6 +1711,17 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 
 	SV_MVD_SendInitialGamestate(dest);
 	return true;
+}
+
+static void SV_MVD_Stopped(void)
+{	//all recording has stopped. clean up any demo.recorder state
+	if (demo.recorder.frameunion.frames)
+	{
+		Z_Free(demo.recorder.frameunion.frames);
+		demo.recorder.frameunion.frames = NULL;
+	}
+	sv.mvdrecording = false;
+	memset(&demo, 0, sizeof(demo));
 }
 
 void SV_EnableClientsCSQC(void);

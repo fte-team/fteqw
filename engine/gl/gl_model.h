@@ -1022,7 +1022,8 @@ typedef struct model_s
 	{
 		int first;				//once built...
 		int count;				//num lightmaps
-		int	merge;				//merge this many source lightmaps together. woo.
+		int	mergew;				//merge this many source lightmaps together. woo.
+		int	mergeh;				//merge this many source lightmaps together. woo.
 		int width;				//x size of lightmaps
 		int height;				//y size of lightmaps
 		int surfstyles;			//numbers of style per surface.

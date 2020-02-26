@@ -63,9 +63,10 @@ cvar_t sys_extrasleep = CVAR("sys_extrasleep","0");
 cvar_t sys_colorconsole = CVAR("sys_colorconsole", "1");
 cvar_t sys_linebuffer = CVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
-qboolean	stdin_ready;
+static qboolean	stdin_ready;
+static qboolean noconinput = false;
 
-struct termios orig, changes;
+static struct termios orig, changes;
 
 /*
 ===============================================================================
@@ -216,7 +217,11 @@ void Sys_Error (const char *error, ...)
 	COM_WorkerAbort(string);
 	printf ("Fatal error: %s\n",string);
 
-	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
+	if (!noconinput)
+	{
+		tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
+		fcntl (STDIN_FILENO, F_SETFL, fcntl (STDIN_FILENO, F_GETFL, 0) & ~FNDELAY);
+	}
 
 	//we used to fire sigsegv. this resulted in people reporting segfaults and not the error message that appeared above. resulting in wasted debugging.
 	//abort should trigger a SIGABRT and still give us the same stack trace. should be more useful that way.
@@ -497,11 +502,13 @@ Sys_Quit
 */
 void Sys_Quit (void)
 {
-	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
+	if (!noconinput)
+	{
+		tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
+		fcntl (STDIN_FILENO, F_SETFL, fcntl (STDIN_FILENO, F_GETFL, 0) & ~FNDELAY);
+	}
 	exit (0);		// appkit isn't running
 }
-
-static int do_stdin = 1;
 
 #if 1
 static char *Sys_LineInputChar(char *line)
@@ -570,7 +577,11 @@ it to the host command processor
 ================
 */
 void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue)
-{
+{	//reconfigures the tty to send a char at a time (or line at a time)
+
+	if (noconinput)
+		return;	//oh noes! we already hungup!
+
 	changes = orig;
 	if (var->value)
 	{
@@ -598,32 +609,64 @@ char *Sys_ConsoleInput (void)
 	}
 #endif
 
-	if (!stdin_ready || !do_stdin)
+	if (!stdin_ready || noconinput==true)
 		return NULL;		// the select didn't say it was ready
 	stdin_ready = false;
 
-	if (sys_linebuffer.value == 0)
+//libraries and muxers and things can all screw with our stdin blocking state.
+//if a server sits around waiting for its never-coming stdin then we're screwed.
+//and don't assume that it won't block just because select told us it was readable, select lies.
+//so force it non-blocking so we don't get any nasty surprises.
+#if defined(__linux__)
 	{
-		text[0] = getc(stdin);
-		text[1] = 0;
-		len = 1;
-		return Sys_LineInputChar(text);
-	}
-	else
-	{
-		len = read (0, text, sizeof(text)-1);
-		if (len == 0)
+		int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+		if (!(fl & FNDELAY))
 		{
-			// end of file
-			do_stdin = 0;
+			fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+//			Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
+		}
+	}
+#endif
+
+	len = read (STDIN_FILENO, text, sizeof(text)-1);
+	if (len < 0)
+	{
+		int err = errno;
+		switch(err)
+		{
+		case EINTR:		//unix sucks
+		case EAGAIN:	//a select fuckup?
+			break;
+		case EIO:
+			noconinput |= 2;
+			stdin_ready = true;
+			return NULL;
+		default:
+			Con_Printf("error %i reading from stdin\n", err);
+			noconinput = true;	//we don't know what it was, but don't keep triggering it.
 			return NULL;
 		}
-		if (len < 1)
-			return NULL;
-		text[len-1] = 0;	// rip off the /n and terminate
-
-		return text;
 	}
+	if (noconinput&2)
+	{	//posix job stuff sucks - there's no way to detect when we're directly pushed to the foreground after being backgrounded.
+		Con_Printf("Welcome back!\n");
+		noconinput &= ~2;
+	}
+
+	/*if (len == 0)
+	{
+		// end of file? doesn't really make sense. depend upon sighup instead
+		Con_Printf("EOF reading from stdin\n");
+		noconinput = true;
+		return NULL;
+	}*/
+	if (len < 1)
+		return NULL;
+	text[len-1] = 0;	// rip off the /n and terminate
+
+	if (sys_linebuffer.value == 0)
+		return Sys_LineInputChar(text);
+	return text;
 }
 
 /*
@@ -867,6 +910,16 @@ static int Sys_CheckChRoot(void)
 	return ret;
 }
 
+#ifdef _POSIX_C_SOURCE
+static void SigCont(int code)
+{	//lets us know when we regained foreground focus.
+	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+	if (!(fl & FNDELAY))
+		fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+	noconinput &= ~2;
+}
+#endif
+
 /*
 =============
 main
@@ -898,6 +951,8 @@ int main(int argc, char *argv[])
 		useansicolours = false;
 	else
 		useansicolours = (isatty(STDOUT_FILENO) || COM_CheckParm("-colour") || COM_CheckParm("-color"));
+	if (COM_CheckParm("-nostdin"))
+		noconinput = true;
 
 	switch(Sys_CheckChRoot())
 	{
@@ -952,6 +1007,12 @@ int main(int argc, char *argv[])
 	}
 #endif
 
+#ifdef _POSIX_C_SOURCE
+	signal(SIGTTIN, SIG_IGN);	//have to ignore this if we want to not lock up when running backgrounded.
+	signal(SIGCONT, SigCont);
+	signal(SIGCHLD, SIG_IGN);	//mapcluster stuff might leak zombie processes if we don't do this.
+#endif
+
 
 #ifdef SUBSERVERS
 	if (COM_CheckParm("-clusterslave"))
@@ -970,8 +1031,8 @@ int main(int argc, char *argv[])
 //
 	while (1)
 	{
-		if (do_stdin)
-			stdin_ready = NET_Sleep(maxsleep, true);
+		if (noconinput != true)
+			stdin_ready |= NET_Sleep(maxsleep, true);
 		else
 		{
 			NET_Sleep(maxsleep, false);

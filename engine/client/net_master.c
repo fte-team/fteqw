@@ -167,7 +167,7 @@ static net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
 
 	//Total conversions will need to define their own in defaults.cfg or whatever.
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"frag-net.com:27950 198.58.111.37:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"master.frag-net.com:27950 198.58.111.37:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
 //	{MP_DPMASTER,	CVARFC("net_masterextra1",		""/*"ghdigital.com:27950 207.55.114.154:27950"*/,								CVAR_NOSAVE, Net_Masterlist_Callback)}, //(was 69.59.212.88) admin: LordHavoc
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Willis
 	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: tChr
@@ -2724,7 +2724,7 @@ void MasterInfo_Refresh(qboolean doreset)
 				url = va("http://%s/raw/%s", fs_manifest->rtcbroker+6, com_token);
 			else
 				url = va("http://%s/raw/%s", fs_manifest->rtcbroker, com_token);
-			Master_AddMasterHTTP(url,				MT_MASTERHTTP,		MP_QUAKEWORLD, "Public Servers Potentially Behind A NAT.");
+			Master_AddMasterHTTP(url,				MT_MASTERHTTP,		MP_DPMASTER, "Public Servers Potentially Behind A NAT.");
 		}
 
 		for (i = 0; net_masterlist[i].cv.name; i++)

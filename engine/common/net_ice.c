@@ -17,7 +17,7 @@ typedef struct
 #include "zlib.h"
 #endif
 #ifdef SUPPORT_ICE
-cvar_t net_ice_exchangeprivateips = CVARD("net_ice_exchangeprivateips", "", "Boolean. When set to 0, hides private IP addresses from your peers. Only addresses determined from the other side of your router will be shared. Setting it to 0 may be desirable but it can cause connections to fail when your router does not support hairpinning, whereas 1 fixes that at the cost of exposing private IP addresses.");
+cvar_t net_ice_exchangeprivateips = CVARFD("net_ice_exchangeprivateips", "", CVAR_NOTFROMSERVER, "Boolean. When set to 0, hides private IP addresses from your peers. Only addresses determined from the other side of your router will be shared. Setting it to 0 may be desirable but it can cause connections to fail when your router does not support hairpinning, whereas 1 fixes that at the cost of exposing private IP addresses.");
 /*
 Interactive Connectivity Establishment (rfc 5245)
 find out your peer's potential ports.
@@ -280,14 +280,20 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	case ICEP_VIDEO:
 		collection = cls.sockets;
 		if (!collection)
+		{
 			NET_InitClient(false);
+			collection = cls.sockets;
+		}
 		break;
 #endif
 #ifndef SERVERONLY
 	case ICEP_QWCLIENT:
 		collection = cls.sockets;
 		if (!collection)
+		{
 			NET_InitClient(false);
+			collection = cls.sockets;
+		}
 		break;
 #endif
 #ifndef CLIENTONLY
@@ -296,6 +302,8 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 		break;
 #endif
 	}
+	if (!collection)
+		return NULL;	//not initable or something
 
 	if (!conname)
 	{
@@ -318,13 +326,6 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	Q_strncpyz(con->originaddress, "127.0.0.1", sizeof(con->originaddress));
 
 	con->mode = mode;
-
-	if (!collection)
-	{
-		con->connections = collection = FTENET_CreateCollection(true);
-		FTENET_AddToCollection(collection, "UDP", "0", NA_IP, NP_DGRAM);
-		FTENET_AddToCollection(collection, "natpmp", "natpmp://5351", NA_IP, NP_NATPMP);
-	}
 
 	con->next = icelist;
 	icelist = con;
@@ -1855,6 +1856,7 @@ static void FTENET_ICE_Heartbeat(ftenet_ice_connection_t *b)
 		Info_SetValueForKey(info, "hostname", hostname.string, sizeof(info));
 		Info_SetValueForKey(info, "modname", FS_GetGamedir(true), sizeof(info));
 		Info_SetValueForKey(info, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(info));
+		Info_SetValueForKey(info, "needpass", InfoBuf_ValueForKey(&svs.info, "needpass"), sizeof(info));
 
 		FTENET_ICE_SplurgeCmd(b, ICEMSG_SERVERINFO, -1, info);
 	}
@@ -1904,7 +1906,7 @@ static qboolean FTENET_ICE_GetPacket(ftenet_generic_connection_t *gcon)
 		if (b->timeout > realtime)
 			return false;
 		b->generic.thesocket = TCP_OpenStream(&b->brokeradr);	//save this for select.
-		b->broker = FS_OpenTCPSocket(b->generic.thesocket, true, b->brokername);
+		b->broker = FS_WrapTCPSocket(b->generic.thesocket, true, b->brokername);
 
 #ifdef HAVE_SSL
 		//convert to tls...
@@ -2188,7 +2190,7 @@ static qboolean FTENET_ICE_ChangeLocalAddress(struct ftenet_generic_connection_s
 	return true;
 }
 
-ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
+ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
 {
 	ftenet_ice_connection_t *newcon;
 	const char *path;
@@ -2246,7 +2248,7 @@ ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(qboolean isserver, c
 	newcon->generic.GetLocalAddresses = FTENET_ICE_GetLocalAddresses;
 	newcon->generic.ChangeLocalAddress = FTENET_ICE_ChangeLocalAddress;
 
-	newcon->generic.islisten = isserver;
+	newcon->generic.islisten = col->islisten;
 
 	return &newcon->generic;
 }

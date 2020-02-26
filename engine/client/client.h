@@ -1246,6 +1246,7 @@ void CL_ClearState (qboolean gamestart);
 void CLQ2_ClearState(void);
 
 void CL_ReadPackets (void);
+void CL_ReadPacket(void);
 
 int  CL_ReadFromServer (void);
 void CL_WriteToServer (usercmd_t *cmd);
@@ -1273,7 +1274,7 @@ int CL_RemoveClientCommands(char *command);
 // cl_demo.c
 //
 void CL_StopPlayback (void);
-qboolean CL_GetMessage (void);
+qboolean CL_GetDemoMessage (void);
 void CL_WriteDemoCmd (usercmd_t *pcmd);
 void CL_Demo_ClientCommand(char *commandtext);	//for QTV.
 

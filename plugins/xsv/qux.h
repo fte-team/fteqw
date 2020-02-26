@@ -169,7 +169,6 @@ xfont_t *XS_CreateFont(int id, xclient_t *owner, char *fontname);
 void XS_CreateInitialResources(void);
 void XS_DestroyResource(xresource_t *res);
 void XS_DestroyResourcesOfClient(xclient_t *cl);
-void XS_CheckResourceSentinals(void);
 
 
 void XW_ExposeWindow(xwindow_t *root, int x, int y, int width, int height);

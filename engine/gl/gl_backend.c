@@ -5571,6 +5571,7 @@ static void BE_UpdateLightmaps(void)
 			{
 				extern cvar_t r_lightmap_nearest;
 				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", lmidx), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+				lm->lightmap_texture->format = lm->fmt;
 				qglGenTextures(1, &lm->lightmap_texture->num);
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

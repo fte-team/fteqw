@@ -978,24 +978,6 @@ readit:
 
 /*
 ====================
-CL_GetMessage
-
-Handles recording and playback of demos, on top of NET_ code
-====================
-*/
-qboolean CL_GetMessage (void)
-{
-	if	(cls.demoplayback != DPB_NONE)
-		return CL_GetDemoMessage ();
-
-	if (NET_GetPacket (cls.sockets, 0) < 0)
-		return false;
-
-	return true;
-}
-
-/*
-====================
 CL_Stop_f
 
 stop recording a demo

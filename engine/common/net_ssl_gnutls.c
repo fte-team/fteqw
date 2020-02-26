@@ -442,15 +442,16 @@ static void SSL_Close(vfsfile_t *vfs)
 		qgnutls_deinit(file->session);
 		file->session = NULL;
 	}
+}
+static qboolean QDECL SSL_CloseFile(vfsfile_t *vfs)
+{
+	gnutlsfile_t *file = (void*)vfs;
+	SSL_Close(vfs);
 	if (file->stream)
 	{
 		VFS_CLOSE(file->stream);
 		file->stream = NULL;
 	}
-}
-static qboolean QDECL SSL_CloseFile(vfsfile_t *vfs)
-{
-	SSL_Close(vfs);
 	Z_Free(vfs);
 	return true;
 }
@@ -617,14 +618,15 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 }
 
 //return 1 to read data.
-//-1 or 0 for error or not ready
+//-1 for error
+//0 for not ready
 static int SSL_DoHandshake(gnutlsfile_t *file)
 {
 	int err;
 	//session was previously closed = error
 	if (!file->session)
 	{
-		Sys_Printf("null session\n");
+		//Sys_Printf("null session\n");
 		return -1;
 	}
 
@@ -710,7 +712,7 @@ static int QDECL SSL_Write(struct vfsfile_s *f, const void *buffer, int bytestow
 			return 0;
 		else
 		{
-			Con_Printf("TLS Send Warning %i (%i bytes)\n", written, bytestowrite);
+			Con_DPrintf("TLS Send Error %i (%i bytes)\n", written, bytestowrite);
 			return -1;
 		}
 	}
@@ -740,14 +742,11 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 	gnutlsfile_t *file = p;
 //	Sys_Printf("SSL_Push: %u\n", size);
 	int done = VFS_WRITE(file->stream, data, size);
-	if (!done)
+	if (done <= 0)
 	{
-		qgnutls_transport_set_errno(file->session, EAGAIN);
+		qgnutls_transport_set_errno(file->session, (done==0)?EAGAIN:ECONNRESET);
 		return -1;
 	}
-	qgnutls_transport_set_errno(file->session, done<0?errno:0);
-//	if (done < 0)
-//		return 0;
 	return done;
 }
 static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
@@ -755,16 +754,12 @@ static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 	gnutlsfile_t *file = p;
 //	Sys_Printf("SSL_Pull: %u\n", size);
 	int done = VFS_READ(file->stream, data, size);
-	if (!done)
+	if (done <= 0)
 	{
-		qgnutls_transport_set_errno(file->session, EAGAIN);
+		//use ECONNRESET instead of returning eof.
+		qgnutls_transport_set_errno(file->session, (done==0)?EAGAIN:ECONNRESET);
 		return -1;
 	}
-	qgnutls_transport_set_errno(file->session, done<0?errno:0);
-//	if (done < 0)
-//	{
-//		return 0;
-//	}
 	return done;
 }
 

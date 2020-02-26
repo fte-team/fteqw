@@ -3447,7 +3447,6 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 				else
 				{
 					Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype, bbox);
-					pinframe += pq1inmodel->numverts;
 
 #ifdef _DEBUG
 					if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
@@ -3461,6 +3460,7 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 						Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
 						galias->warned = true;
 					}
+					pinframe += pq1inmodel->numverts;
 				}
 
 #ifndef SERVERONLY

@@ -1056,7 +1056,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 		//https uses a different default port
 		if (NET_StringToAdr2(con->server, https?443:80, &adr, 1, NULL))
 			con->sock = TCP_OpenStream(&adr);
-		con->stream = FS_OpenTCPSocket(con->sock, true, con->server);
+		con->stream = FS_WrapTCPSocket(con->sock, true, con->server);
 	}
 #ifdef HAVE_SSL
 	if (https)

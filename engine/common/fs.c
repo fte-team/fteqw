@@ -193,7 +193,7 @@ int fs_hash_files;
 
 
 
-const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
+static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *outbuf, int outlen);
 void FS_RegisterDefaultFileSystems(void);
 static void	COM_CreatePath (char *path);
 ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir);
@@ -1355,7 +1355,7 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 	loc->search = NULL;
 	loc->len = -1;
 
-	filename = FS_GetCleanPath(filename, cleanpath, sizeof(cleanpath));
+	filename = FS_GetCleanPath(filename, (lflags&FSLF_QUIET), cleanpath, sizeof(cleanpath));
 	if (!filename)
 	{
 		pf = NULL;
@@ -1703,7 +1703,7 @@ void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags)
 }
 
 //outbuf might not be written into
-const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
+static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *outbuf, int outlen)
 {
 	const char *s;
 	char *o;
@@ -1870,7 +1870,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	}
 	else
 	{
-		fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
+		fname = FS_GetCleanPath(fname, false, cleanname, sizeof(cleanname));
 		if (!fname)
 			return false;
 	}
@@ -1986,7 +1986,7 @@ vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesi
 	int i;
 	char cleanname[MAX_QPATH];
 
-	fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
+	fname = FS_GetCleanPath(fname, false, cleanname, sizeof(cleanname));
 	if (!fname)
 		return NULL;
 
@@ -2070,7 +2070,7 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 
 	//blanket-bans
 
-	filename = FS_GetCleanPath(filename, cleanname, sizeof(cleanname));
+	filename = FS_GetCleanPath(filename, false, cleanname, sizeof(cleanname));
 	if (!filename)
 		return NULL;
 
@@ -3230,7 +3230,6 @@ static void FS_ExtractDir(char *in, char *out, int outlen)
 
 qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
 {
-	const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 	char tmp[MAX_QPATH];
 	char *o = tmp;
 	const char *i = url;
@@ -3259,7 +3258,7 @@ qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
 	}
 	*o = 0;
 
-	if (!FS_GetCleanPath(tmp, path, pathsize))
+	if (!FS_GetCleanPath(tmp, false, path, pathsize))
 		return false;
 
 	return true;
@@ -6193,7 +6192,7 @@ static int QDECL FS_EnumerateFMFs(const char *fname, qofs_t fsize, time_t mtime,
 	return true;
 }
 
-//callback must call FS_Manifest_Free.
+//callback must call FS_Manifest_Free or return false.
 int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr)
 {
 	int i;

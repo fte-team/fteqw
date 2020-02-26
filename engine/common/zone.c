@@ -47,7 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #if ZONEDEBUG>0 || HUNKDEBUG>0 || TEMPDEBUG>0
-qbyte sentinalkey;
+qbyte sentinelkey;
 #endif
 
 #define TAGLESS 1
@@ -568,16 +568,16 @@ void Hunk_TempFree(void)
 		buf = (qbyte *)(hnktemps+1);
 		for (i = 0; i < TEMPDEBUG; i++)
 		{
-			if (buf[i] != sentinalkey)
-				Sys_Error ("Hunk_Check: corrupt sentinal");
+			if (buf[i] != sentinelkey)
+				Sys_Error ("Hunk_Check: corrupt sentinel");
 		}
 		buf+=TEMPDEBUG;
 		//app data
 		buf += hnktemps->len;
 		for (i = 0; i < TEMPDEBUG; i++)
 		{
-			if (buf[i] != sentinalkey)
-				Sys_Error ("Hunk_Check: corrupt sentinal");
+			if (buf[i] != sentinelkey)
+				Sys_Error ("Hunk_Check: corrupt sentinel");
 		}
 #endif
 
@@ -605,10 +605,10 @@ void *Hunk_TempAllocMore (size_t size)
 	nt->len = size;
 	hnktemps = nt;
 	buf = (void *)(nt+1);
-	memset(buf, sentinalkey, TEMPDEBUG);
+	memset(buf, sentinelkey, TEMPDEBUG);
 	buf = (char *)buf + TEMPDEBUG;
 	memset(buf, 0, size);
-	memset((char *)buf + size, sentinalkey, TEMPDEBUG);
+	memset((char *)buf + size, sentinelkey, TEMPDEBUG);
 	return buf;
 #else
 	hnktemps_t *nt;
@@ -717,7 +717,7 @@ void Memory_Init (void)
 
 #if ZONEDEBUG>0 || HUNKDEBUG>0 || TEMPDEBUG>0||CACHEDEBUG>0
 	srand(time(0));
-	sentinalkey = rand() & 0xff;
+	sentinelkey = rand() & 0xff;
 #endif
 
 	Cache_Init ();

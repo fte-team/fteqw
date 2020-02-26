@@ -1142,6 +1142,7 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
 void SV_Shutdown (void);
 float SV_Frame (void);
+void SV_ReadPacket(void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
 struct quakeparms_s;

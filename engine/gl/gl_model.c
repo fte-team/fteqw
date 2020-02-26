@@ -2579,10 +2579,16 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 								surf->lightmaptexturenums[sty] /= 2;
 							if (mesh->lmst_array[sty])
 							{
+								int soffset = surf->lightmaptexturenums[sty] % mod->lightmaps.mergew;
+								int toffset = surf->lightmaptexturenums[sty] / mod->lightmaps.mergew;
+								float smul = 1.0/mod->lightmaps.mergew;
+								float tmul = 1.0/mod->lightmaps.mergeh;
 								for (i = 0; i < mesh->numvertexes; i++)
 								{
-									mesh->lmst_array[sty][i][1] += surf->lightmaptexturenums[sty] % lmmerge;
-									mesh->lmst_array[sty][i][1] /= lmmerge;
+									mesh->lmst_array[sty][i][0] += soffset;
+									mesh->lmst_array[sty][i][0] *= smul;
+									mesh->lmst_array[sty][i][1] += toffset;
+									mesh->lmst_array[sty][i][1] *= tmul;
 								}
 							}
 							surf->lightmaptexturenums[sty] /= lmmerge;
@@ -2670,9 +2676,9 @@ static int Mod_Batches_Generate(model_t *mod)
 	vec4_t plane;
 	image_t *envmap;
 
-	int merge = mod->lightmaps.merge;
+	int merge = mod->lightmaps.mergew*mod->lightmaps.mergeh;
 	if (!merge)
-		merge = 1;
+		merge = mod->lightmaps.mergew = mod->lightmaps.mergeh = 1;	//no division by 0 please...
 	if (mod->lightmaps.deluxemapping)
 	{
 		mod->lightmaps.count = ((mod->lightmaps.count+1)/2+merge-1) & ~(merge-1);
@@ -2684,7 +2690,8 @@ static int Mod_Batches_Generate(model_t *mod)
 		mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
 		mod->lightmaps.count /= merge;
 	}
-	mod->lightmaps.height *= merge;
+	mod->lightmaps.width *= mod->lightmaps.mergew;
+	mod->lightmaps.height *= mod->lightmaps.mergeh;
 
 	mod->numbatches = 0;
 

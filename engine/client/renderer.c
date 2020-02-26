@@ -327,6 +327,8 @@ cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Valu
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
+extern cvar_t r_keepimages;
+extern cvar_t r_ignoremapprefixes;
 extern cvar_t r_dodgymiptex;
 extern char *r_defaultimageextensions;
 extern cvar_t r_imageextensions;
@@ -865,6 +867,8 @@ void Renderer_Init(void)
 	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
 	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 
+	Cvar_Register(&r_keepimages, GRAPHICALNICETIES);
+	Cvar_Register(&r_ignoremapprefixes, GRAPHICALNICETIES);
 #ifdef IMAGEFMT_TGA
 	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
 #endif

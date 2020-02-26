@@ -528,6 +528,7 @@ struct vfsfile_s;
 #define FSLF_DONTREFERENCE		(1u<<5) //don't add any reference flags to packages
 #define FSLF_IGNOREPURE			(1u<<6) //use only the client's package list, ignore any lists obtained from the server (including any reordering)
 #define FSLF_IGNORELINKS		(1u<<7) //ignore any pak/pk3 symlinks. system ones may still be followed.
+#define FSLF_QUIET				(1u<<8)	//don't spam warnings about any dodgy paths.
 
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //standard return value is 0 on failure, or depth on success.

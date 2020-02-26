@@ -45,7 +45,7 @@ typedef struct dvpkfile_s
 	unsigned char archiveindex[2];
 	unsigned char archiveoffset[4];
 	unsigned char archivesize[4];
-	unsigned char sentinal[2];//=0xffff;
+	unsigned char sentinel[2];//=0xffff;
 } dvpkfile_t;
 
 typedef struct
@@ -362,8 +362,8 @@ static unsigned int FSVPK_WalkTree(vpk_t *vpk, const char *start, const char *en
 				start += sizeof(*file)+preloadsize;
 				if (start > end)
 					return 0;	//truncated...
-				if (file->sentinal[0] != 0xff || file->sentinal[1] != 0xff)
-					return 0;	//sentinal failure
+				if (file->sentinel[0] != 0xff || file->sentinel[1] != 0xff)
+					return 0;	//sentinel failure
 //				Con_Printf("Found file %s%s%s%s%s\n", path, *path?"/":"", name, *ext?".":"", ext);
 				if (!vpk)
 					files++;

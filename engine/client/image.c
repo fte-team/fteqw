@@ -2,8 +2,6 @@
 #include "shader.h"
 #include "glquake.h"	//we need some of the gl format enums
 
-//#define PURGEIMAGES	//somewhat experimental still. we're still flushing more than we should.
-
 #if defined(NPFTE) || defined(IMGTOOL)
 //#define Con_Printf(f, ...)
 //hope you're on a littleendian machine
@@ -29,6 +27,14 @@ cvar_t r_dodgytgafiles = CVARD("r_dodgytgafiles", "0", "Many old glquake engines
 cvar_t r_dodgypcxfiles = CVARD("r_dodgypcxfiles", "0", "When enabled, this will ignore the palette stored within pcx files, for compatibility with quake2.");
 #endif
 cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "1", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
+static void QDECL R_Image_BuggyCvar (struct cvar_s *var, char *oldvalue)
+{	//force these cvars to value 1 if they're empty.
+	//cvars using this should be changed to 0 by default, once our engine bugs are debugged/fixed.
+	if (!*var->string)
+		var->ival = true;
+}
+cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now)");
+cvar_t r_ignoremapprefixes = CVARCD("r_ignoremapprefixes", "", R_Image_BuggyCvar, "Ignores when textures were loaded from map-specific paths. FIXME: empty is currently interpretted as 1 because the alternative is too memory hungary with r_keepimages 1.");
 
 char *r_defaultimageextensions =
 #ifdef IMAGEFMT_DDS
@@ -13181,9 +13187,7 @@ image_t *Image_FindTexture(const char *identifier, const char *subdir, unsigned 
 	{
 		if (!((tex->flags ^ flags) & (IF_CLAMP|IF_PALETTIZE|IF_PREMULTIPLYALPHA)))
 		{
-#ifdef PURGEIMAGES
-			if (!strcmp(subdir, tex->subpath?tex->subpath:""))
-#endif
+			if (r_ignoremapprefixes.ival || !strcmp(subdir, tex->subpath?tex->subpath:""))
 			{
 				tex->regsequence = r_regsequence;
 				return tex;
@@ -13423,7 +13427,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	size_t i;
 
 	//skip if we're not actually changing the data/size/format.
-	if (!data && tex->format == fmt && tex->width == width && tex->height == height  && tex->depth == 1)
+	if (!data && tex->format == fmt && tex->width == width && tex->height == height && tex->depth == 1 && tex->status == TEX_LOADED)
 		return;
 
 	mips.extrafree = NULL;
@@ -13562,10 +13566,9 @@ void Image_DestroyTexture(image_t *tex)
 void Shader_TouchTextures(void);
 void Image_Purge(void)
 {
-#ifdef PURGEIMAGES
-	image_t *tex, *a;
-	int loaded = 0, total = 0;
-	size_t mem = 0;
+	image_t *tex;
+	if (r_keepimages.ival)
+		return;
 	Shader_TouchTextures();
 	for (tex = imagelist; tex; tex = tex->next)
 	{
@@ -13574,7 +13577,6 @@ void Image_Purge(void)
 		if (tex->regsequence != r_regsequence)
 			Image_UnloadTexture(tex);
 	}
-#endif
 }
 
 
@@ -13638,7 +13640,10 @@ void Image_List_f(void)
 			imgmem = blockbytes * (tex->width+blockwidth-1)/blockwidth * (tex->height+blockheight-1)/blockheight;
 			if (!(tex->flags & IF_NOMIPMAP))
 				imgmem += imgmem/3;	//mips take about a third extra mem.
-			Con_Printf("^2loaded (%i*%i ^4%s^2, %3fKB->%3fKB)\n", tex->width, tex->height, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
+			if (tex->depth != 1)
+				Con_Printf("^2loaded (%i*%i*%i ^4%s^2, %3fKB->%3fKB)\n", tex->width, tex->height, tex->depth, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
+			else
+				Con_Printf("^2loaded (%i*%i ^4%s^2, %3fKB->%3fKB)\n", tex->width, tex->height, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
 			if (tex->aliasof)
 			{
 				aliasedmem += imgmem;

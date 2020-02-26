@@ -142,6 +142,14 @@
 		#include <libc.h>
 	#endif
 
+	#ifdef __linux__
+		//requires linux 2.6.27 up (and equivelent libc)
+		//note that BSD does tend to support the api, but emulated.
+		//this works around the select FD limit, and supposedly has better performance.
+		#define HAVE_EPOLL
+		#include <sys/epoll.h>
+	#endif
+
 	#if defined(__MORPHOS__) && !defined(ixemul)
 		#define closesocket CloseSocket
 		#define ioctlsocket IoctlSocket
@@ -173,6 +181,7 @@
 	#define neterrno() WSAGetLastError()
 	//this madness is because winsock defines its own errors instead of using system error codes.
 	//*AND* microsoft then went and defined names for all the unix ones too... with different values! oh the insanity of it all!
+	#define NET_EINTR			WSAEINTR
 	#define NET_EWOULDBLOCK		WSAEWOULDBLOCK
 	#define NET_EINPROGRESS		WSAEINPROGRESS
 	#define NET_EMSGSIZE		WSAEMSGSIZE
@@ -193,6 +202,7 @@
 
 #ifndef NET_EWOULDBLOCK
 	//assume unix codes instead, so our prefix still works.
+	#define NET_EINTR			EINTR
 	#define NET_EWOULDBLOCK		EWOULDBLOCK
 	#define NET_EINPROGRESS		EINPROGRESS
 	#define NET_EMSGSIZE		EMSGSIZE
@@ -280,6 +290,13 @@ typedef struct
 extern icefuncs_t iceapi;
 #endif
 
+#ifdef HAVE_EPOLL
+typedef struct epollctx_s
+{
+	void (*Polled) (struct epollctx_s *ctx, unsigned int events);
+} epollctx_t;
+#endif
+
 //address flags
 #define ADDR_NATPMP		(1u<<0)
 #define ADDR_UPNPIGP	(1u<<1)
@@ -294,13 +311,22 @@ typedef struct ftenet_generic_connection_s {
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
 	neterr_t (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
-#ifdef HAVE_PACKET
+#if defined(HAVE_PACKET) && !defined(HAVE_EPOLL)
 	int (*SetFDSets) (struct ftenet_generic_connection_s *con, fd_set *readfdset, fd_set *writefdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
 #endif
 	void (*PrintStatus)(struct ftenet_generic_connection_s *con);
 
-	netadrtype_t addrtype[FTENET_ADDRTYPES];
+	netproto_t		prot;	//if there's some special weirdness
+	netadrtype_t	addrtype[FTENET_ADDRTYPES];	//which address families it accepts
 	qboolean islisten;
+
+	int connum;
+	struct ftenet_connections_s *owner;
+
+#ifdef HAVE_EPOLL
+	epollctx_t epoll;
+#endif
+
 #ifdef HAVE_PACKET
 	SOCKET thesocket;
 #else
@@ -357,6 +383,8 @@ typedef struct ftenet_connections_s
 	float bytesoutrate;
 	ftenet_generic_connection_t *conn[MAX_CONNECTIONS];
 
+	void (*ReadGamePacket) (void);
+
 #ifdef HAVE_DTLS
 	struct dtlspeer_s *dtls;	//linked list. linked lists are shit, but at least it keeps pointers valid when things are resized.
 	const dtlsfuncs_t *dtlsfuncs;
@@ -376,7 +404,7 @@ void ICE_Tick(void);
 qboolean ICE_WasStun(ftenet_connections_t *col);
 void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int type);
 void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrno, int type);
-ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
 enum icemsgtype_s
 {	//shared by rtcpeers+broker
 	ICEMSG_PEERDROP=0,	//other side dropped connection
@@ -399,7 +427,7 @@ enum websocketpackettype_e
 	WS_PACKETTYPE_PONG=10,
 };
 
-ftenet_connections_t *FTENET_CreateCollection(qboolean listen);
+ftenet_connections_t *FTENET_CreateCollection(qboolean listen, void (*ReadPacket) (void));
 void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, const char **adrparams, int maxaddresses);
@@ -408,7 +436,7 @@ void *TLS_GetKnownCertificate(const char *certname, size_t *size);
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
 int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize);	//datasize should be preinitialised to the max length allowed. -1 for not implemented. 0 for peer problems. 1 for success
 #ifdef HAVE_PACKET
-vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded
+vfsfile_t *FS_WrapTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded. considers the socket owned (so be sure to stop using the direct socket at least before the VFS_CLOSE call).
 #endif
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 

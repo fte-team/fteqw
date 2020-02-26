@@ -2760,7 +2760,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	case GT_PROGS:
 		if (info->protocol == SCP_QUAKE2)
 		{
-			SV_RejectMessage(info->protocol, "This is a Quake server.");
+			SV_RejectMessage(info->protocol, "This is a %s server.", fs_manifest->formalname);
 			Con_DPrintf ("* Rejected q2 client.\n");
 			return;
 		}
@@ -2790,7 +2790,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	case GT_QUAKE2:
 		if (info->protocol != SCP_QUAKE2)
 		{
-			SV_RejectMessage(info->protocol, "This is a Quake2 server.");
+			SV_RejectMessage(info->protocol, "This is a %s server.", fs_manifest->formalname);
 			Con_DPrintf ("* Rejected non-q2 client.\n");
 			return;
 		}
@@ -3843,7 +3843,10 @@ qboolean SV_ConnectionlessPacket (void)
 		Con_Printf("%s: %s\n", NET_AdrToString (adr, sizeof(adr), &net_from), s);
 
 	if (!strcmp(c, "ping") || ( c[0] == A2A_PING && (c[1] == 0 || c[1] == '\n')) )
-		SVC_Ping ();
+	{	//only continue respond to these if we're actually public. qwfwd likes spamming us endlessly even if we stop heartbeating (which leaves us discoverable to others, too).
+		if (sv_public.ival >= 0)
+			SVC_Ping ();
+	}
 	else if (c[0] == A2A_ACK && (c[1] == 0 || c[1] == '\n') )
 		SVC_ACK ();
 	else if (!strcmp(c,"status"))
@@ -4384,6 +4387,189 @@ void SV_OpenRoute_f(void)
 }
 
 //============================================================================
+static int inboundsequence;	//so we can detect frames when we didn't get any packets, even when packets come from epoll
+void SV_ReadPacket(void)
+{
+	int			i;
+	client_t	*cl;
+	int			qport;
+	char		*banreason;
+
+	// check for connectionless packet (0xffffffff) first
+	if (*(unsigned int *)net_message.data == ~0)
+	{
+		banreason = SV_BannedReason (&net_from);
+		if (banreason)
+		{
+			static unsigned int lt;
+			unsigned int ct = Sys_Milliseconds();
+			if (ct - lt > 5*1000)
+			{
+				if (*banreason)
+					Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
+				else
+					Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned\n");
+			}
+			return;
+		}
+
+		SV_ConnectionlessPacket();
+		return;
+	}
+#ifdef HAVE_DTLS
+	else
+	{
+		if (NET_DTLS_Decode(svs.sockets))
+		{
+			if (!net_message.cursize)
+				return;
+			if (*(unsigned int *)net_message.data == ~0)
+			{
+				SV_ConnectionlessPacket();
+				return;
+			}
+		}
+	}
+#endif
+
+#ifdef Q3SERVER
+	if (svs.gametype == GT_QUAKE3)
+	{
+		if (SVQ3_HandleClient())
+			inboundsequence++;
+		else if (NET_WasSpecialPacket(svs.sockets))
+			return;
+		return;
+	}
+#endif
+
+	// read the qport out of the message so we can fix up
+	// stupid address translating routers
+	MSG_BeginReading (svs.netprim);
+	MSG_ReadLong ();		// sequence number
+	MSG_ReadLong ();		// sequence number
+	qport = MSG_ReadShort () & 0xffff;
+
+	// check for packets from connected clients
+	for (i=0, cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
+	{
+		if (cl->state == cs_free)
+			continue;
+		if (!NET_CompareBaseAdr (&net_from, &cl->netchan.remote_address))
+			continue;
+#ifdef NQPROT
+		if (ISNQCLIENT(cl) && cl->netchan.remote_address.port == net_from.port)
+		{
+			if (cl->state >= cs_connected)
+			{
+				if (cl->delay > 0)
+					goto dominping;
+
+				if (NQNetChan_Process(&cl->netchan))
+				{
+					inboundsequence++;
+					svs.stats.packets++;
+					SVNQ_ExecuteClientMessage(cl);
+				}
+			}
+			break;
+		}
+#endif
+
+#ifdef Q3SERVER
+		if (ISQ3CLIENT(cl))
+			continue;
+#endif
+
+		if (cl->netchan.qport != qport)
+			continue;
+		if (cl->netchan.remote_address.port != net_from.port)
+		{
+			Con_DPrintf ("SV_ReadPackets: fixing up a translated port\n");
+			cl->netchan.remote_address.port = net_from.port;
+		}
+
+		if (cl->delay > 0)
+		{
+#ifdef NQPROT
+dominping:
+#endif
+			if (cl->state < cs_connected)
+				break;
+			if (net_message.cursize > sizeof(svs.free_lagged_packet->data))
+			{
+				Con_Printf("packet too large for minping\n");
+				cl->delay -= 0.001;
+				break;	//drop this packet
+			}
+
+			if (!svs.free_lagged_packet)	//kinda nasty
+				svs.free_lagged_packet = Z_Malloc(sizeof(*svs.free_lagged_packet));
+
+			if (!cl->laggedpacket)
+				cl->laggedpacket_last = cl->laggedpacket = svs.free_lagged_packet;
+			else
+			{
+				cl->laggedpacket_last->next = svs.free_lagged_packet;
+				cl->laggedpacket_last = cl->laggedpacket_last->next;
+			}
+			svs.free_lagged_packet = svs.free_lagged_packet->next;
+			cl->laggedpacket_last->next = NULL;
+
+			cl->laggedpacket_last->time = realtime + cl->delay;
+			memcpy(cl->laggedpacket_last->data, net_message.data, net_message.cursize);
+			cl->laggedpacket_last->length = net_message.cursize;
+			break;
+		}
+
+
+		if (Netchan_Process(&cl->netchan))
+		{	// this is a valid, sequenced packet, so process it
+			inboundsequence++;
+			svs.stats.packets++;
+			if (cl->state >= cs_connected)
+			{
+				if (cl->send_message)
+					cl->chokecount++;
+				else
+					cl->send_message = true;	// reply at end of frame
+
+#ifdef Q2SERVER
+				if (cl->protocol == SCP_QUAKE2)
+					SVQ2_ExecuteClientMessage(cl);
+				else
+#endif
+					SV_ExecuteClientMessage (cl);
+			}
+		}
+		break;
+	}
+
+	if (i != svs.allocated_client_slots)
+		return;
+
+#ifdef QWOVERQ3
+	if (sv_listen_q3.ival && SVQ3_HandleClient())
+	{
+		received++;
+		continue;
+	}
+#endif
+
+#ifdef NQPROT
+	if (SVNQ_ConnectionlessPacket())
+		return;
+#endif
+	if (SV_BannedReason (&net_from))
+		return;
+
+	if (NET_WasSpecialPacket(svs.sockets))
+		return;
+
+	// packet is not from a known client
+	if (sv_showconnectionlessmessages.ival)
+		Con_Printf ("%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
+}
 
 /*
 =================
@@ -4399,12 +4585,9 @@ qboolean SV_ReadPackets (float *delay)
 {
 	int			i;
 	client_t	*cl;
-	int			qport;
 	laggedpacket_t *lp;
-	char		*banreason;
-	qboolean	received = false;
-	int			giveup = 5000; /*we're fucked if we need this to be this high, but at least we can retain some clients if we're really running that slow*/
-	int			cookie = 0;
+
+	static int oldinboundsequence;
 
 	SV_KillExpiredBans();
 
@@ -4443,7 +4626,7 @@ qboolean SV_ReadPackets (float *delay)
 					{
 						if (NQNetChan_Process(&cl->netchan))
 						{
-							received++;
+							inboundsequence++;
 							svs.stats.packets++;
 							SVNQ_ExecuteClientMessage(cl);
 						}
@@ -4455,7 +4638,7 @@ qboolean SV_ReadPackets (float *delay)
 					/*QW*/
 					if (Netchan_Process(&cl->netchan))
 					{	// this is a valid, sequenced packet, so process it
-						received++;
+						inboundsequence++;
 						svs.stats.packets++;
 						if (cl->state >= cs_connected)
 						{	//make sure they didn't already disconnect
@@ -4477,194 +4660,17 @@ qboolean SV_ReadPackets (float *delay)
 		}
 	}
 
-#ifdef SERVER_DEMO_PLAYBACK
-	while (giveup-- > 0 && SV_GetPacket()>=0)
-#else
-	while (giveup-- > 0 && (cookie=NET_GetPacket (svs.sockets, cookie)) >= 0)
-#endif
-	{
-		// check for connectionless packet (0xffffffff) first
-		if (*(unsigned int *)net_message.data == ~0)
-		{
-			banreason = SV_BannedReason (&net_from);
-			if (banreason)
-			{
-				static unsigned int lt;
-				unsigned int ct = Sys_Milliseconds();
-				if (ct - lt > 5*1000)
-				{
-					if (*banreason)
-						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
-					else
-						Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned\n");
-				}
-				continue;
-			}
-
-			SV_ConnectionlessPacket();
-			continue;
-		}
-#ifdef HAVE_DTLS
-		else
-		{
-			if (NET_DTLS_Decode(svs.sockets))
-			{
-				if (!net_message.cursize)
-					continue;
-				if (*(unsigned int *)net_message.data == ~0)
-				{
-					SV_ConnectionlessPacket();
-					continue;
-				}
-			}
-		}
-#endif
-
-#ifdef Q3SERVER
-		if (svs.gametype == GT_QUAKE3)
-		{
-			received++;
-			if (SVQ3_HandleClient())
-				;
-			else if (NET_WasSpecialPacket(svs.sockets))
-				continue;
-			continue;
-		}
-#endif
-
-		// read the qport out of the message so we can fix up
-		// stupid address translating routers
-		MSG_BeginReading (svs.netprim);
-		MSG_ReadLong ();		// sequence number
-		MSG_ReadLong ();		// sequence number
-		qport = MSG_ReadShort () & 0xffff;
-
-		// check for packets from connected clients
-		for (i=0, cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
-		{
-			if (cl->state == cs_free)
-				continue;
-			if (!NET_CompareBaseAdr (&net_from, &cl->netchan.remote_address))
-				continue;
-#ifdef NQPROT
-			if (ISNQCLIENT(cl) && cl->netchan.remote_address.port == net_from.port)
-			{
-				if (cl->state >= cs_connected)
-				{
-					if (cl->delay > 0)
-						goto dominping;
-
-					if (NQNetChan_Process(&cl->netchan))
-					{
-						received++;
-						svs.stats.packets++;
-						SVNQ_ExecuteClientMessage(cl);
-					}
-				}
-				break;
-			}
-#endif
-
-#ifdef Q3SERVER
-			if (ISQ3CLIENT(cl))
-				continue;
-#endif
-
-			if (cl->netchan.qport != qport)
-				continue;
-			if (cl->netchan.remote_address.port != net_from.port)
-			{
-				Con_DPrintf ("SV_ReadPackets: fixing up a translated port\n");
-				cl->netchan.remote_address.port = net_from.port;
-			}
-
-			if (cl->delay > 0)
-			{
-#ifdef NQPROT
-dominping:
-#endif
-				if (cl->state < cs_connected)
-					break;
-				if (net_message.cursize > sizeof(svs.free_lagged_packet->data))
-				{
-					Con_Printf("packet too large for minping\n");
-					cl->delay -= 0.001;
-					break;	//drop this packet
-				}
-
-				if (!svs.free_lagged_packet)	//kinda nasty
-					svs.free_lagged_packet = Z_Malloc(sizeof(*svs.free_lagged_packet));
-
-				if (!cl->laggedpacket)
-					cl->laggedpacket_last = cl->laggedpacket = svs.free_lagged_packet;
-				else
-				{
-					cl->laggedpacket_last->next = svs.free_lagged_packet;
-					cl->laggedpacket_last = cl->laggedpacket_last->next;
-				}
-				svs.free_lagged_packet = svs.free_lagged_packet->next;
-				cl->laggedpacket_last->next = NULL;
-
-				cl->laggedpacket_last->time = realtime + cl->delay;
-				memcpy(cl->laggedpacket_last->data, net_message.data, net_message.cursize);
-				cl->laggedpacket_last->length = net_message.cursize;
-				break;
-			}
-
-
-			if (Netchan_Process(&cl->netchan))
-			{	// this is a valid, sequenced packet, so process it
-				received++;
-				svs.stats.packets++;
-				if (cl->state >= cs_connected)
-				{
-					if (cl->send_message)
-						cl->chokecount++;
-					else
-						cl->send_message = true;	// reply at end of frame
-
-#ifdef Q2SERVER
-					if (cl->protocol == SCP_QUAKE2)
-						SVQ2_ExecuteClientMessage(cl);
-					else
-#endif
-						SV_ExecuteClientMessage (cl);
-				}
-			}
-			break;
-		}
-
-		if (i != svs.allocated_client_slots)
-			continue;
-
-#ifdef QWOVERQ3
-		if (sv_listen_q3.ival && SVQ3_HandleClient())
-		{
-			received++;
-			continue;
-		}
-#endif
-
-#ifdef NQPROT
-		if (SVNQ_ConnectionlessPacket())
-			continue;
-#endif
-		if (SV_BannedReason (&net_from))
-			continue;
-
-		if (NET_WasSpecialPacket(svs.sockets))
-			continue;
-
-		// packet is not from a known client
-		if (sv_showconnectionlessmessages.ival)
-			Con_Printf ("%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
-	}
+	NET_ReadPackets(svs.sockets);
 
 #ifdef HAVE_DTLS
 	NET_DTLS_Timeouts(svs.sockets);
 #endif
 
-	return received;
+
+	if (inboundsequence == oldinboundsequence)
+		return false;	//nothing new.
+	oldinboundsequence = inboundsequence;
+	return true;
 }
 
 /*

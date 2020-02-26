@@ -1097,6 +1097,27 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 			}
 		}
 	}
+	else if (fsize >= sizeof(dheader_t) && (
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION		||
+//		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONHL	||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONPREREL||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG1||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG2))
+	{	//q1bsp
+		dheader_t *bsp = (dheader_t*)indata;
+		dmiptexlump_t *texlump = (dmiptexlump_t*)(indata + bsp->lumps[LUMP_TEXTURES].fileofs);
+		miptex_t *miptex;
+		size_t i;
+		printf("%-20s: bsp file (%u textures)\n", inname, texlump->nummiptex);
+		for (i = 0; i < texlump->nummiptex; i++)
+		{
+			if (texlump->dataofs[i] < 0 || texlump->dataofs[i] >= bsp->lumps[LUMP_TEXTURES].filelen)
+				continue;
+
+			miptex = (miptex_t*)((qbyte*)texlump + texlump->dataofs[i]);
+			printf("\t%16.16s: %u*%u%s\n", miptex->name, miptex->width, miptex->height, miptex->offsets[0]?"":" (external data)");
+		}
+	}
 	else
 	{
 		in = Image_LoadMipsFromMemory(args->flags|IF_NOMIPMAP, inname, inname, indata, fsize);
@@ -1404,6 +1425,46 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 			}
 		}
 	}
+	else if (fsize >= sizeof(dheader_t) && (
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION		||
+//		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONHL	||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONPREREL||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG1||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG2))
+	{	//q1bsp
+		dheader_t *bsp = (dheader_t*)indata;
+		dmiptexlump_t *texlump = (dmiptexlump_t*)(indata + bsp->lumps[LUMP_TEXTURES].fileofs);
+		miptex_t *miptex;
+		size_t i, j;
+		for (i = 0; i < texlump->nummiptex; i++)
+		{
+			if (texlump->dataofs[i] < 0 || texlump->dataofs[i] >= bsp->lumps[LUMP_TEXTURES].filelen)
+				continue;
+
+			miptex = (miptex_t*)((qbyte*)texlump + texlump->dataofs[i]);
+			if (*miptex->name && miptex->width && miptex->height && miptex->offsets[0]>0)
+			{
+				struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
+				out->type = PTI_2D;
+				out->encoding = PTI_P8;
+				for (j = 0; j < 4; j++)
+				{
+					if (!miptex->offsets[j])
+						break;
+					out->mip[j].width = miptex->width>>j;
+					out->mip[j].height = miptex->height>>j;
+					out->mip[j].depth = 1;
+					out->mip[j].datasize = out->mip[j].width*out->mip[j].height;
+					out->mip[j].data = (qbyte*)miptex + miptex->offsets[0];
+				}
+				out->mipcount = j;
+
+				if (*miptex->name == '*')
+					*miptex->name = '#';	//change the prefix of turbs, so it can actually exist as a file on windows (and doesn't cause confusion).
+				ImgTool_Convert(args, out, miptex->name, NULL);
+			}
+		}
+	}
 	else
 		printf("%s: does not appear to be a wad file\n", wadname);
 }
@@ -1664,6 +1725,7 @@ int main(int argc, const char **argv)
 			else if (!strcmp(argv[u], "-?") || !strcmp(argv[u], "--help"))
 			{
 showhelp:
+				Con_Printf(DISTRIBUTION " Image Tool\n");
 				Con_Printf("show info  : %s -i *.ktx\n", argv[0]);
 				Con_Printf("compress   : %s --astc_6x6_ldr [--nomips] in.png out.ktx [in2.png out2.ktx]\n", argv[0]);
 				Con_Printf("compress   : %s --bc3_rgba [--premul] [--nomips] in.png out.dds\n\tConvert pixel format (to bc3 aka dxt5) before writing to output file.\n", argv[0]);
@@ -1672,6 +1734,7 @@ showhelp:
 				Con_Printf("decompress : %s --decompress [--exportmip 0] [--nomips] in.ktx out.png\n\tDecompresses any block-compressed pixel data.\n", argv[0]);
 				Con_Printf("create wad : %s -w [--exportmip 2] out.wad srcdir\n", argv[0]);
 				Con_Printf("extract wad: %s -x [--ext png] src.wad\n", argv[0]);
+				Con_Printf("extract bsp: %s -x [--ext png] src.bsp\n", argv[0]);
 
 				Image_PrintInputFormatVersions();
 				Con_Printf("Supported compressed/interesting pixelformats are:\n");

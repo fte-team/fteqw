@@ -54,7 +54,7 @@
 #define IMAGEFMT_TGA /* disable for RELEASE? */
 
 /* compressed textures */
-#define IMAGEFMT_DDS 
+#define IMAGEFMT_KTX
 #define DECOMPRESS_ETC2
 #define DECOMPRESS_RGTC
 #define DECOMPRESS_S3TC
@@ -65,6 +65,7 @@
 #define HAVE_TCP
 #define HAVE_GNUTLS /* linux tls/dtls support */
 #define HAVE_WINSSPI /* windows tls/dtls support */
+#define WEBCLIENT /* uri_get+any internal downloads etc */
 
 #ifndef MULTITHREAD
 #define MULTITHREAD
@@ -130,7 +131,7 @@
 #undef AVAIL_PNGLIB	/* .png image format support (read+screenshots) */
 #undef AVAIL_JPEGLIB	/* .jpeg image format support (read+screenshots) */
 #undef AVAIL_MP3_ACM	/* .mp3 support (in windows). */
-#undef IMAGEFMT_KTX
+#undef IMAGEFMT_DDS
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_BLP
 #undef IMAGEFMT_VTF
@@ -152,7 +153,6 @@
 #undef HEXEN2		/* runs hexen2 gamecode, supports hexen2 file formats */
 #undef NQPROT		/* act as an nq client/server, with nq gamecode */
 #undef WEBSERVER	/* sv_ftp + sv_http cvars */
-#undef WEBCLIENT	/* uri_get+any internal downloads etc */
 #undef RUNTIMELIGHTING	/* automatic generation of .lit files */
 #undef R_XFLIP		/* old silly thing */
 #undef TEXTEDITOR	/* because emacs */

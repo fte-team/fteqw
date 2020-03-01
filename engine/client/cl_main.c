@@ -3963,7 +3963,10 @@ void CL_ReadPackets (void)
 	}
 	else
 		NET_ReadPackets(cls.sockets);
-	NET_DTLS_Timeouts(cls.sockets);
+
+#ifdef HAVE_DTLS
+         NET_DTLS_Timeouts(cls.sockets);
+#endif
 
 	//
 	// check timeout

@@ -452,7 +452,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
+		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST|IF_NOPURGE)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont", SUF_2D,
@@ -497,7 +497,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 
 		fontplanes.planechanged = false;
 	}
@@ -563,7 +563,7 @@ void Font_FlushPlane(void)
 
 	if (fontplanes.planechanged)
 	{
-		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 
 		fontplanes.planechanged = false;
 	}
@@ -1684,17 +1684,17 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadHiResTexture("gfx/conchars.lmp", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("gfx/conchars.lmp", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
 	//q2
-	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
 	//q3
-	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
@@ -1863,7 +1863,7 @@ static texid_t Font_LoadFallbackConchars(void)
 		Font_CopyGlyph('|', 131, lump);
 		Font_CopyGlyph('>', 13, lump);
 	}
-	tex = Image_GetTexture("charset", NULL, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, (void*)lump, NULL, width, height, PTI_RGBA8);
+	tex = Image_GetTexture("charset", NULL, IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE, (void*)lump, NULL, width, height, PTI_RGBA8);
 	BZ_Free(lump);
 	return tex;
 }
@@ -2140,7 +2140,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 			for (x = 0; x < 128; x++)
 				img[x + y*PLANEWIDTH] = w[x + y*128]?d_8to24rgbtable[w[x + y*128]]:0;
 
-		f->singletexture = R_LoadTexture("tinyfont",PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
+		f->singletexture = R_LoadTexture("tinyfont",PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE);
 		if (f->singletexture->status == TEX_LOADING)
 			COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		Z_Free(img);
@@ -2264,7 +2264,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
 		{
-			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
+			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE);
 			if (f->singletexture->status == TEX_LOADING)
 				COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		}

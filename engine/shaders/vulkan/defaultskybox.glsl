@@ -11,7 +11,6 @@ layout(location=0) varying vec3 pos;
 void main ()
 {
 	pos = v_position.xyz - e_eyepos;
-	pos.y = -pos.y;
 	gl_Position = ftetransform();
 }
 #endif

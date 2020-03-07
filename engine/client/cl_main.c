@@ -3867,7 +3867,10 @@ void CL_ReadPacket(void)
 	if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
 	{
 		char adr[MAX_ADR_SIZE];
-		Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
+		if (net_message.cursize == 1 && net_message.data[0] == A2A_ACK)
+			Con_TPrintf ("%s: Ack (Pong)\n", NET_AdrToString(adr, sizeof(adr), &net_from));
+		else
+			Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
 		return;
 	}
 
@@ -3965,7 +3968,7 @@ void CL_ReadPackets (void)
 		NET_ReadPackets(cls.sockets);
 
 #ifdef HAVE_DTLS
-         NET_DTLS_Timeouts(cls.sockets);
+	NET_DTLS_Timeouts(cls.sockets);
 #endif
 
 	//

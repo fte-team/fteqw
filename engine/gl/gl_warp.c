@@ -77,7 +77,9 @@ void R_SetSky(const char *sky)
 			texnums_t tex;
 			memset(&tex, 0, sizeof(tex));
 			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_TEXTYPE_CUBE|IF_CLAMP);
-			if (tex.reflectcube->width)
+			if (tex.reflectcube && tex.reflectcube->status == TEX_LOADING)
+				COM_WorkerPartialSync(tex.reflectcube, &tex.reflectcube->status, TEX_LOADING);
+			if (tex.reflectcube->width && TEXLOADED(tex.reflectcube))
 			{
 				/* FIXME: Q2/HL require the skybox to not draw over geometry, shouldn't we force it? --eukara */
 				if (cls.allow_skyboxes) {
@@ -1011,7 +1013,7 @@ A sky image is 256*128 and comprises two logical textures.
 the left is the transparent/blended part. the right is the opaque/background part.
 ==============
 */
-void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height)
+void R_InitSky (shader_t *shader, const char *skyname, uploadfmt_t fmt, qbyte *src, unsigned int width, unsigned int height)
 {
 	int			i, j, p;
 	unsigned	*temp;
@@ -1083,53 +1085,88 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 		}
 	}
 
-	temp = BZ_Malloc(width*height*sizeof(*temp));
+	if (fmt & PTI_FULLMIPCHAIN)
+	{	//input is expected to make sense...
+		qbyte *front, *back;
+		unsigned int bb, bw, bh;
+		unsigned int w, h, y;
+		fmt = fmt&~PTI_FULLMIPCHAIN;
+		Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
 
-	// make an average value for the back to avoid
-	// a fringe on the top level
+		w = (width+bw-1)/bw;
+		h = (height+bh-1)/bh;
 
-	r = g = b = 0;
-	for (i=0 ; i<height ; i++)
-		for (j=0 ; j<width ; j++)
+		back = BZ_Malloc(bb*w*2*h);
+		front = back + bb*w*h;
+		for (y = 0; y < h; y++)
 		{
-			p = src[i*stride + j + width];
-			rgba = &d_8to24rgbtable[p];
-			temp[(i*width) + j] = *rgba;
-			r += ((qbyte *)rgba)[0];
-			g += ((qbyte *)rgba)[1];
-			b += ((qbyte *)rgba)[2];
+			memcpy(back + bb*y*w, src + bb*(y*w*2+w), w*bb);
+			memcpy(front + bb*y*w, src + bb*(y*w*2), w*bb);
 		}
-
-	if (!shader->defaulttextures->base)
-	{
-		Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
-		Q_strlwr(name);
-		shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, temp, width, height, TF_RGBX32);
+		if (!shader->defaulttextures->base)
+		{
+			Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
+			Q_strlwr(name);
+			shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, back, width, height, fmt);
+		}
+		if (!shader->defaulttextures->fullbright)
+		{	//FIXME: support _trans
+			Q_snprintfz(name, sizeof(name), "%s_alpha:%s_trans", skyname, skyname);
+			Q_strlwr(name);
+			shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, front, width, height, fmt);
+		}
+		BZ_Free(back);
 	}
-
-	if (!shader->defaulttextures->fullbright)
+	else
 	{
-		//fixme: use premultiplied alpha here.
-		((qbyte *)&transpix)[0] = r/(width*height);
-		((qbyte *)&transpix)[1] = g/(width*height);
-		((qbyte *)&transpix)[2] = b/(width*height);
-		((qbyte *)&transpix)[3] = 0;
-		alphamask = LittleLong(0x7fffffff);
+		temp = BZ_Malloc(width*height*sizeof(*temp));
+
+		// make an average value for the back to avoid
+		// a fringe on the top level
+
+		r = g = b = 0;
 		for (i=0 ; i<height ; i++)
 			for (j=0 ; j<width ; j++)
 			{
-				p = src[i*stride + j];
-				if (p == 0)
-					temp[(i*width) + j] = transpix;
-				else
-					temp[(i*width) + j] = d_8to24rgbtable[p] & alphamask;
+				p = src[i*stride + j + width];
+				rgba = &d_8to24rgbtable[p];
+				temp[(i*width) + j] = *rgba;
+				r += ((qbyte *)rgba)[0];
+				g += ((qbyte *)rgba)[1];
+				b += ((qbyte *)rgba)[2];
 			}
 
-		//FIXME: support _trans
-		Q_snprintfz(name, sizeof(name), "%s_alpha:%s_trans", skyname, skyname);
-		Q_strlwr(name);
-		shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, temp, width, height, TF_RGBA32);
+		if (!shader->defaulttextures->base)
+		{
+			Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
+			Q_strlwr(name);
+			shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, temp, width, height, TF_RGBX32);
+		}
+
+		if (!shader->defaulttextures->fullbright)
+		{
+			//fixme: use premultiplied alpha here.
+			((qbyte *)&transpix)[0] = r/(width*height);
+			((qbyte *)&transpix)[1] = g/(width*height);
+			((qbyte *)&transpix)[2] = b/(width*height);
+			((qbyte *)&transpix)[3] = 0;
+			alphamask = LittleLong(0x7fffffff);
+			for (i=0 ; i<height ; i++)
+				for (j=0 ; j<width ; j++)
+				{
+					p = src[i*stride + j];
+					if (p == 0)
+						temp[(i*width) + j] = transpix;
+					else
+						temp[(i*width) + j] = d_8to24rgbtable[p] & alphamask;
+				}
+
+			//FIXME: support _trans
+			Q_snprintfz(name, sizeof(name), "%s_alpha:%s_trans", skyname, skyname);
+			Q_strlwr(name);
+			shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, temp, width, height, TF_RGBA32);
+		}
+		BZ_Free(temp);
 	}
-	BZ_Free(temp);
 }
 #endif

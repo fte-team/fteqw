@@ -925,13 +925,13 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM_SRGB, &support)))
 		sh_config.texfmt[PTI_BC3_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_UNORM, &support)))
-		sh_config.texfmt[PTI_BC4_R8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+		sh_config.texfmt[PTI_BC4_R] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_SNORM, &support)))
-		sh_config.texfmt[PTI_BC4_R8_SNORM] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+		sh_config.texfmt[PTI_BC4_R_SNORM] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_UNORM, &support)))
-		sh_config.texfmt[PTI_BC5_RG8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+		sh_config.texfmt[PTI_BC5_RG] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_SNORM, &support)))
-		sh_config.texfmt[PTI_BC5_RG8_SNORM] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+		sh_config.texfmt[PTI_BC5_RG_SNORM] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_UF16, &support)))
 		sh_config.texfmt[PTI_BC6_RGB_UFLOAT] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_SF16, &support)))

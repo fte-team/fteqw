@@ -383,6 +383,10 @@ qboolean CG_GetServerCommand(int cmdnum)
 
 	if (!strcmp(Cmd_Argv(0), "cs"))
 		CG_InsertIntoGameState(atoi(Cmd_Argv(1)), Cmd_Argv(2));
+	else if (!strcmp(Cmd_Argv(0), "map_restart"))
+		Con_ClearNotify();
+	else if (!strcmp(Cmd_Argv(0), "disconnect"))
+		Host_EndGame("Server disconnected - %s", (Cmd_Argc()>1)?Cmd_Argv(1):"No reason given");
 	return true;
 }
 
@@ -1231,6 +1235,17 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		VALIDATEPOINTER(arg[2], sizeof(fontInfo_t));
 		UI_RegisterFont(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
 		break;
+
+	case CG_CIN_PLAYCINEMATIC:
+		return UI_Cin_Play(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_LONG(arg[4]), VM_LONG(arg[5]));
+	case CG_CIN_STOPCINEMATIC:
+		return UI_Cin_Stop(VM_LONG(arg[0]));
+	case CG_CIN_RUNCINEMATIC:
+		return UI_Cin_Run(VM_LONG(arg[0]));
+	case CG_CIN_DRAWCINEMATIC:
+		return UI_Cin_Draw(VM_LONG(arg[0]));
+	case CG_CIN_SETEXTENTS:
+		return UI_Cin_SetExtents(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_LONG(arg[4]));
 
 	case CG_FTE_FINDPARTICLEEFFECT:
 		return pe->FindParticleType(VM_POINTER(arg[0]));

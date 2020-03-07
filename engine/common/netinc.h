@@ -146,8 +146,11 @@
 		//requires linux 2.6.27 up (and equivelent libc)
 		//note that BSD does tend to support the api, but emulated.
 		//this works around the select FD limit, and supposedly has better performance.
-		#define HAVE_EPOLL
 		#include <sys/epoll.h>
+		#ifdef EPOLL_CLOEXEC
+			#define HAVE_EPOLL
+		//#else too old, probably android...
+		#endif
 	#endif
 
 	#if defined(__MORPHOS__) && !defined(ixemul)

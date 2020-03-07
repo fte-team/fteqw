@@ -7006,8 +7006,9 @@ int FTENET_WebRTC_GetAddresses(struct ftenet_generic_connection_s *con, unsigned
 	return 0;
 }
 
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
 {
+	qboolean isserver = col->islisten;
 	ftenet_websocket_connection_t *newcon;
 
 	int brokersocket = INVALID_SOCKET;
@@ -7311,8 +7312,9 @@ static neterr_t FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gco
 }
 
 /*nacl websockets implementation...*/
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
 {
+	qboolean isserver = col->islisten;
 	ftenet_websocket_connection_t *newcon;
 
 	PP_Resource newsocket;
@@ -7594,6 +7596,9 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 	case NP_DGRAM:
 		if (NET_SendPacketCol(collection, 0, NULL, adr) != NETERR_NOROUTE)
 			return true;
+		if (!FTENET_AddToCollection(collection, routename, "0", adr->type, adr->prot))
+			return false;
+		break;
 	case NP_WS:
 	case NP_WSS:
 	case NP_TLS:

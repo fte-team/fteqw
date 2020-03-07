@@ -1338,10 +1338,10 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 
 	tex = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 
-	tex->width = wal->width;
-	tex->height = wal->height;
+	tex->vwidth = wal->width;
+	tex->vheight = wal->height;
 
-	if (!tex->width || !tex->height || wal == &replacementwal)
+	if (!tex->vwidth || !tex->vheight || wal == &replacementwal)
 	{
 		imageflags |= IF_LOADNOW;	//make sure the size is known BEFORE it returns.
 		if (wal->offsets[0])
@@ -1358,8 +1358,8 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		{
 			if (base->status == TEX_LOADED||base->status==TEX_LOADING)
 			{
-				tex->width = base->width;
-				tex->height = base->height;
+				tex->vwidth = base->width;
+				tex->vheight = base->height;
 			}
 			else
 				Con_Printf("Unable to load textures/%s.wal\n", wal->name);
@@ -1368,21 +1368,23 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 	}
 	else
 	{
+		qbyte *out;
 		unsigned int size = 
 		(wal->width>>0)*(wal->height>>0) +
 		(wal->width>>1)*(wal->height>>1) +
 		(wal->width>>2)*(wal->height>>2) +
 		(wal->width>>3)*(wal->height>>3);
 
-		tex->mips[0] = BZ_Malloc(size);
+		tex->srcdata = out = BZ_Malloc(size);
 		tex->palette = host_basepal;
-		tex->mips[1] = tex->mips[0] + (wal->width>>0)*(wal->height>>0);
-		tex->mips[2] = tex->mips[1] + (wal->width>>1)*(wal->height>>1);
-		tex->mips[3] = tex->mips[2] + (wal->width>>2)*(wal->height>>2);
-		memcpy(tex->mips[0], (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
-		memcpy(tex->mips[1], (qbyte *)wal + wal->offsets[1], (wal->width>>1)*(wal->height>>1));
-		memcpy(tex->mips[2], (qbyte *)wal + wal->offsets[2], (wal->width>>2)*(wal->height>>2));
-		memcpy(tex->mips[3], (qbyte *)wal + wal->offsets[3], (wal->width>>3)*(wal->height>>3));
+		memcpy(out, (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
+		out += (wal->width>>0)*(wal->height>>0);
+		memcpy(out, (qbyte *)wal + wal->offsets[1], (wal->width>>1)*(wal->height>>1));
+		out += (wal->width>>1)*(wal->height>>1);
+		memcpy(out, (qbyte *)wal + wal->offsets[2], (wal->width>>2)*(wal->height>>2));
+		out += (wal->width>>2)*(wal->height>>2);
+		memcpy(out, (qbyte *)wal + wal->offsets[3], (wal->width>>3)*(wal->height>>3));
+		out += (wal->width>>3)*(wal->height>>3);
 
 		BZ_Free(wal);
 	}
@@ -1476,7 +1478,7 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 					*lwr = *lwr - 'A' + 'a';
 			}
 			out->texture = Mod_LoadWall (mod, mapname, in->texture, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
-			if (!out->texture || !out->texture->width || !out->texture->height)
+			if (!out->texture || !out->texture->srcwidth || !out->texture->srcheight)
 			{
 				out->texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 

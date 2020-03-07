@@ -24,7 +24,6 @@ mat3 rotateAroundAxis(vec4 axis) //xyz axis, with angle in w
 void main ()
 {
 	pos = v_position.xyz - e_eyepos;
-	pos.y = -pos.y;
 
 	if (r_glsl_skybox_orientation.xyz != vec3(0.0))
 		pos = pos*rotateAroundAxis(r_glsl_skybox_orientation);

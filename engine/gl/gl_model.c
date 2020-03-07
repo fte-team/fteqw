@@ -1428,7 +1428,7 @@ static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safe
 	if (!safetoloadfromwads)
 	{
 		//remap to avoid bugging out on textures with the same name and different images (vanilla content sucks)
-		shadername = Mod_RemapBuggyTexture(shadername, tx->mips[0], tx->width*tx->height);
+		shadername = Mod_RemapBuggyTexture(shadername, tx->srcdata, tx->srcwidth*tx->srcheight);
 		if (shadername)
 			origname = tx->name;
 		else
@@ -1450,20 +1450,19 @@ static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safe
 
 		tx->shader = R_RegisterCustom (shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 
-		if (!tx->mips[0] && !safetoloadfromwads)
+		if (!tx->srcdata && !safetoloadfromwads)
 			return;
 	}
 	else
 	{	//already loaded. don't waste time / crash (this will be a dead pointer).
-		if (tx->mips[0])
+		if (tx->srcdata)
 			return;
 	}
 
 	if (!strncmp(tx->name, "sky", 3))
-		R_InitSky (tx->shader, shadername, tx->mips[0], tx->width, tx->height);
+		R_InitSky (tx->shader, shadername, tx->srcfmt, tx->srcdata, tx->srcwidth, tx->srcheight);
 	else
 	{
-		uploadfmt_t fmt;
 		unsigned int maps = 0;
 		maps |= SHADER_HASPALETTED;
 		maps |= SHADER_HASDIFFUSE;
@@ -1474,24 +1473,10 @@ static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safe
 		if (gl_specular.ival)
 			maps |= SHADER_HASGLOSS;
 
-		if (tx->palette)
-		{	//halflife, probably...
-			if (*tx->name == '{')
-				fmt = TF_MIP4_8PAL24_T255;
-			else
-				fmt = TF_MIP4_8PAL24;
-		}
-		else
-		{
-			if (*tx->name == '{')
-				fmt = TF_TRANS8;
-			else
-				fmt = TF_MIP4_SOLID8;
-		}
-
-		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, 0, fmt, tx->width, tx->height, tx->mips, tx->palette);
+		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, 0, tx->srcfmt, tx->srcwidth, tx->srcheight, tx->srcdata, tx->palette);
 	}
-	BZ_Free(tx->mips[0]);
+	BZ_Free(tx->srcdata);
+	tx->srcdata = NULL;
 }
 #endif
 
@@ -1513,7 +1498,7 @@ void Mod_NowLoadExternal(model_t *loadmodel)
 		if (!tx)	//e1m2, this happens
 			continue;
 
-		if (tx->mips[0])
+		if (tx->srcdata)
 			continue;
 
 		Mod_FinishTexture(tx, loadname, true);
@@ -2421,10 +2406,10 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 		{
 			mesh->st_array[i][0] = s;
 			mesh->st_array[i][1] = t;
-			if (surf->texinfo->texture->width)
-				mesh->st_array[i][0] /= surf->texinfo->texture->width;
-			if (surf->texinfo->texture->height)
-				mesh->st_array[i][1] /= surf->texinfo->texture->height;
+			if (surf->texinfo->texture->vwidth)
+				mesh->st_array[i][0] /= surf->texinfo->texture->vwidth;
+			if (surf->texinfo->texture->vheight)
+				mesh->st_array[i][1] /= surf->texinfo->texture->vheight;
 		}
 
 #ifndef SERVERONLY
@@ -3359,34 +3344,196 @@ static void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, 
 }
 
 #ifndef SERVERONLY
-static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
+static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size_t miptexsize)
 {
-	unsigned int size = 
+	unsigned int legacysize =
 		(mt->width>>0)*(mt->height>>0) +
 		(mt->width>>1)*(mt->height>>1) +
 		(mt->width>>2)*(mt->height>>2) +
 		(mt->width>>3)*(mt->height>>3);
 
-	if (loadmodel->fromgame == fg_halflife && *(short*)((qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
+	uploadfmt_t newfmt = PTI_INVALID;
+	size_t neww=0, newh=0;
+	qbyte *newdata=NULL;
+	qbyte *pal = NULL;
+
+	//bug: vanilla quake ignored offsets and just made assumptions.
+	//this means we can't just play with offsets to hide stuff, we have to postfix it (which requires guessing lump sizes)
+	//issue: halflife textures have (leshort)256,(byte)pal[256*3] stuck on the end
+	//we signal the presence of our extended data using 0x00,0xfb,0x2b,0xaf (this should be uncommon as the next mip's name shouldn't normally be empty, nor a weird char (which should hopefully also not come from random stack junk in the wad tool)
+	//each extended block of data then has a size value, followed by a block name.
+	//compressed formats then contain a width+height value, and then a FULL (round-down) mip chain.
+	//if the gpu doesn't support npot, or its too big, or can't use the pixelformat then the engine will simply have to fall back on the paletted data. lets hope it was present.
+	size_t extofs;
+	if (!mt->offsets[0])
+		extofs = sizeof(miptex_t);
+	else if (mt->offsets[0] == sizeof(miptex_t) &&
+			 mt->offsets[1] == mt->offsets[0]+(mt->width>>0)*(mt->height>>0) &&
+			 mt->offsets[2] == mt->offsets[1]+(mt->width>>1)*(mt->height>>1) &&
+			 mt->offsets[3] == mt->offsets[2]+(mt->width>>2)*(mt->height>>2))
+	{
+		extofs = mt->offsets[3]+(mt->width>>3)*(mt->height>>3);
+		if (loadmodel->fromgame == fg_halflife && *(short*)((qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
+		{
+			pal = (qbyte*)mt + extofs+2;
+			extofs += 2+256*3;
+		}
+	}
+	else
+		extofs = miptexsize;	//the numbers don't match what we expect... something weird is going on here... don't misinterpret it.
+	if (extofs+4 <= miptexsize && ((qbyte*)mt)[extofs+0] == 0 && ((qbyte*)mt)[extofs+1]==0xfb && ((qbyte*)mt)[extofs+2]==0x2b && ((qbyte*)mt)[extofs+3]==0xaf)
+	{
+		unsigned int extsize;
+		extofs += 4;
+		for (; extofs < miptexsize; extofs += extsize)
+		{
+			size_t sz, w, h;
+			unsigned int bb,bw,bh;
+			int mip;
+			qbyte *extdata = (void*)((qbyte*)mt+extofs);
+			char *extfmt = (char*)(extdata+4);
+			extsize = (extdata[0]<<0)|(extdata[1]<<8)|(extdata[2]<<16)|(extdata[3]<<24);
+			if (extsize<8 || extofs+extsize>miptexsize) break;	//not a valid entry... something weird is happening here
+			else if (!strncmp(extfmt, "NAME", 4))
+			{	//replacement name, for longer shader/external names
+				size_t sz = extsize-8;
+				if (sz >= sizeof(tx->name))
+					continue;
+				memcpy(tx->name, (qbyte*)extdata+8, sz);
+				tx->name[sz] = 0;
+			}
+			else if (!strncmp(extfmt, "LPAL", 4) && extsize == 8+256*3)
+			{	//replacement palette for the 8bit data, for feature parity with halflife, but with extra markup so we know its actually meant to be a replacement palette.
+				pal = extdata+8;
+				continue;
+			}
+			else if (extsize <= 16) continue;										//too small for an altformat lump
+			else if (newdata != PTI_INVALID)	continue;							//only accept the first accepted format (allowing for eg astc+bc1 fallbacks)
+			else if (!strncmp(extfmt, "RGBA", 4))	newfmt = PTI_RGBA8;				//32bpp, we don't normally need this alpha precision (padding can be handy though, for the lazy).
+			else if (!strncmp(extfmt, "RGB", 4))	newfmt = PTI_RGB8;				//24bpp
+			else if (!strncmp(extfmt, "565", 4))	newfmt = PTI_RGB565;			//16bpp
+			else if (!strncmp(extfmt, "5551", 4))	newfmt = PTI_RGBA5551;			//16bpp
+			else if (!strncmp(extfmt, "EXP5", 4))	newfmt = PTI_E5BGR9;			//32bpp, we don't normally need this alpha precision...
+			else if (!strncmp(extfmt, "BC1", 4))	newfmt = PTI_BC1_RGBA;			//4bpp
+			else if (!strncmp(extfmt, "BC2", 4))	newfmt = PTI_BC2_RGBA;			//8bpp, we don't normally need this alpha precision...
+			else if (!strncmp(extfmt, "BC3", 4))	newfmt = PTI_BC3_RGBA;			//8bpp, we don't normally need this alpha precision...
+			else if (!strncmp(extfmt, "BC4", 4))	newfmt = PTI_BC4_R;				//4bpp, wtf
+			else if (!strncmp(extfmt, "BC5", 4))	newfmt = PTI_BC5_RG;			//8bpp, wtf
+			else if (!strncmp(extfmt, "BC6", 4))	newfmt = PTI_BC6_RGB_UFLOAT;	//8bpp, weird
+			else if (!strncmp(extfmt, "BC7", 4))	newfmt = PTI_BC7_RGBA;			//8bpp
+			else if (!strncmp(extfmt, "AST4", 4))	newfmt = PTI_ASTC_4X4_LDR;		//8 bpp
+			else if (!strncmp(extfmt, "AS54", 4))	newfmt = PTI_ASTC_5X4_LDR;		//6.40bpp
+			else if (!strncmp(extfmt, "AST5", 4))	newfmt = PTI_ASTC_5X5_LDR;		//5.12bpp
+			else if (!strncmp(extfmt, "AS65", 4))	newfmt = PTI_ASTC_6X5_LDR;		//4.17bpp
+			else if (!strncmp(extfmt, "AST6", 4))	newfmt = PTI_ASTC_6X6_LDR;		//3.56bpp
+			else if (!strncmp(extfmt, "AS85", 4))	newfmt = PTI_ASTC_8X5_LDR;		//3.20bpp
+			else if (!strncmp(extfmt, "AS86", 4))	newfmt = PTI_ASTC_8X6_LDR;		//2.67bpp
+			else if (!strncmp(extfmt, "AS05", 4))	newfmt = PTI_ASTC_10X5_LDR;		//2.56bpp
+			else if (!strncmp(extfmt, "AS06", 4))	newfmt = PTI_ASTC_10X6_LDR;		//2.13bpp
+			else if (!strncmp(extfmt, "AST8", 4))	newfmt = PTI_ASTC_8X8_LDR;		//2 bpp
+			else if (!strncmp(extfmt, "AS08", 4))	newfmt = PTI_ASTC_10X8_LDR;		//1.60bpp
+			else if (!strncmp(extfmt, "AS00", 4))	newfmt = PTI_ASTC_10X10_LDR;	//1.28bpp
+			else if (!strncmp(extfmt, "AS20", 4))	newfmt = PTI_ASTC_12X10_LDR;	//1.07bpp
+			else if (!strncmp(extfmt, "AST2", 4))	newfmt = PTI_ASTC_12X12_LDR;	//0.89bpp
+			else if (!strncmp(extfmt, "ETC1", 4))	newfmt = PTI_ETC1_RGB8;			//4bpp
+			else if (!strncmp(extfmt, "ETC2", 4))	newfmt = PTI_ETC2_RGB8;			//4bpp
+			else if (!strncmp(extfmt, "ETCP", 4))	newfmt = PTI_ETC2_RGB8A1;		//4bpp
+			else if (!strncmp(extfmt, "ETCA", 4))	newfmt = PTI_ETC2_RGB8A8;		//8bpp, we don't normally need this alpha precision...
+			else continue;																//dunno what that is, ignore it
+
+			//alternative textures are usually compressed
+			//this means we insist on a FULL mip chain
+			//npot mips are explicitly round-down (but don't drop to 0 with non-square).
+			Image_BlockSizeForEncoding(newfmt, &bb, &bw, &bh);
+			neww = (extdata[8]<<0)|(extdata[9]<<8)|(extdata[10]<<16)|(extdata[11]<<24);
+			newh = (extdata[12]<<0)|(extdata[13]<<8)|(extdata[14]<<16)|(extdata[15]<<24);
+			for (mip = 0, w=neww, h=newh, sz=0; w || h; mip++, w>>=1,h>>=1)
+			{
+				w = max(1, w);
+				h = max(1, h);
+				sz +=	bb *
+						((w+bw-1)/bw) *
+						((h+bh-1)/bh);
+				//Support truncation to top-mip only? tempting...
+			}
+			if (extsize != 16+sz)
+			{
+				Con_Printf("miptex %s has incomplete mipchain\n", Image_FormatName(newfmt));
+				continue;
+			}
+
+			//make sure we're not going to need to rescale compressed formats.
+			//gles<3 or gl<2 requires npot inputs for this to work. I guess that means dx9.3+ gpus, so all astc+bc7 but not necessarily all bc1+etc2. oh well.
+			if (!sh_config.texture_non_power_of_two)
+			{
+				if (neww & (neww - 1))
+					continue;
+				if (newh & (newh - 1))
+					continue;
+			}
+			//make sure its within our limits
+			if (!neww || !newh || neww > sh_config.texture2d_maxsize || newh > sh_config.texture2d_maxsize)
+				continue;
+			//that our hardware supports it... (Note: FTE can soft-decompress all of the above so this doesn't make too much sense if there's only one)
+			//if (!sh_config.texfmt[newfmt])
+			//	continue;
+			//that we can actually use non-paletted data...
+			if (r_softwarebanding && mt->offsets[0])
+				continue;
+
+			newdata = BZ_Malloc(sz);
+			memcpy(newdata, extdata+16, sz);
+		}
+	}
+
+	if (newdata)
+	{
+		tx->srcfmt = newfmt|PTI_FULLMIPCHAIN;
+		tx->srcwidth = neww;
+		tx->srcheight = newh;
+		tx->srcdata = newdata;
+		tx->palette = NULL;
+		return;
+	}
+
+	if (pal)
 	{	//mostly identical, just a specific palette hidden at the end. handle fences elsewhere.
-		tx->mips[0] = BZ_Malloc(size + 768);
-		tx->palette = tx->mips[0] + size;
-		memcpy(tx->palette, (qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3) + 2, 768);
+		tx->srcdata = BZ_Malloc(legacysize + 768);
+		tx->palette = tx->srcdata + legacysize;
+		memcpy(tx->palette, pal, 768);
 	}
 	else
 	{
-		tx->mips[0] = BZ_Malloc(size);
+		tx->srcdata = BZ_Malloc(legacysize);
 		tx->palette = NULL;
 	}
 
-	tx->mips[1] = tx->mips[0] + (mt->width>>0)*(mt->height>>0);
-	tx->mips[2] = tx->mips[1] + (mt->width>>1)*(mt->height>>1);
-	tx->mips[3] = tx->mips[2] + (mt->width>>2)*(mt->height>>2);
-	memcpy(tx->mips[0], (qbyte *)mt + mt->offsets[0], (mt->width>>0)*(mt->height>>0));
-	memcpy(tx->mips[1], (qbyte *)mt + mt->offsets[1], (mt->width>>1)*(mt->height>>1));
-	memcpy(tx->mips[2], (qbyte *)mt + mt->offsets[2], (mt->width>>2)*(mt->height>>2));
-	memcpy(tx->mips[3], (qbyte *)mt + mt->offsets[3], (mt->width>>3)*(mt->height>>3));
+	if (tx->palette)
+	{	//halflife, probably...
+		if (*tx->name == '{')
+			tx->srcfmt = TF_MIP4_8PAL24_T255;
+		else
+			tx->srcfmt = TF_MIP4_8PAL24;
+	}
+	else
+	{
+		if (*tx->name == '{')
+			tx->srcfmt = TF_TRANS8;
+		else
+			tx->srcfmt = TF_MIP4_SOLID8;
+	}
+	tx->srcwidth = mt->width;
+	tx->srcheight = mt->height;
 
+	legacysize = 0;
+	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[0], (mt->width>>0)*(mt->height>>0));
+	legacysize += (mt->width>>0)*(mt->height>>0);
+	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[1], (mt->width>>1)*(mt->height>>1));
+	legacysize += (mt->width>>1)*(mt->height>>1);
+	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[2], (mt->width>>2)*(mt->height>>2));
+	legacysize += (mt->width>>2)*(mt->height>>2);
+	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[3], (mt->width>>3)*(mt->height>>3));
+//	legacysize += (mt->width>>3)*(mt->height>>3);
 }
 #endif
 
@@ -3403,6 +3550,8 @@ static qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l
 	texture_t	*anims[10];
 	texture_t	*altanims[10];
 	dmiptexlump_t *m;
+	unsigned int *sizes;
+	unsigned int e, o;
 
 TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
@@ -3429,11 +3578,12 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
 	loadmodel->numtextures = m->nummiptex;
 	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
+	sizes = alloca(sizeof(*sizes)*m->nummiptex);
 
-	for (i=0 ; i<m->nummiptex ; i++)
+	for (i=m->nummiptex, e = l->filelen; i-->0; )
 	{
-		m->dataofs[i] = LittleLong(m->dataofs[i]);
-		if (m->dataofs[i] == -1)	//e1m2, this happens
+		o = LittleLong(m->dataofs[i]);
+		if (o >= l->filelen)	//e1m2, this happens
 		{
 			tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 			memcpy(tx, r_notexture_mip, sizeof(texture_t));
@@ -3441,7 +3591,9 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 			loadmodel->textures[i] = tx;
 			continue;
 		}
-		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
+		if (o >= e)
+			e = l->filelen; //something doesn't make sense. try to avoid making too many assumptions.
+		mt = (miptex_t *)((qbyte *)m + o);
 
 	TRACE(("dbg: Mod_LoadTextures: texture %s\n", mt->name));
 
@@ -3464,17 +3616,16 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		loadmodel->textures[i] = tx;
 
 		Q_strncpyz(tx->name, mt->name, min(sizeof(mt->name)+1, sizeof(tx->name)));
-		tx->width = mt->width;
-		tx->height = mt->height;
-
-		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
-		{
-			continue;
-		}
+		tx->vwidth = mt->width;
+		tx->vheight = mt->height;
 
 #ifndef SERVERONLY
-		Mod_LoadMiptex(loadmodel, tx, mt);
+		Mod_LoadMiptex(loadmodel, tx, mt, e-o);
+#else
+		(void)e;
 #endif
+
+		e = o;
 	}
 //
 // sequence the animations
@@ -4989,8 +5140,9 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, TF_MIP4_8PAL24_T255, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
-				BZ_Free(mod->textures[a]->mips[0]);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, TF_MIP4_8PAL24_T255, mod->textures[a]->srcwidth, mod->textures[a]->srcheight, mod->textures[a]->srcdata, mod->textures[a]->palette);
+				BZ_Free(mod->textures[a]->srcdata);
+				mod->textures[a]->srcdata = NULL;
 			}
 		}
 		else

@@ -111,7 +111,15 @@ extern cvar_t sv_allow_splitscreen;
 #ifdef SUPPORT_ICE
 static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (var->ival == 2)
+	char name[64], *e;
+	COM_ParseOut(var->string, name, sizeof(name));
+	strtol(name, &e, 0);
+	if (*name&&e==name)	//failed to read any number out of it.
+	{
+		FTENET_AddToCollection(svs.sockets, var->name, va("/%s", name), NA_INVALID, NP_RTC_TLS);
+		var->value = var->ival = 2;	//so other stuff sees us as holepunched.
+	}
+	else if (var->ival == 2)
 		FTENET_AddToCollection(svs.sockets, var->name, "/", NA_INVALID, NP_RTC_TLS);
 	else
 		FTENET_AddToCollection(svs.sockets, var->name, "", NA_INVALID, NP_INVALID);
@@ -5281,6 +5289,11 @@ float SV_Frame (void)
 static void SV_InfoChanged(void *context, const char *key)
 {
 	size_t i;
+
+#ifdef Q3SERVER
+	SVQ3_ServerinfoChanged(key);
+#endif
+
 	if (context != &svs.info && *key == '_')
 		return;	//these keys are considered private to originating client/server, and are not broadcast to anyone else
 

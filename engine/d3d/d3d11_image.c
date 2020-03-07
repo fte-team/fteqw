@@ -186,16 +186,16 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_BC3_RGBA_SRGB:
 		tdesc.Format = DXGI_FORMAT_BC3_UNORM_SRGB;
 		break;
-	case PTI_BC4_R8:
+	case PTI_BC4_R:
 		tdesc.Format = DXGI_FORMAT_BC4_UNORM;
 		break;
-	case PTI_BC4_R8_SNORM:
+	case PTI_BC4_R_SNORM:
 		tdesc.Format = DXGI_FORMAT_BC4_SNORM;
 		break;
-	case PTI_BC5_RG8:
+	case PTI_BC5_RG:
 		tdesc.Format = DXGI_FORMAT_BC5_UNORM;
 		break;
-	case PTI_BC5_RG8_SNORM:
+	case PTI_BC5_RG_SNORM:
 		tdesc.Format = DXGI_FORMAT_BC5_SNORM;
 		break;
 	case PTI_BC6_RGB_UFLOAT:

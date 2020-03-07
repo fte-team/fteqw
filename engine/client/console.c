@@ -2246,20 +2246,29 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 					imgname = Info_ValueForKey(linkinfo, "imgptr");
 					if (*imgname)
 					{
-						pic = R2D_SafeCachePic("tiprawimg");
-						pic->defaulttextures->base = Image_TextureIsValid(strtoull(imgname, NULL, 0));
-						if (pic && pic->defaulttextures->base)
+						image_t *img = Image_TextureIsValid(strtoull(imgname, NULL, 0));
+						if (img && (img->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_CUBE)
 						{
-							if (!pic->defaulttextures->base->width || !pic->defaulttextures->base->height || !TEXLOADED(pic->defaulttextures->base))
+							pic = R_RegisterShader("tiprawimgcube", 0, "{\nprogram postproc_equirectangular\n{\nmap \"$cube:$reflectcube\"\n}\n}");
+							pic->defaulttextures->reflectcube = img;
+						}
+						else
+						{
+							pic = R2D_SafeCachePic("tiprawimg");
+							pic->defaulttextures->base = img;
+						}
+						if (img)
+						{
+							if (!img->width || !img->height || !TEXLOADED(img))
 								picw = pich = 64;
-							else if (pic->defaulttextures->base->width > pic->defaulttextures->base->height)
+							else if (img->width > img->height)
 							{
 								picw = 64;
-								pich = (64.0*pic->defaulttextures->base->height)/pic->defaulttextures->base->width;
+								pich = (64.0*img->height)/img->width;
 							}
 							else
 							{
-								picw = (64.0*pic->defaulttextures->base->width)/pic->defaulttextures->base->height;
+								picw = (64.0*img->width)/img->height;
 								pich = 64;
 							}
 							break;
@@ -2936,41 +2945,53 @@ void Con_DrawConsole (int lines, qboolean noback)
 					}
 					else
 					{
+						image_t *img = NULL;
 						key = Info_ValueForKey(info, "tiprawimg");
 						if (*key)
 						{
-							shader = R2D_SafeCachePic("tiprawimg");
-							shader->defaulttextures->base = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
-							if (!shader->defaulttextures->base)
-								shader->defaulttextures->base = Image_FindTexture(key, NULL, IF_NOREPLACE);
-							if (!shader->defaulttextures->base)
+							img = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA|IF_TEXTYPE_ANY);
+							if (!img)
+								img = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_TEXTYPE_ANY);
+							if (!img)
 							{
 								size_t fsize;
 								char *buf;
-								shader->defaulttextures->base = Image_CreateTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
+								img = Image_CreateTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA|IF_TEXTYPE_ANY);
 								if ((buf = FS_LoadMallocFile (key, &fsize)))
-									Image_LoadTextureFromMemory(shader->defaulttextures->base, shader->defaulttextures->base->flags|IF_NOWORKER, key, key, buf, fsize);
+									Image_LoadTextureFromMemory(img, img->flags|IF_NOWORKER, key, key, buf, fsize);
 							}
 						}
+
 						key = Info_ValueForKey(info, "tipimgptr");
 						if (*key)
+							img = Image_TextureIsValid(strtoull(key, NULL, 0));
+						if (img && img->status == TEX_LOADED)
 						{
-							shader = R2D_SafeCachePic("tiprawimg");
-							shader->defaulttextures->base = Image_TextureIsValid(strtoull(key, NULL, 0));
-						}
-						if (shader && shader->defaulttextures->base && shader->defaulttextures->base->status == TEX_LOADED && ((shader->defaulttextures->base->flags&IF_TEXTYPEMASK) == (PTI_2D<<IF_TEXTYPESHIFT)))
-						{
-							shader->width = shader->defaulttextures->base->width;
-							shader->height = shader->defaulttextures->base->height;
-							if (shader->width > 320)
+							if ((img->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_CUBE)
 							{
-								shader->height *= 320.0/shader->width;
-								shader->width = 320;
+								shader = R_RegisterShader("tiprawimgcube", 0, "{\nprogram postproc_equirectangular\n{\nmap \"$cube:$reflectcube\"\n}\n}");
+								shader->defaulttextures->reflectcube = img;
 							}
-							if (shader->height > 240)
+							else if ((img->flags&IF_TEXTYPEMASK) == IF_TEXTYPE_2D)
 							{
-								shader->width *= 240.0/shader->height;
-								shader->height = 240;
+								shader = R2D_SafeCachePic("tiprawimg");
+								shader->defaulttextures->base = img;
+							}
+
+							if (shader)
+							{
+								shader->width = img->width;
+								shader->height = img->height;
+								if (shader->width > 320)
+								{
+									shader->height *= 320.0/shader->width;
+									shader->width = 320;
+								}
+								if (shader->height > 240)
+								{
+									shader->width *= 240.0/shader->height;
+									shader->height = 240;
+								}
 							}
 						}
 						else

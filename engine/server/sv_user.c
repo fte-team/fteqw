@@ -1941,6 +1941,18 @@ void SVQW_Spawn_f (void)
 	// when that is completed, a begin command will be issued
 	ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
 	ClientReliableWrite_String (host_client, "skins\n" );
+
+	if (sv.allocated_client_slots > 1)
+	{	//okay, so nq player physics don't suppot prediction.
+		//if we use qw physics in nq mods then we risk breaking things.
+		//the only progs many players will have is the vanilla nq one.
+		//so prediction is broken on most people's quicky servers.
+		//which really sucks.
+		//so let multiplayer people know what's going on so that they don't think its an actual bug, and can harass the admin to get it fixed in mods that allow for it.
+		if (!strcmp(sv_nqplayerphysics.string, "auto") || !strcmp(sv_nqplayerphysics.string, ""))
+			if (sv_nqplayerphysics.ival)
+				SV_PrintToClient(host_client, PRINT_HIGH, CON_WARNING"Movement prediction is disabled in favour of non-quakeworld mod compatibilty\n");
+	}
 }
 
 /*

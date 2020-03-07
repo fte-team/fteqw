@@ -29,7 +29,6 @@
 	float4 main (v2f inp) : COLOR0
 	{
 		float3 tc = inp.texc - e_eyepos.xyz;
-		tc.y = -tc.y;
 		return texCUBE(s_reflectcube, tc);
 	}
 #endif

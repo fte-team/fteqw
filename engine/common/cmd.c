@@ -1913,7 +1913,8 @@ qboolean Cmd_AddCommandAD (const char *cmd_name, xcommand_t function, xcommandar
 	cmd_function_t	*cmd;
 
 // fail if the command is a variable name
-	if (Cvar_VariableString(cmd_name)[0])
+	cvar_t *var = Cvar_FindVar (cmd_name);
+	if (var && function)
 	{
 		Con_Printf ("Cmd_AddCommand: %s already defined as a var\n", cmd_name);
 		return false;

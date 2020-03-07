@@ -717,6 +717,7 @@ void CLQ3_ParseServerMessage (void)
 
 qboolean CLQ3_Netchan_Process(void)
 {
+#ifndef Q3_NOENCRYPT
 	int		sequence;
 	int		lastClientCommandNum;
 	qbyte	bitmask;
@@ -725,12 +726,14 @@ qboolean CLQ3_Netchan_Process(void)
 	char	*string;
 	int		bit;
 	int		readcount;
+#endif
 
 	if(!Netchan_ProcessQ3(&cls.netchan))
 	{
 		return false;
 	}
 
+#ifndef Q3_NOENCRYPT
 	// archive buffer state
 	bit = net_message.currentbit;
 	readcount = msg_readcount;
@@ -748,7 +751,6 @@ qboolean CLQ3_Netchan_Process(void)
 	bitmask = (sequence ^ cls.challenge) & 0xff;
 	string = ccs.clientCommands[lastClientCommandNum & Q3TEXTCMD_MASK];
 
-#ifndef Q3_NOENCRYPT
 	// decrypt the packet
 	for(i=msg_readcount+4,j=0 ; i<net_message.cursize ; i++,j++)
 	{
@@ -772,6 +774,7 @@ qboolean CLQ3_Netchan_Process(void)
 void CL_Netchan_Transmit( int length, const qbyte *data )
 {
 #define msg net_message
+#ifndef Q3_NOENCRYPT
 	int			serverid;
 	int			lastSequence;
 	int			lastServerCommandNum;
@@ -779,6 +782,7 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 	qbyte		c;
 	int			i, j;
 	char		*string;
+#endif
 	net_message.cursize = 0;
 	SZ_Write(&msg, data, length);
 
@@ -787,6 +791,7 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 		Host_EndGame("Client message overflowed");
 	}
 
+#ifndef Q3_NOENCRYPT
 	msg_readcount = 0;
 	msg.currentbit = 0;
 	msg.packing = SZ_HUFFMAN;
@@ -799,7 +804,6 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 	bitmask = (lastSequence ^ serverid ^ cls.challenge) & 0xff;
 	string = ccs.serverCommands[lastServerCommandNum & Q3TEXTCMD_MASK];
 
-#ifndef Q3_NOENCRYPT
 	// encrypt the packet
 	for( i=12,j=0 ; i<msg.cursize ; i++,j++ )
 	{

@@ -4127,7 +4127,7 @@ Groups surfaces into their respective batches (based on the lightmap number).
 */
 void Surf_BuildLightmaps (void)
 {
-	int		i;
+	unsigned int		i, j;
 	model_t	*m;
 
 	extern model_t	*mod_known;
@@ -4170,6 +4170,10 @@ void Surf_BuildLightmaps (void)
 		if (m->loadstate != MLS_LOADED)
 			continue;
 		Surf_BuildModelLightmaps(m);
+
+		for (j = 0; j < m->numenvmaps; j++)
+			if (m->envmaps[j].image)
+				m->envmaps[j].image->regsequence = r_regsequence;
 	}
 	BE_UploadAllLightmaps();
 }

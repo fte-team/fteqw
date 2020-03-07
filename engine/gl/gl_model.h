@@ -325,7 +325,7 @@ void GL_DeselectVAO(void);
 typedef struct texture_s
 {
 	char		name[64];
-	unsigned	width, height;
+	unsigned	vwidth, vheight;	//used for lightmap coord generation
 
 	struct shader_s	*shader;
 	char		*partname;				//parsed from the worldspawn entity
@@ -335,8 +335,10 @@ typedef struct texture_s
 	struct texture_s *anim_next;		// in the animation sequence
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
 
-	qbyte		*mips[4];	//the different mipmap levels.
-	qbyte		*palette;	//host_basepal or halflife per-texture palette
+	uploadfmt_t srcfmt;
+	unsigned int srcwidth, srcheight;	//actual size (updated miptex format)
+	qbyte		*srcdata;		//the different mipmap levels.
+	qbyte		*palette;	//host_basepal or halflife per-texture palette (or null)
 } texture_t;
 /*
 typedef struct

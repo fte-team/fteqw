@@ -1381,10 +1381,10 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_BC2_RGBA_SRGB:		format = VK_FORMAT_BC2_SRGB_BLOCK;				break;
 	case PTI_BC3_RGBA:			format = VK_FORMAT_BC3_UNORM_BLOCK;				break;
 	case PTI_BC3_RGBA_SRGB:		format = VK_FORMAT_BC3_SRGB_BLOCK;				break;
-	case PTI_BC4_R8:			format = VK_FORMAT_BC4_UNORM_BLOCK;				break;
-	case PTI_BC4_R8_SNORM:		format = VK_FORMAT_BC4_SNORM_BLOCK;				break;
-	case PTI_BC5_RG8:			format = VK_FORMAT_BC5_UNORM_BLOCK;				break;
-	case PTI_BC5_RG8_SNORM:		format = VK_FORMAT_BC5_SNORM_BLOCK;				break;
+	case PTI_BC4_R:				format = VK_FORMAT_BC4_UNORM_BLOCK;				break;
+	case PTI_BC4_R_SNORM:		format = VK_FORMAT_BC4_SNORM_BLOCK;				break;
+	case PTI_BC5_RG:			format = VK_FORMAT_BC5_UNORM_BLOCK;				break;
+	case PTI_BC5_RG_SNORM:		format = VK_FORMAT_BC5_SNORM_BLOCK;				break;
 	case PTI_BC6_RGB_UFLOAT:	format = VK_FORMAT_BC6H_UFLOAT_BLOCK;			break;
 	case PTI_BC6_RGB_SFLOAT:	format = VK_FORMAT_BC6H_SFLOAT_BLOCK;			break;
 	case PTI_BC7_RGBA:			format = VK_FORMAT_BC7_UNORM_BLOCK;				break;
@@ -1828,7 +1828,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		{
 			if (mips->mip[i].width != max(1,(mips->mip[i-1].width>>1)) ||
 				mips->mip[i].height != max(1,(mips->mip[i-1].height>>1)))
-			{	//okay, this mip looks like it was sized wrongly. this can easily happen with dds files.
+			{	//okay, this mip looks like it was sized wrongly.
 				mipcount = i;
 				break;
 			}
@@ -4147,10 +4147,10 @@ void VK_CheckTextureFormats(void)
 		{PTI_BC1_RGBA_SRGB,		VK_FORMAT_BC1_RGBA_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC2_RGBA_SRGB,		VK_FORMAT_BC2_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC3_RGBA_SRGB,		VK_FORMAT_BC3_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC4_R8,			VK_FORMAT_BC4_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC4_R8_SNORM,		VK_FORMAT_BC4_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC5_RG8,			VK_FORMAT_BC5_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC5_RG8_SNORM,		VK_FORMAT_BC5_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC4_R,				VK_FORMAT_BC4_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC4_R_SNORM,		VK_FORMAT_BC4_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC5_RG,			VK_FORMAT_BC5_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC5_RG_SNORM,		VK_FORMAT_BC5_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC6_RGB_UFLOAT,	VK_FORMAT_BC6H_UFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC6_RGB_SFLOAT,	VK_FORMAT_BC6H_SFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC7_RGBA,			VK_FORMAT_BC7_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
@@ -4231,7 +4231,7 @@ void VK_CheckTextureFormats(void)
 			sh_config.texfmt[texfmt[i].pti] = true;
 	}
 
-	if (sh_config.texfmt[PTI_BC1_RGBA] && sh_config.texfmt[PTI_BC2_RGBA] && sh_config.texfmt[PTI_BC3_RGBA] && sh_config.texfmt[PTI_BC5_RG8] && sh_config.texfmt[PTI_BC7_RGBA])
+	if (sh_config.texfmt[PTI_BC1_RGBA] && sh_config.texfmt[PTI_BC2_RGBA] && sh_config.texfmt[PTI_BC3_RGBA] && sh_config.texfmt[PTI_BC5_RG] && sh_config.texfmt[PTI_BC7_RGBA])
 		sh_config.hw_bc = 3;
 	if (sh_config.texfmt[PTI_ETC2_RGB8] && sh_config.texfmt[PTI_ETC2_RGB8A1] && sh_config.texfmt[PTI_ETC2_RGB8A8] && sh_config.texfmt[PTI_EAC_RG11])
 		sh_config.hw_etc = 2;

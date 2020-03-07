@@ -20,7 +20,7 @@
 !!samps =SPECULAR specular
 !!samps lightmap
 !!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3
-!!samps =DELUXE deluxmap
+!!samps =DELUXE deluxemap
 !!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3
 !!samps =FAKESHADOWS shadowmap
 

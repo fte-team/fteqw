@@ -31,7 +31,7 @@ static void QDECL R_Image_BuggyCvar (struct cvar_s *var, char *oldvalue)
 {	//force these cvars to value 1 if they're empty.
 	//cvars using this should be changed to 0 by default, once our engine bugs are debugged/fixed.
 	if (!*var->string)
-		var->ival = true;
+		var->ival = var->value = true;
 }
 cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now)");
 cvar_t r_ignoremapprefixes = CVARCD("r_ignoremapprefixes", "", R_Image_BuggyCvar, "Ignores when textures were loaded from map-specific paths. FIXME: empty is currently interpretted as 1 because the alternative is too memory hungary with r_keepimages 1.");
@@ -2552,18 +2552,19 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 WritePCXfile
 ==============
 */
-void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height,
+qboolean WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height,
 	int rowbytes, qbyte *palette, qboolean upload) //data is 8bit.
 {
 	int		i, j, length;
 	pcx_t	*pcx;
 	qbyte		*pack;
+	qboolean ret;
 
 	pcx = BZ_Malloc(width*height*2+1000);
 	if (pcx == NULL)
 	{
 		Con_Printf("WritePCXfile: not enough memory\n");
-		return;
+		return false;
 	}
 
 	pcx->manufacturer = 0x0a;	// PCX id
@@ -2610,11 +2611,16 @@ void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, i
 
 #ifdef HAVE_CLIENT
 	if (upload)
+	{
 		CL_StartUpload((void *)pcx, length);
+		ret = true;
+	}
 	else
 #endif
-		COM_WriteFile (filename, fsroot, pcx, length);
+		ret = COM_WriteFile (filename, fsroot, pcx, length);
 	BZ_Free(pcx);
+
+	return ret;
 }
 
 /*
@@ -4600,10 +4606,11 @@ static void Image_LoadTexture_Failed(void *ctx, void *data, size_t a, size_t b)
 	texid_t tex = ctx;
 	tex->status = TEX_FAILED;
 }
-static void Image_FixupImageSize(texid_t tex, unsigned int w, unsigned int h)
+static void Image_FixupImageSize(texid_t tex, unsigned int w, unsigned int h, unsigned int d)
 {
 	tex->width = w;
 	tex->height = h;
+	tex->depth = d;
 
 	//ezhud breaks without this. I assume other things will too. this is why you shouldn't depend upon querying an image's size.
 	if (!strncmp(tex->ident, "gfx/", 4))
@@ -4697,6 +4704,9 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 		tex->flags &= ~IF_SRGB;
 		break;
 	}
+
+	if ((tex->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_ANY)
+		tex->flags = (tex->flags&~IF_TEXTYPEMASK)|(mips->type<<IF_TEXTYPESHIFT);
 
 	if (rf->IMG_LoadTextureMips(tex, mips))
 	{
@@ -4811,10 +4821,10 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_BC2_RGBA_SRGB:		header.glinternalformat = 0x8C4E/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT*/; break;
 	case PTI_BC3_RGBA:			header.glinternalformat = 0x83F3/*GL_COMPRESSED_RGBA_S3TC_DXT5_EXT*/; break;
 	case PTI_BC3_RGBA_SRGB:		header.glinternalformat = 0x8C4F/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT*/; break;
-	case PTI_BC4_R8_SNORM:		header.glinternalformat = 0x8DBC/*GL_COMPRESSED_SIGNED_RED_RGTC1*/; break;
-	case PTI_BC4_R8:			header.glinternalformat = 0x8DBB/*GL_COMPRESSED_RED_RGTC1*/; break;
-	case PTI_BC5_RG8_SNORM:		header.glinternalformat = 0x8DBE/*GL_COMPRESSED_SIGNED_RG_RGTC2*/; break;
-	case PTI_BC5_RG8:			header.glinternalformat = 0x8DBD/*GL_COMPRESSED_RG_RGTC2*/; break;
+	case PTI_BC4_R_SNORM:		header.glinternalformat = 0x8DBC/*GL_COMPRESSED_SIGNED_RED_RGTC1*/; break;
+	case PTI_BC4_R:				header.glinternalformat = 0x8DBB/*GL_COMPRESSED_RED_RGTC1*/; break;
+	case PTI_BC5_RG_SNORM:		header.glinternalformat = 0x8DBE/*GL_COMPRESSED_SIGNED_RG_RGTC2*/; break;
+	case PTI_BC5_RG:			header.glinternalformat = 0x8DBD/*GL_COMPRESSED_RG_RGTC2*/; break;
 	case PTI_BC6_RGB_UFLOAT:	header.glinternalformat = 0x8E8F/*GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB*/; break;
 	case PTI_BC6_RGB_SFLOAT:	header.glinternalformat = 0x8E8E/*GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB*/; break;
 	case PTI_BC7_RGBA:			header.glinternalformat = 0x8E8C/*GL_COMPRESSED_RGBA_BPTC_UNORM_ARB*/; break;
@@ -4937,6 +4947,9 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 		}
 		switch(mips->type)
 		{
+		case PTI_ANY:
+			VFS_CLOSE(file);
+			return false;
 		case PTI_2D:
 		case PTI_2D_ARRAY:
 		case PTI_CUBE:
@@ -4975,7 +4988,6 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	ktxheader_t header;
 	int nummips;
 	int mipnum;
-	int face;
 	int datasize;
 	unsigned int *swap, w, h, d, f, l, browbytes,padbytes,y,x,rows;
 	struct pendingtextureinfo *mips;
@@ -5041,10 +5053,10 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x8C4E/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT*/:		encoding = PTI_BC2_RGBA_SRGB;		break;
 	case 0x83F3/*GL_COMPRESSED_RGBA_S3TC_DXT5_EXT*/:			encoding = PTI_BC3_RGBA;			break;
 	case 0x8C4F/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT*/:		encoding = PTI_BC3_RGBA_SRGB;		break;
-	case 0x8DBC/*GL_COMPRESSED_SIGNED_RED_RGTC1*/:				encoding = PTI_BC4_R8_SNORM;		break;
-	case 0x8DBB/*GL_COMPRESSED_RED_RGTC1*/:						encoding = PTI_BC4_R8;				break;
-	case 0x8DBE/*GL_COMPRESSED_SIGNED_RG_RGTC2*/:				encoding = PTI_BC5_RG8_SNORM;		break;
-	case 0x8DBD/*GL_COMPRESSED_RG_RGTC2*/:						encoding = PTI_BC5_RG8;				break;
+	case 0x8DBC/*GL_COMPRESSED_SIGNED_RED_RGTC1*/:				encoding = PTI_BC4_R_SNORM;			break;
+	case 0x8DBB/*GL_COMPRESSED_RED_RGTC1*/:						encoding = PTI_BC4_R;				break;
+	case 0x8DBE/*GL_COMPRESSED_SIGNED_RG_RGTC2*/:				encoding = PTI_BC5_RG_SNORM;		break;
+	case 0x8DBD/*GL_COMPRESSED_RG_RGTC2*/:						encoding = PTI_BC5_RG;				break;
 	case 0x8E8F/*GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB*/:	encoding = PTI_BC6_RGB_UFLOAT;		break;
 	case 0x8E8E/*GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB*/:		encoding = PTI_BC6_RGB_SFLOAT;		break;
 	case 0x8E8C/*GL_COMPRESSED_RGBA_BPTC_UNORM_ARB*/:			encoding = PTI_BC7_RGBA;			break;
@@ -5266,7 +5278,8 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 
 		w = max(1, w>>1);
 		h = max(1, h>>1);
-		d = max(1, d>>1);
+		if (mips->type == PTI_3D)
+			d = max(1, d>>1);
 	}
 
 	if (!mips->mipcount)
@@ -5278,6 +5291,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 #ifdef ASTC_WITH_HDRTEST
 	if (encoding >= PTI_ASTC_4X4_LDR && encoding <= PTI_ASTC_12X12_LDR)
 	{
+		int face;
 		for (face = 0; face < header.numberoffaces; face++)
 		{
 			if (ASTC_BlocksAreHDR(mips->mip[face].data, mips->mip[face].datasize, blockwidth, blockheight, 1))
@@ -5564,14 +5578,14 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('A'<<0)|('T'<<8)|('I'<<16)|('1'<<24))
 		||   *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('4'<<16)|('U'<<24)))
-		encoding = PTI_BC4_R8;
+		encoding = PTI_BC4_R;
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('A'<<0)|('T'<<8)|('I'<<16)|('2'<<24))
 		||   *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('5'<<16)|('U'<<24)))
-		encoding = PTI_BC5_RG8;
+		encoding = PTI_BC5_RG;
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('4'<<16)|('S'<<24)))
-		encoding = PTI_BC4_R8_SNORM;
+		encoding = PTI_BC4_R_SNORM;
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('B'<<0)|('C'<<8)|('5'<<16)|('S'<<24)))
-		encoding = PTI_BC5_RG8_SNORM;
+		encoding = PTI_BC5_RG_SNORM;
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('E'<<0)|('T'<<8)|('C'<<16)|('2'<<24)))
 		encoding = PTI_ETC2_RGB8;
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24)))
@@ -5661,11 +5675,11 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 		case 0x4d/*DXGI_FORMAT_BC3_UNORM*/:				encoding = PTI_BC3_RGBA;		break;
 		case 0x4e/*DXGI_FORMAT_BC3_UNORM_SRGB*/:		encoding = PTI_BC3_RGBA_SRGB;	break;
 //		case 0x4f/*DXGI_FORMAT_BC4_TYPELESS*/:			encoding = PTI_INVALID;			break;
-		case 0x50/*DXGI_FORMAT_BC4_UNORM*/:				encoding = PTI_BC4_R8;			break;
-		case 0x51/*DXGI_FORMAT_BC4_SNORM*/:				encoding = PTI_BC4_R8_SNORM;	break;
+		case 0x50/*DXGI_FORMAT_BC4_UNORM*/:				encoding = PTI_BC4_R;			break;
+		case 0x51/*DXGI_FORMAT_BC4_SNORM*/:				encoding = PTI_BC4_R_SNORM;		break;
 //		case 0x52/*DXGI_FORMAT_BC5_TYPELESS*/:			encoding = PTI_INVALID;			break;
-		case 0x53/*DXGI_FORMAT_BC5_UNORM*/:				encoding = PTI_BC5_RG8;			break;
-		case 0x54/*DXGI_FORMAT_BC5_SNORM*/:				encoding = PTI_BC5_RG8_SNORM;	break;
+		case 0x53/*DXGI_FORMAT_BC5_UNORM*/:				encoding = PTI_BC5_RG;			break;
+		case 0x54/*DXGI_FORMAT_BC5_SNORM*/:				encoding = PTI_BC5_RG_SNORM;	break;
 		case 0x55/*DXGI_FORMAT_B5G6R5_UNORM*/:			encoding = PTI_RGB565;			break;
 		case 0x56/*DXGI_FORMAT_B5G5R5A1_UNORM*/:		encoding = PTI_ARGB1555;		break;
 		case 0x57/*DXGI_FORMAT_B8G8R8A8_UNORM*/:		encoding = PTI_BGRA8;			break;
@@ -5759,12 +5773,12 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 		if (fmt10header.arraysize == 6)
 		{
 			ttype = PTI_CUBE;
-			fmtheader.dwDepth = 6;
+			layers = 6;
 		}
 		else
 		{
 			ttype = PTI_CUBE_ARRAY;
-			fmtheader.dwDepth = fmt10header.arraysize;
+			layers = fmt10header.arraysize;
 		}
 	}
 	else if (fmtheader.ddsCaps[1] & 0x200000)
@@ -5779,7 +5793,7 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 			ttype = PTI_2D;
 		else
 			ttype = PTI_2D_ARRAY;
-		fmtheader.dwDepth = fmt10header.arraysize;
+		layers = fmt10header.arraysize;
 	}
 
 	mips = Z_Malloc(sizeof(*mips));
@@ -5794,27 +5808,55 @@ static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, const ch
 	h = fmtheader.dwHeight;
 	d = fmtheader.dwDepth;
 
-	for (mipnum = 0; mipnum < nummips; mipnum++)
-	{
-		if (mips->mipcount >= countof(mips->mip))
-			break;
-
-//		if (datasize < 8)
-//			datasize = pad;
-		datasize = ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight) * (d) * blockbytes;
-
-		for (layer = 0; layer < layers; layer++)
+	if (layers == 1)
+	{	//can just use the data without copying.
+		for (mipnum = 0; mipnum < nummips; mipnum++)
 		{
-			mips->mip[mips->mipcount].data = filedata;
-			mips->mip[mips->mipcount].datasize = datasize;
-			mips->mip[mips->mipcount].width = w;
-			mips->mip[mips->mipcount].height = h;
-			mips->mip[mips->mipcount].depth = d;
+			datasize = ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight) * (d) * blockbytes;
+
+			mips->mip[mipnum].data = filedata;
+			mips->mip[mipnum].datasize = datasize;
+			mips->mip[mipnum].width = w;
+			mips->mip[mipnum].height = h;
+			mips->mip[mipnum].depth = d;
 			mips->mipcount++;
 			filedata += datasize;
+
+			w = max(1, w>>1);
+			h = max(1, h>>1);
+			d = max(1, d>>1);
 		}
-		w = (w+1)>>1;
-		h = (h+1)>>1;
+	}
+	else
+	{	//we need to copy stuff in order to pack it properly. :(
+		//allocate space and calc mip sizes
+		for (mipnum = 0; mipnum < nummips; mipnum++)
+		{
+			datasize = ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight) * (layers*d) * blockbytes;
+			mips->mip[mipnum].data = BZ_Malloc(datasize);
+			mips->mip[mipnum].datasize = datasize;
+			mips->mip[mipnum].width = w;
+			mips->mip[mipnum].height = h;
+			mips->mip[mipnum].depth = layers*d;
+
+			w = max(1, w>>1);
+			h = max(1, h>>1);
+			d = max(1, d>>1);
+		}
+		mips->mipcount = mipnum;
+		//and now copy over the data
+		for (layer = 0; layer < layers; layer++)
+		{
+			for (mipnum = 0; mipnum < nummips; mipnum++)
+			{
+				datasize = mips->mip[mipnum].datasize/layers;
+				memcpy((qbyte*)mips->mip[mipnum].data+datasize*layer, filedata, datasize);
+				filedata += datasize;
+			}
+		}
+		//and now we're done with the source file. we might as well free it early.
+		BZ_Free(mips->extrafree);
+		mips->extrafree = NULL;
 	}
 
 	return mips;
@@ -5869,6 +5911,8 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	arraysize = mips->mip[0].depth;
 	switch(mips->type)
 	{
+	case PTI_ANY:
+		return false;
 	case PTI_3D:
 		arraysize = 1;
 		h9.ddsCaps[1] |= 0x200000;	//VOLUME
@@ -6007,11 +6051,11 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_BC3_RGBA:			h10.dxgiformat = 0x4d/*DXGI_FORMAT_BC3_UNORM*/;				DX9FOURCC('D','X','T','5'); break;
 	case PTI_BC3_RGBA_SRGB:		h10.dxgiformat = 0x4e/*DXGI_FORMAT_BC3_UNORM_SRGB*/;		break;
 //	case PTI_INVALID:			h10.dxgiformat = 0x4f/*DXGI_FORMAT_BC4_TYPELESS*/;			break;
-	case PTI_BC4_R8:			h10.dxgiformat = 0x50/*DXGI_FORMAT_BC4_UNORM*/;				/*DX9FOURCC('B','C','4','U');*/ DX9FOURCC('A','T','I','1'); break;
-	case PTI_BC4_R8_SNORM:		h10.dxgiformat = 0x51/*DXGI_FORMAT_BC4_SNORM*/;				DX9FOURCC('B','C','4','S'); break;
+	case PTI_BC4_R:				h10.dxgiformat = 0x50/*DXGI_FORMAT_BC4_UNORM*/;				/*DX9FOURCC('B','C','4','U');*/ DX9FOURCC('A','T','I','1'); break;
+	case PTI_BC4_R_SNORM:		h10.dxgiformat = 0x51/*DXGI_FORMAT_BC4_SNORM*/;				DX9FOURCC('B','C','4','S'); break;
 //	case PTI_INVALID:			h10.dxgiformat = 0x52/*DXGI_FORMAT_BC5_TYPELESS*/;			break;
-	case PTI_BC5_RG8:			h10.dxgiformat = 0x53/*DXGI_FORMAT_BC5_UNORM*/;				/*DX9FOURCC('B','C','5','U');*/ DX9FOURCC('A','T','I','2'); break;
-	case PTI_BC5_RG8_SNORM:		h10.dxgiformat = 0x54/*DXGI_FORMAT_BC5_SNORM*/;				DX9FOURCC('B','C','5','S'); break;
+	case PTI_BC5_RG:			h10.dxgiformat = 0x53/*DXGI_FORMAT_BC5_UNORM*/;				/*DX9FOURCC('B','C','5','U');*/ DX9FOURCC('A','T','I','2'); break;
+	case PTI_BC5_RG_SNORM:		h10.dxgiformat = 0x54/*DXGI_FORMAT_BC5_SNORM*/;				DX9FOURCC('B','C','5','S'); break;
 	case PTI_RGB565:			h10.dxgiformat = 0x55/*DXGI_FORMAT_B5G6R5_UNORM*/;			DX9FMT(16,    0xf800,    0x07e0,    0x001f,    0x0000,DX9RGB);	break;
 	case PTI_ARGB1555:			h10.dxgiformat = 0x56/*DXGI_FORMAT_B5G5R5A1_UNORM*/;		DX9FMT(16,    0x7c00,    0x03e0,    0x001f,    0x8000,DX9RGBA);	break;
 	case PTI_BGRA8:				h10.dxgiformat = 0x57/*DXGI_FORMAT_B8G8R8A8_UNORM*/;		DX9FMT(32,0x00ff0000,0x0000ff00,0x000000ff,0xff000000,DX9RGBA);	break;
@@ -7126,8 +7170,11 @@ static float HalfToFloat(unsigned short val)
 		float f;
 		unsigned int u;
 	} u;
-	u.u = (((val&0x7c00)>>10)-15+127)<<23;	//read exponent, rebias it, and reshift.
-	u.u |= ((val & 0x3ff)<<13) | ((val & 0x3ff)<<3) | ((val & 0x3ff)>>7);		//shift up the mantissa, and fold a little
+	if (val&0x7c00)
+		u.u = (((val&0x7c00)>>10)-15+127)<<23;	//read exponent, rebias it, and reshift.
+	else
+		u.u = 0;	//denormal (or 0).
+	u.u |= ((val & 0x3ff)<<13);//shift up the mantissa, but don't fold
 	u.u |= (val&0x8000)<<16;	//retain the sign bit.
 	return u.f;
 }
@@ -8448,8 +8495,8 @@ static void Image_Tr_FloatToE5BGR9(struct pendingtextureinfo *mips, int dummy)
 		float *dofree = mips->mip[mip].needfree?in:NULL;
 		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
 		mips->mip[mip].needfree = true;
-		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p);
 		mips->mip[mip].datasize = p*sizeof(*out);
+		mips->mip[mip].data = out = BZ_Malloc(mips->mip[mip].datasize);
 		for (; p-->0; out++, in+=4)
 		{
 			int e = 0;
@@ -8594,13 +8641,13 @@ static void Image_Tr_HalfToFloat(struct pendingtextureinfo *mips, int channels)
 	unsigned int mip;
 	for (mip = 0; mip < mips->mipcount; mip++)
 	{
-		float *in = mips->mip[mip].data;
+		unsigned short *in = mips->mip[mip].data;
 		float *out = mips->mip[mip].data;
-		float *dofree = mips->mip[mip].needfree?in:NULL;
-		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		unsigned short *dofree = mips->mip[mip].needfree?in:NULL;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth*channels;
 		mips->mip[mip].needfree = true;
-		mips->mip[mip].data = out = BZ_Malloc(sizeof(*out)*p*4);
-		mips->mip[mip].datasize = p*sizeof(*out)*4;
+		mips->mip[mip].datasize = p*sizeof(*out);
+		mips->mip[mip].data = out = BZ_Malloc(mips->mip[mip].datasize);
 		while(p-->0)
 			*out++ = HalfToFloat(*in++);
 		BZ_Free(dofree);
@@ -9251,7 +9298,7 @@ static void Image_Decode_BC4_Block(qbyte *fte_restrict in, pixel32_t *fte_restri
 	Vector4Set(r.v, 0, 0, 0, 0xff);
 	for (i = 0; i < 4; i++)
 		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
-	Image_Decode_RGTC_Block_Internal(in, out->v+0, w*4, fmt==PTI_BC4_R8_SNORM);
+	Image_Decode_RGTC_Block_Internal(in, out->v+0, w*4, fmt==PTI_BC4_R_SNORM);
 }
 static void Image_Decode_BC5_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, uploadfmt_t fmt)
 {	//BC5: two of BC3's alpha channels but used as red+green only.
@@ -9260,8 +9307,8 @@ static void Image_Decode_BC5_Block(qbyte *fte_restrict in, pixel32_t *fte_restri
 	Vector4Set(r.v, 0, 0, 0, 0xff);
 	for (i = 0; i < 4; i++)
 		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
-	Image_Decode_RGTC_Block_Internal(in+0, out->v+0, w*4, fmt==PTI_BC5_RG8_SNORM);
-	Image_Decode_RGTC_Block_Internal(in+8, out->v+1, w*4, fmt==PTI_BC5_RG8_SNORM);
+	Image_Decode_RGTC_Block_Internal(in+0, out->v+0, w*4, fmt==PTI_BC5_RG_SNORM);
+	Image_Decode_RGTC_Block_Internal(in+8, out->v+1, w*4, fmt==PTI_BC5_RG_SNORM);
 }
 #endif
 
@@ -10389,8 +10436,8 @@ void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, 
 	case PTI_BC1_RGB_SRGB:
 	case PTI_BC1_RGBA:
 	case PTI_BC1_RGBA_SRGB:
-	case PTI_BC4_R8:
-	case PTI_BC4_R8_SNORM:
+	case PTI_BC4_R:
+	case PTI_BC4_R_SNORM:
 	case PTI_ETC1_RGB8:
 	case PTI_ETC2_RGB8:
 	case PTI_ETC2_RGB8_SRGB:
@@ -10405,8 +10452,8 @@ void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, 
 	case PTI_BC2_RGBA_SRGB:
 	case PTI_BC3_RGBA:
 	case PTI_BC3_RGBA_SRGB:
-	case PTI_BC5_RG8:
-	case PTI_BC5_RG8_SNORM:
+	case PTI_BC5_RG:
+	case PTI_BC5_RG_SNORM:
 	case PTI_BC6_RGB_UFLOAT:
 	case PTI_BC6_RGB_SFLOAT:
 	case PTI_BC7_RGBA:
@@ -10508,10 +10555,10 @@ qboolean Image_FormatHasAlpha(uploadfmt_t encoding)
 	case PTI_L8_SRGB:
 	case PTI_BC1_RGB:
 	case PTI_BC1_RGB_SRGB:
-	case PTI_BC4_R8:
-	case PTI_BC4_R8_SNORM:
-	case PTI_BC5_RG8:
-	case PTI_BC5_RG8_SNORM:
+	case PTI_BC4_R:
+	case PTI_BC4_R_SNORM:
+	case PTI_BC5_RG:
+	case PTI_BC5_RG_SNORM:
 	case PTI_BC6_RGB_UFLOAT:
 	case PTI_BC6_RGB_SFLOAT:
 	case PTI_ETC1_RGB8:
@@ -10621,13 +10668,13 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	case PTI_BGRA8_SRGB:		return "BGRA8_SRGB";
 	case PTI_BGRX8_SRGB:		return "BGRX8_SRGB";
 	case PTI_A2BGR10:			return "A2BGR10";
-	case PTI_E5BGR9:			return "E5BGR9";
-	case PTI_B10G11R11F:		return "B10G11R11F";
-	case PTI_R16F:				return "R16F";
-	case PTI_R32F:				return "R32F";
-	case PTI_RGBA16F:			return "RGBA16F";
-	case PTI_RGBA32F:			return "RGBA32F";
-	case PTI_RGB32F:			return "RGB32F";
+	case PTI_E5BGR9:			return "E5BGR9_UF";
+	case PTI_B10G11R11F:		return "B10G11R11_UF";
+	case PTI_R16F:				return "R16_SF";
+	case PTI_R32F:				return "R32_SF";
+	case PTI_RGBA16F:			return "RGBA16_SF";
+	case PTI_RGBA32F:			return "RGBA32_SF";
+	case PTI_RGB32F:			return "RGB32_SF";
 	case PTI_R16:				return "R16";
 	case PTI_RGBA16:			return "RGBA16";
 	case PTI_P8:				return "P8";
@@ -10655,12 +10702,12 @@ const char *Image_FormatName(uploadfmt_t fmt)
 	case PTI_BC2_RGBA_SRGB:		return "BC2_RGBA_SRGB";
 	case PTI_BC3_RGBA:			return "BC3_RGBA";
 	case PTI_BC3_RGBA_SRGB:		return "BC3_RGBA_SRGB";
-	case PTI_BC4_R8:			return "BC4_R8";
-	case PTI_BC4_R8_SNORM:		return "BC4_R8_SNORM";
-	case PTI_BC5_RG8:			return "BC5_RG8";
-	case PTI_BC5_RG8_SNORM:		return "BC5_RG8_SNORM";
-	case PTI_BC6_RGB_UFLOAT:	return "BC6_RGBF";
-	case PTI_BC6_RGB_SFLOAT:	return "BC6_RGBF_SNORM";
+	case PTI_BC4_R:				return "BC4_R";
+	case PTI_BC4_R_SNORM:		return "BC4_R_SNORM";
+	case PTI_BC5_RG:			return "BC5_RG";
+	case PTI_BC5_RG_SNORM:		return "BC5_RG_SNORM";
+	case PTI_BC6_RGB_UFLOAT:	return "BC6_RGB_UF";
+	case PTI_BC6_RGB_SFLOAT:	return "BC6_RGB_SF";
 	case PTI_BC7_RGBA:			return "BC7_RGBA";
 	case PTI_BC7_RGBA_SRGB:		return "BC7_RGBA_SRGB";
 	case PTI_ETC1_RGB8:			return "ETC1_RGB8";
@@ -10999,13 +11046,13 @@ static qboolean Image_DecompressFormat(struct pendingtextureinfo *mips, const ch
 #endif
 		break;
 #ifdef DECOMPRESS_RGTC
-	case PTI_BC4_R8_SNORM:
-	case PTI_BC4_R8:
+	case PTI_BC4_R_SNORM:
+	case PTI_BC4_R:
 		decodefunc = Image_Decode_BC4_Block;
 		rcoding = PTI_RGBX8;
 		break;
-	case PTI_BC5_RG8_SNORM:
-	case PTI_BC5_RG8:
+	case PTI_BC5_RG_SNORM:
+	case PTI_BC5_RG:
 		decodefunc = Image_Decode_BC5_Block;
 		rcoding = PTI_RGBX8;
 		break;
@@ -11459,6 +11506,39 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	switch(fmt)
 	{
 	default:
+		if (fmt&PTI_FULLMIPCHAIN)
+		{
+			fmt = fmt&~PTI_FULLMIPCHAIN;
+			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+			if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)	//make sure its okay
+			{
+				size_t sz = 0;
+				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+				for (i = 0; i < countof(mips->mip) && (imgwidth || imgheight); i++, imgwidth>>=1, imgheight>>=1)
+				{
+					mips->mip[i].width = max(1,imgwidth);
+					mips->mip[i].height = max(1,imgheight);
+					mips->mip[i].depth = 1;
+					mips->mip[i].datasize = bb * ((mips->mip[i].width+bw-1)/bw) * ((mips->mip[i].height+bh-1)/bh);
+					mips->mip[i].needfree = false;
+					sz += mips->mip[i].datasize;
+				}
+				mips->mipcount = i;
+				mips->encoding = fmt;
+				if (!freedata)
+				{
+					rgbadata = BZ_Malloc(sz);
+					memcpy(rgbadata, rawdata, sz);
+				}
+				mips->extrafree = rawdata = rgbadata;
+				for (i = 0; i < mips->mipcount; i++)
+				{
+					mips->mip[i].data = rawdata;
+					rawdata = (qbyte*)rawdata+mips->mip[i].datasize;
+				}
+				return true;
+			}
+		}
 		mips->encoding = fmt;
 		break;
 
@@ -11985,10 +12065,10 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_BGRX8_SRGB:
 		case PTI_BC1_RGB:
 		case PTI_BC1_RGB_SRGB:
-		case PTI_BC4_R8:
-		case PTI_BC4_R8_SNORM:
-		case PTI_BC5_RG8:
-		case PTI_BC5_RG8_SNORM:
+		case PTI_BC4_R:
+		case PTI_BC4_R_SNORM:
+		case PTI_BC5_RG:
+		case PTI_BC5_RG_SNORM:
 		case PTI_BC6_RGB_UFLOAT:
 		case PTI_BC6_RGB_SFLOAT:
 		case PTI_ETC1_RGB8:
@@ -12498,7 +12578,7 @@ void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, in
 		{
 			inb = inr;	//reset the input after each row, so we have truely independant row+column strides
 			inr += rowstride;
-			for (x = 0; x < inheight; x++)
+			for (x = 0; x < inwidth; x++)
 			{
 				for (b = 0; b < pixelbytes; b++)
 					*outb++ = inb[b];
@@ -12545,12 +12625,12 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 	} cmscheme[][6] =
 	{
 		{
-			{"rt", true,  false, true},
-			{"lf", false, true,  true},
-			{"ft", true,  true,  false},
-			{"bk", false, false, false},
-			{"up", true,  false, true},
-			{"dn", true,  false, true}
+			{"rt", false,  false, true},
+			{"lf", true, true,  true},
+			{"bk", false, true, false},
+			{"ft", true,  false,  false},
+			{"up", false,  false, true},
+			{"dn", false,  false, true}
 		},
 
 		{
@@ -12614,8 +12694,8 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 						extern cvar_t vid_hardwaregamma;
 						int bb,bw,bh;
 						Image_BlockSizeForEncoding(format, &bb, &bw, &bh);
-						if (needsflipping && (bb!=4 || bw!=1 || bh!=1))
-							;
+						if (needsflipping && (bw!=1 || bh!=1))
+							/*can't do it*/;
 						else if (width == height && (!mips || width == mips->mip[0].width))	//cubemaps must be square and all the same size (npot is fine though)
 						{	//(skies have a fallback for invalid sizes, but it'll run a bit slower)
 
@@ -12624,13 +12704,13 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 								mips = Z_Malloc(sizeof(*mips));
 								mips->type = PTI_CUBE;
 								mips->mipcount = 1;
-								mips->encoding = PTI_RGBA8;
+								mips->encoding = format;
 								mips->extrafree = NULL;
-								mips->mip[0].datasize = width*height*4*6;
+								mips->mip[0].datasize = width*height*bb*6;
 								mips->mip[0].data = BZ_Malloc(mips->mip[0].datasize);
 								mips->mip[0].width = width;
 								mips->mip[0].height = height;
-								mips->mip[0].depth = 6;;
+								mips->mip[0].depth = 6;
 								mips->mip[0].needfree = true;
 							}
 
@@ -12691,10 +12771,11 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 			COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
 		return false;
 	}
+	fmt &= ~PTI_FULLMIPCHAIN;
 	Image_GenerateMips(mips, flags);
 	Image_ChangeFormatFlags(mips, flags, fmt, tex->ident);
 
-	Image_FixupImageSize(tex, imgwidth, imgheight);
+	Image_FixupImageSize(tex, imgwidth, imgheight, mips->mip[0].depth);
 	if (flags & IF_NOWORKER)
 		Image_LoadTextureMips(tex, mips, 0, 0);
 	else
@@ -12712,7 +12793,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 		BZ_Free(tex->fallbackdata);
 		tex->fallbackdata = NULL;
 
-		Image_FixupImageSize(tex, mips->mip[0].width, mips->mip[0].height);
+		Image_FixupImageSize(tex, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
 		if ((flags & IF_NOWORKER) || Sys_IsMainThread())
 			Image_LoadTextureMips(tex, mips, 0, 0);
 		else
@@ -13065,7 +13146,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 
 			if (mips)
 			{
-				Image_FixupImageSize(tex, mips->mip[0].width, mips->mip[0].height);
+				Image_FixupImageSize(tex, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
 				if (tex->flags & IF_NOWORKER)
 					Image_LoadTextureMips(tex, mips, 0, 0);
 				else
@@ -13358,7 +13439,14 @@ image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, uns
 				(fallbackwidth>>3)*(fallbackheight>>3);
 			break;
 		default:
-			Sys_Error("Image_GetTexture: bad format");
+			{
+				unsigned int bb, bw, bh;
+				unsigned int lev;
+				Image_BlockSizeForEncoding(fallbackfmt&~PTI_FULLMIPCHAIN, &bb, &bw, &bh);
+				for (b=0, lev = 0; fallbackwidth>>lev||fallbackheight>>lev; lev++)
+					b += bb * (max(1,fallbackwidth>>lev)+bw-1)/bw * (max(1,fallbackheight>>lev)+bh-1)/bh;
+			}
+			break;
 		}
 		tex->fallbackdata = BZ_Malloc(b + pb);
 		memcpy(tex->fallbackdata, fallbackdata, b);
@@ -13601,11 +13689,11 @@ void Image_List_f(void)
 			failed++;
 			continue;
 		}
-		if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D)
+		if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D || ((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_CUBE)
 			Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (size_t)tex);
 		if (tex->subpath)
 			Con_Printf("^h(%s)^h", tex->subpath);
-		Con_DLPrintf(1, " %x", tex->flags);
+//		Con_DLPrintf(1, " %x", tex->flags);
 
 		if (Image_LocateHighResTexture(tex, &loc, fname, sizeof(fname), &loadflags))
 		{
@@ -13614,7 +13702,7 @@ void Image_List_f(void)
 			while((bullshit=strchr(defuck, '\\')))
 				*bullshit = '/';
 
-			if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D || tex->format == PTI_P8)
+			if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D||((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_CUBE || tex->format == PTI_P8)
 				Con_Printf("^[%s\\tip\\%s/%s\\tipimgptr\\%#"PRIxSIZE"^]: ", tex->ident, defuck, fname, (size_t)tex);
 			else
 				Con_Printf("^[%s\\tip\\%s/%s^]: ", tex->ident, defuck, fname);
@@ -13635,15 +13723,25 @@ void Image_List_f(void)
 
 		if (tex->status == TEX_LOADED)
 		{
+			char *type;
 			unsigned int blockbytes, blockwidth, blockheight;
 			Image_BlockSizeForEncoding(tex->format, &blockbytes, &blockwidth, &blockheight);
-			imgmem = blockbytes * (tex->width+blockwidth-1)/blockwidth * (tex->height+blockheight-1)/blockheight;
+			imgmem = blockbytes * (tex->width+blockwidth-1)/blockwidth * (tex->height+blockheight-1)/blockheight * tex->depth;
+			switch((tex->flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT)
+			{
+			case PTI_2D:		type = "";			break;
+			case PTI_3D:		type = "3D ";		break;
+			case PTI_CUBE:		type = "Cube ";		break;
+			case PTI_2D_ARRAY:	type = "Array ";		break;
+			case PTI_CUBE_ARRAY:type = "CubeArray ";	break;
+			default:			type = "UNKNOWN ";	break;
+			}
 			if (!(tex->flags & IF_NOMIPMAP))
 				imgmem += imgmem/3;	//mips take about a third extra mem.
 			if (tex->depth != 1)
-				Con_Printf("^2loaded (%i*%i*%i ^4%s^2, %3fKB->%3fKB)\n", tex->width, tex->height, tex->depth, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
+				Con_Printf("^2loaded (%s%i*%i*%i ^4%s^2, %3fKB->%3fKB)\n", type, tex->width, tex->height, tex->depth, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
 			else
-				Con_Printf("^2loaded (%i*%i ^4%s^2, %3fKB->%3fKB)\n", tex->width, tex->height, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
+				Con_Printf("^2loaded (%s%i*%i ^4%s^2, %3fKB->%3fKB)\n", type, tex->width, tex->height, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
 			if (tex->aliasof)
 			{
 				aliasedmem += imgmem;

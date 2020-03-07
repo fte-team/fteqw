@@ -556,6 +556,13 @@ void SV_Map_f (void)
 	if (!Q_strcasecmp(Cmd_Argv(0), "map_restart"))
 	{
 		const char *arg = Cmd_Argv(1);
+
+#ifdef Q3SERVER
+		if (sv.state==ss_active && svs.gametype==GT_QUAKE3)
+			if (SVQ3_RestartGamecode())
+				return;
+#endif
+
 #ifdef SAVEDGAMES
 		if (!strcmp(arg, "restore"))		//hexen2 reload-saved-game
 			;
@@ -799,6 +806,8 @@ void SV_Map_f (void)
 #ifdef Q3SERVER
 	{
 		cvar_t *gametype;
+
+		Cvar_ApplyLatches(CVAR_LATCH);
 
 		gametype = Cvar_Get("mapname", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 		gametype->flags |= CVAR_SERVERINFO;

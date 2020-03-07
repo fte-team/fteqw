@@ -133,6 +133,7 @@ cvar_t snd_doppler_max			= CVARAFD(	"s_doppler_max", "2",
 cvar_t snd_playbackrate			= CVARFD(	"snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
 cvar_t snd_ignoregamespeed		= CVARFD(	"snd_ignoregamespeed", "0", 0, "When set, allows sounds to desynchronise with game time or demo speeds.");
 
+cvar_t snd_ignorecueloops		= CVARD(	"snd_ignorecueloops", "0", "Ignores cue commands in wav files, for q3 compat.");
 cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
 											"snd_linearresample", 0);
 cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
@@ -2321,6 +2322,7 @@ void S_Init (void)
 	Cvar_Register(&snd_device,		"Sound controls");
 	Cvar_Register(&snd_device_opts,		"Sound controls");
 
+	Cvar_Register(&snd_ignorecueloops, "Sound controls");
 	Cvar_Register(&snd_linearresample, "Sound controls");
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
 

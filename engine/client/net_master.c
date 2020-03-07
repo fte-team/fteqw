@@ -103,7 +103,7 @@ typedef struct {
 } net_masterlist_t;
 static net_masterlist_t net_masterlist[] = {
 #if 0	//for debugging
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"localhost:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"localhost:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: the reader...
 #else
 
 #ifndef QUAKETC
@@ -119,7 +119,7 @@ static net_masterlist_t net_masterlist[] = {
 #endif
 
 	//dpmaster is the generic non-quake-specific master protocol that we use for custom stand-alone mods.
-	{MP_DPMASTER,	CVARAFC("net_master1", "localhost", "sv_master1", 0, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARAFC("net_master1", "", "sv_master1", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master2", "", "sv_master2", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master3", "", "sv_master3", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master4", "", "sv_master4", 0, Net_Masterlist_Callback)},
@@ -145,11 +145,11 @@ static net_masterlist_t net_masterlist[] = {
 #ifdef HAVE_PACKET
 #ifndef QUAKETC
 	//engine-specified/maintained master lists (so users can be lazy and update the engine without having to rewrite all their configs).
-	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", "qwmaster.ocrana.de:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra2", ""/*"masterserver.exhale.de:27000" seems dead*/,	CVAR_NOSAVE, Net_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", ""/*"qwmaster.ocrana.de:27000" not responding*/,	CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra2", ""/*"masterserver.exhale.de:27000" dns dead*/,		CVAR_NOSAVE, Net_Masterlist_Callback)},	//german. admin unknown
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra3", "asgaard.morphos-team.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: bigfoot"},
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra4", "master.quakeservers.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: raz0?"},
-//	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra5", "qwmaster.fodquake.net:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"admin: bigfoot"},
+	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra5", "qwmaster.fodquake.net:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"admin: bigfoot"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27002",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master For CTF Servers"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27003",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master For TeamFortress Servers"},
@@ -167,7 +167,7 @@ static net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
 
 	//Total conversions will need to define their own in defaults.cfg or whatever.
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"master.frag-net.com:27950 198.58.111.37:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"master.frag-net.com:27950 198.58.111.37:27950",								CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
 //	{MP_DPMASTER,	CVARFC("net_masterextra1",		""/*"ghdigital.com:27950 207.55.114.154:27950"*/,								CVAR_NOSAVE, Net_Masterlist_Callback)}, //(was 69.59.212.88) admin: LordHavoc
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Willis
 	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: tChr
@@ -197,7 +197,6 @@ static net_masterlist_t net_masterlist[] = {
 	{MP_QUAKE3,		CVARFC("net_q3masterextra3",	"master.ioquake3.org:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: ioquake3"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra4",	"master.huxxer.de:27950",						CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: BMA Team"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra5",	"master.maverickservers.com:27950",				CVAR_NOSAVE, Net_Masterlist_Callback),	"US: Maverickservers.com"},
-	{MP_QUAKE3,		CVARFC("net_q3masterextra6",	"dpmaster.deathmask.net:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: DeathMask.net"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra8",	"master3.idsoftware.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: id Software Quake III Master"},
 #endif
 #endif

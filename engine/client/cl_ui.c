@@ -181,29 +181,39 @@ int Script_Read(int handle, struct pc_token_s *token)
 
 	StripCSyntax(token->string);
 
-	token->intvalue = atoi(token->string);
-	token->floatvalue = atof(token->string);
-	if (token->floatvalue || *token->string == '0' || *token->string == '.')
+	if (token->string[0] == '0' && (token->string[1] == 'x'||token->string[1] == 'X'))
 	{
+		token->intvalue = strtoul(token->string, NULL, 16);
+		token->floatvalue = token->intvalue;
 		token->type = TT_NUMBER;
-		token->subtype = 0;
-	}
-	else if (com_tokentype == TTP_STRING)
-	{
-		token->type = TT_STRING;
-		token->subtype = strlen(token->string);
+		token->subtype = 0x100;//TT_HEX;
 	}
 	else
 	{
-		if (token->string[1] == '\0')
+		token->intvalue = atoi(token->string);
+		token->floatvalue = atof(token->string);
+		if (token->floatvalue || *token->string == '0' || *token->string == '.')
 		{
-			token->type = TT_PUNCTUATION;
-			token->subtype = token->string[0];
+			token->type = TT_NUMBER;
+			token->subtype = 0;
+		}
+		else if (com_tokentype == TTP_STRING)
+		{
+			token->type = TT_STRING;
+			token->subtype = strlen(token->string);
 		}
 		else
 		{
-			token->type = TT_NAME;
-			token->subtype = strlen(token->string);
+			if (token->string[1] == '\0')
+			{
+				token->type = TT_PUNCTUATION;
+				token->subtype = token->string[0];
+			}
+			else
+			{
+				token->type = TT_NAME;
+				token->subtype = strlen(token->string);
+			}
 		}
 	}
 
@@ -303,10 +313,11 @@ struct
 #define UITAGNUM 2452
 
 extern model_t *mod_known;
-#define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
+extern int mod_numknown;
+#define VM_FROMMHANDLE(a) (a>0&&a<=mod_numknown?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-#define VM_FROMSHANDLE(a) (a?r_shaders[a-1]:NULL)
+#define VM_FROMSHANDLE(a) (a>0&&a<=r_numshaders?r_shaders[a-1]:NULL)
 #define VM_TOSHANDLE(a) (a?a->id+1:0)
 
 
@@ -359,8 +370,8 @@ struct q3polyvert_s
 #define Q3RF_NOSHADOW			64
 #define Q3RF_LIGHTING_ORIGIN	128
 
-#define MAX_VMQ3_CACHED_STRINGS 1024
-char *stringcache[1024];
+#define MAX_VMQ3_CACHED_STRINGS 2048
+char *stringcache[MAX_VMQ3_CACHED_STRINGS];
 
 void VMQ3_FlushStringHandles(void)
 {
@@ -675,6 +686,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 	int i;
 	char name[MAX_QPATH];
 	size_t sz;
+	shader_t *shader;
 	#define readInt() LittleLong(*in.i++)
 	#define readFloat() LittleFloat(*in.f++)
 
@@ -701,15 +713,136 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 			in.c += 32;
 		}
 		font->glyphScale = readFloat();
-		memcpy(font->name, in.i, MAX_QPATH);
+		memcpy(font->name, in.i, sizeof(font->name));
 
 //		Com_Memcpy(font, faceData, sizeof(fontInfo_t));
 		Q_strncpyz(font->name, name, sizeof(font->name));
 		for (i = GLYPH_START; i < GLYPH_END; i++)
 		{
-			font->glyphs[i].glyph = VM_TOSHANDLE(R_RegisterPic(font->glyphs[i].shaderName, NULL));
+			shader = R_RegisterPic(font->glyphs[i].shaderName, NULL);
+			font->glyphs[i].glyph = VM_TOSHANDLE(shader);
 		}
 	}
+}
+
+static struct
+{
+	int shaderhandle;
+	int x, y, w, h;
+	qboolean loop;
+} uicinematics[16];
+int UI_Cin_Play(const char *name, int x, int y, int w, int h, unsigned int flags)
+{
+	int idx;
+	shader_t *mediashader;
+	cin_t *cin;
+	for (idx = 0; ; idx++)
+	{
+		if (idx == countof(uicinematics))
+			return -1;	//out of handles
+		if (uicinematics[idx].shaderhandle)
+			continue;	//slot in use
+		break;	//this slot is usable
+	}
+
+	mediashader = R_RegisterCustom(name, SUF_NONE, Shader_DefaultCinematic, va("video/%s", name));
+	if (!mediashader)
+		return -1;	//wtf?
+	cin = R_ShaderGetCinematic(mediashader);
+	if (cin)
+		Media_SetState(cin, CINSTATE_PLAY);
+	else
+		return -1;	//FAIL!
+
+	uicinematics[idx].x = x;
+	uicinematics[idx].y = y;
+	uicinematics[idx].w = w;
+	uicinematics[idx].h = h;
+	uicinematics[idx].loop = !!(flags&1);
+	uicinematics[idx].shaderhandle = VM_TOSHANDLE(mediashader);
+
+	return idx;
+}
+int UI_Cin_Stop(int idx)
+{
+	if (idx >= 0 && idx < countof(uicinematics))
+	{
+		shader_t *shader = VM_FROMSHANDLE(uicinematics[idx].shaderhandle);
+		R_UnloadShader(shader);
+		uicinematics[idx].shaderhandle = 0;
+	}
+	return 0;
+}
+int UI_Cin_Run(int idx)
+{
+    enum {
+		FMV_IDLE,
+		FMV_PLAY,       // play
+		FMV_EOF,        // all other conditions, i.e. stop/EOF/abort
+		FMV_ID_BLT,
+		FMV_ID_IDLE,
+		FMV_LOOPED,
+		FMV_ID_WAIT
+    };
+	int ret = FMV_IDLE;
+
+
+	if (idx >= 0 && idx < countof(uicinematics))
+	{
+		shader_t *shader = VM_FROMSHANDLE(uicinematics[idx].shaderhandle);
+		cin_t *cin = R_ShaderGetCinematic(shader);
+		if (cin)
+		{
+			switch(Media_GetState(cin))
+			{
+			case CINSTATE_INVALID:	ret = FMV_IDLE;	break;
+			case CINSTATE_PLAY:		ret = FMV_PLAY; break;
+			case CINSTATE_LOOP:		ret = FMV_PLAY; break;
+			case CINSTATE_PAUSE:	ret = FMV_PLAY; break;
+			case CINSTATE_ENDED:
+				Media_SetState(cin, CINSTATE_FLUSHED);
+				ret = FMV_EOF;
+				break;
+			case CINSTATE_FLUSHED:
+				//FIXME: roq decoder has no reset method!
+				Media_Send_Reset(cin);
+				ret = FMV_LOOPED;
+				break;
+			}
+		}
+	}
+	return ret;
+}
+int UI_Cin_Draw(int idx)
+{
+	if (idx >= 0 && idx < countof(uicinematics))
+	{
+		shader_t *shader = VM_FROMSHANDLE(uicinematics[idx].shaderhandle);
+		float x = uicinematics[idx].x;
+		float y = uicinematics[idx].y;
+		float w = uicinematics[idx].w;
+		float h = uicinematics[idx].h;
+
+		//gah! q3 compat sucks!
+		x *= vid.pixelwidth/640.0;
+		w *= vid.pixelwidth/640.0;
+		y *= vid.pixelheight/480.0;
+		h *= vid.pixelheight/480.0;
+
+		R2D_Image(x, y, w, h, 0, 0, 1, 1, shader);
+	}
+	return 0;
+}
+int UI_Cin_SetExtents(int idx, int x, int y, int w, int h)
+{
+	if (idx >= 0 && idx < countof(uicinematics))
+	{
+		uicinematics[idx].x = x;
+		uicinematics[idx].y = y;
+		uicinematics[idx].w = w;
+		uicinematics[idx].h = h;
+	}
+	return 0;
 }
 
 static cvar_t *Cvar_Q3FindVar (const char *var_name)
@@ -760,10 +893,24 @@ static cvar_t *Cvar_Q3FindVar (const char *var_name)
 	return NULL;
 }
 
+static void UI_SimulateTextEntry(void *cb, char *utf8)
+{
+	const char *line = utf8;
+	unsigned int unicode;
+	int err;
+	while(*line)
+	{
+		unicode = utf8_decode(&err, line, &line);
+		if (uivm)
+			VM_Call(uivm, UI_KEY_EVENT, unicode|1024, true);
+	}
+}
+
 #define VALIDATEPOINTER(o,l) if ((quintptr_t)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
 
 static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
+	static int overstrikemode;
 	int ret=0;
 	char adrbuf[MAX_ADR_SIZE];
 
@@ -779,6 +926,15 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	switch((uiImport_t)fn)
 	{
+	case UI_CVAR_CREATE:
+	case UI_CVAR_INFOSTRINGBUFFER:
+	case UI_R_ADDPOLYTOSCENE:
+	case UI_R_REMAP_SHADER:
+	case UI_UPDATESCREEN:
+	case UI_CM_LOADMODEL:
+	case UI_FS_SEEK:
+		Con_Printf("Q3UI: Not implemented system trap: %i\n", (int)fn);
+		break;
 	case UI_ERROR:
 		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
@@ -810,7 +966,8 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *vval = VM_POINTER(arg[1]);
 			if (!strcmp(vname, "fs_game"))
 			{
-				Cbuf_AddText(va("gamedir %s\nui_restart\n", (char*)vval), RESTRICT_SERVER);
+				char quoted[256];
+				Cbuf_AddText(va("gamedir %s\nui_restart\n", COM_QuotedString(vval, quoted, sizeof(quoted), false)), RESTRICT_SERVER);
 			}
 			else
 			{
@@ -972,7 +1129,10 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0]), NULL));
+		{
+			shader_t *shader = R_RegisterPic(VM_POINTER(arg[0]), NULL);
+			VM_LONG(ret) = VM_TOSHANDLE(shader);
+		}
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene
@@ -1023,8 +1183,31 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			S_LocalSound(VM_FROMSTRCACHE(arg[0]));	//now we can fix up the sound name
 		break;
 
+	case UI_S_STARTBACKGROUNDTRACK:
+		Media_NamedTrack(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		break;
+	case UI_S_STOPBACKGROUNDTRACK:
+		Media_NamedTrack(NULL, NULL);
+		break;
+
+	//q3 shares insert mode between its ui and console. whereas fte doesn't support it (FIXME: add to Key_EntryInsert).
+	case UI_KEY_SETOVERSTRIKEMODE:
+		overstrikemode = arg[0];
+		return 0;
 	case UI_KEY_GETOVERSTRIKEMODE:
-		return true;
+		return overstrikemode;
+
+	case UI_GETCLIPBOARDDATA:
+		if (VM_OOB(arg[0], VM_LONG(arg[1])))
+			break;	//out of bounds.
+		//our clipboard doesn't allow us to simply query without blocking (would result in stalls on x11/wayland)
+		//so just return nothing - we can send the text as if it were regular text entry for a similar result.
+		Q_strncpyz(VM_POINTER(arg[0]), "", VM_LONG(arg[1]));
+
+		//but do we really want to let mods read the system clipboard? I suppose it SHOULD be okay if the UI was manually installed by the user.
+		//side note: q3's text entry logic is kinda flawed.
+		Sys_Clipboard_PasteText(CBT_CLIPBOARD, UI_SimulateTextEntry, NULL);
+		break;
 
 	case UI_KEY_KEYNUMTOSTRINGBUF:
 		if (VM_LONG(arg[0]) < 0 || VM_LONG(arg[0]) > 255 || (int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset || VM_LONG(arg[2]) < 1)
@@ -1223,6 +1406,110 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				strcpy(buf, "");
 		}
 		break;
+
+	case UI_LAN_UPDATEVISIBLEPINGS:
+		return CL_QueryServers();	//return true while we're still going.
+	case UI_LAN_RESETPINGS:
+		return 0;
+	case UI_LAN_ADDSERVER:
+		return 0;
+	case UI_LAN_REMOVESERVER:
+		return 0;
+	case UI_LAN_SERVERSTATUS:
+		//*address, *status, statuslen
+		return 0;
+	case UI_LAN_COMPARESERVERS:
+		{
+			hostcachekey_t q3tofte[] = {SLKEY_NAME, SLKEY_MAP, SLKEY_NUMHUMANS, SLKEY_GAMEDIR, SLKEY_PING, 0};
+			qboolean keyisstring[] = {true, true, false, true, false, false};
+			//int source = VM_LONG(arg[0]);
+			int key = bound(0, VM_LONG(arg[1]), countof(q3tofte));
+			int sortdir = VM_LONG(arg[2]);
+			serverinfo_t *s1 = Master_InfoForNum(VM_LONG(arg[3]));
+			serverinfo_t *s2 = Master_InfoForNum(VM_LONG(arg[4]));
+			if (keyisstring[key])
+				ret = strcasecmp(Master_ReadKeyString(s2, q3tofte[key]), Master_ReadKeyString(s1, q3tofte[key]));
+			else
+			{
+				ret = Master_ReadKeyFloat(s2, q3tofte[key]) - Master_ReadKeyFloat(s1, q3tofte[key]);
+				if (ret < 0)
+					ret = -1;
+				else if (ret > 0)
+					ret = 1;
+			}
+			if (sortdir)
+				ret = -ret;
+		}
+		return ret;
+
+	case UI_LAN_GETSERVERCOUNT:	//LAN Get server count
+		//int (int source)
+		Master_CheckPollSockets();
+		VM_LONG(ret) = Master_TotalCount();
+		break;
+	case UI_LAN_GETSERVERADDRESSSTRING:	//LAN get server address
+		//void (int source, int svnum, char *buffer, int buflen)
+		if ((int)arg[2] + VM_LONG(arg[3]) >= mask || VM_POINTER(arg[2]) < offset)
+			break;	//out of bounds.
+		{
+			char *buf = VM_POINTER(arg[2]);
+			char *adr;
+			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
+			if (info)
+			{
+				adr = Master_ServerToString(adrbuf, sizeof(adrbuf), info);
+				if (strlen(adr) < VM_LONG(arg[3]))
+				{
+					strcpy(buf, adr);
+					VM_LONG(ret) = true;
+				}
+			}
+			else
+				strcpy(buf, "");
+		}
+		break;
+	case UI_LAN_LOADCACHEDSERVERS:
+		break;
+	case UI_LAN_SAVECACHEDSERVERS:
+		break;
+	case UI_LAN_GETSERVERPING:
+		return 50;
+	case UI_LAN_GETSERVERINFO:
+		if (VM_OOB(arg[2], arg[3]) || !arg[3])
+			break;	//out of bounds.
+		{
+			//int source = VM_LONG(arg[0]);
+			int servernum = VM_LONG(arg[1]);
+			char *out = VM_POINTER(arg[2]);
+			int maxsize = VM_LONG(arg[3]);
+			char adr[MAX_ADR_SIZE];
+			serverinfo_t *info = Master_InfoForNum(servernum);
+			*out = 0;
+			if (info)
+			{
+				Info_SetValueForStarKey(out, "hostname", info->name, maxsize);
+				Info_SetValueForStarKey(out, "mapname", info->map, maxsize);
+				Info_SetValueForStarKey(out, "clients", va("%i", info->players), maxsize);
+				Info_SetValueForStarKey(out, "sv_maxclients", va("%i", info->maxplayers), maxsize);
+				Info_SetValueForStarKey(out, "ping", va("%i", info->ping), maxsize);
+//				Info_SetValueForStarKey(out, "minping", info->map, maxsize);
+//				Info_SetValueForStarKey(out, "maxping", info->map, maxsize);
+//				Info_SetValueForStarKey(out, "game", info->map, maxsize);
+//				Info_SetValueForStarKey(out, "gametype", info->map, maxsize);
+//				Info_SetValueForStarKey(out, "nettype", info->map, maxsize);
+				Info_SetValueForStarKey(out, "addr", NET_AdrToString(adr, sizeof(adr), &info->adr), maxsize);
+//				Info_SetValueForStarKey(out, "punkbuster", info->map, maxsize);
+//				Info_SetValueForStarKey(out, "g_needpass", info->map, maxsize);
+//				Info_SetValueForStarKey(out, "g_humanplayers", info->map, maxsize);
+
+			}
+		}
+		break;
+	case UI_LAN_MARKSERVERVISIBLE:
+		/*not implemented*/
+		return 0;
+	case UI_LAN_SERVERISVISIBLE:
+		return 1;
 #endif
 
 	case UI_CVAR_REGISTER:
@@ -1261,45 +1548,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_REAL_TIME:
 		VALIDATEPOINTER(arg[0], sizeof(q3time_t));
 		return Q3VM_GetRealtime(VM_POINTER(arg[0]));
-
-#ifdef CL_MASTER
-	case UI_LAN_GETSERVERCOUNT:	//LAN Get server count
-		//int (int source)
-		VM_LONG(ret) = Master_TotalCount();
-		break;
-	case UI_LAN_GETSERVERADDRESSSTRING:	//LAN get server address
-		//void (int source, int svnum, char *buffer, int buflen)
-		if ((int)arg[2] + VM_LONG(arg[3]) >= mask || VM_POINTER(arg[2]) < offset)
-			break;	//out of bounds.
-		{
-			char *buf = VM_POINTER(arg[2]);
-			char *adr;
-			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
-			if (info)
-			{
-				adr = Master_ServerToString(adrbuf, sizeof(adrbuf), info);
-				if (strlen(adr) < VM_LONG(arg[3]))
-				{
-					strcpy(buf, adr);
-					VM_LONG(ret) = true;
-				}	
-			}
-			else
-				strcpy(buf, "");
-		}
-		break;
-	case UI_LAN_LOADCACHEDSERVERS:
-		break;
-	case UI_LAN_SAVECACHEDSERVERS:
-		break;
-	case UI_LAN_GETSERVERPING:
-		return 50;
-	case UI_LAN_GETSERVERINFO:
-		break;
-	case UI_LAN_SERVERISVISIBLE:
-		return 1;
-		break;
-#endif
 
 	case UI_VERIFY_CDKEY:
 		VM_LONG(ret) = true;
@@ -1429,19 +1677,18 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		return Script_Read(arg[0], VM_POINTER(arg[1]));
 
 	case UI_CIN_PLAYCINEMATIC:
-		//handle(name, x, y, w, h, looping)
+		return UI_Cin_Play(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_LONG(arg[4]), VM_LONG(arg[5]));
 	case UI_CIN_STOPCINEMATIC:
-		//(handle)
+		return UI_Cin_Stop(VM_LONG(arg[0]));
 	case UI_CIN_RUNCINEMATIC:
-		//(handle)
+		return UI_Cin_Run(VM_LONG(arg[0]));
 	case UI_CIN_DRAWCINEMATIC:
-		//(handle)
+		return UI_Cin_Draw(VM_LONG(arg[0]));
 	case UI_CIN_SETEXTENTS:
-		//(handle, x, y, w, h)
-		break;
+		return UI_Cin_SetExtents(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_LONG(arg[4]));
 
 	default:
-		Con_Printf("Q3UI: Not implemented system trap: %i\n", (int)fn);
+		Con_Printf("Q3UI: Unknown system trap: %i\n", (int)fn);
 		return 0;
 	}
 
@@ -1513,8 +1760,6 @@ static void UI_DrawMenu(menu_t *m)
 }
 qboolean UI_KeyPress(struct menu_s *m, qboolean isdown, unsigned int devid, int key, int unicode)
 {
-	extern qboolean	keydown[K_MAX];
-	extern int		keyshift[K_MAX];		// key to map to if shift held down in console
 //	qboolean result;
 	if (!uivm)
 		return false;
@@ -1530,12 +1775,10 @@ qboolean UI_KeyPress(struct menu_s *m, qboolean isdown, unsigned int devid, int 
 		return false;
 	}
 
-	if (keydown[K_SHIFT])
-		key = keyshift[key];
-	if (key < K_BACKSPACE && key >= ' ')
-		key |= 1024;
-
-	/*result = */VM_Call(uivm, UI_KEY_EVENT, key, isdown);
+	if (key && key < 1024)
+		/*result = */VM_Call(uivm, UI_KEY_EVENT, key, isdown);
+	if (unicode && unicode < 1024)
+		/*result = */VM_Call(uivm, UI_KEY_EVENT, unicode|1024, isdown);
 	return true;
 }
 

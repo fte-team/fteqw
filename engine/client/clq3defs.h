@@ -1,5 +1,9 @@
 #ifndef _Q3DEFS_H_
 #define _Q3DEFS_H_
+
+//#define Q3_NOENCRYPT	//a debugging property, makes it incompatible with q3
+
+
 #define PROTOCOL_VERSION_Q3 68
 
 void Q3_SetKeyCatcher(int newcatcher);
@@ -17,8 +21,6 @@ typedef struct {
 	int			contents;	// contents on other side of surface hit
 	int			entityNum;	// entity the contacted surface is a part of
 } q3trace_t;
-
-//#define Q3_NOENCRYPT	//a debugging property, makes it incompatible with q3
 
 #define	MAX_Q3_STATS				16
 #define	MAX_Q3_PERSISTANT			16
@@ -316,6 +318,11 @@ typedef struct {
 } fontInfo_t;
 void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font);
 
+int UI_Cin_Play(const char *name, int x, int y, int w, int h, unsigned int flags);
+int UI_Cin_Stop(int idx);
+int UI_Cin_Run(int idx);
+int UI_Cin_Draw(int idx);
+int UI_Cin_SetExtents(int idx, int x, int y, int w, int h);
 
 void Netchan_TransmitNextFragment( netchan_t *chan );
 void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data );

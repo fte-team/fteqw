@@ -917,6 +917,15 @@ void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		G_FLOAT(OFS_RETURN) = 0;
 }
 
+void QCBUILTIN PF_remapshader (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *replacement = PR_GetStringOfs(prinst, OFS_PARM1);
+	float timeoffset = G_FLOAT(OFS_PARM2);
+
+	R_RemapShader(shadername, replacement, timeoffset);
+}
+
 void QCBUILTIN PF_cl_GetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bm[2];

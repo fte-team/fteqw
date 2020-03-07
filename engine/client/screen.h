@@ -139,10 +139,10 @@ typedef enum uploadfmt
 	PTI_BC2_RGBA_SRGB,	/*8bpp*/
 	PTI_BC3_RGBA,		/*8bpp*/ //maybe add a bc3 normalmapswizzle type for d3d9?
 	PTI_BC3_RGBA_SRGB,	/*8bpp*/
-	PTI_BC4_R8,			/*4bpp*/ //greyscale, kinda
-	PTI_BC4_R8_SNORM,	/*4bpp*/
-	PTI_BC5_RG8,		/*8bpp*/ //useful for normalmaps
-	PTI_BC5_RG8_SNORM,	/*8bpp*/ //useful for normalmaps
+	PTI_BC4_R,			/*4bpp*/ //greyscale, kinda
+	PTI_BC4_R_SNORM,	/*4bpp*/
+	PTI_BC5_RG,			/*8bpp*/ //useful for normalmaps
+	PTI_BC5_RG_SNORM,	/*8bpp*/ //useful for normalmaps
 	PTI_BC6_RGB_UFLOAT,	/*8bpp*/ //unsigned (half) floats!
 	PTI_BC6_RGB_SFLOAT,	/*8bpp*/ //signed (half) floats!
 	PTI_BC7_RGBA,		/*8bpp*/ //multimode compression, using as many bits as bc2/bc3
@@ -251,6 +251,7 @@ typedef enum uploadfmt
 	//these are emulated formats. this 'case' value allows drivers to easily ignore them
 #define PTI_EMULATED 	TF_INVALID:case TF_BGR24_FLIP:case TF_MIP4_P8:case TF_MIP4_SOLID8:case TF_MIP4_8PAL24:case TF_MIP4_8PAL24_T255:case TF_SOLID8:case TF_TRANS8:case TF_TRANS8_FULLBRIGHT:case TF_HEIGHT8:case TF_HEIGHT8PAL:case TF_H2_T7G1:case TF_H2_TRANS8_0:case TF_H2_T4A4:case TF_8PAL24:case TF_8PAL32:case PTI_LLLX8:case PTI_LLLA8
 } uploadfmt_t;
+#define PTI_FULLMIPCHAIN 0x80000000	//valid for Image_GetTexture (and thus GenMip0) to signify that there's a full round-down mipchain there, not a single one (or 4)
 
 qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, qintptr_t bytestride, int width, int height, enum uploadfmt fmt, qboolean writemeta);
 

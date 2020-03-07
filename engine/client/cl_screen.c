@@ -2850,7 +2850,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 		qboolean horizontalflip;
 	} sides[] =
 	{
-		//standard cubemap
+		//standard cubemap (flipping is done on save)
 		{{0, 0, 90}, "_px", true},
 		{{0, 180, -90}, "_nx", true},
 		{{0, 90, 0}, "_py", true},	//upside down
@@ -2899,7 +2899,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 	{
 		qboolean fail = false;
 		mips.type = PTI_CUBE;
-		mips.encoding = 0;
+		mips.encoding = PTI_INVALID;
 		mips.extrafree = NULL;
 		mips.mipcount = 1;
 
@@ -2909,13 +2909,14 @@ void SCR_ScreenShot_Cubemap_f(void)
 			VectorCopy(sides[i].angle, cl.playerview->simangles);
 			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
-			facedata = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, true);
+			//don't use hdr when saving dds files. it generally means dx10 dds files and most tools suck too much and then I get blamed for writing 'corrupt' dds files.
+			facedata = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, !!strcmp(ext, ".dds"));
 			if (!facedata)
 				break;
-			if (!i)
+			if (!bb)
 			{
 				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
-				if (bw != 1 || bh != 1)
+				if (!bb || bw != 1 || bh != 1 || fbwidth != fbheight)
 				{	//erk, no block compression here...
 					BZ_Free(facedata);
 					break;	//zomgwtfbbq
@@ -2936,23 +2937,27 @@ void SCR_ScreenShot_Cubemap_f(void)
 				break;	//zomgwtfbbq
 			}
 
-			Image_FlipImage(facedata, (qbyte*)mips.mip[0].data + i*mips.mip[0].datasize/6, &fbwidth, &fbheight, bb, sides[i].horizontalflip, sides[i].verticalflip, false);
+			Image_FlipImage(facedata, (qbyte*)mips.mip[0].data + i*(mips.mip[0].datasize/6), &fbwidth, &fbheight, bb, sides[i].horizontalflip, sides[i].verticalflip^(stride<0), false);
 			BZ_Free(facedata);
 		}
 		if (i == 6)
 		{
-			qboolean pixelformats[PTI_MAX] = {0};
-			pixelformats[PTI_E5BGR9] = true;
-			Image_ChangeFormat(&mips, pixelformats, mips.encoding, fname);
+			if (mips.encoding == PTI_RGB32F || mips.encoding == PTI_RGBA16F || mips.encoding == PTI_RGBA32F)
+			{	//convert to a more memory-efficient hdr format.
+				qboolean pixelformats[PTI_MAX] = {0};
+				pixelformats[PTI_E5BGR9] = true;
+				Image_ChangeFormat(&mips, pixelformats, mips.encoding, fname);
+			}
+			else if ((mips.encoding == PTI_RGBX8 || mips.encoding == PTI_BGRX8) && !strcmp(ext, ".dds"))
+			{	//gimp-dds plugin is buggy. convert to a less problematic format, so that I don't get invalid complaints.
+				qboolean pixelformats[PTI_MAX] = {0};
+				pixelformats[PTI_BGR8] = true;
+				Image_ChangeFormat(&mips, pixelformats, mips.encoding, fname);
+			}
 
 			Q_snprintfz(filename, sizeof(filename), "textures/%s", fname);
 			COM_DefaultExtension (filename, ext, sizeof(filename));
-#ifdef IMAGEFMT_KTX
-			COM_DefaultExtension (filename, ".ktx", sizeof(filename));
-#endif
-#ifdef IMAGEFMT_DDS
-			COM_DefaultExtension (filename, ".dds", sizeof(filename));
-#endif
+
 			ext = COM_GetFileExtension(filename, NULL);
 			if (fail)
 				Con_Printf("Unable to generate cubemap data\n");

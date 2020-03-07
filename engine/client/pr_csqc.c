@@ -6548,6 +6548,7 @@ static struct {
 	{"rotatevectorsbyvectors",	PF_rotatevectorsbymatrix,	236}, // #236
 	{"skinforname",				PF_skinforname,	237},		// #237
 	{"shaderforname",			PF_shaderforname,	238},	// #238
+	{"remapshader",				PF_remapshader,		0},
 	{"te_bloodqw",				PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
 
 	{"checkpvs",				PF_checkpvs,		240},

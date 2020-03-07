@@ -1109,6 +1109,7 @@ GetWavinfo
 */
 static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 {
+	extern cvar_t snd_ignorecueloops;
 	wavinfo_t	info;
 	int		i;
 	int		samples;
@@ -1156,7 +1157,7 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 
 // get cue chunk
 	chunklen = FindChunk(&ctx, "cue ");
-	if (chunklen >= 36-8)
+	if (chunklen >= 36-8 && !snd_ignorecueloops.ival)
 	{
 		ctx.data_p += 32;
 		info.loopstart = GetLittleLong(&ctx);

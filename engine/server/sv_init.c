@@ -625,7 +625,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		}
 		PR_Deinit();
 #ifdef Q3SERVER
-		SVQ3_ShutdownGame();
+		SVQ3_ShutdownGame(false);
 #endif
 #ifdef Q2SERVER
 		SVQ2_ShutdownGameProgs();
@@ -921,7 +921,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
-		SVQ3_ShutdownGame();	//botlib kinda mandates this. :(
+		SVQ3_ShutdownGame(false);	//botlib kinda mandates this. :(
 #endif
 
 	Mod_ClearAll ();
@@ -981,7 +981,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		CL_CheckServerInfo();
 #endif
 
-
+	sv.restarting = false;
 	sv.state = ss_loading;
 #if defined(Q2BSPS)
 	if (usecinematic)
@@ -1132,7 +1132,7 @@ MSV_OpenUserDatabase();
 	else
 #endif
 #ifdef Q3SERVER
-	if (SVQ3_InitGame())
+	if (SVQ3_InitGame(false))
 		newgametype = GT_QUAKE3;
 	else
 #endif
@@ -1167,7 +1167,7 @@ MSV_OpenUserDatabase();
 #endif
 #ifdef Q3SERVER
 		if (newgametype != GT_QUAKE3)
-			SVQ3_ShutdownGame();
+			SVQ3_ShutdownGame(false);
 #endif
 #ifdef Q2SERVER
 		if (newgametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
@@ -1380,7 +1380,7 @@ MSV_OpenUserDatabase();
 #endif
 #ifdef Q3SERVER
 	case GT_QUAKE3:
-		SV_UpdateMaxPlayers(32);
+		SV_UpdateMaxPlayers(max(8,maxclients.ival));
 		break;
 #endif
 #ifdef HLSERVER

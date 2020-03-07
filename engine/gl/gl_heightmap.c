@@ -5849,12 +5849,11 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			}
 
 			if (!Q_strncasecmp(bt->shadername, "sky", 3) && tx)
-				R_InitSky (bt->shader, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
+				R_InitSky (bt->shader, bt->shadername, TF_SOLID8, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
 			else if (tx)
 			{
-				qbyte *mips[4] = {(qbyte*)tx + tx->offsets[0], (qbyte*)tx + tx->offsets[1], (qbyte*)tx + tx->offsets[2], (qbyte*)tx + tx->offsets[3]};
 				unsigned int mapflags = SHADER_HASPALETTED | SHADER_HASDIFFUSE | SHADER_HASFULLBRIGHT | SHADER_HASNORMALMAP | SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, 0, TF_MIP4_SOLID8, tx->width, tx->height, mips, NULL); 
+				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, 0, TF_SOLID8, tx->width, tx->height, (qbyte*)tx + tx->offsets[0], NULL);
 			}
 			else
 				R_BuildDefaultTexnums(NULL, bt->shader, IF_WORLDTEX);

@@ -61,6 +61,7 @@ static vm_t *q3gamevm;
 #define MAX_CONFIGSTRINGS 1024
 static char *svq3_configstrings[MAX_CONFIGSTRINGS];
 
+static qboolean q3_serverinfo_dirty;
 static q3sharedEntity_t *q3_entarray;
 static int	numq3entities;
 static int sizeofq3gentity;
@@ -799,14 +800,21 @@ void SVQ3_SendConfigString(client_t *dest, int num, char *string)
 void SVQ3_SetConfigString(int num, char *string)
 {
 	int len;
+	if (num < 0 || num >= MAX_Q3_CONFIGSTRINGS)
+		return;	//no exploits please
+
 	if (!string)
 		string = "";
+	if (!strcmp(svq3_configstrings[num]?svq3_configstrings[num]:"", string))
+		return;
 	len = strlen(string);
 	if (svq3_configstrings[num])
 		Z_Free(svq3_configstrings[num]);
 	svq3_configstrings[num] = Z_Malloc(len+1);
 	strcpy(svq3_configstrings[num], string);
 
+	if (sv.state == ss_loading && !sv.restarting)
+		return;	//don't spam these, the svcq3_gamestate will have a copy anyway and the gamecode can get confused.
 	SVQ3_SendConfigString(NULL, num, string);
 }
 
@@ -1676,32 +1684,36 @@ static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)
 	return Q3G_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
-void SVQ3_ShutdownGame(void)
+void SVQ3_ShutdownGame(qboolean restarting)
 {
 	int i;
 	if (!q3gamevm)
 		return;
+
+	if (!restarting)
+	{
 #ifdef USEBOTLIB
-	if (botlib)
-	{	//it crashes otherwise, probably due to our huck clearage
-		botlib->BotLibShutdown();
-		Z_FreeTags(Z_TAG_BOTLIB);
-	}
+		if (botlib)
+		{	//it crashes otherwise, probably due to our huck clearage
+			botlib->BotLibShutdown();
+			Z_FreeTags(Z_TAG_BOTLIB);
+		}
 #endif
 
-	for (i = 0; i < MAX_CONFIGSTRINGS; i++)
-	{
-		if (svq3_configstrings[i])
+		for (i = 0; i < MAX_CONFIGSTRINGS; i++)
 		{
-			Z_Free(svq3_configstrings[i]);
-			svq3_configstrings[i] = NULL;
+			if (svq3_configstrings[i])
+			{
+				Z_Free(svq3_configstrings[i]);
+				svq3_configstrings[i] = NULL;
+			}
 		}
+	
+		Z_Free(q3_sentities);
+		q3_sentities = NULL;
+		BZ_Free(q3_snapshot_entities);
+		q3_snapshot_entities = NULL;
 	}
-
-	Z_Free(q3_sentities);
-	q3_sentities = NULL;
-	BZ_Free(q3_snapshot_entities);
-	q3_snapshot_entities = NULL;
 
 	VM_Destroy(q3gamevm);
 	q3gamevm = NULL;
@@ -1926,12 +1938,27 @@ static void SV_InitBotLib(void)
 #endif
 }
 
-qboolean SVQ3_InitGame(void)
+void SVQ3_ServerinfoChanged(const char *key)
+{	//roll up multiple updates into a single splurge. SVQ3_UpdateServerinfo will be called after the next frame.
+	q3_serverinfo_dirty = true;
+}
+static void SVQ3_UpdateServerinfo(void)
+{
+	char buffer[8192];
+	/*update serverinfo - qw serverinfo settings are not normally visible in the q3 serverinfo, so strip them from the configstring*/
+	static const char *ignores[] = {"maxclients", "map", "sv_maxclients", "*z_ext", "*bspversion", "*gamedir", NULL};
+	extern cvar_t maxclients;
+	InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, ignores, NULL, NULL, NULL);
+	//add in maxclients.. the q3 version
+	Q_strncatz(buffer, va("\\sv_maxclients\\%s", maxclients.string), sizeof(buffer));
+	SVQ3_SetConfigString(0, buffer);
+
+	q3_serverinfo_dirty = false;
+}
+
+qboolean SVQ3_InitGame(qboolean restart)
 {
 	int i;
-	char buffer[8192];
-	char *str;
-	char sysinfo[8192];
 
 	if (sv.world.worldmodel->type == mod_heightmap)
 	{
@@ -1946,7 +1973,7 @@ qboolean SVQ3_InitGame(void)
 		return false;
 
 
-	SVQ3_ShutdownGame();
+	SVQ3_ShutdownGame(restart);
 
 	q3gamevm = VM_Create("qagame", com_nogamedirnativecode.ival?NULL:Q3G_SystemCallsNative, "vm/qagame", Q3G_SystemCallsVM);
 
@@ -1965,68 +1992,67 @@ qboolean SVQ3_InitGame(void)
 
 	q3_sentities = Z_Malloc(sizeof(q3serverEntity_t)*MAX_GENTITIES);
 
-	{	/*qw serverinfo settings are not normally visible in the q3 serverinfo, so strip them from the configstring*/
-		static const char *ignores[] = {"maxclients", "map", "sv_maxclients", "*z_ext", "*bspversion", "*gamedir", NULL};
-		extern cvar_t maxclients;
-		InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, ignores, NULL, NULL, NULL);
-		//add in maxclients.. the q3 version
-		Q_strncatz(buffer, va("\\sv_maxclients\\%s", maxclients.string), sizeof(buffer));
-	}
-	SVQ3_SetConfigString(0, buffer);
-
 	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "1");
 
-	sysinfo[0] = '\0';
-	Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING);
+	if (!restart)
+	{
+		char buffer[8192];
+		char sysinfo[8192];
+		/*update the system info*/
+		sysinfo[0] = '\0';
+		Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING);
 
-	str = FS_GetPackHashes(buffer, sizeof(buffer), false);
-	Info_SetValueForKey(sysinfo, "sv_paks", str, MAX_SERVERINFO_STRING);
+		Info_SetValueForKey(sysinfo,			   "sv_paks", FS_GetPackHashes(buffer, sizeof(buffer), false       ), MAX_SERVERINFO_STRING);
+		Info_SetValueForKey(sysinfo,		   "sv_pakNames", FS_GetPackNames (buffer, sizeof(buffer), false, false), MAX_SERVERINFO_STRING);
+		Info_SetValueForKey(sysinfo,	 "sv_referencedPaks", FS_GetPackHashes(buffer, sizeof(buffer), true        ), MAX_SERVERINFO_STRING);
+		Info_SetValueForKey(sysinfo, "sv_referencedPakNames", FS_GetPackNames (buffer, sizeof(buffer), true, false ), MAX_SERVERINFO_STRING);
 
-	str = FS_GetPackNames(buffer, sizeof(buffer), false, false);
-	Info_SetValueForKey(sysinfo, "sv_pakNames", str, MAX_SERVERINFO_STRING);
-
-	str = FS_GetPackHashes(buffer, sizeof(buffer), true);
-	Info_SetValueForKey(sysinfo, "sv_referencedPaks", str, MAX_SERVERINFO_STRING);
-
-	str = FS_GetPackNames(buffer, sizeof(buffer), true, false);
-	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, MAX_SERVERINFO_STRING);
-
-	Info_SetValueForKey(sysinfo, "sv_pure", sv_pure.string, MAX_SERVERINFO_STRING);
-
-	SVQ3_SetConfigString(1, sysinfo);
-
+		Info_SetValueForKey(sysinfo, "sv_pure", sv_pure.string, MAX_SERVERINFO_STRING);
+		SVQ3_SetConfigString(1, sysinfo);
+		q3_serverinfo_dirty = true;
+	}
 
 	mapentspointer = Mod_GetEntitiesString(sv.world.worldmodel);
-	VM_Call(q3gamevm, GAME_INIT, 0, (int)rand(), false);
+	VM_Call(q3gamevm, GAME_INIT, (intptr_t)(sv.time*1000), (int)rand(), restart);
 
 	CM_InitBoxHull();
 
-	SVQ3_CreateBaseline();
+	if (!restart)
+	{
+		SVQ3_CreateBaseline();
 
-	q3_num_snapshot_entities = 32 * Q3UPDATE_BACKUP * 32;
-	if (q3_snapshot_entities)
-		BZ_Free(q3_snapshot_entities);
-	q3_next_snapshot_entities = 0;
-	q3_snapshot_entities = BZ_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
+		q3_num_snapshot_entities = 32 * Q3UPDATE_BACKUP * 32;
+		if (q3_snapshot_entities)
+			BZ_Free(q3_snapshot_entities);
+		q3_next_snapshot_entities = 0;
+		q3_snapshot_entities = Z_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
+	}
 
-
-		// run a few frames to allow everything to settle
+	// run a few frames to allow everything to settle
 	for (i = 0; i < 3; i++)
 	{
 		SVQ3_RunFrame();
 		sv.time += 0.1;
 	}
 
+#ifdef HAVE_CLIENT
+	//there's a whole load of ugly debug crap there. make sure it stays hidden.
+	Con_ClearNotify();
+#endif
+
 	return true;
 }
 
 void SVQ3_RunFrame(void)
 {
-	VM_Call(q3gamevm, GAME_RUN_FRAME, (int)(sv.time*1000));
 #ifdef USEBOTLIB
 	if (botlib)
 		VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
 #endif
+	VM_Call(q3gamevm, GAME_RUN_FRAME, (int)(sv.time*1000));
+
+	if (q3_serverinfo_dirty)
+		SVQ3_UpdateServerinfo();
 }
 
 void SVQ3_ClientCommand(client_t *cl)
@@ -2038,6 +2064,7 @@ void SVQ3_ClientBegin(client_t *cl)
 {
 	VM_Call(q3gamevm, GAME_CLIENT_BEGIN, (int)(cl-svs.clients));
 	sv.spawned_client_slots++;
+	cl->spawned = true;
 }
 
 void SVQ3_ClientThink(client_t *cl)
@@ -2464,7 +2491,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	{
 		q3_num_snapshot_entities = 32 * Q3UPDATE_BACKUP * 32;
 		q3_next_snapshot_entities = 0;
-		q3_snapshot_entities = BZ_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
+		q3_snapshot_entities = Z_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
 	}
 
 	clientNum = client - svs.clients;
@@ -2484,7 +2511,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	// this is the frame we are creating
 	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
 
-	snap->serverTime = sv.time*1000;//svs.levelTime; // save it for ping calc later
+	snap->serverTime = sv.restartedtime*1000 + sv.time*1000;//svs.levelTime; // save it for ping calc later
 	snap->flags = 0;
 
 	if( client->state < cs_spawned )
@@ -2818,8 +2845,8 @@ void SVQ3_SendGameState(client_t *client)
 		// write baselines
 		for( i=0; i<MAX_GENTITIES; i++ )
 		{
-				if (!q3_baselines[i].number)
-					continue;
+			if (!q3_baselines[i].number)
+				continue;
 
 			MSG_WriteBits(&msg, svcq3_baseline, 8);
 			MSGQ3_WriteDeltaEntity( &msg, NULL, &q3_baselines[i], true );
@@ -2932,6 +2959,7 @@ client_t *SVQ3_FindExistingPlayerByIP(netadr_t *na, int qport)
 qboolean Netchan_ProcessQ3 (netchan_t *chan);
 static qboolean SVQ3_Netchan_Process(client_t *client)
 {
+#ifndef Q3_NOENCRYPT
 	int		serverid;
 	int		lastSequence;
 	int		lastServerCommandNum;
@@ -2941,12 +2969,14 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 	char	*string;
 	int		bit;
 	int		readcount;
+#endif
 
 	if (!Netchan_ProcessQ3(&client->netchan))
 	{
 		return false;
 	}
 
+#ifndef Q3_NOENCRYPT
 	// archive buffer state
 	bit = net_message.currentbit;
 	readcount = msg_readcount;
@@ -2965,7 +2995,6 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 	bitmask = (serverid ^ lastSequence ^ client->challenge) & 0xff;
 	string = client->server_commands[lastServerCommandNum & Q3TEXTCMD_MASK];
 
-#ifndef Q3_NOENCRYPT
 	// decrypt the packet
 	for(i=msg_readcount+12,j=0; i<net_message.cursize; i++,j++)
 	{
@@ -2989,16 +3018,17 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 void SVQ3_Netchan_Transmit(client_t *client, int length, qbyte *data)
 {
 	qbyte		buffer[MAX_OVERALLMSGLEN];
+	int			i;
+#ifndef Q3_NOENCRYPT
 	qbyte		bitmask;
 	qbyte		c;
-	int			i, j;
+	int			j;
 	char		*string;
 
 	// calculate bitmask
 	bitmask = (client->netchan.outgoing_sequence ^ client->challenge) & 0xff;
 	string = client->last_client_command;
 
-#ifndef Q3_NOENCRYPT
 	//first four bytes are not encrypted.
 	for(i=0; i<4 ; i++)
 		buffer[i] = data[i];
@@ -3145,7 +3175,7 @@ void SVQ3_UpdateUserinfo_f(client_t *cl)
 	InfoBuf_FromString(&cl->userinfo, Cmd_Argv(1), false);
 	SV_ExtractFromUserinfo (cl, true);
 
-	if (svs.gametype == GT_QUAKE3)
+	if (svs.gametype == GT_QUAKE3 && cl->spawned)
 		VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
 }
 
@@ -3385,6 +3415,69 @@ qboolean SVQ3_HandleClient(void)
 	SVQ3_ParseClientMessage(&svs.clients[i]);
 	return true;
 }
+
+//Q3 gamecode does map_restart weirdly.
+//it simply reloads the gamecode without changing any maps/models/sounds
+//this won't work for q1/q2, but q3 expects it.
+//note that time continues from its prior value without any kind of reset.
+qboolean SVQ3_RestartGamecode(void)
+{
+	int i;
+	extern cvar_t maxclients;
+	int newmaxclients = max(8,maxclients.ival);
+	if (sv.allocated_client_slots != newmaxclients)
+		return false;	//can't do it if maxclients needs to change.
+
+	Cvar_ApplyLatches(CVAR_LATCH);
+
+	//reload the gamecode
+	sv.state = ss_loading;
+	sv.restarting = true;
+	if (!SVQ3_InitGame(true))
+		return false;
+
+//	svs.spawncount++;	//so new snapshots get sent
+	sv.restartedtime = 0;
+
+	//and then reconnect the players as appropriate
+//	SVQ3_NewMapConnects();
+
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].state < cs_connected)
+			continue;
+
+		if (VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD))
+		{
+			SV_DropClient(&svs.clients[i]);
+			continue;
+		}
+		if (svs.clients[i].spawned)
+		{
+			sv.spawned_client_slots--;
+		 	SVQ3_ClientBegin(&svs.clients[i]);
+		 }
+	}
+
+	sv.starttime = Sys_DoubleTime() - sv.time;
+#ifdef SAVEDGAMES
+	sv.autosave_time = sv.time + sv_autosave.value*60;
+#endif
+
+	//basically done
+	sv.state = ss_active;
+	sv.restarting = false;
+
+	//and an extra physics frame for luck
+	sv.time+=0.1;
+	sv.world.physicstime=sv.time;
+	SVQ3_RunFrame();
+
+	SVQ3_SendServerCommand(NULL, "map_restart");
+
+	return true;	//yup, we did it.
+}
+
 void SVQ3_NewMapConnects(void)
 {
 	int i;
@@ -3467,10 +3560,13 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 		else
 		{
 			InfoBuf_FromString(&cl->userinfo, userinfo, false);
-			reason = NET_AdrToString(adr, sizeof(adr), &net_from);
+			if (net_from.type == NA_LOOPBACK)
+				reason = "localhost";	//Q3 uses this specific string for listen servers.
+			else
+				reason = NET_AdrToString(adr, sizeof(adr), &net_from);
 			InfoBuf_SetKey(&cl->userinfo, "ip", reason);	//q3 gamecode needs to know the client's ip (server's perception of the client, NOT QW client's perception of the server/proxy)
 
-			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), false, false);
+			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), true, false);
 			if (!ret)
 				reason = NULL;
 			else

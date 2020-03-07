@@ -360,6 +360,13 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	int ie, ip;
 	char *trackend;
 
+	if (!track && !looptrack)
+	{
+		*media_playtrack = *media_loopingtrack = 0;
+		Media_Changed(MEDIA_GAMEMUSIC);
+		return true;
+	}
+
 	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
 		return false;
 	if (!looptrack || !*looptrack)	//null or empty looptrack loops using the primary track, for compat with q3.

@@ -1626,7 +1626,11 @@ void GLBE_Init(void)
 	shaderstate.identitylighting = 1;
 	shaderstate.identitylightmap = 1;
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
+	{
 		shaderstate.dummybatch.lightmap[i] = -1;
+		shaderstate.dummybatch.lmlightstyle[i] = INVALID_LIGHTSTYLE;
+		shaderstate.dummybatch.vtlightstyle[i] = ~0;
+	}
 
 #ifdef RTLIGHTS
 	Sh_CheckSettings();
@@ -1826,7 +1830,7 @@ static float *tcgen3(const shaderpass_t *pass, int cnt, float *dst, const mesh_t
 		for (i = 0; i < cnt; i++, dst += 3)
 		{
 			dst[0] = src[i][0] - r_refdef.vieworg[0];
-			dst[1] = r_refdef.vieworg[1] - src[i][1];
+			dst[1] = src[i][1] - r_refdef.vieworg[1];
 			dst[2] = src[i][2] - r_refdef.vieworg[2];
 		}
 		return dst-cnt*3;

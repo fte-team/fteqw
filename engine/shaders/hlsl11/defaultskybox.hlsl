@@ -21,7 +21,6 @@ struct v2f
 		v2f outp;
 		outp.pos = mul(m_model, inp.pos);
 		outp.texc= outp.pos.xyz - v_eyepos;
-		outp.texc.y = -outp.texc.y;
 		outp.pos = mul(m_view, outp.pos);
 		outp.pos = mul(m_projection, outp.pos);
 		return outp;

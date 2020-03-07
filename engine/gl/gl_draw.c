@@ -347,10 +347,10 @@ void GL_SetupFormats(void)
 	}
 	if (bc45)
 	{
-		glfmtb(PTI_BC4_R8,				GL_COMPRESSED_RED_RGTC1);
-		glfmtb(PTI_BC4_R8_SNORM,		GL_COMPRESSED_SIGNED_RED_RGTC1);
-		glfmtb(PTI_BC5_RG8,				GL_COMPRESSED_RG_RGTC2);
-		glfmtb(PTI_BC5_RG8_SNORM,		GL_COMPRESSED_SIGNED_RG_RGTC2);
+		glfmtb(PTI_BC4_R,				GL_COMPRESSED_RED_RGTC1);
+		glfmtb(PTI_BC4_R_SNORM,			GL_COMPRESSED_SIGNED_RED_RGTC1);
+		glfmtb(PTI_BC5_RG,				GL_COMPRESSED_RG_RGTC2);
+		glfmtb(PTI_BC5_RG_SNORM,		GL_COMPRESSED_SIGNED_RG_RGTC2);
 	}
 	if (bc67)
 	{
@@ -830,7 +830,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		{
 			if (mips->mip[i].width != max(1,(mips->mip[i-1].width>>1)) ||
 				mips->mip[i].height != max(1,(mips->mip[i-1].height>>1)))
-			{	//okay, this mip looks like it was sized wrongly. this can easily happen with npot dds files made for direct3d.
+			{	//okay, this mip looks like it was sized wrongly. I've seen this happen with some dds files.
 				nummips = i;
 				break;
 			}
@@ -1053,10 +1053,10 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:		out.encoding = PTI_BC1_RGBA_SRGB;		break;
 		case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:		out.encoding = PTI_BC2_RGBA_SRGB;		break;
 		case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:		out.encoding = PTI_BC3_RGBA_SRGB;		break;
-		case GL_COMPRESSED_RED_RGTC1:						out.encoding = PTI_BC4_R8;				break;
-		case GL_COMPRESSED_SIGNED_RED_RGTC1:				out.encoding = PTI_BC4_R8_SNORM;		break;
-		case GL_COMPRESSED_RG_RGTC2:						out.encoding = PTI_BC5_RG8;				break;
-		case GL_COMPRESSED_SIGNED_RG_RGTC2:					out.encoding = PTI_BC5_RG8_SNORM;		break;
+		case GL_COMPRESSED_RED_RGTC1:						out.encoding = PTI_BC4_R;				break;
+		case GL_COMPRESSED_SIGNED_RED_RGTC1:				out.encoding = PTI_BC4_R_SNORM;			break;
+		case GL_COMPRESSED_RG_RGTC2:						out.encoding = PTI_BC5_RG;				break;
+		case GL_COMPRESSED_SIGNED_RG_RGTC2:					out.encoding = PTI_BC5_RG_SNORM;		break;
 		case GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_UFLOAT;		break;
 		case GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_SFLOAT;		break;
 		case GL_COMPRESSED_RGBA_BPTC_UNORM_ARB:				out.encoding = PTI_BC7_RGBA;			break;

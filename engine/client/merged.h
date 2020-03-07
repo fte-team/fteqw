@@ -298,6 +298,8 @@ struct pendingtextureinfo
 		PTI_CUBE,		//w*h*6 - depth MUST be 6 (faces must be tightly packed)
 		PTI_2D_ARRAY,	//w*h*layers - depth is =layers
 		PTI_CUBE_ARRAY,	//w*h*(layers*6) - depth is =(layers*6).
+
+		PTI_ANY			//says we don't care.
 	} type;
 
 	uploadfmt_t encoding;	//PTI_* formats

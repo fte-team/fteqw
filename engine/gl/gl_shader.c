@@ -1776,6 +1776,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				if (strncmp("DELUX", script, end - script))
 				if (strncmp("OFFSETMAPPING", script, end - script))
 				if (strncmp("RELIEFMAPPING", script, end - script))
+				if (strncmp("FAKESHADOWS", script, end - script))
 					Con_DPrintf("Unknown pemutation in glsl program %s\n", name);
 			}
 			script = end;
@@ -5923,7 +5924,7 @@ static qbyte *ReadRGBA8ImageFile(const char *fname, const char *subpath, int *wi
 #endif
 
 //call this with some fallback textures to directly load some textures
-void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette)
+void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *srcdata, qbyte *palette)
 {
 	char *h;
 	char imagename[MAX_QPATH];
@@ -5931,9 +5932,6 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	//extern cvar_t gl_miptexLevel;
 	texnums_t *tex = shader->defaulttextures;
 	int a, aframes;
-	qbyte *dontcrashme[4] = {NULL};
-	if (!mipdata)
-		mipdata = dontcrashme;
 	/*else if (gl_miptexLevel.ival)
 	{
 		unsigned int miplevel = 0, i;
@@ -5985,7 +5983,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		imageflags |= IF_NOALPHA;
 		//fallthrough
 	case TF_MIP4_8PAL24_T255:
-		if (!mipdata || !mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
+		if (!srcdata)
 			basefmt = TF_SOLID8;
 		break;
 	default:
@@ -6097,10 +6095,10 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 					}
 				}
 				if (!TEXLOADED(tex->base))
-					tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
+					tex->base = Image_GetTexture(imagename, subpath, imageflags, srcdata, palette, width, height, basefmt);
 			}
 			else if (!TEXVALID(tex->base))
-				tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
+				tex->base = Image_GetTexture(imagename, subpath, imageflags, srcdata, palette, width, height, basefmt);
 		}
 
 		if (loadflags & SHADER_HASPALETTED)
@@ -6108,7 +6106,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->paletted) && *mapname)
 				tex->paletted = R_LoadHiResTexture(va("%s_pal", mapname), NULL, imageflags|IF_NEAREST);
 			if (!TEXVALID(tex->paletted))
-				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_P8:PTI_P8);
+				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB, srcdata, palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_P8:PTI_P8);
 		}
 
 		imageflags |= IF_LOWPRIORITY;
@@ -6122,7 +6120,14 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->bump) && *mapname)
 				tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP|IF_NOSRGB);
 			if (!TEXVALID(tex->bump) && (r_shadow_bumpscale_basetexture.ival||*imagename=='#'||gl_load24bit.ival))
-				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB|(*imagename=='#'?IF_LINEAR:0), (r_shadow_bumpscale_basetexture.ival||*imagename=='#')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
+			{
+				qbyte *fallbackheight;
+				if ((r_shadow_bumpscale_basetexture.ival||*imagename=='#') && !(basefmt&PTI_FULLMIPCHAIN))
+					fallbackheight = srcdata;	//generate normalmap from assumed heights.
+				else
+					fallbackheight = NULL;		//disabled
+				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB|(*imagename=='#'?IF_LINEAR:0), fallbackheight, palette, width, height, TF_HEIGHT8PAL);
+			}
 		}
 
 		if (loadflags & SHADER_HASTOPBOTTOM)
@@ -6163,13 +6168,13 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->fullbright))
 			{
 				int s=-1;
-				if (mipdata[0] && (!palette || palette == host_basepal))
+				if (srcdata && !(basefmt&PTI_FULLMIPCHAIN) && (!palette || palette == host_basepal))
 				for(s = width*height-1; s>=0; s--)
 				{
-					if (mipdata[0][s] >= 256-vid.fullbright)
+					if (srcdata[s] >= 256-vid.fullbright)
 						break;
 				}
-				tex->fullbright = Image_GetTexture(va("%s_luma:%s_glow", imagename,imagename), subpath, imageflags, (s>=0)?mipdata[0]:NULL, palette, width, height, TF_TRANS8_FULLBRIGHT);
+				tex->fullbright = Image_GetTexture(va("%s_luma:%s_glow", imagename,imagename), subpath, imageflags, (s>=0)?srcdata:NULL, palette, width, height, TF_TRANS8_FULLBRIGHT);
 			}
 		}
 	}
@@ -7796,10 +7801,11 @@ void Shader_ShowShader_f(void)
 		o = R_LoadShader(sourcename, SUF_2D, NULL, NULL);
 	if (o)
 	{
-		char *body = Shader_GetShaderBody(o, NULL, 0);
+		char fname[256];
+		char *body = Shader_GetShaderBody(o, fname, sizeof(fname));
 		if (body)
 		{
-			Con_Printf("%s\n{%s\n", o->name, body);
+			Con_Printf("^h(%s)^h\n%s\n{%s\n", fname, o->name, body);
 			Z_Free(body);
 		}
 		else
@@ -8014,19 +8020,21 @@ void R_RemapShader(const char *sourcename, const char *destname, float timeoffse
 	shader_t *o;
 	shader_t *n;
 	int i;
+	size_t l;
 
 	char cleansrcname[MAX_QPATH];
 	Q_strncpyz(cleansrcname, sourcename, sizeof(cleansrcname));
 	COM_CleanUpPath(cleansrcname);
+	l = strlen(cleansrcname);
 
 	for (i = 0; i < r_numshaders; i++)
 	{
 		o = r_shaders[i];
 		if (o && o->uses)
 		{
-			if (!strcmp(o->name, cleansrcname))
+			if (!strncmp(o->name, cleansrcname, l) && (!o->name[l] || o->name[l]=='#'))
 			{
-				n = R_LoadShader (destname, o->usageflags, NULL, NULL);
+				n = R_LoadShader (va("%s%s", destname, o->name+l), o->usageflags, NULL, NULL);
 				if (!n)
 				{	//if it isn't actually available on disk then don't care about usageflags, just find ANY that's already loaded.
 					// check the hash first

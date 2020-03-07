@@ -309,7 +309,7 @@ int i;
 
 	if((fp = FS_OpenVFS(fname, "rb", FS_GAME)) == NULL)
 	{
-		if((fp = FS_OpenVFS(va("video/%s.roq", fname), "rb", FS_GAME)) == NULL)	//for q3 compat
+		if((fp = FS_OpenVFS(va("video/%s", fname), "rb", FS_GAME)) == NULL)	//for q3 compat
 			return NULL;
 	}
 

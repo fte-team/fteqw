@@ -22,6 +22,7 @@ extern cvar_t r_noframegrouplerp;
 cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
 #ifdef MD1MODELS
 cvar_t mod_h2holey_bugged					= CVARD ("mod_h2holey_bugged", "0", "Hexen2's holey-model flag uses index 0 as transparent (and additionally 255 in gl, due to a bug). GLQuake engines tend to have bugs that use ONLY index 255, resulting in a significant compatibility issue that can be resolved only with this shitty cvar hack.");
+cvar_t mod_halftexel						= CVARD ("mod_halftexel", "1", "Offset texture coords by a half-texel, for compatibility with glquake and the majority of engine forks.");
 #endif
 static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
 {
@@ -3059,7 +3060,6 @@ static int Mod_CountSkinFiles(model_t *mod)
 
 void Mod_LoadAliasShaders(model_t *mod)
 {
-	qbyte *mipdata[4];
 	galiasinfo_t *ai = mod->meshinfo;
 	galiasskin_t *s;
 	skinframe_t *f;
@@ -3198,11 +3198,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 						loadflags |= SHADER_HASFULLBRIGHT;
 					if (r_loadbumpmapping)
 						loadflags |= SHADER_HASNORMALMAP;
-					mipdata[0] = f->texels;
-					mipdata[1] = NULL;
-					mipdata[2] = NULL;
-					mipdata[3] = NULL;
-					R_BuildLegacyTexnums(f->shader, basename, alttexpath, loadflags, imageflags, skintranstype, s->skinwidth, s->skinheight, mipdata, host_basepal);
+					R_BuildLegacyTexnums(f->shader, basename, alttexpath, loadflags, imageflags, skintranstype, s->skinwidth, s->skinheight, f->texels, host_basepal);
 				}
 				else
 					R_BuildDefaultTexnums(&f->texnums, f->shader, 0);
@@ -3812,6 +3808,7 @@ static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 #ifndef SERVERONLY
 	vec2_t *st_array;
 	int j;
+	float halftexel = mod_halftexel.ival?0.5:0;
 #endif
 	int version;
 	int i, onseams;
@@ -3993,13 +3990,13 @@ static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		{
 			if (stremap[k] > pq1inmodel->num_st)
 			{	/*onseam verts? shrink the index, and add half a texture width to the s coord*/
-				st_array[k][0] = 0.5+(LittleLong(pinstverts[stremap[k]-pq1inmodel->num_st].s)+0.5)/(float)pq1inmodel->skinwidth;
-				st_array[k][1] = (LittleLong(pinstverts[stremap[k]-pq1inmodel->num_st].t)+0.5)/(float)pq1inmodel->skinheight;
+				st_array[k][0] = 0.5+(LittleLong(pinstverts[stremap[k]-pq1inmodel->num_st].s)+halftexel)/(float)pq1inmodel->skinwidth;
+				st_array[k][1] = (LittleLong(pinstverts[stremap[k]-pq1inmodel->num_st].t)+halftexel)/(float)pq1inmodel->skinheight;
 			}
 			else
 			{
-				st_array[k][0] = (LittleLong(pinstverts[stremap[k]].s)+0.5)/(float)pq1inmodel->skinwidth;
-				st_array[k][1] = (LittleLong(pinstverts[stremap[k]].t)+0.5)/(float)pq1inmodel->skinheight;
+				st_array[k][0] = (LittleLong(pinstverts[stremap[k]].s)+halftexel)/(float)pq1inmodel->skinwidth;
+				st_array[k][1] = (LittleLong(pinstverts[stremap[k]].t)+halftexel)/(float)pq1inmodel->skinheight;
 			}
 		}
 #endif
@@ -4038,8 +4035,8 @@ static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		galias->ofs_st_array = st_array;
 		for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
 		{
-			st_array[i][0] = (LittleLong(pinstverts[i].s)+0.5)/(float)pq1inmodel->skinwidth;
-			st_array[i][1] = (LittleLong(pinstverts[i].t)+0.5)/(float)pq1inmodel->skinheight;
+			st_array[i][0] = (LittleLong(pinstverts[i].s)+halftexel)/(float)pq1inmodel->skinwidth;
+			st_array[i][1] = (LittleLong(pinstverts[i].t)+halftexel)/(float)pq1inmodel->skinheight;
 
 			if (pinstverts[i].onseam)
 			{

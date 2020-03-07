@@ -337,7 +337,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals, float scale, qboolean colormod);
 
 qboolean R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
-void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/
+void R_InitSky (shader_t *shader, const char *skyname, uploadfmt_t fmt, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/
 
 void R_Clutter_Emit(struct batch_s **batches);
 void R_Clutter_Purge(void);
@@ -429,6 +429,7 @@ enum imageflags
 #define IF_TEXTYPE_CUBE (PTI_CUBE<<IF_TEXTYPESHIFT)
 #define IF_TEXTYPE_2D_ARRAY (PTI_2D_ARRAY<<IF_TEXTYPESHIFT)
 #define IF_TEXTYPE_CUBE_ARRAY (PTI_CUBE_ARRAY<<IF_TEXTYPESHIFT)
+#define IF_TEXTYPE_ANY (PTI_ANY<<IF_TEXTYPESHIFT)
 	IF_MIPCAP			= 1<<13,	//allow the use of d_mipcap
 	IF_PREMULTIPLYALPHA	= 1<<14,	//rgb *= alpha
 
@@ -603,7 +604,7 @@ struct texture_s *R_TextureAnimation_Q2 (struct texture_s *base);	//mostly depre
 void RQ_Init(void);
 void RQ_Shutdown(void);
 
-void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
+qboolean WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);

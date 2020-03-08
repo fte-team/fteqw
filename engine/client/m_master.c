@@ -61,6 +61,16 @@ void M_Serverlist_Init(void)
 	Cvar_Register(&slist_cacheinfo, grp);
 }
 
+enum
+{
+	SLFILTER_HIDENETQUAKE,
+	SLFILTER_HIDEQUAKEWORLD,
+	SLFILTER_HIDEPROXIES,
+	SLFILTER_ONLYFAVOURITES,
+	SLFILTER_HIDEEMPTY,
+	SLFILTER_HIDEFULL,
+	SLFILTER_MAX
+};
 typedef struct {
 	int servers_top;
 	int visibleslots;
@@ -70,7 +80,8 @@ typedef struct {
 
 	int numslots;
 	qboolean stillpolling;
-	qbyte filter[8];
+	qbyte filter[SLFILTER_MAX];
+
 	menuedit_t *filtertext;
 
 	char refreshtext[64];
@@ -1053,18 +1064,18 @@ static void CalcFilters(emenu_t *menu)
 
 //	Master_SetMaskInteger(false, SLKEY_PING, 0, SLIST_TEST_GREATEREQUAL);
 	Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_UNKNOWN, SLIST_TEST_NOTEQUAL);
-	if (info->filter[1] && info->filter[2])
-		Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_CONTAINS);
+	if (info->filter[SLFILTER_HIDENETQUAKE] && info->filter[SLFILTER_HIDEQUAKEWORLD])
+		Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_CONTAINS);	//show only proxies
 	else
 	{
-		if (info->filter[1]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_NETQUAKE, SLIST_TEST_NOTEQUAL);
-		if (info->filter[1]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_DARKPLACES, SLIST_TEST_NOTEQUAL);
-		if (info->filter[2]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_QUAKEWORLD, SLIST_TEST_NOTEQUAL);
+		if (info->filter[SLFILTER_HIDENETQUAKE]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_NETQUAKE, SLIST_TEST_NOTEQUAL);
+		if (info->filter[SLFILTER_HIDENETQUAKE]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_DARKPLACES, SLIST_TEST_NOTEQUAL);
+		if (info->filter[SLFILTER_HIDEQUAKEWORLD]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_QUAKEWORLD, SLIST_TEST_NOTEQUAL);
 	}
-	if (info->filter[3]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_NOTCONTAIN);
-	if (!info->filter[5]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
-	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMHUMANS, 0, SLIST_TEST_NOTEQUAL);
-	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
+	if (info->filter[SLFILTER_HIDEPROXIES]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_NOTCONTAIN);
+	if (!info->filter[SLFILTER_ONLYFAVOURITES]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
+	if (info->filter[SLFILTER_HIDEEMPTY]) Master_SetMaskInteger(false, SLKEY_NUMHUMANS, 0, SLIST_TEST_NOTEQUAL);
+	if (info->filter[SLFILTER_HIDEFULL]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 
 	if (*sb_filtertext.string) Master_SetMaskString(false, SLKEY_NAME, sb_filtertext.string, SLIST_TEST_CONTAINS);
 
@@ -1079,16 +1090,13 @@ static qboolean SL_ReFilter (menucheck_t *option, emenu_t *menu, chk_set_t set)
 	case CHK_CHECKED:
 		return !info->filter[option->bits];
 	case CHK_TOGGLE:
-		if (option->bits>0)
-		{
-			info->filter[option->bits] ^= 1;
-			Cvar_Set(&sb_hidenetquake, info->filter[1]?"1":"0");
-			Cvar_Set(&sb_hidequakeworld, info->filter[2]?"1":"0");
-			Cvar_Set(&sb_hideproxies, info->filter[3]?"1":"0");
+		info->filter[option->bits] ^= 1;
+		Cvar_Set(&sb_hidenetquake, info->filter[SLFILTER_HIDENETQUAKE]?"1":"0");
+		Cvar_Set(&sb_hidequakeworld, info->filter[SLFILTER_HIDEQUAKEWORLD]?"1":"0");
+		Cvar_Set(&sb_hideproxies, info->filter[SLFILTER_HIDEPROXIES]?"1":"0");
 
-			Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
-			Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
-		}
+		Cvar_Set(&sb_hideempty, info->filter[SLFILTER_HIDEEMPTY]?"1":"0");
+		Cvar_Set(&sb_hidefull, info->filter[SLFILTER_HIDEFULL]?"1":"0");
 
 		CalcFilters(menu);
 
@@ -1102,11 +1110,11 @@ static void SL_Remove	(emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
-	Cvar_Set(&sb_hidenetquake, info->filter[1]?"1":"0");
-	Cvar_Set(&sb_hidequakeworld, info->filter[2]?"1":"0");
-	Cvar_Set(&sb_hideproxies, info->filter[3]?"1":"0");
-	Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
-	Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
+	Cvar_Set(&sb_hidenetquake, info->filter[SLFILTER_HIDENETQUAKE]?"1":"0");
+	Cvar_Set(&sb_hidequakeworld, info->filter[SLFILTER_HIDEQUAKEWORLD]?"1":"0");
+	Cvar_Set(&sb_hideproxies, info->filter[SLFILTER_HIDEPROXIES]?"1":"0");
+	Cvar_Set(&sb_hideempty, info->filter[SLFILTER_HIDEEMPTY]?"1":"0");
+	Cvar_Set(&sb_hidefull, info->filter[SLFILTER_HIDEFULL]?"1":"0");
 }
 
 static qboolean SL_DoRefresh (menuoption_t *opt, emenu_t *menu, int key)
@@ -1205,25 +1213,25 @@ void M_Menu_ServerList2_f(void)
 #ifdef NQPROT
 	if (M_GameType() == MGT_QUAKE1)
 	{
-		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "Show NQ   ", SL_ReFilter, 1);
-		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "Show QW   ", SL_ReFilter, 2);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "Show NQ   ", SL_ReFilter, SLFILTER_HIDENETQUAKE);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "Show QW   ", SL_ReFilter, SLFILTER_HIDEQUAKEWORLD);
 	}
 #endif
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Show Proxies", SL_ReFilter, 3);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Show Proxies", SL_ReFilter, SLFILTER_HIDEPROXIES);
 	info->filtertext =
 	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, "Filter   ",	sb_filtertext.name, true);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Show Empty", SL_ReFilter, 6);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Show Full ", SL_ReFilter, 7);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, SLFILTER_ONLYFAVOURITES);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Show Empty", SL_ReFilter, SLFILTER_HIDEEMPTY);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Show Full ", SL_ReFilter, SLFILTER_HIDEFULL);
 
 	MC_AddCommand(menu, 64, 320, 0, info->refreshtext, SL_DoRefresh);
 
-	info->filter[1] = !!sb_hidenetquake.value;
-	info->filter[2] = !!sb_hidequakeworld.value;
-	info->filter[3] = !!sb_hideproxies.value;
-	info->filter[5] = true;//!sb_showonlyfavourites.value;
-	info->filter[6] = !!sb_hideempty.value;
-	info->filter[7] = !!sb_hidefull.value;
+	info->filter[SLFILTER_HIDENETQUAKE] = !!sb_hidenetquake.value;
+	info->filter[SLFILTER_HIDEQUAKEWORLD] = !!sb_hidequakeworld.value;
+	info->filter[SLFILTER_HIDEPROXIES] = !!sb_hideproxies.value;
+	info->filter[SLFILTER_ONLYFAVOURITES] = true;//!sb_showonlyfavourites.value;
+	info->filter[SLFILTER_HIDEEMPTY] = !!sb_hideempty.value;
+	info->filter[SLFILTER_HIDEFULL] = !!sb_hidefull.value;
 
 	info->mappic = (menupicture_t *)MC_AddPicture(menu, vid.width - 64, vid.height - 64, 64, 64, "012345678901234567890123456789012");
 

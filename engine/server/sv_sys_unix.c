@@ -1233,7 +1233,7 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	return res;
 }
 
-#ifdef WEBCLIENT
+#ifdef MANIFESTDOWNLOADS
 #include "fs.h"
 static qboolean Sys_DoInstall(void)
 {

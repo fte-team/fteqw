@@ -1224,7 +1224,7 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	return res;
 }
 
-#ifdef WEBCLIENT
+#ifdef MANIFESTDOWNLOADS
 qboolean Sys_RunInstaller(void)
 {
 	return false;

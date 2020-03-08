@@ -12,10 +12,6 @@
 #include "winquake.h"
 #endif
 
-#if (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(WEBCLIENT)
-	#define MANIFESTDOWNLOADS
-#endif
-
 void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 static void COM_InitHomedir(ftemanifest_t *man);

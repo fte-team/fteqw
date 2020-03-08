@@ -6562,7 +6562,7 @@ void Host_FinishLoading(void)
 					"\n"
 					"See the GNU General Public License for more details.\n");
 
-	#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX) && defined(WEBCLIENT)
+	#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX) && defined(MANIFESTDOWNLOADS)
 		if (Sys_RunInstaller())
 			Sys_Quit();
 	#endif

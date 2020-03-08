@@ -6040,7 +6040,7 @@ void SV_Init (quakeparms_t *parms)
 
 		Menu_Download_Update();
 
-#ifdef WEBCLIENT
+#ifdef MANIFESTDOWNLOADS
 		if (Sys_RunInstaller())
 			Sys_Quit();
 #endif

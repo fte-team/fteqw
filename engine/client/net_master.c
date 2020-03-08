@@ -888,6 +888,14 @@ char	*Master_ServerToString (char *s, int len, serverinfo_t *a)
 	return NET_AdrToString(s, len, &a->adr);
 }
 
+static int Master_BaseGame(serverinfo_t *a)
+{
+	int prot = a->special&SS_PROTOCOLMASK;
+	if (prot == SS_DARKPLACES && (a->special&SS_FTESERVER))
+		prot = SS_QUAKEWORLD;
+	return prot;
+}
+
 static qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 {
 	if (sort_categories)
@@ -923,9 +931,8 @@ static qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		}
 		return false;
 
-		break;
 	case SLKEY_BASEGAME:
-		return Master_CompareInteger(a->special&SS_PROTOCOLMASK, b->special&SS_PROTOCOLMASK, SLIST_TEST_LESS);
+		return Master_CompareInteger(Master_BaseGame(a), Master_BaseGame(b), SLIST_TEST_LESS);
 	case SLKEY_FLAGS:
 		return Master_CompareInteger(a->special&~SS_PROTOCOLMASK, b->special&~SS_PROTOCOLMASK, SLIST_TEST_LESS);
 	case SLKEY_CUSTOM:
@@ -1037,7 +1044,7 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 			break;
 
 		case SLKEY_BASEGAME:
-			res = Master_CompareInteger(a->special&SS_PROTOCOLMASK, visrules[i].operandi, visrules[i].compareop);
+			res = Master_CompareInteger(Master_BaseGame(a), visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_FLAGS:
 			res = Master_CompareInteger(a->special&~SS_PROTOCOLMASK, visrules[i].operandi, visrules[i].compareop);
@@ -1216,7 +1223,7 @@ float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum)
 		case SLKEY_FREEPLAYERS:
 			return server->maxplayers - server->players;
 		case SLKEY_BASEGAME:
-			return server->special&SS_PROTOCOLMASK;
+			return Master_BaseGame(server);
 		case SLKEY_FLAGS:
 			return server->special&~SS_PROTOCOLMASK;
 		case SLKEY_TIMELIMIT:
@@ -3166,8 +3173,10 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				info->special |= SS_QUAKE2;	//q2 has a range!
 			else if (info->protocol > 60)
 				info->special |= SS_QUAKE3;
-			else
+			else if (!strcmp(Info_ValueForKey(msg, "gamename"), "DarkPlaces-Quake"))
 				info->special |= SS_DARKPLACES;
+			else
+				info->special |= SS_DARKPLACES|SS_FTESERVER;	//so its listed under qw-servers (but queried using dpmaster getinfo stuff).
 			break;
 		}
 	}

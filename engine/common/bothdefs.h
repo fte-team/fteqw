@@ -569,6 +569,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_ANY
 #endif
 
+#if (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(WEBCLIENT)
+	#define MANIFESTDOWNLOADS
+#endif
+
 #if (defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
 	#define D3DQUAKE	//shouldn't still matter
 #endif

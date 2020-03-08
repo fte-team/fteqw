@@ -3356,6 +3356,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 	size_t neww=0, newh=0;
 	qbyte *newdata=NULL;
 	qbyte *pal = NULL;
+	int m;
 
 	//bug: vanilla quake ignored offsets and just made assumptions.
 	//this means we can't just play with offsets to hide stuff, we have to postfix it (which requires guessing lump sizes)
@@ -3496,6 +3497,16 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 		return;
 	}
 
+	if (!mt->offsets[0])
+	{
+		tx->srcfmt = PTI_INVALID;
+		tx->srcwidth = mt->width;
+		tx->srcheight = mt->height;
+		tx->srcdata = NULL;
+		tx->palette = NULL;
+		return;
+	}
+
 	if (pal)
 	{	//mostly identical, just a specific palette hidden at the end. handle fences elsewhere.
 		tx->srcdata = BZ_Malloc(legacysize + 768);
@@ -3526,14 +3537,14 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 	tx->srcheight = mt->height;
 
 	legacysize = 0;
-	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[0], (mt->width>>0)*(mt->height>>0));
-	legacysize += (mt->width>>0)*(mt->height>>0);
-	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[1], (mt->width>>1)*(mt->height>>1));
-	legacysize += (mt->width>>1)*(mt->height>>1);
-	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[2], (mt->width>>2)*(mt->height>>2));
-	legacysize += (mt->width>>2)*(mt->height>>2);
-	memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[3], (mt->width>>3)*(mt->height>>3));
-//	legacysize += (mt->width>>3)*(mt->height>>3);
+	for (m = 0; m < 4; m++)
+	{
+		if (mt->offsets[m])
+			memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[m], (mt->width>>m)*(mt->height>>m));
+		else
+			memset(tx->srcdata+legacysize, 0, (mt->width>>m)*(mt->height>>m));
+		legacysize += (mt->width>>m)*(mt->height>>m);
+	}
 }
 #endif
 

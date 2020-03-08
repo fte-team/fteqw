@@ -569,7 +569,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_ANY
 #endif
 
-#if (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(WEBCLIENT)
+#if (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(WEBCLIENT) && defined(PACKAGEMANAGER)
 	#define MANIFESTDOWNLOADS
 #endif
 

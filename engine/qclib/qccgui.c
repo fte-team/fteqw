@@ -2283,40 +2283,6 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	}
 }
 
-pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
-{
-	QCC_def_t *def;
-	int prefixlen = strlen(prefix);
-	int usedbuffer = 0;
-	int l;
-	int fno;
-	for (fno = 0; fno < sourcefilesnumdefs; fno++)
-	{
-		for (def = sourcefilesdefs[fno]; def; def = def->next)
-		{
-			if (def->scope)
-				continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
-
-			//make sure it has the right prefix
-			if (!strncmp(def->name, prefix, prefixlen))
-			//but ignore it if its one of those special things that you're not meant to know about.
-			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
-			{
-				l = strlen(def->name);
-				if (l && usedbuffer+2+l < buffersize)
-				{
-					if (usedbuffer)
-						buffer[usedbuffer++] = ' ';
-					memcpy(buffer+usedbuffer, def->name, l);
-					usedbuffer += l;
-				}
-			}
-		}
-	}
-	buffer[usedbuffer] = 0;
-	return usedbuffer>0;
-}
-
 editor_t *tooltip_editor = NULL;
 char tooltip_variable[256];
 char tooltip_type[256];

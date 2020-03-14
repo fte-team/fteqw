@@ -5535,7 +5535,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			}
 			else
 			{
-				if (isvirt|isnonvirt)
+				if (isvirt||isnonvirt)
 					QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
 			}
 
@@ -5672,8 +5672,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//static members are technically just funny-named globals, and do not generate fields.
 			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
 			{
+				unsigned int fl = 0;
+				if (newparm->type == ev_function && !arraysize)
+					fl = GDF_CONST;
+
 				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
-				QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST));
+				QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, fl));
 
 				if (isnonvirt || isstatic)
 					continue;

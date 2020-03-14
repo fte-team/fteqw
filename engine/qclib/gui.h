@@ -19,6 +19,7 @@ void GUI_RevealOptions(void);
 int GUIprintf(const char *msg, ...);
 
 pbool GenBuiltinsList(char *buffer, int buffersize);
+pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize);
 
 extern char parameters[16384];
 

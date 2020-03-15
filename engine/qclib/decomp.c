@@ -1705,7 +1705,7 @@ void DecompileIndent(int c)
 
 void DecompileOpcode(dfunction_t *df, int a, int b, int c, char *opcode, QCC_type_t *typ1, QCC_type_t *typ2, QCC_type_t *typ3, int usebrackets, int *indent)
 {
-	static char line[512];
+	static char line[8192];
 	char *arg1, *arg2, *arg3;
 	arg1 = DecompileGet(df, a, typ1);
 	arg2 = DecompileGet(df, b, typ2);
@@ -1897,20 +1897,18 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 				if ((k->op >= OP_CALL0 && k->op <= OP_CALL8) || (k->op >= OP_CALL1H && k->op <= OP_CALL8H))
 				{
 					//well, this is it.
-					int fn;
+					int fn = ((int*)pr_globals)[k->a];
+					dfunction_t *cf = &functions[fn];
+					int bi = DecompileBuiltin(cf);
 					int pn;
-					dfunction_t *cf;
 					QCC_ddef_t *def;
-					int bi = DecompileBuiltin(df);
-					fn = ((int*)pr_globals)[k->a];
-					cf = &functions[fn];
-					if (bi)	//builtins don't have this info.
-					{
+					if (bi)
+					{	//builtins don't have valid parm_start values
 						QCC_type_t **p = builtins[bi].params[(s->b-ofs_parms[0])/ofs_size];
 						parmtype = p?*p:NULL;
 					}
 					else
-					{
+					{	//qc functions do, though.
 						fn = cf->parm_start;
 						for (pn = 0; pn < (s->b-ofs_parms[0])/ofs_size; pn++)
 							fn += cf->parm_size[pn];
@@ -2286,6 +2284,9 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 			QCC_CatVFile(Decompileofile, "{\n");
 			(*indent)++;
 
+			//FIXME: look for the next control statement (ignoring writes to temps, maybe allow functions too if the following statement reads OFS_RETURN)
+			//if its an IFNOT (optionally with its own else) that ends at our else then output this as "}\nelse " instead
+
 		}
 		else
 		{
@@ -2514,6 +2515,7 @@ const char *GetMatchingField(QCC_ddef_t *field)
 	int i;
 	QCC_ddef_t *def;
 	int ld, lf;
+	const char *ret = NULL;
 
 	def = NULL;
 
@@ -2526,21 +2528,22 @@ const char *GetMatchingField(QCC_ddef_t *field)
 			if (((int*)pr_globals)[def->ofs] == field->ofs)
 			{
 				if (!strcmp(strings+def->s_name, strings+field->s_name))
-					break;	//found ourself, give up.
+					return NULL;	//found ourself, give up.
 				lf = strlen(strings + field->s_name);
 				ld = strlen(strings + def->s_name);
 				if (lf - 2 == ld)
 				{
-					if ((strings + field->s_name)[lf-2] == '_')
+					if ((strings + field->s_name)[lf-2] == '_' && (strings + field->s_name)[lf-1] == 'x')
 						if (!strncmp(strings + field->s_name, strings + def->s_name, ld))
-							break;
+							return NULL;	//vector found foo_x
 				}
-				return def->s_name+strings;
+				if (!ret)
+					ret = def->s_name+strings;
 			}
 		}
 	}
 
-	return NULL;
+	return ret;
 }
 
 QCC_ddef_t *GetField(const char *name)
@@ -3100,9 +3103,10 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	unsigned int o;
 	dfunction_t *d;
 	pbool bogusname;
-	vfile_t *f;
+	vfile_t *f = NULL;
 	char fname[512];
 	int lastglob = 1;
+	int lastfileofs = 0;
 	QCC_ddef_t *def;
 
 	DecompileCalcProfiles();
@@ -3148,58 +3152,62 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	{
 		d = &functions[i];
 
-		fname[0] = '\0';
-		if (d->s_file <= strofs && d->s_file >= 0)
-			sprintf(fname, "%s", strings + d->s_file);
-		// FrikaC -- not sure if this is cool or what?
-		bogusname = false;
-		if (strlen(fname) <= 0)
-			bogusname = true;
-		else for (o = 0; o < strlen(fname); o++)
+		if (d->s_file != lastfileofs || f == NULL)
 		{
-			if ((fname[o] < 'a' || fname[o] > 'z') && 
-			  (fname[o] < '0' || fname[o] > '9') &&
-			  (fname[o] <'A' || fname[o] > 'Z') &&
-			  (fname[o] != '.' && fname[o] != '!' && fname[o] != '_'))
+			lastfileofs = d->s_file;
+			fname[0] = '\0';
+			if (d->s_file <= strofs && d->s_file >= 0)
+				sprintf(fname, "%s", strings + d->s_file);
+			// FrikaC -- not sure if this is cool or what?
+			bogusname = false;
+			if (strlen(fname) <= 0)
+				bogusname = true;
+			else for (o = 0; o < strlen(fname); o++)
 			{
-				if (fname[o] == '/')
-					fname[o] = '.';
-				else if (fname[o] == '\\')
-					fname[o] = '.';
-				else
+				if ((fname[o] < 'a' || fname[o] > 'z') &&
+				  (fname[o] < '0' || fname[o] > '9') &&
+				  (fname[o] <'A' || fname[o] > 'Z') &&
+				  (fname[o] != '.' && fname[o] != '!' && fname[o] != '_'))
 				{
-						bogusname = true;
-						break;
+					if (fname[o] == '/')
+						fname[o] = '.';
+					else if (fname[o] == '\\')
+						fname[o] = '.';
+					else
+					{
+							bogusname = true;
+							break;
+					}
 				}
 			}
-		}
 
-		if (bogusname)
-		{
-			if (*fname && !DecompileAlreadySeen(fname, NULL))
+			if (bogusname)
 			{
-				synth_name[0] = 0;
+				if (*fname && !DecompileAlreadySeen(fname, NULL))
+				{
+					synth_name[0] = 0;
+				}
+				if(!TrySynthName(qcva("%s", strings + d->s_name)) && !synth_name[0])
+					QC_snprintfz(synth_name, sizeof(synth_name), "frik%i.qc", fake_name++);
+
+				QC_snprintfz(fname, sizeof(fname), synth_name);
 			}
-			if(!TrySynthName(qcva("%s", strings + d->s_name)) && !synth_name[0])
-				QC_snprintfz(synth_name, sizeof(synth_name), "frik%i.qc", fake_name++);
-
-			QC_snprintfz(fname, sizeof(fname), synth_name);
-		}
-		else
-			synth_name[0] = 0;
+			else
+				synth_name[0] = 0;
 
 
 
-		if (!DecompileAlreadySeen(fname, &f))
-		{
-			printf("decompiling %s\n", fname);
-			compilecb();
-			QCC_CatVFile(Decompileprogssrc, "%s\n", fname);
-		}
-		if (!f)
-		{
-			printf("Fatal Error - Could not open \"%s\" for output.\n", fname);
-			exit(1);
+			if (!DecompileAlreadySeen(fname, &f))
+			{
+				printf("decompiling %s\n", fname);
+				compilecb();
+				QCC_CatVFile(Decompileprogssrc, "%s\n", fname);
+			}
+			if (!f)
+			{
+				printf("Fatal Error - Could not open \"%s\" for output.\n", fname);
+				exit(1);
+			}
 		}
 		Decompileofile = f;
 		DecompileFunction(strings + d->s_name, &lastglob);

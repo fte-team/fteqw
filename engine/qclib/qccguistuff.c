@@ -1083,7 +1083,7 @@ vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
 void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
 {
 	va_list argptr;
-	char msg[8192];
+	char msg[65536];
 	size_t n;
 
 	va_start (argptr,fmt);
@@ -1103,7 +1103,7 @@ void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
 void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
 {
 	va_list argptr;
-	char msg[8192];
+	char msg[65536];
 	size_t n;
 	va_start (argptr,fmt);
 	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);

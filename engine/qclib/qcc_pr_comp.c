@@ -6589,7 +6589,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			if (arg == 0)
 			{
 			// save information for model and sound caching
-				if (!strncmp(funcname,"precache_", 9) && e->cast->type == ev_string && e->type == REF_GLOBAL)
+				if (!strncmp(funcname,"precache_", 9) && e->cast->type == ev_string && e->base.cast->type == ev_string && e->type == REF_GLOBAL)
 				{
 					const QCC_eval_t *eval = QCC_SRef_EvalConst(e->base);
 					if (eval)

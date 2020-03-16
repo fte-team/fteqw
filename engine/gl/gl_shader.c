@@ -4753,6 +4753,7 @@ static qboolean Shader_Parsetok(parsestate_t *ps, shaderkey_t *keys, char *token
 	else if (!Q_strncasecmp(token, "rscript", 7))	{prefix = token; token += 7; }
 	else if (!Q_strncasecmp(token, "qer_", 4))		{prefix = token; token += 3; toolchainprefix = true; }
 	else if (!Q_strncasecmp(token, "q3map_", 6))	{prefix = token; token += 5; toolchainprefix = true; }
+	else if (!Q_strncasecmp(token, "vmap_", 6))		{prefix = token; token += 4; toolchainprefix = true; }
 	else	prefix = NULL;
 	if (prefix && *token == '_')
 		token++;

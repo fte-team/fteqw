@@ -3019,6 +3019,10 @@ static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *b
 	{
 		GL_CreateMeshForPatch(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 	}
+	else if (LittleLong(in->facetype) == MST_PATCH_FIXED)
+	{
+		GL_CreateMeshForPatchFixed(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
 		unsigned int fv = LittleLong(in->firstvertex), i;

@@ -105,7 +105,7 @@
 #undef DOOMWADS
 #undef MAP_PROC
 #undef Q2BSPS
-#undef RFBSPS
+#define RFBSPS
 #undef SPRMODELS
 #undef SP2MODELS
 #undef DSPMODELS

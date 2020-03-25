@@ -93,6 +93,12 @@ Zone block
 void Memory_Init (void);
 void Memory_DeInit(void);
 
+//Prefixes:
+//Z - just general 'zone' memory.
+//B - allocated memory is not zero-filled.
+//F - allocation can return NULL (otherwise sys_errors)
+//G - special set of functions with its own rules. Frees must not be mixed.
+//Tag - additional special set of functions with their own rules. Frees must not be mixed.
 void VARGS Z_Free (void *ptr);
 void *Z_Malloc (size_t size); // returns 0 filled memory
 void *ZF_Malloc (size_t size); // allowed to fail

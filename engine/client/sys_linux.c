@@ -62,6 +62,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #include "quakedef.h"
+#include "netinc.h"
 
 #undef malloc
 
@@ -946,6 +947,46 @@ char *Sys_ConsoleInput(void)
 	return NULL;
 }
 
+#ifdef HAVE_GNUTLS
+static void DoSign(const char *fname)
+{
+	qbyte digest[1024];
+	qbyte signature[2048];
+	qbyte base64[2048*4];
+	int sigsize;
+	vfsfile_t *f;
+	const char *auth = "Unknown";
+	int i = COM_CheckParm("-certhost");
+	if (i)
+		auth = com_argv[i+1];
+
+	f = FS_OpenVFS(fname, "rb", FS_SYSTEM);
+	if (f)
+	{
+		hashfunc_t *h = &hash_sha512;
+		size_t l, ts = 0;
+		void *ctx = alloca(h->contextsize);
+		qbyte data[65536*16];
+		h->init(ctx);
+		while ((l=VFS_READ(f, data, sizeof(data)))>0)
+		{
+			h->process(ctx, data, l);
+			ts += l;
+		}
+		h->terminate(digest, ctx);
+		VFS_CLOSE(f);
+		printf(" \\\"dlsize=%zu\\\"", ts);
+
+		Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
+		printf(" \\\"sha512=%s\\\"", base64);
+
+		sigsize = GNUTLS_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
+		Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
+		printf(" \\\"sign=%s:%s\\\"\n", auth, base64);
+	}
+}
+#endif
+
 #ifdef _POSIX_C_SOURCE
 static void SigCont(int code)
 {
@@ -1029,15 +1070,19 @@ int main (int c, const char **v)
 	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.
 #ifdef __linux__
 	//attempt to figure out where the exe is located
-	if (readlink("/proc/self/exe", bindir, sizeof(bindir)-1) > 0)
+	i = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
+	if (i > 0)
 	{
+		bindir[i] = 0;
 		*COM_SkipPath(bindir) = 0;
 		parms.binarydir = bindir;
 	}
 /*#elif defined(__bsd__)
 	//attempt to figure out where the exe is located
-	if (readlink("/proc/self/file", bindir, sizeof(bindir)-1) > 0)
+	i = readlink("/proc/self/file", bindir, sizeof(bindir)-1);
+	if (i > 0)
 	{
+		bindir[i] = 0;
 		*COM_SkipPath(bindir) = 0;
 		parms.binarydir = bindir;
 	}
@@ -1066,6 +1111,22 @@ int main (int c, const char **v)
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;
 
+#ifdef HAVE_GNUTLS
+	//fteqw -privcert privcert.key -pubcert pubcert.key -sign binaryfile.pk3
+	i = COM_CheckParm("-sign");
+	if (i)
+	{
+		//init some useless crap
+		host_parms = parms;
+		Cvar_Init();
+		Memory_Init ();
+		COM_Init ();
+
+		DoSign(com_argv[i+1]);
+		return EXIT_SUCCESS;
+	}
+#endif
+
 	if (parms.binarydir)
 		Sys_Printf("Binary is located at \"%s\"\n", bindir);
 
@@ -1087,7 +1148,6 @@ int main (int c, const char **v)
 		}
 	}
 #endif
-
 
 	Host_Init(&parms);
 
@@ -1230,4 +1290,3 @@ qboolean Sys_RunInstaller(void)
 	return false;
 }
 #endif
-

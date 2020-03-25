@@ -469,6 +469,7 @@ SET(FTE_COMMON_FILES
 	engine/common/q3common.c
 	engine/common/qvm.c
 	engine/common/sha1.c
+	engine/common/sha2.c
 	engine/common/translate.c
 	engine/common/zone.c
 
@@ -773,7 +774,7 @@ ELSE()
 		${FTE_CLIENT_FILES}
 	)
 	SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
-	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS} )
+	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS})
 	SET(INSTALLTARGS ${INSTALLTARGS} fteqw)
 
 	ADD_EXECUTABLE(fteqw-sv

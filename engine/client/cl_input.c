@@ -1620,12 +1620,13 @@ void CL_UseIndepPhysics(qboolean allow)
 	}
 	else
 	{
+		CL_AllowIndependantSendCmd(true);
 		//shut it down.
 		runningindepphys = false;	//tell thread to exit gracefully
-		Sys_LockMutex(indeplock);
 		Sys_WaitOnThread(indepthread);
-		Sys_UnlockMutex(indeplock);
+		indepthread = NULL;
 		Sys_DestroyMutex(indeplock);
+		indeplock = NULL;
 	}
 }
 #else

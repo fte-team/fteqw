@@ -308,8 +308,8 @@ typedef struct llightinfo_s
 {
 	struct relight_ctx_s *ctx;	//relight context, shared between threads.
 
-	vec3_t	lightmaps[MAXQ1LIGHTMAPS][SINGLEMAP];
-	vec3_t	lightnorm[MAXQ1LIGHTMAPS][SINGLEMAP];
+	vec3_t	lightmaps[MAXCPULIGHTMAPS][SINGLEMAP];
+	vec3_t	lightnorm[MAXCPULIGHTMAPS][SINGLEMAP];
 	int		numlightstyles;
 	vec_t	*light;
 	vec_t	facedist;
@@ -325,7 +325,7 @@ typedef struct llightinfo_s
 	vec_t	exactmins[2], exactmaxs[2];
 	
 	int		texmins[2], texsize[2];
-	int		lightstyles[MAXQ1LIGHTMAPS];
+	int		lightstyles[MAXCPULIGHTMAPS];
 } llightinfo_t;
 
 const size_t lightthreadctxsize = sizeof(llightinfo_t);
@@ -628,7 +628,7 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 	if (mapnum == l->numlightstyles)
 	{	// init a new light map
 #ifdef UTILITY
-		if (mapnum == MAXQ1LIGHTMAPS)
+		if (mapnum == MAXCPULIGHTMAPS)
 		{
 			printf ("WARNING: Too many light styles on a face\n");
 			return;
@@ -715,7 +715,7 @@ static void FixMinlight (llightinfo_t *l)
 	}
 	if (i == l->numlightstyles)
 	{
-		if (l->numlightstyles == MAXQ1LIGHTMAPS)
+		if (l->numlightstyles == MAXCPULIGHTMAPS)
 			return;		// oh well..
 		for (j=0 ; j<l->numsurfpt ; j++)
 		{
@@ -771,7 +771,7 @@ static unsigned int PackE5BRG9(vec3_t rgb)
 LightFace
 ============
 */
-void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstyleindex_t surf_styles[MAXQ1LIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstyleindex_t surf_styles[MAXCPULIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
 {
 	int		s, t;
 	int		i,c,ch;
@@ -820,7 +820,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstylein
 
 	i = 0;
 #ifndef UTILITY
-	for (; surf_styles[i] != INVALID_LIGHTSTYLE && i < MAXQ1LIGHTMAPS; i++)
+	for (; surf_styles[i] != INVALID_LIGHTSTYLE && i < MAXCPULIGHTMAPS; i++)
 	{
 		l->lightstyles[i] = surf_styles[i];
 		memset(&l->lightmaps[i], 0, sizeof(l->lightmaps[i][0])*l->numsurfpt);
@@ -828,7 +828,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstylein
 	}
 #endif
 	l->numlightstyles = i;
-	for ( ; i<MAXQ1LIGHTMAPS ; i++)
+	for ( ; i<MAXCPULIGHTMAPS ; i++)
 		l->lightstyles[i] = INVALID_LIGHTSTYLE;
 	
 //
@@ -853,7 +853,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, lightstylein
 //
 // save out the values
 //
-	for (i=0 ; i <MAXQ1LIGHTMAPS ; i++)
+	for (i=0 ; i <MAXCPULIGHTMAPS ; i++)
 		surf_styles[i] = l->lightstyles[i];
 
 

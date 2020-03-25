@@ -1,8 +1,16 @@
 //copyright 'Spike', license gplv2+
 //provides both a package manager and downloads menu.
 //FIXME: block downloads of exe/dll/so/etc if not an https url (even if inside zips). also block such files from package lists over http.
+
+//Note: for a while we didn't have strong hashes, nor signing, so we depended upon known-self-signed tls certificates to prove authenticity
+//we now have sha256 hashes(and sizes) to ensure that the file we wanted hasn't been changed in transit.
+//and we have signature info, to prove that the hash specified was released by a known authority. This means that we should now be able to download such things over http without worries (or at least that we can use an untrustworthy CA that's trusted by insecurity-mafia browsers).
+//WARNING: paks/pk3s may still be installed without signatures, without allowing dlls/exes/etc to be installed.
+//signaturedata+hashes can be generated with 'fteqw -privkey key.priv -pubkey key.pub -certhost MyAuthority -sign pathtofile', but Auth_GetKnownCertificate will need to be updated for any allowed authorities.
+
 #include "quakedef.h"
 #include "shader.h"
+#include "netinc.h"
 
 #ifdef PACKAGEMANAGER
 	#if !defined(NOBUILTINMENUS) && !defined(SERVERONLY)
@@ -63,6 +71,9 @@ extern cvar_t pm_downloads_url;
 #define DPF_PLUGIN					(1u<<13)	//this is a plugin package, with a dll
 
 #define DPF_TRUSTED					(1u<<14)	//flag used when parsing package lists. if not set then packages will be ignored if they are anything but paks/pk3s
+#define DPF_SIGNATUREREJECTED		(1u<<15)	//signature is bad
+#define DPF_SIGNATUREACCEPTED		(1u<<16)	//signature is good (required for dll/so/exe files)
+#define DPF_SIGNATUREUNKNOWN		(1u<<17)	//signature is unknown
 
 #define DPF_MARKED					(DPF_USERMARKED|DPF_AUTOMARKED)
 #define DPF_PRESENT					(DPF_NATIVE|DPF_CACHED)
@@ -117,6 +128,11 @@ typedef struct package_s {
 	char *arch;
 	char *qhash;
 
+	quint64_t filesize;	//in bytes, as part of verifying the hash.
+	char *filesha1;
+	char *filesha512;
+	char *signature;
+
 	char *title;
 	char *description;
 	char *license;
@@ -137,6 +153,7 @@ typedef struct package_s {
 		enum
 		{
 			DEP_CONFLICT,		//don't install if we have the named package installed.
+			DEP_REPLACE,		//obsoletes the specified package (or just acts as a conflict marker for now).
 			DEP_FILECONFLICT,	//don't install if this file already exists.
 			DEP_REQUIRE,		//don't install unless we have the named package installed.
 			DEP_RECOMMEND,		//like depend, but uninstalling will not bubble.
@@ -192,6 +209,7 @@ static int downloadablessequence;	//bumped any time any package is purged
 
 static void PM_WriteInstalledPackages(void);
 static void PM_PreparePackageList(void);
+static qboolean PM_SignatureOkay(package_t *p);
 
 static void PM_FreePackage(package_t *p)
 {
@@ -252,11 +270,96 @@ static qboolean PM_PurgeOnDisable(package_t *p)
 	//hashed packages can also be present and not enabled, but only if they're in the cache and not native
 	if (*p->gamedir && p->qhash && (p->flags & DPF_PRESENT))
 		return false;
-	//FIXME: add basedir-plugins to the package manager so they can be enabled/disabled properly.
-	//if (p->arch)
-	//	return false;
 	//all other packages must be deleted to disable them
 	return true;
+}
+
+void PM_ValidateAuthenticity(package_t *p)
+{
+	qbyte hashdata[512];
+	size_t hashsize = 0;
+	qbyte signdata[1024];
+	size_t signsize = 0;
+	int r;
+	char authority[MAX_QPATH], *sig;
+
+#if 1
+#pragma message("Temporary code.")
+	//this is temporary code and should be removed once everything else has been fixed.
+	//ignore the signature (flag as accepted) for any packages with all mirrors on our own update site.
+	//we can get away with this because we enforce a known certificate for the download.
+	if (!COM_CheckParm("-notlstrust"))
+	{
+		conchar_t musite[256], *e;
+		char site[256];
+		char *oldprefix = "http://fte.";
+		char *newprefix = "https://updates.";
+		int m;
+		e = COM_ParseFunString(CON_WHITEMASK, ENGINEWEBSITE, musite, sizeof(musite), false);
+		COM_DeFunString(musite, e, site, sizeof(site)-1, true, true);
+		if (!strncmp(site, oldprefix, strlen(oldprefix)))
+		{
+			memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix)+1);
+			memcpy(site, newprefix, strlen(newprefix));
+		}
+		Q_strncatz(site, "/", sizeof(site));
+		for (m = 0; m < countof(p->mirror); m++)
+		{
+			if (p->mirror[m] && strncmp(p->mirror[m], site, strlen(site)))
+				break;	//some other host
+		}
+		if (m == countof(p->mirror))
+		{
+			p->flags |= DPF_SIGNATUREACCEPTED;
+			return;
+		}
+	}
+#endif
+
+	*authority = 0;
+	if (!p->signature)
+		r = VH_AUTHORITY_UNKNOWN;
+	else if (!p->filesha512)
+		r = VH_INCORRECT;
+	else
+	{
+		sig = strchr(p->signature, ':');
+		if (sig && sig-p->signature<countof(authority)-1)
+		{
+			memcpy(authority, p->signature, sig-p->signature);
+			authority[sig-p->signature] = 0;
+			sig++;
+		}
+		else
+			sig = p->signature;
+		hashsize = Base16_DecodeBlock(p->filesha512, hashdata, sizeof(hashdata));
+		signsize = Base64_DecodeBlock(sig, NULL, signdata, sizeof(signdata));
+		r = VH_UNSUPPORTED;//preliminary
+	}
+
+	(void)signsize;
+	(void)hashsize;
+
+	//try and get one of our providers to verify it...
+#ifdef HAVE_WINSSPI
+	if (r == VH_UNSUPPORTED)
+		r = SSPI_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
+#endif
+#ifdef HAVE_GNUTLS
+	if (r == VH_UNSUPPORTED)
+		r = GNUTLS_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
+#endif
+#ifdef HAVE_OPENSSL
+	if (r == VH_UNSUPPORTED)
+		r = OSSL_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
+#endif
+
+	if (r == VH_CORRECT)
+		p->flags |= DPF_SIGNATUREACCEPTED;
+	else if (r == VH_INCORRECT)
+		p->flags |= DPF_SIGNATUREREJECTED;
+	else if (p->signature)
+		p->flags |= DPF_SIGNATUREUNKNOWN;
 }
 
 //checks the status of each package
@@ -952,6 +1055,8 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 						PM_AddDep(p, DEP_REQUIRE, val);
 					else if (!strcmp(key, "conflict"))
 						PM_AddDep(p, DEP_CONFLICT, val);
+					else if (!strcmp(key, "replace"))
+						PM_AddDep(p, DEP_REPLACE, val);
 					else if (!strcmp(key, "fileconflict"))
 						PM_AddDep(p, DEP_FILECONFLICT, val);
 					else if (!strcmp(key, "recommend"))
@@ -975,6 +1080,14 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 						else
 							fsroot = FS_ROOT;
 					}
+					else if (!strcmp(key, "dlsize"))
+						p->filesize = strtoull(val, NULL, 0);
+					else if (!strcmp(key, "sha1"))
+						Z_StrDupPtr(&p->filesha1, val);
+					else if (!strcmp(key, "sha512"))
+						Z_StrDupPtr(&p->filesha512, val);
+					else if (!strcmp(key, "sign"))
+						Z_StrDupPtr(&p->signature, val);
 					else
 					{
 						Con_DPrintf("Unknown package property\n");
@@ -1051,6 +1164,9 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 							p->mirror[m] = Z_StrDup(va("%s%s%s", mirror[m], relurl, ext));
 					}
 				}
+
+				PM_ValidateAuthenticity(p);
+
 				Z_Free(ver);
 				Z_Free(file);
 				Z_Free(url);
@@ -1462,19 +1578,20 @@ static void PM_UnmarkPackage(package_t *package, unsigned int markflag)
 }
 
 //just flags, doesn't install
-static void PM_MarkPackage(package_t *package, unsigned int markflag)
+//returns true if it was marked (or already enabled etc), false if we're not allowed.
+static qboolean PM_MarkPackage(package_t *package, unsigned int markflag)
 {
 	package_t *o;
 	struct packagedep_s *dep, *dep2;
 	qboolean replacing = false;
 
 	if (pkg_updating)
-		return;
+		return false;
 
 	if (package->flags & DPF_MARKED)
 	{
 		package->flags |= markflag;
-		return;	//looks like its already picked. marking it again will do no harm.
+		return true;	//looks like its already picked. marking it again will do no harm.
 	}
 
 #ifndef WEBCLIENT
@@ -1482,9 +1599,12 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 	if (!(package->flags & DPF_PRESENT))
 	{	//though we can at least unmark it for deletion...
 		package->flags &= ~DPF_PURGE;
-		return;
+		return false;
 	}
 #endif
+
+	if (!PM_SignatureOkay(package))
+		return false;
 
 	//any file-conflicts prevent the package from being installable.
 	//this is mostly for pak1.pak
@@ -1498,7 +1618,7 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 			else
 				n = dep->name;
 			if (PM_CheckFile(n, package->fsroot))
-				return;
+				return false;
 		}
 	}
 
@@ -1545,7 +1665,7 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 
 	//if we are replacing an existing one, then dependancies are already settled (only because we don't do version deps)
 	if (replacing)
-		return;
+		return true;
 
 	//satisfy our dependancies.
 	for (dep = package->deps; dep; dep = dep->next)
@@ -1567,7 +1687,7 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 					Con_DPrintf("Couldn't find dependancy \"%s\"\n", dep->name);
 			}
 		}
-		if (dep->dtype == DEP_CONFLICT)
+		if (dep->dtype == DEP_CONFLICT || dep->dtype == DEP_REPLACE)
 		{
 			for (;;)
 			{
@@ -1583,10 +1703,11 @@ static void PM_MarkPackage(package_t *package, unsigned int markflag)
 	for (o = availablepackages; o; o = o->next)
 	{
 		for (dep = o->deps; dep; dep = dep->next)
-			if (dep->dtype == DEP_CONFLICT)
+			if (dep->dtype == DEP_CONFLICT || dep->dtype == DEP_REPLACE)
 				if (!strcmp(dep->name, package->name))
 					PM_UnmarkPackage(o, DPF_MARKED);
 	}
+	return true;
 }
 
 static qboolean PM_NameIsInStrings(const char *strings, const char *match)
@@ -2086,6 +2207,11 @@ static void PM_WriteInstalledPackages(void)
 				Q_strncatz(buf, " ", sizeof(buf));
 				COM_QuotedConcat(va("preview=%s", p->previewimage), buf, sizeof(buf));
 			}
+			if (p->filesize)
+			{
+				Q_strncatz(buf, " ", sizeof(buf));
+				COM_QuotedConcat(va("filesize=%s", p->previewimage), buf, sizeof(buf));
+			}
 
 			if (p->fsroot == FS_BINARYPATH)
 			{
@@ -2109,6 +2235,11 @@ static void PM_WriteInstalledPackages(void)
 				{
 					Q_strncatz(buf, " ", sizeof(buf));
 					COM_QuotedConcat(va("conflict=%s", dep->name), buf, sizeof(buf));
+				}
+				else if (dep->dtype == DEP_REPLACE)
+				{
+					Q_strncatz(buf, " ", sizeof(buf));
+					COM_QuotedConcat(va("replace=%s", dep->name), buf, sizeof(buf));
 				}
 				else if (dep->dtype == DEP_FILECONFLICT)
 				{
@@ -2224,11 +2355,11 @@ static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, 
 				n = fname;
 			if (FS_WriteFile(n, f, loc.len, p->fsroot))
 				p->flags |= DPF_NATIVE|DPF_ENABLED;
-			free(f);
 
 			//keep track of the installed files, so we can delete them properly after.
 			PM_AddDep(p, DEP_FILE, fname);
 		}
+		free(f);
 	}
 	return 1;
 }
@@ -2250,9 +2381,12 @@ static void PM_Download_Got(struct dl_download *dl)
 
 	if (dl->file)
 	{
-		VFS_CLOSE(dl->file);
+		if (!VFS_CLOSE(dl->file))
+			successful = false;
 		dl->file = NULL;
 	}
+	else
+		successful = false;
 
 	if (p)
 	{
@@ -2434,6 +2568,111 @@ static char *PM_GetTempName(package_t *p)
 	Z_Free(ts);
 	return Z_StrDup(destname);
 }
+
+
+typedef struct {
+	vfsfile_t pub;
+	vfsfile_t *f;
+	hashfunc_t *hashfunc;
+	qofs_t sz;
+	qofs_t needsize;
+	qboolean fail;
+	qbyte need[256];
+	qbyte ctx[1];
+	char *fname;
+} hashfile_t;
+static int QDECL SHA1File_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	hashfile_t *f = (hashfile_t*)file;
+	f->hashfunc->process(&f->ctx, buffer, bytestowrite);
+	if (bytestowrite != VFS_WRITE(f->f, buffer, bytestowrite))
+		f->fail = true;	//something went wrong.
+	if (f->fail)
+		return -1;	//error! abort! fail! give up!
+	f->sz += bytestowrite;
+	return bytestowrite;
+}
+static void QDECL SHA1File_Flush (struct vfsfile_s *file)
+{
+	hashfile_t *f = (hashfile_t*)file;
+	VFS_FLUSH(f->f);
+}
+static qboolean QDECL SHA1File_Close (struct vfsfile_s *file)
+{
+	qbyte digest[256];
+	hashfile_t *f = (hashfile_t*)file;
+	if (!VFS_CLOSE(f->f))
+		f->fail = true;	//something went wrong.
+
+	f->hashfunc->terminate(digest, &f->ctx);
+	if (f->fail)
+		Con_Printf("Filesystem problems downloading %s\n", f->fname);	//don't error if we failed on actual disk problems
+	else if (f->sz != f->needsize)
+	{
+		Con_Printf("Download truncated: %s\n", f->fname);	//don't error if we failed on actual disk problems
+		f->fail = true;
+	}
+	else if (memcmp(digest, f->need, f->hashfunc->digestsize))
+	{
+		Con_Printf("Invalid hash for downloaded file %s, try again later?\n", f->fname);
+		f->fail = true;
+	}
+
+	return !f->fail;	//true if all okay!
+}
+static vfsfile_t *FS_Sha1_ValidateWrites(vfsfile_t *f, const char *fname, qofs_t needsize, hashfunc_t *hashfunc, const char *hash)
+{	//wraps a writable file with a layer that'll cause failures when the hash differs from what we expect.
+	if (f)
+	{
+		hashfile_t *n = Z_Malloc(sizeof(*n) + hashfunc->contextsize + strlen(fname));
+		n->pub.WriteBytes = SHA1File_WriteBytes;
+		n->pub.Flush = SHA1File_Flush;
+		n->pub.Close = SHA1File_Close;
+		n->pub.seekstyle = SS_UNSEEKABLE;
+		n->f = f;
+		n->hashfunc = hashfunc;
+		n->fname = n->ctx+hashfunc->contextsize;
+		strcpy(n->fname, fname);
+		n->needsize = needsize;
+		Base16_DecodeBlock(hash, n->need, sizeof(n->need));
+		n->fail = false;
+		f = &n->pub;
+
+		n->hashfunc->init(&n->ctx);
+	}
+	return f;
+}
+
+static qboolean PM_SignatureOkay(package_t *p)
+{
+	struct packagedep_s *dep;
+	char ext[MAX_QPATH];
+
+//	if (p->flags & (DPF_SIGNATUREREJECTED|DPF_SIGNATUREUNKNOWN))	//the sign key didn't match its sha512 hash
+//		return false;	//just block it entirely.
+	if (p->flags & DPF_SIGNATUREACCEPTED)	//sign value is present and correct
+		return true;	//go for it.
+	if (p->flags & DPF_PRESENT)
+		return true;	//we don't know where it came from, but someone manually installed it...
+
+	//packages without a signature are only allowed under some limited conditions.
+	//basically we only allow meta packages, pk3s, and paks.
+
+	if (p->extract == EXTRACT_ZIP)
+		return false;	//extracting files is bad (there might be some weird .pif or whatever file in there, don't risk it)
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype != DEP_FILE)
+			continue;
+
+		COM_FileExtension(dep->name, ext, sizeof(ext));
+		if ((!stricmp(ext, "pak") || !stricmp(ext, "pk3")) && p->qhash)
+			;
+		else
+			return false;
+	}
+	return true;
+}
 #endif
 
 /*static void PM_AddDownloadedPackage(const char *filename)
@@ -2545,6 +2784,11 @@ static void PM_StartADownload(void)
 				continue;
 			}
 
+			if (!PM_SignatureOkay(p) || (qofs_t)p->filesize != p->filesize)
+			{
+				p->flags &= ~DPF_MARKED;	//refusing to do it.
+				continue;
+			}
 
 			temp = PM_GetTempName(p);
 
@@ -2583,6 +2827,11 @@ static void PM_StartADownload(void)
 				Con_Printf("decompression method not supported\n");
 				continue;
 			}
+
+			if (p->filesha512 && tmpfile)
+				tmpfile = FS_Sha1_ValidateWrites(tmpfile, p->name, p->filesize, &hash_sha512, p->filesha512);
+			else if (p->filesha1 && tmpfile)
+				tmpfile = FS_Sha1_ValidateWrites(tmpfile, p->name, p->filesize, &hash_sha1, p->filesha1);
 
 			if (tmpfile)
 			{
@@ -2999,6 +3248,7 @@ void PM_Command_f(void)
 	{
 		for (p = availablepackages; p; p=p->next)
 		{
+			char quoted[8192];
 			const char *status;
 			char *markup;
 			if ((p->flags & DPF_HIDDEN) && !(p->flags & (DPF_MARKED|DPF_ENABLED|DPF_PURGE|DPF_CACHED)))
@@ -3035,7 +3285,13 @@ void PM_Command_f(void)
 			else
 				status = "";
 
-			Con_Printf(" ^["S_COLOR_GRAY"%s%s%s%s%s^] %s"S_COLOR_GRAY" %s (%s%s)\n", p->category?p->category:"", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"", p->version, (p->flags&DPF_TESTING)?"-testing":"");
+			Con_Printf(" ^["S_COLOR_GRAY"%s%s%s%s%s^] %s"S_COLOR_GRAY" %s (%s%s)", p->category?p->category:"", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"", p->version, (p->flags&DPF_TESTING)?"-testing":"");
+
+			if (!(p->flags&DPF_MARKED) && p == PM_FindPackage(p->name))
+				Con_Printf(" ^[[Add]\\type\\pkg add %s;pkg apply^]", COM_QuotedString(p->name, quoted, sizeof(quoted), false));
+			if ((p->flags&DPF_MARKED) && p == PM_MarkedPackage(p->name, DPF_MARKED))
+				Con_Printf(" ^[[Remove]\\type\\pkg rem %s;pkg apply^]", COM_QuotedString(p->name, quoted, sizeof(quoted), false));
+			Con_Printf("\n");
 		}
 		Con_Printf("<end of list>\n");
 	}
@@ -3401,6 +3657,8 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 
 		if (!PM_CheckPackageFeatures(p))
 			Draw_FunStringWidth(0, y, "!", x+8, true, true);
+		if (!PM_SignatureOkay(p))
+			Draw_FunStringWidth(0, y, "^b!", x+8, true, true);
 
 //		if (!(p->flags & (DPF_ENABLED|DPF_MARKED|DPF_PRESENT))
 //			continue;
@@ -3616,11 +3874,25 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 		slash = strchr(p->category+prefixlen, '/');
 		if (!slash)
 		{
-			char *desc;
+			char *head;
+			char *desc = p->description;
 			if (p->author || p->license || p->website)
-				desc = va("^aauthor: ^a%s\n^alicense: ^a%s\n^awebsite: ^a%s\n%s", p->author?p->author:"^hUnknown^h", p->license?p->license:"^hUnknown^h", p->website?p->website:"^hUnknown^h", p->description);
+				head = va("^aauthor:^U00A0^a%s\n^alicense:^U00A0^a%s\n^awebsite:^U00A0^a%s\n", p->author?p->author:"^hUnknown^h", p->license?p->license:"^hUnknown^h", p->website?p->website:"^hUnknown^h");
 			else
-				desc = p->description;
+				head = NULL;
+			if (p->filesize)
+			{
+				if (!head)
+					head = "";
+				if (p->filesize < 1024)
+					head = va("%s^asize:^U00A0^a%.4f bytes\n", head, (double)p->filesize);
+				else if (p->filesize < 1024*1024)
+					head = va("%s^asize:^U00A0^a%.4f KB\n", head, (p->filesize/(1024.0)));
+				else if (p->filesize < 1024*1024*1024)
+					head = va("%s^asize:^U00A0^a%.4f MB\n", head, (p->filesize/(1024.0*1024)));
+				else
+					head = va("%s^asize:^U00A0^a%.4f GB\n", head, (p->filesize/(1024.0*1024*1024)));
+			}
 
 			for (dep = p->deps; dep; dep = dep->next)
 			{
@@ -3630,12 +3902,28 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 					if (!PM_CheckFeature(dep->name, &featname, &enablecmd))
 					{
 						if (enablecmd)
-							desc = va("^aDisabled: ^a%s\n%s", featname, desc);
+							head = va("^aDisabled: ^a%s\n%s", featname, head?head:"");
 						else
-							desc = va("^aUnavailable: ^a%s\n%s", featname, desc);
+							head = va("^aUnavailable: ^a%s\n%s", featname, head?head:"");
 					}
 				}
 			}
+			if (!PM_SignatureOkay(p))
+			{
+				if (!p->signature)
+					head = va(CON_ERROR"Signature missing"CON_DEFAULT"\n%s", head?head:"");			//some idiot forgot to include a signature
+				else if (p->flags & DPF_SIGNATUREREJECTED)
+					head = va(CON_ERROR"Signature invalid"CON_DEFAULT"\n%s", head?head:"");			//some idiot got the wrong auth/sig/hash
+				else if (p->flags & DPF_SIGNATUREUNKNOWN)
+					head = va(CON_ERROR"Signature is not trusted"CON_DEFAULT"\n%s", head?head:"");	//clientside permission.
+				else
+					head = va(CON_ERROR"Unable to verify signature"CON_DEFAULT"\n%s", head?head:"");	//clientside problem.
+			}
+
+			if (head && desc)
+				desc = va("%s\n%s", head, desc);
+			else if (head)
+				desc = head;
 
 			c = MC_AddCustom(m, 0, y, p, downloadablessequence, desc);
 			c->draw = MD_Draw;

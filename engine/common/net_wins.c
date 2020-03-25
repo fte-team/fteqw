@@ -2178,6 +2178,49 @@ qboolean	NET_IsLoopBackAddress (netadr_t *adr)
 
 
 #ifdef HAVE_SSL
+void *Auth_GetKnownCertificate(const char *certname, size_t *size)
+{	//our 'code signing' certs
+	//we only allow packages to be installed into the root dir (or with dll/so/exe extensions) when their signature is signed by one of these certificates
+	static struct
+	{
+		const char *name;
+		qbyte *cert;
+	} certs[] =
+	{	//the contents of a -pubcert FILE
+		{"Spike",	"-----BEGIN CERTIFICATE-----\n"
+					"MIIDnTCCAgUCCjE1ODQ4ODg2OTEwDQYJKoZIhvcNAQELBQAwEDEOMAwGA1UEAxMF\n"
+					"U3Bpa2UwHhcNMjAwMzIyMTQ1MTMwWhcNMzAwMzIwMTQ1MTMxWjAQMQ4wDAYDVQQD\n"
+					"EwVTcGlrZTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAN07KHTPc0Pn\n"
+					"lC8MlQNiI+OEUEJBakTjfNq+IJzJ6oTWXxfQbHrN+UpKXwxploDbeyxTE1Fniisi\n"
+					"nLWhOkW/XQqyXLXAv/3lxiSwe4QcVMOhQlw5U05VrdB7xHvFMShLsyc12sNvBiIa\n"
+					"Vw05wFJgIXYTd9nJfm9x3kpxRoTJBvdDbYl8OagT6SxzJfHkdmfI2TYVYxGUH9nX\n"
+					"R9zvwXTIXvV47cko2ON8scH9QQ6KgwMfcwyIBL74Btvl4ye+TrL2srj38FBxyyPG\n"
+					"SSdKPk4LN2zsfNsJm31hzWrdLEkl3CTOX5gHHSweOKpuPwmX/GPd1xo0nIMwDou4\n"
+					"BsMMBAhK/JSyLpUUzk5gbRmy4PwFccktHdFW6LF8ZvPY7e7LEiD5KOWZ7a7c1WR/\n"
+					"4oJrjo0t+7OugVADolxzLXFrq9ACBGrD8r6QlsGC8O7WqpKGQCT+4q3tUup9tPkh\n"
+					"3dhjC0jEkKljS+39uukbisV702bHwoEZPzjMpz4O9bHf6JbIJLlQzQIDAQABMA0G\n"
+					"CSqGSIb3DQEBCwUAA4IBgQC5rj7R7a9LLnqgiXMUITGnygK1lp0EV2BdnIrg/MHr\n"
+					"y+Gk9BA+XgFSI4W9odiG/hJnA7aQ0S2kk1GNYQ+NNzU2bQIMkaobaZApV9ojD4lL\n"
+					"s33Qbgt/Ocpadtpj8EiMInjLkn1B+wnqcX3S76Zcrf8RT4WP2A4klxcN3zBNBiBL\n"
+					"DAJ3SrH8hZ9wmruwAY5tMZhQzDHkeK8uaDb7nE0HA5GXeT4QYA/L7Ys2nGYgxj1O\n"
+					"L5YlGddBcX3O6XyJpSeCO2Z2kwl4qg8oiM+Y546lILotuL5qD/+FTDeX3dGd8nyD\n"
+					"e1g/7xd0V4IyKUjii8Vu2V1F7t0xVTPWEe13TqU/JTfKX4zvQnMF7zxgGFIwabHX\n"
+					"lzk2olte4rPp+iQzPmnynLiUrdkxGXLnE0V545VO+iGO8+bwclbJ+7SG6N5l8xox\n"
+					"WjGunhXXkEjitAk+ssBjbEh8kIfpFdVA09v60rMdm7BdfO3//QOsjwiwKkBOXcYW\n"
+					"QGE0Ue4J7anLVAKiQq4n1aU=\n"
+					"-----END CERTIFICATE-----\n"},
+	};
+	size_t i;
+	for (i = 0; i < countof(certs); i++)
+	{
+		if (!strcmp(certname, certs[i].name))
+		{
+			*size = strlen(certs[i].cert);
+			return certs[i].cert;
+		}
+	}
+	return NULL;
+}
 void *TLS_GetKnownCertificate(const char *certname, size_t *size)
 {
 	//Note: This is XORed because of shitty scanners flagging binaries through false positive, flagging the sites that they were downloaded from, flagging binaries that contain references to those sites, and flagging any site that contains binaries.
@@ -4851,7 +4894,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, ftenet_tcp_st
 			char *protoname = "";
 
 			blurgh = va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY]);
-			tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), blurgh, strlen(blurgh)));
+			tobase64(acceptkey, sizeof(acceptkey), sha1digest, CalcHash(&hash_sha1, sha1digest, sizeof(sha1digest), blurgh, strlen(blurgh)));
 
 			if (st->remoteaddr.prot == NP_TLS)
 				st->remoteaddr.prot = NP_WSS;
@@ -8114,12 +8157,14 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 	FD_ZERO(&readfdset);
 	FD_ZERO(&writefdset);
 
+#ifndef _WIN32
 	if (stdinissocket)
 	{
 		sock = STDIN_FILENO;	//stdin tends to be socket/filehandle 0 in unix
 		FD_SET(sock, &readfdset);
 		maxfd = sock;
 	}
+#endif
 
 #ifdef SV_MASTER
 	{
@@ -8185,8 +8230,10 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 		select(maxfd+1, &readfdset, &writefdset, NULL, &timeout);
 	}
 
+#ifndef _WIN32
 	if (stdinissocket)
 		return FD_ISSET(STDIN_FILENO, &readfdset);
+#endif
 #endif
 	return true;
 }

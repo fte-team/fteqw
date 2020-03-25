@@ -129,7 +129,7 @@ typedef struct entity_s
 											// only used for static objects
 											
 //	int						dlightframe;	// dynamic lighting
-//	int						dlightbits;
+//	dlightbitmask_t			dlightbits;
 	
 // FIXME: could turn these into a union
 //	int						trivial_accept;

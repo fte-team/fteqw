@@ -93,7 +93,7 @@ typedef struct netadr_s
 	} address;
 
 	unsigned short	port;
-	unsigned short	connum;	//which quake connection/socket the address is talking about. 1-based. 0 is unspecified.
+	unsigned short	connum;	//which quake connection/socket the address is talking about. 1-based. 0 is unspecified. this is NOT used for address equivelency.
 	unsigned int scopeid;	//ipv6 interface id thing.
 } netadr_t;
 

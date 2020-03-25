@@ -295,8 +295,9 @@ typedef struct
 //the light array works thusly:
 //dlights are allocated DL_LAST downwards to 0, static wlights are allocated DL_LAST+1 to MAX_RTLIGHTS.
 //thus to clear the dlights but not rtlights, set the first light to RTL_FIRST
-#define DL_LAST				(sizeof(unsigned int)*8-1)
-#define RTL_FIRST			(sizeof(unsigned int)*8)
+#define dlightbitmask_t		size_t
+#define DL_LAST				(sizeof(dlightbitmask_t)*8-1)
+#define RTL_FIRST			(sizeof(dlightbitmask_t)*8)
 
 #define LFLAG_NORMALMODE	(1<<0) /*ppl with r_shadow_realtime_dlight*/
 #define LFLAG_REALTIMEMODE	(1<<1) /*ppl with r_shadow_realtime_world*/
@@ -1488,6 +1489,7 @@ qboolean CSQC_Accelerometer(float x, float y, float z);
 qboolean CSQC_Gyroscope(float x, float y, float z);
 int		 CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags);
 void	 CSQC_ParseEntities(void);
+const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize);
 void	 CSQC_ResetTrails(void);
 
 qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);

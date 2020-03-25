@@ -503,7 +503,7 @@ void Validation_FileLoaded(const char *filename, const qbyte *filedata, size_t f
 	{
 		if (!strcmp(filename, modifiles[i].name) && (modifiles[i].flags & (cl.teamfortress?FMOD_TF:FMOD_DM)))
 		{
-			SHA1(digest, sizeof(digest), filedata, filesize);
+			CalcHash(&hash_sha1, digest, sizeof(digest), filedata, filesize);
 
 			for (j = 0; j < modifiles[i].hashes; j++)
 			{

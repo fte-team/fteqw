@@ -1824,7 +1824,7 @@ static vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 {
 //	char *ext;
 
-	if (!handle || handle->WriteBytes || handle->seekstyle == SS_SLOW || handle->seekstyle == SS_UNSEEKABLE)	//only on readonly files for which we can undo any header read damage
+	if (!handle || !handle->ReadBytes || handle->seekstyle == SS_SLOW || handle->seekstyle == SS_UNSEEKABLE)	//only on readonly files for which we can undo any header read damage
 		return handle;
 //	ext = COM_FileExtension (filename);
 #ifdef AVAIL_GZDEC
@@ -2170,7 +2170,7 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 
 	if (loc.search)
 	{
-		return VFS_Filter(filename, loc.search->handle->OpenVFS(loc.search->handle, &loc, mode));
+		return loc.search->handle->OpenVFS(loc.search->handle, &loc, mode);
 	}
 
 	//if we're meant to be writing, best write to it.
@@ -2406,14 +2406,19 @@ qbyte *FS_LoadMallocFile (const char *path, size_t *fsize)
 	return COM_LoadFile (path, 0, 5, fsize);
 }
 
-void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path, size_t *fsize)
+void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path, size_t *fsize, qboolean filters)
 {
 	char *mem = NULL;
 	vfsfile_t *f = FS_OpenVFS(path, "rb", FS_GAME);
+	if (f && filters)
+		f = VFS_Filter(path, f);
 	if (f)
 	{
 		int len = VFS_GETLEN(f);
-		mem = ZG_Malloc(ctx, len+1);
+		if (ctx)
+			mem = ZG_Malloc(ctx, len+1);
+		else
+			mem = BZ_Malloc(len+1);
 		if (mem)
 		{
 			mem[len] = 0;

@@ -495,7 +495,7 @@ int main(int argc, const char **argv)
 
 	if (argc == 1)
 	{
-		printf("%s input.glsl output.fvb\n");
+		printf("%s input.glsl output.fvb\n", argv[0]);
 		return 1;
 	}
 

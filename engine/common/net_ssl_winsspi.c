@@ -1290,4 +1290,78 @@ const dtlsfuncs_t *SSPI_DTLS_InitClient(void)
 }
 #endif
 
+
+#include <ntstatus.h>
+enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize)
+{
+	NTSTATUS status;
+	BCRYPT_KEY_HANDLE pubkey;
+	size_t sz;
+	const char *pem = Auth_GetKnownCertificate(authority, &sz);
+	const char *pemend;
+	qbyte *der;
+	size_t dersize;
+
+	static const void *(WINAPI *pCertCreateContext) (DWORD dwContextType, DWORD dwEncodingType, const BYTE *pbEncoded, DWORD cbEncoded, DWORD dwFlags, PCERT_CREATE_CONTEXT_PARA pCreatePara);
+	static WINBOOL (WINAPI *pCryptImportPublicKeyInfoEx2) (DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pInfo, DWORD dwFlags, void *pvAuxInfo, BCRYPT_KEY_HANDLE *phKey);
+	static WINBOOL (WINAPI *pCertFreeCertificateContext) (PCCERT_CONTEXT pCertContext);
+	static dllhandle_t *crypt32;
+	static dllfunction_t crypt32funcs[] = {
+		{(void**)&pCertCreateContext,			"CertCreateContext"},
+		{(void**)&pCryptImportPublicKeyInfoEx2,	"CryptImportPublicKeyInfoEx2"},	//WARNING: fails on wine.
+		{(void**)&pCertFreeCertificateContext,	"CertFreeCertificateContext"},
+		{NULL,NULL}
+	};
+
+	static NTSTATUS (WINAPI *pBCryptVerifySignature) (BCRYPT_KEY_HANDLE hKey, VOID *pPaddingInfo, PUCHAR pbHash, ULONG cbHash, PUCHAR pbSignature, ULONG cbSignature, ULONG dwFlags);
+	static NTSTATUS (WINAPI *pBCryptDestroyKey) (BCRYPT_KEY_HANDLE hKey);
+	static dllhandle_t *bcrypt;
+	static dllfunction_t bcryptfuncs[] = {
+		{(void**)&pBCryptVerifySignature,		"BCryptVerifySignature"},
+		{(void**)&pBCryptDestroyKey,			"BCryptDestroyKey"},
+		{NULL,NULL}
+	};
+
+	if (!crypt32)
+		crypt32 = Sys_LoadLibrary("crypt32.dll", crypt32funcs);
+	if (!bcrypt)
+		bcrypt = Sys_LoadLibrary("bcrypt.dll", bcryptfuncs);
+	if (!crypt32 || !bcrypt)
+	{
+		Con_Printf("Unable to obtain required crypto functions\n");
+		return VH_UNSUPPORTED;
+	}
+
+	if (!pem)
+		return VH_AUTHORITY_UNKNOWN;	//no public cert/key for authority.
+	pem = strstr(pem, "-----BEGIN CERTIFICATE-----");
+	if (!pem)
+		return VH_UNSUPPORTED;	//not a pem
+	pem += strlen("-----BEGIN CERTIFICATE-----");
+	pemend = strstr(pem, "-----END CERTIFICATE-----");
+	if (!pemend)
+		return VH_UNSUPPORTED;
+	dersize = Base64_DecodeBlock(pem, pemend, NULL, 0);	//guess
+	der = alloca(dersize);
+	dersize = Base64_DecodeBlock(pem, pemend, der, dersize);
+	//okay, now its in binary der format.
+
+	//make sense of the cert and pull out its public key...
+	{
+		const CERT_CONTEXT* cert = pCertCreateContext(CERT_STORE_CERTIFICATE_CONTEXT, X509_ASN_ENCODING, der, dersize, 0, NULL);
+		if (!pCryptImportPublicKeyInfoEx2(X509_ASN_ENCODING, &cert->pCertInfo->SubjectPublicKeyInfo, 0, NULL, &pubkey))
+            return VH_UNSUPPORTED;
+        pCertFreeCertificateContext(cert);
+	}
+
+	//yay, now we can do what we actually wanted in the first place.
+	status = pBCryptVerifySignature(pubkey, NULL, hashdata, hashsize, signdata, signsize, 0);
+	pBCryptDestroyKey(pubkey);
+	if (status == STATUS_SUCCESS)
+		return VH_CORRECT;		//its okay
+	else if (status == STATUS_INVALID_SIGNATURE)
+		return VH_INCORRECT;	//its bad
+	return VH_UNSUPPORTED;		//some weird transient error...?
+}
+
 #endif

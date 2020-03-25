@@ -477,7 +477,7 @@ static qboolean ICE_SendSpam(struct icestate_s *con)
 		data[2] = ((buf.cursize+4+sizeof(integ)-20)>>8)&0xff;	//hashed header length is up to the end of the hmac attribute
 		data[3] = ((buf.cursize+4+sizeof(integ)-20)>>0)&0xff;
 		//but the hash is to the start of the attribute's header
-		HMAC(SHA1_m, integ, sizeof(integ), data, buf.cursize, con->rpwd, strlen(con->rpwd));
+		HMAC(&hash_sha1, integ, sizeof(integ), data, buf.cursize, con->rpwd, strlen(con->rpwd));
 		MSG_WriteShort(&buf, BigShort(0x8));	//MESSAGE-INTEGRITY
 		MSG_WriteShort(&buf, BigShort(20));	//sha1 key length
 		SZ_Write(&buf, integ, sizeof(integ));	//integrity data
@@ -1523,7 +1523,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 						char key[20];
 						//the hmac is a bit weird. the header length includes the integrity attribute's length, but the checksum doesn't even consider the attribute header.
 						stun->msglen = BigShort(integritypos+sizeof(integrity) - (char*)stun - sizeof(*stun));
-						HMAC(SHA1_m, key, sizeof(key), (qbyte*)stun, integritypos-4 - (char*)stun, con->lpwd, strlen(con->lpwd));
+						HMAC(&hash_sha1, key, sizeof(key), (qbyte*)stun, integritypos-4 - (char*)stun, con->lpwd, strlen(con->lpwd));
 						if (memcmp(key, integrity, sizeof(integrity)))
 						{
 							Con_DPrintf("Integrity is bad! needed %x got %x\n", *(int*)key, *(int*)integrity);
@@ -1690,7 +1690,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 				data[2] = ((buf.cursize+4+sizeof(integrity)-20)>>8)&0xff;	//hashed header length is up to the end of the hmac attribute
 				data[3] = ((buf.cursize+4+sizeof(integrity)-20)>>0)&0xff;
 				//but the hash is to the start of the attribute's header
-				HMAC(SHA1_m, integrity, sizeof(integrity), data, buf.cursize, con->lpwd, strlen(con->lpwd));
+				HMAC(&hash_sha1, integrity, sizeof(integrity), data, buf.cursize, con->lpwd, strlen(con->lpwd));
 				MSG_WriteShort(&buf, BigShort(0x8));	//MESSAGE-INTEGRITY
 				MSG_WriteShort(&buf, BigShort(sizeof(integrity)));	//sha1 key length
 				SZ_Write(&buf, integrity, sizeof(integrity));	//integrity data

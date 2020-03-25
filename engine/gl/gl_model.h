@@ -254,7 +254,7 @@ typedef struct {
 
 	void (*LightPointValues)	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
-	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
+	void (*MarkLights)			(struct dlight_s *light, dlightbitmask_t bit, struct mnode_s *node);
 
 	int	(*ClusterForPoint)		(struct model_s *model, const vec3_t point, int *areaout);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
 	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
@@ -437,20 +437,22 @@ typedef struct msurface_s
 	batch_t		*sbatch;
 	mtexinfo_t	*texinfo;
 	int			visframe;		// should be drawn when node is crossed
+#ifdef RTLIGHTS
 	int			shadowframe;
-	int			clipcount;
+#endif
+//	int			clipcount;
 	
 // legacy lighting info
+	dlightbitmask_t	dlightbits;
 	int			dlightframe;
-	int			dlightbits;
+	qboolean	cached_dlight;				// true if dynamic light in cache
 
 //static lighting
 	int			lightmaptexturenums[MAXRLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
-	lightstyleindex_t	styles[MAXQ1LIGHTMAPS];
+	lightstyleindex_t	styles[MAXCPULIGHTMAPS];
 	qbyte		vlstyles[MAXRLIGHTMAPS];
-	int			cached_light[MAXQ1LIGHTMAPS];	// values currently used in lightmap
-	int			cached_colour[MAXQ1LIGHTMAPS];	// values currently used in lightmap
-	qboolean	cached_dlight;				// true if dynamic light in cache
+	int			cached_light[MAXCPULIGHTMAPS];	// values currently used in lightmap
+	int			cached_colour[MAXCPULIGHTMAPS];	// values currently used in lightmap
 #ifndef NOSTAINS
 	qboolean stained;
 #endif
@@ -565,7 +567,7 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shade
 size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes, size_t planestride, size_t numplanes, vec4_t face);
 void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, unsigned int surfflagmask, unsigned int surflagmatch, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx);
 
-void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
+void Q1BSP_MarkLights (dlight_t *light, dlightbitmask_t bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, const vec3_t p1, const vec3_t p2, unsigned int hitcontents, struct trace_s *trace);
 

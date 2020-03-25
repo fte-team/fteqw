@@ -4312,9 +4312,11 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 #ifdef VK_EXT_debug_report
 		qboolean havedebugreport = false;
 #endif
-		vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
+		if (VK_SUCCESS!=vkEnumerateInstanceExtensionProperties(NULL, &count, NULL))
+			count = 0;
 		ext = malloc(sizeof(*ext)*count);
-		vkEnumerateInstanceExtensionProperties(NULL, &count, ext);
+		if (!ext || VK_SUCCESS!=vkEnumerateInstanceExtensionProperties(NULL, &count, ext))
+			count = 0;
 		for (i = 0; i < count && extensions_count < countof(extensions); i++)
 		{
 			Con_DLPrintf(2, " vki: %s\n", ext[i].extensionName);

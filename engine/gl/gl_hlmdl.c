@@ -590,7 +590,7 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 			return;
 		}
 		if (!model->animcache[sequence->seqindex])
-			model->animcache[sequence->seqindex] = FS_LoadMallocGroupFile(model->memgroup, sequencedata->name+32, &fz);
+			model->animcache[sequence->seqindex] = FS_LoadMallocGroupFile(model->memgroup, sequencedata->name+32, &fz, true);
 		if (!model->animcache[sequence->seqindex] || model->animcache[sequence->seqindex]->magic != (('I'<<0)|('D'<<8)|('S'<<16)|('Q'<<24)) || model->animcache[sequence->seqindex]->version != 10)
 		{
 			Sys_Error("Unable to load %s\n", sequencedata->name+32);

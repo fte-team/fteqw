@@ -1727,7 +1727,7 @@ Rendering functions (Client only)
 extern int	r_dlightframecount;
 
 //goes through the nodes marking the surfaces near the dynamic light as lit.
-void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
+void Q1BSP_MarkLights (dlight_t *light, dlightbitmask_t bit, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;

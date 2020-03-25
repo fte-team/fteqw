@@ -1354,6 +1354,13 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 			return &tc;
 		}
 
+		if (charidx == 0x00a0)	//nbsp
+		{
+			c = Font_GetCharIfLoaded(f, ' ');
+			if (c)
+				return c;
+		}
+
 		//not cached, can't get.
 		c = Font_TryLoadGlyph(f, charidx);
 

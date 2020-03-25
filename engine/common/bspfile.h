@@ -24,6 +24,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	MAX_MAP_HULLSDQ1	4
 #define	MAX_MAP_HULLSDH2	8
 #define	MAX_MAP_HULLSM		8
+#define RBSP_STYLESPERSURF		4
+#define Q1Q2BSP_STYLESPERSURF	4
+#ifdef Q1BSPS
+#define MAXCPULIGHTMAPS		16	//max lightmaps mixed by the cpu (vanilla q1bsp=4, fte extensions=no real cap, must be >=MAXRLIGHTMAPS)
+#elif defined(Q1BSPS)
+#define MAXCPULIGHTMAPS		Q1Q2BSP_STYLESPERSURF	//max lightmaps mixed by the cpu (vanilla q1bsp=4, fte extensions=no real cap, must be >=MAXRLIGHTMAPS)
+#else
+#define MAXCPULIGHTMAPS		MAXRLIGHTMAPS	//max lightmaps mixed by the cpu (vanilla q1bsp=4, fte extensions=no real cap, must be >=MAXRLIGHTMAPS)
+#endif
 
 //#define	MAX_MAP_MODELS		256
 //#define	MAX_MAP_BRUSHES		0x8000
@@ -235,11 +244,10 @@ typedef struct
 } dledge_t;
 
 #ifdef RFBSPS
-#define	MAXRLIGHTMAPS	4	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
+#define	MAXRLIGHTMAPS	4	//max lightmaps mixed by the gpu (rbsp=4, otherwise 1)
 #else
-#define	MAXRLIGHTMAPS	1	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
+#define	MAXRLIGHTMAPS	1	//max lightmaps mixed by the gpu (rbsp=4, otherwise 1)
 #endif
-#define MAXQ1LIGHTMAPS	16
 typedef struct
 {
 	short		planenum;
@@ -250,7 +258,7 @@ typedef struct
 	short		texinfo;
 
 // lighting info
-	qbyte		styles[4];
+	qbyte		styles[Q1Q2BSP_STYLESPERSURF];
 	int			lightofs;		// start of [numstyles*surfsize] samples
 } dsface_t;
 typedef struct
@@ -263,7 +271,7 @@ typedef struct
 	int			texinfo;
 
 // lighting info
-	qbyte		styles[4];
+	qbyte		styles[Q1Q2BSP_STYLESPERSURF];
 	int			lightofs;		// start of [numstyles*surfsize] samples
 } dlface_t;
 
@@ -821,9 +829,10 @@ typedef struct
 typedef struct
 {
 	float point[3];
-	float texcoords[5][2];
+	float stcoords[2];
+	float lmtexcoords[RBSP_STYLESPERSURF][2];
 	float normal[3];
-	unsigned char color[4][4];
+	unsigned char color[RBSP_STYLESPERSURF][4];
 } rbspvertex_t;
 
 struct Q3FOG
@@ -854,8 +863,7 @@ typedef struct
 	int firstindex;
 	int num_indexes;
 	int lightmapnum;
-	int lightmap_x; 
-	int lightmap_y;
+	int lightmap_offs[2];
 	int lightmap_width;
 	int lightmap_height;
 	float lightmap_origin[3];
@@ -874,10 +882,10 @@ typedef struct
 	int num_vertices;
 	int firstindex;
 	int num_indexes;
-	unsigned char lm_styles[4];
-	unsigned char vt_styles[4];
-	int lightmapnum[4];
-	int lightmap_offs[2][4]; 
+	unsigned char lm_styles[RBSP_STYLESPERSURF];
+	unsigned char vt_styles[RBSP_STYLESPERSURF];
+	int lightmapnum[RBSP_STYLESPERSURF];
+	int lightmap_offs[2][RBSP_STYLESPERSURF];	//yes, weird ordering.
 	int lightmap_width;
 	int lightmap_height;
 	float lightmap_origin[3];

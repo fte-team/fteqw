@@ -11,8 +11,6 @@
 #endif
 
 #ifdef HAVE_GNUTLS
-#define privname "privkey.pem"
-#define pubname "cert.pem"
 
 #if defined(_WIN32) && !defined(MINGW) && 0
 
@@ -205,6 +203,7 @@ static int		(VARGS *qgnutls_x509_crt_set_dn)(gnutls_x509_crt_t crt, const char *
 static int		(VARGS *qgnutls_x509_crt_set_issuer_dn)(gnutls_x509_crt_t crt, const char *dn, const char **err);
 static int		(VARGS *qgnutls_x509_crt_set_key)(gnutls_x509_crt_t crt, gnutls_x509_privkey_t key);
 static int		(VARGS *qgnutls_x509_crt_export2)(gnutls_x509_crt_t cert, gnutls_x509_crt_fmt_t format, gnutls_datum_t * out);
+static int		(VARGS *qgnutls_x509_crt_import)(gnutls_x509_crt_t cert, const gnutls_datum_t *data, gnutls_x509_crt_fmt_t format);
 static int		(VARGS *qgnutls_x509_privkey_init)(gnutls_x509_privkey_t * key);
 static void		(VARGS *qgnutls_x509_privkey_deinit)(gnutls_x509_privkey_t key);
 static int		(VARGS *qgnutls_x509_privkey_generate)(gnutls_x509_privkey_t key, gnutls_pk_algorithm_t algo, unsigned int bits, unsigned int flags);
@@ -213,7 +212,14 @@ static int		(VARGS *qgnutls_x509_crt_privkey_sign)(gnutls_x509_crt_t crt, gnutls
 static int		(VARGS *qgnutls_privkey_init)(gnutls_privkey_t * key);
 static void		(VARGS *qgnutls_privkey_deinit)(gnutls_privkey_t key);
 static int		(VARGS *qgnutls_privkey_import_x509)(gnutls_privkey_t pkey, gnutls_x509_privkey_t key, unsigned int flags);
+//static int		(VARGS *qgnutls_privkey_sign_hash2)(gnutls_privkey_t signer, gnutls_sign_algorithm_t algo, unsigned int flags, const gnutls_datum_t * hash_data, gnutls_datum_t * signature);
+static int		(VARGS *qgnutls_privkey_sign_hash)(gnutls_privkey_t signer, gnutls_digest_algorithm_t hash_algo, unsigned int flags, const gnutls_datum_t * hash_data, gnutls_datum_t * signature);
+static int		(VARGS *qgnutls_pubkey_init)(gnutls_pubkey_t * key);
+static int		(VARGS *qgnutls_pubkey_import_x509)(gnutls_pubkey_t key, gnutls_x509_crt_t crt, unsigned int flags);
+static int		(VARGS *qgnutls_pubkey_verify_hash2)(gnutls_pubkey_t key, gnutls_sign_algorithm_t algo, unsigned int flags, const gnutls_datum_t * hash, const gnutls_datum_t * signature);
 static int		(VARGS *qgnutls_certificate_set_x509_key_mem)(gnutls_certificate_credentials_t res, const gnutls_datum_t * cert, const gnutls_datum_t * key, gnutls_x509_crt_fmt_t type);
+static int		(VARGS *qgnutls_certificate_get_x509_key)(gnutls_certificate_credentials_t res, unsigned index, gnutls_x509_privkey_t *key);
+static void		(VARGS *qgnutls_certificate_free_credentials)(gnutls_certificate_credentials_t sc);
 
 static qboolean Init_GNUTLS(void)
 {
@@ -384,6 +390,13 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_privkey_import_x509, "gnutls_privkey_import_x509"},
 		{(void**)&qgnutls_certificate_set_x509_key_mem, "gnutls_certificate_set_x509_key_mem"},
 
+		{(void**)&qgnutls_certificate_get_x509_key, "gnutls_certificate_get_x509_key"},
+		{(void**)&qgnutls_certificate_free_credentials, "gnutls_certificate_free_credentials"},
+		{(void**)&qgnutls_pubkey_init, "gnutls_pubkey_init"},
+		{(void**)&qgnutls_pubkey_import_x509, "gnutls_pubkey_import_x509"},
+		{(void**)&qgnutls_privkey_sign_hash, "gnutls_privkey_sign_hash"},
+		{(void**)&qgnutls_pubkey_verify_hash2, "gnutls_pubkey_verify_hash2"},
+		{(void**)&qgnutls_x509_crt_import, "gnutls_x509_crt_import"},
 		{NULL, NULL}
 	};
 	
@@ -835,17 +848,68 @@ static gnutls_certificate_credentials_t xcred[2];
 static gnutls_datum_t cookie_key;
 #endif
 
+vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
+{
+#define privname "privkey.pem"
+	vfsfile_t *privf;
+	const char *mode = nativename?"wb":"rb";
+	int i = COM_CheckParm("-privkey");
+	if (i++)
+	{
+		if (nativename)
+			Q_strncpyz(nativename, com_argv[i], nativesize);
+		privf = FS_OpenVFS(com_argv[i], mode, FS_SYSTEM);
+	}
+	else
+	{
+		if (nativename)
+			if (!FS_NativePath(privname, FS_ROOT, nativename, nativesize))
+				return NULL;
+
+		privf = FS_OpenVFS(privname, mode, FS_ROOT);
+	}
+	return privf;
+#undef privname
+}
+vfsfile_t *SSL_OpenPubKey(char *nativename, size_t nativesize)
+{
+#define pubname "cert.pem"
+	vfsfile_t *pubf;
+	const char *mode = nativename?"wb":"rb";
+	int i = COM_CheckParm("-pubkey");
+	if (i++)
+	{
+		if (nativename)
+			Q_strncpyz(nativename, com_argv[i], nativesize);
+		pubf = FS_OpenVFS(com_argv[i], mode, FS_SYSTEM);
+	}
+	else
+	{
+		if (nativename)
+			if (!FS_NativePath(pubname, FS_ROOT, nativename, nativesize))
+				return NULL;
+		pubf = FS_OpenVFS(pubname, mode, FS_ROOT);
+	}
+	return pubf;
+#undef pubname
+}
+
 static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 {
 	int ret = -1;
 	gnutls_datum_t priv, pub;
-	vfsfile_t *privf = FS_OpenVFS(privname, "rb", FS_ROOT);
-	vfsfile_t *pubf = FS_OpenVFS(pubname, "rb", FS_ROOT);
+	vfsfile_t *privf = SSL_OpenPrivKey(NULL, 0);
+	vfsfile_t *pubf = SSL_OpenPubKey(NULL, 0);
+	const char *hostname = NULL;
+
+	int i = COM_CheckParm("-certhost");
+	if (i)
+		hostname = com_argv[i+1];
 
 	memset(&priv, 0, sizeof(priv));
 	memset(&pub, 0, sizeof(pub));
 
-	if (!privf || !pubf)
+	if ((!privf || !pubf) && hostname)
 	{	//not found? generate a new one.
 		//FIXME: how to deal with race conditions with multiple servers on the same host?
 		//delay till the first connection? we at least write both files at the sameish time.
@@ -856,7 +920,7 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		char serial[64];
 		const char *errstr;
 		gnutls_pk_algorithm_t privalgo = GNUTLS_PK_RSA;
-		
+
 		if (privf)VFS_CLOSE(privf);privf=NULL;
 		if (pubf)VFS_CLOSE(pubf);pubf=NULL;
 
@@ -880,11 +944,16 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		qgnutls_x509_crt_set_activation_time(cert, time(NULL)-1);
 		qgnutls_x509_crt_set_expiration_time(cert, time(NULL)+(time_t)10*365*24*60*60);
 		qgnutls_x509_crt_set_serial(cert, serial, strlen(serial));
-		if (qgnutls_x509_crt_set_dn(cert, "CN=localhost", &errstr) < 0)
-			Con_Printf("gnutls_x509_crt_set_dn failed: %s\n", errstr);
-		if (qgnutls_x509_crt_set_issuer_dn(cert, "CN=localhost", &errstr) < 0)
-			Con_Printf("gnutls_x509_crt_set_issuer_dn failed: %s\n", errstr);
-//		qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_KEY_ENCIPHERMENT|GNUTLS_KEY_DATA_ENCIPHERMENT|);
+		if (!hostname)
+			/*qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_DIGITAL_SIGNATURE)*/;
+		else
+		{
+			if (qgnutls_x509_crt_set_dn(cert, va("CN=%s", hostname), &errstr) < 0)
+				Con_Printf("gnutls_x509_crt_set_dn failed: %s\n", errstr);
+			if (qgnutls_x509_crt_set_issuer_dn(cert, va("CN=%s", hostname), &errstr) < 0)
+				Con_Printf("gnutls_x509_crt_set_issuer_dn failed: %s\n", errstr);
+//			qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_KEY_ENCIPHERMENT|GNUTLS_KEY_DATA_ENCIPHERMENT|);
+		}
 		qgnutls_x509_crt_set_key(cert, key);
 
 		/*sign it with our private key*/
@@ -906,31 +975,29 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		if (priv.size && pub.size)
 		{
 			char fullname[MAX_OSPATH];
-			privf = FS_OpenVFS(privname, "wb", FS_ROOT);
+			privf = SSL_OpenPrivKey(fullname, sizeof(fullname));
 			if (privf)
 			{
 				VFS_WRITE(privf, priv.data, priv.size);
 				VFS_CLOSE(privf);
-				FS_NativePath(privname, FS_ROOT, fullname, sizeof(fullname));
 				Con_Printf("Wrote %s\n", fullname);
 			}
 //			memset(priv.data, 0, priv.size);
 			(*qgnutls_free)(priv.data);
 			memset(&priv, 0, sizeof(priv));
 
-			pubf = FS_OpenVFS(pubname, "wb", FS_ROOT);
+			pubf = SSL_OpenPubKey(fullname, sizeof(fullname));
 			if (pubf)
 			{
 				VFS_WRITE(pubf, pub.data, pub.size);
 				VFS_CLOSE(pubf);
-				FS_NativePath(pubname, FS_ROOT, fullname, sizeof(fullname));
 				Con_Printf("Wrote %s\n", fullname);
 			}
 			(*qgnutls_free)(pub.data);
 			memset(&pub, 0, sizeof(pub));
 
-			privf = FS_OpenVFS(privname, "rb", FS_ROOT);
-			pubf = FS_OpenVFS(pubname, "rb", FS_ROOT);
+			privf = SSL_OpenPrivKey(NULL, 0);
+			pubf = SSL_OpenPubKey(NULL, 0);
 
 			Con_Printf("Certificate generated\n");
 		}
@@ -961,7 +1028,7 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 			Con_Printf("gnutls_certificate_set_x509_key_mem failed: %i\n", ret);
 	}
 	else
-		Con_Printf("Unable to read/generate cert\n");
+		Con_Printf("Unable to read/generate cert ('-certhost HOSTNAME' commandline arguments to autogenerate one)\n");
 
 	memset(priv.data, 0, priv.size);//just in case. FIXME: we didn't scrub the filesystem code. libc has its own caches etc. lets hope that noone comes up with some way to scrape memory remotely (although if they can inject code then we've lost either way so w/e)
 	if (priv.data)
@@ -1167,7 +1234,84 @@ int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 	}
 }
 
+//generates a signed blob
+int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax)
+{
+	gnutls_datum_t hash = {hashdata, hashsize};
+	gnutls_datum_t sign = {NULL, 0};
 
+	gnutls_certificate_credentials_t cred;
+	if (Init_GNUTLS())
+	{
+		qgnutls_certificate_allocate_credentials (&cred);
+		if (SSL_LoadPrivateCert(cred))
+		{
+			gnutls_x509_privkey_t xkey;
+			gnutls_privkey_t privkey;
+			qgnutls_privkey_init(&privkey);
+			qgnutls_certificate_get_x509_key(cred, 0, &xkey);
+			qgnutls_privkey_import_x509(privkey, xkey, 0);
+
+			qgnutls_privkey_sign_hash(privkey, GNUTLS_DIG_SHA512, 0, &hash, &sign);
+			qgnutls_privkey_deinit(privkey);
+		}
+		else
+			sign.size = 0;
+		qgnutls_certificate_free_credentials(cred);
+	}
+	else
+		Con_Printf("Unable to init gnutls\n");
+	memcpy(signdata, sign.data, sign.size);
+	return sign.size;
+}
+
+//windows equivelent https://docs.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-signing-a-hash-and-verifying-the-hash-signature
+enum hashvalidation_e GNUTLS_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize)
+{
+	gnutls_datum_t hash = {hashdata, hashsize};
+	gnutls_datum_t sign = {signdata, signsize};
+	int r;
+
+	gnutls_datum_t rawcert;
+#if 1
+	size_t sz;
+	gnutls_pubkey_t pubkey;
+	gnutls_x509_crt_t cert;
+
+	rawcert.data = Auth_GetKnownCertificate(authority, &sz);
+	if (!rawcert.data)
+		return VH_AUTHORITY_UNKNOWN;
+	if (!Init_GNUTLS())
+		return VH_UNSUPPORTED;
+	rawcert.size = sz;
+
+	qgnutls_pubkey_init(&pubkey);
+	qgnutls_x509_crt_init(&cert);
+	qgnutls_x509_crt_import(cert, &rawcert, GNUTLS_X509_FMT_PEM);
+
+	qgnutls_pubkey_import_x509(pubkey, cert, 0);
+#else
+	qgnutls_pubkey_import(pubkey, rawcert, GNUTLS_X509_FMT_PEM);
+#endif
+
+	r = qgnutls_pubkey_verify_hash2(pubkey, GNUTLS_SIGN_RSA_SHA512, 0, &hash, &sign);
+	if (r < 0)
+	{
+		if (r == GNUTLS_E_PK_SIG_VERIFY_FAILED)
+		{
+			Con_Printf("GNUTLS_VerifyHash: GNUTLS_E_PK_SIG_VERIFY_FAILED!\n");
+			return VH_INCORRECT;
+		}
+		else if (r == GNUTLS_E_INSUFFICIENT_SECURITY)
+		{
+			Con_Printf("GNUTLS_VerifyHash: GNUTLS_E_INSUFFICIENT_SECURITY\n");
+			return VH_AUTHORITY_UNKNOWN;	//should probably be incorrect or something, but oh well
+		}
+		return VH_INCORRECT;
+	}
+	else
+		return VH_CORRECT;
+}
 
 #ifdef HAVE_DTLS
 

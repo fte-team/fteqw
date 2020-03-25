@@ -859,6 +859,7 @@ COMMON_OBJS = \
 	huff.o		\
 	md4.o 		\
 	sha1.o		\
+	sha2.o		\
 	log.o 		\
 	net_chan.o 		\
 	net_wins.o 		\

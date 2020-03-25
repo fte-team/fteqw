@@ -4365,7 +4365,7 @@ void Heightmap_LightPointValues	(model_t *mod, const vec3_t point, vec3_t res_di
 void Heightmap_StainNode			(mnode_t *node, float *parms)
 {
 }
-void Heightmap_MarkLights			(dlight_t *light, int bit, mnode_t *node)
+void Heightmap_MarkLights			(dlight_t *light, dlightbitmask_t bit, mnode_t *node)
 {
 }
 

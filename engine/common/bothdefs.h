@@ -839,8 +839,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MAX_BACKBUFLEN	1200
 
+#ifdef Q1BSPS
 #define lightstyleindex_t unsigned short
+#else
+#define lightstyleindex_t qbyte
+#endif
 #define INVALID_LIGHTSTYLE ((lightstyleindex_t)(~0u))	//the style that's invalid, signifying to stop adding more.
+#define INVALID_VLIGHTSTYLE ((qbyte)(~0u))	//the style that's invalid for verticies, signifying to stop adding more.
 
 //
 // per-level limits

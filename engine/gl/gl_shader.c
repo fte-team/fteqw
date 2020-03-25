@@ -217,7 +217,7 @@ static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen,
 #define HASH_SIZE	128
 
 #define SPF_DEFAULT		0u	/*quake3/fte internal*/
-#define SPF_PROGRAMIFY	(1u<<0)	/*quake3/fte internal*/
+#define SPF_PROGRAMIFY	(1u<<0)	/*automatically replace known glsl, pulling in additional textures+effects from a single primary pass*/
 #define SPF_DOOM3		(1u<<1)	/*any commands, args, etc, should be interpretted according to doom3's norms*/
 
 typedef struct shaderparsestate_s

@@ -2521,7 +2521,7 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 			{
 			case LM_E5BGR9:
 				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
-				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 				{
 					unsigned int l = *(unsigned int*)lightmap;
 					scale = d_lightstylevalue[surf->styles[maps]];
@@ -2534,7 +2534,7 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 				break;
 			case LM_RGB8:
 				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					r += max3(lightmap[0],lightmap[1],lightmap[2]) * scale;
@@ -2543,7 +2543,7 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 				break;
 			case LM_L8:
 				lightmap += dt * ((surf->extents[0]>>surf->lmshift)+1) + ds;
-				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					r += *lightmap * scale;
@@ -2695,7 +2695,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<4;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						unsigned int lm = *(unsigned int*)lightmap;
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
@@ -2720,7 +2720,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
@@ -2743,7 +2743,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
@@ -2770,7 +2770,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 				{
 				case LM_E5BGR9:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						unsigned int lm = *(unsigned int*)lightmap;
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
@@ -2786,7 +2786,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 					break;
 				case LM_RGB8:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
@@ -2800,7 +2800,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 					break;
 				case LM_L8:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 

@@ -1228,11 +1228,11 @@ static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, ha
 }
 static int sasl_scramsha1minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, SHA1_m, 20, false);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha1, 20, false);
 }
 static int sasl_scramsha1plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, SHA1_m, 20, true);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha1, 20, true);
 }
 
 static void buf_cat(buf_t *buf, char *data, int len)
@@ -1347,7 +1347,7 @@ static int sasl_scram_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, cha
 	HMAC(func, clientkey, sizeof(clientkey), "Client Key", strlen("Client Key"), salted_password, digestsize);
 //Note: if we wanted to be fancy, we could store both clientkey and serverkey instead of salted_password, but I'm not sure there's all that much point.
 	tmp = clientkey;
-	func(storedkey, sizeof(storedkey), 1, &tmp, &digestsize);
+	CalcHash(func, storedkey, sizeof(storedkey), tmp, digestsize);
 	HMAC(func, clientsignature, sizeof(clientsignature), sigkey.buf, sigkey.len, storedkey, digestsize);
 
 	for (i = 0; i < digestsize; i++)
@@ -3621,7 +3621,7 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 					free(bi->image);
 					free(bi->imagehash);
 					free(bi->imagemime);
-					SHA1(hash, sizeof(hash), photodata, photosize);
+					CalcHash(&hash_sha1, hash, sizeof(hash), photodata, photosize);
 					for (i = 0, o = 0; i < sizeof(hash); i++)
 					{
 						hasha[o++] = hex[(hash[i]>>4) & 0xf];
@@ -3676,7 +3676,7 @@ static qboolean JCL_MyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *i
 	else
 	{
 		int photosize = Base64_Decode(photodata, sizeof(photodata), photobinval->body, strlen(photobinval->body));
-		SHA1(digest, sizeof(digest), photodata, photosize);
+		CalcHash(&hash_sha1, digest, sizeof(digest), photodata, photosize);
 		if (jcl->vcardphotohashstatus != VCP_KNOWN || memcmp(jcl->vcardphotohash, digest, sizeof(jcl->vcardphotohash)))
 		{
 			memcpy(jcl->vcardphotohash, digest, sizeof(jcl->vcardphotohash));
@@ -3950,7 +3950,7 @@ char *buildcapshash(jclient_t *jcl)
 		Q_strlcat(out, caps[i].name, outlen);
 		Q_strlcat(out, "<", outlen);
 	}
-	l = SHA1(digest, sizeof(digest), out, strlen(out));
+	l = CalcHash(&hash_sha1, digest, sizeof(digest), out, strlen(out));
 	for (i = 0; i < l; i++)
 		Base64_Byte(digest[i]);
 	Base64_Finish();

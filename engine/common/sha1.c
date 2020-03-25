@@ -14,10 +14,19 @@ A million repetitions of "a"
 This file came to FTE via EzQuake.
 */
 
-/* #define SHA1HANDSOFF * Copies data before messing with it. */
-#define SHA1HANDSOFF
 #include "quakedef.h"
 #include <string.h>
+
+/* #define SHA1HANDSOFF * Copies data before messing with it. */
+#define SHA1HANDSOFF
+
+typedef struct
+{
+    unsigned int state[5];
+    size_t count[2];
+    unsigned char buffer[64];
+} SHA1_CTX;
+#define SHA1_DIGEST_SIZE 20
 
 #define BigLong(l)  (((unsigned char*)&l)[0]<<24) | (((unsigned char*)&l)[1]<<16) | (((unsigned char*)&l)[2]<<8) | (((unsigned char*)&l)[3]<<0)
 
@@ -36,23 +45,9 @@ This file came to FTE via EzQuake.
 #define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
 #define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
 
-typedef struct
-{
-    unsigned int state[5];
-    size_t count[2];
-    unsigned char buffer[64];
-} SHA1_CTX;
-
-#define DIGEST_SIZE 20
-void SHA1Transform(unsigned int state[5], const unsigned char buffer[64]);
-void SHA1Init(SHA1_CTX* context);
-void SHA1Update(SHA1_CTX* context, const unsigned char* data, size_t len);
-void SHA1Final(unsigned char digest[DIGEST_SIZE], SHA1_CTX* context);
-
-
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void SHA1Transform(unsigned int state[5], const unsigned char buffer[64])
+static void SHA1Transform(unsigned int state[5], const unsigned char buffer[64])
 {
 	unsigned int a, b, c, d, e;
 	typedef union
@@ -108,8 +103,9 @@ void SHA1Transform(unsigned int state[5], const unsigned char buffer[64])
 
 /* SHA1Init - Initialize new context */
 
-void SHA1Init(SHA1_CTX* context)
+static void SHA1Init(void *ctx)
 {
+	SHA1_CTX *context = ctx;
     /* SHA1 initialization constants */
     context->state[0] = 0x67452301;
     context->state[1] = 0xEFCDAB89;
@@ -122,8 +118,9 @@ void SHA1Init(SHA1_CTX* context)
 
 /* Run your data through this. */
 
-void SHA1Update(SHA1_CTX* context, const unsigned char* data, size_t len)
+static void SHA1Update(void *ctx, const void* data, size_t len)
 {
+	SHA1_CTX *context = ctx;
 	size_t i, j;
 
 	j = (context->count[0] >> 3) & 63;
@@ -135,20 +132,21 @@ void SHA1Update(SHA1_CTX* context, const unsigned char* data, size_t len)
 		SHA1Transform(context->state, context->buffer);
 		for ( ; i + 63 < len; i += 64)
 		{
-			SHA1Transform(context->state, &data[i]);
+			SHA1Transform(context->state, (const qbyte*)data + i);
 		}
 		j = 0;
 	}
 	else
 		i = 0;
-	memcpy(&context->buffer[j], &data[i], len - i);
+	memcpy(&context->buffer[j], (const qbyte*)data + i, len - i);
 }
 
 
 /* Add padding and return the message digest. */
 
-void SHA1Final(unsigned char digest[DIGEST_SIZE], SHA1_CTX* context)
+static void SHA1Final(unsigned char digest[SHA1_DIGEST_SIZE], void *ctx)
 {
+	SHA1_CTX *context = ctx;
 	unsigned int i, j;
 	unsigned char finalcount[8];
 
@@ -162,7 +160,7 @@ void SHA1Final(unsigned char digest[DIGEST_SIZE], SHA1_CTX* context)
 		SHA1Update(context, (unsigned char *)"\0", 1);
 	}
 	SHA1Update(context, finalcount, 8); /* Should cause a SHA1Transform() */
-	for (i = 0; i < DIGEST_SIZE; i++)
+	for (i = 0; i < SHA1_DIGEST_SIZE; i++)
 	{
 		digest[i] = (unsigned char)
 		((context->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
@@ -178,33 +176,26 @@ memset(&finalcount, 0, 8);
 #endif
 }
 
-
-size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen)
+hashfunc_t hash_sha1 =
 {
-	SHA1_CTX context;
-	if (maxdigestsize < DIGEST_SIZE)
-		return 0;
+	SHA1_DIGEST_SIZE,
+	sizeof(SHA1_CTX),
+	SHA1Init,
+	SHA1Update,
+	SHA1Final,
+};
 
-	SHA1Init(&context);
-	SHA1Update(&context, (unsigned char*) string, stringlen);
-	SHA1Final(digest, &context);
 
-	return DIGEST_SIZE;
-}
 
-size_t SHA1_m(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens)
+size_t CalcHash(hashfunc_t *func, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen)
 {
-	size_t i;
-	SHA1_CTX context;
-	if (maxdigestsize < DIGEST_SIZE)
-		return 0;
-
-	SHA1Init(&context);
-	for (i = 0; i < numstrings; i++)
-		SHA1Update(&context, (unsigned char*) strings[i], stringlens[i]);
-	SHA1Final(digest, &context);
-
-	return DIGEST_SIZE;
+	void *ctx = alloca(func->contextsize);
+	if (maxdigestsize < func->digestsize)
+		return 0;	//panic
+	func->init(ctx);
+	func->process(ctx, string, stringlen);
+	func->terminate(digest, ctx);
+	return func->digestsize;
 }
 
 /* hmac-sha1.c -- hashed message authentication codes
@@ -245,18 +236,23 @@ size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
 				 const unsigned char *data, size_t datalen,
 				 const unsigned char *key, size_t keylen)
 {
-#define HMAC_DIGEST_MAXSIZE 20
-	char optkeybuf[HMAC_DIGEST_MAXSIZE];
-	char innerhash[HMAC_DIGEST_MAXSIZE];
+#define HMAC_DIGEST_MAXSIZE 64
+	qbyte optkeybuf[HMAC_DIGEST_MAXSIZE];
+	qbyte innerhash[HMAC_DIGEST_MAXSIZE];
 
-	char block[64];
-	size_t innerhashsize;
+	qbyte block[64];
+
+	if (hashfunc->digestsize > HMAC_DIGEST_MAXSIZE || hashfunc->digestsize > maxdigestsize)
+		return 0;
 
 	/* Reduce the key's size, so that it is never larger than a block. */
 
 	if (keylen > sizeof(block))
 	{
-		keylen = hashfunc(optkeybuf, sizeof(optkeybuf), 1, &key, &keylen);
+		qbyte *ctx = alloca(hashfunc->contextsize);
+		hashfunc->init(ctx);
+		hashfunc->process(ctx, key, keylen);
+		hashfunc->terminate(optkeybuf, ctx);
 		key=optkeybuf;
 	}
 
@@ -266,9 +262,11 @@ size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
 	memxor (block, key, keylen);
 
 	{
-		const unsigned char *strings_i[2] = {block, data};
-		size_t stringlens_i[2] = {sizeof(block), datalen};
-		innerhashsize = hashfunc(innerhash, sizeof(innerhash), 2, strings_i, stringlens_i);
+		qbyte *ctx = alloca(hashfunc->contextsize);
+		hashfunc->init(ctx);
+		hashfunc->process(ctx, block, sizeof(block));
+		hashfunc->process(ctx, data, datalen);
+		hashfunc->terminate(innerhash, ctx);
 	}
 
 	/* Compute result from KEY and INNERHASH. */
@@ -277,8 +275,11 @@ size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
 	memxor (block, key, keylen);
 
 	{
-		const unsigned char *strings_o[2] = {block, innerhash};
-		size_t stringlens_o[2] = {sizeof(block), innerhashsize};
-		return hashfunc(digest, maxdigestsize, 2, strings_o, stringlens_o);
+		qbyte *ctx = alloca(hashfunc->contextsize);
+		hashfunc->init(ctx);
+		hashfunc->process(ctx, block, sizeof(block));
+		hashfunc->process(ctx, innerhash, hashfunc->digestsize);
+		hashfunc->terminate(digest, ctx);
+		return hashfunc->digestsize;
 	}
 }

@@ -4649,15 +4649,15 @@ static void QCBUILTIN PF_digest_internal (pubprogfuncs_t *prinst, struct globalv
 	}
 	//md5?
 	else if (!strcmp(hashtype, "SHA1"))
-	{
-		digestsize = SHA1(digest, sizeof(digest), str, len);
-	}
-//	else if (!strcmp(hashtype, "SHA256"))
-//	{
-//		digestsize = SHA2(digest, sizeof(digest), str, len);
-//	}
-	//sha384
-	//sha512
+		digestsize = CalcHash(&hash_sha1, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA224"))
+		digestsize = CalcHash(&hash_sha224, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA256"))
+		digestsize = CalcHash(&hash_sha256, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA384"))
+		digestsize = CalcHash(&hash_sha384, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA512"))
+		digestsize = CalcHash(&hash_sha512, digest, sizeof(digest), str, len);
 	else if (!strcmp(hashtype, "CRC16"))
 	{
 		digestsize = 2;

@@ -2193,7 +2193,7 @@ void R_DrawNameTags(void)
 				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
 				{
 					char asciibuffer[8192];
-					char *entstr;
+					const char *entstr;
 					size_t buflen;
 					int x, y;
 
@@ -2205,7 +2205,19 @@ void R_DrawNameTags(void)
 						vec2_t scale = {8,8};
 						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
-						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
+						y += scale[1]*R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
+
+#ifdef CSQC_DAT
+						{
+							extern world_t csqc_world;
+							if (w == &csqc_world)
+							{
+								entstr = CSQC_GetExtraFieldInfo(e, asciibuffer, sizeof(asciibuffer));
+								if (entstr)
+									y += scale[1]*R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
+							}
+						}
+#endif
 					}
 				}
 			}

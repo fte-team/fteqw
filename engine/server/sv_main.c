@@ -3510,11 +3510,13 @@ static qboolean Rcon_Validate (void)
 		intptr_t timediff;
 		qbyte b;
 
+		const hashfunc_t *hashfunc = &hash_sha1;
+		void *hashctx = alloca(hashfunc->contextsize);
+
 		const size_t digestsize = 20;
 		size_t i, k;
 		unsigned char digest[512];
 		const unsigned char **tokens = alloca(sizeof(*tokens)*(Cmd_Argc()*2+5));	//overallocation in case argc is 0.
-		size_t *toksizes = alloca(sizeof(*toksizes)*(Cmd_Argc()*2+5));	//overallocation in case argc is 0.
 		if (strlen(pass) > digestsize*2)
 		{
 			for (i = 0; pass[digestsize*2+i] && i < sizeof(time_t)*2; i++)
@@ -3539,20 +3541,20 @@ static qboolean Rcon_Validate (void)
 					tokens[5+i*2+0] = Cmd_Argv(i+2);
 					tokens[5+i*2+1] = " ";	//a trailing space is required.
 				}
+				hashfunc->init(hashctx);
 				for (k = 0; k < 5+i*2; k++)
-					toksizes[k] = strlen(tokens[k]);
-				if (digestsize > 0 && digestsize == SHA1_m(digest, sizeof(digest), k, tokens, toksizes))
+					hashfunc->process(hashctx, tokens[k], strlen(tokens[k]));
+				hashfunc->terminate(digest, hashctx);
+
+				for (i = 0;;i++)
 				{
-					for (i = 0;;i++)
-					{
-						if (i == digestsize)
-							return true;
-						if (!pass[i*2+0] || !pass[i*2+1])
-							break;	//premature termination
-						b = dehex(pass[i*2+0])*16+dehex(pass[i*2+1]);
-						if (b != digest[i])
-							break;
-					}
+					if (i == digestsize)
+						return true;
+					if (!pass[i*2+0] || !pass[i*2+1])
+						break;	//premature termination
+					b = dehex(pass[i*2+0])*16+dehex(pass[i*2+1]);
+					if (b != digest[i])
+						break;
 				}
 			}
 		}

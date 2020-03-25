@@ -43,7 +43,7 @@ typedef struct svm_server_s {
 	int protover;
 	unsigned int clients;
 	unsigned int maxclients;
-	qboolean needpass;
+	int needpass;
 	char hostname[48];	//just for our own listings.
 	char mapname[16];	//just for our own listings.
 	char gamedir[16];	//again...
@@ -551,7 +551,7 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname)
 			if (server)
 			{
 				QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-				VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), server->needpass?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
+				VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
 			}
 			else
 				VFS_PRINTF(f, "<tr><td>?</td><td>%s</td><td>?</td><td>?</td><td>?</td><td>?/?</td></tr>\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &adr[count]));
@@ -567,7 +567,19 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname)
 		VFS_PRINTF(f, "%s", master_css);
 
 		if (!strcmp(gamename, "UNKNOWN"))
-			VFS_PRINTF(f, "<h1>Firewalled/NATed/Unresponsive/Congested (Misconfigured) Servers</h1>\n");
+		{
+			VFS_PRINTF(f, "<h1>Unresponsive Servers</h1>\n");
+			VFS_PRINTF(f, "These servers have sent a heartbeat but have failed to respond to an appropriate query from a different port. This can happen when:<ul>"
+			"<li>Server is firewalled and all inbound packets are dropped. Try reconfiguring your firewall to allow packets to that process or port.</li>"
+			"<li>An intermediate router implements an Address/Port-Dependant-Filtering NAT. Try setting up port forwarding.</li>"
+			"<li>Outgoing connections are asynchronous with regard to port forwarding. Such servers will show with arbitrary ephemerial ports. Docker: you can supposedly work around this with --net=host.</li>"
+			"<li>Plain and simple packet loss, servers in this state for less than 5 mins may still be fine.</li>"
+			"<li>Server crashed or was reconfigured before it could respond.</li>"
+			"<li>MTU limits with failed defragmentation.</li>"
+			"<li>Routing table misconfiguration.</li>"
+			"<li>Other.</li>"
+			"</ul>\n");
+		}
 		else
 			VFS_PRINTF(f, "<h1>Servers for %s</h1>\n", QuakeCharsToHTML(tmpbuf, sizeof(tmpbuf), gamename, true));
 
@@ -587,7 +599,7 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname)
 				else
 					url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
 				QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-				VFS_PRINTF(f, "<tr><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", url, server->needpass?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
+				VFS_PRINTF(f, "<tr><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", url, (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
 				clients += server->clients;
 				maxclients += server->maxclients;
 			}
@@ -607,7 +619,7 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname)
 		for (server = (game?game->firstserver:NULL); server; server = server->next)
 		{
 			if (server->brokerid)
-				VFS_PRINTF(f, "rtc:///%s \\maxclients\\%u\\clients\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s%s\n", server->brokerid, server->maxclients, server->clients, server->hostname, server->gamedir, server->mapname, server->needpass?"\\needpass\\1":"");
+				VFS_PRINTF(f, "rtc:///%s \\maxclients\\%u\\clients\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", server->brokerid, server->maxclients, server->clients, server->hostname, server->gamedir, server->mapname, server->needpass);
 			else
 				VFS_PRINTF(f, "%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr));
 		}
@@ -724,7 +736,7 @@ static svm_server_t *SVM_Heartbeat(const char *gamename, netadr_t *adr, int numc
 		if (server)
 		{	//it still exists, renew it, but don't otherwise care too much.
 			server->expiretime = validuntil;
-			return NULL;
+			return server;
 		}
 		game = SVM_FindGame("UNKNOWN", true);
 	}
@@ -813,7 +825,7 @@ void SVM_GenChallenge(char *out, size_t outsize, netadr_t *foradr)
 }
 
 //switch net_from's reported connection, so we reply from a different udp socket from the one a packet was received from.
-static void SVM_SwitchQuerySocket(void)
+static qboolean SVM_SwitchQuerySocket(void)
 {
 	size_t c;
 	//switch the info query to our other udp socket, so any firewall/nat over the server blocks it.
@@ -829,9 +841,10 @@ static void SVM_SwitchQuerySocket(void)
 			(svm_sockets->conn[c]->addrtype[0] == net_from.type || svm_sockets->conn[c]->addrtype[1] == net_from.type))
 		{	//okay, looks like we should be able to respond on this one. lets see if their firewall stops us from finding out more about them.
 			net_from.connum = c+1;
-			break;
+			return true;
 		}
 	}
+	return false;
 }
 
 static void SVM_ProcessUDPPacket(void)
@@ -877,7 +890,7 @@ static void SVM_ProcessUDPPacket(void)
 	line = MSG_ReadStringLine();
 	s = COM_Parse(line);
 	if (!strcmp(com_token, "getservers") || !strcmp(com_token, "getserversExt"))
-	{	//q3
+	{	//q3/dpmaster
 		sizebuf_t sb;
 		int ver;
 		char *eos;
@@ -892,7 +905,7 @@ static void SVM_ProcessUDPPacket(void)
 		s = COM_ParseOut(s, game, sizeof(game));
 		ver = strtol(game, &eos, 0);
 		if (*eos)
-		{	//not a number, must have been a game name.
+		{	//not a number, must have been a dpmaster game name.
 			s = COM_Parse(s);
 			ver = strtol(com_token, NULL, 0);
 		}
@@ -955,13 +968,19 @@ static void SVM_ProcessUDPPacket(void)
 		else
 		{	//dp/q3/etc are annoying, but we can query from an emphemerial socket to check NAT rules.
 			sizebuf_t sb;
+			netadr_t a;
+
 			char ourchallenge[256];
 			SVM_GenChallenge(ourchallenge, sizeof(ourchallenge), &net_from);
 			svm.total.queries++;
 
 			//placeholder listing...
-			SVM_Heartbeat(NULL, &net_from, 0, svm.time + sv_heartbeattimeout.ival);
-			SVM_SwitchQuerySocket();
+			if (SVM_Heartbeat(NULL, &net_from, 0, svm.time + sv_heartbeattimeout.ival))
+				a = net_from;
+			else
+				a.type = NA_INVALID;
+			if (!SVM_SwitchQuerySocket())
+				a.type = NA_INVALID;
 
 			memset(&sb, 0, sizeof(sb));
 			sb.maxsize = sizeof(net_message_buffer);
@@ -970,6 +989,17 @@ static void SVM_ProcessUDPPacket(void)
 			MSG_WriteString(&sb, va("getinfo %s\n", ourchallenge));
 			sb.cursize--;
 			NET_SendPacket(svm_sockets, sb.cursize, sb.data, &net_from);
+
+			if (a.type != NA_INVALID)
+			{	//they were unknown... send a special getinfo, so we can get their hostname while leaving them as 'unknown'
+				memset(&sb, 0, sizeof(sb));
+				sb.maxsize = sizeof(net_message_buffer);
+				sb.data = net_message_buffer;
+				MSG_WriteLong(&sb, -1);
+				MSG_WriteString(&sb, va("getinfo ?%s\n", ourchallenge));
+				sb.cursize--;
+				NET_SendPacket(svm_sockets, sb.cursize, sb.data, &a);
+			}
 		}
 	}
 	else if (!strcmp(com_token, "infoResponse"))
@@ -978,9 +1008,12 @@ static void SVM_ProcessUDPPacket(void)
 		int clients;
 		const char *game, *chal;
 		svm_server_t *srv;
+		qboolean unknownresp = false;
 		s = MSG_ReadStringLine();
 		svm.total.heartbeats++;
 		chal = Info_ValueForKey(s, "challenge");
+		unknownresp = *chal=='?';
+		chal += unknownresp?1:0;
 		SVM_GenChallenge(ourchallenge, sizeof(ourchallenge), &net_from);
 		if (!strcmp(chal, ourchallenge))
 		{
@@ -988,14 +1021,18 @@ static void SVM_ProcessUDPPacket(void)
 			game = Info_ValueForKey(s, "gamename");
 			if (!*game)
 				game = QUAKE3PROTOCOLNAME;
+			if (unknownresp)
+				game = NULL;	//ignore the gamename and classify it as unknown. this won't break anything if we've already has a proper heartbeat from them.
 			srv = SVM_Heartbeat(game, &net_from, clients, svm.time + sv_heartbeattimeout.ival);
 			if (srv)
 			{
 				if (developer.ival)
 					Info_Print(s, "\t");
-				srv->protover = atoi(Info_ValueForKey(s, "protocol"));
+				srv->clients = clients;
+				if (game)
+					srv->protover = atoi(Info_ValueForKey(s, "protocol"));
 				srv->maxclients = atoi(Info_ValueForKey(s, "sv_maxclients"));
-				srv->needpass = !!atoi(Info_ValueForKey(s, "needpass"));
+				srv->needpass = atoi(Info_ValueForKey(s, "needpass"));
 				Q_strncpyz(srv->hostname, Info_ValueForKey(s, "hostname"), sizeof(srv->hostname));
 				Q_strncpyz(srv->gamedir, Info_ValueForKey(s, "modname"), sizeof(srv->gamedir));
 				Q_strncpyz(srv->mapname, Info_ValueForKey(s, "mapname"), sizeof(srv->mapname));
@@ -1058,7 +1095,7 @@ static void SVM_ProcessUDPPacket(void)
 				Info_Print(s, "\t");
 			srv->protover = 3;//atoi(Info_ValueForKey(s, "protocol"));
 			srv->maxclients = atoi(Info_ValueForKey(s, "maxclients"));
-			srv->needpass = !!atoi(Info_ValueForKey(s, "needpass"));
+			srv->needpass = atoi(Info_ValueForKey(s, "needpass"));
 			Q_strncpyz(srv->hostname, Info_ValueForKey(s, "hostname"), sizeof(srv->hostname));
 			Q_strncpyz(srv->gamedir, Info_ValueForKey(s, "*gamedir"), sizeof(srv->gamedir));
 			Q_strncpyz(srv->mapname, Info_ValueForKey(s, "map"), sizeof(srv->mapname));

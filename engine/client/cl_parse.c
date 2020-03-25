@@ -4517,15 +4517,18 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i == Q2CS_MAPCHECKSUM)
 	{
-		extern int map_checksum;
 		int serverchecksum = atoi(s);
+		int mapchecksum = 0;
 
-		if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3))
+		if (cl.worldmodel)
 		{
-			// the Q2 client normally exits here, however for our purposes we might as well ignore it
-			if (map_checksum != serverchecksum)
-				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", map_checksum, serverchecksum);
+			if (cl.worldmodel->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+			mapchecksum = cl.worldmodel->checksum;
 		}
+		// the Q2 client normally exits here, however for our purposes we might as well ignore it
+		if (mapchecksum != serverchecksum)
+			Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", mapchecksum, serverchecksum);
 	}
 }
 #endif

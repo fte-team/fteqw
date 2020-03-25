@@ -2830,10 +2830,10 @@ void M_Menu_Video_f (void)
 	};
 
 	static const char *srgbopts[] = {
-		"Non-Linear",
-		"sRGB-Aware (PBR)",
-		"Linear (HDR)",
-		"Linearised", //-1
+		"Non-Linear",	//0 (legacy buggy linear->srgb non-transforms)
+		"sRGB-Aware",	//1 (linear->srgb transforms)
+		"Linear (HDR)",	//2 (try to use a float framebuffer, otherwise fall back on srgb framebuffer)
+		"Linearised",	//-1
 		NULL
 	};
 	static const char *srgbvalues[] = { "0", "1", "2", "-1", NULL};

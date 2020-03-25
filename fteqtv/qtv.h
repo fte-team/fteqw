@@ -238,8 +238,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 size_t strlcpy(char *dst, const char *src, size_t siz);
 
-#define SHA1 SHA1_quake
-size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
+
+typedef struct
+{
+	unsigned int digestsize;
+	unsigned int contextsize;	//you need to alloca(te) this much memory...
+	void (*init) (void *context);
+	void (*process) (void *context, const void *data, size_t datasize);
+	void (*terminate) (unsigned char *digest, void *context);
+} hashfunc_t;
+extern hashfunc_t hash_sha1;
+/*extern hashfunc_t hash_sha224;
+extern hashfunc_t hash_sha256;
+extern hashfunc_t hash_sha384;
+extern hashfunc_t hash_sha512;*/
+#define HMAC HMAC_quake	//stop conflicts...
+size_t CalcHash(hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
+size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 
 
 #ifdef LIBQTV

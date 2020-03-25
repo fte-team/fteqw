@@ -546,3 +546,100 @@ void SSV_CheckFromMaster(void)
 	}
 }
 #endif
+
+
+
+
+
+#ifdef HAVEAUTOUPDATE
+#include <sys/stat.h>
+#include <unistd.h>
+qboolean Sys_SetUpdatedBinary(const char *newbinary)
+{
+	char enginebinary[MAX_OSPATH];
+	char tmpbinary[MAX_OSPATH];
+//	char enginebinarybackup[MAX_OSPATH+4];
+//	size_t len;
+	int i;
+	struct stat src, dst;
+
+	//windows is annoying. we can't delete a file that's in use (no orphaning)
+	//we can normally rename it to something else before writing a new file with the original name.
+	//then delete the old file later (sadly only on reboot)
+
+	//get the binary name
+	i = readlink("/proc/self/exe", enginebinary, sizeof(enginebinary)-1);
+	if (i <= 0)
+		return false;
+	enginebinary[i] = 0;
+
+	//generate the temp name
+	/*memcpy(enginebinarybackup, enginebinary, sizeof(enginebinary));
+	len = strlen(enginebinarybackup);
+	if (len > 4 && !strcasecmp(enginebinarybackup+len-4, ".bin"))
+		len -= 4;	//swap its extension over, if we can.
+	strcpy(enginebinarybackup+len, ".bak");*/
+
+	//copy over file permissions (don't ignore the user)
+	if (stat(enginebinary, &dst)<0)
+		dst.st_mode = 0777;
+	if (stat(newbinary, &src)<0)
+		src.st_mode = 0777;
+
+//	if (src.st_dev != dst.st_dev)
+	{	//oops, its on a different filesystem. create a copy
+		Q_snprintfz(tmpbinary, sizeof(tmpbinary), "%s.new", enginebinary);
+		if (!FS_Copy(newbinary, tmpbinary, FS_SYSTEM, FS_SYSTEM))
+			return false;
+		newbinary = tmpbinary;
+	}
+	chmod(newbinary, dst.st_mode|S_IXUSR);	//but make sure its executable, just in case...
+
+	//overwrite the name we were started through. this is supposed to be atomic.
+	if (rename(newbinary, enginebinary) < 0)
+	{
+		Con_Printf("Failed to overwrite %s with %s\n", enginebinary, newbinary);
+		return false;	//failed
+	}
+	return true;	//succeeded.
+}
+qboolean Sys_EngineMayUpdate(void)
+{
+	char enginebinary[MAX_OSPATH];
+	char *e;
+	int len;
+
+#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
+	if (!COM_CheckParm("-allowupdate"))
+	{
+		//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
+		if (!strcmp(SVNREVISIONSTR, "-"))
+			return false;
+
+		//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified.
+		//either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
+		strtoul(SVNREVISIONSTR, &e, 10);
+		if (!*SVNREVISIONSTR || *e)
+			return false;
+	}
+
+	//update blocked via commandline
+	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
+		return false;
+
+
+	//check that we can actually do it.
+	len = readlink("/proc/self/exe", enginebinary, sizeof(enginebinary)-1);
+	if (len <= 0)
+		return false;
+	enginebinary[len] = 0;
+	if (access(enginebinary, R_OK|W_OK|X_OK) < 0)
+		return false;	//can't write it. don't try downloading updates.
+	*COM_SkipPath(enginebinary) = 0;
+	if (access(enginebinary, R_OK|W_OK) < 0)
+		return false;	//can't write to the containing directory. this does not bode well for moves/overwrites.
+
+
+	return true;
+}
+#endif

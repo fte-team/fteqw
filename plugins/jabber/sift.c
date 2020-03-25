@@ -63,7 +63,7 @@ void XMPP_FT_Frame(jclient_t *jcl)
 							//server has accepted us, woo.
 							//sid+requester(them)+target(us)
 							req = va("%s%s%s", ft->sid, ft->with, jcl->fulljid);
-							SHA1(digest, sizeof(digest), req, strlen(req));
+							CalcHash(&hash_sha1, digest, sizeof(digest), req, strlen(req));
 							//in hex
 							for (req = domain, j=0; j < 20; j++)
 							{

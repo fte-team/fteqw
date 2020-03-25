@@ -451,7 +451,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				int digest[5];
 
 				Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
-				SHA1((char*)digest, sizeof(digest), hash, strlen(hash));
+				CalcHash(&hash_sha1, (char*)digest, sizeof(digest), hash, strlen(hash));
 				Q_snprintfz(hash, sizeof(hash), "%08X%08X%08X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
 				p->hasauthed = !strcmp(password, hash);
 			}

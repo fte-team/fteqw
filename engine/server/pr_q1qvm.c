@@ -47,6 +47,7 @@ oh, wait, ktx no longer supports those properly.
 13: 2009/june gamecode no longer aware of edict_t data (just 'qc' fields).
 14: 2017/march gamedata_t.maxentities added
 15: 2017/june for-64bit string indirection changes. added GAME_CLEAR_EDICT.
+16: wasted_edict_t_size is finally 0
 */
 #define	GAME_API_VERSION		15
 #define	GAME_API_VERSION_MIN	8
@@ -2279,6 +2280,7 @@ qboolean PR_LoadQ1QVM(void)
 			gd.maxedicts = MAX_Q1QVM_EDICTS;
 	}
 	gd.maxedicts = bound(1, pr_maxedicts.ival, gd.maxedicts);
+	gd.maxedicts = bound(1, gd.maxedicts, MAX_EDICTS);
 
 	qvm_api_version = gd.APIversion;
 	if (!(GAME_API_VERSION_MIN <= qvm_api_version && qvm_api_version <= GAME_API_VERSION))

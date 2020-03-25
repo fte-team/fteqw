@@ -608,9 +608,6 @@ static void CS_CheckVelocity(csqcedict_t *ent)
 
 
 
-
-
-
 static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t *fte_restrict out)
 {
 	//FTE_CSQC_HALFLIFE_MODELS
@@ -1050,6 +1047,53 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 		out->keynum = -in->entnum;
 
 	return true;
+}
+
+const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize)
+{
+	csqcedict_t *ent = went;
+	char *r = out;
+	char *e = out+outsize;
+	int i;
+	skinfile_t *sk = Mod_LookupSkin((ent->skinobject<0)?-ent->skinobject:ent->skinobject);
+	if (sk)
+	{
+		Q_snprintfz(out, e-out, "skin %s\nrefs %i\n", sk->skinname, sk->refcount);
+		out+=strlen(out);
+		for (i = 0; i < sk->nummappings; i++)
+		{
+			Q_snprintfz(out, e-out, "replace \"%s\" \"%s\"\n", sk->mappings[i].surface, sk->mappings[i].shader?sk->mappings[i].shader->name:"NULL SHADER");
+			out+=strlen(out);
+		}
+		for (i = 0; i < MAX_GEOMSETS; i++)
+		{
+			if (sk->geomset[i])
+			{
+				Q_snprintfz(out, e-out, "geomset %i %i\n", i, sk->geomset[i]);
+				out+=strlen(out);
+			}
+		}
+#ifdef QWSKINS
+		if (*sk->qwskinname)
+		{
+			Q_snprintfz(out, e-out, "qwskin %s\n", sk->qwskinname);
+			out+=strlen(out);
+		}
+		if (sk->q1upper != Q1UNSPECIFIED)
+		{
+			Q_snprintfz(out, e-out, "q1upper %#x\n", sk->q1upper);
+			out+=strlen(out);
+		}
+		if (sk->q1lower != Q1UNSPECIFIED)
+		{
+			Q_snprintfz(out, e-out, "q1lower %#x\n", sk->q1lower);
+			out+=strlen(out);
+		}
+#endif
+
+		return r;
+	}
+	return r==out?NULL:r;
 }
 
 static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

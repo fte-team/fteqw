@@ -742,7 +742,7 @@ char *FS_GetManifestArgs(void);
 int FS_GetManifestArgv(char **argv, int maxargs);
 
 struct zonegroup_s;
-void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize);
+void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize, qboolean filters);
 qbyte *FS_LoadMallocFile (const char *path, size_t *fsize);
 qofs_t FS_LoadFile(const char *name, void **file);
 void FS_FreeFile(void *file);
@@ -848,13 +848,26 @@ qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigne
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
-typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
-#define SHA1 SHA1_quake
-#define HMAC HMAC_quake
-hashfunc_t SHA1_m;
-//int SHA1_m(char *digest, size_t maxdigestsize, size_t numstrings, const char **strings, size_t *stringlens);
-//#define SHA1(digest,maxdigestsize,string,stringlen) SHA1_m(digest, maxdigestsize, 1, &string, &stringlen)
-size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
+size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outsize);	//tries to null terminate, but returns length without termination.
+size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t outsize); // +/ and =
+size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outsize);
+size_t Base16_DecodeBlock(const char *in, qbyte *out, size_t outsize);
+
+typedef struct
+{
+	unsigned int digestsize;
+	unsigned int contextsize;	//you need to alloca(te) this much memory...
+	void (*init) (void *context);
+	void (*process) (void *context, const void *data, size_t datasize);
+	void (*terminate) (unsigned char *digest, void *context);
+} hashfunc_t;
+extern hashfunc_t hash_sha1;
+extern hashfunc_t hash_sha224;
+extern hashfunc_t hash_sha256;
+extern hashfunc_t hash_sha384;
+extern hashfunc_t hash_sha512;
+#define HMAC HMAC_quake	//stop conflicts...
+size_t CalcHash(hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
 size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 
 int version_number(void);

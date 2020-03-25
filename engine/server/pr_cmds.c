@@ -8606,17 +8606,6 @@ static void QCBUILTIN PF_h2rain_go(pubprogfuncs_t *prinst, struct globalvars_s *
 	SV_MulticastProtExt (NULL, MULTICAST_ALL, pr_global_struct->dimension_send, 0, 0);
 }
 
-static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int			channel;
-	edict_t		*entity;
-
-	entity = G_EDICT(prinst, OFS_PARM0);
-	channel = G_FLOAT(OFS_PARM1);
-
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, NULL, 1, 0, 0, 0, CF_SV_RELIABLE);
-}
-
 static void QCBUILTIN PF_h2updatesoundpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_DPrintf("FTE-H2 FIXME: updatesoundpos not implemented\n");
@@ -8639,6 +8628,13 @@ static void QCBUILTIN PF_h2getstring(pubprogfuncs_t *prinst, struct globalvars_s
 	RETURN_PSTRING(s);
 }
 #endif
+static void QCBUILTIN PF_StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t		*entity = G_EDICT(prinst, OFS_PARM0);
+	int			channel = G_FLOAT(OFS_PARM1);
+
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, NULL, 1, 0, 0, 0, CF_SV_RELIABLE);
+}
 
 static void QCBUILTIN PF_RegisterTEnt(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -10732,10 +10728,12 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file4",	PF_precache_file,	0,		0,		103,	0},
 	{"dowhiteflash",	PF_h2whiteflash,	0,		0,		104,	0},
 	{"updatesoundpos",	PF_h2updatesoundpos,0,		0,		105,	0},
-	{"stopsound",		PF_h2StopSound,		0,		0,		106,	0},
+	{"stopsound",		PF_StopSound,		0,		0,		106,	0,	D("void(entity ent, float channel)", "Terminates playback of sounds on the specified entity-channel. CHAN_AUTO should not be used.")},
 
 	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...
 	{"precache_sound4",	PF_precache_sound,	0,		0,		117,	0},
+#else
+	{"stopsound",		PF_StopSound,		0,		0,		0,		0,	D("void(entity ent, float channel)", "Terminates playback of sounds on the specified entity-channel. CHAN_AUTO should not be used.")},
 #endif
 
 	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},

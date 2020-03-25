@@ -1078,7 +1078,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 				unsigned char sha1digest[20];
 				char padkey[512];
 				snprintf(padkey, sizeof(padkey), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", key);
-				tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), padkey, strlen(padkey)));
+				tobase64(acceptkey, sizeof(acceptkey), sha1digest, CalcHash(&hash_sha1, sha1digest, sizeof(sha1digest), padkey, strlen(padkey)));
 
 				snprintf(padkey, sizeof(padkey), 
 							"HTTP/1.1 101 Switching Protocols\r\n"

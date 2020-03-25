@@ -477,7 +477,7 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 					str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
 
 					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
-					SHA1((unsigned char*)digest, sizeof(digest), hash, strlen(hash));
+					CalcHash(&hash_sha1, (unsigned char*)digest, sizeof(digest), hash, strlen(hash));
 					sprintf(hash, "%08X%08X%8X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
 
 					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);

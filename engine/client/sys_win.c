@@ -2883,15 +2883,18 @@ qboolean Sys_EngineMayUpdate(void)
 {
 	char *e;
 
-	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
-	if (!strcmp(SVNREVISIONSTR, "-"))
-		return false;
+	if (!COM_CheckParm("-allowupdate"))
+	{
+		//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
+		if (!strcmp(SVNREVISIONSTR, "-"))
+			return false;
 
-	//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified.
-	//either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
-	strtoul(SVNREVISIONSTR, &e, 10);
-	if (!*SVNREVISIONSTR || *e)
-		return false;
+		//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified.
+		//either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
+		strtoul(SVNREVISIONSTR, &e, 10);
+		if (!*SVNREVISIONSTR || *e)
+			return false;
+	}
 
 	//update blocked via commandline
 	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))

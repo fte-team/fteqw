@@ -5466,6 +5466,16 @@ const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)
 	galiasinfo_t *inf;
 	galiasskin_t *skin;
 
+	if (!model || model->loadstate != MLS_LOADED)
+	{
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED)
+			return NULL;
+	}
+
 	if (!model || model->type != mod_alias)
 	{
 		if (model->type == mod_brush && surfaceidx < model->numtextures && !num)

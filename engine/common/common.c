@@ -6040,6 +6040,97 @@ static int Base64_Decode(char inp)
 	//if (inp == '=') //padding char
 	return 0;	//invalid
 }
+
+size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outsize)
+{
+	char *start = out;
+	char *end = out+outsize-1;
+	unsigned int v;
+	while(length > 0)
+	{
+		v = 0;
+		if (length > 0)
+			v |= in[0]<<16;
+		if (length > 1)
+			v |= in[1]<<8;
+		if (length > 2)
+			v |= in[2]<<0;
+
+		if (out < end) *out++ = (length>=1)?Base64_Encode((v>>18)&63):'=';
+		if (out < end) *out++ = (length>=1)?Base64_Encode((v>>12)&63):'=';
+		if (out < end) *out++ = (length>=2)?Base64_Encode((v>>6)&63):'=';
+		if (out < end) *out++ = (length>=3)?Base64_Encode((v>>0)&63):'=';
+
+		in+=3;
+		length -= 3;
+	}
+	end++;
+	if (out < end)
+		*out = 0;
+	return out-start;
+}
+size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t outsize)
+{
+	qbyte *start = out;
+	unsigned int v;
+	if (!in_end)
+		in_end = in + strlen(in);
+	if (!out)
+		return ((in_end-in+3)/4)*3 + 1;	//upper estimate, with null terminator for convienience.
+
+	for (; outsize > 1;)
+	{
+		while(*in > 0 && *in < ' ')
+			in++;
+		if (in >= in_end || !*in || outsize < 1)
+			break;	//end of message when EOF, otherwise error
+		v  = Base64_Decode(*in++)<<18;
+		while(*in > 0 && *in < ' ')
+			in++;
+		if (in >= in_end || !*in || outsize < 1)
+			break;	//some kind of error
+		v |= Base64_Decode(*in++)<<12;
+		*out++ = (v>>16)&0xff;
+		if (in >= in_end || *in == '=' || !*in || outsize < 2)
+			break;	//end of message when '=', otherwise error
+		v |= Base64_Decode(*in++)<<6;
+		*out++ = (v>>8)&0xff;
+		if (in >= in_end || *in == '=' || !*in || outsize < 3)
+			break;	//end of message when '=', otherwise error
+		v |= Base64_Decode(*in++)<<0;
+		*out++ = (v>>0)&0xff;
+		outsize -= 3;
+	}
+	return out-start;	//total written (no null, output is considered binary)
+}
+size_t Base16_DecodeBlock(const char *in, qbyte *out, size_t outsize)
+{
+	qbyte *start = out;
+	if (!out)
+		return ((strlen(in)+1)/2) + 1;
+
+	for (; ishexcode(in[0]) && ishexcode(in[1]) && outsize > 0; outsize--, in+=2)
+		*out++ = (dehex(in[0])<<4) | dehex(in[1]);
+	return out-start;
+}
+size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outsize)
+{
+	const char tab[16] = "0123456789abcdef";
+	qbyte *start = out;
+	if (!out)
+		return (length*2) + 1;
+
+	if (outsize > length*2)
+		*out = 0;
+	while (length --> 0)
+	{
+		*out++ = tab[(*in>>4)&0xf];
+		*out++ = tab[(*in>>0)&0xf];
+		in++;
+	}
+	return out-start;
+}
+
 /*
   Info Buffers
 */

@@ -1506,6 +1506,7 @@ void CL_Rcon_f (void)
 		const unsigned char **tokens = alloca(sizeof(*tokens)*(4+Cmd_Argc()*2));
 		size_t *tokensizes = alloca(sizeof(*tokensizes)*(4+Cmd_Argc()*2));
 		int j, k;
+		void *ctx = alloca(hash_sha1.contextsize);
 
 		for (j = 0; j < sizeof(time_t); j++)
 		{	//little-endian byte order, but big-endian nibble order. just screwed. for compat with ezquake.
@@ -1523,9 +1524,11 @@ void CL_Rcon_f (void)
 			tokens[4+j*2+0] = Cmd_Argv(i+j);
 			tokens[4+j*2+1] = " ";
 		}
+		hash_sha1.init(ctx);
 		for (k = 0; k < 4+j*2; k++)
-			tokensizes[k] = strlen(tokens[k]);
-		digestsize = SHA1_m(digest, sizeof(digest), k, tokens, tokensizes);
+			hash_sha1.process(ctx, tokens[k], strlen(tokens[k]));
+		hash_sha1.terminate(digest, ctx);
+		digestsize = hash_sha1.digestsize;
 
 		for (j = 0; j < digestsize; j++)
 		{

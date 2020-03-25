@@ -182,17 +182,21 @@ void NPQTV_Sys_MainLoop(void);
 #define UPD_STABLE 1
 #define UPD_TESTING 2
 
-#if defined(WEBCLIENT) && defined(_WIN32) && !defined(SERVERONLY) && !defined(_XBOX)
-int StartLocalServer(int close);
+#if defined(WEBCLIENT) && defined(PACKAGEMANAGER)
+	#if defined(_WIN32) && !defined(SERVERONLY) && !defined(_XBOX)
+		#define HAVEAUTOUPDATE
+	#endif
+	#if defined(__linux__) && !defined(ANDROID)
+		#define HAVEAUTOUPDATE
+	#endif
+#endif
 
-#define HAVEAUTOUPDATE
-qboolean Sys_SetUpdatedBinary(const char *fname);	//legacy, so old build can still deal with updates properly
-qboolean Sys_EngineMayUpdate(void);				//says whether the system code is able to invoke new binaries properly
-//qboolean Sys_EngineWasUpdated(char *newbinary);	//invoke the given system-path binary
+#ifdef HAVEAUTOUPDATE
+qboolean Sys_SetUpdatedBinary(const char *fname);	//attempts to overwrite the working binary.
+qboolean Sys_EngineMayUpdate(void);					//says whether the system code is able/allowed to overwrite itself.
 #else
 #define Sys_EngineMayUpdate() false
 #define Sys_SetUpdatedBinary(n) false
-//#define Sys_EngineWasUpdated(n) false
 #endif
 
 void Sys_Init (void);

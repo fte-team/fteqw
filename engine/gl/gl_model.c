@@ -1159,7 +1159,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			char altname[MAX_QPATH];
 			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
 			TRACE(("Mod_LoadModel: Trying to load (replacement) model \"%s\"\n", altname));
-			buf = (unsigned *)FS_LoadMallocFile (altname, &filesize);
+			buf = (unsigned *)FS_LoadMallocGroupFile(NULL, altname, &filesize, true);
 
 			if (buf)
 				Q_strncpyz(mod->name, altname, sizeof(mod->name));
@@ -1167,7 +1167,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		else
 		{
 			TRACE(("Mod_LoadModel: Trying to load model \"%s\"\n", mod->publicname));
-			buf = (unsigned *)FS_LoadMallocFile (mod->publicname, &filesize);
+			buf = (unsigned *)FS_LoadMallocGroupFile(NULL, mod->publicname, &filesize, true);
 			if (buf)
 				Q_strncpyz(mod->name, mod->publicname, sizeof(mod->name));
 			else if (!buf)
@@ -1682,7 +1682,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 				Q_snprintfz(litname, sizeof(litname), litnames[best].pattern, litbase);
 			else
 				Q_snprintfz(litname, sizeof(litname), litnames[best].pattern, litbasep);
-			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
+			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize, false);
 		}
 		else
 		{
@@ -1832,7 +1832,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			Q_strncpyz(luxname, loadmodel->name, sizeof(luxname));
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".lux", sizeof(luxname));
-			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz, false);
 			luxtmp = false;
 		}
 		if (!luxdata)
@@ -1841,14 +1841,14 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
 			Q_strncatz(luxname, ".lux", sizeof(luxname));
 
-			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz, false);
 			luxtmp = false;
 		}
 		if (!luxdata) //dp...
 		{
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".dlit", sizeof(luxname));
-			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz);
+			luxdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, luxname, &luxsz, false);
 			luxtmp = false;
 		}
 		//make sure the .lux has the correct size
@@ -1974,8 +1974,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
 				overrides->styles16 = NULL;
-			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
-				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
+			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXCPULIGHTMAPS);
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
@@ -1984,8 +1984,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
 				overrides->styles8 = NULL;
-			else if (overrides->stylesperface > MAXQ1LIGHTMAPS)
-				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXQ1LIGHTMAPS);
+			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
+				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXCPULIGHTMAPS);
 		}
 	}
 

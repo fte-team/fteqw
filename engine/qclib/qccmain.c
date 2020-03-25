@@ -4921,7 +4921,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 //		externs->Printf ("to build a clean data tree: qcc -copy <srcdir> <destdir>\n");
 //		externs->Printf ("to build a clean pak file: qcc -pak <srcdir> <packfile>\n");
 //		externs->Printf ("to bsp all bmodels: qcc -bspmodels <gamedir>\n");
-		externs->Printf ("-Kwasm causes FTEQCC to dump all asm to qc.asm\n");
+		externs->Printf ("-Fwasm causes FTEQCC to dump all asm to qc.asm\n");
 		externs->Printf ("-O0 to disable optimisations\n");
 		externs->Printf ("-O1 to optimise for size\n");
 		externs->Printf ("-O2 to optimise more - some behaviours may change\n");

@@ -5623,10 +5623,16 @@ static void Cmd_FPSList_f(void)
 
 void SV_EnableClientsCSQC(void)
 {
+	size_t e;
 	if (host_client->controller)
 		return;
 
 	host_client->csqcactive = true;
+
+	//if the csqc has just restarted, its probably going to want us to resend all csqc ents from scratch because of all the setup it might do.
+	for (e = 1; e < host_client->max_net_ents; e++)
+		if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
+			host_client->pendingcsqcbits[e] |= SENDFLAGS_USABLE;
 }
 void SV_DisableClientsCSQC(void)
 {
@@ -6132,6 +6138,10 @@ ucmd_t ucmds[] =
 	{"msg",			SV_Msg_f},
 	{"efpslist",	Cmd_FPSList_f},	//don't conflict with the ktpro one
 	{"vote",		SV_Vote_f},
+
+	//{"ban",		Cmd_Ban_f},		//for admins
+	//{"banip",		Cmd_BanIP_f},	//for admins
+	//{"banrem",	Cmd_BanRem_f},	//for admins
 
 	/*user interactions*/
 	{"sayone",		SV_SayOne_f},

@@ -2324,6 +2324,10 @@ static void PM_PackageEnabled(package_t *p)
 					return;
 		}
 
+#ifndef HAVE_CLIENT
+#define Menu_Prompt(cb,ctx,msg,yes,no,cancel) Con_Printf(CON_WARNING msg "\n")
+#endif
+
 		if (FS_NativePath(ef->name, p->fsroot, native, sizeof(native)) && Sys_SetUpdatedBinary(native))
 			Menu_Prompt(NULL, NULL, "Engine binary updated.\nRestart to use.", NULL, NULL, NULL);
 		else

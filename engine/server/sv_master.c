@@ -793,17 +793,12 @@ static svm_server_t *SVM_Heartbeat(const char *gamename, netadr_t *adr, int numc
 	return server;
 }
 
-#ifdef TCPCONNECT
-void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen);
-#endif
 void SVM_GenChallenge(char *out, size_t outsize, netadr_t *foradr)
 {	//this function needs to return some sort of unguessable string so that you can't spoof the server with fake responses
 	char adr[64];
 	static char randumb[16];
-	const unsigned char *strings[] = {randumb, (const unsigned char *)NET_AdrToString(adr, sizeof(adr), foradr)};
-	size_t lengths[] = {sizeof(randumb)-1, strlen(strings[1])};
-	char digest[4*5];
-	int digestsize;
+	char digest[256];
+	void *ctx = alloca(hash_sha1.contextsize);
 
 	if (!*randumb)
 	{
@@ -813,15 +808,14 @@ void SVM_GenChallenge(char *out, size_t outsize, netadr_t *foradr)
 			while (!randumb[i])
 				randumb[i] = rand();
 	}
+	NET_AdrToString(adr, sizeof(adr), foradr);
 
-	digestsize = SHA1_m(digest, sizeof(digest), countof(lengths), strings, lengths);
+	hash_sha1.init(ctx);
+	hash_sha1.process(ctx, randumb, sizeof(randumb)-1);
+	hash_sha1.process(ctx, adr, strlen(adr));
+	hash_sha1.terminate(digest, ctx);
 
-#ifdef TCPCONNECT
-	tobase64(out, outsize, digest, min(16, digestsize));	//truncate it, so its not excessive
-#else
-	Q_snprintfz(out, outsize, "%08x", *(int*)digest);
-	(void)digestsize;
-#endif
+	Base64_EncodeBlock(digest, hash_sha1.digestsize, out, outsize);
 }
 
 //switch net_from's reported connection, so we reply from a different udp socket from the one a packet was received from.

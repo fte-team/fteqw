@@ -178,15 +178,7 @@ sfx_t *Media_NextTrack(int musicchannelnum, float *starttime)
 	sfx_t *s = NULL;
 	if (bgmvolume.value <= 0 || mastervolume.value <= 0)
 		return NULL;
-
-	if (media_fadeout)
-	{
-		if (S_Music_Playing(musicchannelnum))
-			return NULL;	//can't pick a new track until they've all stopped.
-
-		//okay, it has actually stopped everywhere.
-	}
-	media_fadeout = false;	//it has actually ended now
+	media_fadeout = false;	//it has actually ended now, at least on one device. don't fade the new track too...
 
 	Q_strncpyz(media_currenttrack, "", sizeof(media_currenttrack));
 #ifdef HAVE_JUKEBOX
@@ -254,9 +246,15 @@ sfx_t *Media_NextTrack(int musicchannelnum, float *starttime)
 			return NULL;
 		}
 #endif
-		if (*media_playtrack)
+		if (*media_playtrack || *media_loopingtrack)
 		{
-			Q_strncpyz(media_currenttrack, media_playtrack, sizeof(media_currenttrack));
+			if (*media_playtrack)
+			{
+				Q_strncpyz(media_currenttrack, media_playtrack, sizeof(media_currenttrack));
+				*media_playtrack = 0;
+			}
+			else
+				Q_strncpyz(media_currenttrack, media_loopingtrack, sizeof(media_currenttrack));
 #ifdef HAVE_JUKEBOX
 			Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
 			media_playlistcurrent = MEDIA_GAMEMUSIC;
@@ -290,7 +288,7 @@ static qboolean Media_Changed (unsigned int mediatype)
 	return true;
 }
 
-//returns the new volume the sample should be at, to support crossfading.
+//returns the new volume the sample should be at, to support fading.
 //if we return < 0, the mixer will know to kill whatever is currently playing, ready for a new track.
 //this is on the main thread with the mixer locked, its safe to do stuff, but try not to block
 float Media_CrossFade(int musicchanel, float vol, float time)

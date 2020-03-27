@@ -3442,18 +3442,27 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		if (!chan->sfx)
 		{
 			float time = 0;
-			sfx_t *newmusic = Media_NextTrack(i-MUSIC_FIRST, &time);
-			if (newmusic && newmusic->loadstate != SLS_FAILED)
+			sfx_t *newmusic;
+			if (!S_Music_Playing(i-MUSIC_FIRST))
 			{
-				chan->sfx = newmusic;
-				chan->rate = 1<<PITCHSHIFT;
-				chan->pos = (int)(time * sc->sn.speed) * chan->rate;
-				changed = CUR_EVERYTHING;
+				newmusic = Media_NextTrack(i-MUSIC_FIRST, &time);
+				if (newmusic && newmusic->loadstate != SLS_FAILED)
+				{	//okay, now we know which track we're meant to be playing, all devices can play it at once.
+					soundcardinfo_t *sc2;
+					for (sc2 = sndcardinfo; sc2; sc2=sc2->next)
+					{
+						channel_t	*chan = &sc2->channel[i];
+						chan->sfx = newmusic;
+						chan->rate = 1<<PITCHSHIFT;
+						chan->pos = (int)(time * sc->sn.speed) * chan->rate;
+						changed = CUR_EVERYTHING;
 
-				chan->master_vol = bound(0, 1, 255);
-				chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
-				if (sc->ChannelUpdate)
-					sc->ChannelUpdate(sc, chan, changed);
+						chan->master_vol = bound(0, 1, 255);
+						chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
+						if (sc->ChannelUpdate)
+							sc->ChannelUpdate(sc, chan, changed);
+					}
+				}
 			}
 		}
 		if (chan->sfx)

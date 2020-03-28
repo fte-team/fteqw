@@ -1323,9 +1323,11 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		wal->width = 64;
 		wal->height = 64;
 	}
-
-	wal->width = LittleLong(wal->width);
-	wal->height = LittleLong(wal->height);
+	else
+	{
+		wal->width = LittleLong(wal->width);
+		wal->height = LittleLong(wal->height);
+	}
 	{
 		int i;
 
@@ -1339,8 +1341,8 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 
 	tex = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 
-	tex->vwidth = wal->width;
-	tex->vheight = wal->height;
+	tex->vwidth = tex->srcwidth = wal->width;
+	tex->vheight = tex->srcheight = wal->height;
 
 	if (!tex->vwidth || !tex->vheight || wal == &replacementwal)
 	{
@@ -1377,6 +1379,7 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		(wal->width>>3)*(wal->height>>3);
 
 		tex->srcdata = out = BZ_Malloc(size);
+		tex->srcfmt = TF_MIP4_8PAL24_T255;
 		tex->palette = host_basepal;
 		memcpy(out, (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
 		out += (wal->width>>0)*(wal->height>>0);

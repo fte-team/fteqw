@@ -480,6 +480,7 @@ SET(FTE_COMMON_FILES
 	engine/common/config_nocompat.h
 	engine/common/config_wastes.h
 	engine/common/config_freecs.h
+	engine/common/config_fteqw_noweb.h
 
 	#useless headers that I'll never search for
 	engine/client/api_menu.h

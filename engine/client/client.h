@@ -941,6 +941,7 @@ typedef struct
 	char		q2airaccel[16];
 	char		q2statusbar[1024];
 	char		q2layout[MAX_SPLITS][1024];
+	int			q2mapchecksum;
 	int parse_entities;
 	float lerpfrac;
 	float q2svnetrate; //number of frames we expect to receive per second (required to calculate the server time correctly).

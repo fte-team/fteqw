@@ -5151,7 +5151,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, TF_MIP4_8PAL24_T255, mod->textures[a]->srcwidth, mod->textures[a]->srcheight, mod->textures[a]->srcdata, mod->textures[a]->palette);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, IF_WORLDTEX, mod->textures[a]->srcfmt, mod->textures[a]->srcwidth, mod->textures[a]->srcheight, mod->textures[a]->srcdata, mod->textures[a]->palette);
 				BZ_Free(mod->textures[a]->srcdata);
 				mod->textures[a]->srcdata = NULL;
 			}

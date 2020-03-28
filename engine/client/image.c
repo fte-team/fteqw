@@ -33,7 +33,7 @@ static void QDECL R_Image_BuggyCvar (struct cvar_s *var, char *oldvalue)
 	if (!*var->string)
 		var->ival = var->value = true;
 }
-cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now)");
+cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now).\n0: Redundant images will be purged after each map change.\n1: Images will be retained until vid_reload (potentially consuming a lot of ram).");
 cvar_t r_ignoremapprefixes = CVARCD("r_ignoremapprefixes", "", R_Image_BuggyCvar, "Ignores when textures were loaded from map-specific paths. FIXME: empty is currently interpretted as 1 because the alternative is too memory hungary with r_keepimages 1.");
 
 char *r_defaultimageextensions =

@@ -1393,6 +1393,11 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			return -1;
 
+#ifdef Q2CLIENT
+		if (cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
+			Host_EndGame("Local map version differs from server: %i != '%i'\n", cl.worldmodel->checksum, cl.q2mapchecksum);
+#endif
+
 		SCR_SetLoadingFile("csprogs world");
 
 #ifdef CSQC_DAT
@@ -4517,18 +4522,20 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i == Q2CS_MAPCHECKSUM)
 	{
-		int serverchecksum = atoi(s);
+		int serverchecksum = (int)strtol(s, NULL, 10);
 		int mapchecksum = 0;
-
 		if (cl.worldmodel)
 		{
 			if (cl.worldmodel->loadstate == MLS_LOADING)
 				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
 			mapchecksum = cl.worldmodel->checksum;
+
+			// the Q2 client normally exits here, however for our purposes we might as well ignore it
+			if (mapchecksum != serverchecksum)
+				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", mapchecksum, serverchecksum);
 		}
-		// the Q2 client normally exits here, however for our purposes we might as well ignore it
-		if (mapchecksum != serverchecksum)
-			Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", mapchecksum, serverchecksum);
+
+		cl.q2mapchecksum = serverchecksum;
 	}
 }
 #endif

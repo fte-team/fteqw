@@ -4950,7 +4950,7 @@ static void COM_Version_f (void)
 #endif
 
 	//print out which libraries are disabled
-	Con_Printf("^3Compression:^7\n");
+	Con_Printf("^3Compression:^7");
 #ifdef AVAIL_ZLIB
 	Con_Printf(" zlib^h("
 #ifdef ZLIB_STATIC

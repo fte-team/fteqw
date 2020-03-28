@@ -209,7 +209,9 @@ static int downloadablessequence;	//bumped any time any package is purged
 
 static void PM_WriteInstalledPackages(void);
 static void PM_PreparePackageList(void);
+#ifdef WEBCLIENT
 static qboolean PM_SignatureOkay(package_t *p);
+#endif
 
 static void PM_FreePackage(package_t *p)
 {
@@ -1601,10 +1603,10 @@ static qboolean PM_MarkPackage(package_t *package, unsigned int markflag)
 		package->flags &= ~DPF_PURGE;
 		return false;
 	}
-#endif
-
+#else
 	if (!PM_SignatureOkay(package))
 		return false;
+#endif
 
 	//any file-conflicts prevent the package from being installable.
 	//this is mostly for pak1.pak
@@ -3661,8 +3663,10 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 
 		if (!PM_CheckPackageFeatures(p))
 			Draw_FunStringWidth(0, y, "!", x+8, true, true);
+#ifdef WEBCLIENT
 		if (!PM_SignatureOkay(p))
 			Draw_FunStringWidth(0, y, "^b!", x+8, true, true);
+#endif
 
 //		if (!(p->flags & (DPF_ENABLED|DPF_MARKED|DPF_PRESENT))
 //			continue;
@@ -3912,6 +3916,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 					}
 				}
 			}
+#ifdef WEBCLIENT
 			if (!PM_SignatureOkay(p))
 			{
 				if (!p->signature)
@@ -3923,6 +3928,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 				else
 					head = va(CON_ERROR"Unable to verify signature"CON_DEFAULT"\n%s", head?head:"");	//clientside problem.
 			}
+#endif
 
 			if (head && desc)
 				desc = va("%s\n%s", head, desc);

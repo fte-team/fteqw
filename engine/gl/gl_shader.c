@@ -43,6 +43,7 @@ sh_config_t sh_config;
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.\nBecause most shaders made for DP are by people who _clearly_ have no idea what the heck they're doing, you'll typically need the '2' setting.");
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
+
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
@@ -6764,21 +6765,6 @@ void Shader_DefaultBSPQ1(parsestate_t *ps, const char *shortname, const void *ar
 					"}\n"
 				"}\n"
 			);
-	}
-
-	/*Hack: note that halflife would normally expect you to use rendermode/renderampt*/
-	if (!builtin && (!strncmp(shortname, "glass", 5)/* || !strncmp(shortname, "window", 6)*/))
-	{
-		/*alpha bended*/
-		builtin = (
-			"{\n"
-				"{\n"
-					"map $diffuse\n"
-					"tcgen base\n"
-					"blendfunc blend\n"
-				"}\n"
-			"}\n"
-		);
 	}
 
 	if (builtin)

@@ -4145,11 +4145,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->flags |= (SURF_DRAWALPHA);
 			continue;
 		}
-		if (!Q_strncmp(out->texinfo->texture->name,"glass",5))		// alpha
-		{
-			out->flags |= (SURF_DRAWALPHA);
-			continue;
-		}
+
 		if (out->flags & SURF_DRAWALPHA)
 			out->flags &= ~SURF_DRAWALPHA;
 	}

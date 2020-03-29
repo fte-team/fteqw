@@ -381,8 +381,6 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 
 	if (tex->name[0] == '{')
 		alpha = 1;
-	else if (!strncmp(tex->name, "window", 6) || !strncmp(tex->name, "glass", 5))
-		alpha = 2;
 
 	if (tex->width > 0x10000 || tex->height > 0x10000)
 		return NULL;

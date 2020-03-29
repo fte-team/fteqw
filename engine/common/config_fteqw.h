@@ -138,7 +138,7 @@
 //#define HLSERVER 140			//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 #define SAVEDGAMES				//Can save the game.
 #define MVD_RECORDING			//server can record MVDs.
-//#define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
+#define ENGINE_ROUTING		//Engine-provided routing logic (possibly threaded)
 //#define USE_INTERNAL_BULLET	//Statically link against bullet physics plugin (instead of using an external plugin)
 //#define USE_INTERNAL_ODE		//Statically link against ode physics plugin (instead of using an external plugin)
 

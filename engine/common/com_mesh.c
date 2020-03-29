@@ -5525,8 +5525,20 @@ float Mod_GetFrameDuration(model_t *model, int surfaceidx, int frameno)
 	galiasinfo_t *inf;
 	galiasanimation_t *group;
 
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife) {
+		int unused;
+		float duration;
+		char *name;
+		qboolean loop;
+		HLMDL_FrameInfoForNum(model, surfaceidx, frameno, &name, &unused, &duration, &loop);
+		return duration;
+	}
+#endif
+	
 	if (!model || model->type != mod_alias)
 		return 0;
+
 	inf = Mod_Extradata(model);
 	
 	while(surfaceidx-->0 && inf)

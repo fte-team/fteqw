@@ -385,7 +385,7 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 	if (tex->width > 0x10000 || tex->height > 0x10000)
 		return NULL;
 
-//use malloc here if you want, but you'll have to free it again... NUR!
+	//use malloc here if you want, but you'll have to free it again... NUR!
 	data = out = BZ_Malloc(tex->width * tex->height * 4);
 
 	if (!data)
@@ -412,6 +412,12 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 	else
 		pal = host_basepal;
 
+	/* handle decals type textures -eukara */
+	if (alpha == 1 && (pal[765] == 255 && pal[766] == 255 && pal[767] == 255))
+		alpha = 3;
+	if (alpha == 1 && !(pal[765] == 0 && pal[766] == 0 && pal[767] == 255))
+		alpha = 2;
+
 	if (tex->offsets[0] + tex->width * tex->height > lumpsize)
 	{	//fucked texture.
 		for (d = 0;d < tex->width * tex->height;d++)	
@@ -423,22 +429,28 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 			out += 4;
 		}
 	}
-	else for (d = 0;d < tex->width * tex->height;d++)	
+	else for (d = 0;d < tex->width * tex->height;d++)
 	{
 		p = *in++;
-		if (alpha==1 && p == 255)	//only allow alpha on '{' textures
+		if (alpha == 1 && p == 255) {
 			out[0] = out[1] = out[2] = out[3] = 0;
-		else if (alpha == 2)
-		{
+		} else if (alpha == 2) {
 			p *= 3;
+			/* this will be a blended decal -eukara */
+			out[0] = pal[765];
+			out[1] = pal[766];
+			out[2] = pal[767];
+			out[3] = 255 - pal[p];
+		} else if (alpha == 3) {
+			p *= 3;
+			/* this is used for glass and so on -eukara */
 			out[0] = pal[p];
 			out[1] = pal[p+1];
 			out[2] = pal[p+2];
-			out[3] = (out[0]+out[1]+out[2])/3;
-		}
-		else
-		{
+			out[3] = pal[p];
+		} else {
 			p *= 3;
+			/* non transparent -eukara */
 			out[0] = pal[p];
 			out[1] = pal[p+1];
 			out[2] = pal[p+2];

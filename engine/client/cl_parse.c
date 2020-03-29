@@ -1394,7 +1394,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 			return -1;
 
 #ifdef Q2CLIENT
-		if (cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
+		if (cls.protocol == CP_QUAKE2 && cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
 			Host_EndGame("Local map version differs from server: %i != '%i'\n", cl.worldmodel->checksum, cl.q2mapchecksum);
 #endif
 

@@ -1093,7 +1093,7 @@ static struct modlist_s
 static size_t nummods;
 static qboolean modsinited;
 
-/*static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
+static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
 {
 	int i = nummods;
 	modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
@@ -1102,7 +1102,7 @@ static qboolean modsinited;
 	modlist[i].description = man->formalname;
 	nummods = i+1;
 	return true;
-}*/
+}
 static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, void *usr, searchpathfuncs_t *spath)
 {
 	char *f;
@@ -1148,7 +1148,7 @@ static void Mods_InitModList (void)
 {
 	extern qboolean com_homepathenabled;
 
-	//FS_EnumerateKnownGames(Mods_AddManifest, NULL);
+	FS_EnumerateKnownGames(Mods_AddManifest, NULL);
 
 	if (com_homepathenabled)
 		Sys_EnumerateFiles(com_homepath, "*", Mods_AddGamedir, com_homepath, NULL);
@@ -1174,6 +1174,11 @@ void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s 
 		case 1:	//description (contents of modinfo.txt)
 			if (modlist[diridx].description)
 				RETURN_TSTRING(modlist[diridx].description);
+			break;
+		case 2:	//cvars
+			if (modlist[diridx].manifest)
+			if (modlist[diridx].manifest->defaultexec)
+				RETURN_TSTRING(modlist[diridx].manifest->defaultexec);
 			break;
 		case 0:	//name
 			RETURN_TSTRING(modlist[diridx].gamedir);

@@ -444,9 +444,9 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 		} else if (alpha == 3) {
 			p *= 3;
 			/* this is used for glass and so on -eukara */
-			out[0] = pal[p];
-			out[1] = pal[p+1];
-			out[2] = pal[p+2];
+			out[0] = 255;
+			out[1] = 255;
+			out[2] = 255;
 			out[3] = pal[p];
 		} else {
 			p *= 3;

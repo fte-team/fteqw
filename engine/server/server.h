@@ -1261,7 +1261,7 @@ void MSV_OpenUserDatabase(void);
 #define MSV_ClusterLogin(info) false
 #define SSV_IsSubServer() false
 #define MSV_OpenUserDatabase()
-#define MSV_PollSlaves() false
+#define MSV_PollSlaves()
 #define MSV_ForwardToAutoServer() false
 #endif
 

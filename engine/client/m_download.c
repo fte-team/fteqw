@@ -251,11 +251,16 @@ static void PM_FreePackage(package_t *p)
 		}
 	}
 
+#ifdef WEBCLIENT
 	if (p->download)
 	{	//if its currently downloading, cancel it.
 		DL_Close(p->download);
 		p->download = NULL;
 	}
+
+	for (i = 0; i < countof(p->mirror); i++)
+		Z_Free(p->mirror[i]);
+#endif
 
 	//free its data.
 	while(p->deps)
@@ -264,9 +269,6 @@ static void PM_FreePackage(package_t *p)
 		p->deps = d->next;
 		Z_Free(d);
 	}
-
-	for (i = 0; i < countof(p->mirror); i++)
-		Z_Free(p->mirror[i]);
 
 	Z_Free(p->name);
 	Z_Free(p->category);

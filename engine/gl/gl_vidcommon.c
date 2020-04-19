@@ -221,12 +221,11 @@ void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
 void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
 void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
-void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
-GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
-
-void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 #endif
 
+void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
+GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 void (APIENTRY *qglBufferStorage)(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);
 
 void (APIENTRY *qglTexStorage2D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);		//gl4.2
@@ -965,12 +964,12 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglMapBufferARB = NULL;
 		qglUnmapBufferARB = NULL;
 	}
+#endif
 
 	//ARB_map_buffer_range: core in gl3.0/gles3.0, the extension is backported, and thus no ARB postfix on functions.
-	qglMapBufferRange = (void *)getglext("glMapBufferRange");
+	qglMapBufferRange = qglUnmapBufferARB?(void *)getglext("glMapBufferRange"):NULL;
 
 	if (qglBufferSubDataARB && qglMapBufferRange)
-#endif
 	{
 		if ((!gl_config.gles && gl_config.glversion >= 4.4) || GL_CheckExtension("GL_ARB_buffer_storage"))
 			if (gl_immutable_buffers.ival)

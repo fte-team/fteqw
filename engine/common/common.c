@@ -6066,6 +6066,8 @@ size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outs
 		if (out < end) *out++ = (length>=3)?Base64_Encode((v>>0)&63):'=';
 
 		in+=3;
+		if (length <= 3)
+			break;
 		length -= 3;
 	}
 	end++;

@@ -230,7 +230,9 @@ static qboolean PM_SignatureOkay(package_t *p);
 static void PM_FreePackage(package_t *p)
 {
 	struct packagedep_s *d;
+#ifdef WEBCLIENT
 	int i;
+#endif
 
 	if (p->link)
 	{
@@ -4049,8 +4051,10 @@ void QCBUILTIN PF_cl_getpackagemanagerinfo(pubprogfuncs_t *prinst, struct global
 				RETURN_TSTRING(va("%lu", (unsigned long)p->filesize));
 			break;
 		case GPMI_AVAILABLE:
+#ifdef WEBCLIENT
 			if (PM_SignatureOkay(p))
 				RETURN_TSTRING("1");
+#endif
 			break;
 
 		case GPMI_INSTALLED:
@@ -4060,10 +4064,12 @@ void QCBUILTIN PF_cl_getpackagemanagerinfo(pubprogfuncs_t *prinst, struct global
 				RETURN_TSTRING("enabled");	//its there (and in use)
 			else if (p->flags & DPF_PRESENT)
 				RETURN_TSTRING("present");	//its there (but ignored)
+#ifdef WEBCLIENT
 			else if (p->download)
 				RETURN_TSTRING(va("%i%%", (int)p->download->qdownload.percent));	//we're downloading it.
 			else if (p->trymirrors)
 				RETURN_TSTRING("pending");	//its queued.
+#endif
 			break;
 		case GPMI_GAMEDIR:
 			RETURN_TSTRING(p->gamedir);

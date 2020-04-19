@@ -2620,6 +2620,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
 	{
+#ifdef SUBSERVERS
 		if (SSV_IsSubServer())
 		{
 			if (1)
@@ -2646,6 +2647,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 				return;
 			}
 		}
+#endif
 
 		/*single player logic*/
 		if (sv.allocated_client_slots == 1 && info->adr.type == NA_LOOPBACK)

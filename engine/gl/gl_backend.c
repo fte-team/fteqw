@@ -5533,7 +5533,6 @@ void GLBE_UpdateLightmaps(void)
 			{
 				extern cvar_t r_lightmap_nearest;
 				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", lmidx), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
-				lm->lightmap_texture->format = lm->fmt;
 				qglGenTextures(1, &lm->lightmap_texture->num);
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -5560,6 +5559,13 @@ void GLBE_UpdateLightmaps(void)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lm->fmt].swizzle_b);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lm->fmt].swizzle_a);
 				}
+
+				//for completeness.
+				lm->lightmap_texture->format = lm->fmt;
+				lm->lightmap_texture->width = lm->width;
+				lm->lightmap_texture->height = lm->height;
+				lm->lightmap_texture->depth = 1;
+				lm->lightmap_texture->status = TEX_LOADED;
 			}
 			else
 			{

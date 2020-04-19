@@ -34,6 +34,7 @@ We also have no doppler with WebAudio.
 	#define OPENAL_STATIC		//our javascript port doesn't support dynamic linking  (bss+data segments get too messy).
 	#define SDRVNAME "WebAudio"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
 	#define SDRVNAMEDESC "WebAudio:"
+	qboolean firefoxstaticsounds;	//FireFox bugs out with static sounds. they all end up full volume AND THIS IS REALLY LOUD AND REALLY ANNOYING.
 #else
 	#define SDRVNAME "OpenAL"
 	#define SDRVNAMEDESC "OAL:"

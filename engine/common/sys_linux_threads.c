@@ -425,6 +425,7 @@ pubsubserver_t *Sys_ForkServer(void)
 	linsubserver_t *ctx;
 	char *argv[64];
 	int argc = 0;
+	int l;
 
 	argv[argc++] = exename;
 	argv[argc++] = "-clusterslave";
@@ -437,9 +438,10 @@ pubsubserver_t *Sys_ForkServer(void)
 #elif 0
 	strcpy(exename, "/tmp/ftedbg/fteqw.sv");
 #else
-	memset(exename, 0, sizeof(exename));	//having problems with valgrind being stupid.
-	if (readlink("/proc/self/exe", exename, sizeof(exename)-1) <= 0)
+	l = readlink("/proc/self/exe", exename, sizeof(exename)-1);
+	if (l <= 0)
 		return NULL;
+	exename[l] = 0;
 #endif
 	Con_DPrintf("Execing %s\n", exename);
 

@@ -94,6 +94,15 @@ static void MSV_ServerCrashed(pubsubserver_t *server)
 	link_t *l, *next;
 	clusterplayer_t *pl;
 
+#ifdef HAVE_CLIENT
+	if (server->console)
+	{
+		Con_PrintCon(server->console, "<Server Ended>\n", server->console->flags);
+		Q_snprintfz(server->console->title, sizeof(server->console->title), "SERVER DEAD");
+		server->console->userdata = NULL;	//forget about us! for we are no more!
+	}
+#endif
+
 	//forget any players that are meant to be on this server.
 	for (l = clusterplayers.next ; l != &clusterplayers ; l = next)
 	{
@@ -101,7 +110,7 @@ static void MSV_ServerCrashed(pubsubserver_t *server)
 		pl = STRUCT_FROM_LINK(l, clusterplayer_t, allplayers);
 		if (pl->server == server)
 		{
-			Con_Printf("%s(%s) crashed out\n", pl->name, server->name);
+			Con_Printf("%s's node crashed out (%s)\n", pl->name, server->name);
 			RemoveLink(&pl->allplayers);
 			Z_Free(pl);
 		}
@@ -145,6 +154,35 @@ static int MSV_Loop_Read(pubsubserver_t *ps)
 	return 1;
 }
 
+static void MSV_SendCvars(pubsubserver_t *s)
+{
+	extern cvar_t skill, sv_nqplayerphysics, sv_pure, sv_minpitch, sv_maxpitch;
+	cvar_t *cvars[] = {
+		&developer,
+		&deathmatch, &coop, &skill, &teamplay,
+		&nomonsters, &gamecfg, &noexit, &temp1,
+		&scratch1, &scratch2, &scratch3, &scratch4,
+		&saved1, &saved2, &saved3, &saved4, &savedgamecfg,
+		&sv_nqplayerphysics, &sv_pure, &sv_mintic, &sv_maxtic,
+		&sv_minpitch, &sv_maxpitch};
+
+	sizebuf_t send;
+	char send_buf[8192];
+	size_t v;
+
+	memset(&send, 0, sizeof(send));
+	send.data = send_buf;
+	send.maxsize = sizeof(send_buf);
+	for (v = 0; v < countof(cvars); v++)
+	{
+		send.cursize = 2;
+		MSG_WriteByte(&send, ccmd_setcvar);
+		MSG_WriteString(&send, cvars[v]->name);
+		MSG_WriteString(&send, cvars[v]->string);
+		s->funcs.InstructSlave(s, &send);
+	}
+}
+
 static void MSV_Link_Server(pubsubserver_t *s, int id, const char *mapname)
 {
 	sizebuf_t send;
@@ -159,6 +197,8 @@ static void MSV_Link_Server(pubsubserver_t *s, int id, const char *mapname)
 
 	if (mapname)
 	{
+		MSV_SendCvars(s);
+
 		Q_strncpyz(s->name, mapname, sizeof(s->name));
 
 		memset(&send, 0, sizeof(send));
@@ -258,20 +298,25 @@ qboolean MSV_AddressForServer(netadr_t *ret, int natype, pubsubserver_t *s)
 	return false;
 }
 
-void MSV_InstructSlave(unsigned int id, sizebuf_t *cmd)
+qboolean MSV_InstructSlave(unsigned int id, sizebuf_t *cmd)
 {
 	pubsubserver_t *s;
 	if (!id)
 	{
 		for (s = subservers; s; s = s->next)
 			s->funcs.InstructSlave(s, cmd);
+		return subservers?true:false;
 	}
 	else
 	{
 		s = MSV_FindSubServer(id);
 		if (s)
+		{
 			s->funcs.InstructSlave(s, cmd);
+			return true;
+		}
 	}
+	return false;
 }
 
 void SV_SetupNetworkBuffers(qboolean bigcoords);
@@ -351,7 +396,7 @@ void MSV_Status(void)
 	clusterplayer_t *pl;
 	for (s = subservers; s; s = s->next)
 	{
-		Con_Printf("%i: %s", s->id, s->name);
+		Con_Printf("^[%i: %s\\ssv\\%u^]", s->id, s->name, s->id);
 		if (s->addrv4.type != NA_INVALID)
 			Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
 		if (s->addrv6.type != NA_INVALID)
@@ -362,13 +407,111 @@ void MSV_Status(void)
 	FOR_EACH_LINK(l, clusterplayers)
 	{
 		pl = STRUCT_FROM_LINK(l, clusterplayer_t, allplayers);
-		Con_Printf("%i(%s): (%s) %s (%s)\n", pl->playerid, pl->server->name, pl->guid, pl->name, pl->address);
+		Con_Printf("^[%i(%s)\\ssv\\%u^]: (%s) %s (%s)\n", pl->playerid, pl->server->name, pl->server->id, pl->guid, pl->name, pl->address);
 	}
 }
+
+#ifdef HAVE_CLIENT
+static int MSV_SubConsole_LineBuffered(console_t *con, const char *utf8line)
+{
+	pubsubserver_t *s = con->userdata;
+	if (s)
+	{
+		sizebuf_t buf;
+		char bufmem[65536];
+
+		Con_PrintCon(con, va("]%s\n", utf8line), PFS_FORCEUTF8|PFS_NONOTIFY);
+
+		if (!strcmp(utf8line, "clear"))
+		{
+			Con_ClearCon(con);
+			return true;
+		}
+
+		buf.data = bufmem;
+		buf.maxsize = sizeof(bufmem);
+		buf.cursize = 2;
+		buf.packing = SZ_RAWBYTES;
+		MSG_WriteByte(&buf, ccmd_stuffcmd);
+		MSG_WriteString(&buf, utf8line); //FIXME: is utf-8 a problem?
+		buf.data[0] = buf.cursize & 0xff;
+		buf.data[1] = (buf.cursize>>8) & 0xff;
+		s->funcs.InstructSlave(s, &buf);
+	}
+	else
+		Con_Footerf(con, false, "< Unable to send >");
+	return true;
+}
+static qboolean MSV_SubConsole_Close (console_t *con, qboolean force)
+{	//force=true is the final close, the rest are merely queries to see if its save.
+	pubsubserver_t *s = con->userdata;
+	if (force && s)
+	{	//stop prints from this server from going here.
+		s->console = NULL;
+	}
+	return true;
+}
+static void MSV_SubConsole_Update(pubsubserver_t *s)
+{
+	if (s->console)
+	{
+		if (s->console->flags & CONF_ISWINDOW)
+			Q_snprintfz(s->console->title, sizeof(s->console->title), "%u:%s", s->id, s->name);
+		else
+			Q_snprintfz(s->console->title, sizeof(s->console->title), "Server %u: %s", s->id, s->name);
+	}
+}
+static void MSV_SubConsole_Show(pubsubserver_t *s, qboolean show)
+{
+	console_t *con = s->console;
+	if (!con)
+	{
+		for (con = con_head; con; con = con->next)
+		{
+			if (con->close == MSV_SubConsole_Close && !con->userdata)
+				break;
+		}
+		if (!con)
+		{
+			con = Con_Create(NULL, CONF_NOTIFY);
+			if (0)//con)
+			{
+				/*make it a console window thing*/
+				con->flags |= CONF_ISWINDOW;
+				con->wnd_x = 0;
+				con->wnd_y = 0;
+				con->wnd_w = vid.width/2;
+				con->wnd_h = vid.height/2;
+			}
+		}
+		if (con)
+		{
+			s->console = con;
+			MSV_SubConsole_Update(s);
+
+			con->parseflags = PFS_FORCEUTF8;
+			con->userdata = s;
+			con->linebuffered = MSV_SubConsole_LineBuffered;
+//			con->redirect = Con_Editor_Key;
+			con->close = MSV_SubConsole_Close;
+			con->maxlines = 0x7fffffff;	//line limit is effectively unbounded, for a 31-bit process.
+
+			//use the server's status command as a header.
+			if (show)
+				MSV_SubConsole_LineBuffered(con, "status");
+		}
+	}
+	if (con && show)
+		Con_SetActive(con);
+}
+#else
+	#define MSV_SubConsole_Update(s)
+#endif
+
 void MSV_SubServerCommand_f(void)
 {
 	sizebuf_t buf;
-	char bufmem[1024];
+	char bufmem[65536];
 	pubsubserver_t *s;
 	int id;
 	char *c;
@@ -377,7 +520,7 @@ void MSV_SubServerCommand_f(void)
 		Con_Printf("Active servers on this cluster:\n");
 		for (s = subservers; s; s = s->next)
 		{
-			Con_Printf("%i: %s %i+%i", s->id, s->name, s->activeplayers, s->transferingplayers);
+			Con_Printf("^[%i: %s %i+%i\\ssv\\%u^]", s->id, s->name, s->activeplayers, s->transferingplayers, s->id);
 			if (s->addrv4.type != NA_INVALID)
 				Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
 			if (s->addrv6.type != NA_INVALID)
@@ -388,6 +531,15 @@ void MSV_SubServerCommand_f(void)
 	}
 	if (!strcmp(Cmd_Argv(0), "ssv_all"))
 		id = 0;
+#ifdef HAVE_CLIENT
+	else if (Cmd_Argc() == 2)
+	{	//subservers, meet subconsoles
+		s = MSV_FindSubServer(atoi(Cmd_Argv(1)));
+		if (s)
+			MSV_SubConsole_Show(s, true);
+		return;
+	}
+#endif
 	else
 	{
 		id = atoi(Cmd_Argv(1));
@@ -403,22 +555,90 @@ void MSV_SubServerCommand_f(void)
 	MSG_WriteString(&buf, c);
 	buf.data[0] = buf.cursize & 0xff;
 	buf.data[1] = (buf.cursize>>8) & 0xff;
-	MSV_InstructSlave(id, &buf);
+	if (!MSV_InstructSlave(id, &buf))
+		Con_Printf("No node for index.\n");
+}
+
+qboolean MSV_ForwardToAutoServer(void)
+{
+	pubsubserver_t *s;
+	if (sv.state > ss_clustermode)
+		return false;	//don't forward if we have our own server.
+
+	if (subservers && !subservers->next && sv.state == ss_clustermode)
+		s = subservers;	//there is only one.
+	else
+	{
+		s = NULL;
+#ifdef HAVE_CLIENT
+		if (!s && cls.state >= ca_connected)
+		{	//find the one the local player is currently on.
+			for (; s; s = s->next)
+			{
+				if (s->addrv6.type!=NA_INVALID && NET_CompareAdr(&s->addrv4, &cls.netchan.remote_address))
+					break;
+				if (s->addrv6.type!=NA_INVALID && NET_CompareAdr(&s->addrv6, &cls.netchan.remote_address))
+					break;
+			}
+		}
+#endif
+		if (!s)
+			return false;
+	}
+
+	{
+		sizebuf_t buf;
+		char bufmem[65536];
+		const char *cmd = Cmd_Argv(0);
+		const char *args = Cmd_Args();;
+		buf.data = bufmem;
+		buf.maxsize = sizeof(bufmem);
+		buf.cursize = 2;
+		buf.packing = SZ_RAWBYTES;
+		MSG_WriteByte(&buf, ccmd_stuffcmd);
+		SZ_Write(&buf, cmd, strlen(cmd));
+		if(*args)
+			MSG_WriteChar(&buf, ' ');
+		MSG_WriteString(&buf, args);
+		buf.data[0] = buf.cursize & 0xff;
+		buf.data[1] = (buf.cursize>>8) & 0xff;
+		s->funcs.InstructSlave(s, &buf);
+		return true;
+	}
 }
 
 static void MSV_PrintFromSubServer(pubsubserver_t *s, const char *newtext)
 {
 	char *nl;
+#ifdef HAVE_CLIENT
+	if (!s->console)
+	{
+//		extern cvar_t con_window;
+//		if (con_window.ival)	//might as well pop one up.
+			MSV_SubConsole_Show(s, false);
+	}
+	if (s->console)
+	{
+		if (*s->printtext)
+		{	//flush it if there was something buffered there...
+			Con_PrintCon(s->console, s->printtext, s->console->flags);
+			*s->printtext = 0;
+		}
+		Con_PrintCon(s->console, newtext, s->console->flags);
+		return;
+	}
+#endif
+
 	Q_strncatz(s->printtext, newtext, sizeof(s->printtext));
 	while((nl = strchr(s->printtext, '\n')))
 	{	//FIXME: handle overflows.
 		*nl++ = 0;
-		Con_Printf("^6%i(%s)^7: %s\n", s->id, s->name, s->printtext);
+		Con_Printf("^[^6%i(%s)\\ssv\\%u^]: %s\n", s->id, s->name, s->id, s->printtext);
 		memmove(s->printtext, nl, strlen(nl)+1);
 	}
 	if (strlen(s->printtext) > sizeof(s->printtext)/2)
 	{
-		Con_Printf("^6%i(%s)^7: %s\n", s->id, s->name, s->printtext);
+		Con_Printf("^[^6%i(%s)\\ssv\\%u^]: %s\n", s->id, s->name, s->id, s->printtext);
 		*s->printtext = 0;
 	}
 }
@@ -510,6 +730,51 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			}
 		}
 		break;
+	case ccmd_foundplayer:
+		{
+			char guid[64];
+			char plnamebuf[64];
+			char *plname = MSG_ReadStringBuffer(plnamebuf, sizeof(plnamebuf));
+			char *claddr = MSG_ReadString();
+			char *clguid = MSG_ReadStringBuffer(guid, sizeof(guid));
+			extern int	nextuserid;
+			const unsigned int statsblobsize = 0;
+			const void *statsblob = NULL;
+
+			sizebuf_t	send;
+			qbyte		send_buf[MAX_QWMSGLEN];
+			clusterplayer_t *pl;
+
+			if (sv.logindatabase)
+				break;	//if we're using a login database then this could be used as an exploit.
+
+			memset(&send, 0, sizeof(send));
+			send.data = send_buf;
+			send.maxsize = sizeof(send_buf);
+			send.cursize = 2;
+
+			pl = Z_Malloc(sizeof(*pl));
+			Q_strncpyz(pl->name, plname, sizeof(pl->name));
+			Q_strncpyz(pl->guid, clguid, sizeof(pl->guid));
+			Q_strncpyz(pl->address, claddr, sizeof(pl->address));
+			pl->playerid = ++nextuserid;
+			InsertLinkBefore(&pl->allplayers, &clusterplayers);
+			pl->server = s;
+			s->activeplayers++;
+
+			MSG_WriteByte(&send, ccmd_takeplayer);
+			MSG_WriteLong(&send, pl->playerid);
+			MSG_WriteString(&send, pl->name);
+			MSG_WriteLong(&send, 0);	//from server
+			MSG_WriteString(&send, pl->address);
+			MSG_WriteString(&send, pl->guid);
+
+			MSG_WriteByte(&send, statsblobsize/4);
+			SZ_Write(&send, statsblob, statsblobsize&~3);
+			s->funcs.InstructSlave(s, &send);
+		}
+		break;
+
 	case ccmd_transferplayer:
 		{	//server is offering a player to another server
 			char guid[64];
@@ -639,8 +904,13 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 					}
 				}
 			}
+			MSV_SubConsole_Update(s);
+			if (s->started)
+				Con_DPrintf("^[^6[%i:%s: map changed]\\ssv\\%u\\tip\\Click for server's console^]\n", s->id, s->name, s->id);
+			else
+				Con_Printf("^[^6[%i:%s: new node initialised]\\ssv\\%u\\tip\\Click for server's console^]\n", s->id, s->name, s->id);
+			s->started = true;
 		}
-		Con_Printf("%i:%s: restarted\n", s->id, s->name);
 		break;
 	case ccmd_stringcmd:
 		{
@@ -768,6 +1038,15 @@ void SSV_ReadFromControlServer(void)
 		SV_BeginRedirect(RD_MASTER, 0);
 		Cmd_ExecuteString(s, RESTRICT_LOCAL);
 		SV_EndRedirect();
+		break;
+
+	case ccmd_setcvar:
+		{
+			cvar_t *var = Cvar_FindVar(MSG_ReadString());
+			const char *val = MSG_ReadString();
+			Con_Printf("Setting cvar \"%s\" to \"%s\"\n", var?var->name:"UNKNOWN", val);
+			Cvar_Set(var, val);
+		}
 		break;
 
 	//cluster has 'accepted' us as an allowed server. this is where it tells us who we're meant to be, which needs to be set up ready for the players that are (probably) about to join us

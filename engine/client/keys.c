@@ -889,6 +889,8 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 			}
 			return;
 		}
+		if (!con)
+			return;	//can't do footers
 
 		Con_Footerf(con, false, "^m#^m ^[%s\\player\\%i^]: %if %ims", cl.players[player].name, player, cl.players[player].frags, cl.players[player].ping);
 
@@ -1059,6 +1061,14 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		return;
 	}
 #endif
+#ifdef SUBSERVERS
+	c = Info_ValueForKey(info, "ssv");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nssv \"%s\"\n", c), RESTRICT_LOCAL);
+		return;
+	}
+#endif
 	c = Info_ValueForKey(info, "impulse");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
@@ -1082,7 +1092,8 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "desc");
 	if (*c)
 	{
-		Con_Footerf(con, false, "%s", c);
+		if (con)
+			Con_Footerf(con, false, "%s", c);
 		return;
 	}
 
@@ -1133,8 +1144,8 @@ void Key_HandleConsoleLink(console_t *con, char *buffer)
 			{
 				//okay, its a valid link that they clicked
 				*end = 0;
-#ifdef PLUGINS
-				if (!Plug_ConsoleLink(buffer+2, info, con->name))
+#ifdef PLUGINS	//plugins can use these window things like popup menus.
+				if (con && !Plug_ConsoleLink(buffer+2, info, con->name))
 #endif
 #ifdef CSQC_DAT
 				if (!CSQC_ConsoleLink(buffer+2, info))

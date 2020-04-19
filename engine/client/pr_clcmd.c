@@ -1084,104 +1084,129 @@ void QCBUILTIN PF_cl_setlocaluserinfo (pubprogfuncs_t *prinst, struct globalvars
 }
 
 #include "fs.h"
-static struct modlist_s
-{
-	ftemanifest_t *manifest;
-	char *gamedir;
-	char *description;
-} *modlist;
-static size_t nummods;
-static qboolean modsinited;
-
-static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
-{
-	int i = nummods;
-	modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
-	modlist[i].manifest = man;
-	modlist[i].gamedir = man->updatefile;
-	modlist[i].description = man->formalname;
-	nummods = i+1;
-	return true;
-}
-static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, void *usr, searchpathfuncs_t *spath)
-{
-	char *f;
-	size_t l = strlen(fname);
-	int i, p;
-	char gamedir[MAX_QPATH];
-	if (l && fname[l-1] == '/' && l < countof(gamedir))
-	{
-		l--;
-		memcpy(gamedir, fname, l);
-		gamedir[l] = 0;
-		for (i = 0; i < nummods; i++)
-		{
-			//don't add dupes (can happen from basedir+homedir)
-			//if the gamedir was already included in one of the manifests, don't bother including it again.
-			//this generally removes id1.
-			if (modlist[i].manifest)
-			{
-				for (p = 0; p < countof(fs_manifest->gamepath); p++)
-					if (modlist[i].manifest->gamepath[p].path)
-						if (!Q_strcasecmp(modlist[i].manifest->gamepath[p].path, gamedir))
-							return true;
-			}
-			else if (modlist[i].gamedir)
-			{
-				if (!Q_strcasecmp(modlist[i].gamedir, gamedir))
-					return true;
-			}
-		}
-		f = FS_MallocFile(va("%s%s/modinfo.txt", (const char*)usr, gamedir), FS_SYSTEM, NULL);
-		if (f)
-		{
-			modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
-			modlist[i].manifest = NULL;
-			modlist[i].gamedir = Z_StrDup(gamedir);
-			modlist[i].description = f;
-			nummods = i+1;
-		}
-	}
-	return true;
-}
-static void Mods_InitModList (void)
-{
-	extern qboolean com_homepathenabled;
-
-	FS_EnumerateKnownGames(Mods_AddManifest, NULL);
-
-	if (com_homepathenabled)
-		Sys_EnumerateFiles(com_homepath, "*", Mods_AddGamedir, com_homepath, NULL);
-	Sys_EnumerateFiles(com_gamepath, "*", Mods_AddGamedir, com_gamepath, NULL);
-}
-
 void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	size_t diridx = G_FLOAT(OFS_PARM0);
-	int propidx = G_FLOAT(OFS_PARM1);
+	enum getgamedirinfo_e propidx = G_FLOAT(OFS_PARM1);
 
-	if (!modsinited)
+	struct modlist_s *mod, current;
+	if (G_FLOAT(OFS_PARM0) == -1)
 	{
-		modsinited = true;
-		Mods_InitModList();
+		current.description = fs_manifest->formalname;
+		current.gamedir = FS_GetGamedir(true);
+		current.manifest = fs_manifest;
+		mod = &current;
 	}
+	else
+		mod = Mods_GetMod(diridx);
 
 	G_INT(OFS_RETURN) = 0;
-	if (diridx < nummods)
+	if (mod)
 	{
 		switch(propidx)
 		{
-		case 1:	//description (contents of modinfo.txt)
-			if (modlist[diridx].description)
-				RETURN_TSTRING(modlist[diridx].description);
+		case GGDI_GAMEDIR:	//name
+			RETURN_TSTRING(mod->gamedir);
 			break;
-		case 2:	//cvars
-			if (modlist[diridx].manifest)
-			if (modlist[diridx].manifest->defaultexec)
-				RETURN_TSTRING(modlist[diridx].manifest->defaultexec);
+		case GGDI_ALLGAMEDIRS:
+			{
+				char *dirs = NULL;
+				size_t d;
+				ftemanifest_t *man = mod->manifest?mod->manifest:fs_manifest;
+				//the basedirs
+				for (d = 0; d < countof(man->gamepath); d++)
+				{
+					if (man->gamepath[d].path && man->gamepath[d].flags&GAMEDIR_BASEGAME)
+					{
+						if (dirs)
+							Z_StrCat(&dirs, ";");
+						Z_StrCat(&dirs, man->gamepath[d].path);
+					}
+				}
+				if (mod->manifest)
+				{	//the manifest's mod dirs
+					for (d = 0; d < countof(man->gamepath); d++)
+					{
+						if (man->gamepath[d].path && !(man->gamepath[d].flags&GAMEDIR_BASEGAME))
+						{
+							if (dirs)
+								Z_StrCat(&dirs, ";");
+							Z_StrCat(&dirs, man->gamepath[d].path);
+						}
+					}
+				}
+				else	//the specified gamedir
+				{
+					if (dirs)
+						Z_StrCat(&dirs, ";");
+					Z_StrCat(&dirs, mod->gamedir);
+				}
+				RETURN_TSTRING(dirs?dirs:"");
+				Z_Free(dirs);
+			}
 			break;
-		case 0:	//name
-			RETURN_TSTRING(modlist[diridx].gamedir);
+		case GGDI_DESCRIPTION:	//description (contents of modinfo.txt)
+			if (mod->description)
+				RETURN_TSTRING(mod->description);
+			break;
+		case GGDI_OVERRIDES:	//cvars
+			if (mod->manifest)
+			if (mod->manifest->defaultexec)
+				RETURN_TSTRING(mod->manifest->defaultexec);
+			break;
+		case GGDI_LOADCOMMAND:	//load command
+			RETURN_TSTRING(va("fs_changegame %u", (unsigned int)diridx+1u));
+			break;
+		case GGDI_ICON: //icon
+			{
+				char iname[MAX_QPATH];
+				shader_t *shader;
+				Q_snprintfz(iname, sizeof(iname), "gamedir/%u", (unsigned) diridx);
+				shader = R_RegisterShader(iname, SUF_2D,
+					"{\n"
+						"affine\n"
+						"nomipmaps\n"
+						"program default2d#PREMUL\n"
+						"{\n"
+							"clampmap $diffuse\n"
+							"blendfunc gl_one gl_one_minus_src_alpha\n"
+						"}\n"
+						"sort additive\n"
+					"}\n"
+					);
+				if (shader && !shader->defaulttextures->base)
+				{	//no textures yet? do something about it!
+					void *data = NULL;
+					size_t i;
+					qofs_t sz;
+					const char *extensions[] = {
+#ifdef IMAGEFMT_PNG
+						".png",
+#endif
+						".tga",
+#ifdef IMAGEFMT_BMP
+						".ico",
+#endif
+					};
+					if (mod->manifest && mod->manifest->iconname)
+					{
+						for (i = 0; i < countof(extensions) && !data; i++)
+						{
+							COM_StripExtension(mod->manifest->filename, iname, sizeof(iname));
+							COM_RequireExtension(iname, extensions[i], sizeof(iname));
+							data = FS_MallocFile(iname, FS_SYSTEM, &sz);
+						}
+					}
+					for (i = 0; i < countof(extensions) && !data; i++)
+						data = FS_MallocFile(va("%s/icon%s", mod->gamedir, extensions[i]), FS_ROOT, &sz);
+					Q_snprintfz(iname, sizeof(iname), "gamedir/%u", (unsigned) diridx);
+					shader->defaulttextures->base = Image_CreateTexture(iname, NULL, IF_PREMULTIPLYALPHA);
+					if (data)
+						Image_LoadTextureFromMemory(shader->defaulttextures->base, shader->defaulttextures->base->flags, iname, iname, data, sz);
+				}
+				if (shader && TEXLOADED(shader->defaulttextures->base))
+					RETURN_TSTRING(shader->name);
+			}
 			break;
 		}
 	}

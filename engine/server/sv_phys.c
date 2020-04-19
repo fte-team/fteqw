@@ -59,6 +59,7 @@ cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", 
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
 cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedownslopes", "0", "MOVETYPE_BOUNCE speeds are calculated relative to the impacted surface, instead of the vertical, reducing the chance of grenades just sitting there on slopes.");
 cvar_t	sv_gameplayfix_trappedwithin		= CVARD( "sv_gameplayfix_trappedwithin", "0", "Blocks further entity movement when an entity is already inside another entity. This ensures that bsp precision issues cannot allow the entity to completely pass through eg the world.");
+//cvar_t	sv_gameplayfix_radialmaxvelocity	= CVARD( "sv_gameplayfix_radialmaxvelocity", "0", "Applies maxvelocity radially instead of axially.");
 #if !defined(CLIENTONLY) && defined(NQPROT) && defined(HAVE_LEGACY)
 cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
 #endif
@@ -150,28 +151,50 @@ SV_CheckVelocity
 void WPhys_CheckVelocity (world_t *w, wedict_t *ent)
 {
 	int		i;
+	extern cvar_t sv_nqplayerphysics;
 
-//
-// bound velocity
-//
-	for (i=0 ; i<3 ; i++)
-	{
-		if (IS_NAN(ent->v->velocity[i]))
+	if (sv_nqplayerphysics.ival)
+	{	//bound axially (like vanilla)
+		for (i=0 ; i<3 ; i++)
 		{
-			Con_DPrintf ("Got a NaN velocity on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
-			ent->v->velocity[i] = 0;
-		}
-		if (IS_NAN(ent->v->origin[i]))
-		{
-			Con_Printf ("Got a NaN origin on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
-			ent->v->origin[i] = 0;
+			if (IS_NAN(ent->v->velocity[i]))
+			{
+				Con_DPrintf ("Got a NaN velocity on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
+				ent->v->velocity[i] = 0;
+			}
+			if (IS_NAN(ent->v->origin[i]))
+			{
+				Con_Printf ("Got a NaN origin on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
+				ent->v->origin[i] = 0;
+			}
+
+			if (ent->v->velocity[i] > sv_maxvelocity.value)
+				ent->v->velocity[i] = sv_maxvelocity.value;
+			else if (ent->v->velocity[i] < -sv_maxvelocity.value)
+				ent->v->velocity[i] = -sv_maxvelocity.value;
 		}
 	}
+	else
+	{	//bound radially (for sanity)
+		for (i=0 ; i<3 ; i++)
+		{
+			if (IS_NAN(ent->v->velocity[i]))
+			{
+				Con_DPrintf ("Got a NaN velocity on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
+				ent->v->velocity[i] = 0;
+			}
+			if (IS_NAN(ent->v->origin[i]))
+			{
+				Con_Printf ("Got a NaN origin on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
+				ent->v->origin[i] = 0;
+			}
+		}
 
-	if (Length(ent->v->velocity) > sv_maxvelocity.value)
-	{
-//		Con_DPrintf("Slowing %s\n", PR_GetString(w->progs, ent->v->classname));
-		VectorScale (ent->v->velocity, sv_maxvelocity.value/Length(ent->v->velocity), ent->v->velocity);
+		if (Length(ent->v->velocity) > sv_maxvelocity.value)
+		{
+//			Con_DPrintf("Slowing %s\n", PR_GetString(w->progs, ent->v->classname));
+			VectorScale (ent->v->velocity, sv_maxvelocity.value/Length(ent->v->velocity), ent->v->velocity);
+		}
 	}
 }
 

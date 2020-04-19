@@ -351,7 +351,7 @@ void M_Menu_SinglePlayer_f (void)
 	MC_AddWhiteText(menu, 84, 0, 12*8, "This build is unable", false);
 	MC_AddWhiteText(menu, 84, 0, 13*8, "to start a local game", false);
 
-	MC_AddBox (menu, 60, 10*8, 25, 4);
+	MC_AddBox (menu, 60, 11*8, 25*8, 4*8);
 #else
 
 	switch(M_GameType())
@@ -540,7 +540,7 @@ void M_Menu_SinglePlayer_f (void)
 	p = R2D_SafeCachePic("gfx/sp_menu.lmp");
 	if (!p)
 	{
-		MC_AddBox (menu, 60, 10*8, 23, 4);
+		MC_AddBox (menu, 60, 10*8, 23*8, 4*8);
 
 		MC_AddWhiteText(menu, 92, 0, 12*8, "Couldn't find file", false);
 		MC_AddWhiteText(menu, 92, 0, 13*8, "gfx/sp_menu.lmp", false);
@@ -618,6 +618,10 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, emenu_t *menu)
 	demomenu_t *info = menu->data;
 	demoitem_t *item, *lostit;
 	int ty;
+
+	char syspath[MAX_OSPATH];
+	if (FS_NativePath(info->fs->path, (info->fs->fsroot==FS_GAME)?FS_GAMEONLY:info->fs->fsroot, syspath, sizeof(syspath)))
+		Draw_FunString(x, y-16, syspath);
 
 	ty = vid.height-24;
 	item = info->selected;
@@ -954,7 +958,7 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 
 	if (path != info->fs->path)
 	{
-		if (*path == '/')
+		if (*path == '/' && info->fs->fsroot != FS_SYSTEM)
 			path++;
 		Q_strncpyz(info->fs->path, path, sizeof(info->fs->path));
 	}
@@ -963,7 +967,16 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 	{
 		if (!strcmp(path, "../"))
 		{
+			Q_strncpyz(info->fs->path, "", sizeof(info->fs->path));
+			info->fs->fsroot = FS_ROOT;
+		}
+	}
+	else if (info->fs->fsroot == FS_ROOT)
+	{
+		if (!strcmp(path, "../"))
+		{
 			FS_NativePath("", FS_ROOT, info->fs->path, sizeof(info->fs->path));
+			Q_strncatz(info->fs->path, "../", sizeof(info->fs->path));
 			info->fs->fsroot = FS_SYSTEM;
 			while((s = strchr(info->fs->path, '\\')))
 				*s = '/';
@@ -1003,7 +1016,7 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 		Q_snprintfz(match, sizeof(match), "%s../", info->fs->path);
 		DemoAddItem(match, 0, 0, info, NULL);
 	}
-	else if (info->fs->fsroot == FS_GAME)
+	else if (info->fs->fsroot == FS_GAME || info->fs->fsroot == FS_ROOT)
 	{
 		Q_snprintfz(match, sizeof(match), "../");
 		DemoAddItem(match, 0, 0, info, NULL);
@@ -1015,6 +1028,13 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 		else
 			Q_snprintfz(match, sizeof(match), "/*");
 		Sys_EnumerateFiles("", match, DemoAddItem, info, NULL);
+	}
+	else if (info->fs->fsroot == FS_ROOT)
+	{
+		Q_snprintfz(match, sizeof(match), "%s*", info->fs->path);
+		if (*com_homepath)
+			Sys_EnumerateFiles(com_homepath, match, DemoAddItem, info, NULL);
+		Sys_EnumerateFiles(com_gamepath, match, DemoAddItem, info, NULL);
 	}
 	else
 	{

@@ -161,7 +161,13 @@ qboolean GLSCR_UpdateScreen (void)
 		if (r_clear.ival)
 		{
 			GL_ForceDepthWritable();
-			qglClearColor((r_clear.ival&1)?1:0, (r_clear.ival&2)?1:0, (r_clear.ival&4)?1:0, 1);
+			if (r_clearcolour.ival)
+			{
+				r_clearcolour.vec4[0] = host_basepal[(r_clearcolour.ival & 0xFF)*3+0]/255.0;
+				r_clearcolour.vec4[1] = host_basepal[(r_clearcolour.ival & 0xFF)*3+1]/255.0;
+				r_clearcolour.vec4[2] = host_basepal[(r_clearcolour.ival & 0xFF)*3+2]/255.0;
+			}
+			qglClearColor(r_clearcolour.vec4[0], r_clearcolour.vec4[1], r_clearcolour.vec4[2], 1);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			depthcleared = true;
 		}

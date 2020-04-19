@@ -81,7 +81,7 @@ cvar_t tp_disputablemacros	= CVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
 
 
 
-#define MAX_MACROS 64
+#define MAX_MACROS 70
 
 typedef struct {
 	char name[32];
@@ -104,9 +104,9 @@ void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions)
 	if (i == MAX_MACROS)
 		Sys_Error("Cmd_AddMacro: macro_count == MAX_MACROS");
 
-	Q_strncpyz(macro_commands[macro_count].name, s, sizeof(macro_commands[macro_count].name));
-	macro_commands[macro_count].func = f;
-	macro_commands[macro_count].disputableintentions = disputableintentions;
+	Q_strncpyz(macro_commands[i].name, s, sizeof(macro_commands[macro_count].name));
+	macro_commands[i].func = f;
+	macro_commands[i].disputableintentions = disputableintentions;
 
 	if (i == macro_count)
 		macro_count++;
@@ -4250,9 +4250,6 @@ void Cmd_Init (void)
 	Cmd_AddCommandAD ("aliaslevel", Cmd_AliasLevel_f, Key_Alias_c, NULL);
 
 	Cmd_AddCommandAD ("showalias", Cmd_ShowAlias_f, Key_Alias_c, NULL);
-
-//	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
-//	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
 	Cmd_AddCommandAD ("toggle", Cmd_toggle_f, Cmd_Set_c, "Toggles a cvar between two values\ntoggle CVARNAME [newval [altval]]");
 	Cmd_AddCommandAD ("set", Cmd_set_f, Cmd_Set_c, "Changes the current value of the named cvar, creating it if it doesn't yet exist.");

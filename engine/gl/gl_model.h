@@ -157,8 +157,9 @@ typedef struct batch_s
 	{
 		struct
 		{
-			unsigned int shadowbatch; //a unique index to accelerate shadowmesh generation (dlights, yay!)
-			unsigned int ebobatch;	//
+			unsigned int shadowbatch;	//a unique index to accelerate shadowmesh generation (dlights, yay!)
+			unsigned int ebobatch;		//
+			unsigned int webobatch;		//su
 		};
 		struct 
 		{
@@ -166,6 +167,11 @@ typedef struct batch_s
 			unsigned int surf_count;
 		};
 		vec4_t plane;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
+		struct
+		{
+			mesh_t meshbuf;
+			mesh_t *meshptr;
+		};
 	};
 } batch_t;
 /*

@@ -27,6 +27,7 @@ int rquant[RQUANT_MAX];
 
 void R_InitParticleTexture (void);
 void R_RestartRenderer (rendererstate_t *newr);
+static void R_UpdateRendererOpts(void);
 
 qboolean vid_isfullscreen;
 
@@ -112,7 +113,7 @@ cvar_t cl_cursorbiasx						= CVAR  ("cl_cursor_bias_x", "0.0");
 cvar_t cl_cursorbiasy						= CVAR  ("cl_cursor_bias_y", "0.0");
 
 #ifdef QWSKINS
-cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
+cvar_t gl_nocolors							= CVARFD  ("gl_nocolors", "0", CVAR_ARCHIVE, "Ignores player colours and skins, reducing texture memory usage at the cost of not knowing whether you're killing your team mates.");
 #endif
 cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");
 
@@ -141,7 +142,7 @@ cvar_t r_bloodstains						= CVARF  ("r_bloodstains", "1", CVAR_ARCHIVE);
 cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "1",
 													CVAR_ARCHIVE,
 													"Enables particle interaction with world surfaces, allowing for bouncy particles, stains, and decals.");
-cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
+cvar_t r_drawentities						= CVARFD  ("r_drawentities", "1", CVAR_CHEAT, "Controls whether to draw entities or not.\n0: Draw no entities.\n1: Draw everything as normal.\n2: Draw everything but bmodels.\n3: Draw bmodels only.");
 cvar_t r_max_gpu_bones						= CVARD  ("r_max_gpu_bones", "", "Specifies the maximum number of bones that can be handled on the GPU. If empty, will guess.");
 cvar_t r_drawflat							= CVARAF ("r_drawflat", "0", "gl_textureless",
 													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
@@ -157,7 +158,8 @@ cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use 
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
-													  CVAR_ARCHIVE, "-1: the engine will use only pvs to determine which surfaces are visible. This can significantly reduce CPU time, but only if there are many surfaces with few textures visible from the camera.\n0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
+													  CVAR_ARCHIVE, "0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
+cvar_t r_temporalscenecache					= CVARFD ("r_temporalscenecache", "0", CVAR_ARCHIVE, "Controls whether to generate+reuse a scene cache over multiple frames. This is generated on a separate thread to avoid any associated costs. This can significantly boost framerates on complex maps, but can also stress the gpu more (performance tradeoff that varies per map). An outdated cache may be used if the cache takes too long to build (eg: lightmap animations), which could cause the odd glitch when moving fast (but retain more consistent framerates - another tradeoff).\n0: Tranditional quake rendering.\n1: Generate+Use the scene cache.");
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
 cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
@@ -296,7 +298,7 @@ cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
 													 CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
-cvar_t vid_renderer_opts					= CVARFD ("_vid_renderer_opts", "", CVAR_NOSET, "The possible video renderer apis, in \"value\" \"description\" pairs, for gamecode to read.");
+cvar_t vid_renderer_opts					= CVARFD ("_vid_renderer_opts", NULL, CVAR_NOSET, "The possible video renderer apis, in \"value\" \"description\" pairs, for gamecode to read.");
 
 cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of colour bits to request from the renedering context");
@@ -369,8 +371,9 @@ cvar_t	vid_gl_context_robustness			= CVARD	("vid_gl_context_robustness", "1", "A
 cvar_t	vid_gl_context_selfreset			= CVARD	("vid_gl_context_selfreset", "1", "Upon hardware failure, have the engine create a new context instead of depending on the drivers to restore everything. This can help to avoid graphics drivers randomly killing your game, and can help reduce memory requirements.");
 cvar_t	vid_gl_context_noerror				= CVARD	("vid_gl_context_noerror", "", "Disables OpenGL's error checks for a small performance speedup. May cause segfaults if stuff wasn't properly implemented/tested.");
 
-cvar_t	gl_immutable_textures				= CVARD	("gl_immutable_textures", "1", "Controls whether to use immutable GPU memory allocations for OpenGL textures. This potentially means less work for the drivers and thus higher framerates.");
-cvar_t	gl_immutable_buffers				= CVARD	("gl_immutable_buffers", "1", "Controls whether to use immutable GPU memory allocations for static OpenGL vertex buffers. This potentially means less work for the drivers and thus higher framerates.");
+cvar_t	gl_immutable_textures				= CVARFD ("gl_immutable_textures", "1", CVAR_VIDEOLATCH, "Controls whether to use immutable GPU memory allocations for OpenGL textures. This potentially means less work for the drivers and thus higher framerates.");
+cvar_t	gl_immutable_buffers				= CVARFD ("gl_immutable_buffers", "1", CVAR_VIDEOLATCH, "Controls whether to use immutable GPU memory allocations for static OpenGL vertex buffers. This potentially means less work for the drivers and thus higher framerates.");
+cvar_t	gl_pbolightmaps						= CVARFD ("gl_pbolightmaps", "1", CVAR_RENDERERLATCH, "Controls whether to use PBOs for streaming lightmap updates. This prevents CPU stalls while the driver reads out the lightmap data (lightmap updates are still not free though).");
 #endif
 
 #if 1
@@ -409,6 +412,7 @@ cvar_t gl_load24bit							= CVARF ("gl_load24bit", "1",
 
 cvar_t	r_clear								= CVARAF("r_clear","0",
 													 "gl_clear", 0);
+cvar_t	r_clearcolour						= CVARAF("r_clearcolour", "0.12 0.12 0.12", "r_clearcolor"/*american spelling*/, 0);
 cvar_t gl_max_size							= CVARFD  ("gl_max_size", "8192", CVAR_RENDERERLATCH, "Specifies the maximum texture size that the engine may use. Textures larger than this will be downsized. Clamped by the value the driver supports.");
 cvar_t gl_menutint_shader					= CVARD  ("gl_menutint_shader", "1", "Controls the use of GLSL to desaturate the background when drawing the menu, like quake's dos software renderer used to do before the ugly dithering of winquake.");
 
@@ -506,7 +510,7 @@ cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
-cvar_t r_fog_cullentities					= CVARD ("r_fog_cullentities", "1", "Automatically cull entities according to fog.");
+cvar_t r_fog_cullentities					= CVARD ("r_fog_cullentities", "1", "0: Never cull entities by fog...\n1: Automatically cull entities according to fog.\n2: Force fog culling regardless ");
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 cvar_t r_fog_permutation					= CVARFD ("r_fog_permutation", "1", CVAR_SHADERSYSTEM, "Renders fog using a material permutation. 0 plays nicer with q3 shaders, but 1 is otherwise a better choice.");
 
@@ -545,7 +549,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_immutable_textures, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_immutable_buffers, GLRENDEREROPTIONS);
-
+	Cvar_Register (&gl_pbolightmaps, GLRENDEREROPTIONS);
 //renderer
 
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
@@ -806,26 +810,9 @@ void Renderer_Init(void)
 #endif
 	Cvar_Register (&in_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
-	vid_renderer_opts.enginevalue = 
-#ifdef GLQUAKE
-		"gl \"OpenGL\" "
-#endif
-#ifdef VKQUAKE
-		"vk \"Vulkan\" "
-#endif
-#ifdef D3D8QUAKE
-//		"d3d8 \"Direct3D 8\" "
-#endif
-#ifdef D3D9QUAKE
-		"d3d9 \"Direct3D 9\" "
-#endif
-#ifdef D3D11QUAKE
-		"d3d11 \"Direct3D 11\" "
-#endif
-#ifdef SWQUAKE
-		"sw \"Software Rendering\" "
-#endif
-		"";
+
+	R_UpdateRendererOpts();
+
 	Cvar_Register (&vid_renderer_opts, VIDCOMMANDGROUP);
 
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
@@ -986,6 +973,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_speeds, SCREENOPTIONS);
 	Cvar_Register (&r_netgraph, SCREENOPTIONS);
 
+	Cvar_Register (&r_temporalscenecache, GRAPHICALNICETIES);
 	Cvar_Register (&r_dynamic, GRAPHICALNICETIES);
 	Cvar_Register (&r_lightmap_saturation, GRAPHICALNICETIES);
 
@@ -1006,6 +994,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_clear, GLRENDEREROPTIONS);
+	Cvar_Register (&r_clearcolour, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
@@ -1871,6 +1860,9 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 	Shader_DoReload();
 	CSQC_RendererRestarted();
 #endif
+#ifdef MENU_DAT
+	MP_RendererRestarted();
+#endif
 
 	if (newr && qrenderer != QR_NONE)
 	{
@@ -2335,12 +2327,35 @@ void R_SetRenderer_f (void)
 		R_RestartRenderer(&newr);
 }
 
+static void R_UpdateRendererOpts(void)
+{
+	char *v = NULL;
+	size_t i;
+	struct sortedrenderers_s sorted[countof(rendererinfo)];
+	for (i = 0; i < countof(sorted); i++)
+	{
+		sorted[i].index = i;
+		sorted[i].r = rendererinfo[i];
+		sorted[i].pri = R_PriorityForRenderer(sorted[i].r);
+	}
+	qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);
 
 
+	v = NULL;
+	for (i = 0; i < countof(rendererinfo); i++)
+	{
+		rendererinfo_t *r = sorted[i].r;
+		if (r && r->description)
+		{
+			if (r->rtype == QR_HEADLESS || r->rtype == QR_NONE)
+				continue;	//skip these, they're kinda dangerous.
+			Z_StrCat(&v, va("%s \"%s\" ", r->name[0], r->description));
+		}
+	}
 
-
-
-
+	Z_Free(vid_renderer_opts.enginevalue);
+	vid_renderer_opts.enginevalue = v;
+}
 
 
 
@@ -2552,6 +2567,7 @@ texture_t *R_TextureAnimation_Q2 (texture_t *base)
 unsigned int	r_viewcontents;
 //mleaf_t		*r_viewleaf, *r_oldviewleaf;
 //mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
+int r_viewarea;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
 mleaf_t		*r_vischain;		// linked list of visible leafs
@@ -3057,7 +3073,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 
 	//do far plane
 	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.globalfog.density && r_refdef.globalfog.alpha>=1 && (r_fog_cullentities.ival&&r_skyfog.value>=1) && !r_refdef.globalfog.depthbias)
+	if (r_refdef.globalfog.density && r_refdef.globalfog.alpha>=1 && (r_fog_cullentities.ival==2||(r_fog_cullentities.ival&&r_skyfog.value>=1)) && !r_refdef.globalfog.depthbias)
 	{
 		float culldist;
 		float fog;

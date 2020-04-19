@@ -31,6 +31,8 @@ line of sight checks trace->crosscontent, but bullets don't
 
 */
 
+#define SOLID_ISTRIGGER(solid) ((solid)==SOLID_TRIGGER||(solid)==SOLID_BSPTRIGGER||(solid)==SOLID_LADDER)
+
 size_t areagridsequence;	//used to avoid poking the same ent twice.
 
 extern cvar_t sv_compatiblehulls;
@@ -445,7 +447,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		if (touch == ent)
 			continue;
 
-		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
+		if (!touch->v->touch || !SOLID_ISTRIGGER(touch->v->solid))
 			continue;
 
 		if (ent->v->absmin[0] > touch->v->absmax[0]
@@ -469,7 +471,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		//make sure nothing moved it away
 		if (ED_ISFREE(touch))
 			continue;
-		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
+		if (!touch->v->touch || !SOLID_ISTRIGGER(touch->v->solid))
 			continue;
 
 		if (ent->v->absmin[0] > touch->v->absmax[0]
@@ -511,6 +513,7 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 {
 	vec_t *mins;
 	vec_t *maxs;
+	int solid;
 
 #ifdef USEAREAGRID
 	World_UnlinkEdict (ent);	// unlink from old position
@@ -549,7 +552,8 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 
 // set the abs box
-	if (ent->v->solid == SOLID_BSP && 
+	solid = ent->v->solid;
+	if ((solid == SOLID_BSP||solid == SOLID_BSPTRIGGER) &&
 	(ent->v->angles[0] || ent->v->angles[1] || ent->v->angles[2]) )
 	{	// expand for rotation
 #if 1
@@ -1186,7 +1190,7 @@ wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent)
 {
 	trace_t	trace;
 
-	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, ((ent->v->solid == SOLID_NOT || ent->v->solid == SOLID_TRIGGER)?MOVE_NOMONSTERS:0), ent);
+	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, ((ent->v->solid == SOLID_NOT || ent->v->solid == SOLID_TRIGGER || ent->v->solid == SOLID_BSPTRIGGER)?MOVE_NOMONSTERS:0), ent);
 	
 	if (trace.startsolid || trace.allsolid)
 		return trace.ent?trace.ent:w->edicts;
@@ -1268,7 +1272,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	framestate_t framestate;
 
 // get the clipping hull
-	if ((ent->v->solid == SOLID_BSP || ent->v->solid == SOLID_PORTAL) && mdlidx)
+	if ((ent->v->solid == SOLID_BSP || ent->v->solid == SOLID_BSPTRIGGER || ent->v->solid == SOLID_PORTAL) && mdlidx)
 	{
 		model = w->Get_CModel(w, mdlidx);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
@@ -1309,7 +1313,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			trace.startsolid = false;
 		hitmodel = false;
 	}
-	else if (ent->v->solid != SOLID_BSP)
+	else if (ent->v->solid != SOLID_BSP && ent->v->solid != SOLID_BSPTRIGGER)
 	{
 		eang[0]*=r_meshpitch.value;	//carmack made bsp models rotate wrongly.
 		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, eang, hitcontentsmask);
@@ -1408,7 +1412,7 @@ int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int
 			if (check->v->solid == SOLID_NOT)
 				continue;		// deactivated
 
-			if ((check->v->solid == SOLID_TRIGGER) != (areatype == AREA_TRIGGER))
+			if ((check->v->solid == SOLID_TRIGGER||check->v->solid == SOLID_BSPTRIGGER) != (areatype == AREA_TRIGGER))
 				continue;
 		}
 
@@ -1449,7 +1453,7 @@ int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int
 					if (check->v->solid == SOLID_NOT)
 						continue;		// deactivated
 
-					if ((check->v->solid == SOLID_TRIGGER) != (areatype == AREA_TRIGGER))
+					if ((check->v->solid == SOLID_TRIGGER||check->v->solid == SOLID_BSPTRIGGER) != (areatype == AREA_TRIGGER))
 						continue;
 				}
 
@@ -1500,7 +1504,7 @@ static void World_AreaEdicts_r (areanode_t *node)
 			continue;		// deactivated
 
 		/*q2 still has solid/trigger lists, emulate that here*/
-		if ((check->v->solid == SOLID_TRIGGER) != (area_type == AREA_TRIGGER))
+		if ((check->v->solid == SOLID_TRIGGER||check->v->solid == SOLID_BSPTRIGGER) != (area_type == AREA_TRIGGER))
 			continue;
 
 		if (check->v->absmin[0] > area_maxs[0]
@@ -1841,7 +1845,7 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 			continue;
 		if (touch->v->solid == SOLID_NOT && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
 			continue;
-		if (touch->v->solid == SOLID_TRIGGER && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+		if ((touch->v->solid == SOLID_TRIGGER||touch->v->solid == SOLID_BSPTRIGGER) && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
 			continue;
 
 		if (touch == clip->passedict)
@@ -1919,7 +1923,7 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 void World_TouchAllLinks (world_t *w, wedict_t *ent)
 {
 	wedict_t *touchedicts[2048], *touch;
-	int num;
+	int num, solid;
 	num = World_AreaEdicts(w, ent->v->absmin, ent->v->absmax, touchedicts, countof(touchedicts), AREA_TRIGGER);
 	while (num-- > 0)
 	{
@@ -1928,7 +1932,8 @@ void World_TouchAllLinks (world_t *w, wedict_t *ent)
 		//make sure nothing moved it away
 		if (ED_ISFREE(touch))
 			continue;
-		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
+		solid =touch->v->solid;
+		if (!touch->v->touch || (solid!= SOLID_TRIGGER && solid!= SOLID_BSPTRIGGER))
 			continue;
 		if (touch == ent)
 			continue;
@@ -1943,6 +1948,12 @@ void World_TouchAllLinks (world_t *w, wedict_t *ent)
 
 		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
 			continue;
+
+		if (solid == SOLID_BSPTRIGGER)
+		{
+			if (!World_ClipMoveToEntity(w, touch, touch->v->origin, touch->v->angles, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, 0, false, (ent->xv->geomtype == GEOMTYPE_CAPSULE), MASK_WORLDSOLID).startsolid)
+				continue;
+		}
 
 		w->Event_Touch(w, touch, ent, NULL);
 
@@ -1985,7 +1996,7 @@ static void World_ClipToLinks (world_t *w, areagridlink_t *node, moveclip_t *cli
 			continue;
 
 		/*if its a trigger, we only clip against it if the flags are aligned*/
-		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
+		if (SOLID_ISTRIGGER(touch->v->solid))
 		{
 			if (!(clip->type & MOVE_TRIGGERS))
 				continue;
@@ -2218,7 +2229,7 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			continue;
 
 		/*if its a trigger, we only clip against it if the flags are aligned*/
-		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
+		if (SOLID_ISTRIGGER(touch->v->solid))
 		{
 			if (!(clip->type & MOVE_TRIGGERS))
 				continue;
@@ -2351,7 +2362,7 @@ static unsigned int World_ContentsOfLinks (world_t *w, areanode_t *node, vec3_t 
 			continue;
 
 		/*if its a trigger, we only clip against it if the flags are aligned*/
-		if (touch->v->solid == SOLID_TRIGGER)
+		if (touch->v->solid == SOLID_TRIGGER||touch->v->solid == SOLID_BSPTRIGGER)
 			continue;
 
 		if (pos[0] > touch->v->absmax[0]
@@ -2723,7 +2734,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	}
 	else if (passedict->v->solid == SOLID_CORPSE)
 		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//corpses ignore corpses
-	else if (passedict->v->solid == SOLID_TRIGGER)
+	else if (passedict->v->solid == SOLID_TRIGGER||passedict->v->solid == SOLID_BSPTRIGGER)
 		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//triggers ignore corpses too, apparently
 	else
 		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY | FTECONTENTS_CORPSE; //regular projectiles.
@@ -2834,7 +2845,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 					continue;
 				if (touch == clip.passedict)
 					continue;
-				if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
+				if (SOLID_ISTRIGGER(touch->v->solid))
 				{
 					if (!(clip.type & MOVE_TRIGGERS))
 						continue;

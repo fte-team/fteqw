@@ -33,10 +33,15 @@ We also have no doppler with WebAudio.
 	//emscripten provides an openal -> webaudio wrapper. its not the best, but does get the job done.
 	#define OPENAL_STATIC		//our javascript port doesn't support dynamic linking  (bss+data segments get too messy).
 	#define SDRVNAME "WebAudio"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
-	qboolean firefoxstaticsounds;	//FireFox bugs out with static sounds. they all end up full volume AND THIS IS REALLY LOUD AND REALLY ANNOYING.
+	#define SDRVNAMEDESC "WebAudio:"
 #else
 	#define SDRVNAME "OpenAL"
+	#define SDRVNAMEDESC "OAL:"
 	#define USEEFX
+#endif
+#ifndef HAVE_MIXER
+	#undef SDRVNAMEDESC
+	#define SDRVNAMEDESC ""	//remove the prefixes in user-visible desciptions when there's (probably) no other devices anyway
 #endif
 
 #ifdef OPENAL_STATIC
@@ -1532,11 +1537,7 @@ static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver
 		devnames = palcGetString(NULL, ALC_DEVICE_SPECIFIER);
 	while(*devnames)
 	{
-#ifdef FTE_TARGET_WEB
-		callback(SDRVNAME, devnames, va("WebAudio:%s", devnames));
-#else
-		callback(SDRVNAME, devnames, va("OAL:%s", devnames));
-#endif
+		callback(SDRVNAME, devnames, va(SDRVNAMEDESC"%s", devnames));
 		devnames += strlen(devnames)+1;
 	}
 	return true;
@@ -1586,7 +1587,7 @@ static qboolean QDECL OPENAL_Capture_Enumerate (void (QDECL *callback) (const ch
 	devnames = palcGetString(NULL, ALC_CAPTURE_DEVICE_SPECIFIER);
 	while(*devnames)
 	{
-		callback(SDRVNAME, devnames, va("OAL:%s", devnames));
+		callback(SDRVNAME, devnames, va(SDRVNAMEDESC"%s", devnames));
 		devnames += strlen(devnames)+1;
 	}
 	return true;

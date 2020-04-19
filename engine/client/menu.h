@@ -121,7 +121,13 @@ void Menu_Unlink(menu_t *menu);
 void Menu_Push(menu_t *menu, qboolean prompt);
 menu_t *Menu_FindContext(void *ctx);
 
-void Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel);
+typedef enum
+{
+	PROMPT_YES		= 0,
+	PROMPT_NO		= 1,
+	PROMPT_CANCEL	= -1,
+} promptbutton_t;
+void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel);
 
 #ifndef NOBUILTINMENUS
 
@@ -491,6 +497,7 @@ void MP_CvarChanged(cvar_t *var);
 qboolean MP_Init (void);
 void MP_Shutdown (void);
 qboolean MP_Toggle(int mode);
+void MP_RendererRestarted(void);
 void MP_Draw(void);
 qboolean MP_UsingGamecodeLoadingScreen(void);
 void MP_RegisterCvarsAndCmds(void);

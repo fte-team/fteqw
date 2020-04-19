@@ -755,10 +755,10 @@ struct certprompt_s
 	qbyte cert[1];
 };
 static struct certprompt_s *certlog_curprompt;
-static void CertLog_Add_Prompted(void *vctx, int button)
+static void CertLog_Add_Prompted(void *vctx, promptbutton_t button)
 {
 	struct certprompt_s *ctx = vctx;
-	if (button == 0)	//button_yes / button_left
+	if (button == PROMPT_YES)	//button_yes / button_left
 	{
 		CertLog_Update(ctx->hostname, ctx->cert, ctx->certsize);
 		CertLog_Write();

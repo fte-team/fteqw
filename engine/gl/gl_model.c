@@ -3413,7 +3413,9 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 			else if (!strncmp(extfmt, "RGBA", 4))	newfmt = PTI_RGBA8;				//32bpp, we don't normally need this alpha precision (padding can be handy though, for the lazy).
 			else if (!strncmp(extfmt, "RGB", 4))	newfmt = PTI_RGB8;				//24bpp
 			else if (!strncmp(extfmt, "565", 4))	newfmt = PTI_RGB565;			//16bpp
+			else if (!strncmp(extfmt, "4444", 4))	newfmt = PTI_RGBA4444;			//16bpp
 			else if (!strncmp(extfmt, "5551", 4))	newfmt = PTI_RGBA5551;			//16bpp
+			else if (!strncmp(extfmt, "LUM8", 4))	newfmt = PTI_L8;			//8bpp
 			else if (!strncmp(extfmt, "EXP5", 4))	newfmt = PTI_E5BGR9;			//32bpp, we don't normally need this alpha precision...
 			else if (!strncmp(extfmt, "BC1", 4))	newfmt = PTI_BC1_RGBA;			//4bpp
 			else if (!strncmp(extfmt, "BC2", 4))	newfmt = PTI_BC2_RGBA;			//8bpp, we don't normally need this alpha precision...
@@ -5482,6 +5484,10 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 //
 // set up the submodels (FIXME: this is confusing)
 //
+
+	for (j=0 ; j<2 ; j++)
+		Q1BSP_CheckHullNodes(&mod->hulls[j]);
+
 	for (i=0, submod = mod; i<mod->numsubmodels ; i++)
 	{
 		bm = &mod->submodels[i];
@@ -5489,7 +5495,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		submod->rootnode = submod->nodes + bm->headnode[0];
 		submod->hulls[0].firstclipnode = bm->headnode[0];
 		submod->hulls[0].available = true;
-		Q1BSP_CheckHullNodes(&submod->hulls[0]);
+//		Q1BSP_CheckHullNodes(&submod->hulls[0]);
 
 TRACE(("LoadBrushModel %i\n", __LINE__));
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
@@ -5501,8 +5507,8 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			if (submod->hulls[j].firstclipnode > submod->hulls[j].lastclipnode)
 				submod->hulls[j].available = false;
 
-			if (submod->hulls[j].available)
-				Q1BSP_CheckHullNodes(&submod->hulls[j]);
+//			if (submod->hulls[j].available)
+//				Q1BSP_CheckHullNodes(&submod->hulls[j]);
 		}
 
 		if (mod->fromgame == fg_halflife && i)

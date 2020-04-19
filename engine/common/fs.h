@@ -78,9 +78,18 @@ unsigned int PM_MarkUpdates (void);	//mark new/updated packages as needing insta
 void PM_ApplyChanges(void);	//for -install/-doinstall args
 void PM_ManifestPackage(const char *name, int security);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
+void PM_AddManifestPackages(ftemanifest_t *man);
 void Menu_Download_Update(void);
 
 int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr);
+
+struct modlist_s
+{
+	ftemanifest_t *manifest;
+	char *gamedir;
+	char *description;
+};
+struct modlist_s *Mods_GetMod(size_t diridx);
 
 #define SPF_REFERENCED		1	//something has been loaded from this path. should filter out client references...
 #define SPF_COPYPROTECTED	2	//downloads are not allowed fom here.

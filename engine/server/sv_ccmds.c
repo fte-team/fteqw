@@ -36,6 +36,9 @@ qboolean SV_MayCheat(void)
 	return sv_allow_cheats!=0;
 }
 
+#ifdef SUBSERVERS
+cvar_t sv_autooffload = CVARD("sv_autooffload", "0", "Automatically start the server in a separate process, so that sporadic or persistent gamecode slowdowns do not affect visual framerates. Note: Offloaded servers have separate cvar states which may complicate usage.");
+#endif
 extern cvar_t cl_warncmd;
 cvar_t sv_cheats = CVARF("sv_cheats", "0", CVAR_LATCH);
 	extern		redirect_t	sv_redirected;
@@ -557,6 +560,12 @@ void SV_Map_f (void)
 	}
 #endif
 
+#ifdef SUBSERVERS
+	//disconnect first if you want to stop your current server getting the command instead.
+	if (sv.state == ss_clustermode && MSV_ForwardToAutoServer())
+		return;
+#endif
+
 	if (!Q_strcasecmp(Cmd_Argv(0), "map_restart"))
 	{
 		const char *arg = Cmd_Argv(1);
@@ -754,12 +763,20 @@ void SV_Map_f (void)
 				SCR_SetLoadingStage(LS_NONE);
 #endif
 
-				if (SSV_IsSubServer())
+				if (SSV_IsSubServer() && !sv.state)	//subservers don't leave defunct servers with no maps lying around.
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				return;
 			}
 		}
 	}
+
+#ifdef SUBSERVERS
+	if (!isDedicated && sv_autooffload.ival && !sv.state && !SSV_IsSubServer() && !strcmp(Cmd_Argv(0), "map") && Cmd_Argc()==2)
+	{
+		Cmd_ExecuteString(va("mapcluster \"%s\"", Cmd_Argv(1)), Cmd_ExecLevel);
+		return;
+	}
+#endif
 
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)
@@ -914,7 +931,7 @@ void SV_Map_f (void)
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
-		SV_SpawnServer (level, startspot, false, cinematic);
+		SV_SpawnServer (level, startspot, false, cinematic, 0);
 	}
 	SCR_SetLoadingFile("server spawned");
 
@@ -3181,6 +3198,9 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("download", SV_Download_f);
 	}
 
+#ifdef SUBSERVERS
+	Cvar_Register(&sv_autooffload, "server control variables");
+#endif
 	Cvar_Register(&sv_cheats, "Server Permissions");
 	if (COM_CheckParm ("-cheats"))
 	{

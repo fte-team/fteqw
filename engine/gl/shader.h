@@ -857,7 +857,7 @@ void GLBE_SubmitBatch(batch_t *batch);
 batch_t *GLBE_GetTempBatch(void);
 void GLBE_GenBrushModelVBO(model_t *mod);
 void GLBE_ClearVBO(vbo_t *vbo, qboolean dataonly);
-void GLBE_UploadAllLightmaps(void);
+void GLBE_UpdateLightmaps(void);
 void GLBE_DrawWorld (batch_t **worldbatches);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);

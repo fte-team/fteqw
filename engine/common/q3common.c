@@ -193,6 +193,8 @@ void VM_fcloseall (int owner)
 
 
 
+//filesystem searches result in a tightly-packed blob of null-terminated filenames (along with a count for how many entries)
+//$modlist searches give both gamedir AND description strings (in that order) instead of just one string per entry (loaded via fs_game cvar along with a vid_restart).
 typedef struct {
 	char *initialbuffer;
 	char *buffer;

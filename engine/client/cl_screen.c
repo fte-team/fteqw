@@ -755,16 +755,12 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
-		int px, py, pw;
-		px = rect->x;
-		py = (     y * vid.height) / (float)vid.pixelheight;
-		pw = rect->width+8;
 		Font_EndString(font);
 
 		if (*p->titleimage)
 			R2D_ScalePic (rect->x + ((int)rect->width - pic->width)/2, rect->y + ((int)rect->height - pic->height)/2, pic->width, pic->height, pic);
 		else
-			Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
+			Draw_ApproxTextBox(rect->x, (y * vid.height) / (float)vid.pixelheight, rect->width, linecount*Font_CharVHeight(font));
 
 		Font_BeginString(font, rect->x, y, &left, &top);
 	}
@@ -913,7 +909,9 @@ int R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int d
 	cprint_t p;
 	vrect_t r;
 	conchar_t buffer[16384];	//FIXME: make dynamic.
+	int lines;
 
+	p.cursorchar = NULL;
 	p.string = buffer;
 	p.stringbytes = sizeof(buffer);
 	r.x = x;
@@ -927,7 +925,11 @@ int R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int d
 	p.time_start = cl.time;
 	*p.titleimage = 0;
 
-	return SCR_DrawCenterString(&r, &p, font);
+
+	lines = SCR_DrawCenterString(&r, &p, font);
+
+//	SCR_CopyCenterPrint(&p);
+	return lines;
 }
 
 qboolean SCR_HardwareCursorIsActive(void)

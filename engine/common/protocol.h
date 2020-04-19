@@ -363,14 +363,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 enum clustercmdops_e
 {
 	ccmd_bad = 0,			//abort!
-	ccmd_stuffcmd = 1,		//regular ol stuffcmd
+	ccmd_stuffcmd,		//regular ol stuffcmd
 			//string concommand
-	ccmd_print = 2,
+	ccmd_setcvar,		//master->server to order a cvar change.
+	ccmd_print,
 			//string message
 	ccmd_acceptserver,
 			//serverid
 	ccmd_lostplayer,	//player dropped/timed out
 			//long plid
+	ccmd_foundplayer,	//server->master, saying that a player tried to connect directly (and we need their info)
+			//string name
+			//string clientaddress
+			//string guid
 	ccmd_takeplayer,	//master->server, saying to allocate a slot for a player.
 			//long plid
 			//long fromsvid (0=no reply needed)

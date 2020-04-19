@@ -415,29 +415,43 @@ void M_Restart_f(void)
 typedef struct
 {
 	menu_t m;
-	void (*callback)(void *, int);
+	void (*callback)(void *, promptbutton_t);
 	void *ctx;
 
 	int lines;
 	const char *messages;
 	const char *buttons[3];
 	int kbutton, mbutton;
+	qboolean mousedown;
 } promptmenu_t;
 static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned int devid, int key, int unicode)
 {
 	promptmenu_t *m = (promptmenu_t*)gm;
-	int action;
-	void (*callback)(void *, int) = m->callback;
+	promptbutton_t action;
+	void (*callback)(void *, promptbutton_t) = m->callback;
 	void *ctx = m->ctx;
 	extern qboolean keydown[];
 
-	if ((!isdown) != (key==K_MOUSE1))
-		return false;	//don't care about releases, unless mouse1.
+	if (key == K_MOUSE1)
+	{	//mouse events fire their action on release.
+		if (isdown)
+		{
+			m->mousedown = true;	//so we don't respond to stray release events.
+			return true;
+		}
+		else if (!m->mousedown)
+			return false;			//looks like a stray release event. ignore it.
+	}
+	else
+	{	//keyboard events fire on press.
+		if (!isdown)
+			return false;
+	}
 
 	if (key == 'n' || key == 'N')
-		action = 1;
+		action = PROMPT_NO;
 	else if (key == 'y' || key == 'Y')
-		action = 0;
+		action = PROMPT_YES;
 	else if (key==K_RIGHTARROW || key==K_GP_DPAD_RIGHT || key==K_DOWNARROW || key==K_GP_DPAD_DOWN || (key == K_TAB && !keydown[K_LSHIFT] && !keydown[K_RSHIFT]))
 	{
 		for(;;)
@@ -463,18 +477,29 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		return true;
 	}
 	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
-		action = -1;
+		action = PROMPT_CANCEL;
 	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_GP_A)
 	{
+		int button;
 		if (key == K_MOUSE1)
-			action = m->mbutton;
+			button = m->mbutton;
 		else
-			action = m->kbutton;
+			button = m->kbutton;
 
-		if (action == -1)	//nothing focused
-			return false;
-		if (action == 2)	//convert buttons to actions...
-			action = -1;
+		switch(button)
+		{
+		case 0:
+			action = PROMPT_YES;
+			break;
+		case 1:
+			action = PROMPT_NO;
+			break;
+		case 2:
+			action = PROMPT_CANCEL;
+			break;
+		default:
+			return false;	//nothing focused.
+		}
 	}
 	else
 		return false; // no idea what that is
@@ -491,28 +516,29 @@ static void Prompt_Draw(struct menu_s *g)
 	promptmenu_t *m = (promptmenu_t*)g;
 	int x = 64;
 	int y = 76;
-	int w = 224;
-	int h = m->lines*8+16;
+	float scale = Font_CharVHeight(font_console);
+	int w = 224*scale/8;
+	int h = (m->lines+3)*scale;
 	int i;
 	const char *msg = m->messages;
 	int bx[4];
 
 	x = ((vid.width-w)>>1);
 
-	Draw_TextBox(x-8, y, w/8, h/8);
-	y+=8;
+	Draw_ApproxTextBox(x, y, w, h);
+	y+=scale;
 	for (i = 0; i < m->lines; i++, msg = msg+strlen(msg)+1)
 	{
-		Draw_FunStringWidth(x, y, msg, w, 2, false);
-		y+=8;
+		Draw_FunStringWidthFont(font_console, x, y, msg, w, 2, false);
+		y+=scale;
 	}
-	y+=8;
+	y+=scale;
 	m->mbutton = -1;
 	bx[0] = x;
 	bx[1] = x+w/3;
 	bx[2] = x+w-w/3;
 	bx[3] = x+w;
-	if (mousecursor_y >= y && mousecursor_y <= y+8)
+	if (mousecursor_y >= y && mousecursor_y <= y+scale)
 	{
 		for (i = 0; i < 3; i++)
 		{
@@ -528,25 +554,25 @@ static void Prompt_Draw(struct menu_s *g)
 			{
 				float alphamax = 0.5, alphamin = 0.2;
 				R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
-				R2D_FillBlock(bx[i], y, bx[i+1]-bx[i], 8);
+				R2D_FillBlock(bx[i], y, bx[i+1]-bx[i], scale);
 				R2D_ImageColours(1,1,1,1);
 			}
-			Draw_FunStringWidth(bx[i], y, m->buttons[i], bx[i+1]-bx[i], 2, m->kbutton==i);
+			Draw_FunStringWidthFont(font_console, bx[i], y, m->buttons[i], bx[i+1]-bx[i], 2, m->kbutton==i);
 		}
 	}
 }
 static void Prompt_Release(struct menu_s *gm)
 {
 	promptmenu_t *m = (promptmenu_t*)gm;
-	void (*callback)(void *, int) = m->callback;
+	void (*callback)(void *, promptbutton_t) = m->callback;
 	void *ctx = m->ctx;
 	m->callback = NULL;
 
 	if (callback)
-		callback(ctx, -1);
+		callback(ctx, PROMPT_CANCEL);
 	Z_Free(m);
 }
-void Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel)
+void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel)
 {
 	promptmenu_t *m;
 	char *t;
@@ -1150,20 +1176,20 @@ static char *quitMessage [] =
 	NULL };*/
 
 void Cmd_WriteConfig_f(void);
-static void M_Menu_DoQuit(void *ctx, int option)
+static void M_Menu_DoQuit(void *ctx, promptbutton_t option)
 {
-	if (option == 0)	//'yes - quit'
+	if (option == PROMPT_YES)	//'yes - quit'
 		Cmd_ExecuteString("menu_quit force\n", RESTRICT_LOCAL);
-//	else if (option == 1)	//'no - don't quit'
-//	else if (option == -1)	//'cancel - don't quit'
+//	else if (option == PROMPT_NO)	//'no - don't quit'
+//	else if (option == PROMPT_CANCEL)	//'cancel - don't quit'
 }
-static void M_Menu_DoQuitSave(void *ctx, int option)
+static void M_Menu_DoQuitSave(void *ctx, promptbutton_t option)
 {
-	if (option == 0)	//'yes - save-and-quit'
+	if (option == PROMPT_YES)	//'yes - save-and-quit'
 		Cmd_ExecuteString("menu_quit forcesave\n", RESTRICT_LOCAL);
-	else if (option == 1)	//'no - nosave-and-quit'
+	else if (option == PROMPT_NO)	//'no - nosave-and-quit'
 		Cmd_ExecuteString("menu_quit force\n", RESTRICT_LOCAL);
-//	else if (option == -1)	//'cancel - don't quit'
+//	else if (option == PROMPT_CANCEL)	//'cancel - don't quit'
 }
 
 //quit menu

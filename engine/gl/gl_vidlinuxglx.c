@@ -4447,7 +4447,7 @@ rendererinfo_t eglrendererinfo =
 	GLBE_Init,
 	GLBE_GenBrushModelVBO,
 	GLBE_ClearVBO,
-	GLBE_UploadAllLightmaps,
+	GLBE_UpdateLightmaps,
 	GLBE_SelectEntity,
 	GLBE_SelectDLight,
 	GLBE_Scissor,

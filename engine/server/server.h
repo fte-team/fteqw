@@ -618,8 +618,8 @@ typedef struct client_s
 
 	//true/false/persist
 	unsigned int	penalties;
-	qbyte			istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
-	qboolean		spawned;		//the player's entity was spawned.
+	qbyte			istobeloaded;	//spawnparms are known.
+	qboolean		spawned;		//gamecode knows about it.
 
 	double			floodprotmessage;
 	double			lastspoke;
@@ -1227,6 +1227,10 @@ typedef struct pubsubserver_s
 	netadr_t addrv4;
 	netadr_t addrv6;
 	char printtext[4096]; //to split it into lines.
+	qboolean started;
+#ifdef HAVE_CLIENT
+	console_t *console;
+#endif
 } pubsubserver_t;
 extern qboolean isClusterSlave;
 void SSV_UpdateAddresses(void);
@@ -1245,11 +1249,11 @@ void Sys_InstructMaster(sizebuf_t *cmd);	//first two bytes will always be the le
 
 
 void MSV_SubServerCommand_f(void);
-void MSV_SubServerCommand_f(void);
 void MSV_MapCluster_f(void);
 void SSV_Send(const char *dest, const char *src, const char *cmd, const char *msg);
 qboolean MSV_ClusterLogin(svconnectinfo_t *info);
 void MSV_PollSlaves(void);
+qboolean MSV_ForwardToAutoServer(void);	//forwards console command to a default subserver. ie: whichever one our client is on.
 void MSV_Status(void);
 void MSV_OpenUserDatabase(void);
 #else
@@ -1257,12 +1261,14 @@ void MSV_OpenUserDatabase(void);
 #define MSV_ClusterLogin(info) false
 #define SSV_IsSubServer() false
 #define MSV_OpenUserDatabase()
+#define MSV_PollSlaves() false
+#define MSV_ForwardToAutoServer() false
 #endif
 
 //
 // sv_init.c
 //
-void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic);
+void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic, int playerslots);
 void SV_UnspawnServer (void);
 void SV_FlushSignon (qboolean force);
 void SV_UpdateMaxPlayers(int newmax);
@@ -1356,7 +1362,8 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf);
 #endif
 
 void SV_ClientThink (void);
-void SV_Begin_Core(client_t *split);
+void SV_Begin_Core(client_t *split);	//sets up the player's gamecode state
+void SV_DespawnClient(client_t *cl);	//shuts down the gamecode state.
 
 void VoteFlushAll(void);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent);
@@ -1651,6 +1658,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 
 // savegame.c
 void SV_Savegame_f (void);
+void SV_DeleteSavegame_f (void);
 void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void SV_Loadgame_f (void);
 qboolean SV_Loadgame (const char *unsafe_savename);

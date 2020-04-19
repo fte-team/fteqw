@@ -1365,7 +1365,7 @@ void R_Clear (qboolean fbo)
 {
 	/*tbh, this entire function should be in the backend*/
 	{
-		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);	//FIXME: breaks backend!
 		if (!depthcleared || fbo)
 		{
 			GL_ForceDepthWritable();

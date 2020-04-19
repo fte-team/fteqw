@@ -80,6 +80,7 @@ void SCR_ShowPic_Remove_f(void);
 
 //a header is better than none...
 void Draw_TextBox (int x, int y, int width, int lines);
+void Draw_ApproxTextBox (float x, float y, float width, float height);
 enum fs_relative;
 
 

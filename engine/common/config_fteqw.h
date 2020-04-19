@@ -181,7 +181,7 @@
 // Features required by vanilla quake/quakeworld...
 //#define QUAKETC
 #define QUAKESTATS				//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.
-#define QUAKEHUD				//support for drawing the vanilla hud.
+#define QUAKEHUD				//support for drawing the vanilla hud. disable this if you're always going to be using csqc (or equivelent)
 #define QWSKINS					//disabling this means no qw .pcx skins nor enemy/team skin/colour forcing
 //#define NOBUILTINMENUS
 //#define NOLEGACY				//just spike trying to kill off crappy crap...

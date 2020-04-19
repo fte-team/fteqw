@@ -232,6 +232,11 @@ console_t *Con_FindConsole(const char *name)
 console_t *Con_Create(const char *name, unsigned int flags)
 {
 	console_t *con, *p;
+	if (!name)
+	{
+		static unsigned long seq;
+		name = va("c%lu", seq++);
+	}
 	if (!strcmp(name, "current"))
 		return NULL;
 	if (!strcmp(name, "head"))
@@ -532,7 +537,7 @@ void QT_Create(char *command)
 void Con_QTerm_f(void)
 {
 	if(Cmd_IsInsecure())
-		Con_Printf("Server tried stuffcmding a restricted commandqterm %s\n", Cmd_Args());
+		Con_Printf("Server tried stuffcmding a restricted command: qterm %s\n", Cmd_Args());
 	else
 		QT_Create(Cmd_Args());
 }

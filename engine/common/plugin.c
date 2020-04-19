@@ -1962,6 +1962,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		static rbeplugfuncs_t funcs =
 		{
 			RBEPLUGFUNCS_VERSION,
+			sizeof(wedict_t),
 
 			World_RegisterPhysicsEngine,
 			World_UnregisterPhysicsEngine,

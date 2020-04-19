@@ -746,11 +746,11 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		return false;
 	}
 
-	if (info.format == 1 && info.width == 1)
+	if (info.format == 1 && info.width == 1)	//unsigned bytes
 		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
-	else if (info.format == 1 && info.width == 2)
+	else if (info.format == 1 && info.width == 2)	//signed shorts
 		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
-	else if (info.format == 3 && info.width == 4)
+	else if (info.format == 3 && info.width == 4)	//signed floats
 	{
 		S_ShortedLittleFloats(data + info.dataofs, info.samples*info.numchannels);
 		info.width = 2;
@@ -760,11 +760,12 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		s->loadstate = SLS_FAILED;
 		switch(info.format)
 		{
-		case 1:
-		case 3:		Con_Printf ("%s has an unsupported width (%i bits).\n", s->name, info.width*8); break;
-		case 6:		Con_Printf ("%s uses unsupported a-law format.\n", s->name); break;
-		case 7:		Con_Printf ("%s uses unsupported mu-law format.\n", s->name); break;
-		default:	Con_Printf ("%s has an unsupported format.\n", s->name); break;
+		case 1/*WAVE_FORMAT_PCM*/:
+		case 3/*WAVE_FORMAT_IEEE_FLOAT*/:		Con_Printf ("%s has an unsupported width (%i bits).\n", s->name, info.width*8); break;
+		case 6/*WAVE_FORMAT_ALAW*/:				Con_Printf ("%s uses unsupported a-law format.\n", s->name); break;
+		case 7/*WAVE_FORMAT_MULAW*/:			Con_Printf ("%s uses unsupported mu-law format.\n", s->name); break;
+		case 0xfffe/*WAVE_FORMAT_EXTENSIBLE*/:
+		default:								Con_Printf ("%s has an unsupported format (%#x).\n", s->name, info.format); break;
 		}
 		return false;
 	}

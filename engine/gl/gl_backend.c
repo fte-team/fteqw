@@ -1021,48 +1021,6 @@ void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 	}*/
 }
 
-static void RevertToKnownState(void)
-{
-	if (shaderstate.currentvao)
-		qglBindVertexArray(0);
-	shaderstate.currentvao = 0;
-	shaderstate.curvertexvbo = ~0;
-	GL_SelectVBO(0);
-//	GL_SelectEBO(0);
-
-	while(shaderstate.lastpasstmus>0)
-	{
-		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
-	}
-	GL_SelectTexture(0);
-
-#ifndef GLSLONLY
-	if (!gl_config_nofixedfunc)
-	{
-		BE_SetPassBlendMode(0, PBM_REPLACE);
-		qglColor4f(1,1,1,1);
-
-		GL_DeSelectProgram();
-	}
-#endif
-
-	shaderstate.shaderbits &= ~(SBITS_DEPTHFUNC_BITS|SBITS_MASK_BITS|SBITS_AFFINE);
-	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
-
-	shaderstate.shaderbits &= ~(SBITS_BLEND_BITS);
-	qglDisable(GL_BLEND);
-
-	qglDepthFunc(GL_LEQUAL);
-	qglDepthMask(GL_TRUE);
-
-	qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-}
-
-void PPL_RevertToKnownState(void)
-{
-	RevertToKnownState();
-}
-
 #ifdef RTLIGHTS
 void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale)
 {
@@ -5552,7 +5510,7 @@ void GLBE_SubmitMeshes (batch_t **worldbatches, int start, int stop)
 	}
 }
 
-static void BE_UpdateLightmaps(void)
+void GLBE_UpdateLightmaps(void)
 {
 	lightmapinfo_t *lm;
 	int lmidx;
@@ -5580,7 +5538,20 @@ static void BE_UpdateLightmaps(void)
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lm->fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type,	lm->lightmaps);
+				if (qglTexStorage2D && gl_config.formatinfo[lm->fmt].sizedformat)
+				{
+					qglTexStorage2D(GL_TEXTURE_2D, 1, gl_config.formatinfo[lm->fmt].sizedformat, lm->width, lm->height);
+					if (lm->pbo_handle)
+					{
+						qglBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, lm->pbo_handle);
+						qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, (char*)NULL + t*lm->width*lm->pixbytes);
+						qglBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+					}
+					else
+						qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, lm->lightmaps+t*lm->width*lm->pixbytes);
+				}
+				else
+					qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lm->fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type,	lm->lightmaps);
 
 				if (gl_config.glversion >= (gl_config.gles?3.0:3.3))
 				{
@@ -5593,7 +5564,14 @@ static void BE_UpdateLightmaps(void)
 			else
 			{
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, lm->lightmaps+t*lm->width*lm->pixbytes);
+				if (lm->pbo_handle)
+				{
+					qglBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, lm->pbo_handle);
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, (char*)NULL + t*lm->width*lm->pixbytes);
+					qglBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+				}
+				else
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type, lm->lightmaps+t*lm->width*lm->pixbytes);
 			}
 			lm->modified = false;
 			lm->rectchange.l = lm->width;
@@ -5651,10 +5629,7 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 		shaderstate.tex_sourcecol = R2D_RT_GetTexture(r_refdef.rt_sourcecolour.texname, &width, &height);
 		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
 
-		if (*r_refdef.nearenvmap.texname)
-			shaderstate.tex_reflectcube = Image_GetTexture(r_refdef.nearenvmap.texname, NULL, IF_TEXTYPE_CUBE, NULL, NULL, 0, 0, TF_INVALID);
-		else
-			shaderstate.tex_reflectcube = r_nulltex;
+		shaderstate.tex_reflectcube = R_GetDefaultEnvmap();
 	}
 }
 void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth)
@@ -6301,7 +6276,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 //	else
 //		shaderstate.updatetime = cl.servertime;
 
-	BE_UpdateLightmaps();
+	GLBE_UpdateLightmaps();
 	if (worldbatches)
 	{
 		if (worldbatches[SHADER_SORT_SKY] && r_refdef.skyroom_enabled)

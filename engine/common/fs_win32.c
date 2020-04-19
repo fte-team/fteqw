@@ -657,6 +657,8 @@ static qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *f
 	if (fs_readonly)
 		return false;
 	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
+	if (*filename && filename[strlen(filename)-1] == '/')
+		return Sys_rmdir(syspath);
 	return Sys_remove(syspath);
 }
 

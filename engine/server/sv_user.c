@@ -1890,7 +1890,7 @@ void SVQW_Spawn_f (void)
 		{
 			ent = split->edict;
 
-			if (split->istobeloaded)	//minimal setup
+			if (split->spawned)	//minimal setup
 			{
 				split->entgravity = ent->xv->gravity;
 				split->maxspeed = ent->xv->maxspeed;
@@ -1984,6 +1984,62 @@ void SV_SpawnSpectator (void)
 	}
 }
 
+void SV_DespawnClient(client_t *cl)
+{	//this disconnects the client from its entity state
+	if (!cl->spawned)
+		return;	//nothing to do.
+	cl->spawned = false;
+
+#ifdef Q2SERVER
+	if (ge)
+	{
+		ge->ClientDisconnect(cl->q2edict);
+		return;
+	}
+#endif
+
+
+	if (svprogfuncs)
+	{
+		if (host_initialized)
+		{
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+			{
+				Q1QVM_DropClient(cl);
+			}
+			else
+#endif
+			{
+				if (!cl->spectator)
+				{
+				// call the prog function for removing a client
+				// this will set the body to a dead frame, among other things
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+					if (pr_global_ptrs->ClientDisconnect)
+						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+					sv.spawned_client_slots--;
+				}
+				else
+				{
+					// call the prog function for removing a client
+					// this will set the body to a dead frame, among other things
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+					if (SpectatorDisconnect)
+						PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+					sv.spawned_observer_slots--;
+				}
+			}
+
+			if (progstype == PROG_NQ)
+				ED_Clear(svprogfuncs, cl->edict);
+		}
+
+		if (svprogfuncs && cl->edict && cl->edict->v)
+			cl->edict->v->frags = 0;
+	}
+}
+
 void SV_Begin_Core(client_t *split)
 {	//this is the client-protocol-independant core, for q1/q2 gamecode
 	client_t	*oh;
@@ -1993,7 +2049,28 @@ void SV_Begin_Core(client_t *split)
 #endif
 
 	if (split->spawned)
+	{
+		//NEH_RESTOREGAME
+		//officially RestoreGame tells the mod when the game has been loaded.
+		//this allows mods to send any stuffcmds the client will have forgotten.
+		//the original intention would not have been client-specific (and indeed nehahra only saves in singleplayer)
+		//doing it elsewhere unfortunately results in race conditions.
+		func_t f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
+		if (f)
+		{
+			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+			PR_ExecuteProgram (svprogfuncs, f);
+		}
+
+		ClientReliableWrite_Begin(split, svc_setangle, 8);
+		if (host_client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
+			ClientReliableWrite_Byte (host_client, 0);
+		ClientReliableWrite_Angle (host_client, split->edict->v->v_angle[0]);
+		ClientReliableWrite_Angle (host_client, split->edict->v->v_angle[1]);
+		ClientReliableWrite_Angle (host_client, 0);	//roll angle is messy with cl_roll. we don't want to be stuck rolling.
 		return;
+	}
 	split->spawned = true;
 
 #ifdef Q2SERVER
@@ -2010,20 +2087,6 @@ void SV_Begin_Core(client_t *split)
 	}
 	else
 #endif
-	if (split->istobeloaded)
-	{
-		func_t f;
-		split->istobeloaded = false;
-
-		f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
-		if (f)
-		{
-			pr_global_struct->time = sv.world.physicstime;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-			PR_ExecuteProgram (svprogfuncs, f);
-		}
-	}
-	else
 	{
 #ifdef HAVE_LEGACY
 		split->edict->xv->clientcolors = split->playercolor;
@@ -5349,17 +5412,7 @@ void Cmd_Join_f (void)
 		if (!host_client->spectator)
 			continue;
 
-		// call the prog function for removing a client
-		// this will set the body to a dead frame, among other things
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_DropClient(host_client);
-		else
-#endif
-			if (SpectatorDisconnect)
-			PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
-		sv.spawned_observer_slots--;
+		SV_DespawnClient(host_client);
 
 		SV_SetUpClientEdict (host_client, host_client->edict);
 
@@ -5483,18 +5536,8 @@ void Cmd_Observe_f (void)
 		if (host_client->spectator)
 			continue;
 
-		// call the prog function for removing a client
-		// this will set the body to a dead frame, among other things
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_DropClient(host_client);
-		else
-#endif
-		{
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
-		}
-		sv.spawned_client_slots--;
+		SV_DespawnClient(host_client);
+
 
 		SV_SetUpClientEdict (host_client, host_client->edict);
 
@@ -5630,9 +5673,10 @@ void SV_EnableClientsCSQC(void)
 	host_client->csqcactive = true;
 
 	//if the csqc has just restarted, its probably going to want us to resend all csqc ents from scratch because of all the setup it might do.
-	for (e = 1; e < host_client->max_net_ents; e++)
-		if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
-			host_client->pendingcsqcbits[e] |= SENDFLAGS_USABLE;
+	if (host_client->pendingcsqcbits)
+		for (e = 1; e < host_client->max_net_ents; e++)
+			if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
+				host_client->pendingcsqcbits[e] |= SENDFLAGS_USABLE;
 }
 void SV_DisableClientsCSQC(void)
 {
@@ -6603,7 +6647,7 @@ static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 		pe->forcecontentsmask = 0;
 		break;
 	}
-	if (solid == SOLID_PORTAL || solid == SOLID_BSP)
+	if (solid == SOLID_PORTAL || solid == SOLID_BSP || solid == SOLID_BSPTRIGGER)
 	{
 		if(progstype != PROG_H2)
 			pe->angles[0]*=r_meshpitch.value;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
@@ -8099,8 +8143,16 @@ void SV_ExecuteClientMessage (client_t *cl)
 #endif
 		case clcdp_ackframe:
 			cl->delta_sequence = MSG_ReadLong();
-			if (cl->delta_sequence == -1 && cl->pendingdeltabits)
-				cl->pendingdeltabits[0] = UF_REMOVE;
+			if (cl->delta_sequence == -1)
+			{
+				unsigned int e;
+				if (cl->pendingdeltabits)
+					cl->pendingdeltabits[0] = UF_REMOVE;
+				if (host_client->pendingcsqcbits)
+					for (e = 1; e < host_client->max_net_ents; e++)
+						if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
+							host_client->pendingcsqcbits[e] |= SENDFLAGS_USABLE;
+			}
 			SV_AckEntityFrame(cl, cl->delta_sequence);
 			break;
 		}
@@ -8617,8 +8669,16 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 		case clcdp_ackframe:
 			cl->delta_sequence = MSG_ReadLong();
-			if (cl->delta_sequence == -1 && cl->pendingdeltabits)
-				cl->pendingdeltabits[0] = UF_REMOVE;
+			if (cl->delta_sequence == -1)
+			{
+				unsigned int e;
+				if (cl->pendingdeltabits)
+					cl->pendingdeltabits[0] = UF_REMOVE;
+				if (host_client->pendingcsqcbits)
+					for (e = 1; e < host_client->max_net_ents; e++)
+						if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
+							host_client->pendingcsqcbits[e] |= SENDFLAGS_USABLE;
+			}
 			SV_AckEntityFrame(cl, cl->delta_sequence);
 //			if (cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].sequence == cl->delta_sequence)
 //				if (cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].ping_time < 0)

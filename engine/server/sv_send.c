@@ -1457,13 +1457,14 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags)
 {
 	edict_t *entity = (edict_t*)wentity;
-	int i;
+	int i, solid;
 	vec3_t originbuf;
 	float *velocity = NULL;
 	if (!origin)
 	{
 		origin = originbuf;
-		if (entity->v->solid == SOLID_BSP)
+		solid = entity->v->solid;
+		if (solid == SOLID_BSP || solid == SOLID_BSPTRIGGER)
 		{
 			for (i=0 ; i<3 ; i++)
 				origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);

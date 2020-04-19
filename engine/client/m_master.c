@@ -521,7 +521,7 @@ static void SL_PostDraw	(emenu_t *menu)
 			h += 4;
 			h *= 8;
 
-			Draw_TextBox(vid.width/2 - w/2-12, vid.height/2 - h/2 - 8-8, w/8+1, h/8+1);
+			Draw_ApproxTextBox(vid.width/2.0f - w/2-4, vid.height/2.0f - h/2 - 8, w+8, h+8);
 
 			lx = vid.width/2 - w/2;
 			y = vid.height/2 - h/2 - 4;
@@ -647,7 +647,7 @@ static void SL_PostDraw	(emenu_t *menu)
 		}
 		else
 		{
-			Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - 32, 200/8, 64/8);
+			Draw_ApproxTextBox(vid.width/2 - 100, vid.height/2 - 16, 200, 16*3);
 			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Querying server", 200, 2, false);
 			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, "Please wait", 200, 2, false);
 		}
@@ -670,9 +670,8 @@ static void SL_PostDraw	(emenu_t *menu)
 			specbutton.width = bw + 16;
 			specbutton.height = bh + 16;
 			R2D_ImageColours(1,1,1,1);
-			Draw_TextBox(lx, y, bw/8, bh/8);
 			y += 8;
-			lx += 8;
+			Draw_ApproxTextBox(lx, y, bw, bh);
 
 			if (mousecursor_x >= specbutton.x && mousecursor_x < specbutton.x+specbutton.width)
 				if (mousecursor_y >= specbutton.y && mousecursor_y < specbutton.y+specbutton.height)
@@ -698,9 +697,9 @@ static void SL_PostDraw	(emenu_t *menu)
 			joinbutton.width = bw + 16;
 			joinbutton.height = bh + 16;
 			R2D_ImageColours(1,1,1,1);
-			Draw_TextBox(lx, y, bw/8, bh/8);
 			y += 8;
 			lx += 8;
+			Draw_ApproxTextBox(lx, y, bw, bh);
 
 			if (mousecursor_x >= joinbutton.x && mousecursor_x < joinbutton.x+joinbutton.width)
 				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
@@ -712,7 +711,7 @@ static void SL_PostDraw	(emenu_t *menu)
 	else if (isrefreshing)
 	{
 		R2D_ImageColours(1,1,1,1);
-		Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - 32, 200/8, 64/8);
+		Draw_ApproxTextBox(vid.width/2 - 100-4, vid.height/2 - 24, 200, 64);
 		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Refreshing, please wait", 200, 2, false);
 		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, va("%i of %i", Master_NumPolled(), Master_TotalCount()), 200, 2, false);
 	}

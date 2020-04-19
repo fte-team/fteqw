@@ -1288,12 +1288,7 @@ void SV_Init (struct quakeparms_s *parms)
 
 	manarg = COM_CheckParm("-manifest");
 	if (manarg && manarg < com_argc-1 && com_argv[manarg+1])
-	{
-		char *man = FS_MallocFile(com_argv[manarg+1], FS_SYSTEM, NULL);
-
-		FS_ChangeGame(FS_Manifest_Parse(NULL, man), true, true);
-		BZ_Free(man);
-	}
+		FS_ChangeGame(FS_Manifest_ReadSystem(com_argv[manarg+1], NULL), true, true);
 	else
 		FS_ChangeGame(NULL, true, true);
 

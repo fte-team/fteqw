@@ -52,6 +52,18 @@ void R_SkyShutdown(void)
 	forcedsky = NULL;
 }
 
+//lets the backend know which fallback envmap it can use.
+texid_t R_GetDefaultEnvmap(void)
+{
+	if (*r_refdef.nearenvmap.texname)
+		return Image_GetTexture(r_refdef.nearenvmap.texname, NULL, IF_TEXTYPE_CUBE, NULL, NULL, 0, 0, TF_INVALID);
+
+	if (forcedsky && TEXLOADED(forcedsky->defaulttextures->reflectcube))
+		return forcedsky->defaulttextures->reflectcube;
+
+	return r_nulltex;
+}
+
 void R_SetSky(const char *sky)
 {
 	int i;

@@ -455,6 +455,7 @@ void QCBUILTIN PF_cl_setwindowcaption (pubprogfuncs_t *prinst, struct globalvars
 void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getgamedirinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getpackagemanagerinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -606,8 +607,9 @@ unsigned int FTEToDPContents(unsigned int contents);
 #define	SOLID_BSP				4		// bsp clip, touch on edge, block
 #define	SOLID_PHASEH2			5		// hexen2 flag - these ents can be freely walked through or something
 #define	SOLID_CORPSE			5		// non-solid to solid_slidebox entities and itself.
-#define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
+#define SOLID_LADDER			20		//spike: legacy. forces FTECONTENTS_LADDER.
 #define SOLID_PORTAL			21		//1: traces always use point-size. 2: various movetypes automatically transform entities. 3: traces that impact portal bbox use a union. 4. traces ignore part of the world within the portal's box
+#define SOLID_BSPTRIGGER		22		//spike: like solid trigger, except uses bsp checks instead of just aabb.
 #define	SOLID_PHYSICS_BOX		32		// deprecated. physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
 #define	SOLID_PHYSICS_SPHERE	33		// deprecated. physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
 #define	SOLID_PHYSICS_CAPSULE	34		// deprecated. physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
@@ -639,6 +641,7 @@ unsigned int FTEToDPContents(unsigned int contents);
 typedef struct
 {
 	int version;
+	int wedictsize;	//sizeof(wedict_t)
 
 	qboolean (QDECL *RegisterPhysicsEngine)(const char *enginename, void(QDECL*start_physics)(world_t*world));	//returns false if there's already one active.
 	void (QDECL *UnregisterPhysicsEngine)(const char *enginename);	//returns false if there's already one active.
@@ -745,6 +748,22 @@ typedef enum
 	VF_SKYROOM_CAMERA	= 222,
 	VF_PIXELPSCALE		= 223,	//[dpi_x, dpi_y, dpi_y/dpi_x]
 	VF_PROJECTIONOFFSET	= 224,	//allows for off-axis projections.
+
+
+	VF_DP_CLEARSCREEN		= 201, // weird behaviour that disables a whole load of things.
+//fuck DP and their complete lack of respect for existing implemenetations
+	VF_DP_FOG_DENSITY		= 202, //misassigned
+	VF_DP_FOG_COLOR			= 203, //misassigned
+	VF_DP_FOG_COLOR_R		= 204, //misassigned
+	VF_DP_FOG_COLOR_G		= 205, //misassigned
+	VF_DP_FOG_COLOR_B		= 206, //misassigned
+	VF_DP_FOG_ALPHA			= 207, //misassigned
+	VF_DP_FOG_START			= 208, //misassigned
+	VF_DP_FOG_END   		= 209, //misassigned
+	VF_DP_FOG_HEIGHT		= 210, //misassigned
+	VF_DP_FOG_FADEDEPTH		= 211, //misassigned
+	VF_DP_MAINVIEW			= 400, // defective. should be a viewid instead, allowing for per-view motionblur instead of disabling it outright
+	VF_DP_MINFPS_QUALITY	= 401,	//multiplier for lod and culling to try to reduce costs.
 } viewflags;
 
 /*FIXME: this should be changed*/
@@ -806,6 +825,32 @@ enum csqc_input_event
 	CSIE_FOCUS = 5,			/*mouse, key, devid.		if has, the game window has focus. (true/false/-1)*/
 	CSIE_JOYAXIS = 6,		/*axis, value, devid*/
 	CSIE_GYROSCOPE = 7,		/*x, y, z					rotational acceleration*/
+};
+
+enum getgamedirinfo_e
+{
+	GGDI_GAMEDIR=0,			//the publically visible gamedir reported by servers.
+	GGDI_DESCRIPTION=1,		//some text from the .fmf or a gamedirin
+	GGDI_OVERRIDES=2,		//some text you can parse for custom info.
+	GGDI_LOADCOMMAND=3,		//returns a string which can be localcmded to load the mod, with whatever quirks are needed to activate it properly.
+	GGDI_ICON=4,			//returns a string which can be drawpiced.
+	GGDI_ALLGAMEDIRS=5,		//; delimited list basegames;gamedirs ordering
+};
+enum packagemanagerinfo_e
+{
+	GPMI_NAME,			//name of the package, for use with the pkg command.
+	GPMI_CATEGORY,		//category text
+	GPMI_TITLE,			//name of the package, for showing the user.
+	GPMI_VERSION,		//version info (may have multiple with the same name but different versions)
+	GPMI_DESCRIPTION,	//some blurb
+	GPMI_LICENSE,		//what license its distributed under
+	GPMI_AUTHOR,		//name of the person(s) who created it
+	GPMI_WEBSITE,		//where to contribute/find out more info/etc
+	GPMI_INSTALLED,		//current state
+	GPMI_ACTION,		//desired state
+	GPMI_AVAILABLE,		//whether it may be downloaded or not.
+	GPMI_FILESIZE,		//whether it may be downloaded or not.
+	GPMI_GAMEDIR,		//so you know which mod(s) its relevant for
 };
 
 #ifdef TERRAIN

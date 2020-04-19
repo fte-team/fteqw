@@ -895,6 +895,7 @@ const char *presetexec[] =
 	"seta r_drawflame 0;"
 	"seta r_waterstyle 1;"
 	"seta r_lavastyle 1;"		//defer to water
+	"seta r_fog_cullentities 2;"
 //	"seta r_slimestyle \"\";"	//defer to water
 	"seta r_coronas 0;"
 	"seta r_shadow_realtime_dlight 0;"
@@ -907,6 +908,7 @@ const char *presetexec[] =
 	"seta r_replacemodels \"\";"
 	"seta r_waterwarp 0;"
 	"seta r_lightstylesmooth 0;"
+	"seta r_lightstylespeed 0;"
 	"seta r_part_density 0.25;"
 	"seta cl_nolerp 1;"
 	"seta r_lerpmuzzlehack 0;"
@@ -957,6 +959,8 @@ const char *presetexec[] =
 	"v_gunkick 1;"
 	"cl_rollangle 2.0;"
 	"cl_bob 0.02;"
+	"r_fog_cullentities 1;"
+	"r_lightstylespeed 10;"
 	"vid_hardwaregamma 1;"		//auto hardware gamma, for fast fullscreen and usable windowed.
 	"r_part_classic_expgrav 1;"	//vanillaery
 	"r_part_classic_opaque 1;"
@@ -1144,7 +1148,22 @@ void FPS_Preset_f (void)
 			, RESTRICT_LOCAL, false);
 		return;
 	}
-
+	if (!stricmp("shib", arg))
+	{
+		Cbuf_InsertText(
+			"if r_dynamic >= 1\n"
+			"{\n"	//fake it anyway.
+				"set r_shadow_realtime_dlight 1\n"
+				"set r_shadow_realtime_dlight_shadows 0\n"
+				"set r_dynamic 0\n"
+			"}\n"
+			"set r_temporalscenecache 1\n"	//the main speedup.
+			"set r_lightstylespeed 0\n"		//FIXME: we shouldn't need this, but its too stuttery without.
+			"set sv_autooffload 1\n"		//Needs polish still.
+			"set gl_pbolightmaps 1\n"		//FIXME: this needs to be the default eventually.
+			, RESTRICT_LOCAL, false);
+		return;
+	}
 	if (!stricmp("qw", arg))
 	{	//enable qwisms
 		Cbuf_InsertText(
@@ -1380,26 +1399,27 @@ void M_Menu_Render_f (void)
 	{
 		MB_REDTEXT("Rendering Options", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
-		MB_CHECKBOXCVAR("Graphics", r_graphics, 0),	//graphics on / off. Its a general dig at modern games not having any real options.
-		MB_CHECKBOXCVAR("Disable VIS", r_novis, 0),
-		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
+		MB_CHECKBOXCVARTIP("Graphics", r_graphics, 0, "The only option console games have. Yes, this is a joke cvar. Try toggling it!"),	//graphics on / off. Its a general dig at modern games not having any real options.
+		MB_CHECKBOXCVARTIP("Disable VIS", r_novis, 0, "You shouldn't normally set this. Its better to use vispatches for your maps in order to support transparent water properly."),
+		MB_CHECKBOXCVARTIP("Fast Sky", r_fastsky, 0, "Use black skies. On modern machines this is more of a stylistic choice that a perfomance helper."),
+		MB_CHECKBOXCVAR("Lerp Images", gl_lerpimages, 0),
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
 		MB_CHECKBOXCVAR("Disable Framegroup Lerp", r_noframegrouplerp, 0),
-		MB_CHECKBOXCVAR("Lerp Images", gl_lerpimages, 0),
+		MB_CHECKBOXCVAR("Model Bobbing", cl_item_bobbing, 0),
 		MB_COMBOCVAR("Water Warp", r_waterwarp, warpopts, warpvalues, NULL),
 		MB_SLIDER("Water Alpha", r_wateralpha, 0, 1, 0.1, NULL),
 		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
 		MB_COMBOCVAR("Screen Tints", gl_cshiftenabled, cshiftopts, cshiftvalues, "Changes how screen flashes should be displayed (otherwise known as polyblends)."),
 #ifdef QWSKINS
-		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
+		MB_CHECKBOXCVAR("Ignore Player Colors", gl_nocolors, 0),
 #endif
 		MB_COMBOCVAR("Log Centerprints", scr_logcenterprint, logcenteropts, logcentervalues, "Display centerprints in the console also."),
 		MB_CHECKBOXCVAR("FXAA", r_fxaa, 0),
 #ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif
-		MB_CHECKBOXCVAR("HDR", r_hdr_irisadaptation, 0),
-		MB_CHECKBOXCVAR("Model Bobbing", cl_item_bobbing, 0),
+		MB_CHECKBOXCVARTIP("HDR", r_hdr_irisadaptation, 0, "Adjust scene brightness to compensate for lighting levels."),
+		MB_CHECKBOXCVARTIP("Temporal Scene Cache", r_temporalscenecache, 0, "Cache scene data to optimise complex scenes or unvised maps."),
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
@@ -4057,23 +4077,14 @@ void M_Menu_ModelViewer_f(void)
 }
 #endif
 
-typedef struct
-{
-	struct
-	{
-		ftemanifest_t *manifest;
-		char *gamedir;
-	} *mod;
-	size_t nummods;
-} modmenu_t;
-
+#include "fs.h"
 static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
-	modmenu_t *mods = c->dptr;
 	int i = c->dint;
+	struct modlist_s *mod = Mods_GetMod(i);
 	c->common.width = vid.width - x - 16;
 
-	if (!mods->nummods && !i)
+	if (!mod && !i)
 	{
 		float scale[] = {8,8};
 		R_DrawTextField(0, y, vid.width, vid.height - y,
@@ -4091,139 +4102,55 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 		return;
 	}
 
-	if (i < 0 || i > mods->nummods)
+	if (!mod)
 		return;
-	if (mods->mod[i].manifest)
+	if (mod->manifest)
 	{
 		if (mousecursor_y >= y && mousecursor_y < y+8)
-			Draw_AltFunString(x, y, mods->mod[i].manifest->formalname);
+			Draw_AltFunString(x, y, mod->manifest->formalname);
 		else
-			Draw_FunString(x, y, mods->mod[i].manifest->formalname);
+			Draw_FunString(x, y, mod->manifest->formalname);
 	}
 	else
 	{
 		if (mousecursor_y >= y && mousecursor_y < y+8)
-			Draw_AltFunString(x, y, mods->mod[i].gamedir);
+			Draw_AltFunString(x, y, mod->gamedir);
 		else
-			Draw_FunString(x, y, mods->mod[i].gamedir);
+			Draw_FunString(x, y, mod->gamedir);
 	}
 }
 static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	modmenu_t *mods = c->dptr;
-	int i;
-	ftemanifest_t *man;
+	int gameidx = c->dint;
 	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
-		i = c->dint;
-		if (i < 0 || i > mods->nummods)
+		if (!Mods_GetMod(c->dint))
 			return false;
-		man = mods->mod[i].manifest;
-		mods->mod[i].manifest = NULL;	//make sure the manifest survives the menu being closed.
 		M_RemoveMenu(m);
-		FS_ChangeGame(man, true, true);
 
+		Cbuf_AddText(va("\nfs_changegame %u\n", gameidx+1), RESTRICT_LOCAL);
 		if (wasgameless && !!*FS_GetGamedir(false))
 		{
 			//starting to a blank state generally means that the current(engine-default) config settings are utterly useless and windowed by default.
 			//so generally when switching to a *real* game, we want to restart video just so things like fullscreen etc are saved+used properly.
 			Cbuf_AddText("\nvid_restart\n", RESTRICT_LOCAL);
 		}
-		else
-		{
-			//if we're already running a game, this should probably just be a vid_reload instead to ensure that the conback etc is reloaded.
-			//(a full restart is annoying)
-			Cbuf_AddText("\nvid_reload\n", RESTRICT_LOCAL);
-		}
 		return true;
 	}
 
 	return false;
 }
-static void Mods_Remove	(struct emenu_s *m)
-{
-	modmenu_t *mods = m->data;
-	int i;
-
-	for (i = 0; i < mods->nummods; i++)
-	{
-		if (mods->mod[i].manifest)
-			FS_Manifest_Free(mods->mod[i].manifest);
-		Z_Free(mods->mod[i].gamedir);
-	}
-	Z_Free(mods->mod);
-	mods->mod = NULL;
-}
-
-static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
-{
-	modmenu_t *mods = usr;
-	int i = mods->nummods;
-	mods->mod = BZ_Realloc(mods->mod, (i+1) * sizeof(*mods->mod));
-	mods->mod[i].manifest = man;
-	mods->mod[i].gamedir = NULL;
-	mods->nummods = i+1;
-	return true;
-}
-static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, void *usr, searchpathfuncs_t *spath)
-{
-	modmenu_t *mods = usr;
-	size_t l = strlen(fname);
-	int i, p;
-	char gamedir[MAX_QPATH];
-	if (l && fname[l-1] == '/' && l < countof(gamedir))
-	{
-		l--;
-		memcpy(gamedir, fname, l);
-		gamedir[l] = 0;
-		for (i = 0; i < mods->nummods; i++)
-		{
-			//don't add dupes (can happen from gamedir+homedir)
-			//if the gamedir was already included in one of the manifests, don't bother including it again.
-			//this generally removes id1.
-			if (mods->mod[i].manifest)
-			{
-				for (p = 0; p < countof(fs_manifest->gamepath); p++)
-					if (mods->mod[i].manifest->gamepath[p].path)
-						if (!Q_strcasecmp(mods->mod[i].manifest->gamepath[p].path, gamedir))
-							return true;
-			}
-			else if (mods->mod[i].gamedir)
-			{
-				if (!Q_strcasecmp(mods->mod[i].gamedir, gamedir))
-					return true;
-			}
-		}
-		mods->mod = BZ_Realloc(mods->mod, (i+1) * sizeof(*mods->mod));
-		mods->mod[i].manifest = NULL;
-		mods->mod[i].gamedir = Z_StrDup(gamedir);
-		mods->nummods = i+1;
-	}
-	return true;
-}
-
-#include "fs.h"
 
 void M_Menu_Mods_f (void)
 {
-	modmenu_t mods;
 	menucustom_t *c;
 	emenu_t *menu;
 	size_t i;
-	extern qboolean com_homepathenabled;
-
-	memset(&mods, 0, sizeof(mods));
-	FS_EnumerateKnownGames(Mods_AddManifest, &mods);
-
-	if (com_homepathenabled)
-		Sys_EnumerateFiles(com_homepath, "*", Mods_AddGamedir, &mods, NULL);
-	Sys_EnumerateFiles(com_gamepath, "*", Mods_AddGamedir, &mods, NULL);
 
 	//FIXME: sort by mtime?
 
-	menu = M_CreateMenu(sizeof(modmenu_t));
-	*(modmenu_t*)menu->data = mods;
+	menu = M_CreateMenu(0);
 	if (COM_FCheckExists("gfx/p_option.lmp"))
 	{
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
@@ -4231,7 +4158,7 @@ void M_Menu_Mods_f (void)
 	}
 
 	MC_AddFrameStart(menu, 32);
-	for (i = 0; i < mods.nummods || i<1; i++)
+	for (i = 0; i<1 || Mods_GetMod(i); i++)
 	{
 		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, NULL);
 		if (!menu->cursoritem)
@@ -4239,9 +4166,8 @@ void M_Menu_Mods_f (void)
 		c->common.height = 8;
 		c->draw = Mods_Draw;
 		c->key = Mods_Key;
-		menu->remove = Mods_Remove;
 	}
-	MC_AddFrameEnd(menu, 32+i*8);
+	MC_AddFrameEnd(menu, 32);
 }
 
 #if 0

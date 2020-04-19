@@ -136,7 +136,7 @@ void M_MenuS_Box_f (void)
 		return;
 	}
 
-	MC_AddBox(menu_script, x, y, width/8, height/8);
+	MC_AddBox(menu_script, x, y, width, height);
 }
 
 void M_MenuS_CheckBox_f (void)

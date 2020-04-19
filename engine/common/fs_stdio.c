@@ -378,6 +378,31 @@ static qboolean QDECL FSSTDIO_FileStat (searchpathfuncs_t *handle, flocation_t *
 	return false;
 }
 
+static qboolean	 QDECL FSSTDIO_RenameFile(searchpathfuncs_t *handle, const char *oldname, const char *newname)
+{
+	stdiopath_t *sp = (void*)handle;
+	char oldsyspath[MAX_OSPATH];
+	char newsyspath[MAX_OSPATH];
+	if (fs_readonly)
+		return false;
+	if ((unsigned int)snprintf (oldsyspath, sizeof(oldsyspath), "%s/%s", sp->rootpath, oldname) > sizeof(oldsyspath)-1)
+		return false;	//too long
+	if ((unsigned int)snprintf (newsyspath, sizeof(newsyspath), "%s/%s", sp->rootpath, newname) > sizeof(newsyspath)-1)
+		return false;	//too long
+	return Sys_Rename(oldsyspath, newsyspath);
+}
+static qboolean QDECL FSSTDIO_RemoveFile(searchpathfuncs_t *handle, const char *filename)
+{
+	stdiopath_t *sp = (void*)handle;
+	char syspath[MAX_OSPATH];
+	if (fs_readonly)
+		return false;
+	if ((unsigned int)snprintf (syspath, sizeof(syspath), "%s/%s", sp->rootpath, filename) > sizeof(syspath)-1)
+		return false;	//too long
+	if (*filename && filename[strlen(filename)-1] == '/')
+		return Sys_rmdir(syspath);
+	return Sys_remove(syspath);
+}
 
 searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
@@ -404,6 +429,8 @@ searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, searchpathfuncs
 	np->pub.PollChanges		= FSSTDIO_PollChanges;
 	np->pub.FileStat		= FSSTDIO_FileStat;
 	np->pub.CreateFile		= FSSTDIO_CreateLoc;
+	np->pub.RenameFile		= FSSTDIO_RenameFile;
+	np->pub.RemoveFile		= FSSTDIO_RemoveFile;
 	return &np->pub;
 }
 

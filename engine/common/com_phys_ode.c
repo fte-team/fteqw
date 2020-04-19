@@ -2835,12 +2835,13 @@ qboolean Plug_Init(void)
 	CHECKBUILTIN(Sys_CloseLibrary);
 #endif
 
-	rbefuncs = plugfuncs->GetEngineInterface("RBE", sizeof(rbeplugfuncs_t));
-	if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
+	rbefuncs = plugfuncs->GetEngineInterface("RBE", sizeof(*rbefuncs));
+	if (rbefuncs && (	rbefuncs->version < RBEPLUGFUNCS_VERSION ||
+						rbefuncs->wedictsize != sizeof(wedict_t)))
 		rbefuncs = NULL;
 	if (!rbefuncs)
 	{
-		Con_Printf("ODE plugin failed: Engine does not support external rigid body engines.\n");
+		Con_Printf("ODE plugin failed: Engine is incompatible.\n");
 		return false;
 	}
 #ifndef ODE_STATIC

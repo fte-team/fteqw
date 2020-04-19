@@ -1372,6 +1372,7 @@ static struct
 	func_t toggle;
 	func_t consolecommand;
 	func_t gethostcachecategory;
+	func_t rendererrestarted;
 } mpfuncs;
 jmp_buf mp_abort;
 
@@ -1974,6 +1975,12 @@ void QCBUILTIN PF_crypto_getidfp(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	//not supported.
 	G_INT(OFS_RETURN) = 0;
 }
+//float(string serveraddress) crypto_getidstatus
+void QCBUILTIN PF_crypto_getidstatus(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
 //string(string serveraddress) crypto_getencryptlevel
 void QCBUILTIN PF_crypto_getencryptlevel(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1988,6 +1995,12 @@ void QCBUILTIN PF_crypto_getmykeyfp(pubprogfuncs_t *prinst, struct globalvars_s 
 }
 //string(float i) crypto_getmyidfp
 void QCBUILTIN PF_crypto_getmyidfp(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//not supported.
+	G_INT(OFS_RETURN) = 0;
+}
+//float(float i) PF_crypto_getmyidstatus
+void QCBUILTIN PF_crypto_getmyidstatus(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//not supported.
 	G_INT(OFS_RETURN) = 0;
@@ -2328,7 +2341,7 @@ static struct {
 	{"altstr_ins",				PF_altstr_ins,				86},
 	{"findflags",				PF_FindFlags,				87},
 	{"findchainflags",			PF_menu_findchainflags,		88},
-	{"mcvar_defstring",			PF_cvar_defstring,			89},
+	{"cvar_defstring",			PF_cvar_defstring,			89},
 	{"setmodel",				PF_m_setmodel,				90},
 	{"precache_model",			PF_m_precache_model,		91},
 	{"setorigin",				PF_m_setorigin,				92},
@@ -2489,7 +2502,7 @@ static struct {
 	{"tokenizebyseparator",		PF_tokenizebyseparator,		479},
 	{"strtolower",				PF_strtolower,				480},
 	{"strtoupper",				PF_strtoupper,				481},
-	{"cvar_defstring",			PF_cvar_defstring,			482},
+	{"csqc_cvar_defstring",		PF_cvar_defstring,			482},
 //	{NULL,						PF_Fixme,					483},
 	{"strreplace",				PF_strreplace,				484},
 	{"strireplace",				PF_strireplace,				485},
@@ -2567,6 +2580,9 @@ static struct {
 #endif
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
 	{"getgamedirinfo",			PF_cl_getgamedirinfo,		626},
+#ifdef PACKAGEMANAGER
+	{"getpackagemanagerinfo",	PF_cl_getpackagemanagerinfo,0},
+#endif
 	{"sprintf",					PF_sprintf,					627},
 //	{NULL,						PF_Fixme,					628},
 //	{NULL,						PF_Fixme,					629},
@@ -2582,9 +2598,9 @@ static struct {
 	{"digest_hex",				PF_digest_hex,				639},
 	{"digest_ptr",				PF_digest_ptr,				0},
 //	{NULL,						PF_Fixme,					640},
-	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
-//	{NULL,						PF_Fixme,					642},
-//	{NULL,						PF_Fixme,					643},
+	{"crypto_getmyidstatus",	PF_crypto_getmyidstatus,	641},
+//	{"coverage",				PF_Fixme,					642},
+	{"crypto_getidstatus",		PF_crypto_getidstatus,		643},
 //	{NULL,						PF_Fixme,					644},
 //	{NULL,						PF_Fixme,					645},
 //	{NULL,						PF_Fixme,					646},
@@ -3059,6 +3075,7 @@ qboolean MP_Init (void)
 		mpfuncs.toggle = PR_FindFunction(menu_world.progs, "m_toggle", PR_ANY);
 		mpfuncs.consolecommand = PR_FindFunction(menu_world.progs, "m_consolecommand", PR_ANY);
 		mpfuncs.gethostcachecategory = PR_FindFunction(menu_world.progs, "m_gethostcachecategory", PR_ANY);
+		mpfuncs.rendererrestarted = PR_FindFunction(menu_world.progs, "Menu_RendererRestarted", PR_ANY);
 		if (mpfuncs.init)
 			PR_ExecuteProgram(menu_world.progs, mpfuncs.init);
 		inmenuprogs--;
@@ -3201,6 +3218,38 @@ int MP_GetServerCategory(int index)
 		}
 	}
 	return category;
+}
+
+void MP_RendererRestarted(void)
+{
+	int i;
+	if (!menu_world.progs)
+		return;
+
+	menu_world.worldmodel = cl.worldmodel;
+
+	for (i = 0; i < MAX_CSMODELS; i++)
+	{
+		cl.model_csqcprecache[i] = NULL;
+	}
+
+	//FIXME: registered shaders
+
+	//let the csqc know that its rendertargets got purged
+	if (mpfuncs.rendererrestarted)
+	{
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+		(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menu_world.progs, rf->description));
+		PR_ExecuteProgram(menu_world.progs, mpfuncs.rendererrestarted);
+	}
+	//in case it drew to any render targets.
+	if (R2D_Flush)
+		R2D_Flush();
+	if (*r_refdef.rt_destcolour[0].texname)
+	{
+		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
+		BE_RenderToTextureUpdate2d(true);
+	}
 }
 
 void MP_Draw(void)

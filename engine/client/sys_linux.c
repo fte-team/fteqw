@@ -170,6 +170,17 @@ void Sys_Printf (char *fmt, ...)
 	unsigned int codeflags, codepoint;
 	FILE *out = stdout;
 
+#ifdef SUBSERVERS
+	if (SSV_IsSubServer())
+	{
+		va_start (argptr,fmt);
+		vsnprintf (text,sizeof(text)-1, fmt,argptr);
+		va_end (argptr);
+		SSV_PrintToMaster(text);
+		return;
+	}
+#endif
+
 	if (nostdout)
 	{
 #ifdef _DEBUG
@@ -1269,7 +1280,7 @@ void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, cha
 	callback(ctx, clipboard_buffer);
 }
 
-void Sys_SaveClipboard(clipboardtype_t cbt, char *text) {
+void Sys_SaveClipboard(clipboardtype_t cbt, const char *text) {
 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
 }
 #endif

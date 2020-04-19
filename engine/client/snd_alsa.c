@@ -540,7 +540,7 @@ static qboolean QDECL ALSA_Enumerate(void (QDECL *cb) (const char *drivername, c
 					{
 						char *d = psnd_device_name_get_hint(hints[i], "DESC");
 						if (d)
-							cb(SDRVNAME, n, va("ALSA (%s)", d));
+							cb(SDRVNAME, n, va("ALSA:%s", d));
 						else
 							cb(SDRVNAME, n, n);
 						free(d);

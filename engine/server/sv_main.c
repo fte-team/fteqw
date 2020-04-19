@@ -86,7 +86,8 @@ extern cvar_t	password;
 #endif
 cvar_t	spectator_password			= CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-cvar_t	allow_download				= CVARAD("allow_download", "1", /*q3*/"sv_allowDownload", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads.");
+static cvar_t	sv_dlURL			= CVARFD(/*ioq3*/"sv_dlURL", "", CVAR_SERVERINFO|CVAR_ARCHIVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
+cvar_t	allow_download				= CVARAD("allow_download", "1", /*q3*/"sv_allowDownload", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads from this server. You may wish to set sv_dlURL if you wish clients to still be able to download content.");
 cvar_t	allow_download_skins		= CVARD("allow_download_skins", "1", "0 blocks downloading of any file in the skins/ directory");
 cvar_t	allow_download_models		= CVARD("allow_download_models", "1", "0 blocks downloading of any file in the progs/ or models/ directory");
 cvar_t	allow_download_sounds		= CVARD("allow_download_sounds", "1", "0 blocks downloading of any file in the sound/ directory");
@@ -295,7 +296,7 @@ void SV_Shutdown (void)
 #endif
 	Mod_Shutdown(true);
 #ifdef PACKAGEMANAGER
-	PM_Shutdown();
+	PM_Shutdown(false);
 #endif
 	COM_DestroyWorkerThread();
 	FS_Shutdown();
@@ -570,43 +571,7 @@ void SV_DropClient (client_t *drop)
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
-			if (drop->spawned && host_initialized)
-			{
-#ifdef VM_Q1
-				if (svs.gametype == GT_Q1QVM)
-				{
-					Q1QVM_DropClient(drop);
-				}
-				else
-#endif
-				{
-					if (!drop->spectator)
-					{
-					// call the prog function for removing a client
-					// this will set the body to a dead frame, among other things
-						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-						if (pr_global_ptrs->ClientDisconnect)
-							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
-						sv.spawned_client_slots--;
-					}
-					else
-					{
-						// call the prog function for removing a client
-						// this will set the body to a dead frame, among other things
-						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-						if (SpectatorDisconnect)
-							PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
-						sv.spawned_observer_slots--;
-					}
-				}
-
-				if (progstype == PROG_NQ)
-					ED_Clear(svprogfuncs, drop->edict);
-			}
-			drop->spawned = false;
-
-			if (svprogfuncs && drop->edict && drop->edict->v)
-				drop->edict->v->frags = 0;
+			SV_DespawnClient(drop);
 			drop->edict = NULL;
 
 			if (drop->spawninfo)
@@ -2657,9 +2622,29 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	{
 		if (SSV_IsSubServer())
 		{
-			SV_RejectMessage (info->protocol, "Direct connections are not permitted.\n");
-			Con_TPrintf ("* rejected direct connection\n");
-			return;
+			if (1)
+			{
+				sizebuf_t s;
+				qbyte send[8192];
+
+				memset(&s, 0, sizeof(s));
+				s.data = send;
+				s.maxsize = sizeof(send);
+				s.cursize = 2;
+
+				MSG_WriteByte(&s, ccmd_foundplayer);
+				MSG_WriteString(&s, name);
+				MSG_WriteString(&s, NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+				MSG_WriteString(&s, info->guid);
+				SSV_InstructMaster(&s);
+				return;
+			}
+			else
+			{
+				SV_RejectMessage (info->protocol, "Direct connections are not permitted.\n");
+				Con_TPrintf ("* rejected direct connection\n");
+				return;
+			}
 		}
 
 		/*single player logic*/
@@ -5436,6 +5421,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&filterban,	cvargroup_servercontrol);
 
+	Cvar_Register (&sv_dlURL,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_skins,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_models,	cvargroup_serverpermissions);
@@ -5497,6 +5483,7 @@ void SV_InitLocal (void)
 	Cmd_AddCommandAD ("loadgame", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
 	Cmd_AddCommandAD ("save", SV_Savegame_f, SV_Savegame_c, "Saves the game to the named location.");
 	Cmd_AddCommandAD ("load", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
+	Cmd_AddCommandAD ("unsavegame", SV_DeleteSavegame_f, SV_Savegame_c, "Wipes an existing saved game from disk.");
 #endif
 
 #ifdef MVD_RECORDING
@@ -6028,12 +6015,7 @@ void SV_Init (quakeparms_t *parms)
 
 		manarg = COM_CheckParm("-manifest");
 		if (manarg && manarg < com_argc-1 && com_argv[manarg+1])
-		{
-			char *man = FS_MallocFile(com_argv[manarg+1], FS_SYSTEM, NULL);
-
-			FS_ChangeGame(FS_Manifest_Parse(NULL, man), true, true);
-			BZ_Free(man);
-		}
+			FS_ChangeGame(FS_Manifest_ReadSystem(com_argv[manarg+1], NULL), true, true);
 		else
 			FS_ChangeGame(NULL, true, true);
 

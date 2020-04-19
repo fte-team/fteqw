@@ -45,8 +45,8 @@ typedef qboolean qbool;
 
 #define strlcpy Q_strncpyz
 #define strlcat Q_strncatz
-#define Q_stricmp stricmp
-#define Q_strnicmp strnicmp
+#define Q_stricmp strcasecmp
+#define Q_strnicmp strncasecmp
 
 
 extern int		cl_spikeindex, cl_playerindex, cl_h_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
@@ -82,20 +82,8 @@ static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
 #define TP_SKIN_CVARS
 #endif
 
-
-//a list of all the cvars
-//this is down to the fact that I keep defining them but forgetting to register. :/
-#define TP_CVARS \
-	TP_SKIN_CVARS \
-	TP_CVAR(cl_fakename,		"");	\
-	TP_CVAR(cl_parseSay,		"1");	\
-	TP_CVAR(cl_parseFunChars,		"1");	\
-	TP_CVAR(cl_triggers,		"1");	\
-	TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
-	TP_CVAR(tp_forceTriggers,		"0");	\
-	TP_CVAR(tp_loadlocs,		"1");	\
-	TP_CVAR(tp_soundtrigger,		"~");	\
-										\
+#ifdef QUAKESTATS
+#define TP_NAME_CVARS	\
 	TP_CVAR(tp_name_none,		"");	\
 	TP_CVAR(tp_name_axe,		"axe");	\
 	TP_CVAR(tp_name_sg,			"sg");	\
@@ -121,7 +109,6 @@ static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
 	TP_CVAR(tp_name_backpack,	"pack");	\
 	TP_CVAR(tp_name_flag,		"flag");	\
 	TP_CVAR(tp_name_nothing,	"nothing");	\
-	TP_CVAR(tp_name_someplace,	"someplace");	\
 	TP_CVAR(tp_name_at,			"at");	\
 	TP_CVAR(tp_need_ra,			"50");	\
 	TP_CVAR(tp_need_ya,			"50");	\
@@ -173,7 +160,26 @@ static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
 	TP_CVAR(loc_name_quad,		"quad");	\
 	TP_CVAR(loc_name_pent,		"pent");	\
 	TP_CVAR(loc_name_ring,		"ring");	\
-	TP_CVAR(loc_name_suit,		"suit")
+	TP_CVAR(loc_name_suit,		"suit");
+#else
+	#define TP_NAME_CVARS
+#endif
+
+//a list of all the cvars
+//this is down to the fact that I keep defining them but forgetting to register. :/
+#define TP_CVARS \
+	TP_SKIN_CVARS \
+	TP_NAME_CVARS \
+	TP_CVAR(cl_fakename,		"");	\
+	TP_CVAR(cl_parseSay,		"1");	\
+	TP_CVAR(cl_parseFunChars,		"1");	\
+	TP_CVAR(cl_triggers,		"1");	\
+	TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
+	TP_CVAR(tp_forceTriggers,		"0");	\
+	TP_CVAR(tp_loadlocs,		"1");	\
+	TP_CVAR(tp_soundtrigger,		"~");	\
+	\
+	TP_CVAR(tp_name_someplace,	"someplace")
 
 //create the globals for all the TP cvars.
 #define TP_CVAR(name,def) cvar_t	name = CVAR(#name, def)
@@ -186,12 +192,11 @@ TP_CVARS;
 
 extern cvar_t	host_mapname;
 
-void TP_UpdateAutoStatus(void);
+#define MAX_LOC_NAME 48
+
+#ifdef QUAKESTATS
 static void TP_FindModelNumbers (void);
 static void TP_FindPoint (void);
-
-
-#define MAX_LOC_NAME 48
 
 // this structure is cleared after entering a new map
 typedef struct tvars_s {
@@ -229,6 +234,8 @@ typedef struct tvars_s {
 
 	float lastdrop_time;
 
+	char lasttrigger_match[256];
+
 	enum {
 		POINT_TYPE_ENEMY,
 		POINT_TYPE_TEAMMATE,
@@ -238,7 +245,8 @@ typedef struct tvars_s {
 	float	pointtime;
 } tvars_t;
 
-tvars_t vars;
+static tvars_t vars;
+#endif
 
 
 typedef struct item_vis_s {
@@ -298,6 +306,120 @@ void TP_ExecTrigger (char *s, qboolean indemos)
 	}
 }
 
+/*
+==========================================================================
+						        HELPER FUNCTIONS
+==========================================================================
+*/
+static int	TP_CountPlayers (void)
+{
+	int	i, count;
+
+	count = 0;
+	for (i = 0; i < cl.allocated_client_slots ; i++) {
+		if (cl.players[i].name[0] && !cl.players[i].spectator)
+			count++;
+	}
+
+	return count;
+}
+
+static char *TP_PlayerTeam (void)
+{
+	return cl.players[cl.playerview[SP].playernum].team;
+}
+
+static char *TP_EnemyTeam (void)
+{
+	int			i;
+	static char	enemyteam[MAX_INFO_KEY];
+	char *myteam = TP_PlayerTeam();
+
+	for (i = 0; i < cl.allocated_client_slots ; i++) {
+		if (cl.players[i].name[0] && !cl.players[i].spectator)
+		{
+			strcpy (enemyteam, cl.players[i].team);
+			if (strcmp(myteam, cl.players[i].team) != 0)
+				return enemyteam;
+		}
+	}
+	return "";
+}
+
+static char *TP_PlayerName (void)
+{
+	return cl.players[cl.playerview[SP].playernum].name;
+}
+
+
+static char *TP_EnemyName (void)
+{
+	int			i;
+	char		*myname;
+	static char	enemyname[MAX_SCOREBOARDNAME];
+
+	myname = TP_PlayerName ();
+
+	for (i = 0; i < cl.allocated_client_slots ; i++) {
+		if (cl.players[i].name[0] && !cl.players[i].spectator)
+		{
+			strcpy (enemyname, cl.players[i].name);
+			if (!strcmp(enemyname, myname))
+				return enemyname;
+		}
+	}
+	return "";
+}
+
+static char *TP_MapName (void)
+{
+	return host_mapname.string;
+}
+
+char *TP_GenerateDemoName(void)
+{
+	if (cl.playerview[SP].spectator)
+	{	// FIXME: if tracking a player, use his name
+		return va ("spec_%s_%s",
+						TP_PlayerName(),
+						TP_MapName());
+	}
+	else
+	{	// guess game type and write demo name
+		int i = TP_CountPlayers();
+		if (cl.teamplay && i >= 3)
+		{	// Teamplay
+			return va ("%s_%s_vs_%s_%s",
+							TP_PlayerName(),
+							TP_PlayerTeam(),
+							TP_EnemyTeam(),
+							TP_MapName());
+		}
+		else
+		{
+			if (i == 2)
+			{	// Duel
+				return va ("%s_vs_%s_%s",
+								TP_PlayerName(),
+								TP_EnemyName(),
+								TP_MapName());
+			}
+			else if (i > 2)
+			{	// FFA
+				return va ("%s_ffa_%s",
+					TP_PlayerName(),
+					TP_MapName());
+			}
+			else
+			{	// one player
+				return va ("%s_%s",
+					TP_PlayerName(),
+					TP_MapName());
+			}
+		}
+	}
+}
+
 
 /*
 ==========================================================================
@@ -308,7 +430,7 @@ void TP_ExecTrigger (char *s, qboolean indemos)
 #define MAX_MACRO_VALUE	256
 static char	macro_buf[MAX_MACRO_VALUE] = "";
 
-#ifndef QUAKETC
+#ifdef QUAKESTATS
 // buffer-size-safe helper functions
 //static void MacroBuf_strcat (char *str) {
 //	strlcat (macro_buf, str, sizeof(macro_buf));
@@ -557,6 +679,7 @@ static char *Macro_Location (void)
 	return TP_LocationName (cl.playerview[SP].simorg);
 }
 
+#ifdef QUAKESTATS
 static char *Macro_LastDeath (void)
 {
 	if (vars.deathtrigger_time)
@@ -637,7 +760,7 @@ static char *Macro_PointNameAtLocation (void)
 		return vars.pointname;
 }
 
-#ifdef QUAKESTATS
+
 static char *Macro_Need (void)
 {
 	int i, weapon;
@@ -713,7 +836,6 @@ done:
 
 	return macro_buf;
 }
-#endif
 
 static char *Skin_To_TFSkin (char *myskin)
 {
@@ -853,7 +975,6 @@ static char *Macro_Point_LED(void)
 	return macro_buf;
 }
 
-#ifdef QUAKESTATS
 static char *Macro_MyStatus_LED(void)
 {
 	int count;
@@ -886,7 +1007,6 @@ static char *Macro_MyStatus_LED(void)
 
 	return macro_buf;
 }
-#endif
 
 static void CountNearbyPlayers(qboolean dead)
 {
@@ -1042,7 +1162,7 @@ static char *Macro_LastSeenPowerup(void)
 	return macro_buf;
 }
 
-char *Macro_LastDrop (void)
+static char *Macro_LastDrop (void)
 {
 	if (vars.lastdrop_time)
 		return vars.lastdroploc;
@@ -1050,7 +1170,7 @@ char *Macro_LastDrop (void)
 		return tp_name_someplace.string;
 }
 
-char *Macro_LastDropTime (void)
+static char *Macro_LastDropTime (void)
 {
 	if (vars.lastdrop_time)
 		Q_snprintfz (macro_buf, 32, "%d", (int) (realtime - vars.lastdrop_time));
@@ -1059,8 +1179,7 @@ char *Macro_LastDropTime (void)
 	return macro_buf;
 }
 
-#ifdef QUAKESTATS
-char *Macro_CombinedHealth(void)
+static char *Macro_CombinedHealth(void)
 {
 	float h;
 	float t, a, m;
@@ -1091,7 +1210,7 @@ char *Macro_CombinedHealth(void)
 	return macro_buf;
 }
 
-char *Macro_Coloured_Armour(void)
+static char *Macro_Coloured_Armour(void)
 {
 	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR3)
 		return "{^s^xe00%%a^r}";
@@ -1103,7 +1222,7 @@ char *Macro_Coloured_Armour(void)
 		return "{0}";
 }
 
-char *Macro_Coloured_Powerups(void)
+static char *Macro_Coloured_Powerups(void)
 {
 	char *quad, *pent, *ring;
 	quad = (cl.playerview[SP].stats[STAT_ITEMS] & IT_QUAD)				?va("^x03f%s", tp_name_quad.string):"";
@@ -1118,7 +1237,7 @@ char *Macro_Coloured_Powerups(void)
 	else
 		return "";
 }
-char *Macro_Coloured_Short_Powerups(void)
+static char *Macro_Coloured_Short_Powerups(void)
 {
 	char *quad, *pent, *ring;
 	quad = (cl.playerview[SP].stats[STAT_ITEMS] & IT_QUAD)				?"^x03fq":"";
@@ -1133,21 +1252,36 @@ char *Macro_Coloured_Short_Powerups(void)
 	else
 		return "";
 }
-char *Macro_LastIP(void)
+static char *Macro_Match_Status(void)
 {
+	if (cls.state == ca_disconnected)
+		return "disconnected";
+	if (cls.state < ca_active)
+		return "connecting";
+	switch(cl.matchstate)
+	{
+	case MATCH_DONTKNOW:
+	case MATCH_INPROGRESS:
+	default:
+		return "normal";
+	case MATCH_COUNTDOWN:
+		return "countdown";
+	case MATCH_STANDBY:
+		return "standby";
+	}
+}
+/*static char *Macro_LastIP(void)
+{	//report the last ip that someone said in chat.
 	return "---";
 }
-char *Macro_MP3Info(void)
-{
+static char *Macro_MP3Info(void)
+{	//for people trying to be cool but really just annoying everyone
 	return "---";
 }
-char *Macro_Match_Status(void)
-{
-	return "---";
-}
-char *Macro_LastTrigger_Match(void)
-{
-	return "---";
+*/
+static char *Macro_LastTrigger_Match(void)
+{	//returns the last line that triggered a msg_trigger
+	return vars.lasttrigger_match;
 }
 #endif
 
@@ -1179,6 +1313,7 @@ $triggermatch is the last chat message that exec'd a msg_trigger.
 static void TP_InitMacros(void)
 {
 	Cmd_AddMacro("latency", Macro_Latency, false);
+	Cmd_AddMacro("location", Macro_Location, false);
 #ifdef QUAKESTATS
 	Cmd_AddMacro("health", Macro_Health, true);
 	Cmd_AddMacro("armortype", Macro_ArmorType, true);
@@ -1195,13 +1330,12 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("bestammo", Macro_BestAmmo, true);
 	Cmd_AddMacro("powerups", Macro_Powerups, true);
 	Cmd_AddMacro("droppedweapon", Macro_DroppedWeapon, true);
-#endif
-	Cmd_AddMacro("location", Macro_Location, false);
+	Cmd_AddMacro("tf_skin", Macro_TF_Skin, true);
+
 	Cmd_AddMacro("deathloc", Macro_LastDeath, true);
 	Cmd_AddMacro("tookatloc", Macro_TookAtLoc, true);
 	Cmd_AddMacro("tookloc", Macro_TookLoc, true);
 	Cmd_AddMacro("took", Macro_Took, true);
-	Cmd_AddMacro("tf_skin", Macro_TF_Skin, true);
 
 	//ones added by Spike, for fuhquake compatability
 	Cmd_AddMacro("connectiontype", Macro_ConnectionType, false);
@@ -1211,16 +1345,16 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("pointloc", Macro_PointLocation, true);
 	Cmd_AddMacro("matchname", Macro_Match_Name, false);
 	Cmd_AddMacro("matchtype", Macro_Match_Type, false);
-#ifdef QUAKESTATS
 	Cmd_AddMacro("need", Macro_Need, true);
 	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED, true);
-#endif
 	Cmd_AddMacro("ledpoint", Macro_Point_LED, true);
 	Cmd_AddMacro("droploc", Macro_LastDrop, true);
 	Cmd_AddMacro("droptime", Macro_LastDropTime, true);
-//	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
+
+	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
+	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
+#endif
 //	Cmd_AddMacro("mp3info", Macro_MP3Info, false);
-//	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
 
 	//new, fte only (at least when first implemented)
 #ifdef QUAKESTATS
@@ -1234,10 +1368,10 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("colored_armor", Macro_Coloured_Armour, true);	//*shudder*
 	Cmd_AddMacro("colored_powerups", Macro_Coloured_Powerups, true);
 	Cmd_AddMacro("colored_short_powerups", Macro_Coloured_Short_Powerups, true);
-#endif
-	Cmd_AddMacro("gamedir", Macro_Gamedir, false);
 	Cmd_AddMacro("lastloc", Macro_Last_Location, true);
 	Cmd_AddMacro("lastpowerup", Macro_LastSeenPowerup, true);
+#endif
+	Cmd_AddMacro("gamedir", Macro_Gamedir, false);
 }
 
 #define MAX_MACRO_STRING 1024
@@ -1321,17 +1455,16 @@ static char *TP_ParseMacroString (char *s)
 				case 'A':	macro_string = Macro_ArmorType(); break;
 				case 'b':	macro_string = Macro_BestWeaponAndAmmo(); break;
 				case 'c':	macro_string = Macro_Cells(); break;
-#endif
 				case 'd':	macro_string = Macro_LastDeath(); break;
 //				case 'D':
-#ifdef QUAKESTATS
 				case 'h':	macro_string = Macro_Health(); break;
-#endif
 				case 'i':	macro_string = Macro_TookAtLoc(); break;
 				case 'j':	macro_string = Macro_LastPointAtLoc(); break;
 				case 'k':	macro_string = Macro_LastTookOrPointed(); break;
-				case 'l':	macro_string = Macro_Location(); break;
 				case 'L':	macro_string = Macro_Last_Location(); break;
+#endif
+				case 'l':	macro_string = Macro_Location(); break;
+#ifdef QUAKESTATS
 				case 'm':	macro_string = Macro_LastTookOrPointed(); break;
 
 				case 'o':	macro_string = Macro_CountNearbyFriendlyPlayers(); break;
@@ -1340,22 +1473,19 @@ static char *TP_ParseMacroString (char *s)
 				case 'E':	macro_string = Macro_Count_Last_NearbyEnemyPlayers(); break;
 
 				case 'P':
-#ifdef QUAKESTATS
 				case 'p':	macro_string = Macro_Powerups(); break;
-#endif
 				case 'q':	macro_string = Macro_LastSeenPowerup(); break;
 //				case 'r':	macro_string = Macro_LastReportedLoc(); break;
 				case 's':	macro_string = Macro_EnemyStatus_LED(); break;
 				case 'S':	macro_string = Macro_TF_Skin(); break;
 				case 't':	macro_string = Macro_PointNameAtLocation(); break;
-#ifdef QUAKESTATS
 				case 'u':	macro_string = Macro_Need(); break;
 				case 'w':	macro_string = Macro_WeaponAndAmmo(); break;
-#endif
 				case 'x':	macro_string = Macro_PointName(); break;
 				case 'X':	macro_string = Macro_Took(); break;
 				case 'y':	macro_string = Macro_PointLocation(); break;
 				case 'Y':	macro_string = Macro_TookLoc(); break;
+#endif
 
 				case 'n':	//vicinity
 				case 'N':	//hides from you
@@ -1477,10 +1607,9 @@ typedef struct locdata_s {
 	char name[MAX_LOC_NAME];
 } locdata_t;
 
-#define MAX_LOC_ENTRIES 4096
-
-locdata_t locdata[MAX_LOC_ENTRIES];	// FIXME: allocate dynamically?
-int	loc_numentries;
+static locdata_t	*locdata;	// FIXME: allocate dynamically?
+static size_t		loc_numentries;
+static size_t		loc_maxentries;
 
 
 static void TP_LoadLocFile (char *filename, qbool quiet)
@@ -1563,8 +1692,8 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 								max[2] = strtod(comma, &comma);
 								if (*comma++ == ',')
 								{
-									if (loc_numentries >= MAX_LOC_ENTRIES)
-										continue;
+									if (loc_numentries == loc_maxentries)
+										Z_ReallocElements((void**)&locdata, &loc_maxentries, loc_numentries+64, sizeof(*locdata));
 									loc = &locdata[loc_numentries];
 									loc_numentries++;
 
@@ -1618,9 +1747,8 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 				continue;
 			}
 
-			if (loc_numentries >= MAX_LOC_ENTRIES)
-				continue;
-
+			if (loc_numentries == loc_maxentries)
+				Z_ReallocElements((void**)&locdata, &loc_maxentries, loc_numentries+64, sizeof(*locdata));
 			loc = &locdata[loc_numentries];
 			loc_numentries++;
 
@@ -1628,18 +1756,17 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 				loc->min[i] = loc->max[i] = atoi(Cmd_Argv(i)) / 8.0;
 
 			loc->name[0] = 0;
-			loc->name[sizeof(loc->name)-1] = 0;	// can't rely on strncat
 			for (i = 3; i < argc; i++)
 			{
 				if (i != 3)
-					strncat (loc->name, " ", sizeof(loc->name)-1);
-				strncat (loc->name, Cmd_Argv(i), sizeof(loc->name)-1);
+					Q_strncatz (loc->name, " ", sizeof(loc->name));
+				Q_strncatz (loc->name, Cmd_Argv(i), sizeof(loc->name));
 			}
 		}
 	}
 
 	if (!quiet)
-		Com_Printf ("Loaded %s (%i points)\n", fullpath, loc_numentries);
+		Com_Printf ("Loaded %s (%lu points)\n", fullpath, (unsigned long)loc_numentries);
 }
 
 static void TP_LoadLocFile_f (void)
@@ -1820,6 +1947,9 @@ void TP_SearchForMsgTriggers (char *s, int level)
 			string = Cmd_AliasExist (t->name, RESTRICT_LOCAL);
 			if (string)
 			{
+#ifdef QUAKESTATS
+				Q_strncpyz(vars.lasttrigger_match, s, sizeof (vars.lasttrigger_match));
+#endif
 				Cbuf_AddText (string, RESTRICT_LOCAL);
 				Cbuf_AddText ("\n", RESTRICT_LOCAL);
 //				Cbuf_ExecuteLevel (RESTRICT_LOCAL);
@@ -1867,72 +1997,6 @@ ok:
 		vars.f_version_reply_time = realtime;
 	}
 }*/
-
-
-int	TP_CountPlayers (void)
-{
-	int	i, count;
-
-	count = 0;
-	for (i = 0; i < cl.allocated_client_slots ; i++) {
-		if (cl.players[i].name[0] && !cl.players[i].spectator)
-			count++;
-	}
-
-	return count;
-}
-
-char *TP_PlayerTeam (void)
-{
-	return cl.players[cl.playerview[SP].playernum].team;
-}
-
-char *TP_EnemyTeam (void)
-{
-	int			i;
-	static char	enemyteam[MAX_INFO_KEY];
-	char *myteam = TP_PlayerTeam();
-
-	for (i = 0; i < cl.allocated_client_slots ; i++) {
-		if (cl.players[i].name[0] && !cl.players[i].spectator)
-		{
-			strcpy (enemyteam, cl.players[i].team);
-			if (strcmp(myteam, cl.players[i].team) != 0)
-				return enemyteam;
-		}
-	}
-	return "";
-}
-
-char *TP_PlayerName (void)
-{
-	return cl.players[cl.playerview[SP].playernum].name;
-}
-
-
-char *TP_EnemyName (void)
-{
-	int			i;
-	char		*myname;
-	static char	enemyname[MAX_SCOREBOARDNAME];
-
-	myname = TP_PlayerName ();
-
-	for (i = 0; i < cl.allocated_client_slots ; i++) {
-		if (cl.players[i].name[0] && !cl.players[i].spectator)
-		{
-			strcpy (enemyname, cl.players[i].name);
-			if (!strcmp(enemyname, myname))
-				return enemyname;
-		}
-	}
-	return "";
-}
-
-char *TP_MapName (void)
-{
-	return host_mapname.string;
-}
 
 #ifdef QWSKINS
 /*
@@ -2124,8 +2188,10 @@ void TP_NewMap (void)
 	static char last_map[MAX_QPATH];
 	char locname[MAX_QPATH];
 
+#ifdef QUAKESTATS
 	memset (&vars, 0, sizeof(vars));
 	TP_FindModelNumbers ();
+#endif
 
 	// FIXME, just try to load the loc file no matter what?
 	if (strcmp(host_mapname.string, last_map))
@@ -2142,7 +2208,9 @@ void TP_NewMap (void)
 			strlcpy (last_map, "", sizeof(last_map));
 	}
 
+#ifdef QUAKESTATS
 	TP_UpdateAutoStatus();
+#endif
 	TP_ExecTrigger ("f_newmap", false);
 }
 
@@ -2351,6 +2419,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 	return flags;
 }
 
+#ifdef QUAKESTATS
 //===================================================================
 // Pickup triggers
 //
@@ -2420,8 +2489,8 @@ static void FlagCommand (int *flags, int defaultflags) {
 		for (i = 0 ; i < NUM_ITEMFLAGS ; i++)
 			if (*flags & (1 << i)) {
 				if (*str)
-					strncat (str, " ", sizeof(str) - strlen(str) - 1);
-				strncat (str, pknames[i], sizeof(str) - strlen(str) - 1);
+					Q_strncatz (str, " ", sizeof(str));
+				Q_strncatz (str, pknames[i], sizeof(str));
 			}
 		Com_Printf ("%s\n", str);
 		return;
@@ -2624,7 +2693,7 @@ static item_t	tp_items[] = {
 	{	it_flag,	&tp_name_flag,	"progs/tf_stan.mdl",
 		{0, 0, 45},	40, 0
 	},
-	{	it_ra|it_ya|it_ga, NULL,	"progs/armor.mdl",
+	{	it_ra|it_ya|it_ga, &tp_name_armor,	"progs/armor.mdl",	//generic armour, used only when the skin number if invalid for the other types.
 		{0, 0, 24},	22, 0
 	},
 	{	it_ga,		&tp_name_ga,		"progs/armor.mdl",
@@ -2701,7 +2770,6 @@ static void TP_FindModelNumbers (void)
 	}
 }
 
-#ifndef QUAKETC
 // on success, result is non-zero
 // on failure, result is zero
 // for armors, returns skinnum+1 on success
@@ -2875,11 +2943,9 @@ static void TP_ItemTaken (char *s, int flag, vec3_t org, int entnum, item_t *ite
 	}
 */
 }
-#endif
 
 void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info)
 {
-#ifndef QUAKETC
 	playerview_t *pv = &cl.playerview[SP];
 //	if (TP_NeedRefreshSkins())
 //	{
@@ -2918,12 +2984,10 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 			strcpy (vars.lastdroploc, Macro_Location());
 		}
 	}
-#endif
 }
 
 void TP_CheckPickupSound (char *s, vec3_t org, int seat)
 {
-#ifndef QUAKETC
 	int entnum;
 	item_t	*item;
 	playerview_t *pv = &cl.playerview[seat];
@@ -3031,7 +3095,6 @@ more:
 			return;
 		TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
 	}
-#endif
 }
 
 qboolean R_CullSphere (vec3_t org, float radius);
@@ -3165,7 +3228,7 @@ static char *Utils_TF_ColorToTeam_Failsafe(int color)
 	return (best == -1) ? "" : teams[best];
 }
 
-char *Utils_TF_ColorToTeam(int color)
+static char *Utils_TF_ColorToTeam(int color)
 {
 	char *s;
 
@@ -3192,7 +3255,6 @@ char *Utils_TF_ColorToTeam(int color)
 	}
 	return Utils_TF_ColorToTeam_Failsafe(color);
 }
-
 
 static void TP_FindPoint (void)
 {
@@ -3377,7 +3439,6 @@ nothing:
 	pmove.skipent = oldskip;
 }
 
-
 void TP_UpdateAutoStatus(void)
 {
 	char newstatusbuf[sizeof(vars.autoteamstatus)];
@@ -3420,7 +3481,6 @@ void TP_UpdateAutoStatus(void)
 
 void TP_StatChanged (int stat, int value)
 {
-#ifdef QUAKESTATS
 	playerview_t *pv = &cl.playerview[SP];
 	int		i;
 	if (stat == STAT_HEALTH)
@@ -3486,11 +3546,11 @@ void TP_StatChanged (int stat, int value)
 			TP_ExecTrigger ("f_weaponchange", false);
 		vars.activeweapon = pv->stats[STAT_ACTIVEWEAPON];
 	}
-#endif
 	vars.stat_framecounts[stat] = cls.framecount;
 
 	TP_UpdateAutoStatus();
 }
+#endif
 
 
 /*
@@ -3569,8 +3629,9 @@ qbool TP_CheckSoundTrigger (char *str)
 }
 
 
+#define MAX_FILTERS 8
 #define MAX_FILTER_LENGTH 4
-static char filter_strings[8][MAX_FILTER_LENGTH+1];
+static char filter_strings[MAX_FILTERS][MAX_FILTER_LENGTH+1];
 static int	num_filters = 0;
 
 /*
@@ -3659,7 +3720,7 @@ static void TP_MsgFilter_f (void)
 		}
 		strlcpy (filter_strings[num_filters], s+1, sizeof(filter_strings[0]));
 		num_filters++;
-		if (num_filters >= 8)
+		if (num_filters >= countof(filter_strings))
 			break;
 	}
 }
@@ -3685,9 +3746,11 @@ void TP_Init (void)
 	Cmd_AddCommand ("colorize", TP_Colourise_f);	//us
 	//Cmd_AddCommand ("colorise", TP_Colourise_f);	//piss off both.
 #endif
+#ifdef QUAKESTATS
 	Cmd_AddCommand ("tp_took", TP_Took_f);
 	Cmd_AddCommand ("tp_pickup", TP_Pickup_f);
 	Cmd_AddCommand ("tp_point", TP_Point_f);
+#endif
 
 	TP_InitMacros();
 }
@@ -3698,7 +3761,10 @@ void TP_Init (void)
 
 qboolean TP_SuppressMessage(char *buf) {
 	char *s;
-	playerview_t *pv = &cl.playerview[SP];
+	unsigned int seat;
+
+	if (cls.demoplayback)
+		return false;
 
 	for (s = buf; *s && *s != 0x7f; s++)
 		;
@@ -3707,7 +3773,10 @@ qboolean TP_SuppressMessage(char *buf) {
 		*s++ = '\n';
 		*s++ = 0;
 
-		return (!cls.demoplayback && !pv->spectator && *s - 'A' == pv->playernum);
+		for (seat = 0; seat < cl.splitclients; seat++)
+			if (!cl.playerview[seat].spectator && *s - 'A' == cl.playerview[seat].playernum)
+				return true;
+
 	}
 	return false;
 }
@@ -3718,7 +3787,7 @@ void CL_Say (qboolean team, char *extra)
 {
 	extern cvar_t cl_fakename;
 	char	text[2048], sendtext[2048], *s;
-	playerview_t *pv = &cl.playerview[SP];
+	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 
 	if (Cmd_Argc() < 2)
 	{
@@ -3863,7 +3932,9 @@ void CL_SayMe_f (void)
 
 void CL_SayTeam_f (void)
 {
+#ifdef QUAKESTATS
 	vars.autoteamstatus_time = realtime + 3;
+#endif
 	CL_Say (true, NULL);
 }
 

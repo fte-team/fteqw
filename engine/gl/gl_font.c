@@ -2665,7 +2665,10 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 				if (codepoint > ' ')
 					l = n;
 				else
+				{
+					l = n;
 					break;
+				}
 			}
 			if (l == start && bt>start)
 				l = Font_DecodeReverse(bt, start, &codeflags, &codepoint);
@@ -2676,6 +2679,14 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 		foundlines++;
 		if (foundlines == maxlines)
 			break;
+
+		for (;;)
+		{
+			n = Font_Decode(l, &codeflags, &codepoint);
+			if (!(codeflags & CON_HIDDEN) && (codepoint != ' '))
+				break;
+			l = n;
+		}
 
 		start=l;
 		if (start == end)

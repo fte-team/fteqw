@@ -832,16 +832,16 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 	Q_snprintfz(con->title, sizeof(con->title), "MODIFIED: %s", con->name);
 	return true;
 }
-void Con_Editor_CloseCallback(void *ctx, int op)
+void Con_Editor_CloseCallback(void *ctx, promptbutton_t op)
 {
 	console_t *con = ctx;
 
 	if (con != con_curwindow)	//ensure that it still exists (lame only-active-window check)
 		return;
 	
-	if (op == 0)
+	if (op == PROMPT_YES)
 		Con_Editor_Save(con);
-	if (op != -1)	//-1 == cancel
+	if (op != PROMPT_CANCEL)
 		Con_Destroy(con);
 }
 qboolean Con_Editor_Close(console_t *con, qboolean force)

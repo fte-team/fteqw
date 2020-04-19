@@ -1606,29 +1606,26 @@ void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	int dst = G_INT(OFS_PARM0);
 	int src = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (dst < 0 || dst+size >= prinst->stringtablesize)
-	{
+	if (size < 0 || size > prinst->stringtablesize)
+		PR_BIError(prinst, "PF_memcpy: invalid size\n");
+	else if (dst < 0 || dst+size > prinst->stringtablesize)
 		PR_BIError(prinst, "PF_memcpy: invalid dest\n");
-		return;
-	}
-	if (src < 0 || src+size >= prinst->stringtablesize)
-	{
+	else if (src < 0 || src+size > prinst->stringtablesize)
 		PR_BIError(prinst, "PF_memcpy: invalid source\n");
-		return;
-	}
-	memmove(prinst->stringtable + dst, prinst->stringtable + src, size);
+	else
+		memmove(prinst->stringtable + dst, prinst->stringtable + src, size);
 }
 void QCBUILTIN PF_memfill8 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dst = G_INT(OFS_PARM0);
 	int val = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (dst < 0 || dst+size >= prinst->stringtablesize)
-	{
-		PR_BIError(prinst, "PF_memcpy: invalid dest\n");
-		return;
-	}
-	memset(prinst->stringtable + dst, val, size);
+	if (size < 0 || size > prinst->stringtablesize)
+		PR_BIError(prinst, "PF_memcpy: invalid size\n");
+	else if (dst < 0 || dst+size > prinst->stringtablesize)
+		PR_BIError(prinst, "PF_memfill8: invalid dest\n");
+	else
+		memset(prinst->stringtable + dst, val, size);
 }
 
 void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1670,6 +1667,8 @@ typedef struct
 		char	*stringdata;
 	};
 } pf_hashentry_t;
+#define HASH_REPLACE	256
+#define HASH_ADD		512
 #define FIRSTTABLE 1
 static pf_hashtab_t *pf_hashtab;
 static size_t pf_hash_maxtables;
@@ -1787,6 +1786,7 @@ void QCBUILTIN PF_hash_getcb (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		memcpy(G_VECTOR(OFS_RETURN), G_VECTOR(OFS_PARM2), sizeof(vec3_t));
 */
 }
+
 void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
@@ -1799,7 +1799,7 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	{
 		if (!type)
 			type = tab->defaulttype;
-		if (!(flags & 512) || (flags & 256))
+		if (!(flags & HASH_ADD) || (flags & HASH_REPLACE))
 		{
 			ent = Hash_Get(&tab->tab, name);
 			if (ent)
@@ -1907,11 +1907,138 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 	G_FLOAT(OFS_RETURN) = i + FIRSTTABLE;
 }
 
-void pf_hash_savegame(void)	//write the persistant table to a saved game.
+static void PF_hash_savetab(void *ctx, void *data)
 {
+	char tmp[8192];
+	pf_hashentry_t *ent = data;
+	if (ent->type == ev_string)
+		VFS_PRINTF (ctx, "\t%i \"%s\" %s\n", ent->type, ent->name, COM_QuotedString(ent->stringdata, tmp, sizeof(tmp), false));
+	else if (ent->type == ev_vector)
+		VFS_PRINTF (ctx, "\t%i \"%s\" %f %f %f\n", ent->type, ent->name, ent->data[0], ent->data[1], ent->data[2]);
+	else if (ent->type == ev_float)
+		VFS_PRINTF (ctx, "\t%i \"%s\" %f\n", ent->type, ent->name, *(float*)ent->data);
+	else
+		VFS_PRINTF (ctx, "\t%i \"%s\" %#x\n", ent->type, ent->name, *(int*)ent->data);
 }
-void pf_hash_loadgame(void)	//(re)load the persistant table.
+static void PR_hash_savegame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary)	//write the persistant table to a saved game.
 {
+	unsigned int tab;
+	char *tmp = NULL;
+
+	for (tab = 0; tab < pf_hash_maxtables; tab++)
+	{
+		if (pf_hashtab[tab].prinst == prinst)// && (pf_hashtab[tab].flags & BUFFLAG_SAVED))
+		{
+			VFS_PRINTF (f, "hashtable %u %i %u\n", tab+FIRSTTABLE, pf_hashtab[tab].defaulttype, (unsigned int)pf_hashtab[tab].tab.numbuckets);
+			VFS_PRINTF (f, "{\n");
+			Hash_Enumerate(&pf_hashtab[tab].tab, PF_hash_savetab, f);
+			VFS_PRINTF (f, "}\n");
+		}
+	}
+	free(tmp);
+}
+static const char *PR_hash_loadgame(pubprogfuncs_t *prinst, const char *l)
+{
+	char name[8192];
+	char token[65536];
+	int tabno;
+	int nlen, vlen;
+	etype_t hashtype;
+	size_t buffersize;
+	com_tokentype_t tt;
+	pf_hashtab_t *tab;
+	pf_hashentry_t *ent;
+	l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+	tabno = atoi(token)-FIRSTTABLE;
+	l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+	hashtype = atoi(token);
+	l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+	buffersize = atoi(token);
+
+	l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_LINEENDING)return NULL;
+	l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_PUNCTUATION)return NULL;
+	if (strcmp(token, "{"))	return NULL;
+
+	if (tabno < 0 || tabno >= 1<<16)
+		return NULL;
+	if (tabno >= pf_hash_maxtables)
+		Z_ReallocElements((void**)&pf_hashtab, &pf_hash_maxtables, tabno+1, sizeof(*pf_hashtab));
+
+	tab = &pf_hashtab[tabno];
+	if (tab->prinst)
+	{
+		tab->prinst = NULL;
+		Hash_Enumerate(&tab->tab, PF_hash_destroytab_enum, NULL);
+		Z_Free(tab->bucketmem);
+		tab->bucketmem = NULL;
+	}
+	tab->prinst = prinst;
+	tab->defaulttype = hashtype;
+	tab->bucketmem = Z_Malloc(Hash_BytesForBuckets(buffersize));
+	Hash_InitTable(&tab->tab, buffersize, tab->bucketmem);
+
+	for(;;)
+	{
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);
+		if (tt == TTP_LINEENDING)
+			continue;
+		if (tt == TTP_PUNCTUATION && !strcmp(token, "}"))
+			break;
+		if (tt != TTP_RAWTOKEN)
+			break;
+		hashtype = atoi(token);
+		l = COM_ParseTokenOut(l, NULL, name, sizeof(name), &tt);if (tt != TTP_STRING)return NULL;
+
+		nlen = strlen(name);
+		if (hashtype == ev_string)
+		{
+			l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return NULL;
+			vlen = strlen(token);
+			l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_LINEENDING)return NULL;
+
+			ent = BZ_Malloc(sizeof(*ent) + nlen+1 + vlen+1);
+			ent->name = (char*)(ent+1);
+			ent->type = hashtype;
+			ent->stringdata = ent->name+(nlen+1);
+			memcpy(ent->name, name, nlen);
+			ent->name[nlen] = 0;
+			memcpy(ent->stringdata, token, vlen+1);
+			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
+		}
+		else
+		{
+			vec3_t data = {0,0,0};
+			if (hashtype == ev_vector)
+			{
+				l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+				data[0] = atof(token);
+				l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+				data[1] = atof(token);
+				l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+				data[2] = atof(token);
+			}
+			else if (hashtype == ev_float)
+			{
+				l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+				*data = atof(token);
+			}
+			else	//treat it as an ev_int
+			{
+				l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return NULL;
+				*(int*)data = atoi(token);
+			}
+			l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_LINEENDING)return NULL;
+
+			ent = BZ_Malloc(sizeof(*ent) + nlen + 1);
+			ent->name = (char*)(ent+1);
+			ent->type = hashtype;
+			memcpy(ent->name, name, nlen);
+			ent->name[nlen] = 0;
+			memcpy(ent->data, data, sizeof(vec3_t));
+			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
+		}
+	}
+	return l;
 }
 void pf_hash_preserve(void)	//map changed, make sure it can be reset properly.
 {
@@ -4042,7 +4169,7 @@ struct strbuf {
 };
 
 #define BUFFLAG_SAVED 1
-#define BUFSTRBASE 1
+#define BUFSTRBASE 1	//officially these are 0-based (ie: use negatives for not-a-buffer), but fte biases it to catch qc bugs.
 struct strbuf	*strbuflist;
 size_t			strbufmax;
 
@@ -4532,9 +4659,9 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (var=grp->cvars ; var ; var=var->next)
 		{
-			if (plen && (pwc?wildcmp(pattern, var->name):strncmp(var->name, pattern, plen)))
+			if (plen && (pwc?!wildcmp(pattern, var->name):strncmp(var->name, pattern, plen)))
 				continue;
-			if (alen && (awc?!wildcmp(antipattern, var->name):!strncmp(var->name, antipattern, alen)))
+			if (alen && (awc?wildcmp(antipattern, var->name):!strncmp(var->name, antipattern, alen)))
 				continue;
 
 			PF_bufstr_add_internal(bufno, var->name, true);
@@ -4819,7 +4946,8 @@ static void PR_uri_get_callback2(int iarg, void *data)
 				G_INT(OFS_PARM2) = prinst->AllocTempString(prinst, &buffer, len+1);
 				len = VFS_READ(ctx->file, buffer, len);
 				if (len < 0)
-					buffer[len] = 0;
+					len = 0;
+				buffer[len] = 0;
 				G_INT(OFS_PARM3) = len;
 			}
 
@@ -6571,6 +6699,12 @@ qboolean PR_Common_LoadGame(pubprogfuncs_t *prinst, char *command, const char **
 		if (!l)
 			return false;
 	}
+	else if (!strcmp(command, "hashtable"))
+	{
+		l = PR_hash_loadgame(prinst, l);
+		if (!l)
+			return false;
+	}
 	else
 		return false;
 	*file = l;
@@ -6579,6 +6713,7 @@ qboolean PR_Common_LoadGame(pubprogfuncs_t *prinst, char *command, const char **
 void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary)
 {
 	PR_buf_savegame(f, prinst, binary);
+	PR_hash_savegame(f, prinst, binary);
 }
 
 
@@ -6804,6 +6939,7 @@ lh_extension_t QSG_Extensions[] = {
 #ifndef SERVERONLY
 	{"DP_CON_SETA",						0,	NULL, {NULL}, "The 'seta' console command exists, like the 'set' command, but also marks the cvar for archiving, allowing it to be written into the user's config. Use this command in your default.cfg file."},
 #endif
+	{"DP_CSQC_ROTATEMOVES"},
 	{"DP_EF_ADDITIVE"},
 //--{"DP_ENT_ALPHA"}, //listed above
 	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
@@ -6841,6 +6977,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_CVAR_DEFSTRING",			1,	NULL, {"cvar_defstring"}},
 	{"DP_QC_CVAR_STRING",				1,	NULL, {"cvar_string"}},	//448 builtin.
 	{"DP_QC_CVAR_TYPE",					1,	NULL, {"cvar_type"}},
+	{"DP_QC_DIGEST_SHA256"},
 	{"DP_QC_EDICT_NUM",					1,	NULL, {"edict_num"}},
 	{"DP_QC_ENTITYDATA",				5,	NULL, {"numentityfields", "entityfieldname", "entityfieldtype", "getentityfieldstring", "putentityfieldstring"}},
 	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
@@ -6987,6 +7124,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_CROSSPRODUCT",				1,	NULL, {"crossproduct"}},
 	{"FTE_QC_CUSTOMSKINS",				1,	NULL, {"setcustomskin", "loadcustomskin", "applycustomskin", "releasecustomskin"}, "The engine supports the use of q3 skins, as well as the use of such skin 'files' to specify rich top+bottom colours, qw skins, geomsets, or texture composition even on non-players.."},
+	{"FTE_QC_DIGEST_SHA1"},
+	{"FTE_QC_DIGEST_SHA224"},
+	{"FTE_QC_DIGEST_SHA384"},
+	{"FTE_QC_DIGEST_SHA512"},
 	{"FTE_QC_FS_SEARCH_SIZEMTIME",		2,	NULL, {"search_getfilesize", "search_getfilemtime"}},
 	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits (or hardware cursors are unsupported), it will be emulated using regular draws - this at least still avoids conflicting cursors as only one will ever be used, even if console+menu+csqc are all overlayed."},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}, "Provides efficient string-based lookups."},

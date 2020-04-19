@@ -208,7 +208,7 @@ void Draw_AltFunString(float x, float y, const void *str)
 }
 
 //Draws a marked up string no wider than $width virtual pixels.
-void Draw_FunStringWidth(float x, float y, const void *str, int width, int rightalign, qboolean highlight)
+void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *str, int width, int rightalign, qboolean highlight)
 {
 	conchar_t buffer[2048];
 	conchar_t *w;
@@ -224,7 +224,7 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, int right
 		codeflags |= CON_BLINKTEXT;
 	COM_ParseFunString(codeflags, str, buffer, sizeof(buffer), false);
 
-	Font_BeginString(font_default, x, y, &px, &py);
+	Font_BeginString(font, x, y, &px, &py);
 	if (rightalign)
 	{
 		for (w = buffer; *w; )
@@ -258,7 +258,7 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, int right
 			return;
 		px = Font_DrawChar(px, py, codeflags, codepoint);
 	}
-	Font_EndString(font_default);
+	Font_EndString(font);
 }
 #ifdef QUAKEHUD
 

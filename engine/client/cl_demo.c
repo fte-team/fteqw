@@ -1134,7 +1134,7 @@ void CL_RecordMap_f (void)
 	Q_strncpyz(mapname, Cmd_Argv(2), sizeof(mapname));
 	CL_Disconnect_f();
 
-	SV_SpawnServer (mapname, NULL, false, false);
+	SV_SpawnServer (mapname, NULL, false, false, 0);
 
 #ifdef MVD_RECORDING
 	COM_DefaultExtension(demoname, ".mvd", sizeof(demoname));
@@ -1785,46 +1785,7 @@ void CL_Record_f (void)
 	}
 	else
 	{	//automagically generate a name
-		if (cl.playerview[0].spectator)
-		{	// FIXME: if tracking a player, use his name
-			fname = va ("spec_%s_%s",
-				TP_PlayerName(),
-				TP_MapName());
-		}
-		else
-		{	// guess game type and write demo name
-			i = TP_CountPlayers();
-			if (cl.teamplay && i >= 3)
-			{	// Teamplay
-				fname = va ("%s_%s_vs_%s_%s",
-					TP_PlayerName(),
-					TP_PlayerTeam(),
-					TP_EnemyTeam(),
-					TP_MapName());
-			}
-			else
-			{
-				if (i == 2)
-				{	// Duel
-					fname = va ("%s_vs_%s_%s",
-						TP_PlayerName(),
-						TP_EnemyName(),
-						TP_MapName());
-				}
-				else if (i > 2)
-				{	// FFA
-					fname = va ("%s_ffa_%s",
-						TP_PlayerName(),
-						TP_MapName());
-				}
-				else
-				{	// one player
-					fname = va ("%s_%s",
-						TP_PlayerName(),
-						TP_MapName());
-				}
-			}
-		}
+		fname = TP_GenerateDemoName();
 	}
 
 	while((p = strstr(fname, "..")))

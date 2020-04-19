@@ -184,298 +184,6 @@ pbool PDECL SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const 
 }
 
 #ifndef QUAKETC
-
-//expects the version to have already been parsed
-static qboolean SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
-{
-	//FIXME: Multiplayer save probably won't work with spectators.
-	char	mapname[MAX_QPATH];
-	float	time;
-	char	str[32768];
-	int		i;
-	edict_t	*ent;
-	int pt;
-	int lstyles;
-
-	int slots;
-
-	client_t *cl;
-	int clnum;
-	char plname[32];
-
-	int filelen, filepos;
-	char *file;
-
-	char *modelnames[MAX_PRECACHE_MODELS];
-	char *soundnames[MAX_PRECACHE_SOUNDS];
-
-	if (version != SAVEGAME_VERSION_FTE_LEG && version != SAVEGAME_VERSION_NQ && version != SAVEGAME_VERSION_QW)
-	{
-		VFS_CLOSE (f);
-		Con_TPrintf ("Unable to load savegame of version %i\n", version);
-		return false;
-	}
-	VFS_GETS(f, str, sizeof(str));	//discard comment.
-	Con_Printf("loading legacy game from %s...\n", filename);
-
-
-
-	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server for the level change.
-	{
-		cl = &svs.clients[clnum];
-		if (cl->state <= cs_loadzombie)
-			continue;
-
-#ifndef SERVERONLY
-		if (cl->netchan.remote_address.type == NA_LOOPBACK)
-			CL_Disconnect(NULL);
-		else
-#endif
-		{
-			MSG_WriteByte (&cl->netchan.message, svc_stufftext);
-			MSG_WriteString (&cl->netchan.message, "disconnect;wait;reconnect\n");	//kindly ask the client to come again.
-		}
-		cl->drop = true;
-	}
-	SV_SendMessagesToAll();
-
-	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
-	{
-		slots = 1;
-		SV_UpdateMaxPlayers(1);
-		cl = &svs.clients[0];
-#ifdef SERVERONLY
-		Q_strncpyz(cl->namebuf, "", sizeof(cl->namebuf));
-#else
-		Q_strncpyz(cl->namebuf, name.string, sizeof(cl->namebuf));
-#endif
-		Q_strncpyz(cl->namebuf, com_token, sizeof(cl->namebuf));
-		cl->name = cl->namebuf;
-		cl->state = cs_loadzombie;
-		cl->connection_started = realtime+20;
-		cl->spawned = cl->istobeloaded = true;
-
-		for (i=0 ; i<16 ; i++)
-		{
-			VFS_GETS(f, str, sizeof(str));
-			cl->spawn_parms[i] = atof(str);
-		}
-		for (; i < NUM_SPAWN_PARMS; i++)
-			cl->spawn_parms[i] = 0;
-	}
-	else	//fte saves ALL the clients on the server.
-	{
-		VFS_GETS(f, str, strlen(str));
-		slots = atoi(str);
-		if (!slots)	//err
-		{
-			VFS_CLOSE(f);
-			Con_Printf ("Corrupted save game");
-			return false;
-		}
-		SV_UpdateMaxPlayers(slots);
-		for (clnum = 0; clnum < sv.allocated_client_slots; clnum++)	//work out which players we had when we saved, and hope they accepted the reconnect.
-		{
-			cl = &svs.clients[clnum];
-			VFS_GETS(f, plname, sizeof(plname));
-
-			cl->spawned = false;
-			cl->istobeloaded = false;
-
-			cl->state = cs_free;
-
-			COM_Parse(plname);
-
-			if (!*com_token)
-				continue;
-
-			Q_strncpyz(cl->namebuf, com_token, sizeof(cl->namebuf));
-			cl->name = cl->namebuf;
-			cl->state = cs_loadzombie;
-			cl->connection_started = realtime+20;
-			cl->istobeloaded = true;
-			cl->userid = 0;
-
-			//probably should be 32, rather than NUM_SPAWN_PARMS(64)
-			for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-			{
-				VFS_GETS(f, str, sizeof(str));
-				cl->spawn_parms[i] = atof(str);
-			}
-		}
-	}
-	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		Cvar_SetValue (Cvar_FindVar("skill"), atof(str));
-		Cvar_SetValue (Cvar_FindVar("deathmatch"), 0);
-		Cvar_SetValue (Cvar_FindVar("coop"), 0);
-		Cvar_SetValue (Cvar_FindVar("teamplay"), 0);
-
-		if (version == SAVEGAME_VERSION_NQ)
-		{
-			progstype = PROG_NQ;
-			Cvar_Set (&pr_ssqc_progs, "progs.dat");	//NQ's progs.
-		}
-		else
-		{
-			progstype = PROG_QW;
-			Cvar_Set (&pr_ssqc_progs, "spprogs");	//zquake's single player qw progs.
-		}
-		pt = 0;
-	}
-	else
-	{
-		VFS_GETS(f, str, sizeof(str));
-		pt = atoi(str);
-
-		VFS_GETS(f, str, sizeof(str));
-		Cvar_SetValue (Cvar_FindVar("skill"), atof(str));
-
-		VFS_GETS(f, str, sizeof(str));
-		Cvar_SetValue (Cvar_FindVar("deathmatch"), atof(str));
-		VFS_GETS(f, str, sizeof(str));
-		Cvar_SetValue (Cvar_FindVar("coop"), atof(str));
-		VFS_GETS(f, str, sizeof(str));
-		Cvar_SetValue (Cvar_FindVar("teamplay"), atof(str));
-	}
-	VFS_GETS(f, mapname, sizeof(mapname));
-	VFS_GETS(f, str, sizeof(str));
-	time = atof(str);
-
-	SV_SpawnServer (mapname, NULL, false, false);	//always inits MAX_CLIENTS slots. That's okay, because we can cut the max easily.
-	if (sv.state != ss_active)
-	{
-		VFS_CLOSE (f);
-		Con_TPrintf ("Couldn't load map\n");
-		return false;
-	}
-
-	sv.allocated_client_slots = slots;
-
-// load the light styles
-
-	lstyles = 64;
-	if (lstyles > sv.maxlightstyles)
-		Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, lstyles, sizeof(*sv.lightstyles));
-	for (i=0 ; i<lstyles ; i++)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		if (sv.lightstyles[i].str)
-			Z_Free((char*)sv.lightstyles[i].str);
-		sv.lightstyles[i].str = Z_StrDup(str);
-		sv.lightstyles[i].colours[0] = sv.lightstyles[i].colours[1] = sv.lightstyles[i].colours[2] = 1;
-	}
-	for (; i < sv.maxlightstyles; i++)
-	{
-		if (sv.lightstyles[i].str)
-			Z_Free((char*)sv.lightstyles[i].str);
-		sv.lightstyles[i].str = NULL;
-	}
-
-	//model names are pointers to vm-accessible memory. as that memory is going away, we need to destroy and recreate, which requires preserving them.
-	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
-	{
-		if (!sv.strings.model_precache[i])
-		{
-			modelnames[i] = NULL;
-			break;
-		}
-		modelnames[i] = Z_StrDup(sv.strings.model_precache[i]);
-	}
-	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
-	{
-		if (!sv.strings.sound_precache[i])
-		{
-			soundnames[i] = NULL;
-			break;
-		}
-		soundnames[i] = Z_StrDup(sv.strings.sound_precache[i]);
-	}
-
-// load the edicts out of the savegame file
-// the rest of the file is sent directly to the progs engine.
-
-	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
-		;//Q_InitProgs();	//reinitialize progs entirly.
-	else
-	{
-		Q_SetProgsParms(false);
-		svs.numprogs = 0;
-
-		PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
-		PR_RegisterFields();
-		PR_InitEnts(svprogfuncs, sv.world.max_edicts);	//just in case the max edicts isn't set.
-		progstype = pt;	//presumably the progs.dat will be what they were before.
-	}
-
-	//reload model names.
-	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
-	{
-		if (!modelnames[i])
-			break;
-		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, modelnames[i], 0, false);
-		Z_Free(modelnames[i]);
-	}
-	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
-	{
-		if (!soundnames[i])
-			break;
-		sv.strings.sound_precache[i] = PR_AddString(svprogfuncs, soundnames[i], 0, false);
-		Z_Free(soundnames[i]);
-	}
-
-	filepos = VFS_TELL(f);
-	filelen = VFS_GETLEN(f);
-	filelen -= filepos;
-	file = BZ_Malloc(filelen+1+8);
-	memset(file, 0, filelen+1+8);
-	strcpy(file, "loadgame");
-	clnum=VFS_READ(f, file+8, filelen);
-	file[filelen+8]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_ExtendedSaveData);
-	BZ_Free(file);
-
-	PR_LoadGlabalStruct(false);
-
-	pr_global_struct->time = sv.world.physicstime = sv.time = time;
-	sv.starttime = Sys_DoubleTime() - sv.time;
-
-	VFS_CLOSE(f);
-
-	//FIXME: QSS+DP saved games have some / *\nkey values\nkey values\n* / thing in them to save precaches and stuff
-
-	World_ClearWorld(&sv.world, true);
-
-	sv.spawned_client_slots = 0;
-	sv.spawned_observer_slots = 0;
-	for (i=0 ; i<svs.allocated_client_slots ; i++)
-	{
-		cl = &svs.clients[i];
-		if (i < sv.allocated_client_slots)
-		{
-			if (cl->state)
-				sv.spawned_client_slots += 1;
-			ent = EDICT_NUM_PB(svprogfuncs, i+1);
-		}
-		else
-			ent = NULL;
-		cl->edict = ent;
-		cl->spawned = false;
-
-		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
-		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
-
-#ifdef HEXEN2
-		if (ent)
-			cl->playerclass = ent->xv->playerclass;
-		else
-			cl->playerclass = 0;
-#endif
-	}
-	return true;
-}
-
 static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 {
 	size_t len;
@@ -549,7 +257,7 @@ static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 		VFS_PRINTF(f, "%i\n", sv.allocated_client_slots);
 		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)
 		{
-			if (cl->state < cs_spawned && !cl->istobeloaded)	//don't save if they are still connecting
+			if (cl->state < cs_loadzombie || !cl->spawned)	//don't save if they are still connecting
 			{
 				VFS_PRINTF(f, "\"\"\n");
 				continue;
@@ -736,7 +444,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	{
 		char *s;
 		flocation_t loc;
-		SV_SpawnServer (level, startspot, false, false);
+		SV_SpawnServer (level, startspot, false, false, 0);
 
 		World_ClearWorld(&sv.world, false);
 		if (!ge)
@@ -907,7 +615,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 	//NOTE: This sets up the default baselines+statics+ambients.
 	//FIXME: if any model names changed, then we're screwed.
-	SV_SpawnServer (mapname, startspot, false, false);
+	SV_SpawnServer (mapname, startspot, false, false, svs.allocated_client_slots);
 	sv.time = time;
 	if (svs.gametype != gametype)
 	{
@@ -1009,7 +717,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf), false);
 		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf), false);
 
-		svs.clients[i].spawned = (svs.clients[i].state == cs_loadzombie);
+		//svs.clients[i].spawned = (svs.clients[i].state == cs_loadzombie);
 #ifdef HEXEN2
 		if (ent)
 			svs.clients[i].playerclass = ent->xv->playerclass;
@@ -1223,25 +931,9 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 			else if (progstype == PROG_H2)
 				cl->edict->ereftype = ER_FREE;	//hexen2 has some annoying prints. it never formally dropped clients on map changes (we'll reset this later, so they'll just not appear in the saved game).
 			else if (!cl->spawned)	//don't drop if they are still connecting
-			{
 				cl->edict->v->solid = 0;
-			}
-			else if (!cl->spectator)
-			{
-				// call the prog function for removing a client
-				// this will set the body to a dead frame, among other things
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
-				sv.spawned_client_slots--;
-			}
-			else if (SpectatorDisconnect)
-			{
-				// call the prog function for removing a client
-				// this will set the body to a dead frame, among other things
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-				PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
-				sv.spawned_observer_slots--;
-			}
+			else
+				SV_DespawnClient(cl);
 		}
 	}
 
@@ -1466,29 +1158,17 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 
 		if (*cl->name)
 		{
-			if (1)
+			char tmp[65536];
+			VFS_PRINTF(f, "{\n");
+			for (len = 0; len < NUM_SPAWN_PARMS; len++)
+				VFS_PRINTF(f, "\tparm%i 0x%x //%.9g\n", len, *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write hex as not everyone passes a float in the parms.
+			VFS_PRINTF(f, "\tparm_string %s\n", COM_QuotedString(cl->spawn_parmstring?cl->spawn_parmstring:"", tmp, sizeof(tmp), false));
+			/*if (cl->spawninfo)
 			{
-				char tmp[65536];
-				VFS_PRINTF(f, "{\n");
-				for (len = 0; len < NUM_SPAWN_PARMS; len++)
-					VFS_PRINTF(f, "\tparm%i 0x%x //%.9g\n", len, *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write hex as not everyone passes a float in the parms.
-				VFS_PRINTF(f, "\tparm_string %s\n", COM_QuotedString(cl->spawn_parmstring?cl->spawn_parmstring:"", tmp, sizeof(tmp), false));
-				/*if (cl->spawninfo)
-				{
-					VFS_PRINTF(f, "\tspawninfo %s\n", COM_QuotedString(cl->spawninfo, tmp, sizeof(tmp), false));
-					VFS_PRINTF(f, "\tspawninfotime %9g\n", cl->spawninfotime);
-				}*/
-				VFS_PRINTF(f, "}\n");	//write ints as not everyone passes a float in the parms.
-			}
-			else
-			{
-				for (len = 0; len < NUM_SPAWN_PARMS; len++)
-					VFS_PRINTF(f, "%i (%f)\n", *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
-																									//write floats too so you can use it to debug.
-				//FIXME: spawn_parmstring
-				//FIXME: spawninfo[time] (for hexen2)
-				//FIXME: startspot...
-			}
+				VFS_PRINTF(f, "\tspawninfo %s\n", COM_QuotedString(cl->spawninfo, tmp, sizeof(tmp), false));
+				VFS_PRINTF(f, "\tspawninfotime %9g\n", cl->spawninfotime);
+			}*/
+			VFS_PRINTF(f, "}\n");	//write ints as not everyone passes a float in the parms.
 		}
 	}
 
@@ -1634,7 +1314,9 @@ void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb
 
 void SV_Savegame_f (void)
 {
-	if (Cmd_Argc() <= 2)
+	if (sv.state == ss_clustermode && MSV_ForwardToAutoServer())
+		;
+	else if (Cmd_Argc() <= 2)
 	{
 		const char *savename = Cmd_Argv(1);
 		if (strstr(savename, ".."))
@@ -1714,6 +1396,475 @@ void SV_AutoSave(void)
 #endif
 }
 
+typedef struct
+{
+	char name[32];
+	union
+	{
+		int i;
+		float f;
+	} parm[NUM_SPAWN_PARMS];
+	char *parmstr;
+
+	client_t *source;
+} loadplayer_t;
+static void SV_SwapPlayers(client_t *a, client_t *b)
+{
+	size_t i;
+	client_t tmp;
+	if (a==b)
+		return;	//o.O
+	tmp = *a;
+	*a = *b;
+	*b = tmp;
+
+	//swap over pointers for splitscreen.
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].controller == a)
+			svs.clients[i].controller = b;
+		else if (svs.clients[i].controller == b)
+			svs.clients[i].controller = a;
+		if (svs.clients[i].controlled == a)
+			svs.clients[i].controlled = b;
+		else if (svs.clients[i].controlled == b)
+			svs.clients[i].controlled = a;
+	}
+
+	//undo some damage...
+	b->edict = a->edict;
+	a->edict = tmp.edict;
+
+	if (a->name == b->namebuf)	a->name = a->namebuf;
+	if (b->name == a->namebuf)	b->name = b->namebuf;
+	if (a->team == b->teambuf)	a->team = a->teambuf;
+	if (b->team == a->teambuf)	b->team = b->teambuf;
+
+	if (a->netchan.message.data)
+		a->netchan.message.data += (qbyte*)b-(qbyte*)a;
+	if (a->datagram.data)
+		a->datagram.data += (qbyte*)b-(qbyte*)a;
+	if (a->backbuf.data)
+		a->backbuf.data += (qbyte*)b-(qbyte*)a;
+	if (b->netchan.message.data)
+		b->netchan.message.data += (qbyte*)a-(qbyte*)b;
+	if (b->datagram.data)
+		b->datagram.data += (qbyte*)a-(qbyte*)b;
+	if (b->backbuf.data)
+		b->backbuf.data += (qbyte*)a-(qbyte*)b;
+}
+void SV_LoadPlayers(loadplayer_t *lp, size_t slots)
+{	//loading games is messy as fuck
+	//we need to reorder players to the order in the saved game.
+	//swapping players around is really rather messy...
+
+	client_t *cl;
+	size_t clnum, p, p2;
+	int to[255];
+
+	//despawn any entity data, and try to find the loaded player to move them to
+	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server for the level change.
+	{
+		to[clnum] = -1;
+		cl = &svs.clients[clnum];
+		if (cl->state <= cs_loadzombie)
+			continue;
+		SV_DespawnClient(cl);
+		if (cl->state == cs_spawned)
+			cl->state = cs_connected;
+
+		//FIXME: try to match by guids (but we don't have saved guid info)
+
+		//try to match the player to a slot by name.
+		for (p = 0; p < slots; p++)
+			if (*lp[p].name)
+			{
+				if (!strcmp(cl->name, lp[p].name) || slots == 1)
+				{	//this player matched matched...
+					to[clnum] = p;
+					lp[p].source = cl;
+					break;
+				}
+			}
+	}
+	//for loaded players that don't have a client go and find a player to spawn there, to try to deal with players that renamed themselves.
+	for (p = 0; p < slots; p++)
+	{
+		if (!*lp[p].name || lp[p].source)
+			continue;
+		for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)
+		{
+			cl = &svs.clients[clnum];
+			if (cl->state <= cs_loadzombie)
+				continue;
+			if (to[clnum] >= 0)
+				continue;	//was already mapped
+			if (cl->spectator)
+				continue;	//spectators shouldn't be pulled into a player against their will. it may still happen though.
+			to[clnum] = p;
+			lp[p].source = cl;
+			break;
+		}
+	}
+
+	//we walk the list in order, pulling from the appropriate slot.
+	//we're swapping each time, so uninteresting players will bubble to the end instead of breaking our finalised list..
+	//if we're swapping from an earlier slot then that slot wasn't relevant anyway.
+	for (p = 0; p < slots; p++)
+	{
+		if (lp[p].source && lp[p].source!=&svs.clients[p])
+		{
+			SV_SwapPlayers(&svs.clients[p], lp[p].source);
+			for (p2 = 0; p2 < slots; p2++)
+			{
+				if (p == p2)
+					continue;
+				if (lp[p2].source == &svs.clients[p])
+					lp[p2].source = lp[p].source;
+				else if (lp[p2].source == lp[p].source)
+					lp[p2].source = &svs.clients[p];
+			}
+		}
+	}
+
+	if (slots > svs.allocated_client_slots)	//will be trimmed later
+		SV_UpdateMaxPlayers(slots);
+	for (cl = svs.clients, clnum=0; clnum < slots; cl++,clnum++)
+	{
+		if (*lp[clnum].name)
+		{	//okay so we have a player ready for this slot.
+			for (p = 0; p < NUM_SPAWN_PARMS; p++)
+				cl->spawn_parms[p] = lp[clnum].parm[p].f;
+			cl->spawn_parmstring = lp[clnum].parmstr;
+			continue;
+		}
+		else if (cl->state > cs_zombie)
+			SV_DropClient(cl);
+/*
+		Q_strncpyz(cl->namebuf, lp[clnum].name, sizeof(cl->namebuf));
+		cl->name = cl->namebuf;
+		if (*cl->namebuf)
+		{
+			cl->state = cs_loadzombie;
+			cl->connection_started = realtime+20;
+			cl->istobeloaded = true;	//the parms are known
+			cl->userid = 0;
+
+			memset(&cl->netchan, 0, sizeof(cl->netchan));
+
+			for (p = 0; p < NUM_SPAWN_PARMS; p++)
+				cl->spawn_parms[p] = lp[clnum].parm[p].f;
+			cl->spawn_parmstring = lp[clnum].parmstr;
+		}*/
+	}
+}
+
+static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
+{
+	size_t clnum;
+	client_t *cl;
+
+	//make sure autosave doesn't save too early.
+	sv.autosave_time = sv.time + sv_autosave.value*60;
+
+	//let the restart command know the name of the saved game to reload.
+	Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
+
+	slots = min(slots, svs.allocated_client_slots);
+
+	//make sure the player state is set up properly.
+	for (clnum = 0; clnum < slots; clnum++)
+	{
+		cl = &svs.clients[clnum];
+		cl->spawned = !!*lp[clnum].name;
+		if (cl->spawned)
+			sv.spawned_client_slots++;
+
+		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
+		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
+
+		cl->edict = EDICT_NUM_PB(svprogfuncs, clnum+1);
+
+#ifdef HEXEN2
+		{
+			if (cl->edict)
+				cl->playerclass = cl->edict->xv->playerclass;
+			else
+				cl->playerclass = 0;
+		}
+#endif
+
+		if (cl->state == cs_spawned)	//shouldn't have gotten past SV_SpawnServer, but just in case...
+			cl->state = cs_connected;	//client needs new serverinfo.
+		if (cl->spawned && cl->state < cs_connected)	//make sure the player slot is active when the gamecode thinks it was (with a loadzombie if needed)
+		{
+			cl->state = cs_loadzombie;
+			cl->connection_started = realtime+20;
+			cl->istobeloaded = true;	//the parms are known
+			cl->userid = 0;
+			memset(&cl->netchan, 0, sizeof(cl->netchan));
+		}
+
+		if (cl->controller)
+			continue;
+		if (cl->state>=cs_connected)
+		{
+			if (cl->protocol == SCP_QUAKE3)
+				continue;
+			if (cl->protocol == SCP_BAD)
+				continue;
+
+			host_client = cl;
+#ifdef NQPROT
+			if (ISNQCLIENT(host_client))
+				SVNQ_New_f();
+			else
+#endif
+				SV_New_f();
+		}
+	}
+	host_client = NULL;
+}
+
+#ifndef QUAKETC
+
+//expects the version to have already been parsed
+static qboolean SV_Loadgame_Legacy(const char *savename, const char *filename, vfsfile_t *f, int version)
+{
+	//FIXME: Multiplayer save probably won't work with spectators.
+	char	mapname[MAX_QPATH];
+	float	time;
+	char	str[32768];
+	int		i;
+	int pt;
+	int lstyles;
+
+	int slots;
+
+	int clnum;
+	char plname[32];
+
+	int filelen, filepos;
+	char *file;
+
+	char *modelnames[MAX_PRECACHE_MODELS];
+	char *soundnames[MAX_PRECACHE_SOUNDS];
+	loadplayer_t lp[255];
+
+	if (version != SAVEGAME_VERSION_FTE_LEG && version != SAVEGAME_VERSION_NQ && version != SAVEGAME_VERSION_QW)
+	{
+		VFS_CLOSE (f);
+		Con_TPrintf ("Unable to load savegame of version %i\n", version);
+		return false;
+	}
+	VFS_GETS(f, str, sizeof(str));	//discard comment.
+	Con_Printf("loading legacy game from %s...\n", filename);
+
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
+	{
+		slots = 1;
+
+#ifdef SERVERONLY
+		Q_strncpyz(lp[0].name, "", sizeof(lp[0].name));
+#else
+		Q_strncpyz(lp[0].name, name.string, sizeof(lp[0].name));
+#endif
+		lp[0].parmstr = NULL;
+		lp[0].source = NULL;
+
+		for (i=0 ; i<16 ; i++)
+		{
+			VFS_GETS(f, str, sizeof(str));
+			lp[0].parm[i].f = atof(str);
+		}
+		for (; i < countof(lp[0].parm); i++)
+			lp[0].parm[i].i = 0;
+	}
+	else	//fte saves ALL the clients on the server.
+	{
+		VFS_GETS(f, str, strlen(str));
+		slots = atoi(str);
+		if (!slots || slots >= countof(lp))	//err
+		{
+			VFS_CLOSE(f);
+			Con_Printf ("Corrupted save game");
+			return false;
+		}
+		for (clnum = 0; clnum < slots; clnum++)
+		{
+			VFS_GETS(f, plname, sizeof(plname));
+			COM_Parse(plname);
+			Q_strncpyz(lp[clnum].name, com_token, sizeof(lp[clnum].name));
+			lp[clnum].parmstr = NULL;
+			lp[clnum].source = NULL;
+
+			if (!*com_token)
+				continue;
+
+			//probably should be 32, rather than NUM_SPAWN_PARMS(64)
+			for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+			{
+				VFS_GETS(f, str, sizeof(str));
+				lp[clnum].parm[i].f = atof(str);
+			}
+			for (; i < countof(lp[clnum].parm); i++)
+				lp[clnum].parm[i].i = 0;
+		}
+	}
+	SV_LoadPlayers(lp, slots);
+
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (Cvar_FindVar("skill"), atof(str));
+		Cvar_SetValue (Cvar_FindVar("deathmatch"), 0);
+		Cvar_SetValue (Cvar_FindVar("coop"), 0);
+		Cvar_SetValue (Cvar_FindVar("teamplay"), 0);
+
+		if (version == SAVEGAME_VERSION_NQ)
+		{
+			progstype = PROG_NQ;
+			Cvar_Set (&pr_ssqc_progs, "progs.dat");	//NQ's progs.
+		}
+		else
+		{
+			progstype = PROG_QW;
+			Cvar_Set (&pr_ssqc_progs, "spprogs");	//zquake's single player qw progs.
+		}
+		pt = 0;
+	}
+	else
+	{
+		VFS_GETS(f, str, sizeof(str));
+		pt = atoi(str);
+
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (Cvar_FindVar("skill"), atof(str));
+
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (Cvar_FindVar("deathmatch"), atof(str));
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (Cvar_FindVar("coop"), atof(str));
+		VFS_GETS(f, str, sizeof(str));
+		Cvar_SetValue (Cvar_FindVar("teamplay"), atof(str));
+	}
+	VFS_GETS(f, mapname, sizeof(mapname));
+	VFS_GETS(f, str, sizeof(str));
+	time = atof(str);
+
+	SV_SpawnServer (mapname, NULL, false, false, slots);	//always inits MAX_CLIENTS slots. That's okay, because we can cut the max easily.
+	if (sv.state != ss_active)
+	{
+		VFS_CLOSE (f);
+		Con_TPrintf ("Couldn't load map\n");
+		return false;
+	}
+
+	if (sv.allocated_client_slots != slots)
+	{
+		Con_TPrintf ("Player count changed\n");
+		return false;
+	}
+
+// load the light styles
+
+	lstyles = 64;
+	if (lstyles > sv.maxlightstyles)
+		Z_ReallocElements((void**)&sv.lightstyles, &sv.maxlightstyles, lstyles, sizeof(*sv.lightstyles));
+	for (i=0 ; i<lstyles ; i++)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		if (sv.lightstyles[i].str)
+			Z_Free((char*)sv.lightstyles[i].str);
+		sv.lightstyles[i].str = Z_StrDup(str);
+		sv.lightstyles[i].colours[0] = sv.lightstyles[i].colours[1] = sv.lightstyles[i].colours[2] = 1;
+	}
+	for (; i < sv.maxlightstyles; i++)
+	{
+		if (sv.lightstyles[i].str)
+			Z_Free((char*)sv.lightstyles[i].str);
+		sv.lightstyles[i].str = NULL;
+	}
+
+	//model names are pointers to vm-accessible memory. as that memory is going away, we need to destroy and recreate, which requires preserving them.
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
+	{
+		if (!sv.strings.model_precache[i])
+		{
+			modelnames[i] = NULL;
+			break;
+		}
+		modelnames[i] = Z_StrDup(sv.strings.model_precache[i]);
+	}
+	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (!sv.strings.sound_precache[i])
+		{
+			soundnames[i] = NULL;
+			break;
+		}
+		soundnames[i] = Z_StrDup(sv.strings.sound_precache[i]);
+	}
+
+// load the edicts out of the savegame file
+// the rest of the file is sent directly to the progs engine.
+
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
+		;//Q_InitProgs();	//reinitialize progs entirly.
+	else
+	{
+		Q_SetProgsParms(false);
+		svs.numprogs = 0;
+
+		PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
+		PR_RegisterFields();
+		PR_InitEnts(svprogfuncs, sv.world.max_edicts);	//just in case the max edicts isn't set.
+		progstype = pt;	//presumably the progs.dat will be what they were before.
+	}
+
+	//reload model names.
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
+	{
+		if (!modelnames[i])
+			break;
+		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, modelnames[i], 0, false);
+		Z_Free(modelnames[i]);
+	}
+	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (!soundnames[i])
+			break;
+		sv.strings.sound_precache[i] = PR_AddString(svprogfuncs, soundnames[i], 0, false);
+		Z_Free(soundnames[i]);
+	}
+
+	filepos = VFS_TELL(f);
+	filelen = VFS_GETLEN(f);
+	filelen -= filepos;
+	file = BZ_Malloc(filelen+1+8);
+	memset(file, 0, filelen+1+8);
+	strcpy(file, "loadgame");
+	clnum=VFS_READ(f, file+8, filelen);
+	file[filelen+8]='\0';
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_ExtendedSaveData);
+	BZ_Free(file);
+
+	PR_LoadGlabalStruct(false);
+
+	pr_global_struct->time = sv.world.physicstime = sv.time = time;
+	sv.starttime = Sys_DoubleTime() - sv.time;
+
+	VFS_CLOSE(f);
+
+	//FIXME: QSS+DP saved games have some / *\nkey values\nkey values\n* / thing in them to save precaches and stuff
+
+	World_ClearWorld(&sv.world, true);
+
+	SV_GameLoaded(lp, slots, savename);
+	return true;
+}
+#endif
+
 //Attempts to load a named saved game.
 qboolean SV_Loadgame (const char *unsafe_savename)
 {
@@ -1725,11 +1876,11 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 	int version;
 	int clnum;
 	int slots;
-	int loadzombies = 0;
+	int p;
 	client_t *cl;
 	gametype_e gametype;
+	loadplayer_t lp[255];
 
-	int len;
 	struct
 	{
 		char *pattern;
@@ -1755,17 +1906,17 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 
 		for (n = 0; n < countof(autoload); n++)
 		{
-			for (len = 0; len < countof(savefiles)-1; len++)
+			for (p = 0; p < countof(savefiles)-1; p++)
 			{
-				int d = FS_FLocateFile(va(savefiles[len].pattern, autoload[n]), FSLF_DONTREFERENCE, &savefiles[len].loc);
+				int d = FS_FLocateFile(va(savefiles[p].pattern, autoload[n]), FSLF_DONTREFERENCE, &savefiles[p].loc);
 				if (!d)
 					continue;
-				FS_GetLocMTime(&savefiles[len].loc, &t);
+				FS_GetLocMTime(&savefiles[p].loc, &t);
 				if (d < bestd || (bestd==d&&t>bestt))
 				{
 					bestd = d;
 					bestt = t;
-					best = len;
+					best = p;
 
 					strcpy(savename, autoload[n]);
 				}
@@ -1773,17 +1924,17 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 		}
 	}
 
-	for (len = 0; len < countof(savefiles); len++)
+	for (p = 0; p < countof(savefiles); p++)
 	{
-		int d = FS_FLocateFile(va(savefiles[len].pattern, savename), FSLF_DONTREFERENCE, &savefiles[len].loc);
+		int d = FS_FLocateFile(va(savefiles[p].pattern, savename), FSLF_DONTREFERENCE, &savefiles[p].loc);
 		if (!d)
 			continue;
-		FS_GetLocMTime(&savefiles[len].loc, &t);
+		FS_GetLocMTime(&savefiles[p].loc, &t);
 		if (d < bestd || (bestd==d&&t>bestt))
 		{
 			bestd = d;
 			bestt = t;
-			best = len;
+			best = p;
 		}
 	}
 	
@@ -1808,12 +1959,7 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 		Con_TPrintf ("Unable to load savegame of version %i\n", version);
 		return false;
 #else
-		if (SV_Loadgame_Legacy(filename, f, version))
-		{
-			Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
-			return true;
-		}
-		return false;
+		return SV_Loadgame_Legacy(savename, filename, f, version);
 #endif
 	}
 
@@ -1825,111 +1971,71 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 		Con_TPrintf ("Loading game from %s...\n", filename);
 
 
-	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server for the level change.
-	{
-		cl = &svs.clients[clnum];
-		if (cl->state <= cs_loadzombie)
-			continue;
-
-#ifndef SERVERONLY
-		if (cl->netchan.remote_address.type == NA_LOOPBACK)
-		{
-//			CL_Disconnect();
-			cl->state = cs_zombie;
-		}
-		else
-#endif
-		{
-			if (cl->protocol == SCP_QUAKE2)
-				MSG_WriteByte (&cl->netchan.message, svcq2_stufftext);
-			else
-				MSG_WriteByte (&cl->netchan.message, svc_stufftext);
-			MSG_WriteString (&cl->netchan.message, "echo Loading Game;disconnect;wait;wait;reconnect\n");	//kindly ask the client to come again.
-		}
-		cl->istobeloaded = false;
-	}
-
-#ifndef SERVERONLY
-	if (cls.state)
-	{
-		unsigned int rec = cls.demorecording;
-		cls.demorecording = DPB_NONE;
-		CL_Disconnect_f();
-		cls.demorecording = rec;
-	}
-#endif
-
-	SV_SendMessagesToAll();
 
 	VFS_GETS(f, str, sizeof(str)-1);
 	slots = atoi(str);
-	if (slots > svs.allocated_client_slots)
-		SV_UpdateMaxPlayers(slots);
+
+	if (slots < 1 || slots > countof(lp))
+	{
+		VFS_CLOSE (f);
+		Con_Printf ("invalid player count in saved game\n");
+		return false;
+	}
+
 	for (cl = svs.clients, clnum=0; clnum < slots; cl++,clnum++)
 	{
-		if (cl->state > cs_zombie)
-			SV_DropClient(cl);
-
 		VFS_GETS(f, str, sizeof(str)-1);
 		str[sizeof(cl->namebuf)-1] = '\0';
 		for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 			*trim='\0';
 		for (trim = str; *trim <= ' ' && *trim; trim++)
 			;
-		strcpy(cl->namebuf, str);
-		cl->name = cl->namebuf;
+		strcpy(lp[clnum].name, str);
+		lp[clnum].parmstr = NULL;
+		lp[clnum].source = NULL;
+
 		if (*str)
 		{
-			cl->state = cs_loadzombie;
-			cl->connection_started = realtime+20;
-			cl->spawned = cl->istobeloaded = true;
-			cl->userid = 0;
-			loadzombies++;
-			memset(&cl->netchan, 0, sizeof(cl->netchan));
-
-			for (len = 0; len < NUM_SPAWN_PARMS; len++)
+			VFS_GETS(f, str, sizeof(str)-1);
+			if (*str == '{')
 			{
-				VFS_GETS(f, str, sizeof(str)-1);
-				if (*str == '{')
+				while(VFS_GETS(f, str, sizeof(str)-1))
 				{
-					while(VFS_GETS(f, str, sizeof(str)-1))
+					if (*str == '}')
+						break;
+					trim = COM_Parse(str);
+					if (!strcmp(com_token, "parm_string"))
 					{
-						if (*str == '}')
-							break;
-						trim = COM_Parse(str);
-						if (!strcmp(com_token, "parm_string"))
-						{
-							COM_Parse(str);
-							cl->spawn_parmstring = Z_StrDup(com_token);
-						}
-						else if (!strncmp(com_token, "parm", 4) && (unsigned)atoi(com_token+4) < NUM_SPAWN_PARMS)
-						{
-							COM_Parse(str);
-							len = atoi(com_token+4);
-							if (!strncmp(com_token, "0x", 2))
-								*(int*)&cl->spawn_parms[len] = strtoul(com_token, NULL, 16);
-							else
-								cl->spawn_parms[len] = strtod(com_token, NULL);
-						}
-						else
-							Con_Printf("Unknown player data: %s\n", com_token);
+						COM_Parse(trim);
+						Z_Free(lp[clnum].parmstr);
+						lp[clnum].parmstr = Z_StrDup(com_token);
 					}
-					break;
+					else if (!strncmp(com_token, "parm", 4))
+					{
+						unsigned int parm = atoi(com_token+4);
+						COM_Parse(trim);
+						if (parm < NUM_SPAWN_PARMS)
+						{
+							if (!strncmp(com_token, "0x", 2))
+								lp[clnum].parm[parm].i = strtoul(com_token, NULL, 16);
+							else
+								lp[clnum].parm[parm].f = strtod(com_token, NULL);
+						}
+					}
+					else
+						Con_Printf("Unknown player data: %s\n", com_token);
 				}
-				for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
-					*trim='\0';
-				for (trim = str; *trim <= ' ' && *trim; trim++)
-					;
-				if (*trim == '(')
-					cl->spawn_parms[len] = atof(trim+1);
-				else
-				{
-					version = atoi(str);
-					cl->spawn_parms[len] = *(float *)&version;
-				}
+			}
+			else
+			{	//we used to have N integers, where N was some random outdated constant.
+				VFS_CLOSE (f);
+				Con_Printf ("Incompatible saved game\n");
+				return false;
 			}
 		}
 	}
+
+	SV_LoadPlayers(lp, slots);
 
 
 	VFS_GETS(f, str, sizeof(str)-1);
@@ -2038,12 +2144,8 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 
 	svs.gametype = gametype;
 	SV_LoadLevelCache(savename, str, "", true);
-	sv.allocated_client_slots = slots;
-	sv.spawned_client_slots += loadzombies;
 
-	sv.autosave_time = sv.time + sv_autosave.value*60;
-
-	Q_strncpyz(sv.loadgame_on_restart, savename, sizeof(sv.loadgame_on_restart));
+	SV_GameLoaded(lp, slots, savename);
 	return true;
 }
 
@@ -2057,6 +2159,48 @@ void SV_Loadgame_f (void)
 	}
 #endif
 
-	SV_Loadgame(Cmd_Argv(1));
+	if (sv.state == ss_clustermode && MSV_ForwardToAutoServer())
+		;
+	else
+		SV_Loadgame(Cmd_Argv(1));
+}
+
+#include "fs.h"
+void SV_DeleteSavegame_f (void)
+{
+	const char *savename = Cmd_Argv(1);
+
+	//either saves/$FOO/info.fsv (rmtree) or $FOO.sav (single file)
+	//extensions are strictly implicit to limit damage.
+
+	const char *fname;
+	flocation_t loc;
+
+	if (!*savename || *savename == '.' || strchr(savename, '/') || strchr(savename, '\\'))
+	{
+		Con_Printf("\"%s\" is not a valid saved game name to delete\n", savename);
+		return;
+	}
+
+	fname = va("saves/%s/info.fsv", savename);
+	if (FS_FLocateFile(fname, FSLF_IGNORELINKS|FSLF_DONTREFERENCE, &loc))
+	{
+		fname = va("saves/%s/", savename);
+		if (FS_RemoveTree(loc.search->handle, fname))
+			Con_Printf("Removed %s\n", fname);
+		else
+			Con_Printf("Unable to remove %s\n", fname);
+	}
+
+#ifndef QUAKETC
+	fname = va("%s.sav", savename);
+	if (FS_FLocateFile(fname, FSLF_IGNORELINKS|FSLF_DONTREFERENCE, &loc))
+	{
+		if (loc.search->handle->RemoveFile && loc.search->handle->RemoveFile(loc.search->handle, fname))
+			Con_Printf("Removed %s\n", fname);
+		else
+			Con_Printf("Unable to remove %s\n", fname);
+	}
+#endif
 }
 #endif

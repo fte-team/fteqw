@@ -196,7 +196,7 @@ static void PF_fmem_unlink(progfuncs_t *progfuncs, qcmemfreeblock_t *p)
 	}
 }
 
-static void PR_memvalidate (progfuncs_t *progfuncs)
+void PR_memvalidate (progfuncs_t *progfuncs)
 {
 	qcmemfreeblock_t *p;
 	unsigned int b,l;

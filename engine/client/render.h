@@ -378,6 +378,9 @@ typedef struct {
 	glRect_t	rectchange;
 	qbyte		*lightmaps;	//[pixbytes*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
 	stmap		*stainmaps;	//[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
+#ifdef GLQUAKE
+	int			pbo_handle;	//when set, lightmaps is a persistently mapped write-only pbo for us to scribble data into, ready to be copied to the actual texture without waiting for glTexSubImage to complete.
+#endif
 } lightmapinfo_t;
 extern lightmapinfo_t **lightmap;
 extern int numlightmaps;
@@ -387,6 +390,7 @@ void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 
 void R_SkyShutdown(void);
 void R_SetSky(const char *skyname);
+texid_t R_GetDefaultEnvmap(void);
 
 #if defined(GLQUAKE)
 void GLR_Init (void);
@@ -653,6 +657,7 @@ extern	cvar_t	r_lavastyle;
 extern	cvar_t	r_slimestyle;
 extern	cvar_t	r_telestyle;
 extern	cvar_t	r_dynamic;
+extern	cvar_t	r_temporalscenecache;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 extern	cvar_t	r_deluxemapping_cvar;
@@ -672,6 +677,7 @@ extern cvar_t	r_xflip;
 
 extern cvar_t gl_mindist, gl_maxdist;
 extern	cvar_t	r_clear;
+extern	cvar_t	r_clearcolour;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t r_renderscale;

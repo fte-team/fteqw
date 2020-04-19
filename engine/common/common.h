@@ -583,9 +583,10 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, size_t buflen);
 void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
-	FS_BINARYPATH,	//for dlls and stuff
+	//note that many of theses paths can map to multiple system locations. FS_NativePath can vary somewhat in terms of what it returns, generally favouring writable locations rather then the path that actually contains a file.
+	FS_BINARYPATH,	//where the 'exe' is located. we'll check here for dlls too.
 	FS_LIBRARYPATH,	//for system dlls and stuff
-	FS_ROOT,		//./ (effective -homedir if enabled, otherwise effective -basedir arg)
+	FS_ROOT,		//either homedir or basedir,
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
 
 	//after this point, all types must be relative to a gamedir
@@ -605,6 +606,7 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto);
 qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
 qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
 qboolean FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on success, non-0 on error
+qboolean FS_RemoveTree(searchpathfuncs_t *pathhandle, const char *fname);
 qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relativesource, enum fs_relative relativedest);
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
@@ -656,7 +658,7 @@ enum manifestdeptype_e
 };
 typedef struct
 {
-	qboolean blockupdate;	//set to block the updateurl from being used this session. this avoids recursive updates when manifests contain the same update url.
+	char *filename;		//filename the manifest was read from. not necessarily writable... NULL when the manifest is synthesised or from http.
 	enum
 	{
 		MANIFEST_SECURITY_NOT,		//don't trust it, don't even allow downloadsurl.
@@ -679,17 +681,20 @@ typedef struct
 	} homedirtype;
 	char *mainconfig;	//eg "fte.cfg", reducing conflicts with other engines, but can be other values...
 	char *updateurl;	//url to download an updated manifest file from.
-	char *updatefile;	//this is the file that needs to be written to update the manifest.
+	qboolean blockupdate;	//set to block the updateurl from being used this session. this avoids recursive updates when manifests contain the same update url.
 	char *installation;	//optional hardcoded commercial name, used for scanning the registry to find existing installs.
 	char *formalname;	//the commercial name of the game. you'll get FULLENGINENAME otherwise.
+#ifdef PACKAGEMANAGER
 	char *downloadsurl;	//optional installable files (menu)
 	char *installupd;	//which download/updated package to install.
+#endif
 	char *protocolname;	//the name used for purposes of dpmaster
 	char *defaultexec;	//execed after cvars are reset, to give game-specific engine-defaults.
 	char *defaultoverrides;	//execed after default.cfg, to give usable defaults even when the mod the user is running is shit.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt
 	char *rtcbroker;	//the broker to use for webrtc connections.
 	char *basedir;		//this is where we expect to find the data.
+	char *iconname;		//path we can find the icon (relative to the fmf's location)
 	struct
 	{
 		enum
@@ -705,7 +710,7 @@ typedef struct
 		} flags;
 		char *path;
 	} gamepath[8];
-	struct manpack_s
+	struct manpack_s	//FIXME: this struct should be replaced with packagemanager info instead.
 	{
 		int type;
 		char *path;			//the 'pure' name
@@ -719,8 +724,9 @@ typedef struct
 } ftemanifest_t;
 extern ftemanifest_t	*fs_manifest;	//currently active manifest.
 void FS_Manifest_Free(ftemanifest_t *man);
-ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
-void PM_Shutdown(void);
+ftemanifest_t *FS_Manifest_ReadMem(const char *fname, const char *basedir, const char *data);
+ftemanifest_t *FS_Manifest_ReadSystem(const char *fname, const char *basedir);
+void PM_Shutdown(qboolean soft);
 void PM_Command_f(void);
 qboolean PM_CanInstall(const char *packagename);
 
@@ -737,6 +743,7 @@ struct gamepacks
 	char *subpath;	//within the package (for zips)
 };
 void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths);
+qboolean FS_GamedirIsOkay(const char *path);
 char *FS_GetGamedir(qboolean publicpathonly);
 char *FS_GetManifestArgs(void);
 int FS_GetManifestArgv(char **argv, int maxargs);
@@ -853,6 +860,7 @@ size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t
 size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outsize);
 size_t Base16_DecodeBlock(const char *in, qbyte *out, size_t outsize);
 
+#define DIGEST_MAXSIZE	(512/8)	//largest valid digest size, in bytes
 typedef struct
 {
 	unsigned int digestsize;

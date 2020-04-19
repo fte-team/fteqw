@@ -3443,14 +3443,13 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 					state->effects |= EF_GREEN;
 				}
 			}
-			else
+
+			if (state->number <= sv.allocated_client_slots) // clear only client ents
 			{
 				if (state->effects & NQEF_NODRAW)
 					state->modelindex = 0;
-			}
-
-			if (state->number <= sv.allocated_client_slots) // clear only client ents
 				state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
+			}
 
 			if ((state->effects & EF_DIMLIGHT) && !(state->effects & (EF_RED|EF_BLUE)))
 			{
@@ -3771,9 +3770,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 			}
 
 		//QSG_DIMENSION_PLANES
-		if (client->edict)
-			if (!((int)client->edict->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
-				continue;	//not in this dimension - sorry...
+		if (clent)	//don't crash
+			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))	//not able to see it.
+				if (c >= maxc)	//always network the player entity though
+					continue;
 
 
 		if (cameras && tracecullent && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))

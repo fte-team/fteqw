@@ -314,8 +314,10 @@ extern qboolean noclip_anglehack;
 extern	quakeparms_t host_parms;
 
 extern	cvar_t		fs_gamename;
+#ifdef PACKAGEMANAGER
 extern	cvar_t		pkg_downloads_url;
 extern	cvar_t		pkg_autoupdate;
+#endif
 extern	cvar_t		com_protocolname;
 extern	cvar_t		com_protocolversion;
 extern	cvar_t		com_nogamedirnativecode;

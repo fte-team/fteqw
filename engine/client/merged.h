@@ -208,7 +208,8 @@ const char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(float x, float y, const void *str);
 void Draw_AltFunString(float x, float y, const void *str);
-void Draw_FunStringWidth(float x, float y, const void *str, int width, int rightalign, qboolean highlight);
+void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *str, int width, int rightalign, qboolean highlight);
+#define Draw_FunStringWidth(x,y,str,width,rightalign,highlight) Draw_FunStringWidthFont(font_default,x,y,str,width,rightalign,highlight)
 
 extern int r_regsequence;
 

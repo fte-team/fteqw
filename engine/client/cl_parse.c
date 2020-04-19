@@ -968,11 +968,17 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 
 	if (flags & DLLF_ALLOWWEB)
 	{
+		const char *sv_dlURL = InfoBuf_ValueForKey(&cl.serverinfo, "sv_dlURL");
 		flags &= ~DLLF_ALLOWWEB;
-		if (*cl_download_mapsrc.string)
-		if (!strcmp(filename, localname))
-		if (!strncmp(filename, "maps/", 5))
-		if (!strcmp(filename + strlen(filename)-4, ".bsp"))
+		if (*sv_dlURL && (flags & DLLF_NONGAME) && !strncmp(filename, "package/", 8))
+		{
+			filename = va("%s/%s", cl_download_mapsrc.string, filename+8);
+			flags |= DLLF_ALLOWWEB;
+		}
+		else if (*cl_download_mapsrc.string &&
+			!strcmp(filename, localname) &&
+			!strncmp(filename, "maps/", 5) &&
+			!strcmp(filename + strlen(filename)-4, ".bsp"))
 		{
 			char base[MAX_QPATH];
 			COM_FileBase(filename, base, sizeof(base));
@@ -1523,7 +1529,7 @@ static int CL_LoadSounds(int stage, qboolean dontactuallyload)
 
 void Sound_CheckDownload(const char *s)
 {
-#if !defined(QUAKETC) && defined(AVAIL_OGGVORBIS)
+#if defined(HAVE_LEGACY) && defined(AVAIL_OGGVORBIS)
 	char mangled[512];
 #endif
 	if (*s == '*')	//q2 sexed sound
@@ -1536,7 +1542,7 @@ void Sound_CheckDownload(const char *s)
 	if (CL_CheckFile(s))
 		return;	//we have it already
 
-#if !defined(QUAKETC) && defined(AVAIL_OGGVORBIS)
+#if defined(HAVE_LEGACY) && defined(AVAIL_OGGVORBIS)
 	//the things I do for nexuiz... *sigh*
 	COM_StripExtension(s, mangled, sizeof(mangled));
 	COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
@@ -1550,7 +1556,7 @@ void Sound_CheckDownload(const char *s)
 	if (CL_CheckFile(s))
 		return;	//we have it already
 
-#if !defined(QUAKETC) && defined(AVAIL_OGGVORBIS)
+#if defined(HAVE_LEGACY) && defined(AVAIL_OGGVORBIS)
 	//the things I do for nexuiz... *sigh*
 	COM_StripExtension(s, mangled, sizeof(mangled));
 	COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
@@ -4857,6 +4863,7 @@ static void CLQW_ParseStartSoundPacket(void)
 			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, NULL, volume/255.0, attenuation, 0, 0, 0);
 	}
 
+#ifdef QUAKESTATS
 	for (i = 0; i < cl.splitclients; i++)
 	{
 		if (ent == cl.playerview[i].playernum+1)
@@ -4866,6 +4873,7 @@ static void CLQW_ParseStartSoundPacket(void)
 		}
 	}
 	TP_CheckPickupSound(cl.sound_name[sound_num], pos, -1);
+#endif
 }
 
 #ifdef Q2CLIENT
@@ -5053,6 +5061,7 @@ static void CLNQ_ParseStartSoundPacket(void)
 			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, vel, volume/255.0, attenuation, timeofs, pitchadj, flags);
 	}
 
+#ifdef QUAKESTATS
 	for (i = 0; i < cl.splitclients; i++)
 	{
 		if (ent == cl.playerview[i].playernum+1)
@@ -5062,6 +5071,7 @@ static void CLNQ_ParseStartSoundPacket(void)
 		}
 	}
 	TP_CheckPickupSound(cl.sound_name[sound_num], pos, -1);
+#endif
 }
 #endif
 
@@ -5506,8 +5516,10 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 	cl.playerview[pnum].stats[stat] = ivalue;
 	cl.playerview[pnum].statsf[stat] = fvalue;
 
+#ifdef QUAKESTATS
 	if (pnum == 0)
 		TP_StatChanged(stat, ivalue);
+#endif
 }
 
 #ifdef NQPROT

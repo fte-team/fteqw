@@ -694,6 +694,10 @@ void SV_UpdateMaxPlayers(int newmax)
 		}
 		for (i = 0; i < min(newmax, svs.allocated_client_slots); i++)
 		{
+			if (svs.clients[i].name == old[i].namebuf)
+				svs.clients[i].name = svs.clients[i].namebuf;
+			if (svs.clients[i].team == old[i].teambuf)
+				svs.clients[i].team = svs.clients[i].teambuf;
 			if (svs.clients[i].netchan.message.data)
 				svs.clients[i].netchan.message.data = (qbyte*)&svs.clients[i] + (svs.clients[i].netchan.message.data - (qbyte*)&old[i]);
 			if (svs.clients[i].datagram.data)
@@ -823,7 +827,7 @@ clients along with it.
 This is only called from the SV_Map_f() function.
 ================
 */
-void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic)
+void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic, int playerslots)
 {
 	extern cvar_t allow_download_refpackages;
 	func_t f;
@@ -1331,6 +1335,8 @@ MSV_OpenUserDatabase();
 					i = QWMAX_CLIENTS;
 			}
 		}
+		if (playerslots)
+			i = playerslots;	//saved game? force it.
 		if (i > MAX_CLIENTS)
 			i = MAX_CLIENTS;
 		SV_UpdateMaxPlayers(i);
@@ -1376,7 +1382,7 @@ MSV_OpenUserDatabase();
 #endif
 #ifdef Q3SERVER
 	case GT_QUAKE3:
-		SV_UpdateMaxPlayers(max(8,maxclients.ival));
+		SV_UpdateMaxPlayers(playerslots?playerslots:max(8,maxclients.ival));
 		break;
 #endif
 #ifdef HLSERVER

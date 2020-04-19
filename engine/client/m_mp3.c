@@ -377,8 +377,8 @@ qboolean Media_CleanupTrackName(const char *track, int *out_track, char *result,
 #ifndef HAVE_LEGACY
 	if (!tracknum)	//might as well require exact file
 	{
-		Q_snprintfz(trackname, sizeof(trackname), "%s", track);
-		d = COM_FCheckExists(trackname);
+		Q_snprintfz(result, resultsize, "%s", track);
+		d = COM_FCheckExists(result);
 	}
 	else
 #endif

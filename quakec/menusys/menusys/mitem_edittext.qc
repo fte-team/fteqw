@@ -21,8 +21,10 @@ class mitem_edit : mitem
 
 void() mitem_edit::item_remove =
 {
-	strunzone(item_text);
-	strunzone(item_command);
+	if (item_text)
+		strunzone(item_text);
+	if (item_command)
+		strunzone(item_command);
 	super::item_remove();
 };
 
@@ -59,11 +61,20 @@ float(vector pos, float scan, float char, float down) mitem_edit::item_keypress 
 		spos = max(spos-1, 0);
 	else if (scan == K_RIGHTARROW)
 		spos+=1;
-/*	else if (scan == K_MOUSE1)
+	else if (scan == K_HOME)
+		spos = 0;
+	else if (scan == K_END)
+		spos = strlen(curval);
+	else if (scan == K_MOUSE1)
 	{
-		//FIXME: figure out the spos for the cursor
-		return TRUE;
-	}*/
+		float valuepos = pos_x+(item_size_x/2)+1;
+		if (ui.mousepos[0] > valuepos-8)
+		{
+			spos = strlen(curval);
+			while (spos>0 && ui.mousepos[0] < valuepos+stringwidth(substring(curval, 0, spos), TRUE, '1 1 0'*item_scale))
+				spos--;
+		}
+	}
 	else if (scan == K_BACKSPACE || scan == K_DEL)
 	{
 		if (spos)
@@ -89,7 +100,7 @@ mitem_edit(string text, string command, vector sz) menuitemeditt_spawn =
 	n.item_scale = sz_y;
 	n.item_text = strzone(text);
 	n.item_size = sz;
-	n.spos = 100000;	//will be clipped so meh
+	n.spos = 10000000;	//will be clipped so meh
 
 	n.item_command = strzone(command);
 	n.item_flags |= IF_SELECTABLE;

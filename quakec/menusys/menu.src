@@ -48,6 +48,9 @@ void(mitem_desktop desktop) M_Pop =
 	cmd("m_load",		M_Load,			menu/loadsave.qc)		\
 	cmd("m_save",		M_Save,			)				\
 	cmd("m_quit",		M_Quit,			menu/quit.qc)			\
+	cmd("m_mods",		M_Menu_Mods,		menu/mods.qc)			\
+	cmd("m_updates",	M_Menu_Updates,		menu/updates.qc)		\
+	cmd("m_cvars",		M_Menu_Cvars,		menu/cvars.qc)			\
 	cmd("m_newgame",	M_NewGame,		menu/newgame.qc)		\
 	cmd("m_servers",	M_Servers,		menu/servers.qc)		\
 	cmd("m_configs",	M_Configs,		menu/options_configs.qc)	\
@@ -71,7 +74,12 @@ void(mitem_desktop desktop) M_Pop =
 
 mitem_desktop desktop;
 void() m_shutdown = {};
-void(vector screensize) m_draw = {items_draw(desktop);};
+void(vector screensize) m_draw =
+{
+	if (dp_workarounds)
+		cltime = gettime(0);
+	items_draw(desktop);
+};
 void(float scan, float chr) m_keydown = {items_keypress(desktop, scan, chr, TRUE);};
 void(float scan, float chr) m_keyup = {items_keypress(desktop, scan, chr, FALSE);};
 void(float mode) m_toggle
@@ -90,6 +98,23 @@ void(float mode) m_toggle
 
 	items_updategrabs(TRUE);
 };
+float(string cstr) m_consolecommand =
+{
+	tokenize(cstr);
+	string cmd = argv(0);
+
+	switch(cmd)
+	{
+//switch on the known commands.
+#define cmd(n,f) case n: f(desktop); break;
+	concommandslist
+#undef cmd
+	default:
+		return FALSE;
+	}
+	items_updategrabs(TRUE);
+	return TRUE;
+}
 
 var float autocvar_dp_workarounds_allow = TRUE;
 var float autocvar_dp_workarounds_force = FALSE;
@@ -97,10 +122,19 @@ void() m_init =
 {
 	desktop = spawn(mitem_desktop);
 
+	if (checkbuiltin(registercommand))
+	{
+#define cmd(n,f) registercommand(n);
+		concommandslist
+#undef cmd
+	}
+	else
+	{
 	//register the console commands via the alias command.
 #define cmd(n,f) localcmd("alias " n " \"menu_cmd " n " $*\"\n");
-	concommandslist
+		concommandslist
 #undef cmd
+	}
 
 	//work around some dp differences/bugs.
 	//this check identifies one significant bug in DP.

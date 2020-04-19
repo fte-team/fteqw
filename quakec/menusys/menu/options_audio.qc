@@ -1,8 +1,30 @@
+static class audiomenu : mitem_exmenu
+{
+	virtual string(string key) get =
+	{
+		if (key == "s_device" || key == "cl_voip_capturedevice")
+		{	//the cvar supports multiple options, but we only support one. :(
+			//so just return the first to avoid getting too confused.
+			tokenize(super::get(key));
+			return argv(0);
+		}
+		return super::get(key);
+	};
+	virtual void(string key, string val) set =
+	{
+		if (key == "s_device" || key == "cl_voip_capturedevice")
+		{	//add some quotes.
+			val = strcat("\"", val, "\"");
+		}
+		super::set(key, val);
+	};
+};
+
 nonstatic void(mitem_desktop desktop) M_Options_Audio =
 {
 	local float pos;
 	mitem_exmenu m;
-	m = spawn(mitem_exmenu, item_text:_("Audio Options"), item_flags:IF_SELECTABLE, item_command:"m_options");
+	m = spawn(audiomenu, item_text:_("Audio Options"), item_flags:IF_SELECTABLE, item_command:"m_options");
 	desktop.add(m, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, '0 0', '0 0');
 	desktop.item_focuschange(m, IF_KFOCUSED);
 	m.totop();
@@ -29,12 +51,14 @@ nonstatic void(mitem_desktop desktop) M_Options_Audio =
 	fr.add(menuitemslider_spawn(_("Music Volume"),	"bgmvolume",			'0 0.5 0.05', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Channels"),	"s_numspeakers",		'1 6 1', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcombo_spawn(_("Audio Quality"),	"s_khz",						'280 8', _(
-												"11025	\"11025hz (vanilla quake)\" "
-												"22050	\"22050hz\" "
-												"44100	\"44100hz (cd quality)\" "
-												"48000	\"48000hz (dvd quality)\" "
-												"96000	\"96000hz\" "
-												"192000	\"192000hz\" "
+												"8	\"8000hz (telephone quality)\" "
+												"11.025	\"11025hz (vanilla quake)\" "
+												"22.05	\"22050hz\" "
+												"44.1	\"44100hz (cd quality)\" "
+												"48	\"48000hz (dvd quality)\" "
+												//higher values are probably pointless when source data doesn't go that high, so not going to list them.
+												//"96	\"96000hz (blu-ray quality)\" "
+												//"192	\"192000hz (professional quality)\" "
 																)),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Doppler"),	"s_doppler", 						'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("8bit audio"),	"s_loadas8bit", 					'280 8'),		fl, [0, pos], [0, 8]); pos += 8;

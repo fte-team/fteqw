@@ -321,10 +321,11 @@ void(mitem_desktop desktop) items_draw =
 	items_updategrabs(FALSE);
 	if (dp_workarounds && oldgrabstate)
 	{
-		if (drawgetimagesize(autocvar_cl_cursor) == '0 0')
+//		//hopefully dp isn't broken and reports non-zero sizes for files that failed.
+//		if (drawgetimagesize(autocvar_cl_cursor) == '0 0')
+//			ui.drawpic(ui.mousepos - autocvar_cl_cursorbias*'1 1', autocvar_cl_cursor, autocvar_cl_cursorsize*'1 1', '1 1 1', 1, 0);
+//		else
 			ui.drawcharacter(ui.mousepos - [stringwidth("+", TRUE, '4 4')*0.5, 4], '+', '8 8', '1 1 1', 1, 0);
-		else
-			ui.drawpic(ui.mousepos - autocvar_cl_cursorbias*'1 1', autocvar_cl_cursor, autocvar_cl_cursorsize*'1 1', '1 1 1', 1, 0);
 	}
 
 #ifndef MENU

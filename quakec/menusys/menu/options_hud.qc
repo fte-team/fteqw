@@ -17,7 +17,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Hud =
 	
 	//spawn a container frame for the actual options. this provides a scrollbar if we have too many items.
 	mitem_frame fr = spawn(mitem_frame, item_flags: IF_SELECTABLE, frame_hasscroll:TRUE);
-	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h], [0, h*2]);
+	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h+16], [0, h*2+32]);
 
 	float fs = search_begin("huds/*.cfg", TRUE, TRUE);
 	float fc = search_getsize(fs);

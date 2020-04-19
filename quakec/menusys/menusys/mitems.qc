@@ -190,50 +190,7 @@ float(vector minp, vector sz) mouseinbox =
 };
 
 
-void(mitem ch, vector parentsize) mitem_parentresized =
-{
-	float f = ch.resizeflags;
-
-	if (f & RS_X_FRACTION)
-		ch.item_position[0] = parentsize[0] * ch.mins[0];
-	else if (f & RS_X_MIN_PARENT_MAX)
-		ch.item_position[0] = parentsize[0] + ch.mins[0];
-	else if (f & RS_X_MIN_PARENT_MID)
-		ch.item_position[0] = parentsize[0]/2 + ch.mins[0];
-	else //if (f & RS_X_MIN_PARENT_MIN)
-		ch.item_position[0] = ch.mins[0];
-
-	if (f & RS_X_FRACTION)
-		ch.item_position[0] = parentsize[0] * ch.maxs[0];
-	else if (f & RS_X_MAX_PARENT_MIN)
-		ch.item_size[0] = ch.maxs[0] - ch.item_position[0];
-	else if (f & RS_X_MAX_PARENT_MID)
-		ch.item_size[0] = ch.maxs[0]+parentsize[0]/2 - ch.item_position[0];
-	else if (f & RS_X_MAX_PARENT_MAX)
-		ch.item_size[0] = ch.maxs[0]+parentsize[0] - ch.item_position[0];
-	else //if (f & RS_X_MAX_OWN_MIN)
-		ch.item_size[0] = ch.maxs[0];
-
-	if (f & RS_Y_FRACTION)
-		ch.item_position[1] = parentsize[1] * ch.mins[1];
-	else if (f & RS_Y_MIN_PARENT_MAX)
-		ch.item_position[1] = parentsize[1] + ch.mins[1];
-	else if (f & RS_Y_MIN_PARENT_MID)
-		ch.item_position[1] = parentsize[1]/2 + ch.mins[1];
-	else //if (f & RS_Y_MIN_PARENT_MIN)
-		ch.item_position[1] = ch.mins[1];
-
-	if (f & RS_Y_FRACTION)
-		ch.item_position[1] = parentsize[1] * ch.maxs[1];
-	else if (f & RS_Y_MAX_PARENT_MIN)
-		ch.item_size[1] = ch.maxs[1] - ch.item_position[1];
-	else if (f & RS_Y_MAX_PARENT_MID)
-		ch.item_size[1] = ch.maxs[1]+parentsize[1]/2 - ch.item_position[1];
-	else if (f & RS_Y_MAX_PARENT_MAX)
-		ch.item_size[1] = ch.maxs[1]+parentsize[1] - ch.item_position[1];
-	else //if (f & RS_Y_MAX_OWN_MIN)
-		ch.item_size[1] = ch.maxs[1];
-};
+void(mitem ch, vector parentsize) mitem_parentresized;
 
 #include "mitem_frame.qc"
 void() mitem::item_resized =

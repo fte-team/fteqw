@@ -133,6 +133,118 @@ mitem(string text, string command, float height) menuitemtext_spawn =
 };
 
 
+class mitem_label : mitem
+{	//class that queries its frame to find the text to show.
+	mitem_vslider vslider;
+	virtual void(vector pos) item_draw =
+	{
+		vector rgb = menuitem_textcolour(this);
+		string text = get(item_text);
+		float fl = 2;	//top-align
+		vector textpos = pos;
+		vector clientsize = item_size;
+		if (item_flags & IF_CENTERALIGN)
+			fl |= 0;	//default is to center align
+		else if (item_flags & IF_RIGHTALIGN)
+			fl |= 4;	//right align.
+		else
+			fl |= 1;	//left align.
+
+		if (vslider)
+		{
+			textpos[1] -= vslider.val;
+			clientsize[1] += vslider.val;
+			clientsize[0] -= vslider.item_size[0];
+		}
+
+		local vector omin = ui.drawrectmin, omax = ui.drawrectmax;
+
+		//clip the draw rect to our area, so text doesn't appear outside it. don't draw if its inverted.
+		if (pos_x > ui.drawrectmin[0])
+			ui.drawrectmin[0] = pos_x;
+		if (pos_y > ui.drawrectmin[1])
+			ui.drawrectmin[1] = pos_y;
+		if (pos_x+clientsize_x < ui.drawrectmax[0])
+			ui.drawrectmax[0] = pos_x+clientsize_x;
+		if (pos_y+clientsize_y < ui.drawrectmax[1])
+			ui.drawrectmax[1] = pos_y+clientsize[1];
+		if (ui.drawrectmax[0] > ui.drawrectmin[0] && ui.drawrectmax[1] > ui.drawrectmin[1])
+		{
+			ui.setcliparea(ui.drawrectmin[0], ui.drawrectmin[1], ui.drawrectmax[0] - ui.drawrectmin[0], ui.drawrectmax[1] - ui.drawrectmin[1]);
+			clientsize[1] = drawtextfield(textpos, clientsize, fl, text) * item_scale;
+			ui.setcliparea(omin_x, omin_y, omax_x - omin_x, omax_y - omin_y);
+
+			if (vslider)
+			{
+				vslider.item_size[1] = item_size[1];
+				if (ui.mousepos != ui.oldmousepos)
+				{
+					if (mouseinbox(pos + [clientsize[0], 0], vslider.item_size))
+						this.item_focuschange(vslider, IF_MFOCUSED);
+				}
+				vslider.item_draw(pos + [clientsize[0], 0]);
+			}
+		}
+		ui.drawrectmin = omin;
+		ui.drawrectmax = omax;
+
+		if (clientsize[1] > item_size[1])
+		{	//enough text that we need a scrollbar.
+			if (!vslider)
+				vslider = spawn(mitem_vslider, val:0, stride:8);
+			vslider.maxv = clientsize[1] - item_size[1];
+			item_flags |= IF_SELECTABLE;
+		}
+		else if (vslider)
+		{	//the text got shorter...
+			vslider.item_remove();
+			vslider = (mitem_vslider)__NULL__;
+			if (item_command == "")
+				item_flags &~= IF_SELECTABLE;
+		}
+	};
+	virtual float(vector pos, float scan, float char, float down) item_keypress =
+	{
+		if (vslider)
+			if (vslider.item_keypress(pos, scan, char, down))
+				return TRUE;
+		if (this.item_command)
+		{
+			if (!down)
+				return FALSE;
+			if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
+			{
+				item_parent.item_execcommand(this, this.item_command);
+//				localcmd(strcat(this.item_command, "\n"));
+				return TRUE;
+			}
+		}
+		return FALSE;
+	};
+
+	//zone+unzone input strings as needed
+	virtual void() item_remove = 
+	{
+		if (item_command)
+			strunzone(item_command);
+		if (vslider)
+		{
+			vslider.item_remove();
+			vslider = (mitem_vslider)__NULL__;
+		}
+		super::item_remove();
+	};
+	void() mitem_label =
+	{
+		if (item_command != "")
+		{
+			item_command = strzone(item_command);
+			item_flags |= IF_SELECTABLE;
+		}
+	};
+};
+
+
 /***************************************************************************
 basic text item.
 identical to text, but includes a 3dish border.

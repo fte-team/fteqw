@@ -11,13 +11,13 @@ The possible values is a separate popup.
 class mitem_combo;
 class mitem_combo_popup;
 
-class mitem_combo : mitem
+class mitem_combo : mitem_edit
 {
 	virtual void(vector pos)								item_draw;
 	virtual float(vector pos, float scan, float char, float down)	item_keypress;
 	virtual void(mitem newfocus, float changedflag)				item_focuschange;
 
-	mitem_combo_popup		cfriend;
+	mitem_combo_popup		cpopup;
 	string	mstrlist;
 	float		firstrow;
 	float		visrows;
@@ -32,6 +32,10 @@ class mitem_combo : mitem
 			item_flags &= ~IF_SELECTABLE;
 		super::item_resized();
 	};
+	void() mitem_combo =
+	{
+		spos = -1;
+	};
 };
 
 class mitem_combo_popup : mitem
@@ -40,22 +44,28 @@ class mitem_combo_popup : mitem
 	virtual float(vector pos, float scan, float char, float down)	item_keypress;
 	virtual void(mitem newfocus, float changedflag)				item_focuschange;
 
-	mitem_combo 		pfriend;
+	mitem_combo 		pcombo;
+	mitem_vslider		pslider;
+	float			slidercache;
 	
 	virtual void() item_remove =
 	{
-		if (pfriend)
-			pfriend.cfriend = 0;
+		if (pslider)
+			pslider.item_remove();
+		if (pcombo)
+			pcombo.cpopup = 0;
 		super::item_remove();
 	};
 };
 
 void() mitem_combo::item_remove =
 {
-	mitem_combo_popup p = cfriend;
+	mitem_combo_popup p = cpopup;
 	if (p)
 		p.item_remove();
 	strunzone(mstrlist);
+	item_text = __NULL__;
+	item_command = __NULL__;
 	super::item_remove();
 };
 
@@ -67,10 +77,16 @@ void(vector pos) mitem_combo::item_draw =
 	if (!(item_flags & IF_SELECTABLE))
 		rgb *= 0.2;
 	
-	if (cfriend)
-		cfriend.item_position = pos + [item_size_x / 2, item_size_y];
+	if (cpopup)
+		cpopup.item_position = pos + [item_size_x / 2, item_size_y];
 
-	super::item_draw(pos);
+	if (spos >= 0)
+	{
+		super::item_draw(pos);
+		return;
+	}
+	else
+		mitem::item_draw(pos);
 
 	v = tokenize(mstrlist);
 
@@ -105,17 +121,18 @@ void(vector pos) mitem_combo::item_draw =
 };
 void(mitem newfocus, float flag) mitem_combo::item_focuschange =
 {
-	if (!cfriend || !(flag & IF_KFOCUSED))
+	if (!cpopup || !(flag & IF_KFOCUSED))
 		return;	//don't care
-	if (newfocus != (mitem)this && newfocus != (mitem)cfriend)
+	if (newfocus != (mitem)this && newfocus != (mitem)cpopup)
 	{
-		cfriend.item_size = cfriend.maxs = '0 0';
-		cfriend.item_flags &~= IF_SELECTABLE;
+		cpopup.item_size = cpopup.maxs = '0 0';
+		cpopup.item_flags &~= IF_SELECTABLE;
 	}
+	spos = -1;
 };
 void(mitem newfocus, float flag) mitem_combo_popup::item_focuschange =
 {
-	pfriend.item_focuschange(newfocus, flag);
+	pcombo.item_focuschange(newfocus, flag);
 };
 void(vector pos) mitem_combo_popup::item_draw =
 {
@@ -123,10 +140,14 @@ void(vector pos) mitem_combo_popup::item_draw =
 	if (item_size_y < 1)
 		return;
 
-	local mitem_combo f = pfriend;
+	local mitem_combo f = pcombo;
 	item_command = f.item_command;
 	local string curval = f.get(f.item_command);
 	local float i, m, c, v;
+
+	vector popupsize = item_size;
+
+	
 
 	if (!((f.item_flags | item_flags) & IF_KFOCUSED))
 	{
@@ -135,13 +156,13 @@ void(vector pos) mitem_combo_popup::item_draw =
 		return;
 	}
 
-	ui.drawfill(pos, item_size, item_rgb, item_alpha, 0);
+	ui.drawfill(pos, popupsize, item_rgb, item_alpha, 0);
 
 /*	//border
-	ui.drawfill(pos, [item_size_x, 1], TD_BOT, item_alpha, 0);
-	ui.drawfill(pos, [1, item_size_y - 1], TD_RGT, item_alpha, 0);
-	ui.drawfill(pos + [item_size_x-1, 1], [1, item_size_y - 1], TD_LFT, item_alpha, 0);
-	ui.drawfill(pos + [0, item_size_y-1], [item_size_x, 1], TD_TOP, item_alpha, 0);
+	ui.drawfill(pos, [popupsize_x, 1], TD_BOT, item_alpha, 0);
+	ui.drawfill(pos, [1, popupsize_y - 1], TD_RGT, item_alpha, 0);
+	ui.drawfill(pos + [popupsize_x-1, 1], [1, popupsize_y - 1], TD_LFT, item_alpha, 0);
+	ui.drawfill(pos + [0, popupsize_y-1], [popupsize_x, 1], TD_TOP, item_alpha, 0);
 */	pos_x += 1;
 
 	v = tokenize(f.mstrlist);
@@ -149,13 +170,13 @@ void(vector pos) mitem_combo_popup::item_draw =
 		if (argv(c) == curval)
 			break;
 	if (c >= v)
-		c = 0;
+		c = -1;
 
 	i = f.firstrow;
 	i = i*2;
 	if (!f.visrows)
 		i = 0;
-	else
+	else if (c >= 0)
 	{
 		//bound the displayed position 
 		if (c < i)
@@ -163,17 +184,52 @@ void(vector pos) mitem_combo_popup::item_draw =
 		if (i < c - (f.visrows-1)*2)
 			i = c - (f.visrows-1)*2;
 	}
-	m = i + f.visrows*2;
 	f.firstrow = floor(i*0.5);
 
-	//constrain the drawing so it doesn't overflow the combo
-	ui.setcliparea(pos[0], pos[1], item_size[0], item_size[1]);
+	if (v > f.visrows*2)
+	{
+		if (!pslider)
+		{
+			slidercache = -2;
+			pslider = spawn(mitem_vslider);
+		}
+	}
+	else if (pslider)
+	{
+		pslider.item_remove();
+		pslider = __NULL__;
+	}
+
+	if (pslider)
+	{
+		popupsize_x -= pslider.item_size_x;
+		if (slidercache != c)
+		{	//current index changed, force the slider to the active item.
+			slidercache = c;
+			pslider.val = f.firstrow;
+		}
+		pslider.maxv = v/2 - f.visrows;
+		pslider.item_size_y = popupsize_y;
+		pslider.item_draw(pos + [popupsize_x, 0]);
+	}
+
+	//constrain the drawing so it doesn't overflow the popup
+	ui.setcliparea(pos[0], pos[1], popupsize[0], popupsize[1]);
+
+	if (pslider)
+	{
+		f.firstrow = i = floor(pslider.val);
+		m = ((i!=pslider.val) + i + f.visrows)*2;
+		i *= 2;
+		pos[1] -= (pslider.val-i/2) * item_scale;
+	}
+	else m = i + f.visrows*2;
 
 	for (; i < m && i < v ; i+=2)
 	{
 		col = f.item_rgb;
 		if (item_flags & IF_MFOCUSED)
-			if (mouseinbox(pos, [item_size_x, item_scale]))
+			if (mouseinbox(pos, [popupsize_x, item_scale]))
 				col_z = 0;
 		if (c == i)
 			col_x = 0;
@@ -187,7 +243,14 @@ void(vector pos) mitem_combo_popup::item_draw =
 };
 float(vector pos, float scan, float char, float down) mitem_combo_popup::item_keypress =
 {
-	return pfriend.item_keypress(pos - [0, pfriend.item_size_y], scan, char, down);
+	if (pslider && scan == K_MOUSE1)
+	{
+		vector sliderpos = pos + [item_size_x-pslider.item_size_x,0];
+		if (mouseinbox(pos + [item_size_x-pslider.item_size_x,0], pslider.item_size))
+			return pslider.item_keypress(sliderpos, scan, char, down);
+	}
+			
+	return pcombo.item_keypress(pos - [0, pcombo.item_size_y], scan, char, down);
 };
 float(vector pos, float scan, float char, float down) mitem_combo::item_keypress =
 {
@@ -210,21 +273,21 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 
 	if (scan == K_ESCAPE || scan == K_MOUSE2)
 	{
-		if (cfriend)
+		if (cpopup)
 		{
-			cfriend.item_remove();
+			cpopup.item_remove();
 			return TRUE;
 		}
 		return FALSE;
 	}
-	else if (scan == K_MWHEELUP || (scan == K_UPARROW && cfriend))
+	else if (scan == K_MWHEELUP || (scan == K_UPARROW && cpopup))
 	{
 		i -= 2;
 		if (i < 0)
 			i = c - 2;
 		curval = argv(i);
 	}
-	else if (scan == K_MWHEELDOWN || (scan == K_DOWNARROW && cfriend))
+	else if (scan == K_MWHEELDOWN || (scan == K_DOWNARROW && cpopup))
 	{
 		i += 2;
 		if (i >= c)
@@ -233,20 +296,20 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 	}
 	else if (scan == K_MOUSE1 || scan == K_ENTER)
 	{
-		if (scan == K_ENTER && cfriend)
+		if (scan == K_ENTER && cpopup)
 		{
-			cfriend.item_remove();
+			cpopup.item_remove();
 			return TRUE;
 		}
 		
 		visrows = ((c>18)?18/2:c/2);
-		if (!cfriend)
+		if (!cpopup)
 		{
-			cfriend = spawn(mitem_combo_popup);
-			cfriend.pfriend = this;
-			cfriend.item_scale = 8;
-			cfriend.item_rgb = MENUBACK_RGB;
-			cfriend.item_alpha = MENUBACK_ALPHA;
+			cpopup = spawn(mitem_combo_popup);
+			cpopup.pcombo = this;
+			cpopup.item_scale = 8;
+			cpopup.item_rgb = MENUBACK_RGB;
+			cpopup.item_alpha = MENUBACK_ALPHA;
 			pos = item_position;
 			mitem_frame fr = item_parent;
 			while (fr.item_parent)
@@ -254,36 +317,44 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 				pos += fr.item_position;
 				fr = fr.item_parent;
 			}
-			fr.addr(cfriend, RS_X_MIN_PARENT_MIN | RS_X_MAX_OWN_MIN | RS_Y_MIN_PARENT_MIN | RS_Y_MAX_OWN_MIN, pos + [self.item_size_x / 2, self.item_size_y], [item_size_x*0.5, item_size_y*visrows]);
+			fr.addr(cpopup, RS_X_MIN_PARENT_MIN | RS_X_MAX_OWN_MIN | RS_Y_MIN_PARENT_MIN | RS_Y_MAX_OWN_MIN, pos + [self.item_size_x / 2, self.item_size_y], [item_size_x*0.5, item_size_y*visrows]);
 		}
-		cfriend.item_size = cfriend.maxs = [item_size_x*0.5, item_size_y*visrows];
-		cfriend.item_flags |= IF_SELECTABLE;
-		cfriend.totop();
+		cpopup.item_size = cpopup.maxs = [item_size_x*0.5, item_size_y*visrows];
+		cpopup.item_flags |= IF_SELECTABLE;
+		cpopup.totop();
 
-		if (scan == K_MOUSE1 && (cfriend.item_flags & IF_MFOCUSED))
+		if (scan == K_MOUSE1 && (cpopup.item_flags & IF_MFOCUSED))
 		{
 			//if they clicked inside the popup, change the selected item.
 			f = ui.mousepos[1] - (pos_y + item_size_y);
-			f /= cfriend.item_scale;
+			f /= cpopup.item_scale;
 			f += firstrow;
 			i = floor(f) * 2;
 			if (i < c)
 			{
 				curval = argv(i);
-				cfriend.item_flags &~= IF_SELECTABLE;
-				cfriend.item_size = cfriend.maxs = '0 0';
+				cpopup.item_flags &~= IF_SELECTABLE;
+				cpopup.item_size = cpopup.maxs = '0 0';
 				item_parent.item_focuschange(this, IF_MFOCUSED|IF_KFOCUSED);
 				
-				cfriend.item_remove();
+				cpopup.item_remove();
 			}
 		}
 	}
-	else if (scan == K_BACKSPACE || scan == K_DEL)
-		curval = substring(curval, 0, -2);
-	else if (char >= ' ')
-		curval = strcat(curval, chr2str(char));
 	else
-		return FALSE;
+	{
+		if (spos < 0)
+		{
+			spos = strlen(curval);
+			if (!super::item_keypress(pos, scan, char, down))
+			{
+				spos = -1;
+				return FALSE;
+			}
+			return TRUE;
+		}
+		else return super::item_keypress(pos, scan, char, down);
+	}
 
 	set(item_command, curval);
 	return TRUE;

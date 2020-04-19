@@ -1126,6 +1126,9 @@ ADD_CUSTOM_TARGET(menusys ALL
 		quakec/menusys/menu/presets.qc
 		quakec/menusys/menu/servers.qc
 		quakec/menusys/menu/main.qc
+		quakec/menusys/menu/mods.qc
+		quakec/menusys/menu/cvars.qc
+		quakec/menusys/menu/updates.qc
 		quakec/menusys/menu/options_audio.qc
 		quakec/menusys/menu/options_configs.qc
 		quakec/menusys/menu/options_hud.qc

@@ -33,6 +33,7 @@ class mitem_frame : mitem
 
 	mitem_vslider	vslider;	//displayed if any client item's max[y] > our item_size[y]
 	vector 	item_framesize;	//x=sides, y=top, z=bottom
+	float frame_stdheight;	//adjust RS_Y_MIN_PARENT_MID to pinch inwards when the frame is smaller than this. Child items crossing the mid-point must size gracefully (like subframes).
 	float frame_hasscroll;
 
 	static mitem(string title) findchildtext;
@@ -47,6 +48,71 @@ class mitem_frame : mitem
 	{
 		item_flags |= IF_ISFRAME;
 	};
+};
+
+void(mitem ch, vector parentsize) mitem_parentresized =
+{
+	float f = ch.resizeflags;
+
+	if (f & RS_X_FRACTION)
+		ch.item_position[0] = parentsize[0] * ch.mins[0];
+	else if (f & RS_X_MIN_PARENT_MAX)
+		ch.item_position[0] = parentsize[0] + ch.mins[0];
+	else if (f & RS_X_MIN_PARENT_MID)
+		ch.item_position[0] = parentsize[0]/2 + ch.mins[0];
+	else //if (f & RS_X_MIN_PARENT_MIN)
+		ch.item_position[0] = ch.mins[0];
+
+	if (f & RS_X_FRACTION)
+		ch.item_position[0] = parentsize[0] * ch.maxs[0];
+	else if (f & RS_X_MAX_PARENT_MIN)
+		ch.item_size[0] = ch.maxs[0] - ch.item_position[0];
+	else if (f & RS_X_MAX_PARENT_MID)
+		ch.item_size[0] = ch.maxs[0]+parentsize[0]/2 - ch.item_position[0];
+	else if (f & RS_X_MAX_PARENT_MAX)
+		ch.item_size[0] = ch.maxs[0]+parentsize[0] - ch.item_position[0];
+	else //if (f & RS_X_MAX_OWN_MIN)
+		ch.item_size[0] = ch.maxs[0];
+
+	if (f & RS_Y_FRACTION)
+		ch.item_position[1] = parentsize[1] * ch.mins[1];
+	else if (f & RS_Y_MIN_PARENT_MAX)
+		ch.item_position[1] = parentsize[1] + ch.mins[1];
+	else if (f & RS_Y_MIN_PARENT_MID)
+	{
+		ch.item_position[1] = parentsize[1]/2 + ch.mins[1];
+		if (ch.item_parent.frame_stdheight)
+		if (parentsize[1] < ch.item_parent.frame_stdheight)
+		{
+			if (ch.item_position[1] < parentsize[1]*0.5)
+				ch.item_position[1] += (ch.item_parent.frame_stdheight-parentsize[1])*0.5;
+			else
+				ch.item_position[1] -= (ch.item_parent.frame_stdheight-parentsize[1])*0.5;
+		}
+	}
+	else //if (f & RS_Y_MIN_PARENT_MIN)
+		ch.item_position[1] = ch.mins[1];
+
+	if (f & RS_Y_FRACTION)
+		ch.item_position[1] = parentsize[1] * ch.maxs[1];
+	else if (f & RS_Y_MAX_PARENT_MIN)
+		ch.item_size[1] = ch.maxs[1] - ch.item_position[1];
+	else if (f & RS_Y_MAX_PARENT_MID)
+	{
+		ch.item_size[1] = ch.maxs[1]+parentsize[1]/2 - ch.item_position[1];
+		if (ch.item_parent.frame_stdheight)
+		if (parentsize[1] < ch.item_parent.frame_stdheight)
+		{
+			if (ch.item_position[1]+ch.item_size[1] < parentsize[1]*0.5)
+				ch.item_size[1] += (ch.item_parent.frame_stdheight-parentsize[1])*0.5;
+			else
+				ch.item_size[1] -= (ch.item_parent.frame_stdheight-parentsize[1])*0.5;
+		}
+	}
+	else if (f & RS_Y_MAX_PARENT_MAX)
+		ch.item_size[1] = ch.maxs[1]+parentsize[1] - ch.item_position[1];
+	else //if (f & RS_Y_MAX_OWN_MIN)
+		ch.item_size[1] = ch.maxs[1];
 };
 
 void(mitem fromitem, string cmd) mitem_frame::item_execcommand =
@@ -90,7 +156,8 @@ void(mitem newitem, float originflags, vector originmin, vector originmax) mitem
 	newitem.resizeflags = originflags;
 	newitem.mins = originmin;
 	newitem.maxs = originmax;
-	mitem_parentresized(newitem, [item_size[0] - item_framesize[0]*2, item_size[1] - (item_framesize[1] + item_framesize[2])]);
+	local vector parentsize = [item_size[0] - item_framesize[0]*2, item_size[1] - (item_framesize[1] + item_framesize[2])];
+	mitem_parentresized(newitem, parentsize);
 	newitem.item_resized();
 	
 	item_flags |= IF_CLIENTMOVED;	//make sure it happens.
@@ -312,7 +379,7 @@ void(vector pos) mitem_vslider::item_draw =
 	float h = item_size[1];
 	float isize = w;
 	
-	vector v = drawgetimagesize("scrollbars/slider.tga");
+	vector v = dp_workarounds?'0 0 0':drawgetimagesize("scrollbars/slider.tga");
 
 	if (v != '0 0 0')
 	{
@@ -352,7 +419,7 @@ void(vector pos) mitem_vslider::item_draw =
 };
 void() mitem_vslider::mitem_vslider =
 {
-	item_size[0] = 16;
+	item_size[0] = 8;
 	item_size[1] = 128;
 };
 

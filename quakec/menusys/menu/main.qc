@@ -39,6 +39,12 @@ float(string cmd) assumefalsecheckcommand =
 	return checkcommand(cmd);
 };
 
+float(__variant cmd, float assumption) checkbuiltin2 =
+{
+	if (!checkbuiltin(checkbuiltin))	//teehee
+		return assumption;
+	return checkbuiltin(cmd);
+};
 
 
 nonstatic void(mitem_desktop desktop) M_Main =
@@ -88,8 +94,10 @@ nonstatic void(mitem_desktop desktop) M_Main =
 	if (assumefalsecheckcommand("cef"))					{menuitemtext_cladd16(m, _("Browser"),				"m_pop;cef google.com",	y); y += 16;}
 	if (assumefalsecheckcommand("xmpp"))					{menuitemtext_cladd16(m, _("Social"),				"m_pop;xmpp",		y); y += 16;}
 	if (assumefalsecheckcommand("irc"))					{menuitemtext_cladd16(m, _("IRC"),				"m_pop;irc /info",	y); y += 16;}
-	if (assumefalsecheckcommand("menu_download"))				{menuitemtext_cladd16(m, _("Updates+Packages"),			"m_pop;menu_download",	y); y += 16;}
+	/*if (checkbuiltin2(getpackagemanagerinfo,FALSE))			{menuitemtext_cladd16(m, _("Updates+Packages"),			"m_pop;m_updates",	y); y += 16;}
+	else*/ if (assumefalsecheckcommand("menu_download"))			{menuitemtext_cladd16(m, _("Updates+Packages"),			"m_pop;menu_download",	y); y += 16;}
 	if (assumefalsecheckcommand("qi"))					{menuitemtext_cladd16(m, _("Quake Injector"),			"m_pop;qi",		y); y += 16;}
+	if (checkbuiltin2(getgamedirinfo,TRUE))					{menuitemtext_cladd16(m, _("Mods"),				"m_pop;m_mods",		y); y += 16;}
 										{menuitemtext_cladd16(m, _("Options"),				"m_pop;m_options",	y); y += 16;}
 										{menuitemtext_cladd16(m, _("Quit"), 				"m_pop;m_quit",		y); y += 16;}
 

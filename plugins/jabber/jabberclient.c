@@ -904,7 +904,14 @@ qboolean Plug_Init(void)
 {
 	jclient_needreadconfig = true;
 
-	if (plugfuncs->ExportFunction("Tick", JCL_Frame) &&
+	confuncs = (plugsubconsolefuncs_t*)plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));
+	drawfuncs = (plug2dfuncs_t*)plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
+	netfuncs = (plugnetfuncs_t*)plugfuncs->GetEngineInterface(plugnetfuncs_name, sizeof(*netfuncs));
+	filefuncs = (plugfsfuncs_t*)plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	clientfuncs = (plugclientfuncs_t*)plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));
+
+	if (netfuncs && filefuncs &&
+		plugfuncs->ExportFunction("Tick", JCL_Frame) &&
 		plugfuncs->ExportFunction("Shutdown", JCL_Shutdown) &&
 		plugfuncs->ExportFunction("ExecuteCommand", JCL_ExecuteCommand))
 	{
@@ -912,9 +919,10 @@ qboolean Plug_Init(void)
 
 		plugfuncs->ExportFunction("UpdateVideo", JCL_UpdateVideo);
 		plugfuncs->ExportFunction("ConsoleLink", JCL_ConsoleLink);
-		plugfuncs->ExportFunction("ConsoleLinkMouseOver", JCL_ConsoleLinkMouseOver);
+		if (drawfuncs)
+			plugfuncs->ExportFunction("ConsoleLinkMouseOver", JCL_ConsoleLinkMouseOver);
 
-		if (!plugfuncs->ExportFunction("ConExecuteCommand", JCL_ConExecuteCommand))
+		if (!confuncs || !plugfuncs->ExportFunction("ConExecuteCommand", JCL_ConExecuteCommand))
 		{
 			Con_Printf("XMPP plugin in single-console mode\n");
 			Con_TrySubPrint = Fallback_ConPrint;

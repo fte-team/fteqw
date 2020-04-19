@@ -663,8 +663,6 @@ static int QDECL QI_ConExecuteCommand(qboolean isinsecure)
 static qboolean QI_ExecuteCommand(qboolean isinsecure)
 {
 	char cmd[256];
-	if (isinsecure)
-		return false;
 	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, "qi") || !strcmp(cmd, "quaddicted"))
 	{

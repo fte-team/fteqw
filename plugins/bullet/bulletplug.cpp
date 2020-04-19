@@ -1788,7 +1788,7 @@ static bool World_Bullet_DoInit(void)
 	if (!rbefuncs || !rbefuncs->RegisterPhysicsEngine)
 	{
 		rbefuncs = nullptr;
-		Con_Printf("Bullet plugin failed: Engine doesn't support physics engine plugins.\n");
+		Con_Printf("Bullet plugin failed: Engine is incompatible.\n");
 	}
 	else if (!rbefuncs->RegisterPhysicsEngine("Bullet", World_Bullet_Start))
 		Con_Printf("Bullet plugin failed: Engine already has a physics plugin active.\n");
@@ -1803,7 +1803,8 @@ static bool World_Bullet_DoInit(void)
 extern "C" qboolean Plug_Init(void)
 {
 	rbefuncs = (rbeplugfuncs_t*)plugfuncs->GetEngineInterface("RBE", sizeof(*rbefuncs));
-	if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
+	if (rbefuncs && (	rbefuncs->version < RBEPLUGFUNCS_VERSION ||
+						rbefuncs->wedictsize != sizeof(wedict_t)))
 		rbefuncs = nullptr;
 
 	plugfuncs->ExportFunction("Shutdown", (funcptr_t)World_Bullet_Shutdown);

@@ -361,6 +361,7 @@ typedef struct cminfo_s
 	q2dvis_t		*q2vis;
 	q3dvis_t		*q3pvs;
 	q3dvis_t		*q3phs;
+	qbyte			*phscalced;
 
 	int				numareas;
 	int				floodvalid;
@@ -4139,6 +4140,49 @@ static void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate ha
 
 
 #if !defined(CLIENTONLY) && defined(Q3BSPS)
+static void CalcClusterPHS(cminfo_t	*prv, int cluster)
+{
+	int j, k, l, index;
+	int bitbyte;
+	unsigned int *dest, *src;
+	qbyte *scan;
+
+	int numclusters = prv->q3pvs->numclusters;
+	int rowbytes = prv->q3pvs->rowsize;
+	int rowwords = rowbytes / sizeof(int);
+
+	scan = (qbyte *)prv->q3pvs->data;
+	dest = (unsigned int *)(prv->q3phs->data);
+
+	dest += rowwords*cluster;
+	scan += rowbytes*cluster;
+	for (j=0 ; j<rowbytes ; j++)
+	{
+		bitbyte = scan[j];
+		if (!bitbyte)
+			continue;
+		for (k=0 ; k<8 ; k++)
+		{
+			if (! (bitbyte & (1<<k)) )
+				continue;
+			// OR this pvs row into the phs
+			index = (j<<3) + k;
+			if (index >= numclusters)
+			{
+//				if (!buggytools)
+//					Con_Printf ("CM_CalcPHS: Bad bit(s) in PVS (%i >= %i)\n", index, numclusters);	// pad bits should be 0
+//				buggytools = true;
+			}
+			else
+			{
+				src = (unsigned int *)(prv->q3pvs->data) + index*rowwords;
+				for (l=0 ; l<rowwords ; l++)
+					dest[l] |= src[l];
+			}
+		}
+	}
+	prv->phscalced[cluster>>3] |= 1<<(cluster&7);
+}
 static void CMQ3_CalcPHS (model_t *mod)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
@@ -4150,6 +4194,7 @@ static void CMQ3_CalcPHS (model_t *mod)
 	int		count, vcount;
 	int		numclusters;
 	qboolean buggytools = false;
+	extern cvar_t sv_calcphs;
 
 	Con_DPrintf ("Building PHS...\n");
 
@@ -4182,41 +4227,55 @@ static void CMQ3_CalcPHS (model_t *mod)
 	scan = (qbyte *)prv->q3pvs->data;
 	dest = (unsigned int *)(prv->q3phs->data);
 
-	for (i=0 ; i<numclusters ; i++, dest += rowwords, scan += rowbytes)
-	{
-		memcpy (dest, scan, rowbytes);
-		for (j=0 ; j<rowbytes ; j++)
+	if (sv_calcphs.ival >= 2)
+	{	//delay-calculate it.
+		prv->phscalced = ZG_Malloc(&mod->memgroup, (prv->q3pvs->numclusters+7)/8);
+		memcpy(dest, scan, rowbytes*numclusters);
+		Con_DPrintf ("Average clusters visible / total: %i / %i\n"
+			, vcount/numclusters, numclusters);
+	}
+	else if (!sv_calcphs.ival)
+	{	//disable calcs (behaves like broadcast so just fill with 1s)
+		memset(dest, 0xff, rowbytes*numclusters);
+	}
+	else
+	{	//the original slow logic like q3.
+		for (i=0 ; i<numclusters ; i++, dest += rowwords, scan += rowbytes)
 		{
-			bitbyte = scan[j];
-			if (!bitbyte)
-				continue;
-			for (k=0 ; k<8 ; k++)
+			memcpy (dest, scan, rowbytes);
+			for (j=0 ; j<rowbytes ; j++)
 			{
-				if (! (bitbyte & (1<<k)) )
+				bitbyte = scan[j];
+				if (!bitbyte)
 					continue;
-				// OR this pvs row into the phs
-				index = (j<<3) + k;
-				if (index >= numclusters)
+				for (k=0 ; k<8 ; k++)
 				{
-					if (!buggytools)
-						Con_Printf ("CM_CalcPHS: Bad bit(s) in PVS (%i >= %i)\n", index, numclusters);	// pad bits should be 0
-					buggytools = true;
-				}
-				else
-				{
-					src = (unsigned int *)(prv->q3pvs->data) + index*rowwords;
-					for (l=0 ; l<rowwords ; l++)
-						dest[l] |= src[l];
+					if (! (bitbyte & (1<<k)) )
+						continue;
+					// OR this pvs row into the phs
+					index = (j<<3) + k;
+					if (index >= numclusters)
+					{
+						if (!buggytools)
+							Con_Printf ("CM_CalcPHS: Bad bit(s) in PVS (%i >= %i)\n", index, numclusters);	// pad bits should be 0
+						buggytools = true;
+					}
+					else
+					{
+						src = (unsigned int *)(prv->q3pvs->data) + index*rowwords;
+						for (l=0 ; l<rowwords ; l++)
+							dest[l] |= src[l];
+					}
 				}
 			}
+			for (j=0 ; j<numclusters ; j++)
+				if ( ((qbyte *)dest)[j>>3] & (1<<(j&7)) )
+					count++;
 		}
-		for (j=0 ; j<numclusters ; j++)
-			if ( ((qbyte *)dest)[j>>3] & (1<<(j&7)) )
-				count++;
-	}
 
-	Con_DPrintf ("Average clusters visible / hearable / total: %i / %i / %i\n"
-		, vcount/numclusters, count/numclusters, numclusters);
+		Con_DPrintf ("Average clusters visible / hearable / total: %i / %i / %i\n"
+			, vcount/numclusters, count/numclusters, numclusters);
+	}
 }
 #endif
 
@@ -7291,6 +7350,8 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 	{
 		if (cluster != -1 && prv->q3phs->numclusters)
 		{
+			if (prv->phscalced && !(prv->phscalced[cluster>>3] & (1<<(cluster&7))))
+				CalcClusterPHS(prv, cluster);
 			return (qbyte *)prv->q3phs->data + cluster * prv->q3phs->rowsize;
 		}
 		else

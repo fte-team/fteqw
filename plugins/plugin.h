@@ -48,6 +48,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include <time.h>
 
 #ifndef _VM_H
 	#if __STDC_VERSION__ >= 199901L || defined(__GNUC__)

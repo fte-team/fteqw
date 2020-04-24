@@ -689,7 +689,7 @@ readnext:
 			nextdemotime = demotime;
 		}
 	}
-	else
+	else if (cls.demoplayback == DPB_QUAKEWORLD)
 	{
 		if (readdemobytes(&demopos, &demotime, sizeof(demotime)) != sizeof(demotime))
 		{
@@ -699,6 +699,8 @@ readnext:
 		}
 		demotime = LittleFloat(demotime);
 	}
+	else
+		return 0;
 
 	if (cl.sendprespawn)
 	{

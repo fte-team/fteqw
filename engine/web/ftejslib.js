@@ -1083,14 +1083,14 @@ console.log("onerror: " + _url);
 
 	emscriptenfte_al_loadaudiofile : function(buf, dataptr, datasize)
 	{
+		var ctx = AL.currentContext || AL.currentCtx;
 		//match emscripten's openal support.
 		if (!buf)
 			return;
-		
+	
 		var albuf = ctx.buffers[buf];
 		ctx.buffers[buf] = null; //alIsBuffer will report it as invalid now
 
-		var ctx = AL.currentContext || AL.currentCtx;
 		try
 		{
 			//its async, so it needs its own copy of an arraybuffer

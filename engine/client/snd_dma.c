@@ -84,7 +84,14 @@ cvar_t precache					= CVARAF(	"s_precache", "1",
 											"precache", 0);
 cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
 											"loadas8bit", CVAR_ARCHIVE,
-											"Downsample sounds on load as lower quality 8-bit sound.");
+											"Downsample sounds on load as lower quality 8-bit sound, to save memory.");
+#ifdef FTE_TARGET_WEB
+cvar_t snd_loadasstereo			= CVARD(	"snd_loadasstereo", "1",
+											"Force mono sounds to load as if stereo ones, to waste memory. Used to work around stupid browser bugs.");
+#else
+cvar_t snd_loadasstereo			= CVARD(	"snd_loadasstereo", "0",
+											"Force mono sounds to load as if stereo ones, to waste memory. Not normally useful.");
+#endif
 cvar_t ambient_level			= CVARAFD(	"s_ambientlevel", "0.3",
 											"ambient_level", CVAR_ARCHIVE,
 											"This controls the volume levels of automatic area-based sounds (like water or sky), and is quite annoying. If you're playing deathmatch you'll definitely want this OFF.");
@@ -2294,6 +2301,7 @@ void S_Init (void)
 	Cvar_Register(&volume,				"Sound controls");
 	Cvar_Register(&precache,			"Sound controls");
 	Cvar_Register(&loadas8bit,			"Sound controls");
+	Cvar_Register(&snd_loadasstereo,	"Sound controls");
 	Cvar_Register(&bgmvolume,			"Sound controls");
 	Cvar_Register(&snd_nominaldistance,	"Sound controls");
 	Cvar_Register(&ambient_level,		"Sound controls");

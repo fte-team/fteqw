@@ -559,6 +559,7 @@ ResampleSfx
 static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
 {
 	extern cvar_t snd_linearresample;
+	extern cvar_t snd_loadasstereo;
 	double scale;
 	sfxcache_t	*sc;
 	int outsamps;
@@ -575,7 +576,7 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 		outwidth = inwidth;
 	len = outsamps * outwidth * inchannels;
 
-	sfx->decoder.buf = sc = BZ_Malloc(len + sizeof(sfxcache_t));
+	sfx->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + len);
 	if (!sc)
 	{
 		return false;
@@ -602,6 +603,25 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 		sc->width,
 		sc->numchannels,
 		snd_linearresample.ival);
+
+	if (inchannels == 1 && snd_loadasstereo.ival)
+	{	//I'm implementing this to work around what looks like a firefox bug, where mono buffers don't get played (but stereo works just fine despite all the spacialisation issues associated with that).
+		sfxcache_t *nc = sfx->decoder.buf = BZ_Malloc(sizeof(sfxcache_t) + len*2);
+		*nc = *sc;
+		nc->data = (qbyte*)(nc+1);
+		SND_ResampleStream (sc->data,
+			sc->speed,
+			sc->width,
+			sc->numchannels,
+			outsamps,
+			nc->data,
+			nc->speed*2,
+			nc->width,
+			nc->numchannels,
+			false);
+		nc->numchannels *= 2;
+		BZ_Free(sc);
+	}
 
 	return true;
 }

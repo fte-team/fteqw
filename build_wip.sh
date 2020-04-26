@@ -60,6 +60,10 @@ do
 		echo "  -r VER       Specifies the SVN revision to update to"
 		echo "  -j THREADS   Specifies how many jobs to make with"
 		echo "  --help       This text"
+		echo "  --noupdate   Don't do svn updates"
+		echo "  --unclean    Don't do make clean, for faster rebuilds"
+		echo "  --web        Build web target (excluding all others)"
+		echo "  --droid      Build android target (excluding others)"
 		exit 0
 		;;
 	-build|--build)
@@ -68,6 +72,27 @@ do
 		;;
 	--noupdate)
 		NOUPDATE="y"
+		;;
+	--unclean)
+		BUILD_CLEAN="n"
+		;;
+	--web)
+		BUILD_LINUXx86="n"
+		BUILD_LINUXx64="n"
+		BUILD_LINUXarmhf="n"
+		BUILD_WIN32="n"
+		BUILD_WIN64="n"
+		BUILD_ANDROID="n"
+		BUILD_WEB="y"
+		;;
+	--droid)
+		BUILD_LINUXx86="n"
+		BUILD_LINUXx64="n"
+		BUILD_LINUXarmhf="n"
+		BUILD_WIN32="n"
+		BUILD_WIN64="n"
+		BUILD_ANDROID="y"
+		BUILD_WEB="n"
 		;;
 	*)
 		echo "Unknown option $1"

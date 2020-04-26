@@ -527,7 +527,7 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 			float *tmp = malloc(size);
 			float *src = (float*)sc->data;
 			int i;
-			for (i = 0; i < (size>>1); i++)
+			for (i = 0; i < (size>>2); i++)
 			{
 				tmp[i] = src[i]*volume;	//signed. oversaturation isn't my problem
 			}

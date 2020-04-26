@@ -32,7 +32,7 @@
 #define ENGINEPOINTER(p) ((char*)(p) - progfuncs->funcs.stringtable)
 #define QCPOINTER(p) (eval_t *)(p->_int+progfuncs->funcs.stringtable)
 #define QCPOINTERM(p) (eval_t *)((p)+progfuncs->funcs.stringtable)
-#define QCPOINTERWRITEFAIL(p,sz) ((float)(p)-1 >= prinst.addressableused-1-(sz))	//disallows null writes
+#define QCPOINTERWRITEFAIL(p,sz) ((unsigned int)(p)-1 >= prinst.addressableused-1-(sz))	//disallows null writes
 #define QCPOINTERREADFAIL(p,sz) ((unsigned int)(p) >= prinst.addressableused-(sz))		//permits null reads
 
 

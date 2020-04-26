@@ -14,7 +14,7 @@ Decal functions
 #define MAXFRAGMENTVERTS 360
 int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
 {
-#define C 4
+#define C (sizeof(vecV_t)/sizeof(vec_t))
 	float dotv[MAXFRAGMENTVERTS+1];
 	char keep[MAXFRAGMENTVERTS+1];
 #define KEEP_KILL 0

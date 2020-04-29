@@ -833,7 +833,7 @@ static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, 
 	s->loopstart = -1;
 	sc->data = (qbyte*)(sc+1);
 	sc->length = datalen;
-	sc->format = AF_BLOB;	//ie: not pcm
+	sc->format = QAF_BLOB;	//ie: not pcm
 	sc->speed = sndspeed;
 	sc->numchannels = 2;
 	sc->soundoffset = 0;

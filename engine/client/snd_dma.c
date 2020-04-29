@@ -3168,6 +3168,11 @@ float S_GetChannelLevel(int entnum, int entchannel)
 					spos *= scache->numchannels;
 					switch(scache->format)
 					{
+#ifdef FTE_TARGET_WEB
+					case QAF_BLOB:
+						result = 0;	//sorry. you're going to have to use .wav :(
+						break;
+#endif
 					case QAF_S8:
 						for (j = 0; j < scache->numchannels; j++)	//average the channels
 							result += abs(((signed char*)scache->data)[spos+j]);

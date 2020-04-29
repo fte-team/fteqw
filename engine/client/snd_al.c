@@ -499,6 +499,10 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 	{
 		switch(sc->format)
 		{
+#ifdef FTE_TARGET_WEB
+		case QAF_BLOB:
+			break;	//unreachable
+#endif
 		case QAF_S8:
 			{
 				unsigned char *tmp = malloc(size);
@@ -540,6 +544,10 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 	{
 		switch(sc->format)
 		{
+#ifdef FTE_TARGET_WEB
+		case QAF_BLOB:
+			break;	//unreachable
+#endif
 		case QAF_S8:
 			{
 				unsigned char *tmp = malloc(size);

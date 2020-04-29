@@ -161,6 +161,7 @@ typedef enum uploadfmt
 	PTI_EAC_RG11,		/*8bpp*/ //useful for normalmaps (calculate blue)
 	PTI_EAC_RG11_SNORM,	/*8bpp*/ //useful for normalmaps (calculate blue)
 	//astc... zomg.
+#define PTI_ASTC_FIRST	PTI_ASTC_4X4_LDR
 	PTI_ASTC_4X4_LDR,	/*8bpp*/ //ldr/srgb/hdr formats are technically all the same.
 	PTI_ASTC_5X4_LDR,	/*6.40*/ //srgb formats are different because of an extra srgb lookup step
 	PTI_ASTC_5X5_LDR,	/*5.12*/ //ldr formats are identical to hdr except for the extended colour modes disabled.
@@ -175,6 +176,19 @@ typedef enum uploadfmt
 	PTI_ASTC_10X10_LDR,	/*1.28*/
 	PTI_ASTC_12X10_LDR,	/*1.07*/
 	PTI_ASTC_12X12_LDR,	/*0.89*/
+//	#define ASTC3D
+#ifdef ASTC3D
+	PTI_ASTC_3X3X3_LDR,	/*4.74*/	//astc volume ldr textures are worth tracking only to provide hints to cache them as 8bit instead of 16bit (reducing gpu cache needed).
+	PTI_ASTC_4X3X3_LDR,	/*3.56*/
+	PTI_ASTC_4X4X3_LDR,	/*2.67*/
+	PTI_ASTC_4X4X4_LDR,	/*2.00*/
+	PTI_ASTC_5X4X4_LDR,	/*1.60*/
+	PTI_ASTC_5X5X4_LDR,	/*1.28*/
+	PTI_ASTC_5X5X5_LDR,	/*1.02*/
+	PTI_ASTC_6X5X5_LDR,	/*0.85*/
+	PTI_ASTC_6X6X5_LDR,	/*0.71*/
+	PTI_ASTC_6X6X6_LDR,	/*0.59*/
+#endif
 	PTI_ASTC_4X4_SRGB,
 	PTI_ASTC_5X4_SRGB,
 	PTI_ASTC_5X5_SRGB,
@@ -189,6 +203,18 @@ typedef enum uploadfmt
 	PTI_ASTC_10X10_SRGB,
 	PTI_ASTC_12X10_SRGB,
 	PTI_ASTC_12X12_SRGB,
+#ifdef ASTC3D
+	PTI_ASTC_3X3X3_SRGB,
+	PTI_ASTC_4X3X3_SRGB,
+	PTI_ASTC_4X4X3_SRGB,
+	PTI_ASTC_4X4X4_SRGB,
+	PTI_ASTC_5X4X4_SRGB,
+	PTI_ASTC_5X5X4_SRGB,
+	PTI_ASTC_5X5X5_SRGB,
+	PTI_ASTC_6X5X5_SRGB,
+	PTI_ASTC_6X6X5_SRGB,
+	PTI_ASTC_6X6X6_SRGB,
+#endif
 	PTI_ASTC_4X4_HDR,	//these are not strictly necessary, and are likely to be treated identically to the ldr versions, but they may use extra features that the hardware does not support
 	PTI_ASTC_5X4_HDR,
 	PTI_ASTC_5X5_HDR,
@@ -203,8 +229,21 @@ typedef enum uploadfmt
 	PTI_ASTC_10X10_HDR,
 	PTI_ASTC_12X10_HDR,
 	PTI_ASTC_12X12_HDR,
-#define PTI_ASTC_FIRST	PTI_ASTC_4X4_LDR
+#ifdef ASTC3D
+	PTI_ASTC_3X3X3_HDR,
+	PTI_ASTC_4X3X3_HDR,
+	PTI_ASTC_4X4X3_HDR,
+	PTI_ASTC_4X4X4_HDR,
+	PTI_ASTC_5X4X4_HDR,
+	PTI_ASTC_5X5X4_HDR,
+	PTI_ASTC_5X5X5_HDR,
+	PTI_ASTC_6X5X5_HDR,
+	PTI_ASTC_6X6X5_HDR,
+	PTI_ASTC_6X6X6_HDR,
+#define PTI_ASTC_LAST	PTI_ASTC_6X6X6_HDR
+#else
 #define PTI_ASTC_LAST	PTI_ASTC_12X12_HDR
+#endif
 
 	//depth formats
 	PTI_DEPTH16,

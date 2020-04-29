@@ -478,7 +478,7 @@ void Image_Shutdown(void);
 void Image_PrintInputFormatVersions(void); //for version info
 qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
 qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struct pendingtextureinfo *mips);
-void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);
+void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight, unsigned int *blockdepth);
 const char *Image_FormatName(uploadfmt_t encoding);
 qboolean Image_FormatHasAlpha(uploadfmt_t encoding);
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);

@@ -808,9 +808,12 @@ void Q_SetProgsParms(qboolean forcompiler)
 	svprogparms.autocompile = PR_COMPILEIGNORE;//PR_COMPILECHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	svprogparms.gametime = &sv.time;
+#ifdef MULTITHREAD
+	svprogparms.usethreadedgc = pr_gc_threaded.ival;
+#endif
 
-	svprogparms.sv_edicts = (edict_t**)&sv.world.edicts;
-	svprogparms.sv_num_edicts = &sv.world.num_edicts;
+	svprogparms.edicts = (edict_t**)&sv.world.edicts;
+	svprogparms.num_edicts = &sv.world.num_edicts;
 
 	svprogparms.useeditor = QCEditor;
 
@@ -12142,6 +12145,27 @@ void PR_DumpPlatform_f(void)
 
 		{"global_gravitydir",	"vector", QW|NQ|CS,	D("The direction gravity should act in if not otherwise specified per entity."), 0,"'0 0 -1'"},
 		{"serverid",			"int", QW|NQ|CS,	D("The unique id of this server within the server cluster.")},
+
+		{"button3",			".float", QW|NQ},
+		{"button4",			".float", QW|NQ},
+		{"button5",			".float", QW|NQ},
+		{"button6",			".float", QW|NQ},
+		{"button7",			".float", QW|NQ},
+		{"button8",			".float", QW|NQ},
+
+		//and for dp compat (these names are fucked, yes)
+//		{"buttonuse",		".float", QW|NQ},
+//		{"buttonchat",		".float", QW|NQ},
+//		{"cursor_active",	".float", QW|NQ},
+//		{"button9",			".float", QW|NQ},
+//		{"button10",		".float", QW|NQ},
+//		{"button11",		".float", QW|NQ},
+//		{"button12",		".float", QW|NQ},
+//		{"button13",		".float", QW|NQ},
+
+//		{"button14",		".float", QW|NQ},
+//		{"button15",		".float", QW|NQ},
+//		{"button16",		".float", QW|NQ},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, D(desc)},
 #define comfieldint(name,desc) {#name, ".int", FL, D(desc)},

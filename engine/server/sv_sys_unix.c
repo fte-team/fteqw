@@ -601,14 +601,6 @@ char *Sys_ConsoleInput (void)
 	static char	text[256];
 	int	len;
 
-#ifdef SUBSERVERS
-	if (SSV_IsSubServer())
-	{
-		SSV_CheckFromMaster();
-		return NULL;
-	}
-#endif
-
 	if (!stdin_ready || noconinput==true)
 		return NULL;		// the select didn't say it was ready
 	stdin_ready = false;

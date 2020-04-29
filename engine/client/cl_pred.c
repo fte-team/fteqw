@@ -621,11 +621,12 @@ void CL_CalcClientTime(void)
 			extern float olddemotime;
 			cl.servertime = olddemotime;
 		}
-		//q2 has no drifting.
-		//q3 always drifts.
-		//nq+qw code can drift
+		//q2 has no drifting (our code can't cope with picking anything beyond old/new snapshots, and frankly its 10fps which is horrendous enough as it is).
+		//q3 always drifts (gamecode does snapshot selection).
+		//qw code can drift (but oh noes! my latency!)
+		//FIXME: nq code should be able to drift, but is apparently buggy somewhere and ends up uncomfortably stuttery right now.
 		//default is to drift in demos+SP but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
+		if (cls.protocol == CP_QUAKE2 || cls.protocol==CP_NETQUAKE/*FIXME*/ || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
 		{	//no drift logic
 			float f;
 			f = cl.gametime - cl.oldgametime;
@@ -671,6 +672,8 @@ void CL_CalcClientTime(void)
 				else
 				{
 					cl.servertime -= 0.02*(max - cl.servertime);
+					if (cl.servertime < cl.time)
+						cl.servertime = cl.time;
 				}
 			}
 			if (cl.servertime < min)

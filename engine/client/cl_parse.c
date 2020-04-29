@@ -5671,19 +5671,23 @@ static void CL_SetStatString (int pnum, int stat, char *value)
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
-/*		extern int cls_lastto;
-		cl.players[cls_lastto].statsstr[stat]=value;
+		extern int cls_lastto;
+		//Z_Free(cl.players[cls_lastto].statsstr[stat]);
+		//cl.players[cls_lastto].statsstr[stat]=Z_StrDup(value);
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (spec_track[pnum] == cls_lastto)
-				cl.statsstr[pnum][stat] = value;*/
+			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
+			{
+				if (cl.playerview[pnum].statsstr[stat])
+					Z_Free(cl.playerview[pnum].statsstr[stat]);
+				cl.playerview[pnum].statsstr[stat] = Z_StrDup(value);
+			}
 	}
 	else
 	{
 		if (cl.playerview[pnum].statsstr[stat])
 			Z_Free(cl.playerview[pnum].statsstr[stat]);
-		cl.playerview[pnum].statsstr[stat] = Z_Malloc(strlen(value)+1);
-		strcpy(cl.playerview[pnum].statsstr[stat], value);
+		cl.playerview[pnum].statsstr[stat] = Z_StrDup(value);
 	}
 }
 /*

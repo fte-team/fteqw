@@ -617,7 +617,10 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	else if (!Q_strcasecmp(cmd, "mainconfig"))
 	{
 		Z_Free(man->mainconfig);
-		man->mainconfig = Z_StrDup(Cmd_Argv(1));
+		if (strcmp(".cfg", COM_GetFileExtension(Cmd_Argv(1),NULL)))
+			man->mainconfig = Z_StrDup(va("%s.cfg", Cmd_Argv(1)));
+		else
+			man->mainconfig = Z_StrDup(Cmd_Argv(1));
 	}
 	else if (!Q_strcasecmp(cmd, "defaultexec"))
 	{
@@ -672,6 +675,11 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 				if (!Q_strcasecmp(cmd, "basegame"))
 					man->gamepath[i].flags |= GAMEDIR_BASEGAME;
 
+				if (*newdir == '/')
+				{
+					newdir++;
+					man->gamepath[i].flags |= GAMEDIR_QSHACK;
+				}
 				if (*newdir == '*')
 				{	//*dir makes the dir 'private' and not networked.
 					newdir++;
@@ -1567,7 +1575,7 @@ fail:
 	else
 		Con_Printf("Failed\n");
 */
-	if (found == FF_NOTFOUND || loc->len == -1)
+	if (found == FF_NOTFOUND || found == FF_DIRECTORY || loc->len == -1)
 	{
 		if (lflags & FSLF_DEEPONFAILURE)
 			return 0x7fffffff;	//if we're asking for depth, the file is reported to be so far into the filesystem as to be irrelevant.
@@ -2780,6 +2788,8 @@ static searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t
 	searchpathfuncs_t *pak;
 	int j;
 	char ext[8];
+	if (!f)
+		return NULL;
 	COM_FileExtension(pakname, ext, sizeof(ext));
 	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
 	{
@@ -2950,6 +2960,8 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	flocation_t loc;
 	wildpaks_t wp;
 	filelist_t list = {0};
+	qboolean qshack = (pflags&SPF_QSHACK);
+	pflags &= ~SPF_QSHACK;
 
 	Q_strncpyz(logicalpaths, logicalpath, sizeof(logicalpaths));
 	FS_CleanDir(logicalpaths, sizeof(logicalpaths));
@@ -3005,37 +3017,50 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 			continue;
 		if (loadstuff & (1<<j))
 		{
+			qboolean okay = true;
 			const char *extension = searchpathformats[j].extension;
 
 			//first load all the numbered pak files
-			for (i=0 ; ; i++)
+			for (i=0 ; okay ; i++)
 			{
 				snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
 				fs_finds++;
-				if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
-					break;	//not found..
-
-				snprintf (logicalfile, sizeof(logicalfile), "%spak%i.%s", logicalpaths, i, extension);
-				snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
-
-				for (existing = com_searchpaths; existing; existing = existing->next)
+				if (search->handle->FindFile(search->handle, &loc, pakfile, NULL))
 				{
-					if (!Q_strcasecmp(existing->logicalpath, logicalfile))	//assumption: first member of structure is a char array
-						break; //already loaded (base paths?)
+					snprintf (logicalfile, sizeof(logicalfile), "%spak%i.%s", logicalpaths, i, extension);
+					snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
+
+					for (existing = com_searchpaths; existing; existing = existing->next)
+					{
+						if (!Q_strcasecmp(existing->logicalpath, logicalfile))	//assumption: first member of structure is a char array
+							break; //already loaded (base paths?)
+					}
+					if (!existing)
+					{
+						handle = FS_GetOldPath(oldpaths, logicalfile, &keptflags);
+						if (!handle)
+						{
+							vfs = search->handle->OpenVFS(search->handle, &loc, "rb");
+							if (!vfs)
+								break;
+							handle = searchpathformats[j].OpenNew (vfs, search->handle, pakfile, logicalfile, "");
+							if (!handle)
+								break;
+						}
+						FS_AddPathHandle(oldpaths, purefile, logicalfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
+					}
 				}
-				if (!existing)
+				else
+					okay = false;
+
+				if (i == 0 && qshack)
 				{
+					snprintf (pakfile, sizeof(pakfile), "quakespasm.%s", extension);
 					handle = FS_GetOldPath(oldpaths, logicalfile, &keptflags);
 					if (!handle)
-					{
-						vfs = search->handle->OpenVFS(search->handle, &loc, "rb");
-						if (!vfs)
-							break;
-						handle = searchpathformats[j].OpenNew (vfs, search->handle, pakfile, logicalfile, "");
-						if (!handle)
-							break;
-					}
-					FS_AddPathHandle(oldpaths, purefile, logicalfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
+						handle = FS_OpenPackByExtension(VFSOS_Open(pakfile, "rb"), NULL, pakfile, pakfile);
+					if (handle)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
+						FS_AddPathHandle(oldpaths, "", pakfile, handle, "", SPF_COPYPROTECTED|SPF_PRIVATE, (unsigned int)-1);
 				}
 			}
 		}
@@ -3098,7 +3123,7 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 
 	//temp packages also do not nest
 //	if (!(flags & SPF_TEMPORARY))
-		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_PRIVATE), loadstuff);
+		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_PRIVATE|SPF_QSHACK), loadstuff);
 
 	if (flags & SPF_TEMPORARY)
 	{
@@ -3464,7 +3489,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
 #define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT QUAKESPASMSUCKS
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
-#define NQCFG "//-nohome\ncfg_save_auto 1\n" QCFG "sv_nqplayerphysics 1\ncl_loopbackprotocol auto\ncl_sbar 1\nplug_sbar 0\nsv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\n"
+#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\ncfg_save_auto 1\n" QCFG "set sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.
 #define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
 /*stuff that makes dp-only mods work a bit better*/
@@ -3537,13 +3562,13 @@ const gamemode_info_t gamemode_info[] = {
 	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
 	{"-afterquake",	NULL,		"FTE-Quake",{"id1/pak0.pak", "id1/quake.rc"},                 QCFG,{"id1",	"qw",				"*fte"},	"AfterQuake",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//netquake-specific quake that avoids qw/ with its nquake fuckups, and disables nqisms
-	{"-netquake",	"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-netquake",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//blurgh
-	{"-spasm",		NULL,		"FTE-Quake DarkPlaces-Quake",{"quakespasm.pak"},			  NQCFG"fps_preset spasm\n",{"id1", "*"},		"FauxSpasm",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-spasm",		NULL,		"FTE-Quake DarkPlaces-Quake",{"quakespasm.pak"},			  NQCFG"fps_preset builtin_spasm\nset cl_demoreel 0\n",{"/id1"},			"FauxSpasm",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can. 'fps_preset spasm' is hopefully close enough...
-	{"-fitz",		NULL,		"FTE-Quake DarkPlaces-Quake",{"quakespasm.pak"},			  NQCFG"fps_preset spasm\n",{"id1"},			"FauxFitz",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-fitz",		"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset builtin_spasm\n",{"id1"},			"FauxFitz",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//because we can
-	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset tenebrae\n",{"id1","tenebrae"},"FauxTenebrae",					UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset builtin_tenebrae\n",{"id1","tenebrae"},"FauxTenebrae",					UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
@@ -4138,6 +4163,8 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				fl |= SPF_WRITABLE;
 			if (fs_manifest->gamepath[i].flags&GAMEDIR_PRIVATE)
 				fl |= SPF_PRIVATE;
+			if (fs_manifest->gamepath[i].flags&GAMEDIR_QSHACK)
+				fl |= SPF_QSHACK;
 
 			if (fs_manifest->gamepath[i].flags&GAMEDIR_USEBASEDIR)
 			{	//for doom - loading packages without an actual gamedir. note that this does not imply that we can write anything.
@@ -4388,6 +4415,8 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 	while(oldpaths)
 	{
+		fs_restarts++;
+
 		next = oldpaths->next;
 
 		Con_DPrintf("%s is no longer needed\n", oldpaths->logicalpath);
@@ -4444,7 +4473,6 @@ void FS_ReloadPackFiles(void)
 	FS_FLocateFile("gfx/palette.lmp", 0, &paletteloc2);
 	if (paletteloc.search != paletteloc2.search)
 		Cbuf_AddText("vid_reload\n", RESTRICT_LOCAL);
-
 }
 
 static void FS_ReloadPackFiles_f(void)
@@ -5006,6 +5034,7 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 {
 	ftemanifest_t *man;
 	size_t j;
+	const char *cexec;
 
 	if (gamemode_info[game].manifestfile)
 		man = FS_Manifest_ReadMem(NULL, basedir, gamemode_info[game].manifestfile);
@@ -5013,9 +5042,15 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 	{
 		man = FS_Manifest_Create(NULL, basedir);
 
-		if (gamemode_info[game].customexec && !strncmp(gamemode_info[game].customexec, "//-nohome\n", 10))
+		for (cexec = gamemode_info[game].customexec; cexec[0] == '/' && cexec[1] == '/'; )
 		{
-			Cmd_TokenizeString("disablehomedir 1", false, false);
+			char line[256];
+			char *e = strchr(cexec, '\n');
+			if (!e)
+				break;
+			Q_strncpyz(line, cexec+2, min(e-(cexec+2)+1, sizeof(line)));
+			cexec = e+1;
+			Cmd_TokenizeString(line, false, false);
 			FS_Manifest_ParseTokens(man);
 		}
 
@@ -5379,7 +5414,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 #ifdef HAVE_CLIENT
 	qboolean allowvidrestart = true;
 	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp",	//misc stuff
-		"gfx/palette.lmp", "pics/colormap.pcx"};		//palettes
+		"gfx/palette.lmp", "pics/colormap.pcx", "gfx/conchars.png"};		//palettes
 	searchpathfuncs_t *vidpath[countof(vidfile)];
 #endif
 

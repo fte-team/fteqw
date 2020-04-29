@@ -12,16 +12,17 @@
 
 #define ASTC_WITH_LDR			//comment out this line to disable pure-LDR decoding (the hdr code can still be used).
 #define ASTC_WITH_HDR			//comment out this line to disable HDR decoding.
-#define ASTC_WITH_HDRTEST		//comment out this line to disable HDR decoding.
+#define ASTC_WITH_HDRTEST		//comment out this line to disable checking for which profile is needed.
+//#define ASTC_WITH_3D
 
 #ifdef ASTC_WITH_LDR
-	ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pixstride, int bw,int bh);	//generates RGBA8 data (gives error colour for hdr blocks!)
+	ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pixstride/*outwidth*/, int layerstride/*outwidth*outheight*/, int bw,int bh,int bd);	//generates RGBA8 data (gives error colour for hdr blocks!)
 #endif
 #ifdef ASTC_WITH_HDR
-	ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pixstride, int bw,int bh);	//generates RGBA16F data.
+	ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pixstride/*outwidth*/, int layerstride/*outwidth*outheight*/, int bw,int bh,int bd);	//generates RGBA16F data.
 #endif
 #ifdef ASTC_WITH_HDRTEST
-	ASTC_PUBLIC int ASTC_BlocksAreHDR(unsigned char *in, size_t datasize, int bw, int bh, int bd);				//returns true if n consecutive blocks require the HDR profile.
+	ASTC_PUBLIC int ASTC_BlocksAreHDR(unsigned char *in, size_t datasize, int bw, int bh, int bd);				//returns true if n consecutive blocks require the HDR profile (ie: detects when you need to soft-decode for drivers with partial support, as opposed to just always decompressing).
 #endif
 
 
@@ -38,21 +39,24 @@
 #if defined(ASTC_WITH_LDR) || defined(ASTC_WITH_HDR)
 	#define ASTC_WITH_DECODE
 #endif
-enum
+enum astc_status_e
 {
-	ASTC_OKAY,
-	ASTC_ERROR,				//validation errors
-	ASTC_UNSUPPORTED_FULL,	//volume textures... Note: non-hdr profile errors are per-partition, so not an actual block error.
-	ASTC_RESERVED,			//reserved bits. basically an error but might not be in the future.
+	//valid blocks
+	ASTC_OKAY,				//we can decode at least part of this normally (hdr endpoints may still result in per-endpoint errors).
 	ASTC_VOID_LDR,			//not an error - the block is a single LDR colour, with an RGBA16 colour in the last 8 bytes.
-	ASTC_VOID_HDR			//not an error - the block is a single HDR colour, with an RGBA16F colour in the last 8 bytes.
+	ASTC_VOID_HDR,			//not an error - the block is a single HDR colour, with an RGBA16F colour in the last 8 bytes.
+
+	//invalid blocks
+	ASTC_ERROR,				//validation errors
+	ASTC_UNSUPPORTED,		//basically just volume textures
+	ASTC_RESERVED,			//reserved bits. basically an error but might not be in the future.
 };
 struct astc_block_info
 {
 	unsigned char *in;			//the 16 bytes of the block
-	char blocksize[3];
+	unsigned char blocksize[3];	//block width, height, depth(1 for 2d).
 
-	char status;				//0=regular block, -1=error, etc
+	enum astc_status_e status;	//block status/type.
 	unsigned char dualplane;	//two sets of weights instead of one.
 	unsigned char ccs;			//second set applies to this component
 
@@ -68,9 +72,9 @@ struct astc_block_info
 	unsigned short partindex; //used for deciding which partition each pixel belongs in
 	struct astc_part
 	{
-		char mode;		//endpoint modes
+		unsigned char mode;		//endpoint modes
 #ifdef ASTC_WITH_HDR
-		char hdr;		//endpoint colour mode - &1=rgb, &2=alpha
+		unsigned char hdr;		//endpoint colour mode - &1=rgb, &2=alpha
 #endif
 		int ep[2][4];
 	} part[4];
@@ -164,8 +168,42 @@ static void ASTC_ReadBlockMode(struct astc_block_info *b)
 	b->precision = (s>>(9-3))&(1<<3);//P
 	b->precision |= (s>>4)&1;		 //p0
 	if (b->blocksize[2] != 1)
-	{	//3d blocks have a different layout
-		b->status = ASTC_UNSUPPORTED_FULL;
+	{	//3d blocks have a different header layout
+#ifdef ASTC_WITH_3D
+		if (s&3)
+		{
+			b->precision|=(s&3)<<1;	//p2, p1
+			b->wcount[0] = ((s>>5)&3)+2, b->wcount[1] = ((s>>7)&3)+2, b->wcount[2] = ((s>>2)&3)+2;
+		}
+		else
+		{
+			b->precision|=(s&0xc)>>1;	//p2, p1
+			if ((s&0x180)!=0x180)
+			{
+				b->dualplane = 0;	//always single plane.
+				b->precision &= 7;	//clear the high precision bit (reused for 'b')
+				if (!(s&0x180))
+					b->wcount[0] = 6, b->wcount[1] = ((s>>9)&3)+2, b->wcount[2] = ((s>>5)&3)+2;
+				else if (!(s&0x80))
+					b->wcount[0] = ((s>>5)&3)+2, b->wcount[1] = 6, b->wcount[2] = ((s>>9)&3)+2;
+				else
+					b->wcount[0] = ((s>>5)&3)+2, b->wcount[1] = ((s>>9)&3)+2, b->wcount[2] = 6;
+			}
+			else if ((s&0x60)!=0x60)
+			{
+				if (!(s&0x60))
+					b->wcount[0] = 6, b->wcount[1] = 2, b->wcount[2] = 2;
+				else if (!(s&0x20))
+					b->wcount[0] = 2, b->wcount[1] = 6, b->wcount[2] = 2;
+				else	//40
+					b->wcount[0] = 2, b->wcount[1] = 2, b->wcount[2] = 6;
+			}
+			else
+				b->status = ASTC_RESERVED; //reserved (or void extent, but those were handled above)
+		}
+#else
+		b->status = ASTC_UNSUPPORTED;
+#endif
 	}
 	else
 	{
@@ -1314,16 +1352,22 @@ static int ASTC_ChoosePartition(int seed, int x, int y, int z, int partitions, i
 #ifdef ASTC_WITH_LDR
 //Spits out 8-bit RGBA data for a single block. Any HDR blocks will result in the error colour.
 //sRGB can be applied by the caller, if needed.
-ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pixstride, int bw, int bh)
+ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pixstride, int layerstride, int bw, int bh, int bd)
 {
 	struct astc_block_info b;
 	int x, y;
 	int stride = pixstride*4;
+#ifdef ASTC_WITH_3D
+	int z;
+	layerstride = layerstride*4-(stride*bh);
+#else
+	if (bd != 1)
+		return;	//error!
+#endif
 	b.in = in;
 	b.blocksize[0] = bw;
 	b.blocksize[1] = bh;
-	b.blocksize[2] = 1;
-
+	b.blocksize[2] = bd;
 	ASTC_ReadBlockMode(&b);
 
 	if (b.status == ASTC_VOID_LDR)
@@ -1347,13 +1391,19 @@ ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pix
 
 	if (b.status == ASTC_OKAY)
 	{
+		#define N b.wcount[0]
+		#define M b.wcount[1]
+		int s1=1<<b.dualplane,s2=N<<b.dualplane;	//values for 2d blocks (3d blocks will override)
+		int s3=((bd!=1?N*M:0)+N+1)<<b.dualplane;	//small variation for 3d blocks.
+
 		int smallblock = (b.blocksize[0]*b.blocksize[1]*b.blocksize[2])<31;
-		int ds = (1024+b.blocksize[0]/2)/(b.blocksize[0]-1);
-		int dt = (1024+b.blocksize[1]/2)/(b.blocksize[1]-1);
-		int planes = 1<<b.dualplane, wstride = b.wcount[0]*planes;
-		int s, t, v0, w, w00,w01,w10,w11;
+		int fs, s, ds = (1024+b.blocksize[0]/2)/(b.blocksize[0]-1);
+		int ft, t, dt = (1024+b.blocksize[1]/2)/(b.blocksize[1]-1);
+#ifdef ASTC_WITH_3D
+		int fr, r, dr = (1024+b.blocksize[2]/2)/(b.blocksize[2]-1);
+#endif
+		int v0, w, w00,w01,w10,w11;
 		struct astc_part *p;
-		//int dr = (1024+b.bd/2)/(b.bd-1);
 
 #ifdef ASTC_WITH_HDR
 		for (x = 0; x < b.partitions; x++)
@@ -1367,26 +1417,73 @@ ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pix
 		}
 #endif
 
-		//for (z = 0; z < bd; z++, out += layerstride-stride*bh)
+#ifdef ASTC_WITH_3D
+		for (z = 0; z < bd; z++, out += layerstride-stride*bh)
+#endif
 		{
-			//r = ((dr*z)*(b.nweights[2]-1)+32)>>6;
+#ifdef ASTC_WITH_3D
+			r = ((dr*z)*(b.wcount[2]-1)+32)>>6;
+			fr=r&0xf;
+#endif
 			for (y = 0; y < bh; y++, out += stride)
 			{
 				t = ((dt*y)*(b.wcount[1]-1)+32)>>6;
+				ft=t&0xf;
 				for (x = 0; x < bw; x++)
 				{
 					p = &b.part[ASTC_ChoosePartition(b.partindex, x,y,0, b.partitions, smallblock)];
 					s = ((ds*x)*(b.wcount[0]-1)+32)>>6;
-					w11 = ((s&0xf)*(t&0xf)+8) >> 4;
-					w10 = (t&0xf) - w11;
-					w01 = (s&0xf) - w11;
-					w00 = 16 - (s&0xf) - (t&0xf) + w11;
+					fs=s&0xf;
+#ifdef ASTC_WITH_3D
+					if (bd != 1)
+					{	//3d blocks use simplex interpolation instead of 8-way interpolation. its easier for hardware but more cycles for us.
+						if (fs>fr)
+						{	//figure out which weights/factors to use.
+							if (ft>fr)
+							{
+								if (fs>ft)
+									s1=1, s2=N, w00=16-fs, w01=fs-ft, w10=ft-fr, w11=fr;
+								else
+									s1=N, s2=1, w00=16-ft, w01=ft-fs, w10=fs-fr, w11=fr;
+							}
+							else
+								s1=1, s2=N*M, w00=16-fs, w01=fs-fr, w10=fr-ft, w11=ft;
+						}
+						else
+						{
+							if (fs>ft)
+								s1=N*M, s2=1, w00=16-fr, w01=fr-fs, w10=fs-ft, w11=ft;
+							else
+							{
+								if (ft>fr)
+									s1=N, s2=N*M, w00=16-ft, w01=ft-fr, w10=fr-fs, w11=fs;
+								else
+									s1=N*M, s2=N, w00=16-fr, w01=fr-ft, w10=ft-fs, w11=fs;
+							}
+						}
 
-					v0 = (((s>>4))<<b.dualplane)+(((t>>4))*wstride);
+						s1 <<= b.dualplane;
+						s2 <<= b.dualplane;
+						s2+=s1;
+						//s3 = (N*M+N+1)<<b.dualplane;
+						v0 = ((s>>4)+(t>>4)*N+(r>>4)*N*M) << b.dualplane;
+					}
+					else
+#endif
+					{
+						//s1 = 1<<b.dualplane;
+						//s2 = (N)<<b.dualplane;
+						//s3 = (N+1)<<b.dualplane;
+						w11 = (fs*ft+8) >> 4;
+						w10 = ft - w11;
+						w01 = fs - w11;
+						w00 = 16 - fs - ft + w11;
+						v0 = ((s>>4)+(t>>4)*N) << b.dualplane;
+					}
 					w =	(	w00*b.weights[v0] +
-							w01*b.weights[v0+planes] +
-							w10*b.weights[v0+wstride] +
-							w11*b.weights[v0+planes+wstride] + 8) >> 4;
+							w01*b.weights[v0+s1] +
+							w10*b.weights[v0+s2] +
+							w11*b.weights[v0+s3] + 8) >> 4;
 					out[(x<<2)+0] = ((64-w)*p->ep[0][0] + w*p->ep[1][0])>>6;
 					out[(x<<2)+1] = ((64-w)*p->ep[0][1] + w*p->ep[1][1])>>6;
 					out[(x<<2)+2] = ((64-w)*p->ep[0][2] + w*p->ep[1][2])>>6;
@@ -1396,9 +1493,9 @@ ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pix
 					{	//dual planes has a second set of weights that override a single channel
 						v0++;
 						w =	(	w00*b.weights[v0] +
-								w01*b.weights[v0+planes] +
-								w10*b.weights[v0+wstride] +
-								w11*b.weights[v0+planes+wstride] + 8) >> 4;
+								w01*b.weights[v0+s1] +
+								w10*b.weights[v0+s2] +
+								w11*b.weights[v0+s3] + 8) >> 4;
 						out[(x<<2)+b.ccs] = ((64-w)*p->ep[0][b.ccs] + w*p->ep[1][b.ccs])>>6;
 					}
 				}
@@ -1406,15 +1503,18 @@ ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pix
 		}
 	}
 	else
-	{
-		for (y = 0; y < bh; y++, out += stride)
-			for (x = 0; x < bw; x++)
-			{
-				out[(x<<2)+0] = 0xff;
-				out[(x<<2)+1] = 0;
-				out[(x<<2)+2] = 0xff;
-				out[(x<<2)+3] = 0xff;
-			}
+	{	//error colour == magenta
+#ifdef ASTC_WITH_3D
+		for (z = 0; z < bd; z++, out += layerstride)
+#endif
+			for (y = 0; y < bh; y++, out += stride)
+				for (x = 0; x < bw; x++)
+				{
+					out[(x<<2)+0] = 0xff;
+					out[(x<<2)+1] = 0;
+					out[(x<<2)+2] = 0xff;
+					out[(x<<2)+3] = 0xff;
+				}
 	}
 }
 #endif
@@ -1457,15 +1557,22 @@ static unsigned short ASTC_GenHalffloat(int hdr, int rawval)
 }
 
 //Spits out half-float RGBA data for a single block.
-ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pixstride, int bw, int bh)
+ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pixstride, int layerstride, int bw, int bh, int bd)
 {
 	int x, y;
 	int stride = pixstride*4;
 	struct astc_block_info b;
+#ifdef ASTC_WITH_3D
+	int z;
+	layerstride = layerstride*4-(stride*bh);
+#else
+	if (bd != 1)
+		return;	//error!
+#endif
    	b.in = in;
 	b.blocksize[0] = bw;
 	b.blocksize[1] = bh;
-	b.blocksize[2] = 1;
+	b.blocksize[2] = bd;
 
 	ASTC_ReadBlockMode(&b);
 
@@ -1503,13 +1610,19 @@ ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pix
 
 	if (b.status == ASTC_OKAY)
 	{
+		#define N b.wcount[0]
+		#define M b.wcount[1]
+		int s1=1<<b.dualplane,s2=N<<b.dualplane;	//values for 2d blocks (3d blocks will override)
+		int s3=((bd!=1?N*M:0)+N+1)<<b.dualplane;	//small variation for 3d blocks.
+
 		int smallblock = (b.blocksize[0]*b.blocksize[1]*b.blocksize[2])<31;
-		int ds = (1024+b.blocksize[0]/2)/(b.blocksize[0]-1);
-		int dt = (1024+b.blocksize[1]/2)/(b.blocksize[1]-1);
-		int planes = 1<<b.dualplane, wstride = b.wcount[0]*planes;
-		int s, t, v0, w, w00,w01,w10,w11;
+		int fs, s, ds = (1024+b.blocksize[0]/2)/(b.blocksize[0]-1);
+		int ft, t, dt = (1024+b.blocksize[1]/2)/(b.blocksize[1]-1);
+#ifdef ASTC_WITH_3D
+		int fr, r, dr = (1024+b.blocksize[2]/2)/(b.blocksize[2]-1);
+#endif
+		int v0, w, w00,w01,w10,w11;
 		struct astc_part *p;
-		//int dr = (1024+b.bd/2)/(b.bd-1);
 
 		for (x = 0; x < b.partitions; x++)
 		{	//we need to do a little extra processing here
@@ -1528,26 +1641,74 @@ ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pix
 			}
 		}
 
-		//for (z = 0; z < bd; z++, out += layerstride-stride*bh)
+#ifdef ASTC_WITH_3D
+		for (z = 0; z < bd; z++, out += layerstride)
+#endif
 		{
-			//r = ((dr*z)*(b.nweights[2]-1)+32)>>6;
+#ifdef ASTC_WITH_3D
+			r = ((dr*z)*(b.wcount[2]-1)+32)>>6;
+			fr=s&0xf;
+#endif
 			for (y = 0; y < bh; y++, out += stride)
 			{
 				t = ((dt*y)*(b.wcount[1]-1)+32)>>6;
+				ft=s&0xf;
 				for (x = 0; x < bw; x++)
 				{
 					p = &b.part[ASTC_ChoosePartition(b.partindex, x,y,0, b.partitions, smallblock)];
 					s = ((ds*x)*(b.wcount[0]-1)+32)>>6;
-					w11 = ((s&0xf)*(t&0xf)+8) >> 4;
-					w10 = (t&0xf) - w11;
-					w01 = (s&0xf) - w11;
-					w00 = 16 - (s&0xf) - (t&0xf) + w11;
+					fs=s&0xf;
+#ifdef ASTC_WITH_3D
+					if (bd != 1)
+					{	//3d blocks use simplex interpolation instead of 8-way interpolation. its easier for hardware but more cycles for us.
+						if (fs>fr)
+						{	//figure out which weights/factors to use.
+							if (ft>fr)
+							{
+								if (fs>ft)
+									s1=1, s2=N, w00=16-fs, w01=fs-ft, w10=ft-fr, w11=fr;
+								else
+									s1=N, s2=1, w00=16-ft, w01=ft-fs, w10=fs-fr, w11=fr;
+							}
+							else
+								s1=1, s2=N*M, w00=16-fs, w01=fs-fr, w10=fr-ft, w11=ft;
+						}
+						else
+						{
+							if (fs>ft)
+								s1=N*M, s2=1, w00=16-fr, w01=fr-fs, w10=fs-ft, w11=ft;
+							else
+							{
+								if (ft>fr)
+									s1=N, s2=N*M, w00=16-ft, w01=ft-fr, w10=fr-fs, w11=fs;
+								else
+									s1=N*M, s2=N, w00=16-fr, w01=fr-ft, w10=ft-fs, w11=fs;
+							}
+						}
 
-					v0 = (((s>>4))<<b.dualplane)+(((t>>4))*wstride);
+						s1 <<= b.dualplane;
+						s2 <<= b.dualplane;
+						s2+=s1;
+						//s3 = (N*M+N+1)<<b.dualplane;
+						v0 = (((s>>4))+((t>>4)*N)+(r>>4)*N*M) << b.dualplane;
+					}
+					else
+#endif
+					{
+						//s1 = 1<<b.dualplane;
+						//s2 = (N)<<b.dualplane;
+						//s3 = (N+1)<<b.dualplane;
+						w11 = (fs*ft+8) >> 4;
+						w10 = ft - w11;
+						w01 = fs - w11;
+						w00 = 16 - fs - ft + w11;
+
+						v0 = (((s>>4))+(t>>4)*N) << b.dualplane;
+					}
 					w =	(	w00*b.weights[v0] +
-							w01*b.weights[v0+planes] +
-							w10*b.weights[v0+wstride] +
-							w11*b.weights[v0+planes+wstride] + 8) >> 4;
+							w01*b.weights[v0+s1] +
+							w10*b.weights[v0+s2] +
+							w11*b.weights[v0+s3] + 8) >> 4;
 					out[(x<<2)+0] = ASTC_GenHalffloat(p->hdr&1, ((64-w)*p->ep[0][0] + w*p->ep[1][0])>>6);
 					out[(x<<2)+1] = ASTC_GenHalffloat(p->hdr&1, ((64-w)*p->ep[0][1] + w*p->ep[1][1])>>6);
 					out[(x<<2)+2] = ASTC_GenHalffloat(p->hdr&1, ((64-w)*p->ep[0][2] + w*p->ep[1][2])>>6);
@@ -1557,9 +1718,9 @@ ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pix
 					{	//dual planes has a second set of weights that override a single channel
 						v0++;
 						w =	(	w00*b.weights[v0] +
-								w01*b.weights[v0+planes] +
-								w10*b.weights[v0+wstride] +
-								w11*b.weights[v0+planes+wstride] + 8) >> 4;
+								w01*b.weights[v0+s1] +
+								w10*b.weights[v0+s2] +
+								w11*b.weights[v0+s3] + 8) >> 4;
 						out[(x<<2)+b.ccs] = ASTC_GenHalffloat(p->hdr&(1<<b.ccs), ((64-w)*p->ep[0][b.ccs] + w*p->ep[1][b.ccs])>>6);
 					}
 				}
@@ -1567,15 +1728,18 @@ ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pix
 		}
 	}
 	else
-	{
-		for (y = 0; y < bh; y++, out += stride)
-			for (x = 0; x < bw; x++)
-			{
-				out[(x<<2)+0] = 0;//0xf<<10;
-				out[(x<<2)+1] = 0;
-				out[(x<<2)+2] = 0;//0xf<<10;
-				out[(x<<2)+3] = 0xf<<10;
-			}
+	{	//error colour == magenta
+#ifdef ASTC_WITH_3D
+		for (z = 0; z < bd; z++, out += layerstride)
+#endif
+			for (y = 0; y < bh; y++, out += stride)
+				for (x = 0; x < bw; x++)
+				{
+					out[(x<<2)+0] = 0xf<<10;
+					out[(x<<2)+1] = 0;
+					out[(x<<2)+2] = 0xf<<10;
+					out[(x<<2)+3] = 0xf<<10;
+				}
 	}
 }
 #endif

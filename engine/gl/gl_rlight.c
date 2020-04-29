@@ -107,6 +107,7 @@ void R_AnimateLight (void)
 {
 	int			i,j;
 	float f;
+	static int fbmodcount;
 
 
 	//if (r_lightstylescale.value > 2)
@@ -121,7 +122,12 @@ void R_AnimateLight (void)
 	i = (int)f;
 	f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
 
-	for (j=0 ; j<cl_max_lightstyles ; j++)
+	if (r_fullbright.value)
+	{
+		for (j=0 ; j<cl_max_lightstyles ; j++)
+			d_lightstylevalue[j] = r_fullbright.value*255;
+	}
+	else for (j=0 ; j<cl_max_lightstyles ; j++)
 	{
 		int v1, v2, vd;
 		if (!cl_lightstyle[j].length)
@@ -147,6 +153,18 @@ void R_AnimateLight (void)
 			d_lightstylevalue[j] = v1*22*r_lightstylescale.value;
 		else
 			d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22*r_lightstylescale.value;
+	}
+
+	if (r_fullbright.modified != fbmodcount)
+	{
+		fbmodcount = r_fullbright.modified;
+		for (j=0 ; j<cl_max_lightstyles ; j++)
+		{
+			if (r_fullbright.value)
+				cl_lightstyle[j].colourkey = 0xff;
+			else
+				cl_lightstyle[j].colourkey = (int)(cl_lightstyle[j].colours[0]*0x400) ^ (int)(cl_lightstyle[j].colours[1]*0x100000) ^ (int)(cl_lightstyle[j].colours[2]*0x40000000);
+		}
 	}
 }
 

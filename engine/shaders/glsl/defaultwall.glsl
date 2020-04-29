@@ -1,7 +1,7 @@
 !!ver 100 450
 !!permu TESS
 !!permu DELUXE
-!!permu FULLBRIGHT
+!!permu FULLBRIGHT	//lumas rather than no lightmaps
 !!permu FOG
 !!permu LIGHTSTYLED
 !!permu BUMP
@@ -18,7 +18,7 @@
 //diffuse gives us alpha, and prevents dlight from bugging out when there's no diffuse.
 !!samps =EIGHTBIT paletted 1
 !!samps =SPECULAR specular
-!!samps lightmap
+!!samps !VERTEXLIT lightmap
 !!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3
 !!samps =DELUXE deluxemap
 !!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3
@@ -269,7 +269,7 @@ void main ()
 	//optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 	//don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 	//FIXME: this rounding is likely not correct with respect to software rendering. oh well.
-#if __VERSION__ >= 130
+#if __VERSION__ >= 130 && !defined(VERTEXLIT)
 	vec2 lmsize = vec2(textureSize(s_lightmap0, 0));
 #else
 	#define lmsize vec2(128.0,2048.0)

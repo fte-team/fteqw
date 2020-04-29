@@ -299,7 +299,7 @@ ELSEIF(${UNIX})	#linux(ish)
 		NAMES ossaudio
 	)
 	IF(OSSAUDIO_LIBRARY)
-	SET(FTE_LIBS ${FTE_LIBS} ${OSSAUDIO_LIBRARY})
+		SET(FTE_LIBS ${FTE_LIBS} ${OSSAUDIO_LIBRARY})
 	ENDIF()
 
 	#on linux, use wayland.
@@ -307,13 +307,21 @@ ELSEIF(${UNIX})	#linux(ish)
 		WAYLAND_CLIENT_LIBRARY
 		NAMES wayland-client libwayland-client
 	)
+	FIND_LIBRARY(
+		HAVE_XKBCOMMON
+		NAMES xkbcommon
+	)
+	IF(NOT HAVE_XKBCOMMON)
+		MESSAGE(WARNING "xkbcommon library not found, needed for wayland to be usable.")
+		UNSET(WAYLAND_CLIENT_LIBRARY)
+	ENDIF()
 	IF(WAYLAND_CLIENT_LIBRARY)
 		SET(FTE_DEFINES ${FTE_DEFINES};WAYLANDQUAKE;USE_EGL)
 		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
 			engine/gl/gl_vidwayland.c
 		)
 	ELSE()
-		MESSAGE(WARNING "Wayland library NOT available")
+		MESSAGE(WARNING "Wayland library NOT available. X11 will live forever anyway.")
 		IF(NOT X11_FOUND)
 			MESSAGE(WARNING "No renderers supported!")
 			SET(FTE_NO_RENDERERS 1)

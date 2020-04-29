@@ -99,6 +99,7 @@ struct modlist_s *Mods_GetMod(size_t diridx);
 #define SPF_PRIVATE			32	//private to the client. ie: the fte dir. name is not networked.
 #define SPF_WRITABLE		64	//safe to write here. lots of weird rules etc.
 #define SPF_BASEPATH		128	//part of the basegames, and not the mod gamedir(s).
+#define SPF_QSHACK			256	//part of the basegames, and not the mod gamedir(s).
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);
 
 #ifdef AVAIL_XZDEC

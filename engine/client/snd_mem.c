@@ -28,7 +28,7 @@ typedef struct
 {
 	int		format;
 	int		rate;
-	int		width;
+	int		bitwidth;
 	int		numchannels;
 	int		loopstart;
 	int		samples;
@@ -295,7 +295,7 @@ qbyte *S_Alloc (int size);
 // SND_ResampleStream: takes a sound stream and converts with given parameters. Limited to
 // 8-16-bit signed conversions and mono-to-mono/stereo-to-stereo conversions.
 // Not an in-place algorithm.
-void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int insamps, void *out, int outrate, int outwidth, int outchannels, int resampstyle)
+void SND_ResampleStream (void *in, int inrate, qaudiofmt_t informat, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outformat, int outchannels, int resampstyle)
 {
 	double scale;
 	signed char *in8 = (signed char *)in;
@@ -308,17 +308,17 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 	if (insamps <= 0)
 		return;
 
-	if (inchannels == outchannels && inwidth == outwidth && inrate == outrate)
+	if (inchannels == outchannels && informat == outformat && inrate == outrate)
 	{
-		memcpy(out, in, inwidth*insamps*inchannels);
+		memcpy(out, in, informat*insamps*inchannels);
 		return;
 	}
 
 	if (inchannels == 1 && outchannels == 1)
 	{
-		if (inwidth == 1)
+		if (informat == QAF_S8)
 		{
-			if (outwidth == 1)
+			if (outformat == QAF_S8)
 			{
 				if (inrate < outrate) // upsample
 				{
@@ -336,7 +336,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				}
 				return;
 			}
-			else
+			else if (outformat == QAF_S16)
 			{
 				if (inrate == outrate) // quick convert
 					QUICKCONVERT(in8, insamps, out16, 8, 0)
@@ -357,9 +357,9 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				return;
 			}
 		}
-		else // 16-bit
+		else if (informat == QAF_S16) // 16-bit
 		{
-			if (outwidth == 2)
+			if (outformat == QAF_S16)
 			{
 				if (inrate < outrate) // upsample
 				{
@@ -377,7 +377,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				}
 				return;
 			}
-			else
+			else if (outformat == QAF_S8)
 			{
 				if (inrate == outrate) // quick convert
 					QUICKCONVERT(in16, insamps, out8, 0, 8)
@@ -401,9 +401,9 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 	}
 	else if (outchannels == 2 && inchannels == 2)
 	{
-		if (inwidth == 1)
+		if (informat == QAF_S8)
 		{
-			if (outwidth == 1)
+			if (outformat == QAF_S8)
 			{
 				if (inrate < outrate) // upsample
 				{
@@ -419,6 +419,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 					else
 						STANDARDRESCALESTEREO(in8, inrate, insamps, out8, outrate, 0, 0)
 				}
+				return;
 			}
 			else
 			{
@@ -443,9 +444,9 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				}
 			}
 		}
-		else // 16-bit
+		else if (informat == QAF_S16) // 16-bit
 		{
-			if (outwidth == 2)
+			if (outformat == QAF_S16)
 			{
 				if (inrate < outrate) // upsample
 				{
@@ -462,7 +463,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
 				}
 			}
-			else
+			else if (outformat == QAF_S8)
 			{
 				if (inrate == outrate) // quick convert
 				{
@@ -489,9 +490,9 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 #if 0
 	else if (outchannels == 1 && inchannels == 2)
 	{
-		if (inwidth == 1)
+		if (informat == QAF_S8)
 		{
-			if (outwidth == 1)
+			if (outformat == QAF_S8)
 			{
 				if (inrate < outrate) // upsample
 				{
@@ -503,7 +504,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				else // downsample
 					STANDARDRESCALESTEREOTOMONO(in8, inrate, insamps, out8, outrate, 0, 0)
 			}
-			else
+			else if (outformat == QAF_S16)
 			{
 				if (inrate == outrate) // quick convert
 					QUICKCONVERTSTEREOTOMONO(in8, insamps, out16, 8, 0)
@@ -518,9 +519,9 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 					STANDARDRESCALESTEREOTOMONO(in8, inrate, insamps, out16, outrate, 8, 0)
 			}
 		}
-		else // 16-bit
+		else if (informat == QAF_S16) // 16-bit
 		{
-			if (outwidth == 2)
+			if (outformat == QAF_S16)
 			{
 				if (inrate < outrate) // upsample
 				{
@@ -532,7 +533,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				else // downsample
 					STANDARDRESCALESTEREOTOMONO(in16, inrate, insamps, out16, outrate, 0, 0)
 			}
-			else
+			else if (outformat == QAF_S8)
 			{
 				if (inrate == outrate) // quick convert
 					QUICKCONVERTSTEREOTOMONO(in16, insamps, out8, 0, 8)
@@ -556,7 +557,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 ResampleSfx
 ================
 */
-static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
+static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, qaudiofmt_t informat, int insamps, int inloopstart, qbyte *data)
 {
 	extern cvar_t snd_linearresample;
 	extern cvar_t snd_loadasstereo;
@@ -564,17 +565,17 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 	sfxcache_t	*sc;
 	int outsamps;
 	int len;
-	int outwidth;
+	qaudiofmt_t outformat;
 
 	scale = snd_speed / (double)inrate;
 	outsamps = insamps * scale;
 	if (loadas8bit.ival < 0)
-		outwidth = 2;
+		outformat = QAF_S16;
 	else if (loadas8bit.ival)
-		outwidth = 1;
+		outformat = QAF_S8;
 	else
-		outwidth = inwidth;
-	len = outsamps * outwidth * inchannels;
+		outformat = informat;
+	len = outsamps * QAF_BYTES(outformat) * inchannels;
 
 	sfx->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + len);
 	if (!sc)
@@ -583,7 +584,7 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 	}
 
 	sc->numchannels = inchannels;
-	sc->width = outwidth;
+	sc->format = outformat;
 	sc->speed = snd_speed;
 	sc->length = outsamps;
 	sc->soundoffset = 0;
@@ -595,12 +596,12 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 
 	SND_ResampleStream (data,
 		inrate,
-		inwidth,
+		informat,
 		inchannels,
 		insamps,
 		sc->data,
 		sc->speed,
-		sc->width,
+		sc->format,
 		sc->numchannels,
 		snd_linearresample.ival);
 
@@ -611,12 +612,12 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 		nc->data = (qbyte*)(nc+1);
 		SND_ResampleStream (sc->data,
 			sc->speed,
-			sc->width,
+			sc->format,
 			sc->numchannels,
 			outsamps,
 			nc->data,
 			nc->speed*2,
-			nc->width,
+			nc->format,
 			nc->numchannels,
 			false);
 		nc->numchannels *= 2;
@@ -738,22 +739,10 @@ static qboolean QDECL S_LoadDoomSound (sfx_t *s, qbyte *data, size_t datalen, in
 }
 #endif
 
-void S_ShortedLittleFloats(void *p, size_t samples)
-{
-	short *out = p;
-	float *in = p;
-	int t;
-	while(samples --> 0)
-	{
-		t = LittleFloat(*in++) * 32767;
-		t = bound(-32768, t, 32767);
-		*out++ = t;
-	}
-}
-
 static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
 	wavinfo_t	info;
+	qaudiofmt_t	format;
 
 	if (datalen < 4 || strncmp(data, "RIFF", 4))
 		return false;
@@ -766,22 +755,62 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		return false;
 	}
 
-	if (info.format == 1 && info.width == 1)	//unsigned bytes
-		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
-	else if (info.format == 1 && info.width == 2)	//signed shorts
-		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
-	else if (info.format == 3 && info.width == 4)	//signed floats
+	if (info.format == 1 && info.bitwidth == 8)	//unsigned bytes
 	{
-		S_ShortedLittleFloats(data + info.dataofs, info.samples*info.numchannels);
-		info.width = 2;
+		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
+		format = QAF_S8;
 	}
+	else if (info.format == 1 && info.bitwidth == 16)	//signed shorts
+	{
+		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
+		format = QAF_S16;
+	}
+	else if (info.format == 1 && info.bitwidth == 32)	//24 or 32bit int audio
+	{
+		short *out = (short *)(data + info.dataofs);
+		int *in = (int *)(data + info.dataofs);
+		size_t samples = info.samples*info.numchannels;
+		while(samples --> 0)
+		{	//in place size conversion, so we need to do it forwards.
+			*out++ = LittleLong(*in++)>>16;	//just drop the least significant bits.
+		}
+		format = QAF_S16;
+	}
+#ifdef MIXER_F32
+	else if (info.format == 3 && info.bitwidth == 32)	//signed floats
+	{
+		if (bigendian)
+		{
+			size_t i = info.samples*info.numchannels;
+			float *ptr = (float*)(data + info.dataofs);
+			while(i --> 0)
+				ptr[i] = LittleFloat(ptr[i]);
+		}
+		format = QAF_F32;
+	}
+#else
+	else if (info.format == 3 && info.bitwidth == 4)	//signed floats
+	{
+		short *out = (short *)(data + info.dataofs);
+		float *in = (float *)(data + info.dataofs);
+		size_t samples = info.samples*info.numchannels;
+		int t;
+		while(samples --> 0)
+		{	//in place size conversion, so we need to do it forwards.
+			t = LittleFloat(*in++) * 32767;
+			t = bound(-32768, t, 32767);
+			*out++ = t;
+		}
+		format = QAF_S16;
+	}
+#endif
 	else
 	{
 		s->loadstate = SLS_FAILED;
 		switch(info.format)
 		{
 		case 1/*WAVE_FORMAT_PCM*/:
-		case 3/*WAVE_FORMAT_IEEE_FLOAT*/:		Con_Printf ("%s has an unsupported width (%i bits).\n", s->name, info.width*8); break;
+		case 3/*WAVE_FORMAT_IEEE_FLOAT*/:		Con_Printf ("%s has an unsupported width (%i bits).\n", s->name, info.bitwidth); break;
 		case 6/*WAVE_FORMAT_ALAW*/:				Con_Printf ("%s uses unsupported a-law format.\n", s->name); break;
 		case 7/*WAVE_FORMAT_MULAW*/:			Con_Printf ("%s uses unsupported mu-law format.\n", s->name); break;
 		case 0xfffe/*WAVE_FORMAT_EXTENSIBLE*/:
@@ -790,7 +819,7 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		return false;
 	}
 
-	return ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
+	return ResampleSfx (s, info.rate, info.numchannels, format, info.samples, info.loopstart, data + info.dataofs);
 }
 
 qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
@@ -1174,7 +1203,7 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	info.numchannels = GetLittleShort(&ctx);
 	info.rate = GetLittleLong(&ctx);
 	ctx.data_p += 4+2;
-	info.width = GetLittleShort(&ctx) / 8;
+	info.bitwidth = GetLittleShort(&ctx);
 
 // get cue chunk
 	chunklen = FindChunk(&ctx, "cue ");
@@ -1209,7 +1238,7 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	}
 
 	ctx.data_p += 8;
-	samples = chunklen / info.width /info.numchannels;
+	samples = (chunklen<<3) / info.bitwidth / info.numchannels;
 
 	if (info.samples)
 	{

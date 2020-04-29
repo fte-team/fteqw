@@ -28,13 +28,13 @@ struct avaudioctx
 
 	//output audio
 	//we throw away data if the format changes. which is awkward, but gah.
-	int64_t samples_start;
+	int64_t samples_framestart;
 	int samples_channels;
 	int samples_speed;
-	int samples_width;
+	qaudiofmt_t samples_format;
 	qbyte *samples_buffer;
-	size_t samples_count;
-	size_t samples_max;
+	size_t samples_framecount;
+	size_t samples_maxbytes;
 };
 
 static void S_AV_Purge(sfx_t *s)
@@ -61,127 +61,213 @@ static void S_AV_Purge(sfx_t *s)
 		activedecoders--;
 	memset(&s->decoder, 0, sizeof(s->decoder));
 }
+#define QAF_U8 0x81
+#define QAF_S32 0x04
+#ifndef MIXER_F32
+#define QAF_F32 0x84
+#endif
+#define QAF_F64 0x88
 static void S_AV_ReadFrame(struct avaudioctx *ctx)
 {	//reads an audioframe and spits its data into the output sound file for the game engine to use.
-	int width = 2;
+	qaudiofmt_t outformat = QAF_S16, informat=QAF_S16;
 	int channels = ctx->pACodecCtx->channels;
+	int planes = 1, p;
 	unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
-	void *auddata = ctx->pAFrame->data[0];
 	switch(ctx->pACodecCtx->sample_fmt)
 	{	//we don't support planar audio. we just treat it as mono instead.
 	default:
 		auddatasize = 0;
 		break;
 	case AV_SAMPLE_FMT_U8P:
-		auddatasize /= channels;
-		channels = 1;
+		planes = channels;
+		outformat = QAF_S8;
+		informat = QAF_U8;
+		break;
 	case AV_SAMPLE_FMT_U8:
-		width = 1;
+		planes = 1;
+		outformat = QAF_S8;
+		informat = QAF_U8;
 		break;
 	case AV_SAMPLE_FMT_S16P:
-		auddatasize /= channels;
-		channels = 1;
+		planes = channels;
+		outformat = QAF_S16;
+		informat = QAF_S16;
+		break;
 	case AV_SAMPLE_FMT_S16:
-		width = 2;
+		planes = 1;
+		outformat = QAF_S16;
+		informat = QAF_S16;
 		break;
 
+	case AV_SAMPLE_FMT_S32P:
+		planes = channels;
+		outformat = QAF_S16;
+		informat = QAF_S32;
+		break;
+	case AV_SAMPLE_FMT_S32:
+		planes = 1;
+		outformat = QAF_S16;
+		informat = QAF_S32;
+		break;
+
+#ifdef MIXER_F32
 	case AV_SAMPLE_FMT_FLTP:
-		//FIXME: support float audio internally.
-		{
-			float *in[2] = {(float*)ctx->pAFrame->data[0],(float*)ctx->pAFrame->data[1]};
-			signed short *out = (void*)auddata;
-			int v;
-			unsigned int i, c;
-			unsigned int frames = ctx->pAFrame->nb_samples;
-			if (channels > 2)
-				channels = 2;
-			for (i = 0; i < frames; i++)
-			{
-				for (c = 0; c < channels; c++)
-				{
-					v = (short)(in[c][i]*32767);
-					if (v < -32767)
-						v = -32767;
-					else if (v > 32767)
-						v = 32767;
-					*out++ = v;
-				}
-			}
-			width = sizeof(*out);
-			auddatasize = frames*width*channels;
-		}
+		planes = channels;
+		outformat = QAF_F32;
+		informat = QAF_F32;
 		break;
 	case AV_SAMPLE_FMT_FLT:
-		//FIXME: support float audio internally.
-		{
-			float *in = (void*)auddata;
-			signed short *out = (void*)auddata;
-			int v;
-			unsigned int i;
-			for (i = 0; i < auddatasize/sizeof(*in); i++)
-			{
-				v = (short)(in[i]*32767);
-				if (v < -32767)
-					v = -32767;
-				else if (v > 32767)
-					v = 32767;
-				out[i] = v;
-			}
-			auddatasize/=2;
-			width = 2;
-		}
+		planes = 1;
+		outformat = QAF_F32;
+		informat = QAF_F32;
 		break;
 
 	case AV_SAMPLE_FMT_DBLP:
-		auddatasize /= channels;
-		channels = 1;
-	case AV_SAMPLE_FMT_DBL:
-		{
-			double *in = (double*)auddata;
-			signed short *out = (void*)auddata;
-			int v;
-			unsigned int i;
-			for (i = 0; i < auddatasize/sizeof(*in); i++)
-			{
-				v = (short)(in[i]*32767);
-				if (v < -32767)
-					v = -32767;
-				else if (v > 32767)
-					v = 32767;
-				out[i] = v;
-			}
-			auddatasize/=4;
-			width = 2;
-		}
+		planes = channels;
+		outformat = QAF_F32;
+		informat = QAF_F64;
 		break;
+	case AV_SAMPLE_FMT_DBL:
+		planes = 1;
+		outformat = QAF_F32;
+		informat = QAF_F64;
+		break;
+#else
+	case AV_SAMPLE_FMT_FLTP:
+		planes = channels;
+		outformat = QAF_S16;
+		informat = QAF_F32;
+		break;
+	case AV_SAMPLE_FMT_FLT:
+		planes = 1;
+		outformat = QAF_S16;
+		informat = QAF_F32;
+		break;
+
+	case AV_SAMPLE_FMT_DBLP:
+		planes = channels;
+		outformat = QAF_S16;
+		informat = QAF_F64;
+		break;
+	case AV_SAMPLE_FMT_DBL:
+		planes = 1;
+		outformat = QAF_S16;
+		informat = QAF_F64;
+		break;
+#endif
 	}
-	if (ctx->samples_channels != channels || ctx->samples_speed != ctx->pACodecCtx->sample_rate || ctx->samples_width != width)
+
+	if (ctx->samples_channels != channels || ctx->samples_speed != ctx->pACodecCtx->sample_rate || ctx->samples_format != outformat)
 	{	//something changed, update
 		ctx->samples_channels = channels;
 		ctx->samples_speed = ctx->pACodecCtx->sample_rate;
-		ctx->samples_width = width;
+		ctx->samples_format = outformat;
 
 		//and discard any decoded audio. this might loose some.
-		ctx->samples_start += ctx->samples_count;
-		ctx->samples_count = 0;
+		ctx->samples_framestart += ctx->samples_framecount;
+		ctx->samples_framecount = 0;
 	}
-	if (ctx->samples_max < (ctx->samples_count*ctx->samples_width*ctx->samples_channels)+auddatasize)
+	if (ctx->samples_maxbytes < (ctx->samples_framecount*QAF_BYTES(ctx->samples_format)*ctx->samples_channels)+auddatasize)
 	{
-		ctx->samples_max = (ctx->samples_count*ctx->samples_width*ctx->samples_channels)+auddatasize;
-		ctx->samples_max *= 2;	//slop
-		ctx->samples_buffer = realloc(ctx->samples_buffer, ctx->samples_max);
+		ctx->samples_maxbytes = (ctx->samples_framecount*QAF_BYTES(ctx->samples_format)*ctx->samples_channels)+auddatasize;
+		ctx->samples_maxbytes *= 2;	//slop
+		ctx->samples_buffer = realloc(ctx->samples_buffer, ctx->samples_maxbytes);
 	}
-	if (width == 1)
-	{	//FTE uses signed 8bit audio. ffmpeg uses unsigned 8bit audio. *sigh*.
-		char *out = (char*)(ctx->samples_buffer + ctx->samples_count*(ctx->samples_width*ctx->samples_channels));
-		unsigned char *in = auddata;
-		int i;
-		for (i = 0; i < auddatasize; i++)
-			out[i] = in[i]-128;
-	}
+	if (planes==1 && outformat != QAF_S8 && informat==outformat)
+		memcpy(ctx->samples_buffer + ctx->samples_framecount*(QAF_BYTES(ctx->samples_format)*ctx->samples_channels), ctx->pAFrame->data[0], auddatasize);
 	else
-		memcpy(ctx->samples_buffer + ctx->samples_count*(ctx->samples_width*ctx->samples_channels), auddata, auddatasize);
-	ctx->samples_count += auddatasize/(ctx->samples_width*ctx->samples_channels);
+	{
+		void *fte_restrict outv = (ctx->samples_buffer + ctx->samples_framecount*(QAF_BYTES(ctx->samples_format)*ctx->samples_channels));
+		size_t i, samples = auddatasize / (planes*QAF_BYTES(informat));
+		if (outformat == QAF_S8 && informat == QAF_U8)
+		{
+			char *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				unsigned char *in = ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+					out[i*planes] = in[i]-128;	//convert from u8 to s8.
+			}
+		}
+		else if (outformat == QAF_S16 && informat == QAF_S16)
+		{
+			signed short *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				signed short *in = (signed short *)ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+					out[i*planes] = in[i];	//no conversion needed
+			}
+		}
+		else if (outformat == QAF_S16 && informat == QAF_S32)
+		{
+			signed short *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				signed int *in = (signed int *)ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+					out[i*planes] = in[i]>>16;	//just use the MSBs, no clamping needed.
+			}
+		}
+#ifdef MIXER_F32
+		else if (outformat == QAF_F32 && informat == QAF_F32)
+		{
+			float *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				float *in = (float *)ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+					out[i*planes] = in[i];	//no conversion needed.
+			}
+		}
+		else if (outformat == QAF_F32 && informat == QAF_F64)
+		{
+			float *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				double *in = (double *)ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+					out[i*planes] = in[i];	//no clamping needed.
+			}
+		}
+#else
+		else if (outformat == QAF_S16 && informat == QAF_F32)
+		{
+			signed short *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				float *in = (float *)ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+				{
+					int v = in[i] * 32767;
+					if (v < -32768)
+						v = -32768;
+					if (v > 32767)
+						v = 32767;
+					out[i*planes] = v;
+				}
+			}
+		}
+		else if (outformat == QAF_S16 && informat == QAF_F64)
+		{
+			signed short *out = outv;
+			for (p = 0; p < planes; p++, out++)
+			{
+				double *in = (double *)ctx->pAFrame->data[p];
+				for (i = 0; i < samples; i++)
+				{
+					int v = in[i] * 32767;
+					if (v < -32768)
+						v = -32768;
+					if (v > 32767)
+						v = 32767;
+					out[i*planes] = v;
+				}
+			}
+		}
+#endif
+	}
+	ctx->samples_framecount += auddatasize/(QAF_BYTES(informat)*ctx->samples_channels);
 }
 static sfxcache_t *S_AV_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int length)
 {	//warning: can be called on a different thread.
@@ -196,10 +282,10 @@ static sfxcache_t *S_AV_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 
 	while (1)
 	{
-		if (start < ctx->samples_start)
+		if (start < ctx->samples_framestart)
 			break;	//o.O rewind!
 
-		if (ctx->samples_start+ctx->samples_count > curtime)
+		if (ctx->samples_framestart+ctx->samples_framecount > curtime)
 			break;	//no need yet.
 
 #ifdef HAVE_DECOUPLED_API
@@ -242,11 +328,11 @@ static sfxcache_t *S_AV_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 		av_packet_unref(&packet);
 	}
 
-	buf->length = ctx->samples_count;
+	buf->length = ctx->samples_framecount;
 	buf->speed = ctx->samples_speed;
-	buf->width = ctx->samples_width;
+	buf->format = ctx->samples_format;
 	buf->numchannels = ctx->samples_channels;
-	buf->soundoffset = ctx->samples_start;
+	buf->soundoffset = ctx->samples_framestart;
 	buf->data = ctx->samples_buffer;
 
 	//if we couldn't return any new data, then we're at an eof, return NULL to signal that.
@@ -267,7 +353,7 @@ static float S_AV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *title, 
 		buf->length = 0;
 		buf->numchannels = ctx->samples_channels;
 		buf->speed = ctx->samples_speed;
-		buf->width = ctx->samples_width;
+		buf->format = ctx->samples_format;
 	}
 	return ctx->pFormatCtx->duration / (float)AV_TIME_BASE;
 }

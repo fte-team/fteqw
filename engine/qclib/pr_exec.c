@@ -122,6 +122,7 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 	}
 
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
+#define TYPEHINT(a) (pr_opcodes[op].type_##a)
 	if ( (unsigned)op < OP_NUMOPS)
 	{
 		int i;
@@ -134,23 +135,27 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 #endif
 		externs->Printf ("op%3i ", op);
 
+#ifndef TYPEHINT
+#define TYPEHINT(a) NULL
+#endif
+
 	if (op == OP_IF_F || op == OP_IFNOT_F)
-		externs->Printf ("%sbranch %i",PR_GlobalString(progfuncs, arg[0]),arg[1]);
+		externs->Printf ("%sbranch %i",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)),arg[1]);
 	else if (op == OP_GOTO)
 	{
 		externs->Printf ("branch %i",arg[0]);
 	}
 	else if ( (unsigned)(op - OP_STORE_F) < 6)
 	{
-		externs->Printf ("%s",PR_GlobalString(progfuncs, arg[0]));
+		externs->Printf ("%s",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)));
 		externs->Printf ("%s", PR_GlobalStringNoContents(progfuncs, arg[1]));
 	}
 	else
 	{
 		if (arg[0])
-			externs->Printf ("%s",PR_GlobalString(progfuncs, arg[0]));
+			externs->Printf ("%s",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)));
 		if (arg[1])
-			externs->Printf ("%s",PR_GlobalString(progfuncs, arg[1]));
+			externs->Printf ("%s",PR_GlobalString(progfuncs, arg[1], TYPEHINT(b)));
 		if (arg[2])
 			externs->Printf ("%s", PR_GlobalStringNoContents(progfuncs, arg[2]));
 	}
@@ -233,19 +238,19 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 
 	if (op == OP_IF_F || op == OP_IFNOT_F || op == OP_IF_I || op == OP_IFNOT_I || op == OP_IF_S || op == OP_IFNOT_S)
 	{
-		QC_snprintfz (out, outlen, "%sbranch %i(%i)",PR_GlobalStringNoContents(progfuncs, arg[0]),(short)arg[1], statementnum+(short)arg[0]);
+		QC_snprintfz (out, outlen, "%sbranch %i(%+i)",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)),(short)arg[1], statementnum+(short)arg[0]);
 		outlen -= strlen(out);
 		out += strlen(out);
 	}
 	else if (op == OP_GOTO)
 	{
-		QC_snprintfz (out, outlen, "branch %i(%i)",(short)arg[0], statementnum+(short)arg[0]);
+		QC_snprintfz (out, outlen, "branch %i(%+i)",(short)arg[0], statementnum+(short)arg[0]);
 		outlen -= strlen(out);
 		out += strlen(out);
 	}
 	else if ( (unsigned)(op - OP_STORE_F) < 6)
 	{
-		QC_snprintfz (out, outlen, "%s",PR_GlobalStringNoContents(progfuncs, arg[0]));
+		QC_snprintfz (out, outlen, "%s",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)));
 		outlen -= strlen(out);
 		out += strlen(out);
 		QC_snprintfz (out, outlen, "%s", PR_GlobalStringNoContents(progfuncs, arg[1]));
@@ -256,13 +261,13 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 	{
 		if (arg[0])
 		{
-			QC_snprintfz (out, outlen, "%s",PR_GlobalStringNoContents(progfuncs, arg[0]));
+			QC_snprintfz (out, outlen, "%s",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)));
 			outlen -= strlen(out);
 			out += strlen(out);
 		}
 		if (arg[1])
 		{
-			QC_snprintfz (out, outlen, "%s",PR_GlobalStringNoContents(progfuncs, arg[1]));
+			QC_snprintfz (out, outlen, "%s",PR_GlobalString(progfuncs, arg[1], TYPEHINT(b)));
 			outlen -= strlen(out);
 			out += strlen(out);
 		}

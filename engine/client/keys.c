@@ -60,10 +60,7 @@ qboolean	keydown[K_MAX];
 char *releasecommand[K_MAX][MAX_INDEVS];	//this is the console command to be invoked when the key is released. should free it.
 qbyte releasecommandlevel[K_MAX][MAX_INDEVS];	//and this is the cbuf level it is to be run at.
 
-static void QDECL Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
-
 extern cvar_t con_displaypossibilities;
-cvar_t con_selectioncolour = CVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
 cvar_t con_echochat = CVAR("con_echochat", "0");
 extern cvar_t cl_chatmode;
 
@@ -657,14 +654,6 @@ int Con_ExecuteLine(console_t *con, const char *line)
 
 	free(deutf8);
 	return true;
-}
-
-vec3_t sccolor;
-
-static void QDECL Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
-{
-	if (qrenderer != QR_NONE)
-		SCR_StringToRGB(var->string, sccolor, 1);
 }
 
 qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, int *ey)
@@ -2866,13 +2855,12 @@ void Key_Init (void)
 //
 // register our functions
 //
-	Cmd_AddCommandAD ("bind",Key_Bind_f, Key_Bind_c, NULL);
+	Cmd_AddCommandAD ("bind",Key_Bind_f, Key_Bind_c, "Changes the action associated with each keyboard button. Use eg \"bind ctrl+shift+alt+k kill\" for special modifiers (should be used only after more basic modifiers).");
 	Cmd_AddCommand ("in_bind",Key_Bind_f);
 	Cmd_AddCommand ("bindlevel",Key_Bind_f);
 	Cmd_AddCommandAD ("unbind",Key_Unbind_f, Key_Bind_c, NULL);
-	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
+	Cmd_AddCommandD ("unbindall",Key_Unbindall_f, "A dangerous command that forgets ALL your key settings. For use only in default.cfg.");
 
-	Cvar_Register (&con_selectioncolour, "Console variables");
 	Cvar_Register (&con_echochat, "Console variables");
 }
 

@@ -887,12 +887,13 @@ Returns a string with a description and the contents of a global,
 padded to 20 field width
 ============
 */
-char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
+#include "qcc.h"
+char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **typehint)
 {
 	char	*s;
 	int		i;
 	ddef16_t	*def16;
-	ddef32_t	*def32;
+	ddef32_t	*def32, def32tmp;
 	void	*val;
 	static char	line[128];
 
@@ -900,41 +901,57 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 	{
 	case PST_DEFAULT:
 	case PST_KKQWSV:
-		val = (void *)&pr_globals[ofs];
 		def16 = ED_GlobalAtOfs16(progfuncs, ofs);
-		if (!def16)
-			sprintf (line,"%i(?""?""?)", ofs);
-		else
+		if (def16)
 		{
-			s = PR_ValueString (progfuncs, def16->type, val, false);
-			sprintf (line,"%i(%s)%s", ofs, def16->s_name+progfuncs->funcs.stringtable, s);
+			def32 = &def32tmp;
+			def32->ofs = def16->ofs;
+			def32->type = def16->type;
+			def32->s_name = def16->s_name;
 		}
-
-		i = strlen(line);
-		for ( ; i<20 ; i++)
-			strcat (line," ");
-		strcat (line," ");
-		return line;
+		else
+			def32 = NULL;
+		break;
 	case PST_QTEST:
 	case PST_FTE32:
-		val = (void *)&pr_globals[ofs];
 		def32 = ED_GlobalAtOfs32(progfuncs, ofs);
-		if (!def32)
-			sprintf (line,"%i(?""?""?)", ofs);
-		else
-		{
-			s = PR_ValueString (progfuncs, def32->type, val, false);
-			sprintf (line,"%i(%s)%s", ofs, def32->s_name+progfuncs->funcs.stringtable, s);
-		}
-
-		i = strlen(line);
-		for ( ; i<20 ; i++)
-			strcat (line," ");
-		strcat (line," ");
-		return line;
+		break;
+	default:
+		externs->Sys_Error("Bad struct type in PR_GlobalString");
+		return "";
 	}
-	externs->Sys_Error("Bad struct type in PR_GlobalString");
-	return "";
+
+	val = (void *)&pr_globals[ofs];
+	if (!def32)
+	{
+		etype_t type;
+		//urgh, this is so hideous
+		if (typehint == &type_float)
+			type = ev_float;
+		else if (typehint == &type_string)
+			type = ev_string;
+		else if (typehint == &type_vector)
+			type = ev_vector;
+		else if (typehint == &type_function)
+			type = ev_function;
+		else if (typehint == &type_field)
+			type = ev_field;
+		else
+			type = ev_integer;
+		s = PR_ValueString (progfuncs, type, val, false);
+		sprintf (line,"%i(?)%s", ofs, s);
+	}
+	else
+	{
+		s = PR_ValueString (progfuncs, def32->type, val, false);
+		sprintf (line,"%i(%s)%s", ofs, def32->s_name+progfuncs->funcs.stringtable, s);
+	}
+
+	i = strlen(line);
+	for ( ; i<20 ; i++)
+		strcat (line," ");
+	strcat (line," ");
+	return line;
 }
 
 char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)

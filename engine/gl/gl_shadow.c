@@ -4176,8 +4176,8 @@ qboolean Sh_StencilShadowsActive(void)
 {
 #if defined(RTLIGHTS) && !defined(SERVERONLY)
 	//if shadowmapping is forced on all lights then we don't need special depth stuff
-//	if (r_shadow_shadowmapping.ival)
-//		return false;
+	if (r_shadow_shadowmapping.ival)
+		return false;
 	if (isDedicated)
 		return false;
 	return	(r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival) ||

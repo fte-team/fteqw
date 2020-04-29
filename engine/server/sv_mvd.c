@@ -2228,7 +2228,7 @@ void SV_MVD_QTVReverse_f (void)
 	if (sv.state<ss_loading)
 		return;
 
-	f = FS_OpenTCP(ip, 27599);
+	f = FS_OpenTCP(ip, 27599, false);
 	if (!f)
 		return;
 

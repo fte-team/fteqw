@@ -432,16 +432,16 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 {
 	unsigned int fmt;
 	unsigned int size;
-	switch(sc->width)
+	switch(sc->format)
 	{
 #ifdef FTE_TARGET_WEB
-	case 0:
+	case QAF_BLOB:
 		palGenBuffers(1, bufptr);
 		emscriptenfte_al_loadaudiofile(*bufptr, sc->data, sc->length);
 		//alIsBuffer will report false until success or failure...
 		return true;	//but we do have a 'proper' reference to the buffer.
 #endif
-	case 1:
+	case QAF_S8:
 		if (sc->numchannels == 2)
 		{
 			fmt = AL_FORMAT_STEREO8;
@@ -453,7 +453,7 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 			size = sc->length*1;
 		}
 		break;
-	case 2:
+	case QAF_S16:
 		if (sc->numchannels == 2)
 		{
 			fmt = AL_FORMAT_STEREO16;
@@ -466,7 +466,7 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 		}
 		break;
 #ifdef MIXER_F32
-	case 4:
+	case QAF_F32:
 		if (!oali->canfloataudio)
 			return false;
 		if (sc->numchannels == 2)
@@ -497,69 +497,70 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 	}
 	else if (volume != 1)
 	{
-		if (sc->width == 1)
+		switch(sc->format)
 		{
-			unsigned char *tmp = malloc(size);
-			char *src = sc->data;
-			int i;
-			for (i = 0; i < size; i++)
+		case QAF_S8:
 			{
-				tmp[i] = src[i]*volume+128;	//signed->unsigned
+				unsigned char *tmp = malloc(size);
+				char *src = sc->data;
+				int i;
+				for (i = 0; i < size; i++)
+					tmp[i] = src[i]*volume+128;	//signed->unsigned
+				palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+				free(tmp);
 			}
-			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
-			free(tmp);
-		}
-		else if (sc->width == 2)
-		{
-			short *tmp = malloc(size);
-			short *src = (short*)sc->data;
-			int i;
-			for (i = 0; i < (size>>1); i++)
+			break;
+		case QAF_S16:
 			{
-				tmp[i] = bound(-32767, src[i]*volume, 32767);	//signed.
+				short *tmp = malloc(size);
+				short *src = (short*)sc->data;
+				int i;
+				for (i = 0; i < (size>>1); i++)
+					tmp[i] = bound(-32767, src[i]*volume, 32767);	//signed.
+				palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+				free(tmp);
 			}
-			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
-			free(tmp);
-		}
+			break;
 #ifdef MIXER_F32
-		else if (sc->width == 4)
-		{
-			float *tmp = malloc(size);
-			float *src = (float*)sc->data;
-			int i;
-			for (i = 0; i < (size>>2); i++)
+		case QAF_F32:
 			{
-				tmp[i] = src[i]*volume;	//signed. oversaturation isn't my problem
+				float *tmp = malloc(size);
+				float *src = (float*)sc->data;
+				int i;
+				for (i = 0; i < (size>>2); i++)
+					tmp[i] = src[i]*volume;	//signed. oversaturation isn't my problem
+				palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+				free(tmp);
 			}
-			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
-			free(tmp);
-		}
+			break;
 #endif
+		}
 	}
 	else
 	{
-		if (sc->width == 1)
+		switch(sc->format)
 		{
-			unsigned char *tmp = malloc(size);
-			char *src = sc->data;
-			int i;
-			for (i = 0; i < size; i++)
+		case QAF_S8:
 			{
-				tmp[i] = src[i]+128;
+				unsigned char *tmp = malloc(size);
+				char *src = sc->data;
+				int i;
+				for (i = 0; i < size; i++)
+				{
+					tmp[i] = src[i]+128;
+				}
+				palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+				free(tmp);
 			}
-			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
-			free(tmp);
-		}
-		else if (sc->width == 2 || sc->width == 4)
-		{
-#if 0
-			short *tmp = malloc(size);
-			memcpy(tmp, sc->data, size);
-			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
-			free(tmp);
-#else
-			palBufferData(*bufptr, fmt, sc->data, size, sc->speed);
+			break;
+		//case QAF_U8:
+		case QAF_S16:
+		//case QAF_S32:
+#ifdef MIXER_F32
+		case QAF_F32:
 #endif
+			palBufferData(*bufptr, fmt, sc->data, size, sc->speed);
+			break;
 		}
 	}
 
@@ -833,7 +834,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 						else
 						{
 							offset = pos - sbuf.soundoffset;
-							sbuf.data += offset * sc->width*sc->numchannels;
+							sbuf.data += offset * QAF_BYTES(sc->format)*sc->numchannels;
 							sbuf.length -= offset;
 						}
 						sbuf.soundoffset = 0;
@@ -852,7 +853,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 						{	//decoder isn't ready yet, but didn't signal an error/eof. queue a little silence, because that's better than constant micro stutters
 							sfxcache_t silence;
 							silence.speed = snd_speed;
-							silence.width = 2;
+							silence.format = QAF_S16;
 							silence.numchannels = 1;
 							silence.data = NULL;
 							silence.length = 0.1 * silence.speed;
@@ -881,7 +882,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 						{	//queue 0.1 secs if we're starting/resetting a new stream this is to try to cover up discontinuities caused by packetloss or whatever
 							sfxcache_t silence;
 							silence.speed = snd_speed;
-							silence.width = 2;
+							silence.format = QAF_S16;
 							silence.numchannels = 1;
 							silence.data = NULL;
 							silence.length = 0.1 * silence.speed;

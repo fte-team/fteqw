@@ -500,7 +500,7 @@ apic_t *R2D_LoadAtlasedPic(const char *name)
 		}
 
 		if (!atlas.tex)
-			atlas.tex = Image_CreateTexture(va("fte_atlas%i", atlasid), NULL, IF_NOMIPMAP);
+			atlas.tex = Image_CreateTexture(va("fte_atlas%i", atlasid), NULL, IF_NOMIPMAP|IF_NOMIPMAP);
 		if (!atlas.shader)
 		{
 			atlas.shader = R_RegisterShader(va("fte_atlas%i", atlasid), SUF_NONE,
@@ -1871,7 +1871,11 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 
 	if (rtfmt)
 	{
-		tid->flags = (tid->flags & ~(IF_NEAREST|IF_LINEAR)) | (imageflags & (IF_NEAREST|IF_LINEAR));
+		if (tid->flags != ((tid->flags & ~(IF_NEAREST|IF_LINEAR)) | (imageflags & (IF_NEAREST|IF_LINEAR))))
+		{
+			tid->flags = ((tid->flags & ~(IF_NEAREST|IF_LINEAR)) | (imageflags & (IF_NEAREST|IF_LINEAR)));
+			tid->width = -1;
+		}
 		Image_Upload(tid, rtfmt, NULL, NULL, width, height, imageflags);
 		tid->width = width;
 		tid->height = height;

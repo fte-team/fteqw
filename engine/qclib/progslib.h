@@ -239,8 +239,10 @@ typedef struct progexterns_s {
 
 	double *gametime;	//used to prevent the vm from reusing an entity faster than 2 secs.
 
-	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
-	unsigned int *sv_num_edicts;		//pointer to the engine's edict count.
+	pbool usethreadedgc;
+
+	struct edict_s **edicts;	//pointer to the engine's reference to world.
+	unsigned int *num_edicts;		//pointer to the engine's edict count.
 	int edictsize;	//size of edict_t
 
 	void *user;	/*contains the owner's world reference in FTE*/

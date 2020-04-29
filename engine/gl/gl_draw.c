@@ -471,6 +471,41 @@ void GL_SetupFormats(void)
 		glfmtb(PTI_ASTC_12X10_HDR,		GL_COMPRESSED_RGBA_ASTC_12x10_KHR);
 		glfmtb(PTI_ASTC_12X12_HDR,		GL_COMPRESSED_RGBA_ASTC_12x12_KHR);
 	}
+#ifdef ASTC3D
+	if (sh_config.hw_astc >= 3)
+	{	//the full profile gives 3d texture support too
+		glfmtb(PTI_ASTC_3X3X3_LDR,		GL_COMPRESSED_RGBA_ASTC_3x3x3_OES);
+		glfmtb(PTI_ASTC_4X3X3_LDR,		GL_COMPRESSED_RGBA_ASTC_4x3x3_OES);
+		glfmtb(PTI_ASTC_4X4X3_LDR,		GL_COMPRESSED_RGBA_ASTC_4x4x3_OES);
+		glfmtb(PTI_ASTC_4X4X4_LDR,		GL_COMPRESSED_RGBA_ASTC_4x4x4_OES);
+		glfmtb(PTI_ASTC_5X4X4_LDR,		GL_COMPRESSED_RGBA_ASTC_5x4x4_OES);
+		glfmtb(PTI_ASTC_5X5X4_LDR,		GL_COMPRESSED_RGBA_ASTC_5x5x4_OES);
+		glfmtb(PTI_ASTC_5X5X5_LDR,		GL_COMPRESSED_RGBA_ASTC_5x5x5_OES);
+		glfmtb(PTI_ASTC_6X5X5_LDR,		GL_COMPRESSED_RGBA_ASTC_6x5x5_OES);
+		glfmtb(PTI_ASTC_6X6X5_LDR,		GL_COMPRESSED_RGBA_ASTC_6x6x5_OES);
+		glfmtb(PTI_ASTC_6X6X6_LDR,		GL_COMPRESSED_RGBA_ASTC_6x6x6_OES);
+		glfmtb(PTI_ASTC_3X3X3_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_3x3x3_OES);
+		glfmtb(PTI_ASTC_4X3X3_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x3x3_OES);
+		glfmtb(PTI_ASTC_4X4X3_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4x3_OES);
+		glfmtb(PTI_ASTC_4X4X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4x4_OES);
+		glfmtb(PTI_ASTC_5X4X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4x4_OES);
+		glfmtb(PTI_ASTC_5X5X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5x4_OES);
+		glfmtb(PTI_ASTC_5X5X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5x5_OES);
+		glfmtb(PTI_ASTC_6X5X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5x5_OES);
+		glfmtb(PTI_ASTC_6X6X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6x5_OES);
+		glfmtb(PTI_ASTC_6X6X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6x6_OES);
+		glfmtb(PTI_ASTC_3X3X3_HDR,		GL_COMPRESSED_RGBA_ASTC_3x3x3_OES);
+		glfmtb(PTI_ASTC_4X3X3_HDR,		GL_COMPRESSED_RGBA_ASTC_4x3x3_OES);
+		glfmtb(PTI_ASTC_4X4X3_HDR,		GL_COMPRESSED_RGBA_ASTC_4x4x3_OES);
+		glfmtb(PTI_ASTC_4X4X4_HDR,		GL_COMPRESSED_RGBA_ASTC_4x4x4_OES);
+		glfmtb(PTI_ASTC_5X4X4_HDR,		GL_COMPRESSED_RGBA_ASTC_5x4x4_OES);
+		glfmtb(PTI_ASTC_5X5X4_HDR,		GL_COMPRESSED_RGBA_ASTC_5x5x4_OES);
+		glfmtb(PTI_ASTC_5X5X5_HDR,		GL_COMPRESSED_RGBA_ASTC_5x5x5_OES);
+		glfmtb(PTI_ASTC_6X5X5_HDR,		GL_COMPRESSED_RGBA_ASTC_6x5x5_OES);
+		glfmtb(PTI_ASTC_6X6X5_HDR,		GL_COMPRESSED_RGBA_ASTC_6x6x5_OES);
+		glfmtb(PTI_ASTC_6X6X6_HDR,		GL_COMPRESSED_RGBA_ASTC_6x6x6_OES);
+	}
+#endif
 }
 
 /*
@@ -732,7 +767,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	uploadfmt_t encoding = mips->encoding;
 	qboolean compress;
 	qboolean storage = true;
-	unsigned int bb, bw, bh;
+	unsigned int bb, bw, bh, bd;
 	int levels = 0, genlevels;
 	int ttype = (tex->flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 
@@ -901,7 +936,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		qglTexParameteri(targ, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[encoding].swizzle_a);
 	}
 
-	Image_BlockSizeForEncoding(encoding, &bb, &bw, &bh);
+	Image_BlockSizeForEncoding(encoding, &bb, &bw, &bh, &bd);
 	switch(bb)
 	{
 	case 3:

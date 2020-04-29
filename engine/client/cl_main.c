@@ -894,7 +894,7 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = CPNQ_DP7;
 			}
 			else if (!strcmp(lbp, "qss") ||
-					 (progstype != PROG_QW && progstype != PROG_H2))	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
+					 (progstype != PROG_QW && progstype != PROG_H2 && sv.state!=ss_clustermode))	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
@@ -5545,6 +5545,7 @@ done:
 							man->updateurl = Z_StrDup(f->fname);
 //						if (f->flags & HRF_DOWNLOADED)
 						man->blockupdate = true;
+						//man->security = MANIFEST_SECURITY_DEFAULT;
 						BZ_Free(fdata);
 						FS_ChangeGame(man, true, true);
 					}
@@ -6386,18 +6387,18 @@ void CL_StartCinematicOrMenu(void)
 
 	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
 	{
-		if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_menu))
+		if (qrenderer > QR_NONE && !Key_Dest_Has(~kdm_game))
 		{
 #ifndef NOBUILTINMENUS
-			if (!cls.state && !Key_Dest_Has(kdm_menu) && !*FS_GetGamedir(false))
+			if (!cls.state && !Key_Dest_Has(~kdm_game) && !*FS_GetGamedir(false))
 				M_Menu_Mods_f();
 #endif
-			if (!cls.state && !Key_Dest_Has(kdm_menu) && cl_demoreel.ival)
+			if (!cls.state && !Key_Dest_Has(~kdm_game) && cl_demoreel.ival)
 			{
 				cls.demonum = 0;
 				CL_NextDemo();
 			}
-			if (!cls.state && !Key_Dest_Has(kdm_menu))
+			if (!cls.state && !Key_Dest_Has(~kdm_game))
 				//if we're (now) meant to be using csqc for menus, make sure that its running.
 				if (!CSQC_UnconnectedInit())
 					M_ToggleMenu_f();

@@ -661,6 +661,7 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	int				remaining;
 	shader_t		*pic;
 	int				ch;
+	int mousex,mousey;
 
 	conchar_t *line_start[MAX_CPRINT_LINES];
 	conchar_t *line_end[MAX_CPRINT_LINES];
@@ -726,6 +727,7 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		}
 	}
 
+	Font_BeginString(font, mousecursor_x, mousecursor_y, &mousex, &mousey);
 	Font_BeginString(font, rect->x, y, &left, &top);
 	Font_BeginString(font, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, (p->flags & CPRINT_NOWRAP)?0x7fffffff:(right - left), MAX_CPRINT_LINES, line_start, line_end);
@@ -776,9 +778,9 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		else
 			x = left + (right - left - Font_LineWidth(line_start[l], line_end[l]))/2;
 
-		if (mousecursor_y >= y && mousecursor_y < y+ch)
+		if (mousey >= y && mousey < y+ch)
 		{
-			p->cursorchar = Font_CharAt(mousecursor_x - x, line_start[l], line_end[l]);
+			p->cursorchar = Font_CharAt(mousex - x, line_start[l], line_end[l]);
 		}
 
 		remaining -= line_end[l]-line_start[l];
@@ -2869,7 +2871,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 		{{-90, 0, 0}, "_up"}
 	};
 	const char *ext;
-	unsigned int bb, bw, bh;
+	unsigned int bb, bw, bh, bd;
 
 	if (!cls.state || !cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 	{
@@ -2917,8 +2919,8 @@ void SCR_ScreenShot_Cubemap_f(void)
 				break;
 			if (!bb)
 			{
-				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
-				if (!bb || bw != 1 || bh != 1 || fbwidth != fbheight)
+				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
+				if (!bb || bw != 1 || bh != 1 || bd != 1 || fbwidth != fbheight)
 				{	//erk, no block compression here...
 					BZ_Free(facedata);
 					break;	//zomgwtfbbq
@@ -2999,7 +3001,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 			buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, false);
 			if (buffer)
 			{
-				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
 				if (sides[i].horizontalflip)
 				{
 					int y, x, p;

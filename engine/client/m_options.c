@@ -697,7 +697,6 @@ void M_Menu_Audio_f (void)
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Sound Options", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
-		MB_SPACING(8),
 		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_SPACING(4),
 		MB_COMBOCVAR("Output Device", snd_device, (const char**)info->outdevdescs, (const char**)info->outdevnames, "Choose which audio driver and device to use."),
@@ -927,6 +926,7 @@ const char *presetexec[] =
 	"seta r_graphics 1;"
 	"seta r_renderscale 1;"
 	"seta gl_texture_anisotropic_filtering 0;"
+	// end '286'
 
 	, // fast options (for deathmatch)
 	"gl_texturemode ln;"
@@ -946,8 +946,10 @@ const char *presetexec[] =
 	"r_lavastyle 1;"
 	"r_nolightdir 0;"
 	"seta gl_simpleitems 0;"
+	// end fast
 
 	, //quakespasm-esque options (for singleplayer faithful).
+	"gl_texturemode2d l.l;"
 	"r_part_density 1;"
 	"gl_polyblend 1;"
 	"r_dynamic 2;"
@@ -973,6 +975,7 @@ const char *presetexec[] =
 	"seta cl_deadbodyfilter 0;"
 	"gl_texture_anisotropic_filtering 4;"
 	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"	//QS has cheaty viewpitch range. some maps require it.
+	// end spasm
 
 	, //vanilla-esque options (for purists).
 	"cl_fullpitch 0;maxpitch \"\";seta minpitch \"\";"	//quakespasm is not vanilla
@@ -986,6 +989,7 @@ const char *presetexec[] =
 	"gl_affinemodels 1;"
 	"r_softwarebanding 1;"		//ugly software banding.
 	"r_part_classic_square 1;"	//blocky baby!
+	// end vanilla
 
 	, // normal (faithful) options, but with content replacement thrown in
 //#ifdef MINIMAL
@@ -1015,6 +1019,7 @@ const char *presetexec[] =
 	"r_nolerp 0;"
 	"r_noframegrouplerp 0;"
 	"cl_fullpitch 1;maxpitch 90;seta minpitch -90;"
+	//end normal
 
 	, // nice options
 //	"r_stains 0.75;"
@@ -1033,6 +1038,7 @@ const char *presetexec[] =
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
 	"r_deluxemapping 2;"
+	//end 'nice'
 
 	, // realtime options
 	"r_bloom 1;"
@@ -1043,6 +1049,7 @@ const char *presetexec[] =
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"
 	"vid_hardwaregamma 4;"	//scene gamma
+	//end 'realtime'
 };
 
 typedef struct fpsmenuinfo_s
@@ -1050,18 +1057,21 @@ typedef struct fpsmenuinfo_s
 	menucombo_t *preset;
 } fpsmenuinfo_t;
 
-static void ApplyPreset (int presetnum)
+static void ApplyPreset (int presetnum, qboolean doreload)
 {
 	int i;
 	//this function is written backwards, to ensure things work properly in configs etc.
 
 	// TODO: work backwards and only set cvars once
-	Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
+	if (doreload)
+	{
+		forcesaveprompt = true;
+		Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
+	}
 	for (i = presetnum; i >= 0; i--)
 	{
 		Cbuf_InsertText(presetexec[i], RESTRICT_LOCAL, true);
 	}
-	forcesaveprompt = true;
 }
 
 void M_Menu_Preset_f (void)
@@ -1124,6 +1134,7 @@ void FPS_Preset_f (void)
 	char *presetfname;
 	char *arg = Cmd_Argv(1);
 	int i;
+	qboolean doreload = true;
 
 	if (!*arg)
 	{
@@ -1131,13 +1142,21 @@ void FPS_Preset_f (void)
 		return;
 	}
 
-	presetfname = va("configs/preset_%s.cfg", arg);
-	if (COM_FCheckExists(presetfname))
+	if (!strncmp(arg, "builtin_", 8))
 	{
-		char buffer[MAX_OSPATH];
-		COM_QuotedString(presetfname, buffer, sizeof(buffer), false);
-		Cbuf_InsertText(va("\nexec %s\nfs_restart\n", buffer), RESTRICT_LOCAL, false);
-		return;
+		arg += 8;
+		doreload = false;
+	}
+	else
+	{
+		presetfname = va("configs/preset_%s.cfg", arg);
+		if (COM_FCheckExists(presetfname))
+		{
+			char buffer[MAX_OSPATH];
+			COM_QuotedString(presetfname, buffer, sizeof(buffer), false);
+			Cbuf_InsertText(va("\nexec %s\nfs_restart\n", buffer), RESTRICT_LOCAL, false);
+			return;
+		}
 	}
 
 	if (!stricmp("hdr", arg))
@@ -1263,7 +1282,7 @@ void FPS_Preset_f (void)
 	{
 		if (!stricmp(presetname[i], arg))
 		{
-			ApplyPreset(i);
+			ApplyPreset(i, doreload);
 			return;
 		}
 	}
@@ -3863,7 +3882,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				}
 				if (shader->defaulttextures->base)
 				{
-					Draw_FunString(0, y, va("%s: %s  (%s)", t, shader->defaulttextures->base->ident, shader->defaulttextures->base->subpath));
+					Draw_FunString(0, y, va("%s: %s  (%s)", t, shader->defaulttextures->base->ident, shader->defaulttextures->base->subpath?shader->defaulttextures->base->subpath:""));
 					y+=8;
 					R2D_Image(0, y, shader->defaulttextures->base->width, shader->defaulttextures->base->height, 0, 0, 1, 1, shader);
 				}
@@ -4106,14 +4125,14 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 		return;
 	if (mod->manifest)
 	{
-		if (mousecursor_y >= y && mousecursor_y < y+8)
+		if (m->selecteditem == (menuoption_t*)c)
 			Draw_AltFunString(x, y, mod->manifest->formalname);
 		else
 			Draw_FunString(x, y, mod->manifest->formalname);
 	}
 	else
 	{
-		if (mousecursor_y >= y && mousecursor_y < y+8)
+		if (m->selecteditem == (menuoption_t*)c)
 			Draw_AltFunString(x, y, mod->gamedir);
 		else
 			Draw_FunString(x, y, mod->gamedir);
@@ -4161,8 +4180,8 @@ void M_Menu_Mods_f (void)
 	for (i = 0; i<1 || Mods_GetMod(i); i++)
 	{
 		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, NULL);
-		if (!menu->cursoritem)
-			menu->cursoritem = (menuoption_t*)c;
+//		if (!menu->selecteditem)
+//			menu->selecteditem = (menuoption_t*)c;
 		c->common.height = 8;
 		c->draw = Mods_Draw;
 		c->key = Mods_Key;

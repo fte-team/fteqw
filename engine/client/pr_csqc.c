@@ -1491,7 +1491,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 	if (csqc_isdarkplaces)
 	{
 		//hopelessly inefficient version for compat with DP.
-		maxe = *prinst->parms->sv_num_edicts;
+		maxe = *prinst->parms->num_edicts;
 		for (e=1; e < maxe; e++)
 		{
 			ent = (void*)EDICT_NUM_PB(prinst, e);
@@ -1522,7 +1522,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 	}
 	else
 	{
-		maxe = *prinst->parms->sv_num_edicts;
+		maxe = *prinst->parms->num_edicts;
 		for (e=1; e < maxe; e++)
 		{
 			ent = (void*)EDICT_NUM_PB(prinst, e);
@@ -3623,7 +3623,7 @@ void CSQC_ResetTrails(void)
 	if (!prinst)
 		return;
 
-	for (i = 0; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 0; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = (csqcedict_t*)EDICT_NUM_PB(prinst, i);
 		ent->trailstate = NULL;
@@ -7917,9 +7917,12 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 	csqcprogparms.autocompile = PR_COMPILEIGNORE;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	csqcprogparms.gametime = &csqctime;
+#ifdef MULTITHREAD
+	csqcprogparms.usethreadedgc = pr_gc_threaded.ival;
+#endif
 
-	csqcprogparms.sv_edicts = (struct edict_s **)&csqc_world.edicts;
-	csqcprogparms.sv_num_edicts = &csqc_world.num_edicts;
+	csqcprogparms.edicts = (struct edict_s **)&csqc_world.edicts;
+	csqcprogparms.num_edicts = &csqc_world.num_edicts;
 
 	csqcprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	csqcprogparms.user = &csqc_world;

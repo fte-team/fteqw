@@ -695,14 +695,14 @@ void SVNQ_New_f (void)
 		//which isn't all that useful. so lets customise it to advertise properly, as well as provide gamedir and map (file)name info
 		if (protext2 & PEXT2_REPLACEMENTDELTAS)
 		{
-			Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (FTENQ, %s) - %s", 2, gamedir,
-				build,	mapname);
+			Q_snprintfz (message, sizeof(message), "%c\n"DISTRIBUTION" %s - %s - %s", 2,
+				build,gamedir, mapname);
 		}
 		else
 		{
-			Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (%s%s%s, %s) - %s", 2, gamedir,
+			Q_snprintfz (message, sizeof(message), "%c\n"DISTRIBUTION" (%s%s%s, %s) - %s - %s", 2,
 				protoname,(protext1||(protext2&~PEXT2_VOICECHAT))?"+":"",(protext2&PEXT2_VOICECHAT)?"Voip":"",
-				build,	mapname);
+				build,gamedir, mapname);
 		}
 		MSG_WriteByte (&host_client->netchan.message, svc_print);
 		MSG_WriteString (&host_client->netchan.message,message);

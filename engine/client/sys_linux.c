@@ -902,14 +902,6 @@ char *Sys_ConsoleInput(void)
 	static char text[256];
 	char *nl;
 
-#ifdef SUBSERVERS
-	if (SSV_IsSubServer())
-	{
-		SSV_CheckFromMaster();
-		return NULL;
-	}
-#endif
-
 	if (noconinput)
 		return NULL;
 
@@ -1110,10 +1102,14 @@ int main (int c, const char **v)
 		fcntl(STDIN_FILENO, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
 #endif
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 #ifdef SUBSERVERS
 	if (COM_CheckParm("-clusterslave"))
-		isDedicated = nostdout = isClusterSlave = true;
+	{
+		isDedicated = true;
+		nostdout = noconinput = true;
+		SSV_SetupControlPipe(Sys_GetStdInOutStream());
+	}
 #endif
 	if (COM_CheckParm("-dedicated"))
 		isDedicated = true;

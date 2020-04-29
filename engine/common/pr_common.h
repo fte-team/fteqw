@@ -71,6 +71,7 @@ extern cvar_t pr_tempstringsize;
 extern cvar_t pr_tempstringcount;
 extern cvar_t pr_enable_profiling;
 extern cvar_t pr_fixbrokenqccarrays;
+extern cvar_t pr_gc_threaded;
 
 extern int qcinput_scan;
 extern int qcinput_unicode;

@@ -3012,23 +3012,9 @@ void CL_QTVPlay_f (void)
 	connrequest = strchrrev(connrequest, '@');
 	if (connrequest)
 		host = connrequest+1;
-#ifdef HAVE_SSL
-	if (!strncmp(host, "tls://", 6))
-	{
-		char *colon;
-		Q_strncpyz(qtvhostname, host+6, sizeof(qtvhostname));
-		colon = strchr(qtvhostname, ':');
-		newf = FS_OpenTCP(qtvhostname, 27599);
-		if (colon) *colon = 0;
-		newf = FS_OpenSSL(qtvhostname, newf, false);
-		if (colon) *colon = ':';
-	}
-	else
-#endif
-	{
-		Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
-		newf = FS_OpenTCP(qtvhostname, 27599);
-	}
+	Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
+	newf = FS_OpenTCP(qtvhostname, 27599, false);
+
 
 	if (!newf)
 	{
@@ -3142,7 +3128,7 @@ void CL_QTVList_f (void)
 {
 	char *connrequest;
 	vfsfile_t *newf;
-	newf = FS_OpenTCP(qtvhostname, 27599);
+	newf = FS_OpenTCP(qtvhostname, 27599, false);
 
 	if (!newf)
 	{
@@ -3176,7 +3162,7 @@ void CL_QTVDemos_f (void)
 {
 	char *connrequest;
 	vfsfile_t *newf;
-	newf = FS_OpenTCP(Cmd_Argv(1), 27599);
+	newf = FS_OpenTCP(Cmd_Argv(1), 27599, false);
 
 	if (!newf)
 	{

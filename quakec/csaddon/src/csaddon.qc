@@ -16,7 +16,10 @@ vector mousefar;
 
 float releasedmouse;
 
+//#define WALLBROWSERS
+#ifdef WALLBROWSERS
 string pointedshadername;
+#endif
 vector pointedsurfacenormal;
 entity pointedent;
 float pointedsurface;
@@ -73,7 +76,7 @@ void(vector mouse) editor_options_overlay =
 			else
 				txt = strcat(txt, " (OFF)");
 		}
-		drawstring(pos, txt, 		'8 8', (sel==i)?'0 0 1':'1 1 1', 1, 0);
+		drawstring(pos, txt, 		'8 8', (sel==i)?'0 0 1' :'1 1 1', 1, 0);
 		pos_y += 8;
 	}
 };
@@ -382,6 +385,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			return TRUE;
 		}
 	}
+#ifdef WALLBROWSERS
 	else if (pointedshadername != "")
 	{
 /*		if (parama == K_MOUSE2)
@@ -399,6 +403,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 				return TRUE;
 		}
 	}
+#endif
 
 	if (orig_input_event)
 		return orig_input_event(event, parama, paramb);
@@ -484,6 +489,7 @@ void() CSQC_Input_Frame =
 	if (autocvar_ca_show)	//when we're using the UI, don't send any attack or jump stuff. these are generally annoying modifiers or so
 		input_buttons = 0;
 		
+#ifdef WALLBROWSERS
 	if ((input_buttons & 1) && pointedshadername == "")
 	{
 		t = mousefar;
@@ -584,6 +590,7 @@ void() CSQC_Input_Frame =
 //			pointparticles(particleeffectnum("te_spike"), xyz1 + dir1*f1 + dir2*f2, trace_plane_normal, 1);
 		}
 	}
+#endif
 };
 
 /*

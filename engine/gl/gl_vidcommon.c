@@ -1518,7 +1518,11 @@ static const char *glsl_hdrs[] =
 				"uniform vec3 v_eyepos;"
 				"uniform vec4 w_fog[2];\n"
 				"#define w_fogcolour	w_fog[0].rgb\n"
+				"#ifdef FOG\n"
 				"#define w_fogalpha		w_fog[0].a\n"
+				"#else\n"
+				"#define w_fogalpha		0.0\n"
+				"#endif\n"
 				"#define w_fogdensity	w_fog[1].x\n"
 				"#define w_fogdepthbias	w_fog[1].y\n"
 				"uniform vec4 w_user[16];\n"
@@ -1796,7 +1800,7 @@ static const char *glsl_hdrs[] =
 						"return vec4(fog3(regularcolour.rgb), 1.0) * regularcolour.a;\n"
 					"}\n"
 					"vec4 fog4additive(in vec4 regularcolour)"
-					"{"
+					"{"	//fog function for additive blends
 						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
 						"z = max(0.0,z-w_fogdepthbias);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
@@ -1807,7 +1811,7 @@ static const char *glsl_hdrs[] =
 						"return regularcolour * vec4(fac, fac, fac, 1.0);\n"
 					"}\n"
 					"vec4 fog4blend(in vec4 regularcolour)"
-					"{"
+					"{"	//fog function for regular alpha blends (uses the blend for fading, to avoid fighting the surface behind)
 						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
 						"z = max(0.0,z-w_fogdepthbias);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
@@ -1818,6 +1822,7 @@ static const char *glsl_hdrs[] =
 						"return regularcolour * vec4(1.0, 1.0, 1.0, fac);\n"
 					"}\n"
 				"#else\n"
+					"#define w_fogalpha		0.0\n"
 					/*don't use macros for this - mesa bugs out*/
 					"vec3 fog3(in vec3 regularcolour) { return regularcolour; }\n"
 					"vec3 fog3additive(in vec3 regularcolour) { return regularcolour; }\n"

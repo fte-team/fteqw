@@ -2682,6 +2682,8 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 
 		for (;;)
 		{
+			if (l >= end)
+				break;
 			n = Font_Decode(l, &codeflags, &codepoint);
 			if (!(codeflags & CON_HIDDEN) && (codepoint != ' '))
 				break;

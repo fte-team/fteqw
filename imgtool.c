@@ -530,7 +530,7 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 
 	qbyte *fdata;
 	size_t fsize;
-	int bb,bw,bh;
+	int bb,bw,bh,bd;
 	qboolean canktx = false;
 	uploadfmt_t targfmt = args->newpixelformat;
 	int d,l, layers, r;
@@ -605,10 +605,15 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 	tmp.extrafree = NULL;
 	tmp.mipcount = 1;
 
-	Image_BlockSizeForEncoding(targfmt, &bb, &bw, &bh);
+	Image_BlockSizeForEncoding(targfmt, &bb, &bw, &bh, &bd);
 	Q_snprintfz(command+strlen(command), sizeof(command)-strlen(command), " \"%s\" \"%s\"", raw, comp);
 	if (targfmt >= PTI_ASTC_FIRST && targfmt <= PTI_ASTC_LAST)
-		Q_snprintfz(command+strlen(command), sizeof(command)-strlen(command), " %ix%i -exhaustive", bw, bh);
+	{
+		if (bd!=1)
+			Q_snprintfz(command+strlen(command), sizeof(command)-strlen(command), " %ix%ix%i -exhaustive", bw, bh, bd);
+		else
+			Q_snprintfz(command+strlen(command), sizeof(command)-strlen(command), " %ix%i -exhaustive", bw, bh);
+	}
 	if (targfmt >= PTI_ASTC_4X4_SRGB && targfmt <= PTI_ASTC_12X12_SRGB)
 		Q_strncatz(command, " -srgb", sizeof(command));
 	if (targfmt >= PTI_ASTC_4X4_HDR && targfmt <= PTI_ASTC_12X12_HDR)
@@ -641,7 +646,7 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 
 //	Con_Printf("%s: Compressing %u mips\n", inname, mips->mipcount);
 
-	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
+	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh, &bd);
 	for (m = 0; m < mips->mipcount; m++)
 	{
 		qbyte *srcdata = mips->mip[m].data;
@@ -731,8 +736,8 @@ static qboolean ImgTool_ConvertPixelFormat(struct opts_s *args, const char *inna
 	if (mips->mipcount && targfmt >= PTI_BC1_RGB && targfmt <= PTI_BC7_RGBA_SRGB)
 	{	//d3d has some annoying limitations.
 		//do not warn for astc files, their block sizes are too weird.
-		Image_BlockSizeForEncoding(targfmt, &bb, &bw, &bh);
-		if (mips->mip[0].width%bw || mips->mip[0].height%bh)
+		Image_BlockSizeForEncoding(targfmt, &bb, &bw, &bh, &bd);
+		if (mips->mip[0].width%bw || mips->mip[0].height%bh || mips->mip[0].depth%bd)
 			Con_Printf("%s: mip0 of %i*%i is not a multiple of %i*%i (d3d warning)\n", inname, mips->mip[0].width, mips->mip[0].height, bw, bh);
 	}
 
@@ -903,11 +908,11 @@ static struct pendingtextureinfo *ImgTool_Combine(struct opts_s *args, const cha
 			{
 				if (facetype[i] < 0)
 				{	//flip to match legacy skyboxes
-					unsigned bb,bw,bh;
+					unsigned bb,bw,bh,bd;
 					srcs[i] = tmpsrcs[-facetype[i]-1];
 					t = srcs[i].in;
-					Image_BlockSizeForEncoding(t->encoding, &bb,&bw,&bh);
-					if (bw == 1 && bh == 1)
+					Image_BlockSizeForEncoding(t->encoding, &bb,&bw,&bh,&bd);
+					if (bw == 1 && bh == 1 && bd == 1)
 					{
 						for (j = 0; j < t->mipcount; j++)
 						{
@@ -1071,7 +1076,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 #endif
 		else
 		{
-			int bb,bw,bh;
+			int bb,bw,bh,bd;
 
 			if (in->type != PTI_2D)
 				Con_Printf("%s: Unable to write %s file to 2d image format\n", outname, imagetypename[in->type]);
@@ -1093,7 +1098,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 							0;
 				if (!outformats[in->encoding])
 					Image_ChangeFormat(in, outformats, PTI_INVALID, outname);
-				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
+				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh,&bd);
 				if (!Image_WritePNG(outname, FS_SYSTEM, 0, &in->mip[0].data, 1, in->mip[0].width*bb, in->mip[0].width, in->mip[0].height, in->encoding, false))
 #endif
 					Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
@@ -1115,7 +1120,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 							0;
 				if (!outformats[in->encoding])
 					Image_ChangeFormat(in, outformats, PTI_INVALID, outname);
-				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
+				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh,&bd);
 				if (!WriteTGA(outname, FS_SYSTEM, in->mip[0].data, in->mip[0].width*bb, in->mip[0].width, in->mip[0].height, in->encoding))
 					Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
 			}
@@ -1133,7 +1138,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 							0;
 				if (!outformats[in->encoding])
 					Image_ChangeFormat(in, outformats, PTI_INVALID, outname);
-				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh);
+				Image_BlockSizeForEncoding(in->encoding, &bb, &bw,&bh,&bd);
 				if (!WritePCXfile(outname, FS_SYSTEM, in->mip[0].data, in->mip[0].width, in->mip[0].height, in->mip[0].width*bb, host_basepal, false))
 					Con_Printf("%s(%s): Write failed\n", outname, Image_FormatName(in->encoding));
 			}
@@ -1166,7 +1171,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
 	qbyte *newdata = NULL;
 	int neww=0, newh=0, sz;
-	unsigned int bw,bh,bb;
+	unsigned int bw,bh,bb,bd;
 	out->type = PTI_2D;
 
 	out->encoding = PTI_INVALID;
@@ -1220,7 +1225,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 		if (out->encoding != PTI_INVALID)	//use the first format we support, allowing prioritisation.
 			continue;
 
-		Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+		Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
 		w = data[ 8] | (data[ 9]<<8) | (data[10]<<16) | (data[11]<<24);
 		h = data[12] | (data[13]<<8) | (data[14]<<16) | (data[15]<<24);
 		for (csz = 16; w || h; w>>=1, h>>=1)
@@ -1243,7 +1248,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	//only use our if there were no corrupt sections.
 	if (data == dataend && newdata && neww && newh)
 	{
-		Image_BlockSizeForEncoding(out->encoding, &bb, &bw, &bh);
+		Image_BlockSizeForEncoding(out->encoding, &bb, &bw, &bh, &bd);
 		for (out->mipcount = 0; out->mipcount < countof(out->mip) && neww && newh; out->mipcount++, neww>>=1, newh>>=1)
 		{
 			neww = max(1, neww);
@@ -1254,6 +1259,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 			out->mip[out->mipcount].datasize = bb;
 			out->mip[out->mipcount].datasize *= (out->mip[out->mipcount].width + bw-1)/bw;
 			out->mip[out->mipcount].datasize *= (out->mip[out->mipcount].height + bh-1)/bh;
+			out->mip[out->mipcount].datasize *= (out->mip[out->mipcount].depth + bd-1)/bd;
 			out->mip[out->mipcount].data = newdata;
 			newdata += out->mip[out->mipcount].datasize;
 		}
@@ -1795,8 +1801,8 @@ static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struc
 	if (args->width && args->height && in->mipcount >= 1)
 	{
 		qbyte *newimg;
-		unsigned int bb, bw, bh;
-		Image_BlockSizeForEncoding(in->encoding, &bb, &bw, &bh);
+		unsigned int bb, bw, bh, bd;
+		Image_BlockSizeForEncoding(in->encoding, &bb, &bw, &bh, &bd);
 		newimg = Image_ResampleTexture(in->encoding, in->mip[0].data, in->mip[0].width, in->mip[0].height, NULL, args->width, args->height);
 		if (newimg)
 		{
@@ -1807,7 +1813,8 @@ static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struc
 			in->mip[0].needfree = true;
 			in->mip[0].width = args->width;
 			in->mip[0].height = args->height;
-			in->mip[0].datasize = bb*((in->mip[0].width+bw-1)/bw)*((in->mip[0].height+bh-1)/bh);
+			in->mip[0].depth = 1;
+			in->mip[0].datasize = bb*((in->mip[0].width+bw-1)/bw)*((in->mip[0].height+bh-1)/bh)*((in->mip[0].depth+bd-1)/bd);
 
 			Image_GenerateMips(in, args->flags);
 		}
@@ -2172,18 +2179,18 @@ showhelp:
 				Con_Printf("Supported compressed/interesting pixelformats are:\n");
 				for (f = 0; f < PTI_MAX; f++)
 				{
-					int bb,bw,bh;
-					Image_BlockSizeForEncoding(f, &bb,&bw,&bh);
+					int bb,bw,bh,bd;
+					Image_BlockSizeForEncoding(f, &bb,&bw,&bh,&bd);
 					if (f >= PTI_ASTC_FIRST && f <= PTI_ASTC_LAST)
 					{
 						if (f >= PTI_ASTC_4X4_SRGB)
 							continue;
-						Con_Printf(" --%-16s %5.3g-bpp (requires astcenc)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
+						Con_Printf(" --%-16s %5.3g-bpp (requires astcenc)\n", Image_FormatName(f), 8*(float)bb/(bw*bh*bd));
 					}
 					else if (f==PTI_BC1_RGB||f==PTI_BC1_RGBA||f==PTI_BC2_RGBA||f==PTI_BC3_RGBA||f==PTI_BC4_R||f==PTI_BC5_RG)
-						Con_Printf(" --%-16s %5.3g-bpp (requires nvcompress)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
+						Con_Printf(" --%-16s %5.3g-bpp (requires nvcompress)\n", Image_FormatName(f), 8*(float)bb/(bw*bh*bd));
 					else if (f==PTI_BC6_RGB_UFLOAT || f==PTI_BC6_RGB_SFLOAT || f==PTI_BC7_RGBA)
-						Con_Printf(" --%-16s %5.3g-bpp (requires nvcompress 2.1+)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
+						Con_Printf(" --%-16s %5.3g-bpp (requires nvcompress 2.1+)\n", Image_FormatName(f), 8*(float)bb/(bw*bh*bd));
 					else if (	f==PTI_RGBA16F ||
 								f==PTI_RGBA32F ||
 								f==PTI_E5BGR9 ||
@@ -2202,9 +2209,9 @@ showhelp:
 								f==PTI_L8 ||
 								f==PTI_L8A8 ||
 							0)
-						Con_Printf(" --%-16s %5.3g-bpp\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
+						Con_Printf(" --%-16s %5.3g-bpp\n", Image_FormatName(f), 8*(float)bb/(bw*bh*bd));
 //					else
-//						Con_DPrintf(" --%-16s %5.3g-bpp (unsupported)\n", Image_FormatName(f), 8*(float)bb/(bw*bh));
+//						Con_DPrintf(" --%-16s %5.3g-bpp (unsupported)\n", Image_FormatName(f), 8*(float)bb/(bw*bh*bd));
 				}
 				return EXIT_SUCCESS;
 			}

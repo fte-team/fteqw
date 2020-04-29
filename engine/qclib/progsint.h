@@ -86,15 +86,15 @@ typedef struct
 	prclocks_t		timestamp;
 } prstack_t;
 
+#if defined(QCGC) && defined(MULTITHREAD)
+	#define THREADEDGC
+#endif
+
 typedef struct
 {
-	unsigned int size;
-	char value[4];
+	unsigned int size;			//size of the data.
+	char value[4];				//contents of the tempstring (or really any binary data - but not tempstring references because we don't mark these!).
 } tempstr_t;
-
-#if defined(QCGC) && defined(MULTITHREAD)
-//	#define THREADEDGC
-#endif
 
 //FIXME: the defines hidden inside this structure are evil.
 typedef struct prinst_s
@@ -102,13 +102,12 @@ typedef struct prinst_s
 	//temp strings are GCed, and can be created by engine, builtins, or just by ent parsing code.
 	tempstr_t **tempstrings;
 	unsigned int maxtempstrings;
-#ifdef THREADEDGC
+#if defined(QCGC)
 	unsigned int nexttempstring;
 	unsigned int livetemps;	//increased on alloc, decremented after sweep
-	struct qcgccontext_s *gccontext;
-#elif defined(QCGC)
-	unsigned int numtempstrings;
-	unsigned int nexttempstring;
+	#ifdef THREADEDGC
+		struct qcgccontext_s *gccontext;
+	#endif
 #else
 	unsigned int numtempstrings;
 	unsigned int numtempstringsstack;
@@ -235,8 +234,8 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
-#define sv_num_edicts (*externs->sv_num_edicts)
-#define sv_edicts (*externs->sv_edicts)
+#define sv_num_edicts (*externs->num_edicts)
+#define sv_edicts (*externs->edicts)
 
 #define PR_DPrintf externs->DPrintf
 //#define printf syntax error
@@ -405,7 +404,12 @@ void PR_Profile_f (void);
 struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *progfuncs, pbool object, size_t extrasize);
 void PDECL ED_Free (pubprogfuncs_t *progfuncs, struct edict_s *ed, pbool instant);
 
-pbool PR_RunGC			(progfuncs_t *progfuncs);
+#ifdef QCGC
+void PR_RunGC			(progfuncs_t *progfuncs);
+#else
+void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
+#endif
+
 string_t PDECL PR_AllocTempString			(pubprogfuncs_t *ppf, const char *str);
 char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength, pbool demarkup);
 // returns a copy of the string allocated from the server's string heap
@@ -531,9 +535,7 @@ ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
 string_t PDECL PR_StringToProgs			(pubprogfuncs_t *inst, const char *str);
 const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *inst, string_t str);
 
-void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
-
-char *PR_GlobalString (progfuncs_t *progfuncs, int ofs);
+char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **typehint);
 char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs);
 
 pbool CompileFile(progfuncs_t *progfuncs, const char *filename);

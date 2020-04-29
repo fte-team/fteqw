@@ -3609,16 +3609,28 @@ void SV_SendClientMessages (void)
 			}
 			else
 			{
+				extern cvar_t sv_nqplayerphysics;
 				if (c->nextservertimeupdate > pt + 0.1)
 					c->nextservertimeupdate = 0;
 
 				c->netchan.nqunreliableonly = false;
 				c->send_message = false;
 				//nq sends one packet only for each server physics frame
-				if (c->nextservertimeupdate < pt && c->state >= cs_connected)
+				if (sv_mintic.value || sv_nqplayerphysics.ival)	//(nqplayerphysics forces 72hz when mintic )
+				{	//explicit packet/tick rate. don't spam faster/slower, clients don't like that too much.
+					if (c->nextservertimeupdate != pt && c->state >= cs_connected)
+					{
+						c->send_message = true;
+						c->nextservertimeupdate = pt;
+					}
+				}
+				else
 				{
-					c->send_message = true;
-					c->nextservertimeupdate = pt + 1.0/77;
+					if (c->nextservertimeupdate < pt && c->state >= cs_connected)
+					{
+						c->send_message = true;
+						c->nextservertimeupdate = pt + 1.0/77;
+					}
 				}
 			}
 		}

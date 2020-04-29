@@ -232,7 +232,7 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 	{	//pos3, quat4, scale3
 		float posquatscale[10];	//raw values, used to calibrate ranges
 	} *posedata = NULL, *pd;	//per bone*joint
-	avec4_t *ivert;
+	vecV_t *ivert;
 	vec2_t *ist;
 	vec3_t *overt;
 	vec3_t *onorm = NULL;

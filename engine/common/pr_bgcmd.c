@@ -32,6 +32,7 @@ cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
 cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "As part of its nq/qw/h2/csqc support, FTE remaps QC fields to match an internal order. This is a faster way to handle extended fields. However, some QCCs are buggy and don't report all field defs.\n0: do nothing. QCC must be well behaved.\n1: Duplicate engine fields, remap the ones we can to known offsets. This is sufficient for QCCX/FrikQCC mods that use hardcoded or even occasional calculated offsets (fixes ktpro).\n2: Scan the mod for field accessing instructions, and assume those are the fields (and that they don't alias non-fields). This can be used to work around gmqcc's WTFs (fixes xonotic).");
 cvar_t pr_tempstringcount = CVARD("pr_tempstringcount", "", "Obsolete. Set to 16 if you want to recycle+reuse the same 16 tempstring references and break lots of mods.");
 cvar_t pr_tempstringsize = CVARD("pr_tempstringsize", "4096", "Obsolete");
+cvar_t pr_gc_threaded = CVARD("pr_gc_threaded", "0", "Says whether to use a separate thread for tempstring garbage collections. This avoids main-thread stalls but at the expense of more memory usage.");
 cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
 cvar_t pr_enable_uriget = CVARD("pr_enable_uriget", "1", "Allows gamecode to make direct http requests");
 cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
@@ -88,6 +89,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
+	Cvar_Register (&pr_gc_threaded, cvargroup_progs);
 #ifdef WEBCLIENT
 	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
 #endif
@@ -1222,7 +1224,7 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 	int s;
 	wedict_t	*ent, *chain;
 
-	chain = (wedict_t *) *prinst->parms->sv_edicts;
+	chain = (wedict_t *) *prinst->parms->edicts;
 
 	ff = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM1);
@@ -1231,7 +1233,7 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 	else
 		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
@@ -1253,7 +1255,7 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 	float s;
 	wedict_t	*ent, *chain;
 
-	chain = (wedict_t *) *prinst->parms->sv_edicts;
+	chain = (wedict_t *) *prinst->parms->edicts;
 
 	ff = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM1);
@@ -1262,7 +1264,7 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 	else
 		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
@@ -1286,7 +1288,7 @@ void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	string_t t;
 	wedict_t *ent, *chain;
 	
-	chain = (wedict_t *) *prinst->parms->sv_edicts;
+	chain = (wedict_t *) *prinst->parms->edicts;
 
 	ff = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -1295,7 +1297,7 @@ void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	else
 		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
@@ -1325,7 +1327,7 @@ void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM2);
 
-	for (e++; e < *prinst->parms->sv_num_edicts; e++)
+	for (e++; e < *prinst->parms->num_edicts; e++)
 	{
 		ed = WEDICT_NUM_PB(prinst, e);
 		if (ED_ISFREE(ed))
@@ -1337,7 +1339,7 @@ void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		}
 	}
 
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
+	RETURN_EDICT(prinst, *prinst->parms->edicts);
 }
 
 //entity(entity start, float fld, float match) findfloat = #98
@@ -1357,7 +1359,7 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
 	s = G_INT(OFS_PARM2);
 
-	for (e++; e < *prinst->parms->sv_num_edicts; e++)
+	for (e++; e < *prinst->parms->num_edicts; e++)
 	{
 		ed = WEDICT_NUM_PB(prinst, e);
 		if (ED_ISFREE(ed))
@@ -1369,7 +1371,7 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		}
 	}
 
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
+	RETURN_EDICT(prinst, *prinst->parms->edicts);
 }
 
 // entity (entity start, .string field, string match) find = #5;
@@ -1390,7 +1392,7 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 
-	for (e++ ; e < *prinst->parms->sv_num_edicts ; e++)
+	for (e++ ; e < *prinst->parms->num_edicts ; e++)
 	{
 		ed = WEDICT_NUM_PB(prinst, e);
 		if (ED_ISFREE(ed))
@@ -1405,7 +1407,7 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		}
 	}
 
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
+	RETURN_EDICT(prinst, *prinst->parms->edicts);
 }
 
 //Finding
@@ -3263,9 +3265,9 @@ void QCBUILTIN PF_nextent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	while (1)
 	{
 		i++;
-		if (i == *prinst->parms->sv_num_edicts)
+		if (i == *prinst->parms->num_edicts)
 		{
-			RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
+			RETURN_EDICT(prinst, *prinst->parms->edicts);
 			return;
 		}
 		ent = WEDICT_NUM_PB(prinst, i);

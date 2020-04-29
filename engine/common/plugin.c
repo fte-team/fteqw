@@ -802,7 +802,7 @@ static qhandle_t QDECL Plug_Net_Accept(qhandle_t handle, char *outaddress, int o
 static qhandle_t QDECL Plug_Net_TCPConnect(const char *remoteip, int remoteport)
 {
 	int handle;
-	vfsfile_t *stream = FS_OpenTCP(remoteip, remoteport);
+	vfsfile_t *stream = FS_OpenTCP(remoteip, remoteport, false);
 	if (!currentplug || !stream)
 		return -1;
 	handle = Plug_NewStreamHandle(STREAM_VFS);

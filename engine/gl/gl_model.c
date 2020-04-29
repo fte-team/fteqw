@@ -3389,7 +3389,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 		for (; extofs < miptexsize; extofs += extsize)
 		{
 			size_t sz, w, h;
-			unsigned int bb,bw,bh;
+			unsigned int bb,bw,bh,bd;
 			int mip;
 			qbyte *extdata = (void*)((qbyte*)mt+extofs);
 			char *extfmt = (char*)(extdata+4);
@@ -3447,7 +3447,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 			//alternative textures are usually compressed
 			//this means we insist on a FULL mip chain
 			//npot mips are explicitly round-down (but don't drop to 0 with non-square).
-			Image_BlockSizeForEncoding(newfmt, &bb, &bw, &bh);
+			Image_BlockSizeForEncoding(newfmt, &bb, &bw, &bh, &bd);
 			neww = (extdata[8]<<0)|(extdata[9]<<8)|(extdata[10]<<16)|(extdata[11]<<24);
 			newh = (extdata[12]<<0)|(extdata[13]<<8)|(extdata[14]<<16)|(extdata[15]<<24);
 			for (mip = 0, w=neww, h=newh, sz=0; w || h; mip++, w>>=1,h>>=1)

@@ -363,6 +363,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!samps =REFLECT reflect=1\n"
 "!!samps =RIPPLEMAP ripplemap=2\n"
 "!!samps =DEPTH   refractdepth=3\n"
+"!!permu FOG\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -445,9 +446,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"#ifdef ALPHA\n"
 "#include \"sys/fog.h\"\n"
-"#endif\n"
 
 
 "void main (void)\n"
@@ -536,6 +535,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 ts = texture2D(s_diffuse, ntc);\n"
 "vec4 surf = fog4blend(vec4(ts.rgb, float(ALPHA)*ts.a));\n"
 "refr = mix(refr, surf.rgb, surf.a);\n"
+"#else\n"
+"refr = fog3(refr); \n"
 "#endif\n"
 
 //done
@@ -4159,7 +4160,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultsky",
 "!!permu FOG\n"
-"!!samps 2\n"
+"!!samps base=0, cloud=1\n"
+"!!cvardf r_skyfog=0.5\n"
 "#include \"sys/fog.h\"\n"
 
 //regular sky shader for scrolling q1 skies
@@ -4184,10 +4186,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "dir.z *= 3.0;\n"
 "dir.xy /= 0.5*length(dir);\n"
 "tccoord = (dir.xy + e_time*0.03125);\n"
-"vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
+"vec3 sky = vec3(texture2D(s_base, tccoord));\n"
 "tccoord = (dir.xy + e_time*0.0625);\n"
-"vec4 clouds = texture2D(s_t1, tccoord);\n"
-"gl_FragColor = vec4(fog3((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb)), 1.0);\n"
+"vec4 clouds = texture2D(s_cloud, tccoord);\n"
+"sky = (sky.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+"#ifdef FOG\n"
+"sky.rgb = mix(sky.rgb, w_fogcolour, float(r_skyfog)*w_fogalpha); //flat fog ignoring actual geometry\n"
+//sky = fog3(sky);													//fog according to actual geometry
+"#endif\n"
+"gl_FragColor = vec4(sky, 1.0);\n"
 "}\n"
 "#endif\n"
 },
@@ -4643,7 +4650,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "vec4 skybox = textureCube(s_reflectcube, pos);\n"
-"gl_FragColor = vec4(mix(skybox.rgb, fog3(skybox.rgb), float(r_skyfog)), 1.0);\n"
+
+//Fun question: should sky be fogged as if infinite, or as if an actual surface?
+"#if 1\n"
+"skybox.rgb = mix(skybox.rgb, w_fogcolour_ float(r_skyfog)*w_fogalpha); //flat fog ignoring actual geometry\n"
+"#else\n"
+"skybox.rgb = mix(skybox.rgb, fog3(skybox.rgb), float(r_skyfog));  //fog in terms of actual geometry distance\n"
+"#endif\n"
+"gl_FragColor = skybox;\n"
 "}\n"
 "#endif\n"
 },
@@ -5617,7 +5631,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!ver 100 450\n"
 "!!permu TESS\n"
 "!!permu DELUXE\n"
-"!!permu FULLBRIGHT\n"
+"!!permu FULLBRIGHT //lumas rather than no lightmaps\n"
 "!!permu FOG\n"
 "!!permu LIGHTSTYLED\n"
 "!!permu BUMP\n"
@@ -5634,7 +5648,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //diffuse gives us alpha, and prevents dlight from bugging out when there's no diffuse.
 "!!samps =EIGHTBIT paletted 1\n"
 "!!samps =SPECULAR specular\n"
-"!!samps lightmap\n"
+"!!samps !VERTEXLIT lightmap\n"
 "!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3\n"
 "!!samps =DELUXE deluxemap\n"
 "!!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3\n"
@@ -5885,7 +5899,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 //don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 //FIXME: this rounding is likely not correct with respect to software rendering. oh well.
-"#if __VERSION__ >= 130\n"
+"#if __VERSION__ >= 130 && !defined(VERTEXLIT)\n"
 "vec2 lmsize = vec2(textureSize(s_lightmap0, 0));\n"
 "#else\n"
 "#define lmsize vec2(128.0,2048.0)\n"
@@ -7021,7 +7035,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "defaultwarp",
 "!!ver 100 450\n"
 "!!permu FOG\n"
-"!!cvarf r_wateralpha\n"
 "!!samps diffuse lightmap\n"
 
 "#include \"sys/defs.h\"\n"
@@ -7030,6 +7043,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //this is expected to be moderately fast.
 
 "#include \"sys/fog.h\"\n"
+
 "varying vec2 tc;\n"
 "#ifdef LIT\n"
 "varying vec2 lm0;\n"
@@ -7048,12 +7062,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"#ifndef ALPHA\n"
-"uniform float cvar_r_wateralpha;\n"
-"#define USEALPHA cvar_r_wateralpha\n"
-"#else\n"
-"#define USEALPHA float(ALPHA)\n"
-"#endif\n"
 "void main ()\n"
 "{\n"
 "vec2 ntc;\n"
@@ -7065,7 +7073,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;\n"
 "#endif\n"
 
-"gl_FragColor = fog4blend(vec4(ts, USEALPHA) * e_colourident);\n"
+"#ifdef ALPHA\n"
+"gl_FragColor = fog4blend(vec4(ts, float(ALPHA)) * e_colourident);\n"
+"#else\n"
+"gl_FragColor = fog4(vec4(ts, 1.0) * e_colourident);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 },

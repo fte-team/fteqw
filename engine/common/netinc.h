@@ -453,6 +453,6 @@ int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize);	//d
 #ifdef HAVE_PACKET
 vfsfile_t *FS_WrapTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded. considers the socket owned (so be sure to stop using the direct socket at least before the VFS_CLOSE call).
 #endif
-vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls);
 
 #endif //NETINC_INCLUDED

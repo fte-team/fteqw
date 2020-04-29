@@ -1211,28 +1211,6 @@ void SV_FixupName(const char *in, char *out, unsigned int outlen);
 
 #ifdef SUBSERVERS
 //cluster stuff
-typedef struct pubsubserver_s
-{
-	struct
-	{
-		void (*InstructSlave)(struct pubsubserver_s *ps, sizebuf_t *cmd);	//send to. first two bytes of the message should be ignored (overwrite them to carry size)
-		int (*SubServerRead)(struct pubsubserver_s *ps);	//read from. fills up net_message
-	} funcs;
-
-	struct pubsubserver_s *next;
-	unsigned int id;
-	char name[64];
-	int activeplayers;
-	int transferingplayers;
-	netadr_t addrv4;
-	netadr_t addrv6;
-	char printtext[4096]; //to split it into lines.
-	qboolean started;
-#ifdef HAVE_CLIENT
-	console_t *console;
-#endif
-} pubsubserver_t;
-extern qboolean isClusterSlave;
 void SSV_UpdateAddresses(void);
 void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver);
 void SSV_InstructMaster(sizebuf_t *cmd);
@@ -1242,9 +1220,13 @@ void SSV_ReadFromControlServer(void);
 void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
 void SSV_RequestShutdown(void); //asks the cluster to not send us new players
 
-pubsubserver_t *Sys_ForkServer(void);
+vfsfile_t *Sys_ForkServer(void);
 void Sys_InstructMaster(sizebuf_t *cmd);	//first two bytes will always be the length of the data
+vfsfile_t *Sys_GetStdInOutStream(void);		//obtains a bi-directional pipe for reading/writing via stdin/stdout. make sure the system code won't be using it.
 
+qboolean MSV_NewNetworkedNode(vfsfile_t *stream, qbyte *reqstart, qbyte *buffered, size_t buffersize, const char *remoteaddr);	//call to register a pipe to a newly discovered node.
+void SSV_SetupControlPipe(vfsfile_t *stream);	//call to register the pipe.
+extern qboolean isClusterSlave;
 #define SSV_IsSubServer() isClusterSlave
 
 

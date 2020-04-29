@@ -1461,6 +1461,39 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_ASTC_12X12_HDR:	format = VK_FORMAT_ASTC_12x12_UNORM_BLOCK;	break;
 #endif
 
+#ifdef ASTC3D
+	case PTI_ASTC_3X3X3_HDR:	//vulkan doesn't support these for some reason
+	case PTI_ASTC_4X3X3_HDR:
+	case PTI_ASTC_4X4X3_HDR:
+	case PTI_ASTC_4X4X4_HDR:
+	case PTI_ASTC_5X4X4_HDR:
+	case PTI_ASTC_5X5X4_HDR:
+	case PTI_ASTC_5X5X5_HDR:
+	case PTI_ASTC_6X5X5_HDR:
+	case PTI_ASTC_6X6X5_HDR:
+	case PTI_ASTC_6X6X6_HDR:
+	case PTI_ASTC_3X3X3_LDR:
+	case PTI_ASTC_4X3X3_LDR:
+	case PTI_ASTC_4X4X3_LDR:
+	case PTI_ASTC_4X4X4_LDR:
+	case PTI_ASTC_5X4X4_LDR:
+	case PTI_ASTC_5X5X4_LDR:
+	case PTI_ASTC_5X5X5_LDR:
+	case PTI_ASTC_6X5X5_LDR:
+	case PTI_ASTC_6X6X5_LDR:
+	case PTI_ASTC_6X6X6_LDR:
+	case PTI_ASTC_3X3X3_SRGB:
+	case PTI_ASTC_4X3X3_SRGB:
+	case PTI_ASTC_4X4X3_SRGB:
+	case PTI_ASTC_4X4X4_SRGB:
+	case PTI_ASTC_5X4X4_SRGB:
+	case PTI_ASTC_5X5X4_SRGB:
+	case PTI_ASTC_5X5X5_SRGB:
+	case PTI_ASTC_6X5X5_SRGB:
+	case PTI_ASTC_6X6X5_SRGB:
+	case PTI_ASTC_6X6X6_SRGB:	break;
+#endif
+
 	//depth formats
 	case PTI_DEPTH16:			format = VK_FORMAT_D16_UNORM;					break;
 	case PTI_DEPTH24:			format = VK_FORMAT_X8_D24_UNORM_PACK32;			break;
@@ -1797,7 +1830,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	VkCommandBuffer vkloadcmd;
 	vk_image_t target;
 	uint32_t i;
-	uint32_t blockwidth, blockheight;
+	uint32_t blockwidth, blockheight, blockdepth;
 	uint32_t blockbytes;
 	uint32_t layers;
 	uint32_t mipcount = mips->mipcount;
@@ -1835,7 +1868,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		}
 	}
 
-	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 
 	fence = VK_FencedBegin(VK_TextureLoaded, sizeof(*fence));
 	fence->mips = mipcount;
@@ -1925,7 +1958,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	{
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
-		uint32_t blocksdepth = (mips->mip[i].depth+1-1) / 1;
+		uint32_t blocksdepth = (mips->mip[i].depth+blockdepth-1) / blockdepth;
 		bci.size += blockswidth*blocksheight*blocksdepth*blockbytes;
 	}
 	bci.flags = 0;
@@ -1961,7 +1994,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
-		uint32_t blocksdepth = (mips->mip[i].depth+1-1) / 1;
+		uint32_t blocksdepth = (mips->mip[i].depth+blockdepth-1) / blockdepth;
 
 		if (mips->mip[i].data)
 			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight*blocksdepth);

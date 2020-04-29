@@ -1640,6 +1640,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
 				if (var)
 				{
+					var->flags |= CVAR_SHADERSYSTEM;
 					if (srgb)
 					{
 						if (type == '4')
@@ -6459,7 +6460,7 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 		return (
 			"{\n"
 				"{\n"
-//					"program defaultfill\n"
+					//"program defaultfill\n"
 					"map $whiteimage\n"
 					"rgbgen srgb $r_fastturbcolour\n"
 				"}\n"
@@ -6485,7 +6486,7 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 					"}\n"
 					"surfaceparm hasdiffuse\n"
 				"}\n"
-				, explicitalpha?"":va("#ALPHA=%g",alpha), alpha, alpha);
+				, (explicitalpha||alpha==1)?"":va("#ALPHA=%g",alpha), alpha, alpha);
 		return buffer;
 	case 2:	//refraction of the underwater surface, with a fresnel
 		return (

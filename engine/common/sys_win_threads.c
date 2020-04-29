@@ -460,66 +460,51 @@ void Sys_DestroyConditional(void *condv)
 #endif
 
 #ifdef SUBSERVERS
-typedef struct slaveserver_s
+typedef struct
 {
-	pubsubserver_t pub;
+	vfsfile_t pub;
 
 	HANDLE inpipe;
 	HANDLE outpipe;
-	
-	qbyte inbuffer[2048];
-	int inbufsize;
 } winsubserver_t;
 
-static void Sys_InstructSlave(pubsubserver_t *ps, sizebuf_t *cmd)
+static int QDECL Sys_MSV_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
-	//FIXME: this is blocking. this is bad if the target is also blocking while trying to write to us.
-	//FIXME: merge buffering logic with SSV_InstructMaster, and allow for failure if full
-	winsubserver_t *s = (winsubserver_t*)ps;
-	DWORD written = 0;
-	cmd->data[0] = cmd->cursize & 0xff;
-	cmd->data[1] = (cmd->cursize>>8) & 0xff;
-	WriteFile(s->outpipe, cmd->data, cmd->cursize, &written, NULL);
-}
-
-static int Sys_SubServerRead(pubsubserver_t *ps)
-{
+	winsubserver_t *s = (winsubserver_t*)file;
 	DWORD avail;
-	winsubserver_t *s = (winsubserver_t*)ps;
-
+	//trying to do this stuff without blocking is a real pain.
 	if (!PeekNamedPipe(s->inpipe, NULL, 0, NULL, &avail, NULL))
+		return -1;	//EOF
+	if (avail)
 	{
-		CloseHandle(s->inpipe);
-		CloseHandle(s->outpipe);
-		Con_Printf("%i:%s has died\n", s->pub.id, s->pub.name);
-		return -1;
-	}
-	else if (avail)
-	{
-		if (avail > sizeof(s->inbuffer)-1-s->inbufsize)
-			avail = sizeof(s->inbuffer)-1-s->inbufsize;
-		if (ReadFile(s->inpipe, s->inbuffer+s->inbufsize, avail, &avail, NULL))
-			s->inbufsize += avail;
-	}
-
-	if(s->inbufsize >= 2)
-	{
-		unsigned short len = s->inbuffer[0] | (s->inbuffer[1]<<8);
-		if (s->inbufsize >= len && len>=2)
-		{
-			memcpy(net_message.data, s->inbuffer+2, len-2);
-			net_message.cursize = len-2;
-			memmove(s->inbuffer, s->inbuffer+len, s->inbufsize - len);
-			s->inbufsize -= len;
-			MSG_BeginReading (msg_nullnetprim);
-
-			return 1;
-		}
+		if (avail > bytestoread)
+			avail = bytestoread;
+		if (ReadFile(s->inpipe, buffer, avail, &avail, NULL))
+			return avail;
 	}
 	return 0;
 }
+static int QDECL Sys_MSV_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	winsubserver_t *s = (winsubserver_t*)file;
+	DWORD wrote = 0;
+	//blocks. life sucks.
+	if (!WriteFile(s->outpipe, buffer, bytestowrite, &wrote, NULL))
+		return -1;
+	return wrote;
+}
+static qboolean QDECL Sys_MSV_Close (struct vfsfile_s *file)
+{
+	winsubserver_t *s = (winsubserver_t*)file;
 
-pubsubserver_t *Sys_ForkServer(void)
+	CloseHandle(s->inpipe);
+	CloseHandle(s->outpipe);
+	//we already closed any process handles. the child will detect its input became unreadable and take that as a signal to die.
+	Z_Free(s);
+	return true;
+}
+
+vfsfile_t *Sys_ForkServer(void)
 {
 	wchar_t exename[256];
 	wchar_t curdir[256];
@@ -560,8 +545,9 @@ pubsubserver_t *Sys_ForkServer(void)
 	CloseHandle(startinfo.hStdOutput);
 	CloseHandle(startinfo.hStdInput);
 
-	ctx->pub.funcs.InstructSlave = Sys_InstructSlave;
-	ctx->pub.funcs.SubServerRead = Sys_SubServerRead;
+	ctx->pub.ReadBytes = Sys_MSV_ReadBytes;
+	ctx->pub.WriteBytes = Sys_MSV_WriteBytes;
+	ctx->pub.Close = Sys_MSV_Close;
 	return &ctx->pub;
 }
 

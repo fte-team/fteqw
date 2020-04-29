@@ -35,6 +35,7 @@ static void GL_DrawSkyGrid (texnums_t *tex);
 extern cvar_t gl_skyboxdist;
 extern cvar_t r_fastsky;
 extern cvar_t r_fastskycolour;
+extern cvar_t r_skycloudalpha;
 
 static shader_t *forcedsky;
 static shader_t *skyboxface;
@@ -1100,13 +1101,14 @@ void R_InitSky (shader_t *shader, const char *skyname, uploadfmt_t fmt, qbyte *s
 	if (fmt & PTI_FULLMIPCHAIN)
 	{	//input is expected to make sense...
 		qbyte *front, *back;
-		unsigned int bb, bw, bh;
+		unsigned int bb, bw, bh, bd;
 		unsigned int w, h, y;
 		fmt = fmt&~PTI_FULLMIPCHAIN;
-		Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh);
+		Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
 
 		w = (width+bw-1)/bw;
 		h = (height+bh-1)/bh;
+		//d = (depth+bd-1)/bd;
 
 		back = BZ_Malloc(bb*w*2*h);
 		front = back + bb*w*h;
@@ -1162,7 +1164,9 @@ void R_InitSky (shader_t *shader, const char *skyname, uploadfmt_t fmt, qbyte *s
 			((qbyte *)&transpix)[1] = g/(width*height);
 			((qbyte *)&transpix)[2] = b/(width*height);
 			((qbyte *)&transpix)[3] = 0;
-			alphamask = LittleLong(0x7fffffff);
+			alphamask = r_skycloudalpha.value*255;
+			alphamask = ((bound(0, alphamask, 0xff)<<24) | 0x00ffffff);
+			alphamask = LittleLong(alphamask);
 			for (i=0 ; i<height ; i++)
 				for (j=0 ; j<width ; j++)
 				{

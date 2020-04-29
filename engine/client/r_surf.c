@@ -1429,6 +1429,19 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 		{
 			for (i=0 ; i<size*3 ; i++)
 				blocklights[i] = r_fullbright.value*255*256;
+			if (!surf->samples)
+			{
+				surf->cached_light[0] = d_lightstylevalue[0];
+				surf->cached_colour[0] = cl_lightstyle[0].colourkey;
+			}
+			else
+			{
+				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+				{
+					surf->cached_light[maps] = d_lightstylevalue[surf->styles[maps]];
+					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+				}
+			}
 		}
 		else if (!currentmodel->lightdata)
 		{
@@ -1441,8 +1454,8 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 			/*no samples, but map is otherwise lit = pure black*/
 			for (i=0 ; i<size*3 ; i++)
 				blocklights[i] = 0;
-			surf->cached_light[0] = 0;
-			surf->cached_colour[0] = 0;
+			surf->cached_light[0] = d_lightstylevalue[0];
+			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
 		}
 		else
 		{
@@ -1556,8 +1569,19 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 		{	//r_fullbright is meant to be a scaler.
 			for (i=0 ; i<size ; i++)
 				blocklights[i] = r_fullbright.value*255*256;
-			surf->cached_light[0] = d_lightstylevalue[0];
-			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
+			if (!surf->samples)
+			{
+				surf->cached_light[0] = d_lightstylevalue[0];
+				surf->cached_colour[0] = cl_lightstyle[0].colourkey;
+			}
+			else
+			{
+				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+				{
+					surf->cached_light[maps] = d_lightstylevalue[surf->styles[maps]];
+					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+				}
+			}
 		}
 		else if (!currentmodel->lightdata)
 		{	//no scalers here.
@@ -1951,8 +1975,8 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 	// check for lightmap modification
 	if (!fa->samples)
 	{
-		if (fa->cached_light[0] != 0
-			|| fa->cached_colour[0] != 0)
+		if (fa->cached_light[0] != d_lightstylevalue[0]
+			|| fa->cached_colour[0] != cl_lightstyle[0].colourkey)
 			goto dynamic;
 	}
 	else
@@ -1994,8 +2018,8 @@ static void Surf_RenderDynamicLightmaps_Worker (model_t *wmodel, msurface_t *fa,
 	// check for lightmap modification
 	if (!fa->samples)
 	{
-		if (fa->cached_light[0] != 0
-			|| fa->cached_colour[0] != 0)
+		if (fa->cached_light[0] != d_lightstylevalue[0]
+			|| fa->cached_colour[0] != cl_lightstyle[0].colourkey)
 			goto dynamic;
 	}
 	else
@@ -3264,7 +3288,7 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 		pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], &es->pvs, PVM_MERGE);
 	}
 	else
-		pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_FAST);
+		pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_REPLACE);
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
 	if (es->wmodel->fromgame == fg_quake2 || es->wmodel->fromgame == fg_quake3)
@@ -3361,19 +3385,39 @@ void Surf_DrawWorld (void)
 #ifdef Q1BSPS
 			else if (currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife)
 			{
-				int i = cl_max_lightstyles;
-				if (webostate && !webogenerating)
-					for (i = 0; i < cl_max_lightstyles; i++)
+				if (!webogenerating)
+				{
+					qboolean gennew = false;
+					if (!webostate)
+						gennew = true;	//generate an initial one, if we can.
+					if (!gennew && webostate)
 					{
-						if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
-							break;
+						int i = cl_max_lightstyles;
+						for (i = 0; i < cl_max_lightstyles; i++)
+						{
+							if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
+							{	//a lightstyle changed. something needs to be rebuilt. FIXME: should probably have a bitmask for whether the lightstyle is relevant...
+								gennew = true;
+								break;
+							}
+						}
 					}
-				if (webostate && i == cl_max_lightstyles)
-				{
-				}
-				else
-				{
-					if (!webogenerating)
+
+					if (!gennew && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
+					{
+						if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
+							gennew = true;	//o.O
+						else if (memcmp(webostate->pvs.buffer, webostate->wmodel->funcs.ClusterPVS(webostate->wmodel, r_viewcluster, NULL, PVM_FAST), currentmodel->pvsbytes))
+							gennew = true;
+						else
+						{	//okay, so the pvs didn't change despite the clusters changing. this happens when using unvised maps or lots of func_detail
+							//just hack the cluster numbers so we don't have to do the memcmp above repeatedly for no reason.
+							webostate->cluster[0] = r_viewcluster;
+							webostate->cluster[1] = r_viewcluster2;
+						}
+					}
+
+					if (gennew)
 					{
 						int i;
 						if (!currentmodel->numbatches)
@@ -3820,8 +3864,8 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	int first = numlightmaps;
 	int i;
 
-	unsigned int pixbytes, pixw, pixh;
-	unsigned int dpixbytes, dpixw, dpixh;
+	unsigned int pixbytes, pixw, pixh, pixd;
+	unsigned int dpixbytes, dpixw, dpixh, dpixd;
 	uploadfmt_t dfmt;
 
 	if (!count)
@@ -3834,8 +3878,8 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 		Con_Print("WARNING: Deluxemapping with odd number of lightmaps\n");
 	}
 
-	Image_BlockSizeForEncoding(fmt, &pixbytes, &pixw, &pixh);
-	if (pixw != 1 || pixh != 1)
+	Image_BlockSizeForEncoding(fmt, &pixbytes, &pixw, &pixh, &pixd);
+	if (pixw != 1 || pixh != 1 || pixd != 1)
 		return -1;	//compressed formats are unsupported
 	dfmt = PTI_A2BGR10;	//favour this one, because it tends to be slightly faster.
 	if (!sh_config.texfmt[dfmt])
@@ -3844,7 +3888,9 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 		dfmt = PTI_RGBX8;
 	if (!sh_config.texfmt[dfmt])
 		dfmt = PTI_RGB8;
-	Image_BlockSizeForEncoding(dfmt, &dpixbytes, &dpixw, &dpixh);
+	Image_BlockSizeForEncoding(dfmt, &dpixbytes, &dpixw, &dpixh, &dpixd);
+	if (dpixw != 1 || dpixh != 1 || dpixd != 1)
+		return -1;	//compressed formats are unsupported
 
 	Sys_LockMutex(com_resourcemutex);
 

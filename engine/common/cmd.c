@@ -58,7 +58,7 @@ cmdalias_t	*cmd_alias;
 cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_save saves all cvars only when an explicit filename was given (ie: when not used internally via quit menu options).");
 cvar_t	cfg_save_auto = CVARFD("cfg_save_auto", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, the config will automatically be saved and without prompts. If 0, you'll have to save your config manually (possibly via prompts from the quit menu).");
 cvar_t	cfg_save_infos = CVARFD("cfg_save_infos", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves userinfo and serverinfo to configs.");
-cvar_t	cfg_save_aliases = CVARFD("cfg_save_aliases", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves userinfo and serverinfo to configs.");
+cvar_t	cfg_save_aliases = CVARFD("cfg_save_aliases", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves aliases to configs. Note that aliases sent from servers are assumed to be server-specific and are never saved (and are forgotten on map changes, too).");
 cvar_t	cfg_save_binds = CVARFD("cfg_save_binds", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves all key bindings to configs.");
 cvar_t	cfg_save_buttons = CVARFD("cfg_save_buttons", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves the state of things such as +mlook or +forward to configs.");
 

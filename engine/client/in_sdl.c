@@ -330,7 +330,9 @@ static void J_KillAll(void)
 #endif
 
 #if SDL_MAJOR_VERSION >= 2
-unsigned int MySDL_MapKey(unsigned int sdlkey)
+//FIXME: switch to scancodes rather than keysyms
+//use SDL_GetKeyName(SDL_GetKeyFromScancode(quaketosdl[qkey])) for keybinds menu
+unsigned int MySDL_MapKey(SDL_Keycode sdlkey)
 {
 	switch(sdlkey)
 	{
@@ -740,8 +742,10 @@ static unsigned int tbl_sdltoquakemouse[] =
 	K_MOUSE1,
 	K_MOUSE3,
 	K_MOUSE2,
+#if SDL_MAJOR_VERSION < 2
 	K_MWHEELUP,
 	K_MWHEELDOWN,
+#endif
 	K_MOUSE4,
 	K_MOUSE5,
 	K_MOUSE6,
@@ -915,11 +919,38 @@ void Sys_SendKeyEvents(void)
 				IN_MouseMove(event.motion.which, false, event.motion.xrel, event.motion.yrel, 0, 0);
 			break;
 
+#if SDL_MAJOR_VERSION >= 2
+		case SDL_MOUSEWHEEL:
+			if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+				event.wheel.y *= -1;
+			for (; event.wheel.y > 0; event.wheel.y--)
+			{
+				IN_KeyEvent(event.button.which, true, K_MWHEELUP, 0);
+				IN_KeyEvent(event.button.which, false, K_MWHEELUP, 0);
+			}
+			for (; event.wheel.y < 0; event.wheel.y++)
+			{
+				IN_KeyEvent(event.button.which, true, K_MWHEELDOWN, 0);
+				IN_KeyEvent(event.button.which, false, K_MWHEELDOWN, 0);
+			}
+/*			for (; event.wheel.x > 0; event.wheel.x--)
+			{
+				IN_KeyEvent(event.button.which, true, K_MWHEELRIGHT, 0);
+				IN_KeyEvent(event.button.which, false, K_MWHEELRIGHT, 0);
+			}
+			for (; event.wheel.x < 0; event.wheel.x++)
+			{
+				IN_KeyEvent(event.button.which, true, K_MWHEELLEFT, 0);
+				IN_KeyEvent(event.button.which, false, K_MWHEELLEFT, 0);
+			}*/
+			break;
+#endif
+
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
 #if SDL_MAJOR_VERSION >= 2
 			if (event.button.which == SDL_TOUCH_MOUSEID)
-				break;	//ignore legacy touch events. 
+				break;	//ignore legacy touch events. SDL_FINGER* events above will handle it (for multitouch)
 #endif
 			//Hmm. SDL allows for 255 buttons, but only defines 5...
 			if (event.button.button > sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]))

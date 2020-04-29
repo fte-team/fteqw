@@ -207,6 +207,7 @@ static qboolean pkg_updating;	//when flagged, further changes are blocked until 
 #else
 static const qboolean pkg_updating = false;
 #endif
+static qboolean pm_packagesinstalled;
 
 //FIXME: these are allocated for the life of the exe. changing basedir should purge the list.
 static int numdownloadablelists = 0;
@@ -2459,7 +2460,15 @@ static void PM_PackageEnabled(package_t *p)
 			continue;
 		COM_FileExtension(dep->name, ext, sizeof(ext));
 		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-			FS_ReloadPackFiles();
+		{
+			if (pm_packagesinstalled)
+			{
+				pm_packagesinstalled = false;
+				FS_ChangeGame(fs_manifest, true, false);
+			}
+			else
+				FS_ReloadPackFiles();
+		}
 #ifdef PLUGINS
 		if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 			Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
@@ -2533,29 +2542,31 @@ static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, 
 }
 
 static void PM_StartADownload(void);
-//callback from PM_StartADownload
-static void PM_Download_Got(struct dl_download *dl)
+typedef struct
 {
-	char native[MAX_OSPATH];
-	qboolean successful = dl->status == DL_FINISHED;
 	package_t *p;
-	char *tempname = dl->user_ctx;
-	const enum fs_relative temproot = dl->user_num;
+	qboolean successful;
+	char *tempname;	//z_strduped string, so needs freeing.
+	enum fs_relative temproot;
+	char localname[256];
+	char url[256];
+} pmdownloadedinfo_t;
+//callback from PM_StartADownload
+static void PM_Download_Got(int iarg, void *data)
+{
+	pmdownloadedinfo_t *info = data;
+	char native[MAX_OSPATH];
+	qboolean successful = info->successful;
+	package_t *p;
+	char *tempname = info->tempname;
+	const enum fs_relative temproot = info->temproot;
 
 	for (p = availablepackages; p ; p=p->next)
 	{
-		if (p->download == dl)
+		if (p == info->p)
 			break;
 	}
-
-	if (dl->file)
-	{
-		if (!VFS_CLOSE(dl->file))
-			successful = false;
-		dl->file = NULL;
-	}
-	else
-		successful = false;
+	pm_packagesinstalled=true;
 
 	if (p)
 	{
@@ -2566,7 +2577,7 @@ static void PM_Download_Got(struct dl_download *dl)
 
 		if (!successful)
 		{
-			Con_Printf("Couldn't download %s (from %s)\n", p->name, dl->url);
+			Con_Printf("Couldn't download %s (from %s)\n", p->name, info->url);
 			FS_Remove (tempname, temproot);
 			Z_Free(tempname);
 			PM_StartADownload();
@@ -2732,11 +2743,42 @@ static void PM_Download_Got(struct dl_download *dl)
 		Con_Printf("menu_download: %s has no filename info\n", p->name);
 	}
 	else
-		Con_Printf("menu_download: Can't figure out where %s came from (url: %s)\n", dl->localname, dl->url);
+		Con_Printf("menu_download: Can't figure out where %s came from (url: %s)\n", info->localname, info->url);
 
 	FS_Remove (tempname, temproot);
 	Z_Free(tempname);
 	PM_StartADownload();
+}
+static void PM_Download_PreliminaryGot(struct dl_download *dl)
+{	//this function is annoying.
+	//we're on the mainthread, but we might still be waiting for some other thread to complete
+	//there could be loads of stuff on the callstack. lots of stuff that could get annoyed if we're restarting the entire filesystem, for instance.
+	//so set up a SECOND callback using a different mechanism...
+
+	pmdownloadedinfo_t info;
+	info.tempname = dl->user_ctx;
+	info.temproot = dl->user_num;
+
+	Q_strncpyz(info.url, dl->url, sizeof(info.url));
+	Q_strncpyz(info.localname, dl->localname, sizeof(info.localname));
+
+	for (info.p = availablepackages; info.p ; info.p=info.p->next)
+	{
+		if (info.p->download == dl)
+			break;
+	}
+
+	info.successful = (dl->status == DL_FINISHED);
+	if (dl->file)
+	{
+		if (!VFS_CLOSE(dl->file))
+			info.successful = false;
+		dl->file = NULL;
+	}
+	else
+		info.successful = false;
+
+	Cmd_AddTimer(0, PM_Download_Got, 0, &info, sizeof(info));
 }
 
 static char *PM_GetTempName(package_t *p)
@@ -2956,6 +2998,16 @@ int PM_IsApplying(qboolean listsonly)
 }
 
 #ifdef WEBCLIENT
+static void PM_DownloadsCompleted(int iarg, void *data)
+{	//if something installed, then make sure everything is reconfigured properly.
+	if (pm_packagesinstalled)
+	{
+		pm_packagesinstalled = false;
+		FS_ChangeGame(fs_manifest, true, false);
+	}
+}
+
+
 //looks for the next package that needs downloading, and grabs it
 static void PM_StartADownload(void)
 {
@@ -3070,7 +3122,7 @@ static void PM_StartADownload(void)
 
 			if (tmpfile)
 			{
-				p->download = HTTP_CL_Get(mirror, NULL, PM_Download_Got);
+				p->download = HTTP_CL_Get(mirror, NULL, PM_Download_PreliminaryGot);
 				if (!p->download)
 					Con_Printf("Unable to download %s\n", p->name);
 			}
@@ -3099,6 +3151,9 @@ static void PM_StartADownload(void)
 			}
 		}
 	}
+
+	if (pkg_updating && !downloading)
+		Cmd_AddTimer(0, PM_DownloadsCompleted, 0, NULL, 0);
 
 	//clear the updating flag once there's no more activity needed
 	pkg_updating = downloading;
@@ -3244,8 +3299,12 @@ void PM_ApplyChanges(void)
 	//and flag any new/updated ones for a download
 	for (p = availablepackages; p ; p=p->next)
 	{
-		if ((p->flags&DPF_ALLMARKED) && !(p->flags&DPF_ENABLED) && !p->download)
-			p->trymirrors = ~0u;
+		if (!p->download)
+			if (((p->flags & DPF_MANIMARKED) && !(p->flags&DPF_PRESENT)) ||	//satisfying a manifest merely requires that it be present, not actually enabled.
+				((p->flags&DPF_MARKED) && !(p->flags&DPF_ENABLED)))			//actually enabled stuff requires actual enablement
+			{
+				p->trymirrors = ~0u;
+			}
 	}
 	PM_StartADownload();	//and try to do those downloads.
 #else
@@ -4127,6 +4186,7 @@ typedef struct {
 	char pathprefix[MAX_QPATH];
 	int downloadablessequence;
 	char titletext[128];
+	char applymessage[128];	//so we can change its text to give it focus
 	qboolean populated;
 } dlmenu_t;
 
@@ -4646,6 +4706,13 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 	else
 		Q_snprintfz(info->titletext, sizeof(info->titletext), "Downloads (+%u -%u)", addpackages, rempackages);
 
+	if (pkg_updating)
+		Q_snprintfz(info->applymessage, sizeof(info->applymessage), "Apply (please wait)");
+	else if (addpackages || rempackages)
+		Q_snprintfz(info->applymessage, sizeof(info->applymessage), "%sApply (+%u -%u)", ((int)(realtime*4)&3)?"^a":"", addpackages, rempackages);
+	else
+		Q_snprintfz(info->applymessage, sizeof(info->applymessage), "Apply");
+
 	if (!info->populated)
 	{
 		for (i = 0; i < numdownloadablelists; i++)
@@ -4660,7 +4727,7 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 		info->populated = true;
 		MC_AddFrameStart(m, 48);
 		y = 48;
-		b = MC_AddCommand(m, 48, 320-16, y, "Apply", MD_ApplyDownloads);
+		b = MC_AddCommand(m, 48, 320-16, y, info->applymessage, MD_ApplyDownloads);
 		b->rightalign = false;
 		b->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
 		y+=8;

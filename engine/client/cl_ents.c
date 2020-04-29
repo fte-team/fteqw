@@ -3828,7 +3828,7 @@ void CL_TransitionEntities (void)
 		frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
 
 //	if (!cl.paused)
-//		Con_Printf("%f %f %f (%f) (%i) %f %f %f\n", packold->servertime, servertime, packnew->servertime, frac, newff, cl.oldgametime, servertime, cl.gametime);
+//		Con_DPrintf("%f %s%f^7 %f (%f) (%i) %f %s%f^7 %f\n", packold->servertime, (servertime<packold->servertime||packnew->servertime<servertime)?"^1":"",servertime, packnew->servertime, frac, newff, cl.oldgametime, (servertime<cl.oldgametime||cl.gametime<servertime)?"^3":"", servertime, cl.gametime);
 
 	CL_TransitionPacketEntities(newff, packnew, packold, frac, servertime);
 

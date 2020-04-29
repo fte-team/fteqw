@@ -3166,18 +3166,25 @@ float S_GetChannelLevel(int entnum, int entchannel)
 				{
 					spos -= scache->soundoffset;
 					spos *= scache->numchannels;
-					switch(scache->width)
+					switch(scache->format)
 					{
-					case 1:
+					case QAF_S8:
 						for (j = 0; j < scache->numchannels; j++)	//average the channels
 							result += abs(((signed char*)scache->data)[spos+j]);
 						result /= scache->numchannels*127.0;
 						break;
-					case 2:
+					case QAF_S16:
 						for (j = 0; j < scache->numchannels; j++)	//average the channels
 							result += abs(((signed short*)scache->data)[spos+j]);
 						result /= scache->numchannels*32767.0;
 						break;
+#ifdef MIXER_F32
+					case QAF_F32:
+						for (j = 0; j < scache->numchannels; j++)	//average the channels
+							result += fabs(((float*)scache->data)[spos+j]);
+						result /= scache->numchannels;
+						break;
+#endif
 					}
 				}
 				else
@@ -4124,14 +4131,14 @@ void S_SoundList_f(void)
 			Con_Printf("?(      )            : %s\n", sfx->name);
 			continue;
 		}
-		size = (sc->soundoffset+sc->length)*sc->width*(sc->numchannels);
+		size = (sc->soundoffset+sc->length)*QAF_BYTES(sc->format)*(sc->numchannels);
 		duration = (sc->soundoffset+sc->length) / sc->speed;
 		total += size;
 		if (sfx->loopstart >= 0)
 			Con_Printf ("L");
 		else
 			Con_Printf (" ");
-		Con_Printf("(%2db%2ic) %6i %2is : %s\n",sc->width*8, sc->numchannels, size, duration, sfx->name);
+		Con_Printf("(%2db%2ic) %6i %2is : %s\n",QAF_BYTES(sc->format)*8, sc->numchannels, size, duration, sfx->name);
 	}
 	Con_Printf ("Total resident: %i\n", total);
 
@@ -4179,7 +4186,7 @@ typedef struct {
 	sfx_t *sfx;
 
 	int numchannels;
-	int width;
+	qaudiofmt_t format;
 	int length;
 	void *data;
 } streaming_t;
@@ -4202,7 +4209,7 @@ sfxcache_t *QDECL S_Raw_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 		buf->numchannels = s->numchannels;
 		buf->soundoffset = 0;
 		buf->speed = snd_speed;
-		buf->width = s->width;
+		buf->format = s->format;
 	}
 	if (start >= s->length)
 		return NULL;	//eof...
@@ -4226,7 +4233,7 @@ void QDECL S_Raw_Purge(sfx_t *sfx)
 }
 
 //streaming audio.	//this is useful when there is one source, and the sound is to be played with no attenuation
-void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, int width, float volume)
+void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, qaudiofmt_t format, float volume)
 {
 	soundcardinfo_t *si;
 	int i;
@@ -4292,7 +4299,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		s->sfx->loadstate = SLS_LOADED;
 
 		s->numchannels = channels;
-		s->width = width;
+		s->format = format;
 		s->data = NULL;
 		s->length = 0;
 
@@ -4302,9 +4309,9 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	}
 	S_LockMixer();
 
-	if (s->width != width || s->numchannels != channels)
+	if (s->format != format || s->numchannels != channels)
 	{
-		s->width = width;
+		s->format = format;
 		s->numchannels = channels;
 		s->length = 0;
 		Con_Printf("Restarting raw stream\n");
@@ -4352,8 +4359,8 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		}
 	}
 
-	newcache = BZ_Malloc((spare+outsamples) * (s->numchannels) * s->width);
-	memcpy(newcache, (qbyte*)s->data + prepadl * (s->numchannels) * s->width, spare * (s->numchannels) * s->width);
+	newcache = BZ_Malloc((spare+outsamples) * (s->numchannels) * QAF_BYTES(s->format));
+	memcpy(newcache, (qbyte*)s->data + prepadl * (s->numchannels) * QAF_BYTES(s->format), spare * (s->numchannels) * QAF_BYTES(s->format));
 
 	BZ_Free(s->data);
 	s->data = newcache;
@@ -4362,15 +4369,15 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 	{
 		extern cvar_t snd_linearresample_stream;
-		short *outpos = (short *)((char*)s->data + spare * (s->numchannels) * s->width);
+		short *outpos = (short *)((char*)s->data + spare * (s->numchannels) * QAF_BYTES(s->format));
 		SND_ResampleStream(data,
 			speed,
-			width,
+			format,
 			channels,
 			samples,
 			outpos,
 			snd_speed,
-			s->width,
+			s->format,
 			s->numchannels,
 			snd_linearresample_stream.ival);
 	}

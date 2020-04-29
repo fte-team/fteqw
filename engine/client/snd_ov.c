@@ -99,7 +99,7 @@ static float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *nam
 		buf->length = dec->pcmtotal;
 		buf->numchannels = dec->srcchannels;
 		buf->speed = dec->srcspeed;
-		buf->width = 2;
+		buf->format = QAF_S16;
 	}
 	if (name)
 	{
@@ -276,7 +276,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 		buf->length = dec->decodedbytecount / (2 * dec->srcchannels);
 		buf->numchannels = dec->srcchannels;
 		buf->speed = snd_speed;
-		buf->width = 2;
+		buf->format = QAF_S16;
 	}
 	return buf;
 }

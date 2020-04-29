@@ -1,6 +1,5 @@
 !!ver 100 450
 !!permu FOG
-!!cvarf r_wateralpha
 !!samps diffuse lightmap
 
 #include "sys/defs.h"
@@ -9,6 +8,7 @@
 //this is expected to be moderately fast.
 
 #include "sys/fog.h"
+
 varying vec2 tc;
 #ifdef LIT
 varying vec2 lm0;
@@ -27,12 +27,6 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
-#ifndef ALPHA
-uniform float cvar_r_wateralpha;
-#define USEALPHA cvar_r_wateralpha
-#else
-#define USEALPHA float(ALPHA)
-#endif
 void main ()
 {
 	vec2 ntc;
@@ -44,6 +38,10 @@ void main ()
 	ts *= (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 #endif
 
-	gl_FragColor = fog4blend(vec4(ts, USEALPHA) * e_colourident);
+#ifdef ALPHA
+	gl_FragColor = fog4blend(vec4(ts, float(ALPHA)) * e_colourident);
+#else
+	gl_FragColor = fog4(vec4(ts, 1.0) * e_colourident);
+#endif
 }
 #endif

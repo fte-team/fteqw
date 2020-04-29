@@ -1291,7 +1291,9 @@ const dtlsfuncs_t *SSPI_DTLS_InitClient(void)
 #endif
 
 
-#include <ntstatus.h>
+//#include <ntstatus.h>	//windows sucks too much to actually include this. oh well.
+#define STATUS_SUCCESS ((NTSTATUS)0x00000000)
+#define STATUS_INVALID_SIGNATURE ((NTSTATUS)0xC000A000)
 enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize)
 {
 	NTSTATUS status;
@@ -1303,8 +1305,8 @@ enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const ch
 	size_t dersize;
 
 	static const void *(WINAPI *pCertCreateContext) (DWORD dwContextType, DWORD dwEncodingType, const BYTE *pbEncoded, DWORD cbEncoded, DWORD dwFlags, PCERT_CREATE_CONTEXT_PARA pCreatePara);
-	static WINBOOL (WINAPI *pCryptImportPublicKeyInfoEx2) (DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pInfo, DWORD dwFlags, void *pvAuxInfo, BCRYPT_KEY_HANDLE *phKey);
-	static WINBOOL (WINAPI *pCertFreeCertificateContext) (PCCERT_CONTEXT pCertContext);
+	static BOOL (WINAPI *pCryptImportPublicKeyInfoEx2) (DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pInfo, DWORD dwFlags, void *pvAuxInfo, BCRYPT_KEY_HANDLE *phKey);
+	static BOOL (WINAPI *pCertFreeCertificateContext) (PCCERT_CONTEXT pCertContext);
 	static dllhandle_t *crypt32;
 	static dllfunction_t crypt32funcs[] = {
 		{(void**)&pCertCreateContext,			"CertCreateContext"},

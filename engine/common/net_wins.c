@@ -2305,6 +2305,8 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 	if (!f)
 		f = SSPI_OpenVFS(hostname, source, isserver);
 #endif
+	if (!f)	//it all failed.
+		VFS_CLOSE(source);
 	return f;
 }
 int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize)
@@ -4627,6 +4629,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, ftenet_tcp_st
 	qboolean sendingweirdness = false;
 	char arg[WCATTR_COUNT][64];
 
+
 	if (!net_enable_http.ival && !net_enable_websockets.ival && !net_enable_rtcbroker.ival)
 	{
 		//we need to respond, firefox will create 10 different connections if we just close it
@@ -5278,6 +5281,25 @@ static enum{
 
 			if (headerscomplete)
 			{
+#if defined(SUBSERVERS) && defined(HAVE_SERVER)
+				//this is a new subserver node...
+				if (!Q_strncasecmp(st->inbuffer, "NODE", 4))
+				{
+					char tmpbuf[256];
+#ifdef HAVE_EPOLL
+					//the tcp connection will be handled elsewhere.
+					//make sure we don't get tcp-handler wakeups from this connection.
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, st->socketnum, NULL);
+					st->socketnum = INVALID_SOCKET;
+					st->epoll.Polled = NULL;
+#endif
+					//now try to pass it over
+					MSV_NewNetworkedNode(st->clientstream, st->inbuffer, st->inbuffer+i, st->inlen-i, NET_AdrToString(tmpbuf, sizeof(tmpbuf), &st->remoteaddr));
+					st->clientstream = NULL;	//qtv code took it.
+					return FTETCP_KILL;
+				}
+				else
+#endif
 #ifdef MVD_RECORDING
 				//for QTV connections, we just need the method and a blank line. our qtv parser will parse the actual headers.
 				if (!Q_strncasecmp(st->inbuffer, "QTV", 3))
@@ -8453,6 +8475,23 @@ void NET_Init (void)
 #if defined(HAVE_CLIENT)||defined(HAVE_SERVER)
 	Net_Master_Init();
 #endif
+
+#if defined(SUBSERVERS) && defined(HAVE_SERVER)
+	if (isDedicated && !SSV_IsSubServer())
+	{	//-clusterhost address:port password
+		//connects this server to a remote control/gateway server.
+		int i = COM_CheckParm("-clusterhost");
+		if (i && i+2 < com_argc)
+		{
+			vfsfile_t *f = FS_OpenTCP(com_argv[i+1], PORT_DEFAULTSERVER, true);
+			if (!f)
+				Sys_Error("Unable to resolve/connect to cluster host address \"%s\"\n", com_argv[i+1]);
+			VFS_PRINTF(f, "NODE\r\nPassword: \"%s\"\r\n", com_argv[i+2]);
+			SSV_SetupControlPipe(f);
+			return;
+		}
+	}
+#endif
 }
 #ifdef HAVE_CLIENT
 void NET_CloseClient(void)
@@ -8949,12 +8988,23 @@ vfsfile_t *FS_WrapTCPSocket(SOCKET sock, qboolean conpending, const char *peerna
 
 	return &newf->funcs;
 }
-vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 {
 	netadr_t adr = {0};
 	if (NET_StringToAdr(name, defaultport, &adr))
 	{
-		return FS_WrapTCPSocket(TCP_OpenStream(&adr), true, name);
+		qboolean wanttls = (adr.prot == NP_TLS || (adr.prot != NP_STREAM && assumetls));
+		vfsfile_t *f;
+#ifndef HAVE_SSL
+		if (wanttls)
+			return NULL;	//don't even make the connection if we can't satisfy it.
+#endif
+		f = FS_WrapTCPSocket(TCP_OpenStream(&adr), true, name);
+#ifdef HAVE_SSL
+		if (f && wanttls)
+			f = FS_OpenSSL(name, f, false);
+#endif
+		return f;
 	}
 	else
 		return NULL;

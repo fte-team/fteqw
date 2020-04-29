@@ -276,82 +276,71 @@ void Sys_Sleep (double seconds)
 #include <errno.h>
 #include <sys/wait.h>
 
-typedef struct slaveserver_s
+typedef struct
 {
-	pubsubserver_t pub;
+	vfsfile_t pub;
 
 	int inpipe;
 	int outpipe;
 	pid_t pid;	//so we don't end up with zombie processes
-	
-	qbyte inbuffer[2048];
-	int inbufsize;
 } linsubserver_t;
 
-static void Sys_InstructSlave(pubsubserver_t *ps, sizebuf_t *cmd)
+static int QDECL Sys_MSV_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
-	//FIXME: this is blocking. this is bad if the target is also blocking while trying to write to us.
-	//FIXME: merge buffering logic with SSV_InstructMaster, and allow for failure if full
-	linsubserver_t *s = (linsubserver_t*)ps;
-	if (s->outpipe == -1)
-		return;	//it already died.
-	cmd->data[0] = cmd->cursize & 0xff;
-	cmd->data[1] = (cmd->cursize>>8) & 0xff;
-	write(s->outpipe, cmd->data, cmd->cursize);
-}
-
-static int Sys_SubServerRead(pubsubserver_t *ps)
-{
-	linsubserver_t *s = (linsubserver_t*)ps;
-
-	if (s->inbufsize < sizeof(s->inbuffer) && s->inpipe != -1)
+	linsubserver_t *s = (linsubserver_t*)file;
+	ssize_t avail = read(s->inpipe, buffer, bytestoread);
+	if (!avail)
+		return -1;	//EOF
+	if (avail < 0)
 	{
-		ssize_t avail = read(s->inpipe, s->inbuffer+s->inbufsize, sizeof(s->inbuffer)-s->inbufsize);
-		if (!avail)
-		{	//eof
-			close(s->inpipe);
-			close(s->outpipe);
-			Con_Printf("%i:%s has died\n", s->pub.id, s->pub.name);
-			s->inpipe = -1;
-			s->outpipe = -1;
-			waitpid(s->pid, NULL, 0);
-		}
-		else if (avail < 0)
-		{
-			int e = errno;
-			if (e == EAGAIN || e == EWOULDBLOCK)
-				;
-			else
-				perror("subserver read");
-		}
+		int e = errno;
+		if (e == EAGAIN || e == EWOULDBLOCK || e == EINTR)
+			return 0;	//no data available
 		else
-			s->inbufsize += avail;
-	}
-
-	if(s->inbufsize >= 2)
-	{
-		unsigned short len = s->inbuffer[0] | (s->inbuffer[1]<<8);
-		if (s->inbufsize >= len && len>=2)
 		{
-			memcpy(net_message.data, s->inbuffer+2, len-2);
-			net_message.cursize = len-2;
-			memmove(s->inbuffer, s->inbuffer+len, s->inbufsize - len);
-			s->inbufsize -= len;
-			MSG_BeginReading (msg_nullnetprim);
-
-			return 1;
+			perror("subserver read");
+			return -1;	//some sort of error
 		}
 	}
-	else if (s->inpipe == -1)
-		return -1;
-	return 0;
+	return avail;
+}
+static int QDECL Sys_MSV_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	linsubserver_t *s = (linsubserver_t*)file;
+	ssize_t wrote = write(s->outpipe, buffer, bytestowrite);
+	if (!wrote)
+		return -1;	//EOF
+	if (wrote < 0)
+	{
+		int e = errno;
+		if (e == EAGAIN || e == EWOULDBLOCK || e == EINTR)
+			return 0;	//no space available
+		else
+		{
+			perror("subserver write");
+			return -1;	//some sort of error
+		}
+	}
+	return wrote;
+}
+static qboolean QDECL Sys_MSV_Close (struct vfsfile_s *file)
+{
+	linsubserver_t *s = (linsubserver_t*)file;
+
+	close(s->inpipe);
+	close(s->outpipe);
+	s->inpipe = -1;
+	s->outpipe = -1;
+	waitpid(s->pid, NULL, 0);
+	Z_Free(s);
+	return true;
 }
 
 #ifdef SQL
 #include "sv_sql.h"
 #endif
 
-pubsubserver_t *Sys_ForkServer(void)
+vfsfile_t *Sys_ForkServer(void)
 {
 #ifdef SERVERONLY
 //	extern  jmp_buf 	host_abort;
@@ -473,23 +462,29 @@ pubsubserver_t *Sys_ForkServer(void)
 	close(toslave[0]);
 	ctx->outpipe = toslave[1];
 
-	ctx->pub.funcs.InstructSlave = Sys_InstructSlave;
-	ctx->pub.funcs.SubServerRead = Sys_SubServerRead;
+	ctx->pub.ReadBytes = Sys_MSV_ReadBytes;
+	ctx->pub.WriteBytes = Sys_MSV_WriteBytes;
+	ctx->pub.Close = Sys_MSV_Close;
 	return &ctx->pub;
 }
 
-void Sys_InstructMaster(sizebuf_t *cmd)
-{
-	write(STDOUT_FILENO, cmd->data, cmd->cursize);
 
-	//FIXME: handle partial writes.
+static int QDECL Sys_StdoutWrite (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	ssize_t r = write(STDOUT_FILENO, buffer, bytestowrite);
+	if (r == 0 && bytestowrite)
+		return -1;	//eof
+	if (r < 0)
+	{
+		int e = errno;
+		if (e == EINTR || e == EAGAIN || e == EWOULDBLOCK)
+			return 0;
+	}
+	return r;
 }
-
-void SSV_CheckFromMaster(void)
+static int QDECL Sys_StdinRead (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
-	static char inbuffer[1024];
-	static int inbufsize;
-
+	ssize_t r;
 #if defined(__linux__) && defined(_DEBUG)
 	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
 	if (!(fl & FNDELAY))
@@ -499,53 +494,28 @@ void SSV_CheckFromMaster(void)
 	}
 #endif
 
-	for(;;)
+	r = read(STDIN_FILENO, buffer, bytestoread);
+	if (r == 0 && bytestoread)
+		return -1;	//eof
+	if (r < 0)
 	{
-		if(inbufsize >= 2)
-		{
-			unsigned short len = inbuffer[0] | (inbuffer[1]<<8);
-			if (inbufsize >= len && len>=2)
-			{
-				memcpy(net_message.data, inbuffer+2, len-2);
-				net_message.cursize = len-2;
-				memmove(inbuffer, inbuffer+len, inbufsize - len);
-				inbufsize -= len;
-				MSG_BeginReading (msg_nullnetprim);
-
-				SSV_ReadFromControlServer();
-
-				continue;	//keep trying to handle it
-			}
-		}
-
-		if (inbufsize == sizeof(inbuffer))
-		{	//fatal: we can't easily recover from this.
-			SV_FinalMessage("Cluster message too large\n");
-			Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
-			break;
-		}
-
-		{
-			ssize_t avail = read(STDIN_FILENO, inbuffer+inbufsize, sizeof(inbuffer)-inbufsize);
-			if (!avail)
-			{	//eof
-				SV_FinalMessage("Cluster shut down\n");
-				Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
-				break;
-			}
-			else if (avail < 0)
-			{
-				int e = errno;
-				if (e == EAGAIN || e == EWOULDBLOCK)
-					;
-				else
-					perror("master read");
-				break;
-			}
-			else
-				inbufsize += avail;
-		}
+		int e = errno;
+		if (e == EINTR || e == EAGAIN || e == EWOULDBLOCK)
+			return 0;
 	}
+	return r;
+}
+qboolean QDECL Sys_StdinOutClose(vfsfile_t *fs)
+{
+	Sys_Error("Shutdown\n");
+}
+vfsfile_t *Sys_GetStdInOutStream(void)
+{
+	vfsfile_t *stream = Z_Malloc(sizeof(*stream));
+	stream->WriteBytes = Sys_StdoutWrite;
+	stream->ReadBytes = Sys_StdinRead;
+	stream->Close = Sys_StdinOutClose;
+	return stream;
 }
 #endif
 

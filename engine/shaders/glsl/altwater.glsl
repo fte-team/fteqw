@@ -5,6 +5,7 @@
 !!samps =REFLECT	reflect=1
 !!samps =RIPPLEMAP	ripplemap=2
 !!samps =DEPTH 		refractdepth=3
+!!permu FOG
 
 #include "sys/defs.h"
 
@@ -87,9 +88,7 @@ void main (void)
 }
 #endif
 #ifdef FRAGMENT_SHADER
-#ifdef ALPHA
 #include "sys/fog.h"
-#endif
 
 
 void main (void)
@@ -178,6 +177,8 @@ void main (void)
 	vec4 ts = texture2D(s_diffuse, ntc);
 	vec4 surf = fog4blend(vec4(ts.rgb, float(ALPHA)*ts.a));
 	refr = mix(refr, surf.rgb, surf.a);
+#else
+	refr = fog3(refr);	
 #endif
 
 	//done

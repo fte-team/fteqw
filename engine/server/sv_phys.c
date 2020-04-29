@@ -2523,8 +2523,13 @@ qboolean SV_Physics (void)
 	int maxtics;
 	double trueframetime = host_frametime;
 	double maxtic = sv_maxtic.value;
-	if (maxtic < sv_mintic.value)
-		maxtic = sv_mintic.value;
+	double mintic = sv_mintic.value;
+	extern cvar_t sv_nqplayerphysics;
+	if (sv_nqplayerphysics.ival)
+		if (mintic < 0.013)
+			mintic = 0.013;	//NQ physics can't cope with low rates and just generally bugs out.
+	if (maxtic < mintic)
+		maxtic = mintic;
 
 	//keep gravity tracking the cvar properly
 	movevars.gravity = sv_gravity.value;
@@ -2653,7 +2658,7 @@ qboolean SV_Physics (void)
 			sv.world.physicstime = sv.time;
 			break;
 		}
-		if (host_frametime <= 0 || host_frametime < sv_mintic.value)
+		if (host_frametime <= 0 || host_frametime < mintic)
 			break;
 		if (host_frametime > maxtic)
 		{

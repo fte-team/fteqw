@@ -886,9 +886,9 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 	else
 	{
-		unsigned int blockbytes, blockwidth, blockheight;
+		unsigned int blockbytes, blockwidth, blockheight, blockdepth;
 		//get format info
-		Image_BlockSizeForEncoding(format, &blockbytes, &blockwidth, &blockheight);
+		Image_BlockSizeForEncoding(format, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 		//round up as appropriate
 		blockwidth = ((width+blockwidth-1)/blockwidth)*blockwidth;
 		blockheight = ((height+blockheight-1)/blockheight)*blockheight;
@@ -1718,12 +1718,12 @@ void QCBUILTIN PF_menu_findchain (pubprogfuncs_t *prinst, struct globalvars_s *p
 	menuedict_t *ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
 
-	chain = (menuedict_t *) *prinst->parms->sv_edicts;
+	chain = (menuedict_t *) *prinst->parms->edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = (menuedict_t *)EDICT_NUM_PB(prinst, i);
 		if (ent->ereftype == ER_FREE)
@@ -1750,12 +1750,12 @@ void QCBUILTIN PF_menu_findchainfloat (pubprogfuncs_t *prinst, struct globalvars
 	menuedict_t	*ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
 
-	chain = (menuedict_t *) *prinst->parms->sv_edicts;
+	chain = (menuedict_t *) *prinst->parms->edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM1);
 
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = (menuedict_t*)EDICT_NUM_PB(prinst, i);
 		if (ent->ereftype == ER_FREE)
@@ -1779,12 +1779,12 @@ void QCBUILTIN PF_menu_findchainflags (pubprogfuncs_t *prinst, struct globalvars
 	menuedict_t	*ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
 
-	chain = (menuedict_t *) *prinst->parms->sv_edicts;
+	chain = (menuedict_t *) *prinst->parms->edicts;
 
 	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM1);
 
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = (menuedict_t*)EDICT_NUM_PB(prinst, i);
 		if (ent->ereftype == ER_FREE)
@@ -2985,9 +2985,12 @@ qboolean MP_Init (void)
 	menuprogparms.autocompile = PR_COMPILEIGNORE;//PR_COMPILEEXISTANDCHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	menuprogparms.gametime = &menutime;
+#ifdef MULTITHREAD
+	menuprogparms.usethreadedgc = pr_gc_threaded.ival;
+#endif
 
-	menuprogparms.sv_edicts = (struct edict_s **)&menu_edicts;
-	menuprogparms.sv_num_edicts = &num_menu_edicts;
+	menuprogparms.edicts = (struct edict_s **)&menu_edicts;
+	menuprogparms.num_edicts = &num_menu_edicts;
 
 	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.user = &menu_world;

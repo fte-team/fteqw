@@ -311,8 +311,9 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						continue;
 					}
 
-					if (scache->width == 1)
+					switch(scache->format)
 					{
+					case QAF_S8:
 						if (scache->numchannels==2)
 							SND_PaintChannel8_O2I2(ch, scache, ltime-sc->paintedtime, count, rate);
 						else if (sc->sn.numchannels <= 2)
@@ -323,9 +324,8 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							SND_PaintChannel8_O6I1(ch, scache, count, rate);
 						else
 							SND_PaintChannel8_O8I1(ch, scache, count, rate);
-					}
-					else if (scache->width == 2)
-					{
+						break;
+					case QAF_S16:
 						if (scache->numchannels==2)
 							SND_PaintChannel16_O2I2(ch, scache, ltime-sc->paintedtime, count, rate);
 						else if (sc->sn.numchannels <= 2)
@@ -336,10 +336,9 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							SND_PaintChannel16_O6I1(ch, scache, count, rate);
 						else
 							SND_PaintChannel16_O8I1(ch, scache, count, rate);
-					}
+						break;
 #ifdef MIXER_F32
-					else if (scache->width == 4)
-					{
+					case QAF_F32:
 						if (scache->numchannels==2)
 							SND_PaintChannel32F_O2I2(ch, scache, ltime-sc->paintedtime, count, rate);
 						else if (sc->sn.numchannels <= 2)
@@ -350,8 +349,9 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							SND_PaintChannel32F_O6I1(ch, scache, count, rate);
 						else
 							SND_PaintChannel32F_O8I1(ch, scache, count, rate);
-					}
+						break;
 #endif
+					}
 					ltime += count;
 					ch->pos += rate * count;
 				}

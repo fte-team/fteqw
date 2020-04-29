@@ -613,7 +613,7 @@ qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_
 void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *filesize);
 vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
 vfsfile_t *FS_OpenTemp(void);
-vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls);
 
 vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesize, int numfriends, ...);
 
@@ -705,6 +705,7 @@ typedef struct
 			GAMEDIR_READONLY=1u<<2,		//don't write here...
 			GAMEDIR_USEBASEDIR=1u<<3,	//packages will be read from the basedir (and homedir), but not other files. path is an empty string.
 			GAMEDIR_STEAMGAME=1u<<4,	//finds the game via steam. must also be private+readonly.
+			GAMEDIR_QSHACK=1u<<8,
 
 			GAMEDIR_SPECIAL=GAMEDIR_USEBASEDIR|GAMEDIR_STEAMGAME,	//if one of these flags, then the gamedir cannot be simply concatenated to the basedir/homedir.
 		} flags;

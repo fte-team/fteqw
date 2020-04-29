@@ -1501,6 +1501,8 @@ ASTC_PUBLIC void ASTC_Decode_LDR8(unsigned char *in, unsigned char *out, int pix
 				}
 			}
 		}
+		#undef N
+		#undef M
 	}
 	else
 	{	//error colour == magenta
@@ -1647,12 +1649,12 @@ ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pix
 		{
 #ifdef ASTC_WITH_3D
 			r = ((dr*z)*(b.wcount[2]-1)+32)>>6;
-			fr=s&0xf;
+			fr=r&0xf;
 #endif
 			for (y = 0; y < bh; y++, out += stride)
 			{
 				t = ((dt*y)*(b.wcount[1]-1)+32)>>6;
-				ft=s&0xf;
+				ft=t&0xf;
 				for (x = 0; x < bw; x++)
 				{
 					p = &b.part[ASTC_ChoosePartition(b.partindex, x,y,0, b.partitions, smallblock)];
@@ -1726,6 +1728,8 @@ ASTC_PUBLIC void ASTC_Decode_HDR(unsigned char *in, unsigned short *out, int pix
 				}
 			}
 		}
+		#undef N
+		#undef M
 	}
 	else
 	{	//error colour == magenta

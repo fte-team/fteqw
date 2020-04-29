@@ -324,7 +324,7 @@ if [ "$BUILD_LINUXx86" != "n" ]; then
 		cd $SVNROOT/quakec
 		cd csaddon/src
 		$BUILDFOLDER/linux_x86/fteqcc32 -srcfile csaddon.src > $BUILDLOGFOLDER/csaddon.txt
-		mv ../csaddon.dat $BUILDFOLDER/csaddon/
+		cp ../csaddon.dat $BUILDFOLDER/csaddon/
 		cd ..
 		zip -9 $BUILDFOLDER/csaddon/csaddon.pk3 csaddon.dat
 
@@ -333,7 +333,7 @@ if [ "$BUILD_LINUXx86" != "n" ]; then
 		$BUILDFOLDER/linux_x86/fteqcc32 -srcfile menu.src > $BUILDLOGFOLDER/menu.txt
 		rm -f fteqcc.log
 		zip -q -9 -o -r $BUILDFOLDER/csaddon/menusys_src.zip .
-		mv ../menu.dat $BUILDFOLDER/csaddon/
+		cp ../menu.dat $BUILDFOLDER/csaddon/
 		cd ..
 		zip -9 $BUILDFOLDER/csaddon/menusys.pk3 menu.dat
 	else

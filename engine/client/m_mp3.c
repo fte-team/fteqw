@@ -4913,7 +4913,7 @@ typedef struct
 	qbyte *dstdata;
 
 	unsigned int srcspeed;
-	unsigned int srcwidth;
+	qaudiofmt_t  srcformat;
 	unsigned int srcchannels;
 	unsigned int srcoffset; /*in bytes*/
 	unsigned int srclen;	/*in bytes*/
@@ -4992,7 +4992,7 @@ sfxcache_t *QDECL S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 		ACMSTREAMHEADER strhdr;
 		char buffer[8192];
 		extern cvar_t snd_linearresample_stream;
-		int framesz = (dec->srcwidth/8 * dec->srcchannels);
+		int framesz = (QAF_BYTES(dec->srcformat) * dec->srcchannels);
 
 		if (length)
 		{
@@ -5053,12 +5053,12 @@ sfxcache_t *QDECL S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 
 				SND_ResampleStream(strhdr.pbDst, 
 					dec->srcspeed, 
-					dec->srcwidth/8, 
+					dec->srcformat,
 					dec->srcchannels, 
 					strhdr.cbDstLengthUsed / framesz,
 					dec->dstdata+dec->dstcount*framesz,
 					snd_speed,
-					dec->srcwidth/8,
+					dec->srcformat,
 					dec->srcchannels,
 					snd_linearresample_stream.ival);
 				dec->dstcount = newlen;
@@ -5070,7 +5070,7 @@ sfxcache_t *QDECL S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 		buf->numchannels = dec->srcchannels;
 		buf->soundoffset = dec->dststart;
 		buf->speed = snd_speed;
-		buf->width = dec->srcwidth/8;
+		buf->format = dec->srcformat;
 
 		if (dec->srclen == dec->srcoffset && start >= dec->dststart+dec->dstcount)
 			return NULL;	//once we reach the EOF, start reporting errors.
@@ -5128,15 +5128,15 @@ static qboolean QDECL S_LoadMP3Sound (sfx_t *s, qbyte *data, size_t datalen, int
 
 	dec->srcspeed = 44100;
 	dec->srcchannels = 2;
-	dec->srcwidth = 16;
+	dec->srcformat = QAF_S16;
 
 	memset (&pcm_format, 0, sizeof(pcm_format));
 	pcm_format.wFormatTag = WAVE_FORMAT_PCM;
 	pcm_format.nChannels = dec->srcchannels;
 	pcm_format.nSamplesPerSec = dec->srcspeed;
-	pcm_format.nBlockAlign = dec->srcwidth/8*dec->srcchannels;
-	pcm_format.nAvgBytesPerSec = pcm_format.nSamplesPerSec*dec->srcwidth/8*dec->srcchannels;
-	pcm_format.wBitsPerSample = dec->srcwidth;
+	pcm_format.nBlockAlign = QAF_BYTES(dec->srcformat)*dec->srcchannels;
+	pcm_format.nAvgBytesPerSec = pcm_format.nSamplesPerSec*QAF_BYTES(dec->srcformat)*dec->srcchannels;
+	pcm_format.wBitsPerSample = QAF_BYTES(dec->srcformat)*8;
 	pcm_format.cbSize = 0;
 
 	mp3format.wfx.cbSize = MPEGLAYER3_WFX_EXTRA_BYTES;

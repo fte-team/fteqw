@@ -38,7 +38,7 @@ void    D3D11_DestroyTexture (texid_t tex)
 
 qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mips)
 {
-	unsigned int blockbytes, blockwidth, blockheight;
+	unsigned int blockbytes, blockwidth, blockheight, blockdepth;
 	HRESULT hr;
 	D3D11_TEXTURE2D_DESC tdesc = {0};
 	D3D11_SUBRESOURCE_DATA *subresdesc;
@@ -316,7 +316,7 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 		return false;
 	}
 
-	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 
 	if (!mips->mip[0].data)
 	{

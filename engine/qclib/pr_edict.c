@@ -926,6 +926,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **type
 	{
 		etype_t type;
 		//urgh, this is so hideous
+#if !defined(MINIMAL) && !defined(OMIT_QCC)
 		if (typehint == &type_float)
 			type = ev_float;
 		else if (typehint == &type_string)
@@ -937,6 +938,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **type
 		else if (typehint == &type_field)
 			type = ev_field;
 		else
+#endif
 			type = ev_integer;
 		s = PR_ValueString (progfuncs, type, val, false);
 		sprintf (line,"%i(?)%s", ofs, s);

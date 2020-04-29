@@ -9266,7 +9266,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
 	return NULL;
 }
 #else
-vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 {
 	return NULL;
 }

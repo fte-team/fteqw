@@ -27,7 +27,7 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	D3DSURFACE_DESC desc;
 	IDirect3DBaseTexture9 *dbt;
 	qboolean swap = false;
-	unsigned int blockwidth, blockheight, blockbytes;
+	unsigned int blockwidth, blockheight, blockdepth, blockbytes;
 
 	//NOTE: d3d9 formats are written as little-endian packed formats, so RR GG BB AA -> 0xAABBGGRR
 	//whereas fte formats vary depending on whether they're packed or byte-aligned.
@@ -109,7 +109,7 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	if (mips->type != ((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT))
 		return false;
 
-	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 
 	if (!pD3DDev9)
 		return false;	//can happen on errors

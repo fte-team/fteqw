@@ -3849,6 +3849,7 @@ void QCBUILTIN PF_strunzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 #ifdef QCGC
 	//gc frees everything for us.
+	//FIXME: explicitly free it anyway, to save running the gc quite so often.
 #else
 	prinst->AddressableFree(prinst, prinst->stringtable + G_INT(OFS_PARM0));
 #endif

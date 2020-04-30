@@ -2169,7 +2169,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 
 
 		if (svs.clients[ent->entnum-1].protocol == SCP_BAD)
-			svent->v->fixangle = 0;	//bots never get fixangle cleared otherwise
+			svent->v->fixangle = FIXANGLE_NO;	//bots never get fixangle cleared otherwise
 
 		host_client = &svs.clients[ent->entnum-1];
 		SV_ClientThink();

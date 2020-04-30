@@ -1624,19 +1624,66 @@ void SV_FindModelNumbers (void)
 	}
 }
 
+void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean roll)
+{
+	unsigned i;
+	client_t *controller = client->controller?client->controller:client;
+	edict_t *ent = client->edict;
+	float *ang;
+	if (!ent || client->protocol == SCP_QUAKE2)
+		return;
+	ang = ent->v->fixangle?ent->v->angles:ent->v->v_angle;	//angles is just WEIRD for mdls, but then quake sucks.
+	if (ent->v->movetype == MOVETYPE_6DOF)
+		roll = true;
+
+	if (fixtype == FIXANGLE_AUTO)
+	{
+		if (!client->lockangles && controller->delta_sequence != -1 && !client->viewent)
+			fixtype = FIXANGLE_DELTA;
+		else
+			fixtype = FIXANGLE_FIXED;
+	}
+	if (fixtype == FIXANGLE_DELTA && !(controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
+		fixtype = FIXANGLE_FIXED;	//sorry, can't do it.
+
+	if (!client->lockangles && controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
+		msg = NULL;	//try to keep them vaugely reliable, where feasable.
+	if (!msg)
+		msg = ClientReliable_StartWrite(client, 10);
+
+	if (client->seat)
+	{
+		MSG_WriteByte(msg, svcfte_choosesplitclient);
+		MSG_WriteByte(msg, client->seat);
+	}
+	if (fixtype == FIXANGLE_DELTA && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
+	{
+		MSG_WriteByte (msg, svcfte_setangledelta);
+		for (i=0 ; i < 3 ; i++)
+		{
+			int newa = ang[i] - SHORT2ANGLE(client->lastcmd.angles[i]);
+			MSG_WriteAngle16 (msg, newa);
+			client->lastcmd.angles[i] = ANGLE2SHORT(ang[i]);
+		}
+	}
+	else
+	{
+		MSG_WriteByte (msg, svc_setangle);
+		if (host_client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
+			MSG_WriteByte (&host_client->netchan.message, (fixtype == FIXANGLE_DELTA)?2:0);	//shitty backwards incompatible protocol extension that breaks from writebytes.
+		for (i=0 ; i < 3 ; i++)
+			MSG_WriteAngle (msg, (i==2&&!roll)?0:ang[i]);
+	}
+	client->lockangles = true;	//so that spammed fixangles use absolute values, locking the camera in place.
+}
+
 void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 {
 	edict_t	*other;
 	edict_t	*ent;
 	int i;
-	float newa;
-	client_t *controller;
 
 	ent = client->edict;
-	if (client->controller)
-		controller = client->controller;
-	else
-		controller = client;
 
 	if (!ent)
 		return;
@@ -1674,37 +1721,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	}
 	else if (ent->v->fixangle)
 	{
-		int fix = ent->v->fixangle;
-		if (!client->lockangles)
-		{
-			//try to keep them vaugely reliable.
-			if (controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
-				msg = &controller->netchan.message;
-		}
-
-		if (pnum)
-		{
-			MSG_WriteByte(msg, svcfte_choosesplitclient);
-			MSG_WriteByte(msg, pnum);
-		}
-		if (((!client->lockangles && fix!=3) || fix==2) && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && controller->delta_sequence != -1 && !client->viewent)
-		{
-			MSG_WriteByte (msg, svcfte_setangledelta);
-			for (i=0 ; i < 3 ; i++)
-			{
-				newa = ent->v->angles[i] - SHORT2ANGLE(client->lastcmd.angles[i]);
-				MSG_WriteAngle16 (msg, newa);
-				client->lastcmd.angles[i] = ANGLE2SHORT(ent->v->angles[i]);
-			}
-		}
-		else
-		{
-			MSG_WriteByte (msg, svc_setangle);
-			for (i=0 ; i < 3 ; i++)
-				MSG_WriteAngle (msg, ent->v->angles[i]);
-		}
-		ent->v->fixangle = 0;
-		client->lockangles = true;
+		SV_SendFixAngle(client, msg, ent->v->fixangle, true);
+		ent->v->fixangle = FIXANGLE_NO;
 	}
 	else
 		client->lockangles = false;

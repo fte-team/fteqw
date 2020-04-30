@@ -3489,7 +3489,10 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
 #define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT QUAKESPASMSUCKS
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
-#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\ncfg_save_auto 1\n" QCFG "set sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\n"
+#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\ncfg_save_auto 1\n" QCFG "set sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
+#define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\n"
+#define FITZCFG NQCFG "fps_preset builtin_spasm\n"
+#define TENEBRAECFG NQCFG "fps_preset builtin_tenebrae\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.
 #define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
 /*stuff that makes dp-only mods work a bit better*/
@@ -3512,6 +3515,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #else
 #define UPDATEURL(g)	NULL
 #endif
+
+#define QUAKEPROT "FTE-Quake DarkPlaces-Quake"
 
 typedef struct {
 	const char *argname;	//used if this was used as a parameter.
@@ -3558,17 +3563,17 @@ const gamemode_info_t gamemode_info[] = {
 #ifdef HAVE_LEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//standard quake
-	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},QCFG,{"id1",	"qw",				"*fte"},	"Quake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"Quake",							UPDATEURL(Q1)},
 	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
-	{"-afterquake",	NULL,		"FTE-Quake",{"id1/pak0.pak", "id1/quake.rc"},                 QCFG,{"id1",	"qw",				"*fte"},	"AfterQuake",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-afterquake",	NULL,		"FTE-Quake",			{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"AfterQuake",						UPDATEURL(Q1)},
 	//netquake-specific quake that avoids qw/ with its nquake fuckups, and disables nqisms
-	{"-netquake",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG,{"id1"},								"NetQuake",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
-	//blurgh
-	{"-spasm",		NULL,		"FTE-Quake DarkPlaces-Quake",{"quakespasm.pak"},			  NQCFG"fps_preset builtin_spasm\nset cl_demoreel 0\n",{"/id1"},			"FauxSpasm",						UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-netquake",	NULL,		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},NQCFG,	{"id1"},									"NetQuake",							UPDATEURL(Q1)},
+	//common variant of fitzquake that includes its own special pak file in the basedir
+	{"-spasm",		NULL,		QUAKEPROT,				{"quakespasm.pak"},				SPASMCFG,{"/id1"},									"FauxSpasm",						UPDATEURL(Q1)},
 	//because we can. 'fps_preset spasm' is hopefully close enough...
-	{"-fitz",		"nq",		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset builtin_spasm\n",{"id1"},			"FauxFitz",							UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-fitz",		"nq",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},FITZCFG,{"id1"},									"FauxFitz",							UPDATEURL(Q1)},
 	//because we can
-	{"-tenebrae",	NULL,		"FTE-Quake DarkPlaces-Quake",{"id1/pak0.pak", "id1/quake.rc"},NQCFG"fps_preset builtin_tenebrae\n",{"id1","tenebrae"},"FauxTenebrae",					UPDATEURL(Q1) /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-tenebrae",	NULL,		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",	"tenebrae"},					"FauxTenebrae",						UPDATEURL(Q1)},
 
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
@@ -3582,7 +3587,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
 	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
 	//various quake-based standalone mods.
-	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
+//	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
 //	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
 //														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
 //	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",

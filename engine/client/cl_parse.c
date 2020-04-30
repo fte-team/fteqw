@@ -8085,11 +8085,11 @@ void CLNQ_ParseServerMessage (void)
 			//fixme: move this stuff to a common place
 //			cl.playerview[destsplit].oldfixangle = cl.playerview[destsplit].fixangle;
 //			VectorCopy(cl.playerview[destsplit].fixangles, cl.playerview[destsplit].oldfixangles);
-//			cl.playerview[destsplit].fixangle = false;
+//			cl.playerview[destsplit].fixangle = FIXANGLE_NO;
 			if (cls.demoplayback)
 			{
 //				extern vec3_t demoangles;
-//				cl.playerview[destsplit].fixangle = true;
+//				cl.playerview[destsplit].fixangle = FIXANGLE_FIXED;
 //				VectorCopy(demoangles, cl.playerview[destsplit].fixangles);
 			}
 

@@ -55,6 +55,8 @@ extern cvar_t	cl_rollangle;
 #endif
 cvar_t	sv_spectalk	= CVAR("sv_spectalk", "1");
 
+#define nqcompat_spawnbeforeready 1
+
 cvar_t	sv_mapcheck	= CVAR("sv_mapcheck", "1");
 
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
@@ -2063,12 +2065,8 @@ void SV_Begin_Core(client_t *split)
 			PR_ExecuteProgram (svprogfuncs, f);
 		}
 
-		ClientReliableWrite_Begin(split, svc_setangle, 8);
-		if (host_client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
-			ClientReliableWrite_Byte (host_client, 0);
-		ClientReliableWrite_Angle (host_client, split->edict->v->v_angle[0]);
-		ClientReliableWrite_Angle (host_client, split->edict->v->v_angle[1]);
-		ClientReliableWrite_Angle (host_client, 0);	//roll angle is messy with cl_roll. we don't want to be stuck rolling.
+		SV_SendFixAngle(split, NULL, FIXANGLE_FIXED, false);
+		split->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
 		return;
 	}
 	split->spawned = true;
@@ -2247,6 +2245,9 @@ void SV_Begin_Core(client_t *split)
 		split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping_packetloss", ev_float, NULL);
 	}
 #endif
+
+	SV_SendFixAngle(split, NULL, FIXANGLE_FIXED, false);
+	split->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
 }
 
 /*
@@ -2258,7 +2259,6 @@ void SV_Begin_f (void)
 {
 	client_t	*split;
 	unsigned pmodel = 0, emodel = 0;
-	qboolean sendangles=false;
 
 	if (!SV_CheckRealIP(host_client, true))
 	{
@@ -2284,12 +2284,6 @@ void SV_Begin_f (void)
 		return;
 	}
 
-	if (host_client->istobeloaded)
-		sendangles = true;
-	if (host_client->protocol == SCP_QUAKE2)
-		sendangles = false;
-
-
 	for (split = host_client; split; split = split->controlled)
 	{	//tell the gamecode they're ready
 		SV_Begin_Core(split);
@@ -2310,22 +2304,6 @@ void SV_Begin_f (void)
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
 			SV_BroadcastTPrintf (PRINT_HIGH, "warning: %s eyes or player model does not match\n", host_client->name);
-	}
-
-	if (sendangles)
-	{
-//
-// send a fixangle over the reliable channel to make sure it gets there
-// Never send a roll angle, because savegames can catch the server
-// in a state where it is expecting the client to correct the angle
-// and it won't happen if the game was just loaded, so you wind up
-// with a permanent head tilt
-		MSG_WriteByte (&host_client->netchan.message, svc_setangle);
-		if (host_client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
-			MSG_WriteByte (&host_client->netchan.message, 0);
-		MSG_WriteAngle (&host_client->netchan.message, 0 );
-		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
-		MSG_WriteAngle (&host_client->netchan.message, 0 );
 	}
 
 #ifdef MVD_RECORDING
@@ -4295,27 +4273,8 @@ static void SV_UpdateSeats(client_t *controller)
 
 	for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
 	{
-// send a fixangle over the reliable channel to make sure it gets there
-// Never send a roll angle, because savegames can catch the server
-// in a state where it is expecting the client to correct the angle
-// and it won't happen if the game was just loaded, so you wind up
-// with a permanent head tilt
-		ClientReliableWrite_Begin(controller, svcfte_choosesplitclient, 2+curclients);
-		ClientReliableWrite_Byte (controller, curclients);
-		ClientReliableWrite_Byte (controller, svc_setangle);
-		if (cl->edict->v->fixangle)
-		{
-			ClientReliableWrite_Angle(controller, cl->edict->v->angles[0]);
-			ClientReliableWrite_Angle(controller, cl->edict->v->angles[1]);
-			ClientReliableWrite_Angle(controller, 0);//cl->edict->v->angles[2]);
-			cl->edict->v->fixangle = 0;
-		}
-		else
-		{
-			ClientReliableWrite_Angle(controller, cl->edict->v->v_angle[0]);
-			ClientReliableWrite_Angle(controller, cl->edict->v->v_angle[1]);
-			ClientReliableWrite_Angle(controller, 0);//cl->edict->v->v_angle[2]);
-		}
+		SV_SendFixAngle(cl, NULL, FIXANGLE_FIXED, false);
+		cl->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
 	}
 }
 
@@ -5192,7 +5151,7 @@ void Cmd_SetPos_f(void)
 		sv_player->v->angles[0] = atof(Cmd_Argv(4));
 		sv_player->v->angles[1] = atof(Cmd_Argv(5));
 		sv_player->v->angles[2] = atof(Cmd_Argv(6));
-		sv_player->v->fixangle = true;
+		sv_player->v->fixangle = FIXANGLE_FIXED;
 	}
 }
 
@@ -5779,8 +5738,7 @@ static void SVNQ_Spawn_f (void)
 	//qw servers hold off until the last possible moment.
 	//so qw servers prevent the player from getting shot too early.
 	//while nq ensures that reliables sent in ClientConnect are actually flushed before unreliables/entities start to arrive.
-//	if (nqcompat_spawnbeforeready.ival)
-		SV_Begin_Core(host_client);
+	SV_Begin_Core(host_client);
 
 	ClientReliableWrite_Begin (host_client, svcnq_signonnum, 2);
 	ClientReliableWrite_Byte (host_client, 3);
@@ -5790,14 +5748,14 @@ static void SVNQ_Spawn_f (void)
 static void SVNQ_Begin_f (void)
 {
 	unsigned pmodel = 0, emodel = 0;
-	qboolean sendangles=false;
 
 	if (host_client->state == cs_spawned)
 		return; // don't begin again
 
 	host_client->state = cs_spawned;
 
-	SV_Begin_Core(host_client);
+	//while qw spawns player entity in the 'begin' stage, nq spawns in the 'spawn' stage rather than here.
+//	SV_Begin_Core(host_client);
 
 	// clear the net statistics, because connecting gives a bogus picture
 	host_client->netchan.frame_latency = 0;
@@ -5815,20 +5773,6 @@ static void SVNQ_Begin_f (void)
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
 			SV_BroadcastTPrintf (PRINT_HIGH, "warning: %s eyes or player model not verified\n", host_client->name);
-	}
-
-	if (sendangles)
-	{
-//
-// send a fixangle over the reliable channel to make sure it gets there
-// Never send a roll angle, because savegames can catch the server
-// in a state where it is expecting the client to correct the angle
-// and it won't happen if the game was just loaded, so you wind up
-// with a permanent head tilt
-		MSG_WriteByte (&host_client->netchan.message, svc_setangle);
-		MSG_WriteAngle (&host_client->netchan.message, 0 );
-		MSG_WriteAngle (&host_client->netchan.message, host_client->edict->v->angles[1] );
-		MSG_WriteAngle (&host_client->netchan.message, 0 );
 	}
 
 //	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);

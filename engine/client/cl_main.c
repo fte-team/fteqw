@@ -894,13 +894,13 @@ void CL_CheckForResend (void)
 				connectinfo.subprotocol = CPNQ_DP7;
 			}
 			else if (!strcmp(lbp, "qss") ||
-					 (progstype != PROG_QW && progstype != PROG_H2 && sv.state!=ss_clustermode))	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
+					 (progstype != PROG_QW && progstype != PROG_H2 && sv.state!=ss_clustermode && cl_splitscreen.ival <= 0))	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
 				connectinfo.fteext1 = Net_PextMask(PROTOCOL_VERSION_FTE1, true);
 				connectinfo.fteext2 = Net_PextMask(PROTOCOL_VERSION_FTE2, true);
-				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false) & EZPEXT1_CLIENTADVERTISE;
+				connectinfo.ezext1 = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, true) & EZPEXT1_CLIENTADVERTISE;
 			}
 #endif
 			else

@@ -454,6 +454,11 @@ enum
 #define STUFFCMD_BROADCAST    (   1<<2) // everyone sees it.
 #define STUFFCMD_UNRELIABLE   (   1<<3) // someone might not see it. oh well.
 
+#define FIXANGLE_NO		0	//don't override anything
+#define FIXANGLE_AUTO	1	//guess (initial=fixed, spammed=fixed, sporadic=relative)
+#define FIXANGLE_DELTA	2	//send a relative change
+#define FIXANGLE_FIXED	3	//send a absolute angle.
+
 enum serverprotocols_e
 {
 	SCP_BAD,	//don't send (a bot)
@@ -712,6 +717,7 @@ typedef struct client_s
 
 	struct client_s *controller;	/*first in splitscreen chain, NULL=nosplitscreen*/
 	struct client_s *controlled;	/*next in splitscreen chain*/
+	qbyte seat;
 
 	/*these are the current rates*/
 	float ratetime;
@@ -1321,6 +1327,7 @@ void VARGS SV_BroadcastTPrintf (int level, translation_t fmt, ...);
 void VARGS SV_BroadcastCommand (const char *fmt, ...) LIKEPRINTF(1);
 void SV_SendMessagesToAll (void);
 void SV_FindModelNumbers (void);
+void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean roll);
 
 void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *key, const char *newval);
 

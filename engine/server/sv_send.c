@@ -1669,8 +1669,8 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 	else
 	{
 		MSG_WriteByte (msg, svc_setangle);
-		if (host_client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
-			MSG_WriteByte (&host_client->netchan.message, (fixtype == FIXANGLE_DELTA)?2:0);	//shitty backwards incompatible protocol extension that breaks from writebytes.
+		if (client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
+			MSG_WriteByte (msg, (fixtype == FIXANGLE_DELTA)?2:0);	//shitty backwards incompatible protocol extension that breaks from writebytes.
 		for (i=0 ; i < 3 ; i++)
 			MSG_WriteAngle (msg, (i==2&&!roll)?0:ang[i]);
 	}

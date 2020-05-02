@@ -2814,7 +2814,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 						w->lagents = svs.clients[passedict->v->owner-1].laggedents;
 						w->maxlagents = svs.clients[passedict->v->owner-1].laggedents_count;
 						w->lagentsfrac = svs.clients[passedict->v->owner-1].laggedents_frac;
-						w->lagentstime = svs.clients[passedict->entnum-1].laggedents_time;
+						w->lagentstime = svs.clients[passedict->v->owner-1].laggedents_time;
 					}
 				}
 			}

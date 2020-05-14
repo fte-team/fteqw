@@ -138,7 +138,7 @@ class menu_updates : mitem_exmenu
 	{
 		if (key == "info")
 		{
-			string text, tmp;
+			string text=__NULL__, tmp;
 			tmp = getpackagemanagerinfo(grid.grid_kactive, GPMI_VERSION);		text = strcat(text, "^aVersion:^a ", tmp?:"Unspecified");
 			tmp = getpackagemanagerinfo(grid.grid_kactive, GPMI_AUTHOR);		text = strcat(text, "\n^aAuthor:^a ", tmp?:"Unknown");
 			tmp = getpackagemanagerinfo(grid.grid_kactive, GPMI_LICENSE);		text = strcat(text, "\n^aLicense:^a ", tmp?:"Unknown");

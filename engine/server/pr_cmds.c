@@ -1899,7 +1899,7 @@ void PR_SpawnInitialEntities(const char *file)
 }
 
 void SV_RegisterH2CustomTents(void);
-void Q_InitProgs(qboolean cinematic)
+void Q_InitProgs(enum initprogs_e flags)
 {
 	int i, i2;
 	func_t f, f2;
@@ -1924,189 +1924,237 @@ void Q_InitProgs(qboolean cinematic)
 
 	svs.numprogs=0;
 
-	d1 = FS_FLocateFile("progs.dat",	FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|FSLF_IGNOREBASEDEPTH, NULL);
-	d2 = FS_FLocateFile("qwprogs.dat",	FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|FSLF_IGNOREBASEDEPTH, NULL);
-	//FIXME id1/progs.dat vs qw/qwprogs.dat - these should be considered to have the same priority.
-	if (d1 < d2)	//progs.dat is closer to the gamedir
-		strcpy(addons, "progs.dat");
-	else if (d1 > d2)	//qwprogs.dat is closest
+	if (flags & INITPROGS_EDITOR)
 	{
-		strcpy(addons, "qwprogs.dat");
-		d1 = d2;
+		oldprnum = AddProgs("sseditor.dat");
+		PR_LoadGlabalStruct(true);
 	}
-	//both are an equal depth - same path.
-	else if (deathmatch.value && !COM_CheckParm("-game"))	//if deathmatch, default to qw
+	else
 	{
-		strcpy(addons, "qwprogs.dat");
-		d1 = d2;
-	}
-	else					//single player/coop is better done with nq.
-	{
-		strcpy(addons, "progs.dat");
-	}
-							//if progs cvar is left blank and a q2 map is loaded, the server will use the q2 game dll.
-							//if you do set a value here, q2 dll is not used.
-
-
-	//hexen2 - maplist contains a list of maps that we need to use an alternate progs.dat for.
-	d2 = COM_FDepthFile("maplist.txt", true);
-	if (d2 <= d1)//Use it if the maplist.txt file is within a more or equal important gamedir.
-	{
-		int j, maps;
-		char *f;
-
-		f = COM_LoadTempFile("maplist.txt", 0, NULL);
-		f = COM_Parse(f);
-		maps = atoi(com_token);
-		for (j = 0; j < maps; j++)
+		d1 = FS_FLocateFile("progs.dat",	FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|FSLF_IGNOREBASEDEPTH, NULL);
+		d2 = FS_FLocateFile("qwprogs.dat",	FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|FSLF_IGNOREBASEDEPTH, NULL);
+		//FIXME id1/progs.dat vs qw/qwprogs.dat - these should be considered to have the same priority.
+		if (d1 < d2)	//progs.dat is closer to the gamedir
+			strcpy(addons, "progs.dat");
+		else if (d1 > d2)	//qwprogs.dat is closest
 		{
+			strcpy(addons, "qwprogs.dat");
+			d1 = d2;
+		}
+		//both are an equal depth - same path.
+		else if (deathmatch.value && !COM_CheckParm("-game"))	//if deathmatch, default to qw
+		{
+			strcpy(addons, "qwprogs.dat");
+			d1 = d2;
+		}
+		else					//single player/coop is better done with nq.
+		{
+			strcpy(addons, "progs.dat");
+		}
+								//if progs cvar is left blank and a q2 map is loaded, the server will use the q2 game dll.
+								//if you do set a value here, q2 dll is not used.
+
+
+		//hexen2 - maplist contains a list of maps that we need to use an alternate progs.dat for.
+		d2 = COM_FDepthFile("maplist.txt", true);
+		if (d2 <= d1)//Use it if the maplist.txt file is within a more or equal important gamedir.
+		{
+			int j, maps;
+			char *f;
+
+			f = COM_LoadTempFile("maplist.txt", 0, NULL);
 			f = COM_Parse(f);
-			if (!Q_strcasecmp(svs.name, com_token))
+			maps = atoi(com_token);
+			for (j = 0; j < maps; j++)
 			{
 				f = COM_Parse(f);
-				strcpy(addons, com_token);
-				break;
+				if (!Q_strcasecmp(svs.name, com_token))
+				{
+					f = COM_Parse(f);
+					strcpy(addons, com_token);
+					break;
+				}
+				f = strchr(f, '\n');	//skip to the end of the line.
 			}
-			f = strchr(f, '\n');	//skip to the end of the line.
 		}
-	}
 
-	/*if pr_ssqc_progs cvar is set, override the default*/
-	if (*pr_ssqc_progs.string && strlen(pr_ssqc_progs.string)<64 && *pr_ssqc_progs.string != '*')	//a * is a special case to not load a q2 dll.
-	{
-		Q_strncpyz(addons, pr_ssqc_progs.string, MAX_QPATH);
-		COM_DefaultExtension(addons, ".dat", sizeof(addons));
-	}
-	oldprnum= AddProgs(addons);
-
-	/*try to load qwprogs.dat if we didn't manage to load one yet*/
-	if (oldprnum < 0 && strcmp(addons, "qwprogs.dat"))
-	{
-#ifndef SERVERONLY
-		if (SCR_UpdateScreen)
-			SCR_UpdateScreen();
-#endif
-		oldprnum= AddProgs("qwprogs.dat");
-	}
-
-	/*try to load qwprogs.dat if we didn't manage to load one yet*/
-	if (oldprnum < 0 && strcmp(addons, "progs.dat"))
-	{
-#ifndef SERVERONLY
-		if (SCR_UpdateScreen)
-			SCR_UpdateScreen();
-#endif
-		oldprnum= AddProgs("progs.dat");
-	}
-	if (oldprnum < 0)
-	{
-		PR_LoadGlabalStruct(true);
-		if (cinematic)	//making this fatal, because it sucks to sit through a cinematic only to find the game isn't playable after.
-			SV_Error("No gamecode available. Try using the downloads menu.\n");
-		Con_Printf(CON_ERROR"Running without gamecode\n");
-	}
-
-	if (oldprnum >= 0)
-		f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
-	else
-		f = 0;
-/*	if (num)
-	{
-		//restore progs
-		for (i = 1; i < num; i++)
+		/*if pr_ssqc_progs cvar is set, override the default*/
+		if (*pr_ssqc_progs.string && strlen(pr_ssqc_progs.string)<64 && *pr_ssqc_progs.string != '*')	//a * is a special case to not load a q2 dll.
 		{
-			if (f)
+			Q_strncpyz(addons, pr_ssqc_progs.string, MAX_QPATH);
+			COM_DefaultExtension(addons, ".dat", sizeof(addons));
+		}
+		oldprnum= AddProgs(addons);
+
+		/*try to load qwprogs.dat if we didn't manage to load one yet*/
+		if (oldprnum < 0 && strcmp(addons, "qwprogs.dat"))
+		{
+#ifndef SERVERONLY
+			if (SCR_UpdateScreen)
+				SCR_UpdateScreen();
+#endif
+			oldprnum= AddProgs("qwprogs.dat");
+		}
+
+		/*try to load qwprogs.dat if we didn't manage to load one yet*/
+		if (oldprnum < 0 && strcmp(addons, "progs.dat"))
+		{
+#ifndef SERVERONLY
+			if (SCR_UpdateScreen)
+				SCR_UpdateScreen();
+#endif
+			oldprnum= AddProgs("progs.dat");
+		}
+
+		if (oldprnum < 0)
+		{
+			PR_LoadGlabalStruct(true);
+			if (flags & INITPROGS_REQUIRE)
+				SV_Error("No gamecode available. Try using the downloads menu.\n");
+			Con_Printf(CON_ERROR"Running without gamecode\n");
+		}
+
+		if (oldprnum >= 0)
+			f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
+		else
+			f = 0;
+	/*	if (num)
+		{
+			//restore progs
+			for (i = 1; i < num; i++)
 			{
-				pr_globals = PR_globals(PR_CURRENT);
-				G_SETSTRING(OFS_PARM0, svs.progsnames[i]);
-				PR_ExecuteProgram (f);
+				if (f)
+				{
+					pr_globals = PR_globals(PR_CURRENT);
+					G_SETSTRING(OFS_PARM0, svs.progsnames[i]);
+					PR_ExecuteProgram (f);
+				}
+				else
+				{
+					prnum = AddProgs(svs.progsnames[i]);
+					f2 = PR_FindFunction ( "init", prnum);
+
+					if (f2)
+					{
+						pr_globals = PR_globals(PR_CURRENT);
+						G_PROG(OFS_PARM0) = oldprnum;
+						PR_ExecuteProgram(f2);
+					}
+					oldprnum=prnum;
+				}
 			}
+		}
+	*/
+		//additional (always) progs
+		as = NULL;
+		a = COM_LoadStackFile("mod.gam", addons, 2048, NULL);
+
+		if (a)
+		{
+			if (progstype == PROG_QW)
+				as = strstr(a, "extraqwprogs=");
 			else
+				as = strstr(a, "extraprogs=");
+			if (as)
 			{
-				prnum = AddProgs(svs.progsnames[i]);
-				f2 = PR_FindFunction ( "init", prnum);
+			for (a = as+13; *a; a++)
+			{
+				if (*a < ' ')
+				{
+					*a = '\0';
+					break;
+				}
+			}
+			a = (as+=13);
+			}
+		}
+		if (as)
+		{
+			while(*a)
+			{
+				if (*a == ';')
+				{
+					*a = '\0';
+					for (i = 0; i < svs.numprogs; i++)	//don't add if already added
+					{
+						if (!strcmp(svs.progsnames[i], as))
+							break;
+					}
+					if (i == svs.numprogs)
+					{
+						if (f)
+						{
+							pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+							G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, as);
+							PR_ExecuteProgram (svprogfuncs, f);
+						}
+						else
+						{
+							prnum = AddProgs(as);
+							if (prnum>=0)
+							{
+								f2 = PR_FindFunction (svprogfuncs, "init", prnum);
+
+								if (f2)
+								{
+									pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+									G_PROG(OFS_PARM0) = oldprnum;
+									PR_ExecuteProgram(svprogfuncs, f2);
+								}
+								oldprnum=prnum;
+							}
+						}
+					}
+					*a = ';';
+					as = a+1;
+				}
+				a++;
+			}
+		}
+
+		if (COM_FDepthFile("fteadd.dat", true)!=FDEPTH_MISSING)
+		{
+			prnum = AddProgs("fteadd.dat");
+			if (prnum>=0)
+			{
+				f2 = PR_FindFunction (svprogfuncs, "init", prnum);
 
 				if (f2)
 				{
-					pr_globals = PR_globals(PR_CURRENT);
+					pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 					G_PROG(OFS_PARM0) = oldprnum;
-					PR_ExecuteProgram(f2);
+					PR_ExecuteProgram(svprogfuncs, f2);
 				}
 				oldprnum=prnum;
 			}
 		}
-	}
-*/
-	//additional (always) progs
-	as = NULL;
-	a = COM_LoadStackFile("mod.gam", addons, 2048, NULL);
+		prnum = 0;
 
-	if (a)
-	{
-		if (progstype == PROG_QW)
-			as = strstr(a, "extraqwprogs=");
-		else
-			as = strstr(a, "extraprogs=");
-		if (as)
+		switch (sv.world.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
 		{
-		for (a = as+13; *a; a++)
-		{
-			if (*a < ' ')
-			{
-				*a = '\0';
-				break;
-			}
-		}
-		a = (as+=13);
-		}
-	}
-	if (as)
-	{
-		while(*a)
-		{
-			if (*a == ';')
-			{
-				*a = '\0';
-				for (i = 0; i < svs.numprogs; i++)	//don't add if already added
-				{
-					if (!strcmp(svs.progsnames[i], as))
-						break;
-				}
-				if (i == svs.numprogs)
-				{
-					if (f)
-					{
-						pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, as);
-						PR_ExecuteProgram (svprogfuncs, f);
-					}
-					else
-					{
-						prnum = AddProgs(as);
-						if (prnum>=0)
-						{
-							f2 = PR_FindFunction (svprogfuncs, "init", prnum);
+		case fg_quake2:
+			if (COM_FDepthFile("q2bsp.dat", true)!=FDEPTH_MISSING)
+				prnum = AddProgs("q2bsp.dat");
+			break;
+		case fg_quake3:
+			if (COM_FDepthFile("q3bsp.dat", true)!=FDEPTH_MISSING)
+				prnum = AddProgs("q3bsp.dat");
+			else if (COM_FDepthFile("q2bsp.dat", true)!=FDEPTH_MISSING)	//fallback
+				prnum = AddProgs("q2bsp.dat");
+			break;
+		case fg_doom:
+			if (COM_FDepthFile("doombsp.dat", true)!=FDEPTH_MISSING)
+				prnum = AddProgs("doombsp.dat");
+			break;
+		case fg_halflife:
+			if (COM_FDepthFile("hlbsp.dat", true)!=FDEPTH_MISSING)
+				prnum = AddProgs("hlbsp.dat");
+			break;
 
-							if (f2)
-							{
-								pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-								G_PROG(OFS_PARM0) = oldprnum;
-								PR_ExecuteProgram(svprogfuncs, f2);
-							}
-							oldprnum=prnum;
-						}
-					}
-				}
-				*a = ';';
-				as = a+1;
-			}
-			a++;
+		default:
+			break;
 		}
-	}
 
-	if (COM_FDepthFile("fteadd.dat", true)!=FDEPTH_MISSING)
-	{
-		prnum = AddProgs("fteadd.dat");
 		if (prnum>=0)
 		{
 			f2 = PR_FindFunction (svprogfuncs, "init", prnum);
@@ -2119,95 +2167,96 @@ void Q_InitProgs(qboolean cinematic)
 			}
 			oldprnum=prnum;
 		}
-	}
-	prnum = 0;
 
-	switch (sv.world.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
-	{
-	case fg_quake2:
-		if (COM_FDepthFile("q2bsp.dat", true)!=FDEPTH_MISSING)
-			prnum = AddProgs("q2bsp.dat");
-		break;
-	case fg_quake3:
-		if (COM_FDepthFile("q3bsp.dat", true)!=FDEPTH_MISSING)
-			prnum = AddProgs("q3bsp.dat");
-		else if (COM_FDepthFile("q2bsp.dat", true)!=FDEPTH_MISSING)	//fallback
-			prnum = AddProgs("q2bsp.dat");
-		break;
-	case fg_doom:
-		if (COM_FDepthFile("doombsp.dat", true)!=FDEPTH_MISSING)
-			prnum = AddProgs("doombsp.dat");
-		break;
-	case fg_halflife:
-		if (COM_FDepthFile("hlbsp.dat", true)!=FDEPTH_MISSING)
-			prnum = AddProgs("hlbsp.dat");
-		break;
-
-	default:
-		break;
-	}
-
-	if (prnum>=0)
-	{
-		f2 = PR_FindFunction (svprogfuncs, "init", prnum);
-
-		if (f2)
+		//progs depended on by maps.
+		a = as = COM_LoadStackFile(va("maps/%s.inf", svs.name), addons, sizeof(addons), NULL);
+		if (a)
 		{
-			pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-			G_PROG(OFS_PARM0) = oldprnum;
-			PR_ExecuteProgram(svprogfuncs, f2);
-		}
-		oldprnum=prnum;
-	}
-
-	//progs depended on by maps.
-	a = as = COM_LoadStackFile(va("maps/%s.inf", svs.name), addons, sizeof(addons), NULL);
-	if (a)
-	{
-		if (progstype == PROG_QW)
-			as = strstr(a, "qwprogs=");
-		else
-			as = strstr(a, "progs=");
-		if (as)
-		{
-		for (a = as+11; *a; a++)
-		{
-			if (*a < ' ')
+			if (progstype == PROG_QW)
+				as = strstr(a, "qwprogs=");
+			else
+				as = strstr(a, "progs=");
+			if (as)
 			{
-				*a = '\0';
-				break;
+			for (a = as+11; *a; a++)
+			{
+				if (*a < ' ')
+				{
+					*a = '\0';
+					break;
+				}
+			}
+			a = (as+=11);
 			}
 		}
-		a = (as+=11);
-		}
-	}
-	if (as)
-	{
-		while(*a)
+		if (as)
 		{
-			if (*a == ';')
+			while(*a)
 			{
-				*a = '\0';
+				if (*a == ';')
+				{
+					*a = '\0';
+					for (i = 0; i < svs.numprogs; i++)	//don't add if already added
+					{
+						if (!strcmp(svs.progsnames[i], as))
+							break;
+					}
+					if (i == svs.numprogs)
+					{
+						if (f)
+						{
+							pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+							G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, as);
+							PR_ExecuteProgram (svprogfuncs, f);
+						}
+						else
+						{
+							prnum = AddProgs(as);
+							if (prnum>=0)
+							{
+								f2 = PR_FindFunction (svprogfuncs, "init", prnum);
+
+								if (f2)
+								{
+									pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+									G_PROG(OFS_PARM0) = oldprnum;
+									PR_ExecuteProgram(svprogfuncs, f2);
+								}
+								oldprnum=prnum;
+							}
+						}
+					}
+					*a = ';';
+					as = a+1;
+				}
+				a++;
+			}
+		}
+
+		//add any addons specified
+		for (i2 = 0; i2 < MAXADDONS; i2++)
+		{
+			if (*sv_addon[i2].string)
+			{
 				for (i = 0; i < svs.numprogs; i++)	//don't add if already added
 				{
-					if (!strcmp(svs.progsnames[i], as))
+					if (!strcmp(svs.progsnames[i], sv_addon[i2].string))
 						break;
 				}
-				if (i == svs.numprogs)
+				if (i == svs.numprogs)	//Not added yet. Add it.
 				{
 					if (f)
 					{
 						pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, as);
+						G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, sv_addon[i2].string);
 						PR_ExecuteProgram (svprogfuncs, f);
 					}
 					else
 					{
-						prnum = AddProgs(as);
-						if (prnum>=0)
+						prnum = AddProgs(sv_addon[i2].string);
+						if (prnum >= 0)
 						{
 							f2 = PR_FindFunction (svprogfuncs, "init", prnum);
-
 							if (f2)
 							{
 								pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -2216,48 +2265,8 @@ void Q_InitProgs(qboolean cinematic)
 							}
 							oldprnum=prnum;
 						}
-					}
-				}
-				*a = ';';
-				as = a+1;
-			}
-			a++;
-		}
-	}
 
-	//add any addons specified
-	for (i2 = 0; i2 < MAXADDONS; i2++)
-	{
-		if (*sv_addon[i2].string)
-		{
-			for (i = 0; i < svs.numprogs; i++)	//don't add if already added
-			{
-				if (!strcmp(svs.progsnames[i], sv_addon[i2].string))
-					break;
-			}
-			if (i == svs.numprogs)	//Not added yet. Add it.
-			{
-				if (f)
-				{
-					pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-					G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, sv_addon[i2].string);
-					PR_ExecuteProgram (svprogfuncs, f);
-				}
-				else
-				{
-					prnum = AddProgs(sv_addon[i2].string);
-					if (prnum >= 0)
-					{
-						f2 = PR_FindFunction (svprogfuncs, "init", prnum);
-						if (f2)
-						{
-							pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-							G_PROG(OFS_PARM0) = oldprnum;
-							PR_ExecuteProgram(svprogfuncs, f2);
-						}
-						oldprnum=prnum;
 					}
-
 				}
 			}
 		}
@@ -11038,10 +11047,10 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawtextfield",	PF_Fixme,	0,		0,		0,	 0/*314*/,	D("float(vector pos, vector size, float alignflags, string text)", "Draws a multi-line block of text, including word wrapping and alignment. alignflags bits are RTLB, typically 3. Returns the total number of lines.")},// (EXT_CSQC)
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
-	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must lack any path and extension.")},// (EXT_CSQC)
+	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float flags)", "Forces the engine to load the named image. Flags are a bitmask of the PRECACHE_PIC_* flags.")},// (EXT_CSQC)
 	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, void *pixeldata, optional int datasize, optional int format)", "Updates a texture with the specified rgba data (uploading it to the gpu). Will be created if needed. If datasize is specified then the image is decoded (eg .ktx or .dds data) instead of being raw R8G8B8A data. You'll typically want shaderforname to also generate a shader to use the texture.")},
 	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw R8G8B8A8 pixel data. Should not be used for dds or ktx etc formats. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
-	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
+	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution. WARNING: this function may be slow if used without or directly after its initial precache_pic.")},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
 //320
 	{"drawcharacter",	PF_Fixme,	0,		0,		0,		320,	D("float(vector position, float character, vector size, vector rgb, float alpha, optional float drawflag)", "Draw the given quake character at the given position.\nIf flag&4, the function will consider the char to be a unicode char instead (or display as a ? if outside the 32-127 range).\nsize should normally be something like '8 8 0'.\nrgb should normally be '1 1 1'\nalpha normally 1.\nSoftware engines may assume the named defaults.\nNote that ALL text may be rescaled on the X axis due to variable width fonts. The X axis may even be ignored completely.")},// (EXT_CSQC, [EXT_CSQC_???])
@@ -12635,6 +12644,10 @@ void PR_DumpPlatform_f(void)
 
 		{"STAT_USER",			"const float", QW|NQ|CS, D("Custom user stats start here (lower values are reserved for engine use)."), 32},
 #endif
+
+		{"PRECACHE_PIC_FROMWAD","const float", CS|MENU, D("Attempt to load it from the legacy gfx.wad file (usually its better to just use a gfx/ prefix instead)."), 1},
+		{"PRECACHE_PIC_DOWNLOAD","const float", CS|MENU, D("If no image could be loaded then attempt to download one from the server. This flag can cause the function to block until completion. (Slow!)"), 256},
+		{"PRECACHE_PIC_TEST",	"const float", CS|MENU, D("The precache will block until the image is fully loaded, returning a null string on failure. (Slow!)"), 512},
 
 		{"VF_MIN",				"const float", CS|MENU, D("The top-left of the 3d viewport in screenspace. The VF_ values are used via the setviewprop/getviewprop builtins."), VF_MIN},
 		{"VF_MIN_X",			"const float", CS|MENU, NULL, VF_MIN_X},

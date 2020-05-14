@@ -53,7 +53,7 @@ void Sys_Quit (void);
 void Sys_RecentServer(char *command, char *target, char *title, char *desc);
 qboolean Sys_RunInstaller(void);
 
-typedef struct {
+typedef struct dllfunction_s {
 	void **funcptr;
 	char *name;
 } dllfunction_t;

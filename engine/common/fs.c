@@ -298,7 +298,7 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 
 static void FS_Manifest_Print(ftemanifest_t *man)
 {
-	char buffer[1024];
+	char buffer[65536];
 	int i, j;
 	if (man->updateurl)
 		Con_Printf("updateurl %s\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer), false));
@@ -319,9 +319,45 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 	if (man->protocolname)
 		Con_Printf("protocolname %s\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer), false));
 	if (man->defaultexec)
-		Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer), false));
+	{
+		char *s = buffer, *e;
+		for (s = man->defaultexec; *s; s = e)
+		{
+			e = strchr(s, '\n');
+			if (e)
+			{
+				*e = 0;
+				Con_Printf("-%s\n", s);
+				*e++ = '\n';
+			}
+			else
+			{
+				Con_Printf("-%s\n", s);
+				e = s+strlen(s);
+			}
+		}
+		//Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer), false));
+	}
 	if (man->defaultoverrides)
-		Con_Printf("%s", man->defaultoverrides);
+	{
+		char *s = buffer, *e;
+		for (s = man->defaultoverrides; *s; s = e)
+		{
+			e = strchr(s, '\n');
+			if (e)
+			{
+				*e = 0;
+				Con_Printf("+%s\n", s);
+				*e++ = '\n';
+			}
+			else
+			{
+				Con_Printf("+%s\n", s);
+				e = s+strlen(s);
+			}
+		}
+		//Con_Printf("%s", man->defaultoverrides);
+	}
 	if (man->rtcbroker)
 		Con_Printf("rtcbroker %s\n", COM_QuotedString(man->rtcbroker, buffer, sizeof(buffer), false));
 	if (man->iconname)
@@ -1376,7 +1412,7 @@ static void FS_RebuildFSHash_Update(const char *fname)
 	}
 
 
-	COM_WorkerFullSync();
+	COM_WorkerLock();
 	if (!Sys_LockMutex(fs_thread_mutex))
 		return;	//amg!
 
@@ -1391,6 +1427,7 @@ static void FS_RebuildFSHash_Update(const char *fname)
 		FS_AddFileHash(depth, fname, NULL, filehandle);
 
 	Sys_UnlockMutex(fs_thread_mutex);
+	COM_WorkerUnlock();
 }
 
 void FS_FlushFSHashWritten(const char *fname)
@@ -3490,8 +3527,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define QCFG "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT QUAKESPASMSUCKS
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//disablehomedir 1\n//mainconfig ftenq\ncfg_save_auto 1\n" QCFG "set sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
-#define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\n"
-#define FITZCFG NQCFG "fps_preset builtin_spasm\n"
+#define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\ncl_sbar 2\nset gl_load24bit 1\n"
+#define FITZCFG NQCFG "fps_preset builtin_spasm\ncl_sbar 2\nset gl_load24bit 1\n"
 #define TENEBRAECFG NQCFG "fps_preset builtin_tenebrae\n"
 //nehahra has to be weird with its extra cvars, and buggy fullbrights.
 #define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
@@ -6197,7 +6234,7 @@ static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, 
 
 		if (strchr(gamedir, ';') || !FS_GamedirIsOkay(gamedir))
 		{
-			Z_Free(gamedir);
+			Z_Free(desc);
 			return true;	//don't list it if we can't use it anyway
 		}
 

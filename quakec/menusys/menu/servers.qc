@@ -111,7 +111,7 @@ class mitem_servers : mitem
 			maxsv = slider.val + maxy;
 	
 		float sort = gethostcachevalue(SLIST_SORTFIELD);
-		string colkey;
+		string colkey = __NULL__;
 #define COLUMN(width, sortname, title, draw) if (autocvar_sb_show##sortname) {if (ui.mousepos[0] > pos_x && ui.mousepos[1] < pos_y+8) colkey = #sortname; pos_x += width+8;}
 		COLUMNS
 #undef COLUMN

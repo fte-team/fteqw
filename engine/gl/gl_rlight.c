@@ -2283,6 +2283,7 @@ void R_EditLights_RegisterCommands(void)
 	Cvar_Register (&r_editlights_import_ambient,	"Realtime Light editing/importing");
 	Cvar_Register (&r_editlights_import_diffuse,	"Realtime Light editing/importing");
 	Cvar_Register (&r_editlights_import_specular,	"Realtime Light editing/importing");
+	Cvar_Register (&r_shadow_realtime_world_importlightentitiesfrommap,	"Realtime Light editing/importing");
 
 	Cvar_Register (&r_editlights,					"Realtime Light editing/importing");
 	Cvar_Register (&r_editlights_cursordistance,	"Realtime Light editing/importing");

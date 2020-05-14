@@ -815,34 +815,45 @@ void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s 
 
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern cvar_t pr_precachepic_slow;
 	const char	*str;
 	mpic_t	*pic;
-	float fromwad;
+	unsigned int flags;
+#define PIC_FROMWAD 1				/*obsolete, probably better to just use gfx/foo.lmp instead*/
+//#define PIC_TEMPORARY 2			/*DP, not meaningful here*/
+//#define PIC_NOCLAMP 4				/*DP, not useful here - use a shader instead*/
+//#define PIC_MIPMAP 8				/*DP, not useful here - use a shader instead*/
+#define PRECACHE_PIC_DOWNLOAD 256	/*block until loaded, downloading if missing*/
+#define PRECACHE_PIC_TEST 512		/*block until loaded*/
 
+	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 	if (prinst->callargc > 1)
-		fromwad = G_FLOAT(OFS_PARM1);
+		flags = G_FLOAT(OFS_PARM1);
 	else
-		fromwad = false;
+		flags = 0;
 
-	if (fromwad)
+	if (pr_precachepic_slow.ival)
+		flags |= PRECACHE_PIC_DOWNLOAD|PRECACHE_PIC_TEST;
+
+	if (flags & PIC_FROMWAD)
 		pic = R2D_SafePicFromWad(str);
 	else
 	{
 		pic = R2D_SafeCachePic(str);
 
-		if ((!pic || !R_GetShaderSizes(pic, NULL, NULL, true)) && cls.state
+		if ((flags & PRECACHE_PIC_DOWNLOAD) && cls.state	//if we're allowed to download it...
+			 && strchr(str, '.')	//only try to download it if it looks as though it contains a path.
 #ifndef CLIENTONLY
-			&& !sv.active
+			&& !sv.active			//not if we're already the server...
 #endif
-			&& strchr(str, '.'))	//only try to download it if it looks as though it contains a path.
+			&& (!pic || !R_GetShaderSizes(pic, NULL, NULL, true)))	//and it wasn't loaded...
 			CL_CheckOrEnqueDownloadFile(str, str, 0);
 	}
 
-	if (pic && R_GetShaderSizes(pic, NULL, NULL, true))
-		G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
-	else
-		G_INT(OFS_RETURN) = 0;
+	if (flags & PRECACHE_PIC_TEST)
+		if (!pic || !R_GetShaderSizes(pic, NULL, NULL, true))
+			G_INT(OFS_RETURN) = 0;
 }
 
 #ifdef CSQC_DAT

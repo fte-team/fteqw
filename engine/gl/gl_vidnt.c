@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include "resource.h"
 #include "shader.h"
+#include "vr.h"
 #include <commctrl.h>
 
 #ifdef USE_EGL
@@ -1447,6 +1448,8 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 #endif
 //	HDC				hdc;
 
+	vrsetup_t setup = {sizeof(setup)};
+
 	TRACE(("dbg: GLVID_SetMode\n"));
 
 // so Con_Printfs don't mess us up by forcing vid and snd updates
@@ -1465,6 +1468,13 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 #ifdef VKQUAKE
 	case MODE_NVVULKAN:
 #endif
+		setup.vrplatform = VR_WIN_WGL;
+		if (info->vr && !info->vr->Prepare(&setup))
+		{
+			info->vr->Shutdown();
+			info->vr = NULL;
+		}
+
 		// Set either the fullscreen or windowed mode
 		qwglChoosePixelFormatARB = NULL;
 		qwglGetPixelFormatAttribfvARB = NULL;
@@ -1515,10 +1525,18 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		if (modestate == MS_FULLWINDOW)
 			ShowWindow (dibwindow, SW_SHOWMAXIMIZED);
 		else
-			ShowWindow (dibwindow, SW_SHOWNORMAL);
+			ShowWindow (dibwindow, SW_SHOWNORMAL);	
 
 		if (!GL_Init(info, getglfunc))
 			return false;
+		setup.wgl.hdc = maindc;
+		setup.wgl.hglrc = baseRC;
+		if (info->vr && !info->vr->Init(&setup, info))
+		{
+			info->vr->Shutdown();
+			return false;
+		}
+		vid.vr = info->vr;
 
 		if (qwglGetPixelFormatAttribfvARB)	//just for debugging info.
 		{

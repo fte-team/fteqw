@@ -128,8 +128,10 @@ cvar_t	tls_ignorecertificateerrors	= CVARFD("tls_ignorecertificateerrors", "0", 
 #endif
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
-cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables compatibility with qizmo's tcp connections serverside. Frankly, using sv_port_tcp without this is a bit pointless.");
-cvar_t	net_enable_qtv			= CVARD("net_enable_qtv",			"1", "Listens for qtv proxies, or clients using the qtvplay command.");
+cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables serverside support for 'connect tcp://foo' or 'connect tls://foo' (with net_enable_tls), as well as qizmo's tcp connections and compatibles.");
+#endif
+#ifdef MVD_RECORDING
+cvar_t	net_enable_qtv			= CVARD("net_enable_qtv",			"2", "Controls whether inbound qtv requests will be honoured (both proxies and clients using qtvplay).\n0: Don't accept qtv connections.\n1: Accept connections.\n2: Accept qtv connections only from host-scopped addresses (read: 127.*.*.*, ::1, or unix sockets).");
 #endif
 #if defined(HAVE_SSL)
 cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"0", "If enabled, binary data sent to a non-tls tcp port will be interpretted as a tls handshake (enabling https or wss over the same tcp port.");
@@ -5304,12 +5306,20 @@ static enum{
 				//for QTV connections, we just need the method and a blank line. our qtv parser will parse the actual headers.
 				if (!Q_strncasecmp(st->inbuffer, "QTV", 3))
 				{	//FIXME: make sure its removed from epoll and not killed prematurely
-					int r = net_enable_qtv.ival?SV_MVD_GotQTVRequest(st->clientstream, st->inbuffer, st->inbuffer+st->inlen, &st->qtvstate):-1;
+					int r = -2;
+					const char *desc;
+					if (net_enable_qtv.ival == 2 && NET_ClassifyAddress(&st->remoteaddr, &desc) > ASCOPE_HOST)
+						;
+					else if (net_enable_qtv.ival)
+						r = SV_MVD_GotQTVRequest(st->clientstream, st->inbuffer, st->inbuffer+st->inlen, &st->qtvstate);
 					i = st->inlen;
 					memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
 					st->inlen -= i;
 					switch(r)
 					{
+					case -2:
+						VFS_PUTS(st->clientstream, "QTVSV 1\n" "PERROR: net_enable_qtv is disabled on this server\n\n");
+						return FTETCP_KILL;
 					case -1:	//error
 						return FTETCP_KILL;
 					case 0:		//retry
@@ -7720,7 +7730,7 @@ int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_gener
 	return found;
 }
 
-static enum addressscope_e NET_ClassifyAddressipv4(int ip, char **outdesc)
+static enum addressscope_e NET_ClassifyAddressipv4(int ip, const char **outdesc)
 {
 	int scope = ASCOPE_NET;
 	char *desc = NULL;
@@ -7742,10 +7752,10 @@ static enum addressscope_e NET_ClassifyAddressipv4(int ip, char **outdesc)
 	*outdesc = desc;
 	return scope;
 }
-enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
+enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc)
 {
 	int scope = ASCOPE_NET;
-	char *desc = NULL;
+	const char *desc = NULL;
 
 	if (adr->type == NA_LOOPBACK)
 	{
@@ -7773,6 +7783,12 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 				desc = "vp-mapped";
 		}
 	}
+#ifdef UNIXSOCKETS
+	else if (adr->type == NA_UNIX)
+	{
+		scope = ASCOPE_HOST, desc = "unix";
+	}
+#endif
 	else if (adr->type == NA_IP)
 		scope = NET_ClassifyAddressipv4(*(int*)adr->address.ip, &desc);
 	if (outdesc)
@@ -7792,7 +7808,7 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	const char *params[sizeof(addr)/sizeof(addr[0])];
 	qboolean	warn = true;
 	static const char *scopes[] = {"process", "local", "link", "lan", "net"};
-	char *desc;
+	const char *desc;
 
 	if (!collection)
 		return;
@@ -8432,6 +8448,8 @@ void NET_Init (void)
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
 	Cvar_Register(&net_enable_qizmo, "networking");
+#endif
+#ifdef MVD_RECORDING
 	Cvar_Register(&net_enable_qtv, "networking");
 #endif
 #if defined(HAVE_SSL)

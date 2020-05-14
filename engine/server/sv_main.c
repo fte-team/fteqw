@@ -86,7 +86,7 @@ extern cvar_t	password;
 #endif
 cvar_t	spectator_password			= CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-static cvar_t	sv_dlURL			= CVARFD(/*ioq3*/"sv_dlURL", "", CVAR_SERVERINFO|CVAR_ARCHIVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
+cvar_t	sv_dlURL					= CVARAFD(/*ioq3*/"sv_dlURL", "", /*dp*/"sv_curl_defaulturl", CVAR_SERVERINFO|CVAR_ARCHIVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
 cvar_t	allow_download				= CVARAD("allow_download", "1", /*q3*/"sv_allowDownload", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads from this server. You may wish to set sv_dlURL if you wish clients to still be able to download content.");
 cvar_t	allow_download_skins		= CVARD("allow_download_skins", "1", "0 blocks downloading of any file in the skins/ directory");
 cvar_t	allow_download_models		= CVARD("allow_download_models", "1", "0 blocks downloading of any file in the progs/ or models/ directory");
@@ -167,7 +167,7 @@ cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 cvar_t	sv_reliable_sound		= CVARFD("sv_reliable_sound", "0",  0, "Causes all sounds to be sent reliably, so they will not be missed due to packetloss. However, this will cause them to be delayed somewhat, and slightly bursty. This can be overriden using the 'rsnd' userinfo setting (either forced on or forced off). Note: this does not affect sounds attached to particle effects.");
 cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug		= CVARD("sv_csqcdebug", "0", "Inject packet size information for data directed to csqc.");
-cvar_t	sv_csqc_progname	= CVAR("sv_csqc_progname", "csprogs.dat");
+cvar_t	sv_csqc_progname	= CVARAF("sv_csqc_progname", "csprogs.dat", /*dp*/"csqc_progname", 0);
 cvar_t pausable				= CVAR("pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
@@ -3051,11 +3051,6 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	if (!sv_allow_splitscreen.ival && newcl->netchan.remote_address.type != NA_LOOPBACK)
 		newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
 	newcl->controller = NULL;
-
-#ifdef PEXT_CSQC
-	if (sv.csqcchecksum && !(newcl->fteprotocolextensions & PEXT_CSQC) && !ISDPCLIENT(newcl))
-		SV_PrintToClient(newcl, PRINT_HIGH, "This server is using CSQC - you are missing out due to your choice of outdated client / protocol!\n");
-#endif
 
 	if (!redirect)
 	{

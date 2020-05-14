@@ -5,6 +5,8 @@
 #include "shader.h"
 #include "renderque.h"	//is anything still using this?
 
+#include "vr.h"
+
 extern qboolean vid_isfullscreen;
 
 cvar_t vk_stagingbuffers						= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
@@ -2217,7 +2219,7 @@ static void VK_Shutdown_PostProc(void)
 	if (vk.device)
 	{
 		for (i = 0; i < countof(postproc); i++)
-			VKBE_RT_Gen(&postproc[i], 0, 0, true, RT_IMAGEFLAGS);
+			VKBE_RT_Gen(&postproc[i], NULL, 0, 0, true, RT_IMAGEFLAGS);
 		VK_R_BloomShutdown();
 	}
 
@@ -2622,6 +2624,52 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	return true;
 }
 
+void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t axisorg[4])
+{
+	struct vk_rendertarg *rt;
+
+	VK_SetupViewPortProjection(false);
+
+	rt = &postproc[postproc_buf++%countof(postproc)];
+	VKBE_RT_Gen(rt, image?image->vkimage:NULL, 320, 200, false, RT_IMAGEFLAGS);
+	VKBE_RT_Begin(rt);
+
+
+	if (!vk.rendertarg->depthcleared)
+	{
+		VkClearAttachment clr;
+		VkClearRect rect;
+		clr.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		clr.clearValue.depthStencil.depth = 1;
+		clr.clearValue.depthStencil.stencil = 0;
+		clr.colorAttachment = 1;
+		rect.rect.offset.x = r_refdef.pxrect.x;
+		rect.rect.offset.y = r_refdef.pxrect.y;
+		rect.rect.extent.width = r_refdef.pxrect.width;
+		rect.rect.extent.height = r_refdef.pxrect.height;
+		rect.layerCount = 1;
+		rect.baseArrayLayer = 0;
+		vkCmdClearAttachments(vk.rendertarg->cbuf, 1, &clr, 1, &rect);
+		vk.rendertarg->depthcleared = true;
+	}
+
+	VKBE_SelectEntity(&r_worldentity);
+
+	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
+	RQ_BeginFrame();
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+	{
+		if (cl.worldmodel)
+			P_DrawParticles ();
+	}
+	Surf_DrawWorld();
+	RQ_RenderBatchClear();
+
+	vk.rendertarg->depthcleared = false;
+
+	VKBE_RT_End(rt);
+}
+
 void	VK_R_RenderView				(void)
 {
 	extern unsigned int r_viewcontents;
@@ -2640,6 +2688,12 @@ void	VK_R_RenderView				(void)
 	VKBE_Set2D(false);
 
 	Surf_SetupFrame();
+
+	if (vid.vr && vid.vr->Render(VK_R_RenderEye))
+	{
+		VK_Set2D ();
+		return;
+	}
 
 	//check if we can do underwater warp
 	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
@@ -2743,7 +2797,7 @@ void	VK_R_RenderView				(void)
 			rt->rpassflags |= RP_MULTISAMPLE;
 		if (r_refdef.flags&RDF_SCENEGAMMA)	//if we're doing scenegamma here, use an fp16 target for extra precision
 			rt->rpassflags |= RP_FP16;
-		VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height, false, (r_renderscale.value < 0)?RT_IMAGEFLAGS-IF_LINEAR+IF_NEAREST:RT_IMAGEFLAGS);
+		VKBE_RT_Gen(rt, NULL, r_refdef.pxrect.width, r_refdef.pxrect.height, false, (r_renderscale.value < 0)?RT_IMAGEFLAGS-IF_LINEAR+IF_NEAREST:RT_IMAGEFLAGS);
 	}
 	else
 		rt = rtscreen;
@@ -2838,7 +2892,7 @@ void	VK_R_RenderView				(void)
 			{
 				rt = &postproc[postproc_buf++];
 				rt->rpassflags = 0;
-				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
+				VKBE_RT_Gen(rt, NULL, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
@@ -2860,7 +2914,7 @@ void	VK_R_RenderView				(void)
 			{
 				rt = &postproc[postproc_buf++];
 				rt->rpassflags = 0;
-				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
+				VKBE_RT_Gen(rt, NULL, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
@@ -2879,7 +2933,7 @@ void	VK_R_RenderView				(void)
 			{
 				rt = &postproc[postproc_buf++];
 				rt->rpassflags = 0;
-				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
+				VKBE_RT_Gen(rt, NULL, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
@@ -2899,7 +2953,7 @@ void	VK_R_RenderView				(void)
 			{
 				rt = &postproc[postproc_buf++];
 				rt->rpassflags = 0;
-				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
+				VKBE_RT_Gen(rt, NULL, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
@@ -4274,6 +4328,47 @@ void VK_CheckTextureFormats(void)
 		sh_config.hw_astc = 2;	//the core vulkan formats refer to the ldr profile. hdr is a separate extension, which is still not properly specified..
 }
 
+//creates a vulkan instance with the additional extensions, and hands a copy of the instance to the caller.
+qboolean VK_CreateInstance(vrsetup_t *info, char *vrexts, void *result)
+{
+	VkInstanceCreateInfo inst_info = *(VkInstanceCreateInfo*)info->userctx;
+	VkResult err;
+	const char *ext[64];
+	unsigned int numext = inst_info.enabledExtensionCount;
+	memcpy(ext, inst_info.ppEnabledExtensionNames, numext*sizeof(*ext));
+	while (vrexts && numext < countof(ext))
+	{
+		ext[numext++] = vrexts;
+		vrexts = strchr(vrexts, ' ');
+		if (!vrexts)
+			break;
+		*vrexts++ = 0;
+	}
+
+	err = vkCreateInstance(&inst_info, vkallocationcb, &vk.instance);
+	switch(err)
+	{
+	case VK_ERROR_INCOMPATIBLE_DRIVER:
+		Con_Printf("VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
+		return false;
+	case VK_ERROR_EXTENSION_NOT_PRESENT:
+		Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
+		return false;
+	case VK_ERROR_LAYER_NOT_PRESENT:
+		Con_Printf("VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
+		return false;
+	default:
+		Con_Printf("Unknown vulkan instance creation error: %x\n", err);
+		return false;
+	case VK_SUCCESS:
+		break;
+	}
+
+	if (result)
+		*(VkInstance*)result = vk.instance;
+	return true;
+}
+
 //initialise the vulkan instance, context, device, etc.
 qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe))
 {
@@ -4284,6 +4379,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	int gpuidx = 0;
 	const char *extensions[8];
 	uint32_t extensions_count = 0;
+
+	qboolean okay;
+	vrsetup_t vrsetup = {sizeof(vrsetup)};
 
 	//device extensions that want to enable
 	//initialised in reverse order, so superseeded should name later extensions.
@@ -4312,9 +4410,6 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 	for (e = 0; e < countof(knowndevexts); e++)
 		*knowndevexts[e].flag = false;
-#ifdef MULTITHREAD
-	vk.allowsubmissionthread = true;
-#endif
 	vk.neednewswapchain = true;
 	vk.triplebuffer = info->triplebuffer;
 	vk.vsync = info->wait;
@@ -4326,7 +4421,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 #ifdef VK_NO_PROTOTYPES
 	if (!vkGetInstanceProcAddr)
 	{
-		Con_Printf("vkGetInstanceProcAddr is null\n");
+		Con_Printf(CON_ERROR"vkGetInstanceProcAddr is null\n");
 		return false;
 	}
 #define VKFunc(n) vk##n = (PFN_vk##n)vkGetInstanceProcAddr(VK_NULL_HANDLE, "vk"#n);
@@ -4395,7 +4490,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 		if (sysextnames && (!vk.khr_swapchain || !surfext))
 		{
-			Con_Printf("Vulkan instance lacks driver support for %s\n", sysextnames[0]);
+			Con_Printf(CON_ERROR"Vulkan instance lacks driver support for %s\n", sysextnames[0]);
 			return false;
 		}
 	}
@@ -4418,24 +4513,33 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	inst_info.enabledExtensionCount = extensions_count;
 	inst_info.ppEnabledExtensionNames = extensions;
 
-	err = vkCreateInstance(&inst_info, vkallocationcb, &vk.instance);
-	switch(err)
+	vrsetup.vrplatform = VR_VULKAN;
+	vrsetup.userctx = &inst_info;
+	vrsetup.createinstance = VK_CreateInstance;
+	if (info->vr)
 	{
-	case VK_ERROR_INCOMPATIBLE_DRIVER:
-		Con_Printf("VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
-		return false;
-	case VK_ERROR_EXTENSION_NOT_PRESENT:
-		Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
-		return false;
-	case VK_ERROR_LAYER_NOT_PRESENT:
-		Con_Printf("VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
-		return false;
-	default:
-		Con_Printf("Unknown vulkan instance creation error: %x\n", err);
-		return false;
-	case VK_SUCCESS:
-		break;
+		okay = info->vr->Prepare(&vrsetup);
+		if (!okay)
+		{
+			info->vr->Shutdown();
+			info->vr = NULL;
+		}
 	}
+	else
+		okay = false;
+	if (!okay)
+		okay = vrsetup.createinstance(&vrsetup, NULL, NULL);
+	if (!okay)
+	{
+		if (info->vr)
+			info->vr->Shutdown();
+		return false;
+	}
+	vid.vr = info->vr;
+
+#ifdef MULTITHREAD
+	vk.allowsubmissionthread = !vid.vr;
+#endif
 
 	//third set of functions...
 #ifdef VK_NO_PROTOTYPES
@@ -4510,7 +4614,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		vkEnumeratePhysicalDevices(vk.instance, &gpucount, NULL);
 		if (!gpucount)
 		{
-			Con_Printf("vulkan: no devices known!\n");
+			Con_Printf(CON_ERROR"vulkan: no devices known!\n");
 			return false;
 		}
 		devs = malloc(sizeof(VkPhysicalDevice)*gpucount);
@@ -4564,7 +4668,12 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				pri = 4;
 				break;
 			}
-			if (wantdev >= 0)
+			if (vrsetup.vk.physicaldevice != VK_NULL_HANDLE)
+			{	//if we're using vr, use the gpu our vr context requires.
+				if (devs[i] == vrsetup.vk.physicaldevice)
+					pri = 0;
+			}
+			else if (wantdev >= 0)
 			{
 				if (wantdev == i)
 					pri = 0;
@@ -4586,7 +4695,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 		if (!vk.gpu)
 		{
-			Con_Printf("vulkan: unable to pick a usable device\n");
+			Con_Printf(CON_ERROR"vulkan: unable to pick a usable device\n");
 			return false;
 		}
 	}
@@ -4708,7 +4817,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		if (vk.queuefam[0] == ~0u || vk.queuefam[1] == ~0u)
 		{
 			free(queueprops);
-			Con_Printf("unable to find suitable queues\n");
+			Con_Printf(CON_ERROR"vulkan: unable to find suitable queues\n");
 			return false;
 		}
 	}
@@ -4859,7 +4968,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		switch(err)
 		{
 		case VK_ERROR_INCOMPATIBLE_DRIVER:
-			Con_Printf("VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
+			Con_Printf(CON_ERROR"VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
 			return false;
 		case VK_ERROR_EXTENSION_NOT_PRESENT:
 		case VK_ERROR_FEATURE_NOT_PRESENT:
@@ -4867,10 +4976,10 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case VK_ERROR_DEVICE_LOST:
         case VK_ERROR_OUT_OF_HOST_MEMORY:
         case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-			Con_Printf("%s: something on a system level is probably misconfigured\n", VK_VKErrorToString(err));
+			Con_Printf(CON_ERROR"%s: something on a system level is probably misconfigured\n", VK_VKErrorToString(err));
 			return false;
 		default:
-			Con_Printf("Unknown vulkan device creation error: %x\n", err);
+			Con_Printf(CON_ERROR"Unknown vulkan device creation error: %x\n", err);
 			return false;
 		case VK_SUCCESS:
 			break;
@@ -4887,6 +4996,19 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	vkGetDeviceQueue(vk.device, vk.queuefam[0], vk.queuenum[0], &vk.queue_render);
 	vkGetDeviceQueue(vk.device, vk.queuefam[1], vk.queuenum[1], &vk.queue_present);
 
+	vrsetup.vk.instance = vk.instance;
+	vrsetup.vk.device = vk.device;
+	vrsetup.vk.physicaldevice = vk.gpu;
+	vrsetup.vk.queuefamily = vk.queuefam[1];
+	vrsetup.vk.queueindex = vk.queuenum[1];
+	if (vid.vr)
+	{
+		if (!vid.vr->Init(&vrsetup, info))
+		{
+			vid.vr->Shutdown();
+			vid.vr = NULL;
+		}
+	}
 
 	vkGetPhysicalDeviceMemoryProperties(vk.gpu, &vk.memory_properties);
 
@@ -4980,7 +5102,7 @@ void VK_Shutdown(void)
 	VK_DestroySwapChain();
 
 	for (i = 0; i < countof(postproc); i++)
-		VKBE_RT_Gen(&postproc[i], 0, 0, false, RT_IMAGEFLAGS);
+		VKBE_RT_Gen(&postproc[i], NULL, 0, 0, false, RT_IMAGEFLAGS);
 	VKBE_RT_Gen_Cube(&vk_rt_cubemap, 0, false);
 	VK_R_BloomShutdown();
 

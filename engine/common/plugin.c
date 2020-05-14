@@ -4,6 +4,7 @@
 
 #include "quakedef.h"
 #include "fs.h"
+#include "vr.h"
 #define FTEENGINE
 #include "../plugins/plugin.h"
 
@@ -390,28 +391,21 @@ static qboolean QDECL PlugBI_GetPluginName(int plugnum, char *outname, size_t na
 
 static qboolean QDECL PlugBI_ExportInterface(const char *name, void *interfaceptr, size_t structsize)
 {
-	if (0)
-		;
-	/*
-	else if (!strncmp(name, "VID_DisplayDriver"))	//a video driver, loaded by name as given by vid_renderer
-	{
-		FS_RegisterModuleDriver(, func);
-		currentplug->blockcloses++;
-	}
-	*/
 #if defined(PLUGINS) && !defined(SERVERONLY)
 #ifdef HAVE_MEDIA_DECODER
-	else if (!strcmp(name, "Media_VideoDecoder"))
-		Media_RegisterDecoder(currentplug, interfaceptr);
+	if (!strcmp(name, "Media_VideoDecoder"))
+		return Media_RegisterDecoder(currentplug, interfaceptr);
 #endif
 #ifdef HAVE_MEDIA_ENCODER
-	else if (!strcmp(name, "Media_VideoEncoder"))
-		Media_RegisterEncoder(currentplug, interfaceptr);
+	if (!strcmp(name, "Media_VideoEncoder"))
+		return Media_RegisterEncoder(currentplug, interfaceptr);
 #endif
 #endif
-	else
-		return 0;
-	return 1;
+#ifdef HAVE_CLIENT
+	if (!strcmp(name, plugvrfuncs_name))
+		return R_RegisterVRDriver(currentplug, interfaceptr);
+#endif
+	return false;
 }
 
 static cvar_t *QDECL Plug_Cvar_GetNVFDG(const char *name, const char *defaultvalue, unsigned int flags, const char *description, const char *groupname)
@@ -473,6 +467,11 @@ static qboolean QDECL Plug_Cvar_Update(qhandle_t handle, int *modificationcount,
 		return true;
 	}
 	return false;
+}
+
+static void QDECL Plug_Cmd_TokenizeString(const char *text)
+{
+	Cmd_TokenizeString(text, false, false);
 }
 
 //void Cmd_Args(char *buffer, int buffersize)
@@ -1778,6 +1777,9 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Con_Print,
 			Plug_Sys_Error,
 			Plug_Sys_Milliseconds,
+			Sys_LoadLibrary,
+			Sys_GetAddressForName,
+			Sys_CloseLibrary,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1787,7 +1789,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		static plugcmdfuncs_t funcs =
 		{
 			Plug_Cmd_AddCommand,
-			NULL,//Plug_Cmd_TokenizeString,
+			Plug_Cmd_TokenizeString,
 			Plug_Cmd_Args,
 			Plug_Cmd_Argv,
 			Plug_Cmd_Argc,

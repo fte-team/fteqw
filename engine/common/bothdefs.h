@@ -853,9 +853,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef FTE_TARGET_WEB
 #define MAX_EDICTS		((1<<15)-1)
 #else
-//#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
-#define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
+#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
+//#define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
 #endif
+
 #define	MAX_NET_LIGHTSTYLES		(INVALID_LIGHTSTYLE+1)		// 16bit. the last index MAY be used to signify an invalid lightmap in the bsp, but is still valid for rtlights.
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_PRECACHE_MODELS		4096		// 14bit.

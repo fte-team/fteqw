@@ -4,7 +4,12 @@
 #include "gl_draw.h"
 #include "shader.h"
 #include "glquake.h"
+#include "vr.h"
 #include <string.h>
+
+#ifdef __GLIBC__
+#include <malloc.h>	//for malloc_trim
+#endif
 
 
 #define DEFAULT_WIDTH 640
@@ -1213,74 +1218,93 @@ rendererinfo_t dedicatedrendererinfo = {
 	extern rendererinfo_t headlessrenderer;
 #endif
 
-rendererinfo_t *rendererinfo[16] =
+static struct
+{
+	void *module;
+	rendererinfo_t *ri;
+} rendererinfo[16] =
 {
 #ifdef GLQUAKE
 	#ifdef FTE_RPI
-		&rpirendererinfo,
+		{NULL, &rpirendererinfo},
 	#endif
-	&openglrendererinfo,
+	{NULL, &openglrendererinfo},
 	#ifdef USE_EGL
-		&eglrendererinfo,
+		{NULL, &eglrendererinfo},
 	#endif
 #endif
 #ifdef D3D9QUAKE
-	&d3d9rendererinfo,
+	{NULL, &d3d9rendererinfo},
 #endif
 #ifdef VKQUAKE
-	&vkrendererinfo,
+	{NULL, &vkrendererinfo},
 	#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
-		&nvvkrendererinfo,
+		{NULL, &nvvkrendererinfo},
 	#endif
 #endif
 #ifdef D3D11QUAKE
-	&d3d11rendererinfo,
+	{NULL, &d3d11rendererinfo},
 #endif
 #ifdef SWQUAKE
-	&swrendererinfo,
+	{NULL, &swrendererinfo},
 #endif
 #ifdef D3D8QUAKE
-	&d3d8rendererinfo,
+	{NULL, &d3d8rendererinfo},
 #endif
 #ifdef WAYLANDQUAKE
 	#ifdef GLQUAKE
-		&rendererinfo_wayland_gl,
+		{NULL, &rendererinfo_wayland_gl},
 	#endif
 	#ifdef VKQUAKE
-		&rendererinfo_wayland_vk,
+		{NULL, &rendererinfo_wayland_vk},
 	#endif
 #endif
 #ifdef GLQUAKE
-	&fbdevrendererinfo,	//direct stuff that doesn't interact well with the system should always be low priority
+	{NULL, &fbdevrendererinfo},	//direct stuff that doesn't interact well with the system should always be low priority
 #endif
 #ifndef NPQTV
-	&dedicatedrendererinfo,
+	{NULL, &dedicatedrendererinfo},
 #endif
 #ifdef HEADLESSQUAKE
-	&headlessrenderer,
+	{NULL, &headlessrenderer},
 	#ifdef VKQUAKE
-		//&headlessvkrendererinfo,
+		//{NULL, &headlessvkrendererinfo},
 	#endif
 #endif
 };
 
-void R_RegisterRenderer(rendererinfo_t *ri)
+qboolean R_RegisterRenderer(void *module, rendererinfo_t *ri)
 {
 	size_t i;
 	for (i = 0; i < countof(rendererinfo); i++)
 	{	//already registered
-		if (rendererinfo[i] == ri)
-			return;
+		if (rendererinfo[i].ri == ri)
+			return true;
 	}
 	for (i = 0; i < countof(rendererinfo); i++)
 	{	//register it in the first empty slot
-		if (!rendererinfo[i])
+		if (!rendererinfo[i].ri)
 		{
-			rendererinfo[i] = ri;
-			return;
+			rendererinfo[i].module = module;
+			rendererinfo[i].ri = ri;
+			return true;
 		}
 	}
 	Sys_Printf("unable to register renderer %s\n", ri->description);
+	return false;
+}
+
+static plugvrfuncs_t *vrfuncs;
+qboolean R_RegisterVRDriver(void *module, plugvrfuncs_t *vr)
+{
+	if (!vrfuncs)
+	{
+		vrfuncs = vr;
+		return true;
+	}
+
+	Sys_Printf("unable to register renderer %s\n", vr->description);
+	return false;
 }
 
 void R_SetRenderer(rendererinfo_t *ri)
@@ -1365,6 +1389,10 @@ void R_ShutdownRenderer(qboolean devicetoo)
 
 	if (VID_DeInit && devicetoo)
 	{
+		if (vid.vr)
+			vid.vr->Shutdown();
+		vid.vr = NULL;
+
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
 	}
@@ -1429,6 +1457,10 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	Media_CaptureDemoEnd();
 	R_ShutdownRenderer(true);
 	Con_DPrintf("video shutdown took %f seconds\n", Sys_DoubleTime() - time);
+
+#ifdef __GLIBC__
+	malloc_trim(0);
+#endif
 
 	if (qrenderer == QR_NONE)
 	{
@@ -1951,6 +1983,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->rate = vid_refreshrate.value;
 	newr->stereo = (r_stereo_method.ival == 1);
 	newr->srgb = vid_srgb.ival;
+	newr->vr = vrfuncs;
 
 #if defined(_WIN32) && !defined(FTE_SDL)
 	if (newr->bpp && newr->bpp < 24)
@@ -1990,9 +2023,9 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	{	//special hack so that android doesn't weird out when not focused.
 		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			if (rendererinfo[i] && rendererinfo[i]->name[0] && rendererinfo[i]->rtype == QR_HEADLESS)
+			if (rendererinfo[i].ri && rendererinfo[i].ri->name[0] && rendererinfo[i].ri->rtype == QR_HEADLESS)
 			{
-				newr->renderer = rendererinfo[i];
+				newr->renderer = rendererinfo[i].ri;
 				break;
 			}
 		}
@@ -2005,11 +2038,11 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		//I'd like to just qsort the renderers, but that isn't stable and might reorder gl+d3d etc.
 		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			pri = R_PriorityForRenderer(rendererinfo[i]);
+			pri = R_PriorityForRenderer(rendererinfo[i].ri);
 			if (pri > bestpri)
 			{
 				bestpri = pri;
-				newr->renderer = rendererinfo[i];
+				newr->renderer = rendererinfo[i].ri;
 			}
 		}
 	}
@@ -2018,27 +2051,27 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		int count;
 		for (i = 0, count = 0; i < countof(rendererinfo); i++)
 		{
-			if (!rendererinfo[i] || !rendererinfo[i]->description)
+			if (!rendererinfo[i].ri || !rendererinfo[i].ri->description)
 				continue;	//not valid in this build. :(
-			if (rendererinfo[i]->rtype == QR_NONE		||	//dedicated servers are not useful
-				rendererinfo[i]->rtype == QR_HEADLESS	||	//headless appears buggy
-				rendererinfo[i]->rtype == QR_SOFTWARE	)	//software is just TOO buggy/limited for us to care.
+			if (rendererinfo[i].ri->rtype == QR_NONE		||	//dedicated servers are not useful
+				rendererinfo[i].ri->rtype == QR_HEADLESS	||	//headless appears buggy
+				rendererinfo[i].ri->rtype == QR_SOFTWARE	)	//software is just TOO buggy/limited for us to care.
 				continue;
 			count++;
 		}
 		count = rand()%count;
 		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			if (!rendererinfo[i] || !rendererinfo[i]->description)
+			if (!rendererinfo[i].ri || !rendererinfo[i].ri->description)
 				continue;	//not valid in this build. :(
-			if (rendererinfo[i]->rtype == QR_NONE		||
-				rendererinfo[i]->rtype == QR_HEADLESS	||
-				rendererinfo[i]->rtype == QR_SOFTWARE	)
+			if (rendererinfo[i].ri->rtype == QR_NONE		||
+				rendererinfo[i].ri->rtype == QR_HEADLESS	||
+				rendererinfo[i].ri->rtype == QR_SOFTWARE	)
 				continue;
 			if (!count--)
 			{
-				newr->renderer = rendererinfo[i];
-				Con_Printf("randomly selected renderer: %s\n", rendererinfo[i]->description);
+				newr->renderer = rendererinfo[i].ri;
+				Con_Printf("randomly selected renderer: %s\n", rendererinfo[i].ri->description);
 				break;
 			}
 		}
@@ -2048,20 +2081,20 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		int bestpri = -2, pri;
 		for (i = 0; i < countof(rendererinfo); i++)
 		{
-			if (!rendererinfo[i] || !rendererinfo[i]->description)
+			if (!rendererinfo[i].ri || !rendererinfo[i].ri->description)
 				continue;	//not valid in this build. :(
 			for (j = 4-1; j >= 0; j--)
 			{
-				if (!rendererinfo[i]->name[j])
+				if (!rendererinfo[i].ri->name[j])
 					continue;
-				if (!stricmp(rendererinfo[i]->name[j], com_token))
+				if (!stricmp(rendererinfo[i].ri->name[j], com_token))
 				{
-					pri = R_PriorityForRenderer(rendererinfo[i]);
+					pri = R_PriorityForRenderer(rendererinfo[i].ri);
 
 					if (pri > bestpri)
 					{
 						bestpri = pri;
-						newr->renderer = rendererinfo[i];
+						newr->renderer = rendererinfo[i].ri;
 					}
 					break; //try the next renderer now.
 				}
@@ -2182,6 +2215,12 @@ void R_RestartRenderer (rendererstate_t *newr)
 			rendererinfo_t *skip = newr->renderer;
 			struct sortedrenderers_s sorted[countof(rendererinfo)];
 
+			if (failed && newr->vr)
+			{
+				Con_Printf(CON_NOTICE "Trying without vr\n");
+				newr->vr = NULL;
+				failed = !R_ApplyRenderer(newr);
+			}
 			if (failed && newr->fullscreen == 1)
 			{
 				Con_Printf(CON_NOTICE "Trying fullscreen windowed"CON_DEFAULT"\n");
@@ -2213,7 +2252,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 			for (i = 0; i < countof(sorted); i++)
 			{
 				sorted[i].index = i;
-				sorted[i].r = rendererinfo[i];
+				sorted[i].r = rendererinfo[i].ri;
 				sorted[i].pri = R_PriorityForRenderer(sorted[i].r);
 			}
 			qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);
@@ -2295,7 +2334,7 @@ void R_SetRenderer_f (void)
 		for (i = 0; i < countof(sorted); i++)
 		{
 			sorted[i].index = i;
-			sorted[i].r = rendererinfo[i];
+			sorted[i].r = rendererinfo[i].ri;
 			sorted[i].pri = R_PriorityForRenderer(sorted[i].r);
 		}
 		qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);
@@ -2337,7 +2376,7 @@ static void R_UpdateRendererOpts(void)
 	for (i = 0; i < countof(sorted); i++)
 	{
 		sorted[i].index = i;
-		sorted[i].r = rendererinfo[i];
+		sorted[i].r = rendererinfo[i].ri;
 		sorted[i].pri = R_PriorityForRenderer(sorted[i].r);
 	}
 	qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);

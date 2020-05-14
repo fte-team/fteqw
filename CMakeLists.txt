@@ -1077,7 +1077,57 @@ ELSE()
 	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
 ENDIF()
 
-#TODO: cef plugin
+#openxr plugin
+FIND_PACKAGE(PkgConfig)
+IF (PKGCONFIG_FOUND)
+	IF (NOT CMAKE_CROSSCOMPILING)	#its picking up the linux headers then complaining that they're missing in mingw. also almost entirely untested so no great loss.
+		PKG_SEARCH_MODULE(OPENXR openxr)
+	ENDIF()
+	IF (OPENXR_FOUND)
+		ADD_LIBRARY(openxr MODULE
+			plugins/plugin.c
+			plugins/openxr.c
+		)
+		TARGET_INCLUDE_DIRECTORIES(openxr PRIVATE ${OPENXR_INCLUDE_DIRS} )
+
+		SET_TARGET_PROPERTIES(openxr PROPERTIES PREFIX "fteplug_")
+		SET_TARGET_PROPERTIES(openxr PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		IF (1)	#dynamically link
+			SET_TARGET_PROPERTIES(openxr PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES};XR_NO_PROTOTYPES")
+			TARGET_LINK_LIBRARIES(openxr ${SYS_LIBS})
+		ELSE()	#statically link
+			SET_TARGET_PROPERTIES(openxr PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES}")
+			TARGET_LINK_LIBRARIES(openxr ${SYS_LIBS} ${OPENXR_LIBRARIES})
+		ENDIF()
+		SET(INSTALLTARGS ${INSTALLTARGS} openxr)
+	ELSE()
+		MESSAGE(WARNING "openxr library NOT available. Quake is already a reality anyway.")
+	ENDIF()
+ENDIF()
+
+#cef plugin
+#libcef itself can be obtained from http://opensource.spotify.com/cefbuilds/index.html (minimal builds, which still ends up with a 940mb libcef.so - yes, actual size)
+#(be sure to manually strip the binary of its debug info)
+IF (0)
+	FIND_PATH (CEF_PATH include/cef_version.h /tmp/cef/cef_binary_81.3.1+gb2b49f1+chromium-81.0.4044.113_linux64_minimal)
+	#FIND_LIBRARY(CEF_LIBRARIES cef ${CEF_PATH}/Release)
+	IF (CEF_PATH)
+		ADD_LIBRARY(cef MODULE
+			plugins/plugin.c
+			plugins/cef/cef.c
+		)
+		TARGET_INCLUDE_DIRECTORIES(cef PRIVATE ${CEF_PATH}/..)
+		if (CEF_LIBRARIES)
+			SET_TARGET_PROPERTIES(cef PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES};LIBCEF_STATIC")
+			TARGET_LINK_LIBRARIES(cef ${SYS_LIBS} ${CEF_LIBRARIES} ${CMAKE_DL_LIBS})
+		ELSE()
+			SET_TARGET_PROPERTIES(cef PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES};LIBCEF_DYNAMIC")
+			TARGET_LINK_LIBRARIES(cef ${SYS_LIBS} ${CMAKE_DL_LIBS})
+		ENDIF()
+		SET_TARGET_PROPERTIES(cef PROPERTIES PREFIX "fteplug_")
+		SET_TARGET_PROPERTIES(cef PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	ENDIF()
+ENDIF()
 
 IF(NOT ANDROID)
 	#XMPP/jabber client plugin
@@ -1115,6 +1165,7 @@ ADD_CUSTOM_TARGET(menusys ALL
 		quakec/menusys/menu.src
 		quakec/menusys/menusys/mitems.qc
 		quakec/menusys/menusys/mitems_common.qc
+		quakec/menusys/menusys/mitem_frame.qc
 		quakec/menusys/menusys/mitem_desktop.qc
 		quakec/menusys/menusys/mitem_exmenu.qc
 		quakec/menusys/menusys/mitem_edittext.qc

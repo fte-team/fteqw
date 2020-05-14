@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #if defined(GLQUAKE) && defined(USE_EGL)
 #include "gl_videgl.h"
+#include "vr.h"
 
 //EGL_KHR_gl_colorspace
 #ifndef EGL_GL_COLORSPACE_KHR
@@ -42,7 +43,7 @@ static EGLBoolean	(EGLAPIENTRY *qeglSwapBuffers)(EGLDisplay dpy, EGLSurface surf
 static EGLBoolean	(EGLAPIENTRY *qeglMakeCurrent)(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
 static EGLContext	(EGLAPIENTRY *qeglCreateContext)(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list);
 static EGLBoolean	(EGLAPIENTRY *qeglDestroyContext)(EGLDisplay dpy, EGLContext ctx);
-static void *		(EGLAPIENTRY *qeglGetProcAddress) (char *name);
+static void *		(EGLAPIENTRY *qeglGetProcAddress) (const char *name);
 
 static EGLBoolean 	(EGLAPIENTRY *qeglSwapInterval) (EGLDisplay display, EGLint interval);
 
@@ -425,6 +426,25 @@ qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLN
 	}
 
 	EGL_UpdateSwapInterval();
+
+
+	if (info->vr)
+	{
+		vrsetup_t vrsetup = {sizeof(vrsetup)};
+		vrsetup.vrplatform = VR_EGL;
+		vrsetup.egl.getprocaddr = qeglGetProcAddress;
+		vrsetup.egl.egldisplay = egldpy;
+		vrsetup.egl.eglconfig = cfg;
+		vrsetup.egl.eglcontext = eglctx;
+		if (!info->vr->Prepare(&vrsetup) ||
+			!info->vr->Init(&vrsetup, info))
+		{
+			info->vr->Shutdown();
+			info->vr = NULL;
+		}
+		else
+			vid.vr = info->vr;
+	}
 
 	return true;
 }

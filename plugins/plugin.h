@@ -182,7 +182,8 @@ struct wstats_s;
 
 
 #define F(t, n, args) t (QDECL *n) args
-
+typedef void dllhandle_t;
+struct dllfunction_s;
 typedef struct	//core stuff
 {
 	//Basic builtins:
@@ -193,6 +194,9 @@ typedef struct	//core stuff
 	F(void,		Print,				(const char *message));	//print on (main) console.
 	F(void,		Error,				(const char *message));	//abort the entire engine.
 	F(quintptr_t,GetMilliseconds,	(void));
+	F(dllhandle_t*,LoadDLL,			(const char *modulename, struct dllfunction_s *funcs));
+	F(void*,	GetDLLSymbol,		(dllhandle_t *handle, const char *symbolname));
+	F(void,		CloseDLL,			(dllhandle_t *handle));	//not guarenteed to actually do anything, of course.
 #define plugcorefuncs_name "Core"
 } plugcorefuncs_t;
 

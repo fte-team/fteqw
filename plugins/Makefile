@@ -103,6 +103,7 @@ clean: ezscript-clean qi-clean hud-clean irc-clean
 help:
 	@-echo make a subdirectory
 
+######################################
 #small script to download+install avformat for windows cross compiles.
 #linux users are expected to have the library installed locally already. If your version is too old or missing, run the following command to install it (to /usr/local), then delete the gz and directory.
 #wget http://ffmpeg.org/releases/ffmpeg-1.2.tar.gz && cd tar xvfz ffmpeg-1.2.tar.gz && cd ffmpeg-1.2/ && ./configure --disable-yasm --enable-shared && make && sudo make install
@@ -189,7 +190,9 @@ $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(FFMPEG_ZIP)
 
 $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
+######################################
 
+######################################
 #small script for ode
 #FIXME: ode fails to compile under cygwin
 #FIXME: race condition if you try compiling debug+release at the same time, as this makefile is invoked twice by the engine's one
@@ -212,7 +215,9 @@ ODE_FILES=../engine/common/com_phys_ode.c ../engine/common/mathlib.c plugin.c $(
 $(PLUG_PREFIX)ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
 	$(CC) -flto -s $(BASE_CFLAGS) $(CFLAGS) -Os -DFTEPLUGIN -DODE_STATIC -o $@ -shared $(PLUG_CFLAGS) -I$(ODE_BASE)ode-$(ODE_VER)/include $(ODE_FILES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -static-libgcc `$(CC) -print-file-name=libstdc++.a` -lpthread
 #NATIVE_PLUGINS+=ode
+######################################
 
+######################################
 ifneq ($(CMAKERULES),)
 BULLET_CFLAGS+=-static-libstdc++
 PLUG_CMAKE+= -DCMAKE_TOOLCHAIN_FILE="$(CMAKERULES)" 
@@ -255,23 +260,9 @@ $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz $(CMAKERULES)
 $(PLUG_PREFIX)bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.cpp plugin.c $(BULLET_LIBS)
 	$(CXX) $(BASE_CXXFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(BULLET_CFLAGS)
 #NATIVE_PLUGINS+=bullet
+######################################
 
-
--include Makefile.private
-
-$(PLUG_PREFIX)mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
-NATIVE_PLUGINS+=mpq
-
-$(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c ../engine/common/sha1.c emailnot/md5.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
-NATIVE_PLUGINS+=xmpp
-
-$(PLUG_PREFIX)qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
-NATIVE_PLUGINS+=qi
-
-
+######################################
 #Regarding CEF Versions: Cef 2526 is reportedly the most recent _WORKING_ version of libcef. Later versions have screwed webgl etc, and are just generally unstable.
 #However, that's now impossible to get hold of since the old cefbuilds server went down. New builds are hosted by spotify and they're all randomly broken, so we might as well just use whatever seems fairly recent.
 
@@ -314,18 +305,49 @@ else
 $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT):
 	echo cef plugin not supported on this arch
 endif
+######################################
+
+#for custom/private plugins...
+-include Makefile.private
+
+#small plugins with simpler build rules...
+
+$(PLUG_PREFIX)mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
+NATIVE_PLUGINS+=mpq
+
+$(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c ../engine/common/sha1.c emailnot/md5.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
+NATIVE_PLUGINS+=xmpp
+
+$(PLUG_PREFIX)qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+NATIVE_PLUGINS+=qi
+
+
 
 $(PLUG_PREFIX)irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=irc
+
+#OpenXR plugin...
+$(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `pkg-config --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
+#ifeq ($(shell pkg-config --exists openxr && echo 1),1)
+#NATIVE_PLUGINS+=openxr
+#endif
 
 #for compat with ezquake
 $(PLUG_PREFIX)ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iezhud $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=ezhud
 
+#not really relevant now that gltf was made an internal plugin
 $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/models.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
-NATIVE_PLUGINS+=models
+#NATIVE_PLUGINS+=models
+
+
+
 
 all: $(foreach FOO,$(NATIVE_PLUGINS), $(PLUG_PREFIX)$(FOO)$(PLUG_NATIVE_EXT))

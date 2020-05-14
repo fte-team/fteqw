@@ -1130,7 +1130,7 @@ void CL_PredictMovePNum (int seat)
 			from.frame = i;
 			from.time = backdate->senttime;
 			from.cmd = &backdate->cmd[seat];
-			if (to.frame > pv->prop.sequence)
+			if (cl.inframes[to.frame&UPDATE_MASK].ackframe > pv->prop.sequence)
 				continue; //if we didn't predict to this frame yet, then the waterjump etc state will be invalid, so try to go for an older frame so that it actually propagates properly.
 			if (from.time < simtime && from.frame != to.frame)
 				break;	//okay, we found the first frame that is older, no need to continue looking
@@ -1184,7 +1184,8 @@ void CL_PredictMovePNum (int seat)
 		}
 		if (i == pe->num_entities && pv->nolocalplayer)
 		{
-			//return;	//no player, nothing makes sense any more.
+			if (cls.state >= ca_active)
+				return;	//no player, nothing makes sense any more.
 			from.state = &nullstate;
 			nopred = true;
 		}
@@ -1243,6 +1244,11 @@ void CL_PredictMovePNum (int seat)
 	{
 		int stopframe;
 		//Con_Printf("Pred %i to %i\n", to.frame+1, min(from.frame+UPDATE_BACKUP, cl.movesequence));
+
+		//fix up sequence numbers for nq
+		int validsequence = cl.inframes[cl.validsequence&UPDATE_MASK].ackframe;
+		from.frame = cl.inframes[from.frame&UPDATE_MASK].ackframe;
+		to.frame = cl.inframes[to.frame&UPDATE_MASK].ackframe;
 		for (i=to.frame+1, stopframe=min(from.frame+UPDATE_BACKUP, cl.movesequence) ; i < stopframe; i++)
 		{
 			outframe_t *of = &cl.outframes[i & UPDATE_MASK];
@@ -1273,7 +1279,7 @@ void CL_PredictMovePNum (int seat)
 					VectorCopy(pv->prop.gravitydir, from.state->gravitydir);
 			}
 			CL_PredictUsercmd (seat, trackent, from.state, to.state, to.cmd);
-			if (i <= cl.validsequence && simtime >= to.time)
+			if (i <= validsequence && simtime >= to.time)
 			{	//this frame is final keep track of our propagated values.
 				pv->prop.onground = pmove.onground;
 				pv->prop.jump_held = pmove.jump_held;

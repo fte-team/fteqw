@@ -1321,6 +1321,50 @@ void Matrix4x4_Identity(float *outm)
 	outm[15] = 1;
 }
 
+void Matrix4x4_CM_Projection_Offset(float *proj, float fovl, float fovr, float fovd, float fovu, float neard, float fard, qboolean d3d)
+{
+	double xmin, xmax, ymin, ymax;
+	double dn = (d3d?0:-1), df = 1;	//d3d outputs near as 0, opengl has near as -1. that's the only difference.
+
+	float fovy = fovu-fovd;
+	float fovx = fovr-fovl;
+
+	//proj
+	ymax = neard * tan( fovy * M_PI / 360.0 );
+	ymin = -ymax;
+
+	if (fovx == fovy)
+	{
+		xmax = ymax;
+		xmin = ymin;
+	}
+	else
+	{
+		xmax = neard * tan( fovx * M_PI / 360.0 );
+		xmin = -xmax;
+	}
+
+	proj[0] = (2*neard) / (xmax - xmin);
+	proj[4] = 0;
+	proj[8] = (xmax + xmin) / (xmax - xmin);
+	proj[12] = 0;
+
+	proj[1] = 0;
+	proj[5] = (2*neard) / (ymax - ymin);
+	proj[9] = (ymax + ymin) / (ymax - ymin);
+	proj[13] = 0;
+
+	proj[2] = 0;
+	proj[6] = 0;
+	proj[10] = (fard*df-neard*dn)/(neard-fard);
+	proj[14] = ((df-dn)*fard*neard)/(neard-fard);
+
+	proj[3] = 0;
+	proj[7] = 0;
+	proj[11] = -1;
+	proj[15] = 0;
+}
+
 void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard, qboolean d3d)
 {
 	double xmin, xmax, ymin, ymax;

@@ -77,6 +77,7 @@ static qboolean XVK_SetupSurface_XCB(void);
 #include "gl_videgl.h"
 #endif
 #include "glquake.h"
+#include "vr.h"
 #endif
 
 #define USE_VMODE
@@ -2102,6 +2103,19 @@ static qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInf
 //	extern cvar_t	vid_gl_context_selfreset;
 	extern cvar_t	vid_gl_context_noerror;
 
+	vrsetup_t setup = {sizeof(setup)};
+	setup.vrplatform = VR_X11_GLX;
+	setup.x11_glx.display = vid_dpy;
+	setup.x11_glx.visualid = visinfo->visualid;
+	setup.x11_glx.glxfbconfig = fbconfig;
+	setup.x11_glx.drawable = vid_window;
+
+	if (info->vr && !info->vr->Prepare(&setup))
+	{
+		info->vr->Shutdown();
+		info->vr = NULL;
+	}
+
 	if (fbconfig && glx.CreateContextAttribs)
 	{
 		unsigned int majorver=1, minorver=1;
@@ -2122,6 +2136,12 @@ static qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInf
 			minorver = strtoul(ver+1, &ver, 10);
 		else
 			minorver = 0;
+
+		if (majorver < setup.minver.major || (majorver == setup.minver.major && minorver < setup.minver.minor))
+		{	//if vr stuff requires a minimum version then try and ask for that now
+			majorver = setup.minver.major;
+			minorver = setup.minver.minor;
+		}
 
 		//some weirdness for you:
 		//3.0 simply marked stuff as deprecated, without removing it.
@@ -2190,6 +2210,15 @@ static qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInf
 		Con_Printf("glXMakeCurrent failed\n");
 		return false;
 	}
+
+
+	setup.x11_glx.glxcontext = ctx;
+	if (info->vr && !info->vr->Init(&setup, info))
+	{
+		info->vr->Shutdown();
+		return false;
+	}
+	vid.vr = info->vr;
 
 	//okay, we have a context, now init OpenGL-proper.
 	return GL_Init(info, &GLX_GetSymbol);
@@ -4323,7 +4352,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 				break;
 		}
 #endif
-		Con_Printf(CON_ERROR "Failed to create a vulkan context.\n");
+		//Con_Printf(CON_ERROR "Failed to create a vulkan context.\n");
 		GLVID_Shutdown();
 		return false;
 #endif

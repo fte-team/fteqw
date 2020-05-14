@@ -1718,9 +1718,9 @@ DEPCXX?=$(CXX)
 ARCH:=$(ARCH)
 BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
 
+default: help
 -include Makefile_private
 
-.default: help
 all: rel
 rel: sv-rel m-rel qcc-rel
 dbg: sv-dbg m-dbg qcc-dbg

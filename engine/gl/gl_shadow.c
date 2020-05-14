@@ -57,6 +57,7 @@ cvar_t r_shadow_scissor = CVARD("r_shadow_scissor", "1", "constrains stencil sha
 cvar_t r_shadow_realtime_world				= CVARFD ("r_shadow_realtime_world", "0", CVAR_ARCHIVE, "Enables the use of static/world realtime lights.");
 cvar_t r_shadow_realtime_world_shadows		= CVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_lightmaps	= CVARFD ("r_shadow_realtime_world_lightmaps", "0", 0, "Specifies how much of the map's normal lightmap to retain when using world realtime lights. 0 completely replaces lighting.");
+cvar_t r_shadow_realtime_world_importlightentitiesfrommap = CVARFD ("r_shadow_realtime_world_importlightentitiesfrommap", "1", 0, "Controls default loading of world lightmaps.\n0: Load explicit .rtlight files only.\n1: Load explicit lights then try fallback to parsing the entities lump.\n2: Load only the entities lump.");
 cvar_t r_shadow_realtime_dlight				= CVARFD ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE, "Enables the use of dynamic realtime lights, allowing explosions to use bumpmaps etc properly.");
 cvar_t r_shadow_realtime_dlight_shadows		= CVARFD ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE, "Allows dynamic realtime lights to cast shadows as they move.");
 cvar_t r_shadow_realtime_dlight_ambient		= CVAR ("r_shadow_realtime_dlight_ambient", "0");
@@ -3731,7 +3732,7 @@ void Sh_PreGenerateLights(void)
 	if ((r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival) && rtlights_max == RTL_FIRST)
 	{
 		qboolean okay = false;
-		if (!okay)
+		if (!okay && r_shadow_realtime_world_importlightentitiesfrommap.ival <= 1)
 			okay |= R_LoadRTLights();
 		if (!okay)
 		{
@@ -3739,9 +3740,9 @@ void Sh_PreGenerateLights(void)
 				R_StaticEntityToRTLight(i);
 			okay |= rtlights_max != RTL_FIRST;
 		}
-		if (!okay)
+		if (!okay && r_shadow_realtime_world_importlightentitiesfrommap.ival >= 1)
 			okay |= R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
-		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value != 1)
+		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value < 0.5)
 		{
 			r_shadow_realtime_world_lightmaps.value = 1;
 			Con_Printf(CON_WARNING "No lights detected in map.\n");

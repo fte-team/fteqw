@@ -2,18 +2,41 @@
 #include "../plugin.h"
 #include "../engine.h"
 
+static plugfsfuncs_t *fsfuncs;
+static plugsubconsolefuncs_t *confuncs;
+static plugclientfuncs_t *clientfuncs;
+
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"	//not my bug.
+
 //libcef defs
 #include "include/cef_version.h"
 #include "include/capi/cef_app_capi.h"
 #include "include/capi/cef_client_capi.h"
+#include "include/capi/cef_parser_capi.h"
+#include "include/capi/cef_request_context_handler_capi.h"
 //#include "include/capi/cef_url_capi.h"
 #include "assert.h"
 #if defined(_DEBUG) && defined(_MSC_VER)
 	#include <crtdbg.h>
 #endif
+#ifndef _WIN32
+#include <unistd.h>
+#include <sys/stat.h>
+#endif
 
+#define EXPECTED_COMMIT_NUMBER  2179	//last version of libcef we tried building against...
+#if EXPECTED_COMMIT_NUMBER != EXPECTED_COMMIT_NUMBER
+	#warning "libcef version different from expected. expect problems with libcef's unstable API."
+#endif
+
+#define cef_addref(ptr)		(ptr)->base.add_ref(&(ptr)->base)
+#define cef_release(ptr)	(((ptr)->base.release)(&(ptr)->base))
+
+#ifndef LIBCEF_STATIC
+	#define LIBCEF_DYNAMIC
+#endif
+#ifdef LIBCEF_DYNAMIC
 //avoid conflicts with cef headers
-#define cef_api_hash							pcef_api_hash
 #define cef_version_info						pcef_version_info
 #define cef_initialize							pcef_initialize
 #define cef_do_message_loop_work				pcef_do_message_loop_work
@@ -44,17 +67,12 @@
 #define cef_string_list_size					pcef_string_list_size
 #define cef_string_list_value					pcef_string_list_value
 
-#define cef_addref(ptr)		(ptr)->base.add_ref(&(ptr)->base)
-#define cef_release(ptr)	(((ptr)->base.release)(&(ptr)->base))
-
-
-static const char*				(*cef_api_hash)(int entry);
 static int						(*cef_version_info)(int entry);
 static int						(*cef_initialize)(const struct _cef_main_args_t* args, const cef_settings_t* settings, cef_app_t* application, void* windows_sandbox_info);
 static void						(*cef_do_message_loop_work)(void);
 static void						(*cef_shutdown)(void);
 static int						(*cef_execute_process)(const cef_main_args_t* args, cef_app_t* application, void* windows_sandbox_info);
-static cef_browser_t*			(*cef_browser_host_create_browser_sync)(const cef_window_info_t* windowInfo, cef_client_t* client, const cef_string_t* url, const cef_browser_settings_t* settings, cef_request_context_t* request_context);
+static cef_browser_t*			(*cef_browser_host_create_browser_sync)(const cef_window_info_t* windowInfo, cef_client_t* client, const cef_string_t* url, const cef_browser_settings_t* settings, cef_dictionary_value_t* extra_info, cef_request_context_t* request_context);
 static int						(*cef_string_utf8_to_utf16)(const char* src, size_t src_len, cef_string_utf16_t* output);
 static int						(*cef_string_utf16_to_utf8)(const char16* src, size_t src_len, cef_string_utf8_t* output);
 static void						(*cef_string_utf16_clear)(cef_string_utf16_t* str);
@@ -78,16 +96,6 @@ static int						(*cef_string_multimap_value)(cef_string_multimap_t map, size_t i
 static void						(*cef_string_multimap_free)(cef_string_multimap_t map);
 static size_t					(*cef_string_list_size)(cef_string_list_t list);
 static int						(*cef_string_list_value)(cef_string_list_t list, size_t index, cef_string_t* value);
-
-
-
-
-#ifndef CEF_VERSION	//old builds lack this
-#define CEF_VERSION "cef"STRINGIFY(CEF_VERSION_MAJOR)"."STRINGIFY(CEF_REVISION)"."STRINGIFY(CHROME_VERSION_BUILD)
-#endif
-#ifndef CEF_COMMIT_NUMBER
-#define CEF_COMMIT_NUMBER CEF_REVISION
-#endif
 
 #ifdef _WIN32
 //we can't use pSys_LoadLibrary, because plugin builtins do not work unless the engine's plugin system is fully initialised, which doesn't happen in the 'light weight' sub processes, so we'll just roll our own (consistent) version.
@@ -169,16 +177,13 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	return (dllhandle_t*)lib;
 }
 #endif
+#endif
 
 
-
-#define Cvar_Register(v) ((v)->handle = pCvar_Register((v)->name, (v)->string, (v)->flags, (v)->group))
-#define Cvar_Update(v) ((v)->modificationcount = pCvar_Update((v)->handle, &(v)->modificationcount, (v)->string, &(v)->value))
-
-vmcvar_t	cef_incognito		= {"cef_incognito", "0", "browser settings", 0};
-vmcvar_t	cef_allowplugins	= {"cef_allowplugins", "0", "browser settings", 0};
-vmcvar_t	cef_allowcvars		= {"cef_allowcvars", "0", "browser settings", 0};
-vmcvar_t	cef_devtools		= {"cef_devtools", "0", "browser settings", 0};
+static cvar_t	*cef_incognito;
+static cvar_t	*cef_allowplugins;
+static cvar_t	*cef_allowcvars;
+static cvar_t	*cef_devtools;
 
 static char plugname[MAX_OSPATH];
 static char *newconsole;
@@ -317,14 +322,10 @@ static int browser_release(browser_t *br)
 	return false;
 }
 
-#if CEF_COMMIT_NUMBER >= 1658	//not sure what number it is.
-	#define cef_base_t cef_base_ref_counted_t
-#endif
-
 #define browser_subs(sub) \
-	static void CEF_CALLBACK browser_##sub##_addref(cef_base_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); browser_addref(br);};	\
-	static int CEF_CALLBACK browser_##sub##_release(cef_base_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); return browser_release(br);};	\
-	static int CEF_CALLBACK browser_##sub##_hasoneref(cef_base_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); return br->refcount == 1;};
+	static void CEF_CALLBACK browser_##sub##_addref(cef_base_ref_counted_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); browser_addref(br);};	\
+	static int CEF_CALLBACK browser_##sub##_release(cef_base_ref_counted_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); return browser_release(br);};	\
+	static int CEF_CALLBACK browser_##sub##_hasoneref(cef_base_ref_counted_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); return br->refcount == 1;};
 browser_subs(client);
 browser_subs(render_handler);
 browser_subs(display_handler);
@@ -371,8 +372,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 		return false;
 	else if (!strncmp(req, "getcvar_", 8))
 	{
-		Cvar_Update(&cef_allowcvars);
-		if (cef_allowcvars.value && pCvar_GetString(req+8, buffer, buffersize))
+		if (cef_allowcvars->value && cvarfuncs->GetString(req+8, buffer, buffersize))
 			return true;
 	}
 	else if (!strncmp(req, "setcvar_", 8))
@@ -383,10 +383,9 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 		else
 			eq = req+strlen(req);
 
-		Cvar_Update(&cef_allowcvars);
-		if (cef_allowcvars.value)
+		if (cef_allowcvars->value)
 		{
-			pCvar_SetString(req+8, eq);
+			cvarfuncs->SetString(req+8, eq);
 			*buffer = 0;
 			return true;
 		}
@@ -396,7 +395,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 		//FIXME: should be more than just a one-off.
 		unsigned int stats[256], i, m;
 		char *e = buffer;
-		m = pCL_GetStats(0, stats, countof(stats));
+		m = clientfuncs->GetStats(0, stats, countof(stats));
 		if (!m)
 		{
 			m = 0;
@@ -423,7 +422,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 		char *e = buffer;
 		int players[MAX_SPLITS];
 		int tracks[MAX_SPLITS];
-		int seats = pGetLocalPlayerNumbers(0, MAX_SPLITS, players, tracks);
+		int seats = clientfuncs->GetLocalPlayerNumbers(0, MAX_SPLITS, players, tracks);
 		*e++ = '[';
 		for (i = 0; i < seats; i++)
 		{
@@ -440,7 +439,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 	{
 		char serverinfo[4096];
 		char *e = buffer;
-		pGetServerInfo(serverinfo, sizeof(serverinfo));
+		clientfuncs->GetServerInfo(serverinfo, sizeof(serverinfo));
 		e = Info_JSONify(serverinfo, e, buffer + buffersize - e-1);
 		if (e == buffer) e++;
 		*buffer = '{';
@@ -458,8 +457,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 		*e++ = '[';
 		for (i = 0; ; i++)
 		{
-			if (!pGetPlayerInfo(i, &info))
-				break;
+			clientfuncs->GetPlayerInfo(i, &info);
 
 			if (buffer + buffersize - e-1 < 100)
 				break;
@@ -468,7 +466,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 				*e++ = ',';
 			*e++ = '{';
 			//splurge the specific info
-			sprintf(e, "\"frags\":%i,\"ping\":%i,\"pl\":%i,\"start\":%i,\"userid\":%i", info.frags, info.ping, info.pl, info.starttime, info.userid);
+			sprintf(e, "\"frags\":%i,\"ping\":%i,\"pl\":%i,\"active\":%i,\"userid\":%i", info.frags, info.ping, info.pl, info.activetime, info.userid);
 			e += strlen(e);
 			//splurge the generic info (colours, name, team)
 			e = Info_JSONify(info.userinfo, e, buffer + buffersize - e-1);
@@ -483,7 +481,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 	return false;
 }
 
-static int CEF_CALLBACK browser_on_process_message_received(cef_client_t* self, cef_browser_t* browser, cef_process_id_t source_process, cef_process_message_t* message)
+static int CEF_CALLBACK browser_on_process_message_received(cef_client_t* self, cef_browser_t* browser, cef_frame_t* frame, cef_process_id_t source_process, cef_process_message_t* message)
 {
 	int handled = false;
 //	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
@@ -523,7 +521,7 @@ static int CEF_CALLBACK browser_on_process_message_received(cef_client_t* self, 
 		cef_string_utf8_clear(&queryname);
 		if (cmdunusable)
 			cef_string_userfree_free(cmdunusable);
-		browser->send_process_message(browser, source_process, reply);
+		frame->send_process_message(frame, source_process, reply);
 		handled = true;
 	}
 	cef_release(message);
@@ -536,7 +534,7 @@ static int CEF_CALLBACK browser_on_process_message_received(cef_client_t* self, 
 }
 
 //render_handler methods
-static int CEF_CALLBACK browser_get_view_rect(cef_render_handler_t *self, cef_browser_t *browser, cef_rect_t *rect)
+static void CEF_CALLBACK browser_get_view_rect(cef_render_handler_t *self, cef_browser_t *browser, cef_rect_t *rect)
 {
 	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, render_handler));
 
@@ -545,7 +543,6 @@ static int CEF_CALLBACK browser_get_view_rect(cef_render_handler_t *self, cef_br
 	rect->width = br->desiredwidth;
 	rect->height = br->desiredheight;
 	cef_release(browser);
-	return true;
 }
 static void CEF_CALLBACK browser_on_paint(cef_render_handler_t *self, cef_browser_t *browser, cef_paint_element_type_t type, size_t dirtyRectsCount, cef_rect_t const* dirtyRects, const void* buffer, int width, int height)
 {
@@ -639,7 +636,7 @@ static void CEF_CALLBACK browser_on_before_context_menu(struct _cef_context_menu
 
 //display_handler methods
 //redirect console.log messages to quake's console, but only display them if we've got developer set.
-static int CEF_CALLBACK browser_on_console_message(cef_display_handler_t* self, cef_browser_t* browser, const cef_string_t* message, const cef_string_t* source, int line)
+static int CEF_CALLBACK browser_on_console_message(cef_display_handler_t* self, cef_browser_t* browser, cef_log_severity_t level, const cef_string_t* message, const cef_string_t* source, int line)
 {
 	cef_string_utf8_t u8_source = {NULL};
 	cef_string_utf8_t u8_message = {NULL};
@@ -664,7 +661,7 @@ static void CEF_CALLBACK browser_on_title_change(cef_display_handler_t* self, ce
 		cef_string_utf8_copy(br->currenturl.str, br->currenturl.length, &br->currenttitle);
 
 	if (br->consolename)
-		pCon_SetConsoleString(br->consolename, "title", br->currenttitle.str?br->currenttitle.str:"");
+		confuncs->SetConsoleString(br->consolename, "title", br->currenttitle.str?br->currenttitle.str:"");
 
 	cef_release(browser);
 }
@@ -683,7 +680,7 @@ static void CEF_CALLBACK browser_on_favicon_urlchange(cef_display_handler_t* sel
 	cef_string_clear(&str);
 
 	if (br->consolename)
-		pCon_SetConsoleString(br->consolename, "icon", br->currenticon.str?br->currenticon.str:"");
+		confuncs->SetConsoleString(br->consolename, "icon", br->currenticon.str?br->currenticon.str:"");
 
 	cef_release(browser);
 }
@@ -693,7 +690,7 @@ static void CEF_CALLBACK browser_on_fullscreenmode_change(cef_display_handler_t*
 	br->fullscreen = fullscreen;
 
 	if (br->consolename)
-		pCon_SetConsoleFloat(br->consolename, "fullscreen", br->fullscreen);
+		confuncs->SetConsoleFloat(br->consolename, "fullscreen", br->fullscreen);
 
 	cef_release(browser);
 }
@@ -707,7 +704,7 @@ static void CEF_CALLBACK browser_on_address_change(cef_display_handler_t* self, 
 	{
 		cef_string_utf8_clear(&br->currenticon);
 		if (br->consolename)
-			pCon_SetConsoleString(br->consolename, "icon", br->currenticon.str?br->currenticon.str:"");
+			confuncs->SetConsoleString(br->consolename, "icon", br->currenticon.str?br->currenticon.str:"");
 	}
 
 	//FIXME: should probably make sure its the root frame
@@ -722,7 +719,7 @@ static int CEF_CALLBACK browser_on_tooltip(cef_display_handler_t* self, cef_brow
 	{
 		cef_string_utf8_t u8_text = {NULL};
 		cef_string_to_utf8(text->str, text->length, &u8_text);
-		pCon_SetConsoleString(br->consolename, "tooltip", u8_text.str?u8_text.str:"");
+		confuncs->SetConsoleString(br->consolename, "tooltip", u8_text.str?u8_text.str:"");
 		cef_string_utf8_clear(&u8_text);
 	}
 	cef_release(browser);
@@ -736,7 +733,7 @@ static void CEF_CALLBACK browser_on_status_message(cef_display_handler_t* self, 
 		cef_string_utf8_t u8_value = {NULL};
 		if (value)
 			cef_string_to_utf8(value->str, value->length, &u8_value);
-		pCon_SetConsoleString(br->consolename, "footer", u8_value.str?u8_value.str:"");
+		confuncs->SetConsoleString(br->consolename, "footer", u8_value.str?u8_value.str:"");
 		cef_string_utf8_clear(&u8_value);
 	}
 
@@ -744,7 +741,9 @@ static void CEF_CALLBACK browser_on_status_message(cef_display_handler_t* self, 
 }
 
 //request_handler methods
-static int CEF_CALLBACK browser_on_before_browse(cef_request_handler_t* self, cef_browser_t* browser, cef_frame_t* frame, cef_request_t* request, int is_redirect)
+
+
+static int CEF_CALLBACK browser_on_before_browse(cef_request_handler_t* self, cef_browser_t* browser, cef_frame_t* frame, cef_request_t* request, int user_gesture, int is_redirect)
 {
 //	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
 
@@ -752,7 +751,7 @@ static int CEF_CALLBACK browser_on_before_browse(cef_request_handler_t* self, ce
 	cef_release(frame);
 	cef_release(request);
 
-	return false;
+	return false;	//false = allow navigation, true = block
 }
 static void CEF_CALLBACK browser_on_render_process_terminated(cef_request_handler_t* self, cef_browser_t* browser, cef_termination_status_t status)
 {
@@ -795,7 +794,6 @@ browser_subs(context_menu_handler);
 	nb->client.get_drag_handler = NULL;
 	nb->client.get_find_handler = NULL;
 	nb->client.get_focus_handler = NULL;
-	nb->client.get_geolocation_handler = NULL;
 	nb->client.get_jsdialog_handler = NULL;
 	nb->client.get_keyboard_handler = NULL;
 	nb->client.get_life_span_handler = browser_get_life_span_handler;
@@ -828,15 +826,15 @@ browser_subs(context_menu_handler);
 
 	nb->request_handler.on_before_browse = browser_on_before_browse;
 	nb->request_handler.on_open_urlfrom_tab = NULL;
-	nb->request_handler.on_before_resource_load = NULL;
-	nb->request_handler.get_resource_handler = NULL;
-	nb->request_handler.on_resource_redirect = NULL;
-	nb->request_handler.on_resource_response = NULL;
-	nb->request_handler.get_resource_response_filter = NULL;
-	nb->request_handler.on_resource_load_complete = NULL;
+//	nb->request_handler.on_before_resource_load = NULL;
+//	nb->request_handler.get_resource_handler = NULL;
+//	nb->request_handler.on_resource_redirect = NULL;
+//	nb->request_handler.on_resource_response = NULL;
+//	nb->request_handler.get_resource_response_filter = NULL;
+//	nb->request_handler.on_resource_load_complete = NULL;
 	nb->request_handler.get_auth_credentials = NULL;
 	nb->request_handler.on_quota_request = NULL;
-	nb->request_handler.on_protocol_execution = NULL; //FIXME: should implement.
+//	nb->request_handler.on_protocol_execution = NULL; //FIXME: should implement.
 	nb->request_handler.on_certificate_error = NULL;
 //	nb->request_handler.on_select_client_certificate = NULL; //we have no such certs
 	nb->request_handler.on_plugin_crashed = NULL;
@@ -877,11 +875,7 @@ browser_subs(context_menu_handler);
 static cef_request_context_t *request_context;
 static cef_request_context_handler_t request_context_handler;
 //request_context_handler methods
-static int CEF_CALLBACK request_context_handler_on_before_plugin_load(cef_request_context_handler_t* self, const cef_string_t* mime_type, const cef_string_t* plugin_url,
-#if CEF_COMMIT_NUMBER >= 1658 
-																	  int is_main_frame,
-#endif
-																	  const cef_string_t* top_origin_url, cef_web_plugin_info_t* plugin_info, cef_plugin_policy_t* plugin_policy)
+static int CEF_CALLBACK request_context_handler_on_before_plugin_load(cef_request_context_handler_t* self, const cef_string_t* mime_type, const cef_string_t* plugin_url, int is_main_frame, const cef_string_t* top_origin_url, cef_web_plugin_info_t* plugin_info, cef_plugin_policy_t* plugin_policy)
 {
 //	Con_DPrintf("%s (%s), \"%s\" \"%s\" \"%s\" \"%s\"\n", policy_url.ToString().c_str(), url.ToString().c_str(), 
 //		info->GetName().ToString().c_str(), info->GetPath().ToString().c_str(), info->GetVersion().ToString().c_str(), info->GetDescription().ToString().c_str());
@@ -890,8 +884,7 @@ static int CEF_CALLBACK request_context_handler_on_before_plugin_load(cef_reques
 
 	cef_release(plugin_info);
 
-	Cvar_Update(&cef_allowplugins);
-	if (!cef_allowplugins.value)
+	if (!cef_allowplugins->value)
 	{
 		*plugin_policy = PLUGIN_POLICY_DISABLE;
 //		Con_Printf("Blocking plugin: %s (%s)\n", info->GetName().ToString().c_str(), url.ToString().c_str());
@@ -921,21 +914,16 @@ static cef_render_process_handler_t* CEF_CALLBACK app_get_render_process_handler
 static void CEF_CALLBACK app_on_register_custom_schemes(struct _cef_app_t* self, cef_scheme_registrar_t* registrar)
 {
 	cef_string_t fte = makecefstring("fte");
-	registrar->add_custom_scheme(registrar, &fte
-		, /*is_standard*/true
-		, /*is_local*/false
-		, /*is_display_isolated*/true
-#if CEF_COMMIT_NUMBER >= 1658	//not sure what number it is.
-		, /*is_secure*/true
-		, /*is_cors_enabled*/true	//display_isolated means that we shouldn't be getting requests from http anyway, so we don't need CORS protection.
-		, /*is_csp_bypassing*/false
-#endif
+	registrar->add_custom_scheme(registrar, &fte, CEF_SCHEME_OPTION_NONE
+		|CEF_SCHEME_OPTION_STANDARD
+		/*|CEF_SCHEME_OPTION_LOCAL*/
+		|CEF_SCHEME_OPTION_DISPLAY_ISOLATED
+		|CEF_SCHEME_OPTION_SECURE
+		|CEF_SCHEME_OPTION_CORS_ENABLED
+		/*|CEF_SCHEME_OPTION_CSP_BYPASSING*/
+		/*|CEF_SCHEME_OPTION_FETCH_ENABLED*/
 		);
 	cef_string_clear(&fte);
-
-#ifndef cef_base_t
-	cef_release(registrar);
-#endif
 }
 
 static void CEF_CALLBACK browser_process_handler_on_context_initialized(cef_browser_process_handler_t* self)
@@ -992,12 +980,12 @@ typedef struct
 	int64 queryid;
 	atomic_uint32_t refcount;
 } queryresponse_t;
-static void CEF_CALLBACK queryresponse_addref(cef_base_t* self)
+static void CEF_CALLBACK queryresponse_addref(cef_base_ref_counted_t* self)
 {
 	queryresponse_t *qr = (queryresponse_t*)((char*)self - offsetof(queryresponse_t, task.base)); 
 	atomic_fetch_add(&qr->refcount, 1);
 }
-static int CEF_CALLBACK queryresponse_release(cef_base_t* self)
+static int CEF_CALLBACK queryresponse_release(cef_base_ref_counted_t* self)
 {
 	queryresponse_t *qr = (queryresponse_t*)((char*)self - offsetof(queryresponse_t, task.base)); 
 	if (atomic_fetch_sub(&qr->refcount, 1) == 1)
@@ -1113,7 +1101,7 @@ static int CEF_CALLBACK fsfunc_execute(cef_v8handler_t* self, const cef_string_t
 		args->set_int(args, 3, (q->queryid>>32) & 0xffffffff);
 		cef_release(args);
 
-		browser->send_process_message(browser, PID_BROWSER, msg);
+		frame->send_process_message(frame, PID_BROWSER, msg);
 
 		if (setting)
 			cef_string_userfree_free(setting);
@@ -1129,7 +1117,7 @@ static int CEF_CALLBACK fsfunc_execute(cef_v8handler_t* self, const cef_string_t
 	return 1;
 } 
 
-static int CEF_CALLBACK render_process_handler_on_process_message_received(cef_render_process_handler_t* self,cef_browser_t* browser, cef_process_id_t source_process,cef_process_message_t* message)
+static int CEF_CALLBACK render_process_handler_on_process_message_received(cef_render_process_handler_t* self,cef_browser_t* browser, cef_frame_t* frame, cef_process_id_t source_process, cef_process_message_t* message)
 {
 	int handled = false;
 //	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
@@ -1174,12 +1162,12 @@ typedef struct
 	unsigned int resultcode;
 	char *responseheaders;
 } fteresource_t;
-static void CEF_CALLBACK resource_handler_addref(cef_base_t* self)
+static void CEF_CALLBACK resource_handler_addref(cef_base_ref_counted_t* self)
 {
 	fteresource_t *rh = (fteresource_t*)((char*)self - offsetof(fteresource_t, rh.base)); 
 	atomic_fetch_add(&rh->refcount, 1);
 }
-static int CEF_CALLBACK resource_handler_release(cef_base_t* self)
+static int CEF_CALLBACK resource_handler_release(cef_base_ref_counted_t* self)
 {
 	fteresource_t *rh = (fteresource_t*)((char*)self - offsetof(fteresource_t, rh.base)); 
 	if (atomic_fetch_sub(&rh->refcount, 1) == 1)
@@ -1279,7 +1267,7 @@ static int CEF_CALLBACK resource_handler_process_request(cef_resource_handler_t*
 	//(also blocks any fancy http:// parsing that an engine might do)
 	if (!strncmp(u8_url.str, "fte://data/", 11))
 	{
-		pVFS_Open(u8_url.str+6, &rh->fh, "rb");
+		rh->fh = fsfuncs->OpenVFS(u8_url.str+6, "rb", FS_GAME);
 		if (rh->fh)
 		{
 			cef_string_userfree_t mt = cef_get_mime_type(&ext);
@@ -1319,14 +1307,12 @@ static int CEF_CALLBACK resource_handler_process_request(cef_resource_handler_t*
 
 		rh->resultcode = 404;
 
-		if (!BUILTINISVALID(PR_GetVMInstance))
-			progs = NULL;
-		else if (!strncmp(u8_url.str, "fte://ssqc/", 11))
-			progs = pPR_GetVMInstance(0);	//WARNING: goes direct rather than via the server.
+		if (!strncmp(u8_url.str, "fte://ssqc/", 11))
+			progs = plugfuncs->GetEngineInterface("SSQCVM", sizeof(*progs));	//WARNING: goes direct rather than via the server, so basically single-player only.
 		else if (!strncmp(u8_url.str, "fte://csqc/", 11))
-			progs = pPR_GetVMInstance(1);
+			progs = plugfuncs->GetEngineInterface("CSQCVM", sizeof(*progs));
 		else if (!strncmp(u8_url.str, "fte://menu/", 11))
-			progs = pPR_GetVMInstance(2);
+			progs = plugfuncs->GetEngineInterface("MenuQCVM", sizeof(*progs));
 		else
 			progs = NULL;
 		
@@ -1535,8 +1521,6 @@ static cef_resource_handler_t* CEF_CALLBACK scheme_handler_factory_create(cef_sc
 	rh->rh.process_request		= resource_handler_process_request;
 	rh->rh.get_response_headers	= resource_handler_get_response_headers;
 	rh->rh.read_response		= resource_handler_read_response;
-	rh->rh.can_get_cookie		= NULL;
-	rh->rh.can_set_cookie		= NULL;
 	rh->rh.cancel				= resource_handler_cancel;
 
 	cef_addref(&rh->rh);
@@ -1580,8 +1564,7 @@ cef_request_context_t *Cef_GetRequestContext(void)
 	cef_request_context_t *ret = NULL;
 	qboolean incog;
 	
-	Cvar_Update(&cef_incognito);
-	incog = cef_incognito.value;
+	incog = cef_incognito->value;
 
 	if (!incog)
 		ret = request_context;
@@ -1590,7 +1573,7 @@ cef_request_context_t *Cef_GetRequestContext(void)
 	{
 		cef_request_context_settings_t csettings = {sizeof(csettings)};
 		csettings.persist_user_preferences = !incog;
-		if (!incog && pFS_NativePath("cefcache", FS_ROOT, utf8, sizeof(utf8)))
+		if (!incog && fsfuncs->NativePath("cefcache", FS_ROOT, utf8, sizeof(utf8)))
 			cef_string_from_utf8(utf8, strlen(utf8), &csettings.cache_path);	//should be empty for incognito.
 		ret = cef_request_context_create_context(&csettings, &request_context_handler);
 		cef_string_clear(&csettings.cache_path);
@@ -1644,16 +1627,24 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 		//const char *ua = "FTEBrowser";
 		//cef_string_from_utf8(ua, strlen(ua), &settings.user_agent);
 
-		if (pFS_NativePath("cefcache", FS_ROOT, utf8, sizeof(utf8)))
+		if (fsfuncs->NativePath("cefcache", FS_ROOT, utf8, sizeof(utf8)))
 			cef_string_from_utf8(utf8, strlen(utf8), &settings.cache_path);
-		if (pFS_NativePath("cef_debug.log", FS_ROOT, utf8, sizeof(utf8)))
+		if (fsfuncs->NativePath("cef_debug.log", FS_ROOT, utf8, sizeof(utf8)))
 			cef_string_from_utf8(utf8, strlen(utf8), &settings.log_file);
 
-		if (pFS_NativePath("", FS_BINARYPATH, utf8, sizeof(utf8)))
+		if (fsfuncs->NativePath("", FS_BINARYPATH, utf8, sizeof(utf8)))
 			cef_string_from_utf8(utf8, strlen(utf8), &settings.resources_dir_path);
 
-		if (pFS_NativePath("locales", FS_BINARYPATH, utf8, sizeof(utf8)))
+		if (fsfuncs->NativePath("locales", FS_BINARYPATH, utf8, sizeof(utf8)))
+		{
+			struct stat statbuf;
+			if (stat(utf8, &statbuf) < 0)
+			{
+				Con_Printf("%s not found\n", utf8);
+				return NULL;
+			}
 			cef_string_from_utf8(utf8, strlen(utf8), &settings.locales_dir_path);
+		}
 
 #ifdef _WIN32
 		{
@@ -1696,14 +1687,9 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 	if (!cefwasinitialised)
 		return NULL;
 
-	Cvar_Update(&cef_allowplugins);
-
 	//tbh, web browser's are so horribly insecure that it seems pointless to even try disabling stuff that might be useful
 	browserSettings.windowless_frame_rate = 60;
 	browserSettings.javascript_close_windows = STATE_DISABLED;
-#if CEF_COMMIT_NUMBER < 1658
-	browserSettings.javascript_open_windows = STATE_DISABLED;
-#endif
 	browserSettings.javascript_access_clipboard = STATE_DISABLED;
 //	browserSettings.universal_access_from_file_urls = STATE_DISABLED;
 //	browserSettings.file_access_from_file_urls = STATE_DISABLED;
@@ -1713,9 +1699,6 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 
 	window_info.windowless_rendering_enabled = true;
 	memset(&window_info.parent_window, 0, sizeof(window_info.parent_window));
-#if CEF_COMMIT_NUMBER < 1658
-	window_info.transparent_painting_enabled = true;
-#endif
 
 	newbrowser = browser_create();
 	if (!newbrowser)
@@ -1726,7 +1709,7 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 	cef_string_from_utf8(name, strlen(name), &url);
 
 	cef_addref(&newbrowser->client);
-	newbrowser->thebrowser = pcef_browser_host_create_browser_sync(&window_info, &newbrowser->client, &url, &browserSettings, Cef_GetRequestContext());
+	newbrowser->thebrowser = cef_browser_host_create_browser_sync(&window_info, &newbrowser->client, &url, &browserSettings, NULL, Cef_GetRequestContext());
 	cef_string_to_utf8(url.str, url.length, &newbrowser->currenturl);
 	cef_string_clear(&url);
 	if (!newbrowser->thebrowser)
@@ -1735,8 +1718,7 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 		return NULL;	//cef fucked up.
 	}
 
-	Cvar_Update(&cef_devtools);
-	if (cef_devtools.value)
+	if (cef_devtools->value)
 	{
 		cef_browser_host_t *host = newbrowser->thebrowser->get_host(newbrowser->thebrowser);
 		browser_t *devtools = browser_create();
@@ -1759,11 +1741,7 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 		window_info.windowless_rendering_enabled = false;
 
 		cef_addref(&devtools->client);
-		host->show_dev_tools(host, &window_info, &devtools->client, &browserSettings
-#if CEF_COMMIT_NUMBER >= 1373	//not sure about the actual revision
-			, NULL
-#endif
-			);
+		host->show_dev_tools(host, &window_info, &devtools->client, &browserSettings, NULL);
 		cef_release(host);
 		browser_release(devtools);	//cef should continue to hold a reference to it while its visible, but its otherwise out of engine now.
 
@@ -1910,7 +1888,7 @@ static void VARGS Cef_Key (void *ctx, int code, int unicode, int event)
 		if (browser->keystate[code])
 			kev.native_key_code |= 1<<30;
 		if (event)
-			kev.native_key_code |= 1<<31;
+			kev.native_key_code |= 1u<<31;
 
 		if (event)
 			browser->keystate[code] = 0;
@@ -1938,7 +1916,7 @@ static void VARGS Cef_Key (void *ctx, int code, int unicode, int event)
 		if (browser->keystate[code])
 			kev.native_key_code |= 1<<30;
 		if (event)
-			kev.native_key_code |= 1<<31;
+			kev.native_key_code |= 1u<<31;
 
 		kev.is_system_key = 0;
 		kev.character = unicode;
@@ -2024,7 +2002,7 @@ static void VARGS Cef_ChangeStream (void *ctx, const char *streamname)
 		cef_string_clear(&thescript);
 		cef_string_clear(&url);
 	}
-	else if (!strncmp(streamname, "raw:", 4))
+	/*else if (!strncmp(streamname, "raw:", 4))
 	{
 		cef_string_t thehtml = {NULL};
 		cef_string_t url = {NULL};
@@ -2034,7 +2012,7 @@ static void VARGS Cef_ChangeStream (void *ctx, const char *streamname)
 		frame->load_string(frame, &thehtml, &url);
 		cef_string_clear(&thehtml);
 		cef_string_clear(&url);
-	}
+	}*/
 	else if (*streamname && strcmp(streamname, "http:") && strcmp(streamname, "https:"))
 	{
 		cef_string_t url = {NULL};
@@ -2139,25 +2117,31 @@ static qintptr_t Cef_Shutdown(qintptr_t *args)
 }
 
 #ifndef _WIN32
-int argc=0;
-char *argv[64];
-char commandline[8192];
-static void SetupArgv(void)
+static int argc=0;
+static char *argv[64];
+static char commandline[8192];
+static void SetupArgv(cef_main_args_t *a)
 {
-	if (argc)
-		return;
-	int i;
-	FILE *f = fopen("/proc/self/cmdline", "r");
-	char *e = commandline+fread(commandline, 1, sizeof(commandline), f);
-	fclose(f);
-	char *s = commandline;
-	while(s < e)
+	FILE *f;
+	if (!argc)
 	{
-		argv[argc++] = s;
-		while(*s)
-			s++;
-		s++;
+		f = fopen("/proc/self/cmdline", "r");
+		if (f)
+		{
+			char *s = commandline;
+			char *e = commandline+fread(commandline, 1, sizeof(commandline), f);
+			fclose(f);
+			while(s < e)
+			{
+				argv[argc++] = s;
+				while(*s)
+					s++;
+				s++;
+			}
+		}
 	}
+	a->argc = argc;
+	a->argv = argv;
 }
 #endif
 
@@ -2167,16 +2151,16 @@ static qboolean Cef_Init(qboolean engineprocess)
 #ifdef _WIN32
 	cef_main_args_t args = {GetModuleHandle(NULL)};
 #else
-	SetupArgv();
-	cef_main_args_t args = {argc, argv};
+	cef_main_args_t args;
+	SetupArgv(&args);
 #endif
 
 	{
 		int result;
 
+#ifdef LIBCEF_DYNAMIC
 		dllfunction_t ceffuncs[] =
 		{
-			{(void **)&cef_api_hash,						"cef_api_hash"},
 			{(void **)&cef_version_info,					"cef_version_info"},
 			{(void **)&cef_initialize,						"cef_initialize"},
 			{(void **)&cef_do_message_loop_work,			"cef_do_message_loop_work"},
@@ -2191,7 +2175,6 @@ static qboolean Cef_Init(qboolean engineprocess)
 			{(void **)&cef_string_utf8_set,					"cef_string_utf8_set"},
 			{(void **)&cef_string_userfree_utf16_free,		"cef_string_userfree_utf16_free"},
 			{(void **)&cef_register_scheme_handler_factory,	"cef_register_scheme_handler_factory"},
-			{(void **)&cef_get_mime_type,					"cef_get_mime_type"},
 			{(void **)&cef_v8value_create_function,			"cef_v8value_create_function"},
 			{(void **)&cef_v8value_create_string,			"cef_v8value_create_string"},
 			{(void **)&cef_process_message_create,			"cef_process_message_create"},
@@ -2214,11 +2197,20 @@ static qboolean Cef_Init(qboolean engineprocess)
 				Con_Printf("Unable to load libcef (version "CEF_VERSION")\n");
 			return false;
 		}
+#endif
 
 		if (engineprocess)
 		{
 			Con_Printf("libcef %i.%i: chrome %i.%i (%i)\n", cef_version_info(0), cef_version_info(1), cef_version_info(2), cef_version_info(3), cef_version_info(4));
-			if (strcmp(cef_api_hash(0), CEF_API_HASH_PLATFORM))
+
+			if (cef_version_info(0) != CEF_VERSION_MAJOR||
+				cef_version_info(1) != CEF_VERSION_MINOR||
+				cef_version_info(2) != CEF_VERSION_PATCH||
+				cef_version_info(3) != CEF_COMMIT_NUMBER||
+				cef_version_info(4) != CHROME_VERSION_MAJOR||
+				cef_version_info(5) != CHROME_VERSION_MINOR||
+				cef_version_info(6) != CHROME_VERSION_BUILD||
+				cef_version_info(7) != CHROME_VERSION_PATCH)
 			{	//the libcef api hash can be used to see if there's an api change that might break stuff.
 				//refuse to load it if the api changed.
 				Con_Printf("libcef outdated. Please install libcef version "CEF_VERSION"\n");
@@ -2247,10 +2239,10 @@ int NATIVEEXPORT CefSubprocessInit(void)
 static qintptr_t Cef_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
-	pCmd_Argv(0, cmd, sizeof(cmd));
+	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, "cef"))
 	{
-		if (BUILTINISVALID(Con_SetConsoleFloat))
+		if (confuncs)
 		{
 			static int sequence;
 			char f[128];
@@ -2258,18 +2250,18 @@ static qintptr_t Cef_ExecuteCommand(qintptr_t *args)
 			Q_snprintf(f, sizeof(f), "libcef:%i", ++sequence);
 			newconsole = f;
 			strcpy(videomap, "cef:");
-			pCmd_Argv(1, videomap+4, sizeof(videomap)-4);
+			cmdfuncs->Argv(1, videomap+4, sizeof(videomap)-4);
 			if (!videomap[4])
 				strcpy(videomap, "cef:http://fte.triptohell.info");
 		
-			pCon_SetConsoleString(f, "title", videomap+4);
-			pCon_SetConsoleFloat(f, "iswindow", true);
-			pCon_SetConsoleFloat(f, "forceutf8", true);
-			pCon_SetConsoleFloat(f, "wnd_w", 640+16);
-			pCon_SetConsoleFloat(f, "wnd_h", 480+16+8);
-			pCon_SetConsoleString(f, "backvideomap", videomap);
-			pCon_SetConsoleFloat(f, "linebuffered", 2);
-			pCon_SetActive(f);
+			confuncs->SetConsoleString(f, "title", videomap+4);
+			confuncs->SetConsoleFloat(f, "iswindow", true);
+			confuncs->SetConsoleFloat(f, "forceutf8", true);
+			confuncs->SetConsoleFloat(f, "wnd_w", 640+16);
+			confuncs->SetConsoleFloat(f, "wnd_h", 480+16+8);
+			confuncs->SetConsoleString(f, "backvideomap", videomap);
+			confuncs->SetConsoleFloat(f, "linebuffered", 2);
+			confuncs->SetActive(f);
 
 			newconsole = NULL;
 		}
@@ -2278,27 +2270,18 @@ static qintptr_t Cef_ExecuteCommand(qintptr_t *args)
 	return false;
 }
 
-qintptr_t Plug_Init(qintptr_t *args)
+qboolean Plug_Init(void)
 {
-	CHECKBUILTIN(Plug_GetPluginName);
-	CHECKBUILTIN(FS_NativePath);
-	if (!BUILTINISVALID(Plug_GetPluginName) || !BUILTINISVALID(FS_NativePath))
+	fsfuncs = (plugfsfuncs_t*)plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));					//for fte://data/ scheme
+	confuncs = (plugsubconsolefuncs_t*)plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));	//for cef command etc.
+	clientfuncs = (plugclientfuncs_t*)plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));	//for weird people trying to use xml requests to query game status (for hud stuff)
+	if (!fsfuncs || !confuncs || !clientfuncs
+		|| !plugfuncs->ExportFunction("Tick", Cef_Tick)
+		|| !plugfuncs->ExportFunction("Shutdown", Cef_Shutdown))
 	{
-		Con_Printf("CEF plugin failed: Engine too old\n");
+		Con_Printf("CEF plugin failed: Required engine feature missing.\n");
 		return false;
 	}
-	pPlug_GetPluginName(-1, plugname, sizeof(plugname));
-	if (!Plug_Export("Tick", Cef_Tick))
-	{
-		Con_Printf("CEF plugin failed: Engine doesn't support Tick feature\n");
-		return false;
-	}
-	if (!Plug_Export("Shutdown", Cef_Shutdown))
-	{
-		Con_Printf("CEF plugin failed: Engine doesn't support Shutdown feature\n");
-		return false;
-	}
-
 
 	decoderfuncs.structsize = sizeof(media_decoder_funcs_t);
 	decoderfuncs.drivername = "cef";
@@ -2313,19 +2296,19 @@ qintptr_t Plug_Init(qintptr_t *args)
 	decoderfuncs.changestream = Cef_ChangeStream;
 	decoderfuncs.getproperty = Cef_GetProperty;
 
-	if (!pPlug_ExportNative("Media_VideoDecoder", &decoderfuncs))
+	if (!plugfuncs->ExportInterface("Media_VideoDecoder", &decoderfuncs, sizeof(decoderfuncs)))
 	{
 		Con_Printf("CEF plugin failed: Engine doesn't support media decoder plugins\n");
 		return false;
 	}
 
-	if (Plug_Export("ExecuteCommand", Cef_ExecuteCommand))
-		pCmd_AddCommand("cef");
+	if (plugfuncs->ExportFunction("ExecuteCommand", Cef_ExecuteCommand))
+		cmdfuncs->AddCommand("cef");
 
-	Cvar_Register(&cef_incognito);
-	Cvar_Register(&cef_allowplugins);
-	Cvar_Register(&cef_allowcvars);
-	Cvar_Register(&cef_devtools);
+	cef_incognito = cvarfuncs->GetNVFDG("cef_incognito", "0", 0, NULL, "browser settings");
+	cef_allowplugins = cvarfuncs->GetNVFDG("cef_allowplugins", "0", 0, NULL, "browser settings");
+	cef_allowcvars = cvarfuncs->GetNVFDG("cef_allowcvars", "0", 0, NULL, "browser settings");
+	cef_devtools = cvarfuncs->GetNVFDG("cef_devtools", "0", 0, NULL, "browser settings");
 
 	return true;
 }

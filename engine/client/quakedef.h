@@ -369,6 +369,8 @@ void COM_AddWork(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, s
 void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//high priority
 qboolean COM_HasWork(void);
 void COM_WorkerFullSync(void);
+void COM_WorkerLock(void);	//callable on main thread to temporarily suspend workers (in a safe location)
+void COM_WorkerUnlock(void);
 void COM_DestroyWorkerThread(void);
 void COM_WorkerPartialSync(void *priorityctx, int *address, int value); //aka: while(*address==value)wait();
 extern void *com_resourcemutex;	//random mutex to simplify resource creation type stuff.
@@ -384,6 +386,8 @@ void COM_AssertMainThread(const char *msg);
 #define COM_InsertWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_WorkerPartialSync(c,a,v)
 #define COM_WorkerFullSync()
+#define COM_WorkerLock()
+#define COM_WorkerUnlock()
 #define COM_HasWork() false
 #define COM_DoWork(t,l) false
 #define COM_AssertMainThread(msg)

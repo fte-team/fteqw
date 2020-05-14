@@ -155,7 +155,7 @@ enum addressscope_e
 	ASCOPE_LAN=3,
 	ASCOPE_NET=4
 };
-enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc);
+enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc);
 
 qboolean NET_AddrIsReliable(netadr_t *adr);	//hints that the protocol is reliable. if so, we don't need to wait for acks
 qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);

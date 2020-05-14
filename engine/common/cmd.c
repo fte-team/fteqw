@@ -739,7 +739,7 @@ static void Cmd_Exec_f (void)
 		Con_TPrintf ("couldn't exec %s. check permissions.\n", name);
 		return;
 	}
-	if (cl_warncmd.ival || developer.ival || cvar_watched)
+	if (cl_warncmd.ival || developer.ival || cvar_watched || dpcompat_console.ival)
 	{
 		if (loc.search)
 			Con_TPrintf ("execing ^[^7%s\\tip\\from %s/%s^]\n", name, loc.search->logicalpath, name);
@@ -3964,7 +3964,7 @@ static void Cmd_WriteConfig_f(void)
 		MasterInfo_WriteServers();
 #endif
 
-		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 4, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
+		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 4, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg", "dlcache/*.pk3*");
 
 		all = cfg_save_all.ival;
 	}

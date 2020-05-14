@@ -36,6 +36,9 @@ cvar_t pr_gc_threaded = CVARD("pr_gc_threaded", "0", "Says whether to use a sepa
 cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
 cvar_t pr_enable_uriget = CVARD("pr_enable_uriget", "1", "Allows gamecode to make direct http requests");
 cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
+#ifdef HAVE_CLIENT
+cvar_t pr_precachepic_slow = CVARD("pr_precachepic_slow", "0", "Legacy setting. Should be set to 0 where supported.");
+#endif
 int tokenizeqc(const char *str, qboolean dpfuckage);
 
 void PF_buf_shutdown(pubprogfuncs_t *prinst);
@@ -98,6 +101,9 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_fixbrokenqccarrays, cvargroup_progs);
 	Cvar_Register (&utf8_enable, cvargroup_progs);
 	Cvar_Register (&pr_autocreatecvars, cvargroup_progs);
+#ifdef HAVE_CLIENT
+	Cvar_Register (&pr_precachepic_slow, cvargroup_progs);
+#endif
 
 #ifdef RAGDOLL
 	Cmd_AddCommand("skel_info", skel_info_f);

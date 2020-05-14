@@ -623,7 +623,7 @@ void() mitem_frame::item_resized =
 void(vector pos) mitem_frame::item_draw =
 {
 	local vector omin = ui.drawrectmin, omax = ui.drawrectmax;
-	local mitem ch;
+	local mitem ch = __NULL__;
 	local vector clientpos;
 	local vector clientsize;
 

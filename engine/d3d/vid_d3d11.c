@@ -6,6 +6,7 @@
 #include "shader.h"
 #include "renderque.h"
 #include "resource.h"
+#include "vr.h"
 
 #define FUCKDXGI
 
@@ -981,6 +982,7 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 	static IID factiid = {0x770aae78, 0xf26f, 0x4dba, {0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87}};
 	IDXGIFactory1 *fact = NULL;
 	IDXGIAdapter *adapt = NULL;
+	vrsetup_t vrsetup = {sizeof(vrsetup)};
 	dllfunction_t d3d11funcs[] =
 	{
 		{(void**)&fnc, "D3D11CreateDeviceAndSwapChain"},
@@ -1000,6 +1002,7 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 	if (!d3d11mod)
 		return;
 
+	vrsetup.vrplatform = VR_D3D11;
 	if (pCreateDXGIFactory1)
 	{
 		HRESULT hr;
@@ -1008,9 +1011,34 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 			Con_Printf("CreateDXGIFactory1 failed: %s\n", D3D_NameForResult(hr));
 		if (fact)
 		{
-			IDXGIFactory1_EnumAdapters(fact, 0, &adapt);
+			if (info->vr)
+			{
+				if (!info->vr->Prepare(&vrsetup))
+				{
+					info->vr->Shutdown();
+					info->vr = NULL;
+				}
+				else
+				{
+					int id = 0;
+					while (S_OK==IDXGIFactory1_EnumAdapters(fact, id++, &adapt))
+					{
+						DXGI_ADAPTER_DESC desc;
+						IDXGIAdapter_GetDesc(adapt, &desc);
+						if (desc.AdapterLuid.LowPart == vrsetup.deviceid[0] && desc.AdapterLuid.HighPart == vrsetup.deviceid[1])
+							break;
+						IDXGIAdapter_Release(adapt);
+						adapt = NULL;
+					}
+				}
+			}
+
+			if (!adapt)
+				IDXGIFactory1_EnumAdapters(fact, 0, &adapt);
 		}
 	}
+	else
+		info->vr = NULL;	//o.O
 
 	
 	initD3D11Device(hWnd, info, fnc, adapt);

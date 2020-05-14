@@ -191,6 +191,7 @@ void QuaternionSlerp(const vec4_t p, vec4_t q, float t, vec4_t qt);
 //projection matricies of different types... gesh
 void		Matrix4x4_CM_Orthographic (float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
 void Matrix4x4_CM_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
+void		Matrix4x4_CM_Projection_Offset(float *proj, float fovl, float fovr, float fovu, float fovd, float neard, float fard, qboolean d3d);
 void		Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard, qboolean d3d);
 void		Matrix4x4_CM_Projection2 (float *proj, float fovx, float fovy, float neard);
 void		Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard, qboolean d3d);

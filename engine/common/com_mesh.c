@@ -1978,6 +1978,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
 		if (Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
 		{
+			memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
 			mesh->xyz_blendw[1] = 0;

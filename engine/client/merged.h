@@ -1,3 +1,6 @@
+#ifndef MERGED_H
+#define MERGED_H
+
 #ifdef VKQUAKE
 //we need some types available elsewhere, but don't really want to have to include the entire vulkan api everywhere.
 //unfortunately, vulkan's handle types are not well defined.
@@ -515,4 +518,4 @@ typedef struct rendererinfo_s {
 texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfmt, unsigned int imageflags);
 texid_t R2D_RT_GetTexture(const char *id, unsigned int *width, unsigned int *height);
 
-
+#endif //MERGED_H

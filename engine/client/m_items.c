@@ -1694,7 +1694,7 @@ changed:
 }
 
 static qboolean menu_mousedown;
-extern menu_t *menu_script;
+extern emenu_t *menu_script;
 static void M_Draw (menu_t *menu)
 {
 	emenu_t *m = (emenu_t*)menu;

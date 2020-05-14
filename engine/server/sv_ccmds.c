@@ -404,8 +404,9 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 		"maps/%s.png"
 	};
 	size_t u;
-	char stripped[64];
+	char stripped[MAX_QPATH];
 	char completed[256];
+	char *ext = parm;
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
 
@@ -423,35 +424,29 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	}
 #endif
 
-	COM_StripExtension(name+5, stripped, sizeof(stripped)); 
+	name += 5;	//skip the maps/ prefix
+	COM_StripExtension(name, stripped, sizeof(stripped));
 	for (u = 0; u < countof(levelshots); u++)
 	{
 		const char *ls = va(levelshots[u], stripped);
 		if (COM_FCheckExists(ls))
 		{
-			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", stripped, ls);
-			Con_Printf("^[[%s]%s\\map\\%s\\tipimg\\%s^]\n", stripped, completed, stripped, ls);
+			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", name, ls);
+			Con_Printf("^[[%s%s]%s\\map\\%s\\tipimg\\%s^]\n", stripped, ext, completed, name, ls);
 			return true;
 		}
 	}
-	Con_Printf("^[[%s]%s\\map\\%s^]\n", stripped, completed, stripped);
-	return true;
-}
-static int QDECL ShowMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
-{
-	if (name[5] == 'b' && name[6] == '_')	//skip box models
-		return true;
-	Con_Printf("^[[%s]\\map\\%s^]\n", name+5, name+5);
+	Con_Printf("^[[%s%s]%s\\map\\%s^]\n", stripped, ext, completed, name);
 	return true;
 }
 static void SV_MapList_f(void)
 {
-	COM_EnumerateFiles("maps/*.bsp", ShowMapList, NULL);
-	COM_EnumerateFiles("maps/*.bsp.gz", ShowMapListExt, NULL);
-	COM_EnumerateFiles("maps/*.map", ShowMapListExt, NULL);
-	COM_EnumerateFiles("maps/*.map.gz", ShowMapListExt, NULL);
-	COM_EnumerateFiles("maps/*.cm", ShowMapList, NULL);
-	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
+	COM_EnumerateFiles("maps/*.bsp", ShowMapList, "");
+	COM_EnumerateFiles("maps/*.bsp.gz", ShowMapList, ".bsp.gz");
+	COM_EnumerateFiles("maps/*.map", ShowMapList, ".map");
+	COM_EnumerateFiles("maps/*.map.gz", ShowMapList, ".gz");
+	COM_EnumerateFiles("maps/*.cm", ShowMapList, ".cm");
+	COM_EnumerateFiles("maps/*.hmp", ShowMapList, ".hmp");
 }
 
 static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -547,6 +542,7 @@ void SV_Map_f (void)
 #endif
 
 	qboolean waschangelevel	= false;
+	qboolean mapeditor		= false;
 	int i;
 	char *startspot;
 
@@ -619,6 +615,7 @@ void SV_Map_f (void)
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
 	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
 #endif
+	mapeditor = !strcmp(Cmd_Argv(0), "mapedit");
 
 	sv.mapchangelocked = false;
 
@@ -931,7 +928,7 @@ void SV_Map_f (void)
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
-		SV_SpawnServer (level, startspot, false, cinematic, 0);
+		SV_SpawnServer (level, startspot, mapeditor, cinematic, 0);
 	}
 	SCR_SetLoadingFile("server spawned");
 
@@ -3246,6 +3243,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommandD ("precaches", SV_PrecacheList_f, "Displays a list of current server precaches.");
 	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Changes map. If a second argument is specified then that is normally the name of the initial start spot.");
+	Cmd_AddCommandAD ("mapedit", SV_Map_f, SV_Map_c, "Loads the named map without any gamecode active.");
 #ifdef Q3SERVER
 	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, NULL);
 #endif

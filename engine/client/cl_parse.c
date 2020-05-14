@@ -276,14 +276,14 @@ static const char *svc_nqstrings[] =
 	"NEW PROTOCOL(75)",	//75
 	"NEW PROTOCOL(76)",	//76
 	"NEW PROTOCOL(77)",	//77
-	"nqsvcfte_updatestatstring(78)",	//78
-	"nqsvcfte_updatestatfloat(79)",	//79
+	"nqsvcfte_updatestatstring",	//78
+	"nqsvcfte_updatestatfloat",	//79
 	"NEW PROTOCOL(80)",	//80
 	"NEW PROTOCOL(81)",	//81
 	"NEW PROTOCOL(82)",	//82
-	"nqsvcfte_cgamepacket(83)",	//83
+	"nqsvcfte_cgamepacket",	//83
 	"nqsvcfte_voicechat",	//84
-	"nqsvcfte_setangledelta(85)",	//85
+	"nqsvcfte_setangledelta",	//85
 	"nqsvcfte_updateentities",	//86
 	"NEW PROTOCOL(87)",	//87
 	"NEW PROTOCOL(88)",	//88
@@ -291,7 +291,7 @@ static const char *svc_nqstrings[] =
 };
 #endif
 
-extern cvar_t requiredownloads, cl_standardchat, msg_filter, msg_filter_frags, msg_filter_pickups, cl_countpendingpl, cl_download_mapsrc;
+extern cvar_t requiredownloads, mod_precache, cl_standardchat, msg_filter, msg_filter_frags, msg_filter_pickups, cl_countpendingpl, cl_download_mapsrc;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -1354,6 +1354,9 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 					cl.model_precache[i] = NULL;
 				else
 #endif
+				if (!cls.timedemo && i!=1 && mod_precache.ival != 1)
+					cl.model_precache[i] = Mod_FindName (Mod_FixName(cl.model_name[i], cl.model_name[1]));
+				else
 					cl.model_precache[i] = Mod_ForName (Mod_FixName(cl.model_name[i], cl.model_name[1]), MLV_WARN);
 
 				S_ExtraUpdate();
@@ -1839,6 +1842,16 @@ void CL_RequestNextDownload (void)
 			}
 		}
 
+
+		if (mod_precache.ival >= 2)
+		{
+			int i;
+			for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
+			{
+				if (cl.model_precache[i] && cl.model_precache[i]->loadstate == MLS_NOTLOADED)
+					Mod_LoadModel(cl.model_precache[i], MLV_WARN);
+			}
+		}
 	}
 }
 

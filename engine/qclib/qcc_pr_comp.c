@@ -13532,7 +13532,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	pr_scope->filen = thearray.sym->filen;
 	pr_scope->s_filed = thearray.sym->s_filed;
 
-	index = QCC_PR_GetSRef(type_float, "__indexg", pr_scope, true, 0, false);
+	index = QCC_PR_GetSRef(type_float, "__indexg", pr_scope, true, 0, GDF_PARAMETER);
 
 	scope->initialized = true;
 	scope->symboldata[0]._int = pr_scope - functions;
@@ -13722,8 +13722,8 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	pr_scope->filen = thearray.sym->filen;
 	pr_scope->s_filed = thearray.sym->s_filed;
 
-	index = QCC_PR_GetSRef(type_float, "indexs___", pr_scope, true, 0, false);
-	value = QCC_PR_GetSRef(thearray.cast, "value___", pr_scope, true, 0, false);
+	index = QCC_PR_GetSRef(type_float, "indexs___", pr_scope, true, 0, GDF_PARAMETER);
+	value = QCC_PR_GetSRef(thearray.cast, "value___", pr_scope, true, 0, GDF_PARAMETER);
 
 	scope->initialized = true;
 	scope->symboldata[0]._int = pr_scope - functions;

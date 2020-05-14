@@ -7484,14 +7484,17 @@ void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 {
 	int mip;
 
-	if (mips->type != PTI_2D)
-		return;	//blurgh
+	if (mips->type == PTI_3D)
+		return;	//3d mipmaps are more complicated to compute.
 
 	if (flags & IF_NOMIPMAP)
 		return;
 
 	if (sh_config.can_genmips && mips->encoding != PTI_P8)
 		return;
+
+	if (mips->mip[0].depth != 1)
+		return;	//blurgh. we can't deal with layers.
 
 	switch(mips->encoding)
 	{
@@ -12745,6 +12748,8 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 
 		mips = Z_Malloc(sizeof(*mips));
 		mips->type = (flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
+		if (mips->type == PTI_ANY)
+			mips->type = PTI_2D;	//d
 		if (Image_GenMip0(mips, flags, rgbadata, NULL, imgwidth, imgheight, format, true))
 		{
 			Image_GenerateMips(mips, flags);

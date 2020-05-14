@@ -29,7 +29,13 @@ void SVQ1_CvarChanged(cvar_t *var);
 void Q_SetProgsParms(qboolean forcompiler);
 void PR_Deinit(void);	//server shutting down
 void PR_LoadGlabalStruct(qboolean muted);
-void Q_InitProgs(qboolean cinematic);
+enum initprogs_e
+{
+	INITPROGS_NORMAL	= 0,
+	INITPROGS_EDITOR	= 1<<0,
+	INITPROGS_REQUIRE	= 1<<1,
+};
+void Q_InitProgs(enum initprogs_e flags);
 void PR_SpawnInitialEntities(const char *file);
 void PR_RegisterFields(void);
 void PR_Init(void);

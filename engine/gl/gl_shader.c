@@ -6956,7 +6956,7 @@ void Shader_Default2D(parsestate_t *ps, const char *shortname, const void *genar
 				"sort additive\n"
 			"}\n"
 			);
-		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP|IF_HIGHPRIORITY));
 	}
 	else
 	{
@@ -6973,7 +6973,7 @@ void Shader_Default2D(parsestate_t *ps, const char *shortname, const void *genar
 				"sort additive\n"
 			"}\n"
 			);
-		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP|IF_HIGHPRIORITY));
 	}
 }
 void Shader_PolygonShader(struct shaderparsestate_s *ps, const char *shortname, const void *args)

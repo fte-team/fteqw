@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_master.h"
 #include "cl_ignore.h"
 #include "shader.h"
+#include "vr.h"
 #include <ctype.h>
 // callbacks
 void QDECL CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
@@ -184,6 +185,7 @@ cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOT
 cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/quakemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
+cvar_t	mod_precache			= CVARD("mod_precache","1", "Controls when models are loaded.\n0: Load them only when they're visible.\n1: Load them upfront.\n2: Lazily load them to shorten load times at the risk of brief stuttering during only the start of the map.");
 
 cvar_t	cl_muzzleflash			= CVAR("cl_muzzleflash", "1");
 
@@ -2695,8 +2697,8 @@ void CL_Packet_f (void)
 
 	if (Cmd_FromGamecode())	//some mvdsv servers stuffcmd a packet command which lets them know which ip the client is from.
 	{						//unfortunatly, 50% of servers are badly configured resulting in them poking local services that THEY MUST NOT HAVE ACCESS TO.
-		char *addrdesc;
-		char *realdesc;
+		const char *addrdesc;
+		const char *realdesc;
 		if (cls.demoplayback)
 		{
 			Con_DPrintf ("Not sending realip packet from demo\n");
@@ -4091,13 +4093,13 @@ static void CL_Curl_f(void)
 			usage |= 4;
 		else if (!strcmp(arg, "--for"))
 		{
-			alreadyhave = true;	//assume we have it.
-			for (i++; i < argc-1; i++)
+			alreadyhave = true;	//assume we have a package that satisfies the file name.
+			for (i++; i < argc-1; i++)	//all but the last...
 			{
 				arg = Cmd_Argv(i);
 				if (!CL_CheckDLFile(arg))
 				{
-					alreadyhave = false;
+					alreadyhave = false;	//I guess we didn't after all.
 					break;
 				}
 			}
@@ -4477,10 +4479,43 @@ void CL_CrashMeError_f(void)
 	Sys_Error("crashme! %s", Cmd_Args());
 }
 
+
+static char *ShowTime(unsigned int seconds)
+{
+	char buf[1024];
+	char *b = buf;
+	*b = 0;
+
+	if (seconds > 60)
+	{
+		if (seconds > 60*60)
+		{
+			if (seconds > 24*60*60)
+			{
+				strcpy(b, va("%id ", seconds/(24*60*60)));
+				b += strlen(b);
+				seconds %= 24*60*60;
+			}
+
+			strcpy(b, va("%ih ", seconds/(60*60)));
+			b += strlen(b);
+			seconds %= 60*60;
+		}
+		strcpy(b, va("%im ", seconds/60));
+		b += strlen(b);
+		seconds %= 60;
+	}
+	strcpy(b, va("%is", seconds));
+	b += strlen(b);
+
+	return va("%s", buf);
+}
 void CL_Status_f(void)
 {
+	extern world_t csqc_world;
 	char adr[128];
 	float pi, po, bi, bo;
+
 	NET_PrintAddresses(cls.sockets);
 	NET_PrintConnectionsStatus(cls.sockets);
 	if (NET_GetRates(cls.sockets, &pi, &po, &bi, &bo))
@@ -4578,6 +4613,42 @@ void CL_Status_f(void)
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			Con_Printf("\treplacement deltas\n");
 	}
+
+	if (cl.worldmodel)
+	{
+		Con_Printf("map uptime       : %s\n", ShowTime(cl.time));
+		COM_FileBase(cl.worldmodel->name, adr, sizeof(adr));
+		Con_Printf ("current map      : %s (%s)\n", adr, cl.levelname);
+	}
+
+	if (csqc_world.progs)
+	{
+		extern int num_sfx;
+		int count = 0, i;
+		edict_t *e;
+		for (i = 0; i < csqc_world.num_edicts; i++)
+		{
+			e = EDICT_NUM_PB(csqc_world.progs, i);
+			if (e && e->ereftype == ER_FREE && sv.time - e->freetime > 0.5)
+				continue;	//free, and older than the zombie time
+			count++;
+		}
+		Con_Printf("entities         : %i/%i/%i (mem: %.1f%%)\n", count, csqc_world.num_edicts, csqc_world.max_edicts, 100*(float)(csqc_world.progs->stringtablesize/(double)csqc_world.progs->stringtablemaxsize));
+		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
+			if (!*cl.model_csqcname[count])
+				break;
+		Con_Printf("models           : %i/%i\n", count, MAX_PRECACHE_MODELS);
+		Con_Printf("sounds           : %i/\n", num_sfx);	//there is a limit, its just private. :(
+
+		for (count = 1; count < MAX_SSPARTICLESPRE; count++)
+			if (!cl.particle_csname[count])
+				break;
+		if (count!=1)
+			Con_Printf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
+		if (cl.csqcdebug)
+			Con_Printf("csqc debug       : true\n");
+	}
+	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 }
 
 void CL_Demo_SetSpeed_f(void)
@@ -4771,6 +4842,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_teamchatsound,				cl_controlgroup);
 
 	Cvar_Register (&requiredownloads,				cl_controlgroup);
+	Cvar_Register (&mod_precache,					cl_controlgroup);
 	Cvar_Register (&cl_standardchat,				cl_controlgroup);
 	Cvar_Register (&msg_filter,						cl_controlgroup);
 	Cvar_Register (&msg_filter_frags,				cl_controlgroup);
@@ -5894,6 +5966,7 @@ double Host_Frame (double time)
 	qboolean idle;
 	extern int r_blockvidrestart;
 	static qboolean hadwork;
+	qboolean vrsync;
 
 	RSpeedLocals();
 
@@ -5902,7 +5975,8 @@ double Host_Frame (double time)
 		return 0;			// something bad happened, or the server disconnected
 	}
 
-	newrealtime = Media_TweekCaptureFrameTime(realtime, time);
+	vrsync = vid.vr?vid.vr->SyncFrame(&time):false;				//fiddle with frame timings
+	newrealtime = Media_TweekCaptureFrameTime(realtime, time);	//fiddle with time some more
 
 	time = newrealtime - realtime;
 	realtime = newrealtime;
@@ -5945,7 +6019,7 @@ double Host_Frame (double time)
 	if (!cls.timedemo)
 		CL_ReadPackets ();
 
-	if (idle && cl_idlefps.value > 0)
+	if (idle && cl_idlefps.value > 0 && !vrsync)
 	{
 		double idlesec = 1.0 / cl_idlefps.value;
 		if (idlesec > 0.1)
@@ -6020,7 +6094,7 @@ double Host_Frame (double time)
 #ifdef HAVE_MEDIA_ENCODER
 		&& Media_Capturing() != 2
 #endif
-		)
+		&& !vrsync)
 	{
 //		realtime += spare/1000;	//don't use it all!
 		double newspare = CL_FilterTime((spare/1000 + realtime - oldrealtime)*1000, maxfps, 1.5, maxfpsignoreserver);

@@ -831,7 +831,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 {
 	extern cvar_t allow_download_refpackages;
 	func_t f;
-	const char *file;
+	const char *file, *csprogsname;
 
 	gametype_e newgametype;
 
@@ -1075,8 +1075,12 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	//do we allow csprogs?
 #ifdef PEXT_CSQC
 	fsz = 0;
-	if (*sv_csqc_progname.string)
-		file = COM_LoadTempFile(sv_csqc_progname.string, 0, &fsz);
+	if (noents)
+		csprogsname = "csaddon.dat";
+	else
+		csprogsname = sv_csqc_progname.string;
+	if (*csprogsname)
+		file = COM_LoadTempFile(csprogsname, 0, &fsz);
 	else
 		file = NULL;
 	if (file)
@@ -1087,8 +1091,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		InfoBuf_SetValueForStarKey(&svs.info, "*csprogs", text);
 		sprintf(text, "0x%x", (unsigned int)fsz);
 		InfoBuf_SetValueForStarKey(&svs.info, "*csprogssize", text);
-		if (strcmp(sv_csqc_progname.string, "csprogs.dat"))
-			InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", sv_csqc_progname.string);
+		if (strcmp(csprogsname, "csprogs.dat"))
+			InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", csprogsname);
 		else
 			InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", "");
 	}
@@ -1130,35 +1134,35 @@ MSV_OpenUserDatabase();
 #endif
 
 	newgametype = svs.gametype;
-#ifdef HLSERVER
-	if (SVHL_InitGame())
-		newgametype = GT_HALFLIFE;
-	else
-#endif
-#ifdef Q3SERVER
-	if (SVQ3_InitGame(false))
-		newgametype = GT_QUAKE3;
-	else
-#endif
-#ifdef Q2SERVER
-	if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && !*pr_ssqc_progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
-		newgametype = GT_QUAKE2;	//we loaded the dll
-	else
-#endif
-#ifdef VM_LUA
-	if (PR_LoadLua())
-		newgametype = GT_LUA;
-	else
-#endif
-#ifdef VM_Q1
-	if (PR_LoadQ1QVM())
-		newgametype = GT_Q1QVM;
-
-	else
-#endif
+	if (noents)
 	{
 		newgametype = GT_PROGS;	//let's just hope this loads.
-		Q_InitProgs(usecinematic);
+		Q_InitProgs(INITPROGS_EDITOR);
+	}
+#ifdef HLSERVER
+	else if (SVHL_InitGame())
+		newgametype = GT_HALFLIFE;
+#endif
+#ifdef Q3SERVER
+	else if (SVQ3_InitGame(false))
+		newgametype = GT_QUAKE3;
+#endif
+#ifdef Q2SERVER
+	else if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && !*pr_ssqc_progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
+		newgametype = GT_QUAKE2;	//we loaded the dll
+#endif
+#ifdef VM_LUA
+	else if (PR_LoadLua())
+		newgametype = GT_LUA;
+#endif
+#ifdef VM_Q1
+	else if (PR_LoadQ1QVM())
+		newgametype = GT_Q1QVM;
+#endif
+	else
+	{
+		newgametype = GT_PROGS;	//let's just hope this loads.
+		Q_InitProgs(usecinematic?INITPROGS_REQUIRE:INITPROGS_NORMAL);
 	}
 
 //	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//full q2 dll decision in one if statement

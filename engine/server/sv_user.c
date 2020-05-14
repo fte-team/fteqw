@@ -712,17 +712,21 @@ void SVNQ_New_f (void)
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
-		size_t sz;
+		char buf[1024];
+		size_t sz = 0;
 		char *f;
+		char *csprogsname = InfoBuf_ValueForKey(&svs.info, "*csprogsname");
+		if (!*csprogsname && *InfoBuf_ValueForKey(&svs.info, "*csprogs"))
+			csprogsname = "csprogs.dat";
 
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 
-		f = COM_LoadTempFile("csprogs.dat", 0, &sz);
+		f = *csprogsname?COM_LoadTempFile(csprogsname, 0, &sz):NULL;
 		if (f)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", "csprogs.dat"));
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", COM_QuotedString(csprogsname, buf, sizeof(buf), false)));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %u\n", (unsigned int)sz));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
@@ -730,6 +734,11 @@ void SVNQ_New_f (void)
 
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
+		}
+		else
+		{
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, "csqc_progcrc \"\"\n");
 		}
 	}
 	else if (allow_download.value && (protext1||protext2))
@@ -1036,6 +1045,11 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	if (client->prespawn_stage == PRESPAWN_SERVERINFO)
 	{
 		char buffer[1024];
+
+#ifdef PEXT_CSQC
+		if (sv.csqcchecksum && !(client->fteprotocolextensions & PEXT_CSQC) && !ISDPCLIENT(client))
+			SV_PrintToClient(client, PRINT_HIGH, "This server is using CSQC - you are missing out due to your choice of outdated client / protocol!\n");
+#endif
 
 		while (client->netchan.message.cursize < maxsize)
 		{
@@ -3013,6 +3027,58 @@ void SV_Voice_UnmuteAll_f(void)
 }
 #endif
 
+qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
+{
+	//FIXME: interrogate the package manager first? it probably doesn't have source urls though. I guess that should be done clientside.
+
+	//basedir/gamedir/curl_urls.txt contains something like:
+	//maps_*.pk3 https://host/maps/
+	//* https://host/gamedir/
+
+	//or something.
+
+	extern cvar_t sv_dlURL;
+	vfsfile_t *f;
+	char line[512];
+
+	//filter out the gamedir, so different gamedirs can have different sets of urls.
+	//(useful for eg pakN.pak, if it were not blocked elsewhere)
+	char *sep = strchr(package, '/');
+	if (!sep || sep-package>=strlen(line))
+		return false;
+	memcpy(line, package, sep-package+1);
+	line[sep-package+1] = 0;
+	package = sep+1;
+
+	Q_strncatz(line, "curl_urls.txt", sizeof(line));
+	f = FS_OpenVFS(line, "rb", FS_ROOT);	//this is for server admins to deal with. urls are too unreliable for paks.
+	if (f)
+	{
+		char pattern[256];
+		char *e;
+		while (VFS_GETS(f, line, sizeof(line)))
+		{
+			e = COM_ParseOut(line, pattern, sizeof(pattern));
+			if (*pattern && wildcmp(pattern, package))
+			{
+				COM_ParseOut(e, url, urlsize);
+				Q_strncatz(url, package, urlsize);
+				VFS_CLOSE(f);
+				return true;
+			}
+		}
+		VFS_CLOSE(f);
+	}
+
+	if (*sv_dlURL.string)
+	{	//a fallback, though the above mechanism allows for a wildcard for all.
+		Q_strncatz(sv_dlURL.string, package, urlsize);
+		Q_strncatz(url, package, urlsize);
+		return true;
+	}
+	return false;
+}
+
 //Use of this function is on name only.
 //Be aware that the maps directory should be restricted based on weather the file was from a pack file
 //this is to preserve copyright - please do not breach due to a bug.
@@ -3204,7 +3270,14 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 
 	if (!Q_strncasecmp(name, "package/", 8))
 	{
-		vfsfile_t *f = FS_OpenVFS(name+8, "rb", FS_ROOT);
+		vfsfile_t *f;
+		if (redirectpaks && SV_FindRemotePackage(name+8, tmpname, sizeof(tmpname)))
+		{
+			*replacementname = tmpname;
+			return DLERR_REDIRECTFILE;
+		}
+
+		f = FS_OpenVFS(name+8, "rb", FS_ROOT);
 		if (f)
 		{
 			loc->len = VFS_GETLEN(f);
@@ -6949,7 +7022,7 @@ size_t playertouchmax;
 
 void SV_PreRunCmd(void)
 {
-	size_t max = MAX_EDICTS;//(sv.world.num_edicts+7)&~7;
+	size_t max = (sv.world.num_edicts+512+7)&~7;
 	if (max > playertouchmax)
 	{
 		playertouchmax = max;
@@ -7534,7 +7607,7 @@ if (sv_player->v->health > 0 && before && !after )
 			n = pmove.physents[pmove.touchindex[i]].info;
 			ent = EDICT_NUM_PB(svprogfuncs, n);
 
-			if (n >= playertouchmax || playertouch[n>>3]&(1<<(n&7)))
+			if (n >= playertouchmax || (playertouch[n>>3]&(1<<(n&7))))
 				continue;
 			playertouch[n>>3] |= 1 << (n&7);
 

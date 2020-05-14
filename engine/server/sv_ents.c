@@ -120,8 +120,9 @@ extern	int	sv_nailmodel, sv_supernailmodel, sv_playermodel;
 qboolean demonails;
 #endif
 
-static edict_t *csqcent[MAX_EDICTS];
-static int csqcnuments;
+static edict_t **csqcent/*[csqcmaxents]*/;
+static size_t csqcmaxents;
+static size_t csqcnuments;
 
 qboolean SV_AddNailUpdate (edict_t *ent)
 {
@@ -263,6 +264,8 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 	if (!(client->csqcactive))
 		return false;
 
+	if (csqcnuments >= csqcmaxents)
+		Z_ReallocElements((void**)&csqcent, &csqcmaxents, csqcnuments + 1024, sizeof(*csqcent));
 	csqcent[csqcnuments++] = ent;
 
 	return true;

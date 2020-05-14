@@ -5410,6 +5410,8 @@ static int COM_WorkerThread(void *arg)
 	{
 		while(COM_DoWork(group, true))
 		{
+			if (thread->request == WR_DIE)
+				break;
 			if (worker_sleeptime.value)
 			{
 				Sys_UnlockConditional(com_workercondition[group]);
@@ -5510,6 +5512,51 @@ void COM_DestroyWorkerThread(void)
 
 	Sys_DestroyMutex(com_resourcemutex);
 	com_resourcemutex = NULL;
+}
+
+//Dangerous: stops workers WITHOUT flushing their queue. Be SURE to 'unlock' to start them up again.
+void COM_WorkerLock(void)
+{
+	int i;
+	if (!com_liveworkers[WG_LOADER])
+		return;	//nothing to do.
+
+	//add a fake worker and ask workers to die
+	Sys_LockConditional(com_workercondition[WG_LOADER]);
+	com_liveworkers[WG_LOADER] += 1;
+	for (i = 0; i < WORKERTHREADS; i++)
+		com_worker[i].request = WR_DIE;	//flag them all to die
+	Sys_ConditionBroadcast(com_workercondition[WG_LOADER]);	//and make sure they ALL wake up to check their new death values.
+	Sys_UnlockConditional(com_workercondition[WG_LOADER]);
+
+	//wait for the workers to stop (leaving their work, because of our fake worker)
+	while(com_liveworkers[WG_LOADER]>1)
+	{
+		if (!COM_DoWork(WG_MAIN, false))	//need to check this to know they're done.
+			COM_DoWork(WG_LOADER, false);	//might as well, while we're waiting.
+	}
+
+	//remove our fake worker now...
+	Sys_LockConditional(com_workercondition[WG_LOADER]);
+	com_liveworkers[WG_LOADER] -= 1;
+	Sys_UnlockConditional(com_workercondition[WG_LOADER]);
+}
+//called after COM_WorkerLock
+void COM_WorkerUnlock(void)
+{
+	int i;
+	for (i = 0; i < WORKERTHREADS; i++)
+	{
+		if (i >= worker_count.ival)
+			continue;	//worker stays dead
+
+		//lower thread indexes need to be (re)created
+		if (!com_worker[i].thread)
+		{
+			com_worker[i].request = WR_NONE;
+			com_worker[i].thread = Sys_CreateThread(va("loadworker_%i", i), COM_WorkerThread, &com_worker[i], 0, 256*1024);
+		}
+	}
 }
 
 //fully flushes ALL pending work.
@@ -5690,7 +5737,7 @@ static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue)
 
 	if (!*var->string)
 	{
-		count = 4;
+		count = var->ival = 4;
 	}
 
 	//try to respond to any kill requests now, so we don't get surprised by the cvar changing too often.

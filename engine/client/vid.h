@@ -54,6 +54,7 @@ typedef struct {
 	char subrenderer[MAX_QPATH];	//external driver
 	char devicename[MAX_QPATH];		//device name (usually monitor)
 	struct rendererinfo_s *renderer;
+	struct plugvrfuncs_s *vr;		//the vr driver we're trying to use.
 } rendererstate_t;
 #ifndef SERVERONLY
 extern rendererstate_t currentrendererstate;
@@ -116,6 +117,8 @@ typedef struct
 
 	qboolean		forcecursor;
 	float			forcecursorpos[2];	//in physical pixels
+
+	struct plugvrfuncs_s *vr;	//how do deal with VR contexts.
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state

@@ -4708,7 +4708,7 @@ static void VKBE_RT_Purge(void *ptr)
 	VK_DestroyVkTexture(&ctx->mscolour);
 	VK_DestroyVkTexture(&ctx->colour);
 }
-void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qboolean clear, unsigned int flags)
+void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width, uint32_t height, qboolean clear, unsigned int flags)
 {
 	//sooooo much work...
 	VkImageCreateInfo colour_imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -4717,16 +4717,27 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 	struct vkbe_rtpurge *purge;
 	static VkClearValue clearvalues[3];
 
+	if (colour)
+	{	//override the width+height if we already have an image to draw to.
+		width = colour->width;
+		height = colour->height;
+	}
+
 	targ->restartinfo.clearValueCount = 3;
 	targ->depthcleared = true;	//will be once its activated.
 
 	if (targ->width == width && targ->height == height && targ->q_colour.flags == flags && (!(targ->rpassflags&RP_MULTISAMPLE))==(targ->mscolour.image==VK_NULL_HANDLE))
 	{
-		if (clear || targ->firstuse)
-			targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
-		else
-			targ->restartinfo.renderPass = VK_GetRenderPass(RP_DEPTHCLEAR|targ->rpassflags);	//don't care
-		return;	//no work to do.
+		if ((colour && colour->image == targ->colour.image) || (!colour && !targ->externalimage))
+		{
+			if (width == 0 || height == 0)
+				targ->restartinfo.renderPass = VK_NULL_HANDLE;	//illegal combination used for destruction.
+			else if (clear || targ->firstuse)
+				targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
+			else
+				targ->restartinfo.renderPass = VK_GetRenderPass(RP_DEPTHCLEAR|targ->rpassflags);	//don't care
+			return;	//no work to do.
+		}
 	}
 
 	if (targ->framebuffer)
@@ -4734,6 +4745,8 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 		purge = VK_AtFrameEnd(VKBE_RT_Purge, NULL, sizeof(*purge));
 		purge->framebuffer = targ->framebuffer; 
 		purge->colour = targ->colour;
+		if (targ->externalimage)
+			purge->colour.image = VK_NULL_HANDLE;
 		purge->mscolour = targ->mscolour;
 		purge->depth = targ->depth;
 		memset(&targ->colour, 0, sizeof(targ->colour));
@@ -4742,6 +4755,7 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 		targ->framebuffer = VK_NULL_HANDLE;
 	}
 
+	targ->externalimage = !!colour;
 	targ->q_colour.vkimage = &targ->colour;
 	targ->q_depth.vkimage = &targ->depth;
 	targ->q_colour.status = TEX_LOADED;
@@ -4775,7 +4789,10 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 	colour_imginfo.queueFamilyIndexCount = 0;
 	colour_imginfo.pQueueFamilyIndices = NULL;
 	colour_imginfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
+	if (targ->externalimage)
+		targ->colour.image = colour->image;
+	else
+		VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
 
 	depth_imginfo = colour_imginfo;
 	depth_imginfo.format = vk.depthformat;
@@ -4789,7 +4806,10 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qb
 	}
 	VkAssert(vkCreateImage(vk.device, &depth_imginfo, vkallocationcb, &targ->depth.image));
 
-	VK_AllocateBindImageMemory(&targ->colour, true);
+	if (targ->externalimage)	//an external image is assumed to already have memory bound. don't allocate it elsewhere.
+		memset(&targ->colour.mem, 0, sizeof(targ->colour.mem));
+	else
+		VK_AllocateBindImageMemory(&targ->colour, true);
 	VK_AllocateBindImageMemory(&targ->depth, true);
 
 	{
@@ -4906,6 +4926,9 @@ void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean c
 	struct vkbe_rtpurge_cube *purge;
 	uint32_t f;
 	static VkClearValue clearvalues[2];
+
+	if (targ->size == size && !clear)
+		return;	//no work to do.
 
 	for (f = 0; f < 6; f++)
 	{
@@ -5195,7 +5218,7 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 		r_refdef.vrect.y = 0;
 		r_refdef.vrect.width = max(1, vid.fbvwidth*bs->portalfboscale);
 		r_refdef.vrect.height = max(1, vid.fbvheight*bs->portalfboscale);
-		VKBE_RT_Gen(&shaderstate.rt_reflection, r_refdef.vrect.width, r_refdef.vrect.height, false, RT_IMAGEFLAGS);
+		VKBE_RT_Gen(&shaderstate.rt_reflection, NULL, r_refdef.vrect.width, r_refdef.vrect.height, false, RT_IMAGEFLAGS);
 		VKBE_RT_Begin(&shaderstate.rt_reflection);
 		R_DrawPortal(batch, cl.worldmodel->batches, NULL, 1);
 		VKBE_RT_End(&shaderstate.rt_reflection);
@@ -5214,7 +5237,7 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 			r_refdef.vrect.y = 0;
 			r_refdef.vrect.width = vid.fbvwidth/2;
 			r_refdef.vrect.height = vid.fbvheight/2;
-			VKBE_RT_Gen(&shaderstate.rt_refraction, r_refdef.vrect.width, r_refdef.vrect.height, false, RT_IMAGEFLAGS);
+			VKBE_RT_Gen(&shaderstate.rt_refraction, NULL, r_refdef.vrect.width, r_refdef.vrect.height, false, RT_IMAGEFLAGS);
 			VKBE_RT_Begin(&shaderstate.rt_refraction);
 			R_DrawPortal(batch, cl.worldmodel->batches, NULL, ((bs->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 			VKBE_RT_End(&shaderstate.rt_refraction);

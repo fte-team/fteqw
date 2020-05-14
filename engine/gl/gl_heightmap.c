@@ -4323,7 +4323,7 @@ qboolean Heightmap_EdictInFatPVS	(model_t *mod, const struct pvscache_s *edict, 
 	const hmpvs_t *hmpvs = (const hmpvs_t*)pvsdata;
 	const hmpvsent_t *hmed = (const hmpvsent_t*)edict;
 
-	if (!hm->culldistance)
+	if (!hm->culldistance || !hmpvs)
 		return true;
 
 	//check distance
@@ -4940,7 +4940,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	case ter_ent_set:
 		{
-			int idx = G_INT(OFS_PARM1);
+			unsigned int idx = G_INT(OFS_PARM1);
 			int id;
 			const char *newvals;
 			if (idx >= MAX_EDICTS)	//we need some sanity limit... many ents will get removed like lights so this one isn't quite correct, but it'll be in the right sort of ballpark.
@@ -7641,20 +7641,33 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		else if (inbrush)
 		{
 			//parse a plane
-			//Quake: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname soffset toffset rotation sscale tscale
-			//hexen2:( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname soffset toffset rotation sscale tscale utterlypointless
-			//Valve: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
-			//fte  : ( px py pz pd ) texname [sx sy sz sd] [tx ty tz td] 0 1 1
-			//q3   : ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname common/caulk rotation sscale tscale detailcontents unused unused
-			//q3bp : brushDef { ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) ( ( x y o ) ( x y o ) ) texname detailcontents unused unused } //generate tangent+bitangent from the normal to generate base texcoords, then transform by the given 2*3 matrix. I prefer valve's way - it rotates more cleanly.
-			//doom3: brushDef3 { ( px py pz pd ) ( ( x y z ) ( x y z ) ) texname detailcontents unused unused }
+			//Quake:             ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale
+			//Hexen2:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale surfvalue
+			//Valve:             ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname [x y z d] [x y z d] rotation sscale tscale
+			//FTE  :             ( px py pz pd )                                                texname [x y z d] [x y z d] rotation sscale tscale
+			//Quake2:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale contents surfflags surfvalue
+			//Quake3:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale contents surfflags surfvalue
+			//Q3 BP: brushDef {  ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) ( ( x y o ) ( x y o ) ) texname                                            contents surfflags surfvalue } //generate tangent+bitangent from the normal to generate base texcoords, then transform by the given 2*3 matrix. I prefer valve's way - it rotates more cleanly.
+			//Doom3: brushDef3 { ( px py pz pd )                        ( ( x y o ) ( x y o ) ) texname                                            contents surfflags surfvalue }
+			//hexen2's extra surfvalue is completely unused, and should normally be -1
+			//q3 ignores all contents except detail, as well surfaceflags and surfacevalue
+			//220 ignores rotation, provided only for UI info, scale is still used
+
+			//we don't care whether the input is planes or points.
+			//if we get a [ instead of an soffset then its
+
 			brushtex_t *bt;
 			vec3_t d1,d2;
 			vec3_t points[3];
 			vec4_t texplane[2];
 			float scale[2], rot;
 			int p;
-			qboolean hlstyle = false;
+			enum
+			{
+				TEXTYPE_AXIAL,	//urgh
+				TEXTYPE_PLANES,
+				TEXTYPE_BP,		//weird 2d planes
+			} textype = TEXTYPE_AXIAL;
 			memset(points, 0, sizeof(points));
 			if (patch_tex)
 			{
@@ -7695,6 +7708,40 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				return false;
 			}
 
+			if (token[0] == '(')
+			{
+				textype = TEXTYPE_BP;
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				if (token[0] == '(')
+				{
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][0] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][1] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][3] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					if (token[0] != ')')
+						return false;
+				}
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				if (token[0] == '(')
+				{
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][0] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][1] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][3] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					if (token[0] != ')')
+						return false;
+				}
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				if (token[0] != ')')
+					return false;
+			}
+
 			bt = Terr_Brush_FindTexture(subhm, token);
 			if (*token == '*')
 			{
@@ -7716,53 +7763,57 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			else
 				brushcontents = FTECONTENTS_SOLID;
 
-			//halflife/valve220 format has the entire [x y z dist] plane specified.
-			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			if (*token == '[')
+			if (textype != TEXTYPE_BP)
 			{
-				hlstyle = true;
+				//halflife/valve220 format has the entire [x y z dist] plane specified.
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				if (*token == '[')
+				{
+					textype = TEXTYPE_PLANES;
+
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][0] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][1] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][2] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[0][3] = atof(token);
+
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//]
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//[
+
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][0] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][1] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][2] = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][3] = atof(token);
+
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//]
+				}
+				else
+				{	//vanilla quake
+					VectorClear(texplane[0]);
+					VectorClear(texplane[1]);
+					texplane[0][3] = atof(token);	//aka soffset
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					texplane[1][3] = atof(token);	//aka toffset
+				}
 
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[0][0] = atof(token);
+				rot = atof(token);
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[0][1] = atof(token);
+				scale[0] = atof(token);
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[0][2] = atof(token);
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[0][3] = atof(token);
-
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				//]
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				//[
-
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[1][0] = atof(token);
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[1][1] = atof(token);
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[1][2] = atof(token);
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[1][3] = atof(token);
-
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				//]
+				scale[1] = atof(token);
 			}
-			else
-			{	//vanilla quake
-				VectorClear(texplane[0]);
-				VectorClear(texplane[1]);
-				texplane[0][3] = atof(token);
-				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				texplane[1][3] = atof(token);
-			}
-
-			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			rot = atof(token);
-			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			scale[0] = atof(token);
-			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			scale[1] = atof(token);
+			else rot = 0;
 
 			//hexen2 has some extra junk that is useless - some 'light' value, but its never used and should normally be -1.
 			//quake2/3 on the other hand has 3 different args. Contents SurfaceFlags SurfaceValue.
@@ -7821,9 +7872,31 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			}
 			faces[numplanes].tex = bt;
 
-			//quake's .maps use the normal to decide which texture directions to use in some lame axially-aligned way.
-			if (!hlstyle)
+			if (textype == TEXTYPE_BP)
 			{
+				float *norm = planes[numplanes];
+				float RotY = -atan2(norm[2], sqrt(norm[1]*norm[1] + norm[0]*norm[0]));
+				float RotZ = atan2(norm[1], norm[0]);
+				vec3_t tx = {-sin(RotZ), cos(RotZ), 0};		//tangent
+				vec3_t ty = {-sin(RotY)*cos(RotZ), -sin(RotY)*sin(RotZ), -cos(RotY)};	//bitangent
+				vec2_t tms = {texplane[0][0],texplane[0][1]}, tmt = {texplane[1][0],texplane[1][1]};	//bah, locals reuse suck
+				texplane[0][0] = (tx[0] * tms[0]) + (ty[0] * tms[1]);	//multiply out some matricies
+				texplane[0][1] = (tx[1] * tms[0]) + (ty[1] * tms[1]);
+				texplane[0][2] = (tx[2] * tms[0]) + (ty[2] * tms[1]);
+				texplane[1][0] = (tx[0] * tmt[0]) + (ty[0] * tmt[1]);
+				texplane[1][1] = (tx[1] * tmt[0]) + (ty[1] * tmt[1]);
+				texplane[1][2] = (tx[2] * tmt[0]) + (ty[2] * tmt[1]);
+
+				//scale is part of the matrix.
+				scale[0] = 1;
+				scale[1] = 1;
+
+				//FIXME: these faces should NOT be scaled by the texture's size!
+			}
+			else if (textype == TEXTYPE_PLANES)
+				;//texture planes were properly loaded above (the scaling below is still needed though).
+			else if (textype == TEXTYPE_AXIAL)
+			{	//quake's .maps use the normal to decide which texture directions to use in some lame axially-aligned way.
 				float a=fabs(planes[numplanes][0]),b=fabs(planes[numplanes][1]),c=fabs(planes[numplanes][2]);
 				if (a>=b&&a>=c)
 					texplane[0][1] = 1;
@@ -7833,22 +7906,22 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 					texplane[1][1] = -1;
 				else
 					texplane[1][2] = -1;
-			}
 
-			if (rot)
-			{
-				int mas, mat;
-				float s,t;
-				float a = rot*(M_PI/180);
-				float cosa = cos(a), sina=sin(a);
-				for (mas=0; mas<2&&!texplane[0][mas]; mas++);
-				for (mat=0; mat<2&&!texplane[1][mat]; mat++);
-				for (i = 0; i < 2; i++)
+				if (rot)
 				{
-					s = cosa*texplane[i][mas] - sina*texplane[i][mat];
-					t = sina*texplane[i][mas] + cosa*texplane[i][mat];
-					texplane[i][mas] = s;
-					texplane[i][mat] = t;
+					int mas, mat;
+					float s,t;
+					float a = rot*(M_PI/180);
+					float cosa = cos(a), sina=sin(a);
+					for (mas=0; mas<2&&!texplane[0][mas]; mas++);
+					for (mat=0; mat<2&&!texplane[1][mat]; mat++);
+					for (i = 0; i < 2; i++)
+					{
+						s = cosa*texplane[i][mas] - sina*texplane[i][mat];
+						t = sina*texplane[i][mas] + cosa*texplane[i][mat];
+						texplane[i][mas] = s;
+						texplane[i][mat] = t;
+					}
 				}
 			}
 

@@ -1307,7 +1307,7 @@ void PR_RunGC (progfuncs_t *progfuncs)
 			gc->tempstrings = (void*)((char*)gc->amem+prinst.addressableused);
 			memcpy(gc->tempstrings, prinst.tempstrings, sizeof(*gc->tempstrings)*gc->maxtemps);
 
-			COM_AddWork(WG_LOADER, PR_QCGC_Thread, gc, NULL, 0, 0);
+			COM_InsertWork(WG_LOADER, PR_QCGC_Thread, gc, NULL, 0, 0);
 
 #ifdef GCTIMINGS
 			endtime = Sys_DoubleTime();

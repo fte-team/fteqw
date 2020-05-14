@@ -233,6 +233,7 @@ QCC_statement_t *QCC_Generate_OP_IF(QCC_sref_t e, pbool preserve);
 QCC_statement_t *QCC_Generate_OP_GOTO(void);
 QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage);
 static QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, unsigned int *pif_flags);
+static void QCC_StoreToSRef(QCC_sref_t dest, QCC_sref_t source, QCC_type_t *type, pbool preservesource, pbool preservedest);
 
 //NOTE: prints may use from the func argument's symbol, which can be awkward if its a temp.
 QCC_sref_t	QCC_PR_GenerateFunctionCallSref (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t *arglist, int argcount);
@@ -5818,10 +5819,14 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 			if (args[i].ref.sym != d.sym || args[i].ref.ofs != d.ofs)
 			{
 				QCC_ForceUnFreeDef(d.sym);
+#if 0
+				QCC_StoreToSRef(d, args[i].ref, d.cast, false, false);
+#else
 				if (args[i].ref.cast->size == 3)
 					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_V], args[i].ref, d, NULL, 0));
 				else
 					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], args[i].ref, d, NULL, 0));
+#endif
 			}
 			else
 				QCC_FreeTemp(args[i].ref);
@@ -12530,7 +12535,7 @@ static pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 			continue;	//not a real local, so will be properly initialised.
 		if (local->symbolheader != local)
 			continue;	//ignore slave symbols, cos they're not interesting and should have been checked as part of the parent.
-		if (local->ofs < paramend)
+		if (local->isparameter)
 			continue;
 		err = QCC_CheckOneUninitialised(firststatement, laststatement, local, local->ofs, local->ofs + local->type->size * (local->arraysize?local->arraysize:1));
 		if (err > 0)
@@ -13039,7 +13044,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 		QCC_def_t *arg;
 		for (u=0, p=0, arg=f->firstlocal ; u<type->num_parms; u++, arg = arg->deftail->nextlocal)
 		{
-			QCC_PR_DummyDef(type->params[u].type, pr_parm_names[u], pr_scope, 0, arg, 0, true, false);
+			QCC_PR_DummyDef(type->params[u].type, pr_parm_names[u], pr_scope, 0, arg, 0, true, GDF_PARAMETER);
 		}
 
 		if (type->vargcount)
@@ -13047,7 +13052,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 			if (!pr_parm_argcount_name)
 				QCC_Error(ERR_INTERNAL, "I forgot what the va_count argument is meant to be called");
 			else
-				QCC_PR_DummyDef(type_float, pr_parm_argcount_name, pr_scope, 0, arg, 0, true, false);
+				QCC_PR_DummyDef(type_float, pr_parm_argcount_name, pr_scope, 0, arg, 0, true, 0);
 		}
 	}
 	else
@@ -13060,14 +13065,17 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 				QC_snprintfz(pr_parm_names[u], sizeof(pr_parm_names[u]), "$arg_%u", u);
 				QCC_PR_ParseWarning(WARN_PARAMWITHNONAME, "Parameter %u of %s is not named", u+1, pr_scope->name);
 			}
-			parm = QCC_PR_GetSRef (type->params[u].type, pr_parm_names[u], pr_scope, 2, 0, false);
+			parm = QCC_PR_GetSRef (type->params[u].type, pr_parm_names[u], pr_scope, 2, 0, 0);
 			parm.sym->used = true;	//make sure system parameters get seen by the engine, even if the names are stripped..
 			parm.sym->referenced = true;
 
 			for (o = 0; o < (type->params[u].type->size+2)/3; o++)
 			{
 				if (p < MAX_PARMS)
+				{
+					parm.sym->isparameter = true;
 					parm.ofs+=3;//no need to copy anything, as the engine will do it for us.
+				}
 				else
 				{	//extra parms need to be explicitly copied.
 					if (!extra_parms[p - MAX_PARMS].sym)
@@ -13859,6 +13867,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		def->scope = scope;
 		def->constant = !!(flags & GDF_CONST);
 		def->isstatic = !!(flags & GDF_STATIC);
+		def->isparameter = !!(flags & GDF_PARAMETER);
 		if (arraysize && a < 0)
 		{	//array headers can be stripped safely.
 			def->saved = false;
@@ -15386,20 +15395,16 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 			isstatic = true;
 		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_nonstatic, "nonstatic"))
 			isstatic = false;
-		else if (QCC_PR_CheckKeyword(keyword_noref, "noref"))
-			noref=true;
-		else if (QCC_PR_CheckKeyword(keyword_unused, "unused"))
+		else if (QCC_PR_CheckKeyword(keyword_unused, "unused") || QCC_PR_CheckKeyword(keyword_noref, "noref"))
 			noref=true;
 		else if (QCC_PR_CheckKeyword(keyword_used, "used"))
 			forceused=true;
 		else if (QCC_PR_CheckKeyword(keyword_nosave, "nosave"))
 			nosave = true;
-		else if (QCC_PR_CheckKeyword(keyword_strip, "strip"))
+		else if (QCC_PR_CheckKeyword(keyword_strip, "strip") || QCC_PR_CheckKeyword(keyword_ignore, "ignore"))
 			dostrip = true;
 		else if (QCC_PR_CheckKeyword(keyword_inline, "inline"))
 			allowinline = true;
-		else if (QCC_PR_CheckKeyword(keyword_ignore, "ignore"))
-			dostrip = true;
 		else if (QCC_PR_CheckKeyword(keyword_wrap, "wrap"))
 			dowrap = true;
 		else if (QCC_PR_CheckKeyword(keyword_weak, "weak"))

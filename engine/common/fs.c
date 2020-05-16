@@ -702,6 +702,25 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	{
 		int i;
 		char *newdir = Cmd_Argv(1);
+		qboolean basegame = !Q_strcasecmp(cmd, "basegame");
+
+		for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
+		{
+			if (man->gamepath[i].path)
+			{
+				if (!Q_strcasecmp(man->gamepath[i].path, newdir))
+				{
+					if (basegame && !(man->gamepath[i].flags & GAMEDIR_BASEGAME))
+					{
+						Z_Free(man->gamepath[i].path);
+						man->gamepath[i].path = NULL;	//if we're adding a basegame when there's a mod game with the same name then drop the redundant mod name
+						man->gamepath[i].flags = 0;
+					}
+					else
+						return true;	//already in there, don't add a conflicting one.
+				}
+			}
+		}
 
 		for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 		{

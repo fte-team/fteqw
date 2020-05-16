@@ -3468,6 +3468,17 @@ static void PM_PromptApplyChanges(void)
 	}
 }
 #endif
+#ifdef HAVE_CLIENT
+static void PM_AddSubList_Callback(void *ctx, promptbutton_t opt)
+{
+	if (opt == PROMPT_YES)
+	{
+		PM_AddSubList(ctx, "", true, true);
+		PM_WriteInstalledPackages();
+	}
+	Z_Free(ctx);
+}
+#endif
 
 //names packages that were listed from the  manifest.
 //if 'mark' is true, then this is an initial install.
@@ -3537,27 +3548,31 @@ void PM_Command_f(void)
 
 	if (!strcmp(act, "sources") || !strcmp(act, "addsource"))
 	{
-#ifdef WEBCLIENT
-		if (Cmd_Argc() == 2)
-		{
-			int i;
-			for (i = 0; i < numdownloadablelists; i++)
-				Con_Printf("%s %s\n", downloadablelist[i].url, downloadablelist[i].save?"(explicit)":"(implicit)");
-			Con_Printf("<%i sources>\n", numdownloadablelists);
-		}
-		else
-		{
-			PM_AddSubList(Cmd_Argv(2), "", true, true);
-			PM_WriteInstalledPackages();
-		}
-#endif
+		#ifdef WEBCLIENT
+			if (Cmd_Argc() == 2)
+			{
+				int i;
+				for (i = 0; i < numdownloadablelists; i++)
+					Con_Printf("%s %s\n", downloadablelist[i].url, downloadablelist[i].save?"(explicit)":"(implicit)");
+				Con_Printf("<%i sources>\n", numdownloadablelists);
+			}
+			else
+			{
+				#ifdef HAVE_CLIENT
+					Menu_Prompt(PM_AddSubList_Callback, Z_StrDup(Cmd_Argv(2)), va("Add updates source?\n%s", Cmd_Argv(2)), "Confirm", NULL, "Cancel");
+				#else
+					PM_AddSubList(Cmd_Argv(2), "", true, true);
+					PM_WriteInstalledPackages();
+				#endif
+			}
+		#endif
 	}
 	else if (!strcmp(act, "remsource"))
 	{
-#ifdef WEBCLIENT
-		PM_RemSubList(Cmd_Argv(2));
-		PM_WriteInstalledPackages();
-#endif
+		#ifdef WEBCLIENT
+			PM_RemSubList(Cmd_Argv(2));
+			PM_WriteInstalledPackages();
+		#endif
 	}
 	else
 	{

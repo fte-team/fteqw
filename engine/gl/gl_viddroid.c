@@ -311,7 +311,7 @@ void VID_Register(void)
 	gles1rendererinfo.description = "OpenGL ES 1";
 	memset(&gles1rendererinfo.name, 0, sizeof(gles1rendererinfo.name));	//make sure there's no 'gl' etc names.
 	gles1rendererinfo.name[0] = "gles1";
-	R_RegisterRenderer(&gles1rendererinfo);
+	R_RegisterRenderer(NULL, &gles1rendererinfo);
 }
 
 

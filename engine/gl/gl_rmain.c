@@ -435,7 +435,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 R_SetupGL
 =============
 */
-static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, texid_t fbo)
+static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, float projmatrix[16]/*for webvr*/, texid_t fbo)
 {
 	int		x, x2, y2, y, w, h;
 	vec3_t newa;
@@ -559,67 +559,56 @@ static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, texid_t fbo)
 			r_refdef.pxrect.maxheight = vid.fbpheight;
 		}
 
-		if (fovoverrides)
+		if (projmatrix)
 		{
-			fov_l = fovoverrides[0];
-			fov_r = fovoverrides[1];
-			fov_d = fovoverrides[2];
-			fov_u = fovoverrides[3];
-
-			fov_x = fov_r-fov_l;
-			fov_y = fov_u-fov_d;
-
-			fovv_x = fov_x;
-			fovv_y = fov_y;
-			r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
+			memcpy(r_refdef.m_projection_std, projmatrix, sizeof(r_refdef.m_projection_std));
+			memcpy(r_refdef.m_projection_view, projmatrix, sizeof(r_refdef.m_projection_view));
+			r_refdef.flipcull = 0;
 		}
 		else
 		{
-			fov_x = r_refdef.fov_x;
-			fov_y = r_refdef.fov_y;
-			fovv_x = r_refdef.fovv_x;
-			fovv_y = r_refdef.fovv_y;
-
-			if ((*r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname) && strcmp(r_refdef.rt_destcolour[0].texname, "megascreeny"))
+			if (fovoverrides)
 			{
-				r_refdef.pxrect.y = r_refdef.pxrect.maxheight - (r_refdef.pxrect.height+r_refdef.pxrect.y);
-				fov_y *= -1;
-				fovv_y *= -1;
-				r_refdef.flipcull ^= SHADER_CULL_FLIP;
+				fov_l = fovoverrides[0];
+				fov_r = fovoverrides[1];
+				fov_d = fovoverrides[2];
+				fov_u = fovoverrides[3];
+
+				fov_x = fov_r-fov_l;
+				fov_y = fov_u-fov_d;
+
+				fovv_x = fov_x;
+				fovv_y = fov_y;
+				r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
 			}
-			else if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+			else
 			{
-				fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-				fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+				fov_x = r_refdef.fov_x;
+				fov_y = r_refdef.fov_y;
+				fovv_x = r_refdef.fovv_x;
+				fovv_y = r_refdef.fovv_y;
 
-				fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-				fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+				if ((*r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname) && strcmp(r_refdef.rt_destcolour[0].texname, "megascreeny"))
+				{
+					r_refdef.pxrect.y = r_refdef.pxrect.maxheight - (r_refdef.pxrect.height+r_refdef.pxrect.y);
+					fov_y *= -1;
+					fovv_y *= -1;
+					r_refdef.flipcull ^= SHADER_CULL_FLIP;
+				}
+				else if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+				{
+					fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+					fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+
+					fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+					fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+				}
+				fov_l = -fov_x / 2;
+				fov_r = fov_x / 2;
+				fov_d = -fov_y / 2;
+				fov_u = fov_y / 2;
 			}
-			fov_l = -fov_x / 2;
-			fov_r = fov_x / 2;
-			fov_d = -fov_y / 2;
-			fov_u = fov_y / 2;
-		}
 
-		GL_ViewportUpdate();
-
-#ifdef FTE_TARGET_WEB
-		if (r_refdef.stereomethod == STEREO_WEBVR)
-		{
-			float vm[16], em[16];
-			emscriptenfte_getvreyedata(i, r_refdef.m_projection_std, em);
-			memcpy(r_refdef.m_projection_view, r_refdef.m_projection_std, sizeof(r_refdef.m_projection_view));
-			Matrix4x4_Identity(em);
-
-			Matrix4x4_CM_ModelViewMatrixFromAxis(vm, vpn, vright, vup, r_origin);
-			Matrix4_Multiply(vm, em, r_refdef.m_view);
-			//fixme: read the axis+org back out...
-
-//			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
-		}
-		else
-#endif
-		{
 			if (r_refdef.useperspective)
 			{
 				int stencilshadows = Sh_StencilShadowsActive();
@@ -652,14 +641,16 @@ static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, texid_t fbo)
 			}
 
 			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
-
-			r_refdef.m_projection_view[2+4*0] *= 0.333;
-			r_refdef.m_projection_view[2+4*1] *= 0.333;
-			r_refdef.m_projection_view[2+4*2] *= 0.333;
-			r_refdef.m_projection_view[2+4*3] *= 0.333;
-			r_refdef.m_projection_view[14] -= 0.666;
-			//FIXME: bias, so that we use -1 to -.333 range instead of -.333 to 0.333
 		}
+
+		//bias the viewmodel depth range to a third: -1 through -0.333 (instead of -1 to 1)
+		r_refdef.m_projection_view[2+4*0] *= 0.333;
+		r_refdef.m_projection_view[2+4*1] *= 0.333;
+		r_refdef.m_projection_view[2+4*2] *= 0.333;
+		r_refdef.m_projection_view[2+4*3] *= 0.333;
+		r_refdef.m_projection_view[14] -= 0.666;
+
+		GL_ViewportUpdate();
 	}
 
 	if (qglLoadMatrixf)
@@ -754,7 +745,7 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t a
 		vid.fbpheight = rendertarget->height;
 	}
 
-	R_SetupGL (axisorigin, fovoverride, rendertarget);
+	R_SetupGL (axisorigin, fovoverride, NULL, rendertarget);
 	R_RenderScene_Internal();
 
 	if (rendertarget)
@@ -811,9 +802,25 @@ static void R_RenderScene (void)
 		qglClear (GL_DEPTH_BUFFER_BIT);
 		r_framecount++;
 
-		R_SetupGL (NULL, NULL, NULL);
+		R_SetupGL (NULL, NULL, NULL, NULL);
 		R_RenderScene_Internal();
 	}
+#ifdef FTE_TARGET_WEB
+	else if (r_refdef.stereomethod == STEREO_WEBVR)
+	{
+		float projmatrix[16], eyematrix[16];
+		GL_ForceDepthWritable();
+		qglClear (GL_DEPTH_BUFFER_BIT);
+		r_framecount++;
+
+		for (i = 0; i < stereoframes; i++)
+		{
+			emscriptenfte_getvreyedata(i, projmatrix, eyematrix);
+			R_SetupGL (eyematrix, NULL, projmatrix, NULL);
+			R_RenderScene_Internal();
+		}
+	}
+#endif
 	else for (i = 0; i < stereoframes; i++)
 	{
 		switch (stereomode)
@@ -880,7 +887,7 @@ static void R_RenderScene (void)
 		axisorg[3][0] = 0;
 		axisorg[3][1] = stereooffset[i];
 		axisorg[3][2] = 0;
-		R_SetupGL (axisorg, NULL, NULL);
+		R_SetupGL (axisorg, NULL, NULL, NULL);
 		R_RenderScene_Internal ();
 	}
 

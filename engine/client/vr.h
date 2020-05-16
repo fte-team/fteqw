@@ -57,19 +57,10 @@ typedef struct vrsetup_s
 		} d3d;
 
 		struct
-		{	//sometimes pointers, sometimes ints. nasty datatypes that suck. this is hideous.
-#ifndef VulkanAPIRandomness
-	#if defined(__LP64__) || defined(_WIN64)
-		#define VulkanAPIRandomness void*
-	#elif defined(_MSC_VER) && _MSC_VER < 1300
-		#define VulkanAPIRandomness __int64
-	#else
-		#define VulkanAPIRandomness long long
-	#endif
-#endif
-			VulkanAPIRandomness instance;
-			VulkanAPIRandomness physicaldevice;
-			VulkanAPIRandomness device;
+		{	//these are ALWAYS pointers in vulkan (annoyingly unlike many of its typedefs).
+			void *instance;
+			void *physicaldevice;
+			void *device;
 			unsigned int queuefamily;
 			unsigned int queueindex;
 		} vk;

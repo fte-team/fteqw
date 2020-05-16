@@ -343,7 +343,7 @@ static int SVQ2_FindIndex (const char *name, int start, int max, int overflowtyp
 			case 1:
 				overflowstrings = sv.strings.q2_extramodels;
 				max = countof(sv.strings.q2_extramodels);
-				i++;	//do not allow 255 to be allocated, ever. just live with the gap.
+				i++;	//do not allow 255 to be allocated, ever. just live with the gap (255 means special things).
 				start = 0x8000;
 				break;
 			case 2:

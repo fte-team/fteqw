@@ -2066,21 +2066,24 @@ void SV_Begin_Core(client_t *split)
 
 	if (split->spawned)
 	{
-		//NEH_RESTOREGAME
-		//officially RestoreGame tells the mod when the game has been loaded.
-		//this allows mods to send any stuffcmds the client will have forgotten.
-		//the original intention would not have been client-specific (and indeed nehahra only saves in singleplayer)
-		//doing it elsewhere unfortunately results in race conditions.
-		func_t f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
-		if (f)
+		if (svprogfuncs)
 		{
-			pr_global_struct->time = sv.world.physicstime;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-			PR_ExecuteProgram (svprogfuncs, f);
-		}
+			//NEH_RESTOREGAME
+			//officially RestoreGame tells the mod when the game has been loaded.
+			//this allows mods to send any stuffcmds the client will have forgotten.
+			//the original intention would not have been client-specific (and indeed nehahra only saves in singleplayer)
+			//doing it elsewhere unfortunately results in race conditions.
+			func_t f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
+			if (f)
+			{
+				pr_global_struct->time = sv.world.physicstime;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+				PR_ExecuteProgram (svprogfuncs, f);
+			}
 
-		SV_SendFixAngle(split, NULL, FIXANGLE_FIXED, false);
-		split->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
+			SV_SendFixAngle(split, NULL, FIXANGLE_FIXED, false);
+			split->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
+		}
 		return;
 	}
 	split->spawned = true;
@@ -2248,20 +2251,19 @@ void SV_Begin_Core(client_t *split)
 				}
 			}
 		}
-	}
+		SV_SendFixAngle(split, NULL, FIXANGLE_FIXED, false);
+		split->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
 
 #ifdef HAVE_LEGACY
-	split->dp_ping = NULL;
-	split->dp_pl = NULL;
-	if (progstype == PROG_NQ)
-	{
-		split->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping", ev_float, NULL);
-		split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping_packetloss", ev_float, NULL);
-	}
+		split->dp_ping = NULL;
+		split->dp_pl = NULL;
+		if (progstype == PROG_NQ)
+		{
+			split->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping", ev_float, NULL);
+			split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping_packetloss", ev_float, NULL);
+		}
 #endif
-
-	SV_SendFixAngle(split, NULL, FIXANGLE_FIXED, false);
-	split->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
+	}
 }
 
 /*

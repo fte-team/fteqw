@@ -440,6 +440,7 @@ typedef struct QCC_def_s
 	pbool initialized:1;		//true when a declaration included "= immediate".
 	pbool isextern:1;			//fteqw-specific lump entry
 	pbool isparameter:1;		//its an engine parameter (thus preinitialised).
+	const char *deprecated;		//reason its deprecated (or empty for no reason given)
 
 	int	fromstatement;		//statement that it is valid from.
 	temp_t *temp;
@@ -748,7 +749,7 @@ char *QCC_NameForWarning(int idx);
 enum {
 	WARN_DEBUGGING,
 	WARN_ERROR,
-	WARN_DEPRECATEDWARNING,	//to silence warnings about old warnings.
+	WARN_REMOVEDWARNING,	//to silence warnings about old warnings.
 	WARN_WRITTENNOTREAD,
 	WARN_READNOTWRITTEN,
 	WARN_NOTREFERENCED,
@@ -804,7 +805,8 @@ enum {
 	WARN_DUPLICATEPRECOMPILER,
 	WARN_IDENTICALPRECOMPILER,
 	WARN_FORMATSTRING,		//sprintf
-	WARN_DEPRECACTEDSYNTAX,	//triggered when syntax is used that I'm trying to kill
+	WARN_DEPRECACTEDSYNTAX,		//triggered when syntax is used that I'm trying to kill
+	WARN_DEPRECATEDVARIABLE,	//triggered from usage of a symbol that someone tried to kill
 	WARN_GMQCC_SPECIFIC,	//extension created by gmqcc that conflicts or isn't properly implemented.
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands

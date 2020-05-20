@@ -223,6 +223,7 @@ struct {
 	{" F323", WARN_UNREACHABLECODE},
 	{" F324", WARN_FORMATSTRING},
 	{" F325", WARN_NESTEDCOMMENT},
+	{" F326", WARN_DEPRECATEDVARIABLE},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -244,7 +245,7 @@ struct {
 	//Q618: Ran out of mem pointer space (malloc failure again)
 
 	//we can put longer alternative names here...
-	{" field-redeclared", WARN_DEPRECATEDWARNING},
+	{" field-redeclared", WARN_REMOVEDWARNING},
 
 	{NULL}
 };
@@ -383,7 +384,7 @@ compiler_flag_t compiler_flag[] = {
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
-	{&flag_boundchecks,		defaultflag,	"boundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
+	{&flag_boundchecks,		defaultflag,	"boundchecks",	"Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
 	{&flag_attributes,		hideflag,		"attributes",	"[[attributes]]",		"WARNING: This syntax conflicts with vector constructors."},
 	{&flag_assumevar,		hideflag,		"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
 	{&flag_dblstarexp,		hideflag,		"ssp",			"** exponent",			"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},

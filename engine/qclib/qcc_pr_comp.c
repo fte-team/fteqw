@@ -5438,6 +5438,20 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 	return ctx.result;
 #endif
 }
+pbool QCC_Intrinsic_strlen(QCC_sref_t *result, const QCC_eval_t *a)
+{
+	const char *str = &strings[a->string];
+	size_t l = 0;
+	for (l = 0; str[l]; l++)
+	{	//don't shortcut it when its an extended char. we don't know what the engine's strlen function would return.
+		if ((unsigned char)str[l] & 0x80)
+			return false;
+	}
+	if (l > 1u<<24)	//wait, what?
+		return false;	//too big for a float.
+	*result = QCC_MakeFloatConst(l);
+	return true;
+}
 QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, QCC_ref_t **arglist, unsigned int argcount)	//warning, the func could have no name set if it's a field call.
 {
 	QCC_sref_t		d, oself, self, retval;
@@ -5478,6 +5492,9 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 				return QCC_MakeFloatConst(sqrt(a->_float));
 //			if (!strcmp(funcname, "ftos"))
 //				return QCC_MakeStringConst(ftos(a->_float));	//engines differ too much in their ftos implementation for this to be worthwhile
+
+			if (!strcmp(funcname, "strlen") && QCC_Intrinsic_strlen(&d, a))
+				return d;
 		}
 	}
 	else if (opt_constantarithmatic && argcount == 2 && arglist[0]->type == REF_GLOBAL && arglist[1]->type == REF_GLOBAL)
@@ -6068,36 +6085,63 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			{
 				int sz;
 				int oldstcount = numstatements;
-#if 1
 				QCC_ref_t refbuf, *r;
 				r = QCC_PR_RefExpression(&refbuf, TOP_PRIORITY, 0);
-//				r = QCC_PR_ParseRefValue(&refbuf, pr_classtype, false, false, false);
-				if (r->type == REF_ARRAYHEAD && !r->index.cast)
-				{
-					e = r->base;
-					sz = e.sym->arraysize;
-				}
+				if (r->type == REF_GLOBAL && r->base.sym->type == type_string && !strcmp(r->base.sym->name, "IMMEDIATE"))
+					sz = strlen(&strings[QCC_SRef_EvalConst(r->base)->string]) + 1;	//sizeof("hello") includes the null, and is bytes not codepoints
 				else
-					sz = 1;
-				sz *= r->cast->size;
+				{
+					sz = 4;	//4 bytes per word. we don't support char/short (our string type is logically char*)
+					if (r->type == REF_ARRAYHEAD && !r->index.cast)
+						sz *= r->base.sym->arraysize;
+					sz *= r->cast->size;
+				}
 				QCC_FreeTemp(r->base);
 				if (r->index.cast)
 					QCC_FreeTemp(r->index);
-#else
-				e = QCC_PR_ParseValue(pr_classtype, false, true, false);
-				if (!e)
-					QCC_PR_ParseErrorPrintSRef (ERR_NOTAFUNCTION, func, "sizeof term not supported");
-				if (!e->arraysize)
-					sz = 1;
-				else
-					sz = e->arraysize;
-				sz *= e->type->size;
-				QCC_FreeTemp(e);
-#endif
 				//the term should not have side effects, or generate any actual statements.
 				numstatements = oldstcount;
 				QCC_PR_Expect(")");
-				sz *= 4;	//4 bytes per word
+				return QCC_MakeIntConst(sz);
+			}
+		}
+		if (!strcmp(funcname, "_length"))
+		{	//for compat with gmqcc
+			QCC_type_t *t;
+			func.sym->unused = true;
+			func.sym->referenced = true;
+			QCC_FreeTemp(func);
+			t = QCC_PR_ParseType(false, true);
+			if (t)
+			{
+				QCC_PR_Expect(")");
+				return QCC_PR_Statement(&pr_opcodes[OP_ADD_PIW], QCC_MakeIntConst(0), QCC_MakeIntConst(t->size), NULL);
+			}
+			else
+			{
+				int sz = 0;
+				int oldstcount = numstatements;
+				QCC_ref_t refbuf, *r;
+				r = QCC_PR_RefExpression(&refbuf, TOP_PRIORITY, 0);
+				if (r->type == REF_ARRAYHEAD)
+					sz = r->base.sym->arraysize;
+				else if (r->cast == type_string)
+				{
+					QCC_sref_t d = QCC_RefToDef(r, false);
+					const QCC_eval_t *c = QCC_SRef_EvalConst(d);
+					if (c)
+						sz = strlen(&strings[c->string]);	//_length("hello") does NOT include the null (like strlen), but is bytes not codepoints
+				}
+				else if (r->cast == type_vector)
+					sz = 3;	//might as well. considering that vectors can be indexed as an array.
+				else
+					QCC_PR_ParseError (ERR_TYPEMISMATCHPARM, "_length() unsupported argument type for intrinsic");
+				QCC_FreeTemp(r->base);
+				if (r->index.cast)
+					QCC_FreeTemp(r->index);
+				//the term should not have side effects, or generate any actual statements.
+				numstatements = oldstcount;
+				QCC_PR_Expect(")");
 				return QCC_MakeIntConst(sz);
 			}
 		}
@@ -8047,7 +8091,8 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 			if (!strcmp(name, "nil"))
 				d = QCC_MakeIntConst(0);
 			else if (	(!strcmp(name, "randomv"))	||
-					(!strcmp(name, "sizeof"))	||
+					(!strcmp(name, "sizeof"))	||	//FIXME: sizeof should be an operator, not a function (ie: 'sizeof foo' should work just like 'sizeof(foo)' does)
+					(!strcmp(name, "_length"))	||
 					(!strcmp(name, "alloca"))	||
 					(!strcmp(name, "entnum"))	||
 					(!strcmp(name, "autocvar"))	||
@@ -14314,6 +14359,13 @@ QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, const char *name, QCC_function_t *s
 		sr.sym = def;
 		sr.cast = def->type;
 		sr.ofs = 0;
+		if (def->deprecated)
+		{
+			if (*def->deprecated)	//we have a reason for it
+				QCC_PR_ParseWarning(WARN_DEPRECATEDVARIABLE, "Variable \"%s\" is deprecated: %s", def->name, def->deprecated);
+			else		//we don't have any reason for it.
+				QCC_PR_ParseWarning(WARN_DEPRECATEDVARIABLE, "Variable \"%s\" is deprecated", def->name);
+		}
 		return sr;
 	}
 	return nullsref;
@@ -15171,6 +15223,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 	pbool doweak = false;
 	pbool forceused = false;
 	pbool accumulate = false;
+	const char *deprecated = NULL;
 	int arraysize;
 	unsigned int gd_flags;
 	const char *aliasof = NULL;
@@ -15411,6 +15464,22 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 			doweak = true;
 		else if (QCC_PR_CheckKeyword(keyword_accumulate, "accumulate"))
 			accumulate = true;
+		else if (QCC_PR_CheckKeyword(false, "deprecated"))
+		{
+			if (!QCC_PR_CheckToken("("))
+				deprecated = "";
+			else
+			{
+				if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
+				{
+					deprecated = strcpy(qccHunkAlloc(strlen(pr_immediate_string)+1), pr_immediate_string);
+					QCC_PR_Lex();
+				}
+				else
+					deprecated = "";
+				QCC_PR_Expect(")");
+			}
+		}
 		else if (flag_attributes && !pr_scope && QCC_PR_CheckToken("["))
 		{
 			QCC_PR_Expect("[");
@@ -15440,6 +15509,22 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 				}
 				else if (QCC_PR_CheckName("eraseable"))
 					noref = true;
+				else if (QCC_PR_CheckKeyword(false, "deprecated"))
+				{
+					if (!QCC_PR_CheckToken("("))
+						deprecated = "";
+					else
+					{
+						if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
+						{
+							deprecated = strcpy(qccHunkAlloc(strlen(pr_immediate_string)+1), pr_immediate_string);
+							QCC_PR_Lex();
+						}
+						else
+							QCC_PR_ParseError (ERR_EXPECTED, "expected string");
+						QCC_PR_Expect(")");
+					}
+				}
 				else
 				{
 					QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "Unknown attribute \"%s\"", pr_token);
@@ -15758,6 +15843,9 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 			def->initialized = true;
 			def->isextern = true;
 		}
+
+		if (deprecated)
+			def->deprecated = deprecated;
 
 		if (isstatic)
 		{

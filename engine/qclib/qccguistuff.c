@@ -729,6 +729,10 @@ int GUI_ParseCommandLine(const char *args, pbool keepsrcanddir)
 		{
 			fl_log = true;
 		}
+		else if (!strnicmp(parameters+paramlen, "-nolog", 4) || !strnicmp(parameters+paramlen, "/nolog", 4))
+		{
+			fl_log = false;
+		}
 		else if (!strnicmp(parameters+paramlen, "-engine", 7) || !strnicmp(parameters+paramlen, "/engine", 7))
 		{
 			while (*next == ' ')

@@ -2490,7 +2490,7 @@ strofs = (strofs+3)&~3;
 		externs->Printf("Compile finished: %s (hexen2 format)\n", destfile);
 		break;
 	case QCF_DARKPLACES:
-		externs->Printf("Compile finished: %s (dp format)\n", destfile);
+		externs->Printf("Compile finished: %s (patched-dp format)\n", destfile);
 		break;
 	case QCF_FTE:
 		externs->Printf("Compile finished: %s (fte format)\n", destfile);
@@ -4384,6 +4384,9 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			}
 		}
 		else if ( !strcmp(myargv[i], "-stdout") )
+		{
+		}
+		else if ( !strcmp(myargv[i], "-log") || !strcmp(myargv[i], "-nolog") )
 		{
 		}
 		else if ( !strcmp(myargv[i], "--version") )

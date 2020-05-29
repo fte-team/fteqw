@@ -119,6 +119,11 @@ int main (int argc, const char **argv)
 {
 	unsigned int i;
 	pbool sucess;
+#ifdef _WIN32
+	pbool writelog = true;	//spew log files on windows. windows often closes the window as soon as the program ends making its output otherwise unreadable.
+#else
+	pbool writelog = false;	//other systems are sane.
+#endif
 	progexterns_t ext;
 	progfuncs_t funcs;
 	progfuncs = &funcs;
@@ -145,15 +150,24 @@ int main (int argc, const char **argv)
 	}
 #endif
 
+	for (i = 0; i < argc; i++)
+	{
+		if (!argv[i])
+			continue;
+		if (strcmp(argv[i], "-log"))
+			writelog = true;
+		else if (strcmp(argv[i], "-nolog"))
+			writelog = false;
+	}
+	logfile = writelog?fopen("fteqcc.log", "wt"):false;
 
-#ifdef _WIN32
-	logfile = fopen("fteqcc.log", "wt");
-#endif
 	if (logfile)
 	{
 		fputs("Args:", logfile);
 		for (i = 0; i < argc; i++)
 		{
+			if (!argv[i])
+				continue;
 			if (strchr(argv[i], ' '))
 				fprintf(logfile, " \"%s\"", argv[i]);
 			else

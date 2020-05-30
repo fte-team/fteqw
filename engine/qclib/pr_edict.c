@@ -2097,8 +2097,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 			if (num == 0 && oldglobals)
 			{
-				if (pr_progstate[0].globals_size == oldglobalssize)
-					memcpy(pr_progstate[0].globals, oldglobals, pr_progstate[0].globals_size);
+				if (pr_progstate[0].globals_bytes == oldglobalssize)
+					memcpy(pr_progstate[0].globals, oldglobals, pr_progstate[0].globals_bytes);
 				free(oldglobals);
 				oldglobals = NULL;
 			}
@@ -2217,16 +2217,16 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			if (oldglobals)
 				free(oldglobals);
 			oldglobals = NULL;
-			if (pr_progstate[0].globals_size)
+			if (pr_progstate[0].globals_bytes)
 			{
-				oldglobals = malloc(pr_progstate[0].globals_size);
+				oldglobals = malloc(pr_progstate[0].globals_bytes);
 				if (oldglobals)
 				{
-					oldglobalssize = pr_progstate[0].globals_size;
+					oldglobalssize = pr_progstate[0].globals_bytes;
 					memcpy(oldglobals, pr_progstate[0].globals, oldglobalssize);
 				}
 				else
-					externs->Printf("Unable to alloc %i bytes\n", pr_progstate[0].globals_size);
+					externs->Printf("Unable to alloc %i bytes\n", pr_progstate[0].globals_bytes);
 			}
 
 			PRAddressableFlush(progfuncs, 0);
@@ -2784,7 +2784,7 @@ retry:
 	current_progstate->statements = (void *)((qbyte *)pr_progs + pr_progs->ofs_statements);
 
 	glob = pr_globals = (void *)((qbyte *)pr_progs + pr_progs->ofs_globals);
-	current_progstate->globals_size = pr_progs->numglobals*sizeof(*pr_globals);
+	current_progstate->globals_bytes = pr_progs->numglobals*sizeof(*pr_globals);
 
 	pr_linenums=NULL;
 	pr_types=NULL;

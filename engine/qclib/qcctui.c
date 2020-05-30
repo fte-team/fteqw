@@ -119,7 +119,7 @@ int main (int argc, const char **argv)
 {
 	unsigned int i;
 	pbool sucess;
-#ifdef _WIN32
+#if 0//def _WIN32
 	pbool writelog = true;	//spew log files on windows. windows often closes the window as soon as the program ends making its output otherwise unreadable.
 #else
 	pbool writelog = false;	//other systems are sane.

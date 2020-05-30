@@ -422,6 +422,102 @@ reeval:
 		*(unsigned char *)ptr = (char)OPA->_float;
 		break;
 
+	case OP_STOREF_F:
+	case OP_STOREF_I:
+	case OP_STOREF_S:
+		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_STOREF_? references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
+#ifdef PARANOID
+		NUM_FOR_EDICT(ed);		// make sure it's in range
+#endif
+		errorif (!ed || ed->readonly)
+		{	//boot it over to the debugger
+#if INTSIZE == 16
+			ddef16_t *d = ED_GlobalAtOfs16(progfuncs, st->a);
+#else
+			ddef32_t *d = ED_GlobalAtOfs32(progfuncs, st->a);
+#endif
+			fdef_t *f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
+			if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):"??", f?f->name:"??"))
+				return prinst.pr_xstatement;
+			break;
+		}
+
+//Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.
+#ifdef NOLEGACY
+		errorif (ed->ereftype == ER_FREE)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "assignment to free entity in %s", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+#endif
+
+		i = OPB->_int + progfuncs->funcs.fieldadjust;
+		errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_STOREF_? references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+
+		ptr = (eval_t *)(((int *)edvars(ed)) + i);
+		ptr->_int = OPC->_int;
+		break;
+	case OP_STOREF_V:
+		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_STOREF_? references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
+#ifdef PARANOID
+		NUM_FOR_EDICT(ed);		// make sure it's in range
+#endif
+		errorif (!ed || ed->readonly)
+		{	//boot it over to the debugger
+#if INTSIZE == 16
+			ddef16_t *d = ED_GlobalAtOfs16(progfuncs, st->a);
+#else
+			ddef32_t *d = ED_GlobalAtOfs32(progfuncs, st->a);
+#endif
+			fdef_t *f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
+			if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):"??", f?f->name:"??"))
+				return prinst.pr_xstatement;
+			break;
+		}
+
+//Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.
+#ifdef NOLEGACY
+		errorif (ed->ereftype == ER_FREE)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "assignment to free entity in %s", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+#endif
+
+		i = OPB->_int + progfuncs->funcs.fieldadjust;
+		errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_STOREF_? references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+
+		ptr = (eval_t *)(((int *)edvars(ed)) + i);
+		ptr->_vector[0] = OPC->_vector[0];
+		ptr->_vector[1] = OPC->_vector[1];
+		ptr->_vector[2] = OPC->_vector[2];
+		break;
+
+
 	//get a pointer to a field var
 	case OP_ADDRESS:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
@@ -828,7 +924,7 @@ reeval:
 	case OP_LOADA_S:
 	case OP_LOADA_FNC:
 		i = st->a + OPB->_int;
-		if ((size_t)(i<<2) >= (size_t)current_progstate->globals_size)
+		if ((size_t)i >= (size_t)(current_progstate->globals_bytes>>2))
 		{
 			QCFAULT(&progfuncs->funcs, "bad array read in %s (index %i)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int);
 		}
@@ -838,7 +934,7 @@ reeval:
 
 	case OP_LOADA_V:
 		i = st->a + OPB->_int;
-		if ((size_t)(i<<2) >= (size_t)current_progstate->globals_size)
+		if ((size_t)(i) >= (size_t)(current_progstate->globals_bytes>>2)-2u)
 		{
 			QCFAULT(&progfuncs->funcs, "bad array read in %s (index %i)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int);
 		}
@@ -1267,19 +1363,19 @@ reeval:
 	case OP_GLOAD_ENT:
 	case OP_GLOAD_S:
 	case OP_GLOAD_FNC:
-		errorif (OPA->_int < 0 || OPA->_int*4 >= current_progstate->globals_size)
+		errorif (OPA->_int < 0 || OPA->_int >= (current_progstate->globals_bytes>>2))
 		{
 			prinst.pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPA->_int, current_progstate->globals_size);
+			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPA->_int, current_progstate->globals_bytes>>2);
 		}
 		ptr = ((eval_t *)&glob[OPA->_int]);
 		OPC->_int = ptr->_int;
 		break;
 	case OP_GLOAD_V:
-		errorif (OPA->_int < 0 || (OPA->_int+2)*4 >= current_progstate->globals_size)
+		errorif (OPA->_int < 0 || OPA->_int >= (current_progstate->globals_bytes>>2)-2u)
 		{
 			prinst.pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPA->_int, current_progstate->globals_size);
+			PR_RunError (&progfuncs->funcs, "bad indexed global read in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPA->_int, current_progstate->globals_bytes>>2);
 		}
 		ptr = ((eval_t *)&glob[OPA->_int]);
 		OPC->_vector[0] = ptr->_vector[0];
@@ -1292,19 +1388,19 @@ reeval:
 	case OP_GSTOREP_FLD:
 	case OP_GSTOREP_S:
 	case OP_GSTOREP_FNC:
-		errorif (OPB->_int < 0 || OPB->_int*4 >= current_progstate->globals_size)
+		errorif (OPB->_int < 0 || OPB->_int >= (current_progstate->globals_bytes>>2))
 		{
 			prinst.pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int, (unsigned)prinst.addressableused);
+			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int, current_progstate->globals_bytes>>2);
 		}
 		ptr = ((eval_t *)&glob[OPB->_int]);
 		ptr->_int = OPA->_int;
 		break;
 	case OP_GSTOREP_V:
-		errorif (OPB->_int < 0 || (OPB->_int+2)*4 >= current_progstate->globals_size)
+		errorif (OPB->_int < 0 || OPB->_int >= (current_progstate->globals_bytes>>2)-2u)
 		{
 			prinst.pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int, (unsigned)prinst.addressableused);
+			PR_RunError (&progfuncs->funcs, "bad indexed global write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int, current_progstate->globals_bytes>>2);
 		}
 		ptr = ((eval_t *)&glob[OPB->_int]);
 		ptr->_vector[0] = OPA->_vector[0];

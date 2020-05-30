@@ -1330,14 +1330,17 @@ static pbool QCC_PR_Precompiler(void)
 				else if (!QC_strcasecmp(qcc_token, "KK7"))
 					newtype = QCF_KK7;
 				else if (!QC_strcasecmp(qcc_token, "DP") || !QC_strcasecmp(qcc_token, "DARKPLACES"))
+				{
+					QCC_PR_ParseWarning(WARN_BADTARGET, "#pragma target \"%s\". Requires an unofficial patch to DP. Without that patch there is no support for any opcodes beyond vanilla.", qcc_token);
 					newtype = QCF_DARKPLACES;
+				}
 				else if (!QC_strcasecmp(qcc_token, "FTEDEBUG"))
 					newtype = QCF_FTEDEBUG;
 				else if (!QC_strcasecmp(qcc_token, "FTE"))
 					newtype = QCF_FTE;
 				else if (!QC_strcasecmp(qcc_token, "FTEH2"))
 					newtype = QCF_FTEH2;
-				else if (!QC_strcasecmp(qcc_token, "STANDARD") || !QC_strcasecmp(qcc_token, "ID"))
+				else if (!QC_strcasecmp(qcc_token, "STANDARD") || !QC_strcasecmp(qcc_token, "ID") || !QC_strcasecmp(qcc_token, "VANILLA"))
 					newtype = QCF_STANDARD;
 				else if (!QC_strcasecmp(qcc_token, "DEBUG"))
 					newtype = QCF_FTEDEBUG;

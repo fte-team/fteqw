@@ -655,12 +655,12 @@ QCC_opcode_t pr_opcodes[] =
 
 {7, "<IF_F>",	"IF_F",		PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
 {7, "<IFNOT_F>","IFNOT_F",	PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
-/*
-{7, "<=>",	"STOREF_F",		PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_V",		PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_vector},
-{7, "<=>",	"STOREF_IF",	PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_FI",	PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
-*/
+
+{7, "<=>",	"STOREF_V",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_vector},
+{7, "<=>",	"STOREF_F",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_S",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_string},
+{7, "<=>",	"STOREF_I",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_integer},
+
 /* emulated ops begin here */
  {7, "<>",	"OP_EMULATED",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
@@ -775,8 +775,8 @@ static pbool OpAssignsToC(unsigned int op)
 		return false;
 	if(op >= OP_SWITCH_F && op <= OP_CALL8H)
 		return false;
-	if(op >= OP_RAND0 && op <= OP_RANDV2)
-		return false;
+//	if(op >= OP_RAND0 && op <= OP_RANDV2)
+//		return false;
 	// they use a and b, but have 3 types
 	// safety
 	if(op >= OP_BITSETSTORE_F && op <= OP_BITCLRSTOREP_F)
@@ -791,6 +791,8 @@ static pbool OpAssignsToC(unsigned int op)
 		return false;	//actually they do.
 	if (op >= OP_STORE_I && op <= OP_STORE_FI)
 		return false;
+	if (op >= OP_STOREF_V && op <= OP_STOREF_I)
+		return false;	//reads it, doesn't write.
 	if (op == OP_BOUNDCHECK || op == OP_UNUSED || op == OP_POP)
 		return false;
 	return true;
@@ -847,6 +849,7 @@ static int OpAssignsCount(unsigned int op)
 	case OP_RANDV0:
 	case OP_RANDV1:
 	case OP_RANDV2:
+		return 1;	//writes C, even when there's no A or B arg specified.
 	case OP_UNUSED:
 	case OP_POP:
 		return 0;	//FIXME
@@ -867,6 +870,11 @@ static int OpAssignsCount(unsigned int op)
 	case OP_CASE:
 	case OP_CASERANGE:
 		return 0;
+	case OP_STOREF_V:
+	case OP_STOREF_F:
+	case OP_STOREF_S:
+	case OP_STOREF_I:
+		return 0;	//stores to a.b rather than any direct value...
 	case OP_BOUNDCHECK:
 		return 0;
 	default:	//the majority will write c
@@ -1182,6 +1190,8 @@ static pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	case QCF_FTEH2:
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
+		if (num >= OP_STOREF_V)	//to be enabled at a later date - opcodes added in r5698.
+			return false;
 		return true;
 	case QCF_DARKPLACES:
 		//all id opcodes.
@@ -4957,7 +4967,9 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 		{"VF_RT_DESTCOLOUR7",	219, ev_string, ev_float, ev_vector},
 		{"VF_ENVMAP",			220, ev_string},
 		{"VF_USERDATA",			221, ev_pointer, ev_integer},
-		{"VF_SKYROOM_CAMERA",	222, ev_vector}
+		{"VF_SKYROOM_CAMERA",	222, ev_vector},
+//		{"VF_PIXELPSCALE",		223, ev_vector},
+		{"VF_PROJECTIONOFFSET",	224, ev_vector},
 	};
 
 	char temp[256];
@@ -5495,6 +5507,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 
 			if (!strcmp(funcname, "strlen") && QCC_Intrinsic_strlen(&d, a))
 				return d;
+			if (!strcmp(funcname, "stof"))
+				return QCC_MakeFloatConst(atof(&strings[a->string]));
 		}
 	}
 	else if (opt_constantarithmatic && argcount == 2 && arglist[0]->type == REF_GLOBAL && arglist[1]->type == REF_GLOBAL)
@@ -5503,16 +5517,23 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 		const QCC_eval_t *b = QCC_SRef_EvalConst(arglist[1]->base);
 		if (a && b)
 		{
-			if (!strcmp(funcname, "pow"))
-				return QCC_MakeFloatConst(pow(a->_float, b->_float));
-			if (!strcmp(funcname, "mod"))
-				return QCC_MakeFloatConst(fmodf((int)a->_float, (int)b->_float));
-			if (!strcmp(funcname, "bitshift"))
+			if (arglist[0]->cast == type_float && arglist[1]->cast == type_float)
 			{
-				if (b->_float < 0)
-					return QCC_MakeFloatConst((int)a->_float >> (int)-b->_float);
-				else
-					return QCC_MakeFloatConst((int)a->_float << (int)b->_float);
+				if (!strcmp(funcname, "pow"))
+					return QCC_MakeFloatConst(pow(a->_float, b->_float));
+				if (!strcmp(funcname, "mod"))
+					return QCC_MakeFloatConst(fmodf((int)a->_float, (int)b->_float));
+				if (!strcmp(funcname, "min"))
+					return QCC_MakeFloatConst(min(a->_float, b->_float));
+				if (!strcmp(funcname, "max"))
+					return QCC_MakeFloatConst(max(a->_float, b->_float));
+				if (!strcmp(funcname, "bitshift"))
+				{
+					if (b->_float < 0)
+						return QCC_MakeFloatConst((int)a->_float >> (int)-b->_float);
+					else
+						return QCC_MakeFloatConst((int)a->_float << (int)b->_float);
+				}
 			}
 		}
 	}
@@ -5624,6 +5645,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					copyop_i = OP_LOADA_F;
 					copyop_idx = -1;
 					copyop_index = arglist[i]->index;
+					copyop_index = QCC_SupplyConversion(copyop_index, ev_integer, true);
 					sref = arglist[i]->base;
 				}
 				else if (arglist[i]->base.sym->arraylengthprefix && QCC_OPCodeValid(&pr_opcodes[OP_FETCH_GBL_F]))
@@ -9690,15 +9712,53 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 				QCC_PR_ParseErrorPrintSRef(ERR_NOFUNC, dest->base, "Accessor has no set function");
 			break;
 		case REF_FIELD:
-//			{
+			{
+				int storef_opcode;
 				//fixme: we should do this earlier, to preserve original instruction ordering.
 				//such that self.enemy = (self = world); still has the same result (more common with function calls)
-				
-				dest = QCC_PR_BuildRef(&ptrref, REF_POINTER, 
-								QCC_PR_StatementFlags(&pr_opcodes[OP_ADDRESS], dest->base, dest->index, NULL, preservedest?STFL_PRESERVEA:0),	//pointer address
-								nullsref, (dest->index.cast->type == ev_field)?dest->index.cast->aux_type:type_variant, dest->readonly);
-				preservedest = false;
-				continue;
+
+				if (dest->cast->type == ev_float)
+					storef_opcode = OP_STOREF_F;
+				else if (dest->cast->type == ev_vector)
+					storef_opcode = OP_STOREF_V;
+				else if (dest->cast->type == ev_string)
+					storef_opcode = OP_STOREF_S;
+				else if (	dest->cast->type == ev_entity ||
+							dest->cast->type == ev_field ||
+							dest->cast->type == ev_function ||
+							dest->cast->type == ev_pointer ||
+							dest->cast->type == ev_integer)
+					storef_opcode = OP_STOREF_I;
+				else
+					storef_opcode = OP_DONE;
+				//don't use it for arrays. address+storep_with_offset is less opcodes.
+				if (storef_opcode!=OP_DONE && dest->cast->size == 1 && QCC_OPCodeValid(&pr_opcodes[storef_opcode]))
+				{
+					dest->base.sym->referenced = true;
+					dest->index.sym->referenced = true;
+					source.sym->referenced = true;
+					//doesn't generate any temps.
+					QCC_PR_SimpleStatement(&pr_opcodes[storef_opcode], dest->base, dest->index, source, true);
+
+					if (!preservedest)
+					{
+						QCC_FreeTemp(dest->base);
+						QCC_FreeTemp(dest->index);
+					}
+					if (!readable)
+					{
+						QCC_FreeTemp(source);
+						source = nullsref;
+					}
+				}
+				else
+				{
+					dest = QCC_PR_BuildRef(&ptrref, REF_POINTER,
+									QCC_PR_StatementFlags(&pr_opcodes[OP_ADDRESS], dest->base, dest->index, NULL, preservedest?STFL_PRESERVEA:0),	//pointer address
+									nullsref, (dest->index.cast->type == ev_field)?dest->index.cast->aux_type:type_variant, dest->readonly);
+					preservedest = false;
+					continue;
+				}
 
 //				source = QCC_StoreToRef(
 //						QCC_PR_BuildRef(&tmp, REF_POINTER, 
@@ -9706,8 +9766,8 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 //								NULL, (dest->index->type->type == ev_field)?dest->index->type->aux_type:type_variant, dest->readonly),
 //						source, readable, false);
 	//		QCC_PR_ParseWarning(ERR_INTERNAL, "FIXME: trying to do references: assignments to ent.field not supported.\n");
-//			}
-//			break;
+			}
+			break;
 		}
 		break;
 	}
@@ -12485,7 +12545,7 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 				return i;
 			}
 		}
-		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->a.ofs > 0)
+		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->a.ofs > 0 && !st->a.sym)
 		{
 			int jump = i + (int)st->a.ofs;
 			ret = QCC_CheckOneUninitialised(i + 1, jump, def, min, max);
@@ -12504,7 +12564,7 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 				return i;
 			}
 		}
-		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->b.ofs > 0 && !(st->flags & STF_LOGICOP))
+		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->b.ofs > 0 && !st->b.sym && !(st->flags & STF_LOGICOP))
 		{
 			int jump = i + (int)st->b.ofs;
 			//check if there's an else.
@@ -12539,7 +12599,7 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 
 			return i;
 		}
-		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->c.ofs > 0)
+		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->c.ofs > 0 && !st->c.sym)
 		{
 			int jump = i + (int)st->c.ofs;
 			ret = QCC_CheckOneUninitialised(i + 1, jump, def, min, max);

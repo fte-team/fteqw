@@ -145,37 +145,37 @@ enum qcop_e {
 	OP_SUBSTOREP_F,	//78
 	OP_SUBSTOREP_V,	//79
 
-	OP_FETCH_GBL_F,	//80
-	OP_FETCH_GBL_V,	//81
-	OP_FETCH_GBL_S,	//82
-	OP_FETCH_GBL_E,	//83
-	OP_FETCH_GBL_FNC,//84
+	OP_FETCH_GBL_F,	//80 has built-in bounds check
+	OP_FETCH_GBL_V,	//81 has built-in bounds check
+	OP_FETCH_GBL_S,	//82 has built-in bounds check
+	OP_FETCH_GBL_E,	//83 has built-in bounds check
+	OP_FETCH_GBL_FNC,//84 has built-in bounds check
 
 	OP_CSTATE,		//85
 	OP_CWSTATE,		//86
 
-	OP_THINKTIME,	//87
+	OP_THINKTIME,	//87 shortcut for OPA.nextthink=time+OPB
 
 	OP_BITSETSTORE_F,	//88 redundant, for h2 compat
 	OP_BITSETSTOREP_F,	//89
 	OP_BITCLRSTORE_F,	//90
 	OP_BITCLRSTOREP_F,	//91
 
-	OP_RAND0,		//92
-	OP_RAND1,		//93
-	OP_RAND2,		//94
-	OP_RANDV0,		//95
+	OP_RAND0,		//92	OPC = random()
+	OP_RAND1,		//93	OPC = random()*OPA
+	OP_RAND2,		//94	OPC = random()*(OPB-OPA)+OPA
+	OP_RANDV0,		//95	//3d/box versions of the above.
 	OP_RANDV1,		//96
 	OP_RANDV2,		//97
 
-	OP_SWITCH_F,	//98
+	OP_SWITCH_F,	//98	switchref=OPA; PC += OPB   --- the jump allows the jump table (such as it is) to be inserted after the block.
 	OP_SWITCH_V,	//99
 	OP_SWITCH_S,	//100
 	OP_SWITCH_E,	//101
 	OP_SWITCH_FNC,	//102
 
-	OP_CASE,		//103
-	OP_CASERANGE,	//104
+	OP_CASE,		//103	if (OPA===switchref) PC += OPB
+	OP_CASERANGE,	//104   if (OPA<=switchref&&switchref<=OPB) PC += OPC
 
 
 
@@ -184,9 +184,10 @@ enum qcop_e {
 	//the rest are added
 	//mostly they are various different ways of adding two vars with conversions.
 
-	OP_CALL1H,
-	OP_CALL2H,
-	OP_CALL3H,
+	//hexen2 calling convention (-TH2 requires us to remap OP_CALLX to these on load, -TFTE just uses these directly.)
+	OP_CALL1H,	//OFS_PARM0=OPB
+	OP_CALL2H,	//OFS_PARM0,1=OPB,OPC
+	OP_CALL3H,	//no extra args
 	OP_CALL4H,
 	OP_CALL5H,
 	OP_CALL6H,		//110
@@ -195,21 +196,21 @@ enum qcop_e {
 
 
 	OP_STORE_I,
-	OP_STORE_IF,
-	OP_STORE_FI,
+	OP_STORE_IF,			//OPB.f = (float)OPA.i (makes more sense when written as a->b)
+	OP_STORE_FI,			//OPB.i = (int)OPA.f
 	
 	OP_ADD_I,
-	OP_ADD_FI,
-	OP_ADD_IF,
+	OP_ADD_FI,				//OPC.f = OPA.f + OPB.i
+	OP_ADD_IF,				//OPC.f = OPA.i + OPB.f	-- redundant...
   
-	OP_SUB_I,
-	OP_SUB_FI,		//120
-	OP_SUB_IF,
+	OP_SUB_I,				//OPC.i = OPA.i - OPB.i
+	OP_SUB_FI,		//120	//OPC.f = OPA.f - OPB.i
+	OP_SUB_IF,				//OPC.f = OPA.i - OPB.f
 
-	OP_CONV_ITOF,
-	OP_CONV_FTOI,
-	OP_CP_ITOF,
-	OP_CP_FTOI,
+	OP_CONV_ITOF,			//OPC.f=(float)OPA.i
+	OP_CONV_FTOI,			//OPC.i=(int)OPA.f
+	OP_CP_ITOF,				//OPC.f=(float)(*OPA).i
+	OP_CP_FTOI,				//OPC.i=(int)(*OPA).f
 	OP_LOAD_I,
 	OP_STOREP_I,
 	OP_STOREP_IF,
@@ -223,7 +224,7 @@ enum qcop_e {
 	OP_EQ_I,
 	OP_NE_I,
 
-	OP_IFNOT_S,
+	OP_IFNOT_S,	//compares string empty, rather than just null.
 	OP_IF_S,
 
 	OP_NOT_I,
@@ -234,8 +235,8 @@ enum qcop_e {
 	OP_RSHIFT_I,
 	OP_LSHIFT_I,
 
-	OP_GLOBALADDRESS,
-	OP_ADD_PIW,	//add B words to A pointer
+	OP_GLOBALADDRESS,	//C.p = &A + B.i*4
+	OP_ADD_PIW,			//C.p = A.p + B.i*4
 
 	OP_LOADA_F,
 	OP_LOADA_V,	
@@ -302,7 +303,7 @@ enum qcop_e {
 	OP_NE_IF,
 	OP_NE_FI,
 
-//erm... FTEQCC doesn't make use of these... These are for DP.
+//erm... FTEQCC doesn't make use of these (doesn't model separate pointer types). These are for DP.
 	OP_GSTOREP_I,
 	OP_GSTOREP_F,
 	OP_GSTOREP_ENT,
@@ -326,9 +327,15 @@ enum qcop_e {
 
 	OP_SWITCH_I,//hmm.
 	OP_GLOAD_V,
-
-	OP_IF_F,
+//r3349+
+	OP_IF_F,		//compares as an actual float, instead of treating -0 as positive.
 	OP_IFNOT_F,
+
+//r5697+
+	OP_STOREF_V,	//3 elements...
+	OP_STOREF_F,	//1 fpu element...
+	OP_STOREF_S,	//1 string reference
+	OP_STOREF_I,	//1 non-string reference/int
 
 	OP_NUMREALOPS,
 

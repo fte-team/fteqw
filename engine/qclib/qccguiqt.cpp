@@ -1200,6 +1200,18 @@ public:
 			return NULL;//"Type info not available. Compile first.";
 	}
 
+	void clearannotates(void)
+	{
+		for (int i = 0; i < numdocuments; i++)
+		{
+			document_s *d = docs[i];
+			s->setDocument(d->doc);
+			s->clearAnnotations();
+		}
+		if (curdoc)
+			s->setDocument(curdoc->doc);
+	}
+
 	bool annotate(const char *line)
 	{
 		auto filename = line+6;
@@ -2292,6 +2304,8 @@ int GUIprintf(const char *msg, ...)
 			sizes.append(1);
 			mainwnd->logsplit.setSizes(sizes);
 		}
+
+		mainwnd->docs.clearannotates();
 		return 0;
 	}
 

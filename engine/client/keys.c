@@ -1206,7 +1206,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		}
 		con->buttonsdown = CB_NONE;
 	}
-	if ((key == K_MOUSE1 && con->buttonsdown == CB_SCROLL) || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
+	if (key == K_MOUSE1 && con->buttonsdown == CB_SCROLL)// || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
 	{
 		con->buttonsdown = CB_NONE;
 		if (fabs(con->mousedown[0] - con->mousecursor[0]) < 5 && fabs(con->mousedown[1] - con->mousecursor[1]) < 5)

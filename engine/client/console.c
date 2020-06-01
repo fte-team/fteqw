@@ -76,6 +76,7 @@ cvar_t				con_separatechat = CVAR("con_separatechat", "0");
 static cvar_t		con_timestamps = CVAR("con_timestamps", "0");
 static cvar_t		con_timeformat = CVAR("con_timeformat", "(%H:%M:%S) ");
 cvar_t				con_textsize = CVARD("con_textsize", "8", "Resize the console text to be a different height, scaled separately from the hud. The value is the height in (virtual) pixels.");
+static cvar_t		con_savehistory = CVARD("con_savehistory", "1", "Write/update conhistory.txt");
 extern cvar_t log_developer;
 
 void con_window_cb(cvar_t *var, char *oldval)
@@ -591,6 +592,9 @@ void Con_History_Save(void)
 	if (!FS_GameIsInitialised())
 		return;
 
+	if (!con_savehistory.ival)
+		return;
+
 	file = FS_OpenVFS("conhistory.txt", "wb", FS_ROOT);
 	if (file)
 	{
@@ -826,6 +830,7 @@ void Con_Init (void)
 	Cvar_Register (&con_timeformat, "Console controls");
 	Cvar_Register (&con_textsize, "Console controls");
 	Cvar_Register (&con_window, "Console controls");
+	Cvar_Register (&con_savehistory, "Console controls");
 	Cvar_ForceCallback(&con_window);
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);

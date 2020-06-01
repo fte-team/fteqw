@@ -863,6 +863,36 @@ static void QCBUILTIN PF_cs_makevectors (pubprogfuncs_t *prinst, struct globalva
 	AngleVectors (G_VECTOR(OFS_PARM0), csqcg.forward, csqcg.right, csqcg.up);
 }
 
+static int CS_FindModel(const char *name, int *free)
+{
+	int i;
+	const char *fixedname;
+
+	*free = 0;
+
+	if (!name || !*name)
+		return 0;
+
+	fixedname = Mod_FixName(name, csqc_world.worldmodel->publicname);
+
+	for (i = 1; i < MAX_CSMODELS; i++)
+	{
+		if (!*cl.model_csqcname[i])
+		{
+			*free = -i;
+			break;
+		}
+		if (!strcmp(cl.model_csqcname[i], fixedname))
+			return -i;
+	}
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
+	{
+		if (!strcmp(cl.model_name[i], name))
+			return i;
+	}
+	return 0;
+}
+
 static model_t *CSQC_GetModelForIndex(int index)
 {
 	if (index == 0)
@@ -872,11 +902,32 @@ static model_t *CSQC_GetModelForIndex(int index)
 	else if (index < 0 && index > -MAX_CSMODELS)
 	{
 		if (!cl.model_csqcprecache[-index])
-			cl.model_csqcprecache[-index] = Mod_ForName(cl.model_csqcname[-index], MLV_WARN);
+			cl.model_csqcprecache[-index] = Mod_ForName(Mod_FixName(cl.model_csqcname[-index], csqc_world.worldmodel->publicname), MLV_WARN);
 		return cl.model_csqcprecache[-index];
 	}
 	else
 		return NULL;
+}
+
+static model_t *CSQC_GetModelForName(const char *modelname)
+{
+	int modelindex, freei;
+	if (!modelname && *modelname)
+		return NULL;	//zomg, no name
+	modelindex = CS_FindModel(modelname, &freei);
+
+	//make sure it has an index.
+	if (!modelindex)
+	{
+		if (!freei)
+			Host_EndGame("CSQC ran out of model slots\n");
+		Con_DPrintf("Late caching model \"%s\"\n", modelname);
+		Q_strncpyz(cl.model_csqcname[-freei], modelname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
+		modelindex = freei;
+
+		cl.model_csqcprecache[-freei] = NULL;
+	}
+	return CSQC_GetModelForIndex(modelindex);
 }
 
 static float CSQC_PitchScaleForModelIndex(int index)
@@ -2381,6 +2432,11 @@ nogameaccess:
 		r[0] = vid.rotpixelwidth;
 		r[1] = vid.rotpixelheight;
 		break;
+	case VF_PIXELPSCALE:
+		r[0] = vid.dpi_x;
+		r[1] = vid.dpi_y;
+		r[2] = vid.dpi_y/vid.dpi_x;	//aspect
+		break;
 
 	default:
 		Con_DPrintf("GetViewFlag: %i not recognised\n", parametertype);
@@ -3103,36 +3159,6 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_EMPTY;
 }
 
-static int CS_FindModel(const char *name, int *free)
-{
-	int i;
-	const char *fixedname;
-
-	*free = 0;
-
-	if (!name || !*name)
-		return 0;
-
-	fixedname = Mod_FixName(name, csqc_world.worldmodel->publicname);
-
-	for (i = 1; i < MAX_CSMODELS; i++)
-	{
-		if (!*cl.model_csqcname[i])
-		{
-			*free = -i;
-			break;
-		}
-		if (!strcmp(cl.model_csqcname[i], fixedname))
-			return -i;
-	}
-	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
-	{
-		if (!strcmp(cl.model_name[i], name))
-			return i;
-	}
-	return 0;
-}
-
 static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 {
 	model_t *model;
@@ -3295,6 +3321,65 @@ static void QCBUILTIN PF_cs_ModelnameForIndex(pubprogfuncs_t *prinst, struct glo
 	else
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_name[modelindex]);
 }
+
+static void QCBUILTIN PF_cs_spriteframe(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int frame = G_INT(OFS_PARM1);
+	float frametime = G_INT(OFS_PARM2);
+
+	model_t *mod = NULL;
+
+	G_INT(OFS_RETURN) = 0;	//default result
+	mod = CSQC_GetModelForName(modelname);
+
+	if (!mod)
+		return;
+	if (mod->loadstate == MLS_NOTLOADED)	//pull it back in if it was flushed.
+		Mod_LoadModel(mod, MLV_WARN);
+	while(mod->loadstate == MLS_LOADING)	//wait for it if its still loading.
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+
+	if (mod->type != mod_sprite)
+		return;
+	{	//okay, its in memory, and its a sprite. actually do what we're here for.
+		msprite_t		*psprite = mod->meshinfo;
+		mspritegroup_t	*pspritegroup;
+		mspriteframe_t	*pspriteframe;
+		int				i, numframes;
+		float			*pintervals, fullinterval;
+
+		if ((frame >= psprite->numframes) || (frame < 0))
+			return;
+
+		if (psprite->frames[frame].type == SPR_SINGLE)
+			pspriteframe = psprite->frames[frame].frameptr;
+		else if (psprite->frames[frame].type == SPR_ANGLED)
+		{	//just take frametime as 0-1
+			int dir = frametime/8;
+			pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+			pspriteframe = pspritegroup->frames[dir&7];
+		}
+		else
+		{
+			pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+			pintervals = pspritegroup->intervals;
+			numframes = pspritegroup->numframes;
+			fullinterval = pintervals[numframes-1];
+			frametime = frametime - ((int)(frametime / fullinterval)) * fullinterval;	//make it loop...
+			for (i=0 ; i<(numframes-1) ; i++)
+			{
+				if (pintervals[i] > frametime)
+					break;
+			}
+			pspriteframe = pspritegroup->frames[i];
+		}
+
+		//and let the caller know which model name they should draw with
+		RETURN_TSTRING(pspriteframe->shader->name);
+	}
+}
+
 void QCBUILTIN PF_cs_setcustomskin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
@@ -6845,6 +6930,7 @@ static struct {
 	{"r_readimage",				PF_CL_readimage,				0},
 	{"drawgetimagesize",		PF_CL_drawgetimagesize,			318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
 	{"freepic",					PF_CL_free_pic,					319},		// #319 void(string name) freepic (EXT_CSQC)
+	{"spriteframe",				PF_cs_spriteframe,				0},
 //320
 	{"drawcharacter",			PF_CL_drawcharacter,			320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
 	{"drawrawstring",			PF_CL_drawrawstring,			321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])

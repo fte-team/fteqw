@@ -750,7 +750,7 @@ void R_PushDlights (void)
 	{
 		if (!l->radius || !(l->flags & LFLAG_LIGHTMAP))
 			continue;
-		currentmodel->funcs.MarkLights( l, 1<<i, currentmodel->nodes );
+		currentmodel->funcs.MarkLights( l, (dlightbitmask_t)1u<<i, currentmodel->nodes );
 	}
 }
 

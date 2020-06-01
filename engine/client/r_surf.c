@@ -57,6 +57,8 @@ extern cvar_t r_stainfadeammount;
 extern cvar_t r_lightmap_nearest;
 extern cvar_t r_lightmap_format;
 
+extern int r_dlightframecount;
+
 static void Surf_FreeLightmap(lightmapinfo_t *lm);
 
 static int lightmap_shift;
@@ -691,7 +693,7 @@ static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, 
 
 store:
 	// add all the dynamic lights
-//	if (surf->dlightframe == r_framecount)
+//	if (surf->dlightframe == r_dlightframecount)
 //		GLR_AddDynamicLightNorms (surf);
 
 // bound, invert, and shift
@@ -1361,7 +1363,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 	qbyte		*src = surf->samples;
 
 	shift += 7; // increase to base value
-	surf->cached_dlight = (surf->dlightframe == r_framecount);
+	surf->cached_dlight = (surf->dlightframe == r_dlightframecount);
 
 	if (size > maxblocksize)
 	{	//fixme: fill in?
@@ -1546,7 +1548,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 		}
 
 		// add all the dynamic lights
-		if (surf->dlightframe == r_framecount)
+		if (surf->dlightframe == r_dlightframecount)
 			Surf_AddDynamicLights_RGB (surf);
 
 		Surf_StoreLightmap_RGB(dest, blocklights, smax, tmax, shift, stainsrc, lm);
@@ -1648,7 +1650,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 				}
 			}
 // add all the dynamic lights
-			if (surf->dlightframe == r_framecount)
+			if (surf->dlightframe == r_dlightframecount)
 				Surf_AddDynamicLights_Lum (surf);
 		}
 
@@ -1988,7 +1990,7 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 				goto dynamic;
 	}
 
-	if (fa->dlightframe == r_framecount	// dynamic this frame
+	if (fa->dlightframe == r_dlightframecount	// dynamic this frame
 		|| fa->cached_dlight)			// dynamic previously
 	{
 		RSpeedLocals();
@@ -2057,7 +2059,7 @@ void Surf_RenderAmbientLightmaps (msurface_t *fa, int ambient)
 	if (fa->cached_light[0] != ambient || fa->cached_colour[0] != 0xff)
 		goto dynamic;
 
-	if (fa->dlightframe == r_framecount	// dynamic this frame
+	if (fa->dlightframe == r_dlightframecount	// dynamic this frame
 		|| fa->cached_dlight)			// dynamic previously
 	{
 		RSpeedLocals();

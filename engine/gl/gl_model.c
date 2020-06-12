@@ -5815,6 +5815,11 @@ static void * Mod_LoadSpriteGroup (model_t *mod, void * pin, void *pend, msprite
 	pingroup = (dspritegroup_t *)pin;
 
 	numframes = LittleLong (pingroup->numframes);
+	if (numframes <= 0)
+	{
+		Con_Printf (CON_ERROR "Mod_LoadSpriteGroup: invalid frame count\n");
+		return NULL;
+	}
 
 	pspritegroup = ZG_Malloc(&mod->memgroup, sizeof (mspritegroup_t) + (numframes - 1) * sizeof (pspritegroup->frames[0]));
 

@@ -291,7 +291,7 @@ static const char *svc_nqstrings[] =
 };
 #endif
 
-extern cvar_t requiredownloads, mod_precache, cl_standardchat, msg_filter, msg_filter_frags, msg_filter_pickups, cl_countpendingpl, cl_download_mapsrc;
+extern cvar_t requiredownloads, mod_precache, snd_precache, cl_standardchat, msg_filter, msg_filter_frags, msg_filter_pickups, cl_countpendingpl, cl_download_mapsrc;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -1850,6 +1850,15 @@ void CL_RequestNextDownload (void)
 			{
 				if (cl.model_precache[i] && cl.model_precache[i]->loadstate == MLS_NOTLOADED)
 					Mod_LoadModel(cl.model_precache[i], MLV_WARN);
+			}
+		}
+		if (snd_precache.ival >= 2)
+		{
+			int i;
+			for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
+			{
+				if (cl.sound_precache[i] && cl.sound_precache[i]->loadstate == SLS_NOTLOADED)
+					S_LoadSound(cl.sound_precache[i], false);
 			}
 		}
 	}

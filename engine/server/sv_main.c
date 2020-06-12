@@ -117,7 +117,7 @@ static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 	strtol(name, &e, 0);
 	if (*name&&e==name)	//failed to read any number out of it.
 	{
-		FTENET_AddToCollection(svs.sockets, var->name, va("/%s", name), NA_INVALID, NP_RTC_TLS);
+		FTENET_AddToCollection(svs.sockets, var->name, va("/%s", (*name == '/')?name+1:name), NA_INVALID, NP_RTC_TLS);
 		var->value = var->ival = 2;	//so other stuff sees us as holepunched.
 	}
 	else if (var->ival == 2)
@@ -3907,7 +3907,9 @@ qboolean SV_ConnectionlessPacket (void)
 #ifdef HAVE_DTLS
 		if (net_from.prot == NP_DGRAM && (net_enable_dtls.ival /*|| !*net_enable_dtls.ival*/))
 		{
-			if (SV_ChallengePasses(atoi(Cmd_Argv(1))))
+			if (*Cmd_Argv(2))
+				SV_RejectMessage (SCP_QUAKEWORLD, "Proxying not enabled.\n");	//server would be expected to getchallenge+dtlsconnect the target server (or respond with a no-dtls challenge response...)
+			else if (SV_ChallengePasses(atoi(Cmd_Argv(1))))
 			{
 				char *banreason = SV_BannedReason(&net_from);
 				if (banreason)

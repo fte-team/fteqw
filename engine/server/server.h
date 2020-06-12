@@ -739,6 +739,9 @@ typedef struct client_s
 	laggedpacket_t *laggedpacket;
 	laggedpacket_t *laggedpacket_last;
 
+	size_t lastseen_count;
+	float *lastseen_time;	//timer for cullentities_trace, so we can get away with fewer traces per test
+
 #ifdef VM_Q1
 	int hideentity;
 	qboolean hideplayers;

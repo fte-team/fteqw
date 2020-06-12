@@ -202,9 +202,6 @@ cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat 
 
 cvar_t	cl_dlemptyterminate		= CVAR("cl_dlemptyterminate", "1");
 
-cvar_t	host_mapname			= CVARAF("mapname", "",
-									  "host_mapname", 0);
-
 #define RULESETADVICE " You should not normally change this cvar from its permissive default, instead impose limits on yourself only through the 'ruleset' cvar."
 cvar_t	ruleset_allow_playercount			= CVARD("ruleset_allow_playercount", "1", "Specifies whether teamplay triggers that count nearby players are allowed in the current ruleset."RULESETADVICE);
 cvar_t	ruleset_allow_frj					= CVARD("ruleset_allow_frj", "1", "Specifies whether Forward-Rocket-Jump scripts are allowed in the current ruleset. If 0, limits on yaw speed will be imposed so they cannot be scripted."RULESETADVICE);
@@ -2064,7 +2061,10 @@ void CL_User_f (void)
 			if (!cl.players[i].userinfovalid)
 				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
 			else
+			{
 				InfoBuf_Print (&cl.players[i].userinfo, "");
+				Con_Printf("[%u, %u]\n", (unsigned)cl.players[i].userinfo.totalsize, (unsigned)cl.players[i].userinfo.numkeys);
+			}
 			found = true;
 		}
 	}
@@ -3349,7 +3349,7 @@ void CL_ConnectionlessPacket (void)
 		if (candtls && connectinfo.adr.prot == NP_DGRAM && (connectinfo.dtlsupgrade || candtls > 1))
 		{
 			//c2s getchallenge
-			//s2c c%u\0DTLS=0
+			//s2c c%u\0DTLS=$candtls
 			//c2s dtlsconnect %u
 			//s2c dtlsopened
 			//c2s DTLS(getchallenge)
@@ -3360,7 +3360,18 @@ void CL_ConnectionlessPacket (void)
 			//FIXME: do rcon via dtls too, but requires tracking pending rcon packets until the handshake completes.
 
 			//server says it can do tls.
-			char *pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
+
+			char *pkt;
+			//qwfwd proxy routing
+			char *at;
+			if ((at = strrchr(cls.servername, '@')))
+			{
+				*at = 0;
+				pkt = va("%c%c%c%cdtlsconnect %i %s", 255, 255, 255, 255, connectinfo.challenge, cls.servername);
+				*at = '@';
+			}
+			else
+				pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
 			NET_SendPacket (cls.sockets, strlen(pkt), pkt, &net_from);
 			return;
 		}
@@ -4852,8 +4863,6 @@ void CL_Init (void)
 	Cvar_Register (&cl_pext_mask,					cl_controlgroup);
 
 	Cvar_Register (&cl_splitscreen,					cl_controlgroup);
-
-	Cvar_Register (&host_mapname,					"Scripting");
 
 #ifndef SERVERONLY
 	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);

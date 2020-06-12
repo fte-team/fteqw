@@ -2005,7 +2005,7 @@ static GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
 			}
 		}
 		//attrib[n++] = GLX_ALPHA_SIZE;		attrib[n++] = GLX_DONT_CARE;
-		attrib[n++] = GLX_DEPTH_SIZE;		attrib[n++] = 16;
+		attrib[n++] = GLX_DEPTH_SIZE;		attrib[n++] = info->depthbits?info->depthbits:16;
 		attrib[n++] = GLX_STENCIL_SIZE;		attrib[n++] = (i&16)?0:4;
 
 		if (!(i&8))

@@ -1681,7 +1681,11 @@ static void PDECL PR_Shutdown(pubprogfuncs_t *ppf)
 #endif
 
 #if defined(QCLIBDLL_EXPORTS)
-__declspec(dllexport)
+	#ifdef _WIN32
+		__declspec(dllexport)
+	#else
+		__attribute__((visibility("default")))
+	#endif
 #endif
 pubprogfuncs_t * PDECL InitProgs(progexterns_t *ext)
 {	
@@ -1698,7 +1702,7 @@ pubprogfuncs_t * PDECL InitProgs(progexterns_t *ext)
 #undef memalloc
 #undef pr_progstate
 #undef pr_argc
-	funcs = ext->memalloc(sizeof(progfuncs_t));	
+	funcs = (ext->memalloc?ext->memalloc:qclib_malloc)(sizeof(progfuncs_t));	
 	memcpy(&funcs->funcs, &deffuncs, sizeof(pubprogfuncs_t));
 	memset(&funcs->inst, 0, sizeof(funcs->inst));
 

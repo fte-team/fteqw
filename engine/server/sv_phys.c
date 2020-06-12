@@ -2104,30 +2104,34 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 #ifdef HEXEN2
 void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle)
 {
-	qboolean callfunc;
-	if ((callfunc=DotProduct(ent->v->origin, initial_origin)) || DotProduct(ent->v->angles, initial_angle))
+	qboolean orgchanged;
+	vec3_t moveorg, moveang;
+	VectorSubtract(ent->v->origin, initial_origin, moveorg);
+	VectorSubtract(ent->v->angles, initial_angle, moveang);
+	if ((orgchanged=DotProduct(moveorg,moveorg)) || DotProduct(moveang,moveang))
 	{
-		vec3_t moveang, moveorg;
 		int i;
-		VectorSubtract(ent->v->angles, initial_angle, moveang);
-		VectorSubtract(ent->v->origin, initial_origin, moveorg);
-
-		for(i=16;i && movechain != w->edicts && !ED_ISFREE(movechain);i--, movechain = PROG_TO_WEDICT(w->progs, movechain->xv->movechain))
+		for(i=16; i && movechain != w->edicts && !ED_ISFREE(movechain); i--, movechain = PROG_TO_WEDICT(w->progs, movechain->xv->movechain))
 		{
 			if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
 				VectorAdd(movechain->v->angles, moveang, movechain->v->angles);	//FIXME: axial only
-			VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
-
-			if (movechain->xv->chainmoved && callfunc)
+			if (orgchanged)
 			{
-				*w->g.self = EDICT_TO_PROG(w->progs, movechain);
-				*w->g.other = EDICT_TO_PROG(w->progs, ent);
+				VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
+				World_LinkEdict(w, movechain, false);
+
+				//chainmoved is called only for origin changes, not angle ones, apparently.
+				if (movechain->xv->chainmoved)
+				{
+					*w->g.self = EDICT_TO_PROG(w->progs, movechain);
+					*w->g.other = EDICT_TO_PROG(w->progs, ent);
 #ifdef VM_Q1
-				if (svs.gametype == GT_Q1QVM && w == &sv.world)
-					Q1QVM_ChainMoved();
-				else
+					if (svs.gametype == GT_Q1QVM && w == &sv.world)
+						Q1QVM_ChainMoved();
+					else
 #endif
-					PR_ExecuteProgram(w->progs, movechain->xv->chainmoved);
+						PR_ExecuteProgram(w->progs, movechain->xv->chainmoved);
+				}
 			}
 		}
 	}
@@ -2164,9 +2168,10 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		}
 		else
 #endif
+		{
 			if (svs.clients[ent->entnum-1].state < cs_spawned)
-			return;		// unconnected slot
-
+				return;		// unconnected slot
+		}
 
 		if (svs.clients[ent->entnum-1].protocol == SCP_BAD)
 			svent->v->fixangle = FIXANGLE_NO;	//bots never get fixangle cleared otherwise

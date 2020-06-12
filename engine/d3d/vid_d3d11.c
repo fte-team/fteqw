@@ -73,6 +73,7 @@ IDXGIOutput *d3dscreen;
 
 ID3D11RenderTargetView *fb_backbuffer;
 ID3D11DepthStencilView *fb_backdepthstencil;
+static DXGI_FORMAT	depthformat;
 
 void *d3d11mod;
 static unsigned int d3d11multisample_count, d3d11multisample_quality;
@@ -661,7 +662,7 @@ static qboolean resetd3dbackbuffer(int width, int height)
 	t2ddesc.Height = height;
 	t2ddesc.MipLevels = 1;
 	t2ddesc.ArraySize = 1;
-	t2ddesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	t2ddesc.Format = depthformat;
 	t2ddesc.SampleDesc.Count = d3d11multisample_count;
 	t2ddesc.SampleDesc.Quality = d3d11multisample_quality;
 	t2ddesc.Usage = D3D11_USAGE_DEFAULT;
@@ -722,6 +723,13 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	IUnknown *window = RT_GetCoreWindow(&info->width, &info->height);
 
 	modestate = MS_FULLSCREEN;
+
+	if (info->depthbits == 16)
+		depthformat = DXGI_FORMAT_D16_UNORM;
+	else if (info->depthbits == 32)
+		depthformat = DXGI_FORMAT_D32_FLOAT;
+	else
+		depthformat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 	//fill scd
 	scd.Width = info->width;
@@ -797,6 +805,13 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 		drivertype = D3D_DRIVER_TYPE_UNKNOWN;
 	else
 		drivertype = adapt?D3D_DRIVER_TYPE_UNKNOWN:D3D_DRIVER_TYPE_HARDWARE;
+
+	if (info->depthbits == 16)
+		depthformat = DXGI_FORMAT_D16_UNORM;
+	else if (info->depthbits == 32)
+		depthformat = DXGI_FORMAT_D32_FLOAT;
+	else
+		depthformat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 	//for stereo support, we would have to rewrite all of this in a way that would make us dependant upon windows 8 or 7+platform update, which would exclude vista.
 	scd.BufferDesc.Width = info->width;

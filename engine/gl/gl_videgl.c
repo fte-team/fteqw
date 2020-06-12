@@ -303,7 +303,7 @@ qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNat
 //		EGL_SAMPLES, info->multisample,
 //		EGL_STENCIL_SIZE, 8,
 		EGL_ALPHA_MASK_SIZE, 0,
-		EGL_DEPTH_SIZE, 16,
+		EGL_DEPTH_SIZE, info->depthbits?info->depthbits:16,
 		EGL_RED_SIZE, 1,
 		EGL_GREEN_SIZE, 1,
 		EGL_BLUE_SIZE, 1,

@@ -119,8 +119,10 @@ typedef struct nqglobalvars_s
 
 #ifndef HAVE_LEGACY
 #define comfieldfloat_legacy(n,desc)
+#define comfieldfloatdep_legacy(n,desc,depreason)
 #else
 #define comfieldfloat_legacy comfieldfloat
+#define comfieldfloatdep_legacy comfieldfloatdep
 #endif
 
 
@@ -237,10 +239,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(movechain,"This is a linked list of entities which will be moved whenever this entity moves, logically they are attached to this entity.")/*hexen2*/\
 	comfieldfunction(chainmoved, ".void()","Called when the entity is moved as a result of being part of another entity's .movechain")/*hexen2*/\
 	comfieldfunction(contentstransition, ".void(float old, float new)","This function is called when the entity moves between water and air. If specified, default splash sounds will be disabled allowing you to provide your own.")/*ENTITYCONTENTSTRANSITION*/\
-	comfieldfloat(dimension_solid,"This is the bitmask of dimensions which the entity is solid within.")/*EXT_DIMENSION_PHYSICS*/\
+	comfieldfloat(dimension_solid,"This is the bitmask of dimensions which the entity is solid within. This is not networked, instead csqc traces impacting ssqc entities assumes the ssqc entity to have a dimension_solid of 1.")/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(dimension_hit,"This is the bitmask of dimensions which the entity will be blocked by. If other.dimension_solid & self.dimension_hit, our traces will impact and not proceed. If its false, the traces will NOT impact, allowing self to pass straight through.")/*EXT_DIMENSION_PHYSICS*/\
 	/*comfieldfloat_legacy(hitcontentsmask,"Traces performed for this entity will impact against surfaces that match this contents mask.")*/ \
-	comfieldint(hitcontentsmaski,"Traces performed for this entity will impact against surfaces that match this contents mask.")\
+	comfieldint(hitcontentsmaski,"Traces performed for this entity will impact against surfaces that match this contents mask (CONTENTBITS_* constants).")\
 	comfieldfloat_legacy(dphitcontentsmask, "Some crappy field that inefficiently requires translating to the native contents flags. Ditch the 'dp', do it properly.")\
 	comfieldfloat(scale,"Multiplier that resizes the entity. 1 is normal sized, 2 is double sized. scale 0 is remapped to 1. In SSQC, this is limited to 1/16th precision, with a maximum just shy of 16.")/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness,"How many QuakeUnits to push the entity's verticies along their normals by.")/*FTE_PEXT_FATNESS*/\
@@ -250,13 +252,13 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(basebone,"The base* frame animations are equivelent to their non-base versions, except that they only affect bone numbers below the 'basebone' value. This means that the base* animation can affect the legs of a skeletal model independantly of the normal animation fields affecting the torso area. For more complex animation than this, use skeletal objects.")	/*FTE_QC_BASEFRAME*/\
 	comfieldfloat(baseframe,"See basebone")	/*FTE_QC_BASEFRAME*/\
 	comfieldfunction(customphysics,".void()", "Called once each physics frame, overriding the entity's .movetype field and associated logic. You'll probably want to use tracebox to move it through the world. Be sure to call .think as appropriate.")\
-	comfieldentity(tag_entity,NULL)\
-	comfieldfloat(tag_index,NULL)\
+	comfieldentity(tag_entity,"Specifies which entity this entity's origin+angles is 'attached' to.")\
+	comfieldfloat(tag_index,"Specifies the tag or bone on the parent entity that we're attached to. If this is -1 then the entity is instead a q3-like camera portal, with the tag_entity saying the entity to display for. If tag_entity is world then this is a q3-like portal surface marker with a separate camera (with a tag_entity referring to the portal surface).")\
 	comfieldfloat(skeletonindex,"This object serves as a container for the skeletal bone states used to override the animation data.")		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod,"Provides a colour tint for the entity (does not affect fullbrights).")\
 	comfieldvector(glowmod,"Scaler for an entity's fullbright textures.")\
 	comfieldvector(gravitydir,"Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings.")\
-	comfieldfunction(camera_transform,".vector(vector org, vector ang)", "Provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc.")\
+	comfieldfunction(camera_transform,".vector(vector org, vector ang)", "A callback that provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc.")\
 	comfieldfloat(pmove_flags,NULL)/*EXT_CSQC_1*/\
 	comfieldfloat(geomtype,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(friction,NULL)/*DP_...PHYSICS*/\
@@ -268,7 +270,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(idealpitch,NULL)/*DP_QC_CHANGEPITCH (inconsistant naming)*/\
 	comfieldfloat(pitch_speed,NULL)/*DP_QC_CHANGEPITCH*/\
 	comextqcfieldshexen2	\
-	comfieldvector(color,"This affects the colour of realtime lights that were enabled via the pflags field.")/*Hexen2 has a .float color, the warnings should be benign*/ \
+	comfieldvector(color,"This affects the colour of realtime lights that were enabled via the pflags field.")/*Hexen2 has a .float color, the warnings should be benign but does mean updated hexen2 mods may need to use color_x for map compat*/ \
 	comfieldfloat(light_lev,"This is the radius of an entity's light. This is not normally used by the engine, but is used for realtime lights (ones that are enabled with the pflags field).")\
 	comfieldfloat(style,"Used by the light util to decide how an entity's light should animate. On an entity with pflags set, this also affects realtime lights.")\
 	comfieldfloat(pflags,"Realtime lighting flags")
@@ -289,10 +291,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(view2,"defines a second viewpoint, typically displayed in a corner of the screen (also punches open pvs).")/*FTE_PEXT_VIEW2*/\
 	comfieldvector(movement,"These are the directions that the player is currently trying to move in (ie: which +forward/+moveright/+moveup etc buttons they have held), expressed relative to that player's angles. Order is forward, right, up.")\
 	comfieldfloat(vw_index,"This acts as a second modelindex, using the same frames etc.")\
-	comfieldentity(nodrawtoclient,"This entity will not be sent to the player named by this field. They will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
-	comfieldentity(drawonlytoclient,"This entity will be sent *only* to the player named by this field. To other players they will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
-	comfieldentity(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.")/*DP_ENT_VIEWMODEL*/\
-	comfieldentity(exteriormodeltoclient,"This entity will be invisible to the player named by this field, except in mirrors or mirror-like surfaces, where it will be visible as normal. It may still cast shadows as normal, and generate lights+particles, depending on client settings. Does not affect how other players see the entity.")\
+	comfieldentitydep(nodrawtoclient,"This entity will not be sent to the player named by this field. They will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.", "Cannot be recorded in MVDs, nor work properly with splitscreen. Use CSQC instead.")\
+	comfieldentitydep(drawonlytoclient,"This entity will be sent *only* to the player named by this field. To other players they will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.", "Cannot be recorded in MVDs, nor work properly with splitscreen. Use CSQC instead.")\
+	comfieldentitydep(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.", "Redundant. Cannot be recorded in MVDs, nor work properly with splitscreen. Use CSQC instead.")/*DP_ENT_VIEWMODEL*/\
+	comfieldentitydep(exteriormodeltoclient,"This entity will be invisible to the player named by this field, except in mirrors or mirror-like surfaces, where it will be visible as normal. It may still cast shadows as normal, and generate lights+particles, depending on client settings. Does not affect how other players see the entity.", "Cannot be recorded in MVDs, nor work properly with splitscreen. Use CSQC instead.")\
 	svextqcfield_clientcamera\
 	comfieldfloat(glow_size,"Some outdated particle trail thing.")\
 	comfieldfloat(glow_color,"Some outdated particle trail thing.")\
@@ -301,20 +303,20 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(emiteffectnum,"This should be set to the result of particleeffectnum, in order to continually spawn particles in the direction that this entity faces.")/*DP_ENT_TRAILEFFECTNUM*/\
 	/*comfieldfloat(baseframe,"Specifies the current frame(group) to use for the lower (numerically) bones of a skeletal model. The basebone field specifies the bone where the regular frame field takes over.")*/	/*FTESS_QC_BASEFRAME*/\
 	/*comfieldfloat(basebone,"Specifies the bone at which the baseframe* fields stop being effective.")*/	/*FTE_SSQC_BASEFRAME*/\
-	comfieldfloat(dimension_see,"This is the dimension mask (bitfield) that the client is allowed to see. Entities and events not in this dimension mask will be invisible.")/*EXT_DIMENSION_VISIBLE*/\
-	comfieldfloat(dimension_seen,"This is the dimension mask (bitfield) that the client is visible within. Clients that cannot see this dimension mask will not see this entity.")/*EXT_DIMENSION_VISIBLE*/\
-	comfieldfloat(dimension_ghost,"If this entity is visible only within these dimensions, it will become transparent, as if a ghost.")/*EXT_DIMENSION_GHOST*/\
-	comfieldfloat(dimension_ghost_alpha,"If this entity is subject to dimension_ghost, this is the scaler for its alpha value. If 0, 0.5 will be used instead.")/*EXT_DIMENSION_GHOST*/\
+	comfieldfloatdep(dimension_see,"This is the dimension mask (bitfield) that the client is allowed to see. Entities and events not in this dimension mask will be invisible.", "Does not work with MVDs nor splitscreen.")/*EXT_DIMENSION_VISIBLE*/\
+	comfieldfloatdep(dimension_seen,"This is the dimension mask (bitfield) that the client is visible within. Clients that cannot see this dimension mask will not see this entity.", "Does not work with MVDs nor splitscreen.")/*EXT_DIMENSION_VISIBLE*/\
+	comfieldfloatdep(dimension_ghost,"If this entity is visible only within these dimensions, it will become transparent, as if a ghost.", "Does not work with MVDs nor splitscreen.")/*EXT_DIMENSION_GHOST*/\
+	comfieldfloatdep(dimension_ghost_alpha,"If this entity is subject to dimension_ghost, this is the scaler for its alpha value. If 0, 0.5 will be used instead.", "Does not work with MVDs nor splitscreen.")/*EXT_DIMENSION_GHOST*/\
 	comfieldfunction(SendEntity, ".float(entity playerent, float changedflags)","Called by the engine whenever an entity needs to be (re)sent to a client's csprogs, either because SendFlags was set or because data was lost. Must write its data to the MSG_ENTITY buffer. Will be called at the engine's leasure.")/*EXT_CSQC*/\
 	comfieldfloat(SendFlags,"Indicates that something in the entity has been changed, and that it needs to be updated to all players that can see it. The engine will clear it at some point, with the cleared bits appearing in the 'changedflags' argument of the SendEntity method.")/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
-	comfieldfloat_legacy(Version,"Obsolete, set a SendFlags bit instead.")/*EXT_CSQC (obsolete)*/\
-	comfieldfloat_legacy(clientcolors,NULL)\
+	comfieldfloatdep_legacy(Version,"Obsolete", "Use SendFlags instead.")/*EXT_CSQC (obsolete)*/\
+	comfieldfloatdep_legacy(clientcolors,NULL, "Doesn't support RGB player colours.")\
 	comfieldfloat_legacy(viewzoom,NULL)/*DP_VIEWZOOM, stats*/\
 	comfieldfloat_legacy(items2,NULL)		/*added in quake 1.09 (for hipnotic). legacy because of stats*/\
 	svextqcfieldshexen2 \
 	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
 	comfieldfloat(uniquespawnid,"Incremented by 1 whenever the entity is respawned. Persists across remove calls, for when the two-second grace period is insufficient.")/*FTE_ENT_UNIQUESPAWNID*/\
-	comfieldfunction(customizeentityforclient, ".float()","Called just before an entity is sent to a client (non-csqc protocol). This gives you a chance to tailor 'self' according to what 'other' should see.")
+	comfieldfunction(customizeentityforclient, "DEP_CSQC .float()","Called just before an entity is sent to a client (non-csqc protocol). This gives you a chance to tailor 'self' according to what 'other' should see.")
 
 #ifdef HALFLIFEMODELS
 #define HALFLIFEMODEL_FIELDS	\
@@ -362,6 +364,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	HALFLIFEMODEL_FIELDS	\
 	comfieldfloat(drawmask, "Matces the bitmask passed to the addentities builtin, to easily submit entities to the renderer. Not otherwise meaningful.")	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	comfieldfunction(predraw, ".float()","Called as part of the addentities builtin. Returns one of the PREDRAW_ constants. This gives you a chance to interpolate or animate entities as desired.")	/*If present, is called just before it's drawn.*/	
+
+
+#define comfieldentitydep(nam,desc,depreason) comfieldentity(nam,desc)
+#define comfieldfloatdep(nam,desc,depreason) comfieldfloat(nam,desc)
 
 typedef struct stdentvars_s //standard = standard for qw
 {

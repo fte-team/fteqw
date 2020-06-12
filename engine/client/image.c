@@ -2,12 +2,24 @@
 #include "shader.h"
 #include "glquake.h"	//we need some of the gl format enums
 
-#if defined(NPFTE) || defined(IMGTOOL)
+#ifndef HAVE_CLIENT
 //#define Con_Printf(f, ...)
 //hope you're on a littleendian machine
 #define LittleShort(s) s
 #define LittleLong(s) s
 #define LittleFloat(s) s
+
+#define BigFloat(s) SwapFloat(s)
+static float	SwapFloat (float l)
+{
+	union {qbyte b[4]; float f;} in, out;
+	in.f = l;
+	out.b[0] = in.b[3];
+	out.b[1] = in.b[2];
+	out.b[2] = in.b[1];
+	out.b[3] = in.b[0];
+	return out.f;
+}
 
 #undef S_COLOR_BLACK
 #undef S_COLOR_RED
@@ -314,7 +326,7 @@ static char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int
 	rows = tgahead->height;
 
 	flipped = !((tgahead->attribs & 0x20) >> 5);
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	if (r_dodgytgafiles.value)
 		flipped = true;
 #endif
@@ -457,7 +469,7 @@ void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t
 
 
 	flipped = !((tgaheader.attribs & 0x20) >> 5);
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	if (r_dodgytgafiles.value)
 		flipped = true;
 #endif
@@ -2674,7 +2686,7 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 	*width = swidth;
 	*height = sheight;
 
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	if (r_dodgypcxfiles.value)
 		palette = host_basepal;
 	else
@@ -3386,9 +3398,6 @@ static qbyte *ReadPBMFile(qbyte *buf, size_t len, const char *fname, int *width,
 			}
 			else
 			{
-#if defined(NPFTE) || defined(IMGTOOL)
-				return NULL;
-#else
 				r = BZ_Malloc(*width**height*4*sizeof(float));
 				for(y = 0; y < *height; y++)
 				for(x = 0, fo=(float*)r+(*height-y-1)*4**width; x < *height; x++)
@@ -3398,7 +3407,6 @@ static qbyte *ReadPBMFile(qbyte *buf, size_t len, const char *fname, int *width,
 					*fo++ = BigFloat(*fi++);
 					*fo++ = 1;
 				}
-#endif
 			}
 			*format = PTI_RGBA32F;
 		}
@@ -3414,14 +3422,10 @@ static qbyte *ReadPBMFile(qbyte *buf, size_t len, const char *fname, int *width,
 			}
 			else
 			{
-#if defined(NPFTE) || defined(IMGTOOL)
-				return NULL;
-#else
 				r = BZ_Malloc(*width**height*sizeof(float));
 				for(y = 0; y < *height; y++)
 				for(x = 0, fo=(float*)r+(*height-y-1)**width; x < *height; x++)
 					*fo++ = BigFloat(*fi++);
-#endif
 			}
 			*format = PTI_R32F;
 		}
@@ -4499,7 +4503,7 @@ static void *ReadEXRFile(qbyte *buf, size_t len, const char *fname, int *outwidt
 }
 #endif
 
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 
 
 // saturate function, stolen from jitspoe
@@ -7951,7 +7955,7 @@ void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, in
 	case PTI_BGRX8_SRGB:
 		if (!out)
 			out = BZ_Malloc(((outwidth+3)&~3)*outheight*4);
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 		if (gl_lerpimages.ival)
 #else
 		if (1)
@@ -8053,7 +8057,7 @@ static unsigned int * Image_GenerateNormalMap(qbyte *pixels, unsigned int *nmap,
 static int Image_GetPicMip(unsigned int flags)
 {
 	int picmip = 0;
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	if (flags & IF_NOMIPMAP)
 		picmip += gl_picmip2d.ival;	//2d stuff gets its own picmip cvar.
 	else
@@ -8120,7 +8124,7 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 		if (*scaled_height > sh_config.texture2d_maxsize)
 			*scaled_height = sh_config.texture2d_maxsize;
 	}
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	if (!(flags & (IF_UIPIC|IF_RENDERTARGET)))
 	{
 		if (gl_max_size.value)
@@ -11843,7 +11847,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		flags |= IF_NOPICMIP;
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 		{	//special hack required to preserve the hand-drawn lower mips.
 			unsigned int pixels =
@@ -11971,7 +11975,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				unsigned int rgb = d_8to24rgbtable[((qbyte*)rawdata)[i]];
 				heights[i] = (((rgb>>16)&0xff) + ((rgb>>8)&0xff) + ((rgb>>0)&0xff))/3;
 			}
-#if defined(NPFTE) || defined(IMGTOOL)
+#ifndef HAVE_CLIENT
 			Image_GenerateNormalMap(heights, rgbadata, imgwidth, imgheight, 4, 0);
 #else
 			Image_GenerateNormalMap(heights, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_basetexture.value?r_shadow_bumpscale_basetexture.value:4, r_shadow_heightscale_basetexture.value);
@@ -11984,7 +11988,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_HEIGHT8:
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-#if defined(NPFTE) || defined(IMGTOOL)
+#ifndef HAVE_CLIENT
 		Image_GenerateNormalMap(rawdata, rgbadata, imgwidth, imgheight, 4, 1);
 #else
 		Image_GenerateNormalMap(rawdata, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_bumpmap.value, r_shadow_heightscale_bumpmap.value);
@@ -12027,7 +12031,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			palettedata = (qbyte*)rawdata + pixels;
 			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 			flags |= IF_NOPICMIP;
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 			if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 			{
 				unsigned int pixels =
@@ -12531,7 +12535,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 //writes to rgbdata+format on success
 void Image_ReadExternalAlpha(qbyte *rgbadata, size_t imgwidth, size_t imgheight, const char *fname, uploadfmt_t *format)
 {
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	unsigned int alpha_width, alpha_height, p;
 	char aname[MAX_QPATH];
 	qbyte *alphadata, *srcchan;
@@ -12716,7 +12720,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 
 	if ((rgbadata = ReadRawImageFile(filedata, filesize, &imgwidth, &imgheight, &format, false, fname)))
 	{
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 		extern cvar_t vid_hardwaregamma;
 		if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 			BoostGamma(rgbadata, imgwidth, imgheight, format);
@@ -12846,7 +12850,7 @@ void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, in
 	}
 	return outbuffer;
 }
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 static int tex_extensions_count;
 #define tex_extensions_max 15
 static struct
@@ -14179,7 +14183,7 @@ void Image_Init(void)
 		#endif
 	}
 
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 	wadmutex = Sys_CreateMutex();
 	memset(imagetablebuckets, 0, sizeof(imagetablebuckets));
 	Hash_InitTable(&imagetable, sizeof(imagetablebuckets)/sizeof(imagetablebuckets[0]), imagetablebuckets);
@@ -14189,7 +14193,7 @@ void Image_Init(void)
 #endif
 }
 
-#if !defined(NPFTE) && !defined(IMGTOOL)
+#ifdef HAVE_CLIENT
 // ocrana led functions
 static int ledcolors[8][3] =
 {

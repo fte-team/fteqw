@@ -2600,6 +2600,19 @@ void QC_Clear(void)
 ===============================================================================
 */
 
+static void PR_ConsoleCommand_f(void)
+{
+	char cmd[2048];
+	Q_snprintfz(cmd, sizeof(cmd), "%s %s", Cmd_Argv(0), Cmd_Args());
+	PR_ConsoleCmd(cmd);
+}
+static void QCBUILTIN PF_sv_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *str = PF_VarString(prinst, 0, pr_globals);
+	if (!Cmd_Exists(str))
+		Cmd_AddCommand(str, PR_ConsoleCommand_f);
+}
+
 
 static void SV_Effect(vec3_t org, int mdlidx, int startframe, int endframe, int framerate)
 {
@@ -5173,6 +5186,12 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	qbyte val = PF_Write_BoundForNetwork(prinst, 0, G_FLOAT(OFS_PARM1), 255);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
+		if (!csqcmsgbuffer.maxsize)
+		{
+			PR_StackTrace(prinst, false);
+			prinst->parms->Abort ("MSG_CSQC outside of SendEntity method");
+		}
+
 		MSG_WriteByte(&csqcmsgbuffer, val);
 		return;
 	}
@@ -10442,8 +10461,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"error",			PF_Fixme,			0,		0,		0,		2,	D("void(string err,...)", "Fatal error that will trigger a crash-to-console that users will actually notice.")},
 	{"objerror",		PF_Fixme,			0,		0,		0,		3,	D("void(string err,...)", "For some reason this has been redefined as non-fatal, and as it won't force the user to look at the console it'll generally be ignored completely so really what's the point? Other than as a convoluted way to remove(self) that is.")},
 	{"print",			PF_Fixme,			0,		0,		0,		4,	D("void(string text,...)", "Hello, world. Shoves junk on the console. Hopefully people will bother to read it, maybe.")},
-	{"bprint",			PF_Fixme,			0,		0,		0,		5,	"void(string text,...)"},
-	{"msprint",			PF_Fixme,			0,		0,		0,		6,	"void(float clientnum, string text,...)"},
+	{"bprint",			PF_Fixme,			0,		0,		0,		5,	"DEP void(string text,...)"},
+	{"msprint",			PF_Fixme,			0,		0,		0,		6,	"DEP void(float clientnum, string text,...)"},
 	{"cprint",			PF_Fixme,			0,		0,		0,		7,	D("void(string text,...)", "Tries to show the given message in the centre of the screen, assuming that its not obscured by menus. Oh hey look, you're calling it in menuqc!")},
 	{"normalize",		PF_Fixme,			0,		0,		0,		8,	"vector(vector)"},
 	{"vlen",			PF_Fixme,			0,		0,		0,		9,	"float(vector)"},
@@ -10493,8 +10512,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strcat",			PF_Fixme,			0,		0,		0,		53,	"string(string, optional string, optional string, optional string, optional string, optional string, optional string, optional string)"},
 	{"substring",		PF_Fixme,			0,		0,		0,		54,	"string(string s, float start, float length)"},
 	{"stov",			PF_Fixme,			0,		0,		0,		55,	"vector(string)"},
-	{"strzone",			PF_Fixme,			0,		0,		0,		56,	D("string(string)", "Exists in FTE for compat only, no different from strcat.")},
-	{"strunzone",		PF_Fixme,			0,		0,		0,		57,	D("void(string)", "Exists in FTE for compat only, does nothing.")},
+	{"strzone",			PF_Fixme,			0,		0,		0,		56,	D("FTEDEP(\"Redundant\") string(string)", "Exists in FTE for compat only, no different from strcat.")},
+	{"strunzone",		PF_Fixme,			0,		0,		0,		57,	D("FTEDEP(\"Redundant\") void(string)", "Exists in FTE for compat only, does nothing.")},
 	{"tokenize",		PF_Fixme,			0,		0,		0,		58,	D("float(string)", "Splits up the given string into its different components (what constitutes a token separator is not well defined and has been hacked about with over the years so have fun with that), returning the number of tokens that were found. Call argv(0 through ret-1) to retrieve each individual token. Take care to not use this recursively.")},
 	{"argv",			PF_Fixme,			0,		0,		0,		59,	D("string(float)", "Returns one of the tokens found via tokenize (and equivelent builtins).")},
 	{"isserver",		PF_Fixme,			0,		0,		0,		60,	D("float()", "Returns true if the local engine is running a server, and thus cvars and localcmds are shared with said server.")},
@@ -10518,11 +10537,11 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"etof",			PF_Fixme,			0,		0,		0,		79,	"float(entity)"},
 	{"ftoe",			PF_Fixme,			0,		0,		0,		80,	"entity(float)"},
 	{"validstring",		PF_Fixme,			0,		0,		0,		81,	D("float(string)", "Returns true if str isn't null. In case 'if [not](str)' was configured to test for empty instead of null.")},
-	{"altstr_count",	PF_Fixme,			0,		0,		0, 		82,	D("float(string str)", "Reports how many single-quotes there were in the string, divided by 2.")},
-	{"altstr_prepare",	PF_Fixme,			0,		0,		0, 		83,	D("string(string str)", "Adds markup to escape only single-quotes. Does not add any.")},
-	{"altstr_get",		PF_Fixme,			0,		0,		0,		84,	D("string(string str, float num)", "Gets the Nth single-quoted token in the input.")},
-	{"altstr_set",		PF_Fixme,			0,		0,		0, 		85,	D("string(string str, float num, string setval)", "Changes the Nth single-quoted token. The setval argument must not contain any single-quotes (use altstr_prepare to ensure this).")},
-	{"altstr_ins",		PF_Fixme,			0,		0,		0,		86,	D("string(string str, float num, string set)", NULL), true},
+	{"altstr_count",	PF_Fixme,			0,		0,		0, 		82,	D("DEP float(string str)", "Reports how many single-quotes there were in the string, divided by 2.")},
+	{"altstr_prepare",	PF_Fixme,			0,		0,		0, 		83,	D("DEP string(string str)", "Adds markup to escape only single-quotes. Does not add any.")},
+	{"altstr_get",		PF_Fixme,			0,		0,		0,		84,	D("DEP string(string str, float num)", "Gets the Nth single-quoted token in the input.")},
+	{"altstr_set",		PF_Fixme,			0,		0,		0, 		85,	D("DEP string(string str, float num, string setval)", "Changes the Nth single-quoted token. The setval argument must not contain any single-quotes (use altstr_prepare to ensure this).")},
+	{"altstr_ins",		PF_Fixme,			0,		0,		0,		86,	D("DEP string(string str, float num, string set)", NULL), true},
 	{"findflags",		PF_Fixme,			0,		0,		0,		87,	"entity(entity start, .float field, float match)"},
 	{"findchainflags",	PF_Fixme,			0,		0,		0,		88,	"entity(.float field, float match)"},
 	{"cvar_defstring",	PF_Fixme,			0,		0,		0,		89,	"string(string name)"},
@@ -10538,7 +10557,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setorigin",		PF_setorigin,		2,		2,		2,		0,	D("void(entity e, vector o)","Changes e's origin to be equal to o. Also relinks collision state (as well as setting absmin+absmax), which is required after changing .solid")},
 	{"setmodel",		PF_setmodel,		3,		3,		3,		0,	D("void(entity e, string m)","Looks up m in the model precache list, and sets both e.model and e.modelindex to match. BSP models will set e.mins and e.maxs accordingly, other models depend upon the value of sv_gameplayfix_setmodelrealbox - for compatibility you should always call setsize after all pickups or non-bsp models. Also relinks collision state.")},
 	{"setsize",			PF_setsize,			4,		4,		4,		0,	D("void(entity e, vector min, vector max)", "Sets the e's mins and maxs fields. Also relinks collision state, which sets absmin and absmax too.")},
-	{"qtest_setabssize",PF_setsize,			5,		0,		0,		0,	D("void(entity e, vector min, vector max)", "qtest"), true},
+	{"qtest_setabssize",PF_setsize,			5,		0,		0,		0,	D("DEP void(entity e, vector min, vector max)", "qtest"), true},
 	{"breakpoint",		PF_break,			6,		6,		6,		0,	D("void()", "Trigger a debugging event. FTE will break into the qc debugger. Other engines may crash with a debug execption.")},
 	{"random",			PF_random,			7,		7,		7,		0,	D("float()", "Returns a random value between 0 and 1. Be warned, this builtin can return 1 in most engines, which can break arrays.")},
 	{"sound",			PF_sound,			8,		8,		8,		0,	D("void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags, optional float timeofs)", "Starts a sound centered upon the given entity.\nchan is the entity sound channel to use, channel 0 will allow you to mix many samples at once, others will replace the old sample\n'samp' must have been precached first\nif specified, 'speedpct' should normally be around 100 (or =0), 200 for double speed or 50 for half speed.\nIf flags is specified, the reliable flag in the channels argument is used for additional channels. Flags should be made from SOUNDFLAG_* constants\ntimeofs should be negative in order to provide a delay before the sound actually starts.")},
@@ -10585,7 +10604,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"rint",			PF_rint,			36,		36,		36,		0,	D("float(float)", "Rounds the given float up or down to the closest integeral value. X.5 rounds away from 0")},
 	{"floor",			PF_floor,			37,		37,		37,		0,	D("float(float)", "Rounds the given float downwards, even when negative.")},
 	{"ceil",			PF_ceil,			38,		38,		38,		0,	D("float(float)", "Rounds the given float upwards, even when negative.")},
-	{"qtest_canreach",	PF_Ignore,			39,		0,		0,		0,	"float(vector v)"}, // QTest builtin called in effectless statement
+	{"qtest_canreach",	PF_Ignore,			39,		0,		0,		0,	"DEP float(vector v)"}, // QTest builtin called in effectless statement
 	{"checkbottom",		PF_checkbottom,		40,		40,		40,		0,	D("float(entity ent)", "Expensive checks to ensure that the entity is actually sitting on something solid, returns true if it is.")},
 	{"pointcontents",	PF_pointcontents,	41,		41,		41,		0,	D("float(vector pos)", "Checks the given point to see what is there. Returns one of the SOLID_* constants. Just because a spot is empty does not mean that the player can stand there due to the size of the player - use tracebox for such tests.")},
 //	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
@@ -10656,20 +10675,20 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
-	{"tq_zone",			PF_strzone,			0,		0,		0,		79, D("string(string s)",NULL), true},	//79
-	{"tq_unzone",		PF_strunzone,		0,		0,		0,		80, D("void(string s)",NULL), true},	//80
-	{"tq_stof",			PF_stof,			0,		0,		0,		81, D("float(string s)",NULL), true},	//81
-	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, D("string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},	//82
-	{"tq_substring",	PF_substring,		0,		0,		0,		83, D("string(string str, float start, float len)",NULL), true},	//83
-	{"tq_stof",			PF_stof,			0,		0,		0,		84, D("float(string s)",NULL), true},	//84
-	{"tq_stov",			PF_stov,			0,		0,		0,		85, D("vector(string s)",NULL), true},	//85
+	{"tq_zone",			PF_strzone,			0,		0,		0,		79, D("DEP string(string s)",NULL), true},	//79
+	{"tq_unzone",		PF_strunzone,		0,		0,		0,		80, D("DEP void(string s)",NULL), true},	//80
+	{"tq_stof",			PF_stof,			0,		0,		0,		81, D("DEP float(string s)",NULL), true},	//81
+	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, D("DEP string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},	//82
+	{"tq_substring",	PF_substring,		0,		0,		0,		83, D("DEP string(string str, float start, float len)",NULL), true},	//83
+	{"tq_stof",			PF_stof,			0,		0,		0,		84, D("DEP float(string s)",NULL), true},	//84
+	{"tq_stov",			PF_stov,			0,		0,		0,		85, D("DEP vector(string s)",NULL), true},	//85
 // Tomaz - QuakeC String Manipulation End
 
 // Tomaz - QuakeC File System Begin (new mods use frik_file instead)
-	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, D("filestream(string filename, float mode)",NULL), true},// (QSG_FILE)
-	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, D("void(filestream fhandle)",NULL), true},// (QSG_FILE)
-	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, D("string(filestream fhandle)",NULL), true},// (QSG_FILE)
-	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, D("void(filestream fhandle, string s)",NULL), true},// (QSG_FILE)
+	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, D("DEP filestream(string filename, float mode)",NULL), true},// (QSG_FILE)
+	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, D("DEP void(filestream fhandle)",NULL), true},// (QSG_FILE)
+	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, D("DEP string(filestream fhandle)",NULL), true},// (QSG_FILE)
+	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, D("DEP void(filestream fhandle, string s)",NULL), true},// (QSG_FILE)
 // Tomaz - QuakeC File System End
 
 	{"infokey",			PF_infokey_s,		0,		80,		0,		80,	D("string(entity e, string key)", "If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo.")},	//80
@@ -10681,36 +10700,36 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 #ifdef HAVE_LEGACY
 //mvdsv (don't require ebfs usage in qw)
-	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, D("void()","Attempt to flush the localcmd buffer NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code."),				true},
-	{"mvdtokenize",		PF_tokenize_console,0,		0,		0,		84, D("void(string str)",NULL),		true},
-	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, D("float()",NULL),				true},
-	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, D("string(float num)",NULL),	true},
+	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, D("DEP void()","Attempt to flush the localcmd buffer NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code."),				true},
+	{"mvdtokenize",		PF_tokenize_console,0,		0,		0,		84, D("DEP void(string str)",NULL),		true},
+	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, D("DEP float()",NULL),				true},
+	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, D("DEP string(float num)",NULL),	true},
 
 //mvd commands
 //some of these are a little iffy.
 //we support them for mvdsv compatability but some of them look very hacky.
 //these ones are not honoured with numbers, but can be used via the proper means.
-	{"teamfield",		PF_teamfield,		0,		0,		0,		87, D("void(.string teamfield)",NULL), true},
-	{"substr",			PF_substr,			0,		0,		0,		88, D("string(string str, float start, float len)","Returns the theDoes not work on tempstrings nor zoned strings."), true},
-	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, D("string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},
-	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, D("float(string s)",NULL), true},
-	{"str2byte",		PF_str2byte,		0,		0,		0,		91, D("float(string str)","Returns the value of the first byte of the given string."), true},
-	{"str2short",		PF_str2short,		0,		0,		0,		92, D("float(string str)","Returns the value of the first two bytes of the given string, treated as a short."), true},
-	{"mvdnewstr",		PF_mvdsv_newstring,	0,		0,		0,		93, D("string(string s, optional float bufsize)","Allocs a copy of the string. If bufsize is longer than the string then there will be extra space available on the end. The resulting string can then be modified freely."), true},
-	{"mvdfreestr",		PF_mvdsv_freestring,0,		0,		0,		94, D("void(string s)","Frees memory allocated by mvdnewstr."), true},
-	{"conprint",		PF_conprint,		0,		0,		0,		95, D("void(string s, ...)","Prints the string(s) onto the local console, bypassing redirects."), true},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		0/*96*/, D("string(string str)","Executes the given command NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code, so be careful about the commands you try reading, and avoid aliases."), true},
-	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, D("void(string dst, string src)",NULL), true},
-	{"strstr",			PF_strstr,			0,		0,		0,		98, D("string(string str, string sub)",NULL), true},
-	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, D("void(string dst, string src, float count)",NULL), true},
-	{"logtext",			PF_logtext,			0,		0,		0,		100, D("void(string name, float console, string text)",NULL), true},
-	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, D("void()",NULL), true},
+	{"teamfield",		PF_teamfield,		0,		0,		0,		87, D("DEP void(.string teamfield)",NULL), true},
+	{"substr",			PF_substr,			0,		0,		0,		88, D("DEP string(string str, float start, float len)","Returns the theDoes not work on tempstrings nor zoned strings."), true},
+	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, D("DEP string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},
+	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, D("DEP float(string s)",NULL), true},
+	{"str2byte",		PF_str2byte,		0,		0,		0,		91, D("DEP float(string str)","Returns the value of the first byte of the given string."), true},
+	{"str2short",		PF_str2short,		0,		0,		0,		92, D("DEP float(string str)","Returns the value of the first two bytes of the given string, treated as a short."), true},
+	{"mvdnewstr",		PF_mvdsv_newstring,	0,		0,		0,		93, D("DEP string(string s, optional float bufsize)","Allocs a copy of the string. If bufsize is longer than the string then there will be extra space available on the end. The resulting string can then be modified freely."), true},
+	{"mvdfreestr",		PF_mvdsv_freestring,0,		0,		0,		94, D("DEP void(string s)","Frees memory allocated by mvdnewstr."), true},
+	{"conprint",		PF_conprint,		0,		0,		0,		95, D("DEP void(string s, ...)","Prints the string(s) onto the local console, bypassing redirects."), true},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		0/*96*/, D("DEP string(string str)","Executes the given command NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code, so be careful about the commands you try reading, and avoid aliases."), true},
+	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, D("DEP void(string dst, string src)",NULL), true},
+	{"strstr",			PF_strstr,			0,		0,		0,		98, D("DEP string(string str, string sub)",NULL), true},
+	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, D("DEP void(string dst, string src, float count)",NULL), true},
+	{"logtext",			PF_logtext,			0,		0,		0,		100, D("DEP void(string name, float console, string text)",NULL), true},
+	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, D("__deprecated(\"Use strftime\") void()",NULL), true},
 #ifdef MVD_RECORDING
-	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, D("void(float now)",NULL), true},
+	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, D("DEP void(float now)",NULL), true},
 #endif
 //end of mvdsv
 #endif
-	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, D("void(entity to, string str)","Executes a single console command, and sends the text generated by it to the specified player. The command will be executed at the end of the frame once QC is no longer running - you may wish to pre/postfix it with 'echo'.")},
+	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, D("DEP void(entity to, string str)","Executes a single console command, and sends the text generated by it to the specified player. The command will be executed at the end of the frame once QC is no longer running - you may wish to pre/postfix it with 'echo'.")},
 
 	{"getlightstyle",	PF_getlightstyle,	0,		0,		0,		0,	D("string(float style, optional __out vector rgb)", "Obtains the light style string for the given style.")},
 	{"getlightstylergb",PF_getlightstylergb,0,		0,		0,		0,	D("vector(float style)", "Obtains the current rgb value of the specified light style. In csqc, this is correct with regard to the current frame, while ssqc gives no guarentees about time and ignores client cvars. Note: use getlight if you want the actual light value at a point.")},
@@ -10769,7 +10788,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bound",			PF_bound,			0,		0,		0,		96,	D("float(float minimum, float val, float maximum)", "Returns val, unless minimum is higher, or maximum is less.")},// (DP_QC_MINMAXBOUND)
 	{"pow",				PF_pow,				0,		0,		0,		97,	"float(float value, float exp)"},
 	{"logarithm",		PF_Logarithm,		0,		0,		0,		0,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
-	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, D("string(string cvarname)",NULL), true},	//telejano
+	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, D("DEP string(string cvarname)",NULL), true},	//telejano
 //DP_QC_FINDFLOAT
 	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, D("#define findentity findfloat\nentity(entity start, .__variant fld, __variant match)", "Equivelent to the find builtin, but instead of comparing strings contents, this builtin compares the raw values. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
 
@@ -10777,17 +10796,17 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"checkbuiltin",	PF_checkbuiltin,	0,		0,		0,		0,	D("float(__variant funcref)", "Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions. Warning, if two different engines map different builtins to the same number, then this function will not tell you which will be called, only that it won't crash (the exception being #0, which are remapped as available).")},
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	D("float(string builtinname)", "Looks to see if the named builtin is valid, and returns the builtin number it exists at.")},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
-	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("string(string cvarname)","An old/legacy equivelent of more recent/common builtins in order to read a cvar's string value."), true},
+	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("DEP string(string cvarname)","An old/legacy equivelent of more recent/common builtins in order to read a cvar's string value."), true},
 
 //TEI_SHOWLMP2
-	{"showpic",			PF_ShowPic,			0,		0,		0,		104,	"void(string slot, string picname, float x, float y, float zone, optional entity player)"},
-	{"hidepic",			PF_HidePic,			0,		0,		0,		105,	"void(string slot, optional entity player)"},
-	{"movepic",			PF_MovePic,			0,		0,		0,		106,	"void(string slot, float x, float y, float zone, optional entity player)"},
-	{"changepic",		PF_ChangePic,		0,		0,		0,		107,	"void(string slot, string picname, optional entity player)"},
-	{"showpicent",		PF_ShowPic,			0,		0,		0,		108,	D("void(string slot, entity player)",NULL), true},
-	{"hidepicent",		PF_HidePic,			0,		0,		0,		109,	D("void(string slot, entity player)",NULL), true},
-//	{"movepicent",		PF_MovePic,			0,		0,		0,		110,	"void(string slot, float x, float y, float zone, entity player)", true},
-//	{"changepicent",	PF_ChangePic,		0,		0,		0,		111,	"void(string slot, string picname, entity player)", true},
+	{"showpic",			PF_ShowPic,			0,		0,		0,		104,	"DEP_CSQC void(string slot, string picname, float x, float y, float zone, optional entity player)"},
+	{"hidepic",			PF_HidePic,			0,		0,		0,		105,	"DEP_CSQC void(string slot, optional entity player)"},
+	{"movepic",			PF_MovePic,			0,		0,		0,		106,	"DEP_CSQC void(string slot, float x, float y, float zone, optional entity player)"},
+	{"changepic",		PF_ChangePic,		0,		0,		0,		107,	"DEP_CSQC void(string slot, string picname, optional entity player)"},
+	{"showpicent",		PF_ShowPic,			0,		0,		0,		108,	D("DEP_CSQC void(string slot, entity player)",NULL), true},
+	{"hidepicent",		PF_HidePic,			0,		0,		0,		109,	D("DEP_CSQC void(string slot, entity player)",NULL), true},
+//	{"movepicent",		PF_MovePic,			0,		0,		0,		110,	"DEP_CSQC void(string slot, float x, float y, float zone, entity player)", true},
+//	{"changepicent",	PF_ChangePic,		0,		0,		0,		111,	"DEP_CSQC void(string slot, string picname, entity player)", true},
 //End TEU_SHOWLMP2
 
 //frik file
@@ -10804,8 +10823,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
 	{"stov",			PF_stov,			0,		0,		0,		117, "vector(string s)"},	// (FRIK_FILE)
 #ifdef QCGC
-	{"strzone",			PF_strzone,			0,		0,		0,		118, D("string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope). This builtin has become redundant in FTEQW due to the FTE_QC_PERSISTENTTEMPSTRINGS extension and is now functionally identical to strcat for compatibility with old engines+mods.")},	// (FRIK_FILE)
-	{"strunzone",		PF_strunzone,		0,		0,		0,		119, D("void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game. In FTE, this function became redundant and now does nothing.")},	// (FRIK_FILE)
+	{"strzone",			PF_strzone,			0,		0,		0,		118, D("FTEDEP(\"Redundant\") string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope). This builtin has become redundant in FTEQW due to the FTE_QC_PERSISTENTTEMPSTRINGS extension and is now functionally identical to strcat for compatibility with old engines+mods.")},	// (FRIK_FILE)
+	{"strunzone",		PF_strunzone,		0,		0,		0,		119, D("FTEDEP(\"Redundant\") void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game. In FTE, this function became redundant and now does nothing.")},	// (FRIK_FILE)
 #else
 	{"strzone",			PF_strzone,			0,		0,		0,		118, D("string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope).")},	// (FRIK_FILE)
 	{"strunzone",		PF_strunzone,		0,		0,		0,		119, D("void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game.")},	// (FRIK_FILE)
@@ -10830,7 +10849,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	D("float(string progsname)", "Loads an additional .dat file into the current qcvm. The returned handle can be used with any of the externcall/externset/externvalue builtins.\nThere are cvars that allow progs to be loaded automatically.")},
 	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	D("__variant(float prnum, string varname)", "Reads a global in the named progs by the name of that global.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"externset",		PF_externset,		0,		0,		0,		204,	D("void(float prnum, __variant newval, string varname)", "Sets a global in the named progs by name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
-	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
+	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__deprecated(\"Redundant\") __variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
 	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpos(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos."), true},
 	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	D("void(entity portal, float state)", "Opens or closes the portals associated with a door or some such on q2 or q3 maps. On Q2BSPs, the entity should be the 'func_areaportal' entity - its style field will say which portal to open. On Q3BSPs, the entity is the door itself, the portal will be determined by the two areas found from a preceding setorigin call.")},
 
@@ -10875,7 +10894,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strtrim",			PF_strtrim,			0,		0,		0,		0,		D("string(string s)", "Trims the whitespace from the start+end of the string.")},
 
 //FTE_CALLTIMEOFDAY
-	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	D("void()", "Asks the engine to instantly call the qc's 'timeofday' function, before returning. For compatibility with mvdsv.\ntimeofday should have the prototype: void(float secs, float mins, float hour, float day, float mon, float year, string strvalue)\nThe strftime builtin is more versatile and less weird.")},
+	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	D("__deprecated(\"Use strftime.\") void()", "Asks the engine to instantly call the qc's 'timeofday' function, before returning. For compatibility with mvdsv.\ntimeofday should have the prototype: void(float secs, float mins, float hour, float day, float mon, float year, string strvalue)\nThe strftime builtin is more versatile and less weird.")},
 
 //EXT_CSQC
 	{"clientstat",		PF_clientstat,		0,		0,		0,		232,	D("void(float num, float type, .__variant fld)", "Specifies what data to use in order to send various stats, in a client-specific way.\n'num' should be a value between 32 and 127, other values are reserved.\n'type' must be set to one of the EV_* constants, one of EV_FLOAT, EV_STRING, EV_INTEGER, EV_ENTITY.\nfld must be a reference to the field used, each player will be sent only their own copy of these fields.")},	//EXT_CSQC
@@ -11052,6 +11071,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw R8G8B8A8 pixel data. Should not be used for dds or ktx etc formats. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
 	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution. WARNING: this function may be slow if used without or directly after its initial precache_pic.")},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
+	{"spriteframe",		PF_Fixme,	0,		0,		0,		0,		D("string(string modelname, int frame, float frametime)", "Obtains a suitable shader name to draw a sprite's shader via drawpic/R_BeginPolygon/etc, instead of needing to create a scene.")},
 //320
 	{"drawcharacter",	PF_Fixme,	0,		0,		0,		320,	D("float(vector position, float character, vector size, vector rgb, float alpha, optional float drawflag)", "Draw the given quake character at the given position.\nIf flag&4, the function will consider the char to be a unicode char instead (or display as a ? if outside the 32-127 range).\nsize should normally be something like '8 8 0'.\nrgb should normally be '1 1 1'\nalpha normally 1.\nSoftware engines may assume the named defaults.\nNote that ALL text may be rescaled on the X axis due to variable width fonts. The X axis may even be ignored completely.")},// (EXT_CSQC, [EXT_CSQC_???])
 	{"drawrawstring",	PF_Fixme,	0,		0,		0,		321,	D("float(vector position, string text, vector size, vector rgb, float alpha, optional float drawflag)", "Draws the specified string without using any markup at all, even in engines that support it.\nIf UTF-8 is globally enabled in the engine, then that encoding is used (without additional markup), otherwise it is raw quake chars.\nSoftware engines may assume a size of '8 8 0', rgb='1 1 1', alpha=1, flag&3=0, but it is not an error to draw out of the screen.")},// (EXT_CSQC, [EXT_CSQC_???])
@@ -11086,9 +11106,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 
 	{"keynumtostring",	PF_Fixme,	0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (EXT_CSQC)
-	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
+	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("DEP string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
-	{"stringtokeynum_csqc",	PF_Fixme,0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (found in menuqc)
+	{"stringtokeynum_csqc",	PF_Fixme,0,		0,		0,		341,	D("DEP float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (found in menuqc)
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Returns the current binding for the given key (returning only the command executed when no modifiers are pressed).")},// (EXT_CSQC)
 
 	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
@@ -11115,7 +11135,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns non-zero whenever the local console can directly affect the server (ie: listen servers or single-player). Compat note: DP returns 0 for single-player.")},//(EXT_CSQC)
 	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, optional float reverbtype)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default. For reverbtype, see setup_reverb or treat as 'underwater'.")},// (EXT_CSQC)
 	{"setup_reverb",	PF_Fixme, 	0,		0,		0,		0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
-	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
+	{"registercommand",	PF_sv_registercommand,0,0,	0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand/m_consolecommand/ConsoleCmd according to module.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
 	{"serverkey",		PF_sv_serverkeystring,0,0,	0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string. If the key contains binary data then it will be truncated at the first null.")},//
 	{"serverkeyfloat",	PF_sv_serverkeyfloat,0,0,	0,		0,		D("float(string key, optional float assumevalue)", "Version of serverkey that returns the value as a float (which avoids tempstrings).")},//
@@ -11182,7 +11202,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_COPYENTITY
 	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	D("entity(entity from, optional entity to)", "Copies all fields from one entity to another.")},// (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
-	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	D("void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
+	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	D("__deprecated(\"No RGB support.\") void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
 //DP_QC_FINDCHAIN
 	{"findchain",		PF_findchain,	0,		0,		0,		402,	"entity(.string field, string match, optional .entity chainfield)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
@@ -11337,7 +11357,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cin_getstate",	PF_Fixme,			0,		0,		0,		0,		D("float(string id)", NULL)},
 	{"cin_restart",		PF_Fixme,			0,		0,		0, 		0,		D("void(string file)", NULL)},
 
-	{"crc16",			PF_crc16,			0,		0,		0,		494,	"float(float caseinsensitive, string s, ...)"},//DP_QC_CRC16
+	{"crc16",			PF_crc16,			0,		0,		0,		494,	"__deprecated(\"Use digest_hex\") float(float caseinsensitive, string s, ...)"},//DP_QC_CRC16
 	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495,	"float(string name)"},//DP_QC_CVAR_TYPE
 	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496,	D("float()", "Gives the number of named entity fields. Note that this is not the size of an entity, but rather just the number of unique names (ie: vectors use 4 names rather than 3).")},//DP_QC_ENTITYDATA
 	{"findentityfield",	PF_findentityfield,	0,		0,		0,		0,		D("float(string fieldname)", "Find a field index by name.")},
@@ -11367,8 +11387,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(strbuf strbuf, string pattern, string antipattern)"},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	D("string(string cvarname)", "Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful.")},
 	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
-	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
-	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	D("string(string command, optional float bindmap)", "Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This only and always returns two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE.")},
+	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"DEP string(float keynum)"},	//excessive third version in dp's csqc.
+	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	D("__deprecated(\"Does not support modifiers\") string(string command, optional float bindmap)", "Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This only and always returns two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE.")},
 	{"findkeysforcommandex",PF_Fixme,		0,		0,		0,		0,		D("string(string command, optional float bindmap)", "Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys.")},
 //	{"initparticlespawner",PF_Fixme,		0,		0,		0,		522,	D("void(float max_themes)","")},
 //	{"resetparticle",	PF_Fixme,			0,		0,		0,		523,	D("void()","")},
@@ -11413,8 +11433,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"writetofile",		PF_writetofile,		0,		0,		0,		606,	D("void(filestream fh, entity e)", "Writes an entity's fields to the named frik_file file handle.")},
 	{"isfunction",		PF_isfunction,		0,		0,		0,		607,	D("float(string s)", "Returns true if the named function exists and can be called with the callfunction builtin.")},
 	{"getresolution",	PF_Fixme,			0,		0,		0,		608,	D("vector(float vidmode, optional float forfullscreen)", "Supposed to query the driver for supported video modes. FTE does not query drivers in this way, nor would it trust drivers anyway.")},
-	{"keynumtostring_menu",PF_Fixme,		0,		0,		0,		609,	"string(float keynum)"},	//third copy of this builtin in dp's csqc.
-	{"findkeysforcommand_dp",PF_Fixme,		0,		0,		0,		610,	"string(string command, optional float bindmap)"},
+	{"keynumtostring_menu",PF_Fixme,		0,		0,		0,		609,	"DEP string(float keynum)"},	//third copy of this builtin in dp's csqc.
+	{"findkeysforcommand_dp",PF_Fixme,		0,		0,		0,		610,	"DEP string(string command, optional float bindmap)"},
 	{"keynumtostring",	PF_Fixme,			0,		0,		0,		609,	D("string(float keynum)", "Converts a qscancode key number into a mostly-human-readable name, matching the bind command.")},	//normal name is for menuqc standard.
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		610,	"string(string command, optional float bindmap)"},
 	{"gethostcachevalue",PF_Fixme,			0,		0,		0,		611,	"float(float type)"},
@@ -11442,18 +11462,18 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setkeybind",		PF_Fixme,			0,		0,		0,		630,	"float(float key, string bind, optional float bindmap, optional float modifier)"},
 	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()"},
 	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)"},
-	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"string(string addr)"  STUB},
-	{"crypto_getidfp",	PF_Fixme,			0,		0,		0,		634,	"string(string addr)"  STUB},
-	{"crypto_getencryptlevel",PF_Fixme,		0,		0,		0,		635,	"string(string addr)"  STUB},
-	{"crypto_getmykeyfp",PF_Fixme,			0,		0,		0,		636,	"string(string addr)"  STUB},
-	{"crypto_getmyidfp",PF_Fixme,			0,		0,		0,		637,	"string(float addr)" STUB},
+	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"DEP string(string addr)"  STUB},
+	{"crypto_getidfp",	PF_Fixme,			0,		0,		0,		634,	"DEP string(string addr)"  STUB},
+	{"crypto_getencryptlevel",PF_Fixme,		0,		0,		0,		635,	"DEP string(string addr)"  STUB},
+	{"crypto_getmykeyfp",PF_Fixme,			0,		0,		0,		636,	"DEP string(string addr)"  STUB},
+	{"crypto_getmyidfp",PF_Fixme,			0,		0,		0,		637,	"DEP string(float addr)" STUB},
 //	{"CL_RotateMoves",	PF_Fixme,			0,		0,		0,		638,	D("void(vector anglechange)", "Rewrites the input log history to rotate all unacknowledged frames according to the angle delta specified.")},
 	{"digest_hex",		PF_digest_hex,		0,		0,		0,		639,	"string(string digest, string data, ...)"},
 	{"digest_ptr",		PF_digest_ptr,		0,		0,		0,		0,		D("string(string digest, void *data, int length)", "Calculates the digest of a single contiguous block of memory (including nulls) using the specified hash function.")},
-	{"V_CalcRefdef",	PF_Fixme,			0,		0,		0,		640,	"void(entity e, float flags)"	STUB},
-	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"float(float i)"	STUB},
-	{"coverage",		PF_Fixme,			0,		0,		0,		642,	"void()"	STUB},
-	{"crypto_getidstatus",PF_Fixme,			0,		0,		0,		643,	"float(string addr)"	STUB},
+	{"V_CalcRefdef",	PF_Fixme,			0,		0,		0,		640,	"DEP void(entity e, float flags)"	STUB},
+	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"DEP float(float i)"	STUB},
+	{"coverage",		PF_Fixme,			0,		0,		0,		642,	"DEP void()"	STUB},
+	{"crypto_getidstatus",PF_Fixme,			0,		0,		0,		643,	"DEP float(string addr)"	STUB},
 	//end dp extras
 
 	//wrath extras...
@@ -11462,10 +11482,10 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fremove",			PF_fremove,			0,		0,		0,		652,	D("float(string fname)",	"Deletes the named file - path is relative to data/ subdir, like fopen's FILE_WRITE. Returns 0 on success.")},
 	{"fexists",			PF_fexists,			0,		0,		0,		653,	D("float(string fname)",	"Use whichpack instead. Returns true if it exists inside the default writable path.")},
 	{"rmtree",			PF_rmtree,			0,		0,		0,		654,	D("float(string path)",		"Dangerous, but sandboxed to data/")},
-	{"walkmovedist",	PF_walkmovedist,	0,		0,		0,		655,	D("float(float yaw, float dist, optional float settraceglobals)", "Attempt to walk the entity at a given angle for a given distance.\nif settraceglobals is set, the trace_* globals will be set, showing the results of the movement.\nThis function will trigger touch events."), true},
+	{"walkmovedist",	PF_walkmovedist,	0,		0,		0,		655,	D("DEP float(float yaw, float dist, optional float settraceglobals)", "Attempt to walk the entity at a given angle for a given distance.\nif settraceglobals is set, the trace_* globals will be set, showing the results of the movement.\nThis function will trigger touch events."), true},
 	//end wrath extras
 
-	{"getrmqeffectsversion",PF_Ignore,		0,		0,		0,		666,	"float()" STUB},
+	{"getrmqeffectsversion",PF_Ignore,		0,		0,		0,		666,	"DEP float()" STUB},
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 	
 	{NULL}
@@ -12176,6 +12196,18 @@ void PR_DumpPlatform_f(void)
 //		{"button15",		".float", QW|NQ},
 //		{"button16",		".float", QW|NQ},
 
+#undef comfieldfloatdep
+#undef comfieldintdep
+#undef comfieldvectordep
+#undef comfieldentitydep
+#undef comfieldstringdep
+#define comfieldfloatdep(name,desc,depreason) {#name, "__deprecated(\""depreason"\") .float", FL, D(desc)},
+#define comfieldintdep(name,desc,depreason) {#name, "__deprecated(\""depreason"\") .int", FL, D(desc)},
+#define comfieldvectordep(name,desc,depreason) {#name, "__deprecated(\""depreason"\") .vector", FL, D(desc)},
+#define comfieldentitydep(name,desc,depreason) {#name, "__deprecated(\""depreason"\") .entity", FL, D(desc)},
+#define comfieldstringdep(name,desc,depreason) {#name, "__deprecated(\""depreason"\") .string", FL, D(desc)},
+//function types can bake their deprecation reason into their type string.
+
 #define comfieldfloat(name,desc) {#name, ".float", FL, D(desc)},
 #define comfieldint(name,desc) {#name, ".int", FL, D(desc)},
 #define comfieldvector(name,desc) {#name, ".vector", FL, D(desc)},
@@ -12212,7 +12244,7 @@ void PR_DumpPlatform_f(void)
 		{"SV_ShouldPause",			"float(float newstatus)", QW|NQ, "Called to give the qc a change to block pause/unpause requests. Return false for the pause request to be ignored. newstatus is 1 if the user is trying to pause the game. For the duration of the call, self will be set to the player who tried to pause, or to world if it was triggered by a server-side event."},
 		{"SV_RunClientCommand",		"void()", QW|NQ, "Called each time a player movement packet was received from a client. Self is set to the player entity which should be updated, while the input_* globals specify the various properties stored within the input packet. The contents of this function should be somewaht identical to the equivelent function in CSQC, or prediction misses will occur. If you're feeling lazy, you can simply call 'runstandardplayerphysics' after modifying the inputs."},
 		{"SV_AddDebugPolygons",		"void()", QW|NQ, "Called each video frame. This is the only place where ssqc is allowed to call the R_BeginPolygon/R_PolygonVertex/R_EndPolygon builtins. This is exclusively for debugging, and will break in anything but single player as it will not be called if the engine is not running both a client and a server."},
-		{"SV_PlayerPhysics",		"void()", QW|NQ, "Compatibility method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
+		{"SV_PlayerPhysics",		"DEP_CSQC void()", QW|NQ, "Compatibility method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
 		{"EndFrame",				"void()", QW|NQ, "Called after non-player entities have been run at the end of the physics frame. Player physics is performed out of order and can/will still occur between EndFrame and BeginFrame."},
 		{"SV_CheckRejectConnection","string(string addr, string uinfo, string features) ", QW|NQ, "Called to give the mod a chance to ignore connection requests based upon client protocol support or other properties. Use infoget to read the uinfo and features arguments."},
 #ifdef HEXEN2
@@ -12262,9 +12294,10 @@ void PR_DumpPlatform_f(void)
 		{"m_shutdown",				"void()", MENU},
 		{"m_draw",					"void(vector screensize)", MENU, "Provides the menuqc with a chance to draw. Will be called even if the menu does not have focus, so be sure to avoid that. COMPAT: screensize is not provided in DP."},
 		{"m_drawloading",			"void(vector screensize, float opaque)", MENU, "Additional drawing function to draw loading screens. If opaque is set, then this function must ensure that the entire screen is overdrawn (even if just by a black drawfill)."},
+		{"Menu_RendererRestarted",	"void(string rendererdescription)", MENU, "Called by the engine after the video was restarted. This serves to notify the MenuQC that any render targets that it may have cached were purged, and will need to be regenerated."},
 		{"Menu_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", MENU, "If present, this is called instead of m_keydown and m_keyup\nCalled whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
-		{"m_keydown",				"void(float scan, float chr)", MENU},
-		{"m_keyup",					"void(float scan, float chr)", MENU},
+		{"m_keydown",				"__deprecated(\"Use Menu_InputEvent\") void(float scan, float chr)", MENU},
+		{"m_keyup",					"__deprecated(\"Use Menu_InputEvent\") void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float wantmode)", MENU},
 		{"m_consolecommand",		"float(string cmd)", MENU},
 
@@ -12284,7 +12317,7 @@ void PR_DumpPlatform_f(void)
 
 		{"TRUE",					"const float", ALL, NULL, 1},
 		{"FALSE",					"const float", ALL, "File not found...", 0},
-		{"M_PI",					"const float", ALL, NULL, M_PI},
+		{"M_PI",					"const float", ALL, "Mathematica Pi constant.", M_PI},
 
 		{"MOVETYPE_NONE",			"const float", QW|NQ|CS, NULL, MOVETYPE_NONE},
 		{"MOVETYPE_WALK",			"const float", QW|NQ|CS, NULL, MOVETYPE_WALK},
@@ -12309,8 +12342,8 @@ void PR_DumpPlatform_f(void)
 		{"SOLID_BBOX",				"const float", QW|NQ|CS, NULL, SOLID_BBOX},
 		{"SOLID_SLIDEBOX",			"const float", QW|NQ|CS, NULL, SOLID_SLIDEBOX},
 		{"SOLID_BSP",				"const float", QW|NQ|CS, D("Does not collide against other SOLID_BSP entities. Normally paired with MOVETYPE_PUSH."), SOLID_BSP},
-		{"SOLID_CORPSE",			"const float", QW|NQ|CS, D("Non-solid to SOLID_SLIDEBOX or other SOLID_CORPSE entities. For hitscan weapons to hit corpses, change the player's .solid value to SOLID_BBOX or so, perform the traceline, then revert the player's .solid value."), SOLID_CORPSE},
-		{"SOLID_LADDER",			"const float", QW|NQ|CS, D("Obsolete and may be removed at some point. Use skin=CONTENT_LADDER and solid_bsp or solid_trigger instead."), SOLID_LADDER},
+		{"SOLID_CORPSE",			"const float", QW|NQ|CS, D("Non-solid to SOLID_SLIDEBOX or other SOLID_CORPSE entities. For hitscan weapons to hit corpses, change the player's .hitcontentsmaski value to include CONTENTBIT_CORPSE, perform the traceline, then revert the player's .solid value."), SOLID_CORPSE},
+		{"SOLID_LADDER",			"__deprecated(\"Obsoleted by .skin=CONTENTS_LADDER\") const float", QW|NQ|CS, D("Obsolete and may be removed at some point. Use skin=CONTENT_LADDER and solid_bsp or solid_trigger instead."), SOLID_LADDER},
 		{"SOLID_PORTAL",			"const float", QW|NQ|CS, D("CSG subtraction volume combined with entity transformations on impact."), SOLID_PORTAL},
 		{"SOLID_BSPTRIGGER",		"const float", QW|NQ|CS, D("For complex-shaped trigger volumes, instead of being a pure aabb."), SOLID_BSPTRIGGER},
 		{"SOLID_PHYSICS_BOX",		"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_BOX},
@@ -12396,12 +12429,12 @@ void PR_DumpPlatform_f(void)
 		{"CONTENTBIT_LAVA",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_LAVA)"i"},
 		{"CONTENTBIT_SLIME",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SLIME)"i"},
 		{"CONTENTBIT_WATER",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_WATER)"i"},
-		{"CONTENTBIT_FTELADDER",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_LADDER)"i"},
+		{"CONTENTBIT_FTELADDER",	"const int", QW|NQ|CS, D("Content bit used for .skin=CONTENT_LADDER entities."), 0,STRINGIFY(FTECONTENTS_LADDER)"i"},
 		{"CONTENTBIT_PLAYERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_PLAYERCLIP)"i"},
 		{"CONTENTBIT_MONSTERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_MONSTERCLIP)"i"},
-		{"CONTENTBIT_BODY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_BODY)"i"},
-		{"CONTENTBIT_CORPSE",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_CORPSE)"i"},
-		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, D("Content bit specific to q2bsp"), 0,STRINGIFY(Q2CONTENTS_LADDER)"i"},
+		{"CONTENTBIT_BODY",			"const int", QW|NQ|CS, D("Content bit that indicates collisions against SOLID_BBOX/SOLID_SLIDEBOX entities."), 0,STRINGIFY(FTECONTENTS_BODY)"i"},
+		{"CONTENTBIT_CORPSE",		"const int", QW|NQ|CS, D("Content bit that indicates collisions against SOLID_CORPSE entities."), 0,STRINGIFY(FTECONTENTS_CORPSE)"i"},
+		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, D("Content bit specific to q2bsp (conflicts with q3bsp contents so use with caution)."), 0,STRINGIFY(Q2CONTENTS_LADDER)"i"},
 		{"CONTENTBIT_SKY",			"const int", QW|NQ|CS, D("Content bit somewhat specific to q1bsp (aliases to NODROP in q3bsp), but you should probably check surfaceflags&SURF_SKY as well for q2+q3bsp too."), 0,STRINGIFY(FTECONTENTS_SKY)"i"},
 		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, D("Bits that traceline would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"i|CONTENTBIT_BODY"},
 		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, D("Bits that tracebox would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"i|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP"},
@@ -12440,9 +12473,12 @@ void PR_DumpPlatform_f(void)
 		{"SVC_CGAMEPACKET",		"const float", QW|NQ, D("Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads. This should only ever be used in conjunction with the MSG_MULTICAST destination."), svcfte_cgamepacket},
 
 #ifdef HAVE_LEGACY
-		{"MSG_BROADCAST",		"const float", QW|NQ, D("The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family."), MSG_BROADCAST},
-		{"MSG_ONE",				"const float", QW|NQ, D("The byte(s) will be reliably sent to the player specified in the msg_entity global. WARNING: in quakeworld servers without network preparsing enabled, this can result in illegible server messages (due to individual reliable messages being split between multiple backbuffers/packets). NQ has larger reliable buffers which avoids this issue, but still kicks the client."), MSG_ONE},
-		{"MSG_ALL",				"const float", QW|NQ, D("The byte(s) will be reliably sent to all players."), MSG_ALL},
+		{"MSG_BROADCAST",		"const float", NQ, D("The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family."), MSG_BROADCAST},
+		{"MSG_ONE",				"const float", NQ, D("The byte(s) will be reliably sent to the player specified in the msg_entity global. WARNING: in quakeworld servers without network preparsing enabled, this can result in illegible server messages (due to individual reliable messages being split between multiple backbuffers/packets). NQ has larger reliable buffers which avoids this issue, but still kicks the client."), MSG_ONE},
+		{"MSG_ALL",				"const float", NQ, D("The byte(s) will be reliably sent to all players."), MSG_ALL},
+		{"MSG_BROADCAST",		"__deprecated(\"Use MSG_MULTICAST+multicast(MULTICAST_*)\") const float", QW, D("The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family."), MSG_BROADCAST},
+		{"MSG_ONE",				"__deprecated(\"Use MSG_MULTICAST+multicast(MULTICAST_ONE_R)\") const float", QW, D("The byte(s) will be reliably sent to the player specified in the msg_entity global. WARNING: in quakeworld servers without network preparsing enabled, this can result in illegible server messages (due to individual reliable messages being split between multiple backbuffers/packets). NQ has larger reliable buffers which avoids this issue, but still kicks the client."), MSG_ONE},
+		{"MSG_ALL",				"__deprecated(\"Use MSG_MULTICAST+multicast(MULTICAST_ALL)\") const float", QW, D("The byte(s) will be reliably sent to all players."), MSG_ALL},
 		{"MSG_INIT",			"const float", QW|NQ, D("The byte(s) will be written into the signon buffer. Clients will see these messages when they connect later. This buffer is only flushed on map changes, so spamming it _WILL_ result in overflows."), MSG_INIT},
 #endif
 		{"MSG_MULTICAST",		"const float", QW|NQ, D("The byte(s) will be written into the multicast buffer for more selective sending. Messages sent this way will never be split across packets, and using this for csqc-only messages will not break protocol translation."), MSG_MULTICAST},
@@ -12567,7 +12603,7 @@ void PR_DumpPlatform_f(void)
 		{"EF_DIMLIGHT",			"const float", QW|NQ|CS, NULL, EF_DIMLIGHT},
 		{"EF_FLAG1",			"const float", QW      , NULL, QWEF_FLAG1},
 		{"EF_FLAG2",			"const float", QW      , NULL, QWEF_FLAG2},
-		{"EF_NODRAW",			"const float",    NQ|CS, NULL, NQEF_NODRAW},
+		{"EF_NODRAW",			"const float",    NQ|CS, D("Disables drawing of the model. Does NOT work on QW players."), NQEF_NODRAW},
 		{"EF_ADDITIVE",			"const float", QW|NQ|CS, D("The entity will be drawn with an additive blend. This is NOT supported on players in any quakeworld engine."), NQEF_ADDITIVE},
 		{"EF_BLUE",				"const float", QW|NQ|CS, D("A blue glow"), EF_BLUE},
 		{"EF_RED",				"const float", QW|NQ|CS, D("A red glow"), EF_RED},
@@ -12588,15 +12624,15 @@ void PR_DumpPlatform_f(void)
 		{"MF_TRACER3",			"const float", QW|NQ|CS, D("AKA: purple vore trail"), EF_MF_TRACER3>>24},
 
 
-		{"SL_ORG_TL",			"const float", QW|NQ, D("Used with showpic etc, specifies that the x+y values are relative to the top-left of the screen"), SL_ORG_TL},
-		{"SL_ORG_TR",			"const float", QW|NQ, NULL, SL_ORG_TR},
-		{"SL_ORG_BL",			"const float", QW|NQ, NULL, SL_ORG_BL},
-		{"SL_ORG_BR",			"const float", QW|NQ, NULL, SL_ORG_BR},
-		{"SL_ORG_MM",			"const float", QW|NQ, NULL, SL_ORG_MM},
-		{"SL_ORG_TM",			"const float", QW|NQ, NULL, SL_ORG_TM},
-		{"SL_ORG_BM",			"const float", QW|NQ, NULL, SL_ORG_BM},
-		{"SL_ORG_ML",			"const float", QW|NQ, NULL, SL_ORG_ML},
-		{"SL_ORG_MR",			"const float", QW|NQ, NULL, SL_ORG_MR},
+		{"SL_ORG_TL",			"DEP_CSQC const float", QW|NQ, D("Used with showpic etc, specifies that the x+y values are relative to the top-left of the screen"), SL_ORG_TL},
+		{"SL_ORG_TR",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_TR},
+		{"SL_ORG_BL",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_BL},
+		{"SL_ORG_BR",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_BR},
+		{"SL_ORG_MM",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_MM},
+		{"SL_ORG_TM",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_TM},
+		{"SL_ORG_BM",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_BM},
+		{"SL_ORG_ML",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_ML},
+		{"SL_ORG_MR",			"DEP_CSQC const float", QW|NQ, NULL, SL_ORG_MR},
 
 		{"PFLAGS_NOSHADOW",		"const float", QW|NQ|CS, D("Associated RT lights attached will not cast shadows, making them significantly faster to draw."), PFLAGS_NOSHADOW},
 		{"PFLAGS_CORONA",		"const float", QW|NQ|CS, D("Enables support of coronas on the associated rtlights."), PFLAGS_CORONA},
@@ -12957,7 +12993,7 @@ void PR_DumpPlatform_f(void)
 	if ((targ&ALL) == H2)
 	{
 		if (targ&FTE)
-			VFS_PRINTF(f, "#pragma target FTEH2\n");
+			VFS_PRINTF(f, "#pragma target FTEH2\n#define FTEDEP DEP\n");
 		else
 			VFS_PRINTF(f, "#pragma target H2\n");
 	}
@@ -12965,7 +13001,7 @@ void PR_DumpPlatform_f(void)
 #endif
 	{
 		if (targ&FTE)
-			VFS_PRINTF(f, "#pragma target FTE\n");
+			VFS_PRINTF(f, "#pragma target FTE\n#define FTEDEP DEP\n");
 	}
 	if ((targ&ALL) == CS)
 		VFS_PRINTF(f,	"#ifndef CSQC\n"
@@ -13011,6 +13047,25 @@ void PR_DumpPlatform_f(void)
 							"#define SSQC\n"
 						"#endif\n"
 						);
+
+
+	if (targ&(NQ|QW|H2))
+	{
+		VFS_PRINTF(f,	"#if defined(CSQC) || defined(MENU)\n"
+							"#define DEP_CSQC DEP\n"
+						"#else\n"
+							"#define DEP_CSQC __deprecated(\"Use CSQC for this\")\n"
+						"#endif\n"
+						);
+	}
+	else
+		VFS_PRINTF(f, "#define DEP_CSQC DEP\n");
+	VFS_PRINTF(f,	"#ifndef DEP\n"
+					"	#define DEP __deprecated //predefine this if you want to avoid our deprecation warnings.\n"
+					"#endif\n"
+					"#ifndef FTEDEP\n"
+					"	#define FTEDEP //for symbols deprecated in FTE that may still be useful/required for other engines\n"
+					"#endif\n");
 
 
 	for (i = 0; i < QSG_Extensions_count; i++)
@@ -13458,6 +13513,9 @@ void PR_DumpPlatform_f(void)
 		"};\n");
 	VFS_PRINTF(f, "#endif\n");
 
+	VFS_PRINTF(f, "#undef DEP_CSQC\n");
+	VFS_PRINTF(f, "#undef FTEDEP\n");
+	VFS_PRINTF(f, "#undef DEP\n");
 	VFS_PRINTF(f, "#pragma noref 0\n");
 
 	VFS_CLOSE(f);

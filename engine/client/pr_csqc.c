@@ -3387,17 +3387,18 @@ void QCBUILTIN PF_cs_setcustomskin (pubprogfuncs_t *prinst, struct globalvars_s 
 	const char *skindata = PF_VarString(prinst, 2, pr_globals);
 
 	if (ent->skinobject > 0)
-	{
 		Mod_WipeSkin(ent->skinobject, false);
-		ent->skinobject = 0;
-	}
+	ent->skinobject = 0;
 
 	if (*fname || *skindata)
 	{
 		if (*skindata)
 			ent->skinobject = Mod_ReadSkinFile(fname, skindata);
 		else
-			ent->skinobject = -(int)Mod_RegisterSkinFile(fname);
+			ent->skinobject = Mod_RegisterSkinFile(fname);
+
+		if (*fname)
+			ent->skinobject *= -1;//negative means it doesn't bother refcounting, just leaves it loaded the whole time.
 	}
 }
 void QCBUILTIN PF_cs_loadcustomskin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3410,7 +3411,7 @@ void QCBUILTIN PF_cs_loadcustomskin (pubprogfuncs_t *prinst, struct globalvars_s
 		if (*skindata)
 			G_FLOAT(OFS_RETURN) = Mod_ReadSkinFile(fname, skindata);
 		else
-			G_FLOAT(OFS_RETURN) = -(int)Mod_RegisterSkinFile(fname);
+			G_FLOAT(OFS_RETURN) = Mod_RegisterSkinFile(fname);
 	}
 	else
 		G_FLOAT(OFS_RETURN) = 0;
@@ -3426,9 +3427,16 @@ void QCBUILTIN PF_cs_applycustomskin (pubprogfuncs_t *prinst, struct globalvars_
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	int newskin = G_FLOAT(OFS_PARM1);
 	int oldskin = ent->skinobject;
-	ent->skinobject = newskin;
+	skinfile_t *sk;
+	ent->skinobject = -abs(newskin);
 	if (oldskin > 0)
 		Mod_WipeSkin(oldskin, false);
+	if (ent->skinobject > 0)
+	{	//add a ref, so it doesn't get forgotten so fast.
+		sk = Mod_LookupSkin(ent->skinobject);
+		if (sk)
+			sk->refcount++;
+	}
 }
 
 static void QCBUILTIN PF_ReadByte(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

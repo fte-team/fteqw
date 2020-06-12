@@ -16,6 +16,7 @@ We also have no doppler with WebAudio.
 
 	"build/openal-soft-1.19.1/Alc/filters/filter.c:25: BiquadFilter_setParams: Assertion `gain > 0.00001f' failed." + SIGABRT
 		bug started with 1.19.1. Not fte's bug. either disable reverb or disable openal.
+		(happens when reverb properties are changed too fast)
 
 	AL_OUT_OF_MEMORY
 		shitty openal implementation with too-low limits on number of sources.

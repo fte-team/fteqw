@@ -611,6 +611,7 @@ void R_NetGraph (void);
 #define qglGetAttribLocationARB		glGetAttribLocation
 #define qglGetUniformLocationARB	glGetUniformLocation
 #define qglUniformMatrix4fvARB		glUniformMatrix4fv
+#define qglUniformMatrix3fvARB		glUniformMatrix3fv
 #define qglUniform4fARB			glUniform4f
 #define qglUniform4fvARB		glUniform4fv
 #define qglUniform3fARB			glUniform3f
@@ -707,6 +708,7 @@ extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
 extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
 extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4fvARB;
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3fvARB;
 extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
 extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
 extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;

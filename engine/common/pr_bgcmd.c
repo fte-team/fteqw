@@ -32,7 +32,11 @@ cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
 cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "As part of its nq/qw/h2/csqc support, FTE remaps QC fields to match an internal order. This is a faster way to handle extended fields. However, some QCCs are buggy and don't report all field defs.\n0: do nothing. QCC must be well behaved.\n1: Duplicate engine fields, remap the ones we can to known offsets. This is sufficient for QCCX/FrikQCC mods that use hardcoded or even occasional calculated offsets (fixes ktpro).\n2: Scan the mod for field accessing instructions, and assume those are the fields (and that they don't alias non-fields). This can be used to work around gmqcc's WTFs (fixes xonotic).");
 cvar_t pr_tempstringcount = CVARD("pr_tempstringcount", "", "Obsolete. Set to 16 if you want to recycle+reuse the same 16 tempstring references and break lots of mods.");
 cvar_t pr_tempstringsize = CVARD("pr_tempstringsize", "4096", "Obsolete");
+#ifdef MULTITHREAD
+cvar_t pr_gc_threaded = CVARD("pr_gc_threaded", "1", "Says whether to use a separate thread for tempstring garbage collections. This avoids main-thread stalls but at the expense of more memory usage.");
+#else
 cvar_t pr_gc_threaded = CVARD("pr_gc_threaded", "0", "Says whether to use a separate thread for tempstring garbage collections. This avoids main-thread stalls but at the expense of more memory usage.");
+#endif
 cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
 cvar_t pr_enable_uriget = CVARD("pr_enable_uriget", "1", "Allows gamecode to make direct http requests");
 cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
@@ -2103,8 +2107,8 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *name = PR_GetStringOfs(prinst, OFS_PARM0);
-	int fmode = G_FLOAT(OFS_PARM1);
-	int fsize = G_FLOAT(OFS_PARM2);
+	int fmode = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):-1;
+	int fsize = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
 	const char *fallbackread;
 	int i;
 	size_t insize;
@@ -2119,6 +2123,28 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	{
 		Con_Printf("qcfopen(\"%s\"): too many files open\n", name);
 		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	if (fmode < 0 && (!strncmp(name, "tcp://", 6) || !strncmp(name, "tls://", 6)))
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
+		pf_fopen_files[i].accessmode = FRIK_FILE_STREAM;
+		pf_fopen_files[i].bufferlen = 0;
+		pf_fopen_files[i].data = NULL;
+		pf_fopen_files[i].len = 0;
+		pf_fopen_files[i].ofs = 0;
+		pf_fopen_files[i].prinst = prinst;
+
+		pf_fopen_files[i].file = FS_OpenTCP(name, 0, true);
+		if (pf_fopen_files[i].file)
+			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+		else
+		{
+			G_FLOAT(OFS_RETURN) = -1;
+			memset(&pf_fopen_files[i], 0, sizeof(pf_fopen_files[i]));
+		}
 		return;
 	}
 
@@ -2270,6 +2296,7 @@ void PF_fclose_i (int fnum)
 		pf_fopen_files[fnum].prinst->AddressableFree(pf_fopen_files[fnum].prinst, pf_fopen_files[fnum].data);
 		break;
 
+	case FRIK_FILE_STREAM:
 	case FRIK_FILE_READ_DELAY:
 		VFS_CLOSE(pf_fopen_files[fnum].file);
 		break;
@@ -2342,6 +2369,14 @@ void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;	//this just isn't ours.
 	}
 
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_STREAM)
+	{
+		if (VFS_GETS(pf_fopen_files[fnum].file, pr_string_temp, sizeof(pr_string_temp)))
+			RETURN_TSTRING(pr_string_temp);
+		else
+			G_INT(OFS_RETURN) = 0;	//EOF
+		return;
+	}
 	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READ_DELAY)
 	{	//on first read, convert into a regular file.
 		pf_fopen_files[fnum].accessmode = FRIK_FILE_READ;
@@ -2460,6 +2495,9 @@ static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, const char *msg
 		return 0;	//this just isn't ours.
 	}
 
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_STREAM)
+		return VFS_WRITE(pf_fopen_files[fnum].file, msg, len);
+
 	if (pf_fopen_files[fnum].ofs + len < pf_fopen_files[fnum].ofs)
 	{
 		PF_Warningf(prinst, "PF_fwrite: size overflow\n");
@@ -2504,6 +2542,8 @@ static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *buf, size_
 		return 0;	//this just isn't ours.
 	}
 
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_STREAM)
+		return VFS_READ(pf_fopen_files[fnum].file, buf, len);
 	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READ_DELAY)
 	{	//on first read, convert into a regular file.
 		pf_fopen_files[fnum].accessmode = FRIK_FILE_READ;
@@ -2584,10 +2624,29 @@ void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;	//this just isn't ours.
 	}
 
-	G_INT(OFS_RETURN) = pf_fopen_files[fnum].ofs;
-	if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READ_DELAY)
+	{	//on first read, convert into a regular file.
+		pf_fopen_files[fnum].accessmode = FRIK_FILE_READ;
+		pf_fopen_files[fnum].data = BZ_Malloc(pf_fopen_files[fnum].len+1);
+		pf_fopen_files[fnum].data[pf_fopen_files[fnum].len] = 0;
+		pf_fopen_files[fnum].len = pf_fopen_files[fnum].bufferlen = VFS_READ(pf_fopen_files[fnum].file, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		VFS_CLOSE(pf_fopen_files[fnum].file);
+		pf_fopen_files[fnum].file = NULL;
+	}
+
+	if (pf_fopen_files[fnum].file)
 	{
-		pf_fopen_files[fnum].ofs = G_INT(OFS_PARM1);
+		G_INT(OFS_RETURN) = VFS_TELL(pf_fopen_files[fnum].file);
+		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+			VFS_SEEK(pf_fopen_files[fnum].file, G_INT(OFS_PARM1));
+	}
+	else
+	{
+		G_INT(OFS_RETURN) = pf_fopen_files[fnum].ofs;
+		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+		{
+			pf_fopen_files[fnum].ofs = G_INT(OFS_PARM1);
+		}
 	}
 }
 void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2610,12 +2669,31 @@ void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;	//this just isn't ours.
 	}
 
-	G_INT(OFS_RETURN) = pf_fopen_files[fnum].len;
-	if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READ_DELAY)
+	{	//on first read, convert into a regular file.
+		pf_fopen_files[fnum].accessmode = FRIK_FILE_READ;
+		pf_fopen_files[fnum].data = BZ_Malloc(pf_fopen_files[fnum].len+1);
+		pf_fopen_files[fnum].data[pf_fopen_files[fnum].len] = 0;
+		pf_fopen_files[fnum].len = pf_fopen_files[fnum].bufferlen = VFS_READ(pf_fopen_files[fnum].file, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		VFS_CLOSE(pf_fopen_files[fnum].file);
+		pf_fopen_files[fnum].file = NULL;
+	}
+
+	if (pf_fopen_files[fnum].file)
 	{
-		size_t newlen = G_INT(OFS_PARM1);
-		PF_fresizebuffer_internal(&pf_fopen_files[fnum], newlen);
-		pf_fopen_files[fnum].len = min(pf_fopen_files[fnum].bufferlen, newlen);
+		G_INT(OFS_RETURN) = VFS_GETLEN(pf_fopen_files[fnum].file);
+		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+			PF_Warningf(prinst, "PF_fsize: truncation/extension is not supported for stream file types\n");
+	}
+	else
+	{
+		G_INT(OFS_RETURN) = pf_fopen_files[fnum].len;
+		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+		{
+			size_t newlen = G_INT(OFS_PARM1);
+			PF_fresizebuffer_internal(&pf_fopen_files[fnum], newlen);
+			pf_fopen_files[fnum].len = min(pf_fopen_files[fnum].bufferlen, newlen);
+		}
 	}
 }
 
@@ -2630,6 +2708,7 @@ void PF_fcloseall (pubprogfuncs_t *prinst)
 
 		switch(pf_fopen_files[i].accessmode)
 		{
+		case FRIK_FILE_STREAM:
 		case FRIK_FILE_APPEND:
 		case FRIK_FILE_WRITE:
 		case FRIK_FILE_MMAP_RW:
@@ -3924,7 +4003,6 @@ void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &buf, len);
 	if (buf)
 	{
-		len = 0;
 		for (i = 0; i < prinst->callargc; i++)
 		{
 			memcpy(buf, s[i], l[i]);

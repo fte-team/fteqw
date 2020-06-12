@@ -827,9 +827,7 @@ void SV_Map_f (void)
 
 		Cvar_ApplyLatches(CVAR_LATCH);
 
-		gametype = Cvar_Get("mapname", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
-		gametype->flags |= CVAR_SERVERINFO;
-		Cvar_ForceSet(gametype, level);
+		host_mapname.flags |= CVAR_SERVERINFO;
 
 		gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 //		gametype->callback = gtcallback;
@@ -844,6 +842,8 @@ void SV_Map_f (void)
 		}
 	}
 #endif
+
+	Cvar_ForceSet(&host_mapname, level);
 
 #ifdef HAVE_CLIENT
 	Menu_PopAll();
@@ -2538,6 +2538,7 @@ void SV_User_f (void)
 	int clnum=-1;
 	unsigned int u;
 	char buf[256];
+	extern cvar_t sv_userinfo_bytelimit, sv_userinfo_keylimit;
 	static const char *pext1names[32] = {	"setview",		"scale",	"lightstylecol",	"trans",		"view2",		"builletens",	"accuratetimings",	"sounddbl",
 											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords", 
 											"OLD vweap",	"q2bsp",	"q3bsp",			"colormod",		"splitscreen",	"hexen2",		"spawnstatic2",		"customtempeffects",
@@ -2558,6 +2559,7 @@ void SV_User_f (void)
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
 		InfoBuf_Print (&cl->userinfo, "  ");
+		Con_Printf("[%u/%i, %u/%i]\n", (unsigned)cl->userinfo.totalsize, sv_userinfo_bytelimit.ival, (unsigned)cl->userinfo.numkeys, sv_userinfo_keylimit.ival);
 		switch(cl->protocol)
 		{
 		case SCP_BAD:

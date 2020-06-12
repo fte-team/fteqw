@@ -2280,7 +2280,7 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmw
 				cl_strisvertv[cl_numstrisvert][2] = w->heights[x + y*9];
 				cl_strisvertt[cl_numstrisvert][0] = cl_strisvertv[cl_numstrisvert][0]/64;
 				cl_strisvertt[cl_numstrisvert][1] = cl_strisvertv[cl_numstrisvert][1]/64;
-				Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+				Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1);
 				cl_numstrisvert++;
 			}
 		}
@@ -2314,22 +2314,22 @@ void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmw
 
 		{
 			VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], mins[1], w->maxheight);
-			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1);
 			Vector2Set(cl_strisvertt[cl_numstrisvert], mins[0]/64, mins[1]/64);
 			cl_numstrisvert++;
 
 			VectorSet(cl_strisvertv[cl_numstrisvert], mins[0], maxs[1], w->maxheight);
-			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1);
 			Vector2Set(cl_strisvertt[cl_numstrisvert], mins[0]/64, maxs[1]/64);
 			cl_numstrisvert++;
 
 			VectorSet(cl_strisvertv[cl_numstrisvert], maxs[0], maxs[1], w->maxheight);
-			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1);
 			Vector2Set(cl_strisvertt[cl_numstrisvert], maxs[0]/64, maxs[1]/64);
 			cl_numstrisvert++;
 
 			VectorSet(cl_strisvertv[cl_numstrisvert], maxs[0], mins[1], w->maxheight);
-			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1)
+			Vector4Set(cl_strisvertc[cl_numstrisvert], 1,1,1,1);
 			Vector2Set(cl_strisvertt[cl_numstrisvert], maxs[0]/64, mins[1]/64);
 			cl_numstrisvert++;
 		}
@@ -7813,7 +7813,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				scale[1] = atof(token);
 			}
-			else rot = 0;
+			else rot = 0, scale[0] = 1, scale[1] = 1;
 
 			//hexen2 has some extra junk that is useless - some 'light' value, but its never used and should normally be -1.
 			//quake2/3 on the other hand has 3 different args. Contents SurfaceFlags SurfaceValue.

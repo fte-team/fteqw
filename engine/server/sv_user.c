@@ -1071,16 +1071,18 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			}
 			else if (client->prespawn_idx == 2)
 			{
+				static const char *prioritykeys[] = {"*", "fpd", "teamplay", "deathmatch", "maxfps", NULL};	//make sure these are in there.
+				static const char *ignorekeys[] = {"mapname"/*here for q3, useless for qw*/, NULL};
 				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{	//nq does not normally get serverinfo sent to it.
-					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
+					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), prioritykeys, ignorekeys, NULL, &client->infosync, &svs.info);
 					Info_SetValueForStarKey(buffer, "*z_ext", va("%i", client->zquake_extensions), sizeof(buffer)); //should already be in there, so this should only ever make it shorter.
 					ClientReliableWrite_Begin(client, svc_stufftext, 20 + i);
 					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", buffer) );
 				}
 				else if (sv.csqcdebug)
 				{
-					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, NULL, NULL, &client->infosync, &svs.info);
+					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), prioritykeys, ignorekeys, NULL, &client->infosync, &svs.info);
 					ClientReliableWrite_Begin(client, svc_stufftext, 22 + i);
 					ClientReliableWrite_String (client, va("//fullserverinfo \"%s\"\n", buffer) );
 				}
@@ -5130,7 +5132,7 @@ void Cmd_Fly_f (void)
 	}
 }
 
-#ifdef SUBSERVERS
+#if defined(_DEBUG) && defined(SUBSERVERS)
 void Cmd_SSV_Transfer_f(void)
 {
 	char *dest = Cmd_Argv(1);
@@ -6247,7 +6249,7 @@ ucmd_t ucmds[] =
 	{"fly",			Cmd_Fly_f},
 	{"notarget",	Cmd_Notarget_f},
 	{"setpos",		Cmd_SetPos_f},
-#ifdef SUBSERVERS
+#if defined(_DEBUG) && defined(SUBSERVERS)
 	{"ssvtransfer", Cmd_SSV_Transfer_f},//transfer the player to a different map/server
 	{"ssvsay",		Cmd_SSV_AllSay_f},	//says realm-wide
 	{"ssvjoin",		Cmd_SSV_Join_f},	//transfer the player to a different map/server

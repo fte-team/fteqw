@@ -520,7 +520,12 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 	d3dpp.Windowed = !info->fullscreen;
 
 	d3dpp.EnableAutoDepthStencil = true;
-	d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;//D3DFMT_D16;
+	if (info->depthbits==16)
+		d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
+	else if (info->depthbits==32)
+		d3dpp.AutoDepthStencilFormat = D3DFMT_D32;
+	else
+		d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
 	d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
 	if (info->fullscreen)
 	{

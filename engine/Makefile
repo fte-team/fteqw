@@ -10,12 +10,12 @@ COMPILE_SYS:=$(shell uname -o 2>&1)
 
 #canonicalize the source path. except emscripten warns about that like crazy. *sigh*
 ifeq ($(FTE_TARGET),web)
-	BASE_DIR:=.
+    BASE_DIR:=.
 else ifeq ($(FTE_TARGET),droid)
 	#android tools suck, but plugins need to find the engine directory.
-	BASE_DIR:=../engine
+    BASE_DIR:=../engine
 else
-	BASE_DIR:=$(realpath .)
+    BASE_DIR:=$(realpath .)
 endif
 
 ifeq ($(SVNREVISION),)
@@ -75,12 +75,12 @@ DEBUG_DIR=$(BASE_DIR)/debug
 PROFILE_DIR=$(BASE_DIR)/profile
 NATIVE_ABSBASE_DIR:=$(realpath $(BASE_DIR))
 ifeq ($(COMPILE_SYS),Cygwin)
-	OUT_DIR?=.
-	NATIVE_OUT_DIR:=$(shell cygpath -m $(OUT_DIR))
-	NATIVE_BASE_DIR:=$(shell cygpath -m $(BASE_DIR))
-	NATIVE_RELEASE_DIR:=$(shell cygpath -m $(RELEASE_DIR))
-	NATIVE_DEBUG_DIR:=$(shell cygpath -m $(DEBUG_DIR))
-	NATIVE_ABSBASE_DIR:=$(shell cygpath -m $(NATIVE_ABSBASE_DIR))
+    OUT_DIR?=.
+    NATIVE_OUT_DIR:=$(shell cygpath -m $(OUT_DIR))
+    NATIVE_BASE_DIR:=$(shell cygpath -m $(BASE_DIR))
+    NATIVE_RELEASE_DIR:=$(shell cygpath -m $(RELEASE_DIR))
+    NATIVE_DEBUG_DIR:=$(shell cygpath -m $(DEBUG_DIR))
+    NATIVE_ABSBASE_DIR:=$(shell cygpath -m $(NATIVE_ABSBASE_DIR))
 endif
 NATIVE_OUT_DIR?=$(OUT_DIR)
 NATIVE_BASE_DIR?=$(BASE_DIR)
@@ -91,56 +91,56 @@ EXE_NAME=fteqw
 
 #include the appropriate games.
 ifneq (,$(BRANDING))
-	BRANDFLAGS+=-DBRANDING_INC=../game_$(BRANDING).h
-	-include game_$(BRANDING).mak
+    BRANDFLAGS+=-DBRANDING_INC=../game_$(BRANDING).h
+    -include game_$(BRANDING).mak
 endif
 FTE_CONFIG?=fteqw
 ifneq ($(FTE_TARGET),vc)
 ifeq (,$(FTE_CONFIG_EXTRA))
-	export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
+    export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
 endif
 endif
 BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
 EXE_NAME=$(FTE_CONFIG)
 ifeq (,$(findstring DNO_SPEEX,$(FTE_CONFIG_EXTRA)))
-	USE_SPEEX?=1
+    USE_SPEEX?=1
 endif
 ifeq (,$(findstring DNO_OPUS,$(FTE_CONFIG_EXTRA)))
-	USE_OPUS=1
+    USE_OPUS=1
 endif
 ifeq (,$(findstring DNO_BOTLIB,$(FTE_CONFIG_EXTRA)))
-	USE_BOTLIB=1
+    USE_BOTLIB=1
 endif
 ifeq (,$(findstring DNO_VORBISFILE,$(FTE_CONFIG_EXTRA)))
-	USE_VORBISFILE=1
+    USE_VORBISFILE=1
 endif
 ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
-	LINK_FREETYPE=1
-	LINK_ZLIB=1
-	LINK_PNG=1
+    LINK_FREETYPE=1
+    LINK_ZLIB=1
+    LINK_PNG=1
 endif
 ifneq (,$(findstring DLINK_JPEG,$(FTE_CONFIG_EXTRA)))
-	LINK_JPEG=1
+    LINK_JPEG=1
 endif
 ifneq (,$(findstring DLINK_PNG,$(FTE_CONFIG_EXTRA)))
-	LINK_ZLIB=1
-	LINK_PNG=1
+    LINK_ZLIB=1
+    LINK_PNG=1
 endif
 ifneq (,$(findstring -Os,$(FTE_CONFIG_EXTRA)))
-	CPUOPTIMIZATIONS+=-Os
-	BRANDFLAGS:=$(filter-out -O%,$(BRANDFLAGS))
+    CPUOPTIMIZATIONS+=-Os
+    BRANDFLAGS:=$(filter-out -O%,$(BRANDFLAGS))
 endif
 ifneq (,$(findstring DLINK_INTERNAL_BULLET,$(FTE_CONFIG_EXTRA)))
-	INTERNAL_BULLET=1	#bullet plugin will be built into the exe itself
+    INTERNAL_BULLET=1	#bullet plugin will be built into the exe itself
 endif
 
 ifeq ($(BITS),64)
-	CC:=$(CC) -m64
-	CXX:=$(CXX) -m64
+    CC:=$(CC) -m64
+    CXX:=$(CXX) -m64
 endif
 ifeq ($(BITS),32)
-	CC:=$(CC) -m32
-	CXX:=$(CXX) -m32
+    CC:=$(CC) -m32
+    CXX:=$(CXX) -m32
 endif
 
 #correct the gcc build when cross compiling
@@ -196,7 +196,7 @@ ifneq (,$(findstring win64,$(FTE_TARGET)))
 endif
 
 ifeq ($(FTE_TARGET),win32_sdl)
-	FTE_TARGET=win32_SDL
+    FTE_TARGET=win32_SDL
 endif
 
 USER_TARGET:=$(FTE_TARGET)
@@ -418,6 +418,14 @@ ifeq ($(FTE_TARGET),linux32)
 	STRIP=strip
 	BITS=32
 endif
+ifeq ($(FTE_TARGET),linuxx86)
+	FTE_TARGET=linux
+	CC=i686-linux-gnu-gcc
+	PKGCONFIG=i686-linux-gnu-pkg-config
+	CXX=i686-linux-gnu-g++
+	STRIP=i686-linux-gnu-strip
+	BITS=32
+endif
 ifeq ($(FTE_TARGET),linuxarmhf)
 	#debian's armhf is armv7, but armv6 works on RPI too.
 	FTE_TARGET=linux
@@ -628,15 +636,16 @@ else
 	endif
 	#foo:=$(shell echo ARCH is $(ARCH) 1>&2 )
 endif
-ARCHLIBS=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
+ARCHLIBS:=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
 
 #incase our compiler doesn't support it (mingw)
 ifeq ($(shell LANG=c $(CC) -rdynamic 2>&1 | grep unrecognized),)
 	DEBUG_CFLAGS+= -rdynamic
 endif
 
-PKGCONFIG=$(ARCH)-pkg-config
+PKGCONFIG?=$(ARCH)-pkg-config
 ifeq ($(shell which $(PKGCONFIG) 2> /dev/null),)
+	FFS:=$(shell echo $(PKGCONFIG) not found 1>&2 )
 	PKGCONFIG=/bin/true #don't end up using eg /usr/include when cross-compiling. makelibs is a valid workaround.
 endif
 #try to statically link
@@ -922,59 +931,75 @@ SERVERLIBFLAGS=$(COMMONLIBFLAGS)
 CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS)
 SERVERLDDEPS=$(COMMONLDDEPS)
 ifeq (1,$(USE_OPUS))
-	LIBOPUS_STATIC=-DOPUS_STATIC
-	LIBOPUS_LDFLAGS=-lopus
-	ALL_CFLAGS+=-I/usr/include/opus
+    LIBOPUS_STATIC=-DOPUS_STATIC
+    LIBOPUS_LDFLAGS=-lopus
+    ALL_CFLAGS+=-I/usr/include/opus
 endif
 ifeq (1,$(USE_SPEEX))
-	LIBSPEEX_STATIC=-DSPEEX_STATIC
-	LIBSPEEX_LDFLAGS=-lspeex -lspeexdsp
+    LIBSPEEX_STATIC=-DSPEEX_STATIC
+    LIBSPEEX_LDFLAGS=-lspeex -lspeexdsp
 endif
 
 ifeq (1,$(USE_VORBISFILE))
-	OGGVORBISFILE_STATIC=-DLIBVORBISFILE_STATIC
+    OGGVORBISFILE_STATIC=-DLIBVORBISFILE_STATIC
 else
-	OGGVORBISLDFLAGS=
-	OGGVORBISFILE_STATIC=
+    OGGVORBISLDFLAGS=
+    OGGVORBISFILE_STATIC=
 endif
+
+#freetype is annoying.
 ifeq (1,$(LINK_FREETYPE))
-	CLIENTLIBFLAGS+=-DFREETYPE_STATIC
-	CLIENTLDDEPS+=-lfreetype
+    CLIENTLIBFLAGS+=-DFREETYPE_STATIC
+    CLIENTLDDEPS+=$(FREETYPE_LDFLAGS)
 endif
-FREETYPE_CFLAGS:=$(shell $(PKGCONFIG) freetype --cflags --silence-errors)
+ifneq ("$(wildcard $(ARCHLIBS))","")
+    #makelibs has been used. we know what to use here.
+    FREETYPE_CFLAGS:=
+    FREETYPE_LDFLAGS:=-lfreetype
+else
+    #we're using system libraries... lets hope pkg-config knows it and can handle any cross compiles.
+    FREETYPE_CFLAGS:=$(shell $(PKGCONFIG) freetype2 --cflags --silence-errors)
+    FREETYPE_LDFLAGS:=$(shell $(PKGCONFIG) freetype2 --libs --silence-errors)
+    ifeq (,$(FREETYPE_CFLAGS))
+        #system freetype headers not installed. don't try to include them!
+        FREETYPE_CFLAGS:=-DNO_FREETYPE
+        FREETYPE_LDFLAGS:=
+    endif
+endif
 ALL_CFLAGS+=$(FREETYPE_CFLAGS)
+
 ifeq (1,$(LINK_PNG))
-	CLIENTLIBFLAGS+=-DLIBPNG_STATIC
-	CLIENTLDDEPS+=-lpng
+    CLIENTLIBFLAGS+=-DLIBPNG_STATIC
+    CLIENTLDDEPS+=-lpng
 endif
 ifeq (1,$(LINK_JPEG))
-	CLIENTLIBFLAGS+=-DLIBJPEG_STATIC
-	CLIENTLDDEPS+=-ljpeg
+    CLIENTLIBFLAGS+=-DLIBJPEG_STATIC
+    CLIENTLDDEPS+=-ljpeg
 endif
 ifeq (1,$(LINK_ZLIB))
-	CLIENTLIBFLAGS+=-DZLIB_STATIC
-	CLIENTLDDEPS+=-lz
+    CLIENTLIBFLAGS+=-DZLIB_STATIC
+    CLIENTLDDEPS+=-lz
 endif
 ifeq (1,$(strip $(INTERNAL_BULLET)))
-	COMMON_OBJS+=com_phys_bullet.o
-	ALL_CFLAGS+=-I/usr/include/bullet -I$(ARCHLIBS)/bullet3-$(BULLETVER)/src
-	COMMONLDDEPS+=-lBulletDynamics -lBulletCollision -lLinearMath
-	LDCC=$(CXX)
-	MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
+    COMMON_OBJS+=com_phys_bullet.o
+    ALL_CFLAGS+=-I/usr/include/bullet -I$(ARCHLIBS)/bullet3-$(BULLETVER)/src
+    COMMONLDDEPS+=-lBulletDynamics -lBulletCollision -lLinearMath
+    LDCC=$(CXX)
+    MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
 endif
 
 #the defaults for sdl come first
 #CC_MACHINE:=$(shell $(CC) -dumpmachine)
 ifeq ($(FTE_TARGET),SDL2)
-	SDLCONFIG?=sdl2-config
-	FTE_FULLTARGET?=sdl2$(BITS)
+    SDLCONFIG?=sdl2-config
+    FTE_FULLTARGET?=sdl2$(BITS)
 endif
 ifeq ($(FTE_TARGET),SDL1)
-	SDLCONFIG?=sdl-config
-	FTE_FULLTARGET?=sdl1$(BITS)
+    SDLCONFIG?=sdl-config
+    FTE_FULLTARGET?=sdl1$(BITS)
 endif
 ifeq ($(FTE_TARGET),SDL)
-	FTE_FULLTARGET?=sdl$(BITS)
+    FTE_FULLTARGET?=sdl$(BITS)
 endif
 SDLCONFIG?=sdl-config
 FTE_FULLTARGET?=sdl$(FTE_TARGET)$(BITS)
@@ -2320,9 +2345,9 @@ $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX): $(HTTP_OBJECTS)
 	$(CC) -o $@ -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSERVER -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG $(HTTP_OBJECTS)
 httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
-IQM_OBJECTS=../iqm/iqm.cpp
+IQM_OBJECTS=../iqm/iqm.cpp ../imgtool.c client/image.c ../plugins/models/gltf.c
 $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
-	$(CC) -o $@ $(IQM_OBJECTS) -static -lstdc++ -lm -Os
+	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) -static -lstdc++ -lm -Os
 iqm-rel: $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX)
 iqm: iqm-rel
 iqmtool: iqm-rel

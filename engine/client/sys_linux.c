@@ -1267,7 +1267,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #endif
 }
 
-#if !defined(GLQUAKE) && !defined(VKQUAKE)
+#if defined(NO_X11)
 #define SYS_CLIPBOARD_SIZE		256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
 

@@ -749,6 +749,7 @@ typedef enum
 	VF_SKYROOM_CAMERA	= 222,
 	VF_PIXELPSCALE		= 223,	//[dpi_x, dpi_y, dpi_y/dpi_x]
 	VF_PROJECTIONOFFSET	= 224,	//allows for off-axis projections.
+	//WARNING: update fteqcc when new entries are added.
 
 
 	VF_DP_CLEARSCREEN		= 201, // weird behaviour that disables a whole load of things.
@@ -789,6 +790,7 @@ typedef enum
 #define FRIK_FILE_MMAP_RW	6 /*fgets returns a pointer. file is written upon close. memory is not guarenteed to be released.*/
 
 #define FRIK_FILE_READ_DELAY (7) /*internal special mode where the file is not read until the first read. this avoids extra slowness with xonotic (where it uses fopen to see if (large) binary file exists, resulting in large binary files getting decompressed repeatedly then discarded without reading)*/
+#define FRIK_FILE_STREAM	(8) /*access goes via the vfs, we don't need to track the read/write info here*/
 
 #define MASK_DELTA 1
 #define MASK_STDVIEWMODEL 2

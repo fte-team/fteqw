@@ -3520,6 +3520,13 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 				qglUniformMatrix4fvARB(ph, 1, false, inv);
 			}
 			break;
+		case SP_M_INVMODELVIEW:
+			{
+				float inv[9];
+				Matrix3x4_InvertTo3x3(shaderstate.modelviewmatrix, inv);
+				qglUniformMatrix3fvARB(ph, 1, false, inv);
+			}
+			break;
 		case SP_M_MODEL:
 			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.modelmatrix);
 			break;
@@ -3820,12 +3827,21 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 		case SP_E_TIME:
 			qglUniform1fARB(ph, shaderstate.curtime);
 			break;
-		case SP_CONSTI:
+		case SP_CONST1I:
 		case SP_TEXTURE:
-			qglUniform1iARB(ph, p->ival);
+			qglUniform1iARB(ph, p->ival[0]);
 			break;
-		case SP_CONSTF:
-			qglUniform1fARB(ph, p->fval);
+		case SP_CONST1F:
+			qglUniform1fARB(ph, p->fval[0]);
+			break;
+		case SP_CONST2F:
+			qglUniform3fARB(ph, p->fval[0], p->fval[1], 0);
+			break;
+		case SP_CONST3F:
+			qglUniform3fARB(ph, p->fval[0], p->fval[1], p->fval[2]);
+			break;
+		case SP_CONST4F:
+			qglUniform4fARB(ph, p->fval[0], p->fval[1], p->fval[2], p->fval[3]);
 			break;
 		case SP_CVARI:
 			qglUniform1iARB(ph, ((cvar_t*)p->pval)->ival);
@@ -3834,17 +3850,10 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 			qglUniform1fARB(ph, ((cvar_t*)p->pval)->value);
 			break;
 		case SP_CVAR3F:
-			{
-				cvar_t *var = (cvar_t*)p->pval;
-				char *vs = var->string;
-				vs = COM_Parse(vs);
-				param4[0] = atof(com_token);
-				vs = COM_Parse(vs);
-				param4[1] = atof(com_token);
-				vs = COM_Parse(vs);
-				param4[2] = atof(com_token);
-				qglUniform3fvARB(ph, 1, param4);
-			}
+			qglUniform3fvARB(ph, 1, ((cvar_t*)p->pval)->vec4);
+			break;
+		case SP_CVAR4F:
+			qglUniform3fvARB(ph, 1, ((cvar_t*)p->pval)->vec4);
 			break;
 
 		default:
@@ -3912,7 +3921,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	BE_SendPassBlendDepthMask(pass->shaderbits);
 
 #ifndef GLSLONLY
-	if (!p->nofixedcompat)
+	if (p->calcgens)
 	{
 		GenerateColourMods(pass);
 		for (i = 0; i < pass->numMergedPasses; i++)
@@ -3920,11 +3929,6 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			Shader_BindTextureForPass(i, pass+i);
 			BE_GeneratePassTC(pass+i, i);
 		}
-		for (; i < shaderstate.lastpasstmus; i++)
-		{
-			GL_LazyBind(i, 0, r_nulltex);
-		}
-		shaderstate.lastpasstmus = pass->numMergedPasses;
 	}
 	else
 #endif
@@ -3933,21 +3937,22 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		{
 			Shader_BindTextureForPass(i, pass+i);
 		}
-#if MAXRLIGHTMAPS > 1
-		if (perm & PERMUTATION_LIGHTSTYLES)
-		{
-			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[1]>=0?lightmap[shaderstate.curbatch->lightmap[1]]->lightmap_texture:r_nulltex);
-			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[2]>=0?lightmap[shaderstate.curbatch->lightmap[2]]->lightmap_texture:r_nulltex);
-			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[3]>=0?lightmap[shaderstate.curbatch->lightmap[3]]->lightmap_texture:r_nulltex);
-			GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[1]>=0&&lightmap[shaderstate.curbatch->lightmap[1]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[1]+1]->lightmap_texture:missing_texture_normal);
-			GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[2]>=0&&lightmap[shaderstate.curbatch->lightmap[2]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[2]+1]->lightmap_texture:missing_texture_normal);
-			GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[3]>=0&&lightmap[shaderstate.curbatch->lightmap[3]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[3]+1]->lightmap_texture:missing_texture_normal);
-		}
-#endif
-		while (shaderstate.lastpasstmus > i)
-			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
-		shaderstate.lastpasstmus = i;	//in case it was already lower
 	}
+#if MAXRLIGHTMAPS > 1
+	if (perm & PERMUTATION_LIGHTSTYLES)
+	{
+		GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[1]>=0?lightmap[shaderstate.curbatch->lightmap[1]]->lightmap_texture:r_nulltex);
+		GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[2]>=0?lightmap[shaderstate.curbatch->lightmap[2]]->lightmap_texture:r_nulltex);
+		GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[3]>=0?lightmap[shaderstate.curbatch->lightmap[3]]->lightmap_texture:r_nulltex);
+		GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[1]>=0&&lightmap[shaderstate.curbatch->lightmap[1]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[1]+1]->lightmap_texture:missing_texture_normal);
+		GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[2]>=0&&lightmap[shaderstate.curbatch->lightmap[2]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[2]+1]->lightmap_texture:missing_texture_normal);
+		GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[3]>=0&&lightmap[shaderstate.curbatch->lightmap[3]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[3]+1]->lightmap_texture:missing_texture_normal);
+	}
+#endif
+	while (shaderstate.lastpasstmus > i)
+		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+	shaderstate.lastpasstmus = i;
+
 	BE_EnableShaderAttributes(permu->attrmask, shaderstate.sourcevbo->vao);
 	BE_SubmitMeshChain(permu->h.glsl.usetesselation);
 }

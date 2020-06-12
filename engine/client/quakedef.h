@@ -208,11 +208,16 @@ extern "C" {
 #endif
 #endif
 
-#ifndef max
-#define max(a,b) ((a) > (b) ? (a) : (b))
-#define min(a,b) ((a) < (b) ? (a) : (b))
+#ifdef __cplusplus
+	#define q_max(a,b) ((a) > (b) ? (a) : (b))
+	#define q_min(a,b) ((a) < (b) ? (a) : (b))
+#else
+	#ifndef max
+		#define max(a,b) ((a) > (b) ? (a) : (b))
+		#define min(a,b) ((a) < (b) ? (a) : (b))
+	#endif
+	#define max3(a,b,c) max(max(a,b),c)
 #endif
-#define max3(a,b,c) max(max(a,b),c)
 
 //msvcrt lacks any and all c99 support.
 #if defined(_WIN32)
@@ -328,6 +333,7 @@ extern	cvar_t		ezcompat_markup;
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;
 extern	cvar_t		developer;
+extern	cvar_t		host_mapname;
 
 extern	cvar_t	password;
 

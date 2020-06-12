@@ -1851,7 +1851,7 @@ menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerinfo_t;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 static const char *maplist_q1[] =
 {
 	"start",
@@ -1966,7 +1966,6 @@ static const char *maplist_q2[] =
 	"city3",
 	"boss1",
 	"boss2",
-	NULL
 };
 static const char *mapoptions_q2[] =
 {
@@ -2037,7 +2036,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 		break;
 	}
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if ((unsigned int)info->mapcombo->selectedoption < countof(maplist_q1)-1)
 		Cbuf_AddText(va("map %s\n", maplist_q1[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
 #endif
@@ -2050,7 +2049,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 
 void M_Menu_Singleplayer_Cheats_Quake (void)
 {
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	static const char *skilloptions[] =
 	{
 		"Easy",
@@ -2063,7 +2062,6 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	int currentskill;
 	int currentmap;
 	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
-	extern cvar_t host_mapname;
 	#endif
 	singleplayerinfo_t *info;
 	int cursorpositionY;
@@ -2073,7 +2071,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 
 	cursorpositionY = (y + 24);
 
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	if ( !*skill.string )
 		currentskill = 4; // no skill selected
 	else
@@ -2088,7 +2086,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	MC_AddRedText(menu, 16, 170, y, 			"     Quake Singleplayer Cheats", false); y+=8;
 	MC_AddWhiteText(menu, 16, 170, y,		"     ^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
 	y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
 	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_q1, currentmap);	y+=8;
 	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
@@ -2100,19 +2098,19 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	MC_AddConsoleCommand(menu, 16, 170, y,	"     Toggle Flymode", "fly\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"      Toggle Noclip", "noclip\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"        Quad Damage", "impulse 255\n"); y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
 	#endif
 	MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 	MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 	MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, 170, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"No Enemy Targetting", "notarget\n"); y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddConsoleCommand(menu, 16, 170, y,   "Restart Map", "restart\n"); y+=8;
 	#else
 	MC_AddConsoleCommand(menu, 16, 170, y,   "Suicide", "kill\n"); y+=8;
@@ -2175,11 +2173,10 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 
 	singleplayerq2info_t *info;
 	int cursorpositionY;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	int currentskill;
 	int currentmap;
 	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
-	extern cvar_t host_mapname;
 	#endif
 	int y;
 	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
@@ -2187,14 +2184,14 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 
 	cursorpositionY = (y + 24);
 
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	if ( !*skill.string )
 		currentskill = 3; // no skill selected
 	else
 		currentskill = skill.value;
 
 	for (currentmap = countof(maplist_q2); currentmap --> 0; )
-		if (!strcmp(host_mapname.string, maplist_q2[currentmap]))
+		if (!Q_strcasecmp(host_mapname.string, maplist_q2[currentmap]))
 			break;
 	/*anything that doesn't match will end up with 0*/
 	#endif
@@ -2202,20 +2199,20 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	MC_AddRedText(menu, 16, 170, y, 		"Quake2 Singleplayer Cheats", false); y+=8;
 	MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false); y+=8;
 	y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
 	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_q2, currentmap);	y+=8;
 	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Godmode", "god\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Noclip", "noclip\n"); y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,850,25);	y+=8;
 	#endif
 	MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 	MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 	MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Unlimited Ammo", "dmflags 8192\n"); y+=8;
@@ -2238,7 +2235,7 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Commander's Head", "give commander's head\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Security Pass", "give security pass\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Airstrike Marker", "give airstrike marker\n"); y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddConsoleCommand(menu, 16, 170, y,   "Restart Map", va("restart\n")); y+=8;
 	#endif
 
@@ -2255,6 +2252,90 @@ typedef struct {
 menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerh2info_t;
+
+#ifdef HAVE_SERVER
+static const char *maplist_h2[] =
+{
+	"demo1",
+	"demo2",
+	"demo3",
+	"village1",
+	"village3",
+	"village2",
+	"village4",
+	"village5",
+	"rider1a",
+	"meso1",
+	"meso2",
+	"meso3",
+	"meso4",
+	"meso5",
+	"meso6",
+	"meso8",
+	"meso9",
+	"egypt1",
+	"egypt2",
+	"egypt3",
+	"egypt4",
+	"egypt5",
+	"egypt6",
+	"egypt7",
+	"rider2c",
+	"romeric1",
+	"romeric2",
+	"romeric3",
+	"romeric4",
+	"romeric5",
+	"romeric6",
+	"romeric7",
+	"castle4",
+	"castle5",
+	"cath",
+	"tower",
+	"eidolon",
+};
+static const char *mapoptions_h2[] =
+{
+	"demo1 (Blackmarsh: Hub 1 Blackmarsh)",
+	"demo2 (Barbican: Hub 1 Blackmarsh)",
+	"demo3 (The Mill: Hub 1 Blackmarsh)",
+	"village1 (King's Court: Hub 1 Blackmarsh)",
+	"village3 (Stables: Hub 1 Blackmarsh)",
+	"village2 (Inner Courtyard: Hub 1 Blackmarsh)",
+	"village4 (Palance Entrance: Hub 1 Blackmarsh)",
+	"village5 (The Forgotten Chapel: Hub 1 Blackmarsh)",
+	"rider1a (Famine's Domain: Hub 1 Blackmarsh)",
+	"meso1 (Palance of Columns: Hub 2 Mazaera)",
+	"meso2 (Plaza of the Sun: Hub 2 Mazaera)",
+	"meso3 (Square of the Stream: Hub 2 Mazaera)",
+	"meso4 (Tomb of the High Priest: Hub 2 Mazaera)",
+	"meso5 (Obelisk of the Moon: Hub 2 Mazaera)",
+	"meso6 (Court of 1000 Warriors: Hub 2 Mazaera)",
+	"meso8 (Bridge of Stars: Hub 2 Mazaera)",
+	"meso9 (Well of Souls: Hub 2 Mazaera)",
+	"egypt1 (Temple of Horus: Hub 3 Thysis)",
+	"egypt2 (Ancient Tempor of Nefertum: Hub 3 Thysis)",
+	"egypt3 (Tempor of Nefertum: Hub 3 Thysis)",
+	"egypt4 (Palace of the Pharaoh: Hub 3 Thysis",
+	"egypt5 (Pyramid of Anubus: Hub 3 Thysis)",
+	"egypt6 (Temple of Light: Hub 3 Thysis)",
+	"egypt7 (Shrine of Naos: Hub 3 Thysis)",
+	"rider2c (Pestilence's Lair: Hub 3 Thysis)",
+	"romeric1 (The Hall of Heroes: Hub 4 Septimus)",
+	"romeric2 (Gardens of Athena: Hub 4 Septimus)",
+	"romeric3 (Forum of Zeus: Hub 4 Septimus)",
+	"romeric4 (Baths of Demetrius: Hub 4 Septimus)",
+	"romeric5 (Temple of Mars: Hub 4 Septimus)",
+	"romeric6 (Coliseum of War: Hub 4 Septimus)",
+	"romeric7 (Reflecting Pool: Hub 4 Septimus)",
+	"castle4 (The Underhalls: Hub 5 Return to Blackmarsh)",
+	"castle5 (Eidolon's Ordeal: Hub 5 Return to Blackmarsh)",
+	"cath (Cathedral: Hub 5 Return to Blackmarsh)",
+	"tower (Tower of the Dark Mage: Hub 5 Return to Blackmarsh)",
+	"eidolon (Eidolon's Lair: Hub 5 Return to Blackmarsh)",
+	NULL
+};
+#endif
 
 qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int key)
 {
@@ -2279,120 +2360,8 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 		break;
 	}
 
-	switch(info->mapcombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("map demo1\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("map demo2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("map demo3\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("map village1\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("map village2\n", RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText("map village3\n", RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText("map village4\n", RESTRICT_LOCAL);
-		break;
-	case 7:
-		Cbuf_AddText("map village5\n", RESTRICT_LOCAL);
-		break;
-	case 8:
-		Cbuf_AddText("map rider1a\n", RESTRICT_LOCAL);
-		break;
-	case 9:
-		Cbuf_AddText("map meso1\n", RESTRICT_LOCAL);
-		break;
-	case 10:
-		Cbuf_AddText("map meso2\n", RESTRICT_LOCAL);
-		break;
-	case 11:
-		Cbuf_AddText("map meso3\n", RESTRICT_LOCAL);
-		break;
-	case 12:
-		Cbuf_AddText("map meso4\n", RESTRICT_LOCAL);
-		break;
-	case 13:
-		Cbuf_AddText("map meso5\n", RESTRICT_LOCAL);
-		break;
-	case 14:
-		Cbuf_AddText("map meso6\n", RESTRICT_LOCAL);
-		break;
-	case 15:
-		Cbuf_AddText("map meso8\n", RESTRICT_LOCAL);
-		break;
-	case 16:
-		Cbuf_AddText("map meso9\n", RESTRICT_LOCAL);
-		break;
-	case 17:
-		Cbuf_AddText("map egypt1\n", RESTRICT_LOCAL);
-		break;
-	case 18:
-		Cbuf_AddText("map egypt2\n", RESTRICT_LOCAL);
-		break;
-	case 19:
-		Cbuf_AddText("map egypt3\n", RESTRICT_LOCAL);
-		break;
-	case 20:
-		Cbuf_AddText("map egypt4\n", RESTRICT_LOCAL);
-		break;
-	case 21:
-		Cbuf_AddText("map egypt5\n", RESTRICT_LOCAL);
-		break;
-	case 22:
-		Cbuf_AddText("map egypt6\n", RESTRICT_LOCAL);
-		break;
-	case 23:
-		Cbuf_AddText("map egypt7\n", RESTRICT_LOCAL);
-		break;
-	case 24:
-		Cbuf_AddText("map rider2c\n", RESTRICT_LOCAL);
-		break;
-	case 25:
-		Cbuf_AddText("map romeric1\n", RESTRICT_LOCAL);
-		break;
-	case 26:
-		Cbuf_AddText("map romeric2\n", RESTRICT_LOCAL);
-		break;
-	case 27:
-		Cbuf_AddText("map romeric3\n", RESTRICT_LOCAL);
-		break;
-	case 28:
-		Cbuf_AddText("map romeric4\n", RESTRICT_LOCAL);
-		break;
-	case 29:
-		Cbuf_AddText("map romeric5\n", RESTRICT_LOCAL);
-		break;
-	case 30:
-		Cbuf_AddText("map romeric6\n", RESTRICT_LOCAL);
-		break;
-	case 31:
-		Cbuf_AddText("map romeric7\n", RESTRICT_LOCAL);
-		break;
-	case 32:
-		Cbuf_AddText("map castle4\n", RESTRICT_LOCAL);
-		break;
-	case 33:
-		Cbuf_AddText("map castle5\n", RESTRICT_LOCAL);
-		break;
-	case 34:
-		Cbuf_AddText("map cath\n", RESTRICT_LOCAL);
-		break;
-	case 35:
-		Cbuf_AddText("map tower\n", RESTRICT_LOCAL);
-		break;
-	case 36:
-		Cbuf_AddText("map eidolon\n", RESTRICT_LOCAL);
-		break;
-	}
+	if ((unsigned)info->mapcombo->selectedoption < countof(maplist_h2))
+		Cbuf_AddText(va("map %s\n", maplist_h2[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
 
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
@@ -2402,7 +2371,6 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 
 void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 {
-
 	static const char *skilloptions[] =
 	{
 		"Easy",
@@ -2413,168 +2381,50 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 		NULL
 	};
 
-	static const char *mapoptions[] =
-	{
-		"demo1 (Blackmarsh: Hub 1 Blackmarsh)",
-		"demo2 (Barbican: Hub 1 Blackmarsh)",
-		"demo3 (The Mill: Hub 1 Blackmarsh)",
-		"village1 (King's Court: Hub 1 Blackmarsh)",
-		"village3 (Stables: Hub 1 Blackmarsh)",
-		"village2 (Inner Courtyard: Hub 1 Blackmarsh)",
-		"village4 (Palance Entrance: Hub 1 Blackmarsh)",
-		"village5 (The Forgotten Chapel: Hub 1 Blackmarsh)",
-		"rider1a (Famine's Domain: Hub 1 Blackmarsh)",
-		"meso1 (Palance of Columns: Hub 2 Mazaera)",
-		"meso2 (Plaza of the Sun: Hub 2 Mazaera)",
-		"meso3 (Square of the Stream: Hub 2 Mazaera)",
-		"meso4 (Tomb of the High Priest: Hub 2 Mazaera)",
-		"meso5 (Obelisk of the Moon: Hub 2 Mazaera)",
-		"meso6 (Court of 1000 Warriors: Hub 2 Mazaera)",
-		"meso8 (Bridge of Stars: Hub 2 Mazaera)",
-		"meso9 (Well of Souls: Hub 2 Mazaera)",
-		"egypt1 (Temple of Horus: Hub 3 Thysis)",
-		"egypt2 (Ancient Tempor of Nefertum: Hub 3 Thysis)",
-		"egypt3 (Tempor of Nefertum: Hub 3 Thysis)",
-		"egypt4 (Palace of the Pharaoh: Hub 3 Thysis",
-		"egypt5 (Pyramid of Anubus: Hub 3 Thysis)",
-		"egypt6 (Temple of Light: Hub 3 Thysis)",
-		"egypt7 (Shrine of Naos: Hub 3 Thysis)",
-		"rider2c (Pestilence's Lair: Hub 3 Thysis)",
-		"romeric1 (The Hall of Heroes: Hub 4 Septimus)",
-		"romeric2 (Gardens of Athena: Hub 4 Septimus)",
-		"romeric3 (Forum of Zeus: Hub 4 Septimus)",
-		"romeric4 (Baths of Demetrius: Hub 4 Septimus)",
-		"romeric5 (Temple of Mars: Hub 4 Septimus)",
-		"romeric6 (Coliseum of War: Hub 4 Septimus)",
-		"romeric7 (Reflecting Pool: Hub 4 Septimus)",
-		"castle4 (The Underhalls: Hub 5 Return to Blackmarsh)",
-		"castle5 (Eidolon's Ordeal: Hub 5 Return to Blackmarsh)",
-		"cath (Cathedral: Hub 5 Return to Blackmarsh)",
-		"tower (Tower of the Dark Mage: Hub 5 Return to Blackmarsh)",
-		"eidolon (Eidolon's Lair: Hub 5 Return to Blackmarsh)",
-		NULL
-	};
-
 	singleplayerh2info_t *info;
 	int cursorpositionY;
 	int currentmap;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 		int currentskill;
 		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	#endif
-	extern cvar_t host_mapname;
 	int y;
 	emenu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
 
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	if ( !*skill.string )
 		currentskill = 4; // no skill selected
 	else
 		currentskill = skill.value;
-	#endif
 
-	if ( strcmp ( host_mapname.string, "" ) == 0)
-		currentmap = 0;
-	else if ( stricmp ( host_mapname.string, "demo1" ) == 0 )
-		currentmap = 0;
-	else if ( stricmp ( host_mapname.string, "demo2" ) == 0 )
-		currentmap = 1;
-	else if ( stricmp ( host_mapname.string, "demo3" ) == 0 )
-		currentmap = 2;
-	else if ( stricmp ( host_mapname.string, "village1" ) == 0 )
-		currentmap = 3;
-	else if ( stricmp ( host_mapname.string, "village2" ) == 0 )
-		currentmap = 4;
-	else if ( stricmp ( host_mapname.string, "village3" ) == 0 )
-		currentmap = 5;
-	else if ( stricmp ( host_mapname.string, "village4" ) == 0 )
-		currentmap = 6;
-	else if ( stricmp ( host_mapname.string, "village5" ) == 0 )
-		currentmap = 7;
-	else if ( stricmp ( host_mapname.string, "rider1a" ) == 0 )
-		currentmap = 8;
-	else if ( stricmp ( host_mapname.string, "meso1" ) == 0 )
-		currentmap = 9;
-	else if ( stricmp ( host_mapname.string, "meso2" ) == 0 )
-		currentmap = 10;
-	else if ( stricmp ( host_mapname.string, "meso3" ) == 0 )
-		currentmap = 11;
-	else if ( stricmp ( host_mapname.string, "meso4" ) == 0 )
-		currentmap = 12;
-	else if ( stricmp ( host_mapname.string, "meso5" ) == 0 )
-		currentmap = 13;
-	else if ( stricmp ( host_mapname.string, "meso6" ) == 0 )
-		currentmap = 14;
-	else if ( stricmp ( host_mapname.string, "meso8" ) == 0 )
-		currentmap = 15;
-	else if ( stricmp ( host_mapname.string, "meso9" ) == 0 )
-		currentmap = 16;
-	else if ( stricmp ( host_mapname.string, "egypt1" ) == 0 )
-		currentmap = 17;
-	else if ( stricmp ( host_mapname.string, "egypt2" ) == 0 )
-		currentmap = 18;
-	else if ( stricmp ( host_mapname.string, "egypt3" ) == 0 )
-		currentmap = 19;
-	else if ( stricmp ( host_mapname.string, "egypt4" ) == 0 )
-		currentmap = 20;
-	else if ( stricmp ( host_mapname.string, "egypt5" ) == 0 )
-		currentmap = 21;
-	else if ( stricmp ( host_mapname.string, "egypt6" ) == 0 )
-		currentmap = 22;
-	else if ( stricmp ( host_mapname.string, "egypt7" ) == 0 )
-		currentmap = 23;
-	else if ( stricmp ( host_mapname.string, "rider2c" ) == 0 )
-		currentmap = 24;
-	else if ( stricmp ( host_mapname.string, "romeric1" ) == 0 )
-		currentmap = 25;
-	else if ( stricmp ( host_mapname.string, "romeric2" ) == 0 )
-		currentmap = 26;
-	else if ( stricmp ( host_mapname.string, "romeric3" ) == 0 )
-		currentmap = 27;
-	else if ( stricmp ( host_mapname.string, "romeric4" ) == 0 )
-		currentmap = 28;
-	else if ( stricmp ( host_mapname.string, "romeric5" ) == 0 )
-		currentmap = 29;
-	else if ( stricmp ( host_mapname.string, "romeric6" ) == 0 )
-		currentmap = 30;
-	else if ( stricmp ( host_mapname.string, "romeric7" ) == 0 )
-		currentmap = 31;
-	else if ( stricmp ( host_mapname.string, "castle4" ) == 0 )
-		currentmap = 32;
-	else if ( stricmp ( host_mapname.string, "castle5" ) == 0 )
-		currentmap = 33;
-	else if ( stricmp ( host_mapname.string, "cath" ) == 0 )
-		currentmap = 34;
-	else if ( stricmp ( host_mapname.string, "tower" ) == 0 )
-		currentmap = 35;
-	else if ( stricmp ( host_mapname.string, "eidolon" ) == 0 )
-		currentmap = 36;
-	else
-		currentmap = 0;
+	for (currentmap = countof(maplist_h2); currentmap --> 0; )
+		if (!Q_strcasecmp(host_mapname.string, maplist_h2[currentmap]))
+			break;
+	#endif
 
 	MC_AddRedText(menu, 16, 170, y, 		"Hexen2 Singleplayer Cheats", false); y+=8;
 	MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
 	y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
 	#endif
-	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions, currentmap);	y+=8;
-	#ifndef CLIENTONLY
+	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_h2, currentmap);	y+=8;
+	#ifdef HAVE_SERVER
 	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Godmode", "god\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Flymode", "fly\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Noclip", "noclip\n"); y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
 	#endif
 	MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 	MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 	MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Sheep Transformation", "impulse 14\n"); y+=8;
@@ -2582,6 +2432,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Necromancer (lvl3+)", "impulse 173\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Assassin (lvl3+)", "impulse 174\n"); y+=8;
+	//demoness?
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Remove Monsters", "impulse 35\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Freeze Monsters", "impulse 36\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, 170, y,	"Unfreeze Monsters", "impulse 37\n"); y+=8;
@@ -3240,9 +3091,14 @@ typedef struct
 	int textype;
 	double framechangetime;
 	double skinchangetime;
+
 	float pitch;
 	float yaw;
+	vec3_t cameraorg;
+	vec2_t mousepos;
+	qboolean mousedown;
 	float dist;
+
 	char modelname[MAX_QPATH];
 	char forceshader[MAX_QPATH];
 
@@ -3334,6 +3190,7 @@ static unsigned int tobit(unsigned int bitmask)
 }
 static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
+	extern qboolean keydown[];
 	static playerview_t pv;
 	entity_t ent;
 	vec3_t fwd, rgt, up;
@@ -3344,6 +3201,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	vec3_t lightpos = {0, 1, 0};
 
 	modelview_t *mods = c->dptr;
+	skinfile_t *skin;
 
 	if (R2D_Flush)
 		R2D_Flush();
@@ -3374,6 +3232,32 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	AngleVectors(r_refdef.viewangles, fwd, rgt, up);
 	VectorScale(fwd, -mods->dist, r_refdef.vieworg);
 
+	if (keydown[K_MOUSE1] && mods->mousedown)
+	{
+		mods->pitch += (mousecursor_y-mods->mousepos[1]) * m_pitch.value * sensitivity.value;
+		mods->yaw -= (mousecursor_x-mods->mousepos[0]) * m_yaw.value * sensitivity.value;
+
+		if (keydown['w'] || keydown['s'] || keydown['a'] || keydown['d'])
+		{
+			VectorAdd(mods->cameraorg, r_refdef.vieworg, mods->cameraorg);
+			mods->dist = 0;
+
+			if (keydown['w'])
+				VectorMA(mods->cameraorg, host_frametime*cl_forwardspeed.value, fwd, mods->cameraorg);
+			if (keydown['s'])
+				VectorMA(mods->cameraorg, host_frametime*-(cl_backspeed.value?cl_backspeed.value:cl_forwardspeed.value), fwd, mods->cameraorg);
+			if (keydown['a'])
+				VectorMA(mods->cameraorg, host_frametime*-cl_sidespeed.value, rgt, mods->cameraorg);
+			if (keydown['d'])
+				VectorMA(mods->cameraorg, host_frametime*cl_sidespeed.value, rgt, mods->cameraorg);
+		}
+	}
+	mods->mousedown = keydown[K_MOUSE1];
+	mods->mousepos[0] = mousecursor_x;
+	mods->mousepos[1] = mousecursor_y;
+
+	VectorAdd(r_refdef.vieworg, mods->cameraorg, r_refdef.vieworg);
+
 	memset(&ent, 0, sizeof(ent));
 //	ent.angles[1] = realtime*45;//mods->yaw;
 //	ent.angles[0] = realtime*23.4;//mods->pitch;
@@ -3388,7 +3272,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		return;	//panic!
 	ent.scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
 	ent.scale = ent.scale?64.0/ent.scale:1;
-	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5;// + ent.model->mins[2];
+//	ent.scale = 1;
+	ent.origin[2] -= ent.model->mins[2] + (ent.model->maxs[2]-ent.model->mins[2]) * 0.5;
 	ent.origin[2] *= ent.scale;
 	Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
 	VectorSet(ent.glowmod, 1, 1, 1);
@@ -3417,9 +3302,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
 	ent.customskin = Mod_RegisterSkinFile(va("%s_%i.skin", mods->modelname, ent.skinnum));
+	skin = Mod_LookupSkin(ent.customskin);
 
 	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
 	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
+
+#ifdef HEXEN2
+	ent.drawflags = SCALE_ORIGIN_ORIGIN;
+#endif
 
 	V_ApplyRefdef();
 /*
@@ -3683,7 +3573,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		float duration = 0;
 		qboolean loop = false;
 		if (!Mod_FrameInfoForNum(ent.model, mods->surfaceidx, mods->framegroup, &fname, &numframes, &duration, &loop))
-			fname = "Unknown Frame";
+			fname = "Unknown Sequence";
 		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f of %f secs, %s)", mods->framegroup, fname, numframes, ent.framestate.g[FS_REG].frametime[0], duration, loop?"looped":"unlooped"));
 		y+=8;
 	}
@@ -3761,7 +3651,10 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 						contents,
 						inf->csurface.flags,
 						inf->surfaceid,
-						inf->geomset>=MAX_GEOMSETS?-1:inf->geomset, inf->geomid, inf->geomset>=MAX_GEOMSETS?" (always)":"",
+						inf->geomset>=MAX_GEOMSETS?-1:inf->geomset, inf->geomid,
+								inf->geomset>=MAX_GEOMSETS?" (always)":
+								((skin?skin->geomset[inf->geomset]:0)!=inf->geomid)?" (hidden)":
+								"",
 						inf->numverts, inf->numindexes/3
 #ifdef SKELETALMODELS
 						,inf->numbones
@@ -3895,15 +3788,16 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 }
 static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
+	extern qboolean keydown[];
 	modelview_t *mods = c->dptr;
 
-	if (key == 'w')
+	if (key == 'w' && !keydown[K_MOUSE1])
 	{
 		mods->dist *= 0.9;
 		if (mods->dist < 1)
 			mods->dist = 1;
 	}
-	else if (key == 's')
+	else if (key == 's' && !keydown[K_MOUSE1])
 		mods->dist /= 0.9;
 	else if (key == 'm')
 	{

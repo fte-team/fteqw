@@ -182,7 +182,7 @@ struct pubprogfuncs_s
 	void (PDECL *AddSharedVar)					(pubprogfuncs_t *progfuncs, int start, int size);
 	void (PDECL *AddSharedFieldVar)				(pubprogfuncs_t *progfuncs, int num, char *relstringtable);
 	char *(PDECL *RemoveProgsString)			(pubprogfuncs_t *progfuncs, string_t str);
-	pbool (PDECL *GetFunctionInfo)				(pubprogfuncs_t *progfuncs, func_t func, int *argcount, qbyte **argsizes, int *builtinnum, char *funcname, size_t funcnamesize); //queries the interesting info from a function def
+	pbool (PDECL *GetFunctionInfo)				(pubprogfuncs_t *progfuncs, func_t func, int *argcount, unsigned char **argsizes, int *builtinnum, char *funcname, size_t funcnamesize); //queries the interesting info from a function def
 	void (PDECL *GenerateStatementString)		(pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);	//disassembles a specific statement. for debugging reports.
 	fdef_t *(PDECL *FieldInfo)					(pubprogfuncs_t *progfuncs, unsigned int *count);
 	char *(PDECL *UglyValueString)				(pubprogfuncs_t *progfuncs, etype_t type, union eval_s *val);
@@ -249,7 +249,11 @@ typedef struct progexterns_s {
 } progparms_t, progexterns_t;
 
 #if defined(QCLIBDLL_EXPORTS)
-__declspec(dllexport)
+	#ifdef _WIN32
+		__declspec(dllexport)
+	#else
+		__attribute__((visibility("default")))
+	#endif
 #endif
 pubprogfuncs_t * PDECL InitProgs(progparms_t *ext);
 

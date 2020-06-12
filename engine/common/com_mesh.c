@@ -247,7 +247,7 @@ void QDECL Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, q
 
 #ifdef SKELETALMODELS
 
-/*like above, but guess the quat.w*/
+/*like GenMatrixPosQuat4Scale, but guess the quat.w*/
 static void GenMatrixPosQuat3Scale(vec3_t const pos, vec3_t const quat3, vec3_t const scale, float result[12])
 {
 	vec4_t quat4;
@@ -1369,11 +1369,51 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, gali
 {
 	boneidx_t *fte_restrict bidx = inf->ofs_skel_idx[0];
 	float *fte_restrict weight = inf->ofs_skel_weight[0];
+	const float *morphweights;
 
 	if (meshcache.bonecachetype != SKEL_INVERSE_ABSOLUTE)
 		meshcache.usebonepose = Alias_GetBoneInformation(inf, framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
 
-	if ((1))
+	morphweights = inf->AnimateMorphs?inf->AnimateMorphs(inf, framestate):NULL;
+	if (morphweights)
+	{
+		size_t m,v;
+		float w;
+		vecV_t *xyz = alloca(sizeof(*xyz)*inf->numverts), *inxyz;
+		vec3_t *norm = alloca(sizeof(*norm)*inf->numverts), *innorm;
+		vec3_t *sdir = alloca(sizeof(*sdir)*inf->numverts), *insdir;
+		vec3_t *tdir = alloca(sizeof(*tdir)*inf->numverts), *intdir;
+		memcpy(xyz, inf->ofs_skel_xyz, sizeof(*xyz)*inf->numverts);
+		memcpy(norm, inf->ofs_skel_norm, sizeof(*norm)*inf->numverts);
+		memcpy(sdir, inf->ofs_skel_svect, sizeof(*sdir)*inf->numverts);
+		memcpy(tdir, inf->ofs_skel_tvect, sizeof(*tdir)*inf->numverts);
+		for (m = 0; m < inf->nummorphs; m++)
+		{
+			if (morphweights[m] <= 0)
+				continue;
+			inxyz = inf->ofs_skel_xyz + (m+1)*inf->numverts;
+			innorm = inf->ofs_skel_norm + (m+1)*inf->numverts;
+			insdir = inf->ofs_skel_svect + (m+1)*inf->numverts;
+			intdir = inf->ofs_skel_tvect + (m+1)*inf->numverts;
+			w = morphweights[m];
+			for (v = 0; v < inf->numverts; v++)
+			{
+				VectorMA(xyz[v], w, inxyz[v], xyz[v]);
+				VectorMA(norm[v], w, innorm[v], norm[v]);
+				VectorMA(sdir[v], w, insdir[v], sdir[v]);
+				VectorMA(tdir[v], w, intdir[v], tdir[v]);
+			}
+		}
+
+		//right, now do the bones thing.
+		Alias_TransformVerticies_VNST(meshcache.usebonepose, inf->numverts, bidx, weight,
+				xyz[0], mesh->xyz_array[0],
+				norm[0], mesh->normals_array[0],
+				sdir[0], mesh->snormals_array[0],
+				tdir[0], mesh->tnormals_array[0]
+				);
+	}
+	else if ((1))
 		Alias_TransformVerticies_VNST(meshcache.usebonepose, inf->numverts, bidx, weight, 
 				inf->ofs_skel_xyz[0], mesh->xyz_array[0],
 				inf->ofs_skel_norm[0], mesh->normals_array[0],
@@ -1388,7 +1428,7 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, gali
 }
 
 #if !defined(SERVERONLY)
-static void Alias_BuildSkeletalVerts(float *xyzout, framestate_t *framestate, galiasinfo_t *inf)
+static void Alias_BuildSkeletalVerts(float *xyzout, float *normout, framestate_t *framestate, galiasinfo_t *inf)
 {
 	float buffer[MAX_BONES*12];
 	float bufferalt[MAX_BONES*12];
@@ -1396,7 +1436,10 @@ static void Alias_BuildSkeletalVerts(float *xyzout, framestate_t *framestate, ga
 	float *fte_restrict weight = inf->ofs_skel_weight[0];
 	const float *bonepose = Alias_GetBoneInformation(inf, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
 
-	Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout);
+	if (normout)
+		Alias_TransformVerticies_VN(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout, inf->ofs_skel_norm[0], normout);
+	else
+		Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout);
 }
 #endif
 
@@ -1696,7 +1739,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		usebones = false;
 	else if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 		usebones = false;
-	else if (e->fatness || !inf->ofs_skel_idx || (!inf->mappedbones && inf->numbones > sh_config.max_gpu_bones))
+	else if (e->fatness || !inf->ofs_skel_idx || (!inf->mappedbones && inf->numbones > sh_config.max_gpu_bones) || inf->nummorphs)
 #endif
 		usebones = false;
 
@@ -2108,8 +2151,8 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 		else if (surfnum != surfaceidx)
 			continue;
 
+		normdata = NULL;
 #ifdef SKELETALMODELS
-		normdata = mod->ofs_skel_norm;
 		if (mod->numbones)
 		{
 			if (!mod->ofs_skel_idx)
@@ -2119,7 +2162,8 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 				cursurfnum = mod->shares_verts;
 
 				posedata = alloca(mod->numverts*sizeof(vecV_t));
-				Alias_BuildSkeletalVerts((float*)posedata, &ent->framestate, mod);
+				normdata = normals?alloca(mod->numverts*sizeof(vec3_t)):NULL;
+				Alias_BuildSkeletalVerts((float*)posedata, (float*)normdata, &ent->framestate, mod);
 			}
 			//else posedata = posedata;
 		}
@@ -2131,6 +2175,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 		if (!mod->numanimations)
 		{
 #ifdef SKELETALMODELS
+			normdata = mod->ofs_skel_norm;
 			if (mod->ofs_skel_xyz)
 				posedata = mod->ofs_skel_xyz;
 			else
@@ -2148,6 +2193,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 			pose = group->poseofs;
 			pose += (int)(ent->framestate.g[FS_REG].frametime[0] * group->rate)%group->numposes;
 			posedata = pose->ofsverts;
+			normdata = pose->ofsnormals;
 		}
 #endif
 
@@ -2175,14 +2221,14 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 				cl_stris_ExpandVerts(cl_numstrisvert+t->numvert);
 			for (i = 0; i < mod->numverts; i++)
 			{
-				VectorMA(ent->origin,	posedata[i][0], ent->axis[0], tmp);
+				VectorMA(vec3_origin,	posedata[i][0], ent->axis[0], tmp);
 				VectorMA(tmp,			posedata[i][1], ent->axis[1], tmp);
 				VectorMA(tmp,			posedata[i][2], ent->axis[2], tmp);
 				VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i*2+0]);
 
-				VectorMA(tmp,			0.1*normdata[i][0], ent->axis[0], tmp);
-				VectorMA(tmp,			0.1*normdata[i][1], ent->axis[1], tmp);
-				VectorMA(tmp,			0.1*normdata[i][2], ent->axis[2], tmp);
+				VectorMA(tmp,			normdata[i][0], ent->axis[0], tmp);
+				VectorMA(tmp,			normdata[i][1], ent->axis[1], tmp);
+				VectorMA(tmp,			normdata[i][2], ent->axis[2], tmp);
 				VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i*2+1]);
 
 				Vector2Set(cl_strisvertt[t->firstvert+i*2+0], 0.0, 0.0);
@@ -3536,7 +3582,7 @@ typedef struct
 #define FLOODFILL_FIFO_MASK (FLOODFILL_FIFO_SIZE - 1)
 
 #define FLOODFILL_STEP( off, dx, dy ) \
-{ \
+do{ \
 	if (pos[off] == fillcolor) \
 	{ \
 		pos[off] = 255; \
@@ -3544,7 +3590,7 @@ typedef struct
 		inpt = (inpt + 1) & FLOODFILL_FIFO_MASK; \
 	} \
 	else if (pos[off] != 255) fdc = pos[off]; \
-}
+}while(0)
 
 static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 {
@@ -8448,9 +8494,9 @@ static qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t
 
 static qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, void**poseofs, galiasanimation_t *gat)
 {
-#define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return false; }
-#define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return false; }
-#define EXPECT(x) buffer = COM_ParseOut(buffer, token, sizeof(token)); if (strcmp(token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
+#define MD5ERROR0PARAM(x) do{ Con_Printf(CON_ERROR x "\n"); return false; }while(0)
+#define MD5ERROR1PARAM(x, y) do{ Con_Printf(CON_ERROR x "\n", y); return false; }while(0)
+#define EXPECT(x) do{buffer = COM_ParseOut(buffer, token, sizeof(token)); if (strcmp(token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);}while(0)
 	unsigned int i, j;
 
 	galiasanimation_t grp;
@@ -8658,9 +8704,9 @@ static qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *proto
 
 static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 {
-#define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return NULL; }
-#define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return NULL; }
-#define EXPECT(x) buffer = COM_ParseOut(buffer, token, sizeof(token)); if (strcmp(token, x)) Sys_Error("MD5MESH: expected %s", x);
+#define MD5ERROR0PARAM(x) do{ Con_Printf(CON_ERROR x "\n"); return NULL; }while(0)
+#define MD5ERROR1PARAM(x, y) do{ Con_Printf(CON_ERROR x "\n", y); return NULL; }while(0)
+#define EXPECT(x) do{buffer = COM_ParseOut(buffer, token, sizeof(token)); if (strcmp(token, x)) Sys_Error("MD5MESH: expected %s", x);}while(0)
 	int numjoints = 0;
 	int nummeshes = 0;
 	qboolean foundjoints = false;

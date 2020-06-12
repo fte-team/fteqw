@@ -1058,7 +1058,6 @@ qboolean VK_LoadGLSL(program_t *prog, struct programpermu_s *permu, int ver, con
 	if (permu->permutation)	//FIXME...
 		return false;
 
-	prog->nofixedcompat = false;
 //	prog->supportedpermutations = 0;
 	prog->cvardata = NULL;
 	prog->cvardatasize = 0;
@@ -1101,7 +1100,6 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 
 	prog->vert = vert;
 	prog->frag = frag;
-	prog->nofixedcompat = true;
 	prog->numsamplers = blob->numtextures;
 	prog->defaulttextures = blob->defaulttextures;
 	prog->supportedpermutations = blob->permutations;

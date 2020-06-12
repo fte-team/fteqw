@@ -5058,11 +5058,22 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	sh_config.pValidateProgram = NULL;
 	sh_config.pProgAutoFields = NULL;
 
-	if (sh_config.texfmt[PTI_DEPTH24])
+	if (info->depthbits == 16 && sh_config.texfmt[PTI_DEPTH16])
+		vk.depthformat = VK_FORMAT_D16_UNORM;
+	else if (info->depthbits == 32 && sh_config.texfmt[PTI_DEPTH32])
+		vk.depthformat = VK_FORMAT_D32_SFLOAT;
+//	else if (info->depthbits == 32 && sh_config.texfmt[PTI_DEPTH32_8])
+//		vk.depthformat = VK_FORMAT_D32_SFLOAT_S8_UINT;
+	else if (info->depthbits == 24 && sh_config.texfmt[PTI_DEPTH24_8])
+		vk.depthformat = VK_FORMAT_D24_UNORM_S8_UINT;
+	else if (info->depthbits == 24 && sh_config.texfmt[PTI_DEPTH24])
+		vk.depthformat = VK_FORMAT_X8_D24_UNORM_PACK32;
+
+	else if (sh_config.texfmt[PTI_DEPTH24])
 		vk.depthformat = VK_FORMAT_X8_D24_UNORM_PACK32;
 	else if (sh_config.texfmt[PTI_DEPTH24_8])
 		vk.depthformat = VK_FORMAT_D24_UNORM_S8_UINT;
-	else if (sh_config.texfmt[PTI_DEPTH32])	//nvidia recommend to de-prioritise 32bit (float) depth.
+	else if (sh_config.texfmt[PTI_DEPTH32])	//nvidia: "Don’t use 32-bit floating point depth formats, due to the performance cost, unless improved precision is actually required"
 		vk.depthformat = VK_FORMAT_D32_SFLOAT;
 	else	//16bit depth is guarenteed in vulkan
 		vk.depthformat = VK_FORMAT_D16_UNORM;

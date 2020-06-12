@@ -2462,6 +2462,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 		fmt = PTI_DEPTH24_8;
 	else
 		fmt = PTI_DEPTH16;
+	(void)fmt;
 
 	if (lighttype & (LSHADER_SPOT|LSHADER_ORTHO))
 	{	//spotlights only face forwards. which is side 4. which is annoying.

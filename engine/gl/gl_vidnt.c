@@ -2379,7 +2379,7 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 			}
 		}
 //		iAttribute[iAttributes++] = WGL_ALPHA_BITS_ARB;					iAttribute[iAttributes++] = 2;
-		iAttribute[iAttributes++] = WGL_DEPTH_BITS_ARB;					iAttribute[iAttributes++] = 16;
+		iAttribute[iAttributes++] = WGL_DEPTH_BITS_ARB;					iAttribute[iAttributes++] = info->depthbits?info->depthbits:16;
 		iAttribute[iAttributes++] = WGL_STENCIL_BITS_ARB;				iAttribute[iAttributes++] = 8;
 		iAttribute[iAttributes++] = WGL_DOUBLE_BUFFER_ARB;				iAttribute[iAttributes++] = GL_TRUE;
 		iAttribute[iAttributes++] = WGL_STEREO_ARB;						iAttribute[iAttributes++] = info->stereo;

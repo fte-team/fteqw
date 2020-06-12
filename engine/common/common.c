@@ -89,22 +89,21 @@ cvar_t	developer = CVAR("developer","1");
 cvar_t	developer = CVARD("developer","0", "Enables the spewing of additional developer/debugging messages. 2 will give even more spam, much of it unwanted.");
 #endif
 
-cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
-cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
-cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
-cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
-cvar_t	fs_gamename = CVARAD("com_fullgamename", NULL, "fs_gamename", "The filesystem is trying to run this game");
-cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
-cvar_t	com_protocolversion = CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
-cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	registered				= CVARD("registered","0","Set if quake's pak1.pak is available");
+cvar_t	gameversion				= CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
+cvar_t	gameversion_min			= CVARD("gameversion_min","", "gamecode version for server browsers");
+cvar_t	gameversion_max			= CVARD("gameversion_max","", "gamecode version for server browsers");
+cvar_t	fs_gamename				= CVARAD("com_fullgamename", NULL, "fs_gamename", "The filesystem is trying to run this game");
+cvar_t	com_protocolname		= CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
+cvar_t	com_protocolversion		= CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
+cvar_t	com_parseutf8			= CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	com_highlightcolor		= CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
+cvar_t	com_nogamedirnativecode	= CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
+cvar_t	sys_platform			= CVAR("sys_platform", PLATFORM);
+cvar_t	host_mapname			= CVARAFD("mapname", "", "host_mapname", 0, "Cvar that holds the short name of the current map, for scripting type stuff");
 #ifdef HAVE_LEGACY
-cvar_t	ezcompat_markup = CVARD("ezcompat_markup", "1", "Attempt compatibility with ezquake's text markup.0: disabled.\n1: Handle markup ampersand markup.\n2: Handle chevron markup (only in echo commands, for config compat, because its just too unreliable otherwise).");
-#endif
-cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
-cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
-cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
-#ifdef HAVE_LEGACY
-cvar_t	pm_noround = CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
+cvar_t	ezcompat_markup			= CVARD("ezcompat_markup", "1", "Attempt compatibility with ezquake's text markup.0: disabled.\n1: Handle markup ampersand markup.\n2: Handle chevron markup (only in echo commands, for config compat, because its just too unreliable otherwise).");
+cvar_t	pm_noround				= CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
 #endif
 
 qboolean	com_modified;	// set true if using non-id files
@@ -5847,6 +5846,7 @@ void COM_Init (void)
 #endif
 	COM_InitFilesystem ();
 
+	Cvar_Register (&host_mapname, "Scripting");
 	Cvar_Register (&developer, "Debugging");
 	Cvar_Register (&sys_platform, "Gamecode");
 	Cvar_Register (&registered, "Copy protection");

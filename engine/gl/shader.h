@@ -445,6 +445,7 @@ typedef struct {
 
 		SP_M_ENTBONES_PACKED,
 		SP_M_ENTBONES_MAT3X4,
+		SP_M_ENTBONES_MAT4,
 		SP_M_VIEW,
 		SP_M_MODEL,
 		SP_M_MODELVIEW,
@@ -452,6 +453,7 @@ typedef struct {
 		SP_M_MODELVIEWPROJECTION,
 		SP_M_INVVIEWPROJECTION,
 		SP_M_INVMODELVIEWPROJECTION,
+		SP_M_INVMODELVIEW,
 
 		SP_RENDERTEXTURESCALE,	/*multiplier for currentrender->texcoord*/
 		SP_SOURCESIZE,			/*size of $sourcecolour*/
@@ -470,17 +472,24 @@ typedef struct {
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
-		SP_CONSTI,
-		SP_CONSTF,
+		SP_TEXTURE,
+		SP_CONST1I,
+		SP_CONST2I,
+		SP_CONST3I,
+		SP_CONST4I,
+		SP_CONST1F,
+		SP_CONST2F,
+		SP_CONST3F,
+		SP_CONST4F,
 		SP_CVARI,
 		SP_CVARF,
 		SP_CVAR3F,
-		SP_TEXTURE
+		SP_CVAR4F,
 	} type;
 	union
 	{
-		int ival;
-		float fval;
+		int ival[4];
+		float fval[4];
 		void *pval;
 	};
 	unsigned int handle;
@@ -532,10 +541,11 @@ typedef struct programshared_s
 {
 	char *name;
 	int refs;
-	unsigned nofixedcompat:1;
-	unsigned tess:2;
-	unsigned geom:1;
-	unsigned warned:1;	//one of the permutations of this shader has already been warned about. don't warn about all of them because that's potentially spammy.
+	unsigned calcgens:1;		//calculate legacy rgb/alpha/tc gens
+	unsigned explicitsyms:1;	//avoid defining symbol names that'll conflict with other glsl (any fte-specific names must have an fte_ prefix)
+	unsigned tess:1;			//has a tessellation control+evaluation shader
+	unsigned geom:1;			//has a geometry shader
+	unsigned warned:1;			//one of the permutations of this shader has already been warned about. don't warn about all of them because that's potentially spammy.
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
 
@@ -821,7 +831,7 @@ typedef struct
 	qboolean (*pLoadBlob)		(program_t *prog, unsigned int permu, vfsfile_t *blobfile);
 	qboolean (*pCreateProgram)	(program_t *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 	qboolean (*pValidateProgram)(program_t *prog, struct programpermu_s *permu, qboolean noerrors, vfsfile_t *blobfile);
-	void	 (*pProgAutoFields)	(program_t *prog, struct programpermu_s *permu, cvar_t **cvars, char **cvarnames, int *cvartypes);
+	void	 (*pProgAutoFields)	(program_t *prog, struct programpermu_s *permu, char **cvarnames, int *cvartypes);
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif

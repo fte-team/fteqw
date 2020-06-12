@@ -56,6 +56,8 @@ typedef enum {
 
 #ifdef FTE_TARGET_WEB
 #define MAX_BONES 256
+#elif defined(IQMTOOL)
+#define MAX_BONES 8192
 #else
 #define MAX_BONES 256	//Note: there's lots of bone data allocated on the stack, so don't bump recklessly.
 #endif

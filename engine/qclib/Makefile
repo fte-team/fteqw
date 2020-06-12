@@ -78,6 +78,9 @@ qccguistuff.o: qccguistuff.c qcc.h
 packager.o: qccguistuff.c qcc.h
 	$(DO_CC)
 
+%.o: %.c
+	$(DO_CC)
+
 qcc_gtk.o: qcc_gtk.c qcc.h
 	$(DO_CC) `pkg-config --cflags gtk+-2.0`
 
@@ -91,15 +94,18 @@ clean:
 
 qcvm.so: $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS)
 	$(CC) $(BASE_CFLAGS) -o $@ -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS) -shared
-
+qcvm.a: $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS)
+	ar r $@ $^
 
 test.o: test.c
 	$(DO_CC)
 
-testapp.bin: qcvm.so test.o
-	$(CC) $(BASE_CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) qcvm.so test.o
+testapp.bin: test.o qcvm.a
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) $^ -lm -lz
 
 tests: testapp.bin
+	@echo Running Tests...
 	@$(foreach a,$(wildcard tests/*.src), echo TEST: $a; rm progs.dat; ./testapp.bin progs.dat -srcfile $a; echo; echo)
+	@echo Tests run.
 
 .PHONY: tests

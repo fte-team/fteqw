@@ -94,7 +94,7 @@ extern vec3_t vec3_origin;
 #define Vector4Copy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];(b)[3]=(a)[3];}while(0)
 #define Vector4Scale(in,scale,out)		((out)[0]=(in)[0]*scale,(out)[1]=(in)[1]*scale,(out)[2]=(in)[2]*scale,(out)[3]=(in)[3]*scale)
 #define Vector4Add(a,b,c)		((c)[0]=(((a[0])+(b[0]))),(c)[1]=(((a[1])+(b[1]))),(c)[2]=(((a[2])+(b[2]))),(c)[3]=(((a[3])+(b[3]))))
-#define Vector4Set(r,x,y,z,w) {(r)[0] = x; (r)[1] = y;(r)[2] = z;(r)[3]=w;}
+#define Vector4Set(r,x,y,z,w) (r)[0] = x, (r)[1] = y, (r)[2] = z, (r)[3]=w
 #define Vector4Interpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1]),FloatInterpolate((a)[2], bness, (b)[2], (c)[2]),FloatInterpolate((a)[3], bness, (b)[3], (c)[3])
 #define Vector4MA(a,s,b,c) do{(c)[0] = (a)[0] + (s)*(b)[0];(c)[1] = (a)[1] + (s)*(b)[1];(c)[2] = (a)[2] + (s)*(b)[2];(c)[3] = (a)[3] + (s)*(b)[3];}while(0)
 

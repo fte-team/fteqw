@@ -80,7 +80,7 @@ cvar_t volume					= CVARAFD(	"volume", "0.7", /*q3*/"s_volume",CVAR_ARCHIVE,
 
 cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
 											"Disable all sound from the engine. Cannot be overriden by configs or anything if set via the -nosound commandline argument.");
-cvar_t precache					= CVARAF(	"s_precache", "1",
+cvar_t snd_precache				= CVARAF(	"s_precache", "1",
 											"precache", 0);
 cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
 											"loadas8bit", CVAR_ARCHIVE,
@@ -2299,7 +2299,7 @@ void S_Init (void)
 	Cvar_Register(&nosound,				"Sound controls");
 	Cvar_Register(&mastervolume,		"Sound controls");
 	Cvar_Register(&volume,				"Sound controls");
-	Cvar_Register(&precache,			"Sound controls");
+	Cvar_Register(&snd_precache,		"Sound controls");
 	Cvar_Register(&loadas8bit,			"Sound controls");
 	Cvar_Register(&snd_loadasstereo,	"Sound controls");
 	Cvar_Register(&bgmvolume,			"Sound controls");
@@ -2590,7 +2590,7 @@ sfx_t *S_PrecacheSound2 (const char *name, qboolean syspath)
 	sfx = S_FindName (name, true, syspath);
 
 // cache it in
-	if (precache.ival && sndcardinfo)
+	if (snd_precache.ival && snd_precache.ival != 2 && sndcardinfo)
 		S_LoadSound (sfx, true);
 
 	return sfx;

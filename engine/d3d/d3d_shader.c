@@ -397,7 +397,7 @@ static int D3D9Shader_FindUniform(union programhandle_u *h, int type, const char
 	return -1;
 }
 
-static void D3D9Shader_ProgAutoFields(program_t *prog, struct programpermu_s *pp, cvar_t **cvarrefs, char **cvarnames, int *cvartypes)
+static void D3D9Shader_ProgAutoFields(program_t *prog, struct programpermu_s *pp, char **cvarnames, int *cvartypes)
 {
 	unsigned int i;
 	int uniformloc;
@@ -434,10 +434,14 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, struct programpermu_s *pp
 
 	for (i = 0; cvarnames[i]; i++)
 	{
-		if (!cvarrefs[i])
+		cvar_t *cvarref;
+		if (cvartypes[i] < SP_CVARI)
+			continue;
+		cvarref = Cvar_FindVar(cvarnames[i]);
+		if (!cvarref)
 			continue;
 		//just directly sets uniforms. can't cope with cvars dynamically changing.
-		cvarrefs[i]->flags |= CVAR_SHADERSYSTEM;
+		cvarref->flags |= CVAR_SHADERSYSTEM;
 
 		Q_snprintfz(tmpbuffer, sizeof(tmpbuffer), "cvar_%s", cvarnames[i]);
 		uniformloc = D3D9Shader_FindUniform(&pp->h, 1, tmpbuffer);
@@ -445,22 +449,22 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, struct programpermu_s *pp
 		{
 			if (cvartypes[i] == SP_CVARI)
 			{
-				int v[4] = {cvarrefs[i]->ival, 0, 0, 0};
+				int v[4] = {cvarref->ival, 0, 0, 0};
 				IDirect3DDevice9_SetVertexShaderConstantI(pD3DDev9, 0, v, 1);
 			}
 			else
-				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, cvarrefs[i]->vec4, 1);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, cvarref->vec4, 1);
 		}
 		uniformloc = D3D9Shader_FindUniform(&pp->h, 2, tmpbuffer);
 		if (uniformloc != -1)
 		{
 			if (cvartypes[i] == SP_CVARI)
 			{
-				int v[4] = {cvarrefs[i]->ival, 0, 0, 0};
+				int v[4] = {cvarref->ival, 0, 0, 0};
 				IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
 			}
 			else
-				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, cvarrefs[i]->vec4, 1);
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, cvarref->vec4, 1);
 		}
 	}
 

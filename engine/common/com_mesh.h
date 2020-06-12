@@ -1,6 +1,8 @@
 #ifndef COM_MESH_H
 #define COM_MESH_H
 
+#include "quakedef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -177,6 +179,8 @@ typedef struct galiasinfo_s
 #ifdef SKELETALMODELS
 	boneidx_t *bonemap;		//filled in automatically if our mesh has more gpu bones than we can support
 	unsigned int mappedbones;
+	unsigned int nummorphs;	//extra data after the xyz/norm/stvect arrays
+	const float *(QDECL *AnimateMorphs)(const struct galiasinfo_s *surf, const framestate_t *framestate);
 
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;

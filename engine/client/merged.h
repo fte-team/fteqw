@@ -56,7 +56,7 @@ typedef enum
 #define FST_BASE 0	//base frames
 #define FS_REG 1	//regular frames
 #define FS_COUNT 2	//regular frames
-typedef struct {
+typedef struct framestate_s {
 	struct framestateregion_s {
 		int frame[FRAME_BLENDS];
 		float frametime[FRAME_BLENDS];
@@ -442,6 +442,8 @@ typedef struct rendererinfo_s {
 	void	 (*VID_DestroyCursor)			(void *cursor);	//may be null
 
 	void	 (*VID_SetWindowCaption)		(const char *msg);
+
+//FIXME: add clipboard stuff...
 
 //FIXME: remove these...
 	char	*(*VID_GetRGBInfo)			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);

@@ -2073,10 +2073,12 @@ static void BE_ApplyUniforms(program_t *prog, struct programpermu_s *perm)
 
 		case SP_M_ENTBONES_MAT3X4:
 		case SP_M_ENTBONES_PACKED:
+		case SP_M_ENTBONES_MAT4:
 		case SP_E_VLSCALE:
 		case SP_E_ORIGIN:
 		case SP_E_GLOWMOD:
 		case SP_M_INVVIEWPROJECTION:
+		case SP_M_INVMODELVIEW:
 		case SP_M_INVMODELVIEWPROJECTION:
 		case SP_SOURCESIZE:
 		case SP_S_COLOUR:
@@ -2090,11 +2092,18 @@ static void BE_ApplyUniforms(program_t *prog, struct programpermu_s *perm)
 		case SP_RENDERTEXTURESCALE:
 
 		case SP_FIRSTIMMEDIATE:
-		case SP_CONSTI:
-		case SP_CONSTF:
+		case SP_CONST1I:
+		case SP_CONST2I:
+		case SP_CONST3I:
+		case SP_CONST4I:
+		case SP_CONST1F:
+		case SP_CONST2F:
+		case SP_CONST3F:
+		case SP_CONST4F:
 		case SP_CVARI:
 		case SP_CVARF:
 		case SP_CVAR3F:
+		case SP_CVAR4F:
 		case SP_TEXTURE:
 		case SP_BAD:
 			Con_Printf("shader property %i not implemented\n", pp->type);

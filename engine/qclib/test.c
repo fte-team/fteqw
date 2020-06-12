@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-
+enum{false,true};
 
 
 //builtins and builtin management.
@@ -53,7 +53,7 @@ char	*va(char *format, ...)
 	return string;	
 }
 
-void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, char *s, int firstarg, char *outbuf, int outbuflen)
+void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, const char *s, int firstarg, char *outbuf, int outbuflen)
 {
 	const char *s0;
 	char *o = outbuf, *end = outbuf + outbuflen, *err;
@@ -394,7 +394,7 @@ void PF_printf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	struct edict_s	*ed;
-	ed = ED_Alloc(prinst);
+	ed = ED_Alloc(prinst, false, 0);
 	pr_globals = PR_globals(prinst, PR_CURRENT);
 	RETURN_EDICT(prinst, ed);
 }
@@ -435,8 +435,9 @@ int Sys_Printf(char *s, ...)
 
 #include <stdio.h>
 //copy file into buffer. note that the buffer will have been sized to fit the file (obtained via FileSize)
-unsigned char *Sys_ReadFile (char *fname, void *buffer, int buflen)
+void *PDECL Sys_ReadFile(const char *fname, unsigned char *(PDECL *buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile)
 {
+	void *buffer;
 	int len;
 	FILE *f;
 	if (!strncmp(fname, "src/", 4))
@@ -446,15 +447,17 @@ unsigned char *Sys_ReadFile (char *fname, void *buffer, int buflen)
 		return NULL;
 	fseek(f, 0, SEEK_END);
 	len = ftell(f);
-	if (buflen < len)
-		return NULL;
+
+	buffer = buf_get(buf_ctx, len);
 	fseek(f, 0, SEEK_SET);
 	fread(buffer, 1, len, f);
 	fclose(f);
+
+	*out_size = len;
 	return buffer;
 }
 //Finds the size of a file.
-int Sys_FileSize (char *fname)
+int Sys_FileSize (const char *fname)
 {
 	int len;
 	FILE *f;
@@ -469,7 +472,7 @@ int Sys_FileSize (char *fname)
 	return len;
 }
 //Writes a file.
-pbool Sys_WriteFile (char *fname, void *data, int len)
+pbool Sys_WriteFile (const char *fname, void *data, int len)
 {
 	FILE *f;
 	f = fopen(fname, "wb");
@@ -480,7 +483,7 @@ pbool Sys_WriteFile (char *fname, void *data, int len)
 	return 1;
 }
 
-void runtest(char *progsname)
+void runtest(const char *progsname)
 {
 	pubprogfuncs_t *pf;
 	func_t func;
@@ -499,9 +502,9 @@ void runtest(char *progsname)
 	ext.globalbuiltins = builtins;
 
 	pf = InitProgs(&ext);
-	pf->Configure(pf, 1024*1024, 1);	//memory quantity of 1mb. Maximum progs loadable into the instance of 1
+	pf->Configure(pf, 1024*1024, 1, false);	//memory quantity of 1mb. Maximum progs loadable into the instance of 1
 //If you support multiple progs types, you should tell the VM the offsets here, via RegisterFieldVar
-	pn = pf->LoadProgs(pf, progsname, 0, NULL, 0);	//load the progs, don't care about the crc, and use those builtins.
+	pn = pf->LoadProgs(pf, progsname);	//load the progs.
 	if (pn < 0)
 		printf("test: Failed to load progs \"%s\"\n", progsname);
 	else
@@ -519,13 +522,12 @@ void runtest(char *progsname)
 		else
 			pf->ExecuteProgram(pf, func);			//call the function
 	}
-	pf->CloseProgs(pf);
+	pf->Shutdown(pf);
 }
-
 
 //Run a compiler and nothing else.
 //Note that this could be done with an autocompile of PR_COMPILEALWAYS.
-void compile(int argc, char **argv)
+void compile(int argc, const char **argv)
 {
 	pubprogfuncs_t *pf;
 
@@ -564,13 +566,15 @@ void compile(int argc, char **argv)
 			while(pf->ContinueCompile(pf) == 1)
 				;
 		}
+		else
+			printf("compilation failed to start\n");
 	}
 	else
 		printf("no compiler in this qcvm build\n");
-	pf->CloseProgs(pf);
+	pf->Shutdown(pf);
 }
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	if (argc < 2)
 	{

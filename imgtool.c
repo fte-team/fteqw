@@ -86,6 +86,59 @@ void Z_Free(void *p)
 {
 	free(p);
 }
+#ifdef _WIN32
+// don't use these functions in MSVC8
+#if (_MSC_VER < 1400)
+int QDECL linuxlike_snprintf(char *buffer, int size, const char *format, ...)
+{
+#undef _vsnprintf
+	int ret;
+	va_list		argptr;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	va_start (argptr, format);
+	ret = _vsnprintf (buffer,size, format,argptr);
+	va_end (argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+int QDECL linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
+{
+#undef _vsnprintf
+	int ret;
+
+	if (size <= 0)
+		return 0;
+	size--;
+
+	ret = _vsnprintf (buffer,size, format,argptr);
+
+	buffer[size] = '\0';
+
+	return ret;
+}
+#elif (_MSC_VER < 1900)
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...)
+{
+	int ret;
+	va_list		argptr;
+
+	va_start (argptr, format);
+	ret = vsnprintf_s (buffer,size, _TRUNCATE, format,argptr);
+	va_end (argptr);
+
+	return ret;
+}
+#endif
+#endif
+
+
+
 
 #include <sys/stat.h>
 
@@ -349,7 +402,10 @@ qbyte GetPaletteIndexNoFB(int red, int green, int blue)
 	}
 	return best;
 }
-static void ImgTool_SetupPalette(void)
+
+sh_config_t sh_config;
+viddef_t vid;
+void ImgTool_SetupPalette(void)
 {
 	int i;
 	//we ought to try to read gfx/palette.lmp, but its probably in a pak
@@ -359,7 +415,20 @@ static void ImgTool_SetupPalette(void)
 		d_8to24rgbtable[i] = (host_basepal[i*3+0]<<0)|(host_basepal[i*3+1]<<8)|(host_basepal[i*3+2]<<16);
 		d_8to24bgrtable[i] = (host_basepal[i*3+0]<<16)|(host_basepal[i*3+1]<<8)|(host_basepal[i*3+2]<<0);
 	}
+
+	sh_config.texture2d_maxsize = 1u<<31;
+	sh_config.texture3d_maxsize = 1u<<31;
+	sh_config.texture2darray_maxlayers = 1u<<31;
+	sh_config.texturecube_maxsize = 8192;
+	sh_config.texture_non_power_of_two = true;
+	sh_config.texture_non_power_of_two_pic = true;
+	sh_config.texture_allow_block_padding = true;
+	sh_config.npot_rounddown = true;	//shouldn't be relevant
+	sh_config.havecubemaps = true;	//I don't think this matters.
+
+	Image_Init();
 }
+#ifdef IMGTOOL
 static void ImgTool_FreeMips(struct pendingtextureinfo *mips)
 {
 	size_t i;
@@ -373,9 +442,6 @@ static void ImgTool_FreeMips(struct pendingtextureinfo *mips)
 		BZ_Free(mips);
 	}
 }
-
-sh_config_t sh_config;
-viddef_t vid;
 
 typedef struct
 {
@@ -2136,18 +2202,7 @@ int main(int argc, const char **argv)
 	args.defaultext = NULL;
 	args.width = args.height = 0;
 
-	sh_config.texture2d_maxsize = 1u<<31;
-	sh_config.texture3d_maxsize = 1u<<31;
-	sh_config.texture2darray_maxlayers = 1u<<31;
-	sh_config.texturecube_maxsize = 8192;
-	sh_config.texture_non_power_of_two = true;
-	sh_config.texture_non_power_of_two_pic = true;
-	sh_config.texture_allow_block_padding = true;
-	sh_config.npot_rounddown = true;	//shouldn't be relevant
-	sh_config.havecubemaps = true;	//I don't think this matters.
-
 	ImgTool_SetupPalette();
-	Image_Init();
 
 	if (argc==1)
 		goto showhelp;
@@ -2394,3 +2449,4 @@ showhelp:
 	}
 	return EXIT_SUCCESS;
 }
+#endif

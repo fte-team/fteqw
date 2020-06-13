@@ -388,7 +388,7 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 		}
 	}
 
-	xr.instance = NULL;
+	xr.instance = XR_NULL_HANDLE;
 
 	//create our instance
 	{

@@ -156,6 +156,7 @@ void(vector pos) mitem_grid::item_draw =
 
 	clientpos = pos;
 	clientsize = this.item_size;
+/*
 	if (vslider)
 	{
 		//scroll+shrink the client area to fit the slider on it.
@@ -185,10 +186,12 @@ void(vector pos) mitem_grid::item_draw =
 	if (pos_x+clientsize_x < ui.drawrectmax[0])
 		ui.drawrectmax[0] = pos_x+clientsize_x;
 	if (pos_y+clientsize_y < ui.drawrectmax[1])
-		ui.drawrectmax[1] = pos_y+clientsize[1];
-	if (ui.drawrectmax[0] > ui.drawrectmin[0] && ui.drawrectmax[1] > ui.drawrectmin[1])
+		ui.drawrectmax[1] = pos_y+clientsize[1];*/
+//	if (ui.drawrectmax[0] > ui.drawrectmin[0] && ui.drawrectmax[1] > ui.drawrectmin[1])
 	{
 		ui.setcliparea(ui.drawrectmin[0], ui.drawrectmin[1], ui.drawrectmax[0] - ui.drawrectmin[0], ui.drawrectmax[1] - ui.drawrectmin[1]);
+//ui.setcliparea(0, 0, 0, 0);
+
 		float c = max(0,floor((ui.drawrectmin[1]-clientpos_y)/item_scale));	//calculate how many we can skip
 		for (clientpos_y += item_scale * c; c < grid_numchildren; c++, clientpos_y += item_scale)
 		{
@@ -204,7 +207,7 @@ void(vector pos) mitem_grid::item_draw =
 			vslider.item_draw(pos + [clientsize[0], 0]);
 		}
 	}
-	ui.drawrectmin = omin;
-	ui.drawrectmax = omax;
+//	ui.drawrectmin = omin;
+//	ui.drawrectmax = omax;
 };
 #endif

@@ -1,3 +1,8 @@
+#define FTEPLUGIN
+#define GLQUAKE	//this is shit, but ensures index sizes come out the right size
+#include "../plugins/plugin.h"
+#include "com_mesh.h"
+
 #include "util.h"
 
 #define IQM_UNPACK (1u<<31)	//animations will be unpacked into individual frames-as-animations (ie: no more framegroups)
@@ -362,7 +367,7 @@ struct emesh
 	meshprop explicits;
 
 	emesh() : name(NULL), material(NULL), firsttri(0), used(false), hasexplicits(false) {}
-	emesh(const char *name, const char *material, int firsttri = 0) : name(name), material(material), firsttri(firsttri), used(false) {}
+	emesh(const char *name, const char *material, int firsttri = 0) : name(name), material(material), firsttri(firsttri), used(false), hasexplicits(false) {}
 };
 
 struct evarray
@@ -988,7 +993,8 @@ void calctangents(uint priortris, bool areaweight = true)
 {
 	uint numverts = vmap.length();
 	Vec3 *tangent = new Vec3[2*numverts], *bitangent = tangent+numverts;
-	memset(tangent, 0, 2*numverts*sizeof(Vec3));
+	for (uint i = 0; i < 2*numverts; i++)
+		tangent[i] = Vec3(0,0,0);
 	for (int i = priortris; i < triangles.length(); i++)
 	{
 		const triangle &t = triangles[i];
@@ -1245,7 +1251,12 @@ void makemeshes(const filespec &spec)
 	}
 	if(eblends.length())
 	{
-		setupvertexarray<IQM_BLENDINDEXES>(eblends, IQM_BLENDINDEXES, IQM_UBYTE, 4, priorverts);
+		if (ejoints.length() > 65535)
+			setupvertexarray<IQM_BLENDINDEXES>(eblends, IQM_BLENDINDEXES, IQM_UINT, 4, priorverts);
+		else if (ejoints.length() > 255)
+			setupvertexarray<IQM_BLENDINDEXES>(eblends, IQM_BLENDINDEXES, IQM_USHORT, 4, priorverts);
+		else
+			setupvertexarray<IQM_BLENDINDEXES>(eblends, IQM_BLENDINDEXES, IQM_UBYTE, 4, priorverts);
 		setupvertexarray<IQM_BLENDWEIGHTS>(eblends, IQM_BLENDWEIGHTS, IQM_UBYTE, 4, priorverts);
 	}
 	if(ecolors.length()) setupvertexarray<IQM_COLOR>(ecolors, IQM_COLOR, IQM_UBYTE, 4, priorverts);
@@ -1334,6 +1345,7 @@ void makerelativebasepose()
 		transform &parent = eposes[ej.parent], &child = eposes[i];
 		child.pos = (-parent.orient).transform(child.pos - parent.pos);   
 		child.orient = (-parent.orient)*child.orient;
+		child.scale = child.scale / parent.scale;
 		if(child.orient.w > 0) child.orient.flip();
 	}
 }
@@ -1372,7 +1384,7 @@ void printbones(int parent = -1, size_t ind = 1)
 	{
 		if (joints[i].parent == parent)
 		{	//show as 1-based for consistency with quake.
-			conoutf("%sbone %i:\tname=\"%s\"\tparent=%i, group=%i", prefix, i+1, &stringdata[joints[i].name], joints[i].parent+1, joints[i].group);
+			conoutf("%sbone %i:\tname=\"%s\"\tparent=%i, group=%i (%f %f %f)", prefix, i+1, &stringdata[joints[i].name], joints[i].parent+1, joints[i].group, joints[i].pos[0], joints[i].pos[1], joints[i].pos[2]);
 			printbones(i, ind+1);
 		}
 	}
@@ -3753,7 +3765,437 @@ bool loadfbx(const char *filename, const filespec &spec)
 	return true;
 }
 
+namespace fte
+{
+	static plugfsfuncs_t cppfsfuncs =
+	{
+		.OpenVFS = [](const char *filename, const char *mode, enum fs_relative relativeto)
+		{
+			stream *f = openfile(filename, "rb");
+			if (!f)
+				return (vfsfile_t*)nullptr;
+			struct cppfile_t : public vfsfile_t
+			{
+				static int ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+				{
+					auto c = static_cast<cppfile_t*>(file);
+					return c->f->read(buffer, bytestoread);
+				}
+				static qboolean Seek (struct vfsfile_s *file, qofs_t pos)
+				{
+					auto c = static_cast<cppfile_t*>(file);
+					return c->f->seek(pos)?qtrue:qfalse;
+				}
+				static qofs_t Tell (struct vfsfile_s *file)
+				{
+					auto c = static_cast<cppfile_t*>(file);
+					return c->f->tell();
+				}
+				static qofs_t GetLen (struct vfsfile_s *file)
+				{
+					auto c = static_cast<cppfile_t*>(file);
+					return c->f->size();
+				}
+				static qboolean Close (struct vfsfile_s *file)
+				{
+					auto c = static_cast<cppfile_t*>(file);
+					c->f->close();
+					delete c;
+					return qtrue;
+				}
+				cppfile_t(stream *sourcefile):f(sourcefile)
+				{
+					vfsfile_t::ReadBytes = ReadBytes;
+					vfsfile_t::Seek = Seek;
+					vfsfile_t::Tell = Tell;
+					vfsfile_t::GetLen = GetLen;
+					vfsfile_t::Close = Close;
+				}
+				stream *f;
+			};
+			cppfile_t *c = new cppfile_t(f);
+			return static_cast<vfsfile_t*>(c);
+		},
+	};
+	static plugmodfuncs_t cppmodfuncs =
+	{
+		.version = MODPLUGFUNCS_VERSION,
+		.RegisterModelFormatText = [](const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+		{	//called explicitly because we're lame.
+			return 0;
+		},
+		.RegisterModelFormatMagic = [](const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+		{	//called explicitly because we're lame.
+			return 0;
+		},
+		.ZG_Malloc = [](zonegroup_t *ctx, size_t size)
+		{
+			/*leak the memory, because we're lazy*/
+			void *ret = malloc(size);
+			memset(ret, 0, size);
+			return ret;
+		},
 
+		.ConcatTransforms = [](const float in1[3][4], const float in2[3][4], float out[3][4])
+		{
+			out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
+						in1[0][2] * in2[2][0];
+			out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] +
+						in1[0][2] * in2[2][1];
+			out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] +
+						in1[0][2] * in2[2][2];
+			out[0][3] = in1[0][0] * in2[0][3] + in1[0][1] * in2[1][3] +
+						in1[0][2] * in2[2][3] + in1[0][3];
+			out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] +
+						in1[1][2] * in2[2][0];
+			out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] +
+						in1[1][2] * in2[2][1];
+			out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] +
+						in1[1][2] * in2[2][2];
+			out[1][3] = in1[1][0] * in2[0][3] + in1[1][1] * in2[1][3] +
+						in1[1][2] * in2[2][3] + in1[1][3];
+			out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] +
+						in1[2][2] * in2[2][0];
+			out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] +
+						in1[2][2] * in2[2][1];
+			out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] +
+						in1[2][2] * in2[2][2];
+			out[2][3] = in1[2][0] * in2[0][3] + in1[2][1] * in2[1][3] +
+						in1[2][2] * in2[2][3] + in1[2][3];
+		},
+
+		.GenMatrixPosQuat4Scale = [](const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12])
+		{
+			Matrix3x4 m = Matrix3x4(Quat(quat), Vec3(pos), Vec3(scale));
+			result[0] = m.a.x;
+			result[1] = m.b.x;
+			result[2] = m.c.x;
+			result[3] = m.a.w;
+
+			result[4] = m.a.y;
+			result[5] = m.b.y;
+			result[6] = m.c.y;
+			result[7] = m.b.w;
+
+			result[8] = m.a.z;
+			result[9] = m.b.z;
+			result[10] = m.c.z;
+			result[11] = m.c.w;
+		},
+
+		.GetTexture = [](const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
+		{
+			image_t *img = (image_t*)cppmodfuncs.ZG_Malloc(NULL, sizeof(*img)+strlen(identifier)+1);
+			img->ident = (char*)(img+1);
+			strcpy(img->ident, identifier);
+			img->flags = flags;
+			return img;
+		},
+
+		.AccumulateTextureVectors = [](vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms)
+		{	//once per surface that shares the set of verts
+		},
+		.NormaliseTextureVectors = [](vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms)
+		{	//once per shared set of verts.
+		},
+	};
+	static plugcorefuncs_t cppplugfuncs =
+	{
+		.GetEngineInterface = [](const char *interfacename, size_t structsize)
+		{
+			void *ret = nullptr;
+			if (!strcmp(interfacename, plugfsfuncs_name))
+				ret = &cppfsfuncs;
+			if (!strcmp(interfacename, plugmodfuncs_name))
+				ret = &cppmodfuncs;
+			return ret;
+		},
+	};
+	static plugcvarfuncs_t cppcvarfuncs =
+	{
+		.GetNVFDG = [](const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname)
+		{	//could maybe fill with environment settings perhaps? yuck.
+			auto v = new cvar_t();
+			v->name = strdup(name);
+			v->string = strdup(defaultval);
+			v->value = atof(v->string);
+			v->ival = atoi(v->string);
+			return v;
+		},
+	};
+	extern "C"
+	{	//our plugin-style stuff has a few external dependancies not provided via pointers...
+		void ImgTool_SetupPalette(void);
+		qboolean QDECL Mod_LoadGLTFModel (struct model_s *mod, void *buffer, size_t fsize);
+		qboolean QDECL Mod_LoadGLBModel (struct model_s *mod, void *buffer, size_t fsize);
+		qboolean Plug_GLTF_Init(void);
+		plugcorefuncs_t *plugfuncs = &cppplugfuncs;
+		plugcmdfuncs_t *cmdfuncs;
+		plugcvarfuncs_t *cvarfuncs = &cppcvarfuncs;
+		void Q_strlcpy(char *d, const char *s, int n)
+		{
+			int i;
+			n--;
+			if (n < 0)
+				return;	//this could be an error
+
+			for (i=0; *s; i++)
+			{
+				if (i == n)
+					break;
+				*d++ = *s++;
+			}
+			*d='\0';
+		}
+		void Q_strlcat(char *d, const char *s, int n)
+		{
+			if (n)
+			{
+				int dlen = strlen(d);
+				int slen = strlen(s)+1;
+				if (slen > (n-1)-dlen)
+					slen = (n-1)-dlen;
+				memcpy(d+dlen, s, slen);
+				d[n - 1] = 0;
+			}
+		}
+	}
+
+	transform ftetransform(float bm[12], bool invert)
+	{
+		Matrix3x3 m(Vec3(bm[0], bm[1], bm[2]), Vec3(bm[4], bm[5], bm[6]), Vec3(bm[8], bm[9], bm[10]));
+		m.transpose();
+		Vec3 pos(bm[3], bm[7], bm[11]);
+		transform t;
+
+		Vec3 mscale(Vec3(m.a.x, m.b.x, m.c.x).magnitude(), Vec3(m.a.y, m.b.y, m.c.y).magnitude(), Vec3(m.a.z, m.b.z, m.c.z).magnitude());
+		// check determinant for sign of scaling
+		if(Matrix3x3(m).determinant() < 0) mscale = -mscale;
+		m.a /= mscale;
+		m.b /= mscale;
+		m.c /= mscale;
+		t.orient = Quat(m);
+		if(t.orient.w > 0) t.orient.flip();
+		t.scale = mscale;
+
+		if (invert)
+		{
+			// invert the translate
+			t.pos[0] = -(pos[0] * m.a[0] + pos[1] * m.a[1] + pos[2] * m.a[2]);
+			t.pos[1] = -(pos[0] * m.b[0] + pos[1] * m.b[1] + pos[2] * m.b[2]);
+			t.pos[2] = -(pos[0] * m.c[0] + pos[1] * m.c[1] + pos[2] * m.c[2]);
+		}
+		else
+			t.pos = pos;
+		return t;
+	}
+
+	bool loadfte(model_t *mod, const filespec &spec)
+	{	//import from fte's structs and convert to iqmtool's c++isms
+		if (mod->type != mod_alias)
+			return false;	//err...
+		galiasinfo_t *surf = (galiasinfo_t*)mod->meshinfo;
+		if (surf)
+		{
+			resetimporter(spec);
+
+			if (surf->baseframeofs)
+			{
+				for (int b = 0; b < surf->numbones; b++)
+				{
+					transform p(ftetransform(surf->ofsbones[b].inverse, true));
+
+					//spit out the joint info
+					ejoint &j = ejoints.add();
+					j.name = surf->ofsbones[b].name;
+					j.parent = surf->ofsbones[b].parent;
+
+					//and the base pose
+					eposes.add(p);
+				}
+				makerelativebasepose();
+
+#if 1			//import the animations
+				for (int animidx = 0; animidx < surf->numanimations; animidx++)
+				{
+					auto &anim = surf->ofsanimations[animidx];
+					int firstframe = eframes.length();
+					vector<float[12]> bonebuf;
+
+					for (int f = 0; f < anim.numposes; f++)
+					{
+						skeltype_t sk = anim.skeltype;
+						float time = f/anim.rate;
+						float *bonedata;
+						if (anim.GetRawBones)
+							bonedata = anim.GetRawBones(surf, &anim, time, bonebuf.reserve(surf->numbones)[0], surf->numbones);
+						else if (anim.boneofs)
+							bonedata = (float*)anim.boneofs;
+						else
+							bonedata = (float*)surf->baseframeofs, sk = SKEL_ABSOLUTE;	//abs...
+
+						if (sk == SKEL_RELATIVE)
+							;
+						else
+							printf("Unusable skeletal type for import - %i\n", (int)sk);
+
+						eframes.add(eposes.length());
+						for (int b = 0; b < surf->numbones; b++, bonedata += 12)
+							eposes.add(ftetransform(bonedata, false));
+					}
+
+
+					eanim &a = eanims.add();
+					if(spec.name) a.name = getnamekey(spec.name);
+					else
+					{
+						string name;
+						copystring(name, mod->name);
+						char *end = strrchr(name, '.');
+						if(end) *end = '\0';
+						a.name = getnamekey(name);
+					}
+					a.startframe = firstframe;
+					a.fps = anim.rate;
+					a.flags = anim.loop?IQM_LOOP:0;
+					a.endframe = eframes.length();
+				}
+#endif
+			}
+
+			for(; surf; surf = surf->nextsurf)
+			{
+				if (surf->shares_bones != 0)
+					continue;
+
+				if (surf->numindexes)
+				{
+					unsigned int firstvert=epositions.length();
+					for (int v = 0; v < surf->numverts; v++)
+					{
+						Vec3 pos(surf->ofs_skel_xyz[v][0], surf->ofs_skel_xyz[v][1], surf->ofs_skel_xyz[v][2]);
+						Vec3 norm;
+						if (surf->ofs_skel_norm)
+							norm = Vec3(surf->ofs_skel_norm[v][0],  surf->ofs_skel_norm[v][1],  surf->ofs_skel_norm[v][2]);
+						else
+							norm = Vec3(0,0,0);
+
+						etexcoords.add(Vec4(surf->ofs_st_array[v][0], surf->ofs_st_array[v][1], 0, 0));
+						if (surf->ofs_rgbaf)
+							ecolors.add(Vec4(surf->ofs_rgbaf[v][0], surf->ofs_rgbaf[v][1], surf->ofs_rgbaf[v][2], surf->ofs_rgbaf[v][3]));
+						else if (surf->ofs_rgbaub)
+							ecolors.add(Vec4(surf->ofs_rgbaub[v][0]/255.0, surf->ofs_rgbaub[v][1]/255.0, surf->ofs_rgbaub[v][2]/255.0, surf->ofs_rgbaub[v][3]/255.0));
+
+//						if (surf->ofs_skel_svect)
+//							etangents.add  (Vec4(surf->ofs_skel_svect[v][0], surf->ofs_skel_svect[v][1], surf->ofs_skel_svect[v][2], 0));
+//						if (surf->ofs_skel_tvect)
+//							ebitangents.add(Vec3(surf->ofs_skel_tvect[v][0], surf->ofs_skel_tvect[v][1], surf->ofs_skel_tvect[v][2]));
+
+						if (surf->shares_bones == 0 && surf->ofs_skel_weight && surf->ofs_skel_idx)
+						{
+							blendcombo b = {};
+							//Vec3 newpos(0,0,0);
+							//Vec3 newnorm(0,0,0);
+							for (size_t w = 0; w < 4; w++)
+							{
+								//newpos += bonerepositions[surf->ofs_skel_idx[v][w]].transform(pos) * surf->ofs_skel_weight[v][w];
+								//newnorm += bonerepositions[surf->ofs_skel_idx[v][w]].transform3(norm) * surf->ofs_skel_weight[v][w];
+								if (surf->ofs_skel_weight[v][w] > 0)
+									b.addweight(surf->ofs_skel_weight[v][w], surf->ofs_skel_idx[v][w]);
+							}
+							b.finalize();
+							eblends.add(b);
+							//pos = newpos;
+							//norm = newnorm;
+						}
+						epositions.add(Vec4(pos));
+						enormals.add(norm);
+					}
+
+					//iqms don't support skins/skingroups themselves.
+					//we have only surface name and texture(aka material) name.
+					//so use the diffuse texture's name where we can
+					//	a) its already processed properly so no ''path/model.gltf/sectionthatdoesntevenexistondisk' locations.
+					//	b) its more likely to show something without needing to synthesize shaders/textures.
+					//we should probably cvar this.
+					const char *materialname;
+					if (surf->numskins && surf->ofsskins[0].numframes && surf->ofsskins[0].frame[0].texnums.base && *surf->ofsskins[0].frame[0].texnums.base->ident != '$')
+						materialname = surf->ofsskins[0].frame[0].texnums.base->ident;
+					else if (surf->numskins)
+						materialname = surf->ofsskins[0].name;
+					else
+						materialname = surf->surfacename;
+
+					emesh mesh(surf->surfacename, materialname, etriangles.length());
+
+					//add in some extra surface properties.
+					mesh.hasexplicits = true;
+					mesh.explicits.contents = surf->contents;
+					mesh.explicits.surfaceflags = surf->csurface.flags;
+					mesh.explicits.body = surf->surfaceid;
+					mesh.explicits.geomset = surf->geomset;
+					mesh.explicits.geomid = surf->geomid;
+					mesh.explicits.mindist = surf->mindist;
+					mesh.explicits.maxdist = surf->maxdist;
+
+					emeshes.add(mesh);
+					for (int idx = 0; idx+2 < surf->numindexes; idx+=3)
+						etriangles.add(etriangle(surf->ofs_indexes[idx+0]+firstvert, surf->ofs_indexes[idx+1]+firstvert, surf->ofs_indexes[idx+2]+firstvert));
+				}
+			}
+			makeanims(spec);
+			if (emeshes.length())
+			{
+				smoothverts();
+				makemeshes(spec);
+			}
+			return true;
+		}
+		return false;
+	}
+	bool loadglb(const char *filename, const filespec &spec)
+	{
+		bool ret = false;
+		model_t mod={};
+		stream *f = openfile(filename, "rb");
+		Q_strlcpy(mod.name, filename, sizeof(mod.name));
+		if (f)
+		{
+			size_t sz = f->size();
+			auto filebuf = new char[sz];
+			if (sz == f->read(filebuf, sz))
+			{
+				if (Plug_GLTF_Init())
+					if (Mod_LoadGLBModel(&mod, filebuf, sz))
+						ret = loadfte(&mod, spec);
+			}
+			delete[] filebuf;
+			delete f;
+		}
+		return ret;
+	}
+	bool loadgltf(const char *filename, const filespec &spec)
+	{
+		bool ret = false;
+		model_t mod={};
+		stream *f = openfile(filename, "rb");
+		Q_strlcpy(mod.name, filename, sizeof(mod.name));
+		if (f)
+		{
+			size_t sz = f->size();
+			auto filebuf = new char[sz];
+			if (sz == f->read(filebuf, sz))
+			{
+				if (Plug_GLTF_Init())
+					if (Mod_LoadGLTFModel(&mod, filebuf, sz))
+						ret = loadfte(&mod, spec);
+			}
+			delete[] filebuf;
+			delete f;
+		}
+		return ret;
+	}
+}
 
 void genhitboxes(vector<hitbox> &hitboxes)
 {
@@ -3785,18 +4227,18 @@ void genhitboxes(vector<hitbox> &hitboxes)
 		formatstring(tmp, "hitbox%i", hitboxes[i].body);
 		m.name = newstring(tmp);
 		m.hasexplicits = true;
-		memset(&m.explicits, 0, sizeof(m.explicits));
+		m.explicits = {};
 		m.explicits.contents = 0x02000000;
 		m.explicits.surfaceflags = 0x80;
 		m.explicits.body = hitboxes[i].body;
 		m.explicits.geomset = ~0u;
 
 		//spit out some verts
+		Matrix3x4 bm(mjoints[bone]);
+		bm.invert();
 		for (int j = 0; j < 8; j++)
 		{
 			Vec3 p = Vec3((j&1)?hb.mins[0]:hb.maxs[0], (j&2)?hb.mins[1]:hb.maxs[1], (j&4)?hb.mins[2]:hb.maxs[2]);
-			Matrix3x4 bm(mjoints[bone]);
-			bm.invert();
 			p = bm.transform(p);
 			epositions.add(Vec4(p, 0));
 			enormals.add(p);
@@ -4140,7 +4582,7 @@ bool writeiqm(const char *filename)
 		}
 	}
 
-	if(stringdata.length()) hdr.ofs_text = hdr.filesize; hdr.num_text = stringdata.length(); hdr.filesize += hdr.num_text;
+	if(stringdata.length()) hdr.ofs_text = hdr.filesize, hdr.num_text = stringdata.length(), hdr.filesize += hdr.num_text;
 	hdr.num_meshes = meshes.length(); if(meshes.length()) hdr.ofs_meshes = hdr.filesize; hdr.filesize += meshes.length() * sizeof(iqmmesh);
 	uint voffset = hdr.filesize + varrays.length() * sizeof(iqmvertexarray);
 	hdr.num_vertexarrays = varrays.length(); if(varrays.length()) hdr.ofs_vertexarrays = hdr.filesize; hdr.filesize += varrays.length() * sizeof(iqmvertexarray);
@@ -4149,17 +4591,17 @@ bool writeiqm(const char *filename)
 	hdr.filesize += valign + vdata.length();
 	hdr.num_vertexes = numfverts;
 	hdr.num_triangles = triangles.length(); if(triangles.length()) hdr.ofs_triangles = hdr.filesize; hdr.filesize += triangles.length() * sizeof(iqmtriangle);
-	if(neighbors.length()) hdr.ofs_adjacency = hdr.filesize; hdr.filesize += neighbors.length() * sizeof(iqmtriangle);
+	if(neighbors.length()) hdr.ofs_adjacency = hdr.filesize, hdr.filesize += neighbors.length() * sizeof(iqmtriangle);
 	hdr.num_joints = joints.length(); if(joints.length()) hdr.ofs_joints = hdr.filesize; hdr.filesize += joints.length() * sizeof(iqmjoint);
 	hdr.num_poses = poses.length(); if(poses.length()) hdr.ofs_poses = hdr.filesize; hdr.filesize += poses.length() * sizeof(iqmpose);
 	hdr.num_anims = anims.length(); if(anims.length()) hdr.ofs_anims = hdr.filesize; hdr.filesize += anims.length() * sizeof(iqmanim);
 	hdr.num_frames = frames.length(); hdr.num_framechannels = framesize; 
-	if(animdata.length()) hdr.ofs_frames = hdr.filesize; hdr.filesize += animdata.length() * sizeof(ushort); 
-	if(bounds.length()) hdr.ofs_bounds = hdr.filesize; hdr.filesize += bounds.length() * sizeof(float[8]);
-	if(commentdata.length()) hdr.ofs_comment = hdr.filesize; hdr.num_comment = commentdata.length(); hdr.filesize += hdr.num_comment;
-	if (extensions.length()) hdr.ofs_extensions = hdr.filesize; hdr.num_extensions = extensions.length(); hdr.filesize += sizeof(iqmextension) * hdr.num_extensions;
-	if (ext_meshes_fte) {ext_meshes_fte->ofs_data = hdr.filesize; ext_meshes_fte->num_data = meshes_fte.length()*sizeof(iqmext_fte_mesh); hdr.filesize += ext_meshes_fte->num_data;}
-	if (ext_events_fte) {ext_events_fte->ofs_data = hdr.filesize; ext_events_fte->num_data = events_fte.length()*sizeof(iqmext_fte_events); hdr.filesize += ext_events_fte->num_data;}
+	if(animdata.length()) hdr.ofs_frames = hdr.filesize, hdr.filesize += animdata.length() * sizeof(ushort);
+	if(bounds.length()) hdr.ofs_bounds = hdr.filesize, hdr.filesize += bounds.length() * sizeof(float[8]);
+	if(commentdata.length()) hdr.ofs_comment = hdr.filesize, hdr.num_comment = commentdata.length(), hdr.filesize += hdr.num_comment;
+	if (extensions.length()) hdr.ofs_extensions = hdr.filesize, hdr.num_extensions = extensions.length(), hdr.filesize += sizeof(iqmextension) * hdr.num_extensions;
+	if (ext_meshes_fte) ext_meshes_fte->ofs_data = hdr.filesize, ext_meshes_fte->num_data = meshes_fte.length()*sizeof(iqmext_fte_mesh), hdr.filesize += ext_meshes_fte->num_data;
+	if (ext_events_fte) ext_events_fte->ofs_data = hdr.filesize, ext_events_fte->num_data = events_fte.length()*sizeof(iqmext_fte_events), hdr.filesize += ext_events_fte->num_data;
 
 	lilswap(&hdr.version, (sizeof(hdr) - sizeof(hdr.magic))/sizeof(uint));
 
@@ -4283,83 +4725,249 @@ bool writeiqm(const char *filename)
 }
 
 
-uchar qmdl_bestnorm(Vec3 &v)
+static uchar qmdl_bestnorm(Vec3 &v)
 {
-	//FIXME
-	return 0;
+	#define NUMVERTEXNORMALS	162
+	static	float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
+	#include "anorms.h"
+	};
+	uchar best = 0;
+	float bestdot = -FLT_MAX, dot;
+	for (size_t i = 0; i < countof(r_avertexnormals); i++)
+	{
+		dot = DotProduct(v, r_avertexnormals[i]);
+		if (dot > bestdot)
+		{
+			bestdot = dot;
+			best = i;
+		}
+	}
+	return best;
 }
 struct qmdl_vertex_t
 {
 	unsigned char	v[3];
 	unsigned char	normalIndex;
 };
-template<int md16> bool writemdl(const char *filename)
+static bool writemdl(const char *filename, bool md16)
 {
 	if (meshes.length() != 1)
 	{
 		conoutf("warning: mdl output requires exactly one mesh");
-		return false;	//must have ONE mesh only.
+		if (meshes.length() < 0)
+			return false;	//must have ONE mesh only.
+		else
+			conoutf("using first...");
 	}
-	auto mesh = meshes[0];
+	auto mesh = meshes[0];	//should probably favour the mesh with the most verts or something.
 	vertexarray *texcoords = NULL;
 	vertexarray *vertcoords = NULL;
 	vertexarray *vertnorm = NULL;
+	vertexarray *vertbones = NULL;
+	vertexarray *vertweights = NULL;
 	uint skinwidth = 0;
 	uint skinheight = 0;
 	Vec3 offset={0,0,0};
 	Vec3 scale={1,1,1};
 	uint numskins = 0;
 	vector<uchar> skindata;
+	unsigned char *paletteddata;
 
 	loopv(varrays)
 	{
-		if(varrays[i].type == IQM_TEXCOORD && varrays[i].format == IQM_FLOAT && varrays[i].count == 2)
+		if(varrays[i].type == IQM_TEXCOORD && varrays[i].format == IQM_FLOAT && varrays[i].size == 2)
 			texcoords = &varrays[i];
-		if(varrays[i].type == IQM_POSITION && varrays[i].format == IQM_FLOAT && varrays[i].count == 3)
+		if(varrays[i].type == IQM_POSITION && varrays[i].format == IQM_FLOAT && varrays[i].size == 3)
 			vertcoords = &varrays[i];
-		if(varrays[i].type == IQM_NORMAL && varrays[i].format == IQM_FLOAT && varrays[i].count == 3)
+		if(varrays[i].type == IQM_NORMAL && varrays[i].format == IQM_FLOAT && varrays[i].size == 3)
 			vertnorm = &varrays[i];
-//		if(varrays[i].type == IQM_BLENDINDEXES && varrays[i].format == IQM_BYTE && varrays[i].count == 4)
-//			vertbones = &varrays[i];
-//		if(varrays[i].type == IQM_BLENDWEIGHTS && varrays[i].format == IQM_FLOAT && varrays[i].count == 4)
-//			vertweights = &varrays[i];
+		if(varrays[i].type == IQM_BLENDINDEXES && varrays[i].format == IQM_UBYTE && varrays[i].size == 4)
+			vertbones = &varrays[i];
+		if(varrays[i].type == IQM_BLENDWEIGHTS && varrays[i].format == IQM_UBYTE && varrays[i].size == 4)
+			vertweights = &varrays[i];
 	}
 	if (!texcoords)
 	{
 		conoutf("warning: mdl output requires a float texcoord array");
 		return false;	//must have some vertex coords...
 	}
+	if (!vertcoords)
+	{
+		conoutf("warning: mdl output requires a suitable vertex positions array...");
+		return false;	//must have some vertex coords...
+	}
+	if (!vertnorm)
+	{
+		conoutf("warning: mdl output requires a suitable vertex normals array...");
+		return false;	//must have some vertex coords...
+	}
 	float *tcdata = (float*)texcoords->vdata.getbuf();
 
-	skinwidth = 4;
-	skinheight = 4;
-	memset(skindata.reserve(skinwidth*skinheight), 15, skinwidth*skinheight);
+	//the actual mdl limit is really annoying to calculate.
+	if (mesh.numverts >= 1024)
+		conoutf("Writing mdl %s with %u verts exceeds regular limit of %u", filename, mesh.numverts, 1024);
+
+	//read the skin...
+	size_t filesize=0;
+	qbyte *filedata = NULL;
+	auto s = openfile(&stringdata[mesh.material], "rb");
+	if (s)
+	{
+		filesize = s->size();
+		filedata = (qbyte*)malloc(filesize);
+		s->read(filedata, filesize);
+		delete s;
+	}
+	//decode it...
+	fte::ImgTool_SetupPalette();
+	struct pendingtextureinfo *tex = NULL;
+	if (filedata)
+		tex = Image_LoadMipsFromMemory(IF_NOMIPMAP, &stringdata[mesh.material], &stringdata[mesh.material], filedata, filesize);
+	else
+		conoutf("could not open file %s", &stringdata[mesh.material]);
+	if (tex)
+	{	//okay, we have a valid image!
+#if 1
+		//downsize it to work around glquake's limitations. square textures will generally end up 256*256 instead of 512*512 due to that stupid 480 height limit
+		int newwidth = tex->mip[0].width;
+		int newheight = tex->mip[0].height;
+		auto npotup = [](unsigned val)
+		{	//convert to npot, rounding up.
+			unsigned scaled = 1;
+			while(scaled < val)
+				scaled<<=1;
+			return scaled;
+		};
+		while (newwidth*newheight > 640*480/*GL_Upload8 limit*/ || npotup(newwidth)*npotup(newheight) > 1024*512/*GL_Upload32 limit, may be higher thanks to gl_max_size or gl_picmip but really that sucks*/ || newheight > 480/*Mod_LoadAliasModel limit -- weird MAX_LBM_HEIGHT check*/)
+		{
+			newwidth >>= 1;
+			newheight >>= 1;
+		}
+		auto resized = (tex->mip[0].width == newwidth&&tex->mip[0].height == newheight)?NULL:Image_ResampleTexture(tex->encoding, tex->mip[0].data, tex->mip[0].width, tex->mip[0].height, NULL, newwidth, newheight);
+		if (resized)
+		{
+			tex->mip[0].data = resized;
+			tex->mip[0].datasize = 0; /*o.O*/
+			tex->mip[0].width = newwidth;
+			tex->mip[0].height = newheight;
+		}
+#endif
+
+		//palettize it, to match the q1 palette.
+		qboolean allowedformats[PTI_MAX] = {};
+		allowedformats[PTI_P8]=qtrue;
+		//FIXME: add hexen2's alpha stuff?
+		conoutf("Palettizing \"%s\" (%u*%u)", &stringdata[mesh.material], tex->mip[0].width, tex->mip[0].height);
+		Image_ChangeFormat(tex, allowedformats, PTI_INVALID, "foo");
+
+		skinwidth = tex->mip[0].width;
+		skinheight = tex->mip[0].height;
+	}
+	else
+	{	//texture coords are ints. if we don't have a large enough texture then we don't have much texture coord precision either, so use something reasonable.
+		skinwidth = 128;
+		skinheight = 128;
+	}
+	paletteddata = skindata.reserve(skinwidth*skinheight);
+	if (tex)
+	{
+		memcpy(paletteddata, tex->mip[0].data, skinwidth*skinheight);
+		*paletteddata^=1;	//try to work around glquake's flood fill...
+	}
+	else
+	{	//fill with some sort of grey.
+		memset(paletteddata, 8, skinwidth*skinheight);
+		paletteddata[0] = 7;	//work around flood filling...
+	}
 	skindata.advance(skinwidth*skinheight);
 	numskins++;
 
 	//we're going to need the transformed pose data, without any bone weights getting in the way.
 	vector<Vec3> vpos, vnorm;
 	Vec3 min={FLT_MAX,FLT_MAX,FLT_MAX}, max={-FLT_MAX,-FLT_MAX,-FLT_MAX};
-	loopv(anims)
+	if (!anims.length())
+	{
+		Vec3 *outv = vpos.reserve(mesh.numverts);
+		Vec3 *outn = vnorm.reserve(mesh.numverts);
+
+		auto invert = (float*)vertcoords->vdata.getbuf();
+		auto innorm = (float*)vertnorm->vdata.getbuf();
+//		auto inbones = (uchar*)vertbones->vdata.getbuf();
+//		auto inweights = (uchar*)vertweights->vdata.getbuf();
+
+		//FIXME: generate bone matricies from base pose? or just use the vertex data as-is...
+		for (uint i = mesh.firstvert; i < mesh.firstvert+mesh.numverts; i++, outv++, outn++)
+		{
+			//FIXME: generate vert's matrix
+
+			//transform each vert
+			*outv = Vec3(invert[i*3+0], invert[i*3+1], invert[i*3+2]);
+
+			//bound it to find the model's extents
+			for (uint c = 0; c < 3; c++)
+			{
+				if (min.v[c] > outv->v[c])
+					min.v[c] = outv->v[c];
+				if (max.v[c] < outv->v[c])
+					max.v[c] = outv->v[c];
+			}
+
+			*outn = Vec3(innorm[i*3+0], innorm[i*3+1], innorm[i*3+2]);
+		}
+		vpos.advance(mesh.numverts);
+		vnorm.advance(mesh.numverts);
+	}
+	else loopv(anims)
 	{
 		anim &a = anims[i];
 		Vec3 *outv = vpos.reserve(mesh.numverts*a.numframes);
 		Vec3 *outn = vnorm.reserve(mesh.numverts*a.numframes);
 
-		Vec3 *invert = (Vec3*)vertcoords->vdata.getbuf();
-		Vec3 *innorm = (Vec3*)vertnorm->vdata.getbuf();
-//		uchar *inbones = (uchar*)vertbones->vdata.getbuf();
-//		Vec4 *inweights = (Vec4*)vertweights->vdata.getbuf();
+//		Matrix3x4 bonepose[joints.length()];
+		vector<Matrix3x4> bonepose;
+		bonepose.reserve(joints.length());
 
-		for (int j = 0; j < a.numframes; j++)
+		auto invert = (float*)vertcoords->vdata.getbuf();
+		auto innorm = (float*)vertnorm->vdata.getbuf();
+		auto inbones = vertbones?(uchar*)vertbones->vdata.getbuf():NULL;
+		auto inweights = vertweights?(uchar*)vertweights->vdata.getbuf():NULL;
+
+		if (!inbones || !inweights)
+			printf("no bone indexes\n");
+
+		for (uint j = 0; j < a.numframes; j++)
 		{
-			//FIXME: generate bone matricies
-			for (int i = mesh.firstvert; i < mesh.numverts; i++, outv++, outn++)
+			//build absolute poses.
+			frame &fr = frames[a.firstframe+j];
+			for (int b = 0; b < fr.pose.length(); b++)
 			{
-				//FIXME: generate vert's matrix
+				auto &frpose = fr.pose[b];
+				bonepose[b] = Matrix3x4(Quat(frpose.tr.orient), Vec3(frpose.tr.pos), Vec3(frpose.tr.scale));
+				if (frpose.boneparent >= 0)
+					bonepose[b]	= bonepose[frpose.boneparent] * bonepose[b];
+			}
+			//done with parents... now we want to invert them
+			for (int b = 0; b < fr.pose.length(); b++)
+			{
+				Matrix3x4 invbind = Matrix3x4(mjoints[b]);
+				//invbind.invert();
+				bonepose[b] = bonepose[b] * invbind;
+			}
+			for (uint i = mesh.firstvert; i < mesh.numverts; i++, outv++, outn++)
+			{
+				//generate per-vert matrix...
+				Matrix3x4 blend;
+				blend *= 0;
+				if (inweights && inbones)
+				{
+					if (inweights[i*4+0]) blend += bonepose[inbones[i*4+0]] * (inweights[i*4+0]/255.0);
+					if (inweights[i*4+1]) blend += bonepose[inbones[i*4+1]] * (inweights[i*4+1]/255.0);
+					if (inweights[i*4+2]) blend += bonepose[inbones[i*4+2]] * (inweights[i*4+2]/255.0);
+					if (inweights[i*4+3]) blend += bonepose[inbones[i*4+3]] * (inweights[i*4+3]/255.0);
+				}
 
 				//transform each vert
-				*outv = invert[i];
+				*outv = blend.transform(Vec3(invert[i*3+0], invert[i*3+1], invert[i*3+2]));
 
 				//bound it to find the model's extents
 				for (uint c = 0; c < 3; c++)
@@ -4370,14 +4978,14 @@ template<int md16> bool writemdl(const char *filename)
 						max.v[c] = outv->v[c];
 				}
 
-				*outn = innorm[i];
+				*outn = blend.transform3(Vec3(innorm[i*3+0], innorm[i*3+1], innorm[i*3+2]));
 			}
 			vpos.advance(mesh.numverts);
 			vnorm.advance(mesh.numverts);
 		}
 	}
 
-	offset = -min;
+	offset = min;
 	scale = (max-min)/255; //ignore low order info here
 
 	stream *f = openfile(filename, "wb");
@@ -4405,27 +5013,36 @@ template<int md16> bool writemdl(const char *filename)
 
 	f->putlil((uint)mesh.numverts);
 	f->putlil((uint)mesh.numtris);
-	f->putlil((uint)anims.length());	//numanims
+	if (!anims.length())
+		f->putlil((uint)1);					//numanims
+	else
+		f->putlil((uint)anims.length());	//numanims
 
 	f->putlil((uint)0);	//synctype
 	f->putlil((uint)modelflags);	//flags
 	f->putlil(0.f);	//size
 
 	//skins
-	for (int i = 0; i < numskins; i++)
+	for (uint i = 0; i < numskins; i++)
 	{
 		f->putlil((uint)0);	//ALIAS_SKIN_SINGLE
 		f->write(skindata.getbuf()+i*skinwidth*skinheight, skinwidth*skinheight);
 	}
 	//texcoords
-	for (int i = mesh.firstvert; i < mesh.numverts; i++)
+	for (uint i = mesh.firstvert; i < mesh.firstvert+mesh.numverts; i++)
 	{
+		float s = (tcdata[i*2+0])*skinwidth;
+		float t = (tcdata[i*2+1])*skinheight;
+		s -= 0.5;	//glquake has some annoying half-texel offset thing.
+		t -= 0.5;
+		s = bound(0, s, skinwidth);
+		t = bound(0, t, skinwidth);
 		f->putlil((uint)(0?32:0));	//onseam. no verts are ever onseam for us, as we don't do that nonsense here.
-		f->putlil((int)((tcdata[i*2+0]+.5)*skinwidth));	//mdl texcoords are ints, in texels. which sucks, but what can you do...
-		f->putlil((int)((tcdata[i*2+1]+.5)*skinheight));
+		f->putlil((int)s);	//mdl texcoords are ints, in texels. which sucks, but what can you do...
+		f->putlil((int)t);
 	}
 	//tris
-	for (int i = mesh.firsttri; i < mesh.firsttri+mesh.numtris; i++)
+	for (uint i = mesh.firsttri; i < mesh.firsttri+mesh.numtris; i++)
 	{
 		f->putlil((uint)1);	//faces front. All are effectively front-facing for us. This avoids annoying tc additions.
 		f->putlil((uint)triangles[i].vert[0]);
@@ -4435,90 +5052,158 @@ template<int md16> bool writemdl(const char *filename)
 	//animations
 	vector<qmdl_vertex_t> high, low;
 	size_t voffset = 0;
-	loopv(anims)
-	{
-		anim &a = anims[i];
-		for (int j = 0; j < a.numframes; j++)
-		{
-			qmdl_vertex_t *th=high.reserve(mesh.numverts),*tl=low.reserve(mesh.numverts);
-			for (int i = mesh.firstvert; i < mesh.numverts; i++, th++, tl++)
-			{
-				int l;
-				for (uint c = 0; c < 3; c++)
-				{
-					l = (((vpos[voffset][c]-offset[c])*256) / scale[c]);
-					if (l<0)		l = 0;
-					if (l > 0xff00)	l = 0xff00;	//0xffff would exceed the bounds values, so don't use it.
-					th->v[c] = l>>8;
-					tl->v[c] = l&0xff;
-				}
-				tl->normalIndex = th->normalIndex = qmdl_bestnorm(vnorm[voffset]);
 
-				voffset++;
+	if (!anims.length())
+	{
+		qmdl_vertex_t *th=high.reserve(mesh.numverts),*tl=low.reserve(mesh.numverts);
+		for (uint i = mesh.firstvert; i < mesh.numverts; i++, th++, tl++)
+		{
+			int l;
+			for (uint c = 0; c < 3; c++)
+			{
+				l = (((vpos[voffset][c]-offset[c])*256) / scale[c]);
+				if (l<0)		l = 0;
+				if (l > 0xff00)	l = 0xff00;	//0xffff would exceed the bounds values, so don't use it.
+				th->v[c] = l>>8;
+				tl->v[c] = l&0xff;
 			}
-			high.advance(mesh.numverts);
-			low.advance(mesh.numverts);
+			tl->normalIndex = th->normalIndex = qmdl_bestnorm(vnorm[voffset]);
+
+			voffset++;
 		}
+		high.advance(mesh.numverts);
+		low.advance(mesh.numverts);
+
+		voffset = 0;
+		f->putlil((uint)0);	//single-pose type
+
+		char name[16]="base";
+		qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
+		for (uint k = 0; k < mesh.numverts; k++)
+		{
+			for (uint c = 0; c < 3; c++)
+			{
+				if (min.v[c] > high[voffset+k].v[c])
+					min.v[c] = high[voffset+k].v[c];
+				if (max.v[c] < high[voffset+k].v[c])
+					max.v[c] = high[voffset+k].v[c];
+			}
+		}
+		f->put(min);
+		f->put(max);
+
+		name[countof(name)-1] = 0;
+		for (uint k = 0; k < countof(name); k++)
+			f->put(name[k]);
+
+		f->write(&high[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
+		if (md16)
+			f->write(&low[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
+		voffset += mesh.numverts;
 	}
-	voffset = 0;
-	loopv(anims)
+	else
 	{
-		anim &a = anims[i];
-		if (a.numframes == 1)
-			f->putlil((uint)0);	//single-pose type
-		else
+		loopv(anims)
 		{
-			f->putlil((uint)1);	//anim type
-			f->putlil((uint)a.numframes);
-
-			qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
-			for (uint k = 0; k < mesh.numverts*a.numframes; k++)
+			anim &a = anims[i];
+			for (uint j = 0; j < a.numframes; j++)
 			{
-				for (uint c = 0; c < 3; c++)
+				qmdl_vertex_t *th=high.reserve(mesh.numverts),*tl=low.reserve(mesh.numverts);
+
+				for (uint i = mesh.firstvert; i < mesh.numverts; i++, th++, tl++)
 				{
-					if (min.v[c] > high[voffset+k].v[c])
-						min.v[c] = high[voffset+k].v[c];
-					if (max.v[c] < high[voffset+k].v[c])
-						max.v[c] = high[voffset+k].v[c];
+					int l;
+					for (uint c = 0; c < 3; c++)
+					{
+						l = (((vpos[voffset][c]-offset[c])*256) / scale[c]);
+						if (l<0)		l = 0;
+						if (l > 0xff00)	l = 0xff00;	//0xffff would exceed the bounds values, so don't use it.
+						th->v[c] = l>>8;
+						tl->v[c] = l&0xff;
+					}
+					tl->normalIndex = th->normalIndex = qmdl_bestnorm(vnorm[voffset]);
+
+					voffset++;
 				}
+				high.advance(mesh.numverts);
+				low.advance(mesh.numverts);
 			}
-			f->put(min);
-			f->put(max);
-			for (int j = 0; j < a.numframes; j++)
-				f->putlil(1.0f/a.fps);	//intervals. we use the same value for each
 		}
-
-		for (int j = 0; j < a.numframes; j++)
+		voffset = 0;
+		loopv(anims)
 		{
-			char name[16]={0};
-			qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
-			for (uint k = 0; k < mesh.numverts; k++)
+			anim &a = anims[i];
+			if (a.numframes == 1)
+				f->putlil((uint)0);	//single-pose type
+			else
 			{
-				for (uint c = 0; c < 3; c++)
+				f->putlil((uint)1);	//anim type
+				f->putlil((uint)a.numframes);
+
+				qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
+				for (uint k = 0; k < mesh.numverts*a.numframes; k++)
 				{
-					if (min.v[c] > high[voffset+k].v[c])
-						min.v[c] = high[voffset+k].v[c];
-					if (max.v[c] < high[voffset+k].v[c])
-						max.v[c] = high[voffset+k].v[c];
+					for (uint c = 0; c < 3; c++)
+					{
+						if (min.v[c] > high[voffset+k].v[c])
+							min.v[c] = high[voffset+k].v[c];
+						if (max.v[c] < high[voffset+k].v[c])
+							max.v[c] = high[voffset+k].v[c];
+					}
 				}
+				f->put(min);
+				f->put(max);
+				for (uint j = 0; j < a.numframes; j++)
+					f->putlil(1.0f/a.fps);	//intervals. we use the same value for each
 			}
-			f->put(min);
-			f->put(max);
 
-			strncpy(name, &stringdata[a.name], sizeof(name));
-			f->put(name);
+			for (uint j = 0; j < a.numframes; j++)
+			{
+				char name[16]={0};
+				qmdl_vertex_t min={{255,255,255}}, max={{0,0,0}};
+				for (uint k = 0; k < mesh.numverts; k++)
+				{
+					for (uint c = 0; c < 3; c++)
+					{
+						if (min.v[c] > high[voffset+k].v[c])
+							min.v[c] = high[voffset+k].v[c];
+						if (max.v[c] < high[voffset+k].v[c])
+							max.v[c] = high[voffset+k].v[c];
+					}
+				}
+				f->put(min);
+				f->put(max);
 
-			f->write(&high[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
-			if (md16)
-				f->write(&low[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
-			voffset += mesh.numverts;
+				strncpy(name, &stringdata[a.name], sizeof(name));
+				name[countof(name)-1] = 0;
+				for (uint k = 0; k < countof(name); k++)
+					f->put(name[k]);
+
+				f->write(&high[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
+				if (md16)
+					f->write(&low[voffset], sizeof(qmdl_vertex_t)*mesh.numverts);
+				voffset += mesh.numverts;
+			}
 		}
 	}
 
 	delete f;
 	return true;
 }
+static bool writeqmdl(const char *filename)
+{
+	return writemdl(filename, false);
+}
+static bool writemd16(const char *filename)
+{
+	return writemdl(filename, true);
+}
 
+static bool writemd3(const char *filename)
+{
+	fprintf(stderr, "writemd3 is not implemented yet\n");
+	return false;
+}
 
 void help(bool exitstatus = EXIT_SUCCESS)
 {
@@ -4808,15 +5493,17 @@ bool parseanimfield(const char *tok, char **line, filespec &spec, bool defaults)
 
 struct
 {
+	const char *extname;
 	bool (*write)(const char *filename);
 	const char *cmdname;
 	const char *altcmdname;
 } outputtypes[] =
 {
-	{writeiqm,		"output_iqm"},
-	{writemdl<0>,	"output_qmdl"},
-	{writemdl<1>,	"output_md16"},
-//	{writemd3,		"output_md3"},
+	{".vvm",	writeiqm,		"output_vvm"},
+	{".iqm",	writeiqm,		"output_iqm"},
+	{".mdl",	writeqmdl,		"output_qmdl"},
+	{".md16",	writemd16,		"output_md16"},
+	{".md3",	writemd3,		"output_md3"},
 };
 
 void parsecommands(char *filename, const char *outfiles[countof(outputtypes)], vector<filespec> &infiles, vector<hitbox> &hitboxes)
@@ -5036,12 +5723,24 @@ int main(int argc, char **argv)
 			const char *type = strrchr(argv[i], '.');
 			if (type && (!strcasecmp(type, ".cmd")||!strcasecmp(type, ".cfg")||!strcasecmp(type, ".txt")||!strcasecmp(type, ".qc")))	//.qc to humour halflife fanboys
 				parsecommands(argv[i], outfiles, infiles, hitboxes);
-			else if(!outfiles[0] && !outfiles[1] && !outfiles[2])
-				outfiles[0] = argv[i];	//first arg is the output name, if its not an export script thingie.
 			else
 			{
-				infiles.add(inspec).file = argv[i];
-				inspec.reset();
+				size_t j;
+				for (j = 0; j < countof(outfiles); j++)
+					if (outfiles[j])
+						break;
+				if(j == countof(outfiles))
+				{
+					for (j = countof(outfiles); j --> 0; )
+						if (type && !strcasecmp(type, outputtypes[j].extname))
+							break;
+					outfiles[j] = argv[i];	//first arg is the output name, if its not an export script thingie.
+				}
+				else
+				{
+					infiles.add(inspec).file = argv[i];
+					inspec.reset();
+				}
 			}
 		}
 	}
@@ -5049,7 +5748,17 @@ int main(int argc, char **argv)
 	size_t n;
 	for (n = 0; n < countof(outputtypes) && !outfiles[n]; n++);
 	if(n == countof(outfiles)) fatal("no output file specified");
-	if(infiles.empty()) fatal("no input files specified");
+	if(infiles.empty())
+	{
+		if (outfiles[0])
+		{
+			inspec.reset();
+			infiles.add(inspec).file = outfiles[0];
+			outfiles[0] = NULL;
+		}
+		else
+			fatal("no input files specified");
+	}
 
 	if(gscale != 1) printf("scale: %f\n", escale);
 	if(gmeshtrans != Vec3(0, 0, 0)) printf("mesh translate: %f, %f, %f\n", gmeshtrans.x, gmeshtrans.y, gmeshtrans.z);
@@ -5084,6 +5793,14 @@ int main(int argc, char **argv)
 		else if(!strcasecmp(type, ".obj"))
 		{
 			if(!loadobj(infile, inspec)) fatal("failed reading: %s", infile);
+		}
+		else if(!strcasecmp(type, ".glb"))
+		{
+			if(!fte::loadglb(infile, inspec)) fatal("failed reading: %s", infile);
+		}
+		else if(!strcasecmp(type, ".gltf"))
+		{
+			if(!fte::loadgltf(infile, inspec)) fatal("failed reading: %s", infile);
 		}
 		else fatal("unknown file type: %s", type);	 
 	}

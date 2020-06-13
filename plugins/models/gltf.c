@@ -1,9 +1,16 @@
 #if !defined(GLQUAKE) && !defined(FTEENGINE)
 #define GLQUAKE	//this is shit, but ensures index sizes come out the right size
 #endif
-#include "quakedef.h"
+#ifdef IQMTOOL
+#define FTEPLUGIN
+#endif
 #include "../plugin.h"
 #include "com_mesh.h"
+
+#ifdef IQMTOOL
+#define Con_Printf printf
+#define Con_DPrintf printf
+#endif
 
 #ifdef SKELETALMODELS
 #define GLTFMODELS
@@ -15,31 +22,52 @@
 		texture modes (like clamp) must match on both axis (either both clamp or both wrap, no mixing)
 		mirrored-repeat not supported
 		mip-mag-mip filters must match (all linear, or all nearest)
+		gltf1: techniques are disabled by default.
+		gltf1: symbol names are linked via defines. this results in potential conflicts.
+		gltf1: static uniforms are not set.
 	animations:
-		input framerates are not well-defined. this can result in issues when converting to other formats (especially with stepping anims).
-		morph targets are not supported.
+		input framerates are not well-defined. this can result in issues when converting to other formats (especially with stepping anims). this does not necessarily affect directly-loaded animations.
 		total nodes(+joints) must be < MAX_BONES, and ideally <MAX_GPU_BONES too but it is sufficient for that to be per-mesh.
 	meshes:
 		multiple texture coord sets are not supported.
 		additional colours/weights attributes are not supported.
 		multiple meshes with the same material will not be merged.
 	scene:
-		cameras can be parsed, but are not necessarily useful as they are not exposed to the gamecode.
+		cameras are parsed, but are not necessarily useful as they are not exposed to the gamecode.
 	extensions:
-		no KHR_draco_mesh_compression
-		unknown extensions will result in warning spam for each occurence.
-		gltf1 is NOT supported, only gltf2.
+		no KHR_draco_mesh_compression, so many sample models will fail.
+		unknown extensions will result in warning spam for each occurence. :(
 */
 
 
 //'The units for all linear distances are meters.'
 //'feh: 1 metre is approx. 26.24671916 qu.'
 //if the player is 1.6m tall, and the player's model is around 48qu, then 1m=30qu, which is a slightly nicer number to work with, and 1qu is a really poorly defined unit.
-#define GLTFSCALE 30
+#define MAX_MORPHWEIGHTS 16	//we're required to support up to 8 accessors (so mandatory max changes according to supplied data, so 8 morphs with just positions, 4 with positions+normals, or 2 with positions+normals+tangents - plus the base info)
 
 #ifdef GLTFMODELS
 static plugmodfuncs_t *modfuncs;
 static plugfsfuncs_t *filefuncs;
+
+static cvar_t *mod_gltf_scale;
+static cvar_t *mod_gltf_fixbuggyanims;
+static cvar_t *mod_gltf_privatematerials;
+static cvar_t *mod_gltf_ignoretechniques;
+
+#include <stdarg.h>
+void VARGS Q_snprintfcat (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list		argptr;
+
+	size_t skip = strlen(dest);
+	dest += skip;
+	size -= skip;
+
+	va_start (argptr, fmt);
+	vsnprintf(dest, size, fmt, argptr);
+	va_end (argptr);
+}
+
 
 typedef struct json_s
 {
@@ -363,7 +391,7 @@ static json_t *JSON_Parse(json_t *t, const char *namestart, const char *nameend,
 					continue;
 				}
 				break;
-			} 
+			}
 
 			JSON_SkipWhite(json, jsonpos, jsonlen);
 			if (*jsonpos < jsonlen && json[*jsonpos] == ']')
@@ -475,12 +503,14 @@ static qintptr_t JSON_GetInteger(json_t *t, const char *child, int fallback)
 	}
 	return fallback;
 }
+#ifndef SERVERONLY//ffs
 static qintptr_t JSON_GetIndexedInteger(json_t *t, unsigned int idx, int fallback)
 {
 	char idxname[MAX_QPATH];
 	Q_snprintf(idxname, sizeof(idxname), "%u", idx);
 	return JSON_GetInteger(t, idxname, fallback);
 }
+#endif
 static double JSON_GetFloat(json_t *t, const char *child, double fallback)
 {
 	if (child)
@@ -556,7 +586,7 @@ static void JSON_FlagAsUsed(json_t *t, const char *child)
 }
 static void JSON_WarnIfChild(json_t *t, const char *child, int *warnlimit)
 {
-	t = JSON_FindChild(t, child); 
+	t = JSON_FindChild(t, child);
 	if (t)
 	{
 		char path[8192];
@@ -580,7 +610,7 @@ static unsigned int FromBase64(char c)
 		return 62;
 	if (c == '/')
 		return 63;
-	return 64;
+	return 64;	//'=' for no-more/padding.
 }
 //fancy parsing of content. NOTE: doesn't bother to handle escape codes, which shouldn't be present (\u for ascii chars is horribly wasteful).
 static void *JSON_MallocDataURI(json_t *t, size_t *outlen)
@@ -633,7 +663,7 @@ static void *JSON_MallocDataURI(json_t *t, size_t *outlen)
 						break;
 					*out++ = (c2<<4) | (c3>>2);
 					c4 = FromBase64(*in++);
-					if (c3 >= 64)
+					if (c4 >= 64)
 						break;
 					*out++ = (c3<<6) | (c4>>0);
 				}
@@ -676,11 +706,13 @@ typedef struct gltf_s
 	struct model_s *mod;
 	unsigned int numsurfaces;
 	json_t *r;
+	int ver;
 
 	int *bonemap;//[MAX_BONES];	//remap skinned bones. I hate that we have to do this.
 	struct gltfbone_s
 	{
 		char name[32];
+		char jointname[32];	//gltf1 only
 		int parent;
 		int camera;
 		double amatrix[16];
@@ -698,6 +730,55 @@ typedef struct gltf_s
 
 	struct gltf_buffer buffers[64];
 } gltf_t;
+
+static void GLTF_FlagExtras(json_t *node)
+{
+	JSON_FindChild(node, "extensions");	//warn about child extensions, but not the extensions table itself.
+	JSON_FlagAsUsed(node, "extras");	//don't warn about application-specific extras
+}
+
+static json_t *GLTF_FindJSONIDParent(struct gltf_s *gltf, json_t *parent, json_t *id, quintptr_t *idx)
+{
+	if (gltf->ver == 1)
+	{	//gltf1 uses string-based names
+		char name[64];
+		JSON_ReadBody(id, name, sizeof(name));
+		id = parent;
+		if (idx)
+			*idx = 0;
+		if (id)
+		for (id = id->child; id; id = id->sibling)
+		{
+			if (!strcmp(id->name, name))
+			{
+				id->used = true;
+				return id;
+			}
+			if (idx)
+				*idx += 1;
+		}
+		return NULL;
+	}
+	else
+	{	//gltf2 uses array indexes.
+		quintptr_t num;
+		num = id?JSON_GetInteger(id, NULL, -1):-1;
+		if (idx)
+			*idx = num;
+		return JSON_FindIndexedChild(parent, NULL, num);
+	}
+}
+static json_t *GLTF_FindJSONID(struct gltf_s *gltf, const char *restype, json_t *id, quintptr_t *idx)
+{	//if there's no scene info, treat it as "-1"
+	return GLTF_FindJSONIDParent(gltf, JSON_FindChild(gltf->r, restype), id, idx);
+}
+static json_t *GLTF_FindJSONID_First(struct gltf_s *gltf, const char *restype, json_t *id, quintptr_t *idx)
+{	//if there's no scene info, treat it as "0"
+
+	if (!id && gltf->ver > 1)
+		return JSON_FindIndexedChild(gltf->r, restype, 0);
+	return GLTF_FindJSONIDParent(gltf, JSON_FindChild(gltf->r, restype), id, idx);
+}
 
 static void GLTF_RelativePath(const char *base, const char *relative, char *out, size_t outsize)
 {
@@ -755,18 +836,30 @@ static void GLTF_RelativePath(const char *base, const char *relative, char *out,
 	*out = 0;
 }
 
-static struct gltf_buffer *GLTF_GetBufferData(gltf_t *gltf, int bufferidx)
+static struct gltf_buffer *GLTF_GetBufferData(gltf_t *gltf, json_t *bufferid)
 {
-	json_t *b = JSON_FindIndexedChild(gltf->r, "buffers", bufferidx);
+	quintptr_t bufferidx;
+	json_t *b = GLTF_FindJSONID(gltf, "buffers", bufferid, &bufferidx);
 	json_t *uri = JSON_FindChild(b, "uri");
 	size_t length = JSON_GetUInteger(b, "byteLength", 0);
 	struct gltf_buffer *out;
 
-//	JSON_WarnIfChild(b, "name");
-//	JSON_WarnIfChild(b, "extensions");
-//	JSON_WarnIfChild(b, "extras");
+	if (gltf->ver <= 1)
+	{
+		char body[64];
+		JSON_ReadBody(bufferid, body, sizeof(body));
+		if (!strcmp(body, "binary_glTF") && !gltf->buffers[0].malloced && gltf->buffers[0].data)
+			return &gltf->buffers[0];
+		else
+			bufferidx++;
 
-	if (bufferidx < 0 || bufferidx >= countof(gltf->buffers))
+		JSON_FlagAsUsed(b, "type");	//default: "arraybuffer"... yeah, not relevant to anything.
+	}
+	JSON_FlagAsUsed(b, "name");
+	GLTF_FlagExtras(b);
+
+
+	if (bufferidx >= countof(gltf->buffers))
 		return NULL;
 	out = &gltf->buffers[bufferidx];
 
@@ -809,28 +902,27 @@ struct gltf_bufferview
 	size_t length;
 	int bytestride;
 };
-static qboolean GLTF_GetBufferViewData(gltf_t *gltf, int bufferview, struct gltf_bufferview *view)
+static qboolean GLTF_GetBufferViewData(gltf_t *gltf, json_t *bufferviewid, struct gltf_bufferview *view)
 {
 	struct gltf_buffer *buf;
-	json_t *bv = JSON_FindIndexedChild(gltf->r, "bufferViews", bufferview);
+	json_t *bv = GLTF_FindJSONID(gltf, "bufferViews", bufferviewid, NULL);
 	size_t offset;
 	if (!bv)
 		return false;
 
-	buf = GLTF_GetBufferData(gltf, JSON_GetInteger(bv, "buffer", 0));
+	buf = GLTF_GetBufferData(gltf, JSON_FindChild(bv, "buffer"));
 	if (!buf)
 		return false;
 	offset = JSON_GetUInteger(bv, "byteOffset", 0);
 	view->data = (char*)buf->data + offset;
 	view->length = JSON_GetUInteger(bv, "byteLength", 0);	//required
-	view->bytestride = JSON_GetInteger(bv, "byteStride", 0);
+	view->bytestride = (gltf->ver<=1)?0:JSON_GetInteger(bv, "byteStride", 0);
 	if (offset + view->length > buf->length)
 		return false;
 
 	JSON_FlagAsUsed(bv, "target");	//required, but not useful for us.
 	JSON_FlagAsUsed(bv, "name");
-//	JSON_WarnIfChild(bv, "extensions");
-//	JSON_WarnIfChild(bv, "extras");
+	GLTF_FlagExtras(bv);
 	return true;
 }
 //accessors are basically VAs blocks that refer inside a bufferview/VBO.
@@ -842,13 +934,13 @@ struct gltf_accessor
 
 	int componentType;		//5120 BYTE, 5121 UNSIGNED_BYTE, 5122 SHORT, 5123 UNSIGNED_SHORT, 5125 UNSIGNED_INT, 5126 FLOAT
 	qboolean normalized;
-	int count;
+	size_t count;
 	int type;	//1,2,3,4 says component count, 256|(4,9,16) for square matricies...
 
 	double mins[16];
 	double maxs[16];
 };
-static qboolean GLTF_GetAccessor(gltf_t *gltf, int accessorid, struct gltf_accessor *out)
+static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_accessor *out)
 {
 	struct gltf_bufferview bv;
 	json_t *a, *mins, *maxs;
@@ -856,17 +948,22 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, int accessorid, struct gltf_acces
 	int j;
 	memset(out, 0, sizeof(*out));
 
-	a = JSON_FindIndexedChild(gltf->r, "accessors", accessorid);
+	a = GLTF_FindJSONID(gltf, "accessors", accessorid, NULL);
 	if (!a)
 		return false;
 
-	if (!GLTF_GetBufferViewData(gltf, JSON_GetInteger(a, "bufferView", 0), &bv))
+	JSON_FlagAsUsed(a, "name");
+
+	if (!GLTF_GetBufferViewData(gltf, JSON_FindChild(a, "bufferView"), &bv))
 		return false;
 	offset = JSON_GetUInteger(a, "byteOffset", 0);
 	if (offset > bv.length)
 		return false;
 	out->length = bv.length - offset;
-	out->bytestride = bv.bytestride;
+	if (gltf->ver <= 1)
+		out->bytestride = JSON_GetInteger(a, "byteStride", 0);
+	else
+		out->bytestride = bv.bytestride;
 	out->componentType = JSON_GetInteger(a, "componentType", 0);
 	out->normalized = JSON_GetInteger(a, "normalized", false);
 	out->count = JSON_GetInteger(a, "count", 0);
@@ -924,24 +1021,21 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, int accessorid, struct gltf_acces
 
 //	JSON_WarnIfChild(a, "sparse");
 //	JSON_WarnIfChild(a, "name");
-//	JSON_WarnIfChild(a, "extensions");
-//	JSON_WarnIfChild(a, "extras");
+	GLTF_FlagExtras(a);
 
 	out->data = (char*)bv.data + offset;
 	return true;
 }
 
-static void GLTF_AccessorToTangents(gltf_t *gltf, vec3_t *norm, vec3_t **sdir, vec3_t **tdir, size_t outverts, struct gltf_accessor *a)
+static void GLTF_AccessorToTangents(gltf_t *gltf, const vec3_t *norm, size_t outverts, const struct gltf_accessor *a, vec3_t *sdir, vec3_t *tdir)
 {	//input MUST be a single float4
 	//output is two vec3s. wasteful perhaps.
-	vec3_t *os = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*os) * 3 * outverts);
-	vec3_t *ot = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ot) * 3 * outverts);
+	vec3_t *os = sdir;
+	vec3_t *ot = tdir;
 	char *in = a->data;
 
 	size_t v, c;
 	float side;
-	*sdir = os;
-	*tdir = ot;
 	if ((a->type&0xff) != 4)
 		return;
 	switch(a->componentType)
@@ -1004,14 +1098,16 @@ static void GLTF_AccessorToTangents(gltf_t *gltf, vec3_t *norm, vec3_t **sdir, v
 	}
 }
 
-static void *GLTF_AccessorToDataF(gltf_t *gltf, size_t outverts, unsigned int outcomponents, struct gltf_accessor *a)
+static void *GLTF_AccessorToDataF(gltf_t *gltf, size_t outverts, unsigned int outcomponents, const struct gltf_accessor *a, void *out)
 {
-	float *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
+	float *ret = out, *o;
 	char *in = a->data;
 
-	int c, ic = a->type&0xff;
+	size_t c, ic = a->type&0xff;
 	if (ic > outcomponents)
 		ic = outcomponents;
+	if (!ret)
+		ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts);
 	o = ret;
 	switch(a->componentType)
 	{
@@ -1170,7 +1266,7 @@ static void *GLTF_AccessorToDataUB(gltf_t *gltf, size_t outverts, unsigned int o
 	unsigned char *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
 	char *in = a->data;
 
-	int c, ic = a->type&0xff;
+	size_t c, ic = a->type&0xff;
 	if (ic > outcomponents)
 		ic = outcomponents;
 	o = ret;
@@ -1218,7 +1314,7 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 	char *in = a->data;
 
 
-	int c, ic = a->type&0xff;
+	size_t c, ic = a->type&0xff;
 	if (ic > outcomponents)
 		ic = outcomponents;
 	o = ret;
@@ -1241,6 +1337,8 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 			for (c = 0; c < ic; c++)
 			{
 				v = ((unsigned char*)in)[c];
+				if ((unsigned int)v >= MAX_BONES)
+					v = 0;
 				o[c] = gltf->bonemap[v];
 			}
 			for (; c < outcomponents; c++)
@@ -1257,7 +1355,7 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 			for (c = 0; c < ic; c++)
 			{
 				v = ((unsigned short*)in)[c];
-				if (v > MAX_BONES)
+				if (v >= MAX_BONES)
 					v = 0;
 				o[c] = gltf->bonemap[v];
 			}
@@ -1268,42 +1366,66 @@ static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_
 		}
 		break;
 		//the spec doesn't require these.
-//	case 5125: //UNSIGNED_INT
-/*	case 5126: //FLOAT
+	case 5125: //UNSIGNED_INT
 		while(outverts --> 0)
 		{
+			unsigned int v;
 			for (c = 0; c < ic; c++)
-				o[c] = ((float*)in)[c];
+			{
+				v = ((unsigned short*)in)[c];
+				if (v >= MAX_BONES)
+					v = 0;
+				o[c] = gltf->bonemap[v];
+			}
 			for (; c < outcomponents; c++)
-				o[c] = 0;
+				o[c] = gltf->bonemap[0];
 			o += outcomponents;
 			in += a->bytestride;
 		}
-		break;*/
+		break;
+	case 5126: //FLOAT. for bone indexes. wtf?
+		while(outverts --> 0)
+		{
+			unsigned int v;
+			for (c = 0; c < ic; c++)
+			{
+				v = ((float*)in)[c];
+				if (v >= MAX_BONES)
+					v = 0;
+				o[c] = gltf->bonemap[v];
+			}
+			for (; c < outcomponents; c++)
+				o[c] = gltf->bonemap[0];
+			o += outcomponents;
+			in += a->bytestride;
+		}
+		break;
 	}
 	return ret;
 }
-void TransformArrayD(vecV_t *data, size_t vcount, double matrix[])
+static void TransformPosArray(vecV_t *data, size_t vcount, double matrix[])
 {
 	while (vcount --> 0)
 	{
 		vec3_t t;
 		VectorCopy((*data), t);
-		(*data)[0] = DotProduct(t, (matrix+0)) + matrix[0+3];
-		(*data)[1] = DotProduct(t, (matrix+4)) + matrix[4+3];
-		(*data)[2] = DotProduct(t, (matrix+8)) + matrix[8+3];
+
+		(*data)[0] = matrix[0]*t[0] + matrix[4]*t[1] + matrix[8]*t[2] + matrix[12];
+		(*data)[1] = matrix[1]*t[0] + matrix[5]*t[1] + matrix[9]*t[2] + matrix[13];
+		(*data)[2] = matrix[2]*t[0] + matrix[6]*t[1] + matrix[10]*t[2] + matrix[14];
+		//1        = matrix[3]*t[0] + matrix[7]*t[1] + matrix[11]*t[2] + matrix[14];	//hopefully...
 		data++;
 	}
 }
-void TransformArrayA(vec3_t *data, size_t vcount, double matrix[])
+static void TransformDirArray(vec3_t *data, size_t vcount, double matrix[])
 {
 	vec3_t t;
 	float mag;
 	while (vcount --> 0)
 	{
-		t[0] = DotProduct((*data), (matrix+0));
-		t[1] = DotProduct((*data), (matrix+4));
-		t[2] = DotProduct((*data), (matrix+8));
+		t[0] = matrix[0]*(*data)[0] + matrix[4]*(*data)[1] + matrix[8]*(*data)[2];
+		t[1] = matrix[1]*(*data)[0] + matrix[5]*(*data)[1] + matrix[9]*(*data)[2];
+		t[2] = matrix[2]*(*data)[0] + matrix[6]*(*data)[1] + matrix[10]*(*data)[2];
 
 		//scaling is bad for axis.
 		mag = DotProduct(t,t);
@@ -1318,18 +1440,33 @@ void TransformArrayA(vec3_t *data, size_t vcount, double matrix[])
 	}
 }
 #ifndef SERVERONLY
-static texid_t GLTF_LoadImage(gltf_t *gltf, int imageidx, unsigned int flags)
+static texid_t GLTF_LoadImage(gltf_t *gltf, json_t *imageid, unsigned int flags)
 {
 	size_t size;
 	texid_t ret = r_nulltex;
-	json_t *image     = JSON_FindIndexedChild(gltf->r, "images", imageidx);
-	json_t *uri        = JSON_FindChild(image, "uri");
-	json_t *mimeType   = JSON_FindChild(image, "mimeType");
-	int bufferView     = JSON_GetInteger(image, "bufferView", -1);
+	json_t *image			= GLTF_FindJSONID(gltf, "images", imageid, NULL);
+	json_t *uri				= JSON_FindChild(image, "uri");
+	json_t *mimeType		= JSON_FindChild(image, "mimeType");
+	json_t *bufferViewid	= JSON_FindChild(image, "bufferView");
 	char uritext[MAX_QPATH];
 	char filename[MAX_QPATH];
 	void *mem;
 	struct gltf_bufferview view;
+
+	JSON_FlagAsUsed(image, "name");
+
+	if (gltf->ver <= 1)
+	{
+		json_t *binary_glTF	= JSON_FindChild(image, "extensions.KHR_binary_glTF");
+		if (binary_glTF)
+		{
+			bufferViewid = JSON_FindChild(binary_glTF, "bufferView");
+			mimeType = JSON_FindChild(binary_glTF, "mimeType");
+			JSON_FlagAsUsed(binary_glTF, "width");
+			JSON_FlagAsUsed(binary_glTF, "height");
+			uri = NULL;
+		}
+	}
 
 	//potentially valid mime types:
 	//image/png
@@ -1353,9 +1490,9 @@ static texid_t GLTF_LoadImage(gltf_t *gltf, int imageidx, unsigned int flags)
 			ret = modfuncs->GetTexture(filename, NULL, flags, NULL, NULL, 0, 0, TF_INVALID);
 		}
 	}
-	else if (bufferView >= 0)
+	else if (bufferViewid)
 	{
-		if (GLTF_GetBufferViewData(gltf, bufferView, &view))
+		if (GLTF_GetBufferViewData(gltf, bufferViewid, &view))
 		{
 			JSON_GetPath(image, false, uritext, sizeof(uritext));
 			ret = modfuncs->GetTexture(uritext, NULL, flags, view.data, NULL, view.length, 0, TF_INVALID);
@@ -1364,16 +1501,16 @@ static texid_t GLTF_LoadImage(gltf_t *gltf, int imageidx, unsigned int flags)
 
 	return ret;
 }
-static texid_t GLTF_LoadTexture(gltf_t *gltf, int texture, unsigned int flags)
+static texid_t GLTF_LoadTexture(gltf_t *gltf, json_t *textureid, unsigned int flags)
 {
-	json_t *tex = JSON_FindIndexedChild(gltf->r, "textures", texture);
-	json_t *sampler = JSON_FindIndexedChild(gltf->r, "samplers", JSON_GetInteger(tex, "sampler", -1));
+	json_t *tex = GLTF_FindJSONID(gltf, "textures", textureid, NULL);
+	json_t *sampler = GLTF_FindJSONID(gltf, "samplers", JSON_FindChild(tex, "sampler"), NULL);
 
 	int magFilter = JSON_GetInteger(sampler, "magFilter", 0);
 	int minFilter = JSON_GetInteger(sampler, "minFilter", 0);
 	int wrapS = JSON_GetInteger(sampler, "wrapS", 10497);
 	int wrapT = JSON_GetInteger(sampler, "wrapT", 10497);
-	int source;
+	json_t *sourceid;
 
 	JSON_FlagAsUsed(sampler, "name");
 	JSON_FlagAsUsed(sampler, "extensions");
@@ -1436,18 +1573,398 @@ static texid_t GLTF_LoadTexture(gltf_t *gltf, int texture, unsigned int flags)
 
 	flags |= IF_NOREPLACE;
 
-	source = JSON_GetInteger(tex, "source", -1);
-	source = JSON_GetInteger(tex, "extensions.MSFT_texture_dds.source", source);	//load a dds instead, if one is available.
-	return GLTF_LoadImage(gltf, source, flags);
+	sourceid = JSON_FindChild(tex, "extensions.MSFT_texture_dds.source");	//load a dds instead, if one is available.
+	if (!sourceid)
+		sourceid = JSON_FindChild(tex, "source");	//fall back on the normal source
+	return GLTF_LoadImage(gltf, sourceid, flags);
 }
-static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vertexcolours)
+static char *GLTF1_LoadShader(gltf_t *gltf, json_t *shaderid)
+{	//reads a vertex or fragment shader blob
+	json_t *shader = GLTF_FindJSONID(gltf, "shaders", shaderid, NULL);
+	json_t *uri = JSON_FindChild(shader, "uri");
+	char *out = NULL;
+	json_t *bufferviewid = JSON_FindChild(shader, "extensions.KHR_binary_glTF.bufferView");
+	struct gltf_bufferview view;
+	if (bufferviewid && GLTF_GetBufferViewData(gltf, bufferviewid, &view) && view.data && view.length)
+	{
+		out = malloc(view.length+1);
+		memcpy(out, view.data, view.length);
+		out[view.length] = 0;
+	}
+	else
+	{
+		JSON_FlagAsUsed(shader, "type");	//don't care
+
+		if (uri)
+		{
+			size_t length;
+			out = JSON_MallocDataURI(uri, &length);	//try and decode data schemes...
+			if (!out)
+			{
+				//read a file from disk.
+				vfsfile_t *f;
+				char uritext[MAX_QPATH];
+				char filename[MAX_QPATH];
+				JSON_ReadBody(uri, uritext, sizeof(uritext));
+				GLTF_RelativePath(gltf->mod->name, uritext, filename, sizeof(filename));
+				f = filefuncs->OpenVFS(filename, "rb", FS_GAME);
+				if (f)
+				{
+					length = VFS_GETLEN(f);
+					length = min(length, length);
+					out = malloc(length+1);
+					out[length] = 0;
+					VFS_READ(f, out, length);
+					VFS_CLOSE(f);
+				}
+				else
+					Con_Printf(CON_WARNING"%s: Unable to read buffer file %s\n", gltf->mod->name, filename);
+			}
+		}
+	}
+
+	//if it starts with a precision modifier then just strip that out... gl doesn't like gles's precision modifiers and we tend to try to provide our own too, which doesn't help things.
+	if (out && !strncmp(out, "precision ", 10))
+	{
+		char *le = strchr(out, '\n');
+		if (le++)
+			memmove(out, le, strlen(le)+1);
+	}
+	return out;
+}
+static qboolean GLTF1_LoadMaterial(gltf_t *gltf, json_t *mat, texnums_t *texnums, char *shadertext, size_t shadertextsize)
+{
+	json_t *technique = GLTF_FindJSONID(gltf, "techniques", JSON_FindChild(mat, "technique"), NULL);
+	json_t *parameters = JSON_FindChild(technique, "parameters");
+	json_t *values = JSON_FindChild(mat, "values");
+	json_t *common = JSON_FindChild(mat, "extensions.KHR_materials_common");
+	json_t *v;
+	json_t *p;
+	char header[8192];
+	char samplers[8192];
+	char attributes[8192];
+	char uniforms[8192];
+	char *vertshader = NULL;
+	char *fragshader = NULL;
+	int type;
+	char semantic[64];
+	int sampidx = 0;
+	texid_t tex;
+
+	if (common)
+	{
+		json_t *values = JSON_FindChild(common, "values");
+//		char techniquebuf[64];
+//		const char *technique = JSON_GetString(common, "technique", techniquebuf, sizeof(techniquebuf), "");
+		qboolean doubleSided = JSON_GetInteger(common, "doubleSided", false);
+//		qboolean transparent = JSON_GetInteger(common, "transparent", false);
+//		vec4_t ambient;
+		json_t *diffusename = JSON_FindChild(values, "diffuse");
+		vec4_t diffusetint = {1,1,1,1};
+		json_t *emissionname = JSON_FindChild(values, "emission");
+		vec4_t emissiontint = {1,1,1,1};
+		json_t *specularname = JSON_FindChild(values, "emission");
+		vec4_t speculartint = {1,1,1,1};
+		float shininess = JSON_GetFloat(values, "shininess", 0);
+
+		if (emissionname)
+		{
+			if (!emissionname->child)	//a string, so a texture id
+				texnums->fullbright = GLTF_LoadTexture(gltf, emissionname, IF_NOALPHA);
+			else
+			{	//child nodes means its a vec4.
+				emissiontint[0] = JSON_GetIndexedFloat(emissionname, 0, 0);
+				emissiontint[1] = JSON_GetIndexedFloat(emissionname, 1, 0);
+				emissiontint[2] = JSON_GetIndexedFloat(emissionname, 2, 0);
+				emissiontint[3] = JSON_GetIndexedFloat(emissionname, 3, 1);
+
+				if (emissiontint[0] || emissiontint[1] || emissiontint[2])
+					texnums->fullbright = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
+			}
+		}
+		if (diffusename)
+		{
+			if (!diffusename->child)	//a string, so a texture id
+				texnums->base = GLTF_LoadTexture(gltf, diffusename, 0);
+			else
+			{	//child nodes means its a vec4.
+				texnums->base = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
+				diffusetint[0] = JSON_GetIndexedFloat(diffusename, 0, 0);
+				diffusetint[1] = JSON_GetIndexedFloat(diffusename, 1, 0);
+				diffusetint[2] = JSON_GetIndexedFloat(diffusename, 2, 0);
+				diffusetint[3] = JSON_GetIndexedFloat(diffusename, 3, 1);
+			}
+		}
+		if (specularname)
+		{
+			if (!specularname->child)	//a string, so a texture id
+				texnums->specular = GLTF_LoadTexture(gltf, specularname, IF_NOALPHA);
+			else
+			{	//child nodes means its a vec4.
+				texnums->specular = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
+				speculartint[0] = JSON_GetIndexedFloat(specularname, 0, 0);
+				speculartint[1] = JSON_GetIndexedFloat(specularname, 1, 0);
+				speculartint[2] = JSON_GetIndexedFloat(specularname, 2, 0);
+				speculartint[3] = JSON_GetIndexedFloat(specularname, 3, 1);
+			}
+		}
+
+		Q_snprintf(shadertext, shadertextsize,
+			"{\n"
+				"%s"//cull
+				"program defaultskin#VC%s#FTE_SPECULAR_EXPONENT=%f\n"
+				"{\n"
+					"map $diffuse\n"
+					"%s"	//blend
+					"%s"	//rgbgen
+				"}\n"
+				"fte_basefactor %f %f %f %f\n"
+				"fte_specularfactor %f %f %f %f\n"
+				"fte_fullbrightfactor %f %f %f %f\n"
+			"}\n",
+			doubleSided?"cull disable\n":"",
+			"",//alphaCutoffmodifier,
+			shininess,
+			"",//(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
+			"",//vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
+			diffusetint[0],diffusetint[1],diffusetint[2],diffusetint[3],
+			speculartint[0],speculartint[1],speculartint[2],speculartint[3],
+			emissiontint[0],emissiontint[1],emissiontint[2],emissiontint[3]);
+		return true;
+	}
+
+	//mat->values.diffuse tends to be quite common. make an executive descision...
+	texnums->base = GLTF_LoadTexture(gltf, JSON_FindChild(values, "diffuse"), 0);
+	if (mod_gltf_ignoretechniques->ival)
+	{	//mat->values.diffuse tends to be quite common
+		return false;
+	}
+	if (!technique)
+	{
+		//missing technique is supposed to result in a greyscale model
+		Q_snprintf(shadertext, shadertextsize,
+			"{\n"
+				"program defaultskin\n"
+				"diffusemap $whiteimage\n"
+				"{\n"
+					"map $diffuse\n"
+					"rgbgen const 0.5 0.5 0.5\n"
+					"alphagen const 1.0\n"
+				"}\n"
+			"}\n"
+			);
+		return true;
+	}
+
+	*header = 0;
+	*samplers = 0;
+	*attributes = 0;
+	*uniforms = 0;
+
+	//this is supposed to be glessl 100. lets try to do our best to get something compatible.
+	Q_snprintfcat(header, sizeof(header), "!!ver 100 120\n");
+	//and reduce conflicts with fte's normal symbols.
+	Q_snprintfcat(header, sizeof(header), "!!explicit\n");
+
+	v = JSON_FindChild(technique, "uniforms");
+	if (v)
+		for (v = v->child; v; v = v->sibling)
+		{
+			enum {
+				GLTF_BYTE = 5120,
+				GLTF_UNSIGNED_BYTE = 5121,
+				GLTF_SHORT = 5122,
+				GLTF_UNSIGNED_SHORT = 5123,
+				GLTF_INT = 5124,
+				GLTF_UNSIGNED_INT = 5125,
+				GLTF_FLOAT = 5126,
+				GLTF_FLOAT_VEC2 = 35664,
+				GLTF_FLOAT_VEC3 = 35665,
+				GLTF_FLOAT_VEC4 = 35666,
+				GLTF_INT_VEC2 = 35667,
+				GLTF_INT_VEC3 = 35668,
+				GLTF_INT_VEC4 = 35669,
+				GLTF_BOOL = 35670,
+				GLTF_BOOL_VEC2 = 35671,
+				GLTF_BOOL_VEC3 = 35672,
+				GLTF_BOOL_VEC4 = 35673,
+				GLTF_FLOAT_MAT2 = 35674,
+				GLTF_FLOAT_MAT3 = 35675,
+				GLTF_FLOAT_MAT4 = 35676,
+				GLTF_SAMPLER_2D = 35678,
+			};
+			v->used = true;
+			p = GLTF_FindJSONIDParent(gltf, parameters, v, NULL);
+
+			if (1 != JSON_GetInteger(p, "count", 1))
+			{
+				if (gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: Unsupported parameter->count for uniform %s\n", gltf->mod->name, v->name);
+				return false;
+			}
+			if (JSON_GetString(p, "node", semantic, sizeof(semantic), NULL))
+			{
+				if (gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: Unsupported parameter->node for uniform %s\n", gltf->mod->name, v->name);
+				return false;
+			}
+
+			if (!JSON_GetString(p, "semantic", semantic, sizeof(semantic), NULL))
+				*semantic = 0;
+			type = JSON_GetInteger(p, "type", 0);
+
+			if (!strcasecmp(semantic, "MODEL") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_model\n", v->name);
+			else if (!strcasecmp(semantic, "VIEW") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_view\n", v->name);
+			else if (!strcasecmp(semantic, "PROJECTION") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_projection\n", v->name);
+			else if (!strcasecmp(semantic, "MODELVIEW") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_modelview\n", v->name);
+			else if (!strcasecmp(semantic, "MODELVIEWPROJECTION") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_modelviewprojection\n", v->name);
+			else if (!strcasecmp(semantic, "MODELINVERSE") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invmodel\n", v->name);
+			else if (!strcasecmp(semantic, "VIEWINVERSE") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invviewprojection\n", v->name);
+			else if (!strcasecmp(semantic, "PROJECTIONINVERSE") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invprojection\n", v->name);
+			else if (!strcasecmp(semantic, "MODELVIEWINVERSE") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invmodelview\n", v->name);
+			else if (!strcasecmp(semantic, "MODELVIEWPROJECTIONINVERSE") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invmodelviewprojection\n", v->name);
+			else if (!strcasecmp(semantic, "MODELINVERSETRANSPOSE") && type == GLTF_FLOAT_MAT3)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invmodeltranspose\n", v->name);
+			else if (!strcasecmp(semantic, "MODELVIEWINVERSETRANSPOSE") && type == GLTF_FLOAT_MAT3)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_invmodelviewtranspose\n", v->name);
+//			else if (!strcasecmp(semantic, "VIEWPORT") && type == GLTF_FLOAT_VEC4)
+//				Q_snprintfcat(header, sizeof(header), "!!semantic %s UNSUPPORTED\n", v->name);
+			else if (!strcasecmp(semantic, "JOINTMATRIX") && type == GLTF_FLOAT_MAT4)
+				Q_snprintfcat(header, sizeof(header), "!!semantic %s m_bones_mat4\n", v->name);
+//			else if (!strcasecmp(semantic, "LOCAL") && type == GLTF_FLOAT_MAT4)
+//				Q_snprintfcat(header, sizeof(header), "!!semantic %s UNSUPPORTED\n", v->name);
+			else if (!strcasecmp(semantic, ""))
+			{
+				json_t *val = GLTF_FindJSONIDParent(gltf, values, v, NULL);
+				switch(type)
+				{
+				case GLTF_SAMPLER_2D:
+					Q_snprintfcat(header, sizeof(header), "!!constt %s %i\n", v->name, sampidx++);
+					tex = GLTF_LoadTexture(gltf, val, 0);
+					Q_snprintfcat(samplers, sizeof(samplers), "{\nmap %s\n}\n", tex?tex->ident:"$whiteimage");
+					break;
+
+				case GLTF_FLOAT:		Q_snprintfcat(header, sizeof(header), "!!const1f %s %f\n", v->name, JSON_GetFloat(val, NULL, 0));	break;
+				case GLTF_FLOAT_VEC2:	Q_snprintfcat(header, sizeof(header), "!!const2f %s %f %f\n", v->name, JSON_GetIndexedFloat(val, 0, 0), JSON_GetIndexedFloat(val, 1, 0));	break;
+				case GLTF_FLOAT_VEC3:	Q_snprintfcat(header, sizeof(header), "!!const3f %s %f %f %f\n", v->name, JSON_GetIndexedFloat(val, 0, 0), JSON_GetIndexedFloat(val, 1, 0), JSON_GetIndexedFloat(val, 2, 0));	break;
+				case GLTF_FLOAT_VEC4:	Q_snprintfcat(header, sizeof(header), "!!const4f %s %f %f %f %f\n", v->name, JSON_GetIndexedFloat(val, 0, 0), JSON_GetIndexedFloat(val, 1, 0), JSON_GetIndexedFloat(val, 2, 0), JSON_GetIndexedFloat(val, 3, 0));	break;
+
+				case GLTF_BOOL:			//glsl's bool/bvecN types can be ininitialised as floats or ints. lets just use ints here.
+				case GLTF_BYTE:			//FIXME: it is not specified whether these are meant to be normalized or not. are they always float/vecN or int/ivecN? the spec doesn't say.
+				case GLTF_SHORT:
+				case GLTF_INT:			Q_snprintfcat(header, sizeof(header), "!!const1i %s %i\n", v->name, JSON_GetInteger(val, NULL, 0));	break;
+				case GLTF_BOOL_VEC2:
+				case GLTF_INT_VEC2:		Q_snprintfcat(header, sizeof(header), "!!const2i %s %i %i\n", v->name, JSON_GetIndexedInteger(val, 0, 0), JSON_GetIndexedInteger(val, 1, 0));	break;
+				case GLTF_BOOL_VEC3:
+				case GLTF_INT_VEC3:		Q_snprintfcat(header, sizeof(header), "!!const3i %s %i %i %i\n", v->name, JSON_GetIndexedInteger(val, 0, 0), JSON_GetIndexedInteger(val, 1, 0), JSON_GetIndexedInteger(val, 2, 0));	break;
+				case GLTF_BOOL_VEC4:
+				case GLTF_INT_VEC4:		Q_snprintfcat(header, sizeof(header), "!!const4i %s %i %i %i %i\n", v->name, JSON_GetIndexedInteger(val, 0, 0), JSON_GetIndexedInteger(val, 1, 0), JSON_GetIndexedInteger(val, 2, 0), JSON_GetIndexedInteger(val, 3, 0));	break;
+
+				case GLTF_UNSIGNED_BYTE://FIXME: it is not specified whether these are meant to be normalized or not. are they always float/vecN or int/ivecN? the spec doesn't say.
+				case GLTF_UNSIGNED_SHORT:
+				case GLTF_UNSIGNED_INT:	Q_snprintfcat(header, sizeof(header), "!!const1u %s %f\n", v->name, JSON_GetFloat(val, NULL, 0));	break;
+				//curiously no uvecs listed by the spec
+
+				case GLTF_FLOAT_MAT2:	Q_snprintfcat(header, sizeof(header), "!!const2m %s %f %f %f %f\n", v->name, JSON_GetIndexedFloat(val, 0, 0), JSON_GetIndexedFloat(val, 1, 0), JSON_GetIndexedFloat(val, 2, 0), JSON_GetIndexedFloat(val, 3, 0));	break;
+				case GLTF_FLOAT_MAT3:	Q_snprintfcat(header, sizeof(header), "!!const3m %s %f %f %f %f %f %f %f %f %f\n", v->name, JSON_GetIndexedFloat(val, 0, 0), JSON_GetIndexedFloat(val, 1, 0), JSON_GetIndexedFloat(val, 2, 0), JSON_GetIndexedFloat(val, 3, 0), JSON_GetIndexedFloat(val, 4, 0), JSON_GetIndexedFloat(val, 5, 0), JSON_GetIndexedFloat(val, 6, 0), JSON_GetIndexedFloat(val, 7, 0), JSON_GetIndexedFloat(val, 8, 0));	break;
+				case GLTF_FLOAT_MAT4:	Q_snprintfcat(header, sizeof(header), "!!const4m %s %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n", v->name, JSON_GetIndexedFloat(val, 0, 0), JSON_GetIndexedFloat(val, 1, 0), JSON_GetIndexedFloat(val, 2, 0), JSON_GetIndexedFloat(val, 3, 0), JSON_GetIndexedFloat(val, 4, 0), JSON_GetIndexedFloat(val, 5, 0), JSON_GetIndexedFloat(val, 6, 0), JSON_GetIndexedFloat(val, 7, 0), JSON_GetIndexedFloat(val, 8, 0), JSON_GetIndexedFloat(val, 9, 0), JSON_GetIndexedFloat(val, 10, 0), JSON_GetIndexedFloat(val, 11, 0), JSON_GetIndexedFloat(val, 12, 0), JSON_GetIndexedFloat(val, 13, 0), JSON_GetIndexedFloat(val, 14, 0), JSON_GetIndexedFloat(val, 15, 0));	break;
+
+				default:
+					if (gltf->warnlimit --> 0)
+						Con_Printf(CON_WARNING"%s: Unsupported constant uniform type %i for uniform %s\n", gltf->mod->name, type, v->name);
+					return false;
+				}
+			}
+			else
+			{
+				if (gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: Unknown/Unsupported semantic %s for uniform %s\n", gltf->mod->name, semantic, v->name);
+				return false;
+			}
+		}
+	v = JSON_FindChild(technique, "attributes");
+	if (v)
+		for (v = v->child; v; v = v->sibling)
+		{
+			v->used = true;
+			p = GLTF_FindJSONIDParent(gltf, parameters, v, NULL);
+			if (!JSON_GetString(p, "semantic", semantic, sizeof(semantic), NULL))
+				*semantic = 0;
+			type = JSON_GetInteger(p, "type", 0);
+
+			if (!strcasecmp(semantic, "POSITION"))
+				Q_snprintfcat(attributes, sizeof(attributes), "#define %s fte_v_position\n", v->name);
+			else if (!strcasecmp(semantic, "NORMAL"))
+				Q_snprintfcat(attributes, sizeof(attributes), "#define %s fte_v_normal\n", v->name);
+			else if (!strcasecmp(semantic, "TEXCOORD_0"))
+				Q_snprintfcat(attributes, sizeof(attributes), "#define %s fte_v_texcoord\n", v->name);
+			else if (!strcasecmp(semantic, "TEXCOORD_1"))
+				Q_snprintfcat(attributes, sizeof(attributes), "#define %s fte_v_lmcoord\n", v->name);
+			else if (!strcasecmp(semantic, "JOINT"))
+				Q_snprintfcat(attributes, sizeof(attributes), "#define %s fte_v_bone\n", v->name);
+			else if (!strcasecmp(semantic, "WEIGHT"))
+				Q_snprintfcat(attributes, sizeof(attributes), "#define %s fte_v_weight\n", v->name);
+			else
+			{
+				if (gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: Unknown semantic %s for attribute %s\n", gltf->mod->name, semantic, v->name);
+				return false;
+			}
+		}
+
+	p = GLTF_FindJSONID(gltf, "programs", JSON_FindChild(technique, "program"), NULL);
+	vertshader = GLTF1_LoadShader(gltf, JSON_FindChild(p, "vertexShader"));
+	fragshader = GLTF1_LoadShader(gltf, JSON_FindChild(p, "fragmentShader"));
+
+	Q_snprintf(shadertext, shadertextsize,
+		"{\n"
+			"surfaceparm nodlight\n"	//o.O
+			"surfaceparm noshadows\n"	//no surprises please.
+			"glslprogram\n"
+			"{\n"
+				"%s"	//header
+				"%s"	//uniformmaps
+				"#ifdef VERTEX_SHADER\n"
+					"%s"	//attributemaps
+					"%s\n"	//vertexshader
+				"#endif\n"
+				"#ifdef FRAGMENT_SHADER\n"
+					"%s\n"	//fragmentshader
+				"#endif\n"
+			"}\n"
+			"%s"	//{map foo} {map}...
+		"}\n",
+		header,
+		uniforms,
+		attributes,
+		vertshader,
+		fragshader,
+		samplers
+		);
+	free(vertshader);
+	free(fragshader);
+	return true;
+}
+
+static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolean vertexcolours)
 {
 	qboolean doubleSided;
 	int alphaMode;
 	double alphaCutoff;
-	char shader[8192];
+	char shader[65536];
 	char alphaCutoffmodifier[128];
-	json_t *mat = JSON_FindIndexedChild(gltf->r, "materials", material);
+	quintptr_t materialidx;
+	json_t *mat = GLTF_FindJSONID(gltf, "materials", materialid, &materialidx);
 	galiasskin_t *ret;
 	char tmp[64];
 	const char *t;
@@ -1481,23 +1998,49 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	ret->skinspeed = 0.1;
 	ret->frame = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret->frame));
 
-	if (nam)
-		JSON_ReadBody(nam, ret->frame->shadername, sizeof(ret->frame->shadername));
-	else if (mat)
-		JSON_GetPath(mat, false, ret->frame->shadername, sizeof(ret->frame->shadername));
-	else if (material == -1)	//explicit invalid material
-		Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%s", gltf->mod->name);
-	else
-		Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%.100s/%i", gltf->mod->name, material);
+	{
+		int skip;
+		if (nam)
+			JSON_ReadBody(nam, shader, sizeof(shader));
+		else if (mat && *mat->name)
+			Q_snprintf(shader, sizeof(shader), "%s", mat->name);
+		else if (!mat)	//explicit invalid material
+			Q_snprintf(shader, sizeof(shader), "");
+		else
+			Q_snprintf(shader, sizeof(shader), "%i", (int)materialidx);
+		skip = sizeof(ret->frame->shadername)-32 - strlen(shader);
+		if (skip > 0)
+			skip = 0;
+		if (mod_gltf_privatematerials->ival && !strchr(shader, '/'))
+		{
+			Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%s", gltf->mod->name-skip);
+			Q_strncatz(ret->frame->shadername, "/", sizeof(ret->frame->shadername));
+		}
+		else
+			*ret->frame->shadername = 0;
+
+		Q_strncatz(ret->frame->shadername, shader, sizeof(ret->frame->shadername));
+	}
 
 	if (alphaMode == 1)
 		Q_snprintf(alphaCutoffmodifier, sizeof(alphaCutoffmodifier), "#ALPHATEST=>%f", alphaCutoff);
 	else
 		*alphaCutoffmodifier = 0;
 
-	if (unlit)
+	if (gltf->ver <= 1)
+	{	//fixme: break
+		if (!GLTF1_LoadMaterial(gltf, mat, &ret->frame->texnums, shader, sizeof(shader)))
+		{	//some lame placeholder/fallback.
+			Q_snprintf(shader, sizeof(shader),
+					"{\n"
+						"program defaultskin\n"
+					"}\n"
+				);
+		}
+	}
+	else if (unlit)
 	{	//if this extension was present, then we don't get ANY lighting info.
-		int albedo = JSON_GetInteger(pbrmr, "baseColorTexture.index", -1);	//.rgba
+		json_t *albedo = JSON_FindChild(pbrmr, "baseColorTexture.index");	//.rgba
 		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, albedo, 0);
 
 		Q_snprintf(shader, sizeof(shader),
@@ -1526,8 +2069,8 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	{
 		Con_DPrintf(CON_WARNING"%s: KHR_materials_cmnBlinnPhong implemented according to draft spec\n", gltf->mod->name);
 
-		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, JSON_GetInteger(pbrsg, "diffuseTexture.index", -1), 0);
-		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, JSON_GetInteger(pbrsg, "specularGlossinessTexture.index", -1), 0);
+		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, JSON_FindChild(pbrsg, "diffuseTexture.index"), 0);
+		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, JSON_FindChild(pbrsg, "specularGlossinessTexture.index"), 0);
 
 		//you wouldn't normally want this, but we have separate factors so lack of a texture is technically valid.
 		if (!ret->frame->texnums.base)
@@ -1567,10 +2110,10 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	}
 	else if (pbrsg)
 	{	//if this extension was used, then we can use rgb gloss instead of metalness stuff.
-		int occ = JSON_GetInteger(mat, "occlusionTexture.index", -1);	//.r
-		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, JSON_GetInteger(pbrsg, "diffuseTexture.index", -1), 0);
-		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, JSON_GetInteger(pbrsg, "specularGlossinessTexture.index", -1), 0);
-		if (occ != -1)
+		json_t *occ = JSON_FindChild(mat, "occlusionTexture.index");	//.r
+		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, JSON_FindChild(pbrsg, "diffuseTexture.index"), 0);
+		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, JSON_FindChild(pbrsg, "specularGlossinessTexture.index"), 0);
+		if (occ)
 			ret->frame->texnums.occlusion = GLTF_LoadTexture(gltf, occ, IF_NOSRGB);
 
 		Q_snprintf(shader, sizeof(shader),
@@ -1588,7 +2131,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"bemode rtlight rtlight_sg\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
-			(occ!=-1)?"#OCCLUDE":"",
+			(occ)?"#OCCLUDE":"",
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
@@ -1608,23 +2151,44 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	else// if (pbrmr)
 	{	//this is the standard lighting model for gltf2
 		//'When not specified, all the default values of pbrMetallicRoughness apply'
-		int albedo = JSON_GetInteger(pbrmr, "baseColorTexture.index", -1);	//.rgba
-		int mrt = JSON_GetInteger(pbrmr, "metallicRoughnessTexture.index", -1);	//.r = unused, .g = roughness, .b = metalic, .a = unused
-		int occ = JSON_GetInteger(mat, "occlusionTexture.index", -1);	//.r
+		json_t *albedo = JSON_FindChild(pbrmr, "baseColorTexture.index");	//.rgba
+		json_t *mrt = JSON_FindChild(pbrmr, "metallicRoughnessTexture.index");	//.r = unused, .g = roughness, .b = metalic, .a = unused
+		json_t *occ = JSON_FindChild(mat, "occlusionTexture.index");	//.r
+		json_t *n;
+		char occname[MAX_QPATH];
+		char mrtname[MAX_QPATH];
+
+		if (JSON_GetInteger(pbrmr, "baseColorTexture.texCoord", 0) != 0)
+			if (gltf->warnlimit --> 0)
+				Con_Printf("%s: Unsupported baseColorTexture texCoord value\n", gltf->mod->name);
+		if (JSON_GetInteger(pbrmr, "metallicRoughnessTexture.texCoord", 0) != 0)
+			if (gltf->warnlimit --> 0)
+				Con_Printf("%s: Unsupported metallicRoughnessTexture texCoord value\n", gltf->mod->name);
+		if (JSON_GetInteger(mat, "occlusionTexture.texCoord", 0) != 0)
+			if (gltf->warnlimit --> 0)
+				Con_Printf("%s: Unsupported occlusionTexture texCoord value\n", gltf->mod->name);
 
 		//now work around potential lame exporters (yay dds?).
-		occ = JSON_GetInteger(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index", occ);
-		mrt = JSON_GetInteger(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index", mrt);
+		n = JSON_FindChild(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index");
+		if (n)
+			occ = n;
+		n = JSON_FindChild(mat, "extensions.MSFT_packing_occlusionRoughnessMetallic.occlusionRoughnessMetallicTexture.index");
+		if (n)
+			mrt = n;
 
 		//ideally we use the ORM.r for the occlusion map, but some people just love being annoying.
-		if (occ != mrt && occ != -1)
+		JSON_ReadBody(occ, occname, sizeof(occname));
+		JSON_ReadBody(mrt, mrtname, sizeof(mrtname));
+		if (strcmp(occname,mrtname) && occ)
 			ret->frame->texnums.occlusion = GLTF_LoadTexture(gltf, occ, IF_NOSRGB);
 
 		//note: extensions.MSFT_packing_normalRoughnessMetallic.normalRoughnessMetallicTexture.index gives rg=normalxy, b=roughness, .a=metalic
 		//(would still need an ao map, and probably wouldn't work well as bc3 either)
 
-		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, albedo, 0);
-		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, mrt, IF_NOSRGB);
+		if (albedo)
+			ret->frame->texnums.base     = GLTF_LoadTexture(gltf, albedo, 0);
+		if (mrt)
+			ret->frame->texnums.specular = GLTF_LoadTexture(gltf, mrt, IF_NOSRGB);
 
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
@@ -1641,7 +2205,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				"bemode rtlight rtlight_orm\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
-			(occ==-1)?"#NOOCCLUDE":((occ!=mrt)?"#OCCLUDE":""),
+			(!occ)?"#NOOCCLUDE":(strcmp(occname,mrtname)?"#OCCLUDE":""),
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
@@ -1657,8 +2221,10 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 				JSON_GetFloat(mat, "emissiveFactor.2", 0)
 			);
 	}
-	ret->frame->texnums.bump = GLTF_LoadTexture(gltf, JSON_GetInteger(mat, "normalTexture.index", -1), IF_NOSRGB|IF_TRYBUMP);
-	ret->frame->texnums.fullbright = GLTF_LoadTexture(gltf, JSON_GetInteger(mat, "emissiveTexture.index", -1), 0);
+	if (!ret->frame->texnums.bump)
+		ret->frame->texnums.bump = GLTF_LoadTexture(gltf, JSON_FindChild(mat, "normalTexture.index"), IF_NOSRGB|IF_TRYBUMP);
+	if (!ret->frame->texnums.fullbright)
+		ret->frame->texnums.fullbright = GLTF_LoadTexture(gltf, JSON_FindChild(mat, "emissiveTexture.index"), 0);
 
 	if (!ret->frame->texnums.base)
 		ret->frame->texnums.base = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
@@ -1669,22 +2235,30 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, int material, qboolean vert
 	return ret;
 }
 #endif
-static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double pmatrix[])
+static const float *QDECL GLTF_AnimateMorphs(const galiasinfo_t *surf, const framestate_t *framestate);
+static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, double skinmatrix[])
 {
 	model_t *mod = gltf->mod;
-	json_t *mesh = JSON_FindIndexedChild(gltf->r, "meshes", meshidx);
+	quintptr_t meshidx;
+	json_t *mesh = GLTF_FindJSONID(gltf, "meshes", meshid, &meshidx);
 	json_t *prim;
 	json_t *meshname = JSON_FindChild(mesh, "name");
+	json_t *target = NULL;
+	float	morphweights[MAX_MORPHWEIGHTS];
+	size_t morphtargets;
 
-	JSON_WarnIfChild(mesh, "weights", &gltf->warnlimit);
-	JSON_WarnIfChild(mesh, "extensions", &gltf->warnlimit);
-//	JSON_WarnIfChild(mesh, "extras", &gltf->warnlimit);
+	target = JSON_FindChild(mesh, "weights");
+	for (morphtargets = 0; morphtargets < MAX_MORPHWEIGHTS; morphtargets++)
+		morphweights[morphtargets] = JSON_GetIndexedFloat(target, morphtargets, 0);
+	morphtargets = ~0;
+	GLTF_FlagExtras(mesh);
 
 	for(prim = JSON_FindIndexedChild(mesh, "primitives", 0); prim; prim = prim->sibling)
 	{
 		int mode  = JSON_GetInteger(prim, "mode", 4);
 		json_t *attr = JSON_FindChild(prim, "attributes");
 		struct gltf_accessor tc_0, tc_1, norm, tang, vpos, col0, idx, sidx, swgt;
+		struct gltf_accessor morph_vpos[MAX_MORPHWEIGHTS], morph_norm[MAX_MORPHWEIGHTS], morph_tang[MAX_MORPHWEIGHTS];
 		galiasinfo_t *surf;
 		size_t i, j;
 
@@ -1696,20 +2270,48 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 			continue;
 		}
 
-		JSON_WarnIfChild(prim, "targets", &gltf->warnlimit);	//morph targets...
-		JSON_FindChild(prim, "extensions");
-//		JSON_WarnIfChild(prim, "extensions", &gltf->warnlimit);
-//		JSON_WarnIfChild(prim, "extras", &gltf->warnlimit);
+		for (i = 0; ; i++)
+		{
+			target = JSON_FindIndexedChild(prim, "targets", i);
+			if (!target)
+				break;
+			GLTF_GetAccessor(gltf, JSON_FindChild(target, "POSITION"), &morph_vpos[i]);
+			GLTF_GetAccessor(gltf, JSON_FindChild(target, "NORMAL"), &morph_norm[i]);
+			GLTF_GetAccessor(gltf, JSON_FindChild(target, "TANGENT"), &morph_tang[i]);
+		}
+		if (i != morphtargets)
+		{
+			if (morphtargets == ~0)
+				morphtargets = i;
+			else if (gltf->warnlimit --> 0)
+				Con_Printf(CON_WARNING"morphtargets count changed between primitives\n");
+			for (; i < morphtargets; i++)
+			{
+				memset(&morph_vpos[i], 0, sizeof(morph_vpos[i]));
+				memset(&morph_norm[i], 0, sizeof(morph_norm[i]));
+				memset(&morph_tang[i], 0, sizeof(morph_tang[i]));
+			}
+		}
 
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "TEXCOORD_0",	-1), &tc_0);	//float, ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "TEXCOORD_1",	-1), &tc_1);	//float, ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "NORMAL",		-1), &norm);	//float
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "TANGENT",		-1), &tang);	//float
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "POSITION",	-1), &vpos);	//float
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "COLOR_0",		-1), &col0);	//float, ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_GetInteger(prim, "indices",		-1), &idx);
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "JOINTS_0",	-1), &sidx);	//ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_GetInteger(attr, "WEIGHTS_0",	-1), &swgt);	//float, ubyte, ushort
+		GLTF_FlagExtras(prim);
+
+		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "TEXCOORD_0"),	&tc_0);	//float, ubyte, ushort
+		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "TEXCOORD_1"),	&tc_1);	//float, ubyte, ushort
+		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "NORMAL"),		&norm);	//float
+		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "TANGENT"),		&tang);	//float
+		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "POSITION"),	&vpos);	//float
+		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "COLOR_0"),		&col0);	//float, ubyte, ushort
+		GLTF_GetAccessor(gltf, JSON_FindChild(prim, "indices"),		&idx);
+		if (gltf->ver <= 1)
+		{
+			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "JOINT"),	&sidx);	//ubyte, ushort
+			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "WEIGHT"),	&swgt);	//float, ubyte, ushort
+		}
+		else
+		{	//potentially multiple, each a vec4.
+			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "JOINTS_0"),	&sidx);	//ubyte, ushort
+			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "WEIGHTS_0"),	&swgt);	//float, ubyte, ushort
+		}
 
 		if (JSON_GetInteger(attr, "JOINTS_1",	-1) != -1 || JSON_GetInteger(attr, "WEIGHTS_1",	-1) != -1)
 			if (gltf->warnlimit --> 0)
@@ -1718,9 +2320,9 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 		if (!vpos.count)
 			continue;
 
-		surf = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*surf));
+		surf = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*surf) + (morphtargets*sizeof(float)));
 
-		surf->surfaceid = surf->contents = JSON_GetInteger(prim, "extras.fte.surfaceid", meshidx);
+		surf->surfaceid = JSON_GetInteger(prim, "extras.fte.surfaceid", meshidx);
 		surf->contents = JSON_GetInteger(prim, "extras.fte.contents", FTECONTENTS_BODY);
 		surf->csurface.flags = JSON_GetInteger(prim, "extras.fte.surfaceflags", 0);
 		surf->geomset = JSON_GetInteger(prim, "extras.fte.geomset", ~0u);
@@ -1771,20 +2373,42 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 			surf->ofs_indexes[i+2] = t;
 		}
 
-		surf->ofs_skel_xyz		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_xyz[0]),		&vpos);
-		surf->ofs_skel_norm		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_norm[0]),	&norm);
-		GLTF_AccessorToTangents(gltf, surf->ofs_skel_norm, &surf->ofs_skel_svect, &surf->ofs_skel_tvect, surf->numverts, &tang);
-		surf->ofs_st_array		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_st_array[0]),		&tc_0);
+		surf->AnimateMorphs = GLTF_AnimateMorphs;
+		memcpy((float*)(surf+1), morphweights, sizeof(float)*morphtargets);
+		surf->nummorphs = morphtargets;
+		surf->ofs_skel_xyz = modfuncs->ZG_Malloc(&mod->memgroup, (sizeof(*surf->ofs_skel_xyz)+sizeof(*surf->ofs_skel_norm)+sizeof(*surf->ofs_skel_svect)+sizeof(*surf->ofs_skel_tvect)) * surf->numverts * (1+morphtargets));
+		surf->ofs_skel_norm = (vec3_t*)(surf->ofs_skel_xyz+surf->numverts*(1+morphtargets));
+		surf->ofs_skel_svect = (vec3_t*)(surf->ofs_skel_norm+surf->numverts*(1+morphtargets));
+		surf->ofs_skel_tvect = (vec3_t*)(surf->ofs_skel_svect+surf->numverts*(1+morphtargets));
+
+		surf->ofs_skel_xyz		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_xyz[0]),		&vpos, surf->ofs_skel_xyz);
+		surf->ofs_skel_norm		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_norm[0]),	&norm, surf->ofs_skel_norm);			//if no normals, normals should be flat (fragment shader or unwelding the verts...)
+		GLTF_AccessorToTangents(gltf, surf->ofs_skel_norm, surf->numverts, &tang, surf->ofs_skel_svect, surf->ofs_skel_tvect);
+
+		for (i = 0; i < morphtargets; i++)
+		{
+			size_t offset = (i+1) * surf->numverts;
+			GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_xyz[0]),	&morph_vpos[i], surf->ofs_skel_xyz+offset);
+			GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_norm[0]),	&morph_norm[i], surf->ofs_skel_norm+offset);			//if no normals, normals should be flat (fragment shader or unwelding the verts...)
+			GLTF_AccessorToTangents(gltf, surf->ofs_skel_norm+offset, surf->numverts,   &morph_tang[i], surf->ofs_skel_svect+offset, surf->ofs_skel_tvect+offset);
+		}
+
+		surf->ofs_st_array		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_st_array[0]),		&tc_0, NULL);
 		if (tc_1.data)
-			surf->ofs_lmst_array	= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_lmst_array[0]),	&tc_1);
+			surf->ofs_lmst_array	= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_lmst_array[0]),	&tc_1, NULL);
 		if (col0.data && col0.componentType == 5121)	//UNSIGNED_BYTE
 			surf->ofs_rgbaub	= GLTF_AccessorToDataUB(gltf, surf->numverts, countof(surf->ofs_rgbaub[0]),		&col0);
 		else if (col0.data)
-			surf->ofs_rgbaf		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_rgbaf[0]),		&col0);
+			surf->ofs_rgbaf		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_rgbaf[0]),		&col0, NULL);
+		/*else
+		{
+			surf->ofs_rgbaub = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*surf->ofs_rgbaub) * surf->numverts);
+			memset(surf->ofs_rgbaub, 0xff, sizeof(*surf->ofs_rgbaub) * surf->numverts);
+		}*/
 		if (sidx.data && swgt.data)
 		{
 			surf->ofs_skel_idx		= GLTF_AccessorToDataBone(gltf,surf->numverts, &sidx);
-			surf->ofs_skel_weight	= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_weight[0]),	&swgt);
+			surf->ofs_skel_weight	= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_weight[0]),	&swgt, NULL);
 
 			for (i = 0; i < surf->numverts; i++)
 			{
@@ -1806,9 +2430,17 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 			}
 		}
 
-//		TransformArrayD(surf->ofs_skel_xyz, surf->numverts, pmatrix);
-//		TransformArrayA(surf->ofs_skel_norm, surf->numverts, pmatrix);
-//		TransformArrayA(surf->ofs_skel_svect, surf->numverts, pmatrix);
+		if (skinmatrix)
+		{
+			TransformPosArray(surf->ofs_skel_xyz, surf->numverts, skinmatrix);
+			if (norm.data)
+				TransformDirArray(surf->ofs_skel_norm, surf->numverts, skinmatrix);
+			if (tang.data)
+			{
+				TransformDirArray(surf->ofs_skel_svect, surf->numverts, skinmatrix);
+				TransformDirArray(surf->ofs_skel_tvect, surf->numverts, skinmatrix);
+			}
+		}
 
 		for (i = 0; i < surf->numverts; i++)
 		{
@@ -1824,7 +2456,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, int meshidx, int basebone, double
 
 #ifndef SERVERONLY
 		surf->numskins = 1;
-		surf->ofsskins = GLTF_LoadMaterial(gltf, JSON_GetInteger(prim, "material", -1), surf->ofs_rgbaub||surf->ofs_rgbaf);
+		surf->ofsskins = GLTF_LoadMaterial(gltf, JSON_FindChild(prim, "material"), surf->ofs_rgbaub||surf->ofs_rgbaf);
 #endif
 
 		if (!tang.data)
@@ -1900,24 +2532,26 @@ static void GenMatrixPosQuat4ScaleDouble(const double pos[3], const double quat[
 	result[3*4+3] = 1;
 }
 
-static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], int parentidx, qboolean isjoint)
+static qboolean GLTF_ProcessNode(gltf_t *gltf, json_t *nodeid, double pmatrix[16], int parentidx, qboolean isjoint)
 {
+	double skinmatrix[16], *skinmatrixptr=NULL;
 	json_t *c;
 	json_t *node;
 	json_t *t;
 	json_t *skin;
-	int mesh;
-	int skinidx;
+	json_t *meshid;
+	quintptr_t nodeidx;
 	struct gltfbone_s *b;
-	if (nodeidx < 0 || nodeidx >= gltf->numbones)
+	node = GLTF_FindJSONID(gltf, "nodes", nodeid, &nodeidx);
+	if (nodeidx >= gltf->numbones)
 	{
-		Con_Printf(CON_WARNING"%s: Invalid node index %i\n", gltf->mod->name, nodeidx);
+		if (nodeidx < MAX_BONES)	//don't spam if its detected elsewhere.
+			Con_Printf(CON_WARNING"%s: Invalid node index %i\n", gltf->mod->name, (int)nodeidx);
 		return false;
 	}
-	node = JSON_FindIndexedChild(gltf->r, "nodes", nodeidx);
 	if (!node)
 	{
-		Con_Printf(CON_WARNING"%s: Invalid node index %i\n", gltf->mod->name, nodeidx);
+		Con_Printf(CON_WARNING"%s: Invalid node index %i\n", gltf->mod->name, (int)nodeidx);
 		return false;
 	}
 
@@ -1973,41 +2607,50 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], 
 
 		//T * R * S
 		GenMatrixPosQuat4ScaleDouble(trans, rot, scale, b->rel.rmatrix);
-/*
-		memset(mmatrix, 0, sizeof(mmatrix));
-		mmatrix[0] = 1;
-		mmatrix[5] = 1;
-		(void)rot,(void)scale;
-		mmatrix[10] = 1;
-		mmatrix[15] = 1;
-		mmatrix[3] = trans[0];
-		mmatrix[7] = trans[1];
-		mmatrix[11] = trans[2];
-*/
 	}
 	Matrix4D_Multiply(b->rel.rmatrix, pmatrix, b->amatrix);
 
-	skinidx = JSON_GetInteger(node, "skin", -1);
-	if (skinidx >= 0)
+	skin = GLTF_FindJSONID(gltf, "skins", JSON_FindChild(node, "skin"), NULL);
+	if (skin)
 	{
-//		double identity[16];
-		int j;
+		quintptr_t j;
 		json_t *joints;
 		struct gltf_accessor inverse;
 		float *inversef;
 
-		skin = JSON_FindIndexedChild(gltf->r, "skins", skinidx);
-
-		joints = JSON_FindChild(skin, "joints");
-		GLTF_GetAccessor(gltf, JSON_GetInteger(skin, "inverseBindMatrices", -1), &inverse);
+		if (gltf->ver <= 1)
+			joints = JSON_FindChild(skin, "jointNames");
+		else
+			joints = JSON_FindChild(skin, "joints");
+		if (joints)
+			joints = joints->child;
+		GLTF_GetAccessor(gltf, JSON_FindChild(skin, "inverseBindMatrices"), &inverse);
 		inversef = inverse.data;
 		if (inverse.componentType != 5126/*FLOAT*/ || inverse.type != ((4<<8) | 4)/*mat4x4*/)
 			inverse.count = 0;
-		for (j = 0; j < MAX_BONES; j++, inversef+=inverse.bytestride/sizeof(float))
+		memset(gltf->bonemap, 0, sizeof(*gltf->bonemap)*MAX_BONES);	//avoid unexpected surprises...
+		for (j = 0; j < MAX_BONES && joints; j++, inversef+=inverse.bytestride/sizeof(float), joints=joints->sibling)
 		{
-			int b = JSON_GetIndexedInteger(joints, j, -1);
-			if (b < 0)
-				break;
+			quintptr_t b;
+			joints->used = true;
+			if (gltf->ver <= 1)
+			{	//urgh
+				char jointname[64];
+				JSON_ReadBody(joints, jointname, sizeof(jointname));	//this is matched to nodes[b].jointName rather than (textual) b, so we can't use our helpers.
+				for (b = 0; b < gltf->numbones; b++)
+				{
+					if (!strcmp(gltf->bones[b].jointname, jointname))
+						break;
+				}
+				if (b == gltf->numbones)
+					break;
+			}
+			else
+			{
+				b = JSON_GetUInteger(joints, NULL, ~0);
+				if (b >= gltf->numbones)
+					break;
+			}
 			gltf->bonemap[j] = b;
 			if (j < inverse.count)
 			{
@@ -2055,26 +2698,46 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, int nodeidx, double pmatrix[16], 
 			}
 		}
 
-//		GLTF_ProcessNode(gltf, JSON_GetInteger(skin, "skeleton", -1), identity, nodeidx, true);
+//		GLTF_ProcessNode(gltf, JSON_FindChild(skin, "skeleton"), identity, nodeidx, true);
 
+		if (gltf->ver <= 1)
+		{
+			int i;
+			json_t *bdsm = JSON_FindChild(skin, "bindShapeMatrix");
+			if (bdsm)
+			{
+				skinmatrixptr = skinmatrix;
+				for (i = 0; i < 16; i++)
+					skinmatrix[i] = JSON_GetIndexedFloat(bdsm, i, ((i%5)==0)?1.0:0.0);
+			}
+		}
 		JSON_FlagAsUsed(node, "name");
 	}
-	
-	mesh = JSON_GetInteger(node, "mesh", -1);
-	if (mesh >= 0)
-		GLTF_ProcessMesh(gltf, mesh, nodeidx, b->amatrix);
+
+	if (gltf->ver <= 1)
+	{	//multiple in gltf1
+		meshid = JSON_FindChild(node, "meshes");
+		if (meshid)
+			for (meshid = meshid->child; meshid; meshid = meshid->sibling)
+				GLTF_ProcessMesh(gltf, meshid, nodeidx, skinmatrixptr);
+	}
+	else
+	{	//gltf2 moved to only one.
+		meshid = JSON_FindChild(node, "mesh");
+		if (meshid)
+			GLTF_ProcessMesh(gltf, meshid, nodeidx, skinmatrixptr);
+	}
 
 	for(c = JSON_FindIndexedChild(node, "children", 0); c; c = c->sibling)
 	{
 		c->used = true;
-		GLTF_ProcessNode(gltf, JSON_GetInteger(c, NULL, -1), b->amatrix, nodeidx, isjoint);
+		GLTF_ProcessNode(gltf, c, b->amatrix, nodeidx, isjoint);
 	}
 
 	b->camera = JSON_GetInteger(node, "camera", -1);
 
 	JSON_WarnIfChild(node, "weights", &gltf->warnlimit);	//default value for morph weight animations
-	JSON_WarnIfChild(node, "extensions", &gltf->warnlimit);
-//	JSON_WarnIfChild(node, "extras", &gltf->warnlimit);
+	GLTF_FlagExtras(node);
 
 	return true;
 }
@@ -2088,6 +2751,7 @@ struct gltf_animsampler
 	} interptype;
 	struct gltf_accessor input;	//timestamps
 	struct gltf_accessor output;	//values
+	int outputs;
 };
 static void GLTF_Animation_Persist(gltf_t *gltf, struct gltf_accessor *accessor)
 {
@@ -2096,11 +2760,11 @@ static void GLTF_Animation_Persist(gltf_t *gltf, struct gltf_accessor *accessor)
 	memcpy(newdata, accessor->data, accessor->length);
 	accessor->data = newdata;
 }
-static struct gltf_animsampler GLTF_AnimationSampler(gltf_t *gltf, json_t *samplers, int sampleridx, int elems)
+static struct gltf_animsampler GLTF_AnimationSampler(gltf_t *gltf, json_t *samplers, json_t *params, json_t *samplerid, int elems)
 {
 	int outsperinput=1;
 	struct gltf_animsampler r;
-	json_t *sampler = JSON_FindIndexedChild(samplers, NULL, sampleridx);
+	json_t *sampler = GLTF_FindJSONIDParent(gltf, samplers, samplerid, NULL);
 
 	char t[32];
 	const char *lerptype = JSON_GetString(sampler, "interpolation", t, sizeof(t), "LINEAR");
@@ -2119,10 +2783,22 @@ static struct gltf_animsampler GLTF_AnimationSampler(gltf_t *gltf, json_t *sampl
 		r.interptype = AINTERP_LINEAR;
 	}
 
-	GLTF_GetAccessor(gltf, JSON_GetInteger(sampler, "input", -1), &r.input);
-	GLTF_GetAccessor(gltf, JSON_GetInteger(sampler, "output", -1), &r.output);
+	if (gltf->ver <= 1)
+	{
+		GLTF_GetAccessor(gltf, GLTF_FindJSONIDParent(gltf, params, JSON_FindChild(sampler, "input"), NULL), &r.input);
+		GLTF_GetAccessor(gltf, GLTF_FindJSONIDParent(gltf, params, JSON_FindChild(sampler, "output"), NULL), &r.output);
+	}
+	else
+	{
+		GLTF_GetAccessor(gltf, JSON_FindChild(sampler, "input"), &r.input);
+		GLTF_GetAccessor(gltf, JSON_FindChild(sampler, "output"), &r.output);
+	}
 
-	if (!r.input.data || !r.output.data || r.input.count*outsperinput != r.output.count)
+	if (!r.input.count)
+		r.input.count = 1;
+	else
+		r.outputs = r.output.count / (r.input.count*outsperinput);
+	if (!r.input.data || !r.output.data || r.input.count*outsperinput*r.outputs != r.output.count)
 		memset(&r, 0, sizeof(r));
 	else
 	{
@@ -2237,7 +2913,7 @@ static void QuaternionSlerp_(const vec4_t p, const vec4_t q, float t, vec4_t qt)
 		}
 	}
 }
-static void LerpAnimData(const struct gltf_animsampler *samp, float time, float *result, int elems)
+static void LerpAnimData(const struct gltf_animsampler *samp, float time, float *result, int elems, qboolean slerp)
 {
 	float t0, t1;
 	float w0, w1;
@@ -2255,6 +2931,9 @@ static void LerpAnimData(const struct gltf_animsampler *samp, float time, float 
 		f1++;
 		t1 = Anim_GetTime(in, f1);
 	}
+
+	f0 *= samp->outputs;
+	f1 *= samp->outputs;
 
 	if (samp->interptype == AINTERP_CUBICSPLINE)
 	{
@@ -2282,7 +2961,7 @@ static void LerpAnimData(const struct gltf_animsampler *samp, float time, float 
 			result[c] = m0*v0[c] + mb*b[c] + m1*v1[c] + ma*a[c];
 
 		//quats must be normalized.
-		if (elems == 4)
+		if (slerp)
 		{
 			float len = sqrt(DotProduct4(result,result));
 			Vector4Scale(result, 1/len, result);
@@ -2306,7 +2985,7 @@ static void LerpAnimData(const struct gltf_animsampler *samp, float time, float 
 	{
 		Anim_GetVal(out, f0, v0, elems);
 		Anim_GetVal(out, f1, v1, elems);
-		if (elems == 4)
+		if (slerp)
 			QuaternionSlerp_(v0, v1, w1, result);
 		else
 		{
@@ -2317,9 +2996,9 @@ static void LerpAnimData(const struct gltf_animsampler *samp, float time, float 
 	}
 }
 
-static void GLTF_RemapBone(gltf_t *gltf, int *nextidx, int b)
+static void GLTF_RemapBone(gltf_t *gltf, size_t *nextidx, size_t b)
 {	//potentially needs to walk to the root before the child. recursion sucks.
-	if (gltf->bonemap[b] >= 0)
+	if (b == -1 || gltf->bonemap[b] >= 0)
 		return;	//already got remapped
 	GLTF_RemapBone(gltf, nextidx, gltf->bones[b].parent);
 	gltf->bonemap[b] = (*nextidx)++;
@@ -2327,7 +3006,7 @@ static void GLTF_RemapBone(gltf_t *gltf, int *nextidx, int b)
 static void GLTF_RewriteBoneTree(gltf_t *gltf)
 {
 	galiasinfo_t *surf;
-	int j, n;
+	size_t j, n;
 	struct gltfbone_s *tmpbones;
 
 	for (j = 0; j < gltf->numbones; j++)
@@ -2371,9 +3050,45 @@ struct galiasanimation_gltf_s
 	float duration;
 	struct
 	{
-		struct gltf_animsampler rot,scale,trans;
+		struct gltf_animsampler rot,scale,trans,morph;
 	} bone[1];
 };
+cvar_t temp1;
+static const float *QDECL GLTF_AnimateMorphs(const galiasinfo_t *surf, const framestate_t *framestate)
+{
+	static float morphs[MAX_MORPHWEIGHTS];
+	float imorphs[MAX_MORPHWEIGHTS], *src;
+	size_t influence, m;
+	int bone = temp1.ival;
+	const struct galiasanimation_gltf_s *a;
+	const struct framestateregion_s *fg = &framestate->g[FS_REG];
+	memset(morphs, 0, sizeof(morphs[0])*surf->nummorphs);
+	for (influence = 0; influence < countof(framestate->g[FS_REG].frame); influence++)
+	{
+		m = 0;
+		if (!fg->lerpweight[influence])
+			continue;	//mneh, don't care.
+		if (surf->ofsanimations && (unsigned int)fg->frame[influence] < (unsigned int)surf->numanimations)
+		{
+			a = surf->ofsanimations[fg->frame[influence]].boneofs;
+			if (a && a->bone[bone].morph.input.count)
+			{
+				int asz = min(a->bone[bone].morph.outputs, surf->nummorphs);
+				double time = fg->frametime[influence];
+				if (surf->ofsanimations[fg->frame[influence]].loop && time >= a->duration)
+					time = time - a->duration*floor(time/a->duration);
+				LerpAnimData(&a->bone[bone].morph, time, imorphs, asz, false);
+				for (; m < surf->nummorphs && m < asz; m++)
+					morphs[m] += fg->lerpweight[influence] * imorphs[m];
+			}
+		}
+
+		src = (float*)(surf+1);	//our static morphs are stuck on the end of our surf struct.;
+		for (; m < surf->nummorphs; m++)
+			morphs[m] += fg->lerpweight[influence]*src[m];
+	}
+	return morphs;
+}
 static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanimation_t *anim, float time, float *bonematrix, int numbones)
 {
 	const struct galiasbone_gltf_s *defbone = surf->ctx;
@@ -2396,11 +3111,11 @@ static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanim
 			VectorCopy(defbone[j].trans, trans);
 
 			if (a->bone[j].rot.input.data)
-				LerpAnimData(&a->bone[j].rot, time, rot, 4);
+				LerpAnimData(&a->bone[j].rot, time, rot, 4, true);
 			if (a->bone[j].scale.input.data)
-				LerpAnimData(&a->bone[j].scale, time, scale, 3);
+				LerpAnimData(&a->bone[j].scale, time, scale, 3, false);
 			if (a->bone[j].trans.input.data)
-				LerpAnimData(&a->bone[j].trans, time, trans, 3);
+				LerpAnimData(&a->bone[j].trans, time, trans, 3, false);
 			//figure out the bone matrix...
 			modfuncs->GenMatrixPosQuat4Scale(trans, rot, scale, bonematrix);
 		}
@@ -2412,10 +3127,10 @@ static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanim
 		if (surf->ofsbones[j].parent < 0)
 		{	//rotate any root bones from gltf to quake's orientation.
 			float fnar[12];
-			static float toquake[12]={
-				0,0,GLTFSCALE, 0,
-				GLTFSCALE,0,0, 0,
-				0,GLTFSCALE,0, 0};
+			float toquake[12]={
+				0,0,mod_gltf_scale->value, 0,
+				mod_gltf_scale->value,0,0, 0,
+				0,mod_gltf_scale->value,0, 0};
 			memcpy(fnar, bonematrix, sizeof(fnar));
 			modfuncs->ConcatTransforms((void*)toquake, (void*)fnar, (void*)bonematrix);
 		}
@@ -2428,12 +3143,17 @@ static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanim
 //we do NOT supported nested nodes right now...
 static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize, void *buffer, size_t buffersize)
 {
-	static struct
+	static struct knowngltfextensions_s
 	{
 		const char *name;
 		qboolean supported;	//unsupported extensions don't really need to be listed, but they do prevent warnings from unknown-but-used extensions
 		qboolean draft;		//true when our implementation is probably buggy on account of the spec maybe changing.
-	} extensions[] =
+	} extensions_v1[] =
+	{
+		{"KHR_binary_glTF",							true,	false},
+		{"KHR_materials_common",					true,   false},
+		{NULL}
+	}, extensions_v2[] =
 	{
 		{"KHR_materials_pbrSpecularGlossiness",		true,   false},
 //		{"KHR_materials_cmnBlinnPhong",				true,   true},
@@ -2443,9 +3163,11 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{"KHR_mesh_quantization",					true,	true},
 		{"MSFT_texture_dds",						true,	false},
 		{"MSFT_packing_occlusionRoughnessMetallic", true,	false},
-	};
+		{NULL}
+	}, *extensions;
 	gltf_t gltf;
-	int pos=0, j, k;
+	int pos=0;
+	quintptr_t j,k;
 	json_t *scene, *n, *anim;
 	double rootmatrix[16];
 	double gltfver;
@@ -2470,7 +3192,19 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 	if (gltfver != 2.0)
 		gltfver = JSON_GetFloat(gltf.r, "asset.version", 0.0);
 	if (gltfver == 2.0)
+		gltf.ver = 2;
+	if (gltfver == 1.0)	//we load gltf1 models. we don't get the materials right but gltf1 sucks for that anyway.
+		gltf.ver = 1;
+	if (gltf.ver)
 	{
+		if (gltf.ver <= 1)
+		{
+			JSON_FlagAsUsed(gltf.r, "asset.profile");
+			JSON_FlagAsUsed(gltf.r, "asset.premultipliedAlpha");
+			extensions = extensions_v1;
+		}
+		else
+			extensions = extensions_v2;
 		JSON_FlagAsUsed(gltf.r, "asset.copyright");
 		JSON_FlagAsUsed(gltf.r, "asset.generator");
 		JSON_WarnIfChild(gltf.r, "asset.minVersion", &gltf.warnlimit);
@@ -2480,14 +3214,14 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{
 			char extname[256];
 			JSON_ReadBody(n, extname, sizeof(extname));
-			for (j = 0; j < countof(extensions); j++)
+			for (j = 0; extensions[j].name; j++)
 			{
 				if (!strcmp(extname, extensions[j].name))
 					break;
 			}
-			if (j==countof(extensions) || !extensions[j].supported)
+			if (!extensions[j].supported)
 			{
-				Con_Printf(CON_ERROR "%s: Required gltf2 extension \"%s\" not supported\n", mod->name, extname);
+				Con_Printf(CON_ERROR "%s: Required gltf%i extension \"%s\" not supported\n", mod->name, gltf.ver, extname);
 				goto abort;
 			}
 		}
@@ -2496,15 +3230,15 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{	//must be a superset of the above.
 			char extname[256];
 			JSON_ReadBody(n, extname, sizeof(extname));
-			for (j = 0; j < countof(extensions); j++)
+			for (j = 0; extensions[j].name; j++)
 			{
 				if (!strcmp(extname, extensions[j].name))
 					break;
 			}
-			if (j==countof(extensions) || !extensions[j].supported)
-				Con_Printf(CON_WARNING "%s: gltf2 extension \"%s\" not known\n", mod->name, extname);
+			if (!extensions[j].supported)
+				Con_Printf(CON_WARNING "%s: gltf%i extension \"%s\" not known\n", mod->name, gltf.ver, extname);
 			else if (extensions[j].draft)
-				Con_Printf(CON_WARNING "%s: gltf2 extension \"%s\" follows draft implementation, and may be non-standard/buggy\n", mod->name, extname);
+				Con_Printf(CON_WARNING "%s: gltf%i extension \"%s\" follows draft implementation, and may be non-standard/buggy\n", mod->name, gltf.ver, extname);
 		}
 
 		VectorClear(mod->maxs);
@@ -2513,18 +3247,22 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		//we don't really care about cameras.
 		JSON_FlagAsUsed(gltf.r, "cameras");
 
-		scene = JSON_FindIndexedChild(gltf.r, "scenes", JSON_GetInteger(gltf.r, "scene", 0));
+		scene = GLTF_FindJSONID_First(&gltf, "scenes", JSON_FindChild(gltf.r, "scene"), NULL);
 
 		memset(&rootmatrix, 0, sizeof(rootmatrix));
 #if 1	//transform from gltf to quake. mostly only needed for the base pose.
-		rootmatrix[2] = rootmatrix[4] = rootmatrix[9] = GLTFSCALE; rootmatrix[15] = 1;
+		rootmatrix[2] = rootmatrix[4] = rootmatrix[9] = mod_gltf_scale->value; rootmatrix[15] = 1;
 #else
 		rootmatrix[0] = rootmatrix[5] = rootmatrix[10] = 1; rootmatrix[15] = 1;
 #endif
 
+		n = JSON_FindChild(gltf.r, "nodes");
 		for (j = 0; ; j++)
 		{
-			n = JSON_FindIndexedChild(gltf.r, "nodes", j);
+			if (gltf.ver <= 1)
+				n = j?n->sibling:n->child;
+			else
+				n = JSON_FindIndexedChild(gltf.r, "nodes", j);
 			if (!n)
 				break;
 			if (j == MAX_BONES)
@@ -2532,12 +3270,13 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				Con_Printf(CON_WARNING"%s: too many nodes (max %i)\n", mod->name, MAX_BONES);
 				break;
 			}
+			JSON_ReadBody(JSON_FindChild(n, "jointName"), gltf.bones[j].jointname, sizeof(gltf.bones[j].jointname));
 			if (!JSON_ReadBody(JSON_FindChild(n, "name"), gltf.bones[j].name, sizeof(gltf.bones[j].name)))
 			{
 				if (n)
 					JSON_GetPath(n, true, gltf.bones[j].name, sizeof(gltf.bones[j].name));
 				else
-					Q_snprintf(gltf.bones[j].name, sizeof(gltf.bones[j].name), "bone%i", j);
+					Q_snprintf(gltf.bones[j].name, sizeof(gltf.bones[j].name), "bone%u", (unsigned)j);
 			}
 			gltf.bones[j].camera = -1;
 			gltf.bones[j].parent = -1;
@@ -2548,8 +3287,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		gltf.numbones = j;
 
 		JSON_FlagAsUsed(scene, "name");
-		JSON_WarnIfChild(scene, "extensions", &gltf.warnlimit);
-//		JSON_WarnIfChild(scene, "extras");
+		GLTF_FlagExtras(scene);
 		for (j = 0; ; j++)
 		{
 			n = JSON_FindIndexedChild(scene, "nodes", j);
@@ -2557,7 +3295,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				break;
 			n->used = true;
 //			if (!
-			GLTF_ProcessNode(&gltf, JSON_GetInteger(n, NULL, -1), rootmatrix, -1, false);
+			GLTF_ProcessNode(&gltf, n, rootmatrix, -1, false);
 //				break;
 		}
 
@@ -2582,27 +3320,39 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			gltfbone[j] = gltf.bones[j].rel;
 		}
 
-		for(anim = JSON_FindIndexedChild(gltf.r, "animations", 0); anim; anim = anim->sibling)
-			numframegroups++;
+		anim = JSON_FindChild(gltf.r, "animations");
+		if (anim)
+			for(anim = anim->child; anim; anim = anim->sibling)
+				numframegroups++;
 		if (numframegroups)
 		{
+			struct galiasanimation_gltf_s **mergeanims = NULL;
+			if (mod_gltf_fixbuggyanims->ival)
+			{
+				mergeanims = alloca(sizeof(*mergeanims)*gltf.numbones);
+				memset(mergeanims, 0, sizeof(mergeanims)*gltf.numbones);
+			}
 			framegroups = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*framegroups)*numframegroups);
-			for (k = 0; k < numframegroups; k++)
+			anim = JSON_FindChild(gltf.r, "animations")->child;
+			for (k = 0; k < numframegroups; k++, anim = anim->sibling)
 			{
 				galiasanimation_t *fg = &framegroups[k];
-				json_t *anim = JSON_FindIndexedChild(gltf.r, "animations", k);
 				json_t *chan;
 				json_t *samps = JSON_FindChild(anim, "samplers");
-//				int f, l;
+				json_t *params = gltf.ver<=1?JSON_FindChild(anim, "parameters"):0;	//gltf1
 				float maxtime = 0;
+				unsigned maxposes = 0;
 				struct galiasanimation_gltf_s *a = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*a)+sizeof(a->bone[0])*(gltf.numbones-1));
+				anim->used = true;
 
 				if (!JSON_ReadBody(JSON_FindChild(anim, "name"), fg->name, sizeof(fg->name)))
 				{
-					if (anim)
+					if (gltf.ver <= 1)
+						Q_snprintf(fg->name, sizeof(fg->name), "%s", anim->name);
+					else if (anim)
 						JSON_GetPath(anim, true, fg->name, sizeof(fg->name));
 					else
-						Q_snprintf(fg->name, sizeof(fg->name), "anim%i", k);
+						Q_snprintf(fg->name, sizeof(fg->name), "anim%u", (unsigned int)k);
 				}
 				fg->loop = true;
 				fg->skeltype = SKEL_RELATIVE;
@@ -2610,89 +3360,89 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				{
 					struct gltf_animsampler s;
 					json_t *targ = JSON_FindChild(chan, "target");
-					int sampler = JSON_GetInteger(chan, "sampler", -1);
-					int bone = JSON_GetInteger(targ, "node", -2);
+					json_t *samplerid = JSON_FindChild(chan, "sampler");
+					qintptr_t bone;
 					json_t *path = JSON_FindChild(targ, "path");
-					if (bone == -2)
-						continue;	//'When node isn't defined, channel should be ignored'
+					chan->used = true;
+
+					if (gltf.ver <= 1)
+						GLTF_FindJSONID(&gltf, "nodes", JSON_FindChild(targ, "id"), (quintptr_t*)&bone);
+					else
+					{
+						bone = JSON_GetInteger(targ, "node", -2);
+						if (bone == -2)
+							continue;	//'When node isn't defined, channel should be ignored'
+					}
 					if (bone < 0 || bone >= gltf.numbones)
 					{
 						if (gltf.warnlimit --> 0)
-							Con_Printf("%s: invalid node index %i\n", mod->name, bone);
+							Con_Printf("%s: invalid node index %i\n", mod->name, (int)bone);
 						continue;	//error...
 					}
 					bone = gltf.bonemap[bone];
-					s = GLTF_AnimationSampler(&gltf, samps, sampler, 4);
-					maxtime = max(maxtime, s.input.maxs[0]);
-					if (JSON_Equals(path, NULL, "rotation"))
-						a->bone[bone].rot = s;
-					else if (JSON_Equals(path, NULL, "scale"))
-						a->bone[bone].scale = s;
-					else if (JSON_Equals(path, NULL, "translation"))
-						a->bone[bone].trans = s;
-					else if (gltf.warnlimit --> 0)
-					{	//these are unsupported
-						if (JSON_Equals(path, NULL, "weights"))	//morph weights
-							Con_Printf(CON_WARNING"%s: morph animations are not supported\n", mod->name);
+					if (mergeanims)
+					{
+						if (mergeanims[bone] && mergeanims[bone] != a)
+							mergeanims = NULL;	//was some other animation... which means two animations are fighting over the same joint. which means we don't need to use this hack! yay!
 						else
-							Con_Printf("%s: undocumented animation type\n", mod->name);
+							mergeanims[bone] = a;
+					}
+					s = GLTF_AnimationSampler(&gltf, samps, params, samplerid, 4);
+					if (!s.input.maxs[0] && s.input.count)
+						s.input.maxs[0] = Anim_GetTime(&s.input, s.input.count-1);
+					maxtime = max(maxtime, s.input.maxs[0]);
+					maxposes = max(maxposes, s.input.count);
+					if (JSON_Equals(path, NULL, "rotation") && s.outputs==1)
+						a->bone[bone].rot = s;
+					else if (JSON_Equals(path, NULL, "scale") && s.outputs==1)
+						a->bone[bone].scale = s;
+					else if (JSON_Equals(path, NULL, "translation") && s.outputs==1)
+						a->bone[bone].trans = s;
+					else if (JSON_Equals(path, NULL, "weights") && s.outputs>=1)
+						a->bone[bone].morph = s;
+					else
+					{
+						if (gltf.warnlimit --> 0)
+						{
+							char buf[64];
+							JSON_ReadBody(path, buf, sizeof(buf));
+							Con_Printf("%s: unknown animation data - %s\n", mod->name, buf);
+						}
 					}
 				}
 
+				if (!maxtime)
+					maxtime = 1.0/30;	//some stuff doesn't like 0-length animations. divisions by 0 are not nice.
 				a->duration = maxtime;
 
-				//TODO: make a guess at the framerate according to sampler intervals
-				fg->rate = 60;
-				fg->numposes = max(1, maxtime*fg->rate);
+				//calc average framerate
+				fg->numposes = maxposes;
 				if (maxtime)
 					fg->rate = fg->numposes/maxtime;	//fix up the rate so we hit the exact end of the animation (so it doesn't have to be quite so exact).
+				else
+					fg->rate = 60;
 
 				fg->skeltype = SKEL_RELATIVE;
 				fg->GetRawBones = GLTF_AnimateBones;
 				fg->boneofs = a;
-#if 0
-				fg->boneofs = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*fg->boneofs)*12*gltf.numbones*fg->numposes);
+			}
 
-				for (f = 0; f < fg->numposes; f++)
-				{
-					float *bonematrix = &fg->boneofs[f*gltf.numbones*12];
-					float time = f/fg->rate;
-					for (j = 0; j < gltf.numbones; j++, bonematrix+=12)
+			if (mergeanims)
+			{	//if we got this far then no two animations referenced the same bone.
+				//this is a common issue with various sample models, I'm going to call it an exporter bug, and work around it by merging them into a single animation.
+				for (k = 1; k < numframegroups && framegroups[k].rate == framegroups[0].rate && framegroups[k].numposes == framegroups[0].numposes; k++)
+					;
+				if (k == numframegroups)
+				{	//yup, all have the same duration+posecount. lets call it a valid fix.
+					struct galiasanimation_gltf_s *merged = framegroups[0].boneofs;
+					Q_snprintf(framegroups->name, sizeof(framegroups->name), "allbones");
+					numframegroups = 1;
+					for (k = 0; k < gltf.numbones; k++)
 					{
-						float scale[3];
-						float rot[4];
-						float trans[3];
-						//eww, weird inheritance crap.
-						if (b[j].rot.input.data || b[j].scale.input.data || b[j].trans.input.data)
-						{
-							VectorCopy(gltf.bones[j].rel.scale, scale);
-							Vector4Copy(gltf.bones[j].rel.quat, rot);
-							VectorCopy(gltf.bones[j].rel.trans, trans);
-
-							if (b[j].rot.input.data)
-								LerpAnimData(&b[j].rot, time, rot, 4);
-							if (b[j].scale.input.data)
-								LerpAnimData(&b[j].scale, time, scale, 3);
-							if (b[j].trans.input.data)
-								LerpAnimData(&b[j].trans, time, trans, 3);
-							//figure out the bone matrix...
-							modfuncs->GenMatrixPosQuat4Scale(trans, rot, scale, bonematrix);
-						}
-						else
-						{	//nothing animated, use what we calculated earlier.
-							for (l = 0; l < 12; l++)
-								bonematrix[l] = gltf.bones[j].rel.rmatrix[l];
-						}
-						if (gltf.bones[j].parent < 0)
-						{	//rotate any root bones from gltf to quake's orientation.
-							float fnar[12];
-							static float toquake[12]={0,0,GLTFSCALE,0,GLTFSCALE,0,0,0,0,GLTFSCALE,0,0};
-							memcpy(fnar, bonematrix, sizeof(fnar));
-							modfuncs->ConcatTransforms((void*)toquake, (void*)fnar, (void*)bonematrix);
-						}
+						if (mergeanims[k])
+							merged->bone[k] = mergeanims[k]->bone[k];	//copy over that bone.
 					}
 				}
-#endif
 			}
 		}
 
@@ -2710,8 +3460,8 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			surf->geomset = ~0;	//invalid set = always visible. FIXME: set this according to scene numbers?
 			surf->geomid = 0;
 		}
-		VectorScale(mod->mins, GLTFSCALE, mod->mins);
-		VectorScale(mod->maxs, GLTFSCALE, mod->maxs);
+		VectorScale(mod->mins, mod_gltf_scale->value, mod->mins);
+		VectorScale(mod->maxs, mod_gltf_scale->value, mod->maxs);
 
 		if (!mod->meshinfo)
 			Con_Printf("%s: Doesn't contain any meshes...\n", mod->name);
@@ -2723,7 +3473,6 @@ abort:
 	JSON_Destroy(gltf.r);
 	free(gltf.bones);
 	free(gltf.bonemap);
-
 
 	mod->type = mod_alias;
 	return !!mod->meshinfo;
@@ -2737,32 +3486,50 @@ qboolean QDECL Mod_LoadGLTFModel (struct model_s *mod, void *buffer, size_t fsiz
 qboolean QDECL Mod_LoadGLBModel (struct model_s *mod, void *buffer, size_t fsize)
 {
 	unsigned char *header = buffer;
-	unsigned int magic = header[0]|(header[1]<<8)|(header[2]<<16)|(header[3]<<24);
-	unsigned int version = header[4]|(header[5]<<8)|(header[6]<<16)|(header[7]<<24);
-	unsigned int length = header[8]|(header[9]<<8)|(header[10]<<16)|(header[11]<<24);
+	unsigned int magic = header[0]|(header[1]<<8)|(header[2]<<16)|(header[3]<<24);		//gltf
+	unsigned int version = header[4]|(header[5]<<8)|(header[6]<<16)|(header[7]<<24);	//2
+	unsigned int length = header[8]|(header[9]<<8)|(header[10]<<16)|(header[11]<<24);	//fsize
 
 	unsigned int jsonlen = header[12]|(header[13]<<8)|(header[14]<<16)|(header[15]<<24);
 	unsigned int jsontype = header[16]|(header[17]<<8)|(header[18]<<16)|(header[19]<<24);
 	char *json = (char*)(header+20);
 
-	unsigned int binlen = header[20+jsonlen]|(header[21+jsonlen]<<8)|(header[22+jsonlen]<<16)|(header[23+jsonlen]<<24);
-	unsigned int bintype = header[24+jsonlen]|(header[25+jsonlen]<<8)|(header[26+jsonlen]<<16)|(header[27+jsonlen]<<24);
-	unsigned char *bin = header+28+jsonlen;
-
 	if (fsize < 28)
 		return false;
 	if (magic != (('F'<<24)+('T'<<16)+('l'<<8)+'g'))
 		return false;
-	if (version != 2)
-		return false;
-	if (jsontype != 0x4E4F534A)	//'JSON'
-		return false;
-	if (length != 28+jsonlen+binlen)
-		return false;
-	if (bintype != 0x004E4942)	//'BIN\0'
-		return false;
-	
-	return GLTF_LoadModel(mod, json, jsonlen, bin, binlen);
+	if (fsize < length)
+		return false;	//allow padding on the end, but not truncation
+	if (version == 1)
+	{
+		unsigned int binlen = (length-20) - jsonlen;
+		unsigned char *bin = header+20+jsonlen;
+
+		if (jsonlen&3)
+			return false;	//exporter is expected to pad with spaces.
+		if (jsontype != 0)	//'JSON'
+			return false;
+		if (length != 20+jsonlen+binlen)
+			return false;
+
+		return GLTF_LoadModel(mod, json, jsonlen, bin, binlen);
+	}
+	else if (version == 2)
+	{
+		unsigned int binlen = header[20+jsonlen]|(header[21+jsonlen]<<8)|(header[22+jsonlen]<<16)|(header[23+jsonlen]<<24);
+		unsigned int bintype = header[24+jsonlen]|(header[25+jsonlen]<<8)|(header[26+jsonlen]<<16)|(header[27+jsonlen]<<24);
+		unsigned char *bin = header+28+jsonlen;
+
+		if (jsontype != 0x4E4F534A)	//'JSON'
+			return false;
+		if (length != 28+jsonlen+binlen)
+			return false;
+		if (bintype != 0x004E4942)	//'BIN\0'
+			return false;
+
+		return GLTF_LoadModel(mod, json, jsonlen, bin, binlen);
+	}
+	return false;
 }
 
 qboolean Plug_GLTF_Init(void)
@@ -2771,11 +3538,19 @@ qboolean Plug_GLTF_Init(void)
 	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
 	if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
 		modfuncs = NULL;
+	mod_gltf_scale = cvarfuncs->GetNVFDG("mod_gltf_scale", "30", CVAR_RENDERERLATCH, "This defines the number of units per metre, in order to correctly load standard-scale gltf models.", "GLTF Models");
+	mod_gltf_fixbuggyanims = cvarfuncs->GetNVFDG("mod_gltf_fixbuggyanims", "1", CVAR_RENDERERLATCH, "Work around buggy exporters by merging animations that affect only a single bone.", "GLTF Models");
+#ifdef IQMTOOL
+	mod_gltf_privatematerials = cvarfuncs->GetNVFDG("mod_gltf_privatematerials", "0", CVAR_RENDERERLATCH, "Add the model path to material names, to isolate them between different models.", "GLTF Models");
+#else
+	mod_gltf_privatematerials = cvarfuncs->GetNVFDG("mod_gltf_privatematerials", "1", CVAR_RENDERERLATCH, "Add the model path to material names, to isolate them between different models.", "GLTF Models");
+#endif
+	mod_gltf_ignoretechniques = cvarfuncs->GetNVFDG("mod_gltf_ignoretechniques", "1", CVAR_RENDERERLATCH, "Ignore the gltf1 model-specific glsl. This is enabled by default because it just doesn't work very well.", "GLTF Models");
 
 	if (modfuncs && filefuncs)
 	{
-		modfuncs->RegisterModelFormatText("glTF2 models (glTF)", ".gltf", Mod_LoadGLTFModel);
-		modfuncs->RegisterModelFormatMagic("glTF2 models (glb)", (('F'<<24)+('T'<<16)+('l'<<8)+'g'), Mod_LoadGLBModel);
+		modfuncs->RegisterModelFormatText("glTF models (glTF)", ".gltf", Mod_LoadGLTFModel);
+		modfuncs->RegisterModelFormatMagic("glTF models (glb)", (('F'<<24)+('T'<<16)+('l'<<8)+'g'), Mod_LoadGLBModel);
 		return true;
 	}
 	return false;

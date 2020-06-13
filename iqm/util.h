@@ -20,8 +20,12 @@
 #ifndef M_PI
 #define M_PI 3.1415926535897932384626433832795
 #endif
+#ifndef strcasecmp
 #define strcasecmp _stricmp
+#endif
+#ifndef strncasecmp
 #define strncasecmp _strnicmp
+#endif
 #endif
 
 typedef unsigned char uchar;
@@ -30,7 +34,7 @@ typedef unsigned int uint;
 typedef signed long long int llong;
 typedef unsigned long long int ullong;
 
-inline void *operator new(size_t size)
+/*inline void *operator new(size_t size)
 {
 	void *p = malloc(size);
 	if(!p) abort();
@@ -44,7 +48,9 @@ inline void *operator new[](size_t size)
 }
 inline void operator delete(void *p) { if(p) free(p); }
 inline void operator delete[](void *p) { if(p) free(p); }
-
+inline void operator delete(void *p, size_t sz) { if(p) free(p); }
+inline void operator delete[](void *p, size_t sz) { if(p) free(p); }
+*/
 inline void *operator new(size_t, void *p) { return p; }
 inline void *operator new[](size_t, void *p) { return p; }
 inline void operator delete(void *, void *) {}
@@ -77,7 +83,9 @@ static inline T min(T a, T b)
 	return a < b ? a : b;
 }
 
+#ifndef countof
 #define countof(n) (sizeof(n)/sizeof(n[0]))
+#endif
 #define clamp(a,b,c) (max(b, min(a, c)))
 
 #define loop(v,m) for(int v = 0; v<int(m); v++)
@@ -100,7 +108,6 @@ static inline T min(T a, T b)
 #pragma warning (disable: 4996) // 'strncpy' was declared deprecated
 #endif
 
-#define strcasecmp _stricmp
 #define PATHDIV '\\'
 #else
 #define __cdecl
@@ -722,6 +729,7 @@ struct Vec3
 	Vec3() {}
 	Vec3(double x, double y, double z) : x(x), y(y), z(z) {}
 	explicit Vec3(const double *v) : x(v[0]), y(v[1]), z(v[2]) {}
+	explicit Vec3(const float *v) : x(v[0]), y(v[1]), z(v[2]) {}
 	explicit Vec3(const Vec4 &v);
 
 	double &operator[](int i) { return v[i]; }
@@ -792,6 +800,7 @@ struct Vec4
 	Vec4(double x, double y, double z, double w) : x(x), y(y), z(z), w(w) {}
 	explicit Vec4(const Vec3 &p, double w = 0) : x(p.x), y(p.y), z(p.z), w(w) {}
 	explicit Vec4(const double *v) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
+	explicit Vec4(const float *v) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
 
 	double &operator[](int i)       { return v[i]; }
 	double  operator[](int i) const { return v[i]; }
@@ -853,6 +862,7 @@ struct Quat : Vec4
 {
 	Quat() {}
 	Quat(double x, double y, double z, double w) : Vec4(x, y, z, w) {}
+	Quat(const float *ptr) : Vec4(ptr) {}
 	Quat(double angle, const Vec3 &axis)
 	{
 		double s = sin(0.5*angle);
@@ -1073,6 +1083,7 @@ struct Matrix3x4
 	Matrix3x4 &operator*=(const Matrix3x4 &o) { return (*this = *this * o); }
 
 	Vec3 transform(const Vec3 &o) const { return Vec3(a.dot(o), b.dot(o), c.dot(o)); }
+	Vec3 transform3(const Vec3 &o) const { return Vec3(a.dot3(o), b.dot3(o), c.dot3(o)); }
 };
 
 void conoutf(const char *s, ...)

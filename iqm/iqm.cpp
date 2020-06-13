@@ -3767,9 +3767,14 @@ bool loadfbx(const char *filename, const filespec &spec)
 
 namespace fte
 {
-	static plugfsfuncs_t cppfsfuncs =
+	static plugfsfuncs_t cppfsfuncs;
+	static plugmodfuncs_t cppmodfuncs;
+	static plugcorefuncs_t cppplugfuncs;
+	static plugcvarfuncs_t cppcvarfuncs;
+
+	static void SetupFTEPluginFuncs(void)
 	{
-		.OpenVFS = [](const char *filename, const char *mode, enum fs_relative relativeto)
+		cppfsfuncs.OpenVFS = [](const char *filename, const char *mode, enum fs_relative relativeto)
 		{
 			stream *f = openfile(filename, "rb");
 			if (!f)
@@ -3815,28 +3820,26 @@ namespace fte
 			};
 			cppfile_t *c = new cppfile_t(f);
 			return static_cast<vfsfile_t*>(c);
-		},
-	};
-	static plugmodfuncs_t cppmodfuncs =
-	{
-		.version = MODPLUGFUNCS_VERSION,
-		.RegisterModelFormatText = [](const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+		};
+
+		cppmodfuncs.version = MODPLUGFUNCS_VERSION;
+		cppmodfuncs.RegisterModelFormatText = [](const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
 		{	//called explicitly because we're lame.
 			return 0;
-		},
-		.RegisterModelFormatMagic = [](const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+		};
+		cppmodfuncs.RegisterModelFormatMagic = [](const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
 		{	//called explicitly because we're lame.
 			return 0;
-		},
-		.ZG_Malloc = [](zonegroup_t *ctx, size_t size)
+		};
+		cppmodfuncs.ZG_Malloc = [](zonegroup_t *ctx, size_t size)
 		{
 			/*leak the memory, because we're lazy*/
 			void *ret = malloc(size);
 			memset(ret, 0, size);
 			return ret;
-		},
+		};
 
-		.ConcatTransforms = [](const float in1[3][4], const float in2[3][4], float out[3][4])
+		cppmodfuncs.ConcatTransforms = [](const float in1[3][4], const float in2[3][4], float out[3][4])
 		{
 			out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 						in1[0][2] * in2[2][0];
@@ -3862,9 +3865,9 @@ namespace fte
 						in1[2][2] * in2[2][2];
 			out[2][3] = in1[2][0] * in2[0][3] + in1[2][1] * in2[1][3] +
 						in1[2][2] * in2[2][3] + in1[2][3];
-		},
+		};
 
-		.GenMatrixPosQuat4Scale = [](const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12])
+		cppmodfuncs.GenMatrixPosQuat4Scale = [](const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12])
 		{
 			Matrix3x4 m = Matrix3x4(Quat(quat), Vec3(pos), Vec3(scale));
 			result[0] = m.a.x;
@@ -3881,27 +3884,25 @@ namespace fte
 			result[9] = m.b.z;
 			result[10] = m.c.z;
 			result[11] = m.c.w;
-		},
+		};
 
-		.GetTexture = [](const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
+		cppmodfuncs.GetTexture = [](const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 		{
 			image_t *img = (image_t*)cppmodfuncs.ZG_Malloc(NULL, sizeof(*img)+strlen(identifier)+1);
 			img->ident = (char*)(img+1);
 			strcpy(img->ident, identifier);
 			img->flags = flags;
 			return img;
-		},
+		};
 
-		.AccumulateTextureVectors = [](vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms)
+		cppmodfuncs.AccumulateTextureVectors = [](vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms)
 		{	//once per surface that shares the set of verts
-		},
-		.NormaliseTextureVectors = [](vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms)
+		};
+		cppmodfuncs.NormaliseTextureVectors = [](vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms)
 		{	//once per shared set of verts.
-		},
-	};
-	static plugcorefuncs_t cppplugfuncs =
-	{
-		.GetEngineInterface = [](const char *interfacename, size_t structsize)
+		};
+
+		cppplugfuncs.GetEngineInterface = [](const char *interfacename, size_t structsize)
 		{
 			void *ret = nullptr;
 			if (!strcmp(interfacename, plugfsfuncs_name))
@@ -3909,11 +3910,9 @@ namespace fte
 			if (!strcmp(interfacename, plugmodfuncs_name))
 				ret = &cppmodfuncs;
 			return ret;
-		},
-	};
-	static plugcvarfuncs_t cppcvarfuncs =
-	{
-		.GetNVFDG = [](const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname)
+		};
+
+		cppcvarfuncs.GetNVFDG = [](const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname)
 		{	//could maybe fill with environment settings perhaps? yuck.
 			auto v = new cvar_t();
 			v->name = strdup(name);
@@ -3921,8 +3920,8 @@ namespace fte
 			v->value = atof(v->string);
 			v->ival = atoi(v->string);
 			return v;
-		},
-	};
+		};
+	}
 	extern "C"
 	{	//our plugin-style stuff has a few external dependancies not provided via pointers...
 		void ImgTool_SetupPalette(void);
@@ -4165,6 +4164,7 @@ namespace fte
 			auto filebuf = new char[sz];
 			if (sz == f->read(filebuf, sz))
 			{
+				SetupFTEPluginFuncs();
 				if (Plug_GLTF_Init())
 					if (Mod_LoadGLBModel(&mod, filebuf, sz))
 						ret = loadfte(&mod, spec);
@@ -4186,6 +4186,7 @@ namespace fte
 			auto filebuf = new char[sz];
 			if (sz == f->read(filebuf, sz))
 			{
+				SetupFTEPluginFuncs();
 				if (Plug_GLTF_Init())
 					if (Mod_LoadGLTFModel(&mod, filebuf, sz))
 						ret = loadfte(&mod, spec);

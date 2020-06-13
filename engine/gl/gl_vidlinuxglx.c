@@ -2616,6 +2616,7 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 		case XK_Meta_L:			key = K_LALT;			break;
 		case XK_Alt_R:			key = K_RALT;			break;
 		case XK_Meta_R:			key = K_RALT;			break;
+		case XK_Menu:			key = K_APP;			break;
 
 		case XK_KP_Begin:		key = K_KP_5;	break;
 

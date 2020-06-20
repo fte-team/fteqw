@@ -6596,6 +6596,9 @@ void InfoBuf_FromString(infobuf_t *info, const char *infostring, qboolean append
 {
 	if (!append)
 		InfoBuf_Clear(info, true);
+	if (*infostring && *infostring != '\\')
+		Con_Printf("InfoBuf_FromString: invalid infostring \"%s\"\n", infostring);
+
 	//all keys must start with a backslash
 	while (*infostring++ == '\\')
 	{

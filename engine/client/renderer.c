@@ -98,6 +98,14 @@ static void QDECL R_HDR_FramebufferFormat_Changed(struct cvar_s *var, char *oldv
 	if (var->ival < 0)
 		var->ival = 0;
 }
+static void QDECL R_ClearColour_Changed(struct cvar_s *var, char *oldvalue)
+{	//just exists to force ival=0 when string=="R G B", so we don't have to do it every frame.
+	//don't bother baking the palette. that isn't quite robust when vid_reloading etc.
+	char *e;
+	strtol(var->string, &e, 0);
+	if (*e)
+		var->ival = 0;	//junk at the end means its an RGB value instead of a simple palette index.
+}
 
 #ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
 cvar_t vid_vsync							= CVARAF  ("vid_vsync", "1",
@@ -418,7 +426,7 @@ cvar_t gl_load24bit							= CVARF ("gl_load24bit", "1",
 
 cvar_t	r_clear								= CVARAF("r_clear","0",
 													 "gl_clear", 0);
-cvar_t	r_clearcolour						= CVARAF("r_clearcolour", "0.12 0.12 0.12", "r_clearcolor"/*american spelling*/, 0);
+cvar_t	r_clearcolour						= CVARAFC("r_clearcolour", "0.12 0.12 0.12", "r_clearcolor"/*american spelling*/, 0, R_ClearColour_Changed);
 cvar_t gl_max_size							= CVARFD  ("gl_max_size", "8192", CVAR_RENDERERLATCH, "Specifies the maximum texture size that the engine may use. Textures larger than this will be downsized. Clamped by the value the driver supports.");
 cvar_t gl_menutint_shader					= CVARD  ("gl_menutint_shader", "1", "Controls the use of GLSL to desaturate the background when drawing the menu, like quake's dos software renderer used to do before the ugly dithering of winquake.");
 

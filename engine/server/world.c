@@ -1376,10 +1376,6 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	return trace;
 }
 
-#define AREA_ALL 0
-#define AREA_SOLID 1
-#define AREA_TRIGGER 2
-
 #ifdef USEAREAGRID
 
 /*

@@ -383,42 +383,54 @@ reeval:
 	case OP_STOREP_FLD:		// integers
 	case OP_STOREP_S:
 	case OP_STOREP_FNC:		// pointers
-		i = OPB->_int;
-		errorif (QCPOINTERWRITEFAIL(i, sizeof(int)))
+		i = OPB->_int + OPC->_int*sizeof(ptr->_int);
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(ptr->_int)))
 		{
-			if (i == -1)
-				break;
-			if (i == 0)
-				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (null pointer)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name));
-			else
-				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(ptr->_int))))
+			{
+				if (i == -1)
+					break;
+				if (i == 0)
+					QCFAULT(&progfuncs->funcs, "bad pointer write in %s (null pointer)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name));
+				else
+					QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			}
 		}
-		ptr = QCPOINTERM(i);
+		else
+			ptr = QCPOINTERM(i);
 		ptr->_int = OPA->_int;
 		break;
 	case OP_STOREP_V:
-		i = OPB->_int;
+		i = OPB->_int + (OPC->_int*sizeof(ptr->_int));
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(vec3_t)))
 		{
-			if (i == -1)
-				break;
-			QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(vec3_t))))
+			{
+				if (i == -1)
+					break;
+				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			}
 		}
-		ptr = QCPOINTERM(i);
+		else
+			ptr = QCPOINTERM(i);
 		ptr->_vector[0] = OPA->_vector[0];
 		ptr->_vector[1] = OPA->_vector[1];
 		ptr->_vector[2] = OPA->_vector[2];
 		break;
 
 	case OP_STOREP_C:	//store character in a string
-		i = OPB->_int;
+		i = OPB->_int + (OPC->_int)*sizeof(char);
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(char)))
 		{
-			if (i == -1)
-				break;
-			QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(char), sizeof(char))))
+			{
+				if (i == -1)
+					break;
+				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			}
 		}
-		ptr = QCPOINTERM(i);
+		else
+			ptr = QCPOINTERM(i);
 		*(unsigned char *)ptr = (char)OPA->_float;
 		break;
 
@@ -955,10 +967,10 @@ reeval:
 		OPC->_int = OPA->_int - OPB->_int;
 		break;
 	case OP_LOADP_C:	//load character from a string/pointer
-		i = (unsigned int)OPA->_int + (unsigned int)OPB->_float;
+		i = (unsigned int)OPA->_int + (int)OPB->_float;
 		errorif (QCPOINTERREADFAIL(i, sizeof(char)))
 		{
-			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_int*4, sizeof(int))))
+			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_float, sizeof(char))))
 			{
 				if (i == -1)
 				{

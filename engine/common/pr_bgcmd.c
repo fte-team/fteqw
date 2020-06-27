@@ -1359,11 +1359,13 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	int s;
 	wedict_t *ed;
 
+#ifdef HAVE_LEGACY
 	if (prinst->callargc != 3)	//I can hate mvdsv if I want to.
 	{
 		PR_BIError(prinst, "PF_FindFloat (#98): callargc != 3\nDid you mean to set pr_imitatemvdsv to 1?");
 		return;
 	}
+#endif
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
@@ -1402,6 +1404,8 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 
+	//FIXME: bound f
+
 	for (e++ ; e < *prinst->parms->num_edicts ; e++)
 	{
 		ed = WEDICT_NUM_PB(prinst, e);
@@ -1419,6 +1423,85 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	RETURN_EDICT(prinst, *prinst->parms->edicts);
 }
+
+#ifdef QCGC
+void QCBUILTIN PF_FindList (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	int		e;
+	int		f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	string_t t;
+	wedict_t	*ed;
+	etype_t type = G_INT(OFS_PARM2);
+
+	int *list = alloca(sizeof(*list)*w->num_edicts);	//guess at a max
+	int *retlist;
+	unsigned found = 0;
+
+	//FIXME: bound f
+
+	if (type == ev_string)
+	{
+		const char	*s = PR_GetStringOfs(prinst, OFS_PARM1);
+		if (!s)
+			s = ""; /* o.O */
+		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed) || ed->readonly)
+				continue;
+			t = ((string_t *)ed->v)[f];
+			if (!t)
+				continue;
+			if (!strcmp(PR_GetString(prinst, t),s))
+				list[found++] = EDICT_TO_PROG(prinst, ed);
+		}
+	}
+	else if (type == ev_float)
+	{	//handling -0 properly requires care
+		float s = G_FLOAT(OFS_PARM1);
+		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			if (((float*)ed->v)[f] == s)
+				list[found++] = EDICT_TO_PROG(prinst, ed);
+		}
+	}
+	else if (type == ev_vector)
+	{	//big types...
+		float *s = G_VECTOR(OFS_PARM1);
+		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			if (((float*)ed->v)[f+0] == s[0]&&
+				((float*)ed->v)[f+1] == s[1]&&
+				((float*)ed->v)[f+2] == s[2])
+				list[found++] = EDICT_TO_PROG(prinst, ed);
+		}
+	}
+	else
+	{	//generic references and other stuff that can just be treated as ints
+		int s = G_INT(OFS_PARM1);
+		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			if (((int*)ed->v)[f] == s)
+				list[found++] = EDICT_TO_PROG(prinst, ed);
+		}
+	}
+
+	G_INT(OFS_PARM3) = found;
+	G_INT(OFS_RETURN) = prinst->AllocTempString(prinst, (char**)&retlist, (found+1)*sizeof(*retlist));
+	memcpy(retlist, list, found*sizeof(*retlist));
+	retlist[found] = 0;
+}
+#endif
 
 //Finding
 ////////////////////////////////////////////////////
@@ -3240,9 +3323,6 @@ Returns a chain of entities that have origins within a spherical area
 findradius (origin, radius)
 =================
 */
-#define AREA_ALL 0
-#define AREA_SOLID 1
-#define AREA_TRIGGER 2
 void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
@@ -3339,6 +3419,59 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	RETURN_EDICT(prinst, chain);
 }
+
+#ifdef QCGC
+void QCBUILTIN PF_findradius_list (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t	*ent;
+	float	rad;
+	float	*org;
+	vec3_t	eorg;
+	int		i, j;
+	wedict_t **nearent;
+	vec3_t mins, maxs;
+	int		numents, count = 0;
+	int *temp;
+
+	org = G_VECTOR(OFS_PARM0);
+	rad = G_FLOAT(OFS_PARM1);
+
+	//find out how many ents there are within the box specified.
+	mins[0] = org[0] - rad;
+	mins[1] = org[1] - rad;
+	mins[2] = org[2] - rad;
+	maxs[0] = org[0] + rad;
+	maxs[1] = org[1] + rad;
+	maxs[2] = org[2] + rad;
+	nearent = alloca(sizeof(wedict_t)*w->num_edicts);	//guess at a max
+	numents = World_AreaEdicts(w, mins, maxs, nearent, w->num_edicts, AREA_ALL);
+
+	//allocate space for a result (overestimating slightly still)
+	G_INT(OFS_RETURN) = prinst->AllocTempString(prinst, (char**)&temp, (1+numents)*sizeof(*temp));
+
+	rad = rad*rad;
+	for (i=0 ; i<numents ; i++)
+	{
+		ent = nearent[i];
+		if (ent->v->solid == SOLID_NOT && !((pint_t)ent->v->flags & FL_FINDABLE_NONSOLID))
+			continue;
+		for (j=0 ; j<3 ; j++)
+		{
+			eorg[j] = org[j] - ent->v->origin[j];
+			eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+		}
+		if (DotProduct(eorg,eorg) > rad)
+			continue;
+
+		temp[count++] = EDICT_TO_PROG(prinst, ent);
+	}
+
+	temp[count] = 0;
+
+	G_INT(OFS_PARM2) = count;
+}
+#endif
 
 //entity nextent(entity)
 void QCBUILTIN PF_nextent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3976,6 +4109,22 @@ void QCBUILTIN PF_strzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	*buf = '\0';
 #endif
 }
+
+#ifdef QCGC
+void QCBUILTIN PF_createbuffer (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int len = G_INT(OFS_PARM0);
+	char *buf;
+	if (len <= 0)
+		G_INT(OFS_RETURN) = 0;
+	else
+	{
+		len++;
+		G_INT(OFS_RETURN) = prinst->AllocTempString(prinst, &buf, len);
+		memset(buf, 0, len);
+	}
+}
+#endif
 
 //string(string str1, string str2, str3, etc) strcat
 void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4927,8 +5076,9 @@ void QCBUILTIN PF_uri_escape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	*result = 0;
 	while (*s && o < result+sizeof(result)-4)
 	{
+		//unreserved chars according to RFC3986
 		if ((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9')
-				|| *s == '.' || *s == '-' || *s == '_')
+				|| *s == '.' || *s == '-' || *s == '_' || *s == '~')
 			*o++ = *s++;
 		else
 		{

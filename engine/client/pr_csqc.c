@@ -6648,6 +6648,10 @@ static struct {
 	{"precache_model",			PF_cs_PrecacheModel,	20},	// #20 void(string str) precache_model (QUAKE)
 	{"stuffcmd",				PF_NoCSQC,	21},		// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
 	{"findradius",				PF_findradius,	22},		// #22 entity(vector org, float rad) findradius (QUAKE)
+#ifdef QCGC
+	{"findradius_list",			PF_findradius_list, 0},
+	{"find_list",				PF_FindList,			0},
+#endif
 	{"bprint",					PF_NoCSQC,	23},				// #23 void(string s, ...) bprint (QUAKE) (don't support)
 	{"sprint",					PF_NoCSQC,	24},				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
 	{"dprint",					PF_dprint,	25},				// #25 void(string s, ...) dprint (QUAKE)
@@ -6756,6 +6760,9 @@ static struct {
 	{"stov",					PF_stov,		117},			// #117 vector(string str) stov (FRIK_FILE)
 	{"strzone",					PF_strzone,		118},			// #118 string(string str) dupstring (FRIK_FILE)
 	{"strunzone",				PF_strunzone,	119},			// #119 void(string str) freestring (FRIK_FILE)
+#ifdef QCGC
+	{"createbuffer",			PF_createbuffer,	0},
+#endif
 
 	{"localsound",				PF_cl_localsound,	177},
 

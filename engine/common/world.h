@@ -326,6 +326,11 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers);
 // sets ent->v.absmin and ent->v.absmax
 // if touchtriggers, calls prog functions for the intersected triggers
 
+#define AREA_ALL 0
+#define AREA_SOLID 1
+#define AREA_TRIGGER 2
+extern int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int maxcount, int areatype);
+
 #ifdef USEAREAGRID
 void World_TouchAllLinks (world_t *w, wedict_t *ent);
 extern size_t areagridsequence;

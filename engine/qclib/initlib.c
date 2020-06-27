@@ -1032,13 +1032,13 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize)
 {
 	static vec3_t dummy;	//don't resize anything when reading.
-	if (((unsigned int)str & STRING_SPECMASK) != STRING_TEMP)
+	if (((unsigned int)str & STRING_SPECMASK) == STRING_TEMP)
 	{
 		unsigned int i = str & ~STRING_SPECMASK;
 		tempstr_t *temp;
 		if (i < prinst.maxtempstrings && (temp=prinst.tempstrings[i]))
 		{
-			if (offset + datasize < temp->size)
+			if (offset + datasize <= temp->size)
 				return (eval_t*)(temp->value + offset);
 			else
 				return (eval_t*)dummy;
@@ -1048,7 +1048,7 @@ eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t off
 }
 eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize)
 {
-	if (((unsigned int)str & STRING_SPECMASK) != STRING_TEMP)
+	if (((unsigned int)str & STRING_SPECMASK) == STRING_TEMP)
 	{
 		unsigned int i = str & ~STRING_SPECMASK;
 		tempstr_t *temp;
@@ -1061,12 +1061,13 @@ eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t of
 				newsize = offset + datasize;
 				if (newsize > (1u<<20u))
 					return NULL;	//gotta have a cut-off point somewhere.
+				newsize = (newsize+sizeof(float)-1)&~(sizeof(float)-1);
 				newtemp = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + newsize);
+				newtemp->size = newsize;
 				memcpy(newtemp->value, temp->value, temp->size);
 				memset(newtemp->value+temp->size, 0, newsize-temp->size);
 				progfuncs->funcs.parms->memfree(temp);
 				prinst.tempstrings[i] = temp = newtemp;
-
 			}
 			return (eval_t*)(temp->value + offset);
 		}
@@ -1167,7 +1168,7 @@ static size_t PR_QCGC_Sweep(progfuncs_t *progfuncs, smallbool *marked, tempstr_t
 #ifdef _DEBUG
 			if (tempstrings[p] != prinst.tempstrings[p])
 			{	//something weird happened. tempstrings are supposed to be immutable (at least in length).
-				externs->Sys_Error("tempstring was reallocated while qc was running");
+				externs->Sys_Error("tempstring was reallocated while gc was running");
 				continue;
 			}
 #endif

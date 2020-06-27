@@ -2283,6 +2283,9 @@ static struct {
 	{"findentity",				PF_FindFloat,				25},
 	{"findchain",				PF_menu_findchain,			26},
 	{"findchainfloat",			PF_menu_findchainfloat,		27},
+#ifdef QCGC
+	{"find_list",				PF_FindList,				0},
+#endif
 	{"precache_file",			PF_CL_precache_file,		28},
 	{"precache_sound",			PF_CL_precache_sound,		29},
 	{"coredump",				PF_coredump,				30},
@@ -2319,6 +2322,9 @@ static struct {
 	{"stov",					PF_stov,					55},
 	{"strzone",					PF_strzone,					56},
 	{"strunzone",				PF_strunzone,				57},
+#ifdef QCGC
+	{"createbuffer",			PF_createbuffer,			0},
+#endif
 	{"tokenize",				PF_Tokenize,				58},
 	{"argv",					PF_ArgV,					59},
 	{"isserver",				PF_isserver,				60},

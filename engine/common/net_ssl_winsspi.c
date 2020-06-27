@@ -988,11 +988,7 @@ vfsfile_t *SSPI_OpenVFS(const char *servername, vfsfile_t *source, qboolean serv
 	const char *peername;
 
 	if (!source || !SSL_Inited())
-	{
-		if (source)
-			VFS_CLOSE(source);
 		return NULL;
-	}
 	if (server)
 	{
 //		localname = servername;
@@ -1006,10 +1002,7 @@ vfsfile_t *SSPI_OpenVFS(const char *servername, vfsfile_t *source, qboolean serv
 
 /*
 	if (server)	//unsupported
-	{
-		VFS_CLOSE(source);
 		return NULL;
-	}
 */
 
 	newf = Z_Malloc(sizeof(*newf));
@@ -1025,7 +1018,6 @@ vfsfile_t *SSPI_OpenVFS(const char *servername, vfsfile_t *source, qboolean serv
 		if (err)
 		{
 			Z_Free(newf);
-			VFS_CLOSE(source);
 			return NULL;
 		}
 	}

@@ -1185,10 +1185,8 @@ vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isse
 		newf = Z_Malloc(sizeof(*newf));
 	if (!newf)
 	{
-		VFS_CLOSE(source);
 		return NULL;
 	}
-	newf->stream = source;
 	newf->funcs.Close = SSL_CloseFile;
 	newf->funcs.Flush = NULL;
 	newf->funcs.GetLen = SSL_GetLen;
@@ -1208,6 +1206,7 @@ vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isse
 		VFS_CLOSE(&newf->funcs);
 		return NULL;
 	}
+	newf->stream = source;
 
 	return &newf->funcs;
 }

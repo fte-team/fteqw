@@ -997,10 +997,10 @@ void M_UnbindCommand (const char *command)
 //=============================================================================
 /* HELP MENU */
 
-int		help_page;
-int		num_help_pages;
+static int		help_page;
+static int		num_help_pages;
 
-struct
+static struct
 {
 	char *pattern;
 	int base;
@@ -1082,7 +1082,13 @@ qboolean M_Help_Key (int key, emenu_t *m)
 void M_Menu_Help_f (void)
 {
 	int i;
-	emenu_t *helpmenu = M_CreateMenu(0);
+	emenu_t *helpmenu;
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(CL_TargettedSplit(false), Cmd_Argv(0)))
+		;//return;
+#endif
+
+	helpmenu = M_CreateMenu(0);
 
 	helpmenu->predraw = M_Help_Draw;
 	helpmenu->key = M_Help_Key;
@@ -1145,6 +1151,17 @@ static char *quitMessage [] =
 	"If you quit now, I'll\n"
 	"throw a blanket-party\n"
 	"for you next time!",
+
+
+
+
+//	"Only cowards press Y here.\n",
+
+//	"Is your life empty and\n"
+//	"devoid of enjoyment?\n",
+
+//	"Are you off to play with\n"
+//	"your joy stick now?\n",
 };
 
 

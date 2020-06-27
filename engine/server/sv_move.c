@@ -628,7 +628,7 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 
 
 #ifdef ENGINE_ROUTING
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static cvar_t route_shownodes = CVAR("route_shownodes", "0");
 #endif
 
@@ -737,7 +737,7 @@ static struct waypointnetwork_s *WayNet_Begin(void **ctxptr, model_t *worldmodel
 			net->waypoints[net->numwaypoints].org[0] = atof(Cmd_Argv(0));
 			net->waypoints[net->numwaypoints].org[1] = atof(Cmd_Argv(1));
 			net->waypoints[net->numwaypoints].org[2] = atof(Cmd_Argv(2));
-			net->waypoints[net->numwaypoints].radius = 64;//atof(Cmd_Argv(3));
+			net->waypoints[net->numwaypoints].radius = atof(Cmd_Argv(3));
 			numlinks = bound(0, atoi(Cmd_Argv(4)), maxlinks);
 
 			//make sure the links are valid, and clamp to avoid problems (even if we're then going to mis-parse.
@@ -1127,7 +1127,7 @@ void QCBUILTIN PF_route_calculate (pubprogfuncs_t *prinst, struct globalvars_s *
 
 	COM_AddWork(WG_LOADER, Route_Calculate, NULL, route, 0, 0);
 }
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Route_Visualise_f(void)
 {
 	extern world_t csqc_world;
@@ -1252,17 +1252,17 @@ void PR_Route_Shutdown (world_t *world)
 
 static void Route_Reload_f(void)
 {
-#if !defined(SERVERONLY) && defined(CSQC_DAT)
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 	extern world_t csqc_world;
 	PR_Route_Shutdown(&csqc_world);
 #endif
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	PR_Route_Shutdown(&sv.world);
 #endif
 }
 void PR_Route_Init (void)
 {
-#if !defined(SERVERONLY) && defined(CSQC_DAT)
+#if defined(HAVE_CLIENT) && defined(CSQC_DAT)
 	Cvar_Register(&route_shownodes, NULL);
 	Cmd_AddCommand("route_visualise", Route_Visualise_f);
 #endif

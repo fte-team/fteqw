@@ -1038,8 +1038,8 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, const char *key)
 		case ev_function:
 			{
 				mfunction_t *func;
-				int i;
-				int progsnum = -1;
+				progsnum_t i;
+				progsnum_t progsnum = -1;
 				if (str[0] && str[1] == ':')
 				{
 					progsnum = atoi(str);
@@ -1813,7 +1813,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	{
 		if (newprogs >= prinst.maxprogs || !pr_progstate[newprogs].globals)	//can happen with hexen2...
 		{
-			externs->Printf("PR_ExecuteProgram: tried branching into invalid progs (%#x)\n", fnum);
+			externs->Printf("PR_ExecuteProgram: tried branching into invalid progs (%#"pPRIx")\n", fnum);
 			return;
 		}
 		PR_SwitchProgsParms(progfuncs, newprogs);

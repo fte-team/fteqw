@@ -609,7 +609,7 @@ static struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *
 	return (struct entvars_s *)edvars(ed);
 }
 
-static pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, qbyte **argsizes, int *builtinnum, char *funcname, size_t funcnamesize)
+static pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, pbyte **argsizes, int *builtinnum, char *funcname, size_t funcnamesize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 
@@ -1031,7 +1031,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 
 eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize)
 {
-	static vec3_t dummy;	//don't resize anything when reading.
+	static pvec3_t dummy;	//don't resize anything when reading.
 	if (((unsigned int)str & STRING_SPECMASK) == STRING_TEMP)
 	{
 		unsigned int i = str & ~STRING_SPECMASK;

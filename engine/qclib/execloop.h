@@ -402,9 +402,9 @@ reeval:
 		break;
 	case OP_STOREP_V:
 		i = OPB->_int + (OPC->_int*sizeof(ptr->_int));
-		errorif (QCPOINTERWRITEFAIL(i, sizeof(vec3_t)))
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(pvec3_t)))
 		{
-			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(vec3_t))))
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(pvec3_t))))
 			{
 				if (i == -1)
 					break;
@@ -1010,9 +1010,9 @@ reeval:
 
 	case OP_LOADP_V:
 		i = OPA->_int + OPB->_int*4;	//NOTE: inconsistant, but a bit more practical for the qcc when structs etc are involved
-		errorif (QCPOINTERREADFAIL(i, sizeof(vec3_t)))
+		errorif (QCPOINTERREADFAIL(i, sizeof(pvec3_t)))
 		{
-			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_int*4, sizeof(vec3_t))))
+			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_int*4, sizeof(pvec3_t))))
 			{
 				if (i == -1)
 				{

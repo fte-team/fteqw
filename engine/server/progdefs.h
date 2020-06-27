@@ -22,71 +22,71 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct globalvars_s
 {
-	int null;
+	pint_t null;
 	union {
-		vec3_t vec;
-		float f;
-		int i;
+		pvec3_t vec;
+		pvec_t f;
+		pint_t i;
 	} ret;
 	union {
-		vec3_t vec;
-		float f;
-		int i;
+		pvec3_t vec;
+		pvec_t f;
+		pint_t i;
 	} param[8];
 } globalvars_t;
 
 #define	NUM_SPAWN_PARMS			64
 typedef struct nqglobalvars_s
 {
-	int	*self;
-	int	*other;
-	int	*world;
-	float	*time;
-	float	*frametime;	
-	int		*newmis;
-	float	*force_retouch;
+	pint_t	*self;
+	pint_t	*other;
+	pint_t	*world;
+	pvec_t	*time;
+	pvec_t	*frametime;
+	pint_t		*newmis;
+	pvec_t	*force_retouch;
 	string_t	*mapname;
-	float	*deathmatch;
-	float	*coop;
-	float	*teamplay;
-	float	*serverflags;
-	float	*total_secrets;
-	float	*total_monsters;
-	float	*found_secrets;
-	float	*killed_monsters;
-	vec3_t	*v_forward;
-	vec3_t	*v_up;
-	vec3_t	*v_right;
-	float	*trace_allsolid;
-	float	*trace_startsolid;
-	float	*trace_fraction;
+	pvec_t	*deathmatch;
+	pvec_t	*coop;
+	pvec_t	*teamplay;
+	pvec_t	*serverflags;
+	pvec_t	*total_secrets;
+	pvec_t	*total_monsters;
+	pvec_t	*found_secrets;
+	pvec_t	*killed_monsters;
+	pvec3_t	*v_forward;
+	pvec3_t	*v_up;
+	pvec3_t	*v_right;
+	pvec_t	*trace_allsolid;
+	pvec_t	*trace_startsolid;
+	pvec_t	*trace_fraction;
 #ifdef HAVE_LEGACY
-	float	*trace_surfaceflagsf;
+	pvec_t	*trace_surfaceflagsf;
 #endif
-	int		*trace_surfaceflagsi;
+	pint_t		*trace_surfaceflagsi;
 	string_t*trace_surfacename;
 #ifdef HAVE_LEGACY
-	float	*trace_endcontentsf;
+	pvec_t	*trace_endcontentsf;
 #endif
-	int		*trace_endcontentsi;
-	int		*trace_brush_id;
-	int		*trace_brush_faceid;
-	int		*trace_surface_id;
-	int		*trace_bone_id;
-	int		*trace_triangle_id;
-	vec3_t	*trace_endpos;
-	vec3_t	*trace_plane_normal;
-	float	*trace_plane_dist;
-	int	*trace_ent;
-	float	*trace_inopen;
-	float	*trace_inwater;
+	pint_t		*trace_endcontentsi;
+	pint_t		*trace_brush_id;
+	pint_t		*trace_brush_faceid;
+	pint_t		*trace_surface_id;
+	pint_t		*trace_bone_id;
+	pint_t		*trace_triangle_id;
+	pvec3_t	*trace_endpos;
+	pvec3_t	*trace_plane_normal;
+	pvec_t	*trace_plane_dist;
+	pint_t	*trace_ent;
+	pvec_t	*trace_inopen;
+	pvec_t	*trace_inwater;
 #ifdef HAVE_LEGACY
 	string_t*trace_dphittexturename;
-	float *trace_dpstartcontents;
-	float *trace_dphitcontents;
-	float *trace_dphitq3surfaceflags;
+	pvec_t *trace_dpstartcontents;
+	pvec_t *trace_dphitcontents;
+	pvec_t *trace_dphitq3surfaceflags;
 #endif
-	int	*msg_entity;
+	pint_t	*msg_entity;
 	func_t	*main;
 	func_t	*StartFrame;
 	func_t	*PlayerPreThink;
@@ -97,21 +97,21 @@ typedef struct nqglobalvars_s
 	func_t	*ClientDisconnect;
 	func_t	*SetNewParms;
 	func_t	*SetChangeParms;
-	float *cycle_wrapped;
-	float *dimension_send;
-	float *dimension_default;
+	pvec_t *cycle_wrapped;
+	pvec_t *dimension_send;
+	pvec_t *dimension_default;
 
-	float *physics_mode;
-	float *clientcommandframe;
-	float *input_timelength;
-	float *input_impulse;
-	vec3_t *input_angles;
-	vec3_t *input_movevalues;
-	float *input_buttons;
-	vec3_t *global_gravitydir;
-	float *spawnparamglobals[NUM_SPAWN_PARMS];
+	pvec_t *physics_mode;
+	pvec_t *clientcommandframe;
+	pvec_t *input_timelength;
+	pvec_t *input_impulse;
+	pvec3_t *input_angles;
+	pvec3_t *input_movevalues;
+	pvec_t *input_buttons;
+	pvec3_t *global_gravitydir;
+	pvec_t *spawnparamglobals[NUM_SPAWN_PARMS];
 	string_t *parm_string;
-	int *serverid;
+	pint_t *serverid;
 } globalptrs_t;
 
 #define P_VEC(v) (pr_global_struct->v)
@@ -371,9 +371,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 
 typedef struct stdentvars_s //standard = standard for qw
 {
-#define comfieldfloat(sharedname,desc) float sharedname;
-#define comfieldvector(sharedname,desc) vec3_t sharedname;
-#define comfieldentity(sharedname,desc) int sharedname;
+#define comfieldfloat(sharedname,desc) pvec_t sharedname;
+#define comfieldvector(sharedname,desc) pvec3_t sharedname;
+#define comfieldentity(sharedname,desc) pint_t sharedname;
 #define comfieldstring(sharedname,desc) string_t sharedname;
 #define comfieldfunction(sharedname, typestr,desc) func_t sharedname;
 comqcfields
@@ -388,10 +388,10 @@ comqcfields
 typedef struct extentvars_s
 {
 #endif
-#define comfieldfloat(name,desc) float name;
-#define comfieldint(name,desc) int name;
-#define comfieldvector(name,desc) vec3_t name;
-#define comfieldentity(name,desc) int name;
+#define comfieldfloat(name,desc) pvec_t name;
+#define comfieldint(name,desc) pint_t name;
+#define comfieldvector(name,desc) pvec3_t name;
+#define comfieldentity(name,desc) pint_t name;
 #define comfieldstring(name,desc) string_t name;
 #define comfieldfunction(name, typestr,desc) func_t name;
 comextqcfields
@@ -410,9 +410,9 @@ svextqcfields
 #endif
 
 typedef struct {
-#define comfieldfloat(sharedname,desc) float sharedname;
-#define comfieldvector(sharedname,desc) vec3_t sharedname;
-#define comfieldentity(sharedname,desc) int sharedname;
+#define comfieldfloat(sharedname,desc) pvec_t sharedname;
+#define comfieldvector(sharedname,desc) pvec3_t sharedname;
+#define comfieldentity(sharedname,desc) pint_t sharedname;
 #define comfieldstring(sharedname,desc) string_t sharedname;
 #define comfieldfunction(sharedname, typestr,desc) func_t sharedname;
 comqcfields
@@ -427,10 +427,10 @@ comqcfields
 typedef struct {
 #endif
 
-#define comfieldfloat(name,desc) float name;
-#define comfieldint(name,desc) int name;
-#define comfieldvector(name,desc) vec3_t name;
-#define comfieldentity(name,desc) int name;
+#define comfieldfloat(name,desc) pvec_t name;
+#define comfieldint(name,desc) pint_t name;
+#define comfieldvector(name,desc) pvec3_t name;
+#define comfieldentity(name,desc) pint_t name;
 #define comfieldstring(name,desc) string_t name;
 #define comfieldfunction(name, typestr,desc) func_t name;
 comextqcfields

@@ -6,6 +6,7 @@ Setting them should be fine.
 */
 #ifndef __PR_COMP_H__
 #define __PR_COMP_H__
+#include "progtype.h"
 
 /*
 #ifdef USE_MSVCRT_DEBUG
@@ -559,7 +560,7 @@ typedef struct
 	string_t	s_file;			// source file defined in
 
 	int		numparms;
-	qbyte	parm_size[MAX_PARMS];
+	pbyte	parm_size[MAX_PARMS];
 } dfunction_t;
 
 typedef struct
@@ -576,7 +577,7 @@ typedef struct
 	string_t	s_file;			// source file defined in
 
 	int		numparms;
-	qbyte	parm_size[MAX_PARMS];
+	pbyte	parm_size[MAX_PARMS];
 } mfunction_t;
 
 #define PROG_QTESTVERSION	3

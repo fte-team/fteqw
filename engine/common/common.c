@@ -936,7 +936,7 @@ void MSG_WriteString (sizebuf_t *sb, const char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
-float MSG_FromCoord(coorddata c, int type)
+vec_t MSG_FromCoord(coorddata c, int type)
 {
 	switch(type)
 	{

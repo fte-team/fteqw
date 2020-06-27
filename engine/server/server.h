@@ -174,7 +174,7 @@ typedef struct
 	qbyte		h2cdtrack;
 #endif
 
-	vec3_t		skyroom_pos;	//parsed from world._skyroom
+	pvec3_t		skyroom_pos;	//parsed from world._skyroom
 	qboolean	skyroom_pos_known;
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
@@ -1318,7 +1318,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx);
 
 void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int flags);
-void QDECL SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags);
+void QDECL SVQ1_StartSound (vec_t *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags);
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, const char *string);

@@ -511,8 +511,8 @@ SV_LinkEdict
 */
 void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 {
-	vec_t *mins;
-	vec_t *maxs;
+	pvec_t *mins;
+	pvec_t *maxs;
 	int solid;
 
 #ifdef USEAREAGRID

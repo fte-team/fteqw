@@ -1458,8 +1458,7 @@ void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const
 {
 	edict_t *entity = (edict_t*)wentity;
 	int i, solid;
-	vec3_t originbuf;
-	float *velocity = NULL;
+	vec3_t originbuf, velocity={0,0,0};
 	if (!origin)
 	{
 		origin = originbuf;
@@ -1487,7 +1486,7 @@ void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const
 		}
 
 		if (chflags & CF_SV_SENDVELOCITY)
-			velocity = entity->v->velocity;
+			VectorCopy(entity->v->velocity, velocity);
 	}
 
 	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, velocity, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs, chflags);
@@ -1629,7 +1628,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 	unsigned i;
 	client_t *controller = client->controller?client->controller:client;
 	edict_t *ent = client->edict;
-	float *ang;
+	pvec_t *ang;
 	if (!ent || client->protocol == SCP_QUAKE2)
 		return;
 	ang = ent->v->fixangle?ent->v->angles:ent->v->v_angle;	//angles is just WEIRD for mdls, but then quake sucks.

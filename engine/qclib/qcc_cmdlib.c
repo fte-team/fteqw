@@ -68,7 +68,7 @@ float   (*PRLittleFloat) (float l);
 
 static short   QCC_SwapShort (short l)
 {
-	qbyte    b1,b2;
+	pbyte    b1,b2;
 
 	b1 = l&255;
 	b2 = (l>>8)&255;
@@ -84,12 +84,12 @@ static short   QCC_Short (short l)
 
 static int    QCC_SwapLong (int l)
 {
-	qbyte    b1,b2,b3,b4;
+	pbyte    b1,b2,b3,b4;
 
-	b1 = (qbyte)l;
-	b2 = (qbyte)(l>>8);
-	b3 = (qbyte)(l>>16);
-	b4 = (qbyte)(l>>24);
+	b1 = (pbyte)l;
+	b2 = (pbyte)(l>>8);
+	b3 = (pbyte)(l>>16);
+	b4 = (pbyte)(l>>24);
 
 	return ((int)b1<<24) + ((int)b2<<16) + ((int)b3<<8) + b4;
 }
@@ -102,7 +102,7 @@ static int    QCC_Long (int l)
 
 static float	QCC_SwapFloat (float l)
 {
-	union {qbyte b[4]; float f;} in, out;
+	union {pbyte b[4]; float f;} in, out;
 
 	in.f = l;
 	out.b[0] = in.b[3];
@@ -120,7 +120,7 @@ static float	QCC_Float (float l)
 
 void SetEndian(void)
 {
-	union {qbyte b[2]; unsigned short s;} ed;
+	union {pbyte b[2]; unsigned short s;} ed;
 	ed.s = 255;
 	if (ed.b[0] == 255)
 	{

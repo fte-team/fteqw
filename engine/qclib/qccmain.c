@@ -698,7 +698,7 @@ static void QCC_PrintAutoCvars (void)
 				externs->Printf ("set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
 				break;
 			case ev_integer:
-				externs->Printf ("set %s\t%i%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
+				externs->Printf ("set %s\t%"pPRIi"%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
 				break;
 			case ev_string:
 				externs->Printf ("set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
@@ -3336,7 +3336,7 @@ static void QCC_CRC_Init(unsigned short *crcvalue)
 	*crcvalue = CRC_INIT_VALUE;
 }
 
-static void QCC_CRC_ProcessByte(unsigned short *crcvalue, qbyte data)
+static void QCC_CRC_ProcessByte(unsigned short *crcvalue, pbyte data)
 {
 	*crcvalue = ((*crcvalue << 8) ^ QCC_crctable[(*crcvalue >> 8) ^ data]) & 0xffff;
 }
@@ -3692,7 +3692,7 @@ static void QCC_PackFile (char *src, char *name)
 #endif
 
 
-	if ( (qbyte *)pf - (qbyte *)pfiles > sizeof(pfiles) )
+	if ( (pbyte *)pf - (pbyte *)pfiles > sizeof(pfiles) )
 		QCC_Error (ERR_TOOMANYPAKFILES, "Too many files in pak file");
 
 #if 1
@@ -3878,7 +3878,7 @@ static void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *dest
 		header.id[1] = 'A';
 		header.id[2] = 'C';
 		header.id[3] = 'K';
-		dirlen = (qbyte *)pf - (qbyte *)pfiles;
+		dirlen = (pbyte *)pf - (pbyte *)pfiles;
 		header.dirofs = PRLittleLong(SafeSeek (packhandle, 0, SEEK_CUR));
 		header.dirlen = PRLittleLong(dirlen);
 
@@ -3891,7 +3891,7 @@ static void _QCC_CopyFiles (int blocknum, int copytype, char *srcdir, char *dest
 	// do a crc of the file
 		QCC_CRC_Init (&crc);
 		for (i=0 ; i<dirlen ; i++)
-			QCC_CRC_ProcessByte (&crc, ((qbyte *)pfiles)[i]);
+			QCC_CRC_ProcessByte (&crc, ((pbyte *)pfiles)[i]);
 
 		i = pf - pfiles;
 		externs->Printf ("%i files packed in %i bytes (%i crc)\n",i, packbytes, crc);

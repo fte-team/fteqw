@@ -1357,7 +1357,7 @@ static pbool QCC_PR_Precompiler(void)
 						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\' after the first statement. Ignored.", msg);
 				}
 
-				qcc_targetformat = newtype;
+				QCC_OPCodeSetTarget(newtype);
 			}
 			else if (!QC_strcasecmp(qcc_token, "PROGS_SRC"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.

@@ -327,18 +327,18 @@ typedef union eval_s
 #define PR_SetString(pf, s)									(*pf->StringToProgs)		(pf, s)
 
 #define NEXT_EDICT(pf,o)		EDICT_NUM(pf, NUM_FOR_EDICT(pf, o)+1)
-#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
+#define	RETURN_EDICT(pf, e) (((pint_t *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
 
 
 //builtin funcs (which operate on globals)
 //To use these outside of builtins, you will likly have to use the 'globals' method.
-#define	G_FLOAT(o) (((float *)pr_globals)[o])
-#define	G_FLOAT2(o) (((float *)pr_globals)[OFS_PARM0 + o*3])
-#define	G_INT(o) (((int *)pr_globals)[o])
+#define	G_FLOAT(o) (((pvec_t *)pr_globals)[o])
+#define	G_FLOAT2(o) (((pvec_t *)pr_globals)[OFS_PARM0 + o*3])
+#define	G_INT(o) (((pint_t *)pr_globals)[o])
 #define	G_EDICT(pf, o) PROG_TO_EDICT(pf, G_INT(o)) //((edict_t *)((char *) sv.edicts+ *(int *)&((float *)pr_globals)[o]))
 #define G_EDICTNUM(pf, o) NUM_FOR_EDICT(pf, G_EDICT(pf, o))
-#define	G_VECTOR(o) (&((float *)pr_globals)[o])
-#define	G_FUNCTION(o) (*(func_t *)&((float *)pr_globals)[o])
+#define	G_VECTOR(o) (&((pvec_t *)pr_globals)[o])
+#define	G_FUNCTION(o) (*(func_t *)&((pvec_t *)pr_globals)[o])
 
 /*
 #define PR_GetString(p,s) (s?s + p->stringtable:"")
@@ -356,7 +356,7 @@ typedef union eval_s
 
 #define ev_prog ev_integer
 
-#define E_STRING(o) (char *)(((int *)((char *)ed) + progparms.edictsize)[o])
+#define E_STRING(o) (char *)(((pint_t *)((char *)ed) + progparms.edictsize)[o])
 
 //#define pr_global_struct pr_globals
 

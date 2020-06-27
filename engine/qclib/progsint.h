@@ -36,7 +36,7 @@
 	#endif
 //#define _inline inline
 #endif
-typedef unsigned char qbyte;
+typedef unsigned char pbyte;
 #include <stdio.h>
 
 #define DLL_PROG
@@ -215,10 +215,11 @@ typedef struct
 	//ASSIGNS_IC
 } QCC_opcode_t;
 extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
-#define OPF_STD			0x1	//reads a+b, writes c.
-#define OPF_STORE		0x2	//b+=a or just b=a
-#define OPF_STOREPTR	0x4	//the form of c=(*b+=a)
-#define OPF_LOADPTR		0x8
+#define OPF_VALID		0x01	//we're allowed to use this opcode in the current target.
+#define OPF_STD			0x10	//reads a+b, writes c.
+#define OPF_STORE		0x20	//b+=a or just b=a
+#define OPF_STOREPTR	0x40	//the form of c=(*b+=a)
+#define OPF_LOADPTR		0x80
 //FIXME: add jumps
 
 
@@ -394,8 +395,8 @@ void PR_Init (void);
 pbool PR_RunWarning (pubprogfuncs_t *progfuncs, char *error, ...);
 
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *progfuncs, func_t fnum);
-int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s);
-int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain);
+progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s);
+pbool PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain);
 
 void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, const char *name);
 
@@ -503,7 +504,7 @@ prclocks_t Sys_GetClockRate(void);
 
 //pr_multi.c
 
-extern vec3_t vec3_origin;
+extern pvec3_t pvec3_origin;
 
 struct qcthread_s *PDECL PR_ForkStack	(pubprogfuncs_t *progfuncs);
 void PDECL PR_ResumeThread			(pubprogfuncs_t *progfuncs, struct qcthread_s *thread);

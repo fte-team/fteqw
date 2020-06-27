@@ -244,21 +244,21 @@ struct world_s
 
 	/*qc globals*/
 	struct {
-		int     *self;
-		int     *other;
-		int     *newmis;
-		float	*time;
-		float	*frametime;
-		float	*force_retouch;
-		float	*physics_mode;
-		float	*v_forward;
-		float	*v_right;
-		float	*v_up;
-		float	*defaultgravitydir;
+		pint_t     *self;
+		pint_t     *other;
+		pint_t     *newmis;
+		pvec_t	*time;
+		pvec_t	*frametime;
+		pvec_t	*force_retouch;
+		pvec_t	*physics_mode;
+		pvec_t	*v_forward;
+		pvec_t	*v_right;
+		pvec_t	*v_up;
+		pvec_t	*defaultgravitydir;
 
 		//used by menu+csqc.
-		float *drawfont;
-		float *drawfontscale;
+		pvec_t *drawfont;
+		pvec_t *drawfontscale;
 	} g;
 
 #ifdef USERBE

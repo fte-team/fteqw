@@ -8847,8 +8847,7 @@ void SV_UserInit (void)
 
 
 static vec3_t forward, right, up, wishdir;
-static float *origin, *velocity, *angles;
-static float wishspeed;
+static pvec_t *origin, *velocity, *angles;
 extern cvar_t sv_accelerate, sv_friction;
 static qboolean onground;
 
@@ -8904,7 +8903,7 @@ static void SV_UserFriction (void)
 	vel[2] = vel[2] * newspeed;
 }
 
-static void SV_Accelerate (void)
+static void SV_Accelerate (float wishspeed)
 {
 	int			i;
 	float		addspeed, accelspeed, currentspeed;
@@ -8921,7 +8920,7 @@ static void SV_Accelerate (void)
 		velocity[i] += accelspeed*wishdir[i];
 }
 
-static void SV_AirAccelerate (vec3_t wishveloc)
+static void SV_AirAccelerate (vec3_t wishveloc, float wishspeed)
 {
 	int			i;
 	float		addspeed, wishspd, accelspeed, currentspeed;
@@ -8954,6 +8953,7 @@ static void SV_AirMove (void)
 	vec3_t		wishvel;
 	float		fmove, smove;
 	float scale, maxspeed;
+	float wishspeed;
 
 	AngleVectors (sv_player->v->angles, forward, right, up);
 
@@ -8999,11 +8999,11 @@ static void SV_AirMove (void)
 	else if ( onground )
 	{
 		SV_UserFriction ();
-		SV_Accelerate ();
+		SV_Accelerate (wishspeed);
 	}
 	else
 	{	// not on ground, so little effect on velocity
-		SV_AirAccelerate (wishvel);
+		SV_AirAccelerate (wishvel, wishspeed);
 	}
 }
 
@@ -9234,7 +9234,7 @@ void SV_ClientThink (void)
 	VectorCopy (sv_player->v->v_angle, v_angle);
 //	VectorAdd (sv_player->v->v_angle, sv_player->v->punchangle, v_angle);
 	//FIXME: gravitydir stuff, the roll value gets destroyed for intents
-	angles[ROLL] = V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
+	angles[ROLL] = V_CalcRoll (angles, velocity)*4;
 	if (!sv_player->v->fixangle)
 	{
 		angles[PITCH] = -v_angle[PITCH]/3;

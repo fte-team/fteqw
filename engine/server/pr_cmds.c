@@ -885,31 +885,31 @@ void PR_Deinit(void)
 
 void PR_LoadGlabalStruct(qboolean muted)
 {
-	static float svphysicsmode = 2;
-	static float writeonly;
-	static int writeonly_int;
-	static int endcontentsi, surfaceflagsi;
+	static pvec_t svphysicsmode = 2;
+	static pvec_t writeonly;
+	static pint_t writeonly_int;
+	static pint_t endcontentsi, surfaceflagsi;
 #ifdef HAVE_LEGACY
-	static float endcontentsf, surfaceflagsf;
+	static pvec_t endcontentsf, surfaceflagsf;
 #endif
-	static float dimension_send_default;
-	static float dimension_default = 255;
-	static float zero_default;
-	static float input_buttons_default;
-	static float input_timelength_default;
-	static float input_impulse_default;
-	static vec3_t input_angles_default;
-	static vec3_t input_movevalues_default;
-	static vec3_t global_gravitydir_default = {0,0,-1};
+	static pvec_t dimension_send_default;
+	static pvec_t dimension_default = 255;
+	static pvec_t zero_default;
+	static pvec_t input_buttons_default;
+	static pvec_t input_timelength_default;
+	static pvec_t input_impulse_default;
+	static pvec3_t input_angles_default;
+	static pvec3_t input_movevalues_default;
+	static pvec3_t global_gravitydir_default = {0,0,-1};
 	int i;
-	int *v;
+	pint_t *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
 	memset(pr_global_ptrs, 0, sizeof(*pr_global_ptrs));
 
-#define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalvec(need,name)	(pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static vec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalfloat(need,name)	(pr_globals)->name = (pvec_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pvec_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalint(need,name)	(pr_globals)->name = (pint_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pint_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalstring(need,name)	(pr_globals)->name = (string_t*)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalvec(need,name)	(pr_globals)->name = (pvec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pvec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
 #define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need && !muted) Con_DPrintf("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
@@ -993,7 +993,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	if (pr_global_ptrs->serverid)
 		*pr_global_ptrs->serverid = svs.clusterserverid;
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
-		pr_global_ptrs->spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
+		pr_global_ptrs->spawnparamglobals[i] = (pvec_t *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
 
 #define ensureglobal(name,var) if (!(pr_globals)->name) (pr_globals)->name = &var;
 
@@ -1008,18 +1008,18 @@ void PR_LoadGlabalStruct(qboolean muted)
 		etype_t etype;
 		eval_t *v = PR_FindGlobal(svprogfuncs, "trace_surfaceflags", 0, &etype);
 		if (etype == ev_float)
-			(pr_globals)->trace_surfaceflagsf = (float*)v;
+			(pr_globals)->trace_surfaceflagsf = (pvec_t*)v;
 		else if (etype == ev_integer)
-			(pr_globals)->trace_surfaceflagsi = (int*)v;
+			(pr_globals)->trace_surfaceflagsi = (pint_t*)v;
 	}
 	if (!(pr_globals)->trace_endcontentsf && !(pr_globals)->trace_endcontentsi)
 	{
 		etype_t etype;
 		eval_t *v = PR_FindGlobal(svprogfuncs, "trace_endcontents", 0, &etype);
 		if (etype == ev_float)
-			(pr_globals)->trace_endcontentsf = (float*)v;
+			(pr_globals)->trace_endcontentsf = (pvec_t*)v;
 		else if (etype == ev_integer)
-			(pr_globals)->trace_endcontentsi = (int*)v;
+			(pr_globals)->trace_endcontentsi = (pint_t*)v;
 	}
 	ensureglobal(trace_endcontentsf, endcontentsf);
 	ensureglobal(trace_surfaceflagsf, surfaceflagsf);
@@ -1046,10 +1046,10 @@ void PR_LoadGlabalStruct(qboolean muted)
 	// qtest renames and missing variables
 	if (!(pr_globals)->trace_plane_normal)
 	{
-		(pr_globals)->trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
+		(pr_globals)->trace_plane_normal = (pvec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
 		if (!(pr_globals)->trace_plane_normal)
 		{
-			static vec3_t fallback_trace_plane_normal;
+			static pvec3_t fallback_trace_plane_normal;
 			(pr_globals)->trace_plane_normal = &fallback_trace_plane_normal;
 			if (!muted)
 				Con_DPrintf("Could not find trace_plane_normal export in progs\n");
@@ -1057,10 +1057,10 @@ void PR_LoadGlabalStruct(qboolean muted)
 	}
 	if (!(pr_globals)->trace_endpos)
 	{
-		(pr_globals)->trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
+		(pr_globals)->trace_endpos = (pvec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
 		if (!(pr_globals)->trace_endpos)
 		{
-			static vec3_t fallback_trace_endpos;
+			static pvec3_t fallback_trace_endpos;
 			(pr_globals)->trace_endpos = &fallback_trace_endpos;
 			if (!muted)
 				Con_DPrintf("Could not find trace_endpos export in progs\n");
@@ -1068,10 +1068,10 @@ void PR_LoadGlabalStruct(qboolean muted)
 	}
 	if (!(pr_globals)->trace_fraction)
 	{
-		(pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
+		(pr_globals)->trace_fraction = (pvec_t *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
 		if (!(pr_globals)->trace_fraction)
 		{
-			static float fallback_trace_fraction;
+			static pvec_t fallback_trace_fraction;
 			(pr_globals)->trace_fraction = &fallback_trace_fraction;
 			if (!muted)
 				Con_DPrintf("Could not find trace_fraction export in progs\n");
@@ -1131,10 +1131,10 @@ void PR_LoadGlabalStruct(qboolean muted)
 		SV_PlayerPhysicsQC = PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY);
 	EndFrameQC = PR_FindFunction (svprogfuncs, "EndFrame", PR_ANY);
 
-	v = (int *)PR_globals(svprogfuncs, PR_CURRENT);
-	svprogfuncs->AddSharedVar(svprogfuncs, (int *)(pr_global_ptrs)->self-v, 1);
-	svprogfuncs->AddSharedVar(svprogfuncs, (int *)(pr_global_ptrs)->other-v, 1);
-	svprogfuncs->AddSharedVar(svprogfuncs, (int *)(pr_global_ptrs)->time-v, 1);
+	v = (pint_t *)PR_globals(svprogfuncs, PR_CURRENT);
+	svprogfuncs->AddSharedVar(svprogfuncs, (pint_t *)(pr_global_ptrs)->self-v, 1);
+	svprogfuncs->AddSharedVar(svprogfuncs, (pint_t *)(pr_global_ptrs)->other-v, 1);
+	svprogfuncs->AddSharedVar(svprogfuncs, (pint_t *)(pr_global_ptrs)->time-v, 1);
 
 	//test the global rather than the field - fte internally always has the field.
 	sv.haveitems2 = !!PR_FindGlobal(svprogfuncs, "items2", 0, NULL);
@@ -2855,7 +2855,7 @@ setorigin (entity, origin)
 static void QCBUILTIN PF_setorigin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
-	float	*org;
+	pvec_t	*org;
 
 	e = G_EDICT(prinst, OFS_PARM0);
 	if (e->readonly)
@@ -2881,7 +2881,7 @@ setsize (entity, minvector, maxvector)
 static void QCBUILTIN PF_setsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
-	float	*min, *max;
+	pvec_t	*min, *max;
 
 	e = G_EDICT(prinst, OFS_PARM0);
 	if (ED_ISFREE(e))
@@ -3327,15 +3327,12 @@ particle(origin, color, count)
 */
 void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
 {
-	float		*org, *dir;
-	int		color;
-	int		count;
 	int i, v;
 
-	org = G_VECTOR(OFS_PARM0);
-	dir = G_VECTOR(OFS_PARM1);
-	color = G_FLOAT(OFS_PARM2);
-	count = G_FLOAT(OFS_PARM3);
+	VM_VECTORARG(org, OFS_PARM0);
+	VM_VECTORARG(dir, OFS_PARM1);
+	int color = G_FLOAT(OFS_PARM2);
+	int count = G_FLOAT(OFS_PARM3);
 
 	count = bound(0, count, 255);
 	color &= 0xff;
@@ -3413,14 +3410,12 @@ void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_globals)	//
 
 static void QCBUILTIN PF_te_blooddp (pubprogfuncs_t *prinst, globalvars_t *pr_globals)
 {
-	float count;
-	float *org, *dir;
 #ifdef NQPROT
 	int i, v;
 #endif
-	org = G_VECTOR(OFS_PARM0);
-	dir = G_VECTOR(OFS_PARM1);
-	count = G_FLOAT(OFS_PARM2);
+	VM_VECTORARG(org, OFS_PARM0);
+	VM_VECTORARG(dir, OFS_PARM1);
+	int count = G_FLOAT(OFS_PARM2);
 
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_particle);
@@ -3443,7 +3438,7 @@ static void QCBUILTIN PF_te_blooddp (pubprogfuncs_t *prinst, globalvars_t *pr_gl
 	(void)dir; //FIXME: sould be sending TEDP_BLOOD
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
 	MSG_WriteByte (&sv.multicast, TEQW_QWBLOOD);
-	MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
+	MSG_WriteByte (&sv.multicast, (count>0&&count<10)?1:(count+10)/20);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
 	MSG_WriteCoord (&sv.multicast, org[2]);
@@ -3460,17 +3455,12 @@ particle(origin, dmin, dmax, color, effect, count)
 */
 static void QCBUILTIN PF_particle2 (pubprogfuncs_t *prinst, globalvars_t *pr_globals)
 {
-	float		*org, *dmin, *dmax;
-	float		color;
-	float		count;
-	float    effect;
-
-	org = G_VECTOR(OFS_PARM0);
-	dmin = G_VECTOR(OFS_PARM1);
-	dmax = G_VECTOR(OFS_PARM2);
-	color = G_FLOAT(OFS_PARM3);
-	effect = G_FLOAT(OFS_PARM4);
-	count = G_FLOAT(OFS_PARM5);
+	VM_VECTORARG(org, OFS_PARM0);
+	VM_VECTORARG(dmin, OFS_PARM1);
+	VM_VECTORARG(dmax, OFS_PARM2);
+	float color = G_FLOAT(OFS_PARM3);
+	float effect = G_FLOAT(OFS_PARM4);
+	float count = G_FLOAT(OFS_PARM5);
 
 	MSG_WriteByte (&sv.multicast, svcfte_particle2);
 	MSG_WriteCoord (&sv.multicast, org[0]);
@@ -3500,16 +3490,11 @@ particle(origin, box, color, effect, count)
 */
 static void QCBUILTIN PF_particle3 (pubprogfuncs_t *prinst, globalvars_t *pr_globals)
 {
-	float		*org, *box;
-	float		color;
-	float		count;
-	float    effect;
-
-	org = G_VECTOR(OFS_PARM0);
-	box = G_VECTOR(OFS_PARM1);
-	color = G_FLOAT(OFS_PARM2);
-	effect = G_FLOAT(OFS_PARM3);
-	count = G_FLOAT(OFS_PARM4);
+	VM_VECTORARG(org, OFS_PARM0);
+	VM_VECTORARG(box, OFS_PARM1);
+	float color = G_FLOAT(OFS_PARM2);
+	float effect = G_FLOAT(OFS_PARM3);
+	float count = G_FLOAT(OFS_PARM4);
 
 	MSG_WriteByte (&sv.multicast, svcfte_particle3);
 	MSG_WriteCoord (&sv.multicast, org[0]);
@@ -3535,17 +3520,11 @@ particle(origin, radius, color, effect, count)
 */
 static void QCBUILTIN PF_particle4 (pubprogfuncs_t *prinst, globalvars_t *pr_globals)
 {
-	float		*org;
-	float		radius;
-	float		color;
-	float		count;
-	float    effect;
-
-	org = G_VECTOR(OFS_PARM0);
-	radius = G_FLOAT(OFS_PARM1);
-	color = G_FLOAT(OFS_PARM2);
-	effect = G_FLOAT(OFS_PARM3);
-	count = G_FLOAT(OFS_PARM4);
+	VM_VECTORARG(org, OFS_PARM0);
+	int radius = G_FLOAT(OFS_PARM1);
+	int color = G_FLOAT(OFS_PARM2);
+	int effect = G_FLOAT(OFS_PARM3);
+	int count = G_FLOAT(OFS_PARM4);
 
 	MSG_WriteByte (&sv.multicast, svcfte_particle4);
 	MSG_WriteCoord (&sv.multicast, org[0]);
@@ -3563,13 +3542,11 @@ static void QCBUILTIN PF_particle4 (pubprogfuncs_t *prinst, globalvars_t *pr_glo
 static void QCBUILTIN PF_h2particleexplosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//used by the (regular) ice staff, and multiple other things.
-	float *org;
-	int color,radius,count, effect;
-	org = G_VECTOR(OFS_PARM0);
-	radius = G_FLOAT(OFS_PARM1);
-	color = G_FLOAT(OFS_PARM2);
-	effect = 255;	//special explosion thing
-	count = G_FLOAT(OFS_PARM3);
+	VM_VECTORARG(org, OFS_PARM0);
+	int radius = G_FLOAT(OFS_PARM1);
+	int color = G_FLOAT(OFS_PARM2);
+	int effect = 255;	//special explosion thing
+	int count = G_FLOAT(OFS_PARM3);
 
 	MSG_WriteByte (&sv.multicast, svcfte_particle4);
 	MSG_WriteCoord (&sv.multicast, org[0]);
@@ -3624,14 +3601,10 @@ void PF_ambientsound_Internal (float *pos, const char *samp, float vol, float at
 
 static void QCBUILTIN PF_ambientsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char		*samp;
-	float		*pos;
-	float 		vol, attenuation;
-
-	pos = G_VECTOR (OFS_PARM0);
-	samp = PR_GetStringOfs(prinst, OFS_PARM1);
-	vol = G_FLOAT(OFS_PARM2);
-	attenuation = G_FLOAT(OFS_PARM3);
+	VM_VECTORARG(pos, OFS_PARM0);
+	const char *samp = PR_GetStringOfs(prinst, OFS_PARM1);
+	float vol = G_FLOAT(OFS_PARM2);
+	float attenuation = G_FLOAT(OFS_PARM3);
 
 	PF_ambientsound_Internal(pos, samp, vol, attenuation);
 }
@@ -3698,20 +3671,11 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *sample;
-	float *origin;
-	float volume;
-	float attenuation;
-	float pitchpct;
-
-	origin = G_VECTOR(OFS_PARM0);
-	sample = PR_GetStringOfs(prinst, OFS_PARM1);
-	volume = G_FLOAT(OFS_PARM2);
-	attenuation = G_FLOAT(OFS_PARM3);
-	if (prinst->callargc >= 5)
-		pitchpct = G_FLOAT(OFS_PARM4)*0.01;
-	else
-		pitchpct = 0;
+	VM_VECTORARG(origin, OFS_PARM0);
+	const char *sample = PR_GetStringOfs(prinst, OFS_PARM1);
+	float volume = G_FLOAT(OFS_PARM2);
+	float attenuation = G_FLOAT(OFS_PARM3);
+	float pitchpct = (prinst->callargc > 4)?G_FLOAT(OFS_PARM4)*0.01:0;
 
 	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct, 0, 0);
 }
@@ -3723,8 +3687,8 @@ static void QCBUILTIN PF_ss_LocalSound(pubprogfuncs_t *prinst, struct globalvars
 	sfx_t	*sfx;
 
 	const char * s = PR_GetStringOfs(prinst, OFS_PARM0);
-	float chan = (prinst->callargc>=1)?G_FLOAT(OFS_PARM1):0;
-	float vol = (prinst->callargc>=2)?G_FLOAT(OFS_PARM2):1;
+	float chan = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
+	float vol = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):1;
 
 	if (!isDedicated)
 	{
@@ -3796,7 +3760,7 @@ traceline (vector1, vector2, tryents)
 */
 void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float	*v1, *v2, *mins, *maxs;
+	vec_t	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
 	int		nomonsters;
 	edict_t	*ent;
@@ -3831,42 +3795,30 @@ void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 #ifdef HEXEN2
 static void QCBUILTIN PF_traceboxh2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float	*v1, *v2, *mins, *maxs;
-	trace_t	trace;
-	int		nomonsters;
-	edict_t	*ent;
+	VM_VECTORARG(v1, OFS_PARM0);
+	VM_VECTORARG(v2, OFS_PARM1);
+	VM_VECTORARG(mins, OFS_PARM2);
+	VM_VECTORARG(maxs, OFS_PARM3);
+	int nomonsters = G_FLOAT(OFS_PARM4);
+	edict_t *ent = G_EDICT(prinst, OFS_PARM5);
 
-	v1 = G_VECTOR(OFS_PARM0);
-	v2 = G_VECTOR(OFS_PARM1);
-	mins = G_VECTOR(OFS_PARM2);
-	maxs = G_VECTOR(OFS_PARM3);
-	nomonsters = G_FLOAT(OFS_PARM4);
-	ent = G_EDICT(prinst, OFS_PARM5);
-
-	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
-
+	trace_t	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 	set_trace_globals(prinst, &trace);
 }
 #endif
 
 static void QCBUILTIN PF_traceboxdp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float	*v1, *v2, *mins, *maxs;
-	trace_t	trace;
-	int		nomonsters;
-	edict_t	*ent;
-
-	v1 = G_VECTOR(OFS_PARM0);
-	mins = G_VECTOR(OFS_PARM1);
-	maxs = G_VECTOR(OFS_PARM2);
-	v2 = G_VECTOR(OFS_PARM3);
-	nomonsters = G_FLOAT(OFS_PARM4);
-	ent = G_EDICT(prinst, OFS_PARM5);
+	VM_VECTORARG(v1, OFS_PARM0);
+	VM_VECTORARG(mins, OFS_PARM1);
+	VM_VECTORARG(maxs, OFS_PARM2);
+	VM_VECTORARG(v2, OFS_PARM3);
+	int		nomonsters = G_FLOAT(OFS_PARM4);
+	edict_t	*ent = G_EDICT(prinst, OFS_PARM5);
 
 //	PR_StackTrace(prinst, 2);
 
-	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
-
+	trace_t trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 	set_trace_globals(prinst, &trace);
 }
 
@@ -4902,10 +4854,9 @@ static void QCBUILTIN PF_pointcontents (pubprogfuncs_t *prinst, struct globalvar
 {
 	world_t *w = prinst->parms->user;
 
-	float	*v;
 	int cont;
 
-	v = G_VECTOR(OFS_PARM0);
+	VM_VECTORARG(v, OFS_PARM0);
 
 	cont = World_PointContentsWorldOnly(w, v);
 	if (cont & FTECONTENTS_SOLID)
@@ -6454,11 +6405,8 @@ void(vector where, float set) multicast
 */
 void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float	*o;
-	int		to;
-
-	o = G_VECTOR(OFS_PARM0);
-	to = G_FLOAT(OFS_PARM1);
+	VM_VECTORARG(o, OFS_PARM0);
+	int to = G_FLOAT(OFS_PARM1);
 
 #ifdef NETPREPARSE
 	NPP_Flush();
@@ -7954,11 +7902,11 @@ static void QCBUILTIN PF_h2v_factor(pubprogfuncs_t *prinst, struct globalvars_s 
 static void QCBUILTIN PF_h2v_factorrange(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 // returns (v_right * factor_x) + (v_forward * factor_y) + (v_up * factor_z)
 {
-	float num,*minv,*maxv;
+	float num;
 	vec3_t result,r2;
 
-	minv = G_VECTOR(OFS_PARM0);
-	maxv = G_VECTOR(OFS_PARM1);
+	VM_VECTORARG(minv, OFS_PARM0);
+	VM_VECTORARG(maxv, OFS_PARM1);
 
 	num = (rand ()&0x7fff) / ((float)0x7fff);
 	result[0] = ((maxv[0]-minv[0]) * num) + minv[0];

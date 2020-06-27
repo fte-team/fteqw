@@ -1178,7 +1178,7 @@ void DecompileCalcProfiles(void)
 			}
 			strcat(fname, ") ");
 			line[0] = '\0';
-			QC_snprintfz(line, sizeof(line), strings + functions[i].s_name);
+			QC_snprintfz(line, sizeof(line), "%s", strings + functions[i].s_name);
 			strcat(fname, line);
 
 		}
@@ -3090,7 +3090,7 @@ pbool TrySynthName(const char *first)
 	{
 		if (!strcmp(filenames[i], first))
 		{
-			QC_snprintfz(synth_name, sizeof(synth_name), filenames[i + 1]);
+			QC_snprintfz(synth_name, sizeof(synth_name), "%s", filenames[i + 1]);
 			return true;
 		}
 	}
@@ -3131,7 +3131,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	if (lastglob != 1)
 	{
 		QC_snprintfz(synth_name, sizeof(synth_name), "sysdefs.qc");
-		QC_snprintfz(fname, sizeof(fname), synth_name);
+		QC_snprintfz(fname, sizeof(fname), "%s", synth_name);
 		if (!DecompileAlreadySeen(fname, &f))
 		{
 			printf("decompiling %s\n", fname);
@@ -3190,7 +3190,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 				if(!TrySynthName(qcva("%s", strings + d->s_name)) && !synth_name[0])
 					QC_snprintfz(synth_name, sizeof(synth_name), "frik%i.qc", fake_name++);
 
-				QC_snprintfz(fname, sizeof(fname), synth_name);
+				QC_snprintfz(fname, sizeof(fname), "%s", synth_name);
 			}
 			else
 				synth_name[0] = 0;

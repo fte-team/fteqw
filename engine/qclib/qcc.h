@@ -86,6 +86,7 @@ extern int MAX_CONSTANTS;
 
 typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
+void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt);
 
 
 /*
@@ -317,14 +318,14 @@ typedef struct QCC_function_s QCC_function_t;
 typedef union QCC_eval_s
 {
 	QCC_string_t			string;
-	float				_float;
+	pvec_t				_float;
 #ifdef __GNUC__
-	float				vector[0];	//gnuc extension. I'm using it to mute clang warnings.
+	pvec_t				vector[0];	//gnuc extension. I'm using it to mute clang warnings.
 #else
-	float				vector[1];	//should be 3, except that then eval_t would be too big.
+	pvec_t				vector[1];	//should be 3, except that then eval_t would be too big.
 #endif
 	func_t				function;
-	int					_int;
+	pint_t					_int;
 //	union QCC_eval_s		*ptr;
 } QCC_eval_t;
 
@@ -332,10 +333,10 @@ typedef union QCC_eval_s
 typedef union QCC_evalstorage_s
 {
 	QCC_string_t			string;
-	float				_float;
-	float				vector[3];
+	pvec_t				_float;
+	pvec_t				vector[3];
 	func_t				function;
-	int					_int;
+	pint_t				_int;
 //	union QCC_eval_s		*ptr;
 } QCC_evalstorage_t;
 

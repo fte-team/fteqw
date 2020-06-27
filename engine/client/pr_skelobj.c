@@ -184,7 +184,7 @@ static void bonemat_fromidentity(float *out)
 	out[10] = 1;
 	out[11] = 0;
 }
-static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+static void bonemat_fromqcvectors(float *out, const pvec_t vx[3], const pvec_t vy[3], const pvec_t vz[3], const pvec_t t[3])
 {
 	out[0] = vx[0];
 	out[1] = -vy[0];
@@ -227,7 +227,7 @@ static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
 	AngleVectors(a, d[0], d[1], d[2]);
 	bonemat_fromqcvectors(trans, d[0], d[1], d[2], ed->v->origin);
 }
-static void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
+static void bonemat_toqcvectors(const float *in, pvec_t vx[3], pvec_t vy[3], pvec_t vz[3], pvec_t t[3])
 {
 	vx[0] = in[0];
 	vx[1] = in[4];
@@ -1680,7 +1680,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	doll_t *doll;
 	float emat[12];
 
-	vec3_t d[3], a;
+	pvec3_t d[3], a;
 	//fixme: respond to renderflags&USEAXIS? scale?
 	a[0] = wed->v->angles[0] * r_meshpitch.value; /*mod_alias bug*/
 	a[1] = wed->v->angles[1];
@@ -2327,7 +2327,7 @@ void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
 	unsigned int boneidx = G_FLOAT(OFS_PARM1)-1;
-	float *matrix[3];
+	pvec_t *matrix[3];
 	skelobject_t *skelobj;
 	float *bone;
 	float childworld[12], parentinv[12];
@@ -2335,7 +2335,7 @@ void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars
 	/*sort out the parameters*/
 	if (prinst->callargc == 4)
 	{
-		vec3_t d[3], a;
+		pvec3_t d[3], a;
 		a[0] = G_VECTOR(OFS_PARM3)[0] * r_meshpitch.value; /*mod_alias bug*/
 		a[1] = G_VECTOR(OFS_PARM3)[1];
 		a[2] = G_VECTOR(OFS_PARM3)[2];

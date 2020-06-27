@@ -496,7 +496,7 @@ mfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum
 
 	if ((unsigned)pnum > (unsigned)prinst.maxprogs)
 	{
-		externs->Printf("Progsnum %i out of bounds\n", pnum);
+		externs->Printf("Progsnum %"pPRIi" out of bounds\n", pnum);
 		return NULL;
 	}
 
@@ -592,15 +592,15 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		else
 		{
 			if ((val->function & 0xff000000)>>24 >= prinst.maxprogs || !pr_progstate[(val->function & 0xff000000)>>24].functions)
-				QC_snprintfz (line, sizeof(line), "Bad function %i:%i", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
+				QC_snprintfz (line, sizeof(line), "Bad function %"pPRIi":%"pPRIi"", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
 			else
 			{
 				if ((val->function &~0xff000000) >= pr_progs->numfunctions)
-					QC_snprintfz (line, sizeof(line), "bad function %i:%i\n", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
+					QC_snprintfz (line, sizeof(line), "bad function %"pPRIi":%"pPRIi"\n", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
 				else
 				{
 					f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-					QC_snprintfz (line, sizeof(line), "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->funcs.stringtable);
+					QC_snprintfz (line, sizeof(line), "%"pPRIi":%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->funcs.stringtable);
 				}
 			}
 		}
@@ -728,7 +728,7 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 	case ev_function:
 		i = (val->function & 0xff000000)>>24;	//progs number
 		if ((unsigned)i >= prinst.maxprogs || !pr_progstate[(unsigned)i].progs)
-			sprintf (line, "BAD FUNCTION INDEX: %i", val->function);
+			sprintf (line, "BAD FUNCTION INDEX: %#"pPRIx"", val->function);
 		else
 		{
 			j = (val->function & ~0xff000000);	//function number
@@ -1178,6 +1178,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int		i;
+	progsnum_t	module;
 	char	string[128];
 	fdef_t	*def;
 	char	*v, *w;
@@ -1248,13 +1249,13 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 			eval->function = 0;
 			return true;
 		}
-		func = ED_FindFunction (progfuncs, s, &i, -1);
+		func = ED_FindFunction (progfuncs, s, &module, -1);
 		if (!func)
 		{
 			externs->Printf ("Can't find function %s\n", s);
 			return false;
 		}
-		eval->function = (func - pr_progstate[i].functions) | (i<<24);
+		eval->function = (func - pr_progstate[module].functions) | (module<<24);
 		break;
 
 	default:
@@ -1266,6 +1267,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, int fldtype, char *s)
 {
 	int		i;
+	progsnum_t module;
 	fdef_t	*def;
 	string_t st;
 	mfunction_t	*func;
@@ -1337,13 +1339,13 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 			*(func_t *)(progfuncs->funcs.stringtable + qcptr) = 0;
 			return true;
 		}
-		func = ED_FindFunction (progfuncs, s, &i, -1);
+		func = ED_FindFunction (progfuncs, s, &module, -1);
 		if (!func)
 		{
 			externs->Printf ("Can't find function %s\n", s);
 			return false;
 		}
-		*(func_t *)(progfuncs->funcs.stringtable + qcptr) = (func - pr_progstate[i].functions) | (i<<24);
+		*(func_t *)(progfuncs->funcs.stringtable + qcptr) = (func - pr_progstate[module].functions) | (module<<24);
 		break;
 
 	default:
@@ -2605,7 +2607,7 @@ unsigned char *PDECL PR_GetHeapBuffer (void *ctx, size_t bufsize)
 PR_LoadProgs
 ===============
 */
-int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain)
+pbool PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain)
 {
 	unsigned int		i, j, type;
 //	float	fl;
@@ -2777,13 +2779,13 @@ retry:
 		return false;
 	}
 
-	fnc = (dfunction_t *)((qbyte *)pr_progs + pr_progs->ofs_functions);
+	fnc = (dfunction_t *)((pbyte *)pr_progs + pr_progs->ofs_functions);
 	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
-	current_progstate->globaldefs = *(void**)&gd16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
-	current_progstate->fielddefs = *(void**)&fld16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
-	current_progstate->statements = (void *)((qbyte *)pr_progs + pr_progs->ofs_statements);
+	current_progstate->globaldefs = *(void**)&gd16 = (void *)((pbyte *)pr_progs + pr_progs->ofs_globaldefs);
+	current_progstate->fielddefs = *(void**)&fld16 = (void *)((pbyte *)pr_progs + pr_progs->ofs_fielddefs);
+	current_progstate->statements = (void *)((pbyte *)pr_progs + pr_progs->ofs_statements);
 
-	glob = pr_globals = (void *)((qbyte *)pr_progs + pr_progs->ofs_globals);
+	glob = pr_globals = (void *)((pbyte *)pr_progs + pr_progs->ofs_globals);
 	current_progstate->globals_bytes = pr_progs->numglobals*sizeof(*pr_globals);
 
 	pr_linenums=NULL;
@@ -2791,9 +2793,9 @@ retry:
 	if (pr_progs->version == PROG_EXTENDEDVERSION)
 	{
 		if (pr_progs->ofslinenums)
-			pr_linenums = (int *)((qbyte *)pr_progs + pr_progs->ofslinenums);
+			pr_linenums = (int *)((pbyte *)pr_progs + pr_progs->ofslinenums);
 		if (pr_progs->ofs_types)
-			pr_types = (typeinfo_t *)((qbyte *)pr_progs + pr_progs->ofs_types);
+			pr_types = (typeinfo_t *)((pbyte *)pr_progs + pr_progs->ofs_types);
 
 		//start decompressing stuff...
 		if (pr_progs->blockscompressed & 1)	//statements
@@ -2940,8 +2942,8 @@ retry:
 
 	pr_cp_functions = NULL;
 //	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
-	gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
-	fld16 = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
+	gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)((pbyte *)pr_progs + pr_progs->ofs_globaldefs);
+	fld16 = (ddef16_t *)((pbyte *)pr_progs + pr_progs->ofs_fielddefs);
 //	pr_statements16 = (dstatement16_t *)((qbyte *)pr_progs + pr_progs->ofs_statements);
 	pr_globals = glob;
 	st16 = pr_statements16;

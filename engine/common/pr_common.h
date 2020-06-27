@@ -65,6 +65,12 @@ void PF_InitTempStrings(pubprogfuncs_t *prinst);
 string_t PR_TempString(pubprogfuncs_t *prinst, const char *str);	//returns a tempstring containing str
 char *PF_TempStr(pubprogfuncs_t *prinst);	//returns a tempstring which can be filled in with whatever junk you want.
 
+#ifdef QCVM_64
+	#define VM_VECTORARG(name, ofs) vec3_t name = {G_FLOAT(ofs+0),G_FLOAT(ofs+1),G_FLOAT(ofs+2)}
+#else
+	#define VM_VECTORARG(name, ofs) pvec_t *name = G_VECTOR(ofs)
+#endif
+
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 #define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_TempString(prinst, s))	//temp (static but cycle buffers)
 extern cvar_t pr_tempstringsize;

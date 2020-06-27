@@ -3909,7 +3909,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 	}
 }
 
-void SV_AddCameraEntity(pvscamera_t *cameras, edict_t *ent, vec3_t viewofs)
+void SV_AddCameraEntity(pvscamera_t *cameras, edict_t *ent, pvec3_t viewofs)
 {
 	int i;
 	vec3_t org;

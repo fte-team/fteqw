@@ -244,10 +244,10 @@ QCC_sref_t QCC_PR_GenerateFunctionCall2 (QCC_sref_t newself, QCC_sref_t func, QC
 QCC_sref_t QCC_MakeTranslateStringConst(const char *value);
 QCC_sref_t QCC_MakeStringConst(const char *value);
 QCC_sref_t QCC_MakeStringConstLength(const char *value, int length);
-QCC_sref_t QCC_MakeFloatConst(float value);
+QCC_sref_t QCC_MakeFloatConst(pvec_t value);
 QCC_sref_t QCC_MakeFloatConstFromInt(longlong llvalue);
 QCC_sref_t QCC_MakeIntConst(longlong llvalue);
-QCC_sref_t QCC_MakeVectorConst(float a, float b, float c);
+QCC_sref_t QCC_MakeVectorConst(pvec_t a, pvec_t b, pvec_t c);
 
 enum
 {
@@ -2121,20 +2121,20 @@ const char *QCC_VarAtOffset(QCC_sref_t ref)
 				if (val->_int>0 && val->_int < numfunctions && *functions[val->_int].name)
 					QC_snprintfz(message, sizeof(message), "%s", functions[val->_int].name);
 				else
-					QC_snprintfz(message, sizeof(message), "%ii", val->_int);
+					QC_snprintfz(message, sizeof(message), "%"pPRIi"i", val->_int);
 				return message;
 			case ev_field:
 			case ev_integer:
-				QC_snprintfz(message, sizeof(message), "%ii", val->_int);
+				QC_snprintfz(message, sizeof(message), "%"pPRIi"i", val->_int);
 				return message;
 			case ev_entity:
-				QC_snprintfz(message, sizeof(message), "%ie", val->_int);
+				QC_snprintfz(message, sizeof(message), "%"pPRIi"e", val->_int);
 				return message;
 			case ev_float:
 				if (!val->_float || val->_int & 0x7f800000)
 					QC_snprintfz(message, sizeof(message), "%gf", val->_float);
 				else
-					QC_snprintfz(message, sizeof(message), "%%%i", val->_int);
+					QC_snprintfz(message, sizeof(message), "%%%"pPRIi, val->_int);
 				return message;
 			case ev_vector:
 				QC_snprintfz(message, sizeof(message), "'%g %g %g'", val->vector[0], val->vector[1], val->vector[2]);
@@ -6826,7 +6826,7 @@ QCC_sref_t QCC_MakeIntConst(longlong llvalue)
 	}*/
 
 // allocate a new one
-	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(int));
+	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(pint_t));
 	cn->next = NULL;
 	pr.def_tail->next = cn;
 	pr.def_tail = cn;
@@ -6856,7 +6856,7 @@ static QCC_sref_t QCC_MakeUniqueConst(QCC_type_t *type, void *data)
 	QCC_def_t	*cn;
 
 // allocate a new one
-	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(int) * type->size);
+	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(pint_t) * type->size);
 	cn->next = NULL;
 	pr.def_tail->next = cn;
 	pr.def_tail = cn;
@@ -6873,14 +6873,14 @@ static QCC_sref_t QCC_MakeUniqueConst(QCC_type_t *type, void *data)
 	cn->symbolsize = cn->type->size;
 	cn->symboldata = (QCC_eval_t*)(cn+1);
 
-	memcpy(cn->symboldata, data, sizeof(int) * type->size);
+	memcpy(cn->symboldata, data, sizeof(pint_t) * type->size);
 
 	return QCC_MakeSRefForce(cn, 0, type);
 }
 
 
 QCC_sref_t QCC_PR_GenerateVector(QCC_sref_t x, QCC_sref_t y, QCC_sref_t z);
-QCC_sref_t QCC_MakeVectorConst(float a, float b, float c)
+QCC_sref_t QCC_MakeVectorConst(pvec_t a, pvec_t b, pvec_t c)
 {
 	QCC_def_t	*cn;
 
@@ -6921,7 +6921,7 @@ QCC_sref_t QCC_MakeVectorConst(float a, float b, float c)
 */
 
 // allocate a new one
-	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t)+sizeof(float)*3);
+	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t)+sizeof(pvec_t)*3);
 	cn->next = NULL;
 	pr.def_tail->next = cn;
 	pr.def_tail = cn;
@@ -6947,13 +6947,13 @@ QCC_sref_t QCC_MakeVectorConst(float a, float b, float c)
 }
 
 extern hashtable_t floatconstdefstable;
-QCC_sref_t QCC_MakeFloatConst(float value)
+QCC_sref_t QCC_MakeFloatConst(pvec_t value)
 {
 	QCC_def_t	*cn;
 
 	union {
-		float f;
-		int i;
+		pvec_t f;
+		pint_t i;
 	} fi;
 
 	fi.f = value;
@@ -6963,7 +6963,7 @@ QCC_sref_t QCC_MakeFloatConst(float value)
 		return QCC_MakeSRefForce(cn, 0, type_float);
 
 // allocate a new one
-	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(float));
+	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(pvec_t));
 	cn->next = NULL;
 	pr.def_tail->next = cn;
 	pr.def_tail = cn;

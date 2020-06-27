@@ -14,7 +14,6 @@
 #define VMUTF8 utf8_enable.ival
 #define VMUTF8MARKUP false
 
-
 static char *cvargroup_progs = "Progs variables";
 
 cvar_t utf8_enable = CVARD("utf8_enable", "0", "When 1, changes the qc builtins to act upon codepoints instead of bytes. Do not use unless com_parseutf8 is also set.");
@@ -812,7 +811,7 @@ void QCBUILTIN PF_getsurfacetexture(pubprogfuncs_t *prinst, struct globalvars_s 
 	(n)[1] = ((a)[2] - (b)[2]) * ((c)[0] - (b)[0]) - ((a)[0] - (b)[0]) * ((c)[2] - (b)[2]), \
 	(n)[2] = ((a)[0] - (b)[0]) * ((c)[1] - (b)[1]) - ((a)[1] - (b)[1]) * ((c)[0] - (b)[0]) \
 	)
-static float getsurface_clippointpoly(model_t *model, msurface_t *surf, vec3_t point, vec3_t bestcpoint, float bestdist)
+static float getsurface_clippointpoly(model_t *model, msurface_t *surf, pvec3_t point, pvec3_t bestcpoint, float bestdist)
 {
 	int e, edge;
 	vec3_t edgedir, edgenormal, cpoint, temp;
@@ -861,7 +860,7 @@ static float getsurface_clippointpoly(model_t *model, msurface_t *surf, vec3_t p
 	}
 	return bestdist;
 }
-static float getsurface_clippointtri(model_t *model, msurface_t *surf, vec3_t point, vec3_t bestcpoint, float bestdist)
+static float getsurface_clippointtri(model_t *model, msurface_t *surf, pvec3_t point, pvec3_t bestcpoint, float bestdist)
 {
 	int j;
 	mesh_t *mesh = surf->mesh;
@@ -916,12 +915,12 @@ static float getsurface_clippointtri(model_t *model, msurface_t *surf, vec3_t po
 	}
 	return bestdist;
 }
-msurface_t *Mod_GetSurfaceNearPoint(model_t *model, vec3_t point)
+msurface_t *Mod_GetSurfaceNearPoint(model_t *model, pvec3_t point)
 {
 	msurface_t *surf;
 	int i;
 
-	vec3_t cpoint = {0,0,0};
+	pvec3_t cpoint = {0,0,0};
 	float bestdist = 0x7fffffff, dist;
 	msurface_t *bestsurf = NULL;
 
@@ -959,7 +958,7 @@ msurface_t *Mod_GetSurfaceNearPoint(model_t *model, vec3_t point)
 void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
-	float *point = G_VECTOR(OFS_PARM1);
+	pvec_t *point = G_VECTOR(OFS_PARM1);
 
 	world_t *w = prinst->parms->user;
 	model_t *model = w->Get_CModel(w, ent->v->modelindex);
@@ -984,7 +983,7 @@ void QCBUILTIN PF_getsurfaceclippedpoint(pubprogfuncs_t *prinst, struct globalva
 	unsigned int surfnum;
 
 	world_t *w = prinst->parms->user;
-	float *result = G_VECTOR(OFS_RETURN);
+	pvec_t *result = G_VECTOR(OFS_RETURN);
 
 	ent = G_WEDICT(prinst, OFS_PARM0);
 	surfnum = G_FLOAT(OFS_PARM1);
@@ -1145,7 +1144,7 @@ void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	world_t *world = prinst->parms->user;
 	model_t *worldmodel = world->worldmodel;
-	float *viewpos = G_VECTOR(OFS_PARM0);
+	VM_VECTORARG(viewpos, OFS_PARM0);
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM1);
 	int cluster;
 	int qcpvsarea[2];
@@ -1227,7 +1226,7 @@ void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 //Finding
 
 //entity(string field, float match) findchainflags = #450
-//chained search for float, int, and entity reference fields
+//chained search for float reference fields
 void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, ff, cf;
@@ -1241,17 +1240,17 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (prinst->callargc > 2)
 		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
-		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
+		cf = &((comentvars_t*)NULL)->chain - (pint_t*)NULL;
 
 	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
 			continue;
-		if (!((int)((float *)ent->v)[ff] & s))
+		if (!((int)((pvec_t *)ent->v)[ff] & s))
 			continue;
 
-		((int*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
+		((pint_t*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
 		chain = ent;
 	}
 
@@ -1259,6 +1258,7 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 }
 
 //entity(string field, float match) findchainfloat = #403
+//chained search for float, int, and entity reference fields
 void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, ff, cf;
@@ -1272,17 +1272,17 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (prinst->callargc > 2)
 		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
-		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
+		cf = &((comentvars_t*)NULL)->chain - (pint_t*)NULL;
 
 	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
 			continue;
-		if (((float *)ent->v)[ff] != s)
+		if (((pvec_t *)ent->v)[ff] != s)
 			continue;
 
-		((int*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
+		((pint_t*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
 		chain = ent;
 	}
 
@@ -3330,8 +3330,8 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	extern cvar_t dpcompat_findradiusarealinks;
 	wedict_t	*ent, *chain;
 	float	rad;
-	float	*org;
-	vec3_t	eorg;
+	pvec_t	*org;
+	pvec3_t	eorg;
 	int		i, j;
 	int f;
 
@@ -3343,14 +3343,13 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	if (prinst->callargc > 2)
 		f = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
-		f = &((comentvars_t*)NULL)->chain - (int*)NULL;
+		f = &((comentvars_t*)NULL)->chain - (pint_t*)NULL;
 
 	if (dpcompat_findradiusarealinks.ival)
 	{
 		static wedict_t *nearent[32768];
 		vec3_t mins, maxs;
 		int numents;
-		extern int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int maxcount, int areatype);
 
 		mins[0] = org[0] - rad;
 		mins[1] = org[1] - rad;
@@ -3364,7 +3363,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		for (i=0 ; i<numents ; i++)
 		{
 			ent = nearent[i];
-			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.ival)
+			if (ent->v->solid == SOLID_NOT && (!((pint_t)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.ival)
 				continue;
 			if (sv_gameplayfix_findradiusdistancetobox.ival)
 			{
@@ -3382,7 +3381,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 			if (DotProduct(eorg,eorg) > rad)
 				continue;
 
-			((int*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
+			((pint_t*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
 			chain = ent;
 		}
 	}
@@ -3394,7 +3393,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 			ent = WEDICT_NUM_PB(prinst, i);
 			if (ED_ISFREE(ent))
 				continue;
-			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
+			if (ent->v->solid == SOLID_NOT && (!((pint_t)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 				continue;
 			if (sv_gameplayfix_findradiusdistancetobox.ival)
 			{
@@ -3412,7 +3411,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 			if (DotProduct(eorg,eorg) > rad)
 				continue;
 
-			((int*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
+			((pint_t*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
 			chain = ent;
 		}
 	}
@@ -5754,7 +5753,9 @@ void QCBUILTIN PF_vectorvectors (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 void QCBUILTIN PF_crossproduct (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	CrossProduct(G_VECTOR(OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_RETURN));
+	VM_VECTORARG(v0, OFS_PARM0);
+	VM_VECTORARG(v1, OFS_PARM1);
+	CrossProduct(v0, v1, G_VECTOR(OFS_RETURN));
 }
 
 //Maths functions
@@ -5809,7 +5810,7 @@ void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	vec3_t		end;
 	vec3_t		start;
 	trace_t		trace;
-	const float *gravitydir;
+	const pvec_t *gravitydir;
 
 	ent = PROG_TO_WEDICT(prinst, *world->g.self);
 
@@ -6753,7 +6754,7 @@ void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvar
 #if !defined(CLIENTONLY) && defined(HAVE_LEGACY)
 		qboolean isserver = (prinst == sv.world.progs);
 #endif
-		eval = (eval_t *)&((float *)ent->v)[fdef[fidx].ofs];
+		eval = (eval_t *)&((pvec_t *)ent->v)[fdef[fidx].ofs];
 #ifdef HAVE_LEGACY	//extra code to be lazy so that xonotic doesn't go crazy and spam the fuck out of e
 		if ((fdef->type & 0xff) == ev_vector)
 		{
@@ -6762,17 +6763,17 @@ void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvar
 		}
 #ifndef CLIENTONLY
 #ifdef HEXEN2
-		else if (isserver && (float*)eval == &((edict_t*)ent)->xv->drawflags && eval->_float == 96)
+		else if (isserver && (pvec_t*)eval == &((edict_t*)ent)->xv->drawflags && eval->_float == 96)
 			return;
 #endif
-		else if (isserver && (float*)eval == &((edict_t*)ent)->xv->uniquespawnid)
+		else if (isserver && (pvec_t*)eval == &((edict_t*)ent)->xv->uniquespawnid)
 			return;
 #endif
-		else if (((float*)eval == &ent->xv->dimension_solid ||
-				  (float*)eval == &ent->xv->dimension_hit
+		else if (((pvec_t*)eval == &ent->xv->dimension_solid ||
+				  (pvec_t*)eval == &ent->xv->dimension_hit
 #ifndef CLIENTONLY
-				  || (isserver && ((float*)eval == &((edict_t*)ent)->xv->dimension_see
-				  || (float*)eval == &((edict_t*)ent)->xv->dimension_seen))
+				  || (isserver && ((pvec_t*)eval == &((edict_t*)ent)->xv->dimension_see
+				  || (pvec_t*)eval == &((edict_t*)ent)->xv->dimension_seen))
 #endif
 				  )  && eval->_float == 255)
 			return;

@@ -27,7 +27,7 @@ pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 			current_progstate = NULL;
 			return true;
 		}
-		PR_RunError(&progfuncs->funcs, "QCLIB: Bad prog type - %i", type);
+		PR_RunError(&progfuncs->funcs, "QCLIB: Bad prog type - %"pPRIi, type);
 //		Sys_Error("Bad prog type - %i", type);
 	}
 
@@ -47,7 +47,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	unsigned int a;
 	progstate_t *np;
 	progstate_t *op;
-	int oldpr = prinst.pr_typecurrent;
+	progsnum_t oldpr = prinst.pr_typecurrent;
 
 	if (newpr == oldpr)
 	{
@@ -60,7 +60,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 
 	if ((unsigned)newpr >= prinst.maxprogs || !np->globals)
 	{
-		externs->Printf("QCLIB: Bad prog type - %i", newpr);
+		externs->Printf("QCLIB: Bad prog type - %"pPRIi, newpr);
 		return false;
 	}
 	if ((unsigned)oldpr >= prinst.maxprogs || !op->globals)	//startup?

@@ -154,9 +154,9 @@ int main (int argc, const char **argv)
 	{
 		if (!argv[i])
 			continue;
-		if (strcmp(argv[i], "-log"))
+		if (!strcmp(argv[i], "-log"))
 			writelog = true;
-		else if (strcmp(argv[i], "-nolog"))
+		else if (!strcmp(argv[i], "-nolog"))
 			writelog = false;
 	}
 	logfile = writelog?fopen("fteqcc.log", "wt"):false;

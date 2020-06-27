@@ -898,9 +898,9 @@ static void Win32NVVK_DoPresent(struct vkframe *theframe)
 			0, 1, 1, 0);	//stst (remember that gl textures are meant to be upside down)
 
 	//and tell our code to expect it.
-	vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT] = vk.aquirelast%vk.backbuf_count;
-	fence = vk.acquirefences[vk.aquirelast%ACQUIRELIMIT];
-	vk.aquirelast++;
+	vk.acquirebufferidx[vk.acquirelast%ACQUIRELIMIT] = vk.acquirelast%vk.backbuf_count;
+	fence = vk.acquirefences[vk.acquirelast%ACQUIRELIMIT];
+	vk.acquirelast++;
 	//and actually signal it, so our code can wake up.
 	qglSignalVkFenceNV((GLuint64)fence);
 

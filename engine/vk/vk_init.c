@@ -59,6 +59,8 @@ extern qboolean		scr_con_forcedraw;
 const char *vklayerlist[] =
 {
 #if 1
+	"VK_LAYER_KHRONOS_validation"
+#elif 1
 	"VK_LAYER_LUNARG_standard_validation"
 #else
 		//older versions of the sdk were crashing out on me,
@@ -185,7 +187,7 @@ char *VK_VKErrorToString(VkResult err)
 	//irrelevant parts of the enum
 	case VK_RESULT_RANGE_SIZE:
 	case VK_RESULT_MAX_ENUM:
-	//default:
+	default:
 		break;
 	}
 	return va("%d", (int)err);
@@ -244,8 +246,10 @@ char *DebugAnnotObjectToString(VkObjectType t)
 	case VK_OBJECT_TYPE_DISPLAY_KHR:					return "VK_OBJECT_TYPE_DISPLAY_KHR";
 	case VK_OBJECT_TYPE_DISPLAY_MODE_KHR:				return "VK_OBJECT_TYPE_DISPLAY_MODE_KHR";
 	case VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT:		return "VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT";
+#ifdef VK_NVX_device_generated_commands
 	case VK_OBJECT_TYPE_OBJECT_TABLE_NVX:				return "VK_OBJECT_TYPE_OBJECT_TABLE_NVX";
 	case VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX:	return "VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX";
+#endif
 	case VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT:		return "VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT";
 	case VK_OBJECT_TYPE_VALIDATION_CACHE_EXT:			return "VK_OBJECT_TYPE_VALIDATION_CACHE_EXT";
 #ifdef VK_NV_ray_tracing
@@ -253,6 +257,8 @@ char *DebugAnnotObjectToString(VkObjectType t)
 #endif
 	case VK_OBJECT_TYPE_RANGE_SIZE:
     case VK_OBJECT_TYPE_MAX_ENUM:
+		break;
+	default:
 		break;
 	}
 	return "UNKNOWNTYPE";
@@ -474,16 +480,19 @@ static void VK_DestroySwapChain(void)
 		vk.backbufs[i].colour.view = VK_NULL_HANDLE;
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
 		VK_DestroyVkTexture(&vk.backbufs[i].mscolour);
+		vkDestroySemaphore(vk.device, vk.backbufs[i].presentsemaphore, vkallocationcb);
 	}
 
 	if (vk.dopresent)
 		vk.dopresent(NULL);
-	while (vk.aquirenext < vk.aquirelast)
+	//clean up our acquires so we know the driver isn't going to update anything.
+	while (vk.acquirenext < vk.acquirelast)
 	{
-		if (vk.acquirefences[vk.aquirenext%ACQUIRELIMIT])
-			VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
-		vk.aquirenext++;
+		if (vk.acquirefences[vk.acquirenext%ACQUIRELIMIT])
+			VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.acquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		vk.acquirenext++;
 	}
+	//wait for it to all finish.
 	if (vk.device)
 		vkDeviceWaitIdle(vk.device);
 	for (i = 0; i < ACQUIRELIMIT; i++)
@@ -568,7 +577,7 @@ static qboolean VK_CreateSwapChain(void)
 		memories = malloc(sizeof(VkDeviceMemory)*vk.backbuf_count);
 		memset(memories, 0, sizeof(VkDeviceMemory)*vk.backbuf_count);
 
-		vk.aquirelast = vk.aquirenext = 0;
+		vk.acquirelast = vk.acquirenext = 0;
 		for (i = 0; i < ACQUIRELIMIT; i++)
 		{
 			if (1)
@@ -582,11 +591,12 @@ static qboolean VK_CreateSwapChain(void)
 			{
 				VkSemaphoreCreateInfo sci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
 				VkAssert(vkCreateSemaphore(vk.device, &sci, vkallocationcb, &vk.acquiresemaphores[i]));
+				DebugSetName(VK_OBJECT_TYPE_SEMAPHORE, (uint64_t)vk.acquiresemaphores[i], "vk.acquiresemaphores");
 				vk.acquirefences[i] = VK_NULL_HANDLE;
 			}
 
-			vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT] = vk.aquirelast%vk.backbuf_count;
-			vk.aquirelast++;
+			vk.acquirebufferidx[vk.acquirelast%ACQUIRELIMIT] = vk.acquirelast%vk.backbuf_count;
+			vk.acquirelast++;
 		}
 
 		for (i = 0; i < vk.backbuf_count; i++)
@@ -880,7 +890,7 @@ static qboolean VK_CreateSwapChain(void)
 		memories = NULL;
 		VkAssert(vkGetSwapchainImagesKHR(vk.device, vk.swapchain, &vk.backbuf_count, images));
 
-		vk.aquirelast = vk.aquirenext = 0;
+		vk.acquirelast = vk.acquirenext = 0;
 		for (i = 0; i < ACQUIRELIMIT; i++)
 		{
 			if (vk_waitfence.ival || !*vk_waitfence.string)
@@ -893,18 +903,19 @@ static qboolean VK_CreateSwapChain(void)
 			{
 				VkSemaphoreCreateInfo sci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
 				VkAssert(vkCreateSemaphore(vk.device, &sci, vkallocationcb, &vk.acquiresemaphores[i]));
+				DebugSetName(VK_OBJECT_TYPE_SEMAPHORE, (uint64_t)vk.acquiresemaphores[i], "vk.acquiresemaphores");
 				vk.acquirefences[i] = VK_NULL_HANDLE;
 			}
 		}
 		if (!vk_submissionthread.value && *vk_submissionthread.string)
-			preaquirecount = 1;
+			preaquirecount = 1;	//no real point asking for more.
 		else
 			preaquirecount = vk.backbuf_count;
 		/*-1 to hide any weird thread issues*/
-		while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < preaquirecount && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
+		while (vk.acquirelast < ACQUIRELIMIT-1 && vk.acquirelast < preaquirecount && vk.acquirelast <= vk.backbuf_count-surfcaps.minImageCount)
 		{
-			VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
-			vk.aquirelast++;
+			VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.acquiresemaphores[vk.acquirelast%ACQUIRELIMIT], vk.acquirefences[vk.acquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.acquirelast%ACQUIRELIMIT]));
+			vk.acquirelast++;
 		}
 	}
 
@@ -1087,6 +1098,7 @@ static qboolean VK_CreateSwapChain(void)
 		{
 			VkSemaphoreCreateInfo seminfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
 			VkAssert(vkCreateSemaphore(vk.device, &seminfo, vkallocationcb, &vk.backbufs[i].presentsemaphore));
+			DebugSetName(VK_OBJECT_TYPE_SEMAPHORE, (uint64_t)vk.backbufs[i].presentsemaphore, "vk.backbufs.presentsemaphore");
 		}
 	}
 	free(images);
@@ -1608,20 +1620,20 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		break;
 
 #ifdef VK_EXT_astc_decode_mode
-	case PTI_ASTC_4X4:	//set these to use rgba8 decoding, because we know they're not hdr and the format is basically 8bit anyway.
-	case PTI_ASTC_5X4:	//we do NOT do this for the hdr, as that would cause data loss.
-	case PTI_ASTC_5X5:	//we do NOT do this for sRGB because its pointless.
-	case PTI_ASTC_6X5:
-	case PTI_ASTC_6X6:
-	case PTI_ASTC_8X5:
-	case PTI_ASTC_8X6:
-	case PTI_ASTC_8X8:
-	case PTI_ASTC_10X5:
-	case PTI_ASTC_10X6:
-	case PTI_ASTC_10X8:
-	case PTI_ASTC_10X10:
-	case PTI_ASTC_12X10:
-	case PTI_ASTC_12X12:
+	case PTI_ASTC_4X4_LDR:	//set these to use rgba8 decoding, because we know they're not hdr and the format is basically 8bit anyway.
+	case PTI_ASTC_5X4_LDR:	//we do NOT do this for the hdr, as that would cause data loss.
+	case PTI_ASTC_5X5_LDR:	//we do NOT do this for sRGB because its pointless.
+	case PTI_ASTC_6X5_LDR:
+	case PTI_ASTC_6X6_LDR:
+	case PTI_ASTC_8X5_LDR:
+	case PTI_ASTC_8X6_LDR:
+	case PTI_ASTC_8X8_LDR:
+	case PTI_ASTC_10X5_LDR:
+	case PTI_ASTC_10X6_LDR:
+	case PTI_ASTC_10X8_LDR:
+	case PTI_ASTC_10X10_LDR:
+	case PTI_ASTC_12X10_LDR:
+	case PTI_ASTC_12X12_LDR:
 		viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -3421,7 +3433,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		vk.unusedframes = newframe;
 	}
 
-	while (vk.aquirenext == vk.aquirelast)
+	while (vk.acquirenext == vk.acquirelast)
 	{	//we're still waiting for the render thread to increment acquirelast.
 		//shouldn't really happen, but can if the gpu is slow.
 		if (vk.neednewswapchain)
@@ -3447,14 +3459,14 @@ qboolean VK_SCR_GrabBackBuffer(void)
 #endif
 	}
 
-	if (vk.acquirefences[vk.aquirenext%ACQUIRELIMIT] != VK_NULL_HANDLE)
+	if (vk.acquirefences[vk.acquirenext%ACQUIRELIMIT] != VK_NULL_HANDLE)
 	{
 		//wait for the queued acquire to actually finish
 		if (vk_busywait.ival)
 		{	//busy wait, to try to get the highest fps possible
 			for (;;)
 			{
-				switch(vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
+				switch(vkGetFenceStatus(vk.device, vk.acquirefences[vk.acquirenext%ACQUIRELIMIT]))
 				{
 				case VK_SUCCESS:
 					break;	//hurrah
@@ -3476,7 +3488,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 			int failures = 0;
 			for(;;)
 			{
-				VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, 1000000000);
+				VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.acquirenext%ACQUIRELIMIT], VK_FALSE, 1000000000);
 
 				if (err == VK_SUCCESS)
 					break;
@@ -3493,12 +3505,12 @@ qboolean VK_SCR_GrabBackBuffer(void)
 				return false;
 			}
 		}
-		VkAssert(vkResetFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]));
+		VkAssert(vkResetFences(vk.device, 1, &vk.acquirefences[vk.acquirenext%ACQUIRELIMIT]));
 	}
-	vk.bufferidx = vk.acquirebufferidx[vk.aquirenext%ACQUIRELIMIT];
+	vk.bufferidx = vk.acquirebufferidx[vk.acquirenext%ACQUIRELIMIT];
 
-	sem = vk.acquiresemaphores[vk.aquirenext%ACQUIRELIMIT];
-	vk.aquirenext++;
+	sem = vk.acquiresemaphores[vk.acquirenext%ACQUIRELIMIT];
+	vk.acquirenext++;
 
 	//grab the first unused
 	Sys_LockConditional(vk.submitcondition);
@@ -3975,6 +3987,8 @@ VkRenderPass VK_GetRenderPass(int pass)
 		attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 //		attachments[color_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[depth_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+
+		attachments[depth_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkAssert(vkCreateRenderPass(vk.device, &rp_info, vkallocationcb, &vk.renderpass[pass]));
@@ -4015,14 +4029,49 @@ void VK_DoPresent(struct vkframe *theframe)
 		}
 		else
 		{
-			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
-			if (err)
+			int r = vk.acquirelast%ACQUIRELIMIT;
+			uint64_t timeout = (vk.acquirelast==vk.acquirenext)?UINT64_MAX:0;	//
+			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, timeout, vk.acquiresemaphores[r], vk.acquirefences[r], &vk.acquirebufferidx[r]);
+			switch(err)
 			{
+			case VK_SUBOPTIMAL_KHR:	//success, but with a warning.
+				vk.neednewswapchain = true;
+				vk.acquirelast++;
+				break;
+			case VK_SUCCESS:	//success
+				vk.acquirelast++;
+				break;
+
+			//we gave the presentation engine an image, but its refusing to give us one back.
+			//logically this means the implementation lied about its VkSurfaceCapabilitiesKHR::minImageCount
+			case VK_TIMEOUT:	//'success', yet still no result
+			case VK_NOT_READY:
+				//no idea how to handle. let it slip?
+				if (vk.acquirelast == vk.acquirenext)
+					vk.neednewswapchain = true;	//slipped too much
+				break;
+
+			case VK_ERROR_OUT_OF_DATE_KHR:
+				//unable to present, but we at least don't need to throw everything away.
+				vk.neednewswapchain = true;
+				break;
+			case VK_ERROR_DEVICE_LOST:
+			case VK_ERROR_OUT_OF_HOST_MEMORY:
+			case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+			case VK_ERROR_SURFACE_LOST_KHR:
+				//something really bad happened.
 				Con_Printf("ERROR: vkAcquireNextImageKHR: %s\n", VK_VKErrorToString(err));
 				vk.neednewswapchain = true;
-				vk.devicelost |= (err == VK_ERROR_DEVICE_LOST);
+				vk.devicelost = true;
+				break;
+			default:
+			//case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
+				//we don't know why we're getting this. vendor problem.
+				Con_Printf("ERROR: vkAcquireNextImageKHR: undocumented/extended %s\n", VK_VKErrorToString(err));
+				vk.neednewswapchain = true;
+				vk.devicelost = true;	//this might be an infinite loop... no idea how to handle it.
+				break;
 			}
-			vk.aquirelast++;
 		}
 		RSpeedEnd(RSPEED_ACQUIRE);
 	}

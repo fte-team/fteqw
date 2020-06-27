@@ -4790,7 +4790,10 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 	if (targ->externalimage)
 		targ->colour.image = colour->image;
 	else
+	{
 		VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
+		DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)targ->colour.image, "RT Colour");
+	}
 
 	depth_imginfo = colour_imginfo;
 	depth_imginfo.format = vk.depthformat;
@@ -4800,9 +4803,11 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 		mscolour_imginfo = colour_imginfo;
 		depth_imginfo.samples = mscolour_imginfo.samples = vk.multisamplebits;
 		VkAssert(vkCreateImage(vk.device, &mscolour_imginfo, vkallocationcb, &targ->mscolour.image));
+		DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)targ->mscolour.image, "RT MS Colour");
 		VK_AllocateBindImageMemory(&targ->mscolour, true);
 	}
 	VkAssert(vkCreateImage(vk.device, &depth_imginfo, vkallocationcb, &targ->depth.image));
+	DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)targ->depth.image, "RT Depth");
 
 	if (targ->externalimage)	//an external image is assumed to already have memory bound. don't allocate it elsewhere.
 		memset(&targ->colour.mem, 0, sizeof(targ->colour.mem));
@@ -4980,11 +4985,13 @@ void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean c
 	colour_imginfo.pQueueFamilyIndices = NULL;
 	colour_imginfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
+	DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)targ->colour.image, "RT Cube Colour");
 
 	depth_imginfo = colour_imginfo;
 	depth_imginfo.format = vk.depthformat;
 	depth_imginfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT;
 	VkAssert(vkCreateImage(vk.device, &depth_imginfo, vkallocationcb, &targ->depth.image));
+	DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)targ->depth.image, "RT Cube Depth");
 
 	VK_AllocateBindImageMemory(&targ->colour, true);
 	VK_AllocateBindImageMemory(&targ->depth, true);
@@ -6062,6 +6069,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		imginfo.pQueueFamilyIndices = NULL;
 		imginfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkAssert(vkCreateImage(vk.device, &imginfo, vkallocationcb, &shad->image));
+		DebugSetName(VK_OBJECT_TYPE_IMAGE, (uint64_t)shad->image, "Shadowmap");
 
 		{
 			VkMemoryRequirements mem_reqs;

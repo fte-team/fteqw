@@ -175,6 +175,7 @@ static struct
 	int	 (*pXGetWindowProperty)(Display *display, Window w, Atom property, long long_offset, long long_length, Bool delete, Atom req_type, Atom *actual_type_return, int *actual_format_return, unsigned long *nitems_return, unsigned long *bytes_after_return, unsigned char **prop_return);
 	int	 (*pXGrabKeyboard)(Display *display, Window grab_window, Bool owner_events, int pointer_mode, int keyboard_mode, Time time);
 	int	 (*pXGrabPointer)(Display *display, Window grab_window, Bool owner_events, unsigned int event_mask, int pointer_mode, int keyboard_mode, Window confine_to, Cursor cursor, Time time);
+	Status (*pXInitThreads)(void);
 	Atom 	 (*pXInternAtom)(Display *display, char *atom_name, Bool only_if_exists);
 	KeySym	 (*pXLookupKeysym)(XKeyEvent *key_event, int index);
 	int	 (*pXLookupString)(XKeyEvent *event_struct, char *buffer_return, int bytes_buffer, KeySym *keysym_return, XComposeStatus *status_in_out);
@@ -277,6 +278,7 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXGetWindowProperty,	"XGetWindowProperty"},
 		{(void**)&x11.pXGrabKeyboard,		"XGrabKeyboard"},
 		{(void**)&x11.pXGrabPointer,		"XGrabPointer"},
+		{(void**)&x11.pXInitThreads,		"XInitThreads"},
 		{(void**)&x11.pXInternAtom,		"XInternAtom"},
 		{(void**)&x11.pXLookupKeysym,		"XLookupKeysym"},
 		{(void**)&x11.pXLookupString,		"XLookupString"},
@@ -2575,28 +2577,20 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 		case XK_Tab:			key = K_TAB;			 break;
 
 		case XK_F1:				key = K_F1;				break;
-
 		case XK_F2:				key = K_F2;				break;
-
 		case XK_F3:				key = K_F3;				break;
-
 		case XK_F4:				key = K_F4;				break;
-
 		case XK_F5:				key = K_F5;				break;
-
 		case XK_F6:				key = K_F6;				break;
-
 		case XK_F7:				key = K_F7;				break;
-
 		case XK_F8:				key = K_F8;				break;
-
 		case XK_F9:				key = K_F9;				break;
-
 		case XK_F10:			key = K_F10;			 break;
-
 		case XK_F11:			key = K_F11;			 break;
-
 		case XK_F12:			key = K_F12;			 break;
+		case XK_F13:			key = K_F13;			 break;
+		case XK_F14:			key = K_F14;			 break;
+		case XK_F15:			key = K_F15;			 break;
 
 		case XK_BackSpace:		key = K_BACKSPACE; break;
 
@@ -4093,6 +4087,9 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 					return false;
 				}
 			}
+
+			//"Some implementations may require threads to implement some presentation modes so applications must call XInitThreads() before calling any other Xlib functions."
+			x11.pXInitThreads();
 		}
 		break;
 #endif

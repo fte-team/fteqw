@@ -1171,7 +1171,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 			}
 #endif
 #ifdef IMAGEFMT_TGA
-			else if (!strcmp(outext, ".tga"))
+			else if (!strcasecmp(outext, ".tga"))
 			{
 				qboolean outformats[PTI_MAX];
 				for (k = 0; k < PTI_MAX; k++)
@@ -1192,7 +1192,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 			}
 #endif
 #ifdef IMAGEFMT_PCX
-			else if (!strcmp(outext, ".pcx"))
+			else if (!strcasecmp(outext, ".pcx"))
 			{
 				qboolean outformats[PTI_MAX];
 				for (k = 0; k < PTI_MAX; k++)
@@ -1608,7 +1608,7 @@ static void ImgTool_TreeConvert(struct opts_s *args, const char *destpath, const
 	size_t newfiles=0, skippedfiles=0, processedfiles=0;
 	char file[MAX_OSPATH];
 	char dest[MAX_OSPATH];
-	const char *exts[] = {".png", ".bmp", ".tga", ".jpg", ".exr", ".hdr", NULL};
+	const char *exts[] = {".png", ".bmp", ".tga", ".jpg", ".exr", ".hdr", ".pcx", NULL};
 	struct filelist_s list = {exts};
 	size_t i, destlen = strlen(destpath)+1;
 	ImgTool_TreeScan(&list, srcpath, "");
@@ -2217,14 +2217,14 @@ int main(int argc, const char **argv)
 			{
 showhelp:
 				Con_Printf(DISTRIBUTION " Image Tool\n");
-				Con_Printf("show info  : %s -i *.ktx\n", argv[0]);
-				Con_Printf("compress   : %s --astc_6x6_ldr [--nomips] --ext ktx in.png [in2.png ...]\n", argv[0]);
-				Con_Printf("compress   : %s --bc3 [--premul] [--nomips] in.png\n\tConvert pixel format (to bc3 aka dxt5) before writing to output file.\n", argv[0]);
-				Con_Printf("convert    : %s --convert in.exr\n\tConvert to different file format, while trying to preserve pixel formats.\n", argv[0]);
+				Con_Printf("show info  : %s [-i] in.ktx [in2.ext ...]\n", argv[0]);
+				Con_Printf("compress   : %s [-c] --ext ktx --astc_6x6_ldr [--nomips] in.png [in2.png ...]\n", argv[0]);
+				Con_Printf("compress   : %s [-c] --ext dds --bc3 [--premul] [--nomips] in.png\n\tConvert pixel format (to bc3 aka dxt5) before writing to output file.\n", argv[0]);
+				Con_Printf("convert    : %s [-c] --ext png in.exr [in2.pcx ...]\n\tConvert input file(s) to different file format, while trying to preserve pixel formats.\n", argv[0]);
 				Con_Printf("merge      : %s -o output [--cube|--3d|--2darray|--cubearray] [--bc1] foo_*.png\n\tConvert to different file format, while trying to preserve pixel formats.\n", argv[0]);
-				Con_Printf("recursive  : %s --auto --astc_6x6_ldr destdir srcdir\n\tCompresses the files to dds (writing to an optionally different directory)\n", argv[0]);
+				Con_Printf("recursive  : %s -r [--ext dds] --astc_6x6_ldr destdir srcdir\n\tCompresses the files to dds (writing to an optionally different directory)\n", argv[0]);
 				Con_Printf("decompress : %s --decompress [--exportmip 0] [--nomips] in.ktx out.png\n\tDecompresses any block-compressed pixel data.\n", argv[0]);
-				Con_Printf("create mips: %s --ext mip [--bc1] [--resize width height] [--exportmip 2] *.dds\n", argv[0]);
+				Con_Printf("create mips: %s [-c] --ext mip [--bc1] [--resize width height] [--exportmip 2] *.dds\n", argv[0]);
 				Con_Printf("create xwad: %s --genwadx [--exportmip 2] [--bc1] out.wad srcdir\n", argv[0]);
 				Con_Printf("create wad : %s -w [--exportmip 2] out.wad *.mipsrcdir\n", argv[0]);
 				Con_Printf("extract wad: %s -x [--ext png] src.wad\n", argv[0]);

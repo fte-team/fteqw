@@ -1464,7 +1464,7 @@ static pbool QCC_WriteData (int crc)
 				externs->Printf("Progs should run on any QuakeC VM\n");
 			break;
 		}
-		qcc_targetformat = (qcc_targetformat==QCF_HEXEN2)?QCF_FTEH2:QCF_FTE;
+		QCC_OPCodeSetTarget((qcc_targetformat==QCF_HEXEN2)?QCF_FTEH2:QCF_FTE);
 		//intentional fallthrough
 	case QCF_FTEDEBUG:
 	case QCF_FTE:
@@ -4284,7 +4284,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				for (p = 0; targets[p].name; p++)
 					if (!stricmp(myargv[i]+2, targets[p].name))
 					{
-						qcc_targetformat = targets[p].target;
+						QCC_OPCodeSetTarget(targets[p].target);
 						break;
 					}
 
@@ -4482,16 +4482,20 @@ static void QCC_SetDefaultProperties (void)
 		}
 	}
 
-	if (QCC_CheckParm ("-h2"))
-		qcc_targetformat = QCF_HEXEN2;
-	else if (QCC_CheckParm ("-fte"))
-		qcc_targetformat = QCF_FTE;
-	else if (QCC_CheckParm ("-fteh2"))
-		qcc_targetformat = QCF_FTEH2;
-	else if (QCC_CheckParm ("-dp"))
-		qcc_targetformat = QCF_DARKPLACES;
-	else
-		qcc_targetformat = QCF_STANDARD;
+	{
+		qcc_targetformat_t targ;
+		if (QCC_CheckParm ("-h2"))
+			targ = QCF_HEXEN2;
+		else if (QCC_CheckParm ("-fte"))
+			targ = QCF_FTE;
+		else if (QCC_CheckParm ("-fteh2"))
+			targ = QCF_FTEH2;
+		else if (QCC_CheckParm ("-dp"))
+			targ = QCF_DARKPLACES;
+		else
+			targ = QCF_STANDARD;
+		QCC_OPCodeSetTarget(targ);
+	}
 
 
 	//enable all warnings

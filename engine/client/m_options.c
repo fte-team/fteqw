@@ -1084,10 +1084,10 @@ void M_Menu_Preset_f (void)
 		MB_REDTEXT("Please Choose Preset", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_CONSOLECMD("simple  (untextured)",	"fps_preset 286;menupop\n",			"Lacks textures, particles, pretty much everything."),
-		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
+		MB_CONSOLECMD("fast (qw deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
 		MB_CONSOLECMD("spasm    (nq compat)",	"fps_preset spasm;menupop\n",		"Aims for visual compatibility with common NQ engines. Also affects mods slightly."),
 		MB_CONSOLECMD("vanilla  (softwarey)",	"fps_preset vanilla;menupop\n",		"This is for purists! Party like its 1995! No sanity spared!"),
-		MB_CONSOLECMD("normal (qw faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
+		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
 		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
 #ifdef RTLIGHTS
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
@@ -3232,7 +3232,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	AngleVectors(r_refdef.viewangles, fwd, rgt, up);
 	VectorScale(fwd, -mods->dist, r_refdef.vieworg);
 
-	if (keydown[K_MOUSE1] && mods->mousedown)
+	if (keydown[K_MOUSE1] && mods->mousedown&1)
 	{
 		mods->pitch += (mousecursor_y-mods->mousepos[1]) * m_pitch.value * sensitivity.value;
 		mods->yaw -= (mousecursor_x-mods->mousepos[0]) * m_yaw.value * sensitivity.value;
@@ -3252,7 +3252,15 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				VectorMA(mods->cameraorg, host_frametime*cl_sidespeed.value, rgt, mods->cameraorg);
 		}
 	}
-	mods->mousedown = keydown[K_MOUSE1];
+	else if (keydown[K_MOUSE3] && (mods->mousedown&2))
+	{
+		float r = (mousecursor_x-mods->mousepos[0]);
+		float u = (mousecursor_y-mods->mousepos[1]);
+		VectorMA(mods->cameraorg, r*cl_sidespeed.value/4000, rgt, mods->cameraorg);
+		VectorMA(mods->cameraorg, u*cl_upspeed.value/4000, up, mods->cameraorg);
+	}
+	mods->mousedown = (!!keydown[K_MOUSE1])<<0;
+	mods->mousedown|= (!!keydown[K_MOUSE3])<<1;
 	mods->mousepos[0] = mousecursor_x;
 	mods->mousepos[1] = mousecursor_y;
 
@@ -3532,11 +3540,11 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 			}
 			if (b-1 == mods->boneidx)
 			{
-				VectorSet(end, start[0]+1, start[1], start[2]);
+				VectorSet(end, start[0]+boneinfo[0], start[1]+boneinfo[4], start[2]+boneinfo[8]);
 				CLQ1_DrawLine(lineshader, start, end, 1, 0, 0, 1);
-				VectorSet(end, start[0], start[1]+1, start[2]);
+				VectorSet(end, start[0]+boneinfo[1], start[1]+boneinfo[5], start[2]+boneinfo[9]);
 				CLQ1_DrawLine(lineshader, start, end, 0, 1, 0, 1);
-				VectorSet(end, start[0], start[1], start[2]+1);
+				VectorSet(end, start[0]+boneinfo[2], start[1]+boneinfo[6], start[2]+boneinfo[10]);
 				CLQ1_DrawLine(lineshader, start, end, 0, 0, 1, 1);
 			}
 		}
@@ -3791,13 +3799,13 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int 
 	extern qboolean keydown[];
 	modelview_t *mods = c->dptr;
 
-	if (key == 'w' && !keydown[K_MOUSE1])
+	if ((key == 'w' && !keydown[K_MOUSE1]) || key == K_MWHEELUP)
 	{
 		mods->dist *= 0.9;
 		if (mods->dist < 1)
 			mods->dist = 1;
 	}
-	else if (key == 's' && !keydown[K_MOUSE1])
+	else if ((key == 's' && !keydown[K_MOUSE1]) || key == K_MWHEELDOWN)
 		mods->dist /= 0.9;
 	else if (key == 'm')
 	{
@@ -3937,6 +3945,8 @@ void M_Menu_ModelViewer_f(void)
 	Q_strncpyz(mv->modelname, Cmd_Argv(1), sizeof(mv->modelname));
 	Q_strncpyz(mv->forceshader, Cmd_Argv(2), sizeof(mv->forceshader));
 
+	mv->framechangetime = realtime;
+	mv->skinchangetime = realtime;
 #ifdef RAGDOLL
 	menu->remove = M_Modelviewer_Shutdown;
 	mv->ragworld.progs = &mv->ragfuncs;

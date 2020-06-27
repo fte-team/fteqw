@@ -2938,7 +2938,7 @@ tuiadmin:
 
 		snprintf(buf, sizeof(buf), "[QuakeTV] %s\n", qtv->server);
 		// Print a short line with info about the server
-		QW_PrintfToViewer(v, buf);
+		QW_PrintfToViewer(v, "%s", buf);
 	}
 	else if (!strcmp(command, "stream"))
 	{

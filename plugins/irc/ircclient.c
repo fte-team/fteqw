@@ -2363,7 +2363,7 @@ static int IRC_ClientFrame(ircclient_t *irc)
 			eq = "Corrupted_Message";
 			str = NULL;
 		}
-		IRC_Printf(irc, channel, va("Users on channel %s:\n", channel));
+		IRC_Printf(irc, channel, "Users on channel %s:\n", channel);
 		while (str)
 		{
 			str = COM_Parse(str, token, sizeof(token));

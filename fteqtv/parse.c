@@ -1673,7 +1673,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 		fclose(tv->downloadfile);
 		tv->downloadfile = NULL;
 
-		snprintf(buffer, sizeof(buffer), "%s/%s", (tv->map.gamedir&&*tv->map.gamedir)?tv->map.gamedir:"id1", tv->map.modellist[1].name);
+		snprintf(buffer, sizeof(buffer), "%s/%s", (*tv->map.gamedir)?tv->map.gamedir:"id1", tv->map.modellist[1].name);
 		rename(tv->downloadname, buffer);
 
 		Sys_Printf(tv->cluster, "Download complete\n");
@@ -1984,7 +1984,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 						Sys_Printf(tv->cluster, "Was already downloading %s\nOld download canceled\n", tv->downloadname);
 						tv->downloadfile = NULL;
 					}
-					snprintf(tv->downloadname, sizeof(tv->downloadname), "%s/%s.tmp", (tv->map.gamedir&&*tv->map.gamedir)?tv->map.gamedir:"id1", tv->map.modellist[1].name);
+					snprintf(tv->downloadname, sizeof(tv->downloadname), "%s/%s.tmp", (*tv->map.gamedir)?tv->map.gamedir:"id1", tv->map.modellist[1].name);
 					QTV_mkdir(tv->downloadname);
 					tv->downloadfile = fopen(tv->downloadname, "wb");
 					if (!tv->downloadfile)

@@ -182,7 +182,7 @@ struct wstats_s;
 
 
 #define F(t, n, args) t (QDECL *n) args
-typedef void dllhandle_t;
+#define dllhandle_t void
 struct dllfunction_s;
 typedef struct	//core stuff
 {

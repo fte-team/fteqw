@@ -5250,8 +5250,8 @@ int CM_PointContents (model_t *mod, const vec3_t p)
 	if (!mod)	// map not loaded
 		return 0;
 
-	if (mod->fromgame != fg_quake2 && ((cminfo_t*)mod->meshinfo)->bihnodes)
-		contents = CM_PointContentsBIH(((cminfo_t*)mod->meshinfo)->bihnodes, p);
+	if (mod->fromgame != fg_quake2 && prv->bihnodes)	//just use leaf contents for q2. its faster and should be robust
+		contents = CM_PointContentsBIH(prv->bihnodes, p);
 	else
 	{
 		i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);

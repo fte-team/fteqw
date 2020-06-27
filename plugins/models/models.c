@@ -827,7 +827,7 @@ qboolean Mod_ExecuteCommand(qboolean isinsecure)
 	{
 		model_t *mod;
 		cmdfuncs->Argv(1, tok, sizeof(tok));
-		mod = modfuncs->GetModel(tok, true);
+		mod = modfuncs->GetModel(tok, MLV_WARNSYNC);
 		if (!mod || mod->type != mod_alias || !mod->meshinfo)
 			Con_Printf("Couldn't load \"%s\"\n", tok);
 		else

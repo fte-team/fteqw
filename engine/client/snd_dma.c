@@ -21,6 +21,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#ifdef __GNUC__
+	#define fte_weakstruct __attribute__((weak))
+#else
+	//msvc's uninitialised symbols are always weak, so this is fine.
+	#define fte_weakstruct
+#endif
+
 #ifdef CSQC_DAT
 //for sounds following csqc ents
 	#include "pr_common.h"
@@ -561,13 +568,17 @@ static qboolean S_Speex_Init(void)
 #ifdef AVAIL_OPENAL
 extern snd_capture_driver_t OPENAL_Capture;
 #endif
-snd_capture_driver_t DSOUND_Capture;
-snd_capture_driver_t OSS_Capture;
-snd_capture_driver_t SDL_Capture;
+#ifdef _WIN32
+snd_capture_driver_t fte_weakstruct DSOUND_Capture;
+#endif
+snd_capture_driver_t fte_weakstruct OSS_Capture;
+snd_capture_driver_t fte_weakstruct SDL_Capture;
 
 snd_capture_driver_t *capturedrivers[] =
 {
+#ifdef _WIN32
 	&DSOUND_Capture,
+#endif
 	&SDL_Capture,
 	&OSS_Capture,
 #ifdef AVAIL_OPENAL
@@ -1822,12 +1833,12 @@ extern sounddriver_t XAUDIO2_Output;
 #ifdef AVAIL_DSOUND
 extern sounddriver_t DSOUND_Output;
 #endif
-sounddriver_t SDL_Output;
+sounddriver_t fte_weakstruct SDL_Output;
 #ifdef __linux__
-sounddriver_t ALSA_Output;
-sounddriver_t Pulse_Output;
+extern sounddriver_t ALSA_Output;
+extern sounddriver_t Pulse_Output;
 #endif
-sounddriver_t OSS_Output;
+sounddriver_t fte_weakstruct OSS_Output;
 #ifdef AVAIL_OPENAL
 extern sounddriver_t OPENAL_Output;
 #endif
@@ -1839,19 +1850,19 @@ extern sounddriver_t WaveOut_Output;
 #endif
 
 #ifdef MACOSX
-sounddriver_t MacOS_AudioOutput;	//prefered on mac
+sounddriver_t fte_weakstruct MacOS_AudioOutput;	//prefered on mac
 #endif
 #ifdef ANDROID
-sounddriver_t OSL_Output;			//general audio library, but android has all kinds of quirks.
-sounddriver_t Droid_AudioOutput;
+sounddriver_t fte_weakstruct OSL_Output;			//general audio library, but android has all kinds of quirks.
+sounddriver_t fte_weakstruct Droid_AudioOutput;
 #endif
 #if defined(__MORPHOS__)
-sounddriver_t AHI_AudioOutput;		//prefered on morphos
+sounddriver_t fte_weakstruct AHI_AudioOutput;		//prefered on morphos
 #endif
 #ifdef NACL
 extern sounddriver_t PPAPI_AudioOutput;	//nacl
 #endif
-sounddriver_t SNDIO_AudioOutput;	//bsd
+sounddriver_t fte_weakstruct SNDIO_AudioOutput;	//bsd
 
 //in order of preference
 static sounddriver_t *outputdrivers[] =

@@ -124,6 +124,7 @@ int main (int argc, const char **argv)
 #else
 	pbool writelog = false;	//other systems are sane.
 #endif
+	int colours = 2;	//auto
 	progexterns_t ext;
 	progfuncs_t funcs;
 	progfuncs = &funcs;
@@ -136,8 +137,27 @@ int main (int argc, const char **argv)
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
 
+	for (i = 0; i < argc; i++)
+	{
+		if (!argv[i])
+			continue;
+		if (!strcmp(argv[i], "-log"))
+			writelog = true;
+		else if (!strcmp(argv[i], "-nolog"))
+			writelog = false;
+
+		//arg consistency with ls
+		else if (!strcmp(argv[i], "--color=always") || !strcmp(argv[i], "--color"))
+			colours = 1;
+		else if (!strcmp(argv[i], "--color=never"))
+			colours = 0;
+		else if (!strcmp(argv[i], "--color=auto"))
+			colours = 2;
+	}
 #if defined(__linux__) || defined(__unix__)
-	if (isatty(STDOUT_FILENO))
+	if (colours == 2)
+		colours = isatty(STDOUT_FILENO);
+	if (colours)
 	{	//only use colours if its a tty, and not if we're redirected.
 		col_none = "\e[0;m";			//reset to white
 		col_error = "\e[0;31m";			//red
@@ -148,17 +168,10 @@ int main (int argc, const char **argv)
 		//col_ = "\e[0;36m";			//cyan
 		col_location = "\e[0;1;37m";	//bright white
 	}
+#else
+	(void)colours;
 #endif
 
-	for (i = 0; i < argc; i++)
-	{
-		if (!argv[i])
-			continue;
-		if (!strcmp(argv[i], "-log"))
-			writelog = true;
-		else if (!strcmp(argv[i], "-nolog"))
-			writelog = false;
-	}
 	logfile = writelog?fopen("fteqcc.log", "wt"):false;
 
 	if (logfile)

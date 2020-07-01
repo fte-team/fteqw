@@ -1530,7 +1530,12 @@ void QCBUILTIN PF_isserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 #ifdef CLIENTONLY
 	G_FLOAT(OFS_RETURN) = false;
 #else
-	G_FLOAT(OFS_RETURN) = sv.state != ss_dead;
+	if (sv.state == ss_dead)
+		G_FLOAT(OFS_RETURN) = false;
+	else if (sv.allocated_client_slots == 1)
+		G_FLOAT(OFS_RETURN) = 0.5;
+	else
+		G_FLOAT(OFS_RETURN) = true;
 #endif
 }
 void QCBUILTIN PF_isdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

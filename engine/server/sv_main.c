@@ -31,14 +31,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define INVIS_CHAR2 (char)138
 #define INVIS_CHAR3 (char)160
 
-#ifndef HAVE_CLIENT
-double		host_frametime;
-double		realtime;				// without any filtering or bounding
-qboolean	host_initialized;		// true if into command execution (compatability)
-quakeparms_t host_parms;
-int			host_hunklevel;
-#endif
-
 client_t	*host_client;			// current client
 
 void CvarPostfixKMG(cvar_t *v, char *oldval)

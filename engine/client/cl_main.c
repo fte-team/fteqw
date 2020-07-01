@@ -292,13 +292,8 @@ static struct
 //	qbyte				fingerprint[5*4];	//sha1 hash of accepted dtls certs
 } connectinfo;
 
-quakeparms_t host_parms;
-
-qboolean	host_initialized;		// true if into command execution
 qboolean	nomaster;
 
-double		host_frametime;
-double		realtime;				// without any filtering or bounding
 double		oldrealtime;			// last frame run
 int			host_framecount;
 

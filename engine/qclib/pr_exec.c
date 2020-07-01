@@ -1197,6 +1197,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 								break;
 							case PST_KKQWSV:
 							case PST_FTE32:
+							case PST_UHEXEN2:
 								op = ((dstatement32_t*)cp->statements + i)->op;
 								break;
 							default:
@@ -1239,6 +1240,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 								break;
 							case PST_KKQWSV:
 							case PST_FTE32:
+							case PST_UHEXEN2:
 								((dstatement32_t*)cp->statements + i)->op = op;
 								break;
 							default:
@@ -1271,6 +1273,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 						break;
 					case PST_KKQWSV:
 					case PST_FTE32:
+					case PST_UHEXEN2:
 						op = ((dstatement32_t*)cp->statements + i)->op;
 						break;
 					default:
@@ -1312,6 +1315,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, const char *filename, int lin
 						break;
 					case PST_KKQWSV:
 					case PST_FTE32:
+					case PST_UHEXEN2:
 						((dstatement32_t*)cp->statements + i)->op = op;
 						break;
 					default:
@@ -1381,6 +1385,7 @@ static const char *lastfile = NULL;
 			{
 				switch(pr_progstate[pn].structtype)
 				{
+				case PST_UHEXEN2:
 				case PST_FTE32:
 				case PST_KKQWSV:
 					{
@@ -1781,6 +1786,7 @@ static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 			continue;
 		case PST_KKQWSV:
 		case PST_FTE32:
+		case PST_UHEXEN2:
 			s = PR_ExecuteCode32(progfuncs, s, &runaway);
 			if (s == -1)
 				return;

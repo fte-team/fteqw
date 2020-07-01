@@ -1179,6 +1179,7 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, QCC_opcode_t *
 		if (num < OP_MULSTORE_F)
 			return true;
 		return false;
+	case QCF_UHEXEN2:
 	case QCF_HEXEN2:
 		if (num >= OP_SWITCH_V && num <= OP_SWITCH_FNC)	//these were assigned numbers but were never actually implemtented in standard h2.
 			return false;
@@ -6270,7 +6271,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 
 			if (QCC_OPCodeValid(&pr_opcodes[OP_RAND0]))
 			{
-				if(qcc_targetformat != QCF_HEXEN2)
+				if(qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_UHEXEN2)
 					out = QCC_GetTemp(type_float);
 				else
 				{	//hexen2 requires the output be def_ret
@@ -6341,7 +6342,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 
 			if (QCC_OPCodeValid(&pr_opcodes[OP_RANDV0]))
 			{
-				if(qcc_targetformat != QCF_HEXEN2)
+				if(qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_UHEXEN2)
 					out = QCC_GetTemp(type_vector);
 				else
 				{	//hexen2 requires the output be def_ret
@@ -11218,7 +11219,7 @@ void QCC_PR_ParseStatement (void)
 			QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "if !() is specific to fteqcc");
 			negate = 2;
 		}
-		else if (negate && qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_FTEH2)
+		else if (negate && qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_UHEXEN2 && qcc_targetformat != QCF_FTEH2)
 			QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "if not() is specific to fteqcc or hexen2");
 
 		QCC_PR_Expect ("(");
@@ -13941,7 +13942,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		KEYWORD(continue);
 		KEYWORD(state);
 		KEYWORD(string);
-		if (qcc_targetformat != QCF_HEXEN2)
+		if (qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_UHEXEN2)
 			KEYWORD(float);	//hmm... hexen2 requires this...
 		KEYWORD(entity);
 		KEYWORD(vector);

@@ -8,6 +8,10 @@ plugclientfuncs_t *clientfuncs;
 plugfsfuncs_t *filefuncs;
 pluginputfuncs_t *inputfuncs;
 
+struct ezcl_s cl;
+struct ezcls_s cls;
+struct ezvid_s vid;
+
 int sb_lines;
 float scr_con_current;
 int sb_showteamscores;

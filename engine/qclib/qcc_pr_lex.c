@@ -1327,6 +1327,8 @@ static pbool QCC_PR_Precompiler(void)
 				QCC_COM_Parse(msg);
 				if (!QC_strcasecmp(qcc_token, "H2") || !QC_strcasecmp(qcc_token, "HEXEN2"))
 					newtype = QCF_HEXEN2;
+				else if (!QC_strcasecmp(qcc_token, "UHEXEN2"))
+					newtype = QCF_UHEXEN2;
 				else if (!QC_strcasecmp(qcc_token, "KK7"))
 					newtype = QCF_KK7;
 				else if (!QC_strcasecmp(qcc_token, "DP") || !QC_strcasecmp(qcc_token, "DARKPLACES"))
@@ -1351,9 +1353,9 @@ static pbool QCC_PR_Precompiler(void)
 
 				if (numstatements > 1)
 				{
-					if ((qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2) && (newtype != QCF_HEXEN2 && newtype != QCF_FTEH2))
+					if ((qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2) && (newtype != QCF_HEXEN2 && newtype != QCF_UHEXEN2 && newtype != QCF_FTEH2))
 						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\' after the first statement. Ignored.", msg);
-					if ((newtype == QCF_HEXEN2 || newtype == QCF_FTEH2) && (qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_FTEH2))
+					if ((newtype == QCF_HEXEN2 || newtype == QCF_UHEXEN2 || newtype == QCF_FTEH2) && (qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_UHEXEN2 && qcc_targetformat != QCF_FTEH2))
 						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\' after the first statement. Ignored.", msg);
 				}
 

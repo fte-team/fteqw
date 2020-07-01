@@ -475,6 +475,7 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 		return;
 	case PST_FTE32:
 	case PST_QTEST:
+	case PST_UHEXEN2:
 		{
 			ddef32_t *gd = pr_globaldefs32;
 			ddef32_t *fld = pr_fielddefs32;

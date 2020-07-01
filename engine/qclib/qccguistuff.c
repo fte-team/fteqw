@@ -36,7 +36,6 @@ vfile_t *qcc_vfiles;
 extern QCC_def_t *sourcefilesdefs[];
 extern int sourcefilesnumdefs;
 
-int qccpersisthunk = 1;
 int Grep(const char *filename, const char *string)
 {
 	int foundcount = 0;
@@ -507,6 +506,7 @@ int GUI_ParseCommandLine(const char *args, pbool keepsrcanddir)
 	int l, p;
 	const char *next;
 	int mode = 0;
+	extern int qccpersisthunk;
 
 	if (!*args)
 	{
@@ -848,6 +848,8 @@ int GUI_ParseCommandLine(const char *args, pbool keepsrcanddir)
 		parameters[paramlen-1] = '\0';
 	else
 		*parameters = '\0';
+
+	qccpersisthunk = (mode!=1);
 	return mode;
 }
 

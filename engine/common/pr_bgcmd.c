@@ -3424,9 +3424,9 @@ void QCBUILTIN PF_findradius_list (pubprogfuncs_t *prinst, struct globalvars_s *
 {
 	world_t *w = prinst->parms->user;
 	wedict_t	*ent;
-	float	rad;
+	pvec_t	rad;
 	float	*org;
-	vec3_t	eorg;
+	pvec3_t	eorg;
 	int		i, j;
 	wedict_t **nearent;
 	vec3_t mins, maxs;

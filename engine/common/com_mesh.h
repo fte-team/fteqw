@@ -181,6 +181,7 @@ typedef struct galiasinfo_s
 	unsigned int mappedbones;
 	unsigned int nummorphs;	//extra data after the xyz/norm/stvect arrays
 	const float *(QDECL *AnimateMorphs)(const struct galiasinfo_s *surf, const framestate_t *framestate);
+	int meshrootbone;
 
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;

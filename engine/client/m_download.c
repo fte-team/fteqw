@@ -310,7 +310,7 @@ void PM_ValidateAuthenticity(package_t *p)
 	int r;
 	char authority[MAX_QPATH], *sig;
 
-#if 1
+#if 1//ndef _DEBUG
 #pragma message("Temporary code.")
 	//this is temporary code and should be removed once everything else has been fixed.
 	//ignore the signature (flag as accepted) for any packages with all mirrors on our own update site.

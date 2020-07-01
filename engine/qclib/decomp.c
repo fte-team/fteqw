@@ -3104,7 +3104,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	dfunction_t *d;
 	pbool bogusname;
 	vfile_t *f = NULL;
-	char fname[512];
+	char fname[1024];
 	int lastglob = 1;
 	int lastfileofs = 0;
 	QCC_ddef_t *def;

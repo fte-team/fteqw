@@ -409,6 +409,7 @@ struct {
 	{QCF_STANDARD,	"quakec"},
 	{QCF_HEXEN2,	"hexen2"},
 	{QCF_HEXEN2,	"h2"},
+	{QCF_UHEXEN2,	"uhexen2"},
 	{QCF_KK7,		"kkqwsv"},
 	{QCF_KK7,		"kk7"},
 	{QCF_KK7,		"bigprogs"},
@@ -1443,8 +1444,16 @@ static pbool QCC_WriteData (int crc)
 		}
 		else if (numpr_globals > 65530)
 		{
-			externs->Printf("Forcing target to FTE32 due to numpr_globals\n");
-			outputsttype = PST_FTE32;
+			if (qcc_targetformat == QCF_HEXEN2)
+			{
+				externs->Printf("Forcing target to uHexen2 due to numpr_globals\n");
+				outputsttype = PST_UHEXEN2;
+			}
+			else
+			{
+				externs->Printf("Forcing target to FTE32 due to numpr_globals\n");
+				outputsttype = PST_FTE32;
+			}
 		}
 		else if (qcc_targetformat == QCF_FTEH2)
 		{
@@ -1473,7 +1482,7 @@ static pbool QCC_WriteData (int crc)
 		if (qcc_targetformat == QCF_FTEDEBUG)
 			debugtarget = true;
 
-		if (outputsttype != PST_FTE32)
+		if (outputsttype != PST_FTE32 && outputsttype != PST_UHEXEN2)
 		{
 			if (bigjumps)
 			{
@@ -1513,9 +1522,19 @@ static pbool QCC_WriteData (int crc)
 		{
 			if (qcc_targetformat == QCF_DARKPLACES)
 				externs->Printf("DarkPlaces or FTE will be required\n");
+			else if (outputsttype == PST_UHEXEN2)
+				externs->Printf("FTE or uHexen2 will be required\n");
 			else
 				externs->Printf("FTE's QCLib will be required\n");
 		}
+		break;
+	case QCF_UHEXEN2:
+		debugtarget = false;
+		outputsttype = PST_UHEXEN2;
+		if (verbose)
+			externs->Printf("uHexen2 will be required\n");
+		if (numpr_globals < 65535)
+			externs->Printf("Warning: outputting 32 uHexen2 format when 16bit would suffice\n");
 		break;
 	case QCF_KK7:
 		if (bodylessfuncs)
@@ -1565,6 +1584,7 @@ static pbool QCC_WriteData (int crc)
 			funcdatasize = numfunctions*sizeof(*funcs);
 		}
 		break;
+	case PST_UHEXEN2:
 	case PST_DEFAULT:
 	case PST_KKQWSV:
 	case PST_FTE32:
@@ -2017,7 +2037,7 @@ strofs = (strofs+3)&~3;
 	progs.ofs_statements = SafeSeek (h, 0, SEEK_CUR);
 	progs.numstatements = numstatements;
 
-	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2)
 	{
 		for (i=0 ; i<numstatements ; i++)
 		{
@@ -2040,6 +2060,23 @@ strofs = (strofs+3)&~3;
 
 	switch(outputsttype)
 	{
+	case PST_UHEXEN2:
+		{
+			QCC_dstatement32_t *statements32 = qccHunkAlloc(sizeof(*statements32) * numstatements);
+			for (i=0 ; i<numstatements ; i++)
+			{
+				statements32[i].op = PRLittleLong(statements[i].op<<16);
+				statements32[i].a = PRLittleLong((statements[i].a.sym?statements[i].a.sym->ofs:0) + statements[i].a.ofs);
+				statements32[i].b = PRLittleLong((statements[i].b.sym?statements[i].b.sym->ofs:0) + statements[i].b.ofs);
+				statements32[i].c = PRLittleLong((statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs);
+
+				if (verbose >= VERBOSE_DEBUGSTATEMENTS)
+					externs->Printf("code: %s:%i: @%i %s %i %i %i\n", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].name, statements32[i].a, statements32[i].b, statements32[i].c);
+			}
+
+			SafeWrite (h, statements32, numstatements*sizeof(QCC_dstatement32_t));
+		}
+		break;
 	case PST_KKQWSV:
 	case PST_FTE32:
 		{
@@ -2240,6 +2277,52 @@ strofs = (strofs+3)&~3;
 		else
 			SafeWrite (h, fields, numfielddefs*sizeof(QCC_ddef_t));
 		break;
+	case PST_UHEXEN2:
+		progs.ofs_globaldefs = SafeSeek (h, 0, SEEK_CUR);
+		progs.numglobaldefs = numglobaldefs;
+		for (i=0 ; i<numglobaldefs ; i++)
+		{
+			qcc_globals[i].type = PRLittleLong (qcc_globals[i].type<<16);
+			qcc_globals[i].ofs = PRLittleLong (qcc_globals[i].ofs);
+			qcc_globals[i].s_name = PRLittleLong (qcc_globals[i].s_name);
+		}
+
+		if (progs.blockscompressed&2)
+		{
+			SafeWrite (h, &len, sizeof(int));	//save for later
+			len = QC_encode(progfuncs, numglobaldefs*sizeof(QCC_ddef_t), 2, (char *)qcc_globals, h);	//write
+			i = SafeSeek (h, 0, SEEK_CUR);
+			SafeSeek(h, progs.ofs_globaldefs, SEEK_SET);//seek back
+			len = PRLittleLong(len);
+			SafeWrite (h, &len, sizeof(int));	//write size.
+			SafeSeek(h, i, SEEK_SET);
+		}
+		else
+			SafeWrite (h, qcc_globals, numglobaldefs*sizeof(QCC_ddef_t));
+
+		progs.ofs_fielddefs = SafeSeek (h, 0, SEEK_CUR);
+		progs.numfielddefs = numfielddefs;
+
+		for (i=0 ; i<numfielddefs ; i++)
+		{
+			fields[i].type = PRLittleLong/*PRLittleShort*/ (fields[i].type<<16);
+			fields[i].ofs = PRLittleLong/*PRLittleShort*/ (fields[i].ofs);
+			fields[i].s_name = PRLittleLong (fields[i].s_name);
+		}
+
+		if (progs.blockscompressed&4)
+		{
+			SafeWrite (h, &len, sizeof(int));	//save for later
+			len = QC_encode(progfuncs, numfielddefs*sizeof(QCC_ddef_t), 2, (char *)fields, h);	//write
+			i = SafeSeek (h, 0, SEEK_CUR);
+			SafeSeek(h, progs.ofs_fielddefs, SEEK_SET);//seek back
+			len = PRLittleLong(len);
+			SafeWrite (h, &len, sizeof(int));	//write size.
+			SafeSeek(h, i, SEEK_SET);
+		}
+		else
+			SafeWrite (h, fields, numfielddefs*sizeof(QCC_ddef_t));
+		break;
 	case PST_KKQWSV:
 	case PST_DEFAULT:
 #define qcc_globals16 ((QCC_ddef16_t*)qcc_globals)
@@ -2347,10 +2430,6 @@ strofs = (strofs+3)&~3;
 		progs.version = PROG_QTESTVERSION;
 		progs.ofsfiles = WriteSourceFiles(qcc_sourcefile, h, debugtarget, false);
 		break;
-	case QCF_KK7:
-		progs.version = PROG_KKQWSVVERSION;
-		progs.ofsfiles = WriteSourceFiles(qcc_sourcefile, h, debugtarget, false);
-		break;
 	default:
 	case QCF_STANDARD:
 	case QCF_HEXEN2:	//urgh
@@ -2361,10 +2440,16 @@ strofs = (strofs+3)&~3;
 	case QCF_FTE:
 	case QCF_FTEH2:
 	case QCF_FTEDEBUG:
+	case QCF_UHEXEN2:
+	case QCF_KK7:
 		progs.version = PROG_EXTENDEDVERSION;
 
-		if (outputsttype == PST_FTE32)
-			progs.secondaryversion = PROG_SECONDARYVERSION32;
+		if (outputsttype == PST_UHEXEN2)
+			progs.secondaryversion = PROG_SECONDARYUHEXEN2;	//prepadded...
+		else if (outputsttype == QCF_KK7)
+			progs.secondaryversion = PROG_SECONDARYKKQWSV;	//messed up
+		else if (outputsttype == PST_FTE32)
+			progs.secondaryversion = PROG_SECONDARYVERSION32;	//post-extended.
 		else
 			progs.secondaryversion = PROG_SECONDARYVERSION16;
 
@@ -2487,7 +2572,11 @@ strofs = (strofs+3)&~3;
 		externs->Printf("Compile finished: %s (id format)\n", destfile);
 		break;
 	case QCF_HEXEN2:
-		externs->Printf("Compile finished: %s (hexen2 format)\n", destfile);
+	case QCF_UHEXEN2:
+		if (progs.version == PROG_VERSION)
+			externs->Printf("Compile finished: %s (hexen2 format)\n", destfile);
+		else
+			externs->Printf("Compile finished: %s (uhexen2 format)\n", destfile);
 		break;
 	case QCF_DARKPLACES:
 		externs->Printf("Compile finished: %s (patched-dp format)\n", destfile);
@@ -3413,7 +3502,7 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 // print global vars until the first field is defined
 
 	ADD_CRC("\n/* ");
-	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2)
 		EAT_CRC("generated by hcc, do not modify");
 	else
 		EAT_CRC("file generated by qcc, do not modify");
@@ -4485,7 +4574,7 @@ static void QCC_SetDefaultProperties (void)
 	{
 		qcc_targetformat_t targ;
 		if (QCC_CheckParm ("-h2"))
-			targ = QCF_HEXEN2;
+			targ =	QCF_HEXEN2;
 		else if (QCC_CheckParm ("-fte"))
 			targ = QCF_FTE;
 		else if (QCC_CheckParm ("-fteh2"))
@@ -4521,7 +4610,7 @@ static void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_IDENTICALPRECOMPILER]	= WA_IGNORE;
 	qccwarningaction[WARN_DENORMAL]				= WA_ERROR;		//DAZ provides a speedup on modern machines, so any engine compiled for sse2+ will have problems with denormals, so make their use look serious.
 
-	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2)
 		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;	//hexenc consides these fair game.
 
 	if (QCC_CheckParm ("-Fqccx"))
@@ -4534,7 +4623,7 @@ static void QCC_SetDefaultProperties (void)
 	QCC_PR_CommandLinePrecompilerOptions();
 
 
-	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)	//force on the thinktime keyword if hexen2 progs.
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2)	//force on the thinktime keyword if hexen2 progs.
 	{
 		keyword_thinktime = true;	//thinktime self : 0.1;
 		keyword_until = true;		//until(cond) {code}; or do{code}until(cond);

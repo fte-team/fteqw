@@ -50,7 +50,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define BZ_Malloc malloc
 #define BZ_Free free
 #define Z_Free BZ_Free
-vec3_t vec3_origin;
 #define VectorCompare VectorComparestatic
 static int VectorCompare (const vec3_t v1, const vec3_t v2)
 {

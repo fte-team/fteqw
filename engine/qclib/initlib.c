@@ -691,6 +691,7 @@ func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t p
 		return *(int *)&ps->globals[var16->ofs];
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		var32 = ED_FindTypeGlobalFromProgs32(progfuncs, ps, funcname, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var32)
 			return (f - ps->functions) | (pnum << 24);
@@ -738,6 +739,7 @@ static void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, int pnum, char *pr
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
 		{
 			def32 = &pr_progstate[pnum].globaldefs32[i];
@@ -788,6 +790,7 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 		return (eval_t *)&cp->globals[var16->ofs];
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		if (!(var32 = ED_FindGlobalFromProgs32(progfuncs, cp, globname)))
 			return NULL;
 

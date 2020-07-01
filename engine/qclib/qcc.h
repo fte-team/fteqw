@@ -84,7 +84,7 @@ extern int MAX_CONSTANTS;
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 32
 
-typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
+typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_UHEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
 void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt);
 

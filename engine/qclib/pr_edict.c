@@ -355,10 +355,12 @@ unsigned int ED_FindGlobalOfs (progfuncs_t *progfuncs, char *name)
 		return d16?d16->ofs:0;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		d32 = ED_FindGlobal32(progfuncs, name);
 		return d32?d32->ofs:0;
+	default:
+		externs->Sys_Error("ED_FindGlobalOfs - bad struct type");
 	}
-	externs->Sys_Error("ED_FindGlobalOfs - bad struct type");
 	return 0;
 }
 
@@ -452,12 +454,14 @@ unsigned int *ED_FindGlobalOfsFromProgs (progfuncs_t *progfuncs, progstate_t *ps
 		return &pos;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		def32 = ED_FindTypeGlobalFromProgs32(progfuncs, ps, name, type);
 		if (!def32)
 			return NULL;
 		return &def32->ofs;
+	default:
+		externs->Sys_Error("ED_FindGlobalOfsFromProgs - bad struct type");
 	}
-	externs->Sys_Error("ED_FindGlobalOfsFromProgs - bad struct type");
 	return 0;
 }
 
@@ -914,6 +918,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **type
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		def32 = ED_GlobalAtOfs32(progfuncs, ofs);
 		break;
 	default:
@@ -974,6 +979,7 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		def32 = ED_GlobalAtOfs32(progfuncs, ofs);
 		if (def32)
 			nameofs = def32->s_name;
@@ -1591,6 +1597,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			size_t nlen;
@@ -2162,6 +2169,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 					break;
 				case PST_QTEST:
 				case PST_FTE32:
+				case PST_UHEXEN2:
 					if (!(d32 = ED_FindGlobal32(progfuncs, qcc_token)))
 					{
 						externs->Printf("global value %s not found\n", qcc_token);
@@ -2277,6 +2285,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 							break;
 						case PST_QTEST:
 						case PST_FTE32:
+						case PST_UHEXEN2:
 							if (!(d32 = ED_FindGlobal32(progfuncs, qcc_token)))
 							{
 								externs->Printf("global value %s not found\n", qcc_token);
@@ -2722,8 +2731,21 @@ retry:
 //			externs->Printf("Opening 32bit fte progs file \"%s\"\n", filename);
 			current_progstate->structtype = PST_FTE32;
 		}
+		else if (pr_progs->secondaryversion == PROG_SECONDARYUHEXEN2)
+		{
+//			externs->Printf("Opening uhexen2 progs file \"%s\"\n", filename);
+			current_progstate->structtype = PST_UHEXEN2;
+			pr_progs->version = PROG_VERSION;	//not fte.
+		}
+		else if (pr_progs->secondaryversion == PROG_SECONDARYKKQWSV)
+		{
+//			externs->Printf("Opening KK7 progs file \"%s\"\n", filename);
+			current_progstate->structtype = PST_KKQWSV;	//KK progs. Yuck. Disabling saving would be a VERY good idea.
+			pr_progs->version = PROG_VERSION;	//not fte.
+		}
 		else
 		{
+			externs->Printf ("%s has no v7 verification code, assuming kkqwsv format\n", filename);
 //			externs->Printf("Opening KK7 progs file \"%s\"\n", filename);
 			current_progstate->structtype = PST_KKQWSV;	//KK progs. Yuck. Disabling saving would be a VERY good idea.
 			pr_progs->version = PROG_VERSION;	//not fte.
@@ -2806,6 +2828,7 @@ retry:
 				len=sizeof(dstatement16_t)*pr_progs->numstatements;
 				break;
 			case PST_FTE32:
+			case PST_UHEXEN2:
 				len=sizeof(dstatement32_t)*pr_progs->numstatements;
 				break;
 			default:
@@ -2825,6 +2848,7 @@ retry:
 				len=sizeof(ddef16_t)*pr_progs->numglobaldefs;
 				break;
 			case PST_FTE32:
+			case PST_UHEXEN2:
 				len=sizeof(ddef32_t)*pr_progs->numglobaldefs;
 				break;
 			default:
@@ -2844,6 +2868,7 @@ retry:
 				len=sizeof(ddef16_t)*pr_progs->numglobaldefs;
 				break;
 			case PST_FTE32:
+			case PST_UHEXEN2:
 				len=sizeof(ddef32_t)*pr_progs->numglobaldefs;
 				break;
 			default:
@@ -2988,6 +3013,7 @@ retry:
 	case PST_KKQWSV:
 	case PST_DEFAULT:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		pr_cp_functions = PRHunkAlloc(progfuncs, sizeof(*pr_cp_functions)*pr_progs->numfunctions, "mfunctions");
 		for (i=0,fnc2=pr_cp_functions; i<pr_progs->numfunctions; i++, fnc2++)
 		{
@@ -3166,6 +3192,49 @@ retry:
 				QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings-stringadjust, -1, pr_fielddefs32[i].ofs);
 		}
 		break;
+	case PST_UHEXEN2:
+		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
+		{
+			pr_globaldefs32[i].type = (unsigned int)PRLittleLong (pr_globaldefs32[i].type)>>16;
+#ifndef NOENDIAN
+			pr_globaldefs32[i].ofs = PRLittleLong (pr_globaldefs32[i].ofs);
+			pr_globaldefs32[i].s_name = (string_t)PRLittleLong ((long)pr_globaldefs32[i].s_name);
+#endif
+			pr_globaldefs32[i].s_name += stringadjust;
+		}
+
+		for (i=0 ; i<pr_progs->numfielddefs ; i++)
+		{
+			pr_fielddefs32[i].type = (unsigned int)PRLittleLong (pr_fielddefs32[i].type)>>16;
+#ifndef NOENDIAN
+			pr_fielddefs32[i].ofs = PRLittleLong (pr_fielddefs32[i].ofs);
+			pr_fielddefs32[i].s_name = (string_t)PRLittleLong ((long)pr_fielddefs32[i].s_name);
+#endif
+
+			if (reorg)
+			{
+				if (pr_types)
+					type = pr_types[pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
+				else
+					type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
+				if (progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent)	//we need to make sure all fields appear in their original place.
+					QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings, 4*(pr_fielddefs32[i].ofs+progfuncs->funcs.fieldadjust), -1);
+				else if (type == ev_vector)
+					QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings, -1, pr_fielddefs32[i].ofs);
+			}
+			pr_fielddefs32[i].s_name += stringadjust;
+		}
+		if (reorg && !(progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent))
+		for (i=0 ; i<pr_progs->numfielddefs ; i++)
+		{
+			if (pr_types)
+				type = pr_types[pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
+			else
+				type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
+			if (type != ev_vector)
+				QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings-stringadjust, -1, pr_fielddefs32[i].ofs);
+		}
+		break;
 	default:
 		externs->Sys_Error("Bad struct type");
 	}
@@ -3209,6 +3278,19 @@ retry:
 		PR_CleanUpStatements16(progfuncs, st16, hexencalling);
 		break;
 
+	case PST_UHEXEN2:
+		hexencalling = true;
+		for (i=0 ; i<pr_progs->numstatements ; i++)
+		{
+			pr_statements32[i].op = (unsigned int)PRLittleLong(pr_statements32[i].op)>>16;
+#ifndef NOENDIAN
+			pr_statements32[i].a = PRLittleLong(pr_statements32[i].a);
+			pr_statements32[i].b = PRLittleLong(pr_statements32[i].b);
+			pr_statements32[i].c = PRLittleLong(pr_statements32[i].c);
+#endif
+		}
+		PR_CleanUpStatements32(progfuncs, pr_statements32, hexencalling);
+		break;
 	case PST_KKQWSV:
 	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
@@ -3319,6 +3401,7 @@ retry:
 		case PST_QTEST:		//not likely to need this
 		case PST_KKQWSV:	//fixme...
 		case PST_FTE32:		//fingers crossed...
+		case PST_UHEXEN2:
 			break;
 		}
 	}
@@ -3375,6 +3458,7 @@ retry:
 		break;
 	case PST_QTEST:
 	case PST_FTE32:
+	case PST_UHEXEN2:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			if (pr_types)
@@ -3485,6 +3569,7 @@ retry:
 	case PST_QTEST:
 	case PST_KKQWSV:
 		break;	//cannot happen anyway.
+	case PST_UHEXEN2:
 	case PST_FTE32:
 		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
 		{

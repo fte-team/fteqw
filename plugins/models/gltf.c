@@ -2392,6 +2392,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 			GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_skel_norm[0]),	&morph_norm[i], surf->ofs_skel_norm+offset);			//if no normals, normals should be flat (fragment shader or unwelding the verts...)
 			GLTF_AccessorToTangents(gltf, surf->ofs_skel_norm+offset, surf->numverts,   &morph_tang[i], surf->ofs_skel_svect+offset, surf->ofs_skel_tvect+offset);
 		}
+		surf->meshrootbone = basebone;	//needed for morph anims
 
 		surf->ofs_st_array		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_st_array[0]),		&tc_0, NULL);
 		if (tc_1.data)
@@ -3053,13 +3054,12 @@ struct galiasanimation_gltf_s
 		struct gltf_animsampler rot,scale,trans,morph;
 	} bone[1];
 };
-cvar_t temp1;
 static const float *QDECL GLTF_AnimateMorphs(const galiasinfo_t *surf, const framestate_t *framestate)
 {
 	static float morphs[MAX_MORPHWEIGHTS];
 	float imorphs[MAX_MORPHWEIGHTS], *src;
 	size_t influence, m;
-	int bone = temp1.ival;
+	int bone = surf->meshrootbone;
 	const struct galiasanimation_gltf_s *a;
 	const struct framestateregion_s *fg = &framestate->g[FS_REG];
 	memset(morphs, 0, sizeof(morphs[0])*surf->nummorphs);

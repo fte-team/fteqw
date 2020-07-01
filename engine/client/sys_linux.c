@@ -69,7 +69,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static int noconinput = 0;
 static int nostdout = 0;
 
-int isPlugin;
+extern int isPlugin;
 int sys_parentleft;
 int sys_parenttop;
 int sys_parentwidth;

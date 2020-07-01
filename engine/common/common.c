@@ -26,13 +26,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <errno.h>
 
 qboolean sys_nounload;
-#ifndef HAVE_CLIENT
 double		host_frametime;
 double		realtime;				// without any filtering or bounding
 qboolean	host_initialized;		// true if into command execution (compatability)
 quakeparms_t host_parms;
-int			host_hunklevel;
-#endif
 
 
 //by adding 'extern' to one definition of a function in a translation unit, then the definition in that TU is NOT considered an inline definition. meaning non-inlined references in other TUs can link to it instead of their own if needed.

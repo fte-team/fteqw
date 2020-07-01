@@ -327,6 +327,7 @@ typedef enum
 	PST_FTE32,	//everything 32bit
 	PST_KKQWSV, //32bit statements, 16bit globaldefs. NO SAVED GAMES.
 	PST_QTEST,	//16bit statements, 32bit globaldefs(other differences converted on load)
+	PST_UHEXEN2,//everything 32bit like fte's without a header, but with pre-padding rather than post-extended (little-endian) types.
 } progstructtype_t;
 
 #ifndef COMPILER

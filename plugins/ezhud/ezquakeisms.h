@@ -59,7 +59,7 @@ extern cvar_t *cl_multiview;
 #define cl plugcl
 #define player_info_t plugclientinfo_t
 
-struct {
+extern struct ezcl_s{
 	int intermission;
 	int teamplay;
 	int deathmatch;
@@ -79,7 +79,7 @@ struct {
 
 	int splitscreenview;
 } cl;
-struct {
+extern struct ezcls_s{
 	int state;
 	float min_fps;
 	float fps;
@@ -88,7 +88,7 @@ struct {
 	qbool mvdplayback;
 	int demoplayback;
 } cls;
-struct {
+extern struct ezvid_s{
 	int width;
 	int height;
 //	float displayFrequency;

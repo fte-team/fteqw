@@ -16,7 +16,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 	float fl = RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN;
 	float pos = 0;
 
-	fr.add(menuitemcheck_spawn(_("Show Framerate"),			dp("showfps", "show_fps"), 		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("Show Framerate"),			cv3("showfps", "scr_showfps", "show_fps"), 		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Bloom"),				"r_bloom", 				'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Simple Textures"),		"r_drawflat", 				'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Paletted Rendering"),		"r_softwarebanding", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;

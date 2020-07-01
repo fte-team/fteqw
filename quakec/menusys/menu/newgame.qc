@@ -1,3 +1,4 @@
+//FIXME: maxclients is a QW thing. NQ engines use maxplayers (which requires a disconnect to apply)
 static string newgameinfo;
 class mitem_newgame : mitem_exmenu
 {
@@ -23,7 +24,7 @@ nonstatic void(mitem_desktop desktop) M_NewGame =
 	if (gametype == "sp")
 	{
 		//single player has no options. the start map itself gives skill+episode options.
-		localcmd("\ndeathmatch 0; coop 0; maxplayers 0; timelimit 0; fraglimit 0; teamplay 0; samelevel 0; startmap_sp\n");
+		localcmd("\ndisconnect; deathmatch 0; coop 0; maxplayers 0; timelimit 0; fraglimit 0; teamplay 0; samelevel 0; startmap_sp\n");
 		return;
 	}
 	if (gametype == "begin")
@@ -77,11 +78,7 @@ nonstatic void(mitem_desktop desktop) M_NewGame =
 		m.addm(spawn(mitem_text, item_text:"Deathmatch", item_command:"m_pop;m_newgame dm", item_scale:16, item_flags:IF_CENTERALIGN), [0, pos], [160, pos+16]);	pos += 16;
 		m.addm(spawn(mitem_text, item_text:"Team Deathmatch", item_command:"m_pop;m_newgame tdm", item_scale:16, item_flags:IF_CENTERALIGN), [0, pos], [160, pos+16]);	pos += 16;
 
-#if 1//def CSQC
 		m.add(spawn (mitem_spinnymodel, item_text: "progs/soldier.mdl",firstframe:73, framecount:8, shootframe:81, shootframes:9), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, 12*-16/2], [0, 12*16/2]);
-#else
-		//need some art for menuqc
-#endif
 		return;
 	}
 	
@@ -220,24 +217,11 @@ nonstatic void(mitem_desktop desktop) M_NewGame =
 
 	m.addm(spawn(mitem_text, item_text:"BEGIN!", item_command:"m_pop;m_newgame begin", item_scale:16, item_flags:IF_CENTERALIGN), [-160, pos], [160, pos+16]);
 
+	//random art for style
 	if (gametype == "coop")
-	{
-		//random art for style
-#if 1//def CSQC
 		m.add(spawn (mitem_spinnymodel, item_text: "progs/soldier.mdl", firstframe:73, framecount:8, shootframe:81, shootframes:9), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, -240/2], [0, 240/2]);
-#else
-		//need some art for menuqc
-#endif
-	}
 	else
-	{
-		//random art for style
-#if 1//def CSQC
 		m.add(spawn (mitem_spinnymodel, item_text: "progs/player.mdl", firstframe:0, framecount:6, shootframe:119, shootframes:6), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, 12*-16/2], [0, 12*16/2]);
-#else
-		//need some art for menuqc
-#endif
-	}
 
 	addmenuback(m);
 };

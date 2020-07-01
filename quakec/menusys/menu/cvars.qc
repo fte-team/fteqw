@@ -213,7 +213,12 @@ class cvarsmenu : mitem_exmenu
 	virtual void(string key, string newval) set =
 	{
 		if (key == "*filter")
-			filter = newval;
+		{
+			string old = filter;
+			filter = strzone(newval);
+			if (old)
+				strunzone(old);
+		}
 		else if (key == "*modified")
 			modifiedonly = stof(newval);
 		else

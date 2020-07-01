@@ -57,14 +57,6 @@ void(mitem_desktop desktop) M_Pop =
 	cmd("m_reset",		M_Reset,		)				\
 	cmd("m_preset",		M_Preset,		menu/presets.qc)
 	
-
-#if 0
-#append concommandslist	cmd("m_servers",	M_Servers,		menu/servers.qc)
-#define serverbrowser "m_servers"
-#else
-#define serverbrowser "menu_servers"
-#endif
-
 //make sure all the right files are included
 #define cmd(n,fnc,inc) inc
 #includelist
@@ -78,7 +70,7 @@ void(vector screensize) m_draw =
 {
 	if (dp_workarounds)
 		cltime = gettime(0);
-	items_draw(desktop);
+	items_draw(desktop, screensize);
 };
 void(float scan, float chr) m_keydown = {items_keypress(desktop, scan, chr, TRUE);};
 void(float scan, float chr) m_keyup = {items_keypress(desktop, scan, chr, FALSE);};

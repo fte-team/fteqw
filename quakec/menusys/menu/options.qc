@@ -34,7 +34,7 @@ nonstatic void(mitem_desktop desktop) M_Options =
 
 
 	//and show the options.
-	if (assumefalsecheckcommand("fps_preset"))
+	if (checkcommand2("fps_preset", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Graphical Presets",	item_command:"m_pop;m_preset", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 	fr.add(spawn(mitem_text, item_text:"Game Configs", 			item_command:"m_pop;m_configs", 	item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
 	fr.add(spawn(mitem_text, item_text:"Basic Setup", 			item_command:"m_pop;m_basicopts",	item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
@@ -42,25 +42,19 @@ nonstatic void(mitem_desktop desktop) M_Options =
 	fr.add(spawn(mitem_text, item_text:"Audio", 				item_command:"m_pop;m_audio", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
 	fr.add(spawn(mitem_text, item_text:"Video", 				item_command:"m_pop;m_video", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
 	fr.add(spawn(mitem_text, item_text:"Effects", 				item_command:"m_pop;m_effects", 	item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
-	if (assumefalsecheckcommand("r_particledesc"))
+	if (checkcommand2("r_particledesc", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Particles",		item_command:"m_pop;m_particles", 	item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
-	if (assumefalsecheckcommand("ezhud_nquake"))
+	if (checkcommand2("ezhud_nquake", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Hud",			item_command:"m_pop;m_hud", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 	if (checkbuiltin2(buf_cvarlist, TRUE))
 		{fr.add(spawn(mitem_text, item_text:"Advanced Guru Settings",	item_command:"m_pop;m_cvars", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
-	if (assumefalsecheckcommand("cvarreset"))
+	if (checkcommand2("cvarreset", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Reset to Defaults", 	item_command:"m_reset", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
-	if (assumefalsecheckcommand("cfg_save"))
+	if (checkcommand2("cfg_save", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Save Settings", 		item_command:"cfg_save", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 		
 	//random art for style
-#if 1//def CSQC
 	m.addm(spawn (mitem_spinnymodel, item_text: "progs/suit.mdl"), [0, 12*-16/2], [160, 12*16/2]);
-#else
-	//menuqc doesn't support entities. shove some random crappy static image there instead.
-	local mitem_pic plaque = spawn (mitem_pic, item_text:"gfx/qplaque.lmp", item_alpha:1);
-	m.addm(plaque, [(160-plaque.item_size_x)*0.5, 12*-16/2], [(160+plaque.item_size_x)*0.5, 12*16/2]);
-#endif
 	addmenuback(m);
 };
 
@@ -89,13 +83,7 @@ static void(mitem_desktop desktop, string question, string affirmitive, string a
 	m.add(spawn(mitem_text, item_text:negative, item_command:negativeaction, item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, pos], [0, pos+16]);	pos += 16;
 
 	//random art for style
-#if 1//def CSQC
 	m.add(spawn (mitem_spinnymodel, item_text: "progs/suit.mdl"), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [0, 12*-16/2], [160, 12*16/2]);
-#else
-	//menuqc doesn't support entities. shove some random crappy static image there instead.
-	local mitem_pic plaque = spawn (mitem_pic, item_text:"gfx/qplaque.lmp", item_alpha:1);
-	m.addm(plaque, [(160-plaque.item_size_x)*0.5, 12*-16/2], [(160+plaque.item_size_x)*0.5, 12*16/2]);
-#endif
 	addmenuback(m);
 };
 

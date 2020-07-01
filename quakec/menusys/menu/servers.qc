@@ -112,7 +112,7 @@ class mitem_servers : mitem
 	
 		float sort = gethostcachevalue(SLIST_SORTFIELD);
 		string colkey = __NULL__;
-#define COLUMN(width, sortname, title, draw) if (autocvar_sb_show##sortname) {if (ui.mousepos[0] > pos_x && ui.mousepos[1] < pos_y+8) colkey = #sortname; pos_x += width+8;}
+#define COLUMN(width, sortname, title, draw) if (field_##sortname<0) autocvar_sb_show##sortname = FALSE; if (autocvar_sb_show##sortname) {if (ui.mousepos[0] > pos_x && ui.mousepos[1] < pos_y+8) colkey = #sortname; pos_x += width+8;}
 		COLUMNS
 #undef COLUMN
 
@@ -358,7 +358,7 @@ nonstatic void(mitem_desktop desktop) M_Servers =
 {
 	mitem_menu o;
 
-	if (assumefalsecheckcommand("menu_servers") && argv(1) != "force")
+	if (checkcommand2("menu_servers", FALSE) && argv(1) != "force")
 	{
 		localcmd("menu_servers\n");
 		return;
@@ -399,13 +399,23 @@ nonstatic void(mitem_desktop desktop) M_Servers =
 		m.add(spawn(mitem_servers_players, listing:ls),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, [8*20, -8*8], [0, -8*0]);
 		m.add(sl,	RS_X_MIN_PARENT_MAX|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, [-16, 8], [0, -68]);
 
-		m.add(menuitemcheck_spawn(_("Ping"),			"sb_showping", 			[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*8], [8*20, -8*7]);
-		m.add(menuitemcheck_spawn(_("Address"),		"sb_showaddress", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*7], [8*20, -8*6]);
-		m.add(menuitemcheck_spawn(_("Map"),			"sb_showmap", 			[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*6], [8*20, -8*5]);
-		m.add(menuitemcheck_spawn(_("Gamedir"),		"sb_showgamedir", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*5], [8*20, -8*4]);
-		m.add(menuitemcheck_spawn(_("NumPlayers"),		"sb_shownumplayers",	[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*4], [8*20, -8*3]);
-		m.add(menuitemcheck_spawn(_("MaxPlayers"),		"sb_showmaxplayers",	[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*3], [8*20, -8*2]);
-		m.add(menuitemcheck_spawn(_("Fraglimit"),		"sb_showfraglimit", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*2], [8*20, -8*1]);
-		m.add(menuitemcheck_spawn(_("Timelimit"),		"sb_showtimelimit", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*1], [8*20, -8*0]);
+		//only add checkboxes for field names accepted by this engine.
+		if (gethostcacheindexforkey("ping") >= 0)
+			m.add(menuitemcheck_spawn(_("Ping"),			"sb_showping", 			[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*8], [8*20, -8*7]);
+		if (gethostcacheindexforkey("cname") >= 0)
+			m.add(menuitemcheck_spawn(_("Address"),		"sb_showaddress", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*7], [8*20, -8*6]);
+		if (gethostcacheindexforkey("map") >= 0)
+			m.add(menuitemcheck_spawn(_("Map"),			"sb_showmap", 			[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*6], [8*20, -8*5]);
+		if (gethostcacheindexforkey("gamedir") >= 0 || gethostcacheindexforkey("mod") >= 0)
+			m.add(menuitemcheck_spawn(_("Gamedir"),		"sb_showgamedir", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*5], [8*20, -8*4]);
+		if (gethostcacheindexforkey("numplayers") >= 0)
+			m.add(menuitemcheck_spawn(_("NumPlayers"),		"sb_shownumplayers",	[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*4], [8*20, -8*3]);
+		if (gethostcacheindexforkey("maxplayers") >= 0)
+			m.add(menuitemcheck_spawn(_("MaxPlayers"),		"sb_showmaxplayers",	[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*3], [8*20, -8*2]);
+		if (gethostcacheindexforkey("fraglimit") >= 0)
+			m.add(menuitemcheck_spawn(_("Fraglimit"),		"sb_showfraglimit", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*2], [8*20, -8*1]);
+		if (gethostcacheindexforkey("timelimit") >= 0)
+			m.add(menuitemcheck_spawn(_("Timelimit"),		"sb_showtimelimit", 		[8*8, 8]),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX | RS_X_MAX_PARENT_MIN|RS_Y_MAX_PARENT_MAX, [0, -8*1], [8*20, -8*0]);
 	}
 };
+

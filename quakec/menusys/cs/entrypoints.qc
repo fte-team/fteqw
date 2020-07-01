@@ -107,7 +107,7 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 {
 	if (!thedesktop)
 		thedesktop = spawn(mydesktop);
-	items_draw(thedesktop);
+	items_draw(thedesktop, [width, height]);
 };
 //void(float width, float height, float do2d) CSQC_UpdateView_Loading = CSQC_UpdateView;
 	

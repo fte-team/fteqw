@@ -56,13 +56,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Hud =
 
 
 	//random art for style
-#if 1//def CSQC
 	m.addm(spawn (mitem_spinnymodel, item_text: "progs/g_nail2.mdl", zbias:-16), [-160-60, 12*-16/2], [-60, 12*16/2]);
-#else
-	//menuqc doesn't support entities. shove some random crappy static image there instead.
-	local mitem_pic plaque = spawn (mitem_pic, item_text:"gfx/qplaque.lmp", item_alpha:1);
-	m.addm(plaque, [(-160-plaque.item_size_x)*0.5, 12*-16/2], [(-160+plaque.item_size_x)*0.5, 12*16/2]);
-#endif
 
 	addmenuback(m);
 };

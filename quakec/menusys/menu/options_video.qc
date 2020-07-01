@@ -17,7 +17,7 @@ class options_video : mitem_exmenu
 	string videomode;
 	void() options_video =
 	{
-		videomode = strcat(super::get("vid_width"), "x", super::get("vid_height"));
+		videomode = strzone(strcat(super::get("vid_width"), "x", super::get("vid_height")));
 	};
 
 	virtual float(string key) isvalid =
@@ -36,10 +36,13 @@ class options_video : mitem_exmenu
 	{
 		if (key == "vid_mode")
 		{
-			videomode = newval;
+			string old = videomode;
+			videomode = strzone(newval);
 			tokenizebyseparator(newval, "x");
 			super::set("vid_width", argv(0));
 			super::set("vid_height", argv(1));
+			if (old)
+				strunzone(old);
 		}
 		else
 			super::set(key, newval);
@@ -83,33 +86,42 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 	{
 		fr.add(menuitemcheck_spawn(_("Fullscreen"),		"vid_fullscreen", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	}
-	if (cvar_type("vid_resizable")) fr.add(menuitemcheck_spawn(_("Resizable"),	"vid_resizable", 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Anti-Aliasing"),	dp("vid_samples", "vid_multisample"),			'280 8', 
+	if (cvar_type("vid_resizable")) fr.add(menuitemcheck_spawn(_("Resizable"),	"vid_resizable", 	'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemcombo_spawn(_("Anti-Aliasing"),	cv2("vid_samples", "vid_multisample"),			'280 8', 
 																		"0	\"Off\" "
 																		"2	\"2x\" "
 																		"4	\"4x\" "
 																		),	fl, [0, pos], [0, 8]); pos += 8;
 
 	fr.add(menuitemcombo_spawn(_("Video Mode"),		"vid_mode",		'280 8', PrepareVideoModes()), fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Video Zoom"),	"vid_conautoscale",					'280 8', _(
-																		"0	\"Default\" "
-																		"1.5	\"x1.5\" "
-																		"2	\"x2\" "
-																		"4	\"x4\" "
-																		)),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Colour Depth"),	dp("vid_bitsperpixel", "vid_bpp"),	'280 8', _(
+
+static const string scaleoptions = _(
+	"0  \"Default\" "
+	"1.5    \"x1.5\" "
+	"2  \"x2\" "
+	"4  \"x4\" ");
+
+	if (cvar_type("vid_conautoscale"))
+		fr.add(menuitemcombo_spawn(_("Video Zoom"),	"vid_conautoscale",	'280 8', scaleoptions),	fl, [0, pos], [0, 8]), pos += 8;
+	if (cvar_type("scr_conscale"))
+		fr.add(menuitemcombo_spawn(_("Console Zoom"),	"scr_conscale",	'280 8', scaleoptions),	fl, [0, pos], [0, 8]), pos += 8;
+	if (cvar_type("scr_sbarscale"))
+		fr.add(menuitemcombo_spawn(_("Sbar Zoom"),	"scr_sbarscale",	'280 8', scaleoptions),	fl, [0, pos], [0, 8]), pos += 8;
+	if (cvar_type("scr_menuscale"))
+		fr.add(menuitemcombo_spawn(_("Menu Zoom"),	"scr_menuscale",	'280 8', scaleoptions),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemcombo_spawn(_("Colour Depth"),	cv2("vid_bitsperpixel", "vid_bpp"),	'280 8', _(
 																		"16	\"16bit\" " //r5g6b5, or so. unsupported on win10.
 																		"24	\"24bit\" "	//rgba8 - we don't count the alpha.
 																		"30	\"30bit\" "	//rgb10a2 - we don't count the alpha. unsupported on nvidia.
 																		"48	\"48bit\" "	//half-floats - we don't count the alpha. unsupported on nvidia.
 																		)),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Refresh Rate"),	"vid_displayfrequency",			'280 8', _(
+	fr.add(menuitemcombo_spawn(_("Refresh Rate"),	cv2("vid_refreshrate"/*qs*/, "vid_displayfrequency"),			'280 8', _(
 																		"0	\"Default\" "
 																	//	"60	\"60\" "
 																	//	"75	\"75\" "
 																		)),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcheck_spawn(_("VSync"),		dp("vid_vsync", "vid_wait"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcheck_spawn(_("Show Framerate"),	dp("showfps", "show_fps"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("VSync"),		cv2("vid_vsync", "vid_wait"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("Show Framerate"),	cv3("showfps"/*dp*/, "scr_showfps"/*qs*/, "show_fps"/*id/qw*/), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("View Size"),	"viewsize",				'50 120 10', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Field Of View"),	"fov",				'50 140 5', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Gamma"),	"gamma",				'1.3 0.5 -0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;

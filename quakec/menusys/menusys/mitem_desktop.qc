@@ -297,7 +297,7 @@ void(float force) items_updategrabs =
 	}
 };
 
-void(mitem_desktop desktop) items_draw =
+void(mitem_desktop desktop, vector screensize) items_draw =
 {
 	queryscreensize();
 
@@ -346,8 +346,10 @@ csqconly float(mitem_desktop desktop, float evtype, float scanx, float chary, fl
 	{
 	case IE_KEYDOWN:
 	case IE_KEYUP:
-		if (scanx == K_SHIFT)
-			ui.shiftheld = evtype==IE_KEYDOWN;
+		if (scanx == K_LSHIFT)
+			ui.shiftheld = ((evtype==IE_KEYDOWN)?ui.shiftheld|1:ui.shiftheld&~1);
+		if (scanx == K_RSHIFT)
+			ui.shiftheld = ((evtype==IE_KEYDOWN)?ui.shiftheld|2:ui.shiftheld&~2);
 #ifdef HEIRACHYDEBUG
 		if (scanx == K_F1 && evtype == IE_KEYDOWN)
 		{

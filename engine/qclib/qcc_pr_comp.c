@@ -4085,6 +4085,8 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_NE_FLD:
 		case OP_NE_I:
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_NE_FNC], var_a, var_b, NULL, flags&(STFL_PRESERVEA|STFL_PRESERVEB));
+		case OP_NOT_I:
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_NE_FNC], var_a, QCC_MakeIntConst(0), NULL, flags&(STFL_PRESERVEA));
 
 		case OP_AND_I:
 		case OP_AND_FI:
@@ -8293,9 +8295,9 @@ QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage)
 	else if (t == ev_function)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_FNC], e, nullsref, NULL);
 	else if (t == ev_integer)
-		return QCC_PR_Statement (&pr_opcodes[OP_NOT_FNC], e, nullsref, NULL);	//functions are integer values too.
+		return QCC_PR_Statement (&pr_opcodes[OP_NOT_I], e, nullsref, NULL);	//functions are integer values too.
 	else if (t == ev_pointer)
-		return QCC_PR_Statement (&pr_opcodes[OP_NOT_FNC], e, nullsref, NULL);	//Pointers are too.
+		return QCC_PR_Statement (&pr_opcodes[OP_NOT_I], e, nullsref, NULL);	//Pointers are too.
 	else if (t == ev_void && flag_laxcasts)
 	{
 		QCC_PR_ParseWarning(WARN_LAXCAST, errormessage, "void");

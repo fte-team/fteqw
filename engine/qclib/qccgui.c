@@ -5133,7 +5133,7 @@ static void GUI_CreateInstaller_Windows(void)
 					icondata.idCount++;
 				}
 
-				if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, &icondata, (qbyte*)&icondata.idEntries[icondata.idCount] - (qbyte*)&icondata))
+				if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, &icondata, (pbyte*)&icondata.idEntries[icondata.idCount] - (pbyte*)&icondata))
 					error = "UpdateResource failed (icon group)";
 			}
 #ifdef AVAIL_PNGLIB

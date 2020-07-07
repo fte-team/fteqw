@@ -5067,32 +5067,26 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 }
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 {
-	QCC_type_t	*ptype, *e;
+	QCC_type_t	*ptype;
 	char name[128];
 	if (pointsto->ptrto)
 		return pointsto->ptrto;
 	QC_snprintfz(name, sizeof(name), "%s*", pointsto->name);
-	ptype = QCC_PR_NewType(name, ev_pointer, false);
+	ptype = QCC_PR_NewType(strcpy(qccHunkAlloc(strlen(name)+1), name), ev_pointer, false);
 	ptype->aux_type = pointsto;
-	e = QCC_PR_FindType (ptype);
-	if (e == ptype)
-	{
-		char name[128];
-		QC_snprintfz(name, sizeof(name), "ptr to %s", pointsto->name);
-		e->name = strcpy(qccHunkAlloc(strlen(name)+1), name);
-	}
-	pointsto->ptrto = e;
-	return e;
+	return pointsto->ptrto = QCC_PR_FindType (ptype);
 }
 QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 {
 	QCC_type_t	*ptype;
 	char name[128];
-	QC_snprintfz(name, sizeof(name), "FIELD_TYPE(%s)", pointsto->name);
-	ptype = QCC_PR_NewType(name, ev_field, false);
+	if (pointsto->fldto)
+		return pointsto->fldto;
+	QC_snprintfz(name, sizeof(name), ".%s", pointsto->name);
+	ptype = QCC_PR_NewType(strcpy(qccHunkAlloc(strlen(name)+1), name), ev_field, false);
 	ptype->aux_type = pointsto;
 	ptype->size = ptype->aux_type->size;
-	return QCC_PR_FindType (ptype);
+	return pointsto->fldto = QCC_PR_FindType (ptype);
 }
 QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs)
 {

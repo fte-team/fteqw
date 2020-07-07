@@ -222,6 +222,7 @@ void QCC_PR_DiscardRef(QCC_ref_t *ref);
 QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *type, pbool dowrap);
 const char *QCC_VarAtOffset(QCC_sref_t ref);
 QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit);
+QCC_sref_t QCC_PR_ParseInitializerTemp(QCC_type_t *type);
 pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t def, unsigned int flags);
 #define PIF_WRAP		1	//new initialisation is meant to wrap an existing one.
 #define PIF_STRONGER	2	//previous initialisation was weak.
@@ -255,7 +256,8 @@ enum
 	STFL_CONVERTA=1u<<1,		//convert to/from ints/floats to match the operand types required by the opcode
 	STFL_PRESERVEB=1u<<2,
 	STFL_CONVERTB=1u<<3,
-	STFL_DISCARDRESULT=1u<<4
+	STFL_DISCARDRESULT=1u<<4,
+	STFL_NOEMULATE=1u<<5,	//don't emulate unsupported opcode with other opcodes.
 };
 #define QCC_PR_Statement(op,a,b,st) QCC_PR_StatementFlags(op,a,b,st,STFL_CONVERTA|STFL_CONVERTB)
 QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_t var_b, QCC_statement_t **outstatement, unsigned int flags);
@@ -2067,7 +2069,10 @@ const char *QCC_VarAtOffset(QCC_sref_t ref)
 	{
 		if (ref.sym && ref.sym->temp)
 		{
-			QC_snprintfz(message, sizeof(message), "temp_%i+%i", ref.sym->ofs-tempsinfo[0].def->ofs, ref.ofs);
+			if (!ref.ofs)
+				QC_snprintfz(message, sizeof(message), "temp_%i", ref.sym->ofs-tempsinfo[0].def->ofs);
+			else
+				QC_snprintfz(message, sizeof(message), "temp_%i+%i", ref.sym->ofs-tempsinfo[0].def->ofs, ref.ofs);
 			return message;
 		}
 		else if (ref.sym->name && !STRCMP(ref.sym->name, "IMMEDIATE"))
@@ -2141,13 +2146,19 @@ const char *QCC_VarAtOffset(QCC_sref_t ref)
 				QC_snprintfz(message, sizeof(message), "'%g %g %g'", val->vector[0], val->vector[1], val->vector[2]);
 				return message;
 			default:
-				QC_snprintfz(message, sizeof(message), "IMMEDIATE");
+				if (!ref.ofs)
+					QC_snprintfz(message, sizeof(message), "IMMEDIATE");
+				else
+					QC_snprintfz(message, sizeof(message), "IMMEDIATE+%i", ref.ofs);
 				return message;
 			}
 		}
 		else if (ref.ofs || ref.cast != ref.sym->type)
 		{
-			QC_snprintfz(message, sizeof(message), "%s+%i", ref.sym->name, ref.ofs);
+			if (!ref.ofs)
+				QC_snprintfz(message, sizeof(message), "%s", ref.sym->name);
+			else
+				QC_snprintfz(message, sizeof(message), "%s+%i", ref.sym->name, ref.ofs);
 			return message;
 		}
 
@@ -3118,7 +3129,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		}
 	}
 
-	if (!QCC_OPCodeValid(op))
+	if (!QCC_OPCodeValid(op) && !(flags&STFL_NOEMULATE))
 	{
 		QCC_sref_t tmp;
 //FIXME: add support for flags so we don't corrupt temps
@@ -3455,6 +3466,24 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_F], var_b, var_a, NULL, 0);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_c, var_a, NULL, 0);
 
+		case OP_BITXOR_I:
+			{
+				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "BitxorInt", NULL, false, 0, 0);
+				if (!fnc.cast)
+				{
+					QCC_PR_ParseError(0, "BitxorInt function not defined: cannot emulate int^int");
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITNOT_I], var_b, nullsref, NULL, STFL_PRESERVEA);
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_I], var_a, var_c, NULL, STFL_PRESERVEA);
+					var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_BITNOT_I], var_a, nullsref, NULL, 0);
+					var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_I], var_b, var_a, NULL, 0);
+					return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_I], var_c, var_a, NULL, 0);
+				}
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
+				var_c.cast = type_integer;
+				return var_c;
+			}
+			break;
+
 		case OP_BITXOR_V:
 //			r = (a & ~b) | (b & ~a);
 			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITNOT_V], var_b, nullsref, NULL, STFL_PRESERVEA);
@@ -3543,9 +3572,22 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_BITNOT_I:
 			op = &pr_opcodes[OP_SUB_I];
-			var_b = var_a;
-			var_a = QCC_MakeIntConst(~0);
-			var_a.sym->referenced = true;
+			if (QCC_OPCodeValid(op))
+			{
+				op = &pr_opcodes[OP_SUB_I];
+				var_b = var_a;
+				var_a = QCC_MakeIntConst(~0);
+				var_a.sym->referenced = true;
+			}
+			else
+			{
+				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "SubInt", NULL, false, 0, 0);
+				if (!fnc.cast)
+					QCC_PR_ParseError(0, "SubInt function not defined: cannot emulate ~int");
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeIntConst(~0), type_integer, var_a, type_integer);
+				var_c.cast = type_integer;
+				return var_c;
+			}
 			break;
 		case OP_BITNOT_F:
 			op = &pr_opcodes[OP_SUB_F];
@@ -3914,6 +3956,27 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_RSHIFT_FI:
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_a, nullsref, NULL, flags&STFL_PRESERVEA);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_RSHIFT_I], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+
+		case OP_LSHIFT_I:
+			{
+				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "LShiftInt", NULL, false, 0, 0);
+				if (!fnc.cast)
+					QCC_PR_ParseError(0, "LShiftInt function not defined: cannot emulate int<<int");
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeIntConst(~0), type_integer, var_a, type_integer);
+				var_c.cast = type_integer;
+				return var_c;
+			}
+			break;
+		case OP_RSHIFT_I:
+			{
+				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "RShiftInt", NULL, false, 0, 0);
+				if (!fnc.cast)
+					QCC_PR_ParseError(0, "RShiftInt function not defined: cannot emulate int>>int");
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeIntConst(~0), type_integer, var_a, type_integer);
+				var_c.cast = type_integer;
+				return var_c;
+			}
+			break;
 
 		//convert both to ints
 		case OP_LSHIFT_F:
@@ -5334,9 +5397,9 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 				{
 					QCC_sref_t r;
 					c = QCC_PR_InlineFindDef(ctx, st->c, true);
-					r = QCC_PR_StatementFlags(&pr_opcodes[st->op], a, b, NULL, 0);
+					r = QCC_PR_StatementFlags(&pr_opcodes[st->op], a, b, NULL, STFL_NOEMULATE);
 					if (c.cast && !QCC_SRef_EvalConst(r))
-						c = QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_ENT], r, c, NULL, 0);
+						c = QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_ENT], r, c, NULL, STFL_NOEMULATE);
 					else
 					{
 						QCC_FreeTemp(c);
@@ -5388,15 +5451,16 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 	unsigned int a;
 	const QCC_eval_t *eval = QCC_SRef_EvalConst(fdef);
 	//make sure that its a function type and that there's no special weirdness
-	if (!eval || fdef.cast != fdef.sym->type || eval->function < 0 || argcount > 8 || eval->function >= numfunctions || fdef.sym->arraysize != 0 || fdef.cast->type != ev_function || argcount != fdef.cast->num_parms || fdef.cast->vargs || fdef.cast->vargcount)
+	if (!eval || eval->function < 0 || argcount > 8 || eval->function >= numfunctions || fdef.sym->arraysize != 0 || fdef.cast->type != ev_function || argcount != fdef.cast->num_parms || fdef.cast->vargs || fdef.cast->vargcount)
 		return nullsref;
-
+	ctx.func = &functions[eval->function];
+	if (fdef.cast != ctx.func->type)
+		return nullsref;
 	ctx.numlocals = 0;
 	for (a = 0; a < argcount; a++)
 		ctx.arglist[a] = QCC_RefToDef(arglist[a], true);
 	ctx.fdef = fdef.sym;
 	ctx.result = nullsref;
-	ctx.func = &functions[eval->function];
 	if ((int)ctx.func->code <= 0)
 	{
 		char *fname = ctx.func->name;
@@ -7277,6 +7341,33 @@ static QCC_sref_t QCC_PR_ExpandField(QCC_sref_t ent, QCC_sref_t field, QCC_type_
 	//FIXME: class.staticmember should directly read staticmember instead of trying to dereference
 	switch(fieldtype->type)
 	{
+	case ev_struct:
+	case ev_union:
+	case ev_enum:
+		{
+			int i;
+			QCC_type_t *type = fieldtype;
+			QCC_sref_t dest = QCC_GetTemp(type);
+			QCC_sref_t source = field;
+			//don't bother trying to optimise any temps here, its not likely to happen anyway.
+			for (i = 0; i+2 < type->size; i+=3, dest.ofs += 3, source.ofs += 3)
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_LOAD_V], ent, source, dest, false);
+			for (; i < type->size; i++, dest.ofs++, source.ofs++)
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_LOAD_F], ent, source, dest, false);
+			source.ofs -= type->size;
+			dest.ofs -= type->size;
+			if (!(preserveflags & STFL_PRESERVEA))
+				QCC_FreeTemp(ent);
+			if (!(preserveflags & STFL_PRESERVEB))
+				QCC_FreeTemp(field);
+
+			QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "QCC_PR_ExpandField: inefficient");
+			return dest;
+		}
+		break;
+	case ev_void:
+	case ev_accessor:
+	case ev_boolean:
 	default:
 		QCC_PR_ParseErrorPrintSRef(ERR_INTERNAL, field, "QCC_PR_ExpandField: invalid field type");
 		r = field;
@@ -8617,7 +8708,7 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 			QCC_PR_ParseErrorPrintSRef (ERR_TYPEMISMATCH, e, "Unable to dereference non-pointer type.");
 		}
 		if (flag_qccx && QCC_PR_CheckToken ("@"))
-		{
+		{	//@foo is equivelent to (string)*(int*)&foo
 			r = QCC_PR_RefExpression (retbuf, UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
 			if (r->cast->type == ev_float || r->cast->type == ev_integer)
 			{
@@ -8698,8 +8789,9 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 					}
 					else
 					{
-						e = QCC_GetTemp(newtype);
-						QCC_PR_ParseInitializerType(0, NULL, e, 0);
+						e = QCC_PR_ParseInitializerTemp(newtype);
+						if (newtype->type == ev_function && QCC_PR_PeekToken("("))
+							e.sym->allowinline = true;
 					}
 				}
 				else
@@ -8857,15 +8949,21 @@ static void QCC_StoreToSRef(QCC_sref_t dest, QCC_sref_t source, QCC_type_t *type
 	case ev_union:
 	case ev_enum:
 		//don't bother trying to optimise any temps here, its not likely to happen anyway.
-		for (i = 0; i+2 < type->size; i+=3, dest.ofs += 3, source.ofs += 3)
+		if (QCC_SRef_IsNull(source))
 		{
-			QCC_PR_SimpleStatement(&pr_opcodes[OP_STORE_V], source, dest, nullsref, false);
+			for (i = 0; i+2 < type->size; i+=3, dest.ofs += 3)
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_STORE_V], QCC_MakeVectorConst(0,0,0), dest, nullsref, false);
+			for (; i < type->size; i++, dest.ofs++)
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_STORE_F], QCC_MakeIntConst(0), dest, nullsref, false);
 		}
-		for (; i < type->size; i++, dest.ofs++, source.ofs++)
+		else
 		{
-			QCC_PR_SimpleStatement(&pr_opcodes[OP_STORE_F], source, dest, nullsref, false);
+			for (i = 0; i+2 < type->size; i+=3, dest.ofs += 3, source.ofs += 3)
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_STORE_V], source, dest, nullsref, false);
+			for (; i < type->size; i++, dest.ofs++, source.ofs++)
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_STORE_F], source, dest, nullsref, false);
+			source.ofs -= type->size;
 		}
-		source.ofs -= type->size;
 		dest.ofs -= type->size;
 		if (!preservesource)
 			QCC_FreeTemp(source);
@@ -8955,9 +9053,14 @@ static void QCC_StoreToPointer(QCC_sref_t dest, QCC_sref_t idx, QCC_sref_t sourc
 				for (i = 0; i+2 < type->size; i+=3)
 				{
 					QCC_sref_t newidx = idx.sym?QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], idx, QCC_MakeIntConst(i), NULL, STFL_PRESERVEA):QCC_MakeIntConst(i);
-					QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_V], source, dest, newidx, false);
+					if (QCC_SRef_IsNull(source))
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_V], QCC_MakeVectorConst(0,0,0), dest, newidx, false);
+					else
+					{
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_V], source, dest, newidx, false);
+						source.ofs += 3;
+					}
 					QCC_FreeTemp(newidx);
-					source.ofs += 3;
 				}
 				for (; i < type->size; i++)
 				{
@@ -8972,16 +9075,26 @@ static void QCC_StoreToPointer(QCC_sref_t dest, QCC_sref_t idx, QCC_sref_t sourc
 				for (i = 0; i+2 < type->size; i+=3)
 				{
 					QCC_sref_t newptr = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_PIW], dest, QCC_MakeIntConst(i), NULL, STFL_PRESERVEA);
-					QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_V], source, newptr, idx, false);
+					if (QCC_SRef_IsNull(source))
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_V], QCC_MakeVectorConst(0,0,0), newptr, idx, false);
+					else
+					{
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_V], source, newptr, idx, false);
+						source.ofs += 3;
+					}
 					QCC_FreeTemp(newptr);
-					source.ofs += 3;
 				}
 				for (; i < type->size; i++)
 				{
 					QCC_sref_t newptr = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_PIW], dest, QCC_MakeIntConst(i), NULL, STFL_PRESERVEA);
-					QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_F], source, newptr, idx, false);
+					if (QCC_SRef_IsNull(source))
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_F], QCC_MakeIntConst(0), newptr, idx, false);
+					else
+					{
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_F], source, newptr, idx, false);
+						source.ofs += 1;
+					}
 					QCC_FreeTemp(newptr);
-					source.ofs += 1;
 				}
 			}
 		}
@@ -9578,6 +9691,7 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable, pbool preservedest)
 {
 	QCC_ref_t ptrref;
+	pbool nullsrc = QCC_SRef_IsNull(source);
 	if (dest->readonly)
 	{
 		QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to constant %s", QCC_GetSRefName(dest->base));
@@ -9586,16 +9700,21 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 			QCC_PR_ParsePrintSRef(WARN_ASSIGNMENTTOCONSTANT, dest->index);
 	}
 
-	if (QCC_SRef_IsNull(source))
-	{
-		if (dest->cast->type == ev_vector)
+	if (!nullsrc)
+	/*{
+		if (dest->cast->type == ev_struct || dest->cast->type == ev_union)
+		{
+			QCC_FreeTemp(source);
+			source = QCC_MakeIntConst(0);
+		}
+		else if (dest->cast->type == ev_vector)
 		{
 			QCC_FreeTemp(source);
 			source = QCC_MakeVectorConst(0, 0, 0);
 		}
 		source.cast = dest->cast;
 	}
-	else
+	else*/
 	{
 		QCC_type_t *t = source.cast;
 		while(t)
@@ -9740,6 +9859,10 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 				//fixme: we should do this earlier, to preserve original instruction ordering.
 				//such that self.enemy = (self = world); still has the same result (more common with function calls)
 
+				dest->base.sym->referenced = true;
+				dest->index.sym->referenced = true;
+				source.sym->referenced = true;
+
 				if (dest->cast->type == ev_float)
 					storef_opcode = OP_STOREF_F;
 				else if (dest->cast->type == ev_vector)
@@ -9750,28 +9873,74 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 							dest->cast->type == ev_field ||
 							dest->cast->type == ev_function ||
 							dest->cast->type == ev_pointer ||
-							dest->cast->type == ev_integer)
+							dest->cast->type == ev_integer ||
+							dest->cast->type == ev_struct ||
+							dest->cast->type == ev_union ||
+							dest->cast->type == ev_enum)
 					storef_opcode = OP_STOREF_I;
 				else
 					storef_opcode = OP_DONE;
 				//don't use it for arrays. address+storep_with_offset is less opcodes.
-				if (storef_opcode!=OP_DONE && dest->cast->size == 1 && QCC_OPCodeValid(&pr_opcodes[storef_opcode]))
+				if (storef_opcode!=OP_DONE && dest->index.cast->size == dest->cast->size && QCC_OPCodeValid(&pr_opcodes[storef_opcode]))
 				{
-					dest->base.sym->referenced = true;
-					dest->index.sym->referenced = true;
-					source.sym->referenced = true;
 					//doesn't generate any temps.
-					QCC_PR_SimpleStatement(&pr_opcodes[storef_opcode], dest->base, dest->index, source, true);
+					int sz = dest->cast->size, i;
+					if (nullsrc)
+					{
+						for (i = 0; i+2 < sz; i+=3, dest->index.ofs += 3)
+							QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREF_V], dest->base, dest->index, QCC_MakeVectorConst(0,0,0), true);
+						for (; i < sz; i++, dest->index.ofs++)
+							QCC_PR_SimpleStatement(&pr_opcodes[storef_opcode], dest->base, dest->index, QCC_MakeIntConst(0), true);
+					}
+					else
+					{
+						for (i = 0; i+2 < sz; i+=3, dest->index.ofs += 3, source.ofs += 3)
+							QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREF_V], dest->base, dest->index, source, true);
+						for (; i < sz; i++, dest->index.ofs++, source.ofs++)
+							QCC_PR_SimpleStatement(&pr_opcodes[storef_opcode], dest->base, dest->index, source, true);
+						source.ofs -= i;
+					}
+					dest->index.ofs -= i;
+					if (!readable)
+					{
+						QCC_FreeTemp(source);
+						source = nullsref;
+					}
 
 					if (!preservedest)
 					{
 						QCC_FreeTemp(dest->base);
 						QCC_FreeTemp(dest->index);
 					}
+				}
+				else if (1)//dest->cast->type >= ev_variant)
+				{
+					QCC_sref_t t;
+					int sz = dest->cast->size, i;
+					for (i = 0; i+2 < sz; i+=3, dest->index.ofs += 3, source.ofs+=3)
+					{
+						t = QCC_PR_StatementFlags(&pr_opcodes[OP_ADDRESS], dest->base, dest->index, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+						QCC_StoreToPointer(t, nullsref, nullsrc?QCC_MakeVectorConst(0,0,0):source, type_vector);
+						QCC_FreeTemp(t);
+					}
+					for (; i < sz; i++, dest->index.ofs++, source.ofs++)
+					{
+						t = QCC_PR_StatementFlags(&pr_opcodes[OP_ADDRESS], dest->base, dest->index, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+						QCC_StoreToPointer(t, nullsref, nullsrc?QCC_MakeFloatConst(0):source, (dest->cast->size!=1)?type_float:dest->cast);
+						QCC_FreeTemp(t);
+					}
+					source.ofs -= i;
+					dest->index.ofs -= i;
+
 					if (!readable)
 					{
 						QCC_FreeTemp(source);
 						source = nullsref;
+					}
+					if (!preservedest)
+					{
+						QCC_FreeTemp(dest->base);
+						QCC_FreeTemp(dest->index);
 					}
 				}
 				else
@@ -9782,13 +9951,6 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 					preservedest = false;
 					continue;
 				}
-
-//				source = QCC_StoreToRef(
-//						QCC_PR_BuildRef(&tmp, REF_POINTER, 
-//								QCC_PR_StatementFlags(&pr_opcodes[OP_ADDRESS], dest->base, dest->index, NULL, preservedest?STFL_PRESERVEA:0),	//pointer address
-//								NULL, (dest->index->type->type == ev_field)?dest->index->type->aux_type:type_variant, dest->readonly),
-//						source, readable, false);
-	//		QCC_PR_ParseWarning(ERR_INTERNAL, "FIXME: trying to do references: assignments to ent.field not supported.\n");
 			}
 			break;
 		}
@@ -10268,6 +10430,12 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				ops_ptr = opcodes_divstorep;
 				opname = "/=";
 			}
+			else
+			{
+				ops = NULL;
+				ops_ptr = NULL;
+				opname = NULL;
+			}
 
 			if (ops)
 			{
@@ -10286,6 +10454,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				if (conditional&1)
 					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "suggest parenthesis for assignment used as truth value");
 
+				//FIXME: if this is a simple store, rhsr->type == REF_FIELD, and lhsd is a simple def, then we should just expand the field directly to the lhsd for more effient .structs
 				rhsd = QCC_RefToDef(rhsr, true);
 
 				if (ops_ptr && (lhsr->type == REF_FIELD || lhsr->type == REF_POINTER))
@@ -10363,7 +10532,8 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 					else */if (QCC_SRef_IsNull(rhsd))
 					{
 						QCC_FreeTemp(rhsd);
-						if (lhsr->cast->type == ev_vector)
+						rhsd = QCC_MakeIntConst(0);
+						/*if (lhsr->cast->type == ev_vector)
 							rhsd = QCC_MakeVectorConst(0,0,0);
 						else if (lhsr->cast->type == ev_struct || lhsr->cast->type == ev_union)
 						{
@@ -10375,7 +10545,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 							rhsd = QCC_MakeIntConst(0);
 						else
 							rhsd = QCC_MakeIntConst(0);
-						rhsd.cast = lhsr->cast;
+						rhsd.cast = lhsr->cast;*/
 					}
 					else
 						rhsd = QCC_SupplyConversionForAssignment(lhsr, rhsd, lhsr->cast, true);
@@ -12069,11 +12239,17 @@ void QCC_PR_ParseAsm(void)
 				else
 					a=nullsref;
 				if (pr_opcodes[op].type_b != &type_void)
+				{
+					QCC_PR_CheckToken(",");
 					b = QCC_PR_ParseValue(pr_classtype, false, false, true);
+				}
 				else
 					b=nullsref;
 				if (pr_opcodes[op].associative==ASSOC_LEFT && pr_opcodes[op].type_c != &type_void)
+				{
+					QCC_PR_CheckToken(",");
 					c = QCC_PR_ParseValue(pr_classtype, false, false, true);
+				}
 				else
 					c=nullsref;
 
@@ -13637,10 +13813,11 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 //	QCC_sref_t fasttrackpossible = nullsref;
 	int numslots;
 
-	if (thearray.cast->type == ev_vector)
-		numslots = thearray.sym->arraysize;
-	else
-		numslots = thearray.sym->arraysize*thearray.cast->size;
+	numslots = thearray.sym->arraysize;
+	if (!numslots)
+		numslots = 1;
+	if (thearray.cast->type != ev_vector)
+		numslots *= thearray.cast->size;
 
 //	if (flag_fasttrackarrays && numslots > 6)
 //		fasttrackpossible = QCC_PR_GetSRef(type_float, "__ext__fasttrackarrays", NULL, true, 0, false);
@@ -14622,8 +14799,10 @@ static pbool QCC_PR_GenerateInitializerType(QCC_def_t *basedef, QCC_sref_t tmp, 
 	else
 	{
 		QCC_sref_t rhs;
+		pbool nullsource;
 finalnotconst:
 		rhs = tmp;
+		nullsource = QCC_SRef_IsNull(rhs);
 		if (def.sym->initialized)
 			QCC_PR_ParseErrorPrintSRef (ERR_REDECLARATION, def, "%s initialised twice", basedef->name);
 
@@ -14635,17 +14814,20 @@ finalnotconst:
 				rhs.cast = def.cast = type_vector;
 				if (type->size - i == 3)
 				{
-					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], rhs, def, NULL, STFL_PRESERVEB));
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], nullsource?QCC_MakeVectorConst(0,0,0):rhs, def, NULL, STFL_PRESERVEB));
 					return ret;
 				}
 				else
-					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], nullsource?QCC_MakeVectorConst(0,0,0):rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
 				i+=3;
 				def.ofs += 3;
 				rhs.ofs += 3;
 			}
 			else
 			{
+				if (nullsource)
+					rhs = QCC_MakeIntConst(0);
+
 				if (def.cast->type == ev_function)
 				{
 					rhs.cast = def.cast = type_function;
@@ -14721,9 +14903,8 @@ finalnotconst:
 	QCC_FreeTemp(tmp);
 	return ret;
 }
-//basedef can be null, meaning its initialising a temp
-//returns true where its a const/static initialiser. false if non-const/final initialiser
-pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t def, unsigned int flags)
+
+QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basedef, QCC_sref_t def, unsigned int flags)
 {
 	QCC_sref_t tmp;
 	int i;
@@ -14751,6 +14932,7 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 	}
 	else
 	{
+		pbool isblock;
 		QCC_type_t *type = def.cast;
 		if (type->type == ev_function && pr_token_type == tt_punct)
 		{
@@ -14912,6 +15094,13 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 			{
 				pr_scope = parentfunc;
 				tmp = QCC_MakeIntConst(f - functions);
+
+				if (!basedef && def.sym->temp)
+				{	//skip the store-to-temp
+					QCC_FreeTemp(def);
+					tmp.cast = def.cast;
+					return tmp;
+				}
 			}
 		}
 		else if (type->type == ev_string && QCC_PR_CheckName("_"))
@@ -14936,15 +15125,17 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 				}
 				QCC_PR_Lex();
 				QCC_PR_Expect(")");
-				return ret;
+				return ret?def:nullsref;
 			}
 			tmp = QCC_MakeTranslateStringConst(pr_immediate_string);
 			QCC_PR_Lex();
 			QCC_PR_Expect(")");
 		}
-		else if ((type->type == ev_struct && QCC_PR_CheckToken("{")) || (type->type == ev_union && ((type->num_parms == 1 && !type->params->paramname) || QCC_PR_CheckToken("{"))))
+		else if ((isblock=(type->type == ev_struct || type->type == ev_union) && QCC_PR_CheckToken("{"))
+				|| (type->type == ev_union && type->num_parms == 1 && !type->params->paramname))
 		{
 			//structs go recursive
+			QCC_type_t *parenttype;
 			unsigned int partnum;
 			pbool isunion;
 			gofs_t offset = def.ofs;
@@ -14954,7 +15145,7 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 			memset(isinited, 0, sizeof(pbool)*type->size);
 
 			if (QCC_PR_PeekToken("."))	//won't be a float (.0 won't match)
-			{
+			{	//designated initialisers
 				for(;;)
 				{
 					if (QCC_PR_CheckToken("."))
@@ -15003,39 +15194,43 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 					ret &= QCC_PR_ParseInitializerType((type)->params[partnum].arraysize, basedef, def, flags);
 					if (isunion || !QCC_PR_CheckToken(","))
 					{
-						if (isunion && (type->num_parms == 1 && !type->params->paramname))
+						if (!isblock)
 							break;
 						QCC_PR_Expect("}");
 						break;
 					}
 				}
 			}
-			for (; type; type = type->parentclass)
+
+			for (parenttype=type; parenttype; parenttype = parenttype->parentclass)
 			{
-				for (partnum = 0; partnum < (type)->num_parms; partnum++)
+				for (partnum = 0; partnum < (parenttype)->num_parms; partnum++)
 				{
 					//copy into the def. should be from a const.
-					def.cast = (type)->params[partnum].type;
-					def.ofs = (type)->params[partnum].ofs;
+					def.cast = (parenttype)->params[partnum].type;
+					def.ofs = (parenttype)->params[partnum].ofs;
 					if (isinited[def.ofs])
 						continue;
 					isinited[def.ofs] = true;
 					def.ofs += offset;
-					if ((type)->params[partnum].defltvalue.cast)
-						tmp = (type)->params[partnum].defltvalue;
+					if ((parenttype)->params[partnum].defltvalue.cast)
+						tmp = (parenttype)->params[partnum].defltvalue;
 					else
 						tmp = QCC_MakeIntConst(0);
 					QCC_ForceUnFreeDef(tmp.sym);
 					QCC_PR_GenerateInitializerType(basedef, tmp, def, def.cast, flags);
 				}
 			}
-			return ret;
+			def.cast = type;
+			def.ofs = offset;
+			return ret?def:nullsref;
 		}
 		else if (type->type == ev_vector && QCC_PR_PeekToken("{"))
 		{	//vectors can be treated as an array of 3 floats.
 			def.cast = type_float;
 			ret &= QCC_PR_ParseInitializerType(3, basedef, def, flags);
-			return ret;
+			def.cast = type;
+			return ret?def:nullsref;
 		}
 		else if (type->type == ev_pointer && QCC_PR_CheckToken("{"))
 		{
@@ -15086,7 +15281,22 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 
 		ret = QCC_PR_GenerateInitializerType(basedef, tmp, def, type, flags);
 	}
-	return ret;
+	return ret?def:nullsref;
+}
+QCC_sref_t QCC_PR_ParseInitializerTemp(QCC_type_t *type)
+{
+	QCC_sref_t def = QCC_GetTemp(type);
+	def = QCC_PR_ParseInitializerType_Internal(0, NULL, def, 0);
+	if (def.cast != type)
+		QCC_PR_ParseError(ERR_INTERNAL, "QCC_PR_ParseInitializerTemp changed type\n");
+	return def;
+}
+//returns true where its a const/static initialiser. false if non-const/final initialiser
+pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t def, unsigned int flags)
+{
+	if (QCC_PR_ParseInitializerType_Internal(arraysize, basedef, def, flags).cast)
+		return true;
+	return false;
 }
 
 void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags)

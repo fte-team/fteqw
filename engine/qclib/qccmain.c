@@ -2162,7 +2162,7 @@ strofs = (strofs+3)&~3;
 				}
 #ifdef _DEBUG
 				if (((signed)a >= (signed)numpr_globals && statements[i].a.sym) || ((signed)b >= (signed)numpr_globals && statements[i].b.sym) || ((signed)c >= (signed)numpr_globals && statements[i].c.sym))
-					externs->Printf("invalid offset on %s instruction\n", pr_opcodes[statements[i].op].opname);
+					externs->Printf("invalid offset on %s instruction (from line %i)\n", pr_opcodes[statements[i].op].opname, statements[i].linenum);
 #endif
 				//truncate to 16bit. should probably warn if the high bits are not 0x0000 or 0xffff
 				statements16[i].a = (unsigned short)PRLittleShort((unsigned short)a);

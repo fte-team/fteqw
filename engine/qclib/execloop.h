@@ -251,6 +251,9 @@ reeval:
 	case OP_NOT_ENT:
 		OPC->_float = (float)(!(OPA->edict));//(PROG_TO_EDICT(progfuncs, OPA->edict) == (edictrun_t *)sv_edicts);
 		break;
+	case OP_NOT_I:
+		OPC->_int = !OPA->_int;
+		break;
 
 	case OP_EQ_F:
 		OPC->_float = (float)(OPA->_float == OPB->_float);
@@ -1349,10 +1352,6 @@ reeval:
 		break;
 	case OP_OR_FI:
 		OPC->_int = (OPA->_float || OPB->_int);
-		break;
-
-	case OP_NOT_I:
-		OPC->_int = !OPA->_int;
 		break;
 
 	case OP_NE_IF:

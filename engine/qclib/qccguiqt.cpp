@@ -2482,8 +2482,8 @@ static void DebuggerStart(void)
 	qcdebugger->setWorkingDirectory(enginebasedir);
 	qcdebugger->setArguments(QStringList(cmdline));
 
-	QObject::connect(qcdebugger, static_cast<void(QProcess::*)(int)>(&QProcess::finished),
-		[=](int exitcode)
+	QObject::connect(qcdebugger, static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
+		[=](int exitcode,QProcess::ExitStatus status)
 		{
 //			GUIprintf("Debuggee finished\n");
 //			DebuggerStop();	//can't kill it here, there's still code running inside it

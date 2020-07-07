@@ -254,7 +254,8 @@ void Surf_WipeStains(void)
 	{
 		if (!lightmap[i])
 			break;
-		memset(lightmap[i]->stainmaps, 255, lightmap[i]->width*lightmap[i]->height*3*sizeof(stmap));
+		if (lightmap[i]->stainmaps)
+			memset(lightmap[i]->stainmaps, 255, lightmap[i]->width*lightmap[i]->height*3*sizeof(stmap));
 	}
 }
 

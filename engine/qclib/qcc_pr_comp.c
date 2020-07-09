@@ -5164,7 +5164,7 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 		{
 			if (src.sym->symbolheader == local)
 			{
-				return QCC_MakeSRefForce(ctx->arglist[p].sym->symbolheader, src.ofs, src.cast);
+				return QCC_MakeSRefForce(ctx->arglist[p].sym->symbolheader, ctx->arglist[p].ofs+src.ofs, src.cast);
 			}
 		}
 

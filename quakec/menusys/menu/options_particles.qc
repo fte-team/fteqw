@@ -99,8 +99,11 @@ nonstatic void(mitem_desktop desktop) M_Options_Particles =
 	if (checkextension("FTE_PART_NAMESPACE_EFFECTINFO"))
 	{
 		fr.add(spawn(mitem_text, item_text:"Classic Particles",	item_command:"classic", item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
-		fr.add(spawn(mitem_text, item_text:"High Quality",	item_command:"high", item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
-		fr.add(spawn(mitem_text, item_text:"TimeServ's Shaft", item_command:"tsshaft", item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
+		if (engine==E_FTE)
+		{
+			fr.add(spawn(mitem_text, item_text:"High Quality",	item_command:"high", item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
+			fr.add(spawn(mitem_text, item_text:"TimeServ's Shaft", item_command:"tsshaft", item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
+		}
 	
 		string efi = GetFirstLineComment("effectinfo.txt", "Effectinfo");
 		if (efi)

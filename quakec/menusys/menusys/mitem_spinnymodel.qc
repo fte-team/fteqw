@@ -57,6 +57,7 @@ class mitem_spinnymodel : mitem
 	float framecount;
 	float shootframe;
 	float shootframes;
+	float rotatespeed;
 	
 #ifndef EXT_CSQC
 	virtual void(vector pos) item_draw = {};
@@ -74,7 +75,7 @@ class mitem_spinnymodel : mitem
 		origin_z += zbias;
 	
 //		angles_y = cltime*90;//frametime*90;
-		angles_y += frametime*90;
+		angles_y += frametime*rotatespeed;
 
 		clearscene(); //wipe the scene, and apply the default rendering values.
 		setviewprop(VF_MIN, vtodpp(pos)); //min pos
@@ -141,6 +142,9 @@ class mitem_spinnymodel : mitem
 		setmodel(this, item_text);	//use the size information from the engine, woo for unreliability.
 		zbias += (mins_z - maxs_z)/2 - mins_z; //center the model on its z axis, so the whole thing is visible.
 		frame = firstframe;
+		if (!angles_y && !rotatespeed)
+			rotatespeed=90;
+
 	};
 #endif
 };

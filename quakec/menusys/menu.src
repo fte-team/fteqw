@@ -1,5 +1,6 @@
 #pragma progs_dat "../menu.dat"
 
+
 //#pragma target fte
 
 #define MENU		//select the module
@@ -21,6 +22,11 @@ menusys/mitem_bind.qc		//key binding thingie
 menusys/mitem_spinnymodel.qc	//menu art
 #endlist
 
+enum
+{
+	E_FTE,
+	E_QSS,
+} engine; //For use ONLY with known possible cvar values.
 
 
 //might as well put this here.
@@ -112,6 +118,12 @@ var float autocvar_dp_workarounds_allow = TRUE;
 var float autocvar_dp_workarounds_force = FALSE;
 void() m_init =
 {
+	string e = cvar_string("pr_engine");
+	if (!strncmp(e, "QSS ", 4))
+		engine = E_QSS;
+	else
+		engine = E_FTE;
+
 	desktop = spawn(mitem_desktop);
 
 	if (checkbuiltin(registercommand))
@@ -166,3 +178,4 @@ void(string cstr) GameCommand =
 	}
 	items_updategrabs(TRUE);
 };
+

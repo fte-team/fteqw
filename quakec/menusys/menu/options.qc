@@ -48,7 +48,7 @@ nonstatic void(mitem_desktop desktop) M_Options =
 		{fr.add(spawn(mitem_text, item_text:"Hud",			item_command:"m_pop;m_hud", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 	if (checkbuiltin2(buf_cvarlist, TRUE))
 		{fr.add(spawn(mitem_text, item_text:"Advanced Guru Settings",	item_command:"m_pop;m_cvars", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
-	if (checkcommand2("cvarreset", FALSE))
+	if (checkcommand2("cvarreset", FALSE) || checkcommand2("resetall", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Reset to Defaults", 	item_command:"m_reset", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 	if (checkcommand2("cfg_save", FALSE))
 		{fr.add(spawn(mitem_text, item_text:"Save Settings", 		item_command:"cfg_save", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
@@ -89,5 +89,8 @@ static void(mitem_desktop desktop, string question, string affirmitive, string a
 
 nonstatic void(mitem_desktop desktop) M_Reset =
 {
-	M_SimplePrompt(desktop, "Really Reset All Settings?", "Yes!", "m_pop;cvarreset *;exec default.cfg", "NOOOO! MY PRECIOUS!!!", "m_pop");
+	string cmd = "m_pop;cvarreset *;exec default.cfg";
+	if (!checkcommand2("cvarreset", FALSE))
+		cmd = "m_pop;resetall;exec default.cfg";
+	M_SimplePrompt(desktop, "Really Reset All Settings?", "Reset All", cmd, "Cancel", "m_pop");
 };

@@ -77,9 +77,13 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 	if (!dp_workarounds)
 	{
 		fr.add(menuitemcombo_spawn(_("Display Mode"),	"vid_fullscreen",				'280 8', 
-																		"0	\"Windowed\" "
-																		"1	\"Fullscreen\" "
-																		"2	\"Borderless Windowed\" "
+																		engine==E_FTE?
+																			"0	\"Windowed\" "
+																			"1	\"Fullscreen\" "
+																			"2	\"Borderless Windowed\" "
+																		:
+																			"0	\"Windowed\" "
+																			"1	\"Fullscreen\" "
 																		),	fl, [0, pos], [0, 8]); pos += 8;
 	}
 	else
@@ -87,7 +91,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 		fr.add(menuitemcheck_spawn(_("Fullscreen"),		"vid_fullscreen", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	}
 	if (cvar_type("vid_resizable")) fr.add(menuitemcheck_spawn(_("Resizable"),	"vid_resizable", 	'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
-	fr.add(menuitemcombo_spawn(_("Anti-Aliasing"),	cv2("vid_samples", "vid_multisample"),			'280 8', 
+	fr.add(menuitemcombo_spawn(_("MSAA"),	cv3("vid_samples"/*dp*/, "vid_fsaa"/*qs*/, "vid_multisample"/*fte*/),			'280 8',
 																		"0	\"Off\" "
 																		"2	\"2x\" "
 																		"4	\"4x\" "
@@ -124,16 +128,16 @@ static const string scaleoptions = _(
 	fr.add(menuitemcheck_spawn(_("Show Framerate"),	cv3("showfps"/*dp*/, "scr_showfps"/*qs*/, "show_fps"/*id/qw*/), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("View Size"),	"viewsize",				'50 120 10', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Field Of View"),	"fov",				'50 140 5', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Gamma"),	"gamma",				'1.3 0.5 -0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Contrast"),	"contrast",				'0.7 2 0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Brightness"),	"brightness",			'0 0.4 0.05', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Hardware Gamma"),	"vid_hardwaregamma",			'280 8', 
+	fr.add(menuitemslider_spawn(_("Gamma"),	cv2("v_gamma"/*dp*/, "gamma"/*quake*/),				'1.3 0.5 -0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemslider_spawn(_("Contrast"),	cv2("v_contrast"/*dp*/, "contrast"/*quake*/),				'0.7 2 0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	if (engine!=E_QSS)fr.add(menuitemslider_spawn(_("Brightness"),	cv2("v_brightness"/*dp*/, "brightness"/*quake*/),			'0 0.4 0.05', '280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	if (engine!=E_QSS)fr.add(menuitemcombo_spawn(_("Hardware Gamma"),	"vid_hardwaregamma",			'280 8',
 																		"0	\"Off\" "
 																		"1	\"Auto\" "
 																		"2	\"Soft\" "
 																		"3	\"Hard\" "
 																		"4	\"Scene Only\" "
-																		),	fl, [0, pos], [0, 8]); pos += 8;
+																		),	fl, [0, pos], [0, 8]), pos += 8;
 
 	addmenuback(m);
 };

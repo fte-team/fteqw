@@ -5,7 +5,7 @@ class mitem_playerpreview : mitem_spinnymodel
 		if (checkbuiltin2(setcustomskin, FALSE))
 		{
 			//if you wanted to get more advanced, you could use q3 skins here.
-			if (cvar("noskins"))
+			if (cvar("noskins")==1)
 				setcustomskin(self, "", sprintf("q1upper \"%s\"\nq1lower \"%s\"\n\n", cvar_string("topcolor"), cvar_string("bottomcolor")));
 			else if (cvar_string("cl_teamskin") != "")
 				setcustomskin(self, "", sprintf("q1upper \"%s\"\nq1lower \"%s\"\nqwskin \"%s\"\n", cvar_string("topcolor"), cvar_string("bottomcolor"), cvar_string("cl_teamskin")));
@@ -20,13 +20,30 @@ class mitem_playerpreview : mitem_spinnymodel
 static string() skinopts =
 {
 	string opts = "";
-	float s = search_begin("skins/*.pcx", TRUE, TRUE);
+	float s = search_begin("skins/*.*", TRUE, TRUE);
 	if (s < 0)
 		return opts;
 	float n = search_getsize(s);
 	for (float i = 0; i < n; i++)
 	{
 		string f = substring(search_getfilename(s, i), 6, -5);
+
+		//urgh!
+		if (strstrofs(f, "_pants") >= 0)
+			continue;
+		if (strstrofs(f, "_shirt") >= 0)
+			continue;
+		if (strstrofs(f, "_bump") >= 0)
+			continue;
+		if (strstrofs(f, "_norm") >= 0)
+			continue;
+		if (strstrofs(f, "_luma") >= 0)
+			continue;
+		if (strstrofs(f, "_glow") >= 0)
+			continue;
+		if (strstrofs(f, "_gloss") >= 0)
+			continue;
+
 		opts = strcat(opts, "\"", f, "\" \"", f, "\" ");
 	}
 	return opts;
@@ -41,6 +58,13 @@ class options_basic : mitem_exmenu
 			return TRUE;
 		if (key == "cl_run")
 			return TRUE;
+		if (engine == E_QSS)
+		{
+			if (key == "topcolor")
+				return super::isvalid("_cl_color");
+			if (key == "bottomcolor")
+				return super::isvalid("_cl_color");
+		}
 		return super::isvalid(key);
 	};
 	virtual string(string key) get =
@@ -49,6 +73,13 @@ class options_basic : mitem_exmenu
 			return (autocvar_m_pitch<0)?"1":"0";
 		if (key == "cl_run")
 			return (stof(super::get("cl_forwardspeed")) > 200)?"1":"0";
+		if (engine == E_QSS)
+		{
+			if (key == "topcolor")
+				return ftos(floor(stof(super::get("_cl_color"))/16));
+			if (key == "bottomcolor")
+				return ftos(stof(super::get("_cl_color"))&15);
+		}
 		return super::get(key);
 	};
 	virtual void(string key, string newval) set =
@@ -84,6 +115,15 @@ class options_basic : mitem_exmenu
 				super::set("cl_movespeedkey", "2.0");
 			}
 		}
+		else if (engine == E_QSS && (key == "topcolor" || key == "bottomcolor"))
+		{
+			float c = stof(super::get("_cl_color"));
+			if (key == "topcolor")
+				c = (c&~0xf0)|(stof(newval)*16);
+			else
+				c = (c&~0x0f)|stof(newval);
+			super::set("_cl_color", ftos(c));
+		}
 		else
 			super::set(key, newval);
 	};
@@ -107,25 +147,35 @@ nonstatic void(mitem_desktop desktop) M_Options_Basic =
 	float pos = 0;
 	
 
-	fr.add(menuitemeditt_spawn(_("Player Name"), 		cv2("_cl_name", "name"), 			'280 8'), 	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemeditt_spawn(_("Player Team"), 		"team",						'280 8'), 	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcombo_spawn(_("Player Skin"), 		"skin",						'280 8', 	skinopts()), fl, [0, pos], [0, 8]); pos += 8;
-																	
-																	
-	fr.add(menuitemcolour_spawn(_("Upper Colour"), 	"topcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcolour_spawn(_("Lower Colour"), 	"bottomcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;	/*aka: arse colour*/
+	fr.add(menuitemeditt_spawn(_("Player Name"), 		cv2("_cl_name"/*nq*/, "name"),					'280 8'), 	fl, [0, pos], [0, 8]), pos += 8;
+	if (engine!=E_QSS)
+	fr.add(menuitemeditt_spawn(_("Player Team"), 		"team",											'280 8'), 	fl, [0, pos], [0, 8]), pos += 8;
+	if (engine!=E_QSS)
+	fr.add(menuitemcombo_spawn(_("Player Skin"), 		"skin",											'280 8', 	skinopts()), fl, [0, pos], [0, 8]), pos += 8;
+
+
+	fr.add(menuitemcolour_spawn(_("Upper Colour"),		"topcolor",						engine==E_QSS,	'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemcolour_spawn(_("Team Colour"),		"bottomcolor",					engine==E_QSS,	'280 8'),	fl, [0, pos], [0, 8]), pos += 8;	/*aka: arse colour, used for .team field in nq*/
 	pos += 8;
-	fr.add(menuitemcheck_spawn (_("Always Run"),		"cl_run", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcheck_spawn (_("Invert Mouse"),		"m_pitchsign", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Sensitivity"),		"sensitivity", 			'3 20 1',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Fov"),			"fov", 				'80 130 5',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Viewmodel Fov"),		"r_viewmodel_fov", 		'80 130 5',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Gamma"),			cv2("v_gamma", "gamma"), 	'0.4 1.3 0.1',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Contrast"),		cv2("v_contrast", "contrast"), 	'0.8 1.8 0.1', 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Brightness"),		cv2("v_brightness", "brightness"),'0.0 0.5 0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Crosshair"),		"crosshair", 			'0.0 19 1', 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	
-	m.add(spawn (mitem_playerpreview, item_text: "progs/player.mdl", firstframe:0, framecount:6, shootframe:119, shootframes:6), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-200, 12*-16/2], [-40, 12*16/2]);
+	fr.add(menuitemcheck_spawn (_("Always Run"),		"cl_run",										'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemcheck_spawn (_("Invert Mouse"),		"m_pitchsign",									'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemslider_spawn(_("Sensitivity"),		"sensitivity",					'3 20 1',		'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemslider_spawn(_("Fov"),				"fov",							'80 130 5',		'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	if (engine!=E_QSS)
+	fr.add(menuitemslider_spawn(_("Viewmodel Fov"),		"r_viewmodel_fov",				'80 130 5',		'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemslider_spawn(_("Gamma"),				cv2("v_gamma", "gamma"),		'0.4 1.3 0.1',	'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	fr.add(menuitemslider_spawn(_("Contrast"),			cv2("v_contrast", "contrast"),	'0.8 1.8 0.1',	'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	if (engine!=E_QSS)
+	fr.add(menuitemslider_spawn(_("Brightness"),		cv2("v_brightness", "brightness"),'0.0 0.5 0.1','280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	if (engine==E_FTE)
+		fr.add(menuitemslider_spawn(_("Crosshair"),		"crosshair",					'0.0 19 1',		'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+	else
+		fr.add(menuitemcheck_spawn(_("Crosshair"),		"crosshair",									'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
+
+	if (engine==E_QSS)	//lerps are kinda broken so don't do the running+shooting+spinning thing.
+		m.add(spawn (mitem_playerpreview, item_text: "progs/player.mdl", firstframe:12, framecount:5, angles_y:random(90,270)), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-200, 12*-16/2], [-40, 12*16/2]);
+	else
+		m.add(spawn (mitem_playerpreview, item_text: "progs/player.mdl", firstframe:0, framecount:6, shootframe:119, shootframes:6), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-200, 12*-16/2], [-40, 12*16/2]);
 
 	addmenuback(m);
 };

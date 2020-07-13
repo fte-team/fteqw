@@ -263,10 +263,6 @@ void(vector pos) mitem_desktop::item_draw =
 };
 
 
-var string autocvar_cl_cursor = "gfx/cursor.lmp";
-var float autocvar_cl_cursorsize = 32;
-var float autocvar_cl_cursorbias = 4;
-
 static var float oldgrabstate;	//to work around a DP bug (as well as unnecessary spam)
 
 void(float force) items_updategrabs =
@@ -278,11 +274,14 @@ void(float force) items_updategrabs =
 			oldgrabstate = TRUE;
 #ifdef MENU
 			setkeydest(2);
-			setmousetarget(2);
-#else
-			setcursormode(TRUE);
-			//setcursormode(TRUE, autocvar_cl_cursor, autocvar_cl_cursorbias*'1 1', autocvar_cl_cursorscale);
+			if (!checkbuiltin(setcursormode))
+				setmousetarget(2);	//legacy junk
+			else
 #endif
+			if (checkextension("FTE_QC_HARDWARECURSORS"))
+				setcursormode(TRUE, autocvar(cl_cursor, "gfx/cursor.lmp"), autocvar(cl_cursorbias, 4.0)*'1 1', autocvar(cl_cursorscale, 1.0));	//because we can
+			else
+				setcursormode(TRUE);	//because DP sucks.
 		}
 	}
 	else if (oldgrabstate || force)
@@ -290,10 +289,11 @@ void(float force) items_updategrabs =
 		oldgrabstate = FALSE;
 #ifdef MENU
 		setkeydest(0);
-		setmousetarget(1);
-#else
-		setcursormode(FALSE);
+		if (!checkbuiltin(setcursormode))
+			setmousetarget(1);
+		else
 #endif
+			setcursormode(FALSE);
 	}
 };
 
@@ -321,7 +321,7 @@ void(mitem_desktop desktop, vector screensize) items_draw =
 	items_updategrabs(FALSE);
 	if (dp_workarounds && oldgrabstate)
 	{
-//		//hopefully dp isn't broken and reports non-zero sizes for files that failed.
+//		//hopefully dp isn't broken and reports zero sizes for files that failed...
 //		if (drawgetimagesize(autocvar_cl_cursor) == '0 0')
 //			ui.drawpic(ui.mousepos - autocvar_cl_cursorbias*'1 1', autocvar_cl_cursor, autocvar_cl_cursorsize*'1 1', '1 1 1', 1, 0);
 //		else

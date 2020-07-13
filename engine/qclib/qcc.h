@@ -84,9 +84,11 @@ extern int MAX_CONSTANTS;
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 32
 
-typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_UHEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
+typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_UHEXEN2, QCF_DARKPLACES, QCF_QSS, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
-void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt);
+extern unsigned int qcc_targetversion;
+void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver);
+pbool QCC_OPCodeSetTargetName(const char *targ);
 
 
 /*
@@ -401,12 +403,14 @@ typedef struct QCC_def_s
 	char		*comment;		//ui info
 	struct QCC_def_s	*next;
 	struct QCC_def_s	*nextlocal;	//provides a chain of local variables for the opt_locals_marshalling optimisation.
-	gofs_t		ofs;
+	gofs_t		ofs;	//offset of symbol relative to symbol header.
 	struct QCC_function_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	struct QCC_def_s	*generatedfor;
 	int			constant;		// 1 says we can use the value over and over again. 2 is used on fields, for some reason.
 
+	struct QCC_def_s	*reloc;		//the symbol that we're a reloc for
+	struct QCC_def_s	*gaddress;	//a def that holds our offset.
 	struct QCC_def_s	*symbolheader;	//this is the original symbol within which the def is stored.
 	union QCC_eval_s	*symboldata;	//null if uninitialised. use sym->symboldata[sym->ofs] to index.
 	unsigned int		symbolsize;		//total byte size of symbol
@@ -583,6 +587,7 @@ extern pbool keyword_asm;
 extern pbool keyword_break;
 extern pbool keyword_case;
 extern pbool keyword_class;
+extern pbool keyword_accessor;
 extern pbool keyword_const;
 extern pbool keyword_inout;
 extern pbool keyword_optional;

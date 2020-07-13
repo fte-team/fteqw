@@ -61,6 +61,7 @@ pbool keyword_until;	//hexen2
 pbool keyword_thinktime;//hexen2
 pbool keyword_asm;
 pbool keyword_class;
+pbool keyword_accessor;
 pbool keyword_inout;
 pbool keyword_optional;
 pbool keyword_const;	//fixme
@@ -249,6 +250,7 @@ QCC_sref_t QCC_MakeFloatConst(pvec_t value);
 QCC_sref_t QCC_MakeFloatConstFromInt(longlong llvalue);
 QCC_sref_t QCC_MakeIntConst(longlong llvalue);
 QCC_sref_t QCC_MakeVectorConst(pvec_t a, pvec_t b, pvec_t c);
+static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof);
 
 enum
 {
@@ -1194,21 +1196,14 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, QCC_opcode_t *
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
 		if (num >= OP_STOREF_V)	//to be enabled at a later date - opcodes added in r5698.
-			return false;
+			return (qcc_targetversion>=5698);
 		return true;
-	case QCF_DARKPLACES:
-		//all id opcodes.
+	case QCF_QSS:
 		if (num < OP_MULSTORE_F)
 			return true;
-
-		//extended opcodes.
-		//DPFIXME: this is a list of the extended opcodes. I was conservative regarding supported ones.
-		//         at the time of writing, these are the ones that look like they'll work just fine in Blub\0's patch.
-		//         the ones that looked too permissive with bounds checks, or would give false positives are disabled.
-		//         if the DP guys want I can change them as desired.
 		switch(num)
 		{
-		//maths and conditionals (simple opcodes that read from specific globals and write to a global)
+		//int operations.
 		case OP_ADD_I:
 		case OP_ADD_IF:
 		case OP_ADD_FI:
@@ -1254,19 +1249,163 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, QCC_opcode_t *
 		case OP_NE_I:
 		case OP_NE_IF:
 		case OP_NE_FI:
+		case OP_CONV_ITOF:
+		case OP_CONV_FTOI:
+		case OP_BITXOR_I:
+		case OP_RSHIFT_I:
+		case OP_LSHIFT_I:
+		case OP_STORE_I:
+		case OP_STORE_IF:
+		case OP_STORE_FI:
+			return true;
+
+		//bugfixes...
+		case OP_IF_F:
+		case OP_IFNOT_F:
+		case OP_IF_S:
+		case OP_IFNOT_S:
+			return true;
+
+		//faster field access
+		case OP_STOREF_V:	//3 elements...
+		case OP_STOREF_F:	//1 fpu element...
+		case OP_STOREF_S:	//1 string reference
+		case OP_STOREF_I:	//1 non-string reference/int
+			return true;
+
+		//dp-style arrays
+		case OP_GLOAD_I:
+		case OP_GLOAD_F:
+		case OP_GLOAD_FLD:
+		case OP_GLOAD_ENT:
+		case OP_GLOAD_S:
+		case OP_GLOAD_FNC:
+		case OP_GLOAD_V:
+		case OP_GSTOREP_I:
+		case OP_GSTOREP_F:
+		case OP_GSTOREP_ENT:
+		case OP_GSTOREP_FLD:
+		case OP_GSTOREP_S:
+		case OP_GSTOREP_FNC:
+		case OP_GSTOREP_V:
+			return true;
+
+		case OP_BOUNDCHECK:
+			return true;
+
+		//fte-style arrays
+		case OP_LOADA_F:
+		case OP_LOADA_V:
+		case OP_LOADA_S:
+		case OP_LOADA_ENT:
+		case OP_LOADA_FLD:
+		case OP_LOADA_FNC:
+		case OP_LOADA_I:
+		case OP_GLOBALADDRESS:
+			return true;
+
+		//pointer-to-global
+		//other useful pointer stuff
+//		case OP_LOADP_F:
+//		case OP_LOADP_V:
+//		case OP_LOADP_S:
+//		case OP_LOADP_ENT:
+//		case OP_LOADP_FLD:
+//		case OP_LOADP_FNC:
+//		case OP_LOADP_I:
+//			return true;
+
+		//hexen2-style arrays.
+		case OP_FETCH_GBL_F:
+		case OP_FETCH_GBL_S:
+		case OP_FETCH_GBL_E:
+		case OP_FETCH_GBL_FNC:
+		case OP_FETCH_GBL_V:
+			return true;
+		//hexen2's calling convention.
+		case OP_CALL1H:
+		case OP_CALL2H:
+		case OP_CALL3H:
+		case OP_CALL4H:
+		case OP_CALL5H:
+		case OP_CALL6H:
+		case OP_CALL7H:
+		case OP_CALL8H:
+			return true;
+
+		default:
+			return false;
+		}
+		return false;
+	case QCF_DARKPLACES:
+		//all id opcodes.
+		if (num < OP_MULSTORE_F)
+			return true;
+
+		//extended opcodes.
+		switch(num)
+		{
+		//maths and conditionals (simple opcodes that read from specific globals and write to a global)
+		case OP_ADD_I:
+//		case OP_ADD_IF:	//dp rounds these to ints, which doesn't match our defined opcodes. not really a problem.
+		case OP_ADD_FI:
+		case OP_SUB_I:
+//		case OP_SUB_IF:	//dp rounds these to ints, which doesn't match our defined opcodes. revert to _F.
+		case OP_SUB_FI:
+		case OP_MUL_I:
+//		case OP_MUL_IF:	//dp rounds these to ints, which doesn't match our defined opcodes. revert to _F
+		case OP_MUL_FI:
+		case OP_MUL_VI:
+		case OP_DIV_VF:
+		case OP_DIV_I:
+//		case OP_DIV_IF:	//dp rounds these to ints, which doesn't match our defined opcodes. revert to _F
+		case OP_DIV_FI:
+		case OP_BITAND_I:
+		case OP_BITOR_I:
+		case OP_BITAND_IF:
+		case OP_BITOR_IF:
+//		case OP_BITAND_FI:	//dp outputs floats, which doesn't match our defined opcodes.
+//		case OP_BITOR_FI:	//dp outputs floats, which doesn't match our defined opcodes.
+		case OP_GE_I:	//dp outputs floats for ALL of these boolean comparisons.
+		case OP_LE_I:
+		case OP_GT_I:
+		case OP_LT_I:
+		case OP_AND_I:
+		case OP_OR_I:
+		case OP_GE_IF:
+		case OP_LE_IF:
+		case OP_GT_IF:
+		case OP_LT_IF:
+		case OP_AND_IF:
+		case OP_OR_IF:
+		case OP_GE_FI:
+		case OP_LE_FI:
+		case OP_GT_FI:
+		case OP_LT_FI:
+		case OP_AND_FI:
+		case OP_OR_FI:
+		case OP_NOT_I:
+		case OP_EQ_I:
+		case OP_EQ_IF:
+		case OP_EQ_FI:
+		case OP_NE_I:
+		case OP_NE_IF:
+		case OP_NE_FI:
+		case OP_CONV_ITOF:
+		case OP_CONV_FTOI:
 			return true;
 
 		//stores into a pointer (generated from 'ent.field=XXX')
 		case OP_STOREP_I:	//no worse than the other OP_STOREP_X functions
 		//reads from an entity field
 		case OP_LOAD_I:		//no worse than the other OP_LOAD_X functions.
-		case OP_LOAD_P:
+			return true;
+
+		case OP_BOUNDCHECK:
 			return true;
 
 		//stores into the globals array.
-		//they can change any global dynamically, but thats no security risk.
-		//fteqcc will not automatically generate these.
-		//fteqw does not support them either.
+		//they can change any global dynamically, but thats supposedly no real security risk.
 		case OP_GSTOREP_I:
 		case OP_GSTOREP_F:
 		case OP_GSTOREP_ENT:
@@ -1278,140 +1417,16 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, QCC_opcode_t *
 
 		//this opcode looks weird
 		case OP_GADDRESS://floatc = globals[inta + floatb] (fte does not support)
-			return true;
+			return false;
 
-		//fteqcc will not automatically generate these
-		//fteqw does not support them either, for that matter.
 		case OP_GLOAD_I://c = globals[inta]
 		case OP_GLOAD_F://note: fte does not support these
 		case OP_GLOAD_FLD:
 		case OP_GLOAD_ENT:
 		case OP_GLOAD_S:
 		case OP_GLOAD_FNC:
-			return true;
 		case OP_GLOAD_V:
-			return false;	//DPFIXME: this is commented out in the patch I was given a link to... because the opcode wasn't defined.
-
-		//these are reportedly functional.
-		case OP_CALL8H:
-		case OP_CALL7H:
-		case OP_CALL6H:
-		case OP_CALL5H:
-		case OP_CALL4H:
-		case OP_CALL3H:
-		case OP_CALL2H:
-		case OP_CALL1H:
 			return true;
-
-		case OP_RAND0:
-		case OP_RAND1:
-		case OP_RAND2:
-		case OP_RANDV0:
-		case OP_RANDV1:
-		case OP_RANDV2:
-			return true;
-
-		case OP_BITSETSTORE_F: // b |= a
-		case OP_BITCLRSTORE_F: // b &= ~a
-		case OP_BITSETSTOREP_F: // *b |= a
-		case OP_BITCLRSTOREP_F: // *b &= ~a
-			return false;	//FIXME: I do not fully follow the controversy over these.
-
-		case OP_SWITCH_F:
-		case OP_SWITCH_V:
-		case OP_SWITCH_S:
-		case OP_SWITCH_E:
-		case OP_SWITCH_FNC:
-		case OP_CASE:
-		case OP_CASERANGE:
-			return true;
-
-		//assuming the pointers here are fine, the return values are a little strange.
-		//but its fine
-		case OP_ADDSTORE_F:
-		case OP_ADDSTORE_V:
-		case OP_ADDSTOREP_F: // e.f += f
-		case OP_ADDSTOREP_V: // e.v += v
-		case OP_SUBSTORE_F:
-		case OP_SUBSTORE_V:
-		case OP_SUBSTOREP_F: // e.f += f
-		case OP_SUBSTOREP_V: // e.v += v
-			return true;
-
-		case OP_LOADA_I:
-		case OP_LOADA_F:
-		case OP_LOADA_FLD:
-		case OP_LOADA_ENT:
-		case OP_LOADA_S:
-		case OP_LOADA_FNC:
-		case OP_LOADA_V:
-			return false;	//DPFIXME: DP does not bounds check these properly. I won't generate them.
-
-		case OP_CONV_ITOF:
-		case OP_CONV_FTOI:
-			return true;	//these look fine.
-
-		case OP_STOREP_C: // store a char in a string
-			return false; //DPFIXME: dp's bounds check may give false positives with expected uses.
-
-		case OP_MULSTORE_F:
-		case OP_MULSTORE_VF:
-		case OP_MULSTOREP_F:
-		case OP_MULSTOREP_VF: // e.v *= f
-		case OP_DIVSTORE_F:
-		case OP_DIVSTOREP_F:
-		case OP_STORE_IF:
-		case OP_STORE_FI:
-		case OP_STORE_P:
-		case OP_STOREP_IF: // store a value to a pointer
-		case OP_STOREP_FI:
-		case OP_IFNOT_S:
-		case OP_IF_S:
-			return true;
-
-		case OP_IFNOT_F:	//added, but not in dp yet
-		case OP_IF_F:
-			return false;
-
-		case OP_CP_ITOF:
-		case OP_CP_FTOI:
-			return false;	//DPFIXME: These are not bounds checked at all.
-		case OP_GLOBALADDRESS:
-			return true;	//DPFIXME: DP will reject these pointers if they are ever used.
-		case OP_ADD_PIW:
-			return true;	//just maths.
-
-		case OP_ADD_SF: //(char*)c = (char*)a + (float)b
-		case OP_SUB_S:  //(float)c = (char*)a - (char*)b
-			return true;
-		case OP_LOADP_C:        //load character from a string
-			return false;	//DPFIXME: DP looks like it'll reject these or wrongly allow.
-
-		case OP_LOADP_I:
-		case OP_LOADP_F:
-		case OP_LOADP_FLD:
-		case OP_LOADP_ENT:
-		case OP_LOADP_S:
-		case OP_LOADP_FNC:
-		case OP_LOADP_V:
-			return true;
-
-		case OP_BITXOR_I:
-		case OP_RSHIFT_I:
-		case OP_LSHIFT_I:
-			return true;
-
-		case OP_FETCH_GBL_F:
-		case OP_FETCH_GBL_S:
-		case OP_FETCH_GBL_E:
-		case OP_FETCH_GBL_FNC:
-		case OP_FETCH_GBL_V:
-			return false;	//DPFIXME: DP will not bounds check this properly, it is too permissive.
-		case OP_CSTATE:
-		case OP_CWSTATE:
-			return false;	//DP does not support this hexenc opcode.
-		case OP_THINKTIME:
-			return true;	//but it does support this one.
 
 		default:			//anything I forgot to mention is new.
 			return false;
@@ -1425,13 +1440,22 @@ static pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	return op->flags & OPF_VALID;
 }
 static pbool QCC_OPCode_StorePOffset(void)
-{	//5709+
-	return QCC_OPCodeValid(&pr_opcodes[OP_STOREF_I]);	//close enough (I didn't make any public builds between revisions)
+{	//5712
+	switch(qcc_targetformat)
+	{
+	case QCF_FTE:
+	case QCF_FTEH2:
+	case QCF_FTEDEBUG:
+		return (qcc_targetversion>=5712);
+	default:
+		return false;
+	}
 }
-void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt)
+void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver)
 {
 	size_t i;
 	qcc_targetformat = targfmt;
+	qcc_targetversion = targver;
 	for (i = 0; i < OP_NUMREALOPS; i++)
 	{
 		QCC_opcode_t *op = &pr_opcodes[i];
@@ -1440,6 +1464,83 @@ void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt)
 		else
 			op->flags &= ~OPF_VALID;
 	}
+}
+
+static struct {
+	qcc_targetformat_t target;
+	const char *name;
+} targets[] = {
+	{QCF_STANDARD,	"standard"},
+	{QCF_STANDARD,	"vanilla"},
+	{QCF_STANDARD,	"q1"},
+	{QCF_STANDARD,	"id"},
+	{QCF_STANDARD,	"quakec"},
+
+	{QCF_STANDARD,	"qs"},
+//	{QCF_QSS,		"qss"},
+
+	{QCF_HEXEN2,	"hexen2"},
+	{QCF_HEXEN2,	"h2"},
+	{QCF_UHEXEN2,	"uhexen2"},
+
+	{QCF_KK7,		"kkqwsv"},
+	{QCF_KK7,		"kk7"},
+	{QCF_KK7,		"bigprogs"},
+	{QCF_KK7,		"version7"},
+	{QCF_KK7,		"kkqwsv"},
+
+	{QCF_FTE,		"fte"},
+	{QCF_FTEH2,		"fteh2"},
+	{QCF_FTEDEBUG,	"ftedebug"},
+	{QCF_FTEDEBUG,	"debug"},
+
+	{QCF_DARKPLACES,"darkplaces"},
+	{QCF_DARKPLACES,"dp"},
+
+	{QCF_QTEST,		"qtest"},
+	{0,				NULL}
+};
+pbool QCC_OPCodeSetTargetName(const char *targ)
+{	//fte_24 -> fmt=QCF_FTE, ver=24
+	const char *ver;
+	size_t i, tlen;
+	ver = strchr(targ, '_');
+	if (ver)
+	{
+		tlen = ver-targ;
+		ver++;
+	}
+	else
+	{
+		tlen = strlen(targ);
+		ver = "0x7fffffff";
+	}
+
+	for (i = 0; targets[i].name; i++)
+		if (!strnicmp(targ, targets[i].name, tlen) && strlen(targets[i].name)==tlen)
+		{
+			qcc_targetformat_t newtype = targets[i].target;
+
+			if (newtype == QCF_DARKPLACES)
+				QCC_PR_ParseWarning(WARN_BADTARGET, "#pragma target \"%s\". Requires an unofficial patch to DP. Without that patch there is no support for any opcodes beyond vanilla.", targ);
+
+			if (numstatements > 1)
+			{
+#define ish2(fmt) ((fmt) == QCF_HEXEN2 || (fmt) == QCF_UHEXEN2 || (fmt) == QCF_FTEH2)
+				pbool nowh2  = ish2(newtype);
+				pbool wash2 = ish2(qcc_targetformat);
+
+				if (nowh2 != wash2)
+				{	//hexen2 involves bulk renaming of OP_CALL->OP_CALLH opcodes on load time, which breaks any previously compiled code, rather than just extra statements.
+					QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to %shexen2 target \'%s\' after the first statement. Ignored.", targ, wash2?"non-":"");
+					return true;
+				}
+			}
+
+			QCC_OPCodeSetTarget(targets[i].target, atoi(ver));
+			return true;
+		}
+	return false;
 }
 
 #define EXPR_WARN_ABOVE_1 2
@@ -1479,6 +1580,53 @@ static const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref)
 		return &ref.sym->symboldata[ref.ofs];
 	}
 	return NULL;
+}
+
+//retrieves the data associated with the reference if its constant and thus readable at compile time.
+static pbool QCC_Eval_Truth(const QCC_eval_t *eval, QCC_type_t *type, pbool assume)
+{
+	pbool istrue = false;
+	int i;
+	if (!eval)
+		return assume;
+	switch(type->type)
+	{
+	case ev_float:
+		istrue = (eval->_float != 0);
+		break;
+	case ev_integer:
+	case ev_function:
+	case ev_entity:
+	case ev_field:
+	case ev_pointer:
+	case ev_boolean:
+		istrue = (eval->_int != 0);
+		break;
+	case ev_string:
+		if (flag_ifstring)
+			istrue = !!strings[eval->_int];	//value compare.
+		else
+			istrue = (eval->_int != 0);		//offset compare
+		break;
+	case ev_vector:
+		if (flag_ifvector)
+			istrue = eval->vector[0] || eval->vector[1] || eval->vector[2];
+		else
+			istrue = (eval->_float != 0);		//legacy buggy behaviour
+		break;
+
+	case ev_struct:
+	case ev_union:
+		QCC_PR_ParseWarning(WARN_CONDITIONALTYPEMISMATCH, "conditional type mismatch: %s", basictypenames[type->type]);
+		//fall through anyway.
+	default:
+		for (i = 0; i < type->size; i++)
+			if ((&eval->_int)[i])
+				break;
+		istrue = i!=type->size;
+		break;
+	}
+	return istrue;
 }
 
 static const char *QCC_GetRefName(QCC_ref_t *ref, char *buffer, size_t buffersize)
@@ -1527,10 +1675,10 @@ static int QCC_ShouldConvert(QCC_type_t *from, etype_t wanted)
 	if (from->type == ev_pointer && from->aux_type)
 	{
 		if (from->aux_type->type == ev_float && wanted == ev_integer)
-			return OP_CP_FTOI;
+			return OP_LOADP_FTOI;
 
 		if (from->aux_type->type == ev_integer && wanted == ev_float)
-			return OP_CP_ITOF;
+			return OP_LOADP_ITOF;
 	}
 	else
 	{
@@ -1602,7 +1750,7 @@ static QCC_sref_t QCC_SupplyConversion(QCC_sref_t  var, etype_t wanted, pbool fa
 
 	if (o == 0) //type already matches
 		return var;
-	if (flag_typeexplicit)
+	if (flag_typeexplicit)// && !QCC_SRef_IsNull(var))
 		QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, var, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var.cast->type]);
 	if (o < 0)
 	{
@@ -2289,6 +2437,62 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				//both are constants
 				switch (op - pr_opcodes)	//improve some of the maths.
 				{
+				case OP_AND_ANY:
+//				case OP_AND_F:
+				case OP_AND_FI:
+//				case OP_AND_I:
+				case OP_AND_IF:
+					/*if (flag_pythonlogic)
+					{	//c=(a?b:a);
+						optres_constantarithmatic++;
+						if (QCC_Eval_Truth(eval_a, var_a.cast))
+						{
+							QCC_FreeTemp(var_a);
+							return var_b;
+						}
+						else
+						{
+							QCC_FreeTemp(var_b);
+							return var_a;
+						}
+					}*/
+					optres_constantarithmatic++;
+					QCC_FreeTemp(var_a);
+					QCC_FreeTemp(var_b);
+					if (QCC_Eval_Truth(eval_a, var_a.cast, false) && QCC_Eval_Truth(eval_b, var_b.cast, false))
+						return flag_assume_integer?QCC_MakeIntConst(1):QCC_MakeFloatConst(1);
+					else
+						return flag_assume_integer?QCC_MakeIntConst(0):QCC_MakeFloatConst(0);
+					break;
+
+				case OP_OR_ANY:
+//				case OP_OR_F:
+				case OP_OR_FI:
+//				case OP_OR_I:
+				case OP_OR_IF:
+					/*if (flag_pythonlogic)
+					{	//c=(a?a:b);
+						optres_constantarithmatic++;
+						if (QCC_Eval_Truth(eval_a, var_a.cast))
+						{
+							QCC_FreeTemp(var_b);
+							return var_a;
+						}
+						else
+						{
+							QCC_FreeTemp(var_a);
+							return var_b;
+						}
+					}*/
+					optres_constantarithmatic++;
+					QCC_FreeTemp(var_a);
+					QCC_FreeTemp(var_b);
+					if (QCC_Eval_Truth(eval_a, var_a.cast, false) || QCC_Eval_Truth(eval_b, var_b.cast, false))
+						return flag_assume_integer?QCC_MakeIntConst(1):QCC_MakeFloatConst(1);
+					else
+						return flag_assume_integer?QCC_MakeIntConst(0):QCC_MakeFloatConst(0);
+					break;
+
 				case OP_LOADA_F:
 				case OP_LOADA_V:
 				case OP_LOADA_S:
@@ -2590,18 +2794,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				case OP_BITOR_FI:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					return QCC_MakeIntConst(QCC_PR_RoundFloatConst(eval_a) | eval_b->_int);
-				case OP_AND_IF:
-					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_int && eval_b->_float);
-				case OP_OR_IF:
-					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_int || eval_b->_float);
-				case OP_AND_FI:
-					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_float && eval_b->_int);
-				case OP_OR_FI:
-					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_float || eval_b->_int);
 				case OP_NE_F:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					return QCC_MakeFloatConst(eval_a->_float != eval_b->_float);
@@ -2670,7 +2862,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					return QCC_MakeFloatConst(eval_a->_int);
 
 				case OP_BITOR_F:
-				case OP_OR_F:
 				case OP_ADD_F:
 					if (eval_a->_float == 0)
 					{
@@ -2703,23 +2894,62 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 						return QCC_MakeIntConst(0);
 					}
 					break;
+				case OP_AND_ANY:
 				case OP_AND_F:
-					optres_constantarithmatic++;
-					QCC_FreeTemp(var_a);
-					if (eval_a->_float != 0)
-						return var_b;
-					QCC_FreeTemp(var_b);
-					return QCC_MakeFloatConst(0);
+				case OP_AND_FI:
 				case OP_AND_I:
-					optres_constantarithmatic++;
-					QCC_FreeTemp(var_a);
-					if (eval_a->_int != 0)
-						return var_b;
-					QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(0);
+				case OP_AND_IF:
+					/*if (flag_pythonlogic)
+					{	//c=(a?b:a);
+						optres_constantarithmatic++;
+						if (QCC_Eval_Truth(eval_a, var_a.cast))
+						{
+							QCC_FreeTemp(var_a);
+							return var_b;
+						}
+						else
+						{
+							QCC_FreeTemp(var_b);
+							return var_a;
+						}
+					}*/
+					if (!QCC_Eval_Truth(eval_a, var_a.cast, false))
+					{	//one side is false, thus return false.
+						optres_constantarithmatic++;
+						QCC_FreeTemp(var_a);
+						QCC_FreeTemp(var_b);
+						return QCC_MakeFloatConst(0);
+					}
+					break;
 
-				case OP_BITOR_I:
+				case OP_OR_ANY:
+				case OP_OR_F:
+				case OP_OR_FI:
 				case OP_OR_I:
+				case OP_OR_IF:
+					/*if (flag_pythonlogic)
+					{	//c=(a?a:b);
+						optres_constantarithmatic++;
+						if (QCC_Eval_Truth(eval_a, var_a.cast))
+						{
+							QCC_FreeTemp(var_b);
+							return var_a;
+						}
+						else
+						{
+							QCC_FreeTemp(var_a);
+							return var_b;
+						}
+					}*/
+					if (QCC_Eval_Truth(eval_a, var_a.cast, false))
+					{	//one side is true, thus return true.
+						optres_constantarithmatic++;
+						QCC_FreeTemp(var_a);
+						QCC_FreeTemp(var_b);
+						return QCC_MakeFloatConst(1);
+					}
+					break;
+				case OP_BITOR_I:
 				case OP_ADD_I:
 					if (eval_a->_int == 0)
 					{
@@ -2744,6 +2974,63 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			//b is const, a is not
 			switch (op - pr_opcodes)
 			{
+				case OP_AND_ANY:
+				case OP_AND_F:
+				case OP_AND_FI:
+				case OP_AND_I:
+				case OP_AND_IF:
+					/*if (flag_pythonlogic)
+					{	//c=(a?b:a);
+						optres_constantarithmatic++;
+						if (QCC_Eval_Truth(eval_a, var_a.cast))
+						{
+							QCC_FreeTemp(var_a);
+							return var_b;
+						}
+						else
+						{
+							QCC_FreeTemp(var_b);
+							return var_a;
+						}
+					} else*/
+					if (!QCC_Eval_Truth(eval_b, var_b.cast, false))
+					{	//one side is false, thus return false.
+						optres_constantarithmatic++;
+						QCC_FreeTemp(var_a);
+						QCC_FreeTemp(var_b);
+						return QCC_MakeFloatConst(0);
+					}
+					break;
+
+				case OP_OR_ANY:
+				case OP_OR_F:
+				case OP_OR_FI:
+				case OP_OR_I:
+				case OP_OR_IF:
+					/*if (flag_pythonlogic)
+					{	//c=(a?a:b);
+						optres_constantarithmatic++;
+						if (QCC_Eval_Truth(eval_a, var_a.cast))
+						{
+							QCC_FreeTemp(var_b);
+							return var_a;
+						}
+						else
+						{
+							QCC_FreeTemp(var_a);
+							return var_b;
+						}
+					}*/
+					if (QCC_Eval_Truth(eval_a, var_a.cast, false))
+					{	//one side is true, thus return true.
+						optres_constantarithmatic++;
+						QCC_FreeTemp(var_a);
+						QCC_FreeTemp(var_b);
+						return QCC_MakeFloatConst(1);
+					}
+					break;
+
+
 #if IAMNOTLAZY
 			case OP_LOADA_F:
 			case OP_LOADA_V:
@@ -2766,7 +3053,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				break;
 #endif
 			case OP_BITOR_F:
-			case OP_OR_F:
 			case OP_SUB_F:
 			case OP_ADD_F:
 				if (eval_b->_float == 0)
@@ -2785,24 +3071,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					return var_a;
 				}
 				break;
-			//no bitand_f, I don't trust the casts
-			case OP_AND_F:
-				if (eval_b->_float)
-				{
-					optres_constantarithmatic++;
-					QCC_FreeTemp(var_b);
-					return var_a;
-				}
-				else
-				{	//can never be true, return the false
-					optres_constantarithmatic++;
-					QCC_FreeTemp(var_a);
-					return var_b;
-				}
-				break;
-
 			case OP_BITOR_I:
-			case OP_OR_I:
 			case OP_SUB_I:
 			case OP_ADD_I:
 			case OP_ADD_PIW:
@@ -2828,20 +3097,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					optres_constantarithmatic++;
 					QCC_FreeTemp(var_b);
 					return var_a;
-				}
-				break;
-			case OP_AND_I:
-				if (eval_b->_int)
-				{
-					optres_constantarithmatic++;
-					QCC_FreeTemp(var_b);
-					return var_a;
-				}
-				else
-				{				
-					optres_constantarithmatic++;
-					QCC_FreeTemp(var_a);
-					return var_b;
 				}
 				break;
 			}
@@ -4167,10 +4422,15 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_OR_ANY], var_a, var_b, NULL, 0);
 				return QCC_PR_GenerateLogicalNot(var_a, "%s isn't a float...");
 			}
-			if ((var_a.cast->size != 1 && flag_vectorlogic) || (var_a.cast->type == ev_string && flag_ifstring))
+			if (var_a.cast->type == ev_string && flag_ifstring)
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_NE_S], var_a, QCC_MakeStringConst(""), NULL, (flags&STFL_PRESERVEA?STFL_PRESERVEA:0));
+			else if ((var_a.cast->type == ev_string && flag_ifstring))
 				var_a = QCC_PR_GenerateLogicalNot(QCC_PR_GenerateLogicalNot(var_a, "%s used as truth value"), "%s isn't a float...");
-			if ((var_b.cast->size != 1 && flag_vectorlogic) || (var_b.cast->type == ev_string && flag_ifstring))
+			if (var_b.cast->type == ev_string && flag_ifstring)
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_NE_S], QCC_MakeStringConst(""), var_b, NULL, (flags&STFL_PRESERVEB?STFL_PRESERVEB:0));
+			else if (var_b.cast->size != 1 && flag_vectorlogic)
 				var_b = QCC_PR_GenerateLogicalNot(QCC_PR_GenerateLogicalNot(var_b, "%s used as truth value"), "%s isn't a float...");
+
 			if (var_a.cast->type != ev_float && var_b.cast->type != ev_float && QCC_OPCodeValid(&pr_opcodes[OP_AND_I]))
 				op = &pr_opcodes[OP_AND_I];	//negative 0 as a float is considered zero by the fpu, which makes 0x80000000 tricky. avoid that if we can.
 			else if (var_a.cast->type != ev_float && var_b.cast->type == ev_float && QCC_OPCodeValid(&pr_opcodes[OP_AND_IF]))
@@ -4196,9 +4456,13 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_AND_ANY], var_a, var_b, NULL, 0);
 				return QCC_PR_GenerateLogicalNot(var_a, "%s isn't a float...");
 			}
-			if ((var_a.cast->size != 1 && flag_vectorlogic) || (var_a.cast->type == ev_string && flag_ifstring))
+			if (var_a.cast->type == ev_string && flag_ifstring)
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_NE_S], var_a, QCC_MakeStringConst(""), NULL, (flags&STFL_PRESERVEA?STFL_PRESERVEA:0));
+			else if (var_a.cast->size != 1 && flag_vectorlogic)
 				var_a = QCC_PR_GenerateLogicalNot(QCC_PR_GenerateLogicalNot(var_a, "%s used as truth value"), "%s isn't a float...");
-			if ((var_b.cast->size != 1 && flag_vectorlogic) || (var_b.cast->type == ev_string && flag_ifstring))
+			if (var_b.cast->type == ev_string && flag_ifstring)
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_NE_S], QCC_MakeStringConst(""), var_b, NULL, (flags&STFL_PRESERVEB?STFL_PRESERVEB:0));
+			else if (var_b.cast->size != 1 && flag_vectorlogic)
 				var_b = QCC_PR_GenerateLogicalNot(QCC_PR_GenerateLogicalNot(var_b, "%s used as truth value"), "%s isn't a float...");
 			if (var_a.cast->type != ev_float && var_b.cast->type != ev_float && QCC_OPCodeValid(&pr_opcodes[OP_OR_I]))
 				op = &pr_opcodes[OP_OR_I];	//negative 0 as a float is considered zero by the fpu, which makes 0x80000000 tricky. avoid that if we can.
@@ -4485,7 +4749,7 @@ static QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand
 		//as opposed to a ref
 		return QCC_PR_BuildRef(retbuf,
 				REF_GLOBAL,
-				QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], operand->base, operand->index, NULL), 
+				QCC_PR_Statement(&pr_opcodes[OP_ADDRESS], operand->base, operand->index, NULL),
 				nullsref,
 				QCC_PR_PointerType((operand->index.cast->type == ev_field)?operand->index.cast->aux_type:type_variant),
 				true);
@@ -4503,7 +4767,7 @@ static QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand
 		//&foo (or &((&foo)[5]), which is basically an array). the result is a temp and thus cannot be assigned to (but should be possible to dereference further).
 		return QCC_PR_BuildRef(retbuf,
 				REF_GLOBAL,
-				QCC_PR_Statement(&pr_opcodes[OP_GLOBALADDRESS], operand->base, operand->index.cast?QCC_SupplyConversion(operand->index, ev_integer, true):nullsref, NULL), 
+				QCC_PR_Statement(&pr_opcodes[OP_GLOBALADDRESS], operand->base, operand->index.cast?QCC_SupplyConversion(operand->index, ev_integer, true):nullsref, NULL),
 				nullsref,
 				QCC_PR_PointerType(operand->cast),
 				true);
@@ -4530,7 +4794,18 @@ static QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand
 	QCC_PR_ParseError (ERR_BADEXTENSION, "Cannot use addressof operator ('&') on a global. Please use the FTE target.");
 	return operand;
 }
-
+QCC_sref_t QCC_DP_GlobalAddress(QCC_sref_t base, QCC_sref_t index, unsigned int flags)
+{
+	QCC_sref_t ptr = QCC_MakeGAddress(type_integer, base.sym);
+	base.sym->used = true;
+	if (!(flags&STFL_PRESERVEA))
+		QCC_FreeTemp(base);
+	if (base.ofs)
+		ptr = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], ptr, QCC_MakeIntConst(base.ofs), NULL, 0);
+	if (index.cast)
+		ptr = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], ptr, index, NULL, flags);
+	return ptr;
+}
 
 static void QCC_PrecacheSound (const char *n, int ch)
 {
@@ -6945,6 +7220,40 @@ static QCC_sref_t QCC_MakeUniqueConst(QCC_type_t *type, void *data)
 	return QCC_MakeSRefForce(cn, 0, type);
 }
 
+static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof)
+{
+	QCC_def_t	*cn;
+
+	if (relocof->gaddress)
+		return QCC_MakeSRefForce(relocof->gaddress, 0, type);
+
+// allocate a new one
+	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t) + sizeof(pint_t) * type->size);
+	cn->next = NULL;
+	pr.def_tail->next = cn;
+	pr.def_tail = cn;
+
+	cn->type = type;
+	cn->name = "IMMEDIATE";
+	cn->constant = true;
+	cn->initialized = 0;	//we don't know addresses until the end, which hurts folding. :(
+	cn->scope = NULL;		// always share immediates
+	cn->arraysize = 0;
+
+	cn->ofs = 0;
+	cn->symbolheader = cn;
+	cn->symbolsize = cn->type->size;
+	cn->symboldata = (QCC_eval_t*)(cn+1);
+
+	cn->reloc = relocof;
+	relocof->gaddress = cn;
+
+	memset(cn->symboldata, 0, sizeof(pint_t) * type->size);
+
+	return QCC_MakeSRefForce(cn, 0, type);
+}
+
+
 
 QCC_sref_t QCC_PR_GenerateVector(QCC_sref_t x, QCC_sref_t y, QCC_sref_t z);
 QCC_sref_t QCC_MakeVectorConst(pvec_t a, pvec_t b, pvec_t c)
@@ -7726,7 +8035,7 @@ fieldarrayindex:
 			if (t->size != 1) /*don't multiply by type size if the instruction/emulation will do that instead*/
 			{
 				//convert it to ints if that makes sense
-				if (QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
+				if (QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]) && ((idx.cast && idx.cast->type == ev_integer) || tmp.cast->type == ev_integer))
 				{
 					if (idx.cast)
 						idx = QCC_SupplyConversion(idx, ev_integer, true);
@@ -7742,12 +8051,12 @@ fieldarrayindex:
 			}
 
 			//legacy opcodes needs to stay using floats even if an int was specified. avoid int immediates.
-			if (!QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
-			{
-				if (idx.cast)
-					idx = QCC_SupplyConversion(idx, ev_float, true);
-				tmp = QCC_SupplyConversion(tmp, ev_float, true);
-			}
+//			if (!QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
+//			{
+//				if (idx.cast)
+//					idx = QCC_SupplyConversion(idx, ev_float, true);
+//				tmp = QCC_SupplyConversion(tmp, ev_float, true);
+//			}
 
 			/*calc the new index*/
 			if (idx.cast && idx.cast->type == ev_float && tmp.cast->type == ev_float)
@@ -9133,6 +9442,76 @@ static void QCC_StoreToPointer(QCC_sref_t dest, QCC_sref_t idx, QCC_sref_t sourc
 	if (freedest)
 		QCC_FreeTemp(dest);
 }
+static void QCC_StoreToGPointer(QCC_sref_t dest, QCC_sref_t source, QCC_type_t *type)
+{
+	pbool freedest = false;
+	if (type->type == ev_variant)
+		type = source.cast;
+
+	while (type->type == ev_accessor)
+		type = type->parentclass;
+
+	//fixme: we should probably handle entire structs or something
+	switch(type->type)
+	{
+	default:
+		QCC_PR_ParseErrorPrintSRef(ERR_INTERNAL, dest, "QCC_StoreToPointer doesn't know how to store to that type");
+	case ev_struct:
+	case ev_union:
+		{
+			unsigned int i;
+			for (i = 0; i+2 < type->size; i+=3)
+			{
+				QCC_sref_t newptr = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], dest, QCC_MakeIntConst(i), NULL, STFL_PRESERVEA);
+				if (QCC_SRef_IsNull(source))
+					QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_V], QCC_MakeVectorConst(0,0,0), newptr, nullsref, false);
+				else
+				{
+					QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_V], source, newptr, nullsref, false);
+					source.ofs += 3;
+				}
+				QCC_FreeTemp(newptr);
+			}
+			for (; i < type->size; i++)
+			{
+				QCC_sref_t newptr = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], dest, QCC_MakeIntConst(i), NULL, STFL_PRESERVEA);
+				if (QCC_SRef_IsNull(source))
+					QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_F], QCC_MakeIntConst(0), newptr, nullsref, false);
+				else
+				{
+					QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_F], source, newptr, nullsref, false);
+					source.ofs += 1;
+				}
+				QCC_FreeTemp(newptr);
+			}
+		}
+		break;
+	case ev_float:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_F], source, dest, nullsref, false);
+		break;
+	case ev_vector:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_V], source, dest, nullsref, false);
+		break;
+	case ev_entity:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_ENT], source, dest, nullsref, false);
+		break;
+	case ev_string:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_S], source, dest, nullsref, false);
+		break;
+	case ev_function:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_FNC], source, dest, nullsref, false);
+		break;
+	case ev_field:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_FLD], source, dest, nullsref, false);
+		break;
+	case ev_integer:
+	case ev_pointer:
+		QCC_PR_SimpleStatement(&pr_opcodes[OP_GSTOREP_I], source, dest, nullsref, false);
+		break;
+	}
+	if (freedest)
+		QCC_FreeTemp(dest);
+}
 static QCC_sref_t QCC_LoadFromPointer(QCC_sref_t source, QCC_sref_t idx, QCC_type_t *type)
 {
 	QCC_sref_t ret;
@@ -9204,6 +9583,17 @@ static void QCC_StoreToArray(QCC_sref_t base, QCC_sref_t index, QCC_sref_t sourc
 		QCC_FreeTemp(addr);
 		QCC_FreeTemp(source);
 	}
+	else if (QCC_OPCodeValid(&pr_opcodes[OP_GSTOREP_F]))
+	{
+		QCC_sref_t addr;
+		//ptr = &base[index];
+		addr = QCC_DP_GlobalAddress(base, QCC_SupplyConversion(index, ev_integer, true), 0);
+		//*ptr = source
+		QCC_StoreToGPointer(addr, source, t);
+		source.sym->referenced = true;
+		QCC_FreeTemp(addr);
+		QCC_FreeTemp(source);
+	}
 	else
 	{
 		const char *basename = QCC_GetSRefName(base);
@@ -9227,8 +9617,20 @@ static void QCC_StoreToArray(QCC_sref_t base, QCC_sref_t index, QCC_sref_t sourc
 			funcretr.sym->generatedfor = base.sym;
 		}
 
-		if (source.cast->type != t->type)
-			QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "Type Mismatch on array assignment");
+		if (QCC_SRef_IsNull(source))
+		{
+			if (t->type == ev_vector)
+				source = QCC_MakeVectorConst(0,0,0);
+			else
+				source = QCC_MakeFloatConst(0);
+		}
+		else if (source.cast->type != t->type)
+		{
+			char typea[128], typeb[128];
+			TypeName(source.cast, typea, sizeof(typea));
+			TypeName(t, typeb, sizeof(typeb));
+			QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "Type mismatch on indexed assignment of %s: %s %s, needed %s.", basename, typea, QCC_GetSRefName(source), typeb);
+		}
 
 		if (base.cast->type == ev_vector)
 		{
@@ -9254,12 +9656,91 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 		accel = 1;
 
 	if (accel == 2 && !QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
-		accel = 1;
+		accel = QCC_OPCodeValid(&pr_opcodes[OP_GLOAD_F])&&!base.sym->temp?3:1;
 	if (accel == 1 && (!base.sym->arraylengthprefix || !QCC_OPCodeValid(&pr_opcodes[OP_FETCH_GBL_F])))
 		accel = QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F])?2:0;
 
-	if (accel == 2)
-	{
+	if (accel == 3)
+	{	//dp-style, somewhat annoying.
+		if (index.cast->type == ev_float)
+		{
+			flags = preserve?STFL_PRESERVEA:0;
+			index = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], index, nullsref, NULL, preserve?STFL_PRESERVEA:0);
+		}
+		else
+		{
+			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
+			if (index.cast->type != ev_integer)
+				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "array index is not a single numeric value");
+		}
+
+		index = QCC_DP_GlobalAddress(base, index, flags);
+		switch(t->type)
+		{
+		case ev_string:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_S], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_float:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_F], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_vector:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_V], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_entity:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_ENT], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_field:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_FLD], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_function:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_FNC], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_pointer:
+		case ev_integer:
+			base = QCC_PR_StatementFlags(&pr_opcodes[OP_GLOAD_I], index, nullsref, NULL, flags);	//get pointer to precise def.
+			break;
+		case ev_variant:
+		case ev_struct:
+		case ev_union:
+			{
+				QCC_sref_t r;
+				unsigned int i;
+				r = QCC_GetTemp(t);
+
+				//we can just bias the base offset instead of lots of statements to add to the index. how handy.
+				for (i = 0; i < t->size; )
+				{
+					if (t->size - i >= 3)
+					{
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_GLOAD_V], index, nullsref, r, false);
+						i+=3;
+						index = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], index, QCC_MakeIntConst(3), NULL);
+						r.ofs+=3;
+					}
+					else
+					{
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_GLOAD_I], index, nullsref, r, false);
+						i++;
+						index = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], index, QCC_MakeIntConst(1), NULL);
+						r.ofs++;
+					}
+				}
+				if (!preserve)
+					QCC_FreeTemp(index);
+				r.ofs -= i;
+				return r;
+			}
+			return nullsref;
+		default:
+			QCC_PR_ParseError(ERR_NOVALIDOPCODES, "Unable to load type %s... oops.", basictypenames[t->type]);
+			return nullsref;
+		}
+
+		base.cast = t;
+		return base;
+	}
+	else if (accel == 2)
+	{	//fte-style, simpler indexing.
 		if (index.cast->type == ev_float)
 		{
 			flags = preserve?STFL_PRESERVEA:0;
@@ -9295,7 +9776,7 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 		case ev_integer:
 			base = QCC_PR_StatementFlags(&pr_opcodes[OP_LOADA_I], base, index, NULL, flags);	//get pointer to precise def.
 			break;
-//		case ev_variant:
+		case ev_variant:
 		case ev_struct:
 		case ev_union:
 			{
@@ -9332,7 +9813,7 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 			}
 			return nullsref;
 		default:
-			QCC_PR_ParseError(ERR_NOVALIDOPCODES, "Unable to load type... oops.");
+			QCC_PR_ParseError(ERR_NOVALIDOPCODES, "Unable to load type %s... oops.", basictypenames[t->type]);
 			return nullsref;
 		}
 
@@ -9340,7 +9821,7 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 		return base;
 	}
 	else if (accel == 1)
-	{
+	{	//hexen2-style, using float indexes and built-in bounds that hurts for arrays in structs.
 		if (!base.sym->arraysize)
 			QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "array lookup on non-array");
 		if (!base.sym->arraylengthprefix)
@@ -10561,6 +11042,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 		else
 		{
 			QCC_statement_t *logicjump;
+			QCC_statement_t *logictest;
 			//go straight for the correct priority.
 			for (op = opcodeprioritized[priority][opnum]; op; op = opcodeprioritized[priority][++opnum])
 	//		for (op=pr_opcodes ; op->name ; op++)
@@ -10576,15 +11058,27 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				{
 					if (!strcmp(op->name, "&&"))		//guarenteed to be false if the lhs is false
 					{
-						if (lhsd.cast->type == ev_vector)
+						if (lhsd.cast->type == ev_vector && flag_ifvector)
 							lhsd = QCC_PR_StatementFlags (&pr_opcodes[OP_MUL_V], lhsd, lhsd, NULL, STFL_PRESERVEA);
-						logicjump = QCC_Generate_OP_IFNOT(lhsd, true);
+						if (lhsd.cast->type == ev_string && flag_ifstring)
+							lhsd = QCC_PR_StatementFlags (&pr_opcodes[OP_NE_S], lhsd, QCC_MakeStringConst(""), NULL, 0);
+						if (!QCC_Eval_Truth(QCC_SRef_EvalConst(lhsd), lhsd.cast, false))
+						{
+							QCC_ClobberDef(NULL);	//FIXME...
+							logicjump = QCC_Generate_OP_IFNOT(lhsd, true);
+						}
 					}
 					else if (!strcmp(op->name, "||"))	//guarenteed to be true if the lhs is true
 					{
-						if (lhsd.cast->type == ev_vector)
+						if (lhsd.cast->type == ev_vector && flag_ifvector)
 							lhsd = QCC_PR_StatementFlags (&pr_opcodes[OP_MUL_V], lhsd, lhsd, NULL, STFL_PRESERVEA);
-						logicjump = QCC_Generate_OP_IF(lhsd, true);
+						if (lhsd.cast->type == ev_string && flag_ifstring)
+							lhsd = QCC_PR_StatementFlags (&pr_opcodes[OP_NE_S], lhsd, QCC_MakeStringConst(""), NULL, 0);
+						if (!QCC_Eval_Truth(QCC_SRef_EvalConst(lhsd), lhsd.cast, false))
+						{
+							QCC_ClobberDef(NULL);	//FIXME...
+							logicjump = QCC_Generate_OP_IF(lhsd, true);
+						}
 					}
 				}
 
@@ -10604,17 +11098,30 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 						logicjump->flags |= STF_LOGICOP;
 						logicjump->b.ofs = &statements[numstatements] - logicjump;
 						if (logicjump->b.ofs == 1)
+						{
 							numstatements--;	//err, that was pointless.
+							logicjump = NULL;
+						}
 						else if (logicjump->b.ofs == 2 && !QCC_OpHasSideEffects(&logicjump[1]))
 						{
 							logicjump[0] = logicjump[1];
 							numstatements--;	//don't bother if the jump is the same cost as the thing we're trying to skip (calls are expensive despite being a single opcode).
+							logicjump = NULL;
 						}
 						else
 							optres_logicops++;
 					}
 
-					lhsd = QCC_PR_Statement (op, lhsd, rhsd, NULL);
+					if (logicjump)
+					{
+						lhsd = QCC_PR_Statement (op, lhsd, rhsd, &logictest);
+						if (!logictest)
+							numstatements = logicjump-statements;
+						else
+							logicjump->b.ofs = logictest - logicjump;
+					}
+					else
+						lhsd = QCC_PR_Statement (op, lhsd, rhsd, NULL);
 					lhsr = QCC_DefToRef(retbuf, lhsd);
 				}
 
@@ -14560,8 +15067,8 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 
 	if (foundstatic && !allocate && !(flags & GDF_SILENT))
 	{
-		QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s defined static", name);
-		QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, foundstatic);
+		QCC_PR_ParseWarning (WARN_SAMENAMEASGLOBAL, "%s defined static", name);
+		QCC_PR_ParsePrintDef(WARN_SAMENAMEASGLOBAL, foundstatic);
 	}
 
 	if (flags & GDF_SCANLOCAL)
@@ -15428,19 +15935,19 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		if (flags)
 		{
 			int bits = 0;
-			int i = (basetype->type==ev_integer)?next_i:(int)next_f;
-			if (basetype->type!=ev_integer && i != next_f)
+			unsigned int i = (basetype->type==ev_integer)?next_i:(int)next_f;
+			if (basetype->type!=ev_integer && (double)i != next_f)
 				QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer value", next_f);
 			else
 			{
 				while(i)
 				{
-					if (((i>>1)<<1) != i)
+					if (((i>>1u)<<1u) != i)
 						bits++;
-					i>>=1;
+					i>>=1u;
 				}
-				if (bits > 1)
-					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %x(%f) has multiple bits set", next_i, next_f);
+				if (bits > 1)	//be mute about 0.
+					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %#x(%i) has multiple bits set", next_i, next_i);
 			}
 		}
 		if (enumtype)
@@ -15471,6 +15978,9 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		{
 			next_f *= 2;
 			next_i *= 2;
+
+			if (!next_i)
+				next_f = next_i = 1;	//so you can start with an explicit =0 without needing an =1.
 		}
 		else
 		{

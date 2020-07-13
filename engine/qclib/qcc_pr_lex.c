@@ -1323,43 +1323,9 @@ static pbool QCC_PR_Precompiler(void)
 			}
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
-				int newtype = qcc_targetformat;
 				QCC_COM_Parse(msg);
-				if (!QC_strcasecmp(qcc_token, "H2") || !QC_strcasecmp(qcc_token, "HEXEN2"))
-					newtype = QCF_HEXEN2;
-				else if (!QC_strcasecmp(qcc_token, "UHEXEN2"))
-					newtype = QCF_UHEXEN2;
-				else if (!QC_strcasecmp(qcc_token, "KK7"))
-					newtype = QCF_KK7;
-				else if (!QC_strcasecmp(qcc_token, "DP") || !QC_strcasecmp(qcc_token, "DARKPLACES"))
-				{
-					QCC_PR_ParseWarning(WARN_BADTARGET, "#pragma target \"%s\". Requires an unofficial patch to DP. Without that patch there is no support for any opcodes beyond vanilla.", qcc_token);
-					newtype = QCF_DARKPLACES;
-				}
-				else if (!QC_strcasecmp(qcc_token, "FTEDEBUG"))
-					newtype = QCF_FTEDEBUG;
-				else if (!QC_strcasecmp(qcc_token, "FTE"))
-					newtype = QCF_FTE;
-				else if (!QC_strcasecmp(qcc_token, "FTEH2"))
-					newtype = QCF_FTEH2;
-				else if (!QC_strcasecmp(qcc_token, "STANDARD") || !QC_strcasecmp(qcc_token, "ID") || !QC_strcasecmp(qcc_token, "VANILLA"))
-					newtype = QCF_STANDARD;
-				else if (!QC_strcasecmp(qcc_token, "DEBUG"))
-					newtype = QCF_FTEDEBUG;
-				else if (!QC_strcasecmp(qcc_token, "QTEST"))
-					newtype = QCF_QTEST;
-				else
+				if (!QCC_OPCodeSetTargetName(qcc_token))
 					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.\nValid targets are: ID, HEXEN2, FTE, FTEH2, KK7, DP(patched)", qcc_token);
-
-				if (numstatements > 1)
-				{
-					if ((qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2) && (newtype != QCF_HEXEN2 && newtype != QCF_UHEXEN2 && newtype != QCF_FTEH2))
-						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\' after the first statement. Ignored.", msg);
-					if ((newtype == QCF_HEXEN2 || newtype == QCF_UHEXEN2 || newtype == QCF_FTEH2) && (qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_UHEXEN2 && qcc_targetformat != QCF_FTEH2))
-						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\' after the first statement. Ignored.", msg);
-				}
-
-				QCC_OPCodeSetTarget(newtype);
 			}
 			else if (!QC_strcasecmp(qcc_token, "PROGS_SRC"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
@@ -5193,7 +5159,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 //	name = QCC_PR_CheckCompConstString(name);
 
 	//accessors
-	if (QCC_PR_CheckKeyword (keyword_class, "accessor"))
+	if (QCC_PR_CheckKeyword (keyword_accessor, "accessor"))
 	{
 		char parentname[256];
 		char *accessorname;
@@ -6036,7 +6002,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (QCC_PR_CheckToken("="))
 				{
 					defaultval = QCC_PR_ParseDefaultInitialiser(type);
-					QCC_PR_ParseWarning(ERR_INTERNAL, "TODO: initialised struct members are not implemented yet", type->name);
+					QCC_PR_ParseWarning(ERR_INTERNAL, "TODO: pre-initialised struct members are not implemented yet", type->name);
 				}
 			}
 

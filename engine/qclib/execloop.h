@@ -879,7 +879,7 @@ reeval:
 		OPC->_int = (int)OPA->_float;
 		break;
 
-	case OP_CP_ITOF:
+	case OP_LOADP_ITOF:
 		i = OPA->_int;
 		errorif (QCPOINTERREADFAIL(i, sizeof(char)))
 		{
@@ -889,7 +889,7 @@ reeval:
 		OPC->_float = (float)ptr->_int;
 		break;
 
-	case OP_CP_FTOI:
+	case OP_LOADP_FTOI:
 		i = OPA->_int;
 		errorif (QCPOINTERREADFAIL(i, sizeof(char)))
 		{

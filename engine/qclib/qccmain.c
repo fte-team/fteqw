@@ -128,6 +128,7 @@ extern int dotranslate_count;
 
 unsigned char qccwarningaction[WARN_MAX];	//0 = disabled, 1 = warn, 2 = error.
 
+unsigned int qcc_targetversion;
 qcc_targetformat_t qcc_targetformat;
 
 pbool bodylessfuncs;
@@ -224,6 +225,7 @@ struct {
 	{" F324", WARN_FORMATSTRING},
 	{" F325", WARN_NESTEDCOMMENT},
 	{" F326", WARN_DEPRECATEDVARIABLE},
+	{" F327", WARN_ENUMFLAGS_NOTINTEGER},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -316,6 +318,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_break,		defaultkeyword, "break",		"Keyword: break",		"Disables the 'break' keyword."},
 	{&keyword_case,			defaultkeyword, "case",			"Keyword: case",		"Disables the 'case' keyword."},
 	{&keyword_class,		defaultkeyword, "class",		"Keyword: class",		"Disables the 'class' keyword."},
+	{&keyword_accessor,		defaultkeyword, "accessor",		"Keyword: accessor",	"Disables the 'accessor' keyword."},
 	{&keyword_const,		defaultkeyword, "const",		"Keyword: const",		"Disables the 'const' keyword."},
 	{&keyword_continue,		defaultkeyword, "continue",		"Keyword: continue",	"Disables the 'continue' keyword."},
 	{&keyword_default,		defaultkeyword, "default",		"Keyword: default",		"Disables the 'default' keyword."},
@@ -398,31 +401,6 @@ compiler_flag_t compiler_flag[] = {
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{NULL}
 };
-
-struct {
-	qcc_targetformat_t target;
-	char *name;
-} targets[] = {
-	{QCF_STANDARD,	"standard"},
-	{QCF_STANDARD,	"q1"},
-	{QCF_STANDARD,	"id"},
-	{QCF_STANDARD,	"quakec"},
-	{QCF_HEXEN2,	"hexen2"},
-	{QCF_HEXEN2,	"h2"},
-	{QCF_UHEXEN2,	"uhexen2"},
-	{QCF_KK7,		"kkqwsv"},
-	{QCF_KK7,		"kk7"},
-	{QCF_KK7,		"bigprogs"},
-	{QCF_KK7,		"version7"},
-	{QCF_KK7,		"kkqwsv"},
-	{QCF_FTE,		"fte"},
-	{QCF_FTEH2,		"fteh2"},
-	{QCF_DARKPLACES,"darkplaces"},
-	{QCF_DARKPLACES,"dp"},
-	{QCF_QTEST,		"qtest"},
-	{0,				NULL}
-};
-
 
 static const char *QCC_VersionString(void)
 {
@@ -1181,6 +1159,13 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	def->symboldata = qcc_pr_globals + def->ofs;
 	def->symbolsize = numpr_globals - def->ofs;
 
+	if (def->reloc)
+	{
+		def->reloc->used = true;
+		QCC_FinaliseDef(def->reloc);
+		qcc_pr_globals[def->ofs]._int += def->reloc->ofs;
+	}
+
 #ifdef DEBUG_DUMP_GLOBALMAP
 	if (!def->referenced)
 		externs->Printf("Unreferenced ");
@@ -1434,6 +1419,7 @@ static pbool QCC_WriteData (int crc)
 	{
 	case QCF_HEXEN2:
 	case QCF_STANDARD:
+	case QCF_DARKPLACES:	//grr.
 		if (bodylessfuncs)
 			externs->Printf("Warning: There are some functions without bodies.\n");
 
@@ -1465,6 +1451,11 @@ static pbool QCC_WriteData (int crc)
 			externs->Printf("Progs execution requires a Hexen2 compatible HCVM\n");
 			break;
 		}
+		else if (qcc_targetformat == QCF_DARKPLACES)
+		{
+			externs->Printf("Progs execution uses extended opcodes.\n");
+			break;
+		}
 		else
 		{
 			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
@@ -1473,12 +1464,12 @@ static pbool QCC_WriteData (int crc)
 				externs->Printf("Progs should run on any QuakeC VM\n");
 			break;
 		}
-		QCC_OPCodeSetTarget((qcc_targetformat==QCF_HEXEN2)?QCF_FTEH2:QCF_FTE);
+		QCC_OPCodeSetTarget((qcc_targetformat==QCF_HEXEN2)?QCF_FTEH2:QCF_FTE, 0);
 		//intentional fallthrough
 	case QCF_FTEDEBUG:
 	case QCF_FTE:
 	case QCF_FTEH2:
-	case QCF_DARKPLACES:
+	case QCF_QSS:
 		if (qcc_targetformat == QCF_FTEDEBUG)
 			debugtarget = true;
 
@@ -1496,7 +1487,7 @@ static pbool QCC_WriteData (int crc)
 			}
 		}
 
-		if (qcc_targetformat == QCF_DARKPLACES)
+		if (qcc_targetformat == QCF_QSS || qcc_targetformat == QCF_DARKPLACES)
 			compressoutput = 0;
 
 
@@ -1520,7 +1511,9 @@ static pbool QCC_WriteData (int crc)
 
 		if (verbose)
 		{
-			if (qcc_targetformat == QCF_DARKPLACES)
+			if (qcc_targetformat == QCF_QSS)
+				externs->Printf("QSS or FTE will be required\n");
+			else if (qcc_targetformat == QCF_DARKPLACES)
 				externs->Printf("DarkPlaces or FTE will be required\n");
 			else if (outputsttype == PST_UHEXEN2)
 				externs->Printf("FTE or uHexen2 will be required\n");
@@ -2440,18 +2433,23 @@ strofs = (strofs+3)&~3;
 	case QCF_FTE:
 	case QCF_FTEH2:
 	case QCF_FTEDEBUG:
+	case QCF_QSS:
 	case QCF_UHEXEN2:
 	case QCF_KK7:
-		progs.version = PROG_EXTENDEDVERSION;
 
+		progs.version = PROG_EXTENDEDVERSION;
 		if (outputsttype == PST_UHEXEN2)
 			progs.secondaryversion = PROG_SECONDARYUHEXEN2;	//prepadded...
-		else if (outputsttype == QCF_KK7)
+		else if (outputsttype == PST_KKQWSV)
 			progs.secondaryversion = PROG_SECONDARYKKQWSV;	//messed up
 		else if (outputsttype == PST_FTE32)
 			progs.secondaryversion = PROG_SECONDARYVERSION32;	//post-extended.
 		else
+		{
 			progs.secondaryversion = PROG_SECONDARYVERSION16;
+			if (qcc_targetformat == QCF_DARKPLACES)
+				progs.version = PROG_VERSION;
+		}
 
 		if (debugtarget && statement_linenums)
 		{
@@ -2580,6 +2578,9 @@ strofs = (strofs+3)&~3;
 		break;
 	case QCF_DARKPLACES:
 		externs->Printf("Compile finished: %s (patched-dp format)\n", destfile);
+		break;
+	case QCF_QSS:
+		externs->Printf("Compile finished: %s (fte+qss format)\n", destfile);
 		break;
 	case QCF_FTE:
 		externs->Printf("Compile finished: %s (fte format)\n", destfile);
@@ -3215,7 +3216,7 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_function = QCC_PR_NewType("__function", ev_function, false);
 	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
-	type_integer = QCC_PR_NewType("__integer", ev_integer, true);
+	type_integer = QCC_PR_NewType("__int", ev_integer, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
 
 	type_floatfield = QCC_PR_NewType("__fieldfloat", ev_field, false);
@@ -3237,7 +3238,7 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 
 	QCC_PR_NewType("variant", ev_variant, true);
 	QCC_PR_NewType("integer", ev_integer, keyword_integer?true:false);
-	QCC_PR_NewType("int", ev_integer, keyword_integer?true:false);
+	QCC_PR_NewType("int", ev_integer, keyword_int?true:false);
 
 
 
@@ -4225,7 +4226,33 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				else
 					*compiler_flag[p].enabled = false;
 			}
-			if (!strcmp(myargv[i]+5, "qccx"))
+			if (!stricmp(myargv[i]+5, "C"))
+			{	//set up for greatest C compatibility... variations from C are bugs, not features.
+				keyword_asm = false;
+				keyword_break = keyword_continue = keyword_for = keyword_goto = keyword_const = keyword_extern = keyword_static = true;
+				keyword_switch = keyword_case = keyword_default = true;
+				keyword_accessor = keyword_class = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_nonstatic = keyword_ignore = keyword_strip = false;
+
+				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
+				keyword_integer = keyword_enumflags = false;
+				keyword_float = keyword_int = keyword_typedef = keyword_struct = keyword_union = keyword_enum = true;
+				keyword_thinktime = keyword_until = keyword_loop = false;
+
+				keyword_integer = true;
+
+				opt_logicops = true;		//early out like C.
+				flag_assumevar = true;		//const only if explicitly const.
+				pr_subscopedlocals = true;	//locals shadow other locals rather than being the same one.
+				flag_cpriority = true;		//fiddle with operator precedence.
+				flag_assume_integer = true;
+
+				qccwarningaction[WARN_UNINITIALIZED] = WA_WARN;		//C doesn't like that, might as well warn here too.
+				qccwarningaction[WARN_TOOMANYPARAMS] = WA_ERROR;	//too many args to function is weeeeird.
+				qccwarningaction[WARN_TOOFEWPARAMS] = WA_ERROR;		//missing args should be fatal.
+				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;		//const is const. at least its not const by default.
+				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;		//shadowing of globals.
+			}
+			else if (!strcmp(myargv[i]+5, "qccx"))
 			{
 				flag_qccx = true;	//fixme: extra stuff
 				qccwarningaction[WARN_DENORMAL] = WA_IGNORE;	//this is just too spammy
@@ -4249,7 +4276,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 
 				keyword_asm = keyword_break = keyword_continue = keyword_for = keyword_goto = false;
 				keyword_const = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_static = keyword_nonstatic = keyword_ignore = keyword_strip = false;
-				keyword_switch = keyword_case = keyword_default = keyword_class = keyword_const = false;
+				keyword_switch = keyword_case = keyword_default = keyword_accessor = keyword_class = keyword_const = false;
 
 				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
 				keyword_int = keyword_integer = keyword_typedef = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
@@ -4262,7 +4289,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 
 				keyword_asm = keyword_continue = keyword_for = keyword_goto = false;
 				keyword_const = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_static = keyword_nonstatic = keyword_ignore = keyword_strip = false;
-				keyword_class = keyword_const = false;
+				keyword_accessor = keyword_class = keyword_const = false;
 
 				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
 				keyword_int = keyword_integer = keyword_typedef = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
@@ -4291,7 +4318,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 
 				keyword_asm = false;
 				keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_unused = keyword_used = keyword_nonstatic = keyword_ignore = keyword_strip = false;
-				keyword_class = false;
+				keyword_accessor = keyword_class = false;
 
 				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
 				keyword_int = keyword_integer = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
@@ -4370,14 +4397,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				parseonly = true;
 			else
 			{
-				for (p = 0; targets[p].name; p++)
-					if (!stricmp(myargv[i]+2, targets[p].name))
-					{
-						QCC_OPCodeSetTarget(targets[p].target);
-						break;
-					}
-
-				if (!targets[p].name)
+				if (!QCC_OPCodeSetTargetName(myargv[i]+2))
 					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised target parameter (%s)", myargv[i]);
 			}
 		}
@@ -4571,7 +4591,7 @@ static void QCC_SetDefaultProperties (void)
 		}
 	}
 
-	{
+	{	//FIXME: outdated, should be using -Tfte
 		qcc_targetformat_t targ;
 		if (QCC_CheckParm ("-h2"))
 			targ =	QCF_HEXEN2;
@@ -4583,7 +4603,7 @@ static void QCC_SetDefaultProperties (void)
 			targ = QCF_DARKPLACES;
 		else
 			targ = QCF_STANDARD;
-		QCC_OPCodeSetTarget(targ);
+		QCC_OPCodeSetTarget(targ, 0x7fffffff);
 	}
 
 

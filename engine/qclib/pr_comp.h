@@ -208,10 +208,10 @@ enum qcop_e {
 	OP_SUB_FI,		//120	//OPC.f = OPA.f - OPB.i
 	OP_SUB_IF,				//OPC.f = OPA.i - OPB.f
 
-	OP_CONV_ITOF,			//OPC.f=(float)OPA.i
+	OP_CONV_ITOF,			//OPC.f=(float)OPA.i -- useful mostly so decompilers don't do weird stuff.
 	OP_CONV_FTOI,			//OPC.i=(int)OPA.f
-	OP_CP_ITOF,				//OPC.f=(float)(*OPA).i
-	OP_CP_FTOI,				//OPC.i=(int)(*OPA).f
+	OP_LOADP_ITOF,				//OPC.f=(float)(*OPA).i	-- fixme: rename to LOADP_ITOF
+	OP_LOADP_FTOI,				//OPC.i=(int)(*OPA).f
 	OP_LOAD_I,
 	OP_STOREP_I,
 	OP_STOREP_IF,
@@ -304,7 +304,7 @@ enum qcop_e {
 	OP_NE_IF,
 	OP_NE_FI,
 
-//erm... FTEQCC doesn't make use of these (doesn't model separate pointer types). These are for DP.
+//fte doesn't really model two separate pointer types. these are thus special-case things for array access only.
 	OP_GSTOREP_I,
 	OP_GSTOREP_F,
 	OP_GSTOREP_ENT,
@@ -312,7 +312,7 @@ enum qcop_e {
 	OP_GSTOREP_S,
 	OP_GSTOREP_FNC,		
 	OP_GSTOREP_V,
-	OP_GADDRESS,
+	OP_GADDRESS,	//poorly defined opcode, which makes it too unreliable to actually use.
 	OP_GLOAD_I,
 	OP_GLOAD_F,
 	OP_GLOAD_FLD,

@@ -2970,7 +2970,7 @@ void M_Menu_Video_f (void)
 			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
 			MB_COMBOCVARRETURN("Display Mode", vid_fullscreen, fullscreenopts, fullscreenvalues, info->dispmode, vid_fullscreen.description),
 #endif
-			MB_COMBOCVAR("Anti-aliasing", vid_multisample, aaopts, aavalues, NULL),
+			MB_COMBOCVAR("MSAA", vid_multisample, aaopts, aavalues, NULL),
 			MB_REDTEXT(current3dres, true),
 			MB_COMBORETURN("Aspect", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),
 			// aspect entries

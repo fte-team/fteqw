@@ -1566,7 +1566,7 @@ static unsigned char *utf_right(unsigned char *start, unsigned char *cursor, qbo
 	return cursor;
 }
 
-void Key_EntryInsert(unsigned char **line, int *linepos, char *instext)
+void Key_EntryInsert(unsigned char **line, int *linepos, const char *instext)
 {
 	int i;
 	int len, olen;
@@ -1593,7 +1593,7 @@ void Key_EntryInsert(unsigned char **line, int *linepos, char *instext)
 	*linepos += len;
 }
 
-static void Key_ConsolePaste(void *ctx, char *utf8)
+static void Key_ConsolePaste(void *ctx, const char *utf8)
 {
 	unsigned char **line = ctx;
 	int *linepos = ((line == &chat_buffer)?&chat_bufferpos:&key_linepos);

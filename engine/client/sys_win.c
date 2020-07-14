@@ -1866,7 +1866,7 @@ double Sys_DoubleTime (void)
 
 /////////////////////////////////////////////////////////////
 //clipboard
-void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	HANDLE	clipboardhandle;
 	char *cliputf8;

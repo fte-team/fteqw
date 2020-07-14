@@ -90,6 +90,11 @@ cvar_t	registered				= CVARD("registered","0","Set if quake's pak1.pak is availa
 cvar_t	gameversion				= CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
 cvar_t	gameversion_min			= CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max			= CVARD("gameversion_max","", "gamecode version for server browsers");
+#ifndef SVNREVISION
+static cvar_t	pr_engine		= CVARFD("pr_engine",DISTRIBUTION" -", CVAR_NOSAVE, "This cvar exists so that the menuqc is able to determine which engine-specific settings/values to list/suggest. It must not be used to detect formal QC extensions/builtins. Use checkextension/checkbuiltin/checkcommand for that.");
+#else
+static cvar_t	pr_engine		= CVARFD("pr_engine",DISTRIBUTION" "STRINGIFY(SVNREVISION), CVAR_NOSAVE, "This cvar exists so that the menuqc is able to determine which engine-specific settings/values to list/suggest. It must not be used to detect formal QC extensions/builtins. Use checkextension/checkbuiltin/checkcommand for that.");
+#endif
 cvar_t	fs_gamename				= CVARAD("com_fullgamename", NULL, "fs_gamename", "The filesystem is trying to run this game");
 cvar_t	com_protocolname		= CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_protocolversion		= CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
@@ -5846,6 +5851,7 @@ void COM_Init (void)
 	Cvar_Register (&host_mapname, "Scripting");
 	Cvar_Register (&developer, "Debugging");
 	Cvar_Register (&sys_platform, "Gamecode");
+	Cvar_Register (&pr_engine, "Gamecode");
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
 	Cvar_Register (&gameversion_min, "Gamecode");

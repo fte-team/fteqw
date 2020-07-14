@@ -1000,6 +1000,22 @@ void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *p
 #endif
 }
 
+/*static void PF_cl_clipboard_got(void *ctx, char *utf8)
+{
+	if (
+}
+void QCBUILTIN PF_cl_clipboard_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	clipboardtype_t cliptype = G_FLOAT(OFS_PARM0);
+	Sys_Clipboard_PasteText(cliptype, PF_cl_clipboard_got, prinst);
+}*/
+void QCBUILTIN PF_cl_clipboard_set(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	clipboardtype_t cliptype = G_FLOAT(OFS_PARM0);
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM1);
+	Sys_SaveClipboard(cliptype, str);
+}
+
 void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char * s = PR_GetStringOfs(prinst, OFS_PARM0);

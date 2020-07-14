@@ -1737,7 +1737,7 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 }
 
 void QCBUILTIN PF_memstrsize(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
+{	//explicitly returns bytes, not chars.
 	G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
 }
 
@@ -4905,6 +4905,69 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	qsort(strbuflist[bufno].strings, strbuflist[bufno].used, sizeof(char*), PF_buf_sort_ascending);
 }
 
+enum matchmethod_e
+{
+	MATCH_AUTO=0,
+	MATCH_EXACT=1,
+	MATCH_LEFT=2,
+	MATCH_RIGHT=3,
+	MATCH_MIDDLE=4,
+	MATCH_PATTERN=5,
+};
+static qboolean domatch(const char *str, const char *pattern, enum matchmethod_e method)
+{
+	switch(method)
+	{
+	case MATCH_EXACT:
+		return !strcmp(str, pattern);
+	case MATCH_LEFT:
+		return !strncmp(str, pattern, strlen(pattern));
+	case MATCH_RIGHT:
+		{
+			size_t slen = strlen(str);
+			size_t plen = strlen(pattern);
+			if (plen > slen)
+				return false;
+			return !strcmp(str + slen-plen, pattern);
+		}
+	case MATCH_MIDDLE:
+		return !!strstr(str, pattern);
+	case MATCH_AUTO:	//just treat as MATCH_PATTERN. we could optimise it a bit, but mneh
+	case MATCH_PATTERN:
+	default:
+		return wildcmp(pattern, str);
+	}
+}
+void QCBUILTIN PF_bufstr_find  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	const char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
+	enum matchmethod_e matchmethod = G_FLOAT(OFS_PARM2);
+	int idx = (prinst->callargc > 3)?G_FLOAT(OFS_PARM3):0;
+	int step = (prinst->callargc > 4)?G_FLOAT(OFS_PARM4):1;
+	const char *s;
+
+	G_FLOAT(OFS_RETURN) = -1;	//assume the worst
+
+	if (bufno >= strbufmax)
+		return;
+	if (strbuflist[bufno].prinst != prinst)
+		return;
+
+	if (idx < 0 || step <= 0)
+		return;
+	for (; idx < strbuflist[bufno].used; idx += step)
+	{
+		s = strbuflist[bufno].strings[idx];
+		if (!s) continue;
+		if (domatch(s, pattern, matchmethod))
+		{
+			G_FLOAT(OFS_RETURN) = idx;
+			break;
+		}
+	}
+}
+
 //directly reads a file into a stringbuffer
 void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6615,22 +6678,22 @@ nolength:
 							break;
 						case 'S':
 							{
+								const char *quotedarg = GETARG_STRING(thisarg);
 								char quotedbuf[65536];	//FIXME: no idea how big this actually needs to be.
-								const char *s = GETARG_STRING(thisarg);
-								s = COM_QuotedString(s, quotedbuf, sizeof(quotedbuf), false);
+								quotedarg = COM_QuotedString(quotedarg, quotedbuf, sizeof(quotedbuf), false);
 								if((flags & PRINTF_ALTERNATE) || !VMUTF8)
 								{	//precision+width are in bytes
 									if(precision < 0) // not set
-										Q_snprintfz(o, end - o, formatbuf, width, s);
+										Q_snprintfz(o, end - o, formatbuf, width, quotedarg);
 									else
-										Q_snprintfz(o, end - o, formatbuf, width, precision, s);
+										Q_snprintfz(o, end - o, formatbuf, width, precision, quotedarg);
 									o += strlen(o);
 								}
 								else
 								{	//precision+width are in chars
 									if(precision < 0) // not set
 										precision = end - o - 1;
-									unicode_strpad(o, end - o, s, (flags & PRINTF_LEFT) != 0, width, precision, VMUTF8MARKUP);
+									unicode_strpad(o, end - o, quotedarg, (flags & PRINTF_LEFT) != 0, width, precision, VMUTF8MARKUP);
 									o += strlen(o);
 								}
 							}

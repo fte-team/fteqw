@@ -236,13 +236,14 @@ static void Con_Editor_DeleteSelection(console_t *con)
 		con->useroffset = con->selstartoffset;
 	}
 }
-static void Con_Editor_DoPaste(void *ctx, char *utf8)
+static void Con_Editor_DoPaste(void *ctx, const char *utf8)
 {
 	console_t *con = ctx;
 	if (utf8)
 	{
 		conchar_t buffer[8192], *end;
-		char *s, *nl;
+		const char *s;
+		char *nl;
 		if (*utf8 && (con->flags & CONF_KEEPSELECTION))
 			Con_Editor_DeleteSelection(con);
 		for(s = utf8; ; )

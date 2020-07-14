@@ -163,7 +163,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wpointer-arith")				#void* stuff
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wvla")							#msvc doesn't support vla
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wdeclaration-after-statement")	#msvc doesn't allow defs after statements, and they're so very tempting...
-	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wc++-compat")	#lul
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wformat-truncation=1")
 	#TODO SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-prototypes")			#for finding missing statics.
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")			#
 
@@ -175,7 +175,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 	ENDIF()
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--warn-common")
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wformat-truncation=1")
+	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wc++-compat")	#lul, thousands of errors!
 ENDIF()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
@@ -253,9 +253,10 @@ ELSEIF(${UNIX})	#linux(ish)
 	ENDIF()
 
 	FIND_PACKAGE(ALSA)
-	IF(NOT ALSA_FOUND)
+	IF(ALSA_FOUND)
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AUDIO_ALSA;AUDIO_PULSE)
+	ELSE()
 		MESSAGE(WARNING "asound (alsa) library NOT available.")
-		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ALSA)
 	ENDIF()
 
 	FIND_PACKAGE(X11)

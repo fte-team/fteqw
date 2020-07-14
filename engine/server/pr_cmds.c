@@ -11150,6 +11150,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"entityprotection",PF_entityprotection,0,		0,		0,		0,		D("float(entity e, float nowreadonly)", "Changes the protection on the specified entity to protect it from further edits from QC. The return value is the previous setting. Note that this can be used to unprotect the world, but doing so long term is not advised as you will no longer be able to detect invalid entity references. Also, world is not networked, so results might not be seen by clients (or in other words, world.avelocity_y=64 is a bad idea).")},
 
 	{"getlocationname",	PF_Fixme,			0,		0,		0,		0,		D("string(vector pos)", "Looks up the specified position in the current map's .loc file and reports the nearest marked name.")},
+
+	{"clipboard_get",	PF_Fixme,			0,		0,		0,		0,		D("void(int cliptype)", "Attempts to query the system clipboard. Any pasted text will be returned via Menu_InputEvent")},
+	{"clipboard_set",	PF_Fixme,			0,		0,		0,		0,		D("void(int cliptype, string text)", "Changes the system clipboard to the specified text.")},
 //end fte extras
 
 //DP extras
@@ -11369,7 +11372,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	D("float(string sample)", "Provides a way to query the duration of a sound sample, allowing you to set up a timer to chain samples.")},
 	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
 	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
-//	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},
+	{"bufstr_find",		PF_bufstr_find,		0,		0,		0,		537,	D("float(float bufhandle, string match, float matchrule, float startpos, float step)", "Looks for the first occurence of the specified string in the buffer, returning its index or -1 on failure.")},
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
 

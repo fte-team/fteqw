@@ -4580,14 +4580,14 @@ rendererinfo_t vkrendererinfo =
 #endif
 
 #if 1
-static void (*paste_callback)(void *cb, char *utf8);
+static void (*paste_callback)(void *cb, const char *utf8);
 static void *pastectx;
 static struct {
 	Atom clipboard;
 	Atom prop;
 	Atom owner;
 } x11paste;
-void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, char *utf8), void *ctx)
+void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *ctx, const char *utf8), void *ctx)
 {
 	//if there's a paste already pending, cancel the callback to ensure it always gets called.
 	if (paste_callback)

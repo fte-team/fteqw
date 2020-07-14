@@ -29,11 +29,11 @@
 //I guess noone can be arsed to write it themselves. :/
 //
 //This file is otherwise known as 'will the linux jokers please stop fucking over the open sound system please'
-#ifndef NO_ALSA
-#include <alsa/asoundlib.h>
+
 
 #include "quakedef.h"
-#ifdef HAVE_MIXER
+#ifdef AUDIO_ALSA
+#include <alsa/asoundlib.h>
 #include <dlfcn.h>
 
 static void *alsasharedobject;
@@ -562,5 +562,4 @@ sounddriver_t ALSA_Output =
 	ALSA_InitCard,
 	ALSA_Enumerate
 };
-#endif
 #endif

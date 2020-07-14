@@ -78,10 +78,10 @@ char *Sys_ConsoleInput (void);
 
 typedef enum
 {
+	CBT_CLIPBOARD,	//ctrl+c, ctrl+v
 	CBT_SELECTION,	//select-to-copy, middle-to-paste
-	CBT_CLIPBOARD	//ctrl+c, ctrl+v
 } clipboardtype_t;
-void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, char *utf8), void *ctx);	//calls the callback once the text is available (maybe instantly). utf8 arg may be NULL if the clipboard was unavailable.
+void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *ctx, const char *utf8), void *ctx);	//calls the callback once the text is available (maybe instantly). utf8 arg may be NULL if the clipboard was unavailable.
 void Sys_SaveClipboard(clipboardtype_t clipboardtype, const char *text); //a stub would do nothing.
 
 //stuff for dynamic dedicated console -> gfx and back.
@@ -159,13 +159,13 @@ void *Sys_CreateMutexNamed(char *file, int line);
 		#define Sys_LockMutex(m) Sys_MutexStub()
 		#define Sys_UnlockMutex(m) Sys_MutexStub()
 		#ifndef __cplusplus
-			static inline qboolean Sys_IsThread(void *thread) {return !thread;}
+			static inline qboolean Sys_IsThread(void *thread) {return (!thread)?qtrue:qfalse;}
 		#endif
 	#else
-		#define Sys_IsMainThread() (qboolean)(true)
+		#define Sys_IsMainThread() (qboolean)(qtrue)
 		#define Sys_CreateMutex() (void*)(NULL)
-		#define Sys_LockMutex(m) (qboolean)(true)
-		#define Sys_UnlockMutex(m) (qboolean)(true)
+		#define Sys_LockMutex(m) (qboolean)(qtrue)
+		#define Sys_UnlockMutex(m) (qboolean)(qtrue)
 		#define Sys_DestroyMutex(m) (void)0
 		#define Sys_IsThread(t) (!t)
 	#endif

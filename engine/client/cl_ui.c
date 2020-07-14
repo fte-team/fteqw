@@ -893,7 +893,7 @@ static cvar_t *Cvar_Q3FindVar (const char *var_name)
 	return NULL;
 }
 
-static void UI_SimulateTextEntry(void *cb, char *utf8)
+static void UI_SimulateTextEntry(void *cb, const char *utf8)
 {
 	const char *line = utf8;
 	unsigned int unicode;

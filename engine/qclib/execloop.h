@@ -262,7 +262,7 @@ reeval:
 		OPC->_int = (float)(OPA->_int == OPB->_float);
 		break;
 	case OP_EQ_FI:
-		OPC->_float = (float)(OPA->_float == OPB->_int);
+		OPC->_int = (float)(OPA->_float == OPB->_int);
 		break;
 
 

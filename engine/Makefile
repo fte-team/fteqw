@@ -1418,7 +1418,7 @@ ifeq ($(FTE_TARGET),bsd)
 	GL_EXE_NAME=../$(EXE_NAME)-gl
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl
 	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2 -DAUDIO_OSS
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 
@@ -1426,7 +1426,7 @@ ifeq ($(FTE_TARGET),bsd)
 	M_EXE_NAME=../$(EXE_NAME)
 	MCL_EXE_NAME=../$(EXE_NAME)-cl
 	M_LDFLAGS= -L/usr/local/lib -L/usr/X11R6/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2 -DMULTITHREAD
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2 -DMULTITHREAD -DAUDIO_OSS
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 
@@ -1467,7 +1467,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 		HAVE_EGL=
 	endif
 
-	CL_CFLAGS=-DMULTITHREAD -DDYNAMIC_SDL $(HAVE_EGL) $(HAVE_WAYLAND) -DX11QUAKE
+	CL_CFLAGS=-DMULTITHREAD -DDYNAMIC_SDL $(HAVE_EGL) $(HAVE_WAYLAND) -DX11QUAKE -DAUDIO_PULSE -DAUDIO_ALSA -DAUDIO_OSS -DAUDIO_SDL
 	BASELDFLAGS+=-Wl,--warn-common
 	
 	QCC_DIR=linqcc$(BITS)
@@ -1633,7 +1633,7 @@ ifeq ($(FTE_TARGET),cyg)
 	GL_EXE_NAME=../$(EXE_NAME)-cyg-gl$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../$(EXE_NAME)-cyg-glcl$(EXEPOSTFIX)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lz -lltdl
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(CLIENTLIBFLAGS) -DUSE_LIBTOOL
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(CLIENTLIBFLAGS) -DUSE_LIBTOOL -DAUDIO_OSS
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 
@@ -1641,7 +1641,7 @@ ifeq ($(FTE_TARGET),cyg)
 	M_EXE_NAME=../$(EXE_NAME)-cyg$(EXEPOSTFIX)
 	MCL_EXE_NAME=../$(EXE_NAME)-cyg-cl$(EXEPOSTFIX)
 	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lz -lltdl
-	M_CFLAGS=$(GLCFLAGS) $(CLIENTLIBFLAGS) -DUSE_LIBTOOL
+	M_CFLAGS=$(GLCFLAGS) $(CLIENTLIBFLAGS) -DUSE_LIBTOOL -DAUDIO_OSS
 	MB_DIR=m_cygwin
 	MCL_DIR=mcl_cygwin
 

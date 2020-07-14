@@ -204,6 +204,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_DSOUND
 	#undef AVAIL_XAUDIO2
 	#undef AVAIL_WASAPI
+
+	#undef AUDIO_ALSA
+	#undef AUDIO_PULSE
 #endif
 
 
@@ -366,6 +369,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//database code requires threads to do stuff async.
 	#undef USE_SQLITE
 	#undef USE_MYSQL
+	#undef AUDIO_PULSE
 #endif
 #ifdef NO_LIBRARIES //catch-all...
 #define NO_DIRECTX

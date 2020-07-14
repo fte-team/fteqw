@@ -2243,6 +2243,43 @@ static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct gl
 		Cmd_AddCommand(str, MP_ConsoleCommand_f);
 }
 
+static void PF_m_clipboard_got(void *ctx, const char *utf8)
+{
+	void *pr_globals;
+	unsigned int unicode;
+	int error;
+
+	while (*utf8)
+	{
+		unicode = utf8_decode(&error, utf8, &utf8);
+		if (error)
+			unicode = 0xfffdu;
+
+		if (!menu_world.progs || !mpfuncs.inputevent)
+			return;
+	#ifdef TEXTEDITOR
+		if (editormodal)
+			return;
+	#endif
+
+		pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = CSIE_PASTE;
+		G_FLOAT(OFS_PARM1) = 0;
+		G_FLOAT(OFS_PARM2) = unicode;
+		G_FLOAT(OFS_PARM3) = 0;
+
+		qcinput_scan = G_FLOAT(OFS_PARM1);
+		qcinput_unicode = G_FLOAT(OFS_PARM2);
+		PR_ExecuteProgram (menu_world.progs, mpfuncs.inputevent);
+		qcinput_scan = 0;	//and stop replay attacks
+		qcinput_unicode = 0;
+	}
+}
+static void QCBUILTIN PF_m_clipboard_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	clipboardtype_t cliptype = G_FLOAT(OFS_PARM0);
+	Sys_Clipboard_PasteText(cliptype, PF_m_clipboard_got, prinst);
+}
 
 static struct {
 	char *name;
@@ -2426,6 +2463,11 @@ static struct {
 	{"setcursormode",			PF_cl_setcursormode,		343},
 	{"getcursormode",			PF_cl_getcursormode,		0},	
 	{"setmousepos",				PF_cl_setmousepos,			0},
+
+
+	{"clipboard_get",			PF_m_clipboard_get,			0},
+	{"clipboard_set",			PF_cl_clipboard_set,		0},
+
 //	{NULL,						PF_Fixme,					344},
 //	{NULL,						PF_Fixme,					345},
 //	{NULL,						PF_Fixme,					346},
@@ -2568,7 +2610,7 @@ static struct {
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
-//	{"bufstr_find",				PF_Fixme,					537},
+	{"bufstr_find",				PF_bufstr_find,				537},
 //	{"matchpattern",			PF_Fixme,					538},
 															//gap
 	{"setkeydest",				PF_cl_setkeydest,			601},
@@ -2698,7 +2740,6 @@ static int PDECL PR_Menu_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercr
 	Con_DPrintf("Unknown menu builtin: %s\n", builtinname);
 	return 0;
 }
-
 
 static qboolean MP_MouseMove(menu_t *menu, qboolean isabs, unsigned int devid, float xdelta, float ydelta)
 {
@@ -3313,13 +3354,22 @@ void MP_Draw(void)
 		if (mpfuncs.fuckeddrawsizes)
 		{	//pass useless sizes in two args if its a dp menu
 			((float *)pr_globals)[OFS_PARM0] = vid.pixelwidth;
+			((float *)pr_globals)[OFS_PARM0+1] = 0;	//make sure its set, just in case...
+			((float *)pr_globals)[OFS_PARM0+2] = 0;
 			((float *)pr_globals)[OFS_PARM1] = vid.pixelheight;
+			((float *)pr_globals)[OFS_PARM1+1] = 0;
+			((float *)pr_globals)[OFS_PARM1+2] = 0;
 		}
 		else
 		{	//pass useful sizes in a 1-arg vector if its an fte menu.
 			((float *)pr_globals)[OFS_PARM0+0] = vid.width;
 			((float *)pr_globals)[OFS_PARM0+1] = vid.height;
 			((float *)pr_globals)[OFS_PARM0+2] = 0;
+
+			//make physical pixel counts available too, because we can.
+			((float *)pr_globals)[OFS_PARM1+0] = vid.pixelwidth;
+			((float *)pr_globals)[OFS_PARM1+1] = vid.pixelheight;
+			((float *)pr_globals)[OFS_PARM1+2] = 0;
 		}
 
 		PR_ExecuteProgram(menu_world.progs, mpfuncs.draw);

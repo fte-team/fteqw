@@ -190,7 +190,7 @@ qboolean AAS_EntityCollision(int entnum,
 //===========================================================================
 qboolean AAS_inPVS(vec3_t p1, vec3_t p2)
 {
-	return botimport.inPVS(p1, p2);
+	return botimport.inPVS(p1, p2)?qtrue:qfalse;
 } //end of the function AAS_InPVS
 //===========================================================================
 // returns true if in Potentially Visible Set

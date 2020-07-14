@@ -13815,7 +13815,7 @@ static texmode_t texmodes[] = {
 	{"nl",	"GL_NEAREST_MIPMAP_LINEAR",		0,	1,	0},
 	{"ll",	"GL_LINEAR_MIPMAP_LINEAR",		1,	1,	1},
 
-	//more explicit names
+	//more explicit names (dupes of the above)
 	{"n.n",	NULL,							0,	-1,	0},
 	{"l.l",	NULL,							1,	-1,	1},
 	{"nnn",	NULL,							0,	0,	0},

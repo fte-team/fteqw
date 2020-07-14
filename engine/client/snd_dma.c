@@ -1883,11 +1883,15 @@ static sounddriver_t *outputdrivers[] =
 #endif
 
 	&SDL_Output,		//prefered on linux. distros can ensure that its configured correctly.
-#ifdef __linux__
+#ifdef AUDIO_PULSE
 	&Pulse_Output,		//wasteful, and availability generally means Alsa is broken/defective.
+#endif
+#ifdef AUDIO_ALSA
 	&ALSA_Output,		//pure shite, and availability generally means OSS is broken/defective.
 #endif
+#ifdef AUDIO_OSS
 	&OSS_Output,		//good for low latency audio, but not likely to work any more on linux (unlike every other unix system with a decent opengl driver)
+#endif
 #ifdef __DJGPP__
 	&SBLASTER_Output,	//zomgwtfdos?
 #endif

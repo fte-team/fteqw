@@ -918,7 +918,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 #if SDL_MAJOR_VERSION >= 2	//probably could include 1.3
 #include <SDL_clipboard.h>
-void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	callback(ctx, SDL_GetClipboardText());
 }
@@ -928,7 +928,7 @@ void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 }
 #else
 static char *clipboard_buffer;
-void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	callback(ctx, clipboard_buffer);
 }

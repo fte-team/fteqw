@@ -2950,7 +2950,7 @@ static void QCBUILTIN PF_cs_getstats(pubprogfuncs_t *prinst, struct globalvars_s
 		((unsigned int*)out)[1] = LittleLong(csqc_playerview->stats[stnum+1]);
 		((unsigned int*)out)[2] = LittleLong(csqc_playerview->stats[stnum+2]);
 		((unsigned int*)out)[3] = LittleLong(csqc_playerview->stats[stnum+3]);
-		((unsigned int*)out)[4] = 0;	//make sure it's null terminated
+		out[sizeof(out)-1] = 0;	//make sure it's null terminated
 
 		RETURN_TSTRING(out);
 	}
@@ -6609,6 +6609,44 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 	}
 }
 
+/*static void PF_cs_clipboard_got(void *ctx, const char *utf8)
+{
+	void *pr_globals;
+	unsigned int unicode;
+	int error;
+
+	while (*utf8)
+	{
+		unicode = utf8_decode(&error, utf8, &utf8);
+		if (error)
+			unicode = 0xfffdu;
+
+		if (!csqcprogs || !csqcg.input_event || CSIE_PASTE >= dpcompat_csqcinputeventtypes.ival)
+			return;
+	#ifdef TEXTEDITOR
+		if (editormodal)
+			return;
+	#endif
+
+		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = CSIE_PASTE;
+		G_FLOAT(OFS_PARM1) = 0;
+		G_FLOAT(OFS_PARM2) = unicode;
+		G_FLOAT(OFS_PARM3) = 0;
+
+		qcinput_scan = G_FLOAT(OFS_PARM1);
+		qcinput_unicode = G_FLOAT(OFS_PARM2);
+		PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+		qcinput_scan = 0;	//and stop replay attacks
+		qcinput_unicode = 0;
+	}
+}
+static void QCBUILTIN PF_cs_clipboard_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	clipboardtype_t cliptype = G_FLOAT(OFS_PARM0);
+	Sys_Clipboard_PasteText(cliptype, PF_cs_clipboard_got, prinst);
+}*/
+
 void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //prefixes:
@@ -6989,6 +7027,9 @@ static struct {
 	{"setmousepos",				PF_cl_setmousepos,				0},		//
 	{"getmousepos",				PF_cl_getmousepos,				344},	// #344 This is a DP extension
 
+//	{"clipboard_get",			PF_cs_clipboard_get,			0},		//don't let csqc read the clipboard right now. its too risky.
+	{"clipboard_set",			PF_cl_clipboard_set,			0},		//it can change it though, no real problem there. just kill the program if its filling it with crap.
+
 	{"getinputstate",			PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
 	{"setsensitivityscaler",	PF_cs_setsensitivityscaler, 	346},	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
 
@@ -7277,7 +7318,7 @@ static struct {
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
 	{"buf_writefile",			PF_buf_writefile,			536},
-//	{"bufstr_find",				PF_Fixme,					537},
+	{"bufstr_find",				PF_bufstr_find,				537},
 //	{"matchpattern",			PF_Fixme,					538},
 //	{"undefined",				PF_Fixme,					539},
 

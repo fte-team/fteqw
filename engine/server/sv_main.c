@@ -5689,6 +5689,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 			if (i != svs.allocated_client_slots)
 			{ // dup name
+				char tmpname[80];
 				if (strlen(newname) > sizeof(cl->namebuf) - 1)
 					newname[sizeof(cl->namebuf) - 4] = 0;
 				p = newname;
@@ -5701,9 +5702,9 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 						p = newname + 4;
 				}
 
-				memmove(newname+10, p, strlen(p)+1);
+				memcpy(tmpname, p, strlen(p)+1);
 
-				sprintf(newname, "(%d)%-.40s", dupc++, newname+10);
+				sprintf(newname, "(%d)%-.40s", dupc++, tmpname);
 			}
 			else
 				break;

@@ -248,7 +248,7 @@ qboolean Sys_RunInstaller(void)
 
 #define SYS_CLIPBOARD_SIZE  256
 static char *clipboard_buffer;
-void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	callback(ctx, clipboard_buffer);
 }

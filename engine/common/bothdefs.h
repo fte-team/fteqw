@@ -71,7 +71,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_JPEG
 	#define NO_OGG
 	#define NO_ZLIB
-	#define NO_FREETYPE
+	#ifndef NO_FREETYPE
+		#define NO_FREETYPE
+	#endif
 #endif
 
 #ifdef D3DQUAKE
@@ -337,7 +339,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef ANDROID
 	#define GLESONLY	//should reduce the conditions a little
 //	#undef HEADLESSQUAKE
-	#define NO_FREETYPE
+	#ifndef NO_FREETYPE
+		#define NO_FREETYPE
+	#endif
 	#define NO_OPENAL
 #endif
 #if defined(NACL)

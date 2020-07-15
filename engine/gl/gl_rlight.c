@@ -2852,8 +2852,10 @@ void GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_dif
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 #endif
 
-	if (!model->lightdata || r_fullbright.ival)
+	if (!model->lightdata || r_fullbright.ival || model->loadstate != MLS_LOADED)
 	{
+		if (model->loadstate != MLS_LOADED)
+			Sys_Error("GLQ1BSP_LightPointValues: model not loaded...\n");
 		res_diffuse[0] = 0;
 		res_diffuse[1] = 0;
 		res_diffuse[2] = 0;

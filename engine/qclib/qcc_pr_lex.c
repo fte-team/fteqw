@@ -5824,6 +5824,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		unsigned int arraysize;
 		char *parmname;
 
+		pbool isnonvirt = false;
+		pbool isstatic = false;
+		pbool isvirt = false;
+
 		if (QCC_PR_CheckToken("{"))
 		{
 			//nameless struct
@@ -5883,9 +5887,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//in qc, functions are assignable references like anything else, so no modifiers means the qc will need to assign to it somewhere.
 			//virtual functions are still references, but we initialise them somewhere
 			//nonvirtual functions and static functions are kinda the same thing
-			pbool isnonvirt = false;
-			pbool isstatic = false;
-			pbool isvirt = false;
 			QCC_sref_t defaultval;
 			if (QCC_PR_CheckToken("}"))
 			{
@@ -5902,13 +5903,18 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			{	//same as last type, unless initial/after-semicolon
 				if (!newparm)
 					QCC_PR_ParseError(ERR_EXPECTED, "element missing type");
-				newparm = QCC_PR_NewType(newparm->name, newparm->type, false);
 			}
 			else
 			{	//new type!
 				if (newparm)
 					QCC_PR_ParseError(ERR_EXPECTED, "missing semi-colon");	//allow a missing semi-colon on functions, for mixed-style functions.
 
+				//reset these...
+				isnonvirt = false;
+				isstatic = false;
+				isvirt = false;
+
+				//parse field modifiers
 				if (QCC_PR_CheckKeyword(1, "public"))
 					/*ispublic = true*/;
 				else if (QCC_PR_CheckKeyword(1, "private"))
@@ -5927,6 +5933,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 //				else if (QCC_PR_CheckKeyword(1, "strip"))
 //					isignored = true;
 
+				//now parse the actual type.
 				newparm = QCC_PR_ParseType(false, false);
 			}
 			type = newparm;

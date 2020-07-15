@@ -1130,7 +1130,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 				if (!opt_overlaptemps || !opt_locals_overlapping)
 					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
 				else
-					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS of %u. Increase with eg: -max_regs %u", MAX_REGS, MAX_REGS*2);
 			}
 			if (def->type->type == ev_vector)
 				((int *)qcc_pr_globals)[numpr_globals] = def->arraysize-1;
@@ -1145,7 +1145,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 				if (!opt_overlaptemps || !opt_locals_overlapping)
 					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
 				else
-					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS of %u. Increase with eg: -max_regs %u", MAX_REGS, MAX_REGS*2);
 			}
 		}
 		def->ofs += numpr_globals;
@@ -4089,7 +4089,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				if (numsourcefiles < MAXSOURCEFILESLIST)
 					strcpy(sourcefileslist[numsourcefiles++], myargv[i]);
 				else
-					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "too many -srcfile arguments");
+					QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "too many -srcfile arguments");
 			}
 		}
 		else if ( !strcmp(myargv[i], "-src") )
@@ -4110,19 +4110,19 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			destfile_explicit = true;
 		}
 		else if ( !strcmp(myargv[i], "-qc") )
-			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is experimental", myargv[i]);	//compile without linking. output cannot be read by engines.
+			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Argument %s is experimental", myargv[i]);	//compile without linking. output cannot be read by engines.
 		else if ( !strcmp(myargv[i], "-E") )
-			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is experimental", myargv[i]);	//preprocess only
+			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Argument %s is experimental", myargv[i]);	//preprocess only
 		else if ( !strcmp(myargv[i], "-progdefs") )
 			;	//write progdefs.h
 		else if ( !strcmp(myargv[i], "-copy") )
 			;	//copy files / write pak files
 		else if ( !strcmp(myargv[i], "-bspmodels") )
-			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is not supported", myargv[i]);
+			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Argument %s is not supported", myargv[i]);
 		else if ( !strcmp(myargv[i], "-h2") || !strcmp(myargv[i], "-fteh2")  || !strcmp(myargv[i], "-fte") || !strcmp(myargv[i], "-dp")  )
 			;	//various targets
 		else if ( !strcmp(myargv[i], "-pak") || !strcmp(myargv[i], "-pak2") )
-			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is not supported", myargv[i]);
+			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Argument %s is not supported", myargv[i]);
 		else
 
 		//compiler constant
@@ -4187,7 +4187,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					if (!stricmp(a, "overlap-locals"))
 						opt_locals_overlapping = state;
 					else
-						QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised optimisation parameter (%s)", myargv[i]);
+						QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised optimisation parameter (%s)", myargv[i]);
 				}
 			}
 		}
@@ -4215,7 +4215,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			}
 
 			if (!compiler_flag[p].enabled)
-				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised keyword parameter (%s)", myargv[i]);
+				QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised keyword parameter (%s)", myargv[i]);
 		}
 		else if ( !strnicmp(myargv[i], "-std=", 5))
 		{
@@ -4333,7 +4333,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_const = keyword_var = keyword_static = keyword_noref = true;
 			}
 			else
-				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised std parameter (%s)", myargv[i]);
+				QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised std parameter (%s)", myargv[i]);
 		}
 		else if ( !strnicmp(myargv[i], "-F", 2) || WINDOWSARG(!strnicmp(myargv[i], "/F", 2)) )
 		{
@@ -4374,7 +4374,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					//currently we always try to write lno files, when filename info isn't stripped
 					if (opt_filenames)
 					{
-						QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Disabling -Ofilenames to satisfy -flno request");
+						QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Disabling -Ofilenames to satisfy -flno request");
 						opt_filenames = false;
 					}
 				}
@@ -4385,7 +4385,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				else if (!stricmp(arg, "bail-on-werror"))
 					;
 				else
-					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised flag parameter (%s)", myargv[i]);
+					QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised flag parameter (%s)", myargv[i]);
 			}
 		}
 
@@ -4398,7 +4398,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			else
 			{
 				if (!QCC_OPCodeSetTargetName(myargv[i]+2))
-					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised target parameter (%s)", myargv[i]);
+					QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised target parameter (%s)", myargv[i]);
 			}
 		}
 
@@ -4489,7 +4489,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					qccwarningaction[p] = action;
 
 				if (p < 0)
-					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised warning parameter (%s)", myargv[i]);
+					QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised warning parameter (%s)", myargv[i]);
 			}
 		}
 		else if ( !strcmp(myargv[i], "-stdout") )
@@ -4498,13 +4498,18 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 		else if ( !strcmp(myargv[i], "-log") || !strcmp(myargv[i], "-nolog") )
 		{
 		}
+		else if ( !strcmp(myargv[i], "-max_regs") || !strcmp(myargv[i], "-max_strings") || !strcmp(myargv[i], "-max_globals")
+		 || !strcmp(myargv[i], "-max_fields") || !strcmp(myargv[i], "-max_statements") || !strcmp(myargv[i], "-max_functions")
+		  || !strcmp(myargv[i], "-max_types") || !strcmp(myargv[i], "-max_temps") || !strcmp(myargv[i], "-max_macros") )
+		{
+		}
 		else if ( !strcmp(myargv[i], "--version") )
 		{
 			externs->Printf("%s\n", QCC_VersionString());
 			exit(EXIT_SUCCESS);
 		}
 		else if (*myargv[i] == '-' || WINDOWSARG(*myargv[i] == '/'))
-			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised parameter (%s)", myargv[i]);
+			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised parameter (%s)", myargv[i]);
 		else
 		{
 			if (numsourcefiles < MAXSOURCEFILESLIST)

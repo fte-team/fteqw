@@ -592,7 +592,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, ">", "GT_FI",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_integer, &type_integer,	OPF_STD},
 
  {7, "==", "EQ_IF",			PC_EQUALITY, ASSOC_LEFT,	&type_integer,	&type_float, &type_integer,	OPF_STD},
- {7, "==", "EQ_FI",			PC_EQUALITY, ASSOC_LEFT,	&type_float,	&type_integer, &type_float,	OPF_STD},
+ {7, "==", "EQ_FI",			PC_EQUALITY, ASSOC_LEFT,	&type_float,	&type_integer, &type_integer,	OPF_STD},
 
  	//-------------------------------------
 	//string manipulation.
@@ -1938,7 +1938,7 @@ void QCC_FinaliseTemps(void)
 		if (!opt_overlaptemps || !opt_locals_overlapping)
 			QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
 		else
-			QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+			QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS of %u. Increase with eg: -max_regs %u", MAX_REGS, MAX_REGS*2);
 	}
 
 	//finalize alises so they map correctly.
@@ -4404,7 +4404,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_NE_I:
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_NE_FNC], var_a, var_b, NULL, flags&(STFL_PRESERVEA|STFL_PRESERVEB));
 		case OP_NOT_I:
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_NE_FNC], var_a, QCC_MakeIntConst(0), NULL, flags&(STFL_PRESERVEA));
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_EQ_FNC], var_a, QCC_MakeIntConst(0), NULL, flags&(STFL_PRESERVEA));
 
 		case OP_AND_I:
 		case OP_AND_FI:
@@ -10221,8 +10221,8 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s %s.%s", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base), QCC_GetSRefName(dest->index));
 					QCC_PR_ParsePrintDef(WARN_STRICTTYPEMISMATCH, source.sym);
 				}
-				else if (dest->index.cast)
-					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s[%s]", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base), QCC_GetSRefName(dest->index));
+				else if (dest->index.cast && strcmp("IMMEDIATE", dest->index.sym->name))
+					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s %s[%s]", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base), QCC_GetSRefName(dest->index));
 				else
 					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s %s", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base));
 			}

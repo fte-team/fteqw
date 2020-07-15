@@ -4389,6 +4389,7 @@ void CL_FTP_f(void)
 void CL_Fog_f(void)
 {
 	int ftype;
+	vec3_t rgb;
 	if (!Q_strcasecmp(Cmd_Argv(0), "waterfog"))
 		ftype = FOGTYPE_WATER;
 	else if (!Q_strcasecmp(Cmd_Argv(0), "skyroomfog"))
@@ -4404,6 +4405,7 @@ void CL_Fog_f(void)
 	else
 	{
 		CL_ResetFog(ftype);
+		VectorSet(rgb, 0.3,0.3,0.3);
 
 		switch(Cmd_Argc())
 		{
@@ -4414,22 +4416,28 @@ void CL_Fog_f(void)
 			break;
 		case 3:
 			cl.fog[ftype].density = atof(Cmd_Argv(1));
-			cl.fog[ftype].colour[0] = cl.fog[ftype].colour[1] = cl.fog[ftype].colour[2] = SRGBf(atof(Cmd_Argv(2)));
+			rgb[0] = rgb[1] = rgb[2] = atof(Cmd_Argv(2));
 			break;
 		case 4:
 			cl.fog[ftype].density = 0.05;	//make something up for vauge compat with fitzquake, so it doesn't get the default of 0
-			cl.fog[ftype].colour[0] = SRGBf(atof(Cmd_Argv(1)));
-			cl.fog[ftype].colour[1] = SRGBf(atof(Cmd_Argv(2)));
-			cl.fog[ftype].colour[2] = SRGBf(atof(Cmd_Argv(3)));
+			rgb[0] = atof(Cmd_Argv(1));
+			rgb[1] = atof(Cmd_Argv(2));
+			rgb[2] = atof(Cmd_Argv(3));
 			break;
 		case 5:
 		default:
 			cl.fog[ftype].density = atof(Cmd_Argv(1));
-			cl.fog[ftype].colour[0] = SRGBf(atof(Cmd_Argv(2)));
-			cl.fog[ftype].colour[1] = SRGBf(atof(Cmd_Argv(3)));
-			cl.fog[ftype].colour[2] = SRGBf(atof(Cmd_Argv(4)));
+			rgb[0] = atof(Cmd_Argv(2));
+			rgb[1] = atof(Cmd_Argv(3));
+			rgb[2] = atof(Cmd_Argv(4));
 			break;
 		}
+
+		if (rgb[0]>=2 || rgb[1]>=2 || rgb[2]>=2)	//we allow SOME slop for hdr fog... hopefully we won't need it. this is mostly just an issue when skyfog is enabled[default .5] ('why is my sky white on map FOO')
+			Con_Printf(CON_WARNING "Fog colour of %g %g %g exceeds standard 0-1 range\n", rgb[0], rgb[1], rgb[2]);
+		cl.fog[ftype].colour[0] = SRGBf(rgb[0]);
+		cl.fog[ftype].colour[1] = SRGBf(rgb[1]);
+		cl.fog[ftype].colour[2] = SRGBf(rgb[2]);
 
 		if (cls.state == ca_active)
 			cl.fog[ftype].time += 1;

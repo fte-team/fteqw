@@ -15842,9 +15842,13 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		strictenum = QCC_PR_CheckName("class");	//c++11 style
 
 		type = QCC_PR_ParseType(false, true);	//legacy behaviour
-		if (!type)
+		if (type)
 		{
-			basetype = (flag_assume_integer?type_integer:type_float);
+			QCC_PR_ParseWarning(WARN_DEPRECACTEDSYNTAX, "legacy enum base type. Use \"enum [class] [name_e]:type\" instead\n");
+			basetype = type;
+		}
+		else
+		{
 			if (pr_token_type == tt_name)
 				name = QCC_PR_ParseName();
 			else

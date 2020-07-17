@@ -468,7 +468,9 @@ endif
 ifeq ($(FTE_TARGET),cygwin)
 	FTE_TARGET=cyg
 endif
-
+ifeq ($(shell uname -s),OpenBSD)
+	PKGCONFIG=pkg-config
+endif
 
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	ifneq ($(shell uname 2>&1 | grep CYGWIN),)

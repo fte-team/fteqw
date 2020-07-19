@@ -15143,7 +15143,7 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 {
 	char array[64];
 	char newname[256];
-	int a, parms;
+	int a, parms, o;
 	QCC_def_t *def, *first=NULL;
 	unsigned int maxfield, startfield;
 	QCC_type_t *ftype;
@@ -15209,7 +15209,8 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 						def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
 						if (parttype->type == ev_function)
 							def->initialized = true;
-						def->symboldata[0]._int = *fieldofs;
+						for (o = 0; o < parttype->size; o++)
+							def->symboldata[o]._int = *fieldofs + o;
 						*fieldofs += parttype->size;
 					}
 					else

@@ -1084,10 +1084,10 @@ void QCBUILTIN PF_memgetval (pubprogfuncs_t *inst, struct globalvars_s *globals)
 	//read 32 bits from a pointer.
 	int dst = G_INT(OFS_PARM0);
 	float ofs = G_FLOAT(OFS_PARM1);
-	int size = 4;
+	int size = sizeof(int);
 	if (ofs != (float)(int)ofs)
 		PR_RunWarning(inst, "PF_memgetval: non-integer offset\n");
-	dst += ofs;
+	dst += ofs*size;
 	if (dst < 0 || dst+size >= inst->stringtablesize)
 	{
 		PR_RunError(inst, "PF_memgetval: invalid dest\n");
@@ -1104,10 +1104,10 @@ void QCBUILTIN PF_memsetval (pubprogfuncs_t *inst, struct globalvars_s *globals)
 	int dst = G_INT(OFS_PARM0);
 	float ofs = G_FLOAT(OFS_PARM1);
 	int val = G_INT(OFS_PARM2);
-	int size = 4;
+	int size = sizeof(int);
 	if (ofs != (float)(int)ofs)
 		PR_RunWarning(inst, "PF_memsetval: non-integer offset\n");
-	dst += ofs;
+	dst += ofs*size;
 	if (dst < 0 || dst+size >= inst->stringtablesize)
 	{
 		PR_RunError(inst, "PF_memsetval: invalid dest\n");

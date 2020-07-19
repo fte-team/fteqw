@@ -4,6 +4,7 @@
 struct edict_s;
 #include "progsint.h"
 //#include "crc.h"
+#include "qcc.h"
 
 #ifdef _WIN32
 //this is windows  all files are written with this endian standard. we do this to try to get a little more speed.
@@ -516,19 +517,6 @@ mfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum
 	return NULL;
 }
 
-#ifdef _WIN32
-static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
-{
-	va_list args;
-	va_start (args, fmt);
-	_vsnprintf (dest, size-1, fmt, args);
-	va_end (args);
-	//make sure its terminated.
-	dest[size-1] = 0;
-}
-#else
-#define QC_snprintfz snprintf
-#endif
 /*
 ============
 PR_ValueString
@@ -891,7 +879,6 @@ Returns a string with a description and the contents of a global,
 padded to 20 field width
 ============
 */
-#include "qcc.h"
 char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **typehint)
 {
 	char	*s;

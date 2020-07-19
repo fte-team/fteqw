@@ -15854,7 +15854,11 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 			else
 				name = NULL;
 			if (QCC_PR_CheckToken(":"))
+			{
 				basetype = QCC_PR_ParseType(false, false);
+				if (!basetype)
+					QCC_PR_ParseError(ERR_NOTATYPE, "enumflags - must be numeric type");
+			}
 			else if (strictenum)
 				QCC_PR_Expect(":");
 		}
@@ -15862,7 +15866,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 	}
 
 	if (flags && basetype->type != ev_float && basetype->type != ev_integer && basetype->type != ev_vector)
-		QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - must be numeric type");
+		QCC_PR_ParseError(ERR_NOTATYPE, "enumflags - must be numeric type");
 
 	if (name)
 	{
@@ -16045,7 +16049,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 		type = QCC_PR_ParseType(false, false);
 		if (!type)
 		{
-			QCC_PR_ParseError(ERR_NOTANAME, "typedef found unexpected tokens");
+			QCC_PR_ParseError(ERR_NOTATYPE, "typedef found unexpected tokens");
 		}
 		do
 		{

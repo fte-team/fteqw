@@ -15693,6 +15693,8 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 						break;
 					if ((type)->params[partnum].isvirtual)
 						continue;	//these are pre-initialised....
+					if ((type)->params[partnum].optional)
+						continue;	//float parts of a vector.
 
 					def.cast = (type)->params[partnum].type;
 					def.ofs = (type)->params[partnum].ofs;

@@ -17,6 +17,7 @@ void QCC_FreeDef(QCC_def_t *def);
 
 extern pbool	destfile_explicit;
 extern char		destfile[1024];
+static const QCC_sref_t nullsref = {0};
 
 #define MAXINCLUDEDIRS 8
 char	qccincludedir[MAXINCLUDEDIRS][256];	//the -src path, for #includes
@@ -5821,6 +5822,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	{
 		struct QCC_typeparam_s *parms = NULL, *oldparm;
 		int numparms = 0;
+		int ofs;
 		unsigned int arraysize;
 		char *parmname;
 
@@ -6013,8 +6015,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				}
 			}
 
-			parms = realloc(parms, sizeof(*parms) * (numparms+1));
-			oldparm = QCC_PR_FindStructMember(newt, parmname, &parms[numparms].ofs);
+			parms = realloc(parms, sizeof(*parms) * (numparms+4));
+			oldparm = QCC_PR_FindStructMember(newt, parmname, &ofs);
 			if (oldparm && oldparm->arraysize == arraysize && !typecmp_lax(oldparm->type, type))
 			{
 				if (!isvirt)
@@ -6022,16 +6024,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			}
 			else if (structtype == ev_union)
 			{
-				parms[numparms].ofs = 0;
+				ofs = 0;
 				if (type->size*(arraysize?arraysize:1) > newt->size)
 					newt->size = type->size*(arraysize?arraysize:1);
 			}
 			else
 			{
-				parms[numparms].ofs = newt->size;
+				ofs = newt->size;
 				newt->size += type->size*(arraysize?arraysize:1);
 			}
 
+			parms[numparms].ofs = ofs;
 			parms[numparms].arraysize = arraysize;
 			parms[numparms].out = false;
 			parms[numparms].optional = false;
@@ -6040,6 +6043,24 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			parms[numparms].type = type;
 			parms[numparms].defltvalue = defaultval;
 			numparms++;
+
+			if (type->type == ev_vector && arraysize == 0)
+			{	//add in vec_x/y/z members too.
+				int c;
+				for (c = 0; c < 3; c++)
+				{
+					parms[numparms].ofs = ofs + c;
+					parms[numparms].arraysize = arraysize;
+					parms[numparms].out = false;
+					parms[numparms].optional = true;
+					parms[numparms].isvirtual = isvirt;
+					parms[numparms].paramname = qccHunkAlloc(strlen(pr_token)+3);
+					sprintf(parms[numparms].paramname, "%s_%c", parmname, 'x'+c);
+					parms[numparms].type = type_float;
+					parms[numparms].defltvalue = nullsref;
+					numparms++;
+				}
+			}
 		}
 		if (!numparms)
 			QCC_PR_ParseError(ERR_NOTANAME, "%s %s has no members", structtype==ev_union?"union":"struct", newt->name);

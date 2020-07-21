@@ -1199,6 +1199,9 @@ void CL_CheckForResend (void)
 
 void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 {
+	if (!strncmp(host, "localhost", 9))
+		noproxy = true;	//FIXME: resolve the address here or something so that we don't end up using a proxy for lan addresses.
+
 	if (strstr(host, "://") || !*cl_proxyaddr.string || noproxy)
 		Q_strncpyz (cls.servername, host, sizeof(cls.servername));
 	else

@@ -8,6 +8,7 @@
 #ifdef SQL
 #include "sv_sql.h"
 #endif
+#include "fs.h"
 
 #include <ctype.h>
 
@@ -2354,6 +2355,50 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_FLOAT(OFS_RETURN) = -1;
 		break;
 	}
+ }
+
+//internal function used by search_begin
+static int PF_fopen_search (pubprogfuncs_t *prinst, const char *name, flocation_t *loc)
+{
+	const char *fallbackread;
+	int i;
+
+	Con_DPrintf("qcfopen(\"%s\") called\n", name);
+
+	for (i = 0; i < MAX_QC_FILES; i++)
+		if (!pf_fopen_files[i].prinst)
+			break;
+
+	if (i == MAX_QC_FILES)	//too many already open
+	{
+		Con_Printf("qcfopen(\"%s\"): too many files open\n", name);
+		return -1;
+	}
+
+	if (!QC_FixFileName(name, &name, &fallbackread) || !fallbackread)
+	{	//we're ignoring the data/ dir so using only the fallback, but still blocking it if its a nasty path.
+		Con_Printf("qcfopen(\"%s\"): Access denied\n", name);
+		return -1;
+	}
+
+	pf_fopen_files[i].accessmode = FRIK_FILE_READ_DELAY;
+
+	Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
+	if (loc->search->handle)
+		pf_fopen_files[i].file = FS_OpenReadLocation(loc);
+	else
+		pf_fopen_files[i].file = FS_OpenVFS(loc->rawname, "rb", FS_ROOT);
+
+	pf_fopen_files[i].ofs = 0;
+	if (pf_fopen_files[i].file)
+	{
+		pf_fopen_files[i].len = VFS_GETLEN(pf_fopen_files[i].file);
+
+		pf_fopen_files[i].prinst = prinst;
+		return i + FIRST_QC_FILE_INDEX;
+	}
+	else
+		return -1;
 }
 
 void PF_fclose_i (int fnum)
@@ -2895,12 +2940,12 @@ void QCBUILTIN PF_rmtree (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *srcname = PR_GetStringOfs(prinst, OFS_PARM0);
-	qboolean makereferenced = prinst->callargc>1?G_FLOAT(OFS_PARM1):true;
+	unsigned int flags = prinst->callargc>1?G_FLOAT(OFS_PARM1):WP_REFERENCE;
 	flocation_t loc;
 
 	if (FS_FLocateFile(srcname, FSLF_IFFOUND, &loc))
 	{
-		srcname = FS_WhichPackForLocation(&loc, makereferenced);
+		srcname = FS_WhichPackForLocation(&loc, flags);
 		if (srcname == NULL)
 			srcname = "";
 		RETURN_TSTRING(srcname);
@@ -2913,19 +2958,33 @@ void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 }
 
 
+enum
+{
+	QCSEARCH_INSENSITIVE = 1u<<0,	//for dp, we're always insensitive you prick.
+	QCSEARCH_FULLPACKAGE = 1u<<1,	//package names include gamedir prefix etc.
+	QCSEARCH_ALLOWDUPES  = 1u<<2,	//don't filter out dupes, allowing entries hidden by later packages to be shown.
+	QCSEARCH_FORCESEARCH = 1u<<3,	//force the search to succeed even if the gamedir/package is not active.
+};
+searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm);
 typedef struct prvmsearch_s {
 	pubprogfuncs_t *fromprogs;	//share across menu/server
+
+	searchpath_t searchinfo;
+
 	int entries;
 	struct
 	{
 		char *name;
 		qofs_t size;
 		time_t mtime;
+		searchpathfuncs_t *package;
 	} *entry;
 	char *pattern;
+	unsigned int flags;
+	unsigned int fsflags;
 } prvmsearch_t;
-prvmsearch_t *pr_searches;	//realloced to extend
-size_t numpr_searches;
+static prvmsearch_t *pr_searches;	//realloced to extend
+static size_t numpr_searches;
 
 void search_close (pubprogfuncs_t *prinst, int handle)
 {
@@ -2943,6 +3002,8 @@ void search_close (pubprogfuncs_t *prinst, int handle)
 		BZ_Free(s->entry[i].name);
 	Z_Free(s->pattern);
 	BZ_Free(s->entry);
+	if (s->searchinfo.handle)
+		s->searchinfo.handle->ClosePath(s->searchinfo.handle);
 	memset(s, 0, sizeof(*s));
 }
 //a progs was closed... hunt down it's searches, and warn about any searches left open.
@@ -2984,10 +3045,13 @@ static int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, 
 	prvmsearch_t *s = parm;
 
 	size_t i;
-	for (i = 0; i < s->entries; i++)
+	if (!(s->flags & QCSEARCH_ALLOWDUPES))
 	{
-		if (!Q_strcasecmp(name, s->entry[i].name))
-			return true;	//already in the list, apparently. try to avoid dupes.
+		for (i = 0; i < s->entries; i++)
+		{
+			if (!Q_strcasecmp(name, s->entry[i].name))
+				return true;	//already in the list, apparently. try to avoid dupes.
+		}
 	}
 
 	s->entry = BZ_Realloc(s->entry, ((s->entries+64)&~63) * sizeof(*s->entry));
@@ -2995,6 +3059,7 @@ static int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, 
 	strcpy(s->entry[s->entries].name, name);
 	s->entry[s->entries].size = fsize;
 	s->entry[s->entries].mtime = mtime;
+	s->entry[s->entries].package = spath;
 
 	s->entries++;
 	return true;
@@ -3005,8 +3070,9 @@ void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 {	//< 0 for error, >= 0 for handle.
 	//error includes bad search patterns, but not no files
 	const char *pattern = PR_GetStringOfs(prinst, OFS_PARM0);
-//	qboolean caseinsensitive = G_FLOAT(OFS_PARM1);
-//	qboolean quiet = G_FLOAT(OFS_PARM2);
+	unsigned int flags = G_FLOAT(OFS_PARM1);
+//	qboolean quiet = G_FLOAT(OFS_PARM2);	//fte is not noisy
+	const char *package = (prinst->callargc>3)?PR_GetStringOfs(prinst, OFS_PARM3):NULL;
 	prvmsearch_t *s;
 	size_t j;
 
@@ -3032,7 +3098,15 @@ void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	s->pattern = Z_StrDup(pattern);
 	s->fromprogs = prinst;
-	COM_EnumerateFiles(pattern, search_enumerate, s);
+	s->flags = flags;
+	s->fsflags = 0;
+	if (flags&QCSEARCH_FULLPACKAGE)
+		s->fsflags |= WP_FULLPATH;
+	if (flags&QCSEARCH_FORCESEARCH)
+		s->fsflags |= WP_FORCE;
+
+	Q_strncpyz(s->searchinfo.purepath, package?package:"", sizeof(s->searchinfo.purepath));
+	s->searchinfo.handle = COM_EnumerateFilesPackage(pattern, package?s->searchinfo.purepath:NULL, s->fsflags, search_enumerate, s);
 
 	G_FLOAT(OFS_RETURN) = j;
 }
@@ -3117,6 +3191,69 @@ void QCBUILTIN PF_search_getfilemtime (pubprogfuncs_t *prinst, struct globalvars
 		strftime(timestr, sizeof(timestr), "%Y-%m-%d %H:%M:%S", localtime(&s->entry[num].mtime));
 		RETURN_TSTRING(timestr);
 	}
+}
+static qboolean PF_search_getloc(flocation_t *loc, prvmsearch_t *s, int num)
+{
+	const char *fname = s->entry[num].name;
+	if (s->searchinfo.handle)	//we were only searching a single package...
+	{
+		loc->search = &s->searchinfo;
+		return loc->search->handle->FindFile(loc->search->handle, loc, fname, NULL);
+	}
+	else if (!s->entry[num].package)
+	{
+		loc->search = &s->searchinfo;
+
+		Q_snprintfz(loc->rawname, sizeof(loc->rawname), "%s/%s", s->searchinfo.purepath, fname);
+		return true;
+	}
+	else
+		return FS_GetLocationForPackageHandle(loc, s->entry[num].package, fname);
+}
+void QCBUILTIN PF_search_getpackagename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	int num = G_FLOAT(OFS_PARM1);
+	prvmsearch_t *s;
+	flocation_t loc;
+	const char *pkgname;
+	G_INT(OFS_RETURN) = 0;
+
+	if (handle < 0 || handle >= numpr_searches || pr_searches[handle].fromprogs != prinst)
+	{
+		PF_Warningf(prinst, "PF_search_getpackagename: Invalid search handle %i\n", handle);
+		return;
+	}
+	s = &pr_searches[handle];
+
+	if (num < 0 || num >= s->entries)
+		return;
+	if (PF_search_getloc(&loc, s, num))
+	{
+		pkgname = FS_WhichPackForLocation(&loc, s->fsflags);
+		if (pkgname)
+			RETURN_TSTRING(pkgname);
+	}
+}
+void QCBUILTIN PF_search_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	int num = G_FLOAT(OFS_PARM1);
+	prvmsearch_t *s;
+	flocation_t loc;
+	G_FLOAT(OFS_RETURN) = -1;
+
+	if (handle < 0 || handle >= numpr_searches || pr_searches[handle].fromprogs != prinst)
+	{
+		PF_Warningf(prinst, "PF_search_getpackagename: Invalid search handle %i\n", handle);
+		return;
+	}
+	s = &pr_searches[handle];
+
+	if (num < 0 || num >= s->entries)
+		return;
+	if (PF_search_getloc(&loc, s, num))
+		G_FLOAT(OFS_RETURN) = PF_fopen_search (prinst, s->entry[num].name, &loc);
 }
 
 //closes filesystem type stuff for when a progs has stopped needing it.
@@ -6609,6 +6746,8 @@ nolength:
 						*f++ = 'x';
 					else if (*s == 'P')
 						*f++ = 'X';
+					else if (*s == 'S')
+						*f++ = 's';
 					else
 						*f++ = *s;
 					*f++ = 0;
@@ -7288,6 +7427,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_FINDCHAINFLAGS",			1,	NULL, {"findchainflags"}},
 	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
 	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
+	{"DP_QC_FS_SEARCH_PACKFILE",		4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
 	{"DP_QC_GETSURFACE",				6,	NULL, {"getsurfacenumpoints", "getsurfacepoint", "getsurfacenormal", "getsurfacetexture", "getsurfacenearpoint", "getsurfaceclippedpoint"}},
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	1,	NULL, {"getsurfacepointattribute"}},
 	{"DP_QC_GETTAGINFO",				2,	NULL, {"gettagindex", "gettaginfo"}},

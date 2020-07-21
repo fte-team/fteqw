@@ -534,7 +534,11 @@ struct vfsfile_s;
 //standard return value is 0 on failure, or depth on success.
 int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
-const char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
+#define WP_REFERENCE	1
+#define WP_FULLPATH		2
+#define WP_FORCE		4
+const char *FS_WhichPackForLocation(flocation_t *loc, unsigned int flags);
+qboolean FS_GetLocationForPackageHandle(flocation_t *loc, searchpathfuncs_t *spath, const char *fname);
 qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime);
 const char *FS_GetPackageDownloadFilename(flocation_t *loc);	//returns only packages (or null)
 const char *FS_GetRootPackagePath(flocation_t *loc);			//favours packages, but falls back on gamedirs.

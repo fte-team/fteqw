@@ -7168,6 +7168,8 @@ static struct {
 	{"search_getfilename",		PF_search_getfilename,447},		// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
 	{"search_getfilesize",		PF_search_getfilesize,	0},
 	{"search_getfilemtime",		PF_search_getfilemtime,	0},
+	{"search_getpackagename",	PF_search_getpackagename, 0},
+	{"search_fopen",			PF_search_fopen,			0},
 	{"cvar_string",				PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
 	{"findflags",				PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 

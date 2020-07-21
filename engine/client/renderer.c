@@ -476,7 +476,7 @@ cvar_t gl_mipcap							= CVARAFCD("d_mipcap", "0 1000", "gl_miptexLevel",
 cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, Image_TextureMode_Callback,
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
-cvar_t r_font_linear						= CVARF("r_font_linear", "1", 0);
+cvar_t r_font_linear						= CVARF("r_font_linear", "1", CVAR_ARCHIVE);
 cvar_t r_font_postprocess_outline			= CVARFD("r_font_postprocess_outline", "0", 0, "Controls the number of pixels of dark borders to use around fonts.");
 
 #if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)

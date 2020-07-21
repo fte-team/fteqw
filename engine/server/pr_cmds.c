@@ -10478,7 +10478,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	D("string(string name)", "Returns the value of a cvar, as a string.")},
 	{"crash",			PF_Fixme,			0,		0,		0,		72,	D("void()", "Demonstrates that no program is bug free.")},
 	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	D("void()", "Prints out the QC's stack, for console-based error reports.")},
-	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, float caseinsensitive, float quiet)"},
+	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, enumflags:float{SB_CASEINSENSITIVE=1<<0,SB_FULLPACKAGEPATH=1<<1,SB_ALLOWDUPES=1<<2,SB_FORCESEARCH=1<<3} flags, float quiet, optional string package)"},
 	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(searchhandle handle)"},
 	{"search_getfilename",PF_Fixme,			0,		0,		0,		77,	"string(searchhandle handle, float num)"},
@@ -11253,12 +11253,14 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
 	{"setattachment",	PF_setattachment,	0,		0,		0,		443,	"void(entity e, entity tagentity, string tagname)"},// (DP_GFX_QUAKE3MODELTAGS)
-	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	D("searchhandle(string pattern, float caseinsensitive, float quiet)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle.")},
+	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	D("searchhandle(string pattern, enumflags:float{SB_CASEINSENSITIVE=1<<0,SB_FULLPACKAGEPATH=1<<1,SB_ALLOWDUPES=1<<2,SB_FORCESEARCH=1<<3} flags, float quiet, optional string filterpackage)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle. SB_FULLPACKAGEPATH interprets the filterpackage arg as a full package path to avoid gamedir ambiguity, equivelent to whichpack's WP_FULLPACKAGEPATH flag. SB_ALLOWDUPES allows returning multiple entries with the same name (but different package, useful with search_fopen). SB_FORCESEARCH requires use of the filterpackage and SB_FULLPACKAGEPATH flag, initiating searches from gamedirs/packages which are not currently active.")},
 	{"search_end",		PF_search_end,		0,		0,		0,		445,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446,	D("float(searchhandle handle)", "Retrieves the number of files that were found.")},
 	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447,	D("string(searchhandle handle, float num)", "Retrieves name of one of the files that was found by the initial search.")},
 	{"search_getfilesize", PF_search_getfilesize,0,	0,		0,		0,		D("float(searchhandle handle, float num)", "Retrieves the size of one of the files that was found by the initial search.")},
 	{"search_getfilemtime", PF_search_getfilemtime,0,0,		0,		0,		D("string(searchhandle handle, float num)", "Retrieves modification time of one of the files.")},
+	{"search_getpackagename", PF_search_getpackagename,0,0,	0,		0,		D("string(searchhandle handle, float num)", "Retrieves the name of the package containing the file. Search with SB_FULLPACKAGEPATH to see gamedir/package info")},
+	{"search_fopen",	PF_search_fopen,	0,		0,		0,		0,		D("filestream(searchhandle handle, float num)", "Opens the file directly, without getting confused about entries from other packages. Read access only.")},
 	{"cvar_string",		PF_cvar_string,		0,		0,		0,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
 	{"findchainflags",	PF_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match, optional .entity chainfield)"},//DP_QC_FINDCHAINFLAGS
@@ -11327,7 +11329,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501,	D("void(float to, string s, float sz)", "Encodes the named image across the network as-is adhering to some size limit. In FTE, this simply writes the string and is equivelent to writestring and sz is ignored. WritePicture should be paired with ReadPicture in csqc.")},//DP_SV_WRITEPICTURE
 	{"ReadPicture",		PF_Fixme,			0,		0,		0,		501,	D("string()", "Reads a picture that was written by ReadPicture, and returns a name that can be used in drawpic and other 2d drawing functions. In FTE, this acts as a readstring-with-downloadcheck - the image will appear normally once it has been downloaded, but its size may be incorrect until then.")},//DP_SV_WRITEPICTURE
 	{"boxparticles",	PF_Fixme,			0,		0,		0,		502,	"void(float effectindex, entity own, vector org_from, vector org_to, vector dir_from, vector dir_to, float countmultiplier, optional float flags)"},
-	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	D("string(string filename, optional float makereferenced)", "Returns the pak file name that contains the file specified. progs/player.mdl will generally return something like 'pak0.pak'. If makereferenced is true, clients will automatically be told that the returned package should be pre-downloaded and used, even if allow_download_refpackages is not set.")},//DP_QC_WHICHPACK
+	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	D("string(string filename, optional enumflags:float{WP_REFERENCEPACKAGE,WP_FULLPACKAGEPATH} flags)", "Returns the pak file name that contains the file specified. progs/player.mdl will generally return something like 'pak0.pak'. If WP_REFERENCE, clients will automatically be told that the returned package should be pre-downloaded and used, even if allow_download_refpackages is not set.")},//DP_QC_WHICHPACK
 	{"getentity",		PF_Fixme,			0,		0,		0,		504,	D("__variant(float entnum, float fieldnum)", "Looks up fields from non-csqc-visible entities. The entity will need to be within the player's pvs. fieldnum should be one of the GE_ constants.")},//DP_CSQC_QUERYRENDERENTITY
 //	{"undefined",		PF_Fixme,			0,		0,		0,		505,	""},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		506,	""},
@@ -12596,17 +12598,17 @@ void PR_DumpPlatform_f(void)
 		{"PFLAGS_CORONA",		"const float", QW|NQ|CS, D("Enables support of coronas on the associated rtlights."), PFLAGS_CORONA},
 		{"PFLAGS_FULLDYNAMIC",	"const float", QW|NQ, D("When set in self.pflags, enables fully-customised dynamic lights. Custom rtlight information is not otherwise used."), PFLAGS_FULLDYNAMIC},
 
-		//including these for csqc stat types.
+		//including these for csqc stat types, hash tables, etc.
 //		{"EV_VOID",				"const float", QW|NQ|CS, NULL, ev_void},
-		{"EV_STRING",			"const float", QW|NQ|CS, NULL, ev_string},
-		{"EV_FLOAT",			"const float", QW|NQ|CS, NULL, ev_float},
-		{"EV_VECTOR",			"const float", QW|NQ|CS, NULL, ev_vector},
-		{"EV_ENTITY",			"const float", QW|NQ|CS, NULL, ev_entity},
-		{"EV_FIELD",			"const float", QW|NQ|CS, NULL, ev_field},
-		{"EV_FUNCTION",			"const float", QW|NQ|CS, NULL, ev_function},
-		{"EV_POINTER",			"const float", QW|NQ|CS, NULL, ev_pointer},
-		{"EV_INTEGER",			"const float", QW|NQ|CS, NULL, ev_integer},
-		{"EV_VARIANT",			"const float", QW|NQ|CS, NULL, ev_variant},
+		{"EV_STRING",			"const float", ALL, NULL, ev_string},
+		{"EV_FLOAT",			"const float", ALL, NULL, ev_float},
+		{"EV_VECTOR",			"const float", ALL, NULL, ev_vector},
+		{"EV_ENTITY",			"const float", ALL, NULL, ev_entity},
+		{"EV_FIELD",			"const float", ALL, NULL, ev_field},
+		{"EV_FUNCTION",			"const float", ALL, NULL, ev_function},
+		{"EV_POINTER",			"const float", ALL, NULL, ev_pointer},
+		{"EV_INTEGER",			"const float", ALL, NULL, ev_integer},
+		{"EV_VARIANT",			"const float", ALL, NULL, ev_variant},
 //		{"EV_STRUCT",			"const float", QW|NQ|CS, NULL, ev_struct},
 //		{"EV_UNION",			"const float", QW|NQ|CS, NULL, ev_union},
 

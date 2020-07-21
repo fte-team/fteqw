@@ -1193,8 +1193,8 @@ typedef struct usercmd_s
 	short	forwardmove, sidemove, upmove;
 	qbyte	impulse;
 	qbyte	lightlevel;
+	//end q2 compat
 
-	//freestyle
 	float	msec;		//replace msec, but with more precision
 	int		buttons;	//replaces buttons, but with more bits.
 	int		weapon;		//q3 has a separate weapon field to supplement impulse.

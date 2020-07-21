@@ -3618,7 +3618,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 			mt->offsets[j] = LittleLong (mt->offsets[j]);
 
 		if ( (mt->width & 15) || (mt->height & 15) )
-			Con_Printf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
+			Con_DPrintf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
 		if (mt->width < 1 || mt->height < 1)
 			Con_Printf (CON_WARNING "Warning: Texture %s has no size", mt->name);
 		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));

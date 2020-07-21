@@ -2389,6 +2389,8 @@ static struct {
 	{"search_getfilename",		PF_search_getfilename,		77},
 	{"search_getfilesize",		PF_search_getfilesize,		0},
 	{"search_getfilemtime",		PF_search_getfilemtime,		0},
+	{"search_getpackagename",	PF_search_getpackagename,	0},
+	{"search_fopen",			PF_search_fopen,			0},
 	{"chr2str",					PF_chr2str,					78},
 	{"etof",					PF_etof,					79},
 	{"ftoe",					PF_ftoe,					80},
@@ -2797,16 +2799,18 @@ static qboolean MP_KeyEvent(menu_t *menu, qboolean isdown, unsigned int devid, i
 	if (isdown)
 	{
 #ifndef NOBUILTINMENUS
+#ifdef _DEBUG
 		if (key == 'c')
 		{
 			extern qboolean	keydown[K_MAX];
-			if (keydown[K_LCTRL] || keydown[K_RCTRL])
+			if ((keydown[K_LCTRL] || keydown[K_RCTRL]) && (keydown[K_LSHIFT] || keydown[K_RSHIFT]))
 			{
 				MP_Shutdown();
 				M_Init_Internal();
 				return true;
 			}
 		}
+#endif
 #endif
 
 		mpkeysdown[key>>3] |= (1<<(key&7));

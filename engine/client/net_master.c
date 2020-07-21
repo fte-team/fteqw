@@ -1433,7 +1433,7 @@ serverinfo_t *Master_FindRoute(netadr_t target)
 		return NULL;
 
 	//never flood into a peer if its just going to be more expensive than a direct connection
-	if (*cl_proxyaddr.string)
+	if (*cl_proxyaddr.string && NET_ClassifyAddress(&target, NULL) >= ASCOPE_NET)
 	{
 		//fixme: we don't handle chained proxies properly, as we assume we can directly hop to the named final proxy.
 		//fixme: we'll find the same route, we just won't display the correct expected ping.

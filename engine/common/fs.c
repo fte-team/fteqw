@@ -37,6 +37,7 @@ int fs_finds;
 void COM_CheckRegistered (void);
 void Mods_FlushModList(void);
 static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname);
+static searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
 
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 {
@@ -1695,21 +1696,43 @@ const char *FS_GetPackageDownloadFilename(flocation_t *loc)
 		return sp->purepath;
 	return NULL;
 }
-const char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
+qboolean FS_GetLocationForPackageHandle(flocation_t *loc, searchpathfuncs_t *spath, const char *fname)
+{
+	searchpath_t *search;
+	for (search = com_searchpaths; search; search = search->next)
+	{
+		if (search->handle == spath)
+		{
+			loc->search = search;
+			return spath->FindFile(spath, loc, fname, NULL);
+		}
+	}
+	return false;
+}
+const char *FS_WhichPackForLocation(flocation_t *loc, unsigned int flags)
 {
 	char *ret;
 	if (!loc->search)
 		return NULL;	//huh? not a valid location.
 
-	ret = strchr(loc->search->purepath, '/');
-	if (ret)
+	if (flags & WP_FULLPATH)
 	{
-		ret++;
-		if (!strchr(ret, '/'))
+		if (flags & WP_REFERENCE)
+			loc->search->flags |= SPF_REFERENCED;
+		return loc->search->purepath;
+	}
+	else
+	{
+		ret = strchr(loc->search->purepath, '/');
+		if (ret)
 		{
-			if (makereferenced)
-				loc->search->flags |= SPF_REFERENCED;
-			return ret;
+			ret++;
+			if (!strchr(ret, '/'))
+			{
+				if (flags & WP_REFERENCE)
+					loc->search->flags |= SPF_REFERENCED;
+				return ret;
+			}
 		}
 	}
 	return NULL;
@@ -2645,7 +2668,87 @@ void FS_FreeFile(void *file)
 }
 
 
+searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
+{	//special version that takes an explicit package name to search inside.
+	searchpathfuncs_t *handle;
+	searchpath_t    *search;
+	const char *sp;
+	qboolean foundpackage = false;
+	for (search = com_searchpaths; search ; search = search->next)
+	{
+		if (package)
+		{
+			if (flags & WP_FULLPATH)
+				sp = search->purepath;
+			else
+			{
+				sp = strchr(search->purepath, '/');
+				if (sp && !strchr(++sp, '/'))
+					;
+				else
+					continue;	//ignore packages inside other packages. they're just too weird.
+			}
+			if (strcmp(package, sp))
+				continue;	//ignore this package
+		}
+		foundpackage = true;
+	// is the element a pak file?
+		if (!search->handle->EnumerateFiles(search->handle, match, func, parm))
+			break;
+	}
 
+	if (!foundpackage && package && (flags&WP_FORCE) && (flags & WP_FULLPATH))
+	{	//if we're forcing the package search then be prepared to open the gamedir or gamedir/package that was specified.
+		char cleanname[MAX_OSPATH];
+		char syspath[MAX_OSPATH];
+		char *sl;
+
+		package = FS_GetCleanPath(package, false, cleanname, sizeof(cleanname));
+		if (!package)
+			return NULL;
+
+		sl = strchr(package, '/');
+		if (sl)
+		{	//try to open the named package.
+			*sl = 0;
+			if (strchr(sl+1, '/') || !FS_GamedirIsOkay(package))
+				return NULL;
+			*sl = '/';
+
+			if (com_homepathenabled)
+			{	//try the homedir
+				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, package);
+				handle = FS_OpenPackByExtension(VFSOS_Open(package, "rb"), NULL, package, package);
+			}
+			else
+				handle = NULL;
+			if (!handle)
+			{	//now go for the basedir to see if ther.
+				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, package);
+				handle = FS_OpenPackByExtension(VFSOS_Open(package, "rb"), NULL, package, package);
+			}
+
+			if (handle)
+				handle->EnumerateFiles(handle, match, func, parm);
+			return handle;	//caller can use this for context, but is expected to tidy it up too.
+		}
+		else
+		{	//we use NULLs for spath context here. caller will need to figure out which basedir to read it from.
+			if (!FS_GamedirIsOkay(package))
+				return NULL;
+
+			if (com_homepathenabled)
+			{
+				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, package);
+				Sys_EnumerateFiles(syspath, match, func, parm, NULL);
+			}
+
+			Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, package);
+			Sys_EnumerateFiles(syspath, match, func, parm, NULL);
+		}
+	}
+	return NULL;
+}
 void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
 {
 	searchpath_t    *search;

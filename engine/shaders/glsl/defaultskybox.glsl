@@ -39,7 +39,7 @@ void main ()
 	//Fun question: should sky be fogged as if infinite, or as if an actual surface?
 #ifdef FOG
 	#if 1
-		skybox.rgb = mix(skybox.rgb, w_fogcolour_ float(r_skyfog)*w_fogalpha);	//flat fog ignoring actual geometry
+		skybox.rgb = mix(skybox.rgb, w_fogcolour, float(r_skyfog)*w_fogalpha);	//flat fog ignoring actual geometry
 	#else
 		skybox.rgb = mix(skybox.rgb, fog3(skybox.rgb), float(r_skyfog));		//fog in terms of actual geometry distance
 	#endif

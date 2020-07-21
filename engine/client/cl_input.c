@@ -155,6 +155,26 @@ static kbutton_t	in_button[19+1];
 static int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
 static int			in_nextimpulse[MAX_SPLITS];
 static int			in_impulsespending[MAX_SPLITS];
+static void CL_QueueImpulse (int pnum, int newimp)
+{
+	if (cl_queueimpulses.ival)
+	{
+		if (in_impulsespending[pnum]>=IN_IMPULSECACHE)
+		{
+			Con_Printf("Too many impulses, ignoring %i\n", newimp);
+			return;
+		}
+		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
+		in_impulsespending[pnum]++;
+	}
+	else
+	{
+		if (in_impulsespending[pnum])
+			Con_DPrintf("Too many impulses, forgetting %i\n", in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE]);
+		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = newimp;
+		in_impulsespending[pnum]=1;
+	}
+}
 
 qboolean	cursor_active;
 
@@ -349,10 +369,7 @@ static void IN_DoPostSelect(void)
 		int pnum = CL_TargettedSplit(false);
 		int best = IN_BestWeapon_Pre(pnum);
 		if (best)
-		{
-			in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = best;
-			in_impulsespending[pnum]=1;
-		}
+			CL_QueueImpulse(pnum, best);
 	}
 }
 //The weapon command autoselects a prioritised weapon like multi-arg impulse does.
@@ -391,21 +408,7 @@ void IN_Weapon (void)
 	if (mode == 2 && !(in_attack.state[pnum]&3))
 		return;	//2 changes instantly only when already firing.
 
-	if (cl_queueimpulses.ival)
-	{
-		if (in_impulsespending[pnum]>=IN_IMPULSECACHE)
-		{
-			Con_Printf("Too many impulses, ignoring %i\n", newimp);
-			return;
-		}
-		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
-		in_impulsespending[pnum]++;
-	}
-	else
-	{
-		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = newimp;
-		in_impulsespending[pnum]=1;
-	}
+	CL_QueueImpulse(pnum, newimp);
 }
 
 //+fire 8 7 [keycode]
@@ -425,10 +428,7 @@ void IN_FireDown(void)
 
 	impulse = IN_BestWeapon_Args(pnum, 1, impulse);
 	if (impulse)
-	{
-		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = impulse;
-		in_impulsespending[pnum]=1;
-	}
+		CL_QueueImpulse(pnum, impulse);
 	else
 		IN_DoPostSelect();
 
@@ -452,8 +452,7 @@ static void IN_DoWeaponHide(void)
 		}
 		if (best)
 		{	//looks like we're switching away
-			in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = best;
-			in_impulsespending[pnum]=1;
+			CL_QueueImpulse(pnum, best);
 		}
 	}
 }
@@ -656,22 +655,7 @@ void IN_Impulse (void)
 	}
 #endif
 
-	if (in_impulsespending[pnum]>=IN_IMPULSECACHE)
-	{
-		Con_Printf("Too many impulses, ignoring %i\n", newimp);
-		return;
-	}
-
-	if (cl_queueimpulses.ival)
-	{
-		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
-		in_impulsespending[pnum]++;
-	}
-	else
-	{
-		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = newimp;
-		in_impulsespending[pnum]=1;
-	}
+	CL_QueueImpulse(pnum, newimp);
 }
 
 void IN_Restart (void)
@@ -1182,9 +1166,9 @@ static void CL_FinishMove (usercmd_t *cmd, int pnum)
 
 	if (in_impulsespending[pnum] && !cl.paused)
 	{
+		cmd->impulse = in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE];
 		in_nextimpulse[pnum]++;
 		in_impulsespending[pnum]--;
-		cmd->impulse = in_impulse[pnum][(in_nextimpulse[pnum]-1)%IN_IMPULSECACHE];
 	}
 	else
 		cmd->impulse = 0;
@@ -2286,7 +2270,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cl_pendingcmd[plnum].angles[i] = ((int)(cl.playerview[plnum].viewangles[i]*65536.0/360)&65535);
 
 		CL_BaseMove (&cl_pendingcmd[plnum], plnum, cl_pendingcmd[plnum].msec, framemsecs);
-		if (!cl_pendingcmd[plnum].msec)
+		if (!cl_pendingcmd[plnum].msec && framemsecs)
 		{
 			CL_FinishMove(&cl_pendingcmd[plnum], plnum);
 			Cbuf_Waited();	//its okay to stop waiting now

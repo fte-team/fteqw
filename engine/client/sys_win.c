@@ -46,6 +46,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
 __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;	//13.35+
 
+static void Sys_InitClock(void);
+static void Sys_ClockType_Changed(cvar_t *var, char *oldval);
 
 #ifdef WINRT	//you're going to need a different sys_ port.
 qboolean isDedicated = false;
@@ -579,8 +581,6 @@ HANDLE		qwclsemaphore;
 
 static HANDLE	tevent;
 
-void Sys_InitFloatTime (void);
-
 int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
 	FILE *fd;
@@ -732,11 +732,12 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	if (!iswatchdog && pIsDebuggerPresent && pIsDebuggerPresent ())
 	{
 		/*if we have a current window, minimize it to bring us out of fullscreen*/
-		extern qboolean vid_initializing;
+/*		extern qboolean vid_initializing;
 		qboolean oldval = vid_initializing;
 		vid_initializing = true;
-//		ShowWindow(mainwindow, SW_MINIMIZE);
+		ShowWindow(mainwindow, SW_MINIMIZE);
 		vid_initializing = oldval;
+*/
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 
@@ -1536,6 +1537,7 @@ static void QDECL Sys_Priority_Changed(cvar_t *var, char *oldval)
 	SetPriorityClass(h, pc);
 }
 static cvar_t sys_priority = CVARFCD("sys_highpriority", "0", CVAR_NOTFROMSERVER, Sys_Priority_Changed, "Controls the process priority");
+static cvar_t sys_clocktype = CVARFCD("sys_clocktype", "", CVAR_NOTFROMSERVER, Sys_ClockType_Changed, "Controls which system clock to base timings from.\n0: auto\n1: timeGetTime (low precision).\n2: QueryPerformanceCounter (may drift, desync between cpu cores, or run fast with longer uptimes depending on cpu(s) and windows version).");
 /*
 ================
 Sys_Init
@@ -1550,6 +1552,7 @@ void Sys_Init (void)
 
 	Cvar_Register(&sys_priority, "System vars");
 
+	Cvar_Register(&sys_clocktype, "System vars");
 #ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");
 	Cvar_Register(&sys_disableTaskSwitch, "System vars");
@@ -1583,32 +1586,7 @@ void Sys_Init (void)
 #endif
 #endif
 
-#if 0
-	if (!QueryPerformanceFrequency (&PerformanceFreq))
-		Sys_Error ("No hardware timer available");
-
-// get 32 out of the 64 time bits such that we have around
-// 1 microsecond resolution
-	lowpart = (unsigned int)PerformanceFreq.LowPart;
-	highpart = (unsigned int)PerformanceFreq.HighPart;
-	lowshift = 0;
-
-	while (highpart || (lowpart > 2000000.0))
-	{
-		lowshift++;
-		lowpart >>= 1;
-		lowpart |= (highpart & 1) << 31;
-		highpart >>= 1;
-	}
-
-	pfreq = 1.0 / (double)lowpart;
-
-	Sys_InitFloatTime ();
-#endif
-
-	// make sure the timer is high precision, otherwise
-	// NT gets 18ms resolution
-	timeBeginPeriod( 1 );
+	Sys_InitClock();
 
 #if _MSC_VER >= 1600 //msvc2010 runtime does not work on 9x any more. get rid of the deprecation warnings in later versions.
 	WinNT = true;
@@ -1792,7 +1770,97 @@ void Sys_Quit (void)
 	exit(1);
 }
 
+static quint64_t timer_qpc_frequency;
+static unsigned int timer_tgt_period;
+static quint64_t timer_basetime;	//used by all clocks to bias them to starting at 0
+static enum
+{
+	CLOCK_TGT = 1,
+	CLOCK_QPC = 2,
+} timer_clocktype;
+static quint64_t Sys_GetClock(quint64_t *freq)
+{
+	if (timer_clocktype == CLOCK_QPC)
+	{
+		static LARGE_INTEGER last;
+		LARGE_INTEGER pc;
+		QueryPerformanceCounter(&pc);
+		*freq = timer_qpc_frequency;
+		if (last.QuadPart <= pc.QuadPart)	//never let it go backwards. multiple cpus are bad. ignore it till it catches up.
+			last.QuadPart = pc.QuadPart;
+		return last.QuadPart - timer_basetime;
+	}
+	else //if (timer_clocktype == CLOCK_TGT)
+	{
+		static DWORD last;
+		DWORD cur = timeGetTime();
+		if (last > cur)
+			timer_basetime -= (quint64_t)1 << 32;	//if it wrapped then try to compensate with the 64bit var that we do use so that Sys_DoubleTime won't suddenly go backwards
+		last = cur;
+		*freq = 1000;
+		return last - timer_basetime;
+	}
+}
+static void Sys_ClockType_Changed(cvar_t *var, char *oldval)
+{
+	int newtype = var?var->ival:0;
+	if (newtype <= 0)
+		newtype = CLOCK_QPC;
+	if (newtype == CLOCK_QPC && !timer_qpc_frequency)
+		newtype = CLOCK_TGT;
 
+	if (newtype != timer_clocktype)
+	{
+		quint64_t oldtime, oldfreq;
+		quint64_t newtime, newfreq;
+
+		oldtime = Sys_GetClock(&oldfreq);
+		if (timer_clocktype == CLOCK_TGT)
+			timeEndPeriod(timer_tgt_period);
+		if (newtype == CLOCK_TGT)
+		{
+			timeBeginPeriod(timer_tgt_period);
+			if (host_initialized && timer_tgt_period > 1)
+				Con_Printf(CON_WARNING"System timer is limited to only %ums precision\n", timer_tgt_period);
+		}
+		timer_clocktype = newtype;
+		timer_basetime = 0;
+		newtime = Sys_GetClock(&newfreq);
+
+		timer_basetime = newtime - (newfreq * (oldtime) / oldfreq);
+	}
+}
+static void Sys_InitClock(void)
+{
+	quint64_t freq;
+	TIMECAPS tc;
+	LARGE_INTEGER t;
+
+	//QPC timer
+	if (QueryPerformanceFrequency(&t))
+		timer_qpc_frequency = t.QuadPart;
+	else
+		timer_qpc_frequency = 0;
+
+	//TGT timer
+	timeGetDevCaps(&tc, sizeof(tc));
+	timer_tgt_period = max(1,tc.wPeriodMin);	//make sure its at least 1, because 0 is probably a bug...
+
+	//calibrate it, and apply.
+	timer_basetime = Sys_GetClock(&freq);
+	Sys_ClockType_Changed(NULL, NULL);
+}
+double Sys_DoubleTime (void)
+{
+	quint64_t denum, num = Sys_GetClock(&denum);
+	return num / (long double)denum;
+}
+unsigned int Sys_Milliseconds (void)
+{
+	quint64_t denum, num = Sys_GetClock(&denum);
+	num *= 1000;
+	return num / denum;
+}
 #if 0
 /*
 ================
@@ -1826,7 +1894,7 @@ unsigned int Sys_Milliseconds (void)
 {
 	return Sys_DoubleTime()*1000;
 }
-#else
+#elif 0
 unsigned int Sys_Milliseconds (void)
 {
 	static DWORD starttime;

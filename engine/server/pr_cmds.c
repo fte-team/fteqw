@@ -7202,6 +7202,7 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 	extern int sv_redirectedlang;
 	redirect_t old;
 	int oldl;
+	int spawncount = svs.spawncount;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -7218,6 +7219,9 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 	Con_Printf("PF_readcmd: %s\n%s", s, sv_redirected_buf);
 	G_INT(OFS_RETURN) = (int)PR_TempString(prinst, sv_redirected_buf);
 	SV_EndRedirect();
+
+	if (svs.spawncount != spawncount || sv.state < ss_loading || prinst != sv.world.progs)
+		Host_EndGame("PF_readcmd: map changed during reading\n");
 
 	if (old != RD_NONE)
 		SV_BeginRedirect(old, oldl);
@@ -9564,8 +9568,13 @@ static void QCBUILTIN PF_te_plasmaburn(pubprogfuncs_t *prinst, struct globalvars
 
 int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value, size_t valsize)
 {
+	const char *oldval;
+	size_t oldsize;
 	if (entnum == 0)
 	{	//serverinfo
+		oldval = InfoBuf_BlobForKey(&svs.info, key, &oldsize, NULL);
+		if (oldsize == valsize && !memcmp(oldval, value, valsize))
+			return 2;	//unchanged
 		InfoBuf_SetStarBlobKey(&svs.info, key, value, valsize);
 		return 2;
 	}
@@ -9576,6 +9585,10 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 			Con_DPrintf("PF_ForceInfoKey: inactive client\n");
 			return 0;
 		}
+		oldval = InfoBuf_BlobForKey(&svs.clients[entnum-1].userinfo, key, &oldsize, NULL);
+		if (oldsize == valsize && !memcmp(oldval, value, valsize))
+			return 1;	//unchanged
+
 		if (InfoBuf_SetStarBlobKey(&svs.clients[entnum-1].userinfo, key, value, valsize))
 		{
 			SV_ExtractFromUserinfo (&svs.clients[entnum-1], false);

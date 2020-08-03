@@ -1104,7 +1104,7 @@ reeval:
 		break;
 	case OP_MULSTOREP_VF:
 		i = OPB->_int;
-		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(pvec3_t)))
 		{
 			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
@@ -1148,7 +1148,7 @@ reeval:
 		break;
 	case OP_ADDSTOREP_V:
 		i = OPB->_int;
-		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(pvec3_t)))
 		{
 			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
@@ -1178,7 +1178,7 @@ reeval:
 		break;
 	case OP_SUBSTOREP_V:
 		i = OPB->_int;
-		errorif (QCPOINTERWRITEFAIL(i, sizeof(float)))
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(pvec3_t)))
 		{
 			prinst.pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, (unsigned)prinst.addressableused);
@@ -1252,6 +1252,15 @@ reeval:
 		//otherwise the switch itself is much like a goto
 		//don't embed the case/caserange checks directly into the switch so that custom caseranges can be potentially be implemented with hybrid emulation.
 		switchcomparison = op - OP_SWITCH_F;
+		switchref = OPA;
+		RUNAWAYCHECK();
+		st += (sofs)st->b - 1;	// offset the s++
+		break;
+	case OP_SWITCH_I:
+		//the case opcodes depend upon the preceding switch.
+		//otherwise the switch itself is much like a goto
+		//don't embed the case/caserange checks directly into the switch so that custom caseranges can be potentially be implemented with hybrid emulation.
+		switchcomparison = OP_SWITCH_E - OP_SWITCH_F;
 		switchref = OPA;
 		RUNAWAYCHECK();
 		st += (sofs)st->b - 1;	// offset the s++

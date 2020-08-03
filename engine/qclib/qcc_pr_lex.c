@@ -17,7 +17,7 @@ void QCC_FreeDef(QCC_def_t *def);
 
 extern pbool	destfile_explicit;
 extern char		destfile[1024];
-static const QCC_sref_t nullsref = {0};
+//static const QCC_sref_t nullsref = {0};
 
 #define MAXINCLUDEDIRS 8
 char	qccincludedir[MAXINCLUDEDIRS][256];	//the -src path, for #includes
@@ -6044,7 +6044,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			parms[numparms].defltvalue = defaultval;
 			numparms++;
 
-			if (type->type == ev_vector && arraysize == 0)
+			/*if (type->type == ev_vector && arraysize == 0)
 			{	//add in vec_x/y/z members too.
 				int c;
 				for (c = 0; c < 3; c++)
@@ -6054,13 +6054,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					parms[numparms].out = false;
 					parms[numparms].optional = true;
 					parms[numparms].isvirtual = isvirt;
-					parms[numparms].paramname = qccHunkAlloc(strlen(pr_token)+3);
+					parms[numparms].paramname = qccHunkAlloc(strlen(parmname)+3);
 					sprintf(parms[numparms].paramname, "%s_%c", parmname, 'x'+c);
 					parms[numparms].type = type_float;
 					parms[numparms].defltvalue = nullsref;
 					numparms++;
 				}
-			}
+			}*/
 		}
 		if (!numparms)
 			QCC_PR_ParseError(ERR_NOTANAME, "%s %s has no members", structtype==ev_union?"union":"struct", newt->name);

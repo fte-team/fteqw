@@ -1005,7 +1005,6 @@ static void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 	}
 }
 
-const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref);
 //allocates final space for the def, making it a true def
 static void QCC_FinaliseDef(QCC_def_t *def)
 {
@@ -1172,7 +1171,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	sr.sym = def;
 	sr.ofs = 0;
 	sr.cast = def->type;
-	v = QCC_SRef_EvalConst(sr);
+	v = &sr.sym->symboldata[sr.ofs];
 	if (v && def->type->type == ev_float)
 		externs->Printf("Finalise %s(%f) @ %i+%i\n", def->name, v->_float, def->ofs, ssize);
 	else if (v && def->type->type == ev_vector)
@@ -1184,9 +1183,9 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	else if (v && def->type->type == ev_field)
 		externs->Printf("Finalise %s(.%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
 	else if (v && def->type->type == ev_string)
-		externs->Printf("Finalise %s(%s) @ %i+%i\n", def->name, strings+v->_int, def->ofs, ssize);
+		externs->Printf("Finalise %s(\"%s\") @ %i+%i\n", def->name, strings+v->_int, def->ofs, ssize);
 	else
-		externs->Printf("Finalise %s @ %i+%i\n", def->name, def->ofs, ssize);
+		externs->Printf("Finalise %s(?) @ %i+%i\n", def->name, def->ofs, ssize);
 #endif
 }
 
@@ -2510,34 +2509,37 @@ strofs = (strofs+3)&~3;
 
 	progs.crc = crc;
 
-	def = QCC_PR_GetDef(NULL, "progs", NULL, false, 0, 0);	//this is for qccx support
-	if (def && (def->type->type == ev_entity || (def->type->type == ev_accessor && def->type->parentclass->type == ev_entity)))
+	if (flag_qccx)
 	{
-		int size = SafeSeek (h, 0, SEEK_CUR);
-		size += 1;	//the engine will add a null terminator
-		size = (size+15)&(~15);	//and will allocate it on the hunk with 16-byte alignment
-
-		//this global receives the offset from world to the start of the progs def _IN VANILLA QUAKE_.
-		//this is a negative index due to allocation ordering with the assumption that the progs.dat was loaded on the heap directly followed by the entities.
-		//this will NOT work in FTE, DP, QuakeForge due to entity indexes. Various other engines will likely mess up too, if they change the allocation order or sizes etc. 64bit is screwed.
-		if (progs.blockscompressed&32)
-			externs->Printf("unable to write value for 'entity progs'\n");	//would not work anyway
-		else
+		def = QCC_PR_GetDef(NULL, "progs", NULL, false, 0, 0);	//this is for qccx support
+		if (def && (def->type->type == ev_entity || (def->type->type == ev_accessor && def->type->parentclass->type == ev_entity)))
 		{
-			QCC_PR_Warning(WARN_DENORMAL, def->filen, def->s_line, "'entity progs' is non-portable and will not work across engines nor cpus.");
+			int size = SafeSeek (h, 0, SEEK_CUR);
+			size += 1;	//the engine will add a null terminator
+			size = (size+15)&(~15);	//and will allocate it on the hunk with 16-byte alignment
 
-			if (def->initialized)
-				i = PRLittleLong(qcc_pr_globals[def->ofs]._int);
+			//this global receives the offset from world to the start of the progs def _IN VANILLA QUAKE_.
+			//this is a negative index due to allocation ordering with the assumption that the progs.dat was loaded on the heap directly followed by the entities.
+			//this will NOT work in FTE, DP, QuakeForge due to entity indexes. Various other engines will likely mess up too, if they change the allocation order or sizes etc. 64bit is screwed.
+			if (progs.blockscompressed&32)
+				externs->Printf("unable to write value for 'entity progs'\n");	//would not work anyway
 			else
-			{	//entsize(=96)+hunk header size(=32)
-				if (verbose)
-					externs->Printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
-				i = 112;	//match qccx.
+			{
+				QCC_PR_Warning(WARN_DENORMAL, def->filen, def->s_line, "'entity progs' is non-portable and will not work across engines nor cpus.");
+
+				if (def->initialized)
+					i = PRLittleLong(qcc_pr_globals[def->ofs]._int);
+				else
+				{	//entsize(=96)+hunk header size(=32)
+					if (verbose)
+						externs->Printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
+					i = 112;	//match qccx.
+				}
+				i = -(size + i);
+				i = PRLittleLong(i);
+				SafeSeek (h, progs.ofs_globals + 4 * def->ofs, SEEK_SET);
+				SafeWrite (h, &i, 4);
 			}
-			i = -(size + i);
-			i = PRLittleLong(i);
-			SafeSeek (h, progs.ofs_globals + 4 * def->ofs, SEEK_SET);
-			SafeWrite (h, &i, 4);
 		}
 	}
 

@@ -358,7 +358,10 @@ static char *GUI_ParseInPlace(char **state)
 		for (end = str, fmt = str; *end; )
 		{
 			if (*end == '\"')
+			{
+				end++;
 				break;
+			}
 			else if (*end == '\'' && end[1] == '\\')
 				*fmt = '\\';
 			else if (*end == '\'' && end[1] == '\"')
@@ -379,10 +382,21 @@ static char *GUI_ParseInPlace(char **state)
 		}
 	}
 	else
-		for (end = str; *end&&*end!=' '&&*end !='\t' && *end != '#'; end++)
-			;
+	{
+		for (end = str; *end; end++)
+		{
+			if (*end == '#')
+			{
+				while (*end && *end != '\n')
+					end++;
+				break;
+			}
+			if (*end==' ' || *end =='\t' || *end == '\n')
+				break;
+		}
+	}
 	*end = 0;
-	*state = end+1;
+	*state = end;
 	return str;
 }
 static int GUI_ParseIntInPlace(char **state, int defaultval)
@@ -492,7 +506,7 @@ void GUI_LoadConfig(void)
 			fl_ftetarg = GUI_ParseBooleanInPlace(&str, false);
 		else if (*token)
 		{
-			puts("Unknown setting: "); puts(token); puts("\n");
+			puts("Unknown setting: \""); puts(token); puts("\"\n");
 		}
 	}
 	fclose(file);

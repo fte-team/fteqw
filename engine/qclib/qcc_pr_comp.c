@@ -1477,7 +1477,7 @@ static struct {
 	{QCF_STANDARD,	"quakec"},
 
 	{QCF_STANDARD,	"qs"},
-//	{QCF_QSS,		"qss"},
+	{QCF_QSS,		"qss"},
 
 	{QCF_HEXEN2,	"hexen2"},
 	{QCF_HEXEN2,	"h2"},
@@ -5648,7 +5648,7 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 				if (!QCC_PR_InlinePushResult(ctx, st->b, c))
 					return "too many temps";
 			}
-			else
+			else if (OpAssignsToC(st->op))
 			{
 				//a+b->c
 				if (st->a.cast)
@@ -5696,6 +5696,10 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 						c = nullsref;
 					QCC_PR_SimpleStatement(&pr_opcodes[st->op], a, b, c, false);
 				}
+			}
+			else
+			{
+				return "nonstandard opcode form";
 			}
 			break;
 		}
@@ -15686,6 +15690,7 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 			else
 			{
 				//FIXME: inheritance makes stuff weird
+				int i;
 				isunion = ((type)->type == ev_union);
 				for (partnum = 0; partnum < (type)->num_parms; partnum++)
 				{
@@ -15693,12 +15698,19 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 						break;
 					if ((type)->params[partnum].isvirtual)
 						continue;	//these are pre-initialised....
-					if ((type)->params[partnum].optional)
-						continue;	//float parts of a vector.
+//					if ((type)->params[partnum].optional)
+//						continue;	//float parts of a vector.
 
 					def.cast = (type)->params[partnum].type;
 					def.ofs = (type)->params[partnum].ofs;
-					isinited[def.ofs] = true;
+					if (isinited[def.ofs])
+						continue;
+					i = (type)->params[partnum].arraysize;
+					if (!i)
+						i = 1;
+					i *= (type)->params[partnum].type->size;
+					while(i --> 0)
+						isinited[def.ofs+i] = true;
 					def.ofs += offset;
 
 					ret &= QCC_PR_ParseInitializerType((type)->params[partnum].arraysize, basedef, def, flags);

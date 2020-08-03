@@ -521,6 +521,16 @@ protected:
 
 class documentlist : public QAbstractListModel
 {
+public: enum endings_e
+	{
+		NONE	= 0,	//no endings at all yet
+		UNIX	= 1,
+		MAC		= 2,
+		MIXED	= 3,
+		WINDOWS = 4,
+	};
+private:
+
 	WrappedQsciScintilla *s;	//this is the widget that we load our documents into
 
 	int numdocuments;
@@ -531,6 +541,7 @@ class documentlist : public QAbstractListModel
 		time_t filemodifiedtime;
 		bool modified;
 		int cursorline;
+		enum endings_e endings;	//line endings for this file.
 		int savefmt;	//encoding to save as
 		QsciDocument doc;
 		QsciLexer *l;
@@ -919,6 +930,60 @@ public:
 		}
 */	}
 
+	void SwitchToDocument_Internal(document_s *ed)
+	{
+		curdoc = ed;
+		s->setDocument(ed->doc);
+
+		switch(ed->endings)
+		{
+#ifdef _WIN32
+		case endings_e::NONE: //new file with no endings, default to windows on windows.
+#endif
+		case endings_e::WINDOWS: //windows
+			s->setEolMode(QsciScintilla::EolMode::EolWindows);
+			s->setEolVisibility(false);
+			break;
+#ifndef _WIN32
+		case endings_e::NONE: //new file with no endings, default to unix on non-windows.
+#endif
+		case endings_e::UNIX: //unix
+			s->setEolMode(QsciScintilla::EolMode::EolUnix);
+			s->setEolVisibility(false);
+			break;
+		case endings_e::MAC: //mac. traditionally qccs have never supported this. one of the mission packs has a \r in the middle of some single-line comment.
+			s->setEolMode(QsciScintilla::EolMode::EolMac);
+			s->setEolVisibility(false);
+			break;
+		default: //panic! everyone panic!
+			s->setEolMode(QsciScintilla::EolMode::EolUnix);
+			s->setEolVisibility(true);
+			break;
+		}
+
+		s->setUtf8(ed->savefmt != UTF_ANSI);
+	}
+	void ConvertEndings(endings_e newendings)
+	{
+		curdoc->endings = newendings;
+
+		switch(newendings)
+		{
+		case endings_e::WINDOWS: //windows
+			s->convertEols(QsciScintilla::EolWindows);
+			break;
+		case endings_e::UNIX: //unix
+			s->convertEols(QsciScintilla::EolUnix);
+			break;
+		case endings_e::MAC: //mac. traditionally qccs have never supported this. one of the mission packs has a \r in the middle of some single-line comment.
+			s->convertEols(QsciScintilla::EolMac);
+			break;
+		default:
+			break;	//not real endings.
+		}
+
+		SwitchToDocument_Internal(curdoc);
+	}
 	bool CreateDocument(document_s *ed)
 	{
 		size_t flensz;
@@ -932,7 +997,7 @@ public:
 		QCC_StatFile(ed->fname, &sbuf);
 		ed->filemodifiedtime = sbuf.st_mtime;
 
-		int endings = 0;
+		endings_e endings = endings_e::NONE;
 		char *e, *stop;
 		for (e = file, stop=file+flen; e < stop; )
 		{
@@ -942,43 +1007,27 @@ public:
 				if (*e == '\n')
 				{
 					e++;
-					endings |= 4;
+					if (endings != endings_e::WINDOWS)
+						endings = endings?(endings_e::MIXED):endings_e::WINDOWS;
 				}
 				else
-					endings |= 2;
+				{
+					if (endings != endings_e::MAC)
+						endings = endings?(endings_e::MIXED):endings_e::MAC;
+				}
 			}
 			else if (*e == '\n')
 			{
 				e++;
-				endings |= 1;
+				if (endings != endings_e::UNIX)
+					endings = endings?(endings_e::MIXED):endings_e::UNIX;
 			}
 			else
 				e++;
 		}
+		ed->endings = endings;
 
-		curdoc = ed;
-		s->setDocument(ed->doc);
-
-		switch(endings)
-		{
-		case 0: //new file with no endings, default to windows on windows.
-		case 4: //windows
-			s->setEolMode(QsciScintilla::EolMode::EolWindows);
-			s->setEolVisibility(false);
-			break;
-		case 1: //unix
-			s->setEolMode(QsciScintilla::EolMode::EolUnix);
-			s->setEolVisibility(false);
-			break;
-		case 2: //mac. traditionally qccs have never supported this. one of the mission packs has a \r in the middle of some single-line comment.
-			s->setEolMode(QsciScintilla::EolMode::EolMac);
-			s->setEolVisibility(false);
-			break;
-		default:    //panic! everyone panic!
-			s->setEolMode(QsciScintilla::EolMode::EolUnix);
-			s->setEolVisibility(true);
-			break;
-		}
+		SwitchToDocument_Internal(ed);
 
 		connect(s, &QsciScintillaBase::SCN_CHARADDED, [=](int charadded)
 		{
@@ -992,7 +1041,6 @@ public:
 			}
 		});
 
-		s->setUtf8(ed->savefmt != UTF_ANSI);
 		s->setText(QString(file));
 
 		SetupScintilla(ed);
@@ -1012,8 +1060,7 @@ public:
 			return;
 		}
 
-		curdoc = ed;
-		s->setDocument(ed->doc);
+		SwitchToDocument_Internal(ed);
 	}
 
 	document_s *FindFile(const char *filename)
@@ -1798,15 +1845,13 @@ private:
 			editMenu->addAction(convertunix);
 			connect(convertunix, &QAction::triggered, [=]()
 				{
-					s.convertEols(QsciScintilla::EolUnix);
-					s.setEolVisibility(false);
+					docs.ConvertEndings(documentlist::endings_e::UNIX);
 				});
 			auto convertdos = new QAction(tr("Convert to DOS Endings"), this);
 			editMenu->addAction(convertdos);
 			connect(convertdos, &QAction::triggered, [=]()
 				{
-					s.convertEols(QsciScintilla::EolWindows);
-					s.setEolVisibility(false);
+					docs.ConvertEndings(documentlist::endings_e::WINDOWS);
 				});
 
 			//convert to utf-8 chars

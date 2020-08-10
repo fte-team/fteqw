@@ -67,8 +67,10 @@ cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "1", CVAR_ARCHIVE, "Attempt to yield 
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be show exactly what was last received, which will be jerky. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
+#ifdef NQPROT
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
+#endif
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
@@ -1040,6 +1042,17 @@ void CL_CheckForResend (void)
 		return;
 
 #ifdef HAVE_DTLS
+	if (connectinfo.adr.prot == NP_DTLS)
+	{	//get through the handshake first, instead of waiting for a 5-sec timeout between polls.
+		switch(NET_SendPacket (cls.sockets, 0, NULL, &connectinfo.adr))
+		{
+		case NETERR_CLOGGED:	//temporary failure
+			return;
+		default:
+			break;
+		}
+	}
+
 	if (connectinfo.dtlsupgrade != DTLS_ACTIVE)
 #endif
 	{
@@ -1137,6 +1150,7 @@ void CL_CheckForResend (void)
 		switch(NET_SendPacket (cls.sockets, strlen(data), data, &connectinfo.adr))
 		{
 		case NETERR_CLOGGED:	//temporary failure
+			connectinfo.time = 0;
 		case NETERR_SENT:		//yay, works!
 			break;
 		default:
@@ -2302,7 +2316,7 @@ void CL_CheckServerInfo(void)
 #ifndef CLIENTONLY
 	//allow cheats in single player regardless of sv_cheats.
 	//(also directly read the sv_cheats cvar to avoid issues with nq protocols that don't support serverinfo.
-	if ((sv.state == ss_active && sv.allocated_client_slots == 1) || sv_cheats.ival)
+	if (sv.state == ss_active && (sv.allocated_client_slots == 1 || sv_cheats.ival))
 		cls.allow_cheats = true;
 #endif
 
@@ -3539,6 +3553,8 @@ void CL_ConnectionlessPacket (void)
 			{
 				connectinfo.dtlsupgrade = DTLS_ACTIVE;
 				connectinfo.adr.prot = NP_DTLS;
+
+				connectinfo.time = 0;	//send a new challenge NOW.
 			}
 			else
 			{
@@ -4817,8 +4833,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_deadbodyfilter, "Item effects");
 
 	Cvar_Register (&cl_nolerp, "Item effects");
-	Cvar_Register (&cl_nolerp_netquake, "Item effects");
 #ifdef NQPROT
+	Cvar_Register (&cl_nolerp_netquake, "Item effects");
 	Cvar_Register (&cl_fullpitch_nq, "Cheats");
 #endif
 
@@ -6666,7 +6682,7 @@ void Host_FinishLoading(void)
 		SV_ArgumentOverrides();
 	#endif
 
-		Con_Printf ("\nEngine: %s\n", version_string());
+		Con_TPrintf ("\nEngine Version: %s\n", version_string());
 
 		Con_DPrintf("This program is free software; you can redistribute it and/or "
 					"modify it under the terms of the GNU General Public License "

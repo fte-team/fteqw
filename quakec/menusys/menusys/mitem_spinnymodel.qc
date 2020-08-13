@@ -131,13 +131,12 @@ class mitem_spinnymodel : mitem
 
 	void() mitem_spinnymodel =
 	{
-#if defined(MENU) || defined(CSQC_SIMPLE)
-		if (!checkextension("DP_QC_RENDER_SCENE") || dp_workarounds)
+		if (!checkbuiltin(renderscene))
 		{
-			item_draw = dp_draw;
-			return;
+//			item_draw = dp_draw;
+//			return;
 		}
-#endif
+
 		precache_model(item_text);
 		setmodel(this, item_text);	//use the size information from the engine, woo for unreliability.
 		zbias += (mins_z - maxs_z)/2 - mins_z; //center the model on its z axis, so the whole thing is visible.

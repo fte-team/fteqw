@@ -172,10 +172,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Basic =
 	else
 		fr.add(menuitemcheck_spawn(_("Crosshair"),		"crosshair",									'280 8'),	fl, [0, pos], [0, 8]), pos += 8;
 
-	if (engine==E_QSS)	//lerps are kinda broken so don't do the running+shooting+spinning thing.
-		m.add(spawn (mitem_playerpreview, item_text: "progs/player.mdl", firstframe:12, framecount:5, angles_y:random(90,270)), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-200, 12*-16/2], [-40, 12*16/2]);
-	else
-		m.add(spawn (mitem_playerpreview, item_text: "progs/player.mdl", firstframe:0, framecount:6, shootframe:119, shootframes:6), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-200, 12*-16/2], [-40, 12*16/2]);
+	m.add(spawn (mitem_playerpreview, item_text: "progs/player.mdl", firstframe:0, framecount:6, shootframe:119, shootframes:6), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-200, 12*-16/2], [-40, 12*16/2]);
 
 	addmenuback(m);
 };

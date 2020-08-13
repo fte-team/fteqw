@@ -1,5 +1,3 @@
-/*all these .funcs etc need self assigned properly first, as is customary with qc*/
-
 #ifdef MENU
 #define cltime time
 #endif
@@ -121,6 +119,7 @@ typedef struct uiinfo_s
 	mitem kgrabs;		//kfocused or mfocused or both or none to say what sort of grabs is in effect.
 	mitem mgrabs;		//says who has stolen all input events.
 
+	float ctrlheld;		//ctrl is held.
 	float shiftheld;	//shift is held.
 	float mousedown;	//which mouse buttons are currently held.
 	vector oldmousepos;	//old mouse position, to track whether its moved.
@@ -158,9 +157,7 @@ void() queryscreensize =
 	ui.screensize[2] = 0;
 #endif
 #ifdef CSQC
-	#ifdef CSQC_SIMPLE
-		ui.screensize = screensize;
-	#else
+	#ifndef CSQC_SIMPLE
 		//make sure the screensize is set.
 		normalize('0 0 1');	//when getproperty fails to return a meaningful value, make sure that we don't read some random stale value.
 		ui.screensize = (vector)getproperty(VF_SCREENVSIZE);

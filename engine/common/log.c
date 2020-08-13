@@ -817,11 +817,11 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 			strcpy(ctx->hostname, hostname);
 
 			if (l)	//FIXME: show expiry info for the old cert, warn if more than a month?
-				accepttext = localtext("Replace Trust");
+				accepttext = localtext("Replace");
 			else if (!certlogproblems)
-				accepttext = localtext("Pin Trust");
+				accepttext = localtext("Pin");
 			else
-				accepttext = localtext("Trust Anyway");
+				accepttext = localtext("Trust");
 
 			for (i = 0, len = 0; i < countof(lines); i++)
 				len += strlen(lines[i]);

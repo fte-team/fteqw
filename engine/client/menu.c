@@ -517,7 +517,7 @@ static void Prompt_Draw(struct menu_s *g)
 	int x = 64;
 	int y = 76;
 	float scale = Font_CharVHeight(font_console);
-	int w = 224*scale/8;
+	int w = 320*scale/8;
 	int h = (m->lines+3)*scale;
 	int i;
 	const char *msg = m->messages;

@@ -1,36 +1,28 @@
 #pragma progs_dat "../menu.dat"
 
 
-//#pragma target fte
+#pragma target fte
 
-#define MENU		//select the module
+#define MENU					//select the module
 
 #includelist
-fteextensions.qc	//also sets up system defs
+fteextensions.qc				//also sets up system defs
 
-menusys/mitems.qc		//root item type
-menusys/mitems_common.qc	//basic types
-menusys/mitem_desktop.qc	//other sort of root item
-menusys/mitem_exmenu.qc	//fullscreen/exclusive menus
-menusys/mitem_edittext.qc	//simple text editor
-menusys/mitem_tabs.qc		//tabs
-menusys/mitem_colours.qc	//colour picker
-menusys/mitem_checkbox.qc	//checkbox (boolean thingies)
-menusys/mitem_slider.qc	//scrollbars
-menusys/mitem_combo.qc	//multiple-choice thingies
-menusys/mitem_bind.qc		//key binding thingie
+menusys/mitems.qc				//root item type
+menusys/mitems_common.qc		//basic types
+menusys/mitem_desktop.qc		//other sort of root item
+menusys/mitem_exmenu.qc			//fullscreen/exclusive menus
+menusys/mitem_edittext.qc		//simple text editor
+menusys/mitem_tabs.qc			//tabs
+menusys/mitem_colours.qc		//colour picker
+menusys/mitem_checkbox.qc		//checkbox (boolean thingies)
+menusys/mitem_slider.qc			//scrollbars
+menusys/mitem_combo.qc			//multiple-choice thingies
+menusys/mitem_bind.qc			//key binding thingie
 menusys/mitem_spinnymodel.qc	//menu art
 #endlist
 
-enum
-{
-	E_FTE,
-	E_QSS,
-} engine; //For use ONLY with known possible cvar values.
-
-
 //might as well put this here.
-
 void(mitem_desktop desktop) M_Pop =
 {
 	mitem it = desktop.item_kactivechild;
@@ -61,6 +53,7 @@ void(mitem_desktop desktop) M_Pop =
 	cmd("m_servers",	M_Servers,		menu/servers.qc)		\
 	cmd("m_configs",	M_Configs,		menu/options_configs.qc)	\
 	cmd("m_reset",		M_Reset,		)				\
+	cmd("m_dir",		M_Dir,		)				\
 	cmd("m_preset",		M_Preset,		menu/presets.qc)
 	
 //make sure all the right files are included
@@ -78,8 +71,9 @@ void(vector screensize) m_draw =
 		cltime = gettime(0);
 	items_draw(desktop, screensize);
 };
-void(float scan, float chr) m_keydown = {items_keypress(desktop, scan, chr, TRUE);};
-void(float scan, float chr) m_keyup = {items_keypress(desktop, scan, chr, FALSE);};
+float(float evtype, float scanx, float chary, float devid) Menu_InputEvent = {return items_keypress(desktop, evtype, scanx, chary, devid);};
+void(float scan, float chr) m_keydown = {ui.mousepos = getmousepos();queryscreensize();items_keypress(desktop, IE_KEYDOWN, scan, chr, 0);};	//for DP compat.
+void(float scan, float chr) m_keyup = {ui.mousepos = getmousepos();queryscreensize();items_keypress(desktop, IE_KEYUP, scan, chr, 0);};		//for DP compat.
 void(float mode) m_toggle
 {	//mode is stupid. 1=enable,0=disable,-1=actually toggle.
 	if (mode < 0)
@@ -114,15 +108,10 @@ float(string cstr) m_consolecommand =
 	return TRUE;
 }
 
-var float autocvar_dp_workarounds_allow = TRUE;
-var float autocvar_dp_workarounds_force = FALSE;
+var float autocvar_dp_workarounds = FALSE;
 void() m_init =
 {
-	string e = cvar_string("pr_engine");
-	if (!strncmp(e, "QSS ", 4))
-		engine = E_QSS;
-	else
-		engine = E_FTE;
+	FingerprintEngine();
 
 	desktop = spawn(mitem_desktop);
 
@@ -141,11 +130,7 @@ void() m_init =
 	}
 
 	//work around some dp differences/bugs.
-	//this check identifies one significant bug in DP.
-	//if anyone actually cares to fix DP, then there is no reason they cannot do so by just removing DP_QC_RENDERSCENE and then fixing anything else that arises.
-	if (checkextension("DP_QC_RENDER_SCENE") && !checkextension("DP_CON_SET"))
-		dp_workarounds = autocvar(dp_workarounds_allow, TRUE);
-	if (autocvar(dp_workarounds_force, FALSE))
+	if (autocvar(dp_workarounds, FALSE))
 		dp_workarounds = TRUE;
 	
 	if (dp_workarounds)

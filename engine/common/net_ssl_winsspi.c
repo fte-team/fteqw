@@ -176,7 +176,7 @@ static int SSPI_CopyIntoBuffer(struct sslbuf *buf, const void *data, unsigned in
 	return bytes;
 }
 
-static void SSPI_Error(sslfile_t *f, char *error, ...)
+static void SSPI_Error(sslfile_t *f, const char *error, ...)
 {
 	va_list         argptr;
 	char             string[1024];
@@ -186,7 +186,12 @@ static void SSPI_Error(sslfile_t *f, char *error, ...)
 
 	f->handshaking = HS_ERROR;
 	if (*string)
-		Sys_Printf("%s", string);
+	{
+		if (f->datagram)
+			Con_Printf(CON_ERROR "%s", string);
+		else
+			Sys_Printf(CON_ERROR "%s", string);
+	}
 	if (f->stream)
 		VFS_CLOSE(f->stream);
 
@@ -391,12 +396,19 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 	size_t knownsize;
 	void *knowncert;
 	char realdomain[256];
+	unsigned int probs = 0;
 	if (datagram)
 	{
+		if (status == CERT_E_UNTRUSTEDROOT || status == CERT_E_UNTRUSTEDTESTROOT)
+			probs |= CERTLOG_MISSINGCA;
+		if (status == CERT_E_EXPIRED)
+			probs |= CERTLOG_EXPIRED;
+		if (status == SEC_E_WRONG_PRINCIPAL)
+			probs |= CERTLOG_WRONGHOST;
 		if (status == CERT_E_UNTRUSTEDROOT || SUCCEEDED(status))
 		{
 #ifndef SERVERONLY
-			if (CertLog_ConnectOkay(narrowen(realdomain, sizeof(realdomain), domain), data, datasize))
+			if (CertLog_ConnectOkay(narrowen(realdomain, sizeof(realdomain), domain), data, datasize, probs))
 				status = SEC_E_OK;
 			else
 #endif
@@ -427,8 +439,16 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 #ifndef SERVERONLY
 	//self-signed and expired certs are understandable in many situations.
 	//prompt and cache (although this connection attempt will fail).
+	if (status == CERT_E_UNTRUSTEDROOT || status == CERT_E_UNTRUSTEDTESTROOT)
+		probs |= CERTLOG_MISSINGCA;
+	else if (status == CERT_E_EXPIRED)
+		probs |= CERTLOG_EXPIRED;
+	else if (status == SEC_E_WRONG_PRINCIPAL)
+		probs |= CERTLOG_WRONGHOST;
+	else if (status != SEC_E_OK)
+		probs |= CERTLOG_UNKNOWN;
 	if (status == CERT_E_UNTRUSTEDROOT || status == CERT_E_UNTRUSTEDTESTROOT || status == CERT_E_EXPIRED)
-		if (CertLog_ConnectOkay(realdomain, data, datasize))
+		if (CertLog_ConnectOkay(realdomain, data, datasize, probs))
 			return SEC_E_OK;
 #endif
 
@@ -607,14 +627,14 @@ static void SSPI_GenServerCredentials(sslfile_t *f)
 
 	if (!cred)
 	{
-		SSPI_Error(f, "Unable to load/generate certificate\n");
+		SSPI_Error(f, localtext("Unable to load/generate certificate\n"));
 		return;
 	}
 
 	ss = secur.pAcquireCredentialsHandleA (NULL, UNISP_NAME_A, SECPKG_CRED_INBOUND, NULL, &SchannelCred, NULL, NULL, &f->cred, &Lifetime);
 	if (ss < 0)
 	{
-		SSPI_Error(f, "AcquireCredentialsHandle failed\n");
+		SSPI_Error(f, localtext("WinSSPI: AcquireCredentialsHandle failed\n"));
 		return;
 	}
 }
@@ -677,7 +697,7 @@ retry:
 		ss = secur.pAcquireCredentialsHandleA (NULL, UNISP_NAME_A, SECPKG_CRED_OUTBOUND, NULL, &SchannelCred, NULL, NULL, &f->cred, &Lifetime);
 		if (ss < 0)
 		{
-			SSPI_Error(f, "AcquireCredentialsHandle failed\n");
+			SSPI_Error(f, localtext("WINSSPI: AcquireCredentialsHandle failed\n"));
 			return;
 		}
 
@@ -803,11 +823,11 @@ retry:
 	}
 	else
 		return;
-	
+
 
 	if (ss == SEC_I_INCOMPLETE_CREDENTIALS)
 	{
-		SSPI_Error(f, "server requires credentials\n");
+		SSPI_Error(f, localtext("server requires credentials\n"));
 		return;
 	}
 
@@ -851,14 +871,12 @@ retry:
 				ss = secur.pQueryContextAttributesA(&f->sechnd, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &remotecert);
 				if (ss != SEC_E_OK)
 				{
-					f->handshaking = HS_ERROR;
-					SSPI_Error(f, "unable to read server's certificate\n");
+					SSPI_Error(f, localtext("unable to read server's certificate\n"));
 					return;
 				}
 				if (VerifyServerCertificate(remotecert, f->wpeername, 0, f->datagram))
 				{
-					f->handshaking = HS_ERROR;
-					SSPI_Error(f, "Error validating certificante\n");
+					SSPI_Error(f, localtext("Error validating certificante\n"));
 					return;
 				}
 			}
@@ -1206,7 +1224,8 @@ static neterr_t SSPI_DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize
 
 		if (f->handshaking == HS_ERROR)
 			ret = NETERR_DISCONNECTED;
-		ret = NETERR_CLOGGED;	//not ready yet
+		else
+			ret = NETERR_CLOGGED;	//not ready yet
 	}
 	else
 	{

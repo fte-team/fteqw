@@ -58,6 +58,7 @@ static plugfsfuncs_t *fsfuncs;
 #ifdef XR_NO_PROTOTYPES
 #define XRFUNCS		\
 		XRFUNC(xrGetInstanceProcAddr)	\
+		XRFUNC(xrResultToString)	\
 		XRFUNC(xrEnumerateInstanceExtensionProperties)	\
 		XRFUNC(xrCreateInstance)	\
 		XRFUNC(xrGetInstanceProperties)	\
@@ -302,6 +303,76 @@ static void XR_Shutdown(void)
 	memset(&xr, 0, sizeof(xr));
 }
 
+static const char *XR_StringForResult(XrResult res)
+{
+#if 0
+	//this is a bit of a joke really. xrResultToString requires a valid instance so is unusable for printing out the various reasons why we might fail to create an instance.
+	static char buffer[XR_MAX_RESULT_STRING_SIZE];
+	if (XR_SUCCEEDED(res=xrResultToString(xr.instance, res, buffer)))
+		return buffer;
+	return va("XrResult %i", res);
+#else
+	switch(res)
+	{
+	case XR_SUCCESS: return "XR_SUCCESS";
+    case XR_TIMEOUT_EXPIRED: return "XR_TIMEOUT_EXPIRED";
+    case XR_SESSION_LOSS_PENDING: return "XR_SESSION_LOSS_PENDING";
+    case XR_EVENT_UNAVAILABLE: return "XR_EVENT_UNAVAILABLE";
+    case XR_SPACE_BOUNDS_UNAVAILABLE: return "XR_SPACE_BOUNDS_UNAVAILABLE";
+    case XR_SESSION_NOT_FOCUSED: return "XR_SESSION_NOT_FOCUSED";
+    case XR_FRAME_DISCARDED: return "XR_FRAME_DISCARDED";
+    case XR_ERROR_VALIDATION_FAILURE: return "XR_ERROR_VALIDATION_FAILURE";
+    case XR_ERROR_RUNTIME_FAILURE: return "XR_ERROR_RUNTIME_FAILURE";
+    case XR_ERROR_OUT_OF_MEMORY: return "XR_ERROR_OUT_OF_MEMORY";
+    case XR_ERROR_API_VERSION_UNSUPPORTED: return "XR_ERROR_API_VERSION_UNSUPPORTED";
+    case XR_ERROR_INITIALIZATION_FAILED: return "XR_ERROR_INITIALIZATION_FAILED";
+    case XR_ERROR_FUNCTION_UNSUPPORTED: return "XR_ERROR_FUNCTION_UNSUPPORTED";
+    case XR_ERROR_FEATURE_UNSUPPORTED: return "XR_ERROR_FEATURE_UNSUPPORTED";
+    case XR_ERROR_EXTENSION_NOT_PRESENT: return "XR_ERROR_EXTENSION_NOT_PRESENT";
+    case XR_ERROR_LIMIT_REACHED: return "XR_ERROR_LIMIT_REACHED";
+    case XR_ERROR_SIZE_INSUFFICIENT: return "XR_ERROR_SIZE_INSUFFICIENT";
+    case XR_ERROR_HANDLE_INVALID: return "XR_ERROR_HANDLE_INVALID";
+    case XR_ERROR_INSTANCE_LOST: return "XR_ERROR_INSTANCE_LOST";
+    case XR_ERROR_SESSION_RUNNING: return "XR_ERROR_SESSION_RUNNING";
+    case XR_ERROR_SESSION_NOT_RUNNING: return "XR_ERROR_SESSION_NOT_RUNNING";
+    case XR_ERROR_SESSION_LOST: return "XR_ERROR_SESSION_LOST";
+    case XR_ERROR_SYSTEM_INVALID: return "XR_ERROR_SYSTEM_INVALID";
+    case XR_ERROR_PATH_INVALID: return "XR_ERROR_PATH_INVALID";
+    case XR_ERROR_PATH_COUNT_EXCEEDED: return "XR_ERROR_PATH_COUNT_EXCEEDED";
+    case XR_ERROR_PATH_FORMAT_INVALID: return "XR_ERROR_PATH_FORMAT_INVALID";
+    case XR_ERROR_PATH_UNSUPPORTED: return "XR_ERROR_PATH_UNSUPPORTED";
+    case XR_ERROR_LAYER_INVALID: return "XR_ERROR_LAYER_INVALID";
+    case XR_ERROR_LAYER_LIMIT_EXCEEDED: return "XR_ERROR_LAYER_LIMIT_EXCEEDED";
+    case XR_ERROR_SWAPCHAIN_RECT_INVALID: return "XR_ERROR_SWAPCHAIN_RECT_INVALID";
+    case XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED: return "XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED";
+    case XR_ERROR_ACTION_TYPE_MISMATCH: return "XR_ERROR_ACTION_TYPE_MISMATCH";
+    case XR_ERROR_SESSION_NOT_READY: return "XR_ERROR_SESSION_NOT_READY";
+    case XR_ERROR_SESSION_NOT_STOPPING: return "XR_ERROR_SESSION_NOT_STOPPING";
+    case XR_ERROR_TIME_INVALID: return "XR_ERROR_TIME_INVALID";
+    case XR_ERROR_REFERENCE_SPACE_UNSUPPORTED: return "XR_ERROR_REFERENCE_SPACE_UNSUPPORTED";
+    case XR_ERROR_FILE_ACCESS_ERROR: return "XR_ERROR_FILE_ACCESS_ERROR";
+    case XR_ERROR_FILE_CONTENTS_INVALID: return "XR_ERROR_FILE_CONTENTS_INVALID";
+    case XR_ERROR_FORM_FACTOR_UNSUPPORTED: return "XR_ERROR_FORM_FACTOR_UNSUPPORTED";
+    case XR_ERROR_FORM_FACTOR_UNAVAILABLE: return "XR_ERROR_FORM_FACTOR_UNAVAILABLE";
+    case XR_ERROR_API_LAYER_NOT_PRESENT: return "XR_ERROR_API_LAYER_NOT_PRESENT";
+    case XR_ERROR_CALL_ORDER_INVALID: return "XR_ERROR_CALL_ORDER_INVALID";
+    case XR_ERROR_GRAPHICS_DEVICE_INVALID: return "XR_ERROR_GRAPHICS_DEVICE_INVALID";
+    case XR_ERROR_POSE_INVALID: return "XR_ERROR_POSE_INVALID";
+    case XR_ERROR_INDEX_OUT_OF_RANGE: return "XR_ERROR_INDEX_OUT_OF_RANGE";
+    case XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED: return "XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED";
+    case XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED: return "XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED";
+    case XR_ERROR_NAME_DUPLICATED: return "XR_ERROR_NAME_DUPLICATED";
+    case XR_ERROR_NAME_INVALID: return "XR_ERROR_NAME_INVALID";
+    case XR_ERROR_ACTIONSET_NOT_ATTACHED: return "XR_ERROR_ACTIONSET_NOT_ATTACHED";
+    case XR_ERROR_ACTIONSETS_ALREADY_ATTACHED: return "XR_ERROR_ACTIONSETS_ALREADY_ATTACHED";
+    case XR_ERROR_LOCALIZED_NAME_DUPLICATED: return "XR_ERROR_LOCALIZED_NAME_DUPLICATED";
+    case XR_ERROR_LOCALIZED_NAME_INVALID: return "XR_ERROR_LOCALIZED_NAME_INVALID";
+    default:
+		return va("XrResult %i", res);
+    }
+#endif
+}
+
 static qboolean XR_PreInit(vrsetup_t *qreqs)
 {
 	XrResult res;
@@ -366,6 +437,7 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 	}
 #endif
 
+	xr.instance = XR_NULL_HANDLE;
 	{
 		unsigned int exts = 0, u=0;
 		XrExtensionProperties *extlist;
@@ -376,19 +448,25 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 			for (u = 0; u < exts; u++)
 				extlist[u].type = XR_TYPE_EXTENSION_PROPERTIES;
 			xrEnumerateInstanceExtensionProperties(NULL, exts, &exts, extlist);
+
+			Con_Printf("OpenXR:");
+			for (u = 0; u < exts; u++)
+				Con_Printf(" %s", extlist[u].extensionName);
+			Con_Printf("\n");
+
 			for (u = 0; u < exts; u++)
 				if (!strcmp(extlist[u].extensionName, ext))
 					break;
 			free(extlist);
 		}
+		else
+			Con_DPrintf("OpenXR: xrEnumerateInstanceExtensionProperties failed (%s)\n", XR_StringForResult(res));
 		if (u == exts)
 		{
 			Con_Printf("OpenXR: instance driver does not support required %s\n", ext);
-			return false;
+			return false;	//would just give an error on xrCreateInstance anyway.
 		}
 	}
-
-	xr.instance = XR_NULL_HANDLE;
 
 	//create our instance
 	{
@@ -406,14 +484,17 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 		res = xrCreateInstance(&createinfo, &xr.instance);
 	}
 	if (XR_FAILED(res) || !xr.instance)
+	{
+		Con_Printf("OpenXR Runtime: xrCreateInstance failed (%s)\n", XR_StringForResult(res));
 		return false;
+	}
 
 	{
 		XrInstanceProperties props = {XR_TYPE_INSTANCE_PROPERTIES};
 		if (!XR_FAILED(xrGetInstanceProperties(xr.instance, &props)))
 			Con_Printf("OpenXR Runtime: %s    %u.%u.%u\n", props.runtimeName, XR_VERSION_MAJOR(props.runtimeVersion), XR_VERSION_MINOR(props.runtimeVersion), XR_VERSION_PATCH(props.runtimeVersion));
 		else
-			Con_Printf("OpenXR Runtime: Unable to determine runtime version\n");
+			Con_Printf("OpenXR Runtime: Unable to determine runtime version (%s)\n", XR_StringForResult(res));
 	}
 
 	{
@@ -717,7 +798,7 @@ static XrAction XR_DefineAction(XrActionType type, const char *name, const char 
 	Q_strlcpy(info.localizedActionName, xr.actions[u].actdescription, sizeof(info.localizedActionName));
 	res = xrCreateAction(xr.actionset.actionSet, &info, &xr.actions[u].action);
 	if (XR_FAILED(res))
-		Con_Printf("openxr: Unable to create action %s [%s] - %i\n", info.actionName, info.localizedActionName, res);
+		Con_Printf("openxr: Unable to create action %s [%s] - %s\n", info.actionName, info.localizedActionName, XR_StringForResult(res));
 
 	return xr.actions[u].action;
 }
@@ -840,7 +921,7 @@ static int XR_BindProfileStr(const char *fname, const char *file)
 			suggestedbindings.suggestedBindings = bindings;
 			res = xrSuggestInteractionProfileBindings(xr.instance, &suggestedbindings);
 			if (XR_FAILED(res))
-				Con_Printf("%s: xrSuggestInteractionProfileBindings failed - %i\n", fname, res);
+				Con_Printf("%s: xrSuggestInteractionProfileBindings failed - %s\n", fname, XR_StringForResult(res));
 			return acts;
 		}
 	}
@@ -878,7 +959,7 @@ static void XR_SetupInputs(void)
 		xr.actionset.subactionPath = XR_NULL_PATH;
 		res = xrCreateActionSet(xr.instance, &info, &xr.actionset.actionSet);
 		if (XR_FAILED(res))
-			Con_Printf("openxr: Unable to create actionset - %i\n", res);
+			Con_Printf("openxr: Unable to create actionset - %s\n", XR_StringForResult(res));
 	}
 
 	h = 0;
@@ -967,7 +1048,7 @@ static void XR_SetupInputs(void)
 
 				res = xrCreateActionSpace(xr.session, &info, &xr.actions[h].space);
 				if (XR_FAILED(res))
-					Con_Printf("openxr: xrCreateActionSpace failed - %i\n", res);
+					Con_Printf("openxr: xrCreateActionSpace failed - %s\n", XR_StringForResult(res));
 			}
 			break;
 		default:
@@ -983,7 +1064,7 @@ static void XR_SetupInputs(void)
 		info.actionSets = &xr.actionset.actionSet;
 		res = xrAttachSessionActionSets(xr.session, &info);
 		if (XR_FAILED(res))
-			Con_Printf("openxr: xrAttachSessionActionSets failed - %i\n", res);
+			Con_Printf("openxr: xrAttachSessionActionSets failed - %s\n", XR_StringForResult(res));
 	}
 
 #if 1
@@ -1040,7 +1121,7 @@ static void XR_SetupInputs(void)
 			else if (res == XR_ERROR_HANDLE_INVALID)	//monado reports this for unimplemented things.
 				Con_Printf("\t%s: error XR_ERROR_HANDLE_INVALID (not implemented?)\n", xr.actions[u].actname);
 			else
-				Con_Printf("\t%s: error %i\n", xr.actions[u].actname, res);
+				Con_Printf("\t%s: error %s\n", xr.actions[u].actname, XR_StringForResult(res));
 		}
 	}
 #endif
@@ -1172,7 +1253,10 @@ static qboolean XR_Begin(void)
 		res = xrCreateSession(xr.instance, &sessioninfo, &xr.session);
 	}
 	if (XR_FAILED(res))
+	{
+		Con_Printf("OpenXR: xrCreateSession failed (%s)\n", XR_StringForResult(res));
 		return false;
+	}
 
 	{
 		XrReferenceSpaceCreateInfo info = {XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
@@ -1185,9 +1269,9 @@ static qboolean XR_Begin(void)
 
 	xrEnumerateSwapchainFormats(xr.session, 0, &swapfmts, NULL);
 	fmts = alloca(sizeof(*fmts)*swapfmts);
-	xrEnumerateSwapchainFormats(xr.session, swapfmts, &swapfmts, fmts);
+	res = xrEnumerateSwapchainFormats(xr.session, swapfmts, &swapfmts, fmts);
 	if (!swapfmts)
-		Con_Printf("OpenXR: No swapchain formats to use\n");
+		Con_Printf("OpenXR: No swapchain formats to use (%s)\n", XR_StringForResult(res));
 #ifdef XR_USE_GRAPHICS_API_OPENGL
 	else if (xr.renderer == QR_OPENGL)
 	{
@@ -1260,10 +1344,16 @@ static qboolean XR_Begin(void)
 		swapinfo.mipCount = 1;
 		res = xrCreateSwapchain(xr.session, &swapinfo, &xr.eye[u].swapchain);
 		if (XR_FAILED(res))
+		{
+			Con_Printf("OpenXR: xrCreateSwapchain failed (%s)\n", XR_StringForResult(res));
 			return false;
+		}
 		res = xrEnumerateSwapchainImages(xr.eye[u].swapchain, 0, &xr.eye[u].numswapimages, NULL);
 		if (XR_FAILED(res))
+		{
+			Con_Printf("OpenXR: xrEnumerateSwapchainImages failed (%s)\n", XR_StringForResult(res));
 			return false;
+		}
 
 		//using a separate swapchain for each eye, so just depend upon npot here and use the whole image.
 		xr.eye[u].subimage.imageRect.offset.x = 0;
@@ -1398,13 +1488,13 @@ static void XR_ProcessEvents(void)
 						info.primaryViewConfigurationType = xr.viewtype;
 						res = xrBeginSession(xr.session, &info);
 						if (XR_FAILED(res))
-							Con_Printf("Unable to begin session: %i\n", res);
+							Con_Printf("Unable to begin session: %s\n", XR_StringForResult(res));
 					}
 					break;
 				case XR_SESSION_STATE_STOPPING:
 					res = xrEndSession(xr.session);
 					if (XR_FAILED(res))
-						Con_Printf("Unable to end session: %i\n", res);
+						Con_Printf("Unable to end session: %s\n", XR_StringForResult(res));
 					break;
 				}
 				xr.state = s->state;
@@ -1439,7 +1529,7 @@ static qboolean XR_SyncFrame(double *frametime)
 		res = xrWaitFrame(xr.session, NULL, &xr.framestate);
 		if (XR_FAILED(res))
 		{
-			Con_Printf("xrWaitFrame: %i\n", res);
+			Con_Printf("xrWaitFrame: %s\n", XR_StringForResult(res));
 			return false;
 		}
 		time = xr.framestate.predictedDisplayTime;
@@ -1487,7 +1577,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 	{
 		res = xrRequestExitSession(xr.session);
 		if (XR_FAILED(res))
-			Con_Printf("openxr: Unable to request session end: %i\n", res);
+			Con_Printf("openxr: Unable to request session end: %s\n", XR_StringForResult(res));
 
 		XR_ProcessEvents();
 	}
@@ -1507,7 +1597,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 
 	res = xrBeginFrame(xr.session, NULL);
 	if (XR_FAILED(res))
-		Con_Printf("xrBeginFrame: %i\n", res);
+		Con_Printf("xrBeginFrame: %s\n", XR_StringForResult(res));
 	if (xr.framestate.shouldRender)
 	{
 		uint32_t eyecount;
@@ -1522,7 +1612,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 		locateinfo.space = xr.space;
 		res = xrLocateViews(xr.session, &locateinfo, &viewstate, xr.viewcount, &eyecount, eyeview);
 		if (XR_FAILED(res))
-			Con_Printf("xrLocateViews: %i\n", res);
+			Con_Printf("xrLocateViews: %s\n", XR_StringForResult(res));
 
 		proj.layerFlags = 0;
 		proj.space = xr.space;
@@ -1536,7 +1626,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			unsigned int imgidx = 0;
 			res = xrAcquireSwapchainImage(xr.eye[u].swapchain, NULL, &imgidx);
 			if (XR_FAILED(res))
-				Con_Printf("xrAcquireSwapchainImage: %i\n", res);
+				Con_Printf("xrAcquireSwapchainImage: %s\n", XR_StringForResult(res));
 
 			memset(&projviews[u], 0, sizeof(projviews[u]));
 			projviews[u].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
@@ -1553,7 +1643,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			waitinfo.timeout = 100000;
 			res = xrWaitSwapchainImage(xr.eye[u].swapchain, &waitinfo);
 			if (XR_FAILED(res))
-				Con_Printf("xrWaitSwapchainImage: %i\n", res);
+				Con_Printf("xrWaitSwapchainImage: %s\n", XR_StringForResult(res));
 			rendereye(&xr.eye[u].swapimages[imgidx], fovoverride, transform);
 			//GL note: the OpenXR specification says NOTHING about the application having to glFlush or glFinish.
 			//	I take this to mean that the openxr runtime is responsible for setting up barriers or w/e inside ReleaseSwapchainImage.
@@ -1561,7 +1651,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			//	I take this to mean that the openxr runtime is responsible for barriers (as it'll need to transition it to general or shader-read anyway).
 			res = xrReleaseSwapchainImage(xr.eye[u].swapchain, NULL);
 			if (XR_FAILED(res))
-				Con_Printf("xrReleaseSwapchainImage: %i\n", res);
+				Con_Printf("xrReleaseSwapchainImage: %s\n", XR_StringForResult(res));
 		}
 		proj.viewCount = u;
 	}
@@ -1572,7 +1662,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 	res = xrEndFrame(xr.session, &endframeinfo);
 	if (XR_FAILED(res))
 	{
-		Con_Printf("xrEndFrame: %i\n", res);
+		Con_Printf("xrEndFrame: %s\n", XR_StringForResult(res));
 		if (res == XR_ERROR_SESSION_LOST || res == XR_ERROR_SESSION_NOT_RUNNING || res == XR_ERROR_SWAPCHAIN_RECT_INVALID)
 			XR_SessionEnded();	//something sessiony
 		else //if (res == XR_ERROR_INSTANCE_LOST)

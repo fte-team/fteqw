@@ -64,8 +64,6 @@ void() mitem_combo::item_remove =
 	if (p)
 		p.item_remove();
 	strunzone(mstrlist);
-	item_text = __NULL__;
-	item_command = __NULL__;
 	super::item_remove();
 };
 
@@ -361,13 +359,11 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 };
 mitem_combo(string text, string command, vector sz, string valuelist) menuitemcombo_spawn =
 {
-	mitem_combo n = spawn(mitem_combo);
+	mitem_combo n = spawn(mitem_combo, item_text:text, item_command:command);
 	n.item_scale = sz_y;
-	n.item_text = text;
 	n.item_size = sz;
 	n.mstrlist = strzone(valuelist);
 
-	n.item_command = command;
 	if (n.isvalid(command))
 		n.item_flags |= IF_SELECTABLE;
 	return n;

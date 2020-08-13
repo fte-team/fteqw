@@ -6,6 +6,25 @@ Choice of buttons available is somewhat dynamic.
 There's also some generic kludge crap in here, like menu background tints
 */
 
+enum
+{
+	E_FTE,
+	E_QSS,
+} engine; //For use ONLY with known possible cvar values.
+void() FingerprintEngine =
+{	//this is evil.
+	//different engines have different values/meanings for different cvars.
+	//basically we end up having no choice but to guess which engine we're running in, otherwise we can't tailor all the options properly.
+
+	string e = cvar_string("pr_engine");
+	if (strstrofs(e, "QSS")>=0)
+		engine = E_QSS;
+	else if (strstrofs(e, "FTE")>=0)
+		engine = E_FTE;
+	else
+		engine = E_FTE;	//don't really know.
+};
+
 /*
 Adds a background tint to a (typically) exmenu parent.
 In FTE, we use built-in stuff to give a sepia effect.
@@ -107,5 +126,11 @@ nonstatic void(mitem_desktop desktop) M_Main =
 	local string it = (random()<0.9)?"progs/quaddama.mdl":"progs/invulner.mdl";
 	m.add(spawn (mitem_spinnymodel, item_text: it), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, 12*-16/2], [0, 12*16/2]);
 
+
+#ifdef CSQC
+	m.add(spawn(mitem_text, item_text:strcat("CSQC: ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
+#else
+	m.add(spawn(mitem_text, item_text:strcat("MQC: ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
+#endif
 	addmenuback(m);
 };

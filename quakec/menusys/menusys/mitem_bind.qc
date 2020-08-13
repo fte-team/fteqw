@@ -32,12 +32,18 @@ class mitem_bind : mitem
 
 void(vector pos) mitem_bind::item_draw =
 {
+#ifdef CSQC
+	tokenize(findkeysforcommandex(self.item_command));
+	string key1 = argv(0);
+	string key2 = argv(1);
+#else
 	/*this is not my API...*/
 	tokenize(findkeysforcommand(self.item_command));
 	string key1 = argv(0);
 	string key2 = argv(1);
 	if (key1 != "") key1 = (key1=="-1")?"":keynumtostring(stof(key1));
 	if (key2 != "") key2 = (key2=="-1")?"":keynumtostring(stof(key2));
+#endif
 
 	super::item_draw(pos);
 	pos_x += self.item_size_x / 2;
@@ -87,6 +93,11 @@ float(vector pos, float scan, float char, float down) mitem_bind::item_keypress 
 		}
 		if (scan == K_DEL || scan == K_BACKSPACE)
 		{
+#ifdef CSQC
+			float c = tokenize(findkeysforcommandex(self.item_command));
+			for (float i = 0; i < c; i++)
+				localcmd(sprintf("bind \"%s\" \"\"\n", argv(i)));
+#else
 			/*again, this is not my API...*/
 			tokenize(findkeysforcommand(self.item_command));
 			string key1 = argv(0);
@@ -95,6 +106,7 @@ float(vector pos, float scan, float char, float down) mitem_bind::item_keypress 
 			if (key2 != "") key2 = (key2=="-1")?"":keynumtostring(stof(key2));
 			if (key1 != "") localcmd(sprintf("bind \"%s\" \"\"\n", key1));
 			if (key2 != "") localcmd(sprintf("bind \"%s\" \"\"\n", key2));
+#endif
 			return TRUE;
 		}
 		return FALSE;

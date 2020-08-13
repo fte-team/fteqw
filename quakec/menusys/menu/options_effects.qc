@@ -19,8 +19,6 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 	fr.add(menuitemcheck_spawn(_("Show Framerate"),			cv3("showfps", "scr_showfps", "show_fps"), 		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("High Res Textures"),		"gl_load24bit", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 
-	fr.add(menuitemcheck_spawn(_("High Res Textures"),		"gl_load24bit", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-
 	fr.add(menuitemcombo_spawn(_("Texture Mode"),		"gl_texturemode",			'280 8', _(
 																			"GL_NEAREST	\"Nearest\" "
 																			"GL_NEAREST_MIPMAP_NEAREST	\"Nearest (Nearest mips)\" "
@@ -38,7 +36,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 																			//"lln	\"Linear (Linear mips, Unsmooth)\" "
 																)),	fl, [0, pos], [0, 8]); pos += 8;
 
-	fr.add(menuitemcombo_spawn(_("Anistrophy"),		"gl_texture_anisotropic_filtering",				'280 8', _(
+	fr.add(menuitemcombo_spawn(_("Anistrophy"),		cv2("gl_texture_anisotropy"/*qs*/, "gl_texture_anisotropic_filtering"/*fte*/),				'280 8', _(
 																			"0	\"Off\" "
 																			"2	\"2\" "
 																			"4	\"4\" "

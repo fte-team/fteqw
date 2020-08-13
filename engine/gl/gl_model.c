@@ -2730,7 +2730,7 @@ static int Mod_Batches_Generate(model_t *mod)
 					lbatch->texture == surf->texinfo->texture &&
 					lbatch->shader == shader &&
 					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
-					Vector4Compare(plane, lbatch->plane) &&
+					Vector4Compare(plane, lbatch->user.bmodel.plane) &&
 					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
 #if MAXRLIGHTMAPS > 1
 					lbatch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
@@ -2748,7 +2748,7 @@ static int Mod_Batches_Generate(model_t *mod)
 							batch->texture == surf->texinfo->texture &&
 							batch->shader == shader &&
 							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
-							Vector4Compare(plane, batch->plane) &&
+							Vector4Compare(plane, batch->user.bmodel.plane) &&
 							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
 #if MAXRLIGHTMAPS > 1
 							batch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
@@ -2794,7 +2794,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			batch->ent = &r_worldentity;
 			batch->fog = surf->fog;
 			batch->envmap = envmap;
-			Vector4Copy(plane, batch->plane);
+			Vector4Copy(plane, batch->user.bmodel.plane);
 
 			mod->batches[sortid] = batch;
 		}

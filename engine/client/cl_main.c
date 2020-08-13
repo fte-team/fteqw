@@ -2365,6 +2365,7 @@ void CL_CheckServerInfo(void)
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
 	{
+#ifdef NQPROT
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "maxpitch");
 		cl.maxpitch = *s ? Q_atof(s) : ((cl_fullpitch_nq.ival && !cl.haveserverinfo)?90.0f:80.0f);
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "minpitch");
@@ -2375,6 +2376,12 @@ void CL_CheckServerInfo(void)
 			//should be about 0.5/65536, but there's some precision issues with such small numbers around 80, so we need to bias it more than we ought
 			cl.maxpitch -= 1.0/2048;
 		}
+#else
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "maxpitch");
+		cl.maxpitch = *s ? Q_atof(s) : 80.0f;
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "minpitch");
+		cl.minpitch = *s ? Q_atof(s) : -70.0f;
+#endif
 	}
 	else
 	{

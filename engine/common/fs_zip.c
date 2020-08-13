@@ -1670,6 +1670,19 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 				//access and creation do NOT exist in the central header.
 				extra += extrachunk_len;
 				break;
+			case 0x7075:	//unicode (utf-8) filename replacements.
+				if (extra[0] == 1)	//version
+				{
+					//if (LittleU4FromPtr(extra+1) == qcrc32(?,entry->fname, entry->fnane_len))
+					{
+						entry->fname = extra+5;
+						entry->fnane_len = extrachunk_len-5;
+						extra += extrachunk_len;
+
+						entry->gflags |= (1u<<11);	//just set that flag. we don't support comments anyway.
+					}
+				}
+				break;
 			default:
 /*				Con_Printf("Unknown chunk %x\n", extrachunk_tag);
 			case 0x5455:	//extended timestamp

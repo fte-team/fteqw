@@ -551,10 +551,10 @@ qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis);
 void R_GenDlightMesh(struct batch_s *batch)
 {
 	static mesh_t *meshptr;
-	dlight_t	*l = cl_dlights + batch->surf_first;
+	dlight_t	*l = cl_dlights + batch->user.dlight.lightidx;
 	vec3_t colour;
 
-	int lightflags = batch->surf_count;
+	int lightflags = batch->user.dlight.lightmode;
 
 	VectorCopy(l->color, colour);
 	if (l->style>=0 && l->style < cl_max_lightstyles)
@@ -698,8 +698,8 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->texture = NULL;
 		for (j = 0; j < MAXRLIGHTMAPS; j++)
 			b->lightmap[j] = -1;
-		b->surf_first = i;
-		b->surf_count = lmode;
+		b->user.dlight.lightidx = i;
+		b->user.dlight.lightmode = lmode;
 		b->flags |= BEF_NOSHADOWS|BEF_NODLIGHT;	//that would be weeird
 		b->vbo = NULL;
 		b->next = batches[sort];

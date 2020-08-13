@@ -1359,6 +1359,8 @@ static struct
 	evalc_t frame2time;
 	evalc_t renderflags;
 	evalc_t skinobject;
+	evalc_t colourmod;
+	evalc_t alpha;
 } menuc_eval;
 static playerview_t menuview;
 
@@ -2117,6 +2119,8 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", ev_float, &menuc_eval.colormap);
 	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", ev_float, &menuc_eval.renderflags);
 	eval_t *skinobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skinobject", ev_float, &menuc_eval.skinobject);
+	eval_t *colourmodval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormod", ev_vector, &menuc_eval.colourmod);
+	eval_t *alphaval = prinst->GetEdictFieldValue(prinst, (void*)in, "alpha", ev_float, &menuc_eval.alpha);
 	int ival;
 	int rflags;
 
@@ -2161,6 +2165,22 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	{
 		out->topcolour = TOP_DEFAULT;
 		out->bottomcolour = BOTTOM_DEFAULT;
+	}
+
+	VectorSet(out->glowmod, 1,1,1);
+	if (!colourmodval || (!colourmodval->_vector[0] && !colourmodval->_vector[1] && !colourmodval->_vector[2]))
+		VectorSet(out->shaderRGBAf, 1, 1, 1);
+	else
+	{
+		out->flags |= RF_FORCECOLOURMOD;
+		VectorCopy(colourmodval->_vector, out->shaderRGBAf);
+	}
+	if (!alphaval || !alphaval->_float || alphaval->_float == 1)
+		out->shaderRGBAf[3] = 1.0f;
+	else
+	{
+		out->flags |= RF_TRANSLUCENT;
+		out->shaderRGBAf[3] = alphaval->_float;
 	}
 
 	if (rflags & CSQCRF_ADDITIVE)

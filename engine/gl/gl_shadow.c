@@ -355,7 +355,7 @@ static void SHM_Shadow_Cache_Surface(msurface_t *surf)
 {
 	int i;
 
-	i = surf->sbatch->shadowbatch;
+	i = surf->sbatch->user.bmodel.shadowbatch;
 	if (i < 0)
 		return;
 
@@ -451,11 +451,11 @@ static void SH_CalcShadowBatches(model_t *mod)
 		{
 			if (!l || l->vbo != b->vbo || l->texture != b->texture)
 			{
-				b->shadowbatch = mod->numshadowbatches++;
+				b->user.bmodel.shadowbatch = mod->numshadowbatches++;
 				l = b;
 			}
 			else
-				b->shadowbatch = l->shadowbatch;
+				b->user.bmodel.shadowbatch = l->user.bmodel.shadowbatch;
 		}
 	}
 

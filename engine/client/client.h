@@ -1597,7 +1597,7 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 qwskin_t *Skin_Lookup (char *fullname);
 char *Skin_FindName (player_info_t *sc);
 void	Skin_Find (player_info_t *sc);
-qbyte	*Skin_Cache8 (qwskin_t *skin);
+qbyte	*Skin_TryCache8 (qwskin_t *skin);
 void	Skin_Skins_f (void);
 void	Skin_FlushSkin(char *name);
 void	Skin_AllSkins_f (void);

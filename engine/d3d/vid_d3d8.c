@@ -63,7 +63,7 @@ LPDIRECT3DDEVICE8 pD3DDev8;
 static D3DPRESENT_PARAMETERS d3dpp;
 float d3d_trueprojection[16];
 
-qboolean vid_initializing;
+static qboolean vid_initializing;
 
 extern qboolean		scr_initialized;                // ready to draw
 extern qboolean		scr_drawloading;
@@ -71,16 +71,6 @@ extern qboolean		scr_con_forcedraw;
 static qboolean d3d_resized;
 
 extern cvar_t vid_hardwaregamma;
-
-
-//sound/error code needs this
-HWND mainwindow;
-
-//input code needs these
-int		window_center_x, window_center_y;
-RECT		window_rect;
-int window_x, window_y;
-
 
 /*void BuildGammaTable (float g, float c);
 static void	D3D8_VID_GenPaletteTables (unsigned char *palette)

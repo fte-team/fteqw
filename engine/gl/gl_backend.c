@@ -4150,6 +4150,8 @@ void GLBE_SelectEntity(entity_t *ent)
 		nd = 1;
 	if (shaderstate.depthrange != nd)
 	{
+		shaderstate.depthrange = nd;
+
 		if (nd < 1)
 			memcpy(shaderstate.projectionmatrix, r_refdef.m_projection_view, sizeof(shaderstate.projectionmatrix));
 		else
@@ -4160,12 +4162,6 @@ void GLBE_SelectEntity(entity_t *ent)
 			qglLoadMatrixf(shaderstate.projectionmatrix);
 			qglMatrixMode(GL_MODELVIEW);
 		}
-
-		shaderstate.depthrange = nd;
-//		if (qglDepthRange)
-//			qglDepthRange (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
-//		else if (qglDepthRangef)
-//			qglDepthRangef (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
 	}
 
 	shaderstate.lastuniform = 0;

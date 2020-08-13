@@ -469,9 +469,11 @@ static qboolean QDECL SSL_CloseFile(vfsfile_t *vfs)
 	return true;
 }
 
-static qboolean SSL_CheckUserTrust(gnutls_session_t session, gnutlsfile_t *file, int *errorcode)
+static int SSL_CheckUserTrust(gnutls_session_t session, gnutlsfile_t *file, int gcertcode)
 {
+	int ret = gcertcode?GNUTLS_E_CERTIFICATE_ERROR:GNUTLS_E_SUCCESS;
 #ifdef HAVE_CLIENT
+	unsigned int ferrcode;
 	//when using dtls, we expect self-signed certs and persistent trust.
 	if (file->datagram)
 	{
@@ -487,16 +489,27 @@ static qboolean SSL_CheckUserTrust(gnutls_session_t session, gnutlsfile_t *file,
 			memcpy(certdata+certsize, certlist[j].data, certlist[j].size);
 			certsize += certlist[j].size;
 		}
-		if (CertLog_ConnectOkay(file->certname, certdata, certsize))
-			*errorcode = 0;	//user has previously authorised it.
+
+		//if gcertcode is 0 then we can still pin it.
+		ferrcode = 0;
+		if (gcertcode & GNUTLS_CERT_SIGNER_NOT_FOUND)
+			ferrcode |= CERTLOG_MISSINGCA;
+		if (gcertcode & GNUTLS_CERT_UNEXPECTED_OWNER)
+			ferrcode |= CERTLOG_WRONGHOST;
+		if (gcertcode & GNUTLS_CERT_EXPIRED)
+			ferrcode |= CERTLOG_EXPIRED;
+		if (gcertcode & ~(GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND|GNUTLS_CERT_UNEXPECTED_OWNER|GNUTLS_CERT_EXPIRED))
+			ferrcode |= CERTLOG_UNKNOWN;
+
+		if (CertLog_ConnectOkay(file->certname, certdata, certsize, ferrcode))
+			ret = GNUTLS_E_SUCCESS;	//user has previously authorised it.
 		else
-			*errorcode = GNUTLS_E_CERTIFICATE_ERROR;	//user didn't trust it yet
+			ret = GNUTLS_E_CERTIFICATE_ERROR;	//user didn't trust it yet
 		free(certdata);
-		return true;
 	}
 #endif
 
-	return false;
+	return ret;
 }
 
 static int QDECL SSL_CheckCert(gnutls_session_t session)
@@ -566,16 +579,13 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 		{
 			gnutls_datum_t out;
 			gnutls_certificate_type_t type;
+			int ret;
 
 			if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
 				return 0;
-			if (certstatus == 0)
-				return SSL_CheckUserTrust(session, file, 0);
-			if (certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
-			{
-				if (SSL_CheckUserTrust(session, file, &errcode))
-					return errcode;
-			}
+			ret = SSL_CheckUserTrust(session, file, certstatus);
+			if (!ret)
+				return ret;
 
 			type = qgnutls_certificate_type_get (session);
 			if (qgnutls_certificate_verification_status_print(certstatus, type, &out, 0) >= 0)
@@ -592,6 +602,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 		if (certlist && certslen)
 		{
 			//and make sure the hostname on it actually makes sense.
+			int ret;
 			gnutls_x509_crt_t cert;
 			qgnutls_x509_crt_init(&cert);
 			qgnutls_x509_crt_import(cert, certlist, GNUTLS_X509_FMT_DER);
@@ -599,10 +610,10 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 			{
 				if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
 					return 0;
-				if (certstatus == 0)
-					return SSL_CheckUserTrust(session, file, 0);
-				if (certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND) && SSL_CheckUserTrust(session, file, GNUTLS_E_CERTIFICATE_ERROR))
-					return 0;
+
+				ret = SSL_CheckUserTrust(session, file, certstatus);	//looks okay... pin it by default...
+				if (!ret)
+					return ret;
 
 				if (certstatus & GNUTLS_CERT_SIGNER_NOT_FOUND)
 					Con_Printf(CON_ERROR "%s: Certificate authority is not recognised\n", file->certname);
@@ -1233,7 +1244,7 @@ int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 	}
 }
 
-//generates a signed blob
+//crypto: generates a signed blob
 int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax)
 {
 	gnutls_datum_t hash = {hashdata, hashsize};
@@ -1264,7 +1275,7 @@ int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, 
 	return sign.size;
 }
 
-//windows equivelent https://docs.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-signing-a-hash-and-verifying-the-hash-signature
+//crypto: verifies a signed blob matches an authority's public cert. windows equivelent https://docs.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-signing-a-hash-and-verifying-the-hash-signature
 enum hashvalidation_e GNUTLS_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize)
 {
 	gnutls_datum_t hash = {hashdata, hashsize};

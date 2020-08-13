@@ -3387,7 +3387,6 @@ static void GLVID_Shutdown(void)
 #ifdef USE_EGL
 	case PSL_EGL:
 		EGL_Shutdown();
-		EGL_UnloadLibrary();
 		GL_ForgetPointers();
 		break;
 #endif
@@ -3431,10 +3430,24 @@ static void GLVID_Shutdown(void)
 		vm.modes = NULL;
 		vm.num_modes = 0;
 #endif
+		x11.pXCloseDisplay(vid_dpy);
 	}
-	x11.pXCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
 	vid_window = (Window)NULL;
+
+	switch(currentpsl)
+	{
+#ifdef GLQUAKE
+#ifdef USE_EGL
+	case PSL_EGL:
+		EGL_UnloadLibrary();
+		break;
+#endif
+#endif
+	default:
+		break;
+	}
+
 	currentpsl = PSL_NONE;
 }
 

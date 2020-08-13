@@ -62,7 +62,7 @@ static D3DPRESENT_PARAMETERS d3dpp;
 float d3d_trueprojection_std[16];
 float d3d_trueprojection_view[16];
 
-qboolean vid_initializing;
+static qboolean vid_initializing;
 
 extern qboolean		scr_initialized;                // ready to draw
 extern qboolean		scr_drawloading;
@@ -71,15 +71,6 @@ static qboolean d3d_resized;
 
 extern cvar_t vid_hardwaregamma;
 extern cvar_t vid_srgb;
-
-
-//sound/error code needs this
-HWND mainwindow;
-
-//input code needs these
-int		window_center_x, window_center_y;
-RECT		window_rect;
-int window_x, window_y;
 
 
 /*void BuildGammaTable (float g, float c);
@@ -161,6 +152,7 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 {
 	POINT p;
 	RECT nr;
+	int window_x, window_y;
 	int window_width, window_height;
 	GetClientRect(hWnd, &nr);
 

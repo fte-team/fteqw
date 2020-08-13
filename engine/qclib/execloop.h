@@ -447,9 +447,6 @@ reeval:
 			break;
 		}
 		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
-#ifdef PARANOID
-		NUM_FOR_EDICT(ed);		// make sure it's in range
-#endif
 		errorif (!ed || ed->readonly)
 		{	//boot it over to the debugger
 #if INTSIZE == 16
@@ -492,9 +489,6 @@ reeval:
 			break;
 		}
 		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
-#ifdef PARANOID
-		NUM_FOR_EDICT(ed);		// make sure it's in range
-#endif
 		errorif (!ed || ed->readonly)
 		{	//boot it over to the debugger
 #if INTSIZE == 16
@@ -790,7 +784,6 @@ reeval:
 					PR_SwitchProgsParms(progfuncs, 0);
 				}
 				i = -newf->first_statement;
-	//			p = pr_typecurrent;
 				if (i < externs->numglobalbuiltins)
 				{
 #ifndef QCGC
@@ -802,26 +795,18 @@ reeval:
 					num_edicts = sv_num_edicts;
 				}
 				else
-				{
-//					if (newf->first_statement == -0x7fffffff)
-//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
-//					else
-						PR_RunError (&progfuncs->funcs, "Bad builtin call number - %i", -newf->first_statement);
-				}
-	//			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
+					PR_RunError (&progfuncs->funcs, "Bad builtin call number - %i", -newf->first_statement);
 				PR_SwitchProgsParms(progfuncs, (progsnum_t)callerprogs);
 
 				//decide weather non debugger wants to start debugging.
 				return prinst.pr_xstatement;
 			}
-	//		PR_SwitchProgsParms((OPA->function & 0xff000000)>>24);
 			s = PR_EnterFunction (progfuncs, newf, callerprogs);
 			st = &pr_statements[s];
 		}
 		
 		//resume at the new statement, which might be in a different progs
 		return s;
-//		break;
 
 	case OP_DONE:
 	case OP_RETURN:
@@ -831,13 +816,7 @@ reeval:
 		glob[OFS_RETURN] = glob[st->a];
 		glob[OFS_RETURN+1] = glob[st->a+1];
 		glob[OFS_RETURN+2] = glob[st->a+2];
-/*
-{
-	static char buffer[1024*1024*8];
-	int size = sizeof buffer;
-		progfuncs->save_ents(progfuncs, buffer, &size, 0);
-}
-*/
+
 		s = PR_LeaveFunction (progfuncs);
 		st = &pr_statements[s];		
 		if (prinst.pr_depth == prinst.exitdepth)

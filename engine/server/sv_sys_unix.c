@@ -158,47 +158,108 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 }
 
-/*
-================
-Sys_Milliseconds
-================
-*/
-unsigned int Sys_Milliseconds (void)
+
+static quint64_t timer_basetime;	//used by all clocks to bias them to starting at 0
+static void Sys_ClockType_Changed(cvar_t *var, char *oldval);
+static cvar_t sys_clocktype = CVARFCD("sys_clocktype", "", CVAR_NOTFROMSERVER, Sys_ClockType_Changed, "Controls which system clock to base timings from.\n0: auto\n"
+	"1: gettimeofday (may be discontinuous).\n"
+	"2: monotonic.");
+static enum
 {
-	struct timeval tp;
-	struct timezone tzp;
-	static int secbase;
+	QCLOCK_AUTO = 0,
 
-	gettimeofday(&tp, &tzp);
+	QCLOCK_GTOD,
+	QCLOCK_MONOTONIC,
+	QCLOCK_REALTIME,
 
-	if (!secbase)
+	QCLOCK_INVALID
+} timer_clocktype;
+static quint64_t Sys_GetClock(quint64_t *freq)
+{
+	quint64_t t;
+	if (timer_clocktype == QCLOCK_MONOTONIC)
 	{
-		secbase = tp.tv_sec;
-		return tp.tv_usec/1000;
+		struct timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		*freq = 1000000000;
+		t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;
 	}
-	return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
-}
+	else if (timer_clocktype == QCLOCK_REALTIME)
+	{
+		struct timespec ts;
+		clock_gettime(CLOCK_REALTIME, &ts);
+		*freq = 1000000000;
+		t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;
 
-/*
-================
-Sys_DoubleTime
-================
-*/
+		//WARNING t can go backwards
+	}
+	else //if (timer_clocktype == QCLOCK_GTOD)
+	{
+		struct timeval tp;
+		gettimeofday(&tp, NULL);
+		*freq = 1000000;
+		t = tp.tv_sec*(quint64_t)1000000 + tp.tv_usec;
+
+		//WARNING t can go backwards
+	}
+	return t - timer_basetime;
+}
+static void Sys_ClockType_Changed(cvar_t *var, char *oldval)
+{
+	int newtype = var?var->ival:0;
+	if (newtype >= QCLOCK_INVALID)
+		newtype = QCLOCK_AUTO;
+	if (newtype <= QCLOCK_AUTO)
+		newtype = QCLOCK_MONOTONIC;
+
+	if (newtype != timer_clocktype)
+	{
+		quint64_t oldtime, oldfreq;
+		quint64_t newtime, newfreq;
+
+		oldtime = Sys_GetClock(&oldfreq);
+		timer_clocktype = newtype;
+		timer_basetime = 0;
+		newtime = Sys_GetClock(&newfreq);
+
+		timer_basetime = newtime - (newfreq * (oldtime) / oldfreq);
+
+		/*if (host_initialized)
+		{
+			const char *clockname = "unknown";
+			switch(timer_clocktype)
+			{
+			case QCLOCK_GTOD:		clockname = "gettimeofday";	break;
+			case QCLOCK_MONOTONIC:	clockname = "monotonic";	break;
+			case QCLOCK_REALTIME:	clockname = "realtime";	break;
+			case QCLOCK_AUTO:
+			case QCLOCK_INVALID:	break;
+			}
+			Con_Printf("Clock %s, wraps after %"PRIu64" days, %"PRIu64" years\n", clockname, (((quint64_t)-1)/newfreq)/(24*60*60), (((quint64_t)-1)/newfreq)/(24*60*60*365));
+		}*/
+	}
+}
+static void Sys_InitClock(void)
+{
+	quint64_t freq;
+
+	Cvar_Register(&sys_clocktype, "System vars");
+
+	//calibrate it, and apply.
+	Sys_ClockType_Changed(NULL, NULL);
+	timer_basetime = 0;
+	timer_basetime = Sys_GetClock(&freq);
+}
 double Sys_DoubleTime (void)
 {
-	struct timeval tp;
-	struct timezone tzp;
-	static int		secbase;
-
-	gettimeofday(&tp, &tzp);
-
-	if (!secbase)
-	{
-		secbase = tp.tv_sec;
-		return tp.tv_usec/1000000.0;
-	}
-
-	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
+	quint64_t denum, num = Sys_GetClock(&denum);
+	return num / (long double)denum;
+}
+unsigned int Sys_Milliseconds (void)
+{
+	quint64_t denum, num = Sys_GetClock(&denum);
+	num *= 1000;
+	return num / denum;
 }
 
 /*
@@ -671,6 +732,8 @@ is marked
 */
 void Sys_Init (void)
 {
+	Sys_InitClock();
+
 	Cvar_Register (&sys_nostdout, "System configuration");
 	Cvar_Register (&sys_extrasleep,	"System configuration");
 

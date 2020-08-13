@@ -2010,7 +2010,7 @@ static void SV_Status_f (void)
 
 	if (!sv.state)
 	{
-		Con_Printf("Server is not running\n");
+		Con_TPrintf("Server is not running\n");
 		return;
 	}
 
@@ -2021,30 +2021,30 @@ static void SV_Status_f (void)
 	if (cpu)
 		cpu = 100*svs.stats.latched_active/cpu;
 
-	Con_Printf("cpu utilization  : %3i%%\n",(int)cpu);
-	Con_Printf("avg response time: %i ms (%i max)\n",(int)(1000*svs.stats.latched_active/svs.stats.latched_count), (int)(1000*svs.stats.latched_maxresponse));
-	Con_Printf("packets/frame    : %5.2f (%i max)\n", (float)svs.stats.latched_packets/svs.stats.latched_count, svs.stats.latched_maxpackets);	//not relevent as a limit.
+	Con_TPrintf("cpu utilization  : %3i%%\n",(int)cpu);
+	Con_TPrintf("avg response time: %i ms (%i max)\n",(int)(1000*svs.stats.latched_active/svs.stats.latched_count), (int)(1000*svs.stats.latched_maxresponse));
+	Con_TPrintf("packets/frame    : %5.2f (%i max)\n", (float)svs.stats.latched_packets/svs.stats.latched_count, svs.stats.latched_maxpackets);	//not relevent as a limit.
 	if (NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
-		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
-	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
-	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
+		Con_TPrintf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
+	Con_TPrintf("server uptime    : %s\n", ShowTime(realtime));
+	Con_TPrintf("public           : %s\n", sv_public.value?"yes":"no");
 	switch(svs.gametype)
 	{
 #ifdef Q3SERVER
 	case GT_QUAKE3:
-		Con_Printf("client types     :%s\n", sv_listen_qw.ival?" Q3":"");
+		Con_TPrintf("client types     :%s\n", sv_listen_qw.ival?" Q3":"");
 		break;
 #endif
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		Con_Printf("client types     :%s\n", sv_listen_qw.ival?" Q2":"");
+		Con_TPrintf("client types     :%s\n", sv_listen_qw.ival?" Q2":"");
 		break;
 #endif
 
 	default:
-		Con_Printf("client types     :%s", sv_listen_qw.ival?" QW":"");
+		Con_TPrintf("client types     :%s", sv_listen_qw.ival?" QW":"");
 #ifdef NQPROT
-		Con_Printf("%s%s", (sv_listen_nq.ival==2)?" -NQ":(sv_listen_nq.ival?" NQ":""), sv_listen_dp.ival?" DP":"");
+		Con_TPrintf("%s%s", (sv_listen_nq.ival==2)?" -NQ":(sv_listen_nq.ival?" NQ":""), sv_listen_dp.ival?" DP":"");
 #endif
 #ifdef QWOVERQ3
 		if (sv_listen_q3.ival) Con_Printf(" Q3");
@@ -2057,7 +2057,7 @@ static void SV_Status_f (void)
 #endif
 		Con_Printf("\n");
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
-		Con_Printf("tcp services     :");
+		Con_TPrintf("tcp services     :");
 #if defined(HAVE_SSL)
 		if (net_enable_tls.ival)
 			Con_Printf(" TLS");
@@ -2085,12 +2085,12 @@ static void SV_Status_f (void)
 		return;
 	}
 #endif
-	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
+	Con_TPrintf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	//show the current map+name (but hide name if its too long or would be ugly)
 	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
-		Con_Printf ("current map      : %s (%s)\n", svs.name, sv.mapname);
+		Con_TPrintf ("current map      : %s (%s)\n", svs.name, sv.mapname);
 	else
-		Con_Printf ("current map      : %s\n", svs.name);
+		Con_TPrintf ("current map      : %s\n", svs.name);
 
 	if (svs.gametype == GT_PROGS)
 	{
@@ -2103,25 +2103,25 @@ static void SV_Status_f (void)
 				continue;	//free, and older than the zombie time
 			count++;
 		}
-		Con_Printf("entities         : %i/%i/%i (mem: %.1f%%)\n", count, sv.world.num_edicts, sv.world.max_edicts, 100*(float)(sv.world.progs->stringtablesize/(double)sv.world.progs->stringtablemaxsize));
+		Con_TPrintf("entities         : %i/%i/%i (mem: %.1f%%)\n", count, sv.world.num_edicts, sv.world.max_edicts, 100*(float)(sv.world.progs->stringtablesize/(double)sv.world.progs->stringtablemaxsize));
 		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
 			if (!sv.strings.model_precache[count])
 				break;
-		Con_Printf("models           : %i/%i\n", count, MAX_PRECACHE_MODELS);
+		Con_TPrintf("models           : %i/%i\n", count, MAX_PRECACHE_MODELS);
 		for (count = 1; count < MAX_PRECACHE_SOUNDS; count++)
 			if (!sv.strings.sound_precache[count])
 				break;
-		Con_Printf("sounds           : %i/%i\n", count, MAX_PRECACHE_SOUNDS);
+		Con_TPrintf("sounds           : %i/%i\n", count, MAX_PRECACHE_SOUNDS);
 
 		for (count = 1; count < MAX_SSPARTICLESPRE; count++)
 			if (!sv.strings.particle_precache[count])
 				break;
 		if (count!=1)
-			Con_Printf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
+			Con_TPrintf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
 	}
-	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
+	Con_TPrintf("gamedir          : %s\n", FS_GetGamedir(true));
 	if (sv.csqcdebug)
-		Con_Printf("csqc debug       : true\n");
+		Con_TPrintf("csqc debug       : true\n");
 #ifdef MVD_RECORDING
 	SV_Demo_PrintOutputs();
 #endif
@@ -2133,9 +2133,9 @@ static void SV_Status_f (void)
 	{
 		// most remote clients are 40 columns
 		//           0123456789012345678901234567890123456789
-		Con_Printf ("name               userid frags\n");
-		Con_Printf ("  address          rate ping drop\n");
-		Con_Printf ("  ---------------- ---- ---- -----\n");
+		Con_Printf (	"name               userid frags\n"
+						"  address          rate ping drop\n"
+						"  ---------------- ---- ---- -----\n");
 		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
 			if (!cl->state)

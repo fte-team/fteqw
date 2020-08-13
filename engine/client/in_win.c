@@ -103,8 +103,8 @@ static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
 static cvar_t	in_nonstandarddeadkeys = CVARD("in_nonstandarddeadkeys", "1", "Discard input events that result in multiple keys. Only the last key will be used. This results in behaviour that differs from eg notepad. To use a dead key, press it twice instead of the dead key followed by space.");
 
-static cvar_t	xinput_leftvibrator = CVARFD("xinput_leftvibrator","0", CVAR_ARCHIVE, "");
-static cvar_t	xinput_rightvibrator = CVARFD("xinput_rightvibrator","0", CVAR_ARCHIVE, "");
+static cvar_t	xinput_leftvibrator = CVARF("xinput_leftvibrator","0", CVAR_ARCHIVE);
+static cvar_t	xinput_rightvibrator = CVARF("xinput_rightvibrator","0", CVAR_ARCHIVE);
 
 static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
@@ -115,6 +115,12 @@ extern float multicursor_x[8], multicursor_y[8];
 extern qboolean multicursor_active[8];
 
 POINT		current_mouse_pos;
+
+
+HWND mainwindow;
+int window_center_x, window_center_y;
+RECT		window_rect;
+
 
 typedef struct {
 	union {
@@ -1569,10 +1575,9 @@ void INS_Accumulate (void)
 
 	if (!mouseactive)
 	{
-		extern int window_x, window_y;
 		GetCursorPos (&current_mouse_pos);
 
-		IN_MouseMove(sysmouse.qdeviceid, true, current_mouse_pos.x-window_x, current_mouse_pos.y-window_y, 0, 0);
+		IN_MouseMove(sysmouse.qdeviceid, true, current_mouse_pos.x-window_rect.left, current_mouse_pos.y-window_rect.top, 0, 0);
 		return;
 	}
 }

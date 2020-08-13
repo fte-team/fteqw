@@ -2958,12 +2958,12 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		*b = *ob;
 		if (b->vbo && b->maxmeshes)
 		{
-			b->meshbuf = *b->mesh[0];
-			b->meshbuf.numindexes = b->mesh[b->maxmeshes-1]->indexes+b->mesh[b->maxmeshes-1]->numindexes-b->mesh[0]->indexes;
-			b->meshbuf.numvertexes = b->mesh[b->maxmeshes-1]->xyz_array+b->mesh[b->maxmeshes-1]->numvertexes-b->mesh[0]->xyz_array;
+			b->user.meshbuf = *b->mesh[0];
+			b->user.meshbuf.numindexes = b->mesh[b->maxmeshes-1]->indexes+b->mesh[b->maxmeshes-1]->numindexes-b->mesh[0]->indexes;
+			b->user.meshbuf.numvertexes = b->mesh[b->maxmeshes-1]->xyz_array+b->mesh[b->maxmeshes-1]->numvertexes-b->mesh[0]->xyz_array;
 
-			b->mesh = &b->meshptr;
-			b->meshptr = &b->meshbuf;
+			b->mesh = &b->user.meshptr;
+			b->user.meshptr = &b->user.meshbuf;
 			b->meshes = b->maxmeshes = 1;
 		}
 		else
@@ -3182,7 +3182,7 @@ static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 					Surf_RenderDynamicLightmaps_Worker (wmodel, surf, es->lightstylevalues);
 
 					mesh = surf->mesh;
-					eb = &es->batches[surf->sbatch->ebobatch];
+					eb = &es->batches[surf->sbatch->user.bmodel.ebobatch];
 					if (eb->maxidx < eb->numidx + mesh->numindexes)
 					{
 						//FIXME: pre-allocate
@@ -3253,7 +3253,7 @@ static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
 					surf->visframe = fc;
 
 					mesh = surf->mesh;
-					eb = &es->batches[surf->sbatch->ebobatch];
+					eb = &es->batches[surf->sbatch->user.bmodel.ebobatch];
 					if (eb->maxidx < eb->numidx + mesh->numindexes)
 					{
 						//FIXME: pre-allocate
@@ -3431,7 +3431,7 @@ void Surf_DrawWorld (void)
 							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 								for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
 								{
-									batch->ebobatch = currentmodel->numbatches;
+									batch->user.bmodel.ebobatch = currentmodel->numbatches;
 									currentmodel->numbatches++;
 								}
 							/*TODO submodels too*/
@@ -3469,7 +3469,7 @@ void Surf_DrawWorld (void)
 							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 								for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
 								{
-									batch->ebobatch = currentmodel->numbatches;
+									batch->user.bmodel.ebobatch = currentmodel->numbatches;
 									currentmodel->numbatches++;
 								}
 						}

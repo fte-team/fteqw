@@ -1572,7 +1572,12 @@ void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s 
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = PF_Cvar_FindOrGet(str);
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
-		RETURN_CSTRING(cv->description);
+	{
+		if (cv->description)
+			RETURN_CSTRING(localtext(cv->description));
+		else
+			G_INT(OFS_RETURN) = 0;
+	}
 	else
 		G_INT(OFS_RETURN) = 0;
 }

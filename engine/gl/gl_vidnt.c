@@ -141,20 +141,17 @@ extern qboolean vid_isfullscreen;
 
 static unsigned short originalgammaramps[3][256];
 
-qboolean vid_initializing;
+static qboolean vid_initializing;
 
 static int			DIBWidth, DIBHeight;
 static RECT		WindowRect;
 static DWORD		WindowStyle, ExWindowStyle;
 
-HWND	mainwindow;
 static HWND dibwindow;
 
 static HDC		maindc;
 
 HWND WINAPI InitializeWindow (HINSTANCE hInstance, int nCmdShow);
-
-viddef_t	vid;				// global video state
 
 //unsigned short	d_8to16rgbtable[256];
 //unsigned	d_8to24rgbtable[256];
@@ -176,10 +173,8 @@ extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
 extern cvar_t		vid_preservegamma;
 
-int			window_x, window_y;
+static int			window_x, window_y;
 static int			window_width, window_height;
-int					window_center_x, window_center_y;
-RECT				window_rect;
 
 
 static LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

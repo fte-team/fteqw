@@ -2521,15 +2521,17 @@ static void Cmd_Apropos_f (void)
 	char escapedvalue[1024];
 	char latchedvalue[1024];
 	char *query = Cmd_Argv(1);
+	const char *d;
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	for (var=grp->cvars ; var ; var=var->next)
 	{
+		d = var->description?localtext(var->description):NULL;
 		if (var->name && Q_strcasestr(var->name, query))
 			name = var->name;
 		else if (var->name2 && Q_strcasestr(var->name2, query))
 			name = var->name2;
-		else if (var->description && Q_strcasestr(var->description, query))
+		else if (d && Q_strcasestr(d, query))
 			name = var->name;
 		else
 			continue;
@@ -2539,21 +2541,34 @@ static void Cmd_Apropos_f (void)
 		if (var->latched_string)
 		{
 			COM_QuotedString(var->latched_string, latchedvalue, sizeof(latchedvalue), false);
-			Con_Printf("cvar ^2%s^7: %s (effective %s): %s\n", name, latchedvalue, escapedvalue, var->description?var->description:"no description");
+			if (d)
+				Con_TPrintf("cvar ^2%s^7: %s (effective %s): ^3%s\n", name, latchedvalue, escapedvalue, d);
+			else
+				Con_TPrintf("cvar ^2%s^7: %s (effective %s): ^3no description\n", name, latchedvalue, escapedvalue);
 		}
 		else
-			Con_Printf("cvar ^2%s^7: %s : %s\n", name, escapedvalue, var->description?var->description:"no description");
+		{
+			if (d)
+				Con_TPrintf("cvar ^2%s^7: %s : ^3%s\n", name, escapedvalue, d);
+			else
+				Con_TPrintf("cvar ^2%s^7: %s : ^3no description\n", name, escapedvalue);
+		}
 	}
 
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
+		d = cmd->description?localtext(cmd->description):NULL;
 		if (cmd->name && Q_strcasestr(cmd->name, query))
 			;
-		else if (cmd->description && strstr(cmd->description, query))
+		else if (d && strstr(d, query))
 			;
 		else
 			continue;
-		Con_Printf("command ^2%s^7: %s\n", cmd->name, cmd->description?cmd->description:"no description");
+
+		if (d)
+			Con_TPrintf("command ^2%s^7: ^3%s\n", cmd->name, d);
+		else
+			Con_TPrintf("command ^2%s^7: ^3no description\n", cmd->name);
 	}
 	//FIXME: add aliases.
 }

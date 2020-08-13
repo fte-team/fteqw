@@ -2601,6 +2601,10 @@ qbyte *FS_LoadMallocFile (const char *path, size_t *fsize)
 {
 	return COM_LoadFile (path, 0, 5, fsize);
 }
+qbyte *FS_LoadMallocFileFlags (const char *path, unsigned int locateflags, size_t *fsize)
+{
+	return COM_LoadFile (path, locateflags, 5, fsize);
+}
 
 void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path, size_t *fsize, qboolean filters)
 {
@@ -5206,7 +5210,7 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 	{
 		man = FS_Manifest_Create(NULL, basedir);
 
-		for (cexec = gamemode_info[game].customexec; cexec[0] == '/' && cexec[1] == '/'; )
+		for (cexec = gamemode_info[game].customexec; cexec && cexec[0] == '/' && cexec[1] == '/'; )
 		{
 			char line[256];
 			char *e = strchr(cexec, '\n');

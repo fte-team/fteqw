@@ -270,12 +270,12 @@ void GL_SetupSceneProcessingTextures (void)
 
 void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
 {
-	if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
+	if (e->flags & RF_WEAPONMODEL)
 	{
 		float em[16];
 		float vm[16];
 
-		if (e->flags & RF_WEAPONMODELNOBOB)
+		if ((e->flags & RF_WEAPONMODELNOBOB) || r_refdef.playerview->viewentity <= 0)
 		{
 			vm[0] = vpn[0];
 			vm[1] = vpn[1];
@@ -625,7 +625,7 @@ static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, float projmatr
 				}
 				else
 				{
-					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fovv_x, fovv_y, r_refdef.mindist, false);
+					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
 					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
 				}
 

@@ -39,22 +39,6 @@ struct builddata_s
 };
 void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data === builddata_t
 
-
-typedef struct
-{
-	int allocated[LMBLOCK_SIZE_MAX];
-	int firstlm;
-	int lmnum;
-	unsigned int width;
-	unsigned int height;
-	qboolean deluxe;
-} lmalloc_t;
-void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned int width, unsigned int height, int firstlm);	//firstlm is for debugging stray lightmap indexes
-void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod);
-void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum);
-
-
-
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
 		#ifndef GLSLONLY

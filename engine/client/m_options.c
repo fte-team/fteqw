@@ -3590,7 +3590,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	{
 	case MV_NONE:
 		R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
-			va("arrows: pitch/rotate\n"
+			va("Help:\narrows: pitch/rotate\n"
 			"w: zoom in\n"
 			"s: zoom out\n"
 			"m: mode\n"
@@ -3644,7 +3644,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				if (!*contents)
 					Q_strncatz(contents, "non-solid", sizeof(contents));
 				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
-					va(	"mins: %g %g %g, maxs: %g %g %g\n"
+					va(	"Collision:\n"
+						"mins: %g %g %g, maxs: %g %g %g\n"
 						"contents: %s\n"
 						"surfflags: %#x\n"
 						"body: %i\n"
@@ -3675,11 +3676,13 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		else
 		{
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
-				va("mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
+				va(	"Collision info not available\n"
+					"mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
 				, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		}
 		break;
 	case MV_NORMALS:
+		Draw_FunString(0, y, va("Normals"));
 		break;
 	case MV_BONES:
 #ifdef SKELETALMODELS
@@ -3717,7 +3720,10 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 			{
 				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup), mods->shaderfile, sizeof(mods->shaderfile));
 				if (!body)
+				{
+					Draw_FunString(0, y, "Shader info not available");
 					break;
+				}
 				if (*mods->shaderfile)
 					mods->shadertext = Z_StrDup(va("\n\nPress space to view+edit the shader\n\n%s", body));
 				else
@@ -3790,7 +3796,12 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				else
 					Draw_FunString(0, y, va("%s: <NO TEXTURE>", t));
 			}
+			else
+				Draw_FunString(0, y, "Texture info not available");
 		}
+		break;
+	default:
+		Draw_FunString(0, y, "Unknown display mode");
 		break;
 	}
 }

@@ -1427,22 +1427,6 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, gali
 				);
 }
 
-#if !defined(SERVERONLY)
-static void Alias_BuildSkeletalVerts(float *xyzout, float *normout, framestate_t *framestate, galiasinfo_t *inf)
-{
-	float buffer[MAX_BONES*12];
-	float bufferalt[MAX_BONES*12];
-	boneidx_t *fte_restrict bidx = inf->ofs_skel_idx[0];
-	float *fte_restrict weight = inf->ofs_skel_weight[0];
-	const float *bonepose = Alias_GetBoneInformation(inf, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
-
-	if (normout)
-		Alias_TransformVerticies_VN(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout, inf->ofs_skel_norm[0], normout);
-	else
-		Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout);
-}
-#endif
-
 #if defined(MD5MODELS) || defined(ZYMOTICMODELS) || defined(DPMMODELS)
 static int QDECL sortweights(const void *v1, const void *v2)	//helper for Alias_BuildGPUWeights
 {
@@ -1941,7 +1925,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		//float fg2time;
 		static float printtimer;
 
-#if FRAME_BLENDS != 2
+#if defined(_DEBUG) && FRAME_BLENDS != 2
 		if (e->framestate.g[FS_REG].lerpweight[2] || e->framestate.g[FS_REG].lerpweight[3])
 			Con_ThrottlePrintf(&printtimer, 1, "Alias_GAliasBuildMesh(%s): non-skeletal animation only supports two animations\n", e->model->name);
 #endif
@@ -2128,174 +2112,190 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 //used by the modelviewer.
 void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qboolean normals)
 {
-	galiasinfo_t *mod;
 	scenetris_t *t;
 	vecV_t *posedata = NULL;
 	vec3_t *normdata = NULL, tmp;
-	int surfnum = 0, i;
-#ifdef SKELETALMODELS
-	int cursurfnum = -1;
-#endif
+	int i, j;
 
-	if (!ent->model || ent->model->loadstate != MLS_LOADED || ent->model->type != mod_alias)
+	batch_t *batches[SHADER_SORT_COUNT], *b;
+	int s;
+	mesh_t *m;
+	unsigned int meshidx;
+
+	if (!ent->model || ent->model->loadstate != MLS_LOADED)
 		return;
-	mod = Mod_Extradata(ent->model);
 
-	for(; mod; mod = mod->nextsurf, surfnum++)
+	memset(batches, 0, sizeof(batches));
+	r_refdef.frustum_numplanes = 0;
+	switch(ent->model->type)
 	{
-		if (surfaceidx < 0)
-		{
-			if (!mod->contents)
-				continue;
-		}
-		else if (surfnum != surfaceidx)
+	case mod_alias:
+		R_GAlias_GenerateBatches(ent, batches);
+		break;
+
+#ifdef HALFLIFEMODELS
+	case mod_halflife:
+		R_HalfLife_GenerateBatches(ent, batches);
+		break;
+#endif
+	default:
+		return;
+	}
+
+	for (s = 0; s < countof(batches); s++)
+	{
+		if (!batches[s])
 			continue;
-
-		normdata = NULL;
-#ifdef SKELETALMODELS
-		if (mod->numbones)
+		for (b = batches[s]; b; b = b->next)
 		{
-			if (!mod->ofs_skel_idx)
-				posedata = mod->ofs_skel_xyz;	//if there's no weights, don't try animating anything.
-			else if (mod->shares_verts != cursurfnum || !posedata)
+			if (b->buildmeshes)
+				b->buildmeshes(b);
+
+			for (meshidx = b->firstmesh; meshidx < b->meshes; meshidx++)
 			{
-				cursurfnum = mod->shares_verts;
+				if (surfaceidx < 0)
+				{	//only draw meshes that have an actual contents value (collision data)
+					//FIXME: implement.
+				}
+				else
+				{	//only draw the mesh that's actually selected.
+					if (b->user.alias.surfrefs[meshidx] != surfaceidx)
+						continue;
+				}
 
-				posedata = alloca(mod->numverts*sizeof(vecV_t));
-				normdata = normals?alloca(mod->numverts*sizeof(vec3_t)):NULL;
-				Alias_BuildSkeletalVerts((float*)posedata, (float*)normdata, &ent->framestate, mod);
-			}
-			//else posedata = posedata;
-		}
-		else 
-#endif
-#ifndef NONSKELETALMODELS
-			continue;
-#else
-		if (!mod->numanimations)
-		{
-#ifdef SKELETALMODELS
-			normdata = mod->ofs_skel_norm;
-			if (mod->ofs_skel_xyz)
-				posedata = mod->ofs_skel_xyz;
-			else
-#endif
-				continue;
-		}
-		else
-		{
-			galiaspose_t *pose;
-			galiasanimation_t *group = mod->ofsanimations;
-			group += ent->framestate.g[FS_REG].frame[0] % mod->numanimations;
-			//FIXME: no support for frame blending.
-			if (!group->numposes || !group->poseofs)
-				continue;
-			pose = group->poseofs;
-			pose += (int)(ent->framestate.g[FS_REG].frametime[0] * group->rate)%group->numposes;
-			posedata = pose->ofsverts;
-			normdata = pose->ofsnormals;
-		}
-#endif
+				m = b->mesh[meshidx];
 
-
-		if (normals && normdata)
-		{	//pegs, one on each vertex.
-			if (cl_numstris == cl_maxstris)
-			{
-				cl_maxstris+=8;
-				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
-			}
-			t = &cl_stris[cl_numstris++];
-			t->shader = shader;
-			t->flags = BEF_LINES;
-			t->firstidx = cl_numstrisidx;
-			t->firstvert = cl_numstrisvert;
-			t->numidx = t->numvert = mod->numverts*2;
-
-			if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
-			{
-				cl_maxstrisidx=cl_numstrisidx+t->numidx;
-				cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-			}
-			if (cl_numstrisvert+t->numvert > cl_maxstrisvert)
-				cl_stris_ExpandVerts(cl_numstrisvert+t->numvert);
-			for (i = 0; i < mod->numverts; i++)
-			{
-				VectorMA(vec3_origin,	posedata[i][0], ent->axis[0], tmp);
-				VectorMA(tmp,			posedata[i][1], ent->axis[1], tmp);
-				VectorMA(tmp,			posedata[i][2], ent->axis[2], tmp);
-				VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i*2+0]);
-
-				VectorMA(tmp,			normdata[i][0], ent->axis[0], tmp);
-				VectorMA(tmp,			normdata[i][1], ent->axis[1], tmp);
-				VectorMA(tmp,			normdata[i][2], ent->axis[2], tmp);
-				VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i*2+1]);
-
-				Vector2Set(cl_strisvertt[t->firstvert+i*2+0], 0.0, 0.0);
-				Vector2Set(cl_strisvertt[t->firstvert+i*2+1], 1.0, 1.0);
-				Vector4Set(cl_strisvertc[t->firstvert+i*2+0], 0, 0, 1, 1);
-				Vector4Set(cl_strisvertc[t->firstvert+i*2+1], 0, 0, 1, 1);
-
-				cl_strisidx[cl_numstrisidx+i*2+0] = i*2+0;
-				cl_strisidx[cl_numstrisidx+i*2+1] = i*2+1;
-			}
-			cl_numstrisidx += i*2;
-			cl_numstrisvert += i*2;
-		}
-		else
-		{
-			if (cl_numstris == cl_maxstris)
-			{
-				cl_maxstris+=8;
-				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
-			}
-			t = &cl_stris[cl_numstris++];
-			t->shader = shader;
-			t->flags = 0;//BEF_LINES;
-			t->firstidx = cl_numstrisidx;
-			t->firstvert = cl_numstrisvert;
-			if (t->flags&BEF_LINES)
-				t->numidx = mod->numindexes*2;
-			else
-				t->numidx = mod->numindexes;
-			t->numvert = mod->numverts;
-
-			if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
-			{
-				cl_maxstrisidx=cl_numstrisidx+t->numidx;
-				cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-			}
-			if (cl_numstrisvert+mod->numverts > cl_maxstrisvert)
-				cl_stris_ExpandVerts(cl_numstrisvert+mod->numverts);
-			for (i = 0; i < mod->numverts; i++)
-			{
-				VectorMA(vec3_origin,	posedata[i][0], ent->axis[0], tmp);
-				VectorMA(tmp,			posedata[i][1], ent->axis[1], tmp);
-				VectorMA(tmp,			posedata[i][2], ent->axis[2], tmp);
-				VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i]);
-
-				Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
-				Vector4Set(cl_strisvertc[t->firstvert+i], (mod->contents?1:0), 1, 1, 0.1);
-			}
-			if (t->flags&BEF_LINES)
-			{
-				for (i = 0; i < mod->numindexes; i+=3)
+				posedata = m->xyz_array;
+				normdata = normals?m->normals_array:NULL;
+				if (m->numbones)
+				{	//intended shader might have caused it to use skeletal stuff.
+					//we're too lame for that though.
+					posedata = alloca(m->numvertexes*sizeof(vecV_t));
+					if (normdata)
+					{
+						normdata = alloca(m->numvertexes*sizeof(vec3_t));
+						Alias_TransformVerticies_VN(m->bones, m->numvertexes, m->bonenums[0], m->boneweights[0],	m->xyz_array[0], posedata[0], m->normals_array[0], normdata[0]);
+					}
+					else
+						Alias_TransformVerticies_V(m->bones, m->numvertexes, m->bonenums[0], m->boneweights[0],		m->xyz_array[0], posedata[0]);
+				}
+				else
 				{
-					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
-					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
-					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
-					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
-					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
-					cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
+					if (m->xyz_blendw[1] == 1 && m->xyz2_array)
+						posedata = m->xyz2_array;
+					else if (m->xyz_blendw[0] != 1 && m->xyz2_array)
+					{
+						posedata = alloca(m->numvertexes*sizeof(vecV_t));
+						for (i = 0; i < m->numvertexes; i++)
+						{
+							for (j = 0; j < 3; j++)
+								posedata[i][j] =	m->xyz_array[i][j] * m->xyz_blendw[0] +
+													m->xyz2_array[i][j] * m->xyz_blendw[1];
+						}
+					}
+					else
+						posedata = m->xyz_array;
+				}
+				if (normdata)
+				{
+					if (cl_numstris == cl_maxstris)
+					{
+						cl_maxstris+=8;
+						cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+					}
+					t = &cl_stris[cl_numstris++];
+					t->shader = shader;
+					t->flags = BEF_LINES;
+					t->firstidx = cl_numstrisidx;
+					t->firstvert = cl_numstrisvert;
+					t->numidx = t->numvert = m->numvertexes*2;
+
+					if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
+					{
+						cl_maxstrisidx=cl_numstrisidx+t->numidx;
+						cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+					}
+					if (cl_numstrisvert+t->numvert > cl_maxstrisvert)
+						cl_stris_ExpandVerts(cl_numstrisvert+t->numvert);
+					for (i = 0; i < m->numvertexes; i++)
+					{
+						VectorMA(vec3_origin,	posedata[i][0], ent->axis[0], tmp);
+						VectorMA(tmp,			posedata[i][1], ent->axis[1], tmp);
+						VectorMA(tmp,			posedata[i][2], ent->axis[2], tmp);
+						VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i*2+0]);
+
+						VectorMA(tmp,			normdata[i][0], ent->axis[0], tmp);
+						VectorMA(tmp,			normdata[i][1], ent->axis[1], tmp);
+						VectorMA(tmp,			normdata[i][2], ent->axis[2], tmp);
+						VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i*2+1]);
+
+						Vector2Set(cl_strisvertt[t->firstvert+i*2+0], 0.0, 0.0);
+						Vector2Set(cl_strisvertt[t->firstvert+i*2+1], 1.0, 1.0);
+						Vector4Set(cl_strisvertc[t->firstvert+i*2+0], 0, 0, 1, 1);
+						Vector4Set(cl_strisvertc[t->firstvert+i*2+1], 0, 0, 1, 1);
+
+						cl_strisidx[cl_numstrisidx+i*2+0] = i*2+0;
+						cl_strisidx[cl_numstrisidx+i*2+1] = i*2+1;
+					}
+					cl_numstrisidx += i*2;
+					cl_numstrisvert += i*2;
+				}
+				if (!normals)
+				{
+					if (cl_numstris == cl_maxstris)
+					{
+						cl_maxstris+=8;
+						cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+					}
+					t = &cl_stris[cl_numstris++];
+					t->shader = shader;
+					t->flags = 0;//BEF_LINES;
+					t->firstidx = cl_numstrisidx;
+					t->firstvert = cl_numstrisvert;
+					if (t->flags&BEF_LINES)
+						t->numidx = m->numindexes*2;
+					else
+						t->numidx = m->numindexes;
+					t->numvert = m->numvertexes;
+
+					if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
+					{
+						cl_maxstrisidx=cl_numstrisidx+t->numidx;
+						cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+					}
+					if (cl_numstrisvert+m->numvertexes > cl_maxstrisvert)
+						cl_stris_ExpandVerts(cl_numstrisvert+m->numvertexes);
+					for (i = 0; i < m->numvertexes; i++)
+					{
+						VectorMA(vec3_origin,	posedata[i][0], ent->axis[0], tmp);
+						VectorMA(tmp,			posedata[i][1], ent->axis[1], tmp);
+						VectorMA(tmp,			posedata[i][2], ent->axis[2], tmp);
+						VectorMA(ent->origin,	ent->scale,		tmp,		  cl_strisvertv[t->firstvert+i]);
+
+						Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
+						Vector4Set(cl_strisvertc[t->firstvert+i], 1, 1, 1, 0.1);
+					}
+					if (t->flags&BEF_LINES)
+					{
+						for (i = 0; i < m->numindexes; i+=3)
+						{
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+0];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+1];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+1];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+2];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+2];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+0];
+						}
+					}
+					else
+					{
+						for (i = 0; i < m->numindexes; i++)
+							cl_strisidx[cl_numstrisidx+i] = m->indexes[i];
+						cl_numstrisidx += m->numindexes;
+					}
+					cl_numstrisvert += m->numvertexes;
 				}
 			}
-			else
-			{
-				for (i = 0; i < mod->numindexes; i++)
-					cl_strisidx[cl_numstrisidx+i] = mod->ofs_indexes[i];
-				cl_numstrisidx += mod->numindexes;
-			}
-			cl_numstrisvert += mod->numverts;
 		}
 	}
 }
@@ -5487,8 +5487,14 @@ shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
 			return NULL;
 	}
 
-	if (model->type == mod_alias)
+	switch(model->type)
 	{
+	case mod_brush:
+		if (surfaceidx < model->numtextures && !num)
+			return model->textures[surfaceidx]->shader;
+		return NULL;
+
+	case mod_alias:
 		inf = Mod_Extradata(model);
 
 		while(surfaceidx-->0 && inf)
@@ -5498,11 +5504,9 @@ shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
 			return NULL;
 		skin = inf->ofsskins;
 		return skin[num].frame[0].shader;
-	}
-	else if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
-		return model->textures[surfaceidx]->shader;
-	else
+	default:
 		return NULL;
+	}
 }
 #endif
 const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)
@@ -5523,23 +5527,27 @@ const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)
 			return NULL;
 	}
 
-	if (!model || model->type != mod_alias)
+	switch(model->type)
 	{
-		if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
+	case mod_brush:
+		if (surfaceidx < model->numtextures && !num)
 			return "";
 		return NULL;
-	}
-	inf = Mod_Extradata(model);
+	case mod_alias:
+		inf = Mod_Extradata(model);
 
-	while(surfaceidx-->0 && inf)
-		inf = inf->nextsurf;
-	if (!inf || num >= inf->numskins)
+		while(surfaceidx-->0 && inf)
+			inf = inf->nextsurf;
+		if (!inf || num >= inf->numskins)
+			return NULL;
+		skin = inf->ofsskins;
+	//	if (!*skin[num].name)
+	//		return skin[num].frame[0].shadername;
+	//	else
+			return skin[num].name;
+	default:
 		return NULL;
-	skin = inf->ofsskins;
-//	if (!*skin[num].name)
-//		return skin[num].frame[0].shadername;
-//	else
-		return skin[num].name;
+	}
 #endif
 }
 
@@ -5550,20 +5558,39 @@ const char *Mod_SurfaceNameForNum(model_t *model, int num)
 #else
 	galiasinfo_t *inf;
 
-	if (!model || model->type != mod_alias)
+	if (!model || model->loadstate != MLS_LOADED)
 	{
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED)
+			return NULL;
+	}
+
+	switch(model->type)
+	{
+	case mod_brush:
 		if (model->type == mod_brush && num < model->numtextures)
 			return model->textures[num]->name;
 		return NULL;
-	}
-	inf = Mod_Extradata(model);
-
-	while(num-->0 && inf)
-		inf = inf->nextsurf;
-	if (inf)
-		return inf->surfacename;
-	else
+	case mod_halflife:
 		return NULL;
+	case mod_alias:
+		inf = Mod_Extradata(model);
+
+		while(num-->0 && inf)
+			inf = inf->nextsurf;
+		if (inf)
+			return inf->surfacename;
+		else
+			return NULL;
+	case mod_sprite:
+	case mod_dummy:
+	case mod_heightmap:
+	default:
+		return NULL;
+	}
 #endif
 }
 

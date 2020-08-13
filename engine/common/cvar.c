@@ -1239,8 +1239,8 @@ cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const c
 
 	if (var)
 		return var;
-	if (!description)
-		description = "";
+	if (!description || !*description)
+		description = NULL;
 
 	//don't allow cvars with certain funny chars in their name. ever. such things get really messy when saved in configs or whatever.
 	if (!*name || strchr(name, '\"') || strchr(name, '^') || strchr(name, '$') || strchr(name, ' ') || strchr(name, '\t') || strchr(name, '\r') || strchr(name, '\n') || strchr(name, ';'))
@@ -1313,13 +1313,13 @@ qboolean	Cvar_Command (int level)
 
 	if (!level || (v->restriction?v->restriction:rcon_level.ival) > level)
 	{
-		Con_Printf ("You do not have the priveledges for %s\n", v->name);
+		Con_TPrintf ("You do not have the priveledges for %s\n", v->name);
 		return true;
 	}
 
 	if (v->flags & CVAR_NOTFROMSERVER && Cmd_IsInsecure())
 	{
-		Con_Printf ("Server tried setting %s cvar\n", v->name);
+		Con_TPrintf ("Server tried setting %s cvar\n", v->name);
 		return true;
 	}
 
@@ -1330,36 +1330,36 @@ qboolean	Cvar_Command (int level)
 		{
 			if (v->flags & CVAR_LATCH)
 			{
-				Con_Printf ("\"%s\" is currently \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
-				Con_Printf ("Will be changed to \"%s\" on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("\"%s\" is currently \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("Will be changed to \"%s\" on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
 			else if (v->flags & CVAR_VIDEOLATCH)
 			{
-				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
-				Con_Printf ("Will be changed to \"%s\" on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("Will be changed to \"%s\" on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
 			else if (v->flags & CVAR_RENDERERLATCH)
 			{
-				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
-				Con_Printf ("Will be changed to \"%s\" on vid_reload\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("Will be changed to \"%s\" on vid_reload\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
 			else
 			{
-				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
-				Con_Printf ("Effective value is \"%s\"\n", COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("Effective value is \"%s\"\n", COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 			}
 			if (v->defaultstr)
-				Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), true));
+				Con_TPrintf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), true));
 		}
 		else
 		{
 			if (v->defaultstr && !strcmp(v->string, v->defaultstr))
-				Con_Printf ("\"%s\" is \"%s\" (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("\"%s\" is \"%s\" (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 			else
 			{
-				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_TPrintf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 				if (v->defaultstr)
-					Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), true));
+					Con_TPrintf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), true));
 			}
 		}
 		return true;
@@ -1373,7 +1373,7 @@ qboolean	Cvar_Command (int level)
 	if (v->flags & CVAR_NOSET)
 	{
 		if (cl_warncmd.value || developer.value)
-			Con_Printf ("Cvar %s may not be set via the console\n", v->name);
+			Con_TPrintf ("Cvar %s may not be set via the console\n", v->name);
 		return true;
 	}
 

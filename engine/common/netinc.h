@@ -344,6 +344,7 @@ enum hashvalidation_e
 	VH_INCORRECT,			//signature is wrong for that authority (bad, probably maliciously so)
 	VH_CORRECT				//all is well.
 };
+struct dtlsfuncs_s;
 #ifdef HAVE_DTLS
 typedef struct dtlsfuncs_s
 {
@@ -360,23 +361,23 @@ const dtlsfuncs_t *DTLS_InitClient(void);
 #ifdef HAVE_WINSSPI
 	vfsfile_t *SSPI_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
 	int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
-	const dtlsfuncs_t *SSPI_DTLS_InitServer(void);	//returns NULL if there's no cert available.
-	const dtlsfuncs_t *SSPI_DTLS_InitClient(void);	//should always return something, if implemented.
+	const struct dtlsfuncs_s *SSPI_DTLS_InitServer(void);	//returns NULL if there's no cert available.
+	const struct dtlsfuncs_s *SSPI_DTLS_InitClient(void);	//should always return something, if implemented.
 	enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize);
 #endif
 #ifdef HAVE_GNUTLS
 	vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
 	int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
-	const dtlsfuncs_t *GNUDTLS_InitServer(void);	//returns NULL if there's no cert available.
-	const dtlsfuncs_t *GNUDTLS_InitClient(void);	//should always return something, if implemented.
+	const struct dtlsfuncs_s *GNUDTLS_InitServer(void);	//returns NULL if there's no cert available.
+	const struct dtlsfuncs_s *GNUDTLS_InitClient(void);	//should always return something, if implemented.
 	enum hashvalidation_e GNUTLS_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize);
 	int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax);
 #endif
 #ifdef HAVE_OPENSSL
 	vfsfile_t *OSSL_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
 	int OSSL_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
-	const dtlsfuncs_t *OSSL_InitServer(void);	//returns NULL if there's no cert available.
-	const dtlsfuncs_t *OSSL_InitClient(void);	//should always return something, if implemented.
+	const struct dtlsfuncs_s *OSSL_InitServer(void);	//returns NULL if there's no cert available.
+	const struct dtlsfuncs_s *OSSL_InitClient(void);	//should always return something, if implemented.
 	enum hashvalidation_e OSSL_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize);
 #endif
 

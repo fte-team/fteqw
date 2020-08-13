@@ -7733,19 +7733,19 @@ int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_gener
 static enum addressscope_e NET_ClassifyAddressipv4(int ip, const char **outdesc)
 {
 	int scope = ASCOPE_NET;
-	char *desc = NULL;
+	const char *desc = NULL;
 	if ((ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
-		scope = ASCOPE_LINK, desc = "link-local";
+		scope = ASCOPE_LINK, desc = localtext("link-local");
 	else if ((ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
-		scope = ASCOPE_LAN, desc = "private";
+		scope = ASCOPE_LAN, desc = localtext("private");
 	else if ((ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
 		scope = ASCOPE_HOST, desc = "localhost";
 	else if ((ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
-		scope = ASCOPE_LAN, desc = "private";
+		scope = ASCOPE_LAN, desc = localtext("private");
 	else if ((ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
-		scope = ASCOPE_LAN, desc = "private";
+		scope = ASCOPE_LAN, desc = localtext("private");
 	else if ((ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
-		scope = ASCOPE_LAN, desc = "CGNAT";
+		scope = ASCOPE_LAN, desc = localtext("CGNAT");
 	else if (ip == BigLong(0x00000000))	//0.0.0.0/32
 		scope = ASCOPE_LAN, desc = "any";
 
@@ -7760,14 +7760,14 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc)
 	if (adr->type == NA_LOOPBACK)
 	{
 		//we don't list 127.0.0.1 or ::1, so don't bother with this either. its not interesting.
-		scope = ASCOPE_PROCESS, desc = "internal";
+		scope = ASCOPE_PROCESS, desc = localtext("internal");
 	}
 	else if (adr->type == NA_IPV6)
 	{
 		if ((*(int*)adr->address.ip6&BigLong(0xffc00000)) == BigLong(0xfe800000))	//fe80::/10
-			scope = ASCOPE_LINK, desc = "link-local";
+			scope = ASCOPE_LINK, desc = localtext("link-local");
 		else if ((*(int*)adr->address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
-			scope = ASCOPE_LAN, desc = "ULA/private";
+			scope = ASCOPE_LAN, desc = localtext("ULA/private");
 		else if (*(int*)adr->address.ip6 == BigLong(0x20010000)) //2001::/32
 			scope = ASCOPE_NET, desc = "toredo";
 		else if ((*(int*)adr->address.ip6&BigLong(0xffff0000)) == BigLong(0x20020000)) //2002::/16
@@ -7780,7 +7780,7 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc)
 		{
 			scope = NET_ClassifyAddressipv4(*(int*)(adr->address.ip6+12), &desc);
 			if (!desc)
-				desc = "vp-mapped";
+				desc = localtext("v4-mapped");
 		}
 	}
 #ifdef UNIXSOCKETS
@@ -7826,20 +7826,20 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 				if ((addr[i].prot == NP_RTC_TCP || addr[i].prot == NP_RTC_TLS) && params[i])
 				{
 					if (addr[i].type == NA_INVALID)
-						Con_Printf("%s address (%s): /%s\n", scopes[scope], con[i]->name, params[i]);
+						Con_TPrintf("%s address (%s): /%s\n", scopes[scope], con[i]->name, params[i]);
 					else
-						Con_Printf("%s address (%s): %s/%s\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), params[i]);
+						Con_TPrintf("%s address (%s): %s/%s\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), params[i]);
 				}
 				else if (desc)
-					Con_Printf("%s address (%s): %s (%s)\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), desc);
+					Con_TPrintf("%s address (%s): %s (%s)\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), desc);
 				else
-					Con_Printf("%s address (%s): %s\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					Con_TPrintf("%s address (%s): %s\n", scopes[scope], con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
 			}
 		}
 	}
 
 	if (warn)
-		Con_Printf("net address: no public addresses\n");
+		Con_TPrintf("net address: no public addresses\n");
 }
 
 void NET_PrintConnectionsStatus(ftenet_connections_t *collection)

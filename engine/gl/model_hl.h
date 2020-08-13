@@ -295,6 +295,8 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
 		texnums_t defaulttex;
 		shader_t *shader;
 		int w, h;
+		int atlasid;
+		unsigned short x,y;
 	} *shaders;
 	short *skinref;
 	int numskinrefs;
@@ -306,15 +308,13 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
 		int numalternatives;
 		struct hlalternative_s
 		{
-			mesh_t mesh;
 			int numsubmeshes;
-			struct
-			{
-				int firstindex;
-				int numindexes;
-			} *submesh;
+			mesh_t *submesh;
 		} *alternatives;
 	} *geomset;
+	mesh_t mesh;
+	vbo_t vbo;
+	qboolean vbobuilt;
 } hlmodel_t;
 
 /* HL mathlib prototypes: */
@@ -343,4 +343,5 @@ int HLMDL_GetAttachment(model_t *model, int tagnum, float *resultmatrix);
 //stuff only useful for clients that need to draw stuff
 void	R_DrawHLModel(entity_t	*curent);
 void HLMDL_DrawHitBoxes(entity_t *ent);
+void R_HalfLife_GenerateBatches(entity_t *rent, batch_t **batches);
 #endif

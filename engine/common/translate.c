@@ -1,5 +1,8 @@
 #include "quakedef.h"
 
+//#define COLOURMISSINGSTRINGS		//for english people to more easily see what's not translatable (text still white)
+//#define COLOURUNTRANSLATEDSTRINGS	//show empty translations as alt-text versions of the original string
+
 //client may remap messages from the server to a regional bit of text.
 //server may remap progs messages
 
@@ -74,7 +77,9 @@ static int TL_LoadLanguage(char *lang)
 	languages[j].name = strdup(lang);
 	languages[j].po = NULL;
 	
+#ifndef COLOURUNTRANSLATEDSTRINGS
 	if (f)
+#endif
 	{
 		languages[j].po = PO_Create();
 		PO_Merge(languages[j].po, f);
@@ -299,17 +304,7 @@ struct po_s
 	struct poline_s *lines;
 };
 
-const char *PO_GetText(struct po_s *po, const char *msg)
-{
-	struct poline_s *line;
-	if (!po)
-		return msg;
-	line = Hash_Get(&po->hash, msg);
-	if (line)
-		return line->translated;
-	return msg;
-}
-static void PO_AddText(struct po_s *po, const char *orig, const char *trans)
+static struct poline_s *PO_AddText(struct po_s *po, const char *orig, const char *trans)
 {
 	size_t olen = strlen(orig)+1;
 	size_t tlen = strlen(trans)+1;
@@ -323,6 +318,7 @@ static void PO_AddText(struct po_s *po, const char *orig, const char *trans)
 
 	line->next = po->lines;
 	po->lines = line;
+	return line;
 }
 void PO_Merge(struct po_s *po, vfsfile_t *file)
 {
@@ -330,6 +326,15 @@ void PO_Merge(struct po_s *po, vfsfile_t *file)
 	int inlen;
 	char msgid[32768];
 	char msgstr[32768];
+	struct {
+		quint32_t magic;
+		quint32_t revision;
+		quint32_t numstrings;
+		quint32_t offset_orig;
+		quint32_t offset_trans;
+//		quint32_t hashsize;
+//		quint32_t offset_hash;
+	} *moheader;
 
 	qboolean allowblanks = !!COM_CheckParm("-translatetoblank");
 	if (!file)
@@ -343,61 +348,95 @@ void PO_Merge(struct po_s *po, vfsfile_t *file)
 	if (file)
 		VFS_CLOSE(file);
 
-	end = in + inlen;
-	while(in < end)
+	moheader = (void*)in;
+	if (inlen >= sizeof(*moheader) && moheader->magic == 0x950412de)
 	{
-		while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
-			in++;
-		if (*in == '#')
+		struct
 		{
-			while (*in && *in != '\n')
+			quint32_t length;
+			quint32_t offset;
+		} *src = (void*)(in+moheader->offset_orig), *dst = (void*)(in+moheader->offset_trans);
+		quint32_t i;
+		for (i = moheader->numstrings; i-- > 0; src++, dst++)
+			PO_AddText(po, in+src->offset, in+dst->offset);
+	}
+    else
+	{
+		end = in + inlen;
+		while(in < end)
+		{
+			while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
 				in++;
-		}
-		else if (!strncmp(in, "msgid", 5) && (in[5] == ' ' || in[5] == '\t' || in[5] == '\r' || in[5] == '\n'))
-		{
-			size_t start = 0;
-			size_t ofs = 0;
-			in += 5;
-			while(1)
+			if (*in == '#')
 			{
-				while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
+				while (*in && *in != '\n')
 					in++;
-				if (*in == '\"')
-				{
-					in = COM_ParseCString(in, msgid+start, sizeof(msgid) - start, &ofs);
-					start += ofs;
-				}
-				else
-					break;
 			}
-		}
-		else if (!strncmp(in, "msgstr", 6) && (in[6] == ' ' || in[6] == '\t' || in[6] == '\r' || in[6] == '\n'))
-		{
-			size_t start = 0;
-			size_t ofs = 0;
-			in += 6;
-			while(1)
+			else if (!strncmp(in, "msgid", 5) && (in[5] == ' ' || in[5] == '\t' || in[5] == '\r' || in[5] == '\n'))
 			{
-				while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
-					in++;
-				if (*in == '\"')
+				size_t start = 0;
+				size_t ofs = 0;
+				in += 5;
+				while(1)
 				{
-					in = COM_ParseCString(in, msgstr+start, sizeof(msgstr) - start, &ofs);
-					start += ofs;
+					while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
+						in++;
+					if (*in == '\"')
+					{
+						in = COM_ParseCString(in, msgid+start, sizeof(msgid) - start, &ofs);
+						start += ofs;
+					}
+					else
+						break;
 				}
-				else
-					break;
 			}
+			else if (!strncmp(in, "msgstr", 6) && (in[6] == ' ' || in[6] == '\t' || in[6] == '\r' || in[6] == '\n'))
+			{
+				size_t start = 0;
+				size_t ofs = 0;
+				in += 6;
+				while(1)
+				{
+					while(*in == ' ' || *in == '\n' || *in == '\r' || *in == '\t')
+						in++;
+					if (*in == '\"')
+					{
+						in = COM_ParseCString(in, msgstr+start, sizeof(msgstr) - start, &ofs);
+						start += ofs;
+					}
+					else
+						break;
+				}
 
-			if ((*msgid && start) || allowblanks)
-				PO_AddText(po, msgid, msgstr);
-		}
-		else
-		{
-			//some sort of junk?
-			in++;
-			while (*in && *in != '\n')
+				if ((*msgid && start) || allowblanks)
+					PO_AddText(po, msgid, msgstr);
+#ifdef COLOURUNTRANSLATEDSTRINGS
+				else if (!start)
+				{
+					char temp[1024];
+					int i;
+					Q_snprintfz(temp, sizeof(temp), "%s", *msgstr?msgstr:msgid);
+					for (i = 0; temp[i]; i++)
+					{
+						if (temp[i] == '%')
+						{
+							while (temp[i] > ' ')
+								i++;
+						}
+						else if (temp[i] >= ' ')
+							temp[i] |= 0x80;
+					}
+					PO_AddText(po, msgid, temp);
+				}
+#endif
+			}
+			else
+			{
+				//some sort of junk?
 				in++;
+				while (*in && *in != '\n')
+					in++;
+			}
 		}
 	}
 
@@ -423,4 +462,36 @@ void PO_Close(struct po_s *po)
 		Z_Free(r);
 	}
 	Z_Free(po);
+}
+
+const char *PO_GetText(struct po_s *po, const char *msg)
+{
+	struct poline_s *line;
+	if (!po)
+		return msg;
+	line = Hash_Get(&po->hash, msg);
+
+#ifdef COLOURMISSINGSTRINGS
+	if (!line)
+	{
+		char temp[1024];
+		int i;
+		Q_snprintfz(temp, sizeof(temp), "%s", msg);
+		for (i = 0; temp[i]; i++)
+		{
+			if (temp[i] == '%')
+			{
+				while (temp[i] > ' ')
+					i++;
+			}
+			else if (temp[i] >= ' ')
+				temp[i] |= 0x80;
+		}
+		line = PO_AddText(po, msg, temp);
+	}
+#endif
+
+	if (line)
+		return line->translated;
+	return msg;
 }

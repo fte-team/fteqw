@@ -78,10 +78,10 @@ struct hlvremaps
 	unsigned short scoord;
 	unsigned short tcoord;
 };
-static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t *count, size_t max)
+static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t *count, size_t first, size_t max)
 {
 	size_t i;
-	for (i = *count; i-- > 0;)
+	for (i = *count; i-- > first;)
 	{
 		if (rem[i].vertidx == order[0] && rem[i].normalidx == order[1] && rem[i].scoord == order[2] && rem[i].tcoord == order[3])
 			return i;
@@ -99,133 +99,189 @@ static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t
 }
 
 //parse the vertex info, pull out what we can
-static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, struct hlalternative_s *submodel)
+static void HLMDL_PrepareVerticies (model_t *mod, hlmodel_t *model)
 {
 	struct hlvremaps *uvert;
-	size_t uvertcount, uvertstart;
+	size_t uvertcount=0, uvertstart;
 	unsigned short count;
 	int i;
-	size_t idx = 0, v, m, maxidx=65536*3;
+	size_t idx = 0, m, maxidx=65536*3;
 	size_t maxverts = 65536;
 
-	mesh_t *mesh = &submodel->mesh;
 	index_t *index;
+	mesh_t *mesh, *submesh;
 
-	vec3_t *verts = (vec3_t *) ((qbyte *) model->header + amodel->vertindex);
-	qbyte *bone = ((qbyte *) model->header + amodel->vertinfoindex);
-	vec3_t *norms = (vec3_t *) ((qbyte *) model->header + amodel->normindex);
+	int body;
 
-	uvertcount = 0;
 	uvert = malloc(sizeof(*uvert)*maxverts);
-	index = malloc(sizeof(*mesh->colors4b_array)*maxidx);
+	index = malloc(sizeof(byte_vec4_t)*maxidx);
 
-	for(m = 0; m < amodel->nummesh; m++)
+	model->numgeomsets = model->header->numbodyparts;
+	model->geomset = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset) * model->numgeomsets);
+	for (body = 0; body < model->numgeomsets; body++)
 	{
-		hlmdl_mesh_t	*inmesh = (hlmdl_mesh_t *) ((qbyte *) model->header + amodel->meshindex) + m;
-		unsigned short *order = (unsigned short *) ((qbyte *) model->header + inmesh->index);
-
-		uvertstart = uvertcount;
-		submodel->submesh[m].firstindex = mesh->numindexes;
-		submodel->submesh[m].numindexes = 0;
-
-		for(;;)
+		hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model->header + model->header->bodypartindex) + body;
+		int					bodyindex;
+		model->geomset[body].numalternatives = bodypart->nummodels;
+		model->geomset[body].alternatives = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset[body].alternatives) * bodypart->nummodels);
+		for (bodyindex = 0; bodyindex < bodypart->nummodels; bodyindex++)
 		{
-			count = *order++;	/* get the vertex count and primitive type */
-			if(!count) break;	/* done */
+			hlmdl_submodel_t		*amodel = (hlmdl_submodel_t *) ((qbyte *) model->header + bodypart->modelindex) + bodyindex;
+			struct hlalternative_s *submodel;
 
-			if(count & 0x8000)
-			{	//fan
-				int first = HLMDL_DeDupe(order+0*4, uvert, &uvertcount, maxverts);
-				int prev = HLMDL_DeDupe(order+1*4, uvert, &uvertcount, maxverts);
-				count = (unsigned short)-(short)count;
-				if (idx + (count-2)*3 > maxidx)
-					break;	//would overflow. fixme: extend
-				for (i = min(2,count); i < count; i++)
-				{
-					index[idx++] = first;
-					index[idx++] = prev;
-					index[idx++] = prev = HLMDL_DeDupe(order+i*4, uvert, &uvertcount, maxverts);
-				}
-			}
-			else
+			model->geomset[body].alternatives[bodyindex].numsubmeshes = amodel->nummesh;
+			model->geomset[body].alternatives[bodyindex].submesh = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset[body].alternatives[bodyindex].submesh) * amodel->nummesh);
+
+			submodel = &model->geomset[body].alternatives[bodyindex];
+
+			for(m = 0; m < amodel->nummesh; m++)
 			{
-				int v0 = HLMDL_DeDupe(order+0*4, uvert, &uvertcount, maxverts);
-				int v1 = HLMDL_DeDupe(order+1*4, uvert, &uvertcount, maxverts);
-				//emit (count-2)*3 indicies as a strip
-				//012 213, etc
-				if (idx + (count-2)*3 > maxidx)
-					break;	//would overflow. fixme: extend
-				for (i = min(2,count); i < count; i++)
+				hlmdl_mesh_t	*inmesh = (hlmdl_mesh_t *) ((qbyte *) model->header + amodel->meshindex) + m;
+				unsigned short *order = (unsigned short *) ((qbyte *) model->header + inmesh->index);
+
+				uvertstart = uvertcount;
+				submodel->submesh[m].vbofirstvert = uvertstart;
+				submodel->submesh[m].vbofirstelement = idx;
+				submodel->submesh[m].numvertexes = 0;
+				submodel->submesh[m].numindexes = 0;
+
+				for(;;)
 				{
-					if (i & 1)
-					{
-						index[idx++] = v1;
-						index[idx++] = v0;
+					count = *order++;	/* get the vertex count and primitive type */
+					if(!count) break;	/* done */
+
+					if(count & 0x8000)
+					{	//fan
+						int first = HLMDL_DeDupe(order+0*4, uvert, &uvertcount, uvertstart, maxverts);
+						int prev = HLMDL_DeDupe(order+1*4, uvert, &uvertcount, uvertstart, maxverts);
+						count = (unsigned short)-(short)count;
+						if (idx + (count-2)*3 > maxidx)
+							break;	//would overflow. fixme: extend
+						for (i = min(2,count); i < count; i++)
+						{
+							index[idx++] = first;
+							index[idx++] = prev;
+							index[idx++] = prev = HLMDL_DeDupe(order+i*4, uvert, &uvertcount, uvertstart, maxverts);
+						}
 					}
 					else
 					{
-						index[idx++] = v0;
-						index[idx++] = v1;
+						int v0 = HLMDL_DeDupe(order+0*4, uvert, &uvertcount, uvertstart, maxverts);
+						int v1 = HLMDL_DeDupe(order+1*4, uvert, &uvertcount, uvertstart, maxverts);
+						//emit (count-2)*3 indicies as a strip
+						//012 213, etc
+						if (idx + (count-2)*3 > maxidx)
+							break;	//would overflow. fixme: extend
+						for (i = min(2,count); i < count; i++)
+						{
+							if (i & 1)
+							{
+								index[idx++] = v1;
+								index[idx++] = v0;
+							}
+							else
+							{
+								index[idx++] = v0;
+								index[idx++] = v1;
+							}
+							v0 = v1;
+							index[idx++] = v1 = HLMDL_DeDupe(order+i*4, uvert, &uvertcount, uvertstart, maxverts);
+						}
 					}
-					v0 = v1;
-					index[idx++] = v1 = HLMDL_DeDupe(order+i*4, uvert, &uvertcount, maxverts);
+					order += i*4;
 				}
+
+				if (uvertcount >= maxverts)
+				{
+					//if we're overflowing our verts, rewind, as we cannot generate this mesh. we'll just end up with a 0-index mesh, with no extra verts either
+					uvertcount = uvertstart;
+					idx = submodel->submesh[m].vbofirstelement;
+				}
+
+				submodel->submesh[m].numindexes = idx - submodel->submesh[m].vbofirstelement;
+				submodel->submesh[m].numvertexes = uvertcount - uvertstart;
 			}
-			order += i*4;
 		}
-
-		if (uvertcount >= maxverts)
-		{
-			//if we're overflowing our verts, rewind, as we cannot generate this mesh. we'll just end up with a 0-index mesh, with no extra verts either
-			uvertcount = uvertstart;
-			idx = submodel->submesh[m].firstindex;
-		}
-
-		submodel->submesh[m].numindexes = idx - submodel->submesh[m].firstindex;
 	}
 
-	mesh->numindexes = idx;
-	mesh->numvertexes = uvertcount;
-
+	mesh = &model->mesh;
 	mesh->indexes = ZG_Malloc(model->memgroup, sizeof(*mesh->indexes)*idx);
-	memcpy(mesh->indexes, index, sizeof(*mesh->indexes)*idx);
+	memcpy(mesh->indexes, index, sizeof(*index)*idx);
 
 	mesh->colors4b_array = ZG_Malloc(model->memgroup, sizeof(*mesh->colors4b_array)*uvertcount);
 	mesh->st_array = ZG_Malloc(model->memgroup, sizeof(*mesh->st_array)*uvertcount);
 	mesh->lmst_array[0] = ZG_Malloc(model->memgroup, sizeof(*mesh->lmst_array[0])*uvertcount);
 	mesh->xyz_array = ZG_Malloc(model->memgroup, sizeof(*mesh->xyz_array)*uvertcount);
 	mesh->normals_array = ZG_Malloc(model->memgroup, sizeof(*mesh->normals_array)*uvertcount);
+	mesh->bonenums = ZG_Malloc(model->memgroup, sizeof(*mesh->bonenums)*uvertcount);
+	mesh->boneweights = ZG_Malloc(model->memgroup, sizeof(*mesh->boneweights)*uvertcount);
 #if defined(RTLIGHTS)
 	mesh->snormals_array = ZG_Malloc(model->memgroup, sizeof(*mesh->snormals_array)*uvertcount);
 	mesh->tnormals_array = ZG_Malloc(model->memgroup, sizeof(*mesh->tnormals_array)*uvertcount);
 #endif
-	mesh->bonenums = ZG_Malloc(model->memgroup, sizeof(*mesh->bonenums)*uvertcount);
-	mesh->boneweights = ZG_Malloc(model->memgroup, sizeof(*mesh->boneweights)*uvertcount);
 
-	//prepare the verticies now that we have the mappings
-	for(v = 0; v < uvertcount; v++)
+	mesh->numindexes = idx;
+	mesh->numvertexes = uvertcount;
+
+	for (body = 0; body < model->numgeomsets; body++)
 	{
-		mesh->bonenums[v][0] = mesh->bonenums[v][1] = mesh->bonenums[v][2] = mesh->bonenums[v][3] = bone[uvert[v].vertidx];
-		Vector4Set(mesh->boneweights[v], 1, 0, 0, 0);
-		Vector4Set(mesh->colors4b_array[v], 255, 255, 255, 255);	//why bytes? why not?
+		hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model->header + model->header->bodypartindex) + body;
+		int					bodyindex;
+		for (bodyindex = 0; bodyindex < bodypart->nummodels; bodyindex++)
+		{
+			hlmdl_submodel_t		*amodel = (hlmdl_submodel_t *) ((qbyte *) model->header + bodypart->modelindex) + bodyindex;
 
-		mesh->lmst_array[0][v][0] = uvert[v].scoord;
-		mesh->lmst_array[0][v][1] = uvert[v].tcoord;
-		VectorCopy(verts[uvert[v].vertidx], mesh->xyz_array[v]);
+			vec3_t *verts = (vec3_t *) ((qbyte *) model->header + amodel->vertindex);
+			qbyte *bone = ((qbyte *) model->header + amodel->vertinfoindex);
+			vec3_t *norms = (vec3_t *) ((qbyte *) model->header + amodel->normindex);
+			size_t iv, ov;
 
-		//Warning: these models use different tables for vertex and normals.
-		//this means they might be transformed by different bones. we ignore that and just assume that the normals will want the same bone.
-		VectorCopy(norms[uvert[v].normalidx], mesh->normals_array[v]);
+			struct hlalternative_s *submodel = &model->geomset[body].alternatives[bodyindex];
+			for(m = 0; m < amodel->nummesh; m++)
+			{
+				submesh = &submodel->submesh[m];
+
+				submesh->indexes		= mesh->indexes			+ submesh->vbofirstelement;
+				submesh->colors4b_array	= mesh->colors4b_array	+ submesh->vbofirstvert;
+				submesh->st_array		= mesh->st_array		+ submesh->vbofirstvert;
+				submesh->lmst_array[0]	= mesh->lmst_array[0]	+ submesh->vbofirstvert;
+				submesh->xyz_array		= mesh->xyz_array		+ submesh->vbofirstvert;
+				submesh->normals_array	= mesh->normals_array	+ submesh->vbofirstvert;
+				submesh->bonenums		= mesh->bonenums		+ submesh->vbofirstvert;
+				submesh->boneweights	= mesh->boneweights		+ submesh->vbofirstvert;
+
+				//prepare the verticies now that we have the mappings
+				for(ov = 0, iv = submesh->vbofirstvert; ov < submesh->numvertexes; ov++, iv++)
+				{
+					submesh->bonenums[ov][0] = submesh->bonenums[ov][1] = submesh->bonenums[ov][2] = submesh->bonenums[ov][3] = bone[uvert[iv].vertidx];
+					Vector4Set(submesh->boneweights[ov], 1, 0, 0, 0);
+					Vector4Set(submesh->colors4b_array[ov], 255, 255, 255, 255);	//why bytes? why not?
+
+					submesh->lmst_array[0][ov][0] = uvert[iv].scoord;
+					submesh->lmst_array[0][ov][1] = uvert[iv].tcoord;
+					VectorCopy(verts[uvert[iv].vertidx], submesh->xyz_array[ov]);
+
+					//Warning: these models use different tables for vertex and normals.
+					//this means they might be transformed by different bones. we ignore that and just assume that the normals will want the same bone.
+					VectorCopy(norms[uvert[iv].normalidx], submesh->normals_array[ov]);
+				}
+
+#if defined(RTLIGHTS)
+				//treat this as the base pose, and calculate the sdir+tdir for bumpmaps.
+				submesh->snormals_array = mesh->snormals_array + submesh->vbofirstvert;
+				submesh->tnormals_array = mesh->tnormals_array + submesh->vbofirstvert;
+//				R_Generate_Mesh_ST_Vectors(submesh);
+#endif
+			}
+		}
 	}
+
+	//scratch space...
+	mesh->indexes = ZG_Malloc(model->memgroup, sizeof(*mesh->indexes)*idx);
 
 	//don't need that mapping any more
 	free(uvert);
 	free(index);
-
-#if defined(RTLIGHTS)
-	//treat this as the base pose, and calculate the sdir+tdir for bumpmaps.
-	R_Generate_Mesh_ST_Vectors(mesh);
-#endif
 }
 #endif
 
@@ -237,10 +293,11 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 {
 #ifndef SERVERONLY
-	int i;
-	int body;
+	int i, j;
 	struct hlmodelshaders_s *shaders;
 	hlmdl_tex_t	*tex;
+
+	lmalloc_t atlas;
 #endif
 
 	hlmodel_t *model;
@@ -317,6 +374,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 
 	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
 	model->shaders = shaders;
+
 	for(i = 0; i < texheader->numtextures; i++)
 	{
 		Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "%s/%s", mod->name, COM_SkipPath(tex[i].name));
@@ -328,23 +386,128 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 			if (tex[i].flags & HLMDLFL_FULLBRIGHT)
 			{
 				if (tex[i].flags & HLMDLFL_CHROME)
+				{
 					shader = HLSHADER_FULLBRIGHTCHROME;
+					Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_fullbrightchrome");
+				}
 				else
+				{
 					shader = HLSHADER_FULLBRIGHT;
+					Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_fullbright");
+				}
 			}
 			else if (tex[i].flags & HLMDLFL_CHROME)
+			{
 				shader = HLSHADER_CHROME;
+				Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_chrome");
+			}
 			else
+			{
 				shader = "";
+				Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_other");
+			}
 			shaders[i].defaultshadertext = shader;
 		}
 		else
+		{
 			shaders[i].defaultshadertext = NULL;
+			Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel");
+		}
 		memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
-		shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+	}
+
+
+	//figure out the preferred atlas size. hopefully it'll fit well enough...
+	if (texheader->numtextures == 1)
+		Mod_LightmapAllocInit(&atlas, false, tex[0].w, tex[0].h, 0);
+	else
+	{
+		int sz = 1;
+		for(i = 0; i < texheader->numtextures; i++)
+			while (sz < tex[i].w || sz < tex[i].h)
+				sz <<= 1;
+		for (; sz < sh_config.texture2d_maxsize; sz<<=1)
+		{
+			unsigned short x,y;
+			int atlasid;
+			Mod_LightmapAllocInit(&atlas, false, sz, sz, 0);
+			for(i = 0; i < texheader->numtextures; i++)
+			{
+				if (tex[i].flags & HLMDLFL_CHROME)
+					continue;
+				Mod_LightmapAllocBlock(&atlas, tex[i].w, tex[i].h, &x, &y, &atlasid);
+			}
+			if (i == texheader->numtextures && atlas.lmnum <= 0)
+				break;	//okay, just go with it.
+		}
+		Mod_LightmapAllocInit(&atlas, false, sz, sz, 0);
+	}
+	for(i = 0; i < texheader->numtextures; i++)
+	{
+		if (tex[i].flags & HLMDLFL_CHROME)
+		{
+			shaders[i].x =
+			shaders[i].y = 0;
+			shaders[i].w = tex[i].w;
+			shaders[i].h = tex[i].h;
+			shaders[i].atlasid = -1;
+			continue;
+		}
 		shaders[i].w = tex[i].w;
 		shaders[i].h = tex[i].h;
+		Mod_LightmapAllocBlock(&atlas, shaders[i].w, shaders[i].h, &shaders[i].x, &shaders[i].y, &shaders[i].atlasid);
 	}
+	if (atlas.allocated[0])
+		atlas.lmnum++;
+	//now we know where the various textures will be, generate the atlas images.
+	for (j = 0; j < atlas.lmnum; j++)
+	{
+		char texname[MAX_QPATH];
+		texid_t basetex;
+		int y, x;
+		unsigned int *basepix = Z_Malloc(atlas.width * atlas.height * sizeof(*basepix));
+		for(i = 0; i < texheader->numtextures; i++)
+		{
+			if (shaders[i].atlasid == j)
+			{
+				unsigned *out = basepix + atlas.width*shaders[i].y + shaders[i].x;
+				qbyte *in = (qbyte *) texheader + tex[i].offset;
+				qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
+				qbyte *rgb;
+				for(y = 0; y < tex[i].h; y++, out += atlas.width-shaders[i].w)
+					for(x = 0; x < tex[i].w; x++, in++)
+					{
+						rgb = pal + *in*3;
+						*out++ = 0xff000000 | (rgb[0]<<0) | (rgb[1]<<8) | (rgb[2]<<16);
+					}
+			}
+		}
+		Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, j);
+		basetex = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, basepix, NULL, atlas.width, atlas.height, PTI_RGBX8);
+		Z_Free(basepix);
+		for(i = 0; i < texheader->numtextures; i++)
+		{
+			if (shaders[i].atlasid == j)
+				shaders[i].defaulttex.base = basetex;
+		}
+	}
+	//and chrome textures need to preserve their texture coords to avoid weirdness.
+	for(i = 0; i < texheader->numtextures; i++)
+	{
+		if (tex[i].flags & HLMDLFL_CHROME)
+		{
+			qbyte *in = (qbyte *) texheader + tex[i].offset;
+			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
+			char texname[MAX_QPATH];
+
+			shaders[i].atlasid = j++;
+			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);
+			shaders[i].defaulttex.base = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, in, pal, tex[i].w, tex[i].h, TF_8PAL24);
+		}
+	}
+
+
+
 
 	model->numskinrefs = texheader->skinrefs;
 	model->numskingroups = texheader->skingroups;
@@ -364,20 +527,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 #ifndef SERVERONLY
 	model->numgeomsets = model->header->numbodyparts;
 	model->geomset = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset) * model->numgeomsets);
-	for (body = 0; body < model->numgeomsets; body++)
-	{
-		hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model->header + model->header->bodypartindex) + body;
-		int					bodyindex;
-		model->geomset[body].numalternatives = bodypart->nummodels;
-		model->geomset[body].alternatives = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset[body].alternatives) * bodypart->nummodels);
-		for (bodyindex = 0; bodyindex < bodypart->nummodels; bodyindex++)
-		{
-			hlmdl_submodel_t		*amodel = (hlmdl_submodel_t *) ((qbyte *) model->header + bodypart->modelindex) + bodyindex;
-			model->geomset[body].alternatives[bodyindex].numsubmeshes = amodel->nummesh;
-			model->geomset[body].alternatives[bodyindex].submesh = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset[body].alternatives[bodyindex].submesh) * amodel->nummesh);
-			HLMDL_PrepareVerticies(model, amodel, &model->geomset[body].alternatives[bodyindex]);
-		}
-	}
+	HLMDL_PrepareVerticies(mod, model);
 	//FIXME: No VBOs used.
 #endif
 	return true;
@@ -1149,63 +1299,127 @@ unsigned int HLMDL_Contents	(model_t *model, int hulloverride, const framestate_
 
 
 #ifndef SERVERONLY
-void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curent, int bodypart, int bodyidx, int meshidx, float tex_s, float tex_t, mesh_t *mesh, qboolean gpubones)
+void R_HL_BuildFrame(hlmodel_t *model, int bodypart, int bodyidx, int meshidx, struct hlmodelshaders_s *texinfo, mesh_t *outmesh)
 {
-	int b;
-	int cbone;
-//	int bgroup;
-//	int lastbone;
 	int v;
+	int w = texinfo->defaulttex.base->width;
+	int h = texinfo->defaulttex.base->height;
+	vec2_t texbase = {texinfo->x/(float)w, texinfo->y/(float)h};
+	vec2_t texscale = {1.0/w, 1.0/h};
 
-	*mesh = model->geomset[bodypart].alternatives[bodyidx].mesh;
+	mesh_t *srcmesh = &model->geomset[bodypart].alternatives[bodyidx].submesh[meshidx];
+
+	//copy out the indexes into the final mesh.
+	memcpy(outmesh->indexes+outmesh->numindexes, srcmesh->indexes, sizeof(index_t)*srcmesh->numindexes);
+	outmesh->numindexes += srcmesh->numindexes;
+
+	if (outmesh == &model->mesh)
+	{	//get the backend to do the skeletal stuff (read: glsl)
+		for(v = 0; v < srcmesh->numvertexes; v++)
+		{	//should really come up with a better way to deal with this, like rect textures.
+			srcmesh->st_array[v][0] = texbase[0] + srcmesh->lmst_array[0][v][0] * texscale[0];
+			srcmesh->st_array[v][1] = texbase[1] + srcmesh->lmst_array[0][v][1] * texscale[1];
+		}
+	}
+	else
+	{	//backend can't handle it, apparently. do it in software.
+		int fvert = srcmesh->vbofirstvert;
+		vecV_t *nxyz = outmesh->xyz_array+fvert;
+		vec3_t *nnorm = outmesh->normals_array+fvert;
+
+		for(v = 0; v < srcmesh->numvertexes; v++)
+		{	//should really come up with a better way to deal with this, like rect textures.
+			srcmesh->st_array[v][0] = texbase[0] + srcmesh->lmst_array[0][v][0] * texscale[0];
+			srcmesh->st_array[v][1] = texbase[1] + srcmesh->lmst_array[0][v][1] * texscale[1];
+
+			//transform to nxyz (a separate buffer from the srcmesh data)
+			VectorTransform(srcmesh->xyz_array[v], (void *)transform_matrix[srcmesh->bonenums[v][0]], nxyz[v]);
+
+			//transform to nnorm (a separate buffer from the srcmesh data)
+			nnorm[v][0] = DotProduct(srcmesh->normals_array[v], transform_matrix[srcmesh->bonenums[v][0]][0]);
+			nnorm[v][1] = DotProduct(srcmesh->normals_array[v], transform_matrix[srcmesh->bonenums[v][0]][1]);
+			nnorm[v][2] = DotProduct(srcmesh->normals_array[v], transform_matrix[srcmesh->bonenums[v][0]][2]);
+
+			//FIXME: svector, tvector!
+		}
+	}
+}
+
+static void R_HL_BuildMeshes(batch_t *b)
+{
+	entity_t *rent = b->ent;
+	hlmodel_t *model = Mod_Extradata(rent->model);
+	int						body, m;
+	static mesh_t *mptr[1], softbonemesh;
+	skinfile_t *sk = rent->customskin?Mod_LookupSkin(rent->customskin):NULL;
+
+	const unsigned int entity_body = 0/*rent->body*/;
+	int surf;
+
+	float *bones;
+	int numbones;
+
+	if (b->shader->prog && (b->shader->prog->supportedpermutations & PERMUTATION_SKELETAL) && model->header->numbones < sh_config.max_gpu_bones)
+	{	//okay, we can use gpu gones. yay.
+		b->mesh = mptr;
+		*b->mesh = &model->mesh;
+	}
+	else
+	{
+		static vecV_t nxyz_buffer[65536];
+		static vec3_t nnorm_buffer[65536];
+		//no gpu bone support. :(
+		softbonemesh = model->mesh;
+		b->mesh = mptr;
+		*b->mesh = &softbonemesh;
+
+		//this stuff will get recalculated
+		softbonemesh.xyz_array = nxyz_buffer;
+		softbonemesh.normals_array = nnorm_buffer;
+
+		//don't get confused.
+		softbonemesh.bonenums = NULL;
+		softbonemesh.boneweights = NULL;
+		softbonemesh.bones = NULL;
+		softbonemesh.numbones = 0;
+	}
+	(*b->mesh)->numindexes = 0;
 
 	//FIXME: cache this!
-	if (curent->framestate.bonecount >= model->header->numbones)
-	{
-		if (curent->framestate.skeltype == SKEL_RELATIVE)
+	if (rent->framestate.bonecount >= model->header->numbones)
+	{	//skeletal object...
+		int b;
+		if (rent->framestate.skeltype == SKEL_RELATIVE)
 		{
-			mesh->numbones = model->header->numbones;
-			for (b = 0; b < mesh->numbones; b++)
+			numbones = model->header->numbones;
+			for (b = 0; b < numbones; b++)
 			{
 				/* If we have a parent, take the addition. Otherwise just copy the values */
 				if(model->bones[b].parent>=0)
 				{
-					R_ConcatTransforms((void*)transform_matrix[model->bones[b].parent], (void*)(curent->framestate.bonestate+b*12), transform_matrix[b]);
+					R_ConcatTransforms((void*)transform_matrix[model->bones[b].parent], (void*)(rent->framestate.bonestate+b*12), transform_matrix[b]);
 				}
 				else
 				{
-					memcpy(transform_matrix[b], curent->framestate.bonestate+b*12, 12 * sizeof(float));
+					memcpy(transform_matrix[b], rent->framestate.bonestate+b*12, 12 * sizeof(float));
 				}
 			}
-			mesh->bones = transform_matrix[0][0];
+			bones = transform_matrix[0][0];
 		}
 		else
 		{
-			mesh->bones = curent->framestate.bonestate;
-			mesh->numbones = curent->framestate.bonecount;
+			bones = rent->framestate.bonestate;
+			numbones = rent->framestate.bonecount;
 		}
 	}
 	else
-	{
+	{	//lerp the bone data ourselves.
 		float relatives[12*MAX_BONES];
-		mesh->bones = transform_matrix[0][0];
-		mesh->numbones = model->header->numbones;
+		int cbone, b;
+		bones = transform_matrix[0][0];
+		numbones = model->header->numbones;
 
-/*		//FIXME: needs caching.
-		for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
-			model->controller[b] = curent->framestate.bonecontrols[b];
-		for (cbone = 0, bgroup = 0; bgroup < FS_COUNT; bgroup++)
-		{
-			lastbone = curent->framestate.g[bgroup].endbone;
-			if (bgroup == FS_COUNT-1)
-				lastbone = model->header->numbones;
-			if (cbone >= lastbone)
-				continue;
-			HL_SetupBones(model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, curent->framestate.g[bgroup].subblendfrac, curent->framestate.g[bgroup].frametime[0], relatives);	// Setup the bones
-			cbone = lastbone;
-		}
-*/
-		cbone = HLMDL_GetBoneData_Internal(model, 0, model->header->numbones, &curent->framestate, relatives);
+		cbone = HLMDL_GetBoneData_Internal(model, 0, model->header->numbones, &rent->framestate, relatives);
 
 		//convert relative to absolutes
 		for (b = 0; b < cbone; b++)
@@ -1222,62 +1436,83 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 		}
 	}
 
-	mesh->indexes += model->geomset[bodypart].alternatives[bodyidx].submesh[meshidx].firstindex;
-	mesh->numindexes = model->geomset[bodypart].alternatives[bodyidx].submesh[meshidx].numindexes;
+	model->mesh.bones = bones;
+	model->mesh.numbones = numbones;
 
-	if (gpubones && model->header->numbones < sh_config.max_gpu_bones)
-	{	//get the backend to do the skeletal stuff (read: glsl)
-		for(v = 0; v < mesh->numvertexes; v++)
-		{	//should really come up with a better way to deal with this, like rect textures.
-			mesh->st_array[v][0] = mesh->lmst_array[0][v][0] * tex_s;
-			mesh->st_array[v][1] = mesh->lmst_array[0][v][1] * tex_t;
+	for (surf = 0; surf < b->meshes; surf++)
+	{
+		body = b->user.alias.surfrefs[surf] >> 8;
+		{
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+			hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model->header + model->header->bodypartindex) + body;
+			int					bodyindex = ((sk && body < MAX_GEOMSETS && sk->geomset[body] >= 1)?sk->geomset[body]-1:(entity_body / bodypart->base)) % bodypart->nummodels;
+			hlmdl_submodel_t	*amodel = (hlmdl_submodel_t *) ((qbyte *) model->header + bodypart->modelindex) + bodyindex;
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+			/* Draw each mesh */
+			m = b->user.alias.surfrefs[surf] & 0xff;
+			{
+				/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+				hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model->header + amodel->meshindex) + m;
+				struct hlmodelshaders_s *texinfo;
+				int skinidx = mesh->skinindex;
+				/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+				if (rent->skinnum < model->numskingroups)
+					skinidx += rent->skinnum * model->numskinrefs;
+				texinfo = &model->shaders[model->skinref[skinidx]];
+
+				R_HL_BuildFrame(model, body, bodyindex, m, texinfo, *b->mesh);
+			}
 		}
 	}
-	else
-	{	//backend can't handle it, apparently. do it in software.
-		static vecV_t nxyz[2048];
-		static vec3_t nnorm[2048];
-		for(v = 0; v < mesh->numvertexes; v++)
-		{	//should really come up with a better way to deal with this, like rect textures.
-			mesh->st_array[v][0] = mesh->lmst_array[0][v][0] * tex_s;
-			mesh->st_array[v][1] = mesh->lmst_array[0][v][1] * tex_t;
-
-			VectorTransform(mesh->xyz_array[v], (void *)transform_matrix[mesh->bonenums[v][0]], nxyz[v]);
-
-			nnorm[v][0] = DotProduct(mesh->normals_array[v], transform_matrix[mesh->bonenums[v][0]][0]);
-			nnorm[v][1] = DotProduct(mesh->normals_array[v], transform_matrix[mesh->bonenums[v][0]][1]);
-			nnorm[v][2] = DotProduct(mesh->normals_array[v], transform_matrix[mesh->bonenums[v][0]][2]);
-
-			//FIXME: svector, tvector!
-		}
-		mesh->xyz_array = nxyz;
-		mesh->normals_array = nnorm;
-		mesh->bonenums = NULL;
-		mesh->boneweights = NULL;
-		mesh->bones = NULL;
-		mesh->numbones = 0;
-	}
+	b->meshes = 1;
 }
+qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel);
 
-static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches);
-static void R_HL_BuildMesh(struct batch_s *b)
-{
-	R_HalfLife_WalkMeshes(b->ent, b, NULL);
-}
-
-static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
+void R_HalfLife_GenerateBatches(entity_t *rent, batch_t **batches)
 {
 	hlmodel_t *model = Mod_Extradata(rent->model);
 	int						body, m;
-	int batchid = 0;
-	static mesh_t bmesh, *mptr = &bmesh;
-	skinfile_t *sk = NULL;
+	skinfile_t *sk = rent->customskin?Mod_LookupSkin(rent->customskin):NULL;
 
-	unsigned int entity_body = 0;
+	const unsigned int entity_body = 0/*rent->body*/;
+	batch_t *b = NULL;
 
-	if (rent->customskin)
-		sk = Mod_LookupSkin(rent->customskin);
-	//entity_body = rent->body;	//hey, if its there, lets use it.
+	unsigned int surfidx = 0;
+
+	R_CalcModelLighting(rent, rent->model);	//make sure the ent's lighting is right.
+
+	/*if (!model->vbobuilt)
+	{
+		mesh_t *mesh = &model->mesh;
+		vbo_t *vbo = &model->vbo;
+		vbobctx_t ctx;
+
+		model->vbobuilt = true;
+
+		BE_VBO_Begin(&ctx, (sizeof(*mesh->xyz_array)+
+							sizeof(*mesh->colors4b_array)+
+							sizeof(*mesh->st_array)+
+							sizeof(*mesh->lmst_array[0])+
+							sizeof(*mesh->normals_array)+
+							sizeof(*mesh->bonenums)+
+							sizeof(*mesh->boneweights)+
+							sizeof(*mesh->snormals_array)+
+							sizeof(*mesh->tnormals_array))*mesh->numvertexes);
+		BE_VBO_Data(&ctx, mesh->xyz_array, sizeof(*mesh->xyz_array)*mesh->numvertexes, &vbo->coord);
+		BE_VBO_Data(&ctx, mesh->colors4b_array, sizeof(*mesh->colors4b_array)*mesh->numvertexes, &vbo->colours[0]);vbo->colours_bytes = true;
+		BE_VBO_Data(&ctx, mesh->st_array, sizeof(*mesh->st_array)*mesh->numvertexes, &vbo->texcoord);
+		BE_VBO_Data(&ctx, mesh->lmst_array[0], sizeof(*mesh->lmst_array[0])*mesh->numvertexes, &vbo->lmcoord[0]);
+		BE_VBO_Data(&ctx, mesh->normals_array, sizeof(*mesh->normals_array)*mesh->numvertexes, &vbo->normals);
+		BE_VBO_Data(&ctx, mesh->bonenums, sizeof(*mesh->bonenums)*mesh->numvertexes, &vbo->bonenums);
+		BE_VBO_Data(&ctx, mesh->boneweights, sizeof(*mesh->boneweights)*mesh->numvertexes, &vbo->boneweights);
+#if defined(RTLIGHTS)
+		BE_VBO_Data(&ctx, mesh->snormals_array, sizeof(*mesh->snormals_array)*mesh->numvertexes, &vbo->tvector);
+		BE_VBO_Data(&ctx, mesh->tnormals_array, sizeof(*mesh->tnormals_array)*mesh->numvertexes, &vbo->svector);
+#endif
+		BE_VBO_Finish(&ctx, mesh->indexes, mesh->numindexes, &vbo->indicies, &vbo->vbomem, &vbo->ebomem);
+	}*/
 
 	for (body = 0; body < model->numgeomsets; body++)
 	{
@@ -1289,14 +1524,15 @@ static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 
 
 		/* Draw each mesh */
-		for(m = 0; m < amodel->nummesh; m++)
+		for(m = 0; m < amodel->nummesh; m++, surfidx++)
 		{
 			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 			hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model->header + amodel->meshindex) + m;
-			float			tex_w;
-			float			tex_h;
 			struct hlmodelshaders_s *s;
 			int skinidx = mesh->skinindex;
+			texnums_t *skin;
+			shader_t *shader;
+			int sort, j;
 			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 			if (skinidx >= model->numskinrefs)
@@ -1305,54 +1541,59 @@ static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				skinidx += rent->skinnum * model->numskinrefs;
 			s = &model->shaders[model->skinref[skinidx]];
 
-			if (batches)
-			{
-				int sort, j;
 
+			if (!s->shader)
+			{
+				if (s->defaultshadertext)
+					s->shader = R_RegisterShader(s->name, SUF_NONE, s->defaultshadertext);
+				else
+					s->shader = R_RegisterSkin(s->name, rent->model->name);
+//				R_BuildDefaultTexnums(&s->defaulttex, s->shader, 0);
+			}
+
+			skin = &s->defaulttex;
+			shader = s->shader;
+			if (sk)
+			{
+				int i;
+				for (i = 0; i < sk->nummappings; i++)
+				{
+					if (!strcmp(sk->mappings[i].surface, s->name))
+					{
+						skin = &sk->mappings[i].texnums;
+						shader = sk->mappings[i].shader;
+						break;
+					}
+				}
+			}
+
+			if ( rent->forcedshader ) {
+				shader = rent->forcedshader;
+			}
+
+			if (b && b->skin->base == skin->base && b->shader == shader && b->meshes < countof(b->user.alias.surfrefs))
+				;	//merging it.
+			else
+			{
 				b = BE_GetTempBatch();
 				if (!b)
 					return;
+				b->skin = skin;
+				b->shader = shader;
 
-
-				if (!s->shader)
-				{
-					if (s->defaultshadertext)
-						s->shader = R_RegisterShader(s->name, SUF_NONE, s->defaultshadertext);
-					else
-						s->shader = R_RegisterSkin(s->name, rent->model->name);
-					R_BuildDefaultTexnums(&s->defaulttex, s->shader, 0);
-				}
-				b->skin = NULL;
-				b->shader = s->shader;
-				if (sk)
-				{
-					int i;
-					for (i = 0; i < sk->nummappings; i++)
-					{
-						if (!strcmp(sk->mappings[i].surface, s->name))
-						{
-							b->skin = &sk->mappings[i].texnums;
-							b->shader = sk->mappings[i].shader;
-							break;
-						}
-					}
-				}
-				
-				if ( rent->forcedshader ) {
-					b->shader = rent->forcedshader; 
-				}
-
-				b->buildmeshes = R_HL_BuildMesh;
+				b->buildmeshes = R_HL_BuildMeshes;
 				b->ent = rent;
 				b->mesh = NULL;
 				b->firstmesh = 0;
-				b->meshes = 1;
+				b->meshes = 0;
 				b->texture = NULL;
 				for (j = 0; j < MAXRLIGHTMAPS; j++)
+				{
 					b->lightmap[j] = -1;
-				b->surf_first = batchid;
+					b->lmlightstyle[j] = INVALID_LIGHTSTYLE;
+				}
 				b->flags = 0;
-				sort = b->shader->sort;
+				sort = shader->sort;
 				//fixme: we probably need to force some blend modes based on the surface flags.
 				if (rent->flags & RF_FORCECOLOURMOD)
 					b->flags |= BEF_FORCECOLOURMOD;
@@ -1376,34 +1617,14 @@ static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				}
 				if (rent->flags & RF_NOSHADOW)
 					b->flags |= BEF_NOSHADOWS;
-				b->vbo = NULL;
+				b->vbo = NULL;//&model->vbo;
 				b->next = batches[sort];
 				batches[sort] = b;
 			}
-			else
-			{
-				if (batchid == b->surf_first)
-				{
-					tex_w = 1.0f / s->w;
-					tex_h = 1.0f / s->h;
-	
-					b->mesh = &mptr;
-					R_HL_BuildFrame(model, amodel, b->ent, body, bodyindex, m, tex_w, tex_h, b->mesh[0], b->shader->prog && (b->shader->prog->supportedpermutations & PERMUTATION_SKELETAL));
-					return;
-				}
-			}
 
-			batchid++;
+			b->user.alias.surfrefs[b->meshes++] = (body<<8)|(m&0xff);
 		}
 	}
-}
-
-qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel);
-
-void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches)
-{
-	R_CalcModelLighting(e, e->model);
-	R_HalfLife_WalkMeshes(e, NULL, batches);
 }
 
 void HLMDL_DrawHitBoxes(entity_t *rent)

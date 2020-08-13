@@ -411,6 +411,19 @@ void GLVID_Console_Resize(void);
 int R_LightPoint (vec3_t p);
 void R_RenderDlights (void);
 
+typedef struct
+{
+	int allocated[LMBLOCK_SIZE_MAX];
+	int firstlm;
+	int lmnum;
+	unsigned int width;
+	unsigned int height;
+	qboolean deluxe;
+} lmalloc_t;
+void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned int width, unsigned int height, int firstlm);	//firstlm is for debugging stray lightmap indexes
+//void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod);
+void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum);
+
 enum imageflags
 {
 	/*warning: many of these flags only apply the first time it is requested*/
@@ -449,7 +462,7 @@ enum imageflags
 	IF_NOPURGE			= 1<<22,	//texture is not flushed when no more shaders refer to it (for C code that holds a permanant reference to it - still purged on vid_reloads though)
 	IF_HIGHPRIORITY		= 1<<23,	//pushed to start of worker queue instead of end...
 	IF_LOWPRIORITY		= 1<<24,	//
-	IF_LOADNOW			= 1<<25,	/*hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance*/
+	IF_LOADNOW			= 1<<25,	/*hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance. valid on worker threads.*/
 	IF_NOPCX			= 1<<26,	/*block pcx format. meaning qw skins can use team colours and cropping*/
 	IF_TRYBUMP			= 1<<27,	/*attempt to load _bump if the specified _norm texture wasn't found*/
 	IF_RENDERTARGET		= 1<<28,	/*never loaded from disk, loading can't fail*/

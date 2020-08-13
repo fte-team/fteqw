@@ -160,21 +160,36 @@ typedef struct batch_s
 		struct
 		{
 			unsigned int shadowbatch;	//a unique index to accelerate shadowmesh generation (dlights, yay!)
-			unsigned int ebobatch;		//
-			unsigned int webobatch;		//su
-		};
-		struct 
+			unsigned int ebobatch;		//temporal scene cache stuff, basically just a simple index so we don't have to deal with shader sort values when generating new index lists.
+//		} bmodel;
+//		struct
+//		{
+			vec4_t plane;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
+		} bmodel;	//bmodel surfaces.
+		struct
 		{
-			unsigned int surf_first;
-			unsigned int surf_count;
-		};
-		vec4_t plane;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
+			unsigned int lightidx;
+			unsigned int lightmode;
+		} dlight;	//deferred light batches
+		struct
+		{
+			unsigned short surfrefs[sizeof(mesh_t)/sizeof(unsigned short)];	//for hlmdl batching...
+		} alias;
+		struct
+		{
+			unsigned int surface;
+		} poly;
+	/*	struct
+		{
+			unsigned int first;
+			unsigned int count;
+		} surf;*/
 		struct
 		{
 			mesh_t meshbuf;
 			mesh_t *meshptr;
 		};
-	};
+	} user;
 } batch_t;
 /*
 

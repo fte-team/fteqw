@@ -175,6 +175,7 @@ typedef struct package_s {
 //			DEP_MIRROR,
 //			DEP_FAILEDMIRROR,
 
+			DEP_SOURCE,			//which source url we found this package from
 			DEP_EXTRACTNAME,	//a file that will be installed
 			DEP_FILE			//a file that will be installed
 		} dtype;
@@ -286,6 +287,37 @@ static void PM_FreePackage(package_t *p)
 	Z_Free(p);
 }
 
+static void PM_AddDep(package_t *p, int deptype, const char *depname)
+{
+	struct packagedep_s *nd, **link;
+
+	//no dupes.
+	for (link = &p->deps; (nd=*link) ; link = &nd->next)
+	{
+		if (nd->dtype == deptype && !strcmp(nd->name, depname))
+			return;
+	}
+
+	//add it on the end, preserving order.
+	nd = Z_Malloc(sizeof(*nd) + strlen(depname));
+	nd->dtype = deptype;
+	strcpy(nd->name, depname);
+	nd->next = *link;
+	*link = nd;
+}
+static qboolean PM_HasDep(package_t *p, int deptype, const char *depname)
+{
+	struct packagedep_s *d;
+
+	//no dupes.
+	for (d = p->deps; d ; d = d->next)
+	{
+		if (d->dtype == deptype && !strcmp(d->name, depname))
+			return true;
+	}
+	return false;
+}
+
 static qboolean PM_PurgeOnDisable(package_t *p)
 {
 	//corrupt packages must be purged
@@ -310,7 +342,7 @@ void PM_ValidateAuthenticity(package_t *p)
 	int r;
 	char authority[MAX_QPATH], *sig;
 
-#if 1//ndef _DEBUG
+#ifndef _DEBUG
 #pragma message("Temporary code.")
 	//this is temporary code and should be removed once everything else has been fixed.
 	//ignore the signature (flag as accepted) for any packages with all mirrors on our own update site.
@@ -381,6 +413,7 @@ void PM_ValidateAuthenticity(package_t *p)
 		r = OSSL_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
 #endif
 
+	p->flags &= ~(DPF_SIGNATUREACCEPTED|DPF_SIGNATUREREJECTED|DPF_SIGNATUREUNKNOWN);
 	if (r == VH_CORRECT)
 		p->flags |= DPF_SIGNATUREACCEPTED;
 	else if (r == VH_INCORRECT)
@@ -570,18 +603,15 @@ static qboolean PM_MergePackage(package_t *oldp, package_t *newp)
 		{
 			//if its a zip then the 'remote' file list will be blank while the local list is not (we can just keep the local list).
 			//if the file list DOES change, then bump the version.
-			if (ignorefiles)
+			if ((od->dtype == DEP_FILE && ignorefiles) || od->dtype == DEP_SOURCE)
 			{
-				if (od->dtype == DEP_FILE)
-				{
-					od = od->next;
-					continue;
-				}
-				if (nd->dtype == DEP_FILE)
-				{
-					nd = nd->next;
-					continue;
-				}
+				od = od->next;
+				continue;
+			}
+			if ((nd->dtype == DEP_FILE && ignorefiles) || nd->dtype == DEP_SOURCE)
+			{
+				nd = nd->next;
+				continue;
 			}
 
 			if (od->dtype != nd->dtype)
@@ -600,6 +630,12 @@ static qboolean PM_MergePackage(package_t *oldp, package_t *newp)
 		if (newp->author){Z_Free(oldp->author); oldp->author = Z_StrDup(newp->author);}
 		if (newp->website){Z_Free(oldp->website); oldp->website = Z_StrDup(newp->website);}
 		if (newp->previewimage){Z_Free(oldp->previewimage); oldp->previewimage = Z_StrDup(newp->previewimage);}
+
+		if (newp->signature){Z_Free(oldp->signature); oldp->signature = Z_StrDup(newp->signature);}
+		if (newp->filesha1){Z_Free(oldp->filesha1); oldp->previewimage = Z_StrDup(newp->filesha1);}
+		if (newp->filesha512){Z_Free(oldp->filesha512); oldp->filesha512 = Z_StrDup(newp->filesha512);}
+		if (newp->filesize){oldp->filesize = newp->filesize;}
+
 		oldp->priority = newp->priority;
 
 		if (nm)
@@ -624,6 +660,15 @@ static qboolean PM_MergePackage(package_t *oldp, package_t *newp)
 		}
 		//these flags should only remain set if set in both.
 		oldp->flags &= ~(DPF_FORGETONUNINSTALL|DPF_TESTING|DPF_MANIFEST) | (newp->flags & (DPF_FORGETONUNINSTALL|DPF_TESTING|DPF_MANIFEST));
+
+		for (nd = newp->deps; nd ; nd = nd->next)
+		{
+			if (nd->dtype == DEP_SOURCE)
+			{
+				if (!PM_HasDep(oldp, DEP_SOURCE, nd->name))
+					PM_AddDep(oldp, DEP_SOURCE, nd->name);
+			}
+		}
 
 		PM_FreePackage(newp);
 		return true;
@@ -786,24 +831,6 @@ static qboolean PM_CheckFile(const char *filename, enum fs_relative base)
 	}
 	return false;
 }
-static void PM_AddDep(package_t *p, int deptype, const char *depname)
-{
-	struct packagedep_s *nd, **link;
-
-	//no dupes.
-	for (link = &p->deps; (nd=*link) ; link = &nd->next)
-	{
-		if (nd->dtype == deptype && !strcmp(nd->name, depname))
-			return;
-	}
-
-	//add it on the end, preserving order.
-	nd = Z_Malloc(sizeof(*nd) + strlen(depname));
-	nd->dtype = deptype;
-	strcpy(nd->name, depname);
-	nd->next = *link;
-	*link = nd;
-}
 
 static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qboolean trustworthy)
 {
@@ -845,6 +872,8 @@ static void PM_RemSubList(const char *url)
 	{
 		if (!strcmp(downloadablelist[i].url, url))
 		{
+			//FIXME: forget all packages which have only this url as a source. remove this source from other packages.
+
 			if (downloadablelist[i].curdl)
 				DL_Close(downloadablelist[i].curdl);
 			Z_Free(downloadablelist[i].url);
@@ -1317,6 +1346,9 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 				else
 					p->flags |= DPF_USERMARKED;	//FIXME: we don't know if this was manual or auto
 			}
+
+			if (url)
+				PM_AddDep(p, DEP_SOURCE, url);
 
 			PM_InsertPackage(p);
 		}
@@ -3450,7 +3482,7 @@ static void PM_PromptApplyChanges(void)
 	pkg_updating = true;
 #endif
 
-	strcpy(text, "Really decline the following\nrecommendedpackages?\n\n");
+	strcpy(text, "Really decline the following\nrecommended packages?\n\n");
 	if (PM_DeclinedPackages(text+strlen(text), sizeof(text)-strlen(text)))
 		Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel");
 	else
@@ -3585,6 +3617,7 @@ void PM_Command_f(void)
 			int i, count;
 			package_t **sorted;
 			const char *category = "", *newcat;
+			struct packagedep_s *dep;
 			for (count = 0, p = availablepackages; p; p=p->next)
 				count++;
 			sorted = Z_Malloc(sizeof(*sorted)*count);
@@ -3659,6 +3692,12 @@ void PM_Command_f(void)
 				//show the package details.
 				Con_Printf("\t^["S_COLOR_GRAY"%s%s%s%s^] %s"S_COLOR_GRAY" %s (%s%s)", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"", p->version, (p->flags&DPF_TESTING)?"-testing":"");
 
+				for (dep = p->deps; dep; dep = dep->next)
+				{
+					if (dep->dtype == DEP_SOURCE)
+						Con_Printf(S_COLOR_MAGENTA" %s", dep->name);
+				}
+
 				if (!(p->flags&DPF_MARKED) && p == PM_FindPackage(p->name))
 					Con_Printf(" ^[[Add]\\type\\pkg add %s;pkg apply^]", COM_QuotedString(p->name, quoted, sizeof(quoted), false));
 				if ((p->flags&DPF_MARKED) && p == PM_MarkedPackage(p->name, DPF_MARKED))
@@ -3670,22 +3709,31 @@ void PM_Command_f(void)
 		}
 		else if (!strcmp(act, "show"))
 		{
+			struct packagedep_s *dep;
+			int found = 0;
 			key = Cmd_Argv(2);
-			p = PM_FindPackage(key);
-			if (p)
+			for (p = availablepackages; p; p=p->next)
 			{
+				if (Q_strcasecmp(p->name, key))
+					continue;
+
 				if (p->previewimage)
 					Con_Printf("^[%s (%s)\\tipimg\\%s\\tip\\%s^]\n", p->name, p->version, p->previewimage, "");
 				else
 					Con_Printf("%s (%s)\n", p->name, p->version);
 				if (p->title)
-					Con_Printf("	title: %s\n", p->title);
+					Con_Printf("	^mtitle: ^m%s\n", p->title);
 				if (p->license)
-					Con_Printf("	license: %s\n", p->license);
+					Con_Printf("	^mlicense: ^m%s\n", p->license);
 				if (p->author)
-					Con_Printf("	author: %s\n", p->author);
+					Con_Printf("	^mauthor: ^m%s\n", p->author);
 				if (p->website)
-					Con_Printf("	website: %s\n", p->website);
+					Con_Printf("	^mwebsite: ^m%s\n", p->website);
+				for (dep = p->deps; dep; dep = dep->next)
+				{
+					if (dep->dtype == DEP_SOURCE)
+						Con_Printf("	^msource: ^m%s\n", dep->name);
+				}
 				if (p->description)
 					Con_Printf("%s\n", p->description);
 
@@ -3728,10 +3776,22 @@ void PM_Command_f(void)
 				if (p->flags & DPF_ENGINE)
 					Con_Printf("	package is an engine update\n");
 				if (p->flags & DPF_TESTING)
-					Con_Printf("	package is untested\n");
-				return;
+					Con_Printf(S_COLOR_YELLOW"	package is untested\n");
+				if (!PM_SignatureOkay(p))
+				{
+					if (!p->signature)
+						Con_Printf(CON_ERROR"	Signature missing"CON_DEFAULT"\n");			//some idiot forgot to include a signature
+					else if (p->flags & DPF_SIGNATUREREJECTED)
+						Con_Printf(CON_ERROR"	Signature invalid"CON_DEFAULT"\n");			//some idiot got the wrong auth/sig/hash
+					else if (p->flags & DPF_SIGNATUREUNKNOWN)
+						Con_Printf(S_COLOR_RED"	Signature is not trusted"CON_DEFAULT"\n");	//clientside permission.
+					else
+						Con_Printf(CON_ERROR"	Unable to verify signature"CON_DEFAULT"\n");	//clientside problem.
+				}
+				found++;
 			}
-			Con_Printf("<package not found>\n");
+			if (!found)
+				Con_Printf("<package not found>\n");
 		}
 		else if (!strcmp(act, "search") || !strcmp(act, "find"))
 		{

@@ -432,14 +432,14 @@ void Key_UpdateCompletionDesc(void)
 		if (var)
 		{
 			if (desc)
-				Con_Footerf(NULL, false, "%s %s\n%s", cmd, var->string, desc);
+				Con_Footerf(NULL, false, "%s %s\n%s", cmd, var->string, localtext(desc));
 			else
 				Con_Footerf(NULL, false, "%s %s", cmd, var->string);
 		}
 		else
 		{
 			if (desc)
-				Con_Footerf(NULL, false, "%s: %s", cmd, desc);
+				Con_Footerf(NULL, false, "%s: %s", cmd, localtext(desc));
 			else
 				Con_Footerf(NULL, false, "");
 		}
@@ -508,7 +508,7 @@ void CompleteCommand (qboolean force, int direction)
 				con_commandmatch = 1;
 
 			if (desc)
-				Con_Footerf(NULL, false, "%s: %s", cmd, desc);
+				Con_Footerf(NULL, false, "%s: %s", cmd, localtext(desc));
 			else
 				Con_Footerf(NULL, false, "");
 			return;

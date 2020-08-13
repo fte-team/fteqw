@@ -4539,7 +4539,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 		if (sysextnames && (!vk.khr_swapchain || !surfext))
 		{
-			Con_Printf(CON_ERROR"Vulkan instance lacks driver support for %s\n", sysextnames[0]);
+			Con_TPrintf(CON_ERROR"Vulkan instance lacks driver support for %s\n", sysextnames[0]);
 			return false;
 		}
 	}
@@ -4796,7 +4796,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:				type = "software"; break;
 		}
 
-		Con_Printf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
+		Con_TPrintf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
 			gpuidx, type, vendor, props.deviceName,
 			VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion), VK_VERSION_PATCH(props.driverVersion)
 			);
@@ -5017,7 +5017,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		switch(err)
 		{
 		case VK_ERROR_INCOMPATIBLE_DRIVER:
-			Con_Printf(CON_ERROR"VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
+			Con_TPrintf(CON_ERROR"VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
 			return false;
 		case VK_ERROR_EXTENSION_NOT_PRESENT:
 		case VK_ERROR_FEATURE_NOT_PRESENT:

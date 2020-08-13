@@ -5696,7 +5696,7 @@ void CL_SetSolidEntities (void)
 			if (state->modelindex <= 0)
 				continue;
 			mod = cl.model_precache[state->modelindex];
-			if (!mod)
+			if (!mod || mod->loadstate != MLS_LOADED)
 				continue;
 			/*vanilla protocols have no 'solid' information. all entities get assigned ES_SOLID_BSP, even if its not actually solid.
 			so we need to make sure that item pickups are not erroneously considered solid, but doors etc are.
@@ -5709,8 +5709,6 @@ void CL_SetSolidEntities (void)
 			pent = &pmove.physents[pmove.numphysent];
 			memset(pent, 0, sizeof(physent_t));
 			pent->model = mod;
-			if (pent->model->loadstate != MLS_LOADED)
-				continue;
 			VectorCopy (state->angles, pent->angles);
 			pent->angles[0]*=r_meshpitch.value;
 		}

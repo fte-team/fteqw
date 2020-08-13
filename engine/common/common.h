@@ -160,6 +160,7 @@ struct netprim_s
 		#define COORDTYPE_FIXED_16_8	3			//rmq
 		#define COORDTYPE_FIXED_28_4	4			//rmq, pointless
 		#define COORDTYPE_FLOAT_32		(4|0x80)	//fte/dp/rmq
+		#define COORDTYPE_SIZE_MASK		0xf			//coordtype&mask == number of bytes.
 	qbyte anglesize;
 	qbyte flags;
 		#define NPQ2_ANG16				(1u<<0)
@@ -756,6 +757,7 @@ int FS_GetManifestArgv(char **argv, int maxargs);
 struct zonegroup_s;
 void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize, qboolean filters);
 qbyte *FS_LoadMallocFile (const char *path, size_t *fsize);
+qbyte *FS_LoadMallocFileFlags (const char *path, unsigned int locateflags, size_t *fsize);
 qofs_t FS_LoadFile(const char *name, void **file);
 void FS_FreeFile(void *file);
 
@@ -918,7 +920,15 @@ void Log_ShutDown(void);
 void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
 qboolean IPLog_Merge_File(const char *fname);
 #endif
-qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize);
+enum certlog_problem_e
+{
+	CERTLOG_WRONGHOST,
+	CERTLOG_EXPIRED,
+	CERTLOG_MISSINGCA,
+
+	CERTLOG_UNKNOWN,
+};
+qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, unsigned int certlogproblems);
 
 #if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
 qboolean Log_CheckMapCompletion(const char *packagename, const char *mapname, float *besttime, float *fulltime, float *bestkills, float *bestsecrets);

@@ -2797,6 +2797,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	if (csqc_worldchanged)
 	{
 		csqc_worldchanged = false;
+		cl.worldmodel = r_worldentity.model = csqc_world.worldmodel;
 		Surf_NewMap();
 		CL_UpdateWindowTitle();
 
@@ -3144,7 +3145,7 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = cl.worldmodel?World_PointContentsWorldOnly(w, v):FTECONTENTS_EMPTY;
+	cont = w->worldmodel?World_PointContentsWorldOnly(w, v):FTECONTENTS_EMPTY;
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -3197,12 +3198,16 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 		VectorSubtract (model->maxs, model->mins, ent->v->size);
 
 		if (!ent->entnum)
-		{
-			cl.worldmodel = r_worldentity.model = csqc_world.worldmodel = model;
+		{	//setmodel(world, "maps/foo.bsp"); may be used to switch the csqc's worldmodel.
+			csqc_world.worldmodel = model;
 			csqc_worldchanged = true;
 
 			VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmin);
 			VectorAdd(ent->v->origin, ent->v->maxs, ent->v->absmax);
+
+			World_ClearWorld (&csqc_world, true);	//make sure any pvs stuff is rebuilt.
+			cl.num_statics = 0;	//has pvs indexes that can cause crashes.
+			return model;
 		}
 	}
 	else
@@ -4028,7 +4033,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 		return;
 	}
 
-	if (!cl.worldmodel)
+	if (!csqc_world.worldmodel)
 		return;	//urm..
 
 	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
@@ -4122,11 +4127,11 @@ static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globa
 	if (prinst->callargc)
 	{
 		const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
-		if (*s == 0 && cl.worldmodel)
+		if (*s == 0 && csqc_world.worldmodel)
 		{
-			if (cl.worldmodel->loadstate == MLS_LOADING)
-				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
-			s = Mod_GetEntitiesString(cl.worldmodel);
+			if (csqc_world.worldmodel->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(csqc_world.worldmodel, &csqc_world.worldmodel->loadstate, MLS_LOADING);
+			s = Mod_GetEntitiesString(csqc_world.worldmodel);
 		}
 		csqcmapentitydata = s;
 		G_INT(OFS_RETURN) = 0;
@@ -4796,11 +4801,6 @@ static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvar
 	if (prinst->callargc >= 3)	//fte is a quakeworld engine
 		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 
-	if ((unsigned)stnum >= cl_max_lightstyles)
-	{
-		Con_Printf ("PF_cs_lightstyle: stnum > MAX_LIGHTSTYLES");
-		return;
-	}
 	R_UpdateLightStyle(stnum, str, rgb[0],rgb[1],rgb[2]);
 }
 
@@ -5268,7 +5268,7 @@ static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvar
 {
 /*
 #ifdef Q2BSPS
-	if (cl.worldmodel->fromgame == fg_quake2)
+	if (csqc_world.worldmodel->fromgame == fg_quake2)
 	{
 		int portal;
 		int state	= G_FLOAT(OFS_PARM1)!=0;
@@ -5276,19 +5276,19 @@ static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvar
 			portal = G_FLOAT(OFS_PARM0);	//old legacy crap.
 		else
 			portal = G_WEDICT(prinst, OFS_PARM0)->xv->style;	//read the func_areaportal's style field.
-		CMQ2_SetAreaPortalState(cl.worldmodel, portal, state);
+		CMQ2_SetAreaPortalState(csqc_world.worldmodel, portal, state);
 	}
 #endif
 */
 #ifdef Q3BSPS
-	if (cl.worldmodel->fromgame == fg_quake3)
+	if (csqc_world.worldmodel->fromgame == fg_quake3)
 	{
 		int state	= G_FLOAT(OFS_PARM1)!=0;
 		wedict_t *portal = G_WEDICT(prinst, OFS_PARM0);
 		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
 		if (area1 == area2 || area1<0 || area2<0)
 			return;
-		CMQ3_SetAreaPortalState(cl.worldmodel, portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
+		CMQ3_SetAreaPortalState(csqc_world.worldmodel, portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
 	}
 #endif
 }
@@ -5323,11 +5323,11 @@ static void QCBUILTIN PF_cs_droptofloor (pubprogfuncs_t *prinst, struct globalva
 static void QCBUILTIN PF_cl_getlight (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t ambient, diffuse, dir;
-	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || !cl.worldmodel->funcs.LightPointValues)
+	if (!csqc_world.worldmodel || csqc_world.worldmodel->loadstate != MLS_LOADED || !csqc_world.worldmodel->funcs.LightPointValues)
 		VectorSet(G_VECTOR(OFS_RETURN), 0, 0, 0);
 	else
 	{
-		cl.worldmodel->funcs.LightPointValues(cl.worldmodel, G_VECTOR(OFS_PARM0), ambient, diffuse, dir);
+		csqc_world.worldmodel->funcs.LightPointValues(csqc_world.worldmodel, G_VECTOR(OFS_PARM0), ambient, diffuse, dir);
 		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 	}
 }
@@ -8291,15 +8291,16 @@ void CSQC_WorldLoaded(void)
 	if (csqc_isdarkplaces)
 		CSQC_FindGlobals(false);
 
-	csqcmapentitydataloaded = true;
-	csqcmapentitydata = Mod_GetEntitiesString(cl.worldmodel);
-
 	csqc_world.worldmodel = cl.worldmodel;
+
+	csqcmapentitydataloaded = true;
+	csqcmapentitydata = Mod_GetEntitiesString(csqc_world.worldmodel);
+
 	World_RBE_Start(&csqc_world);
 
 	worldent = (csqcedict_t *)EDICT_NUM_PB(csqcprogs, 0);
 	worldent->v->solid = SOLID_BSP;
-	wmodelindex = CS_FindModel(cl.worldmodel?cl.worldmodel->name:"", &tmp);
+	wmodelindex = CS_FindModel(csqc_world.worldmodel?csqc_world.worldmodel->name:"", &tmp);
 	tmp = csqc_worldchanged;
 	csqc_setmodel(csqcprogs, worldent, wmodelindex);
 	csqc_worldchanged = tmp;

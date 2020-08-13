@@ -1022,7 +1022,7 @@ coorddata MSG_ToAngle(float f, int bytes)	//return value is NOT byteswapped.
 void MSG_WriteCoord (sizebuf_t *sb, float f)
 {
 	coorddata i = MSG_ToCoord(f, sb->prim.coordtype);
-	SZ_Write (sb, (void*)&i, sb->prim.coordtype&0xf);
+	SZ_Write (sb, (void*)&i, sb->prim.coordtype&COORDTYPE_SIZE_MASK);
 }
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
@@ -1684,13 +1684,13 @@ float MSG_ReadCoord (void)
 	coorddata c = {{0}};
 	if (net_message.prim.coordtype == COORDTYPE_UNDEFINED)
 		net_message.prim.coordtype = COORDTYPE_FIXED_13_3;
-	MSG_ReadData(&c, net_message.prim.coordtype&0xf);
+	MSG_ReadData(c.b, net_message.prim.coordtype&COORDTYPE_SIZE_MASK);
 	return MSG_FromCoord(c, net_message.prim.coordtype);
 }
 float MSG_ReadCoordFloat (void)
 {
 	coorddata c = {{0}};
-	MSG_ReadData(&c, COORDTYPE_FLOAT_32&0xf);
+	MSG_ReadData(c.b, COORDTYPE_FLOAT_32&COORDTYPE_SIZE_MASK);
 	return MSG_FromCoord(c, COORDTYPE_FLOAT_32);
 }
 
@@ -7775,7 +7775,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 
 	if (!Sys_IsMainThread())
 	{	//shouldn't be redirected anyway...
-		fmt = langtext(stringnum,com_language);
+		fmt = localtext(stringnum);
 		va_start (argptr,stringnum);
 		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
@@ -7799,7 +7799,7 @@ void Con_TPrintf (translation_t stringnum, ...)
 	}
 #endif
 
-	fmt = langtext(stringnum,com_language);
+	fmt = localtext(stringnum);
 
 	va_start (argptr,stringnum);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);

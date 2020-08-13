@@ -1180,7 +1180,7 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
 	}
 	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
-	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
+	Con_TPrintf("Initiating "SDRVNAME": %s.\n", devname);
 
 	oali = Z_Malloc(sizeof(oalinfo_t));
 	sc->handle = oali;
@@ -1489,11 +1489,11 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 		return false;
 	oali = sc->handle;
 
-	Con_Printf( SDRVNAME" AL_VERSION: %s\n",palGetString(AL_VERSION));
-	Con_Printf( SDRVNAME" AL_RENDERER: %s\n",palGetString(AL_RENDERER));
-	Con_Printf( SDRVNAME" AL_VENDOR: %s\n",palGetString(AL_VENDOR));
-	Con_DPrintf(SDRVNAME" AL_EXTENSIONS: %s\n",palGetString(AL_EXTENSIONS));
-	Con_DPrintf(SDRVNAME" ALC_EXTENSIONS: %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
+	Con_Printf( "AL_VERSION: %s\n",palGetString(AL_VERSION));
+	Con_Printf( "AL_RENDERER: %s\n",palGetString(AL_RENDERER));
+	Con_Printf( "AL_VENDOR: %s\n",palGetString(AL_VENDOR));
+	Con_DPrintf("AL_EXTENSIONS: %s\n",palGetString(AL_EXTENSIONS));
+	Con_DPrintf("ALC_EXTENSIONS: %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
 
 	sc->Shutdown = OpenAL_Shutdown;
 #ifdef USEEFX

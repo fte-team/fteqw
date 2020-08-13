@@ -1381,6 +1381,8 @@ void P_ParticleEffect_f(void)
 			ptype->count = 1/atof(value);
 			if (Cmd_Argc()>2)
 				ptype->countrand = 1/atof(Cmd_Argv(2));
+			if (Cmd_Argc()>3)
+				ptype->countextra = atof(Cmd_Argv(3));
 		}
 		else if (!strcmp(var, "count"))
 		{

@@ -12281,6 +12281,7 @@ void PR_DumpPlatform_f(void)
 		{"startspot",				"string", QW|NQ, "Receives the value of the second argument to changelevel from the previous map."},
 		{"dimension_send",			"var float", QW|NQ, "Used by multicast functionality. Multicasts (and related builtins that multicast internally) will only be sent to players where (player.dimension_see & dimension_send) is non-zero."},
 		{"dimension_default",		"//var float", QW|NQ, "Default dimension bitmask", 255},
+		{"__fullspawndata",			"__unused var string", QW|NQ|H2, "Set by the engine before calls to spawn functions, and is most easily parsed with the tokenize builtin. This allows you to handle halflife's multiple-fields-with-the-same-name (or target-specific fields)."},
 		{"physics_mode",			"__used var float", QW|NQ|CS, "0: original csqc - physics are not run\n1: DP-compat. Thinks occur, but not true movetypes.\n2: movetypes occur just as they do in ssqc.", 2},
 		{"gamespeed",				"float", CS, "Set by the engine, this is the value of the sv_gamespeed cvar"},
 		{"numclientseats",			"float", CS, "This is the number of splitscreen clients currently running on this client."},

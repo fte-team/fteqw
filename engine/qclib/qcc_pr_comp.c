@@ -3370,7 +3370,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 			if (eval_b && eval_b->_int == 4)
 			{
-				if (opt_assignments && var_a.cast && var_a.sym == statements[numstatements-1].c.sym && var_a.ofs == statements[numstatements-1].c.ofs)
+				if (var_a.cast && var_a.sym == statements[numstatements-1].c.sym && var_a.ofs == statements[numstatements-1].c.ofs)
 					if (var_a.sym && var_b.sym && var_a.sym->temp && var_a.sym->refcount==1)
 					{
 						op = &pr_opcodes[OP_ADD_PIW];

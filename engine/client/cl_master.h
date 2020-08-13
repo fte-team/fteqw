@@ -154,7 +154,7 @@ typedef struct serverinfo_s
 	char gamedir[8+1];
 	char map[16];
 
-	unsigned short gameversion;
+//	unsigned short gameversion;
 	unsigned short ping;
 
 	short tl;

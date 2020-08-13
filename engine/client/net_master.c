@@ -3236,7 +3236,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 	Q_strncpyz(info->qcstatus,		Info_ValueForKey(msg, "qcstatus"),	sizeof(info->qcstatus));
 	Q_strncpyz(info->modname,		Info_ValueForKey(msg, "modname"),	sizeof(info->modname));
 
-	info->gameversion = atoi(Info_ValueForKey(msg, "gameversion"));
+//	info->gameversion = atoi(Info_ValueForKey(msg, "gameversion"));
 
 	info->numbots = 0;//atoi(Info_ValueForKey(msg, "bots"));
 	info->numhumans = info->players - info->numbots;

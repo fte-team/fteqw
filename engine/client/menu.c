@@ -572,7 +572,7 @@ static void Prompt_Release(struct menu_s *gm)
 		callback(ctx, PROMPT_CANCEL);
 	Z_Free(m);
 }
-void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel)
+void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel)
 {
 	promptmenu_t *m;
 	char *t;

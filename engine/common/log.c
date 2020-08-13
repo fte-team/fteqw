@@ -640,7 +640,10 @@ struct certlog_s
 	size_t certsize;
 	qbyte cert[1];
 };
+#define CERTLOG_FILENAME "knowncerts.txt"
 static link_t certlog;
+static qboolean certlog_inited = false;
+static void CertLog_Import(const char *filename);
 static struct certlog_s *CertLog_Find(const char *hostname)
 {
 	struct certlog_s *l;
@@ -669,7 +672,7 @@ static void CertLog_Update(const char *hostname, const void *cert, size_t certsi
 static void CertLog_Write(void)
 {
 	struct certlog_s *l;
-	vfsfile_t *f = NULL;//FS_OpenVFS("knowncerts.txt", "wb", FS_ROOT);
+	vfsfile_t *f = FS_OpenVFS(CERTLOG_FILENAME, "wb", FS_ROOT);
 	if (f)
 	{
 		VFS_PRINTF(f, "version 1.0\n");
@@ -685,7 +688,9 @@ static void CertLog_Write(void)
 				certhex[i*2+1] = hex[l->cert[i]&0xf];
 			}
 			certhex[i*2] = 0;
-			VFS_PRINTF(f, "%s \"%s\"\n", l->hostname, certhex);
+			VFS_PRINTF(f, "%s \"", l->hostname);
+			VFS_PUTS(f, certhex);
+			VFS_PRINTF(f, "\"\n");
 		}
 	}
 }
@@ -697,6 +702,8 @@ static void CertLog_Purge(void)
 		RemoveLink(&l->l);
 		Z_Free(l);
 	}
+
+	certlog_inited = false;
 }
 static int hexdecode(char c)
 {
@@ -715,7 +722,13 @@ static void CertLog_Import(const char *filename)
 	char certdata[16384];
 	char line[65536], *l;
 	size_t i, certsize;
-	vfsfile_t *f = FS_OpenVFS(filename, "rb", FS_ROOT);
+	vfsfile_t *f;
+	if (!certlog_inited && filename)
+		CertLog_Import(NULL);
+	certlog_inited |= !filename;
+	f = FS_OpenVFS(filename?filename:CERTLOG_FILENAME, "rb", FS_ROOT);
+	if (!f)
+		return;
 	//CertLog_Purge();
 	VFS_GETS(f, line, sizeof(line));
 	if (strncmp(line, "version 1.", 10))
@@ -743,8 +756,10 @@ static void CertLog_UntrustAll_f(void)
 static void CertLog_Import_f(void)
 {
 	const char *fname = Cmd_Argv(1);
+	if (Cmd_IsInsecure())
+		return;
 	if (!*fname)
-		fname = "knowncerts.txt";
+		fname = NULL;
 	CertLog_Import(fname);
 }
 struct certprompt_s
@@ -762,34 +777,64 @@ static void CertLog_Add_Prompted(void *vctx, promptbutton_t button)
 	{
 		CertLog_Update(ctx->hostname, ctx->cert, ctx->certsize);
 		CertLog_Write();
+
+		CL_BeginServerReconnect();
 	}
 	else
 		CL_Disconnect("Server certificate rejected");
 
 	certlog_curprompt = NULL;
 }
-qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize)
+qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, unsigned int certlogproblems)
 {
-	struct certlog_s *l = CertLog_Find(hostname);
+	struct certlog_s *l;
 
 	if (certlog_curprompt)
 		return false;
 
+	if (!certlog_inited)
+		CertLog_Import(NULL);
+	l = CertLog_Find(hostname);
+
 	if (!l || l->certsize != certsize || memcmp(l->cert, cert, certsize))
-	{
+	{	//new or different
 		if (qrenderer)
 		{
+			unsigned int i;
+			size_t len;
+			char *text;
+			const char *accepttext;
+			const char *lines[] = {
+									va(localtext("Certificate for %s\n"), hostname),
+									(certlogproblems&CERTLOG_WRONGHOST)?localtext("^1Certificate does not match host\n"):"",
+									((certlogproblems&(CERTLOG_MISSINGCA|CERTLOG_WRONGHOST))==CERTLOG_MISSINGCA)?localtext("^1Certificate authority is untrusted.\n"):"",
+									(certlogproblems&CERTLOG_EXPIRED)?localtext("^1Expired Certificate\n"):"",
+									l?localtext("\n^1WARNING: Certificate has changed since previously trusted."):""};
 			struct certprompt_s *ctx = certlog_curprompt = Z_Malloc(sizeof(*ctx)+certsize + strlen(hostname));
 			ctx->hostname = ctx->cert + certsize;
 			ctx->certsize = certsize;
 			memcpy(ctx->cert, cert, certsize);
 			strcpy(ctx->hostname, hostname);
 
-			//FIXME: display some sort of fingerprint
-			if (!l)
-				Menu_Prompt(CertLog_Add_Prompted, ctx, va("%s\nServer certificate is\nself-signed", hostname), "Trust", NULL, "Disconnect");
+			if (l)	//FIXME: show expiry info for the old cert, warn if more than a month?
+				accepttext = localtext("Replace Trust");
+			else if (!certlogproblems)
+				accepttext = localtext("Pin Trust");
 			else
-				Menu_Prompt(CertLog_Add_Prompted, ctx, va("%s\n^1Server certificate HAS CHANGED\nZomg\n^bFlee in Terror", hostname), "ReTrust", NULL, "Disconnect");
+				accepttext = localtext("Trust Anyway");
+
+			for (i = 0, len = 0; i < countof(lines); i++)
+				len += strlen(lines[i]);
+			text = alloca(len+1);
+			for (i = 0, len = 0; i < countof(lines); i++)
+			{
+				strcpy(text+len, lines[i]);
+				len += strlen(lines[i]);
+			}
+			text[len] = 0;
+
+			//FIXME: display some sort of fingerprint
+			Menu_Prompt(CertLog_Add_Prompted, ctx, text, accepttext, NULL, localtext("Disconnect"));
 		}
 		return false;	//can't connect yet...
 	}

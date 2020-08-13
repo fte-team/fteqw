@@ -127,7 +127,7 @@ typedef enum
 	PROMPT_NO		= 1,
 	PROMPT_CANCEL	= -1,
 } promptbutton_t;
-void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel);
+void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel);
 
 #ifndef NOBUILTINMENUS
 

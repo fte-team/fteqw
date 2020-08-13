@@ -78,21 +78,12 @@ static DXGI_FORMAT	depthformat;
 void *d3d11mod;
 static unsigned int d3d11multisample_count, d3d11multisample_quality;
 
-qboolean vid_initializing;
+static qboolean vid_initializing;
 
 extern qboolean		scr_initialized;                // ready to draw
 extern qboolean		scr_drawloading;
 extern qboolean		scr_con_forcedraw;
 static qboolean d3d_resized;
-
-
-//sound/error code needs this
-HWND mainwindow;
-
-//input code needs these
-int		window_center_x, window_center_y;
-RECT		window_rect;
-int window_x, window_y;
 
 static void released3dbackbuffer(void);
 static qboolean resetd3dbackbuffer(int width, int height);
@@ -218,6 +209,7 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 {
 	POINT p;
 	RECT nr;
+	int window_x, window_y;
 	int window_width, window_height;
 	GetClientRect(hWnd, &nr);
 

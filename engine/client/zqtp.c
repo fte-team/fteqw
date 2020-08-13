@@ -3798,7 +3798,7 @@ void CL_Say (qboolean team, char *extra)
 
 	if (cls.state == ca_disconnected)
 	{
-		Con_Printf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
+		Con_TPrintf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
 		return;
 	}
 

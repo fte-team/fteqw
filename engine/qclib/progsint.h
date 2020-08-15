@@ -215,11 +215,13 @@ typedef struct
 	//ASSIGNS_IC
 } QCC_opcode_t;
 extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
-#define OPF_VALID		0x01	//we're allowed to use this opcode in the current target.
-#define OPF_STD			0x10	//reads a+b, writes c.
-#define OPF_STORE		0x20	//b+=a or just b=a
-#define OPF_STOREPTR	0x40	//the form of c=(*b+=a)
-#define OPF_LOADPTR		0x80
+#define OPF_VALID		0x001	//we're allowed to use this opcode in the current target.
+#define OPF_STD			0x002	//reads a+b, writes c.
+#define OPF_STORE		0x010	//b+=a or just b=a
+#define OPF_STOREPTR	0x020	//the form of c=(*b+=a)
+#define OPF_STOREPTROFS	0x040	//a[c] <- b   (c must be 0 when QCC_OPCode_StorePOffset returns false)
+#define OPF_STOREFLD	0x080	//a.b <- c
+#define OPF_LOADPTR		0x100
 //FIXME: add jumps
 
 

@@ -3777,6 +3777,7 @@ void PM_Command_f(void)
 					Con_Printf("	package is an engine update\n");
 				if (p->flags & DPF_TESTING)
 					Con_Printf(S_COLOR_YELLOW"	package is untested\n");
+#ifdef WEBCLIENT
 				if (!PM_SignatureOkay(p))
 				{
 					if (!p->signature)
@@ -3788,6 +3789,7 @@ void PM_Command_f(void)
 					else
 						Con_Printf(CON_ERROR"	Unable to verify signature"CON_DEFAULT"\n");	//clientside problem.
 				}
+#endif
 				found++;
 			}
 			if (!found)

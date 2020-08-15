@@ -338,6 +338,10 @@ enum qcop_e {
 	OP_STOREF_S,	//1 string reference
 	OP_STOREF_I,	//1 non-string reference/int
 
+//r5744+
+	OP_STOREP_B,//((char*)b)[(int)c] = (int)a
+	OP_LOADP_B,	//(int)c = *(char*)
+
 	OP_NUMREALOPS,
 
 	/*

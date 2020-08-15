@@ -44,6 +44,9 @@ void *SVQ2_GetGameAPI (void *parms)
 		"game" "i386" ARCH_DL_POSTFIX,	//compat is often better than consistancy
 #endif
 		"game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,
+#ifdef ARCH_ALTCPU_POSTFIX
+		"game" ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX,
+#endif
 		"game" ARCH_DL_POSTFIX,
 #if defined(__linux__)	//FTE doesn't provide gamecode. Borrow someone else's. Lets just hope that its installed.
 //		"/usr/lib/yamagi-quake2/%s/game.so",

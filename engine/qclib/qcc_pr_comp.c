@@ -404,12 +404,12 @@ QCC_opcode_t pr_opcodes[] =
  {6, "=", "STORE_FLD",		PC_STORE, ASSOC_RIGHT,		&type_field, &type_field, &type_field,			OPF_STORE},
  {6, "=", "STORE_FNC",		PC_STORE, ASSOC_RIGHT,		&type_function, &type_function, &type_function,	OPF_STORE},
 
- {6, "=", "STOREP_F",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_float, &type_float,		OPF_STOREPTR},
- {6, "=", "STOREP_V",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_vector, &type_vector,		OPF_STOREPTR},
- {6, "=", "STOREP_S",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_string, &type_string,		OPF_STOREPTR},
- {6, "=", "STOREP_ENT",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_entity, &type_entity,		OPF_STOREPTR},
- {6, "=", "STOREP_FLD",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_field, &type_field,		OPF_STOREPTR},
- {6, "=", "STOREP_FNC",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_function, &type_function,	OPF_STOREPTR},
+ {6, "=", "STOREP_F",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_float, &type_float,		OPF_STOREPTROFS},
+ {6, "=", "STOREP_V",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_vector, &type_vector,		OPF_STOREPTROFS},
+ {6, "=", "STOREP_S",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_string, &type_string,		OPF_STOREPTROFS},
+ {6, "=", "STOREP_ENT",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_entity, &type_entity,		OPF_STOREPTROFS},
+ {6, "=", "STOREP_FLD",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_field, &type_field,		OPF_STOREPTROFS},
+ {6, "=", "STOREP_FNC",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_function, &type_function,	OPF_STOREPTROFS},
 
  {6, "<RETURN>", "RETURN",	PC_NONE, ASSOC_LEFT,		&type_vector, &type_void, &type_void},
 
@@ -529,9 +529,9 @@ QCC_opcode_t pr_opcodes[] =
  {7, "<CPFI>", "CP_FTOI",	PC_STORE, ASSOC_LEFT,		&type_pointer, &type_float, &type_integer},
 
  {7, ".", "LOADF_I",	PC_MEMBER, ASSOC_LEFT,			&type_entity,	&type_field, &type_integer},
- {7, "=", "STOREP_I",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_integer, &type_integer,	OPF_STOREPTR},
- {7, "=", "STOREP_IF",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_float, &type_integer,	OPF_STOREPTR},
- {7, "=", "STOREP_FI",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_integer, &type_float,	OPF_STOREPTR},
+ {7, "=", "STOREP_I",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_integer, &type_integer,	OPF_STOREPTROFS},
+ {7, "=", "STOREP_IF",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_float, &type_integer,	OPF_STOREPTROFS},
+ {7, "=", "STOREP_FI",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_integer, &type_float,	OPF_STOREPTROFS},
 
  {7, "&", "BITAND_I",	PC_BITAND, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer,OPF_STD},
  {7, "|", "BITOR_I",	PC_BITOR, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer,OPF_STD},
@@ -598,7 +598,7 @@ QCC_opcode_t pr_opcodes[] =
 	//string manipulation.
  {7, "+", "ADD_SF",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_float, &type_string,	OPF_STD},
  {7, "-", "SUB_S",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_string, &type_float,	OPF_STD},
- {7, "<STOREP_C>", "STOREP_C",	PC_STORE, ASSOC_RIGHT,	&type_string,	&type_float, &type_float},
+ {7, "<STOREP_C>", "STOREP_C",	PC_STORE, ASSOC_RIGHT,	&type_string,	&type_float, &type_float,	OPF_STOREPTROFS},
  {7, "<LOADP_C>", "LOADP_C",	PC_STORE, ASSOC_LEFT,	&type_string,	&type_float, &type_float,	OPF_LOADPTR},
 	//-------------------------------------
 
@@ -660,10 +660,13 @@ QCC_opcode_t pr_opcodes[] =
 {7, "<IF_F>",	"IF_F",		PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
 {7, "<IFNOT_F>","IFNOT_F",	PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
 
-{7, "<=>",	"STOREF_V",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_vector},	//ent.fld=c
-{7, "<=>",	"STOREF_F",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_S",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_string},
-{7, "<=>",	"STOREF_I",		PC_NONE, ASSOC_RIGHT,		&type_entity, &type_field, &type_integer},
+{7, "<=>",	"STOREF_V",		PC_NONE,	ASSOC_RIGHT,			&type_entity, &type_field, &type_vector,		OPF_STOREFLD},	//ent.fld=c
+{7, "<=>",	"STOREF_F",		PC_NONE,	ASSOC_RIGHT,			&type_entity, &type_field, &type_float,			OPF_STOREFLD},
+{7, "<=>",	"STOREF_S",		PC_NONE,	ASSOC_RIGHT,			&type_entity, &type_field, &type_string,		OPF_STOREFLD},
+{7, "<=>",	"STOREF_I",		PC_NONE,	ASSOC_RIGHT,			&type_entity, &type_field, &type_integer,		OPF_STOREFLD},
+
+ {7, "<STOREP_B>", "STOREP_B",	PC_STORE, ASSOC_RIGHT,	&type_string,	&type_integer, &type_integer,			OPF_STOREPTROFS},
+ {7, "<LOADP_B>", "LOADP_B",	PC_STORE, ASSOC_LEFT,	&type_string,	&type_integer, &type_integer,			OPF_LOADPTR},
 
 /* emulated ops begin here */
  {7, "<>",	"OP_EMULATED",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
@@ -708,7 +711,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, "=", "LOADA_STRUCT",	PC_STORE, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
 
  {7, "=",	"LOADP_P",		PC_STORE, ASSOC_LEFT,				&type_pointer,	&type_integer, &type_pointer,	OPF_LOADPTR},
- {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_pointer, OPF_STOREPTR},
+ {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_pointer, OPF_STOREPTROFS},
  {7, "~",	"BITNOT_F",		PC_UNARY, ASSOC_LEFT,				&type_float,	&type_void, &type_float},
  {7, "~",	"BITNOT_I",		PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
 
@@ -787,7 +790,7 @@ static pbool OpAssignsToC(unsigned int op)
 		return false;
 	/*if(op >= OP_STORE_I && op <= OP_STORE_FI)
 	  return false; <- add STOREP_*?*/
-	if(op == OP_STOREP_C || op == OP_LOADP_C)
+	if(op == OP_STOREP_C || op == OP_STOREP_B)
 		return false;
 	if (op >= OP_STORE_F && op <= OP_STOREP_FNC)
 		return false;	//actually they do.
@@ -807,7 +810,7 @@ static pbool OpAssignsToB(unsigned int op)
 		return true;
 	if(op >= OP_STORE_I && op <= OP_STORE_FI)
 		return true;
-	if(op == OP_STOREP_C || op == OP_LOADP_C)
+	if(op == OP_STOREP_C || op == OP_STOREP_B)
 		return true;
 	if(op >= OP_MULSTORE_F && op <= OP_SUBSTOREP_V)
 		return true;
@@ -1195,6 +1198,8 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, QCC_opcode_t *
 	case QCF_FTEH2:
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
+		if (num >= OP_STOREP_B)
+			return (qcc_targetversion>=5744);
 		if (num >= OP_STOREF_V)	//to be enabled at a later date - opcodes added in r5698.
 			return (qcc_targetversion>=5698);
 		return true;
@@ -1447,6 +1452,8 @@ static pbool QCC_OPCode_StorePOffset(void)
 	case QCF_FTEH2:
 	case QCF_FTEDEBUG:
 		return (qcc_targetversion>=5712);
+	case QCF_QSS:
+		return true;
 	default:
 		return false;
 	}
@@ -1456,6 +1463,29 @@ void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver)
 	size_t i;
 	qcc_targetformat = targfmt;
 	qcc_targetversion = targver;
+
+	switch(qcc_targetformat)
+	{
+	case QCF_FTE:
+	case QCF_FTEH2:
+	case QCF_FTEDEBUG:
+		if (qcc_targetversion > 5744)
+		{
+			if (qcc_targetversion != ~0u)
+				QCC_PR_ParseWarning(WARN_BADTARGET, "target revision %u is unknown, assuming revision %u", qcc_targetversion, 5744);
+			qcc_targetversion = 5744;
+		}
+		break;
+	default:
+		if (qcc_targetversion > 0)
+		{
+			if (qcc_targetversion != ~0u)
+				QCC_PR_ParseWarning(WARN_BADTARGET, "target revision %u is unknown, assuming revision %u", qcc_targetversion, 0);
+			qcc_targetversion = 0;
+		}
+		break;
+	}
+
 	for (i = 0; i < OP_NUMREALOPS; i++)
 	{
 		QCC_opcode_t *op = &pr_opcodes[i];
@@ -1469,35 +1499,36 @@ void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver)
 static struct {
 	qcc_targetformat_t target;
 	const char *name;
+	unsigned int defaultrev;
 } targets[] = {
-	{QCF_STANDARD,	"standard"},
-	{QCF_STANDARD,	"vanilla"},
-	{QCF_STANDARD,	"q1"},
-	{QCF_STANDARD,	"id"},
-	{QCF_STANDARD,	"quakec"},
+	{QCF_STANDARD,	"standard",		0},
+	{QCF_STANDARD,	"vanilla",		0},
+	{QCF_STANDARD,	"q1",			0},
+	{QCF_STANDARD,	"id",			0},
+	{QCF_STANDARD,	"quakec",		0},
 
-	{QCF_STANDARD,	"qs"},
-	{QCF_QSS,		"qss"},
+	{QCF_STANDARD,	"qs",			0},
+	{QCF_QSS,		"qss",			0},
 
-	{QCF_HEXEN2,	"hexen2"},
-	{QCF_HEXEN2,	"h2"},
-	{QCF_UHEXEN2,	"uhexen2"},
+	{QCF_HEXEN2,	"hexen2",		0},
+	{QCF_HEXEN2,	"h2",			0},
+	{QCF_UHEXEN2,	"uhexen2",		0},
 
-	{QCF_KK7,		"kkqwsv"},
-	{QCF_KK7,		"kk7"},
-	{QCF_KK7,		"bigprogs"},
-	{QCF_KK7,		"version7"},
-	{QCF_KK7,		"kkqwsv"},
+	{QCF_KK7,		"kkqwsv",		0},
+	{QCF_KK7,		"kk7",			0},
+	{QCF_KK7,		"version7",		0},
 
-	{QCF_FTE,		"fte"},
-	{QCF_FTEH2,		"fteh2"},
-	{QCF_FTEDEBUG,	"ftedebug"},
-	{QCF_FTEDEBUG,	"debug"},
+	{QCF_FTE,		"fte",			5529},	//'latest' stable revision.
+	{QCF_FTEH2,		"fteh2",		5529},
+	{QCF_FTEDEBUG,	"ftedebug",		5529},
+	{QCF_FTEDEBUG,	"debug",		5529},
 
-	{QCF_DARKPLACES,"darkplaces"},
-	{QCF_DARKPLACES,"dp"},
+	{QCF_FTE,		"quake2c",		5744},	//an alias for Paril's project, which does various pointer stuff. the revision should be high enough for str[int] ops.
 
-	{QCF_QTEST,		"qtest"},
+	{QCF_DARKPLACES,"darkplaces",	0},
+	{QCF_DARKPLACES,"dp",			0},
+
+	{QCF_QTEST,		"qtest",		0},
 	{0,				NULL}
 };
 pbool QCC_OPCodeSetTargetName(const char *targ)
@@ -1513,7 +1544,7 @@ pbool QCC_OPCodeSetTargetName(const char *targ)
 	else
 	{
 		tlen = strlen(targ);
-		ver = "0x7fffffff";
+		ver = NULL;
 	}
 
 	for (i = 0; targets[i].name; i++)
@@ -1537,7 +1568,7 @@ pbool QCC_OPCodeSetTargetName(const char *targ)
 				}
 			}
 
-			QCC_OPCodeSetTarget(targets[i].target, atoi(ver));
+			QCC_OPCodeSetTarget(targets[i].target, ver?atoi(ver):targets[i].defaultrev);
 			return true;
 		}
 	return false;
@@ -5371,6 +5402,7 @@ struct inlinectx_s
 	QCC_def_t		*fdef;
 	QCC_function_t	*func;
 	QCC_sref_t arglist[8];
+	pbool argisout[8];
 
 	QCC_sref_t		result;
 
@@ -5381,10 +5413,13 @@ struct inlinectx_s
 		int bias;
 	} locals[64];
 	int numlocals;
+
+	const char *error;
 };
-static pbool QCC_PR_InlinePushResult(struct inlinectx_s *ctx, QCC_sref_t src, QCC_sref_t mappedto)
+static pbool QCC_PR_InlinePushResult(struct inlinectx_s *ctx, QCC_sref_t src/*original statement's symbol*/, QCC_sref_t mappedto/*effective value*/)
 {
-	int i;
+	QCC_def_t *local;
+	int i, p;
 	for (i = 0; i < ctx->numlocals; i++)
 	{
 		if (ctx->locals[i].srcsym == src.sym)
@@ -5393,12 +5428,33 @@ static pbool QCC_PR_InlinePushResult(struct inlinectx_s *ctx, QCC_sref_t src, QC
 	if (i == ctx->numlocals)
 	{
 		if (ctx->numlocals >= sizeof(ctx->locals)/sizeof(ctx->locals[0]))
+		{
+			ctx->error = "too many temps";
 			return false;
+		}
+
+		for (local = ctx->func->firstlocal, p = 0; local && p < MAX_PARMS && (unsigned int)p < ctx->func->type->num_parms; local = local->deftail->nextlocal, p++)
+		{
+			if (src.sym->symbolheader == local)
+			{
+				if (ctx->argisout[p])
+				{
+					/*if (ctx->arglist[p].sym->symbolheader != mappedto.sym || ctx->arglist[p].ofs != mappedto.ofs)
+					{
+//						ctx->error = "assignment wrote to variable other than intended output.";
+						return false;
+					}*/
+					return true;
+				}
+			}
+		}
+
 		ctx->locals[i].srcsym = src.sym;
 		ctx->numlocals++;
 	}
 	else if (ctx->locals[i].def)
 		QCC_FreeDef(ctx->locals[i].def);
+
 	ctx->locals[i].def = mappedto.sym;
 	ctx->locals[i].bias = mappedto.ofs - src.ofs;	//FIXME: this feels unsafe (needed for array[immediate] fixups)
 	return true;
@@ -5419,13 +5475,21 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 		if (ctx->locals[p].srcsym == src.sym && ctx->locals[p].def)
 		{
 			d = ctx->locals[p].def;
-			if (assign)
+			if (assign && src.sym)
 			{
-				QCC_FreeDef(ctx->locals[p].def);
-				ctx->locals[p].def = NULL;
+				if (!(src.sym->localscope || src.sym->temp))
+				{	//update the symbol to refer to its original value...
+//					QCC_FreeDef(ctx->locals[p].def);
+					ctx->locals[p].def = ctx->locals[p].srcsym;
+					ctx->locals[p].bias = 0;
+					return QCC_MakeSRefForce(src.sym, src.ofs, src.cast);
+				}
+				//substitute the assignment with a new temp
+//				QCC_FreeDef(ctx->locals[p].def);
+				ctx->locals[p].srcsym = src.sym;
+				ctx->locals[p].def = QCC_GetTemp(src.sym->type).sym;
 				ctx->locals[p].bias = 0;
-				d = NULL;
-				return QCC_MakeSRefForce(NULL, 0, NULL);
+				return QCC_MakeSRefForce(ctx->locals[p].def, src.ofs, src.cast);
 			}
 			return QCC_MakeSRefForce(d, src.ofs + ctx->locals[p].bias, src.cast);
 		}
@@ -5439,6 +5503,14 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 		{
 			if (src.sym->symbolheader == local)
 			{
+				if (assign && !ctx->argisout[p])
+				{
+//					QCC_FreeDef(ctx->locals[p].def);
+					ctx->locals[p].srcsym = src.sym;
+					ctx->locals[p].def = QCC_GetTemp(src.sym->type).sym;
+					ctx->locals[p].bias = 0;
+					return QCC_MakeSRefForce(ctx->locals[p].def, src.ofs, src.cast);
+				}
 				return QCC_MakeSRefForce(ctx->arglist[p].sym->symbolheader, ctx->arglist[p].ofs+src.ofs, src.cast);
 			}
 		}
@@ -5448,6 +5520,7 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 			return nullsref;
 		ctx->locals[ctx->numlocals].srcsym = src.sym;
 		ctx->locals[ctx->numlocals].def = QCC_GetTemp(src.sym->type).sym;
+		ctx->locals[ctx->numlocals].bias = 0;
 		return QCC_MakeSRefForce(ctx->locals[ctx->numlocals++].def, src.ofs, src.cast);
 	}
 	return QCC_MakeSRefForce(src.sym, src.ofs, src.cast);
@@ -5489,7 +5562,7 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 }
 
 //returns a string saying why inlining failed.
-static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
+static const char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 {
 	/*FIXME: what happens with:
 	t = foo;
@@ -5630,8 +5703,14 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 					QCC_PR_InlinePushResult(ctx, r, QCC_GetAliasTemp(QCC_MakeSRefForce(&def_ret, 0, a.cast->aux_type)));
 				}
 			}
-			else
-			if (pr_opcodes[st->op].associative == ASSOC_RIGHT)
+			else if (pr_opcodes[st->op].flags & (OPF_STOREFLD|OPF_STOREPTROFS))
+			{	//these forms don't write to any actual globals, we've no real scope for optimising these out.
+				a = QCC_PR_InlineFindDef(ctx, st->a, false);
+				b = QCC_PR_InlineFindDef(ctx, st->b, false);
+				c = QCC_PR_InlineFindDef(ctx, st->c, false);
+				QCC_PR_SimpleStatement(&pr_opcodes[st->op], a, b, c, false);
+			}
+			else if (pr_opcodes[st->op].associative == ASSOC_RIGHT)
 			{
 				//a->b
 				if (st->a.cast)
@@ -5642,11 +5721,11 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 				}
 				else
 					a = nullsref;
-				b = QCC_PR_InlineFindDef(ctx, st->b, true);
+				b = QCC_PR_InlineFindDef(ctx, st->b, !(pr_opcodes[st->op].flags & OPF_STOREPTR));
 				c = QCC_PR_StatementFlags(&pr_opcodes[st->op], a, b, NULL, 0);
 
 				if (!QCC_PR_InlinePushResult(ctx, st->b, c))
-					return "too many temps";
+					return ctx->error;
 			}
 			else if (OpAssignsToC(st->op))
 			{
@@ -5682,7 +5761,7 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 					}
 
 					if (!QCC_PR_InlinePushResult(ctx, st->c, c))
-						return "too many temps";
+						return ctx->error;
 				}
 				else
 				{
@@ -5725,19 +5804,28 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 #else
 //	QCC_def_t *dd = NULL;
 	struct inlinectx_s ctx;
-	char *error;
+	const char *error;
 	int statements, i;
 	unsigned int a;
 	const QCC_eval_t *eval = QCC_SRef_EvalConst(fdef);
 	//make sure that its a function type and that there's no special weirdness
 	if (!eval || eval->function < 0 || argcount > 8 || eval->function >= numfunctions || fdef.sym->arraysize != 0 || fdef.cast->type != ev_function || argcount != fdef.cast->num_parms || fdef.cast->vargs || fdef.cast->vargcount)
+	{
+		QCC_PR_ParseWarning(0, "Couldn't inline \"%s\": %s", ctx.func->name, "inconsistent context");
 		return nullsref;
+	}
 	ctx.func = &functions[eval->function];
 	if (fdef.cast != ctx.func->type)
+	{
+		QCC_PR_ParseWarning(0, "Couldn't inline \"%s\": %s", ctx.func->name, "function was cast");
 		return nullsref;
+	}
 	ctx.numlocals = 0;
 	for (a = 0; a < argcount; a++)
+	{
 		ctx.arglist[a] = QCC_RefToDef(arglist[a], true);
+		ctx.argisout[a] = ctx.func->type->params[a].out;
+	}
 	ctx.fdef = fdef.sym;
 	ctx.result = nullsref;
 	if ((int)ctx.func->code <= 0)
@@ -5787,6 +5875,8 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 
 	statements = numstatements;
 	error = QCC_PR_InlineStatements(&ctx);
+	if (!error)
+		error = ctx.error;
 	if (error)
 	{
 		QCC_PR_ParseWarning(0, "Couldn't inline \"%s\": %s", ctx.func->name, error);
@@ -10138,8 +10228,16 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_FIELD:
 		return QCC_PR_ExpandField(ref->base, ref->index, ref->cast, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 	case REF_STRING:
-		idx = QCC_SupplyConversion(ref->index, ev_float, true);
-		return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
+		if (ref->index.cast->type == ev_float)
+		{
+			idx = QCC_SupplyConversion(ref->index, ev_float, true);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
+		}
+		else
+		{
+			idx = QCC_SupplyConversion(ref->index, ev_integer, true);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_B], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
+		}
 	case REF_ACCESSOR:
 		if (ref->accessor && ref->accessor->getset_func[0].cast)
 		{
@@ -14697,18 +14795,6 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 			def->arraylengthprefix = false;
 		}
 		def->allowinline = !!(flags & GDF_INLINE);
-
-		if (def->allowinline)
-		{
-			unsigned int p;
-			for (p = 0; p < type->num_parms; p++)
-			{
-				if (type->params[p].out)
-					break;
-			}
-			if (p != type->num_parms || type->type != ev_function)
-				def->allowinline = false;	//FIXME: warn about invalid usage!
-		}
 
 		if (flags & GDF_USED)
 		{

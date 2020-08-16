@@ -5323,7 +5323,7 @@ static void FS_BeginNextPackageDownload(ftemanifest_t *man)
 
 	if (man == fs_manifest && man->updateurl && !man->blockupdate)
 	{
-		vfsfile_t *f = FS_OpenVFS(man->filename, "ab", FS_SYSTEM);	//this is JUST to make sure its writable. don't bother updating it if it isn't.
+		vfsfile_t *f = man->filename?FS_OpenVFS(man->filename, "ab", FS_SYSTEM):NULL;	//this is JUST to make sure its writable. don't bother updating it if it isn't.
 		man->blockupdate = true;
 		if (f)
 		{

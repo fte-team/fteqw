@@ -5811,7 +5811,7 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 	//make sure that its a function type and that there's no special weirdness
 	if (!eval || eval->function < 0 || argcount > 8 || eval->function >= numfunctions || fdef.sym->arraysize != 0 || fdef.cast->type != ev_function || argcount != fdef.cast->num_parms || fdef.cast->vargs || fdef.cast->vargcount)
 	{
-		QCC_PR_ParseWarning(0, "Couldn't inline \"%s\": %s", ctx.func->name, "inconsistent context");
+		QCC_PR_ParseWarning(0, "Couldn't inline \"%s\": %s", fdef.sym->name, "inconsistent context");
 		return nullsref;
 	}
 	ctx.func = &functions[eval->function];
@@ -5828,6 +5828,7 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_ref_t **arglist, unsigned i
 	}
 	ctx.fdef = fdef.sym;
 	ctx.result = nullsref;
+	ctx.error = NULL;
 	if ((int)ctx.func->code <= 0)
 	{
 		char *fname = ctx.func->name;
@@ -15945,7 +15946,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		type = QCC_PR_ParseType(false, true);	//legacy behaviour
 		if (type)
 		{
-			QCC_PR_ParseWarning(WARN_DEPRECACTEDSYNTAX, "legacy enum base type. Use \"enum [class] [name_e]:type\" instead\n");
+			QCC_PR_ParseWarning(WARN_DEPRECACTEDSYNTAX, "legacy enum base type. Use \"enum [class] [name_e]:type\" instead");
 			basetype = type;
 		}
 		else

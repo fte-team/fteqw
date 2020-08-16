@@ -226,6 +226,7 @@ struct {
 	{" F325", WARN_NESTEDCOMMENT},
 	{" F326", WARN_DEPRECATEDVARIABLE},
 	{" F327", WARN_ENUMFLAGS_NOTINTEGER},
+	{" F328", WARN_DEPRECACTEDSYNTAX},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -4610,7 +4611,7 @@ static void QCC_SetDefaultProperties (void)
 			targ = QCF_DARKPLACES;
 		else
 			targ = QCF_STANDARD;
-		QCC_OPCodeSetTarget(targ, 0x7fffffff);
+		QCC_OPCodeSetTarget(targ, 0);
 	}
 
 

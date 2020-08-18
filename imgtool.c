@@ -473,7 +473,7 @@ struct opts_s
 };
 
 static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struct pendingtextureinfo *in, const char *mipname, int wadtype);
-static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, miptex_t *mip);
+static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, miptex_t *mip, size_t fsize);
 void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags);
 int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, qintptr_t bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata);
 qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, qintptr_t bytestride, int width, int height, enum uploadfmt fmt);
@@ -838,7 +838,7 @@ static struct pendingtextureinfo *ImgTool_Read(struct opts_s *args, const char *
 	{
 		const char *ex = COM_GetFileExtension(inname, NULL);
 		if (!strcasecmp(ex, ".mip"))
-			in = ImgTool_DecodeMiptex(args, (miptex_t*)indata);
+			in = ImgTool_DecodeMiptex(args, (miptex_t*)indata, fsize);
 		else
 			in = Image_LoadMipsFromMemory(args->flags|IF_NOMIPMAP, inname, inname, indata, fsize);
 		if (!in)
@@ -1230,10 +1230,10 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 	fflush(stdout);
 }
 
-static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, miptex_t *mip)
+static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, miptex_t *mip, size_t size)
 {
-	qbyte *data = (qbyte*)mip + (mip->offsets[2]?mip->offsets[2] + (mip->width>>2)*(mip->height>>2):sizeof(miptex_t));
-	qbyte *dataend = (qbyte*)mip + (mip->offsets[3]);
+	qbyte *data = (qbyte*)mip + (mip->offsets[3]?mip->offsets[3] + (mip->width>>3)*(mip->height>>3):sizeof(miptex_t));
+	qbyte *dataend = (qbyte*)mip + size;
 	struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
 	qbyte *newdata = NULL;
 	int neww=0, newh=0, sz;
@@ -1242,7 +1242,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 
 	out->encoding = PTI_INVALID;
 
-	Con_Printf("%s: Invalid miptex extension\n", mip->name);
+	Con_DPrintf("%s: width %i, height %i\n", mip->name, mip->width, mip->height);
 
 	//header [legacymip0 legacymip1 legacymip2] [extsize extcode extdata]*n [legacymip3]
 	//extcode NAME: extdata-8 bytes of replacement name
@@ -1256,59 +1256,63 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	Con_DPrintf("offset[1]: %i\n", mip->offsets[1]);
 	Con_DPrintf("offset[2]: %i\n", mip->offsets[2]);
 	Con_DPrintf("offset[3]: %i\n", mip->offsets[3]);
-	for (; data+4 < dataend; data += sz)
-	{	//we could recognise more,
-		uploadfmt_t fmt = PTI_INVALID;
-		size_t csz, w, h;
-		sz = (data[0]<<0) | (data[1]<<8) | (data[2]<<16) | (data[3]<<24);
+	if (data+4 < dataend && data[0]==0x00 && data[1]==0xfb&&data[2]==0x2b&&data[3]==0xaf)	//magic id to say that there's actually extensions here...
+	{
+		data+=4;
+		for (; data+4 < dataend; data += sz)
+		{	//we could recognise more,
+			uploadfmt_t fmt = PTI_INVALID;
+			size_t csz, w, h;
+			sz = (data[0]<<0) | (data[1]<<8) | (data[2]<<16) | (data[3]<<24);
 
-		if (sz < 4 || sz > dataend-data)		{	Con_Printf("%s: Invalid miptex extension\n", mip->name);	break;}
-		else if (sz > 8 && !strncmp(data+4, "NAME", 4))		continue;	//FIXME
-		else if (sz > 16 && !strncmp(data+4, "RGBA", 4))	fmt = PTI_RGBA8;
-		else if (sz > 16 && !strncmp(data+4, "RGB", 4))		fmt = PTI_RGB8;
-		else if (sz > 16 && !strncmp(data+4, "565", 4))		fmt = PTI_RGB565;
-		else if (sz > 16 && !strncmp(data+4, "5551", 4))	fmt = PTI_RGBA5551;
-		else if (sz > 16 && !strncmp(data+4, "4444", 4))	fmt = PTI_RGBA4444;
-		else if (sz > 16 && !strncmp(data+4, "LUM8", 4))	fmt = PTI_L8;	//greyscale. because why not.
-		else if (sz > 16 && !strncmp(data+4, "BC1", 4))		fmt = PTI_BC1_RGBA;
-		else if (sz > 16 && !strncmp(data+4, "BC2", 4))		fmt = PTI_BC2_RGBA;
-		else if (sz > 16 && !strncmp(data+4, "BC3", 4))		fmt = PTI_BC3_RGBA;
-		else if (sz > 16 && !strncmp(data+4, "BC4", 4))		fmt = PTI_BC4_R;
-		else if (sz > 16 && !strncmp(data+4, "BC5", 4))		fmt = PTI_BC5_RG;
-		else if (sz > 16 && !strncmp(data+4, "BC6", 4))		fmt = PTI_BC6_RGB_UFLOAT;
-		else if (sz > 16 && !strncmp(data+4, "BC7", 4))		fmt = PTI_BC7_RGBA;
-		else if (sz > 16 && !strncmp(data+4, "ETC1", 4))	fmt = PTI_ETC1_RGB8;
-		else if (sz > 16 && !strncmp(data+4, "ETC2", 4))	fmt = PTI_ETC2_RGB8;
-		else if (sz > 16 && !strncmp(data+4, "ETCP", 4))	fmt = PTI_ETC2_RGB8A1;
-		else if (sz > 16 && !strncmp(data+4, "ETCA", 4))	fmt = PTI_ETC2_RGB8A8;
-		else if (sz > 16 && !strncmp(data+4, "AST4", 4))	fmt = PTI_ASTC_4X4_LDR;
-		else if (sz > 16 && !strncmp(data+4, "AST5", 4))	fmt = PTI_ASTC_5X5_LDR;
-		else if (sz > 16 && !strncmp(data+4, "AST6", 4))	fmt = PTI_ASTC_6X6_LDR;
-		else if (sz > 16 && !strncmp(data+4, "AST8", 4))	fmt = PTI_ASTC_8X8_LDR;
-		else if (sz > 16 && !strncmp(data+4, "EXP5", 4))	fmt = PTI_E5BGR9;
-		else {Con_Printf("%s: Unknown miptex extension %4s\n", mip->name, data+4);continue;}
+			if (sz < 4 || sz > dataend-data)		{	Con_Printf("%s: Invalid miptex extension\n", mip->name);	break;}
+			else if (sz > 8 && !strncmp(data+4, "NAME", 4))		continue;	//FIXME
+			else if (sz > 16 && !strncmp(data+4, "RGBA", 4))	fmt = PTI_RGBA8;
+			else if (sz > 16 && !strncmp(data+4, "RGB", 4))		fmt = PTI_RGB8;
+			else if (sz > 16 && !strncmp(data+4, "565", 4))		fmt = PTI_RGB565;
+			else if (sz > 16 && !strncmp(data+4, "5551", 4))	fmt = PTI_RGBA5551;
+			else if (sz > 16 && !strncmp(data+4, "4444", 4))	fmt = PTI_RGBA4444;
+			else if (sz > 16 && !strncmp(data+4, "LUM8", 4))	fmt = PTI_L8;	//greyscale. because why not.
+			else if (sz > 16 && !strncmp(data+4, "BC1", 4))		fmt = PTI_BC1_RGBA;
+			else if (sz > 16 && !strncmp(data+4, "BC2", 4))		fmt = PTI_BC2_RGBA;
+			else if (sz > 16 && !strncmp(data+4, "BC3", 4))		fmt = PTI_BC3_RGBA;
+			else if (sz > 16 && !strncmp(data+4, "BC4", 4))		fmt = PTI_BC4_R;
+			else if (sz > 16 && !strncmp(data+4, "BC5", 4))		fmt = PTI_BC5_RG;
+			else if (sz > 16 && !strncmp(data+4, "BC6", 4))		fmt = PTI_BC6_RGB_UFLOAT;
+			else if (sz > 16 && !strncmp(data+4, "BC7", 4))		fmt = PTI_BC7_RGBA;
+			else if (sz > 16 && !strncmp(data+4, "ETC1", 4))	fmt = PTI_ETC1_RGB8;
+			else if (sz > 16 && !strncmp(data+4, "ETC2", 4))	fmt = PTI_ETC2_RGB8;
+			else if (sz > 16 && !strncmp(data+4, "ETCP", 4))	fmt = PTI_ETC2_RGB8A1;
+			else if (sz > 16 && !strncmp(data+4, "ETCA", 4))	fmt = PTI_ETC2_RGB8A8;
+			else if (sz > 16 && !strncmp(data+4, "AST4", 4))	fmt = PTI_ASTC_4X4_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AST5", 4))	fmt = PTI_ASTC_5X5_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AST6", 4))	fmt = PTI_ASTC_6X6_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AST8", 4))	fmt = PTI_ASTC_8X8_LDR;
+			else if (sz > 16 && !strncmp(data+4, "EXP5", 4))	fmt = PTI_E5BGR9;
+			else {Con_Printf("%s: Unknown miptex extension %4s\n", mip->name, data+4);continue;}
 
-		if (out->encoding != PTI_INVALID)	//use the first format we support, allowing prioritisation.
-			continue;
+			if (out->encoding != PTI_INVALID)	//use the first format we support, allowing prioritisation.
+				continue;
 
-		Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
-		w = data[ 8] | (data[ 9]<<8) | (data[10]<<16) | (data[11]<<24);
-		h = data[12] | (data[13]<<8) | (data[14]<<16) | (data[15]<<24);
-		for (csz = 16; w || h; w>>=1, h>>=1)
-		{
-			w = max(1, w);
-			h = max(1, h);
-			csz += bb*((w+bw-1)/bw)*((h+bh-1)/bh);
+			Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
+			w = data[ 8] | (data[ 9]<<8) | (data[10]<<16) | (data[11]<<24);
+			h = data[12] | (data[13]<<8) | (data[14]<<16) | (data[15]<<24);
+			for (csz = 16; w || h; w>>=1, h>>=1)
+			{
+				w = max(1, w);
+				h = max(1, h);
+				csz += bb*((w+bw-1)/bw)*((h+bh-1)/bh);
+			}
+			if (sz == csz)
+			{	//mip chain is complete etc
+				out->encoding = fmt;
+				newdata = data+16;
+				neww = data[ 8] | (data[ 9]<<8) | (data[10]<<16) | (data[11]<<24);
+				newh = data[12] | (data[13]<<8) | (data[14]<<16) | (data[15]<<24);
+			}
+			else
+				Con_Printf("%s: Chain size of %u doesn't match expected %u\n", mip->name, (unsigned)csz-16, sz-16);
 		}
-		if (sz == csz)
-		{	//mip chain is complete etc
-			out->encoding = fmt;
-			newdata = data+16;
-			neww = data[ 8] | (data[ 9]<<8) | (data[10]<<16) | (data[11]<<24);
-			newh = data[12] | (data[13]<<8) | (data[14]<<16) | (data[15]<<24);
-		}
-		else
-			Con_Printf("%s: Chain size of %u doesn't match expected %u\n", mip->name, (unsigned)csz-16, sz-16);
 	}
 
 	//only use our if there were no corrupt sections.
@@ -1352,7 +1356,28 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 
 	if (args)
 	{
-		ImgTool_Convert(args, out, mip->name, NULL);
+		if (args->defaultext && !strcasecmp(args->defaultext, "mip"))
+		{
+			char newout[MAX_OSPATH];
+			size_t k = strlen(mip->name);
+			vfsfile_t *fs;
+			memcpy(newout, mip->name, k);
+			newout[k++] = '.';
+			strcpy(newout+k, args->defaultext);
+
+			fs = FS_OpenVFS(newout, "wb", FS_SYSTEM);
+			if (!fs)
+				Con_Printf("%s(%s): Write failed\n", newout, Image_FormatName(out->encoding));
+			else
+			{
+				VFS_WRITE(fs, mip, size);
+				VFS_CLOSE(fs);
+			}
+
+			fflush(stdout);
+		}
+		else
+			ImgTool_Convert(args, out, mip->name, NULL);
 		return NULL;
 	}
 	return out;
@@ -1379,7 +1404,7 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 			case TYP_MIPTEX:
 				{
 					miptex_t *mip = (miptex_t *)(indata+e->offset);
-					in = ImgTool_DecodeMiptex(NULL, mip);
+					in = ImgTool_DecodeMiptex(NULL, mip, 0);
 
 					/*mip name SHOULD match entry name... but gah!*/
 					if (strcasecmp(e->name, mip->name))
@@ -1414,15 +1439,22 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 		dmiptexlump_t *texlump = (dmiptexlump_t*)(indata + bsp->lumps[LUMP_TEXTURES].fileofs);
 		miptex_t *miptex;
 		size_t i;
+		size_t sz = bsp->lumps[LUMP_TEXTURES].filelen;
 		printf("%-20s: bsp file (%u textures)\n", inname, texlump->nummiptex);
-		for (i = 0; i < texlump->nummiptex; i++)
+		for (i = texlump->nummiptex; i --> 0; )
 		{
 			if (texlump->dataofs[i] < 0 || texlump->dataofs[i] >= bsp->lumps[LUMP_TEXTURES].filelen)
+			{
+				char syn[MAX_QPATH];
+				sprintf(syn, "unnamed%u", (unsigned)i);
+				printf("\t%16.16s: <NO DATA>\n", syn);
 				continue;
+			}
 
 			miptex = (miptex_t*)((qbyte*)texlump + texlump->dataofs[i]);
 
-			in = ImgTool_DecodeMiptex(NULL, miptex);
+			in = ImgTool_DecodeMiptex(NULL, miptex, sz - texlump->dataofs[i]);
+			sz = texlump->dataofs[i];
 			if (in->encoding != PTI_P8)
 				printf("\t%16.16s: %u*%u%s (%s: %i*%i)\n", miptex->name, miptex->width, miptex->height, miptex->offsets[0]?"":" (external data)", Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);
 			else
@@ -1432,9 +1464,14 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 	}
 	else
 	{
+		const miptex_t *mip = NULL;
 		const char *ex = COM_GetFileExtension(inname, NULL);
 		if (!strcasecmp(ex, ".mip"))
-			in = ImgTool_DecodeMiptex(NULL, (miptex_t*)indata);
+		{
+			in = ImgTool_DecodeMiptex(NULL, (miptex_t*)indata, fsize);
+			if (fsize >= sizeof(miptex_t))
+				mip = (const miptex_t*)indata;
+		}
 		else
 			in = Image_LoadMipsFromMemory(args->flags|IF_NOMIPMAP, inname, inname, indata, fsize);
 		if (!in)
@@ -1445,7 +1482,10 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 			printf("%-20s(%s): %s, %i*%i*%i, %u bytes\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, (unsigned)in->mip[0].datasize);
 		else
 		{
-			printf("%-20s(%s): %s, %i*%i*%i, %i mips\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, in->mipcount);
+			if (mip)
+				printf("%-20s(%s): \"%s\"%s %i*%i, %i mips\n", inname, Image_FormatName(in->encoding), mip->name, mip->offsets[0]?"":" (stripped)", mip->width, mip->height, in->mipcount);
+			else
+				printf("%-20s(%s): %s, %i*%i*%i, %i mips\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, in->mipcount);
 			for (m = 0; m < in->mipcount; m++)
 				printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
 
@@ -1690,7 +1730,7 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 						break;
 					}
 
-					ImgTool_DecodeMiptex(args, mip);
+					ImgTool_DecodeMiptex(args, mip, e->dsize);
 				}
 				break;
 			case TYP_QPIC:
@@ -1749,14 +1789,18 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 		dmiptexlump_t *texlump = (dmiptexlump_t*)(indata + bsp->lumps[LUMP_TEXTURES].fileofs);
 		miptex_t *miptex;
 		size_t i;
-		for (i = 0; i < texlump->nummiptex; i++)
+		size_t sz = bsp->lumps[LUMP_TEXTURES].filelen;
+		for (i = texlump->nummiptex; i --> 0; )
 		{
 			if (texlump->dataofs[i] < 0 || texlump->dataofs[i] >= bsp->lumps[LUMP_TEXTURES].filelen)
 				continue;
 
 			miptex = (miptex_t*)((qbyte*)texlump + texlump->dataofs[i]);
 			if (*miptex->name && miptex->width && miptex->height && miptex->offsets[0]>0)
-				ImgTool_DecodeMiptex(args, miptex);
+			{
+				ImgTool_DecodeMiptex(args, miptex, sz - texlump->dataofs[i]);
+				sz = texlump->dataofs[i];
+			}
 		}
 	}
 	else
@@ -1800,13 +1844,13 @@ static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struc
 		if (!ImgTool_ConvertPixelFormat(args, mipname, highcolour))
 		{
 			Con_Printf("%s: Unable to convert to requested pixel format\n", mipname);
-			ImgTool_FreeMips(highcolour);
+//			ImgTool_FreeMips(highcolour);
 			highcolour = NULL;
 		}
 		else if (highcolour->mip[highcolour->mipcount-1].width != 1 || highcolour->mip[highcolour->mipcount-1].height != 1)
 		{
 			Con_Printf("%s: Mipchain truncated\n", mipname);
-			ImgTool_FreeMips(highcolour);
+//			ImgTool_FreeMips(highcolour);
 			highcolour = NULL;
 		}
 		else for (u = 1; u < highcolour->mipcount; u++)
@@ -1815,7 +1859,7 @@ static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struc
 				highcolour->mip[u].height!= max(1,highcolour->mip[u-1].height>>1))
 			{
 				Con_Printf("%s: Mipchain sized wrongly\n", mipname);
-				ImgTool_FreeMips(highcolour);
+//				ImgTool_FreeMips(highcolour);
 				highcolour = NULL;
 				break;
 			}
@@ -1858,7 +1902,7 @@ static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struc
 		case PTI_E5BGR9:		highcode = "EXP5";	break;	//gl3+
 		default:
 			Con_Printf("%s: unsupported pixel format(%s) for miptex\n", mipname, Image_FormatName(highcolour->encoding));
-			ImgTool_FreeMips(highcolour);
+//			ImgTool_FreeMips(highcolour);
 			highcolour = NULL;
 			break;
 		}
@@ -2018,122 +2062,128 @@ static void ImgTool_WadConvert(struct opts_s *args, const char *destpath, const 
 		return;
 	}
 
-	qpics = !strcasecmp("gfx.wad", COM_SkipPath(destpath));
-	
-	f = FS_OpenVFS(destpath, "wb", FS_SYSTEM);
-	wad2.magic[0] = 'W';
-	wad2.magic[1] = 'A';
-	wad2.magic[2] = 'D';
-	wad2.magic[3] = (wadtype==2)?'3':'2';	//wad3 instead of 2, so we can include a palette for tools to validate against
-	wad2.num = 0;
-	wad2.offset = 0;
-	VFS_WRITE(f, &wad2, 12);
-
-	if (wadtype == 1)
-	{	//WAD2 texture files generally have a palette lump.
-		if (wad2.num == maxentries)
-		{
-			maxentries += 64;
-			wadentries = realloc(wadentries, sizeof(*wadentries)*maxentries);
-		}
-		entry = &wadentries[wad2.num++];
-		memset(entry, 0, sizeof(*entry));
-		Q_strncpyz(entry->name, "PALETTE", 16);
-		entry->type = TYP_PALETTE;
-		entry->offset = VFS_TELL(f);
-
-		//and the lump data.
-		VFS_WRITE(f, host_basepal, 256*3);
-
-		entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
-	}
-
-	for (i = 0; i < list.numfiles; i++)
+	if (!strcasecmp(COM_GetFileExtension(destpath, NULL), ".bsp"))
 	{
-		Q_snprintfz(file, sizeof(file), "%s/%s", list.file[i].rootpath, list.file[i].name);
-		inname = list.file[i].name;
-		if (list.file[i].baselen > 15)
-		{
-			Con_Printf("Path too long for wad - %s\n", inname);
-			continue;
-		}
-		indata = FS_LoadMallocFile(file, &fsize);
-		if (!indata)
-		{
-			Con_Printf("Unable to open %s\n", inname);
-			continue;
-		}
-
-		if (wad2.num == maxentries)
-		{
-			maxentries += 64;
-			wadentries = realloc(wadentries, sizeof(*wadentries)*maxentries);
-		}
-		entry = &wadentries[wad2.num];
-		memset(entry, 0, sizeof(*entry));
-		Q_strncpyz(entry->name, inname, 16);
-		if (list.file[i].baselen < sizeof(entry->name))
-			entry->name[list.file[i].baselen] = 0; //kill any .tga
-		if (*entry->name == '#')
-			*entry->name = '*';	//* is not valid in a filename, yet needed for turbs, so by convention # is used instead. this is only relevant for the first char.
-		entry->type = TYP_MIPTEX;
-		entry->offset = VFS_TELL(f);
-
-		if (!strcasecmp(COM_GetFileExtension(file, NULL), ".mip"))
-		{	//.mip files can just be loaded directly
-			//I just hope they are actually q1 format and not hl, for instance.
-			if (wadtype == 3)
-			{
-				Con_Printf("refusing to inject q1 miptex into halflife wad-3 file\n");
-				Z_Free(indata);
-				continue;
-			}
-			VFS_WRITE(f, indata, fsize);
-			wad2.num++;
-			entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
-			Z_Free(indata);
-		}
-		else
-		{
-			if (wadtype == 3)
-			{
-				for (u = 0; u < sizeof(entry->name); u++)
-					entry->name[u] = toupper(entry->name[u]);
-				entry->type = 67;	//halflife's mips actually use a different type from q1 ones.
-			}
-
-			//try to decompress everything to a nice friendly palletizable range.
-			for (u = 1; u < countof(sh_config.texfmt); u++)
-				sh_config.texfmt[u] = (u==PTI_RGBA8)||(u==PTI_RGBX8)||(u==PTI_P8)||(u==args->newpixelformat);
-			in = Image_LoadMipsFromMemory(args->flags, inname, file, indata, fsize);
-
-			if (qpics)
-			{
-				if (!strcasecmp(entry->name, "CONCHARS") && in->mip[0].width==128&&in->mip[0].height==128)
-					entry->type = TYP_MIPTEX;	//yes, weird. match vanilla quake. explicitly avoid qpic to avoid corruption in the first 8 bytes (due to the engine's early endian swapping)
-												//FIXME: encoding should be pti_trans8_0...
-				else
-				{
-					entry->type = TYP_QPIC;
-					//qpics need a header
-					VFS_WRITE(f, &in->mip[0].width, sizeof(int));
-					VFS_WRITE(f, &in->mip[0].height, sizeof(int));
-				}
-				//and now the 8bit pixel data itself
-				VFS_WRITE(f, in->mip[0].data, in->mip[0].datasize);
-			}
-			else if (!ImgTool_MipExport(args, f, in, entry->name, wadtype))
-				continue;
-
-			wad2.num++;
-			entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
-		}
 	}
-	wad2.offset = VFS_TELL(f);
-	VFS_WRITE(f, wadentries, sizeof(*wadentries)*wad2.num);
-	VFS_SEEK(f, 0);
-	VFS_WRITE(f, &wad2, sizeof(wad2));
-	VFS_CLOSE(f);
+	else
+	{
+		qpics = !strcasecmp("gfx.wad", COM_SkipPath(destpath));
+
+		f = FS_OpenVFS(destpath, "wb", FS_SYSTEM);
+		wad2.magic[0] = 'W';
+		wad2.magic[1] = 'A';
+		wad2.magic[2] = 'D';
+		wad2.magic[3] = (wadtype==2)?'3':'2';	//wad3 instead of 2, so we can include a palette for tools to validate against
+		wad2.num = 0;
+		wad2.offset = 0;
+		VFS_WRITE(f, &wad2, 12);
+
+		if (wadtype == 1)
+		{	//WAD2 texture files generally have a palette lump.
+			if (wad2.num == maxentries)
+			{
+				maxentries += 64;
+				wadentries = realloc(wadentries, sizeof(*wadentries)*maxentries);
+			}
+			entry = &wadentries[wad2.num++];
+			memset(entry, 0, sizeof(*entry));
+			Q_strncpyz(entry->name, "PALETTE", 16);
+			entry->type = TYP_PALETTE;
+			entry->offset = VFS_TELL(f);
+
+			//and the lump data.
+			VFS_WRITE(f, host_basepal, 256*3);
+
+			entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
+		}
+
+		for (i = 0; i < list.numfiles; i++)
+		{
+			Q_snprintfz(file, sizeof(file), "%s/%s", list.file[i].rootpath, list.file[i].name);
+			inname = list.file[i].name;
+			if (list.file[i].baselen > 15)
+			{
+				Con_Printf("Path too long for wad - %s\n", inname);
+				continue;
+			}
+			indata = FS_LoadMallocFile(file, &fsize);
+			if (!indata)
+			{
+				Con_Printf("Unable to open %s\n", inname);
+				continue;
+			}
+
+			if (wad2.num == maxentries)
+			{
+				maxentries += 64;
+				wadentries = realloc(wadentries, sizeof(*wadentries)*maxentries);
+			}
+			entry = &wadentries[wad2.num];
+			memset(entry, 0, sizeof(*entry));
+			Q_strncpyz(entry->name, inname, 16);
+			if (list.file[i].baselen < sizeof(entry->name))
+				entry->name[list.file[i].baselen] = 0; //kill any .tga
+			if (*entry->name == '#')
+				*entry->name = '*';	//* is not valid in a filename, yet needed for turbs, so by convention # is used instead. this is only relevant for the first char.
+			entry->type = TYP_MIPTEX;
+			entry->offset = VFS_TELL(f);
+
+			if (!strcasecmp(COM_GetFileExtension(file, NULL), ".mip"))
+			{	//.mip files can just be loaded directly
+				//I just hope they are actually q1 format and not hl, for instance.
+				if (wadtype == 3)
+				{
+					Con_Printf("refusing to inject q1 miptex into halflife wad-3 file\n");
+					Z_Free(indata);
+					continue;
+				}
+				VFS_WRITE(f, indata, fsize);
+				wad2.num++;
+				entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
+				Z_Free(indata);
+			}
+			else
+			{
+				if (wadtype == 3)
+				{
+					for (u = 0; u < sizeof(entry->name); u++)
+						entry->name[u] = toupper(entry->name[u]);
+					entry->type = 67;	//halflife's mips actually use a different type from q1 ones.
+				}
+
+				//try to decompress everything to a nice friendly palletizable range.
+				for (u = 1; u < countof(sh_config.texfmt); u++)
+					sh_config.texfmt[u] = (u==PTI_RGBA8)||(u==PTI_RGBX8)||(u==PTI_P8)||(u==args->newpixelformat);
+				in = Image_LoadMipsFromMemory(args->flags, inname, file, indata, fsize);
+
+				if (qpics)
+				{
+					if (!strcasecmp(entry->name, "CONCHARS") && in->mip[0].width==128&&in->mip[0].height==128)
+						entry->type = TYP_MIPTEX;	//yes, weird. match vanilla quake. explicitly avoid qpic to avoid corruption in the first 8 bytes (due to the engine's early endian swapping)
+													//FIXME: encoding should be pti_trans8_0...
+					else
+					{
+						entry->type = TYP_QPIC;
+						//qpics need a header
+						VFS_WRITE(f, &in->mip[0].width, sizeof(int));
+						VFS_WRITE(f, &in->mip[0].height, sizeof(int));
+					}
+					//and now the 8bit pixel data itself
+					VFS_WRITE(f, in->mip[0].data, in->mip[0].datasize);
+				}
+				else if (!ImgTool_MipExport(args, f, in, entry->name, wadtype))
+					continue;
+
+				wad2.num++;
+				entry->size = entry->dsize = VFS_TELL(f)-entry->offset;
+			}
+		}
+		wad2.offset = VFS_TELL(f);
+		VFS_WRITE(f, wadentries, sizeof(*wadentries)*wad2.num);
+		VFS_SEEK(f, 0);
+		VFS_WRITE(f, &wad2, sizeof(wad2));
+		VFS_CLOSE(f);
+	}
 
 	free(wadentries);
 	FileList_Release(&list);

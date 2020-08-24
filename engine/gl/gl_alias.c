@@ -694,7 +694,12 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				if (plskin && plskin->loadstate < SKIN_LOADED)
 				{
 					Skin_TryCache8(plskin);	//we're not going to use it, but make sure its status is updated when it is finally loaded..
-					plskin = cl.players[e->playerindex].lastskin;
+					if (plskin->loadstate < SKIN_LOADED)
+					{
+						plskin = cl.players[e->playerindex].lastskin;
+						if (!plskin || plskin->loadstate < SKIN_LOADED)
+							return NULL;	//just wait for it to finish loading so we don't generate pointless skins.
+					}
 				}
 				else
 					cl.players[e->playerindex].lastskin = plskin;
@@ -838,9 +843,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				shader = R_RegisterSkin(skinname, NULL);
 
 			cm->texnum.bump = shader->defaulttextures->bump;	//can't colour bumpmapping
-			if (original)
+			if (plskin)
 			{
-				if (!original && TEXLOADED(plskin->textures.base))
+				if (TEXLOADED(plskin->textures.base))
 				{
 					cm->texnum.loweroverlay = plskin->textures.loweroverlay;
 					cm->texnum.upperoverlay = plskin->textures.upperoverlay;

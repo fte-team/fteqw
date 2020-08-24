@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #ifdef QWSKINS
-cvar_t		baseskin = CVAR("baseskin", "");
+cvar_t		baseskin = CVARD("baseskin", "", "The name of the player skin to use as a fallback.");
 cvar_t		noskins = CVAR("noskins", "0");
 
 extern cvar_t	cl_teamskin;

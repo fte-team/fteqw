@@ -1,12 +1,14 @@
 ../progs.dat
 
-optsssqc.qc
+#define SSQC
 optsall.qc
+#ifdef QSS
+qsextensions.qc
+#undef CSQC
+#endif
+fteextensions.qc
 
 ss/defs.qc
-ss/builtins.qc
-common/combuiltins.qc
-common/extensions.qc
 common/econstants.qc
 common/classes.qc
 

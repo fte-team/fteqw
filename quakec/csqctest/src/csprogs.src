@@ -1,25 +1,21 @@
 ../csprogs.dat
 
-optscsqc.qc
+#define CSQC
 optsall.qc
-
-cs/system.qc
+#ifdef QSS
+qsextensions.qc
+#endif
+fteextensions.qc
 cs/defs.qc
 
 common/classes.qc
 
-common/combuiltins.qc
-cs/csbuiltins.qc
-
-common/extensions.qc
-
 common/econstants.qc
 cs/constants.qc
+cs/playerframes.inc
 
 common/pmovedefs.qc
 common/pmove.qc
-
-cs/keys.qc
 
 common/makeallstatic.qc
 
@@ -41,6 +37,7 @@ cs/fun/tetris.qc
 cs/fun/osgk.qc
 
 cs/weapons.qc
+cs/tempent.qc
 
 common/classes.qc
 

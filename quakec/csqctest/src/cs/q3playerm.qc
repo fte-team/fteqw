@@ -35,8 +35,6 @@
 
 #ifdef MD3PMODELS
 
-#include "playerframes.inc"
-
 //these are the animation sequence names used in quake3.
 enum {
 	BOTH_DEATH1,
@@ -117,7 +115,7 @@ vector getlerpedtaginfo(entity ent, float tagnum)
 
 	//at the time of writing, this is needed for DP to be smooth.
 	//fte does not support gettaginfo at all (I've been lazy due to the heirachical nature).
-	//this is called by RotateVectorsByTag_GTI, so it not required in fte as FTE has a working RotateVectorsByTag instead.
+	//this is called by rotatevectorsbytag_GTI, so it not required in fte as FTE has a working rotatevectorsbytag instead.
 
 	float frame2ness = ent.lerpfrac;
 	float frame1ness = 1-frame2ness;
@@ -151,8 +149,8 @@ vector getlerpedtaginfo(entity ent, float tagnum)
 	return v_origin;
 }
 
-#define RotateVectorsByTag RotateVectorsByTag_GTI
-vector RotateVectorsByTag_GTI(entity ent, float tagnum)
+#define rotatevectorsbytag rotatevectorsbytag_GTI
+vector rotatevectorsbytag_GTI(entity ent, float tagnum)
 {
 	vector saveang=ent.angles;
 	vector saveorg=ent.origin;
@@ -198,8 +196,8 @@ vector RotateVectorsByTag_GTI(entity ent, float tagnum)
 	saveorg_z += ango_z * oldz_z;
 	return saveorg;
 }
-#define RotateVectorsByAngle RotateVectorsByAngle_QC
-void RotateVectorsByAngle_QC(vector angle)
+#define rotatevectorsbyangle rotatevectorsbyangle_QC
+void rotatevectorsbyangle_QC(vector angle)
 {
 	vector oldx=v_forward, oldy='0 0 0'-v_right, oldz=v_up;
 	angle_x = -angle_x;
@@ -254,13 +252,13 @@ void(entity ent, string soundname) sexedsound =
 	if (fileexists(full))
 	{
 		precache_sound(str);
-		soundp(self, CHAN_VOICE, str, 1, 1, 95 + random()*10);
+		sound(self, CHAN_VOICE, str, 1, 1, 95 + random()*10);
 	}
 	else
 	{
 		str = strcat("player/sarge/", soundname);	// :(
 		precache_sound(str);
-		soundp(self, CHAN_VOICE, str, 1, 1, 95 + random()*10);
+		sound(self, CHAN_VOICE, str, 1, 1, 95 + random()*10);
 	}
 };
 
@@ -305,7 +303,8 @@ float(entity ent) animate =
 	ft *= fps;
 	fnum = floor(ft);
 	ft = ft - fnum;	//time into the frame.
-	if (fnum >= numframes)
+	ret = fnum >= numframes;
+	if (ret)
 	{
 		loopingframes = anim_loopingframes[anum];
 
@@ -323,8 +322,6 @@ float(entity ent) animate =
 
 		if (numframes == 1)
 			ent.frame2 = ent.frame;
-
-		ret = true;
 	}
 	fnum += anim_firstframe[anum];
 
@@ -355,6 +352,8 @@ void() LegsUpdateAnim =
 
 	if (trace_fraction == 1)
 		inair = self.velocity_z;
+	else
+		inair = 0;
 
 	if (self.legsent.animnum > BOTH_DEAD3)
 	if ((self.wasinair!=0) != (inair!=0))
@@ -431,20 +430,21 @@ void() TorsoUpdateAnim =
 {
 	if (animate(self.torsoent))
 	{
-		if (self.frame >= $axdeth1 && self.frame <= $deathe9)
+		playerframe f = self.frame;
+		if (f >= playerframe::axdeth1 && f <= playerframe::deathe9)
 			return;	//dead.
 
-		if (self.frame == $nailatt1 || self.frame == $nailatt2 ||
-		    self.frame == $light1 || self.frame == $light2)
+		if (f == playerframe::nailatt1 || f == playerframe::nailatt2 ||
+		    f == playerframe::light1 || f == playerframe::light2)
 			ForceToAnim(TORSO_ATTACK);	//these ones loop
 		else if (random() < 0.005 && !(self.velocity_x || self.velocity_y) && (chasecam || self != player_local))
 		{	//randomly taunt, when standing still, when not first-person (making the sounds is just confusing when first person)
 			sexedsound(self, "taunt.wav");
 			ForceToAnim(TORSO_GESTURE);
 		}
-		else if ((self.frame >= $axrun1 && self.frame <= $axrun6) ||
-			 (self.frame >= $axstnd1 && self.frame <= $axstnd12) ||
-			 (self.frame >= $axpain1 && self.frame <= $axpain6))
+		else if ((f >= playerframe::axrun1 && f <= playerframe::axrun6) ||
+			 (f >= playerframe::axstnd1 && f <= playerframe::axstnd12) ||
+			 (f >= playerframe::axpain1 && f <= playerframe::axpain6))
 			ForceToAnim(TORSO_STAND2);
 		else
 			ForceToAnim(TORSO_STAND);
@@ -482,7 +482,7 @@ nonstatic void() Anim_Draw =
 	vector tf, tr, tu;
 	vector ang;
 	float move;
-	string weaponname;
+	string weaponname = 0;
 
 	self.modelindex = 0;	//should never have been anything else.
 
@@ -503,7 +503,7 @@ nonstatic void() Anim_Draw =
 		self.weaponent.renderflags = RF_USEAXIS;
 	}
 
-	if (!(self.frame >= $axdeth1 && self.frame <= $deathe9))
+	if (!(self.frame >= playerframe::axdeth1 && self.frame <= playerframe::deathe9))
 	{
 		//if they're still alive
 		//animate the legs a bit so they turn to the player, but not for 1-degree turns. little more realism there.
@@ -563,73 +563,73 @@ nonstatic void() Anim_Draw =
 	if (self.frame != self.frame2)
 	{
 	//see if the player changed to any animations.
-		if (self.frame >= $axdeth1 && self.frame <= $axdeth8 && self.legsent.animnum != BOTH_DEATH1)
+		if (self.frame >= playerframe::axdeth1 && self.frame <= playerframe::axdeth8 && self.legsent.animnum != BOTH_DEATH1)
 		{
 			sexedsound(self, "death1.wav");
 			ForceToAnim(BOTH_DEATH1);
 		}
-		else if (self.frame == $axdeth9 && self.frame2 != $axdeth8)
+		else if (self.frame == playerframe::axdeth9 && self.frame2 != playerframe::axdeth8)
 			ForceToAnim(BOTH_DEAD1);	//suddenly appeared with this frame (otherwise we just flow into it)
 
-		else if (self.frame == $deatha1 && self.frame <= $deatha10 && self.legsent.animnum != BOTH_DEATH2)
+		else if (self.frame == playerframe::deatha1 && self.frame <= playerframe::deatha10 && self.legsent.animnum != BOTH_DEATH2)
 		{
 			sexedsound(self, "death2.wav");
 			ForceToAnim(BOTH_DEATH2);
 		}
-		else if (self.frame == $deatha11 && self.frame2 != $deatha10)
+		else if (self.frame == playerframe::deatha11 && self.frame2 != playerframe::deatha10)
 			ForceToAnim(BOTH_DEAD2);	//suddenly appeared with this frame (otherwise we just flow into it)
 
-		else if (self.frame == $deathb1 && self.frame <= $deathb8 && self.legsent.animnum != BOTH_DEATH3)
+		else if (self.frame == playerframe::deathb1 && self.frame <= playerframe::deathb8 && self.legsent.animnum != BOTH_DEATH3)
 		{
 			sexedsound(self, "death3.wav");
 			ForceToAnim(BOTH_DEATH3);
 		}
-		else if (self.frame == $deathb9 && self.frame2 != $deathb8)
+		else if (self.frame == playerframe::deathb9 && self.frame2 != playerframe::deathb8)
 			ForceToAnim(BOTH_DEAD3);	//suddenly appeared with this frame (otherwise we just flow into it)
 
-		else if (self.frame == $deathc1 && self.frame <= $deathc14 && self.legsent.animnum != BOTH_DEATH1)
+		else if (self.frame == playerframe::deathc1 && self.frame <= playerframe::deathc14 && self.legsent.animnum != BOTH_DEATH1)
 		{
 			sexedsound(self, "death1.wav");
 			ForceToAnim(BOTH_DEATH1);
 		}
-		else if (self.frame == $deathc15 && self.frame2 != $deathc14)
+		else if (self.frame == playerframe::deathc15 && self.frame2 != playerframe::deathc14)
 			ForceToAnim(BOTH_DEAD1);	//suddenly appeared with this frame (otherwise we just flow into it)
 
-		else if (self.frame == $deathd1 && self.frame <= $deathd8 && self.legsent.animnum != BOTH_DEATH2)
+		else if (self.frame == playerframe::deathd1 && self.frame <= playerframe::deathd8 && self.legsent.animnum != BOTH_DEATH2)
 		{
 			sexedsound(self, "death2.wav");
 			ForceToAnim(BOTH_DEATH2);
 		}
-		else if (self.frame == $deathd9 && self.frame2 != $deathd8)
+		else if (self.frame == playerframe::deathd9 && self.frame2 != playerframe::deathd8)
 			ForceToAnim(BOTH_DEAD2);	//suddenly appeared with this frame (otherwise we just flow into it)
 
-		else if (self.frame == $deathe1 && self.frame <= $deathe8 && self.legsent.animnum != BOTH_DEATH3)
+		else if (self.frame == playerframe::deathe1 && self.frame <= playerframe::deathe8 && self.legsent.animnum != BOTH_DEATH3)
 		{
 			sexedsound(self, "death3.wav");
 			ForceToAnim(BOTH_DEATH3);
 		}
-		else if (self.frame == $deathe9 && self.frame2 != $deathe8)
+		else if (self.frame == playerframe::deathe9 && self.frame2 != playerframe::deathe8)
 			ForceToAnim(BOTH_DEAD3);	//suddenly appeared with this frame (otherwise we just flow into it)
 
-		else if ((self.frame  == $nailatt1 || self.frame  == $nailatt2) &&
-			 (self.frame2 != $nailatt1 && self.frame2 != $nailatt2))
+		else if ((self.frame  == playerframe::nailatt1 || self.frame  == playerframe::nailatt2) &&
+			 (self.frame2 != playerframe::nailatt1 && self.frame2 != playerframe::nailatt2))
 			ForceToAnim(TORSO_ATTACK);
-		else if ((self.frame  == $light1 || self.frame  == $light2) &&
-			 (self.frame2 != $light1 && self.frame2 != $light2))
+		else if ((self.frame  == playerframe::light1 || self.frame  == playerframe::light2) &&
+			 (self.frame2 != playerframe::light1 && self.frame2 != playerframe::light2))
 			ForceToAnim(TORSO_ATTACK);
-		else if (self.frame == $rockatt1)
+		else if (self.frame == playerframe::rockatt1)
 			ForceToAnim(TORSO_ATTACK);
-		else if (self.frame == $shotatt1)
+		else if (self.frame == playerframe::shotatt1)
 			ForceToAnim(TORSO_ATTACK);
-		else if (self.frame == $axatt1)
+		else if (self.frame == playerframe::axatt1)
 			ForceToAnim(TORSO_ATTACK2);
-		else if (self.frame == $axattb1)
+		else if (self.frame == playerframe::axattb1)
 			ForceToAnim(TORSO_ATTACK2);
-		else if (self.frame == $axattc1)
+		else if (self.frame == playerframe::axattc1)
 			ForceToAnim(TORSO_ATTACK2);
-		else if (self.frame == $axattd1)
+		else if (self.frame == playerframe::axattd1)
 			ForceToAnim(TORSO_ATTACK2);
-		else if (self.frame2 >= $axdeth1 && self.frame2 <= $deathe9 && !(self.frame >= $axdeth1 && self.frame <= $deathe9))
+		else if (self.frame2 >= playerframe::axdeth1 && self.frame2 <= playerframe::deathe9 && !(self.frame >= playerframe::axdeth1 && self.frame <= playerframe::deathe9))
 		{	//respawned
 			ForceToAnim(LEGS_IDLE);
 			ForceToAnim(TORSO_STAND);
@@ -645,7 +645,7 @@ nonstatic void() Anim_Draw =
 	ang_y = 0;
 	if (ang != '0 0 0')
 	{
-		adddynamiclight(self.origin, 400, ang);
+		dynamiclight_add(self.origin, 400, ang);
 	}
 
 	//if they're meant to be transparent, propogate that.
@@ -663,13 +663,13 @@ nonstatic void() Anim_Draw =
 	//legs are in place, matricies are set up for them.
 
 	//work out where to put the torso by querying the tag
-	self.torsoent.origin = RotateVectorsByTag(self.legsent, self.torsoent.tag_index);//figure out the torso position
+	self.torsoent.origin = rotatevectorsbytag(self.legsent, self.torsoent.tag_index);//figure out the torso position
 	//torso's angles are not lagged, and must always point directly at the target, so rotate by the extra angles.
 	ang = self.angles;
 	ang_y = self.angles_y - self.legsent.angles_y;	//keep the angle on the legs
 	ang_x*=2;
 	if (self.legsent.animnum > BOTH_DEAD3)
-		RotateVectorsByAngle(ang);	//rotate the torso (when dead the whole thing acts as one model with no custom angles inside)
+		rotatevectorsbyangle(ang);	//rotate the torso (when dead the whole thing acts as one model with no custom angles inside)
 	AddModelWithEffects(self.torsoent);
 	//torso is now added to the scene.
 
@@ -679,15 +679,15 @@ nonstatic void() Anim_Draw =
 	tu = v_up;
 
 	//now work out where to put the head
-	self.headent.origin = RotateVectorsByTag(self.torsoent, self.headent.tag_index);//
+	self.headent.origin = rotatevectorsbytag(self.torsoent, self.headent.tag_index);//
 	ang_y = sin(time)*22.5;
 	ang_x = cos(time*0.4532)*11.25;
 	if (self.legsent.animnum > BOTH_DEAD3)
-		RotateVectorsByAngle(ang);	//make the head around a bit
+		rotatevectorsbyangle(ang);	//make the head around a bit
 	AddModelWithEffects(self.headent);
 	//head is now in place
 
-	if (self.frame >= $axdeth1 && self.frame <= $deathe9)
+	if (self.frame >= playerframe::axdeth1 && self.frame <= playerframe::deathe9)
 		return;	//don't show the weapon in death frames.
 
 	//and revert the matrix back to how it was before the head.
@@ -728,7 +728,7 @@ nonstatic void() Anim_Draw =
 	setmodel(self.weaponent, strcat(weaponname, ".md3"));
 
 	//rotate by a tag on the torso
-	self.weaponent.origin = RotateVectorsByTag(self.torsoent, self.weaponent.tag_index);//place the weapon in the hand
+	self.weaponent.origin = rotatevectorsbytag(self.torsoent, self.weaponent.tag_index);//place the weapon in the hand
 	//and add it.
 	AddModelWithEffects(self.weaponent);
 
@@ -739,7 +739,7 @@ nonstatic void() Anim_Draw =
 		if (move)
 		{
 			//they're shooting something. make a muzzleflash appear at the end of their weapon.
-			self.weaponent.origin = RotateVectorsByTag(self.weaponent, move);
+			self.weaponent.origin = rotatevectorsbytag(self.weaponent, move);
 			setmodel(self.weaponent, strcat(weaponname, "_flash.md3"));
 			AddModelWithEffects(self.weaponent);
 		}
@@ -781,7 +781,7 @@ nonstatic float(string modname) Anim_ReadAnimationFile =
 	local float modnum;
 	local string str;
 	local float file;
-	local float sequencenum;
+	local float sequencenum = 0;
 	local float stupid;
 
 	if (modname == "")
@@ -818,7 +818,7 @@ nonstatic float(string modname) Anim_ReadAnimationFile =
 		precache_model(strcat("models/players/", modname, "/lower.md3"));
 		precache_model(strcat("models/players/", modname, "/head.md3"));
 
-		anim_headmodel[modnum] = modelindex_for_name(strcat("models/players/", modname, "/head.md3"));
+		anim_headmodel[modnum] = getmodelindex(strcat("models/players/", modname, "/head.md3"));
 
 		//default general values
 		anim_gender[modnum] = GENDER_DEFAULT;
@@ -866,6 +866,7 @@ nonstatic float(string modname) Anim_ReadAnimationFile =
 						stupid = stof(str);
 						stupid = stupid - anim_firstframe[(modnum * NUMANIMS) + TORSO_GESTURE];
 					}
+					else stupid = 0;
 					anim_firstframe[(modnum * NUMANIMS) + sequencenum] = stof(str) - stupid;
 					anim_numframes[(modnum * NUMANIMS) + sequencenum] = stof(argv(1));
 					anim_loopingframes[(modnum * NUMANIMS) + sequencenum] = stof(argv(2));
@@ -1243,7 +1244,7 @@ float(float channel, string soundname, vector pos, float vol, float attenuation)
 	return false;
 };
 
-float(float sventnum, float channel, string soundname, float vol, float att, vector org) CSQC_Event_Sound =
+float(float sventnum, float channel, string soundname, float vol, float att, vector org, float pitchmod, float flags) CSQC_Event_Sound =
 {
 	self = findfloat(world, entnum, sventnum);
 	if (self)

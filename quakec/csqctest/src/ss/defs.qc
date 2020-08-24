@@ -73,7 +73,7 @@ void() 		PlayerPreThink;
 void() 		PlayerPostThink;
 
 void()		ClientKill;
-void(float csqcenabled)		ClientConnect;
+void()		ClientConnect;
 void() 		PutClientInServer;		// call after setting the parm1... parms
 void()		ClientDisconnect;
 
@@ -501,8 +501,7 @@ float(entity targ, entity inflictor) CanDamage;
 
 
 float serverusingcsqc;
+float isdp;
 
-.float(entity to) SendEntity;
-.float SendFlags;
 #define FULLSEND 0xffffff
-float	MSG_ENTITY		= 5;
+

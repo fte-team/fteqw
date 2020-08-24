@@ -166,7 +166,11 @@ void(entity ent, float endframe) Pred_RunMovement =
 		{
 			break;
 		}
+#ifdef OWNPLAYERPHYSICS
+		PMove(ent);
+#else
 		runstandardplayerphysics(ent);
+#endif
 
 		pmoveframe++;
 	}

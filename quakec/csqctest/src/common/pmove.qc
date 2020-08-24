@@ -28,6 +28,7 @@ Any fields that are read need to be the same between csqc and ssqc code somehow.
 #ifdef HAVE_DOTGRAVITY
 .float gravity;
 #endif
+.entity groundentity;
 
 enumflags
 {
@@ -39,7 +40,7 @@ enumflags
 static void(entity tother) dotouch =
 {
 	entity oself;
-	//if (tother.touch == __NULL__)
+	if (tother.touch == __NULL__)
 		return;
 
 	oself = self;
@@ -58,6 +59,12 @@ void(vector surfnorm) PMove_Rebound =
 	float v;
 	v = self.velocity*surfnorm;
 	self.velocity = self.velocity - surfnorm*(v);
+
+	if (surfnorm_z > 0.7)
+	{	//if we hit a ground plane then we're now on the ground.
+		self.pmove_flags |= PMF_ONGROUND;
+		self.groundentity = trace_ent;
+	}
 };
 
 void(void) PMove_Move =	//move forwards (preferably on the level) (does step ups)
@@ -97,9 +104,11 @@ void(void) PMove_Move =	//move forwards (preferably on the level) (does step ups
 				//if we got anywhere, make this raised-step move count
 				if (trace_fraction != 0)
 				{
+					movetime -= movetime * trace_fraction;
+					self.pmove_flags &= ~PMF_ONGROUND;
 					if (trace_fraction < 1)
 						PMove_Rebound(trace_plane_normal);
-
+			
 					//move down
 					dest = trace_endpos;
 					dest_z -= stepped+1;
@@ -109,7 +118,6 @@ void(void) PMove_Move =	//move forwards (preferably on the level) (does step ups
 
 					self.origin = trace_endpos;
 
-					movetime -= movetime * input_timelength;
 
 					continue;
 				}
@@ -206,7 +214,7 @@ void() PMove_InAirAccelerate =
 			if (!(self.pmove_flags & PMF_JUMP_HELD))
 			{
 				self.velocity_z += movevars_jumpheight;
-				self.pmove_flags (+) PMF_ONGROUND;
+				self.pmove_flags |= PMF_ONGROUND;
 			}
 		}
 	}
@@ -249,19 +257,67 @@ void() PMove_Categorise =
 {
 	//if we're moving up, we're not on the ground
 	if (self.velocity_z > 0)
-		self.pmove_flags (-) PMF_ONGROUND;
+	{
+		self.pmove_flags &= ~PMF_ONGROUND;
+	}
 	else
 	{
 		//don't know, maybe we are, maybe we're not
 		tracebox(self.origin, self.mins, self.maxs, self.origin-'0 0 1', false, self);
 		if (trace_fraction == 1 || trace_plane_normal_z < 0.7)
 		{
-			self.pmove_flags (-) PMF_ONGROUND;
-//			self.groundentity = trace_ent;
+			self.pmove_flags &= ~PMF_ONGROUND;
 		}
 		else
-			self.pmove_flags (+) PMF_ONGROUND;
+		{
+			self.pmove_flags |= PMF_ONGROUND;
+			self.groundentity = trace_ent;
+		}
 	}
+};
+
+float roundcoordf(float f)
+{	//round this coord like the networking will... ish...
+	//coord rounding is often client-specific. which makes life fun.
+	return rint(f*8)/8;
+}
+vector roundcoordv(vector v)
+{
+	return [
+		roundcoordf(v_x),
+		roundcoordf(v_y),
+		roundcoordf(v_z)
+	];
+}
+vector truncv(vector v)
+{
+	return v & v;
+}
+static void Pmove_Nudge(void)
+{
+	self.velocity = truncv(self.velocity);
+	vector test, org = roundcoordv(self.origin);
+
+	static float offsets[] = {0, -1./8, 1./8, -2./8, 2./8};
+	for (float z = 0; z < offsets.length; z++)	
+	{
+		test.z = org.z + offsets[z];
+		for (float y = 0; y < offsets.length; y++)	
+		{
+			test.y = org.y + offsets[y];
+			for (float x = 0; x < offsets.length; x++)	
+			{
+				test.x = org.x + offsets[x];
+				tracebox(test, self.mins, self.maxs, test, false, self);
+				if (!trace_startsolid)
+				{	//okay, that'll do
+					self.origin = test;
+					return;
+				}
+			}
+		}
+	}
+	self.origin = org;
 };
 
 void(entity ent) PMove =
@@ -269,30 +325,43 @@ void(entity ent) PMove =
 	self = ent;
 	makevectors(input_angles);
 
+	Pmove_Nudge();
+
 	if (!(input_buttons & PMF_JUMP_HELD))
-		self.pmove_flags (-) PMF_JUMP_HELD;
+		self.pmove_flags &= ~PMF_JUMP_HELD;
 
 	PMove_Categorise();
 
 	self.movetype = MOVETYPE_WALK;
 
-	switch(self.movetype)
+	if (input_timelength >= 0)
 	{
-	case MOVETYPE_WALK:
-		PMove_InAirAccelerate();
-		PMove_Move();
-		break;
-	case MOVETYPE_FLY:
-		PMove_NoclipAccelerate();
-		PMove_Move();
-		break;
-	case MOVETYPE_NOCLIP:
-		PMove_NoclipAccelerate();
-		self.origin += self.velocity*input_timelength;
-		break;
-	case MOVETYPE_NONE:
-		break;
+		switch(self.movetype)
+		{
+		case MOVETYPE_WALK:
+			PMove_InAirAccelerate();
+			PMove_Move();
+			break;
+		case MOVETYPE_FLY:
+			PMove_NoclipAccelerate();
+			PMove_Move();
+			break;
+		case MOVETYPE_NOCLIP:
+			PMove_NoclipAccelerate();
+			self.origin += self.velocity*input_timelength;
+			break;
+		case MOVETYPE_NONE:
+			break;
+		}
+
+		touchtriggers(self);
 	}
+	else print(sprintf("timelength %g\n", input_timelength));
+
+	if (self.pmove_flags & PMF_ONGROUND)
+		self.flags |= FL_ONGROUND;
+	else
+		self.flags &= ~FL_ONGROUND;
 };
 
 #endif

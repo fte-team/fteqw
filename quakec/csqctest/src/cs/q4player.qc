@@ -1,21 +1,3 @@
-float(float modlindex) skel_create = #263; // create a skeleton (be sure to assign the value to .skeletonindex for use), returns skeleton index (1 or higher) on success, returns 0 on failure  (for example if the modelindex is not skeletal)
-float(float skel, entity ent, float modlindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // blend in a percentage of standard animation, 0 replaces entirely, 1 does nothing, 0.5 blends half, etc, and this only alters the bones in the specified range for which out of bounds values like 0,100000 are safe (uses .frame, .frame2, .frame3, .frame4, .lerpfrac, .lerpfrac3, .lerpfrac4, .frame1time, .frame2time, .frame3time, .frame4time), returns skel on success, 0 on failure
-float(float skel) skel_get_numbones = #265; // returns how many bones exist in the created skeleton
-string(float skel, float bonenum) skel_get_bonename = #266; // returns name of bone (as a tempstring)
-float(float skel, float bonenum) skel_get_boneparent = #267; // returns parent num for supplied bonenum, -1 if bonenum has no parent or bone does not exist (returned value is always less than bonenum, you can loop on this)
-float(float skel, string tagname) skel_find_bone = #268; // get number of bone with specified name, 0 on failure, tagindex (bonenum+1) on success, same as using gettagindex on the modelindex
-vector(float skel, float bonenum) skel_get_bonerel = #269; // get matrix of bone in skeleton relative to its parent - sets v_forward, v_right, v_up, returns origin (relative to parent bone)
-vector(float skel, float bonenum) skel_get_boneabs = #270; // get matrix of bone in skeleton in model space - sets v_forward, v_right, v_up, returns origin (relative to entity)
-void(float skel, float bonenum, vector org, vector fwd, vector rgt, vector up) skel_set_bone = #271; // set matrix of bone relative to its parent, reads v_forward, v_right, v_up, takes origin as parameter (relative to parent bone)
-void(float skel, float bonenum, vector org) skel_mul_bone = #272; // transform bone matrix (relative to its parent) by the supplied matrix in v_forward, v_right, v_up, takes origin as parameter (relative to parent bone)
-void(float skel, float startbone, float endbone, vector org, vector f, vector r, vector u) skel_mul_bones = #273; // transform bone matrices (relative to their parents) by the supplied matrix in v_forward, v_right, v_up, takes origin as parameter (relative to parent bones)
-void(float skeldst, float skelsrc, float startbone, float endbone) skel_copybones = #274; // copy bone matrices (relative to their parents) from one skeleton to another, useful for copying a skeleton to a corpse
-void(float skel) skel_delete = #275; // deletes skeleton at the beginning of the next frame (you can add the entity, delete the skeleton, renderscene, and it will still work)
-//float(float modlindex, string framename) frameforname = #276; // finds number of a specified frame in the animation, returns -1 if no match found
-float(float modlindex, float framenum) frameduration = #277; // returns the intended play time (in seconds) of the specified framegroup, if it does not exist the result is 0, if it is a single frame it may be a small value around 0.1 or 0.
-.float skeletonindex;
-
-
 enum
 {
 ANIM_FORWARD,
@@ -184,9 +166,9 @@ void() Q4PM_Draw =
 		skel_build(self.skeletonindex, self, anim[i], ((i==0)?0:1), 0, -1, self.aweight[i]);
 	}
 
-	skel_mul_bone(self.skeletonindex, 18, '0 0 0', v_forward, v_right, v_up);
-	skel_mul_bone(self.skeletonindex, 19, '0 0 0', v_forward, v_right, v_up);
-	skel_mul_bone(self.skeletonindex, 20, '0 0 0', v_forward, v_right, v_up);
+	skel_premul_bone(self.skeletonindex, 18, '0 0 0', v_forward, v_right, v_up);
+	skel_premul_bone(self.skeletonindex, 19, '0 0 0', v_forward, v_right, v_up);
+	skel_premul_bone(self.skeletonindex, 20, '0 0 0', v_forward, v_right, v_up);
 
 	//obliterate the bone movement, so that it doesn't move forwards.
 	skel_get_bonerel(self.skeletonindex, 1);
@@ -201,11 +183,11 @@ float(string skinname) Q4PM_SetModel =
 	if not (whichpack(mname))
 		return false;
 
-	anim[ANIM_IDLE]    = precache_model("models/characters/player/idle.md5anim");
-	anim[ANIM_FORWARD] = precache_model("models/characters/player/run.md5anim");
-	anim[ANIM_BACK]    = precache_model("models/characters/player/run_backwards.md5anim");
-	anim[ANIM_RIGHT]   = precache_model("models/characters/player/strafe_right.md5anim");
-	anim[ANIM_LEFT]    = precache_model("models/characters/player/strafe_left.md5anim");
+	anim[ANIM_IDLE]    = getmodelindex("models/characters/player/idle.md5anim");
+	anim[ANIM_FORWARD] = getmodelindex("models/characters/player/run.md5anim");
+	anim[ANIM_BACK]    = getmodelindex("models/characters/player/run_backwards.md5anim");
+	anim[ANIM_RIGHT]   = getmodelindex("models/characters/player/strafe_right.md5anim");
+	anim[ANIM_LEFT]    = getmodelindex("models/characters/player/strafe_left.md5anim");
 
 	setmodel(self, mname);
 

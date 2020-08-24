@@ -1,7 +1,5 @@
 #ifdef HLPMODELS
 
-#include "playerframes.inc"
-
 .float oldframe;
 
 #pragma noref 1
@@ -77,17 +75,17 @@ static void(string framename) ForceToAnim =
 
 void() updatesequences =
 {
-	if (self.frame == $nailatt1 || self.frame == $nailatt2 ||
-	    self.frame == $light1 || self.frame == $light2)
+	if (self.frame == playerframe::nailatt1 || self.frame == playerframe::nailatt2 ||
+	    self.frame == playerframe::light1 || self.frame == playerframe::light2)
 		ForceToAnim ("ref_shoot_onehanded");	//these ones loop
 //	else if (random() < 0.005 && !(self.velocity_x || self.velocity_y) && (chasecam || self != player_local))
 //	{	//randomly taunt, when standing still, when not first-person (making the sounds is just confusing when first person)
 //		sexedsound(self, "taunt.wav");
 //		ForceToAnim (TORSO_GESTURE);
 //	}
-	else if ((self.frame >= $axrun1 && self.frame <= $axrun6) ||
-		 (self.frame >= $axstnd1 && self.frame <= $axstnd12) ||
-		 (self.frame >= $axpain1 && self.frame <= $axpain6))
+	else if ((self.frame >= playerframe::axrun1 && self.frame <= playerframe::axrun6) ||
+		 (self.frame >= playerframe::axstnd1 && self.frame <= playerframe::axstnd12) ||
+		 (self.frame >= playerframe::axpain1 && self.frame <= playerframe::axpain6))
 		ForceToAnim ("ref_aim_crowbar");
 	else
 		ForceToAnim ("ref_aim_onehanded");

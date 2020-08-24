@@ -188,7 +188,7 @@ void() RunPlayerPhysics =
 	phys_angles_z = bound(-1, phys_velocity * v_right * cl_divspeed, 1) * cl_rollangle;
 	if (!phys_fixangle)
 	{
-		phys_angles_x = (phys_v_angle_x + phys_punchangle_x) * -0.333;
+		phys_angles_x = (phys_v_angle_x + phys_punchangle_x) * 0.333 * autocvar(r_meshpitch, -1);
 		phys_angles_y = phys_v_angle_y + phys_punchangle_y;
 	}
 

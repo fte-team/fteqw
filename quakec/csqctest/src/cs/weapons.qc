@@ -2,18 +2,23 @@
 #define crandom() (random()*2 - 1)
 .float starttime;
 .vector source;
+void() SUB_Remove =
+{
+	remove(self);
+};
 
 //Moves the entity to where it should be
-void() RocketProject =
+float() RocketProject =
 {
 	local vector oldorg;
 	oldorg = self.origin;
 	self.origin = self.source + self.velocity * (time - self.starttime);
 
 	//Do the trail thing, if possible.
-	trailparticles(particleeffectforname("tr_rocket"), self, self.origin, oldorg);
+	trailparticles(particleeffectnum("tr_rocket"), self, self.origin, oldorg);
 
-	adddynamiclight(self.origin, 400, '0 1 0');
+	dynamiclight_add(self.origin, 400, '0 1 0');
+	return PREDRAW_AUTOADD;
 };
 
 nonstatic void(float isnew) ParseRocketClass =
@@ -26,9 +31,9 @@ nonstatic void(float isnew) ParseRocketClass =
 	self.angles_y = (readshort()*360)/65535;
 	self.angles_z = random()*360;
 
-	self.angles_x*=-1;
+	self.angles_x*=autocvar(r_meshpitch,-1);
 	makevectors(self.angles);
-	self.angles_x*=-1;
+	self.angles_x*=autocvar(r_meshpitch,-1);
 	self.velocity = v_forward*1000;
 	self.origin = self.source;
 
@@ -37,16 +42,17 @@ nonstatic void(float isnew) ParseRocketClass =
 	self.predraw = RocketProject;
 };
 
-nonstatic void() NailProject =
+nonstatic float() NailProject =
 {
 	local vector oldorg;
 	oldorg = self.origin;
 	self.origin = self.source + self.velocity * (time - self.starttime);
 
 	//Do the trail thing, if possible.
-	trailparticles(particleeffectforname("tr_nail"), self, self.origin, oldorg);
+	trailparticles(particleeffectnum("tr_nail"), self, self.origin, oldorg);
 
 //	adddynamiclight(self.origin, 100, '1 0 0');
+	return PREDRAW_AUTOADD;
 };
 
 nonstatic void(float isnew) ParseNailClass =
@@ -62,9 +68,9 @@ nonstatic void(float isnew) ParseNailClass =
 	self.angles_y = (readshort()*360)/65535;
 	self.angles_z = 0;	//don't rotate nails.
 
-	self.angles_x*=-1;
+	self.angles_x*=autocvar(r_meshpitch,-1);
 	makevectors(self.angles);
-	self.angles_x*=-1;
+	self.angles_x*=autocvar(r_meshpitch,-1);
 	self.velocity = v_forward*speed;
 	self.origin = self.source;
 
@@ -102,7 +108,7 @@ vector(float dm) VelocityForDamage =
 	return v;
 };
 
-void() GibProject =
+float() GibProject =
 {
 	local float td;
 	local vector oldorg;
@@ -114,13 +120,14 @@ void() GibProject =
 		if (self.alpha <= td)
 		{
 			remove(self);
-			return;
+			return PREDRAW_NEXT;
 		}
 		self.alpha -= td;
 	}
 
 	Movetype_Bounce();
-	trailparticles(particleeffectforname("tr_blood"), self, self.origin, oldorg);
+	trailparticles(particleeffectnum("tr_blood"), self, self.origin, oldorg);
+	return PREDRAW_AUTOADD;
 };
 
 void(string gibname, float dm, vector org) ThrowGib =
@@ -137,7 +144,7 @@ void(string gibname, float dm, vector org) ThrowGib =
 	new.avelocity_x = random()*600;
 	new.avelocity_y = random()*600;
 	new.avelocity_z = random()*600;
-	new.think = remove;
+	new.think = SUB_Remove;
 	new.nextthink = time + 10 + random()*10;
 	new.frame = 0;
 	new.flags = 0;
@@ -290,9 +297,9 @@ nonstatic void(float isnew) ParseExplosion =
 	{
 		sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
 #ifdef WORKINDP
-		pointparticles(particleeffectforname("te_explosion"), org, '0 0 0', 1);
+		pointparticles(particleeffectnum("te_explosion"), org, '0 0 0', 1);
 #else
-		pointparticles(particleeffectforname("te_explosion"), org);
+		pointparticles(particleeffectnum("te_explosion"), org);
 #endif
 
 		e = world;//findradius(org, 120);

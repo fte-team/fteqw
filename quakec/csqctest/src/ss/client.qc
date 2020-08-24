@@ -2,14 +2,12 @@
 // prototypes
 void () W_WeaponFrame;
 void() W_SetCurrentAmmo;
-void() player_pain;
+void(entity attacker, float damage) player_pain;
 void() player_stand1;
 void (vector org) spawn_tfog;
 void (vector org, entity death_owner) spawn_tdeath;
 
 float	modelindex_eyes, modelindex_player;
-
-void() DefaultPlayerPhysics;
 
 .float usingcsqc;
 
@@ -472,7 +470,7 @@ entity() SelectSpawnPoint =
 	return spot;
 };
 
-float(entity to) SendPlayer =
+float(entity to, float fl) SendPlayer =
 {
 	float ef;
 	float f;
@@ -1201,7 +1199,7 @@ ClientConnect
 called when a player connects to a server
 ============
 */
-void(float csqcenabled) ClientConnect =
+void() ClientConnect =
 {
 	bprint (self.netname);
 	bprint (" entered the game\n");
@@ -1210,17 +1208,19 @@ void(float csqcenabled) ClientConnect =
 	if (intermission_running)
 		ExitIntermission ();
 
-
-	self.usingcsqc = csqcenabled;
+	self.usingcsqc = stof(infokey(self, INFOKEY_P_CSQCACTIVE));
 	if (self.usingcsqc)
+	{
 		self.dimension_see = 1;
+		sprint(self, "Welcome to csqctest!\n");
+	}
 	else
 	{
 		self.dimension_see = 3;
 
 		bprint(self.netname);
 		bprint(" is not using csqc!\n");
-		sprint(self, "You are not using csqc.\nThis could be due to version differences or only a partially installed mod.\nIf you are using FTEQW, please type \sallow_download_csprogs 1\s in the console, and then reconnect.\n\nNote that certain incompatabilities may exist if you do not.");
+		sprint(self, "You are not using csqc.\nThis could be due to version differences or only a partially installed mod.\nIf you are using FTEQW, please type \sallow_download_csprogs 1\s in the console, and then reconnect.\n\nNote that certain incompatabilities may exist if you do not.\n");
 	}
 };
 
@@ -1255,11 +1255,10 @@ enum {
 	GENDER_FEMALE,
 	GENDER_NEUTER
 };
-string infokey(entity ent, string keyname) = #80;
 float(entity ent) GetGender =
 {
 	local string s;
-	if (infokeyworks)
+	if (!isdp)
 	{
 		s = infokey(ent, "s");
 		if (s == "" || s == "m" || s == "male" || s == "yesplease")
@@ -1370,27 +1369,27 @@ void(entity targ, entity attacker) ClientObituary =
 					deathstring = " was ax-murdered by ";
 					deathstring2 = "\n";
 				}
-				if (rnum == IT_SHOTGUN)
+				else if (rnum == IT_SHOTGUN)
 				{
 					deathstring = " chewed on ";
 					deathstring2 = "'s boomstick\n";
 				}
-				if (rnum == IT_SUPER_SHOTGUN)
+				else if (rnum == IT_SUPER_SHOTGUN)
 				{
 					deathstring = " ate 2 loads of ";
 					deathstring2 = "'s buckshot\n";
 				}
-				if (rnum == IT_NAILGUN)
+				else if (rnum == IT_NAILGUN)
 				{
 					deathstring = " was nailed by ";
 					deathstring2 = "\n";
 				}
-				if (rnum == IT_SUPER_NAILGUN)
+				else if (rnum == IT_SUPER_NAILGUN)
 				{
 					deathstring = " was punctured by ";
 					deathstring2 = "\n";
 				}
-				if (rnum == IT_GRENADE_LAUNCHER)
+				else if (rnum == IT_GRENADE_LAUNCHER)
 				{
 					deathstring = " eats ";
 					deathstring2 = "'s pineapple\n";
@@ -1400,7 +1399,7 @@ void(entity targ, entity attacker) ClientObituary =
 						deathstring2 = "'s grenade\n";
 					}
 				}
-				if (rnum == IT_ROCKET_LAUNCHER)
+				else if (rnum == IT_ROCKET_LAUNCHER)
 				{
 					deathstring = " rides ";
 					deathstring2 = "'s rocket\n";
@@ -1410,13 +1409,18 @@ void(entity targ, entity attacker) ClientObituary =
 						deathstring2 = "'s rocket\n" ;
 					}
 				}
-				if (rnum == IT_LIGHTNING)
+				else if (rnum == IT_LIGHTNING)
 				{
 					deathstring = " accepts ";
 					if (attacker.waterlevel > 1)
 						deathstring2 = "'s discharge\n";
 					else
 						deathstring2 = "'s shaft\n";
+				}
+				else
+				{
+					deathstring = " was killed by ";
+					deathstring2 = "\n";
 				}
 				bprint (targ.netname);
 				bprint (deathstring);
@@ -1549,14 +1553,13 @@ void(entity targ, entity attacker) ClientObituary =
 	}
 };
 
-void() DefaultPlayerPhysics = #347;
 void() SV_RunClientCommand =
 {
 	//should match the one used by csqc.
 #ifdef OWNPLAYERPHYSICS
 	PMove(self);
 #else
-	DefaultPlayerPhysics(self);
+	runstandardplayerphysics(self);
 #endif
 };
 

@@ -5,8 +5,6 @@ RefreshPlayer: Called from the engine each time a player (ent with player.mdl) i
 ParsePlayer: Called from CSQC_Ent_Parse for csqc protocol ents
 */
 
-#include "playerframes.inc"
-
 static void() RemovePlayer;
 
 enum
@@ -32,9 +30,9 @@ enum
 #define strzone(s) ""
 #endif
 
-static void() Player_Interpolate =
+static float() Player_Interpolate =
 {	//do some frame interpolation.
-	if (self.entnum == player_localentnum)
+	if (player_local == self)
 	{
 		Pred_UpdateLocalMovement(self);
 	}
@@ -71,7 +69,7 @@ static void() Player_Interpolate =
 			self.renderflags = RF_EXTERNALMODEL;
 
 #ifdef POWERUP_SHELLS
-		if (!isdp)
+		if (!checkbuiltin(shaderforname))
 		{
 			if (self.sveffects & SVE_INVIS)
 				self.forceshader = shaderforname("powerups/invisibility");
@@ -104,8 +102,11 @@ static void() Player_Interpolate =
 			setmodel(self, "progs/eyes.mdl");
 		else
 			setmodel(self, "progs/player.mdl");
+		setsize(self, VEC_HULL_MIN, VEC_HULL_MAX);
 		break;
 	}
+	addentity(self);
+	return PREDRAW_NEXT;
 };
 
 static void(float g) Player_SetLocalInfoGender =
@@ -208,7 +209,7 @@ static void() Player_UnsetModel =
 
 static entity() Player_DupModel =
 {
-	local entity e;
+	local entity e = world;
 
 	switch(self.modelstyle)
 	{
@@ -240,18 +241,20 @@ static entity() Player_DupModel =
 static void() bodythink =
 {
 	local float final;
-	if (self.frame >= $axdeth1 && self.frame <= $axdeth9)
-		final = $axdeth9;
-	else if (self.frame >= $deatha1 && self.frame <= $deatha11)
-		final = $deatha11;
-	else if (self.frame >= $deathb1 && self.frame <= $deathb9)
-		final = $deathb9;
-	else if (self.frame >= $deathc1 && self.frame <= $deathc15)
-		final = $deathc15;
-	else if (self.frame >= $deathd1 && self.frame <= $deathd9)
-		final = $deathd9;
-	else if (self.frame >= $deathe1 && self.frame <= $deathe9)
-		final = $deathe9;
+	if (self.frame >= playerframe::axdeth1 && self.frame <= playerframe::axdeth9)
+		final = playerframe::axdeth9;
+	else if (self.frame >= playerframe::deatha1 && self.frame <= playerframe::deatha11)
+		final = playerframe::deatha11;
+	else if (self.frame >= playerframe::deathb1 && self.frame <= playerframe::deathb9)
+		final = playerframe::deathb9;
+	else if (self.frame >= playerframe::deathc1 && self.frame <= playerframe::deathc15)
+		final = playerframe::deathc15;
+	else if (self.frame >= playerframe::deathd1 && self.frame <= playerframe::deathd9)
+		final = playerframe::deathd9;
+	else if (self.frame >= playerframe::deathe1 && self.frame <= playerframe::deathe9)
+		final = playerframe::deathe9;
+	else
+		final = 0;
 
 	self.frame = self.frame+1;
 
@@ -260,7 +263,7 @@ static void() bodythink =
 
 	self.nextthink = time + 0.1;
 };
-static void() DeadBodyPredraw =
+static float() DeadBodyPredraw =
 {
 	float ftime;
 	ftime = time - self.starttime;
@@ -269,13 +272,14 @@ static void() DeadBodyPredraw =
 	{
 		Player_UnsetModel();
 		remove(self);
-		return;
+		return PREDRAW_NEXT;
 	}
 
 	Movetype_Bounce();
 
 	Player_Interpolate();
 	self.origin_z -= ftime*0.5;
+	return PREDRAW_AUTOADD;
 };
 
 static void() JustRessed =
@@ -323,7 +327,7 @@ static void() RemovePlayer =
 	self.predraw = __NULL__;
 };
 
-void(float isnew) RefreshPlayer =
+float(float isnew) RefreshPlayer =
 {
 	local string newskin;
 
@@ -333,7 +337,7 @@ void(float isnew) RefreshPlayer =
 		self.haddied = false;
 
 	//if its not new and they're not dead, but they were before..
-	if (self.frame < $axdeth1 || self.frame > $deathe9)
+	if (self.frame < playerframe::axdeth1 || self.frame > playerframe::deathe9)
 	{
 		if (self.haddied)
 		{
@@ -353,18 +357,16 @@ void(float isnew) RefreshPlayer =
 
 	if (isnew)
 	{
-		if (self.entnum == player_localentnum)
-		{
-			player_local = self;
-		}
-
 		self.modelstyle = MF_BAD;
 
 		self.oldskin = strzone("");
 		self.drawmask = MASK_NORMAL;
 
 		self.removefunc = RemovePlayer;
+		self.customphysics = (void()){};
 	}
+	if (self.entnum == player_localentnum)
+		player_local = self;
 
 	if (self.sveffects & SVE_INVIS)
 	{
@@ -416,10 +418,10 @@ void(float isnew) RefreshPlayer =
 
 	if (player_local != self)
 	{
-		return;
+		return TRUE;
 	}
-
 	Pred_PlayerUpdated(self);
+	return TRUE;
 };
 
 //this is sent after the server has run our movement command.

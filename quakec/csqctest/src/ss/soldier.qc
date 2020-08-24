@@ -37,30 +37,31 @@ $frame prowl_1 prowl_2 prowl_3 prowl_4 prowl_5 prowl_6 prowl_7 prowl_8
 $frame prowl_9 prowl_10 prowl_11 prowl_12 prowl_13 prowl_14 prowl_15 prowl_16
 $frame prowl_17 prowl_18 prowl_19 prowl_20 prowl_21 prowl_22 prowl_23 prowl_24
 
+#include "../cs/playerframes.inc"
 float(float f) mapsoldieframetoplayer =
 {
 	switch(f)
 	{
 	case $stand1 .. $stand8 :
-		return $stand1;
+		return playerframe::stand1;
 	case $death1 .. $deathc11 :
-		return $deatha1;
+		return playerframe::deatha1;
 	case $load1 .. $load11 :
 		return 0;	//never used!
 	case $death1 .. $deathc11 :
-		return $deatha1;
+		return playerframe::deatha1;
 	case $pain1 .. $painc13 :
-		return $pain1;
+		return playerframe::pain1;
 	case $prowl_1 .. $prowl_24 :
 	case $run1 .. $run8 :
-		return $rockrun1;
+		return playerframe::rockrun1;
 	case $shoot1 .. $shoot9 :
-		return $shotatt1;
+		return playerframe::shotatt1;
 	}
 	return f;
 };
 
-float(entity to) SendSoldier =
+float(entity to, float fl) SendSoldier =
 {
 	WriteByte(MSG_ENTITY, CLASS_PLAYER);
 	WriteByte(MSG_ENTITY, mapsoldieframetoplayer (self.frame));	//for clientside animation selection, in a way compatable with not having csqc.

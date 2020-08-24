@@ -2,6 +2,11 @@
 	#define show_scoreboard sb_showscores
 #endif
 
+#define RSES_NOLERP 1
+#define RSES_NOROTATE 2
+#define RSES_NOTRAILS 4
+#define RSES_NOLIGHTS 8
+
 float show_scoreboard;
 string dbgstr;
 
@@ -21,60 +26,7 @@ void() checkengineversion =
 };
 
 
-//check compiler, and give suitable warnings (unfortunatly at run time)
-float(float f) testfunc =
-{
-	return f;
-}
-float(float f1, float f2) testfunc2 =
-{
-	return f1+f2;
-}
-float testarray[2];
-
-float(float p1, float p2) a = {return p1+p2+5;};
-float() b = {return 86;};
-float(float p1) c = {return p1+566;};
-float() d = {return 7773;};
-
-#pragma TARGET ID
-
-void() checkcompilerversion =
-{
-	local entity testent;
-
-	testent = spawn();
-	testent.entnum = -5;
-	testent.owner = testent;
-	testent.owner.entnum += 5;
-	if (testent.entnum)
-		print("compiler failed on e.e.f += \n");
-	remove(testent);
-
-	testarray[0] = 5;
-	testarray[1] = 6;
-
-	if (testfunc (a(b(), c(d()))) != 86+5+7773+566)
-		print("compiler failed on a(b(), c(d()))\n");
-	if (testfunc(5)+testfunc(6) != 11)
-		print("compiler failed on f()+f()\n");
-	if (testfunc2(5, testfunc(6)) != 11)
-		print("compiler failed on f2(0,f1(1))\n");
-	if (testfunc2(testfunc(5),testfunc(6)) != 11)
-		print("compiler failed on f2(f(),f())\n");
-	if (testarray[0]+testarray[1] != 11)
-		print("compiler failed on a[0]+a[1]\n");
-};
-
-#ifdef FTEDEPENDANT
-# pragma TARGET FTE
-#endif
-
-
-void(float isnew) RefreshPlayer;
-
-
-void(float isnew) RefreshOther =
+float(float isnew) RefreshOther =
 {
 	self.drawmask = MASK_ENGINE;
 	setmodelindex(self, self.modelindex);
@@ -83,6 +35,8 @@ void(float isnew) RefreshOther =
 		RefreshPlayer(isnew);
 	else if (self.colormap)
 		self.modelindex = 0;	//don't show dead bodies, we do dying ourselves.
+
+	return PREDRAW_AUTOADD;
 };
 
 
@@ -139,6 +93,8 @@ void() regcommands =
 	registercommand("osgk_resize");
 	registercommand("osgk_mousemove");
 	registercommand("osgk_keypress");
+	
+	registercommand("test_viewinfo");
 };
 
 float(string str) CSQC_ConsoleCommand =
@@ -184,19 +140,44 @@ float(string str) CSQC_ConsoleCommand =
 	case "osgk_mousemove":
 		gecko_mousemove(argv(1), stof(argv(2)), stof(argv(3)));
 		break;
+	case "test_viewinfo":
+		if (player_local)
+		{
+			print(sprintf("View origin is at %v\n", vieworg));
+			print(sprintf("local player entity %i is num %g on server, at %v\n", player_local, player_local.entnum, player_local.origin));
+		}
+		else
+			print("Local player entity is not known. Engine is providing the default view origin.\n");
+		break;
 	default:
 		return false;
 	}
 	return true;
 };
 
+void(string line) CSQC_Parse_StuffCmd =
+{
+	print("stufftext: ", line);
+	localcmd(line);
+};
+float(string msg) CSQC_Parse_CenterPrint =
+{
+	print("centerprint: ");
+	print(msg);
+	print("\n");
+	cprint(msg);
+	return false;
+};
+
 void(string msg, float type) CSQC_Parse_Print =
 {
-cprint(msg);
+	print("print: ");
+	print(msg);
 
-	if (dbgstr)
+/*	if (dbgstr)
 		strunzone(dbgstr);
 	dbgstr = strzone(msg);
+*/
 };
 
 void() CSQC_Ent_Remove =	//the ent disappeared on the server.
@@ -231,7 +212,6 @@ void(entity ve) DoThatViewModelThing =
 
 	ve.origin = '0 0 0';
 	ve.angles = '0 0 0';
-	ve.angles_x *= -1;
 };
 
 void() drawloadingscreen =
@@ -241,10 +221,16 @@ void() drawloadingscreen =
 //	drawstring('0 0', "loading screen", '1 1', '1 1 1', 1);
 };
 
-void() CSQC_Init =
+void(float apilevel, string enginename, float engineversion) CSQC_Init =
 {
 	checkengineversion();
-	checkcompilerversion();
+
+	precache_model("progs/eyes.mdl");
+	precache_model("progs/player.mdl");
+	precache_model("progs/missile.mdl");
+	precache_sound("zombie/z_gib.wav");
+	precache_sound("player/udeath.wav");
+	precache_sound("weapons/r_exp3.wav");
 
 	viewentity = spawn();
 	viewentity.renderflags = RF_VIEWMODEL|RF_DEPTHHACK;
@@ -253,9 +239,7 @@ void() CSQC_Init =
 
 	regcommands();
 
-#ifndef FTEDEPENDANT
 	if (checkextension("EXT_CSQC_1"))
-#endif
 	{
 //		deltalisten("*", RefreshOther, 0);	//catch-all
 		deltalisten("progs/player.mdl", RefreshPlayer, RSES_NOLERP|RSES_NOROTATE);	//animate players/player-corpses
@@ -265,7 +249,11 @@ void() CSQC_Init =
 void(entity ent) CSQC_DrawViewModel =
 {
 	if (player_local.sveffects & SVE_INVIS)
+	{
+		if (!checkbuiltin(shaderforname))
+			return;
 		ent.forceshader = shaderforname("powerups/invisibility");
+	}
 	else
 		ent.forceshader = 0;
 
@@ -278,17 +266,17 @@ void(entity ent) CSQC_DrawViewModel =
 	ent.renderflags = RF_DEPTHHACK;	//nope, not a view model, that just breaks things
 	ent.origin = vieworg;
 	ent.angles = input_angles;
-	ent.angles_x = -ent.angles_x;
+	ent.angles_x *= autocvar(r_meshpitch, -1);
 #endif
 
 	addentity(ent);
-	if (player_local.sveffects & SVE_QUAD)
+	if ((player_local.sveffects & SVE_QUAD) && checkbuiltin(shaderforname))
 	{
 		ent.fatness = -2;
 		ent.forceshader = shaderforname("powerups/quad");
 		addentity(ent);
 	}
-	if (player_local.sveffects & SVE_GOD)
+	if ((player_local.sveffects & SVE_GOD) && checkbuiltin(shaderforname))
 	{
 		ent.fatness = -2.8;
 		ent.forceshader = shaderforname("powerups/regen");
@@ -317,9 +305,9 @@ void() CSQC_Delta_Remove =
 };
 
 
-float (float event, float parama, float paramb) CSQC_InputEvent =
+float (float event, float parama, float paramb, float paramc) CSQC_InputEvent =
 {
-	if (event == 0)
+	if (event == IE_KEYDOWN)
 	{
 		switch(CVARF(cg_editor))
 		{

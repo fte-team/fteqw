@@ -16,8 +16,8 @@ float(float keyc, float unic) editor_terrain_key =
 	vector v, o;
 	if (keyc == '[')
 	{
-		v = getviewpropv(VF_ANGLES);
-		o = getviewpropv(VF_ORIGIN);
+		v = (vector)getviewprop(VF_ANGLES);
+		o = (vector)getviewprop(VF_ORIGIN);
 		makevectors(v);
 		traceline(o, o + v_forward*8192, true, world);
 
@@ -25,8 +25,8 @@ float(float keyc, float unic) editor_terrain_key =
 	}
 	else if (keyc == '=')
 	{
-		v = getviewpropv(VF_ANGLES);
-		o = getviewpropv(VF_ORIGIN);
+		v = (vector)getviewprop(VF_ANGLES);
+		o = (vector)getviewprop(VF_ORIGIN);
 		makevectors(v);
 		traceline(o, o + v_forward*8192, true, world);
 
@@ -35,8 +35,8 @@ float(float keyc, float unic) editor_terrain_key =
 
 	else if (keyc == 13)
 	{
-		v = getviewpropv(VF_ANGLES);
-		o = getviewpropv(VF_ORIGIN);
+		v = (vector)getviewprop(VF_ANGLES);
+		o = (vector)getviewprop(VF_ORIGIN);
 		makevectors(v);
 		traceline(o, o + v_forward*8192, true, world);
 
@@ -44,8 +44,8 @@ float(float keyc, float unic) editor_terrain_key =
 	}
 	else if (keyc == ']')
 	{
-		v = getviewpropv(VF_ANGLES);
-		o = getviewpropv(VF_ORIGIN);
+		v = (vector)getviewprop(VF_ANGLES);
+		o = (vector)getviewprop(VF_ORIGIN);
 		makevectors(v);
 		traceline(o, o + v_forward*8192, true, world);
 

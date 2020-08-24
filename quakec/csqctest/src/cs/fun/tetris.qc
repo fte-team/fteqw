@@ -615,7 +615,7 @@ Important Linking Into Quake stuff
 
 void(float event, float button, float mousex, float mousey) TetrisMenuEvent =
 {
-	local float key;
+	local float key = 0;
 
 	if (event == ME_DRAW)
 	{			
@@ -633,21 +633,16 @@ void(float event, float button, float mousex, float mousey) TetrisMenuEvent =
 		Menu_Main();
 		return;
 	}
-	if (button == K_LEFTARROW)
-		key = TETKEY_LEFT;
-	if (button == K_RIGHTARROW)
-		key = TETKEY_RIGHT;
-	if (button == K_UPARROW)
-		key = TETKEY_ROTRIGHT;
-	if (button == K_CTRL)
-		key = TETKEY_ROTLEFT;
-	if (button == K_SPACE)
-		key = TETKEY_DOWN;
-	if (button == K_DOWNARROW)
-		key = TETKEY_DOWN;
-
-	if (!key)	//we didn't recognise it.
-		return;
+	switch(button)
+	{
+	case K_LEFTARROW:	key = TETKEY_LEFT;		break;
+	case K_RIGHTARROW:	key = TETKEY_RIGHT; 	break;
+	case K_UPARROW:		key = TETKEY_ROTRIGHT;	break;
+	case K_SPACE:		key = TETKEY_DOWN;		break;
+	case K_DOWNARROW:	key = TETKEY_DOWN;		break;
+	default:
+		return;	//we didn't recognise it.
+	}
 
 	if (event == ME_KEYDOWN)
 		tet_keys = tet_keys | key;

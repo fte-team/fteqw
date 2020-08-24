@@ -249,18 +249,20 @@ void() armor_touch =
 		value = 100;
 		bit = IT_ARMOR1;
 	}
-	if (self.classname == "item_armor2")
+	else if (self.classname == "item_armor2")
 	{
 		type = 0.6;
 		value = 150;
 		bit = IT_ARMOR2;
 	}
-	if (self.classname == "item_armorInv")
+	else if (self.classname == "item_armorInv")
 	{
 		type = 0.8;
 		value = 200;
 		bit = IT_ARMOR3;
 	}
+	else
+		return;
 	if (other.armortype*other.armorvalue >= type*value)
 		return;
 		
@@ -457,7 +459,10 @@ void() weapon_touch =
 		other.ammo_cells = other.ammo_cells + 15;
 	}
 	else
+	{
 		objerror ("weapon_touch: unknown classname");
+		new = 0;
+	}
 
 	sprint (other, "You got the ");
 	sprint (other, self.netname);

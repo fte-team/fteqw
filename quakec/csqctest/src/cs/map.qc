@@ -3,8 +3,6 @@
 .vector mangle;
 .string message;
 
-string() getentitytoken = #355;
-
 void() cs_teleport_touch =
 {
 	local entity t;
@@ -48,7 +46,7 @@ float() parsenewmapentity =
 {
 	local string field, value;
 	local entity nent;
-	local void() spawnfunc;
+	local void() spawnfunc = __NULL__;
 	nent = spawn();
 
 	while (1)

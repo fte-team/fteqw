@@ -56,11 +56,24 @@ void() W_FireAxe =
 	else
 	{	// hit wall
 		sound (self, CHAN_WEAPON, "player/axhit2.wav", 1, ATTN_NORM);
-		WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-		WriteByte (MSG_BROADCAST, TE_GUNSHOT);
-		WriteCoord (MSG_BROADCAST, org_x);
-		WriteCoord (MSG_BROADCAST, org_y);
-		WriteCoord (MSG_BROADCAST, org_z);
+
+		if (autocvar(test_buggyaxehit, 0) || isdp)
+		{	//for compat with dp. :(
+			WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+			WriteByte (MSG_BROADCAST, 0x80|TE_GUNSHOT);
+			WriteCoord (MSG_BROADCAST, org_x);
+			WriteCoord (MSG_BROADCAST, org_y);
+			WriteCoord (MSG_BROADCAST, org_z);
+		}
+		else
+		{
+			WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+			WriteByte (MSG_MULTICAST, 0x80|TE_GUNSHOT);
+			WriteCoord (MSG_MULTICAST, org_x);
+			WriteCoord (MSG_MULTICAST, org_y);
+			WriteCoord (MSG_MULTICAST, org_z);
+			multicast(org, MULTICAST_PVS);
+		}
 	}
 };
 
@@ -311,7 +324,7 @@ ROCKETS
 .vector source;
 .float starttime;
 
-float(entity toplayer) SendNail =
+float(entity toplayer, float fl) SendNail =
 {
 	vector v;
 	v = self.source + self.velocity*(time-self.starttime);
@@ -327,7 +340,7 @@ float(entity toplayer) SendNail =
 	return TRUE;
 };
 
-float(entity toplayer) SendRocket =
+float(entity toplayer, float fl) SendRocket =
 {
 	vector v;
 	v = self.source + self.velocity*(time-self.starttime);
@@ -342,7 +355,7 @@ float(entity toplayer) SendRocket =
 };
 
 
-float(entity toplayer) SendExplosion =
+float(entity toplayer, float fl) SendExplosion =
 {
 	vector v;
 	v = self.origin;
@@ -355,15 +368,15 @@ float(entity toplayer) SendExplosion =
 };
 
 /*this is for shits and giggles*/
-void(float action, vector pos, float radius, float quant) terrain_edit = #278;
 void() makevolcano =
 {
-#ifdef FTEDEPENDANT
-	terrain_edit(4, self.origin, 512, 64/3);
-	terrain_edit(5, self.origin, 256, 32/3);
-#endif
+	if (checkbuiltin(terrain_edit) && autocvar(test_volcano, 0, "Rocket explosions create a volcano shape on terrain models."))
+	{
+		terrain_edit(4, self.origin, 512, 64/3);
+		terrain_edit(5, self.origin, 256, 32/3);
+	}
 };
-void()	s_explode1	= {self.think = s_explode1; if (self.frame >= 6) {remove(self); return;}makevolcano(); self.frame += 0.5; self.nextthink = time + 0.05;};
+void()	s_explode1	= {self.think = s_explode1; makevolcano(); self.frame += 0.5; self.nextthink = time + 0.05; if (self.frame >= 6) {remove(self); return;}};
 
 void() BecomeExplosion =
 {
@@ -1068,6 +1081,8 @@ void() W_ChangeWeapon =
 		if (self.ammo_cells < 1)
 			am = 1;
 	}
+	else
+		fl = 0;
 
 	self.impulse = 0;
 

@@ -35,7 +35,7 @@ void() Hud_Init
 };
 
 vector screensize;
-float items, items2;
+float stat_items, stat_items2;
 
 void(vector pos, float value, float threshhold) Hud_DrawLargeValue =
 {
@@ -141,23 +141,23 @@ void(vector pos) Hud_CoopScores_SBar =
 	drawpic(sbar, "scorebar", '320 24 0', '1 1 1', 0.333, 0);
 
 	s = strcat("Monsters:", FormatFloat(getstatf(STAT_KILLEDMONSTERS), 3, " "), "/", FormatFloat(getstatf(STAT_TOTALMONSTERS), 3, " "));
-	drawstring(sbar + '8 4', s, '8 8 0', 1, 0);
+	drawstring(sbar + '8 4', s, '8 8 0', '1 1 1', 1, 0);
 	s = strcat("Secrets :", FormatFloat(getstatf(STAT_FOUNDSECRETS), 3, " "), "/", FormatFloat(getstatf(STAT_TOTALSECRETS), 3, " "));
-	drawstring(sbar + '8 12', s, '8 8 0', 1, 0);
+	drawstring(sbar + '8 12', s, '8 8 0', '1 1 1', 1, 0);
 
 	mins = floor(time/60);
 	secs = floor(time - mins*60);
 	s = strcat("Time :", FormatFloat(mins, 3, " "), ":", FormatFloat(secs, 2, "0"));
-	drawstring(sbar + '184 4', s, '8 8 0', 1, 0);
+	drawstring(sbar + '184 4', s, '8 8 0', '1 1 1', 1, 0);
 
-	drawstring(sbar + '232 12' - strlen(levelname)*'4 0', levelname, '8 8 0', 1, 0);
+	drawstring(sbar + '232 12' - strlen(levelname)*'4 0', levelname, '8 8 0', '1 1 1', 1, 0);
 };
 
 void Hud_DrawSBar(vector pos)
 {
 	drawpic(pos, "sbar", '320 24 0', '1 1 1', 0.333, 0);
 
-	if (items & IT_INVULNERABILITY)
+	if (stat_items & IT_INVULNERABILITY)
 	{
 		drawpic(pos, "disc", '24 24 0', '1 1 1', 1, 0);
 		Hud_DrawLargeValue(pos+'24 0 0', 999, 25);
@@ -165,23 +165,23 @@ void Hud_DrawSBar(vector pos)
 	else
 	{
 		Hud_DrawLargeValue(pos+'24 0 0', getstatf(STAT_ARMOR), 25);
-		if (items & IT_ARMOR3)
+		if (stat_items & IT_ARMOR3)
 			drawpic(pos, "sb_armor3", '24 24 0', '1 1 1', 1, 0);
-		else if (items & IT_ARMOR2)
+		else if (stat_items & IT_ARMOR2)
 			drawpic(pos, "sb_armor2", '24 24 0', '1 1 1', 1, 0);
-		else if (items & IT_ARMOR1)
+		else if (stat_items & IT_ARMOR1)
 			drawpic(pos, "sb_armor1", '24 24 0', '1 1 1', 1, 0);
 	}
 
 	Hud_DrawLargeValue(pos+'136 0 0', getstatf(STAT_HEALTH), 25);
 
-	if (items & IT_SHELLS)
+	if (stat_items & IT_SHELLS)
 		drawpic(pos+'224 0 0', "sb_shells", '24 24 0', '1 1 1', 1, 0);
-	else if (items & IT_NAILS)
+	else if (stat_items & IT_NAILS)
 		drawpic(pos+'224 0 0', "sb_nails", '24 24 0', '1 1 1', 1, 0);
-	else if (items & IT_ROCKETS)
+	else if (stat_items & IT_ROCKETS)
 		drawpic(pos+'224 0 0', "sb_rocket", '24 24 0', '1 1 1', 1, 0);
-	else if (items & IT_CELLS)
+	else if (stat_items & IT_CELLS)
 		drawpic(pos+'224 0 0', "sb_cells", '24 24 0', '1 1 1', 1, 0);
 	Hud_DrawLargeValue(pos+'248 0 0', getstatf(STAT_AMMO), 10);
 };
@@ -190,19 +190,19 @@ void Hud_DrawIBar(vector pos)
 {
 	drawpic(pos, "ibar", '320 24 0', '1 1 1', 0.333, 0);
 
-	if (items & IT_SHOTGUN)
+	if (stat_items & IT_SHOTGUN)
 		Hud_DrawWeapon(0, pos+'0 8 0');
-	if (items & IT_SUPER_SHOTGUN)
+	if (stat_items & IT_SUPER_SHOTGUN)
 		Hud_DrawWeapon(1, pos+'24 8 0');
-	if (items & IT_NAILGUN)
+	if (stat_items & IT_NAILGUN)
 		Hud_DrawWeapon(2, pos+'48 8 0');
-	if (items & IT_SUPER_NAILGUN)
+	if (stat_items & IT_SUPER_NAILGUN)
 		Hud_DrawWeapon(3, pos+'72 8 0');
-	if (items & IT_GRENADE_LAUNCHER)
+	if (stat_items & IT_GRENADE_LAUNCHER)
 		Hud_DrawWeapon(4, pos+'96 8 0');
-	if (items & IT_ROCKET_LAUNCHER)
+	if (stat_items & IT_ROCKET_LAUNCHER)
 		Hud_DrawWeapon(5, pos+'120 8 0');
-	if (items & IT_LIGHTNING)
+	if (stat_items & IT_LIGHTNING)
 		Hud_DrawWeaponWide(6, pos+'144 8 0');
 
 	Hud_DrawAmmoCount(0, pos + '10 0 0', false);
@@ -210,27 +210,27 @@ void Hud_DrawIBar(vector pos)
 	Hud_DrawAmmoCount(2, pos + '106 0 0', false);
 	Hud_DrawAmmoCount(3, pos + '154 0 0', false);
 
-	if (items & IT_KEY1)
+	if (stat_items & IT_KEY1)
 		drawpic(pos+'192 8 0', "sb_key1", '16 16 0', '1 1 1', 1, 0);
-	if (items & IT_KEY2)
+	if (stat_items & IT_KEY2)
 		drawpic(pos+'208 8 0', "sb_key2", '16 16 0', '1 1 1', 1, 0);
 
-	if (items & IT_INVISIBILITY)
+	if (stat_items & IT_INVISIBILITY)
 		drawpic(pos+'224 8 0', "sb_invis", '16 16 0', '1 1 1', 1, 0);
-	if (items & IT_INVULNERABILITY)
+	if (stat_items & IT_INVULNERABILITY)
 		drawpic(pos+'240 8 0', "sb_invuln", '16 16 0', '1 1 1', 1, 0);
-	if (items & IT_SUIT)
+	if (stat_items & IT_SUIT)
 		drawpic(pos+'256 8 0', "sb_suit", '16 16 0', '1 1 1', 1, 0);
-	if (items & IT_QUAD)
+	if (stat_items & IT_QUAD)
 		drawpic(pos+'272 8 0', "sb_quad", '16 16 0', '1 1 1', 1, 0);
 
-	if (items2 & 32)
+	if (stat_items2 & 32)
 		drawpic(pos+'288 8 0', "sb_sigil1", '8 16 0', '1 1 1', 1, 0);
-	if (items2 & 64)
+	if (stat_items2 & 64)
 		drawpic(pos+'296 8 0', "sb_sigil2", '8 16 0', '1 1 1', 1, 0);
-	if (items2 & 128)
+	if (stat_items2 & 128)
 		drawpic(pos+'304 8 0', "sb_sigil3", '8 16 0', '1 1 1', 1, 0);
-	if (items2 & 256)
+	if (stat_items2 & 256)
 		drawpic(pos+'312 8 0', "sb_sigil4", '8 16 0', '1 1 1', 1, 0);
 };
 
@@ -360,8 +360,8 @@ nonstatic void Hud_Draw(float hudtype, float scoreboard, float width, float heig
 	pos_x = (screensize_x-320)/2;
 	pos_y = screensize_y;
 
-	items = getstatbits(STAT_ITEMS, 0, 23);
-	items2 = getstatbits(STAT_ITEMS, 23, 9);
+	stat_items = getstatbits(STAT_ITEMS, 0, 23);
+	stat_items2 = getstatbits(STAT_ITEMS, 23, 9);
 
 	//if hudtype == 0 then the engine already drew it.
 	if (hudtype == 3)

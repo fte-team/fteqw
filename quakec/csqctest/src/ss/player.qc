@@ -334,7 +334,7 @@ void()	player_axpain4 =	[	$axpain4,	player_axpain5	] {};
 void()	player_axpain5 =	[	$axpain5,	player_axpain6	] {};
 void()	player_axpain6 =	[	$axpain6,	player_run	] {};
 
-void() player_pain =
+void(entity attacker, float damage) player_pain =
 {
 	if (self.weaponframe)
 		return;
@@ -456,7 +456,7 @@ vector(float dm) VelocityForDamage =
 	return v;
 };
 
-float(entity ent) NotInCSQC =
+float(entity ent, float fl) NotInCSQC =
 {
 	return FALSE;
 };
@@ -501,7 +501,7 @@ void(string gibname, float dm) ThrowHead =
 	self.avelocity = crandom() * '0 600 0';
 };
 
-float(entity ent) WriteGibs =
+float(entity ent, float fl) WriteGibs =
 {
 	WriteByte(MSG_ENTITY, CLASS_GIB);
 	WriteByte(MSG_ENTITY, self.cnt);
@@ -620,7 +620,6 @@ void() PlayerDie =
 
 void() set_suicide_frame =
 {	// used by kill command and diconnect command
-	local entity b;
 	if (self.model != "progs/player.mdl")
 		return;	// already gibbed
 	self.frame = $deatha11;

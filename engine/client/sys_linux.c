@@ -702,30 +702,40 @@ static enum
 static quint64_t Sys_GetClock(quint64_t *freq)
 {
 	quint64_t t;
-	if (timer_clocktype == QCLOCK_MONOTONIC)
+	switch(timer_clocktype)
 	{
-		struct timespec ts;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-		*freq = 1000000000;
-		t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;
-	}
-	else if (timer_clocktype == QCLOCK_REALTIME)
-	{
-		struct timespec ts;
-		clock_gettime(CLOCK_REALTIME, &ts);
-		*freq = 1000000000;
-		t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;
+#ifdef CLOCK_MONOTONIC
+	case QCLOCK_MONOTONIC:
+		{
+			struct timespec ts;
+			clock_gettime(CLOCK_MONOTONIC, &ts);
+			*freq = 1000000000;
+			t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;
+		}
+		break;
+#endif
+#ifdef CLOCK_REALTIME
+	case QCLOCK_REALTIME:
+		{
+			struct timespec ts;
+			clock_gettime(CLOCK_REALTIME, &ts);
+			*freq = 1000000000;
+			t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;
 
-		//WARNING t can go backwards
-	}
-	else //if (timer_clocktype == QCLOCK_GTOD)
-	{
-		struct timeval tp;
-		gettimeofday(&tp, NULL);
-		*freq = 1000000;
-		t = tp.tv_sec*(quint64_t)1000000 + tp.tv_usec;
+			//WARNING t can go backwards
+		}
+		break;
+#endif
+	default:	//QCLOCK_GTOD
+		{
+			struct timeval tp;
+			gettimeofday(&tp, NULL);
+			*freq = 1000000;
+			t = tp.tv_sec*(quint64_t)1000000 + tp.tv_usec;
 
-		//WARNING t can go backwards
+			//WARNING t can go backwards
+		}
+		break;
 	}
 	return t - timer_basetime;
 }
@@ -755,8 +765,12 @@ static void Sys_ClockType_Changed(cvar_t *var, char *oldval)
 			switch(timer_clocktype)
 			{
 			case QCLOCK_GTOD:		clockname = "gettimeofday";	break;
+#ifdef CLOCK_MONOTONIC
 			case QCLOCK_MONOTONIC:	clockname = "monotonic";	break;
+#endif
+#ifdef CLOCK_REALTIME
 			case QCLOCK_REALTIME:	clockname = "realtime";	break;
+#endif
 			case QCLOCK_AUTO:
 			case QCLOCK_INVALID:	break;
 			}

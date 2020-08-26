@@ -2319,7 +2319,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			);
 		}
 
-		if (prog && !prog->explicitsyms)
+		if (!prog || !prog->explicitsyms)
 		{	//for compat with our vulkan processor, which injects samplers in order to control layouts.
 			const char *defaultsamplernames[] =
 			{
@@ -2409,7 +2409,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				);
 		}
 
-		if (!prog->explicitsyms)
+		if (!prog || !prog->explicitsyms)
 		{
 			if (gl_config_nofixedfunc)
 			{

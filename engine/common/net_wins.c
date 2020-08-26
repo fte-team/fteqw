@@ -125,6 +125,7 @@ static cvar_t net_dns_ipv6		= CVARD("net_dns_ipv6",				"1", "If 0, disables dns 
 cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 #if defined(HAVE_SSL)
 cvar_t	tls_ignorecertificateerrors	= CVARFD("tls_ignorecertificateerrors", "0", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOUNSAFEEXPAND|CVAR_NOSET, "This should NEVER be set to 1!");
+static cvar_t	tls_provider	= CVARFD("tls_provider", "0", CVAR_NOTFROMSERVER, "Controls which TLS provider to use.\n0: Auto.\n1: GNUTLS\n2: OpenSSL\n3: SSPI");
 #endif
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
@@ -1081,7 +1082,27 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 		if (!strncmp(site, oldprefix, strlen(oldprefix)))
 		{
 			if (!strcmp(s+8,site+strlen(oldprefix)))
+			{
+#ifdef HAVE_IPV4
+				struct sockaddr_in *a = (struct sockaddr_in*)sadr;
+				qbyte *ip = (qbyte*)&a->sin_addr;
+				memset (a, 0, sizeof(*sadr));
+				a->sin_family = AF_INET;
+				ip[0] = 213;
+				ip[1] = 219;
+				ip[2] = 36;
+				ip[3] = 248;
+				a->sin_port = htons(defaultport);
+
+				if (addrsize)
+					*addrsize = sizeof(*a);
+				if (addrfamily)
+					*addrfamily = AF_INET;
+				return 1;
+#else
 				s += 8;
+#endif
+			}
 		}
 	}
 #endif
@@ -2274,6 +2295,9 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 	vfsfile_t *f = NULL;
 	char hostname[MAX_OSPATH];
 
+	if (!source)
+		return NULL;	//can happen if socket() fails.
+
 	if (peername)
 	{
 		//clean up the name, stripping any port or other weirdness.
@@ -2296,15 +2320,15 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 		*hostname = 0;
 
 #ifdef HAVE_GNUTLS
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==1))
 		f = GNUTLS_OpenVFS(hostname, source, isserver);
 #endif
 #ifdef HAVE_OPENSSL
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==2))
 		f = OSSL_OpenVFS(hostname, source, isserver);
 #endif
 #ifdef HAVE_WINSSPI
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==3))
 		f = SSPI_OpenVFS(hostname, source, isserver);
 #endif
 	if (!f)	//it all failed.
@@ -2817,15 +2841,15 @@ const dtlsfuncs_t *DTLS_InitServer(void)
 {
 	const dtlsfuncs_t *f = NULL;
 #ifdef HAVE_GNUTLS
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==1))
 		f = GNUDTLS_InitServer();
 #endif
 #ifdef HAVE_OPENSSL
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==2))
 		f = OSSL_InitServer();
 #endif
 #ifdef HAVE_WINSSPI
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==3))
 		f = SSPI_DTLS_InitServer();
 #endif
 	return f;
@@ -2833,17 +2857,17 @@ const dtlsfuncs_t *DTLS_InitServer(void)
 const dtlsfuncs_t *DTLS_InitClient(void)
 {
 	const dtlsfuncs_t *f = NULL;
-#ifdef HAVE_WINSSPI
-	if (!f)
-		f = SSPI_DTLS_InitClient();
-#endif
 #ifdef HAVE_GNUTLS
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==1))
 		f = GNUDTLS_InitClient();
 #endif
 #ifdef HAVE_OPENSSL
-	if (!f)
+	if (!f && (!tls_provider.ival || tls_provider.ival==2))
 		f = OSSL_InitClient();
+#endif
+#ifdef HAVE_WINSSPI
+	if (!f && (!tls_provider.ival || tls_provider.ival==3))
+		f = SSPI_DTLS_InitClient();
 #endif
 	return f;
 }
@@ -8455,6 +8479,7 @@ void NET_Init (void)
 #if defined(HAVE_SSL)
 	Cvar_Register(&net_enable_tls, "networking");
 	Cvar_Register(&tls_ignorecertificateerrors, "networking");
+	Cvar_Register(&tls_provider, "networking");
 #endif
 #ifdef HAVE_HTTPSV
 	Cvar_Register(&net_enable_http, "networking");

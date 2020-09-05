@@ -5949,8 +5949,14 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
 
 		if (rendertype == SPRHL_INDEXALPHA)
 		{
-			Con_Printf(CON_ERROR "%s: SPRHL_INDEXALPHA sprites are not supported\n", mod->name);
-			return false;
+			/* alpha value is equivalent to palette index - eukara */
+			for (i = 0; i < 256; i++)
+			{
+				pal[i*4+0] = *src++;
+				pal[i*4+1] = *src++;
+				pal[i*4+2] = *src++;
+				pal[i*4+3] = i;
+			}
 		}
 		else
 		{

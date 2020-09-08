@@ -1131,19 +1131,29 @@ void CL_ParseTEnt (void)
 	if (cl_shownet.ival >= 2)
 	{
 		static char *te_names[] = {
-			"spike", "superspike", "qwgunshot", "qwexplosion",
-			"tarexplosion", "lightning1", "lightning2", "wizspike",
-			"knightspike", "lightning3", "lavasplash", "teleport",
-			"blood", "lightningblood", "bullet", "superbullet",	//bullets deprecated
-			"neh_explosion3", "railtrail/neh_lightning4", "beam", "explosion2",
-			"nqexplosion", "nqgunshot", "?", "?",
-#ifdef HEXEN2
-			"h2lightsml", "h2chain", "h2sunstf1", "h2sunstf2",
-			"h2light", "h2cb", "h2ic", "h2gaze",
-			"h2famine", "h2partexp"
-#endif
+			/* 0*/"spike", "superspike", "qwgunshot", "qwexplosion",
+			/* 4*/"tarexplosion", "lightning1", "lightning2", "wizspike",
+			/* 8*/"knightspike", "lightning3", "lavasplash", "teleport",
+			/*12*/"blood", "lightningblood", "bullet", "superbullet",	//bullets deprecated
+			/*16*/"neh_explosion3", "railtrail", "beam", "explosion2",
+			/*20*/"nqexplosion", "nqgunshot", NULL, NULL,
+			/*24*/"h2lightsml", "h2chain", "h2sunstf1", "h2sunstf2",
+			/*28*/"h2light", "h2cb", "h2ic", "h2gaze",
+			/*32*/"h2famine", "h2partexp",NULL,NULL,
+			/*36*/NULL,NULL,NULL,NULL,
+			/*40*/NULL,NULL,NULL,NULL,
+			/*44*/NULL,NULL,NULL,NULL,
+			/*48*/NULL,NULL,"dpblood","dpspark"
+			/*52*/"dpbloodshower","dpexplosionrgb","dpparticlecube","dpparticlerain",
+			/*56*/"dpparticlesnow","dpgunshotquad","dpspikequad","dpsuperspikequad",
+			/*60*/NULL,NULL,NULL,NULL,
+			/*64*/NULL,NULL,NULL,NULL,
+			/*68*/NULL,NULL,"dpexplosionquad",NULL,
+			/*72*/"dpsmallflash","dpcustomflash","dpflamejet","dpplasmaburn",
+			/*76*/"dpteig3","dpsmoke","dpteibigexplosion","dpteiplasmahit",
+			/*80*/
 		};
-		if (type < countof(te_names))
+		if (type < countof(te_names) && te_names[type])
 			Con_Printf("  te_%s\n", te_names[type]);
 		else
 			Con_Printf("  te_unknown_%i\n", type);
@@ -1888,6 +1898,47 @@ void CL_ParseTEnt (void)
 
 	default:
 		Host_EndGame ("CL_ParseTEnt: bad type - %i", type);
+	}
+}
+
+void CL_ParseTEnt_Sized (void)
+{
+	unsigned short sz = MSG_ReadShort();
+	int start = msg_readcount;
+
+	for(;;)
+	{
+#ifdef NQPROT
+		if (sz&0x8000)
+		{
+			sz&=~0x8000;
+			CL_ParseTEnt(true);
+		}
+		else
+			CL_ParseTEnt(false);
+#else
+		CL_ParseTEnt();
+#endif
+
+		if (msg_readcount < start + sz)
+		{	//try to be more compatible with xonotic.
+			int next = MSG_ReadByte();
+			if (next == svc_temp_entity)
+				continue;
+			msg_readcount--;
+
+			Con_Printf("Sized temp_entity data too large (next byte %i, %i bytes unread)\n", next, (start+sz)-msg_readcount);
+			msg_readcount = start + sz;
+			return;
+		}
+		break;
+	}
+
+
+	if (msg_readcount != start + sz)
+	{
+		Con_Printf("Tempentity size did not match parsed size misread a gamecode packet (%i bytes too much)\n", msg_readcount - (start+sz));
+		msg_readcount = start + sz;
 	}
 }
 

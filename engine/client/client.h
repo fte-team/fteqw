@@ -786,7 +786,7 @@ typedef struct
 	int			protocol_qw;
 
 	float		gamespeed;
-	qboolean	csqcdebug;
+	qboolean	csqcdebug;	//redundant, remove '*csqcdebug' serverinfo key.
 	qboolean	allowsendpacket;
 
 	qboolean	stillloading;	// set when doing something slow, and the game is still loading.
@@ -1216,6 +1216,7 @@ void CL_ParseTEnt (qboolean nqprot);
 #else
 void CL_ParseTEnt (void);
 #endif
+void CL_ParseTEnt_Sized (void);
 void CL_UpdateTEnts (void);
 
 enum beamtype_e
@@ -1472,7 +1473,7 @@ qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
 void	 CSQC_MapEntityEdited(int modelindex, int idx, const char *newe);
 //qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
-qboolean CSQC_ParseGamePacket(int seat);
+qboolean CSQC_ParseGamePacket(int seat, qboolean sized);
 qboolean CSQC_CenterPrint(int seat, const char *cmd);
 void	 CSQC_ServerInfoChanged(void);
 void	 CSQC_PlayerInfoChanged(int player);
@@ -1489,7 +1490,7 @@ qboolean CSQC_JoystickAxis(int axis, float value, unsigned int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
 qboolean CSQC_Gyroscope(float x, float y, float z);
 int		 CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags);
-void	 CSQC_ParseEntities(void);
+void	 CSQC_ParseEntities(qboolean sized);
 const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize);
 void	 CSQC_ResetTrails(void);
 

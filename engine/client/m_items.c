@@ -480,6 +480,8 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 	int pw,ph;
 	int framescroll = 0;
 
+	menuframe_t *framescroller = NULL;
+
 	if (option && option->common.type == mt_box && !option->common.ishidden)
 	{	//FIXME: why is this here? why is this special?
 		Draw_ApproxTextBox(xpos+option->common.posx, ypos+option->common.posy, option->box.width, option->box.height);
@@ -490,6 +492,22 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 	{
 		if (option->common.ishidden)
 			continue;
+
+		if (framescroller && option == menu->selecteditem)
+		{
+			if (ypos+option->common.posy < framescroller->common.posy)
+			{
+				framescroller->frac -= 0.1;
+				if (framescroller->frac < 0)
+					framescroller->frac = 0;
+			}
+			else if (ypos+option->common.posy+option->common.height > framescroller->common.posy+framescroller->common.height)
+			{
+				framescroller->frac += 0.1;
+				if (framescroller->frac > 1)
+					framescroller->frac = 1;
+			}
+		}
 
 		if (&menu->menu == topmenu && menu->mouseitem == option && option->common.type != mt_frameend)
 		{
@@ -565,6 +583,8 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			if (R2D_Flush)
 				R2D_Flush();
 			BE_Scissor(NULL);
+
+			framescroller = NULL;
 			break;
 		case mt_frameend:
 			{
@@ -606,8 +626,9 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 					srect.y = (1-srect.y) - srect.height;
 					BE_Scissor(&srect);
 
-					framescroll += option->frame.frac * maxy;
-					ypos -= option->frame.frac * maxy;
+					framescroller = &option->frame;
+					framescroll += framescroller->frac * maxy;
+					ypos -= framescroller->frac * maxy;
 				}
 			}
 			break;
@@ -1995,6 +2016,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 	case K_DOWNARROW:
 	case K_KP_DOWNARROW:
 	case K_GP_DPAD_DOWN:
+	godown:
 		currentmenu->selecteditem = M_NextSelectableItem(currentmenu, currentmenu->selecteditem);
 
 		if (currentmenu->selecteditem)
@@ -2013,6 +2035,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 	case K_UPARROW:
 	case K_KP_UPARROW:
 	case K_GP_DPAD_UP:
+	goup:
 		currentmenu->selecteditem = M_PrevSelectableItem(currentmenu, currentmenu->selecteditem);
 
 		if (currentmenu->selecteditem)
@@ -2029,6 +2052,46 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 		}
 		break;
 
+	case K_MWHEELUP:
+	case K_MWHEELDOWN:
+		if (currentmenu->mouseitem)
+		{
+			qboolean handled = false;
+			switch(currentmenu->mouseitem->common.type)
+			{
+			case mt_combo:
+				if (mousecursor_x >= currentmenu->xpos + currentmenu->mouseitem->common.posx + currentmenu->mouseitem->combo.captionwidth + 3*8)
+				{
+					MC_Combo_Key(&currentmenu->mouseitem->combo, key);
+					handled = true;
+				}
+				break;
+			case mt_checkbox:
+				if (mousecursor_x >= currentmenu->xpos + currentmenu->mouseitem->common.posx + currentmenu->mouseitem->check.textwidth + 3*8)
+				{
+					MC_CheckBox_Key(&currentmenu->mouseitem->check, currentmenu, key);
+					handled = true;
+				}
+				break;
+			case mt_custom:
+				if (currentmenu->mouseitem->custom.key)
+					handled = currentmenu->mouseitem->custom.key(&currentmenu->mouseitem->custom, currentmenu, key, unicode);
+				break;
+			default:
+				break;
+			}
+
+			if (handled)
+			{
+				currentmenu->selecteditem = currentmenu->mouseitem;
+				if (currentmenu->cursoritem)
+					currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
+				break;
+			}
+			else if (key == K_MWHEELUP)
+				goto goup;
+			else goto godown;
+		}
 	case K_MOUSE1:
 	case K_MOUSE3:
 	case K_MOUSE4:
@@ -2038,8 +2101,6 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 	case K_MOUSE8:
 	case K_MOUSE9:
 	case K_MOUSE10:
-	case K_MWHEELUP:
-	case K_MWHEELDOWN:
 		if (!currentmenu->mouseitem)
 			break;
 		if (currentmenu->mouseitem && currentmenu->selecteditem != currentmenu->mouseitem)

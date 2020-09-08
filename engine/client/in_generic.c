@@ -943,14 +943,18 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		mag = pow(mag, joy_exponent.value);
 		jlook[0] *= mag;
 		jlook[1] *= mag;
+
 		mag = joydeadzone(fabs(jlook[2]), joy_anglethreshold[2].value);
+		mag = pow(mag, joy_exponent.value);
 		jlook[2] *= mag;
 
 		mag = joydeadzone(sqrt(jstrafe[0]*jstrafe[0] + jstrafe[1]*jstrafe[1]), sqrt(joy_movethreshold[0].value*joy_movethreshold[0].value + joy_movethreshold[1].value*joy_movethreshold[1].value));
 		mag = pow(mag, joy_exponent.value);
 		jstrafe[0] *= mag;
 		jstrafe[1] *= mag;
+
 		mag = joydeadzone(fabs(jstrafe[2]), joy_movethreshold[2].value);
+		mag = pow(mag, joy_exponent.value);
 		jstrafe[2] *= mag;
 	}
 	else
@@ -992,9 +996,12 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		V_StopPitchDrift (&cl.playerview[pnum]);
 
 	//movement
-	movements[0] += joy_movesens[0].value * cl_forwardspeed.value * jstrafe[0];
-	movements[1] += joy_movesens[1].value * cl_sidespeed.value * jstrafe[1];
-	movements[2] += joy_movesens[2].value * cl_upspeed.value * jstrafe[2];
+	mag = 1;
+	if ((in_speed.state[pnum] & 1) ^ cl_run.ival)
+		mag *= cl_movespeedkey.value;
+	movements[0] += joy_movesens[0].value * mag*cl_forwardspeed.value * jstrafe[0];
+	movements[1] += joy_movesens[1].value * mag*cl_sidespeed.value * jstrafe[1];
+	movements[2] += joy_movesens[2].value * mag*cl_upspeed.value * jstrafe[2];
 }
 
 void IN_Move (float *movements, int pnum, float frametime)

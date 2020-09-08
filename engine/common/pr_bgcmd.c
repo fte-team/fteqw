@@ -1590,17 +1590,17 @@ void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	cvar_t *v = Cvar_FindVar(str);	//this builtin MUST NOT create cvars implicitly, otherwise there would be no way to test if it exists.
 	if (v)
 	{
-		ret |= 1; // CVAR_EXISTS
+		ret |= CVAR_TYPEFLAG_EXISTS;
 		if(v->flags & CVAR_ARCHIVE)
-			ret |= 2; // CVAR_TYPE_SAVED
+			ret |= CVAR_TYPEFLAG_SAVED;
 		if(v->flags & (CVAR_NOTFROMSERVER|CVAR_NOUNSAFEEXPAND))
-			ret |= 4; // CVAR_TYPE_PRIVATE
+			ret |= CVAR_TYPEFLAG_PRIVATE;
 		if(!(v->flags & CVAR_USERCREATED))
-			ret |= 8; // CVAR_TYPE_ENGINE
+			ret |= CVAR_TYPEFLAG_ENGINE;
 		if (v->description)
-			ret |= 16; // CVAR_TYPE_HASDESCRIPTION
+			ret |= CVAR_TYPEFLAG_HASDESCRIPTION;
 		if (v->flags & CVAR_NOSET)
-			ret |= 32; // CVAR_TYPE_READONLY
+			ret |= CVAR_TYPEFLAG_READONLY;
 	}
 	G_FLOAT(OFS_RETURN) = ret;
 }
@@ -4114,7 +4114,15 @@ void QCBUILTIN PF_ftoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 void QCBUILTIN PF_itof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = G_INT(OFS_PARM0);
+	if (prinst->callargc > 1)
+	{
+		unsigned int value = G_INT(OFS_PARM0);
+		unsigned int shift = G_FLOAT(OFS_PARM1);
+		unsigned int count = G_FLOAT(OFS_PARM2);
+		G_FLOAT(OFS_RETURN) = (value >> shift) & ((1u<<count)-1u);
+	}
+	else
+		G_FLOAT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
 
 //tstring(integer input) itos
@@ -7557,7 +7565,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_NPCCHAT",					1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
 #ifdef PSET_SCRIPT
-	{"FTE_PART_SCRIPT",					0,	NULL, {NULL}, "Specifies that the r_particledesc cvar can be used to select a list of particle effects to load from particles/*.cfg, the format of which is documented elsewhere."},
+	{"FTE_PART_SCRIPT",					0,	NULL, {NULL}, "Specifies that the r_particledesc cvar can be used to select a list of particle effects to load from particles/foo.cfg, the format of which is documented elsewhere."},
 	{"FTE_PART_NAMESPACES",				0,	NULL, {NULL}, "Specifies that the engine can use foo.bar to load effect foo from particle description bar. When used via ssqc, this should cause the client to download whatever effects as needed."},
 #ifdef HAVE_LEGACY
 	{"FTE_PART_NAMESPACE_EFFECTINFO",	0,	NULL, {NULL}, "Specifies that effectinfo.bar can load effects from effectinfo.txt for DP compatibility."},

@@ -1474,6 +1474,11 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	CL_CFLAGS=-DMULTITHREAD -DDYNAMIC_SDL $(HAVE_EGL) $(HAVE_WAYLAND) -DX11QUAKE -DAUDIO_PULSE -DAUDIO_ALSA -DAUDIO_OSS -DAUDIO_SDL
 	BASELDFLAGS+=-Wl,--warn-common
 	
+	ifeq ($(BITS),32)
+		CL_CFLAGS+=-D_LARGEFILE64_SOURCE
+		SV_CFLAGS+=-D_LARGEFILE64_SOURCE
+	endif
+	
 	QCC_DIR=linqcc$(BITS)
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o

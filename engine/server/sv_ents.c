@@ -326,6 +326,9 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 	csqcmsgbuffer.packing = msg->packing;
 	csqcmsgbuffer.prim = msg->prim;
 
+	if (sv_csqcdebug.ival)
+		svcnumber = svcfte_csqcentities_sized;
+
 	for (en = 0, entnum = 0; en < csqcnuments; en++, entnum++)
 	{
 		ent = csqcent[en];
@@ -422,7 +425,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 				MSG_WriteByte(msg, svcnumber);
 			}
 			SV_EmitDeltaEntIndex(msg, entnum, false, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
-			if (sv.csqcdebug)	//optional extra length prefix.
+			if (svcnumber == svcfte_csqcentities_sized)	//optional extra length prefix.
 			{
 				if (!csqcmsgbuffer.cursize)
 					Con_Printf("Warning: empty csqc packet on %s\n", PR_GetString(svprogfuncs, ent->v->classname));

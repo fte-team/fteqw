@@ -205,6 +205,16 @@ void QCBUILTIN PF_generateentitydata(pubprogfuncs_t *prinst, struct globalvars_s
 void QCBUILTIN PF_WasFreed (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_crc16 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+enum
+{	//return values for cvar_type builtin.
+	CVAR_TYPEFLAG_EXISTS		=1u<<0, //cvar actually exists.
+	CVAR_TYPEFLAG_SAVED			=1u<<1, //cvar is flaged for archival (might need cfg_save to actually save)
+	CVAR_TYPEFLAG_PRIVATE		=1u<<2, //QC is not allowed to read.
+	CVAR_TYPEFLAG_ENGINE		=1u<<3, //cvar was created by the engine itself (not user/mod created)
+	CVAR_TYPEFLAG_HASDESCRIPTION=1u<<4, //cvar_description will return something (hopefully) useful
+	CVAR_TYPEFLAG_READONLY		=1u<<5, //cvar may not be changed by qc.
+};
 void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_uri_escape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_uri_unescape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -398,6 +408,13 @@ void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //these functions are from pr_menu.c
+#define DRAWFLAG_NORMAL		0
+#define DRAWFLAG_ADD		1
+#define DRAWFLAG_MODULATE	2
+//#define DRAWFLAG_MODULATE2	3
+#define DRAWFLAG_2D			(1u<<2)
+#define DRAWFLAG_TWOSIDED	0x400
+#define DRAWFLAG_LINES		0x800
 void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -765,7 +782,7 @@ typedef enum
 	//WARNING: update fteqcc when new entries are added.
 
 
-	VF_DP_CLEARSCREEN		= 201, // weird behaviour that disables a whole load of things.
+	VF_DP_CLEARSCREEN		= 201, //misnomer - NOTOVERLAY would be a better name. when set to false prevents any and all post-proc things that might write colour values in areas with no geometry there.
 //fuck DP and their complete lack of respect for existing implemenetations
 	VF_DP_FOG_DENSITY		= 202, //misassigned
 	VF_DP_FOG_COLOR			= 203, //misassigned
@@ -784,14 +801,22 @@ typedef enum
 /*FIXME: this should be changed*/
 #define CSQC_API_VERSION 1.0f
 
-#define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
-#define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
-#define CSQCRF_DEPTHHACK		4 //fun depthhack
-#define CSQCRF_ADDITIVE			8 //add instead of blend
-#define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
-#define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
-#define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
-#define CSQCRF_REMOVED			128 //was stupid
+#define CSQCRF_VIEWMODEL				1 //Not drawn in mirrors
+#define CSQCRF_EXTERNALMODEL			2 //drawn ONLY in mirrors
+#define CSQCRF_DEPTHHACK				4 //fun depthhack
+#define CSQCRF_ADDITIVE					8 //add instead of blend
+#define CSQCRF_USEAXIS					16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
+#define CSQCRF_NOSHADOW					32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
+#define CSQCRF_FRAMETIMESARESTARTTIMES	64 //EXT_CSQC_1: frame times should be read as (time-frametime).
+//#define CSQCRFDP_USETRANSPARENTOFFSET	64 // Allows QC to customize origin used for transparent sorting via transparent_origin global, helps to fix transparent sorting bugs on a very large entities
+////#define CSQCRF_NOAUTOADD			128 // removed in favour of predraw return values.
+//#define CSQCRFDP_WORLDOBJECT			128 // for large outdoor entities that should not be culled.
+//#define CSQCRFDP_FULLBRIGHT			256
+//#define CSQCRFDP_NOSHADOW				512
+//#define CSQCRF_UNUSED					1024
+//#define CSQCRF_UNUSED					2048
+//#define CSQCRFDP_MODELLIGHT			4096 // CSQC-set model light
+//#define CSQCRFDP_DYNAMICMODELLIGHT	8192 // origin-dependent model light
 
 /*only read+append+write are standard frik_file*/
 #define FRIK_FILE_READ		0 /*read-only*/
@@ -964,6 +989,137 @@ enum
 //	GE_MOVEMENT,
 //	GE_VELOCITY,
 };
+
+//If I do it like this, I'll never forget to register something...
+#define ENDLIST
+#ifndef HAVE_LEGACY
+#define legacycsqcglobals
+#else
+#define legacycsqcglobals	\
+	globalstring(trace_dphittexturename)			/*for dp compat*/	\
+	globalfloatdep (trace_dpstartcontents,		"Does not support mod-specific contents.")			/*for dp compat*/	\
+	globalfloatdep (trace_dphitcontents,		"Does not support mod-specific contents.")				/*for dp compat*/	\
+	globalfloatdep (trace_dphitq3surfaceflags,	"Does not support mod-specific surface flags")	/*for dp compat*/	\
+	globalfloatdep (trace_surfaceflagsf,		"Does not support all mod-specific surface flags.")				/*float		written by traceline, for mods that lack ints*/	\
+	globalfloatdep (trace_endcontentsf,			"Does not support all mod-specific contents.")				/*float		written by traceline EXT_CSQC_1, for mods that lack ints*/	\
+	ENDLIST
+#endif
+#define csqcglobals	\
+	globalfunction(CSQC_Init,				"void(float apilevel, string enginename, float engineversion)")	\
+	globalfunction(CSQC_WorldLoaded,		"void()")	\
+	globalfunction(CSQC_Shutdown,			"void()")	\
+	globalfunction(CSQC_UpdateView,			"void(float vwidth, float vheight, float notmenu)")	\
+	globalfunction(CSQC_UpdateViewLoading,	"void(float vwidth, float vheight, float notmenu)")	\
+	globalfunction(CSQC_DrawHud,			"void(vector viewsize, float scoresshown)")/*simple csqc*/	\
+	globalfunction(CSQC_DrawScores,			"void(vector viewsize, float scoresshown)")/*simple csqc*/	\
+	globalfunction(CSQC_Parse_StuffCmd,		"void(string msg)")	\
+	globalfunction(CSQC_Parse_CenterPrint,	"float(string msg)")	\
+	globalfunction(CSQC_Parse_Print,		"void(string printmsg, float printlvl)")	\
+	globalfunction(CSQC_Parse_Event,		"void()")	\
+	globalfunction(CSQC_Parse_Damage,		"float(float save, float take, vector inflictororg)")	\
+	globalfunction(CSQC_Parse_SetAngles,	"float(vector angles, float isdelta)")	\
+	globalfunction(CSQC_PlayerInfoChanged,	"void(float playernum)")	\
+	globalfunction(CSQC_ServerInfoChanged,	"void()")	\
+	globalfunction(CSQC_InputEvent,			"float(float evtype, float scanx, float chary, float devid)")	\
+	globalfunction(CSQC_Input_Frame,		"void()")/*EXT_CSQC_1*/	\
+	globalfunction(CSQC_RendererRestarted,	"void(string rendererdescription)")	\
+	globalfunction(CSQC_ConsoleCommand,		"float(string cmd)")	\
+	globalfunction(CSQC_ConsoleLink,		"float(string text, string info)")	\
+	globalfunction(GameCommand,				"void(string cmdtext)")	/*DP extension*/\
+	\
+	globalfunction(CSQC_Ent_Spawn,			"void(float newentnum)")	\
+	globalfunction(CSQC_Ent_Update,			"void(float isnew)")	\
+	globalfunction(CSQC_Ent_Remove,			"void()")	\
+	\
+	globalfunction(CSQC_Event_Sound,		"float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags"/*", float timeofs*/")")	\
+	globalfunction(CSQC_ServerSound,		"DEP(\"use CSQC_Event_Sound\") float(float channel, string soundname, vector pos, float vol, float attenuation, float flags"/*", float timeofs*/")")/*obsolete, use event_sound*/	\
+	/*globalfunction(CSQC_LoadResource,		"float(string resname, string restype)")*//*EXT_CSQC_1*/	\
+	globalfunction(CSQC_Parse_TempEntity,	"float()")/*EXT_CSQC_ABSOLUTLY_VILE*/	\
+	\
+	globalfunction(CSQC_MapEntityEdited,	"void(int entidx, string newentdata)")\
+	\
+	/*These are pointers to the csqc's globals.*/	\
+	globalfloat	(time)				/*float		The simulation(aka: smoothed server) time, speed drifts based upon latency*/	\
+	globalfloat	(frametime)			/*float		Client render frame interval*/	\
+	globalfloat	(gamespeed)			/*float		Multiplier for real time -> simulation time*/	\
+	globalfloat	(cltime)				/*float		Clientside map uptime indepent of gamespeed, latency, and the server in general*/	\
+	globalfloat	(clframetime)			/*float		time since last video frame*/	\
+	globalfloat	(servertime)			/*float		Server time of latest inbound network frame*/	\
+	globalfloat	(serverprevtime)		/*float		Server time of previous inbound network frame */	\
+	globalfloat	(serverdeltatime)		/*float		new-old */	\
+	globalfloat	(physics_mode)		/*float		Written before entering most qc functions*/	\
+	globalentity(self)				/*entity	Written before entering most qc functions*/	\
+	globalentity(other)				/*entity	Written before entering most qc functions*/	\
+	\
+	globalfloat	(deathmatch)			/*for simplecsqc*/	\
+	globalfloat	(coop)				/*for simplecsqc*/	\
+	\
+	globalfloat	(maxclients)				/*float		max number of players allowed*/	\
+	globalfloat	(numclientseats)			/*float		number of seats/splitscreen clients running on this client*/	\
+	\
+	globalvector(v_forward)					/*vector	written by anglevectors*/	\
+	globalvector(v_right)					/*vector	written by anglevectors*/	\
+	globalvector(v_up)						/*vector	written by anglevectors*/	\
+	\
+	globalfloat	(trace_allsolid)			/*bool		written by traceline*/	\
+	globalfloat	(trace_startsolid)			/*bool		written by traceline*/	\
+	globalfloat	(trace_fraction)			/*float		written by traceline*/	\
+	globalfloat	(trace_inwater)				/*bool		written by traceline*/	\
+	globalfloat	(trace_inopen)				/*bool		written by traceline*/	\
+	globalvector(trace_endpos)				/*vector	written by traceline*/	\
+	globalvector(trace_plane_normal)		/*vector	written by traceline*/	\
+	globalfloat	(trace_plane_dist)			/*float		written by traceline*/	\
+	globalentity(trace_ent)					/*entity	written by traceline*/	\
+	globalint	(trace_surfaceflagsi)		/*int		written by traceline*/	\
+	globalstring(trace_surfacename)			/*string	written by traceline*/	\
+	globalint	(trace_endcontentsi)		/*int		written by traceline EXT_CSQC_1*/	\
+	globalint	(trace_brush_id)			/*int		written by traceline*/	\
+	globalint	(trace_brush_faceid)		/*int		written by traceline*/	\
+	globalint	(trace_surface_id)			/*int		written by traceline*/	\
+	globalint	(trace_bone_id)				/*int		written by traceline*/	\
+	globalint	(trace_triangle_id)			/*int		written by traceline*/	\
+	globalfloat (trace_networkentity)		/*float		written by traceline*/	\
+	legacycsqcglobals \
+	\
+	globalfloat(clientcommandframe)			/*float		the next frame that will be sent*/ \
+	globalfloat(servercommandframe)			/*float		the most recent frame received from the server*/ \
+	\
+	globalfloat(player_localentnum)			/*float		the entity number the local player is looking out from*/	\
+	globalfloat(player_localnum)			/*float		the player number of the local player*/	\
+	globalfloat(intermission)				/*float		set when the client receives svc_intermission*/	\
+	globalfloat(intermission_time)			/*float		set when the client receives svc_intermission*/	\
+	globalvector(view_angles)				/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
+	\
+	globalvector(pmove_org)					/*deprecated. read/written by runplayerphysics*/ \
+	globalvector(pmove_vel)					/*deprecated. read/written by runplayerphysics*/ \
+	globalvector(pmove_mins)				/*deprecated. read/written by runplayerphysics*/ \
+	globalvector(pmove_maxs)				/*deprecated. read/written by runplayerphysics*/ \
+	globalfloat (pmove_jump_held)			/*deprecated. read/written by runplayerphysics*/ \
+	globalfloat (pmove_waterjumptime)		/*deprecated. read/written by runplayerphysics*/ \
+	globalfloat (pmove_onground)			/*deprecated. read/written by runplayerphysics*/ \
+	\
+	globalfloat (input_timelength)			/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalvector(input_angles)				/*vector	filled by getinputstate, read by runplayerphysics*/ \
+	globalvector(input_movevalues)			/*vector	filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat (input_buttons)				/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat (input_impulse)				/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat (input_lightlevel)			/*unused float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat (input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat (input_servertime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat (input_clienttime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalvector(input_cursor_screen)		/*float		filled by getinputstate*/ \
+	globalvector(input_cursor_trace_start)	/*float		filled by getinputstate*/ \
+	globalvector(input_cursor_trace_endpos)	/*float		filled by getinputstate*/ \
+	globalfloat (input_cursor_entitynumber)	/*float		filled by getinputstate*/ \
+	\
+	globalvector(global_gravitydir)			/*vector	used when .gravitydir is 0 0 0 */ \
+	globalfloat (dimension_default)			/*float		default value for dimension_hit+dimension_solid*/ \
+	globalfloat (autocvar_vid_conwidth)		/*float		hackfix for dp mods*/	\
+	globalfloat (autocvar_vid_conheight)	/*float		hackfix for dp mods*/	\
+	globalfloat (cycle_wrapped)	\
+	ENDLIST
+
+
 #ifdef __cplusplus
 };
 #endif

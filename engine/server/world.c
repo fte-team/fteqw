@@ -2511,7 +2511,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			else
 			{
 				trace.ent = w->edicts;	//misreport world
-				clip->trace.entnum = touch->number;	//with an ssqc ent number
+				trace.entnum = touch->number;	//with an ssqc ent number
 			}
 			clip->trace = trace;
 		}

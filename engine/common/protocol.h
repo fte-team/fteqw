@@ -326,7 +326,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_brushedit			87	// networked brush editing, paired with clcfte_brushedit.
 #define	svcfte_updateseats			88	// byte count, byte playernum[count]
 #define svcfte_setinfoblob			89	// [8] 1-based index [string] key [32] isfinal<<31|offset [16] chunksize [chunksize] data
-
+#define svcfte_cgamepacket_sized	90	//svcfte_cgamepacket with an extra short size right after the svc.
+#define	svcfte_temp_entity_sized	91	//svc_temp_entity with an extra short size right after the svc (high bit means nq, unset means qw).
+#define svcfte_csqcentities_sized	92	//entity lump for csqc (with size info)
 
 //fitz svcs
 #define svcfitz_skybox				37

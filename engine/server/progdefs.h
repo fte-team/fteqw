@@ -243,7 +243,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(dimension_hit,"This is the bitmask of dimensions which the entity will be blocked by. If other.dimension_solid & self.dimension_hit, our traces will impact and not proceed. If its false, the traces will NOT impact, allowing self to pass straight through.")/*EXT_DIMENSION_PHYSICS*/\
 	/*comfieldfloat_legacy(hitcontentsmask,"Traces performed for this entity will impact against surfaces that match this contents mask.")*/ \
 	comfieldint(hitcontentsmaski,"Traces performed for this entity will impact against surfaces that match this contents mask (CONTENTBITS_* constants).")\
-	comfieldfloat_legacy(dphitcontentsmask, "Some crappy field that inefficiently requires translating to the native contents flags. Ditch the 'dp', do it properly.")\
+	comfieldfloatdep_legacy(dphitcontentsmask, "Some crappy field that inefficiently requires translating to the native contents flags. Ditch the 'dp', do it properly.", "Does not support mos-ecific contents.")\
 	comfieldfloat(scale,"Multiplier that resizes the entity. 1 is normal sized, 2 is double sized. scale 0 is remapped to 1. In SSQC, this is limited to 1/16th precision, with a maximum just shy of 16.")/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness,"How many QuakeUnits to push the entity's verticies along their normals by.")/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha,"The transparency of the entity. 1 means opaque, 0.0001 means virtually invisible. 0 is remapped to 1, for compatibility.")/*DP_ENT_ALPHA*/\
@@ -312,7 +312,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloatdep_legacy(Version,"Obsolete", "Use SendFlags instead.")/*EXT_CSQC (obsolete)*/\
 	comfieldfloatdep_legacy(clientcolors,NULL, "Doesn't support RGB player colours.")\
 	comfieldfloat_legacy(viewzoom,NULL)/*DP_VIEWZOOM, stats*/\
-	comfieldfloat_legacy(items2,NULL)		/*added in quake 1.09 (for hipnotic). legacy because of stats*/\
+	comfieldfloat_legacy(items2,"stub. commented by default, to prevent items2 being networked instead of runes.")		/*added in quake 1.09 (for hipnotic). legacy because of stats*/\
 	svextqcfieldshexen2 \
 	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
 	comfieldfloat(uniquespawnid,"Incremented by 1 whenever the entity is respawned. Persists across remove calls, for when the two-second grace period is insufficient.")/*FTE_ENT_UNIQUESPAWNID*/\

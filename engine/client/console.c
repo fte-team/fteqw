@@ -2636,6 +2636,322 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 
 void Draw_ExpandedString(float x, float y, conchar_t *str);
 
+static void Con_DrawModelPreview(model_t *model, float x, float y, float w, float h)
+{
+	playerview_t pv;
+	entity_t ent;
+	vec3_t fwd, rgt, up;
+	vec3_t lightpos = {1, 1, 0};
+	float transforms[12];
+	float scale;
+
+	if (R2D_Flush)
+		R2D_Flush();
+
+	memset(&pv, 0, sizeof(pv));
+
+	CL_DecayLights ();
+	CL_ClearEntityLists();
+	V_ClearRefdef(&pv);
+	r_refdef.drawsbar = false;
+	V_CalcRefdef(&pv);
+
+	r_refdef.grect.width = w;
+	r_refdef.grect.height = h;
+	r_refdef.grect.x = x;
+	r_refdef.grect.y = y;
+	r_refdef.time = realtime;
+
+	r_refdef.flags = RDF_NOWORLDMODEL;
+
+	r_refdef.afov = 60;
+	r_refdef.fov_x = 0;
+	r_refdef.fov_y = 0;
+	r_refdef.dirty |= RDFD_FOV;
+
+	VectorClear(r_refdef.viewangles);
+	r_refdef.viewangles[0] = 20;
+//	r_refdef.viewangles[1] = realtime * 90;
+	AngleVectors(r_refdef.viewangles, fwd, rgt, up);
+	VectorScale(fwd, -64, r_refdef.vieworg);
+
+	memset(&ent, 0, sizeof(ent));
+	ent.model = model;
+	ent.scale = 1;
+	ent.angles[1] = realtime*90;//mods->yaw;
+//	ent.angles[0] = realtime*23.4;//mods->pitch;
+	ent.angles[0]*=r_meshpitch.value;
+	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	ent.angles[0]*=r_meshpitch.value;
+	VectorInverse(ent.axis[1]);
+
+	//ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+
+	ent.scale = 1;
+	scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
+	scale = scale?64.0/scale:1;
+	ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
+	Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
+	VectorScale(ent.axis[0], scale, ent.axis[0]);
+	VectorScale(ent.axis[1], scale, ent.axis[1]);
+	VectorScale(ent.axis[2], scale, ent.axis[2]);
+	/*if (strstr(model->name, "player"))
+	{
+		ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
+		ent.topcolour		= genhsv(realtime*0.1 + 0.5, 1, 1);
+	}
+	else*/
+	{
+		ent.topcolour = TOP_DEFAULT;
+		ent.bottomcolour = BOTTOM_DEFAULT;
+	}
+//	ent.fatness = sin(realtime)*5;
+	ent.playerindex = -1;
+	ent.skinnum = 0;
+	ent.shaderTime = 0;//realtime;
+	ent.framestate.g[FS_REG].lerpweight[0] = 1;
+//				ent.framestate.g[FS_REG].frame[0] = animationnum;
+	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime;
+	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
+//				ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
+
+	Vector4Set(ent.shaderRGBAf, 1,1,1,1);
+	VectorSet(ent.glowmod, 1,1,1);
+	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
+	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
+
+	V_ApplyRefdef();
+
+	if (ent.model->camerabone>0 && Mod_GetTag(ent.model, ent.model->camerabone, &ent.framestate, transforms))
+	{
+		VectorClear(ent.origin);
+		ent.angles[0]*=r_meshpitch.value;
+		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+		ent.angles[0]*=r_meshpitch.value;
+		VectorInverse(ent.axis[1]);
+		scale = 1;
+		{
+			vec3_t fwd, up;
+			float camera[12], et[12] = {
+				ent.axis[0][0], ent.axis[1][0], ent.axis[2][0], ent.origin[0],
+				ent.axis[0][1], ent.axis[1][1], ent.axis[2][1], ent.origin[1],
+				ent.axis[0][2], ent.axis[1][2], ent.axis[2][2], ent.origin[2],
+				};
+
+			R_ConcatTransforms((void*)et, (void*)transforms, (void*)camera);
+			VectorSet(fwd, camera[2], camera[6], camera[10]);
+			VectorNegate(fwd, fwd);
+			VectorSet(up, camera[1], camera[5], camera[9]);
+			VectorSet(r_refdef.vieworg, camera[3], camera[7], camera[11]);
+			VectorAngles(fwd, up, r_refdef.viewangles, false);
+		}
+	}
+	else
+	{
+		ent.angles[1] = realtime*90;//mods->yaw;
+		ent.angles[0]*=r_meshpitch.value;
+		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+		ent.angles[0]*=r_meshpitch.value;
+		VectorScale(ent.axis[0], scale, ent.axis[0]);
+		VectorScale(ent.axis[1], -scale, ent.axis[1]);
+		VectorScale(ent.axis[2], scale, ent.axis[2]);
+	}
+
+	ent.scale = scale;
+
+	VectorNormalize(lightpos);
+	ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);
+	ent.light_dir[1] = DotProduct(lightpos, ent.axis[1]);
+	ent.light_dir[2] = DotProduct(lightpos, ent.axis[2]);
+
+	ent.light_known = 2;
+
+	V_AddEntity(&ent);
+
+	R_RenderView();
+}
+
+static void Con_DrawMouseOver(console_t *mouseconsole)
+{
+	char *tiptext = NULL;
+	shader_t *shader = NULL;
+	model_t *model = NULL;
+	char *mouseover;
+	if (!mouseconsole->mouseover || !mouseconsole->mouseover(mouseconsole, &tiptext, &shader))
+	{
+		mouseover = Con_CopyConsole(mouseconsole, false, true, true);
+		if (mouseover)
+		{
+			char *end = strstr(mouseover, "^]");
+			char *info = strchr(mouseover, '\\');
+			if (!info)
+				info = "";
+			if (end)
+				*end = 0;
+#ifdef PLUGINS
+			if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
+#endif
+			{
+				char *key;
+				key = Info_ValueForKey(info, "tipimg");
+				if (*key)
+				{
+					char *fl = Info_ValueForKey(info, "tipimgtype");
+					if (*fl)
+						shader = R_RegisterCustom(key, atoi(fl), NULL, NULL);
+					else
+						shader = R2D_SafeCachePic(key);
+				}
+				else
+				{
+					image_t *img = NULL;
+					key = Info_ValueForKey(info, "tiprawimg");
+					if (*key)
+					{
+						img = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA|IF_TEXTYPE_ANY);
+						if (!img)
+							img = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_TEXTYPE_ANY);
+						if (!img)
+						{
+							size_t fsize;
+							char *buf;
+							img = Image_CreateTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA|IF_TEXTYPE_ANY);
+							if ((buf = FS_LoadMallocFile (key, &fsize)))
+								Image_LoadTextureFromMemory(img, img->flags|IF_NOWORKER, key, key, buf, fsize);
+						}
+					}
+
+					key = Info_ValueForKey(info, "tipimgptr");
+					if (*key)
+						img = Image_TextureIsValid(strtoull(key, NULL, 0));
+					if (img && img->status == TEX_LOADED)
+					{
+						if ((img->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_CUBE)
+						{
+							shader = R_RegisterShader("tiprawimgcube", 0, "{\nprogram postproc_equirectangular\n{\nmap \"$cube:$reflectcube\"\n}\n}");
+							shader->defaulttextures->reflectcube = img;
+						}
+						else if ((img->flags&IF_TEXTYPEMASK) == IF_TEXTYPE_2D)
+						{
+							shader = R2D_SafeCachePic("tiprawimg");
+							shader->defaulttextures->base = img;
+						}
+
+						if (shader)
+						{
+							shader->width = img->width;
+							shader->height = img->height;
+							if (shader->width > 320)
+							{
+								shader->height *= 320.0/shader->width;
+								shader->width = 320;
+							}
+							if (shader->height > 240)
+							{
+								shader->width *= 240.0/shader->height;
+								shader->height = 240;
+							}
+						}
+					}
+					else
+						shader = NULL;
+					key = Info_ValueForKey(info, "modelviewer");
+					if (*key)
+					{
+						model = Mod_ForName(key, MLV_WARN);
+						if (model->loadstate != MLS_LOADED)
+							model = NULL;
+					}
+				}
+				tiptext = Info_ValueForKey(info, "tip");
+			}
+			Z_Free(mouseover);
+		}
+	}
+	if ((tiptext && *tiptext) || shader || model)
+	{
+		//FIXME: draw a proper background.
+		//FIXME: support line breaks.
+		conchar_t buffer[2048], *starts[64], *ends[countof(starts)];
+		int lines, i, px, py;
+		float tw, th;
+		float ih = 0, iw = 0;
+		float x = mousecursor_x+8;
+		float y = mousecursor_y+8;
+
+		Font_BeginString(font_console, x, y, &px, &py);
+		lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK, tiptext, buffer, sizeof(buffer), false), (256.0 * vid.pixelwidth) / vid.width, countof(starts), starts, ends);
+		th = (Font_CharHeight()*lines * vid.height) / vid.pixelheight;
+
+		if (model)
+		{
+			iw = 128;
+			ih = 128;
+		}
+		else if (shader)
+		{
+			int w, h;
+			if (R_GetShaderSizes(shader, &w, &h, false) >= 0)
+			{
+				iw = w;
+				ih = h;
+			}
+			else
+				shader = NULL;
+		}
+		if (iw  > (vid.width/4.0))
+		{
+			ih *= (vid.width/4.0)/iw;
+			iw *= (vid.width/4.0)/iw;
+		}
+		if (ih  > (vid.height/4.0))
+		{
+			iw *= (vid.width/4.0)/ih;
+			ih *= (vid.width/4.0)/ih;
+		}
+
+		if (x + iw/2 + 8 + 256 > vid.width)
+			x = vid.width - (iw/2 + 8 + 256);
+		if (x < iw/2)
+			x = iw/2;
+		x += iw/2 + 8;
+
+		if (y+max(th, ih) > vid.height)
+			y = mousecursor_y - 8 - max(th, ih);
+		if (y < 0)
+			y = 0;
+
+		Font_BeginString(font_console, x, y + (max(th, ih) - th)/2, &px, &py);
+		for (i = 0, tw = 0; i < lines; i++)
+		{
+			int lw = Font_LineWidth(starts[i], ends[i]);
+			if (lw > tw)
+				tw = lw;
+		}
+		tw *= (float)vid.width / vid.pixelwidth;
+		Font_EndString(font_console);
+		R2D_ImageColours(0, 0, 0, .75);
+		R2D_FillBlock(x, y + (max(th, ih) - th)/2, tw, th);
+		R2D_ImageColours(1, 1, 1, 1);
+		Font_BeginString(font_console, x, y + (max(th, ih) - th)/2, &px, &py);
+		for (i = 0; i < lines; i++)
+		{
+			Font_LineDraw(px, py, starts[i], ends[i]);
+			py += Font_CharHeight();
+		}
+		Font_EndString(font_console);
+
+		if (model)
+			Con_DrawModelPreview(model, x-8-iw, y+((th>ih)?(th-ih)/2:0), iw, ih);
+		if (shader)
+		{
+			if (th > ih)
+				y += (th-ih)/2;
+			R2D_Image(x-8-iw, y, iw, ih, 0, 0, 1, 1, shader);
+		}
+	}
+}
+
 /*
 ================
 Con_DrawConsole
@@ -2923,318 +3239,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		mouseconsole = con_mouseover?con_mouseover:NULL;
 
 	if (mouseconsole && mouseconsole->selstartline)
-	{
-		char *tiptext = NULL;
-		shader_t *shader = NULL;
-		model_t *model = NULL;
-		char *mouseover;
-		if (!mouseconsole->mouseover || !mouseconsole->mouseover(mouseconsole, &tiptext, &shader))
-		{
-			mouseover = Con_CopyConsole(mouseconsole, false, true, true);
-			if (mouseover)
-			{
-				char *end = strstr(mouseover, "^]");
-				char *info = strchr(mouseover, '\\');
-				if (!info)
-					info = "";
-				if (end)
-					*end = 0;
-	#ifdef PLUGINS
-				if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
-	#endif
-				{
-					char *key;
-					key = Info_ValueForKey(info, "tipimg");
-					if (*key)
-					{
-						char *fl = Info_ValueForKey(info, "tipimgtype");
-						if (*fl)
-							shader = R_RegisterCustom(key, atoi(fl), NULL, NULL);
-						else
-							shader = R2D_SafeCachePic(key);
-					}
-					else
-					{
-						image_t *img = NULL;
-						key = Info_ValueForKey(info, "tiprawimg");
-						if (*key)
-						{
-							img = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA|IF_TEXTYPE_ANY);
-							if (!img)
-								img = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_TEXTYPE_ANY);
-							if (!img)
-							{
-								size_t fsize;
-								char *buf;
-								img = Image_CreateTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA|IF_TEXTYPE_ANY);
-								if ((buf = FS_LoadMallocFile (key, &fsize)))
-									Image_LoadTextureFromMemory(img, img->flags|IF_NOWORKER, key, key, buf, fsize);
-							}
-						}
-
-						key = Info_ValueForKey(info, "tipimgptr");
-						if (*key)
-							img = Image_TextureIsValid(strtoull(key, NULL, 0));
-						if (img && img->status == TEX_LOADED)
-						{
-							if ((img->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_CUBE)
-							{
-								shader = R_RegisterShader("tiprawimgcube", 0, "{\nprogram postproc_equirectangular\n{\nmap \"$cube:$reflectcube\"\n}\n}");
-								shader->defaulttextures->reflectcube = img;
-							}
-							else if ((img->flags&IF_TEXTYPEMASK) == IF_TEXTYPE_2D)
-							{
-								shader = R2D_SafeCachePic("tiprawimg");
-								shader->defaulttextures->base = img;
-							}
-
-							if (shader)
-							{
-								shader->width = img->width;
-								shader->height = img->height;
-								if (shader->width > 320)
-								{
-									shader->height *= 320.0/shader->width;
-									shader->width = 320;
-								}
-								if (shader->height > 240)
-								{
-									shader->width *= 240.0/shader->height;
-									shader->height = 240;
-								}
-							}
-						}
-						else
-							shader = NULL;
-						key = Info_ValueForKey(info, "modelviewer");
-						if (*key)
-						{
-							model = Mod_ForName(key, MLV_WARN);
-							if (model->loadstate != MLS_LOADED)
-								model = NULL;
-						}
-					}
-					tiptext = Info_ValueForKey(info, "tip");
-				}
-				Z_Free(mouseover);
-			}
-		}
-		if ((tiptext && *tiptext) || shader || model)
-		{
-			//FIXME: draw a proper background.
-			//FIXME: support line breaks.
-			conchar_t buffer[2048], *starts[64], *ends[countof(starts)];
-			int lines, i, px, py;
-			float tw, th;
-			float ih = 0, iw = 0;
-			float x = mousecursor_x+8;
-			float y = mousecursor_y+8;
-
-			Font_BeginString(font_console, x, y, &px, &py);
-			lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK, tiptext, buffer, sizeof(buffer), false), (256.0 * vid.pixelwidth) / vid.width, countof(starts), starts, ends);
-			th = (Font_CharHeight()*lines * vid.height) / vid.pixelheight;
-
-			if (model)
-			{
-				iw = 128;
-				ih = 128;
-			}
-			else if (shader)
-			{
-				int w, h;
-				if (R_GetShaderSizes(shader, &w, &h, false) >= 0)
-				{
-					iw = w;
-					ih = h;
-				}
-				else
-					shader = NULL;
-			}
-			if (iw  > (vid.width/4.0))
-			{
-				ih *= (vid.width/4.0)/iw;
-				iw *= (vid.width/4.0)/iw;
-			}
-			if (ih  > (vid.height/4.0))
-			{
-				iw *= (vid.width/4.0)/ih;
-				ih *= (vid.width/4.0)/ih;
-			}
-
-			if (x + iw/2 + 8 + 256 > vid.width)
-				x = vid.width - (iw/2 + 8 + 256);
-			if (x < iw/2)
-				x = iw/2;
-			x += iw/2 + 8;
-
-			if (y+max(th, ih) > vid.height)
-				y = mousecursor_y - 8 - max(th, ih);
-			if (y < 0)
-				y = 0;
-
-			Font_BeginString(font_console, x, y + (max(th, ih) - th)/2, &px, &py);
-			for (i = 0, tw = 0; i < lines; i++)
-			{
-				int lw = Font_LineWidth(starts[i], ends[i]);
-				if (lw > tw)
-					tw = lw;
-			}
-			tw *= (float)vid.width / vid.pixelwidth;
-			Font_EndString(font_console);
-			R2D_ImageColours(0, 0, 0, .75);
-			R2D_FillBlock(x, y + (max(th, ih) - th)/2, tw, th);
-			R2D_ImageColours(1, 1, 1, 1);
-			Font_BeginString(font_console, x, y + (max(th, ih) - th)/2, &px, &py);
-			for (i = 0; i < lines; i++)
-			{
-				Font_LineDraw(px, py, starts[i], ends[i]);
-				py += Font_CharHeight();
-			}
-			Font_EndString(font_console);
-
-			if (model)
-			{
-				playerview_t pv;
-				entity_t ent;
-				vec3_t fwd, rgt, up;
-				vec3_t lightpos = {1, 1, 0};
-				float transforms[12];
-				float scale;
-
-				if (R2D_Flush)
-					R2D_Flush();
-
-				memset(&pv, 0, sizeof(pv));
-
-				CL_DecayLights ();
-				CL_ClearEntityLists();
-				V_ClearRefdef(&pv);
-				r_refdef.drawsbar = false;
-				V_CalcRefdef(&pv);
-
-				r_refdef.grect.width = iw;
-				r_refdef.grect.height = ih;
-				r_refdef.grect.x = x-8-iw;
-				r_refdef.grect.y = y+((th>ih)?(th-ih)/2:0);
-				r_refdef.time = realtime;
-
-				r_refdef.flags = RDF_NOWORLDMODEL;
-
-				r_refdef.afov = 60;
-				r_refdef.fov_x = 0;
-				r_refdef.fov_y = 0;
-				r_refdef.dirty |= RDFD_FOV;
-
-				VectorClear(r_refdef.viewangles);
-				r_refdef.viewangles[0] = 20;
-			//	r_refdef.viewangles[1] = realtime * 90;
-				AngleVectors(r_refdef.viewangles, fwd, rgt, up);
-				VectorScale(fwd, -64, r_refdef.vieworg);
-
-				memset(&ent, 0, sizeof(ent));
-				ent.scale = 1;
-				ent.angles[1] = realtime*90;//mods->yaw;
-			//	ent.angles[0] = realtime*23.4;//mods->pitch;
-				ent.angles[0]*=r_meshpitch.value;
-				AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-				ent.angles[0]*=r_meshpitch.value;
-				VectorInverse(ent.axis[1]);
-
-				ent.model = model;
-				if (!ent.model)
-					return;	//panic!
-				//ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
-
-				ent.scale = 1;
-				scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
-				scale = scale?64.0/scale:1;
-				ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
-				Vector4Set(ent.shaderRGBAf, 1, 1, 1, 1);
-				VectorScale(ent.axis[0], scale, ent.axis[0]);
-				VectorScale(ent.axis[1], scale, ent.axis[1]);
-				VectorScale(ent.axis[2], scale, ent.axis[2]);
-				/*if (strstr(model->name, "player"))
-				{
-					ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
-					ent.topcolour		= genhsv(realtime*0.1 + 0.5, 1, 1);
-				}
-				else*/
-				{
-					ent.topcolour = TOP_DEFAULT;
-					ent.bottomcolour = BOTTOM_DEFAULT;
-				}
-			//	ent.fatness = sin(realtime)*5;
-				ent.playerindex = -1;
-				ent.skinnum = 0;
-				ent.shaderTime = 0;//realtime;
-				ent.framestate.g[FS_REG].lerpweight[0] = 1;
-//				ent.framestate.g[FS_REG].frame[0] = animationnum;
-				ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime;
-				ent.framestate.g[FS_REG].endbone = 0x7fffffff;
-//				ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
-
-				VectorSet(ent.glowmod, 1,1,1);
-				ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
-				ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
-
-				V_ApplyRefdef();
-
-				if (ent.model->camerabone>0 && Mod_GetTag(ent.model, ent.model->camerabone, &ent.framestate, transforms))
-				{
-					VectorClear(ent.origin);
-					ent.angles[0]*=r_meshpitch.value;
-					AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-					ent.angles[0]*=r_meshpitch.value;
-					VectorInverse(ent.axis[1]);
-					scale = 1;
-					{
-						vec3_t fwd, up;
-						float camera[12], et[12] = {
-							ent.axis[0][0], ent.axis[1][0], ent.axis[2][0], ent.origin[0],
-							ent.axis[0][1], ent.axis[1][1], ent.axis[2][1], ent.origin[1],
-							ent.axis[0][2], ent.axis[1][2], ent.axis[2][2], ent.origin[2],
-							};
-
-						R_ConcatTransforms((void*)et, (void*)transforms, (void*)camera);
-						VectorSet(fwd, camera[2], camera[6], camera[10]);
-						VectorNegate(fwd, fwd);
-						VectorSet(up, camera[1], camera[5], camera[9]);
-						VectorSet(r_refdef.vieworg, camera[3], camera[7], camera[11]);
-						VectorAngles(fwd, up, r_refdef.viewangles, false);
-					}
-				}
-				else
-				{
-					ent.angles[1] = realtime*90;//mods->yaw;
-					ent.angles[0]*=r_meshpitch.value;
-					AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-					ent.angles[0]*=r_meshpitch.value;
-					VectorScale(ent.axis[0], scale, ent.axis[0]);
-					VectorScale(ent.axis[1], -scale, ent.axis[1]);
-					VectorScale(ent.axis[2], scale, ent.axis[2]);
-				}
-
-				ent.scale = scale;
-
-				VectorNormalize(lightpos);
-				ent.light_dir[0] = DotProduct(lightpos, ent.axis[0]);
-				ent.light_dir[1] = DotProduct(lightpos, ent.axis[1]);
-				ent.light_dir[2] = DotProduct(lightpos, ent.axis[2]);
-
-				ent.light_known = 2;
-
-				V_AddEntity(&ent);
-
-				R_RenderView();
-			}
-			if (shader)
-			{
-				if (th > ih)
-					y += (th-ih)/2;
-				R2D_Image(x-8-iw, y, iw, ih, 0, 0, 1, 1, shader);
-			}
-		}
-	}
+		Con_DrawMouseOver(mouseconsole);
 }
 
 void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy, float lineagelimit)

@@ -619,17 +619,35 @@ typedef struct
 
 #define	TI_SLICK		0x2		// effects game physics
 
-#define	TI_SKY		0x4		// don't draw, but add to skybox
-#define	TI_WARP		0x8		// turbulent water warp
-#define	TI_TRANS33	0x10
-#define TI_TRANS66	0x20
-#define	TI_FLOWING	0x40	// scroll towards angle
+#define	TI_SKY			0x4		// don't draw, but add to skybox
+#define	TI_WARP			0x8		// turbulent water warp
+#define	TI_TRANS33		0x10
+#define TI_TRANS66		0x20
+#define	TI_FLOWING		0x40	// scroll towards angle
 #define	TI_NODRAW		0x80	// don't bother referencing the texture
 
 #define	TI_ALPHATEST	0x100
 
 //Surface flags
-#define Q3SURF_LADDER	0x8		//wee
+//#define Q3SURFACEFLAG_NODAMAGE	0x1		// never give falling damage
+//#define Q3SURFACEFLAG_SLICK		0x2		// effects game physics
+//#define Q3SURFACEFLAG_SKY			0x4		// lighting from environment map
+#define	Q3SURFACEFLAG_LADDER		0x8
+//#define Q3SURFACEFLAG_NOIMPACT	0x10	// don't make missile explosions
+//#define Q3SURFACEFLAG_NOMARKS		0x20	// don't leave missile marks
+//#define Q3SURFACEFLAG_FLESH		0x40	// make flesh sounds and effects
+//#define Q3SURFACEFLAG_NODRAW		0x80	// don't generate a drawsurface at all
+//#define Q3SURFACEFLAG_HINT		0x100	// make a primary bsp splitter
+//#define Q3SURFACEFLAG_SKIP		0x200	// completely ignore, allowing non-closed brushes
+//#define Q3SURFACEFLAG_NOLIGHTMAP	0x400	// surface doesn't need a lightmap
+//#define Q3SURFACEFLAG_POINTLIGHT	0x800	// generate lighting info at vertexes
+//#define Q3SURFACEFLAG_METALSTEPS	0x1000	// clanking footsteps
+//#define Q3SURFACEFLAG_NOSTEPS		0x2000	// no footstep sounds
+//#define Q3SURFACEFLAG_NONSOLID	0x4000	// don't collide against curves with this set
+//#define Q3SURFACEFLAG_LIGHTFILTER	0x8000	// act as a light filter during q3map -light
+//#define Q3SURFACEFLAG_ALPHASHADOW	0x10000	// do per-pixel light shadow casting in q3map
+//#define Q3SURFACEFLAG_NODLIGHT	0x20000	// don't dlight even if solid (solid lava, skies)
+//#define Q3SURFACEFLAG_DUST		0x40000 // leave a dust trail when walking on this surface
 
 // content masks. Allow q2contents_window in here
 //#define	MASK_ALL				(-1)

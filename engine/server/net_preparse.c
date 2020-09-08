@@ -835,45 +835,60 @@ void NPP_NQFlush(void)
 		break;
 
 	case svcfte_cgamepacket:
-		if (writedest != &sv.multicast)
+		if (sv_csqcdebug.ival || writedest != &sv.multicast)
 		{
-			Con_Printf(CON_WARNING"Warning: svc_cgamepacket used outside of a multicast\n");
-			if (sv.csqcdebug)
-			{
-				/*shift the data up by two bytes*/
-				memmove(buffer+3, buffer+1, bufferlen-1);
+			if (writedest != &sv.multicast)
+				Con_Printf(CON_WARNING"Warning: svc_cgamepacket used outside of a multicast\n");
+			/*shift the data up by two bytes*/
+			memmove(buffer+3, buffer+1, bufferlen-1);
 
-				/*add a length in the 2nd/3rd bytes*/
-				buffer[1] = (bufferlen-1);
-				buffer[2] = (bufferlen-1) >> 8;
+			buffer[0] = svcfte_cgamepacket_sized;
+			/*add a length in the 2nd/3rd bytes*/
+			buffer[1] = (bufferlen-1);
+			buffer[2] = (bufferlen-1) >> 8;
 
-				bufferlen += 2;
-			}
+			bufferlen += 2;
+			if(multicastpos) multicastpos += 2;
 		}
 		break;
 	case svc_temp_entity:
+		if (sv_csqcdebug.ival)
+		{
+			if (te_515sevilhackworkaround && writedest != &sv.multicast)
+				Con_Printf(CON_WARNING"Warning: unknown svc_temp_entity used outside of a multicast\n");
+			/*shift the data up by two bytes, but don't care about the first byte*/
+			memmove(buffer+3, buffer+1, bufferlen-1);
+
+			buffer[0] = svcfte_temp_entity_sized;
+			/*add a length in the 2nd/3rd bytes, if needed*/
+			buffer[1] =  (bufferlen-1) & 0xff;
+			buffer[2] = ((bufferlen-1) >> 8);
+			if (te_515sevilhackworkaround)	//we don't know how to translate it, so the qw receiver must be told to interpret as the nq version
+				buffer[2] |= 0x80;
+
+			bufferlen += 2;
+			if(multicastpos) multicastpos += 2;
+			break;
+		}
 		switch (buffer[1])
 		{
 		default:
 			if (te_515sevilhackworkaround)
 			{
 				if (writedest != &sv.multicast)
-				{
 					Con_Printf(CON_WARNING"Warning: unknown svc_temp_entity used outside of a multicast\n");
-					if (sv.csqcdebug)
-					{
-						/*shift the data up by two bytes, but don't care about the first byte*/
-						memmove(buffer+3, buffer+1, bufferlen-1);
+				/*shift the data up by two bytes, but don't care about the first byte*/
+				memmove(buffer+3, buffer+1, bufferlen-1);
 
-						/*add a length in the 2nd/3rd bytes, if needed*/
-						buffer[1] = (bufferlen-1) & 0xff;
-						buffer[2] = (bufferlen-1) >> 8;
+				buffer[0] = svcfte_temp_entity_sized;
+				/*add a length in the 2nd/3rd bytes, if needed*/
+				buffer[1] =  (bufferlen-1) & 0xff;
+				buffer[2] = ((bufferlen-1) >> 8);
+				if (te_515sevilhackworkaround)	//we don't know how to translate it, so the qw receiver must be told to interpret as the nq version
+					buffer[2] |= 0x80;
 
-						bufferlen += 2;
-					}
-				}
-				/*replace the svc itself*/
-				buffer[0] = svcfte_cgamepacket;
+				bufferlen += 2;
+				if(multicastpos) multicastpos += 2;
 			}
 			break;
 		case TENQ_NQEXPLOSION:
@@ -1895,45 +1910,59 @@ void NPP_QWFlush(void)
 
 		break;
 	case svcfte_cgamepacket:
-		if (writedest != &sv.nqmulticast)
+		if (sv_csqcdebug.ival || writedest != &sv.nqmulticast)
 		{
-			Con_Printf(CON_WARNING"Warning: svc_cgamepacket used outside of a multicast\n");
-			if (sv.csqcdebug)
-			{
-				/*shift the data up by two bytes*/
-				memmove(buffer+3, buffer+1, bufferlen-1);
+			if (writedest != &sv.nqmulticast)
+				Con_Printf(CON_WARNING"Warning: svc_cgamepacket used outside of a multicast\n");
+			/*shift the data up by two bytes*/
+			memmove(buffer+3, buffer+1, bufferlen-1);
 
-				/*add a length in the 2nd/3rd bytes*/
-				buffer[1] = (bufferlen-1);
-				buffer[2] = (bufferlen-1) >> 8;
+			buffer[0] = svcfte_cgamepacket_sized;
+			/*add a length in the 2nd/3rd bytes*/
+			buffer[1] = (bufferlen-1);
+			buffer[2] = (bufferlen-1) >> 8;
 
-				bufferlen += 2;
-			}
+			bufferlen += 2;
+			if(multicastpos) multicastpos += 2;
 		}
 		break;
 	case svc_temp_entity:
+		if (sv_csqcdebug.ival)
+		{
+			if (te_515sevilhackworkaround && writedest != &sv.multicast)
+				Con_Printf(CON_WARNING"Warning: unknown svc_temp_entity used outside of a multicast\n");
+			/*shift the data up by two bytes, but don't care about the first byte*/
+			memmove(buffer+3, buffer+1, bufferlen-1);
+
+			buffer[0] = svcfte_temp_entity_sized;
+			/*add a length in the 2nd/3rd bytes, if needed*/
+			buffer[1] = (bufferlen-1) & 0xff;
+			buffer[2] = (bufferlen-1) >> 8;
+			if (!te_515sevilhackworkaround)	//we translated it from qw, let the client know that its now the nq version
+				buffer[2] |= 0x80;
+
+			bufferlen += 2;
+			if(multicastpos) multicastpos += 2;
+			break;
+		}
 		switch(minortype)
 		{
 		default:
 			if (te_515sevilhackworkaround)
 			{
-				if (writedest != &sv.nqmulticast)
-				{
-					Con_Printf(CON_WARNING"Warning: unknown svc_temp_entity used outside of a multicast\n");
-					if (sv.csqcdebug)
-					{
-						/*shift the data up by two bytes*/
-						memmove(buffer+3, buffer+1, bufferlen-1);
+				Con_Printf(CON_WARNING"Warning: unknown svc_temp_entity used outside of a multicast\n");
+				/*shift the data up by two bytes*/
+				memmove(buffer+3, buffer+1, bufferlen-1);
 
-						/*add a length in the 2nd/3rd bytes*/
-						buffer[1] = (bufferlen-1);
-						buffer[2] = (bufferlen-1) >> 8;
+				buffer[0] = svcfte_temp_entity_sized;
+				/*add a length in the 2nd/3rd bytes*/
+				buffer[1] = (bufferlen-1);
+				buffer[2] = (bufferlen-1) >> 8;
+				if (!te_515sevilhackworkaround)	//we translated it from qw, let the client know that its now the nq version
+					buffer[2] |= 0x80;
 
-						bufferlen += 2;
-					}
-				}
-				/*replace the svc itself*/
-				buffer[0] = svcfte_cgamepacket;
+				bufferlen += 2;
+				if(multicastpos) multicastpos += 2;
 			}
 			break;
 		case TEQW_LIGHTNINGBLOOD:
@@ -2249,7 +2278,9 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			default:
 				protocollen = sizeof(buffer);
-				Con_Printf("QWWriteByte: bad tempentity - %i\n", data);
+				if (writedest != &sv.nqmulticast)
+					Con_Printf("QWWriteByte: bad tempentity - %i\n", data);
+				te_515sevilhackworkaround = true;
 				break;
 			}
 			break;

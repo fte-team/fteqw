@@ -2425,6 +2425,39 @@ int	Dem_CountTeamPlayers (char *t)
 	return count;
 }
 
+//takes a quake-mark-up string (subject to com_parseutf and ^ etc) and spits out a usable utf-8 name
+//in and out may overlap.
+static char *FS_UTF8FromQuakeFilename(const char *in, qboolean dequake, qboolean keepmarkup, qboolean blockdirsep, char *out, size_t outsize)
+{
+	conchar_t cline[8192], *c;
+	char *outend = out+outsize-1;	//-1 for our null
+	unsigned int charflags, codepoint;
+
+	COM_ParseFunString(CON_WHITEMASK, in, cline, sizeof(cline), keepmarkup);
+	for (c = cline; *c; )
+	{
+		c = Font_Decode(c, &charflags, &codepoint);
+		if (charflags & CON_HIDDEN)
+			continue;
+		if (dequake)
+			codepoint = COM_DeQuake(codepoint);
+
+		if (codepoint == '/' && blockdirsep) codepoint = '-';	//spreading across multiple dirs is just awkward
+		else if (codepoint <  ' ' )	codepoint = '-';	//C0 chars are all kinds of problematic
+		else if (codepoint == '\\')	codepoint = '-';	//windows sucks. or string escapes do.
+		else if (codepoint == ':' )	codepoint = '-';	//drives, or Alternative Data Streams (read: often hidden)
+		else if (codepoint == '\"')	codepoint = '-';	//erk! escapes necessitate escapes...
+		else if (codepoint == '<' )	codepoint = '-';	//pipe stuff sucks
+		else if (codepoint == '>' )	codepoint = '-';	//pipe stuff sucks
+		else if (codepoint == '|' )	codepoint = '-';	//pipe stuff sucks
+		else if (codepoint == '?' )	codepoint = '-';	//wildcards complicate things
+		else if (codepoint == '*' )	codepoint = '-';	//wildcards complicate things
+
+		out += utf8_encode(out, codepoint, outend-out);
+	}
+	*out = 0;
+	return out;
+}
 // <-
 
 void SV_MVDEasyRecord_f (void)
@@ -2454,10 +2487,8 @@ void SV_MVDEasyRecord_f (void)
 
 	if (c == 2)
 	{
-		char *c;
 		Q_strncpyz (name, Cmd_Argv(1), sizeof(name));
-		while((c = strchr(name, ':')))
-			*c = '-';
+		FS_UTF8FromQuakeFilename(name, true, false, false, name, sizeof(name));
 	}
 	else
 	{
@@ -2493,6 +2524,9 @@ void SV_MVDEasyRecord_f (void)
 				snprintf (name, sizeof(name), "ffa_%s(%d)", svs.name, i);
 			}
 		}
+
+		//convert to utf-8, so its readable on most systems (we convert utf-8 to utf-16 for windows, while linux tends to just use utf-8 in the first place)
+		FS_UTF8FromQuakeFilename(name, true, false, true, name, sizeof(name));
 	}
 
 	// <-

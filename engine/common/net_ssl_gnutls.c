@@ -517,7 +517,6 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 	gnutlsfile_t *file = qgnutls_session_get_ptr (session);
 	unsigned int certstatus;
 	qboolean preverified = false;
-	int errcode = GNUTLS_E_CERTIFICATE_ERROR;
 
 	size_t knownsize;
 	qbyte *knowndata = TLS_GetKnownCertificate(file->certname, &knownsize);
@@ -576,23 +575,31 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 #ifdef GNUTLS_HAVE_VERIFY3
 	if (qgnutls_certificate_verify_peers3(session, file->certname, &certstatus) >= 0)
 	{
+		gnutls_datum_t out = {NULL,0};
+		gnutls_certificate_type_t type;
+		int ret;
+
+		if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
+			return 0;
+		ret = SSL_CheckUserTrust(session, file, certstatus);
+		if (!ret)
+			return ret;
+
+		type = qgnutls_certificate_type_get (session);
+		if (qgnutls_certificate_verification_status_print(certstatus, type, &out, 0) >= 0)
 		{
-			gnutls_datum_t out;
-			gnutls_certificate_type_t type;
-			int ret;
+			Con_Printf(CON_ERROR "%s: %s (%x)\n", file->certname, out.data, certstatus);
+			(*qgnutls_free)(out.data);
+		}
+		else
+			Con_Printf(CON_ERROR "%s: UNKNOWN STATUS (%x)\n", file->certname, certstatus);
 
-			if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
-				return 0;
-			ret = SSL_CheckUserTrust(session, file, certstatus);
-			if (!ret)
-				return ret;
-
-			type = qgnutls_certificate_type_get (session);
-			if (qgnutls_certificate_verification_status_print(certstatus, type, &out, 0) >= 0)
-			{
-				Con_Printf(CON_ERROR "%s: %s (%x)\n", file->certname, out.data, certstatus);
-//looks like its static anyway.				qgnutls_free(out.data);
-
+		if (tls_ignorecertificateerrors.ival)
+		{
+			Con_Printf(CON_ERROR "%s: Ignoring certificate errors (tls_ignorecertificateerrors is %i)\n", file->certname, tls_ignorecertificateerrors.ival);
+			return 0;
+		}
+	}
 #else
 	if (qgnutls_certificate_verify_peers2(session, &certstatus) >= 0)
 	{
@@ -625,7 +632,6 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 					Con_Printf(CON_ERROR "%s: Certificate signature failure\n", file->certname);
 				else
 					Con_Printf(CON_ERROR "%s: Certificate error\n", file->certname);
-#endif
 				if (tls_ignorecertificateerrors.ival)
 				{
 					Con_Printf(CON_ERROR "%s: Ignoring certificate errors (tls_ignorecertificateerrors is %i)\n", file->certname, tls_ignorecertificateerrors.ival);
@@ -636,9 +642,10 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 				Con_DPrintf(CON_ERROR "%s: certificate is for a different domain\n", file->certname);
 		}
 	}
+#endif
 
 	Con_DPrintf(CON_ERROR "%s: rejecting certificate\n", file->certname);
-	return errcode;
+	return GNUTLS_E_CERTIFICATE_ERROR;
 }
 
 //return 1 to read data.
@@ -1052,6 +1059,7 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 
 qboolean SSL_InitGlobal(qboolean isserver)
 {
+	int err;
 	static int initstatus[2];
 	isserver = !!isserver;
 	if (COM_CheckParm("-notls"))
@@ -1087,7 +1095,9 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		qgnutls_certificate_allocate_credentials (&xcred[isserver]);
 
 #ifdef GNUTLS_HAVE_SYSTEMTRUST
-		qgnutls_certificate_set_x509_system_trust (xcred[isserver]);
+		err = qgnutls_certificate_set_x509_system_trust (xcred[isserver]);
+		if (err <= 0)
+			Con_Printf("gnutls_certificate_set_x509_system_trust: error %i.\n", err);
 #else
 		qgnutls_certificate_set_x509_trust_file (xcred[isserver], CAFILE, GNUTLS_X509_FMT_PEM);
 #endif
@@ -1227,7 +1237,7 @@ int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 	gnutls_datum_t cb;
 	gnutlsfile_t *f = (gnutlsfile_t*)vf;
 	if (vf->Close != SSL_CloseFile)
-		return -1;	//err, not a tls connection.
+		return -1;	//err, not a gnutls connection.
 
 	if (qgnutls_session_channel_binding(f->session, GNUTLS_CB_TLS_UNIQUE, &cb))
 	{	//error of some kind

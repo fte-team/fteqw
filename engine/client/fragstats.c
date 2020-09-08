@@ -630,10 +630,8 @@ static void Stats_LoadFragFile(char *name)
 		Con_DPrintf("Loaded %s\n", filename);
 
 	oend = 1;
-	for (;*file;)
+	for (;oend;)
 	{
-		if (!oend)
-			break;
 		for (end = file; *end && *end != '\n'; end++)
 			;
 		oend = *end;

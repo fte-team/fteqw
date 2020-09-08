@@ -2607,6 +2607,12 @@ void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	}
 
 	bonemat_toqcvectors(result, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
+
+/*	//extra info for dp compat.
+	gettaginfo_parent = parentofbone(tagnum);
+	gettaginfo_name = nameofbone(tagnum);
+	bonemat_toqcvectors(relbonetransform(fstate, tagnum), gettaginfo_forward, gettaginfo_right, gettaginfo_up, gettaginfo_offset);
+*/
 }
 
 //writes to axis+origin. returns root entity.

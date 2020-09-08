@@ -275,7 +275,7 @@ void SV_New_f (void)
 
 	if (dpcompat_nopreparse.ival && progstype != PROG_QW)
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "This server now has network preparsing disabled, and thus only supports NetQuake clients\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "This server has network preparsing disabled, and thus only supports NetQuake clients\n");
 		Con_Printf("%s was not using NQ protocols\n", host_client->name);
 		host_client->drop = true;
 		return;
@@ -364,7 +364,6 @@ void SV_New_f (void)
 		#ifdef SVRANKING
 			split->stats_started = realtime;
 		#endif
-			splitnum++;
 		}
 	}
 	else
@@ -533,7 +532,7 @@ void SVNQ_New_f (void)
 
 	if (dpcompat_nopreparse.ival && progstype == PROG_QW)
 	{
-		SV_PrintToClient(host_client, PRINT_HIGH, "This server now has network preparsing disabled, and thus only supports QuakeWorld clients\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "This server has network preparsing disabled, and thus only supports QuakeWorld clients\n");
 		Con_Printf("%s was not using QW protocols\n", host_client->name);
 		host_client->drop = true;
 		return;
@@ -560,17 +559,25 @@ void SVNQ_New_f (void)
 		{
 			int id;
 			qboolean big;	//used as a filter to exclude protocols that don't match our coord+angles mode
+			qboolean pextonly;
 		} preferedprot[] =
 		{
+			//favour fitz over dp's. this is on the assumption that we can use pext stuff when both are available.
+			{SCP_FITZ666, true,		true},	//actually fte+999... shh...
+			{SCP_FITZ666, false,	true},	//actually fte+666.
+			//next best is probably dp's stuff
 			{SCP_DARKPLACES7, true},
 			{SCP_DARKPLACES6, true},
+			//unextended fitz is kinda lame, but has some bells on it.
 			{SCP_FITZ666, true},	//actually 999... shh...
 			{SCP_FITZ666, false},
+			//well, we can still get bigger model/soundindexes out of this
 			{SCP_BJP3, false}	//should we only use this when we have >255 models/sounds?
 		};
 		for (i = 0; i < countof(preferedprot); i++)
 		{
 			if (preferedprot[i].big == !!(protext1 & PEXT_FLOATCOORDS))
+			if (!preferedprot[i].pextonly || (protext2&PEXT2_REPLACEMENTDELTAS))
 			{
 				if (host_client->supportedprotocols & (1u<<preferedprot[i].id))
 				{
@@ -1073,18 +1080,12 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			{
 				static const char *prioritykeys[] = {"*", "fpd", "teamplay", "deathmatch", "maxfps", NULL};	//make sure these are in there.
 				static const char *ignorekeys[] = {"mapname"/*here for q3, useless for qw*/, NULL};
-				if (!ISNQCLIENT(client) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+				if (!ISNQCLIENT(client) || (client->fteprotocolextensions & PEXT_CSQC) || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{	//nq does not normally get serverinfo sent to it.
 					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), prioritykeys, ignorekeys, NULL, &client->infosync, &svs.info);
 					Info_SetValueForStarKey(buffer, "*z_ext", va("%i", client->zquake_extensions), sizeof(buffer)); //should already be in there, so this should only ever make it shorter.
 					ClientReliableWrite_Begin(client, svc_stufftext, 20 + i);
 					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", buffer) );
-				}
-				else if (sv.csqcdebug)
-				{
-					i = InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), prioritykeys, ignorekeys, NULL, &client->infosync, &svs.info);
-					ClientReliableWrite_Begin(client, svc_stufftext, 22 + i);
-					ClientReliableWrite_String (client, va("//fullserverinfo \"%s\"\n", buffer) );
 				}
 			}
 			else if (client->prespawn_idx == 3)

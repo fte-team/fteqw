@@ -4917,11 +4917,8 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (!mod)
 		return;
-	if (!mod->terrain)
-	{
-		if (mod->loadstate == MLS_LOADING)
-			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
-	}
+	if (mod->loadstate == MLS_LOADING)
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 	if (mod->loadstate != MLS_LOADED)
 		return;
 

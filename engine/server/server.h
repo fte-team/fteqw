@@ -110,7 +110,6 @@ typedef struct
 	server_state_t	state;			// precache commands are only valid during load
 
 	float		gamespeed;	//time progression multiplier, fixed per-level.
-	qboolean	csqcdebug;
 	unsigned int csqcchecksum;
 	qboolean	mapchangelocked;
 	qboolean	restarting;
@@ -1092,6 +1091,7 @@ void SV_Master_Shutdown(void);
 void SV_Master_Heartbeat (void);
 
 extern	cvar_t	pr_ssqc_progs;
+extern	cvar_t	sv_csqcdebug;
 extern	cvar_t	spawn;
 extern	cvar_t	teamplay;
 extern	cvar_t	deathmatch;

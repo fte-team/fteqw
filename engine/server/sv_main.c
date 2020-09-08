@@ -214,6 +214,7 @@ vfsfile_t	*sv_fraglogfile;
 
 void SV_AcceptClient (netadr_t *adr, int userid, char *userinfo);
 void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
+void SV_DeDupeName(const char *val, client_t *cl, char *newname, size_t newnamesize);
 
 int	nextuserid;
 
@@ -2183,7 +2184,8 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	int i, j;
 	int curclients;
 	qboolean loadgame;
-	const char *name;
+//	const char *name;
+	char newname[80];
 	unsigned int clients = 0, spectators = 0;
 	qboolean asspec;
 
@@ -2233,12 +2235,12 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 		}
 */
 
-	name = Info_ValueForKey(info, "name");
+	SV_DeDupeName(Info_ValueForKey(info, "name"), cl, newname, sizeof(newname));
 	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_loadzombie && !controller->spectator)
 		{	//if this is a loadzombie with the same name as the new seat is trying to use then lets use that slot.
-			if (!strcmp(cl->name, name))
+			if (!strcmp(cl->name, newname))
 				break;
 		}
 	}
@@ -2277,6 +2279,27 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	{
 		SV_PrintToClient(controller, PRINT_HIGH, "Server full, cannot add new seat\n");
 		return NULL;
+	}
+
+
+	{	//save off anything we might want to preserve
+		qboolean tobeloaded = cl->istobeloaded;
+		qboolean spawned = cl->spawned;
+		unsigned int userid = cl->userid;
+		float	spawn_parms[NUM_SPAWN_PARMS];
+		memcpy(spawn_parms, cl->spawn_parms, sizeof(spawn_parms));
+
+		//now actually wipe the player slot
+		memset(cl, 0, sizeof(*cl));
+
+		//and restore preserved stuff, if its appropriate.
+		if (loadgame)
+		{
+			cl->istobeloaded = tobeloaded;
+			cl->spawned = spawned;
+			cl->userid = userid;
+			memcpy(cl->spawn_parms, spawn_parms, sizeof(cl->spawn_parms));
+		}
 	}
 
 	cl->spectator = asspec;
@@ -2601,6 +2624,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 					newcl = cl;
 					preserveparms = true;
 					temp.istobeloaded = cl->istobeloaded;
+					temp.spawned = cl->spawned;
 					memcpy(temp.spawn_parms, cl->spawn_parms, sizeof(temp.spawn_parms));
 					if (cl->userid)
 						temp.userid = cl->userid;
@@ -5565,6 +5589,70 @@ void SV_FixupName(const char *in, char *out, unsigned int outlen)
 	p[1] = 0;
 }
 
+void SV_DeDupeName(const char *val, client_t *cl, char *newname, size_t newnamesize)
+{
+	int		i;
+	client_t	*client;
+	int		dupc = 1;
+	char	basic[80];
+	const char *p;
+	if (!val)
+		val = "";
+	//we block large names here because a) they're unwieldly. b) they might cause players to be invisible to older clients/server browsers/etc.
+	//bots with no name skip the fixup, to avoid default names(they're expected to be given a name eventually, so are allowed to be invisible for now)
+	if (cl && cl->protocol == SCP_BAD && !*val)
+		newname[0] = 0;
+	else
+	{
+		SV_FixupName(val, newname, newnamesize);
+		if (strlen(newname) > 40)
+			newname[40] = 0;
+	}
+
+	//strip weirdness
+	deleetstring(basic, newname);
+
+
+	if (!cl || cl->protocol != SCP_BAD)
+	{	//don't bother validating bot names. The gamecode is expected to not be stupid.
+		if (!basic[0] || strstr(basic, "console"))
+			strcpy(newname, "unnamed");
+
+		// check to see if another user by the same name exists
+		while (1)
+		{
+			for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
+			{
+				if (client->state < cs_connected || client == cl)
+					continue;
+				if (!stricmp(client->name, newname))
+					break;
+			}
+			if (i != svs.allocated_client_slots)
+			{ // dup name
+				char tmpname[80];
+				if (strlen(newname) > sizeof(cl->namebuf) - 1)
+					newname[sizeof(cl->namebuf) - 4] = 0;
+				p = newname;
+
+				if (newname[0] == '(')
+				{
+					if (newname[2] == ')')
+						p = newname + 3;
+					else if (val[3] == ')')
+						p = newname + 4;
+				}
+
+				memcpy(tmpname, p, strlen(p)+1);
+
+				Q_snprintfz(newname, newnamesize, "(%d)%-.40s", dupc++, tmpname);
+			}
+			else
+				break;
+		}
+	}
+}
+
 
 qboolean ReloadRanking(client_t *cl, const char *newname)
 {
@@ -5631,10 +5719,7 @@ into a more C freindly form.
 void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 {
 	const char	*val, *p;
-	int		i;
-	client_t	*client;
-	int		dupc = 1;
-	char	newname[80], basic[80];
+	char	newname[80];
 #ifdef SVRANKING
 	extern cvar_t rank_filename;
 #endif
@@ -5658,58 +5743,10 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 
 	// name for C code
 	val = InfoBuf_BlobForKey (&cl->userinfo, "name", &blobsize, &large);
-	if (!val)
+	if (large)	//don't allow it if there's even anything weird in there (simplies the necessary qc).
 		val = "";
-	//we block large names here because a) they're unwieldly. b) they might cause players to be invisible to older clients/server browsers/etc.
-	//bots with no name skip the fixup, to avoid default names(they're expected to be given a name eventually, so are allowed to be invisible for now)
-	if (large || (cl->protocol == SCP_BAD && !*val))
-		newname[0] = 0;
-	else
-	{
-		SV_FixupName(val, newname, sizeof(newname));
-		if (strlen(newname) > 40)
-			newname[40] = 0;
-	}
-
-	deleetstring(basic, newname);
-	if (cl->protocol != SCP_BAD)
-	{	//don't bother validating bot names. The gamecode is expected to not be stupid.
-		if (!basic[0] || strstr(basic, "console"))
-			strcpy(newname, "unnamed");
-
-		// check to see if another user by the same name exists
-		while (1)
-		{
-			for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
-			{
-				if (client->state < cs_connected || client == cl)
-					continue;
-				if (!stricmp(client->name, newname))
-					break;
-			}
-			if (i != svs.allocated_client_slots)
-			{ // dup name
-				char tmpname[80];
-				if (strlen(newname) > sizeof(cl->namebuf) - 1)
-					newname[sizeof(cl->namebuf) - 4] = 0;
-				p = newname;
-
-				if (newname[0] == '(')
-				{
-					if (newname[2] == ')')
-						p = newname + 3;
-					else if (val[3] == ')')
-						p = newname + 4;
-				}
-
-				memcpy(tmpname, p, strlen(p)+1);
-
-				sprintf(newname, "(%d)%-.40s", dupc++, tmpname);
-			}
-			else
-				break;
-		}
-	}
+	//fixup and dedupe
+	SV_DeDupeName(val, cl, newname, sizeof(newname));
 
 	if (!cl->drop && strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{

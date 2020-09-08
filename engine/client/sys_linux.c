@@ -1103,7 +1103,6 @@ int main (int c, const char **v)
 	quakeparms_t parms;
 	int i;
 
-//	char cwd[1024];
 	char bindir[1024];
 
 	signal(SIGFPE, SIG_IGN);
@@ -1167,7 +1166,33 @@ int main (int c, const char **v)
 		}
 	}
 
-	parms.basedir = realpath(".", NULL);
+#if _POSIX_C_SOURCE >= 200809L
+	{
+		char *path = realpath(".", NULL);
+		if (path)
+		{
+			size_t l = strlen(path)+2;
+			char *npath = malloc(strlen(path)+2);
+			Q_snprintfz(npath, l, "%s/", path);
+			parms.basedir = npath;
+			free(path);
+		}
+	}
+#elif _POSIX_C_SOURCE >= 200112L && defined(PATH_MAX)
+	{
+		char path[PATH_MAX];
+		if (realpath(".", path))
+		{
+			size_t l = strlen(path)+2;
+			char *npath = malloc(strlen(path)+2);
+			Q_snprintfz(npath, l, "%s/", path);
+			parms.basedir = npath;
+		}
+	}
+#else
+	parms.basedir = "";	//play it safe when realpath is too awkward to use. don't depend upon "./" working, and hope that the user uses -basedir or simply doesn't care about path prints (hopefully its only windows libraries that change the working dir without the program's permission).
+#endif
+
 	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.
 #ifdef __linux__
 	//attempt to figure out where the exe is located
@@ -1233,7 +1258,7 @@ int main (int c, const char **v)
 #endif
 
 	if (parms.binarydir)
-		Sys_Printf("Binary is located at \"%s\"\n", bindir);
+		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
 
 #ifndef CLIENTONLY
 	if (isDedicated)    //compleate denial to switch to anything else - many of the client structures are not initialized.
@@ -1369,7 +1394,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #define SYS_CLIPBOARD_SIZE		256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
 
-void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, char *utf8), void *ctx)
+void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	callback(ctx, clipboard_buffer);
 }

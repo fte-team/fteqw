@@ -1119,8 +1119,8 @@ void	VK_Draw_Init(void)
 void	VK_Draw_Shutdown(void)
 {
 	R2D_Shutdown();
-	Image_Shutdown();
 	Shader_Shutdown();
+	Image_Shutdown();
 }
 
 void VK_CreateSampler(unsigned int flags, vk_image_t *img)
@@ -2094,6 +2094,8 @@ void	VK_R_DeInit					(void)
 	VK_Shutdown_PostProc();
 	VK_DestroySwapChain();
 	VKBE_Shutdown();
+
+	R2D_Shutdown();
 	Shader_Shutdown();
 	Image_Shutdown();
 }

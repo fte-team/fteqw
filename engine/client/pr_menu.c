@@ -19,13 +19,6 @@ void M_Init_Internal (void);
 void M_DeInit_Internal (void);
 
 extern unsigned int r2d_be_flags;
-#define DRAWFLAG_NORMAL		0
-#define DRAWFLAG_ADD		1
-#define DRAWFLAG_MODULATE	2
-#define DRAWFLAG_MODULATE2	3
-#define DRAWFLAG_2D			(1u<<2)
-#define DRAWFLAG_TWOSIDED	0x400
-#define DRAWFLAG_LINES		0x800
 static unsigned int PF_SelectDPDrawFlag(pubprogfuncs_t *prinst, int flag)
 {
 	if (r_refdef.warndraw)

@@ -1462,6 +1462,25 @@ void SV_LoadPlayers(loadplayer_t *lp, size_t slots)
 	size_t clnum, p, p2;
 	int to[255];
 
+	//kick any splitscreen seats. they'll get re-added after load (filling slots like connecting players would)
+	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)
+	{
+		cl = &svs.clients[clnum];
+		cl->controlled = NULL;	//kill the links.
+		if (cl->controller)	//its a slave
+		{
+			//unlink it
+			cl->controller = NULL;
+
+			//make it into a pseudo-bot so the kicking doesn't do weird stuff.
+			cl->netchan.remote_address.type = NA_INVALID;	//so the remaining client doesn't get the kick too.
+			cl->protocol = SCP_BAD;	//make it a bit like a bot, so we don't try sending any datagrams/reliables at someone that isn't able to receive anything.
+
+			//okay, it can get lost now.
+			cl->drop = true;
+		}
+	}
+
 	//despawn any entity data, and try to find the loaded player to move them to
 	for (clnum = 0; clnum < svs.allocated_client_slots; clnum++)	//clear the server for the level change.
 	{
@@ -1578,8 +1597,10 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 		cl = &svs.clients[clnum];
 		cl->spawned = !!*lp[clnum].name;
 		if (cl->spawned)
+		{
 			sv.spawned_client_slots++;
-
+			Q_strncpyz(cl->namebuf, lp[clnum].name, sizeof(cl->namebuf));
+		}
 		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
 		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
 

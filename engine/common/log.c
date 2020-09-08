@@ -791,6 +791,7 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 
 	if (certlog_curprompt)
 		return false;
+	COM_AssertMainThread("CertLog_ConnectOkay");
 
 	if (!certlog_inited)
 		CertLog_Import(NULL);

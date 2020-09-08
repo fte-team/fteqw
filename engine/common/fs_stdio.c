@@ -37,7 +37,9 @@ static int QDECL VFSSTDIO_WriteBytes (struct vfsfile_s *file, const void *buffer
 static qboolean QDECL VFSSTDIO_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
-#if _POSIX_C_SOURCE >= 200112L
+#ifdef __USE_LARGEFILE64
+	return fseeko64(intfile->handle, (off64_t)pos, SEEK_SET) == 0;
+#elif _POSIX_C_SOURCE >= 200112L
 	return fseeko(intfile->handle, (off_t)pos, SEEK_SET) == 0;
 #else
 	return fseek(intfile->handle, pos, SEEK_SET) == 0;
@@ -46,7 +48,9 @@ static qboolean QDECL VFSSTDIO_Seek (struct vfsfile_s *file, qofs_t pos)
 static qofs_t QDECL VFSSTDIO_Tell (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
-#if _POSIX_C_SOURCE >= 200112L
+#ifdef __USE_LARGEFILE64
+	idhgr sdrg ser gser greturn (qofs_t)ftello64(intfile->handle);
+#elif _POSIX_C_SOURCE >= 200112L
 	return (qofs_t)ftello(intfile->handle);
 #else
 	return ftell(intfile->handle);
@@ -61,7 +65,14 @@ static qofs_t QDECL VFSSTDIO_GetSize (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 
-#if _POSIX_C_SOURCE >= 200112L
+#ifdef __USE_LARGEFILE64
+	off64_t curpos;
+	qofs_t maxlen;
+	curpos = ftello64(intfile->handle);
+	fseeko64(intfile->handle, 0, SEEK_END);
+	maxlen = (qofs_t)ftello64(intfile->handle);
+	fseeko64(intfile->handle, curpos, SEEK_SET);
+#elif _POSIX_C_SOURCE >= 200112L
 	off_t curpos;
 	qofs_t maxlen;
 	curpos = ftello(intfile->handle);
@@ -123,7 +134,11 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 	strcpy((char*)(file+1), fname);
 	free(fname);
 #else
+#ifdef __USE_LARGEFILE64
+	f = tmpfile64();
+#else
 	f = tmpfile();
+#endif
 	if (!f)
 		return NULL;
 
@@ -189,7 +204,11 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 #endif
 	newmode[modec++] = '\0';
 
+#ifdef __USE_LARGEFILE64
+	f = fopen64(osname, newmode);
+#else
 	f = fopen(osname, newmode);
+#endif
 	if (!f)
 		return NULL;
 
@@ -298,7 +317,7 @@ static unsigned int QDECL FSSTDIO_CreateLoc(searchpathfuncs_t *handle, flocation
 static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	stdiopath_t *sp = (void*)handle;
-	int len;
+	qofs_t len;
 	char netpath[MAX_OSPATH];
 
 	if (hashedresult && (void *)hashedresult != handle)
@@ -326,12 +345,24 @@ static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t
 	}
 #else
 	{
+#ifdef __USE_LARGEFILE64
+		FILE *f = fopen64(netpath, "rb");
+#else
 		FILE *f = fopen(netpath, "rb");
+#endif
 		if (!f)
 			return FF_NOTFOUND;
 
+#ifdef __USE_LARGEFILE64
+		fseeko64(f, 0, SEEK_END);
+		len = ftello64(f);
+#elif _POSIX_C_SOURCE >= 200112L
+		fseeko(f, 0, SEEK_END);
+		len = ftello(f);
+#else
 		fseek(f, 0, SEEK_END);
 		len = ftell(f);
+#endif
 		fclose(f);
 	}
 #endif
@@ -349,10 +380,20 @@ static void QDECL FSSTDIO_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, 
 	FILE *f;
 	size_t result;
 
+#ifdef __USE_LARGEFILE64
+	f = fopen64(loc->rawname, "rb");
+#else
 	f = fopen(loc->rawname, "rb");
+#endif
 	if (!f)	//err...
 		return;
+#ifdef __USE_LARGEFILE64
+	fseeko64(f, loc->offset, SEEK_SET);
+#elif _POSIX_C_SOURCE >= 200112L
+	fseeko(f, loc->offset, SEEK_SET);
+#else
 	fseek(f, loc->offset, SEEK_SET);
+#endif
 	result = fread(buffer, 1, loc->len, f); // do soemthing with result
 
 	if (result != loc->len)

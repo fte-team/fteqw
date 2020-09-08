@@ -7318,7 +7318,7 @@ void R_UnloadShader(shader_t *shader)
 		return;
 	if (shader->uses <= 0)
 	{
-		Con_Printf("Shader double free (%s %i)\n", shader->name, shader->usageflags);
+		Con_Printf("Shader double free (%p %s %i)\n", shader, shader->name, shader->usageflags);
 		return;
 	}
 	if (--shader->uses == 0)

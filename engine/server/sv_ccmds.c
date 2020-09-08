@@ -2120,7 +2120,7 @@ static void SV_Status_f (void)
 			Con_TPrintf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
 	}
 	Con_TPrintf("gamedir          : %s\n", FS_GetGamedir(true));
-	if (sv.csqcdebug)
+	if (sv_csqcdebug.ival)
 		Con_TPrintf("csqc debug       : true\n");
 #ifdef MVD_RECORDING
 	SV_Demo_PrintOutputs();

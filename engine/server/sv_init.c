@@ -42,7 +42,6 @@ extern cvar_t	skill;
 extern cvar_t	sv_cheats;
 extern cvar_t	sv_bigcoords;
 extern cvar_t	sv_gamespeed;
-extern cvar_t	sv_csqcdebug;
 extern cvar_t	sv_csqc_progname;
 extern cvar_t	sv_calcphs;
 extern cvar_t	sv_playerslots, maxclients, maxspectators;
@@ -1103,12 +1102,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		InfoBuf_SetValueForStarKey(&svs.info, "*csprogssize", "");
 		InfoBuf_SetValueForStarKey(&svs.info, "*csprogsname", "");
 	}
-
-	sv.csqcdebug = sv_csqcdebug.value;
-	if (sv.csqcdebug)
-		InfoBuf_SetValueForStarKey(&svs.info, "*csqcdebug", "1");
-	else
-		InfoBuf_RemoveKey(&svs.info, "*csqcdebug");
 #endif
 
 	if (svs.gametype == GT_PROGS)

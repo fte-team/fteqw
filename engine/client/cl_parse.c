@@ -165,10 +165,10 @@ static const char *svc_qwstrings[] =
 	"svcfte_updateentities",
 	"svcfte_brushedit",
 	"svcfte_updateseats",
-	"svcfte_setinfoblob",	//89
-	"NEW PROTOCOL(90)",
-	"NEW PROTOCOL(91)",
-	"NEW PROTOCOL(92)",
+	"svcfte_setinfoblob",			//89
+	"svcfte_cgamepacket_sized",		//90
+	"svcfte_temp_entity_sized",		//91
+	"svcfte_csqcentities_sized",	//92
 	"NEW PROTOCOL(93)",
 	"NEW PROTOCOL(94)",
 	"NEW PROTOCOL(95)",
@@ -287,7 +287,10 @@ static const char *svc_nqstrings[] =
 	"nqsvcfte_updateentities",	//86
 	"NEW PROTOCOL(87)",	//87
 	"NEW PROTOCOL(88)",	//88
-	"svcfte_setinfoblob"//89
+	"svcfte_setinfoblob",			//89
+	"svcfte_cgamepacket_sized",		//90
+	"svcfte_temp_entity_sized",		//91
+	"svcfte_csqcentities_sized",	//92
 };
 #endif
 
@@ -3356,8 +3359,8 @@ static void CLQW_ParseServerData (void)
 		cl.allocated_client_slots = MSG_ReadByte();
 		if (cl.allocated_client_slots > MAX_CLIENTS)
 		{
+			Con_Printf(CON_ERROR"Server has too many client slots (%u > %u)\n", cl.allocated_client_slots, MAX_CLIENTS);
 			cl.allocated_client_slots = MAX_CLIENTS;
-			Host_EndGame("Server sent us too many alternate clients\n");
 		}
 
 		/*parsing here is slightly different to allow us 255 max players instead of 127*/
@@ -3368,7 +3371,7 @@ static void CLQW_ParseServerData (void)
 			cl.splitclients &= ~128;
 		}
 		if (cl.splitclients > MAX_SPLITS)
-			Host_EndGame("Server sent us too many alternate clients\n");
+			Host_EndGame("Server sent us too many seats (%u > %u)\n", cl.splitclients, MAX_SPLITS);
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
 			cl.playerview[pnum].spectator = true;
@@ -3387,7 +3390,7 @@ static void CLQW_ParseServerData (void)
 		for (clnum = 0; ; clnum++)
 		{
 			if (clnum == MAX_SPLITS)
-				Host_EndGame("Server sent us too many alternate clients\n");
+				Host_EndGame("Server sent us over %u seats\n", MAX_SPLITS);
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 				cl.playerview[pnum].viewheight = 0;
 			cl.playerview[clnum].playernum = pnum;
@@ -6871,7 +6874,7 @@ void CLQW_ParseServerMessage (void)
 	int			destsplit;
 	vec3_t ang;
 	float f;
-	qboolean	csqcpacket = false;
+	qboolean	suggestcsqcdebug = false;
 	inframe_t	*inf;
 	extern vec3_t demoangles;
 	unsigned int cmdstart;
@@ -6971,7 +6974,7 @@ void CLQW_ParseServerMessage (void)
 		{
 		default:
 			CL_DumpPacket();
-			Host_EndGame ("CLQW_ParseServerMessage: Illegible server message (%i@%i)%s", cmd, msg_readcount-1, (!cl.csqcdebug && csqcpacket)?"\n'sv_csqcdebug 1' might aid in debugging this.":"" );
+			Host_EndGame ("CLQW_ParseServerMessage: Illegible server message (%i@%i)%s", cmd, msg_readcount-1, (!cl.csqcdebug && suggestcsqcdebug)?"\n'sv_csqcdebug 1' might aid in debugging this.":"" );
 			return;
 
 		case svc_time:
@@ -7210,6 +7213,9 @@ void CLQW_ParseServerMessage (void)
 			CL_ParseTEnt ();
 #endif
 			break;
+		case svcfte_temp_entity_sized:
+			CL_ParseTEnt_Sized();
+			break;
 		case svcfte_customtempent:
 			CL_ParseCustomTEnt();
 			break;
@@ -7423,8 +7429,11 @@ void CLQW_ParseServerMessage (void)
 
 #ifdef CSQC_DAT
 		case svcfte_csqcentities:
-			csqcpacket = true;
-			CSQC_ParseEntities();
+			suggestcsqcdebug = true;
+			CSQC_ParseEntities(cl.csqcdebug);
+			break;
+		case svcfte_csqcentities_sized:
+			CSQC_ParseEntities(true);
 			break;
 #endif
 		case svcfte_precache:
@@ -7441,14 +7450,21 @@ void CLQW_ParseServerMessage (void)
 			CL_ParsePointParticles(true);
 			break;
 
+		case svcfte_cgamepacket_sized:
+#ifdef CSQC_DAT
+			if (CSQC_ParseGamePacket(destsplit, true))
+				break;
+#endif
+			Con_Printf("Unable to parse gamecode packet\n");
+			break;
 		case svcfte_cgamepacket:
-			csqcpacket = true;
+			suggestcsqcdebug = true;
 #ifdef HLCLIENT
 			if (CLHL_ParseGamePacket())
 				break;
 #endif
 #ifdef CSQC_DAT
-			if (CSQC_ParseGamePacket(destsplit))
+			if (CSQC_ParseGamePacket(destsplit, cl.csqcdebug))
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");
@@ -8089,13 +8105,20 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseBaselineDelta ();
 			break;
 
+		case svcfte_cgamepacket_sized:
+#ifdef CSQC_DAT
+			if (CSQC_ParseGamePacket(destsplit, true))
+				break;
+#endif
+			Con_Printf("Unable to parse gamecode packet\n");
+			break;
 		case svcfte_cgamepacket:
 #ifdef HLCLIENT
 			if (CLHL_ParseGamePacket())
 				break;
 #endif
 #ifdef CSQC_DAT
-			if (CSQC_ParseGamePacket(destsplit))
+			if (CSQC_ParseGamePacket(destsplit, cl.csqcdebug))
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");
@@ -8332,6 +8355,9 @@ void CLNQ_ParseServerMessage (void)
 		case svc_temp_entity:
 			CL_ParseTEnt (true);
 			break;
+		case svcfte_temp_entity_sized:
+			CL_ParseTEnt_Sized();
+			break;
 
 		case svc_particle:
 			CLNQ_ParseParticleEffect ();
@@ -8445,7 +8471,10 @@ void CLNQ_ParseServerMessage (void)
 
 #ifdef CSQC_DAT
 		case svcdp_csqcentities:
-			CSQC_ParseEntities();
+			CSQC_ParseEntities(false);
+			break;
+		case svcfte_csqcentities_sized:
+			CSQC_ParseEntities(true);
 			break;
 #endif
 

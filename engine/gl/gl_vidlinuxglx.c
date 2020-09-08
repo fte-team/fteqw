@@ -56,7 +56,11 @@ none of these issues will be fixed by a compositing window manager, because ther
 
 #include "quakedef.h"
 
-#ifndef NO_X11
+#ifdef NO_X11
+	#ifdef VKQUAKE
+		rendererinfo_t vkrendererinfo;
+	#endif
+#else
 
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
@@ -208,6 +212,7 @@ static struct
 
 
 	qXErrorHandler (*pXSetErrorHandler)(XErrorHandler);
+	int (*pXGetErrorText)(Display *display, int code, char *buffer_return, int length);
 
 	int (*pXGrabServer)(Display *display);
 	int (*pXUngrabServer)(Display *display);
@@ -245,8 +250,8 @@ static struct
 static int X11_ErrorHandler(Display *dpy, XErrorEvent *e)
 {
 	char msg[80];
-//	XGetErrorText(dpy, e->error_code, msg, sizeof(msg));
 	*msg = 0;
+	x11.pXGetErrorText(dpy, e->error_code, msg, sizeof(msg));
 	Con_Printf(CON_ERROR "XLib Error %d (%s): request %d.%d\n", e->error_code, msg, e->request_code, e->minor_code);
 	return 0;	//ignored.
 }
@@ -329,8 +334,9 @@ static qboolean x11_initlib(void)
 		if (x11.lib)
 		{
 			x11.pXSetErrorHandler	= Sys_GetAddressForName(x11.lib, "XSetErrorHandler");
+			x11.pXGetErrorText	= Sys_GetAddressForName(x11.lib, "XGetErrorText");
 
-			if (x11.pXSetErrorHandler)
+			if (x11.pXSetErrorHandler && x11.pXGetErrorText)
 				x11.pXSetErrorHandler(X11_ErrorHandler);
 
 			//raw input (yay mouse deltas)
@@ -872,7 +878,7 @@ static void XRandR_RevertMode(void)
 		{
 			x11.pXGrabServer(vid_dpy);
 			if (xrandr.nvidiabug == 1)
-			{
+			{	//attempt to undo at least part of the damage we inflicted to work around nvidia's defects.
 				if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, None, c->rotation, NULL, 0))
 					xrandr.pSetScreenSize(vid_dpy, DefaultRootWindow(vid_dpy), xrandr.origscreenwidth, xrandr.origscreenheight, xrandr.origscreenwidthmm, xrandr.origscreenheightmm);
 			}
@@ -1137,13 +1143,13 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 
 			if (xrandr.nvidiabug && (c->x != 0 || c->y != 0 || c->noutput>1))
 			{
-				Con_Printf("Nvidia and multimonitor detected. XRandR cannot be used safely under in this situation.\n");
+				Con_Printf("Nvidia and multimonitor detected. XRandR cannot be used safely in this situation.\n");
 				xrandr.crtcmode = NULL;
 			}
 			else
 			{
 				if (xrandr.nvidiabug)
-					Con_Printf(CON_ERROR "Attempting NVIDIA panning workaround. Try 'xrandr --output foo --auto' to fix if this goes south..\n");
+					Con_Printf(CON_ERROR "Attempting NVIDIA panning workaround. Try 'xrandr --output foo --auto' to fix if this breaks things.\n");
 
 				fullscreenflags |= FULLSCREEN_XRANDR;
 				if (XRandR_ApplyMode())
@@ -3639,6 +3645,7 @@ static qboolean XCursor_Init(void)
 #else
 static qboolean XCursor_Init(void)
 {
+	return false;
 }
 #endif
 

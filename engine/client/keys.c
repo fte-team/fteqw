@@ -348,7 +348,7 @@ keyname_t keynames[] =
 
 #if defined(CSQC_DAT) || defined(MENU_DAT)
 int MP_TranslateFTEtoQCCodes(int code);
-void Key_PrintQCDefines(vfsfile_t *f)
+void Key_PrintQCDefines(vfsfile_t *f, qboolean defines)
 {
 	int i, j;
 	for (i = 0; keynames[i].name; i++)
@@ -357,7 +357,12 @@ void Key_PrintQCDefines(vfsfile_t *f)
 			if (keynames[j].keynum == keynames[i].keynum)
 				break;
 		if (j == i)
-			VFS_PRINTF(f, "#define K_%s\t%i\n", keynames[i].name, MP_TranslateFTEtoQCCodes(keynames[j].keynum));
+		{
+			if (defines)
+				VFS_PRINTF(f, "#define K_%s\t%i\n", keynames[i].name, MP_TranslateFTEtoQCCodes(keynames[j].keynum));
+			else
+				VFS_PRINTF(f, "const float K_%s = %i;\n", keynames[i].name, MP_TranslateFTEtoQCCodes(keynames[j].keynum));
+		}
 	}
 }
 #endif
@@ -3199,10 +3204,10 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		//these may be redefined later...
 		case K_GP_LEFT_SHOULDER:	dc = "impulse 12";		goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_RIGHT_SHOULDER:	dc = "impulse 10";		goto defaultedbind;	//matches QS's default.cfg
-		case K_GP_LEFT_TRIGGER:		dc = "+jump";			goto defaultedbind;	//matches QS's default.cfg
+		case K_GP_LEFT_TRIGGER:		dc = "+button3";		goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_RIGHT_TRIGGER:	dc = "+attack";			goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_START:			dc = "togglemenu";		goto defaultedbind;
-		case K_GP_A:				dc = "+button3";		goto defaultedbind;
+		case K_GP_A:				dc = "+jump";			goto defaultedbind;
 		case K_GP_B:				dc = "+button4";		goto defaultedbind;
 		case K_GP_X:				dc = "+button5";		goto defaultedbind;
 		case K_GP_Y:				dc = "+button6";		goto defaultedbind;

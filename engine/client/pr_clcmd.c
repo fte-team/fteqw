@@ -1171,7 +1171,7 @@ void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s 
 				RETURN_TSTRING(mod->manifest->defaultexec);
 			break;
 		case GGDI_LOADCOMMAND:	//load command
-			RETURN_TSTRING(va("fs_changegame %u", (unsigned int)diridx+1u));
+			RETURN_TSTRING(va("fs_changegame %u\n", (unsigned int)diridx+1u));
 			break;
 		case GGDI_ICON: //icon
 			{

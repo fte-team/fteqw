@@ -987,6 +987,12 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalvec		(false, global_gravitydir);
 	globalstring	(false, parm_string);
 
+#undef globalfloat
+#undef globalint
+#undef globalstring
+#undef globalvec
+#undef globalfunc
+
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
 
@@ -4055,12 +4061,12 @@ stuffcmd (clientent, value)
 */
 static void QCBUILTIN PF_stuffcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), 0);
+	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PF_VarString(prinst, 1, pr_globals), 0);
 }
 
 static void QCBUILTIN PF_stuffcmdflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM2), G_FLOAT(OFS_PARM1));
+	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PF_VarString(prinst, 2, pr_globals), G_FLOAT(OFS_PARM1));
 }
 
 //DP_QC_DROPCLIENT
@@ -6168,53 +6174,55 @@ char *PF_infokey_Internal (int entnum, const char *key)
 	}
 	else if (entnum <= sv.allocated_client_slots)
 	{
+		client_t *pl = &svs.clients[entnum-1];
+		client_t *controller = pl->controller?pl->controller:pl;
 		value = ov;
 		if (!strcmp(key, "ip"))
 		{
-			if (svs.clients[entnum-1].state > cs_zombie && svs.clients[entnum-1].protocol == SCP_BAD)
+			if (controller->state > cs_zombie && controller->protocol == SCP_BAD)
 				sprintf(ov, "bot");	//bots don't have valid ips
-			else if (svs.clients[entnum-1].netchan.remote_address.type == NA_INVALID)
+			else if (controller->netchan.remote_address.type == NA_INVALID)
 				sprintf(ov, "");	//bots don't have valid ips
 			else
-				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
+				NET_BaseAdrToString (ov, sizeof(ov), &controller->netchan.remote_address);
 		}
 		else if (!strcmp(key, "realip"))
 		{
-			if (svs.clients[entnum-1].state > cs_zombie && svs.clients[entnum-1].protocol == SCP_BAD)
+			if (pl->state > cs_zombie && controller->protocol == SCP_BAD)
 				sprintf(ov, "bot");	//bots don't have valid ips
-			else if (svs.clients[entnum-1].realip_status)
-				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].realip);
-			else if (svs.clients[entnum-1].netchan.remote_address.type == NA_INVALID)
+			else if (controller->realip_status)
+				NET_BaseAdrToString (ov, sizeof(ov), &controller->realip);
+			else if (controller->netchan.remote_address.type == NA_INVALID)
 				sprintf(ov, "");	//bots don't have valid ips
 			else	//FIXME: should we report the spoofable/proxy address if the real ip is not known?
-				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
+				NET_BaseAdrToString (ov, sizeof(ov), &controller->netchan.remote_address);
 		}
 		else if (!strcmp(key, "csqcactive"))
-			sprintf(ov, "%d", svs.clients[entnum-1].csqcactive);
+			sprintf(ov, "%d", controller->csqcactive);
 		else if (!strcmp(key, "ping"))
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], false));
 		else if (!strcmp(key, "svping"))
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
 		else if (!strcmp(key, "guid"))
-			sprintf(ov, "%s", svs.clients[entnum-1].guid);
+			sprintf(ov, "%s", pl->guid);
 		else if (!strcmp(key, "challenge"))
-			sprintf(ov, "%u", svs.clients[entnum-1].challenge);
+			sprintf(ov, "%u", pl->challenge);
 		else if (!strcmp(key, "*userid"))
-			sprintf(ov, "%d", svs.clients[entnum-1].userid);
+			sprintf(ov, "%d", pl->userid);
 		else if (!strcmp(key, "download"))
-			sprintf(ov, "%d", svs.clients[entnum-1].download != NULL ? (int)(100*svs.clients[entnum-1].downloadcount/svs.clients[entnum-1].downloadsize) : -1);
+			sprintf(ov, "%d", pl->download != NULL ? (int)(100*pl->downloadcount/pl->downloadsize) : -1);
 //		else if (!strcmp(key, "login"))	//mvdsv
 //			value = "";
 		else if (!strcmp(key, "protocol"))
 		{
 			value = "";
-			switch(svs.clients[entnum-1].protocol)
+			switch(controller->protocol)
 			{
 			case SCP_BAD:
 				value = "";	//could be a writebyted bot...
 				break;
 			case SCP_QUAKEWORLD:
-				if (!svs.clients[entnum-1].fteprotocolextensions && !svs.clients[entnum-1].fteprotocolextensions2)
+				if (!controller->fteprotocolextensions && !controller->fteprotocolextensions2)
 					value = "quakeworld";
 				else
 					value = "quakeworld+";
@@ -6232,7 +6240,7 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				value = "bjp3";
 				break;
 			case SCP_FITZ666:
-				if (svs.clients[entnum-1].netchan.netprim.coordtype != COORDTYPE_FIXED_13_3)
+				if (controller->netchan.netprim.coordtype != COORDTYPE_FIXED_13_3)
 					value = "rmq999";
 				else
 					value = "fitz666";
@@ -6249,28 +6257,28 @@ char *PF_infokey_Internal (int entnum, const char *key)
 		{
 #ifdef SVRANKING
 			rankstats_t rs;
-			if (!svs.clients[entnum-1].rankid)
+			if (!pl->rankid)
 				value = "";
-			else if (Rank_GetPlayerStats(svs.clients[entnum-1].rankid, &rs))
+			else if (Rank_GetPlayerStats(pl->rankid, &rs))
 				sprintf(ov, "%d", rs.trustlevel);
 			else
 #endif
 				value = "";
 		}
 		else if (!strcmp(key, "*VIP"))
-			value = (svs.clients[entnum-1].penalties & BAN_VIP)?"1":"";
+			value = (pl->penalties & BAN_VIP)?"1":"";
 		else if (!strcmp(key, "*ismuted"))
-			value = (svs.clients[entnum-1].penalties & BAN_MUTE)?"1":"";
+			value = (pl->penalties & BAN_MUTE)?"1":"";
 		else if (!strcmp(key, "*isdeaf"))
-			value = (svs.clients[entnum-1].penalties & BAN_DEAF)?"1":"";
+			value = (pl->penalties & BAN_DEAF)?"1":"";
 		else if (!strcmp(key, "*iscrippled"))
-			value = (svs.clients[entnum-1].penalties & BAN_CRIPPLED)?"1":"";
+			value = (pl->penalties & BAN_CRIPPLED)?"1":"";
 		else if (!strcmp(key, "*iscuffed"))
-			value = (svs.clients[entnum-1].penalties & BAN_CUFF)?"1":"";
+			value = (pl->penalties & BAN_CUFF)?"1":"";
 		else if (!strcmp(key, "*islagged"))
-			value = (svs.clients[entnum-1].penalties & BAN_LAGGED)?"1":"";
+			value = (pl->penalties & BAN_LAGGED)?"1":"";
 		else
-			value = InfoBuf_ValueForKey (&svs.clients[entnum-1].userinfo, key);
+			value = InfoBuf_ValueForKey (&pl->userinfo, key);
 	} else
 		value = "";
 
@@ -6412,10 +6420,10 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	NPP_Flush();
 #endif
 
-	if (sv.csqcdebug)
+	if (sv_csqcdebug.ival)
 	{
 #ifdef NQPROT
-		if (sv.nqmulticast.cursize && sv.nqmulticast.data[0] == svcfte_cgamepacket)
+		if (sv.nqmulticast.cursize && (sv.nqmulticast.data[0] == svcfte_cgamepacket||sv.nqmulticast.data[0] == svc_temp_entity))
 		{
 			if (sv.nqmulticast.cursize + 2 > sv.nqmulticast.maxsize)
 				sv.nqmulticast.cursize = 0;
@@ -6425,6 +6433,10 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 				memmove(sv.nqmulticast.data+3, sv.nqmulticast.data+1, sv.nqmulticast.cursize-1);
 
 				/*add a length in the 2nd/3rd bytes*/
+				if (sv.nqmulticast.data[0] == svc_temp_entity)
+					sv.nqmulticast.data[0] = svcfte_temp_entity_sized;
+				else
+					sv.nqmulticast.data[0] = svcfte_cgamepacket_sized;
 				sv.nqmulticast.data[1] = (sv.nqmulticast.cursize-1);
 				sv.nqmulticast.data[2] = (sv.nqmulticast.cursize-1) >> 8;
 
@@ -6432,7 +6444,7 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 			}
 		}
 #endif
-		if (sv.multicast.cursize)
+		if (sv.multicast.cursize && (sv.multicast.data[0] == svcfte_cgamepacket||sv.multicast.data[0] == svc_temp_entity))
 		{
 			if (sv.multicast.cursize + 2 > sv.multicast.maxsize)
 				sv.multicast.cursize = 0;
@@ -6442,6 +6454,10 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 				memmove(sv.multicast.data+3, sv.multicast.data+1, sv.multicast.cursize-1);
 
 				/*add a length in the 2nd/3rd bytes*/
+				if (sv.multicast.data[0] == svc_temp_entity)
+					sv.multicast.data[0] = svcfte_temp_entity_sized;
+				else
+					sv.multicast.data[0] = svcfte_cgamepacket_sized;
 				sv.multicast.data[1] = (sv.multicast.cursize-1);
 				sv.multicast.data[2] = (sv.multicast.cursize-1) >> 8;
 
@@ -7216,7 +7232,7 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 	Cbuf_Execute();
-	Con_Printf("PF_readcmd: %s\n%s", s, sv_redirected_buf);
+	Con_Printf("PF_readcmd: %s\n", s);
 	G_INT(OFS_RETURN) = (int)PR_TempString(prinst, sv_redirected_buf);
 	SV_EndRedirect();
 
@@ -10433,7 +10449,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"localcmd",		PF_Fixme,			0,		0,		0,		13,	"void(string,...)"},
 	{"cvar",			PF_Fixme,			0,		0,		0,		14,	"float(string name)"},
 	{"cvar_set",		PF_Fixme,			0,		0,		0,		15,	"void(string name, string value)"},
-	{"dprint",			PF_Fixme,			0,		0,		0,		16,	"void(string text)"},
+	{"dprint",			PF_Fixme,			0,		0,		0,		16,	"void(string text, ...)"},
 	{"ftos",			PF_Fixme,			0,		0,		0,		17,	"string(float)"},
 	{"fabs",			PF_Fixme,			0,		0,		0,		18,	"float(float)"},
 	{"vtos",			PF_Fixme,			0,		0,		0,		19,	"string(vector)"},
@@ -10538,8 +10554,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #endif
 	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	D("string(string s)", "Precaches a sound, making it known to clients and loading it from disk. This builtin (strongly) should be called during spawn functions. This builtin must be called for the sound before the sound builtin is called, or it might not even be heard.")},
 	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	D("string(string s)", "Precaches a model, making it known to clients and loading it from disk if it has a .bsp extension. This builtin (strongly) should be called during spawn functions. This must be called for each model name before setmodel may use that model name.\nModelindicies precached in SSQC will always be positive. CSQC precaches will be negative if they are not also on the server.")},
-	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	D("void(entity client, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis builtin is generally considered evil.")},
-	{"stuffcmdflags",	PF_stuffcmdflags,	0,		0,		0,		0,	D("void(entity client, float flags, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis (just as evil) variant allows specifying some flags too. See the STUFFCMD_* constants.")},
+	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	D("void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis builtin is generally considered evil.")},
+	{"stuffcmdflags",	PF_stuffcmdflags,	0,		0,		0,		0,	D("void(entity client, float flags, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis (just as evil) variant allows specifying some flags too. See the STUFFCMD_* constants.")},
 	{"findradius",		PF_findradius,		22,		22,		22,		0,	D(/*"FTEDEP(\"Has recursion issues. Use findradius_list.\") "*/"entity(vector org, float rad, optional .entity chainfield)", "Finds all entities within a distance of the 'org' specified. One entity is returned directly, while other entities are returned via that entity's .chain field. Use findradius_list for an updated alternative without reenterancy issues.")},
 #ifdef QCGC
 	{"findradius_list",	PF_findradius_list,	0,		0,		0,		0,	D("entity*(vector org, float rad, __out int foundcount, int sort=0)", "Finds all entities linked with a bbox within a distance of the 'org' specified, returning the list as a temp-array (world signifies the end). Unlike findradius, sv_gameplayfix_blowupfallenzombies is ignored (use FL_FINDABLE_NONSOLID instead), while sv_gameplayfix_findradiusdistancetobox and dpcompat_findradiusarealinks are force-enabled. The resulting buffer will automatically be cleaned up by the engine and does not need to be freed.")},
@@ -10739,8 +10755,13 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"updatesoundpos",	PF_h2updatesoundpos,0,		0,		105,	0},
 	{"stopsound",		PF_StopSound,		0,		0,		106,	0,	D("void(entity ent, float channel)", "Terminates playback of sounds on the specified entity-channel. CHAN_AUTO should not be used.")},
 
-	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...
-	{"precache_sound4",	PF_precache_sound,	0,		0,		117,	0},
+	//shanjaq's fork of uhexen2... listed here to avoid confusion with other builtins.
+	{"set_extra_flags",	PF_Fixme,			0,		0,		107,	0, "void(string model, float flags)"},
+	{"set_fx_color",	PF_Fixme,			0,		0,		108,	0, "void(string model,float r,float g,float b,float a)"},
+	{"strhash",			PF_Fixme,			0,		0,		109,	0, "float(string)"},
+
+	{"precache_model5",	PF_precache_model,	0,		0,		116,	0},//please don't use...
+	{"precache_sound5",	PF_precache_sound,	0,		0,		117,	0},
 #else
 	{"stopsound",		PF_StopSound,		0,		0,		0,		0,	D("void(entity ent, float channel)", "Terminates playback of sounds on the specified entity-channel. CHAN_AUTO should not be used.")},
 #endif
@@ -10910,7 +10931,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"stoh",			PF_stoh,			0,		0,		0,		261,	D("int(string)", "Reads a base-16 string (with or without 0x prefix) as an integer. Bugs out if given a base 8 or base 10 string. :P")},
 	{"htos",			PF_htos,			0,		0,		0,		262,	D("string(int)", "Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters.")},
 	{"ftoi",			PF_ftoi,			0,		0,		0,		0,		D("int(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
-	{"itof",			PF_itof,			0,		0,		0,		0,		D("float(int)", "Converts the given true integer into a float without depending on extended qcvm instructions.")},
+	{"itof",			PF_itof,			0,		0,		0,		0,		D("float(int, optional float shift, float mask=24)", "Converts the given true integer into a float without depending on extended qcvm instructions. If shift and mask are specified then only specific parts of the integer will be cast to float.")},
 
 	#define qcskelblend				\
 	"typedef struct\n{\n"			\
@@ -11055,10 +11076,11 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawrotsubpic",	PF_Fixme,	0,		0,		0,		0,		D("void(vector pivot, vector mins, vector maxs, string pic, vector txmin, vector txsize, vector rgb, vector alphaandangles)", "Overcomplicated draw function for over complicated people. Positions follow drawrotpic, while texture coords follow drawsubpic. Due to argument count limitations in builtins, the alpha value and angles are combined into separate fields of a vector (tip: use fteqcc's [alpha, angle] feature.")},
 
 //330
-	{"getstati",		PF_Fixme,	0,		0,		0,		330,	D("#define getstati_punf(stnum) (float)(__variant)getstati(stnum)\nint(float stnum)", "Retrieves the numerical value of the given EV_INTEGER or EV_ENTITY stat. Use getstati_punf if you wish to type-pun a float stat as an int to avoid truncation issues in DP.")},// (EXT_CSQC)
-	{"getstatf",		PF_Fixme,	0,		0,		0,		331,	D("#define getstatbits getstatf\nfloat(float stnum, optional float firstbit, optional float bitcount)", "Retrieves the numerical value of the given EV_FLOAT stat. If firstbit and bitcount are specified, retrieves the upper bits of the STAT_ITEMS stat (converted into a float, so there are no VM dependancies).")},// (EXT_CSQC)
+	//NOTE: DP misnamed these to match its common misuse of clientstat, swapping getstatf+getstati.
+	{"getstati",		PF_Fixme,	0,		0,		0,		330,	D("#define getstati_punf(stnum) (float)(__variant)getstati(stnum)\nint(float stnum)", "Retrieves the full precision of a stat registered as EV_INTEGER.")},// (EXT_CSQC)
+	{"getstatf",		PF_Fixme,	0,		0,		0,		331,	D("#define getstatbits getstatf\nfloat(float stnum, optional float firstbit, optional float bitcount)", "Retrieves the numerical value of the given EV_FLOAT stat. If firstbit and bitcount are specified, then this builtin acts as getstati combined with itof, and which should be used for STAT_ITEMS (but not other stats).")},// (EXT_CSQC)
 	{"getstats",		PF_Fixme,	0,		0,		0,		332,	D("string(float stnum)", "Retrieves the value of the given EV_STRING stat, as a tempstring.\nOlder engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but "FULLENGINENAME" uses a separate namespace for string stats and has a much higher length limit.")},
-	{"getplayerstat",	PF_Fixme,	0,		0,		0,		0,		D("__variant(float playernum, float statnum, float stattype)", "Retrieves a specific player's stat, matching the type specified on the server. This builtin is primarily intended for mvd playback where ALL players are known. For EV_ENTITY, world will be returned if the entity is not in the pvs, use type-punning with EV_INTEGER to get the entity number if you just want to see if its set. STAT_ITEMS should be queried as an EV_INTEGER on account of runes and items2 being packed into the upper bits.")},
+	{"getplayerstat",	PF_Fixme,	0,		0,		0,		0,		D("__variant(float playernum, float statnum, float stattype)", "Retrieves a specific player's stat, matching the type specified on the server. This builtin is primarily intended for mvd playback where ALL players are known. Return value matches the specified EV_ stattype. For EV_ENTITY, world will be returned if the entity is not in the pvs, use type-punning with EV_INTEGER to get the entity number if you just want to see if its set. STAT_ITEMS should be queried as an EV_INTEGER on account of runes and items2 being packed into the upper bits.")},
 
 //EXT_CSQC
 	{"setmodelindex",	PF_Fixme,	0,		0,		0,		333,	D("void(entity e, float mdlindex)", "Sets a model by precache index instead of by name. Otherwise identical to setmodel.")},//
@@ -11453,7 +11475,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fcopy",			PF_fcopy,			0,		0,		0,		650,	D("float(string src, string dst)",	"Equivelent to fopen+fread+fwrite+fclose from QC (ie: reads from $gamedir/data/ or $gamedir, but always writes to $gamedir/data/ )")},
 	{"frename",			PF_frename,			0,		0,		0,		651,	D("float(string src, string dst)",	"Renames the file, returning 0 on success. Both paths are relative to the data/ subdir.")},
 	{"fremove",			PF_fremove,			0,		0,		0,		652,	D("float(string fname)",	"Deletes the named file - path is relative to data/ subdir, like fopen's FILE_WRITE. Returns 0 on success.")},
-	{"fexists",			PF_fexists,			0,		0,		0,		653,	D("float(string fname)",	"Use whichpack instead. Returns true if it exists inside the default writable path.")},
+	{"fexists",			PF_fexists,			0,		0,		0,		653,	D("float(string fname)",	"Returns true if it exists inside the default writable path. Use whichpack for greater portability.")},
 	{"rmtree",			PF_rmtree,			0,		0,		0,		654,	D("float(string path)",		"Dangerous, but sandboxed to data/")},
 	{"walkmovedist",	PF_walkmovedist,	0,		0,		0,		655,	D("DEP float(float yaw, float dist, optional float settraceglobals)", "Attempt to walk the entity at a given angle for a given distance.\nif settraceglobals is set, the trace_* globals will be set, showing the results of the movement.\nThis function will trigger touch events."), true},
 	//end wrath extras
@@ -11897,15 +11919,20 @@ svextqcfields
 }
 
 //targets
-#define QW		1	//exists in qwssqc
-#define NQ		2	//exists in nqssqc
-#define CS		4	//exists in csqc
-#define MENU	8	//exists in menuqc
-#define H2		16	//exists in h2ssqc
-//mere flags
-#define FTE		32	//use fte opcodes
-#define ID1		64	//symbol conflicts with vanilla defs.qc (so stripped, with exceptions)
-#define DPX		128	//symbol conflicts with dpextensions.qc
+#define QW		(1u<<0)	//exists in qwssqc
+#define NQ		(1u<<1)	//exists in nqssqc
+#define FTE_CS	(1u<<2)	//fte's csqc globals (the original)
+#define QSS_CS	(1u<<3)	//qss's csqc globals (really nq, for simplicity)
+#define DP_CS	(1u<<4)	//dp's csqc globals (eww!)
+#define MENU	(1u<<5)	//exists in menuqc
+#define H2		(1u<<6)	//exists in h2ssqc
+//mere flag
+#define FTE		(1u<<7)	//use fte opcodes
+#define ID1		(1u<<8)	//symbol conflicts with vanilla defs.qc (so stripped, with exceptions)
+#define DPX		(1u<<9)	//symbol conflicts with dpextensions.qc
+
+#define CS		(QSS_CS|FTE_CS|DP_CS)		//exists in csqc
+#define GAME	(QW|NQ|CS|H2)	//all but menu
 #ifdef HEXEN2
 #define ALL (QW|NQ|H2|CS|MENU)
 #else
@@ -11926,7 +11953,215 @@ typedef struct
 	qboolean misc;
 } knowndef_t;
 #include "cl_master.h"
-void Key_PrintQCDefines(vfsfile_t *f);
+void Key_PrintQCDefines(vfsfile_t *f, qboolean defines);
+
+#ifdef SERVERONLY
+
+#elif defined(NOQCDESCRIPTIONS) && NOQCDESCRIPTIONS > 1
+
+#else
+static qboolean PR_DumpPlatform_GenIfdef(vfsfile_t *f, unsigned int filetarg, unsigned int symboltarg, unsigned int *curtarg)
+{
+	if (!(symboltarg & filetarg))
+		return false;	
+	if ((symboltarg&filetarg) != (*curtarg&filetarg))
+	{
+		if (*curtarg != (ALL & ~filetarg))
+			VFS_PRINTF(f, "#endif\n");
+
+		if (((symboltarg | (~filetarg)) & ALL) == ALL)
+			*curtarg = ALL & ~filetarg;
+		else
+		{
+			*curtarg = symboltarg;
+			symboltarg = *curtarg & (ALL & filetarg);
+			if (symboltarg & CS)
+				symboltarg |= CS;
+			switch(symboltarg)
+			{
+			case 0:
+				return false;
+			case QW:
+				VFS_PRINTF(f, "#if defined(QWSSQC)\n");
+				break;
+			case NQ:
+				VFS_PRINTF(f, "#if defined(NQSSQC)\n");
+				break;
+			case QW|NQ:
+				VFS_PRINTF(f, "#ifdef SSQC\n");
+				break;
+			case CS:
+				VFS_PRINTF(f, "#ifdef CSQC\n");
+				break;
+			case QW|CS:
+				VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
+				break;
+			case NQ|CS:
+				VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
+				break;
+			case NQ|CS|QW:
+				VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
+				break;
+			case MENU:
+				VFS_PRINTF(f, "#ifdef MENU\n");
+				break;
+			case QW|MENU:
+				VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
+				break;
+			case NQ|MENU:
+				VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
+				break;
+			case QW|NQ|MENU:
+				VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
+				break;
+			case CS|MENU:
+				VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+				break;
+			case QW|CS|MENU:
+				VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+				break;
+			case NQ|CS|MENU:
+				VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+				break;
+			case H2:
+				VFS_PRINTF(f, "#ifdef H2\n");
+				break;
+			case H2|QW:
+				VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC)\n");
+				break;
+			case H2|NQ:
+				VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC)\n");
+				break;
+			case H2|QW|NQ:
+				VFS_PRINTF(f, "#if defined(H2) || defined(SSQC)\n");
+				break;
+			case H2|CS:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC)\n");
+				break;
+			case H2|QW|CS:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC)\n");
+				break;
+			case H2|NQ|CS:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC)\n");
+				break;
+			case H2|NQ|CS|QW:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(SSQC)\n");
+				break;
+			case H2|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(MENU)\n");
+				break;
+			case H2|QW|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC) || defined(MENU)\n");
+				break;
+			case H2|NQ|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC) || defined(MENU)\n");
+				break;
+			case H2|QW|NQ|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(SSQC) || defined(MENU)\n");
+				break;
+			case H2|CS|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(MENU)\n");
+				break;
+			case H2|QW|CS|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+				break;
+			case H2|NQ|CS|MENU:
+				VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+				break;
+			case ALL:
+				VFS_PRINTF(f, "#if 1\n");
+				break;
+			default:
+				VFS_PRINTF(f, "#if 0 //???\n");
+				break;
+			}
+		}
+	}
+	return true;
+}
+
+struct symtable_s
+{
+	unsigned int targ;
+	const char *fname;		//filename to read symbol list from.
+	const char *warning;	//text inserted before the symbol name. generally terse.
+	const char *define;		//optional text to insert at top-level (to match the warning).
+	const char *symbols;
+};
+static void PR_DumpPlatform_LoadSymbolTables(vfsfile_t *outfile, struct symtable_s *symtabs, unsigned int targ)
+{
+	char *i, *o;
+	qofs_t sz;
+	char *f;
+	for (; symtabs->fname; symtabs++)
+	{
+		if (!(symtabs->targ & targ))
+			continue;
+		if (!symtabs->warning)
+			continue;
+		f = FS_MallocFile(symtabs->fname, FS_GAME, &sz);
+		if (f)
+		{
+			i = f;
+			symtabs->symbols = o = Z_Malloc(sz + 16);
+
+	#define iswhite(c) ((c) == ' ' || (c) == '\r' || (c) == '\r' || (c) == '\n')
+
+			*o++ = '\n';
+			while (*i)
+			{
+				while (iswhite(*i))
+					i++;
+				while (*i && !iswhite(*i))
+					*o++ = *i++;
+				*o++ = '\n';
+			}
+			*o = 0;
+			FS_FreeFile(f);
+
+			if (symtabs->define)
+				VFS_PRINTF(outfile, "%s", symtabs->define);
+		}
+	}
+}
+static void PR_DumpPlatform_SymbolType(vfsfile_t *f, const struct symtable_s *symtabs, const char *symtype, const char *symbol)
+{	//prefixes any symbols with the engines that they're not in...
+	int symstart = 0;
+	const char *colon;
+
+	//we need to skip over any #defines prefixed to the type string
+	while(symtype[symstart] == '#')
+	{
+		while (symtype[symstart] && symtype[symstart] != '\n')
+			symstart++;
+		if (symtype[symstart])
+			symstart++;	//skip over the \n
+	}
+	//skip over any "typedef struct {...;};\n" blocks in there
+	while ((colon = strstr(symtype+symstart, ";\n")))
+		symstart = colon+2 - symtype;
+
+	//write those prefixes we tried to skip...
+	VFS_WRITE(f, symtype, symstart);
+	symtype += symstart;
+
+	//now write our modifiers
+	symbol = va("\n%s\n", symbol);
+	for (; symtabs->fname; symtabs++)
+	{
+		if (!symtabs->symbols)
+			continue;
+
+		if (strstr(symtabs->symbols, symbol))
+			continue;
+		VFS_PRINTF(f, "%s ", symtabs->warning);
+	}
+
+	//and write the rest of the type.
+	VFS_PRINTF(f, "%s ", symtype);
+}
+#endif
+
 void PR_DumpPlatform_f(void)
 {
 #ifdef SERVERONLY
@@ -11965,7 +12200,18 @@ void PR_DumpPlatform_f(void)
 	unsigned int targ = 0;
 	qboolean defines = false;
 	qboolean accessors = false;
+	qboolean depfilter = false;
 	char *comment;
+
+	struct symtable_s symtab[] = {
+		{NQ,	"qss_ss.sym",		"NOT_QSS",	"#ifndef NOT_QSS\n#define NOT_QSS __deprecated(\"Not supported by QSS\")\n#endif\n"},
+		{NQ,	"dp_ss.sym",		"NOT_DP",	"#ifndef NOT_DP\n#define NOT_DP __deprecated(\"Not supported by Darkplaces\")\n#endif\n"},
+		{CS,	"qss_cs.sym",		"NOT_QSS",	"#ifndef NOT_QSS\n#define NOT_QSS __deprecated(\"Not supported by QSS\")\n#endif\n"},
+		{CS,	"dp_cs.sym",		"NOT_DP",	"#ifndef NOT_DP\n#define NOT_DP __deprecated(\"Not supported by Darkplaces\")\n#endif\n"},
+		{MENU,	"qss_menu.sym",		"NOT_QSS",	"#ifndef NOT_QSS\n#define NOT_QSS __deprecated(\"Not supported by QSS\")\n#endif\n"},
+		{MENU,	"dp_menu.sym",		"NOT_DP",	"#ifndef NOT_DP\n#define NOT_DP __deprecated(\"Not supported by Darkplaces\")\n#endif\n"},
+		{0,		NULL,			NULL}
+	};
 
 #undef D
 #ifdef NOQCDESCRIPTIONS
@@ -11981,60 +12227,105 @@ void PR_DumpPlatform_f(void)
 		{"other",				"entity", QW|NQ|CS,	D("Valid in touch functions, this is the entity that we touched.")},
 		{"world",				"entity", QW|NQ|CS,	D("The null entity. Hurrah. Readonly after map spawn time.")},
 		{"time",				"float", QW|NQ|CS,	D("The current game time. Stops when paused.")},
-		{"cltime",				"float", CS,		D("A local timer that ticks relative to local time regardless of latency, packetloss, or pause.")},
+		{"cltime",				"float", FTE_CS,		D("A local timer that ticks relative to local time regardless of latency, packetloss, or pause.")},
 		{"frametime",			"float", QW|NQ|CS,	D("The time since the last physics/render/input frame.")},
-		{"player_localentnum",	"float", CS,		D("This is entity number the player is seeing from/spectating, or the player themself, can change mid-map.")},
-		{"player_localnum",		"float", CS,		D("The 0-based player index, valid for getplayerkeyvalue calls.")},
-		{"maxclients",			"float", CS,		D("Maximum number of player slots on the server.")},
-		{"clientcommandframe",	"float", CS,		D("This is the input-frame sequence. frames < clientcommandframe have been sent to the server. frame==clientcommandframe is still being generated and can still change.")},
-		{"servercommandframe",	"float", CS,		D("This is the input-frame that was last acknowledged by the server. Input frames greater than this should be applied to the player's entity.")},
+		{"player_localentnum",	"float", FTE_CS|DP_CS,		D("This is entity number the player is seeing from/spectating, or the player themself, can change mid-map.")},
+		{"player_localnum",		"float", FTE_CS|DP_CS,		D("The 0-based player index, valid for getplayerkeyvalue calls.")},
+		{"maxclients",			"float", FTE_CS|DP_CS,		D("Maximum number of player slots on the server.")},
+		{"clientcommandframe",	"float", FTE_CS|DP_CS,		D("This is the input-frame sequence. frames < clientcommandframe have been sent to the server. frame==clientcommandframe is still being generated and can still change.")},
+		{"servercommandframe",	"float", FTE_CS|DP_CS,		D("This is the input-frame that was last acknowledged by the server. Input frames greater than this should be applied to the player's entity.")},
 		{"newmis",				"entity", QW,		D("A named entity that should be run soon, to reduce the effects of latency.")},
-		{"force_retouch",		"float", QW|NQ,		D("If positive, causes all entities to check for triggers.")},
+		{"force_retouch",		"float", QW|NQ|QSS_CS,		D("If positive, causes all entities to check for triggers.")},
 		{"mapname",				"string", QW|NQ|CS,	D("The short name of the map.")},
-		{"deathmatch",			"float", NQ},
-		{"coop",				"float", NQ},
-		{"teamplay",			"float", NQ},
-		{"serverflags",			"float", QW|NQ},
-		{"total_secrets",		"float", QW|NQ},
-		{"total_monsters",		"float", QW|NQ},
-		{"found_secrets",		"float", QW|NQ},
-		{"killed_monsters",		"float", QW|NQ},
-		{"parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16", "float", QW|NQ, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
-		{"intermission",		"float", CS},
-		{"v_forward, v_up, v_right",	"vector", QW|NQ|CS},
-		{"view_angles",			"vector", CS,		D("+x=DOWN")},
-		{"trace_allsolid, trace_startsolid, trace_fraction",		"float", QW|NQ|CS},
-		{"trace_endpos, trace_plane_normal",		"vector", QW|NQ|CS},
+		{"deathmatch",			"float", NQ|QSS_CS},
+		{"coop",				"float", NQ|QSS_CS},
+		{"teamplay",			"float", NQ|QSS_CS},
+		{"serverflags",			"float", QW|NQ|QSS_CS},
+		{"total_secrets",		"float", QW|NQ|QSS_CS},
+		{"total_monsters",		"float", QW|NQ|QSS_CS},
+		{"found_secrets",		"float", QW|NQ|QSS_CS},
+		{"killed_monsters",		"float", QW|NQ|QSS_CS},
+		{"parm1", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm2", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm3", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm4", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm5", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm6", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm7", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm8", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm9", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm10", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm11", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm12", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm13", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm14", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm15", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"parm16", "float", QW|NQ|QSS_CS, "Player specific mod-defined values that are transferred from one map to the next. These are set by the qc inside calls to SetNewParms and SetChangeParms, and can then be read on a per-player basis after a call to the setspawnparms builtin. They are not otherwise valid."},
+		{"intermission",		"float", FTE_CS},
+		{"v_forward",			"vector", QW|NQ|CS},
+		{"v_up",				"vector", QW|NQ|CS},
+		{"v_right",				"vector", QW|NQ|CS},
+		{"view_angles",			"vector", FTE_CS,		D("+x=DOWN")},
+		{"trace_allsolid",		"float", QW|NQ|CS},
+		{"trace_startsolid",	"float", QW|NQ|CS},
+		{"trace_fraction",		"float", QW|NQ|CS},
+		{"trace_endpos",		"vector", QW|NQ|CS},
+		{"trace_plane_normal",	"vector", QW|NQ|CS},
 		{"trace_plane_dist",	"float", QW|NQ|CS},
 		{"trace_ent",			"entity", QW|NQ|CS},
 		{"trace_inopen",		"float", QW|NQ|CS},
 		{"trace_inwater",		"float", QW|NQ|CS},
-		{"input_timelength",	"float", CS},
-		{"input_angles",		"vector", CS,	D("+x=DOWN")},
-		{"input_movevalues",	"vector", CS},
-		{"input_buttons",		"float", CS},
-		{"input_impulse",		"float", CS},
-		{"msg_entity",			"entity", QW|NQ},
-		{"main",				"void()", QW|NQ, D("This function is never called, and is effectively dead code.")},
-		{"StartFrame",			"void()", QW|NQ, D("Called at the start of each new physics frame. Player entities may think out of sequence so try not to depend upon explicit ordering too much.")},
-		{"PlayerPreThink",		"void()", QW|NQ, D("With Prediction(QW compat/FTE default): Called before the player's input commands are processed.\nNo Prediction(NQ compat): Called AFTER the player's movement intents have already been processed (ie: velocity will have already changed according to input_*, but before the actual position change.")},
-		{"PlayerPostThink",		"void()", QW|NQ, D("Called after the player's input commands are processed.")},
-		{"ClientKill",			"void()", QW|NQ, D("Called in response to 'cmd kill' (or just 'kill').")},
-		{"ClientConnect",		"void()", QW|NQ|ID1, D("Called after the connecting client has finished loading and is ready to receive active entities. Note that this is NOT the first place that a client might be referred to. To determine if the client has csqc active (and kick anyone that doesn't), you can use if(infokeyf(self,INFOKEY_P_CSQCACTIVE)) {sprint(self, \"CSQC is required for this server\\n\");dropclient(self);}")},
-		{"PutClientInServer",	"void()", QW|NQ, D("Enginewise, this is only ever called immediately after ClientConnect and is thus a little redundant. Modwise, this is also called for respawning a player etc.")},
-		{"ClientDisconnect",	"void()", QW|NQ, D("Called once a client disconnects or times out. Not guarenteed to be called on map changes.")},
-		{"SetNewParms",			"void()", QW|NQ, D("Called without context when a new client initially connects (before ClientConnect is even called). This function is expected to only set the parm* globals so that they can be decoded properly later. You should not rely on 'self' being set.")},
-		{"SetChangeParms",		"void()", QW|NQ, D("Called for each client on map changes. Should copy various entity fields to the parm* globals.")},
+		{"input_timelength",	"float", FTE_CS},
+		{"input_angles",		"vector", FTE_CS,	D("+x=DOWN")},
+		{"input_movevalues",	"vector", FTE_CS},
+		{"input_buttons",		"float", FTE_CS},
+		{"input_impulse",		"float", FTE_CS},
+		{"msg_entity",			"entity", QW|NQ|QSS_CS},
+		{"main",				"void()", QW|NQ|QSS_CS, D("This function is never called, and is effectively dead code.")},
+		{"StartFrame",			"void()", QW|NQ|QSS_CS, D("Called at the start of each new physics frame. Player entities may think out of sequence so try not to depend upon explicit ordering too much.")},
+		{"PlayerPreThink",		"void()", QW|NQ|QSS_CS, D("With Prediction(QW compat/FTE default): Called before the player's input commands are processed.\nNo Prediction(NQ compat): Called AFTER the player's movement intents have already been processed (ie: velocity will have already changed according to input_*, but before the actual position change.")},
+		{"PlayerPostThink",		"void()", QW|NQ|QSS_CS, D("Called after the player's input commands are processed.")},
+		{"ClientKill",			"void()", QW|NQ|QSS_CS, D("Called in response to 'cmd kill' (or just 'kill').")},
+		{"ClientConnect",		"void()", QW|NQ|QSS_CS|ID1, D("Called after the connecting client has finished loading and is ready to receive active entities. Note that this is NOT the first place that a client might be referred to. To determine if the client has csqc active (and kick anyone that doesn't), you can use if(infokeyf(self,INFOKEY_P_CSQCACTIVE)) {sprint(self, \"CSQC is required for this server\\n\");dropclient(self);}")},
+		{"PutClientInServer",	"void()", QW|NQ|QSS_CS, D("Enginewise, this is only ever called immediately after ClientConnect and is thus a little redundant. Modwise, this is also called for respawning a player etc.")},
+		{"ClientDisconnect",	"void()", QW|NQ|QSS_CS, D("Called once a client disconnects or times out. Not guarenteed to be called on map changes.")},
+		{"SetNewParms",			"void()", QW|NQ|QSS_CS, D("Called without context when a new client initially connects (before ClientConnect is even called). This function is expected to only set the parm* globals so that they can be decoded properly later. You should not rely on 'self' being set.")},
+		{"SetChangeParms",		"void()", QW|NQ|QSS_CS, D("Called for each client on map changes. Should copy various entity fields to the parm* globals.")},
+
+		{"CSQC_Init",			"void(optional float apilevel, string enginename, float engineversion)", DP_CS, D("Arg list is shorter than FTE+QSS")},
+		{"CSQC_Shutdown",		"void()", DP_CS},
+		{"CSQC_InputEvent",		"float(float eventtype, float xscan, float ychar, optional float zdev)", DP_CS, D("Arg list is shorter than FTE+QSS")},
+		{"CSQC_UpdateView",		"void(float physicalwidth, float physicalheight, optional float notmenu)", DP_CS, D("width+height are misinterpreted as physical sizes rather than the more useful virtual sizes.")},
+		{"CSQC_ConsoleCommand",	"float(string cmd)", DP_CS},
+		{"pmove_org",			"vector", DP_CS},
+		{"pmove_vel",			"vector", DP_CS},
+		{"pmove_mins",			"vector", DP_CS},
+		{"pmove_maxs",			"vector", DP_CS},
+		{"input_timelength",	"float", DP_CS},
+		{"input_angles",		"vector", DP_CS},
+		{"input_movevalues",	"vector", DP_CS},
+		{"input_buttons",		"float", DP_CS},
+		{"movevar_gravity",				"float", DP_CS},
+		{"movevar_stopspeed",			"float", DP_CS},
+		{"movevar_maxspeed",			"float", DP_CS},
+		{"movevar_spectatormaxspeed",	"float", DP_CS},
+		{"movevar_accelerate",			"float", DP_CS},
+		{"movevar_airaccelerate",		"float", DP_CS},
+		{"movevar_wateraccelerate",		"float", DP_CS},
+		{"movevar_friction",			"float", DP_CS},
+		{"movevar_waterfriction",		"float", DP_CS},
+		{"movevar_entgravity",			"float", DP_CS},
+
 		{"end_sys_globals",		"void", QW|NQ|CS|MENU},
 
 
 		{"modelindex",			".float", QW|NQ|CS,		D("This is the model precache index for the model that was set on the entity, instead of having to look up the model according to the .model field. Use setmodel to change it.")},
 		{"absmin",				".vector", QW|NQ|CS,	D("Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates.")},
 		{"absmax",				".vector", QW|NQ|CS,	D("Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates.")},
-		{"ltime",				".float", QW|NQ,		D("On MOVETYPE_PUSH entities, this is used as an alternative to the 'time' global, and .nextthink is synced to this instead of time. This allows time to effectively freeze if the entity is blocked, ensuring the think happens when the entity reaches the target point instead of randomly.")},
-		{"entnum",				".float", CS,			D("The entity number as its known on the server.")},
-		{"drawmask",			".float", CS,			D("Acts as a filter in the addentities call.")},
-		{"predraw",				".float()", CS,			D("Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Should return one of the PREDRAW_* constants.")},
+		{"ltime",				".float", QW|NQ|QSS_CS,		D("On MOVETYPE_PUSH entities, this is used as an alternative to the 'time' global, and .nextthink is synced to this instead of time. This allows time to effectively freeze if the entity is blocked, ensuring the think happens when the entity reaches the target point instead of randomly.")},
+		{"entnum",				".float", FTE_CS|DP_CS,			D("The entity number as its known on the server.")},
+		{"drawmask",			".float", FTE_CS|DP_CS,			D("Acts as a filter in the addentities call.")},
+		{"predraw",				".float()", FTE_CS|DP_CS,			D("Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Should return one of the PREDRAW_* constants.")},
 		{"lastruntime",			".float", QW,			D("This field used to be used to avoid running an entity multiple times in a single frame due to quakeworld's out-of-order thinks. It is no longer used by FTE due to precision issues, but may still be updated for compatibility reasons.")},
 		{"movetype",			".float", QW|NQ|CS,		D("Describes how the entity moves. One of the MOVETYPE_ constants.")},
 		{"solid",				".float", QW|NQ|CS,		D("Describes whether the entity is solid or not, and any special properties infered by that. Must be one of the SOLID_ constants")},
@@ -12043,80 +12334,80 @@ void PR_DumpPlatform_f(void)
 		{"velocity",			".vector", QW|NQ|CS,	D("The direction and speed that the entity is moving in world space.")},
 		{"angles",				".vector", QW|NQ|CS,	D("The eular angles the entity is facing in, in pitch, yaw, roll order. Due to a legacy bug, mdl/iqm/etc formats use +x=UP, bsp/spr/etc formats use +x=DOWN.")},
 		{"avelocity",			".vector", QW|NQ|CS,	D("The amount the entity's angles change by per second. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy if you're changing more than one angle at a time.")},
-		{"pmove_flags",			".float", CS},
-		{"punchangle",			".vector", NQ},
+		{"pmove_flags",			".float", FTE_CS},
+		{"punchangle",			".vector", NQ|QSS_CS},
 		{"classname",			".string", QW|NQ|CS,	D("Identifies the class/type of the entity. Useful for debugging, also used for loading, but its value is not otherwise significant to the engine, this leaves the mod free to set it to whatever it wants and randomly test strings for values in whatever inefficient way it chooses fit.")},
-		{"renderflags",			".float", CS},
+		{"renderflags",			".float", FTE_CS},
 		{"model",				".string", QW|NQ|CS,	D("The model name that was set via setmodel, in theory. Often, this is cleared to null to prevent the engine from being seen by clients while not changing modelindex. This behaviour allows inline models to remain solid yet be invisible.")},
 		{"frame",				".float", QW|NQ|CS,		D("The current frame the entity is meant to be displayed in. In CSQC, note the lerpfrac and frame2 fields as well. if it specifies a framegroup, the framegroup will autoanimate in ssqc, but not in csqc.")},
-		{"frame1time",			".float", CS,			D("The absolute time into the animation/framegroup specified by .frame.")},
-		{"frame2",				".float", CS,			D("The alternative frame. Visible only when lerpfrac is set to 1.")},
-		{"frame2time",			".float", CS,			D("The absolute time into the animation/framegroup specified by .frame2.")},
-		{"lerpfrac",			".float", CS,			D("If 0, use frame1 only. If 1, use frame2 only. Mix them together for values between.")},
+		{"frame1time",			".float", FTE_CS,			D("The absolute time into the animation/framegroup specified by .frame.")},
+		{"frame2",				".float", FTE_CS,			D("The alternative frame. Visible only when lerpfrac is set to 1.")},
+		{"frame2time",			".float", FTE_CS,			D("The absolute time into the animation/framegroup specified by .frame2.")},
+		{"lerpfrac",			".float", FTE_CS,			D("If 0, use frame1 only. If 1, use frame2 only. Mix them together for values between.")},
 		{"skin",				".float", QW|NQ|CS,		D("The skin index to use. on a bsp entity, setting this to 1 will switch to the 'activated' texture instead. A negative value will be understood as a replacement contents value, so setting it to CONTENTS_WATER will make a movable pool of water.")},
 		{"effects",				".float", QW|NQ|CS,		D("Lots of random flags that change random effects. See EF_* constants.")},
 		{"mins",				".vector", QW|NQ|CS,	D("The minimum extent of the model (ie: the bottom-left coordinate relative to the entity's origin). Change via setsize. May also be changed by setmodel.")},
 		{"maxs",				".vector", QW|NQ|CS,	D("like mins, but in the other direction.")},
 		{"size",				".vector", QW|NQ|CS,	D("maxs-mins. Updated when the entity is relinked (by setorigin, setsize, setmodel)")},
 		{"touch",				".void()", QW|NQ|CS},
-		{"use",					".void()", QW|NQ},
+		{"use",					".void()", QW|NQ|QSS_CS|DP_CS},
 		{"think",				".void()", QW|NQ|CS},
 		{"blocked",				".void()", QW|NQ|CS},
 		{"nextthink",			".float", QW|NQ|CS,		D("The time at which the entity is next scheduled to fire its think event. For MOVETYPE_PUSH entities, this is relative to that entity's ltime field, for all other entities it is relative to the time gloal.")},
 
-		{"groundentity",		".entity", QW|NQ},
-		{"health",				".float", QW|NQ},
-		{"frags",				".float", QW|NQ},
-		{"weapon",				".float", QW|NQ},
-		{"weaponmodel",			".string", QW|NQ},
-		{"weaponframe",			".float", QW|NQ},
-		{"currentammo",			".float", QW|NQ},
-		{"ammo_shells",			".float", QW|NQ},
-		{"ammo_nails",			".float", QW|NQ},
-		{"ammo_rockets",		".float", QW|NQ},
-		{"ammo_cells",			".float", QW|NQ},
-		{"items",				".float", QW|NQ},
-		{"takedamage",			".float", QW|NQ},
+		{"groundentity",		".entity", QW|NQ|QSS_CS},
+		{"health",				".float", QW|NQ|QSS_CS},
+		{"frags",				".float", QW|NQ|QSS_CS},
+		{"weapon",				".float", QW|NQ|QSS_CS},
+		{"weaponmodel",			".string", QW|NQ|QSS_CS},
+		{"weaponframe",			".float", QW|NQ|QSS_CS},
+		{"currentammo",			".float", QW|NQ|QSS_CS},
+		{"ammo_shells",			".float", QW|NQ|QSS_CS},
+		{"ammo_nails",			".float", QW|NQ|QSS_CS},
+		{"ammo_rockets",		".float", QW|NQ|QSS_CS},
+		{"ammo_cells",			".float", QW|NQ|QSS_CS},
+		{"items",				".float", QW|NQ|QSS_CS},
+		{"takedamage",			".float", QW|NQ|QSS_CS},
 
 		{"chain",				".entity", QW|NQ|CS},
-		{"deadflag",			".float", QW|NQ},
-		{"view_ofs",			".vector", QW|NQ},
-		{"button0",				".float", QW|NQ},
-		{"button1",				".float", QW|NQ},
-		{"button2",				".float", QW|NQ},
-		{"impulse",				".float", QW|NQ},
-		{"fixangle",			".float", QW|NQ,	"Forces the clientside view angles to change to the value of .angles (has some lag). If set to 1/TRUE, the server will guess whether to send a delta or an explicit angle. If 2, will always send a delta (due to lag between transmission and acknowledgement, this cannot be spammed reliably). If 3, will always send an explicit angle."},
-		{"v_angle",				".vector", QW|NQ,	"The angles a player is viewing. +x is DOWN (pitch, yaw, roll)"},
-		{"idealpitch",			".float", NQ},
-		{"netname",				".string", QW|NQ},
+		{"deadflag",			".float", QW|NQ|QSS_CS},
+		{"view_ofs",			".vector", QW|NQ|QSS_CS},
+		{"button0",				".float", QW|NQ|QSS_CS},
+		{"button1",				".float", QW|NQ|QSS_CS},
+		{"button2",				".float", QW|NQ|QSS_CS},
+		{"impulse",				".float", QW|NQ|QSS_CS},
+		{"fixangle",			".float", QW|NQ|QSS_CS,	"Forces the clientside view angles to change to the value of .angles (has some lag). If set to 1/TRUE, the server will guess whether to send a delta or an explicit angle. If 2, will always send a delta (due to lag between transmission and acknowledgement, this cannot be spammed reliably). If 3, will always send an explicit angle."},
+		{"v_angle",				".vector", QW|NQ|QSS_CS,	"The angles a player is viewing. +x is DOWN (pitch, yaw, roll)"},
+		{"idealpitch",			".float", NQ|QSS_CS},
+		{"netname",				".string", QW|NQ|QSS_CS|DP_CS},
 		{"enemy",				".entity", QW|NQ|CS},
 		{"flags",				".float", QW|NQ|CS},
 		{"colormap",			".float", QW|NQ|CS},
-		{"team",				".float", QW|NQ},
-		{"max_health",			".float", QW|NQ},
-		{"teleport_time",		".float", QW|NQ,	D("While active, prevents the player from using the +back command, also blocks waterjumping.")},
-		{"armortype",			".float", QW|NQ},
-		{"armorvalue",			".float", QW|NQ},
-		{"waterlevel",			".float", QW|NQ},
-		{"watertype",			".float", QW|NQ},
-		{"ideal_yaw",			".float", QW|NQ},
-		{"yaw_speed",			".float", QW|NQ},
-		{"aiment",				".entity", QW|NQ},
-		{"goalentity",			".entity", QW|NQ},
-		{"spawnflags",			".float", QW|NQ},
-		{"target",				".string", QW|NQ},
-		{"targetname",			".string", QW|NQ},
-		{"dmg_take",			".float", QW|NQ},
-		{"dmg_save",			".float", QW|NQ},
-		{"dmg_inflictor",		".entity", QW|NQ},
+		{"team",				".float", QW|NQ|QSS_CS},
+		{"max_health",			".float", QW|NQ|QSS_CS},
+		{"teleport_time",		".float", QW|NQ|QSS_CS,	D("While active, prevents the player from using the +back command, also blocks waterjumping.")},
+		{"armortype",			".float", QW|NQ|QSS_CS},
+		{"armorvalue",			".float", QW|NQ|QSS_CS},
+		{"waterlevel",			".float", QW|NQ|QSS_CS},
+		{"watertype",			".float", QW|NQ|QSS_CS},
+		{"ideal_yaw",			".float", QW|NQ|QSS_CS},
+		{"yaw_speed",			".float", QW|NQ|QSS_CS},
+		{"aiment",				".entity", QW|NQ|QSS_CS},
+		{"goalentity",			".entity", QW|NQ|QSS_CS},
+		{"spawnflags",			".float", QW|NQ|QSS_CS},
+		{"target",				".string", QW|NQ|QSS_CS},
+		{"targetname",			".string", QW|NQ|QSS_CS},
+		{"dmg_take",			".float", QW|NQ|QSS_CS},
+		{"dmg_save",			".float", QW|NQ|QSS_CS},
+		{"dmg_inflictor",		".entity", QW|NQ|QSS_CS},
 		{"owner",				".entity", QW|NQ|CS},
-		{"movedir",				".vector", QW|NQ},
-		{"message",				".string", QW|NQ},
-		{"sounds",				".float", QW|NQ},
-		{"noise",				".string", QW|NQ},
-		{"noise1",				".string", QW|NQ},
-		{"noise2",				".string", QW|NQ},
-		{"noise3",				".string", QW|NQ},
+		{"movedir",				".vector", QW|NQ|QSS_CS},
+		{"message",				".string", QW|NQ|QSS_CS},
+		{"sounds",				".float", QW|NQ|QSS_CS},
+		{"noise",				".string", QW|NQ|QSS_CS},
+		{"noise1",				".string", QW|NQ|QSS_CS},
+		{"noise2",				".string", QW|NQ|QSS_CS},
+		{"noise3",				".string", QW|NQ|QSS_CS},
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
 		{"time",				"float",	MENU,	D("The current local time. Increases while paused.")},
@@ -12139,7 +12430,7 @@ void PR_DumpPlatform_f(void)
 		{"trace_surface_id",	"int", QW|NQ|CS, D("1-based. 0 if not known.")},
 		{"trace_bone_id",		"int", QW|NQ|CS, D("1-based. 0 if not known. typically needs MOVE_HITMODEL.")},
 		{"trace_triangle_id",	"int", QW|NQ|CS, D("1-based. 0 if not known.")},
-		{"trace_networkentity",	"int", CS, D("Repots which ssqc entnum was hit when a csqc traceline impacts an ssqc-based brush entity.")},
+		{"trace_networkentity",	"float", CS, D("Repots which ssqc entnum was hit when a csqc traceline impacts an ssqc-based brush entity.")},
 
 		{"pmove_org",			"vector", CS, D("Reports the origin of the engineside player (after prediction). Does not work when the player is a csqc-owned entity.")},
 		{"pmove_vel",			"vector", CS, D("Reports the velocity of the engineside player (after prediction). Does not work when the player is a csqc-owned entity.")},
@@ -12147,27 +12438,33 @@ void PR_DumpPlatform_f(void)
 
 		{"global_gravitydir",	"vector", QW|NQ|CS,	D("The direction gravity should act in if not otherwise specified per entity."), 0,"'0 0 -1'"},
 		{"serverid",			"int", QW|NQ|CS,	D("The unique id of this server within the server cluster.")},
+		{"message",				".string", CS,		D("Allows the csqc to read the map description from the server.")},
 
-		{"button3",			".float", QW|NQ},
-		{"button4",			".float", QW|NQ},
-		{"button5",			".float", QW|NQ},
-		{"button6",			".float", QW|NQ},
-		{"button7",			".float", QW|NQ},
-		{"button8",			".float", QW|NQ},
+		{"button3",				".float", QW|NQ},
+		{"button4",				".float", QW|NQ},
+		{"button5",				".float", QW|NQ},
+		{"button6",				".float", QW|NQ},
+		{"button7",				".float", QW|NQ},
+		{"button8",				".float", QW|NQ},
 
 		//and for dp compat (these names are fucked, yes)
-//		{"buttonuse",		".float", QW|NQ},
-//		{"buttonchat",		".float", QW|NQ},
-//		{"cursor_active",	".float", QW|NQ},
-//		{"button9",			".float", QW|NQ},
-//		{"button10",		".float", QW|NQ},
-//		{"button11",		".float", QW|NQ},
-//		{"button12",		".float", QW|NQ},
-//		{"button13",		".float", QW|NQ},
+		{"buttonuse",			".float", NQ,		D("For DP compat only.")},
+		{"buttonchat",			".float", NQ,		D("For DP compat only.")},
+		{"cursor_active",		".float", NQ,		D("For DP compat only.")},
+		{"button9",				".float", NQ,		D("For DP compat only.")},
+		{"button10",			".float", NQ,		D("For DP compat only.")},
+		{"button11",			".float", NQ,		D("For DP compat only.")},
+		{"button12",			".float", NQ,		D("For DP compat only.")},
+		{"button13",			".float", NQ,		D("For DP compat only.")},
 
-//		{"button14",		".float", QW|NQ},
-//		{"button15",		".float", QW|NQ},
-//		{"button16",		".float", QW|NQ},
+		{"button14",			".float", NQ,		D("For DP compat only.")},
+		{"button15",			".float", NQ,		D("For DP compat only.")},
+		{"button16",			".float", NQ,		D("For DP compat only.")},
+
+		{"cursor_screen",		".vector", NQ,		D("For DP compat only.")},
+		{"cursor_start",		".vector", NQ,		D("For DP compat only.")},
+		{"cursor_impact",		".vector", NQ,		D("For DP compat only.")},
+		{"cursor_entitynumber",	".entity", NQ,		D("For DP compat only.")},
 
 #undef comfieldfloatdep
 #undef comfieldintdep
@@ -12288,6 +12585,23 @@ void PR_DumpPlatform_f(void)
 		{"drawfontscale",			"var vector", CS|MENU, "Specifies a scaler for all text rendering. There are other ways to implement this.", 0, "'1 1 0'"},
 		{"drawfont",				"float", CS|MENU, "Allows you to choose exactly which font is to be used to draw text. Fonts can be registered/allocated with the loadfont builtin."},
 		{"FONT_DEFAULT",			"const float", CS|MENU, NULL, 0},
+
+
+#define globalfloatdep(name,depreason)	{#name, "DEP(\""depreason"\") float", CS},
+#define globalfunction(name,typestr)	{#name, typestr, CS},
+#define globalfloat(name)				{#name, "float", CS},
+#define globalentity(name)				{#name, "entity", CS},
+#define globalvector(name)				{#name, "vector", CS},
+#define globalstring(name)				{#name, "string", CS},
+#define globalint(name)					{#name, "int", CS},
+		csqcglobals
+#undef globalfunction
+#undef globalfloat
+#undef globalentity
+#undef globalvector
+#undef globalstring
+#undef globalint
+#undef globalfloatdep
 
 		{"TRUE",					"const float", ALL, NULL, 1},
 		{"FALSE",					"const float", ALL, "File not found...", 0},
@@ -12446,6 +12760,25 @@ void PR_DumpPlatform_f(void)
 		//not putting other svcs here, qc shouldn't otherwise need to generate svcs directly.
 		{"SVC_CGAMEPACKET",		"const float", QW|NQ, D("Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads. This should only ever be used in conjunction with the MSG_MULTICAST destination."), svcfte_cgamepacket},
 
+		{"TE_SPIKE",			"const float", QW|NQ|CS, NULL, TE_SPIKE},
+		{"TE_SUPERSPIKE",		"const float", QW|NQ|CS, NULL, TE_SUPERSPIKE},
+		{"TE_GUNSHOT",			"const float", QW|FTE_CS, NULL, TEQW_QWGUNSHOT},
+		{"TE_EXPLOSION",		"const float", QW|FTE_CS, NULL, TEQW_QWEXPLOSION},
+		{"TE_GUNSHOT",			"const float", NQ|QSS_CS|DP_CS, NULL, TENQ_NQGUNSHOT},
+		{"TE_EXPLOSION",		"const float", NQ|QSS_CS|DP_CS, NULL, TENQ_NQEXPLOSION},
+		{"TE_TAREXPLOSION",		"const float", QW|NQ|CS, NULL, TE_TAREXPLOSION},
+		{"TE_LIGHTNING1",		"const float", QW|NQ|CS, NULL, TE_LIGHTNING1},
+		{"TE_LIGHTNING2",		"const float", QW|NQ|CS, NULL, TE_LIGHTNING2},
+		{"TE_WIZSPIKE",			"const float", QW|NQ|CS, NULL, TE_WIZSPIKE},
+		{"TE_KNIGHTSPIKE",		"const float", QW|NQ|CS, NULL, TE_KNIGHTSPIKE},
+		{"TE_LIGHTNING3",		"const float", QW|NQ|CS, NULL, TE_LIGHTNING3},
+		{"TE_LAVASPLASH",		"const float", QW|NQ|CS, NULL, TE_LAVASPLASH},
+		{"TE_TELEPORT",			"const float", QW|NQ|CS, NULL, TE_TELEPORT},
+		{"TE_BLOOD",			"const float", QW|FTE_CS, NULL, TEQW_QWBLOOD},
+		{"TE_EXPLOSION2",		"const float", NQ|QSS_CS|DP_CS, NULL, TENQ_EXPLOSION2},
+		{"TE_LIGHTNINGBLOOD",	"const float", QW|FTE_CS, NULL, TEQW_LIGHTNINGBLOOD},
+		{"TE_BEAM",				"const float", NQ|QSS_CS|DP_CS, NULL, TENQ_BEAM},
+
 #ifdef HAVE_LEGACY
 		{"MSG_BROADCAST",		"const float", NQ, D("The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family."), MSG_BROADCAST},
 		{"MSG_ONE",				"const float", NQ, D("The byte(s) will be reliably sent to the player specified in the msg_entity global. WARNING: in quakeworld servers without network preparsing enabled, this can result in illegible server messages (due to individual reliable messages being split between multiple backbuffers/packets). NQ has larger reliable buffers which avoids this issue, but still kicks the client."), MSG_ONE},
@@ -12553,12 +12886,20 @@ void PR_DumpPlatform_f(void)
 		{"MOVE_NORMAL",			"const float", QW|NQ|CS, NULL, MOVE_NORMAL},
 		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, D("The trace will ignore all non-solid_bsp entities."), MOVE_NOMONSTERS},
 		{"MOVE_MISSILE",		"const float", QW|NQ|CS, D("The trace will use a bbox size of +/- 15 against entities with FL_MONSTER set."), MOVE_MISSILE},
+		{"MOVE_WORLDONLY",		"const float", QW|NQ|CS, D("The trace will ignore everything but the worldmodel. This is useful for to prevent the q3bsp pvs+culling issues that come with spectator modes leaving the world ."), MOVE_WORLDONLY},
 		{"MOVE_HITMODEL",		"const float", QW|NQ|CS, D("Traces will impact the actual mesh of the model instead of merely their bounding box. Should generally only be used for tracelines. Note that this flag is unreliable as an object can animate through projectiles. The bounding box MUST be set to completely encompass the entity or those extra areas will be non-solid (leaving a hole for things to go through)."), MOVE_HITMODEL},
 		{"MOVE_TRIGGERS",		"const float", QW|NQ|CS, D("This trace type will impact only triggers. It will ignore non-solid entities."), MOVE_TRIGGERS},
 		{"MOVE_EVERYTHING",		"const float", QW|NQ|CS, D("This type of trace will hit solids and triggers alike. Even non-solid entities."), MOVE_EVERYTHING},
 		{"MOVE_LAGGED",			"const float", QW|NQ, D("Will use antilag based upon the player's latency. Traces will be performed against old positions for entities instead of their current origin."), MOVE_LAGGED},
 		{"MOVE_ENTCHAIN",		"const float", QW|NQ|CS, D("Returns a list of entities impacted via the trace_ent.chain field"), MOVE_ENTCHAIN},
 		{"MOVE_OTHERONLY",		"const float", QW|NQ|CS, D("Traces that use this trace type will collide against *only* the entity specified via the 'other' global, and will ignore all owner/solid_not/dimension etc rules, they will still adhere to contents and bsp/bbox rules though."), MOVE_OTHERONLY},
+
+		{"CVAR_TYPEFLAG_EXISTS",		"const float", ALL,		 D("Cvar name actually exists."), CVAR_TYPEFLAG_EXISTS},
+		{"CVAR_TYPEFLAG_SAVED",			"const float", ALL,		 D("Cvar is flaged for archival (might need cfg_save to actually save)."), CVAR_TYPEFLAG_SAVED},
+		{"CVAR_TYPEFLAG_PRIVATE",		"const float", ALL,		 D("QC is not allowed to read."), CVAR_TYPEFLAG_PRIVATE},
+		{"CVAR_TYPEFLAG_ENGINE",		"const float", ALL,		 D("Cvar was created by the engine itself (not user/mod created)."), CVAR_TYPEFLAG_ENGINE},
+		{"CVAR_TYPEFLAG_HASDESCRIPTION","const float", ALL,		 D("cvar_description will return something (hopefully) useful."), CVAR_TYPEFLAG_HASDESCRIPTION},
+		{"CVAR_TYPEFLAG_READONLY",		"const float", ALL,		 D("cvar may not be changed by qc."), CVAR_TYPEFLAG_READONLY},
 
 		{"RESTYPE_MODEL",		"const float", ALL,		 D("RESTYPE_* constants are used as arguments with the resourcestatus builtin."), RESTYPE_MODEL},
 		{"RESTYPE_SOUND",		"const float", ALL,		 D("precache_sound"), RESTYPE_SOUND},
@@ -12712,6 +13053,14 @@ void PR_DumpPlatform_f(void)
 		{"VF_SKYROOM_CAMERA",	"const float", CS, D("Controls the camera position of the skyroom (which will be drawn underneath transparent sky surfaces). This should move slightly with the real camera, but not so much that the skycamera enters walls. Requires a skyshader with a blend mode on the first pass (or no passes)."), VF_SKYROOM_CAMERA},
 		{"VF_PROJECTIONOFFSET",	"const float", CS|MENU, D("vec2 horizontal+vertical offset for the projection matrix, for weird off-centre rendering."), VF_PROJECTIONOFFSET},
 
+		{"DRAWFLAG_NORMAL",		"const float", CS|MENU, D("Args for drawpic/drawfill/beginpolygon. Not to be confused with the hexen2-compatibility feature."), DRAWFLAG_NORMAL},
+		{"DRAWFLAG_ADD",		"const float", CS|MENU, D("Forces additive blending, overriding any shader settings."), DRAWFLAG_ADD},
+		{"DRAWFLAG_MODULATE",	"const float", CS|MENU, D("Forces alpha blending, overriding any shader settings."), DRAWFLAG_MODULATE},
+//		{"DRAWFLAG_MODULATE2",	"const float", CS|MENU, D("."), DRAWFLAG_MODULATE2},
+		{"DRAWFLAG_2D",			"const float", CS|MENU, D("For use with beginpolygon. The polygon will be drawn to the 2d screen, instead of being added to the 3d scene."), DRAWFLAG_2D},
+		{"DRAWFLAG_TWOSIDED",	"const float", CS|MENU, D("For use with beginpolygon. The polygon will be two-sided without any backface culling."), DRAWFLAG_TWOSIDED},
+		{"DRAWFLAG_LINES",		"const float", CS|MENU, D("For use with beginpolygon. The surface verticies should be interpreted as a line loop, instead of a triangle fan."), DRAWFLAG_LINES},
+
 		{"IMGFMT_R8G8B8A8",		"const float", CS|MENU, D("Typical 32bit rgba pixel format."), 1},
 		{"IMGFMT_R16G16B16A16F","const float", CS|MENU, D("Half-Float pixel format. Requires gl3 support."), 2},
 		{"IMGFMT_R32G32B32A32F","const float", CS|MENU, D("Regular Float pixel format. Requires gl3 support."), 3},
@@ -12749,7 +13098,7 @@ void PR_DumpPlatform_f(void)
 		{"GGDI_OVERRIDES",		"const float", CS|MENU, D("A list of settings overrides."), GGDI_OVERRIDES},
 		{"GGDI_LOADCOMMAND",	"const float", CS|MENU, D("The console command needed to actually load the mod."), GGDI_LOADCOMMAND},
 		{"GGDI_ICON",			"const float", CS|MENU, D("The mod's Icon path, ready for drawpic."), GGDI_ICON},
-		{"GGDI_GAMEDIRLIST",	"const float", CS|MENU, D("A semi-colon delimited list of gamedirs that the mod's content can be loaded through."), GGDI_ICON},
+		{"GGDI_GAMEDIRLIST",	"const float", CS|MENU, D("A semi-colon delimited list of gamedirs that the mod's content can be loaded through."), GGDI_ALLGAMEDIRS},
 
 		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, D("Return value from clienttype() builtin. This entity is a player slot that is currently empty."), CLIENTTYPE_DISCONNECTED},
 		{"CLIENTTYPE_REAL",		"const float", QW|NQ, D("This is a real player, and not a bot."), CLIENTTYPE_REAL},
@@ -12860,14 +13209,17 @@ void PR_DumpPlatform_f(void)
 #define DUMPHELP	\
 					"Available options:\n"	\
 					"-Ffte       - target only FTE (optimations and additional extensions)\n"	\
-					"-Tnq        - dump specifically NQ fields\n"	\
-					"-Tqw        - dump specifically QW fields\n"	\
-					"-Tcs        - dump specifically CSQC fields\n"	\
-					"-Tmenu      - dump specifically menuqc fields\n"	\
+					"-Tnq        - dump only NQ fields\n"	\
+					"-Tqw        - dump only QW fields\n"	\
+					"-Tcs        - dump only CSQC fields\n"	\
+					"-Tsimplecs  - dump only Simple-CSQC fields\n"	\
+					"-Tdpcs      - dump only DP-CSQC fields\n"	\
+					"-Tmenu      - dump only menuqc fields\n"	\
 					"-Tid1       - omits any symbols that conflict with vanilla defs.qc\n"	\
 					"-Tdp        - omits any symbols that conflict with dpextensions.qc\n"	\
 					"-Fdefines   - generate #defines instead of constants\n"	\
 					"-Faccessors - use accessors instead of basic types via defines\n"	\
+					"-Fdepfilter - use symbol tables to include deprecation warnings for symbols not supported by other engines\n"	\
 					"-O          - write to a different qc file\n"
 	targ = 0;
 	for (i = 1; i < Cmd_Argc(); i++)
@@ -12877,14 +13229,18 @@ void PR_DumpPlatform_f(void)
 			targ |= FTE;
 		else if (!stricmp(arg, "-Tnq"))
 			targ |= NQ;
-		else if (!stricmp(arg, "-Tcs"))
-			targ |= CS;
 		else if (!stricmp(arg, "-Tqw"))
 			targ |= QW;
+		else if (!stricmp(arg, "-Tcs"))
+			targ |= FTE_CS;
+		else if (!stricmp(arg, "-Tsimplecs"))
+			targ |= QSS_CS;
+		else if (!stricmp(arg, "-Tdpcs"))
+			targ |= DP_CS;
 		else if (!stricmp(arg, "-Tmenu"))
 			targ |= MENU;
 		else if (!stricmp(arg, "-Th2"))
-			targ |= H2;
+			targ |= H2;	//TESTME
 		else if (!stricmp(arg, "-Tid1"))
 			targ |= ID1;
 		else if (!stricmp(arg, "-Tdp"))
@@ -12897,6 +13253,8 @@ void PR_DumpPlatform_f(void)
 			accessors = true;
 		else if (!stricmp(arg, "-Fnoaccessors"))
 			accessors = false;
+		else if (!stricmp(arg, "-Fdepfilter"))
+			depfilter = true;
 		else if (!Q_strncasecmp(arg, "-O", 2))
 		{
 			if (arg[2])
@@ -12911,7 +13269,13 @@ void PR_DumpPlatform_f(void)
 		}
 	}
 	if (!(targ & ALL))
-		targ |= (QW|NQ|CS|MENU);
+		targ |= (QW|NQ|FTE_CS|MENU);
+
+	//our #ifdefs can't cope with targetting more than one csqc type at a time.
+	if ((targ & QSS_CS) && (targ & (FTE_CS|DP_CS)))
+		targ &= ~(FTE_CS|DP_CS);	//QSS doesn't support any other layours.
+	if ((targ & DP_CS) && (targ & FTE_CS))
+		targ &= ~(FTE_CS);	//if you're trying to target both, then you generally want to favour the lowest common denominator. FTE has workarounds in place so this is the most compatible option (which sucks).
 
 	if (!*fname)
 		fname = "fteextensions";
@@ -12929,15 +13293,7 @@ void PR_DumpPlatform_f(void)
 					"This file was generated by %s %s, dated %s.\n"
 					"This file can be regenerated by issuing the following command:\n"
 					"%s %s\n"
-					"Available options:\n"
-					"-Ffte       - target only FTE (optimations and additional extensions)\n"
-					"-Tnq        - dump specifically NQ fields\n"
-					"-Tqw        - dump specifically QW fields\n"
-					"-Tcs        - dump specifically CSQC fields\n"
-					"-Tmenu      - dump specifically menuqc fields\n"
-					"-Fdefines   - generate #defines instead of constants\n"
-					"-Faccessors - use accessors instead of basic types via defines\n"
-					"-O          - write to a different qc file\n"
+					"(Use the -help arg for a list of available args)\n"
 					"*/\n"
 					, FULLENGINENAME, STRINGIFY(SVNREVISION),
 					#ifdef SVNDATE
@@ -12957,7 +13313,7 @@ void PR_DumpPlatform_f(void)
 #ifndef HAVE_LEGACY
 	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc). Such mods will not run properly in FTE.*/\n");
 #else
-	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc). Note that this may trigger emulation.*/\n");
+//	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc). Note that this may trigger emulation.*/\n");
 #endif
 	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings. Think of the foreigners! Also think of text editors that insist on screwing up your char encodings.*/\n");
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals. They usually default to 0 in qc (except in recursive functions), but its still probably a bug*/\n");
@@ -12977,48 +13333,60 @@ void PR_DumpPlatform_f(void)
 		if (targ&FTE)
 			VFS_PRINTF(f, "#pragma target FTE\n#define FTEDEP DEP\n");
 	}
-	if ((targ&ALL) == CS)
+	if ((targ&ALL) == FTE_CS)
 		VFS_PRINTF(f,	"#ifndef CSQC\n"
-							"#define CSQC\n"
+							"\t#define CSQC\n"
+						"#endif\n"
+						);
+	else if ((targ&ALL) == QSS_CS)
+		VFS_PRINTF(f,	"#ifndef CSQC\n"
+							"\t#define CSQC\n"
+							"\t#define SIMPLE_CSQC\n"
+						"#endif\n"
+						);
+	else if ((targ&ALL) == DP_CS)
+		VFS_PRINTF(f,	"#ifndef CSQC\n"
+							"\t#define CSQC\n"
+							"\t#define DP_CSQC\n"
 						"#endif\n"
 						);
 	else if ((targ&ALL) == NQ)
 		VFS_PRINTF(f,	"#ifndef NETQUAKE\n"
-							"#define NETQUAKE\n"
+							"\t#define NETQUAKE\n"
 						"#endif\n"
 						"#ifndef NQSSQC\n"
-							"#define NQSSQC\n"
+							"\t#define NQSSQC\n"
 						"#endif\n"
 						"#ifndef SSQC\n"
-							"#define SSQC\n"
+							"\t#define SSQC\n"
 						"#endif\n"
 						);
 	else if ((targ&ALL) == QW)
 		VFS_PRINTF(f,	"#ifndef QUAKEWORLD\n"
-							"#define QUAKEWORLD\n"
+							"\t#define QUAKEWORLD\n"
 						"#endif\n"
 						"#ifndef QWSSQC\n"
-							"#define QWSSQC\n"
+							"\t#define QWSSQC\n"
 						"#endif\n"
 						"#ifndef SSQC\n"
-							"#define SSQC\n"
+							"\t#define SSQC\n"
 						"#endif\n"
 						);
 	else if ((targ&ALL) == MENU)
 		VFS_PRINTF(f,	"#ifndef MENU\n"
-							"#define MENU\n"
+							"\t#define MENU\n"
 						"#endif\n"
 						);
 	else
 		VFS_PRINTF(f,	"#if !defined(CSQC) && !defined(NQSSQC) && !defined(QWSSQC)&& !defined(MENU)\n"
-							"#ifdef QUAKEWORLD\n"
-								"#define QWSSQC\n"
-							"#else\n"
-								"#define NQSSQC\n"
-							"#endif\n"
+							"\t#ifdef QUAKEWORLD\n"
+								"\t\t#define QWSSQC\n"
+							"\t#else\n"
+								"\t\t#define NQSSQC\n"
+							"\t#endif\n"
 						"#endif\n"
 						"#if !defined(SSQC) && (defined(QWSSQC) || defined(NQSSQC))\n"
-							"#define SSQC\n"
+							"\t#define SSQC\n"
 						"#endif\n"
 						);
 
@@ -13026,21 +13394,23 @@ void PR_DumpPlatform_f(void)
 	if (targ&(NQ|QW|H2))
 	{
 		VFS_PRINTF(f,	"#if defined(CSQC) || defined(MENU)\n"
-							"#define DEP_CSQC DEP\n"
+							"\t#define DEP_CSQC DEP\n"
 						"#else\n"
-							"#define DEP_CSQC __deprecated(\"Use CSQC for this\")\n"
+							"\t#define DEP_CSQC __deprecated(\"Use CSQC for this\")\n"
 						"#endif\n"
 						);
 	}
 	else
 		VFS_PRINTF(f, "#define DEP_CSQC DEP\n");
 	VFS_PRINTF(f,	"#ifndef DEP\n"
-					"	#define DEP __deprecated //predefine this if you want to avoid our deprecation warnings.\n"
+						"\t#define DEP __deprecated //predefine this if you want to avoid our deprecation warnings.\n"
 					"#endif\n"
 					"#ifndef FTEDEP\n"
-					"	#define FTEDEP(reason) //for symbols deprecated in FTE that may still be useful/required for other engines\n"
+						"\t#define FTEDEP(reason) //for symbols deprecated in FTE that may still be useful/required for other engines\n"
 					"#endif\n");
 
+	if (depfilter)
+		PR_DumpPlatform_LoadSymbolTables(f, symtab, targ);
 
 	for (i = 0; i < QSG_Extensions_count; i++)
 	{
@@ -13100,68 +13470,12 @@ void PR_DumpPlatform_f(void)
 			else
 				continue;
 		}
-		if ((nd&targ) != (d&targ))
-		{
-			if (d != (ALL & ~targ))
-				VFS_PRINTF(f, "#endif\n");
-			if (((nd | (~targ)) & ALL) == ALL)
-				d = ALL & ~targ;	//every part of the target is specified, so don't do the ifdef thing.
-			else
-			{
-				d = nd;
-				switch(d & (ALL & targ))
-				{
-				case 0:
-					continue;
-				case QW:
-					VFS_PRINTF(f, "#if defined(QWSSQC)\n");
-					break;
-				case NQ:
-					VFS_PRINTF(f, "#if defined(NQSSQC)\n");
-					break;
-				case QW|NQ:
-					VFS_PRINTF(f, "#ifdef SSQC\n");
-					break;
-				case CS:
-					VFS_PRINTF(f, "#ifdef CSQC\n");
-					break;
-				case QW|CS:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
-					break;
-				case NQ|CS:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
-					break;
-				case NQ|CS|QW:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
-					break;
-				case MENU:
-					VFS_PRINTF(f, "#ifdef MENU\n");
-					break;
-				case QW|MENU:
-					VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
-					break;
-				case NQ|MENU:
-					VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
-					break;
-				case QW|NQ|MENU:
-					VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
-					break;
-				case CS|MENU:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
-					break;
-				case QW|CS|MENU:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
-					break;
-				case NQ|CS|MENU:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
-					break;
-				case ALL:
-					break;
-				}
-			}
-		}
+		if (!PR_DumpPlatform_GenIfdef(f, targ, nd, &d))
+			continue;
 		if (knowndefs[i].desc)
 		{
+			if (!strncmp(knowndefs[i].desc, "stub. ", 6))
+				continue;	//mostly for items2. :(
 			if (!strncmp(type, "//", 2))
 				comment = va("\n/* %s */", knowndefs[i].desc);
 			else
@@ -13176,14 +13490,20 @@ void PR_DumpPlatform_f(void)
 				if (defines)
 					VFS_PRINTF(f, "#define %s %i%s\n", knowndefs[i].name, (int)knowndefs[i].value, comment);
 				else
-					VFS_PRINTF(f, "%s %s = %i;%s\n", type, knowndefs[i].name, (int)knowndefs[i].value, comment);
+				{
+					PR_DumpPlatform_SymbolType(f, symtab, type, knowndefs[i].name);
+					VFS_PRINTF(f, "%s = %i;%s\n", knowndefs[i].name, (int)knowndefs[i].value, comment);
+				}
 			}
 			else
 			{
 				if (defines)
 					VFS_PRINTF(f, "#define %s %g%s\n", knowndefs[i].name, knowndefs[i].value, comment);
 				else
-					VFS_PRINTF(f, "%s %s = %g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
+				{
+					PR_DumpPlatform_SymbolType(f, symtab, type, knowndefs[i].name);
+					VFS_PRINTF(f, "%s = %g;%s\n", knowndefs[i].name, knowndefs[i].value, comment);
+				}
 			}
 		}
 		else if (!strcmp(type, "const string"))
@@ -13191,18 +13511,26 @@ void PR_DumpPlatform_f(void)
 			if (defines)
 				VFS_PRINTF(f, "#define %s %s%s\n", knowndefs[i].name, knowndefs[i].valuestr, comment);
 			else
-				VFS_PRINTF(f, "%s %s = %s;%s\n", type, knowndefs[i].name, knowndefs[i].valuestr, comment);
+			{
+				PR_DumpPlatform_SymbolType(f, symtab, type, knowndefs[i].name);
+				VFS_PRINTF(f, "%s = %s;%s\n", knowndefs[i].name, knowndefs[i].valuestr, comment);
+			}
 		}
 		else if (knowndefs[i].valuestr)
 		{
-			VFS_PRINTF(f, "%s %s = %s;%s\n", type, knowndefs[i].name, knowndefs[i].valuestr, comment);
+			PR_DumpPlatform_SymbolType(f, symtab, type, knowndefs[i].name);
+			VFS_PRINTF(f, "%s = %s;%s\n", knowndefs[i].name, knowndefs[i].valuestr, comment);
 		}
 		else if (knowndefs[i].value)
 		{
-			VFS_PRINTF(f, "%s %s = %g;%s\n", type, knowndefs[i].name, knowndefs[i].value, comment);
+			PR_DumpPlatform_SymbolType(f, symtab, type, knowndefs[i].name);
+			VFS_PRINTF(f, "%s = %g;%s\n", knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else
-			VFS_PRINTF(f, "%s %s;%s\n", type, knowndefs[i].name, comment);
+		{
+			PR_DumpPlatform_SymbolType(f, symtab, type, knowndefs[i].name);
+			VFS_PRINTF(f, "%s;%s\n", knowndefs[i].name, comment);
+		}
 	}
 	for (i = 0; BuiltinList[i].name; i++)
 	{
@@ -13278,122 +13606,16 @@ void PR_DumpPlatform_f(void)
 		if (!nd)	/*no idea what its for*/
 			continue;
 		nd |= (~targ & ALL);
-		if (!(nd & targ))
+		if (!PR_DumpPlatform_GenIfdef(f, targ, nd, &d))
 			continue;
-		if ((nd&targ) != (d&targ))
-		{
-			if (d != (ALL & ~targ))
-				VFS_PRINTF(f, "#endif\n");
 
-			if (((nd | (~targ)) & ALL) == ALL)
-				d = ALL & ~targ;
-			else
-			{
-				d = nd;
-				switch(d & (ALL & targ))
-				{
-				case 0:
-					continue;
-				case QW:
-					VFS_PRINTF(f, "#if defined(QWSSQC)\n");
-					break;
-				case NQ:
-					VFS_PRINTF(f, "#if defined(NQSSQC)\n");
-					break;
-				case QW|NQ:
-					VFS_PRINTF(f, "#ifdef SSQC\n");
-					break;
-				case CS:
-					VFS_PRINTF(f, "#ifdef CSQC\n");
-					break;
-				case QW|CS:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
-					break;
-				case NQ|CS:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
-					break;
-				case NQ|CS|QW:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
-					break;
-				case MENU:
-					VFS_PRINTF(f, "#ifdef MENU\n");
-					break;
-				case QW|MENU:
-					VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
-					break;
-				case NQ|MENU:
-					VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
-					break;
-				case QW|NQ|MENU:
-					VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
-					break;
-				case CS|MENU:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
-					break;
-				case QW|CS|MENU:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
-					break;
-				case NQ|CS|MENU:
-					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
-					break;
-				case H2:
-					VFS_PRINTF(f, "#ifdef H2\n");
-					break;
-				case H2|QW:
-					VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC)\n");
-					break;
-				case H2|NQ:
-					VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC)\n");
-					break;
-				case H2|QW|NQ:
-					VFS_PRINTF(f, "#if defined(H2) || defined(SSQC)\n");
-					break;
-				case H2|CS:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC)\n");
-					break;
-				case H2|QW|CS:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC)\n");
-					break;
-				case H2|NQ|CS:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC)\n");
-					break;
-				case H2|NQ|CS|QW:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(SSQC)\n");
-					break;
-				case H2|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(MENU)\n");
-					break;
-				case H2|QW|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC) || defined(MENU)\n");
-					break;
-				case H2|NQ|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC) || defined(MENU)\n");
-					break;
-				case H2|QW|NQ|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(SSQC) || defined(MENU)\n");
-					break;
-				case H2|CS|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(MENU)\n");
-					break;
-				case H2|QW|CS|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
-					break;
-				case H2|NQ|CS|MENU:
-					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
-					break;
-				case ALL:
-					VFS_PRINTF(f, "#if 1\n");
-					break;
-				default:
-					VFS_PRINTF(f, "#if 0 //???\n");
-					break;
-				}
-			}
-		}
+		if (BuiltinList[i].obsolete)
+			VFS_PRINTF(f, "//");
+		PR_DumpPlatform_SymbolType(f, symtab, BuiltinList[i].prototype, BuiltinList[i].name);
 		if (idx)
-			VFS_PRINTF(f, "%s%s %s = #%u;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
+			VFS_PRINTF(f, "%s = #%u;", BuiltinList[i].name, idx);
 		else
-			VFS_PRINTF(f, "%s%s %s = #%u:%s;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx, BuiltinList[i].name);
+			VFS_PRINTF(f, "%s = #%u:%s;", BuiltinList[i].name, idx, BuiltinList[i].name);
 		nd = 0;
 		for (j = 0; j < QSG_Extensions_count; j++)
 		{
@@ -13436,14 +13658,13 @@ void PR_DumpPlatform_f(void)
 		else
 			VFS_PRINTF(f, "\n");
 	}
-	if (d != (ALL & ~targ))
-		VFS_PRINTF(f, "#endif\n");
+	PR_DumpPlatform_GenIfdef(f, targ, ALL, &d);
 
 #if defined(CSQC_DAT) || defined(MENU_DAT)
 	if (targ & (CS|MENU))
 	{
 		VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
-		Key_PrintQCDefines(f);
+		Key_PrintQCDefines(f, defines);
 		VFS_PRINTF(f, "#endif\n");
 	}
 #endif

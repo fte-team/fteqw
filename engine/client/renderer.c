@@ -291,7 +291,7 @@ cvar_t scr_fov_viewmodel					= CVARFD("r_viewmodel_fov", "", CVAR_ARCHIVE,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
 cvar_t scr_showpause						= CVAR  ("showpause", "1");
-cvar_t scr_showturtle						= CVAR  ("showturtle", "0");
+cvar_t scr_showturtle						= CVARD  ("showturtle", "0", "Enables a low-framerate indicator.");
 cvar_t scr_turtlefps						= CVAR  ("scr_turtlefps", "10");
 cvar_t scr_sshot_compression				= CVAR  ("scr_sshot_compression", "75");
 cvar_t scr_sshot_type						= CVARD  ("scr_sshot_type", "png", "This specifies the default extension(and thus file format) for screenshots.\nKnown extensions are: png, jpg/jpeg, bmp, pcx, tga, ktx, dds.");

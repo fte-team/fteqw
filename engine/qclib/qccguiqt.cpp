@@ -2510,22 +2510,28 @@ static bool DebuggerSendCommand(const char *msg, ...)
 	va_end(va);
 	return true;
 }
+extern "C" pbool QCC_PR_SimpleGetToken (void);
 static void DebuggerStart(void)
 {
 	DebuggerStop();
 
 	const char *engine = enginebinary;
-	const char *cmdline = enginecommandline;
+	char *cmdline = enginecommandline;
 	if (!*enginebinary)
 	{
 		engine = "fteqw";
 		if(!*cmdline)
-			cmdline = "-window";
+			cmdline = (char*)"-window";
 	}
 	qcdebugger = new QProcess(mainwnd);
 	qcdebugger->setProgram(engine);
 	qcdebugger->setWorkingDirectory(enginebasedir);
-	qcdebugger->setArguments(QStringList(cmdline));
+
+	QStringList args;
+	pr_file_p = cmdline;
+	while (QCC_PR_SimpleGetToken())
+		args.append(pr_token);
+	qcdebugger->setArguments(args);
 
 	QObject::connect(qcdebugger, static_cast<void(QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
 		[=](int exitcode,QProcess::ExitStatus status)

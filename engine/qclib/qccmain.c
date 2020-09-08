@@ -27,11 +27,8 @@ extern int optres_test2;
 pbool writeasm;
 pbool verbose;
 #define VERBOSE_STANDARD 1
-#define VERBOSE_FILELIST 2
-#define VERBOSE_FIELDLIST 2
-#define VERBOSE_AUTOCVARLIST 2
-#define VERBOSE_DEBUG 3
-#define VERBOSE_DEBUGSTATEMENTS 4	//figuring out the files can be expensive.
+#define VERBOSE_DEBUG 2
+#define VERBOSE_DEBUGSTATEMENTS 3	//figuring out the files can be expensive.
 pbool qcc_nopragmaoptimise;
 pbool opt_stripunusedfields;
 extern unsigned int locals_marshalled;
@@ -139,6 +136,11 @@ int maxtypeinfos;
 
 pbool preprocessonly;
 
+static pbool flag_dumpfilenames;
+static pbool flag_dumpfields;
+static pbool flag_dumpsymbols;
+static pbool flag_dumpautocvars;
+
 
 struct {
 	char *name;
@@ -227,6 +229,9 @@ struct {
 	{" F326", WARN_DEPRECATEDVARIABLE},
 	{" F327", WARN_ENUMFLAGS_NOTINTEGER},
 	{" F328", WARN_DEPRECACTEDSYNTAX},
+	{" F329", WARN_REDECLARATIONMISMATCH},
+	{" F330", WARN_MUTEDEPRECATEDVARIABLE},
+	{" F331", WARN_SELFNOTTHIS},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -249,6 +254,7 @@ struct {
 
 	//we can put longer alternative names here...
 	{" field-redeclared", WARN_REMOVEDWARNING},
+	{" deprecated", WARN_DEPRECATEDVARIABLE},
 
 	{NULL}
 };
@@ -308,6 +314,7 @@ optimisations_t optimisations[] =
 };
 
 #define defaultkeyword		FLAG_HIDDENINGUI|FLAG_ASDEFAULT|FLAG_MIDCOMPILE
+#define typekeyword			FLAG_HIDDENINGUI|FLAG_ASDEFAULT
 #define nondefaultkeyword	FLAG_HIDDENINGUI|0|FLAG_MIDCOMPILE
 #define hideflag			FLAG_HIDDENINGUI|FLAG_MIDCOMPILE
 #define defaultflag			FLAG_ASDEFAULT|FLAG_MIDCOMPILE
@@ -330,8 +337,8 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_float,		defaultkeyword, "float",		"Keyword: float",		"Disables the 'float' keyword. (Disables the float keyword without 'local' preceeding it)"},
 	{&keyword_for,			defaultkeyword, "for",			"Keyword: for",			"Disables the 'for' keyword. Syntax: for(assignment; while; increment) {codeblock;}"},
 	{&keyword_goto,			defaultkeyword, "goto",			"Keyword: goto",		"Disables the 'goto' keyword."},
-	{&keyword_int,			defaultkeyword, "int",			"Keyword: int",			"Disables the 'int' keyword."},
-	{&keyword_integer,		defaultkeyword, "integer",		"Keyword: integer",		"Disables the 'integer' keyword."},
+	{&keyword_int,			typekeyword,	"int",			"Keyword: int",			"Disables the 'int' keyword."},
+	{&keyword_integer,		typekeyword,	"integer",		"Keyword: integer",		"Disables the 'integer' keyword."},
 	{&keyword_noref,		defaultkeyword, "noref",		"Keyword: noref",		"Disables the 'noref' keyword."},	//nowhere else references this, don't warn about it.
 	{&keyword_unused,		nondefaultkeyword, "unused",	"Keyword: unused",		"Disables the 'unused' keyword. 'unused' means that the variable is unused, you're aware that its unused, and you'd rather not know about all the warnings this results in."},
 	{&keyword_used,			nondefaultkeyword, "used",		"Keyword: used",		"Disables the 'used' keyword. 'used' means that the variable is used even if the qcc can't see how - thus preventing it from ever being stripped."},
@@ -359,6 +366,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_wrap,			defaultkeyword, "wrap",			"Keyword: wrap",		"Disables the 'wrap' keyword."},
 	{&keyword_weak,			defaultkeyword, "weak",			"Keyword: weak",		"Disables the 'weak' keyword."},
 	{&keyword_accumulate,	nondefaultkeyword,"accumulate",	"Keyword: accumulate",	"Disables the 'accumulate' keyword."},
+	{&keyword_using,		nondefaultkeyword,"using",		"Keyword: using",		"Disables the 'using' keyword."},
 
 	//options
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows | for linebreaks. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
@@ -400,6 +408,10 @@ compiler_flag_t compiler_flag[] = {
 
 	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file. The resulting .dat can be opened as a standard zip archive (or by fteqccgui).\nGood for GPL compliance!"},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
+	{&flag_dumpfilenames,	FLAG_MIDCOMPILE,"dumpfilenames","Write a .lst file",	"Writes a .lst file which contains a list of all file names that we can detect from the qc. This file list can then be passed into external compression tools."},
+	{&flag_dumpfields,		FLAG_MIDCOMPILE,"dumpfields",	"Write a .fld file",	"Writes a .fld file that shows which fields are defined, along with their offsets etc, for weird debugging."},
+	{&flag_dumpsymbols,		FLAG_MIDCOMPILE,"dumpsymbols",	"Write a .sym file",	"Writes a .sym file alongside the dat which contains a list of all global symbols defined in the code (before stripping)"},
+	{&flag_dumpautocvars,	FLAG_MIDCOMPILE,"dumpautocvars","Write a .cfg file",	"Writes a .cfg file that contains a default value for each autocvar listed in the code"},
 	{NULL}
 };
 
@@ -617,20 +629,52 @@ static void QCC_SortFields (void)
 	}
 }
 
-static void QCC_PrintFields (void)
+static void QCC_DumpFields (const char *outputname)
 {
+	char line[1024];
 	extern char *basictypenames[];
 	int		i;
 	QCC_ddef_t	*d;
+	int h;
 
-	externs->Printf("Fields Listing:\n");
-
-	for (i=0 ; i<numfielddefs ; i++)
+	snprintf(line, sizeof(line), "%s.fld", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
 	{
-		d = &fields[i];
-		externs->Printf ("%5i : (%s) %s\n", d->ofs, basictypenames[d->type], strings + d->s_name);
+		for (i=0 ; i<numfielddefs ; i++)
+		{
+			d = &fields[i];
+			snprintf(line, sizeof(line), "%5i : (%s) %s\n", d->ofs, basictypenames[d->type], strings + d->s_name);
+		}
+
+		SafeClose(h);
 	}
 }
+
+static void QCC_DumpSymbols (const char *outputname)
+{
+	char line[1024];
+	QCC_def_t *def;
+	int h;
+
+	snprintf(line, sizeof(line), "%s.sym", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
+	{
+		for (def = pr.def_head.next ; def ; def = def->next)
+		{
+			if ((def->scope && !def->isstatic) || !strcmp(def->name, "IMMEDIATE"))
+				continue;
+			if (def->symbolheader != def && def->symbolheader->type != def->type)
+				continue;	//try to exclude vector components.
+
+			snprintf(line, sizeof(line), "%s\n", def->name);
+			SafeWrite(h, line, strlen(line));
+		}
+		SafeClose(h);
+	}
+}
+
 /*
 static void QCC_PrintGlobals (void)
 {
@@ -646,53 +690,58 @@ static void QCC_PrintGlobals (void)
 	}
 }*/
 
-static void QCC_PrintAutoCvars (void)
+static void QCC_DumpAutoCvars (const char *outputname)
 {
-	int		i;
+	char line[1024];
+	int		i, h;
 	QCC_ddef_t	*d;
 	char *n;
 
-	externs->Printf("Auto Cvars:\n");
-	for (i=0 ; i<numglobaldefs ; i++)
+	snprintf(line, sizeof(line), "%s.cfg", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
 	{
-		d = &qcc_globals[i];
-		n = strings + d->s_name;
-		if (!strncmp(n, "autocvar_", 9))
+		for (i=0 ; i<numglobaldefs ; i++)
 		{
-			char *desc;
-			QCC_eval_t *val = &qcc_pr_globals[d->ofs];
-			QCC_def_t *def = QCC_PR_GetDef(NULL, n, NULL, false, 0, 0);
-			n += 9;
-
-			if (def->comment)
-				desc = def->comment;
-			else
-				desc = NULL;
-
-			switch(d->type & ~(DEF_SAVEGLOBAL|DEF_SHARED))
+			d = &qcc_globals[i];
+			n = strings + d->s_name;
+			if (!strncmp(n, "autocvar_", 9))
 			{
-			case ev_float:
-				externs->Printf ("set %s\t%g%s%s\n",				n, val->_float,										desc?"\t//":"", desc?desc:"");
-				break;
-			case ev_vector:
-				externs->Printf ("set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
-				break;
-			case ev_integer:
-				externs->Printf ("set %s\t%"pPRIi"%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
-				break;
-			case ev_string:
-				externs->Printf ("set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
-				break;
-			default:
-				externs->Printf ("//set %s\t ?%s%s\n",			n,													desc?"\t//":"", desc?desc:"");
-				break;
+				char *desc;
+				QCC_eval_t *val = &qcc_pr_globals[d->ofs];
+				QCC_def_t *def = QCC_PR_GetDef(NULL, n, NULL, false, 0, 0);
+				n += 9;
+
+				if (def->comment)
+					desc = def->comment;
+				else
+					desc = NULL;
+
+				switch(d->type & ~(DEF_SAVEGLOBAL|DEF_SHARED))
+				{
+				case ev_float:
+					snprintf(line, sizeof(line), "set %s\t%g%s%s\n",				n, val->_float,										desc?"\t//":"", desc?desc:"");
+					break;
+				case ev_vector:
+					snprintf(line, sizeof(line), "set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
+					break;
+				case ev_integer:
+					snprintf(line, sizeof(line), "set %s\t%"pPRIi"%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
+					break;
+				case ev_string:
+					snprintf(line, sizeof(line), "set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
+					break;
+				default:
+					snprintf(line, sizeof(line), "//set %s\t ?%s%s\n",			n,													desc?"\t//":"", desc?desc:"");
+					break;
+				}
+				SafeWrite(h, line, strlen(line));
 			}
 		}
 	}
-	externs->Printf("\n");
 }
 
-static void QCC_PrintFiles (void)
+static void QCC_DumpFiles (const char *outputname)
 {
 	struct
 	{
@@ -1351,7 +1400,7 @@ static const char *QCC_FunctionForStatement(int st)
 }
 
 
-
+static void QCC_PR_CRCMessages(unsigned short crc);
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
 static pbool QCC_WriteData (int crc)
 {
@@ -1415,6 +1464,7 @@ static pbool QCC_WriteData (int crc)
 	if (i < numstatements)
 		bigjumps = QCC_FunctionForStatement(i);
 
+	QCC_PR_CRCMessages(crc);
 	switch (qcc_targetformat)
 	{
 	case QCF_HEXEN2:
@@ -2196,14 +2246,16 @@ strofs = (strofs+3)&~3;
 	else
 		SafeWrite (h, funcdata, funcdatasize);
 
-	if (verbose >= VERBOSE_FILELIST)
-		QCC_PrintFiles();
+	if (flag_dumpfilenames)
+		QCC_DumpFiles(destfile);
 
-	if (verbose >= VERBOSE_FIELDLIST)
-		QCC_PrintFields();
+	if (flag_dumpfields)
+		QCC_DumpFields(destfile);
 
-	if (verbose >= VERBOSE_AUTOCVARLIST)
-		QCC_PrintAutoCvars();
+	if (flag_dumpsymbols)
+		QCC_DumpSymbols(destfile);
+	if (flag_dumpautocvars)
+		QCC_DumpAutoCvars(destfile);
 
 	switch(outputsttype)
 	{
@@ -3490,6 +3542,64 @@ static void Add_CrcOnly(char *p, unsigned short *crc, char *file)
 }
 #define EAT_CRC(p) Add_CrcOnly(p, &crc, file)
 
+static void QCC_PR_CRCMessages(unsigned short crc)
+{
+	switch (crc)
+	{
+	case 12923:	//#pragma sourcefile usage
+		break;
+	case 54730:
+		if (verbose)
+			externs->Printf("Recognised progs as QuakeWorld\n");
+		break;
+	case 5927:
+		if (verbose)
+			externs->Printf("Recognised progs as NetQuake server gamecode\n");
+		break;
+
+	case 26940:
+		if (verbose)
+			externs->Printf("Recognised progs as Quake pre-release...\n");
+		break;
+
+	case 38488:
+		if (verbose)
+			externs->Printf("Recognised progs as original Hexen2\n");
+		break;
+	case 26905:
+		if (verbose)
+			externs->Printf("Recognised progs as Hexen2 Mission Pack\n");
+		break;
+	case 14046:
+		if (verbose)
+			externs->Printf("Recognised progs as Hexen2 (demo)\n");
+		break;
+
+	case 22390: //EXT_CSQC_1
+		if (verbose)
+			externs->Printf("Recognised progs as an EXT_CSQC_1 module\n");
+		break;
+	case 17105:
+	case 32199:	//outdated ext_csqc
+		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module\n");
+		break;
+	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
+		externs->Printf("Recognised progs as DP-specific CSQC module\n");
+		break;
+	case 10020:
+		if (verbose)
+			externs->Printf("Recognised progs as a MenuQC module\n");
+		break;
+
+	case 32401:
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.\n");
+		break;
+	default:
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones, probably buggy (sys)defs.qc\n");
+		break;
+	}
+}
+
 static unsigned short QCC_PR_WriteProgdefs (char *filename)
 {
 #define ADD_ONLY(p) QC_strlcat(file, p, sizeof(file))	//no crc (later changes)
@@ -3637,62 +3747,6 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 
 	if (ForcedCRC)
 		crc = ForcedCRC;
-
-	switch (crc)
-	{
-	case 12923:	//#pragma sourcefile usage
-		break;
-	case 54730:
-		if (verbose)
-			externs->Printf("Recognised progs as QuakeWorld\n");
-		break;
-	case 5927:
-		if (verbose)
-			externs->Printf("Recognised progs as NetQuake server gamecode\n");
-		break;
-
-	case 26940:
-		if (verbose)
-			externs->Printf("Recognised progs as Quake pre-release...\n");
-		break;
-
-	case 38488:
-		if (verbose)
-			externs->Printf("Recognised progs as original Hexen2\n");
-		break;
-	case 26905:
-		if (verbose)
-			externs->Printf("Recognised progs as Hexen2 Mission Pack\n");
-		break;
-	case 14046:
-		if (verbose)
-			externs->Printf("Recognised progs as Hexen2 (demo)\n");
-		break;
-
-	case 22390: //EXT_CSQC_1
-		if (verbose)
-			externs->Printf("Recognised progs as an EXT_CSQC_1 module\n");
-		break;
-	case 17105:
-	case 32199:	//outdated ext_csqc
-		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module\n");
-		break;
-	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
-		externs->Printf("Recognised progs as DP-specific CSQC module\n");
-		break;
-	case 10020:
-		if (verbose)
-			externs->Printf("Recognised progs as a DP/FTE Menu module\n");
-		break;
-
-	case 32401:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.\n");
-		break;
-	default:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones, probably buggy (sys)defs.qc\n");
-		break;
-	}
-
 
 	return crc;
 }
@@ -4428,9 +4482,10 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 							break;
 
 						//these warnings require -Wextra to enable, as they're too annoying to have to fix
-						case WARN_NOTREFERENCEDCONST:	//warning about every single constant is annoying as heck. note that this includes both stuff like MOVETYPE_ and builtins.
-						case WARN_EXTRAPRECACHE:		//we can't guarentee that we can parse this correctly. this warning is thus a common false positive. its available with -Wextra, and there's intrinsics to reduce false positives.
-						case WARN_FTE_SPECIFIC:			//kinda annoying when its actually valid code.
+						case WARN_NOTREFERENCEDCONST:		//warning about every single constant is annoying as heck. note that this includes both stuff like MOVETYPE_ and builtins.
+						case WARN_EXTRAPRECACHE:			//we can't guarentee that we can parse this correctly. this warning is thus a common false positive. its available with -Wextra, and there's intrinsics to reduce false positives.
+						case WARN_FTE_SPECIFIC:				//kinda annoying when its actually valid code.
+						case WARN_MUTEDEPRECATEDVARIABLE:	//these were explicitly muted by the user using checkbuiltin/etc to mute specific symbols.
 							break;
 
 						default:
@@ -4490,8 +4545,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				p = QCC_WarningForName(a);
 				if (p >= 0)
 					qccwarningaction[p] = action;
-
-				if (p < 0)
+				else
 					QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised warning parameter (%s)", myargv[i]);
 			}
 		}
@@ -4622,21 +4676,22 @@ static void QCC_SetDefaultProperties (void)
 		qccwarningaction[i] = WA_ERROR;
 
 	//play with default warnings.
-	qccwarningaction[WARN_NOTREFERENCEDCONST]	= WA_IGNORE;
-	qccwarningaction[WARN_MACROINSTRING]		= WA_IGNORE;
-//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT]	= WA_IGNORE;
-	qccwarningaction[WARN_EXTRAPRECACHE]		= WA_IGNORE;
-	qccwarningaction[WARN_DEADCODE]				= WA_IGNORE;
-	qccwarningaction[WARN_FTE_SPECIFIC]			= WA_IGNORE;
-	qccwarningaction[WARN_EXTENSION_USED]		= WA_IGNORE;
-	qccwarningaction[WARN_IFSTRING_USED]		= WA_IGNORE;
-	qccwarningaction[WARN_CORRECTEDRETURNTYPE]	= WA_IGNORE;
-	qccwarningaction[WARN_NOTUTF8]				= WA_IGNORE;
-	qccwarningaction[WARN_UNINITIALIZED]		= WA_IGNORE;	//not sure about this being ignored by default.
-	qccwarningaction[WARN_SELFNOTTHIS]			= WA_IGNORE;
-	qccwarningaction[WARN_EVILPREPROCESSOR]		= WA_ERROR;		//evil people do evil things. evil must be thwarted!
-	qccwarningaction[WARN_IDENTICALPRECOMPILER]	= WA_IGNORE;
-	qccwarningaction[WARN_DENORMAL]				= WA_ERROR;		//DAZ provides a speedup on modern machines, so any engine compiled for sse2+ will have problems with denormals, so make their use look serious.
+	qccwarningaction[WARN_NOTREFERENCEDCONST]		= WA_IGNORE;
+	qccwarningaction[WARN_MACROINSTRING]			= WA_IGNORE;
+//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT]		= WA_IGNORE;
+	qccwarningaction[WARN_EXTRAPRECACHE]			= WA_IGNORE;
+	qccwarningaction[WARN_DEADCODE]					= WA_IGNORE;
+	qccwarningaction[WARN_FTE_SPECIFIC]				= WA_IGNORE;
+	qccwarningaction[WARN_MUTEDEPRECATEDVARIABLE]	= WA_IGNORE;
+	qccwarningaction[WARN_EXTENSION_USED]			= WA_IGNORE;
+	qccwarningaction[WARN_IFSTRING_USED]			= WA_IGNORE;
+	qccwarningaction[WARN_CORRECTEDRETURNTYPE]		= WA_IGNORE;
+	qccwarningaction[WARN_NOTUTF8]					= WA_IGNORE;
+	qccwarningaction[WARN_UNINITIALIZED]			= WA_IGNORE;	//not sure about this being ignored by default.
+	qccwarningaction[WARN_SELFNOTTHIS]				= WA_IGNORE;
+	qccwarningaction[WARN_EVILPREPROCESSOR]			= WA_ERROR;		//evil people do evil things. evil must be thwarted!
+	qccwarningaction[WARN_IDENTICALPRECOMPILER]		= WA_IGNORE;
+	qccwarningaction[WARN_DENORMAL]					= WA_ERROR;		//DAZ provides a speedup on modern machines, so any engine compiled for sse2+ will have problems with denormals, so make their use look serious.
 
 	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2)
 		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;	//hexenc consides these fair game.
@@ -5388,7 +5443,7 @@ void QCC_FinishCompile(void)
 	currentchunk = NULL;
 
 	if (setjmp(pr_parse_abort))
-		QCC_Error(ERR_INTERNAL, "");
+		QCC_Error(ERR_INTERNAL, "%s", "");
 
 	s_filen = "";
 	s_filed = 0;

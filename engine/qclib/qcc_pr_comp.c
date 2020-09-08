@@ -106,6 +106,7 @@ pbool keyword_union;	//you surly know what a union is!
 pbool keyword_weak;
 pbool keyword_wrap;
 pbool keyword_accumulate;
+pbool keyword_using;
 
 #define keyword_not			1	//hexenc support needs this, and fteqcc can optimise without it, but it adds an extra token after the if, so it can cause no namespace conflicts
 
@@ -236,6 +237,7 @@ QCC_statement_t *QCC_Generate_OP_GOTO(void);
 QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage);
 static QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, unsigned int *pif_flags);
 static void QCC_StoreToSRef(QCC_sref_t dest, QCC_sref_t source, QCC_type_t *type, pbool preservesource, pbool preservedest);
+void QCC_PR_ParseStatement (void);
 
 //NOTE: prints may use from the func argument's symbol, which can be awkward if its a temp.
 QCC_sref_t	QCC_PR_GenerateFunctionCallSref (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t *arglist, int argcount);
@@ -282,6 +284,7 @@ QCC_type_t		*pr_classtype;	// the class that the current function is part of.
 QCC_type_t		*pr_assumetermtype;	//undefined things get this time, with no warning about being undeclared (used for the state function, so prototypes are not needed)
 QCC_function_t	*pr_assumetermscope;
 unsigned int	pr_assumetermflags; //GDF_
+pbool			pr_ignoredeprecation;
 pbool	pr_dumpasm;
 const char		*s_filen;
 QCC_string_t	s_filed;			// filename for function definition
@@ -739,6 +742,8 @@ QCC_opcode_t pr_opcodes[] =
 
  {7, "%", "MOD_F",	PC_MULDIV, ASSOC_LEFT,						&type_float,	&type_float,	&type_float,	OPF_STD},
  {7, "%", "MOD_I",	PC_MULDIV, ASSOC_LEFT,						&type_integer,	&type_integer,	&type_integer,	OPF_STD},
+ {7, "%", "MOD_FI",	PC_MULDIV, ASSOC_LEFT,						&type_float,	&type_integer,	&type_integer,	OPF_STD},
+ {7, "%", "MOD_IF",	PC_MULDIV, ASSOC_LEFT,						&type_integer,	&type_float,	&type_integer,	OPF_STD},
  {7, "%", "MOD_V",	PC_MULDIV, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector,	OPF_STD},
 
  {7, "^", "BITXOR_F",	PC_BITXOR, ASSOC_LEFT,					&type_float,	&type_float,	&type_float,	OPF_STD},
@@ -763,6 +768,9 @@ QCC_opcode_t pr_opcodes[] =
  {7, "^", "BITXOR_V",	PC_BITXOR, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector,	OPF_STD},
 
  {7, "*^", "POW_F",		PC_MULDIV, ASSOC_LEFT,					&type_float,	&type_float,	&type_float,	OPF_STD},
+ {7, "*^", "POW_I",		PC_MULDIV, ASSOC_LEFT,					&type_integer,	&type_integer,	&type_integer,	OPF_STD},
+ {7, "*^", "POW_FI",	PC_MULDIV, ASSOC_LEFT,					&type_float,	&type_integer,	&type_float,	OPF_STD},
+ {7, "*^", "POW_IF",	PC_MULDIV, ASSOC_LEFT,					&type_integer,	&type_float,	&type_float,	OPF_STD},
  {7, "><", "CROSS_V",	PC_MULDIV, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector,	OPF_STD},
 
  {7, "==", "EQ_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float,	OPF_STD},
@@ -3417,6 +3425,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	if (!QCC_OPCodeValid(op) && !(flags&STFL_NOEMULATE))
 	{
+#define QCC_PR_EmulationFunc(n) QCC_PR_GetSRef(NULL, #n, pr_scope, false, 0, 0)
 		QCC_sref_t tmp;
 //FIXME: add support for flags so we don't corrupt temps
 		switch(op - pr_opcodes)
@@ -3428,7 +3437,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 
 		case OP_ADD_SF:
-			var_c = QCC_PR_GetSRef(NULL, "AddStringFloat", NULL, false, 0, 0);
+			var_c = QCC_PR_EmulationFunc(AddStringFloat);
 			if (var_c.cast)
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, var_c, var_a, type_string, var_b, type_float);
 			else
@@ -3453,7 +3462,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			else
 			{
 				QCC_PR_ParseWarning(WARN_DENORMAL, "OP_ADD_EF: denormals are unsafe");
-				var_c = QCC_PR_GetSRef(NULL, "nextent", NULL, false, 0, false);
+				var_c = QCC_PR_EmulationFunc(nextent);
 				if (!var_c.cast)
 					QCC_PR_ParseError(0, "the nextent builtin is not defined");
 				var_c = QCC_PR_GenerateFunctionCall1 (nullsref, var_c, QCC_MakeIntConst(0), type_entity);
@@ -3471,7 +3480,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				QCC_PR_ParseWarning(0, "qccx entity offsets are unsafe");	
 			else
 			{
-				var_c = QCC_PR_GetSRef(NULL, "nextent", NULL, false, 0, false);
+				var_c = QCC_PR_EmulationFunc(nextent);
 				if (!var_c.cast)
 					QCC_PR_ParseError(0, "the nextent builtin is not defined");
 				var_c = QCC_PR_GenerateFunctionCall1 (nullsref, var_c, QCC_MakeIntConst(0), type_entity);
@@ -3538,7 +3547,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_BITAND_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "BitandInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(BitandInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "BitandInt function not defined: cannot emulate int&int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
@@ -3548,7 +3557,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 		case OP_BITOR_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "BitorInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(BitorInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "BitorInt function not defined: cannot emulate int|int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
@@ -3574,7 +3583,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			return var_c;
 		case OP_ADD_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "AddInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(AddInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "AddInt function not defined: cannot emulate int+int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
@@ -3582,19 +3591,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				return var_c;
 			}
 			break;
-		case OP_MOD_I:
-			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "ModInt", NULL, false, 0, 0);
-				if (!fnc.cast)
-					QCC_PR_ParseError(0, "ModInt function not defined: cannot emulate int%%int");
-				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
-				var_c.cast = type_integer;
-				return var_c;
-			}
-			break;
 		case OP_MOD_F:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "mod", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(mod);
 				if (!fnc.cast)
 				{
 					//a - (n * floor(a/n));
@@ -3611,9 +3610,68 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				return var_c;
 			}
 			break;
+		case OP_MOD_I:
+			{
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(ModInt);
+				if (!fnc.cast)
+				{
+					//a - (n * floor(a/n));
+					//(except using v|v instead of floor)
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], var_a, var_b, NULL, STFL_CONVERTA|STFL_CONVERTB|STFL_PRESERVEA|STFL_PRESERVEB);
+					//var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_I], var_c, var_c, NULL, STFL_PRESERVEA);
+					var_c = QCC_PR_Statement(&pr_opcodes[OP_MUL_I], var_b, var_c, NULL);
+					return QCC_PR_Statement(&pr_opcodes[OP_SUB_I], var_a, var_c, NULL);
+
+//					QCC_PR_ParseError(0, "mod function not defined: cannot emulate int%%int");
+				}
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
+				var_c.cast = type_integer;
+				return var_c;
+			}
+			break;
+		case OP_MOD_FI:
+			{
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(mod);
+				if (!fnc.cast)
+				{
+					//a - (n * floor(a/n));
+					//(except using v|v instead of floor)
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_FI], var_a, var_b, NULL, STFL_CONVERTA|STFL_CONVERTB|STFL_PRESERVEA|STFL_PRESERVEB);
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_c, var_c, NULL, STFL_PRESERVEA);
+					var_c = QCC_PR_Statement(&pr_opcodes[OP_MUL_IF], var_b, var_c, NULL);
+					return QCC_PR_Statement(&pr_opcodes[OP_SUB_F], var_a, var_c, NULL);
+
+//					QCC_PR_ParseError(0, "mod function not defined: cannot emulate float%%int");
+				}
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+				var_c.cast = type_float;
+				return var_c;
+			}
+			break;
+		case OP_MOD_IF:
+			{
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(mod);
+				if (!fnc.cast)
+				{
+					//a - (n * floor(a/n));
+					//(except using v|v instead of floor)
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_IF], var_a, var_b, NULL, STFL_CONVERTA|STFL_CONVERTB|STFL_PRESERVEA|STFL_PRESERVEB);
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_c, var_c, NULL, STFL_PRESERVEA);
+					var_c = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], var_b, var_c, NULL);
+					return QCC_PR_Statement(&pr_opcodes[OP_SUB_IF], var_a, var_c, NULL);
+
+//					QCC_PR_ParseError(0, "mod function not defined: cannot emulate int%%float");
+				}
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_a, nullsref, NULL, flags&STFL_PRESERVEA);
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+				var_c.cast = type_float;
+				return var_c;
+			}
+			break;
 		case OP_MOD_V:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "ModVec", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(ModVec);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "ModVec function not defined: cannot emulate vector%%vector");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_vector, var_b, type_vector);
@@ -3623,7 +3681,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 		case OP_SUB_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "SubInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(SubInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "SubInt function not defined: cannot emulate int-int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
@@ -3633,7 +3691,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 		case OP_MUL_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "MulInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(MulInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "MulInt function not defined: cannot emulate int*int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
@@ -3643,7 +3701,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 		case OP_DIV_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "DivInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(DivInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "DivInt function not defined: cannot emulate int/int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_integer, var_b, type_integer);
@@ -3661,9 +3719,43 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_POW_F:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(pow);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "pow function not defined: cannot emulate float*^float");
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+				var_c.cast = type_float;
+				return var_c;
+			}
+			break;
+		case OP_POW_I:
+			{
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(pow);
+				if (!fnc.cast)
+					QCC_PR_ParseError(0, "pow function not defined: cannot emulate float*^float");
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_a, nullsref, NULL, flags&STFL_PRESERVEA);
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+				var_c.cast = type_float;
+				return var_c;
+			}
+			break;
+		case OP_POW_FI:
+			{
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(pow);
+				if (!fnc.cast)
+					QCC_PR_ParseError(0, "pow function not defined: cannot emulate float*^int");
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+				var_c.cast = type_float;
+				return var_c;
+			}
+			break;
+		case OP_POW_IF:
+			{
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(pow);
+				if (!fnc.cast)
+					QCC_PR_ParseError(0, "pow function not defined: cannot emulate int*^float");
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_a, nullsref, NULL, flags&STFL_PRESERVEA);
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
 				var_c.cast = type_float;
 				return var_c;
@@ -3698,7 +3790,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				}
 				else
 				{
-					var_c = QCC_PR_GetSRef(NULL, "itof", NULL, false, 0, 0);
+					var_c = QCC_PR_EmulationFunc(itof);
 					if (!var_c.cast)
 					{
 						//with denormals, 5.0 * 1i -> 5i, and 5i / 1i = 5.0
@@ -3724,7 +3816,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				}
 				else
 				{
-					var_c = QCC_PR_GetSRef(NULL, "ftoi", NULL, false, 0, 0);
+					var_c = QCC_PR_EmulationFunc(ftoi);
 					if (!var_c.cast)
 					{
 						//with denormals, 5 * 1i -> 5i
@@ -3754,7 +3846,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_BITXOR_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "BitxorInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(BitxorInt);
 				if (!fnc.cast)
 				{
 					QCC_PR_ParseError(0, "BitxorInt function not defined: cannot emulate int^int");
@@ -3867,7 +3959,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			}
 			else
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "SubInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(SubInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "SubInt function not defined: cannot emulate ~int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeIntConst(~0), type_integer, var_a, type_integer);
@@ -4245,7 +4337,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_LSHIFT_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "LShiftInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(LShiftInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "LShiftInt function not defined: cannot emulate int<<int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeIntConst(~0), type_integer, var_a, type_integer);
@@ -4255,7 +4347,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 		case OP_RSHIFT_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "RShiftInt", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(RShiftInt);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "RShiftInt function not defined: cannot emulate int>>int");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeIntConst(~0), type_integer, var_a, type_integer);
@@ -4275,10 +4367,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			else
 			{
 				QCC_sref_t fnc;
-				fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
+				fnc = QCC_PR_EmulationFunc(pow);
 				if (fnc.cast)
 				{	//a<<b === floor(a*pow(2,b))
-					QCC_sref_t fnc2 = QCC_PR_GetSRef(NULL, "floor", NULL, false, 0, 0);
+					QCC_sref_t fnc2 = QCC_PR_EmulationFunc(floor);
 					if (fnc2.cast)
 					{
 						var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeFloatConst(2), type_float, var_b, type_float);
@@ -4287,7 +4379,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 						return var_c;
 					}
 				}
-				fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
+				fnc = QCC_PR_EmulationFunc(bitshift);
 				if (fnc.cast)
 				{	//warning: DP's implementation of bitshift is fucked, hence why we favour the more expensibe floor+pow above.
 					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
@@ -4307,10 +4399,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			else
 			{
 				QCC_sref_t fnc;
-				fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
+				fnc = QCC_PR_EmulationFunc(pow);
 				if (fnc.cast)
 				{	//a<<b === floor(a/pow(2,b))
-					QCC_sref_t fnc2 = QCC_PR_GetSRef(NULL, "floor", NULL, false, 0, 0);
+					QCC_sref_t fnc2 = QCC_PR_EmulationFunc(floor);
 					if (fnc2.cast)
 					{
 						var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeFloatConst(2), type_float, var_b, type_float);
@@ -4319,7 +4411,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 						return var_c;
 					}
 				}
-				fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
+				fnc = QCC_PR_EmulationFunc(bitshift);
 				if (fnc.cast)
 				{	//warning: DP's implementation of bitshift is fucked, hence why we favour the more expensibe floor+pow above
 					var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_F], QCC_MakeFloatConst(0), var_b, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEB:0);
@@ -4514,7 +4606,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_LOADP_FNC:
 		case OP_LOADP_I:
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "memgetval", NULL, false, 0, 0);
+				QCC_sref_t fnc = QCC_PR_EmulationFunc(memgetval);
 				if (!fnc.cast)
 					QCC_PR_ParseError(0, "memgetval function not defined: cannot emulate OP_LOADP_*");
 				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_pointer, QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0), type_float);
@@ -5023,7 +5115,7 @@ static void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, u
 		{
 		case 0:
 			if (argpos < argcount && argn_last < argcount)
-				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing %s%s%s argument(s) for format %s\"%s\"%s", funcname, col_symbol, TypeName(ARGCTYPE(argpos), temp, sizeof(temp)), col_none, col_name, strings + formatstring->string, col_none);
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: surplus trailing %s%s%s argument(s) for format %s\"%s\"%s", funcname, col_type, TypeName(ARGCTYPE(argpos), temp, sizeof(temp)), col_none, col_name, strings + formatstring->string, col_none);
 			return;
 		case '%':
 			if(*++s == '%')
@@ -5214,7 +5306,7 @@ nolength:
 						break;
 					default:
 						{
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires float at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires float at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 						}
 						break;
 					}
@@ -5229,7 +5321,7 @@ nolength:
 						case ev_variant:
 							break;
 						default:
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires pointer at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires pointer at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 							break;
 						}
 					}
@@ -5245,7 +5337,7 @@ nolength:
 								break;
 							//fallthrough
 						default:
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires int at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires int at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 							break;
 						}
 					}
@@ -5260,12 +5352,12 @@ nolength:
 					case ev_variant:
 						break;
 					default:
-						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires vector at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires vector at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 						break;
 					}
 				}
 				else
-					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires intvector at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires intvector at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 				break;
 			case 's':
 			case 'S':
@@ -5275,7 +5367,7 @@ nolength:
 				case ev_variant:
 					break;
 				default:
-					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires string at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_symbol, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+					QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires string at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
 					break;
 				}
 				break;
@@ -6627,7 +6719,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			func.sym->referenced = true;
 			QCC_FreeTemp(func);
 
-			sz = QCC_PR_Expression(TOP_PRIORITY, 0);
+			sz = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");
 			sz = QCC_SupplyConversion(sz, ev_integer, true);
 			//result = push_words((sz+3)/4);
@@ -6988,7 +7080,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");
 			e = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], e, QCC_MakeIntConst(1), NULL, 0);
-			d = QCC_PR_GetSRef(NULL, "nextent", NULL, false, 0, false);
+			d = QCC_PR_EmulationFunc(nextent);
 			if (!d.cast)
 				QCC_PR_ParseError(0, "the nextent builtin is not defined");
 			QCC_UnFreeTemp(e);
@@ -6999,6 +7091,27 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			return e;
 		}
 	}	//so it's not an intrinsic.
+	else if (!newself.cast && t->num_parms == 1 && t->type == ev_function)
+	{
+		if (!strcmp(funcname, "checkbuiltin"))
+		{
+			pr_ignoredeprecation = true;
+			param[0] = QCC_PR_RefExpression (&parambuf[0], TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			pr_ignoredeprecation = false;
+			QCC_PR_Expect(")");
+
+			if (param[0]->type == REF_GLOBAL && param[0]->cast == param[0]->base.sym->type && !param[0]->base.sym->arraysize)
+			{
+				e.ofs = param[0]->base.ofs;
+				e.cast = param[0]->cast;
+				e.sym = QCC_PR_DummyDef(e.cast, param[0]->base.sym->name, pr_scope, 0, param[0]->base.sym, 0, true, GDF_STRIP);
+				e = QCC_PR_GenerateFunctionCallSref(newself, func, &e, 1);
+			}
+			else
+				e = QCC_PR_GenerateFunctionCallRef(newself, func, param, 1);
+			return e;
+		}
+	}
 
 	if (opt_precache_file)	//should we strip out all precache_file calls?
 	{
@@ -8847,7 +8960,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 			char typeb[256];
 			TypeName(src.cast, typea, sizeof(typea));
 			TypeName(cast, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(WARN_IMPLICITVARIANTCAST, "Implicit cast from %s to %s", typea, typeb);
+			QCC_PR_ParseWarning(WARN_IMPLICITVARIANTCAST, "Implicit cast from %s%s%s to %s%s%s", col_type,typea,col_none, col_type,typeb,col_none);
 		}
 		src = QCC_PR_Statement (&pr_opcodes[OP_MUL_FV], src, QCC_MakeVectorConst(1,1,1), NULL);
 	}
@@ -8869,7 +8982,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 				char typeb[256];
 				TypeName(src.cast, typea, sizeof(typea));
 				TypeName(cast, typeb, sizeof(typeb));
-				QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
+				QCC_PR_ParseWarning(0, "Implicit cast from %s%s%s to %s%s%s", col_type,typea,col_none, col_type,typeb,col_none);
 			}
 		}
 		src.cast = cast;
@@ -8892,7 +9005,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 				char typeb[256];
 				TypeName(src.cast, typea, sizeof(typea));
 				TypeName(cast, typeb, sizeof(typeb));
-				QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
+				QCC_PR_ParseWarning(0, "Implicit cast from %s%s%s to %s%s%s", col_type,typea,col_none, col_type,typeb,col_none);
 			}
 		}
 		src.cast = cast;
@@ -8909,7 +9022,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 			char typeb[256];
 			TypeName(src.cast, typea, sizeof(typea));
 			TypeName(cast, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(WARN_IMPLICITVARIANTCAST, "Implicit cast from %s to %s", typea, typeb);
+			QCC_PR_ParseWarning(WARN_IMPLICITVARIANTCAST, "Implicit cast from %s%s%s to %s%s%s", col_type,typea,col_none, col_type,typeb,col_none);
 		}
 	}
 	/*these casts are acceptable but probably an error (so warn when implicit)*/
@@ -8934,7 +9047,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 			char typeb[256];
 			TypeName(src.cast, typea, sizeof(typea));
 			TypeName(cast, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
+			QCC_PR_ParseWarning(0, "Implicit cast from %s%s%s to %s%s%s", col_type,typea,col_none, col_type,typeb,col_none);
 		}
 		src.cast = cast;
 	}
@@ -8959,7 +9072,7 @@ QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 			char typeb[256];
 			TypeName(src.cast, typea, sizeof(typea));
 			TypeName(cast, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
+			QCC_PR_ParseWarning(0, "Implicit cast from %s%s%s to %s%s%s", col_type,typea,col_none, col_type,typeb,col_none);
 		}
 		src.cast = cast;
 		return src;
@@ -11494,7 +11607,73 @@ static void PR_GenerateReturnOuts(void)
 	}
 }
 
+static void QCC_PR_ParseStatement_Using(void)
+{	//the 'using(...) {}' control statement exists mainly to mute warnings about deprecations within its block.
+	//it does this by basically creating a private alias for each name given in the parenthasis (new=orig to give the alias a different name).
+	QCC_def_t	*d;
 
+	QCC_def_t *subscopestop;
+	QCC_def_t *subscopestart = pr.local_tail;
+	//QCC_type_t *lt = NULL, *type;
+	pbool block = QCC_PR_CheckToken("(");
+	do
+	{
+		/*type = QCC_PR_ParseType (false, true);
+		if (type)
+		{
+			d = QCC_PR_GetDef (type, QCC_PR_ParseName(), pr_scope, true, 0, 0);
+			if (QCC_PR_CheckToken("="))
+				QCC_PR_ParseInitializerDef(d, 0);
+			QCC_FreeDef(d);
+			lt = type;
+		}
+		else*/
+		{	//define an alias of the variable with the same name
+			const char *name = QCC_PR_ParseName();
+
+			QCC_def_t *def = QCC_PR_GetDef (NULL, name, pr_scope, false, 0, 0);
+			if (!def)
+				QCC_PR_ParseError(ERR_NOTDEFINED, "%s is not defined", name);
+			def->referenced = true;
+			if (QCC_PR_CheckToken("="))
+				name = QCC_PR_ParseName();	//they wanted a different name for it.
+			if (def->deprecated)
+			{
+				if (*def->deprecated)	//we have a reason for it
+					QCC_PR_ParseWarning(WARN_MUTEDEPRECATEDVARIABLE, "Variable \"%s\" is deprecated: %s", def->name, def->deprecated);
+				else		//we don't have any reason for it.
+					QCC_PR_ParseWarning(WARN_MUTEDEPRECATEDVARIABLE, "Variable \"%s\" is deprecated", def->name);
+			}
+			def = QCC_PR_DummyDef(def->type, name, pr_scope, def->arraysize, def, 0, true, GDF_STRIP);
+		}
+	} while(QCC_PR_CheckToken(","));
+
+	pr_assumetermtype = NULL;
+	if (block)
+		QCC_PR_Expect(")");
+	else
+	{	//applies to whole rest of scope...
+		QCC_PR_Expect(";");
+		return;
+	}
+
+	subscopestop = pr_subscopedlocals?NULL:pr.local_tail->nextlocal;
+
+	QCC_PR_ParseStatement();	//don't give the hanging ';' warning.
+
+	//remove any new locals from the hashtable.
+	//typically this is just the stuff inside the for(here;;)
+	for (d = subscopestart->nextlocal; d != subscopestop; d = d->nextlocal)
+	{
+		if (!d->subscoped_away)
+		{
+			pHash_RemoveData(&localstable, d->name, d);
+			d->subscoped_away = true;
+		}
+	}
+
+	return;
+}
 
 /*
 ============
@@ -11503,7 +11682,6 @@ QCC_PR_ParseStatement_For
 pulled out of QCC_PR_ParseStatement because of stack use.
 ============
 */
-void QCC_PR_ParseStatement (void);
 static void QCC_PR_ParseStatement_For(void)
 {
 	int continues;
@@ -12407,6 +12585,12 @@ void QCC_PR_ParseStatement (void)
 		//update the jumptable statements to hide as part of the switch itself.
 		while (oldst < numstatements)
 			statements[oldst++].linenum = patch1->linenum;
+		return;
+	}
+
+	if (QCC_PR_CheckKeyword(keyword_using, "using"))
+	{
+		QCC_PR_ParseStatement_Using();
 		return;
 	}
 
@@ -14998,10 +15182,10 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 						def = pHash_GetNext(&localstable, name, def);
 						continue;
 					}
-					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s%s%s. %s%s%s, should be %s%s%s",col_symbol,name,col_none, col_type,TypeName(type, typebuf1, sizeof(typebuf1)),col_none, col_type,TypeName(def->type, typebuf2, sizeof(typebuf2)),col_none);
 				}
 				if (def->arraysize != arraysize && arraysize>=0)
-					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s%s%s do not match",col_symbol,name,col_none);
 				if (allocate && scope && !(flags & GDF_STATIC))
 				{
 					if (pr_subscopedlocals)
@@ -15010,17 +15194,17 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 						continue;
 					}
 					if (allocate == 2)
-						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Duplicate definition of %s.", name);
+						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Duplicate definition of %s%s%s.", col_symbol,name,col_none);
 					if (def->isstatic)
-						QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "nonstatic redeclaration of %s ignored", name);
+						QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "nonstatic redeclaration of %s%s%s ignored", col_symbol,name,col_none);
 					else
-						QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s duplicate definition ignored", name);
+						QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s%s%s duplicate definition ignored", col_symbol,name,col_none);
 					QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
 	//				if (!scope)
 	//					QCC_PR_ParsePrintDef(def);
 				}
 				else if (allocate && (flags & GDF_STATIC) && !def->isstatic)
-					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "static redefinition of %s follows non-static definition.", name);
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "static redefinition of %s%s%s follows non-static definition.", col_symbol,name,col_none);
 
 				QCC_ForceUnFreeDef(def);
 				return def;
@@ -15058,7 +15242,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 				if (allocate)
 				{	//if we're asserting a type for it in some def then it'll no longer be assumed.
 					if (def->type->type != type->type)
-						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. Basic types are different.",name);
+						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s%s%s. Basic types are different.",col_symbol,name,col_none);
 					def->type = type;
 					def->assumedtype = false;
 					def->filen = s_filen;
@@ -15108,7 +15292,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 						else
 						{
 							//unequal even when we're lax
-							QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+							QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s%s%s. %s%s%s, should be %s%s%s",col_symbol,name,col_none, col_type,TypeName(type, typebuf1, sizeof(typebuf1)),col_none, col_type,TypeName(def->type, typebuf2, sizeof(typebuf2)),col_none);
 						}
 					}
 				}
@@ -15118,7 +15302,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 					{
 						//if the second def simply has no ..., don't bother warning about it.
 
-						QCC_PR_ParseWarning (WARN_TYPEMISMATCHREDECOPTIONAL, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+						QCC_PR_ParseWarning (WARN_TYPEMISMATCHREDECOPTIONAL, "Optional arguments differ on redeclaration of %s%s%s. %s%s%s, should be %s%s%s",col_symbol,name,col_none, col_type,TypeName(type, typebuf1, sizeof(typebuf1)),col_none, col_type,TypeName(def->type, typebuf2, sizeof(typebuf2)),col_none);
 						QCC_PR_ParsePrintDef(WARN_TYPEMISMATCHREDECOPTIONAL, def);
 
 						if (type->type == ev_function)
@@ -15192,7 +15376,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 
 	if (scope && qccwarningaction[WARN_SAMENAMEASGLOBAL])
 	{
-		def = QCC_PR_GetDef(NULL, name, NULL, false, arraysize, false);
+		def = QCC_PR_GetDef(NULL, name, NULL, false, arraysize, GDF_SILENT);
 		if (def && def->type->type == type->type)
 		{	//allow type differences. this means that arguments called 'min' or 'mins' are accepted with the 'min' builtin or the 'mins' field in existance.
 			QCC_PR_ParseWarning(WARN_SAMENAMEASGLOBAL, "Local \"%s\" hides global with same name and type", name);
@@ -15220,9 +15404,9 @@ QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, const char *name, QCC_function_t *s
 		if (def->deprecated)
 		{
 			if (*def->deprecated)	//we have a reason for it
-				QCC_PR_ParseWarning(WARN_DEPRECATEDVARIABLE, "Variable \"%s\" is deprecated: %s", def->name, def->deprecated);
+				QCC_PR_ParseWarning(pr_ignoredeprecation?WARN_MUTEDEPRECATEDVARIABLE:WARN_DEPRECATEDVARIABLE, "Variable \"%s\" is deprecated: %s", def->name, def->deprecated);
 			else		//we don't have any reason for it.
-				QCC_PR_ParseWarning(WARN_DEPRECATEDVARIABLE, "Variable \"%s\" is deprecated", def->name);
+				QCC_PR_ParseWarning(pr_ignoredeprecation?WARN_MUTEDEPRECATEDVARIABLE:WARN_DEPRECATEDVARIABLE, "Variable \"%s\" is deprecated", def->name);
 		}
 		return sr;
 	}
@@ -15910,9 +16094,11 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 
 void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags)
 {
+	pr_ignoredeprecation = !!def->deprecated;	//mute deprecation warnings if the symbol we're defining has its own warning.
 	if (QCC_PR_ParseInitializerType(def->arraysize, def, QCC_MakeSRef(def, 0, def->type), flags))
 		if (!def->initialized)
 			def->initialized = 1;
+	pr_ignoredeprecation = false;
 	QCC_FreeDef(def);
 }
 QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type)
@@ -16142,6 +16328,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 	const char *aliasof = NULL;
 
 	pr_assumetermtype = NULL;
+	pr_ignoredeprecation = false;
 
 	while (QCC_PR_CheckToken(";"))
 		fatal = false;
@@ -16385,7 +16572,14 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 			{
 				if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
 				{
-					deprecated = strcpy(qccHunkAlloc(strlen(pr_immediate_string)+1), pr_immediate_string);
+					if (deprecated)
+					{
+						char *n = qccHunkAlloc(strlen(deprecated)+2+strlen(pr_immediate_string)+1);
+						sprintf(n, "%s; %s", deprecated, pr_immediate_string);
+						deprecated = n;
+					}
+					else
+						deprecated = strcpy(qccHunkAlloc(strlen(pr_immediate_string)+1), pr_immediate_string);
 					QCC_PR_Lex();
 				}
 				else
@@ -16862,7 +17056,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 				isconst = (isconstant || (!isvar && !pr_scope));
 			if (isconst != def->constant)
 			{	//we should only be optimising consts if its initialised, so it shouldn't have been read as 0 at any point so far.
-				QCC_PR_ParseWarning(WARN_REDECLARATIONMISMATCH, "Redeclaration of %s would change const.", def->name);
+				QCC_PR_ParseWarning(WARN_REDECLARATIONMISMATCH, "Redeclaration of %s would change to %sconst.", def->name, isconst?"":"non-");
 				QCC_PR_ParsePrintDef(WARN_REDECLARATIONMISMATCH, def);
 //				def->constant = isconst;
 			}
@@ -17027,6 +17221,7 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 
 	pr_file_p = string;
 	pr_assumetermtype = NULL;
+	pr_ignoredeprecation = false;
 
 	pr_source_line = 0;
 

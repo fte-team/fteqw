@@ -450,9 +450,6 @@ unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *progfuncs, struct edict_s *e
 #define G_EDICTNUM(o) NUM_FOR_EDICT(G_EDICT(o))
 #define	G_VECTOR(o) (&pr_globals[o])
 #define	G_STRING(o) (*(string_t *)&pr_globals[o])
-#define G_STRING2(o) ((char*)*(string_t *)&pr_globals[o])
-#define	GQ_STRING(o) (*(QCC_string_t *)&pr_globals[o])
-#define GQ_STRING2(o) ((char*)*(QCC_string_t *)&pr_globals[o])
 #define	G_FUNCTION(o) (*(func_t *)&pr_globals[o])
 #define G_PROG(o) G_FLOAT(o)	//simply so it's nice and easy to change...
 
@@ -461,7 +458,7 @@ unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *progfuncs, struct edict_s *e
 #define	E_FLOAT(e,o) (((float*)&e->v)[o])
 #define	E_INT(e,o) (*(int *)&((float*)&e->v)[o])
 #define	E_VECTOR(e,o) (&((float*)&e->v)[o])
-#define	E_STRING(e,o) (*(string_t *)&((float*)(e+1))[o])
+//#define	E_STRING(e,o) (*(string_t *)&((float*)(e+1))[o])
 
 extern	const unsigned int		type_size[];
 

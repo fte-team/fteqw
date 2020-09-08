@@ -165,7 +165,7 @@ int main (int argc, const char **argv)
 		col_warning = "\e[0;33m";		//yellow
 		//col_ = "\e[0;34m";			//blue
 		col_name = "\e[0;35m";			//magenta
-		//col_ = "\e[0;36m";			//cyan
+		col_type = "\e[0;36m";			//cyan
 		col_location = "\e[0;1;37m";	//bright white
 	}
 #else

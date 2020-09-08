@@ -89,7 +89,8 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int
 	char *ptr;
 	int ammount = (srcsize+pad + 4)&~3;	//round up to 4
 	pad = ammount - srcsize;
-	if (prinst.addressableused + ammount > prinst.addressablesize)
+	pad++;	//make sure there's always a null, to allow strings to be a little more lazy.
+	if (prinst.addressableused + ammount >= prinst.addressablesize)
 	{
 		/*only do this if the caller states that it can cope with addressable-block relocations/resizes*/
 		if (externs->addressablerelocated)
@@ -127,7 +128,7 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int
 #endif
 		}
 
-		if (prinst.addressableused + ammount > prinst.addressablesize)
+		if (prinst.addressableused + ammount >= prinst.addressablesize)
 			externs->Sys_Error("Not enough addressable memory for progs VM (using %gmb)", prinst.addressablesize/(1024.0*1024));
 	}
 
@@ -135,7 +136,7 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int
 	progfuncs->funcs.stringtablesize = prinst.addressableused;
 
 #if defined(_WIN32) && !defined(WINRT)
-	if (!VirtualAlloc (prinst.addressablehunk, prinst.addressableused, MEM_COMMIT, PAGE_READWRITE))
+	if (!VirtualAlloc (prinst.addressablehunk, prinst.addressableused+1, MEM_COMMIT, PAGE_READWRITE))
 		externs->Sys_Error("VirtualAlloc failed. Blame windows.");
 #endif
 
@@ -807,14 +808,14 @@ static char *PDECL PR_VarString (pubprogfuncs_t *ppf, int	first)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int		i;
 	static char out[1024];
-	char *s;
-	
+	const char *s;
+
 	out[0] = 0;
 	for (i=first ; i<progfuncs->funcs.callargc ; i++)
 	{
-		if (G_STRING(OFS_PARM0+i*3))
+		s = PR_StringToNative(ppf, G_STRING(OFS_PARM0+i*3));
+		if (s)
 		{
-			s=G_STRING((OFS_PARM0+i*3)) + progfuncs->funcs.stringtable;
 			if (strlen(out) + strlen(s) + 1 >= sizeof(out))
 				return out;
 			strcat (out, s);
@@ -1361,6 +1362,7 @@ static void PR_FreeAllTemps			(progfuncs_t *progfuncs)
 	}
 	prinst.maxtempstrings = 0;
 	prinst.nexttempstring = 0;
+	prinst.livetemps = 0;
 }
 #else
 static string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigned int len)

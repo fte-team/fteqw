@@ -838,7 +838,7 @@ static const char *PR_ParseCast(const char *key, etype_t *t, pbool *isptr)
 	if (*key == '(')
 	{
 		key++;
-		for (type = 0; type < 10; type++)
+		for (type = 0; type <= ev_variant; type++)
 		{
 			if (!strncmp(key, basictypenames[type], strlen(basictypenames[type])))
 			{
@@ -854,7 +854,7 @@ static const char *PR_ParseCast(const char *key, etype_t *t, pbool *isptr)
 				break;
 			}
 		}
-		if (type == 10)
+		if (type > ev_variant)
 			return NULL;
 
 		while(*key == ' ')

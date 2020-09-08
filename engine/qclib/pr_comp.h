@@ -415,6 +415,8 @@ enum qcop_e {
 
 	OP_MOD_F,
 	OP_MOD_I,
+	OP_MOD_FI,
+	OP_MOD_IF,
 	OP_MOD_V,
 
 	OP_BITXOR_F,
@@ -439,6 +441,9 @@ enum qcop_e {
 	OP_BITXOR_V,
 
 	OP_POW_F,
+	OP_POW_I,
+	OP_POW_FI,
+	OP_POW_IF,
 	OP_CROSS_V,
 
 	OP_EQ_FLD,

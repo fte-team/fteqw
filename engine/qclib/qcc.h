@@ -623,6 +623,7 @@ extern pbool keyword_union;	//you surly know what a union is!
 extern pbool keyword_wrap;
 extern pbool keyword_weak;
 extern pbool keyword_accumulate;
+extern pbool keyword_using;
 
 extern pbool keyword_unused;
 extern pbool keyword_used;
@@ -814,6 +815,7 @@ enum {
 	WARN_FORMATSTRING,		//sprintf
 	WARN_DEPRECACTEDSYNTAX,		//triggered when syntax is used that I'm trying to kill
 	WARN_DEPRECATEDVARIABLE,	//triggered from usage of a symbol that someone tried to kill
+	WARN_MUTEDEPRECATEDVARIABLE,	//triggered from usage of a symbol that someone tried to kill (without having been muted).
 	WARN_GMQCC_SPECIFIC,	//extension created by gmqcc that conflicts or isn't properly implemented.
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
@@ -948,6 +950,7 @@ enum
 	COL_LOCATION,	//to highlight file:line locations
 	COL_NAME,		//unknown symbols.
 	COL_SYMBOL,		//known symbols
+	COL_TYPE,		//known types
 	COL_MAX
 };
 extern const char *qcccol[COL_MAX];
@@ -957,6 +960,7 @@ extern const char *qcccol[COL_MAX];
 #define col_name qcccol[COL_NAME]
 #define col_warning qcccol[COL_WARNING]
 #define col_symbol qcccol[COL_SYMBOL]
+#define col_type qcccol[COL_TYPE]
 
 #define FLAG_KILLSDEBUGGERS	1
 #define FLAG_ASDEFAULT		2

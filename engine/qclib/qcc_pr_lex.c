@@ -5407,9 +5407,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			return newt;
 
 		if (pr_scope)
-			QCC_PR_ParseError(ERR_REDECLARATION, "Declaration of class %s within function", classname);
+			QCC_PR_ParseError(ERR_REDECLARATION, "Declaration of class %s%s%s within function", col_type,classname,col_none);
 		if (redeclaration && fieldtype != newt->parentclass)
-			QCC_PR_ParseError(ERR_REDECLARATION, "Parent class changed on redeclaration of %s", classname);
+			QCC_PR_ParseError(ERR_REDECLARATION, "Parent class changed on redeclaration of %s%s%s", col_type,classname,col_none);
 		newt->parentclass = fieldtype;
 
 		if (QCC_PR_CheckToken(","))

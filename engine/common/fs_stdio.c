@@ -49,7 +49,7 @@ static qofs_t QDECL VFSSTDIO_Tell (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 #ifdef __USE_LARGEFILE64
-	idhgr sdrg ser gser greturn (qofs_t)ftello64(intfile->handle);
+	return (qofs_t)ftello64(intfile->handle);
 #elif _POSIX_C_SOURCE >= 200112L
 	return (qofs_t)ftello(intfile->handle);
 #else

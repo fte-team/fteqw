@@ -18,7 +18,9 @@ help:
 
 USEGUI_CFLAGS=
 # set to -DUSEGUI when compiling the GUI
-BASE_CFLAGS=$(USEGUI_CFLAGS)
+WARNING_CFLAGS=-Wno-pointer-sign
+BASE_CFLAGS+=$(WARNING_CFLAGS)
+BASE_CFLAGS+=$(USEGUI_CFLAGS)
 
 ifneq ($(DEBUG),)
 	BASE_CFLAGS+=-ggdb
@@ -47,7 +49,7 @@ win:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win
 
 R_qcc: $(QCC_OBJS) $(COMMON_OBJS) $(TUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 $(BASE_LDFLAGS) -lm $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS) $(BASE_LDFLAGS) -lm
 qcc:
 	$(MAKE) USEGUI_CFLAGS="" R_qcc
 

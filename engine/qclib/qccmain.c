@@ -10,6 +10,8 @@
 
 #include "errno.h"
 
+#define countof(array) (sizeof(array)/sizeof(array[0]))
+
 //#define TODO_READWRITETRACK
 
 //#define DEBUG_DUMP
@@ -57,10 +59,10 @@ int tempsstart;
 
 #define MAXSOURCEFILESLIST 8
 char sourcefileslist[MAXSOURCEFILESLIST][1024];
-QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];
-int sourcefilesnumdefs;
-int currentsourcefile;
-int numsourcefiles;
+QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];	//for the gui to peek at.
+int sourcefilesnumdefs;	//maximum used...
+int currentsourcefile;	//currently compiling file.
+int numsourcefiles;		//count pending.
 extern char *compilingfile;		//file currently being compiled
 char compilingrootfile[1024];	//the .src file we started from (the current one, not original)
 
@@ -232,6 +234,7 @@ struct {
 	{" F329", WARN_REDECLARATIONMISMATCH},
 	{" F330", WARN_MUTEDEPRECATEDVARIABLE},
 	{" F331", WARN_SELFNOTTHIS},
+	{" F332", WARN_DIVISIONBY0},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -989,7 +992,7 @@ static int WriteBodylessFuncs (int handle)
 	int ret=0;
 	for (d=pr.def_head.next ; d ; d=d->next)
 	{
-		if (!d->used || !d->constant)
+		if (!d->used || !d->constant || d->symbolheader != d)
 			continue;
 
 		if (d->type->type == ev_function && !d->scope)// function parms are ok
@@ -1066,7 +1069,12 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 #endif
 
 	if (def->symboldata == qcc_pr_globals + def->ofs)
+	{
+#ifdef DEBUG_DUMP_GLOBALMAP
+		externs->Printf("Prefinalised %s @ %i+%i\n", def->name, def->ofs, ssize);
+#endif
 		return;	//was already finalised.
+	}
 
 	if (def->symbolheader != def)
 	{
@@ -1257,7 +1265,7 @@ static void QCC_UnmarshalLocals(void)
 	//first, finalize all static locals that shouldn't form part of the local defs.
 	for (i=0 ; i<numfunctions ; i++)
 	{
-		if (functions[i].privatelocals)
+//		if (functions[i].privatelocals)
 		{
 			for (d = functions[i].firstlocal; d; d = d->nextlocal)
 				if (d->isstatic || (d->constant && d->initialized))
@@ -2660,7 +2668,7 @@ strofs = (strofs+3)&~3;
 		{
 			char *ext;
 			ext = strrchr(destfile, '.');
-			if (strchr(ext, '/') || strchr(ext, '\\'))
+			if (!ext || strchr(ext, '/') || strchr(ext, '\\'))
 				break;
 			if (!stricmp(ext, ".gz"))
 			{
@@ -3374,7 +3382,7 @@ static int QCC_PR_FinishCompilation (void)
 	{
 		if (d->type->type == ev_field && !d->symboldata)
 			QCC_PR_FinishFieldDef(d);
-		if (d->type->type == ev_function && d->constant)// function parms are ok
+		if (d->type->type == ev_function && d->constant && d->symbolheader == d)// function parms are ok
 		{
 			if (d->isextern)
 			{
@@ -4120,6 +4128,22 @@ static void QCC_CopyFiles (void)
 #define WINDOWSARG(x) false
 #endif
 
+pbool QCC_RegisterSourceFile(const char *filename)
+{
+	int i;
+	for (i = 0; i < numsourcefiles; i++)
+	{
+		if (!strcmp(sourcefileslist[i], filename))
+			return true;
+	}
+	if (numsourcefiles < MAXSOURCEFILESLIST)
+	{
+		strcpy(sourcefileslist[numsourcefiles++], filename);
+		return true;
+	}
+	return false;
+}
+
 static void QCC_PR_CommandLinePrecompilerOptions (void)
 {
 	CompilerConstant_t *cnst;
@@ -4136,18 +4160,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 		{
 			if (++i == myargc)
 				break;
-			for (j = 0; j < numsourcefiles; j++)
-			{
-				if (!strcmp(sourcefileslist[j], myargv[i]))
-					break;
-			}
-			if (j == numsourcefiles)
-			{
-				if (numsourcefiles < MAXSOURCEFILESLIST)
-					strcpy(sourcefileslist[numsourcefiles++], myargv[i]);
-				else
-					QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "too many -srcfile arguments");
-			}
+			if (!QCC_RegisterSourceFile(myargv[i]))
+				QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "too many -srcfile arguments");
 		}
 		else if ( !strcmp(myargv[i], "-src") )
 		{
@@ -4339,6 +4353,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_int = keyword_integer = keyword_typedef = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 				keyword_wrap = keyword_weak = false;
+
+				qccwarningaction[WARN_PARAMWITHNONAME] = WA_ERROR;
 			}
 			else if (!strcmp(myargv[i]+5, "hcc") || !strcmp(myargv[i]+5, "hexenc"))
 			{
@@ -4372,6 +4388,10 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;		//and many people would argue that this was a feature rather than a bug
 				qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;		//all locals get 0-initialised anyway, and our checks are not quite up to scratch.
 				qccwarningaction[WARN_GMQCC_SPECIFIC] = WA_IGNORE;		//we shouldn't warn about gmqcc syntax when we're trying to be compatible with it. there's always -Wextra.
+				qccwarningaction[WARN_SYSTEMCRC] = WA_IGNORE;			//lameness
+				qccwarningaction[WARN_SYSTEMCRC2] = WA_IGNORE;			//extra lameness
+
+				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;	//some sanity.
 
 				keyword_asm = false;
 				keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_unused = keyword_used = keyword_nonstatic = keyword_ignore = keyword_strip = false;
@@ -4426,6 +4446,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					flag_ifstring = state;
 				else if (!stricmp(arg, "true-empty-strings"))
 					flag_brokenifstring = state;
+				else if (!stricmp(arg, "arithmetic-exceptions"))
+					qccwarningaction[WARN_DIVISIONBY0] = state?WA_ERROR:WA_IGNORE;
 				else if (!stricmp(arg, "lno"))
 				{
 					//currently we always try to write lno files, when filename info isn't stripped
@@ -4478,6 +4500,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 						case WARN_IFSTRING_USED:
 						case WARN_UNINITIALIZED:
 						case WARN_GMQCC_SPECIFIC:
+						case WARN_SYSTEMCRC:
+						case WARN_SYSTEMCRC2:
 							qccwarningaction[j] = qccwarningaction[WARN_GMQCC_SPECIFIC];
 							break;
 
@@ -4486,6 +4510,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 						case WARN_EXTRAPRECACHE:			//we can't guarentee that we can parse this correctly. this warning is thus a common false positive. its available with -Wextra, and there's intrinsics to reduce false positives.
 						case WARN_FTE_SPECIFIC:				//kinda annoying when its actually valid code.
 						case WARN_MUTEDEPRECATEDVARIABLE:	//these were explicitly muted by the user using checkbuiltin/etc to mute specific symbols.
+						case WARN_DIVISIONBY0:				//breaks xonotic, which seems to want nans.
 							break;
 
 						default:
@@ -4559,6 +4584,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 		 || !strcmp(myargv[i], "-max_fields") || !strcmp(myargv[i], "-max_statements") || !strcmp(myargv[i], "-max_functions")
 		  || !strcmp(myargv[i], "-max_types") || !strcmp(myargv[i], "-max_temps") || !strcmp(myargv[i], "-max_macros") )
 		{
+			if (++i == myargc)
+				QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Missing value for %s arg", myargv[--i]);
 		}
 		else if ( !strcmp(myargv[i], "--version") )
 		{
@@ -4569,8 +4596,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised parameter (%s)", myargv[i]);
 		else
 		{
-			if (numsourcefiles < MAXSOURCEFILESLIST)
-				strcpy(sourcefileslist[numsourcefiles++], myargv[i]);
+			if (!QCC_RegisterSourceFile(myargv[i]))
+				QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "too many source filename arguments");
 		}
 	}
 
@@ -4682,6 +4709,7 @@ static void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_EXTRAPRECACHE]			= WA_IGNORE;
 	qccwarningaction[WARN_DEADCODE]					= WA_IGNORE;
 	qccwarningaction[WARN_FTE_SPECIFIC]				= WA_IGNORE;
+	qccwarningaction[WARN_DIVISIONBY0]				= WA_IGNORE;
 	qccwarningaction[WARN_MUTEDEPRECATEDVARIABLE]	= WA_IGNORE;
 	qccwarningaction[WARN_EXTENSION_USED]			= WA_IGNORE;
 	qccwarningaction[WARN_IFSTRING_USED]			= WA_IGNORE;
@@ -5137,23 +5165,15 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	QCC_PR_ClearGrabMacros (false);
 
-	qccmsrc = NULL;
-	if (!numsourcefiles)
+	qccmsrc = NULL;	
+	if (destfile_explicit && numsourcefiles && !currentsourcefile)
 	{	//generate an internal .src file from the argument list
 		int i;
-		for (i = 1;i<myargc;i++)
-		{
-			if (*myargv[i] == '-')
-				break;
-
-			if (!qccmsrc)
-			{
-				qccmsrc = qccHunkAlloc(8192);
-				(void)QC_strlcpy(qccmsrc, "progs.dat\n", 8192);
-			}
-			if (!QC_strlcat(qccmsrc, myargv[i], 8192) || !QC_strlcat(qccmsrc, "\n", 8192))
-				QCC_PR_ParseWarning (WARN_STRINGTOOLONG, "Too many files to compile");
-		}
+		qccmsrc = qccHunkAlloc(8192);
+		*qccmsrc = 0;
+		for (i = 0;i<numsourcefiles;i++)
+			QC_snprintfz(qccmsrc+strlen(qccmsrc), 8192-strlen(qccmsrc), "#include \"%s\"\n", sourcefileslist[i]);
+		currentsourcefile = i;
 	}
 
 	if (qccmsrc)
@@ -5352,8 +5372,8 @@ void QCC_ContinueCompile(void)
 		if (parseonly)
 		{
 			qcc_compileactive = false;
-			sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
-			sourcefilesnumdefs = currentsourcefile+1;
+			if (sourcefilesnumdefs < countof(sourcefilesdefs) && qccpersisthunk)
+				sourcefilesdefs[currentsourcefile++] = pr.def_head.next;
 		}
 		else
 		{
@@ -5491,8 +5511,8 @@ void QCC_FinishCompile(void)
 // report / copy the data files
 	QCC_CopyFiles ();
 
-	sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
-	sourcefilesnumdefs = currentsourcefile+1;
+	if (sourcefilesnumdefs < countof(sourcefilesdefs) && qccpersisthunk)
+		sourcefilesdefs[sourcefilesnumdefs++] = pr.def_head.next;
 
 	if (donesomething)
 	{
@@ -5651,8 +5671,8 @@ void new_QCC_ContinueCompile(void)
 				QCC_FinishCompile();
 			else
 			{
-				sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
-				sourcefilesnumdefs = currentsourcefile+1;
+				if (sourcefilesnumdefs < countof(sourcefilesdefs) && qccpersisthunk)
+					sourcefilesdefs[currentsourcefile++] = pr.def_head.next;
 			}
 			PostCompile();
 			if (!QCC_main(myargc, myargv))

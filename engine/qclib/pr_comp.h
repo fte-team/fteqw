@@ -399,6 +399,7 @@ enum qcop_e {
 	OP_ANDSTORE_F,
 	OP_BITCLR_F,
 	OP_BITCLR_I,
+	OP_BITCLR_V,
 
 	OP_ADD_SI,
 	OP_ADD_IS,
@@ -448,6 +449,9 @@ enum qcop_e {
 
 	OP_EQ_FLD,
 	OP_NE_FLD,
+
+	OP_SPACESHIP_F,	//lame
+	OP_SPACESHIP_S,	//basically strcmp.
 
 	//special/fake opcodes used by the decompiler.
 	OPD_GOTO_FORSTART,

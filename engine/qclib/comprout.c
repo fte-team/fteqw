@@ -111,7 +111,7 @@ pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, const cha
 
 	PostCompile();
 
-	return true;
+	return !pr_error_count;
 }
 int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, const char **parms)
 {

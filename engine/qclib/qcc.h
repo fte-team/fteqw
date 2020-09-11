@@ -706,6 +706,7 @@ extern int optres_logicops;
 extern int optres_inlines;
 
 pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, const char **parms);
+pbool QCC_RegisterSourceFile(const char *filename);
 
 void QCC_PR_PrintStatement (QCC_statement_t *s);
 
@@ -826,6 +827,7 @@ enum {
 	WARN_UNDESIRABLECONVENTION,
 	WARN_SAMENAMEASGLOBAL,
 	WARN_CONSTANTCOMPARISON,
+	WARN_DIVISIONBY0,
 	WARN_UNSAFEFUNCTIONRETURNTYPE,
 	WARN_MISSINGOPTIONAL,
 	WARN_SYSTEMCRC,				//unknown system crc

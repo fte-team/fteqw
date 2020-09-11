@@ -55,7 +55,7 @@ extern pbool expandedemptymacro;
 extern unsigned int locals_end, locals_start;
 extern QCC_type_t *pr_classtype;
 QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *type, pbool dowrap);
-
+QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto);
 
 static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
 {
@@ -72,13 +72,13 @@ static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*^", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<=", "<<", "<", ">>=", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
+{"&&", "||", "<=>", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*^", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<=", "<<", "<", ">>=", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
 
 char *pr_punctuationremap[] =	//a nice bit of evilness.
 //(+) -> |=
 //-> -> .
 //(-) -> &~=
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*^", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<=", "<<", "<", ">>=", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
+{"&&", "||", "<=>", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*^", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<=", "<<", "<", ">>=", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;				//void
@@ -1306,21 +1306,8 @@ static pbool QCC_PR_Precompiler(void)
 			}
 			else if (!QC_strcasecmp(qcc_token, "sourcefile"))
 			{
-	#define MAXSOURCEFILESLIST 8
-	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
-	extern int numsourcefiles;
-
-				int i;
-
-				QCC_COM_Parse(msg);
-
-				for (i = 0; i < numsourcefiles; i++)
-				{
-					if (!strcmp(sourcefileslist[i], qcc_token))
-						break;
-				}
-				if (i == numsourcefiles && numsourcefiles < MAXSOURCEFILESLIST)
-					strcpy(sourcefileslist[numsourcefiles++], qcc_token);
+				QCC_COM_Parse(msg);	
+				QCC_RegisterSourceFile(qcc_token);
 			}
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
@@ -1329,7 +1316,7 @@ static pbool QCC_PR_Precompiler(void)
 					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.\nValid targets are: ID, HEXEN2, FTE, FTEH2, KK7, DP(patched)", qcc_token);
 			}
 			else if (!QC_strcasecmp(qcc_token, "PROGS_SRC"))
-			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
+			{	//doesn't make sense, but silenced if you are switching between using a certain precompiler app used with CuTF.
 			}
 			else if (!QC_strcasecmp(qcc_token, "PROGS_DAT"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
@@ -1550,6 +1537,154 @@ void QCC_PR_LexString (void)
 //	print("Found \"%s\"\n", pr_immediate_string);
 }
 #else
+int QCC_PR_LexEscapedCodepoint(void)
+{	//for "\foo" or '\foo' handling.
+	//caller will have read the \ already.
+	int t;
+	int c = *pr_file_p++;
+	if (!c)
+		QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
+	if (c == 'n')
+		c = '\n';
+	else if (c == 'r')
+		c = '\r';
+	else if (c == '#')	//avoid preqcc expansion in strings.
+		c = '#';
+	else if (c == '"')
+		c = '"';
+	else if (c == 't')
+		c = '\t';	//tab
+	else if (c == 'a')
+		c = '\a';	//bell
+	else if (c == 'v')
+		c = '\v';	//vertical tab
+	else if (c == 'f')
+		c = '\f';	//form feed
+//	else if (c == 's' || c == 'b')
+//		c = 0;	//invalid...
+	//else if (c == 'b')
+	//	c = '\b';
+	else if (c == '[')
+		c = 0xe010;	//quake specific
+	else if (c == ']')
+		c = 0xe011;	//quake specific
+	else if (c == '{')
+	{
+		int d;
+		c = 0;
+		if (*pr_file_p == 'x')
+		{
+			pr_file_p++;
+			while ((d = *pr_file_p++) != '}')
+			{
+				if (d >= '0' && d <= '9')
+					c = c * 16 + d - '0';
+				else if (d >= 'a' && d <= 'f')
+					c = c * 16 + 10+d - 'a';
+				else if (d >= 'A' && d <= 'F')
+					c = c * 16 + 10+d - 'A';
+				else
+					QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+			}
+		}
+		else
+		{
+			while ((d = *pr_file_p++) != '}')
+			{
+				if (d >= '0' && d <= '9')
+					c = c * 10 + d - '0';
+				else
+					QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+			}
+		}
+	}
+	else if (c == '.')
+		c = 0xe01c;
+	else if (c == '<')
+		c = 0xe01d;	//separator start
+	else if (c == '-')
+		c = 0xe01e;	//separator middle
+	else if (c == '>')
+		c = 0xe01f;	//separator end
+	else if (c == '(')
+		c = 0xe080;	//slider start
+	else if (c == '=')
+		c = 0xe081;	//slider middle
+	else if (c == ')')
+		c = 0xe082;	//slider end
+	else if (c == '+')
+		c = 0xe083;	//slider box
+	else if (c == 'u' || c == 'U')
+	{
+		//lower case u specifies exactly 4 nibbles.
+		//upper case U specifies exactly 8 nibbles.
+		unsigned int nibbles = (c=='u')?4:8;
+		c = 0;
+		while (nibbles --> 0)
+		{
+			t = (unsigned char)*pr_file_p;
+			if (t >= '0' && t <= '9')
+				c = (c*16) + (t - '0');
+			else if (t >= 'A' && t <= 'F')
+				c = (c*16) + (t - 'A') + 10;
+			else if (t >= 'a' && t <= 'f')
+				c = (c*16) + (t - 'a') + 10;
+			else
+				break;
+			pr_file_p++;
+		}
+		if (nibbles)
+			QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Unicode character terminated unexpectedly");
+	}
+	else if (c == 'x' || c == 'X')
+	{
+		int d;
+		c = 0;
+
+		d = (unsigned char)*pr_file_p++;
+		if (d >= '0' && d <= '9')
+			c += d - '0';
+		else if (d >= 'A' && d <= 'F')
+			c += d - 'A' + 10;
+		else if (d >= 'a' && d <= 'f')
+			c += d - 'a' + 10;
+		else
+			QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+
+		c *= 16;
+
+		d = (unsigned char)*pr_file_p++;
+		if (d >= '0' && d <= '9')
+			c += d - '0';
+		else if (d >= 'A' && d <= 'F')
+			c += d - 'A' + 10;
+		else if (d >= 'a' && d <= 'f')
+			c += d - 'a' + 10;
+		else
+			QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+	}
+	else if (c == '\\')
+		c = '\\';
+	else if (c == '\'')
+		c = '\'';
+	else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
+		c = 0xe012 + c - '0';
+	else if (c == '\r')
+	{	//sigh
+		c = *pr_file_p++;
+		if (c != '\n')
+			QCC_PR_ParseWarning(WARN_HANGINGSLASHR, "Hanging \\\\\r");
+		pr_source_line++;
+	}
+	else if (c == '\n')
+	{	//sigh
+		pr_source_line++;
+	}
+	else
+		QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "Unknown escape char %c", c);
+
+	return c;
+}
 void QCC_PR_LexString (void)
 {
 	unsigned int	c, t;
@@ -1675,134 +1810,36 @@ void QCC_PR_LexString (void)
 					QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "newline inside quote");
 				if (c=='\\')
 				{	// escape char
-					c = *pr_file_p++;
-					if (!c)
-						QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
-					if (c == 'n')
-						c = '\n';
-					else if (c == 'r')
-						c = '\r';
-					else if (c == '#')	//avoid preqcc expansion in strings.
-						c = '#';
-					else if (c == '"')
-						c = '"';
-					else if (c == 't')
-						c = '\t';	//tab
-					else if (c == 'a')
-						c = '\a';	//bell
-					else if (c == 'v')
-						c = '\v';	//vertical tab
-					else if (c == 'f')
-						c = '\f';	//form feed
-					else if (c == 's' || c == 'b')
+					c = *pr_file_p;	//peek at it, for our hacks.
+					if (c == 's' || c == 'b')
 					{
+						pr_file_p++;
 						texttype ^= 0xe080;
 						continue;
 					}
-					//else if (c == 'b')
-					//	c = '\b';
-					else if (c == '[')
-						c = 0xe010;	//quake specific
-					else if (c == ']')
-						c = 0xe011;	//quake specific
-					else if (c == '{')
-					{
-						int d;
-						c = 0;
-						while ((d = *pr_file_p++) != '}')
-						{
-							c = c * 10 + d - '0';
-							if (d < '0' || d > '9' || c > 255)
-								QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
-						}
-					}
 					else if (c == '.')
+					{
+						pr_file_p++;
 						c = 0xe01c | texttype;
-					else if (c == '<')
-						c = 0xe01d;	//separator start
-					else if (c == '-')
-						c = 0xe01e;	//separator middle
-					else if (c == '>')
-						c = 0xe01f;	//separator end
-					else if (c == '(')
-						c = 0xe080;	//slider start
-					else if (c == '=')
-						c = 0xe081;	//slider middle
-					else if (c == ')')
-						c = 0xe082;	//slider end
-					else if (c == '+')
-						c = 0xe083;	//slider box
+					}
 					else if (c == 'u' || c == 'U')
 					{
-						//lower case u specifies exactly 4 nibbles.
-						//upper case U specifies exactly 8 nibbles.
-						unsigned int nibbles = (c=='u')?4:8;
-						c = 0;
-						while (nibbles --> 0)
-						{
-							t = (unsigned char)*pr_file_p;
-							if (t >= '0' && t <= '9')
-								c = (c*16) + (t - '0');
-							else if (t >= 'A' && t <= 'F')
-								c = (c*16) + (t - 'A') + 10;
-							else if (t >= 'a' && t <= 'f')
-								c = (c*16) + (t - 'a') + 10;
-							else
-								break;
-							pr_file_p++;
-						}
-						if (nibbles)
-							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Unicode character terminated unexpectedly");
-
+						c = QCC_PR_LexEscapedCodepoint();
 						goto forceutf8;
 					}
 					else if (c == 'x' || c == 'X')
 					{
-						int d;
-						c = 0;
-
-						d = (unsigned char)*pr_file_p++;
-						if (d >= '0' && d <= '9')
-							c += d - '0';
-						else if (d >= 'A' && d <= 'F')
-							c += d - 'A' + 10;
-						else if (d >= 'a' && d <= 'f')
-							c += d - 'a' + 10;
-						else
-							QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
-
-						c *= 16;
-
-						d = (unsigned char)*pr_file_p++;
-						if (d >= '0' && d <= '9')
-							c += d - '0';
-						else if (d >= 'A' && d <= 'F')
-							c += d - 'A' + 10;
-						else if (d >= 'a' && d <= 'f')
-							c += d - 'a' + 10;
-						else
-							QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+						c = QCC_PR_LexEscapedCodepoint();
+						if (c > 0xff)
+							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Bad unicode character code - codepoint %u is above 0xFF", c);
 						goto forcebyte;
 					}
-					else if (c == '\\')
-						c = '\\';
-					else if (c == '\'')
-						c = '\'';
-					else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
-						c = 0xe012 + c - '0';
-					else if (c == '\r')
-					{	//sigh
-						c = *pr_file_p++;
-						if (c != '\n')
-							QCC_PR_ParseWarning(WARN_HANGINGSLASHR, "Hanging \\\\\r");
-						pr_source_line++;
-					}
-					else if (c == '\n')
-					{	//sigh
-						pr_source_line++;
-					}
 					else
-						QCC_PR_ParseError (ERR_INVALIDSTRINGIMMEDIATE, "Unknown escape char %c", c);
+					{
+						c = QCC_PR_LexEscapedCodepoint();
+						if (stringtype != 2 && c > 0xff)
+							QCC_PR_ParseWarning(ERR_BADCHARACTERCODE, "Bad legacy character code - codepoint %u is above 0xFF", c);
+					}
 				}
 				else if (c=='\"')
 				{
@@ -2044,6 +2081,15 @@ static void QCC_PR_LexNumber (void)
 		pr_token[tokenlen++] = '0';
 		pr_token[tokenlen++] = 'x';
 	}
+	else if (pr_file_p[0] == '0')
+	{
+		pr_file_p++;
+		if (*pr_file_p >= '0' && *pr_file_p <= '9')
+			QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "A leading 0 is interpreted as base-8.");
+		base = 8;
+
+		pr_token[tokenlen++] = '0';
+	}
 
 	pr_immediate_type = NULL;
 	//assume base 10 if not stated
@@ -2052,7 +2098,7 @@ static void QCC_PR_LexNumber (void)
 
 	while((c = *pr_file_p))
 	{
-		if (c >= '0' && c <= '9')
+		if (c >= '0' && c <= '9' && c < '0'+base)
 		{
 			pr_token[tokenlen++] = c;
 			num*=base;
@@ -2205,43 +2251,32 @@ static void QCC_PR_LexVector (void)
 {
 	int		i;
 
-	pr_file_p++;
+	pr_file_p++;	//skip the leading ' char
 
 	if (*pr_file_p == '\\')
 	{//extended character constant
+		pr_file_p++;
 		pr_token_type = tt_immediate;
 		pr_immediate_type = type_float;
-		pr_file_p++;
-		switch(*pr_file_p)
-		{
-		case 'n':
-			pr_immediate._float = '\n';
-			break;
-		case 'r':
-			pr_immediate._float = '\r';
-			break;
-		case 't':
-			pr_immediate._float = '\t';
-			break;
-		case '\'':
-			pr_immediate._float = '\'';
-			break;
-		case '\"':
-			pr_immediate._float = '\"';
-			break;
-		case '\\':
-			pr_immediate._float = '\\';
-			break;
-		default:
-			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad character constant");
-		}
-		pr_file_p++;
+		pr_immediate._float = QCC_PR_LexEscapedCodepoint();
 		if (*pr_file_p != '\'')
 			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad character constant");
 		pr_file_p++;
 		return;
 	}
-	if (pr_file_p[1] == '\'')
+	if ((unsigned char)*pr_file_p >= 0x80)
+	{
+		int b = utf8_check(pr_file_p, &pr_immediate._int);	//utf-8 codepoint.
+		pr_token_type = tt_immediate;
+		pr_immediate_type = type_float;
+		if (flag_qccx)
+			QCC_PR_ParseWarning(WARN_DENORMAL, "char constant: denormal");
+		else
+			pr_immediate._float = pr_immediate._int;
+		pr_file_p+=b+1;
+		return;
+	}
+	else if (pr_file_p[1] == '\'')
 	{//character constant
 		pr_token_type = tt_immediate;
 		pr_immediate_type = type_float;
@@ -4808,7 +4843,7 @@ QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype)
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 {
-	QCC_type_t	*ftype;
+	QCC_type_t	*ftype, *t;
 	char	*name;
 	int definenames = !recursivefunctiontype;
 	int numparms = 0;
@@ -4834,42 +4869,56 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 			if (QCC_PR_CheckToken ("..."))
 			{
-				ftype->vargs = true;
-				break;
-			}
-
-			foundinout = false;
-			paramlist[numparms].optional = false;
-			paramlist[numparms].isvirtual = false;
-			paramlist[numparms].out = false;
-
-			while(1)
-			{
-				if (!paramlist[numparms].optional && QCC_PR_CheckKeyword(keyword_optional, "optional"))
-					paramlist[numparms].optional = true;
-				else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "inout"))
+				t = QCC_PR_ParseType(false, true);	//the evil things I do...
+				if (!t)
 				{
-					paramlist[numparms].out = true;
-					foundinout = true;
-				}
-				else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "out"))
-				{
-					paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
-					foundinout = true;
-				}
-				else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "in"))
-				{
-					paramlist[numparms].out = false;
-					foundinout = true;
+					ftype->vargs = true;
+					break;
 				}
 				else
-					break;
+				{	//its a ... followed by a type... don't bug out...
+					t = QCC_PR_FieldType(t);
+					t = QCC_PR_FieldType(t);
+					t = QCC_PR_FieldType(t);
+					paramlist[numparms].type = t;
+				}
 			}
+			else
+			{
+				foundinout = false;
+				paramlist[numparms].optional = false;
+				paramlist[numparms].isvirtual = false;
+				paramlist[numparms].out = false;
 
+				while(1)
+				{
+					if (!paramlist[numparms].optional && QCC_PR_CheckKeyword(keyword_optional, "optional"))
+						paramlist[numparms].optional = true;
+					else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "inout"))
+					{
+						paramlist[numparms].out = true;
+						foundinout = true;
+					}
+					else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "out"))
+					{
+						paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
+						foundinout = true;
+					}
+					else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "in"))
+					{
+						paramlist[numparms].out = false;
+						foundinout = true;
+					}
+					else
+						break;
+				}
+
+				t = QCC_PR_ParseType(false, false);
+			}
 			paramlist[numparms].defltvalue.cast = NULL;
 			paramlist[numparms].ofs = 0;
 			paramlist[numparms].arraysize = 0;
-			paramlist[numparms].type = QCC_PR_ParseType(false, false);
+			paramlist[numparms].type = t;
 			if (!paramlist[numparms].type)
 				QCC_PR_ParseError(0, "Expected type\n");
 
@@ -5104,6 +5153,35 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 //	int ofs;
 
+	if (QCC_PR_PeekToken ("...") )	//this is getting stupid
+	{
+		QCC_PR_LexWhitespace (false);
+		if (*pr_file_p == '(')
+		{	//work around gmqcc's "(...(" being misinterpreted as a cast syntax error, instead abort here so it can be treated as an intrinsic (with args) instead.
+			if (silentfail)
+				return NULL;
+			QCC_PR_ParseError (ERR_NOTATYPE, "\"%s\" is not a type", pr_token);
+		}
+		QCC_PR_Lex ();
+
+		type = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
+		type->aux_type = QCC_PR_ParseType (false, false);
+		type->size = type->aux_type->size;
+
+		newt = QCC_PR_FindType (type);
+		type = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
+		type->aux_type = newt;
+		type->size = type->aux_type->size;
+
+		newt = QCC_PR_FindType (type);
+		type = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
+		type->aux_type = newt;
+		type->size = type->aux_type->size;
+
+		if (newtype)
+			return type;
+		return QCC_PR_FindType (type);
+	}
 	if (QCC_PR_CheckToken (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
 	{
 		newt = QCC_PR_NewType("FIELD_TYPE", ev_field, false);

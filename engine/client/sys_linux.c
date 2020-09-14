@@ -1190,7 +1190,7 @@ int main (int c, const char **v)
 		}
 	}
 #else
-	parms.basedir = "";	//play it safe when realpath is too awkward to use. don't depend upon "./" working, and hope that the user uses -basedir or simply doesn't care about path prints (hopefully its only windows libraries that change the working dir without the program's permission).
+	parms.basedir = "./";
 #endif
 
 	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.

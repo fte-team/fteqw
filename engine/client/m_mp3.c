@@ -4032,7 +4032,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 				currentcapture_funcs = pluginencodersfunc[i];
 		}
 	}
-	if (capturesound.ival)
+	if (capturesound.ival && !nosound.ival)
 	{
 		sndkhz = snd_speed?snd_speed:48000;
 		sndchannels = capturesoundchannels.ival;

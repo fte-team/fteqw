@@ -312,6 +312,7 @@ extern	cvar_t loadas8bit;
 extern	cvar_t bgmvolume;
 extern	cvar_t volume, mastervolume;
 extern	cvar_t snd_capture;
+extern	cvar_t nosound;
 
 extern float voicevolumemod;
 

@@ -342,7 +342,7 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *sampl
 //	else if (c->sample_fmt == AV_SAMPLE_FMT_S16P || c->sample_fmt == AV_SAMPLE_FMT_S16)
 //		*bits = 16;
 //	else
-		*bits = 32;
+		*bits = 32;	//ask for float audio.
 
 	c->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
 
@@ -679,6 +679,16 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 			sz = VARIABLE_AUDIO_FRAME_MAX_SIZE;
 		sz *= av_get_bytes_per_sample(ctx->audio_codec->sample_fmt) * ctx->audio_codec->channels;
 		ctx->audio_outbuf = av_malloc(sz);
+
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 48, 101)
+		//copy the avcodec parameters over to avformat
+		err = avcodec_parameters_from_context(ctx->audio_st->codecpar, c);
+		if(err < 0)
+		{
+			AVEnc_End(ctx);
+			return NULL;
+		}
+#endif
 	}
 
 	av_dump_format(ctx->fc, 0, streamname, 1);
@@ -700,16 +710,24 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 			return NULL;
 		}
 	}
+	else
+	{
+		strncpy(ctx->abspath, "<STREAM>", sizeof(ctx->abspath)-1);
+	}
 
 	//different formats have different metadata formats. there's no standards here.
-	//av_dict_set(&ctx->fc->metadata, "TPFL", "testtest", 0);
+	//av_dict_set(&ctx->fc-	>metadata, "TPFL", "testtest", 0);
 	//FIXME: use ffmpeg's sidedata stuff, which should handle it in a generic way
 
 	//nearly complete, can make the file dirty now.
 	err = avformat_write_header(ctx->fc, NULL);
 	if (err < 0)
 	{
-		Con_Printf("avformat_write_header: failed %s\n", av_make_error_string(errtxt, sizeof(errtxt), err));
+		Con_Printf("avformat_write_header(%s): failed %s\n", ctx->abspath, av_make_error_string(errtxt, sizeof(errtxt), err));
+		if (ctx->video_st)
+			Con_Printf("  Video %s: %i * %i\n", ctx->video_codec->codec->name, width, height);
+		if (ctx->audio_st)
+			Con_Printf("  Audio %s: %i channels, %ibit @ %ikhz\n", ctx->audio_codec->codec->name, *sndchannels, *sndbits, *sndkhz);
 		AVEnc_End(ctx);
 		return NULL;
 	}

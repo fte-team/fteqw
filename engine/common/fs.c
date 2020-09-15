@@ -6964,6 +6964,8 @@ static void COM_InitHomedir(ftemanifest_t *man)
 	if (i && i+1<com_argc)
 	{	//explicitly override the homedir.
 		Q_strncpyz(com_homepath, com_argv[i+1], sizeof(com_homepath));
+		if (*com_homepath && com_homepath[strlen(com_homepath)-1] != '/')
+			Q_strncatz(com_homepath, "/", sizeof(com_homepath));
 		com_homepathusable = true;
 	}
 	if (COM_CheckParm("-usehome"))

@@ -21,6 +21,10 @@
 #define EGL_PLATFORM_WIN32						0		//no meaningful value.
 #endif
 
+#ifndef EGL_PLATFORM_DEVICE_EXT
+#define EGL_PLATFORM_DEVICE_EXT					0x313F	//we're using it for headless/pbuffer. oh well.
+#endif
+
 void *EGL_Proc(char *f);
 void EGL_UnloadLibrary(void);
 qboolean EGL_LoadLibrary(char *driver);

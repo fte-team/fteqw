@@ -1225,6 +1225,9 @@ rendererinfo_t dedicatedrendererinfo = {
 #ifdef HEADLESSQUAKE
 	extern rendererinfo_t headlessrenderer;
 #endif
+#if defined(GLQUAKE) && defined(USE_EGL)
+	extern rendererinfo_t rendererinfo_headless_egl;
+#endif
 
 static struct
 {
@@ -1278,6 +1281,9 @@ static struct
 	#ifdef VKQUAKE
 		//{NULL, &headlessvkrendererinfo},
 	#endif
+#endif
+#if defined(GLQUAKE) && defined(USE_EGL)
+	{NULL, &rendererinfo_headless_egl},
 #endif
 };
 

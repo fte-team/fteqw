@@ -243,7 +243,7 @@ static void Headless_BE_RenderToTextureUpdate2d	(qboolean destchanged)
 
 rendererinfo_t headlessrenderer =
 {
-	"Headless",
+	"Headless (Null)",
 	{"headless"},
 	QR_HEADLESS,
 

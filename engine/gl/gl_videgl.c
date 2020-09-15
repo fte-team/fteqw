@@ -33,9 +33,11 @@ static EGLBoolean	(EGLAPIENTRY *qeglTerminate)(EGLDisplay dpy);
 static EGLBoolean	(EGLAPIENTRY *qeglGetConfigs)(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config);
 static EGLBoolean	(EGLAPIENTRY *qeglChooseConfig)(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config);
 EGLBoolean	(EGLAPIENTRY *qeglGetConfigAttrib)(EGLDisplay dpy, EGLConfig config, EGLint attribute, EGLint *value);
+static EGLBoolean	(EGLAPIENTRY *qeglBindAPI) (EGLenum api);
 
 static EGLSurface	(EGLAPIENTRY *qeglCreatePlatformWindowSurface)(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLAttrib *attrib_list);
 static EGLSurface	(EGLAPIENTRY *qeglCreateWindowSurface)(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list);
+static EGLSurface	(EGLAPIENTRY *qeglCreatePbufferSurface) (EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list);
 static EGLBoolean	(EGLAPIENTRY *qeglDestroySurface)(EGLDisplay dpy, EGLSurface surface);
 static EGLBoolean	(EGLAPIENTRY *qeglQuerySurface)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value);
 
@@ -59,6 +61,7 @@ static dllfunction_t qeglfuncs[] =
 	{(void*)&qeglChooseConfig, "eglChooseConfig"},
 	{(void*)&qeglGetConfigAttrib, "eglGetConfigAttrib"},
 
+	{(void*)&qeglCreatePbufferSurface, "eglCreatePbufferSurface"},
 	{(void*)&qeglCreateWindowSurface, "eglCreateWindowSurface"},
 	{(void*)&qeglDestroySurface, "eglDestroySurface"},
 	{(void*)&qeglQuerySurface, "eglQuerySurface"},
@@ -140,7 +143,7 @@ qboolean EGL_LoadLibrary(char *driver)
 		(most things are expected to statically link to their libs)
 		strictly speaking, EGL says that functions should work regardless of context.
 		(which of course makes portability a nightmare, especially on windows where static linking is basically impossible)
-		(android's EGL bugs out if you use eglGetProcAddress for core functions too)
+		(android's EGL bugs out if you use eglGetProcAddress for core functions too, note that EGL_KHR_get_all_proc_addresses fixes that.)
 	*/
 	Sys_Printf("Attempting to dlopen libGLESv2... ");
 	eslibrary = Sys_LoadLibrary("libGLESv2", NULL);
@@ -182,6 +185,10 @@ qboolean EGL_LoadLibrary(char *driver)
 		return false;
 	}
 	Sys_Printf("success\n");
+
+
+	//egl1.2
+	qeglBindAPI = EGL_Proc("eglBindAPI");
 
 	//these are from egl1.5
 	qeglGetPlatformDisplay		= EGL_Proc("eglGetPlatformDisplay");
@@ -298,7 +305,7 @@ qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNat
 	EGLint major=0, minor=0;
 	EGLint attrib[] =
 	{
-		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+		EGL_SURFACE_TYPE, (eglplat==EGL_PLATFORM_DEVICE_EXT)?EGL_PBUFFER_BIT:EGL_WINDOW_BIT,
 //		EGL_BUFFER_SIZE, info->bpp,
 //		EGL_SAMPLES, info->multisample,
 //		EGL_STENCIL_SIZE, 8,
@@ -370,19 +377,26 @@ qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNat
 
 qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLNativeWindowType windowid, EGLConfig cfg)
 {
-	EGLint contextattr[] =
-	{
-		EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
-		EGL_NONE, EGL_NONE
-	};
+	EGLint renderabletype;
 
-	if (qeglCreatePlatformWindowSurface)
+	if (eglplat == EGL_PLATFORM_DEVICE_EXT && qeglCreatePbufferSurface)
+	{
+		EGLint wndattrib[] =
+		{
+			EGL_WIDTH, vid.pixelwidth,
+			EGL_HEIGHT, vid.pixelheight,
+//			EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR,
+			EGL_NONE,EGL_NONE
+		};
+		eglsurf = qeglCreatePbufferSurface(egldpy, cfg, wndattrib);
+	}
+	else if (qeglCreatePlatformWindowSurface)
 	{
 		EGLAttrib wndattrib[] =
 		{
 //			EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR,
 
-			EGL_NONE
+			EGL_NONE,EGL_NONE
 		};
 		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, info->srgb?wndattrib:NULL);
 	}
@@ -392,7 +406,7 @@ qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLN
 		{
 //			EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR,
 
-			EGL_NONE
+			EGL_NONE,EGL_NONE
 		};
 		eglsurf = qeglCreateWindowSurface(egldpy, cfg, windowid, info->srgb?wndattrib:NULL);
 	}
@@ -406,7 +420,30 @@ qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLN
 		return false;
 	}
 
-	eglctx = qeglCreateContext(egldpy, cfg, EGL_NO_SURFACE, contextattr);
+	qeglGetConfigAttrib(egldpy, cfg, EGL_RENDERABLE_TYPE, &renderabletype);
+	if ((renderabletype & EGL_OPENGL_BIT) && qeglBindAPI)
+	{
+		EGLint contextattr[] =
+		{
+//			EGL_CONTEXT_OPENGL_DEBUG, 1,
+//			EGL_CONTEXT_OPENGL_PROFILE_MASK,  EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+//			EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
+//			EGL_TEXTURE_TARGET,EGL_NO_TEXTURE,	//just a rendertarget, not a texture.
+			EGL_NONE,EGL_NONE
+		};
+		qeglBindAPI(EGL_OPENGL_API);
+
+		eglctx = qeglCreateContext(egldpy, cfg, EGL_NO_SURFACE, contextattr);
+	}
+	else
+	{
+		EGLint contextattr[] =
+		{
+			EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
+			EGL_NONE, EGL_NONE
+		};
+		eglctx = qeglCreateContext(egldpy, cfg, EGL_NO_SURFACE, contextattr);
+	}
 	if (eglctx == EGL_NO_CONTEXT)
 	{
 		Con_Printf(CON_ERROR "EGL: no context!\n");
@@ -448,6 +485,148 @@ qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLN
 
 	return true;
 }
+
+
+
+//code for headless/pbuffer rendering.
+//in terms of energy efficiency its better to use the true headless renderer which stubs out ALL rendering.
+//however that's not very useful for screenshots or demo captures, so we offer this route too.
+#include "glquake.h"
+#include "gl_draw.h"
+#include "shader.h"
+#include "EGL/eglext.h"
+static void EGLHeadless_SwapBuffers(void)
+{
+	if (R2D_Flush)
+		R2D_Flush();
+
+	EGL_SwapBuffers();
+}
+static qboolean EGLHeadless_Init (rendererstate_t *info, unsigned char *palette)
+{
+	EGLConfig cfg;
+	void *dpy = NULL;
+
+	if (!EGL_LoadLibrary(info->subrenderer))
+	{
+		Con_Printf("couldn't load EGL library\n");
+		return false;
+	}
+
+#ifdef EGL_EXT_device_base
+	if (*info->devicename)
+	{
+		EGLDeviceEXT devs[64];
+		EGLint count;
+		EGLint idx = atoi(info->devicename);
+		EGLBoolean (EGLAPIENTRY *qeglQueryDevicesEXT) (EGLint max_devices, EGLDeviceEXT *devices, EGLint *num_devices) = EGL_Proc("eglQueryDevicesEXT");
+		if (qeglQueryDevicesEXT)
+		{
+			qeglQueryDevicesEXT(countof(devs), devs, &count);
+			if (idx >= 0 && idx < count)
+				dpy = devs[idx];
+		}
+	}
+#endif
+
+	vid.pixelwidth = (info->width>0)?info->width:640;
+	vid.pixelheight = (info->height>0)?info->height:480;
+	vid.activeapp = true;
+
+	if (!EGL_InitDisplay(info, EGL_PLATFORM_DEVICE_EXT, dpy, (EGLNativeDisplayType)EGL_NO_DISPLAY, &cfg))
+	{
+		Con_Printf("couldn't find suitable EGL config\n");
+		return false;
+	}
+
+	if (!EGL_InitWindow(info, EGL_PLATFORM_DEVICE_EXT, EGL_NO_SURFACE, (EGLNativeWindowType)EGL_NO_SURFACE, cfg))
+	{
+		Con_Printf("couldn't initialise EGL context\n");
+		return false;
+	}
+
+	if (GL_Init(info, &EGL_Proc))
+		return true;
+	Con_Printf(CON_ERROR "Unable to initialise opengl-on-wayland.\n");
+	return false;
+}
+static void EGLHeadless_DeInit(void)
+{
+	EGL_Shutdown();
+	EGL_UnloadLibrary();
+	GL_ForgetPointers();
+}
+static qboolean EGLHeadless_ApplyGammaRamps(unsigned int gammarampsize, unsigned short *ramps)
+{
+	//not supported
+	return false;
+}
+static void EGLHeadless_SetCaption(const char *text)
+{
+}
+
+static int EGLHeadless_GetPriority(void)
+{
+	return -1;	//lowest priority, so its never auto-used..
+}
+
+rendererinfo_t rendererinfo_headless_egl =
+{
+	"Headless OpenGL (EGL)",
+	{
+		"egl_headless",
+	},
+	QR_OPENGL,
+
+	GLDraw_Init,
+	GLDraw_DeInit,
+
+	GL_UpdateFiltering,
+	GL_LoadTextureMips,
+	GL_DestroyTexture,
+
+	GLR_Init,
+	GLR_DeInit,
+	GLR_RenderView,
+
+	EGLHeadless_Init,
+	EGLHeadless_DeInit,
+	EGLHeadless_SwapBuffers,
+	EGLHeadless_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
+	EGLHeadless_SetCaption,       //setcaption
+	GLVID_GetRGBInfo,
+
+
+	GLSCR_UpdateScreen,
+
+	GLBE_SelectMode,
+	GLBE_DrawMesh_List,
+	GLBE_DrawMesh_Single,
+	GLBE_SubmitBatch,
+	GLBE_GetTempBatch,
+	GLBE_DrawWorld,
+	GLBE_Init,
+	GLBE_GenBrushModelVBO,
+	GLBE_ClearVBO,
+	GLBE_UpdateLightmaps,
+	GLBE_SelectEntity,
+	GLBE_SelectDLight,
+	GLBE_Scissor,
+	GLBE_LightCullModel,
+
+	GLBE_VBO_Begin,
+	GLBE_VBO_Data,
+	GLBE_VBO_Finish,
+	GLBE_VBO_Destroy,
+
+	GLBE_RenderToTextureUpdate2d,
+
+	"",
+	EGLHeadless_GetPriority
+};
 
 #endif
 

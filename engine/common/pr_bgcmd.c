@@ -5634,7 +5634,7 @@ void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvar
 	int seps = 0, s;
 	const char *start = str;
 	int tlen;
-	qboolean found = true;
+	int found;
 
 	while (seps < prinst->callargc - 1 && seps < 7)
 	{
@@ -5671,7 +5671,7 @@ void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvar
 		if (!*str)
 		{
 			qctoken[qctoken_count].end = str - start;
-			found = true;
+			found = -1;
 		}
 		else
 		{
@@ -5704,12 +5704,12 @@ void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvar
 				qctoken = n;
 			}
 
-			if (*str)
-				qctoken[qctoken_count].start = str - start;
-			else
+			if (found==-1)
 				break;
+			qctoken[qctoken_count].start = str - start;
 		}
-		str++;
+		else
+			str++;
 	}
 	G_FLOAT(OFS_RETURN) = qctoken_count;
 }

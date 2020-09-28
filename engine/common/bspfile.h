@@ -917,7 +917,7 @@ typedef struct
 typedef struct pvscache_s
 {
 	int				num_leafs;
-	unsigned short	leafnums[MAX_ENT_LEAFS];
+	unsigned int	leafnums[MAX_ENT_LEAFS];
 #if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
 	int				areanum;	//q2bsp
 	int				areanum2;	//q2bsp

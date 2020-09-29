@@ -2195,13 +2195,16 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry);
 static void PM_AllowPackageListQuery_Callback(void *ctx, promptbutton_t opt)
 {
 	unsigned int i;
-	allowphonehome = (opt==PROMPT_YES);
-
 	//something changed, let it download now.
-	for (i = 0; i < numdownloadablelists; i++)
+	if (opt!=PROMPT_CANCEL)
 	{
-		if (downloadablelist[i].status == SRCSTAT_UNKNOWN)
-			downloadablelist[i].status = SRCSTAT_PENDING;
+		allowphonehome = (opt==PROMPT_YES);
+
+		for (i = 0; i < numdownloadablelists; i++)
+		{
+			if (downloadablelist[i].status == SRCSTAT_UNKNOWN)
+				downloadablelist[i].status = (opt==PROMPT_YES)?SRCSTAT_PENDING:SRCSTAT_DISABLED;
+		}
 	}
 	PM_UpdatePackageList(false, 0);
 }
@@ -2222,7 +2225,10 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 #ifndef WEBCLIENT
 	for (i = 0; i < numdownloadablelists; i++)
-		downloadablelist[i].received = true;
+	{
+		if (downloadablelist[i].status == SRCSTAT_PENDING)
+			downloadablelist[i].status = SRCSTAT_FAILED;
+	}
 #else
 	doautoupdate |= autoupdate;
 
@@ -2231,7 +2237,8 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		allowphonehome = true;
 	else if (allowphonehome == -1)
 	{
-		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope");
+		if (retry)
+			Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope");
 		return;
 	}
 #else
@@ -2241,6 +2248,10 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 	//kick off the initial tier of list-downloads.
 	for (i = 0; i < numdownloadablelists; i++)
 	{
+		if (downloadablelist[i].status == SRCSTAT_DISABLED)
+			continue;	//user disabled it. their choice. don't download it.
+		if (downloadablelist[i].status == SRCSTAT_UNKNOWN)
+			continue;	//waiting to be enabled... we'll bug the user about it until they confirm or deny.
 		if (downloadablelist[i].status != SRCSTAT_PENDING && allowphonehome>=0)
 			continue;
 		autoupdate = false;
@@ -2249,7 +2260,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 		if (allowphonehome<=0)
 		{
-			downloadablelist[i].status = SRCSTAT_UNKNOWN;
+			downloadablelist[i].status = SRCSTAT_FAILED;
 			continue;
 		}
 		downloadablelist[i].curdl = HTTP_CL_Get(va("%s%s"DOWNLOADABLESARGS, downloadablelist[i].url, strchr(downloadablelist[i].url,'?')?"&":"?"), NULL, PM_ListDownloaded);
@@ -3851,7 +3862,17 @@ void PM_Command_f(void)
 		{	//flush package cache, make a new request even if we already got a response from the server.
 			int i;
 			for (i = 0; i < numdownloadablelists; i++)
-				downloadablelist[i].status = SRCSTAT_PENDING;
+			{
+				switch(downloadablelist[i].status)
+				{
+				case SRCSTAT_DISABLED:
+				case SRCSTAT_UNKNOWN:
+					break;	//don't forget the old status for these here.
+				default:
+					downloadablelist[i].status = SRCSTAT_PENDING;
+					break;
+				}
+			}
 			if (!allowphonehome)
 				allowphonehome = -1;	//trigger a prompt, instead of ignoring it.
 			PM_UpdatePackageList(false, 0);

@@ -239,7 +239,9 @@ void R_FrameTimeGraph (float frametime, float scale)
 	} history[NET_TIMINGS];
 	static unsigned int findex;
 
+#ifdef LOADERTHREAD
 	extern int com_hadwork[WG_COUNT];
+#endif
 
 	history[findex&NET_TIMINGSMASK].time = frametime;
 	history[findex&NET_TIMINGSMASK].col = 0xffffffff;

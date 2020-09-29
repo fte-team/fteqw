@@ -5616,10 +5616,12 @@ void QCBUILTIN PF_WriteDouble (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	int dest = G_FLOAT(OFS_PARM0);
 	double val = G_DOUBLE(OFS_PARM1);
+#ifdef NETPREPARSE
 	union {
 		double val;
 		quint64_t ival;
 	} u = {val};
+#endif
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteDouble(&csqcmsgbuffer, val);

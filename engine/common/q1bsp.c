@@ -627,7 +627,7 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);
 #endif
 #ifdef Q3BSPS
-	else if (cl.worldmodel->fromgame == fg_quake3)
+	else if (mod->fromgame == fg_quake3)
 	{
 		if (mod->submodelof)
 		{
@@ -641,7 +641,7 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 #endif
 
 #ifdef TERRAIN
-	if (cl.worldmodel && cl.worldmodel->terrain)
+	if (mod->terrain)
 		Terrain_ClipDecal(&dec, center, dec.radius, mod);
 #endif
 }

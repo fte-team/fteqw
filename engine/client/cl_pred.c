@@ -776,6 +776,7 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 {
 	vec3_t a;
 	int pmtype;
+	unsigned int flags = plstate->flags;
 	qboolean onground = plstate->onground;
 	qboolean jumpheld = plstate->jump_held;
 	vec3_t vel;
@@ -827,6 +828,7 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 		plstate->jump_held = !!(state->u.q1.pmovetype&64);
 	}
 	plstate->pm_type = pmtype;
+	plstate->flags = flags & PF_INWATER;
 
 	plstate->viewangles[0] = SHORT2ANGLE(state->u.q1.vangle[0]);
 	plstate->viewangles[1] = SHORT2ANGLE(state->u.q1.vangle[1]);
@@ -1383,7 +1385,19 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 	if (cls.protocol == CP_NETQUAKE && nopred)
+	{
 		pv->onground = to.state->onground;
+		if (to.state->flags & PF_INWATER)
+		{
+			pmove.watertype = FTECONTENTS_WATER;	//don't really know.
+			pmove.waterlevel = 3;	//pick one at random.
+		}
+		else
+		{
+			pmove.watertype = FTECONTENTS_EMPTY;
+			pmove.waterlevel = 0;
+		}
+	}
 	else
 		CL_CatagorizePosition(pv, to.state->origin);
 

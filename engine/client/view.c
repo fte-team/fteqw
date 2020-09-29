@@ -157,7 +157,7 @@ static cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reord
 
 #ifdef QUAKESTATS
 static cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
-static cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "2", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
+static cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "0", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
 static cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
 static cvar_t	scr_autoid_armour		= CVARD("scr_autoid_armor", "1", "Display armour as part of nametags (when known).");
 static cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player's best weapon as part of their nametag (when known).");

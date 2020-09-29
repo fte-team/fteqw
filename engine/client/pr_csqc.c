@@ -3387,6 +3387,16 @@ static void QCBUILTIN PF_ReadFloat(pubprogfuncs_t *prinst, struct globalvars_s *
 	}
 	G_FLOAT(OFS_RETURN) = MSG_ReadFloat();
 }
+static void QCBUILTIN PF_ReadDouble(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadDouble is not valid at this time");
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+	G_DOUBLE(OFS_RETURN) = MSG_ReadDouble();
+}
 static void QCBUILTIN PF_ReadInt(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (!csqc_mayread)
@@ -3396,6 +3406,16 @@ static void QCBUILTIN PF_ReadInt(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		return;
 	}
 	G_INT(OFS_RETURN) = MSG_ReadLong();
+}
+static void QCBUILTIN PF_ReadInt64(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadInt is not valid at this time");
+		G_INT(OFS_RETURN) = -1;
+		return;
+	}
+	G_INT64(OFS_RETURN) = MSG_ReadInt64();
 }
 
 static void QCBUILTIN PF_ReadString(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3681,10 +3701,30 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 			MSG_WriteByte(&cls.netchan.message, ev_float);
 			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3));
 		}
+		else if (argtypes[i] == 'F')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_double);
+			MSG_WriteDouble(&cls.netchan.message, G_DOUBLE(OFS_PARM2+i*3));
+		}
 		else if (argtypes[i] == 'i')
 		{
 			MSG_WriteByte(&cls.netchan.message, ev_integer);
 			MSG_WriteLong(&cls.netchan.message, G_INT(OFS_PARM2+i*3));
+		}
+		else if (argtypes[i] == 'u')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_uint);
+			MSG_WriteLong(&cls.netchan.message, G_UINT(OFS_PARM2+i*3));
+		}
+		else if (argtypes[i] == 'I')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_int64);
+			MSG_WriteInt64(&cls.netchan.message, G_INT64(OFS_PARM2+i*3));
+		}
+		else if (argtypes[i] == 'U')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_uint64);
+			MSG_WriteInt64(&cls.netchan.message, G_UINT64(OFS_PARM2+i*3));
 		}
 		else if (argtypes[i] == 'v')
 		{
@@ -6936,8 +6976,10 @@ static struct {
 
 	{"readangle",				PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
 	{"readstring",				PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
-	{"readfloat",				PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
-	{"readint",					PF_ReadInt,						0},		// #0 string() readint
+	{"readfloat",				PF_ReadFloat,					367},	// #367 float() readfloat (EXT_CSQC)
+	{"readdouble",				PF_ReadDouble,					0},		// #367 __double() readdouble (EXT_CSQC)
+	{"readint",					PF_ReadInt,						0},		// #0 int() readint
+	{"readint64",				PF_ReadInt64,					0},		// #0 __int64() readint64
 	{"readentitynum",			PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
 
 //	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)

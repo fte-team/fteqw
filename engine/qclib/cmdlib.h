@@ -74,6 +74,23 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
 #define LIKEPRINTF(x)
 #endif
 
+
+
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+	#define FTE_DEPRECATED  __attribute__((__deprecated__))	//no idea about the actual gcc version
+	#ifdef _WIN32
+		#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+	#else
+		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#endif
+#endif
+#if (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5))
+	#define NORETURN __attribute__((noreturn))
+#endif
+#ifndef NORETURN
+	#define NORETURN
+#endif
+
 double I_FloatTime (void);
 
 void	VARGS QCC_Error (int errortype, const char *error, ...) LIKEPRINTF(2);
@@ -114,7 +131,6 @@ char *QCC_COM_Parse2 (char *data);
 unsigned int utf8_check(const void *in, unsigned int *value);
 
 extern	char	qcc_token[1024];
-extern	int		qcc_eof;
 
 
 #define qcc_iswhite(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t' || (c) == '\v')

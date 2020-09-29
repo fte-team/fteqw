@@ -887,7 +887,7 @@ void MSG_WriteByte (sizebuf_t *sb, int c)
 #endif
 
 	buf = (qbyte*)SZ_GetSpace (sb, 1);
-	buf[0] = c;
+	buf[0] = c&0xff;
 }
 
 void MSG_WriteShort (sizebuf_t *sb, int c)
@@ -901,7 +901,7 @@ void MSG_WriteShort (sizebuf_t *sb, int c)
 
 	buf = (qbyte*)SZ_GetSpace (sb, 2);
 	buf[0] = c&0xff;
-	buf[1] = c>>8;
+	buf[1] = (c>>8)&0xff;
 }
 
 void MSG_WriteLong (sizebuf_t *sb, int c)
@@ -912,7 +912,21 @@ void MSG_WriteLong (sizebuf_t *sb, int c)
 	buf[0] = c&0xff;
 	buf[1] = (c>>8)&0xff;
 	buf[2] = (c>>16)&0xff;
-	buf[3] = c>>24;
+	buf[3] = (c>>24)&0xff;
+}
+void MSG_WriteInt64 (sizebuf_t *sb, qint64_t c)
+{
+	qbyte	*buf;
+
+	buf = (qbyte*)SZ_GetSpace (sb, 8);
+	buf[0] = c&0xff;
+	buf[1] = (c>>8)&0xff;
+	buf[2] = (c>>16)&0xff;
+	buf[3] = (c>>24)&0xff;
+	buf[4] = (c>>32)&0xff;
+	buf[5] = (c>>40)&0xff;
+	buf[6] = (c>>48)&0xff;
+	buf[7] = (c>>52)&0xff;
 }
 
 void MSG_WriteFloat (sizebuf_t *sb, float f)
@@ -928,6 +942,17 @@ void MSG_WriteFloat (sizebuf_t *sb, float f)
 	dat.l = LittleLong (dat.l);
 
 	SZ_Write (sb, &dat.l, 4);
+}
+void MSG_WriteDouble (sizebuf_t *sb, double f)
+{
+	union
+	{
+		double		f;
+		qint64_t	l;
+	} dat;
+
+	dat.f = f;
+	MSG_WriteInt64(sb, dat.l);
 }
 
 void MSG_WriteString (sizebuf_t *sb, const char *s)
@@ -1586,6 +1611,36 @@ int MSG_ReadLong (void)
 
 	return c;
 }
+qint64_t MSG_ReadInt64 (void)
+{
+	qint64_t c;
+
+	if (net_message.packing!=SZ_RAWBYTES)
+	{
+		c = (unsigned int)MSG_ReadBits(32)
+		  | ((qint64_t)(unsigned int)MSG_ReadBits(32)<<32);
+		return c;
+	}
+
+	if (msg_readcount+4 > net_message.cursize)
+	{
+		msg_badread = true;
+		return -1;
+	}
+
+	c = (net_message.data[msg_readcount+0]<<0)
+	  | (net_message.data[msg_readcount+1]<<8)
+	  | (net_message.data[msg_readcount+2]<<16)
+	  | (net_message.data[msg_readcount+3]<<24)
+	  | ((qint64_t)net_message.data[msg_readcount+5]<<32)
+	  | ((qint64_t)net_message.data[msg_readcount+6]<<40)
+	  | ((qint64_t)net_message.data[msg_readcount+7]<<48)
+	  | ((qint64_t)net_message.data[msg_readcount+8]<<52);
+
+	msg_readcount += 8;
+
+	return c;
+}
 
 float MSG_ReadFloat (void)
 {
@@ -1614,9 +1669,20 @@ float MSG_ReadFloat (void)
 	dat.b[3] =	net_message.data[msg_readcount+3];
 	msg_readcount += 4;
 
-	dat.l = LittleLong (dat.l);
+	if (bigendian)
+		dat.l = LittleLong (dat.l);
 
 	return dat.f;
+}
+double MSG_ReadDouble (void)
+{	//type-pun it as an int64 over the network for easier handling of endian.
+	union
+	{
+		double		d;
+		qint64_t	l;
+	} dat;
+	dat.l = MSG_ReadInt64();
+	return dat.d;
 }
 
 char *MSG_ReadStringBuffer (char *out, size_t outsize)
@@ -5188,6 +5254,7 @@ static cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSER
 void *com_resourcemutex;
 static int com_liveworkers[WG_COUNT];
 static void *com_workercondition[WG_COUNT];
+int com_hadwork[WG_COUNT];
 static volatile int com_workeracksequence;
 static struct com_worker_s
 {
@@ -5332,6 +5399,7 @@ qboolean COM_DoWork(int tg, qboolean leavelocked)
 
 	if (work)
 	{
+		com_hadwork[tg]++;
 //		Sys_Printf("%x: Doing work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
 		Sys_UnlockConditional(com_workercondition[tg]);
 

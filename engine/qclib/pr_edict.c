@@ -610,8 +610,20 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 	case ev_float:
 		QC_snprintfz (line, sizeof(line), "%g", val->_float);
 		break;
+	case ev_double:
+		QC_snprintfz (line, sizeof(line), "%g", val->_double);
+		break;
 	case ev_integer:
-		QC_snprintfz (line, sizeof(line), "%i", val->_int);
+		QC_snprintfz (line, sizeof(line), "%"pPRIi, val->_int);
+		break;
+	case ev_uint:
+		QC_snprintfz (line, sizeof(line), "%"pPRIu, val->_uint);
+		break;
+	case ev_int64:
+		QC_snprintfz (line, sizeof(line), "%"pPRIi64, val->_int64);
+		break;
+	case ev_uint64:
+		QC_snprintfz (line, sizeof(line), "%"pPRIu64, val->_uint64);
 		break;
 	case ev_vector:
 		QC_snprintfz (line, sizeof(line), "'%g %g %g'", val->_vector[0], val->_vector[1], val->_vector[2]);
@@ -749,8 +761,23 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		else
 			sprintf (line, "%f", val->_float);
 		break;
+	case ev_double:
+		if (val->_double == (pint64_t)val->_double)
+			sprintf (line, "%"pPRIi64, (pint64_t)val->_double);	//an attempt to cut down on the number of .000000 vars..
+		else
+			sprintf (line, "%f", val->_double);
+		break;
 	case ev_integer:
-		sprintf (line, "%i", val->_int);
+		sprintf (line, "%"pPRIi, val->_int);
+		break;
+	case ev_uint:
+		sprintf (line, "%"pPRIu, val->_uint);
+		break;
+	case ev_int64:
+		sprintf (line, "%"pPRIi64, val->_int64);
+		break;
+	case ev_uint64:
+		sprintf (line, "%"pPRIu64, val->_int64);
 		break;
 	case ev_vector:
 		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
@@ -815,8 +842,23 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		else
 			QC_snprintfz (line, sizeof(line), "%f", val->_float);
 		break;
+	case ev_double:
+		if (val->_double == (int)val->_double)
+			QC_snprintfz (line, sizeof(line), "%i", (int)val->_double);	//an attempt to cut down on the number of .000000 vars..
+		else
+			QC_snprintfz (line, sizeof(line), "%f", val->_double);
+		break;
 	case ev_integer:
-		QC_snprintfz (line, sizeof(line), "%i", val->_int);
+		QC_snprintfz (line, sizeof(line), "%"pPRIi, val->_int);
+		break;
+	case ev_uint:
+		QC_snprintfz (line, sizeof(line), "%"pPRIu, val->_uint);
+		break;
+	case ev_int64:
+		QC_snprintfz (line, sizeof(line), "%"pPRIi64, val->_int64);
+		break;
+	case ev_uint64:
+		QC_snprintfz (line, sizeof(line), "%"pPRIu64, val->_uint64);
 		break;
 	case ev_vector:
 		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
@@ -862,10 +904,18 @@ char *PR_TypeString(progfuncs_t *progfuncs, etype_t type)
 		return "void";
 	case ev_float:
 		return "float";
+	case ev_double:
+		return "double";
 	case ev_vector:
 		return "vector";
 	case ev_integer:
 		return "integer";
+	case ev_uint:
+		return "uint";
+	case ev_int64:
+		return "int64";
+	case ev_uint64:
+		return "uint64";
 	default:
 		return "BAD TYPE";
 	}
@@ -1192,9 +1242,21 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 	case ev_float:
 		eval->_float = (float)atof (s);
 		break;
+	case ev_double:
+		eval->_double = atof (s);
+		break;
 
 	case ev_integer:
-		eval->_int = atoi (s);
+		eval->_int = strtol (s, NULL, 0);
+		break;
+	case ev_uint:
+		eval->_uint = strtoul (s, NULL, 0);
+		break;
+	case ev_int64:
+		eval->_int64 = strtoll (s, NULL, 0);
+		break;
+	case ev_uint64:
+		eval->_uint64 = strtoull (s, NULL, 0);
 		break;
 
 	case ev_vector:
@@ -1259,14 +1321,15 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, int fldtype, char *s)
 {
-	int		i;
+	pint64_t	i;
+	puint64_t	u;
 	progsnum_t module;
 	fdef_t	*def;
 	string_t st;
 	mfunction_t	*func;
 	int type = fldtype & ~DEF_SAVEGLOBAL;
 	double d;
-	qcptr += fldofs*sizeof(int);
+	eval_t *eval = (eval_t *)(progfuncs->funcs.stringtable + qcptr + (fldofs*sizeof(int)));
 
 	switch (type)
 	{
@@ -1276,7 +1339,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 #else
 		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0, true));
 #endif
-		*(string_t *)(progfuncs->funcs.stringtable + qcptr) = st;
+		eval->string = st;
 		break;
 
 	case ev_float:
@@ -1285,19 +1348,60 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 		d = strtod(s, &s);
 		while(*s == ' ' || *s == '\t')
 			s++;
-		*(float *)(progfuncs->funcs.stringtable + qcptr) = d;
+		eval->_float = d;
+		if (*s)
+			return false;	//some kind of junk in there.
+		break;
+	case ev_double:
+		while(*s == ' ' || *s == '\t')
+			s++;
+		d = strtod(s, &s);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		eval->_double = d;
 		if (*s)
 			return false;	//some kind of junk in there.
 		break;
 
-	case ev_entity:	//ent references are simple ints for us.
 	case ev_integer:
 		while(*s == ' ' || *s == '\t')
 			s++;
 		i = strtol(s, &s, 0);
 		while(*s == ' ' || *s == '\t')
 			s++;
-		*(int *)(progfuncs->funcs.stringtable + qcptr) = i;
+		eval->_int = i;
+		if (*s)
+			return false;	//some kind of junk in there.
+		break;
+	case ev_entity:	//ent references are simple ints for us.
+	case ev_uint:
+		while(*s == ' ' || *s == '\t')
+			s++;
+		u = strtoul(s, &s, 0);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		eval->_uint = u;
+		if (*s)
+			return false;	//some kind of junk in there.
+		break;
+
+	case ev_int64:
+		while(*s == ' ' || *s == '\t')
+			s++;
+		i = strtoll(s, &s, 0);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		eval->_int64 = i;
+		if (*s)
+			return false;	//some kind of junk in there.
+		break;
+	case ev_uint64:
+		while(*s == ' ' || *s == '\t')
+			s++;
+		u = strtoull(s, &s, 0);
+		while(*s == ' ' || *s == '\t')
+			s++;
+		eval->_uint64 = u;
 		if (*s)
 			return false;	//some kind of junk in there.
 		break;
@@ -1308,7 +1412,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 			while(*s == ' ' || *s == '\t')
 				s++;
 			d = strtod(s, &s);
-			((float *)(progfuncs->funcs.stringtable + qcptr))[i] = d;
+			eval->_vector[i] = d;
 		}
 		while(*s == ' ' || *s == '\t')
 			s++;
@@ -1323,13 +1427,13 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 			externs->Printf ("Can't find field %s\n", s);
 			return false;
 		}
-		*(int *)(progfuncs->funcs.stringtable + qcptr) = def->ofs;
+		eval->_int = def->ofs;
 		break;
 
 	case ev_function:
 		if (s[0] && s[1]==':'&&s[2]=='\0')	//this isn't right...
 		{
-			*(func_t *)(progfuncs->funcs.stringtable + qcptr) = 0;
+			eval->function = 0;
 			return true;
 		}
 		func = ED_FindFunction (progfuncs, s, &module, -1);
@@ -1338,7 +1442,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 			externs->Printf ("Can't find function %s\n", s);
 			return false;
 		}
-		*(func_t *)(progfuncs->funcs.stringtable + qcptr) = (func - pr_progstate[module].functions) | (module<<24);
+		eval->function = (func - pr_progstate[module].functions) | (module<<24);
 		break;
 
 	default:
@@ -1564,7 +1668,11 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 			}
 			else if (type != ev_string	//anything other than these is not saved
 			&& type != ev_float
+			&& type != ev_double
 			&& type != ev_integer
+			&& type != ev_uint
+			&& type != ev_int64
+			&& type != ev_uint64
 			&& type != ev_entity
 			&& type != ev_vector)
 				continue;
@@ -1621,7 +1729,11 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 			}
 			else if (type != ev_string	//anything other than these is not saved
 			&& type != ev_float
+			&& type != ev_double
 			&& type != ev_integer
+			&& type != ev_uint
+			&& type != ev_int64
+			&& type != ev_uint64
 			&& type != ev_entity
 			&& type != ev_vector)
 				continue;
@@ -3098,8 +3210,11 @@ retry:
 				nf->progsofs = fld16[i].ofs;
 				nf->ofs = fld16[i].ofs;
 
-				if (prinst.fields_size < (nf->ofs+type_size[nf->type])*4)
-					prinst.fields_size = (nf->ofs+type_size[nf->type])*4;
+				if (prinst.fields_size < (nf->ofs+type_size[nf->type])*sizeof(pvec_t))
+				{
+					prinst.fields_size = (nf->ofs+type_size[nf->type])*sizeof(pvec_t);
+					progfuncs->funcs.activefieldslots = nf->ofs+type_size[nf->type];
+				}
 
 				prinst.numfields++;
 			}

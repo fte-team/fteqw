@@ -7785,6 +7785,10 @@ void SV_ReadQCRequest(void)
 			args[i] = 'f';
 			G_FLOAT(OFS_PARM0+i*3) = MSG_ReadFloat();
 			break;
+		case ev_double:
+			args[i] = 'F';
+			G_FLOAT(OFS_PARM0+i*3) = MSG_ReadDouble();
+			break;
 		case ev_vector:
 			args[i] = 'v';
 			G_FLOAT(OFS_PARM0+i*3+0) = MSG_ReadFloat();
@@ -7794,6 +7798,18 @@ void SV_ReadQCRequest(void)
 		case ev_integer:
 			args[i] = 'i';
 			G_INT(OFS_PARM0+i*3) = MSG_ReadLong();
+			break;
+		case ev_uint:
+			args[i] = 'u';
+			G_UINT(OFS_PARM0+i*3) = MSG_ReadLong();
+			break;
+		case ev_int64:
+			args[i] = 'I';
+			G_INT64(OFS_PARM0+i*3) = MSG_ReadInt64();
+			break;
+		case ev_uint64:
+			args[i] = 'U';
+			G_UINT64(OFS_PARM0+i*3) = MSG_ReadInt64();
 			break;
 		case ev_string:
 			args[i] = 's';

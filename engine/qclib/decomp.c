@@ -58,6 +58,14 @@ QCC_ddef_t *GetField(const char *name);
 	return p;
 }*/
 
+const char *GetString(dstring_t str)
+{
+	if (str >= strofs)
+		return "INVALIDSTRING";
+	else
+		return strings+str;
+}
+
 extern QCC_opcode_t pr_opcodes [];
 
 int endofsystemfields;
@@ -137,7 +145,7 @@ const char *temp_type (int temp, dstatement_t *start, dfunction_t *df)
 		}
 	}
 
-	printf("warning: Could not determine return type for %s\n", df->s_name + strings);
+	printf("warning: Could not determine return type for %s\n", GetString(df->s_name));
 
 	return "float";
 
@@ -172,13 +180,6 @@ pbool IsConstant(QCC_ddef_t *def)
 	return true;
 }
 
-const char *qcstring(int str)
-{
-	if ((unsigned)str >= strofs)
-		return "";
-	return strings+str;
-}
-
 char *type_name (QCC_ddef_t *def)
 {
 	QCC_ddef_t *j;
@@ -187,7 +188,7 @@ char *type_name (QCC_ddef_t *def)
 	{
 	case ev_field:
 	case ev_pointer:
-		j = GetField(def->s_name + strings);
+		j = GetField(GetString(def->s_name));
 		if (j)
 			return qcva(".%s",type_names[j->type]);
 		else
@@ -280,7 +281,7 @@ static char *PR_ValueString (etype_t type, void *val)
 	switch (type)
 	{
 	case ev_string:
-		QC_snprintfz(line, sizeof(line), "%s", PR_String(strings + *(int *)val));
+		QC_snprintfz(line, sizeof(line), "%s", PR_String(GetString(*(int *)val)));
 		break;
 	case ev_entity:	
 		QC_snprintfz(line, sizeof(line), "entity %i", *(int *)val);
@@ -290,7 +291,7 @@ static char *PR_ValueString (etype_t type, void *val)
 		if (!f)
 			QC_snprintfz(line, sizeof(line), "undefined function");
 		else
-			QC_snprintfz(line, sizeof(line), "%s()", strings + f->s_name);
+			QC_snprintfz(line, sizeof(line), "%s()", GetString(f->s_name));
 		break;
 	/*
 	case ev_field:
@@ -822,7 +823,7 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 // fix up the functions
 	for (i = 1; i < numfunctions; i++)
 	{
-		if ((unsigned)functions[i].s_name >= (unsigned)strofs || strlen(functions[i].s_name + strings) <= 0)
+		if ((unsigned)functions[i].s_name >= (unsigned)strofs || strlen(GetString(functions[i].s_name)) <= 0)
 		{
 			fd = DecompileFunctionGlobal(i);
 			if (fd)
@@ -853,7 +854,7 @@ DecompileGetFunctionIdxByName(const char *name)
 	int i;
 
 	for (i = 1; i < numfunctions; i++)
-		if (!strcmp(name, strings + functions[i].s_name)) 
+		if (!strcmp(name, GetString(functions[i].s_name)))
 		{
 			return i;
 		}
@@ -868,7 +869,7 @@ const etype_t DecompileGetFieldTypeByDef(QCC_ddef_t *def)
 	for (i = 1; i < numfielddefs; i++)
 		if (fields[i].ofs == ofs) 
 		{
-			if (!strcmp(strings+def->s_name, strings+fields[i].s_name))
+			if (!strcmp(GetString(def->s_name), GetString(fields[i].s_name)))
 				return fields[i].type;
 		}
 	return ev_void;
@@ -880,7 +881,7 @@ const char *DecompileGetFieldNameIdxByFinalOffset(int ofs)
 	for (i = 1; i < numfielddefs; i++)
 		if (fields[i].ofs == ofs) 
 		{
-			return fields[i].s_name+strings;
+			return GetString(fields[i].s_name);
 		}
 	return "UNKNOWN FIELD";
 }
@@ -892,17 +893,17 @@ void DecompileGetFieldNameIdxByFinalOffset2(char *out, size_t outsize, int ofs)
 	{
 		if (fields[i].ofs == ofs) 
 		{
-			QC_snprintfz(out, outsize, "%s", fields[i].s_name+strings);
+			QC_snprintfz(out, outsize, "%s", GetString(fields[i].s_name));
 			return;
 		}
 		else if (fields[i].type == ev_vector && fields[i].ofs+1 == ofs)
 		{
-			QC_snprintfz(out, outsize, "%s_y", fields[i].s_name+strings);
+			QC_snprintfz(out, outsize, "%s_y", GetString(fields[i].s_name));
 			return;
 		}
 		else if (fields[i].type == ev_vector && fields[i].ofs+2 == ofs)
 		{
-			QC_snprintfz(out, outsize, "%s_z", fields[i].s_name+strings);
+			QC_snprintfz(out, outsize, "%s_z", GetString(fields[i].s_name));
 			return;
 		}
 	}
@@ -975,9 +976,9 @@ static unsigned int DecompileBuiltin(dfunction_t *df)
 	bi = -df->first_statement;
 	//okay, so this is kinda screwy, different mods have different sets of builtins, and a load of fte's are #0 too
 	//so just try to match by name first... lots of scanning. :(
-	if (df->s_name>0)
+	if (df->s_name>0 && df->s_name < strofs)
 	{
-		char *biname = strings + df->s_name;
+		const char *biname = GetString(df->s_name);
 		for (i = 0; i < (sizeof(builtins)/sizeof(builtins[0])); i++)
 		{
 			if (!builtins[i].name)
@@ -1100,11 +1101,11 @@ void DecompileCalcProfiles(void)
 		{
 			unsigned int bi = DecompileBuiltin(df);
 			if (bi && builtins[bi].text)
-				QC_snprintfz(fname, sizeof(fname), "%s %s", builtins[bi].text, strings + functions[i].s_name);
+				QC_snprintfz(fname, sizeof(fname), "%s %s", builtins[bi].text, GetString(functions[i].s_name));
 			else
 			{
-				QC_snprintfz(fname, sizeof(fname), "__variant(...) %s", strings + functions[i].s_name);
-				printf("warning: unknown builtin %s\n", strings + functions[i].s_name);
+				QC_snprintfz(fname, sizeof(fname), "__variant(...) %s", GetString(functions[i].s_name));
+				printf("warning: unknown builtin %s\n", GetString(functions[i].s_name));
 			}
 		}
 		else
@@ -1178,7 +1179,7 @@ void DecompileCalcProfiles(void)
 			}
 			strcat(fname, ") ");
 			line[0] = '\0';
-			QC_snprintfz(line, sizeof(line), "%s", strings + functions[i].s_name);
+			QC_snprintfz(line, sizeof(line), "%s", GetString(functions[i].s_name));
 			strcat(fname, line);
 
 		}
@@ -1206,7 +1207,7 @@ QCC_ddef_t *GlobalAtOffset(dfunction_t *df, gofs_t ofs)
 		if (def->ofs == ofs)
 		{
 
-			/*if (!strings[def->s_name])
+			/*if (!GetString(def->s_name))
 			{
 				char line[16];
 				char *buf;
@@ -1241,7 +1242,7 @@ QCC_ddef_t *GlobalAtOffset(dfunction_t *df, gofs_t ofs)
 					if (def->ofs == ofs)
 					{
 						char line[256], *buf;
-						sprintf(line, "%s_%c", strings+def->s_name, 'x'+parmofs);	//globals, which are defined after the locals of the function they are first used in...
+						sprintf(line, "%s_%c", GetString(def->s_name), 'x'+parmofs);	//globals, which are defined after the locals of the function they are first used in...
 						def = malloc(sizeof(*def)+strlen(line)+1);		//must be static variables, but we can't handle them very well
 						buf = (char*)(def+1);
 						strcpy(buf, line);
@@ -1290,7 +1291,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 
 	if (def)
 	{
-		const char *defname = qcstring(def->s_name);
+		const char *defname = GetString(def->s_name);
 
 		if (!strcmp(defname, "IMMEDIATE") || !strcmp(defname, ".imm") || !def->s_name)
 		{
@@ -1316,14 +1317,14 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 					goto lookslikealocal;
 				else if ((parent = GlobalAtOffset(df, ofs-1)) && parent->type == ev_vector)
 				{	// _y
-					QC_snprintfz(line, sizeof(line), "%s_y", strings+parent->s_name);	//globals, which are defined after the locals of the function they are first used in...
+					QC_snprintfz(line, sizeof(line), "%s_y", GetString(parent->s_name));	//globals, which are defined after the locals of the function they are first used in...
 					buf = malloc(strlen(line)+1);		//must be static variables, but we can't handle them very well
 					strcpy(buf, line);
 					def->s_name = buf - strings;
 				}
 				else if ((parent = GlobalAtOffset(df, ofs-2)) && parent->type == ev_vector)
 				{	// _z
-					QC_snprintfz(line, sizeof(line), "%s_z", strings+parent->s_name);	//globals, which are defined after the locals of the function they are first used in...
+					QC_snprintfz(line, sizeof(line), "%s_z", GetString(parent->s_name));	//globals, which are defined after the locals of the function they are first used in...
 					buf = malloc(strlen(line)+1);		//must be static variables, but we can't handle them very well
 					strcpy(buf, line);
 					def->s_name = buf - strings;
@@ -1337,7 +1338,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 				}
 			}
 
-			QC_snprintfz(line, sizeof(line), "%s", strings + def->s_name);
+			QC_snprintfz(line, sizeof(line), "%s", GetString(def->s_name));
 			if (def->type == ev_field && req_t == type_field && req_t->aux_type == type_float && DecompileGetFieldTypeByDef(def) == ev_vector)
 				strcat(line, "_x");
 			else if (def->type == ev_vector && req_t == type_float)
@@ -1442,7 +1443,7 @@ void DecompileImmediate_Insert(dfunction_t *df, gofs_t ofs, char *knew, QCC_type
 
 
 	d = GlobalAtOffset(df, ofs);
-	if (d && d->s_name)// && strcmp(strings+d->s_name, "IMMEDIATE"))
+	if (d && d->s_name)// && strcmp(GetString(d->s_name), "IMMEDIATE"))
 	{	//every operator has a src (or two) and a dest.
 		//many compilers optimise by using the dest of a maths/logic operator to store to a local/global
 		//they then skip off the storeopcode.
@@ -1450,7 +1451,7 @@ void DecompileImmediate_Insert(dfunction_t *df, gofs_t ofs, char *knew, QCC_type
 		IMMEDIATES[nofs].text = NULL;
 		IMMEDIATES[nofs].type = NULL;
 
-		QCC_CatVFile(Decompileofile, "%s = %s;\n", strings + d->s_name, knew);
+		QCC_CatVFile(Decompileofile, "%s = %s;\n", GetString(d->s_name), knew);
 	}
 	else
 	{
@@ -1538,11 +1539,11 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 				char *out;
 				if (((int*)pr_globals)[ofs] < 0 || ((int*)pr_globals)[ofs] > strofs)
 				{
-					printf("Hey! That's not a string! error in %s\n", strings + df->s_name);
+					printf("Hey! That's not a string! error in %s\n", GetString(df->s_name));
 					QC_snprintfz(temp, sizeof(temp), "%f", pr_globals[ofs]);
 					break;
 				}
-				in = &strings[((int*)pr_globals)[ofs]];
+				in = GetString(((int*)pr_globals)[ofs]);
 				out = temp;
 				if (req_t->type != ev_string)
 				{
@@ -1639,7 +1640,7 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 			if (!((int*)pr_globals)[ofs])
 				QC_snprintfz(temp, sizeof(temp), "__NULL__/*func*/");
 			else if (((int*)pr_globals)[ofs] > 0 && ((int*)pr_globals)[ofs] < numfunctions && functions[((int*)pr_globals)[ofs]].s_name>0)
-				QC_snprintfz(temp, sizeof(temp), "%s/*immediate*/", strings+functions[((int*)pr_globals)[ofs]].s_name);
+				QC_snprintfz(temp, sizeof(temp), "%s/*immediate*/", GetString(functions[((int*)pr_globals)[ofs]].s_name));
 			else
 				QC_snprintfz(temp, sizeof(temp), "((__variant(...))%i)", ((int*)pr_globals)[ofs]);
 			break;
@@ -2317,7 +2318,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 			if (s->c)
 				QCC_CatVFile(Decompileofile, ", %s", DecompileGet(df, s->c, typ1));
 			QCC_CatVFile(Decompileofile, "]\n");
-			printf("warning: Unknown opcode %i in %s\n", op, strings + df->s_name);
+			printf("warning: Unknown opcode %i in %s\n", op, GetString(df->s_name));
 		}
 
 	}
@@ -2367,7 +2368,7 @@ pbool DecompileDecompileFunction(dfunction_t * df, dstatement_t *altdone)
 
 	if (indent != 1)
 	{
-		printf("warning: Indentation structure corrupt (in func %s)\n", strings+df->s_name);
+		printf("warning: Indentation structure corrupt (in func %s)\n", GetString(df->s_name));
 		return false;
 	}
 	return true;
@@ -2378,7 +2379,7 @@ char *DecompileString(int qcstring)
 	static char buf[8192];
 	char *s;
 	int c = 1;
-	const char *string = strings+qcstring;
+	const char *string = GetString(qcstring);
 	if (qcstring < 0 || qcstring >= strofs)
 		return "Invalid String";
 
@@ -2468,7 +2469,7 @@ char *DecompileValueString(etype_t type, void *val)
 			break;
 		case ev_function:
 			if (*(int *)val>0 && *(int *)val<numfunctions)
-				QC_snprintfz(line, sizeof(line), "(/*func 0x%x*/%s)", *(int *)val, strings+functions[*(int *)val].s_name);
+				QC_snprintfz(line, sizeof(line), "(/*func 0x%x*/%s)", *(int *)val, GetString(functions[*(int *)val].s_name));
 			else
 				QC_snprintfz(line, sizeof(line), "((void())0x%xi)", *(int *)val);
 			break;
@@ -2498,13 +2499,13 @@ char *DecompilePrintParameter(QCC_ddef_t * def)
 	{
 		QC_snprintfz(line, sizeof(line), "%s _p_%i%s", type_name(def), def->ofs, debug);
 	}
-	else if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm"))
+	else if (!strcmp(GetString(def->s_name), "IMMEDIATE") || !strcmp(GetString(def->s_name), ".imm"))
 	{
 		QC_snprintfz(line, sizeof(line), "%s%s", DecompileValueString((etype_t)(def->type), &pr_globals[def->ofs]), debug);
 	}
 	else
 	{
-		QC_snprintfz(line, sizeof(line), "%s %s%s", type_name(def), strings + def->s_name, debug);
+		QC_snprintfz(line, sizeof(line), "%s %s%s", type_name(def), GetString(def->s_name), debug);
 	}
 	return line;
 }
@@ -2527,18 +2528,18 @@ const char *GetMatchingField(QCC_ddef_t *field)
 		{
 			if (((int*)pr_globals)[def->ofs] == field->ofs)
 			{
-				if (!strcmp(strings+def->s_name, strings+field->s_name))
+				if (!strcmp(GetString(def->s_name), GetString(field->s_name)))
 					return NULL;	//found ourself, give up.
-				lf = strlen(strings + field->s_name);
-				ld = strlen(strings + def->s_name);
+				lf = strlen(GetString(field->s_name));
+				ld = strlen(GetString(def->s_name));
 				if (lf - 2 == ld)
 				{
-					if ((strings + field->s_name)[lf-2] == '_' && (strings + field->s_name)[lf-1] == 'x')
-						if (!strncmp(strings + field->s_name, strings + def->s_name, ld))
+					if ((GetString(field->s_name)[lf-2]) == '_' && (GetString(field->s_name)[lf-1]) == 'x')
+						if (!strncmp(GetString(field->s_name), GetString(def->s_name), ld))
 							return NULL;	//vector found foo_x
 				}
 				if (!ret)
-					ret = def->s_name+strings;
+					ret = GetString(def->s_name);
 			}
 		}
 	}
@@ -2560,7 +2561,7 @@ QCC_ddef_t *GetField(const char *name)
 	{
 		d = &fields[i];
 
-		if (!strcmp(strings + d->s_name, name))
+		if (!strcmp(GetString(d->s_name), name))
 			return d;
 	}
 	return NULL;
@@ -2595,7 +2596,7 @@ QCC_ddef_t *DecompileFindGlobal(const char *findname)
 	for (i = 0; i < numglobaldefs; i++)
 	{
 		def = &globals[i];
-		defname = strings + def->s_name;
+		defname = GetString(def->s_name);
 
 		if (!strcmp(findname, defname))
 		{
@@ -2651,19 +2652,19 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 
 			if (par->type == ev_function)
 			{
-				if (strcmp(strings + par->s_name, "IMMEDIATE") && strcmp(strings + par->s_name, ".imm"))
+				if (strcmp(GetString(par->s_name), "IMMEDIATE") && strcmp(GetString(par->s_name), ".imm"))
 				{
-					if (strcmp(strings + par->s_name, name))
+					if (strcmp(GetString(par->s_name), name))
 					{
 						int f = ((int*)pr_globals)[par->ofs];
 						//DecompileGetFunctionIdxByName(strings + par->s_name);
-						if (f && strcmp(strings+functions[f].s_name, strings + par->s_name))
+						if (f && strcmp(GetString(functions[f].s_name), GetString(par->s_name)))
 						{
 							char *s = strrchr(DecompileProfiles[f], ' ');
 							//happens with void() func = otherfunc;
 							//such functions thus don't have their own type+body
 							*s = 0;
-							QCC_CatVFile(Decompileofile, "var %s %s = %s;\n", DecompileProfiles[f], strings + par->s_name, s+1);
+							QCC_CatVFile(Decompileofile, "var %s %s = %s;\n", DecompileProfiles[f], GetString(par->s_name), s+1);
 							*s = ' ';
 						}
 						else
@@ -2673,18 +2674,18 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 			}
 			else if (par->type != ev_pointer)
 			{
-				if (strcmp(strings + par->s_name, "IMMEDIATE") && strcmp(strings + par->s_name, ".imm") && par->s_name)
+				if (strcmp(GetString(par->s_name), "IMMEDIATE") && strcmp(GetString(par->s_name), ".imm") && par->s_name)
 				{
 
 					if (par->type == ev_field)
 					{
 
-						ef = GetField(strings + par->s_name);
+						ef = GetField(GetString(par->s_name));
 
 						if (!ef)
 						{
-							QCC_CatVFile(Decompileofile, "var .unknowntype %s;\n", strings + par->s_name);
-							printf("Fatal Error: Could not locate a field named \"%s\"\n", strings + par->s_name);
+							QCC_CatVFile(Decompileofile, "var .unknowntype %s;\n", GetString(par->s_name));
+							printf("Fatal Error: Could not locate a field named \"%s\"\n", GetString(par->s_name));
 						}
 						else
 						{
@@ -2694,7 +2695,7 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 							matchingfield = GetMatchingField(ef);
 
 #ifndef DONT_USE_DIRTY_TRICKS	//could try scanning for an op_address+op_storep_fnc pair
-							if ((ef->type == ev_function) && !strcmp(strings + ef->s_name, "th_pain"))
+							if ((ef->type == ev_function) && !strcmp(GetString(ef->s_name), "th_pain"))
 							{
 								QCC_CatVFile(Decompileofile, ".void(entity attacker, float damage) th_pain;\n");
 							}
@@ -2702,9 +2703,9 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 #endif
 							{
 								if (matchingfield)
-									QCC_CatVFile(Decompileofile, "var .%s %s = %s;\n", type_name(ef), strings + ef->s_name, matchingfield);
+									QCC_CatVFile(Decompileofile, "var .%s %s = %s;\n", type_name(ef), GetString(ef->s_name), matchingfield);
 								else
-									QCC_CatVFile(Decompileofile, ".%s %s;\n", type_name(ef), strings + ef->s_name);
+									QCC_CatVFile(Decompileofile, ".%s %s;\n", type_name(ef), GetString(ef->s_name));
 
 //								fprintf(Decompileofile, "//%i %i %i %i\n", ef->ofs, ((int*)pr_globals)[ef->ofs], par->ofs, ((int*)pr_globals)[par->ofs]);
 							}
@@ -2719,7 +2720,7 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 						if (par->type == ev_entity || par->type == ev_void)
 						{
 
-							QCC_CatVFile(Decompileofile, "%s %s;\n", type_name(par), strings + par->s_name);
+							QCC_CatVFile(Decompileofile, "%s %s;\n", type_name(par), GetString(par->s_name));
 
 						}
 						else
@@ -2730,14 +2731,14 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 
 							if (IsConstant(par))
 							{
-								QCC_CatVFile(Decompileofile, "%s %s    = %s;\n", type_name(par), strings + par->s_name, line);
+								QCC_CatVFile(Decompileofile, "%s %s    = %s;\n", type_name(par), GetString(par->s_name), line);
 							}
 							else
 							{
 								if (pr_globals[par->ofs] != 0)
-									QCC_CatVFile(Decompileofile, "%s %s /* = %s */;\n", type_name(par), strings + par->s_name, line);
+									QCC_CatVFile(Decompileofile, "%s %s /* = %s */;\n", type_name(par), GetString(par->s_name), line);
 								else
-									QCC_CatVFile(Decompileofile, "%s %s;\n", type_name(par), strings + par->s_name, line);
+									QCC_CatVFile(Decompileofile, "%s %s;\n", type_name(par), GetString(par->s_name), line);
 							}
 						}
 					}
@@ -2763,7 +2764,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 
 
 	for (i = 1; i < numfunctions; i++)
-		if (!strcmp(name, strings + functions[i].s_name))
+		if (!strcmp(name, GetString(functions[i].s_name)))
 			break;
 	if (i == numfunctions)
 	{
@@ -3032,10 +3033,10 @@ void DecompileFunction(const char *name, int *lastglobal)
 				}
 				else
 				{
-					if (!strcmp(strings + par->s_name, "IMMEDIATE") || !strcmp(strings + par->s_name, ".imm"))
+					if (!strcmp(GetString(par->s_name), "IMMEDIATE") || !strcmp(GetString(par->s_name), ".imm"))
 						continue; // immediates don't belong
 
-					if (!strings[par->s_name])
+					if (!GetString(par->s_name))
 					{
 						QC_snprintfz(line, sizeof(line), "_l_%i", par->ofs);
 						arg2 = malloc(strlen(line)+1);
@@ -3069,7 +3070,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 
 	if (!DecompileDecompileFunction(df, altdone))
 	{
-		QCC_InsertVFile(Decompileofile, startpos, "#error Corrupt Function: %s\n#if 0\n", strings+df->s_name);
+		QCC_InsertVFile(Decompileofile, startpos, "#error Corrupt Function: %s\n#if 0\n", GetString(df->s_name));
 		QCC_CatVFile(Decompileofile, "#endif\n");
 	}
 
@@ -3157,7 +3158,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 			lastfileofs = d->s_file;
 			fname[0] = '\0';
 			if (d->s_file <= strofs && d->s_file >= 0)
-				sprintf(fname, "%s", strings + d->s_file);
+				sprintf(fname, "%s", GetString(d->s_file));
 			// FrikaC -- not sure if this is cool or what?
 			bogusname = false;
 			if (strlen(fname) <= 0)
@@ -3187,7 +3188,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 				{
 					synth_name[0] = 0;
 				}
-				if(!TrySynthName(qcva("%s", strings + d->s_name)) && !synth_name[0])
+				if(!TrySynthName(qcva("%s", GetString(d->s_name))) && !synth_name[0])
 					QC_snprintfz(synth_name, sizeof(synth_name), "frik%i.qc", fake_name++);
 
 				QC_snprintfz(fname, sizeof(fname), "%s", synth_name);
@@ -3210,7 +3211,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 			}
 		}
 		Decompileofile = f;
-		DecompileFunction(strings + d->s_name, &lastglob);
+		DecompileFunction(GetString(d->s_name), &lastglob);
 	}
 }
 
@@ -3266,7 +3267,7 @@ char *DecompileGlobalStringNoContents(gofs_t ofs)
 		if (def->ofs == ofs)
 		{
 			line[0] = '0';
-			QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, strings + def->s_name);
+			QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, GetString(def->s_name));
 			break;
 		}
 	}
@@ -3297,13 +3298,13 @@ char *DecompileGlobalString(gofs_t ofs)
 		{
 
 			line[0] = '0';
-			if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm"))
+			if (!strcmp(GetString(def->s_name), "IMMEDIATE") || !strcmp(GetString(def->s_name), ".imm"))
 			{
 				s = PR_ValueString((etype_t)(def->type), &pr_globals[ofs]);
 				QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, s);
 			}
 			else
-				QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, strings + def->s_name);
+				QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, GetString(def->s_name));
 		}
 	}
 
@@ -3356,7 +3357,7 @@ void DecompilePrintFunction(char *name)
 	dfunction_t *df;
 
 	for (i = 0; i < numfunctions; i++)
-		if (!strcmp(name, strings + functions[i].s_name))
+		if (!strcmp(name, GetString(functions[i].s_name)))
 			break;
 	if (i == numfunctions)
 	{

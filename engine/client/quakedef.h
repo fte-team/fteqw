@@ -397,7 +397,7 @@ void COM_AssertMainThread(const char *msg);
 #define COM_HasWork() false
 #define COM_DoWork(t,l) false
 #define COM_AssertMainThread(msg)
-#define COM_MainThreadWork()
+#define COM_MainThreadWork() while(0)
 #define COM_MainThreadFlush()
 #define COM_DestroyWorkerThread()
 #define COM_WorkerAbort(m)

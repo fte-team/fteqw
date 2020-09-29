@@ -746,6 +746,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define fte_alignof(type) sizeof(qintptr_t)
 #endif
 
+//safeswitch(foo){safedefault: break;}
+//switch, but errors for any omitted enum values despite the presence of a default case.
+//(gcc will generally give warnings without the default, but sometimes you don't have control over the source of your enumeration values)
+#if (__GNUC__ >= 4)
+	#define safeswitch	\
+		_Pragma("GCC diagnostic push")	\
+		_Pragma("GCC diagnostic error \"-Wswitch-enum\"") \
+		_Pragma("GCC diagnostic error \"-Wswitch-default\"") \
+		switch
+	#define safedefault _Pragma("GCC diagnostic pop") default
+#else
+	#define safeswitch switch
+	#define safedefault default
+#endif
+
 //fte_inline must only be used in headers, and requires one and ONLY one fte_inlinebody elsewhere.
 //fte_inlinebody must be used on a prototype OUTSIDE of a header.
 //fte_inlinestatic must not be used inside any headers at all.

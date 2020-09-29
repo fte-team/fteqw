@@ -1230,7 +1230,8 @@ void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 //chained search for float reference fields
 void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, ff, cf;
+	int i;
+	unsigned int ff, cf;
 	int s;
 	wedict_t	*ent, *chain;
 
@@ -1242,6 +1243,11 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
 		cf = &((comentvars_t*)NULL)->chain - (pint_t*)NULL;
+	if (ff >= prinst->activefieldslots || cf >= prinst->activefieldslots)
+	{
+		PR_BIError (prinst, "PF_FindChain: bad field reference");
+		return;
+	}
 
 	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
@@ -1262,7 +1268,8 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 //chained search for float, int, and entity reference fields
 void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, ff, cf;
+	int i;
+	unsigned int ff, cf;
 	float s;
 	wedict_t	*ent, *chain;
 
@@ -1274,6 +1281,11 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
 		cf = &((comentvars_t*)NULL)->chain - (pint_t*)NULL;
+	if (ff >= prinst->activefieldslots || cf >= prinst->activefieldslots)
+	{
+		PR_BIError (prinst, "PF_FindChain: bad field reference");
+		return;
+	}
 
 	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
@@ -1294,7 +1306,8 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 //chained search for strings in entity fields
 void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, ff, cf;
+	int i;
+	unsigned int ff, cf;
 	const char *s;
 	string_t t;
 	wedict_t *ent, *chain;
@@ -1307,6 +1320,11 @@ void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
 		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
+	if (ff >= prinst->activefieldslots || cf >= prinst->activefieldslots)
+	{
+		PR_BIError (prinst, "PF_FindChain: bad field reference");
+		return;
+	}
 
 	for (i = 1; i < *prinst->parms->num_edicts; i++)
 	{
@@ -1330,12 +1348,18 @@ void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //entity(entity start, float fld, float match) findflags = #449
 void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int e, f;
+	int e;
+	unsigned int f;
 	int s;
 	wedict_t *ed;
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	if (f >= prinst->activefieldslots)
+	{
+		PR_BIError (prinst, "PF_FindFlags: bad field reference");
+		return;
+	}
 	s = G_FLOAT(OFS_PARM2);
 
 	for (e++; e < *prinst->parms->num_edicts; e++)
@@ -1356,7 +1380,8 @@ void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //entity(entity start, float fld, float match) findfloat = #98
 void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int e, f;
+	int e;
+	unsigned int f;
 	int s;
 	wedict_t *ed;
 
@@ -1370,6 +1395,11 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	if (f >= prinst->activefieldslots)
+	{
+		PR_BIError (prinst, "PF_FindFloat: bad field reference");
+		return;
+	}
 	s = G_INT(OFS_PARM2);
 
 	for (e++; e < *prinst->parms->num_edicts; e++)
@@ -1391,13 +1421,18 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		e;
-	int		f;
+	unsigned int		f;
 	const char	*s;
 	string_t t;
 	wedict_t	*ed;
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	if (f >= prinst->activefieldslots)
+	{
+		PR_BIError (prinst, "PF_FindString: bad field reference");
+		return;
+	}
 	s = PR_GetStringOfs(prinst, OFS_PARM2);
 	if (!s)
 	{
@@ -1430,8 +1465,7 @@ void QCBUILTIN PF_FindList (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	world_t *w = prinst->parms->user;
 	int		e;
-	int		f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	string_t t;
+	unsigned int f = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	wedict_t	*ed;
 	etype_t type = G_INT(OFS_PARM2);
 
@@ -1439,11 +1473,25 @@ void QCBUILTIN PF_FindList (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	int *retlist;
 	unsigned found = 0;
 
-	//FIXME: bound f
+	if (type <= ev_double)
+	{
+		extern const unsigned int type_size[];
+		if (f < 0 || f+type_size[type] > prinst->activefieldslots)
+		{	//invalid field.
+			G_INT(OFS_PARM3) = G_INT(OFS_RETURN) = 0;
+			return;
+		}
+	}
+	else
+	{	//unsupported field type.
+		G_INT(OFS_PARM3) = G_INT(OFS_RETURN) = 0;
+		return;
+	}
 
 	if (type == ev_string)
 	{
 		const char	*s = PR_GetStringOfs(prinst, OFS_PARM1);
+		string_t t;
 		if (!s)
 			s = ""; /* o.O */
 		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
@@ -1460,39 +1508,63 @@ void QCBUILTIN PF_FindList (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 	else if (type == ev_float)
 	{	//handling -0 properly requires care
-		float s = G_FLOAT(OFS_PARM1);
+		pvec_t s = G_FLOAT(OFS_PARM1);
 		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
 		{
 			ed = WEDICT_NUM_PB(prinst, e);
 			if (ED_ISFREE(ed))
 				continue;
-			if (((float*)ed->v)[f] == s)
+			if (((pvec_t*)ed->v)[f] == s)
+				list[found++] = EDICT_TO_PROG(prinst, ed);
+		}
+	}
+	else if (type == ev_double)
+	{	//handling 64bit -0 properly requires care
+		double s = G_DOUBLE(OFS_PARM1);
+		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			if (*(double*)((pvec_t*)ed->v+f) == s)
+				list[found++] = EDICT_TO_PROG(prinst, ed);
+		}
+	}
+	else if (type == ev_int64 || type == ev_uint64)
+	{	//handling -0 properly requires care
+		pint64_t s = G_INT64(OFS_PARM1);
+		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			if (*(pint64_t*)((pint_t*)ed->v+f) == s)
 				list[found++] = EDICT_TO_PROG(prinst, ed);
 		}
 	}
 	else if (type == ev_vector)
 	{	//big types...
-		float *s = G_VECTOR(OFS_PARM1);
+		pvec_t *s = G_VECTOR(OFS_PARM1);
 		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
 		{
 			ed = WEDICT_NUM_PB(prinst, e);
 			if (ED_ISFREE(ed))
 				continue;
-			if (((float*)ed->v)[f+0] == s[0]&&
-				((float*)ed->v)[f+1] == s[1]&&
-				((float*)ed->v)[f+2] == s[2])
+			if (((pvec_t*)ed->v)[f+0] == s[0]&&
+				((pvec_t*)ed->v)[f+1] == s[1]&&
+				((pvec_t*)ed->v)[f+2] == s[2])
 				list[found++] = EDICT_TO_PROG(prinst, ed);
 		}
 	}
 	else
 	{	//generic references and other stuff that can just be treated as ints
-		int s = G_INT(OFS_PARM1);
+		pint_t s = G_INT(OFS_PARM1);
 		for (e=1 ; e < *prinst->parms->num_edicts ; e++)
 		{
 			ed = WEDICT_NUM_PB(prinst, e);
 			if (ED_ISFREE(ed))
 				continue;
-			if (((int*)ed->v)[f] == s)
+			if (((pint_t*)ed->v)[f] == s)
 				list[found++] = EDICT_TO_PROG(prinst, ed);
 		}
 	}
@@ -6497,7 +6569,7 @@ void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 		G_FLOAT(OFS_RETURN) = realtime;
 		break;
 	case 1:		//actual time, ish. we round to milliseconds to reduce spectre exposure
-		G_FLOAT(OFS_RETURN) = (qint64_t)(Sys_DoubleTime()*1000) / 1000.0;
+		G_FLOAT(OFS_RETURN) = (qint64_t)Sys_Milliseconds();
 		break;
 	//case 2:	//highres.. looks like time into the frame
 	//case 3:	//uptime

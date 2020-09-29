@@ -218,58 +218,118 @@ void R_NetGraph (void)
 #endif
 }
 
-void R_FrameTimeGraph (float frametime)
+void R_FrameTimeGraph (float frametime, float scale)
 {
-	int		a, x, i, y;
+	float bias = 0;
+	int		a, x, i, y, h, col;
 
 	vec2_t p[4];
 	vec2_t tc[4];
 	vec4_t rgba[4];
 	extern shader_t *shader_draw_fill;
 
-	timehistory[findex++&NET_TIMINGSMASK] = frametime;
+	conchar_t line[128];
+	int textheight;
+	float minv=FLT_MAX, maxv=FLT_MIN, avg=0, dev=0;
+
+	static struct
+	{
+		float time;
+		int col;
+	} history[NET_TIMINGS];
+	static unsigned int findex;
+
+	extern int com_hadwork[WG_COUNT];
+
+	history[findex&NET_TIMINGSMASK].time = frametime;
+	history[findex&NET_TIMINGSMASK].col = 0xffffffff;
+	findex++;
+
+#ifdef LOADERTHREAD
+	if (com_hadwork[WG_MAIN])
+	{	//recolour the graph red if the main thread processed something from a worker.
+		//show three, because its not so easy to see when its whizzing past.
+		com_hadwork[WG_MAIN] = 0;
+		history[(findex-1)&NET_TIMINGSMASK].col = 0xff0000ff;
+		history[(findex-2)&NET_TIMINGSMASK].col = 0xff0000ff;
+		history[(findex-3)&NET_TIMINGSMASK].col = 0xff0000ff;
+	}
+#endif
 
 	x = 0;
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
-		i = (findex-a) & NET_TIMINGSMASK;
-		R_LineGraph (NET_TIMINGS-1-a, timehistory[i]);
+		avg     += history[a].time;
+		if (minv > history[a].time)
+			minv = history[a].time;
+		if (maxv < history[a].time)
+			maxv = history[a].time;
 	}
+	if (!scale)
+	{
+		bias = minv;
+		scale = NET_GRAPHHEIGHT/(maxv-minv);
+	}
+	else
+		scale *= 1000;
+	avg/=a;
+	for (a = 0; a < NET_TIMINGS; a++)
+		dev += 1000*1000*(history[a].time - avg)*(history[a].time - avg);
+	dev /= a;
+	dev = sqrt(dev);
+
 
 	x =	((vid.width - 320)>>1);
 	x=-x;
-	y = vid.height - sb_lines - 16 - NET_GRAPHHEIGHT;
 
-	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8);
+	textheight = 4;
+	textheight = ceil(textheight*Font_CharVHeight(font_console)/8)*8;	//might have a small gap underneath
+
+	y = vid.height - sb_lines - 16 - NET_GRAPHHEIGHT - textheight;
+
+	M_DrawTextBox (x, y, NET_TIMINGS/8, (textheight + NET_GRAPHHEIGHT)/8);
 	x=8;
 	y += 8;
 
-#ifdef GRAPHTEX
-	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_texels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
-	x=8;
-	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
-#else
+	COM_ParseFunString(CON_WHITEMASK, va("mean: %.3ffps (%.3fms)", 1/avg, 1000*avg), line, sizeof(line), false);
+	Draw_ExpandedString(font_console, x, y, line);
+	y += Font_CharVHeight(font_console);
+	COM_ParseFunString(CON_WHITEMASK, va("fastest: %.3ffps (%.3fms)", 1/minv, 1000*minv), line, sizeof(line), false);
+	Draw_ExpandedString(font_console, x, y, line);
+	y += Font_CharVHeight(font_console);
+	COM_ParseFunString(CON_WHITEMASK, va("slowest: %.3ffps (%.3fms)", 1/maxv, 1000*maxv), line, sizeof(line), false);
+	Draw_ExpandedString(font_console, x, y, line);
+	y += Font_CharVHeight(font_console);
+	COM_ParseFunString(CON_WHITEMASK, va("deviation: %.3fms (max %.3fms)", dev, (maxv-minv)*1000/2), line, sizeof(line), false);
+	Draw_ExpandedString(font_console, x, y, line);
+	y += Font_CharVHeight(font_console);
+
 	Vector2Set(p[2], 0,0);
 	Vector2Set(p[3], 0,0);
 	Vector4Set(rgba[2], 0,0,0,0);
 	Vector4Set(rgba[3], 0,0,0,0);
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
+		i = (findex-NET_TIMINGS+a)&(NET_TIMINGS-1);
+		h = (history[i].time - bias) * scale;
+		col = history[i].col;
+
+		if (h > NET_GRAPHHEIGHT)
+			h = NET_GRAPHHEIGHT;
 		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);
 		Vector2Copy(p[2], p[1]);	Vector4Copy(rgba[2], rgba[1]);
 
-		Vector2Set(p[2+0], x+a,		y+(1-ngraph[a].height)*NET_GRAPHHEIGHT);
+		Vector2Set(p[2+0], x+a,		y+(NET_GRAPHHEIGHT-h));
 		Vector2Set(p[2+1], x+a,		y+NET_GRAPHHEIGHT);
 
-		Vector2Set(tc[2+0], x/(float)NET_TIMINGS,		(1-ngraph[a].height));
+		Vector2Set(tc[2+0], x/(float)NET_TIMINGS,		(NET_GRAPHHEIGHT-h)/NET_GRAPHHEIGHT);
 		Vector2Set(tc[2+1], x/(float)NET_TIMINGS,		1);
-		Vector4Set(rgba[2+0], ((ngraph[a].col>>0)&0xff)/255.0, ((ngraph[a].col>>8)&0xff)/255.0, ((ngraph[a].col>>16)&0xff)/255.0, ((ngraph[a].col>>24)&0xff)/255.0);
+		Vector4Set(rgba[2+0], ((col>>0)&0xff)/255.0, ((col>>8)&0xff)/255.0, ((col>>16)&0xff)/255.0, ((col>>24)&0xff)/255.0);
 		Vector4Copy(rgba[2+0], rgba[2+1]);
 
 		if (a)
 			R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
 	}
-#endif
 }
 
 void R_NetgraphInit(void)

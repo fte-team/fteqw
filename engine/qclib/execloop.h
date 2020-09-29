@@ -411,6 +411,24 @@ reeval:
 			ptr = QCPOINTERM(i);
 		ptr->_int = OPA->_int;
 		break;
+	case OP_STOREP_I64:		// 64bit
+		i = OPB->_int + OPC->_int*sizeof(ptr->_int);
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(ptr->_int64)))
+		{
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(ptr->_int64))))
+			{
+				if (i == -1)
+					break;
+				if (i == 0)
+					QCFAULT(&progfuncs->funcs, "bad pointer write in %s (null pointer)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name));
+				else
+					QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			}
+		}
+		else
+			ptr = QCPOINTERM(i);
+		ptr->_int64 = OPA->_int64;
+		break;
 	case OP_STOREP_V:
 		i = OPB->_int + (OPC->_int*sizeof(ptr->_int));
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(pvec3_t)))
@@ -503,6 +521,48 @@ reeval:
 
 		ptr = (eval_t *)(((int *)edvars(ed)) + i);
 		ptr->_int = OPC->_int;
+		break;
+	case OP_STOREF_I64:
+		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_STOREF_? references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
+		errorif (!ed || ed->readonly)
+		{	//boot it over to the debugger
+#if INTSIZE == 16
+			ddef16_t *d = ED_GlobalAtOfs16(progfuncs, st->a);
+#else
+			ddef32_t *d = ED_GlobalAtOfs32(progfuncs, st->a);
+#endif
+			fdef_t *f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
+			if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):"??", f?f->name:"??"))
+				return prinst.pr_xstatement;
+			break;
+		}
+
+//Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.
+#ifdef NOLEGACY
+		errorif (ed->ereftype == ER_FREE)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "assignment to free entity in %s", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+#endif
+
+		i = OPB->_int + progfuncs->funcs.fieldadjust;
+		errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_STOREF_? references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			break;
+		}
+
+		ptr = (eval_t *)(((int *)edvars(ed)) + i);
+		ptr->_int64 = OPC->_int64;
 		break;
 	case OP_STOREF_V:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
@@ -634,7 +694,7 @@ reeval:
 #endif
 		{
 			i = OPB->_int + progfuncs->funcs.fieldadjust;
-			errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
+			errorif ((unsigned int)(i+1)*4 > ed->fieldsize)	//FIXME:lazy size check
 			{
 				if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
 					return prinst.pr_xstatement;
@@ -645,7 +705,44 @@ reeval:
 			OPC->_int = ptr->_int;
 		}
 		break;
-
+	case OP_LOAD_I64:
+		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD_V references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			OPC->_vector[0] = 0;
+			OPC->_vector[1] = 0;
+			OPC->_vector[2] = 0;
+			break;
+		}
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
+#ifdef PARANOID
+		NUM_FOR_EDICT(ed);		// make sure it's in range
+#endif
+#ifdef NOLEGACY
+		if (ed->ereftype == ER_FREE)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+				return prinst.pr_xstatement;
+			OPC->_vector[0] = 0;
+			OPC->_vector[1] = 0;
+			OPC->_vector[2] = 0;
+		}
+		else
+#endif
+		{
+			i = OPB->_int + progfuncs->funcs.fieldadjust;
+			errorif ((unsigned int)(i+2)*4 > ed->fieldsize)	//FIXME:lazy size check
+			{
+				if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
+					return prinst.pr_xstatement;
+				OPC->_int = 0;
+				break;
+			}
+			ptr = (eval_t *)(((int *)edvars(ed)) + i);
+			OPC->_int64 = ptr->_int64;
+		}
+		break;
 	case OP_LOAD_V:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
@@ -673,7 +770,7 @@ reeval:
 #endif
 		{
 			i = OPB->_int + progfuncs->funcs.fieldadjust;
-			errorif ((unsigned int)i*4 >= ed->fieldsize)	//FIXME:lazy size check
+			errorif ((unsigned int)(i+3)*4 > ed->fieldsize)	//FIXME:lazy size check
 			{
 				if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid field %i in %s\n", OPB->_int, PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name)))
 					return prinst.pr_xstatement;
@@ -685,7 +782,7 @@ reeval:
 			OPC->_vector[1] = ptr->_vector[1];
 			OPC->_vector[2] = ptr->_vector[2];
 		}
-		break;	
+		break;
 
 //==================
 
@@ -948,7 +1045,15 @@ reeval:
 		else
 			OPC->_int = ((eval_t *)&glob[i])->_int;
 		break;
-
+	case OP_LOADA_I64:
+		i = st->a + OPB->_int;
+		if ((size_t)i >= (size_t)(current_progstate->globals_bytes>>2))
+		{
+			QCFAULT(&progfuncs->funcs, "bad array read in %s (index %i)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int);
+		}
+		else
+			OPC->_int64 = ((eval_t *)&glob[i])->_int64;
+		break;
 	case OP_LOADA_V:
 		i = st->a + OPB->_int;
 		if ((size_t)(i) >= (size_t)(current_progstate->globals_bytes>>2)-2u)
@@ -1480,6 +1585,48 @@ reeval:
 		}
 		break;
 */
+
+
+	//[u]int64+double opcodes
+	case OP_ADD_I64:		OPC->_int64  = OPA->_int64  + OPB->_int64;   break;
+	case OP_SUB_I64:		OPC->_int64  = OPA->_int64  -  OPB->_int64;  break;
+	case OP_MUL_I64:		OPC->_int64  = OPA->_int64  *  OPB->_int64;  break;
+	case OP_DIV_I64:		OPC->_int64  = OPA->_int64  /  OPB->_int64;  break;
+	case OP_BITAND_I64:		OPC->_int64  = OPA->_int64  &  OPB->_int64;  break;
+	case OP_BITOR_I64:		OPC->_int64  = OPA->_int64  |  OPB->_int64;  break;
+	case OP_BITXOR_I64:		OPC->_int64  = OPA->_int64  ^  OPB->_int64;  break;
+	case OP_LSHIFT_I64I:	OPC->_int64  = OPA->_int64  << OPB->_int;    break;
+	case OP_RSHIFT_I64I:	OPC->_int64  = OPA->_int64  >> OPB->_int;    break;
+	case OP_LT_I64:			OPC->_int    = OPA->_int64  <  OPB->_int64;  break;
+	case OP_LE_I64:			OPC->_int    = OPA->_int64  <= OPB->_int64;  break;
+	case OP_EQ_I64:			OPC->_int    = OPA->_int64  == OPB->_int64;  break;
+	case OP_NE_I64:			OPC->_int    = OPA->_int64  != OPB->_int64;  break;
+	case OP_LT_U64:			OPC->_int    = OPA->_uint64 <  OPB->_uint64; break;
+	case OP_LE_U64:			OPC->_int    = OPA->_uint64 <= OPB->_uint64; break;
+	case OP_DIV_U64:		OPC->_uint64 = OPA->_uint64 /  OPB->_uint64; break;
+	case OP_RSHIFT_U64I:	OPC->_uint64 = OPA->_uint64 >> OPB->_int;    break;
+	case OP_STORE_I64:		OPB->_int64  = OPA->_int64;
+//	case OP_LOADF_I64:		OPC->_int64  = OPA->_int64 X  OPB->_int64;   break;
+//	case OP_LOADP_I64:		OPC->_int64  = OPA->_int64 X  OPB->_int64;   break;
+	case OP_CONV_UI64:		OPC->_int64  = OPA->_uint;   break;
+	case OP_CONV_II64:		OPC->_int64  = OPA->_int;    break;
+	case OP_CONV_I64I:		OPC->_int    = OPA->_int64;  break;
+	case OP_CONV_FD:		OPC->_double = OPA->_float;  break;
+	case OP_CONV_DF:		OPC->_float  = OPA->_double; break;
+	case OP_CONV_I64F:		OPC->_float  = OPA->_int64;  break;
+	case OP_CONV_FI64:		OPC->_int64  = OPA->_float;  break;
+	case OP_CONV_I64D:		OPC->_double = OPA->_int64;  break;
+	case OP_CONV_DI64:		OPC->_int64  = OPA->_double; break;
+	case OP_ADD_D:			OPC->_double = OPA->_double +  OPB->_double; break;
+	case OP_SUB_D:			OPC->_double = OPA->_double -  OPB->_double; break;
+	case OP_MUL_D:			OPC->_double = OPA->_double *  OPB->_double; break;
+	case OP_DIV_D:			OPC->_double = OPA->_double /  OPB->_double; break;
+	case OP_LT_D:			OPC->_double = OPA->_double <  OPB->_double; break;
+	case OP_LE_D:			OPC->_double = OPA->_double <= OPB->_double; break;
+	case OP_EQ_D:			OPC->_double = OPA->_double == OPB->_double; break;
+	case OP_NE_D:			OPC->_double = OPA->_double != OPB->_double; break;
+
+
 	default:					
 		if (op & OP_BIT_BREAKPOINT)	//break point!
 		{

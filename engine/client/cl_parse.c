@@ -3908,6 +3908,35 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 		strcpy (cl.model_name[nummodels], str);
 		if (*str != '*' && strcmp(str, "null"))	//not inline models!
 			CL_CheckOrEnqueDownloadFile(str, NULL, ((nummodels==1)?DLLF_REQUIRED|DLLF_ALLOWWEB:0));
+
+		//qw has a special network protocol for spikes.
+		if (!strcmp(cl.model_name[nummodels],"progs/spike.mdl"))
+			cl_spikeindex = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
+			cl_playerindex = nummodels;
+#ifdef HAVE_LEGACY
+		if (*cl.model_name_vwep[0] && !strcmp(cl.model_name[nummodels],cl.model_name_vwep[0]) && cl_playerindex == -1)
+			cl_playerindex = nummodels;
+#endif
+		if (!strcmp(cl.model_name[nummodels],"progs/h_player.mdl"))
+			cl_h_playerindex = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/flag.mdl"))
+			cl_flagindex = nummodels;
+
+		//rocket to grenade
+		if (!strcmp(cl.model_name[nummodels],"progs/missile.mdl"))
+			cl_rocketindex = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/grenade.mdl"))
+			cl_grenadeindex = nummodels;
+
+		//cl_gibfilter
+		if (!strcmp(cl.model_name[nummodels],"progs/gib1.mdl"))
+			cl_gib1index = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/gib2.mdl"))
+			cl_gib2index = nummodels;
+		if (!strcmp(cl.model_name[nummodels],"progs/gib3.mdl"))
+			cl_gib3index = nummodels;
+
 		Mod_TouchModel (str);
 	}
 
@@ -4099,7 +4128,10 @@ static void CLNQ_ParseClientdata (void)
 		CL_SetStatInt(0, STAT_ITEMS, MSG_ReadLong());
 
 	pl->onground = (bits & SU_ONGROUND) != 0;
-//	cl.inwater = (bits & SU_INWATER) != 0;
+	if (bits & SU_INWATER)
+		pl->flags |= PF_INWATER;	//mostly just means smartjump should be used.
+	else
+		pl->flags &= ~PF_INWATER;
 
 	if (cls.protocol_nq == CPNQ_DP5)
 	{
@@ -5246,7 +5278,7 @@ void CL_NewTranslation (int slot)
 
 	s = Skin_FindName (player);
 	COM_StripExtension(s, s, MAX_QPATH);
-	if (player->qwskin && !stricmp(s, player->qwskin->name))
+	if (player->qwskin && stricmp(s, player->qwskin->name))
 		player->qwskin = NULL;
 	player->skinid = 0;
 	player->model = NULL;
@@ -8243,9 +8275,9 @@ void CLNQ_ParseServerMessage (void)
 //					cl.players[i].rbottomcolor = (a&0xf0)>>4;
 //					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
 
-					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "topcolor", va("%i", a&0x0f));
-					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "bottomcolor", va("%i", (a&0xf0)>>4));
-					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "team", va("%i", (a&0xf0)>>4));
+					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "topcolor", va("%i", (a&0xf0)>>4));
+					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "bottomcolor", va("%i", (a&0x0f)));
+					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "team", va("%i", (a&0x0f)+1));
 					CL_ProcessUserInfo (i, &cl.players[i]);
 
 //					CLNQ_CheckPlayerIsSpectator(i);

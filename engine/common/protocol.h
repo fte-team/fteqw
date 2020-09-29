@@ -539,6 +539,7 @@ enum {
 #define	PF_GIB			(1<<10)		// offset the view height differently
 
 //ZQuake.
+#define PF_PMC_SHIFT	11
 #define	PF_PMC_MASK		((1<<11) | \
 						 (1<<12) | \
 						 (1<<13))
@@ -565,7 +566,8 @@ enum {
 #define PF_SOLID		(1<<23) //or 15, depending on extensions... messy.
 
 
-#define PF_PMC_SHIFT	11
+//not networked
+#define PF_INWATER		(1u<<31) //for network smartjump.
 
 
 

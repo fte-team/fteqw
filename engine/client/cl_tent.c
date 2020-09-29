@@ -281,13 +281,16 @@ sfx_t			*cl_sfx_r_exp3;
 
 cvar_t	cl_expsprite = CVARFD("cl_expsprite", "1", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not (which is problematic when played with the qw protocol).");
 cvar_t  r_explosionlight = CVARFC("r_explosionlight", "1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
-static cvar_t  r_explosionlight_colour = CVARF("r_explosionlight_colour", "4.0 2.0 0.5", CVAR_ARCHIVE);
-static cvar_t  r_explosionlight_fade = CVARF("r_explosionlight_fade", "0.784 0.92 0.48", CVAR_ARCHIVE);
-cvar_t  r_dimlight_colour = CVARF("r_dimlight_colour", "2.0 1.0 0.5 200", CVAR_ARCHIVE);
-cvar_t  r_brightlight_colour = CVARF("r_brightlight_colour", "2.0 1.0 0.5 400", CVAR_ARCHIVE);
-cvar_t  r_rocketlight_colour = CVARF("r_rocketlight_colour", "2.0 1.0 0.25 200", CVAR_ARCHIVE);
-cvar_t  r_muzzleflash_colour = CVARF("r_muzzleflash_colour", "1.5 1.3 1.0 200", CVAR_ARCHIVE);
-cvar_t  r_muzzleflash_fade = CVARF("r_muzzleflash_fade", "1.5 0.75 0.375 1000", CVAR_ARCHIVE);
+static cvar_t  r_explosionlight_colour = CVARFD("r_explosionlight_colour", "4.0 2.0 0.5", CVAR_ARCHIVE, "This controls the initial RGB values of EF_EXPLOSION effects.");
+static cvar_t  r_explosionlight_fade = CVARFD("r_explosionlight_fade", "0.784 0.92 0.48", CVAR_ARCHIVE, "This controls the per-second RGB decay values of EF_EXPLOSION effects.");
+cvar_t  r_dimlight_colour = CVARFD("r_dimlight_colour", "2.0 1.0 0.5 200", CVAR_ARCHIVE, "The red, green, blue, radius values for EF_DIMLIGHT effects (used for quad+pent in vanilla quake).");
+cvar_t  r_brightlight_colour = CVARFD("r_brightlight_colour", "2.0 1.0 0.5 400", CVAR_ARCHIVE, "The red, green, blue, radius values for EF_BRIGHTLIGHT effects (unused in vanilla quake).");
+cvar_t  r_redlight_colour = CVARFD("r_redlight_colour", "3.0 0.5 0.5 200", CVAR_ARCHIVE, "The red, green, blue, radius values for EF_RED effects (typically used for pentagram in quakeworld).");
+cvar_t  r_greenlight_colour = CVARFD("r_greenlight_colour", "0.5 3.0 0.5 200", CVAR_ARCHIVE, "The red, green, blue, radius values for EF_GREEN effects (rarely used).");
+cvar_t  r_bluelight_colour = CVARFD("r_bluelight_colour", "0.5 0.5 3.0 200", CVAR_ARCHIVE, "The red, green, blue, radius values for EF_BLUE effects (typically used for quad-damage in quakeworld)");
+cvar_t  r_rocketlight_colour = CVARFD("r_rocketlight_colour", "2.0 1.0 0.25 200", CVAR_ARCHIVE, "This controls the RGB+radius values of MF_ROCKET effects.");
+cvar_t  r_muzzleflash_colour = CVARFD("r_muzzleflash_colour", "1.5 1.3 1.0 200", CVAR_ARCHIVE, "This controls the initial RGB+radius of EF_MUZZLEFLASH/svc_muzzleflash effects.");
+cvar_t  r_muzzleflash_fade = CVARFD("r_muzzleflash_fade", "1.5 0.75 0.375 1000", CVAR_ARCHIVE, "This controls the per-second RGB+radius decay of EF_MUZZLEFLASH/svc_muzzleflash effects.");
 cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
 static cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
 static cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
@@ -424,6 +427,9 @@ void CL_InitTEnts (void)
 	Cvar_Register (&r_muzzleflash_colour, "Temporary entity control");
 	Cvar_Register (&r_muzzleflash_fade, "Temporary entity control");
 	Cvar_Register (&r_dimlight_colour, "Temporary entity control");
+	Cvar_Register (&r_redlight_colour, "Temporary entity control");
+	Cvar_Register (&r_greenlight_colour, "Temporary entity control");
+	Cvar_Register (&r_bluelight_colour, "Temporary entity control");
 	Cvar_Register (&r_brightlight_colour, "Temporary entity control");
 	Cvar_Register (&r_rocketlight_colour, "Temporary entity control");
 	Cvar_Register (&cl_legacystains, "Temporary entity control");

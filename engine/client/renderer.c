@@ -30,6 +30,7 @@ int r_regsequence;
 int rspeeds[RSPEED_MAX];
 int rquant[RQUANT_MAX];
 
+static void R_RegisterBuiltinRenderers(void);
 void R_InitParticleTexture (void);
 void R_RestartRenderer (rendererstate_t *newr);
 static void R_UpdateRendererOpts(void);
@@ -1080,6 +1081,9 @@ void Renderer_Init(void)
 
 	P_InitParticleSystem();
 	R_InitTextures();
+
+
+	R_RegisterBuiltinRenderers();
 }
 
 qboolean Renderer_Started(void)
@@ -1128,9 +1132,49 @@ qboolean (*SCR_UpdateScreen)			(void);
 r_qrenderer_t qrenderer;
 char *q_renderername = "Non-Selected renderer";
 
+static struct
+{
+	void *module;
+	rendererinfo_t *ri;
+} rendererinfo[16];
+
+qboolean R_RegisterRenderer(void *module, rendererinfo_t *ri)
+{
+	size_t i;
+	for (i = 0; i < countof(rendererinfo); i++)
+	{	//already registered
+		if (rendererinfo[i].ri == ri)
+			return true;
+	}
+	for (i = 0; i < countof(rendererinfo); i++)
+	{	//register it in the first empty slot
+		if (!rendererinfo[i].ri)
+		{
+			rendererinfo[i].module = module;
+			rendererinfo[i].ri = ri;
+			return true;
+		}
+	}
+	Sys_Printf("unable to register renderer %s\n", ri->description);
+	return false;
+}
+
+static plugvrfuncs_t *vrfuncs;
+qboolean R_RegisterVRDriver(void *module, plugvrfuncs_t *vr)
+{
+	if (!vrfuncs)
+	{
+		vrfuncs = vr;
+		return true;
+	}
+
+	Sys_Printf("unable to register renderer %s\n", vr->description);
+	return false;
+}
 
 
-rendererinfo_t dedicatedrendererinfo = {
+
+static rendererinfo_t dedicatedrendererinfo = {
 	//ALL builds need a 'none' renderer, as 0.
 	"No renderer",
 	{
@@ -1188,138 +1232,104 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	""
 };
-
-#ifdef GLQUAKE
-	extern rendererinfo_t openglrendererinfo;
-	#ifdef USE_EGL
-		extern rendererinfo_t eglrendererinfo;
-	#endif
-	extern rendererinfo_t rpirendererinfo;
-	#ifdef WAYLANDQUAKE
-		extern rendererinfo_t rendererinfo_wayland_gl;
-	#endif
-	rendererinfo_t fbdevrendererinfo;
-#endif
-#ifdef D3D8QUAKE
-	extern rendererinfo_t d3d8rendererinfo;
-#endif
-#ifdef D3D9QUAKE
-	extern rendererinfo_t d3d9rendererinfo;
-#endif
-#ifdef D3D11QUAKE
-	extern rendererinfo_t d3d11rendererinfo;
-#endif
-#ifdef SWQUAKE
-	extern rendererinfo_t swrendererinfo;
-#endif
-#ifdef VKQUAKE
-	extern rendererinfo_t vkrendererinfo;
-	//rendererinfo_t headlessvkrendererinfo;
-	#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
-		extern rendererinfo_t nvvkrendererinfo;
-	#endif
-	#ifdef WAYLANDQUAKE
-		extern rendererinfo_t rendererinfo_wayland_vk;
-	#endif
-#endif
-#ifdef HEADLESSQUAKE
-	extern rendererinfo_t headlessrenderer;
-#endif
-#if defined(GLQUAKE) && defined(USE_EGL)
-	extern rendererinfo_t rendererinfo_headless_egl;
-#endif
-
-static struct
+static void R_RegisterBuiltinRenderers(void)
 {
-	void *module;
-	rendererinfo_t *ri;
-} rendererinfo[16] =
-{
-#ifdef GLQUAKE
-	#ifdef FTE_RPI
-		{NULL, &rpirendererinfo},
-	#endif
-	{NULL, &openglrendererinfo},
-	#ifdef USE_EGL
-		{NULL, &eglrendererinfo},
-	#endif
-#endif
-#ifdef D3D9QUAKE
-	{NULL, &d3d9rendererinfo},
-#endif
-#ifdef VKQUAKE
-	{NULL, &vkrendererinfo},
-	#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
-		{NULL, &nvvkrendererinfo},
-	#endif
-#endif
-#ifdef D3D11QUAKE
-	{NULL, &d3d11rendererinfo},
-#endif
-#ifdef SWQUAKE
-	{NULL, &swrendererinfo},
-#endif
-#ifdef D3D8QUAKE
-	{NULL, &d3d8rendererinfo},
-#endif
-#ifdef WAYLANDQUAKE
 	#ifdef GLQUAKE
-		{NULL, &rendererinfo_wayland_gl},
-	#endif
-	#ifdef VKQUAKE
-		{NULL, &rendererinfo_wayland_vk},
-	#endif
-#endif
-#ifdef GLQUAKE
-	{NULL, &fbdevrendererinfo},	//direct stuff that doesn't interact well with the system should always be low priority
-#endif
-#ifndef NPQTV
-	{NULL, &dedicatedrendererinfo},
-#endif
-#ifdef HEADLESSQUAKE
-	{NULL, &headlessrenderer},
-	#ifdef VKQUAKE
-		//{NULL, &headlessvkrendererinfo},
-	#endif
-#endif
-#if defined(GLQUAKE) && defined(USE_EGL)
-	{NULL, &rendererinfo_headless_egl},
-#endif
-};
-
-qboolean R_RegisterRenderer(void *module, rendererinfo_t *ri)
-{
-	size_t i;
-	for (i = 0; i < countof(rendererinfo); i++)
-	{	//already registered
-		if (rendererinfo[i].ri == ri)
-			return true;
-	}
-	for (i = 0; i < countof(rendererinfo); i++)
-	{	//register it in the first empty slot
-		if (!rendererinfo[i].ri)
-		{
-			rendererinfo[i].module = module;
-			rendererinfo[i].ri = ri;
-			return true;
-		}
-	}
-	Sys_Printf("unable to register renderer %s\n", ri->description);
-	return false;
-}
-
-static plugvrfuncs_t *vrfuncs;
-qboolean R_RegisterVRDriver(void *module, plugvrfuncs_t *vr)
-{
-	if (!vrfuncs)
 	{
-		vrfuncs = vr;
-		return true;
+		extern rendererinfo_t openglrendererinfo;
+		#ifdef FTE_RPI
+		{
+			extern rendererinfo_t rpirendererinfo;
+			R_RegisterRenderer(NULL, &rpirendererinfo);
+		}
+		#endif
+		R_RegisterRenderer(NULL, &openglrendererinfo);
+		#ifdef USE_EGL
+		{
+			extern rendererinfo_t eglrendererinfo;
+			R_RegisterRenderer(NULL, &eglrendererinfo);
+		}
+		#endif
 	}
+	#endif
 
-	Sys_Printf("unable to register renderer %s\n", vr->description);
-	return false;
+
+	#ifdef D3D9QUAKE
+	{
+		extern rendererinfo_t d3d9rendererinfo;
+		R_RegisterRenderer(NULL, &d3d9rendererinfo);
+	}
+	#endif
+	#ifdef VKQUAKE
+	{
+		extern rendererinfo_t vkrendererinfo;
+		R_RegisterRenderer(NULL, &vkrendererinfo);
+		#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
+		{
+			extern rendererinfo_t nvvkrendererinfo;
+			R_RegisterRenderer(NULL, &nvvkrendererinfo);
+		}
+		#endif
+	}
+	#endif
+	#ifdef D3D11QUAKE
+	{
+		extern rendererinfo_t d3d11rendererinfo;
+		R_RegisterRenderer(NULL, &d3d11rendererinfo);
+	}
+	#endif
+	#ifdef SWQUAKE
+	{
+		extern rendererinfo_t swrendererinfo;
+		R_RegisterRenderer(NULL, &swrendererinfo);
+	}
+	#endif
+	#ifdef D3D8QUAKE
+	{
+		extern rendererinfo_t d3d8rendererinfo;
+		R_RegisterRenderer(NULL, &d3d8rendererinfo);
+	}
+	#endif
+	#ifdef WAYLANDQUAKE
+		#ifdef GLQUAKE
+		{
+			extern rendererinfo_t rendererinfo_wayland_gl;
+			R_RegisterRenderer(NULL, &rendererinfo_wayland_gl);
+		}
+		#endif
+		#ifdef VKQUAKE
+		{
+			extern rendererinfo_t rendererinfo_wayland_vk;
+			R_RegisterRenderer(NULL, &rendererinfo_wayland_vk);
+		}
+		#endif
+	#endif
+	#if defined(GLQUAKE) && defined(USE_FBDEV)
+	{
+		extern rendererinfo_t fbdevrendererinfo;
+		R_RegisterRenderer(NULL, &fbdevrendererinfo);	//direct stuff that doesn't interact well with the system should always be low priority
+	}
+	#endif
+	#ifndef NPQTV
+		R_RegisterRenderer(NULL, &dedicatedrendererinfo);
+	#endif
+	#ifdef HEADLESSQUAKE
+	{
+		extern rendererinfo_t headlessrenderer;
+		R_RegisterRenderer(NULL, &headlessrenderer);
+		#ifdef VKQUAKE
+			//R_RegisterRenderer(NULL, &headlessvkrendererinfo);
+		#endif
+	}
+	#endif
+	#if defined(GLQUAKE) && defined(USE_EGL)
+	{
+		extern rendererinfo_t rendererinfo_headless_egl;
+		R_RegisterRenderer(NULL, &rendererinfo_headless_egl);
+	}
+	#endif
 }
+
 
 void R_SetRenderer(rendererinfo_t *ri)
 {
@@ -2282,7 +2292,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 
 			//if we ended up resorting to our last choice (dedicated) then print some informative message about it
 			//fixme: on unixy systems, we should make sure we're actually printing to something (ie: that we're not running via some x11 shortcut with our stdout redirected to /dev/nul
-			if (!failed && newr->renderer == &dedicatedrendererinfo)
+			if (!failed && (!newr->renderer || newr->renderer->rtype == QR_NONE))
 			{
 				Con_Printf(CON_ERROR "Video mode switch failed. Console forced.\n\nPlease change the following vars to something useable, and then use the setrenderer command.\n");
 				Con_Printf("%s: %s\n", vid_width.name, vid_width.string);

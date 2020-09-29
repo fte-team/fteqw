@@ -222,7 +222,7 @@ qboolean        scr_drawloading;
 float           scr_disabled_time;
 
 cvar_t	con_stayhidden = CVARFD("con_stayhidden", "1", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
-cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n1: framerate average over a second.\n2: Slowest frame over the last second (the game will play like shit if this is significantly lower than the average).\n3: Shows the rate of the fastest frame (not very useful).\n4: Shows the current frame's timings (this depends upon timer precision).\n5: Display a graph of how long it took to render each frame, large spikes are BAD BAD BAD.\n6: Displays the standard deviation of the frame times, if its greater than 3 then something is probably badly made, or you've a virus scanner running...\n7: Framegraph, for use with slower frames.");
+cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n0: Off.\n1: framerate average over a second.\n2: Show a frametimes graph (with additional timing info).\n-1: Normalized graph that focuses on the variation ignoring base times.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= CVAR("show_fps_y", "-1");
 cvar_t	show_clock	= CVAR("cl_clock", "0");
@@ -1720,11 +1720,7 @@ void SCR_DrawFPS (void)
 	double t;
 	extern int fps_count;
 	static float lastfps;
-	static double deviationtimes[64];
-	static int deviationframe;
 	char str[80];
-	int sfps, frame;
-	qboolean usemsecs = false;
 
 	float frametime;
 
@@ -1741,76 +1737,11 @@ void SCR_DrawFPS (void)
 	frametime = t - lastsystemtime;
 	lastsystemtime = t;
 
-	sfps = show_fps.ival;
-	if (sfps < 0)
-	{
-		sfps = -sfps;
-		usemsecs = true;
-	}
-
-	switch (sfps)
-	{
-	case 1:
-	default:
-		break;
-	case 2: // lowest FPS, highest MS encountered
-		if (lastfps > 1/frametime)
-		{
-			lastfps = 1/frametime;
-			fps_count = 0;
-			lastupdatetime = t;
-		}
-		break;
-	case 3: // highest FPS, lowest MS encountered
-		if (lastfps < 1/frametime)
-		{
-			lastfps = 1/frametime;
-			fps_count = 0;
-			lastupdatetime = t;
-		}
-		break;
-	case 4: // immediate FPS/MS
-		lastfps = 1/frametime;
-		lastupdatetime = t;
-		break;
-	case 5:
-		R_FrameTimeGraph(1000.0*2*frametime);
-		break;
-	case 7:
-		R_FrameTimeGraph(1000.0*1*frametime);
-		break;
-	case 6:
-		{
-			float mean, deviation;
-			deviationtimes[deviationframe++&63] = frametime*1000;
-			mean = 0;
-			for (frame = 0; frame < 64; frame++)
-			{
-				mean += deviationtimes[frame];
-			}
-			mean /= 64;
-			deviation = 0;
-			for (frame = 0; frame < 64; frame++)
-			{
-				deviation += (deviationtimes[frame] - mean)*(deviationtimes[frame] - mean);
-			}
-			deviation /= 64;
-			deviation = sqrt(deviation);
-
-
-			SCR_StringXY(va("%f deviation", deviation), show_fps_x.value, show_fps_y.value-8);
-		}
-		break;
-	case 8:
-		if (cls.timedemo)
-			Con_Printf("%f\n", frametime);
-		break;
-	}
-
-	if (usemsecs)
-		sprintf(str, "%4.1f MS", 1000.0/lastfps);
-	else
-		sprintf(str, "%3.1f FPS", lastfps);
+	if (show_fps.value < 0)
+		R_FrameTimeGraph(frametime, 0);
+	else if (show_fps.value > 1)
+		R_FrameTimeGraph(frametime, show_fps.value-1);
+	sprintf(str, "%3.1f FPS", lastfps);
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 

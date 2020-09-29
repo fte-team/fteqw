@@ -1701,6 +1701,7 @@ private:
 			connect(fileopen, &QAction::triggered, [=]()
 				{
 					GUIprintf("Ctrl+O hit\n");
+					QMessageBox::critical(nullptr, "Error", QString::asprintf("Not yet implemented"));
 				});
 			auto filesave = new QAction(tr("Save"), this);
 			fileMenu->addAction(filesave);

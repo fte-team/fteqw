@@ -387,4 +387,4 @@ fte_inline float M_LinearToSRGB(float x, float mag)
 
 void R_NetgraphInit(void);
 void R_NetGraph (void);
-void R_FrameTimeGraph (float frametime);
+void R_FrameTimeGraph (float frametime, float scale);

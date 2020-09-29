@@ -77,7 +77,7 @@ pbool newstylesource;
 char		destfile[1024];		//the file we're going to output to
 pbool		destfile_explicit;		//destfile was override on the commandline, don't let qc change it.
 
-QCC_eval_t		*qcc_pr_globals;
+QCC_eval_basic_t		*qcc_pr_globals;
 unsigned int	numpr_globals;
 
 char		*strings;
@@ -235,6 +235,7 @@ struct {
 	{" F330", WARN_MUTEDEPRECATEDVARIABLE},
 	{" F331", WARN_SELFNOTTHIS},
 	{" F332", WARN_DIVISIONBY0},
+	{" F333", WARN_ARGUMENTCHECK},
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -342,6 +343,12 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_goto,			defaultkeyword, "goto",			"Keyword: goto",		"Disables the 'goto' keyword."},
 	{&keyword_int,			typekeyword,	"int",			"Keyword: int",			"Disables the 'int' keyword."},
 	{&keyword_integer,		typekeyword,	"integer",		"Keyword: integer",		"Disables the 'integer' keyword."},
+	{&keyword_double,		defaultkeyword, "double",		"Keyword: double",		"Disables the 'double' keyword."},
+	{&keyword_long,			defaultkeyword, "long",			"Keyword: long",		"Disables the 'long' keyword."},
+	{&keyword_short,		defaultkeyword, "short",		"Keyword: short",		"Disables the 'short' keyword."},
+	{&keyword_char,			defaultkeyword, "char",			"Keyword: char",		"Disables the 'char' keyword."},
+	{&keyword_signed,		defaultkeyword, "signed",		"Keyword: signed",		"Disables the 'signed' keyword."},
+	{&keyword_unsigned,		defaultkeyword, "unsigned",		"Keyword: unsigned",	"Disables the 'unsigned' keyword."},
 	{&keyword_noref,		defaultkeyword, "noref",		"Keyword: noref",		"Disables the 'noref' keyword."},	//nowhere else references this, don't warn about it.
 	{&keyword_unused,		nondefaultkeyword, "unused",	"Keyword: unused",		"Disables the 'unused' keyword. 'unused' means that the variable is unused, you're aware that its unused, and you'd rather not know about all the warnings this results in."},
 	{&keyword_used,			nondefaultkeyword, "used",		"Keyword: used",		"Disables the 'used' keyword. 'used' means that the variable is used even if the qcc can't see how - thus preventing it from ever being stripped."},
@@ -374,7 +381,7 @@ compiler_flag_t compiler_flag[] = {
 	//options
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows | for linebreaks. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
-	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
+	{&keywords_coexist,		defaultflag,	"kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
 //	{&flag_lno,				defaultflag,	"lno",			"Write Line Numbers",	"Writes line number information. This is required for any real kind of debugging. Will be ignored if filenames were stripped."},
 	{&output_parms,			0,				"parms",		"Define offset parms",	"if PARM0 PARM1 etc should be defined by the compiler. These are useful if you make use of the asm keyword for function calls, or you wish to create your own variable arguments. This is an easy way to break decompilers."},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
 	{&autoprototype,		0,				"autoproto",	"Automatic Prototyping","Causes compilation to take two passes instead of one. The first pass, only the definitions are read. The second pass actually compiles your code. This means you never have to remember to prototype functions again."},	//so you no longer need to prototype functions and things in advance.
@@ -404,6 +411,8 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_assumevar,		hideflag,		"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
 	{&flag_dblstarexp,		hideflag,		"ssp",			"** exponent",			"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},
 	{&flag_cpriority,		hideflag,		"cpriority",	"C Operator Priority",	"QC treats !a&&b as equivelent to !(a&&b). When this is set, behaviour will be (!a)&&b as in C. Other operators are also affected in similar ways."},
+	{&flag_assume_double,	hideflag,		"assumedouble",	"Assume Doubles",		"Floating point immediates will be treated as doubles, for C compat."},
+	{&flag_qcfuncs,			hidedefaultflag,"qcfuncs",		"Parse QC-style funcs",	"Recognise void() as a function type. Required for QC compat."},
 	{&flag_allowuninit,		hideflag,		"allowuninit",	"Uninitialised Locals",	"Permit optimisations that may result in locals being uninitialised. This may allow for greater reductions in temps."},
 	{&flag_nopragmafileline,FLAG_MIDCOMPILE,"nofileline",	"Ignore #pragma file",	"Ignores #pragma file(foo) and #pragma line(foo), so that errors and symbols reflect the actual lines, instead of the original source."},
 //	{&flag_lno,				hidedefaultflag,"lno",			"Gen Debugging Info",	"Writes debugging info."},
@@ -711,7 +720,7 @@ static void QCC_DumpAutoCvars (const char *outputname)
 			if (!strncmp(n, "autocvar_", 9))
 			{
 				char *desc;
-				QCC_eval_t *val = &qcc_pr_globals[d->ofs];
+				const QCC_eval_t *val = (const QCC_eval_t*)&qcc_pr_globals[d->ofs];
 				QCC_def_t *def = QCC_PR_GetDef(NULL, n, NULL, false, 0, 0);
 				n += 9;
 
@@ -725,17 +734,29 @@ static void QCC_DumpAutoCvars (const char *outputname)
 				case ev_float:
 					snprintf(line, sizeof(line), "set %s\t%g%s%s\n",				n, val->_float,										desc?"\t//":"", desc?desc:"");
 					break;
+				case ev_double:
+					snprintf(line, sizeof(line), "set %s\t%g%s%s\n",				n, val->_double,									desc?"\t//":"", desc?desc:"");
+					break;
 				case ev_vector:
-					snprintf(line, sizeof(line), "set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
+					snprintf(line, sizeof(line), "set %s\t\"%g %g %g\"%s%s\n",		n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
 					break;
 				case ev_integer:
-					snprintf(line, sizeof(line), "set %s\t%"pPRIi"%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
+					snprintf(line, sizeof(line), "set %s\t%"pPRIi"%s%s\n",			n, val->_int,										desc?"\t//":"", desc?desc:"");
+					break;
+				case ev_uint:
+					snprintf(line, sizeof(line), "set %s\t%"pPRIu"%s%s\n",			n, val->_uint,										desc?"\t//":"", desc?desc:"");
+					break;
+				case ev_int64:
+					snprintf(line, sizeof(line), "set %s\t%"pPRIi64"%s%s\n",		n, val->_int64,										desc?"\t//":"", desc?desc:"");
+					break;
+				case ev_uint64:
+					snprintf(line, sizeof(line), "set %s\t%"pPRIu64"%s%s\n",		n, val->_uint64,									desc?"\t//":"", desc?desc:"");
 					break;
 				case ev_string:
 					snprintf(line, sizeof(line), "set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
 					break;
 				default:
-					snprintf(line, sizeof(line), "//set %s\t ?%s%s\n",			n,													desc?"\t//":"", desc?desc:"");
+					snprintf(line, sizeof(line), "//set %s\t ?%s%s\n",				n,													desc?"\t//":"", desc?desc:"");
 					break;
 				}
 				SafeWrite(h, line, strlen(line));
@@ -2640,7 +2661,7 @@ strofs = (strofs+3)&~3;
 			externs->Printf("Compile finished: %s (uhexen2 format)\n", destfile);
 		break;
 	case QCF_DARKPLACES:
-		externs->Printf("Compile finished: %s (patched-dp format)\n", destfile);
+		externs->Printf("Compile finished: %s (fte+dp format)\n", destfile);
 		break;
 	case QCF_QSS:
 		externs->Printf("Compile finished: %s (fte+qss format)\n", destfile);
@@ -3273,6 +3294,7 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_void = QCC_PR_NewType("void", ev_void, true);
 	type_string = QCC_PR_NewType("string", ev_string, true);
 	type_float = QCC_PR_NewType("float", ev_float, true);
+	type_double = QCC_PR_NewType("__double", ev_double, true);
 	type_vector = QCC_PR_NewType("vector", ev_vector, true);
 	type_entity = QCC_PR_NewType("entity", ev_entity, true);
 	type_field = QCC_PR_NewType("__field", ev_field, false);
@@ -3280,6 +3302,9 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
 	type_integer = QCC_PR_NewType("__int", ev_integer, true);
+	type_uint = QCC_PR_NewType("__uint", ev_uint, true);
+	type_int64 = QCC_PR_NewType("__int64", ev_int64, true);
+	type_uint64 = QCC_PR_NewType("__uint64", ev_int64, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
 
 	type_floatfield = QCC_PR_NewType("__fieldfloat", ev_field, false);
@@ -3293,6 +3318,11 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_floatfunction = QCC_PR_NewType("__floatfunction", ev_function, false);
 	type_floatfunction->aux_type = type_float;
 
+	type_bfloat = QCC_PR_NewType("__bfloat", ev_boolean, false);
+	type_bfloat->parentclass = type_float;
+	type_bint = QCC_PR_NewType("__bint", ev_boolean, false);
+	type_bint->parentclass = type_integer;
+
 	//type_field->aux_type = type_float;
 
 //	QCC_PR_NewType("_Bool", ev_boolean, true);
@@ -3300,8 +3330,6 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 //	QCC_PR_NewType("__int", ev_integer, keyword_integer?true:false);
 
 	QCC_PR_NewType("variant", ev_variant, true);
-	QCC_PR_NewType("integer", ev_integer, keyword_integer?true:false);
-	QCC_PR_NewType("int", ev_integer, keyword_int?true:false);
 
 
 
@@ -4297,7 +4325,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				else
 					*compiler_flag[p].enabled = false;
 			}
-			if (!stricmp(myargv[i]+5, "C"))
+			if (!stricmp(myargv[i]+5, "C") || !stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90") || !stricmp(myargv[i]+5, "c99") || !stricmp(myargv[i]+5, "c11") || !stricmp(myargv[i]+5, "c17"))
 			{	//set up for greatest C compatibility... variations from C are bugs, not features.
 				keyword_asm = false;
 				keyword_break = keyword_continue = keyword_for = keyword_goto = keyword_const = keyword_extern = keyword_static = true;
@@ -4315,13 +4343,32 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_assumevar = true;		//const only if explicitly const.
 				pr_subscopedlocals = true;	//locals shadow other locals rather than being the same one.
 				flag_cpriority = true;		//fiddle with operator precedence.
-				flag_assume_integer = true;
+				flag_assume_integer = true;	//unqualified numeric constants are assumed to be ints, consistent with C.
+				flag_assume_double = true;	//and any immediates with a decimal points are assumed to be doubles, consistent with C.
+				flag_qcfuncs = false;
 
 				qccwarningaction[WARN_UNINITIALIZED] = WA_WARN;		//C doesn't like that, might as well warn here too.
 				qccwarningaction[WARN_TOOMANYPARAMS] = WA_ERROR;	//too many args to function is weeeeird.
 				qccwarningaction[WARN_TOOFEWPARAMS] = WA_ERROR;		//missing args should be fatal.
 				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;		//const is const. at least its not const by default.
 				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;		//shadowing of globals.
+
+				if (!stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90"))
+					val = "199409L";	//it was ammended, apparently.
+				else if (!stricmp(myargv[i]+5, "c99"))
+					val = "199901L";
+				else if (!stricmp(myargv[i]+5, "c11"))
+					val = "201112L";
+				else if (!stricmp(myargv[i]+5, "c17"))
+					val = "201710L";
+				else
+					val = NULL;
+				cnst = QCC_PR_DefineName("__STDC_VERSION__");
+				if (val)
+				{
+					cnst->value = qccHunkAlloc(strlen(val)+1);
+					memcpy(cnst->value, val, strlen(val)+1);
+				}
 			}
 			else if (!strcmp(myargv[i]+5, "qccx"))
 			{
@@ -4647,6 +4694,7 @@ static void QCC_SetDefaultProperties (void)
 	QCC_PR_CloseProcessor();
 
 	QCC_PR_DefineName("FTEQCC");
+	QCC_PR_DefineName("__FTEQCC__");
 
 	if ((FWDSLASHARGS && QCC_CheckParm("/O0")) || QCC_CheckParm("-O0"))
 		level = 0;

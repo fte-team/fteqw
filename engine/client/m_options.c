@@ -1313,16 +1313,10 @@ void M_Menu_FPS_f (void)
 	{
 		"Disabled",
 		"Average FPS",
-		"Worst FPS",
-		"Best FPS",
-		"Immediate FPS",
-		"Average MSEC",
-		"Worst MSEC",
-		"Best MSEC",
-		"Immediate MSEC",
+		"Timing Graph",
 		NULL
 	};
-	static const char *fpsvalues[] = {"0", "1", "2", "3", "4", "-1", "-2", "-3", "-4", NULL};
+	static const char *fpsvalues[] = {"0", "1", "2", NULL};
 	static const char *entlerpopts[] =
 	{
 		"Enabled (always)",

@@ -2,6 +2,10 @@
 #include "shader.h"
 #include "glquake.h"	//we need some of the gl format enums
 
+#ifdef __GNUC__
+#pragma
+#endif
+
 #ifndef HAVE_CLIENT
 //#define Con_Printf(f, ...)
 //hope you're on a littleendian machine
@@ -2449,6 +2453,7 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 
 	int ic;
 	qboolean byteswap;
+
 	switch(fmt)
 	{
 	case PTI_RGB8:	//yay! nothing to do.

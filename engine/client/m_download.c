@@ -216,8 +216,14 @@ static struct
 {
 	char *url;
 	char *prefix;
-	qboolean trustworthy;		//trusted 
-	char received;				//says if we got a response yet or not
+	enum
+	{
+		SRCSTAT_UNKNOWN,		//we don't know whether the user wants to allow or block this source.
+		SRCSTAT_DISABLED,		//do NOT query this source
+		SRCSTAT_FAILED,			//tried but failed. FIXME: add some reasons.
+		SRCSTAT_PENDING,		//waiting for response (or queued). don't show package list yet.
+		SRCSTAT_OBTAINED,		//we got a response.
+	} status;
 	qboolean save;				//written into our local file
 	struct dl_download *curdl;	//the download context
 } downloadablelist[32];
@@ -832,7 +838,7 @@ static qboolean PM_CheckFile(const char *filename, enum fs_relative base)
 	return false;
 }
 
-static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qboolean trustworthy)
+static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qboolean enabled)
 {
 	int i;
 	if (!*url)
@@ -849,10 +855,10 @@ static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qb
 	}
 	if (i == numdownloadablelists && i < countof(downloadablelist))
 	{
-		if (!strncmp(url, "https:", 6))
-			downloadablelist[i].trustworthy = trustworthy;
+		if (enabled)
+			downloadablelist[i].status = SRCSTAT_PENDING;
 		else
-			downloadablelist[i].trustworthy = false;	//if its not a secure url, never consider it as trustworthy
+			downloadablelist[i].status = SRCSTAT_DISABLED;
 		downloadablelist[i].save = save;
 
 		downloadablelist[i].url = BZ_Malloc(strlen(url)+1);
@@ -974,6 +980,7 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 			{
 				char *subprefix;
 				char url[MAX_OSPATH];
+				char enablement[MAX_OSPATH];
 				tokstart = COM_StringParse (tokstart, url, sizeof(url), false, false);
 				tokstart = COM_StringParse (tokstart, com_token, sizeof(com_token), false, false);
 				if (*prefix)
@@ -981,7 +988,11 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 				else
 					subprefix = com_token;
 
-				PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, (parseflags&DPF_TRUSTED));
+				tokstart = COM_StringParse (tokstart, enablement, sizeof(enablement), false, false);
+				if (!Q_strcasecmp(enablement, "enabled") && (parseflags & DPF_ENABLED))
+					PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, true);
+				else
+					PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, false);
 				continue;
 			}
 			if (!strcmp(com_token, "set"))
@@ -1594,7 +1605,7 @@ void PM_Shutdown(qboolean soft)
 			downloadablelist[numdownloadablelists].curdl = NULL;
 		}
 #endif
-		downloadablelist[numdownloadablelists].received = 0;
+		downloadablelist[numdownloadablelists].status = SRCSTAT_UNKNOWN;
 		Z_Free(downloadablelist[numdownloadablelists].url);
 		downloadablelist[numdownloadablelists].url = NULL;
 		Z_Free(downloadablelist[numdownloadablelists].prefix);
@@ -2110,12 +2121,12 @@ static void PM_ListDownloaded(struct dl_download *dl)
 
 	if (f)
 	{
-		downloadablelist[listidx].received = 1;
+		downloadablelist[listidx].status = SRCSTAT_OBTAINED;
 		PM_ParsePackageList(f, 0, dl->url, downloadablelist[listidx].prefix);
 		BZ_Free(f);
 	}
 	else
-		downloadablelist[listidx].received = -1;
+		downloadablelist[listidx].status = SRCSTAT_FAILED;
 
 	if (!doautoupdate && !domanifestinstall)
 		return;	//don't spam this.
@@ -2123,7 +2134,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	//check if we're still waiting
 	for (listidx = 0; listidx < numdownloadablelists; listidx++)
 	{
-		if (!downloadablelist[listidx].received)
+		if (downloadablelist[listidx].status == SRCSTAT_PENDING)
 			break;
 	}
 /*
@@ -2189,8 +2200,8 @@ static void PM_AllowPackageListQuery_Callback(void *ctx, promptbutton_t opt)
 	//something changed, let it download now.
 	for (i = 0; i < numdownloadablelists; i++)
 	{
-		if (downloadablelist[i].received == -2)
-			downloadablelist[i].received = 0;
+		if (downloadablelist[i].status == SRCSTAT_UNKNOWN)
+			downloadablelist[i].status = SRCSTAT_PENDING;
 	}
 	PM_UpdatePackageList(false, 0);
 }
@@ -2207,7 +2218,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	//make sure our sources are okay.
 	if (*pkg_downloads_url.string)
-		PM_AddSubList(pkg_downloads_url.string, "", false, true);
+		PM_AddSubList(pkg_downloads_url.string, "", false, pkg_autoupdate.ival>=0);
 
 #ifndef WEBCLIENT
 	for (i = 0; i < numdownloadablelists; i++)
@@ -2230,7 +2241,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 	//kick off the initial tier of list-downloads.
 	for (i = 0; i < numdownloadablelists; i++)
 	{
-		if (downloadablelist[i].received && allowphonehome>=0)
+		if (downloadablelist[i].status != SRCSTAT_PENDING && allowphonehome>=0)
 			continue;
 		autoupdate = false;
 		if (downloadablelist[i].curdl)
@@ -2238,7 +2249,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 		if (allowphonehome<=0)
 		{
-			downloadablelist[i].received = -2;
+			downloadablelist[i].status = SRCSTAT_UNKNOWN;
 			continue;
 		}
 		downloadablelist[i].curdl = HTTP_CL_Get(va("%s%s"DOWNLOADABLESARGS, downloadablelist[i].url, strchr(downloadablelist[i].url,'?')?"&":"?"), NULL, PM_ListDownloaded);
@@ -2253,7 +2264,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		else
 		{
 			Con_Printf("Could not contact updates server - %s\n", downloadablelist[i].url);
-			downloadablelist[i].received = -1;
+			downloadablelist[i].status = SRCSTAT_FAILED;
 		}
 	}
 
@@ -2322,7 +2333,12 @@ static void PM_WriteInstalledPackages(void)
 	{
 		if (downloadablelist[i].save)
 		{
-			s = va("sublist \"%s\" \"%s\"\n", downloadablelist[i].url, downloadablelist[i].prefix);
+			if (downloadablelist[i].status == SRCSTAT_DISABLED)
+				s = va("sublist \"%s\" \"%s\" \"disabled\"\n", downloadablelist[i].url, downloadablelist[i].prefix);
+			else if (downloadablelist[i].status != SRCSTAT_UNKNOWN)
+				s = va("sublist \"%s\" \"%s\" \"enabled\"\n", downloadablelist[i].url, downloadablelist[i].prefix);
+			else
+				s = va("sublist \"%s\" \"%s\"\n", downloadablelist[i].url, downloadablelist[i].prefix);
 			VFS_WRITE(f, s, strlen(s));
 		}
 	}
@@ -3835,7 +3851,7 @@ void PM_Command_f(void)
 		{	//flush package cache, make a new request even if we already got a response from the server.
 			int i;
 			for (i = 0; i < numdownloadablelists; i++)
-				downloadablelist[i].received = 0;
+				downloadablelist[i].status = SRCSTAT_PENDING;
 			if (!allowphonehome)
 				allowphonehome = -1;	//trigger a prompt, instead of ignoring it.
 			PM_UpdatePackageList(false, 0);
@@ -4506,6 +4522,50 @@ static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsi
 }
 
 #ifdef WEBCLIENT
+static void MD_Source_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
+{
+	char *text;
+	switch(downloadablelist[c->dint].status)
+	{
+	case SRCSTAT_OBTAINED:
+	case SRCSTAT_PENDING:
+		Draw_FunStringWidth (x, y, "^&02  ", 48, 2, false);	//green
+		break;
+	case SRCSTAT_FAILED:
+	case SRCSTAT_UNKNOWN:
+		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+		break;
+	case SRCSTAT_DISABLED:
+		Draw_FunStringWidth (x, y, "^&04  ", 48, 2, false);	//red
+		break;
+	}
+
+	text = va("Source %s", downloadablelist[c->dint].url);
+	Draw_FunString (x+48, y, text);
+}
+static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
+{
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	{
+		switch(downloadablelist[c->dint].status)
+		{
+		case SRCSTAT_OBTAINED:
+		case SRCSTAT_PENDING:
+		case SRCSTAT_FAILED:
+		case SRCSTAT_UNKNOWN:
+			downloadablelist[c->dint].status = SRCSTAT_DISABLED;
+			break;
+		case SRCSTAT_DISABLED:
+			downloadablelist[c->dint].status = SRCSTAT_PENDING;
+			break;
+		}
+		downloadablelist[c->dint].save = true;
+		PM_WriteInstalledPackages();
+		PM_UpdatePackageList(true, 2);
+	}
+	return false;
+}
+
 static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	char *settings[] = 
@@ -4794,7 +4854,7 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 	{
 		for (i = 0; i < numdownloadablelists; i++)
 		{
-			if (!downloadablelist[i].received)
+			if (downloadablelist[i].status == SRCSTAT_PENDING)
 			{
 				Draw_FunStringWidth(0, vid.height - 8, "Querying for package list", vid.width, 2, false);
 				return;
@@ -4804,6 +4864,18 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 		info->populated = true;
 		MC_AddFrameStart(m, 48);
 		y = 48;
+#ifdef WEBCLIENT
+		for (i = 0; i < numdownloadablelists; i++)
+		{
+			c = MC_AddCustom(m, 0, y, p, i, NULL);
+			c->draw = MD_Source_Draw;
+			c->key = MD_Source_Key;
+			c->common.width = 320-48-16;
+			c->common.height = 8;
+			y += 8;
+		}
+		y+=4;	//small gap
+#endif
 		b = MC_AddCommand(m, 48, 320-16, y, info->applymessage, MD_ApplyDownloads);
 		b->rightalign = false;
 		b->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";

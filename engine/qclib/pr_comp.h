@@ -342,6 +342,62 @@ enum qcop_e {
 	OP_STOREP_B,//((char*)b)[(int)c] = (int)a
 	OP_LOADP_B,	//(int)c = *(char*)
 
+//r5768+
+//opcodes for 32bit uints
+	OP_LE_U,		//aka GT
+	OP_LT_U,		//aka GE
+	OP_DIV_U,		//don't need mul+add+sub
+	OP_RSHIFT_U,	//lshift is the same for signed+unsigned
+
+//opcodes for 64bit ints
+	OP_ADD_I64,
+	OP_SUB_I64,
+	OP_MUL_I64,
+	OP_DIV_I64,
+	OP_BITAND_I64,
+	OP_BITOR_I64,
+	OP_BITXOR_I64,
+	OP_LSHIFT_I64I,
+	OP_RSHIFT_I64I,
+	OP_LE_I64,		//aka GT
+	OP_LT_I64,		//aka GE
+	OP_EQ_I64,
+	OP_NE_I64,
+//extra opcodes for 64bit uints
+	OP_LE_U64,		//aka GT
+	OP_LT_U64,		//aka GE
+	OP_DIV_U64,
+	OP_RSHIFT_U64I,
+
+//general 64bitness
+	OP_STORE_I64,
+	OP_STOREP_I64,
+	OP_STOREF_I64,
+	OP_LOAD_I64,
+	OP_LOADA_I64,
+	OP_LOADP_I64,
+//various conversions for our 64bit types (yay type promotion)
+	OP_CONV_UI64, //zero extend
+	OP_CONV_II64, //sign extend
+	OP_CONV_I64I,	//truncate
+	OP_CONV_FD,	//extension
+	OP_CONV_DF,	//truncation
+	OP_CONV_I64F,	//logically a promotion (always signed)
+	OP_CONV_FI64,	//demotion (always signed)
+	OP_CONV_I64D,	//'promotion' (always signed)
+	OP_CONV_DI64,	//demotion (always signed)
+
+//opcodes for doubles.
+	OP_ADD_D,
+	OP_SUB_D,
+	OP_MUL_D,
+	OP_DIV_D,
+	OP_LE_D,
+	OP_LT_D,
+	OP_EQ_D,
+	OP_NE_D,
+
+
 	OP_NUMREALOPS,
 
 	/*
@@ -453,13 +509,61 @@ enum qcop_e {
 	OP_SPACESHIP_F,	//lame
 	OP_SPACESHIP_S,	//basically strcmp.
 
+
+	//uint32 opcodes. they match the int32 ones so emulation is basically swapping them over.
+	OP_ADD_U,
+	OP_SUB_U,
+	OP_MUL_U,
+	OP_MOD_U,	//complex
+	OP_BITAND_U,
+	OP_BITOR_U,
+	OP_BITXOR_U,
+	OP_BITNOT_U,	//BITXOR ~0
+	OP_BITCLR_U,
+	OP_LSHIFT_U,	//same as signed (unlike rshift)
+	OP_GE_U,	//LT_U
+	OP_GT_U,	//LE_U
+//	OP_AND_U,
+//	OP_OR_U,
+	OP_EQ_U,
+	OP_NE_U,
+
+	//uint64 opcodes. they match the int32 ones so emulation is basically swapping them over.
+	OP_BITNOT_I64,	//BITXOR ~0
+	OP_BITCLR_I64,
+	OP_GE_I64,	//LT_I64
+	OP_GT_I64,	//LE_I64
+
+	OP_ADD_U64,
+	OP_SUB_U64,
+	OP_MUL_U64,
+	OP_MOD_U64,	//complex
+	OP_BITAND_U64,
+	OP_BITOR_U64,
+	OP_BITXOR_U64,
+	OP_BITNOT_U64,	//BITXOR ~0
+	OP_BITCLR_U64,
+	OP_LSHIFT_U64I,
+	OP_GE_U64,	//LT_U64
+	OP_GT_U64,	//LE_U64
+	OP_EQ_U64,
+	OP_NE_U64,
+
+	//generally implemented by forcing to int64.
+	OP_BITAND_D,
+	OP_BITOR_D,
+	OP_BITXOR_D,
+	OP_BITNOT_D,
+	OP_BITCLR_D,
+	OP_LSHIFT_DI,
+	OP_RSHIFT_DI,
+
 	//special/fake opcodes used by the decompiler.
 	OPD_GOTO_FORSTART,
 	OPD_GOTO_WHILE1,
 
+	OP_NUMOPS,
 	OP_BIT_BREAKPOINT = 0x8000,
-
-	OP_NUMOPS
 };
 
 #define	MAX_PARMS	8

@@ -30,6 +30,7 @@ extern	cvar_t	cl_predict_players_latency;
 extern	cvar_t	cl_predict_players_nudge;
 extern	cvar_t	cl_lerp_players;
 extern  cvar_t	cl_lerp_maxinterval;
+extern	cvar_t	cl_lerp_maxdistance;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	cl_item_bobbing;
 
@@ -37,6 +38,9 @@ extern	cvar_t	r_rocketlight;
 extern	cvar_t	r_lightflicker;
 extern	cvar_t	r_dimlight_colour;
 extern	cvar_t	r_brightlight_colour;
+extern	cvar_t	r_redlight_colour;
+extern	cvar_t	r_greenlight_colour;
+extern	cvar_t	r_bluelight_colour;
 extern	cvar_t	cl_r2g;
 extern	cvar_t	r_powerupglow;
 extern	cvar_t	v_powerupshell;
@@ -3449,6 +3453,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	vec3_t move;
 
 	float a1, a2;
+	float maxdist = cl_lerp_maxdistance.value*cl_lerp_maxdistance.value;
 
 	/*
 		seeing as how dropped packets cannot be filled in due to the reliable networking stuff,
@@ -3576,7 +3581,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		}
 
 		VectorSubtract(snew__origin, sold__origin, move);
-		if (DotProduct(move, move) > 200*200 || cos_theta < 0.707 || snew->modelindex != sold->modelindex || ((sold->effects ^ snew->effects) & EF_TELEPORT_BIT))
+		if (DotProduct(move, move) > maxdist || cos_theta < 0.707 || snew->modelindex != sold->modelindex || ((sold->effects ^ snew->effects) & EF_TELEPORT_BIT))
 		{
 			isnew = true;	//disable lerping (and indirectly trails)
 //			VectorClear(move);
@@ -4005,8 +4010,8 @@ void CL_LinkPacketEntities (void)
 
 			if (state->effects & EF_BRIGHTLIGHT)
 			{
-				radius = max(radius,r_dimlight_colour.vec4[3]);
-				VectorAdd(colour, r_dimlight_colour.vec4, colour);
+				radius = max(radius,r_brightlight_colour.vec4[3]);
+				VectorAdd(colour, r_brightlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_DIMLIGHT)
 			{
@@ -4015,24 +4020,18 @@ void CL_LinkPacketEntities (void)
 			}
 			if (state->effects & EF_BLUE)
 			{
-				radius = max(radius,200);
-				colour[0] += 0.5;
-				colour[1] += 0.5;
-				colour[2] += 3.0;
+				radius = max(radius,r_bluelight_colour.vec4[3]);
+				VectorAdd(colour, r_bluelight_colour.vec4, colour);
 			}
 			if (state->effects & EF_RED)
 			{
-				radius = max(radius,200);
-				colour[0] += 3.0;
-				colour[1] += 0.5;
-				colour[2] += 0.5;
+				radius = max(radius,r_redlight_colour.vec4[3]);
+				VectorAdd(colour, r_redlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_GREEN)
 			{
-				radius = max(radius,200);
-				colour[0] += 0.5;
-				colour[1] += 3.0;
-				colour[2] += 0.5;
+				radius = max(radius,r_greenlight_colour.vec4[3]);
+				VectorAdd(colour, r_greenlight_colour.vec4, colour);
 			}
 
 			if (radius)
@@ -5235,7 +5234,7 @@ void CL_LinkPlayers (void)
 
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playerview[0].playernum)
-			&& (state->effects & (EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_DIMLIGHT)))
+			&& (state->effects & (EF_BLUE|EF_RED|EF_GREEN|EF_BRIGHTLIGHT|EF_DIMLIGHT)))
 		{
 			vec3_t colour;
 			float radius;
@@ -5246,31 +5245,28 @@ void CL_LinkPlayers (void)
 
 			if (state->effects & EF_BRIGHTLIGHT)
 			{
-				radius = max(radius,400);
-				colour[0] += 0.2;
-				colour[1] += 0.1;
-				colour[2] += 0.05;
+				radius = max(radius,r_brightlight_colour.vec4[3]);
+				VectorAdd(colour, r_brightlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_DIMLIGHT)
 			{
-				radius = max(radius,200);
-				colour[0] += 2.0;
-				colour[1] += 1.0;
-				colour[2] += 0.5;
+				radius = max(radius,r_dimlight_colour.vec4[3]);
+				VectorAdd(colour, r_dimlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_BLUE)
 			{
-				radius = max(radius,200);
-				colour[0] += 0.5;
-				colour[1] += 0.5;
-				colour[2] += 3.0;
+				radius = max(radius,r_bluelight_colour.vec4[3]);
+				VectorAdd(colour, r_bluelight_colour.vec4, colour);
 			}
 			if (state->effects & EF_RED)
 			{
-				radius = max(radius,200);
-				colour[0] += 5.0;
-				colour[1] += 0.5;
-				colour[2] += 0.5;
+				radius = max(radius,r_redlight_colour.vec4[3]);
+				VectorAdd(colour, r_redlight_colour.vec4, colour);
+			}
+			if (state->effects & EF_GREEN)
+			{
+				radius = max(radius,r_greenlight_colour.vec4[3]);
+				VectorAdd(colour, r_greenlight_colour.vec4, colour);
 			}
 
 			if (radius)

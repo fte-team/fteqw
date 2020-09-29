@@ -1574,6 +1574,7 @@ static pubprogfuncs_t deffuncs = {
 	0,		//string table size
 	0,	//max size
 	0,	//field adjust(aditional field offset)
+	0,	//field slots allocated (for builtins to clamp field reference args).
 
 	PR_ForkStack,
 	PR_ResumeThread,

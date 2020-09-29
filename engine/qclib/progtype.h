@@ -23,10 +23,30 @@ typedef uint64_t puint_t;
 typedef float pvec_t;
 typedef int pint_t;
 typedef unsigned int puint_t;
-#define pPRId "d"
-#define pPRIi "i"
-#define pPRIu "u"
-#define pPRIx "x"
+#ifdef _MSC_VER
+	typedef __int64 pint64_t;
+	typedef unsigned __int64 puint64_t;
+
+	#define pPRId "d"
+	#define pPRIi "i"
+	#define pPRIu "u"
+	#define pPRIx "x"
+	#define pPRIi64 "I64i"
+	#define pPRIu64 "I64u"
+	#define pPRIx64 "I64x"
+#else
+	#include <inttypes.h>
+	typedef int64_t pint64_t;
+	typedef uint64_t puint64_t;
+
+	#define pPRId PRId32
+	#define pPRIi PRIi32
+	#define pPRIu PRIu32
+	#define pPRIx PRIx32
+	#define pPRIi64 PRIi64
+	#define pPRIu64 PRIu64
+	#define pPRIx64 PRIx64
+#endif
 #define QCVM_32
 #endif
 

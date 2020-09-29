@@ -74,8 +74,8 @@ int CDAudio_GetAudioDiskInfo(void)
 
 	if ( ioctl(cdfile, CDROMREADTOCHDR, &tochdr) == -1 ) 
     {
-      Con_DPrintf("ioctl cdromreadtochdr failed\n");
-	  return -1;
+		Con_DPrintf("ioctl cdromreadtochdr failed\n");
+		return -1;
     }
 
 	if (tochdr.cdth_trk0 < 1)
@@ -196,7 +196,7 @@ qboolean CDAudio_Startup(void)
 		cd_dev[sizeof(cd_dev) - 1] = 0;
 	}
 
-	if ((cdfile = open(cd_dev, O_RDONLY)) == -1)
+	if ((cdfile = open(cd_dev, O_RDONLY|O_NONBLOCK)) == -1)
 	{
 		Con_Printf("CDAudio_Init: open of \"%s\" failed (%i)\n", cd_dev, errno);
 		cdfile = -1;

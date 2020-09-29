@@ -5395,6 +5395,59 @@ void QCBUILTIN PF_WriteInt (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
+void QCBUILTIN PF_WriteInt64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dest = G_FLOAT(OFS_PARM0);
+	pint64_t val = G_INT64(OFS_PARM1);
+	if (dest == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteInt64(&csqcmsgbuffer, val);
+		return;
+	}
+
+	if (pr_nonetaccess.value)
+		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
+#ifdef NETPREPARSE
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
+	{
+		NPP_NQWriteLong(dest, val&0xffffffff);
+		NPP_NQWriteLong(dest, (val>>32)&0xffffffff);
+		return;
+	}
+#ifdef NQPROT
+	else
+	{
+		NPP_QWWriteLong(dest, val&0xffffffff);
+		NPP_QWWriteLong(dest, (val>>32)&0xffffffff);
+		return;
+	}
+#endif
+#endif
+
+	if (dest == MSG_ONE)
+	{
+		client_t *cl = Write_GetClient();
+		if (!cl)
+			return;
+		ClientReliableCheckBlock(cl, 8);
+		ClientReliableWrite_Int64(cl, val);
+	}
+	else
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteInt64 (NQWriteDest(dest), val);
+		else
+			MSG_WriteInt64 (QWWriteDest(dest), val);
+	}
+}
+
 void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
@@ -5556,6 +5609,63 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 			MSG_WriteFloat (NQWriteDest(dest), G_FLOAT(OFS_PARM1));
 		else
 			MSG_WriteFloat (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+	}
+}
+
+void QCBUILTIN PF_WriteDouble (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dest = G_FLOAT(OFS_PARM0);
+	double val = G_DOUBLE(OFS_PARM1);
+	union {
+		double val;
+		quint64_t ival;
+	} u = {val};
+	if (dest == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteDouble(&csqcmsgbuffer, val);
+		return;
+	}
+
+	if (pr_nonetaccess.value)
+		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
+#ifdef NETPREPARSE
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
+	{
+		NPP_NQWriteLong(dest, u.ival&0xffffffff);
+		NPP_NQWriteLong(dest, (u.ival>>32)&0xffffffff);
+		return;
+	}
+#ifdef NQPROT
+	else
+	{
+		NPP_QWWriteLong(dest, u.ival&0xffffffff);
+		NPP_QWWriteLong(dest, (u.ival>>32)&0xffffffff);
+		return;
+	}
+#endif
+#endif
+
+	if (dest == MSG_ONE)
+	{
+		client_t *cl = Write_GetClient();
+		if (!cl)
+			return;
+		ClientReliableCheckBlock(cl, 8);
+		ClientReliableWrite_Double(cl, val);
+	}
+	else
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteDouble (NQWriteDest(dest), val);
+		else
+			MSG_WriteDouble (QWWriteDest(dest), val);
 	}
 }
 
@@ -11006,7 +11116,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void(optional entity ent, optional vector neworigin)", "Triggers a touch events between self and every SOLID_TRIGGER entity that it is in contact with. This should typically just be the triggers touch functions. Also optionally updates the origin of the moved entity.")},//
 	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	D("void(float buf, float fl)", "Writes a full 32bit float without any data conversions at all, for full precision.")},//
-	{"WriteInt",		PF_WriteInt,		0,		0,		0,		0,		D("void(float buf, int fl)", "Equivelent to WriteLong, but doesn't truncate to a float first before converting back to an int.")},//
+	{"WriteDouble",		PF_WriteDouble,		0,		0,		0,		0,		D("void(float buf, __double dbl)", "Writes a full 64bit double-precision float without any data conversions at all, for excessive precision.")},//
+	{"WriteInt",		PF_WriteInt,		0,		0,		0,		0,		D("void(float buf, int fl)", "Writes all 4 bytes of a 32bit integer without truncating to a float first before converting back to an int (unlike WriteLong does, but otherwise equivelent).")},//
+	{"WriteInt64",		PF_WriteInt64,		0,		0,		0,		0,		D("void(float buf, __int64 fl)", "Writes all 8 bytes of a 64bit integer.")},//
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	D("float(entity skelent, string dollcmd, float animskel)", "Updates the skeletal object attached to the entity according to its origin and other properties.\nif animskel is non-zero, the ragdoll will animate towards the bone state in the animskel skeletal object, otherwise they will pick up the model's base pose which may not give nice results.\nIf dollcmd is not set, the ragdoll will update (this should be done each frame).\nIf the doll is updated without having a valid doll, the model's default .doll will be instanciated.\ncommands:\n doll foo.doll : sets up the entity to use the named doll file\n dollstring TEXT : uses the doll file directly embedded within qc, with that extra prefix.\n cleardoll : uninstanciates the doll without destroying the skeletal object.\n animate 0.5 : specifies the strength of the ragdoll as a whole \n animatebody somebody 0.5 : specifies the strength of the ragdoll on a specific body (0 will disable ragdoll animations on that body).\n enablejoint somejoint 1 : enables (or disables) a joint. Disabling joints will allow the doll to shatter.")}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	D("float*(float skel)", "Map the bones in VM memory. They can then be accessed via pointers. Each bone is 12 floats, the four vectors interleaved (sadly).")},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	D("void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)", "Sets the world position of a bone within the given entity's attached skeletal object. The world position is dependant upon the owning entity's position. If no orientation argument is specified, v_forward+v_right+v_up are used for the orientation instead. If 1 is specified, it is understood as angles. If 3 are specified, they are the forawrd/right/up vectors to use.")},
@@ -11147,7 +11259,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"readangle",		PF_Fixme,	0,		0,		0,		365,	D("float()", "Reads a value matching the unspecified precision written ONLY by WriteAngle.")},// (EXT_CSQC)
 	{"readstring",		PF_Fixme,	0,		0,		0,		366,	D("string()", "Reads a null-terminated string.")},// (EXT_CSQC)
 	{"readfloat",		PF_Fixme,	0,		0,		0,		367,	D("float()", "Reads a float without any truncation nor conversions. Data MUST have originally been written with WriteFloat.")},// (EXT_CSQC)
+	{"readdouble",		PF_Fixme,	0,		0,		0,		0,		D("__double()", "Reads a double-precision float without any truncation nor conversions. Data MUST have originally been written with WriteDouble.")},// (EXT_CSQC)
 	{"readint",			PF_Fixme,	0,		0,		0,		0,		D("int()", "Reads a 32bit int without any conversions to float, otherwise interchangable with readlong.")},// (EXT_CSQC)
+	{"readint64",		PF_Fixme,	0,		0,		0,		0,		D("__int64()", "Reads a 64bit int. Paired with WriteInt64.")},// (EXT_CSQC)
 	{"readentitynum",	PF_Fixme,	0,		0,		0,		368,	D("float()", "Reads the serverside index of an entity, paired with WriteEntity. There may be nothing else known about the entity yet, so the result typically needs to be saved as-is and re-looked up each frame. This can be done via getentity(NUM, GE_*) for non-csqc ents, or findentity(world,entnum,NUM) - both of which can fail due to latency.")},// (EXT_CSQC)
 
 //	{"readserverentitystate",PF_Fixme,0,	0,		0,		369,	"void(float flags, float simtime)"},// (EXT_CSQC_1)
@@ -11330,7 +11444,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476,	D("float(string s)", "Returns the number of characters in the string after any colour codes or other markup has been parsed.")},//DP_QC_STRINGCOLORFUNCTIONS
 	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477,	D("string(string s)", "Flattens any markup/colours, removing them from the string.")},//DP_QC_STRINGCOLORFUNCTIONS
 	{"strftime",		PF_strftime,		0,		0,		0,		478,	"string(float uselocaltime, string format, ...)"},	//DP_QC_STRFTIME
-	{"tokenizebyseparator",PF_tokenizebyseparator,0,0,		0,		479,	"float(string s, string separator1, ...)"},	//DP_QC_TOKENIZEBYSEPARATOR
+	{"tokenizebyseparator",PF_tokenizebyseparator,0,0,		0,		479,	D("float(string s, string separator1, ...)", "Splits up the string using only the specified delimiters/separators. Multiple delimiters can be given, they are each considered equivelent (though should start with the longest if you want to do weird subseparator stuff).\nThe resulting tokens can be queried via argv (and argv_start|end_index builtins, if you want to determine which of the separators was present between two tokens).\nNote that while an input string containing JUST a separator will return 2, a string with no delimiter will return 1, while (in FTE) an empty string will ALWAYS return 0.")},	//DP_QC_TOKENIZEBYSEPARATOR
 	{"strtolower",		PF_strtolower,		0,		0,		0,		480,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
 	{"strtoupper",		PF_strtoupper,		0,		0,		0,		481,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
 	{"cvar_defstring",	PF_cvar_defstring,	0,		0,		0,		482,	"string(string s)"},	//DP_QC_CVAR_DEFSTRING
@@ -12954,7 +13068,7 @@ void PR_DumpPlatform_f(void)
 		{"PFLAGS_FULLDYNAMIC",	"const float", QW|NQ, D("When set in self.pflags, enables fully-customised dynamic lights. Custom rtlight information is not otherwise used."), PFLAGS_FULLDYNAMIC},
 
 		//including these for csqc stat types, hash tables, etc.
-//		{"EV_VOID",				"const float", QW|NQ|CS, NULL, ev_void},
+//		{"EV_VOID",				"const float", ALL, NULL, ev_void},
 		{"EV_STRING",			"const float", ALL, NULL, ev_string},
 		{"EV_FLOAT",			"const float", ALL, NULL, ev_float},
 		{"EV_VECTOR",			"const float", ALL, NULL, ev_vector},
@@ -12963,11 +13077,12 @@ void PR_DumpPlatform_f(void)
 		{"EV_FUNCTION",			"const float", ALL, NULL, ev_function},
 		{"EV_POINTER",			"const float", ALL, NULL, ev_pointer},
 		{"EV_INTEGER",			"const float", ALL, NULL, ev_integer},
-		{"EV_VARIANT",			"const float", ALL, NULL, ev_variant},
-//		{"EV_STRUCT",			"const float", QW|NQ|CS, NULL, ev_struct},
-//		{"EV_UNION",			"const float", QW|NQ|CS, NULL, ev_union},
+		{"EV_UINT",				"const float", ALL, NULL, ev_uint},
+		{"EV_INT64",			"const float", ALL, NULL, ev_int64},
+		{"EV_UINT64",			"const float", ALL, NULL, ev_uint64},
+		{"EV_DOUBLE",			"const float", ALL, NULL, ev_double},
 
-		{"gamestate",			"hashtable", ALL, D("Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted)."), 0},
+		{"gamestate",			"hashtable",   ALL, D("Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted)."), 0},
 		{"HASH_REPLACE",		"const float", ALL, D("Used with hash_add. Attempts to remove the old value instead of adding two values for a single key."), 256},
 		{"HASH_ADD",			"const float", ALL, D("Used with hash_add. The new entry will be inserted in addition to the existing entry."), 512},
 

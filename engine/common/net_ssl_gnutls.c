@@ -891,8 +891,9 @@ vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
 }
 vfsfile_t *SSL_OpenPubKey(char *nativename, size_t nativesize)
 {
+#define fullchainname "fullchain.pem"
 #define pubname "cert.pem"
-	vfsfile_t *pubf;
+	vfsfile_t *pubf = NULL;
 	const char *mode = nativename?"wb":"rb";
 	int i = COM_CheckParm("-pubkey");
 	if (i++)
@@ -903,10 +904,10 @@ vfsfile_t *SSL_OpenPubKey(char *nativename, size_t nativesize)
 	}
 	else
 	{
-		if (nativename)
-			if (!FS_NativePath(pubname, FS_ROOT, nativename, nativesize))
-				return NULL;
-		pubf = FS_OpenVFS(pubname, mode, FS_ROOT);
+		if (!pubf && (!nativename || FS_NativePath(fullchainname, FS_ROOT, nativename, nativesize)))
+			pubf = FS_OpenVFS(fullchainname, mode, FS_ROOT);
+		if (!pubf && (!nativename || FS_NativePath(pubname, FS_ROOT, nativename, nativesize)))
+			pubf = FS_OpenVFS(pubname, mode, FS_ROOT);
 	}
 	return pubf;
 #undef pubname

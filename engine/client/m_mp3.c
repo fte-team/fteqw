@@ -688,6 +688,9 @@ void CD_f (void)
 
 	if (Q_strcasecmp(command, "eject") == 0)
 	{
+		if (Cmd_IsInsecure())
+			return;
+
 		if (cdplayingtrack || cdpausedtrack)
 			CDAudio_Stop();
 		CDAudio_Eject();

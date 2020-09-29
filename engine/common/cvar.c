@@ -1154,6 +1154,8 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 // check to see if it has already been defined
 	old = Cvar_FindVar (variable->name);
+	if (old && variable->name2)
+		old = Cvar_FindVar (variable->name2);
 	if (old)
 	{
 		if ((old->flags & CVAR_POINTER) && !(variable->flags & CVAR_POINTER))

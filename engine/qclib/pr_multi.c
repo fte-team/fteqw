@@ -244,7 +244,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 			prinst.reorganisefields = 2;
 		else if (engineofs)
 		{
-			progfuncs->funcs.fieldadjust = prinst.fields_size/4;
+			progfuncs->funcs.fieldadjust = prinst.fields_size/sizeof(pvec_t);
 #ifdef MAPPING_DEBUG
 			externs->Printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, prinst.fields_size, (int)prinst.fields_size/4);
 #endif
@@ -329,7 +329,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 	}
 	else
 	{	//we just found a new fieldname inside a progs
-		prinst.field[fnum].ofs = ofs = prinst.fields_size/4;	//add on the end
+		prinst.field[fnum].ofs = ofs = prinst.fields_size/sizeof(pvec_t);	//add on the end
 
 		//if the progs field offset matches annother offset in the same progs, make it match up with the earlier one.
 		if (progsofs>=0)
@@ -368,8 +368,11 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 		}
 	}
 //	if (type != ev_vector)
-		if (prinst.fields_size < (ofs+type_size[type])*4)
-			prinst.fields_size = (ofs+type_size[type])*4;
+		if (prinst.fields_size < (ofs+type_size[type])*sizeof(pvec_t))
+		{
+			prinst.fields_size = (ofs+type_size[type])*sizeof(pvec_t);
+			progfuncs->funcs.activefieldslots = prinst.fields_size/sizeof(pvec_t);
+		}
 
 	if (prinst.max_fields_size && prinst.fields_size > prinst.max_fields_size)
 		externs->Sys_Error("Allocated too many additional fields after ents were inited.");

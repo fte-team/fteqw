@@ -187,6 +187,17 @@ void ClientReliableWrite_Char(client_t *cl, int c)
 		MSG_WriteChar(&cl->netchan.message, c);
 }
 
+void ClientReliableWrite_Double(client_t *cl, double f)
+{
+	if (cl->num_backbuf)
+	{
+		MSG_WriteDouble(&cl->backbuf, f);
+		ClientReliable_FinishWrite(cl);
+	}
+	else
+		MSG_WriteDouble(&cl->netchan.message, f);
+}
+
 void ClientReliableWrite_Float(client_t *cl, float f)
 {
 	if (cl->num_backbuf)
@@ -209,6 +220,16 @@ void ClientReliableWrite_Coord(client_t *cl, float f)
 		MSG_WriteCoord(&cl->netchan.message, f);
 }
 
+void ClientReliableWrite_Int64(client_t *cl, qint64_t c)
+{
+	if (cl->num_backbuf)
+	{
+		MSG_WriteInt64(&cl->backbuf, c);
+		ClientReliable_FinishWrite(cl);
+	}
+	else
+		MSG_WriteInt64(&cl->netchan.message, c);
+}
 void ClientReliableWrite_Long(client_t *cl, int c)
 {
 	if (cl->num_backbuf)

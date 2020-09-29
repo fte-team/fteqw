@@ -19,7 +19,7 @@ const char **myargv;
 char	qcc_token[1024];
 int		qcc_eof;
 
-const unsigned int		type_size[12] = {1,	//void
+const unsigned int		type_size[] = {1,	//void
 						sizeof(string_t)/4,	//string
 						1,	//float
 						3,	//vector
@@ -28,11 +28,17 @@ const unsigned int		type_size[12] = {1,	//void
 						sizeof(func_t)/4,//function
 						1,  //pointer (its an int index)
 						1,	//integer
+						1,	//uint
+						2,	//long
+						2,	//ulong
+						2,	//double
 						3,	//fixme: how big should a variant be?
 						0,	//ev_struct. variable sized.
-						0	//ev_union. variable sized.
+						0,	//ev_union. variable sized.
+						0,	//ev_accessor...
+						0,	//ev_enum...
+						1,	//ev_bool...
 						};
-
 
 char *basictypenames[] = {
 	"void",
@@ -44,11 +50,16 @@ char *basictypenames[] = {
 	"function",
 	"pointer",
 	"integer",
+	"uint",
+	"long",
+	"ulong",
+	"double",
 	"variant",
 	"struct",
 	"union",
 	"accessor",
-	"enum"
+	"enum",
+	"bool"
 };
 
 /*
@@ -291,10 +302,7 @@ skipwhite:
 	while ((c = *data) && qcc_iswhite(c))
 		data++;
 	if (!c)
-	{
-		qcc_eof = true;
 		return NULL;
-	}
 
 // skip // comments
 	if (c=='/' && data[1] == '/')
@@ -415,10 +423,7 @@ skipwhite:
 	while ((c = *data) && qcc_iswhite(c))
 		data++;
 	if (!c)
-	{
-		qcc_eof = true;
 		return NULL;
-	}
 
 // skip // comments
 	if (c=='/' && data[1] == '/')

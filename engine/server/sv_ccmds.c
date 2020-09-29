@@ -37,7 +37,7 @@ qboolean SV_MayCheat(void)
 }
 
 #ifdef SUBSERVERS
-cvar_t sv_autooffload = CVARD("sv_autooffload", "0", "Automatically start the server in a separate process, so that sporadic or persistent gamecode slowdowns do not affect visual framerates. Note: Offloaded servers have separate cvar states which may complicate usage.");
+cvar_t sv_autooffload = CVARD("sv_autooffload", "0", "Automatically start the server in a separate process, so that sporadic or persistent gamecode slowdowns do not affect visual framerates (equivelent to the mapcluster command). Note: Offloaded servers have separate cvar+command states which may complicate usage.");
 #endif
 extern cvar_t cl_warncmd;
 cvar_t sv_cheats = CVARF("sv_cheats", "0", CVAR_LATCH);

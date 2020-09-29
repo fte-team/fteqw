@@ -200,7 +200,10 @@ static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
+#ifndef SERVERONLY
 static qboolean pluginpromptshown;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
+#endif
+
 #ifdef WEBCLIENT
 static int allowphonehome = -1;	//if autoupdates are disabled, make sure we get (temporary) permission before phoning home for available updates. (-1=unknown, 0=no, 1=yes)
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
@@ -838,7 +841,7 @@ static qboolean PM_CheckFile(const char *filename, enum fs_relative base)
 	return false;
 }
 
-static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qboolean enabled)
+static void PM_AddSubList(const char *url, const char *prefix, qboolean save, int initialstatus)
 {
 	int i;
 	if (!*url)
@@ -855,10 +858,7 @@ static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qb
 	}
 	if (i == numdownloadablelists && i < countof(downloadablelist))
 	{
-		if (enabled)
-			downloadablelist[i].status = SRCSTAT_PENDING;
-		else
-			downloadablelist[i].status = SRCSTAT_DISABLED;
+		downloadablelist[i].status = initialstatus;
 		downloadablelist[i].save = save;
 
 		downloadablelist[i].url = BZ_Malloc(strlen(url)+1);
@@ -990,9 +990,9 @@ static qboolean PM_ParsePackageList(const char *f, int parseflags, const char *u
 
 				tokstart = COM_StringParse (tokstart, enablement, sizeof(enablement), false, false);
 				if (!Q_strcasecmp(enablement, "enabled") && (parseflags & DPF_ENABLED))
-					PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, true);
+					PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, SRCSTAT_PENDING);
 				else
-					PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, false);
+					PM_AddSubList(url, subprefix, (parseflags & DPF_ENABLED)?true:false, SRCSTAT_DISABLED);
 				continue;
 			}
 			if (!strcmp(com_token, "set"))
@@ -1479,16 +1479,18 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 	return true;
 }
 #ifndef SERVERONLY
-void PM_PluginDetected(void *ctx, int status)
+#ifndef ENABLEPLUGINSBYDEFAULT
+static void PM_PluginDetected(void *ctx, int status)
 {
-	if (status != -1)
+	if (status != PROMPT_CANCEL)
 		PM_WriteInstalledPackages();
-	if (status == 0)
+	if (status == PROMPT_YES)	//'view'...
 	{
 		Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
 		Cmd_ExecuteString("menu_download \"Plugins/\"\n", RESTRICT_LOCAL);
 	}
 }
+#endif
 #endif
 #endif
 
@@ -1497,11 +1499,8 @@ void PM_AutoUpdateQuery(void *ctx, promptbutton_t status)
 {
 	if (status == PROMPT_CANCEL)
 		return; //'Later'
-	if (status == PROMPT_NO)
-		Cvar_ForceSet(&pkg_autoupdate, "0"); //'Disable'
-	else
-		Cvar_ForceSet(&pkg_autoupdate, "1"); //'Enable'
-	PM_WriteInstalledPackages();
+	if (status == PROMPT_YES)
+		Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
 	Menu_Download_Update();
 }
 #endif
@@ -1539,13 +1538,6 @@ static void PM_PreparePackageList(void)
 #endif
 		}
 #endif
-		if (!pluginpromptshown && pkg_autoupdate.ival < 0 && numdownloadablelists)
-		{
-			pluginpromptshown = true;
-#ifndef SERVERONLY
-			Menu_Prompt(PM_AutoUpdateQuery, NULL, "Would you like to\nenable update checks?", "Enable", "Disable", "Later");
-#endif
-		}
 	}
 }
 
@@ -2221,7 +2213,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	//make sure our sources are okay.
 	if (*pkg_downloads_url.string)
-		PM_AddSubList(pkg_downloads_url.string, "", false, pkg_autoupdate.ival>=0);
+		PM_AddSubList(pkg_downloads_url.string, "", false, SRCSTAT_UNKNOWN);
 
 #ifndef WEBCLIENT
 	for (i = 0; i < numdownloadablelists; i++)
@@ -2434,7 +2426,7 @@ static void PM_WriteInstalledPackages(void)
 			if (p->filesize)
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
-				COM_QuotedConcat(va("filesize=%s", p->previewimage), buf, sizeof(buf));
+				COM_QuotedConcat(va("filesize=%"PRIu64, p->filesize), buf, sizeof(buf));
 			}
 
 			if (p->fsroot == FS_BINARYPATH)
@@ -3620,7 +3612,7 @@ void PM_Command_f(void)
 				#ifdef HAVE_CLIENT
 					Menu_Prompt(PM_AddSubList_Callback, Z_StrDup(Cmd_Argv(2)), va("Add updates source?\n%s", Cmd_Argv(2)), "Confirm", NULL, "Cancel");
 				#else
-					PM_AddSubList(Cmd_Argv(2), "", true, true);
+					PM_AddSubList(Cmd_Argv(2), "", true, SRCSTAT_PENDING);
 					PM_WriteInstalledPackages();
 				#endif
 			}
@@ -4893,6 +4885,9 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 			c->key = MD_Source_Key;
 			c->common.width = 320-48-16;
 			c->common.height = 8;
+
+			if (!m->selecteditem)
+				m->selecteditem = (menuoption_t*)c;
 			y += 8;
 		}
 		y+=4;	//small gap
@@ -4972,6 +4967,21 @@ void Menu_Download_Update(void)
 		return;
 
 	PM_UpdatePackageList(true, 2);
+
+#ifndef SERVERONLY
+	if (fs_manifest && pkg_autoupdate.ival > 0)
+	{
+		int i;
+		for (i = 0; i < numdownloadablelists; i++)
+			if (downloadablelist[i].url && downloadablelist[i].status == SRCSTAT_UNKNOWN)
+				break;
+		if (!pluginpromptshown && i < numdownloadablelists)
+		{
+			pluginpromptshown = true;
+			Menu_Prompt(PM_AutoUpdateQuery, NULL, "Configure update sources now?", "View", NULL, "Later");
+		}
+	}
+#endif
 }
 #else
 void Menu_Download_Update(void)

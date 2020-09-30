@@ -234,12 +234,33 @@ pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
 	return usedbuffer>0;
 }
 
+static pbool GUI_NeedsQuotes(const char *str)
+{
+	//true if an empty string.
+	if (!*str)
+		return true;
+	for(; *str; str++)
+	{	//true if any char is not alpha-numeric
+		if (*str >= 'a' && *str <= 'z')
+			;
+		else if (*str >= 'A' && *str <= 'Z')
+			;
+		else if (*str >= '0' && *str <= '9')
+			;
+		else if (*str == '_')
+			;
+		else
+			return true;
+	}
+	return false;
+}
+
 static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part3, char *desc)
 {
 	int align = 0;
 	if (part1)
 	{
-		if (strchr(part1, ' '))
+		if (GUI_NeedsQuotes(part1))
 			align += fprintf(file, "\"%s\" ", part1);
 		else
 			align += fprintf(file, "%s ", part1);
@@ -248,7 +269,7 @@ static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part
 	}
 	if (part2)
 	{
-		if (strchr(part2, ' '))
+		if (GUI_NeedsQuotes(part2))
 			align += fprintf(file, "\"%s\" ", part2);
 		else
 			align += fprintf(file, "%s ", part2);
@@ -257,7 +278,7 @@ static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part
 	}
 	if (part3)
 	{
-		if (strchr(part3, ' '))
+		if (GUI_NeedsQuotes(part3))
 			align += fprintf(file, "\"%s\" ", part3);
 		else
 			align += fprintf(file, "%s ", part3);
@@ -349,7 +370,7 @@ void GUI_SaveConfig(void)
 static char *GUI_ParseInPlace(char **state)
 {
 	char *str = *state, *end;
-	while(*str == ' ' || *str == '\t')
+	while(*str == ' ' || *str == '\t' || *str == '\r' || *str == '\n')
 		str++;
 	if (*str == '\"')
 	{
@@ -387,16 +408,21 @@ static char *GUI_ParseInPlace(char **state)
 		{
 			if (*end == '#')
 			{
+				*end = 0;
 				while (*end && *end != '\n')
 					end++;
 				break;
 			}
-			if (*end==' ' || *end =='\t' || *end == '\n')
+			if (*end==' ' || *end =='\t' || *end == '\n' || *end == '\r')
 				break;
 		}
 	}
-	*end = 0;
-	*state = end;
+	if (end && *end)
+	{
+		*end = 0;
+		*state = end+1;
+	}
+	else *state = end;
 	return str;
 }
 static int GUI_ParseIntInPlace(char **state, int defaultval)
@@ -439,6 +465,7 @@ void GUI_LoadConfig(void)
 	while (fgets(buf, sizeof(buf), file))
 	{
 		str = buf;
+
 		token = GUI_ParseInPlace(&str);
 		if (!stricmp(token, "optimisation") || !stricmp(token, "opt"))
 		{
@@ -457,7 +484,9 @@ void GUI_LoadConfig(void)
 						optimisations[p].flags &= ~FLAG_SETINGUI;
 					break;
 				}
-			//don't worry if its not known	
+			//don't worry too much if its not known
+			if (!optimisations[p].enabled)
+				printf("Unknown flag: \"%s\"\n", item);
 		}
 		else if (!stricmp(token, "flag") || !stricmp(token, "fl") || !stricmp(token, "keyword"))
 		{
@@ -474,6 +503,8 @@ void GUI_LoadConfig(void)
 						compiler_flag[p].flags &= ~FLAG_SETINGUI;
 					break;
 				}
+			if (!compiler_flag[p].enabled)
+				printf("Unknown flag/keyword: \"%s\"\n", item);
 			//don't worry if its not known
 		}
 		else if (!stricmp(token, "enginebinary"))
@@ -482,10 +513,10 @@ void GUI_LoadConfig(void)
 			QC_strlcpy(enginebasedir, GUI_ParseInPlace(&str), sizeof(enginebasedir));
 		else if (!stricmp(token, "engineargs"))
 			QC_strlcpy(enginecommandline, GUI_ParseInPlace(&str), sizeof(enginecommandline));
-//		else if (!stricmp(token, "srcfile"))
-//			QC_strlcpy(progssrcname, GUI_ParseInPlace(&str), sizeof(progssrcname));
-//		else if (!stricmp(token, "src"))
-//			QC_strlcpy(progssrcdir, GUI_ParseInPlace(&str), sizeof(progssrcdir));
+		else if (!stricmp(token, "srcfile"))
+			QC_strlcpy(progssrcname, GUI_ParseInPlace(&str), sizeof(progssrcname));
+		else if (!stricmp(token, "src"))
+			QC_strlcpy(progssrcdir, GUI_ParseInPlace(&str), sizeof(progssrcdir));
 		else if (!stricmp(token, "parameters"))
 			QC_strlcpy(parameters, GUI_ParseInPlace(&str), sizeof(parameters));
 
@@ -506,7 +537,7 @@ void GUI_LoadConfig(void)
 			fl_ftetarg = GUI_ParseBooleanInPlace(&str, false);
 		else if (*token)
 		{
-			puts("Unknown setting: \""); puts(token); puts("\"\n");
+			printf("Unknown setting: \"%s\"\n", token);
 		}
 	}
 	fclose(file);

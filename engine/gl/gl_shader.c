@@ -6498,7 +6498,7 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 		explicitalpha = true;
 	else
 	{
-		if (ruleset_allow_watervis.ival)
+		if (cls.allow_watervis)
 			alpha = *alphavars[type]->string?alphavars[type]->value:alphavars[0]->value;
 		else
 			alpha = 1;
@@ -6515,7 +6515,7 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 	else
 		wstyle = 1;
 
-	if (wstyle > 1 && !ruleset_allow_watervis.ival)
+	if (wstyle > 1 && !cls.allow_watervis)
 		wstyle = 1;
 
 	if (wstyle > 1 && !sh_config.progs_supported)

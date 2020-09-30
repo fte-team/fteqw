@@ -205,6 +205,11 @@ cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat 
 
 cvar_t	cl_dlemptyterminate		= CVAR("cl_dlemptyterminate", "1");
 
+static void QDECL Cvar_CheckServerInfo(struct cvar_s *var, char *oldvalue)
+{	//values depend upon the serverinfo, so reparse for overrides.
+	CL_CheckServerInfo();
+}
+
 #define RULESETADVICE " You should not normally change this cvar from its permissive default, instead impose limits on yourself only through the 'ruleset' cvar."
 cvar_t	ruleset_allow_playercount			= CVARD("ruleset_allow_playercount", "1", "Specifies whether teamplay triggers that count nearby players are allowed in the current ruleset."RULESETADVICE);
 cvar_t	ruleset_allow_frj					= CVARD("ruleset_allow_frj", "1", "Specifies whether Forward-Rocket-Jump scripts are allowed in the current ruleset. If 0, limits on yaw speed will be imposed so they cannot be scripted."RULESETADVICE);
@@ -218,7 +223,7 @@ cvar_t	ruleset_allow_modified_eyes			= CVARD("ruleset_allow_modified_eyes", "0",
 cvar_t	ruleset_allow_sensitive_texture_replacements = CVARD("ruleset_allow_sensitive_texture_replacements", "1", "Allows the replacement of certain model textures (as well as the models themselves). This prevents adding extra fullbrights to make them blatently obvious."RULESETADVICE);
 cvar_t	ruleset_allow_localvolume			= CVARD("ruleset_allow_localvolume", "1", "Allows the use of the snd_playersoundvolume cvar. Muting your own sounds can make it easier to hear where your opponent is."RULESETADVICE);
 cvar_t  ruleset_allow_shaders				= CVARFD("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM, "When 0, this completely disables the use of external shader files, preventing custom shaders from being used for wallhacks."RULESETADVICE);
-cvar_t  ruleset_allow_watervis				= CVARFD("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM, "When 0, this enforces ugly opaque water."RULESETADVICE);
+cvar_t  ruleset_allow_watervis				= CVARFCD("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM, Cvar_CheckServerInfo, "When 0, this enforces ugly opaque water."RULESETADVICE);
 cvar_t  ruleset_allow_fbmodels				= CVARFD("ruleset_allow_fbmodels", "0", CVAR_SHADERSYSTEM, "When 1, allows all models to be displayed fullbright, completely ignoring the lightmaps. This feature exists only for parity with ezquake's defaults."RULESETADVICE);
 
 extern cvar_t cl_hightrack;
@@ -2271,22 +2276,21 @@ void CL_CheckServerInfo(void)
 #ifndef CLIENTONLY
 	extern cvar_t sv_cheats;
 #endif
-	int oldteamplay;
+	int oldteamplay = cl.teamplay;
 	qboolean spectating = true;
 	int i;
+	qboolean oldwatervis = cls.allow_watervis;
 	
 	//spectator 2 = spectator-with-scores, considered to be players. this means we don't want to allow spec cheats while they're inactive, because that would be weird.
 	for (i = 0; i < cl.splitclients; i++)
 		if (cl.playerview[i].spectator != 1)
 			spectating = false;
 
-	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "teamplay"));
 	cls.deathmatch = cl.deathmatch = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "deathmatch"));
 
 	cls.allow_cheats = false;
 	cls.allow_semicheats=true;
-	cls.allow_watervis=false;
 	cls.allow_skyboxes=false;
 	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
@@ -2296,8 +2300,11 @@ void CL_CheckServerInfo(void)
 	cls.allow_csqc = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "anycsqc")) || *InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs");
 	cl.csqcdebug = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "*csqcdebug"));
 
-	if (spectating || cls.demoplayback || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "watervis")))
+	s = InfoBuf_ValueForKey(&cl.serverinfo, "watervis");
+	if (spectating || cls.demoplayback || atoi(s) || (!*s && ruleset_allow_watervis.ival))
 		cls.allow_watervis=true;
+	else
+		cls.allow_watervis=false;
 
 	if (spectating || cls.demoplayback || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow_skybox")) || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow_skyboxes")))
 		cls.allow_skyboxes=true;	//mostly obsolete.
@@ -2473,6 +2480,8 @@ void CL_CheckServerInfo(void)
 
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();
+	if (oldwatervis != cls.allow_watervis)
+		Shader_NeedReload(false);
 
 	CSQC_ServerInfoChanged();
 }

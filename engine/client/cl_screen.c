@@ -650,7 +650,7 @@ static char *SCR_CopyCenterPrint(cprint_t *p)	//reads the link under the mouse c
 }
 
 #define MAX_CPRINT_LINES 512
-int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
+int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 {
 	int				l;
 	int				y, x;
@@ -667,6 +667,8 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	conchar_t *line_end[MAX_CPRINT_LINES];
 	int linecount;
 
+	vrect_t rect = *playerrect;
+
 // the finale prints the characters one at a time
 	if (p->flags & CPRINT_TYPEWRITER)
 		remaining = scr_printspeed.value * (cl.time - p->time_start);
@@ -682,34 +684,20 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
-		int w = 320, h=200;
-		if (pic)
-			R_GetShaderSizes(pic, &w, &h, false);
-		if (rect->width > w)
+		int w = 320;
+		if (rect.width > w)
 		{
-			rect->x = (rect->x + rect->width/2) - (w / 2);
-			rect->width = w;
+			rect.x = (rect.x + rect.width/2) - (w / 2);
+			rect.width = w;
 		}
 
-		if (rect->width < 32)
+		if (rect.width < 32)
 			return 0;
-		rect->x += 16;
-		rect->width -= 32;
-
-		/*keep the text inside the image too*/
-		if (pic)
-		{
-			if (rect->height > h)
-			{
-				rect->y = (rect->y + rect->height/2) - (h/2);
-				rect->height = h;
-			}
-			rect->y += 16;
-			rect->height -= 32;
-		}
+		rect.x += 16;
+		rect.width -= 32;
 	}
 
-	y = rect->y;
+	y = rect.y;
 
 	if (pic)
 	{
@@ -721,15 +709,15 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 			w *= 24.0/h;
 			h = 24;
 			y+= 16;
-			R2D_ScalePic ( (vid.width-w)/2, 16, w, h, pic);
+			R2D_ScalePic (rect.x + (rect.width-w)/2, y, w, h, pic);
 			y+= h;
 			y+= 8;
 		}
 	}
 
 	Font_BeginString(font, mousecursor_x, mousecursor_y, &mousex, &mousey);
-	Font_BeginString(font, rect->x, y, &left, &top);
-	Font_BeginString(font, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
+	Font_BeginString(font, rect.x, y, &left, &top);
+	Font_BeginString(font, rect.x+rect.width, rect.y+rect.height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, (p->flags & CPRINT_NOWRAP)?0x7fffffff:(right - left), MAX_CPRINT_LINES, line_start, line_end);
 
 	ch = Font_CharHeight();
@@ -759,12 +747,16 @@ int SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	{	//hexen2 style plaque.
 		Font_EndString(font);
 
-		if (*p->titleimage)
-			R2D_ScalePic (rect->x + ((int)rect->width - pic->width)/2, rect->y + ((int)rect->height - pic->height)/2, pic->width, pic->height, pic);
+		if (*p->titleimage && pic)
+		{
+			int w, h;
+			R_GetShaderSizes(pic, &w, &h, false);
+			R2D_Letterbox(playerrect->x, playerrect->y, playerrect->width, playerrect->height, pic, w, h);
+		}
 		else
-			Draw_ApproxTextBox(rect->x, (y * vid.height) / (float)vid.pixelheight, rect->width, linecount*Font_CharVHeight(font));
+			Draw_ApproxTextBox(rect.x, (y * (float)vid.height) / (float)vid.pixelheight, rect.width, linecount*Font_CharVHeight(font));
 
-		Font_BeginString(font, rect->x, y, &left, &top);
+		Font_BeginString(font, rect.x, y, &left, &top);
 	}
 
 	for (l = 0; l < linecount; l++, y += ch)

@@ -2104,18 +2104,19 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 #ifdef HEXEN2
 void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle)
 {
-	qboolean orgchanged;
+	qboolean orgunchanged;
 	vec3_t moveorg, moveang;
 	VectorSubtract(ent->v->origin, initial_origin, moveorg);
 	VectorSubtract(ent->v->angles, initial_angle, moveang);
-	if ((orgchanged=DotProduct(moveorg,moveorg)) || DotProduct(moveang,moveang))
+	orgunchanged=!DotProduct(moveorg,moveorg);
+	if (!orgunchanged || DotProduct(moveang,moveang))
 	{
 		int i;
 		for(i=16; i && movechain != w->edicts && !ED_ISFREE(movechain); i--, movechain = PROG_TO_WEDICT(w->progs, movechain->xv->movechain))
 		{
 			if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
 				VectorAdd(movechain->v->angles, moveang, movechain->v->angles);	//FIXME: axial only
-			if (orgchanged)
+			if (!orgunchanged)
 			{
 				VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
 				World_LinkEdict(w, movechain, false);

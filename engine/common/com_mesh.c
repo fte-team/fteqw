@@ -38,6 +38,7 @@ cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "1", r_meshpitch_callback, "Sp
 #else
 cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "-1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, Quake compatibility requires -1.");
 #endif
+cvar_t r_meshroll							= CVARCD	("r_meshroll", "1", r_meshpitch_callback, "Specifies the direction of the roll angle on mesh models formats, also affects gamecode, so do not change from its default.");
 cvar_t dpcompat_skinfiles					= CVARD	("dpcompat_skinfiles", "0", "When set, uses a nodraw shader for any unmentioned surfaces.");
 
 #ifdef HAVE_CLIENT

@@ -335,7 +335,10 @@ void QDECL VectorAngles(const float *forward, const float *up, float *result, qb
 	yaw *= 180 / M_PI;
 	roll *= 180 / M_PI;
 	if (meshpitch)
+	{
 		pitch *= r_meshpitch.value;
+		roll *= r_meshroll.value;
+	}
 	if (pitch < 0)
 		pitch += 360;
 	if (yaw < 0)
@@ -381,6 +384,14 @@ void QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3
 		up[1] = (cr*sp*sy+-sr*cy);
 		up[2] = cr*cp;
 	}
+}
+void AngleVectorsMesh (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
+{
+	vec3_t ang;
+	ang[0] = angles[0] * r_meshpitch.value;
+	ang[1] = angles[1];
+	ang[2] = angles[2] * r_meshroll.value;
+	AngleVectors (ang, forward, right, up);
 }
 
 int VectorCompare (const vec3_t v1, const vec3_t v2)

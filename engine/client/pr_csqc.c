@@ -6827,6 +6827,11 @@ static struct {
 	{"brush_getfacepoints",		PF_brush_getfacepoints,	0},
 	{"brush_calcfacepoints",	PF_brush_calcfacepoints,0},
 	{"brush_findinvolume",		PF_brush_findinvolume,	0},
+
+	{"patch_getcp",				PF_patch_getcp,			0},
+	{"patch_getmesh",			PF_patch_getmesh,		0},
+	{"patch_create",			PF_patch_create,		0},
+//	{"patch_calculate",			PF_patch_calculate,		0},
 #endif
 
 #ifdef ENGINE_ROUTING

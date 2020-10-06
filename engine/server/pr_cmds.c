@@ -3006,7 +3006,8 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 	// if it is an inline model, get the size information for it
 	if (m && (m[0] == '*' || (*m&&progstype == PROG_H2)))
 	{
-		mod = Mod_ForName (Mod_FixName(m, sv.modelname), MLV_WARN);
+		mod = SVPR_GetCModel(&sv.world, i);
+//		mod = Mod_ForName (Mod_FixName(m, sv.modelname), MLV_WARN);
 		if (mod)
 		{
 			while(mod->loadstate == MLS_LOADING)
@@ -3014,7 +3015,15 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 
 			VectorCopy (mod->mins, e->v->mins);
 			VectorCopy (mod->maxs, e->v->maxs);
-			VectorSubtract (mod->maxs, mod->mins, e->v->size);
+#ifdef HEXEN2
+			if (progstype == PROG_H2 && mod->type == mod_alias && !sv_gameplayfix_setmodelrealbox.ival)
+			{	//hexen2 expands its mdls by 10
+				vec3_t hexen2expansion = {10,10,10};
+				VectorSubtract (mod->mins, hexen2expansion, e->v->mins);
+				VectorAdd (mod->maxs, hexen2expansion, e->v->maxs);
+			}
+#endif
+			VectorSubtract (e->v->maxs, e->v->mins, e->v->size);
 			World_LinkEdict (&sv.world, (wedict_t*)e, false);
 		}
 
@@ -10985,7 +10994,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"chr2str",			PF_chr2str,			0,		0,		0,		223,	D("string(float chr, ...)", "The input floats are considered character values, and are concatenated.")},
 	{"strconv",			PF_strconv,			0,		0,		0,		224,	D("string(float ccase, float redalpha, float redchars, string str, ...)", "Converts quake chars in the input string amongst different representations.\nccase specifies the new case for letters.\n 0: not changed.\n 1: forced to lower case.\n 2: forced to upper case.\nredalpha and redchars switch between colour ranges.\n 0: no change.\n 1: Forced white.\n 2: Forced red.\n 3: Forced gold(low) (numbers only).\n 4: Forced gold (high) (numbers only).\n 5+6: Forced to white and red alternately.\nYou should not use this builtin in combination with UTF-8.")},
 	{"strpad",			PF_strpad,			0,		0,		0,		225,	D("string(float pad, string str1, ...)", "Pads the string with spaces, to ensure its a specific length (so long as a fixed-width font is used, anyway). If pad is negative, the spaces are added on the left. If positive the padding is on the right.")},	//will be moved
-	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	D("string(infostring old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
+	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	D("infostring(infostring old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
 	{"infoget",			PF_infoget,			0,		0,		0,		227,	D("string(infostring info, string key)", "Reads a named value from an infostring. The returned value is a tempstring")},
 //	{"strcmp",			PF_strncmp,			0,		0,		0,		228,	D("float(string s1, string s2)", "Compares the two strings exactly. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
 	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	D("#define strcmp strncmp\nfloat(string s1, string s2, optional float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
@@ -11105,6 +11114,27 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"brush_findinvolume",PF_brush_findinvolume,0,	0,		0,		0,		D("int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults)", "Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice.")},
 //	{"brush_editplane",	PF_brush_editplane,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, in brushface *face)", "Changes a surface's texture info.")},
 //	{"brush_transformselected",PF_brush_transformselected,0,0,0,	0,		D("int(float modelid, int brushid, float *matrix)", "Transforms selected brushes by the given transform")},
+
+#define qcpatchvert					\
+	"typedef struct\n{\n"			\
+		"\tstring shadername;\n"	\
+		"\tint contents;\n"			\
+		"\tint cpwidth;\n"			\
+		"\tint cpheight;\n"			\
+		"\tint tesswidth;\n"		\
+		"\tint tessheight;\n"		\
+		"\tvector texinfo;/*scalex,y,rot*/\n"		\
+	"} patchinfo_t;\n"				\
+	"typedef struct\n{\n"			\
+		"\tvector xyz;\n"			\
+		"\tvector rgb; float a;\n"	\
+		"\tfloat s, t;\n"			\
+	"} patchvert_t;\n"				\
+	"#define patch_delete(modelidx,patchidx) brush_delete(modelidx,patchidx)\n"
+	{"patch_getcp",		PF_patch_getcp,		0,		0,		0,		0,		D(qcpatchvert "int(float modelidx, int patchid, patchvert_t *out_controlverts, int maxcp, patchinfo_t *out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, __out patchinfo_t out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+	{"patch_create",	PF_patch_create,	0,		0,		0,		0,		D("int(float modelidx, int oldpatchid, patchvert_t *in_controlverts, patchinfo_t in_info)", "Inserts a new patch into the model. Return value is the new patch's id.")},
+//	{"patch_calculate",	PF_patch_calculate,	0,		0,		0,		0,		D("int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, __inout patchinfo_t inout_info)", "Calculates the geometry of a hyperthetical patch.")},
 #endif
 
 #ifdef ENGINE_ROUTING

@@ -2338,6 +2338,7 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
+#ifdef HAVE_SERVER
 	switch(info->skillcombo->selectedoption)
 	{
 	case 0:
@@ -2356,6 +2357,7 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 
 	if ((unsigned)info->mapcombo->selectedoption < countof(maplist_h2))
 		Cbuf_AddText(va("map %s\n", maplist_h2[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
+#endif
 
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
@@ -2404,8 +2406,8 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	y+=8;
 	#ifdef HAVE_SERVER
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
-	#endif
 	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions_h2, currentmap);	y+=8;
+	#endif
 	#ifdef HAVE_SERVER
 	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
 	#endif
@@ -3264,14 +3266,16 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 //	ent.angles[1] = realtime*45;//mods->yaw;
 //	ent.angles[0] = realtime*23.4;//mods->pitch;
 
-	ent.angles[0]*=r_meshpitch.value;
-	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-	ent.angles[0]*=r_meshpitch.value;
-	VectorInverse(ent.axis[1]);
-
 	ent.model = Mod_ForName(mods->modelname, MLV_WARN);
 	if (!ent.model)
 		return;	//panic!
+
+	if (ent.model->type == mod_alias)	//should we even bother with this here?
+		AngleVectorsMesh(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	else
+		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	VectorInverse(ent.axis[1]);
+
 	ent.scale = max(max(fabs(ent.model->maxs[0]-ent.model->mins[0]), fabs(ent.model->maxs[1]-ent.model->mins[1])), fabs(ent.model->maxs[2]-ent.model->mins[2]));
 	ent.scale = ent.scale?64.0/ent.scale:1;
 //	ent.scale = 1;

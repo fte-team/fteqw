@@ -716,6 +716,7 @@ extern	cvar_t	gl_playermip;
 extern  cvar_t	r_lightmap_saturation;
 
 extern cvar_t r_meshpitch;
+extern cvar_t r_meshroll;	//gah!
 extern cvar_t vid_hardwaregamma;
 
 enum {

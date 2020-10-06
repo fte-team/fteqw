@@ -430,6 +430,9 @@ typedef struct
 	qboolean handshaking;
 	qboolean datagram;
 
+	int pullerror;	//adding these two because actual networking errors are not getting represented properly, at least with regard to timeouts.
+	int pusherror;
+
 	qboolean challenging;	//not sure this is actually needed, but hey.
 	void *cbctx;
 	neterr_t(*cbpush)(void *cbctx, const qbyte *data, size_t datasize);
@@ -658,7 +661,7 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 	if (!file->session)
 	{
 		//Sys_Printf("null session\n");
-		return -1;
+		return VFS_ERROR_UNSPECIFIED;
 	}
 
 	err = qgnutls_handshake (file->session);
@@ -676,9 +679,18 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 				qgnutls_perror (err);
 		}
 
-		SSL_Close(&file->funcs);
 //		Con_Printf("%s: abort\n", file->certname);
-		return -1;
+
+		switch(err)
+		{
+		case GNUTLS_E_CERTIFICATE_ERROR:		err = VFS_ERROR_UNTRUSTED;		break;
+		case GNUTLS_E_PREMATURE_TERMINATION:	err = VFS_ERROR_EOF;			break;
+		case GNUTLS_E_PUSH_ERROR:				err = file->pusherror;			break;
+		case GNUTLS_E_PULL_ERROR:				err = file->pullerror;			break;
+		default:								err = VFS_ERROR_UNSPECIFIED;	break;
+		}
+		SSL_Close(&file->funcs);
+		return err;
 	}
 	file->handshaking = false;
 	return 1;
@@ -697,7 +709,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 	}
 
 	if (!bytestoread)	//gnutls doesn't like this.
-		return -1;
+		return VFS_ERROR_UNSPECIFIED;	//caller is expecting data that we can never return, or something.
 
 	read = qgnutls_record_recv(file->session, buffer, bytestoread);
 	if (read < 0)
@@ -705,7 +717,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 		if (read == GNUTLS_E_PREMATURE_TERMINATION)
 		{
 			Con_Printf("TLS Premature Termination from %s\n", file->certname);
-			return -1;
+			return VFS_ERROR_EOF;
 		}
 		else if (read == GNUTLS_E_REHANDSHAKE)
 		{
@@ -721,7 +733,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 		}
 	}
 	else if (read == 0)
-		return -1;	//closed by remote connection.
+		return VFS_ERROR_EOF;	//closed by remote connection.
 	return read;
 }
 static int QDECL SSL_Write(struct vfsfile_s *f, const void *buffer, int bytestowrite)
@@ -744,11 +756,11 @@ static int QDECL SSL_Write(struct vfsfile_s *f, const void *buffer, int bytestow
 		else
 		{
 			Con_DPrintf("TLS Send Error %i (%i bytes)\n", written, bytestowrite);
-			return -1;
+			return VFS_ERROR_UNSPECIFIED;
 		}
 	}
 	else if (written == 0)
-		return -1;	//closed by remote connection.
+		return VFS_ERROR_EOF;	//closed by remote connection.
 	return written;
 }
 static qboolean QDECL SSL_Seek (struct vfsfile_s *file, qofs_t pos)
@@ -775,7 +787,17 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 	int done = VFS_WRITE(file->stream, data, size);
 	if (done <= 0)
 	{
-		qgnutls_transport_set_errno(file->session, (done==0)?EAGAIN:ECONNRESET);
+		int eno;
+		file->pusherror = done;
+		switch(done)
+		{
+		case VFS_ERROR_EOF:			return 0;
+		case VFS_ERROR_DNSFAILURE:
+		case VFS_ERROR_NORESPONSE:	eno = ECONNRESET;	break;
+		case VFS_ERROR_TRYLATER:	eno = EAGAIN;		break;
+		default:					eno = ECONNRESET;	break;
+		}
+		qgnutls_transport_set_errno(file->session, eno);
 		return -1;
 	}
 	return done;
@@ -787,8 +809,17 @@ static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 	int done = VFS_READ(file->stream, data, size);
 	if (done <= 0)
 	{
-		//use ECONNRESET instead of returning eof.
-		qgnutls_transport_set_errno(file->session, (done==0)?EAGAIN:ECONNRESET);
+		int eno;
+		file->pullerror = done;
+		switch(done)
+		{
+		case VFS_ERROR_EOF:			return 0;
+		case VFS_ERROR_DNSFAILURE:
+		case VFS_ERROR_NORESPONSE:	eno = ECONNRESET;	break;
+		case VFS_ERROR_TRYLATER:	eno = EAGAIN;		break;
+		default:					eno = ECONNRESET;	break;
+		}
+		qgnutls_transport_set_errno(file->session, eno);
 		return -1;
 	}
 	return done;

@@ -366,6 +366,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
 #endif
 
+#if !defined(HAVE_SERVER) && !defined(SV_MASTER)
+	#undef HAVE_HTTPSV
+#endif
+
 #ifdef NO_MULTITHREAD
 	#undef MULTITHREAD
 #endif

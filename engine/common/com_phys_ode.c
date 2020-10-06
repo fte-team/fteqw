@@ -64,6 +64,7 @@ static int VectorCompare (const vec3_t v1, const vec3_t v2)
 
 static rbeplugfuncs_t *rbefuncs;
 cvar_t r_meshpitch;
+cvar_t r_meshroll;
 
 //============================================================================
 // physics engine support
@@ -2738,6 +2739,7 @@ static void QDECL World_ODE_Start(world_t *world)
 	world->rbe = &ctx->pub;
 
 	r_meshpitch.value = cvarfuncs->GetFloat("r_meshpitch");
+	r_meshroll.value = cvarfuncs->GetFloat("r_meshroll");
 
 	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
 	VectorSubtract(world->worldmodel->maxs, center, extents);

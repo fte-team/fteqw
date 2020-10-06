@@ -223,7 +223,10 @@ static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
 	a[1] = ed->v->angles[1];
 	a[2] = ed->v->angles[2];
 	if (!mod || mod->type == mod_alias)
+	{
 		a[0] *= r_meshpitch.value;
+		a[2] *= r_meshroll.value;
+	}
 	AngleVectors(a, d[0], d[1], d[2]);
 	bonemat_fromqcvectors(trans, d[0], d[1], d[2], ed->v->origin);
 }
@@ -1684,7 +1687,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	//fixme: respond to renderflags&USEAXIS? scale?
 	a[0] = wed->v->angles[0] * r_meshpitch.value; /*mod_alias bug*/
 	a[1] = wed->v->angles[1];
-	a[2] = wed->v->angles[2];
+	a[2] = wed->v->angles[2] * r_meshroll.value; /*hexen2 bug*/
 	AngleVectors(a, d[0], d[1], d[2]);
 	bonemat_fromqcvectors(emat, d[0], d[1], d[2], wed->v->origin);
 	skelidx = wed->xv->skeletonindex;

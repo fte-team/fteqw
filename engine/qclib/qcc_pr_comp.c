@@ -1904,6 +1904,9 @@ Emits a primitive statement, returning the var it places it's value in
 */
 static int QCC_ShouldConvert(QCC_type_t *from, etype_t wanted)
 {
+	if (from->type == ev_boolean)
+		from = from->parentclass;
+
 	/*no conversion needed*/
 	if (from->type == wanted)
 		return 0;
@@ -2007,7 +2010,7 @@ static QCC_sref_t QCC_SupplyConversion(QCC_sref_t  var, etype_t wanted, pbool fa
 				QCC_PR_ParsePrintSRef(WARN_LAXCAST, var);
 			}
 			else
-				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, var, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var.cast->type]);
+				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, var, "Implicit type mismatch. Needed %s%s%s, got %s%s%s.", col_type,basictypenames[wanted],col_none, col_type,basictypenames[var.cast->type],col_none);
 		}
 		return var;
 	}
@@ -7070,11 +7073,11 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 							QCC_ForceUnFreeDef(fparm.sym);
 						}
 						fparm.ofs = ofs;
-						if (!fparm.ofs)
-						{
+//						if (!fparm.ofs)
+//						{
 							args[parm].firststatement = numstatements;
 							args[parm].ref = fparm;
-						}
+//						}
 						parm++;
 
 						if (ofs+asz == arglist[i]->cast->size)
@@ -9187,7 +9190,7 @@ fieldarrayindex:
 
 		if (arraysize && makearraypointers)
 		{
-			QCC_PR_ParseWarning(0, "Is this still needed?");
+//			QCC_PR_ParseWarning(0, "Is this still needed?"); //yes, when passing the head of an array to a function that takes a pointer
 			r = QCC_PR_GenerateAddressOf(retbuf, r);
 		}
 	}
@@ -9199,6 +9202,13 @@ fieldarrayindex:
 QCC_sref_t QCC_PR_GenerateVector(QCC_sref_t x, QCC_sref_t y, QCC_sref_t z)
 {
 	QCC_sref_t		d;
+
+	if (x.cast->type != ev_float && x.cast->type != ev_integer)
+		x = QCC_EvaluateCast(x, type_float, true);
+	if (y.cast->type != ev_float && y.cast->type != ev_integer)
+		y = QCC_EvaluateCast(y, type_float, true);
+	if (z.cast->type != ev_float && z.cast->type != ev_integer)
+		z = QCC_EvaluateCast(z, type_float, true);
 
 	if ((x.cast->type != ev_float && x.cast->type != ev_integer) ||
 		(y.cast->type != ev_float && y.cast->type != ev_integer) ||
@@ -14800,7 +14810,7 @@ static pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 		err = QCC_CheckOneUninitialised(firststatement, laststatement, local, local->ofs, local->ofs + local->type->size * (local->arraysize?local->arraysize:1));
 		if (err > 0)
 		{
-			QCC_PR_Warning(WARN_UNINITIALIZED, s_filen, statements[err].linenum, "Potentially uninitialised variable %s", local->name);
+			QCC_PR_Warning(WARN_UNINITIALIZED, s_filen, statements[err].linenum, "Potentially uninitialised variable %s%s%s", col_symbol,local->name,col_none);
 			result = true;
 //			break;
 		}
@@ -17271,10 +17281,16 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 QCC_sref_t QCC_PR_ParseInitializerTemp(QCC_type_t *type)
 {
 	QCC_sref_t def = QCC_GetTemp(type);
-	def = QCC_PR_ParseInitializerType_Internal(0, NULL, def, 0);
-	if (def.cast != type)
-		QCC_PR_ParseError(ERR_INTERNAL, "QCC_PR_ParseInitializerTemp changed type\n");
-	return def;
+	QCC_sref_t imm;
+	imm = QCC_PR_ParseInitializerType_Internal(0, NULL, def, 0);
+	if (imm.cast)
+	{
+		if (imm.cast != type)
+			QCC_PR_ParseError(ERR_INTERNAL, "QCC_PR_ParseInitializerTemp changed type\n");
+		QCC_FreeTemp(def);
+		return imm;	//just use the immediate.
+	}
+	return def;	//use our silly temp.
 }
 //returns true where its a const/static initialiser. false if non-const/final initialiser
 pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t def, unsigned int flags)

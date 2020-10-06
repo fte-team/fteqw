@@ -2680,9 +2680,7 @@ static void Con_DrawModelPreview(model_t *model, float x, float y, float w, floa
 	ent.scale = 1;
 	ent.angles[1] = realtime*90;//mods->yaw;
 //	ent.angles[0] = realtime*23.4;//mods->pitch;
-	ent.angles[0]*=r_meshpitch.value;
-	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-	ent.angles[0]*=r_meshpitch.value;
+	AngleVectorsMesh(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 	VectorInverse(ent.axis[1]);
 
 	//ent.origin[2] -= (ent.model->maxs[2]-ent.model->mins[2]) * 0.5 + ent.model->mins[2];
@@ -2725,9 +2723,7 @@ static void Con_DrawModelPreview(model_t *model, float x, float y, float w, floa
 	if (ent.model->camerabone>0 && Mod_GetTag(ent.model, ent.model->camerabone, &ent.framestate, transforms))
 	{
 		VectorClear(ent.origin);
-		ent.angles[0]*=r_meshpitch.value;
-		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-		ent.angles[0]*=r_meshpitch.value;
+		AngleVectorsMesh(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 		VectorInverse(ent.axis[1]);
 		scale = 1;
 		{
@@ -2749,9 +2745,7 @@ static void Con_DrawModelPreview(model_t *model, float x, float y, float w, floa
 	else
 	{
 		ent.angles[1] = realtime*90;//mods->yaw;
-		ent.angles[0]*=r_meshpitch.value;
-		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
-		ent.angles[0]*=r_meshpitch.value;
+		AngleVectorsMesh(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 		VectorScale(ent.axis[0], scale, ent.axis[0]);
 		VectorScale(ent.axis[1], -scale, ent.axis[1]);
 		VectorScale(ent.axis[2], scale, ent.axis[2]);

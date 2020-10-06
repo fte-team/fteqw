@@ -129,6 +129,7 @@ typedef struct {
 void		AddPointToBounds (const vec3_t v, vec3_t mins, vec3_t maxs);
 float		anglemod (float a);
 void		QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
+void		QDECL AngleVectorsMesh (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 void		QDECL VectorAngles (const float *forward, const float *up, float *angles, qboolean meshpitch);	//up may be NULL
 void VARGS	BOPS_Error (void);
 int VARGS	BoxOnPlaneSide (const vec3_t emins, const vec3_t emaxs, const struct mplane_s *plane);

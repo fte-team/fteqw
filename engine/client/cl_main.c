@@ -4679,7 +4679,7 @@ void CL_Status_f(void)
 		for (i = 0; i < csqc_world.num_edicts; i++)
 		{
 			e = EDICT_NUM_PB(csqc_world.progs, i);
-			if (e && e->ereftype == ER_FREE && sv.time - e->freetime > 0.5)
+			if (e && e->ereftype == ER_FREE && Sys_DoubleTime() - e->freetime > 0.5)
 				continue;	//free, and older than the zombie time
 			count++;
 		}
@@ -5972,6 +5972,7 @@ void CL_UpdateHeadAngles(void)
 		R_ConcatRotations(headchange, tmp, tmp2);
 		VectorAngles(tmp2[0], tmp2[2], pv->viewangles);
 		pv->viewangles[0] *= r_meshpitch.value;
+		pv->viewangles[2] *= r_meshroll.value;
 
 		//fall through
 	default:

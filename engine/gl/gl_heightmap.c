@@ -7,18 +7,19 @@ See gl_terrain.h for terminology, networking notes, etc.
 #ifdef TERRAIN
 #include "glquake.h"
 #include "shader.h"
+#include "com_mesh.h"
 
 #include "pr_common.h"
 
 #include "gl_terrain.h"
 
 static plugterrainfuncs_t terrainfuncs;
-struct patchvert_s
+typedef struct
 {
 	vec3_t v;
 	vec2_t tc;
 	vec4_t rgba;
-};
+} qcpatchvert_t;
 
 
 cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
@@ -33,10 +34,11 @@ cvar_t mod_terrain_brushtexscale = CVARD("mod_map_texscale", "1", "Defines the s
 
 enum
 {
-	hmcmd_brush_delete,
-	hmcmd_brush_insert,
-	hmcmd_prespawning,	//sent before initial inserts
+	hmcmd_brush_delete,		//brush OR patch destruction
+	hmcmd_brush_insert,		//brush creation
+	hmcmd_prespawning,		//sent before initial inserts
 	hmcmd_prespawned,		//sent just after initial inserts
+	hmcmd_patch_insert,		//patch creation
 
 	hmcmd_ent_edit = 0x40,
 	hmcmd_ent_remove
@@ -3726,6 +3728,72 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes, b
 	return false;
 }
 
+static qboolean Heightmap_Trace_Quad(hmtrace_t *tr, const float *v0, const float *v1, const float *v2, const float *v3)
+{
+	//super lame shite. be lazy and just use a bbox
+	static vec4_t n[6] = {
+		{-1, 0, 0, 0},
+		{ 0,-1, 0, 0},
+		{ 0, 0,-1, 0},
+		{ 1, 0, 0, 0},
+		{ 0, 1, 0, 0},
+		{ 0, 0, 1, 0},
+	};
+	vec3_t d[2];
+	const float epsilon = 1.0/64;
+	VectorCopy(v0, d[0]);
+	VectorCopy(v0, d[1]);
+	AddPointToBounds(v1, d[0], d[1]);
+	AddPointToBounds(v2, d[0], d[1]);
+	AddPointToBounds(v3, d[0], d[1]);
+
+//I'm implementing this primarily for selecting patches.
+//decals are often infinitely thin things.
+//so expand them by a tiny amount in the hopes that traces will hit patches before the wall they're coplanar with.
+	n[0][3] =-d[0][0]+epsilon;
+	n[1][3] =-d[0][1]+epsilon;
+	n[2][3] =-d[0][2]+epsilon;
+	n[3][3] = d[1][0]+epsilon;
+	n[4][3] = d[1][1]+epsilon;
+	n[5][3] = d[1][2]+epsilon;
+
+	return Heightmap_Trace_Brush(tr, n, 6, NULL) != 0;
+}
+static qboolean Heightmap_Trace_Patch(hmtrace_t *tr, brushes_t *brushinfo)
+{
+	const struct patchdata_s *patch = brushinfo->patch;
+	unsigned int w, h, x, y;
+	qboolean ret = false;
+
+	if (!patch->tessvert)
+	{
+		const struct patchcpvert_s *r1 = patch->cp, *r2;
+		w = patch->numcp[0];
+		h = patch->numcp[1];
+
+		for (y = 0, r2 = r1 + w; y < h-1; y++)
+		{
+			for (x = 0; x < w-1; x++, r1++, r2++)
+				ret |= Heightmap_Trace_Quad(tr, r1[0].v, r1[1].v, r2[0].v, r1[1].v);
+			r1++; r2++;
+		}
+	}
+	else
+	{
+		const struct patchtessvert_s *r1 = patch->tessvert, *r2;
+		w = patch->tesssize[0];
+		h = patch->tesssize[1];
+
+		for (y = 0, r2 = r1 + w; y < h-1; y++)
+		{
+			for (x = 0; x < w-1; x++, r1++, r2++)
+				ret |= Heightmap_Trace_Quad(tr, r1[0].v, r1[1].v, r2[0].v, r1[1].v);
+			r1++; r2++;
+		}
+	}
+	return ret;
+}
+
 //sx,sy are the tile coord
 //note that tile SECTHEIGHTSIZE-1 does not exist, as the last sample overlaps the first sample of the next section
 static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
@@ -4249,7 +4317,15 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, const framesta
 					hmtrace.absmins[1] > brushes->maxs[1] ||
 					hmtrace.absmins[2] > brushes->maxs[2])
 					continue;
-				face = Heightmap_Trace_Brush(&hmtrace, brushes->planes, brushes->numplanes, brushes);
+				if (brushes->patch)
+				{
+					if (Heightmap_Trace_Patch(&hmtrace, brushes))
+						face = -1;
+					else
+						face = 0;
+				}
+				else
+					face = Heightmap_Trace_Brush(&hmtrace, brushes->planes, brushes->numplanes, brushes);
 				if (face)
 				{
 					trace->brush_id = brushes->id;
@@ -5898,77 +5974,137 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				{
 					for (numverts = 0, numindicies = 0; i < hm->numbrushes; i++, br++)
 					{
-						//if a single batch has too many verts, cut it off before it overflows our maximum batch size, and hope we don't get a really really complex brush.
-						if (numverts >= 0xf000 || numindicies >= 0xf000)
-							break;
-
-						if (br->patch && br->patch->tex == bt && lmnum == -1)
-						{
-							int x, y;
-							index_t r1, r2;
-	
-							for (y = 0, r1 = numverts, r2 = 0; y < br->patch->ypoints; y++)
+						if (br->selected)
+							continue;
+						if (br->patch)
+						{	//this one's a patch
+							if (br->patch->tex == bt && lmnum == -1)
 							{
-								for (x = 0; x < br->patch->xpoints; x++, r1++, r2++)
-								{
-									VectorCopy(br->patch->verts[r2].v, arrays->coord[r1]);
-									Vector2Copy(br->patch->verts[r2].tc, arrays->texcoord[r1]);
-									VectorCopy(br->patch->verts[r2].norm, arrays->normal[r1]);
-									VectorCopy(br->patch->verts[r2].sdir, arrays->svector[r1]);
-									VectorCopy(br->patch->verts[r2].tdir, arrays->tvector[r1]);
-									Vector4Copy(br->patch->verts[r2].rgba, arrays->rgba[r1]);
+								int x, y;
+								index_t r1, r2;
 
-									Vector2Copy(br->patch->verts[r2].tc, arrays->lmcoord[r1]);
+								if (br->patch->tessvert && !br->selected)
+								{	//tessellated version of the patch.
+
+									//make sure we don't overflow anything.
+									size_t newverts = br->patch->tesssize[0]*br->patch->tesssize[1], newindexes = (br->patch->tesssize[0]-1)*(br->patch->tesssize[1]-1)*6;
+									if (numverts+newverts >= 0xffff || numindicies+newindexes >= 0xffff)
+										break;
+
+									for (y = 0, r1 = numverts, r2 = 0; y < br->patch->tesssize[1]; y++)
+									{
+										for (x = 0; x < br->patch->tesssize[0]; x++, r1++, r2++)
+										{
+											VectorCopy(br->patch->tessvert[r2].v, arrays->coord[r1]);
+											Vector2Copy(br->patch->tessvert[r2].tc, arrays->texcoord[r1]);
+											Vector4Copy(br->patch->tessvert[r2].rgba, arrays->rgba[r1]);
+
+											//lame
+											Vector2Copy(br->patch->tessvert[r2].tc, arrays->lmcoord[r1]);
+										}
+									}
+									for (y = 0, r1 = numverts, r2 = r1 + br->patch->tesssize[0]; y < br->patch->tesssize[1]-1; y++)
+									{
+										for (x = 0; x < br->patch->tesssize[0]-1; x++, r1++, r2++)
+										{
+											arrays->index[numindicies++] = r1;
+											arrays->index[numindicies++] = r1+1;
+											arrays->index[numindicies++] = r2;
+
+											arrays->index[numindicies++] = r1+1;
+											arrays->index[numindicies++] = r2+1;
+											arrays->index[numindicies++] = r2;
+										}
+										r1++; r2++;
+									}
+									Mod_AccumulateTextureVectors(arrays->coord, arrays->texcoord, arrays->normal, arrays->svector, arrays->tvector, arrays->index+numindicies-newindexes, newindexes, true);
+									Mod_NormaliseTextureVectors(arrays->normal+numverts, arrays->svector+numverts, arrays->tvector+numverts, newverts, true);
+									numverts += newverts;
+								}
+								else
+								{	//control-point representation.
+
+									//make sure we don't overflow anything.
+									size_t newverts = br->patch->numcp[0]*br->patch->numcp[1], newindexes = (br->patch->numcp[0]-1)*(br->patch->numcp[1]-1)*6;
+									if (numverts+newverts >= 0xffff || numindicies+newindexes >= 0xffff)
+										break;
+
+									for (y = 0, r1 = numverts, r2 = 0; y < br->patch->numcp[1]; y++)
+									{
+										for (x = 0; x < br->patch->numcp[0]; x++, r1++, r2++)
+										{
+											VectorCopy(br->patch->cp[r2].v, arrays->coord[r1]);
+											Vector2Copy(br->patch->cp[r2].tc, arrays->texcoord[r1]);
+											Vector4Copy(br->patch->cp[r2].rgba, arrays->rgba[r1]);
+
+											//lame
+											Vector2Copy(br->patch->cp[r2].tc, arrays->lmcoord[r1]);
+										}
+									}
+									for (y = 0, r1 = numverts, r2 = r1 + br->patch->numcp[0]; y < br->patch->numcp[1]-1; y++)
+									{
+										for (x = 0; x < br->patch->numcp[0]-1; x++, r1++, r2++)
+										{
+											arrays->index[numindicies++] = r1;
+											arrays->index[numindicies++] = r1+1;
+											arrays->index[numindicies++] = r2;
+
+											arrays->index[numindicies++] = r1+1;
+											arrays->index[numindicies++] = r2+1;
+											arrays->index[numindicies++] = r2;
+										}
+										r1++; r2++;
+									}
+									Mod_AccumulateTextureVectors(arrays->coord, arrays->texcoord, arrays->normal, arrays->svector, arrays->tvector, arrays->index+numindicies-newindexes, newindexes, true);
+									Mod_NormaliseTextureVectors(arrays->normal+numverts, arrays->svector+numverts, arrays->tvector+numverts, newverts, true);
+									numverts += newverts;
 								}
 							}
-							for (y = 0, r1 = numverts, r2 = r1 + br->patch->xpoints; y < br->patch->ypoints-1; y++)
-							{
-								for (x = 0; x < br->patch->xpoints-1; x++, r1++, r2++)
-								{
-									arrays->index[numindicies++] = r1;
-									arrays->index[numindicies++] = r1+1;
-									arrays->index[numindicies++] = r2;
-
-									arrays->index[numindicies++] = r1+1;
-									arrays->index[numindicies++] = r2+1;
-									arrays->index[numindicies++] = r2;
-								}
-								r1++; r2++;
-							}
-							numverts += br->patch->ypoints*br->patch->xpoints;
 						}
-						for (j = 0; j < br->numplanes; j++)
-						{
-							if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
+						else
+						{	//regular brush
+
+							//make sure we don't overflow anything.
+							size_t newverts = 0, newindexes = 0;
+							for (j = 0; j < br->numplanes; j++)
+								if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
+									newverts += br->faces[j].numpoints, newindexes += (br->faces[j].numpoints-2)*3;
+							if (numverts+newverts >= 0xffff || numindicies+newindexes >= 0xffff)
+								break;
+
+							for (j = 0; j < br->numplanes; j++)
 							{
-								size_t k, o;
-								float s,t;
-
-								for (k = 0, o = numverts; k < br->faces[j].numpoints; k++, o++)
+								if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
 								{
-									VectorCopy(br->faces[j].points[k], arrays->coord[o]);
-									VectorCopy(br->planes[j], arrays->normal[o]);
-									VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
-									VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
-									Vector4Set(arrays->rgba[o], 1.0, 1.0, 1.0, 1.0);
+									size_t k, o;
+									float s,t;
 
-									//compute the texcoord planes
-									s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
-									t = (DotProduct(arrays->tvector[o], arrays->coord[o]) + br->faces[j].stdir[1][3]);
-									arrays->texcoord[o][0] = s * scale[0];
-									arrays->texcoord[o][1] = t * scale[1];
+									for (k = 0, o = numverts; k < br->faces[j].numpoints; k++, o++)
+									{
+										VectorCopy(br->faces[j].points[k], arrays->coord[o]);
+										VectorCopy(br->planes[j], arrays->normal[o]);
+										VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
+										VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
+										Vector4Set(arrays->rgba[o], 1.0, 1.0, 1.0, 1.0);
 
-									//maths, maths, and more maths.
-									arrays->lmcoord[o][0] = (br->faces[j].lmbase[0]+0.5 + s/br->faces[j].lmscale-br->faces[j].lmbias[0]) * hm->brushlmscale;
-									arrays->lmcoord[o][1] = (br->faces[j].lmbase[1]+0.5 + t/br->faces[j].lmscale-br->faces[j].lmbias[1]) * hm->brushlmscale;
+										//compute the texcoord planes
+										s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
+										t = (DotProduct(arrays->tvector[o], arrays->coord[o]) + br->faces[j].stdir[1][3]);
+										arrays->texcoord[o][0] = s * scale[0];
+										arrays->texcoord[o][1] = t * scale[1];
+
+										//maths, maths, and more maths.
+										arrays->lmcoord[o][0] = (br->faces[j].lmbase[0]+0.5 + s/br->faces[j].lmscale-br->faces[j].lmbias[0]) * hm->brushlmscale;
+										arrays->lmcoord[o][1] = (br->faces[j].lmbase[1]+0.5 + t/br->faces[j].lmscale-br->faces[j].lmbias[1]) * hm->brushlmscale;
+									}
+									for (k = 2; k < br->faces[j].numpoints; k++)
+									{	//triangle fans
+										arrays->index[numindicies++] = numverts + 0;
+										arrays->index[numindicies++] = numverts + k-1;
+										arrays->index[numindicies++] = numverts + k-0;
+									}
+									numverts += br->faces[j].numpoints;
 								}
-								for (k = 2; k < br->faces[j].numpoints; k++)
-								{	//triangle fans
-									arrays->index[numindicies++] = numverts + 0;
-									arrays->index[numindicies++] = numverts + k-1;
-									arrays->index[numindicies++] = numverts + k-0;
-								}
-								numverts += br->faces[j].numpoints;
 							}
 						}
 					}
@@ -6101,11 +6237,11 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	out->planes = NULL;
 	out->faces = NULL;
 	out->numplanes = 0;
+	ClearBounds(out->mins, out->maxs);
 	if (brush->numplanes)
 	{
 		out->planes = BZ_Malloc((sizeof(*out->planes)+sizeof(*out->faces)) * brush->numplanes);
 		out->faces = (void*)(out->planes+brush->numplanes);
-		ClearBounds(out->mins, out->maxs);
 		for (iface = 0, oface = 0; iface < brush->numplanes; iface++)
 		{
 			for (j = 0; j < oface; j++)
@@ -6215,13 +6351,14 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 
 	if (brush->patch)
 	{
-		out->patch = BZ_Malloc(sizeof(*out->patch)-sizeof(out->patch->verts) + sizeof(*out->patch->verts)*brush->patch->xpoints*brush->patch->ypoints);
-		memcpy(out->patch, brush->patch, sizeof(*out->patch)-sizeof(out->patch->verts) + sizeof(*out->patch->verts)*brush->patch->xpoints*brush->patch->ypoints);
+		out->patch = BZ_Malloc(sizeof(*out->patch)-sizeof(out->patch->cp) + sizeof(*out->patch->cp)*brush->patch->numcp[0]*brush->patch->numcp[1]);
+		memcpy(out->patch, brush->patch, sizeof(*out->patch)-sizeof(out->patch->cp) + sizeof(*out->patch->cp)*brush->patch->numcp[0]*brush->patch->numcp[1]);
 
-		numpoints = out->patch->xpoints*out->patch->ypoints;
+		numpoints = out->patch->numcp[0]*out->patch->numcp[1];
 		//FIXME: lightmap...
 		for (j = 0; j < numpoints; j++)
-			AddPointToBounds(out->patch->verts[j].v, out->mins, out->maxs);
+			AddPointToBounds(out->patch->cp[j].v, out->mins, out->maxs);
+
 
 		out->patch->tex->rebuild = true;
 	}
@@ -6275,29 +6412,32 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 }
 
 
-static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t *patch_tex, int patch_w, int patch_h, struct patchvert_s *patch_v, int stride)
+static brushes_t *Terr_Patch_Insert(model_t *model, heightmap_t *hm, brushtex_t *patch_tex, unsigned patch_w, unsigned patch_h, unsigned subdiv_w, unsigned subdiv_h, qcpatchvert_t *patch_v, int stride)
 {
 	int x, y;
 	brushes_t brush;
 	//finish the brush
-	brush.contents = 0;
+	brush.contents = FTECONTENTS_SOLID;
 	brush.numplanes = 0;
 	brush.planes = NULL;
 	brush.faces = NULL;
 	brush.id = 0;
-	brush.patch = alloca(sizeof(*brush.patch)-sizeof(brush.patch->verts) + sizeof(*brush.patch->verts)*patch_w*patch_h);
+	brush.patch = alloca(sizeof(*brush.patch)-sizeof(brush.patch->cp) + sizeof(*brush.patch->cp)*patch_w*patch_h);
 
 	brush.patch->tex = patch_tex;
-	brush.patch->xpoints = patch_w;
-	brush.patch->ypoints = patch_h;
+	brush.patch->numcp[0] = patch_w;
+	brush.patch->numcp[1] = patch_h;
+	brush.patch->subdiv[0] = subdiv_w;
+	brush.patch->subdiv[1] = subdiv_h;
+	brush.patch->tessvert = NULL;
 
 	for (y = 0; y < patch_h; y++)
 	{
 		for (x = 0; x < patch_w; x++)
 		{
-			VectorCopy(patch_v[x].v, brush.patch->verts[x + y*patch_w].v);
-			Vector2Copy(patch_v[x].tc, brush.patch->verts[x + y*patch_w].tc);
-			Vector4Copy(patch_v[x].rgba, brush.patch->verts[x + y*patch_w].rgba);
+			VectorCopy(patch_v[x].v, brush.patch->cp[x + y*patch_w].v);
+			Vector2Copy(patch_v[x].tc, brush.patch->cp[x + y*patch_w].tc);
+			Vector4Copy(patch_v[x].rgba, brush.patch->cp[x + y*patch_w].rgba);
 			//brush.patch->verts[x + y*patch_w].norm
 			//brush.patch->verts[x + y*patch_w].sdir
 			//brush.patch->verts[x + y*patch_w].tdir
@@ -6396,6 +6536,7 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
 		br->planes[i][2] = MSG_ReadFloat();
 		br->planes[i][3] = MSG_ReadFloat();
 
+		//FIXME: can we optimise this part? a flag to say whether its needed?
 		br->faces[i].stdir[0][0] = MSG_ReadFloat();
 		br->faces[i].stdir[0][1] = MSG_ReadFloat();
 		br->faces[i].stdir[0][2] = MSG_ReadFloat();
@@ -6408,6 +6549,89 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
 	}
 	return true;
 }
+
+static void Patch_Serialise(sizebuf_t *sb, brushes_t *br)
+{
+	qbyte flags = 0;
+	unsigned int i, m = br->patch->numcp[0]*br->patch->numcp[1];
+
+	for (i = 0; i < m; i++)
+	{
+		if (br->patch->cp[i].rgba[0] != 1)
+			flags |= 1;
+		if (br->patch->cp[i].rgba[1] != 1)
+			flags |= 2;
+		if (br->patch->cp[i].rgba[2] != 1)
+			flags |= 4;
+		if (br->patch->cp[i].rgba[3] != 1)
+			flags |= 8;
+	}
+
+	MSG_WriteLong(sb, br->id);
+	MSG_WriteByte(sb, flags);
+
+	MSG_WriteLong(sb, br->contents);
+	MSG_WriteString(sb, br->patch->tex->shadername);
+	MSG_WriteShort(sb, br->patch->numcp[0]);
+	MSG_WriteShort(sb, br->patch->numcp[1]);
+	MSG_WriteShort(sb, br->patch->subdiv[0]);
+	MSG_WriteShort(sb, br->patch->subdiv[1]);
+
+	for (i = 0; i < m; i++)
+	{
+		MSG_WriteFloat(sb, br->patch->cp[i].v[0]);
+		MSG_WriteFloat(sb, br->patch->cp[i].v[1]);
+		MSG_WriteFloat(sb, br->patch->cp[i].v[2]);
+		MSG_WriteFloat(sb, br->patch->cp[i].tc[0]);
+		MSG_WriteFloat(sb, br->patch->cp[i].tc[1]);
+
+		if (flags&1)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[0]);
+		if (flags&2)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[1]);
+		if (flags&4)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[2]);
+		if (flags&8)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[3]);
+	}
+}
+static qboolean Patch_Deserialise(heightmap_t *hm, brushes_t *br)
+{
+	struct patchcpvert_s vert;
+	qboolean flags;
+	unsigned int i, maxverts = br->patch->numcp[0]*br->patch->numcp[1];
+	br->id = MSG_ReadLong();
+	flags = MSG_ReadByte();
+
+	br->contents = MSG_ReadLong();
+
+	//FIXME: as a server, we probably want to reject the brush if we exceed some texnum/memory limitation, so clients can't just spam new textures endlessly.
+	br->patch->tex = Terr_Brush_FindTexture(hm, MSG_ReadString());
+
+	br->patch->numcp[0] = MSG_ReadShort();
+	br->patch->numcp[1] = MSG_ReadShort();
+	br->patch->subdiv[0] = MSG_ReadShort();
+	br->patch->subdiv[1] = MSG_ReadShort();
+
+	for (i = 0; i < br->patch->numcp[0]*br->patch->numcp[1]; i++)
+	{
+		vert.v[0] = MSG_ReadFloat();
+		vert.v[1] = MSG_ReadFloat();
+		vert.v[2] = MSG_ReadFloat();
+		vert.tc[0] = MSG_ReadFloat();
+		vert.tc[1] = MSG_ReadFloat();
+
+		vert.rgba[0] = (flags&1)?MSG_ReadFloat():1;
+		vert.rgba[1] = (flags&2)?MSG_ReadFloat():1;
+		vert.rgba[2] = (flags&4)?MSG_ReadFloat():1;
+		vert.rgba[3] = (flags&8)?MSG_ReadFloat():1;
+
+		if (i < maxverts)
+			br->patch->cp[i] = vert;
+	}
+	return i <= maxverts;
+}
+
 
 #ifndef SERVERONLY
 heightmap_t	*CL_BrushEdit_ForceContext(model_t *mod)
@@ -6454,18 +6678,30 @@ void CL_Parse_BrushEdit(void)
 			return;	//ignore if we're the server, we should already have it anyway.
 		Terr_Brush_DeleteId(hm, id);
 	}
-	else if (cmd == hmcmd_brush_insert)	//1=create/replace
+	else if (cmd == hmcmd_brush_insert || cmd == hmcmd_patch_insert)	//1=create/replace
 	{
 		brushes_t brush;
 
 		hm = CL_BrushEdit_ForceContext(mod);	//do this early, to ensure that the textures are correct
 
 		memset(&brush, 0, sizeof(brush));
-		brush.numplanes = 128;
-		brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
-		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
-		if (!Brush_Deserialise(hm, &brush))
-			Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
+		if (cmd == hmcmd_patch_insert)
+		{
+			const unsigned int maxpoints = 64*64;
+			brush.patch = alloca(sizeof(*brush.patch) + sizeof(*brush.patch->cp)*(maxpoints-countof(brush.patch->cp)));
+			brush.patch->numcp[0] = 1;
+			brush.patch->numcp[1] = maxpoints;
+			if (!Patch_Deserialise(hm, &brush))
+				Host_EndGame("CL_Parse_BrushEdit: unparsable patch\n");
+		}
+		else
+		{
+			brush.numplanes = 128;
+			brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
+			brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
+			if (!Brush_Deserialise(hm, &brush))
+				Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
+		}
 		if (ignore)
 			return;	//ignore if we're the server, we should already have it anyway (but might need it for demos, hence why its still sent).
 		if (brush.id)
@@ -6600,8 +6836,16 @@ qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned 
 		{
 			MSG_WriteByte(msg, svcfte_brushedit);
 			MSG_WriteShort(msg, *modelindex);
-			MSG_WriteByte(msg, hmcmd_brush_insert);
-			Brush_Serialise(msg, best);
+			if (best->patch)
+			{
+				MSG_WriteByte(msg, hmcmd_patch_insert);
+				Patch_Serialise(msg, best);
+			}
+			else
+			{
+				MSG_WriteByte(msg, hmcmd_brush_insert);
+				Brush_Serialise(msg, best);
+			}
 			*lastid = bestid;
 			return true;
 		}
@@ -6634,17 +6878,33 @@ qboolean SV_Parse_BrushEdit(void)
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 		return true;
 	}
-	else if (cmd == hmcmd_brush_insert)
+	else if (cmd == hmcmd_brush_insert || cmd == hmcmd_patch_insert)
 	{
 		brushes_t brush;
 		memset(&brush, 0, sizeof(brush));
-		brush.numplanes = 128;
-		brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
-		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
-		if (!Brush_Deserialise(hm, &brush))
+		if (cmd == hmcmd_patch_insert)
 		{
-			Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable brush\n", host_client->name);
-			return false;
+			const unsigned int maxpoints = 64*64;
+			brush.patch = alloca(sizeof(*brush.patch) + sizeof(*brush.patch->cp)*(maxpoints-countof(brush.patch->cp)));
+			memset(brush.patch, 0, sizeof(*brush.patch));
+			brush.patch->numcp[0] = maxpoints;
+			brush.patch->numcp[1] = 1;
+			if (!Patch_Deserialise(hm, &brush))
+			{
+				Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable patch\n", host_client->name);
+				return false;
+			}
+		}
+		else
+		{
+			brush.numplanes = 128;
+			brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
+			brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
+			if (!Brush_Deserialise(hm, &brush))
+			{
+				Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable brush\n", host_client->name);
+				return false;
+			}
 		}
 		if (!authorise)
 		{
@@ -6660,8 +6920,11 @@ qboolean SV_Parse_BrushEdit(void)
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 		MSG_WriteShort(&sv.multicast, modelindex);
-		MSG_WriteByte(&sv.multicast, hmcmd_brush_insert);
-		Brush_Serialise(&sv.multicast, &brush);
+		MSG_WriteByte(&sv.multicast, cmd);
+		if (cmd == hmcmd_patch_insert)
+			Patch_Serialise(&sv.multicast, &brush);
+		else
+			Brush_Serialise(&sv.multicast, &brush);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 		return true;
 	}
@@ -6701,14 +6964,25 @@ qboolean SV_Parse_BrushEdit(void)
 
 typedef struct
 {
-	int	shadername;
-	vec3_t	planenormal;
-	float	planedist;
-	vec3_t	sdir;
-	float	sbias;
-	vec3_t	tdir;
-	float	tbias;
+	string_t	shadername;
+	vec3_t		planenormal;
+	float		planedist;
+	vec3_t		sdir;
+	float		sbias;
+	vec3_t		tdir;
+	float		tbias;
 } qcbrushface_t;
+
+typedef struct
+{
+	string_t	shadername;
+	unsigned int contents;
+	unsigned int cp_width;
+	unsigned int cp_height;
+	unsigned int subdiv_x;
+	unsigned int subdiv_y;
+	vec3_t		texinfo;
+} qcpatchinfo_t;
 
 static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elementsize, size_t elementcount, qboolean allownull)
 {
@@ -6731,6 +7005,124 @@ static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elem
 	}
 	return prinst->stringtable + qcptr;
 }
+
+//	{"patch_getcp",		PF_patch_getcp,		0,		0,		0,		0,		D(qcpatchvert "int(float modelidx, int patchid, patchvert_t *out_controlverts, int maxcp, __out patchinfo_t out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+void QCBUILTIN PF_patch_getcp(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t			*vmw			= prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	patchid			= G_INT(OFS_PARM1);
+	unsigned int	maxverts		= G_INT(OFS_PARM3);
+	qcpatchvert_t	*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*out_verts), maxverts, true);
+	qcpatchinfo_t	*out_info		= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_info), 1, true);
+	unsigned int	i, j;
+	brushes_t		*br;
+
+	//assume the worst.
+	G_INT(OFS_RETURN) = 0;
+	if (out_info)
+		memset(out_info, 0, sizeof(*out_info));
+
+	if (!hm)
+		return;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == patchid)
+		{
+			if (!br->patch)
+				return;
+			if (out_info)
+			{
+				out_info->contents = br->contents;
+				out_info->cp_width = br->patch->numcp[0];
+				out_info->cp_height = br->patch->numcp[1];
+				out_info->subdiv_x = br->patch->subdiv[0];
+				out_info->subdiv_y = br->patch->subdiv[1];
+				out_info->shadername = PR_TempString(prinst, br->patch->tex->shadername);
+			}
+
+			if (!out_verts)
+				G_INT(OFS_RETURN) = br->patch->numcp[0]*br->patch->numcp[1];
+			else
+			{
+				maxverts = min(br->numplanes, maxverts);
+
+				for (j = 0; j < br->patch->numcp[0]*br->patch->numcp[1]; j++)
+				{
+					VectorCopy(br->patch->cp[j].v, out_verts->v);
+					Vector2Copy(br->patch->cp[j].tc, out_verts->tc);
+					Vector4Copy(br->patch->cp[j].rgba, out_verts->rgba);
+
+					out_verts++;
+				}
+				G_INT(OFS_RETURN) = j;
+			}
+			return;
+		}
+	}
+}
+//	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, __out patchinfo_t out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+void QCBUILTIN PF_patch_getmesh(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t			*vmw			= prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	patchid			= G_INT(OFS_PARM1);
+	unsigned int	maxverts		= G_INT(OFS_PARM3);
+	qcpatchvert_t	*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*out_verts), maxverts, true);
+	qcpatchinfo_t	*out_info		= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_info), 1, true);
+	unsigned int	i, j;
+	brushes_t		*br;
+
+	//assume the worst.
+	G_INT(OFS_RETURN) = 0;
+	if (out_info)
+		memset(out_info, 0, sizeof(*out_info));
+
+	if (!hm)
+		return;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == patchid)
+		{
+			if (!br->patch)
+				return;
+			if (out_info)
+			{
+				out_info->contents = br->contents;
+				out_info->cp_width = br->patch->numcp[0];
+				out_info->cp_height = br->patch->numcp[1];
+				out_info->subdiv_x = br->patch->subdiv[0];
+				out_info->subdiv_y = br->patch->subdiv[1];
+				out_info->shadername = PR_TempString(prinst, br->patch->tex->shadername);
+			}
+
+			if (!out_verts)
+				G_INT(OFS_RETURN) = br->patch->tesssize[0]*br->patch->tesssize[1];
+			else
+			{
+				maxverts = min(br->numplanes, maxverts);
+
+				for (j = 0; j < br->patch->tesssize[0]*br->patch->tesssize[1]; j++)
+				{
+					VectorCopy(br->patch->tessvert[j].v, out_verts->v);
+					Vector2Copy(br->patch->tessvert[j].tc, out_verts->tc);
+					Vector4Copy(br->patch->tessvert[j].rgba, out_verts->rgba);
+
+					out_verts++;
+				}
+				G_INT(OFS_RETURN) = j;
+			}
+			return;
+		}
+	}
+}
+
 //	{"brush_get",		PF_brush_get,		0,		0,		0,		0,		D(qcbrushface "int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents)", "Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error.")},
 void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6757,6 +7149,8 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		br = &hm->wbrushes[i];
 		if (br->id == brushid)
 		{
+			if (br->patch)
+				return;
 			if (out_contents)
 				*out_contents = br->contents;
 			if (!out_faces)
@@ -6784,7 +7178,7 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		}
 	}
 }
-//	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents)", "Inserts a new brush into the model. Return value is the new brush's id.")},
+//	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents, optional int prevbrushid=0)", "Inserts a new brush into the model. Return value is the new brush's id.")},
 void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *vmw = prinst->parms->user;
@@ -6901,6 +7295,120 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 	}
 }
+//{"patch_create",	PF_patch_create,	0,		0,		0,		0,		D("int(float modelidx, int oldpatchid, patchvert_t *in_controlverts, patchinfo_t in_info)", "Inserts a new patch into the model. Return value is the new patch's id.")},
+void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *vmw = prinst->parms->user;
+	int				modelindex		= G_FLOAT(OFS_PARM0);
+	model_t			*mod			= vmw->Get_CModel(vmw, modelindex);
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	brushid			= G_INT(OFS_PARM1);	//to simplify edits
+	qcpatchinfo_t	*info			= (qcpatchinfo_t*)&G_INT(OFS_PARM3);
+	unsigned int	totalcp			= info->cp_width*info->cp_width;
+	qcpatchvert_t	*in_cverts		= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*in_cverts), totalcp, false);
+
+	unsigned int			i;
+	brushes_t				brush, *nb;
+
+	G_INT(OFS_RETURN) = 0;
+
+	if (!hm)
+	{
+		if (mod && mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+		if (mod && mod->loadstate == MLS_LOADED)
+		{
+			char basename[MAX_QPATH];
+			COM_FileBase(mod->name, basename, sizeof(basename));
+			mod->terrain = Mod_LoadTerrainInfo(mod, basename, true);
+			hm = mod->terrain;
+			if (!hm)
+				return;
+			Terr_FinishTerrain(mod);
+		}
+		else
+			return;
+	}
+
+	//if we're creating one that already exists, then assume that its a move.
+	if (brushid && Terr_Brush_DeleteId(hm, brushid))
+	{
+#ifndef CLIENTONLY
+		if (sv.state && modelindex > 0)
+		{
+			MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+			MSG_WriteShort(&sv.multicast, modelindex);
+			MSG_WriteByte(&sv.multicast, hmcmd_brush_delete);
+			MSG_WriteLong(&sv.multicast, brushid);
+			SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+		}
+		else
+#endif
+#ifndef SERVERONLY
+		if (cls.state && modelindex > 0)
+		{
+			MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+			MSG_WriteShort(&cls.netchan.message, modelindex);
+			MSG_WriteByte(&cls.netchan.message, hmcmd_brush_delete);
+			MSG_WriteLong(&cls.netchan.message, brushid);
+		}
+#else
+		{
+		}
+#endif
+	}
+
+	brush.patch = alloca(sizeof(*brush.patch) + sizeof(brush.patch->cp[0])*(totalcp-countof(brush.patch->cp)));
+	memset (brush.patch, 0, sizeof(*brush.patch) - sizeof(brush.patch->cp));
+	brush.patch->numcp[0] = info->cp_width;
+	brush.patch->numcp[1] = info->cp_height;
+	brush.patch->subdiv[0] = info->subdiv_x;
+	brush.patch->subdiv[1] = info->subdiv_y;
+
+	brush.patch->tex = Terr_Brush_FindTexture(hm, PR_GetString(prinst, info->shadername));
+
+	for (i = 0; i < totalcp; i++)
+	{
+		VectorCopy(in_cverts[i].v, brush.patch->cp[i].v);
+		Vector2Copy(in_cverts[i].tc, brush.patch->cp[i].tc);
+		Vector4Copy(in_cverts[i].rgba, brush.patch->cp[i].rgba);
+	}
+
+	//now emit it
+	brush.id = 0;
+	brush.contents = info->contents;
+	brush.numplanes = 0;
+	brush.planes = NULL;
+	if (info->cp_width > 1 && info->cp_width > 1)
+	{
+		nb = Terr_Brush_Insert(mod, hm, &brush);
+		if (nb)
+		{
+			G_INT(OFS_RETURN) = nb->id;
+#ifndef CLIENTONLY
+			if (sv.state && modelindex > 0)
+			{
+				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+				MSG_WriteShort(&sv.multicast, modelindex);
+				MSG_WriteByte(&sv.multicast, hmcmd_brush_insert);
+				Brush_Serialise(&sv.multicast, nb);
+				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+				return;
+			}
+#endif
+#ifndef SERVERONLY
+			if (cls.state && modelindex > 0)
+			{
+				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+				MSG_WriteShort(&cls.netchan.message, modelindex);
+				MSG_WriteByte(&cls.netchan.message, hmcmd_brush_insert);
+				Brush_Serialise(&cls.netchan.message, nb);
+				return;
+			}
+#endif
+		}
+	}
+}
 //	{"brush_delete",	PF_brush_delete,	0,		0,		0,		0,		D("void(float modelidx, int brushid)", "Destroys the specified brush.")},
 void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6966,10 +7474,18 @@ void QCBUILTIN PF_brush_selected(pubprogfuncs_t *prinst, struct globalvars_s *pr
 			{
 				if (br->selected != state)
 				{
-					for (i = 0; i < br->numplanes; i++)
+					if (br->patch)
 					{
-						br->faces[i].tex->rebuild = true;
-						br->faces[i].relight = true;
+						br->patch->tex->rebuild = true;
+//						br->patch->relight = true;
+					}
+					else
+					{
+						for (i = 0; i < br->numplanes; i++)
+						{
+							br->faces[i].tex->rebuild = true;
+							br->faces[i].relight = true;
+						}
 					}
 					br->selected = state;
 				}
@@ -7073,11 +7589,32 @@ void QCBUILTIN PF_brush_getfacepoints(pubprogfuncs_t *prinst, struct globalvars_
 			else
 			{
 				faceid--;
-				if (faceid >= br->numplanes)
-					break;
-				maxpoints = min(maxpoints, br->faces[faceid].numpoints);
-				for (p = 0; p < maxpoints; p++)
-					VectorCopy(br->faces[faceid].points[p], out_verts[p]);
+				if (br->patch)
+				{
+					int w = br->patch->numcp[0];
+					int h = br->patch->numcp[1];
+					int x = faceid % (w-1);
+					int y = faceid / (w-1);
+					if (x >= w-1 || y >= h-1)
+						break;
+					if (maxpoints >= 1)
+						VectorCopy(br->patch->cp[(x+0)+(y+0)*w].v, out_verts[0]);
+					if (maxpoints >= 2)
+						VectorCopy(br->patch->cp[(x+1)+(y+0)*w].v, out_verts[1]);
+					if (maxpoints >= 3)
+						VectorCopy(br->patch->cp[(x+1)+(y+1)*w].v, out_verts[2]);
+					if (maxpoints >= 3)
+						VectorCopy(br->patch->cp[(x+0)+(y+1)*w].v, out_verts[3]);
+					p = min(4, maxpoints);
+				}
+				else
+				{
+					if (faceid >= br->numplanes)
+						break;
+					maxpoints = min(maxpoints, br->faces[faceid].numpoints);
+					for (p = 0; p < maxpoints; p++)
+						VectorCopy(br->faces[faceid].points[p], out_verts[p]);
+				}
 				G_INT(OFS_RETURN) = p;
 			}
 			break;
@@ -7147,40 +7684,56 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 	if (br->patch)
 	{
 		qboolean hasrgba = false;
-		for (y = 0; y < br->patch->ypoints*br->patch->xpoints; y++)
+		for (y = 0; y < br->patch->numcp[1]*br->patch->numcp[0]; y++)
 		{
-			if (br->patch->verts[y].rgba[0] != 1.0 || br->patch->verts[y].rgba[1] != 1.0 || br->patch->verts[y].rgba[2] != 1.0 || br->patch->verts[y].rgba[3] != 1.0)
+			if (br->patch->cp[y].rgba[0] != 1.0 || br->patch->cp[y].rgba[1] != 1.0 || br->patch->cp[y].rgba[2] != 1.0 || br->patch->cp[y].rgba[3] != 1.0)
 				break;
 		}
-		hasrgba = (y < br->patch->ypoints*br->patch->xpoints);
+		hasrgba = (y < br->patch->numcp[1]*br->patch->numcp[0]);
 
-		VFS_PRINTF(file, "\n\tpatchDef%s\n\t{\n\t\t\"%s\"\n\t\t( %u %u %.9g %.9g %.9g )\n\t\t(\n",
-				hasrgba?"WS":"2",
-				br->patch->tex?br->patch->tex->shadername:"",
-				br->patch->xpoints/*width*/,
-				br->patch->ypoints/*height*/,
-				0.0/*rotation*/,
-				1.0/*xscale*/,
-				1.0/*yscale*/);
-		for (y = 0; y < br->patch->ypoints; y++)
+		if (br->patch->subdiv[0]>=0 && br->patch->subdiv[1]>=0)
+		{
+			VFS_PRINTF(file, "\n\tpatchDef3%s\n\t{\n\t\t\"%s\"\n\t\t( %u %u %u %u %.9g %.9g %.9g )\n\t\t(\n",
+					hasrgba?"WS":"",
+					br->patch->tex?br->patch->tex->shadername:"",
+					br->patch->numcp[0]/*width*/,
+					br->patch->numcp[1]/*height*/,
+					br->patch->subdiv[0]/*width*/,
+					br->patch->subdiv[1]/*height*/,
+					0.0/*rotation*/,
+					1.0/*xscale*/,
+					1.0/*yscale*/);
+		}
+		else
+		{
+			VFS_PRINTF(file, "\n\tpatchDef2%s\n\t{\n\t\t\"%s\"\n\t\t( %u %u %.9g %.9g %.9g )\n\t\t(\n",
+					hasrgba?"WS":"",
+					br->patch->tex?br->patch->tex->shadername:"",
+					br->patch->numcp[0]/*width*/,
+					br->patch->numcp[1]/*height*/,
+					0.0/*rotation*/,
+					1.0/*xscale*/,
+					1.0/*yscale*/);
+		}
+		for (y = 0; y < br->patch->numcp[1]; y++)
 		{
 			VFS_PRINTF(file, "\t\t\t(\n");
-			for (x = 0; x < br->patch->xpoints; x++)
+			for (x = 0; x < br->patch->numcp[0]; x++)
 			{
 				const char *fmt;
 				if (hasrgba)
 					fmt = "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g )\n";
 				else
 					fmt = "\t\t\t\t( %.9g %.9g %.9g %.9g %.9g )\n";	//q3 compat.
-				VFS_PRINTF(file, fmt,	br->patch->verts[x + y*br->patch->xpoints].v[0],
-										br->patch->verts[x + y*br->patch->xpoints].v[1],
-										br->patch->verts[x + y*br->patch->xpoints].v[2],
-										br->patch->verts[x + y*br->patch->xpoints].tc[0],
-										br->patch->verts[x + y*br->patch->xpoints].tc[1],
-										br->patch->verts[x + y*br->patch->xpoints].rgba[0],
-										br->patch->verts[x + y*br->patch->xpoints].rgba[1],
-										br->patch->verts[x + y*br->patch->xpoints].rgba[2],
-										br->patch->verts[x + y*br->patch->xpoints].rgba[3]);
+				VFS_PRINTF(file, fmt,	br->patch->cp[x + y*br->patch->numcp[0]].v[0],
+										br->patch->cp[x + y*br->patch->numcp[0]].v[1],
+										br->patch->cp[x + y*br->patch->numcp[0]].v[2],
+										br->patch->cp[x + y*br->patch->numcp[0]].tc[0],
+										br->patch->cp[x + y*br->patch->numcp[0]].tc[1],
+										br->patch->cp[x + y*br->patch->numcp[0]].rgba[0],
+										br->patch->cp[x + y*br->patch->numcp[0]].rgba[1],
+										br->patch->cp[x + y*br->patch->numcp[0]].rgba[2],
+										br->patch->cp[x + y*br->patch->numcp[0]].rgba[3]);
 			}
 			VFS_PRINTF(file, "\t\t\t)\n");
 		}
@@ -7209,7 +7762,7 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 				);
 
 			//write the name - if it contains markup or control chars, or other weird glyphs then be sure to quote it.
-			//we could always quote it, but that can and will screw up some editor somewhere...
+			//we could unconditionally quote it, but that can and will screw up some editor somewhere (like trenchbroom...)
 			for (s = texname = br->faces[i].tex?br->faces[i].tex->shadername:""; *s; s++)
 			{
 				if (*s <= 32 || *s >= 127 || *s == '\\' || *s == '(' || *s == '[' || *s == '{' || *s == ')' || *s == ']' || *s == '}')
@@ -7409,8 +7962,8 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 	//patch info
 	brushtex_t *patch_tex=NULL;
-	int	patch_w=0, patch_h=0;
-	struct patchvert_s patch_v[64][64];
+	int	patchsz[2], patchsubdiv[2];
+	qcpatchvert_t patch_v[64][64];
 
 #ifdef RUNTIMELIGHTING
 	hm->entsdirty = true;
@@ -7447,7 +8000,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						Terr_Brush_Insert(submod, subhm, &brush);
 					}
 					else if (patch_tex)
-						Terr_Patch_Insert(submod, subhm, patch_tex, patch_w, patch_h, patch_v[0], countof(patch_v[0]));
+						Terr_Patch_Insert(submod, subhm, patch_tex, patchsz[0], patchsz[1], patchsubdiv[0], patchsubdiv[1], patch_v[0], countof(patch_v[0]));
 					subhm->brushesedited = oe;
 				}
 				numplanes = 0;
@@ -7532,11 +8085,14 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				continue;
 			}
 		}
-		else if (inbrush && (!strcmp(token, "patchDef2") || !strcmp(token, "patchDef3") || !strcmp(token, "patchDefWS")))
+		else if (inbrush && (!strcmp(token, "patchDef2")   || !strcmp(token, "patchDef3") ||
+							 !strcmp(token, "patchDef2WS") || !strcmp(token, "patchDef3WS")))
 		{
 			int x, y;
-			qboolean patchdef3 = !strcmp(token, "patchDef3");	//fancy alternative with rgba colours per control point
-			qboolean parsergba = !strcmp(token, "patchDefWS");	//fancy alternative with rgba colours per control point
+			qboolean patchdef3 = !!strchr(token, '3');	//explict tessellation info (doom3-like)
+			qboolean parsergba = !!strstr(token, "WS");	//fancy alternative with rgba colours per control point
+			patchsz[0] = patchsz[1] = 0;
+			patchsubdiv[0] = patchsubdiv[1] = -1;
 			if (numplanes || patch_tex)
 			{
 				Con_Printf(CON_ERROR "%s: mixed patch+planes\n", mod->name);
@@ -7554,14 +8110,14 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			/*patch_w = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*patch_h = atof(token);*/
-			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			if (patchdef3)
 			{
-				/*xsubdiv = atof(token);*/
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-				/*ysubdiv = atof(token);*/
+				patchsubdiv[0] = atof(token);
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				patchsubdiv[1] = atof(token);
 			}
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*rotation = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*xscale = atof(token);*/
@@ -7573,7 +8129,6 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			if (strcmp(token, "(")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			y = 0;
-			patch_w = patch_h = 0;
 			while (!strcmp(token, "("))
 			{
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
@@ -7622,14 +8177,14 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 					if (x < countof(patch_v[y])-1)
 						x++;
 				}
-				if (patch_w < x)
-					patch_w = x;
+				if (patchsz[0] < x)
+					patchsz[0] = x;
 				if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				if (y < countof(patch_v)-1)
 					y++;
 			}
-			patch_h = y;
+			patchsz[1] = y;
 			if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			if (strcmp(token, "}")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}

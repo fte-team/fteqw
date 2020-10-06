@@ -3986,9 +3986,7 @@ typedef struct ftenet_tcp_stream_s {
 
 	enum
 	{
-#if defined(HAVE_SERVER) || defined(SV_MASTER)
 		TCPC_UNKNOWN,		//waiting to see what they send us.
-#endif
 		//TCPC_QTV,			//included for completeness. qtv handles the sockets itself, we just parse initial handshake and then pass it over (as either a tcp or tls vfsfile_t)
 		TCPC_QIZMO,			//'qizmo\n' handshake, followed by packets prefixed with a 16bit packet length.
 #ifdef HAVE_HTTPSV
@@ -3996,8 +3994,8 @@ typedef struct ftenet_tcp_stream_s {
 		TCPC_WEBSOCKETB,	//binary encoded data (subprotocol = 'binary')
 		TCPC_WEBSOCKETNQ,	//raw nq msg buffers with no encapsulation or handshake
 		TCPC_HTTPCLIENT,	//we're sending a file to this victim.
+		TCPC_WEBRTC_HOST,	//for brokering webrtc connections, doesn't carry any actual game data itself.
 		TCPC_WEBRTC_CLIENT,	//for brokering webrtc connections, doesn't carry any actual game data itself.
-		TCPC_WEBRTC_HOST	//for brokering webrtc connections, doesn't carry any actual game data itself.
 #endif
 	} clienttype;
 	qbyte inbuffer[MAX_OVERALLMSGLEN];
@@ -5129,6 +5127,7 @@ static qboolean FTENET_TCP_KillStream(ftenet_tcp_connection_t *con, ftenet_tcp_s
 	if (st->dlfile)
 		VFS_CLOSE(st->dlfile);
 
+#ifdef HAVE_HTTPSV
 	if (st->clienttype == TCPC_WEBRTC_CLIENT)
 	{	//notify its server
 		ftenet_tcp_stream_t *o;
@@ -5165,6 +5164,7 @@ static qboolean FTENET_TCP_KillStream(ftenet_tcp_connection_t *con, ftenet_tcp_s
 		SVM_RemoveBrokerGame(st->webrtc.resource);
 #endif
 	}
+#endif
 
 	return false;
 }
@@ -8823,8 +8823,8 @@ typedef struct {
 
 	SOCKET sock;
 	qboolean conpending;
-	qboolean readaborted;	//some kind of error. don't spam
-	qboolean writeaborted;	//some kind of error. don't spam
+	int readaborted;	//some kind of error. don't spam
+	int writeaborted;	//some kind of error. don't spam
 
 	char readbuffer[65536];
 	int readbuffered;
@@ -8871,19 +8871,24 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 			int e = neterrno();
 			if (e != NET_EWOULDBLOCK && e != NET_EINTR)
 			{
+				tf->readaborted = VFS_ERROR_UNSPECIFIED;
 				switch(e)
 				{
 				case NET_ENOTCONN:
 					Con_Printf("connection to \"%s\" failed\n", tf->peer);
+					tf->readaborted = VFS_ERROR_NORESPONSE;
 					break;
 				case NET_ECONNABORTED:
 					Con_DPrintf("connection to \"%s\" aborted\n", tf->peer);
+					tf->readaborted = VFS_ERROR_NORESPONSE;
 					break;
 				case NET_ETIMEDOUT:
 					Con_Printf("connection to \"%s\" timed out\n", tf->peer);
+					tf->readaborted = VFS_ERROR_NORESPONSE;
 					break;
 				case NET_ECONNREFUSED:
 					Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
+					tf->readaborted = VFS_ERROR_NORESPONSE;
 					break;
 				case NET_ECONNRESET:
 					Con_DPrintf("connection to \"%s\" reset\n", tf->peer);
@@ -8891,14 +8896,13 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				default:
 					Con_Printf("tcp socket error %i (%s)\n", e, tf->peer);
 				}
-				tf->readaborted = true;
 			}
 			//fixme: figure out wouldblock or error
 		}
 		else if (len == 0 && trying != 0)
 		{
 			//peer disconnected
-			tf->readaborted = true;
+			tf->readaborted = VFS_ERROR_EOF;
 		}
 		else
 		{
@@ -8910,7 +8914,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 	if (bytestoread > tf->readbuffered)
 		bytestoread = tf->readbuffered;
 	if (bytestoread < 0)
-		return -1;	//caller error...
+		return VFS_ERROR_UNSPECIFIED;	//caller error...
 
 	if (bytestoread > 0)
 	{
@@ -8919,14 +8923,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 		memmove(tf->readbuffer, tf->readbuffer+bytestoread, tf->readbuffered);
 		return bytestoread;
 	}
-	else
-	{
-		if (tf->readaborted)
-		{
-			return -1;	//signal an error
-		}
-		return 0;	//signal nothing available
-	}
+	else return tf->readaborted;
 }
 int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
@@ -8934,7 +8931,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 	int len;
 
 	if (tf->writeaborted)
-		return -1;
+		return VFS_ERROR_UNSPECIFIED;	//a previous write failed.
 
 	if (tf->conpending)
 	{
@@ -8955,6 +8952,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 	len = send(tf->sock, buffer, bytestoread, 0);
 	if (len == -1 || len == 0)
 	{
+		int reason = VFS_ERROR_UNSPECIFIED;
 		int e = (len==0)?NET_ECONNABORTED:neterrno();
 		switch(e)
 		{
@@ -8963,16 +8961,17 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 			return 0;	//nothing available yet.
 		case NET_ETIMEDOUT:
 			Con_Printf("connection to \"%s\" timed out\n", tf->peer);
-			return -1;	//don't bother trying to read if we never connected.
+			return VFS_ERROR_NORESPONSE;	//don't bother trying to read if we never connected.
 		case NET_ECONNABORTED:
 			Con_Printf("connection to \"%s\" aborted\n", tf->peer);
+			reason = len?VFS_ERROR_NORESPONSE:VFS_ERROR_EOF;
 			break;
 		case NET_ENOTCONN:
 #ifdef __unix__
 		case EPIPE:
 #endif
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
-			return -1;	//don't bother trying to read if we never connected.
+			return VFS_ERROR_NORESPONSE;	//don't bother trying to read if we never connected.
 		default:
 			Sys_Printf("tcp socket error %i (%s)\n", e, tf->peer);
 			break;
@@ -8981,7 +8980,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 //		instead let the read handling kill it if there's nothing new to be read
 		VFSTCP_ReadBytes(file, NULL, 0);
 		tf->writeaborted = true;
-		return -1;
+		return reason;
 	}
 	return len;
 }

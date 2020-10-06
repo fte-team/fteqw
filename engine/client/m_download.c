@@ -223,7 +223,11 @@ static struct
 	{
 		SRCSTAT_UNKNOWN,		//we don't know whether the user wants to allow or block this source.
 		SRCSTAT_DISABLED,		//do NOT query this source
-		SRCSTAT_FAILED,			//tried but failed. FIXME: add some reasons.
+		SRCSTAT_FAILED_DNS,		//tried but failed, unresolvable
+		SRCSTAT_FAILED_NORESP,	//tried but failed, no response.
+		SRCSTAT_FAILED_EOF,		//tried but failed, abrupt termination.
+		SRCSTAT_FAILED_MITM,	//tried but failed. misc cert problems.
+		SRCSTAT_FAILED_HTTP,	//tried but failed, misc http failure
 		SRCSTAT_PENDING,		//waiting for response (or queued). don't show package list yet.
 		SRCSTAT_OBTAINED,		//we got a response.
 	} status;
@@ -2081,7 +2085,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	size_t listidx = dl->user_num;
 	size_t sz = 0;
 	char *f = NULL;
-	if (dl->file)
+	if (dl->file && dl->status != DL_FAILED)
 	{
 		sz = VFS_GETLEN(dl->file);
 		f = BZ_Malloc(sz+1);
@@ -2115,10 +2119,20 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	{
 		downloadablelist[listidx].status = SRCSTAT_OBTAINED;
 		PM_ParsePackageList(f, 0, dl->url, downloadablelist[listidx].prefix);
-		BZ_Free(f);
 	}
+	else if (dl->replycode == HTTP_DNSFAILURE)
+		downloadablelist[listidx].status = SRCSTAT_FAILED_DNS;
+	else if (dl->replycode == HTTP_NORESPONSE)
+		downloadablelist[listidx].status = SRCSTAT_FAILED_NORESP;
+	else if (dl->replycode == HTTP_EOF)
+		downloadablelist[listidx].status = SRCSTAT_FAILED_EOF;
+	else if (dl->replycode == HTTP_MITM || dl->replycode == HTTP_UNTRUSTED)
+		downloadablelist[listidx].status = SRCSTAT_FAILED_MITM;
+	else if (dl->replycode && dl->replycode < 900)
+		downloadablelist[listidx].status = SRCSTAT_FAILED_HTTP;
 	else
-		downloadablelist[listidx].status = SRCSTAT_FAILED;
+		downloadablelist[listidx].status = SRCSTAT_FAILED_EOF;
+	BZ_Free(f);
 
 	if (!doautoupdate && !domanifestinstall)
 		return;	//don't spam this.
@@ -2252,7 +2266,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 		if (allowphonehome<=0)
 		{
-			downloadablelist[i].status = SRCSTAT_FAILED;
+			downloadablelist[i].status = SRCSTAT_FAILED_DNS;
 			continue;
 		}
 		downloadablelist[i].curdl = HTTP_CL_Get(va("%s%s"DOWNLOADABLESARGS, downloadablelist[i].url, strchr(downloadablelist[i].url,'?')?"&":"?"), NULL, PM_ListDownloaded);
@@ -2267,7 +2281,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		else
 		{
 			Con_Printf("Could not contact updates server - %s\n", downloadablelist[i].url);
-			downloadablelist[i].status = SRCSTAT_FAILED;
+			downloadablelist[i].status = SRCSTAT_FAILED_DNS;
 		}
 	}
 
@@ -3030,7 +3044,7 @@ int PM_IsApplying(qboolean listsonly)
 	int count = 0;
 #ifdef WEBCLIENT
 	package_t *p;
-	int i;
+//	int i;
 	if (!listsonly)
 	{
 		for (p = availablepackages; p ; p=p->next)
@@ -3039,11 +3053,11 @@ int PM_IsApplying(qboolean listsonly)
 				count++;
 		}
 	}
-	for (i = 0; i < numdownloadablelists; i++)
+	/*for (i = 0; i < numdownloadablelists; i++)
 	{
 		if (downloadablelist[i].curdl)
 			count++;
-	}
+	}*/
 #endif
 	return count;
 }
@@ -4541,10 +4555,33 @@ static void MD_Source_Draw (int x, int y, struct menucustom_s *c, struct emenu_s
 	switch(downloadablelist[c->dint].status)
 	{
 	case SRCSTAT_OBTAINED:
-	case SRCSTAT_PENDING:
 		Draw_FunStringWidth (x, y, "^&02  ", 48, 2, false);	//green
 		break;
-	case SRCSTAT_FAILED:
+	case SRCSTAT_PENDING:
+		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+		Draw_FunStringWidth (x, y, "??", 48, 2, false);	//this should be fast... so if they get a chance to see the ?? then there's something bad happening, and the ?? is appropriate.
+		break;
+	case SRCSTAT_FAILED_DNS:
+		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+		Draw_FunStringWidth (x, y, "DNS", 48, 2, false);
+		break;
+	case SRCSTAT_FAILED_NORESP:
+		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+		Draw_FunStringWidth (x, y, "NR", 48, 2, false);
+		break;
+	case SRCSTAT_FAILED_EOF:
+		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+		Draw_FunStringWidth (x, y, "EOF", 48, 2, false);
+		break;
+	case SRCSTAT_FAILED_MITM:
+		Draw_FunStringWidth (x, y, "^&04  ", 48, 2, false);	//red
+		Draw_FunStringWidth (x, y, "^bMITM", 48, 2, false);
+		break;
+	case SRCSTAT_FAILED_HTTP:
+		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+		Draw_FunStringWidth (x, y, "404", 48, 2, false);
+		break;
+	default:
 	case SRCSTAT_UNKNOWN:
 		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
 		break;
@@ -4564,7 +4601,7 @@ static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int ke
 		{
 		case SRCSTAT_OBTAINED:
 		case SRCSTAT_PENDING:
-		case SRCSTAT_FAILED:
+		default:	//various failures
 		case SRCSTAT_UNKNOWN:
 			downloadablelist[c->dint].status = SRCSTAT_DISABLED;
 			break;
@@ -4865,18 +4902,18 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 
 	if (!info->populated)
 	{
-		for (i = 0; i < numdownloadablelists; i++)
+		y = 48;
+		/*for (i = 0; i < numdownloadablelists; i++)
 		{
 			if (downloadablelist[i].status == SRCSTAT_PENDING)
 			{
-				Draw_FunStringWidth(0, vid.height - 8, "Querying for package list", vid.width, 2, false);
+				Draw_FunStringWidth(0, y, "Querying for package list", vid.width, 2, false);
 				return;
 			}
-		}
+		}*/
 
 		info->populated = true;
 		MC_AddFrameStart(m, 48);
-		y = 48;
 #ifdef WEBCLIENT
 		for (i = 0; i < numdownloadablelists; i++)
 		{

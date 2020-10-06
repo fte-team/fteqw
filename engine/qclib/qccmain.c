@@ -343,11 +343,11 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_goto,			defaultkeyword, "goto",			"Keyword: goto",		"Disables the 'goto' keyword."},
 	{&keyword_int,			typekeyword,	"int",			"Keyword: int",			"Disables the 'int' keyword."},
 	{&keyword_integer,		typekeyword,	"integer",		"Keyword: integer",		"Disables the 'integer' keyword."},
-	{&keyword_double,		defaultkeyword, "double",		"Keyword: double",		"Disables the 'double' keyword."},
-	{&keyword_long,			defaultkeyword, "long",			"Keyword: long",		"Disables the 'long' keyword."},
-	{&keyword_short,		defaultkeyword, "short",		"Keyword: short",		"Disables the 'short' keyword."},
-	{&keyword_char,			defaultkeyword, "char",			"Keyword: char",		"Disables the 'char' keyword."},
-	{&keyword_signed,		defaultkeyword, "signed",		"Keyword: signed",		"Disables the 'signed' keyword."},
+	{&keyword_double,		nondefaultkeyword, "double",	"Keyword: double",		"Disables the 'double' keyword."},
+	{&keyword_long,			nondefaultkeyword, "long",		"Keyword: long",		"Disables the 'long' keyword."},
+	{&keyword_short,		nondefaultkeyword, "short",		"Keyword: short",		"Disables the 'short' keyword."},
+	{&keyword_char,			nondefaultkeyword, "char",		"Keyword: char",		"Disables the 'char' keyword."},
+	{&keyword_signed,		nondefaultkeyword, "signed",	"Keyword: signed",		"Disables the 'signed' keyword."},
 	{&keyword_unsigned,		defaultkeyword, "unsigned",		"Keyword: unsigned",	"Disables the 'unsigned' keyword."},
 	{&keyword_noref,		defaultkeyword, "noref",		"Keyword: noref",		"Disables the 'noref' keyword."},	//nowhere else references this, don't warn about it.
 	{&keyword_unused,		nondefaultkeyword, "unused",	"Keyword: unused",		"Disables the 'unused' keyword. 'unused' means that the variable is unused, you're aware that its unused, and you'd rather not know about all the warnings this results in."},
@@ -4335,6 +4335,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
 				keyword_integer = keyword_enumflags = false;
 				keyword_float = keyword_int = keyword_typedef = keyword_struct = keyword_union = keyword_enum = true;
+				keyword_double = keyword_long = keyword_short = keyword_char = keyword_signed = keyword_unsigned = true;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 
 				keyword_integer = true;

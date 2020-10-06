@@ -2013,11 +2013,7 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		else
 			model = NULL;
 		if (model && model->type == mod_alias)
-		{
-			ang[0]*=r_meshpitch.value;
-			AngleVectors(ang, axis[0], axis[1], axis[2]);
-			ang[0]*=r_meshpitch.value;
-		}
+			AngleVectorsMesh(ang, axis[0], axis[1], axis[2]);
 		else
 			AngleVectors(ang, axis[0], axis[1], axis[2]);
 		VectorInverse(axis[1]);
@@ -2160,10 +2156,8 @@ entity_t *V_AddEntity(entity_t *in)
 
 	*ent = *in;
 
-	ent->angles[0]*=r_meshpitch.value;
-	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	AngleVectorsMesh(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
-	ent->angles[0]*=r_meshpitch.value;
 
 	return ent;
 }
@@ -2190,10 +2184,8 @@ void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 
 	ent->framestate.g[FS_REG].lerpfrac = back;
 
-	ent->angles[0]*=r_meshpitch.value;
-	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	AngleVectorsMesh(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
-	ent->angles[0]*=r_meshpitch.value;
 }
 */
 int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b)
@@ -3333,10 +3325,8 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 
 			//figure out the correct axis for the model
 			if (clmodel && clmodel->type == mod_alias && (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE))
-			{	//q2 is fixed, but q1 pitches the wrong way
-				stat->state.angles[0]*=r_meshpitch.value;
-				AngleVectors(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
-				stat->state.angles[0]*=r_meshpitch.value;
+			{	//q2 is fixed, but q1 pitches the wrong way, and hexen2 rolls the wrong way too.
+				AngleVectorsMesh(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
 			}
 			else
 				AngleVectors(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
@@ -4072,8 +4062,9 @@ void CL_LinkPacketEntities (void)
 			{
 				VectorCopy(le->angles, angles);
 				//if (model && model->type == mod_alias)
-					angles[0]*=r_meshpitch.value;	//pflags matches alias models.
-				AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+					AngleVectorsMesh(angles, dl->axis[0], dl->axis[1], dl->axis[2]);	//pflags matches alias models.
+				//else
+				//	AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 				VectorInverse(dl->axis[1]);
 				R_LoadNumberedLightTexture(dl, state->skinnum);
 			}
@@ -4333,10 +4324,8 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-		if (model && model->type == mod_alias)
-			angles[0]*=r_meshpitch.value;	//carmack screwed up when he added alias models - they pitch the wrong way.
 		VectorCopy(angles, ent->angles);
-		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		AngleVectorsMesh(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
 		/*if this entity is in a player's slot...*/
@@ -4578,10 +4567,8 @@ void CL_LinkProjectiles (void)
 		VectorCopy (pr->origin, ent->origin);
 		VectorCopy (pr->angles, ent->angles);
 
-		ent->angles[0]*=r_meshpitch.value;
-		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		AngleVectorsMesh(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
-		ent->angles[0]*=r_meshpitch.value;
 	}
 }
 
@@ -5110,8 +5097,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	newent->angles[2] -= 45;
 
 	VectorCopy(newent->angles, angles);
-	angles[0]*=r_meshpitch.value;
-	AngleVectors(angles, newent->axis[0], newent->axis[1], newent->axis[2]);
+	AngleVectorsMesh(angles, newent->axis[0], newent->axis[1], newent->axis[2]);
 	VectorInverse(newent->axis[1]);
 }
 
@@ -5369,7 +5355,10 @@ void CL_LinkPlayers (void)
 		}
 
 		if (model && model->type == mod_alias)
+		{
 			angles[0]*=r_meshpitch.value;	//carmack screwed up when he added alias models - they pitch the wrong way.
+			angles[2]*=r_meshroll.value;	//hexen2 screwed it up even more - they roll the wrong way.
+		}
 		VectorCopy(angles, ent->angles);
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
@@ -5707,6 +5696,7 @@ void CL_SetSolidEntities (void)
 			pent->model = mod;
 			VectorCopy (state->angles, pent->angles);
 			pent->angles[0]*=r_meshpitch.value;
+			pent->angles[2]*=r_meshroll.value;
 		}
 		else
 		{

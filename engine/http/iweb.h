@@ -148,6 +148,14 @@ struct dl_download *DL_Create(const char *url);
 qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyFunction)(struct dl_download *dl));
 void DL_Close(struct dl_download *dl);
 void DL_DeThread(void);
+
+//internal 'http' error codes.
+#define HTTP_DNSFAILURE	900	//no ip known
+#define HTTP_NORESPONSE	901	//tcp failure
+#define HTTP_EOF		902	//unexpected eof
+#define HTTP_MITM		903	//wrong cert
+#define HTTP_UNTRUSTED	904	//unverifiable cert
+
 #endif
 
 #endif

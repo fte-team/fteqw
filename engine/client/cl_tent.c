@@ -2496,6 +2496,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t 
 		else
 			ex->angles[1] = 0;
 		ex->angles[0]*=r_meshpitch.value;
+		ex->angles[2]*=r_meshroll.value;
 	}
 
 
@@ -3205,6 +3206,7 @@ void CL_UpdateExplosions (void)
 		VectorCopy (ex->angles, ent->angles);
 		ent->skinnum = ex->skinnum;
 		ent->angles[0]*=r_meshpitch.value;
+		ent->angles[2]*=r_meshroll.value;
 		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 		ent->model = ex->model;

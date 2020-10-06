@@ -1310,6 +1310,7 @@ int main (int c, const char **v)
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 
+#ifdef HAVE_SERVER
 		if (isDedicated)
 		{
 			sleeptime = SV_Frame();
@@ -1317,6 +1318,7 @@ int main (int c, const char **v)
 			NET_Sleep(sleeptime, noconinput?false:true);
 		}
 		else
+#endif
 		{
 			sleeptime = Host_Frame(time);
 			oldtime = newtime;

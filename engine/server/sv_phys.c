@@ -151,6 +151,7 @@ SV_CheckVelocity
 void WPhys_CheckVelocity (world_t *w, wedict_t *ent)
 {
 	int		i;
+#ifdef HAVE_SERVER
 	extern cvar_t sv_nqplayerphysics;
 
 	if (sv_nqplayerphysics.ival)
@@ -175,6 +176,7 @@ void WPhys_CheckVelocity (world_t *w, wedict_t *ent)
 		}
 	}
 	else
+#endif
 	{	//bound radially (for sanity)
 		for (i=0 ; i<3 ; i++)
 		{

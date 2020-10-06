@@ -323,8 +323,7 @@ float World_changeyaw (wedict_t *ent)
 		vec3_t vang;
 
 		/*calc current view matrix relative to the surface*/
-		ent->v->angles[PITCH] *= r_meshpitch.value;
-		AngleVectors(ent->v->angles, view[0], view[1], view[2]);
+		AngleVectorsMesh(ent->v->angles, view[0], view[1], view[2]);
 		VectorNegate(view[1], view[1]);
 
 		World_GetEntGravityAxis(ent, surf);

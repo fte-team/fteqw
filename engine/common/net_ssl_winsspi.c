@@ -229,7 +229,7 @@ static int SSPI_CheckNewInCrypt(sslfile_t *f)
 {
 	int newd;
 	if (!f->stream)
-		return -1;
+		return VFS_ERROR_EOF;
 	newd = VFS_READ(f->stream, f->incrypt.data+f->incrypt.avail, f->incrypt.datasize - f->incrypt.avail);
 	if (newd < 0)
 		return newd;

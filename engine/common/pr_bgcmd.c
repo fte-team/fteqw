@@ -6334,9 +6334,7 @@ void QCBUILTIN PF_rotatevectorsbyangles (pubprogfuncs_t *prinst, struct globalva
 
 	float *ang = G_VECTOR(OFS_PARM0);
 	vec3_t src[3], trans[3], res[3];
-	ang[0]*=r_meshpitch.value;
-	AngleVectors(ang, trans[0], trans[1], trans[2]);
-	ang[0]*=r_meshpitch.value;
+	AngleVectorsMesh(ang, trans[0], trans[1], trans[2]);
 	VectorInverse(trans[1]);
 
 	VectorCopy(w->g.v_forward, src[0]);

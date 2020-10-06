@@ -369,18 +369,21 @@ showhelp:
 
 			// print cvar list header
 			if (!(listflags & CLF_RAW) && !num)
-				Con_TPrintf("CVar list:\n");
+				Con_TPrintf("^aCVar list:\n");
 
 			// print group header
 			if (!(listflags & CLF_RAW) && !gnum)
-				Con_Printf("%s --\n", grp->name);
+				Con_Printf("^a%s --\n", grp->name);
 
 			// print restriction level
 			if (listflags & CLF_LEVEL)
 				Con_Printf("(%i) ", cmd->restriction);
 
 			// print cvar name
-			Con_Printf("%s", cmd->name);
+			if (!cmd->defaultstr || !strcmp(cmd->string, cmd->defaultstr))
+				Con_Printf(S_COLOR_GREEN "%s", cmd->name);
+			else
+				Con_Printf(S_COLOR_RED "%s", cmd->name);
 			total++;
 
 			// print current value

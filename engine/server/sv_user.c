@@ -38,7 +38,9 @@ void QDECL SV_NQPhysicsUpdate(cvar_t *var, char *oldvalue)
 {
 	if (!strcmp(var->string, "auto") || !strcmp(var->string, ""))
 	{	//prediction requires nq physics, so use it by default in multiplayer.
-		if (progstype <= PROG_QW || (!isDedicated &&  sv.allocated_client_slots > 1))
+		if (	progstype <= PROG_QW ||	//none or qw use qw physics by default
+				(!isDedicated &&  sv.allocated_client_slots > 1) ||	//multiplayer dedicated servers use qw physics for nq mods too. server admins are expected to be able to spend a little more time to configure things properly.
+				(svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY)))	//mods that use explicit custom player physics/pred ALWAYS want qw physics (just hope noone forces it off)
 			var->ival = 0;
 		else
 			var->ival = 1;
@@ -68,7 +70,7 @@ cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The inter
 #endif
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
-cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "", "Specifies the default protocol to use for new NQ clients. This is only relevent for clients that do not report their supported protocols. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
+cvar_t	sv_protocol_nq			= CVARD("sv_protocol_nq", "", "Specifies the default protocol to use for new NQ clients. This is only relevent for clients that do not report their supported protocols. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
 
 cvar_t	sv_minpitch		 = CVARAFD("minpitch", "",	"sv_minpitch", CVAR_SERVERINFO, "Assumed to be -70");
 cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "",	"sv_maxpitch", CVAR_SERVERINFO, "Assumed to be 80");
@@ -1224,7 +1226,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			if (client->fteprotocolextensions & PEXT_SOUNDDBL)
 				maxclientsupportedsounds = MAX_PRECACHE_SOUNDS;
 #endif
-#ifdef PEXT_SOUNDDBL
+#ifdef PEXT2_REPLACEMENTDELTAS
 			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 				maxclientsupportedsounds = MAX_PRECACHE_SOUNDS;
 #endif
@@ -6154,12 +6156,12 @@ void SV_Pext_f(void)
 		}
 	}
 
+	SV_ClientProtocolExtensionsChanged(host_client);
+
 	if (!host_client->supportedprotocols && Cmd_Argc() == 1)
 		Con_DPrintf("%s reports no extended capabilities.\n", host_client->name);
 	else
 		Con_DPrintf("%s now using pext: %x, %x, %x\n", host_client->name, host_client->fteprotocolextensions, host_client->fteprotocolextensions2, host_client->ezprotocolextensions1);
-
-	SV_ClientProtocolExtensionsChanged(host_client);
 
 #ifdef NQPROT
 	if (ISNQCLIENT(host_client))

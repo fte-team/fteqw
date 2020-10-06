@@ -4803,11 +4803,7 @@ static void CL_ParseStaticProt (int baselinetype)
 	VectorCopy (es.origin, ent->origin);
 	VectorCopy (es.angles, ent->angles);
 	if (ent->model && ent->model->type == mod_alias)
-	{
-		es.angles[0]*=r_meshpitch.value;
-		AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
-		es.angles[0]*=r_meshpitch.value;
-	}
+		AngleVectorsMesh(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	else
 		AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);

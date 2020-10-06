@@ -510,6 +510,26 @@ static void ExpandBuffer(struct http_dl_ctx_s *con, int quant)
 	con->bufferlen = newlen;
 }
 
+static int VFSError_To_HTTP(int vfserr)
+{
+	switch(vfserr)
+	{
+	case VFS_ERROR_TRYLATER:
+		return 0;
+	default:
+	case VFS_ERROR_UNSPECIFIED:
+		return 0;	//don't know, no reason given.
+	case VFS_ERROR_EOF:
+		return HTTP_EOF;
+	case VFS_ERROR_DNSFAILURE:
+		return HTTP_DNSFAILURE;
+	case VFS_ERROR_WRONGCERT:
+		return HTTP_MITM;
+	case VFS_ERROR_UNTRUSTED:
+		return HTTP_UNTRUSTED;
+	}
+}
+
 static qboolean HTTP_DL_Work(struct dl_download *dl)
 {
 	struct http_dl_ctx_s *con = dl->ctx;
@@ -549,7 +569,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (!ammount)
 			return true;
 		if (ammount < 0)
+		{
+			dl->status = DL_FAILED;
+			dl->replycode = VFSError_To_HTTP(ammount);
 			return false;
+		}
 #else
 		ammount = send(con->sock, con->buffer, con->bufferused, 0);
 
@@ -579,7 +603,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (!ammount)
 			return true;
 		if (ammount < 0)
+		{
+			dl->status = DL_FAILED;
+			dl->replycode = VFSError_To_HTTP(ammount);
 			return false;
+		}
 #else
 		ammount = recv(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15, 0);
 		if (!ammount)

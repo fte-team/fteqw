@@ -163,7 +163,7 @@ cvar_t	sv_csqc_progname	= CVARAF("sv_csqc_progname", "csprogs.dat", /*dp*/"csqc_
 cvar_t pausable				= CVAR("pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
-
+cvar_t	sv_protocol				= CVARD("sv_protocol", "", "Specifies which protocol extensions to force. recognised values: csqc");
 
 //
 // game rules mirrored in svs.info
@@ -1944,6 +1944,56 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	int maxpacketentities;
 	extern cvar_t pr_maxedicts;
 	client_t *seat;
+
+	extern cvar_t sv_protocol;
+	char *s = sv_protocol.string;
+	while ((s = COM_Parse(s)))
+	{
+		if (!strcasecmp(com_token, "fte2"))
+		{	//fancy stuff
+			client->fteprotocolextensions
+					|= PEXT_CSQC				/*mods break without*/
+					 | PEXT_CHUNKEDDOWNLOADS	/*much faster downloads+redirects*/
+					 ;
+			client->fteprotocolextensions2
+					|= PEXT2_PRYDONCURSOR		/*mods might break without*/
+//					 | PEXT2_VOICECHAT			/*entirely optional*/
+					 | PEXT2_SETANGLEDELTA		/*mostly just nice to have*/
+					 | PEXT2_REPLACEMENTDELTAS	/*carries quite a bit of extra info*/
+					 | PEXT2_MAXPLAYERS			/*not supporting the extra players is bad*/
+					 | PEXT2_PREDINFO			/*fixes some repdelta issues (especially for nq)*/
+					 | PEXT2_NEWSIZEENCODING	/*more accurate sizes, for awkward mods*/
+					 | PEXT2_INFOBLOBS			/*allows mods to send infoblobs to csqc (for avatar images or whatever)*/
+					 ;
+		}
+		if (!strcasecmp(com_token, "fte1"))
+		{	//older stuff. most of this was replaced by replacementdeltas.
+			client->fteprotocolextensions
+					|= PEXT_SETVIEW
+					 | PEXT_SCALE
+					 | PEXT_TRANS
+					 | PEXT_ACCURATETIMINGS
+					 | PEXT_SOUNDDBL
+					 | PEXT_MODELDBL
+					 | PEXT_ENTITYDBL
+					 | PEXT_ENTITYDBL2
+					 | PEXT_FLOATCOORDS
+					 | PEXT_COLOURMOD
+					 | PEXT_SPAWNSTATIC2
+					 | PEXT_256PACKETENTITIES
+					 | PEXT_SETATTACHMENT
+					 | PEXT_CHUNKEDDOWNLOADS
+					 | PEXT_CSQC
+					 | PEXT_DPFLAGS
+					 ;
+		}
+		if (!strcasecmp(com_token, "csqc"))
+		{	//JUST csqc.
+			client->fteprotocolextensions
+					|= PEXT_CSQC
+					;
+		}
+	}
 
 	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client));
 	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client));
@@ -5408,6 +5458,7 @@ void SV_InitLocal (void)
 	if (isDedicated)
 		sv_public.enginevalue = "1";
 
+	Cvar_Register (&sv_protocol,	cvargroup_servercontrol);
 	Cvar_Register (&sv_guidhash,	cvargroup_servercontrol);
 	Cvar_Register (&sv_serverip,	cvargroup_servercontrol);
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);

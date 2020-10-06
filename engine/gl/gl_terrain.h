@@ -271,18 +271,27 @@ typedef struct
 	struct patchdata_s
 	{	//unlit, always...
 		brushtex_t *tex;
-		unsigned short xpoints;
-		unsigned short ypoints;
-		struct
+		unsigned short numcp[2];
+		short subdiv[2];	//<0=regular q3 patch, 0=cp-only, >0=fixed-tessellation.
+
+		unsigned short tesssize[2];
+		struct patchtessvert_s
 		{
 			vec3_t v;
 			vec2_t tc;
 			vec4_t rgba;
+//			vec3_t norm;
+//			vec3_t sdir;
+//			vec3_t tdir;
+		} *tessvert; //x+(y*tesssize[0])
 
-			vec3_t norm;
-			vec3_t sdir;
-			vec3_t tdir;
-		} verts[1]; //x+(y*xpoints)
+		//control points
+		struct patchcpvert_s
+		{
+			vec3_t v;
+			vec2_t tc;
+			vec4_t rgba;
+		} cp[1]; //x+(y*numcp[0]) extends past end of patchdata_s
 	} *patch;	//if this is NULL, then its a regular brush. otherwise its a patch.
 	struct brushface_s
 	{

@@ -2397,18 +2397,6 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 		"Demoness"
 	};
 
-	if (pv->sb_hexen2_infoplaque)
-	{
-		int i;
-		Con_Printf("Objectives:\n");
-		for (i = 0; i < 64; i++)
-		{
-			if (pv->stats[STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
-				Con_Printf("%s\n", T_GetInfoString(i));
-		}
-		pv->sb_hexen2_infoplaque = false;
-	}
-
 	if (!pv->sb_hexen2_extra_info)
 	{
 		sbar_rect.y -= 46-SBAR_HEIGHT;
@@ -2877,6 +2865,19 @@ void Sbar_Draw (playerview_t *pv)
 	if (sbar_hexen2)
 	{
 		//hexen2 hud
+
+		if (pv->sb_hexen2_infoplaque)
+		{
+			int i;
+			Con_Printf("Objectives:\n");
+			for (i = 0; i < 64; i++)
+			{
+				if (pv->stats[STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
+					Con_Printf("%s\n", T_GetInfoString(i));
+			}
+			pv->sb_hexen2_infoplaque = false;
+		}
+
 		if (sb_lines > 24 || pv->sb_hexen2_extra_info)
 		{
 			Sbar_Hexen2DrawExtra(pv);

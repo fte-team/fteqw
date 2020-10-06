@@ -580,6 +580,14 @@ typedef struct vfsfile_s
 #endif
 } vfsfile_t;
 
+#define VFS_ERROR_TRYLATER		0	//nothing to write/read yet.
+#define VFS_ERROR_UNSPECIFIED	-1	//no reason given
+#define VFS_ERROR_NORESPONSE	-2	//no reason given
+#define VFS_ERROR_EOF			-3	//no reason given
+#define VFS_ERROR_DNSFAILURE	-4	//weird one, but oh well
+#define VFS_ERROR_WRONGCERT		-5	//server gave a certificate with the wrong name
+#define VFS_ERROR_UNTRUSTED		-6	//server gave a certificate with the right name, but we don't have a full chain of trust
+
 #define VFS_CLOSE(vf) ((vf)->Close(vf))
 #define VFS_TELL(vf) ((vf)->Tell(vf))
 #define VFS_GETLEN(vf) ((vf)->GetLen(vf))

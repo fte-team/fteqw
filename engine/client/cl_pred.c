@@ -1425,6 +1425,7 @@ void CL_PredictMovePNum (int seat)
 			if (pv->pmovetype != PM_6DOF)
 				le->angles[0] *= 0.333;
 			le->angles[0] *= r_meshpitch.value;
+			le->angles[2] *= r_meshroll.value;
 		}
 	}
 

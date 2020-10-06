@@ -319,23 +319,33 @@ if [ "$BUILD_LINUXx86" != "n" ]; then
 	fi
 
 	if [ -e $BUILDFOLDER/linux_x86/fteqcc32 ]; then
-		echo "Making csaddon + qcmenu"
 		mkdir -p $BUILDFOLDER/csaddon/
 		cd $SVNROOT/quakec
 		cd csaddon/src
+		echo -n "Making csaddon... "
 		$BUILDFOLDER/linux_x86/fteqcc32 -srcfile csaddon.src > $BUILDLOGFOLDER/csaddon.txt
-		cp ../csaddon.dat $BUILDFOLDER/csaddon/
-		cd ..
-		zip -9 $BUILDFOLDER/csaddon/csaddon.pk3 csaddon.dat
+		if [ $? -eq 0 ]; then
+			echo "done"
+			cp ../csaddon.dat $BUILDFOLDER/csaddon/
+			cd ..
+			zip -9 $BUILDFOLDER/csaddon/csaddon.pk3 csaddon.dat
+		else
+			echo "failed"
+		fi
 
 		cd $SVNROOT/quakec
 		cd menusys
+		echo -n "Making menusys... "
 		$BUILDFOLDER/linux_x86/fteqcc32 -srcfile menu.src > $BUILDLOGFOLDER/menu.txt
-		rm -f fteqcc.log
-		zip -q -9 -o -r $BUILDFOLDER/csaddon/menusys_src.zip .
-		cp ../menu.dat $BUILDFOLDER/csaddon/
-		cd ..
-		zip -9 $BUILDFOLDER/csaddon/menusys.pk3 menu.dat
+		if [ $? -eq 0 ]; then
+			echo "done"
+			zip -q -9 -o -r $BUILDFOLDER/csaddon/menusys_src.zip .
+			cp ../menu.dat $BUILDFOLDER/csaddon/
+			cd ..
+			zip -9 $BUILDFOLDER/csaddon/menusys.pk3 menu.dat
+		else
+			echo "failed"
+		fi
 	else
 		echo "Skiping csaddon + qcmenu, no compiler build"
 	fi

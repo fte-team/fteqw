@@ -2233,7 +2233,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 	for (i = 0; i < numdownloadablelists; i++)
 	{
 		if (downloadablelist[i].status == SRCSTAT_PENDING)
-			downloadablelist[i].status = SRCSTAT_FAILED;
+			downloadablelist[i].status = SRCSTAT_FAILED_DNS;
 	}
 #else
 	doautoupdate |= autoupdate;
@@ -3533,7 +3533,7 @@ static void PM_PromptApplyChanges(void)
 	}
 }
 #endif
-#ifdef HAVE_CLIENT
+#if defined(HAVE_CLIENT) && defined(WEBCLIENT)
 static void PM_AddSubList_Callback(void *ctx, promptbutton_t opt)
 {
 	if (opt == PROMPT_YES)
@@ -4563,7 +4563,9 @@ static void MD_Source_Draw (int x, int y, struct menucustom_s *c, struct emenu_s
 		break;
 	case SRCSTAT_FAILED_DNS:
 		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
+#ifdef WEBCLIENT
 		Draw_FunStringWidth (x, y, "DNS", 48, 2, false);
+#endif
 		break;
 	case SRCSTAT_FAILED_NORESP:
 		Draw_FunStringWidth (x, y, "^&0E  ", 48, 2, false);	//yellow
@@ -4810,12 +4812,13 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 static void MD_Download_UpdateStatus(struct emenu_s *m)
 {
 	dlmenu_t *info = m->data;
-	int i, y;
+	int y;
 	package_t *p;
 	unsigned int totalpackages=0, selectedpackages=0, addpackages=0, rempackages=0;
 	menuoption_t *si;
 	menubutton_t *b, *d;
 #ifdef WEBCLIENT
+	int i;
 	unsigned int downloads=0;
 	menucustom_t *c;
 #endif

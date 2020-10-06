@@ -7962,7 +7962,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 	//patch info
 	brushtex_t *patch_tex=NULL;
-	int	patchsz[2], patchsubdiv[2];
+	int	patchsz[2]={0,0}, patchsubdiv[2]={-1,-1};
 	qcpatchvert_t patch_v[64][64];
 
 #ifdef RUNTIMELIGHTING

@@ -90,7 +90,7 @@ static void QDECL FSVPK_ClosePath(searchpathfuncs_t *handle)
 	for (i = 0; i < pak->numfragments; i++)
 	{
 		if (pak->fragments[i])
-			pak->fragments[i]->Close(pak->fragments[i]);
+			pak->fragments[i]->pub.ClosePath(&pak->fragments[i]->pub);
 		pak->fragments[i] = NULL;
 	}
 	Z_Free(pak->fragments);
@@ -188,27 +188,34 @@ typedef struct {
 static int QDECL VFSVPK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
 {
 	vfsvpk_t *vfsp = (void*)vfs;
-	int read;
+	int read, preread;
 
 	if (bytestoread <= 0)
 		return 0;
 
 	if (vfsp->currentpos < vfsp->preloadsize)
 	{
-		read = bytestoread;
-		if (read > vfsp->preloadsize-vfsp->currentpos)
-			read = vfsp->preloadsize-vfsp->currentpos;
-		memcpy(buffer, vfsp->preloaddata, read);
-		vfsp->currentpos += read;
-		if (read == bytestoread)
-			return read;	//we're done, no need to seek etc
-		bytestoread -= read;
+		preread = bytestoread;
+		if (preread > vfsp->preloadsize-vfsp->currentpos)
+			preread = vfsp->preloadsize-vfsp->currentpos;
+		if (preread < 0)
+			return -1;	//erk...
+		memcpy(buffer, vfsp->preloaddata+vfsp->currentpos, preread);
+		vfsp->currentpos += preread;
+		if (preread == bytestoread)
+			return preread;	//we're done, no need to seek etc
+		bytestoread -= preread;
+		buffer = (char*)buffer+preread;
 	}
+	else
+		preread = 0;
 
-	if (vfsp->currentpos-vfsp->preloadsize + bytestoread > vfsp->length)
-		bytestoread = vfsp->length - (vfsp->currentpos-vfsp->preloadsize);
+	if (vfsp->currentpos + bytestoread > vfsp->length)
+		bytestoread = vfsp->length - vfsp->currentpos;
 	if (bytestoread <= 0)
 	{
+		if (preread)
+			return preread;
 		return -1;
 	}
 
@@ -218,12 +225,17 @@ static int QDECL VFSVPK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int byte
 			VFS_SEEK(vfsp->parentpak->handle, vfsp->startpos+vfsp->currentpos-vfsp->preloadsize);
 		read = VFS_READ(vfsp->parentpak->handle, buffer, bytestoread);
 		if (read > 0)
+		{
 			vfsp->currentpos += read;
+			read += preread;
+		}
+		else if (preread)
+			read = preread;
 		vfsp->parentpak->filepos = vfsp->startpos+vfsp->currentpos-vfsp->preloadsize;
 		Sys_UnlockMutex(vfsp->parentpak->mutex);
 	}
 	else
-		read = 0;
+		read = preread;
 
 	return read;
 }
@@ -237,14 +249,14 @@ static qboolean QDECL VFSVPK_Seek (struct vfsfile_s *vfs, qofs_t pos)
 	vfsvpk_t *vfsp = (void*)vfs;
 	if (pos > vfsp->length)
 		return false;
-	vfsp->currentpos = pos + vfsp->startpos;
+	vfsp->currentpos = pos;// + vfsp->startpos;
 
 	return true;
 }
 static qofs_t QDECL VFSVPK_Tell (struct vfsfile_s *vfs)
 {
 	vfsvpk_t *vfsp = (void*)vfs;
-	return vfsp->currentpos - vfsp->startpos;
+	return vfsp->currentpos;// - vfsp->startpos;
 }
 static qofs_t QDECL VFSVPK_GetLen (struct vfsfile_s *vfs)
 {
@@ -293,7 +305,7 @@ static vfsfile_t *QDECL FSVPK_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 
 #ifdef _DEBUG
 	{
-		mpackfile_t *pf = loc->fhandle;
+		mvpkfile_t *pf = loc->fhandle;
 		Q_strncpyz(vfs->funcs.dbgname, pf->name, sizeof(vfs->funcs.dbgname));
 	}
 #endif
@@ -430,8 +442,8 @@ searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 	i = LittleLong(header.version);
 	if (i == 2)
 		;//VFS_SEEK(packhandle, 7*sizeof(int));
-//	else if (i == 1)
-//		VFS_SEEK(packhandle, 3*sizeof(int));
+	else if (i == 1)
+		VFS_SEEK(packhandle, 3*sizeof(int));
 	else
 	{
 		Con_Printf("vpk %s is version %x (unspported)\n", desc, i);

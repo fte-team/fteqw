@@ -5511,10 +5511,21 @@ void GLBE_SubmitMeshes (batch_t **worldbatches, int start, int stop)
 	}
 }
 
+#if (defined(GLQUAKE) || defined(VKQUAKE)) && defined(MULTITHREAD)
+#define THREADEDWORLD
+#endif
+
 void GLBE_UpdateLightmaps(void)
 {
 	lightmapinfo_t *lm;
 	int lmidx;
+
+#ifdef THREADEDWORLD
+	extern int webo_blocklightmapupdates;
+	if (webo_blocklightmapupdates == 3)
+		return;	//we've not had a new scene to render yet. don't bother uploading while something's still painting, its going to be redundant.
+	webo_blocklightmapupdates |= 2;	//FIXME: round-robin it? one lightmap per frame?
+#endif
 
 	for (lmidx = 0; lmidx < numlightmaps; lmidx++)
 	{

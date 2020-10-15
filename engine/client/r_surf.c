@@ -3035,6 +3035,7 @@ struct webostate_s
 static struct webostate_s *webostates;
 static struct webostate_s *webogenerating;
 static int webogeneratingstate;	//1 if generating, 0 if not, for waiting for sync.
+int webo_blocklightmapupdates;	//0 no webo, &1=using threadedworld, &2=already uploaded.
 static void R_DestroyWorldEBO(struct webostate_s *es)
 {
 	if (!es)
@@ -3063,6 +3064,7 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 	webostates = webostate;
 	webogenerating = NULL;
 	webogeneratingstate = 0;
+	webo_blocklightmapupdates = 1;
 	mod = webostate->wmodel;
 
 	webostate->lastvalid = cls.framecount;
@@ -3661,6 +3663,7 @@ void Surf_DeInit(void)
 	int i;
 
 #ifdef THREADEDWORLD
+	webo_blocklightmapupdates = 0;
 	while(webogenerating)
 		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 	while (webostates)
@@ -3870,6 +3873,10 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 	unsigned int pixbytes, pixw, pixh, pixd;
 	unsigned int dpixbytes, dpixw, dpixh, dpixd;
 	uploadfmt_t dfmt;
+#ifdef THREADEDWORLD
+	extern int webo_blocklightmapupdates;
+	webo_blocklightmapupdates = 0;
+#endif
 
 	if (!count)
 		return -1;
@@ -3993,6 +4000,11 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 	int i;
 	char nname[MAX_QPATH];
 	qboolean odd = (count & 1) && deluxe;
+
+#ifdef THREADEDWORLD
+	extern int webo_blocklightmapupdates;
+	webo_blocklightmapupdates = 0;
+#endif
 
 	if (!count)
 		return -1;

@@ -619,9 +619,9 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 
 	sh_shadowframe++;
 
-	if (!mod || mod->loadstate != MLS_LOADED || mod->type != mod_brush)
-	{
-	}
+	if (!mod || mod->loadstate != MLS_LOADED)
+		return;
+
 #ifdef Q1BSPS
 	else if (mod->fromgame == fg_quake || mod->fromgame == fg_halflife)
 		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);

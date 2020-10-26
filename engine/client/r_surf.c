@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if (defined(GLQUAKE) || defined(VKQUAKE)) && defined(MULTITHREAD)
 #define THREADEDWORLD
 int webo_blocklightmapupdates;	//0 no webo, &1=using threadedworld, &2=already uploaded. so update when !=3
+#else
+#define webo_blocklightmapupdates 0
 #endif
 #ifdef BEF_PUSHDEPTH
 qboolean r_pushdepth;

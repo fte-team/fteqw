@@ -3151,8 +3151,10 @@ void Mod_LoadAliasShaders(model_t *mod)
 		if (!ruleset_allow_sensitive_texture_replacements.ival)
 			imageflags |= IF_NOREPLACE;
 	}
+#ifdef MD1MODELS
 	if (mod->fromgame == fg_quake && mod_nomipmap.ival)
 		imageflags |= IF_NOMIPMAP;
+#endif
 
 	slash = COM_SkipPath(mod->name);
 	if (slash != mod->name && slash-mod->name < sizeof(alttexpath))
